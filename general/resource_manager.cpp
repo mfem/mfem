@@ -480,11 +480,8 @@ void MemoryManager::Configure(MemoryType host_loc, MemoryType device_loc,
    UpdateDualMemoryType(device_loc, host_loc);
 }
 
-MemoryManager::~MemoryManager() { Destroy(); }
-
-void MemoryManager::Destroy()
+MemoryManager::~MemoryManager()
 {
-   // TODO: unregistered host pointers need to be supported somehow
    for (auto &seg : storage.segments)
    {
       if (seg.ref_count)
@@ -511,6 +508,59 @@ void MemoryManager::Destroy()
          allocs_storage[i]->Clear();
       }
    }
+}
+
+void MemoryManager::Destroy()
+{
+   for (auto &seg : storage.segments)
+   {
+      if (seg.ref_count)
+      {
+         if (seg.flag & RBase::Segment::Flags::OWN_HOST)
+         {
+            switch (seg.mtypes[0])
+            {
+               case MemoryType::HOST_PINNED:
+                  [[fallthrough]];
+               case MemoryType::MANAGED:
+                  [[fallthrough]];
+               case MemoryType::DEVICE:
+                  [[fallthrough]];
+               case MemoryType::DEVICE_UMPIRE:
+                  [[fallthrough]];
+               case MemoryType::DEVICE_UMPIRE_2:
+                  Dealloc(seg.lowers[0], seg.mtypes[0],
+                          seg.flag & RBase::Segment::Flags::TEMPORARY);
+                  clear_segment(seg, true);
+                  seg.lowers[0] = nullptr;
+                  seg.mtypes[0] = MemoryType::DEFAULT;
+                  seg.set_owns_host(false);
+                  break;
+               default:
+                  // don't delete right now
+                  break;
+            }
+         }
+         if (seg.flag & RBase::Segment::Flags::OWN_DEVICE)
+         {
+            Dealloc(seg.lowers[1], seg.mtypes[1],
+                    seg.flag & RBase::Segment::Flags::TEMPORARY);
+            clear_segment(seg, true);
+            seg.lowers[1] = nullptr;
+            seg.mtypes[1] = MemoryType::DEFAULT;
+            seg.set_owns_device(false);
+         }
+      }
+   }
+   // temporary device allocators need to have Clear called
+#if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
+   // HOST_PINNED
+   allocs_storage[5]->Clear();
+   // MANAGED
+   allocs_storage[7]->Clear();
+   // DEVICE
+   allocs_storage[9]->Clear();
+#endif
 }
 
 void MemoryManager::Dealloc(char *ptr, MemoryType type, bool temporary)
@@ -971,9 +1021,8 @@ size_t MemoryManager::insert(char *hptr, char *dptr, size_t nbytes,
    return storage.segments.size();
 }
 
-void MemoryManager::clear_segment(size_t segment)
+void MemoryManager::clear_segment(RBase::Segment &seg)
 {
-   auto &seg = storage.get_segment(segment);
    // cleanup nodes
    for (int i = 0; i < 2; ++i)
    {
@@ -988,9 +1037,14 @@ void MemoryManager::clear_segment(size_t segment)
    storage.cleanup_nodes();
 }
 
-void MemoryManager::clear_segment(size_t segment, bool on_device)
+void MemoryManager::clear_segment(size_t segment)
 {
    auto &seg = storage.get_segment(segment);
+   clear_segment(seg);
+}
+
+void MemoryManager::clear_segment(RBase::Segment& seg, bool on_device)
+{
    // cleanup nodes
    storage.visit(
    seg.roots[on_device], [](size_t) { return true; },
@@ -1002,6 +1056,12 @@ void MemoryManager::clear_segment(size_t segment, bool on_device)
    });
    storage.cleanup_nodes();
    seg.roots[on_device] = 0;
+}
+
+void MemoryManager::clear_segment(size_t segment, bool on_device)
+{
+   auto &seg = storage.get_segment(segment);
+   clear_segment(seg, on_device);
 }
 
 void MemoryManager::erase(size_t segment)

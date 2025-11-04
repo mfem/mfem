@@ -196,7 +196,9 @@ private:
 
    /// remove all validity markers for a segment
    void clear_segment(size_t segment);
+   void clear_segment(RBase::Segment &seg);
 
+   void clear_segment(RBase::Segment &seg, bool on_device);
    void clear_segment(size_t segment, bool on_device);
 
    size_t find_marker(size_t segment, ptrdiff_t offset, bool on_device);
@@ -314,7 +316,8 @@ public:
    }
    static void SetDualMemoryType(MemoryType mt, MemoryType dual_mt);
 
-   /// Forcibly deletes all allocations and removes all nodes
+   /// Forcibly deletes all device-type allocations (host-pinned, managed, and
+   /// device)
    void Destroy();
 
    static MemoryManager &instance();
