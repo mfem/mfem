@@ -119,6 +119,15 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
          NURBSext, dynamic_cast<ParNURBSExtension *>(pmesh->NURBSext));
       // serial NURBSext is destroyed by the above constructor
       NURBSext = pNe;
+
+      for (int d = 0; d < VNURBSext.Size(); d++)
+      {
+         ParNURBSExtension *pNe = new ParNURBSExtension(
+            VNURBSext[d], dynamic_cast<ParNURBSExtension *>(pmesh->NURBSext));
+         // serial NURBSext is destroyed by the above constructor
+         VNURBSext[d] = pNe;
+      }
+
       UpdateNURBS();
    }
 
@@ -1860,7 +1869,24 @@ void ParFiniteElementSpace::ConstructTrueNURBSDofs()
    // pNURBSext()->ldof_group is for scalar space!
    if (vdim == 1)
    {
-      ldof_group.MakeRef(pNURBSext()->ldof_group);
+      if (VNURBSext.Size() == 0)
+      {
+         ldof_group.MakeRef(pNURBSext()->ldof_group);
+      }
+      else
+      {
+         ldof_group.SetSize(n);
+         int j = 0;
+         for (int d = 0; d < VNURBSext.Size(); d++)
+         {
+            const int *scalar_ldof_group = pNURBSext()->ldof_group;
+            const int slg_size = pNURBSext()->ldof_group.Size();
+            for (int i = 0; i < slg_size; i++, j++)
+            {
+               ldof_group[j] = scalar_ldof_group[i];
+            }
+         }
+      }
    }
    else
    {
