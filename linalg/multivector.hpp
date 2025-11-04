@@ -37,7 +37,7 @@ public:
    using Vector::operator=;
    using Vector::operator();
 
-   MultiVector() : vdim(0), ordering(Ordering::byNODES) {};
+   MultiVector() : vdim(1), ordering(Ordering::byNODES) {};
 
    /// Initialize an empty MultiVector of vdim \p vdim_ with ordering \p ordering_.
    MultiVector(int vdim_, Ordering::Type ordering_);
