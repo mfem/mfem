@@ -43,7 +43,7 @@ protected:
    Ordering::Type ordering;
 
    /// Re-allocate + copy memory. See Array::GrowSize.
-   void GrowSize(int min_num_vectors);
+   void GrowSize(int min_num_vectors, bool update_data);
 
 public:
 
@@ -137,7 +137,7 @@ public:
     * @details If \p num_vectors * \ref GetVDim > \p Vector::Capacity , memory
     * is re-allocated.
     */
-   void SetNumParticles(int num_vectors);
+   void SetNumParticles(int num_vectors, bool update_data=true);
 
 };
 
