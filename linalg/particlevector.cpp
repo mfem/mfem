@@ -30,13 +30,15 @@ ParticleVector::ParticleVector(int vdim_, Ordering::Type ordering_)
 
 }
 
-ParticleVector::ParticleVector(int vdim_, Ordering::Type ordering_, int num_nodes)
+ParticleVector::ParticleVector(int vdim_, Ordering::Type ordering_,
+                               int num_nodes)
    : Vector(num_nodes*vdim_), vdim(vdim_), ordering(ordering_)
 {
    Vector::operator=(0.0);
 }
 
-ParticleVector::ParticleVector(int vdim_, Ordering::Type ordering_, const Vector &vec)
+ParticleVector::ParticleVector(int vdim_, Ordering::Type ordering_,
+                               const Vector &vec)
    : Vector(vec), vdim(vdim_), ordering(ordering_)
 {
    MFEM_ASSERT(vec.Size() % vdim == 0,
@@ -182,7 +184,8 @@ void ParticleVector::DeleteParticles(const Array<int> &indices)
       {
          for (int vd = 0; vd < vdim; vd++)
          {
-            v_list.Append(Ordering::Map<Ordering::byVDIM>(GetNumParticles(), vdim, indices[l],
+            v_list.Append(Ordering::Map<Ordering::byVDIM>(GetNumParticles(), vdim,
+                                                          indices[l],
                                                           vd));
          }
       }
