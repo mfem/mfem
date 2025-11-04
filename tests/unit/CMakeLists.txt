@@ -25,6 +25,7 @@ set(UNIT_TESTS_SRCS
   general/test_arrays_by_name.cpp
   general/test_error.cpp
   general/test_mem.cpp
+  general/test_ordering.cpp
   general/test_text.cpp
   general/test_umpire_mem.cpp
   general/test_zlib.cpp
