@@ -27,9 +27,9 @@ list(APPEND SRCS
   handle.cpp
   matrix.cpp
   mma.cpp
-  multivector.cpp
   ode.cpp
   operator.cpp
+  particlevector.cpp
   solvers.cpp
   sparsemat.cpp
   sparsesmoothers.cpp
@@ -60,9 +60,9 @@ list(APPEND HDRS
   linalg.hpp
   matrix.hpp
   mma.hpp
-  multivector.hpp
   ode.hpp
   operator.hpp
+  particlevector.hpp
   solvers.hpp
   sparsemat.hpp
   sparsesmoothers.hpp

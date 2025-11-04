@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_MULTIVECTOR
-#define MFEM_MULTIVECTOR
+#ifndef MFEM_PARTICLEVECTOR
+#define MFEM_PARTICLEVECTOR
 
 #include "../general/ordering.hpp"
 #include "vector.hpp"
@@ -114,4 +114,4 @@ public:
 } // namespace mfem
 
 
-#endif // MFEM_MULTIVECTOR
+#endif // MFEM_PARTICLEVECTOR
