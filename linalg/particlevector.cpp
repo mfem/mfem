@@ -14,7 +14,7 @@
 namespace mfem
 {
 
-void MultiVector::GrowSize(int min_num_vectors)
+void ParticleVector::GrowSize(int min_num_vectors)
 {
    const int nsize = std::max(min_num_vectors*vdim, 2 * data.Capacity());
    Memory<real_t> p(nsize, data.GetMemoryType());
@@ -24,32 +24,32 @@ void MultiVector::GrowSize(int min_num_vectors)
    data = p;
 }
 
-MultiVector::MultiVector(int vdim_, Ordering::Type ordering_)
-   : MultiVector(vdim_, ordering_, 0)
+ParticleVector::ParticleVector(int vdim_, Ordering::Type ordering_)
+   : ParticleVector(vdim_, ordering_, 0)
 {
 
 }
 
-MultiVector::MultiVector(int vdim_, Ordering::Type ordering_, int num_nodes)
+ParticleVector::ParticleVector(int vdim_, Ordering::Type ordering_, int num_nodes)
    : Vector(num_nodes*vdim_), vdim(vdim_), ordering(ordering_)
 {
    Vector::operator=(0.0);
 }
 
-MultiVector::MultiVector(int vdim_, Ordering::Type ordering_, const Vector &vec)
+ParticleVector::ParticleVector(int vdim_, Ordering::Type ordering_, const Vector &vec)
    : Vector(vec), vdim(vdim_), ordering(ordering_)
 {
    MFEM_ASSERT(vec.Size() % vdim == 0,
                "Incompatible Vector size of " << vec.Size() << " given vdim " << vdim);
 }
 
-void MultiVector::GetVectorValues(int i, Vector &nvals) const
+void ParticleVector::GetValues(int i, Vector &nvals) const
 {
    nvals.SetSize(vdim);
 
    if (ordering == Ordering::byNODES)
    {
-      int nv = GetNumVectors();
+      int nv = GetNumParticles();
       for (int c = 0; c < vdim; c++)
       {
          nvals[c] = Vector::operator[](i+nv*c);
@@ -64,24 +64,24 @@ void MultiVector::GetVectorValues(int i, Vector &nvals) const
    }
 }
 
-void MultiVector::GetVectorRef(int i, Vector &nref)
+void ParticleVector::GetValuesRef(int i, Vector &nref)
 {
    MFEM_ASSERT(ordering == Ordering::byVDIM,
-               "GetVectorRef only valid when ordering byVDIM.");
+               "GetValuesRef only valid when ordering byVDIM.");
 
    nref.MakeRef(*this, i*vdim, vdim);
 }
 
-void MultiVector::GetComponentValues(int vd, Vector &comp)
+void ParticleVector::GetComponents(int vd, Vector &comp)
 {
    int vdim_temp = vdim;
 
    // For byNODES: Treat each component as a vector temporarily
    // For byVDIM:  Treat each vector as a component temporarily
-   vdim = GetNumVectors();
+   vdim = GetNumParticles();
    ordering = ordering == Ordering::byNODES ? Ordering::byVDIM : Ordering::byNODES;
 
-   GetVectorValues(vd, comp);
+   GetValues(vd, comp);
 
    // Reset ordering back to original
    ordering = ordering == Ordering::byNODES ? Ordering::byVDIM : Ordering::byNODES;
@@ -89,18 +89,18 @@ void MultiVector::GetComponentValues(int vd, Vector &comp)
    vdim = vdim_temp;
 }
 
-void MultiVector::GetComponentRef(int vd, Vector &nref)
+void ParticleVector::GetComponentsRef(int vd, Vector &nref)
 {
    MFEM_ASSERT(ordering == Ordering::byNODES,
-               "GetComponentRef only valid when ordering byNODES.");
-   nref.MakeRef(*this, vd*GetNumVectors(), GetNumVectors());
+               "GetComponentsRef only valid when ordering byNODES.");
+   nref.MakeRef(*this, vd*GetNumParticles(), GetNumParticles());
 }
 
-void MultiVector::SetVectorValues(int i, const Vector &nvals)
+void ParticleVector::SetValues(int i, const Vector &nvals)
 {
    if (ordering == Ordering::byNODES)
    {
-      int nv = GetNumVectors();
+      int nv = GetNumParticles();
       for (int c = 0; c < vdim; c++)
       {
          Vector::operator[](i + c*nv) = nvals[c];
@@ -115,16 +115,16 @@ void MultiVector::SetVectorValues(int i, const Vector &nvals)
    }
 }
 
-void MultiVector::SetComponentValues(int vd, const Vector &comp)
+void ParticleVector::SetComponents(int vd, const Vector &comp)
 {
    int vdim_temp = vdim;
 
    // For byNODES: Treat each component as a vector temporarily
    // For byVDIM:  Treat each vector as a component temporarily
-   vdim = GetNumVectors();
+   vdim = GetNumParticles();
    ordering = ordering == Ordering::byNODES ? Ordering::byVDIM : Ordering::byNODES;
 
-   SetVectorValues(vd, comp);
+   SetValues(vd, comp);
 
    // Reset ordering back to original
    ordering = ordering == Ordering::byNODES ? Ordering::byVDIM : Ordering::byNODES;
@@ -132,15 +132,15 @@ void MultiVector::SetComponentValues(int vd, const Vector &comp)
    vdim = vdim_temp;
 }
 
-real_t& MultiVector::operator()(int i, int comp)
+real_t& ParticleVector::operator()(int i, int comp)
 {
-   MFEM_ASSERT(i < GetNumVectors(),
+   MFEM_ASSERT(i < GetNumParticles(),
                "Vector index " << i << " is out-of-range for number of vectors " <<
-               GetNumVectors());
+               GetNumParticles());
 
    if (ordering == Ordering::byNODES)
    {
-      return Vector::operator[](i + comp*GetNumVectors());
+      return Vector::operator[](i + comp*GetNumParticles());
    }
    else
    {
@@ -148,11 +148,11 @@ real_t& MultiVector::operator()(int i, int comp)
    }
 }
 
-const real_t& MultiVector::operator()(int i, int comp) const
+const real_t& ParticleVector::operator()(int i, int comp) const
 {
    if (ordering == Ordering::byNODES)
    {
-      return Vector::operator[](i + comp*GetNumVectors());
+      return Vector::operator[](i + comp*GetNumParticles());
    }
    else
    {
@@ -160,7 +160,7 @@ const real_t& MultiVector::operator()(int i, int comp) const
    }
 }
 
-void MultiVector::DeleteVectorsAt(const Array<int> &indices)
+void ParticleVector::DeleteParticles(const Array<int> &indices)
 {
    // Convert list index array of "ldofs" to "vdofs"
    Array<int> v_list;
@@ -171,7 +171,7 @@ void MultiVector::DeleteVectorsAt(const Array<int> &indices)
       {
          for (int vd = 0; vd < vdim; vd++)
          {
-            v_list.Append(Ordering::Map<Ordering::byNODES>(GetNumVectors(), vdim,
+            v_list.Append(Ordering::Map<Ordering::byNODES>(GetNumParticles(), vdim,
                                                            indices[l], vd));
          }
       }
@@ -182,7 +182,7 @@ void MultiVector::DeleteVectorsAt(const Array<int> &indices)
       {
          for (int vd = 0; vd < vdim; vd++)
          {
-            v_list.Append(Ordering::Map<Ordering::byVDIM>(GetNumVectors(), vdim, indices[l],
+            v_list.Append(Ordering::Map<Ordering::byVDIM>(GetNumParticles(), vdim, indices[l],
                                                           vd));
          }
       }
@@ -191,15 +191,15 @@ void MultiVector::DeleteVectorsAt(const Array<int> &indices)
    Vector::DeleteAt(v_list);
 }
 
-void MultiVector::SetVDim(int vdim_)
+void ParticleVector::SetVDim(int vdim_)
 {
    // Reorder/shift existing entries
    // For byNODES: Treat each component as a vector temporarily
    // For byVDIM:  Treat each vector as a component temporarily
-   vdim = GetNumVectors();
+   vdim = GetNumParticles();
    ordering = ordering == Ordering::byNODES ? Ordering::byVDIM : Ordering::byNODES;
 
-   SetNumVectors(vdim_);
+   SetNumParticles(vdim_);
 
    // Reset ordering back to original
    ordering = ordering == Ordering::byNODES ? Ordering::byVDIM : Ordering::byNODES;
@@ -207,15 +207,15 @@ void MultiVector::SetVDim(int vdim_)
    vdim = vdim_;
 }
 
-void MultiVector::SetOrdering(Ordering::Type ordering_)
+void ParticleVector::SetOrdering(Ordering::Type ordering_)
 {
    Ordering::Reorder(*this, vdim, ordering, ordering_);
    ordering = ordering_;
 }
 
-void MultiVector::SetNumVectors(int num_vectors)
+void ParticleVector::SetNumParticles(int num_vectors)
 {
-   int old_nv = GetNumVectors();
+   int old_nv = GetNumParticles();
 
    if (num_vectors == old_nv)
    {
@@ -270,7 +270,7 @@ void MultiVector::SetNumVectors(int num_vectors)
       {
          rm_indices[i] = old_nv - rm_indices.Size() + i;
       }
-      DeleteVectorsAt(rm_indices);
+      DeleteParticles(rm_indices);
    }
 }
 

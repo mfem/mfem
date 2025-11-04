@@ -24,20 +24,20 @@ static constexpr int VDIM_INC = 3;
 
 void TestSetGetValues(Ordering::Type ordering)
 {
-   MultiVector mv(VDIM, ordering, NV);
+   ParticleVector mv(VDIM, ordering, NV);
    Vector vecs[NV];
    for (int i = 0; i < NV; i++)
    {
       vecs[i].SetSize(VDIM);
       vecs[i].Randomize(i);
-      mv.SetVectorValues(i, vecs[i]);
+      mv.SetValues(i, vecs[i]);
    }
 
    int wrong_vec_count = 0;
    Vector aux(VDIM);
    for (int i = 0; i < NV; i++)
    {
-      mv.GetVectorValues(i, aux);
+      mv.GetValues(i, aux);
       if (!(aux.DistanceTo(vecs[i]) == MFEM_Approx(0,0)))
       {
          wrong_vec_count++;
@@ -49,7 +49,7 @@ void TestSetGetValues(Ordering::Type ordering)
 
 void TestSetGetComponents(Ordering::Type ordering)
 {
-   MultiVector mv(VDIM, ordering, NV);
+   ParticleVector mv(VDIM, ordering, NV);
    Vector vecs[NV];
    for (int i = 0; i < NV; i++)
    {
@@ -66,7 +66,7 @@ void TestSetGetComponents(Ordering::Type ordering)
       {
          comps[vd][i] = vecs[i][vd];
       }
-      mv.SetComponentValues(vd, comps[vd]);
+      mv.SetComponents(vd, comps[vd]);
    }
 
    // Verify get component
@@ -74,7 +74,7 @@ void TestSetGetComponents(Ordering::Type ordering)
    Vector aux_comp(NV);
    for (int vd = 0; vd < VDIM; vd++)
    {
-      mv.GetComponentValues(vd, aux_comp);
+      mv.GetComponents(vd, aux_comp);
       if (!(aux_comp.DistanceTo(comps[vd]) == MFEM_Approx(0,0)))
       {
          wrong_comp_count++;
@@ -86,7 +86,7 @@ void TestSetGetComponents(Ordering::Type ordering)
    Vector aux(VDIM);
    for (int i = 0; i < NV; i++)
    {
-      mv.GetVectorValues(i, aux);
+      mv.GetValues(i, aux);
       if (!(aux.DistanceTo(vecs[i]) == MFEM_Approx(0,0)))
       {
          wrong_vec_count++;
@@ -102,10 +102,10 @@ void TestResize(Ordering::Type ordering)
    {
       Vector all_data(NV*VDIM);
       all_data.Randomize(1234);
-      const MultiVector mv_all(VDIM, ordering, all_data);
+      const ParticleVector mv_all(VDIM, ordering, all_data);
 
       // Start with mv_test = mv_all
-      MultiVector mv_test(VDIM, ordering, NV);
+      ParticleVector mv_test(VDIM, ordering, NV);
       mv_test = mv_all;
       REQUIRE(mv_test.DistanceTo(mv_all) == MFEM_Approx(0.0));
 
@@ -113,22 +113,22 @@ void TestResize(Ordering::Type ordering)
       std::vector<Vector> vecs_diff(NV_rm);
       for (int i = 0; i < NV_rm; i++)
       {
-         mv_all.GetVectorValues(NV - NV_rm + i, vecs_diff[i]);
+         mv_all.GetValues(NV - NV_rm + i, vecs_diff[i]);
       }
-      mv_test.SetNumVectors(NV-NV_rm);
-      REQUIRE(mv_test.GetNumVectors() == NV - NV_rm);
+      mv_test.SetNumParticles(NV-NV_rm);
+      REQUIRE(mv_test.GetNumParticles() == NV - NV_rm);
 
       // Resize mv_test back
-      mv_test.SetNumVectors(NV);
-      REQUIRE(mv_test.GetNumVectors() == NV);
+      mv_test.SetNumParticles(NV);
+      REQUIRE(mv_test.GetNumParticles() == NV);
 
       // Ensure that vectors post-shrink match those in mv_all
       int wrong_shrink_vec_count = 0;
       Vector v1, v2;
       for (int i = 0; i < NV-NV_rm; i++)
       {
-         mv_all.GetVectorValues(i, v1);
-         mv_test.GetVectorValues(i, v2);
+         mv_all.GetValues(i, v1);
+         mv_test.GetValues(i, v2);
          if (!(v1.DistanceTo(v2) == MFEM_Approx(0,0)))
          {
             wrong_shrink_vec_count++;
@@ -137,10 +137,10 @@ void TestResize(Ordering::Type ordering)
       REQUIRE(wrong_shrink_vec_count == 0);
 
       // Set vectors back to mv_test, and then check equality
-      mv_test.SetNumVectors(NV);
+      mv_test.SetNumParticles(NV);
       for (int i = 0; i < NV_rm; i++)
       {
-         mv_test.SetVectorValues(i+(NV-NV_rm), vecs_diff[i]);
+         mv_test.SetValues(i+(NV-NV_rm), vecs_diff[i]);
       }
       REQUIRE(mv_test.DistanceTo(mv_all) == MFEM_Approx(0.0));
    }
@@ -151,7 +151,7 @@ void TestSetVDim(Ordering::Type ordering)
    Vector data_vecs[NV];
    Vector data_comps[VDIM_INC]; // last VDIM_INC comps
    Vector data_vecs_red[NV]; // Vectors of reduced vdim
-   MultiVector mv(VDIM+VDIM_INC, ordering, NV);
+   ParticleVector mv(VDIM+VDIM_INC, ordering, NV);
    for (int i = 0; i < NV; i++)
    {
       data_vecs[i].SetSize(VDIM+VDIM_INC);
@@ -159,12 +159,12 @@ void TestSetVDim(Ordering::Type ordering)
       data_vecs_red[i].SetSize(VDIM);
       data_vecs_red[i].SetData(data_vecs[i].GetData());
 
-      mv.SetVectorValues(i, data_vecs[i]);
+      mv.SetValues(i, data_vecs[i]);
    }
    for (int vd = 0; vd < VDIM_INC; vd++)
    {
       data_comps[vd].SetSize(NV);
-      mv.GetComponentValues(vd+VDIM, data_comps[vd]);
+      mv.GetComponents(vd+VDIM, data_comps[vd]);
    }
 
    // Reduce vdim + compare against data_vecs_red
@@ -173,7 +173,7 @@ void TestSetVDim(Ordering::Type ordering)
    int wrong_vec_red_count = 0;
    for (int i = 0; i < NV; i++)
    {
-      mv.GetVectorValues(i, aux);
+      mv.GetValues(i, aux);
       if (aux.DistanceTo(data_vecs_red[i]) != MFEM_Approx(0.0))
       {
          wrong_vec_red_count++;
@@ -185,13 +185,13 @@ void TestSetVDim(Ordering::Type ordering)
    mv.SetVDim(VDIM+VDIM_INC);
    for (int vd = 0; vd < VDIM_INC; vd++)
    {
-      mv.SetComponentValues(vd+VDIM, data_comps[vd]);
+      mv.SetComponents(vd+VDIM, data_comps[vd]);
    }
    int wrong_vec_count = 0;
    aux.SetSize(VDIM+VDIM_INC);
    for (int i = 0; i < NV; i++)
    {
-      mv.GetVectorValues(i, aux);
+      mv.GetValues(i, aux);
       if (aux.DistanceTo(data_vecs[i]) != MFEM_Approx(0.0))
       {
          wrong_vec_count++;
@@ -201,25 +201,25 @@ void TestSetVDim(Ordering::Type ordering)
 
 }
 
-TEST_CASE("MultiVector set/get values", "[MultiVector]")
+TEST_CASE("ParticleVector set/get values", "[ParticleVector]")
 {
    TestSetGetValues(Ordering::byNODES);
    TestSetGetValues(Ordering::byVDIM);
 }
 
-TEST_CASE("MultiVector set/get components", "[MultiVector]")
+TEST_CASE("ParticleVector set/get components", "[ParticleVector]")
 {
    TestSetGetComponents(Ordering::byNODES);
    TestSetGetComponents(Ordering::byVDIM);
 }
 
-TEST_CASE("MultiVector resize", "[MultiVector]")
+TEST_CASE("ParticleVector resize", "[ParticleVector]")
 {
    TestResize(Ordering::byNODES);
    TestResize(Ordering::byVDIM);
 }
 
-TEST_CASE("MultiVector set vdim","[MultiVector]")
+TEST_CASE("ParticleVector set vdim","[ParticleVector]")
 {
    TestSetVDim(Ordering::byNODES);
    TestSetVDim(Ordering::byVDIM);

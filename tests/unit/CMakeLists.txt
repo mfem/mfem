@@ -46,10 +46,10 @@ set(UNIT_TESTS_SRCS
   linalg/test_matrix_sparse.cpp
   linalg/test_matrix_square.cpp
   linalg/test_mma.cpp
-  linalg/test_multivector.cpp
   linalg/test_ode.cpp
   linalg/test_ode2.cpp
   linalg/test_operator.cpp
+  linalg/test_particlevector.cpp
   linalg/test_vector.cpp
   mesh/test_face_orientations.cpp
   mesh/test_geometric_factors.cpp
