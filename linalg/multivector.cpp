@@ -67,9 +67,33 @@ void MultiVector::GetVectorValues(int i, Vector &nvals) const
 void MultiVector::GetVectorRef(int i, Vector &nref)
 {
    MFEM_ASSERT(ordering == Ordering::byVDIM,
-               "GetRefVector only valid when ordering byVDIM.");
+               "GetVectorRef only valid when ordering byVDIM.");
 
    nref.MakeRef(*this, i*vdim, vdim);
+}
+
+void MultiVector::GetComponentValues(int vd, Vector &comp)
+{
+   int vdim_temp = vdim;
+
+   // For byNODES: Treat each component as a vector temporarily
+   // For byVDIM:  Treat each vector as a component temporarily
+   vdim = GetNumVectors();
+   ordering = ordering == Ordering::byNODES ? Ordering::byVDIM : Ordering::byNODES;
+
+   GetVectorValues(vd, comp);
+
+   // Reset ordering back to original
+   ordering = ordering == Ordering::byNODES ? Ordering::byVDIM : Ordering::byNODES;
+
+   vdim = vdim_temp;
+}
+
+void MultiVector::GetComponentRef(int vd, Vector &nref)
+{
+   MFEM_ASSERT(ordering == Ordering::byNODES,
+               "GetComponentRef only valid when ordering byNODES.");
+   nref.MakeRef(*this, vd*GetNumVectors(), GetNumVectors());
 }
 
 void MultiVector::SetVectorValues(int i, const Vector &nvals)
@@ -89,6 +113,23 @@ void MultiVector::SetVectorValues(int i, const Vector &nvals)
          Vector::operator[](c + i*vdim) = nvals[c];
       }
    }
+}
+
+void MultiVector::SetComponentValues(int vd, const Vector &comp)
+{
+   int vdim_temp = vdim;
+
+   // For byNODES: Treat each component as a vector temporarily
+   // For byVDIM:  Treat each vector as a component temporarily
+   vdim = GetNumVectors();
+   ordering = ordering == Ordering::byNODES ? Ordering::byVDIM : Ordering::byNODES;
+
+   SetVectorValues(vd, comp);
+
+   // Reset ordering back to original
+   ordering = ordering == Ordering::byNODES ? Ordering::byVDIM : Ordering::byNODES;
+
+   vdim = vdim_temp;
 }
 
 real_t& MultiVector::operator()(int i, int comp)

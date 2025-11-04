@@ -66,8 +66,20 @@ public:
     */
    void GetVectorRef(int i, Vector &nref);
 
+   /// Get a copy of all values for component \p vd.
+   void GetComponentValues(int vd, Vector &comp);
+
+   /** @brief For `GetOrdering` == Ordering::byNODES, set \p nref to refer to component \p vd 's data.
+    *
+    *  @warning This method only works when ordering is Ordering::byNODES, where an individual component of all Vector data is stored contiguously in memory.
+    */
+   void GetComponentRef(int vd, Vector &nref);
+
    /// Set Vector \p i 's data to \p nvals .
    void SetVectorValues(int i, const Vector &nvals);
+
+   /// Set component \p vd values to \p comp .
+   void SetComponentValues(int vd, const Vector &comp);
 
    /// Reference to Vector \p i component \p comp value.
    real_t& operator()(int i, int comp);

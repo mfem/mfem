@@ -20,7 +20,7 @@ static constexpr int NV_rm = 12;
 static constexpr int NV = 27;
 static_assert(NV_rm < NV);
 
-void TestSetGet(Ordering::Type ordering)
+void TestSetGetValues(Ordering::Type ordering)
 {
    MultiVector mv(VDIM, ordering, NV);
    Vector vecs[NV];
@@ -31,6 +31,55 @@ void TestSetGet(Ordering::Type ordering)
       mv.SetVectorValues(i, vecs[i]);
    }
 
+   int wrong_vec_count = 0;
+   Vector aux(VDIM);
+   for (int i = 0; i < NV; i++)
+   {
+      mv.GetVectorValues(i, aux);
+      if (!(aux.DistanceTo(vecs[i]) == MFEM_Approx(0,0)))
+      {
+         wrong_vec_count++;
+      }
+   }
+   REQUIRE(wrong_vec_count == 0);
+
+}
+
+void TestSetGetComponents(Ordering::Type ordering)
+{
+   MultiVector mv(VDIM, ordering, NV);
+   Vector vecs[NV];
+   for (int i = 0; i < NV; i++)
+   {
+      vecs[i].SetSize(VDIM);
+      vecs[i].Randomize(i);
+   }
+   
+   // Set components individually
+   Vector comps[VDIM];
+   for (int vd = 0; vd < VDIM; vd++)
+   {
+      comps[vd].SetSize(NV);
+      for (int i = 0; i < NV; i++)
+      {
+         comps[vd][i] = vecs[i][vd];
+      }
+      mv.SetComponentValues(vd, comps[vd]);
+   }
+
+   // Verify get component
+   int wrong_comp_count = 0;
+   Vector aux_comp(NV);
+   for (int vd = 0; vd < VDIM; vd++)
+   {
+      mv.GetComponentValues(vd, aux_comp);
+      if (!(aux_comp.DistanceTo(comps[vd]) == MFEM_Approx(0,0)))
+      {
+         wrong_comp_count++;
+      }
+   }
+
+   // Verify all vectors correct
    int wrong_vec_count = 0;
    Vector aux(VDIM);
    for (int i = 0; i < NV; i++)
@@ -97,8 +146,14 @@ void TestResize(Ordering::Type ordering)
 
 TEST_CASE("MultiVector set/get values", "[MultiVector]")
 {
-   TestSetGet(Ordering::byNODES);
-   TestSetGet(Ordering::byVDIM);
+   TestSetGetValues(Ordering::byNODES);
+   TestSetGetValues(Ordering::byVDIM);
+}
+
+TEST_CASE("MultiVector set/get components", "[MultiVector]")
+{
+   TestSetGetComponents(Ordering::byNODES);
+   TestSetGetComponents(Ordering::byVDIM);
 }
 
 TEST_CASE("MultiVector resize", "[MultiVector]")
