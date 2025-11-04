@@ -80,6 +80,7 @@ void TestSetGetComponents(Ordering::Type ordering)
          wrong_comp_count++;
       }
    }
+   REQUIRE(wrong_comp_count == 0);
 
    // Verify all vectors correct
    int wrong_vec_count = 0;
