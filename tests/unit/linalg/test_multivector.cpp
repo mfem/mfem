@@ -16,9 +16,11 @@ using namespace mfem;
 using namespace std;
 
 static constexpr int VDIM = 7;
+static_assert(VDIM > 1);
 static constexpr int NV_rm = 12;
 static constexpr int NV = 27;
 static_assert(NV_rm < NV);
+static constexpr int VDIM_INC = 3;
 
 void TestSetGetValues(Ordering::Type ordering)
 {
@@ -144,6 +146,61 @@ void TestResize(Ordering::Type ordering)
    }
 }
 
+void TestSetVDim(Ordering::Type ordering)
+{
+   Vector data_vecs[NV];
+   Vector data_comps[VDIM_INC]; // last VDIM_INC comps
+   Vector data_vecs_red[NV]; // Vectors of reduced vdim
+   MultiVector mv(VDIM+VDIM_INC, ordering, NV);
+   for (int i = 0; i < NV; i++)
+   {
+      data_vecs[i].SetSize(VDIM+VDIM_INC);
+      data_vecs[i].Randomize(i);
+      data_vecs_red[i].SetSize(VDIM);
+      data_vecs_red[i].SetData(data_vecs[i].GetData());
+      
+      mv.SetVectorValues(i, data_vecs[i]);
+   }
+   for (int vd = 0; vd < VDIM_INC; vd++)
+   {
+      data_comps[vd].SetSize(NV);
+      mv.GetComponentValues(vd+VDIM, data_comps[vd]);
+   }
+
+   // Reduce vdim + compare against data_vecs_red
+   mv.SetVDim(VDIM);
+   Vector aux(VDIM);
+   int wrong_vec_red_count = 0;
+   for (int i = 0; i < NV; i++)
+   {
+      mv.GetVectorValues(i, aux);
+      if (aux.DistanceTo(data_vecs_red[i]) != MFEM_Approx(0.0))
+      {
+         wrong_vec_red_count++;
+      }
+   }
+   REQUIRE(wrong_vec_red_count == 0);
+
+   // Increase vdim, update components, + compare against data_vecs
+   mv.SetVDim(VDIM+VDIM_INC);
+   for (int vd = 0; vd < VDIM_INC; vd++)
+   {
+      mv.SetComponentValues(vd+VDIM, data_comps[vd]);
+   }
+   int wrong_vec_count = 0;
+   aux.SetSize(VDIM+VDIM_INC);
+   for (int i = 0; i < NV; i++)
+   {
+      mv.GetVectorValues(i, aux);
+      if (aux.DistanceTo(data_vecs[i]) != MFEM_Approx(0.0))
+      {
+         wrong_vec_count++;
+      }
+   }
+   REQUIRE(wrong_vec_count == 0);
+
+}
+
 TEST_CASE("MultiVector set/get values", "[MultiVector]")
 {
    TestSetGetValues(Ordering::byNODES);
@@ -160,4 +217,10 @@ TEST_CASE("MultiVector resize", "[MultiVector]")
 {
    TestResize(Ordering::byNODES);
    TestResize(Ordering::byVDIM);
+}
+
+TEST_CASE("MultiVector set vdim" ,"[MultiVector]")
+{
+   TestSetVDim(Ordering::byNODES);
+   TestSetVDim(Ordering::byVDIM);
 }

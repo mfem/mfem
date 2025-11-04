@@ -191,6 +191,22 @@ void MultiVector::DeleteVectorsAt(const Array<int> &indices)
    Vector::DeleteAt(v_list);
 }
 
+void MultiVector::SetVDim(int vdim_)
+{
+   // Reorder/shift existing entries
+   // For byNODES: Treat each component as a vector temporarily
+   // For byVDIM:  Treat each vector as a component temporarily
+   vdim = GetNumVectors();
+   ordering = ordering == Ordering::byNODES ? Ordering::byVDIM : Ordering::byNODES;
+   
+   SetNumVectors(vdim_);
+
+   // Reset ordering back to original
+   ordering = ordering == Ordering::byNODES ? Ordering::byVDIM : Ordering::byNODES;
+
+   vdim = vdim_;
+}
+
 void MultiVector::SetOrdering(Ordering::Type ordering_)
 {
    Ordering::Reorder(*this, vdim, ordering, ordering_);

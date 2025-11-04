@@ -94,7 +94,7 @@ public:
    void DeleteVectorsAt(const Array<int> &indices);
 
    /// Set the vector dimension of the MultiVector.
-   void SetVDim(int vdim_) { vdim = vdim_; }
+   void SetVDim(int vdim_);
 
    /** @brief Set the ordering of the Vector data in MultiVector.
     *
