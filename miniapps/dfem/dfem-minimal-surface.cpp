@@ -48,7 +48,6 @@
 //               visualization.
 
 #include "mfem.hpp"
-#include "../../general/forall.hpp"
 
 using namespace mfem;
 
