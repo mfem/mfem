@@ -60,18 +60,23 @@ public:
    /// Get a copy of particle \p i 's data.
    void GetValues(int i, Vector &nvals) const;
 
-   /** @brief For `GetOrdering` == Ordering::byVDIM, set \p nref to refer to particle \p i 's data.
+   /** @brief For `GetOrdering` == Ordering::byVDIM, set \p nref to refer to
+    *  particle \p i 's data.
     *
-    *  @warning This method only works when ordering is Ordering::byVDIM, where an individual particle's data is stored contiguously in memory.
+    *  @warning This method only works when ordering is Ordering::byVDIM, where
+    *  an individual particle's data is stored contiguously in memory.
     */
    void GetValuesRef(int i, Vector &nref);
 
    /// Get a copy of all particle values for component \p vd.
    void GetComponents(int vd, Vector &comp);
 
-   /** @brief For `GetOrdering` == Ordering::byNODES, set \p nref to refer to component \p vd 's data.
+   /** @brief For `GetOrdering` == Ordering::byNODES, set \p nref to refer to
+    * component \p vd 's data.
     *
-    *  @warning This method only works when ordering is Ordering::byNODES, where an individual component of all particle data is stored contiguously in memory.
+    *  @warning This method only works when ordering is Ordering::byNODES,
+    *  where an individual component of all particle data is stored
+    *  contiguously in memory.
     */
    void GetComponentsRef(int vd, Vector &nref);
 
@@ -93,18 +98,27 @@ public:
     */
    void DeleteParticles(const Array<int> &indices);
 
+   /// Remove particle data at \p index.
+   void DeleteParticle(const int index)
+   {
+      Array<int> indices({index});
+      DeleteParticles(indices);
+   }
+
    /// Set the vector dimension of the ParticleVector.
    void SetVDim(int vdim_);
 
    /** @brief Set the ordering of the particle Vector data in ParticleVector.
     *
-    *  @details For \p ordering != \ref GetOrdering , particle data in the ParticleVector is reordered.
+    *  @details For \p ordering != \ref GetOrdering , particle data in the
+    *  ParticleVector is reordered.
     */
    void SetOrdering(Ordering::Type ordering_);
 
    /** @brief Set the number of particles held by the ParticleVector, keeping existing data.
     *
-    * @details If \p num_vectors * \ref GetVDim > \p Vector::Capacity , memory is re-allocated.
+    * @details If \p num_vectors * \ref GetVDim > \p Vector::Capacity , memory
+    * is re-allocated.
     */
    void SetNumParticles(int num_vectors);
 

@@ -25,10 +25,7 @@ void ParticleVector::GrowSize(int min_num_vectors)
 }
 
 ParticleVector::ParticleVector(int vdim_, Ordering::Type ordering_)
-   : ParticleVector(vdim_, ordering_, 0)
-{
-
-}
+   : ParticleVector(vdim_, ordering_, 0) { }
 
 ParticleVector::ParticleVector(int vdim_, Ordering::Type ordering_,
                                int num_nodes)
@@ -81,12 +78,14 @@ void ParticleVector::GetComponents(int vd, Vector &comp)
    // For byNODES: Treat each component as a vector temporarily
    // For byVDIM:  Treat each vector as a component temporarily
    vdim = GetNumParticles();
-   ordering = ordering == Ordering::byNODES ? Ordering::byVDIM : Ordering::byNODES;
+   ordering = ordering == Ordering::byNODES ? Ordering::byVDIM :
+              Ordering::byNODES;
 
    GetValues(vd, comp);
 
    // Reset ordering back to original
-   ordering = ordering == Ordering::byNODES ? Ordering::byVDIM : Ordering::byNODES;
+   ordering = ordering == Ordering::byNODES ? Ordering::byVDIM :
+              Ordering::byNODES;
 
    vdim = vdim_temp;
 }
@@ -124,12 +123,14 @@ void ParticleVector::SetComponents(int vd, const Vector &comp)
    // For byNODES: Treat each component as a vector temporarily
    // For byVDIM:  Treat each vector as a component temporarily
    vdim = GetNumParticles();
-   ordering = ordering == Ordering::byNODES ? Ordering::byVDIM : Ordering::byNODES;
+   ordering = ordering == Ordering::byNODES ? Ordering::byVDIM :
+              Ordering::byNODES;
 
    SetValues(vd, comp);
 
    // Reset ordering back to original
-   ordering = ordering == Ordering::byNODES ? Ordering::byVDIM : Ordering::byNODES;
+   ordering = ordering == Ordering::byNODES ? Ordering::byVDIM :
+              Ordering::byNODES;
 
    vdim = vdim_temp;
 }
@@ -137,8 +138,11 @@ void ParticleVector::SetComponents(int vd, const Vector &comp)
 real_t& ParticleVector::operator()(int i, int comp)
 {
    MFEM_ASSERT(i < GetNumParticles(),
-               "Vector index " << i << " is out-of-range for number of vectors " <<
-               GetNumParticles());
+               "Vector index " << i <<
+               " is out-of-range for number of vectors " << GetNumParticles());
+   MFEM_ASSERT(comp < vdim,
+               "Component index " << comp <<
+               " is out-of-range for vector dimension " << vdim);
 
    if (ordering == Ordering::byNODES)
    {
@@ -152,6 +156,13 @@ real_t& ParticleVector::operator()(int i, int comp)
 
 const real_t& ParticleVector::operator()(int i, int comp) const
 {
+   MFEM_ASSERT(i < GetNumParticles(),
+               "Vector index " << i <<
+               " is out-of-range for number of vectors " << GetNumParticles());
+   MFEM_ASSERT(comp < vdim,
+               "Component index " << comp <<
+               " is out-of-range for vector dimension " << vdim);
+
    if (ordering == Ordering::byNODES)
    {
       return Vector::operator[](i + comp*GetNumParticles());
@@ -167,13 +178,18 @@ void ParticleVector::DeleteParticles(const Array<int> &indices)
    // Convert list index array of "ldofs" to "vdofs"
    Array<int> v_list;
    v_list.Reserve(indices.Size()*vdim);
+   MFEM_VERIFY(indices.Max() < GetNumParticles(),
+               "Particle index " << indices.Max() <<
+               " is out-of-range for number of particles " <<
+               GetNumParticles());
    if (ordering == Ordering::byNODES)
    {
       for (int l = 0; l < indices.Size(); l++)
       {
          for (int vd = 0; vd < vdim; vd++)
          {
-            v_list.Append(Ordering::Map<Ordering::byNODES>(GetNumParticles(), vdim,
+            v_list.Append(Ordering::Map<Ordering::byNODES>(GetNumParticles(),
+                                                           vdim,
                                                            indices[l], vd));
          }
       }
@@ -184,7 +200,8 @@ void ParticleVector::DeleteParticles(const Array<int> &indices)
       {
          for (int vd = 0; vd < vdim; vd++)
          {
-            v_list.Append(Ordering::Map<Ordering::byVDIM>(GetNumParticles(), vdim,
+            v_list.Append(Ordering::Map<Ordering::byVDIM>(GetNumParticles(),
+                                                          vdim,
                                                           indices[l],
                                                           vd));
          }
@@ -200,12 +217,14 @@ void ParticleVector::SetVDim(int vdim_)
    // For byNODES: Treat each component as a vector temporarily
    // For byVDIM:  Treat each vector as a component temporarily
    vdim = GetNumParticles();
-   ordering = ordering == Ordering::byNODES ? Ordering::byVDIM : Ordering::byNODES;
+   ordering = ordering == Ordering::byNODES ? Ordering::byVDIM :
+                                              Ordering::byNODES;
 
    SetNumParticles(vdim_);
 
    // Reset ordering back to original
-   ordering = ordering == Ordering::byNODES ? Ordering::byVDIM : Ordering::byNODES;
+   ordering = ordering == Ordering::byNODES ? Ordering::byVDIM :
+                                              Ordering::byNODES;
 
    vdim = vdim_;
 }
