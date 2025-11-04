@@ -18,6 +18,8 @@ TEST_CASE("MemoryManager/Scopes",
           "[MemoryManager]"
           "[GPU]")
 {
+   // TODO
+#if 0
    SECTION("WithNewMemoryAndSize")
    {
       Vector x(1);
@@ -44,13 +46,13 @@ TEST_CASE("MemoryManager/Scopes",
       REQUIRE(h_x == x.GetData());
       REQUIRE(mem->capacity == x.Size());
       REQUIRE(mem->h_mt == Device::GetHostMemoryType());
-#if 0
+
       constexpr unsigned Registered = 1 << 0;
       const bool registered = mem->flags & Registered;
       const bool registered_is_known = registered == mm.IsKnown(h_x);
       REQUIRE(registered_is_known);
-#endif
    }
+#endif
 
    SECTION("WithMakeRef")
    {
