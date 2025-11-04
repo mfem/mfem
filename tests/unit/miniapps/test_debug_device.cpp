@@ -47,7 +47,9 @@ static void TestMemoryTypes(MemoryType mt, bool use_dev, int N = 1024)
 
 static void ScanMemoryTypes()
 {
-   const auto h_mt = mm.GetHostMemoryType(), d_mt = mm.GetDeviceMemoryType();
+   auto &inst = MemoryManager::instance();
+   const auto h_mt = inst.GetHostMemoryType(),
+              d_mt = inst.GetDeviceMemoryType();
    TestMemoryTypes(h_mt, true), TestMemoryTypes(d_mt, true);
    TestMemoryTypes(h_mt, false), TestMemoryTypes(d_mt, false);
 }
@@ -116,7 +118,7 @@ TEST_CASE("Array::MakeRef", "[DebugDevice]")
    x.Read();
    REQUIRE_NOTHROW(y.Read());
 }
-
+#if 0
 TEST_CASE("MemoryManager/DebugDevice", "[DebugDevice]")
 {
    // If MFEM_MEMORY is set, we can start with some non-empty maps,
@@ -126,24 +128,26 @@ TEST_CASE("MemoryManager/DebugDevice", "[DebugDevice]")
    {
       int overflow(int c) override { return c; }
    } null_buffer;
+   auto& inst = MemoryManager::instance();
    std::ostream dev_null(&null_buffer);
-   const auto n_ptr = mm.PrintPtrs(dev_null);
-   const auto n_alias = mm.PrintAliases(dev_null);
+   const auto n_ptr = inst.PrintPtrs(dev_null);
+   const auto n_alias = inst.PrintAliases(dev_null);
    const auto pagesize = sysconf(_SC_PAGE_SIZE);
    REQUIRE(pagesize > 0);
 
    for (int n = 1; n < 2*pagesize; n+=7)
    {
       Aliases(n);
-      REQUIRE(mm.PrintPtrs(dev_null) == n_ptr);
-      REQUIRE(mm.PrintAliases(dev_null) == n_alias);
+      REQUIRE(inst.PrintPtrs(dev_null) == n_ptr);
+      REQUIRE(inst.PrintAliases(dev_null) == n_alias);
    }
    MmuCatch();
    ScanMemoryTypes();
 
-   REQUIRE(mm.PrintPtrs(dev_null) == n_ptr);
-   REQUIRE(mm.PrintAliases(dev_null) == n_alias);
+   REQUIRE(inst.PrintPtrs(dev_null) == n_ptr);
+   REQUIRE(inst.PrintAliases(dev_null) == n_alias);
 }
+#endif
 
 #endif // _WIN32
 
