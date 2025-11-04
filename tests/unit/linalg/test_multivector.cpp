@@ -56,7 +56,7 @@ void TestSetGetComponents(Ordering::Type ordering)
       vecs[i].SetSize(VDIM);
       vecs[i].Randomize(i);
    }
-   
+
    // Set components individually
    Vector comps[VDIM];
    for (int vd = 0; vd < VDIM; vd++)
@@ -158,7 +158,7 @@ void TestSetVDim(Ordering::Type ordering)
       data_vecs[i].Randomize(i);
       data_vecs_red[i].SetSize(VDIM);
       data_vecs_red[i].SetData(data_vecs[i].GetData());
-      
+
       mv.SetVectorValues(i, data_vecs[i]);
    }
    for (int vd = 0; vd < VDIM_INC; vd++)
@@ -219,7 +219,7 @@ TEST_CASE("MultiVector resize", "[MultiVector]")
    TestResize(Ordering::byVDIM);
 }
 
-TEST_CASE("MultiVector set vdim" ,"[MultiVector]")
+TEST_CASE("MultiVector set vdim","[MultiVector]")
 {
    TestSetVDim(Ordering::byNODES);
    TestSetVDim(Ordering::byVDIM);

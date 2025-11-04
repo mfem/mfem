@@ -198,7 +198,7 @@ void MultiVector::SetVDim(int vdim_)
    // For byVDIM:  Treat each vector as a component temporarily
    vdim = GetNumVectors();
    ordering = ordering == Ordering::byNODES ? Ordering::byVDIM : Ordering::byNODES;
-   
+
    SetNumVectors(vdim_);
 
    // Reset ordering back to original
