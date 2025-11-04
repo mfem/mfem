@@ -112,7 +112,7 @@ bool MemoryClassContainsType(MemoryClass mc, MemoryType mt);
 
     HOST < HOST_32 < HOST_64 < DEVICE < MANAGED. */
 MemoryClass operator*(MemoryClass mc1, MemoryClass mc2);
-
+#if 0
 /// Class used by MFEM to store pointers to host and/or device memory.
 /** The template class parameter, T, must be a plain-old-data (POD) type.
 
@@ -876,7 +876,7 @@ public:
                                                       };
 #endif
 };
-
+#endif
 
 #ifdef MFEM_USE_MPI
 
@@ -917,7 +917,7 @@ inline bool HypreUsingGPU()
 
 #endif // MFEM_USE_MPI
 
-
+#if 0
 // Inline methods
 
 template <typename T>
@@ -1351,7 +1351,9 @@ inline int Memory<T>::CompareHostAndDevice(int size) const
 
 /// The (single) global memory manager object
 extern MFEM_EXPORT MemoryManager mm;
-
+#endif
 } // namespace mfem
+
+#include "resource_manager.hpp"
 
 #endif // MFEM_MEM_MANAGER_HPP

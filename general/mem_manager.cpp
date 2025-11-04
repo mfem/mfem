@@ -59,12 +59,13 @@ namespace mfem
 
 MemoryType GetMemoryType(MemoryClass mc)
 {
+   auto &inst = MemoryManager::instance();
    switch (mc)
    {
-      case MemoryClass::HOST:    return mm.GetHostMemoryType();
+      case MemoryClass::HOST:    return inst.GetHostMemoryType();
       case MemoryClass::HOST_32: return MemoryType::HOST_32;
       case MemoryClass::HOST_64: return MemoryType::HOST_64;
-      case MemoryClass::DEVICE:  return mm.GetDeviceMemoryType();
+      case MemoryClass::DEVICE:  return inst.GetDeviceMemoryType();
       case MemoryClass::MANAGED: return MemoryType::MANAGED;
    }
    MFEM_VERIFY(false,"");
@@ -144,7 +145,7 @@ MemoryClass operator*(MemoryClass mc1, MemoryClass mc2)
    return std::max(mc1, mc2);
 }
 
-
+#if 0
 // Instantiate Memory<T>::PrintFlags for T = int and T = real_t.
 template void Memory<int>::PrintFlags() const;
 template void Memory<real_t>::PrintFlags() const;
@@ -152,7 +153,6 @@ template void Memory<real_t>::PrintFlags() const;
 // Instantiate Memory<T>::CompareHostAndDevice for T = int and T = real_t.
 template int Memory<int>::CompareHostAndDevice(int size) const;
 template int Memory<real_t>::CompareHostAndDevice(int size) const;
-
 
 namespace internal
 {
@@ -1748,7 +1748,6 @@ int MemoryManager::CompareHostAndDevice_(void *h_ptr, size_t size,
    return res;
 }
 
-
 void MemoryPrintFlags(unsigned flags)
 {
    typedef Memory<int> Mem;
@@ -1812,7 +1811,7 @@ const char * MemoryManager::h_umpire_name = "MFEM_HOST";
 const char * MemoryManager::d_umpire_name = "MFEM_DEVICE";
 const char * MemoryManager::d_umpire_2_name = "MFEM_DEVICE_2";
 #endif
-
+#endif
 
 const char *MemoryTypeName[MemoryTypeSize] =
 {

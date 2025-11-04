@@ -26,10 +26,10 @@ struct Allocator
    virtual ~Allocator() = default;
 };
 
-/// Adapter to allow ResourceManager to be used in place of std::allocator
+/// Adapter to allow MemoryManager to be used in place of std::allocator
 template <class T> class AllocatorAdaptor;
 
-class ResourceManager
+class MemoryManager
 {
 private:
    // used to only track when invalid
@@ -173,10 +173,10 @@ private:
    void print_segment(size_t segment);
 
 private:
-   template <class T> friend class Resource;
+   template <class T> friend class Memory;
    template <class T> friend class AllocatorAdaptor;
 
-   ResourceManager();
+   MemoryManager();
 
    RBase storage;
    std::array<std::unique_ptr<Allocator>, 2 * MemoryTypeSize> allocs_storage;
@@ -187,6 +187,8 @@ private:
       MemoryType::DEFAULT, MemoryType::DEFAULT, MemoryType::DEFAULT,
       MemoryType::DEFAULT
    };
+
+   MFEM_ENZYME_INACTIVE static MemoryType dual_map[MemoryTypeSize];
 
    bool ZeroCopy(size_t segment);
 
@@ -292,28 +294,43 @@ private:
 
    void SetValidity(size_t segment, bool host_valid, bool device_valid);
 
-public:
-   ResourceManager(const ResourceManager &) = delete;
+   /// Update the dual memory type of @a mt to be @a dual_mt.
+   void UpdateDualMemoryType(MemoryType mt, MemoryType dual_mt);
 
-   ~ResourceManager();
+public:
+   MemoryManager(const MemoryManager &) = delete;
+
+   ~MemoryManager();
+
+   MemoryType GetHostMemoryType() const { return memory_types[0]; }
+   MemoryType GetDeviceMemoryType() const {return memory_types[1]; }
+
+   MemoryType GetHostPinnedMemoryType() const { return memory_types[2]; }
+   MemoryType GetManagedMemoryType() const { return memory_types[3]; }
+
+   static inline MemoryType GetDualMemoryType(MemoryType mt)
+   {
+      return dual_map[(int)mt];
+   }
+   static void SetDualMemoryType(MemoryType mt, MemoryType dual_mt);
 
    /// Forcibly deletes all allocations and removes all nodes
-   void Clear();
+   void Destroy();
 
-   static ResourceManager &instance();
+   static MemoryManager &instance();
 
-   void Setup(MemoryType host_loc = MemoryType::DEFAULT,
-              MemoryType device_loc = MemoryType::DEFAULT,
-              MemoryType hostpinned_loc = MemoryType::DEFAULT,
-              MemoryType managed_loc = MemoryType::DEFAULT);
+   void Configure(MemoryType host_loc = MemoryType::DEFAULT,
+                  MemoryType device_loc = MemoryType::DEFAULT,
+                  MemoryType hostpinned_loc = MemoryType::DEFAULT,
+                  MemoryType managed_loc = MemoryType::DEFAULT);
 
    /// How much resource is allocated of each resource type. Order:
    /// - HOST, DEVICE, TEMP HOST, TEMP DEVICE
    std::array<size_t, 4> Usage() const;
 
    /// same restrictions as std::memcpy: dst and src should not overlap
-   void MemCopy(void *dst, const void *src, size_t nbytes,
-                MemoryType dst_loc, MemoryType src_loc);
+   void MemCopy(void *dst, const void *src, size_t nbytes, MemoryType dst_loc,
+                MemoryType src_loc);
 
    /// raw deallocation of a buffer
    void Dealloc(char *ptr, MemoryType type, bool temporary);
@@ -354,7 +371,7 @@ public:
 
    T *allocate(size_t n)
    {
-      auto &inst = ResourceManager::instance();
+      auto &inst = MemoryManager::instance();
       void *res;
       inst.allocs[idx]->Alloc(&res, n * sizeof(T));
       return static_cast<T *>(res);
@@ -362,139 +379,181 @@ public:
 
    void deallocate(T *ptr, size_t n)
    {
-      auto &inst = ResourceManager::instance();
+      auto &inst = MemoryManager::instance();
       inst.allocs[idx]->Dealloc(ptr);
    }
 };
 
-/// WARNING: In general using Resource is not thread safe, even when surrounded
+/// WARNING: In general using Memory is not thread safe, even when surrounded
 /// by an external synchronization mechanism like a mutex (due to calls into
-/// ResourceManager). The only operation which can be made thread-safe is
+/// MemoryManager). The only operation which can be made thread-safe is
 /// operator[]; you will still need an external synchronization mechanism for
 /// parallel read/write, similar to raw pointer access.
-template <class T> class Resource
+template <class T> class Memory
 {
    /// offset and size are in terms of number of entries of size T
-   size_t offset_;
-   size_t size_;
-   size_t segment;
+   size_t offset_ = 0;
+   size_t size_ = 0;
+   size_t segment = 0;
    mutable bool use_device = false;
 
-   friend class ResourceManager;
+   friend class MemoryManager;
 
 public:
-   Resource() : offset_(0), size_(0), segment(0) {}
-   Resource(T *ptr, size_t count, MemoryType loc);
-   Resource(size_t count, MemoryType loc, bool temporary = false);
+   Memory() : offset_(0), size_(0), segment(0) {}
+   explicit Memory(int size);
+   explicit Memory(MemoryType mt);
+   Memory(T *ptr, size_t count, bool own);
+   Memory(T *ptr, size_t count, MemoryType loc);
+   Memory(T *ptr, size_t count, MemoryType loc, bool own);
+   Memory(size_t count, MemoryType loc, bool temporary = false);
 
-   Resource(size_t count, MemoryType hloc, MemoryType dloc,
-            bool temporary = false);
+   Memory(size_t count, MemoryType hloc, MemoryType dloc,
+          bool temporary = false);
 
-   Resource(const Resource &r);
-   Resource(Resource &&r);
+   Memory(const Memory &r);
+   Memory(Memory &&r);
 
-   Resource &operator=(const Resource &r);
-   Resource &operator=(Resource &&r) noexcept;
+   Memory &operator=(const Memory &r);
+   Memory &operator=(Memory &&r) noexcept;
 
-   ~Resource();
+   ~Memory();
 
-   size_t Capacity() const { return size_; }
+   int Capacity() const { return static_cast<int>(size_); }
 
    bool OwnsHostPtr() const
    {
-      auto &inst = ResourceManager::instance();
+      auto &inst = MemoryManager::instance();
       return inst.owns_host_ptr(segment);
    }
 
    void SetHostPtrOwner(bool own) const
    {
-      auto &inst = ResourceManager::instance();
+      auto &inst = MemoryManager::instance();
       inst.set_owns_host_ptr(segment, own);
    }
 
    bool OwnsDevicePtr() const
    {
-      auto &inst = ResourceManager::instance();
+      auto &inst = MemoryManager::instance();
       return inst.owns_device_ptr(segment);
    }
 
    bool ZeroCopy() const
    {
-      auto &inst = ResourceManager::instance();
+      auto &inst = MemoryManager::instance();
       return inst.ZeroCopy(segment);
    }
 
    void SetDevicePtrOwner(bool own) const
    {
-      auto &inst = ResourceManager::instance();
+      auto &inst = MemoryManager::instance();
       inst.set_owns_device_ptr(segment, own);
    }
 
    void ClearOwnerFlags() const
    {
-      auto &inst = ResourceManager::instance();
+      auto &inst = MemoryManager::instance();
       inst.clear_owner_flags(segment);
    }
 
    bool UseDevice() const { return use_device; }
    void UseDevice(bool use_dev) const { use_device = use_dev; }
 
-   Resource CreateAlias(size_t offset, size_t count) const;
+   Memory CreateAlias(size_t offset, size_t count) const;
 
-   Resource CreateAlias(size_t offset) const;
+   Memory CreateAlias(size_t offset) const;
 
-   void MakeAlias(const Resource &base, int offset, int size)
+   void MakeAlias(const Memory &base, int offset, int size)
    {
       *this = base.CreateAlias(offset, size);
    }
 
    void SetDeviceMemoryType(MemoryType loc)
    {
-      auto &inst = ResourceManager::instance();
+      auto &inst = MemoryManager::instance();
       inst.SetDeviceMemoryType(segment, loc);
    }
 
-   void Reset() { *this = Resource{}; }
+   void Reset() { *this = Memory{}; }
+
+   void Reset(MemoryType host_mt);
 
    bool Empty() const { return size_ == 0; }
 
    void New(size_t size, bool temporary = false)
    {
-      auto &inst = ResourceManager::instance();
-      *this = Resource(size, inst.memory_types[0], temporary);
+      auto &inst = MemoryManager::instance();
+      *this = Memory(size, inst.memory_types[0], temporary);
    }
 
    void New(size_t size, MemoryType loc, bool temporary = false)
    {
-      *this = Resource(size, loc, temporary);
+      if (loc == MemoryType::PRESERVE)
+      {
+         auto &inst = MemoryManager::instance();
+         if (inst.valid_segment(segment))
+         {
+            loc = inst.storage.get_segment(segment).mtypes[0];
+         }
+         else
+         {
+            loc = inst.GetHostMemoryType();
+         }
+      }
+      *this = Memory(size, loc, temporary);
    }
 
    void New(size_t size, MemoryType hloc, MemoryType dloc,
             bool temporary = false)
    {
-      *this = Resource(size, hloc, dloc, temporary);
+      if (hloc == MemoryType::PRESERVE)
+      {
+         auto &inst = MemoryManager::instance();
+         if (inst.valid_segment(segment))
+         {
+            hloc = inst.storage.get_segment(segment).mtypes[0];
+         }
+         else
+         {
+            hloc = inst.GetHostMemoryType();
+         }
+      }
+      if (dloc == MemoryType::PRESERVE)
+      {
+         auto &inst = MemoryManager::instance();
+         if (inst.valid_segment(segment))
+         {
+            dloc = inst.storage.get_segment(segment).mtypes[1];
+         }
+         else
+         {
+            dloc = inst.GetDeviceMemoryType();
+         }
+      }
+      *this = Memory(size, hloc, dloc, temporary);
    }
 
-   void Delete() { *this = Resource(); }
+   void Delete() { *this = Memory(); }
 
    void Wrap(T *ptr, size_t size, bool own)
    {
-      *this = Resource(ptr, size, MemoryType::HOST);
+      *this = Memory(ptr, size, MemoryType::HOST);
       SetHostPtrOwner(own);
    }
 
    void Wrap(T *ptr, size_t size, MemoryType loc, bool own)
    {
-      *this = Resource(ptr, size, loc);
+      *this = Memory(ptr, size, loc);
       // TODO: set ownership
    }
 
    void Wrap(T *h_ptr, T *d_ptr, size_t size, MemoryType hloc, MemoryType dloc,
              bool own, bool valid_host = false, bool valid_device = true)
    {
-      *this = Resource(h_ptr, size, hloc);
+      *this = Memory(h_ptr, size, hloc);
       SetHostPtrOwner(own);
-      auto &inst = ResourceManager::instance();
+      auto &inst = MemoryManager::instance();
       auto &seg = inst.storage.get_segment(segment);
       seg.lowers[1] = reinterpret_cast<char *>(d_ptr);
       seg.mtypes[1] = dloc;
@@ -526,7 +585,7 @@ public:
 
    void DeleteDevice(bool copy_to_host = true)
    {
-      auto &inst = ResourceManager::instance();
+      auto &inst = MemoryManager::instance();
       if (inst.valid_segment(segment))
       {
          auto &seg = inst.storage.get_segment(segment);
@@ -548,19 +607,21 @@ public:
    }
 
    /// @deprecated This is a no-op
-   [[deprecated]] void Sync(const Resource &other) const {}
+   [[deprecated]] void Sync(const Memory &other) const {}
    /// @deprecated This is a no-op
-   [[deprecated]] void SyncAlias(const Resource &other) const {}
+   [[deprecated]] void SyncAlias(const Memory &other) const {}
+   /// @deprecated This is a no-op
+   [[deprecated]] void SyncAlias(const Memory &other, int alias_size) const {}
 
    MemoryType GetMemoryType() const
    {
-      auto &inst = ResourceManager::instance();
+      auto &inst = MemoryManager::instance();
       return inst.GetMemoryType(segment, offset_ * sizeof(T), size_ * sizeof(T));
    }
 
    MemoryType GetHostMemoryType() const
    {
-      auto &inst = ResourceManager::instance();
+      auto &inst = MemoryManager::instance();
       if (inst.valid_segment(segment))
       {
          return inst.storage.get_segment(segment).mtypes[0];
@@ -570,7 +631,7 @@ public:
 
    MemoryType GetDeviceMemoryType() const
    {
-      auto &inst = ResourceManager::instance();
+      auto &inst = MemoryManager::instance();
       if (inst.valid_segment(segment))
       {
          return inst.storage.get_segment(segment).mtypes[1];
@@ -580,14 +641,14 @@ public:
 
    bool HostIsValid() const
    {
-      auto &inst = ResourceManager::instance();
+      auto &inst = MemoryManager::instance();
       return inst.is_valid(segment, offset_ * sizeof(T), size_ * sizeof(T),
                            false);
    }
 
    bool DeviceIsValid() const
    {
-      auto &inst = ResourceManager::instance();
+      auto &inst = MemoryManager::instance();
       return inst.is_valid(segment, offset_ * sizeof(T), size_ * sizeof(T), true);
    }
    /// Pre-conditions:
@@ -596,11 +657,11 @@ public:
    /// on both host and device data is copied twice, and conversely if neither
    /// is valid then no data is copied. Use this->Write/ReadWrite prior to
    /// CopyFrom to specify which buffer to copy into.
-   void CopyFrom(const Resource &src, int size);
+   void CopyFrom(const Memory &src, int size);
    void CopyFromHost(const T *src, int size);
 
    /// Equivalent to dst.CopyFrom(*this, size)
-   void CopyTo(Resource &dst, int size) const;
+   void CopyTo(Memory &dst, int size) const;
    void CopyToHost(T *dst, int size) const;
 
    /// no-op
@@ -608,25 +669,62 @@ public:
 
    int CompareHostAndDevice(int size) const
    {
-      auto &inst = ResourceManager::instance();
+      auto &inst = MemoryManager::instance();
       return inst.compare_host_device(segment, offset_ * sizeof(T),
                                       size * sizeof(T));
    }
 };
 
-template <class T> Resource<T>::Resource(T *ptr, size_t count, MemoryType loc)
+template <class T> Memory<T>::Memory(int count)
 {
-   auto &inst = ResourceManager::instance();
+   auto &inst = MemoryManager::instance();
+   offset_ = 0;
+   size_ = count;
+   segment =
+      inst.insert(inst.Alloc(count * sizeof(T), inst.memory_types[0], false),
+                  count * sizeof(T), inst.memory_types[0], true, false);
+}
+
+template <class T> Memory<T>::Memory(MemoryType mt) : Memory() { Reset(mt); }
+
+template <class T> void Memory<T>::Reset(MemoryType host_mt)
+{
+   *this = Memory{};
+   // TODO: how to track host_mt?
+}
+
+template <class T> Memory<T>::Memory(T *ptr, size_t count, MemoryType loc)
+{
+   auto &inst = MemoryManager::instance();
    segment = inst.insert(reinterpret_cast<char *>(ptr), count * sizeof(T), loc,
                          false, false);
    offset_ = 0;
    size_ = count;
 }
 
-template <class T>
-Resource<T>::Resource(size_t count, MemoryType loc, bool temporary)
+template <class T> Memory<T>::Memory(T *ptr, size_t count, bool own)
 {
-   auto &inst = ResourceManager::instance();
+   auto &inst = MemoryManager::instance();
+   segment = inst.insert(reinterpret_cast<char *>(ptr), count * sizeof(T),
+                         inst.memory_types[0], own, false);
+   offset_ = 0;
+   size_ = count;
+}
+
+template <class T>
+Memory<T>::Memory(T *ptr, size_t count, MemoryType loc, bool own)
+{
+   auto &inst = MemoryManager::instance();
+   segment = inst.insert(reinterpret_cast<char *>(ptr), count * sizeof(T), loc,
+                         own, false);
+   offset_ = 0;
+   size_ = count;
+}
+
+template <class T>
+Memory<T>::Memory(size_t count, MemoryType loc, bool temporary)
+{
+   auto &inst = MemoryManager::instance();
    offset_ = 0;
    size_ = count;
    segment = inst.insert(inst.Alloc(count * sizeof(T), loc, temporary),
@@ -634,13 +732,13 @@ Resource<T>::Resource(size_t count, MemoryType loc, bool temporary)
 }
 
 template <class T>
-Resource<T>::Resource(size_t count, MemoryType hloc, MemoryType dloc,
-                      bool temporary)
+Memory<T>::Memory(size_t count, MemoryType hloc, MemoryType dloc,
+                  bool temporary)
 {
-   auto &inst = ResourceManager::instance();
+   auto &inst = MemoryManager::instance();
    offset_ = 0;
    size_ = count;
-   if (hloc == dloc)
+   if (hloc == dloc && static_cast<int>(hloc) < MemoryTypeSize)
    {
       segment = inst.insert(inst.Alloc(count * sizeof(T), hloc, temporary),
                             count * sizeof(T), hloc, true, temporary);
@@ -654,10 +752,10 @@ Resource<T>::Resource(size_t count, MemoryType hloc, MemoryType dloc,
 }
 
 template <class T>
-Resource<T>::Resource(const Resource &r)
+Memory<T>::Memory(const Memory &r)
    : offset_(r.offset_), size_(r.size_), segment(r.segment)
 {
-   auto &inst = ResourceManager::instance();
+   auto &inst = MemoryManager::instance();
    if (inst.valid_segment(segment))
    {
       auto &seg = inst.storage.get_segment(segment);
@@ -666,7 +764,7 @@ Resource<T>::Resource(const Resource &r)
 }
 
 template <class T>
-Resource<T>::Resource(Resource &&r)
+Memory<T>::Memory(Memory &&r)
    : offset_(r.offset_), size_(r.size_), segment(r.segment)
 {
    r.offset_ = 0;
@@ -674,11 +772,11 @@ Resource<T>::Resource(Resource &&r)
    r.segment = 0;
 }
 
-template <class T> Resource<T> &Resource<T>::operator=(const Resource &r)
+template <class T> Memory<T> &Memory<T>::operator=(const Memory &r)
 {
    if (&r != this)
    {
-      auto &inst = ResourceManager::instance();
+      auto &inst = MemoryManager::instance();
       if (inst.valid_segment(segment))
       {
          inst.erase(segment);
@@ -695,11 +793,11 @@ template <class T> Resource<T> &Resource<T>::operator=(const Resource &r)
    return *this;
 }
 
-template <class T> Resource<T> &Resource<T>::operator=(Resource &&r) noexcept
+template <class T> Memory<T> &Memory<T>::operator=(Memory &&r) noexcept
 {
    if (&r != this)
    {
-      auto &inst = ResourceManager::instance();
+      auto &inst = MemoryManager::instance();
       if (inst.valid_segment(segment))
       {
          inst.erase(segment);
@@ -715,10 +813,10 @@ template <class T> Resource<T> &Resource<T>::operator=(Resource &&r) noexcept
 }
 
 template <class T>
-Resource<T> Resource<T>::CreateAlias(size_t offset, size_t count) const
+Memory<T> Memory<T>::CreateAlias(size_t offset, size_t count) const
 {
-   auto &inst = ResourceManager::instance();
-   Resource<T> res = *this;
+   auto &inst = MemoryManager::instance();
+   Memory<T> res = *this;
    if (inst.valid_segment(segment))
    {
       res.offset_ += offset;
@@ -727,10 +825,10 @@ Resource<T> Resource<T>::CreateAlias(size_t offset, size_t count) const
    return res;
 }
 
-template <class T> Resource<T> Resource<T>::CreateAlias(size_t offset) const
+template <class T> Memory<T> Memory<T>::CreateAlias(size_t offset) const
 {
-   auto &inst = ResourceManager::instance();
-   Resource<T> res = *this;
+   auto &inst = MemoryManager::instance();
+   Memory<T> res = *this;
    if (inst.valid_segment(segment))
    {
       res.offset_ += offset;
@@ -739,122 +837,122 @@ template <class T> Resource<T> Resource<T>::CreateAlias(size_t offset) const
    return res;
 }
 
-template <class T> T *Resource<T>::Write(bool on_device)
+template <class T> T *Memory<T>::Write(bool on_device)
 {
-   auto &inst = ResourceManager::instance();
+   auto &inst = MemoryManager::instance();
    return reinterpret_cast<T *>(
              inst.write(segment, offset_ * sizeof(T), size_ * sizeof(T), on_device));
 }
 
-template <class T> T *Resource<T>::ReadWrite(bool on_device)
+template <class T> T *Memory<T>::ReadWrite(bool on_device)
 {
-   auto &inst = ResourceManager::instance();
+   auto &inst = MemoryManager::instance();
    return reinterpret_cast<T *>(inst.read_write(segment, offset_ * sizeof(T),
                                                 size_ * sizeof(T), on_device));
 }
 
-template <class T> const T *Resource<T>::Read(bool on_device) const
+template <class T> const T *Memory<T>::Read(bool on_device) const
 {
-   auto &inst = ResourceManager::instance();
+   auto &inst = MemoryManager::instance();
    return reinterpret_cast<const T *>(
              inst.read(segment, offset_ * sizeof(T), size_ * sizeof(T), on_device));
 }
 
-template <class T> T *Resource<T>::Write(MemoryClass mc, int size)
+template <class T> T *Memory<T>::Write(MemoryClass mc, int size)
 {
-   auto &inst = ResourceManager::instance();
+   auto &inst = MemoryManager::instance();
    return reinterpret_cast<T *>(
              inst.write(segment, offset_ * sizeof(T), size * sizeof(T), mc));
 }
 
-template <class T> T *Resource<T>::ReadWrite(MemoryClass mc, int size)
+template <class T> T *Memory<T>::ReadWrite(MemoryClass mc, int size)
 {
-   auto &inst = ResourceManager::instance();
+   auto &inst = MemoryManager::instance();
    return reinterpret_cast<T *>(inst.read_write(segment, offset_ * sizeof(T),
                                                 size * sizeof(T), mc));
 }
 
-template <class T> const T *Resource<T>::Read(MemoryClass mc, int size) const
+template <class T> const T *Memory<T>::Read(MemoryClass mc, int size) const
 {
-   auto &inst = ResourceManager::instance();
+   auto &inst = MemoryManager::instance();
    return reinterpret_cast<const T *>(
              inst.read(segment, offset_ * sizeof(T), size * sizeof(T), mc));
 }
 
-template <class T> T &Resource<T>::operator[](size_t idx)
+template <class T> T &Memory<T>::operator[](size_t idx)
 {
-   auto &inst = ResourceManager::instance();
+   auto &inst = MemoryManager::instance();
    return *reinterpret_cast<T *>(inst.fast_read_write(
                                     segment, (offset_ + idx) * sizeof(T), sizeof(T), false));
 }
 
-template <class T> const T &Resource<T>::operator[](size_t idx) const
+template <class T> const T &Memory<T>::operator[](size_t idx) const
 {
-   auto &inst = ResourceManager::instance();
+   auto &inst = MemoryManager::instance();
    return *reinterpret_cast<const T *>(
              inst.fast_read(segment, (offset_ + idx) * sizeof(T), sizeof(T), false));
 }
 
-template <class T> Resource<T>::~Resource()
+template <class T> Memory<T>::~Memory()
 {
-   auto &inst = ResourceManager::instance();
+   auto &inst = MemoryManager::instance();
    if (inst.valid_segment(segment))
    {
       inst.erase(segment);
    }
 }
 
-template <class T> void Resource<T>::CopyFrom(const Resource &src, int size)
+template <class T> void Memory<T>::CopyFrom(const Memory &src, int size)
 {
-   auto &inst = ResourceManager::instance();
+   auto &inst = MemoryManager::instance();
    inst.Copy(segment, src.segment, offset_ * sizeof(T), src.offset_ * sizeof(T),
              sizeof(T) * size);
 }
 
-template <class T> void Resource<T>::CopyFromHost(const T *src, int size)
+template <class T> void Memory<T>::CopyFromHost(const T *src, int size)
 {
-   auto &inst = ResourceManager::instance();
+   auto &inst = MemoryManager::instance();
    inst.CopyFromHost(segment, offset_ * sizeof(T),
                      reinterpret_cast<const char *>(src), size * sizeof(T));
 }
 
-template <class T> void Resource<T>::CopyTo(Resource &dst, int size) const
+template <class T> void Memory<T>::CopyTo(Memory &dst, int size) const
 {
    dst.CopyFrom(*this, size);
 }
 
-template <class T> void Resource<T>::CopyToHost(T *dst, int size) const
+template <class T> void Memory<T>::CopyToHost(T *dst, int size) const
 {
-   auto &inst = ResourceManager::instance();
+   auto &inst = MemoryManager::instance();
    inst.CopyToHost(segment, offset_ * sizeof(T), dst, size * sizeof(T));
 }
 
 template <class T>
-Resource<T>::operator T*()
+Memory<T>::operator T*()
 {
-   auto &inst = ResourceManager::instance();
+   auto &inst = MemoryManager::instance();
    return reinterpret_cast<T *>(inst.fast_read_write(
                                    segment, offset_ * sizeof(T), size_ * sizeof(T), false));
 }
 
-template <class T> Resource<T>::operator const T *() const
+template <class T> Memory<T>::operator const T *() const
 {
-   auto &inst = ResourceManager::instance();
-   return reinterpret_cast<T *>(inst.fast_read(
-                                   segment, offset_ * sizeof(T), size_ * sizeof(T), false));
+   auto &inst = MemoryManager::instance();
+   return reinterpret_cast<const T *>(
+             inst.fast_read(segment, offset_ * sizeof(T), size_ * sizeof(T), false));
 }
 
-template <class T> template <class U> Resource<T>::operator U *()
+template <class T> template <class U> Memory<T>::operator U *()
 {
-   auto &inst = ResourceManager::instance();
+   auto &inst = MemoryManager::instance();
    return reinterpret_cast<U *>(inst.fast_read_write(
                                    segment, offset_ * sizeof(T), size_ * sizeof(T), false));
 }
 
-template <class T> template <class U> Resource<T>::operator const U *() const
+template <class T> template <class U> Memory<T>::operator const U *() const
 {
-   auto &inst = ResourceManager::instance();
-   return reinterpret_cast<U *>(
+   auto &inst = MemoryManager::instance();
+   return reinterpret_cast<const U *>(
              inst.fast_read(segment, offset_ * sizeof(T), size_ * sizeof(T), false));
 }
 

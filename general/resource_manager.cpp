@@ -318,8 +318,8 @@ void TempAllocator<BaseAlloc, NeedsWait>::Dealloc(void *ptr)
    }
 }
 
-void ResourceManager::MemCopy(void *dst, const void *src, size_t nbytes,
-                              MemoryType dst_loc, MemoryType src_loc)
+void MemoryManager::MemCopy(void *dst, const void *src, size_t nbytes,
+                            MemoryType dst_loc, MemoryType src_loc)
 {
    if (dst == src)
    {
@@ -334,13 +334,13 @@ void ResourceManager::MemCopy(void *dst, const void *src, size_t nbytes,
 #endif
 }
 
-ResourceManager &ResourceManager::instance()
+MemoryManager &MemoryManager::instance()
 {
-   static ResourceManager inst;
+   static MemoryManager inst;
    return inst;
 }
 
-ResourceManager::ResourceManager()
+MemoryManager::MemoryManager()
 {
    allocs_storage[0].reset(new StdAllocator);
    allocs_storage[1].reset(new TempAllocator<StdAllocator>);
@@ -364,6 +364,10 @@ ResourceManager::ResourceManager()
 
    allocs[static_cast<int>(MemoryType::HOST_DEBUG)] = allocs_storage[0].get();
    allocs[static_cast<int>(MemoryType::HOST_DEBUG) + MemoryTypeSize] =
+      allocs_storage[1].get();
+
+   allocs[static_cast<int>(MemoryType::DEVICE_DEBUG)] = allocs_storage[0].get();
+   allocs[static_cast<int>(MemoryType::DEVICE_DEBUG) + MemoryTypeSize] =
       allocs_storage[1].get();
 
    // TODO HOST_UMPIRE
@@ -403,12 +407,21 @@ ResourceManager::ResourceManager()
    // TODO: UMPIRE
    // TODO: UMPIRE_2
 
-   Setup();
+   Configure();
 }
 
-void ResourceManager::Setup(MemoryType host_loc, MemoryType device_loc,
-                            MemoryType hostpinned_loc, MemoryType managed_loc)
+void MemoryManager::Configure(MemoryType host_loc, MemoryType device_loc,
+                              MemoryType hostpinned_loc,
+                              MemoryType managed_loc)
 {
+   if (device_loc == MemoryType::DEVICE_DEBUG)
+   {
+      for (int mt = (int)MemoryType::HOST; mt < (int)MemoryType::MANAGED; mt++)
+      {
+         MemoryManager::UpdateDualMemoryType((MemoryType)mt,
+                                             MemoryType::DEVICE_DEBUG);
+      }
+   }
    if (host_loc == MemoryType::DEFAULT)
    {
       if (Device::Allows(Backend::DEBUG_DEVICE))
@@ -462,12 +475,16 @@ void ResourceManager::Setup(MemoryType host_loc, MemoryType device_loc,
    memory_types[1] = device_loc;
    memory_types[2] = hostpinned_loc;
    memory_types[3] = managed_loc;
+
+   UpdateDualMemoryType(host_loc, device_loc);
+   UpdateDualMemoryType(device_loc, host_loc);
 }
 
-ResourceManager::~ResourceManager() { Clear(); }
+MemoryManager::~MemoryManager() { Destroy(); }
 
-void ResourceManager::Clear()
+void MemoryManager::Destroy()
 {
+   // TODO: unregistered host pointers need to be supported somehow
    for (auto &seg : storage.segments)
    {
       if (seg.ref_count)
@@ -496,8 +513,9 @@ void ResourceManager::Clear()
    }
 }
 
-void ResourceManager::Dealloc(char *ptr, MemoryType type, bool temporary)
+void MemoryManager::Dealloc(char *ptr, MemoryType type, bool temporary)
 {
+   MFEM_ASSERT(static_cast<int>(type) < MemoryTypeSize, "invalid memory type");
    size_t offset = 0;
    if (temporary)
    {
@@ -513,7 +531,7 @@ void ResourceManager::Dealloc(char *ptr, MemoryType type, bool temporary)
    }
 }
 
-std::array<size_t, 4> ResourceManager::Usage() const
+std::array<size_t, 4> MemoryManager::Usage() const
 {
    MFEM_ASSERT(static_cast<int>(RBase::Segment::Flags::OWN_HOST) == (1 << 0),
                "unexpected value for Segment::Flags::OWN_HOST");
@@ -548,7 +566,7 @@ std::array<size_t, 4> ResourceManager::Usage() const
    return res;
 }
 
-char *ResourceManager::Alloc(size_t nbytes, MemoryType type, bool temporary)
+char *MemoryManager::Alloc(size_t nbytes, MemoryType type, bool temporary)
 {
    size_t offset = 0;
    if (temporary)
@@ -561,14 +579,14 @@ char *ResourceManager::Alloc(size_t nbytes, MemoryType type, bool temporary)
    {
       case MemoryType::PRESERVE:
       case MemoryType::DEFAULT:
-         type = MemoryType::HOST;
+         type = GetHostMemoryType();
       default:
          allocs[offset + static_cast<int>(type)]->Alloc(&res, nbytes);
    }
    return static_cast<char *>(res);
 }
 
-void ResourceManager::RBase::cleanup_nodes()
+void MemoryManager::RBase::cleanup_nodes()
 {
    while (nodes.size())
    {
@@ -580,7 +598,7 @@ void ResourceManager::RBase::cleanup_nodes()
    }
 }
 
-void ResourceManager::RBase::cleanup_segments()
+void MemoryManager::RBase::cleanup_segments()
 {
    while (segments.size())
    {
@@ -593,8 +611,8 @@ void ResourceManager::RBase::cleanup_segments()
 }
 
 template <class F>
-void ResourceManager::mark_valid(size_t segment, bool on_device,
-                                 ptrdiff_t start, ptrdiff_t stop, F &&func)
+void MemoryManager::mark_valid(size_t segment, bool on_device,
+                               ptrdiff_t start, ptrdiff_t stop, F &&func)
 {
    auto &seg = storage.get_segment(segment);
    size_t curr = find_marker(segment, start, on_device);
@@ -650,9 +668,10 @@ void ResourceManager::mark_valid(size_t segment, bool on_device,
                }
                else
                {
-                  storage.insert(segment,
-                                 storage.insert(segment, curr, pos, on_device, true),
-                                 stop, on_device, false);
+                  storage.insert(
+                     segment,
+                     storage.insert(segment, curr, pos, on_device, true), stop,
+                     on_device, false);
                }
                break;
             }
@@ -696,7 +715,7 @@ void ResourceManager::mark_valid(size_t segment, bool on_device,
    }
 }
 
-bool ResourceManager::ZeroCopy(size_t segment)
+bool MemoryManager::ZeroCopy(size_t segment)
 {
    if (valid_segment(segment))
    {
@@ -707,8 +726,8 @@ bool ResourceManager::ZeroCopy(size_t segment)
 }
 
 template <class F>
-void ResourceManager::mark_invalid(size_t segment, bool on_device,
-                                   ptrdiff_t start, ptrdiff_t stop, F &&func)
+void MemoryManager::mark_invalid(size_t segment, bool on_device,
+                                 ptrdiff_t start, ptrdiff_t stop, F &&func)
 {
    auto &seg = storage.get_segment(segment);
    size_t curr = find_marker(segment, start, on_device);
@@ -849,8 +868,8 @@ void ResourceManager::mark_invalid(size_t segment, bool on_device,
    }
 }
 
-size_t ResourceManager::insert(char *hptr, size_t nbytes, MemoryType loc,
-                               bool own, bool temporary)
+size_t MemoryManager::insert(char *hptr, size_t nbytes, MemoryType loc,
+                             bool own, bool temporary)
 {
    char *dptr = nullptr;
    MemoryType dloc = MemoryType::DEFAULT;
@@ -892,21 +911,34 @@ size_t ResourceManager::insert(char *hptr, size_t nbytes, MemoryType loc,
          dptr = hptr;
          dloc = loc;
          break;
+      case MemoryType::PRESERVE:
       default:
          MFEM_ABORT("Invalid loc");
    }
    return insert(hptr, dptr, nbytes, loc, dloc, own, false, temporary);
 }
 
-size_t ResourceManager::insert(char *hptr, char *dptr, size_t nbytes,
-                               MemoryType hloc, MemoryType dloc, bool own_host,
-                               bool own_device, bool temporary)
+size_t MemoryManager::insert(char *hptr, char *dptr, size_t nbytes,
+                             MemoryType hloc, MemoryType dloc, bool own_host,
+                             bool own_device, bool temporary)
 {
+   MFEM_ASSERT(hloc != MemoryType::PRESERVE, "hloc cannot be PRESERVE");
+   MFEM_ASSERT(dloc != MemoryType::PRESERVE, "dloc cannot be PRESERVE");
    storage.segments.emplace_back();
    auto &seg = storage.segments.back();
+   MFEM_ASSERT(seg.roots[0] == 0, "unexpected host root");
+   MFEM_ASSERT(seg.roots[1] == 0, "unexpected device root");
    seg.lowers[0] = hptr;
    seg.lowers[1] = dptr;
    seg.nbytes = nbytes;
+   if (hptr && hloc == MemoryType::DEFAULT)
+   {
+      hloc = memory_types[0];
+   }
+   if (dptr && dloc == MemoryType::DEFAULT)
+   {
+      dloc = memory_types[1];
+   }
    seg.mtypes[0] = hloc;
    seg.mtypes[1] = dloc;
    if (hptr && own_host)
@@ -939,7 +971,7 @@ size_t ResourceManager::insert(char *hptr, char *dptr, size_t nbytes,
    return storage.segments.size();
 }
 
-void ResourceManager::clear_segment(size_t segment)
+void MemoryManager::clear_segment(size_t segment)
 {
    auto &seg = storage.get_segment(segment);
    // cleanup nodes
@@ -956,7 +988,7 @@ void ResourceManager::clear_segment(size_t segment)
    storage.cleanup_nodes();
 }
 
-void ResourceManager::clear_segment(size_t segment, bool on_device)
+void MemoryManager::clear_segment(size_t segment, bool on_device)
 {
    auto &seg = storage.get_segment(segment);
    // cleanup nodes
@@ -972,7 +1004,7 @@ void ResourceManager::clear_segment(size_t segment, bool on_device)
    seg.roots[on_device] = 0;
 }
 
-void ResourceManager::erase(size_t segment)
+void MemoryManager::erase(size_t segment)
 {
    if (valid_segment(segment))
    {
@@ -1007,8 +1039,8 @@ void ResourceManager::erase(size_t segment)
    }
 }
 
-size_t ResourceManager::find_marker(size_t segment, ptrdiff_t offset,
-                                    bool on_device)
+size_t MemoryManager::find_marker(size_t segment, ptrdiff_t offset,
+                                  bool on_device)
 {
    auto &seg = storage.get_segment(segment);
 
@@ -1052,7 +1084,7 @@ size_t ResourceManager::find_marker(size_t segment, ptrdiff_t offset,
    return start;
 }
 
-void ResourceManager::print_segment(size_t segment)
+void MemoryManager::print_segment(size_t segment)
 {
    auto &seg = storage.get_segment(segment);
    for (int i = 0; i < 2; ++i)
@@ -1090,16 +1122,16 @@ void ResourceManager::print_segment(size_t segment)
 }
 
 template <class F>
-void ResourceManager::check_valid(size_t segment, bool on_device,
-                                  ptrdiff_t start, ptrdiff_t stop, F &&func)
+void MemoryManager::check_valid(size_t segment, bool on_device,
+                                ptrdiff_t start, ptrdiff_t stop, F &&func)
 {
    size_t curr = find_marker(segment, start, on_device);
    check_valid(curr, start, stop, func);
 }
 
 template <class F>
-void ResourceManager::check_valid(size_t curr, ptrdiff_t start, ptrdiff_t stop,
-                                  F &&func)
+void MemoryManager::check_valid(size_t curr, ptrdiff_t start, ptrdiff_t stop,
+                                F &&func)
 {
    if (!curr)
    {
@@ -1191,8 +1223,8 @@ void ResourceManager::check_valid(size_t curr, ptrdiff_t start, ptrdiff_t stop,
    }
 }
 
-MemoryType ResourceManager::GetMemoryType(size_t segment, size_t offset,
-                                          size_t nbytes)
+MemoryType MemoryManager::GetMemoryType(size_t segment, size_t offset,
+                                        size_t nbytes)
 {
    if (valid_segment(segment))
    {
@@ -1237,8 +1269,8 @@ MemoryType ResourceManager::GetMemoryType(size_t segment, size_t offset,
    return MemoryType::DEFAULT;
 }
 
-bool ResourceManager::is_valid(size_t segment, size_t offset, size_t nbytes,
-                               bool on_device)
+bool MemoryManager::is_valid(size_t segment, size_t offset, size_t nbytes,
+                             bool on_device)
 {
    if (valid_segment(segment))
    {
@@ -1262,8 +1294,8 @@ bool ResourceManager::is_valid(size_t segment, size_t offset, size_t nbytes,
    return false;
 }
 
-char *ResourceManager::write(size_t segment, size_t offset, size_t nbytes,
-                             MemoryClass mc)
+char *MemoryManager::write(size_t segment, size_t offset, size_t nbytes,
+                           MemoryClass mc)
 {
    if (IsHostMemory(::mfem::GetMemoryType(mc)))
    {
@@ -1275,8 +1307,8 @@ char *ResourceManager::write(size_t segment, size_t offset, size_t nbytes,
    }
 }
 
-char *ResourceManager::read_write(size_t segment, size_t offset, size_t nbytes,
-                                  MemoryClass mc)
+char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
+                                MemoryClass mc)
 {
    if (IsHostMemory(::mfem::GetMemoryType(mc)))
    {
@@ -1288,8 +1320,8 @@ char *ResourceManager::read_write(size_t segment, size_t offset, size_t nbytes,
    }
 }
 
-const char *ResourceManager::read(size_t segment, size_t offset, size_t nbytes,
-                                  MemoryClass mc)
+const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
+                                MemoryClass mc)
 {
    if (IsHostMemory(::mfem::GetMemoryType(mc)))
    {
@@ -1301,8 +1333,8 @@ const char *ResourceManager::read(size_t segment, size_t offset, size_t nbytes,
    }
 }
 
-char *ResourceManager::write(size_t segment, size_t offset, size_t nbytes,
-                             bool on_device)
+char *MemoryManager::write(size_t segment, size_t offset, size_t nbytes,
+                           bool on_device)
 {
    if (valid_segment(segment))
    {
@@ -1359,7 +1391,7 @@ struct BatchCopyKernel2
    }
 };
 
-void ResourceManager::BatchMemCopy(
+void MemoryManager::BatchMemCopy(
    char *dst, const char *src, MemoryType dst_loc, MemoryType src_loc,
    const std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
    AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
@@ -1448,7 +1480,7 @@ void ResourceManager::BatchMemCopy(
    }
 }
 
-void ResourceManager::BatchMemCopy2(
+void MemoryManager::BatchMemCopy2(
    char *dst, const char *src, MemoryType dst_loc, MemoryType src_loc,
    const std::vector<ptrdiff_t, AllocatorAdaptor<ptrdiff_t>> &copy_segs)
 {
@@ -1535,8 +1567,82 @@ void ResourceManager::BatchMemCopy2(
    }
 }
 
-char *ResourceManager::read_write(size_t segment, size_t offset, size_t nbytes,
-                                  bool on_device)
+char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
+                                bool on_device)
+{
+   if (valid_segment(segment))
+   {
+      std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
+          AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
+          copy_segs(AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(
+                       MemoryType::MANAGED, true));
+
+      auto &seg = storage.get_segment(segment);
+      if (!seg.lowers[on_device])
+      {
+         // need to allocate
+         if (seg.mtypes[on_device] == MemoryType::DEFAULT)
+         {
+            seg.mtypes[on_device] = on_device ? memory_types[1] : memory_types[0];
+         }
+         seg.lowers[on_device] =
+            Alloc(seg.nbytes, seg.mtypes[on_device], seg.is_temporary());
+         // initially all invalid
+         mark_invalid(segment, on_device, 0, seg.nbytes, [&](auto, auto) {});
+      }
+      bool need_sync = false;
+      if (seg.lowers[0] == seg.lowers[1])
+      {
+         mark_valid(segment, on_device, offset, offset + nbytes,
+         [&](auto, auto) { need_sync = true; });
+      }
+      else
+      {
+         mark_valid(
+            segment, on_device, offset, offset + nbytes,
+         [&](auto start, auto stop) { copy_segs.emplace_back(start, stop); });
+      }
+      if (copy_segs.size())
+      {
+         if (!seg.lowers[!on_device])
+         {
+            throw std::runtime_error("no other to read from");
+         }
+         BatchMemCopy(seg.lowers[on_device], seg.lowers[!on_device],
+                      seg.mtypes[on_device], seg.mtypes[!on_device], copy_segs);
+      }
+
+      if (seg.lowers[!on_device])
+      {
+         mark_invalid(segment, !on_device, offset, offset + nbytes,
+         [&](auto, auto) {});
+      }
+      if (!on_device && need_sync)
+      {
+         // TODO: stream or device sync?
+         MFEM_DEVICE_SYNC;
+      }
+      return seg.lowers[on_device] + offset;
+   }
+   return nullptr;
+}
+
+char *MemoryManager::fast_read_write(size_t segment, size_t offset,
+                                     size_t nbytes, bool on_device)
+{
+   // TODO: validate in debug builds?
+   return storage.get_segment(segment).lowers[on_device] + offset;
+}
+
+const char *MemoryManager::fast_read(size_t segment, size_t offset,
+                                     size_t nbytes, bool on_device)
+{
+   // TODO: validate in debug builds?
+   return storage.get_segment(segment).lowers[on_device] + offset;
+}
+
+const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
+                                bool on_device)
 {
    if (valid_segment(segment))
    {
@@ -1581,11 +1687,6 @@ char *ResourceManager::read_write(size_t segment, size_t offset, size_t nbytes,
                       seg.mtypes[on_device], seg.mtypes[!on_device], copy_segs);
       }
 
-      if (seg.lowers[!on_device])
-      {
-         mark_invalid(segment, !on_device, offset, offset + nbytes,
-         [&](auto, auto) {});
-      }
       if (!on_device && need_sync)
       {
          // TODO: stream or device sync?
@@ -1596,75 +1697,7 @@ char *ResourceManager::read_write(size_t segment, size_t offset, size_t nbytes,
    return nullptr;
 }
 
-char *ResourceManager::fast_read_write(size_t segment, size_t offset,
-                                       size_t nbytes, bool on_device)
-{
-   // TODO: validate in debug builds?
-   return storage.get_segment(segment).lowers[on_device] + offset;
-}
-
-const char *ResourceManager::fast_read(size_t segment, size_t offset,
-                                       size_t nbytes, bool on_device)
-{
-   // TODO: validate in debug builds?
-   return storage.get_segment(segment).lowers[on_device] + offset;
-}
-
-const char *ResourceManager::read(size_t segment, size_t offset, size_t nbytes,
-                                  bool on_device)
-{
-   if (valid_segment(segment))
-   {
-      std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
-          AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
-          copy_segs(AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(
-                       MemoryType::MANAGED, true));
-
-      auto &seg = storage.get_segment(segment);
-      if (!seg.lowers[on_device])
-      {
-         // need to allocate
-         if (seg.mtypes[on_device] == MemoryType::DEFAULT)
-         {
-            seg.mtypes[on_device] = on_device ? memory_types[1] : memory_types[0];
-         }
-         seg.lowers[on_device] =
-            Alloc(seg.nbytes, seg.mtypes[on_device], seg.is_temporary());
-      }
-
-      bool need_sync = false;
-      if (seg.lowers[0] == seg.lowers[1])
-      {
-         mark_valid(segment, on_device, offset, offset + nbytes,
-         [&](auto, auto) { need_sync = true; });
-      }
-      else
-      {
-         mark_valid(
-            segment, on_device, offset, offset + nbytes,
-         [&](auto start, auto stop) { copy_segs.emplace_back(start, stop); });
-      }
-      if (copy_segs.size())
-      {
-         if (!seg.lowers[!on_device])
-         {
-            throw std::runtime_error("no other to read from");
-         }
-         BatchMemCopy(seg.lowers[on_device], seg.lowers[!on_device],
-                      seg.mtypes[on_device], seg.mtypes[!on_device], copy_segs);
-      }
-
-      if (!on_device && need_sync)
-      {
-         // TODO: stream or device sync?
-         MFEM_DEVICE_SYNC;
-      }
-      return seg.lowers[on_device] + offset;
-   }
-   return nullptr;
-}
-
-bool ResourceManager::owns_host_ptr(size_t segment)
+bool MemoryManager::owns_host_ptr(size_t segment)
 {
    if (valid_segment(segment))
    {
@@ -1674,7 +1707,7 @@ bool ResourceManager::owns_host_ptr(size_t segment)
    return false;
 }
 
-void ResourceManager::set_owns_host_ptr(size_t segment, bool own)
+void MemoryManager::set_owns_host_ptr(size_t segment, bool own)
 {
    if (valid_segment(segment))
    {
@@ -1683,7 +1716,7 @@ void ResourceManager::set_owns_host_ptr(size_t segment, bool own)
    }
 }
 
-bool ResourceManager::owns_device_ptr(size_t segment)
+bool MemoryManager::owns_device_ptr(size_t segment)
 {
    if (valid_segment(segment))
    {
@@ -1693,7 +1726,7 @@ bool ResourceManager::owns_device_ptr(size_t segment)
    return false;
 }
 
-void ResourceManager::set_owns_device_ptr(size_t segment, bool own)
+void MemoryManager::set_owns_device_ptr(size_t segment, bool own)
 {
    if (valid_segment(segment))
    {
@@ -1702,21 +1735,21 @@ void ResourceManager::set_owns_device_ptr(size_t segment, bool own)
    }
 }
 
-void ResourceManager::clear_owner_flags(size_t segment)
+void MemoryManager::clear_owner_flags(size_t segment)
 {
    set_owns_host_ptr(segment, false);
    set_owns_device_ptr(segment, false);
 }
 
-int ResourceManager::compare_host_device(size_t segment, size_t offset,
-                                         size_t nbytes)
+int MemoryManager::compare_host_device(size_t segment, size_t offset,
+                                       size_t nbytes)
 {
    if (valid_segment(segment))
    {
       auto &seg = storage.get_segment(segment);
       if (seg.lowers[0] && seg.lowers[1] && seg.lowers[0] != seg.lowers[1])
       {
-         Resource<char> tmp;
+         Memory<char> tmp;
          // TODO: fix
 #if 0
          MFEM_ASSERT(seg.mtypes[0] != DEVICE,
@@ -1725,7 +1758,7 @@ int ResourceManager::compare_host_device(size_t segment, size_t offset,
          char *ptr1 = seg.lowers[1] + offset;
          if (seg.locs[1] == DEVICE)
          {
-            tmp = Resource<char>(nbytes, HOST, true);
+            tmp = Memory<char>(nbytes, HOST, true);
             ptr1 = tmp.HostWrite();
             MemCopy(ptr1, seg.lowers[1] + offset, nbytes, HOST, seg.locs[1]);
          }
@@ -1736,11 +1769,11 @@ int ResourceManager::compare_host_device(size_t segment, size_t offset,
    return 0;
 }
 
-void ResourceManager::CopyImpl(char *dst, MemoryType dloc, size_t dst_offset,
-                               size_t marker, size_t nbytes, const char *src0,
-                               const char *src1, MemoryType sloc0,
-                               MemoryType sloc1, size_t src_offset,
-                               size_t marker0, size_t marker1)
+void MemoryManager::CopyImpl(char *dst, MemoryType dloc, size_t dst_offset,
+                             size_t marker, size_t nbytes, const char *src0,
+                             const char *src1, MemoryType sloc0,
+                             MemoryType sloc1, size_t src_offset,
+                             size_t marker0, size_t marker1)
 {
    if (!src0)
    {
@@ -1945,9 +1978,13 @@ void ResourceManager::CopyImpl(char *dst, MemoryType dloc, size_t dst_offset,
    BatchMemCopy2(dst, src1, dloc, sloc1, copy1);
 }
 
-void ResourceManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
-                           size_t src_offset, size_t nbytes)
+void MemoryManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
+                         size_t src_offset, size_t nbytes)
 {
+   if (nbytes == 0)
+   {
+      return;
+   }
    if (dst_seg != src_seg)
    {
       auto &dseg = storage.get_segment(dst_seg);
@@ -1975,9 +2012,13 @@ void ResourceManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
    }
 }
 
-void ResourceManager::CopyFromHost(size_t segment, size_t offset,
-                                   const char *src, size_t nbytes)
+void MemoryManager::CopyFromHost(size_t segment, size_t offset,
+                                 const char *src, size_t nbytes)
 {
+   if (nbytes == 0)
+   {
+      return;
+   }
    auto &dseg = storage.get_segment(segment);
 
    for (int i = 0; i < 2; ++i)
@@ -2003,9 +2044,13 @@ void ResourceManager::CopyFromHost(size_t segment, size_t offset,
    }
 }
 
-void ResourceManager::CopyToHost(size_t segment, size_t offset, char *dst,
-                                 size_t nbytes)
+void MemoryManager::CopyToHost(size_t segment, size_t offset, char *dst,
+                               size_t nbytes)
 {
+   if (nbytes == 0)
+   {
+      return;
+   }
    auto &sseg = storage.get_segment(segment);
    size_t sh_curr = 0;
    size_t sd_curr = 0;
@@ -2024,7 +2069,7 @@ void ResourceManager::CopyToHost(size_t segment, size_t offset, char *dst,
             sd_curr);
 }
 
-void ResourceManager::SetDeviceMemoryType(size_t segment, MemoryType loc)
+void MemoryManager::SetDeviceMemoryType(size_t segment, MemoryType loc)
 {
    if (valid_segment(segment))
    {
@@ -2045,8 +2090,8 @@ void ResourceManager::SetDeviceMemoryType(size_t segment, MemoryType loc)
    }
 }
 
-void ResourceManager::SetValidity(size_t segment, bool host_valid,
-                                  bool device_valid)
+void MemoryManager::SetValidity(size_t segment, bool host_valid,
+                                bool device_valid)
 {
    auto &seg = storage.get_segment(segment);
    if (host_valid)
@@ -2067,5 +2112,50 @@ void ResourceManager::SetValidity(size_t segment, bool host_valid,
       mark_invalid(segment, true, 0, seg.nbytes, [](auto, auto) {});
    }
 }
+
+void MemoryManager::SetDualMemoryType(MemoryType mt, MemoryType dual_mt)
+{
+   auto &inst = instance();
+   inst.UpdateDualMemoryType(mt, dual_mt);
+}
+
+void MemoryManager::UpdateDualMemoryType(MemoryType mt, MemoryType dual_mt)
+{
+   MFEM_VERIFY((int)mt < MemoryTypeSize,
+               "invalid MemoryType, mt = " << (int)mt);
+   MFEM_VERIFY((int)dual_mt < MemoryTypeSize,
+               "invalid dual MemoryType, dual_mt = " << (int)dual_mt);
+
+   if ((IsHostMemory(mt) && IsDeviceMemory(dual_mt)) ||
+       (IsDeviceMemory(mt) && IsHostMemory(dual_mt)))
+   {
+      dual_map[(int)mt] = dual_mt;
+   }
+   else
+   {
+      // mt + dual_mt is not a pair of host + device types: this is only allowed
+      // when mt == dual_mt and mt is a host type; in this case we do not
+      // actually update the dual
+      MFEM_VERIFY(mt == dual_mt && IsHostMemory(mt),
+                  "invalid (mt, dual_mt) pair: ("
+                  << MemoryTypeName[(int)mt] << ", "
+                  << MemoryTypeName[(int)dual_mt] << ')');
+   }
+}
+
+MemoryType MemoryManager::dual_map[MemoryTypeSize] =
+{
+   /* HOST            */  MemoryType::DEVICE,
+   /* HOST_32         */  MemoryType::DEVICE,
+   /* HOST_64         */  MemoryType::DEVICE,
+   /* HOST_DEBUG      */  MemoryType::DEVICE_DEBUG,
+   /* HOST_UMPIRE     */  MemoryType::DEVICE_UMPIRE,
+   /* HOST_PINNED     */  MemoryType::DEVICE,
+   /* MANAGED         */  MemoryType::MANAGED,
+   /* DEVICE          */  MemoryType::HOST,
+   /* DEVICE_DEBUG    */  MemoryType::HOST_DEBUG,
+   /* DEVICE_UMPIRE   */  MemoryType::HOST_UMPIRE,
+   /* DEVICE_UMPIRE_2 */  MemoryType::HOST_UMPIRE
+};
 
 } // namespace mfem
