@@ -108,10 +108,10 @@ void ConduitDataCollection::Save()
    QFieldMapConstIterator qf_itr;
    for ( qf_itr = q_field_map.begin(); qf_itr != q_field_map.end(); qf_itr++)
    {
-       std::string name = qf_itr->first;
-       QuadratureFunction *qf = qf_itr->second;
-       QuadratureFunctionToBlueprintField(qf,
-                                          n_mesh["fields"][name]);
+      std::string name = qf_itr->first;
+      QuadratureFunction *qf = qf_itr->second;
+      QuadratureFunctionToBlueprintField(qf,
+                                         n_mesh["fields"][name]);
    }
 
    // save mesh data
@@ -656,90 +656,90 @@ ConduitDataCollection::BlueprintFieldToQuadratureFunction(Mesh *mesh,
                                                           const Node &n_field,
                                                           bool zero_copy)
 {
-    // n_conv holds converted data (when necessary for mfem api)
-    // if n_conv is used ( !n_conv.dtype().empty() ) we
-    // know that some data allocation was necessary, so we
-    // can't return a qf that zero copies the conduit data
-    Node n_conv;
+   // n_conv holds converted data (when necessary for mfem api)
+   // if n_conv is used ( !n_conv.dtype().empty() ) we
+   // know that some data allocation was necessary, so we
+   // can't return a qf that zero copies the conduit data
+   Node n_conv;
 
-    const double *vals_ptr = NULL;
-    int vdim = 1;
+   const double *vals_ptr = NULL;
+   int vdim = 1;
 
-    if (n_field["values"].dtype().is_object())
-    {
-        vdim = n_field["values"].number_of_children();
+   if (n_field["values"].dtype().is_object())
+   {
+      vdim = n_field["values"].number_of_children();
 
-        // need to check that we have doubles and
-        // cover supported layouts
-        if ( n_field["values"][0].dtype().is_double() )
-        {
-            // quad funcs use what mfem calls byVDIM
-            // and what conduit calls interleaved
-            // check for interleaved
-            if (blueprint::mcarray::is_interleaved(n_field["values"]))
+      // need to check that we have doubles and
+      // cover supported layouts
+      if ( n_field["values"][0].dtype().is_double() )
+      {
+         // quad funcs use what mfem calls byVDIM
+         // and what conduit calls interleaved
+         // check for interleaved
+         if (blueprint::mcarray::is_interleaved(n_field["values"]))
+         {
+            // conduit mcarray interleaved == mfem byVDIM
+            vals_ptr = n_field["values"].child(0).value();
+         }
+         else
+         {
+            // for mcarray generic case --  default to byVDIM
+            // aka interleaved
+            blueprint::mcarray::to_interleaved(n_field["values"],
+                                               n_conv["values"]);
+            vals_ptr = n_conv["values"].child(0).value();
+         }
+      }
+      else // convert to doubles and use interleaved
+      {
+         Node n_tmp;
+         // check all vals, if we don't have doubles convert
+         // to doubles
+         NodeConstIterator itr = n_field["values"].children();
+         while (itr.has_next())
+         {
+            const Node &c_vals = itr.next();
+            std::string c_name = itr.name();
+
+            if ( c_vals.dtype().is_double() )
             {
-                // conduit mcarray interleaved == mfem byVDIM
-                vals_ptr = n_field["values"].child(0).value();
+               // zero copy current coords
+               n_tmp[c_name].set_external(c_vals);
+
             }
             else
             {
-                // for mcarray generic case --  default to byVDIM
-                // aka interleaved
-                blueprint::mcarray::to_interleaved(n_field["values"],
-                                                  n_conv["values"]);
-                vals_ptr = n_conv["values"].child(0).value();
+               // convert
+               c_vals.to_double_array(n_tmp[c_name]);
             }
-        }
-        else // convert to doubles and use interleaved
-        {
-            Node n_tmp;
-            // check all vals, if we don't have doubles convert
-            // to doubles
-            NodeConstIterator itr = n_field["values"].children();
-            while (itr.has_next())
-            {
-                const Node &c_vals = itr.next();
-                std::string c_name = itr.name();
+         }
 
-                if ( c_vals.dtype().is_double() )
-                {
-                    // zero copy current coords
-                    n_tmp[c_name].set_external(c_vals);
+         // for mcarray generic case --  default to byVDIM
+         // aka interleaved
+         blueprint::mcarray::to_interleaved(n_tmp,
+                                            n_conv["values"]);
+         vals_ptr = n_conv["values"].child(0).value();
+      }
+   }
+   else // scalar case
+   {
+      if (n_field["values"].dtype().is_double() &&
+          n_field["values"].is_compact())
+      {
+         vals_ptr = n_field["values"].value();
+      }
+      else
+      {
+         n_field["values"].to_double_array(n_conv["values"]);
+         vals_ptr = n_conv["values"].value();
+      }
+   }
 
-                }
-                else
-                {
-                    // convert
-                    c_vals.to_double_array(n_tmp[c_name]);
-                }
-            }
-
-            // for mcarray generic case --  default to byVDIM
-            // aka interleaved
-            blueprint::mcarray::to_interleaved(n_tmp,
-                                               n_conv["values"]);
-            vals_ptr = n_conv["values"].child(0).value();
-        }
-    }
-    else // scalar case
-    {
-        if (n_field["values"].dtype().is_double() &&
-            n_field["values"].is_compact())
-        {
-            vals_ptr = n_field["values"].value();
-        }
-        else
-        {
-            n_field["values"].to_double_array(n_conv["values"]);
-            vals_ptr = n_conv["values"].value();
-        }
-    }
-
-    if (zero_copy && !n_conv.dtype().is_empty())
-    {
-        //Info: "Cannot zero-copy since data conversions were necessary"
-        zero_copy = false;
-    }
+   if (zero_copy && !n_conv.dtype().is_empty())
+   {
+      //Info: "Cannot zero-copy since data conversions were necessary"
+      zero_copy = false;
+   }
 
    // we need basis name to create the proper mfem quad space and quad func
    // the pattern used to encode the quad space params is:
@@ -762,7 +762,7 @@ ConduitDataCollection::BlueprintFieldToQuadratureFunction(Mesh *mesh,
    }
    else
    {
-      MFEM_ABORT("Error parsing quadrature function description string: " 
+      MFEM_ABORT("Error parsing quadrature function description string: "
                  << qf_name << std::endl
                  << "Expected: QF_{ORDER}_{VDIM}");
    }
@@ -1096,9 +1096,10 @@ ConduitDataCollection::GridFunctionToBlueprintField(mfem::GridFunction *gf,
 
 //---------------------------------------------------------------------------//
 void
-ConduitDataCollection::QuadratureFunctionToBlueprintField(mfem::QuadratureFunction *qf,
-                                                          Node &n_field,
-                                                          const std::string &main_topology_name)
+ConduitDataCollection::QuadratureFunctionToBlueprintField(
+   mfem::QuadratureFunction *qf,
+   Node &n_field,
+   const std::string &main_topology_name)
 {
    // For quadrature functions, use basis pattern:
    //   QF_{ORDER}_{VDIM}
