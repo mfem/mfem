@@ -194,25 +194,30 @@ void ParticleVector::DeleteParticles(const Array<int> &indices)
    Vector::DeleteAt(v_list);
 }
 
-void ParticleVector::SetVDim(int vdim_)
+void ParticleVector::SetVDim(int vdim_, bool update_data)
 {
-   // Reorder/shift existing entries
-   // For byNODES: Treat each component as a vector temporarily
-   // For byVDIM:  Treat each vector as a component temporarily
-   vdim = GetNumParticles();
-   ordering = ordering == Ordering::byNODES ? Ordering::byVDIM : Ordering::byNODES;
+   if (update_data)
+   {
+      // Reorder/shift existing entries
+      // For byNODES: Treat each component as a vector temporarily
+      // For byVDIM:  Treat each vector as a component temporarily
+      vdim = GetNumParticles();
+      ordering = ordering == Ordering::byNODES ? Ordering::byVDIM : Ordering::byNODES;
 
-   SetNumParticles(vdim_);
+      SetNumParticles(vdim_);
 
-   // Reset ordering back to original
-   ordering = ordering == Ordering::byNODES ? Ordering::byVDIM : Ordering::byNODES;
-
+      // Reset ordering back to original
+      ordering = ordering == Ordering::byNODES ? Ordering::byVDIM : Ordering::byNODES;
+   }
    vdim = vdim_;
 }
 
-void ParticleVector::SetOrdering(Ordering::Type ordering_)
+void ParticleVector::SetOrdering(Ordering::Type ordering_, bool update_data)
 {
-   Ordering::Reorder(*this, vdim, ordering, ordering_);
+   if (update_data)
+   {
+      Ordering::Reorder(*this, vdim, ordering, ordering_);
+   }
    ordering = ordering_;
 }
 
