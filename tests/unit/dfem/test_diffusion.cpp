@@ -226,7 +226,7 @@ void DFemDiffusion(const char *filename, int p, const int r)
       auto dRdU = dop_mf.GetDerivative(U, {&x}, {&rho_coeff_cv, nodes});
 
       pfes.GetRestrictionMatrix()->Mult(x, X);
-      dop_mf.Mult(X, Z);
+      dRdU->Mult(X, Z);
 
       blf_fa.Mult(x, y);
       pfes.GetProlongationMatrix()->MultTranspose(y, Y);
