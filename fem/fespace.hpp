@@ -386,7 +386,7 @@ protected:
 
    bool relaxed_hp; // see SetRelaxedHpConformity()
 
-   void UpdateNURBS();
+   void UpdateNURBS(bool build_new_VNURBSext = true);
 
    /** Helper function for constructing the data in this class, for initial
        construction or updates (e.g. h- or p-refinement). */

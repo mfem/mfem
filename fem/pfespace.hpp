@@ -122,6 +122,9 @@ private:
    ParNURBSExtension *pNURBSext() const
    { return dynamic_cast<ParNURBSExtension *>(NURBSext); }
 
+   ParNURBSExtension *pVNURBSext(int d) const
+   { return dynamic_cast<ParNURBSExtension *>(VNURBSext[d]); }
+
    static ParNURBSExtension *MakeLocalNURBSext(
       const NURBSExtension *globNURBSext, const NURBSExtension *parNURBSext);
 
