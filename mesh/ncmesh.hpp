@@ -114,7 +114,57 @@ void Swap(CoarseFineTransformations &a, CoarseFineTransformations &b);
 
 struct MatrixMap; // for internal use
 
-/** \brief A class for non-conforming AMR. The class is not used directly by the
+/** @brief For a NURBS mesh with nonconforming patch topology, this struct
+    provides a map from hanging vertices in the patch topology to the knotvector
+    of a neighboring patch. This facilitates ensuring mesh conformity.
+ */
+class VertexToKnotSpan
+{
+public:
+   /// Set the spatial dimension and number of vertices.
+   void SetSize(int dimension, int numVertices);
+
+   // The following set and get functions are for a single entry in the array of
+   // data, for a hanging vertex in the patch topology, with the given 'index'.
+   // The vertex index is 'v', parent vertices are 'pv', and knot-span is 'ks'.
+
+   /// Set the data for a vertex in 2D.
+   void SetVertex2D(int index, int v, int ks,
+                    const std::array<int, 2> &pv);
+
+   /// Set the data for a vertex in 3D.
+   void SetVertex3D(int index, int v, const std::array<int, 2> &ks,
+                    const std::array<int, 4> &pv);
+
+   /// Set the knot-span index for a vertex in 2D.
+   void SetKnotSpan2D(int index, int ks);
+
+   /// Set the knot-span indices for a vertex in 3D.
+   void SetKnotSpans3D(int index, const std::array<int, 2> &ks);
+
+   /// Get the data for a vertex in 2D.
+   void GetVertex2D(int index, int &v, int &ks,
+                    std::array<int, 2> &pv) const;
+
+   /// Get the data for a vertex in 3D.
+   void GetVertex3D(int index, int &v, std::array<int, 2> &ks,
+                    std::array<int, 4> &pv) const;
+
+   /// Print all the data.
+   void Print(std::ostream &os) const;
+
+   /// Return the number of vertices.
+   int Size() const { return data.NumRows(); }
+
+   /// Return the vertex pair representing the parent edge (2D) or face (3D).
+   std::pair<int, int> GetVertexParentPair(int index) const;
+
+private:
+   int dim; /// Spatial dimension
+   Array2D<int> data; /// Row-wise data for each vertex.
+};
+
+/** @brief A class for non-conforming AMR. The class is not used directly by the
  *  user, rather it is an extension of the Mesh class.
  *
  *  In general, the class is used by MFEM as follows:
@@ -348,6 +398,16 @@ public:
       }
    }
 
+   const VertexToKnotSpan& GetVertexToKnotSpan() const
+   {
+      return vertex_to_knotspan;
+   }
+
+   /// Remap knot-span indices @a vertex_to_knotspan after refinement.
+   void RefineVertexToKnotSpan(const std::vector<Array<int>> &kvf,
+                               const Array<KnotVector*> &kvext,
+                               std::map<std::pair<int, int>,
+                               std::array<int, 2>> &parentToKV);
 
    // coarse/fine transforms
 
@@ -467,7 +527,8 @@ public:
    /** I/O: Print the mesh in "MFEM NC mesh v1.0" format. If @a comments is
        non-empty, it will be printed after the first line of the file, and each
        line should begin with '#'. */
-   void Print(std::ostream &out, const std::string &comments = "") const;
+   void Print(std::ostream &out, const std::string &comments = "",
+              bool nurbs=false) const;
 
    /// I/O: Return true if the mesh was loaded from the legacy v1.1 format.
    bool IsLegacyLoaded() const { return Legacy; }
@@ -482,6 +543,9 @@ public:
    long MemoryUsage() const;
 
    int PrintMemoryDetail() const;
+
+   /// Return true for ParNCMesh with more than one MPI process.
+   virtual bool IsParallel() const { return false; }
 
    using RefCoord = std::int64_t;
 
@@ -1297,6 +1361,12 @@ protected:
    /// Load the vertex parent hierarchy from a mesh file.
    void LoadVertexParents(std::istream &input);
 
+   /// Load VertexToKnotSpan data for the NC patch topology mesh of a 2D or 3D
+   /// MFEM NURBS NC-patch mesh.
+   void LoadVertexToKnotSpan(std::istream &input);
+   void LoadVertexToKnotSpan2D(std::istream &input);
+   void LoadVertexToKnotSpan3D(std::istream &input);
+
    /** Print the "boundary" section of the mesh file. If out == NULL, only
        return the number of boundary elements. */
    int PrintBoundary(std::ostream *out) const;
@@ -1338,6 +1408,9 @@ protected:
    };
 
    static GeomInfo GI[Geometry::NumGeom];
+
+   /// This is used for a NURBS mesh with this NCMesh as its patch topology.
+   VertexToKnotSpan vertex_to_knotspan;
 
 #ifdef MFEM_DEBUG
 public:
