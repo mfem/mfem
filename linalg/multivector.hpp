@@ -12,6 +12,7 @@
 #ifndef MFEM_MULTIVECTOR
 #define MFEM_MULTIVECTOR
 
+#include "../general/ordering.hpp"
 #include "vector.hpp"
 
 namespace mfem
