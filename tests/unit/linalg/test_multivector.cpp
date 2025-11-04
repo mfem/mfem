@@ -20,6 +20,31 @@ static constexpr int NV_rm = 12;
 static constexpr int NV = 27;
 static_assert(NV_rm < NV);
 
+void TestSetGet(Ordering::Type ordering)
+{
+   MultiVector mv(VDIM, ordering, NV);
+   Vector vecs[NV];
+   for (int i = 0; i < NV; i++)
+   {
+      vecs[i].SetSize(VDIM);
+      vecs[i].Randomize(i);
+      mv.SetVectorValues(i, vecs[i]);
+   }
+
+   int wrong_vec_count = 0;
+   Vector aux(VDIM);
+   for (int i = 0; i < NV; i++)
+   {
+      mv.GetVectorValues(i, aux);
+      if (!(aux.DistanceTo(vecs[i]) == MFEM_Approx(0,0)))
+      {
+         wrong_vec_count++;
+      }
+   }
+   REQUIRE(wrong_vec_count == 0);
+
+}
+
 void TestResize(Ordering::Type ordering)
 {
    SECTION((ordering == Ordering::byNODES ? "byNODES" : "byVDIM"))
@@ -68,6 +93,12 @@ void TestResize(Ordering::Type ordering)
       }
       REQUIRE(mv_test.DistanceTo(mv_all) == MFEM_Approx(0.0));
    }
+}
+
+TEST_CASE("MultiVector set/get values", "[MultiVector]")
+{
+   TestSetGet(Ordering::byNODES);
+   TestSetGet(Ordering::byVDIM);
 }
 
 TEST_CASE("MultiVector resize", "[MultiVector]")
