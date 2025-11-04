@@ -78,7 +78,8 @@ void ParticleVector::GetComponents(int vd, Vector &comp)
    // For byNODES: Treat each component as a vector temporarily
    // For byVDIM:  Treat each vector as a component temporarily
    vdim = GetNumParticles();
-   ordering = ordering == Ordering::byNODES ? Ordering::byVDIM :
+   ordering = ordering == Ordering::byNODES ?
+              Ordering::byVDIM :
               Ordering::byNODES;
 
    GetValues(vd, comp);
@@ -220,13 +221,13 @@ void ParticleVector::SetVDim(int vdim_, bool update_data)
       // For byVDIM:  Treat each vector as a component temporarily
       vdim = GetNumParticles();
       ordering = ordering == Ordering::byNODES ? Ordering::byVDIM :
-                             Ordering::byNODES;
+                 Ordering::byNODES;
 
       SetNumParticles(vdim_);
 
       // Reset ordering back to original
       ordering = ordering == Ordering::byNODES ? Ordering::byVDIM :
-                             Ordering::byNODES;
+                 Ordering::byNODES;
    }
    vdim = vdim_;
 }
