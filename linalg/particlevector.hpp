@@ -18,7 +18,20 @@
 namespace mfem
 {
 
-/// ParticleVector carries data for an arbitrary number of Vectors of a given size/vdim.
+/** \brief ParticleVector carries vector data for an arbitrary number of
+ *  particles. The vector dimension \p vdim is same for all particles, and the
+ *  data is stored contiguously in memory either
+ *  byNODES (x0,x1,x2,...,xN,y0,y1,y2...yN,z0.....zN) OR
+ *  byVDIM (x0,y0,z0,...,xN,yN,zN), where N+1 is the number of particles.
+ *  ParticleVector provides convenient methods for accessing and manipulating
+ *  data for individual particles (e.g., \ref GetValues) or
+ *  components across all particles (e.g., \ref GetComponents).
+ *
+ *  Note that since ParticleVector inherits from Vector, all Vector operations
+ *  (e.g., device support) are available. We do recommend use of the new
+ *  methods \ref SetNumParticles and \ref SetVDim for manipulating container
+ *  size, instead of \ref Vector::SetSize, to ensure consistency.
+ */
 class ParticleVector : public Vector
 {
 protected:

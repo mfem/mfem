@@ -138,11 +138,11 @@ void ParticleVector::SetComponents(int vd, const Vector &comp)
 real_t& ParticleVector::operator()(int i, int comp)
 {
    MFEM_ASSERT(i < GetNumParticles(),
-               "Vector index " << i <<
-               " is out-of-range for number of vectors " << GetNumParticles());
+               "Particle index " << i <<
+               " is invalid for number of particles " << GetNumParticles());
    MFEM_ASSERT(comp < vdim,
                "Component index " << comp <<
-               " is out-of-range for vector dimension " << vdim);
+               " is invalid for vector dimension " << vdim);
 
    if (ordering == Ordering::byNODES)
    {
@@ -157,11 +157,11 @@ real_t& ParticleVector::operator()(int i, int comp)
 const real_t& ParticleVector::operator()(int i, int comp) const
 {
    MFEM_ASSERT(i < GetNumParticles(),
-               "Vector index " << i <<
-               " is out-of-range for number of vectors " << GetNumParticles());
+               "Particle index " << i <<
+               " is invalid for number of particles " << GetNumParticles());
    MFEM_ASSERT(comp < vdim,
                "Component index " << comp <<
-               " is out-of-range for vector dimension " << vdim);
+               " is invalid for vector dimension " << vdim);
 
    if (ordering == Ordering::byNODES)
    {
