@@ -175,6 +175,7 @@ public:
    void Reserve(int res);
 
    /// Delete entries at @a indices and resize vector accordingly.
+   /// @warning Indices must be unique!
    void DeleteAt(const Array<int> &indices);
 
    /// Set the Vector data.
