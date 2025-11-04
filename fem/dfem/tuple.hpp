@@ -454,7 +454,7 @@ MFEM_HOST_DEVICE constexpr auto operator+=(tuple<T...>& x,
  *
  * @tparam T the types stored in the tuples x and y
  * @tparam i integer sequence used to index the tuples
- * @param x tuple of values to be subracted from
+ * @param x tuple of values to be subtracted from
  * @param y tuple of values to subtract from x
  */
 template <typename... T, int... i>
@@ -596,7 +596,7 @@ MFEM_HOST_DEVICE constexpr auto div_helper(const real_t a,
  * @tparam T the types stored in the tuple y
  * @tparam i The integer sequence to i
  * @param x tuple of values
- * @param a the constant denomenator
+ * @param a the constant denominator
  * @return the returned tuple ratio
  */
 template <typename... T, int... i>
@@ -726,7 +726,7 @@ MFEM_HOST_DEVICE constexpr auto operator*(const tuple<T...>& x, const real_t a)
 
 /**
  * @tparam T the types stored in the tuple
- * @tparam i a list of indices used to acces each element of the tuple
+ * @tparam i a list of indices used to access each element of the tuple
  * @param out the ostream to write the output to
  * @param A the tuple of values
  * @brief helper used to implement printing a tuple of values

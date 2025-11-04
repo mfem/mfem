@@ -26,8 +26,10 @@ using mfem::future::dual;
 using dscalar_t = dual<real_t, real_t>;
 #endif
 
-template <int DIM> void mass_action(const char* filename, int p)
+template <int DIM>
+void mass_action(const char *filename, int p)
 {
+   constexpr int BDIM = DIM - 1;
    CAPTURE(filename, DIM, p);
 
    Mesh smesh(filename);
@@ -37,16 +39,8 @@ template <int DIM> void mass_action(const char* filename, int p)
    p = std::max(p, pmesh.GetNodalFESpace()->GetMaxElementOrder());
    smesh.Clear();
 
-   Array<int> all_domain_attr;
-   if (pmesh.attributes.Size() > 0)
-   {
-      all_domain_attr.SetSize(pmesh.attributes.Max());
-      all_domain_attr = 1;
-   }
-
    H1_FECollection fec(p, DIM);
    ParFiniteElementSpace fes(&pmesh, &fec);
-   const auto* ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), 2 * p);
 
    ParGridFunction x(&fes), y(&fes), z(&fes);
    Vector X(fes.GetTrueVSize()), Y(fes.GetTrueVSize()), Z(fes.GetTrueVSize());
@@ -55,33 +49,109 @@ template <int DIM> void mass_action(const char* filename, int p)
    x.SetFromTrueDofs(X);
 
    ConstantCoefficient one(1.0);
-   ParBilinearForm blf(&fes);
-   blf.AddDomainIntegrator(new MassIntegrator(one, ir));
-   blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   blf.Assemble();
-   blf.Mult(x, y);
-   fes.GetProlongationMatrix()->MultTranspose(y, Y);
 
-   static constexpr int U = 0, Coords = 1;
-   const auto sol = std::vector{FieldDescriptor{U, &fes}};
-   DifferentiableOperator dop(sol, {{Coords, nodes->ParFESpace()}}, pmesh);
-   const auto mf_mass_qf = [] MFEM_HOST_DEVICE(const real_t& u,
-                                               const tensor<real_t, DIM, DIM>& J,
-                                               const real_t& w)
-   { return tuple{u * w * det(J)}; };
-   dop.AddDomainIntegrator(mf_mass_qf,
-                           tuple{Value<U>{}, Gradient<Coords>{}, Weight{}}, tuple{Value<U>{}}, *ir,
-                           all_domain_attr);
-   dop.SetParameters({nodes});
+   SECTION("domain")
+   {
+      const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), 2 * p);
 
-   fes.GetRestrictionMatrix()->Mult(x, X);
-   dop.Mult(X, Z);
-   Y -= Z;
+      Array<int> all_domain_attr;
+      if (pmesh.attributes.Size() > 0)
+      {
+         all_domain_attr.SetSize(pmesh.attributes.Max());
+         all_domain_attr = 1;
+      }
 
-   real_t norm_g, norm_l = Y.Normlinf();
-   MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
-   REQUIRE(norm_g == MFEM_Approx(0.0));
-   MPI_Barrier(MPI_COMM_WORLD);
+      ParBilinearForm blf(&fes);
+      blf.AddDomainIntegrator(new MassIntegrator(one, ir));
+      blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      blf.Assemble();
+      blf.Mult(x, y);
+      fes.GetProlongationMatrix()->MultTranspose(y, Y);
+
+      static constexpr int U = 0, Coords = 1;
+      const auto sol = std::vector{ FieldDescriptor{ U, &fes } };
+      DifferentiableOperator dop(sol, {{Coords, nodes->ParFESpace()}}, pmesh);
+      const auto mf_mass_qf =
+         [] MFEM_HOST_DEVICE(const real_t &u,
+                             const tensor<real_t, DIM, DIM> &J, const real_t &w)
+      { return tuple{u * w * det(J)}; };
+      dop.AddDomainIntegrator(mf_mass_qf,
+                              tuple{ Value<U>{}, Gradient<Coords>{}, Weight{} },
+                              tuple{ Value<U>{} },
+                              *ir, all_domain_attr);
+      dop.SetParameters({ nodes });
+
+      fes.GetRestrictionMatrix()->Mult(x, X);
+      dop.Mult(X, Z);
+      Y -= Z;
+
+      real_t norm_g, norm_l = Y.Normlinf();
+      MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+      REQUIRE(norm_g == MFEM_Approx(0.0));
+      MPI_Barrier(MPI_COMM_WORLD);
+   }
+
+   // Test boundary
+   // This ensures that we're not trying to test on fully periodic meshes
+   if (!((std::string("../../data/periodic-square.mesh").compare(filename) == 0) ||
+         (std::string("../../data/periodic-cube.mesh").compare(filename) == 0)))
+   {
+      SECTION("boundary")
+      {
+         const auto *ir = &IntRules.Get(pmesh.GetTypicalFaceGeometry(), 2 * p);
+
+         Array<int> all_bdr_attr;
+         if (pmesh.bdr_attributes.Size() > 0)
+         {
+            all_bdr_attr.SetSize(pmesh.bdr_attributes.Max());
+            all_bdr_attr = 1;
+         }
+
+         ParBilinearForm blf(&fes);
+         blf.AddBoundaryIntegrator(new MassIntegrator(one, ir));
+         blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+         blf.Assemble();
+         blf.Mult(x, y);
+         fes.GetProlongationMatrix()->MultTranspose(y, Y);
+
+         static constexpr int U = 0, Coords = 1;
+         const auto sol = std::vector{FieldDescriptor{U, &fes}};
+         DifferentiableOperator dop(sol, {{Coords, nodes->ParFESpace()}}, pmesh);
+
+         const auto mf_mass_qf =
+            [] MFEM_HOST_DEVICE(const dscalar_t &u,
+                                const tensor<real_t, DIM, BDIM> &J,
+                                const real_t &w)
+         {
+            return tuple{u * weight(J) * w};
+         };
+
+         auto derivatives = std::integer_sequence<size_t, U> {};
+         dop.AddBoundaryIntegrator(mf_mass_qf,
+                                   tuple{ Value<U>{}, Gradient<Coords>{}, Weight{} },
+                                   tuple{ Value<U>{} },
+                                   *ir, all_bdr_attr, derivatives);
+         dop.SetParameters({nodes});
+
+         fes.GetRestrictionMatrix()->Mult(x, X);
+         dop.Mult(X, Z);
+
+         Y -= Z;
+         real_t norm_g, norm_l = Y.Normlinf();
+         MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+         REQUIRE(norm_g == MFEM_Approx(0.0));
+
+         auto dRdU = dop.GetDerivative(U, {&x}, {nodes});
+         dRdU->Mult(X, Z);
+
+         fes.GetProlongationMatrix()->MultTranspose(y, Y);
+         Y -= Z;
+         norm_l = Y.Normlinf();
+         MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+         REQUIRE(norm_g == MFEM_Approx(0.0));
+         MPI_Barrier(MPI_COMM_WORLD);
+      }
+   }
 }
 
 template <int DIM> void mass_mat_mixed(const char* filename, int p)
