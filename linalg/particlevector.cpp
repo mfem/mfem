@@ -248,7 +248,6 @@ void ParticleVector::SetNumParticles(int num_vectors)
    {
       return;
    }
-   using namespace std;
 
    // If resizing larger...
    if (num_vectors > old_nv)
