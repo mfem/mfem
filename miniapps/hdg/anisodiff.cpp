@@ -454,7 +454,40 @@ int main(int argc, char *argv[])
 
    auto kFun = GetKFun(pars);
    MatrixFunctionCoefficient kcoeff(dim, kFun); //tensor conductivity
-   InverseMatrixCoefficient ikcoeff(kcoeff); //inverse tensor conductivity
+   //InverseMatrixCoefficient ikcoeff(kcoeff); //inverse tensor conductivity
+   ConstantCoefficient ikcoeff;
+
+   class SquareRootMatrixCoefficient : public MatrixCoefficient
+   {
+      MatrixCoefficient &mq;
+   public:
+      SquareRootMatrixCoefficient(MatrixCoefficient &mq_)
+         : MatrixCoefficient(mq_.GetWidth(), true), mq(mq_) { }
+
+      void Eval(DenseMatrix &K, ElementTransformation &T,
+                const IntegrationPoint &ip) override
+      {
+         mq.Eval(K, T, ip);
+         K.SquareRootInverse();
+         K.Invert();
+      }
+   } sqrtkcoeff(kcoeff);
+
+   class ScaledMatrixCoefficient : public MatrixCoefficient
+   {
+      MatrixCoefficient &mq;
+      real_t sign;
+   public:
+      ScaledMatrixCoefficient(MatrixCoefficient &mq_, real_t s)
+         : MatrixCoefficient(mq_.GetWidth(), true), mq(mq_), sign(s) { }
+
+      void Eval(DenseMatrix &K, ElementTransformation &T,
+                const IntegrationPoint &ip) override
+      {
+         mq.Eval(K, T, ip);
+         K *= sign;
+      }
+   } negsqrtkcoeff(sqrtkcoeff, -1.);
 
    auto cFun = GetCFun(pars);
    VectorFunctionCoefficient ccoeff(dim, cFun); //velocity
@@ -565,8 +598,7 @@ int main(int argc, char *argv[])
          if (Mt)
          {
             Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
-            Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
-                                     bdr_is_neumann);
+            Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
          }
          if (Mtnl)
          {
@@ -581,7 +613,8 @@ int main(int argc, char *argv[])
 
    if (dg)
    {
-      B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+      B->AddDomainIntegrator(new TransposeIntegrator(
+                                new GradientIntegrator(negsqrtkcoeff)));
    }
    else
    {
@@ -592,17 +625,15 @@ int main(int argc, char *argv[])
    {
       if (upwinded)
       {
-         B->AddInteriorFaceIntegrator(new TransposeIntegrator(
-                                         new DGNormalTraceIntegrator(ccoeff, -1.)));
-         B->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
-                                                            ccoeff, -1.)), bdr_is_neumann);
+         B->AddInteriorFaceIntegrator(new DGWeakNormalTraceIntegrator(sqrtkcoeff, ccoeff,
+                                                                      +1., +0.5));
+         B->AddBdrFaceIntegrator(new DGWeakNormalTraceIntegrator(sqrtkcoeff, ccoeff, +1.,
+                                                                 +0.5));
       }
       else
       {
-         B->AddInteriorFaceIntegrator(new TransposeIntegrator(
-                                         new DGNormalTraceIntegrator(-1.)));
-         B->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
-                                                            -1.)), bdr_is_neumann);
+         B->AddInteriorFaceIntegrator(new DGWeakNormalTraceIntegrator(sqrtkcoeff, +1.));
+         B->AddBdrFaceIntegrator(new DGWeakNormalTraceIntegrator(sqrtkcoeff, +1.));
       }
    }
 
