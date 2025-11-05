@@ -1035,11 +1035,13 @@ public:
 class ParNURBSExtension : public NURBSExtension
 {
 private:
+   MPI_Comm MyComm;
+
    /// Partitioning of the global elements by MPI rank
-   mfem::Array<int> partitioning;
+   Array<int>
+   partitioning; // Note to reviewer: Should this state variable be stored here? Or in pmesh?
 
    /// Construct and return a table of DOFs for each global element.
-   Table *GetGlobalElementDofTable();
    Table *Get1DGlobalElementDofTable();
    Table *Get2DGlobalElementDofTable();
    Table *Get3DGlobalElementDofTable();
@@ -1048,14 +1050,7 @@ private:
        ranks in @a partition and the array @a active_bel. */
    void SetActive(const int *partitioning_, const Array<bool> &active_bel);
 
-   /// Set up GroupTopology @a gtopo for MPI communication.
-   void BuildGroups(const int *partitioning_, const Table &elem_dof);
-
 public:
-   GroupTopology gtopo;
-
-   Array<int> ldof_group;
-
    /// Copy constructor
    ParNURBSExtension(const ParNURBSExtension &orig);
 
@@ -1073,6 +1068,11 @@ public:
        The @a parent can be either a local NURBSExtension or a global one. */
    ParNURBSExtension(NURBSExtension *parent,
                      const ParNURBSExtension *par_parent);
+
+   /// Construct and return a table of DOFs for each global element.
+   Table *GetGlobalElementDofTable();
+
+   int GetElementProc(int e) { return partitioning[e]; }
 };
 #endif
 

@@ -5433,15 +5433,14 @@ NURBSPatch::NURBSPatch(Array<const KnotVector *> &kv_,  int dim_,
 ParNURBSExtension::ParNURBSExtension(const ParNURBSExtension &orig)
    : NURBSExtension(orig),
      partitioning(orig.partitioning),
-     gtopo(orig.gtopo),
-     ldof_group(orig.ldof_group)
+     MyComm(orig.MyComm)
 {
 }
 
 ParNURBSExtension::ParNURBSExtension(MPI_Comm comm, NURBSExtension *parent,
                                      const int *partitioning_,
                                      const Array<bool> &active_bel)
-   : gtopo(comm)
+   : MyComm(comm)
 {
    if (parent->NumOfActiveElems < parent->NumOfElements)
    {
@@ -5492,7 +5491,6 @@ ParNURBSExtension::ParNURBSExtension(MPI_Comm comm, NURBSExtension *parent,
    GenerateBdrElementDofTable();
 
    Table *serial_elem_dof = parent->GetElementDofTable();
-   BuildGroups(partitioning, *serial_elem_dof);
 
    weights.SetSize(GetNDof());
    // copy weights from parent
@@ -5514,7 +5512,7 @@ ParNURBSExtension::ParNURBSExtension(MPI_Comm comm, NURBSExtension *parent,
 
 ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
                                      const ParNURBSExtension *par_parent)
-   : gtopo(par_parent->gtopo.GetComm())
+   : MyComm(par_parent->MyComm)
 {
    // steal all data from parent
    mOrder = parent->mOrder;
@@ -5548,6 +5546,14 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
    Swap(d_to_d, parent->d_to_d);
    Swap(master, parent->master);
    Swap(slave,  parent->slave);
+
+   //   Swap(partitioning, par_parent->partitioning);
+   // copy 'partitioning_' to 'partitioning'
+   partitioning.SetSize(GetGNE());
+   for (int i = 0; i < GetGNE(); i++)
+   {
+      partitioning[i] = par_parent->partitioning[i];
+   }
 
    NumOfActiveVertices = parent->NumOfActiveVertices;
    NumOfActiveElems    = parent->NumOfActiveElems;
@@ -5599,7 +5605,6 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
    }
 
    Table *glob_elem_dof = GetGlobalElementDofTable();
-   BuildGroups(par_parent->partitioning, *glob_elem_dof);
    if (extract_weights)
    {
       Vector glob_weights;
@@ -5771,7 +5776,8 @@ void ParNURBSExtension::SetActive(const int *partition,
    activeElem.SetSize(GetGNE());
    activeElem = false;
    NumOfActiveElems = 0;
-   const int MyRank = gtopo.MyRank();
+   int MyRank;
+   MPI_Comm_rank(MyComm, &MyRank);
    for (int i = 0; i < GetGNE(); i++)
       if (partition[i] == MyRank)
       {
@@ -5788,42 +5794,7 @@ void ParNURBSExtension::SetActive(const int *partition,
       }
 }
 
-void ParNURBSExtension::BuildGroups(const int *partition,
-                                    const Table &elem_dof)
-{
-   Table dof_proc;
-
-   ListOfIntegerSets  groups;
-   IntegerSet         group;
-
-   Transpose(elem_dof, dof_proc); // dof_proc is dof_elem
-
-   // convert elements to processors
-   for (int i = 0; i < dof_proc.Size_of_connections(); i++)
-   {
-      dof_proc.GetJ()[i] = partition[dof_proc.GetJ()[i]];
-   }
-
-   // the first group is the local one
-   int MyRank = gtopo.MyRank();
-   group.Recreate(1, &MyRank);
-   groups.Insert(group);
-
-   int dof = 0;
-   ldof_group.SetSize(GetNDof());
-   for (int d = 0; d < GetNTotalDof(); d++)
-      if (activeDof[d])
-      {
-         group.Recreate(dof_proc.RowSize(d), dof_proc.GetRow(d));
-         ldof_group[dof] = groups.Insert(group);
-
-         dof++;
-      }
-
-   gtopo.Create(groups, 1822);
-}
 #endif // MFEM_USE_MPI
-
 
 void NURBSPatchMap::GetPatchKnotVectors(int p, const KnotVector *kv[])
 {
