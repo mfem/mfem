@@ -44,6 +44,9 @@ private:
    /// GroupCommunicator on the local VDofs. Owned.
    GroupCommunicator *gcomm;
 
+   GroupTopology *gtopo;
+   bool own_gtopo = false;
+
    /// Number of true dofs in this processor (local true dofs).
    mutable int ltdof_size;
 
@@ -128,8 +131,7 @@ private:
    static ParNURBSExtension *MakeLocalNURBSext(
       const NURBSExtension *globNURBSext, const NURBSExtension *parNURBSext);
 
-   GroupTopology &GetGroupTopo() const
-   { return (NURBSext) ? pNURBSext()->gtopo : pmesh->gtopo; }
+   GroupTopology &GetGroupTopo() const { return *gtopo; }
 
    // Auxiliary method used in constructors
    void ParInit(ParMesh *pm);
@@ -415,7 +417,7 @@ public:
 
    /// Return a new GroupCommunicator on scalar dofs, i.e. for VDim = 1.
    /** @note The returned pointer must be deleted by the caller. */
-   GroupCommunicator *ScalarGroupComm();
+   GroupCommunicator *ScalarGroupComm(); // DELETE?? DEPRECATE???
 
    /** @brief Given an integer array on the local degrees of freedom, perform
        a bitwise OR between the shared dofs. */

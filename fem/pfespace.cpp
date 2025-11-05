@@ -1114,7 +1114,7 @@ GroupCommunicator *ParFiniteElementSpace::ScalarGroupComm()
    GroupCommunicator *gc = new GroupCommunicator(GetGroupTopo());
    if (NURBSext)
    {
-      gc->Create(pNURBSext()->ldof_group);
+      //gc->Create(pNURBSext()->ldof_group); // TODO
    }
    else
    {
@@ -1821,8 +1821,9 @@ void ParFiniteElementSpace::Lose_Dof_TrueDof_Matrix()
 void ParFiniteElementSpace::ConstructTrueDofs()
 {
    int i, gr, n = GetVSize();
-   GroupTopology &gt = pmesh->gtopo;
-   gcomm = new GroupCommunicator(gt);
+   //   GroupTopology &gt =
+   gtopo = &pmesh->gtopo;
+   gcomm = new GroupCommunicator(*gtopo);
    Table &group_ldof = gcomm->GroupLDofTable();
 
    GetGroupComm(*gcomm, 1, &ldof_sign);
@@ -1844,7 +1845,7 @@ void ParFiniteElementSpace::ConstructTrueDofs()
          ldof_group[ldofs[i]] = gr;
       }
 
-      if (!gt.IAmMaster(gr)) // we are not the master
+      if (!gtopo->IAmMaster(gr)) // we are not the master
       {
          for (i = 0; i < nldofs; i++)
          {
@@ -1871,40 +1872,179 @@ void ParFiniteElementSpace::ConstructTrueDofs()
 void ParFiniteElementSpace::ConstructTrueNURBSDofs()
 {
    int n = GetVSize();
-   GroupTopology &gt = pNURBSext()->gtopo;
-   gcomm = new GroupCommunicator(gt);
+   int nt;
 
-   // pNURBSext()->ldof_group is for scalar space!
-   if (vdim == 1)
+   IntegerSet         group;
+   ListOfIntegerSets  groups;
+
+   // the first group is the local one
+   group.Recreate(1, &MyRank);
+   groups.Insert(group);
+
+   Array<int> scalar_ldof_group;
+   Array<Table*>velem_dof;
+   Table * glb_elem_dof = nullptr;
+   if (VNURBSext.Size() == 2)
    {
-      if (VNURBSext.Size() == 0)
+      int offset1 = pVNURBSext(0)-> GetNTotalDof();
+      nt = pVNURBSext(0)-> GetNTotalDof() + pVNURBSext(1)-> GetNTotalDof() ;
+
+      // Merge Tables
+      velem_dof.Append(pVNURBSext(0)->GetGlobalElementDofTable());
+      velem_dof.Append(pVNURBSext(1)->GetGlobalElementDofTable());
+      glb_elem_dof = new Table(*velem_dof[0],
+                               *velem_dof[1], offset1 );// MEM-LEAK TO BE FIXED ??
+
+      // Dot to proc
+      Table dof_proc;
+      Transpose(*glb_elem_dof, dof_proc); // dof_proc is dof_elem
+
+      for (int i = 0; i < dof_proc.Size_of_connections(); i++)
       {
-         ldof_group.MakeRef(pNURBSext()->ldof_group);
+         dof_proc.GetJ()[i] = pNURBSext()->GetElementProc(dof_proc.GetJ()[i]);
       }
-      else
+
+      //
+      scalar_ldof_group.SetSize(n);   // Or n/vdim??
+      int dof = 0;
+
+      for (int d = 0; d < pVNURBSext(0)->GetNTotalDof(); d++)
       {
-         ldof_group.SetSize(n);
-         int j = 0;
-         for (int d = 0; d < VNURBSext.Size(); d++)
+         if (pVNURBSext(0)->GetActiveDof(d))
          {
-            const int *scalar_ldof_group = pVNURBSext(d)->ldof_group;
-            const int slg_size = pVNURBSext(d)->ldof_group.Size();
-            for (int i = 0; i < slg_size; i++, j++)
-            {
-               ldof_group[j] = scalar_ldof_group[i];
-            }
+            group.Recreate(dof_proc.RowSize(d), dof_proc.GetRow(d));
+            scalar_ldof_group[dof] = groups.Insert(group);
+
+            dof++;
          }
       }
+
+      for (int d = 0; d < pVNURBSext(1)->GetNTotalDof(); d++)
+      {
+         if (pVNURBSext(1)->GetActiveDof(d))
+         {
+            group.Recreate(dof_proc.RowSize(d + offset1), dof_proc.GetRow(d + offset1));
+            scalar_ldof_group[dof] = groups.Insert(group);
+            dof++;
+         }
+      }
+
+      //  MFEM_VERIFY(n == dof*vdim, "");
+   }
+   else if (VNURBSext.Size() == 3)
+   {
+      int offset1 = pVNURBSext(0)-> GetNTotalDof();
+      int offset2 = offset1 + pVNURBSext(1)-> GetNTotalDof();
+      nt = offset2 + pVNURBSext(2)-> GetNTotalDof();
+
+      // Merge Tables
+      velem_dof.Append(pVNURBSext(0)->GetGlobalElementDofTable());
+      velem_dof.Append(pVNURBSext(1)->GetGlobalElementDofTable());
+      velem_dof.Append(pVNURBSext(2)->GetGlobalElementDofTable());
+
+      glb_elem_dof = new Table(*velem_dof[0],
+                               *velem_dof[1], offset1,
+                               *velem_dof[2], offset2);// MEM-LEAK TO BE FIXED ??
+
+      Table dof_proc;
+      Transpose(*glb_elem_dof, dof_proc); // dof_proc is dof_elem
+
+      for (int i = 0; i < dof_proc.Size_of_connections(); i++)
+      {
+         dof_proc.GetJ()[i] = pNURBSext()->GetElementProc(dof_proc.GetJ()[i]);
+      }
+
+      //
+      scalar_ldof_group.SetSize(n);   // Or n/vdim??
+      int dof = 0;
+
+      for (int d = 0; d < pVNURBSext(0)->GetNTotalDof(); d++)
+      {
+         if (pVNURBSext(0)->GetActiveDof(d))
+         {
+            group.Recreate(dof_proc.RowSize(d), dof_proc.GetRow(d));
+            scalar_ldof_group[dof] = groups.Insert(group);
+
+            dof++;
+         }
+      }
+
+      for (int d = 0; d < pVNURBSext(1)->GetNTotalDof(); d++)
+      {
+         if (pVNURBSext(1)->GetActiveDof(d))
+         {
+            group.Recreate(dof_proc.RowSize(d + offset1), dof_proc.GetRow(d + offset1));
+            scalar_ldof_group[dof] = groups.Insert(group);
+            dof++;
+         }
+      }
+
+      for (int d = 0; d < pVNURBSext(2)->GetNTotalDof(); d++)
+      {
+         if (pVNURBSext(2)->GetActiveDof(d))
+         {
+            group.Recreate(dof_proc.RowSize(d + offset2), dof_proc.GetRow(d + offset2));
+            scalar_ldof_group[dof] = groups.Insert(group);
+            dof++;
+         }
+      }
+      // MFEM_VERIFY(n == dof*vdim, "");
    }
    else
    {
-      const int *scalar_ldof_group = pNURBSext()->ldof_group;
+      nt = pNURBSext()->GetNTotalDof();
+      glb_elem_dof = pNURBSext()->GetGlobalElementDofTable();
+
+      Table dof_proc;
+      Transpose(*glb_elem_dof, dof_proc); // dof_proc is dof_elem
+
+      for (int i = 0; i < dof_proc.Size_of_connections(); i++)
+      {
+         dof_proc.GetJ()[i] = pNURBSext()->GetElementProc(dof_proc.GetJ()[i]);
+      }
+
+      scalar_ldof_group.SetSize(NURBSext->GetNDof());
+      int dof = 0;
+      for (int d = 0; d < NURBSext->GetNTotalDof(); d++)
+      {
+         if (NURBSext->GetActiveDof(d))
+         {
+            group.Recreate(dof_proc.RowSize(d), dof_proc.GetRow(d));
+            scalar_ldof_group[dof] = groups.Insert(group);
+
+            dof++;
+         }
+      }
+      //   MFEM_VERIFY(n == dof*vdim, "");
+   }
+   delete glb_elem_dof;
+   for (int i = 0; i < velem_dof.Size(); i++)
+   {
+      delete velem_dof[i];
+   }
+
+   if (vdim == 1)
+   {
+      ldof_group = scalar_ldof_group;
+   }
+   else
+   {
       ldof_group.SetSize(n);
       for (int i = 0; i < n; i++)
       {
          ldof_group[i] = scalar_ldof_group[VDofToDof(i)];
       }
    }
+
+   gtopo = new  GroupTopology(MyComm);  // MEM-LEAK TO BE FIXED
+   own_gtopo = true;
+   gtopo->Create(groups, 2822);
+
+
+   // GroupTopology &gt = pmesh->gtopo;
+
+
+   gcomm = new GroupCommunicator(*gtopo);
    gcomm->Create(ldof_group);
 
    // ldof_sign.SetSize(n);
@@ -1915,7 +2055,7 @@ void ParFiniteElementSpace::ConstructTrueNURBSDofs()
    ldof_ltdof.SetSize(n);
    for (int i = 0; i < n; i++)
    {
-      if (gt.IAmMaster(ldof_group[i]))
+      if (gtopo->IAmMaster(ldof_group[i]))
       {
          ldof_ltdof[i] = ltdof_size;
          ltdof_size++;
@@ -1929,6 +2069,8 @@ void ParFiniteElementSpace::ConstructTrueNURBSDofs()
 
    // have the group masters broadcast their ltdofs to the rest of the group
    gcomm->Bcast(ldof_ltdof);
+
+   // delete gtopo;
 }
 
 void ParFiniteElementSpace::GetGhostVertexDofs(const MeshId &id,
@@ -4805,6 +4947,7 @@ void ParFiniteElementSpace::Destroy()
    delete R; R = NULL;
 
    delete gcomm; gcomm = NULL;
+   if (own_gtopo) { delete gtopo; } gtopo = NULL;
 
    num_face_nbr_dofs = -1;
    face_nbr_element_dof.Clear();
