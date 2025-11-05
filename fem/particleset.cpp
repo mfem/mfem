@@ -552,7 +552,7 @@ int ParticleSet::AddField(int vdim, Ordering::Type field_ordering,
       field_name_str = GetDefaultFieldName(field_names.size());
    }
    fields.emplace_back(std::make_unique<ParticleVector>(vdim, field_ordering,
-                                                     GetNP()));
+                                                        GetNP()));
    field_names.emplace_back(field_name_str);
 
    return GetNF() - 1;

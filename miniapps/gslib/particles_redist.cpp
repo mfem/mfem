@@ -61,8 +61,9 @@ void PrintOnOffRankCounts(const Array<unsigned int> &procs, MPI_Comm comm)
    {
       for (int r = 0; r < size; r++)
       {
-         mfem::out << "Rank " << r << " owns " << all_on_rank[r] << " within it, " <<
-                   all_off_rank[r] << " particles outside it\n";
+         mfem::out << "Rank " << r << " owns "
+                   << all_on_rank[r] << " within it, "
+                   << all_off_rank[r] << " particles outside it\n";
       }
    }
 }
@@ -94,7 +95,8 @@ int main (int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use");
    args.AddOption(&npt, "-npt", "--num-particles",
-                  "Number of particles to initialize on global mesh bounding box.");
+                  "Number of particles to initialize on global mesh "
+                  "bounding box.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -187,7 +189,8 @@ int main (int argc, char *argv[])
       Vector rank_vector(pset.GetNP());
       rank_vector = rank;
       VisualizeParticles(sock, "localhost", visport, pset, rank_vector, psize,
-                         "Particle Owning Rank (Post-Redistribute)", 410, 0, 400, 400, "bc");
+                         "Particle Owning Rank (Post-Redistribute)",
+                         410, 0, 400, 400, "bc");
    }
 
    return 0;
