@@ -1872,7 +1872,6 @@ void ParFiniteElementSpace::ConstructTrueDofs()
 void ParFiniteElementSpace::ConstructTrueNURBSDofs()
 {
    int n = GetVSize();
-   int nt;
 
    IntegerSet         group;
    ListOfIntegerSets  groups;
@@ -1887,7 +1886,6 @@ void ParFiniteElementSpace::ConstructTrueNURBSDofs()
    if (VNURBSext.Size() == 2)
    {
       int offset1 = pVNURBSext(0)-> GetNTotalDof();
-      nt = pVNURBSext(0)-> GetNTotalDof() + pVNURBSext(1)-> GetNTotalDof() ;
 
       // Merge Tables
       velem_dof.Append(pVNURBSext(0)->GetGlobalElementDofTable());
@@ -1935,7 +1933,6 @@ void ParFiniteElementSpace::ConstructTrueNURBSDofs()
    {
       int offset1 = pVNURBSext(0)-> GetNTotalDof();
       int offset2 = offset1 + pVNURBSext(1)-> GetNTotalDof();
-      nt = offset2 + pVNURBSext(2)-> GetNTotalDof();
 
       // Merge Tables
       velem_dof.Append(pVNURBSext(0)->GetGlobalElementDofTable());
@@ -1992,7 +1989,6 @@ void ParFiniteElementSpace::ConstructTrueNURBSDofs()
    }
    else
    {
-      nt = pNURBSext()->GetNTotalDof();
       glb_elem_dof = pNURBSext()->GetGlobalElementDofTable();
 
       Table dof_proc;
@@ -2039,10 +2035,6 @@ void ParFiniteElementSpace::ConstructTrueNURBSDofs()
    gtopo = new  GroupTopology(MyComm);  // MEM-LEAK TO BE FIXED
    own_gtopo = true;
    gtopo->Create(groups, 2822);
-
-
-   // GroupTopology &gt = pmesh->gtopo;
-
 
    gcomm = new GroupCommunicator(*gtopo);
    gcomm->Create(ldof_group);
