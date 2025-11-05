@@ -548,15 +548,27 @@ public:
    void Wrap(T *ptr, size_t size, MemoryType loc, bool own)
    {
       *this = Memory(ptr, size, loc);
-      // TODO: set ownership
+      if (own)
+      {
+         auto &inst = MemoryManager::instance();
+         auto &seg = inst.storage.get_segment(segment);
+         if (seg.lowers[0])
+         {
+            SetHostPtrOwner(true);
+         }
+         else
+         {
+            SetDevicePtrOwner(true);
+         }
+      }
    }
 
    void Wrap(T *h_ptr, T *d_ptr, size_t size, MemoryType hloc, MemoryType dloc,
              bool own, bool valid_host = false, bool valid_device = true)
    {
+      auto &inst = MemoryManager::instance();
       *this = Memory(h_ptr, size, hloc);
       SetHostPtrOwner(own);
-      auto &inst = MemoryManager::instance();
       auto &seg = inst.storage.get_segment(segment);
       seg.lowers[1] = reinterpret_cast<char *>(d_ptr);
       seg.mtypes[1] = dloc;
