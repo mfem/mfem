@@ -107,7 +107,7 @@ int main(int argc, char *argv[])
    }
 
    // Load mesh + complete any serial refinements
-   Mesh mesh("../../data/channel2.mesh");
+   Mesh mesh("../../data/channel-bifurcation-2d.mesh");
    for (int lev = 0; lev < ctx.rs_levels; lev++)
    {
       mesh.UniformRefinement();
@@ -290,18 +290,18 @@ void SetInjectedParticles(NavierParticles &particle_solver,
          if (j == 0)
          {
             // Set position
-            particle_solver.X().SetVectorValues(idx, Vector({0.0, spacing*(i+offset+1)}));
+            particle_solver.X().SetValues(idx, Vector({0.0, spacing*(i+offset+1)}));
          }
          else
          {
             // Zero-out position history
-            particle_solver.X(j).SetVectorValues(idx, Vector({0.0,0.0}));
+            particle_solver.X(j).SetValues(idx, Vector({0.0,0.0}));
          }
 
          // Zero-out particle velocities, fluid velocities, and fluid vorticities
-         particle_solver.V(j).SetVectorValues(idx, Vector({0.0,0.0}));
-         particle_solver.U(j).SetVectorValues(idx, Vector({0.0,0.0}));
-         particle_solver.W(j).SetVectorValues(idx, Vector({0.0,0.0}));
+         particle_solver.V(j).SetValues(idx, Vector({0.0,0.0}));
+         particle_solver.U(j).SetValues(idx, Vector({0.0,0.0}));
+         particle_solver.W(j).SetValues(idx, Vector({0.0,0.0}));
 
          // Set Kappa, Zeta, Gamma
          std::mt19937 gen(kappa_seed);

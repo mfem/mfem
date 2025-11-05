@@ -75,14 +75,13 @@ Vector ArrayToVector(const Array<T> &fields)
    {
       v[i] = static_cast<real_t>(fields[i]);
    }
-   return std::move(v);
+   return v;
 }
 
 int main (int argc, char *argv[])
 {
    // Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
-   int size = Mpi::WorldSize();
    int rank = Mpi::WorldRank();
    Hypre::Init();
 

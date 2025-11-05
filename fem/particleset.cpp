@@ -12,6 +12,13 @@
 #include "particleset.hpp"
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
+
+// Ignore warnings from the gslib header (GCC version)
+#ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+#endif
+
 namespace gslib
 {
 extern "C"
@@ -19,6 +26,11 @@ extern "C"
 #include <gslib.h>
 } // extern C
 } // namespace gslib
+
+#ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
+#pragma GCC diagnostic pop
+#endif
+
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
 
@@ -167,7 +179,7 @@ void ParticleSet::Reserve(int res)
    // Reserve fields
    for (int f = -1; f < GetNF(); f++)
    {
-      MultiVector &pv = (f == -1 ? coords : *fields[f]);
+      ParticleVector &pv = (f == -1 ? coords : *fields[f]);
       pv.Reserve(res*pv.GetVDim());
    }
 
@@ -211,8 +223,8 @@ void ParticleSet::AddParticles(const Array<unsigned int> &new_ids,
    // Update data
    for (int f = -1; f < GetNF(); f++)
    {
-      MultiVector &pv = (f == -1 ? coords : *fields[f]);
-      pv.SetNumVectors(new_np); // does not delete existing data
+      ParticleVector &pv = (f == -1 ? coords : *fields[f]);
+      pv.SetNumParticles(new_np); // does not delete existing data
    }
 
    // Update tags
@@ -249,7 +261,7 @@ void ParticleSet::Transfer(const Array<unsigned int> &send_idxs,
       int counter = 0;
       for (int f = -1; f < GetNF(); f++)
       {
-         MultiVector &pv = (f == -1 ? coords : *fields[f]);
+         ParticleVector &pv = (f == -1 ? coords : *fields[f]);
          for (int c = 0; c < pv.GetVDim(); c++)
          {
             pdata.data[counter] = pv(send_idxs[i], c);
@@ -295,7 +307,7 @@ void ParticleSet::Transfer(const Array<unsigned int> &send_idxs,
       int counter = 0;
       for (int f = -1; f < GetNF(); f++)
       {
-         MultiVector &pv = (f == -1 ? coords : *fields[f]);
+         ParticleVector &pv = (f == -1 ? coords : *fields[f]);
          for (int c = 0; c < pv.GetVDim(); c++)
          {
             pv(new_idx, c) = pdata.data[counter];
@@ -539,7 +551,7 @@ int ParticleSet::AddField(int vdim, Ordering::Type field_ordering,
    {
       field_name_str = GetDefaultFieldName(field_names.size());
    }
-   fields.emplace_back(std::make_unique<MultiVector>(vdim, field_ordering,
+   fields.emplace_back(std::make_unique<ParticleVector>(vdim, field_ordering,
                                                      GetNP()));
    field_names.emplace_back(field_name_str);
 
@@ -593,8 +605,8 @@ void ParticleSet::RemoveParticles(const Array<int> &list)
    // Delete data
    for (int f = -1; f < GetNF(); f++)
    {
-      MultiVector &pv = (f == -1 ? coords : *fields[f]);
-      pv.DeleteVectorsAt(list);
+      ParticleVector &pv = (f == -1 ? coords : *fields[f]);
+      pv.DeleteParticles(list);
    }
 
    // Delete tags
@@ -608,11 +620,11 @@ Particle ParticleSet::GetParticle(int i) const
 {
    Particle p = CreateParticle();
 
-   Coords().GetVectorValues(i, p.Coords());
+   Coords().GetValues(i, p.Coords());
 
    for (int f = 0; f < GetNF(); f++)
    {
-      Field(f).GetVectorValues(i, p.Field(f));
+      Field(f).GetValues(i, p.Field(f));
    }
 
    for (int t = 0; t < GetNT(); t++)
@@ -643,11 +655,11 @@ Particle ParticleSet::GetParticleRef(int i)
 {
    Particle p = CreateParticle();
 
-   Coords().GetVectorRef(i, p.Coords());
+   Coords().GetValuesRef(i, p.Coords());
 
    for (int f = 0; f < GetNF(); f++)
    {
-      Field(f).GetVectorRef(i, p.Field(f));
+      Field(f).GetValuesRef(i, p.Field(f));
    }
 
    for (int t = 0; t < GetNT(); t++)
@@ -660,11 +672,11 @@ Particle ParticleSet::GetParticleRef(int i)
 
 void ParticleSet::SetParticle(int i, const Particle &p)
 {
-   Coords().SetVectorValues(i, p.Coords());
+   Coords().SetValues(i, p.Coords());
 
    for (int f = 0; f < GetNF(); f++)
    {
-      Field(f).SetVectorValues(i, p.Field(f));
+      Field(f).SetValues(i, p.Field(f));
    }
 
    for (int t = 0; t < GetNT(); t++)
@@ -706,7 +718,7 @@ void ParticleSet::PrintCSV(const char *fname, const Array<int> &field_idxs,
 
    for (int f = -1; f < field_idxs.Size(); f++)
    {
-      MultiVector &pv = (f == -1 ? coords : *fields[field_idxs[f]]);
+      ParticleVector &pv = (f == -1 ? coords : *fields[field_idxs[f]]);
 
       for (int c = 0; c < pv.GetVDim(); c++)
       {
@@ -746,7 +758,7 @@ void ParticleSet::PrintCSV(const char *fname, const Array<int> &field_idxs,
 
       for (int f = -1; f < field_idxs.Size(); f++)
       {
-         MultiVector &pv = (f == -1 ? coords : *fields[field_idxs[f]]);
+         ParticleVector &pv = (f == -1 ? coords : *fields[field_idxs[f]]);
 
          for (int c = 0; c < pv.GetVDim(); c++)
          {

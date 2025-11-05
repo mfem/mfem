@@ -125,18 +125,23 @@ TEST_CASE("Array stl-interactions", "[Array]")
    }
 }
 
-TEST_CASE("Array delete at indices", "[Array]")
+TEST_CASE("Array delete at indices", "[Array],[GPU]")
 {
-   Array<int>       test({0,1,2,3,4,5,6,7,8});
-   Array<int> rm_indices({0,    3,4,  6,  8});
-   Array<int>     result({  1,2,    5,  7  });
-
-   test.DeleteAt(rm_indices);
-
-   REQUIRE(test.Size() == result.Size());
-
-   for (int i = 0; i < test.Size(); i++)
+   for (int use_dev = 0; use_dev < 2; use_dev++)
    {
-      CHECK(test[i] == result[i]);
+      Array<int>       test({0,1,2,3,4,5,6,7,8});
+      Array<int> rm_indices({0,    3,4,  6,  8});
+      Array<int>     result({  1,2,    5,  7  });
+
+      test.GetMemory().UseDevice(use_dev);
+      test.DeleteAt(rm_indices);
+
+      REQUIRE(test.Size() == result.Size());
+
+      test.HostReadWrite();
+      for (int i = 0; i < test.Size(); i++)
+      {
+         CHECK(test[i] == result[i]);
+      }
    }
 }

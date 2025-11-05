@@ -191,6 +191,8 @@ protected:
    void NURBSUniformRefinement(int rf = 2, real_t tol=1.0e-12) override;
    void NURBSUniformRefinement(const Array<int> &rf, real_t tol=1.e-12) override;
 
+   void RefineNURBSWithKVFactors(int rf, const std::string &kvf) override;
+
    /// This function is not public anymore. Use GeneralRefinement instead.
    void LocalRefinement(const Array<int> &marked_el, int type = 3) override;
 
@@ -788,7 +790,7 @@ public:
                  VTKFormat format=VTKFormat::ASCII,
                  bool high_order_output=false,
                  int compression_level=0,
-                 bool bdr=false) override;
+                 bool bdr_elements=false) override;
 
    /// Parallel version of Mesh::Load().
    void Load(std::istream &input, int generate_edges = 0,
@@ -814,6 +816,22 @@ public:
 
    /// Debugging method
    void PrintSharedEntities(const std::string &fname_prefix) const;
+
+   /** @brief Return true if the input array of refinements to be performed would
+       result in conflicting anisotropic directions on a face. Indices of
+       @a refinements entries are contained in @a conflicts, for marked elements
+       neighboring a face with a conflict.
+
+       The return value is globally MPI-reduced (true if any MPI process has a
+       conflict), whereas @a conflicts contains local indices of conflicting
+       entries of @a refinements. Conflicts are defined as anisotropic
+       refinements in different directions on a face shared by two elements.
+       Conflicts are checked for the mesh that would result from the input
+       refinements. If there are no conflicts, then the refinements can be
+       performed without forced refinements. This function is supported only for
+       3D meshes with all hexahedral elements. */
+   bool AnisotropicConflict(const Array<Refinement> &refinements,
+                            std::set<int> &conflicts) const;
 
    virtual ~ParMesh();
 };

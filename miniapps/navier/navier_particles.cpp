@@ -95,8 +95,8 @@ void NavierParticles::ParticleStep2D(const real_t &dt, int p)
    r = 0.0;
    for (int j = 1; j <= 3; j++)
    {
-      U(j).GetVectorRef(p, up);
-      V(j).GetVectorRef(p, vp);
+      U(j).GetValuesRef(p, up);
+      V(j).GetValuesRef(p, vp);
 
       // Add particle velocity component
       add(r, -beta[j], vp, r);
@@ -113,18 +113,18 @@ void NavierParticles::ParticleStep2D(const real_t &dt, int p)
 
    // Solve for particle velocity
    DenseMatrixInverse B_inv(B);
-   V(0).GetVectorRef(p, vp);
+   V(0).GetValuesRef(p, vp);
    B_inv.Mult(r, vp);
 
    // Compute updated particle position
-   X(0).GetVectorRef(p, xpn);
+   X(0).GetValuesRef(p, xpn);
    xpn = 0.0;
    for (int j = 1; j <= 3; j++)
    {
-      X(j).GetVectorRef(p, xp);
+      X(j).GetValuesRef(p, xp);
       add(xpn, -beta[j], xp, xpn);
    }
-   V(0).GetVectorRef(p, vp);
+   V(0).GetValuesRef(p, vp);
    add(xpn, dt, vp, xpn);
    xpn *= 1.0/beta[0];
 }
@@ -202,9 +202,9 @@ void NavierParticles::Apply2DReflectionBC(const ReflectionBC_2D &bc)
    Vector p_xn(2), p_xnm1(2), p_xdiff(2), x_int(2), p_vn(2), p_vdiff(2);
    for (int i = 0; i < fluid_particles.GetNP(); i++)
    {
-      X().GetVectorRef(i, p_xn);
-      X(1).GetVectorRef(i, p_xnm1);
-      V().GetVectorRef(i, p_vn);
+      X().GetValuesRef(i, p_xn);
+      X(1).GetValuesRef(i, p_xnm1);
+      V().GetValuesRef(i, p_vn);
 
       // If line_start to line_end and x_nm1 to x_n intersect, apply reflection
       if (Get2DSegmentIntersection(bc.line_start, bc.line_end, p_xnm1, p_xn, x_int))
@@ -259,8 +259,8 @@ void NavierParticles::Apply2DRecirculationBC(const RecirculationBC_2D &bc)
    Vector p_xn(2), p_xnm1(2), x_int(2), p_xc(2), p_x_int_diff(2);
    for (int i = 0; i < fluid_particles.GetNP(); i++)
    {
-      X().GetVectorRef(i, p_xn);
-      X(1).GetVectorRef(i, p_xnm1);
+      X().GetValuesRef(i, p_xn);
+      X(1).GetValuesRef(i, p_xnm1);
 
       // If outlet_start to outlet_end and x_nm1 to x_n intersect, apply recirculation
       if (Get2DSegmentIntersection(bc.outlet_start, bc.outlet_end, p_xnm1, p_xn,
@@ -439,8 +439,8 @@ void NavierParticles::DeactivateLostParticles(bool findpts)
    Vector coords;
    for (int i = 0; i < lost_idxs.Size(); i++)
    {
-      X().GetVectorValues(lost_idxs[i], coords);
-      inactive_fluid_particles.Coords().SetVectorValues(inactive_add_idxs[i], coords);
+      X().GetValues(lost_idxs[i], coords);
+      inactive_fluid_particles.Coords().SetValues(inactive_add_idxs[i], coords);
       inactive_fluid_particles.Field(0)[inactive_add_idxs[i]] = Kappa()[lost_idxs[i]];
       inactive_fluid_particles.Field(1)[inactive_add_idxs[i]] = Zeta()[lost_idxs[i]];
       inactive_fluid_particles.Field(2)[inactive_add_idxs[i]] = Gamma()[lost_idxs[i]];

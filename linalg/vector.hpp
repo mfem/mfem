@@ -175,6 +175,7 @@ public:
    void Reserve(int res);
 
    /// Delete entries at @a indices and resize vector accordingly.
+   /// @warning Indices must be unique!
    void DeleteAt(const Array<int> &indices);
 
    /// Set the Vector data.
@@ -631,34 +632,12 @@ inline void Vector::Reserve(int res)
 {
    if (res > Capacity())
    {
-      Vector copy = *this;
-      SetSize(res);
-      SetVector(copy, 0);
-      SetSize(copy.Size());
+      Memory<real_t> p(res, data.GetMemoryType());
+      p.CopyFrom(data, size);
+      p.UseDevice(data.UseDevice());
+      data.Delete();
+      data = p;
    }
-}
-
-inline void Vector::DeleteAt(const Array<int> &indices)
-{
-   // Make copy of the indices, sorted.
-   Array<int> sorted_indices(indices);
-   sorted_indices.Sort();
-
-   int rm_count = 0;
-   for (int i = 0; i < size; i++)
-   {
-      if (rm_count < sorted_indices.Size() && i == sorted_indices[rm_count])
-      {
-         rm_count++;
-      }
-      else
-      {
-         data[i-rm_count] = data[i]; // shift data rm_count
-      }
-   }
-
-   // Resize to remove tail
-   size -= rm_count;
 }
 
 inline void Vector::NewMemoryAndSize(const Memory<real_t> &mem, int s,

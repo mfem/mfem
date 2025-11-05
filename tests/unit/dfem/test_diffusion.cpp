@@ -226,7 +226,7 @@ void DFemDiffusion(const char *filename, int p, const int r)
       auto dRdU = dop_mf.GetDerivative(U, {&x}, {&rho_coeff_cv, nodes});
 
       pfes.GetRestrictionMatrix()->Mult(x, X);
-      dop_mf.Mult(X, Z);
+      dRdU->Mult(X, Z);
 
       blf_fa.Mult(x, y);
       pfes.GetProlongationMatrix()->MultTranspose(y, Y);
@@ -255,8 +255,8 @@ void DFemDiffusion(const char *filename, int p, const int r)
          DOperator dop_mf(vsol, {{Coords, mfes}}, pmesh);
          const auto mf_vector_diffusion_qf =
             [] MFEM_HOST_DEVICE (const tensor<dscalar_t, DIM, DIM> &dudxi,
-               const tensor<real_t, DIM, DIM> &J,
-               const real_t &w)
+                                 const tensor<real_t, DIM, DIM> &J,
+                                 const real_t &w)
          {
             const auto invJ = inv(J), TinJ = transpose(invJ);
             return tuple{ (dudxi * invJ) * TinJ * det(J) * w };

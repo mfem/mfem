@@ -20,6 +20,7 @@ CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
 # Default target
 all: lib-common
 
+# Include defaults.mk to get the definition of BUILD_SOFLAGS
 DEFAULTS_MK = $(MFEM_DIR)/config/defaults.mk
 include $(DEFAULTS_MK)
 
@@ -30,13 +31,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 ifneq (clean,$(MAKECMDGOALS))
    -include $(CONFIG_MK)
 
-   ifeq ($(MFEM_USE_CUDA),YES)
-      XLINKER = $(CUDA_XLINKER)
-   else ifeq ($(MFEM_USE_HIP),YES)
-      XLINKER = $(HIP_XLINKER)
-   else
-      XLINKER = $(CXX_XLINKER)
-   endif
+   XLINKER = $(MFEM_XLINKER)
 
    BUILD_REAL_DIR = $(realpath .)
    BUILD_SOFLAGS := $(subst libmfem.,libmfem-common.,$(BUILD_SOFLAGS))
