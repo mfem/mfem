@@ -180,7 +180,7 @@ private:
 
    RBase storage;
    std::array<std::unique_ptr<Allocator>, 2 * MemoryTypeSize> allocs_storage;
-   std::array<Allocator *, 2 *MemoryTypeSize> allocs = {nullptr};
+   std::array<Allocator *, 2 * MemoryTypeSize> allocs = {nullptr};
    // host, device, host-pinned, managed
    std::array<MemoryType, 4> memory_types =
    {

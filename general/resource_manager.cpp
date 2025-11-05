@@ -374,13 +374,13 @@ MemoryManager::MemoryManager()
 
 #if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
    allocs_storage[4].reset(new HostPinnedAllocator);
-   allocs_storage[5].reset(new TempAllocator<HostPinnedAllocator>);
+   allocs_storage[5].reset(new TempAllocator<HostPinnedAllocator, true>);
    allocs[static_cast<int>(MemoryType::HOST_PINNED)] = allocs_storage[4].get();
    allocs[static_cast<int>(MemoryType::HOST_PINNED) + MemoryTypeSize] =
       allocs_storage[4].get();
 
    allocs_storage[6].reset(new ManagedAllocator);
-   allocs_storage[7].reset(new TempAllocator<ManagedAllocator>);
+   allocs_storage[7].reset(new TempAllocator<ManagedAllocator, true>);
    allocs[static_cast<int>(MemoryType::MANAGED)] = allocs_storage[6].get();
    allocs[static_cast<int>(MemoryType::MANAGED) + MemoryTypeSize] =
       allocs_storage[7].get();
@@ -1635,7 +1635,7 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
       std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
           AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
           copy_segs(AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(
-                       MemoryType::MANAGED, true));
+                       GetManagedMemoryType(), true));
 
       auto &seg = storage.get_segment(segment);
       if (!seg.lowers[on_device])
@@ -1709,7 +1709,7 @@ const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
       std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
           AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
           copy_segs(AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(
-                       MemoryType::MANAGED, true));
+                       GetManagedMemoryType(), true));
 
       auto &seg = storage.get_segment(segment);
       if (!seg.lowers[on_device])
@@ -1852,9 +1852,9 @@ void MemoryManager::CopyImpl(char *dst, MemoryType dloc, size_t dst_offset,
 
    // offset src, offset dst, nbytes
    std::vector<ptrdiff_t, AllocatorAdaptor<ptrdiff_t>> copy0(
-                                                       AllocatorAdaptor<ptrdiff_t>(MemoryType::MANAGED, true));
+                                                       AllocatorAdaptor<ptrdiff_t>(GetManagedMemoryType(), true));
    std::vector<ptrdiff_t, AllocatorAdaptor<ptrdiff_t>> copy1(
-                                                       AllocatorAdaptor<ptrdiff_t>(MemoryType::MANAGED, true));
+                                                       AllocatorAdaptor<ptrdiff_t>(GetManagedMemoryType(), true));
    check_valid(
       marker, dst_offset, dst_offset + nbytes,
       [&](auto dst_start, auto dst_stop, bool valid)
@@ -2088,7 +2088,7 @@ void MemoryManager::CopyFromHost(size_t segment, size_t offset,
          std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
              AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
              copy_segs(AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(
-                          MemoryType::MANAGED, true));
+                          GetManagedMemoryType(), true));
          check_valid(segment, i, offset, offset + nbytes,
                      [&](auto start, auto stop, bool valid)
          {
