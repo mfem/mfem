@@ -93,9 +93,9 @@ CoupledOperator::CoupledOperator(const Array<int> &bdr_u_is_ess,
 
    if (tr_space)
    {
-      darcy->EnableHybridization(tr_space,
-                                 new NormalTraceJumpIntegrator(),
-                                 ess_u_tdofs_list);
+      darcy->EnableFluxHybridization(tr_space,
+                                     new NormalTraceJumpIntegrator(),
+                                     ess_u_tdofs_list);
    }
 
    //Maxwell

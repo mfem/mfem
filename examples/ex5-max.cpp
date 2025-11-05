@@ -237,9 +237,9 @@ int main(int argc, char *argv[])
    {
       trace_coll = new ND_Trace_FECollection(order+1, dim);
       trace_space = new FiniteElementSpace(mesh, trace_coll);
-      darcy->EnableHybridization(trace_space,
-                                 new TangentTraceJumpIntegrator(),
-                                 ess_flux_tdofs_list);
+      darcy->EnableFluxHybridization(trace_space,
+                                     new TangentTraceJumpIntegrator(),
+                                     ess_flux_tdofs_list);
    }
 
    if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }

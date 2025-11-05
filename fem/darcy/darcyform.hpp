@@ -145,13 +145,12 @@ public:
 
    DarcyReduction *GetReduction() const { return reduction.get(); }
 
-   /// Enable hybridization.
-   /** For details see the description for class
-       DarcyHybridization in darcyhybridization.hpp. This method should be called
-       before assembly. */
-   void EnableHybridization(FiniteElementSpace *constr_space,
-                            BilinearFormIntegrator *constr_flux_integ,
-                            const Array<int> &ess_flux_tdof_list);
+   /// Enable flux hybridization.
+   /** For details see the description for class DarcyHybridization in
+       darcyhybridization.hpp. This method should be called before assembly. */
+   void EnableFluxHybridization(FiniteElementSpace *constr_space,
+                                BilinearFormIntegrator *constr_flux_integ,
+                                const Array<int> &ess_flux_tdof_list);
 
    DarcyHybridization *GetHybridization() const { return hybridization.get(); }
 

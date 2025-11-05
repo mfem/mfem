@@ -578,9 +578,9 @@ int main(int argc, char *argv[])
       trace_coll = new ND_Trace_FECollection(order+1, dim, 0);
       //trace_coll = new DG_Interface_FECollection(order, dim, 0);
       trace_space = new FiniteElementSpace(mesh, trace_coll);
-      darcy->EnableHybridization(trace_space,
-                                 new TangentTraceJumpIntegrator(),
-                                 ess_flux_tdofs_list);
+      darcy->EnableFluxHybridization(trace_space,
+                                     new TangentTraceJumpIntegrator(),
+                                     ess_flux_tdofs_list);
 
       chrono.Stop();
       std::cout << "Hybridization init took " << chrono.RealTime() << "s.\n";

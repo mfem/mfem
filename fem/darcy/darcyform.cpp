@@ -194,9 +194,9 @@ void DarcyForm::EnablePotentialReduction(const Array<int> &ess_flux_tdof_list)
    EnableReduction(ess_flux_tdof_list, new DarcyPotentialReduction(fes_u, fes_p));
 }
 
-void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
-                                    BilinearFormIntegrator *constr_flux_integ,
-                                    const Array<int> &ess_flux_tdof_list)
+void DarcyForm::EnableFluxHybridization(FiniteElementSpace *constr_space,
+                                        BilinearFormIntegrator *constr_flux_integ,
+                                        const Array<int> &ess_flux_tdof_list)
 {
    MFEM_ASSERT(M_u || Mnl_u || Mnl,
                "Mass form for the fluxes must be set prior to this call!");

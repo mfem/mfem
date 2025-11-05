@@ -569,9 +569,9 @@ int main(int argc, char *argv[])
       {
          if (hybridization)
          {
-            a_darcy->EnableHybridization(hatu_fes,
-                                         new NormalTraceJumpIntegrator(-1.),
-                                         ess_tdof_list);
+            a_darcy->EnableFluxHybridization(hatu_fes,
+                                             new NormalTraceJumpIntegrator(-1.),
+                                             ess_tdof_list);
          }
          else if (reduction)
          {

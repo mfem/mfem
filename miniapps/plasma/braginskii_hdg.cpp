@@ -632,10 +632,10 @@ int main(int argc, char *argv[])
       trace_coll.reset(new DG_Interface_FECollection(order, dim));
       trace_space.reset(new FiniteElementSpace(&mesh, trace_coll.get(),
                                                num_equations));
-      darcy.EnableHybridization(trace_space.get(),
-                                new VectorBlockDiagonalIntegrator(
-                                   num_equations, new NormalTraceJumpIntegrator()),
-                                ess_flux_tdofs_list);
+      darcy.EnableFluxHybridization(trace_space.get(),
+                                    new VectorBlockDiagonalIntegrator(
+                                       num_equations, new NormalTraceJumpIntegrator()),
+                                    ess_flux_tdofs_list);
 
    }
 

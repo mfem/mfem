@@ -281,9 +281,9 @@ int main(int argc, char *argv[])
    {
       trace_coll = new DG_Interface_FECollection(order, dim);
       trace_space = new FiniteElementSpace(mesh, trace_coll);
-      darcy->EnableHybridization(trace_space,
-                                 new NormalTraceJumpIntegrator(),
-                                 ess_flux_tdofs_list);
+      darcy->EnableFluxHybridization(trace_space,
+                                     new NormalTraceJumpIntegrator(),
+                                     ess_flux_tdofs_list);
    }
    else if (reduction && (dg || brt))
    {
