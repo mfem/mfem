@@ -173,7 +173,7 @@ int main(int argc, char *argv[])
          trial_fec = new NURBS_HDivFECollection(order, dim);
          test_fec  = new NURBSFECollection(order);
       }
-      if (myid == 0) mfem::out<<"Create NURBS fec and ext"<<std::endl;
+      if (myid == 0) { mfem::out<<"Create NURBS fec and ext"<<std::endl; }
    }
    else
    {
@@ -345,7 +345,7 @@ int main(int argc, char *argv[])
    x.SetFromTrueDofs(X);
 
    // 12. Compute the same field by applying a DiscreteInterpolator.
-   /* 
+   /*
      Will work on DiscreteInterpolant for NURBS VectorFE in another PR
      Keep it here for now.
 
@@ -396,8 +396,8 @@ int main(int argc, char *argv[])
       {
          cout << "\n Solution of (E_h,v) = (grad p_h,v) for E_h and v in H(curl)"
               ": || E_h - grad p ||_{L_2} = " << errSol << '\n' << endl;
-        // cout << " Gradient interpolant E_h = grad p_h in H(curl): || E_h - grad"
-        //      " p ||_{L_2} = " << errInterp << '\n' << endl;
+         // cout << " Gradient interpolant E_h = grad p_h in H(curl): || E_h - grad"
+         //      " p ||_{L_2} = " << errInterp << '\n' << endl;
          cout << " Projection E_h of exact grad p in H(curl): || E_h - grad p "
               "||_{L_2} = " << errProj << '\n' << endl;
       }
