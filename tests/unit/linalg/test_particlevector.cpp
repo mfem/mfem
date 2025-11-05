@@ -97,7 +97,7 @@ void TestSetGetComponents(Ordering::Type ordering)
 
 }
 
-void TestResize(Ordering::Type ordering)
+void TestSetNumParticles(Ordering::Type ordering)
 {
    SECTION((ordering == Ordering::byNODES ? "byNODES" : "byVDIM"))
    {
@@ -213,10 +213,10 @@ TEST_CASE("ParticleVector set/get components", "[ParticleVector]")
    TestSetGetComponents(Ordering::byVDIM);
 }
 
-TEST_CASE("ParticleVector resize", "[ParticleVector]")
+TEST_CASE("ParticleVector set num particles", "[ParticleVector]")
 {
-   TestResize(Ordering::byNODES);
-   TestResize(Ordering::byVDIM);
+   TestSetNumParticles(Ordering::byNODES);
+   TestSetNumParticles(Ordering::byVDIM);
 }
 
 TEST_CASE("ParticleVector set vdim","[ParticleVector]")
