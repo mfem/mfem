@@ -869,6 +869,8 @@ int main(int argc, char *argv[])
    DarcyOperator op(ess_flux_tdofs_list, darcy, gform, fform, hform, coeffs,
                     (DarcyOperator::SolverType) solver_type);
 
+   op.SetTolerance(1e-8);
+
    op.EnableSolutionController(
       (DarcyOperator::SolutionController::Type) isol_ctrl);
 
