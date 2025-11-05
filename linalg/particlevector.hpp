@@ -51,19 +51,16 @@ public:
 
    ParticleVector() : vdim(1), ordering(Ordering::byNODES) {};
 
-   /** @brief Initialize an empty ParticleVector of vdim \p vdim_ with ordering
-    *  \p ordering_.
-    */
+   /// Initialize an empty ParticleVector of vdim \p vdim_ with
+   /// ordering \p ordering_.
    ParticleVector(int vdim_, Ordering::Type ordering_);
 
-   /** @brief Initialize a ParticleVector with \p num_particles vectors each of
-    *  size \p vdim_ ordered \p ordering_.
-    */
+   /// Initialize a ParticleVector with \p num_particles vectors each of size
+   /// \p vdim_ ordered \p ordering_.
    ParticleVector(int vdim_, Ordering::Type ordering_, int num_particles);
 
-   /** @brief Initialize a ParticleVector of vdim \p vdim_ with ordering
-    *  \p ordering_ , initialized with copy of data in \p vec .
-    */
+   /// Initialize a ParticleVector of vdim \p vdim_ with ordering
+   /// \p ordering_ , initialized with copy of data in \p vec .
    ParticleVector(int vdim_, Ordering::Type ordering_, const Vector &vec);
 
    /// Get the Vector dimension of the ParticleVector.
@@ -141,7 +138,7 @@ public:
    void SetOrdering(Ordering::Type ordering_, bool keep_data=true);
 
    /** @brief Set the number of particle Vector data to be held by the
-    *  ParticleVector.
+    *  ParticleVector, keeping existing data.
     *
     * @details If \p keep_data is true, existing particle data in the
     * ParticleVector is maintained with an ordering-mindful resize. If

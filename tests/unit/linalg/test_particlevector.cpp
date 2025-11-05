@@ -29,7 +29,7 @@ void TestSetGetValues(Ordering::Type ordering)
    for (int i = 0; i < NV; i++)
    {
       vecs[i].SetSize(VDIM);
-      vecs[i].Randomize(i);
+      vecs[i].Randomize(i+1);
       mv.SetValues(i, vecs[i]);
    }
 
@@ -54,7 +54,7 @@ void TestSetGetComponents(Ordering::Type ordering)
    for (int i = 0; i < NV; i++)
    {
       vecs[i].SetSize(VDIM);
-      vecs[i].Randomize(i);
+      vecs[i].Randomize(i+1);
    }
 
    // Set components individually
@@ -156,7 +156,7 @@ void TestSetVDim(Ordering::Type ordering)
    for (int i = 0; i < NV; i++)
    {
       data_vecs[i].SetSize(VDIM+VDIM_INC);
-      data_vecs[i].Randomize(i);
+      data_vecs[i].Randomize(i+1);
       data_vecs_red[i].NewDataAndSize(data_vecs[i].GetData(), VDIM);
 
       mv.SetValues(i, data_vecs[i]);
