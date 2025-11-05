@@ -2016,6 +2016,7 @@ void ParMesh::DeleteFaceNbrData()
 
 void ParMesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
 {
+   MFEM_PERF_FUNCTION;
    DeleteFaceNbrData();
    space_dim = (space_dim == -1) ? spaceDim : space_dim;
    FiniteElementCollection* nfec;

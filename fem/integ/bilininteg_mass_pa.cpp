@@ -23,6 +23,8 @@ namespace mfem
 
 void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   MFEM_PERF_FUNCTION;
+
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
                          Device::GetDeviceMemoryType() : pa_mt;
 
@@ -139,6 +141,8 @@ void MassIntegrator::AssembleDiagonalPA(Vector &diag)
 
 void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
+   MFEM_PERF_FUNCTION;
+
    if (DeviceCanUseCeed())
    {
       ceedOp->AddMult(x, y);

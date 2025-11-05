@@ -1870,6 +1870,8 @@ HYPRE_Int HypreParMatrix::Mult(HypreParVector &x, HypreParVector &y,
 
 void HypreParMatrix::Mult(real_t a, const Vector &x, real_t b, Vector &y) const
 {
+   MFEM_PERF_FUNCTION;
+
    MFEM_ASSERT(x.Size() == Width(), "invalid x.Size() = " << x.Size()
                << ", expected size = " << Width());
    MFEM_ASSERT(y.Size() == Height(), "invalid y.Size() = " << y.Size()
@@ -1928,6 +1930,8 @@ void HypreParMatrix::Mult(real_t a, const Vector &x, real_t b, Vector &y) const
 void HypreParMatrix::MultTranspose(real_t a, const Vector &x,
                                    real_t b, Vector &y) const
 {
+   MFEM_PERF_FUNCTION;
+
    MFEM_ASSERT(x.Size() == Height(), "invalid x.Size() = " << x.Size()
                << ", expected size = " << Height());
    MFEM_ASSERT(y.Size() == Width(), "invalid y.Size() = " << y.Size()
@@ -4093,6 +4097,8 @@ void HypreSolver::Setup(const HypreParVector &b, HypreParVector &x) const
 {
    if (setup_called) { return; }
 
+   MFEM_PERF_FUNCTION;
+
    MFEM_VERIFY(A != NULL, "HypreParMatrix A is missing");
 
    HYPRE_Int err_flag = SetupFcn()(*this, *A, b, x);
@@ -4118,6 +4124,8 @@ void HypreSolver::Setup(const Vector &b, Vector &x) const
 
 void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
 {
+   MFEM_PERF_FUNCTION;
+
    HYPRE_Int err_flag;
    if (A == NULL)
    {

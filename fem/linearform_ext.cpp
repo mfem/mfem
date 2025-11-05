@@ -15,10 +15,16 @@
 namespace mfem
 {
 
-LinearFormExtension::LinearFormExtension(LinearForm *lf): lf(lf) { Update(); }
+LinearFormExtension::LinearFormExtension(LinearForm *lf): lf(lf)
+{
+   MFEM_PERF_FUNCTION;
+   Update();
+}
 
 void LinearFormExtension::Assemble()
 {
+   MFEM_PERF_FUNCTION;
+
    const FiniteElementSpace &fes = *lf->FESpace();
    MFEM_VERIFY(lf->SupportsDevice(), "Not supported.");
    MFEM_VERIFY(lf->Size() == fes.GetVSize(), "LinearForm size does not "
@@ -113,6 +119,8 @@ void LinearFormExtension::Assemble()
 
 void LinearFormExtension::Update()
 {
+   MFEM_PERF_FUNCTION;
+
    const FiniteElementSpace &fes = *lf->FESpace();
    const Mesh &mesh = *fes.GetMesh();
    constexpr ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;

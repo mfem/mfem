@@ -78,6 +78,7 @@ private:
       opr.SetOperatorOwner(false);
 
       CGSolver* pcg = new CGSolver();
+      // pcg->iterative_mode = false; // the multigrid algorithm does this
       pcg->SetPrintLevel(-1);
       pcg->SetMaxIter(200);
       pcg->SetRelTol(sqrt(1e-4));
@@ -100,7 +101,8 @@ private:
       Vector diag(fespace.GetTrueVSize());
       bfs[level]->AssembleDiagonal(diag);
 
-      Solver* smoother = new OperatorChebyshevSmoother(*opr, diag, ess_tdof_list, 2);
+      Solver *smoother = new OperatorChebyshevSmoother(
+         *opr, diag, ess_tdof_list, 2);
       AddLevel(opr.Ptr(), smoother, true, true);
    }
 };

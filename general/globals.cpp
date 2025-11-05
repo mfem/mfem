@@ -31,6 +31,9 @@ namespace internal
 {
 bool mfem_out_initialized = false;
 bool mfem_err_initialized = false;
+
+int annotation_sync_stream = 0; // declared in annotation.hpp
+int annotation_sync_mpi = 0; // declared in annotation.hpp
 }
 
 void OutStream::Init()

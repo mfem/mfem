@@ -50,17 +50,19 @@ void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
 
 void Operator::AddMult(const Vector &x, Vector &y, const real_t a) const
 {
-   mfem::Vector z(y.Size());
-   Mult(x, z);
-   y.Add(a, z);
+   z_am.SetSize(y.Size());
+   z_am.UseDevice(true);
+   Mult(x, z_am);
+   y.Add(a, z_am);
 }
 
 void Operator::AddMultTranspose(const Vector &x, Vector &y,
                                 const real_t a) const
 {
-   mfem::Vector z(y.Size());
-   MultTranspose(x, z);
-   y.Add(a, z);
+   z_am.SetSize(y.Size());
+   z_am.UseDevice(true);
+   MultTranspose(x, z_am);
+   y.Add(a, z_am);
 }
 
 void Operator::ArrayMult(const Array<const Vector *> &X,
@@ -586,6 +588,8 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 void ConstrainedOperator::ConstrainedMult(const Vector &x, Vector &y,
                                           const bool transpose) const
 {
+   MFEM_PERF_FUNCTION;
+
    const int csz = constraint_list.Size();
    if (csz == 0)
    {
@@ -785,6 +789,8 @@ void RectangularConstrainedOperator::EliminateRHS(const Vector &x,
 
 void RectangularConstrainedOperator::Mult(const Vector &x, Vector &y) const
 {
+   MFEM_PERF_FUNCTION;
+
    const int trial_csz = trial_constraints.Size();
    const int test_csz = test_constraints.Size();
    if (trial_csz == 0)
@@ -820,6 +826,8 @@ void RectangularConstrainedOperator::Mult(const Vector &x, Vector &y) const
 void RectangularConstrainedOperator::MultTranspose(const Vector &x,
                                                    Vector &y) const
 {
+   MFEM_PERF_FUNCTION;
+
    const int trial_csz = trial_constraints.Size();
    const int test_csz = test_constraints.Size();
    if (test_csz == 0)

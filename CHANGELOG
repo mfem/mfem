@@ -119,6 +119,13 @@ Miscellaneous
 
 - Added parallel Address Sanitizer, serial and parallel Undefined Behavior
   Sanitizer and serial Memory Sanitizer GitHub actions tests on Ubuntu.
+- MFEM_PERF_* annotations: added options to enable GPU-stream- and
+  MPI-synchronizations at the start and at the end of annotation regions. These
+  synchronizations can be enabled or disabled (default) in code via the new
+  macros: MFEM_PERF_SYNC, MFEM_PERF_SYNC_STREAM, and MFEM_PERF_SYNC_MPI; the
+  environment variables with the same names can be set to 0/1 to control the
+  synchronization as well.
+
 
 - FindPointsGSLIB has a new constructor that accepts the mesh object and
   internally calls the Setup() method so that the user does not have to.

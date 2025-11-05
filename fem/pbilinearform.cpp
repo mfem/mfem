@@ -124,6 +124,8 @@ void ParBilinearForm::pAllocMat()
 void ParBilinearForm::ParallelRAP(SparseMatrix &loc_A, OperatorHandle &A,
                                   bool steal_loc_A)
 {
+   MFEM_PERF_FUNCTION;
+
    ParFiniteElementSpace &pfespace = *ParFESpace();
 
    // Create a block diagonal parallel matrix

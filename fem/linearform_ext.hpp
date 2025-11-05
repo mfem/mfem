@@ -14,6 +14,7 @@
 
 #include "../general/array.hpp"
 #include "../linalg/vector.hpp"
+#include "fespace.hpp"
 
 namespace mfem
 {
