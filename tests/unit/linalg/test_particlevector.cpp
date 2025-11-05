@@ -157,8 +157,7 @@ void TestSetVDim(Ordering::Type ordering)
    {
       data_vecs[i].SetSize(VDIM+VDIM_INC);
       data_vecs[i].Randomize(i);
-      data_vecs_red[i].SetSize(VDIM);
-      data_vecs_red[i].SetData(data_vecs[i].GetData());
+      data_vecs_red[i].NewDataAndSize(data_vecs[i].GetData(), VDIM);
 
       mv.SetValues(i, data_vecs[i]);
    }
