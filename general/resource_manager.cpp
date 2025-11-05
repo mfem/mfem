@@ -1691,14 +1691,18 @@ char *MemoryManager::fast_read_write(size_t segment, size_t offset,
                                      size_t nbytes, bool on_device)
 {
    // TODO: validate in debug builds?
-   return storage.get_segment(segment).lowers[on_device] + offset;
+   return valid_segment(segment)
+          ? (storage.get_segment(segment).lowers[on_device] + offset)
+          : nullptr;
 }
 
 const char *MemoryManager::fast_read(size_t segment, size_t offset,
                                      size_t nbytes, bool on_device)
 {
    // TODO: validate in debug builds?
-   return storage.get_segment(segment).lowers[on_device] + offset;
+   return valid_segment(segment)
+          ? (storage.get_segment(segment).lowers[on_device] + offset)
+          : nullptr;
 }
 
 const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
