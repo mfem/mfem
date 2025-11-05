@@ -618,10 +618,10 @@ int main(int argc, char *argv[])
    }
    else
    {
-      B->AddDomainIntegrator(new VectorFEDivergenceIntegrator());
+      B->AddDomainIntegrator(new MixedVectorWeakDivergenceIntegrator(sqrtkcoeff));
    }
 
-   if (dg || brt)
+   //if (dg || brt)
    {
       if (upwinded)
       {
@@ -633,7 +633,7 @@ int main(int argc, char *argv[])
       else
       {
          B->AddInteriorFaceIntegrator(new DGWeakNormalTraceIntegrator(sqrtkcoeff, +1.));
-         B->AddBdrFaceIntegrator(new DGWeakNormalTraceIntegrator(sqrtkcoeff, +1.));
+         B->AddBdrFaceIntegrator(new DGWeakNormalTraceIntegrator(sqrtkcoeff, +2.));
       }
    }
 

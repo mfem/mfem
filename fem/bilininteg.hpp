@@ -2191,7 +2191,7 @@ protected:
       const FiniteElement & test_fe) const
    {
       return (trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
-              test_fe.GetDerivType()  == mfem::FiniteElement::GRAD );
+              test_fe.GetRangeType()  == mfem::FiniteElement::SCALAR );
    }
 
    inline virtual const char * FiniteElementTypeFailureMessage() const
@@ -3571,7 +3571,7 @@ private:
 /** Integrator for the DG form:
     $$
       \alpha \langle \rho_u \{v\},[w \cdot n] \rangle
-      + \beta \langle \rho_u (u \cdot n) / |u \cdot n| [v],[w \cdot n] \rangle,
+      + \beta \langle \rho_u (u \cdot n) / |u \cdot n| [v], [w \cdot n] \rangle,
     $$
     where $v$ and $w$ are the trial and test variables, respectively, and $\rho$/$u$ are
     given scalar/vector coefficients. $\{v\}$ represents the average value of $v$ on
