@@ -113,9 +113,9 @@ void ParBilinearForm::pAllocMat()
    int *I = dof_dof.GetI();
    int *J = dof_dof.GetJ();
    int nrows = dof_dof.Size();
-   real_t *data = Memory<real_t>(I[nrows]);
 
-   mat = new SparseMatrix(I, J, data, nrows, height + nbr_size);
+   mat = new SparseMatrix(dof_dof.GetIMemory(), dof_dof.GetJMemory(),
+                          Memory<real_t>(I[nrows]), nrows, height + nbr_size);
    *mat = 0.0;
 
    dof_dof.LoseData();

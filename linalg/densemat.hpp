@@ -1217,14 +1217,13 @@ public:
    DenseMatrix &operator()(int k)
    {
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
-      Mk.data = Memory<real_t>(GetData(k), SizeI()*SizeJ(), false);
+      Mk.data.MakeAlias(tdata, k * Mk.Height() * Mk.Width(), SizeI() * SizeJ());
       return Mk;
    }
    const DenseMatrix &operator()(int k) const
    {
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
-      Mk.data = Memory<real_t>(const_cast<real_t*>(GetData(k)), SizeI()*SizeJ(),
-                               false);
+      Mk.data.MakeAlias(tdata, k * Mk.Height() * Mk.Width(), SizeI() * SizeJ());
       return Mk;
    }
 

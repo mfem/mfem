@@ -153,11 +153,11 @@ public:
    /** @brief Create a sparse matrix in CSR format. Ownership of @a i, @a j, and
         @a data is transferred to the SparseMatrix. */
    SparseMatrix(Memory<int> i, Memory<int> j, Memory<real_t> data, int m, int n);
-
+#if 0
    /** @brief Create a sparse matrix in CSR format. Ownership of @a i, @a j, and
        @a data is transferred to the SparseMatrix. */
    SparseMatrix(int *i, int *j, real_t *data, int m, int n);
-
+#endif
    /** @brief Create a sparse matrix in CSR format. Ownership of @a i, @a j, and
        @a data is optionally transferred to the SparseMatrix. */
    /** If the parameter @a data is NULL, then the internal #A array is allocated

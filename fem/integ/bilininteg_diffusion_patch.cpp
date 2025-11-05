@@ -563,7 +563,8 @@ void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
    cdofs.SetSize(maxw[0], maxw[1], maxw[2]);
 
    // Compute sparsity of the sparse matrix
-   smati = Memory<int>(ndof+1);
+   Memory<int> smati_mem(ndof + 1);
+   smati = smati_mem.HostWrite();
    smati[0] = 0;
 
    for (int dof_j=0; dof_j<ndof; ++dof_j)
@@ -586,8 +587,10 @@ void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
       nnz += ndd;
    }
 
-   smatj = Memory<int>(nnz);
-   smata = Memory<real_t>(nnz);
+   Memory<int> smatj_mem(nnz);
+   Memory<real_t> smata_mem(nnz);
+   smatj = smatj_mem.HostWrite();
+   smata = smata_mem.HostWrite();
 
    for (int i=0; i<nnz; ++i)
    {
@@ -741,7 +744,8 @@ void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
    } // dof_j
 
    // Note that smat takes ownership of its input data.
-   smat = new SparseMatrix(smati, smatj, smata, ndof, ndof);
+   smat = new SparseMatrix(std::move(smati_mem), std::move(smatj_mem),
+                           std::move(smata_mem), ndof, ndof);
 }
 
 void DiffusionIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
@@ -973,7 +977,8 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
    cdofs.SetSize(maxw[0], maxw[1], maxw[2]);
 
    // Compute sparsity of the sparse matrix
-   smati = Memory<int>(ndof+1);
+   Memory<int> smati_mem(ndof + 1);
+   smati = smati_mem.HostWrite();
    smati[0] = 0;
 
    for (int dof_j=0; dof_j<ndof; ++dof_j)
@@ -996,8 +1001,10 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
       nnz += ndd;
    }
 
-   smatj = Memory<int>(nnz);
-   smata = Memory<real_t>(nnz);
+   Memory<int> smatj_mem(nnz);
+   Memory<real_t> smata_mem(nnz);
+   smatj = smatj_mem.HostWrite();
+   smata = smata_mem.HostWrite();
 
    for (int i=0; i<nnz; ++i)
    {
@@ -1228,7 +1235,8 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
    }
 
    // Note that smat takes ownership of its input data.
-   smat = new SparseMatrix(smati, smatj, smata, ndof, ndof);
+   smat = new SparseMatrix(std::move(smati_mem), std::move(smatj_mem),
+                           std::move(smata_mem), ndof, ndof);
 }
 
 void DiffusionIntegrator::AssemblePatchMatrix(const int patch,

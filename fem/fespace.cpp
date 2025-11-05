@@ -1317,16 +1317,20 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // create the conforming restriction matrix cR
    int *cR_J;
    {
-      int *cR_I = Memory<int>(n_true_dofs+1);
-      real_t *cR_A = Memory<real_t>(n_true_dofs);
-      cR_J = Memory<int>(n_true_dofs);
+      Memory<int> cR_I_mem(n_true_dofs + 1);
+      Memory<real_t> cR_A_mem(n_true_dofs);
+      Memory<int> cR_J_mem(n_true_dofs);
+      int *cR_I = cR_I_mem.HostWrite();
+      real_t *cR_A = cR_A_mem.HostWrite();;
+      cR_J = cR_J_mem.HostWrite();
       for (int i = 0; i < n_true_dofs; i++)
       {
          cR_I[i] = i;
          cR_A[i] = 1.0;
       }
       cR_I[n_true_dofs] = n_true_dofs;
-      cR.reset(new SparseMatrix(cR_I, cR_J, cR_A, n_true_dofs, ndofs));
+      cR.reset(new SparseMatrix(std::move(cR_I_mem), std::move(cR_J_mem),
+                                std::move(cR_A_mem), n_true_dofs, ndofs));
    }
 
    // In variable-order spaces, create the restriction matrix cR_hp, which is

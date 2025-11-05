@@ -128,7 +128,7 @@ SparseMatrix::SparseMatrix(int nrows, int ncols)
 
    InitGPUSparse();
 }
-
+#if 0
 SparseMatrix::SparseMatrix(int *i, int *j, real_t *data, int m, int n)
    : AbstractSparseMatrix(m, n),
      Rows(NULL),
@@ -147,7 +147,7 @@ SparseMatrix::SparseMatrix(int *i, int *j, real_t *data, int m, int n)
 
    InitGPUSparse();
 }
-
+#endif
 SparseMatrix::SparseMatrix(Memory<int> i, Memory<int> j, Memory<real_t> data,
                            int m, int n)
    : AbstractSparseMatrix(m, n), Rows(NULL), ColPtrJ(NULL), ColPtrNode(NULL),

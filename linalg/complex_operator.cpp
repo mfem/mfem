@@ -211,9 +211,12 @@ SparseMatrix * ComplexSparseMatrix::GetSystemMatrix() const
    const int    nnz_i = (I_i)?I_i[nrows]:0;
    const int    nnz   = 2 * (nnz_r + nnz_i);
 
-   int    *I = Memory<int>(this->Height()+1);
-   int    *J = Memory<int>(nnz);
-   real_t *D = Memory<real_t>(nnz);
+   Memory<int> I_mem(this->Height() + 1);
+   Memory<int> J_mem(nnz);
+   Memory<real_t> D_mem(nnz);
+   int    *I = I_mem.HostWrite();
+   int    *J = J_mem.HostWrite();
+   real_t *D = D_mem.HostWrite();
 
    const real_t factor = (convention_ == HERMITIAN) ? 1.0 : -1.0;
 
@@ -250,7 +253,8 @@ SparseMatrix * ComplexSparseMatrix::GetSystemMatrix() const
       }
    }
 
-   return new SparseMatrix(I, J, D, this->Height(), this->Width());
+   return new SparseMatrix(std::move(I_mem), std::move(J_mem), std::move(D_mem),
+                           this->Height(), this->Width());
 }
 
 

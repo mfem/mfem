@@ -1836,11 +1836,10 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::AllocR()
    }
 
    dof_lor_dof_ho.SortRows();
-   real_t* data = Memory<real_t>(dof_dofI[ndof_lor]);
 
-   std::unique_ptr<SparseMatrix> R_local(new SparseMatrix(
-                                            dof_dofI, dof_dofJ, data, ndof_lor,
-                                            ndof_ho, true, true, true));
+   std::unique_ptr<SparseMatrix> R_local(
+      new SparseMatrix(dof_lor_dof_ho.GetIMemory(), dof_lor_dof_ho.GetJMemory(),
+                       Memory<real_t>(dof_dofI[ndof_lor]), ndof_lor, ndof_ho));
    (*R_local) = 0.0;
 
    dof_lor_dof_ho.LoseData();

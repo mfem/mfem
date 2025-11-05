@@ -275,7 +275,7 @@ void Table::SortRows()
       std::sort(J + I[r], J + I[r+1]);
    }
 }
-
+#if 0
 void Table::SetIJ(int *newI, int *newJ, int newsize)
 {
    I.Delete();
@@ -286,6 +286,16 @@ void Table::SetIJ(int *newI, int *newJ, int newsize)
    }
    I.Wrap(newI, size+1, true);
    J.Wrap(newJ, I[size], true);
+}
+#endif
+void Table::SetIJ(Memory<int> newI, Memory<int> newJ, int newsize)
+{
+   I = std::move(newI);
+   J = std::move(newJ);
+   if (newsize >= 0)
+   {
+      size = newsize;
+   }
 }
 
 int Table::Push(int i, int j)

@@ -4093,16 +4093,20 @@ void ParMesh::RefineGroups(const DSTable &v_to_v, int *middle)
    int *I_group_svert, *J_group_svert;
    int *I_group_sedge, *J_group_sedge;
 
-   I_group_svert = Memory<int>(GetNGroups()+1);
-   I_group_sedge = Memory<int>(GetNGroups()+1);
+   Memory<int> I_group_svert_mem(GetNGroups() + 1);
+   Memory<int> I_group_sedge_mem(GetNGroups() + 1);
+   I_group_svert = I_group_svert_mem.HostWrite();
+   I_group_sedge = I_group_sedge_mem.HostWrite();
 
    I_group_svert[0] = I_group_svert[1] = 0;
    I_group_sedge[0] = I_group_sedge[1] = 0;
 
    // overestimate the size of the J arrays
-   J_group_svert = Memory<int>(group_svert.Size_of_connections() +
-                               group_sedge.Size_of_connections());
-   J_group_sedge = Memory<int>(2*group_sedge.Size_of_connections());
+   Memory<int> J_group_svert_mem(group_svert.Size_of_connections() +
+                                 group_sedge.Size_of_connections());
+   Memory<int> J_group_sedge_mem(2 * group_sedge.Size_of_connections());
+   J_group_svert = J_group_svert_mem.HostWrite();
+   J_group_sedge = J_group_sedge_mem.HostWrite();
 
    for (int group = 0; group < GetNGroups()-1; group++)
    {
@@ -4145,8 +4149,8 @@ void ParMesh::RefineGroups(const DSTable &v_to_v, int *middle)
 
    FinalizeParTopo();
 
-   group_svert.SetIJ(I_group_svert, J_group_svert);
-   group_sedge.SetIJ(I_group_sedge, J_group_sedge);
+   group_svert.SetIJ(std::move(I_group_svert_mem), std::move(J_group_svert_mem));
+   group_sedge.SetIJ(std::move(I_group_sedge_mem), std::move(J_group_sedge_mem));
 }
 
 void ParMesh::RefineGroups(int old_nv, const HashTable<Hashed2> &v_to_v)
@@ -4325,9 +4329,9 @@ void ParMesh::RefineGroups(int old_nv, const HashTable<Hashed2> &v_to_v)
 
    FinalizeParTopo();
 
-   group_svert.SetIJ(I_group_svert, J_group_svert);
-   group_sedge.SetIJ(I_group_sedge, J_group_sedge);
-   group_stria.SetIJ(I_group_stria, J_group_stria);
+   group_svert.SetIJ(I_group_svert.GetMemory(), J_group_svert.GetMemory());
+   group_sedge.SetIJ(I_group_sedge.GetMemory(), J_group_sedge.GetMemory());
+   group_stria.SetIJ(I_group_stria.GetMemory(), J_group_stria.GetMemory());
    I_group_svert.LoseData(); J_group_svert.LoseData();
    I_group_sedge.LoseData(); J_group_sedge.LoseData();
    I_group_stria.LoseData(); J_group_stria.LoseData();
@@ -4340,16 +4344,20 @@ void ParMesh::UniformRefineGroups2D(int old_nv)
    int *I_group_svert, *J_group_svert;
    int *I_group_sedge, *J_group_sedge;
 
-   I_group_svert = Memory<int>(GetNGroups());
-   I_group_sedge = Memory<int>(GetNGroups());
+   Memory<int> I_group_svert_mem(GetNGroups());
+   Memory<int> I_group_sedge_mem(GetNGroups());
+   I_group_svert = I_group_svert_mem.HostWrite();
+   I_group_sedge = I_group_sedge_mem.HostWrite();
 
    I_group_svert[0] = 0;
    I_group_sedge[0] = 0;
 
    // compute the size of the J arrays
-   J_group_svert = Memory<int>(group_svert.Size_of_connections() +
-                               group_sedge.Size_of_connections());
-   J_group_sedge = Memory<int>(2*group_sedge.Size_of_connections());
+   Memory<int> J_group_svert_mem(group_svert.Size_of_connections() +
+                                 group_sedge.Size_of_connections());
+   Memory<int> J_group_sedge_mem(2*group_sedge.Size_of_connections());
+   J_group_svert = J_group_svert_mem.HostWrite();
+   J_group_sedge = J_group_sedge_mem.HostWrite();
 
    for (int group = 0; group < GetNGroups()-1; group++)
    {
@@ -4380,8 +4388,10 @@ void ParMesh::UniformRefineGroups2D(int old_nv)
 
    FinalizeParTopo();
 
-   group_svert.SetIJ(I_group_svert, J_group_svert);
-   group_sedge.SetIJ(I_group_sedge, J_group_sedge);
+   group_svert.SetIJ(std::move(I_group_svert_mem),
+                     std::move(J_group_svert_mem));
+   group_sedge.SetIJ(std::move(I_group_sedge_mem),
+                     std::move(J_group_sedge_mem));
 }
 
 void ParMesh::UniformRefineGroups3D(int old_nv, int old_nedges,
@@ -4398,10 +4408,15 @@ void ParMesh::UniformRefineGroups3D(int old_nv, int old_nedges,
    int *I_group_stria, *J_group_stria;
    int *I_group_squad, *J_group_squad;
 
-   I_group_svert = Memory<int>(GetNGroups());
-   I_group_sedge = Memory<int>(GetNGroups());
-   I_group_stria = Memory<int>(GetNGroups());
-   I_group_squad = Memory<int>(GetNGroups());
+   Memory<int> I_group_svert_mem(GetNGroups());
+   Memory<int> I_group_sedge_mem(GetNGroups());
+   Memory<int> I_group_stria_mem(GetNGroups());
+   Memory<int> I_group_squad_mem(GetNGroups());
+
+   I_group_svert = I_group_svert_mem.HostWrite();
+   I_group_sedge = I_group_sedge_mem.HostWrite();
+   I_group_stria = I_group_stria_mem.HostWrite();
+   I_group_squad = I_group_squad_mem.HostWrite();
 
    I_group_svert[0] = 0;
    I_group_sedge[0] = 0;
@@ -4409,14 +4424,19 @@ void ParMesh::UniformRefineGroups3D(int old_nv, int old_nedges,
    I_group_squad[0] = 0;
 
    // compute the size of the J arrays
-   J_group_svert = Memory<int>(group_svert.Size_of_connections() +
-                               group_sedge.Size_of_connections() +
-                               group_squad.Size_of_connections());
-   J_group_sedge = Memory<int>(2*group_sedge.Size_of_connections() +
-                               3*group_stria.Size_of_connections() +
-                               4*group_squad.Size_of_connections());
-   J_group_stria = Memory<int>(4*group_stria.Size_of_connections());
-   J_group_squad = Memory<int>(4*group_squad.Size_of_connections());
+   Memory<int> J_group_svert_mem(group_svert.Size_of_connections() +
+                                 group_sedge.Size_of_connections() +
+                                 group_squad.Size_of_connections());
+   Memory<int> J_group_sedge_mem(2 * group_sedge.Size_of_connections() +
+                                 3 * group_stria.Size_of_connections() +
+                                 4 * group_squad.Size_of_connections());
+   Memory<int> J_group_stria_mem(4 * group_stria.Size_of_connections());
+   Memory<int> J_group_squad_mem(4 * group_squad.Size_of_connections());
+
+   J_group_svert = J_group_svert_mem.HostWrite();
+   J_group_sedge = J_group_sedge_mem.HostWrite();
+   J_group_stria = J_group_stria_mem.HostWrite();
+   J_group_squad = J_group_squad_mem.HostWrite();
 
    const int oface = old_nv + old_nedges;
 
@@ -4527,10 +4547,14 @@ void ParMesh::UniformRefineGroups3D(int old_nv, int old_nedges,
 
    FinalizeParTopo();
 
-   group_svert.SetIJ(I_group_svert, J_group_svert);
-   group_sedge.SetIJ(I_group_sedge, J_group_sedge);
-   group_stria.SetIJ(I_group_stria, J_group_stria);
-   group_squad.SetIJ(I_group_squad, J_group_squad);
+   group_svert.SetIJ(std::move(I_group_svert_mem),
+                     std::move(J_group_svert_mem));
+   group_sedge.SetIJ(std::move(I_group_sedge_mem),
+                     std::move(J_group_sedge_mem));
+   group_stria.SetIJ(std::move(I_group_stria_mem),
+                     std::move(J_group_stria_mem));
+   group_squad.SetIJ(std::move(I_group_squad_mem),
+                     std::move(J_group_squad_mem));
 }
 
 void ParMesh::UniformRefinement2D()
