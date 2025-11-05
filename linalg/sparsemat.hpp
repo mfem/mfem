@@ -151,6 +151,10 @@ public:
    explicit SparseMatrix(int nrows, int ncols = -1);
 
    /** @brief Create a sparse matrix in CSR format. Ownership of @a i, @a j, and
+        @a data is transferred to the SparseMatrix. */
+   SparseMatrix(Memory<int> i, Memory<int> j, Memory<real_t> data, int m, int n);
+
+   /** @brief Create a sparse matrix in CSR format. Ownership of @a i, @a j, and
        @a data is transferred to the SparseMatrix. */
    SparseMatrix(int *i, int *j, real_t *data, int m, int n);
 

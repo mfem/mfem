@@ -148,6 +148,18 @@ SparseMatrix::SparseMatrix(int *i, int *j, real_t *data, int m, int n)
    InitGPUSparse();
 }
 
+SparseMatrix::SparseMatrix(Memory<int> i, Memory<int> j, Memory<real_t> data,
+                           int m, int n)
+   : AbstractSparseMatrix(m, n), Rows(NULL), ColPtrJ(NULL), ColPtrNode(NULL),
+     At(NULL), isSorted(false), I(std::move(i)), J(std::move(j)), A(std::move(data))
+{
+#ifdef MFEM_USE_MEMALLOC
+   NodesMem = NULL;
+#endif
+
+   InitGPUSparse();
+}
+
 SparseMatrix::SparseMatrix(int *i, int *j, real_t *data, int m, int n,
                            bool ownij, bool owna, bool issorted)
    : AbstractSparseMatrix(m, n),
@@ -1281,7 +1293,8 @@ void SparseMatrix::Threshold(real_t tol, bool fix_empty_rows)
    int *newI, *newJ;
    int i, j, nz;
 
-   newI = Memory<int>(height+1);
+   Memory<int> newI_mem(height + 1);
+   newI = newI_mem.HostWrite();
    newI[0] = 0;
    for (i = 0, nz = 0; i < height; i++)
    {
@@ -1296,8 +1309,10 @@ void SparseMatrix::Threshold(real_t tol, bool fix_empty_rows)
       newI[i+1] = nz;
    }
 
-   newJ = Memory<int>(nz);
-   newA = Memory<real_t>(nz);
+   Memory<int> newJ_mem(nz);
+   Memory<real_t> newA_mem(nz);
+   newJ = newJ_mem.HostWrite();
+   newA = newA_mem.HostWrite();
    // Assume we're sorted until we find out otherwise
    isSorted = true;
    for (i = 0, nz = 0; i < height; i++)
@@ -1325,9 +1340,9 @@ void SparseMatrix::Threshold(real_t tol, bool fix_empty_rows)
       }
    }
    Destroy();
-   I.Wrap(newI, height+1, true);
-   J.Wrap(newJ, I[height], true);
-   A.Wrap(newA, I[height], true);
+   I = std::move(newI_mem);
+   J = std::move(newJ_mem);
+   A = std::move(newA_mem);
 }
 
 void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
@@ -1454,12 +1469,14 @@ void SparseMatrix::GetBlocks(Array2D<SparseMatrix *> &blocks) const
    {
       for (int i = 0; i < br; i++)
       {
-         int *bI = Memory<int>(nr + 1);
+         Memory<int> bI_mem(nr + 1);
+         int *bI = bI_mem.HostWrite();
          for (int k = 0; k <= nr; k++)
          {
             bI[k] = 0;
          }
-         blocks(i,j) = new SparseMatrix(bI, NULL, NULL, nr, nc);
+         blocks(i, j) = new SparseMatrix(std::move(bI_mem), Memory<int>(),
+                                         Memory<real_t>(), nr, nc);
       }
    }
 
@@ -3635,9 +3652,12 @@ SparseMatrix *Transpose (const SparseMatrix &A)
    A_j    = A.HostReadJ();
    A_data = A.HostReadData();
 
-   At_i = Memory<int>(n+1);
-   At_j = Memory<int>(nnz);
-   At_data = Memory<real_t>(nnz);
+   Memory<int> At_i_mem(n + 1);
+   Memory<int> At_j_mem(nnz);
+   Memory<real_t> At_data_mem(nnz);
+   At_i = At_i_mem.HostWrite();
+   At_j = At_j_mem.HostWrite();
+   At_data = At_data_mem.HostWrite();
 
    for (i = 0; i <= n; i++)
    {
@@ -3669,7 +3689,8 @@ SparseMatrix *Transpose (const SparseMatrix &A)
    }
    At_i[0] = 0;
 
-   return  new SparseMatrix(At_i, At_j, At_data, n, m);
+   return new SparseMatrix(std::move(At_i_mem), std::move(At_j_mem),
+                           std::move(At_data_mem), n, m);
 }
 
 SparseMatrix *TransposeAbstractSparseMatrix (const AbstractSparseMatrix &A,
@@ -3706,9 +3727,12 @@ SparseMatrix *TransposeAbstractSparseMatrix (const AbstractSparseMatrix &A,
    }
    nnz = A.NumNonZeroElems();
 
-   At_i = Memory<int>(n+1);
-   At_j = Memory<int>(nnz);
-   At_data = Memory<real_t>(nnz);
+   Memory<int> At_i_mem(n+1);
+   Memory<int> At_j_mem(nnz);
+   Memory<real_t> At_data_mem(nnz);
+   At_i = At_i_mem.HostWrite();
+   At_j = At_j_mem.HostWrite();
+   At_data = At_data_mem.HostWrite();
 
    for (i = 0; i <= n; i++)
    {
@@ -3745,7 +3769,8 @@ SparseMatrix *TransposeAbstractSparseMatrix (const AbstractSparseMatrix &A,
    }
    At_i[0] = 0;
 
-   return new SparseMatrix(At_i, At_j, At_data, n, m);
+   return new SparseMatrix(std::move(At_i_mem), std::move(At_j_mem),
+                           std::move(At_data_mem), n, m);
 }
 
 
@@ -3787,7 +3812,8 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
 
    if (OAB == NULL)
    {
-      C_i = Memory<int>(nrowsA+1);
+      Memory<int> C_i_mem(nrowsA + 1);
+      C_i = C_i_mem.HostWrite();
 
       C_i[0] = num_nonzeros = 0;
       for (ic = 0; ic < nrowsA; ic++)
@@ -3808,10 +3834,13 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
          C_i[ic+1] = num_nonzeros;
       }
 
-      C_j    = Memory<int>(num_nonzeros);
-      C_data = Memory<real_t>(num_nonzeros);
+      Memory<int> C_j_mem(num_nonzeros);
+      Memory<real_t> C_data_mem(num_nonzeros);
+      C_j    = C_j_mem.HostWrite();
+      C_data = C_data_mem.HostWrite();
 
-      C = new SparseMatrix(C_i, C_j, C_data, nrowsA, ncolsB);
+      C = new SparseMatrix(std::move(C_i_mem), std::move(C_j_mem),
+                           std::move(C_data_mem), nrowsA, ncolsB);
 
       for (ib = 0; ib < ncolsB; ib++)
       {
@@ -3889,7 +3918,7 @@ SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
                                         const AbstractSparseMatrix &B)
 {
    int nrowsA, ncolsA, nrowsB, ncolsB;
-   int *C_i, *C_j, *B_marker;
+   int *C_i, *C_j;
    real_t *C_data;
    int ia, ib, ic, ja, jb, num_nonzeros;
    int row_start, counter;
@@ -3905,14 +3934,15 @@ SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
                "number of columns of A (" << ncolsA
                << ") must equal number of rows of B (" << nrowsB << ")");
 
-   B_marker = new int[ncolsB];
+   std::vector<int> B_marker(ncolsB);
 
    for (ib = 0; ib < ncolsB; ib++)
    {
       B_marker[ib] = -1;
    }
 
-   C_i = Memory<int>(nrowsA+1);
+   Memory<int> C_i_mem(nrowsA + 1);
+   C_i = C_i_mem.HostWrite();
 
    C_i[0] = num_nonzeros = 0;
 
@@ -3938,10 +3968,13 @@ SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
       C_i[ic+1] = num_nonzeros;
    }
 
-   C_j    = Memory<int>(num_nonzeros);
-   C_data = Memory<real_t>(num_nonzeros);
+   Memory<int> C_j_mem(num_nonzeros);
+   Memory<real_t> C_data_mem(num_nonzeros);
+   C_j    = C_j_mem.HostWrite();
+   C_data = C_data_mem.HostWrite();
 
-   C = new SparseMatrix(C_i, C_j, C_data, nrowsA, ncolsB);
+   C = new SparseMatrix(std::move(C_i_mem), std::move(C_j_mem),
+                        std::move(C_data_mem), nrowsA, ncolsB);
 
    for (ib = 0; ib < ncolsB; ib++)
    {
@@ -3976,8 +4009,6 @@ SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
          }
       }
    }
-
-   delete [] B_marker;
 
    return C;
 }
@@ -4065,7 +4096,8 @@ SparseMatrix * Add(real_t a, const SparseMatrix & A, real_t b,
    int nrows = A.Height();
    int ncols = A.Width();
 
-   int * C_i = Memory<int>(nrows+1);
+   Memory<int> C_i_mem(nrows + 1);
+   int * C_i = C_i_mem.HostWrite();
    int * C_j;
    real_t * C_data;
 
@@ -4102,8 +4134,10 @@ SparseMatrix * Add(real_t a, const SparseMatrix & A, real_t b,
       C_i[ic+1] = num_nonzeros;
    }
 
-   C_j = Memory<int>(num_nonzeros);
-   C_data = Memory<real_t>(num_nonzeros);
+   Memory<int> C_j_mem(num_nonzeros);
+   Memory<real_t> C_data_mem(num_nonzeros);
+   C_j = C_j_mem.HostWrite();
+   C_data = C_data_mem.HostWrite();
 
    for (int ia = 0; ia < ncols; ia++)
    {
@@ -4139,7 +4173,8 @@ SparseMatrix * Add(real_t a, const SparseMatrix & A, real_t b,
    }
 
    delete[] marker;
-   return new SparseMatrix(C_i, C_j, C_data, nrows, ncols);
+   return new SparseMatrix(std::move(C_i_mem), std::move(C_j_mem),
+                           std::move(C_data_mem), nrows, ncols);
 }
 
 SparseMatrix * Add(const SparseMatrix & A, const SparseMatrix & B)
