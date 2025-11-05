@@ -165,6 +165,8 @@ public:
        regardless of the parameter @a owna). */
    SparseMatrix(int *i, int *j, real_t *data, int m, int n, bool ownij,
                 bool owna, bool issorted);
+   SparseMatrix(Memory<int> i, Memory<int> j, Memory<real_t> data, int m, int n,
+                bool issorted);
 
    /** @brief Create a sparse matrix in CSR format where each row has space
        allocated for exactly @a rowsize entries. */

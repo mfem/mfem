@@ -1594,8 +1594,8 @@ std::unique_ptr<SparseMatrix>>
       J[jcol] = r_and_mlh.first->GetJ()[jcol];
    }
    r_and_mlh.second = std::unique_ptr<SparseMatrix>(
-                         new SparseMatrix(I, J, NULL, r_and_mlh.first->Height(),
-                                          r_and_mlh.first->Width(), true, true, true));
+                         new SparseMatrix(I, J, Memory<real_t> {}, r_and_mlh.first->Height(),
+                                          r_and_mlh.first->Width(), true));
 
    IntegrationPointTransformation ip_tr;
    IsoparametricTransformation& emb_tr = ip_tr.Transf;

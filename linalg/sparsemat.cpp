@@ -193,6 +193,29 @@ SparseMatrix::SparseMatrix(int *i, int *j, real_t *data, int m, int n,
    InitGPUSparse();
 }
 
+SparseMatrix::SparseMatrix(Memory<int> i, Memory<int> j, Memory<real_t> data,
+                           int m, int n, bool issorted)
+   : AbstractSparseMatrix(m, n), Rows(NULL), ColPtrJ(NULL), ColPtrNode(NULL),
+     At(NULL), isSorted(issorted), I(std::move(i)), J(std::move(j)),
+     A(std::move(data))
+{
+#ifdef MFEM_USE_MEMALLOC
+   NodesMem = NULL;
+#endif
+
+   if (!A)
+   {
+      const int nnz = I[height];
+      A.New(nnz);
+      for (int ii=0; ii<nnz; ++ii)
+      {
+         A[ii] = 0.0;
+      }
+   }
+
+   InitGPUSparse();
+}
+
 SparseMatrix::SparseMatrix(int nrows, int ncols, int rowsize)
    : AbstractSparseMatrix(nrows, ncols)
    , Rows(NULL)
