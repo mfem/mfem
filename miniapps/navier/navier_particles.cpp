@@ -11,6 +11,8 @@
 
 #include "navier_particles.hpp"
 
+#ifdef MFEM_USE_GSLIB
+
 using namespace std;
 
 namespace mfem
@@ -450,3 +452,4 @@ void NavierParticles::DeactivateLostParticles(bool findpts)
 
 } // namespace navier
 } // namespace mfem
+#endif // MFEM_USE_GSLIB

@@ -14,6 +14,8 @@
 
 #include "mfem.hpp"
 
+#ifdef MFEM_USE_GSLIB
+
 #include <vector>
 #include <type_traits>
 
@@ -246,5 +248,7 @@ public:
 } // namespace navier
 
 } // namespace mfem
+
+#endif // MFEM_USE_GSLIB
 
 #endif // MFEM_NAVIER_PARTICLES_HPP
