@@ -66,10 +66,10 @@ struct tensor<T, 0>
    using type = T;
    static constexpr int ndim      = 1;
    static constexpr int first_dim = 0;
-   MFEM_HOST_DEVICE T& operator[](int /**/) { return values; }
-   MFEM_HOST_DEVICE const T& operator[](int /**/) const { return values; }
-   MFEM_HOST_DEVICE T& operator()(int /**/) { return values; }
-   MFEM_HOST_DEVICE const T& operator()(int /**/) const { return values; }
+   MFEM_HOST_DEVICE T& operator[](int /*unused*/) { return values; }
+   MFEM_HOST_DEVICE const T& operator[](int /*unused*/) const { return values; }
+   MFEM_HOST_DEVICE T& operator()(int /*unused*/) { return values; }
+   MFEM_HOST_DEVICE const T& operator()(int /*unused*/) const { return values; }
    T values;
 };
 
@@ -94,12 +94,12 @@ struct tensor<T, 0, n1>
    using type = T;
    static constexpr int ndim      = 2;
    static constexpr int first_dim = 0;
-   MFEM_HOST_DEVICE tensor< T, n1 >& operator[](int /**/) { return values; }
-   MFEM_HOST_DEVICE const tensor< T, n1 >& operator[](int /**/) const { return values; }
-   MFEM_HOST_DEVICE tensor< T, n1 >& operator()(int /**/) { return values; }
-   MFEM_HOST_DEVICE const tensor< T, n1 >& operator()(int /**/) const { return values; }
-   MFEM_HOST_DEVICE T& operator()(int /**/, int j) { return values[j]; }
-   MFEM_HOST_DEVICE const T& operator()(int /**/, int j) const { return values[j]; }
+   MFEM_HOST_DEVICE tensor< T, n1 >& operator[](int /*unused*/) { return values; }
+   MFEM_HOST_DEVICE const tensor< T, n1 >& operator[](int /*unused*/) const { return values; }
+   MFEM_HOST_DEVICE tensor< T, n1 >& operator()(int /*unused*/) { return values; }
+   MFEM_HOST_DEVICE const tensor< T, n1 >& operator()(int /*unused*/) const { return values; }
+   MFEM_HOST_DEVICE T& operator()(int /*unused*/, int j) { return values[j]; }
+   MFEM_HOST_DEVICE const T& operator()(int /*unused*/, int j) const { return values[j]; }
    tensor < T, n1 > values;
 };
 
@@ -1271,6 +1271,31 @@ T norm(const tensor<T, n...>& A)
    return std::sqrt(sqnorm(A));
 }
 
+template <typename T, int n, int m> MFEM_HOST_DEVICE
+T weight(const tensor<T, n, m>& A)
+{
+   static_assert((n == m) || ((n == 2) && (m == 1)) || ((n == 3) && (m == 1)) ||
+                 ((n == 3) && (m == 2)), "unsupported combination of n and m");
+   if constexpr (n == m)
+   {
+      return det(A);
+   }
+   if constexpr (((n == 2) && (m == 1)) ||
+                 ((n == 3) && (m == 1)))
+   {
+      return norm(A);
+   }
+   else if constexpr ((n == 3) && (m == 2))
+   {
+      T E = A[0][0] * A[0][0] + A[1][0] * A[1][0] + A[2][0] * A[2][0];
+      T G = A[0][1] * A[0][1] + A[1][1] * A[1][1] + A[2][1] * A[2][1];
+      T F = A[0][0] * A[0][1] + A[1][0] * A[1][1] + A[2][0] * A[2][1];
+      return std::sqrt(E * G - F * F);
+   }
+   // Never reached because of the static_assert, but avoids compiler warning.
+   return T{};
+}
+
 /**
  * @brief Normalizes the tensor
  * Each element is divided by the Frobenius norm of the tensor, @see norm
@@ -1546,7 +1571,7 @@ T calcsv(const tensor<T, 2, 2> A, const int i)
  * @return Whether the square rank 2 tensor (matrix) is symmetric
  */
 template <int n> MFEM_HOST_DEVICE
-bool is_symmetric(tensor<real_t, n, n> A, real_t abs_tolerance = 1.0e-8)
+bool is_symmetric(tensor<real_t, n, n> A, real_t abs_tolerance = 1.0e-8_r)
 {
    for (int i = 0; i < n; ++i)
    {
@@ -1687,7 +1712,7 @@ inline MFEM_HOST_DEVICE tensor<T, 1, 1> inv(const tensor<T, 1, 1>& A)
 template <typename T>
 inline MFEM_HOST_DEVICE tensor<T, 2, 2> inv(const tensor<T, 2, 2>& A)
 {
-   T inv_detA(1.0 / det(A));
+   T inv_detA(1.0_r / det(A));
 
    tensor<T, 2, 2> invA{};
 
@@ -1706,7 +1731,7 @@ inline MFEM_HOST_DEVICE tensor<T, 2, 2> inv(const tensor<T, 2, 2>& A)
 template <typename T>
 inline MFEM_HOST_DEVICE tensor<T, 3, 3> inv(const tensor<T, 3, 3>& A)
 {
-   T inv_detA(1.0 / det(A));
+   T inv_detA(1.0_r / det(A));
 
    tensor<T, 3, 3> invA{};
 

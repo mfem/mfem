@@ -280,7 +280,6 @@ inline void TAssign(const A_layout_t &A_layout, A_data_t &A_data,
    template Assign<Op>(A_layout, A_data, B_layout, B_data);
 }
 
-
 // classes TVector, TMatrix, TTensor3, TTensor4
 
 template <int S, typename data_t = double, bool align = false>
