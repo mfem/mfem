@@ -18,17 +18,16 @@
 namespace mfem
 {
 
-/** \brief ParticleVector carries vector data for an arbitrary number of
- *  particles. The vector dimension \p vdim is same for all particles, and the
- *  data is stored contiguously in memory either
- *  byNODES (x0,x1,x2,...,xN,y0,y1,y2...yN,z0.....zN) OR
- *  byVDIM (x0,y0,z0,...,xN,yN,zN), where N+1 is the number of particles.
+/** \brief ParticleVector carries vector data (of a given vector dimension) for
+ *  an arbitrary number of particles. Data is stored contiguously in memory in an either
+ *  byNODES (x0,x1,x2,...,xN,y0,y1,y2...yN,z0.....zN) or
+ *  byVDIM (x0,y0,z0,...,xN,yN,zN) ordering, where N+1 is the number of particles.
  *  ParticleVector provides convenient methods for accessing and manipulating
  *  data for individual particles (e.g., \ref GetValues) or
  *  components across all particles (e.g., \ref GetComponents).
  *
- *  Note that since ParticleVector inherits from Vector, all Vector operations
- *  (e.g., device support) are available. We do recommend use of the new
+ *  Note that, since ParticleVector inherits from Vector, all Vector operations
+ *  (e.g., device support) are available. We do recommend use of the
  *  methods \ref SetNumParticles and \ref SetVDim for manipulating container
  *  size, instead of \ref Vector::SetSize, to ensure consistency.
  */
@@ -52,13 +51,19 @@ public:
 
    ParticleVector() : vdim(1), ordering(Ordering::byNODES) {};
 
-   /// Initialize an empty ParticleVector of vdim \p vdim_ with ordering \p ordering_.
+   /** @brief Initialize an empty ParticleVector of vdim \p vdim_ with ordering
+    *  \p ordering_.
+    */
    ParticleVector(int vdim_, Ordering::Type ordering_);
 
-   /// Initialize a ParticleVector with \p num_particles vectors each of size \p vdim_ ordered \p ordering_.
+   /** @brief Initialize a ParticleVector with \p num_particles vectors each of
+    *  size \p vdim_ ordered \p ordering_.
+    */
    ParticleVector(int vdim_, Ordering::Type ordering_, int num_particles);
 
-   /// Initialize a ParticleVector of vdim \p vdim_ with ordering \p ordering_ , initialized with copy of data in \p vec .
+   /** @brief Initialize a ParticleVector of vdim \p vdim_ with ordering
+    *  \p ordering_ , initialized with copy of data in \p vec .
+    */
    ParticleVector(int vdim_, Ordering::Type ordering_, const Vector &vec);
 
    /// Get the Vector dimension of the ParticleVector.
@@ -81,7 +86,7 @@ public:
     */
    void GetValuesRef(int i, Vector &nref);
 
-   /// Get a copy of all particle values for component \p vd.
+   /// Get a copy of component \p vd for all particle vector data.
    void GetComponents(int vd, Vector &comp);
 
    /** @brief For `GetOrdering` == Ordering::byNODES, set \p nref to refer to
@@ -96,7 +101,7 @@ public:
    /// Set particle \p i 's data to \p nvals .
    void SetValues(int i, const Vector &nvals);
 
-   /// Set component \p vd values to \p comp .
+   /// Set component \p vd values for all particle data to \p comp .
    void SetComponents(int vd, const Vector &comp);
 
    /// Reference to particle \p i component \p comp value.
@@ -107,11 +112,14 @@ public:
 
    /** @brief Remove particle data at \p indices.
     *
-    *  @details The ParticleVector is resized appropriately.
+    *  @details The ParticleVector is resized appropriately, with existing data maintained.
     */
    void DeleteParticles(const Array<int> &indices);
 
-   /// Remove particle data at \p index.
+   /** @brief Remove particle data at \p index.
+    *
+    *  @details The ParticleVector is resized appropriately, with existing data maintained.
+    */
    void DeleteParticle(const int index)
    {
       Array<int> indices({index});
