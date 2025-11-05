@@ -2222,6 +2222,7 @@ class GradientIntegrator : public BilinearFormIntegrator
 {
 protected:
    Coefficient *Q;
+   MatrixCoefficient *MQ{};
 
 private:
    Vector shape;
@@ -2229,6 +2230,7 @@ private:
    DenseMatrix gshape;
    DenseMatrix Jadj;
    DenseMatrix elmat_comp;
+   DenseMatrix mq, mqgshape;
    // PA extension
    Vector pa_data;
    const DofToQuad *trial_maps, *test_maps; ///< Not owned
@@ -2245,6 +2247,9 @@ public:
    { }
    GradientIntegrator(Coefficient &q) :
       Q{&q}, trial_maps{NULL}, test_maps{NULL}, geom{NULL}
+   { }
+   GradientIntegrator(MatrixCoefficient &mq) :
+      MQ{&mq}, trial_maps{NULL}, test_maps{NULL}, geom{NULL}
    { }
 
    void AssembleElementMatrix2(const FiniteElement &trial_fe,

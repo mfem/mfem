@@ -1083,6 +1083,11 @@ void GradientIntegrator::AssembleElementMatrix2(
 
    dshape.SetSize(trial_dof, dim);
    gshape.SetSize(trial_dof, dim);
+   if (MQ)
+   {
+      mq.SetSize(dim);
+      mqgshape.SetSize(trial_dof, dim);
+   }
    Jadj.SetSize(dim);
    shape.SetSize(test_dof);
    elmat.SetSize(dim * test_dof, trial_dof);
@@ -1110,6 +1115,13 @@ void GradientIntegrator::AssembleElementMatrix2(
          c *= Q->Eval(Trans, ip);
       }
       shape *= c;
+
+      if (MQ)
+      {
+         MQ->Eval(mq, Trans, ip);
+         mfem::MultABt(gshape, mq, mqgshape);
+         gshape.Swap(mqgshape);
+      }
 
       for (int d = 0; d < dim; ++d)
       {
