@@ -326,7 +326,8 @@ void Table::Finalize()
 
    if (sum != I[size])
    {
-      int *NewJ = Memory<int>(sum);
+      Memory<int> NewJ_mem(sum);
+      int *NewJ = NewJ_mem.HostWrite();
 
       for (i=0; i<size; i++)
       {
@@ -341,9 +342,7 @@ void Table::Finalize()
       }
       I[size] = sum;
 
-      J.Delete();
-
-      J.Wrap(NewJ, sum, true);
+      J = std::move(NewJ_mem);
 
       MFEM_ASSERT(sum == n, "sum = " << sum << ", n = " << n);
    }
