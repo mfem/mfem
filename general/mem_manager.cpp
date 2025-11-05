@@ -145,7 +145,7 @@ MemoryClass operator*(MemoryClass mc1, MemoryClass mc2)
    return std::max(mc1, mc2);
 }
 
-#if 0
+#if !USE_NEW_MEM_MANAGER
 // Instantiate Memory<T>::PrintFlags for T = int and T = real_t.
 template void Memory<int>::PrintFlags() const;
 template void Memory<real_t>::PrintFlags() const;
@@ -1784,6 +1784,11 @@ void MemoryManager::CheckHostMemoryType_(MemoryType h_mt, void *h_ptr,
 }
 
 MemoryManager mm;
+
+MemoryManager& MemoryManager::instance()
+{
+   return mm;
+}
 
 bool MemoryManager::exists = false;
 bool MemoryManager::configured = false;

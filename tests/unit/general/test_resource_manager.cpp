@@ -4,6 +4,7 @@
 #include "general/forall.hpp"
 #include "general/resource_manager.hpp"
 
+#if USE_NEW_MEM_MANAGER
 using namespace mfem;
 
 TEST_CASE("Resource Creation", "[Resource Manager]")
@@ -164,3 +165,4 @@ TEST_CASE("Resource Cycle", "[Resource Manager][GPU]")
    tmp0.Write();
    tmp0.HostRead();
 }
+#endif

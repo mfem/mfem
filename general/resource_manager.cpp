@@ -11,14 +11,19 @@
 #include <cstdlib>
 #include <tuple>
 
+#if USE_NEW_MEM_MANAGER
+
 namespace mfem
 {
 
 struct StdAllocator : public Allocator
 {
-   void Alloc(void **ptr, size_t nbytes) override { *ptr = new char[nbytes]; }
+   void Alloc(void **ptr, size_t nbytes) override
+   {
+      *ptr = std::malloc(nbytes);
+   }
 
-   void Dealloc(void *ptr) override { delete[] reinterpret_cast<char *>(ptr); }
+   void Dealloc(void *ptr) override { std::free(ptr); }
    virtual ~StdAllocator() = default;
 };
 
@@ -56,7 +61,7 @@ struct HostPinnedAllocator : public Allocator
 #elif defined(MFEM_USE_HIP)
       *ptr = mfem::HipMemAllocHostPinned(ptr, nbytes);
 #else
-      *ptr = new char[nbytes];
+      *ptr = std::malloc(nbytes);
 #endif
    }
 
@@ -67,7 +72,7 @@ struct HostPinnedAllocator : public Allocator
 #elif defined(MFEM_USE_HIP)
       mfem::HipMemFreeHostPinned(ptr);
 #else
-      delete[] reinterpret_cast<char *>(ptr);
+      std::free(ptr);
 #endif
    }
    virtual ~HostPinnedAllocator() = default;
@@ -2223,3 +2228,5 @@ MemoryType MemoryManager::dual_map[MemoryTypeSize] =
 };
 
 } // namespace mfem
+
+#endif

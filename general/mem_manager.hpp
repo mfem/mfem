@@ -28,6 +28,8 @@
 #endif
 #endif
 
+#define USE_NEW_MEM_MANAGER 1
+
 namespace mfem
 {
 
@@ -112,7 +114,7 @@ bool MemoryClassContainsType(MemoryClass mc, MemoryType mt);
 
     HOST < HOST_32 < HOST_64 < DEVICE < MANAGED. */
 MemoryClass operator*(MemoryClass mc1, MemoryClass mc2);
-#if 0
+#if !USE_NEW_MEM_MANAGER
 /// Class used by MFEM to store pointers to host and/or device memory.
 /** The template class parameter, T, must be a plain-old-data (POD) type.
 
@@ -497,6 +499,7 @@ public:
        validated by a previous call to Read() or ReadWrite() with
        the same MemoryClass. */
    inline T *Write(MemoryClass mc, int size);
+   T *HostWrite() { return Write(MemoryClass::HOST, Capacity()); }
 
    /// Copy the host/device pointer validity flags from @a other to @a *this.
    /** This method synchronizes the pointer validity flags of two Memory objects
@@ -780,6 +783,8 @@ public:
    MemoryManager();
    ~MemoryManager();
 
+   static MemoryManager& instance();
+
    /// Initialize the memory manager.
    void Init();
 
@@ -917,7 +922,7 @@ inline bool HypreUsingGPU()
 
 #endif // MFEM_USE_MPI
 
-#if 0
+#if !USE_NEW_MEM_MANAGER
 // Inline methods
 
 template <typename T>
