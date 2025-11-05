@@ -14,11 +14,11 @@
 namespace mfem
 {
 
-void ParticleVector::GrowSize(int min_num_vectors, bool update_data)
+void ParticleVector::GrowSize(int min_num_vectors, bool keep_data)
 {
    const int nsize = std::max(min_num_vectors*vdim, 2 * data.Capacity());
    Memory<real_t> p(nsize, data.GetMemoryType());
-   if (update_data) { p.CopyFrom(data, size); }
+   if (keep_data) { p.CopyFrom(data, size); }
    p.UseDevice(data.UseDevice());
    data.Delete();
    data = p;
@@ -211,9 +211,9 @@ void ParticleVector::DeleteParticles(const Array<int> &indices)
    Vector::DeleteAt(v_list);
 }
 
-void ParticleVector::SetVDim(int vdim_, bool update_data)
+void ParticleVector::SetVDim(int vdim_, bool keep_data)
 {
-   if (!update_data)
+   if (!keep_data)
    {
       int num_particles = GetNumParticles();
       vdim = vdim_;
@@ -228,7 +228,7 @@ void ParticleVector::SetVDim(int vdim_, bool update_data)
    ordering = ordering == Ordering::byNODES ? Ordering::byVDIM :
               Ordering::byNODES;
 
-   SetNumParticles(vdim_, update_data);
+   SetNumParticles(vdim_, keep_data);
 
    // Reset ordering back to original
    ordering = ordering == Ordering::byNODES ? Ordering::byVDIM :
@@ -237,16 +237,16 @@ void ParticleVector::SetVDim(int vdim_, bool update_data)
    vdim = vdim_;
 }
 
-void ParticleVector::SetOrdering(Ordering::Type ordering_, bool update_data)
+void ParticleVector::SetOrdering(Ordering::Type ordering_, bool keep_data)
 {
-   if (update_data)
+   if (keep_data)
    {
       Ordering::Reorder(*this, vdim, ordering, ordering_);
    }
    ordering = ordering_;
 }
 
-void ParticleVector::SetNumParticles(int num_vectors, bool update_data)
+void ParticleVector::SetNumParticles(int num_vectors, bool keep_data)
 {
    int old_nv = GetNumParticles();
 
@@ -261,13 +261,13 @@ void ParticleVector::SetNumParticles(int num_vectors, bool update_data)
       // Increase capacity if needed
       if (num_vectors*vdim > Vector::Capacity())
       {
-         GrowSize(num_vectors, update_data);
+         GrowSize(num_vectors, keep_data);
       }
 
       // Set larger new size
       Vector::SetSize(num_vectors*vdim);
 
-      if (!update_data) { return; }
+      if (!keep_data) { return; }
 
       if (ordering == Ordering::byNODES)
       {
@@ -299,7 +299,7 @@ void ParticleVector::SetNumParticles(int num_vectors, bool update_data)
    }
    else // Else just remove the trailing vector data
    {
-      if (!update_data) { Vector::SetSize(num_vectors*vdim); return; }
+      if (!keep_data) { Vector::SetSize(num_vectors*vdim); return; }
       Array<int> rm_indices(old_nv-num_vectors);
       for (int i = 0; i < rm_indices.Size(); i++)
       {

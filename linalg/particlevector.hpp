@@ -120,24 +120,27 @@ public:
 
    /** @brief Set the vector dimension of the ParticleVector.
     *
-    *  @details If \p update_data is true, existing particle data in the
+    *  @details If \p keep_data is true, existing particle data in the
     *  ParticleVector is maintained with an updated vector dimension \p vdim_ .
     */
-   void SetVDim(int vdim_, bool update_data=true);
+   void SetVDim(int vdim_, bool keep_data=true);
 
    /** @brief Set the ordering of the particle Vector data in ParticleVector.
     *
-    *  @details If \p update_data is true, existing particle data in the
+    *  @details If \p keep_data is true, existing particle data in the
     *  ParticleVector is reordered to \p ordering_ .
     */
-   void SetOrdering(Ordering::Type ordering_, bool update_data=true);
+   void SetOrdering(Ordering::Type ordering_, bool keep_data=true);
 
-   /** @brief Set the number of particles held by the ParticleVector, keeping existing data.
+   /** @brief Set the number of particle Vector data to be held by the
+    *  ParticleVector.
     *
-    * @details If \p num_vectors * \ref GetVDim > \p Vector::Capacity , memory
+    * @details If \p keep_data is true, existing particle data in the
+    * ParticleVector is maintained with an ordering-mindful resize. If
+    * \p num_vectors * \ref GetVDim > \p Vector::Capacity , memory
     * is re-allocated.
     */
-   void SetNumParticles(int num_vectors, bool update_data=true);
+   void SetNumParticles(int num_vectors, bool keep_data=true);
 
 };
 
