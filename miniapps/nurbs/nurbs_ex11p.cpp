@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    // 2. Parse command-line options.
-   const char *mesh_file = "../../data/star.mesh";
+   const char *mesh_file = "../../data/square-nurbs.mesh";
    int ser_ref_levels = 2;
    int par_ref_levels = 1;
    Array<int> order(1);
