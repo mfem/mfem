@@ -5432,8 +5432,8 @@ NURBSPatch::NURBSPatch(Array<const KnotVector *> &kv_,  int dim_,
 #ifdef MFEM_USE_MPI
 ParNURBSExtension::ParNURBSExtension(const ParNURBSExtension &orig)
    : NURBSExtension(orig),
-     partitioning(orig.partitioning),
-     MyComm(orig.MyComm)
+     MyComm(orig.MyComm),
+     partitioning(orig.partitioning)
 {
 }
 
