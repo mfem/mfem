@@ -547,20 +547,12 @@ public:
 
    void Wrap(T *ptr, size_t size, bool own)
    {
-      if (own)
-      {
-         throw std::runtime_error("own");
-      }
       *this = Memory(ptr, size, MemoryType::HOST);
       SetHostPtrOwner(own);
    }
 
    void Wrap(T *ptr, size_t size, MemoryType loc, bool own)
    {
-      if (own)
-      {
-         throw std::runtime_error("own");
-      }
       *this = Memory(ptr, size, loc);
       if (own)
       {
@@ -580,10 +572,6 @@ public:
    void Wrap(T *h_ptr, T *d_ptr, size_t size, MemoryType hloc, MemoryType dloc,
              bool own, bool valid_host = false, bool valid_device = true)
    {
-      if (own)
-      {
-         throw std::runtime_error("own");
-      }
       auto &inst = MemoryManager::instance();
       *this = Memory(h_ptr, size, hloc);
       SetHostPtrOwner(own);
@@ -743,10 +731,6 @@ template <class T> Memory<T>::Memory(T *ptr, size_t count, MemoryType loc)
 
 template <class T> Memory<T>::Memory(T *ptr, size_t count, bool own)
 {
-   if (own)
-   {
-      throw std::runtime_error("own");
-   }
    auto &inst = MemoryManager::instance();
    segment = inst.insert(reinterpret_cast<char *>(ptr), count * sizeof(T),
                          inst.memory_types[0], own, false);
@@ -757,10 +741,6 @@ template <class T> Memory<T>::Memory(T *ptr, size_t count, bool own)
 template <class T>
 Memory<T>::Memory(T *ptr, size_t count, MemoryType loc, bool own)
 {
-   if (own)
-   {
-      throw std::runtime_error("own");
-   }
    auto &inst = MemoryManager::instance();
    segment = inst.insert(reinterpret_cast<char *>(ptr), count * sizeof(T), loc,
                          own, false);

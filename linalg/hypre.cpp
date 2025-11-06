@@ -127,8 +127,17 @@ template<typename TargetT, typename SourceT>
 static TargetT *DuplicateAs(const SourceT *array, int size,
                             bool cplusplus = true)
 {
-   TargetT *target_array = cplusplus ? (TargetT*) Memory<TargetT>(size)
-                           /*     */ : mfem_hypre_TAlloc_host(TargetT, size);
+   TargetT *target_array;
+   if (cplusplus)
+   {
+      Memory<TargetT> target_array_mem(size);
+      target_array_mem.SetHostPtrOwner(false);
+      target_array = target_array_mem.HostWrite();
+   }
+   else
+   {
+      target_array = mfem_hypre_TAlloc_host(TargetT, size);
+   }
    for (int i = 0; i < size; i++)
    {
       target_array[i] = array[i];
