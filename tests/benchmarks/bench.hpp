@@ -57,6 +57,14 @@ public:
    }
 };
 
+// Reporter with no output, used with MPI on non-root ranks.
+struct NoReporter : public benchmark::BenchmarkReporter
+{
+   explicit NoReporter() = default;
+   bool ReportContext(const Context &) override { return true; }
+   void ReportRuns(const std::vector<Run> &) override {}
+};
+
 } // namespace mfem
 
 #endif // MFEM_USE_BENCHMARK
