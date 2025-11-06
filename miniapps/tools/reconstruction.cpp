@@ -15,8 +15,6 @@
 
 using namespace mfem;
 
-void reconstructField(const ParGridFunction& src, ParGridFunction& dst);
-
 void L2Reconstruction(const ParGridFunction& src, ParGridFunction& dst);
 
 int main(int argc, char* argv[])
@@ -343,6 +341,7 @@ void L2Reconstruction(const ParGridFunction& src, ParGridFunction& dst)
    }
 }
 
+// TODO: Delete the remaining code if not used
 
 // Special integrator for the second derivative
 class MixedBidirectionalHessianIntegrator : public MixedScalarIntegrator
