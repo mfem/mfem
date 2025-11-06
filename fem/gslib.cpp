@@ -250,7 +250,7 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
 
 
 #define gslib_tmalloc(type, count) \
-  ((type*) gslib::smalloc((count)*sizeof(type),__FILE__,__LINE__) )
+  ((type*) gslib::smalloc((count)*sizeof(type),__FILE__,__LINE__))
 #define DO_MAX(a,b) do { unsigned temp = b; if(temp>a) a=temp; } while(0)
 
 /* Calculates the diagonal length of the bounding box and expands its bounds by
@@ -307,15 +307,6 @@ static void bbox_3_tfm(double *out, const double x0[3], const double Ji[9],
    }
 }
 
-// static struct gslib::dbl_range dbl_range_merge(struct gslib::dbl_range a,
-//                                                struct gslib::dbl_range b)
-// {
-//    struct gslib::dbl_range m;
-//    m.min = b.min<a.min?b.min:a.min;
-//    m.max = a.max>b.max?a.max:b.max;
-//    return m;
-// }
-
 static struct gslib::dbl_range dbl_range_expand(struct gslib::dbl_range b,
                                                 double tol)
 {
@@ -330,7 +321,7 @@ void obboxsurf_calc_3(Vector &bb,
                       const unsigned n,
                       uint nel,
                       const unsigned m,
-                      const double tol )
+                      const double tol)
 {
    const double *x = elx[0], *y = elx[1], *z = elx[2];
    const unsigned nr = n, ns = n;
@@ -365,8 +356,6 @@ void obboxsurf_calc_3(Vector &bb,
       SETUP_DIR(s);
 #undef SETUP_DIR
 
-      // Loop over all elements; note the decrementing nel
-      // for (; nel; --nel,x+=nrs,y+=nrs,z+=nrs,++out)
       for (int ie = 0; ie < nel; ie++,x+=nrs,y+=nrs,z+=nrs)
       {
          struct gslib::dbl_range ab[3];
@@ -387,21 +376,18 @@ void obboxsurf_calc_3(Vector &bb,
 
          // tangent vector 1 moved to tv[0], tv[1], tv[2]
          tv[0] = tv[3], tv[1] = tv[5], tv[2] = tv[7];
-         // std::cout << tv[0] << " " << tv[1] << " " << tv[2] << " t1\n";
          // tangent vector 2 moved to tv[3], tv[4], tv[5]
          tv[3] = tv[4], tv[4] = tv[6], tv[5] = tv[8];
-         // std::cout << tv[3] << " " << tv[4] << " " << tv[5] << " t2\n";
          // normal vector to the plane formed by t1 and t2 (cross product)
          // is stored in tv[6], tv[7], tv[8]
          tv[6] = tv[1]*tv[5] - tv[2]*tv[4];
          tv[7] = tv[2]*tv[3] - tv[0]*tv[5];
          tv[8] = tv[0]*tv[4] - tv[1]*tv[3];
          // normalize the normal vector
-         const double nmag  = sqrt( tv[6]*tv[6] + tv[7]*tv[7] + tv[8]*tv[8] );
+         const double nmag  = sqrt(tv[6]*tv[6] + tv[7]*tv[7] + tv[8]*tv[8]);
          tv[6] = tv[6]/nmag;
          tv[7] = tv[7]/nmag;
          tv[8] = tv[8]/nmag;
-         // std::cout << tv[6] << " " << tv[7] << " " << tv[8] << " n\n";
 
          // Rodrigues formula to compute the rotation matrix
          // Axis of rotation is n x [0,0,1] = [n_2, -n_1, 0], and we must
@@ -461,10 +447,10 @@ void obboxsurf_calc_3(Vector &bb,
          tb[2].min -= aabb_diag_len;
          tb[2].max += aabb_diag_len;
 
-         // Also apply A to the tangent vectors, which allows us to calculate the
-         // Jacobian matrix at the rotated element center. NOTE that the z
-         // components of the rotated tangent vectors will become zero, since the
-         // normal vector is aligned with the z-axis.
+         // Also apply A to the tangent vectors, which allows us to
+         // calculate the Jacobian matrix at the rotated element center.
+         // NOTE that the z components of the rotated tangent vectors will
+         // become zero, since the normal vector is aligned with the z-axis.
          double J[4], Ji[4];
          J[0] = A[0]*tv[0] + A[1]*tv[1] + A[2]*tv[2]; // rotated dx/dr
          J[1] = A[0]*tv[3] + A[1]*tv[4] + A[2]*tv[5]; // rotated dx/ds
@@ -472,9 +458,6 @@ void obboxsurf_calc_3(Vector &bb,
          J[3] = A[3]*tv[3] + A[4]*tv[4] + A[5]*tv[5]; // rotated dy/ds
          DenseMatrix JM(J, 2, 2);
          DenseMatrix JiM(Ji, 2, 2);
-         // DenseMatrix AM(A, 3, 3);
-         // JM.Print();
-         // AM.Print();
          CalcInverse(JM, JiM);
 
          // Now transform the already rotated x,y coordinates according to Ji to
@@ -498,33 +481,31 @@ void obboxsurf_calc_3(Vector &bb,
          /* We now have a BB whose bounds represent bounds of a OBB around the
           * original element.
           *
-          * We calculate the center of the OBB in physical space by calculating the
-          * center of this BB, which is the same as the displacement needed to move
-          * from the element center in the transformed space to the BB center. This
-          * displacement is then untransformed by applying (Ji.A)^-1 to it, and
-          * added to known physical element center.
+          * We calculate the center of the OBB in physical space by calculating
+          * the center of this BB, which is the same as the displacement needed
+          * to move from the element center in the transformed space to the BB center. This displacement is then untransformed by applying (Ji.A)^-1
+          * to it, and added to known physical element center.
           *
           * This BB does not necessarily have known fixed size like [-1,1].
-          * So, we premultiply a length scaling matrix, say L, to Ji.A to L.Ji.A.
-          * This is the total transformation needed to move a physical location
-          * that is inside the physical OBB to a location within [-1,1]^3.
-          * Any transformed point not in [-1,1]^3 is outside the OBB.
+          * So, we premultiply a length scaling matrix, say L, to Ji.A to
+          * L.Ji.A. This is the total transformation needed to move a physical
+          * location that is inside the physical OBB to a location within [-1,1]^3. Any transformed point not in [-1,1]^3 is outside the OBB.
           *
-          * It must be noted: this transformation matrix is only applied to points
-          * that have been translated by the physical OBB center.
+          * It must be noted: this transformation matrix is only applied to
+          * points that have been translated by the physical OBB center.
           */
          {
             // The center of the BB in the transformed space
             const double av0 = (tb[0].min+tb[0].max)/2,
                          av1 = (tb[1].min+tb[1].max)/2,
                          av2 = (tb[2].min+tb[2].max)/2;
-            // First untransform the x,y coordinates by J to obtain all components
-            // in the rotated space (since z-component is in the rotated space).
+            // First untransform the x,y coordinates by J to obtain all
+            // components in the rotated space
             const double Jav0 = J[0]*av0 + J[1]*av1,
                          Jav1 = J[2]*av0 + J[3]*av1;
-            // The physical displacement needed to move from the element center to
-            // the OBB center is calculated by "un"rotating {Jav0,Jav1,av2} by
-            // applying inverse of A.
+            // The physical displacement needed to move from the element center
+            // to the OBB center is calculated by "un"rotating {Jav0,Jav1,av2}
+            // by applying inverse of A.
             // The physical untransformed OBB center can then be obtained.
 
             bb[n_el_ents*ie + 0] = x0[0] + A[0]*Jav0 + A[3]*Jav1 + A[6]*av2;
@@ -543,12 +524,12 @@ void obboxsurf_calc_3(Vector &bb,
             // We finally construct the final transformation matrix A=L.Ji.A.
             // This maps a position relative to OBB center to a position in
             // [-1,1]^3, if the position is inside the OBB.
-            bb[n_el_ents*ie + 9 ]=di0*( Ji[0]*A[0] + Ji[1]*A[3] );
-            bb[n_el_ents*ie + 10]=di0*( Ji[0]*A[1] + Ji[1]*A[4] );
-            bb[n_el_ents*ie + 11]=di0*( Ji[0]*A[2] + Ji[1]*A[5] );
-            bb[n_el_ents*ie + 12]=di1*( Ji[2]*A[0] + Ji[3]*A[3] );
-            bb[n_el_ents*ie + 13]=di1*( Ji[2]*A[1] + Ji[3]*A[4] );
-            bb[n_el_ents*ie + 14]=di1*( Ji[2]*A[2] + Ji[3]*A[5] );
+            bb[n_el_ents*ie + 9 ]=di0*(Ji[0]*A[0] + Ji[1]*A[3]);
+            bb[n_el_ents*ie + 10]=di0*(Ji[0]*A[1] + Ji[1]*A[4]);
+            bb[n_el_ents*ie + 11]=di0*(Ji[0]*A[2] + Ji[1]*A[5]);
+            bb[n_el_ents*ie + 12]=di1*(Ji[2]*A[0] + Ji[3]*A[3]);
+            bb[n_el_ents*ie + 13]=di1*(Ji[2]*A[1] + Ji[3]*A[4]);
+            bb[n_el_ents*ie + 14]=di1*(Ji[2]*A[2] + Ji[3]*A[5]);
             bb[n_el_ents*ie + 15]=di2*A[6],
             bb[n_el_ents*ie + 16]=di2*A[7],
             bb[n_el_ents*ie + 17]=di2*A[8];
@@ -557,15 +538,15 @@ void obboxsurf_calc_3(Vector &bb,
    }
 }
 
-void obboxedge_calc_2( Vector &bb,
+void obboxedge_calc_2(Vector &bb,
                        const double *const elx[2],
                        const unsigned nr,
                        uint nel,
                        const unsigned mr,
-                       const double tol )
+                       const double tol)
 {
-   const double *x   = elx[0],
-                 *y   = elx[1];
+   const double *x   = elx[0];
+   const double *y   = elx[1];
    const int n_el_ents = 10; // 2(c0) + 2(aabb_min) + 2(aabb_max) + 4(A)
 
    const unsigned lbsize0 = gslib::lob_bnd_size(nr,mr);
@@ -573,8 +554,6 @@ void obboxedge_calc_2( Vector &bb,
    unsigned wsize = 2*nr+2*mr;
    DO_MAX(wsize,gslib::gll_lag_size(nr));
 
-   // A big vector that stores all data related to bounds and all the work arrays
-   //   data = gslib_tmalloc(double, 2*nr + lbsize0 + wsize);
    Vector datavec(2*nr + lbsize0 + wsize);
    double *data = datavec.GetData();
 
@@ -591,26 +570,19 @@ void obboxedge_calc_2( Vector &bb,
    SETUP_DIR(r);
 #undef SETUP_DIR
 
-   // Loop over all elements; note the decrementing nel
    for (int ie = 0; ie < nel; ie++,x+=nr,y+=nr)
    {
       double x0[2], A[4];
       struct gslib::dbl_range ab[2], tb[2];
 
-      // A holds Jacobian at the center of the element and x0 holds the
-      // center of the element.
       x0[0] = gslib::tensor_ig1(A,I0r,nr,x);
       x0[1] = gslib::tensor_ig1(A+1,I0r,nr,y);
       //
-      A[2] = sqrt( A[0]*A[0] + A[1]*A[1] );
+      A[2] = sqrt(A[0]*A[0] + A[1]*A[1]);
       A[0] = A[0]/A[2];
       A[1] = A[1]/A[2];
       A[2] = -A[1];
       A[3] =  A[0];
-      /* At this stage, A has the rotation matrix that captures the rotation the
-       * physical nodes require to align the tangent at element center with the
-       * x-axis.
-       */
 
       /* double work[2*m##r]
        * Find the bounds along a specific physical dimension.
@@ -658,16 +630,16 @@ void obboxedge_calc_2( Vector &bb,
    }
 }
 
-void obboxedge_calc_3( Vector &bb,
+void obboxedge_calc_3(Vector &bb,
                        const double *const elx[3],
                        const unsigned nr,
                        uint nel,
                        const unsigned mr,
-                       const double tol )
+                       const double tol)
 {
-   const double *x   = elx[0],
-                *y   = elx[1],
-                *z   = elx[2];
+   const double *x   = elx[0];
+   const double *y   = elx[1];
+   const double *z   = elx[2];
    const int n_el_ents = 18; // 3(c0) + 3(aabb_min) + 3(aabb_max) + 9(A)
 
    const unsigned lbsize0 = gslib::lob_bnd_size(nr,mr);
@@ -691,7 +663,6 @@ void obboxedge_calc_3( Vector &bb,
       SETUP_DIR(r);
 #undef SETUP_DIR
 
-      // Loop over all elements; note the decrementing nel
       for (int ie = 0; ie < nel; ie++,x+=nr,y+=nr,z+=nr)
       {
          double x0[3], A[9], Ai[9];
@@ -725,7 +696,7 @@ void obboxedge_calc_3( Vector &bb,
          double ct = A[2];
          double st = nmag2; //1.0 - ct*ct;
 
-         // row-major
+         // row-major rotation matrix to align the tangent with x-axis
          A[0] = 1.0 + st*0.0 + (1.0-ct)*(-ky*ky-kz*kz);
          A[1] = 0.0 + st*(0.0) + (1.0-ct)*(kx*ky);
          A[2] = 0.0 + st*(ky) + (1.0-ct)*(kx*kz);
@@ -737,19 +708,11 @@ void obboxedge_calc_3( Vector &bb,
          A[6] = 0.0 + st*(-ky) + (1.0-ct)*(kx*kz);
          A[7] = 0.0 + st*(kx) + (1.0-ct)*(ky*kz);
          A[8] = 1.0 + st*(0.0) + (1.0-ct)*(-kx*kx-ky*ky);
-         /* At this stage, A has the rotation matrix that captures the rotation the
-          * physical nodes require to align the tangent at element center with the
-          * x-axis.
-          */
 
-         // mat_inv_3(Ai, A);
          DenseMatrix AM(A, 3, 3);
          DenseMatrix AiM(Ai, 3, 3);
          CalcInverse(AM, AiM);
 
-         /* double work[2*m##r]
-          * Find the bounds along a specific physical dimension.
-          */
 #define DO_BOUND(bnd,r,x,work) do { \
         bnd = gslib::lob_bnd_1(lob_bnd_data_##r,n##r,m##r, x, work); \
       } while(0)
@@ -925,7 +888,8 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t,
    MFEM_VERIFY(tensor_product_only,
                 "FindPoints only supports tensor-product elements for "
                 "surface meshes.");
-
+   MFEM_VERIFY(dim < spacedim,
+                "FindPointsGSLIB::SetupSurf only supports surface meshes.");
 
    const int meshOrder = m.GetNodes()->FESpace()->GetMaxElementOrder();
    unsigned dof1D      = meshOrder + 1;
@@ -968,7 +932,7 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t,
          mesh_points_cnt == 0 ? nullptr : &gsl_mesh(0),
          mesh_points_cnt == 0 ? nullptr : &gsl_mesh(mesh_points_cnt)
       };
-      findptsedge_setup_2( DEV,
+      findptsedge_setup_2(DEV,
                            elx,
                            nr,
                            NE_split_total,
@@ -985,7 +949,7 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t,
             mesh_points_cnt == 0 ? nullptr : &gsl_mesh(mesh_points_cnt),
             mesh_points_cnt == 0 ? nullptr : &gsl_mesh(2*mesh_points_cnt)
          };
-         findptssurf_setup_3( DEV,
+         findptssurf_setup_3(DEV,
                            elx,
                            nr,
                            NE_split_total,
@@ -995,6 +959,7 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t,
                            mesh_points_cnt, dim);
    }
 
+   // Compute avg element size in the mesh to set surface distance tolerance.
    DEV.surf_dist_tol = 0.0;
    for (int e = 0; e < mesh->GetNE(); e++)
    {
@@ -1007,6 +972,7 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t,
 #endif
    DEV.surf_dist_tol /= nelem;
    DEV.surf_dist_tol *= 1e-10;
+
    setupflag = true;
 }
 
@@ -1116,8 +1082,8 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
    MapRefPosAndElemIndices();
 }
 
-void FindPointsGSLIB::FindPointsSurf( const Vector &point_pos,
-                                      int point_pos_ordering )
+void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
+                                      int point_pos_ordering)
 {
    MFEM_VERIFY(setupflag, "Use FindPointsGSLIB::Setup before finding points.");
    MFEM_VERIFY(dim < spacedim, "FindPointsSurf is only for surface meshes.");
@@ -1192,8 +1158,8 @@ ulong hash_index_nd(const Vector &hash_min, const Vector &hash_fac,
    }
 }
 
-void FindPointsGSLIB::FindPointsSurfOnDevice( const Vector &point_pos,
-                                              int point_pos_ordering )
+void FindPointsGSLIB::FindPointsSurfOnDevice(const Vector &point_pos,
+                                              int point_pos_ordering)
 {
    if (!DEV.setup_device)
    {
@@ -1218,7 +1184,7 @@ void FindPointsGSLIB::FindPointsSurfOnDevice( const Vector &point_pos,
                            gsl_ref,
                            gsl_dist,
                            gsl_newton,
-                           points_cnt );
+                           points_cnt);
    }
    else
    {
@@ -1455,7 +1421,7 @@ void FindPointsGSLIB::FindPointsSurfOnDevice( const Vector &point_pos,
                               gsl_ref_l,
                               gsl_dist_l,
                               gsl_newton_l,
-                              n );
+                              n);
       }
       else
       {
@@ -1579,7 +1545,7 @@ void FindPointsGSLIB::FindPointsSurfOnDevice( const Vector &point_pos,
    MPI_Barrier(gsl_comm->c);
 }
 
-void lagrange_eval_second_derivative( double *p0, double x, int i,
+void lagrange_eval_second_derivative(double *p0, double x, int i,
                                       const double *z,
                                       const double *lagrangeCoeff,
                                       int pN)
@@ -1616,7 +1582,7 @@ void FindPointsGSLIB::SetupSurfDevice()
           lagcoefftemp(DEV.dof1d),
           wtendtemp(6*DEV.dof1d);
    gslib::lobatto_nodes(gll1dtemp.GetData(),
-                        DEV.dof1d);    // Get gll points [-1,1] for the given dof1d
+                        DEV.dof1d); // Get gll points [-1,1] for the given dof1d
    gslib::gll_lag_setup(lagcoefftemp.GetData(),
                         DEV.dof1d); // Get lagrange coefficients at the gll points
    for (int i=0; i<DEV.dof1d; i++)   // loop through all lagrange polynomials
@@ -1649,10 +1615,6 @@ void FindPointsGSLIB::SetupSurfDevice()
    DEV.lagcoeff.SetSize(DEV.dof1d);
    DEV.lagcoeff.HostWrite();
    DEV.lagcoeff = lagcoefftemp.GetData();
-
-   DEV.info.UseDevice(true);
-   DEV.info.SetSize(0*points_cnt);
-   DEV.info.HostWrite();
 
    MFEM_DEVICE_SYNC;
 }
@@ -2462,6 +2424,257 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
    }
    //finished evaluating points received from other processors.
 }
+
+void FindPointsGSLIB::InterpolateSurfBase(const Vector &field_in,
+                                          Vector &field_out,
+                                          const int nel,
+                                          const int ncomp,
+                                          const int dof1Dsol,
+                                          const int gf_ordering)
+{
+   field_out.HostWrite();
+   struct gslib::array src, outpt;
+   int nlocal = 0;
+   /* weed out unfound points, send out */
+   Array<int> gsl_elem_temp;
+   Vector gsl_ref_temp;
+   Array<int> index_temp;
+   {
+      int index;
+      const unsigned int *code = gsl_code.GetData(),
+                          *proc = gsl_proc.GetData(),
+                           *el  = gsl_elem.GetData();
+      const real_t *r = gsl_ref.GetData();
+
+      int numSend = 0;
+
+      for (index=0; index<points_cnt; ++index)
+      {
+         numSend += (gsl_code[index] != CODE_NOT_FOUND &&
+                     gsl_proc[index] != gsl_comm->id);
+         nlocal += (gsl_code[index] != CODE_NOT_FOUND &&
+                    gsl_proc[index] == gsl_comm->id);
+      }
+
+      gsl_elem_temp.SetSize(nlocal);
+      gsl_elem_temp.HostWrite();
+
+      gsl_ref_temp.SetSize(nlocal*dim);
+      gsl_ref_temp.UseDevice(true);
+      gsl_ref_temp.HostWrite();
+
+      index_temp.SetSize(nlocal);
+
+      evalSrcPt_t *pt;
+      array_init(evalSrcPt_t, &src, numSend);
+      pt = (evalSrcPt_t *)src.ptr;
+
+      int ctr = 0;
+      for (index=0; index<points_cnt; ++index)
+      {
+         if (*code!=CODE_NOT_FOUND && *proc!=gsl_comm->id)
+         {
+            for (int d=0; d<dim; ++d)
+            {
+               pt->r[d] = r[d];
+            }
+            pt->index = index;
+            pt->proc = *proc;
+            pt->el = *el;
+            ++pt;
+         }
+         else if (*code!=CODE_NOT_FOUND && *proc==gsl_comm->id)
+         {
+            gsl_elem_temp[ctr] = *el;
+            for (int d=0; d<dim; ++d)
+            {
+               gsl_ref_temp(dim*ctr+d) = r[d];
+            }
+            index_temp[ctr] = index;
+
+            ctr++;
+         }
+         r += dim;
+         code++;
+         proc++;
+         el++;
+      }
+
+      src.n = pt - (evalSrcPt_t *)src.ptr;
+      sarray_transfer(evalSrcPt_t, &src, proc, 1, cr);
+   }
+
+   //evaluate points that are already local
+   {
+      Vector interp_vals(nlocal*ncomp);
+      interp_vals.UseDevice(true);
+
+      if (spacedim==2)
+      {
+         InterpolateEdgeLocal2(field_in,
+                               gsl_elem_temp,
+                               gsl_ref_temp,
+                               interp_vals,
+                               nlocal,
+                               ncomp,
+                               nel,
+                               dof1Dsol);
+      }
+      else
+      {
+         if (dim == 1)
+         {
+            InterpolateEdgeLocal3(field_in,
+                                  gsl_elem_temp,
+                                  gsl_ref_temp,
+                                  interp_vals,
+                                  nlocal,
+                                  ncomp,
+                                  nel,
+                                  dof1Dsol);
+         }
+         else
+         {
+            InterpolateSurfLocal3(field_in,
+                                  gsl_elem_temp,
+                                  gsl_ref_temp,
+                                  interp_vals,
+                                  nlocal,
+                                  ncomp,
+                                  nel,
+                                  dof1Dsol);
+         }
+
+      }
+      MPI_Barrier(gsl_comm->c);
+
+      interp_vals.HostReadWrite();
+
+      // now put these in correct positions
+      int interp_Offset = interp_vals.Size()/ncomp;
+      for (int i=0; i<ncomp; i++)
+      {
+         for (int j=0; j<nlocal; j++)
+         {
+            int pt_index = index_temp[j];
+            int idx = gf_ordering == Ordering::byNODES ?
+                      pt_index + i*points_cnt :
+                      pt_index*ncomp + i;
+            field_out(idx) = interp_vals(j + interp_Offset*i);
+         }
+      }
+   }
+   MPI_Barrier(gsl_comm->c);
+
+   if (gsl_comm->np == 1)
+   {
+      array_free(&src);
+      return;
+   }
+
+   // evaluate points locally
+   {
+      int n = src.n;
+      const evalSrcPt_t *spt;
+      evalOutPt_t *opt;
+      spt = (evalSrcPt_t *)src.ptr;
+
+      // Copy to host vector
+      gsl_elem_temp.SetSize(n);
+      gsl_elem_temp.HostWrite();
+
+      gsl_ref_temp.SetSize(n*dim);
+      gsl_ref_temp.HostWrite();
+
+      spt = (evalSrcPt_t *)src.ptr;
+      //   opt = (evalOutPt_t *)outpt.ptr;
+      for (int i=0; i<n; i++, ++spt)
+      {
+         gsl_elem_temp[i] = spt->el;
+         for (int d=0; d<dim; d++)
+         {
+            gsl_ref_temp(i*dim + d) = spt->r[d];
+         }
+      }
+
+      Vector interp_vals(n*ncomp);
+      interp_vals.UseDevice(true);
+      if (spacedim==3)
+      {
+         if (dim == 1)
+         {
+            InterpolateEdgeLocal3(field_in,
+                                   gsl_elem_temp,
+                                   gsl_ref_temp,
+                                   interp_vals,
+                                   n,
+                                   ncomp,
+                                   nel,
+                                   dof1Dsol);
+
+         }
+         else
+         {
+            InterpolateSurfLocal3(field_in,
+                                   gsl_elem_temp,
+                                   gsl_ref_temp,
+                                   interp_vals,
+                                   n,
+                                   ncomp,
+                                   nel,
+                                   dof1Dsol);
+         }
+      }
+      else
+      {
+         InterpolateEdgeLocal2(field_in,
+                                gsl_elem_temp,
+                                gsl_ref_temp,
+                                interp_vals,
+                                n,
+                                ncomp,
+                                nel,
+                                dof1Dsol);
+      }
+      MPI_Barrier(gsl_comm->c);
+      interp_vals.HostReadWrite();
+
+      // Now the interpolated values need to be sent back component wise
+      int Offset = interp_vals.Size()/ncomp;
+      for (int i=0; i<ncomp; i++)
+      {
+         spt = (evalSrcPt_t *)src.ptr;
+         array_init(evalOutPt_t, &outpt, n);
+         outpt.n = n;
+         opt = (evalOutPt_t *)outpt.ptr;
+
+         for (int j=0; j<n; j++)
+         {
+            opt->index = spt->index;
+            opt->proc = spt->proc;
+            opt->out = interp_vals(j + Offset*i);
+            spt++;
+            opt++;
+         }
+
+         sarray_transfer(struct evalOutPt_t, &outpt, proc, 1, cr);
+
+         opt = (evalOutPt_t *)outpt.ptr;
+         for (int index = 0; index < outpt.n; index++)
+         {
+            int idx = gf_ordering == Ordering::byNODES ?
+                      opt->index + i*points_cnt :
+                      opt->index*ncomp + i;
+            field_out(idx) = opt->out;
+            ++opt;
+         }
+         array_free(&outpt);
+      }
+      array_free(&src);
+   }
+   //finished evaluating points received from other processors.
+}
+
 #else
 void FindPointsGSLIB::SetupDevice() {};
 void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
@@ -2477,7 +2690,7 @@ void FindPointsGSLIB::FindPoints(Mesh &m, const Vector &point_pos,
                                  int point_pos_ordering, const double bb_t,
                                  const double newt_tol, const int npt_max)
 {
-   if (!setupflag || (mesh != &m) )
+   if (!setupflag || (mesh != &m))
    {
       Setup(m, bb_t, newt_tol, npt_max);
    }
@@ -2500,63 +2713,19 @@ void FindPointsGSLIB::Interpolate(Mesh &m, const Vector &point_pos,
    Interpolate(field_in, field_out);
 }
 
-// void findptsedge_local_free_2(struct gslib::findpts_local_data_2 *const fd)
-// {
-//   gslib::local_hash_free_2(&fd->hd);
-//   free(fd->obb);
-// }
-
-// void findptsedge_local_free_3(struct gslib::findpts_local_data_3 *const fd)
-// {
-//   gslib::local_hash_free_3(&fd->hd);
-//   free(fd->obb);
-// }
-
-// void findptssurf_free_3(struct gslib::findpts_data_3 *fd)
-// {
-//   gslib::hash_free_3(&fd->hash);
-//   findptsedge_local_free_3(&fd->local);
-//   gslib::crystal_free(&fd->cr);
-//   free(fd);
-// }
-
-// void findptsedge_free_2(struct gslib::findpts_data_2 *fd)
-// {
-//   gslib::hash_free_2(&fd->hash);
-//   findptsedge_local_free_2(&fd->local);
-//   gslib::crystal_free(&fd->cr);
-//   free(fd);
-// }
-
 void FindPointsGSLIB::FreeData()
 {
    if (!setupflag) { return; }
-   if (dim == 1)
+   if (dim == spacedim)
    {
-      MFEM_VERIFY(spacedim != dim, "Line meshes not supported in findpts.");
-      if (spacedim == 2)
-      {
-         // findptsedge_free_2((gslib::findpts_data_2 *)this->fdataD);
-      }
-      else
-      {
-         // findptssurf_free_3((gslib::findpts_data_3 *)this->fdataD);
-      }
-   }
-   else if (dim == 2)
-   {
-      if (spacedim == dim)
+      if (dim == 2)
       {
          findpts_free_2((gslib::findpts_data_2 *)this->fdataD);
       }
       else
       {
-         // findptssurf_free_3((gslib::findpts_data_3 *)this->fdataD);
+         findpts_free_3((gslib::findpts_data_3 *)this->fdataD);
       }
-   }
-   else
-   {
-      findpts_free_3((gslib::findpts_data_3 *)this->fdataD);
    }
    gsl_code.DeleteAll();
    gsl_proc.DeleteAll();
@@ -3151,6 +3320,12 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
 void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
                                   Vector &field_out)
 {
+   MFEM_VERIFY(setupflag, "FindPointsGSLIB::Setup must be called first.");
+   if (dim != spacedim)
+   {
+      InterpolateSurf(field_in, field_out);
+      return;
+   }
    const int  gf_order   = field_in.FESpace()->GetMaxElementOrder(),
               mesh_order = mesh->GetNodalFESpace()->GetMaxElementOrder();
 
@@ -3271,6 +3446,87 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
             field_out(idx) = field_out_l2(idx);
          }
       }
+   }
+}
+
+void FindPointsGSLIB::InterpolateSurf(const GridFunction &field_in,
+                                      Vector &field_out)
+{
+   const int  gf_order   = field_in.FESpace()->GetMaxElementOrder(),
+              mesh_order = mesh->GetNodalFESpace()->GetMaxElementOrder();
+
+   const FiniteElementCollection *fec_in =  field_in.FESpace()->FEColl();
+   const H1_FECollection *fec_h1 = dynamic_cast<const H1_FECollection *>
+   (fec_in);
+   // const L2_FECollection *fec_l2 = dynamic_cast<const L2_FECollection *
+   // (fec_in);
+   MFEM_VERIFY(fec_h1,"Only h1 functions supported on device right now.");
+   MFEM_VERIFY(fec_h1->GetBasisType() == BasisType::GaussLobatto,
+               "basis not supported");
+
+   bool tensor_product_only = mesh->GetNE() == 0 ||
+         (mesh->GetNumGeometries(dim) == 1 &&
+         (mesh->GetElementType(0)== Element::SEGMENT ||
+          mesh->GetElementType(0) == Element::QUADRILATERAL));
+#ifdef MFEM_USE_MPI
+   MPI_Allreduce(MPI_IN_PLACE, &tensor_product_only, 1, MFEM_MPI_CXX_BOOL,
+                 MPI_LAND, gsl_comm->c);
+#endif
+   MFEM_VERIFY(tensor_product_only,
+                "FindPoints only supports tensor-product elements for "
+                "surface meshes.");
+   MFEM_VERIFY(dim < spacedim,
+                "FindPointsGSLIB::SetupSurf only supports surface meshes.");
+
+   bool device_mode = field_in.UseDevice();
+
+   if (!field_in.FESpace()->IsVariableOrder())
+   {
+      Vector node_vals;
+      node_vals.UseDevice(device_mode);
+
+      const ElementDofOrdering ord = ElementDofOrdering::LEXICOGRAPHIC;
+      const Operator *R            = field_in.FESpace()->GetElementRestriction(ord);
+      node_vals.SetSize(R->Height());
+      R->Mult(field_in, node_vals); //orders fields (N^D x VDIM x NEL)
+
+      const int ncomp    = field_in.FESpace()->GetVDim();
+      const int maxOrder = field_in.FESpace()->GetMaxElementOrder();
+      DEV.dof1d_sol      =  maxOrder+1;
+      DEV.gll1d_sol.UseDevice(device_mode);
+      DEV.gll1d_sol.SetSize(DEV.dof1d_sol);
+      DEV.lagcoeff_sol.UseDevice(device_mode);
+      DEV.lagcoeff_sol.SetSize(DEV.dof1d_sol);
+      DEV.gll1d_sol.HostWrite();
+      DEV.lagcoeff_sol.HostWrite();
+      if (DEV.dof1d_sol != DEV.dof1d)
+      {
+         Vector temp(DEV.dof1d_sol);
+         gslib::lobatto_nodes(temp.GetData(), DEV.dof1d_sol);
+         DEV.gll1d_sol = temp.GetData();
+         MFEM_DEVICE_SYNC;
+
+         gslib::gll_lag_setup(temp.GetData(), DEV.dof1d_sol);
+         DEV.lagcoeff_sol = temp.GetData();
+         MFEM_DEVICE_SYNC;
+      }
+      else
+      {
+         DEV.gll1d_sol    = DEV.gll1d.HostRead();
+         DEV.lagcoeff_sol = DEV.lagcoeff.HostRead();
+      }
+      MFEM_DEVICE_SYNC;
+
+      field_out.SetSize(points_cnt*ncomp);
+      field_out.UseDevice(device_mode);
+
+      InterpolateSurfBase(node_vals, field_out, NE_split_total, ncomp,
+                          DEV.dof1d_sol, field_in.FESpace()->GetOrdering());
+      return;
+   }
+   else
+   {
+      MFEM_ABORT("In else branch of GSLIB::InterpolateSurf!");
    }
 }
 

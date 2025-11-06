@@ -170,7 +170,6 @@ static MFEM_HOST_DEVICE inline double l2norm2(const double x[2])
          2 = 10b if r is constrained at +1, i.e., rmax
 */
 
-// 1u<<2 = 100b, i.e., 3rd bit is set.
 #define CONVERGED_FLAG (1u<<2)
 #define FLAG_MASK 0x07u // = 111b
 

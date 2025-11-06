@@ -115,7 +115,6 @@ protected:
       mutable Array<unsigned int> lh_offset, gh_offset;
       mutable Vector lh_min, lh_fac, gh_min, gh_fac;
       double tol;
-      mutable Vector info;
       mutable double surf_dist_tol;
    } DEV;
 
@@ -201,7 +200,23 @@ protected:
                           Vector &field_out,
                           int npt, int ncomp,
                           int nel, int dof1dsol);
-
+   // Interpolate on edge mesh for 2D
+   void InterpolateEdgeLocal2(const Vector &field_in,
+                              Array<int> &gsl_elem_dev_l,
+                              Vector &gsl_ref_l,
+                              Vector &field_out,
+                              int npt, int ncomp, int nel, int dof1dsol);
+   // Interpolate on edge mesh for 3D
+   void InterpolateEdgeLocal3(const Vector &field_in,
+                              Array<int> &gsl_elem_dev_l,
+                              Vector &gsl_ref_l,
+                              Vector &field_out,
+                              int npt, int ncomp, int nel, int dof1dsol);
+   // Interpolate on surface mesh for 3D
+   void InterpolateSurfLocal3(const Vector &field_in,
+                              Array<int> &gsl_elem_dev_l,
+                              Vector &gsl_ref_l, Vector &field_out,
+                              int npt, int ncomp, int nel, int dof1dsol);
 
 
    // Prepare data for device functions.
@@ -232,6 +247,9 @@ protected:
    void InterpolateOnDevice(const Vector &field_in_evec, Vector &field_out,
                             const int nel, const int ncomp,
                             const int dof1dsol, const int ordering);
+   void InterpolateSurfBase(const Vector &field_in, Vector &field_out,
+                            const int nel, const int ncomp,
+                            const int dof1dsol, const int gf_ordering);
 
    void findptsedge_setup_2(DEV_STRUCT &devs,
                             const double *const elx[2],
@@ -323,6 +341,9 @@ public:
        @param[out] field_out  Interpolated values. For points that are not found
                               the value is set to #default_interp_value. */
    virtual void Interpolate(const GridFunction &field_in, Vector &field_out);
+   /** Same as Interpolate but for surface meshes */
+   virtual void InterpolateSurf(const GridFunction &field_in,
+                                Vector &field_out);
    /** Search positions and interpolate. The ordering (byNODES or byVDIM) of
        the output values in \p field_out corresponds to the ordering used
        in the input GridFunction \p field_in. */
@@ -438,12 +459,6 @@ public:
    /// Return the bounding boxes as a mesh on rank 0.
    /// Type: 0 - AABB, 1 - OBB
    Mesh *GetBoundingBoxMesh(int type);
-
-   // virtual Mesh* GetBoundingBoxMeshSurf(int type = 0);
-
-   virtual const Array<int> &GetNewtonIters() const { return gsl_newton; }
-
-   virtual const Vector &GetInfo()              const { return DEV.info; }
 
    virtual const Vector &GetGLLMesh()           const { return gsl_mesh; }
 };

@@ -51,10 +51,10 @@
 //    mpirun -np 2 pfindpts -m ../../data/inline-hex.mesh -o 3 -mo 2 -random 1 -d debug
 
 
-// make pfindpts -j4 && mpirun -np 1 ./pfindpts -m bladesurf.mesh -o 4 -mo 4 -vis -random 1
-// make pfindpts -j4 && mpirun -np 2 ./pfindpts -m 3dsurftriplept.mesh -o 3 -mo 3 -vis -random 1
-// make pfindpts -j4 && mpirun -np 11 ./pfindpts -m ../../data/klein-bottle.mesh -o 3 -mo 3 -vis -random 1 -rs 2
-// make pfindpts -j4 && mpirun -np 1 ./pfindpts -m 3dedge.mesh -o 2 -mo 2 -vis -random 1 -npt 10
+// make pfindpts -j4 && mpirun -np 11 ./pfindpts -m bladesurf.mesh -o 8 -mo 4 -vis -random 1
+// make pfindpts -j4 && mpirun -np 7 ./pfindpts -m 3dsurftriplept.mesh -o 6 -mo 3 -vis -random 1
+// make pfindpts -j4 && mpirun -np 11 ./pfindpts -m ../../data/klein-bottle.mesh -o 6 -mo 3 -vis -random 1 -rs 2
+// make pfindpts -j4 && mpirun -np 1 ./pfindpts -m 3dedge.mesh -o 4 -mo 2 -vis -random 1 -npt 101
 
 #include "mfem.hpp"
 #include "general/forall.hpp"
@@ -185,7 +185,15 @@ int main (int argc, char *argv[])
 #endif
    if (myid == 0) { device.Print();}
 
-   func_order = std::min(order, 2);
+   func_order = floor(order/mesh_poly_deg);
+   MFEM_VERIFY(func_order > 0, "Gridfunction order must be at-least mesh "
+                               " order.");
+   if (myid == 0)
+   {
+      cout << "Function order: " << func_order << endl;
+      cout << "Mesh order: " << mesh_poly_deg << endl;
+      cout << "Gridfunction order: " << order << endl;
+   }
 
    // Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
@@ -442,7 +450,7 @@ int main (int argc, char *argv[])
    // Find and Interpolate FE function values on the desired points.
    Vector interp_vals(pts_cnt*vec_dim);
    FindPointsGSLIB finder(MPI_COMM_WORLD);
-   finder.Setup(pmesh);
+   finder.Setup(pmesh, 1.0, 1e-14);
 
    // output the AABB and OBB meshes setup by GSLIB
    Mesh *aabb_mesh = finder.GetBoundingBoxMesh(0);
@@ -498,12 +506,12 @@ int main (int argc, char *argv[])
    // finder.SetGPUtoCPUFallback(true);
    finder.FindPoints(vxyz, point_ordering);
 
-   // finder.Interpolate(field_vals, interp_vals);
-   // if (interp_vals.UseDevice())
-   // {
-   //    interp_vals.HostReadWrite();
-   // }
-   // vxyz.HostReadWrite();
+   finder.Interpolate(field_vals, interp_vals);
+   if (interp_vals.UseDevice())
+   {
+      interp_vals.HostReadWrite();
+   }
+   vxyz.HostReadWrite();
 
    Array<unsigned int> code_out    = finder.GetCode();
    Array<unsigned int> task_id_out = finder.GetProc();
@@ -533,18 +541,29 @@ int main (int argc, char *argv[])
             }
             Vector exact_val(vec_dim);
             F_exact(pos, exact_val);
-            // error = gf_ordering == Ordering::byNODES ?
-            //         fabs(exact_val(j) - interp_vals[i + j*pts_cnt]) :
-            //         fabs(exact_val(j) - interp_vals[i*vec_dim + j]);
+            error = gf_ordering == Ordering::byNODES ?
+                    fabs(exact_val(j) - interp_vals[i + j*pts_cnt]) :
+                    fabs(exact_val(j) - interp_vals[i*vec_dim + j]);
             max_error  = std::max(max_error, error);
             max_dist = std::max(max_dist, dist_p_out(i));
             if (code_out[i] == 1 && j == 0) { face_pts++; }
-            // if (code_out[i] == 0)
-            // {
-            //    pos.Print();
-            //    std::cout << code_out[i] << " " << dist_p_out(i) <<
-            //     " " << rst(i*dim + 0) << " " << rst(i*dim + 1) << " k101\n";
-            // }
+            if (error > 1e-10 || dist_p_out(i) > 1e-5)
+            {
+               if (j == 0)
+               {
+                  // pos.Print();
+                  if (dim == 1)
+                  {
+                     std::cout << code_out[i] << " " << dist_p_out(i) <<
+                     " " << rst(i*dim + 0) << " k101\n";
+                  }
+                  else if (dim == 2)
+                  {
+                     std::cout << code_out[i] << " " << dist_p_out(i) <<
+                      " " << rst(i*dim + 0) << " " << rst(i*dim + 1) << " k101\n";
+                  }
+               }
+            }
          }
          else {
             if (j == 0)

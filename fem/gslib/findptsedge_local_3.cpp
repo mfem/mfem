@@ -170,17 +170,14 @@ static MFEM_HOST_DEVICE inline double norm2(const double x[sDIM])
    return ( x[0]*x[0] + x[1]*x[1] + x[2]*x[2] );
 }
 
-/* the bit structure of flags is CSSRR
-   the C bit --- 1<<4 --- is set when the point is converged
+/* the bit structure of flags is CRR
+   the C bit --- 1<<2 --- is set when the point is converged
    RR is 0 = 00b if r is unconstrained,
-         1 = 01b if r is constrained at -1
-         2 = 10b if r is constrained at +1
-   SS is similarly for s constraints
-   SSRR = smax,smin,rmax,rmin
+         1 = 01b if r is constrained at -1, i.e., rmin
+         2 = 10b if r is constrained at +1, i.e., rmax
 */
-
-#define CONVERGED_FLAG (1u<<4)
-#define FLAG_MASK 0x1fu
+#define CONVERGED_FLAG (1u<<2)
+#define FLAG_MASK 0x07u
 
 /* returns the number of constrained reference coordinates, max 2
 */
@@ -273,12 +270,7 @@ static MFEM_HOST_DEVICE inline void newton_edge(findptsElementPoint_t *const
    if (A>0)
    {
       dr = y/A;
-      // if dr is too small, set it to 0. Required since roundoff dr could cause
-      // fabs(newr)<1 to succeed when it shouldn't.
-      // FIXME: This check might be redundant since for 3d surface meshes, we have
-      // normal derivatives available and hence dr=0 truly means we are converged.
-      //  we also check for dist2<dist2tol in newton iterations loop, which is a
-      //  sureshot safeguard against false converged flag sets.
+
       if (fabs(dr)<tol)
       {
          dr=0.0;
@@ -328,7 +320,7 @@ newton_edge_fin:
    }
    out->r = nr;
    out->dist2p = -v;
-   out->flags = flags | new_flags | (p->flags<<5);
+   out->flags = flags | new_flags | (p->flags<<3);
 }
 
 static MFEM_HOST_DEVICE void seed_j(const double *elx[sDIM],
@@ -353,8 +345,6 @@ static MFEM_HOST_DEVICE void seed_j(const double *elx[sDIM],
    r[ir] = z[ir];
 }
 
-// global memory access of element coordinates.
-// Are the structs being stored in "local memory" or registers?
 template<int T_D1D = 0>
 static void FindPointsEdgeLocal3D_Kernel(const int npt,
                                           const double tol,
@@ -494,7 +484,6 @@ static void FindPointsEdgeLocal3D_Kernel(const int npt,
                      }
                      MFEM_SYNC_THREAD;
 
-                     // The closest node (smallest dist2_temp) found across all threads is stored in fpt.
                      MFEM_FOREACH_THREAD(j,x,1)
                      {
                         fpt->dist2 = DBL_MAX;
