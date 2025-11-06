@@ -928,6 +928,7 @@ size_t MemoryManager::insert(char *hptr, size_t nbytes, MemoryType loc,
 {
    char *dptr = nullptr;
    MemoryType dloc = MemoryType::DEFAULT;
+   bool own_dev = false;
    switch (loc)
    {
       case MemoryType::DEVICE:
@@ -940,6 +941,7 @@ size_t MemoryManager::insert(char *hptr, size_t nbytes, MemoryType loc,
          // actually given a device ptr
          std::swap(hptr, dptr);
          std::swap(dloc, loc);
+         std::swap(own_dev, own);
          [[fallthrough]];
       case MemoryType::DEFAULT:
          [[fallthrough]];
@@ -970,7 +972,7 @@ size_t MemoryManager::insert(char *hptr, size_t nbytes, MemoryType loc,
       default:
          MFEM_ABORT("Invalid loc");
    }
-   return insert(hptr, dptr, nbytes, loc, dloc, own, false, temporary);
+   return insert(hptr, dptr, nbytes, loc, dloc, own, own_dev, temporary);
 }
 
 size_t MemoryManager::insert(char *hptr, char *dptr, size_t nbytes,
@@ -1413,6 +1415,14 @@ char *MemoryManager::write(size_t segment, size_t offset, size_t nbytes,
          }
          seg.lowers[on_device] =
             Alloc(seg.nbytes, seg.mtypes[on_device], seg.is_temporary());
+         if (on_device)
+         {
+            seg.set_owns_device(true);
+         }
+         else
+         {
+            seg.set_owns_host(true);
+         }
          // initially all invalid
          mark_invalid(segment, on_device, 0, seg.nbytes, [&](auto, auto) {});
       }
@@ -1652,6 +1662,14 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
          }
          seg.lowers[on_device] =
             Alloc(seg.nbytes, seg.mtypes[on_device], seg.is_temporary());
+         if (on_device)
+         {
+            seg.set_owns_device(true);
+         }
+         else
+         {
+            seg.set_owns_host(true);
+         }
          // initially all invalid
          mark_invalid(segment, on_device, 0, seg.nbytes, [&](auto, auto) {});
       }
@@ -1730,6 +1748,14 @@ const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
          }
          seg.lowers[on_device] =
             Alloc(seg.nbytes, seg.mtypes[on_device], seg.is_temporary());
+         if (on_device)
+         {
+            seg.set_owns_device(true);
+         }
+         else
+         {
+            seg.set_owns_host(true);
+         }
          // initially all invalid
          mark_invalid(segment, on_device, 0, seg.nbytes, [&](auto, auto) {});
       }
@@ -2153,6 +2179,7 @@ void MemoryManager::SetDeviceMemoryType(size_t segment, MemoryType loc)
       {
          seg.mtypes[1] = loc;
          seg.lowers[1] = Alloc(seg.nbytes, seg.mtypes[1], seg.is_temporary());
+         seg.set_owns_device(true);
          // initially all invalid
          mark_invalid(segment, 1, 0, seg.nbytes, [&](auto, auto) {});
       }
