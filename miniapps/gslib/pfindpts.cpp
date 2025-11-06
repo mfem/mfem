@@ -224,9 +224,12 @@ int main (int argc, char *argv[])
    if (myid == 0)
    {
       cout << "--- Generating points for:\n"
-           << "x in [" << pos_min(0) << ", " << pos_max(0) << "]\n"
-           << "y in [" << pos_min(1) << ", " << pos_max(1) << "]" << std::endl;
-      if (dim == 3)
+           << "x in [" << pos_min(0) << ", " << pos_max(0) << "]\n";
+      if (sdim >= 2)
+      {
+         cout << "y in [" << pos_min(1) << ", " << pos_max(1) << "]" << std::endl;
+      }
+      if (sdim == 3)
       {
          cout << "z in [" << pos_min(2) << ", " << pos_max(2) << "]" << std::endl;
       }
@@ -244,7 +247,9 @@ int main (int argc, char *argv[])
 
    // Distribute the mesh.
    if (hrefinement) { mesh->EnsureNCMesh(); }
-   ParMesh pmesh(MPI_COMM_WORLD, *mesh);
+   // ParMesh pmesh(MPI_COMM_WORLD, *mesh);
+   ParMesh pmesh(MPI_COMM_WORLD, *mesh, nullptr,
+                 (dim == 1 && sdim == 3) ? 0 : 1);
    if (randomization == 0) { delete mesh; }
    else
    {
