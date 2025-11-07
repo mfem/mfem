@@ -80,18 +80,19 @@ void NavierParticles::ParticleStep2D(const real_t &dt, int p)
    const real_t &zeta = Zeta()[p];
    const real_t &gamma = Gamma()[p];
 
-   // Extrapolate particle vorticity using EXTk (w_n is new vorticity at old particle loc)
+   // Extrapolate particle vorticity using EXTk (w_n is new vorticity at old
+   // particle loc)
    // w_n_ext = alpha1*w_nm1 + alpha2*w_nm2 + alpha3*w_nm3
    for (int j = 1; j <= 3; j++)
    {
       w_n_ext += alpha[j-1]*W(j)(p, 0);
    }
 
-   // Assemble the 2D matrix B
+   // Assemble the 2D matrix B with implicit terms
    DenseMatrix B({{beta[0]+dt*kappa, zeta*dt*w_n_ext},
       {-zeta*dt*w_n_ext, beta[0]+dt*kappa}});
 
-   // Assemble the RHS
+   // Assemble the RHS with BDF and EXT terms
    r = 0.0;
    for (int j = 1; j <= 3; j++)
    {
@@ -159,7 +160,7 @@ bool NavierParticles::Get2DSegmentIntersection(const Vector &s1_start,
                   (s1_end[1]-s1_start[1])*(s2_start[0] - s2_end[0]);
 
    // If line is parallel, don't compute at all
-   // Note that nearly-parallel intersections are not well-posed (denom >>> 0)...
+   // Note that nearly-parallel intersections are not well-posed (denom >>> 0)
    real_t rho = abs(denom)/(s1_start.DistanceTo(s2_end)*s2_start.DistanceTo(
                                s2_end));
    if (rho < 1e-12)
@@ -170,7 +171,7 @@ bool NavierParticles::Get2DSegmentIntersection(const Vector &s1_start,
    real_t t1 = ( (s2_start[0] - s1_start[0])*(s2_start[1]-s2_end[1]) -
                  (s2_start[1] - s1_start[1])*(s2_start[0]-s2_end[0]) ) / denom;
    real_t t2 = ( (s1_end[0] - s1_start[0])*(s2_start[1] - s1_start[1]) -
-                 (s1_end[1] - s1_start[1])*(s2_start[0] - s1_start[0]) ) / denom;
+                 (s1_end[1] - s1_start[1])*(s2_start[0] - s1_start[0]))/ denom;
 
    // If intersection falls on line segment of s1_start to s1_end AND s2_start to s2_end, set x_int and return true
    if ((0 <= t1 && t1 <= 1) && (0 <= t2 && t2 <= 1))
@@ -191,7 +192,6 @@ bool NavierParticles::Get2DSegmentIntersection(const Vector &s1_start,
       return true;
    }
    return false;
-
 }
 
 void NavierParticles::Apply2DReflectionBC(const ReflectionBC_2D &bc)
@@ -207,10 +207,12 @@ void NavierParticles::Apply2DReflectionBC(const ReflectionBC_2D &bc)
       V().GetValuesRef(i, p_vn);
 
       // If line_start to line_end and x_nm1 to x_n intersect, apply reflection
-      if (Get2DSegmentIntersection(bc.line_start, bc.line_end, p_xnm1, p_xn, x_int))
+      if (Get2DSegmentIntersection(bc.line_start, bc.line_end,
+                                   p_xnm1, p_xn, x_int))
       {
          // Verify that the particle moved INTO the wall
-         // (Important for cases where p_xnm1 is on the wall within machine precision)
+         // (Important for cases where p_xnm1 is on the wall within
+         //  machine precision)
          p_xdiff = p_xn;
          p_xdiff -= p_xnm1;
          if (p_xdiff*normal > 0)
@@ -232,7 +234,6 @@ void NavierParticles::Apply2DReflectionBC(const ReflectionBC_2D &bc)
          // Set order to 0 (so that it becomes 1 on next iteration)
          o = 0;
       }
-
    }
 }
 
@@ -262,7 +263,8 @@ void NavierParticles::Apply2DRecirculationBC(const RecirculationBC_2D &bc)
       X().GetValuesRef(i, p_xn);
       X(1).GetValuesRef(i, p_xnm1);
 
-      // If outlet_start to outlet_end and x_nm1 to x_n intersect, apply recirculation
+      // If outlet_start to outlet_end and x_nm1 to x_n intersect,
+      // apply recirculation
       if (Get2DSegmentIntersection(bc.outlet_start, bc.outlet_end, p_xnm1, p_xn,
                                    x_int, &t1))
       {

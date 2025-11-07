@@ -26,20 +26,30 @@ namespace navier
 
 /** @brief Transient Navier-Stokes fluid-particles solver
  *
- *  @details TODO.
+ *  This class implements a Lagrangian point particle tracking model from
+ *  Dutta, Som (2017). Ph.D. Dissertation: Bulle-Effect and its implications
+ *  for morphodynamics of river diversions.
+ *  https://www.ideals.illinois.edu/items/102343.
  *
+ *  In short, the particles are advanced in time by solving the ODE:
+ *  dv/dt = \kappa(u-v) - gamma \hat{e} + \zeta (u-v) x \omega,
+ *  dx/dt = v,
+ *  where
+ *  x and v are the particle location and velocity,
+ *  u is the fluid velocity at the particle location,
+ *  \omega is the fluid vorticity at the particle location,
+ *  \kappa depends on the drag characteristics of the particle,
+ *  \zeta depends on the lift characteristics, and
+ *  \gamma and \hat{e} depend on body forces such as gravity.
  *
- *
- *
- *  [1] Dutta, Som (2017). Ph.D. Dissertation: Bulle-Effect and its
- *      implications for morphodynamics of river diversions.
- *      https://www.ideals.illinois.edu/items/102343.
+ *  The model from Dutta et al. is general but this implementation is currently
+ *  limited to 2D problems. Simple reflection and recirculation boundary
+ *  conditions are also supported.
  *
  */
 class NavierParticles
 {
 protected:
-
    /// Active fluid particle set.
    ParticleSet fluid_particles;
 
@@ -58,7 +68,8 @@ protected:
    /// EXTk coefficients, k=1,2,3.
    std::array<Array<real_t>, 3> alpha_k;
 
-   /// Carrier of field + tag indices.
+   /// Carrier of field + tag indices. Allows for convient access to
+   /// corresponding ParticleVector from ParticleSet.
    struct FluidParticleIndices
    {
       struct FieldIndices
@@ -74,16 +85,18 @@ protected:
       {
          int order;
       } tag;
-
    } fp_idx;
 
+   /// 2D wall reflection boundary condition struct
    struct ReflectionBC_2D
    {
       const Vector line_start;
       const Vector line_end;
-      const real_t e;
-      const bool invert_normal;
+      const real_t e;           // restitution constant [0,1]
+      const bool invert_normal; // if true, left normal points out of domain.
    };
+
+   /// 2D recirculation boundary condition struct
    struct RecirculationBC_2D
    {
       const Vector inlet_start;
@@ -105,11 +118,12 @@ protected:
    /// 2D particle step for particle at index \p p
    void ParticleStep2D(const real_t &dt, int p);
 
-   /** @brief Given two 2D points, get the unit normal to the line connecting them
+   /** @brief Given two 2D points, get the unit normal to the line
+    *  connecting them.
     *
-    *  For \p inv_normal *false*, the normal is +90 degrees from the line
+    *  For \p inv_normal *false*, the normal is 90 degrees (CCW) from the line
     *  connecting \p p1 to \p p2 .
-    *  For \p inv_normal *true*, the normal is -90 degrees from the line
+    *  For \p inv_normal *true*, the normal is 90 degrees (CW) from the line
     *  connecting \p p1 to \p p2 .
     */
    static void Get2DNormal(const Vector &p1, const Vector &p2, bool inv_normal,
@@ -134,15 +148,21 @@ protected:
     *  @return *true* if intersection point exists, *false* otherwise
     */
    static bool Get2DSegmentIntersection(const Vector &s1_start,
-                                        const Vector &s1_end, const Vector &s2_start, const Vector &s2_end,
-                                        Vector &x_int, real_t *t1_ptr=nullptr, real_t *t2_ptr=nullptr);
+                                        const Vector &s1_end,
+                                        const Vector &s2_start,
+                                        const Vector &s2_end,
+                                        Vector &x_int, real_t *t1_ptr=nullptr,
+                                        real_t *t2_ptr=nullptr);
 
+   /// Apply 2D reflection BCs to update particle positions and velocities
    void Apply2DReflectionBC(const ReflectionBC_2D &bc);
+   /// Apply 2D recirculation BCs
    void Apply2DRecirculationBC(const RecirculationBC_2D &bc);
+   /// Apply both reflection and recirculation BCs
    void ApplyBCs();
 
-
-   /** @brief Move any particles that have left the domain to the inactive ParticleSet.
+   /** @brief Move any particles that have left the domain to the
+    *  inactive ParticleSet.
     *
     *  This method uses the FindPointsGSLIB object internal to the class to
     *  detect if particles are within the domain or not.
@@ -153,9 +173,9 @@ protected:
     */
    void DeactivateLostParticles(bool findpts);
 
+   // Temporary vectors for particle computation
    mutable Vector up, vp, xpn, xp;
    mutable Vector r, C;
-
 public:
 
    /// Initialize NavierParticles with \p num_particles using fluid mesh \p m .
@@ -190,8 +210,7 @@ public:
    /// Get reference to the kappa ParticleVector.
    ParticleVector& Kappa()
    {
-      return
-         fluid_particles.Field(fp_idx.field.kappa);
+      return fluid_particles.Field(fp_idx.field.kappa);
    }
 
    /// Get reference to the Zeta ParticleVector.
@@ -242,14 +261,12 @@ public:
 
    /** @brief Add a 2D wall reflective boundary condition.
     *
-    *  @warning The normal must be facing into the domain. See \ref Get2DNormal
-    *  for details on the normal direction.
-    *
     *  @param[in] line_start     Wall line segment start point.
     *  @param[in] line_end       Wall line segment end point.
-    *  @param[in] e              Boundary collision reconstitution constant. 1
-    *                            for elastic.
-    *  @param[in] invert_normal  Invert direction of the normal.
+    *  @param[in] e              Boundary collision reconstitution constant.
+    *                            1 for perfectly elastic.
+    *  @param[in] invert_normal  True if left normal points out of domain.
+    *                            False if left normal points into domain.
     *
     */
    void Add2DReflectionBC(const Vector &line_start, const Vector &line_end,
@@ -270,7 +287,9 @@ public:
     *
     */
    void Add2DRecirculationBC(const Vector &inlet_start, const Vector &inlet_end,
-                             bool invert_inlet_normal, const Vector &outlet_start, const Vector &outlet_end,
+                             bool invert_inlet_normal,
+                             const Vector &outlet_start,
+                             const Vector &outlet_end,
                              bool invert_outlet_normal)
    {
       MFEM_ASSERT([&]()
@@ -284,7 +303,6 @@ public:
       bcs.push_back(RecirculationBC_2D{inlet_start, inlet_end, invert_inlet_normal, outlet_start, outlet_end, invert_outlet_normal});
    }
 };
-
 
 } // namespace navier
 

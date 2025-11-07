@@ -35,7 +35,7 @@ void InitializeRandom(Particle &p, int seed)
    {
       p.Coords()[i] = real_dist(gen);
    }
-   for (int f = 0; f < p.GetNF(); f++)
+   for (int f = 0; f < p.GetNFields(); f++)
    {
       for (int c = 0; c < p.FieldVDim(f); c++)
       {
@@ -43,11 +43,10 @@ void InitializeRandom(Particle &p, int seed)
       }
    }
 
-   for (int t = 0; t < p.GetNT(); t++)
+   for (int t = 0; t < p.GetNTags(); t++)
    {
       p.Tag(t) = int_dist(gen);
    }
-
 }
 
 void TestAddRemove(Ordering::Type ordering)
@@ -83,8 +82,8 @@ void TestAddRemove(Ordering::Type ordering)
       particles_rm.erase(particles_rm.begin() + indices_rm[i] - i);
    }
 
-   SECTION(std::string("Ordering: ") + (ordering == Ordering::byNODES ? "byNODES" :
-                                        "byVDIM"))
+   SECTION(std::string("Ordering: ") +
+           (ordering == Ordering::byNODES ? "byNODES" : "byVDIM"))
    {
       ParticleSet pset(0, SpaceDim, FieldVDims, NumTags, ordering);
 
@@ -94,7 +93,7 @@ void TestAddRemove(Ordering::Type ordering)
          {
             pset.AddParticle(particles[i]);
          }
-         REQUIRE(static_cast<int>(particles.size()) == pset.GetNP());
+         REQUIRE(static_cast<int>(particles.size()) == pset.GetNParticles());
 
 
          int add_err_count = 0;
@@ -111,7 +110,8 @@ void TestAddRemove(Ordering::Type ordering)
          SECTION("Remove particles")
          {
             pset.RemoveParticles(indices_rm);
-            REQUIRE(static_cast<int>(particles_rm.size()) == pset.GetNP());
+            REQUIRE(static_cast<int>(particles_rm.size()) ==
+                    pset.GetNParticles());
 
             int rm_err_count = 0;
             for (std::size_t i = 0; i < particles_rm.size(); i++)
@@ -135,7 +135,7 @@ void TestAddRemove(Ordering::Type ordering)
          {
             pset.SetParticle(new_idxs[i], particles[i]);
          }
-         REQUIRE(static_cast<int>(particles.size()) == pset.GetNP());
+         REQUIRE(static_cast<int>(particles.size()) == pset.GetNParticles());
 
 
          int add_err_count = 0;
@@ -249,11 +249,12 @@ void TestRedistribute(Ordering::Type ordering)
    pmesh.EnsureNodes();
 
    // NOTE: This test could fail if a point falls on an element boundary
-   SECTION(std::string("Ordering: ") + (ordering == Ordering::byNODES ? "byNODES" :
-                                        "byVDIM"))
+   SECTION(std::string("Ordering: ") +
+           (ordering == Ordering::byNODES ? "byNODES" : "byVDIM"))
    {
       // Add the particles uniquely to each rank particleset
-      ParticleSet pset(MPI_COMM_WORLD, 0, SpaceDim, FieldVDims, NumTags, ordering);
+      ParticleSet pset(MPI_COMM_WORLD, 0, SpaceDim, FieldVDims,
+                       NumTags, ordering);
 
       for (int i = 0; i < N_rank; i++)
       {
@@ -306,7 +307,7 @@ void TestRedistribute(Ordering::Type ordering)
 
       // Check that coordinates + fields + tags are all still correct
       int wrong_particle_count = 0;
-      for (int i = 0; i < pset.GetNP(); i++)
+      for (int i = 0; i < pset.GetNParticles(); i++)
       {
          Particle &actual_p = all_particles[pset.GetIDs()[i]];
          Particle pset_p = pset.GetParticle(i);
@@ -320,7 +321,6 @@ void TestRedistribute(Ordering::Type ordering)
                     MPI_COMM_WORLD);
       CHECK(wrong_particle_count == 0);
    }
-
 }
 
 TEST_CASE("Particle Redistribution", "[ParticleSet]" "[Parallel]")
@@ -329,4 +329,4 @@ TEST_CASE("Particle Redistribution", "[ParticleSet]" "[Parallel]")
    TestRedistribute(Ordering::byVDIM);
 }
 
-#endif // MFEM_USE_MPI && MFEM_USE_GSLIB 
+#endif // MFEM_USE_MPI && MFEM_USE_GSLIB

@@ -50,9 +50,13 @@ struct flow_context
    int print_csv_freq = 500;
 } ctx;
 
-// Set injected particles at inlet
+// Set properties for injected particles. The location is set randomly to be
+// on the inlet boundary (x=0), velocity is initialized to 0, and
+// kappa (drag characteristic) is set randomly in [kappa_min, kappa_max]
+// using kappa_seed.
 void SetInjectedParticles(NavierParticles &particle_solver,
-                          const Array<int> &p_idxs, real_t kappa_min, real_t kappa_max, int kappa_seed,
+                          const Array<int> &p_idxs,
+                          real_t kappa_min, real_t kappa_max, int kappa_seed,
                           real_t zeta, real_t gamma);
 
 // Dirichlet conditions for velocity
@@ -146,7 +150,8 @@ int main(int argc, char *argv[])
    flow_solver.AddVelDirichletBC(vel_dbc, attr);
 
 
-   // Set particle BCs
+   // Set particle BCs - left normal for line connecting start to end must
+   // point into the domain. If not, we set invert_normal to true.
    particle_solver.Add2DReflectionBC(Vector({0.0, 1.0}), Vector({8.0, 1.0}),
                                      1.0, true);
    particle_solver.Add2DReflectionBC(Vector({8.0, 1.0}), Vector({8.0, 9.0}),
@@ -191,7 +196,7 @@ int main(int argc, char *argv[])
    // Leave field array empty to only print minimal info, i.e. id, rank, and
    // coordinates
    Array<int> print_field_idxs;
-   // Print the first tag for each particle
+   // Print the first tag for each particle.
    Array<int> print_tag_idxs(1);
    print_tag_idxs[0] = 0;
    if (ctx.print_csv_freq > 0)
@@ -215,28 +220,28 @@ int main(int argc, char *argv[])
       real_t cfl;
       flow_solver.Step(time, ctx.dt, step-1);
 
-      // Step particles after pnt_0
+      // Step particles after pnt_0 once the flow is sufficiently developed.
       if (step >= ctx.pnt_0)
       {
-         // Inject particles
+         // Inject particles at inlet and initialize their properties
          if (step % ctx.add_particles_freq == 0)
          {
             int rank_num_particles = ctx.num_add_particles/size +
-                                     (rank < (ctx.num_add_particles % size) ? 1 : 0);
+                                     (rank < (ctx.num_add_particles % size) ?
+                                      1 : 0);
             particle_solver.GetParticles().AddParticles(rank_num_particles,
                                                         &add_particle_idxs);
             SetInjectedParticles(particle_solver, add_particle_idxs,
                                  ctx.kappa_min, ctx.kappa_max,
                                  (rank+1)*step, ctx.zeta, ctx.gamma);
          }
-
          particle_solver.Step(ctx.dt, u_gf, w_gf);
       }
 
+      // Output particle data to csv
       if (ctx.print_csv_freq > 0 && step % ctx.print_csv_freq == 0)
       {
          vis_count++;
-         // Output the particles
          std::string file_name = csv_prefix +
                                  mfem::to_padded_string(step, 6) + ".csv";
          particle_solver.GetParticles().PrintCSV(file_name.c_str(),
@@ -244,6 +249,7 @@ int main(int argc, char *argv[])
                                                  print_tag_idxs);
       }
 
+      // Output flow data for ParaView
       if (ctx.paraview_freq > 0 && step % ctx.paraview_freq == 0)
       {
          pvdc->SetTime(vis_count);
@@ -251,6 +257,7 @@ int main(int argc, char *argv[])
          pvdc->Save();
       }
 
+      // GLVis visualization
       if (ctx.visualization)
       {
          VisualizeField(vis_sol, vishost, ctx.visport, u_gf,

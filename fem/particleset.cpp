@@ -888,15 +888,31 @@ inline void ParticleSet::Transfer2Run(const Array<unsigned int> &send_idxs,
    using arr_type = pdata2_t<NTotData>;
    MFEM_VERIFY(ntotsize <= NTotData, "More data then can be packed.");
 
+   int send_count = 0;
+   int my_rank = GetRank(comm);
+   Array<unsigned int> send_list;
+   for (int i = 0; i < send_ranks.Size(); i++)
+   {
+      if (send_ranks[i] != my_rank)
+      {
+         send_count++;
+      }
+   }
+   send_list.Reserve(send_count);
+
    gslib::array gsl_arr;
    pdata2_t<NTotData> *pdata_arr;
-   array_init(arr_type, &gsl_arr, send_idxs.Size());
+   array_init(arr_type, &gsl_arr, send_count);
    pdata_arr = (pdata2_t<NTotData>*) gsl_arr.ptr;
 
-   gsl_arr.n = send_idxs.Size();
-
+   gsl_arr.n = send_count;
    for (int i = 0; i < send_idxs.Size(); i++)
    {
+      if (send_ranks[i] == my_rank)
+      {
+         continue;
+      }
+      send_list.Append(send_idxs[i]);
       pdata2_t<NTotData> &pdata = pdata_arr[i];
       pdata.id = ids[send_idxs[i]];
 
@@ -924,7 +940,7 @@ inline void ParticleSet::Transfer2Run(const Array<unsigned int> &send_idxs,
    }
 
    // Remove particles that will be transferred
-   RemoveParticles(send_idxs);
+   RemoveParticles(send_list);
 
    // // Transfer particles
    sarray_transfer_ext(arr_type, &gsl_arr, send_ranks.GetData(),
