@@ -456,7 +456,8 @@ void VisItDataCollection::RegisterQField(const std::string& name,
    int qf_order = qf->GetSpace()->GetOrder();
    std::ostringstream oss;
    oss << "QF_" << qf_order << "_" << qf_vdim;
-   field_info_map[name] = VisItFieldInfo("quadrature", qf->GetVDim(), LOD, oss.str(), qf_order);
+   field_info_map[name] = VisItFieldInfo("quadrature", qf->GetVDim(), LOD,
+                                         oss.str(), qf_order);
    visit_levels_of_detail = std::max(visit_levels_of_detail, LOD);
 }
 
@@ -771,17 +772,17 @@ void VisItDataCollection::ParseVisItRootString(const std::string& json)
 
          if (tags.contains("lod"))
          {
-           lod = to_int(tags.get("lod").get<std::string>());
+            lod = to_int(tags.get("lod").get<std::string>());
          }
 
          if (tags.contains("basis"))
          {
-           basis = tags.get("comps").get<std::string>();
+            basis = tags.get("comps").get<std::string>();
          }
 
          if (tags.contains("order"))
          {
-           order = to_int(tags.get("comps").get<std::string>());
+            order = to_int(tags.get("comps").get<std::string>());
          }
 
          field_info_map[it->first] =

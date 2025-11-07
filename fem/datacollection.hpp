@@ -417,8 +417,10 @@ public:
    // CYRUS Question: Would it make sense to reorder?
    VisItFieldInfo(std::string association_, int num_components_, int lod_ = 1,
                   std::string basis_ = "", int order_ = -1)
-   { association = association_; num_components = num_components_; lod =lod_;
-     basis = basis_; order = order_;}
+   {
+      association = association_; num_components = num_components_; lod =lod_;
+      basis = basis_; order = order_;
+   }
 };
 
 /// Data collection with VisIt I/O routines
