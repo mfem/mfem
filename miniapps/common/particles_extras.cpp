@@ -71,9 +71,9 @@ void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
                         const char* title, int x, int y, int w, int h, const char* keys)
 {
    L2_FECollection l2fec(1,3);
-   Mesh particles_mesh(3, pset.GetNP()*8, pset.GetNP(), 0, 3);
+   Mesh particles_mesh(3, pset.GetNParticles()*8, pset.GetNParticles(), 0, 3);
 
-   for (int i = 0; i < pset.GetNP(); i++)
+   for (int i = 0; i < pset.GetNParticles(); i++)
    {
       Vector pcoords;
       pset.Coords().GetValues(i, pcoords);
@@ -84,7 +84,7 @@ void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
    FiniteElementSpace fes(&particles_mesh, &l2fec, 1);
    GridFunction gf(&fes);
 
-   for (int i = 0; i < pset.GetNP(); i++)
+   for (int i = 0; i < pset.GetNParticles(); i++)
    {
       for (int j = 0; j < 8; j++)
       {
@@ -159,7 +159,8 @@ void ParticleTrajectories::AddSegmentStart()
 {
 
    // Create a new mesh for all particle segments for this timestep
-   segment_meshes.emplace(segment_meshes.begin(), 1, pset.GetNP()*2, pset.GetNP(),
+   segment_meshes.emplace(segment_meshes.begin(), 1, pset.GetNParticles()*2,
+                          pset.GetNParticles(),
                           0, pset.GetDim());
 
    // Add segment start particle IDs
@@ -172,7 +173,7 @@ void ParticleTrajectories::AddSegmentStart()
    }
 
    // Add all particle starting vertices
-   for (int i = 0; i < pset.GetNP(); i++)
+   for (int i = 0; i < pset.GetNParticles(); i++)
    {
       Vector pcoords;
       pset.Coords().GetValues(i, pcoords);

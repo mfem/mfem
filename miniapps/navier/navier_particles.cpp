@@ -200,7 +200,7 @@ void NavierParticles::Apply2DReflectionBC(const ReflectionBC_2D &bc)
    Get2DNormal(bc.line_start, bc.line_end, bc.invert_normal, normal);
 
    Vector p_xn(2), p_xnm1(2), p_xdiff(2), x_int(2), p_vn(2), p_vdiff(2);
-   for (int i = 0; i < fluid_particles.GetNP(); i++)
+   for (int i = 0; i < fluid_particles.GetNParticles(); i++)
    {
       X().GetValuesRef(i, p_xn);
       X(1).GetValuesRef(i, p_xnm1);
@@ -257,7 +257,7 @@ void NavierParticles::Apply2DRecirculationBC(const RecirculationBC_2D &bc)
 
    real_t t1;
    Vector p_xn(2), p_xnm1(2), x_int(2), p_xc(2), p_x_int_diff(2);
-   for (int i = 0; i < fluid_particles.GetNP(); i++)
+   for (int i = 0; i < fluid_particles.GetNParticles(); i++)
    {
       X().GetValuesRef(i, p_xn);
       X(1).GetValuesRef(i, p_xnm1);
@@ -380,7 +380,7 @@ void NavierParticles::Step(const real_t &dt, const ParGridFunction &u_gf,
 
    if (fluid_particles.GetDim() == 2)
    {
-      for (int i = 0; i < fluid_particles.GetNP(); i++)
+      for (int i = 0; i < fluid_particles.GetNParticles(); i++)
       {
          // Increment particle order
          int &order = Order()[i];

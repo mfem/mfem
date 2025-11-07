@@ -31,7 +31,9 @@ namespace navier
  *
  *
  *
- *  [1] Dutta, Som (2017). Ph.D. Dissertation: Bulle-Effect and its implications for morphodynamics of river diversions. https://www.ideals.illinois.edu/items/102343.
+ *  [1] Dutta, Som (2017). Ph.D. Dissertation: Bulle-Effect and its
+ *      implications for morphodynamics of river diversions.
+ *      https://www.ideals.illinois.edu/items/102343.
  *
  */
 class NavierParticles
@@ -41,7 +43,8 @@ protected:
    /// Active fluid particle set.
    ParticleSet fluid_particles;
 
-   /// Inactive fluid particle set. Particles that leave the domain are added here.
+   /// Inactive fluid particle set.
+   /// Particles that leave the domain are added here.
    ParticleSet inactive_fluid_particles;
 
    FindPointsGSLIB finder;
@@ -104,8 +107,10 @@ protected:
 
    /** @brief Given two 2D points, get the unit normal to the line connecting them
     *
-    *  For \p inv_normal *false*, the normal is +90 degrees from the line connecting \p p1 to \p p2 .
-    *  For \p inv_normal *true*, the normal is -90 degrees from the line connecting \p p1 to \p p2 .
+    *  For \p inv_normal *false*, the normal is +90 degrees from the line
+    *  connecting \p p1 to \p p2 .
+    *  For \p inv_normal *true*, the normal is -90 degrees from the line
+    *  connecting \p p1 to \p p2 .
     */
    static void Get2DNormal(const Vector &p1, const Vector &p2, bool inv_normal,
                            Vector &normal);
@@ -139,9 +144,12 @@ protected:
 
    /** @brief Move any particles that have left the domain to the inactive ParticleSet.
     *
-    *  This method uses the FindPointsGSLIB object internal to the class to detect if particles are within the domain or not.
+    *  This method uses the FindPointsGSLIB object internal to the class to
+    *  detect if particles are within the domain or not.
     *
-    *  @param[in] findpts     If true, call FindPointsGSLIB::FindPoints prior to deactivation (if particle coordinates out of sync with FindPointsGSLIB)
+    *  @param[in] findpts     If true, call FindPointsGSLIB::FindPoints prior
+    *  to deactivation (if particle coordinates out of sync with
+    *  FindPointsGSLIB)
     */
    void DeactivateLostParticles(bool findpts);
 
@@ -165,7 +173,8 @@ public:
    void Step(const real_t &dt, const ParGridFunction &u_gf,
              const ParGridFunction &w_gf);
 
-   /** @brief Interpolate fluid velocity and vorticity onto current particles' location.
+   /** @brief Interpolate fluid velocity and vorticity onto current particles'
+    *  location.
     *
     *  @param[in] u_gf     Fluid velocity on fluid mesh.
     *  @param[in] w_gf     Fluid vorticity on fluid mesh.
@@ -179,36 +188,67 @@ public:
    ParticleSet& GetInactiveParticles() { return inactive_fluid_particles; }
 
    /// Get reference to the kappa ParticleVector.
-   ParticleVector& Kappa()     { return fluid_particles.Field(fp_idx.field.kappa); }
+   ParticleVector& Kappa()
+   {
+      return
+         fluid_particles.Field(fp_idx.field.kappa);
+   }
 
    /// Get reference to the Zeta ParticleVector.
-   ParticleVector& Zeta()      { return fluid_particles.Field(fp_idx.field.zeta); }
+   ParticleVector& Zeta()
+   {
+      return fluid_particles.Field(fp_idx.field.zeta);
+   }
 
    /// Get reference to the Gamma ParticleVector.
-   ParticleVector& Gamma()     { return fluid_particles.Field(fp_idx.field.gamma); }
+   ParticleVector& Gamma()
+   {
+      return fluid_particles.Field(fp_idx.field.gamma);
+   }
 
-   /// Get reference to the fluid velocity-interpolated ParticleVector at time n - \p nm .
-   ParticleVector& U(int nm=0) { MFEM_ASSERT(nm < 4, "nm must be <= 3"); return fluid_particles.Field(fp_idx.field.u[nm]); }
+   /// Get reference to the fluid velocity-interpolated ParticleVector at
+   /// time n - \p nm .
+   ParticleVector& U(int nm=0)
+   {
+      MFEM_ASSERT(nm < 4, "nm must be <= 3");
+      return fluid_particles.Field(fp_idx.field.u[nm]);
+   }
 
    /// Get reference to the particle velocity ParticleVector at time n - \p nm .
-   ParticleVector& V(int nm=0) { MFEM_ASSERT(nm < 4, "nm must be <= 3"); return fluid_particles.Field(fp_idx.field.v[nm]); }
+   ParticleVector& V(int nm=0)
+   {
+      MFEM_ASSERT(nm < 4, "nm must be <= 3");
+      return fluid_particles.Field(fp_idx.field.v[nm]);
+   }
 
-   /// Get reference to the fluid vorticity-interpolated ParticleVector at time n - \p nm .
-   ParticleVector& W(int nm=0) { MFEM_ASSERT(nm < 4, "nm must be <= 3"); return fluid_particles.Field(fp_idx.field.w[nm]); }
+   /// Get reference to the fluid vorticity-interpolated ParticleVector at
+   /// time n - \p nm .
+   ParticleVector& W(int nm=0)
+   {
+      MFEM_ASSERT(nm < 4, "nm must be <= 3");
+      return fluid_particles.Field(fp_idx.field.w[nm]);
+   }
 
    /// Get reference to the position ParticleVector at time n - \p nm .
-   ParticleVector& X(int nm=0) { MFEM_ASSERT(nm < 4, "nm must be <= 3"); return nm == 0 ? fluid_particles.Coords() : fluid_particles.Field(fp_idx.field.x[nm-1]); }
+   ParticleVector& X(int nm=0)
+   {
+      MFEM_ASSERT(nm < 4, "nm must be <= 3");
+      return nm == 0 ? fluid_particles.Coords() : fluid_particles.Field(
+                fp_idx.field.x[nm-1]);
+   }
 
    /// Get reference to the order Array<int>.
    Array<int>& Order()      { return fluid_particles.Tag(fp_idx.tag.order); }
 
    /** @brief Add a 2D wall reflective boundary condition.
     *
-    *  @warning The normal must be facing into the domain. See \ref Get2DNormal for details on the normal direction.
+    *  @warning The normal must be facing into the domain. See \ref Get2DNormal
+    *  for details on the normal direction.
     *
     *  @param[in] line_start     Wall line segment start point.
     *  @param[in] line_end       Wall line segment end point.
-    *  @param[in] e              Boundary collision reconstitution constant. 1 for elastic.
+    *  @param[in] e              Boundary collision reconstitution constant. 1
+    *                            for elastic.
     *  @param[in] invert_normal  Invert direction of the normal.
     *
     */
@@ -218,7 +258,8 @@ public:
 
    /** @brief Add a 2D recirculation / one-way periodic boundary condition.
     *
-    *  @warning *Both* normals must be facing into the domain. See \ref Get2DNormal for details on the normal direction.
+    *  @warning *Both* normals must be facing into the domain. See \ref
+    *  Get2DNormal for details on the normal direction.
     *
     *  @param[in] inlet_start             Inlet line segment start point.
     *  @param[in] inlet_end               Inlet line segment end point.

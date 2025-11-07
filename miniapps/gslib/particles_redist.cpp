@@ -125,7 +125,7 @@ int main (int argc, char *argv[])
    // Set particles randomly on entire mesh domain, for each rank
    std::mt19937 gen(rank);
    std::uniform_real_distribution<> real_dist(0.0,1.0);
-   for (int i = 0; i < pset.GetNP(); i++)
+   for (int i = 0; i < pset.GetNParticles(); i++)
    {
       Particle p = pset.GetParticleRef(i);
       for (int d = 0; d < pset.GetDim(); d++)
@@ -165,11 +165,12 @@ int main (int argc, char *argv[])
    if (visualization)
    {
       socketstream sock;
-      Vector rank_vector(pset.GetNP());
+      Vector rank_vector(pset.GetNParticles());
       rank_vector = rank;
       VisualizeParticles(sock, vishost, visport, pset, rank_vector, psize,
                          "Particle Owning Rank (Pre-Redistribute)", 0, 0, 400, 400, "bc");
    }
+
 
    // Redistribute
    pset.Redistribute(finder.GetProc());
@@ -186,7 +187,7 @@ int main (int argc, char *argv[])
    if (visualization)
    {
       socketstream sock;
-      Vector rank_vector(pset.GetNP());
+      Vector rank_vector(pset.GetNParticles());
       rank_vector = rank;
       VisualizeParticles(sock, "localhost", visport, pset, rank_vector, psize,
                          "Particle Owning Rank (Post-Redistribute)",
