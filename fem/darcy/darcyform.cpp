@@ -224,7 +224,8 @@ void DarcyForm::EnableFluxHybridization(FiniteElementSpace *constr_space,
          }
          constr_pot_integ = sbfi;
       }
-      hybridization->SetConstraintIntegrators(constr_flux_integ, constr_pot_integ);
+      hybridization->SetConstraintIntegrators(constr_flux_integ, false,
+                                              constr_pot_integ, true);
    }
    else if (Mnl_p)
    {
@@ -239,7 +240,8 @@ void DarcyForm::EnableFluxHybridization(FiniteElementSpace *constr_space,
          }
          constr_pot_integ = snlfi;
       }
-      hybridization->SetConstraintIntegrators(constr_flux_integ, constr_pot_integ);
+      hybridization->SetConstraintIntegrators(constr_flux_integ, false,
+                                              constr_pot_integ, true);
    }
    else if (Mnl)
    {
@@ -254,12 +256,14 @@ void DarcyForm::EnableFluxHybridization(FiniteElementSpace *constr_space,
          }
          constr_integ = snlfi;
       }
-      hybridization->SetConstraintIntegrators(constr_flux_integ, constr_integ);
+      hybridization->SetConstraintIntegrators(constr_flux_integ, false,
+                                              NULL, true,
+                                              constr_integ);
    }
    else
    {
-      hybridization->SetConstraintIntegrators(constr_flux_integ,
-                                              (BilinearFormIntegrator*)NULL);
+      hybridization->SetConstraintIntegrators(constr_flux_integ, false,
+                                              (BilinearFormIntegrator*)NULL, true);
    }
 
    // Automatically load the flux mass integrators
@@ -385,6 +389,201 @@ void DarcyForm::EnableFluxHybridization(FiniteElementSpace *constr_space,
          }
       }
    }
+
+   hybridization->Init(ess_flux_tdof_list);
+}
+
+void DarcyForm::EnablePotentialHybridization(FiniteElementSpace *constr_space,
+                                             BilinearFormIntegrator *constr_pot_integ,
+                                             const Array<int> &ess_flux_tdof_list)
+{
+   MFEM_ASSERT(M_u || Mnl_u || Mnl,
+               "Mass form for the fluxes must be set prior to this call!");
+
+   hybridization.reset();
+   if (assembly != AssemblyLevel::LEGACY)
+   {
+      delete constr_pot_integ;
+      MFEM_WARNING("Hybridization not supported for this assembly level");
+      return;
+   }
+   hybridization.reset(new DarcyHybridization(fes_u, fes_p, constr_space, bsym));
+
+   // Automatically load the potential constraint operator from the face integrators
+   /*if (M_p)
+   {
+      BilinearFormIntegrator *constr_pot_integ = NULL;
+      auto fbfi = M_p->GetFBFI();
+      if (fbfi->Size())
+      {
+         SumIntegrator *sbfi = new SumIntegrator(false);
+         for (BilinearFormIntegrator *bfi : *fbfi)
+         {
+            sbfi->AddIntegrator(bfi);
+         }
+         constr_pot_integ = sbfi;
+      }
+      hybridization->SetConstraintIntegrators(constr_flux_integ, constr_pot_integ);
+   }
+   else if (Mnl_p)
+   {
+      NonlinearFormIntegrator *constr_pot_integ = NULL;
+      auto fnlfi = Mnl_p->GetInteriorFaceIntegrators();
+      if (fnlfi.Size())
+      {
+         SumNLFIntegrator *snlfi = new SumNLFIntegrator(false);
+         for (NonlinearFormIntegrator *nlfi : fnlfi)
+         {
+            snlfi->AddIntegrator(nlfi);
+         }
+         constr_pot_integ = snlfi;
+      }
+      hybridization->SetConstraintIntegrators(constr_flux_integ, constr_pot_integ);
+   }
+   else if (Mnl)
+   {
+      BlockNonlinearFormIntegrator *constr_integ = NULL;
+      auto fnlfi = Mnl->GetInteriorFaceIntegrators();
+      if (fnlfi.Size())
+      {
+         SumBlockNLFIntegrator *snlfi = new SumBlockNLFIntegrator(false);
+         for (BlockNonlinearFormIntegrator *nlfi : fnlfi)
+         {
+            snlfi->AddIntegrator(nlfi);
+         }
+         constr_integ = snlfi;
+      }
+      hybridization->SetConstraintIntegrators(constr_flux_integ, constr_integ);
+   }
+   else*/
+   {
+      hybridization->SetConstraintIntegrators((BilinearFormIntegrator*)NULL, true,
+                                              constr_pot_integ, false);
+   }
+
+   // Automatically load the flux mass integrators
+   /*if (Mnl_u)
+   {
+      NonlinearFormIntegrator *flux_integ = NULL;
+      auto dnlfi = Mnl_u->GetDNFI();
+      if (dnlfi->Size())
+      {
+         SumNLFIntegrator *snlfi = new SumNLFIntegrator(false);
+         for (NonlinearFormIntegrator *nlfi : *dnlfi)
+         {
+            snlfi->AddIntegrator(nlfi);
+         }
+         flux_integ = snlfi;
+      }
+      hybridization->SetFluxMassNonlinearIntegrator(flux_integ);
+   }
+
+   // Automatically load the potential mass integrators
+   if (Mnl_p)
+   {
+      NonlinearFormIntegrator *pot_integ = NULL;
+      auto dnlfi = Mnl_p->GetDNFI();
+      if (dnlfi->Size())
+      {
+         SumNLFIntegrator *snlfi = new SumNLFIntegrator(false);
+         for (NonlinearFormIntegrator *nlfi : *dnlfi)
+         {
+            snlfi->AddIntegrator(nlfi);
+         }
+         pot_integ = snlfi;
+      }
+      hybridization->SetPotMassNonlinearIntegrator(pot_integ);
+   }
+
+   // Automatically load the block integrators
+   if (Mnl)
+   {
+      BlockNonlinearFormIntegrator *block_integ = NULL;
+      auto &dnlfi = Mnl->GetDomainIntegrators();
+      block_integ = dnlfi[0];
+      hybridization->SetBlockNonlinearIntegrator(block_integ, false);
+   }*/
+
+   // Automatically add the boundary flux constraint integrators
+   if (B)
+   {
+      auto bfbfi_marker = B->GetBFBFI_Marker();
+      hybridization->UseExternalBdrPotConstraintIntegrators();
+
+      for (Array<int> *bfi_marker : *bfbfi_marker)
+      {
+         if (bfi_marker)
+         {
+            hybridization->AddBdrPotConstraintIntegrator(constr_pot_integ, *bfi_marker);
+         }
+         else
+         {
+            hybridization->AddBdrPotConstraintIntegrator(constr_pot_integ);
+         }
+      }
+   }
+
+   // Automatically add the boundary potential constraint integrators
+   /*if (M_p)
+   {
+      auto bfbfi = M_p->GetBFBFI();
+      auto bfbfi_marker = M_p->GetBFBFI_Marker();
+      hybridization->UseExternalBdrPotConstraintIntegrators();
+
+      for (int i = 0; i < bfbfi->Size(); i++)
+      {
+         BilinearFormIntegrator *bfi = (*bfbfi)[i];
+         Array<int> *bfi_marker = (*bfbfi_marker)[i];
+         if (bfi_marker)
+         {
+            hybridization->AddBdrPotConstraintIntegrator(bfi, *bfi_marker);
+         }
+         else
+         {
+            hybridization->AddBdrPotConstraintIntegrator(bfi);
+         }
+      }
+   }
+   else if (Mnl_p)
+   {
+      auto bfnlfi = Mnl_p->GetBdrFaceIntegrators();
+      auto bfnlfi_marker = Mnl_p->GetBdrFaceIntegratorsMarkers();
+      hybridization->UseExternalBdrPotConstraintIntegrators();
+
+      for (int i = 0; i < bfnlfi.Size(); i++)
+      {
+         NonlinearFormIntegrator *nlfi = bfnlfi[i];
+         Array<int> *nlfi_marker = bfnlfi_marker[i];
+         if (nlfi_marker)
+         {
+            hybridization->AddBdrPotConstraintIntegrator(nlfi, *nlfi_marker);
+         }
+         else
+         {
+            hybridization->AddBdrPotConstraintIntegrator(nlfi);
+         }
+      }
+   }
+   else if (Mnl)
+   {
+      auto bfnlfi = Mnl->GetBdrFaceIntegrators();
+      auto bfnlfi_marker = Mnl->GetBdrFaceIntegratorsMarkers();
+      hybridization->UseExternalBdrPotConstraintIntegrators();
+
+      for (int i = 0; i < bfnlfi.Size(); i++)
+      {
+         BlockNonlinearFormIntegrator *nlfi = bfnlfi[i];
+         Array<int> *nlfi_marker = bfnlfi_marker[i];
+         if (nlfi_marker)
+         {
+            hybridization->AddBdrConstraintIntegrator(nlfi, *nlfi_marker);
+         }
+         else
+         {
+            hybridization->AddBdrConstraintIntegrator(nlfi);
+         }
+      }
+   }*/
 
    hybridization->Init(ess_flux_tdof_list);
 }
@@ -1214,8 +1413,10 @@ void DarcyForm::ReconstructFluxAndPot(const DarcyHybridization &h,
                                       GridFunction &p, GridFunction &tr,
                                       MixedBilinearForm *Mp_src) const
 {
-   BilinearFormIntegrator *c_bfi = h.GetFluxConstraintIntegrator();
-   BilinearFormIntegrator *c_bfi_p = h.GetPotConstraintIntegrator();
+   BilinearFormIntegrator *c_bfi = h.GetFluxConstraintIntegrator(
+                                      DarcyHybridization::ConstraintType::Plain);
+   BilinearFormIntegrator *c_bfi_p = h.GetPotConstraintIntegrator(
+                                        DarcyHybridization::ConstraintType::Stabilized);
    FiniteElementSpace *fes_tr = tr.FESpace();
    const FiniteElementSpace *fes_pc = pc.FESpace();
    const FiniteElementSpace *fes_ut = ut.FESpace();
@@ -1920,7 +2121,8 @@ void DarcyForm::AssemblePotHDGFaces(int skip_zeros)
    DenseMatrix elmat1, elmat2;
    Array<int> vdofs1, vdofs2;
 
-   if (hybridization->GetPotConstraintIntegrator())
+   if (hybridization->GetPotConstraintIntegrator(
+          DarcyHybridization::ConstraintType::Stabilized))
    {
       int nfaces = mesh->GetNumFaces();
       for (int f = 0; f < nfaces; f++)
@@ -1937,7 +2139,8 @@ void DarcyForm::AssemblePotHDGFaces(int skip_zeros)
    }
 
    const int num_boundary_face_integs =
-      hybridization->NumBdrPotConstraintIntegrators();
+      hybridization->NumBdrPotConstraintIntegrators(
+         DarcyHybridization::ConstraintType::Stabilized);
 
    if (num_boundary_face_integs > 0)
    {

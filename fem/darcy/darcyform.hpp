@@ -152,6 +152,13 @@ public:
                                 BilinearFormIntegrator *constr_flux_integ,
                                 const Array<int> &ess_flux_tdof_list);
 
+   /// Enable potential hybridization.
+   /** For details see the description for class DarcyHybridization in
+       darcyhybridization.hpp. This method should be called before assembly. */
+   void EnablePotentialHybridization(FiniteElementSpace *constr_space,
+                                     BilinearFormIntegrator *constr_pot_integ,
+                                     const Array<int> &ess_flux_tdof_list);
+
    DarcyHybridization *GetHybridization() const { return hybridization.get(); }
 
    /// Assembles the form i.e. sums over all domain/bdr integrators.

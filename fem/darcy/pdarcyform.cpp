@@ -790,7 +790,8 @@ void ParDarcyForm::AssemblePotHDGSharedFaces(int skip_zeros)
    MFEM_ABORT("Not supported");
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 
-   if (hybridization->GetPotConstraintIntegrator())
+   if (hybridization->GetPotConstraintIntegrator(
+          DarcyHybridization::ConstraintType::Stabilized))
    {
       int nsfaces = pmesh->GetNSharedFaces();
       for (int i = 0; i < nsfaces; i++)

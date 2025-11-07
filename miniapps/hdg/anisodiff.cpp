@@ -746,9 +746,9 @@ int main(int argc, char *argv[])
 
       trace_coll = new DG_Interface_FECollection(order, dim);
       trace_space = new FiniteElementSpace(mesh, trace_coll);
-      darcy->EnableFluxHybridization(trace_space,
-                                     new NormalTraceJumpIntegrator(),
-                                     ess_flux_tdofs_list);
+      darcy->EnablePotentialHybridization(trace_space,
+                                          new TraceJumpIntegrator(),
+                                          ess_flux_tdofs_list);
 
       chrono.Stop();
       std::cout << "Hybridization init took " << chrono.RealTime() << "s.\n";
@@ -887,8 +887,8 @@ int main(int argc, char *argv[])
       hform->Update(trace_space, rhs.GetBlock(2), 0);
       //note that Neumann BC must be applied only for the heat flux
       //and not the total flux for stability reasons
-      hform->AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(qcoeff, 2),
-                                   bdr_is_neumann);
+      //hform->AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(qcoeff, 2),
+      //                             bdr_is_neumann);
    }
 
    //construct the operator

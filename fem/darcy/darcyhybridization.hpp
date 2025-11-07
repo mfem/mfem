@@ -31,6 +31,13 @@ namespace mfem
 class DarcyHybridization : public Hybridization, public Operator
 {
 public:
+   enum class ConstraintType
+   {
+      Any,
+      Plain,
+      Stabilized,
+   };
+
    enum class LSsolveType
    {
       LBFGS,
@@ -50,6 +57,7 @@ private:
    ParFiniteElementSpace *pfes, *pfes_p, *c_pfes;
 #endif
    std::unique_ptr<BilinearFormIntegrator> c_bfi_p;
+   bool c_stab{}, c_stab_p{};
    std::unique_ptr<NonlinearFormIntegrator> c_nlfi_p;
    std::unique_ptr<BlockNonlinearFormIntegrator> c_nlfi;
    NonlinearFormIntegrator *m_nlfi_u{}, *m_nlfi_p{};
@@ -269,10 +277,15 @@ private:
    bool ParallelC() const { return false; }
 #endif
 
+   template<typename T> static T ConstrFilter(ConstraintType type, bool flag,
+                                              T tyes, T tno = T{})
+   { return (type == ConstraintType::Any || flag == (type == ConstraintType::Stabilized))?(tyes):(tno); }
+
    void GetFDofs(int el, Array<int> &fdofs) const;
    void GetEDofs(int el, Array<int> &edofs) const;
    FaceElementTransformations *GetFaceTransformation(int f) const;
    void AssembleCtFaceMatrix(int face, const DenseMatrix &elmat);
+   void AssembleGtFaceMatrix(int face, const DenseMatrix &elmat);
    void AssembleCtSubMatrix(int el, const DenseMatrix &elmat,
                             DenseMatrix &Ct, int ioff=0);
    using face_getter = std::function<void(int, DenseMatrix &)>;
@@ -281,12 +294,14 @@ private:
                                   face_getter fx_C = face_getter(), const DenseMatrix *C = NULL,
                                   face_getter fx_H = face_getter(), const DenseMatrix *H = NULL);
    void AssembleNCSlaveCtFaceMatrix(int f, const DenseMatrix &Ct);
+   void AssembleNCSlaveGtFaceMatrix(int f, const DenseMatrix &Gt);
    void AssembleNCSlaveEGFaceMatrix(int f, const DenseMatrix &E,
                                     const DenseMatrix &G);
    void AssembleNCSlaveHFaceMatrix(int f, const DenseMatrix &H);
    void ConstructC();
+   void ConstructG();
    void AllocD() const;
-   void AllocEG() const;
+   void AllocEG(bool sym = false) const;
    void AllocH() const;
    enum class MultNlMode { Mult, Sol, Grad, GradMult };
    void MultNL(MultNlMode mode, const Vector &bu, const Vector &bp,
@@ -360,20 +375,24 @@ public:
    /** Set the integrator that will be used to construct the constraint matrix
        C. The Hybridization object assumes ownership of the integrator, i.e. it
        will delete the integrator when destroyed. */
-   void SetConstraintIntegrators(BilinearFormIntegrator *c_flux_integ,
-                                 BilinearFormIntegrator *c_pot_integ);
+   void SetConstraintIntegrators(
+      BilinearFormIntegrator *c_flux_integ, bool c_flux_stab,
+      BilinearFormIntegrator *c_pot_integ, bool c_pot_stab);
 
    /** Set the integrator that will be used to construct the constraint matrix
        C. The Hybridization object assumes ownership of the integrator, i.e. it
        will delete the integrator when destroyed. */
-   void SetConstraintIntegrators(BilinearFormIntegrator *c_flux_integ,
-                                 NonlinearFormIntegrator *c_pot_integ);
+   void SetConstraintIntegrators(
+      BilinearFormIntegrator *c_flux_integ, bool c_flux_stab,
+      NonlinearFormIntegrator *c_pot_integ, bool c_pot_stab);
 
    /** Set the integrator that will be used to construct the constraint matrix
        C. The Hybridization object assumes ownership of the integrator, i.e. it
        will delete the integrator when destroyed. */
-   void SetConstraintIntegrators(BilinearFormIntegrator *c_flux_integ,
-                                 BlockNonlinearFormIntegrator *c_integ);
+   void SetConstraintIntegrators(
+      BilinearFormIntegrator *c_flux_integ, bool c_flux_stab,
+      BilinearFormIntegrator *c_pot_integ, bool c_pot_stab,
+      BlockNonlinearFormIntegrator *c_integ);
 
    void SetFluxMassNonlinearIntegrator(NonlinearFormIntegrator *flux_integ,
                                        bool own = true);
@@ -384,9 +403,14 @@ public:
    void SetBlockNonlinearIntegrator(BlockNonlinearFormIntegrator *block_integ,
                                     bool own = true);
 
-   BilinearFormIntegrator* GetFluxConstraintIntegrator() const { return c_bfi.get(); }
+   BilinearFormIntegrator* GetFluxConstraintIntegrator(ConstraintType type =
+                                                          ConstraintType::Any) const
+   { return ConstrFilter(type, c_stab, c_bfi.get()); }
 
-   BilinearFormIntegrator* GetPotConstraintIntegrator() const { return c_bfi_p.get(); }
+   BilinearFormIntegrator* GetPotConstraintIntegrator(ConstraintType type =
+                                                         ConstraintType::Any) const
+   { return ConstrFilter(type, c_stab_p, c_bfi_p.get()); }
+
    NonlinearFormIntegrator* GetPotConstraintNonlinearIntegrator() const { return c_nlfi_p.get(); }
 
    NonlinearFormIntegrator* GetFluxMassNonlinearIntegrator() const { return m_nlfi_p; }
@@ -407,7 +431,9 @@ public:
    { Hybridization::AddBdrConstraintIntegrator(c_integ, bdr_marker); }
 
    /// Get number of all integrators added with AddBdrFluxConstraintIntegrator().
-   inline int NumBdrFluxConstraintIntegrators() const { return Hybridization::NumBdrConstraintIntegrators(); }
+   inline int NumBdrFluxConstraintIntegrators(ConstraintType type =
+                                                 ConstraintType::Any) const
+   { return ConstrFilter(type, c_stab, Hybridization::NumBdrConstraintIntegrators());  }
 
    /// Access all integrators added with AddBdrFluxConstraintIntegrator().
    BilinearFormIntegrator& GetBdrFluxConstraintIntegrator(int i) { return Hybridization::GetBdrConstraintIntegrator(i); }
@@ -431,7 +457,9 @@ public:
    }
 
    /// Get number of all integrators added with AddBdrPotConstraintIntegrator().
-   inline int NumBdrPotConstraintIntegrators() const { return boundary_constraint_pot_integs.size(); }
+   inline int NumBdrPotConstraintIntegrators(ConstraintType type =
+                                                ConstraintType::Any) const
+   { return ConstrFilter(type, c_stab_p, boundary_constraint_pot_integs.size()); }
 
    /// Access all integrators added with AddBdrPotConstraintIntegrator().
    BilinearFormIntegrator& GetBdrPotConstraintIntegrator(int i) { return *boundary_constraint_pot_integs[i]; }
@@ -455,7 +483,9 @@ public:
    }
 
    /// Get number of all non-linear integrators added with AddBdrPotConstraintIntegrator().
-   inline int NumBdrPotConstraintNLIntegrators() const { return boundary_constraint_pot_nonlin_integs.size(); }
+   inline int NumBdrPotConstraintNLIntegrators(ConstraintType type =
+                                                  ConstraintType::Any) const
+   { return ConstrFilter(type, c_stab_p, boundary_constraint_pot_nonlin_integs.size()); }
 
    /// Access all non-linear integrators added with AddBdrPotConstraintIntegrator().
    NonlinearFormIntegrator& GetBdrPotConstraintNLIntegrator(int i) { return *boundary_constraint_pot_nonlin_integs[i]; }
