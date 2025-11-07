@@ -430,7 +430,8 @@ void VisItDataCollection::RegisterField(const std::string& name,
    }
 
    DataCollection::RegisterField(name, gf);
-   field_info_map[name] = VisItFieldInfo("nodes", gf->VectorDim(), LOD);
+   field_info_map[name] = VisItFieldInfo("nodes", gf->VectorDim(), LOD,
+                                         gf->FESpace()->FEColl()->Name());
    visit_levels_of_detail = std::max(visit_levels_of_detail, LOD);
 }
 
@@ -449,7 +450,13 @@ void VisItDataCollection::RegisterQField(const std::string& name,
    }
 
    DataCollection::RegisterQField(name, qf);
-   field_info_map[name] = VisItFieldInfo("quadrature", qf->GetVDim(), LOD);
+   // For quadrature functions, use basis pattern:
+   //   QF_{ORDER}_{VDIM}
+   int qf_vdim  = qf->GetVDim();
+   int qf_order = qf->GetSpace()->GetOrder();
+   std::ostringstream oss;
+   oss << "QF_" << qf_order << "_" << qf_vdim;
+   field_info_map[name] = VisItFieldInfo("quadrature", qf->GetVDim(), LOD, oss.str(), qf_order);
    visit_levels_of_detail = std::max(visit_levels_of_detail, LOD);
 }
 
@@ -678,6 +685,8 @@ std::string VisItDataCollection::GetVisItRootString()
       ftags["assoc"] = picojson::value((it->second).association);
       ftags["comps"] = picojson::value(to_string((it->second).num_components));
       ftags["lod"] = picojson::value(to_string((it->second).lod));
+      ftags["basis"] = picojson::value((it->second).basis);
+      ftags["order"] = picojson::value(to_string((it->second).order));
       field["path"] = picojson::value(path_str + it->first + file_ext_format);
       field["tags"] = picojson::value(ftags);
       fields[it->first] = picojson::value(field);
@@ -754,9 +763,31 @@ void VisItDataCollection::ParseVisItRootString(const std::string& json)
            it != fields_obj.end(); ++it)
       {
          picojson::value tags = it->second.get("tags");
+
+         // defaults that allow us to parse older mfem_root files
+         int lod = 1;
+         std::string basis = "";
+         int order = -1;
+
+         if (tags.contains("lod"))
+         {
+           lod = to_int(tags.get("lod").get<std::string>());
+         }
+
+         if (tags.contains("basis"))
+         {
+           basis = tags.get("comps").get<std::string>();
+         }
+
+         if (tags.contains("order"))
+         {
+           order = to_int(tags.get("comps").get<std::string>());
+         }
+
          field_info_map[it->first] =
             VisItFieldInfo(tags.get("assoc").get<std::string>(),
-                           to_int(tags.get("comps").get<std::string>()));
+                           to_int(tags.get("comps").get<std::string>()),
+                           lod, basis, order);
       }
    }
 }
