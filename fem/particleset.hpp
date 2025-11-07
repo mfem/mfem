@@ -32,7 +32,8 @@ namespace mfem
 {
 
 
-/// Container for data associated with a single particle. See \ref ParticleSet for more information.
+/// Container for data associated with a single particle. See \ref ParticleSet
+/// for more information.
 class Particle
 {
 protected:
@@ -41,7 +42,7 @@ protected:
    std::vector<Array<int>> tags;
 public:
    /** @brief Construct a Particle instance
-    *  @param[in] dim          Spatial dimension.
+    *  @param[in] dim          Spatial dimension (size of @a coords).
     *  @param[in] field_vdims  Vector dimensions of particle fields.
     *  @param[in] num_tags     Number of integer tags.
     */
@@ -115,6 +116,7 @@ public:
    /// Particle equality operator.
    bool operator==(const Particle &rhs) const;
 
+   /// Particle inequality operator.
    bool operator!=(const Particle &rhs) const { return !operator==(rhs); }
 
    /// Print all particle data to \p os.
@@ -156,9 +158,13 @@ public:
 class ParticleSet
 {
 private:
+   /// Constructs an Array of size N filled with Ordering::Type o.
    static Array<Ordering::Type> GetOrderingArray(Ordering::Type o, int N);
+   /// returns default field name for field index i. "Field_{i}"
    static std::string GetDefaultFieldName(int i);
+   /// returns default tag name for tag index i. "Tag_{i}"
    static std::string GetDefaultTagName(int i);
+   /// Constructs an Array of size N filled with nullptr.
    static Array<const char*> GetEmptyNameArray(int N);
 #ifdef MFEM_USE_MPI
    static unsigned int GetRank(MPI_Comm comm_);
@@ -168,12 +174,16 @@ private:
 protected:
 
    /// Stride for IDs (when new particles are added).
+   /// In parallel, this defaults to the number of MPI ranks.
    const unsigned int id_stride;
 
    /// Current ID to be assigned to the next particle added.
+   /// In parallel, this starts locally as the rank and increments with
+   /// id_stride, ensuring a global unique identifier whenever a particle is
+   /// added.
    unsigned int id_counter;
 
-   /// Array of particle IDs owned.
+   /// Array holding all particles' globally unique ID.
    Array<unsigned int> ids;
 
    /// All particle coordinates.
@@ -191,8 +201,10 @@ protected:
    /// Tag names, to be written when \ref PrintCSV is called.
    std::vector<std::string> tag_names;
 
-   /// Add particles with ids \p new_ids and optionally get the local indices
-   /// of new particles in \p new_indices .
+   /// Add particles with global identifiers \p new_ids and optionally get the
+   /// local indices of new particles in \p new_indices .
+   /// Note the data of new particles is uninitialized and must be set
+   /// using \ref SetParticle
    void AddParticles(const Array<unsigned int> &new_ids,
                      Array<int> *new_indices=nullptr);
 
@@ -440,7 +452,7 @@ public:
    MPI_Comm GetComm() const { return comm; };
 
    /// Get the global number of active particles across all ranks.
-   unsigned int GetGlobalNP() const;
+   unsigned int GetGlobalNParticles() const;
 
 #endif // MFEM_USE_MPI
 
@@ -488,8 +500,8 @@ public:
    /// Add a particle using \ref Particle .
    void AddParticle(const Particle &p);
 
-   /// Add \p num_particles particles, and optionally get the indices of new
-   /// particles in \p new_indices .
+   /// Add \p num_particles particles, and optionally get the local indices
+   /// of new particles in \p new_indices .
    void AddParticles(int num_particles, Array<int> *new_indices=nullptr);
 
    /// Remove particle data specified by \p list of particle indices.
@@ -517,19 +529,19 @@ public:
    /// particle \p i .
    Particle GetParticle(int i) const;
 
+   /** @brief Get Particle object whose member reference the actual data
+    *  associated with particle \p i in this ParticleSet.
+    *
+    * @see ParticleRefValid for when this method can be used.
+    */
+   Particle GetParticleRef(int i);
+
    /** @brief Determine if \ref GetParticleRef is valid.
     *
     * If coordinates and all fields are ordered byVDIM, then returns true.
     * Otherwise, false.
     */
    bool ParticleRefValid() const;
-
-   /** @brief Get Particle object whose member reference the actual data
-    *  associated with particle \p i .
-    *
-    * @see ParticleRefValid
-    */
-   Particle GetParticleRef(int i);
 
    /// Set data for particle at index \p i with data from provided particle \p p
    void SetParticle(int i, const Particle &p);

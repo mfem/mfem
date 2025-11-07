@@ -258,8 +258,9 @@ int main(int argc, char *argv[])
       }
 
       cfl = flow_solver.ComputeCFL(u_gf, ctx.dt);
-      int global_np = particle_solver.GetParticles().GetGlobalNP();
-      int inactive_global_np = particle_solver.GetInactiveParticles().GetGlobalNP();
+      int global_np = particle_solver.GetParticles().GetGlobalNParticles();
+      int inactive_global_np =
+         particle_solver.GetInactiveParticles().GetGlobalNParticles();
       if (rank == 0)
       {
          printf("\n%-11s %-11s %-11s %-11s\n", "Step", "Time", "dt", "CFL");

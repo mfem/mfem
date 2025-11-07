@@ -167,7 +167,8 @@ int main (int argc, char *argv[])
       socketstream sock;
       Vector rank_vector(pset.GetNParticles());
       rank_vector = rank;
-      VisualizeParticles(sock, vishost, visport, pset, rank_vector, psize,
+      VisualizeParticles(sock, vishost, visport,
+                         pset, rank_vector, psize,
                          "Particle Owning Rank (Pre-Redistribute)", 0, 0, 400, 400, "bc");
    }
 

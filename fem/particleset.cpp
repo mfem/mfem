@@ -603,7 +603,7 @@ ParticleSet::ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
 #endif // MFEM_USE_GSLIB
 }
 
-unsigned int ParticleSet::GetGlobalNP() const
+unsigned int ParticleSet::GetGlobalNParticles() const
 {
    unsigned int total = GetNParticles();
    MPI_Allreduce(MPI_IN_PLACE, &total, 1, MPI_UNSIGNED, MPI_SUM, comm);
@@ -642,7 +642,8 @@ int ParticleSet::AddTag(const char* tag_name)
 
 void ParticleSet::AddParticle(const Particle &p)
 {
-   MFEM_ASSERT(IsValidParticle(p), "Particle is incompatible with ParticleSet.");
+   MFEM_ASSERT(IsValidParticle(p),
+               "Particle is incompatible with ParticleSet.");
 
    // Add the particle
    Array<int> idxs;
