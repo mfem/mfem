@@ -30,6 +30,7 @@ list(APPEND SRCS
   multivector.cpp
   ode.cpp
   operator.cpp
+  particlevector.cpp
   solvers.cpp
   sparsemat.cpp
   sparsesmoothers.cpp
@@ -63,6 +64,7 @@ list(APPEND HDRS
   multivector.hpp
   ode.hpp
   operator.hpp
+  particlevector.hpp
   solvers.hpp
   sparsemat.hpp
   sparsesmoothers.hpp

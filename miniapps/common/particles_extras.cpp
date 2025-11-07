@@ -17,8 +17,9 @@ namespace mfem
 namespace common
 {
 
-void Add3DPoint(const Vector &center, Mesh &m, real_t s)
+void Add3DPoint(const Vector &center, Mesh &m, real_t scale)
 {
+   real_t s = 0.5*scale;
    Vector v[8];
 
    for (int i = 0; i < 8; i++)
@@ -67,16 +68,17 @@ void Add3DPoint(const Vector &center, Mesh &m, real_t s)
 
 
 void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
-                        const ParticleSet &pset, const Vector &scalar_field, real_t psize,
+                        const ParticleSet &pset, const Vector &scalar_field,
+                        real_t psize,
                         const char* title, int x, int y, int w, int h, const char* keys)
 {
    L2_FECollection l2fec(1,3);
-   Mesh particles_mesh(3, pset.GetNP()*8, pset.GetNP(), 0, 3);
+   Mesh particles_mesh(3, pset.GetNParticles()*8, pset.GetNParticles(), 0, 3);
 
-   for (int i = 0; i < pset.GetNP(); i++)
+   for (int i = 0; i < pset.GetNParticles(); i++)
    {
       Vector pcoords;
-      pset.Coords().GetVectorValues(i, pcoords);
+      pset.Coords().GetValues(i, pcoords);
       Add3DPoint(pcoords, particles_mesh, psize);
    }
    particles_mesh.FinalizeMesh();
@@ -84,7 +86,7 @@ void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
    FiniteElementSpace fes(&particles_mesh, &l2fec, 1);
    GridFunction gf(&fes);
 
-   for (int i = 0; i < pset.GetNP(); i++)
+   for (int i = 0; i < pset.GetNParticles(); i++)
    {
       for (int j = 0; j < 8; j++)
       {
@@ -93,7 +95,6 @@ void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
    }
 
 #ifdef MFEM_USE_MPI
-
    int myid, num_procs;
    MPI_Comm_rank(pset.GetComm(), &myid);
    MPI_Comm_size(pset.GetComm(), &num_procs);
@@ -126,23 +127,19 @@ void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
       connection_failed = !sock && !newly_opened;
    }
    while (connection_failed);
-
 #else
-
    VisualizeField(sock, vishost, visport, gf, title, x, y, w, h, keys, false);
-
 #endif // MFEM_USE_MPI
 }
 
 
 ParticleTrajectories::ParticleTrajectories(const ParticleSet &particles,
-                                           int tail_size_, const char *vishost, int visport, const char *title_, int x_,
-                                           int y_, int w_, int h_, const char *keys_)
-   : pset(particles),
-     tail_size(tail_size_),
-     x(x_), y(y_), w(w_), h(h_),
-     title(title_),
-     keys(keys_)
+                                           int tail_size_, const char *vishost,
+                                           int visport, const char *title_,
+                                           int x_, int y_, int w_, int h_,
+                                           const char *keys_)
+   : pset(particles), tail_size(tail_size_), x(x_), y(y_), w(w_), h(h_),
+     title(title_), keys(keys_)
 #ifdef MFEM_USE_MPI
    ,comm(particles.GetComm())
 #endif // MFEM_USE_MPI
@@ -152,14 +149,13 @@ ParticleTrajectories::ParticleTrajectories(const ParticleSet &particles,
    newly_opened = true;
 
    AddSegmentStart();
-
 }
 
 void ParticleTrajectories::AddSegmentStart()
 {
-
    // Create a new mesh for all particle segments for this timestep
-   segment_meshes.emplace(segment_meshes.begin(), 1, pset.GetNP()*2, pset.GetNP(),
+   segment_meshes.emplace(segment_meshes.begin(), 1, pset.GetNParticles()*2,
+                          pset.GetNParticles(),
                           0, pset.GetDim());
 
    // Add segment start particle IDs
@@ -172,10 +168,10 @@ void ParticleTrajectories::AddSegmentStart()
    }
 
    // Add all particle starting vertices
-   for (int i = 0; i < pset.GetNP(); i++)
+   for (int i = 0; i < pset.GetNParticles(); i++)
    {
       Vector pcoords;
-      pset.Coords().GetVectorValues(i, pcoords);
+      pset.Coords().GetValues(i, pcoords);
       segment_meshes.front().AddVertex(pcoords);
    }
 }
@@ -188,12 +184,13 @@ void ParticleTrajectories::SetSegmentEnd()
    int num_start = segment_ids.front().Size();
    for (int i = 0; i < num_start; i++)
    {
-      // If this particle's initial position was set in AddSegmentStart, set the vertex to its now current location
+      // If this particle's initial position was set in AddSegmentStart,
+      // set the vertex to its now current location
       int pidx = end_ids.Find(segment_ids.front()[i]);
       if (pidx != -1)
       {
          Vector pcoords;
-         pset.Coords().GetVectorValues(pidx, pcoords);
+         pset.Coords().GetValues(pidx, pcoords);
          segment_meshes.front().AddVertex(pcoords);
       }
       else // Otherwise set its end vertex == start vertex
@@ -244,7 +241,6 @@ void ParticleTrajectories::Visualize()
    }
 
    AddSegmentStart();
-
 }
 
 } // namespace common

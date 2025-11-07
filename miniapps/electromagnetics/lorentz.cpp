@@ -128,8 +128,8 @@ protected:
 
    mutable Vector pxB_, pm_, pp_;
 
-   static void GetValues(const MultiVector &coords, FindPointsGSLIB &finder,
-                         GridFunction &gf, MultiVector &pv);
+   static void GetValues(const ParticleVector &coords, FindPointsGSLIB &finder,
+                         GridFunction &gf, ParticleVector &pv);
    void ParticleStep(Particle &part, real_t &dt);
 public:
 
@@ -137,8 +137,8 @@ public:
          int num_particles, Ordering::Type pdata_ordering);
    void InterpolateEB();
    void Step(real_t &t, real_t &dt);
-   void RemoveLostParticles();
-   void Redistribute(int redist_mesh); // 0 = E field, 1 = B field
+   Array<int> RemoveLostParticles();
+   void Redistribute(int redist_mesh, Array<int> &removed_idxs); // 0 = E field, 1 = B field
    ParticleSet& GetParticles() { return *charged_particles; }
 
 };
@@ -295,10 +295,11 @@ int main(int argc, char *argv[])
          traj_vis->Visualize();
       }
 
+      Array<int> removed_idxs;
       // Remove lost particles
       if (step % ctx.rm_lost_freq == 0)
       {
-         boris.RemoveLostParticles();
+         removed_idxs = boris.RemoveLostParticles();
          std::string csv_prefix = "Lorentz_Part_";
          Array<int> field_idx, tag_idx;
          std::string file_name = csv_prefix + mfem::to_padded_string(step, 6) + ".csv";
@@ -307,12 +308,12 @@ int main(int argc, char *argv[])
 
       // Redistribute
       if (ctx.redist_freq > 0 && step % ctx.redist_freq == 0 &&
-          boris.GetParticles().GetGlobalNP() > 0)
+          boris.GetParticles().GetGlobalNParticles() > 0)
       {
          // Visualize particles pre-redistribute
          if (ctx.visualization)
          {
-            Vector rank_vector(boris.GetParticles().GetNP());
+            Vector rank_vector(boris.GetParticles().GetNParticles());
             rank_vector = Mpi::WorldRank();
             VisualizeParticles(pre_redist_sock, vishost, ctx.visport, boris.GetParticles(),
                                rank_vector, 1e-2, "Particle Owning Rank (Pre-Redistribute)", 410, 0, 400, 400,
@@ -327,12 +328,12 @@ int main(int argc, char *argv[])
          }
 
          // Redistribute
-         boris.Redistribute(ctx.redist_mesh);
+         boris.Redistribute(ctx.redist_mesh, removed_idxs);
 
          // Visualize particles post-redistribute
          if (ctx.visualization)
          {
-            Vector rank_vector(boris.GetParticles().GetNP());
+            Vector rank_vector(boris.GetParticles().GetNParticles());
             rank_vector = Mpi::WorldRank();
             VisualizeParticles(post_redist_sock, vishost, ctx.visport, boris.GetParticles(),
                                rank_vector, 1e-2, "Particle Owning Rank (Post-Redistribute)", 820, 0, 400, 400,
@@ -353,8 +354,8 @@ int main(int argc, char *argv[])
    }
 }
 
-void Boris::GetValues(const MultiVector &coords, FindPointsGSLIB &finder,
-                      GridFunction &gf, MultiVector &pv)
+void Boris::GetValues(const ParticleVector &coords, FindPointsGSLIB &finder,
+                      GridFunction &gf, ParticleVector &pv)
 {
    Mesh &mesh = *gf.FESpace()->GetMesh();
    mesh.EnsureNodes();
@@ -447,9 +448,9 @@ Boris::Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_,
 
 void Boris::InterpolateEB()
 {
-   MultiVector &X = charged_particles->Coords();
-   MultiVector &E = charged_particles->Field(EFIELD);
-   MultiVector &B = charged_particles->Field(BFIELD);
+   ParticleVector &X = charged_particles->Coords();
+   ParticleVector &E = charged_particles->Field(EFIELD);
+   ParticleVector &B = charged_particles->Field(BFIELD);
 
    // Interpolate E-field + B-field onto particles
    if (E_gf)
@@ -475,7 +476,7 @@ void Boris::Step(real_t &t, real_t &dt)
    // Individually step each particle:
    if (charged_particles->ParticleRefValid())
    {
-      for (int i = 0; i < charged_particles->GetNP(); i++)
+      for (int i = 0; i < charged_particles->GetNParticles(); i++)
       {
          Particle p = charged_particles->GetParticleRef(i);
          ParticleStep(p, dt);
@@ -483,7 +484,7 @@ void Boris::Step(real_t &t, real_t &dt)
    }
    else
    {
-      for (int i = 0; i < charged_particles->GetNP(); i++)
+      for (int i = 0; i < charged_particles->GetNParticles(); i++)
       {
          Particle p = charged_particles->GetParticle(i);
          ParticleStep(p, dt);
@@ -498,7 +499,7 @@ void Boris::Step(real_t &t, real_t &dt)
    t += dt;
 }
 
-void Boris::RemoveLostParticles()
+Array<int> Boris::RemoveLostParticles()
 {
    Array<int> lost_idxs;
    const Array<int> E_lost = E_finder.GetPointsNotFoundIndices();
@@ -515,17 +516,22 @@ void Boris::RemoveLostParticles()
    }
 
    charged_particles->RemoveParticles(lost_idxs);
+   return lost_idxs;
 }
 
-void Boris::Redistribute(int redist_mesh)
+void Boris::Redistribute(int redist_mesh, Array<int> &removed_idxs)
 {
    if (redist_mesh == 0)
    {
-      charged_particles->Redistribute(E_finder.GetProc());
+      Array<int> proc_list = E_finder.GetProc();
+      proc_list.DeleteAt(removed_idxs);
+      charged_particles->Redistribute(proc_list);
    }
    else
    {
-      charged_particles->Redistribute(B_finder.GetProc());
+      Array<int> proc_list = B_finder.GetProc();
+      proc_list.DeleteAt(removed_idxs);
+      charged_particles->Redistribute(proc_list);
    }
 }
 
@@ -580,12 +586,12 @@ void InitializeChargedParticles(ParticleSet &charged_particles,
 
    int dim = charged_particles.Coords().GetVDim();
 
-   MultiVector &X = charged_particles.Coords();
-   MultiVector &P = charged_particles.Field(Boris::MOM);
-   MultiVector &M = charged_particles.Field(Boris::MASS);
-   MultiVector &Q = charged_particles.Field(Boris::CHARGE);
+   ParticleVector &X = charged_particles.Coords();
+   ParticleVector &P = charged_particles.Field(Boris::MOM);
+   ParticleVector &M = charged_particles.Field(Boris::MASS);
+   ParticleVector &Q = charged_particles.Field(Boris::CHARGE);
 
-   for (int i = 0; i < charged_particles.GetNP(); i++)
+   for (int i = 0; i < charged_particles.GetNParticles(); i++)
    {
       for (int d = 0; d < dim; d++)
       {

@@ -22,6 +22,7 @@ list(APPEND SRCS
   mem_manager.cpp
   occa.cpp
   optparser.cpp
+  ordering.cpp
   osockstream.cpp
   sets.cpp
   socketstream.cpp
@@ -53,6 +54,7 @@ list(APPEND HDRS
   occa.hpp
   forall.hpp
   optparser.hpp
+  ordering.hpp
   osockstream.hpp
   sets.hpp
   socketstream.hpp

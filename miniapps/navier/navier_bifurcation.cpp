@@ -20,6 +20,10 @@ using namespace mfem;
 using namespace navier;
 using namespace mfem::common;
 
+#ifndef MFEM_USE_GSLIB
+#error "This miniapp requires MFEM to be built with GSLIB."
+#endif
+
 struct flow_context
 {
    // common
@@ -45,9 +49,13 @@ struct flow_context
    int print_csv_freq = 500;
 } ctx;
 
-// Set injected particles at inlet
+// Set properties for injected particles. The location is set randomly to be
+// on the inlet boundary (x=0), velocity is initialized to 0, and
+// kappa (drag characteristic) is set randomly in [kappa_min, kappa_max]
+// using kappa_seed.
 void SetInjectedParticles(NavierParticles &particle_solver,
-                          const Array<int> &p_idxs, real_t kappa_min, real_t kappa_max, int kappa_seed,
+                          const Array<int> &p_idxs,
+                          real_t kappa_min, real_t kappa_max, int kappa_seed,
                           real_t zeta, real_t gamma);
 
 // Dirichlet conditions for velocity
@@ -102,7 +110,7 @@ int main(int argc, char *argv[])
    }
 
    // Load mesh + complete any serial refinements
-   Mesh mesh("../../data/channel2.mesh");
+   Mesh mesh("../../data/channel-bifurcation-2d.mesh");
    for (int lev = 0; lev < ctx.rs_levels; lev++)
    {
       mesh.UniformRefinement();
@@ -119,8 +127,9 @@ int main(int argc, char *argv[])
 
    // Create the particle solver
    NavierParticles particle_solver(MPI_COMM_WORLD, 0, pmesh);
-   particle_solver.GetParticles().Reserve( ((ctx.nt -
-                                             ctx.pnt_0)/ctx.add_particles_freq ) * ctx.num_add_particles / size);
+   int nparticles = ((ctx.nt - ctx.pnt_0)/ctx.add_particles_freq) *
+                    ctx.num_add_particles / size;
+   particle_solver.GetParticles().Reserve(nparticles);
 
    real_t time = 0.0;
 
@@ -140,17 +149,18 @@ int main(int argc, char *argv[])
    flow_solver.AddVelDirichletBC(vel_dbc, attr);
 
 
-   // Set particle BCs
-   particle_solver.Add2DReflectionBC(Vector({0.0, 1.0}), Vector({8.0, 1.0}), 1.0,
-                                     true);
-   particle_solver.Add2DReflectionBC(Vector({8.0, 1.0}), Vector({8.0, 9.0}), 1.0,
-                                     true);
-   particle_solver.Add2DReflectionBC(Vector({9.0, 9.0}), Vector({9.0, 1.0}), 1.0,
-                                     true);
-   particle_solver.Add2DReflectionBC(Vector({9.0, 1.0}), Vector({17.0, 1.0}), 1.0,
-                                     true);
-   particle_solver.Add2DReflectionBC(Vector({0.0, 0.0}), Vector({17.0, 0.0}), 1.0,
-                                     false);
+   // Set particle BCs - left normal for line connecting start to end must
+   // point into the domain. If not, we set invert_normal to true.
+   particle_solver.Add2DReflectionBC(Vector({0.0, 1.0}), Vector({8.0, 1.0}),
+                                     1.0, true);
+   particle_solver.Add2DReflectionBC(Vector({8.0, 1.0}), Vector({8.0, 9.0}),
+                                     1.0, true);
+   particle_solver.Add2DReflectionBC(Vector({9.0, 9.0}), Vector({9.0, 1.0}),
+                                     1.0, true);
+   particle_solver.Add2DReflectionBC(Vector({9.0, 1.0}), Vector({17.0, 1.0}),
+                                     1.0, true);
+   particle_solver.Add2DReflectionBC(Vector({0.0, 0.0}), Vector({17.0, 0.0}),
+                                     1.0, false);
 
    // Set up solution visualization
    char vishost[] = "localhost";
@@ -160,8 +170,8 @@ int main(int argc, char *argv[])
    char keys[] = "mAcRjlmm]]]]]]]]]";
    if (ctx.visualization)
    {
-      VisualizeField(vis_sol, vishost, ctx.visport, u_gf, "Velocity", Wx, Wy, Ww, Wh,
-                     keys);
+      VisualizeField(vis_sol, vishost, ctx.visport, u_gf, "Velocity",
+                     Wx, Wy, Ww, Wh, keys);
    }
 
    // Initialize ParaView DC (if freq != 0)
@@ -181,10 +191,20 @@ int main(int argc, char *argv[])
    }
 
    std::string csv_prefix = "Navier_Bifurcation_";
+   // Setup arrays to indicate what to print.
+   // Leave field array empty to only print minimal info, i.e. id, rank, and
+   // coordinates
+   Array<int> print_field_idxs;
+   // Print the first tag for each particle.
+   Array<int> print_tag_idxs(1);
+   print_tag_idxs[0] = 0;
    if (ctx.print_csv_freq > 0)
    {
-      std::string file_name = csv_prefix + mfem::to_padded_string(0, 6) + ".csv";
-      particle_solver.GetParticles().PrintCSV(file_name.c_str());
+      std::string file_name = csv_prefix +
+                              mfem::to_padded_string(0, 6) + ".csv";
+      particle_solver.GetParticles().PrintCSV(file_name.c_str(),
+                                              print_field_idxs,
+                                              print_tag_idxs);
    }
    int vis_count = 1;
 
@@ -199,31 +219,36 @@ int main(int argc, char *argv[])
       real_t cfl;
       flow_solver.Step(time, ctx.dt, step-1);
 
-      // Step particles after pnt_0
+      // Step particles after pnt_0 once the flow is sufficiently developed.
       if (step >= ctx.pnt_0)
       {
-         // Inject particles
+         // Inject particles at inlet and initialize their properties
          if (step % ctx.add_particles_freq == 0)
          {
-            int rank_num_particles = ctx.num_add_particles/size + (rank <
-                                                                   (ctx.num_add_particles % size) ? 1 : 0);
+            int rank_num_particles = ctx.num_add_particles/size +
+                                     (rank < (ctx.num_add_particles % size) ?
+                                      1 : 0);
             particle_solver.GetParticles().AddParticles(rank_num_particles,
                                                         &add_particle_idxs);
-            SetInjectedParticles(particle_solver, add_particle_idxs, ctx.kappa_min,
-                                 ctx.kappa_max, (rank+1)*step, ctx.zeta, ctx.gamma);
+            SetInjectedParticles(particle_solver, add_particle_idxs,
+                                 ctx.kappa_min, ctx.kappa_max,
+                                 (rank+1)*step, ctx.zeta, ctx.gamma);
          }
-
          particle_solver.Step(ctx.dt, u_gf, w_gf);
       }
 
+      // Output particle data to csv
       if (ctx.print_csv_freq > 0 && step % ctx.print_csv_freq == 0)
       {
          vis_count++;
-         // Output the particles
-         std::string file_name = csv_prefix + mfem::to_padded_string(step, 6) + ".csv";
-         particle_solver.GetParticles().PrintCSV(file_name.c_str());
+         std::string file_name = csv_prefix +
+                                 mfem::to_padded_string(step, 6) + ".csv";
+         particle_solver.GetParticles().PrintCSV(file_name.c_str(),
+                                                 print_field_idxs,
+                                                 print_tag_idxs);
       }
 
+      // Output flow data for ParaView
       if (ctx.paraview_freq > 0 && step % ctx.paraview_freq == 0)
       {
          pvdc->SetTime(vis_count);
@@ -231,6 +256,7 @@ int main(int argc, char *argv[])
          pvdc->Save();
       }
 
+      // GLVis visualization
       if (ctx.visualization)
       {
          VisualizeField(vis_sol, vishost, ctx.visport, u_gf,
@@ -238,8 +264,9 @@ int main(int argc, char *argv[])
       }
 
       cfl = flow_solver.ComputeCFL(u_gf, ctx.dt);
-      int global_np = particle_solver.GetParticles().GetGlobalNP();
-      int inactive_global_np = particle_solver.GetInactiveParticles().GetGlobalNP();
+      int global_np = particle_solver.GetParticles().GetGlobalNParticles();
+      int inactive_global_np =
+         particle_solver.GetInactiveParticles().GetGlobalNParticles();
       if (rank == 0)
       {
          printf("\n%-11s %-11s %-11s %-11s\n", "Step", "Time", "dt", "CFL");
@@ -285,18 +312,19 @@ void SetInjectedParticles(NavierParticles &particle_solver,
          if (j == 0)
          {
             // Set position
-            particle_solver.X().SetVectorValues(idx, Vector({0.0, spacing*(i+offset+1)}));
+            particle_solver.X().SetValues(idx,
+                                          Vector({0.0, spacing*(i+offset+1)}));
          }
          else
          {
             // Zero-out position history
-            particle_solver.X(j).SetVectorValues(idx, Vector({0.0,0.0}));
+            particle_solver.X(j).SetValues(idx, Vector({0.0,0.0}));
          }
 
          // Zero-out particle velocities, fluid velocities, and fluid vorticities
-         particle_solver.V(j).SetVectorValues(idx, Vector({0.0,0.0}));
-         particle_solver.U(j).SetVectorValues(idx, Vector({0.0,0.0}));
-         particle_solver.W(j).SetVectorValues(idx, Vector({0.0,0.0}));
+         particle_solver.V(j).SetValues(idx, Vector({0.0,0.0}));
+         particle_solver.U(j).SetValues(idx, Vector({0.0,0.0}));
+         particle_solver.W(j).SetValues(idx, Vector({0.0,0.0}));
 
          // Set Kappa, Zeta, Gamma
          std::mt19937 gen(kappa_seed);

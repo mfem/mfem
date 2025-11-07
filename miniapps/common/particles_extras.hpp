@@ -25,23 +25,26 @@ namespace common
 /// Add a point to a given Mesh, represented as a hex sized \p scale
 void Add3DPoint(const Vector &center, Mesh &m, real_t scale=2e-3);
 
-/// Plot a point cloud of particles, represented as hexes, colored by \p scalar_field
+/// Plot particles in ParticleSet \p pset, represented as hexes of
+/// size \p psize and colored by \p scalar_field .
 void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
-                        const ParticleSet &pset, const Vector &scalar_field, real_t psize,
-                        const char* title, int x = 0, int y = 0, int w = 400, int h = 400,
+                        const ParticleSet &pset,
+                        const Vector &scalar_field, real_t psize,
+                        const char* title,
+                        int x = 0, int y = 0, int w = 400, int h = 400,
                         const char* keys=nullptr);
 
 /// Helper class for easily visualizing particle trajectories using GLVis
 class ParticleTrajectories
 {
 protected:
-
    const ParticleSet &pset;
 
    socketstream sock;
-   std::vector<Array<unsigned int>>
-                                 segment_ids; /// Track particle IDs that exist at the segment start.
-   std::vector<Mesh> segment_meshes; /// Each segment is stored as a Mesh snapshot
+   /// Track particle IDs that exist at the segment start.
+   std::vector<Array<unsigned int>> segment_ids;
+   /// Each segment is stored as a Mesh snapshot
+   std::vector<Mesh> segment_meshes;
 
    int tail_size;
    int x, y, w, h;
@@ -57,13 +60,12 @@ protected:
    void SetSegmentEnd();
 
 public:
-
    ParticleTrajectories(const ParticleSet &particles, int tail_size_,
-                        const char *vishost, int visport, const char *title_, int x_=0, int y_=0,
-                        int w_=400, int h_=400, const char *keys_=nullptr);
+                        const char *vishost, int visport, const char *title_,
+                        int x_=0, int y_=0, int w_=400, int h_=400,
+                        const char *keys_=nullptr);
 
    void Visualize();
-
 };
 
 
