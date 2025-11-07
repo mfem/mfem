@@ -41,7 +41,7 @@ protected:
    std::vector<Vector> fields;
    std::vector<Array<int>> tags;
 public:
-   /** @brief Construct a Particle instance
+   /** @brief Construct a Particle instance.
     *  @param[in] dim          Spatial dimension (size of @a coords).
     *  @param[in] field_vdims  Vector dimensions of particle fields.
     *  @param[in] num_tags     Number of integer tags.
@@ -127,9 +127,8 @@ public:
  *
  *  @details Particles are inherently initialized to have a position and an ID,
  *  and optionally can have any number of Vector (of arbitrary vdim) and scalar
- *  integer data associated with in the form of @b fields and @b tags
- *  respectively. All particle data are internally stored as a
- *  Struct-of-Arrays, as elaborated on below.
+ *  integer data in the form of @b fields and @b tags respectively. All particle 
+ *  data are internally stored in a Struct-of-Arrays fashion, as elaborated on below.
  *
  *  @par Coordinates:
  *  All particle coordinates are stored in a \ref ParticleVector with vector
@@ -160,9 +159,9 @@ class ParticleSet
 private:
    /// Constructs an Array of size N filled with Ordering::Type o.
    static Array<Ordering::Type> GetOrderingArray(Ordering::Type o, int N);
-   /// returns default field name for field index i. "Field_{i}"
+   /// Returns default field name for field index i. "Field_{i}"
    static std::string GetDefaultFieldName(int i);
-   /// returns default tag name for tag index i. "Tag_{i}"
+   /// Returns default tag name for tag index i. "Tag_{i}"
    static std::string GetDefaultTagName(int i);
    /// Constructs an Array of size N filled with nullptr.
    static Array<const char*> GetEmptyNameArray(int N);
