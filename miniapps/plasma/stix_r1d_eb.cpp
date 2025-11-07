@@ -1179,7 +1179,7 @@ const char * banner[6] =
    R"(        \/               \/       \/           \/         \/         \/ )"
 };
 
-// Print the stix_r2d_eb ascii logo to the given ostream
+// Print the stix_r1d_eb ascii logo to the given ostream
 void display_banner(ostream & os)
 {
    for (int i=0; i<6; i++)
