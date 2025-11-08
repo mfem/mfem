@@ -95,7 +95,7 @@ bool QuadratureInterpolator::SupportsFESpace(const FiniteElementSpace &fespace)
    return (fe->GetMapType() == FiniteElement::MapType::VALUE ||
            fe->GetMapType() == FiniteElement::MapType::H_DIV)
           && (!fespace.IsVariableOrder())
-          && (mesh.GetNumGeometries(mesh.Dimension()) == 1);
+          && (!mesh.IsMixedMesh());
 }
 
 namespace internal
