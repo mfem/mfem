@@ -127,7 +127,7 @@ public:
  *
  *  @details Particles are inherently initialized to have a position and an ID,
  *  and optionally can have any number of Vector (of arbitrary vdim) and scalar
- *  integer data in the form of @b fields and @b tags respectively. All particle 
+ *  integer data in the form of @b fields and @b tags respectively. All particle
  *  data are internally stored in a Struct-of-Arrays fashion, as elaborated on below.
  *
  *  @par Coordinates:
@@ -218,78 +218,15 @@ protected:
    std::unique_ptr<gslib::crystal> cr;
 
    /** @brief Buffer for individual particle data used in \ref Transfer.
-    *  @tparam NData       Number of \ref real_t values for a particle.
-    *  @tparam NTag        Number of tags (integer data) for a particle.
+    *  @tparam NTotal      Number of bytes due to number of real_t and integer
+    *                      data for a particle.
     */
-   template<std::size_t NData, std::size_t NTag>
-   struct pdata_t
-   {
-      std::array<double, NData> data; // coords + fields
-      std::array<int, NTag> tags; // tags
-      unsigned int id;
-   };
-
    template<std::size_t NTotal>
-   struct pdata2_t
+   struct pdata_t
    {
       alignas(double) std::array<std::byte, NTotal> data;
       unsigned int id;
    };
-
-   /// Maximum number of real_t values for a \ref pdata_t compiled, used in
-   /// \ref Transfer.
-   static constexpr int NDATA_MAX = 5;
-
-   /// Maximum number of integer values for a \ref pdata_t compiled, used in
-   /// \ref Transfer.
-   static constexpr int NTAG_MAX = 2;
-
-   /** @brief Transfer particle data with \p NData \ref real_t values and
-    *  \p NTag integer values.
-    *
-    *  @tparam NData       Number of \ref real_t values for a particle.
-    *  @tparam NTag        Number of tags (integer data) for a particle.
-    *
-    *  @param[in] send_idxs   Array of particles indices to send.
-    *  @param[in] send_ranks  Array of ranks to send particles at \p send_idxs to.
-    */
-   template<std::size_t NData, std::size_t NTag>
-   void Transfer(const Array<unsigned int> &send_idxs,
-                 const Array<unsigned int> &send_ranks);
-
-   template<std::size_t NData, std::size_t... NTags>
-   void DispatchTagTransfer(const Array<unsigned int> &send_idxs,
-                            const Array<unsigned int> &send_ranks, std::index_sequence<NTags...>)
-   {
-      bool success = ( (tags.size() == NTags ? (Transfer<NData, NTags>(send_idxs,
-                                                                       send_ranks),true) : false) || ...);
-      (void)success;
-      MFEM_ASSERT(success, "Redistributing with > " << NTAG_MAX <<
-                  " tags is not supported. Please submit PR to request "
-                  " particular case with more.");
-   }
-
-   template<std::size_t... NDatas>
-   void DispatchDataTransfer(const Array<unsigned int> &send_idxs,
-                             const Array<unsigned int> &send_ranks, std::index_sequence<NDatas...>)
-   {
-      int total_comps = coords.GetVDim();
-      for (std::unique_ptr<ParticleVector> &pv : fields)
-      {
-         total_comps += pv->GetVDim();
-      }
-      bool success = ( (total_comps == NDatas ? (DispatchTagTransfer<NDatas>
-                                                 (send_idxs, send_ranks, std::make_index_sequence<NTAG_MAX+1> {}),
-                                                 true) : false) || ...);
-      (void)success;
-      MFEM_ASSERT(success, "Redistributing with > " << NDATA_MAX <<
-                  " real_t components per particle is not supported. Please "
-                  " submit PR to request particular case with more.");
-   }
-
-   using PSTransferType = void (*)(ParticleSet*,
-                                   const Array<unsigned int> &send_idxs,
-                                   const Array<unsigned int> &send_ranks);
 
    struct Kernels
    {
@@ -387,7 +324,6 @@ public:
                const Array<const char*> &tag_names_);
 
 #ifdef MFEM_USE_MPI
-
    /** @brief Construct a parallel ParticleSet.
     *
     *  @param[in] comm_               MPI communicator.
@@ -449,11 +385,9 @@ public:
 
    /// Get the MPI communicator for this ParticleSet.
    MPI_Comm GetComm() const { return comm; };
-
+#endif // MFEM_USE_MPI
    /// Get the global number of active particles across all ranks.
    unsigned int GetGlobalNParticles() const;
-
-#endif // MFEM_USE_MPI
 
    /// Get the spatial dimension.
    int GetDim() const { return coords.GetVDim(); }
@@ -554,6 +488,12 @@ public:
                  const Array<int> &tag_idxs, int precision=16);
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
+   using PSTransferType = void (*)(ParticleSet*,
+                                   const Array<unsigned int> &send_idxs,
+                                   const Array<unsigned int> &send_ranks);
+
+   // Register the kernel dispatch table
+   MFEM_REGISTER_KERNELS(Transfer, PSTransferType, (int));
 
    /** @brief Redistribute particle data to \p rank_list
     *
@@ -563,26 +503,21 @@ public:
    void Redistribute(const Array<unsigned int> &rank_list);
 
    template<std::size_t NTotData>
-   void Transfer2Run(const Array<unsigned int> &send_idxs,
-                     const Array<unsigned int> &send_ranks);
-
-   // Register the kernel dispatch table
-   MFEM_REGISTER_KERNELS(Transfer2, PSTransferType, (int));
-
-#endif // MFEM_USE_MPI && MFEM_USE_GSLIB
+   void TransferRun(const Array<unsigned int> &send_idxs,
+                    const Array<unsigned int> &send_ranks);
 
    template <int NTotal>
    static void AddSpecialization()
    {
-      Transfer2::Specialization<NTotal>::Add();
+      Transfer::Specialization<NTotal>::Add();
    }
+#endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
    /** @brief Destructor
     *
     * Destructor must be declared after inclusion of GSLIB header (so sizeof gslib::comm and gslib::crystal can be evaluated)
     */
    ~ParticleSet();
-
 };
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
@@ -594,13 +529,13 @@ inline void TransferWrapper(ParticleSet* self,
                             const Array<unsigned int> &send_idxs,
                             const Array<unsigned int> &send_ranks)
 {
-   self->Transfer2Run<NTotal>(send_idxs, send_ranks);
+   self->TransferRun<NTotal>(send_idxs, send_ranks);
 }
 } // namespace internal
 
 template <int NTotal>
 inline ParticleSet::PSTransferType
-ParticleSet::Transfer2::Kernel()
+ParticleSet::Transfer::Kernel()
 {
    return &internal::TransferWrapper<static_cast<std::size_t>(NTotal)>;
 }

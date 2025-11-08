@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // Sample run:
-//   mpirun -np 10 ./navier_bifurcation -rs 3 -npt 10 -pt 100 -nt 4e5 -csv 50 -pv 50
+//   mpirun -np 10 navier_bifurcation -rs 3 -npt 10 -pt 100 -nt 4e5 -csv 50 -pv 50
 
 
 #include "navier_solver.hpp"
@@ -20,10 +20,6 @@ using namespace std;
 using namespace mfem;
 using namespace navier;
 using namespace mfem::common;
-
-#ifndef MFEM_USE_GSLIB
-#error "This miniapp requires MFEM to be built with GSLIB."
-#endif
 
 struct flow_context
 {
@@ -50,6 +46,7 @@ struct flow_context
    int print_csv_freq = 500;
 } ctx;
 
+#ifdef MFEM_USE_GSLIB
 // Set properties for injected particles. The location is set randomly to be
 // on the inlet boundary (x=0), velocity is initialized to 0, and
 // kappa (drag characteristic) is set randomly in [kappa_min, kappa_max]
@@ -58,6 +55,7 @@ void SetInjectedParticles(NavierParticles &particle_solver,
                           const Array<int> &p_idxs,
                           real_t kappa_min, real_t kappa_max, int kappa_seed,
                           real_t zeta, real_t gamma);
+#endif
 
 // Dirichlet conditions for velocity
 void vel_dbc(const Vector &x, real_t t, Vector &u);
@@ -66,7 +64,6 @@ int main(int argc, char *argv[])
 {
    // Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
-   int size = Mpi::WorldSize();
    int rank = Mpi::WorldRank();
    Hypre::Init();
 
@@ -126,18 +123,11 @@ int main(int argc, char *argv[])
    NavierSolver flow_solver(&pmesh, ctx.order, 1.0/ctx.Re);
    flow_solver.EnablePA(true);
 
-   // Create the particle solver
-   NavierParticles particle_solver(MPI_COMM_WORLD, 0, pmesh);
-   int nparticles = ((ctx.nt - ctx.pnt_0)/ctx.add_particles_freq) *
-                    ctx.num_add_particles / size;
-   particle_solver.GetParticles().Reserve(nparticles);
-
    real_t time = 0.0;
 
    // Initialize fluid IC
    VectorFunctionCoefficient u_excoeff(2, vel_dbc);
    ParGridFunction &u_gf = *flow_solver.GetCurrentVelocity();
-   ParGridFunction &w_gf = *flow_solver.GetCurrentVorticity();
    u_excoeff.SetTime(time);
 
    // Set fluid BCs
@@ -149,6 +139,13 @@ int main(int argc, char *argv[])
    attr[1] = 1;
    flow_solver.AddVelDirichletBC(vel_dbc, attr);
 
+#ifdef MFEM_USE_GSLIB
+   ParGridFunction &w_gf = *flow_solver.GetCurrentVorticity();
+   // Create the particle solver
+   NavierParticles particle_solver(MPI_COMM_WORLD, 0, pmesh);
+   int nparticles = ((ctx.nt - ctx.pnt_0)/ctx.add_particles_freq) *
+                    ctx.num_add_particles / Mpi::WorldSize();
+   particle_solver.GetParticles().Reserve(nparticles);
 
    // Set particle BCs - left normal for line connecting start to end must
    // point into the domain. If not, we set invert_normal to true.
@@ -162,6 +159,7 @@ int main(int argc, char *argv[])
                                      1.0, true);
    particle_solver.Add2DReflectionBC(Vector({0.0, 0.0}), Vector({17.0, 0.0}),
                                      1.0, false);
+#endif
 
    // Set up solution visualization
    char vishost[] = "localhost";
@@ -191,6 +189,7 @@ int main(int argc, char *argv[])
       pvdc->Save();
    }
 
+#ifdef MFEM_USE_GSLIB
    std::string csv_prefix = "Navier_Bifurcation_";
    // Setup arrays to indicate what to print.
    // Leave field array empty to only print minimal info, i.e. id, rank, and
@@ -207,12 +206,13 @@ int main(int argc, char *argv[])
                                               print_field_idxs,
                                               print_tag_idxs);
    }
-   int vis_count = 1;
+   particle_solver.Setup(ctx.dt);
+#endif
 
    flow_solver.Setup(ctx.dt);
-   particle_solver.Setup(ctx.dt);
 
    u_gf.ProjectCoefficient(u_excoeff);
+   int vis_count = 1;
 
    Array<int> add_particle_idxs;
    for (int step = 1; step <= ctx.nt; step++)
@@ -220,12 +220,14 @@ int main(int argc, char *argv[])
       real_t cfl;
       flow_solver.Step(time, ctx.dt, step-1);
 
+#ifdef MFEM_USE_GSLIB
       // Step particles after pnt_0 once the flow is sufficiently developed.
       if (step >= ctx.pnt_0)
       {
          // Inject particles at inlet and initialize their properties
          if (step % ctx.add_particles_freq == 0)
          {
+            int size = Mpi::WorldSize();
             int rank_num_particles = ctx.num_add_particles/size +
                                      (rank < (ctx.num_add_particles % size) ?
                                       1 : 0);
@@ -248,6 +250,7 @@ int main(int argc, char *argv[])
                                                  print_field_idxs,
                                                  print_tag_idxs);
       }
+#endif
 
       // Output flow data for ParaView
       if (ctx.paraview_freq > 0 && step % ctx.paraview_freq == 0)
@@ -265,15 +268,19 @@ int main(int argc, char *argv[])
       }
 
       cfl = flow_solver.ComputeCFL(u_gf, ctx.dt);
+#ifdef MFEM_USE_GSLIB
       int global_np = particle_solver.GetParticles().GetGlobalNParticles();
       int inactive_global_np =
          particle_solver.GetInactiveParticles().GetGlobalNParticles();
+#endif
       if (rank == 0)
       {
          printf("\n%-11s %-11s %-11s %-11s\n", "Step", "Time", "dt", "CFL");
          printf("%-11i %-11.5E %-11.5E %-11.5E\n", step, time, ctx.dt, cfl);
+#ifdef MFEM_USE_GSLIB
          printf("\n%16s: %-9i\n", "Active Particles", global_np);
          printf("%16s: %-9i\n", "Lost Particles", inactive_global_np);
+#endif
          printf("-----------------------------------------------\n");
          fflush(stdout);
       }
@@ -284,6 +291,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
+#ifdef MFEM_USE_GSLIB
 void SetInjectedParticles(NavierParticles &particle_solver,
                           const Array<int> &p_idxs, real_t kappa_min, real_t kappa_max, int kappa_seed,
                           real_t zeta, real_t gamma)
@@ -339,8 +347,8 @@ void SetInjectedParticles(NavierParticles &particle_solver,
       // Set order to 0
       particle_solver.Order()[idx] = 0;
    }
-
 }
+#endif
 
 // Dirichlet conditions for velocity
 void vel_dbc(const Vector &x, real_t t, Vector &u)
