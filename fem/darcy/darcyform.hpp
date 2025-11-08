@@ -58,6 +58,7 @@ protected:
 
    void AssembleDivLDGFaces(int skip_zeros);
    void AssemblePotLDGFaces(int skip_zeros);
+   void AssembleFluxHDGFaces(int skip_zeros);
    void AssemblePotHDGFaces(int skip_zeros);
 
    void AllocBlockOp(bool nonconforming = false);

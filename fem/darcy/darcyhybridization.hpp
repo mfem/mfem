@@ -106,8 +106,8 @@ private:
    mutable Array<int> Df_ipiv;
    bool D_empty{true};
 
-   Array<int> Ct_offsets;
-   Array<real_t> Ct_data;
+   mutable Array<int> Ct_offsets;
+   mutable Array<real_t> C_data, Ct_data;
 
    mutable Array<int> E_offsets;
    mutable Array<real_t> E_data;
@@ -288,18 +288,23 @@ private:
    void AssembleGtFaceMatrix(int face, const DenseMatrix &elmat);
    void AssembleCtSubMatrix(int el, const DenseMatrix &elmat,
                             DenseMatrix &Ct, int ioff=0);
+   void AssembleCSubMatrix(int el, const DenseMatrix &elmat,
+                           DenseMatrix &Ct, int joff=0);
    using face_getter = std::function<void(int, DenseMatrix &)>;
    void AssembleNCSlaveFaceMatrix(int f,
                                   face_getter fx_Ct = face_getter(), const DenseMatrix *Ct = NULL,
                                   face_getter fx_C = face_getter(), const DenseMatrix *C = NULL,
                                   face_getter fx_H = face_getter(), const DenseMatrix *H = NULL);
    void AssembleNCSlaveCtFaceMatrix(int f, const DenseMatrix &Ct);
+   void AssembleNCSlaveCtCFaceMatrix(int f, const DenseMatrix &Ct,
+                                     const DenseMatrix &C);
    void AssembleNCSlaveGtFaceMatrix(int f, const DenseMatrix &Gt);
    void AssembleNCSlaveEGFaceMatrix(int f, const DenseMatrix &E,
                                     const DenseMatrix &G);
    void AssembleNCSlaveHFaceMatrix(int f, const DenseMatrix &H);
    void ConstructC();
    void ConstructG();
+   void AllocC(bool sym = false) const;
    void AllocD() const;
    void AllocEG(bool sym = false) const;
    void AllocH() const;
@@ -321,6 +326,7 @@ private:
                     OperatorHandle &pH) const;
 #endif
    void GetCtFaceMatrix(int f, int side, DenseMatrix & Ct) const;
+   void GetCFaceMatrix(int f, int side, DenseMatrix & C) const;
    void GetEFaceMatrix(int f, int side, DenseMatrix &E) const;
    void GetGFaceMatrix(int f, int side, DenseMatrix &G) const;
    void GetHFaceMatrix(int f, DenseMatrix &H) const;
@@ -539,6 +545,13 @@ public:
    void AssemblePotMassMatrix(int el, const DenseMatrix &D);
 
    void AssembleDivMatrix(int el, const DenseMatrix &B);
+
+   void ComputeAndAssembleFluxFaceMatrix(int face,
+                                         DenseMatrix & elmat1, DenseMatrix & elmat2,
+                                         Array<int>& vdofs1, Array<int>& vdofs2, int skip_zeros = 1);
+
+   void ComputeAndAssembleFluxBdrFaceMatrix(int bface, DenseMatrix & elmat,
+                                            Array<int>& vdofs, int skip_zeros = 1);
 
    void ComputeAndAssemblePotFaceMatrix(int face,
                                         DenseMatrix & elmat1, DenseMatrix & elmat2,
