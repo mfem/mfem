@@ -525,11 +525,11 @@ void DarcyForm::EnablePotentialHybridization(FiniteElementSpace *constr_space,
    }
 
    // Automatically add the boundary potential constraint integrators
-   /*if (M_p)
+   if (M_u)
    {
-      auto bfbfi = M_p->GetBFBFI();
-      auto bfbfi_marker = M_p->GetBFBFI_Marker();
-      hybridization->UseExternalBdrPotConstraintIntegrators();
+      auto bfbfi = M_u->GetBFBFI();
+      auto bfbfi_marker = M_u->GetBFBFI_Marker();
+      hybridization->UseExternalBdrFluxConstraintIntegrators();
 
       for (int i = 0; i < bfbfi->Size(); i++)
       {
@@ -537,15 +537,15 @@ void DarcyForm::EnablePotentialHybridization(FiniteElementSpace *constr_space,
          Array<int> *bfi_marker = (*bfbfi_marker)[i];
          if (bfi_marker)
          {
-            hybridization->AddBdrPotConstraintIntegrator(bfi, *bfi_marker);
+            hybridization->AddBdrFluxConstraintIntegrator(bfi, *bfi_marker);
          }
          else
          {
-            hybridization->AddBdrPotConstraintIntegrator(bfi);
+            hybridization->AddBdrFluxConstraintIntegrator(bfi);
          }
       }
    }
-   else if (Mnl_p)
+   /*else if (Mnl_p)
    {
       auto bfnlfi = Mnl_p->GetBdrFaceIntegrators();
       auto bfnlfi_marker = Mnl_p->GetBdrFaceIntegratorsMarkers();
