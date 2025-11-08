@@ -71,7 +71,7 @@ public:
    {
       MFEM_ASSERT(f >= 0 && static_cast<std::size_t>(f) <  fields.size(),
                   "invalid field index");
-      MFEM_ASSERT(c >= 0 && static_cast<std::size_t>(c) < fields[f].Size(),
+      MFEM_ASSERT(c >= 0 && c < fields[f].Size(),
                   "invalid component index");
       return fields[f][c];
    }
@@ -81,7 +81,7 @@ public:
    {
       MFEM_ASSERT(f >= 0 && static_cast<std::size_t>(f) <  fields.size(),
                   "invalid field index");
-      MFEM_ASSERT(c >= 0 && static_cast<std::size_t>(c) < fields[f].Size(),
+      MFEM_ASSERT(c >= 0 && c < fields[f].Size(),
                   "invalid component index");
       return fields[f][c];
    }
