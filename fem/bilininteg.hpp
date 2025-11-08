@@ -2221,7 +2221,7 @@ protected:
 class GradientIntegrator : public BilinearFormIntegrator
 {
 protected:
-   Coefficient *Q;
+   Coefficient *Q{};
    MatrixCoefficient *MQ{};
 
 private:
