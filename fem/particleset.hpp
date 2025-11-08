@@ -69,44 +69,52 @@ public:
    /// Get reference to field \p f , component \p c value.
    real_t& FieldValue(int f, int c=0)
    {
-      MFEM_ASSERT(f >= 0 && f < fields.size(), "invalid field index");
-      MFEM_ASSERT(c >= 0 && c < fields[f].Size(), "invalid component index");
+      MFEM_ASSERT(f >= 0 && static_cast<std::size_t>(f) <  fields.size(),
+                  "invalid field index");
+      MFEM_ASSERT(c >= 0 && static_cast<std::size_t>(c) < fields[f].Size(),
+                  "invalid component index");
       return fields[f][c];
    }
 
    /// Get const reference to field \p f , component \p c value.
    const real_t& FieldValue(int f, int c=0) const
    {
-      MFEM_ASSERT(f >= 0 && f < fields.size(), "invalid field index");
-      MFEM_ASSERT(c >= 0 && c < fields[f].Size(), "invalid component index");
+      MFEM_ASSERT(f >= 0 && static_cast<std::size_t>(f) <  fields.size(),
+                  "invalid field index");
+      MFEM_ASSERT(c >= 0 && static_cast<std::size_t>(c) < fields[f].Size(),
+                  "invalid component index");
       return fields[f][c];
    }
 
    /// Get reference to field \p f Vector.
    Vector& Field(int f)
    {
-      MFEM_ASSERT(f >= 0 && f < fields.size(), "invalid field index");
+      MFEM_ASSERT(f >= 0 && static_cast<std::size_t>(f) <  fields.size(),
+                  "invalid field index");
       return fields[f];
    }
 
    /// Get const reference to field \p f Vector.
    const Vector& Field(int f) const
    {
-      MFEM_ASSERT(f >= 0 && f < fields.size(), "invalid field index");
+      MFEM_ASSERT(f >= 0 && static_cast<std::size_t>(f) <  fields.size(),
+                  "invalid field index");
       return fields[f];
    }
 
    /// Get reference to tag \p t .
    int& Tag(int t)
    {
-      MFEM_ASSERT(t >= 0 && t < tags.size(), "invalid tag index");
+      MFEM_ASSERT(t >= 0 && static_cast<std::size_t>(t) <  tags.size(),
+                  "invalid tag index");
       return tags[t][0];
    }
 
    /// Get const reference to tag \p t .
    const int& Tag(int t) const
    {
-      MFEM_ASSERT(t >= 0 && t < tags.size(), "invalid tag index");
+      MFEM_ASSERT(t >= 0 && static_cast<std::size_t>(t) <  tags.size(),
+                  "invalid tag index");
       return tags[t][0];
    }
 
