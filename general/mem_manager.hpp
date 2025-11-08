@@ -28,7 +28,7 @@
 #endif
 #endif
 
-#define USE_NEW_MEM_MANAGER 0
+#define USE_NEW_MEM_MANAGER 1
 
 namespace mfem
 {

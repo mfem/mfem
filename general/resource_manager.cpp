@@ -1071,6 +1071,40 @@ void MemoryManager::clear_segment(size_t segment, bool on_device)
    clear_segment(seg, on_device);
 }
 
+void MemoryManager::Dealloc(size_t segment)
+{
+   if (valid_segment(segment))
+   {
+      auto &seg = storage.get_segment(segment);
+      if (seg.ref_count)
+      {
+         // deallocate
+         if (seg.lowers[1])
+         {
+            if ((seg.flag & RBase::Segment::OWN_DEVICE) &&
+                seg.lowers[1] != seg.lowers[0])
+            {
+               Dealloc(seg.lowers[1], seg.mtypes[1],
+                       seg.flag & RBase::Segment::TEMPORARY);
+               clear_segment(segment, true);
+               seg.lowers[1] = nullptr;
+            }
+         }
+         if (seg.lowers[0])
+         {
+            if (seg.flag & RBase::Segment::OWN_HOST)
+            {
+               Dealloc(seg.lowers[0], seg.mtypes[0],
+                       seg.flag & RBase::Segment::TEMPORARY);
+               clear_segment(segment, false);
+               seg.lowers[0] = nullptr;
+               seg.lowers[1] = nullptr;
+            }
+         }
+      }
+   }
+}
+
 void MemoryManager::erase(size_t segment)
 {
    if (valid_segment(segment))
@@ -1080,25 +1114,10 @@ void MemoryManager::erase(size_t segment)
       {
          if (!--seg.ref_count)
          {
-            // deallocate
-            if (seg.lowers[1])
-            {
-               if ((seg.flag & RBase::Segment::OWN_DEVICE) &&
-                   seg.lowers[1] != seg.lowers[0])
-               {
-                  Dealloc(seg.lowers[1], seg.mtypes[1],
-                          seg.flag & RBase::Segment::TEMPORARY);
-               }
-            }
-            if (seg.lowers[0])
-            {
-               if (seg.flag & RBase::Segment::OWN_HOST)
-               {
-                  Dealloc(seg.lowers[0], seg.mtypes[0],
-                          seg.flag & RBase::Segment::TEMPORARY);
-               }
-            }
-
+            seg.lowers[0] = nullptr;
+            seg.lowers[1] = nullptr;
+            seg.nbytes = 0;
+            seg.flag = RBase::Segment::Flags::NONE;
             clear_segment(segment);
             storage.cleanup_segments();
          }
@@ -1408,6 +1427,10 @@ char *MemoryManager::write(size_t segment, size_t offset, size_t nbytes,
       auto &seg = storage.get_segment(segment);
       if (!seg.lowers[on_device])
       {
+         if (!seg.lowers[!on_device])
+         {
+            return nullptr;
+         }
          // need to allocate
          if (seg.mtypes[on_device] == MemoryType::DEFAULT)
          {
@@ -1655,6 +1678,10 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
       auto &seg = storage.get_segment(segment);
       if (!seg.lowers[on_device])
       {
+         if (!seg.lowers[!on_device])
+         {
+            return nullptr;
+         }
          // need to allocate
          if (seg.mtypes[on_device] == MemoryType::DEFAULT)
          {
@@ -1741,6 +1768,10 @@ const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
       auto &seg = storage.get_segment(segment);
       if (!seg.lowers[on_device])
       {
+         if (!seg.lowers[!on_device])
+         {
+            return nullptr;
+         }
          // need to allocate
          if (seg.mtypes[on_device] == MemoryType::DEFAULT)
          {

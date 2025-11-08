@@ -228,6 +228,9 @@ private:
                  MemoryType dloc, bool own_host, bool own_device,
                  bool temporary);
 
+   /// Actually deallocate memory in segment (if owned)
+   void Dealloc(size_t segment);
+
    /// Decreases reference count on @a segment
    void erase(size_t segment);
 
@@ -400,17 +403,25 @@ template <class T> class Memory
    size_t offset_ = 0;
    size_t size_ = 0;
    size_t segment = 0;
-   mutable bool use_device = false;
+   enum Flags
+   {
+      NONE = 0,
+      USE_DEVICE = 1,
+      OWNS_CONTROL = 1 << 1,
+      AUTO_DELETE = 1 << 2,
+   };
+   mutable Flags flags = NONE;
 
    friend class MemoryManager;
 
 public:
-   Memory() : offset_(0), size_(0), segment(0) {}
+   Memory() = default;
    explicit Memory(int size);
    explicit Memory(MemoryType mt);
    Memory(T *ptr, size_t count, bool own);
    Memory(T *ptr, size_t count, MemoryType loc);
    Memory(T *ptr, size_t count, MemoryType loc, bool own);
+   Memory(const Memory &base, int offset, int size);
    Memory(size_t count, MemoryType loc, bool temporary = false);
 
    Memory(size_t count, MemoryType hloc, MemoryType dloc,
@@ -450,6 +461,20 @@ public:
       return inst.ZeroCopy(segment);
    }
 
+   bool AutoDelete() const { return flags & AUTO_DELETE; }
+   /// delete on destruction/re-assignment (if owns)
+   void SetAutoDelete(bool val = true)
+   {
+      if (val)
+      {
+         flags = static_cast<Flags>(flags | AUTO_DELETE);
+      }
+      else
+      {
+         flags = static_cast<Flags>(flags & ~AUTO_DELETE);
+      }
+   }
+
    void SetDevicePtrOwner(bool own) const
    {
       auto &inst = MemoryManager::instance();
@@ -462,8 +487,18 @@ public:
       inst.clear_owner_flags(segment);
    }
 
-   bool UseDevice() const { return use_device; }
-   void UseDevice(bool use_dev) const { use_device = use_dev; }
+   bool UseDevice() const { return flags & USE_DEVICE; }
+   void UseDevice(bool use_dev) const
+   {
+      if (use_dev)
+      {
+         flags = static_cast<Flags>(flags | USE_DEVICE);
+      }
+      else
+      {
+         flags = static_cast<Flags>(flags & ~USE_DEVICE);
+      }
+   }
 
    Memory CreateAlias(size_t offset, size_t count) const;
 
@@ -493,7 +528,10 @@ public:
    void New(size_t size, bool temporary = false)
    {
       auto &inst = MemoryManager::instance();
+      // preserve USE_DEVICE and AUTO_DELETE
+      auto old_flags = flags;
       *this = Memory(size, inst.memory_types[0], temporary);
+      flags = static_cast<Flags>(flags | old_flags);
    }
 
    void New(size_t size, MemoryType loc, bool temporary = false)
@@ -510,7 +548,10 @@ public:
             loc = inst.GetHostMemoryType();
          }
       }
+      // preserve USE_DEVICE and AUTO_DELETE
+      auto old_flags = flags;
       *this = Memory(size, loc, temporary);
+      flags = static_cast<Flags>(flags | old_flags);
    }
 
    void New(size_t size, MemoryType hloc, MemoryType dloc,
@@ -540,10 +581,25 @@ public:
             dloc = inst.GetDeviceMemoryType();
          }
       }
+      // preserve USE_DEVICE and AUTO_DELETE
+      auto old_flags = flags;
       *this = Memory(size, hloc, dloc, temporary);
+      flags = static_cast<Flags>(flags | old_flags);
    }
 
-   void Delete() { *this = Memory(); }
+   void Delete()
+   {
+      auto& inst = MemoryManager::instance();
+      if (flags & OWNS_CONTROL)
+      {
+         inst.Dealloc(segment);
+      }
+      inst.erase(segment);
+      offset_ = 0;
+      size_ = 0;
+      segment = 0;
+      flags = static_cast<Flags>(flags & ~OWNS_CONTROL);
+   }
 
    void Wrap(T *ptr, size_t size, bool own)
    {
@@ -702,6 +758,11 @@ public:
    }
 };
 
+template <class T> Memory<T>::Memory(const Memory &base, int offset, int size)
+{
+   MakeAlias(base, offset, size);
+}
+
 template <class T> Memory<T>::Memory(int count)
 {
    auto &inst = MemoryManager::instance();
@@ -710,6 +771,7 @@ template <class T> Memory<T>::Memory(int count)
    segment =
       inst.insert(inst.Alloc(count * sizeof(T), inst.memory_types[0], false),
                   count * sizeof(T), inst.memory_types[0], true, false);
+   flags = OWNS_CONTROL;
 }
 
 template <class T> Memory<T>::Memory(MemoryType mt) : Memory() { Reset(mt); }
@@ -727,6 +789,7 @@ template <class T> Memory<T>::Memory(T *ptr, size_t count, MemoryType loc)
                          false, false);
    offset_ = 0;
    size_ = count;
+   flags = OWNS_CONTROL;
 }
 
 template <class T> Memory<T>::Memory(T *ptr, size_t count, bool own)
@@ -736,6 +799,7 @@ template <class T> Memory<T>::Memory(T *ptr, size_t count, bool own)
                          inst.memory_types[0], own, false);
    offset_ = 0;
    size_ = count;
+   flags = OWNS_CONTROL;
 }
 
 template <class T>
@@ -746,6 +810,7 @@ Memory<T>::Memory(T *ptr, size_t count, MemoryType loc, bool own)
                          own, false);
    offset_ = 0;
    size_ = count;
+   flags = OWNS_CONTROL;
 }
 
 template <class T>
@@ -756,6 +821,7 @@ Memory<T>::Memory(size_t count, MemoryType loc, bool temporary)
    size_ = count;
    segment = inst.insert(inst.Alloc(count * sizeof(T), loc, temporary),
                          count * sizeof(T), loc, true, temporary);
+   flags = OWNS_CONTROL;
 }
 
 template <class T>
@@ -776,11 +842,12 @@ Memory<T>::Memory(size_t count, MemoryType hloc, MemoryType dloc,
                             inst.Alloc(count * sizeof(T), dloc, temporary),
                             count * sizeof(T), hloc, dloc, true, true, temporary);
    }
+   flags = OWNS_CONTROL;
 }
 
 template <class T>
 Memory<T>::Memory(const Memory &r)
-   : offset_(r.offset_), size_(r.size_), segment(r.segment)
+   : offset_(r.offset_), size_(r.size_), segment(r.segment), flags(r.flags)
 {
    auto &inst = MemoryManager::instance();
    if (inst.valid_segment(segment))
@@ -788,15 +855,17 @@ Memory<T>::Memory(const Memory &r)
       auto &seg = inst.storage.get_segment(segment);
       ++seg.ref_count;
    }
+   flags = static_cast<Flags>(flags & ~OWNS_CONTROL);
 }
 
 template <class T>
 Memory<T>::Memory(Memory &&r)
-   : offset_(r.offset_), size_(r.size_), segment(r.segment)
+   : offset_(r.offset_), size_(r.size_), segment(r.segment), flags(r.flags)
 {
    r.offset_ = 0;
    r.size_ = 0;
    r.segment = 0;
+   r.flags = NONE;
 }
 
 template <class T> Memory<T> &Memory<T>::operator=(const Memory &r)
@@ -806,7 +875,14 @@ template <class T> Memory<T> &Memory<T>::operator=(const Memory &r)
       auto &inst = MemoryManager::instance();
       if (inst.valid_segment(segment))
       {
-         inst.erase(segment);
+         if (AutoDelete() && r.segment != segment)
+         {
+            Delete();
+         }
+         else
+         {
+            inst.erase(segment);
+         }
       }
       offset_ = r.offset_;
       size_ = r.size_;
@@ -816,6 +892,7 @@ template <class T> Memory<T> &Memory<T>::operator=(const Memory &r)
          auto &seg = inst.storage.get_segment(segment);
          ++seg.ref_count;
       }
+      flags = static_cast<Flags>(r.flags & ~OWNS_CONTROL);
    }
    return *this;
 }
@@ -827,14 +904,23 @@ template <class T> Memory<T> &Memory<T>::operator=(Memory &&r) noexcept
       auto &inst = MemoryManager::instance();
       if (inst.valid_segment(segment))
       {
-         inst.erase(segment);
+         if (AutoDelete() && r.segment != segment)
+         {
+            Delete();
+         }
+         else
+         {
+            inst.erase(segment);
+         }
       }
       offset_ = r.offset_;
       size_ = r.size_;
       segment = r.segment;
+      flags = r.flags;
       r.offset_ = 0;
       r.size_ = 0;
       r.segment = 0;
+      r.flags = NONE;
    }
    return *this;
 }
@@ -925,7 +1011,14 @@ template <class T> Memory<T>::~Memory()
    auto &inst = MemoryManager::instance();
    if (inst.valid_segment(segment))
    {
-      inst.erase(segment);
+      if (AutoDelete())
+      {
+         Delete();
+      }
+      else
+      {
+         inst.erase(segment);
+      }
    }
 }
 
