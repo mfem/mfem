@@ -172,6 +172,13 @@ public:
    /// Resize the vector to size @a s using the MemoryType of @a v.
    void SetSize(int s, const Vector &v) { SetSize(s, v.GetMemory().GetMemoryType()); }
 
+   /// Update \ref Capacity() to @a res (if less than current), keeping existing entries.
+   void Reserve(int res);
+
+   /// Delete entries at @a indices and resize vector accordingly.
+   /// @warning Indices must be unique!
+   void DeleteAt(const Array<int> &indices);
+
    /// Set the Vector data.
    /// @warning This method should be called only when OwnsData() is false.
    void SetData(real_t *d) { data.Wrap(d, data.Capacity(), false); }
@@ -620,6 +627,18 @@ inline void Vector::SetSize(int s, MemoryType mt)
       size = 0;
    }
    data.UseDevice(use_dev);
+}
+
+inline void Vector::Reserve(int res)
+{
+   if (res > Capacity())
+   {
+      Memory<real_t> p(res, data.GetMemoryType());
+      p.CopyFrom(data, size);
+      p.UseDevice(data.UseDevice());
+      data.Delete();
+      data = p;
+   }
 }
 
 inline void Vector::NewMemoryAndSize(const Memory<real_t> &mem, int s,

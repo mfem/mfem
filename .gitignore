@@ -85,6 +85,7 @@ examples/sol_u.*
 examples/sol_p.*
 examples/sol_r.*
 examples/sol_i.*
+examples/sol_z.*
 examples/ex6p-checkpoint.*
 examples/order.*
 examples/ex9.mesh
