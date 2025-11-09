@@ -193,6 +193,88 @@ public:
                                Vector *d_energy = NULL) override;
 };
 
-}
+/** Integrator for the H/LDG diffusion stabilization term
+    The LDG stabilization takes the form
+    $$
+        1/2 \beta \langle \{h^{-1} Q\} [v], [w] \rangle
+    $$
+    where $Q$ is a scalar or matrix diffusion coefficient and $v$, $w$ are the trial
+    and test functions, respectively.
+
+    The corresponding HDG stabilization is then
+    $$\begin{align}
+        \langle \tau_\pm v_\pm, w_\pm \rangle, & -\langle \tau_\pm \lambda,          w_\pm \rangle,\\
+        \langle \tau_\pm v_\pm, \mu   \rangle, & -\langle (\tau_+ + \tau_-) \lambda, \mu   \rangle,
+    \end{align}$$
+    where $\tau_\pm = (\beta \pm 1/2 \alpha (u \cdot n) / |u \cdot n|) \{h^{-1} Q\}$
+    and $\lambda$, $\mu$ are the trial and test trace functions, respectively. The vector
+    coefficient $u$ is assumed continuous across the faces. */
+class HDGWeakDiffusionIntegrator : public BilinearFormIntegrator
+{
+protected:
+   VectorCoefficient *v;
+   Coefficient *Q;
+   MatrixCoefficient *MQ;
+   real_t alpha, beta;
+
+   // these are not thread-safe!
+   Vector tr_shape, shape1, shape2, vu, nor, nh, ni;
+   DenseMatrix mq;
+
+public:
+   /// Construct integrator with $\alpha = 0$ and $\beta = a$.
+   HDGWeakDiffusionIntegrator(const real_t a = 0.5)
+      : v(NULL), Q(NULL), MQ(NULL), alpha(0.), beta(a) { }
+
+   /// Construct integrator with $\alpha = 0$ and $\beta = a$.
+   HDGWeakDiffusionIntegrator(Coefficient &q, const real_t a = 0.5)
+      : v(NULL), Q(&q), MQ(NULL), alpha(0.), beta(a) { }
+
+   /// Construct integrator with $\alpha = 0$ and $\beta = a$.
+   HDGWeakDiffusionIntegrator(MatrixCoefficient &q, const real_t a = 0.5)
+      : v(NULL), Q(NULL), MQ(&q), alpha(0.), beta(a) { }
+
+   /// Construct integrator with $\alpha = a$ and $\beta = a/2$.
+   /*HDGWeakDiffusionIntegrator(VectorCoefficient &v_, const real_t a = 0.5)
+      : v(&v_), Q(NULL), MQ(NULL), alpha(a), beta(0.5*a) { }
+
+   /// Construct integrator with $\alpha = a$ and $\beta = a/2$.
+   HDGWeakDiffusionIntegrator(VectorCoefficient &v_, Coefficient &q,
+                          const real_t a = 0.5)
+      : v(&v_), Q(&q), MQ(NULL), alpha(a), beta(0.5*a) { }
+
+   /// Construct integrator with $\alpha = a$ and $\beta = a/2$.
+   HDGWeakDiffusionIntegrator(VectorCoefficient &v_, MatrixCoefficient &q,
+                          const real_t a = 0.5)
+      : v(&v_), Q(NULL), MQ(&q), alpha(a), beta(0.5*a) { }*/
+
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   void AssembleFaceMatrix(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
+
+   void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
+                              const FiniteElement &el1,
+                              const FiniteElement &el2,
+                              FaceElementTransformations &Trans,
+                              DenseMatrix &elmat) override;
+
+   /*void AssembleHDGFaceVector(int type,
+                              const FiniteElement &trace_face_fe,
+                              const FiniteElement &fe,
+                              FaceElementTransformations &Tr,
+                              const Vector &trfun, const Vector &elfun,
+                              Vector &elvect) override;*/
+
+   /*real_t ComputeHDGFaceEnergy(int side,
+                               const FiniteElement &trace_face_fe,
+                               const FiniteElement &fe,
+                               FaceElementTransformations &Tr,
+                               const Vector &trfun, const Vector &elfun,
+                               Vector *d_energy = NULL) override;*/
+};
+
+} // namespace mfem
 
 #endif //MFEM_BILININTEG_HDG
