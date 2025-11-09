@@ -2,19 +2,20 @@
 //
 // Compile with: make ex41
 //
-// Sample runs: ex41
-//              ex41 -p 0 -r 2 -dt 0.01 -tf 10
-//              ex41 -p 0 -r 2 -dt 0.01 -tf 10 -cg
-//              ex41 -m ../data/periodic-hexagon.mesh -p 0 -r 2 -dt 0.005 -tf 10
-//              ex41 -m ../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 9
-//              ex41 -m ../data/periodic-hexagon.mesh -p 1 -r 2 -dt 0.005 -tf 9
-//              ex41 -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9
-//              ex41 -m ../data/star-q3.mesh -p 1 -r 2 -dt 0.001 -tf 9
-//              ex41 -m ../data/star-mixed.mesh -p 1 -r 2 -dt 0.005 -tf 9
-//              ex41 -m ../data/disc-nurbs.mesh -p 1 -r 3 -dt 0.005 -tf 9
-//              ex41 -m ../data/disc-nurbs.mesh -p 2 -r 3 -dt 0.005 -tf 9
-//              ex41 -m ../data/periodic-square.mesh -p 3 -r 4 -dt 0.0025 -tf 9 -vs 20
-//              ex41 -m ../data/periodic-cube.mesh -p 0 -r 2 -o 2 -dt 0.01 -tf 8
+// Sample runs: 
+//  ex41
+//  ex41 -p 0 -r 2 -dt 0.01 -tf 10
+//  ex41 -p 0 -r 2 -dt 0.01 -tf 10 -cg
+//  ex41 -m ../data/periodic-hexagon.mesh -p 0 -r 2 -dt 0.005 -tf 10
+//  ex41 -m ../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 9
+//  ex41 -m ../data/periodic-hexagon.mesh -p 1 -r 2 -dt 0.005 -tf 9
+//  ex41 -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9
+//  ex41 -m ../data/star-q3.mesh -p 1 -r 2 -dt 0.001 -tf 9
+//  ex41 -m ../data/star-mixed.mesh -p 1 -r 2 -dt 0.005 -tf 9
+//  ex41 -m ../data/disc-nurbs.mesh -p 1 -r 3 -dt 0.005 -tf 9
+//  ex41 -m ../data/disc-nurbs.mesh -p 2 -r 3 -dt 0.005 -tf 9
+//  ex41 -m ../data/periodic-square.mesh -p 3 -r 4 -dt 0.0025 -tf 9 -vs 20
+//  ex41 -m ../data/periodic-cube.mesh -p 0 -r 2 -o 2 -dt 0.01 -tf 8
 //
 // Device sample runs:
 //
@@ -24,7 +25,8 @@
 //               u0(x)=u(0,x) is a given initial condition.
 //
 //               The example demonstrates the use of Discontinuous Galerkin (DG)
-//               bilinear forms in MFEM (face integrators), and the use of IMEX ODE time integrators.
+//               bilinear forms in MFEM (face integrators), and the use of IMEX 
+//               ODE time integrators.
 //
 //               The Option to use Continuous Finite Elements is available too.
 
@@ -147,6 +149,8 @@ real_t u0_function(const Vector &x)
    return 0.0;
 }
 
+/// Solver for the implicit part of the ODE (the diffusion term).
+/// Solves systems of the form: (M + dt*S) k = rhs.
 class Implicit_Solver : public Solver
 {
 private:
@@ -285,7 +289,7 @@ int main(int argc, char *argv[])
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  ODESolver::Types.c_str());
+                  ODESolver::IMEXTypes.c_str());
    args.AddOption(&t_final, "-tf", "--t-final", "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step", "Time step.");
    args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraview",
@@ -324,10 +328,10 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file);
    const int dim = mesh.Dimension();
 
-   // 3. Define the Split ODE solver used for time integration. The IMEX solvers currently
-   // available are: 55 - Forward Backward Euler, 56 - IMEXRK2(2,2,2), 57 - IMEXRK2(2,3,2), and
-   // 58 - IMEX_DIRK_RK3.
-   unique_ptr<SplitODESolver> ode_solver = SplitODESolver::Select(ode_solver_type);
+   // 3. Define the IMEX (Split) ODE solver used for time integration. The IMEX
+   // solvers currently available are: 55 - Forward Backward Euler, 
+   // 56 - IMEXRK2(2,2,2), 57 - IMEXRK2(2,3,2), and  58 - IMEX_DIRK_RK3.
+   unique_ptr<ODESolver> ode_solver = ODESolver::SelectIMEX(ode_solver_type);
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
