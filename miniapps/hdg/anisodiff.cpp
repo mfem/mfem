@@ -578,7 +578,7 @@ int main(int argc, char *argv[])
          cerr << "Warning: Using linear stabilization for non-linear diffusion" << endl;
       }
 
-      if (upwinded && td > 0. && hybridization)
+      /*if (upwinded && td > 0. && hybridization)
       {
          if (Mt)
          {
@@ -593,19 +593,27 @@ int main(int argc, char *argv[])
                                        bdr_is_neumann);
          }
       }
-      else if (!upwinded && td > 0.)
+      else*/ if (!upwinded && td > 0.)
       {
+#if 0
          if (Mt)
          {
             Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
             Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
          }
-         if (Mtnl)
+#else
+         if (Mq)
+         {
+            Mq->AddInteriorFaceIntegrator(new HDGWeakDiffusionIntegrator(sqrtkcoeff, td));
+            Mq->AddBdrFaceIntegrator(new HDGWeakDiffusionIntegrator(sqrtkcoeff, td));
+         }
+#endif
+         /*if (Mtnl)
          {
             Mtnl->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
             Mtnl->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
                                        bdr_is_neumann);
-         }
+         }*/
       }
    }
 
