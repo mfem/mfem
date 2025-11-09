@@ -761,7 +761,7 @@ inline void Array<T>::GrowSize(int minsize)
    p.CopyFrom(data, size);
    p.UseDevice(data.UseDevice());
    data.Delete();
-   data = p;
+   data = std::move(p);
 }
 
 template <typename T>
@@ -772,7 +772,7 @@ inline void Array<T>::ShrinkToFit()
    p.CopyFrom(data, size);
    p.UseDevice(data.UseDevice());
    data.Delete();
-   data = p;
+   data = std::move(p);
 }
 
 template <typename T>

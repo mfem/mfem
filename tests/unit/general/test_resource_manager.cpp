@@ -15,7 +15,6 @@ TEST_CASE("Resource Creation", "[Resource Manager]")
    SECTION("Non-Temporary Host")
    {
       Memory<int> tmp(10, MemoryType::HOST, false);
-      tmp.SetAutoDelete(true);
       auto usage = inst.Usage();
       expected[0] += 10 * sizeof(int);
       REQUIRE(usage == expected);
@@ -26,7 +25,7 @@ TEST_CASE("Resource Creation", "[Resource Manager]")
          expected[1] += expected[0];
       }
       REQUIRE(usage == expected);
-      tmp = Memory<int>();
+      tmp.Delete();
       usage = inst.Usage();
       expected[0] = init_usage[0];
       expected[1] = init_usage[1];
@@ -35,7 +34,6 @@ TEST_CASE("Resource Creation", "[Resource Manager]")
    SECTION("Temporary Host")
    {
       Memory<int> tmp(10, MemoryType::HOST, true);
-      tmp.SetAutoDelete(true);
       auto usage = inst.Usage();
       expected[2] += 10 * sizeof(int);
       REQUIRE(usage == expected);
@@ -46,7 +44,7 @@ TEST_CASE("Resource Creation", "[Resource Manager]")
          expected[2 + 1] += 10 * sizeof(int);
       }
       REQUIRE(usage == expected);
-      tmp = Memory<int>();
+      tmp.Delete();
       usage = inst.Usage();
       expected[2] = init_usage[2];
       expected[2 + 1] = init_usage[2 + 1];
@@ -57,7 +55,6 @@ TEST_CASE("Resource Creation", "[Resource Manager]")
 TEST_CASE("Resource Aliasing", "[Resource Manager][GPU]")
 {
    Memory<int> tmp(100, MemoryType::HOST, false);
-   tmp.SetAutoDelete(true);
    auto hptr = tmp.HostWrite();
    REQUIRE(hptr != nullptr);
    for (int i = 0; i < 100; ++i)
@@ -119,14 +116,13 @@ TEST_CASE("Resource Aliasing", "[Resource Manager][GPU]")
          }
       }
    }
+   tmp.Delete();
 }
 
 TEST_CASE("Resource Copy", "[Resource Manager][GPU]")
 {
    Memory<char> tmp0(100, MemoryType::HOST, false);
    Memory<char> tmp1(100, MemoryType::HOST, false);
-   tmp0.SetAutoDelete(true);
-   tmp1.SetAutoDelete(true);
 
    for (int i = 0; i < 100; ++i)
    {
@@ -161,14 +157,8 @@ TEST_CASE("Resource Copy", "[Resource Manager][GPU]")
          REQUIRE(hptr[i] == i);
       }
    }
+   tmp0.Delete();
+   tmp1.Delete();
 }
 
-TEST_CASE("Resource Cycle", "[Resource Manager][GPU]")
-{
-   Memory<char> tmp0(166408, MemoryType::HOST, false);
-   tmp0.SetAutoDelete(true);
-   tmp0.HostWrite();
-   tmp0.Write();
-   tmp0.HostRead();
-}
 #endif

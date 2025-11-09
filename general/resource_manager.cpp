@@ -504,7 +504,6 @@ MemoryManager::~MemoryManager()
       }
    }
    storage.nodes.clear();
-   storage.seg_offset += storage.segments.size();
    storage.segments.clear();
    for (size_t i = 0; i < allocs_storage.size(); ++i)
    {
@@ -981,8 +980,18 @@ size_t MemoryManager::insert(char *hptr, char *dptr, size_t nbytes,
 {
    MFEM_ASSERT(hloc != MemoryType::PRESERVE, "hloc cannot be PRESERVE");
    MFEM_ASSERT(dloc != MemoryType::PRESERVE, "dloc cannot be PRESERVE");
-   storage.segments.emplace_back();
-   auto &seg = storage.segments.back();
+   while (next_segment <= storage.segments.size() &&
+          storage.get_segment(next_segment).ref_count != 0)
+   {
+      ++next_segment;
+   }
+   if (next_segment > storage.segments.size())
+   {
+      storage.segments.emplace_back();
+      next_segment = storage.segments.size();
+   }
+   auto &seg = storage.get_segment(next_segment);
+   seg = RBase::Segment{};
    MFEM_ASSERT(seg.roots[0] == 0, "unexpected host root");
    MFEM_ASSERT(seg.roots[1] == 0, "unexpected device root");
    seg.lowers[0] = hptr;
@@ -1025,7 +1034,7 @@ size_t MemoryManager::insert(char *hptr, char *dptr, size_t nbytes,
          [](auto start, auto stop) {});
       }
    }
-   return storage.segments.size();
+   return next_segment;
 }
 
 void MemoryManager::clear_segment(RBase::Segment &seg)
@@ -1120,6 +1129,10 @@ void MemoryManager::erase(size_t segment)
             seg.flag = RBase::Segment::Flags::NONE;
             clear_segment(segment);
             storage.cleanup_segments();
+            if (next_segment >= segment)
+            {
+               next_segment = segment;
+            }
          }
       }
    }
