@@ -2,7 +2,7 @@
 //
 // Compile with: make ex41
 //
-// Sample runs: 
+// Sample runs:
 //  ex41
 //  ex41 -p 0 -r 2 -dt 0.01 -tf 10
 //  ex41 -p 0 -r 2 -dt 0.01 -tf 10 -cg
@@ -25,7 +25,7 @@
 //               u0(x)=u(0,x) is a given initial condition.
 //
 //               The example demonstrates the use of Discontinuous Galerkin (DG)
-//               bilinear forms in MFEM (face integrators), and the use of IMEX 
+//               bilinear forms in MFEM (face integrators), and the use of IMEX
 //               ODE time integrators.
 //
 //               The Option to use Continuous Finite Elements is available too.
@@ -329,7 +329,7 @@ int main(int argc, char *argv[])
    const int dim = mesh.Dimension();
 
    // 3. Define the IMEX (Split) ODE solver used for time integration. The IMEX
-   // solvers currently available are: 55 - Forward Backward Euler, 
+   // solvers currently available are: 55 - Forward Backward Euler,
    // 56 - IMEXRK2(2,2,2), 57 - IMEXRK2(2,3,2), and  58 - IMEX_DIRK_RK3.
    unique_ptr<ODESolver> ode_solver = ODESolver::SelectIMEX(ode_solver_type);
 

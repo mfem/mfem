@@ -109,7 +109,7 @@ public:
 /// For systems of split ODEs:
 /// M dx/dt = f_1(x,t) + f_2(x,t)
 /// where M^{-1}*f_1 and M^{-1}*f_2 are treated differently (e.g.,
-/// explicitly and implicitly), the solver class  
+/// explicitly and implicitly), the solver class
 /// expects a TimeDependentOperator with split
 /// functionality. Setting EvalMode=ADDITIVE_TERM_1 and calling
 /// Mult(...) should return k1=M^{-1}*f_1(x,t). Setting
@@ -217,7 +217,8 @@ public:
    /// Function for selecting the desired IMEX ODESolver
    /// Returns an ODESolver pointer based on an type
    /// Caller gets ownership of the object and is responsible for its deletion
-   static MFEM_EXPORT std::unique_ptr<ODESolver> SelectIMEX(const int ode_solver_type);
+   static MFEM_EXPORT std::unique_ptr<ODESolver> SelectIMEX(
+      const int ode_solver_type);
 
    virtual ~ODESolver() { }
 };

@@ -367,7 +367,7 @@ int main(int argc, char *argv[])
    const int dim = mesh->Dimension();
 
    // 4. Define the IMEX (Split) ODE solver used for time integration. The IMEX
-   // solvers currently available are: 55 - Forward Backward Euler, 
+   // solvers currently available are: 55 - Forward Backward Euler,
    // 56 - IMEXRK2(2,2,2), 57 - IMEXRK2(2,3,2), and
    unique_ptr<ODESolver> ode_solver = ODESolver::SelectIMEX(ode_solver_type);
 
