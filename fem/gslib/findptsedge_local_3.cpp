@@ -347,34 +347,34 @@ static MFEM_HOST_DEVICE void seed_j(const double *elx[sDIM],
 
 template<int T_D1D = 0>
 static void FindPointsEdgeLocal3D_Kernel(const int npt,
-                                          const double tol,
-                                          const double dist2tol,
-                                          const double *x,
-                                          const int point_pos_ordering,
-                                          const double *xElemCoord,
-                                          const int nel,
-                                          const double *wtend,
-                                          const double *boxinfo,
-                                          const int hash_n,
-                                          const double *hashMin,
-                                          const double *hashFac,
-                                          unsigned int *hashOffset,
-                                          unsigned int *const code_base,
-                                          unsigned int *const el_base,
-                                          double *const r_base,
-                                          double *const dist2_base,
-                                          const double *gll1D,
-                                          const double *lagcoeff,
-                                          const int pN = 0)
+                                         const double tol,
+                                         const double dist2tol,
+                                         const double *x,
+                                         const int point_pos_ordering,
+                                         const double *xElemCoord,
+                                         const int nel,
+                                         const double *wtend,
+                                         const double *boxinfo,
+                                         const int hash_n,
+                                         const double *hashMin,
+                                         const double *hashFac,
+                                         unsigned int *hashOffset,
+                                         unsigned int *const code_base,
+                                         unsigned int *const el_base,
+                                         double *const r_base,
+                                         double *const dist2_base,
+                                         const double *gll1D,
+                                         const double *lagcoeff,
+                                         const int pN = 0)
 {
 #define MAX_CONST(a, b) (((a) > (b)) ? (a) : (b))
    const int MD1   = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
    const int D1D   = T_D1D ? T_D1D : pN;
    const int p_NEL = nel*D1D;
    MFEM_VERIFY(MD1<=DofQuadLimits::MAX_D1D,
-              "Increase Max allowable polynomial order.");
+               "Increase Max allowable polynomial order.");
    MFEM_VERIFY(pN<=DofQuadLimits::MAX_D1D,
-              "Increase Max allowable polynomial order.");
+               "Increase Max allowable polynomial order.");
    MFEM_VERIFY(D1D!=0, "Polynomial order not specified.");
    const int nThreads = D1D*sDIM;
 
@@ -448,7 +448,7 @@ static void FindPointsEdgeLocal3D_Kernel(const int npt,
                      const int qp = j % D1D;
                      const int d = j / D1D;
                      elem_coords[qp + d*D1D] =
-                           xElemCoord[qp + el*D1D + d*p_NEL];
+                        xElemCoord[qp + el*D1D + d*p_NEL];
                   }
                   MFEM_SYNC_THREAD;
                }
@@ -564,10 +564,10 @@ static void FindPointsEdgeLocal3D_Kernel(const int npt,
 
                            MFEM_FOREACH_THREAD(l,x,1)
                            {
-                             if (!reject_prior_step_q(fpt,resid,tmp,tol))
+                              if (!reject_prior_step_q(fpt,resid,tmp,tol))
                               {
-                                    newton_edge(fpt,jac,hess[3],resid,
-                                                tmp->flags&FLAG_MASK,tmp,tol);
+                                 newton_edge(fpt,jac,hess[3],resid,
+                                             tmp->flags&FLAG_MASK,tmp,tol);
                               }
                            }
                            MFEM_SYNC_THREAD;
@@ -640,8 +640,8 @@ static void FindPointsEdgeLocal3D_Kernel(const int npt,
                } // findpts_el
 
                bool converged_internal =
-                                 ((fpt->flags&FLAG_MASK) == CONVERGED_FLAG) &&
-                                  (fpt->dist2<dist2tol);
+                  ((fpt->flags&FLAG_MASK) == CONVERGED_FLAG) &&
+                  (fpt->dist2<dist2tol);
                if (*code_i==CODE_NOT_FOUND || converged_internal ||
                    fpt->dist2<*dist2_i)
                {
@@ -665,13 +665,13 @@ static void FindPointsEdgeLocal3D_Kernel(const int npt,
 }
 
 void FindPointsGSLIB::FindPointsEdgeLocal3(const Vector &point_pos,
-                                            int point_pos_ordering,
-                                            Array<unsigned int> &code,
-                                            Array<unsigned int> &elem,
-                                            Vector &ref,
-                                            Vector &dist,
-                                            Array<int> &newton,
-                                            int npt)
+                                           int point_pos_ordering,
+                                           Array<unsigned int> &code,
+                                           Array<unsigned int> &elem,
+                                           Vector &ref,
+                                           Vector &dist,
+                                           Array<int> &newton,
+                                           int npt)
 {
    if (npt == 0)
    {
@@ -696,24 +696,24 @@ void FindPointsGSLIB::FindPointsEdgeLocal3(const Vector &point_pos,
    {
       case 2:
          return FindPointsEdgeLocal3D_Kernel<2>(
-            npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
-            NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
-            plho, pcode, pelem, pref, pdist, pgll1d, plc);
+                   npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
+                   NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
+                   plho, pcode, pelem, pref, pdist, pgll1d, plc);
       case 3:
          return FindPointsEdgeLocal3D_Kernel<3>(
-            npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
-            NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
-            plho, pcode, pelem, pref, pdist, pgll1d, plc);
+                   npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
+                   NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
+                   plho, pcode, pelem, pref, pdist, pgll1d, plc);
       case 4:
          return FindPointsEdgeLocal3D_Kernel<4>(
-            npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
-            NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
-            plho, pcode, pelem, pref, pdist, pgll1d, plc);
+                   npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
+                   NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
+                   plho, pcode, pelem, pref, pdist, pgll1d, plc);
       default:
          return FindPointsEdgeLocal3D_Kernel(
-            npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
-            NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
-            plho, pcode, pelem, pref, pdist, pgll1d, plc, DEV.dof1d);
+                   npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
+                   NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
+                   plho, pcode, pelem, pref, pdist, pgll1d, plc, DEV.dof1d);
    }
 }
 #undef rDIM2

@@ -159,24 +159,27 @@ protected:
                          Vector &gsl_dist_l, int npt);
 
 
+   /// FindPoints locally on device for 3D surface elements.
    void FindPointsSurfLocal3(const Vector &point_pos,
-                              int point_pos_ordering,
-                              Array<unsigned int> &gsl_code_dev_l,
-                              Array<unsigned int> &gsl_elem_dev_l,
-                              Vector &gsl_ref_l,
-                              Vector &gsl_dist_l,
-                              Array<int> &gsl_newton_dev_l,
-                              int npt);
+                             int point_pos_ordering,
+                             Array<unsigned int> &gsl_code_dev_l,
+                             Array<unsigned int> &gsl_elem_dev_l,
+                             Vector &gsl_ref_l,
+                             Vector &gsl_dist_l,
+                             Array<int> &gsl_newton_dev_l,
+                             int npt);
 
+   /// FindPoints locally on device for 3D edge elements.
    void FindPointsEdgeLocal3(const Vector &point_pos,
-                              int point_pos_ordering,
-                              Array<unsigned int> &gsl_code_dev_l,
-                              Array<unsigned int> &gsl_elem_dev_l,
-                              Vector &gsl_ref_l,
-                              Vector &gsl_dist_l,
-                              Array<int> &gsl_newton_dev_l,
-                              int npt);
+                             int point_pos_ordering,
+                             Array<unsigned int> &gsl_code_dev_l,
+                             Array<unsigned int> &gsl_elem_dev_l,
+                             Vector &gsl_ref_l,
+                             Vector &gsl_dist_l,
+                             Array<int> &gsl_newton_dev_l,
+                             int npt);
 
+   /// FindPoints locally on device for 2D edge elements.
    void FindPointsEdgeLocal2(const Vector &point_pos,
                              int point_pos_ordering,
                              Array<unsigned int> &gsl_code_dev_l,
@@ -200,23 +203,12 @@ protected:
                           Vector &field_out,
                           int npt, int ncomp,
                           int nel, int dof1dsol);
-   // Interpolate on edge mesh for 2D
-   void InterpolateEdgeLocal2(const Vector &field_in,
-                              Array<int> &gsl_elem_dev_l,
-                              Vector &gsl_ref_l,
-                              Vector &field_out,
-                              int npt, int ncomp, int nel, int dof1dsol);
-   // Interpolate on edge mesh for 3D
-   void InterpolateEdgeLocal3(const Vector &field_in,
-                              Array<int> &gsl_elem_dev_l,
-                              Vector &gsl_ref_l,
-                              Vector &field_out,
-                              int npt, int ncomp, int nel, int dof1dsol);
-   // Interpolate on surface mesh for 3D
-   void InterpolateSurfLocal3(const Vector &field_in,
-                              Array<int> &gsl_elem_dev_l,
-                              Vector &gsl_ref_l, Vector &field_out,
-                              int npt, int ncomp, int nel, int dof1dsol);
+   // Interpolate on device for 1D.
+   void InterpolateLocal1(const Vector &field_in,
+                          Array<int> &gsl_elem_dev_l,
+                          Vector &gsl_ref_l,
+                          Vector &field_out,
+                          int npt, int ncomp, int nel, int dof1dsol);
 
 
    // Prepare data for device functions.
@@ -231,7 +223,7 @@ protected:
    void FindPointsOnDevice(const Vector &point_pos,
                            int point_pos_ordering = Ordering::byNODES);
    void FindPointsSurfOnDevice(const Vector &point_pos,
-                           int point_pos_ordering = Ordering::byNODES);
+                               int point_pos_ordering = Ordering::byNODES);
 
    /** Interpolation of field values at prescribed reference space positions.
        @param[in] field_in_evec E-vector of grid function to be interpolated.

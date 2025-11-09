@@ -531,19 +531,19 @@ void obboxsurf_calc_3(Vector &bb,
             bb[n_el_ents*ie + 13]=di1*(Ji[2]*A[1] + Ji[3]*A[4]);
             bb[n_el_ents*ie + 14]=di1*(Ji[2]*A[2] + Ji[3]*A[5]);
             bb[n_el_ents*ie + 15]=di2*A[6],
-            bb[n_el_ents*ie + 16]=di2*A[7],
-            bb[n_el_ents*ie + 17]=di2*A[8];
+                                  bb[n_el_ents*ie + 16]=di2*A[7],
+                                                        bb[n_el_ents*ie + 17]=di2*A[8];
          }
       }
    }
 }
 
 void obboxedge_calc_2(Vector &bb,
-                       const double *const elx[2],
-                       const unsigned nr,
-                       uint nel,
-                       const unsigned mr,
-                       const double tol)
+                      const double *const elx[2],
+                      const unsigned nr,
+                      uint nel,
+                      const unsigned mr,
+                      const double tol)
 {
    const double *x   = elx[0];
    const double *y   = elx[1];
@@ -631,11 +631,11 @@ void obboxedge_calc_2(Vector &bb,
 }
 
 void obboxedge_calc_3(Vector &bb,
-                       const double *const elx[3],
-                       const unsigned nr,
-                       uint nel,
-                       const unsigned mr,
-                       const double tol)
+                      const double *const elx[3],
+                      const unsigned nr,
+                      uint nel,
+                      const unsigned mr,
+                      const double tol)
 {
    const double *x   = elx[0];
    const double *y   = elx[1];
@@ -882,14 +882,14 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t,
    spacedim = mesh->SpaceDimension();  // This is physical dimension
 
    bool tensor_product_only = mesh->GetNE() == 0 ||
-         (mesh->GetNumGeometries(dim) == 1 &&
-         (mesh->GetElementType(0)== Element::SEGMENT ||
-          mesh->GetElementType(0) == Element::QUADRILATERAL));
+                              (mesh->GetNumGeometries(dim) == 1 &&
+                               (mesh->GetElementType(0)== Element::SEGMENT ||
+                                mesh->GetElementType(0) == Element::QUADRILATERAL));
    MFEM_VERIFY(tensor_product_only,
-                "FindPoints only supports tensor-product elements for "
-                "surface meshes.");
+               "FindPoints only supports tensor-product elements for "
+               "surface meshes.");
    MFEM_VERIFY(dim < spacedim,
-                "FindPointsGSLIB::SetupSurf only supports surface meshes.");
+               "FindPointsGSLIB::SetupSurf only supports surface meshes.");
 
    const int meshOrder = m.GetNodes()->FESpace()->GetMaxElementOrder();
    unsigned dof1D      = meshOrder + 1;
@@ -933,30 +933,30 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t,
          mesh_points_cnt == 0 ? nullptr : &gsl_mesh(mesh_points_cnt)
       };
       findptsedge_setup_2(DEV,
-                           elx,
-                           nr,
-                           NE_split_total,
-                           mr,
-                           bb_t,
-                           mesh_points_cnt,
-                           mesh_points_cnt);
+                          elx,
+                          nr,
+                          NE_split_total,
+                          mr,
+                          bb_t,
+                          mesh_points_cnt,
+                          mesh_points_cnt);
    }
    else if (spacedim==3)
    {
-         double * const elx[3] =
-         {
-            mesh_points_cnt == 0 ? nullptr : &gsl_mesh(0),
-            mesh_points_cnt == 0 ? nullptr : &gsl_mesh(mesh_points_cnt),
-            mesh_points_cnt == 0 ? nullptr : &gsl_mesh(2*mesh_points_cnt)
-         };
-         findptssurf_setup_3(DEV,
-                           elx,
-                           nr,
-                           NE_split_total,
-                           mr,
-                           bb_t,
-                           mesh_points_cnt,
-                           mesh_points_cnt, dim);
+      double * const elx[3] =
+      {
+         mesh_points_cnt == 0 ? nullptr : &gsl_mesh(0),
+         mesh_points_cnt == 0 ? nullptr : &gsl_mesh(mesh_points_cnt),
+         mesh_points_cnt == 0 ? nullptr : &gsl_mesh(2*mesh_points_cnt)
+      };
+      findptssurf_setup_3(DEV,
+                          elx,
+                          nr,
+                          NE_split_total,
+                          mr,
+                          bb_t,
+                          mesh_points_cnt,
+                          mesh_points_cnt, dim);
    }
 
    // Compute avg element size in the mesh to set surface distance tolerance.
@@ -967,7 +967,8 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t,
    }
    int nelem = NE_split_total;
 #ifdef MFEM_USE_MPI
-   MPI_Allreduce(MPI_IN_PLACE, &DEV.surf_dist_tol, 1, MPI_DOUBLE, MPI_SUM, gsl_comm->c);
+   MPI_Allreduce(MPI_IN_PLACE, &DEV.surf_dist_tol, 1, MPI_DOUBLE, MPI_SUM,
+                 gsl_comm->c);
    MPI_Allreduce(MPI_IN_PLACE, &nelem, 1, MPI_INT, MPI_SUM, gsl_comm->c);
 #endif
    DEV.surf_dist_tol /= nelem;
@@ -1002,7 +1003,6 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
                  MPI_LAND, gsl_comm->c);
 #endif
 
-   // std::cout << dev_mode << " " << tensor_product_only << std::endl;
    if (dev_mode && tensor_product_only)
    {
 #if GSLIB_RELEASE_VERSION == 10007
@@ -1083,16 +1083,16 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
 }
 
 void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
-                                      int point_pos_ordering)
+                                     int point_pos_ordering)
 {
    MFEM_VERIFY(setupflag, "Use FindPointsGSLIB::Setup before finding points.");
    MFEM_VERIFY(dim < spacedim, "FindPointsSurf is only for surface meshes.");
    bool tensor_product_only = mesh->GetNE() == 0 ||
-                           (mesh->GetNumGeometries(dim) == 1 &&
-                              (mesh->GetElementType(0)==Element::SEGMENT ||
-                              mesh->GetElementType(0) == Element::QUADRILATERAL));
+                              (mesh->GetNumGeometries(dim) == 1 &&
+                               (mesh->GetElementType(0)==Element::SEGMENT ||
+                                mesh->GetElementType(0) == Element::QUADRILATERAL));
    MFEM_VERIFY(tensor_product_only,
-                "FindPointsSurf currently only supports tensor-product meshes.");
+               "FindPointsSurf currently only supports tensor-product meshes.");
 
    points_cnt = point_pos.Size()/spacedim;
 
@@ -1138,19 +1138,19 @@ ulong hash_index_aux(double low, double fac, ulong n, double x)
 
 // Hash mesh index in 3D for a given point
 ulong hash_index_nd(const Vector &hash_min, const Vector &hash_fac,
-                   const int n,  const Vector &x)
+                    const int n,  const Vector &x)
 {
    const int dim = x.Size();
    if (dim == 2)
    {
-   return (hash_index_aux(hash_min(1), hash_fac(1), n, x[1])) * n
-          + hash_index_aux(hash_min(0), hash_fac(0), n, x[0]);
+      return (hash_index_aux(hash_min(1), hash_fac(1), n, x[1])) * n
+             + hash_index_aux(hash_min(0), hash_fac(0), n, x[0]);
    }
    else if (dim == 3)
    {
       return (hash_index_aux(hash_min(2), hash_fac(2), n, x[2]) * n +
-           hash_index_aux(hash_min(1), hash_fac(1), n, x[1])) * n +
-           hash_index_aux(hash_min(0), hash_fac(0), n, x[0]);
+              hash_index_aux(hash_min(1), hash_fac(1), n, x[1])) * n +
+             hash_index_aux(hash_min(0), hash_fac(0), n, x[0]);
    }
    else
    {
@@ -1159,7 +1159,7 @@ ulong hash_index_nd(const Vector &hash_min, const Vector &hash_fac,
 }
 
 void FindPointsGSLIB::FindPointsSurfOnDevice(const Vector &point_pos,
-                                              int point_pos_ordering)
+                                             int point_pos_ordering)
 {
    if (!DEV.setup_device)
    {
@@ -1191,24 +1191,24 @@ void FindPointsGSLIB::FindPointsSurfOnDevice(const Vector &point_pos,
       if (dim == 1)
       {
          FindPointsEdgeLocal3(point_pos,
-                               point_pos_ordering,
-                               gsl_code,
-                               gsl_elem,
-                               gsl_ref,
-                               gsl_dist,
-                               gsl_newton,
-                               points_cnt);
+                              point_pos_ordering,
+                              gsl_code,
+                              gsl_elem,
+                              gsl_ref,
+                              gsl_dist,
+                              gsl_newton,
+                              points_cnt);
       }
       else if (dim == 2)
       {
          FindPointsSurfLocal3(point_pos,
-                               point_pos_ordering,
-                               gsl_code,
-                               gsl_elem,
-                               gsl_ref,
-                               gsl_dist,
-                               gsl_newton,
-                               points_cnt);
+                              point_pos_ordering,
+                              gsl_code,
+                              gsl_elem,
+                              gsl_ref,
+                              gsl_dist,
+                              gsl_newton,
+                              points_cnt);
 
       }
    }
@@ -1228,7 +1228,7 @@ void FindPointsGSLIB::FindPointsSurfOnDevice(const Vector &point_pos,
    {
       gsl_proc[i] = id;
    }
-      // Tolerance for point to be marked as on element edge/face based on the
+   // Tolerance for point to be marked as on element edge/face based on the
    // obtained reference-space coordinates.
    double rbtol = 1e-12; // must match MapRefPosAndElemIndices for consistency
 
@@ -1256,7 +1256,7 @@ void FindPointsGSLIB::FindPointsSurfOnDevice(const Vector &point_pos,
          real_t ipx = gsl_mfem_ref(index * dim + 0);
          real_t ipy = gsl_mfem_ref(index * dim + 1);
          if (ipx < rbtol || ipx > 1.0 - rbtol ||
-               ipy < rbtol || ipy > 1.0 - rbtol)
+             ipy < rbtol || ipy > 1.0 - rbtol)
          {
             gsl_code[index] = CODE_BORDER;
          }
@@ -1300,8 +1300,8 @@ void FindPointsGSLIB::FindPointsSurfOnDevice(const Vector &point_pos,
             for (int d=0; d<spacedim; ++d)
             {
                int idx = point_pos_ordering == 0 ?
-                        index + d*points_cnt :
-                        index*spacedim + d;
+                         index + d*points_cnt :
+                         index*spacedim + d;
                x[d] = point_pos(idx);
             }
             const auto hi = hash_index_nd(DEV.gh_min, DEV.gh_fac, DEV.gh_nx, x);
@@ -1428,25 +1428,25 @@ void FindPointsGSLIB::FindPointsSurfOnDevice(const Vector &point_pos,
          if (dim == 1)
          {
             FindPointsEdgeLocal3(point_pos_l,
-                                  point_pos_ordering,
-                                  gsl_code_l,
-                                  gsl_elem_l,
-                                  gsl_ref_l,
-                                  gsl_dist_l,
-                                  gsl_newton_l,
-                                  n);
+                                 point_pos_ordering,
+                                 gsl_code_l,
+                                 gsl_elem_l,
+                                 gsl_ref_l,
+                                 gsl_dist_l,
+                                 gsl_newton_l,
+                                 n);
 
          }
          else
          {
             FindPointsSurfLocal3(point_pos_l,
-                                  point_pos_ordering,
-                                  gsl_code_l,
-                                  gsl_elem_l,
-                                  gsl_ref_l,
-                                  gsl_dist_l,
-                                  gsl_newton_l,
-                                  n);
+                                 point_pos_ordering,
+                                 gsl_code_l,
+                                 gsl_elem_l,
+                                 gsl_ref_l,
+                                 gsl_dist_l,
+                                 gsl_newton_l,
+                                 n);
          }
       }
 
@@ -1546,9 +1546,9 @@ void FindPointsGSLIB::FindPointsSurfOnDevice(const Vector &point_pos,
 }
 
 void lagrange_eval_second_derivative(double *p0, double x, int i,
-                                      const double *z,
-                                      const double *lagrangeCoeff,
-                                      int pN)
+                                     const double *z,
+                                     const double *lagrangeCoeff,
+                                     int pN)
 {
    double u0 = 1, u1 = 0, u2 = 0;
    for (int j=0; j<pN; ++j)
@@ -1739,65 +1739,6 @@ void FindPointsGSLIB::SetupDevice()
       p_ou_offset[i] = dim == 2 ? findptsData2->local.hd.offset[i] :
                        findptsData3->local.hd.offset[i];
    }
-   DEV.lh_offset.HostReadWrite();
-
-   BoundingBoxTensorGridMap lh(elmin, elmax, DEV.lh_nx, NE_split_total);
-   Array<int> hash_map = lh.GetHashMap();
-   Vector hash_fac = lh.GetHashFac();
-   Vector hash_min = lh.GetHashMin();
-   Array<int> hash_n = lh.GetHashN();
-   int nents = hash_n[0];
-   for (int d = 1; d < dim; d++)
-   {
-      nents *= hash_n[d];
-   }
-   int maxdiff = 0;
-   for (int i = 0; i < nents; i++)
-   {
-      int diff = hash_map[i] - DEV.lh_offset[i];
-      maxdiff = std::max(maxdiff, std::abs(diff));
-   }
-   std::cout << "Max diff in local hash offset: " << maxdiff << std::endl;
-   MPI_Barrier(gsl_comm->c);
-
-   // test global hash
-   int h_n = 0,
-       h_ng = 0;
-
-   if (dim == 2)
-   {
-      h_n = findptsData2->hash.hash_n;
-      h_ng = h_n*h_n;
-   }
-   else
-   {
-      h_n = findptsData3->hash.hash_n;
-      h_ng = h_n*h_n*h_n;
-   }
-   unsigned int ncell = (h_ng-1)/(gsl_comm->np)+1;
-   int gh_size = dim == 2 ?
-                 findptsData2->hash.offset[ncell] :
-                 findptsData3->hash.offset[ncell];
-   Array<int> gslib_gh(gh_size);
-   for (int i = 0; i < gh_size; i++)
-   {
-      gslib_gh[i] = dim == 2 ? findptsData2->hash.offset[i] :
-                    findptsData3->hash.offset[i];
-   }
-
-   GlobalBoundingBoxTensorGridMap gh(gsl_comm->c, elmin, elmax, h_n,
-                                     NE_split_total, false);
-   Array<int> global_hash_map = gh.GetHashMap();
-   int gh_maxdiff = 0;
-   for (int i = 0; i < gh_size; i++)
-   {
-      int diff = global_hash_map[i] - gslib_gh[i];
-      gh_maxdiff = std::max(gh_maxdiff, std::abs(diff));
-   }
-   std::cout << "Max diff in global hash offset: " << gsl_comm->id << " " <<
-             gh_maxdiff << std::endl;
-   MPI_Barrier(gsl_comm->c);
-   MFEM_ABORT("k10-got-here");
 
    DEV.wtend.UseDevice(true);
    DEV.wtend.SetSize(6*DEV.dof1d);
@@ -2509,41 +2450,15 @@ void FindPointsGSLIB::InterpolateSurfBase(const Vector &field_in,
       Vector interp_vals(nlocal*ncomp);
       interp_vals.UseDevice(true);
 
-      if (spacedim==2)
+      if (dim == 1)
       {
-         InterpolateEdgeLocal2(field_in,
-                               gsl_elem_temp,
-                               gsl_ref_temp,
-                               interp_vals,
-                               nlocal,
-                               ncomp,
-                               nel,
-                               dof1Dsol);
+         InterpolateLocal1(field_in, gsl_elem_temp, gsl_ref_temp,
+                           interp_vals, nlocal, ncomp, nel, dof1Dsol);
       }
-      else
+      else if (dim == 2)
       {
-         if (dim == 1)
-         {
-            InterpolateEdgeLocal3(field_in,
-                                  gsl_elem_temp,
-                                  gsl_ref_temp,
-                                  interp_vals,
-                                  nlocal,
-                                  ncomp,
-                                  nel,
-                                  dof1Dsol);
-         }
-         else
-         {
-            InterpolateSurfLocal3(field_in,
-                                  gsl_elem_temp,
-                                  gsl_ref_temp,
-                                  interp_vals,
-                                  nlocal,
-                                  ncomp,
-                                  nel,
-                                  dof1Dsol);
-         }
+         InterpolateLocal2(field_in, gsl_elem_temp, gsl_ref_temp,
+                           interp_vals, nlocal, ncomp, nel, dof1Dsol);
 
       }
       MPI_Barrier(gsl_comm->c);
@@ -2599,42 +2514,15 @@ void FindPointsGSLIB::InterpolateSurfBase(const Vector &field_in,
 
       Vector interp_vals(n*ncomp);
       interp_vals.UseDevice(true);
-      if (spacedim==3)
+      if (dim == 1)
       {
-         if (dim == 1)
-         {
-            InterpolateEdgeLocal3(field_in,
-                                   gsl_elem_temp,
-                                   gsl_ref_temp,
-                                   interp_vals,
-                                   n,
-                                   ncomp,
-                                   nel,
-                                   dof1Dsol);
-
-         }
-         else
-         {
-            InterpolateSurfLocal3(field_in,
-                                   gsl_elem_temp,
-                                   gsl_ref_temp,
-                                   interp_vals,
-                                   n,
-                                   ncomp,
-                                   nel,
-                                   dof1Dsol);
-         }
+         InterpolateLocal1(field_in, gsl_elem_temp, gsl_ref_temp,
+                           interp_vals, n, ncomp, nel, dof1Dsol);
       }
-      else
+      else if (dim == 2)
       {
-         InterpolateEdgeLocal2(field_in,
-                                gsl_elem_temp,
-                                gsl_ref_temp,
-                                interp_vals,
-                                n,
-                                ncomp,
-                                nel,
-                                dof1Dsol);
+         InterpolateLocal2(field_in, gsl_elem_temp, gsl_ref_temp,
+                           interp_vals, n, ncomp, nel, dof1Dsol);
       }
       MPI_Barrier(gsl_comm->c);
       interp_vals.HostReadWrite();
@@ -3457,7 +3345,7 @@ void FindPointsGSLIB::InterpolateSurf(const GridFunction &field_in,
 
    const FiniteElementCollection *fec_in =  field_in.FESpace()->FEColl();
    const H1_FECollection *fec_h1 = dynamic_cast<const H1_FECollection *>
-   (fec_in);
+                                   (fec_in);
    // const L2_FECollection *fec_l2 = dynamic_cast<const L2_FECollection *
    // (fec_in);
    MFEM_VERIFY(fec_h1,"Only h1 functions supported on device right now.");
@@ -3465,18 +3353,18 @@ void FindPointsGSLIB::InterpolateSurf(const GridFunction &field_in,
                "basis not supported");
 
    bool tensor_product_only = mesh->GetNE() == 0 ||
-         (mesh->GetNumGeometries(dim) == 1 &&
-         (mesh->GetElementType(0)== Element::SEGMENT ||
-          mesh->GetElementType(0) == Element::QUADRILATERAL));
+                              (mesh->GetNumGeometries(dim) == 1 &&
+                               (mesh->GetElementType(0)== Element::SEGMENT ||
+                                mesh->GetElementType(0) == Element::QUADRILATERAL));
 #ifdef MFEM_USE_MPI
    MPI_Allreduce(MPI_IN_PLACE, &tensor_product_only, 1, MFEM_MPI_CXX_BOOL,
                  MPI_LAND, gsl_comm->c);
 #endif
    MFEM_VERIFY(tensor_product_only,
-                "FindPoints only supports tensor-product elements for "
-                "surface meshes.");
+               "FindPoints only supports tensor-product elements for "
+               "surface meshes.");
    MFEM_VERIFY(dim < spacedim,
-                "FindPointsGSLIB::SetupSurf only supports surface meshes.");
+               "FindPointsGSLIB::SetupSurf only supports surface meshes.");
 
    bool device_mode = field_in.UseDevice();
 

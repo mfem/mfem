@@ -112,7 +112,7 @@ static MFEM_HOST_DEVICE inline double AABB_test(const obbox_t *const b,
 
 /* positive when possibly inside */
 static MFEM_HOST_DEVICE inline double bbox_test(const obbox_t *const b,
-                                                 const double x[sDIM])
+                                                const double x[sDIM])
 {
    const double bxyz = AABB_test(b, x);
    if (bxyz<0)
@@ -245,18 +245,18 @@ get_edge(const double *elx[3], const double *wtend, int ei,
    const int dd = jidx/pN;
    if (side_init != (1u << ei))
    {
-         const int elx_stride[2] = {1,pN};
+      const int elx_stride[2] = {1,pN};
 #define ELX(d,j,k) elx[d][j*elx_stride[de] + k*elx_stride[dn]]
 
-         edge.x[dd][jj] = ELX(dd, jj, side_n_offset);
-         double sums_k[2] = {0,0};
-         for (int k=0; k<pN; ++k)
-         {
-            sums_k[0] += wt1[pN+k]   * ELX(dd,jj,k);
-            sums_k[1] += wt1[2*pN+k] * ELX(dd,jj,k);
-         }
-         edge.dxdn[dd][jj]  = sums_k[0];
-         edge.d2xdn[dd][jj] = sums_k[1];
+      edge.x[dd][jj] = ELX(dd, jj, side_n_offset);
+      double sums_k[2] = {0,0};
+      for (int k=0; k<pN; ++k)
+      {
+         sums_k[0] += wt1[pN+k]   * ELX(dd,jj,k);
+         sums_k[1] += wt1[2*pN+k] * ELX(dd,jj,k);
+      }
+      edge.dxdn[dd][jj]  = sums_k[0];
+      edge.d2xdn[dd][jj] = sums_k[1];
 #undef ELX
    }
    return edge;
@@ -679,34 +679,34 @@ static MFEM_HOST_DEVICE void seed_j(const double *elx[sDIM],
 // Are the structs being stored in "local memory" or registers?
 template<int T_D1D = 0>
 static void FindPointsSurfLocal3D_Kernel(const int npt,
-                                          const double tol,
-                                          const double dist2tol,
-                                          const double *x,
-                                          const int point_pos_ordering,
-                                          const double *xElemCoord,
-                                          const int nel,
-                                          const double *wtend,
-                                          const double *boxinfo,
-                                          const int hash_n,
-                                          const double *hashMin,
-                                          const double *hashFac,
-                                          unsigned int *hashOffset,
-                                          unsigned int *const code_base,
-                                          unsigned int *const el_base,
-                                          double *const r_base,
-                                          double *const dist2_base,
-                                          const double *gll1D,
-                                          const double *lagcoeff,
-                                          const int pN = 0)
+                                         const double tol,
+                                         const double dist2tol,
+                                         const double *x,
+                                         const int point_pos_ordering,
+                                         const double *xElemCoord,
+                                         const int nel,
+                                         const double *wtend,
+                                         const double *boxinfo,
+                                         const int hash_n,
+                                         const double *hashMin,
+                                         const double *hashFac,
+                                         unsigned int *hashOffset,
+                                         unsigned int *const code_base,
+                                         unsigned int *const el_base,
+                                         double *const r_base,
+                                         double *const dist2_base,
+                                         const double *gll1D,
+                                         const double *lagcoeff,
+                                         const int pN = 0)
 {
 #define MAXC(a, b) (((a) > (b)) ? (a) : (b))
    const int MD1   = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
    const int D1D   = T_D1D ? T_D1D : pN;
    const int p_NE  = D1D*D1D;  // total nos. points in an element
    MFEM_VERIFY(MD1<=DofQuadLimits::MAX_D1D,
-              "Increase Max allowable polynomial order.");
+               "Increase Max allowable polynomial order.");
    MFEM_VERIFY(pN<=DofQuadLimits::MAX_D1D,
-              "Increase Max allowable polynomial order.");
+               "Increase Max allowable polynomial order.");
    MFEM_VERIFY(D1D!=0, "Polynomial order not specified.");
    const int nThreads = MAXC(D1D*sDIM, 9);
 
@@ -983,12 +983,13 @@ static void FindPointsSurfLocal3D_Kernel(const int npt,
                         {
                            if (j == 0) { edge_init = (1u << ei); }
                            lag_eval_second_der(wt,tmp->r[de],j,gll1D,
-                                              lagcoeff,D1D);
+                                               lagcoeff,D1D);
                         }
                         MFEM_SYNC_THREAD;
 
                         const double *const *e_x[4] = {edge.x, edge.x,
-                                                       edge.dxdn, edge.d2xdn};
+                                                       edge.dxdn, edge.d2xdn
+                                                      };
                         MFEM_FOREACH_THREAD(j,x,hes_count*3)
                         {
                            const int d   = j%sDIM; //0,1,2
@@ -1109,7 +1110,7 @@ static void FindPointsSurfLocal3D_Kernel(const int npt,
                                                     resid[1] * hes[3+ 0] +
                                                     resid[2] * hes[6 + 0];
                                     newton_edge(fpt,jac,rh,resid,de,dn,
-                                    (tmp->flags & ~(3u<<2*de)),tmp,tol);
+                                                (tmp->flags & ~(3u<<2*de)),tmp,tol);
                                  }
                               }
                               else
@@ -1122,7 +1123,7 @@ static void FindPointsSurfLocal3D_Kernel(const int npt,
                                                       resid[1] * hes[5] +
                                                       resid[2] * hes[8];
                                     newton_edge(fpt,jac,rh,resid,de,dn,
-                                    (tmp->flags & ~(3u<<2*de)),tmp,tol);
+                                                (tmp->flags & ~(3u<<2*de)),tmp,tol);
                                  }
                                  else
                                  {
@@ -1156,16 +1157,16 @@ static void FindPointsSurfLocal3D_Kernel(const int npt,
             } // findpts_el
 
             bool converged_internal =
-                           ((fpt->flags&FLAG_MASK)==CONVERGED_FLAG ) &&
-                           fpt->dist2<dist2tol;
+               ((fpt->flags&FLAG_MASK)==CONVERGED_FLAG ) &&
+               fpt->dist2<dist2tol;
             if (*code_i==CODE_NOT_FOUND || converged_internal ||
-               fpt->dist2<*dist2_i)
+                fpt->dist2<*dist2_i)
             {
                MFEM_FOREACH_THREAD(j,x,1)
                {
                   *(el_base+i) = el;
                   *code_i = converged_internal ?  CODE_INTERNAL :
-                              CODE_BORDER;
+                            CODE_BORDER;
                   *dist2_i = fpt->dist2;
                }
                MFEM_FOREACH_THREAD(j,x,rDIM)
@@ -1184,13 +1185,13 @@ static void FindPointsSurfLocal3D_Kernel(const int npt,
 }
 
 void FindPointsGSLIB::FindPointsSurfLocal3(const Vector &point_pos,
-                                            int point_pos_ordering,
-                                            Array<unsigned int> &code,
-                                            Array<unsigned int> &elem,
-                                            Vector &ref,
-                                            Vector &dist,
-                                            Array<int> &newton,
-                                            int npt)
+                                           int point_pos_ordering,
+                                           Array<unsigned int> &code,
+                                           Array<unsigned int> &elem,
+                                           Vector &ref,
+                                           Vector &dist,
+                                           Array<int> &newton,
+                                           int npt)
 {
    if (npt == 0)
    {
@@ -1216,24 +1217,24 @@ void FindPointsGSLIB::FindPointsSurfLocal3(const Vector &point_pos,
    {
       case 2:
          return FindPointsSurfLocal3D_Kernel<2>(
-            npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
-            NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
-            plho, pcode, pelem, pref, pdist, pgll1d, plc);
+                   npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
+                   NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
+                   plho, pcode, pelem, pref, pdist, pgll1d, plc);
       case 3:
          return FindPointsSurfLocal3D_Kernel<3>(
-            npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
-            NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
-            plho, pcode, pelem, pref, pdist, pgll1d, plc);
+                   npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
+                   NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
+                   plho, pcode, pelem, pref, pdist, pgll1d, plc);
       case 4:
          return FindPointsSurfLocal3D_Kernel<4>(
-            npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
-            NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
-            plho, pcode, pelem, pref, pdist, pgll1d, plc);
+                   npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
+                   NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
+                   plho, pcode, pelem, pref, pdist, pgll1d, plc);
       default:
          return FindPointsSurfLocal3D_Kernel(
-            npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
-            NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
-            plho, pcode, pelem, pref, pdist, pgll1d, plc, DEV.dof1d);
+                   npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
+                   NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
+                   plho, pcode, pelem, pref, pdist, pgll1d, plc, DEV.dof1d);
    }
 }
 

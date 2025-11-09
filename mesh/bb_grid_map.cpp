@@ -166,9 +166,9 @@ void BoundingBoxTensorGridMap::Setup(Vector &elmin, Vector &elmax,
       if (size != size_low)
       {
          GetHashCount(lmap_n, lmap_fac,
-                     lmap_bnd_min, lmap_bnd_max,
-                     elmin, elmax,
-                     elmin_h, elmax_h);
+                      lmap_bnd_min, lmap_bnd_max,
+                      elmin, elmax,
+                      elmin_h, elmax_h);
       }
    }
    else

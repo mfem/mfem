@@ -361,9 +361,9 @@ static void FindPointsEdgeLocal2D_Kernel( const int     npt,
    const int D1D   = T_D1D ? T_D1D : pN;
    const int p_NEL = nel*D1D;
    MFEM_VERIFY(MD1<=DofQuadLimits::MAX_D1D,
-              "Increase Max allowable polynomial order.");
+               "Increase Max allowable polynomial order.");
    MFEM_VERIFY(pN<=DofQuadLimits::MAX_D1D,
-              "Increase Max allowable polynomial order.");
+               "Increase Max allowable polynomial order.");
    MFEM_VERIFY(D1D!=0, "Polynomial order not specified.");
    const int nThreads = D1D*sDIM;
 
@@ -442,7 +442,7 @@ static void FindPointsEdgeLocal2D_Kernel( const int     npt,
                      const int qp = j % D1D;
                      const int d = j / D1D;
                      elem_coords[qp + d*D1D] =
-                           xElemCoord[qp + el*D1D + d*p_NEL];
+                        xElemCoord[qp + el*D1D + d*p_NEL];
                   }
                   MFEM_SYNC_THREAD;
                }
@@ -574,7 +574,7 @@ static void FindPointsEdgeLocal2D_Kernel( const int     npt,
                            MFEM_FOREACH_THREAD(j,x,1)
                            {
                               const int pi = point_index(tmp->flags &
-                                                            FLAG_MASK);
+                                                         FLAG_MASK);
                               const double *wt   = wtend + pi*3*D1D;
                               findptsElementGPT_t gpt;
                               for (int d=0; d<sDIM; ++d)
@@ -632,11 +632,11 @@ static void FindPointsEdgeLocal2D_Kernel( const int     npt,
                } //findpts_el
 
                bool converged_internal =
-                                 ((fpt->flags&FLAG_MASK) == CONVERGED_FLAG) &&
-                                  (fpt->dist2<dist2tol);
+                  ((fpt->flags&FLAG_MASK) == CONVERGED_FLAG) &&
+                  (fpt->dist2<dist2tol);
 
                if (*code_i == CODE_NOT_FOUND || converged_internal ||
-                  fpt->dist2 < *dist2_i)
+                   fpt->dist2 < *dist2_i)
                {
                   MFEM_FOREACH_THREAD(j,x,1)
                   {
@@ -689,24 +689,24 @@ void FindPointsGSLIB::FindPointsEdgeLocal2( const Vector &point_pos,
    {
       case 2:
          return FindPointsEdgeLocal2D_Kernel<2>(
-            npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
-            NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
-            plho, pcode, pelem, pref, pdist, pgll1d, plc);
+                   npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
+                   NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
+                   plho, pcode, pelem, pref, pdist, pgll1d, plc);
       case 3:
          return FindPointsEdgeLocal2D_Kernel<3>(
-            npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
-            NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
-            plho, pcode, pelem, pref, pdist, pgll1d, plc);
+                   npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
+                   NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
+                   plho, pcode, pelem, pref, pdist, pgll1d, plc);
       case 4:
          return FindPointsEdgeLocal2D_Kernel<4>(
-            npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
-            NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
-            plho, pcode, pelem, pref, pdist, pgll1d, plc);
+                   npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
+                   NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
+                   plho, pcode, pelem, pref, pdist, pgll1d, plc);
       default:
          return FindPointsEdgeLocal2D_Kernel(
-            npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
-            NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
-            plho, pcode, pelem, pref, pdist, pgll1d, plc, DEV.dof1d);
+                   npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
+                   NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
+                   plho, pcode, pelem, pref, pdist, pgll1d, plc, DEV.dof1d);
    }
 }
 #undef sDIM

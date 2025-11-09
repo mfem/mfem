@@ -53,8 +53,7 @@
 
 // make pfindpts -j4 && mpirun -np 11 ./pfindpts -m bladesurf.mesh -o 8 -mo 4 -vis -random 1
 // make pfindpts -j4 && mpirun -np 7 ./pfindpts -m 3dsurftriplept.mesh -o 6 -mo 3 -vis -random 1
-// make pfindpts -j4 && mpirun -np 11 ./pfindpts -m ../../data/klein-bottle.mesh -o 6 -mo 3 -vis -random 1 -rs 2
-// make pfindpts -j4 && mpirun -np 1 ./pfindpts -m 3dedge.mesh -o 4 -mo 2 -vis -random 1 -npt 101
+// make pfindpts -j4 && mpirun -np 3 ./pfindpts -m 3dedge.mesh -o 4 -mo 2 -vis -random 1 -npt 101 -rs 4
 
 #include "mfem.hpp"
 #include "general/forall.hpp"
@@ -82,20 +81,22 @@ void F_exact(const Vector &p, Vector &F)
 
 std::string GetUUID(const int device_id)
 {
-  std::stringstream res;
+   std::stringstream res;
 #if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
 #if defined(MFEM_USE_CUDA)
-  CUuuid uuid;
-  MFEM_GPU_CHECK(cuDeviceGetUuid(&uuid, device_id));
+   CUuuid uuid;
+   MFEM_GPU_CHECK(cuDeviceGetUuid(&uuid, device_id));
 #elif defined(MFEM_USE_HIP)
-  hipUUID uuid;
-  MFEM_GPU_CHECK(hipDeviceGetUuid(&uuid, device_id));
+   hipUUID uuid;
+   MFEM_GPU_CHECK(hipDeviceGetUuid(&uuid, device_id));
 #endif
-  for (int i = 0; i < 16; ++i) {
-    res << std::setfill('0') << std::setw(2) << std::hex << static_cast<unsigned>(uuid.bytes[i]);
-  }
+   for (int i = 0; i < 16; ++i)
+   {
+      res << std::setfill('0') << std::setw(2) << std::hex << static_cast<unsigned>
+          (uuid.bytes[i]);
+   }
 #endif
-  return res.str();
+   return res.str();
 }
 
 int main (int argc, char *argv[])
@@ -187,7 +188,7 @@ int main (int argc, char *argv[])
 
    func_order = floor(order/mesh_poly_deg);
    MFEM_VERIFY(func_order > 0, "Gridfunction order must be at-least mesh "
-                               " order.");
+               " order.");
    if (myid == 0)
    {
       cout << "Function order: " << func_order << endl;
@@ -560,17 +561,18 @@ int main (int argc, char *argv[])
                   if (dim == 1)
                   {
                      std::cout << code_out[i] << " " << dist_p_out(i) <<
-                     " " << rst(i*dim + 0) << " k101\n";
+                               " " << rst(i*dim + 0) << " k101\n";
                   }
                   else if (dim == 2)
                   {
                      std::cout << code_out[i] << " " << dist_p_out(i) <<
-                      " " << rst(i*dim + 0) << " " << rst(i*dim + 1) << " k101\n";
+                               " " << rst(i*dim + 0) << " " << rst(i*dim + 1) << " k101\n";
                   }
                }
             }
          }
-         else {
+         else
+         {
             if (j == 0)
             {
                for (int d = 0; d < sdim; d++)
@@ -584,12 +586,12 @@ int main (int argc, char *argv[])
                if (dim == 1)
                {
                   std::cout << code_out[i] << " " << dist_p_out(i) <<
-                  " " << rst(i*dim + 0) << " k101\n";
+                            " " << rst(i*dim + 0) << " k101\n";
                }
                else if (dim == 2)
                {
                   std::cout << code_out[i] << " " << dist_p_out(i) <<
-                   " " << rst(i*dim + 0) << " " << rst(i*dim + 1) << " k101\n";
+                            " " << rst(i*dim + 0) << " " << rst(i*dim + 1) << " k101\n";
                }
             }
          }
