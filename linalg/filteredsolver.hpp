@@ -38,13 +38,13 @@ namespace mfem
 * ---
 *
 * The preconditioner applied by Mult() is
-*  \f[
+*  $$
 * M = B + P S P^T (I - A B) + B (I - A P S P^T) (I- A B),
-*  \f]
+*  $$
 * and the corresponding iteration matrix is
-*  \f[
+*  $$
 * I - M A = (I - B A) (I - P S P^T A) (I - B A).
-*  \f]
+*  $$
 */
 class FilteredSolver : public Solver
 {
