@@ -1088,8 +1088,8 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
                                      int point_pos_ordering)
 {
 #if GSLIB_RELEASE_VERSION < 10009
-      MFEM_ABORT("FindPointsGSLIB::FindPoints only supports surface meshes "
-                 "with GSLIB v1.0.9 or later.");
+   MFEM_ABORT("FindPointsGSLIB::FindPoints only supports surface meshes "
+              "with GSLIB v1.0.9 or later.");
 #endif
    MFEM_VERIFY(setupflag, "Use FindPointsGSLIB::Setup before finding points.");
    MFEM_VERIFY(dim < spacedim, "FindPointsSurf is only for surface meshes.");
