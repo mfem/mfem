@@ -1236,7 +1236,7 @@ public:
    }
 
    /// Allows the tensor data to be accessed as a Densematrix.
-   /// NOTE: The fist two indices are flattened.
+   /// NOTE: The first two indices are flattened.
    void GetDenseMatrix2(DenseMatrix &Mij_k)
    {
       Mij_k.UseExternalData(Data(), SizeI()*SizeJ(),SizeK());

@@ -819,12 +819,12 @@ public:
    virtual ~NURBS_HDivFECollection();
 };
 
-/// Arbitrary order H(div) U H1  NURBS finite elements.
-/// This class is identical to NURBS_HDivFECollection.
-/// However fespace will behave slightly different for this FECollection,
-/// the boundary dofs will also include the tangential components.
-/// This will allow enforcing essential BC for a diffusion problem,
-/// which requires H1 conformity.
+/** @brief Arbitrary order H(div) U H1  NURBS finite elements.
+    This class is identical to NURBS_HDivFECollection.
+    However fespace will behave slightly different for this FECollection,
+    the boundary dofs will also include the tangential components.
+    This will allow enforcing essential BC for a diffusion problem,
+    which requires H1 conformity. */
 class NURBS_HDivH1FECollection : public NURBS_HDivFECollection
 {
 public:

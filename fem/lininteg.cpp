@@ -253,7 +253,7 @@ void BoundaryNormalLFIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int intorder = oa * el.GetOrder() + ob;  // <----------
+      int intorder = oa * el.GetOrder() + ob;
       ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
@@ -1024,7 +1024,7 @@ void VectorFEDGDirichletLFIntegrator::AssembleRHSElementVect(
       el.CalcVShape(*Tr.Elem1, vshape);
       el.CalcPhysDVShape(*Tr.Elem1, dvshape);
 
-      // compute uD through the face transformation
+      // compute vD through the face transformation
       vD->Eval(val, Tr, ip);
       w = ip.weight;
 
