@@ -9,8 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-// Implementation of bounds
-
 #include "bb_grid_map.hpp"
 
 #include <limits>
