@@ -1186,10 +1186,10 @@ void DifferentiableOperator::AddIntegrator(
 
             A = new SparseMatrix(test_fes->GetVSize(), trial_fes->GetVSize());
 
+            auto tmp = Reshape(Ae_mem.HostReadWrite(), num_test_dof * test_vdim,
+                                num_trial_dof * trial_vdim, num_entities);
             for (int e = 0; e < num_entities; e++)
             {
-               auto tmp = Reshape(Ae_mem.HostReadWrite(), num_test_dof * test_vdim,
-                                  num_trial_dof * trial_vdim, num_entities);
                DenseMatrix Aee(&tmp(0, 0, e), num_test_dof * test_vdim,
                                num_trial_dof * trial_vdim);
 

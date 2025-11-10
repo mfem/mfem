@@ -120,7 +120,7 @@ void vectordivergence(const char *filename, int p)
    }
 }
 
-TEST_CASE("dFEM VectorDivergence", "[Parallel][dFEM][GPU]")
+TEST_CASE("dFEM VectorDivergence", "[Parallel][dFEM]")
 {
    const bool all_tests = launch_all_non_regression_tests;
 
