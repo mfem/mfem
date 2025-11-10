@@ -135,104 +135,24 @@ void TestCurlShape(Mesh *mesh, int order)
    std::cout<< std::flush;
 }
 
-TEST_CASE("CalcDVShape",
-          "[2D_HDiv_O1]"
-          "[2D_HDiv_O2]"
-          "[2D_HDiv_O3]"
-          "[3D_HDiv_O1]"
-          "[3D_HDiv_O2]"
-          "[3D_HDiv_O3]"
-          "[2D_HCurl_O1]"
-          "[2D_HCurl_O2]"
-          "[2D_HCurl_O3]"
-          "[3D_HCurl_O1]"
-          "[3D_HCurl_O2]"
-          "[3D_HCurl_O3]")
+TEST_CASE("CalcDVShape","[2D/3D][HDiv/HCurl][Order]"
+         )
 {
+   std::string meshName = GENERATE("square-nurbs.mesh", "cube-nurbs.mesh");
+   int order = GENERATE(1,2,3,4,5);
 
-   // Read 2D mesh and perturb
-   Mesh mesh2d("../../data/square-nurbs.mesh", 1, 1);
-   mesh2d.UniformRefinement();
+   Mesh mesh("../../data/" + meshName, 1, 1);
+   mesh.UniformRefinement();
 
    Vector nodes, dx;
-   mesh2d.GetNodes(nodes);
+   mesh.GetNodes(nodes);
 
    dx.SetSize(nodes.Size());
    FillWithRandomNumbers(dx, -0.1, 0.1);
    nodes += dx;
 
-   mesh2d.SetNodes(nodes);
+   mesh.SetNodes(nodes);
 
-   // Read 3D mesh and perturb
-   Mesh mesh3d("../../data/cube-nurbs.mesh", 1, 1);
-   mesh3d.UniformRefinement();
-
-   mesh3d.GetNodes(nodes);
-
-   dx.SetSize(nodes.Size());
-   FillWithRandomNumbers(dx, -0.1, 0.1);
-   nodes += dx;
-
-   mesh3d.SetNodes(nodes);
-
-   SECTION("2D_HDiv_O1")
-   {
-      TestDivShape(&mesh2d, 1);
-   }
-
-   SECTION("2D_HDiv_O2")
-   {
-      TestDivShape(&mesh2d, 2);
-   }
-
-   SECTION("2D_HDiv_O3")
-   {
-      TestDivShape(&mesh2d, 3);
-   }
-
-   SECTION("3D_HDiv_O1")
-   {
-      TestDivShape(&mesh3d, 1);
-   }
-
-   SECTION("3D_HDiv_O2")
-   {
-      TestDivShape(&mesh3d, 2);
-   }
-
-   SECTION("3D_HDiv_O3")
-   {
-      TestDivShape(&mesh3d, 3);
-   }
-
-   SECTION("2D_HCurl_O1")
-   {
-      TestCurlShape(&mesh2d, 1);
-   }
-
-   SECTION("2D_HCurl_O2")
-   {
-      TestCurlShape(&mesh2d, 2);
-   }
-
-   SECTION("2D_HCurl_O3")
-   {
-      TestCurlShape(&mesh2d, 3);
-   }
-
-   SECTION("3D_HCurl_O1")
-   {
-      TestCurlShape(&mesh3d, 1);
-   }
-
-   SECTION("3D_HCurl_O2")
-   {
-      TestCurlShape(&mesh3d, 2);
-   }
-
-   SECTION("3D_HCurl_O3")
-   {
-      TestCurlShape(&mesh3d, 3);
-   }
-
+   TestDivShape(&mesh, order);
+   TestCurlShape(&mesh, order);
 }
