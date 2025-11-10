@@ -235,7 +235,8 @@ void ParticleSet::AddParticles(const Array<unsigned int> &new_ids,
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
 
 template<std::size_t NBytes>
-void ParticleSet::TransferParticlesImpl(ParticleSet &pset, const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks)
+void ParticleSet::TransferParticlesImpl(ParticleSet &pset,
+                                        const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks)
 {
    struct pdata_t
    {
@@ -358,7 +359,8 @@ ParticleSet::Kernels::Kernels()
    TransferParticles::Specialization<40*sizd>::Add();
 }
 
-ParticleSet::TransferParticlesType ParticleSet::TransferParticles::Fallback(int bufsize)
+ParticleSet::TransferParticlesType ParticleSet::TransferParticles::Fallback(
+   int bufsize)
 {
    constexpr int sizd = sizeof(double);
    if (bufsize < 4*sizd)
@@ -406,7 +408,8 @@ ParticleSet::TransferParticlesType ParticleSet::TransferParticles::Fallback(int 
 
 void ParticleSet::Redistribute(const Array<unsigned int> &rank_list)
 {
-   MFEM_ASSERT(rank_list.Size() == GetNParticles(), "rank_list must be of size GetNParticles().");
+   MFEM_ASSERT(rank_list.Size() == GetNParticles(),
+               "rank_list must be of size GetNParticles().");
 
    int rank = GetRank(comm);
 
@@ -427,7 +430,7 @@ void ParticleSet::Redistribute(const Array<unsigned int> &rank_list)
    int nreals = GetFieldVDims().Sum() + coords.GetVDim();
    int ntags = GetNTags();
    std::size_t nbytes = nreals*sizeof(double) + ntags*sizeof(int);
-   
+
    // Dispatch to appropriate redistribution function for this size
    TransferParticles::Run(nbytes, *this, send_idxs, send_ranks);
 }

@@ -225,11 +225,12 @@ protected:
    std::unique_ptr<gslib::crystal> cr;
 
    template<std::size_t NBytes>
-   static void TransferParticlesImpl(ParticleSet &pset, const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks);
-   
-   using TransferParticlesType = void (*)(ParticleSet &pset, 
-                                 const Array<unsigned int> &send_idxs,
-                                 const Array<unsigned int> &send_ranks);
+   static void TransferParticlesImpl(ParticleSet &pset,
+                                     const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks);
+
+   using TransferParticlesType = void (*)(ParticleSet &pset,
+                                          const Array<unsigned int> &send_idxs,
+                                          const Array<unsigned int> &send_ranks);
 
    // Specialization parameter: NBytes
    MFEM_REGISTER_KERNELS(TransferParticles, TransferParticlesType, (int));
