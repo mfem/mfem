@@ -263,7 +263,7 @@ void IsoLinElasticSolver::SetEssTDofs(Vector &bsol, Array<int> &ess_dofs)
       pcoeff.Set(0, it->second, false);
       fdisp.ProjectBdrCoefficient(pcoeff, ess_bdr);
    }
-   // copy tdofsx from velocity grid function
+   // copy tdofsx from displacement grid function
    {
       Vector &vc = fdisp.GetTrueVector();
       const int Net = ess_tdofx.Size();
@@ -292,7 +292,7 @@ void IsoLinElasticSolver::SetEssTDofs(Vector &bsol, Array<int> &ess_dofs)
       pcoeff.Set(1, it->second, false);
       fdisp.ProjectBdrCoefficient(pcoeff, ess_bdr);
    }
-   // copy tdofsy from velocity grid function
+   // copy tdofsy from displacement grid function
    {
       Vector &vc = fdisp.GetTrueVector();
       const int Net = ess_tdofy.Size();
@@ -324,7 +324,7 @@ void IsoLinElasticSolver::SetEssTDofs(Vector &bsol, Array<int> &ess_dofs)
          fdisp.ProjectBdrCoefficient(pcoeff, ess_bdr);
       }
 
-      // copy tdofsz from velocity grid function
+      // copy tdofsz from displacement grid function
       {
          Vector &vc = fdisp.GetTrueVector();
          for (int ii = 0; ii < ess_tdofz.Size(); ii++)
