@@ -207,7 +207,7 @@ public:
 private:
    mfem::ParMesh *pmesh;
    const bool pa, dfem; // partial assembly, dFEM operator
-   const int vorder, dim, spaceDim;
+   const int dim, spaceDim;
 
    // finite element collection for linear elasticity
    mfem::FiniteElementCollection *vfec;
