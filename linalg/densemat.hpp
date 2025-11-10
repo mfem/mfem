@@ -94,6 +94,9 @@ public:
        should not be used with DenseMatrix that owns its current data array. */
    void ClearExternalData() { data.Reset(); height = width = 0; }
 
+   /// Set the owenership of the data
+   void MakeDataOwner() { data.SetHostPtrOwner(true); }
+
    /// Delete the matrix data array (if owned) and reset the matrix state.
    void Clear()
    { if (OwnsData()) { data.Delete(); } ClearExternalData(); }
@@ -347,7 +350,9 @@ public:
    /// Creates n x n diagonal matrix with diagonal elements c
    void Diag(real_t c, int n);
    /// Creates n x n diagonal matrix with diagonal given by diag
-   void Diag(real_t *diag, int n);
+   void Diag(const real_t *diag, int n);
+   /// Creates a diagonal matrix with diagonal given by diag
+   void Diag(const Vector &diag) { Diag(diag.GetData(), diag.Size()); }
 
    /// (*this) = (*this)^t
    void Transpose();
@@ -1209,6 +1214,16 @@ public:
 
    /// Copy assignment operator (performs a deep copy)
    DenseTensor &operator=(const DenseTensor &other);
+
+   DenseTensor &operator+=(const real_t *m);
+   DenseTensor &operator+=(const DenseTensor &m);
+
+   DenseTensor &operator-=(const DenseTensor &m);
+
+   DenseTensor &operator*=(real_t c);
+
+   /// (*this) = -(*this)
+   void Neg();
 
    DenseMatrix &operator()(int k)
    {

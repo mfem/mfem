@@ -1,0 +1,66 @@
+Options used:
+   --mesh 
+   --ncells-x 20
+   --ncells-y 20
+   --size-x 1
+   --size-y 1
+   --order 1
+   --discontinuous
+   --upwinded
+   --problem 3
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 1e-07
+   --velocity 1
+   --stab_diff 0.5
+   --no-bc-neumann
+   --no-reduction
+   --no-hybridization
+   --no-nonlinear
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 0
+   --no-partial-assembly
+   --device cpu
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+   --serial-format
+Device configuration: cpu
+Memory configuration: host-std
+Mesh::GeneratePartitioning(...): edgecut = 22
+***********************************************************
+dim(V) = 1584
+dim(W) = 792
+dim(V+W) = 2376
+***********************************************************
+Assembly took 0.0187554s.
+Preconditioner took 0.00038981s.
+   Pass :  1   Iteration :   0  ||B r|| = 17.2854
+   Pass :  1   Iteration :   1  ||B r|| = 1.94485
+   Pass :  1   Iteration :   2  ||B r|| = 0.513246
+   Pass :  1   Iteration :   3  ||B r|| = 0.150795
+   Pass :  1   Iteration :   4  ||B r|| = 0.0612767
+   Pass :  1   Iteration :   5  ||B r|| = 0.0574929
+   Pass :  1   Iteration :   6  ||B r|| = 0.0340716
+   Pass :  1   Iteration :   7  ||B r|| = 0.028679
+   Pass :  1   Iteration :   8  ||B r|| = 0.0282194
+   Pass :  1   Iteration :   9  ||B r|| = 0.0167267
+   Pass :  1   Iteration :  10  ||B r|| = 0.00360812
+   Pass :  1   Iteration :  11  ||B r|| = 0.00329152
+   Pass :  1   Iteration :  12  ||B r|| = 0.000714758
+   Pass :  1   Iteration :  13  ||B r|| = 0.000152817
+   Pass :  1   Iteration :  14  ||B r|| = 0.00015096
+   Pass :  1   Iteration :  15  ||B r|| = 0.000102292
+   Pass :  1   Iteration :  16  ||B r|| = 0.000100333
+   Pass :  1   Iteration :  17  ||B r|| = 5.53816e-05
+   Pass :  1   Iteration :  18  ||B r|| = 4.80845e-05
+   Pass :  1   Iteration :  19  ||B r|| = 9.38363e-06
+GMRES+HypreAMG converged in 19 iterations with a residual norm of 9.38363e-06.
+solver took 0.0133923s.
+|| q_h - q_ex || / || q_ex || = 0.478091
+|| t_h - t_ex || / || t_ex || = 0.0520593
