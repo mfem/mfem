@@ -1082,9 +1082,15 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
    MapRefPosAndElemIndices();
 }
 
+
+
 void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
                                      int point_pos_ordering)
 {
+#if GSLIB_RELEASE_VERSION < 10009
+      MFEM_ABORT("FindPointsGSLIB::FindPoints only supports surface meshes "
+                 "with GSLIB v1.0.9 or later.");
+#endif
    MFEM_VERIFY(setupflag, "Use FindPointsGSLIB::Setup before finding points.");
    MFEM_VERIFY(dim < spacedim, "FindPointsSurf is only for surface meshes.");
    bool tensor_product_only = mesh->GetNE() == 0 ||
@@ -1125,498 +1131,6 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
    // both simplices and quads. Also sets code to 1 for points found on element
    // faces/edges.
    // MapRefPosAndElemIndicesSurf();
-}
-
-slong lfloor(double x) { return floor(x); }
-
-// Local hash mesh index in 1D for a given point
-ulong hash_index_aux(double low, double fac, ulong n, double x)
-{
-   const slong i = lfloor((x - low) * fac);
-   return i < 0 ? 0 : (n - 1 < (ulong)i ? n - 1 : (ulong)i);
-}
-
-// Hash mesh index in 3D for a given point
-ulong hash_index_nd(const Vector &hash_min, const Vector &hash_fac,
-                    const int n,  const Vector &x)
-{
-   const int dim = x.Size();
-   if (dim == 2)
-   {
-      return (hash_index_aux(hash_min(1), hash_fac(1), n, x[1])) * n
-             + hash_index_aux(hash_min(0), hash_fac(0), n, x[0]);
-   }
-   else if (dim == 3)
-   {
-      return (hash_index_aux(hash_min(2), hash_fac(2), n, x[2]) * n +
-              hash_index_aux(hash_min(1), hash_fac(1), n, x[1])) * n +
-             hash_index_aux(hash_min(0), hash_fac(0), n, x[0]);
-   }
-   else
-   {
-      MFEM_ABORT("hash_index_nd only supports 2D and 3D cases.");
-   }
-}
-
-void FindPointsGSLIB::FindPointsSurfOnDevice(const Vector &point_pos,
-                                             int point_pos_ordering)
-{
-   if (!DEV.setup_device)
-   {
-      SetupSurfDevice();
-   }
-
-   gsl_mfem_ref.SetSize(points_cnt * dim);
-   gsl_mfem_elem.SetSize(points_cnt);
-   gsl_mfem_ref = 0.0;
-   gsl_mfem_elem = 0;
-
-   gsl_ref.UseDevice(true);
-   gsl_dist.UseDevice(true);
-
-
-   if (spacedim==2)
-   {
-      FindPointsEdgeLocal2(point_pos,
-                           point_pos_ordering,
-                           gsl_code,
-                           gsl_elem,
-                           gsl_ref,
-                           gsl_dist,
-                           gsl_newton,
-                           points_cnt);
-   }
-   else
-   {
-      if (dim == 1)
-      {
-         FindPointsEdgeLocal3(point_pos,
-                              point_pos_ordering,
-                              gsl_code,
-                              gsl_elem,
-                              gsl_ref,
-                              gsl_dist,
-                              gsl_newton,
-                              points_cnt);
-      }
-      else if (dim == 2)
-      {
-         FindPointsSurfLocal3(point_pos,
-                              point_pos_ordering,
-                              gsl_code,
-                              gsl_elem,
-                              gsl_ref,
-                              gsl_dist,
-                              gsl_newton,
-                              points_cnt);
-
-      }
-   }
-   gsl_ref.HostReadWrite();
-   gsl_dist.HostReadWrite();
-   gsl_code.HostReadWrite();
-   gsl_elem.HostReadWrite();
-   point_pos.HostRead();
-
-   gsl_proc.HostWrite();
-   gsl_newton.HostReadWrite();
-
-   // tolerance for point to be marked as on element edge/face
-   const int id = gsl_comm->id,
-             np = gsl_comm->np;
-   for (int i=0; i<points_cnt; i++)
-   {
-      gsl_proc[i] = id;
-   }
-   // Tolerance for point to be marked as on element edge/face based on the
-   // obtained reference-space coordinates.
-   double rbtol = 1e-12; // must match MapRefPosAndElemIndices for consistency
-
-   for (int index = 0; index < points_cnt; index++)
-   {
-      gsl_mfem_elem[index] = gsl_elem[index];
-      for (int d = 0; d < dim; d++)
-      {
-         gsl_mfem_ref(index * dim + d) = 0.5 * (gsl_ref(index * dim + d) + 1.0);
-      }
-      // Note: we check if the point is on element border and mark it as
-      // such. We do not mark points as CODE_INTERNAL because the found
-      // solution could be interior to the element even when the point
-      // is not on the edge/surface. This case is handled in the kernels.
-      if (dim == 1)
-      {
-         real_t ipx = gsl_mfem_ref(index);
-         if (ipx < rbtol || ipx > 1.0 - rbtol)
-         {
-            gsl_code[index] = CODE_BORDER;
-         }
-      }
-      else if (dim == 2)
-      {
-         real_t ipx = gsl_mfem_ref(index * dim + 0);
-         real_t ipy = gsl_mfem_ref(index * dim + 1);
-         if (ipx < rbtol || ipx > 1.0 - rbtol ||
-             ipy < rbtol || ipy > 1.0 - rbtol)
-         {
-            gsl_code[index] = CODE_BORDER;
-         }
-      }
-   }
-   if (np == 1) { return; }
-
-#ifdef MFEM_USE_MPI
-   MPI_Barrier(gsl_comm->c);
-#endif
-
-
-   /* send unfound and border points to global hash cells */
-   struct gslib::array hash_pt, src_pt, out_pt;
-
-   struct srcPt_t
-   {
-      double x[3];
-      unsigned int index, proc;
-   };
-
-   struct outPt_t
-   {
-      double r[2], dist2;
-      unsigned int index, code, el, proc;
-      int newton;
-   };
-
-   {
-      int index;
-      struct srcPt_t *pt;
-
-      array_init(struct srcPt_t, &hash_pt, points_cnt);
-      pt = (struct srcPt_t *)hash_pt.ptr;
-
-      Vector x(spacedim);
-      for (index=0; index<points_cnt; ++index)
-      {
-         if (gsl_code[index] != CODE_INTERNAL)
-         {
-            for (int d=0; d<spacedim; ++d)
-            {
-               int idx = point_pos_ordering == 0 ?
-                         index + d*points_cnt :
-                         index*spacedim + d;
-               x[d] = point_pos(idx);
-            }
-            const auto hi = hash_index_nd(DEV.gh_min, DEV.gh_fac, DEV.gh_nx, x);
-            for (int d=0; d<spacedim; ++d)
-            {
-               pt->x[d] = x[d];
-            }
-            pt->index = index;
-            pt->proc = hi % np;
-            ++pt;
-         }
-      }
-      hash_pt.n = pt - (struct srcPt_t *)hash_pt.ptr;
-      sarray_transfer(struct srcPt_t, &hash_pt, proc, 1, DEV.cr);
-   }
-#ifdef MFEM_USE_MPI
-   MPI_Barrier(gsl_comm->c);
-#endif
-
-   /* look up points in hash cells, route to possible procs */
-   {
-      const unsigned int *const hash_offset = DEV.gh_offset.GetData();
-      int count = 0;
-      unsigned int *proc, *proc_p;
-      const struct srcPt_t *p = (struct srcPt_t *)hash_pt.ptr,
-                            *const pe = p + hash_pt.n;
-      struct srcPt_t *q;
-      Vector x(spacedim);
-
-      for (; p!=pe; ++p)
-      {
-         for (int d = 0; d < spacedim; d++) { x[d] = p->x[d]; }
-         const int hi = hash_index_nd(DEV.gh_min, DEV.gh_fac, DEV.gh_nx, x)/np;
-         const int i = hash_offset[hi], ie = hash_offset[hi + 1];
-         count += ie - i;
-      }
-
-      Array<unsigned int> proc_array(count);
-      proc = proc_array.GetData();
-      proc_p = proc;
-      array_init(struct srcPt_t, &src_pt, count);
-      q = (struct srcPt_t *)src_pt.ptr;
-      p = (struct srcPt_t *)hash_pt.ptr;
-      for (; p!=pe; ++p)
-      {
-         for (int d = 0; d < spacedim; d++) { x[d] = p->x[d]; }
-         const int hi = hash_index_nd(DEV.gh_min, DEV.gh_fac, DEV.gh_nx, x)/np;
-         int i        = hash_offset[hi];
-         const int ie = hash_offset[hi + 1];
-         for (; i!=ie; ++i)
-         {
-            const int pp = hash_offset[i];
-            if (pp==p->proc)
-            {
-               continue;   /* don't send back to source proc */
-            }
-            *proc_p++ = pp;
-            *q++      = *p;
-         }
-      }
-
-      array_free(&hash_pt);
-      src_pt.n = proc_p - proc;
-
-      sarray_transfer_ext(struct srcPt_t, &src_pt, proc, sizeof(uint), DEV.cr);
-   }
-#ifdef MFEM_USE_MPI
-   MPI_Barrier(gsl_comm->c);
-#endif
-
-   /* look for other procs' points, send back */
-   {
-      int n = src_pt.n;
-      const struct srcPt_t *spt;
-      struct outPt_t *opt;
-      array_init(struct outPt_t, &out_pt, n);
-      out_pt.n = n;
-      spt = (struct srcPt_t *)src_pt.ptr;
-      opt = (struct outPt_t *)out_pt.ptr;
-      for (; n; --n, ++spt, ++opt)
-      {
-         opt->index = spt->index;
-         opt->proc  = spt->proc;
-      }
-      spt = (struct srcPt_t *)src_pt.ptr;
-      opt = (struct outPt_t *)out_pt.ptr;
-
-      n = out_pt.n;
-      Vector gsl_ref_l(n*dim), gsl_dist_l(n);
-      gsl_ref_l.UseDevice(true);
-      gsl_dist_l.UseDevice(true);
-
-      Vector point_pos_l(n*spacedim);
-      point_pos_l.UseDevice(true);
-      auto pointl = point_pos_l.HostWrite();
-
-      Array<unsigned int> gsl_code_l(n), gsl_elem_l(n);
-
-      Array<int> gsl_newton_l(n);
-
-      for (int point=0; point<n; ++point)
-      {
-         for (int d=0; d<spacedim; d++)
-         {
-            int idx = point_pos_ordering==0 ? point + d*n :
-                      point*spacedim + d;
-            pointl[idx] = spt[point].x[d];
-         }
-      }
-
-      if (spacedim==2)
-      {
-         FindPointsEdgeLocal2(point_pos_l,
-                              point_pos_ordering,
-                              gsl_code_l,
-                              gsl_elem_l,
-                              gsl_ref_l,
-                              gsl_dist_l,
-                              gsl_newton_l,
-                              n);
-      }
-      else
-      {
-         if (dim == 1)
-         {
-            FindPointsEdgeLocal3(point_pos_l,
-                                 point_pos_ordering,
-                                 gsl_code_l,
-                                 gsl_elem_l,
-                                 gsl_ref_l,
-                                 gsl_dist_l,
-                                 gsl_newton_l,
-                                 n);
-
-         }
-         else
-         {
-            FindPointsSurfLocal3(point_pos_l,
-                                 point_pos_ordering,
-                                 gsl_code_l,
-                                 gsl_elem_l,
-                                 gsl_ref_l,
-                                 gsl_dist_l,
-                                 gsl_newton_l,
-                                 n);
-         }
-      }
-
-      gsl_ref_l.HostRead();
-      gsl_dist_l.HostRead();
-      gsl_code_l.HostRead();
-      gsl_elem_l.HostRead();
-      gsl_newton_l.HostRead();
-
-      // unpack arrays into opt
-      for (int point=0; point<n; ++point)
-      {
-         opt[point].code = AsConst(gsl_code_l)[point];
-         if (opt[point].code == CODE_NOT_FOUND)
-         {
-            continue;
-         }
-         opt[point].el   = AsConst(gsl_elem_l)[point];
-         opt[point].dist2 = AsConst(gsl_dist_l)[point];
-         for (int d = 0; d < dim; ++d)
-         {
-            opt[point].r[d] = AsConst(gsl_ref_l)[dim * point + d];
-         }
-         // Note: we check if the point is on element border and mark it as
-         // such. We do not mark points as CODE_INTERNAL because the found
-         // solution could be interior to the element even when the point
-         // is not on the edge/surface. This case is handled in the kernels.
-         if (dim == 1)
-         {
-            real_t ipx = 0.5*opt[point].r[0]+0.5;
-            if (ipx < rbtol || ipx > 1.0 - rbtol)
-            {
-               opt[point].code = CODE_BORDER;
-            }
-         }
-         else if (dim == 2)
-         {
-            real_t ipx = 0.5*opt[point].r[0]+0.5;
-            real_t ipy = 0.5*opt[point].r[1]+0.5;
-            if (ipx < rbtol || ipx > 1.0 - rbtol ||
-                ipy < rbtol || ipy > 1.0 - rbtol)
-            {
-               opt[point].code = CODE_BORDER;
-            }
-         }
-         opt[point].newton = gsl_newton_l[point];
-      }
-      array_free(&src_pt);
-
-      /* group by code to eliminate unfound points */
-      sarray_sort(struct outPt_t, opt, out_pt.n, code, 0, &DEV.cr->data);
-
-      n = out_pt.n;
-      while (n && opt[n-1].code == CODE_NOT_FOUND)
-      {
-         --n;
-      }
-      out_pt.n = n;
-
-      sarray_transfer(struct outPt_t, &out_pt, proc, 1, DEV.cr);
-   }
-#ifdef MFEM_USE_MPI
-   MPI_Barrier(gsl_comm->c);
-#endif
-
-   // /* merge remote results with user data */
-   {
-      int n = out_pt.n;
-      struct outPt_t *opt = (struct outPt_t *)out_pt.ptr;
-      for (; n; --n, ++opt)
-      {
-         const int index = opt->index;
-         if (gsl_code[index] == CODE_INTERNAL)
-         {
-            continue;
-         }
-         if ( gsl_code[index]==CODE_NOT_FOUND
-              || opt->code==CODE_INTERNAL
-              || opt->dist2<gsl_dist(index) )
-         {
-            for (int d=0; d<dim; ++d)
-            {
-               gsl_ref(dim*index + d) = opt->r[d];
-               gsl_mfem_ref(dim*index + d) = 0.5*(opt->r[d] + 1.);
-            }
-            gsl_dist(index) = opt->dist2;
-            gsl_proc[index] = opt->proc;
-            gsl_elem[index] = opt->el;
-            gsl_code[index] = opt->code;
-            gsl_mfem_elem[index] = opt->el;
-         }
-      }
-      array_free(&out_pt);
-   }
-
-   MPI_Barrier(gsl_comm->c);
-}
-
-void lagrange_eval_second_derivative(double *p0, double x, int i,
-                                     const double *z,
-                                     const double *lagrangeCoeff,
-                                     int pN)
-{
-   double u0 = 1, u1 = 0, u2 = 0;
-   for (int j=0; j<pN; ++j)
-   {
-      if (i!=j)
-      {
-         double d_j = 2 * (x-z[j]);
-         u2 = d_j * u2 + u1;
-         u1 = d_j * u1 + u0;
-         u0 = d_j * u0;
-      }
-   }
-   double *p1 = p0 + pN, *p2 = p0 + 2 * pN;
-   p0[i] = lagrangeCoeff[i] * u0;
-   p1[i] = 2.0 * lagrangeCoeff[i] * u1;
-   p2[i] = 8.0 * lagrangeCoeff[i] * u2;
-}
-
-void FindPointsGSLIB::SetupSurfDevice()
-{
-   gsl_mesh.UseDevice(true);
-
-   DEV.bb.UseDevice(true);
-   DEV.lh_min.UseDevice(true);
-   DEV.lh_fac.UseDevice(true);
-   DEV.gh_min.UseDevice(true);
-   DEV.gh_fac.UseDevice(true);
-   DEV.cr = cr;
-
-   Vector gll1dtemp(DEV.dof1d),
-          lagcoefftemp(DEV.dof1d),
-          wtendtemp(6*DEV.dof1d);
-   gslib::lobatto_nodes(gll1dtemp.GetData(),
-                        DEV.dof1d); // Get gll points [-1,1] for the given dof1d
-   gslib::gll_lag_setup(lagcoefftemp.GetData(),
-                        DEV.dof1d); // Get lagrange coefficients at the gll points
-   for (int i=0; i<DEV.dof1d; i++)   // loop through all lagrange polynomials
-   {
-      lagrange_eval_second_derivative(wtendtemp.GetData(),
-                                      -1.0,  // evaluate at -1
-                                      i,     // for the ith lagrange polynomial
-                                      gll1dtemp.GetData(),
-                                      lagcoefftemp.GetData(),
-                                      DEV.dof1d);
-      lagrange_eval_second_derivative(wtendtemp.GetData()+3*DEV.dof1d,
-                                      1.0,  // evaluate at 1
-                                      i,    // for the ith lagrange polynomial
-                                      gll1dtemp.GetData(),
-                                      lagcoefftemp.GetData(),
-                                      DEV.dof1d);
-   }
-
-   DEV.wtend.UseDevice(true);
-   DEV.wtend.SetSize(6*DEV.dof1d);
-   DEV.wtend.HostWrite();
-   DEV.wtend = wtendtemp.GetData();
-
-   DEV.gll1d.UseDevice(true);
-   DEV.gll1d.SetSize(DEV.dof1d);
-   DEV.gll1d.HostWrite();
-   DEV.gll1d = gll1dtemp.GetData();
-
-   DEV.lagcoeff.UseDevice(true);
-   DEV.lagcoeff.SetSize(DEV.dof1d);
-   DEV.lagcoeff.HostWrite();
-   DEV.lagcoeff = lagcoefftemp.GetData();
-
-   MFEM_DEVICE_SYNC;
 }
 
 #if GSLIB_RELEASE_VERSION >= 10009
@@ -2366,6 +1880,498 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
    //finished evaluating points received from other processors.
 }
 
+slong lfloor(double x) { return floor(x); }
+
+// Local hash mesh index in 1D for a given point
+ulong hash_index_aux(double low, double fac, ulong n, double x)
+{
+   const slong i = lfloor((x - low) * fac);
+   return i < 0 ? 0 : (n - 1 < (ulong)i ? n - 1 : (ulong)i);
+}
+
+// Hash mesh index in 3D for a given point
+ulong hash_index_nd(const Vector &hash_min, const Vector &hash_fac,
+                    const int n,  const Vector &x)
+{
+   const int dim = x.Size();
+   if (dim == 2)
+   {
+      return (hash_index_aux(hash_min(1), hash_fac(1), n, x[1])) * n
+             + hash_index_aux(hash_min(0), hash_fac(0), n, x[0]);
+   }
+   else if (dim == 3)
+   {
+      return (hash_index_aux(hash_min(2), hash_fac(2), n, x[2]) * n +
+              hash_index_aux(hash_min(1), hash_fac(1), n, x[1])) * n +
+             hash_index_aux(hash_min(0), hash_fac(0), n, x[0]);
+   }
+   else
+   {
+      MFEM_ABORT("hash_index_nd only supports 2D and 3D cases.");
+   }
+}
+
+void FindPointsGSLIB::FindPointsSurfOnDevice(const Vector &point_pos,
+                                             int point_pos_ordering)
+{
+   if (!DEV.setup_device)
+   {
+      SetupSurfDevice();
+   }
+
+   gsl_mfem_ref.SetSize(points_cnt * dim);
+   gsl_mfem_elem.SetSize(points_cnt);
+   gsl_mfem_ref = 0.0;
+   gsl_mfem_elem = 0;
+
+   gsl_ref.UseDevice(true);
+   gsl_dist.UseDevice(true);
+
+
+   if (spacedim==2)
+   {
+      FindPointsEdgeLocal2(point_pos,
+                           point_pos_ordering,
+                           gsl_code,
+                           gsl_elem,
+                           gsl_ref,
+                           gsl_dist,
+                           gsl_newton,
+                           points_cnt);
+   }
+   else
+   {
+      if (dim == 1)
+      {
+         FindPointsEdgeLocal3(point_pos,
+                              point_pos_ordering,
+                              gsl_code,
+                              gsl_elem,
+                              gsl_ref,
+                              gsl_dist,
+                              gsl_newton,
+                              points_cnt);
+      }
+      else if (dim == 2)
+      {
+         FindPointsSurfLocal3(point_pos,
+                              point_pos_ordering,
+                              gsl_code,
+                              gsl_elem,
+                              gsl_ref,
+                              gsl_dist,
+                              gsl_newton,
+                              points_cnt);
+
+      }
+   }
+   gsl_ref.HostReadWrite();
+   gsl_dist.HostReadWrite();
+   gsl_code.HostReadWrite();
+   gsl_elem.HostReadWrite();
+   point_pos.HostRead();
+
+   gsl_proc.HostWrite();
+   gsl_newton.HostReadWrite();
+
+   // tolerance for point to be marked as on element edge/face
+   const int id = gsl_comm->id,
+             np = gsl_comm->np;
+   for (int i=0; i<points_cnt; i++)
+   {
+      gsl_proc[i] = id;
+   }
+   // Tolerance for point to be marked as on element edge/face based on the
+   // obtained reference-space coordinates.
+   double rbtol = 1e-12; // must match MapRefPosAndElemIndices for consistency
+
+   for (int index = 0; index < points_cnt; index++)
+   {
+      gsl_mfem_elem[index] = gsl_elem[index];
+      for (int d = 0; d < dim; d++)
+      {
+         gsl_mfem_ref(index * dim + d) = 0.5 * (gsl_ref(index * dim + d) + 1.0);
+      }
+      // Note: we check if the point is on element border and mark it as
+      // such. We do not mark points as CODE_INTERNAL because the found
+      // solution could be interior to the element even when the point
+      // is not on the edge/surface. This case is handled in the kernels.
+      if (dim == 1)
+      {
+         real_t ipx = gsl_mfem_ref(index);
+         if (ipx < rbtol || ipx > 1.0 - rbtol)
+         {
+            gsl_code[index] = CODE_BORDER;
+         }
+      }
+      else if (dim == 2)
+      {
+         real_t ipx = gsl_mfem_ref(index * dim + 0);
+         real_t ipy = gsl_mfem_ref(index * dim + 1);
+         if (ipx < rbtol || ipx > 1.0 - rbtol ||
+             ipy < rbtol || ipy > 1.0 - rbtol)
+         {
+            gsl_code[index] = CODE_BORDER;
+         }
+      }
+   }
+   if (np == 1) { return; }
+
+#ifdef MFEM_USE_MPI
+   MPI_Barrier(gsl_comm->c);
+#endif
+
+
+   /* send unfound and border points to global hash cells */
+   struct gslib::array hash_pt, src_pt, out_pt;
+
+   struct srcPt_t
+   {
+      double x[3];
+      unsigned int index, proc;
+   };
+
+   struct outPt_t
+   {
+      double r[2], dist2;
+      unsigned int index, code, el, proc;
+      int newton;
+   };
+
+   {
+      int index;
+      struct srcPt_t *pt;
+
+      array_init(struct srcPt_t, &hash_pt, points_cnt);
+      pt = (struct srcPt_t *)hash_pt.ptr;
+
+      Vector x(spacedim);
+      for (index=0; index<points_cnt; ++index)
+      {
+         if (gsl_code[index] != CODE_INTERNAL)
+         {
+            for (int d=0; d<spacedim; ++d)
+            {
+               int idx = point_pos_ordering == 0 ?
+                         index + d*points_cnt :
+                         index*spacedim + d;
+               x[d] = point_pos(idx);
+            }
+            const auto hi = hash_index_nd(DEV.gh_min, DEV.gh_fac, DEV.gh_nx, x);
+            for (int d=0; d<spacedim; ++d)
+            {
+               pt->x[d] = x[d];
+            }
+            pt->index = index;
+            pt->proc = hi % np;
+            ++pt;
+         }
+      }
+      hash_pt.n = pt - (struct srcPt_t *)hash_pt.ptr;
+      sarray_transfer(struct srcPt_t, &hash_pt, proc, 1, DEV.cr);
+   }
+#ifdef MFEM_USE_MPI
+   MPI_Barrier(gsl_comm->c);
+#endif
+
+   /* look up points in hash cells, route to possible procs */
+   {
+      const unsigned int *const hash_offset = DEV.gh_offset.GetData();
+      int count = 0;
+      unsigned int *proc, *proc_p;
+      const struct srcPt_t *p = (struct srcPt_t *)hash_pt.ptr,
+                            *const pe = p + hash_pt.n;
+      struct srcPt_t *q;
+      Vector x(spacedim);
+
+      for (; p!=pe; ++p)
+      {
+         for (int d = 0; d < spacedim; d++) { x[d] = p->x[d]; }
+         const int hi = hash_index_nd(DEV.gh_min, DEV.gh_fac, DEV.gh_nx, x)/np;
+         const int i = hash_offset[hi], ie = hash_offset[hi + 1];
+         count += ie - i;
+      }
+
+      Array<unsigned int> proc_array(count);
+      proc = proc_array.GetData();
+      proc_p = proc;
+      array_init(struct srcPt_t, &src_pt, count);
+      q = (struct srcPt_t *)src_pt.ptr;
+      p = (struct srcPt_t *)hash_pt.ptr;
+      for (; p!=pe; ++p)
+      {
+         for (int d = 0; d < spacedim; d++) { x[d] = p->x[d]; }
+         const int hi = hash_index_nd(DEV.gh_min, DEV.gh_fac, DEV.gh_nx, x)/np;
+         int i        = hash_offset[hi];
+         const int ie = hash_offset[hi + 1];
+         for (; i!=ie; ++i)
+         {
+            const int pp = hash_offset[i];
+            if (pp==p->proc)
+            {
+               continue;   /* don't send back to source proc */
+            }
+            *proc_p++ = pp;
+            *q++      = *p;
+         }
+      }
+
+      array_free(&hash_pt);
+      src_pt.n = proc_p - proc;
+
+      sarray_transfer_ext(struct srcPt_t, &src_pt, proc, sizeof(uint), DEV.cr);
+   }
+#ifdef MFEM_USE_MPI
+   MPI_Barrier(gsl_comm->c);
+#endif
+
+   /* look for other procs' points, send back */
+   {
+      int n = src_pt.n;
+      const struct srcPt_t *spt;
+      struct outPt_t *opt;
+      array_init(struct outPt_t, &out_pt, n);
+      out_pt.n = n;
+      spt = (struct srcPt_t *)src_pt.ptr;
+      opt = (struct outPt_t *)out_pt.ptr;
+      for (; n; --n, ++spt, ++opt)
+      {
+         opt->index = spt->index;
+         opt->proc  = spt->proc;
+      }
+      spt = (struct srcPt_t *)src_pt.ptr;
+      opt = (struct outPt_t *)out_pt.ptr;
+
+      n = out_pt.n;
+      Vector gsl_ref_l(n*dim), gsl_dist_l(n);
+      gsl_ref_l.UseDevice(true);
+      gsl_dist_l.UseDevice(true);
+
+      Vector point_pos_l(n*spacedim);
+      point_pos_l.UseDevice(true);
+      auto pointl = point_pos_l.HostWrite();
+
+      Array<unsigned int> gsl_code_l(n), gsl_elem_l(n);
+
+      Array<int> gsl_newton_l(n);
+
+      for (int point=0; point<n; ++point)
+      {
+         for (int d=0; d<spacedim; d++)
+         {
+            int idx = point_pos_ordering==0 ? point + d*n :
+                      point*spacedim + d;
+            pointl[idx] = spt[point].x[d];
+         }
+      }
+
+      if (spacedim==2)
+      {
+         FindPointsEdgeLocal2(point_pos_l,
+                              point_pos_ordering,
+                              gsl_code_l,
+                              gsl_elem_l,
+                              gsl_ref_l,
+                              gsl_dist_l,
+                              gsl_newton_l,
+                              n);
+      }
+      else
+      {
+         if (dim == 1)
+         {
+            FindPointsEdgeLocal3(point_pos_l,
+                                 point_pos_ordering,
+                                 gsl_code_l,
+                                 gsl_elem_l,
+                                 gsl_ref_l,
+                                 gsl_dist_l,
+                                 gsl_newton_l,
+                                 n);
+
+         }
+         else
+         {
+            FindPointsSurfLocal3(point_pos_l,
+                                 point_pos_ordering,
+                                 gsl_code_l,
+                                 gsl_elem_l,
+                                 gsl_ref_l,
+                                 gsl_dist_l,
+                                 gsl_newton_l,
+                                 n);
+         }
+      }
+
+      gsl_ref_l.HostRead();
+      gsl_dist_l.HostRead();
+      gsl_code_l.HostRead();
+      gsl_elem_l.HostRead();
+      gsl_newton_l.HostRead();
+
+      // unpack arrays into opt
+      for (int point=0; point<n; ++point)
+      {
+         opt[point].code = AsConst(gsl_code_l)[point];
+         if (opt[point].code == CODE_NOT_FOUND)
+         {
+            continue;
+         }
+         opt[point].el   = AsConst(gsl_elem_l)[point];
+         opt[point].dist2 = AsConst(gsl_dist_l)[point];
+         for (int d = 0; d < dim; ++d)
+         {
+            opt[point].r[d] = AsConst(gsl_ref_l)[dim * point + d];
+         }
+         // Note: we check if the point is on element border and mark it as
+         // such. We do not mark points as CODE_INTERNAL because the found
+         // solution could be interior to the element even when the point
+         // is not on the edge/surface. This case is handled in the kernels.
+         if (dim == 1)
+         {
+            real_t ipx = 0.5*opt[point].r[0]+0.5;
+            if (ipx < rbtol || ipx > 1.0 - rbtol)
+            {
+               opt[point].code = CODE_BORDER;
+            }
+         }
+         else if (dim == 2)
+         {
+            real_t ipx = 0.5*opt[point].r[0]+0.5;
+            real_t ipy = 0.5*opt[point].r[1]+0.5;
+            if (ipx < rbtol || ipx > 1.0 - rbtol ||
+                ipy < rbtol || ipy > 1.0 - rbtol)
+            {
+               opt[point].code = CODE_BORDER;
+            }
+         }
+         opt[point].newton = gsl_newton_l[point];
+      }
+      array_free(&src_pt);
+
+      /* group by code to eliminate unfound points */
+      sarray_sort(struct outPt_t, opt, out_pt.n, code, 0, &DEV.cr->data);
+
+      n = out_pt.n;
+      while (n && opt[n-1].code == CODE_NOT_FOUND)
+      {
+         --n;
+      }
+      out_pt.n = n;
+
+      sarray_transfer(struct outPt_t, &out_pt, proc, 1, DEV.cr);
+   }
+#ifdef MFEM_USE_MPI
+   MPI_Barrier(gsl_comm->c);
+#endif
+
+   // /* merge remote results with user data */
+   {
+      int n = out_pt.n;
+      struct outPt_t *opt = (struct outPt_t *)out_pt.ptr;
+      for (; n; --n, ++opt)
+      {
+         const int index = opt->index;
+         if (gsl_code[index] == CODE_INTERNAL)
+         {
+            continue;
+         }
+         if ( gsl_code[index]==CODE_NOT_FOUND
+              || opt->code==CODE_INTERNAL
+              || opt->dist2<gsl_dist(index) )
+         {
+            for (int d=0; d<dim; ++d)
+            {
+               gsl_ref(dim*index + d) = opt->r[d];
+               gsl_mfem_ref(dim*index + d) = 0.5*(opt->r[d] + 1.);
+            }
+            gsl_dist(index) = opt->dist2;
+            gsl_proc[index] = opt->proc;
+            gsl_elem[index] = opt->el;
+            gsl_code[index] = opt->code;
+            gsl_mfem_elem[index] = opt->el;
+         }
+      }
+      array_free(&out_pt);
+   }
+
+   MPI_Barrier(gsl_comm->c);
+}
+
+void lagrange_eval_second_derivative(double *p0, double x, int i,
+                                     const double *z,
+                                     const double *lagrangeCoeff,
+                                     int pN)
+{
+   double u0 = 1, u1 = 0, u2 = 0;
+   for (int j=0; j<pN; ++j)
+   {
+      if (i!=j)
+      {
+         double d_j = 2 * (x-z[j]);
+         u2 = d_j * u2 + u1;
+         u1 = d_j * u1 + u0;
+         u0 = d_j * u0;
+      }
+   }
+   double *p1 = p0 + pN, *p2 = p0 + 2 * pN;
+   p0[i] = lagrangeCoeff[i] * u0;
+   p1[i] = 2.0 * lagrangeCoeff[i] * u1;
+   p2[i] = 8.0 * lagrangeCoeff[i] * u2;
+}
+
+void FindPointsGSLIB::SetupSurfDevice()
+{
+   gsl_mesh.UseDevice(true);
+
+   DEV.bb.UseDevice(true);
+   DEV.lh_min.UseDevice(true);
+   DEV.lh_fac.UseDevice(true);
+   DEV.gh_min.UseDevice(true);
+   DEV.gh_fac.UseDevice(true);
+   DEV.cr = cr;
+
+   Vector gll1dtemp(DEV.dof1d),
+          lagcoefftemp(DEV.dof1d),
+          wtendtemp(6*DEV.dof1d);
+   gslib::lobatto_nodes(gll1dtemp.GetData(),
+                        DEV.dof1d); // Get gll points [-1,1] for the given dof1d
+   gslib::gll_lag_setup(lagcoefftemp.GetData(),
+                        DEV.dof1d); // Get lagrange coefficients at the gll points
+   for (int i=0; i<DEV.dof1d; i++)   // loop through all lagrange polynomials
+   {
+      lagrange_eval_second_derivative(wtendtemp.GetData(),
+                                      -1.0,  // evaluate at -1
+                                      i,     // for the ith lagrange polynomial
+                                      gll1dtemp.GetData(),
+                                      lagcoefftemp.GetData(),
+                                      DEV.dof1d);
+      lagrange_eval_second_derivative(wtendtemp.GetData()+3*DEV.dof1d,
+                                      1.0,  // evaluate at 1
+                                      i,    // for the ith lagrange polynomial
+                                      gll1dtemp.GetData(),
+                                      lagcoefftemp.GetData(),
+                                      DEV.dof1d);
+   }
+
+   DEV.wtend.UseDevice(true);
+   DEV.wtend.SetSize(6*DEV.dof1d);
+   DEV.wtend.HostWrite();
+   DEV.wtend = wtendtemp.GetData();
+
+   DEV.gll1d.UseDevice(true);
+   DEV.gll1d.SetSize(DEV.dof1d);
+   DEV.gll1d.HostWrite();
+   DEV.gll1d = gll1dtemp.GetData();
+
+   DEV.lagcoeff.UseDevice(true);
+   DEV.lagcoeff.SetSize(DEV.dof1d);
+   DEV.lagcoeff.HostWrite();
+   DEV.lagcoeff = lagcoefftemp.GetData();
+
+   MFEM_DEVICE_SYNC;
+}
+
 void FindPointsGSLIB::InterpolateSurfBase(const Vector &field_in,
                                           Vector &field_out,
                                           const int nel,
@@ -2568,6 +2574,15 @@ void FindPointsGSLIB::SetupDevice() {};
 void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
                                          int point_pos_ordering) {};
 void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
+                                          Vector &field_out,
+                                          const int nel, const int ncomp,
+                                          const int dof1dsol,
+                                          const int ordering) {};
+
+void FindPointsGSLIB::FindPointsSurfOnDevice(const Vector &point_pos,
+                                             int point_pos_ordering) {};
+void FindPointsGSLIB::SetupSurfDevice() {};
+void FindPointsGSLIB::InterpolateSurfBase(const Vector &field_in_evec,
                                           Vector &field_out,
                                           const int nel, const int ncomp,
                                           const int dof1dsol,
@@ -3340,9 +3355,9 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
 void FindPointsGSLIB::InterpolateSurf(const GridFunction &field_in,
                                       Vector &field_out)
 {
-   const int  gf_order   = field_in.FESpace()->GetMaxElementOrder(),
-              mesh_order = mesh->GetNodalFESpace()->GetMaxElementOrder();
-
+#if GSLIB_RELEASE_VERSION < 10009
+   MFEM_ABORT("Update to gslib v1.0.9 for surface mesh support.");
+#endif
    const FiniteElementCollection *fec_in =  field_in.FESpace()->FEColl();
    const H1_FECollection *fec_h1 = dynamic_cast<const H1_FECollection *>
                                    (fec_in);
@@ -4446,6 +4461,9 @@ void GlobalBoundingBoxTensorGridMap::SetupCrystal(const MPI_Comm &comm_)
    {
       comm_free(gsl_comm);
    }
+#if GSLIB_RELEASE_VERSION < 10009
+   MFEM_ABORT("GSLIB version 1.0.9 or higher is required.");
+#endif
 
    gsl_comm = new gslib::comm;
    cr      = new gslib::crystal;
@@ -4613,9 +4631,11 @@ void GlobalBoundingBoxTensorGridMap::Setup(const MPI_Comm &comm,
    hashInfo_pt.n = npts;
 
    // transfer info to other ranks and sort by index
+#if GSLIB_RELEASE_VERSION >= 10009
    sarray_transfer(struct hashInfo_s, &hashInfo_pt, proc, 1, cr);
    sarray_sort(struct hashInfo_s, hashInfo_pt.ptr, hashInfo_pt.n,
                index, 0, &(cr->data));
+#endif
 
    int nrecv = hashInfo_pt.n;
 
