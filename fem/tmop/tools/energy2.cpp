@@ -37,6 +37,7 @@ void TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &X,
 
    real_t lim_energy;
    ker.GetEnergy(energy, lim_energy);
+   MFEM_VERIFY(std::isfinite(energy), "Energy error");
 }
 
 void TMOP_Integrator::GetLocalNormalizationEnergiesPA_2D(const Vector &X,
@@ -63,6 +64,8 @@ void TMOP_Integrator::GetLocalNormalizationEnergiesPA_2D(const Vector &X,
    else { MFEM_ABORT("Unsupported TMOP metric " << mid); }
 
    ker.GetEnergy(met_energy, lim_energy);
+   MFEM_VERIFY(std::isfinite(met_energy), "Metric energy error");
+   MFEM_VERIFY(std::isfinite(lim_energy), "Limited energy error");
 }
 
 void TMOP_Combo_QualityMetric::GetLocalEnergyPA_2D(const GridFunction &nodes,
@@ -112,6 +115,8 @@ void TMOP_Combo_QualityMetric::GetLocalEnergyPA_2D(const GridFunction &nodes,
    else { MFEM_ABORT("Unsupported TMOP metric " << mid); }
 
    ker.GetEnergy(energy, vol);
+   MFEM_VERIFY(std::isfinite(energy), "Energy error");
+   MFEM_VERIFY(std::isfinite(vol), "Volume error");
 }
 
 } // namespace mfem

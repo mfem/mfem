@@ -21,7 +21,6 @@ struct TMOP_PA_Metric_080 : TMOP_PA_Metric_2D
 {
    MFEM_HOST_DEVICE real_t EvalW(const real_t (&Jpt)[4], const real_t *w) override
    {
-      MFEM_CONTRACT_VAR(w);
       kernels::InvariantsEvaluator2D ie(Args().J(Jpt));
       const real_t eval_w_02 = 0.5 * ie.Get_I1b() - 1.0;
       const real_t I2b = ie.Get_I2b();

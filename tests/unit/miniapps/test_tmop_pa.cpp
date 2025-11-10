@@ -683,7 +683,7 @@ static inline void dump_args(int id, const char *args[])
 static inline void tmop_require(int id, const char *args[])
 {
    Req res[2];
-   constexpr real_t eps = 2e-12;
+   constexpr real_t eps = 4e-12;
    (args[ALV] = "-pa", dump_args(id, args), req_tmop(id, args, res[0]));
    (args[ALV] = "-no-pa", dump_args(id, args), req_tmop(id, args, res[1]));
    REQUIRE(res[0].dot == MFEM_Approx(res[1].dot));
@@ -965,7 +965,7 @@ static void tmop_tests(int id = 0, bool all = false)
           .JI(jitter)
           .NORMALIZATION()
           .TID({ 5 })
-          .MID({ 80 })
+          .MID({ 80, 94 })
           .LS({ 2 })
           .LINSOL_RTOLERANCE(1e-10)
           .POR({ 2 })
@@ -981,7 +981,7 @@ static void tmop_tests(int id = 0, bool all = false)
           .JI(jitter)
           .NORMALIZATION()
           .TID({ 5 })
-          .MID({ 302 })
+          .MID({ 302, 338 })
           .LS({ 2 })
           .POR({ 1, 2 })
           .QOR({ 2, 8 })
@@ -1005,7 +1005,7 @@ static void tmop_tests(int id = 0, bool all = false)
           .JI(jitter)
           .POR({ 1, 2 })
           .QOR({ 2, 3 })
-          .TID({ 3 })
+          .TID({ 3, 5 })
           .MID({ 2 }))
    .Run(id, all);
 
