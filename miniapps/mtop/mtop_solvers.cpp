@@ -147,17 +147,17 @@ void IsoLinElasticSolver::AddDispBC(int id, int dir,
       bcx[id] = ConstantCoefficient(val);
       AddDispBC(id, dir, bcx[id]);
    }
-   if (dir == 1)
+   else if (dir == 1)
    {
       bcy[id] = ConstantCoefficient(val);
       AddDispBC(id, dir, bcy[id]);
    }
-   if (dir == 2)
+   else if (dir == 2)
    {
       bcz[id] = ConstantCoefficient(val);
       AddDispBC(id, dir, bcz[id]);
    }
-   if (dir == 4)
+   else if (dir == -1)
    {
       bcx[id] = ConstantCoefficient(val);
       bcy[id] = ConstantCoefficient(val);
@@ -165,6 +165,11 @@ void IsoLinElasticSolver::AddDispBC(int id, int dir,
       AddDispBC(id, 0, bcx[id]);
       AddDispBC(id, 1, bcy[id]);
       AddDispBC(id, 2, bcz[id]);
+   }
+   else
+   {
+      MFEM_ABORT("Invalid BC direction: "
+                 "0(x), 1(y), 2(z), or -1(all), got " << dir);
    }
 }
 
@@ -184,13 +189,18 @@ void IsoLinElasticSolver::DelDispBC()
 void IsoLinElasticSolver::AddDispBC(int id, int dir, Coefficient &val)
 {
    if (dir == 0) { bccx[id] = &val; }
-   if (dir == 1) { bccy[id] = &val; }
-   if (dir == 2) { bccz[id] = &val; }
-   if (dir == 4)
+   else if (dir == 1) { bccy[id] = &val; }
+   else if (dir == 2) { bccz[id] = &val; }
+   else if (dir == -1)
    {
       bccx[id] = &val;
       bccy[id] = &val;
       bccz[id] = &val;
+   }
+   else
+   {
+      MFEM_ABORT("Invalid BC direction: "
+                 "0(x), 1(y), 2(z), or -1(all), got " << dir);
    }
    if (pmesh->Dimension() == 2) { bccz.clear(); }
 }

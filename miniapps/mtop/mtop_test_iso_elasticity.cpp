@@ -8,11 +8,31 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
+//
+// Sample runs:
+//    mpirun -np 4 mtop_test_iso_elasticity -tri -o 2
+//    mpirun -np 4 mtop_test_iso_elasticity -tri -o 2 -pa
+//    mpirun -np 4 mtop_test_iso_elasticity -tri -o 2 -dfem
+//    mpirun -np 4 mtop_test_iso_elasticity -tri -o 3 -dfem
+//
+//    mpirun -np 4 mtop_test_iso_elasticity -quad -o 2
+//    mpirun -np 4 mtop_test_iso_elasticity -quad -o 2 -pa
+//    mpirun -np 4 mtop_test_iso_elasticity -quad -o 2 -dfem
+//    mpirun -np 4 mtop_test_iso_elasticity -quad -o 3 -dfem -prl 2
+//
+// Device sample runs:
+//    mpirun -np 4 mtop_test_iso_elasticity -d gpu -quad -o 2
+//    mpirun -np 4 mtop_test_iso_elasticity -d gpu -quad -o 2 -pa
+//    mpirun -np 4 mtop_test_iso_elasticity -d gpu -quad -o 2 -dfem
+//    mpirun -np 4 mtop_test_iso_elasticity -d gpu -quad -o 3 -dfem
 
 #include "mtop_solvers.hpp"
 
 using namespace std;
 using namespace mfem;
+
+constexpr auto MESH_TRI = MFEM_SOURCE_DIR "/miniapps/mtop/sq_2D_9_tri.mesh";
+constexpr auto MESH_QUAD = MFEM_SOURCE_DIR "/miniapps/mtop/sq_2D_9_quad.mesh";
 
 int main(int argc, char *argv[])
 {
@@ -21,11 +41,14 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    // Parse command-line options.
-   const char *mesh_file = MFEM_SOURCE_DIR "/miniapps/mtop/sq_2D_9_quad.mesh";
+   const char *mesh_file = MESH_QUAD;
    const char *device_config = "cpu";
    int order = 2;
    bool pa = false;
    bool dfem = false;
+   bool mesh_tri = false;
+   bool mesh_quad = false;
+   int par_ref_levels = 1;
    bool paraview = false;
    bool visualization = true;
 
@@ -40,6 +63,12 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&dfem, "-dfem", "--dFEM", "-no-dfem", "--no-dFEM",
                   "Enable or not dFEM.");
+   args.AddOption(&mesh_tri, "-tri", "--triangular", "-no-tri",
+                  "--no-triangular", "Enable or not triangular mesh.");
+   args.AddOption(&mesh_quad, "-quad", "--quadrilateral", "-no-quad",
+                  "--no-quadrilateral", "Enable or not quadrilateral mesh.");
+   args.AddOption(&par_ref_levels, "-prl", "--par-ref-levels",
+                  "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&paraview, "-pv", "--paraview", "-no-pv", "--no-paraview",
                   "Enable or not Paraview visualization");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -56,7 +85,7 @@ int main(int argc, char *argv[])
    // Read the (serial) mesh from the given mesh file on all processors.  We
    // can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    // and volume meshes with the same code.
-   Mesh mesh(mesh_file, 1, 1);
+   Mesh mesh(mesh_tri ? MESH_TRI : mesh_quad ? MESH_QUAD : mesh_file, 1, 1);
    const int dim = mesh.Dimension();
 
    // Refine the serial mesh on all processors to increase the resolution. In
@@ -78,10 +107,7 @@ int main(int argc, char *argv[])
    // parallel mesh is defined, the serial mesh can be deleted.
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
-   {
-      const int par_ref_levels = 1;
-      for (int l = 0; l < par_ref_levels; l++) { pmesh.UniformRefinement(); }
-   }
+   for (int l = 0; l < par_ref_levels; l++) { pmesh.UniformRefinement(); }
 
    // Create the solver
    IsoLinElasticSolver elsolver(&pmesh, order, pa, dfem);
@@ -90,19 +116,9 @@ int main(int argc, char *argv[])
       std::cout << "Number of unknowns: " << elsolver.GetSol().Size() << std::endl;
    }
 
-   // set BC
-   elsolver.AddDispBC(3, 4, 0.0);
-   elsolver.AddDispBC(4, 4, 0.0);
-   elsolver.AddDispBC(5, 4, 0.0);
-   elsolver.AddDispBC(6, 4, 0.0);
-   elsolver.AddDispBC(7, 0, -0.3);
-   elsolver.AddDispBC(7, 1, 0.0);
-
-   // delete all BC
-   elsolver.DelDispBC();
-   // set some of them again
-   elsolver.AddDispBC(2, 4, 0.0);
-   elsolver.AddDispBC(5, 4, 0.0);
+   // set boundary conditions
+   elsolver.AddDispBC(2, -1, 0.0);
+   elsolver.AddDispBC(5, -1, 0.0);
 
    // set material properties
    ConstantCoefficient E(1.0), nu(0.2);

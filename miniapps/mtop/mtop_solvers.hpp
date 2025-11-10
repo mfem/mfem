@@ -103,10 +103,10 @@ public:
    /// Solves the adjoint with the provided rhs.
    void ASolve(mfem::Vector &rhs);
 
-   /// Adds displacement BC in direction 0(x), 1(y), 2(z), or 4(all).
+   /// Adds displacement BC in direction 0(x), 1(y), 2(z), or -1(all).
    void AddDispBC(int id, int dir, real_t val);
 
-   /// Adds displacement BC in direction 0(x), 1(y), 2(z), or 4(all).
+   /// Adds displacement BC in direction 0(x), 1(y), 2(z), or -1(all).
    void AddDispBC(int id, int dir, mfem::Coefficient &val);
 
    /// Clear all displacement BC
