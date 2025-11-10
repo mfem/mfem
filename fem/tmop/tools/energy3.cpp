@@ -94,7 +94,8 @@ void TMOP_Combo_QualityMetric::GetLocalEnergyPA_3D(const GridFunction &nodes,
    const Array<real_t> &B = maps.B, &G = maps.G;
 
    Vector E(N * ir.GetNPoints(), Device::GetDeviceMemoryType()); E.UseDevice(true);
-   Vector O(N * ir.GetNPoints(), Device::GetDeviceMemoryType()); O.UseDevice(true); O = 1.0;
+   Vector O(N * ir.GetNPoints(), Device::GetDeviceMemoryType()); O.UseDevice(true);
+   O = 1.0;
    Vector L(N * ir.GetNPoints(), Device::GetDeviceMemoryType()); L.UseDevice(true);
 
    auto R = fes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);

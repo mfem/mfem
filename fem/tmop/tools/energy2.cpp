@@ -22,7 +22,7 @@ void TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &X,
    const bool use_detA = false;
    const int mid = metric->Id();
 
-   Vector L(PA.E.Size(), Device::GetMemoryType()); 
+   Vector L(PA.E.Size(), Device::GetMemoryType());
    L.UseDevice(true);
 
    // Calls TMOPEnergyPA2D::Mult for the given mid.
@@ -48,7 +48,7 @@ void TMOP_Integrator::GetLocalNormalizationEnergiesPA_2D(const Vector &X,
    const bool use_detA = false;
    const int mid = metric->Id();
 
-   Vector L(PA.E.Size(), Device::GetMemoryType()); 
+   Vector L(PA.E.Size(), Device::GetMemoryType());
    L.UseDevice(true);
 
    const real_t mn = 1.0;
@@ -94,7 +94,8 @@ void TMOP_Combo_QualityMetric::GetLocalEnergyPA_2D(const GridFunction &nodes,
    const Array<real_t> &B = maps.B, &G = maps.G;
 
    Vector E(N * ir.GetNPoints(), Device::GetDeviceMemoryType()); E.UseDevice(true);
-   Vector O(N * ir.GetNPoints(), Device::GetDeviceMemoryType()); O.UseDevice(true); O = 1.0;
+   Vector O(N * ir.GetNPoints(), Device::GetDeviceMemoryType()); O.UseDevice(true);
+   O = 1.0;
    Vector L(N * ir.GetNPoints(), Device::GetDeviceMemoryType()); L.UseDevice(true);
 
    auto R = fes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
