@@ -503,11 +503,6 @@ public:
     */
    void Redistribute(const Array<unsigned int> &rank_list);
 
-   template <int NBytes>
-   static void AddSpecialization()
-   {
-      TransferParticles::Specialization<NBytes>::Add();
-   }
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
    /** @brief Destructor
