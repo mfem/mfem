@@ -32,15 +32,15 @@ namespace navier
  *  https://www.ideals.illinois.edu/items/102343.
  *
  *  In short, the particles are advanced in time by solving the ODE:
- *  dv/dt = \kappa(u-v) - gamma \hat{e} + \zeta (u-v) x \omega,
+ *  dv/dt = κ(u-v) - γ ê + ζ (u-v) x ω,
  *  dx/dt = v,
  *  where
  *  x and v are the particle location and velocity,
  *  u is the fluid velocity at the particle location,
- *  \omega is the fluid vorticity at the particle location,
- *  \kappa depends on the drag characteristics of the particle,
- *  \zeta depends on the lift characteristics, and
- *  \gamma and \hat{e} depend on body forces such as gravity.
+ *  ω is the fluid vorticity at the particle location,
+ *  κ depends on the drag characteristics of the particle,
+ *  ζ depends on the lift characteristics, and
+ *  γ and ê depend on body forces such as gravity.
  *
  *  The model from Dutta et al. is general but this implementation is currently
  *  limited to 2D problems. Simple reflection and recirculation boundary
