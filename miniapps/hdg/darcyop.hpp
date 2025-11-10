@@ -198,14 +198,14 @@ private:
 public:
    DarcyOperator(const Array<int> &ess_flux_tdofs_list, DarcyForm *darcy,
                  LinearForm *g, LinearForm *f, LinearForm *h, const Array<Coefficient*> &coeffs,
-                 SolverType stype = SolverType::LBFGS,  bool bflux_u = true,
-                 bool btime_p = true);
+                 SolverType stype = SolverType::LBFGS,  bool bflux_u = false,
+                 bool btime_p = false);
 #ifdef MFEM_USE_MPI
    DarcyOperator(const Array<int> &ess_flux_tdofs_list, ParDarcyForm *darcy,
                  ParLinearForm *g, ParLinearForm *f, ParLinearForm *h,
                  const Array<Coefficient*> &coeffs,
-                 SolverType stype = SolverType::LBFGS,  bool bflux_u = true,
-                 bool btime_p = true);
+                 SolverType stype = SolverType::LBFGS,  bool bflux_u = false,
+                 bool btime_p = false);
 #endif
 
    ~DarcyOperator();

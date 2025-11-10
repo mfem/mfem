@@ -944,6 +944,7 @@ int main(int argc, char *argv[])
       // solve the steady/asymptotic problem
 
       Vector dx(x.Size()); dx = 0.;
+      op.SetTime(1.);
       op.ImplicitSolve(1., x, dx);
       x += dx;
 
