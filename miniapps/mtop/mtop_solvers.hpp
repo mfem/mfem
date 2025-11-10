@@ -97,12 +97,6 @@ public:
    /// Solves the forward problem.
    void FSolve();
 
-   /// Forms the bilinear form, sets BC, and assembles the preconditioner.
-   void AssembleTangent();
-
-   /// Solves the adjoint with the provided rhs.
-   void ASolve(mfem::Vector &rhs);
-
    /// Adds displacement BC in direction 0(x), 1(y), 2(z), or -1(all).
    void AddDispBC(int id, int dir, real_t val);
 
