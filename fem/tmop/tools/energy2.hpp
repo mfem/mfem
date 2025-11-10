@@ -191,9 +191,13 @@ public:
                kernels::Mult(2, 2, 2, Jpr, Jrt, Jpt);
 
                const real_t det = kernels::Det<2>(use_detA ? Jpr : Jtr);
+               assert(std::isfinite(det));
+
                const real_t weight = metric_normal * coeff * W(qx,qy) * det;
+               assert(std::isfinite(weight));
 
                const real_t EvalW = METRIC{}.EvalW(Jpt, w);
+               assert(std::isfinite(EvalW));
 
                E(qx, qy, e) = weight * EvalW;
                L(qx, qy, e) = weight;
@@ -201,7 +205,10 @@ public:
          }
       });
       ker.metric_energy = ker.E * ker.O;
+      MFEM_VERIFY(std::isfinite(ker.metric_energy), "Metric energy error");
+
       ker.limiting_energy = ker.L * ker.O;
+      MFEM_VERIFY(std::isfinite(ker.limiting_energy), "Limiting energy error");
    }
 
    void GetEnergy(real_t &met_energy, real_t &lim_energy) const

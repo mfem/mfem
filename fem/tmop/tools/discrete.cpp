@@ -230,6 +230,7 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    Vector nc_size_red(NE, Device::GetDeviceMemoryType());
+   nc_size_red.UseDevice(true);
    nc_size_red.HostWrite();
    NCMesh *ncmesh = tspec_fesv->GetMesh()->ncmesh;
    for (int e = 0; e < NE; e++)
