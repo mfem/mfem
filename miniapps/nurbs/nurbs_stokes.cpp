@@ -648,10 +648,9 @@ int main(int argc, char *argv[])
    ProductOperator S(D, &KiG, false, false);
 
    // Construct the exact Schur complement inverse operator
-   GMRESSolver invS;
+   CGSolver invS;
    invS.SetRelTol(schur_rtol);
    invS.SetMaxIter(schur_maxiter);
-   invS.SetKDim(schur_maxiter+1); // restart!!!
    if (schur_complement)
    {
       invS.SetOperator(S);
