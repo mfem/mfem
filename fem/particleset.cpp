@@ -59,7 +59,8 @@ Particle::Particle(int dim, const Array<int> &field_vdims, int num_tags)
 
 void Particle::SetTagRef(int t, int *tag_data)
 {
-   MFEM_ASSERT(t >= 0 && t < tags.size(), "invalid tag index");
+   MFEM_ASSERT(t >= 0 &&
+               static_cast<std::size_t>(t) < tags.size(), "invalid tag index");
    tags[t].MakeRef(tag_data, 1);
 }
 
