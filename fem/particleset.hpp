@@ -31,7 +31,6 @@ extern "C"
 namespace mfem
 {
 
-
 /// Container for data associated with a single particle. See \ref ParticleSet
 /// for more information.
 class Particle
@@ -225,21 +224,21 @@ protected:
    std::unique_ptr<gslib::comm> gsl_comm;
    std::unique_ptr<gslib::crystal> cr;
 
-   /** @brief Buffer for individual particle data used in \ref Transfer.
-    *  @tparam NTotal      Number of bytes due to number of real_t and integer
-    *                      data for a particle.
-    */
-   template<std::size_t NTotal>
-   struct pdata_t
-   {
-      alignas(double) std::array<std::byte, NTotal> data;
-      unsigned int id;
-   };
+   template<std::size_t NBytes>
+   static void TransferParticlesImpl(ParticleSet &pset, const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks);
+   
+   using TransferParticlesType = void (*)(ParticleSet &pset, 
+                                 const Array<unsigned int> &send_idxs,
+                                 const Array<unsigned int> &send_ranks);
 
+   // Specialization parameter: NBytes
+   MFEM_REGISTER_KERNELS(TransferParticles, TransferParticlesType, (int));
+   friend TransferParticles;
    struct Kernels
    {
       Kernels();
    };
+
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
    /// Create a \ref Particle object with the same spatial dimension, number of
@@ -496,12 +495,6 @@ public:
                  const Array<int> &tag_idxs, int precision=16);
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
-   using PSTransferType = void (*)(ParticleSet*,
-                                   const Array<unsigned int> &send_idxs,
-                                   const Array<unsigned int> &send_ranks);
-
-   // Register the kernel dispatch table
-   MFEM_REGISTER_KERNELS(Transfer, PSTransferType, (int));
 
    /** @brief Redistribute particle data to \p rank_list
     *
@@ -510,14 +503,10 @@ public:
     */
    void Redistribute(const Array<unsigned int> &rank_list);
 
-   template<std::size_t NTotData>
-   void TransferRun(const Array<unsigned int> &send_idxs,
-                    const Array<unsigned int> &send_ranks);
-
-   template <int NTotal>
+   template <int NBytes>
    static void AddSpecialization()
    {
-      Transfer::Specialization<NTotal>::Add();
+      TransferParticles::Specialization<NBytes>::Add();
    }
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
@@ -527,28 +516,6 @@ public:
     */
    ~ParticleSet();
 };
-
-#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
-
-namespace internal
-{
-template<std::size_t NTotal>
-inline void TransferWrapper(ParticleSet* self,
-                            const Array<unsigned int> &send_idxs,
-                            const Array<unsigned int> &send_ranks)
-{
-   self->TransferRun<NTotal>(send_idxs, send_ranks);
-}
-} // namespace internal
-
-template <int NTotal>
-inline ParticleSet::PSTransferType
-ParticleSet::Transfer::Kernel()
-{
-   return &internal::TransferWrapper<static_cast<std::size_t>(NTotal)>;
-}
-
-#endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
 } // namespace mfem
 

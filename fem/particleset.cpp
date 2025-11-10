@@ -233,73 +233,181 @@ void ParticleSet::AddParticles(const Array<unsigned int> &new_ids,
 }
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
+
+template<std::size_t NBytes>
+void ParticleSet::TransferParticlesImpl(ParticleSet &pset, const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks)
+{
+   struct pdata_t
+   {
+      alignas(double) std::array<std::byte, NBytes> data;
+      unsigned int id;
+   };
+
+   int nreals = pset.GetFieldVDims().Sum() + pset.Coords().GetVDim();
+   int ntags = pset.GetNTags();
+   // in-case particles have not been initialized on all ranks
+   MPI_Allreduce(MPI_IN_PLACE, &nreals, 1, MPI_INT, MPI_MAX, pset.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &ntags, 1, MPI_INT, MPI_MAX, pset.GetComm());
+   int nbytes = nreals*sizeof(double) + ntags*sizeof(int);
+
+   using parr_t = pdata_t;
+   MFEM_VERIFY(nbytes <= NBytes, "More data than can be packed.");
+
+   gslib::array gsl_arr;
+   parr_t *pdata_arr;
+   array_init(parr_t, &gsl_arr, send_idxs.Size());
+   pdata_arr = (parr_t*) gsl_arr.ptr;
+
+   gsl_arr.n = send_idxs.Size();
+   for (int i = 0; i < send_idxs.Size(); i++)
+   {
+      parr_t &pdata = pdata_arr[i];
+      pdata.id = pset.GetIDs()[send_idxs[i]];
+
+      // Copy particle data directly into pdata
+      int counter = 0;
+      for (int f = -1; f < pset.GetNFields(); f++)
+      {
+         ParticleVector &pv = (f == -1 ? pset.Coords() : pset.Field(f));
+         for (int c = 0; c < pv.GetVDim(); c++)
+         {
+            std::memcpy(pdata.data.data() + counter, &pv(send_idxs[i], c),
+                        sizeof(double));
+            counter += sizeof(double);
+         }
+      }
+
+      // Copy tags
+      for (int t = 0; t < pset.GetNTags(); t++)
+      {
+         Array<int> &tag_arr = pset.Tag(t);
+         std::memcpy(pdata.data.data() + counter, &tag_arr[send_idxs[i]],
+                     sizeof(int));
+         counter += sizeof(int);
+      }
+   }
+
+   // Remove particles that will be transferred
+   pset.RemoveParticles(send_idxs);
+
+   // // Transfer particles
+   sarray_transfer_ext(parr_t, &gsl_arr, send_ranks.GetData(),
+                       sizeof(unsigned int), pset.cr.get());
+
+   // Add received particles to this rank
+   unsigned int recvd = gsl_arr.n;
+   pdata_arr = (parr_t*) gsl_arr.ptr;
+   int inter_np = pset.GetNParticles(); // pre-recvd NP (after remove)
+   int new_np = inter_np + recvd;
+
+   // Make sure we have enough space
+   pset.Reserve(new_np);
+
+   // Add newly-recvd data directly to active state
+   for (int i = 0; i < recvd; i++)
+   {
+      parr_t &pdata = pdata_arr[i];
+      int id = pdata.id;
+
+      Array<int> idx_temp;
+      pset.AddParticles(Array<int>({id}), &idx_temp);
+      int new_idx = idx_temp[0]; // Get index of newly-added particle
+
+      int counter = 0;
+      for (int f = -1; f < pset.GetNFields(); f++)
+      {
+         ParticleVector &pv = (f == -1 ? pset.Coords() : pset.Field(f));
+         for (int c = 0; c < pv.GetVDim(); c++)
+         {
+            real_t& val = pv(new_idx, c);
+            std::memcpy(&val, pdata.data.data() + counter, sizeof(double));
+            counter += sizeof(double);
+         }
+      }
+
+      for (int t = 0; t < pset.GetNTags(); t++)
+      {
+         Array<int> &tag_arr = pset.Tag(t);
+         std::memcpy(&tag_arr[new_idx],
+                     pdata.data.data() + counter, sizeof(int));
+         counter += sizeof(int);
+      }
+   }
+}
+
+template<int NBytes>
+ParticleSet::TransferParticlesType ParticleSet::TransferParticles::Kernel()
+{
+   return &ParticleSet::TransferParticlesImpl<static_cast<std::size_t>(NBytes)>;
+}
+
 ParticleSet::Kernels::Kernels()
 {
    constexpr int sizd = sizeof(double);
-   Transfer::Specialization<2*sizd>::Add();
-   Transfer::Specialization<3*sizd>::Add();
-   Transfer::Specialization<4*sizd>::Add();
-   Transfer::Specialization<8*sizd>::Add();
-   Transfer::Specialization<12*sizd>::Add();
-   Transfer::Specialization<16*sizd>::Add();
-   Transfer::Specialization<20*sizd>::Add();
-   Transfer::Specialization<24*sizd>::Add();
-   Transfer::Specialization<28*sizd>::Add();
-   Transfer::Specialization<32*sizd>::Add();
-   Transfer::Specialization<36*sizd>::Add();
-   Transfer::Specialization<40*sizd>::Add();
+   TransferParticles::Specialization<2*sizd>::Add();
+   TransferParticles::Specialization<3*sizd>::Add();
+   TransferParticles::Specialization<4*sizd>::Add();
+   TransferParticles::Specialization<8*sizd>::Add();
+   TransferParticles::Specialization<12*sizd>::Add();
+   TransferParticles::Specialization<16*sizd>::Add();
+   TransferParticles::Specialization<20*sizd>::Add();
+   TransferParticles::Specialization<24*sizd>::Add();
+   TransferParticles::Specialization<28*sizd>::Add();
+   TransferParticles::Specialization<32*sizd>::Add();
+   TransferParticles::Specialization<36*sizd>::Add();
+   TransferParticles::Specialization<40*sizd>::Add();
 }
 
-ParticleSet::PSTransferType
-ParticleSet::Transfer::Fallback(int bufsize)
+ParticleSet::TransferParticlesType ParticleSet::TransferParticles::Fallback(int bufsize)
 {
    constexpr int sizd = sizeof(double);
    if (bufsize < 4*sizd)
    {
-      return &internal::TransferWrapper<4*sizd>;
+      return &ParticleSet::TransferParticlesImpl<4*sizd>;
    }
    else if (bufsize < 8*sizd)
    {
-      return &internal::TransferWrapper<8*sizd>;
+      return &ParticleSet::TransferParticlesImpl<8*sizd>;
    }
    else if (bufsize < 12*sizd)
    {
-      return &internal::TransferWrapper<12*sizd>;
+      return &ParticleSet::TransferParticlesImpl<12*sizd>;
    }
    else if (bufsize < 16*sizd)
    {
-      return &internal::TransferWrapper<16*sizd>;
+      return &ParticleSet::TransferParticlesImpl<16*sizd>;
    }
    else if (bufsize < 20*sizd)
    {
-      return &internal::TransferWrapper<20*sizd>;
+      return &ParticleSet::TransferParticlesImpl<20*sizd>;
    }
    else if (bufsize < 24*sizd)
    {
-      return &internal::TransferWrapper<24*sizd>;
+      return &ParticleSet::TransferParticlesImpl<24*sizd>;
    }
    else if (bufsize < 28*sizd)
    {
-      return &internal::TransferWrapper<28*sizd>;
+      return &ParticleSet::TransferParticlesImpl<28*sizd>;
    }
    else if (bufsize < 32*sizd)
    {
-      return &internal::TransferWrapper<32*sizd>;
+      return &ParticleSet::TransferParticlesImpl<32*sizd>;
    }
    else if (bufsize < 36*sizd)
    {
-      return &internal::TransferWrapper<36*sizd>;
+      return &ParticleSet::TransferParticlesImpl<36*sizd>;
    }
    else if (bufsize < 40*sizd)
    {
-      return &internal::TransferWrapper<40*sizd>;
+      return &ParticleSet::TransferParticlesImpl<40*sizd>;
    }
-   return &internal::TransferWrapper<60*sizd>;
+   return &ParticleSet::TransferParticlesImpl<60*sizd>;
 }
-
 
 void ParticleSet::Redistribute(const Array<unsigned int> &rank_list)
 {
+   MFEM_ASSERT(rank_list.Size() == GetNParticles(), "rank_list must be of size GetNParticles().");
+
    int rank = GetRank(comm);
 
    // Get particles to be transferred
@@ -315,107 +423,15 @@ void ParticleSet::Redistribute(const Array<unsigned int> &rank_list)
       }
    }
 
+   // Compute number of bytes of a single particle
    int nreals = GetFieldVDims().Sum() + coords.GetVDim();
    int ntags = GetNTags();
-   int ntotsize = nreals*sizeof(double) + ntags*sizeof(int);
-   Transfer::Run(ntotsize, this, send_idxs, send_ranks);
+   std::size_t nbytes = nreals*sizeof(double) + ntags*sizeof(int);
+   
+   // Dispatch to appropriate redistribution function for this size
+   TransferParticles::Run(nbytes, *this, send_idxs, send_ranks);
 }
 
-template<std::size_t NTotData>
-inline void ParticleSet::TransferRun(const Array<unsigned int> &send_idxs,
-                                     const Array<unsigned int> &send_ranks)
-{
-   int nreals = GetFieldVDims().Sum() + coords.GetVDim();
-   int ntags = GetNTags();
-   // in-case particles have not been initialized on all ranks
-   MPI_Allreduce(MPI_IN_PLACE, &nreals, 1, MPI_INT, MPI_MAX, comm);
-   MPI_Allreduce(MPI_IN_PLACE, &ntags, 1, MPI_INT, MPI_MAX, comm);
-   int ntotsize = nreals*sizeof(double) + ntags*sizeof(int);
-
-   using arr_type = pdata_t<NTotData>;
-   MFEM_VERIFY(ntotsize <= NTotData, "More data then can be packed.");
-
-   gslib::array gsl_arr;
-   pdata_t<NTotData> *pdata_arr;
-   array_init(arr_type, &gsl_arr, send_idxs.Size());
-   pdata_arr = (pdata_t<NTotData>*) gsl_arr.ptr;
-
-   gsl_arr.n = send_idxs.Size();
-   for (int i = 0; i < send_idxs.Size(); i++)
-   {
-      pdata_t<NTotData> &pdata = pdata_arr[i];
-      pdata.id = ids[send_idxs[i]];
-
-      // Copy particle data directly into pdata
-      int counter = 0;
-      for (int f = -1; f < GetNFields(); f++)
-      {
-         ParticleVector &pv = (f == -1 ? coords : *fields[f]);
-         for (int c = 0; c < pv.GetVDim(); c++)
-         {
-            std::memcpy(pdata.data.data() + counter, &pv(send_idxs[i], c),
-                        sizeof(double));
-            counter += sizeof(double);
-         }
-      }
-
-      // Copy tags
-      for (int t = 0; t < GetNTags(); t++)
-      {
-         Array<int> &tag_arr = *tags[t];
-         std::memcpy(pdata.data.data() + counter, &tag_arr[send_idxs[i]],
-                     sizeof(int));
-         counter += sizeof(int);
-      }
-   }
-
-   // Remove particles that will be transferred
-   RemoveParticles(send_idxs);
-
-   // // Transfer particles
-   sarray_transfer_ext(arr_type, &gsl_arr, send_ranks.GetData(),
-                       sizeof(unsigned int), cr.get());
-
-   // Add received particles to this rank
-   unsigned int recvd = gsl_arr.n;
-   pdata_arr = (pdata_t<NTotData>*) gsl_arr.ptr;
-   int inter_np = GetNParticles(); // pre-recvd NP (after remove)
-   int new_np = inter_np + recvd;
-
-   // Make sure we have enough space
-   Reserve(new_np);
-
-   // Add newly-recvd data directly to active state
-   for (int i = 0; i < recvd; i++)
-   {
-      pdata_t<NTotData> &pdata = pdata_arr[i];
-      int id = pdata.id;
-
-      Array<int> idx_temp;
-      AddParticles(Array<int>({id}), &idx_temp);
-      int new_idx = idx_temp[0]; // Get index of newly-added particle
-
-      int counter = 0;
-      for (int f = -1; f < GetNFields(); f++)
-      {
-         ParticleVector &pv = (f == -1 ? coords : *fields[f]);
-         for (int c = 0; c < pv.GetVDim(); c++)
-         {
-            real_t& val = pv(new_idx, c);
-            std::memcpy(&val, pdata.data.data() + counter, sizeof(double));
-            counter += sizeof(double);
-         }
-      }
-
-      for (int t = 0; t < GetNTags(); t++)
-      {
-         Array<int> &tag_arr = *tags[t];
-         std::memcpy(&tag_arr[new_idx],
-                     pdata.data.data() + counter, sizeof(int));
-         counter += sizeof(int);
-      }
-   }
-}
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
 Particle ParticleSet::CreateParticle() const
