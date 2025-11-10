@@ -28,13 +28,23 @@ namespace mfem
 * effective. The filtered subspace is defined by a transfer operator @p P,
 * which maps the subspace into the full space.
 *
-* ## Typical usage
-* 1. Call SetOperator() to define the system operator.
-* 2. Call SetSolver() to provide the underlying solver.
-* 3. Call SetFilteredSubspaceTransferOperator() to define the subspace mapping.
-* 4. Call SetFilteredSubspaceSolver() to provide a solver specific
-* to the filtered subspace.
+* ### Typical usage
+* 1. Call SetOperator() to define the operator @p A that acts on the full space.
+* 2. Call SetSolver() to provide the underlying solver @p B for the full-space operator.
+* 3. Call SetFilteredSubspaceTransferOperator() to set transfer operator @p P.
+* 4. Call SetFilteredSubspaceSolver() to set the subspace solver @p S.
 * 5. Use Mult() to apply the solver.
+*
+* ---
+*
+* The preconditioner applied by Mult() is
+*  \f[
+* M = B + P S P^T (I - A B) + B (I - A P S P^T) (I- A B),
+*  \f]
+* and the corresponding iteration matrix is
+*  \f[
+* I - M A = (I - B A) (I - P S P^T A) (I - B A).
+*  \f]
 */
 class FilteredSolver : public Solver
 {
@@ -45,14 +55,14 @@ public:
    /// Set the system operator @a A.
    virtual void SetOperator(const Operator &A) override;
 
-   /// Set the solver @a M that operates on the full space.
-   virtual void SetSolver(Solver &M);
+   /// Set the solver @a B that operates on the full space.
+   virtual void SetSolver(Solver &B);
 
    /// Set the transfer operator @a P from filtered subspace to the full space.
    void SetFilteredSubspaceTransferOperator(const Operator &P);
 
-   /// Set a solver @a Mf that operates on the filtered subspace (PtAP system).
-   void SetFilteredSubspaceSolver(Solver &Mf);
+   /// Set a solver @a S that operates on the filtered subspace operator $ P^T A P $.
+   void SetFilteredSubspaceSolver(Solver &S);
 
    /// Apply the filtered solver
    void Mult(const Vector &x, Vector &y) const override;
@@ -70,9 +80,9 @@ protected:
    /// Transfer operator (not owned).
    const Operator * P = nullptr;
    /// Base solver (not owned).
-   Solver * M = nullptr;
+   Solver * B = nullptr;
    /// Subspace solver (not owned).
-   Solver * Mf = nullptr;
+   Solver * S = nullptr;
    /// Projected operator.
    mutable std::unique_ptr<const Operator> PtAP = nullptr;
    /// Initialize work vectors.
@@ -80,7 +90,7 @@ protected:
    bool mutable solver_set = false;
 private:
 
-   /// Build and/or return cached projected operator @f$ Pᵀ A P @f$.
+   /// Build and/or return cached projected operator $ P^T A P $.
    const Operator * GetPtAP(const Operator *Aop, const Operator *Pop) const;
    /// Finalize solver
    void MakeSolver() const;
@@ -99,7 +109,7 @@ private:
 * @class AMGFSolver
 * @brief AMG with Filtering: specialization of FilteredSolver.
 *
-* AMGFSolver is a convenience wrapper that fixes the base solver @a M of a
+* AMGFSolver is a convenience wrapper that fixes the base solver @a B of a
 * FilteredSolver to HypreBoomerAMG.
 * AMGF is particularly effective for constrained optimization
 * problems such as frictionless contact. For more details, see:
@@ -129,7 +139,7 @@ public:
    /// Const access to the internal HypreBoomerAMG instance.
    const HypreBoomerAMG& AMG() const { return *amg; }
 
-   void SetSolver(Solver &M) override
+   void SetSolver(Solver &B) override
    {
       MFEM_ABORT("SetSolver is not supported in AMGFSolver. It is set to AMG by default");
    }

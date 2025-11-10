@@ -40,8 +40,8 @@ void FilteredSolver::InitVectors() const
 {
    MFEM_VERIFY(A, "FilteredSolver::MakeSolver: Operator not set");
    MFEM_VERIFY(P, "FilteredSolver::MakeSolver: Transfer operator not set");
-   MFEM_VERIFY(M, "FilteredSolver::MakeSolver: Solver is not set.");
-   MFEM_VERIFY(Mf,"FilteredSolver::MakeSolver: Filtered space solver is not set.");
+   MFEM_VERIFY(B, "FilteredSolver::MakeSolver: Solver is not set.");
+   MFEM_VERIFY(S,"FilteredSolver::MakeSolver: Filtered space solver is not set.");
 
    z.SetSize(height);
    r.SetSize(height);
@@ -57,13 +57,13 @@ void FilteredSolver::MakeSolver() const
    InitVectors();
 
    // Original space solver
-   M->SetOperator(*A);
+   B->SetOperator(*A);
 
    // Filtered space operator
    PtAP.reset(GetPtAP(A, P));
 
    // Filtered space solver
-   Mf->SetOperator(*PtAP);
+   S->SetOperator(*PtAP);
 
    solver_set = true;
 }
@@ -76,9 +76,9 @@ void FilteredSolver::SetOperator(const Operator &op)
    solver_set = false;
 }
 
-void FilteredSolver::SetSolver(Solver &M_)
+void FilteredSolver::SetSolver(Solver &B_)
 {
-   M = &M_;
+   B = &B_;
    solver_set = false;
 }
 
@@ -88,9 +88,9 @@ void FilteredSolver::SetFilteredSubspaceTransferOperator(const Operator &P_)
    solver_set = false;
 }
 
-void FilteredSolver::SetFilteredSubspaceSolver(Solver &Mf_)
+void FilteredSolver::SetFilteredSubspaceSolver(Solver &S_)
 {
-   Mf = &Mf_;
+   S = &S_;
    solver_set = false;
 }
 
@@ -103,8 +103,8 @@ void FilteredSolver::Mult(const Vector &b, Vector &x) const
    x = 0.0;
    r = b;
 
-   // z = M x
-   M->Mult(b, z);
+   // z = B x
+   B->Mult(b, z);
    // x = x + z
    x+=z;
 
@@ -114,8 +114,8 @@ void FilteredSolver::Mult(const Vector &b, Vector &x) const
    // rf = Pᵀ r
    P->MultTranspose(r, rf);
 
-   // xf = Mf rf
-   Mf->Mult(rf, xf);
+   // xf = S rf
+   S->Mult(rf, xf);
 
    // z = P xf
    P->Mult(xf, z);
@@ -126,8 +126,8 @@ void FilteredSolver::Mult(const Vector &b, Vector &x) const
    // r = b - A x = r - A z
    A->AddMult(z, r, -1.0);
 
-   // z = M r
-   M->Mult(r, z);
+   // z = B r
+   B->Mult(r, z);
    x+=z;
 }
 
