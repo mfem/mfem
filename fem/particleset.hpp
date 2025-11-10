@@ -224,6 +224,7 @@ protected:
    std::unique_ptr<gslib::comm> gsl_comm;
    std::unique_ptr<gslib::crystal> cr;
 
+   /// \cond DO_NOT_DOCUMENT
    template<std::size_t NBytes>
    static void TransferParticlesImpl(ParticleSet &pset,
                                      const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks);
@@ -239,6 +240,7 @@ protected:
    {
       Kernels();
    };
+   /// \endcond DO_NOT_DOCUMENT
 
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 

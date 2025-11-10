@@ -235,6 +235,7 @@ void ParticleSet::AddParticles(const Array<unsigned int> &new_ids,
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
 
+/// \cond DO_NOT_DOCUMENT
 template<std::size_t NBytes>
 void ParticleSet::TransferParticlesImpl(ParticleSet &pset,
                                         const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks)
@@ -360,8 +361,8 @@ ParticleSet::Kernels::Kernels()
    TransferParticles::Specialization<40*sizd>::Add();
 }
 
-ParticleSet::TransferParticlesType ParticleSet::TransferParticles::Fallback(
-   int bufsize)
+ParticleSet::TransferParticlesType
+ParticleSet::TransferParticles::Fallback(int bufsize)
 {
    constexpr int sizd = sizeof(double);
    if (bufsize < 4*sizd)
@@ -406,6 +407,7 @@ ParticleSet::TransferParticlesType ParticleSet::TransferParticles::Fallback(
    }
    return &ParticleSet::TransferParticlesImpl<60*sizd>;
 }
+/// \endcond DO_NOT_DOCUMENT
 
 void ParticleSet::Redistribute(const Array<unsigned int> &rank_list)
 {
