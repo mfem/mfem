@@ -455,8 +455,7 @@ int main (int argc, char *argv[])
 
    // Find and Interpolate FE function values on the desired points.
    Vector interp_vals(pts_cnt*vec_dim);
-   FindPointsGSLIB finder(MPI_COMM_WORLD);
-   finder.Setup(pmesh, 1.0, 1e-14);
+   FindPointsGSLIB finder(pmesh, 1.0, 1e-14);
 
    // output the AABB and OBB meshes setup by GSLIB
    Mesh *aabb_mesh = finder.GetBoundingBoxMesh(0);
@@ -507,7 +506,7 @@ int main (int argc, char *argv[])
    MPI_Barrier(MPI_COMM_WORLD);
 
    // finder.SetDistanceToleranceForPointsFoundOnBoundary(10);
-   // Enable GPU to CPU fallback for GPUData only if you must use an older
+   // Enable GPU to CPU fallback for GPUData only if you are using an older
    // version of GSLIB.
    // finder.SetGPUtoCPUFallback(true);
    finder.FindPoints(vxyz, point_ordering);
@@ -646,9 +645,6 @@ int main (int argc, char *argv[])
            << max_error << ","
            << max_dist << endl;
    }
-
-   // // Free the internal gslib data.
-   // finder.FreeData();
 
    delete fec;
 
