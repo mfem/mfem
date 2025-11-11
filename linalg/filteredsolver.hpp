@@ -91,7 +91,8 @@ protected:
 private:
 
    /// Build and/or return cached projected operator $ P^T A P $.
-   const Operator * GetPtAP(const Operator *Aop, const Operator *Pop) const;
+   std::unique_ptr<const Operator> GetPtAP(const Operator *Aop,
+                                           const Operator *Pop) const;
    /// Finalize solver
    void MakeSolver() const;
 
@@ -134,10 +135,10 @@ public:
    virtual void SetOperator(const Operator &A) override;
 
    /// Access to the internal HypreBoomerAMG instance.
-   HypreBoomerAMG& AMG() { solver_set = false; return *amg; }
+   HypreBoomerAMG& GetAMG() { return *amg; }
 
    /// Const access to the internal HypreBoomerAMG instance.
-   const HypreBoomerAMG& AMG() const { return *amg; }
+   const HypreBoomerAMG& GetAMG() const { return *amg; }
 
    void SetSolver(Solver &B) override
    {
