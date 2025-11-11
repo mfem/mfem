@@ -3445,7 +3445,7 @@ void FindPointsGSLIB::InterpolateSurf(const GridFunction &field_in,
    }
    else
    {
-      MFEM_ABORT("In else branch of GSLIB::InterpolateSurf!");
+      MFEM_ABORT("Variable order functions not supported for surface meshes!!");
    }
 }
 

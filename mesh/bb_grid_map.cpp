@@ -173,7 +173,7 @@ void BoundingBoxTensorGridMap::Setup(Vector &elmin, Vector &elmax,
    {
       SetHashFac(lmap_fac, lmap_n, lmap_bnd_min, lmap_bnd_max);
 
-      int lmap_nd = lmap_n[0];
+      lmap_nd = lmap_n[0];
       for (int d = 1; d < dim; d++)
       {
          lmap_nd *= lmap_n[d];
