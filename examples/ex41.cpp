@@ -262,7 +262,6 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/periodic-square.mesh";
    int ref_levels = 2;
    int order = 3;
-   const char *device_config = "cpu";
    int ode_solver_type = 58; //55 - Forward Backward Euler
    //56 - IMEXRK2(2,2,2)
    //57 - IMEXRK2(2,3,2)
@@ -286,8 +285,6 @@ int main(int argc, char *argv[])
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&order, "-o", "--order", "Order of the finite elements.");
-   args.AddOption(&device_config, "-d", "--device",
-                  "Device configuration string, see Device::Configure().");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   ODESolver::IMEXTypes.c_str());
    args.AddOption(&t_final, "-tf", "--t-final", "Final time; start time is 0.");
@@ -320,8 +317,6 @@ int main(int argc, char *argv[])
       kappa = (order+1)*(order+1);
    }
    args.PrintOptions(cout);
-   Device device(device_config);
-   device.Print();
 
    // 2. Read the mesh from the given mesh file. We can handle geometrically
    //    periodic meshes in this code.

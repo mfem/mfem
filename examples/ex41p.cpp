@@ -282,7 +282,6 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
    int order = 3;
-   const char *device_config = "cpu";
    int ode_solver_type = 58; //55 - Forward Backward Euler
    //56 - IMEXRK2(2,2,2)
    //57 - IMEXRK2(2,3,2)
@@ -313,8 +312,6 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
-   args.AddOption(&device_config, "-d", "--device",
-                  "Device configuration string, see Device::Configure().");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   ODESolver::IMEXTypes.c_str());
    args.AddOption(&t_final, "-tf", "--t-final",
@@ -358,8 +355,6 @@ int main(int argc, char *argv[])
    {
       kappa = (order+1)*(order+1);
    }
-   Device device(device_config);
-   if (Mpi::Root()) { device.Print(); }
 
    // 3. Read the mesh from the given mesh file. We can handle geometrically
    //    periodic meshes in this code.
