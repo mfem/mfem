@@ -546,9 +546,6 @@ protected:
    Array<int> f_spaceOffsets;
    Array<int> p_spaceOffsets;
 
-   /// Table of DOFs for each element (el_dof) or boundary element (bel_dof).
-   Table *el_dof, *bel_dof;
-
    /// Map from element indices to patch indices
    Array<int> el_to_patch;
    /// Map from boundary element indices to patch indices
@@ -663,24 +660,17 @@ protected:
 
    // FE space generation functions
 
-   /** @brief Based on activeElem, count NumOfActiveDofs and generate el_dof,
-       el_to_patch, el_to_IJK, activeDof map (global-to-local). */
-   void GenerateElementDofTable();
-
    /** @brief Generate elem_to_global-dof table for the active elements, and
        define el_to_patch, el_to_IJK, activeDof (as bool). */
-   void Generate1DElementDofTable();
-   void Generate2DElementDofTable();
-   void Generate3DElementDofTable();
-
-   /// Call after GenerateElementDofTable to set boundary element DOF table.
-   void GenerateBdrElementDofTable();
+   Table *Generate1DElementDofTable();
+   Table *Generate2DElementDofTable();
+   Table *Generate3DElementDofTable();
 
    /** @brief Generate the table of global DOFs for active boundary elements,
        and define bel_to_patch, bel_to_IJK. */
-   void Generate1DBdrElementDofTable();
-   void Generate2DBdrElementDofTable();
-   void Generate3DBdrElementDofTable();
+   Table *Generate1DBdrElementDofTable();
+   Table *Generate2DBdrElementDofTable();
+   Table *Generate3DBdrElementDofTable();
 
    // FE --> Patch translation functions
 
@@ -741,7 +731,7 @@ protected:
    const NURBSPatch* GetPatch(int patch) const { return patches[patch]; }
 
    /// To be used by ParNURBSExtension constructor(s)
-   NURBSExtension() : el_dof(nullptr), bel_dof(nullptr) { }
+   NURBSExtension() { }
 
 private:
    /// Get the degrees of freedom for the vertex @a vertex in @a dofs.
@@ -839,20 +829,19 @@ public:
    /// Return the global number of vertices.
    int GetGNV()  const { return NumOfVertices; }
    /// Return the local number of active vertices.
-   int GetNV()   const { return NumOfActiveVertices; }
+   virtual int GetNV()   const { return NumOfVertices; }
    /// Return the global number of elements.
    int GetGNE()  const { return NumOfElements; }
    /// Return the number of active elements.
-   int GetNE()   const { return NumOfActiveElems; }
+   virtual int GetNE()   const { return NumOfElements; }
    /// Return the global number of boundary elements.
    int GetGNBE() const { return NumOfBdrElements; }
    /// Return the number of active boundary elements.
-   int GetNBE()  const { return NumOfActiveBdrElems; }
-
+   virtual int GetNBE()  const { return NumOfBdrElements; }
    /// Return the total number of DOFs.
    int GetNTotalDof() const { return NumOfDofs; }
    /// Return the number of active DOFs.
-   int GetNDof()      const { return NumOfActiveDofs; }
+   virtual int GetNDof() const { return NumOfDofs; }
 
    /// Return the local DOF number for a given global DOF number @a glob.
    int GetActiveDof(int glob) const { return activeDof[glob]; };
@@ -884,11 +873,17 @@ public:
 
    /// Access function for the element DOF table @a el_dof.
    /// @note The returned object should NOT be deleted by the caller.
-   Table *GetElementDofTable() { return el_dof; }
+
+   /** @brief Based on activeElem, count NumOfActiveDofs and generate el_dof,
+       el_to_patch, el_to_IJK, activeDof map (global-to-local). */
+   Table *GetElementDofTable();
 
    /// Access function for the boundary element DOF table @a bel_dof.
    /// @note The returned object should NOT be deleted by the caller.
-   Table *GetBdrElementDofTable() { return bel_dof; }
+
+   /// Call after GenerateElementDofTable to set boundary element DOF table.
+   Table *GetBdrElementDofTable();
+
 
    /// Get the local to global vertex index map @a lvert_vert.
    void GetVertexLocalToGlobal(Array<int> &lvert_vert);
@@ -919,9 +914,9 @@ public:
    // Load functions
 
    /// Load element @a i into @a FE.
-   void LoadFE(int i, const FiniteElement *FE) const;
+   void LoadFE(int i, Array<int> &dofs, const FiniteElement *FE) const;
    /// Load boundary element @a i into @a BE.
-   void LoadBE(int i, const FiniteElement *BE) const;
+   void LoadBE(int i, Array<int> &dofs, const FiniteElement *BE) const;
 
    /// Access function to the vector of weights @a weights.
    const Vector &GetWeights() const { return  weights; }
@@ -1073,6 +1068,15 @@ public:
        The @a parent can be either a local NURBSExtension or a global one. */
    ParNURBSExtension(NURBSExtension *parent,
                      const ParNURBSExtension *par_parent);
+
+   /// Return the local number of active vertices.
+   int GetNV()   const override { return NumOfActiveVertices; }
+   /// Return the number of active elements
+   int GetNE()   const override { return NumOfActiveElems; }
+   /// Return the number of active boundary elements.
+   int GetNBE()  const override { return NumOfActiveBdrElems; }
+   /// Return the number of active DOFs.
+   int GetNDof() const override { return NumOfActiveDofs; }
 };
 #endif
 

@@ -3854,7 +3854,8 @@ const FiniteElement *FiniteElementSpace::GetFE(int i) const
 
    if (NURBSext)
    {
-      NURBSext->LoadFE(i, FE);
+      Array<int> dofs(elem_dof->GetRow(i), elem_dof->RowSize(i));
+      NURBSext->LoadFE(i, dofs, FE);
    }
    else
    {
@@ -3910,7 +3911,8 @@ const FiniteElement *FiniteElementSpace::GetBE(int i) const
 
    if (NURBSext)
    {
-      NURBSext->LoadBE(i, BE);
+      Array<int> dofs(bdr_elem_dof->GetRow(i), bdr_elem_dof->RowSize(i));
+      NURBSext->LoadBE(i, dofs, BE);
    }
 
    return BE;
@@ -3940,7 +3942,9 @@ const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
       if (!face_dof) { BuildNURBSFaceToDofTable(); }
       MFEM_ASSERT(face_to_be[i] >= 0,
                   "NURBS mesh: only boundary faces are supported!");
-      NURBSext->LoadBE(face_to_be[i], fe);
+      int b = face_to_be[i];
+      Array<int> dofs(bdr_elem_dof->GetRow(b), bdr_elem_dof->RowSize(b));
+      NURBSext->LoadBE(b, dofs, fe);
    }
 
    return fe;
