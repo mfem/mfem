@@ -187,7 +187,7 @@ public:
          pp_.Add(a2, pm_);
 
          // ... along B
-         const real_t a3 = 2.0 * dt * dt * charge_ * charge_ * (B_ * p);
+         const real_t a3 = 2.0 * dt * dt * charge_ * charge_ * (B_ * pm_);
          pp_.Add(a3, B_);
 
          // scale by common denominator
