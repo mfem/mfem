@@ -112,13 +112,11 @@ HypreParMatrix * GetProlongationMatrix(const ParFiniteElementSpace* pfes,
 
 TEST_CASE("FilteredSolver and AMGFSolver", "[Parallel]")
 {
-   int myid = Mpi::WorldRank();
-
    // Note: This test is restricted to a single processor for convenience,
    // allowing the use of a serial dense direct solver on the filtered subspace
    // and avoiding any dependency on external parallel sparse direct solvers.
    // In general, both AMGFSolver and FilteredSolver are designed to work in parallel.
-   if (myid == 0)
+   if (Mpi::Root())
    {
       MPI_Comm comm = MPI_COMM_SELF;
 
@@ -191,7 +189,7 @@ TEST_CASE("FilteredSolver and AMGFSolver", "[Parallel]")
       AMGFSolver amgf;
       amg.SetPrintLevel(0);
       DenseMatrixSolver subspacesolver;
-      amgf.AMG().SetPrintLevel(0);
+      amgf.GetAMG().SetPrintLevel(0);
       amgf.SetFilteredSubspaceSolver(subspacesolver);
       amgf.SetFilteredSubspaceTransferOperator(*P);
       // 3rd preconditioner: FilteredSolver
@@ -223,9 +221,9 @@ TEST_CASE("FilteredSolver and AMGFSolver", "[Parallel]")
       int fs_iter = cg.GetNumIterations();
 
       Xamgf -= X;
-      REQUIRE(Xamgf.Norml2() == MFEM_Approx(0.0).margin(1e-7));
+      REQUIRE(Xamgf.Norml2() == MFEM_Approx(0.0,1e-7));
       Xfs -= X;
-      REQUIRE(Xfs.Norml2() == MFEM_Approx(0.0).margin(1e-7));
+      REQUIRE(Xfs.Norml2() == MFEM_Approx(0.0,1e-7));
 
       REQUIRE(amgf_iter == fs_iter);
       REQUIRE(amgf_iter <= iteration_bound);

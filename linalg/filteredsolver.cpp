@@ -16,37 +16,41 @@ namespace mfem
 {
 
 
-const Operator * FilteredSolver::GetPtAP(const Operator *Aop,
-                                         const Operator *Pop) const
+std::unique_ptr<const Operator> FilteredSolver::GetPtAP(const Operator *Aop,
+                                                        const Operator *Pop) const
 {
 #ifdef MFEM_USE_MPI
    const HypreParMatrix * Ah = dynamic_cast<const HypreParMatrix*>(Aop);
    const HypreParMatrix * Ph = dynamic_cast<const HypreParMatrix*>(Pop);
-   if (Ah && Ph) { return RAP(Ah, Ph); }
+   if (Ah && Ph) { return std::unique_ptr<const Operator>(RAP(Ah, Ph)); }
 #endif
 #ifdef MFEM_USE_PETSC
    const PetscParMatrix* Ap = dynamic_cast<const PetscParMatrix*>(Aop);
    const PetscParMatrix* Pp = dynamic_cast<const PetscParMatrix*>(Pop);
-   if (Ap && Pp) { return RAP(Ap, Pp); }
+   if (Ap && Pp) { return std::unique_ptr<const Operator>(RAP(Ap, Pp)); }
 #endif
    const SparseMatrix * Asp = dynamic_cast<const SparseMatrix*>(Aop);
    const SparseMatrix * Psp = dynamic_cast<const SparseMatrix*>(Pop);
-   if (Asp && Psp)   { return RAP(*Asp, *Psp); }
+   if (Asp && Psp)   { return std::unique_ptr<const Operator>(RAP(*Asp, *Psp)); }
 
-   return new RAPOperator(*Pop, *Aop, *Pop);
+   return std::unique_ptr<const Operator>(new RAPOperator(*Pop, *Aop, *Pop));
 }
 
 void FilteredSolver::InitVectors() const
 {
-   MFEM_VERIFY(A, "FilteredSolver::MakeSolver: Operator not set");
-   MFEM_VERIFY(P, "FilteredSolver::MakeSolver: Transfer operator not set");
-   MFEM_VERIFY(B, "FilteredSolver::MakeSolver: Solver is not set.");
-   MFEM_VERIFY(S,"FilteredSolver::MakeSolver: Filtered space solver is not set.");
+   MFEM_VERIFY(A, "Operator not set");
+   MFEM_VERIFY(P, "Transfer operator not set");
+   MFEM_VERIFY(B, "Solver is not set.");
+   MFEM_VERIFY(S, "Filtered space solver is not set.");
 
    z.SetSize(height);
+   z.UseDevice(true);
    r.SetSize(height);
+   r.UseDevice(true);
    xf.SetSize(P->Width());
+   xf.UseDevice(true);
    rf.SetSize(P->Width());
+   rf.UseDevice(true);
 }
 
 
@@ -60,7 +64,7 @@ void FilteredSolver::MakeSolver() const
    B->SetOperator(*A);
 
    // Filtered space operator
-   PtAP.reset(GetPtAP(A, P));
+   PtAP = GetPtAP(A, P);
 
    // Filtered space solver
    S->SetOperator(*PtAP);
