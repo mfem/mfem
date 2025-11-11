@@ -357,7 +357,7 @@ static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *out,
       out->tr     = ( v0>v1 ? v0 : v1 )/4;
       out->dist2  = p->dist2;
       out->flags   = p->flags >> 5;
-      out->dist2p = -DBL_MAX;
+      out->dist2p = -HUGE_VAL;
       for (int d=0; d<rDIM; ++d)
       {
          out->r[d] = p->oldr[d];
@@ -750,7 +750,7 @@ static void FindPointsSurfLocal3D_Kernel(const int npt,
       const unsigned int *elp = hash.offset + hash.offset[hi],
                           *const ele = hash.offset + hash.offset[hi+1];
       *code_i  = CODE_NOT_FOUND;
-      *dist2_i = DBL_MAX;
+      *dist2_i = HUGE_VAL;
 
       for (; elp!=ele; ++elp)
       {
@@ -804,7 +804,7 @@ static void FindPointsSurfLocal3D_Kernel(const int npt,
                MFEM_FOREACH_THREAD(j,x,1)
                {
 
-                  fpt->dist2 = DBL_MAX;
+                  fpt->dist2 = HUGE_VAL;
                   fpt->dist2p = 0;
                   fpt->tr = 1.0;
                   edge_init = 0;

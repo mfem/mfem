@@ -227,7 +227,7 @@ static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *out,
       out->dist2 = p->dist2;
       out->r = p->oldr;
       out->flags = p->flags>>3;
-      out->dist2p = -DBL_MAX;
+      out->dist2p = -HUGE_VAL;
       if (pred < dist2*tol)
       {
          out->flags |= CONVERGED_FLAG;
@@ -325,7 +325,7 @@ static MFEM_HOST_DEVICE void seed_j( const double *elx[sDIM],
    {
       dx[d] = x[d] - elx[d][ir];
    }
-   dist2[ir] = DBL_MAX;
+   dist2[ir] = HUGE_VAL;
    const double dist2_rs = l2norm2(dx);
    if (dist2[ir]>dist2_rs)
    {
@@ -410,7 +410,7 @@ static void FindPointsEdgeLocal2D_Kernel( const int     npt,
       const unsigned int *elp       = hash.offset + hash.offset[hi];
       const unsigned int *const ele = hash.offset + hash.offset[hi+1];
       *code_i  = CODE_NOT_FOUND;
-      *dist2_i = DBL_MAX;
+      *dist2_i = HUGE_VAL;
 
       for (; elp!=ele; ++elp)
       {

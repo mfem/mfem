@@ -234,7 +234,7 @@ static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *out,
       out->dist2 = p->dist2;
       out->r = p->oldr;
       out->flags = p->flags>>3;
-      out->dist2p = -DBL_MAX;
+      out->dist2p = -HUGE_VAL;
       if (pred<dist2*tol)
       {
          out->flags |= CONVERGED_FLAG;
@@ -418,7 +418,7 @@ static void FindPointsEdgeLocal3D_Kernel(const int npt,
       const unsigned int *elp       = hash.offset + hash.offset[hi];
       const unsigned int *const ele = hash.offset + hash.offset[hi+1];
       *code_i  = CODE_NOT_FOUND;
-      *dist2_i = DBL_MAX;
+      *dist2_i = HUGE_VAL;
 
       for (; elp!=ele; ++elp)
       {
@@ -464,7 +464,7 @@ static void FindPointsEdgeLocal3D_Kernel(const int npt,
                {
                   MFEM_FOREACH_THREAD(j,x,1)
                   {
-                     fpt->dist2 = DBL_MAX;
+                     fpt->dist2 = HUGE_VAL;
                      fpt->dist2p = 0;
                      fpt->tr = 1.0;
                   }
@@ -486,7 +486,7 @@ static void FindPointsEdgeLocal3D_Kernel(const int npt,
 
                      MFEM_FOREACH_THREAD(j,x,1)
                      {
-                        fpt->dist2 = DBL_MAX;
+                        fpt->dist2 = HUGE_VAL;
                         for (int ir=0; ir<D1D; ++ir)
                         {
                            if (dist2_temp[ir] < fpt->dist2)

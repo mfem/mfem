@@ -186,8 +186,8 @@ void BoundingBoxTensorGridMap::Setup(Vector &elmin, Vector &elmax,
                                               elmin_h, elmax_h);
    }
 
-   lmap_offset.SetSize(store_size);
-   lmap_offset[0] = lmap_nd + 1;
+   lgrid_map.SetSize(store_size);
+   lgrid_map[0] = lmap_nd + 1;
 
    Array<unsigned int> hash_el_count(lmap_nd);
    hash_el_count = 0;
@@ -217,7 +217,7 @@ void BoundingBoxTensorGridMap::Setup(Vector &elmin, Vector &elmax,
 
    for (int e = 0; e < lmap_nd; e++)
    {
-      lmap_offset[e + 1] = lmap_offset[e] + hash_el_count[e];
+      lgrid_map[e + 1] = lgrid_map[e] + hash_el_count[e];
    }
 
    for (int e = 0; e < nel; e++)
@@ -237,7 +237,7 @@ void BoundingBoxTensorGridMap::Setup(Vector &elmin, Vector &elmax,
             {
                int ioff = elmin_h[0*nel + e] + i;
                int idx = ioff + joff + koff;
-               lmap_offset[lmap_offset[idx+1]-hash_el_count[idx]]=e;
+               lgrid_map[lgrid_map[idx+1]-hash_el_count[idx]]=e;
                hash_el_count[idx]--;
             }
          }
@@ -250,12 +250,12 @@ Array<int> BoundingBoxTensorGridMap::HashCellToElements(int i) const
    MFEM_ASSERT(i >= 0 && i < lmap_nd-1,
                "Access element " << i << " of local hash with cells = "
                << lmap_nd - 1);
-   int start = lmap_offset[i];
-   int end = lmap_offset[i + 1];
+   int start = lgrid_map[i];
+   int end = lgrid_map[i + 1];
    Array<int> elements(end - start);
    for (int j = start; j < end; j++)
    {
-      elements[j - start] = lmap_offset[j];
+      elements[j - start] = lgrid_map[j];
    }
    return elements;
 }

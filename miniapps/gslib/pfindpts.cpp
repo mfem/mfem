@@ -421,35 +421,6 @@ int main (int argc, char *argv[])
       vxyz.Destroy();
       npt_total_face = 0;
    }
-   // pts_cnt = 1;
-   // vxyz.SetSize(pts_cnt * sdim);
-   // 1.27624 0.444592 0
-   // vxyz(0) = 1.27624;
-   if (sdim ==2 )
-   {
-      // vxyz(1) = 0.444592;
-   }
-   // if (sdim == 3) { vxyz(2) = 0; }
-   // -0.689847 0.195519
-   // 0.811114 0.128025
-   // vxyz(0) = 0.811114;
-   // vxyz(1) = 0.128025;
-   // 0 0.174319 0
-   // vxyz(0) = 0;
-   // vxyz(1) = 0.174319;
-   // if (sdim == 3) { vxyz(2) = 0; }
-   // 1.64544 -6.12293 -1.21518
-   // vxyz(0) = 1.64544;
-   // vxyz(1) = -6.12293;
-   // vxyz(2) = -1.21518;
-   // -1.65153 -14.7821 2.66995
-   // vxyz(0) = -1.65153;
-   // vxyz(1) = -14.7821;
-   // vxyz(2) = 2.66995;
-   // 6.64218 0.313413 0.351335
-   // vxyz(0) = 6.64218;
-   // vxyz(1) = 0.313413;
-   // vxyz(2) = 0.351335;
    MPI_Allreduce(MPI_IN_PLACE, &npt_total_face, 1, MPI_INT, MPI_SUM,
                  pmesh.GetComm());
 
@@ -552,23 +523,6 @@ int main (int argc, char *argv[])
             max_error  = std::max(max_error, error);
             max_dist = std::max(max_dist, dist_p_out(i));
             if (code_out[i] == 1 && j == 0) { face_pts++; }
-            if (error > 1e-10 || dist_p_out(i) > 1e-5)
-            {
-               if (j == 0)
-               {
-                  // pos.Print();
-                  if (dim == 1)
-                  {
-                     std::cout << code_out[i] << " " << dist_p_out(i) <<
-                               " " << rst(i*dim + 0) << " k101\n";
-                  }
-                  else if (dim == 2)
-                  {
-                     std::cout << code_out[i] << " " << dist_p_out(i) <<
-                               " " << rst(i*dim + 0) << " " << rst(i*dim + 1) << " k101\n";
-                  }
-               }
-            }
          }
          else
          {
@@ -581,17 +535,6 @@ int main (int argc, char *argv[])
                            vxyz(i*sdim + d);
                }
                not_found++;
-               pos.Print();
-               if (dim == 1)
-               {
-                  std::cout << code_out[i] << " " << dist_p_out(i) <<
-                            " " << rst(i*dim + 0) << " k101\n";
-               }
-               else if (dim == 2)
-               {
-                  std::cout << code_out[i] << " " << dist_p_out(i) <<
-                            " " << rst(i*dim + 0) << " " << rst(i*dim + 1) << " k101\n";
-               }
             }
          }
       }

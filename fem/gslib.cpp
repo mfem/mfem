@@ -793,7 +793,6 @@ void FindPointsGSLIB::findptssurf_setup_3(DEV_STRUCT &devs,
       elmax(i + nel) = devs.bb(n_box_ents*i + 7); // ymax
       elmax(i + 2*nel) = devs.bb(n_box_ents*i + 8); // zmax
    }
-   MPI_Barrier(MPI_COMM_WORLD);
 
    // build local map
    BoundingBoxTensorGridMap bbmap(elmin, elmax, local_hash_size, nel, true);
@@ -802,6 +801,7 @@ void FindPointsGSLIB::findptssurf_setup_3(DEV_STRUCT &devs,
    devs.lh_offset = bbmap.GetHashMap();
    devs.lh_nx = bbmap.GetHashN()[0];
 
+#ifdef MFEM_USE_MPI
    // build global map
    GlobalBoundingBoxTensorGridMap gbbmap(gsl_comm->c, elmin, elmax,
                                          global_hash_size, nel, true);
@@ -809,6 +809,7 @@ void FindPointsGSLIB::findptssurf_setup_3(DEV_STRUCT &devs,
    devs.gh_fac = gbbmap.GetHashFac();
    devs.gh_offset = gbbmap.GetHashMap();
    devs.gh_nx = gbbmap.GetHashN()[0];
+#endif
 }
 
 void FindPointsGSLIB::findptsedge_setup_2(DEV_STRUCT &devs,
@@ -840,6 +841,7 @@ void FindPointsGSLIB::findptsedge_setup_2(DEV_STRUCT &devs,
    devs.lh_offset = bbmap.GetHashMap();
    devs.lh_nx = bbmap.GetHashN()[0];
 
+#ifdef MFEM_USE_MPI
    // build global map
    GlobalBoundingBoxTensorGridMap gbbmap(gsl_comm->c, elmin, elmax,
                                          global_hash_size, nel, true);
@@ -847,6 +849,7 @@ void FindPointsGSLIB::findptsedge_setup_2(DEV_STRUCT &devs,
    devs.gh_fac = gbbmap.GetHashFac();
    devs.gh_offset = gbbmap.GetHashMap();
    devs.gh_nx = gbbmap.GetHashN()[0];
+#endif
 }
 
 void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t,
@@ -2258,8 +2261,9 @@ void FindPointsGSLIB::FindPointsSurfOnDevice(const Vector &point_pos,
       }
       array_free(&out_pt);
    }
-
+#ifdef MFEM_USE_MPI
    MPI_Barrier(gsl_comm->c);
+#endif
 }
 
 void lagrange_eval_second_derivative(double *p0, double x, int i,
@@ -2431,7 +2435,9 @@ void FindPointsGSLIB::InterpolateSurfBase(const Vector &field_in,
                            interp_vals, nlocal, ncomp, nel, dof1Dsol);
 
       }
-      MPI_Barrier(gsl_comm->c);
+#ifdef MFEM_USE_MPI
+   MPI_Barrier(gsl_comm->c);
+#endif
 
       interp_vals.HostReadWrite();
 
@@ -2449,7 +2455,9 @@ void FindPointsGSLIB::InterpolateSurfBase(const Vector &field_in,
          }
       }
    }
+#ifdef MFEM_USE_MPI
    MPI_Barrier(gsl_comm->c);
+#endif
 
    if (gsl_comm->np == 1)
    {
@@ -2494,7 +2502,9 @@ void FindPointsGSLIB::InterpolateSurfBase(const Vector &field_in,
          InterpolateLocal2(field_in, gsl_elem_temp, gsl_ref_temp,
                            interp_vals, n, ncomp, nel, dof1Dsol);
       }
+#ifdef MFEM_USE_MPI
       MPI_Barrier(gsl_comm->c);
+#endif
       interp_vals.HostReadWrite();
 
       // Now the interpolated values need to be sent back component wise
@@ -2598,9 +2608,7 @@ void FindPointsGSLIB::FreeData()
             findpts_free_3((gslib::findpts_data_3 *)this->fdataD);
          }
       }
-#ifdef MFEM_USE_MPI
    }
-#endif
    gsl_code.DeleteAll();
    gsl_proc.DeleteAll();
    gsl_elem.DeleteAll();
@@ -3942,7 +3950,9 @@ Mesh* FindPointsGSLIB::GetBoundingBoxMesh(int type)
    MFEM_VERIFY(nsend == bbvert.Size(),
                "Inconsistent size of bounding box vertices");
    int nrecv = 0;
+#ifdef MFEM_USE_MPI
    MPI_Status status;
+#endif
    int vidx = 0;
    int eidx = 0;
    if (myid == save_rank)
@@ -3951,12 +3961,14 @@ Mesh* FindPointsGSLIB::GetBoundingBoxMesh(int type)
       {
          if (p != save_rank)
          {
+#ifdef MFEM_USE_MPI
             MPI_Recv(&nrecv, 1, MPI_INT, p, 444, gsl_comm->c, &status);
             bbvert.SetSize(nrecv);
             if (nrecv)
             {
                MPI_Recv(bbvert.GetData(), nrecv, MPI_DOUBLE, p, 445, gsl_comm->c, &status);
             }
+#endif
          }
          else
          {
@@ -3998,13 +4010,17 @@ Mesh* FindPointsGSLIB::GetBoundingBoxMesh(int type)
    }
    else
    {
+#ifdef MFEM_USE_MPI
       MPI_Send(&nsend, 1, MPI_INT, save_rank, 444, gsl_comm->c);
       if (nsend)
       {
          MPI_Send(bbvert.GetData(), nsend, MPI_DOUBLE, save_rank, 445, gsl_comm->c);
       }
+#endif
    }
+#ifdef MFEM_USE_MPI
    MPI_Barrier(gsl_comm->c);
+#endif
 
    return meshbb;
 }
