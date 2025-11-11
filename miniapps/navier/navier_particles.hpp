@@ -68,7 +68,7 @@ protected:
    /// EXTk coefficients, k=1,2,3.
    std::array<Array<real_t>, 3> alpha_k;
 
-   /// Carrier of field + tag indices. Allows for convient access to
+   /// Carrier of field + tag indices. Allows for convenient access to
    /// corresponding ParticleVector from ParticleSet.
    struct FluidParticleIndices
    {
@@ -158,7 +158,7 @@ protected:
    void Apply2DReflectionBC(const ReflectionBC_2D &bc);
    /// Apply 2D recirculation BCs
    void Apply2DRecirculationBC(const RecirculationBC_2D &bc);
-   /// Apply both reflection and recirculation BCs
+   /// Apply all BCs in \ref bcs
    void ApplyBCs();
 
    /** @brief Move any particles that have left the domain to the
