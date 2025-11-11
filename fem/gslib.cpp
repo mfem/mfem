@@ -1124,22 +1124,32 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
 }
 
 #if GSLIB_RELEASE_VERSION >= 10009
+
+slong lfloor(double x) { return floor(x); }
+
+// Local hash mesh index in 1D for a given point
+ulong hash_index_1(double low, double fac, ulong n, double x)
+{
+   const slong i = lfloor((x - low) * fac);
+   return i < 0 ? 0 : (n - 1 < (ulong)i ? n - 1 : (ulong)i);
+}
+
 // Local hash mesh index in 3D for a given point
 ulong hash_index_3(const gslib::hash_data_3 *p, const double x[3])
 {
    const ulong n = p->hash_n;
-   return (hash_index_aux(p->bnd[2].min, p->fac[2], n, x[2]) * n +
-           hash_index_aux(p->bnd[1].min, p->fac[1], n, x[1])) *
+   return (hash_index_1(p->bnd[2].min, p->fac[2], n, x[2]) * n +
+           hash_index_1(p->bnd[1].min, p->fac[1], n, x[1])) *
           n +
-          hash_index_aux(p->bnd[0].min, p->fac[0], n, x[0]);
+          hash_index_1(p->bnd[0].min, p->fac[0], n, x[0]);
 }
 
 // Local hash mesh index in 2D for a given point
 ulong hash_index_2(const gslib::hash_data_2 *p, const double x[2])
 {
    const ulong n = p->hash_n;
-   return (hash_index_aux(p->bnd[1].min, p->fac[1], n, x[1])) * n
-          + hash_index_aux(p->bnd[0].min, p->fac[0], n, x[0]);
+   return (hash_index_1(p->bnd[1].min, p->fac[1], n, x[1])) * n
+          + hash_index_1(p->bnd[0].min, p->fac[0], n, x[0]);
 }
 
 void FindPointsGSLIB::SetupDevice()
@@ -1870,15 +1880,6 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
    //finished evaluating points received from other processors.
 }
 
-slong lfloor(double x) { return floor(x); }
-
-// Local hash mesh index in 1D for a given point
-ulong hash_index_aux(double low, double fac, ulong n, double x)
-{
-   const slong i = lfloor((x - low) * fac);
-   return i < 0 ? 0 : (n - 1 < (ulong)i ? n - 1 : (ulong)i);
-}
-
 // Hash mesh index in 3D for a given point
 ulong hash_index_nd(const Vector &hash_min, const Vector &hash_fac,
                     const int n,  const Vector &x)
@@ -1886,14 +1887,14 @@ ulong hash_index_nd(const Vector &hash_min, const Vector &hash_fac,
    const int dim = x.Size();
    if (dim == 2)
    {
-      return (hash_index_aux(hash_min(1), hash_fac(1), n, x[1])) * n
-             + hash_index_aux(hash_min(0), hash_fac(0), n, x[0]);
+      return (hash_index_1(hash_min(1), hash_fac(1), n, x[1])) * n
+             + hash_index_1(hash_min(0), hash_fac(0), n, x[0]);
    }
    else if (dim == 3)
    {
-      return (hash_index_aux(hash_min(2), hash_fac(2), n, x[2]) * n +
-              hash_index_aux(hash_min(1), hash_fac(1), n, x[1])) * n +
-             hash_index_aux(hash_min(0), hash_fac(0), n, x[0]);
+      return (hash_index_1(hash_min(2), hash_fac(2), n, x[2]) * n +
+              hash_index_1(hash_min(1), hash_fac(1), n, x[1])) * n +
+             hash_index_1(hash_min(0), hash_fac(0), n, x[0]);
    }
    else
    {
