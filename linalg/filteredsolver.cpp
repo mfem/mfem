@@ -100,8 +100,7 @@ void FilteredSolver::SetFilteredSubspaceSolver(Solver &S_)
 
 void FilteredSolver::Mult(const Vector &b, Vector &x) const
 {
-   MFEM_VERIFY(b.Size() == x.Size(),
-               "FilteredSolver::Mult: Inconsistent b and x size");
+   MFEM_VERIFY(b.Size() == x.Size(), "Inconsistent b and x size");
    MakeSolver();
 
    x = 0.0;
