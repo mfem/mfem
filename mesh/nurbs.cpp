@@ -4528,7 +4528,8 @@ void NURBSExtension::GetElementLocalToGlobal(Array<int> &lelem_elem)
       }
 }
 
-void NURBSExtension::LoadFE(int i, Array<int> &dofs, const FiniteElement *FE) const
+void NURBSExtension::LoadFE(int i, Array<int> &dofs,
+                            const FiniteElement *FE) const
 {
    const NURBSFiniteElement *NURBSFE =
       dynamic_cast<const NURBSFiniteElement *>(FE);
@@ -4547,7 +4548,8 @@ void NURBSExtension::LoadFE(int i, Array<int> &dofs, const FiniteElement *FE) co
    }
 }
 
-void NURBSExtension::LoadBE(int i, Array<int> &dofs, const FiniteElement *BE) const
+void NURBSExtension::LoadBE(int i, Array<int> &dofs,
+                            const FiniteElement *BE) const
 {
    if (Dimension() == 1) { return; }
 
