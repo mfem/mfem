@@ -215,10 +215,11 @@ weights
 0.7071067811865475244
 0.5
 
-FiniteElementSpace
+MFEM FiniteElementSpace v1.0
 FiniteElementCollection: NURBS2
 VDim: 3
 Ordering: 1
+End: MFEM FiniteElementSpace v1.0
 
 2 0 0
 0 2 0

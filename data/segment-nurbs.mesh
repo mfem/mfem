@@ -35,11 +35,11 @@ weights
 1
 1
 
-FiniteElementSpace
+MFEM FiniteElementSpace v1.0
 FiniteElementCollection: NURBS1
 VDim: 1
 Ordering: 1
-
+End: MFEM FiniteElementSpace v1.0
 0
 1
 
