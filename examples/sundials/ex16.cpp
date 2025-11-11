@@ -86,7 +86,7 @@ public:
 
    ConductionOperator(FiniteElementSpace &f, const real_t alpha,
                       const real_t kappa, const Vector &u,
-                      const bool use_explicit_form);
+                      const bool use_mass_form);
 
    // Compute K(u_n) for use as an approximation in - K(u) u
    void SetConductionTensor(const Vector &u);
