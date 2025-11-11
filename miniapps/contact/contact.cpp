@@ -402,9 +402,9 @@ int main(int argc, char *argv[])
 #endif
          prec = new AMGFSolver();
          auto * amgfprec = dynamic_cast<AMGFSolver *>(prec);
-         amgfprec->AMG().SetSystemsOptions(3);
-         amgfprec->AMG().SetPrintLevel(0);
-         amgfprec->AMG().SetRelaxType(88);
+         amgfprec->GetAMG().SetSystemsOptions(3);
+         amgfprec->GetAMG().SetPrintLevel(0);
+         amgfprec->GetAMG().SetRelaxType(88);
          amgfprec->SetFilteredSubspaceSolver(*subspacesolver);
          amgfprec->SetFilteredSubspaceTransferOperator(
             *contact.GetContactSubspaceTransferOperator());
