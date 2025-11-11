@@ -92,7 +92,7 @@ private:
    void Setup(Vector &elmin, Vector &elmax,
               Array<int> &nx, int nel, bool by_max_size);
 
-              /// Get hash cell index for a given point.
+   /// Get hash cell index for a given point.
    int GetHashCellFromPoint(Vector &xyz) const;
 
    /// Get list of elements corresponding to a hash cell.

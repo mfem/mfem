@@ -2436,7 +2436,7 @@ void FindPointsGSLIB::InterpolateSurfBase(const Vector &field_in,
 
       }
 #ifdef MFEM_USE_MPI
-   MPI_Barrier(gsl_comm->c);
+      MPI_Barrier(gsl_comm->c);
 #endif
 
       interp_vals.HostReadWrite();

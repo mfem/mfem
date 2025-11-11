@@ -139,9 +139,9 @@ void BoundingBoxTensorGridMap::Setup(Vector &elmin, Vector &elmax,
    if (by_max_size)
    {
       int nmax = nx[0];
-      int nlow = 1, nhigh = ceil(pow(nmax - nel, 1.0 / dim));
+      int nlow = 1, nhigh = nmax > nel ? ceil(pow(nmax - nel, 1.0 / dim)) : 1;
       int size_low = 2 + nel;
-      int size;
+      int size = 0;
       while (nhigh - nlow > 1)
       {
          int nmid = nlow + (nhigh - nlow) / 2;
