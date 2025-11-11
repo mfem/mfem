@@ -4526,7 +4526,10 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
    NURBSExtension *nurbs_ext = NULL;
    if (fes_format == 90) // original format, v0.9
    {
-      mfem_error("Format 90 not supported anymore");
+      if (nurbs_fec)
+      {
+         mfem_error("Format 90 not supported anymore for NURBS spaces");
+      }
    }
    else if (fes_format == 100) // v1.0
    {
