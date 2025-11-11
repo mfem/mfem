@@ -249,10 +249,6 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
 }
 
 
-#define gslib_tmalloc(type, count) \
-  ((type*) gslib::smalloc((count)*sizeof(type),__FILE__,__LINE__))
-#define DO_MAX(a,b) do { unsigned temp = b; if(temp>a) a=temp; } while(0)
-
 /* Calculates the diagonal length of the bounding box and expands its bounds by
  * 0.5*len*tol at both its min and max values.
  * Returns the length of the diagonal (could be used for expanding obboxes).
@@ -332,10 +328,9 @@ void obboxsurf_calc_3(Vector &bb,
    const unsigned lbsize0 = gslib::lob_bnd_size(nr,mr),
                   lbsize1 = gslib::lob_bnd_size(ns,ms);
 
-   unsigned wsize = 3*nr*ns+2*mr*(ns+ms+1);
-   DO_MAX(wsize,2*nr*ns+3*nr);
-   DO_MAX(wsize,gslib::gll_lag_size(nr));
-   DO_MAX(wsize,gslib::gll_lag_size(ns));
+   unsigned wsize = std::max(3*nr*ns+2*mr*(ns+ms+1),2*nr*ns+3*nr);
+   wsize = std::max(wsize, gslib::gll_lag_size(nr));
+   wsize = std::max(wsize, gslib::gll_lag_size(ns));
 
    Vector datavec(2*(nr+ns)+lbsize0+lbsize1+wsize);
    double *data = datavec.GetData();
@@ -551,8 +546,7 @@ void obboxedge_calc_2(Vector &bb,
 
    const unsigned lbsize0 = gslib::lob_bnd_size(nr,mr);
 
-   unsigned wsize = 2*nr+2*mr;
-   DO_MAX(wsize,gslib::gll_lag_size(nr));
+   unsigned wsize = std::max(2*nr+2*mr, gslib::gll_lag_size(nr));
 
    Vector datavec(2*nr + lbsize0 + wsize);
    double *data = datavec.GetData();
@@ -643,8 +637,7 @@ void obboxedge_calc_3(Vector &bb,
    const int n_el_ents = 18; // 3(c0) + 3(aabb_min) + 3(aabb_max) + 9(A)
 
    const unsigned lbsize0 = gslib::lob_bnd_size(nr,mr);
-   unsigned wsize = 4*nr+2*mr;
-   DO_MAX(wsize,gslib::gll_lag_size(nr));
+   unsigned wsize = std::max(4*nr+2*mr, gslib::gll_lag_size(nr));
 
    Vector datavec(2*nr + lbsize0 + wsize);
    double *data = datavec.GetData();
@@ -771,9 +764,6 @@ void obboxedge_calc_3(Vector &bb,
       }
    }
 }
-
-#undef DO_MAX
-#undef gsl_tmalloc
 
 void FindPointsGSLIB::findptssurf_setup_3(DEV_STRUCT &devs,
                                           const double *const elx[3],
