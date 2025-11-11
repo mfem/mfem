@@ -136,7 +136,8 @@ void ElasticityOperator::FormLinearSystem()
       if (!nonlinear)
       {
          x.GetTrueDofs(X);
-         dynamic_cast<ParBilinearForm*>(op)->ParallelEliminateTDofsInRHS(ess_tdof_list, X, B);
+         dynamic_cast<ParBilinearForm*>(op)->ParallelEliminateTDofsInRHS(ess_tdof_list,
+                                                                         X, B);
       }
    }
 }
