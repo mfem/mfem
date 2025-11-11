@@ -4378,7 +4378,7 @@ void FiniteElementSpace::GetNodePositions(const Vector &mesh_nodes,
 
 void FiniteElementSpace::Save(std::ostream &os) const
 {
-   int fes_format = 90; // the original format, v0.9
+   int fes_format = 100; // the new format, v1.0
    bool nurbs_unit_weights = false;
 
    // Determine the format that should be used.
