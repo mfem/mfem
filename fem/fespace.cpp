@@ -4378,7 +4378,7 @@ void FiniteElementSpace::GetNodePositions(const Vector &mesh_nodes,
 
 void FiniteElementSpace::Save(std::ostream &os) const
 {
-   int fes_format = 90; // the original format, v0.9
+   int fes_format = 100; // the new format, v1.0
    bool nurbs_unit_weights = false;
 
    // Determine the format that should be used.
@@ -4528,13 +4528,7 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
    {
       if (nurbs_fec)
       {
-         MFEM_VERIFY(m->NURBSext, "NURBS FE collection requires a NURBS mesh!");
-         const int order = nurbs_fec->GetOrder();
-         if (order != m->NURBSext->GetOrder() &&
-             order != NURBSFECollection::VariableOrder)
-         {
-            nurbs_ext = new NURBSExtension(m->NURBSext, order);
-         }
+         mfem_error("Format 90 not supported anymore for NURBS spaces");
       }
    }
    else if (fes_format == 100) // v1.0
