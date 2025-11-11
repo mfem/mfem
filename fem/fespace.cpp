@@ -4391,7 +4391,6 @@ void FiniteElementSpace::Save(std::ostream &os) const
       const NURBSFECollection *nurbs_fec =
          dynamic_cast<const NURBSFECollection *>(fec);
       MFEM_VERIFY(nurbs_fec, "invalid FE collection");
-      nurbs_fec->SetOrder(NURBSext->GetOrder());
       const real_t eps = 5e-14;
       nurbs_unit_weights = (NURBSext->GetWeights().Min() >= 1.0-eps &&
                             NURBSext->GetWeights().Max() <= 1.0+eps);

@@ -26,6 +26,9 @@ void NURBS1DFiniteElement::SetOrder() const
 
    weights.SetSize(dof);
    shape_x.SetSize(dof);
+#ifndef MFEM_THREAD_SAFE
+   vshape.SetSize(dof, dim);
+#endif
 }
 
 void NURBS1DFiniteElement::CalcShape(const IntegrationPoint &ip,
@@ -101,6 +104,9 @@ void NURBS2DFiniteElement::SetOrder() const
    u.SetSize(dof);
    du.SetSize(dof);
    weights.SetSize(dof);
+#ifndef MFEM_THREAD_SAFE
+   vshape.SetSize(dof, dim);
+#endif
 }
 
 void NURBS2DFiniteElement::CalcShape(const IntegrationPoint &ip,
@@ -238,6 +244,9 @@ void NURBS3DFiniteElement::SetOrder() const
    u.SetSize(dof);
    du.SetSize(dof);
    weights.SetSize(dof);
+#ifndef MFEM_THREAD_SAFE
+   vshape.SetSize(dof, dim);
+#endif
 }
 
 void NURBS3DFiniteElement::CalcShape(const IntegrationPoint &ip,
@@ -437,6 +446,9 @@ void NURBS_HDiv2DFiniteElement::SetOrder() const
    u.SetSize(dof);
    du.SetSize(dof);
    weights.SetSize(dof);
+#ifndef MFEM_THREAD_SAFE
+   vshape.SetSize(dof, dim);
+#endif
 }
 
 void NURBS_HDiv2DFiniteElement::CalcVShape(const IntegrationPoint &ip,
@@ -569,6 +581,9 @@ void NURBS_HDiv3DFiniteElement::SetOrder() const
    u.SetSize(dof);
    du.SetSize(dof);
    weights.SetSize(dof);
+#ifndef MFEM_THREAD_SAFE
+   vshape.SetSize(dof, dim);
+#endif
 }
 
 void NURBS_HDiv3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
@@ -738,6 +753,9 @@ void NURBS_HCurl2DFiniteElement::SetOrder() const
    u.SetSize(dof);
    du.SetSize(dof);
    weights.SetSize(dof);
+#ifndef MFEM_THREAD_SAFE
+   vshape.SetSize(dof, dim);
+#endif
 }
 
 void NURBS_HCurl2DFiniteElement::CalcVShape(const IntegrationPoint &ip,
@@ -869,6 +887,9 @@ void NURBS_HCurl3DFiniteElement::SetOrder() const
    u.SetSize(dof);
    du.SetSize(dof);
    weights.SetSize(dof);
+#ifndef MFEM_THREAD_SAFE
+   vshape.SetSize(dof, dim);
+#endif
 }
 
 void NURBS_HCurl3DFiniteElement::CalcVShape(const IntegrationPoint &ip,

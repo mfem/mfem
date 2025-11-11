@@ -3497,27 +3497,12 @@ Local_FECollection::Local_FECollection(const char *fe_name)
 
 NURBSFECollection::NURBSFECollection(int Order)
    : FiniteElementCollection((Order == VariableOrder) ? 1 : Order)
+     //: FiniteElementCollection()
 {
-   const int order = (Order == VariableOrder) ? 1 : Order;
    PointFE          = new PointFiniteElement();
-   SegmentFE        = new NURBS1DFiniteElement(order);
-   QuadrilateralFE  = new NURBS2DFiniteElement(order);
-   ParallelepipedFE = new NURBS3DFiniteElement(order);
-
-   SetOrder(Order);
-}
-
-void NURBSFECollection::SetOrder(int Order) const
-{
-   mOrder = Order;
-   if (Order != VariableOrder)
-   {
-      snprintf(name, 16, "NURBS%i", Order);
-   }
-   else
-   {
-      snprintf(name, 16, "NURBS");
-   }
+   SegmentFE        = new NURBS1DFiniteElement();
+   QuadrilateralFE  = new NURBS2DFiniteElement();
+   ParallelepipedFE = new NURBS3DFiniteElement();
 }
 
 NURBSFECollection::~NURBSFECollection()
@@ -3565,18 +3550,14 @@ FiniteElementCollection *NURBSFECollection::GetTraceCollection() const
 
 
 NURBS_HDivFECollection::NURBS_HDivFECollection(int Order, const int dim)
-   : NURBSFECollection((Order == VariableOrder) ? 1 : Order)
 {
-   const int order = (Order == VariableOrder) ? 1 : Order;
+   SegmentFE       = new NURBS1DFiniteElement();
+   QuadrilateralFE = new NURBS2DFiniteElement();
 
-   SegmentFE       = new NURBS1DFiniteElement(order);
-   QuadrilateralFE = new NURBS2DFiniteElement(order);
-
-   QuadrilateralVFE  = new NURBS_HDiv2DFiniteElement(order);
-   ParallelepipedVFE = new NURBS_HDiv3DFiniteElement(order);
+   QuadrilateralVFE  = new NURBS_HDiv2DFiniteElement();
+   ParallelepipedVFE = new NURBS_HDiv3DFiniteElement();
 
    if (dim != -1) { SetDim(dim); }
-   SetOrder(Order);
 }
 
 void NURBS_HDivFECollection::SetDim(int dim)
@@ -3623,19 +3604,6 @@ NURBS_HDivFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
    return QuadrilateralFE; // Make some compilers happy
 }
 
-void NURBS_HDivFECollection::SetOrder(int Order) const
-{
-   mOrder = Order;
-   if (Order != VariableOrder)
-   {
-      snprintf(name, 16, "NURBS_HDiv%i", Order);
-   }
-   else
-   {
-      snprintf(name, 16, "NURBS_HDiv");
-   }
-}
-
 int NURBS_HDivFECollection::DofForGeometry(Geometry::Type GeomType) const
 {
    mfem_error("NURBS_HDivFECollection::DofForGeometry");
@@ -3657,17 +3625,13 @@ FiniteElementCollection *NURBS_HDivFECollection::GetTraceCollection() const
 }
 
 NURBS_HCurlFECollection::NURBS_HCurlFECollection(int Order, const int dim)
-   : NURBSFECollection((Order == VariableOrder) ? 1 : Order)
 {
-   const int order = (Order == VariableOrder) ? 1 : Order;
+   SegmentFE       = new NURBS1DFiniteElement();
+   QuadrilateralFE = new NURBS2DFiniteElement();
 
-   SegmentFE       = new NURBS1DFiniteElement(order+1);
-   QuadrilateralFE = new NURBS2DFiniteElement(order+1);
-
-   QuadrilateralVFE  = new NURBS_HCurl2DFiniteElement(order);
-   ParallelepipedVFE = new NURBS_HCurl3DFiniteElement(order);
+   QuadrilateralVFE  = new NURBS_HCurl2DFiniteElement();
+   ParallelepipedVFE = new NURBS_HCurl3DFiniteElement();
    if (dim != -1) { SetDim(dim); }
-   SetOrder(Order);
 }
 
 void NURBS_HCurlFECollection::SetDim(int dim)
@@ -3714,19 +3678,6 @@ NURBS_HCurlFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
          mfem_error ("NURBS_HCurlFECollection: unknown geometry type.");
    }
    return QuadrilateralFE; // Make some compilers happy
-}
-
-void NURBS_HCurlFECollection::SetOrder(int Order) const
-{
-   mOrder = Order;
-   if (Order != VariableOrder)
-   {
-      snprintf(name, 16, "NURBS_HCurl%i", Order);
-   }
-   else
-   {
-      snprintf(name, 16, "NURBS_HCurl");
-   }
 }
 
 int NURBS_HCurlFECollection::DofForGeometry(Geometry::Type GeomType) const

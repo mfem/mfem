@@ -717,14 +717,6 @@ protected:
    NURBS2DFiniteElement *QuadrilateralFE;
    NURBS3DFiniteElement *ParallelepipedFE;
 
-   mutable int mOrder; // >= 1 or VariableOrder
-   // The 'name' can be:
-   // 1) name = "NURBS" + "number", for fixed order, or
-   // 2) name = "NURBS", for VariableOrder.
-   // The name is updated before writing it to a stream, for example, see
-   // FiniteElementSpace::Save().
-   mutable char name[16];
-
 public:
    enum { VariableOrder = -1 };
 
@@ -741,15 +733,6 @@ public:
 
    virtual void SetDim(const int dim) {};
 
-   /** @brief Get the order of the NURBS collection: either a positive number,
-       when using fixed order, or VariableOrder. */
-   /** @note Not to be confused with FiniteElementCollection::GetOrder(). */
-   int GetOrder() const { return mOrder; }
-
-   /** @brief Set the order and the name, based on the given @a Order: either a
-       positive number for fixed order, or VariableOrder. */
-   virtual void SetOrder(int Order) const;
-
    const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
@@ -758,7 +741,7 @@ public:
    const int *DofOrderForOrientation(Geometry::Type GeomType,
                                      int Or) const override;
 
-   const char *Name() const override { return name; }
+   const char *Name() const override { return "NURBS"; }
 
    int GetContType() const override { return CONTINUOUS; }
 
@@ -798,10 +781,6 @@ public:
 
    void SetDim(const int dim) override;
 
-   /** @brief Set the order and the name, based on the given @a Order: either a
-       positive number for fixed order, or VariableOrder. */
-   void SetOrder(int Order) const override;
-
    const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
@@ -810,7 +789,7 @@ public:
    const int *DofOrderForOrientation(Geometry::Type GeomType,
                                      int Or) const override;
 
-   const char *Name() const override { return name; }
+   const char *Name() const override { return "NURBS_HDiv"; }
 
    int GetContType() const override { return CONTINUOUS; }
 
@@ -849,10 +828,6 @@ public:
 
    void SetDim(const int dim) override;
 
-   /** @brief Set the order and the name, based on the given @a Order: either a
-       positive number for fixed order, or VariableOrder. */
-   void SetOrder(int Order) const override;
-
    const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
@@ -861,7 +836,7 @@ public:
    const int *DofOrderForOrientation(Geometry::Type GeomType,
                                      int Or) const override;
 
-   const char *Name() const override { return name; }
+   const char *Name() const override { return "NURBS_HCurl"; }
 
    int GetContType() const override { return CONTINUOUS; }
 
