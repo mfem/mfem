@@ -2238,8 +2238,6 @@ NURBSExtension::NURBSExtension(const NURBSExtension &orig)
      e_spaceOffsets(orig.e_spaceOffsets),
      f_spaceOffsets(orig.f_spaceOffsets),
      p_spaceOffsets(orig.p_spaceOffsets),
-     el_dof(orig.el_dof ? new Table(*orig.el_dof) : NULL),
-     bel_dof(orig.bel_dof ? new Table(*orig.bel_dof) : NULL),
      el_to_patch(orig.el_to_patch),
      bel_to_patch(orig.bel_to_patch),
      el_to_IJK(orig.el_to_IJK),
@@ -2470,9 +2468,7 @@ void NURBSExtension::Load(std::istream &input, bool spacing)
 
    GenerateActiveVertices();
    InitDofMap();
-   GenerateElementDofTable();
    GenerateActiveBdrElems();
-   GenerateBdrElementDofTable();
 
    // periodic
    if (ident == "periodic")
@@ -2543,9 +2539,6 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent, int newOrder)
    parent->activeElem.Copy(activeElem);
    parent->activeBdrElem.Copy(activeBdrElem);
 
-   GenerateElementDofTable();
-   GenerateBdrElementDofTable();
-
    weights.SetSize(GetNDof());
    weights = 1.0;
 
@@ -2600,9 +2593,6 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent,
    parent->activeElem.Copy(activeElem);
    parent->activeBdrElem.Copy(activeBdrElem);
 
-   GenerateElementDofTable();
-   GenerateBdrElementDofTable();
-
    weights.SetSize(GetNDof());
    weights = 1.0;
 
@@ -2648,9 +2638,7 @@ NURBSExtension::NURBSExtension(Mesh *mesh_array[], int num_pieces)
 
    GenerateActiveVertices();
    InitDofMap();
-   GenerateElementDofTable();
    GenerateActiveBdrElems();
-   GenerateBdrElementDofTable();
 
    weights.SetSize(GetNDof());
    MergeWeights(mesh_array, num_pieces);
@@ -2707,18 +2695,13 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
 
    GenerateActiveVertices();
    InitDofMap();
-   GenerateElementDofTable();
    GenerateActiveBdrElems();
-   GenerateBdrElementDofTable();
 
    ConnectBoundaries();
 }
 
 NURBSExtension::~NURBSExtension()
 {
-   if (bel_dof) { delete bel_dof; }
-   if (el_dof) { delete el_dof; }
-
    for (int i = 0; i < knotVectors.Size(); i++)
    {
       delete knotVectors[i];
@@ -2962,12 +2945,6 @@ void NURBSExtension::ConnectBoundaries()
    {
       d_to_d[i] = tmp[d_to_d[i]];
    }
-
-   // Finalize
-   if (el_dof) { delete el_dof; }
-   if (bel_dof) { delete bel_dof; }
-   GenerateElementDofTable();
-   GenerateBdrElementDofTable();
 }
 
 void NURBSExtension::ConnectBoundaries1D(int bnd0, int bnd1)
@@ -3200,11 +3177,15 @@ void NURBSExtension::MergeWeights(Mesh *mesh_array[], int num_pieces)
 {
    Array<int> lelem_elem;
 
+   Table *el_dof = GetElementDofTable();
+
    for (int i = 0; i < num_pieces; i++)
    {
       NURBSExtension *lext = mesh_array[i]->NURBSext;
 
       lext->GetElementLocalToGlobal(lelem_elem);
+
+      Table *loc_el_dof = lext->GetElementDofTable();
 
       for (int lel = 0; lel < lext->GetNE(); lel++)
       {
@@ -3212,13 +3193,15 @@ void NURBSExtension::MergeWeights(Mesh *mesh_array[], int num_pieces)
 
          int nd = el_dof->RowSize(gel);
          int *gdofs = el_dof->GetRow(gel);
-         int *ldofs = lext->el_dof->GetRow(lel);
+         int *ldofs = loc_el_dof->GetRow(lel);
          for (int j = 0; j < nd; j++)
          {
             weights(gdofs[j]) = lext->weights(ldofs[j]);
          }
       }
+      delete loc_el_dof;
    }
+   delete el_dof;
 }
 
 void NURBSExtension::MergeGridFunctions(
@@ -4064,22 +4047,23 @@ void NURBSExtension::Get3DBdrElementTopo(Array<Element *> &boundary) const
    }
 }
 
-void NURBSExtension::GenerateElementDofTable()
+Table *NURBSExtension::GetElementDofTable()
 {
    activeDof.SetSize(GetNTotalDof());
    activeDof = 0;
 
+   Table *el_dof;
    if (Dimension() == 1)
    {
-      Generate1DElementDofTable();
+      el_dof = Generate1DElementDofTable();
    }
    else if (Dimension() == 2)
    {
-      Generate2DElementDofTable();
+      el_dof = Generate2DElementDofTable();
    }
    else
    {
-      Generate3DElementDofTable();
+      el_dof = Generate3DElementDofTable();
    }
 
    SetPatchToElements();
@@ -4098,9 +4082,11 @@ void NURBSExtension::GenerateElementDofTable()
    {
       dof[i] = activeDof[dof[i]] - 1;
    }
+
+   return el_dof;
 }
 
-void NURBSExtension::Generate1DElementDofTable()
+Table *NURBSExtension::Generate1DElementDofTable()
 {
    int el = 0;
    int eg = 0;
@@ -4140,10 +4126,10 @@ void NURBSExtension::Generate1DElementDofTable()
       }
    }
    // We must NOT sort el_dof_list in this case.
-   el_dof = new Table(NumOfActiveElems, el_dof_list);
+   return new Table(NumOfActiveElems, el_dof_list);
 }
 
-void NURBSExtension::Generate2DElementDofTable()
+Table *NURBSExtension::Generate2DElementDofTable()
 {
    int el = 0;
    int eg = 0;
@@ -4194,10 +4180,10 @@ void NURBSExtension::Generate2DElementDofTable()
       }
    }
    // We must NOT sort el_dof_list in this case.
-   el_dof = new Table(NumOfActiveElems, el_dof_list);
+   return new Table(NumOfActiveElems, el_dof_list);
 }
 
-void NURBSExtension::Generate3DElementDofTable()
+Table *NURBSExtension::Generate3DElementDofTable()
 {
    int el = 0;
    int eg = 0;
@@ -4260,7 +4246,7 @@ void NURBSExtension::Generate3DElementDofTable()
       }
    }
    // We must NOT sort el_dof_list in this case.
-   el_dof = new Table(NumOfActiveElems, el_dof_list);
+   return new Table(NumOfActiveElems, el_dof_list);
 }
 
 void NURBSExtension::GetPatchDofs(const int patch, Array<int> &dofs)
@@ -4312,19 +4298,20 @@ void NURBSExtension::GetPatchDofs(const int patch, Array<int> &dofs)
    }
 }
 
-void NURBSExtension::GenerateBdrElementDofTable()
+Table *NURBSExtension::GetBdrElementDofTable()
 {
+   Table *bel_dof;
    if (Dimension() == 1)
    {
-      Generate1DBdrElementDofTable();
+      bel_dof = Generate1DBdrElementDofTable();
    }
    else if (Dimension() == 2)
    {
-      Generate2DBdrElementDofTable();
+      bel_dof = Generate2DBdrElementDofTable();
    }
    else
    {
-      Generate3DBdrElementDofTable();
+      bel_dof = Generate3DBdrElementDofTable();
    }
 
    SetPatchToBdrElements();
@@ -4344,9 +4331,10 @@ void NURBSExtension::GenerateBdrElementDofTable()
          dof[i] = activeDof[idx] - 1;
       }
    }
+   return bel_dof;
 }
 
-void NURBSExtension::Generate1DBdrElementDofTable()
+Table *NURBSExtension::Generate1DBdrElementDofTable()
 {
    int gbe = 0;
    int lbe = 0, okv[1];
@@ -4373,10 +4361,10 @@ void NURBSExtension::Generate1DBdrElementDofTable()
       gbe++;
    }
    // We must NOT sort bel_dof_list in this case.
-   bel_dof = new Table(NumOfActiveBdrElems, bel_dof_list);
+   return new Table(NumOfActiveBdrElems, bel_dof_list);
 }
 
-void NURBSExtension::Generate2DBdrElementDofTable()
+Table *NURBSExtension::Generate2DBdrElementDofTable()
 {
    int gbe = 0;
    int lbe = 0, okv[1];
@@ -4435,11 +4423,11 @@ void NURBSExtension::Generate2DBdrElementDofTable()
       }
    }
    // We must NOT sort bel_dof_list in this case.
-   bel_dof = new Table(NumOfActiveBdrElems, bel_dof_list);
+   return new Table(NumOfActiveBdrElems, bel_dof_list);
 }
 
 
-void NURBSExtension::Generate3DBdrElementDofTable()
+Table *NURBSExtension::Generate3DBdrElementDofTable()
 {
    int gbe = 0;
    int lbe = 0, okv[2];
@@ -4517,7 +4505,7 @@ void NURBSExtension::Generate3DBdrElementDofTable()
       }
    }
    // We must NOT sort bel_dof_list in this case.
-   bel_dof = new Table(NumOfActiveBdrElems, bel_dof_list);
+   return new Table(NumOfActiveBdrElems, bel_dof_list);
 }
 
 void NURBSExtension::GetVertexLocalToGlobal(Array<int> &lvert_vert)
@@ -4540,14 +4528,13 @@ void NURBSExtension::GetElementLocalToGlobal(Array<int> &lelem_elem)
       }
 }
 
-void NURBSExtension::LoadFE(int i, const FiniteElement *FE) const
+void NURBSExtension::LoadFE(int i, Array<int> &dofs, const FiniteElement *FE) const
 {
    const NURBSFiniteElement *NURBSFE =
       dynamic_cast<const NURBSFiniteElement *>(FE);
 
    if (NURBSFE->GetElement() != i)
    {
-      Array<int> dofs;
       NURBSFE->SetIJK(el_to_IJK.GetRow(i));
       if (el_to_patch[i] != NURBSFE->GetPatch())
       {
@@ -4555,13 +4542,12 @@ void NURBSExtension::LoadFE(int i, const FiniteElement *FE) const
          NURBSFE->SetPatch(el_to_patch[i]);
          NURBSFE->SetOrder();
       }
-      el_dof->GetRow(i, dofs);
       weights.GetSubVector(dofs, NURBSFE->Weights());
       NURBSFE->SetElement(i);
    }
 }
 
-void NURBSExtension::LoadBE(int i, const FiniteElement *BE) const
+void NURBSExtension::LoadBE(int i, Array<int> &dofs, const FiniteElement *BE) const
 {
    if (Dimension() == 1) { return; }
 
@@ -4570,7 +4556,6 @@ void NURBSExtension::LoadBE(int i, const FiniteElement *BE) const
 
    if (NURBSFE->GetElement() != i)
    {
-      Array<int> dofs;
       NURBSFE->SetIJK(bel_to_IJK.GetRow(i));
       if (bel_to_patch[i] != NURBSFE->GetPatch())
       {
@@ -4578,7 +4563,6 @@ void NURBSExtension::LoadBE(int i, const FiniteElement *BE) const
          NURBSFE->SetPatch(bel_to_patch[i]);
          NURBSFE->SetOrder();
       }
-      bel_dof->GetRow(i, dofs);
       weights.GetSubVector(dofs, NURBSFE->Weights());
       NURBSFE->SetElement(i);
    }
@@ -4586,9 +4570,6 @@ void NURBSExtension::LoadBE(int i, const FiniteElement *BE) const
 
 void NURBSExtension::ConvertToPatches(const Vector &Nodes)
 {
-   delete el_dof;
-   delete bel_dof;
-
    if (patches.Size() == 0)
    {
       GetPatchNets(Nodes, Dimension());
@@ -4637,9 +4618,7 @@ void NURBSExtension::SetKnotsFromPatches()
 
    GenerateActiveVertices();
    InitDofMap();
-   GenerateElementDofTable();
    GenerateActiveBdrElems();
-   GenerateBdrElementDofTable();
 
    ConnectBoundaries();
 }
@@ -5487,10 +5466,9 @@ ParNURBSExtension::ParNURBSExtension(MPI_Comm comm, NURBSExtension *parent,
    SetActive(partitioning, active_bel);
 
    GenerateActiveVertices();
-   GenerateElementDofTable();
    // GenerateActiveBdrElems(); // done by SetActive for now
-   GenerateBdrElementDofTable();
 
+   Table *el_dof = GetElementDofTable();
    Table *serial_elem_dof = parent->GetElementDofTable();
    BuildGroups(partitioning, *serial_elem_dof);
 
@@ -5510,6 +5488,8 @@ ParNURBSExtension::ParNURBSExtension(MPI_Comm comm, NURBSExtension *parent,
          lel++;
       }
    }
+   delete el_dof;
+   delete serial_elem_dof;
 }
 
 ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
@@ -5559,10 +5539,6 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
    Swap(activeBdrElem, parent->activeBdrElem);
    Swap(activeDof, parent->activeDof);
 
-   el_dof  = parent->el_dof;
-   bel_dof = parent->bel_dof;
-   parent->el_dof = parent->bel_dof = NULL;
-
    Swap(el_to_patch, parent->el_to_patch);
    Swap(bel_to_patch, parent->bel_to_patch);
    Swap(el_to_IJK, parent->el_to_IJK);
@@ -5586,18 +5562,17 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
 
       SetActive(par_parent->partitioning, par_parent->activeBdrElem);
       GenerateActiveVertices();
-      delete el_dof;
+
       el_to_patch.DeleteAll();
       el_to_IJK.DeleteAll();
-      GenerateElementDofTable();
       // GenerateActiveBdrElems(); // done by SetActive for now
-      delete bel_dof;
+
       bel_to_patch.DeleteAll();
       bel_to_IJK.DeleteAll();
-      GenerateBdrElementDofTable();
       extract_weights = true;
    }
 
+   Table *el_dof = GetElementDofTable();
    Table *glob_elem_dof = GetGlobalElementDofTable();
    BuildGroups(par_parent->partitioning, *glob_elem_dof);
    if (extract_weights)
@@ -5622,6 +5597,7 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
          }
       }
    }
+   delete el_dof;
    delete glob_elem_dof;
 }
 
