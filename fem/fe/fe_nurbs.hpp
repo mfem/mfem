@@ -75,7 +75,7 @@ protected:
 
 public:
    /// Construct the NURBS1DFiniteElement of order @a p
-   NURBS1DFiniteElement(int p)
+   NURBS1DFiniteElement(int p = -1)
       : ScalarFiniteElement(1, Geometry::SEGMENT, p + 1, p, FunctionSpace::Qk),
         NURBSFiniteElement(1),
         shape_x(p + 1) { }
@@ -98,7 +98,7 @@ protected:
 
 public:
    /// Construct the NURBS2DFiniteElement of order @a p
-   NURBS2DFiniteElement(int p)
+   NURBS2DFiniteElement(int p = -1)
       : ScalarFiniteElement(2, Geometry::SQUARE, (p + 1)*(p + 1), p,
                             FunctionSpace::Qk),
         NURBSFiniteElement(2),
@@ -135,7 +135,7 @@ protected:
 
 public:
    /// Construct the NURBS3DFiniteElement of order @a p
-   NURBS3DFiniteElement(int p)
+   NURBS3DFiniteElement(int p = -1)
       : ScalarFiniteElement(3, Geometry::CUBE, (p + 1)*(p + 1)*(p + 1), p,
                             FunctionSpace::Qk),
         NURBSFiniteElement(3),
@@ -187,7 +187,7 @@ protected:
 
 public:
    /// Construct the NURBS_HDiv2DFiniteElement of order @a p
-   NURBS_HDiv2DFiniteElement(int p)
+   NURBS_HDiv2DFiniteElement(int p = -1)
       : VectorFiniteElement(2, Geometry::SQUARE, 2*(p + 1)*(p + 2), p,
                             H_DIV,FunctionSpace::Qk),
         NURBSFiniteElement(2),
@@ -273,7 +273,7 @@ protected:
 
 public:
    /// Construct the NURBS_HDiv3DFiniteElement of order @a p
-   NURBS_HDiv3DFiniteElement(int p)
+   NURBS_HDiv3DFiniteElement(int p = -1)
       : VectorFiniteElement(3, Geometry::CUBE, 3*(p + 1)*(p + 1)*(p + 2),
                             p, H_DIV,FunctionSpace::Qk),
         NURBSFiniteElement(3),
@@ -358,7 +358,7 @@ protected:
 
 public:
    /// Construct the NURBS_HCurl2DFiniteElement of order @a p
-   NURBS_HCurl2DFiniteElement(int p)
+   NURBS_HCurl2DFiniteElement(int p = -1)
       : VectorFiniteElement(2, Geometry::SQUARE, 2*(p + 1)*(p + 2), p,
                             H_CURL,FunctionSpace::Qk),
         NURBSFiniteElement(2),
@@ -441,7 +441,7 @@ protected:
 
 public:
    /// Construct the NURBS_HCurl3DFiniteElement of order @a p
-   NURBS_HCurl3DFiniteElement(int p)
+   NURBS_HCurl3DFiniteElement(int p = -1)
       : VectorFiniteElement(3, Geometry::CUBE, 3*(p + 1)*(p + 2)*(p + 2), p,
                             H_CURL,FunctionSpace::Qk),
         NURBSFiniteElement(3),
