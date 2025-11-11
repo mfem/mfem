@@ -401,6 +401,8 @@ public:
    /// @note The returned object should NOT be deleted by the caller.
    KnotVector *GetKV(int dir) { return kv[dir]; }
 
+   const KnotVector *GetKV(int dir) const { return kv[dir]; };
+
    // Standard B-NET access functions
 
    /// 1D access function. @a i is a B-NET index, and @a l is a variable index.
@@ -521,9 +523,6 @@ protected:
    /// Set of unique KnotVectors
    Array<KnotVector *> knotVectors;
 
-   /// Comprehensive set of all KnotVectors, one for every edge.
-   Array<KnotVector *> knotVectorsCompr;
-
    /// Weights for each control point or DOF
    Vector weights;
 
@@ -562,9 +561,6 @@ protected:
    std::vector<Array<int>> patch_to_el;
    /// For each patch p, @a patch_to_bel[p] lists all boundary elements in the patch.
    std::vector<Array<int>> patch_to_bel;
-
-   /// Array of all patches in the mesh.
-   Array<NURBSPatch*> patches;
 
    /// Return the unsigned index of the KnotVector for edge @a edge.
    inline int KnotInd(int edge) const;
@@ -607,23 +603,13 @@ protected:
        KnotVector direction is flipped, +1 otherwise. */
    void CheckKVDirection(int p, Array <int> &kvdir);
 
-   /**  @brief Create the comprehensive set of KnotVectors. In 1D, this set is
-    identical to the unique set of KnotVectors. */
-   void CreateComprehensiveKV();
-
-   /**  Update the unique set of KnotVectors. In 1D, this set is identical to
-    the comprehensive set of KnotVectors. */
-   void UpdateUniqueKV();
-
-   /** @brief Check if the comprehensive array of KnotVectors agrees with the
-       unique set of KnotVectors, on each patch. Return false if there is a
-       difference, true otherwise. This function throws an error in 1D. */
-   bool ConsistentKVSets();
-
    /// Return KnotVectors in @a kv in each dimension for patch @a p.
    void GetPatchKnotVectors   (int p, Array<KnotVector *> &kv);
+   void GetPatchKnotVectors   (int p, const KnotVector *kv[]) const;     //IDO
+
    /// Return KnotVectors in @a kv in each dimension for boundary patch @a bp.
    void GetBdrPatchKnotVectors(int bp, Array<KnotVector *> &kv);
+   // void GetBdrPatchKnotVectors(int bp, const KnotVector *kv[]);
 
    /// Set overall order @a mOrder based on KnotVector orders.
    void SetOrderFromOrders();
@@ -685,19 +671,27 @@ protected:
    // FE --> Patch translation functions
 
    /// Set the B-NET on each patch using values from @a coords.
-   void GetPatchNets  (const Vector &coords, int vdim);
-   void Get1DPatchNets(const Vector &coords, int vdim);
-   void Get2DPatchNets(const Vector &coords, int vdim);
-   void Get3DPatchNets(const Vector &coords, int vdim);
+   void GetPatchNets  (const Vector &coords, int vdim,
+                       Array<NURBSPatch*> &patches);
+   void Get1DPatchNets(const Vector &coords, int vdim,
+                       Array<NURBSPatch*> &patches);
+   void Get2DPatchNets(const Vector &coords, int vdim,
+                       Array<NURBSPatch*> &patches);
+   void Get3DPatchNets(const Vector &coords, int vdim,
+                       Array<NURBSPatch*> &patches);
 
    // Patch --> FE translation functions
 
    /** @brief Return in @a coords the coordinates from each patch. Side effects:
        delete the patches and update the weights from the patches. */
-   void SetSolutionVector  (Vector &coords, int vdim);
-   void Set1DSolutionVector(Vector &coords, int vdim);
-   void Set2DSolutionVector(Vector &coords, int vdim);
-   void Set3DSolutionVector(Vector &coords, int vdim);
+   void SetSolutionVector  (Vector &coords, int vdim,
+                       Array<NURBSPatch*> &patches);
+   void Set1DSolutionVector(Vector &coords, int vdim,
+                       Array<NURBSPatch*> &patches);
+   void Set2DSolutionVector(Vector &coords, int vdim,
+                       Array<NURBSPatch*> &patches);
+   void Set3DSolutionVector(Vector &coords, int vdim,
+                       Array<NURBSPatch*> &patches);
 
    /// Determine activeVert, NumOfActiveVertices from the activeElem array.
    void GenerateActiveVertices();
@@ -715,7 +709,7 @@ protected:
    void SetPatchToBdrElements();
 
    /// Load data from file (used by constructor).
-   void Load(std::istream &input, bool spacing);
+   void Load(std::istream &input, Mesh *mesh,  GridFunction *nodes, bool spacing);
 
    /// Return true if @a edge is a master NC-patch edge.
    virtual bool IsMasterEdge(int edge) const { return false; }
@@ -737,8 +731,6 @@ protected:
    /// Helper function for @a GenerateOffsets().
    void GetPatchOffsets(int &meshCounter, int &spaceCounter);
 
-   /// Return NURBSPatch object; returned object should NOT be deleted.
-   const NURBSPatch* GetPatch(int patch) const { return patches[patch]; }
 
    /// To be used by ParNURBSExtension constructor(s)
    NURBSExtension() : el_dof(nullptr), bel_dof(nullptr) { }
@@ -758,7 +750,7 @@ public:
    /// Copy constructor: deep copy
    NURBSExtension(const NURBSExtension &orig);
    /// Read-in a NURBSExtension from a stream @a input.
-   NURBSExtension(std::istream &input, bool spacing=false);
+   NURBSExtension(std::istream &input, Mesh *mesh, GridFunction *nodes = nullptr, bool spacing=false);
    /** @brief Create a NURBSExtension with elevated order by repeating the
        endpoints of the KnotVectors and using uniform weights of 1. */
    /** @note If a KnotVector in @a parent already has order greater than or
@@ -880,7 +872,14 @@ public:
    void GetBdrElementTopo(Array<Element *> &boundary) const;
 
    /// Return true if at least 1 patch is defined, false otherwise.
-   bool HavePatches() const { return (patches.Size() != 0); }
+   //bool HavePatches() const { return true; }; // IDO  return (patches.Size() != 0); }
+
+   /// Define patches in IKJ (B-net) format, using FE coordinates in @a Nodes.
+   void ConvertToPatches(const Vector &Nodes, Array<NURBSPatch*> &patches);
+
+   /** @brief Set FE coordinates in @a Nodes, using data from @a patches, and
+       erase @a patches. */
+   void SetCoordsFromPatches(Vector &Nodes, Array<NURBSPatch*> &patches);
 
    /// Access function for the element DOF table @a el_dof.
    /// @note The returned object should NOT be deleted by the caller.
@@ -930,12 +929,12 @@ public:
    // Translation functions between FE coordinates and IJK patch format.
 
    /// Define patches in IKJ (B-net) format, using FE coordinates in @a Nodes.
-   void ConvertToPatches(const Vector &Nodes);
+   // IDO void ConvertToPatches(const Vector &Nodes);
    /// Set KnotVectors from @a patches and construct mesh and space data.
    void SetKnotsFromPatches();
    /** @brief Set FE coordinates in @a Nodes, using data from @a patches, and
        erase @a patches. */
-   void SetCoordsFromPatches(Vector &Nodes);
+  // IDO void SetCoordsFromPatches(Vector &Nodes);
 
    /** @brief Read a GridFunction @a sol from stream @a input, written
        patch-by-patch, e.g. with PrintSolution(). */

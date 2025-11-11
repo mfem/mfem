@@ -25,7 +25,7 @@ public:
    /// Copy constructor: deep copy
    NCNURBSExtension(const NCNURBSExtension &orig);
 
-   NCNURBSExtension(std::istream &input, bool spacing=false);
+   NCNURBSExtension(std::istream &input, Mesh *mesh, GridFunction *Nodes, bool spacing=false);
 
    void UniformRefinement(const Array<int> &rf) override;
 

@@ -576,7 +576,7 @@ void SurfaceInterpolator::ComputeNURBS(int coordinate,
    Mesh patch_topology = Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON);
    NURBSExtension nurbsExt(&patch_topology, patches);
 
-   mesh = Mesh(nurbsExt);
+   mesh = Mesh(nurbsExt, patches);
 }
 
 void SurfaceInterpolator::WriteNURBSMesh(const std::string &basename,
@@ -604,7 +604,7 @@ void SurfaceInterpolator::WriteNURBSMesh(const std::string &basename,
    }
 
    NURBSExtension nurbsExt(&patch_topology, patches);
-   Mesh mesh2D(nurbsExt);
+   Mesh mesh2D(nurbsExt, patches);
 
    FiniteElementCollection *fec = nodes->OwnFEC();
    FiniteElementSpace fespace(&mesh2D, fec, dim, Ordering::byVDIM);

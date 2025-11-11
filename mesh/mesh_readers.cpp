@@ -1312,8 +1312,10 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
 void Mesh::ReadNURBSMesh(std::istream &input, int &curved, int &read_gf,
                          bool spacing, bool nc)
 {
-   NURBSext = nc ? new NCNURBSExtension(input, spacing):
-              new NURBSExtension(input, spacing);
+
+   Nodes = new GridFunction();
+   NURBSext = nc ? new NCNURBSExtension(input, this, Nodes, spacing):
+              new NURBSExtension(input, this, Nodes,  spacing);
 
    Dim              = NURBSext->Dimension();
    NumOfVertices    = NURBSext->GetNV();
@@ -1325,14 +1327,29 @@ void Mesh::ReadNURBSMesh(std::istream &input, int &curved, int &read_gf,
 
    vertices.SetSize(NumOfVertices);
    curved = 1;
-   if (NURBSext->HavePatches())
+   
+      own_nodes = 1;
+      read_gf = 0;
+      spaceDim = Nodes->VectorDim();
+      for (int i = 0; i < spaceDim; i++)
+      {
+         Vector vert_val;
+         Nodes->GetNodalValues(vert_val, i+1);
+         for (int j = 0; j < NumOfVertices; j++)
+         {
+            vertices[j](i) = vert_val(j);
+         }
+      }
+
+
+   /*if (NURBSext->HavePatches())
    {
       NURBSFECollection  *fec = new NURBSFECollection(NURBSext->GetOrder());
       FiniteElementSpace *fes = new FiniteElementSpace(this, fec, Dim,
                                                        Ordering::byVDIM);
       Nodes = new GridFunction(fes);
       Nodes->MakeOwner(fec);
-      NURBSext->SetCoordsFromPatches(*Nodes);
+      // IDO NURBSext->SetCoordsFromPatches(*Nodes);
       own_nodes = 1;
       read_gf = 0;
       spaceDim = Nodes->VectorDim();
@@ -1349,7 +1366,7 @@ void Mesh::ReadNURBSMesh(std::istream &input, int &curved, int &read_gf,
    else
    {
       read_gf = 1;
-   }
+   }*/
 }
 
 void Mesh::ReadInlineMesh(std::istream &input, bool generate_edges)

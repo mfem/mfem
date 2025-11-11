@@ -31,14 +31,14 @@ bool Reorder2D(int ori, std::array<int, 2> &s0);
 
 std::pair<int, int> QuadrupleToPair(const std::array<int, 4> &q);
 
-NCNURBSExtension::NCNURBSExtension(std::istream &input, bool spacing)
+NCNURBSExtension::NCNURBSExtension(std::istream &input, Mesh *mesh, GridFunction *Nodes, bool spacing)
 {
    // Read topology
    patchTopo = new Mesh;
    patchTopo->LoadNonconformingPatchTopo(input, edge_to_ukv);
    nonconformingPT = true;
 
-   Load(input, spacing);
+   Load(input, mesh, Nodes, spacing);
 }
 
 NCNURBSExtension::NCNURBSExtension(const NCNURBSExtension &orig)
@@ -2734,7 +2734,7 @@ void NCNURBSExtension::PropagateFactorsForKV(int rf_default)
       }
    };
 
-   const int npatchall = patches.Size();
+   const int npatchall = GetNE(); //IDO patches.Size();
    Array<int> patchState(npatchall);
    patchState = 0;
 
@@ -3355,10 +3355,10 @@ void NCNURBSExtension::UniformRefinement(const Array<int> &rf)
 
 void NCNURBSExtension::Refine(bool coarsened, const Array<int> *rf)
 {
-   const int maxOrder = mOrders.Max();
+   // IDO  const int maxOrder = mOrders.Max();
    const int dim = Dimension();
 
-   for (int p = 0; p < patches.Size(); p++)
+   for (int p = 0; p < GetNE(); p++) // IDO patches.Size()
    {
       if (nonconformingPT)
       {
@@ -3396,12 +3396,12 @@ void NCNURBSExtension::Refine(bool coarsened, const Array<int> *rf)
             }
          }
 
-         patches[p]->UpdateSpacingPartitions(pkv);
-         patches[p]->UniformRefinement(prf, coarsened, maxOrder);
+         // IDO patches[p]->UpdateSpacingPartitions(pkv);
+         // IDO patches[p]->UniformRefinement(prf, coarsened, maxOrder);
       }
       else
       {
-         patches[p]->UniformRefinement(*rf);
+         // IDOpatches[p]->UniformRefinement(*rf);
       }
    }
 
