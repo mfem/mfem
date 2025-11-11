@@ -4526,16 +4526,7 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
    NURBSExtension *nurbs_ext = NULL;
    if (fes_format == 90) // original format, v0.9
    {
-      if (nurbs_fec)
-      {
-         MFEM_VERIFY(m->NURBSext, "NURBS FE collection requires a NURBS mesh!");
-         const int order = nurbs_fec->GetOrder();
-         if (order != m->NURBSext->GetOrder() &&
-             order != NURBSFECollection::VariableOrder)
-         {
-            nurbs_ext = new NURBSExtension(m->NURBSext, order);
-         }
-      }
+      mfem_error("Format 90 not supported anymore");
    }
    else if (fes_format == 100) // v1.0
    {
