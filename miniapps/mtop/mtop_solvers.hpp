@@ -146,10 +146,10 @@ public:
    }
 
    /// Returns the solution vector.
-   mfem::Vector &GetSol() { return sol; }
+   mfem::Vector &GetSolutionVector() { return sol; }
 
    /// Returns the adjoint solution vector.
-   mfem::Vector &GetAdj() { return adj; }
+   mfem::Vector &GetAdjointSolutionVector() { return adj; }
 
    /// Returns the displacements.
    void GetSol(mfem::ParGridFunction &sgf)

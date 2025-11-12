@@ -113,7 +113,8 @@ int main(int argc, char *argv[])
    IsoLinElasticSolver elsolver(&pmesh, order, pa, dfem);
    if (Mpi::Root())
    {
-      std::cout << "Number of unknowns: " << elsolver.GetSol().Size() << std::endl;
+      std::cout << "Number of unknowns: "
+                << elsolver.GetSolutionVector().Size() << std::endl;
    }
 
    // set boundary conditions
