@@ -10,7 +10,6 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include "../pa.hpp"
 #include "../../tmop.hpp"
 #include "../../kernels.hpp"
 #include "../../../general/forall.hpp"

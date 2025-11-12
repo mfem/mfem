@@ -9,7 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../pa.hpp"
 #include "../../tmop.hpp"
 #include "../../kernels.hpp"
 #include "../../../general/forall.hpp"
@@ -191,19 +190,16 @@ public:
                kernels::Mult(2, 2, 2, Jpr, Jrt, Jpt);
 
                const real_t det = kernels::Det<2>(use_detA ? Jpr : Jtr);
-               assert(std::isfinite(det));
-
                const real_t weight = metric_normal * coeff * W(qx,qy) * det;
-               assert(std::isfinite(weight));
 
                const real_t EvalW = METRIC{}.EvalW(Jpt, w);
-               assert(std::isfinite(EvalW));
 
                E(qx, qy, e) = weight * EvalW;
                L(qx, qy, e) = weight;
             }
          }
       });
+
       ker.metric_energy = ker.E * ker.O;
       MFEM_VERIFY(std::isfinite(ker.metric_energy), "Metric energy error");
 
