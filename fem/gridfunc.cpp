@@ -167,6 +167,7 @@ void GridFunction::Destroy()
 
 void GridFunction::Update()
 {
+   fes->Update();
    if (fes->GetSequence() == fes_sequence)
    {
       return; // space and grid function are in sync, no-op

@@ -605,11 +605,10 @@ protected:
 
    /// Return KnotVectors in @a kv in each dimension for patch @a p.
    void GetPatchKnotVectors   (int p, Array<KnotVector *> &kv);
-   void GetPatchKnotVectors   (int p, const KnotVector *kv[]) const;     //IDO
+   void GetPatchKnotVectors   (int p, const KnotVector *kv[]) const;
 
    /// Return KnotVectors in @a kv in each dimension for boundary patch @a bp.
    void GetBdrPatchKnotVectors(int bp, Array<KnotVector *> &kv);
-   // void GetBdrPatchKnotVectors(int bp, const KnotVector *kv[]);
 
    /// Set overall order @a mOrder based on KnotVector orders.
    void SetOrderFromOrders();
@@ -685,13 +684,13 @@ protected:
    /** @brief Return in @a coords the coordinates from each patch. Side effects:
        delete the patches and update the weights from the patches. */
    void SetSolutionVector  (Vector &coords, int vdim,
-                       Array<NURBSPatch*> &patches);
+                            Array<NURBSPatch*> &patches);
    void Set1DSolutionVector(Vector &coords, int vdim,
-                       Array<NURBSPatch*> &patches);
+                            Array<NURBSPatch*> &patches);
    void Set2DSolutionVector(Vector &coords, int vdim,
-                       Array<NURBSPatch*> &patches);
+                            Array<NURBSPatch*> &patches);
    void Set3DSolutionVector(Vector &coords, int vdim,
-                       Array<NURBSPatch*> &patches);
+                            Array<NURBSPatch*> &patches);
 
    /// Determine activeVert, NumOfActiveVertices from the activeElem array.
    void GenerateActiveVertices();
@@ -709,7 +708,7 @@ protected:
    void SetPatchToBdrElements();
 
    /// Load data from file (used by constructor).
-   void Load(std::istream &input, Mesh *mesh,  GridFunction *nodes, bool spacing);
+   void Load(std::istream &input, Vector &nodes, bool spacing);
 
    /// Return true if @a edge is a master NC-patch edge.
    virtual bool IsMasterEdge(int edge) const { return false; }
@@ -750,7 +749,8 @@ public:
    /// Copy constructor: deep copy
    NURBSExtension(const NURBSExtension &orig);
    /// Read-in a NURBSExtension from a stream @a input.
-   NURBSExtension(std::istream &input, Mesh *mesh, GridFunction *nodes = nullptr, bool spacing=false);
+   NURBSExtension(std::istream &input, Vector &nodes,
+                  bool spacing=false);
    /** @brief Create a NURBSExtension with elevated order by repeating the
        endpoints of the KnotVectors and using uniform weights of 1. */
    /** @note If a KnotVector in @a parent already has order greater than or
@@ -871,14 +871,14 @@ public:
    /// Generate the active mesh boundary elements and return them in @a boundary.
    void GetBdrElementTopo(Array<Element *> &boundary) const;
 
-   /// Return true if at least 1 patch is defined, false otherwise.
-   //bool HavePatches() const { return true; }; // IDO  return (patches.Size() != 0); }
-
    /// Define patches in IKJ (B-net) format, using FE coordinates in @a Nodes.
-   void ConvertToPatches(const Vector &Nodes, Array<NURBSPatch*> &patches);
+   void ConvertNodesToPatches(const Vector &Nodes, Array<NURBSPatch*> &patches);
+   void ConvertToPatches(const Vector &Nodes, Array<NURBSPatch*> &patches)
+   {ConvertNodesToPatches(Nodes, patches);}
 
    /** @brief Set FE coordinates in @a Nodes, using data from @a patches, and
        erase @a patches. */
+   void ConvertPatchesToNodes(GridFunction &Nodes, Array<NURBSPatch*> &patches);
    void SetCoordsFromPatches(Vector &Nodes, Array<NURBSPatch*> &patches);
 
    /// Access function for the element DOF table @a el_dof.
@@ -928,14 +928,6 @@ public:
 
    // Translation functions between FE coordinates and IJK patch format.
 
-   /// Define patches in IKJ (B-net) format, using FE coordinates in @a Nodes.
-   // IDO void ConvertToPatches(const Vector &Nodes);
-   /// Set KnotVectors from @a patches and construct mesh and space data.
-   void SetKnotsFromPatches();
-   /** @brief Set FE coordinates in @a Nodes, using data from @a patches, and
-       erase @a patches. */
-  // IDO void SetCoordsFromPatches(Vector &Nodes);
-
    /** @brief Read a GridFunction @a sol from stream @a input, written
        patch-by-patch, e.g. with PrintSolution(). */
    void LoadSolution(std::istream &input, GridFunction &sol) const;
@@ -947,28 +939,29 @@ public:
    /** @brief Call @a DegreeElevate for all KnotVectors of all patches. For each
        KnotVector, the new degree is
        max(old_degree, min(old_degree + rel_degree, degree)). */
-   void DegreeElevate(int rel_degree, int degree = 16);
+   void DegreeElevate(GridFunction *nodes, int rel_degree, int degree = 16);
 
    /** @brief Refine with optional refinement factor @a rf. Uniform means
        refinement is done everywhere by the same factor, although nonuniform
        spacing functions may be used. */
-   void UniformRefinement(int rf = 2);
-   virtual void UniformRefinement(const Array<int> &rf);
+   void UniformRefinement(GridFunction *nodes, int rf = 2);
+   virtual void UniformRefinement(GridFunction *nodes, const Array<int> &rf);
 
    /// Refine with refinement factors loaded for some knotvectors specified in
    /// the given file, with default refinement factor @a rf elsewhere. The flag
    /// @a coarsened indicates whether each patch is a single element.
-   virtual void RefineWithKVFactors(int rf, const std::string &kvf_filename,
+   virtual void RefineWithKVFactors(GridFunction *nodes, int rf,
+                                    const std::string &kvf_filename,
                                     bool coarsened);
 
    /// Coarsen with optional coarsening factor @a cf.
-   void Coarsen(int cf = 2, real_t tol = 1.0e-12);
-   void Coarsen(Array<int> const& cf, real_t tol = 1.0e-12);
+   void Coarsen(GridFunction *nodes, int cf = 2, real_t tol = 1.0e-12);
+   void Coarsen(GridFunction *nodes, Array<int> const& cf, real_t tol = 1.0e-12);
 
    /** @brief Insert knots from @a kv into all KnotVectors in all patches. The
        size of @a kv should be the same as @a knotVectors. */
-   void KnotInsert(Array<KnotVector *> &kv);
-   void KnotInsert(Array<Vector *> &kv);
+   void KnotInsert(GridFunction *nodes, Array<KnotVector *> &kv);
+   void KnotInsert(GridFunction *nodes, Array<Vector *> &kv);
 
    /** Returns the NURBSExtension to be used for @a component of
        an H(div) conforming NURBS space. Caller gets ownership of
@@ -980,7 +973,7 @@ public:
        the returned object, and is responsible for deletion.*/
    NURBSExtension* GetCurlExtension(int component);
 
-   void KnotRemove(Array<Vector *> &kv, real_t tol = 1.0e-12);
+   void KnotRemove(GridFunction *Nodes, Array<Vector *> &kv, real_t tol = 1.0e-12);
 
    /** Calls GetCoarseningFactors for each patch and finds the minimum factor
        for each direction that ensures refinement will work in the case of
@@ -1001,11 +994,6 @@ public:
    /// Returns a deep copy of the patch topology mesh
    Mesh GetPatchTopology() const { return Mesh(*patchTopo); }
 
-   /** Returns a deep copy of all instantiated patches. To ensure that patches
-       are instantiated, use Mesh::GetNURBSPatches() instead. Caller gets
-       ownership of the returned object, and is responsible for deletion.*/
-   void GetPatches(Array<NURBSPatch*> &patches);
-
    /// Return the array of indices of all elements in patch @a patch.
    const Array<int>& GetPatchElements(int patch);
    /// Return the array of indices of all boundary elements in patch @a patch.
@@ -1022,7 +1010,7 @@ public:
 
    /** @brief Fully coarsen all structured patches, for non-nested refinement of
        a mesh with a nonconforming patch topology. */
-   void FullyCoarsen();
+   void FullyCoarsen(GridFunction *Nodes);
 
    /// Print control points for coarse patches.
    virtual void PrintCoarsePatches(std::ostream &os);

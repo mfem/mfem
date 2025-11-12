@@ -3379,12 +3379,6 @@ void Mesh::GetNURBSPatches(Array<NURBSPatch*> &patches)
    MFEM_VERIFY(NURBSext, "Must be a NURBS mesh");
    // This sets the data in NURBSPatch(es) from the control points (Nodes)
    NURBSext->ConvertToPatches(*Nodes, patches);
-
-   // Deep copy patches
-  // NURBSext->GetPatches(patches);
-
-   // Among other things, this deletes patches in NURBSext
-  // UpdateNURBS();*/
 }
 
 void Mesh::FinalizeTetMesh(int generate_edges, int refine, bool fix_orientation)
@@ -4772,10 +4766,9 @@ Mesh::Mesh(real_t *vertices_, int num_vertices,
    FinalizeTopology();
 }
 
- Mesh::Mesh( const NURBSExtension& ext, Array<NURBSPatch*> patches)
+Mesh::Mesh( const NURBSExtension& ext, Array<NURBSPatch*> patches)
    : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
-  //IDO  SetEmpty();
    /// make an internal copy of the NURBSExtension
    NURBSext = new NURBSExtension( ext );
 
@@ -4788,31 +4781,25 @@ Mesh::Mesh(real_t *vertices_, int num_vertices,
    NURBSext->GetBdrElementTopo(boundary);
 
    vertices.SetSize(NumOfVertices);
-  // if (NURBSext->HavePatches())
-   //{
-      NURBSFECollection  *fec = new NURBSFECollection(NURBSext->GetOrder());
-      FiniteElementSpace *fes = new FiniteElementSpace(this, fec, Dim,
-                                                       Ordering::byVDIM);
-      Nodes = new GridFunction(fes);
-      Nodes->MakeOwner(fec);
-      NURBSext->SetCoordsFromPatches(*Nodes, patches); //IDO
-      own_nodes = 1;
-      spaceDim = Nodes->VectorDim();
-      for (int i = 0; i < spaceDim; i++)
+
+   NURBSFECollection  *fec = new NURBSFECollection(NURBSext->GetOrder());
+   FiniteElementSpace *fes = new FiniteElementSpace(this, fec, Dim,
+                                                    Ordering::byVDIM);
+   Nodes = new GridFunction(fes);
+   Nodes->MakeOwner(fec);
+   NURBSext->SetCoordsFromPatches(*Nodes, patches);
+   own_nodes = 1;
+   spaceDim = Nodes->VectorDim();
+   for (int i = 0; i < spaceDim; i++)
+   {
+      Vector vert_val;
+      Nodes->GetNodalValues(vert_val, i+1);
+      for (int j = 0; j < NumOfVertices; j++)
       {
-         Vector vert_val;
-         Nodes->GetNodalValues(vert_val, i+1);
-         for (int j = 0; j < NumOfVertices; j++)
-         {
-            vertices[j](i) = vert_val(j);
-         }
+         vertices[j](i) = vert_val(j);
       }
-      
- // }
-  // else
-  // {
- //    MFEM_ABORT("NURBS mesh has no patches.");
-  // }
+   }
+
    FinalizeMesh();
 }
 
@@ -6259,7 +6246,7 @@ void Mesh::KnotInsert(Array<KnotVector *> &kv)
       mfem_error("Mesh::KnotInsert : KnotVector array size mismatch!");
    }
 
-   NURBSext->KnotInsert(kv);
+   NURBSext->KnotInsert(Nodes, kv);
 
    last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
    sequence++;
@@ -6279,7 +6266,7 @@ void Mesh::KnotInsert(Array<Vector *> &kv)
       mfem_error("Mesh::KnotInsert : KnotVector array size mismatch!");
    }
 
-   NURBSext->KnotInsert(kv);
+   NURBSext->KnotInsert(Nodes, kv);
 
    last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
    sequence++;
@@ -6299,7 +6286,7 @@ void Mesh::KnotRemove(Array<Vector *> &kv)
       mfem_error("Mesh::KnotRemove : KnotVector array size mismatch!");
    }
 
-   NURBSext->KnotRemove(kv);
+   NURBSext->KnotRemove(Nodes, kv);
 
    last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
    sequence++;
@@ -6331,7 +6318,7 @@ void Mesh::RefineNURBS(bool usingKVF, real_t tol, const Array<int> &rf,
                        const std::string &kvf)
 {
    MFEM_VERIFY(NURBSext, "This type of refinement is only for NURBS meshes");
-
+   sequence++; // IDO BEST PLACE ??
    Array<int> cf;
    NURBSext->GetCoarseningFactors(cf);
 
@@ -6343,37 +6330,37 @@ void Mesh::RefineNURBS(bool usingKVF, real_t tol, const Array<int> &rf,
 
    if (!cf1 && NURBSext->NonconformingPatches())
    {
-      NURBSext->FullyCoarsen();
+      NURBSext->FullyCoarsen(Nodes);
       last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
    }
    else if (!cf1 && !NURBSext->NonconformingPatches())
    {
       MFEM_VERIFY(!usingKVF, "This refinement type is not supported for this"
                   " NURBS mesh type");
-      NURBSext->Coarsen(cf, tol);
+      NURBSext->Coarsen(Nodes, cf, tol);
 
       last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
       sequence++;
       UpdateNURBS();
 
       for (int i=0; i<cf.Size(); ++i) { cf[i] *= rf[i]; }
-      NURBSext->UniformRefinement(cf);
+      NURBSext->UniformRefinement(Nodes, cf);
    }
 
    if (cf1 || NURBSext->NonconformingPatches())
    {
       if (usingKVF || NURBSext->NonconformingPatches())
       {
-         NURBSext->RefineWithKVFactors(rf[0], kvf, !cf1);
+         NURBSext->RefineWithKVFactors(Nodes, rf[0], kvf, !cf1);
       }
       else
       {
-         NURBSext->UniformRefinement(rf);
+         NURBSext->UniformRefinement(Nodes, rf);
       }
    }
 
    last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
-   sequence++;
+
 
    UpdateNURBS();
 }
@@ -6385,7 +6372,7 @@ void Mesh::DegreeElevate(int rel_degree, int degree)
       mfem_error("Mesh::DegreeElevate : Not a NURBS mesh!");
    }
 
-   NURBSext->DegreeElevate(rel_degree, degree);
+   NURBSext->DegreeElevate(Nodes, rel_degree, degree);
 
    last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
    sequence++;
@@ -6396,8 +6383,6 @@ void Mesh::DegreeElevate(int rel_degree, int degree)
 void Mesh::UpdateNURBS()
 {
    ResetLazyData();
-
-   NURBSext->SetKnotsFromPatches();
 
    Dim = NURBSext->Dimension();
    spaceDim = Dim;
@@ -6421,11 +6406,6 @@ void Mesh::UpdateNURBS()
       NumOfBdrElements = NURBSext->GetNBE();
       NURBSext->GetBdrElementTopo(boundary);
    }
-
-   Nodes->FESpace()->Update();
-   Nodes->Update();
-   NodesUpdated();
-   // IDO NURBSext->SetCoordsFromPatches(*Nodes);
 
    if (NumOfVertices != NURBSext->GetNV())
    {
@@ -11167,13 +11147,13 @@ void Mesh::NURBSCoarsening(int cf, real_t tol)
 
       if (noInitialCoarsening)
       {
-         NURBSext->Coarsen(cf, tol);
+         NURBSext->Coarsen(Nodes, cf, tol);
       }
       else
       {
          // Perform an initial full coarsening, and then refine. This is
          // necessary only for non-nested refinement formulas.
-         NURBSext->Coarsen(initialCoarsening, tol);
+         NURBSext->Coarsen(Nodes, initialCoarsening, tol);
 
          // FiniteElementSpace::Update is not supported
          last_operation = Mesh::NONE;
@@ -11194,7 +11174,7 @@ void Mesh::NURBSCoarsening(int cf, real_t tol)
 
          // Refine from the fully coarsened mesh to the mesh coarsened by the
          // factor cf.
-         NURBSext->UniformRefinement(rf);
+         NURBSext->UniformRefinement(Nodes, rf);
       }
 
       last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported

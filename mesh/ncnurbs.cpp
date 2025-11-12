@@ -31,14 +31,15 @@ bool Reorder2D(int ori, std::array<int, 2> &s0);
 
 std::pair<int, int> QuadrupleToPair(const std::array<int, 4> &q);
 
-NCNURBSExtension::NCNURBSExtension(std::istream &input, Mesh *mesh, GridFunction *Nodes, bool spacing)
+NCNURBSExtension::NCNURBSExtension(std::istream &input, Vector &nodes,
+                                   bool spacing)
 {
    // Read topology
    patchTopo = new Mesh;
    patchTopo->LoadNonconformingPatchTopo(input, edge_to_ukv);
    nonconformingPT = true;
 
-   Load(input, mesh, Nodes, spacing);
+   Load(input, nodes, spacing);
 }
 
 NCNURBSExtension::NCNURBSExtension(const NCNURBSExtension &orig)
@@ -2897,7 +2898,7 @@ void UpdateFactors(Array<int> &f)
    f = rf;
 }
 
-void NCNURBSExtension::RefineWithKVFactors(int rf,
+void NCNURBSExtension::RefineWithKVFactors(GridFunction *Nodes, int rf,
                                            const std::string &kvf_filename,
                                            bool coarsened)
 {
@@ -3335,7 +3336,8 @@ std::pair<int, int> VertexToKnotSpan::GetVertexParentPair(int index) const
    return std::pair<int, int>(c0, c1);
 }
 
-void NCNURBSExtension::UniformRefinement(const Array<int> &rf)
+void NCNURBSExtension::UniformRefinement(GridFunction *Nodes,
+                                         const Array<int> &rf)
 {
    MFEM_VERIFY(!nonconformingPT,
                "NURBS NC-patch meshes cannot use this method of refinement");
@@ -3353,7 +3355,8 @@ void NCNURBSExtension::UniformRefinement(const Array<int> &rf)
    Refine(false, &rf);
 }
 
-void NCNURBSExtension::Refine(bool coarsened, const Array<int> *rf)
+void NCNURBSExtension::Refine(bool coarsened,
+                              const Array<int> *rf) // IDO ADD GF ?
 {
    // IDO  const int maxOrder = mOrders.Max();
    const int dim = Dimension();

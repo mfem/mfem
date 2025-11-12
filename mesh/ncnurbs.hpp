@@ -25,9 +25,10 @@ public:
    /// Copy constructor: deep copy
    NCNURBSExtension(const NCNURBSExtension &orig);
 
-   NCNURBSExtension(std::istream &input, Mesh *mesh, GridFunction *Nodes, bool spacing=false);
+   NCNURBSExtension(std::istream &input, Vector &nodes,
+                    bool spacing=false);
 
-   void UniformRefinement(const Array<int> &rf) override;
+   void UniformRefinement(GridFunction *Nodes, const Array<int> &rf) override;
 
 protected:
    /** @brief Set the mesh and space offsets, and also count the global
@@ -66,7 +67,8 @@ protected:
    /// Refine with refinement factors loaded for some knotvectors specified in
    /// the given file, with default refinement factor @a rf elsewhere. The flag
    /// @a coarsened indicates whether each patch is a single element.
-   void RefineWithKVFactors(int rf, const std::string &kvf_filename,
+   void RefineWithKVFactors(GridFunction *Nodes, int rf,
+                            const std::string &kvf_filename,
                             bool coarsened) override;
 
 private:
