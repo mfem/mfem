@@ -436,7 +436,7 @@ int main(int argc, char *argv[])
          cout << endl;
          cout << "enter new basis function order --> " << flush;
          cin >> oInt;
-         if ( oInt >= oMin && oInt <= (oMax>=0)?oMax:oInt )
+         if ( oInt >= oMin && oInt <= ((oMax>=0)?oMax:oInt) )
          {
             bOrder = oInt;
             print_char = true;

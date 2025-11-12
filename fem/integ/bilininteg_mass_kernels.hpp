@@ -50,6 +50,7 @@ static void PAMassAssembleDiagonal1D(const int NE,
    });
 }
 
+template <bool ACCUMULATE = true>
 MFEM_HOST_DEVICE inline
 void PAMassApply1D_Element(const int e,
                            const int NE,
@@ -68,6 +69,14 @@ void PAMassApply1D_Element(const int e,
    auto D = ConstDeviceMatrix(d_, Q1D, NE);
    auto X = ConstDeviceMatrix(x_, D1D, NE);
    auto Y = DeviceMatrix(y_, D1D, NE);
+
+   if (!ACCUMULATE)
+   {
+      for (int dx = 0; dx < D1D; ++dx)
+      {
+         Y(dx, e) = 0.0;
+      }
+   }
 
    real_t XQ[DofQuadLimits::MAX_Q1D];
    for (int qx = 0; qx < Q1D; ++qx)
@@ -1383,10 +1392,10 @@ using DiagonalKernelType = MassIntegrator::DiagonalKernelType;
 template<int DIM, int T_D1D, int T_Q1D>
 ApplyKernelType MassIntegrator::ApplyPAKernels::Kernel()
 {
-   if (DIM == 1) { return internal::PAMassApply1D; }
-   else if (DIM == 2) { return internal::SmemPAMassApply2D<T_D1D,T_Q1D>; }
-   else if (DIM == 3) { return internal::SmemPAMassApply3D<T_D1D, T_Q1D>; }
-   else { MFEM_ABORT(""); }
+   if constexpr (DIM == 1) { return internal::PAMassApply1D; }
+   else if constexpr (DIM == 2) { return internal::SmemPAMassApply2D<T_D1D,T_Q1D>; }
+   else if constexpr (DIM == 3) { return internal::SmemPAMassApply3D<T_D1D, T_Q1D>; }
+   MFEM_ABORT("");
 }
 
 inline ApplyKernelType MassIntegrator::ApplyPAKernels::Fallback(
@@ -1401,10 +1410,10 @@ inline ApplyKernelType MassIntegrator::ApplyPAKernels::Fallback(
 template<int DIM, int T_D1D, int T_Q1D>
 DiagonalKernelType MassIntegrator::DiagonalPAKernels::Kernel()
 {
-   if (DIM == 1) { return internal::PAMassAssembleDiagonal1D; }
-   else if (DIM == 2) { return internal::SmemPAMassAssembleDiagonal2D<T_D1D,T_Q1D>; }
-   else if (DIM == 3) { return internal::SmemPAMassAssembleDiagonal3D<T_D1D, T_Q1D>; }
-   else { MFEM_ABORT(""); }
+   if constexpr (DIM == 1) { return internal::PAMassAssembleDiagonal1D; }
+   else if constexpr (DIM == 2) { return internal::SmemPAMassAssembleDiagonal2D<T_D1D,T_Q1D>; }
+   else if constexpr (DIM == 3) { return internal::SmemPAMassAssembleDiagonal3D<T_D1D, T_Q1D>; }
+   MFEM_ABORT("");
 }
 
 inline DiagonalKernelType MassIntegrator::DiagonalPAKernels::Fallback(

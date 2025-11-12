@@ -235,7 +235,7 @@ TEST_CASE("Vector Tests", "[Vector]")
    }
 }
 
-TEST_CASE("Vector Sum", "[Vector],[CUDA]")
+TEST_CASE("Vector Sum", "[Vector],[GPU]")
 {
    Vector x(1024);
    x.Randomize(1);

@@ -425,16 +425,24 @@ public:
    ~GroupCommunicator();
 };
 
+/// General MPI message tags used by MFEM
+enum MessageTag
+{
+   DEREFINEMENT_MATRIX_CONSTRUCTION_DATA =
+      291, /// ParFiniteElementSpace ParallelDerefinementMatrix and
+   /// ParDerefineMatrixOp
+};
+
 enum VarMessageTag
 {
-   NEIGHBOR_ELEMENT_RANK_VM,  ///< NeighborElementRankMessage
-   NEIGHBOR_ORDER_VM,         ///< NeighborOrderMessage
-   NEIGHBOR_DEREFINEMENT_VM,  ///< NeighborDerefinementMessage
-   NEIGHBOR_REFINEMENT_VM,    ///< NeighborRefinementMessage
-   NEIGHBOR_PREFINEMENT_VM,   ///< NeighborPRefinementMessage
-   NEIGHBOR_ROW_VM,           ///< NeighborRowMessage
-   REBALANCE_VM,              ///< RebalanceMessage
-   REBALANCE_DOF_VM           ///< RebalanceDofMessage
+   NEIGHBOR_ELEMENT_RANK_VM, ///< NeighborElementRankMessage
+   NEIGHBOR_ORDER_VM,        ///< NeighborOrderMessage
+   NEIGHBOR_DEREFINEMENT_VM, ///< NeighborDerefinementMessage
+   NEIGHBOR_REFINEMENT_VM,   ///< NeighborRefinementMessage
+   NEIGHBOR_PREFINEMENT_VM,  ///< NeighborPRefinementMessage
+   NEIGHBOR_ROW_VM,          ///< NeighborRowMessage
+   REBALANCE_VM,             ///< RebalanceMessage
+   REBALANCE_DOF_VM,         ///< RebalanceDofMessage
 };
 
 /// \brief Variable-length MPI message containing unspecific binary data.
@@ -599,7 +607,47 @@ protected:
 template <typename Type> struct MPITypeMap;
 
 // Specializations of MPITypeMap; mpi_type initialized in communication.cpp:
+template<> struct MPITypeMap<bool>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<char>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<unsigned char>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<short>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<unsigned short>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
 template<> struct MPITypeMap<int>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<unsigned int>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<long>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<unsigned long>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<long long>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<unsigned long long>
 {
    static MFEM_EXPORT const MPI_Datatype mpi_type;
 };
@@ -611,15 +659,6 @@ template<> struct MPITypeMap<float>
 {
    static MFEM_EXPORT const MPI_Datatype mpi_type;
 };
-template<> struct MPITypeMap<int64_t>
-{
-   static MFEM_EXPORT const MPI_Datatype mpi_type;
-};
-template<> struct MPITypeMap<uint64_t>
-{
-   static MFEM_EXPORT const MPI_Datatype mpi_type;
-};
-
 
 /** Reorder MPI ranks to follow the Z-curve within the physical machine topology
     (provided that functions to query physical node coordinates are available).

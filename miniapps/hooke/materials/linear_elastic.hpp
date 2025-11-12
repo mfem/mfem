@@ -15,7 +15,7 @@
 #include "linalg/tensor.hpp"
 #include "mfem.hpp"
 
-using mfem::internal::tensor;
+using mfem::future::tensor;
 
 /** @brief Linear elastic material.
  *
@@ -33,7 +33,7 @@ template <int dim> struct LinearElasticMaterial
    tensor<mfem::real_t, dim, dim>
    MFEM_HOST_DEVICE stress(const tensor<mfem::real_t, dim, dim> &dudx) const
    {
-      constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
+      constexpr auto I = mfem::future::IsotropicIdentity<dim>();
       auto epsilon = sym(dudx);
       return lambda * tr(epsilon) * I + 2.0 * mu * epsilon;
    }
@@ -61,8 +61,8 @@ template <int dim> struct LinearElasticMaterial
    tensor<mfem::real_t, dim, dim, dim, dim>
    MFEM_HOST_DEVICE gradient(tensor<mfem::real_t, dim, dim> /* dudx */) const
    {
-      return mfem::internal::make_tensor<dim, dim, dim, dim>([&](int i, int j, int k,
-                                                                 int l)
+      return mfem::future::make_tensor<dim, dim, dim, dim>([&](int i, int j, int k,
+                                                               int l)
       {
          return lambda * (i == j) * (k == l) +
                 mu * ((i == l) * (j == k) + (i == k) * (j == l));

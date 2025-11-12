@@ -84,3 +84,80 @@ TEST_CASE("NURBS refinement and coarsening by spacing formulas", "[NURBS]")
    const real_t error = d.Norml2();
    REQUIRE(error == MFEM_Approx(0.0));
 }
+
+TEST_CASE("NURBS mesh reconstruction", "[NURBS]")
+{
+   auto mesh_fname =
+      GENERATE("../../data/segment-nurbs.mesh",
+               "../../data/square-nurbs.mesh",
+               "../../data/beam-quad-nurbs.mesh",
+               "../../data/pipe-nurbs.mesh",
+               "../../miniapps/nurbs/meshes/two-squares-nurbs.mesh",
+               "../../miniapps/nurbs/meshes/two-squares-nurbs-rot.mesh",
+               "../../miniapps/nurbs/meshes/two-squares-nurbs-autoedge.mesh",
+               "../../miniapps/nurbs/meshes/plus-nurbs.mesh",
+               "../../miniapps/nurbs/meshes/plus-nurbs-permuted.mesh",
+               "../../miniapps/nurbs/meshes/ijk-hex-nurbs.mesh");
+
+   Mesh mesh1(mesh_fname, 1, 1);
+
+   // Reconstruct mesh using patches + topology
+   Array<NURBSPatch*> patches;
+   mesh1.GetNURBSPatches(patches);
+   const Mesh patchtopo = mesh1.NURBSext->GetPatchTopology();
+
+   NURBSExtension ne(&patchtopo, patches);
+   Mesh mesh2(ne);
+
+   // Meshes should be identical
+   REQUIRE(mesh1.GetNodes()->Size() > 0);
+   REQUIRE(mesh1.GetNodes()->Size() == mesh2.GetNodes()->Size());
+
+   Vector diff(*mesh1.GetNodes());
+   diff -= *mesh2.GetNodes();
+   const real_t error = diff.Norml2();
+   REQUIRE(error == MFEM_Approx(0.0));
+
+   // Compare weights (these are stored separately from nodes)
+   REQUIRE(mesh1.NURBSext->GetWeights().Size() > 0);
+   REQUIRE(mesh1.NURBSext->GetWeights().Size() ==
+           mesh2.NURBSext->GetWeights().Size());
+
+   Vector wdiff = mesh1.NURBSext->GetWeights();
+   wdiff -= mesh2.NURBSext->GetWeights();
+   const real_t werror = wdiff.Norml2();
+   REQUIRE(werror == MFEM_Approx(0.0));
+
+   // Cleanup
+   for (auto *p : patches) { delete p; }
+}
+
+TEST_CASE("NURBS NC-patch mesh loading", "[NURBS]")
+{
+   auto mesh_fname = GENERATE("../../data/nc3-nurbs.mesh",
+                              "../../data/nc-nurbs3d.mesh");
+
+   Mesh mesh(mesh_fname, 1, 1);
+   const int dim = mesh.Dimension();
+   const int ne = dim == 2 ? 6 : 24;
+   REQUIRE(mesh.GetNE() == ne);
+
+   mesh.NURBSUniformRefinement();
+   REQUIRE(mesh.GetNE() == ne * std::pow(2, dim));
+}
+
+TEST_CASE("NURBS NC-patch large meshes", "[MFEMData][NURBS]")
+{
+   auto mesh_fname = GENERATE("bricks2D.mesh",
+                              "schwarz2D.mesh",
+                              "schwarz3D.mesh");
+
+   const std::string & fpath = (mfem_data_dir + "/nurbs/nc_patch/");
+
+   Mesh mesh(fpath + mesh_fname, 1, 1);
+   const int dim = mesh.Dimension();
+   const int ne = mesh.GetNE();
+
+   mesh.NURBSUniformRefinement();
+   REQUIRE(mesh.GetNE() == ne * std::pow(2, dim));
+}

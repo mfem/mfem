@@ -371,6 +371,7 @@ int main (int argc, char *argv[])
       cout << "What would you like to do?\n"
            "r) Refine\n"
            "c) Change curvature\n"
+           "i) Increase space dimension\n"
            "s) Scale\n"
            "t) Transform\n"
            "j) Jitter\n"
@@ -417,8 +418,9 @@ int main (int argc, char *argv[])
               "b) Mesh::UniformRefinement() (bisection for tet meshes)\n"
               "u) uniform refinement with a factor\n"
               "g) non-uniform refinement (Gauss-Lobatto) with a factor\n"
-              "n) NURBS refinement (uniform or by formula) with a factor\n"
-              "c) NURBS coarsening (uniform or by formula) with a factor\n"
+              "n) NURBS refinement with factors\n"
+              "p) NURBS NC-patch refinement with factors\n"
+              "c) NURBS coarsening with a factor\n"
               "l) refine locally using the region() function\n"
               "r) random refinement with a probability\n"
               "--> " << flush;
@@ -463,17 +465,36 @@ int main (int argc, char *argv[])
                   if (ref_factor <= 1 || ref_factor > 32) { break; }
 
                char input_tol = 'n';
-               cout << "enter NURBS tolerance? [y/n] ---> " << flush;
+               cout << "enter NURBS tolerance? [y/n] --> " << flush;
                cin >> input_tol;
 
                real_t tol = 1.0e-12;  // Default value
                if (input_tol == 'y')
                {
-                  cout << "enter NURBS tolerance ---> " << flush;
+                  cout << "enter NURBS tolerance --> " << flush;
                   cin >> tol;
                }
 
                mesh->NURBSUniformRefinement(ref_factors, tol);
+               break;
+            }
+            case 'p':
+            {
+               int ref_factor;
+               cout << "enter default refinement factor --> " << flush;
+               cin >> ref_factor;
+               if (ref_factor <= 1 || ref_factor > 32) { break; }
+
+               cout << "enter knot vector refinement factor filename? [y/n] ---> " << flush;
+               char input_kvf = 'n';
+               cin >> input_kvf;
+               std::string kvf;
+               if (input_kvf == 'y')
+               {
+                  cout << "enter filename ---> " << flush;
+                  cin >> kvf;
+               }
+               mesh->RefineNURBSWithKVFactors(ref_factor, kvf);
                break;
             }
             case 'c':
@@ -484,13 +505,13 @@ int main (int argc, char *argv[])
                if (coarsen_factor <= 1 || coarsen_factor > 32) { break; }
 
                char input_tol = 'n';
-               cout << "enter NURBS tolerance? [y/n] ---> " << flush;
+               cout << "enter NURBS tolerance? [y/n] --> " << flush;
                cin >> input_tol;
 
                real_t tol = 1.0e-12;  // Default value
                if (input_tol == 'y')
                {
-                  cout << "enter NURBS tolerance ---> " << flush;
+                  cout << "enter NURBS tolerance --> " << flush;
                   cin >> tol;
                }
 
@@ -532,6 +553,37 @@ int main (int argc, char *argv[])
             }
          }
          print_char = 1;
+      }
+
+      if (mk == 'i')
+      {
+         int curr_sdim = mesh->SpaceDimension();
+         cout << "Current space dimension is " << curr_sdim << "\n";
+         cout << "Enter new space dimension --> " << flush;
+         int new_sdim;
+         cin >> new_sdim;
+         if (new_sdim > curr_sdim && new_sdim <= 3)
+         {
+            if (mesh->GetNodes() == NULL)
+            {
+               mesh->SetCurvature(1, false, new_sdim); // Set Space Dimension
+               mesh->SetCurvature(-1); // Remove Nodes GridFunction created
+               //                      // by the previous line
+            }
+            else
+            {
+               const FiniteElementSpace *fes = mesh->GetNodalFESpace();
+               const int order = fes->GetMaxElementOrder();
+               const FiniteElementCollection *fec = fes->FEColl();
+               const bool discont = dynamic_cast<const L2_FECollection*>(fec);
+               mesh->SetCurvature(order, discont, new_sdim);
+            }
+         }
+         else
+         {
+            cout << "New space dimension must be greater than current space "
+                 << "dimension and less than 4." << endl;
+         }
       }
 
       if (mk == 'c')
@@ -576,12 +628,109 @@ int main (int argc, char *argv[])
          char type;
          cout << "Choose a transformation:\n"
               "u) User-defined transform through mesh-explorer::transformation()\n"
+              "a) Affine transform\n"
               "k) Kershaw transform\n"
               "s) Spiral transform\n"<< "---> " << flush;
          cin >> type;
          if (type == 'u')
          {
             mesh->Transform(transformation);
+         }
+         else if (type == 'a')
+         {
+            DenseMatrix A(sdim);
+            Vector b(sdim);
+
+            char tmtype;
+            cout << "Type of transformation matrix:\n"
+                 "i) Identity\n"
+                 "r) Rotation\n"
+                 "s) Scale\n"
+                 "g) General\n" << " ---> " << flush;
+            cin >> tmtype;
+
+            if (tmtype == 'i')
+            {
+               A = 0.0;
+               A(0,0) = 1.0;
+               if (sdim > 1) { A(1,1) = 1.0; }
+               if (sdim > 2) { A(2,2) = 1.0; }
+            }
+            if (tmtype == 'r')
+            {
+               if (sdim == 2)
+               {
+                  real_t angle_deg;
+                  cout << "Rotation angle (degrees) --> " << flush;
+                  cin >> angle_deg;
+                  const real_t angle = angle_deg * M_PI / 180.0;
+                  A(0,0) = cos(angle);
+                  A(1,0) = sin(angle);
+                  A(0,1) = -A(1,0);
+                  A(1,1) =  A(0,0);
+               }
+               else
+               {
+                  real_t a_deg, b_deg, c_deg;
+                  cout << "Euler angles z-x-z (degrees) --> " << flush;
+                  cin >> a_deg >> b_deg >> c_deg;
+
+                  const real_t alpha = a_deg * M_PI / 180.0;
+                  const real_t beta  = b_deg * M_PI / 180.0;
+                  const real_t gamma = c_deg * M_PI / 180.0;
+
+                  const real_t ca = cos(alpha), sa = sin(alpha);
+                  const real_t cb = cos(beta ), sb = sin(beta );
+                  const real_t cc = cos(gamma), sc = sin(gamma);
+
+                  A(0,0) = ca * cc - cb * sa * sc;
+                  A(0,1) = -ca * sc - cb * cc * sa;
+                  A(0,2) = sa * sb;
+
+                  A(1,0) = cc * sa + ca * cb * sc;
+                  A(1,1) = ca * cb * cc - sa * sc;
+                  A(1,2) = -ca * sb;
+
+                  A(2,0) = sb * sc;
+                  A(2,1) = cc * sb;
+                  A(2,2) = cb;
+               }
+            }
+            if (tmtype == 's')
+            {
+               A = 0.0;
+               cout << "Scale factors for each cartesian direction --> "
+                    << flush;
+               cin >> A(0,0);
+               if (sdim > 1) { cin >> A(1,1); }
+               if (sdim > 2) { cin >> A(2,2); }
+            }
+            if (tmtype == 'g')
+            {
+               cout << "General matrix entries in column major order --> "
+                    << flush;
+               for (int j=0; j<sdim; j++)
+                  for (int i=0; i<sdim; i++)
+                  {
+                     cin >> A(i,j);
+                  }
+
+               const real_t detA = A.Det();
+               if (detA <= 0.0)
+               {
+                  cout << "Warning - transformation matrix has non-positive "
+                       << "determinant. Elements may be flattened or "
+                       << "inverted.\n";
+               }
+            }
+
+            cout << "Translation vector components --> " << flush;
+            cin >> b(0);
+            if (sdim > 1) { cin >> b(1); }
+            if (sdim > 2) { cin >> b(2); }
+
+            common::AffineTransformation affineT(sdim, A, b);
+            mesh->Transform(affineT);
          }
          else if (type == 'k')
          {

@@ -912,7 +912,7 @@ ConduitDataCollection::GridFunctionToBlueprintField(mfem::GridFunction *gf,
 
    if (vdim == 1) // scalar case
    {
-      n_field["values"].set_external(gf->GetData(),
+      n_field["values"].set_external(const_cast<real_t *>(gf->HostRead()),
                                      ndofs);
    }
    else // vector case
@@ -925,18 +925,18 @@ ConduitDataCollection::GridFunctionToBlueprintField(mfem::GridFunction *gf,
       int vdim_stride  = (ordering == Ordering::byNODES ? ndofs : 1);
 
       index_t offset = 0;
-      index_t stride = sizeof(double) * entry_stride;
+      index_t stride = sizeof(real_t) * entry_stride;
 
       for (int d = 0;  d < vdim; d++)
       {
          std::ostringstream oss;
          oss << "v" << d;
          std::string comp_name = oss.str();
-         n_field["values"][comp_name].set_external(gf->GetData(),
+         n_field["values"][comp_name].set_external(const_cast<real_t *>(gf->HostRead()),
                                                    ndofs,
                                                    offset,
                                                    stride);
-         offset +=  sizeof(double) * vdim_stride;
+         offset +=  sizeof(real_t) * vdim_stride;
       }
    }
 

@@ -4,6 +4,7 @@
 //
 // Sample runs:  mpirun -np 4 phpref -dim 2 -n 1000
 //               mpirun -np 8 phpref -dim 3 -n 200
+//               mpirun -np 8 phpref -dim 3 -n 20 --anisotropic --fixed-order
 //
 // Description:  This example demonstrates h- and p-refinement in a parallel
 //               finite element discretization of the Poisson problem (cf. ex1p)
@@ -49,6 +50,8 @@ int main(int argc, char *argv[])
    bool visualization = true;
    int numIter = 0;
    int dim = 2;
+   bool anisotropic = false;
+   bool fixedOrder = false;
    bool deterministic = true;
    bool projectSolution = false;
 
@@ -63,12 +66,18 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&numIter, "-n", "--num-iter", "Number of hp-ref iterations");
    args.AddOption(&dim, "-dim", "--dim", "Mesh dimension (2 or 3)");
+   args.AddOption(&anisotropic, "-aniso", "--anisotropic", "-iso",
+                  "--isotropic",
+                  "Whether to use anisotropic refinements");
+   args.AddOption(&fixedOrder, "-fo", "--fixed-order", "-vo",
+                  "--variable-order",
+                  "Whether to fix the finite element order on all elements");
    args.AddOption(&deterministic, "-det", "--deterministic", "-not-det",
                   "--not-deterministic",
-                  "Whether to use deterministic random refinements");
+                  "Use deterministic random refinements");
    args.AddOption(&projectSolution, "-proj", "--project-solution", "-no-proj",
                   "--no-project",
-                  "Whether to project a coefficient to solution");
+                  "Project a coefficient to solution");
 
    args.Parse();
    if (!args.Good())
@@ -83,6 +92,9 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
+
+   MFEM_VERIFY(!anisotropic || fixedOrder,
+               "Variable-order is not supported with anisotropic refinement");
 
    // 3. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -157,15 +169,23 @@ int main(int argc, char *argv[])
       const int r2 = deterministic ? DetRand(seed) : rand();
       const int elem = r1 % pmesh.GetNE();
       int hp = r2 % 2;
+      char htype = 7;
       MPI_Bcast(&hp, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+      if (fixedOrder) { hp = 0; } // Only perform h-refinement
+      if (anisotropic)
+      {
+         const int r3 = deterministic ? DetRand(seed) : rand();
+         htype = (r3 % 7) + 1;
+      }
 
       if (myid == 0)
          cout << "hp-refinement iteration " << iter << ": "
-              << hp_char[hp] << "-refinement" << endl;
+              << hp_char[hp] << "-refinement\n";
 
       if (hp == 1)
       {
-         // p-ref
+         // p-refinement
          Array<pRefinement> refs;
          refs.Append(pRefinement(elem, 1));  // Increase the element order by 1
          fespace.PRefineAndUpdate(refs);
@@ -173,9 +193,23 @@ int main(int argc, char *argv[])
       }
       else
       {
-         // h-ref
+         // h-refinement
          Array<Refinement> refs;
-         refs.Append(Refinement(elem));
+         refs.Append(Refinement(elem, htype));
+         if (anisotropic)
+         {
+            std::set<int> conflicts; // Indices in refs of conflicting elements
+            const bool conflict = pmesh.AnisotropicConflict(refs, conflicts);
+            if (conflict)
+            {
+               if (myid == 0)
+                  cout << "Anisotropic conflict on iteration " << iter
+                       << ", retrying\n";
+               iter--;
+               continue;
+            }
+         }
+
          pmesh.GeneralRefinement(refs);
          fespace.Update(false);
          numH++;
@@ -276,7 +310,7 @@ int main(int argc, char *argv[])
    if (fespaceDim == 1)
    {
       const real_t h1error = CheckH1Continuity(x);
-      cout << myid << ": H1 continuity error " << h1error << endl;
+      if (myid == 0) { cout << "H1 continuity error " << h1error << endl; }
       MFEM_VERIFY(h1error < 1.0e-12, "H1 continuity is not satisfied");
    }
 
@@ -420,7 +454,10 @@ real_t CheckH1Continuity(ParGridFunction & x)
       }
    }
 
-   return errorMax;
+   real_t errorMaxGlobal = 0.0;
+   MPI_Allreduce(&errorMax, &errorMaxGlobal, 1, MFEM_MPI_REAL_T, MPI_MAX,
+                 fes->GetComm());
+   return errorMaxGlobal;
 }
 
 void f_exact(const Vector &x, Vector &f)

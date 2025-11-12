@@ -951,6 +951,7 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/fem/ceed/integrators/nlconvection \
                          @MFEM_SOURCE_DIR@/fem/ceed/interface \
                          @MFEM_SOURCE_DIR@/fem/ceed/solvers \
+                         @MFEM_SOURCE_DIR@/fem/dfem \
                          @MFEM_SOURCE_DIR@/fem/eltrans \
                          @MFEM_SOURCE_DIR@/fem/fe \
                          @MFEM_SOURCE_DIR@/fem/gslib \
@@ -972,6 +973,7 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/miniapps/adjoint \
                          @MFEM_SOURCE_DIR@/miniapps/autodiff \
                          @MFEM_SOURCE_DIR@/miniapps/common \
+                         @MFEM_SOURCE_DIR@/miniapps/dfem \
                          @MFEM_SOURCE_DIR@/miniapps/dpg \
                          @MFEM_SOURCE_DIR@/miniapps/dpg/util \
                          @MFEM_SOURCE_DIR@/miniapps/electromagnetics \

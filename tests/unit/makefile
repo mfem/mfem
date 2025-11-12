@@ -38,51 +38,53 @@ DATA_DIR = data
 
 SEQ_MAIN_OBJ = unit_test_main.o
 PAR_MAIN_OBJ = punit_test_main.o
-CUDA_MAIN_OBJ = cunit_test_main.o
-PCUDA_MAIN_OBJ = pcunit_test_main.o
+GPU_MAIN_OBJ = gpu_unit_test_main.o
+PGPU_MAIN_OBJ = pgpu_unit_test_main.o
 
 # Sedov numerical seq/par files and tests
 SEDOV_FILES = $(SRC)miniapps/test_sedov.cpp
 
 USE_CUDA := $(MFEM_USE_CUDA:NO=)
+USE_HIP := $(MFEM_USE_HIP:NO=)
+USE_GPU := $(or $(USE_CUDA),$(USE_HIP))
 SEQ_SEDOV_TESTS = sedov_tests_cpu sedov_tests_debug
-SEQ_SEDOV_TESTS += $(if $(USE_CUDA),sedov_tests_cuda)
-SEQ_SEDOV_TESTS += $(if $(USE_CUDA),sedov_tests_cuda_uvm)
+SEQ_SEDOV_TESTS += $(if $(USE_GPU),sedov_tests_gpu)
+SEQ_SEDOV_TESTS += $(if $(USE_GPU),sedov_tests_gpu_uvm)
 PAR_SEDOV_TESTS = $(SEQ_SEDOV_TESTS:%=p%)
 
 SEQ_SEDOV_CPU_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.cpu.o)
 SEQ_SEDOV_DEBUG_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.debug.o)
-SEQ_SEDOV_CUDA_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.cuda.o))
-SEQ_SEDOV_CUDA_UVM_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.cuda_uvm.o))
+SEQ_SEDOV_GPU_OBJ_FILES = $(if $(USE_GPU),$(SEDOV_FILES:$(SRC)%.cpp=%.gpu.o))
+SEQ_SEDOV_GPU_UVM_OBJ_FILES = $(if $(USE_GPU),$(SEDOV_FILES:$(SRC)%.cpp=%.gpu_uvm.o))
 
 PAR_SEDOV_CPU_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.pcpu.o)
 PAR_SEDOV_DEBUG_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.pdebug.o)
-PAR_SEDOV_CUDA_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.pcuda.o))
-PAR_SEDOV_CUDA_UVM_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.pcuda_uvm.o))
+PAR_SEDOV_GPU_OBJ_FILES = $(if $(USE_GPU),$(SEDOV_FILES:$(SRC)%.cpp=%.pgpu.o))
+PAR_SEDOV_GPU_UVM_OBJ_FILES = $(if $(USE_GPU),$(SEDOV_FILES:$(SRC)%.cpp=%.pgpu_uvm.o))
 
 # TMOP numerical seq/par files and tests
 TMOP_FILES = $(SRC)miniapps/test_tmop_pa.cpp
 
 SEQ_TMOP_TESTS = tmop_pa_tests_cpu tmop_pa_tests_debug
-SEQ_TMOP_TESTS += $(if $(USE_CUDA),tmop_pa_tests_cuda)
-# SEQ_TMOP_TESTS += $(if $(USE_CUDA),tmop_tests_cuda_uvm)
+SEQ_TMOP_TESTS += $(if $(USE_GPU),tmop_pa_tests_gpu)
+# SEQ_TMOP_TESTS += $(if $(USE_GPU),tmop_tests_gpu_uvm)
 PAR_TMOP_TESTS = ptmop_pa_tests_cpu
-PAR_TMOP_TESTS += $(if $(USE_CUDA),ptmop_pa_tests_cuda)
+PAR_TMOP_TESTS += $(if $(USE_GPU),ptmop_pa_tests_gpu)
 
 SEQ_TMOP_CPU_OBJ_FILES = $(TMOP_FILES:$(SRC)%.cpp=%.cpu.o)
 SEQ_TMOP_DEBUG_OBJ_FILES = $(TMOP_FILES:$(SRC)%.cpp=%.debug.o)
-SEQ_TMOP_CUDA_OBJ_FILES = $(if $(USE_CUDA),$(TMOP_FILES:$(SRC)%.cpp=%.cuda.o))
-SEQ_TMOP_CUDA_UVM_OBJ_FILES = $(if $(USE_CUDA),$(TMOP_FILES:$(SRC)%.cpp=%.cuda_uvm.o))
+SEQ_TMOP_GPU_OBJ_FILES = $(if $(USE_GPU),$(TMOP_FILES:$(SRC)%.cpp=%.gpu.o))
+SEQ_TMOP_GPU_UVM_OBJ_FILES = $(if $(USE_GPU),$(TMOP_FILES:$(SRC)%.cpp=%.gpu_uvm.o))
 
 PAR_TMOP_CPU_OBJ_FILES = $(TMOP_FILES:$(SRC)%.cpp=%.pcpu.o)
 PAR_TMOP_DEBUG_OBJ_FILES = $(TMOP_FILES:$(SRC)%.cpp=%.pdebug.o)
-PAR_TMOP_CUDA_OBJ_FILES = $(if $(USE_CUDA),$(TMOP_FILES:$(SRC)%.cpp=%.pcuda.o))
-PAR_TMOP_CUDA_UVM_OBJ_FILES = $(if $(USE_CUDA),$(TMOP_FILES:$(SRC)%.cpp=%.pcuda_uvm.o))
+PAR_TMOP_GPU_OBJ_FILES = $(if $(USE_GPU),$(TMOP_FILES:$(SRC)%.cpp=%.pgpu.o))
+PAR_TMOP_GPU_UVM_OBJ_FILES = $(if $(USE_GPU),$(TMOP_FILES:$(SRC)%.cpp=%.pgpu_uvm.o))
 
 # seq/par files and tests
-SEQ_UNIT_TESTS = unit_tests $(if $(USE_CUDA),cunit_tests)
+SEQ_UNIT_TESTS = unit_tests $(if $(USE_GPU),gpu_unit_tests)
 SEQ_UNIT_TESTS += $(SEQ_SEDOV_TESTS) $(SEQ_TMOP_TESTS)
-PAR_UNIT_TESTS = punit_tests $(if $(USE_CUDA),pcunit_tests)
+PAR_UNIT_TESTS = punit_tests $(if $(USE_GPU),pgpu_unit_tests)
 PAR_UNIT_TESTS += $(PAR_SEDOV_TESTS) $(PAR_TMOP_TESTS)
 
 # Ceed tests
@@ -114,11 +116,11 @@ unit_tests: $(SEQ_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_D
 punit_tests: $(PAR_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(PAR_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
-cunit_tests: $(CUDA_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(CUDA_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+gpu_unit_tests: $(GPU_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(GPU_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
-pcunit_tests: $(PCUDA_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(PCUDA_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+pgpu_unit_tests: $(PGPU_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(PGPU_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
 ceed_tests: $(CEED_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(CEED_OBJ) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
@@ -131,8 +133,8 @@ $(LIBTESTS_O): $(OBJECT_FILES)
 
 # Note: in this rule, we always use the full path to the source file as a
 # workaround for an issue with coveralls.
-$(OBJECT_FILES) $(SEQ_MAIN_OBJ) $(PAR_MAIN_OBJ) $(CUDA_MAIN_OBJ) \
- $(PCUDA_MAIN_OBJ) $(DEBUG_DEVICE_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) \
+$(OBJECT_FILES) $(SEQ_MAIN_OBJ) $(PAR_MAIN_OBJ) $(GPU_MAIN_OBJ) \
+ $(PGPU_MAIN_OBJ) $(DEBUG_DEVICE_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) \
  $(CONFIG_MK)
 	@mkdir -p $(@D)
 	$(CCC) $(MFEM_FLAGS) $(INCLUDES) -c $(abspath $(<)) -o $(@)
@@ -159,8 +161,8 @@ $$(SEQ_SEDOV_$(2)_OBJ_FILES): %.$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_
 endef
 $(eval $(call sedov_tests,cpu,CPU,cpu))
 $(eval $(call sedov_tests,debug,DEBUG,debug))
-$(eval $(call sedov_tests,cuda,CUDA,cuda))
-$(eval $(call sedov_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
+$(eval $(call sedov_tests,gpu,GPU,gpu))
+$(eval $(call sedov_tests,gpu_uvm,GPU_UVM,gpu:uvm))
 
 define psedov_tests
 psedov_tests_$(1): SEDOV_TESTS_FLAGS =-DMFEM_SEDOV_MPI
@@ -176,16 +178,21 @@ $$(PAR_SEDOV_$(2)_OBJ_FILES): %.p$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG
 endef
 $(eval $(call psedov_tests,cpu,CPU,cpu))
 $(eval $(call psedov_tests,debug,DEBUG,debug))
-$(eval $(call psedov_tests,cuda,CUDA,cuda))
-$(eval $(call psedov_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
+$(eval $(call psedov_tests,gpu,GPU,gpu))
+$(eval $(call psedov_tests,gpu_uvm,GPU_UVM,gpu:uvm))
 
 # For out-of-source builds, copy the meshes in ../../miniapps/multidomain from
 # the source location; these are used by 'punit_tests'.
+# Also, link the directory 'meshes' in ../../miniapps/nurbs from the source
+# location; this is needed by 'unit_tests'.
 ifneq ($(SRC),)
-.PHONY: copy-miniapps-multidomain-data
+.PHONY: copy-miniapps-multidomain-data copy-miniapps-nurbs-meshes
 copy-miniapps-multidomain-data:
 	$(MAKE) -C ../../miniapps/multidomain copy-data
 punit_tests: | copy-miniapps-multidomain-data
+copy-miniapps-nurbs-meshes:
+	$(MAKE) -C ../../miniapps/nurbs copy-data
+unit_tests: | copy-miniapps-nurbs-meshes
 endif
 
 # For out-of-source builds, copy the meshes in ../../miniapps/meshing from the
@@ -199,7 +206,7 @@ copy-miniapps-meshing-data:
 # 3: configuration string for the MFEM device, separated with '$(comma)'
 define tmop_pa_tests
 tmop_pa_tests_$(1): | $(if $(SRC),copy-miniapps-meshing-data)
-tmop_pa_tests_$(1): TMOP_TESTS_FLAGS=-DMFEM_TMOP_DEVICE='"$(3)"'
+tmop_pa_tests_$(1): TMOP_TESTS_FLAGS=-DMFEM_TMOP_PA_DEVICE='"$(3)"'
 tmop_pa_tests_$(1): $$(SEQ_TMOP_$(2)_OBJ_FILES) \
  $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
 	$$(CCC) $$(SEQ_TMOP_$(2)_OBJ_FILES) \
@@ -211,13 +218,13 @@ $$(SEQ_TMOP_$(2)_OBJ_FILES): %.$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_M
 endef
 $(eval $(call tmop_pa_tests,cpu,CPU,cpu))
 $(eval $(call tmop_pa_tests,debug,DEBUG,debug))
-$(eval $(call tmop_pa_tests,cuda,CUDA,cuda))
-# $(eval $(call tmop_pa_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
+$(eval $(call tmop_pa_tests,gpu,GPU,gpu))
+# $(eval $(call tmop_pa_tests,gpu_uvm,GPU_UVM,gpu:uvm))
 
 define ptmop_pa_tests
 ptmop_pa_tests_$(1): | $(if $(SRC),copy-miniapps-meshing-data)
 ptmop_pa_tests_$(1): TMOP_TESTS_FLAGS =-DMFEM_TMOP_MPI
-ptmop_pa_tests_$(1): TMOP_TESTS_FLAGS+=-DMFEM_TMOP_DEVICE='"$(3)"'
+ptmop_pa_tests_$(1): TMOP_TESTS_FLAGS+=-DMFEM_TMOP_PA_DEVICE='"$(3)"'
 ptmop_pa_tests_$(1): $$(PAR_TMOP_$(2)_OBJ_FILES) \
  $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
 	$$(CCC) $$(PAR_TMOP_$(2)_OBJ_FILES) \
@@ -229,8 +236,8 @@ $$(PAR_TMOP_$(2)_OBJ_FILES): %.p$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_
 endef
 $(eval $(call ptmop_pa_tests,cpu,CPU,cpu))
 #$(eval $(call ptmop_pa_tests,debug,DEBUG,debug))
-$(eval $(call ptmop_pa_tests,cuda,CUDA,cuda))
-#$(eval $(call ptmop_pa_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
+$(eval $(call ptmop_pa_tests,gpu,GPU,gpu))
+#$(eval $(call ptmop_pa_tests,gpu_uvm,GPU_UVM,gpu:uvm))
 
 $(DATA_DIR):
 	ln -s $(SRC)$(DATA_DIR) .

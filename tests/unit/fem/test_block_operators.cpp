@@ -14,7 +14,7 @@
 
 using namespace mfem;
 
-TEST_CASE("BlockOperators", "[BlockOperators], [CUDA]")
+TEST_CASE("BlockOperators", "[BlockOperators], [GPU]")
 {
    const int dim = 2, nx = 3, ny = 3, order = 2;
    Element::Type e_type = Element::QUADRILATERAL;

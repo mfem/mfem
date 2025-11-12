@@ -464,6 +464,13 @@ public:
    RT_Trace_FECollection(const int p, const int dim,
                          const int map_type = FiniteElement::INTEGRAL,
                          const int ob_type = BasisType::GaussLegendre);
+
+   FiniteElementCollection *Clone(int p) const override
+   {
+      const int map_type = (strncmp(rt_name, "RT_Trace", 8) == 0)?
+                           (FiniteElement::INTEGRAL):(FiniteElement::VALUE);
+      return new RT_Trace_FECollection(p, dim, map_type, ob_type);
+   }
 };
 
 /** Arbitrary order discontinuous finite elements defined on the interface
@@ -475,6 +482,13 @@ public:
    DG_Interface_FECollection(const int p, const int dim,
                              const int map_type = FiniteElement::VALUE,
                              const int ob_type = BasisType::GaussLegendre);
+
+   FiniteElementCollection *Clone(int p) const override
+   {
+      const int map_type = (strncmp(rt_name, "DG_Iface", 8) == 0)?
+                           (FiniteElement::VALUE):(FiniteElement::INTEGRAL);
+      return new DG_Interface_FECollection(p, dim, map_type, ob_type);
+   }
 };
 
 /// Arbitrary order H(curl)-conforming Nedelec finite elements.
