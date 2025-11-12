@@ -19,10 +19,8 @@ namespace mfem
 
 struct TMOP_PA_Metric_002 : TMOP_PA_Metric_2D
 {
-   MFEM_HOST_DEVICE real_t EvalW(const real_t (&Jpt)[4],
-                                 const real_t *w) override
+   MFEM_HOST_DEVICE real_t EvalW(const real_t (&Jpt)[4], const real_t *) override
    {
-      MFEM_CONTRACT_VAR(w);
       kernels::InvariantsEvaluator2D ie(Args().J(Jpt));
       return 0.5 * ie.Get_I1b() - 1.0;
    };

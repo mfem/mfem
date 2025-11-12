@@ -22,7 +22,8 @@ void TMOP_Integrator::GetLocalStateEnergyPA_3D(const Vector &X,
    const bool use_detA = false;
    const int mid = metric->Id();
 
-   Vector L(PA.E.Size(), Device::GetMemoryType()); L.UseDevice(true);
+   Vector L(PA.E.Size(), Device::GetMemoryType());
+   L.UseDevice(true);
 
    // Calls TMOPEnergyPA3D::Mult for the given mid.
    TMOPEnergyPA3D ker(this, X, L, use_detA);
@@ -37,6 +38,7 @@ void TMOP_Integrator::GetLocalStateEnergyPA_3D(const Vector &X,
 
    real_t lim_energy;
    ker.GetEnergy(energy, lim_energy);
+   MFEM_VERIFY(std::isfinite(energy), "State Energy error");
 }
 
 void TMOP_Integrator::GetLocalNormalizationEnergiesPA_3D(const Vector &X,
@@ -46,7 +48,8 @@ void TMOP_Integrator::GetLocalNormalizationEnergiesPA_3D(const Vector &X,
    const bool use_detA = false;
    const int mid = metric->Id();
 
-   Vector L(PA.E.Size(), Device::GetMemoryType()); L.UseDevice(true);
+   Vector L(PA.E.Size(), Device::GetMemoryType());
+   L.UseDevice(true);
 
    const real_t mn = 1.0;
    Vector mc(1); mc = 1.0;
@@ -63,6 +66,8 @@ void TMOP_Integrator::GetLocalNormalizationEnergiesPA_3D(const Vector &X,
    else { MFEM_ABORT("Unsupported TMOP metric " << mid); }
 
    ker.GetEnergy(met_energy, lim_energy);
+   MFEM_VERIFY(std::isfinite(met_energy), "Norm. Metric energy error");
+   MFEM_VERIFY(std::isfinite(lim_energy), "Norm. Limited energy error");
 }
 
 void TMOP_Combo_QualityMetric::GetLocalEnergyPA_3D(const GridFunction &nodes,
@@ -88,12 +93,14 @@ void TMOP_Combo_QualityMetric::GetLocalEnergyPA_3D(const GridFunction &nodes,
 
    const Array<real_t> &B = maps.B, &G = maps.G;
 
-   Vector E(N * ir.GetNPoints(), Device::GetDeviceMemoryType());
-   Vector O(N * ir.GetNPoints(), Device::GetDeviceMemoryType()); O = 1.0;
-   Vector L(N * ir.GetNPoints(), Device::GetDeviceMemoryType());
+   Vector E(N * ir.GetNPoints(), Device::GetDeviceMemoryType()); E.UseDevice(true);
+   Vector O(N * ir.GetNPoints(), Device::GetDeviceMemoryType()); O.UseDevice(true);
+   O = 1.0;
+   Vector L(N * ir.GetNPoints(), Device::GetDeviceMemoryType()); L.UseDevice(true);
 
    auto R = fes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
    Vector X(R->Height());
+   X.UseDevice(true);
    R->Mult(nodes, X);
 
    DenseTensor Jtr(3, 3, N * ir.GetNPoints(), Device::GetDeviceMemoryType());
@@ -111,6 +118,8 @@ void TMOP_Combo_QualityMetric::GetLocalEnergyPA_3D(const GridFunction &nodes,
    else { MFEM_ABORT("Unsupported TMOP metric " << mid); }
 
    ker.GetEnergy(energy, vol);
+   MFEM_VERIFY(std::isfinite(energy), "Local Energy error");
+   MFEM_VERIFY(std::isfinite(vol), "Local Volume error");
 }
 
 } // namespace mfem

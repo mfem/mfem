@@ -28,6 +28,7 @@ void TMOP_Integrator::AssembleGradPA(const Vector &de,
 
    // Form the Vector of node positions, depending on what's the input.
    Vector xe(de.Size());
+   xe.UseDevice(true);
    if (x_0)
    {
       // The input is the displacement.
@@ -355,6 +356,7 @@ void TMOP_Integrator::AddMultPA(const Vector &de, Vector &ye) const
 
    // Form the Vector of node positions, depending on what's the input.
    Vector xe(de.Size());
+   xe.UseDevice(true);
    if (x_0)
    {
       // The input is the displacement.
@@ -412,6 +414,7 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA(const Vector &de) const
 
    // Form the Vector of node positions, depending on what's the input.
    Vector xe(de.Size());
+   xe.UseDevice(true);
    if (x_0)
    {
       // The input is the displacement.

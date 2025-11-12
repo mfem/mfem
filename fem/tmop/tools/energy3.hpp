@@ -9,7 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../pa.hpp"
 #include "../../tmop.hpp"
 #include "../../kernels.hpp"
 #include "../../../general/forall.hpp"
@@ -204,8 +203,12 @@ public:
             }
          }
       });
+
       ker.metric_energy = ker.E * ker.O;
+      MFEM_VERIFY(std::isfinite(ker.metric_energy), "Metric energy error");
+
       ker.limiting_energy = ker.L * ker.O;
+      MFEM_VERIFY(std::isfinite(ker.limiting_energy), "Limiting energy error");
    }
 
    void GetEnergy(real_t &met_energy, real_t &lim_energy) const

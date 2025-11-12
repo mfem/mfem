@@ -37,20 +37,18 @@ void TMOP_DatcSize_2D(const int NE,
 
    const real_t infinity = std::numeric_limits<real_t>::infinity();
 
-   mfem::forall_3D_grid(NE, Q1D, Q1D, 1, 512, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      static constexpr int BLOCK_DIM = 512;
-
       MFEM_SHARED real_t sB[MD1][MQ1];
       MFEM_SHARED real_t smem[MQ1][MQ1];
-      MFEM_SHARED real_t min_size[BLOCK_DIM];
+      MFEM_SHARED real_t min_size[MFEM_CUDA_BLOCKS];
 
       kernels::internal::v_regs2d_t<1,MQ1> r0, r1; // scalar X (component sizeidx)
 
       kernels::internal::LoadDofs2d(e, D1D, X, r0);
 
       DeviceTensor<2, real_t> M((real_t *)(min_size), D1D, D1D);
-      MFEM_FOREACH_THREAD(t, x, BLOCK_DIM) { min_size[t] = infinity; }
+      MFEM_FOREACH_THREAD(t, x, MFEM_CUDA_BLOCKS) { min_size[t] = infinity; }
       MFEM_SYNC_THREAD;
       MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
       {
@@ -61,9 +59,9 @@ void TMOP_DatcSize_2D(const int NE,
       }
 
       MFEM_SYNC_THREAD;
-      for (int wrk = BLOCK_DIM >> 1; wrk > 0; wrk >>= 1)
+      for (int wrk = MFEM_CUDA_BLOCKS >> 1; wrk > 0; wrk >>= 1)
       {
-         MFEM_FOREACH_THREAD(t, x, BLOCK_DIM)
+         MFEM_FOREACH_THREAD(t, x, MFEM_CUDA_BLOCKS)
          {
             if (t < wrk && MFEM_THREAD_ID(y) == 0 && MFEM_THREAD_ID(z) == 0)
             {
@@ -121,20 +119,18 @@ void TMOP_DatcSize_3D(const int NE,
 
    const real_t infinity = std::numeric_limits<real_t>::infinity();
 
-   mfem::forall_3D_grid(NE, Q1D, Q1D, 1, 512, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      static constexpr int BLOCK_DIM = 512;
-
       MFEM_SHARED real_t sB[MD1][MQ1];
       MFEM_SHARED real_t smem[MQ1][MQ1];
-      MFEM_SHARED real_t min_size[BLOCK_DIM];
+      MFEM_SHARED real_t min_size[MFEM_CUDA_BLOCKS];
 
       kernels::internal::v_regs3d_t<1,MQ1> r0, r1; // scalar X (component sizeidx)
 
       kernels::internal::LoadDofs3d(e, D1D, X, r0);
 
       DeviceTensor<3, real_t> M((real_t *)(min_size), D1D, D1D, D1D);
-      MFEM_FOREACH_THREAD(t, x, BLOCK_DIM) { min_size[t] = infinity; }
+      MFEM_FOREACH_THREAD(t, x, MFEM_CUDA_BLOCKS) { min_size[t] = infinity; }
       MFEM_SYNC_THREAD;
       for (int dz = 0; dz < D1D; ++dz)
       {
@@ -147,9 +143,9 @@ void TMOP_DatcSize_3D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      for (int wrk = BLOCK_DIM >> 1; wrk > 0; wrk >>= 1)
+      for (int wrk = MFEM_CUDA_BLOCKS >> 1; wrk > 0; wrk >>= 1)
       {
-         MFEM_FOREACH_THREAD(t, x, BLOCK_DIM)
+         MFEM_FOREACH_THREAD(t, x, MFEM_CUDA_BLOCKS)
          {
             if (t < wrk && MFEM_THREAD_ID(y) == 0 && MFEM_THREAD_ID(z) == 0)
             {
@@ -230,6 +226,7 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    Vector nc_size_red(NE, Device::GetDeviceMemoryType());
+   nc_size_red.UseDevice(true);
    nc_size_red.HostWrite();
    NCMesh *ncmesh = tspec_fesv->GetMesh()->ncmesh;
    for (int e = 0; e < NE; e++)
