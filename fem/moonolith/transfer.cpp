@@ -9,6 +9,10 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../../config/config.hpp"
+
+#ifdef MFEM_USE_MOONOLITH
+
 #include "transfer.hpp"
 
 #include "par_moonolith_instance.hpp"
@@ -30,3 +34,5 @@ void InitTransfer(int argc, char *argv[], MPI_Comm comm)
 #endif
 
 } // namespace mfem
+
+#endif // MFEM_USE_MOONOLITH

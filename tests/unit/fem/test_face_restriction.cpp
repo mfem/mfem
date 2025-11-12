@@ -77,6 +77,7 @@ TEST_CASE("Vector FE Face Restriction", "[FaceRestriction]")
    Vector face_vec(face_restr->Height());
    REQUIRE(face_vec.Size() == nfaces*ndof_per_face);
    face_restr->Mult(gf, face_vec);
+   face_vec.HostReadWrite();
 
    if (space_type == SpaceType::ND && dim == 3)
    {

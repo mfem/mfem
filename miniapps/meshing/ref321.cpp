@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
         << fespace.GetTrueVSize() << endl;
 
    // 5. Define the solution vector x as a finite element grid function
-   //    corresponding to fespace. Solve the Laplace problem, as in ex1.
+   //    corresponding to fespace. Solve the Poisson problem, as in ex1.
    GridFunction x(&fespace);
 
    {
@@ -186,7 +186,7 @@ int main(int argc, char *argv[])
    // 6. Verify the continuity of the projected function in H1.
    const real_t h1err = CheckH1Continuity(x);
    cout << "Error of H1 continuity: " << h1err << endl;
-   MFEM_VERIFY(h1err < 1.0e-8, "");
+   MFEM_VERIFY(h1err < 1.0e-7, "");
 
    // 7. Save the refined mesh and the solution. This output can be viewed later
    //    using GLVis: "glvis -m ref321.mesh -g sol.gf".

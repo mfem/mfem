@@ -14,9 +14,13 @@
 
 #include "../linalg/invariants.hpp"
 #include "nonlininteg.hpp"
+#include "../linalg/dual.hpp"
 
 namespace mfem
 {
+
+using AD1Type = future::dual<real_t, real_t>;
+using AD2Type = future::dual<AD1Type, AD1Type>;
 
 /** @brief Abstract class for local mesh quality metrics in the target-matrix
     optimization paradigm (TMOP) by P. Knupp et al. */
@@ -68,6 +72,22 @@ public:
    /** Compute dmu/dW */
    virtual void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const
    { PW = 0.0;}
+
+   /// @brief First-derivative hook for AD-based computations.
+   /// @warning Not for public use. Internal use for AD-based computations.
+   virtual AD1Type EvalW_AD1(const std::vector<AD1Type> &T,
+                             const std::vector<AD1Type> &W) const
+   {
+      MFEM_ABORT("EvalW_AD1 not implemented for this metric");
+   }
+
+   /// @brief Second-derivative hook for AD-based computations.
+   /// @warning Not for public use. Internal use for AD-based computations.
+   virtual AD2Type EvalW_AD2(const std::vector<AD2Type> &T,
+                             const std::vector<AD2Type> &W) const
+   {
+      MFEM_ABORT("EvalW_AD2 not implemented for this metric");
+   }
 
    /** @brief Evaluate the derivative of the 1st Piola-Kirchhoff stress tensor
        and assemble its contribution to the local gradient matrix 'A'.
@@ -124,17 +144,34 @@ public:
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
 
+   AD1Type EvalW_AD1(const std::vector<AD1Type> &T,
+                     const std::vector<AD1Type> &W) const override;
+
+   AD2Type EvalW_AD2(const std::vector<AD2Type> &T,
+                     const std::vector<AD2Type> &W) const override;
+
    /// Computes the averages of all metrics (integral of metric / volume).
    /// Works in parallel when called with a ParGridFunction.
    void ComputeAvgMetrics(const GridFunction &nodes,
-                          const TargetConstructor &tc,
-                          Vector &averages) const;
+                          const TargetConstructor &tc, Vector &averages,
+                          bool use_pa = false,
+                          const IntegrationRule *IntRule = nullptr) const;
 
    /// Computes weights so that the averages of all metrics are equal, and the
    /// weights sum to one. Works in parallel when called with a ParGridFunction.
    void ComputeBalancedWeights(const GridFunction &nodes,
-                               const TargetConstructor &tc,
-                               Vector &weights) const;
+                               const TargetConstructor &tc, Vector &weights,
+                               bool use_pa = false,
+                               const IntegrationRule *IntRule = nullptr) const;
+
+   void GetLocalEnergyPA_2D(const GridFunction &nodes,
+                            const TargetConstructor &tc,
+                            int m_index, real_t &energy, real_t &vol,
+                            const IntegrationRule &ir) const;
+   void GetLocalEnergyPA_3D(const GridFunction &nodes,
+                            const TargetConstructor &tc,
+                            int m_index, real_t &energy, real_t &vol,
+                            const IntegrationRule &ir) const;
 
    void GetWeights(Array<real_t> &weights) const { weights = wt_arr; }
 
@@ -210,12 +247,16 @@ public:
 
    real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override
-   { MFEM_ABORT("Not implemented"); }
+   AD1Type EvalW_AD1(const std::vector<AD1Type> &T,
+                     const std::vector<AD1Type> &W) const override;
+
+   AD2Type EvalW_AD2(const std::vector<AD2Type> &T,
+                     const std::vector<AD2Type> &W) const override;
+
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                  const real_t weight, DenseMatrix &A) const override
-   { MFEM_ABORT("Not implemented"); }
+                  const real_t weight, DenseMatrix &A) const override;
 
    // Compute mu_hat.
    real_t EvalWBarrier(const DenseMatrix &Jpt) const;
@@ -260,6 +301,27 @@ public:
                   const real_t weight, DenseMatrix &A) const override;
 
    int Id() const override { return 1; }
+};
+
+// TODO: Remove in MFEM 5.0
+/// (DEPRECATED) 2D non-barrier Skew metric.
+/// We recommend TMOP_AMetric_050 metric for controlling skewness only. In
+/// general, the Size+Skew metric TMOP_AMetric_051 may produce better
+/// meshes than a purely Skew metric.
+class MFEM_DEPRECATED TMOP_Metric_skew2D : public TMOP_QualityMetric
+{
+public:
+   // W = 0.5 (1 - cos(angle_Jpr - angle_Jtr)).
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
+   real_t EvalW(const DenseMatrix &Jpt) const override
+   { return EvalWMatrixForm(Jpt); }
+
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
+
+   void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const override;
+
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 3D non-barrier Skew metric.
@@ -336,6 +398,10 @@ class TMOP_Metric_004 : public TMOP_QualityMetric
 protected:
    mutable InvariantsEvaluator2D<real_t> ie;
 
+   template<typename type>
+   type EvalW_AD_impl(const std::vector<type> &T,
+                      const std::vector<type> &W) const;
+
 public:
    // W = |J|^2 - 2*det(J)
    real_t EvalW(const DenseMatrix &Jpt) const override;
@@ -344,6 +410,12 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   AD1Type EvalW_AD1(const std::vector<AD1Type> &T,
+                     const std::vector<AD1Type> &W) const override;
+
+   AD2Type EvalW_AD2(const std::vector<AD2Type> &T,
+                     const std::vector<AD2Type> &W) const override;
 
    int Id() const override { return 4; }
 };
@@ -388,6 +460,10 @@ class TMOP_Metric_014 : public TMOP_QualityMetric
 protected:
    mutable InvariantsEvaluator2D<real_t> ie;
 
+   template <typename type>
+   type EvalW_AD_impl(const std::vector<type> &T,
+                      const std::vector<type> &W) const;
+
 public:
    // W = |J - I|^2.
    real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
@@ -399,6 +475,14 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   AD1Type EvalW_AD1(const std::vector<AD1Type> &T,
+                     const std::vector<AD1Type> &W) const override;
+
+   AD2Type EvalW_AD2(const std::vector<AD2Type> &T,
+                     const std::vector<AD2Type> &W) const override;
+
+   int Id() const override { return 14; }
 };
 
 /// 2D Shifted barrier form of shape metric (mu_2).
@@ -447,6 +531,10 @@ class TMOP_Metric_055 : public TMOP_QualityMetric
 protected:
    mutable InvariantsEvaluator2D<real_t> ie;
 
+   template<typename type>
+   type EvalW_AD_impl(const std::vector<type> &T,
+                      const std::vector<type> &W) const;
+
 public:
    // W = (det(J) - 1)^2.
    real_t EvalW(const DenseMatrix &Jpt) const override;
@@ -455,6 +543,14 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   AD1Type EvalW_AD1(const std::vector<AD1Type> &T,
+                     const std::vector<AD1Type> &W) const override;
+
+   AD2Type EvalW_AD2(const std::vector<AD2Type> &T,
+                     const std::vector<AD2Type> &W) const override;
+
+   int Id() const override { return 55; }
 
 };
 
@@ -476,6 +572,8 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   int Id() const override { return 56; }
 };
 
 /// 2D barrier shape (S) metric (not polyconvex).
@@ -1866,6 +1964,14 @@ protected:
    friend class TMOPNewtonSolver;
    friend class TMOPComboIntegrator;
 
+   // Initial positions of the mesh nodes. Not owned. The pointer is set at the
+   // start of the solve by TMOPNewtonSolver::Mult(), and unset at the end.
+   // When x_0 == nullptr, the integrator works on the mesh positions.
+   // When x_0 != nullptr, the integrator works on the displacements.
+   // TODO in MFEM-5.0 make it always work with displacements.
+   const GridFunction *x_0;
+   bool periodic = false;
+
    TMOP_QualityMetric *h_metric;
    TMOP_QualityMetric *metric;        // not owned
    const TargetConstructor *targetC;  // not owned
@@ -1920,8 +2026,8 @@ protected:
 
    // Parameters for FD-based Gradient & Hessian calculation.
    bool fdflag;
-   real_t dx;
-   real_t dxscale;
+   real_t fd_h;
+   real_t fd_h_scale;
    // Specifies that ComputeElementTargets is being called by a FD function.
    // It's used to skip terms that have exact derivative calculations.
    bool fd_call_flag;
@@ -1952,7 +2058,9 @@ protected:
    //  E: Q-vector for TMOP-energy
    //     Used as temporary storage when the total energy is computed.
    //  O: Q-Vector of 1.0, used to compute sums using the dot product kernel.
-   // X0: E-vector for initial nodal coordinates used for limiting.
+   // X0: E-vector for initial nodal coordinates.
+   //     Does not change during the TMOP iteration.
+   // XL: E-vector for nodal coordinates used for limiting.
    //     Does not change during the TMOP iteration.
    //  H: Q-Vector for Hessian associated with the metric term.
    //     Updated by every call to PANonlinearFormExtension::GetGradient().
@@ -1985,7 +2093,7 @@ protected:
       mutable DenseTensor Jtr;
       mutable bool Jtr_needs_update;
       mutable bool Jtr_debug_grad;
-      mutable Vector E, O, X0, H, C0, LD, H0, MC;
+      mutable Vector E, O, X0, XL, H, C0, LD, H0, MC;
       const DofToQuad *maps;
       const DofToQuad *maps_lim = nullptr;
       const GeometricFactors *geom;
@@ -1994,25 +2102,24 @@ protected:
    } PA;
 
    void ComputeNormalizationEnergies(const GridFunction &x,
-                                     real_t &metric_energy, real_t &lim_energy,
-                                     real_t &surf_fit_gf_energy);
+                                     real_t &metric_energy, real_t &lim_energy);
 
    void AssembleElementVectorExact(const FiniteElement &el,
                                    ElementTransformation &T,
-                                   const Vector &elfun, Vector &elvect);
+                                   const Vector &d_el, Vector &elvect);
 
    void AssembleElementGradExact(const FiniteElement &el,
                                  ElementTransformation &T,
-                                 const Vector &elfun, DenseMatrix &elmat);
+                                 const Vector &d_el, DenseMatrix &elmat);
 
    void AssembleElementVectorFD(const FiniteElement &el,
                                 ElementTransformation &T,
-                                const Vector &elfun, Vector &elvect);
+                                const Vector &d_el, Vector &elvect);
 
    // Assumes that AssembleElementVectorFD has been called.
    void AssembleElementGradFD(const FiniteElement &el,
                               ElementTransformation &T,
-                              const Vector &elfun, DenseMatrix &elmat);
+                              const Vector &d_el, DenseMatrix &elmat);
 
    void AssembleElemVecAdaptLim(const FiniteElement &el,
                                 IsoparametricTransformation &Tpr,
@@ -2035,15 +2142,15 @@ protected:
 
    real_t GetFDDerivative(const FiniteElement &el,
                           ElementTransformation &T,
-                          Vector &elfun, const int nodenum,const int idir,
+                          Vector &d_el, const int nodenum, const int idir,
                           const real_t baseenergy, bool update_stored);
 
    /** @brief Determines the perturbation, h, for FD-based approximation. */
-   void ComputeFDh(const Vector &x, const FiniteElementSpace &fes);
+   void ComputeFDh(const Vector &d, const FiniteElementSpace &fes);
    void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
-   void UpdateAfterMeshPositionChange(const Vector &x_new,
-                                      const FiniteElementSpace &x_fes);
+   void UpdateAfterMeshPositionChange(const Vector &d,
+                                      const FiniteElementSpace &d_fes);
 
    void DisableLimiting()
    {
@@ -2077,10 +2184,16 @@ protected:
    void AssembleGradPA_C0_2D(const Vector&) const;
    void AssembleGradPA_C0_3D(const Vector&) const;
 
-   real_t GetLocalStateEnergyPA_2D(const Vector&) const;
+   void GetLocalStateEnergyPA_2D(const Vector &x, real_t &energy) const;
+   void GetLocalStateEnergyPA_3D(const Vector&, real_t &energy) const;
    real_t GetLocalStateEnergyPA_C0_2D(const Vector&) const;
-   real_t GetLocalStateEnergyPA_3D(const Vector&) const;
    real_t GetLocalStateEnergyPA_C0_3D(const Vector&) const;
+   void GetLocalNormalizationEnergiesPA_2D(const Vector &x,
+                                           real_t &met_energy,
+                                           real_t &lim_energy) const;
+   void GetLocalNormalizationEnergiesPA_3D(const Vector &x,
+                                           real_t &met_energy,
+                                           real_t &lim_energy) const;
 
    void AddMultPA_2D(const Vector&, Vector&) const;
    void AddMultPA_3D(const Vector&, Vector&) const;
@@ -2101,7 +2214,7 @@ protected:
    void ComputeAllElementTargets(const Vector &xe = Vector()) const;
    // Updates the Q-vectors for the metric_coeff and lim_coeff, based on the
    // new physical positions of the quadrature points.
-   void UpdateCoefficientsPA(const Vector &x_loc);
+   void UpdateCoefficientsPA(const Vector &d_loc);
 
    // Compute Min(Det(Jpt)) in the mesh, does not reduce over MPI.
    real_t ComputeMinDetT(const Vector &x, const FiniteElementSpace &fes);
@@ -2110,7 +2223,7 @@ protected:
    real_t ComputeUntanglerMaxMuBarrier(const Vector &x,
                                        const FiniteElementSpace &fes);
 
-   // Remaps the internal surface fitting gridfunction object at provided
+   // Remaps the internal surface fitting grid function object at provided
    // locations.
    void RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
                                            int new_x_ordering);
@@ -2120,7 +2233,7 @@ public:
        @param[in] hm   TMOP_QualityMetric for h-adaptivity (not owned). */
    TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc,
                    TMOP_QualityMetric *hm)
-      : h_metric(hm), metric(m), targetC(tc), IntegRules(NULL),
+      : x_0(nullptr), h_metric(hm), metric(m), targetC(tc), IntegRules(NULL),
         integ_order(-1), metric_coeff(NULL), metric_normal(1.0),
         lim_nodes0(NULL), lim_coeff(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
@@ -2132,7 +2245,7 @@ public:
         surf_fit_normal(1.0), surf_fit_grad(NULL), surf_fit_hess(NULL),
         surf_fit_eval_grad(NULL), surf_fit_eval_hess(NULL),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
-        fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
+        fdflag(false), fd_h_scale(1.0e3), fd_call_flag(false), exact_action(false)
    { PA.enabled = false; }
 
    TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc)
@@ -2151,6 +2264,13 @@ public:
       IntegRules = &irules;
       integ_order = order;
    }
+
+   /// As the integrator operates on mesh displacements, this function is needed
+   /// to set the initial mesh positions. For periodic meshes, the function is
+   /// called with L2 positions.
+   /// Called with nullptr to unset the x_0 after the problem is solved.
+   // TODO should not be public in mfem 5.0.
+   void SetInitialMeshPos(const GridFunction *x0);
 
    /// The TMOP integrals can be computed over the reference element or the
    /// target elements. This function is used to switch between the two options.
@@ -2289,7 +2409,7 @@ public:
        @param[in] coeff   Coefficient c for the above integral. */
    void EnableSurfaceFitting(const GridFunction &pos,
                              const Array<bool> &smarker, Coefficient &coeff);
-   void GetSurfaceFittingErrors(const Vector &pos,
+   void GetSurfaceFittingErrors(const Vector &d_loc,
                                 real_t &err_avg, real_t &err_max);
    bool IsSurfaceFittingEnabled()
    {
@@ -2300,12 +2420,12 @@ public:
    void SetLimitingNodes(const GridFunction &n0) { lim_nodes0 = &n0; }
 
    /** @brief Computes the integral of W(Jacobian(Trt)) over a target zone.
-       @param[in] el     Type of FiniteElement.
+       @param[in] el     Type of FiniteElement (TMOP assumes H1 elements).
        @param[in] T      Mesh element transformation.
-       @param[in] elfun  Physical coordinates of the zone. */
+       @param[in] d_el   Physical displacement of the zone w.r.t. x_0. */
    real_t GetElementEnergy(const FiniteElement &el,
                            ElementTransformation &T,
-                           const Vector &elfun) override;
+                           const Vector &d_el) override;
 
    /** @brief Computes the mean of the energies of the given element's children.
 
@@ -2323,13 +2443,15 @@ public:
                                                ElementTransformation &T,
                                                const Vector &elfun);
 
+   /// First defivative of GetElementEnergy() w.r.t. each local H1 DOF.
    void AssembleElementVector(const FiniteElement &el,
                               ElementTransformation &T,
-                              const Vector &elfun, Vector &elvect) override;
+                              const Vector &d_el, Vector &elvect) override;
 
+   /// Second derivative of GetElementEnergy() w.r.t. each local H1 DOF.
    void AssembleElementGrad(const FiniteElement &el,
                             ElementTransformation &T,
-                            const Vector &elfun, DenseMatrix &elmat) override;
+                            const Vector &d_el, DenseMatrix &elmat) override;
 
    TMOP_QualityMetric &GetAMRQualityMetric() { return *h_metric; }
 
@@ -2342,7 +2464,7 @@ public:
    using NonlinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace&) override;
 
-   void AssembleGradPA(const Vector&, const FiniteElementSpace&) override;
+   void AssembleGradPA(const Vector &, const FiniteElementSpace &) override;
 
    real_t GetLocalStateEnergyPA(const Vector&) const override;
 
@@ -2367,9 +2489,9 @@ public:
    void EnableFiniteDifferences(const ParGridFunction &x);
 #endif
 
-   void   SetFDhScale(real_t dxscale_) { dxscale = dxscale_; }
+   void   SetFDhScale(real_t scale) { fd_h_scale = scale; }
    bool   GetFDFlag() const { return fdflag; }
-   real_t GetFDh()    const { return dx; }
+   real_t GetFDh()    const { return fd_h; }
 
    /** @brief Flag to control if exact action of Integration is effected. */
    void SetExactActionFlag(bool flag_) { exact_action = flag_; }
@@ -2383,15 +2505,23 @@ public:
    /// Computes quantiles needed for UntangleMetrics. Note that in parallel,
    /// the ParFiniteElementSpace must be passed as argument for consistency
    /// across MPI ranks.
-   void ComputeUntangleMetricQuantiles(const Vector &x,
+   void ComputeUntangleMetricQuantiles(const Vector &d,
                                        const FiniteElementSpace &fes);
 };
 
 class TMOPComboIntegrator : public NonlinearFormIntegrator
 {
 protected:
+   friend class TMOPNewtonSolver;
+
    // Integrators in the combination. Owned.
    Array<TMOP_Integrator *> tmopi;
+
+   void SetInitialMeshPos(const GridFunction *x0)
+   {
+      for (int i = 0; i < tmopi.Size(); i++)
+      { tmopi[i]->SetInitialMeshPos(x0); }
+   }
 
 public:
    TMOPComboIntegrator() : tmopi(0) { }

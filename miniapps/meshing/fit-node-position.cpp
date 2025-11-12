@@ -224,5 +224,6 @@ int main (int argc, char *argv[])
    }
 
    delete metric;
+   delete fec_mesh;
    return 0;
 }

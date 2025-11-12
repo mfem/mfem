@@ -308,6 +308,26 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
                                           FiniteElement::INTEGRAL,
                                           BasisType::GetType(name[12]));
    }
+   else if (!strncmp(name, "RT_R1D_", 7))
+   {
+      fec = new RT_R1D_FECollection(atoi(name + 11), atoi(name + 7));
+   }
+   else if (!strncmp(name, "RT_R1D@", 7))
+   {
+      fec = new RT_R1D_FECollection(atoi(name + 14), atoi(name + 10),
+                                    BasisType::GetType(name[7]),
+                                    BasisType::GetType(name[8]));
+   }
+   else if (!strncmp(name, "RT_R2D_", 7))
+   {
+      fec = new RT_R2D_FECollection(atoi(name + 11), atoi(name + 7));
+   }
+   else if (!strncmp(name, "RT_R2D@", 7))
+   {
+      fec = new RT_R2D_FECollection(atoi(name + 14), atoi(name + 10),
+                                    BasisType::GetType(name[7]),
+                                    BasisType::GetType(name[8]));
+   }
    else if (!strncmp(name, "RT_", 3))
    {
       fec = new RT_FECollection(atoi(name + 7), atoi(name + 3));
@@ -327,6 +347,26 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
       fec = new ND_Trace_FECollection(atoi(name + 16), atoi(name + 12),
                                       BasisType::GetType(name[9]),
                                       BasisType::GetType(name[10]));
+   }
+   else if (!strncmp(name, "ND_R1D_", 7))
+   {
+      fec = new ND_R1D_FECollection(atoi(name + 11), atoi(name + 7));
+   }
+   else if (!strncmp(name, "ND_R1D@", 7))
+   {
+      fec = new ND_R1D_FECollection(atoi(name + 14), atoi(name + 10),
+                                    BasisType::GetType(name[7]),
+                                    BasisType::GetType(name[8]));
+   }
+   else if (!strncmp(name, "ND_R2D_", 7))
+   {
+      fec = new ND_R2D_FECollection(atoi(name + 11), atoi(name + 7));
+   }
+   else if (!strncmp(name, "ND_R2D@", 7))
+   {
+      fec = new ND_R2D_FECollection(atoi(name + 14), atoi(name + 10),
+                                    BasisType::GetType(name[7]),
+                                    BasisType::GetType(name[8]));
    }
    else if (!strncmp(name, "ND_", 3))
    {
@@ -385,9 +425,6 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    {
       MFEM_ABORT("unknown FiniteElementCollection: " << name);
    }
-   MFEM_VERIFY(!strcmp(fec->Name(), name), "input name: \"" << name
-               << "\" does not match the created collection name: \""
-               << fec->Name() << '"');
 
    return fec;
 }
@@ -1884,7 +1921,6 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype,
          else
          {
             H1_dof[Geometry::PYRAMID] = (p-1)*(p-2)/2;
-            // H1_dof[Geometry::PYRAMID] = 0;
          }
          if (b_type == BasisType::Positive)
          {
@@ -1908,7 +1944,6 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype,
                H1_Elements[Geometry::PYRAMID] = new H1_FuentesPyramidElement(p, btype);
             }
          }
-         // H1_Elements[Geometry::PYRAMID] = new LinearPyramidFiniteElement;
 
          const int &TetDof = H1_dof[Geometry::TETRAHEDRON];
          TetDofOrd[0] = (TetDof > 0) ? new int[24*TetDof] : nullptr;
@@ -2007,19 +2042,6 @@ const FiniteElement *
 H1_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
    return H1_Elements[GeomType];
-   /*
-   if (GeomType != Geometry::PYRAMID || this->GetOrder() == 1)
-   {
-      return H1_Elements[GeomType];
-   }
-   else
-   {
-      if (error_mode == RETURN_NULL) { return nullptr; }
-      MFEM_ABORT("H1 Pyramid basis functions are not yet supported "
-                 "for order > 1.");
-      return NULL;
-   }
-   */
 }
 
 const int *H1_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
@@ -2270,7 +2292,6 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
             L2_Elements[Geometry::PYRAMID] = new L2_FuentesPyramidElement(p, btype);
          }
       }
-      // L2_Elements[Geometry::PYRAMID] = new P0PyrFiniteElement;
 
       L2_Elements[Geometry::TETRAHEDRON]->SetMapType(map_type);
       L2_Elements[Geometry::CUBE]->SetMapType(map_type);
@@ -2406,19 +2427,6 @@ const FiniteElement *
 L2_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
    return L2_Elements[GeomType];
-   /*
-   if (GeomType != Geometry::PYRAMID || this->GetOrder() == 0)
-   {
-      return L2_Elements[GeomType];
-   }
-   else
-   {
-      if (error_mode == RETURN_NULL) { return nullptr; }
-      MFEM_ABORT("L2 Pyramid basis functions are not yet supported "
-                 "for order > 0.");
-      return NULL;
-   }
-   */
 }
 
 const int *L2_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
@@ -2472,8 +2480,7 @@ RT_FECollection::RT_FECollection(const int order, const int dim,
       const char *cb_name = BasisType::Name(cb_type); // this may abort
       MFEM_ABORT("unknown closed BasisType: " << cb_name);
    }
-   if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid &&
-       ob_type != BasisType::IntegratedGLL)
+   if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid)
    {
       const char *ob_name = BasisType::Name(ob_type); // this may abort
       MFEM_ABORT("unknown open BasisType: " << ob_name);
@@ -2516,7 +2523,6 @@ RT_FECollection::RT_FECollection(const int order, const int dim,
       RT_Elements[Geometry::PRISM] = new RT_WedgeElement(p);
       RT_dof[Geometry::PRISM] = p*pp1*(3*p + 4)/2;
 
-      // RT_Elements[Geometry::PYRAMID] = new RT0PyrFiniteElement(false);
       RT_Elements[Geometry::PYRAMID] = new RT_FuentesPyramidElement(p);
       RT_dof[Geometry::PYRAMID] = 3*p*pp1*pp1;
    }
@@ -2532,6 +2538,7 @@ RT_FECollection::RT_FECollection(const int p, const int dim,
                                  const int map_type, const bool signs,
                                  const int ob_type)
    : FiniteElementCollection(p + 1)
+   , dim(dim)
    , ob_type(ob_type)
 {
    if (Quadrature1D::CheckOpen(BasisType::GetQuadrature1D(ob_type)) ==
@@ -2665,19 +2672,6 @@ void RT_FECollection::InitFaces(const int p, const int dim_,
 const FiniteElement *
 RT_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
-   /*
-    if (GeomType != Geometry::PYRAMID || this->GetOrder() == 1)
-    {
-       return RT_Elements[GeomType];
-    }
-    else
-    {
-       if (error_mode == RETURN_NULL) { return nullptr; }
-       MFEM_ABORT("RT Pyramid basis functions are not yet supported "
-                  "for order > 0.");
-       return NULL;
-    }
-   */
    return RT_Elements[GeomType];
 }
 
@@ -2813,8 +2807,7 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
    int cp_type = BasisType::GetQuadrature1D(cb_type);
 
    // Error checking
-   if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid &&
-       ob_type != BasisType::IntegratedGLL)
+   if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid)
    {
       const char *ob_name = BasisType::Name(ob_type);
       MFEM_ABORT("Invalid open basis point type: " << ob_name);
@@ -2946,8 +2939,6 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
       ND_Elements[Geometry::PRISM] = new ND_WedgeElement(p);
       ND_dof[Geometry::PRISM] = p*pm1*(3*p-4)/2;
 
-      // ND_Elements[Geometry::PYRAMID] = new Nedelec1PyrFiniteElement;
-      // ND_dof[Geometry::PYRAMID] = 0;
       ND_Elements[Geometry::PYRAMID] = new ND_FuentesPyramidElement(p);
       ND_dof[Geometry::PYRAMID] = 3*p*pm1*pm1;
    }
@@ -2956,19 +2947,6 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
 const FiniteElement *
 ND_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
-   /*
-    if (GeomType != Geometry::PYRAMID || this->GetOrder() == 1)
-    {
-       return ND_Elements[GeomType];
-    }
-    else
-    {
-       if (error_mode == RETURN_NULL) { return nullptr; }
-       MFEM_ABORT("ND Pyramid basis functions are not yet supported "
-                  "for order > 1.");
-       return NULL;
-    }
-   */
    return ND_Elements[GeomType];
 }
 

@@ -1094,6 +1094,7 @@ L2_BergotPyramidElement::L2_BergotPyramidElement(const int p, const int btype)
    Vector shape_x(p + 1);
    Vector shape_y(p + 1);
    Vector shape_z(p + 1);
+   Vector dshape_z_dt(p + 1);
 #endif
 
    int o = 0;
@@ -1199,6 +1200,7 @@ void L2_BergotPyramidElement::CalcDShape(const IntegrationPoint &ip,
    Vector dshape_x(p + 1);
    Vector dshape_y(p + 1);
    Vector dshape_z(p + 1);
+   Vector dshape_z_dt(p + 1);
    DenseMatrix du(dof, dim);
 #endif
 

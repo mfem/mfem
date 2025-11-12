@@ -41,6 +41,7 @@ TEST_CASE("Quadrature Function Coefficients",
    {
       int nelems = quadf_coeff.Size() / quadf_coeff.GetVDim() / ir.GetNPoints();
       int vdim = ir.GetNPoints();
+      geom_facts->X.HostRead();
 
       for (int i = 0; i < nelems; i++)
       {
@@ -154,7 +155,7 @@ TEST_CASE("Quadrature Function Coefficients",
    }
 }
 
-TEST_CASE("Quadrature Function Integration", "[QuadratureFunction][CUDA]")
+TEST_CASE("Quadrature Function Integration", "[QuadratureFunction][GPU]")
 {
    auto fname = GENERATE(
                    "../../data/star.mesh",

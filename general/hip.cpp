@@ -24,7 +24,7 @@ void mfem_hip_error(hipError_t err, const char *expr, const char *func,
                     const char *file, int line)
 {
    mfem::err << "\n\nHIP error: (" << expr << ") failed with error:\n --> "
-             << hipGetErrorString(err)
+             << hipGetErrorString(err) << " [code: " << (int)err << ']'
              << "\n ... in function: " << func
              << "\n ... in file: " << file << ':' << line << '\n';
    mfem_error();

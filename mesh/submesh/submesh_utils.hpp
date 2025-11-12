@@ -180,7 +180,7 @@ bool HasAttribute(const T &el, const Array<int> &attributes)
 }
 
 /**
- * @brief Forwarding dispatch to HasAttribute for backwards compatability
+ * @brief Forwarding dispatch to HasAttribute for backwards compatibility
  *
  * @param el Instance of T, requires method `GetAttribute()`
  * @param attributes Set of attributes to match against

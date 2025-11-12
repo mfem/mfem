@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -66,19 +66,16 @@ Mesh MakeElementMesh(Geometry::Type type, real_t * vertices)
    {
       dim = 1;
       sdim = 1;
-      bdr_type = Geometry::POINT;
    }
    else if (type >= Geometry::TRIANGLE && type <= Geometry::SQUARE)
    {
       dim = 2;
       sdim = 2;
-      bdr_type = Geometry::SEGMENT;
    }
    else if (type >= Geometry::TETRAHEDRON)
    {
       dim = 3;
       sdim = 3;
-      bdr_type = Geometry::TRIANGLE;
    }
 
    Mesh mesh(vertices, nvert, &el_inds[0], type, &el_attr[0], 1, NULL,
@@ -803,6 +800,8 @@ public:
    void SetDoF(int dof) { dofs = 0.0; dofs(dof) = 1.0; }
    int GetNDoF() const { return ndof; }
 
+   using VectorCoefficient::Eval;
+
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip2d)
    {
@@ -900,6 +899,8 @@ public:
 
    void SetDoF(int dof) { dofs = 0.0; dofs(dof) = 1.0; }
    int GetNDoF() const { return ndof; }
+
+   using VectorCoefficient::Eval;
 
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip2d)

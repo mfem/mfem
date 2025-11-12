@@ -286,11 +286,11 @@ int main (int argc, char *argv[])
       pmesh->PrintAsSerial(mesh_ofs);
    }
 
-   // 11. Store the starting (prior to the optimization) positions.
+   // Store the starting (prior to the optimization) positions.
    ParGridFunction x0(pfespace);
    x0 = x;
 
-   // 12. Form the integrator that uses the chosen metric and target.
+   // Form the integrator that uses the chosen metric and target.
    TMOP_QualityMetric *metric = NULL;
    switch (metric_id)
    {
@@ -484,7 +484,7 @@ int main (int argc, char *argv[])
          }
       }
 
-      // Set material gridfunction
+      // Set material grid function
       for (int i = 0; i < pmesh->GetNE(); i++)
       {
          if (material)

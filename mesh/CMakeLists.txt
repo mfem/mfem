@@ -20,6 +20,7 @@ set(SRCS
   mesh_operators.cpp
   mesh_readers.cpp
   ncmesh.cpp
+  ncnurbs.cpp
   nurbs.cpp
   point.cpp
   pyramid.cpp
@@ -30,6 +31,7 @@ set(SRCS
   triangle.cpp
   vertex.cpp
   vtk.cpp
+  vtkhdf.cpp
   wedge.cpp
   submesh/submesh.cpp
   submesh/ncsubmesh.cpp
@@ -47,6 +49,7 @@ set(HDRS
   mesh_headers.hpp
   mesh_operators.hpp
   ncmesh.hpp
+  ncnurbs.hpp
   nurbs.hpp
   point.hpp
   pyramid.hpp
@@ -58,6 +61,7 @@ set(HDRS
   triangle.hpp
   vertex.hpp
   vtk.hpp
+  vtkhdf.hpp
   wedge.hpp
   submesh/ncsubmesh.hpp
   submesh/submesh.hpp

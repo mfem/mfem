@@ -18,7 +18,7 @@ namespace mfem
 
 #ifdef MFEM_USE_MPI
 
-TEST_CASE("HypreParMatrixWrapConstructors-SyncChecks", "[Parallel], [CUDA]")
+TEST_CASE("HypreParMatrixWrapConstructors-SyncChecks", "[Parallel], [GPU]")
 {
    const int dim = 2;
    const int n1d = 6;

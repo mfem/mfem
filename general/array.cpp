@@ -15,6 +15,7 @@
 #include "array.hpp"
 #include "../general/forall.hpp"
 #include <fstream>
+#include <type_traits>
 
 namespace mfem
 {
@@ -110,6 +111,19 @@ void Array<T>::PartialSum()
    }
 }
 
+template <class T>
+void Array<T>::Abs()
+{
+   static_assert(std::is_arithmetic<T>::value, "Use with arithmetic types!");
+   const bool useDevice = UseDevice();
+   const int N = size;
+   auto y = ReadWrite(useDevice);
+   mfem::forall_switch(useDevice, N, [=] MFEM_HOST_DEVICE (int i)
+   {
+      y[i] = std::abs(y[i]);
+   });
+}
+
 // Sum
 template <class T>
 T Array<T>::Sum() const
@@ -140,6 +154,21 @@ int Array<T>::IsSorted() const
    return 1;
 }
 
+template <class T>
+bool Array<T>::IsConstant() const
+{
+   if (size < 2) { return true; }
+   const T v0 = data[0];
+   for (int i = 1; i < size; i++)
+   {
+      if (data[i] != v0)
+      {
+         return false;
+      }
+   }
+
+   return true;
+}
 
 template <class T>
 void Array2D<T>::Load(const char *filename, int fmt)

@@ -153,6 +153,9 @@ public:
    /// Matrix vector multiplication.
    void Mult(const Vector &x, Vector &y) const override;
 
+   /// Absolute-value matrix vector multiplication.
+   void AbsMult(const Vector &x, Vector &y) const override;
+
    /// Multiply a vector with the transpose matrix.
    void MultTranspose(const real_t *x, real_t *y) const;
 
@@ -164,6 +167,9 @@ public:
 
    /// Multiply a vector with the transpose matrix.
    void MultTranspose(const Vector &x, Vector &y) const override;
+
+   /// Multiply a vector with the absolute-value transpose matrix.
+   void AbsMultTranspose(const Vector &x, Vector &y) const override;
 
    using Operator::Mult;
    using Operator::MultTranspose;
@@ -672,11 +678,7 @@ class LUFactors : public Factors
 {
 public:
    int *ipiv;
-#ifdef MFEM_USE_LAPACK
-   static const int ipiv_base = 1;
-#else
-   static const int ipiv_base = 0;
-#endif
+   static constexpr int ipiv_base = 1;
 
    /** With this constructor, the (public) data and ipiv members should be set
        explicitly before calling class methods. */
@@ -1210,16 +1212,26 @@ public:
 
    DenseMatrix &operator()(int k)
    {
-      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
-      Mk.data = Memory<real_t>(GetData(k), SizeI()*SizeJ(), false);
-      return Mk;
+      return operator()(k, Mk);
    }
    const DenseMatrix &operator()(int k) const
    {
+      return operator()(k, Mk);
+   }
+   DenseMatrix &operator()(int k, DenseMatrix& buff)
+   {
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
-      Mk.data = Memory<real_t>(const_cast<real_t*>(GetData(k)), SizeI()*SizeJ(),
-                               false);
-      return Mk;
+      buff.UseExternalData(nullptr, SizeI(), SizeJ());
+      buff.data = Memory<real_t>(GetData(k), SizeI()*SizeJ(), false);
+      return buff;
+   }
+   const DenseMatrix &operator()(int k, DenseMatrix& buff) const
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      buff.UseExternalData(nullptr, SizeI(), SizeJ());
+      buff.data = Memory<real_t>(const_cast<real_t*>(GetData(k)), SizeI()*SizeJ(),
+                                 false);
+      return buff;
    }
 
    real_t &operator()(int i, int j, int k)
@@ -1323,6 +1335,12 @@ void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const real_t TOL = 0.0);
     dimension m x n. */
 void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X);
 
+#ifdef MFEM_USE_LAPACK
+void BandedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
+                 Array<int> &ipiv);
+void BandedFactorizedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
+                           bool transpose, Array<int> &ipiv);
+#endif
 
 // Inline methods
 

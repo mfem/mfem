@@ -250,6 +250,7 @@ int main(int argc, char *argv[])
       cout << "LOR -> HO dual field: " << abs(M_rho.Sum() - M_rho_lor.Sum()) << '\n';
    }
 
+   delete gt;
    delete fec;
    delete fec_lor;
 

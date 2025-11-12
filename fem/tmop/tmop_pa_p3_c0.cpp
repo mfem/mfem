@@ -171,12 +171,12 @@ void TMOP_Integrator::AddMultPA_C0_3D(const Vector &X, Vector &Y) const
    const Array<real_t> &BLD = PA.maps_lim->B;
    MFEM_VERIFY(PA.maps_lim->ndof == D1D, "");
    MFEM_VERIFY(PA.maps_lim->nqpt == Q1D, "");
-   const Vector &X0 = PA.X0;
+   const Vector &XL = PA.XL;
    const Vector &C0 = PA.C0;
    auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
    const bool exp_lim = (el) ? true : false;
 
-   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_C0_3D,id,ln,LD,C0,N,J,W,B,BLD,X0,X,Y,
+   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_C0_3D,id,ln,LD,C0,N,J,W,B,BLD,XL,X,Y,
                            exp_lim);
 }
 

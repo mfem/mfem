@@ -212,14 +212,14 @@ int main(int argc, char *argv[])
    delete mesh;
 
    // Setup pointer for FESpaces, GridFunctions, and Solvers
-   H1_FECollection *fec_s            = NULL; //FECollection for solid
-   ParFiniteElementSpace *fes_s      = NULL; //FESpace for solid
-   ParFiniteElementSpace *adv_fes_s  = NULL; //FESpace for advection in solid
-   ParGridFunction *u_gf             = NULL; //Velocity solution on both meshes
-   ParGridFunction *t_gf             = NULL; //Temperature solution
-   NavierSolver *flowsolver          = NULL; //Fluid solver
-   ConductionOperator *coper         = NULL; //Temperature solver
-   Vector t_tdof;                            //Temperature true-dof vector
+   H1_FECollection *fec_s            = NULL; // FECollection for solid
+   ParFiniteElementSpace *fes_s      = NULL; // FESpace for solid
+   ParFiniteElementSpace *adv_fes_s  = NULL; // FESpace for advection in solid
+   ParGridFunction *u_gf             = NULL; // Velocity solution on both meshes
+   ParGridFunction *t_gf             = NULL; // Temperature solution
+   NavierSolver *flowsolver          = NULL; // Fluid solver
+   ConductionOperator *coper         = NULL; // Temperature solver
+   Vector t_tdof;                            // Temperature true-dof vector
 
    real_t t       = 0,
           dt      = schwarz.dt,
@@ -287,7 +287,7 @@ int main(int argc, char *argv[])
       t_gf->SetTrueVector();
       t_gf->GetTrueDofs(t_tdof);
 
-      // Create a list of points for the interior where the gridfunction will
+      // Create a list of points for the interior where the grid function will
       // be interpolate from the fluid mesh
       vxyz = *pmesh->GetNodes();
    }
@@ -308,7 +308,7 @@ int main(int argc, char *argv[])
 
    // Interpolate velocity solution on both meshes. Since the velocity solution
    // does not exist on the temperature mesh, it just passes in a dummy
-   // gridfunction that is not used in any way on the fluid mesh.
+   // grid function that is not used in any way on the fluid mesh.
    finder.Interpolate(vxyz, color_array, *u_gf, interp_vals);
 
    // Transfer the interpolated solution to solid mesh and setup a coefficient.
@@ -461,7 +461,7 @@ void ConductionOperator::Mult(const Vector &u, Vector &du_dt) const
 
    Kmat.Mult(u, z);
    z.Neg(); // z = -z
-   K->EliminateVDofsInRHS(ess_tdof_list, u, z);
+   K->ParallelEliminateTDofsInRHS(ess_tdof_list, u, z);
 
    M_solver.Mult(z, du_dt);
    du_dt.Print();
@@ -483,7 +483,7 @@ void ConductionOperator::ImplicitSolve(const real_t dt,
    MFEM_VERIFY(dt == current_dt, ""); // SDIRK methods use the same dt
    Kmat.Mult(u, z);
    z.Neg();
-   K->EliminateVDofsInRHS(ess_tdof_list, u, z);
+   K->ParallelEliminateTDofsInRHS(ess_tdof_list, u, z);
 
    T_solver.Mult(z, du_dt);
    du_dt.SetSubVector(ess_tdof_list, 0.0);

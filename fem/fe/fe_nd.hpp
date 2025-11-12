@@ -416,6 +416,14 @@ public:
 };
 
 
+/** Arbitrary order H(Curl) basis functions defined on pyramid-shaped elements
+
+  This implementation is closely based on the finite elements
+  described in section 9.2 of the paper "Orientation embedded high
+  order shape functions for the exact sequence elements of all shapes"
+  by Federico Fuentes, Brendan Keith, Leszek Demkowicz, and Sriram
+  Nagaraj, see https://doi.org/10.1016/j.camwa.2015.04.027.
+ */
 class ND_FuentesPyramidElement
    : public VectorFiniteElement, public FuentesPyramid
 {

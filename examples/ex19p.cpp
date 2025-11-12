@@ -73,7 +73,7 @@ private:
 void GeneralResidualMonitor::MonitorResidual(int it, real_t norm,
                                              const Vector &r, bool final)
 {
-   if (print_level == 1 || (print_level == 3 && (final || it == 0)))
+   if ((print_level == 1 && !final) || (print_level == 3 && (final || it == 0)))
    {
       mfem::out << prefix << " iteration " << setw(2) << it
                 << " : ||r|| = " << norm;

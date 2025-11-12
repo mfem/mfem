@@ -10,7 +10,7 @@
 # CONTRIBUTING.md for details.
 
 # The current MFEM version as an integer, see also `CMakeLists.txt`.
-MFEM_VERSION = 40701
+MFEM_VERSION = 40801
 MFEM_VERSION_STRING = $(shell printf "%06d" $(MFEM_VERSION) | \
   sed -e 's/^0*\(.*.\)\(..\)\(..\)$$/\1.\2.\3/' -e 's/\.0/./g' -e 's/\.0$$//')
 
@@ -124,12 +124,12 @@ EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
 MINIAPP_SUBDIRS = common electromagnetics meshing navier performance tools \
- toys nurbs gslib adjoint solvers shifted mtop parelag tribol autodiff hooke \
- multidomain dpg hdiv-linear-solver spde
+ toys nurbs gslib adjoint solvers shifted mtop parelag tribol autodiff dfem \
+ hooke multidomain dpg hdiv-linear-solver spde diag-smoothers
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
 MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics meshing tools \
- toys shifted dpg)
+ toys shifted dpg diag-smoothers)
 
 EM_DIRS = $(EXAMPLE_DIRS) $(MINIAPP_DIRS)
 
@@ -243,10 +243,23 @@ endif
 
 ifeq ($(MFEM_USE_CUDA),YES)
    MFEM_CXX ?= $(CUDA_CXX)
-   MFEM_HOST_CXX ?= $(HOST_CXX)
-   CXXFLAGS += $(CUDA_FLAGS) -ccbin $(MFEM_HOST_CXX)
-   XCOMPILER = $(CUDA_XCOMPILER)
-   XLINKER   = $(CUDA_XLINKER)
+   ifeq ($(shell $(MFEM_CXX) --version 2>&1 | grep "NVIDIA"),)
+      # assume clang
+      MFEM_HOST_CXX ?= $(MFEM_CXX)
+      CXXFLAGS += $(CLANG_CUDA_FLAGS)
+      XCOMPILER = $(CXX_XCOMPILER)
+      XLINKER   = $(CXX_XLINKER)
+      CUDA_LIB := $(CLANG_CUDA_LIB) $(CUDA_LIB)
+   else
+      ifeq ($(MFEM_USE_ENZYME),YES)
+         $(error Cannot use nvcc with Enzyme! Set CUDA_CXX to CUDA-enabled \
+                 clang++ or an MPI wrapper of that)
+      endif
+      MFEM_HOST_CXX ?= $(HOST_CXX)
+      CXXFLAGS += $(NVCC_FLAGS) -ccbin $(MFEM_HOST_CXX)
+      XCOMPILER = $(CUDA_XCOMPILER)
+      XLINKER   = $(CUDA_XLINKER)
+   endif
    # CUDA_OPT and CUDA_LIB are added below
    # Compatibility test against MFEM_USE_HIP
    ifeq ($(MFEM_USE_HIP),YES)
@@ -285,8 +298,8 @@ ifeq ($(MFEM_USE_LEGACY_OPENMP),YES)
 endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
-MFEM_REQ_LIB_DEPS = ENZYME SUPERLU MUMPS METIS FMS CONDUIT SIDRE LAPACK SUNDIALS\
- SUITESPARSE STRUMPACK GINKGO GNUTLS NETCDF SLEPC PETSC MPFR PUMI HIOP\
+MFEM_REQ_LIB_DEPS = SUPERLU MUMPS METIS FMS CONDUIT SIDRE LAPACK SUNDIALS\
+ SUITESPARSE STRUMPACK GINKGO GNUTLS HDF5 NETCDF SLEPC PETSC MPFR PUMI HIOP\
  GSLIB OCCA CEED RAJA UMPIRE MKL_CPARDISO MKL_PARDISO AMGX MAGMA CALIPER PARELAG\
  TRIBOL BENCHMARK MOONOLITH ALGOIM
 
@@ -307,7 +320,7 @@ ifeq ($(MAKECMDGOALS),config)
 endif
 
 # List of MFEM dependencies, processed below
-MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP CUDA HIP
+MFEM_DEPENDENCIES = ENZYME $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP CUDA HIP
 
 # List of deprecated MFEM dependencies, processed below
 MFEM_LEGACY_DEPENDENCIES = OPENMP
@@ -350,7 +363,7 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE MFEM_USE_OPENMP\
  MFEM_USE_LEGACY_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS\
  MFEM_USE_SUITESPARSE MFEM_USE_GINKGO MFEM_USE_SUPERLU MFEM_USE_SUPERLU5\
- MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC\
+ MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_HDF5 MFEM_USE_NETCDF MFEM_USE_PETSC\
  MFEM_USE_SLEPC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_FMS MFEM_USE_CONDUIT\
  MFEM_USE_PUMI MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_CUDA MFEM_USE_HIP\
  MFEM_USE_OCCA MFEM_USE_MOONOLITH MFEM_USE_CEED MFEM_USE_RAJA MFEM_USE_UMPIRE\
@@ -364,7 +377,7 @@ MFEM_CONFIG_VARS = MFEM_CXX MFEM_HOST_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS\
  MFEM_INC_DIR MFEM_TPLFLAGS MFEM_INCFLAGS MFEM_PICFLAG MFEM_FLAGS MFEM_LIB_DIR\
  MFEM_EXT_LIBS MFEM_LIBS MFEM_LIB_FILE MFEM_STATIC MFEM_SHARED MFEM_BUILD_TAG\
  MFEM_PREFIX MFEM_CONFIG_EXTRA MFEM_MPIEXEC MFEM_MPIEXEC_NP MFEM_MPI_NP\
- MFEM_TEST_MK
+ MFEM_TEST_MK MFEM_XLINKER
 
 # Config vars: values of the form @VAL@ are replaced by $(VAL) in config.mk
 MFEM_CPPFLAGS  ?= $(CPPFLAGS)
@@ -377,11 +390,11 @@ MFEM_EXT_LIBS  ?= $(ALL_LIBS) $(LDFLAGS) $(LDFLAGS_INTERNAL)
 MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
    @MFEM_EXT_LIBS@
 MFEM_LIB_FILE  ?= @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
-MFEM_LIBE_FILE ?= @MFEM_LIB_DIR@/libmfem-extras.$(if $(shared),$(SO_VER),a)
 MFEM_BUILD_TAG ?= $(shell uname -snm)
 MFEM_PREFIX    ?= $(PREFIX)
 MFEM_INC_DIR   ?= $(if $(CONFIG_FILE_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
 MFEM_LIB_DIR   ?= $(if $(CONFIG_FILE_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
+MFEM_XLINKER   ?= $(XLINKER)
 MFEM_TEST_MK   ?= @MFEM_DIR@/config/test.mk
 # Use "\n" (interpreted by sed) to add a newline.
 MFEM_CONFIG_EXTRA ?= $(if $(CONFIG_FILE_DEF),MFEM_BUILD_DIR ?= @MFEM_DIR@,)
@@ -411,7 +424,6 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
    MFEM_LIBS     = $(if $(shared),$(INSTALL_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
       @MFEM_EXT_LIBS@
    MFEM_LIB_FILE = @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
-   MFEM_LIBE_FILE = @MFEM_LIB_DIR@/libmfem-extras.$(if $(shared),$(SO_VER),a)
    ifeq ($(MFEM_USE_OCCA),YES)
       ifneq ($(MFEM_INSTALL_DIR),$(abspath $(PREFIX)))
          $(error OCCA is enabled: PREFIX must be set during configuration!)
@@ -427,11 +439,11 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # Source dirs in logical order
-DIRS = general linalg linalg/simd linalg/batched mesh mesh/submesh fem \
-       fem/ceed/interface fem/ceed/integrators/mass \
-       fem/ceed/integrators/convection fem/ceed/integrators/diffusion \
-       fem/ceed/integrators/nlconvection fem/ceed/solvers fem/fe fem/lor \
-       fem/qinterp fem/integ fem/tmop fem/gslib
+DIRS = general linalg linalg/batched linalg/simd mesh mesh/submesh fem \
+       fem/ceed/integrators/mass fem/ceed/integrators/convection \
+       fem/ceed/integrators/diffusion fem/ceed/integrators/nlconvection \
+       fem/ceed/interface fem/ceed/solvers fem/eltrans fem/fe fem/gslib \
+       fem/integ fem/lor fem/moonolith fem/qinterp fem/tmop fem/dfem
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)
@@ -445,14 +457,9 @@ RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 OKL_DIRS = fem
 
-EXTRA_DIRS = miniapps/common
-EXTRA_SOURCE_FILES = $(foreach dir,$(EXTRA_DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
-EXTRA_RELSRC_FILES = $(patsubst $(SRC)%,%,$(EXTRA_SOURCE_FILES))
-EXTRA_OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(EXTRA_SOURCE_FILES:.cpp=.o))
-
-.PHONY: lib all clean distclean install config status info deps serial parallel\
-	debug pdebug cuda hip pcuda cudebug pcudebug hpc style check test\
-	unittest deprecation-warnings
+.PHONY: lib all clean distclean install config status info deps serial parallel	\
+	debug pdebug cuda hip pcuda cudebug pcudebug hpc style check test unittest \
+	deprecation-warnings
 
 .SUFFIXES:
 .SUFFIXES: .cpp .o
@@ -463,8 +470,6 @@ EXTRA_OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(EXTRA_SOURCE_FILES:.cpp=.o))
 
 # Default rule.
 lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
-lib-extras: $(if $(static),$(BLD)libmfem-extras.a) \
-        $(if $(shared),$(BLD)libmfem-extras.$(SO_EXT))
 
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
@@ -473,9 +478,6 @@ MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
 # Rules for compiling all source files.
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
-
-$(EXTRA_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
 
 all: examples miniapps $(TEST_DIRS)
 
@@ -500,22 +502,11 @@ $(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER)
 	cd $(@D) && ln -sf $(<F) $(@F)
 	@$(MAKE) deprecation-warnings
 
-$(BLD)libmfem-extras.a: $(EXTRA_OBJECT_FILES)
-	$(AR) $(ARFLAGS) $(@) $(EXTRA_OBJECT_FILES)
-	$(RANLIB) $(@)
-
-$(BLD)libmfem-extras.$(SO_EXT): $(BLD)libmfem-extras.$(SO_VER)
-	cd $(@D) && ln -sf $(<F) $(@F)
-
 # If some of the external libraries are build without -fPIC, linking shared MFEM
 # library may fail. In such cases, one may set EXT_LIBS on the command line.
 EXT_LIBS = $(MFEM_EXT_LIBS)
 $(BLD)libmfem.$(SO_VER): $(OBJECT_FILES)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $(BUILD_SOFLAGS) $(OBJECT_FILES) \
-	   $(EXT_LIBS) -o $(@)
-
-$(BLD)libmfem-extras.$(SO_VER): $(EXTRA_OBJECT_FILES)
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(BUILD_SOFLAGS) $(EXTRA_OBJECT_FILES) \
 	   $(EXT_LIBS) -o $(@)
 
 # Shortcut targets options
@@ -748,6 +739,7 @@ status info:
 	$(info MFEM_USE_AMGX          = $(MFEM_USE_AMGX))
 	$(info MFEM_USE_MAGMA         = $(MFEM_USE_MAGMA))
 	$(info MFEM_USE_GNUTLS        = $(MFEM_USE_GNUTLS))
+	$(info MFEM_USE_HDF5          = $(MFEM_USE_HDF5))
 	$(info MFEM_USE_NETCDF        = $(MFEM_USE_NETCDF))
 	$(info MFEM_USE_PETSC         = $(MFEM_USE_PETSC))
 	$(info MFEM_USE_SLEPC         = $(MFEM_USE_SLEPC))
