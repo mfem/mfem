@@ -333,6 +333,12 @@ void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
    int nel_ho = mesh_ho->GetNE();
    int nel_lor = mesh_lor->GetNE();
 
+   if (nel_ho == 0)
+   {
+      M_LH.SetSize(0);
+      return;
+   }
+
    const CoarseFineTransformations& cf_tr = mesh_lor->GetRefinementTransforms();
 
    int nref_max = 0;
@@ -1244,13 +1250,6 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space
    int ndof_ho = pfes_ho.GetNDofs();
    int ndof_lor = pfes_lor.GetNDofs();
 
-
-   // If the local mesh is empty, skip all computations
-   if (nel_ho == 0)
-   {
-      return;
-   }
-
    const CoarseFineTransformations& cf_tr = mesh_lor->GetRefinementTransforms();
 
    int nref_max = 0;
@@ -1860,6 +1859,11 @@ L2ProjectionGridTransfer::H1SpaceMixedMassOperator::H1SpaceMixedMassOperator(
 void L2ProjectionGridTransfer::H1SpaceMixedMassOperator::Mult(const Vector &x,
                                                               Vector &y) const
 {
+   if (fes_ho->GetNE() == 0)
+   {
+      return;
+   }
+
    const Operator* elem_restrict_ho = fes_ho->GetElementRestriction(
                                          ElementDofOrdering::NATIVE);
    const Operator* elem_restrict_lor = fes_lor->GetElementRestriction(
@@ -1906,6 +1910,11 @@ void L2ProjectionGridTransfer::H1SpaceMixedMassOperator::Mult(const Vector &x,
 void L2ProjectionGridTransfer::H1SpaceMixedMassOperator::MultTranspose(
    const Vector &x, Vector &y) const
 {
+   if (fes_ho->GetNE() == 0)
+   {
+      return;
+   }
+
    const Operator* elem_restrict_ho = fes_ho->GetElementRestriction(
                                          ElementDofOrdering::NATIVE);
    const Operator* elem_restrict_lor = fes_lor->GetElementRestriction(
