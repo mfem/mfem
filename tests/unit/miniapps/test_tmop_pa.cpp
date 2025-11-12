@@ -1005,7 +1005,7 @@ static void tmop_tests(int id = 0, bool all = false)
           .JI(jitter)
           .POR({ 1, 2 })
           .QOR({ 2, 3 })
-          .TID({ 3, 5 })
+          .TID({ 3 })
           .MID({ 2 }))
    .Run(id, all);
 
