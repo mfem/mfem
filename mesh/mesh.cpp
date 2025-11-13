@@ -5622,7 +5622,7 @@ Array<int> Mesh::MakeSimplicial_(const Mesh &orig_mesh, int *vglobal)
    NumOfVertices = nv;
    for (int i=0; i<nv; ++i)
    {
-      vertices[i].SetCoords(dim, orig_mesh.vertices[i]());
+      vertices[i].SetCoords(sdim, orig_mesh.vertices[i]());
    }
 
    // We need a global vertex numbering to identify which diagonals to split
@@ -6000,17 +6000,17 @@ void Mesh::MakeHigherOrderSimplicial_(const Mesh &orig_mesh,
                   child_nodes_in_parent[0].x +
                   simplex_node.x * (child_nodes_in_parent[1].x - child_nodes_in_parent[0].x)
                   + simplex_node.y * (child_nodes_in_parent[2].x - child_nodes_in_parent[0].x)
-                  + simplex_node.z * (child_nodes_in_parent[(sdim > 2) ? 3 : 0].x -
+                  + simplex_node.z * (child_nodes_in_parent[(Dim > 2) ? 3 : 0].x -
                                       child_nodes_in_parent[0].x),
                   child_nodes_in_parent[0].y +
                   simplex_node.x * (child_nodes_in_parent[1].y - child_nodes_in_parent[0].y)
                   + simplex_node.y * (child_nodes_in_parent[2].y - child_nodes_in_parent[0].y)
-                  + simplex_node.z * (child_nodes_in_parent[(sdim > 2) ? 3 : 0].y -
+                  + simplex_node.z * (child_nodes_in_parent[(Dim > 2) ? 3 : 0].y -
                                       child_nodes_in_parent[0].y),
                   child_nodes_in_parent[0].z +
                   simplex_node.x * (child_nodes_in_parent[1].z - child_nodes_in_parent[0].z)
                   + simplex_node.y * (child_nodes_in_parent[2].z - child_nodes_in_parent[0].z)
-                  + simplex_node.z * (child_nodes_in_parent[(sdim > 2) ? 3 : 0].z -
+                  + simplex_node.z * (child_nodes_in_parent[(Dim > 2) ? 3 : 0].z -
                                       child_nodes_in_parent[0].z));
                shape.GetColumnReference(j, col);
                orig_FE->CalcShape(simplex_node_in_orig, col);
