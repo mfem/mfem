@@ -82,7 +82,7 @@ Linear and nonlinear solvers
   where a solver performs well except in small subspaces, by adding a filtering step 
   formulated as a subspace correction.
 - Added `AMGFSolver`: a derived class of `FilteredSolver`, specialized for 
-  AMG with Filtering (AMGF),   providing robust preconditioning for linear systems 
+  AMG with Filtering (AMGF), providing robust preconditioning for linear systems 
   arising in constrained optimization problems such as frictionless contact.
 
 New and updated examples and miniapps
