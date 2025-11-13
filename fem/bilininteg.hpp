@@ -3540,7 +3540,8 @@ public:
     - $\sigma = +1$, $\kappa > 0$: non-symmetric interior penalty (NIPG) method,
     - $\sigma = +1$, $\kappa = 0$: the method of Baumann and Oden.
 
-    \todo Clarify used notation. */
+    \todo Clarify used notation
+    \todo Please add clarification also to VectorFEDGDiffusionIntegrator */
 class DGDiffusionIntegrator : public BilinearFormIntegrator
 {
 protected:
@@ -3614,14 +3615,13 @@ private:
         + \kappa \langle \{h^{-1} Q\} [u], [v] \rangle
     $$
     where $Q$ is a scalar or matrix diffusion coefficient and $u$, $v$ are the trial
-    and test spaces, respectively. The parameters $\sigma$ and $\kappa$ determine the
+    and test spaces, respectively.  These spaces are defined using vector-valued
+    finite elements. The parameters $\sigma$ and $\kappa$ determine the
     DG method to be used (when this integrator is added to the "broken"
     DiffusionIntegrator):
     - $\sigma = -1$, $\kappa \geq \kappa_0$: symm. interior penalty (IP or SIPG) method,
     - $\sigma = +1$, $\kappa > 0$: non-symmetric interior penalty (NIPG) method,
-    - $\sigma = +1$, $\kappa = 0$: the method of Baumann and Oden.
-
-    \todo Clarify used notation. */
+    - $\sigma = +1$, $\kappa = 0$: the method of Baumann and Oden.*/
 class VectorFEDGDiffusionIntegrator : public BilinearFormIntegrator
 {
 protected:
@@ -3863,15 +3863,6 @@ public:
                            const FiniteElement &test_fe2,
                            FaceElementTransformations &Trans,
                            DenseMatrix &elmat) override;
-
-   void AssembleTraceFaceMatrix(int ielem,
-                                const FiniteElement &trial_face_fe,
-                                const FiniteElement &test_fe,
-                                FaceElementTransformations &Trans,
-                                DenseMatrix &elmat) override
-   {
-      AssembleFaceMatrix(trial_face_fe, test_fe, test_fe, Trans, elmat);
-   } ;
 
    using BilinearFormIntegrator::AssembleEAInteriorFaces;
    void AssembleEAInteriorFaces(const FiniteElementSpace &trial_fes,

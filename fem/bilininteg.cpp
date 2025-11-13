@@ -2875,9 +2875,9 @@ void VectorFEDiffusionIntegrator::AssembleElementMatrix(
    ElementTransformation &Trans,
    DenseMatrix &elmat)
 {
-   int dof = el.GetDof();
-   int spaceDim = Trans.GetSpaceDim();
-   int vdim = std::max(spaceDim, el.GetRangeDim());
+   const int dof = el.GetDof();
+   const int spaceDim = Trans.GetSpaceDim();
+   const int vdim = std::max(spaceDim, el.GetRangeDim());
 
    real_t w;
 
@@ -2950,11 +2950,11 @@ void VectorFEDiffusionIntegrator::AssembleElementMatrix2(
    ElementTransformation &Trans, DenseMatrix &elmat)
 {
    // assume both test_fe and trial_fe are vector FE
-   int spaceDim = Trans.GetSpaceDim();
-   int trial_vdim = std::max(spaceDim, trial_fe.GetRangeDim());
-   int test_vdim = std::max(spaceDim, test_fe.GetRangeDim());
-   int trial_dof = trial_fe.GetDof();
-   int test_dof = test_fe.GetDof();
+   const int spaceDim = Trans.GetSpaceDim();
+   const int trial_vdim = std::max(spaceDim, trial_fe.GetRangeDim());
+   const int test_vdim = std::max(spaceDim, test_fe.GetRangeDim());
+   const int trial_dof = trial_fe.GetDof();
+   const int test_dof = test_fe.GetDof();
    real_t w;
 
 #ifdef MFEM_THREAD_SAFE
@@ -4218,7 +4218,6 @@ void VectorFEDGDiffusionIntegrator::AssembleFaceMatrix(
       // Access the neighboring elements' integration points
       // Note: eip2 will only contain valid data if Elem2 exists
       const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
-      //const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
 
       if (dim == 1)
       {

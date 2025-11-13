@@ -179,7 +179,7 @@ void MeanZero(GridFunction &p_gf)
    p_gf -= integ / volume;
 }
 
-//! @class SadlePointLUPreconditioner
+//! @class SaddlePointLUPreconditioner
 /**
  * \brief A class to handle Block lower triangular preconditioners in a
  * matrix-free implementation.
@@ -203,7 +203,7 @@ void MeanZero(GridFunction &p_gf)
 *       P = [ K   0        ] [ I   K^-1 G ]
 *           [ D  -D K^-1 G ] [ 0   I      ]
 *
-* of the ubiquitous sadle point problem
+* of the ubiquitous Saddle point problem
 *
 *       A = [ K   G ]
 *           [ D   0 ]
@@ -217,7 +217,7 @@ void MeanZero(GridFunction &p_gf)
 *   where S is the schur complement S = D K^-1 G
 * - Use the method Mult()
 */
-class SadlePointLUPreconditioner : public Solver
+class SaddlePointLUPreconditioner : public Solver
 {
 public:
    //! Constructor for BlockLUPreconditioner%s with the same
@@ -229,7 +229,7 @@ public:
     *  @note BlockLUPreconditioner will not own/copy the data
     *  contained in @a offsets.
     */
-   SadlePointLUPreconditioner(const Array<int> & offsets_)
+   SaddlePointLUPreconditioner(const Array<int> & offsets_)
       : Solver(offsets_.Last()),
         nBlocks(offsets_.Size() - 1),
         offsets(0),
@@ -648,9 +648,10 @@ int main(int argc, char *argv[])
    ProductOperator S(D, &KiG, false, false);
 
    // Construct the exact Schur complement inverse operator
-   CGSolver invS;
+   GMRESSolver invS;
    invS.SetRelTol(schur_rtol);
    invS.SetMaxIter(schur_maxiter);
+   invS.SetKDim(schur_maxiter+100);
    if (schur_complement)
    {
       invS.SetOperator(S);
@@ -669,7 +670,7 @@ int main(int argc, char *argv[])
    //       P = [ K   0        ] [ I   K^-1 G ]
    //           [ D  -D K^-1 G ] [ 0   I      ]
    //
-   SadlePointLUPreconditioner stokesPrec(bOffsets);
+   SaddlePointLUPreconditioner stokesPrec(bOffsets);
 
    stokesPrec.SetBlock(0,0, invK);
    stokesPrec.SetBlock(0,1, G);

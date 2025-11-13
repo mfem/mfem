@@ -241,9 +241,9 @@ public:
                                ElementTransformation &Tr,
                                Vector &elvect) override;
 
-   void AssembleRHSElementVect(const FiniteElement &el,
-                               FaceElementTransformations &Tr,
-                               Vector &elvect) override;
+   //  void AssembleRHSElementVect(const FiniteElement &el,
+   //                              FaceElementTransformations &Tr,
+   //                              Vector &elvect) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
