@@ -74,9 +74,16 @@ MFEM_HOST_DEVICE void assemble_element_mat_t3d(
                {
                   for (int tod = 0; tod < test_op_dim; tod++)
                   {
-                     for (int qp = 0; qp < num_qp; qp++)
+                     MFEM_FOREACH_THREAD(qx, x, q1d)
                      {
-                        fhat(tv, tod, qp) = 0.0;
+                        MFEM_FOREACH_THREAD(qy, y, q1d)
+                        {
+                           MFEM_FOREACH_THREAD(qz, z, q1d)
+                           {
+                              const int q = qx + q1d * (qy + q1d * qz);
+                              fhat(tv, tod, q) = 0.0;
+                           }
+                        }
                      }
                   }
                }
@@ -237,9 +244,13 @@ MFEM_HOST_DEVICE void assemble_element_mat_t2d(
             {
                for (int tod = 0; tod < test_op_dim; tod++)
                {
-                  for (int qp = 0; qp < num_qp; qp++)
+                  MFEM_FOREACH_THREAD(qx, x, q1d)
                   {
-                     fhat(tv, tod, qp) = 0.0;
+                     MFEM_FOREACH_THREAD(qy, y, q1d)
+                     {
+                        const int q = qy + qx * q1d;
+                        fhat(tv, tod, q) = 0.0;
+                     }
                   }
                }
             }
