@@ -15,19 +15,27 @@
 #include "../config/config.hpp"
 #include "sparsemat.hpp"
 
+#include <memory>
+
 namespace mfem
 {
 
 class SparseSmoother : public MatrixInverse
 {
 protected:
-   const SparseMatrix *oper;
+   const SparseMatrix *oper = nullptr; ///< The underlying matrix.
+
+   /// Pointer to the transpose of the underlying matrix.
+   mutable const SparseMatrix *oper_T = nullptr;
+
+   mutable std::unique_ptr<SparseMatrix> At; ///< Transpose of A, if needed.
+
+   void EnsureTranspose() const; ///< Ensure that the transpose is set.
 
 public:
-   SparseSmoother() { oper = NULL; }
+   SparseSmoother() = default;
 
-   SparseSmoother(const SparseMatrix &a)
-      : MatrixInverse(a) { oper = &a; }
+   SparseSmoother(const SparseMatrix &a) : MatrixInverse(a) { SetOperator(a); }
 
    void SetOperator(const Operator &a) override;
 };
@@ -47,8 +55,11 @@ public:
    GSSmoother(const SparseMatrix &a, int t = 0, int it = 1)
       : SparseSmoother(a) { type = t; iterations = it; }
 
-   /// Matrix vector multiplication with GS Smoother.
+   /// Matrix vector multiplication with GS smoother.
    void Mult(const Vector &x, Vector &y) const override;
+
+   /// Matrix vector multiplication with the transpose of the GS smoother.
+   void MultTranspose(const Vector &x, Vector &y) const override;
 };
 
 /// Data type for scaled Jacobi-type smoother of sparse matrix
@@ -63,6 +74,9 @@ protected:
 
    mutable Vector z;
 
+   /// Matrix vector multiplication with Jacobi smoother.
+   void Mult_(const SparseMatrix &A, const Vector &x, Vector &y) const;
+
 public:
    /// Create Jacobi smoother.
    DSmoother(int t = 0, real_t s = 1., int it = 1)
@@ -76,6 +90,9 @@ public:
 
    /// Matrix vector multiplication with Jacobi smoother.
    void Mult(const Vector &x, Vector &y) const override;
+
+   /// Matrix vector multiplication with the transpose of the Jacobi smoother.
+   void MultTranspose(const Vector &x, Vector &y) const override;
 };
 
 }
