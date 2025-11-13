@@ -163,7 +163,8 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    if (!mesh->NURBSext)
    {
-      mfem_error("Gradient of vector shape functions only defined for NURBS elements.");
+      mfem_error("Gradient of vector shape functions "
+                 "only defined for NURBS elements.");
    }
    int dim = mesh->Dimension();
 
@@ -254,30 +255,38 @@ int main(int argc, char *argv[])
    real_t err_u  = u.ComputeL2Error(*ucoeff, irs);
    real_t norm_u = ComputeLpNorm(2., *ucoeff, *mesh, irs);
 
-   // 6. Allocate memory (x, rhs) for the analytical solution and the right hand
+   // 6. Allocate memory (x, rhs) for the analytical solution and right hand
    //    side.  Define the GridFunction u,p for the finite element solution and
    //    linear forms fform and gform for the right hand side.  The data
    //    allocated by x and rhs are passed as a reference to the grid functions
    //    (u,p) and the linear forms (fform, gform).
    Vector rhs(space.GetVSize(),mt);
 
-   LinearForm *fform(new LinearForm);
-   fform->Update(&space, rhs, 0);
-   fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(*fcoeff));
-   if (weakBC) { fform->AddBdrFaceIntegrator(new VectorFEDGDirichletLFIntegrator(*ucoeff, k_c, -1.0, penalty)); }
-   fform->Assemble();
-   fform->SyncAliasMemory(rhs);
+   LinearForm fform;
+   fform.Update(&space, rhs, 0);
+   fform.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*fcoeff));
+   if (weakBC)
+   {
+      fform.AddBdrFaceIntegrator(
+         new VectorFEDGDirichletLFIntegrator(*ucoeff, k_c, -1.0, penalty));
+   }
+   fform.Assemble();
+   fform.SyncAliasMemory(rhs);
 
    // 7. Assemble the finite element matrix for the diffusion operator
-   BilinearForm *kVarf(new BilinearForm(&space));
-   kVarf->AddDomainIntegrator(new VectorFEDiffusionIntegrator(k_c));
-   if (weakBC) { kVarf->AddBdrFaceIntegrator(new VectorFEDGDiffusionIntegrator(k_c, -1.0, penalty)); }
-   kVarf->Assemble();
-   if (!weakBC) { kVarf->EliminateEssentialBC(ess_bdr, u, *fform); }
-   kVarf->Finalize();
+   BilinearForm kVarf(&space);
+   kVarf.AddDomainIntegrator(new VectorFEDiffusionIntegrator(k_c));
+   if (weakBC)
+   {
+      kVarf.AddBdrFaceIntegrator(
+         new VectorFEDGDiffusionIntegrator(k_c, -1.0, penalty));
+   }
+   kVarf.Assemble();
+   if (!weakBC) { kVarf.EliminateEssentialBC(ess_bdr, u, fform); }
+   kVarf.Finalize();
 
    // 8. Construct the preconditioner
-   SparseMatrix &K(kVarf->SpMat());
+   SparseMatrix &K(kVarf.SpMat());
    DSmoother  invK(K);
    invK.iterative_mode = false;
 
@@ -310,27 +319,8 @@ int main(int argc, char *argv[])
    }
    cout << "MINRES solver took " << chrono.RealTime() << "s.\n";
 
-   // 10.  Print the previously computer interpolation errors.
+   // 10.  Print the previously computed interpolation errors.
    //      Compute and print the L2 error norms of the numerical solution.
-   cout << "Projection error:\n";
-   cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
-
-   err_u  = u.ComputeL2Error(*ucoeff, irs);
-   norm_u = ComputeLpNorm(2., *ucoeff, *mesh, irs);
-
-   if (weakBC)
-   {
-      cout << "Error when solving with weak boundary conditions:\n";
-   }
-   else
-   {
-      cout << "Error when solving with strong boundary conditions:\n";
-   }
-   cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
-
-   cout << "Projection error:\n";
-   cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
-
    err_u  = u.ComputeL2Error(*ucoeff, irs);
    norm_u = ComputeLpNorm(2., *ucoeff, *mesh, irs);
 
@@ -383,8 +373,6 @@ int main(int argc, char *argv[])
    }
 
    // 14. Free the used memory.
-   delete fform;
-   delete kVarf;
    delete vfe_coll;
    delete mesh;
    delete fcoeff;

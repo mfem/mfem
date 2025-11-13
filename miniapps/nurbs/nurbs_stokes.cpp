@@ -17,9 +17,9 @@
 //
 //               with natural boundary condition -p = <given pressure>.
 //               Here, we use a given exact solution (u,p) and compute the
-//               corresponding r.h.s. (f,g).  We discretize with H(div) conforming
-//               finite elements (RT) for the velocity u and the corresponding
-//               scalar finite elements for the pressure p.
+//               corresponding r.h.s. (f,g).  We discretize with H(div)
+//               conforming finite elements (RT) for the velocity u and the
+//               corresponding scalar finite elements for the pressure p.
 //
 //               NURBS-based H(div) spaces only implemented for meshes
 //               consisting of a single patch.
@@ -40,7 +40,8 @@ void ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
    LinearForm b(gf.FESpace());
    BilinearForm a(gf.FESpace());
 
-   if (gf.FESpace()->GetTypicalFE()->GetRangeType() == mfem::FiniteElement::VECTOR)
+   if (gf.FESpace()->GetTypicalFE()->GetRangeType() ==
+       mfem::FiniteElement::VECTOR)
    {
       b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vcoeff));
       a.AddDomainIntegrator(new VectorFEMassIntegrator());
@@ -540,18 +541,25 @@ int main(int argc, char *argv[])
 
    // Assemble the right hand side via the linear forms (fform, gform).
    BlockVector rhs(bOffsets, mt);
-   LinearForm *fform(new LinearForm);
-   fform->Update(&u_space, rhs.GetBlock(0), 0);
-   fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(*f_cf));
-   if (boundary_conditions != BC::STRONG) { fform->AddBdrFaceIntegrator(new VectorFEDGDirichletLFIntegrator(uh_cf, mu_cf, -1.0, penalty)); }
-   fform->Assemble();
-   fform->SyncAliasMemory(rhs);
+   LinearForm fform;
+   fform.Update(&u_space, rhs.GetBlock(0), 0);
+   fform.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*f_cf));
+   if (boundary_conditions != BC::STRONG)
+   {
+      fform.AddBdrFaceIntegrator(
+         new VectorFEDGDirichletLFIntegrator(uh_cf, mu_cf, -1.0, penalty));
+   }
+   fform.Assemble();
+   fform.SyncAliasMemory(rhs);
 
-   LinearForm *gform(new LinearForm);
-   gform->Update(&p_space, rhs.GetBlock(1), 0);
-   if (boundary_conditions == BC::WEAK) { gform->AddBdrFaceIntegrator(new BoundaryNormalLFIntegrator(uh_cf)); }
-   gform->Assemble();
-   gform->SyncAliasMemory(rhs);
+   LinearForm gform;
+   gform.Update(&p_space, rhs.GetBlock(1), 0);
+   if (boundary_conditions == BC::WEAK)
+   {
+      gform.AddBdrFaceIntegrator(new BoundaryNormalLFIntegrator(uh_cf));
+   }
+   gform.Assemble();
+   gform.SyncAliasMemory(rhs);
 
    // Assemble the finite element matrices for the Stokes operator
    //
@@ -566,9 +574,16 @@ int main(int argc, char *argv[])
    chrono.Start();
    BilinearForm kVarf(&u_space);
    kVarf.AddDomainIntegrator(new VectorFEDiffusionIntegrator(mu_cf));
-   if (boundary_conditions != BC::STRONG) { kVarf.AddBdrFaceIntegrator(new VectorFEDGDiffusionIntegrator(mu_cf, -1.0, penalty)); }
+   if (boundary_conditions != BC::STRONG)
+   {
+      kVarf.AddBdrFaceIntegrator(
+         new VectorFEDGDiffusionIntegrator(mu_cf, -1.0, penalty));
+   }
    kVarf.Assemble();
-   if (boundary_conditions != BC::WEAK) { kVarf.EliminateEssentialBC(ess_bdr, u_gf, *fform); }
+   if (boundary_conditions != BC::WEAK)
+   {
+      kVarf.EliminateEssentialBC(ess_bdr, u_gf, fform);
+   }
    kVarf.Finalize();
    SparseMatrix &K(kVarf.SpMat());
    chrono.Stop();
@@ -579,11 +594,14 @@ int main(int argc, char *argv[])
    Operator *D, *G;
    ConstantCoefficient minus(-1.0);
    MixedBilinearForm gVarf(&p_space, &u_space);
-   gVarf.AddDomainIntegrator(new TransposeIntegrator(new
-                                                     VectorFEDivergenceIntegrator(-1.0)));
+   gVarf.AddDomainIntegrator(new TransposeIntegrator(
+                                new VectorFEDivergenceIntegrator(-1.0)));
    gVarf.AddBdrTraceFaceIntegrator(new NormalTraceIntegrator(1.0));
    gVarf.Assemble();
-   if (boundary_conditions != BC::WEAK) {gVarf.EliminateTestEssentialBC(ess_bdr);}
+   if (boundary_conditions != BC::WEAK)
+   {
+      gVarf.EliminateTestEssentialBC(ess_bdr);
+   }
    gVarf.Finalize();
    G = new SparseMatrix(gVarf.SpMat());
    D = new TransposeOperator(G);
