@@ -192,7 +192,7 @@ public:
    /// Returns how many State vectors the ODE requires
    virtual int GetStateSize() { return 0; };
 
-   ///@brief Returns @a true if the ODESolver supports the given 
+   ///@brief Returns @a true if the ODESolver supports the given
    /// #ImplicitVariable, @a var, and returns @a false otherwise.
    ///@note Should be overriden in ODESolver that calls TimeDependentOperator::ImplicitSolve().
    virtual bool SupportsImplicitVariable(ImplicitVariable var) const
