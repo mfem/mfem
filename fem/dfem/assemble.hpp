@@ -102,11 +102,11 @@ MFEM_HOST_DEVICE void assemble_element_mat_t3d(
 
                   if constexpr (is_value_fop<fop_t>::value)
                   {
-                     for (int qx = 0; qx < q1d; qx++)
+                     MFEM_FOREACH_THREAD(qx, x, q1d)
                      {
-                        for (int qy = 0; qy < q1d; qy++)
+                        MFEM_FOREACH_THREAD(qy, y, q1d)
                         {
-                           for (int qz = 0; qz < q1d; qz++)
+                           MFEM_FOREACH_THREAD(qz, z, q1d)
                            {
                               const int q = qx + q1d * (qy + q1d * qz);
 
@@ -127,11 +127,11 @@ MFEM_HOST_DEVICE void assemble_element_mat_t3d(
                   }
                   else if constexpr (is_gradient_fop<fop_t>::value)
                   {
-                     for (int qx = 0; qx < q1d; qx++)
+                     MFEM_FOREACH_THREAD(qx, x, q1d)
                      {
-                        for (int qy = 0; qy < q1d; qy++)
+                        MFEM_FOREACH_THREAD(qy, y, q1d)
                         {
-                           for (int qz = 0; qz < q1d; qz++)
+                           MFEM_FOREACH_THREAD(qz, z, q1d)
                            {
                               const int q = qx + q1d * (qy + q1d * qz);
                               for (int m = 0; m < trial_op_dim; m++)
@@ -167,6 +167,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_t3d(
                                 "not implemented for field operator");
 #endif
                   }
+                  MFEM_SYNC_THREAD;
                   m_offset += trial_op_dim;
                });
 
@@ -264,9 +265,9 @@ MFEM_HOST_DEVICE void assemble_element_mat_t2d(
 
                if constexpr (is_value_fop<fop_t>::value)
                {
-                  for (int qx = 0; qx < q1d; qx++)
+                  MFEM_FOREACH_THREAD(qx, x, q1d)
                   {
-                     for (int qy = 0; qy < q1d; qy++)
+                     MFEM_FOREACH_THREAD(qy, y, q1d)
                      {
                         const int q = qy + qx * q1d;
                         for (int m = 0; m < trial_op_dim; m++)
@@ -285,9 +286,9 @@ MFEM_HOST_DEVICE void assemble_element_mat_t2d(
                }
                else if constexpr (is_gradient_fop<fop_t>::value)
                {
-                  for (int qx = 0; qx < q1d; qx++)
+                  MFEM_FOREACH_THREAD(qx, x, q1d)
                   {
-                     for (int qy = 0; qy < q1d; qy++)
+                     MFEM_FOREACH_THREAD(qy, y, q1d)
                      {
                         const int q = qy + qx * q1d;
                         for (int m = 0; m < trial_op_dim; m++)
@@ -318,6 +319,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_t2d(
                              "not implemented for field operator");
 #endif
                }
+               MFEM_SYNC_THREAD;
                m_offset += trial_op_dim;
             });
 
