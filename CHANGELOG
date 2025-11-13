@@ -95,6 +95,10 @@ New and updated examples and miniapps
   of a charged particle, subject to Lorentz forces, in electrostatic and/or
   magnetostatic fields as computed by the volta or tesla miniapps.
 
+- Introduced the new Incompressible Schrödinger Flow (ISF) miniapp, which
+  models inviscid fluid dynamics by solving the linear Schrödinger equation,
+  leveraging the hydrodynamical analogy to quantum mechanics.
+
 API changes:
 -----------
 - mfem::internal::tensor and mfem::internal::dual have been moved to

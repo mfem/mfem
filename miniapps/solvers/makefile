@@ -26,8 +26,8 @@ BLOCK_SOLVERS_OBJ = $(BLOCK_SOLVERS_SRC:.cpp=.o)
 LOR_ELAST_SRC = block_fespace_operator.cpp lor_elast.cpp
 LOR_ELAST_OBJ = $(LOR_ELAST_SRC:.cpp=.o)
 
-SEQ_MINIAPPS = lor_solvers schrodinger_flow
-PAR_MINIAPPS = block-solvers plor_solvers lor_elast pschrodinger_flow
+SEQ_MINIAPPS = lor_solvers
+PAR_MINIAPPS = block-solvers plor_solvers lor_elast
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -48,9 +48,6 @@ all: $(MINIAPPS)
 
 lor_solvers.o: $(SRC)lor_mms.hpp
 plor_solvers.o: $(SRC)lor_mms.hpp
-
-schrodinger_flow.o: $(SRC)schrodinger_flow.hpp
-pschrodinger_flow.o: $(SRC)schrodinger_flow.hpp
 
 %: %.o
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(MFEM_LIBS)
@@ -94,12 +91,6 @@ lor_elast-tri: lor_elast
 lor_elast-hex: lor_elast
 	@$(call mfem-test,$<, $(RUN_MPI), Elasticity LOR miniapp,-l 1 -pa -o 2\
 	  -m ../../data/beam-hex.mesh)
-
-# Incompressible Schrödinger Flow miniapp tests
-schrodinger_flow-test-seq: schrodinger_flow
-	@$(call mfem-test,$<,, ISF miniapp,-lf -nx 8 -ny 8 -ms 32)
-pschrodinger_flow-test-par: pschrodinger_flow
-	@$(call mfem-test,$<, $(RUN_MPI), Parallel ISF miniapp,-lf -nx 8 -ny 8 -ms 32)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):

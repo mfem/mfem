@@ -977,6 +977,7 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/miniapps/dpg \
                          @MFEM_SOURCE_DIR@/miniapps/dpg/util \
                          @MFEM_SOURCE_DIR@/miniapps/electromagnetics \
+                         @MFEM_SOURCE_DIR@/miniapps/fluids \
                          @MFEM_SOURCE_DIR@/miniapps/gslib \
                          @MFEM_SOURCE_DIR@/miniapps/hdiv-linear-solver \
                          @MFEM_SOURCE_DIR@/miniapps/hooke \
