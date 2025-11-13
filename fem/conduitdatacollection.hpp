@@ -183,6 +183,21 @@ public:
                                             conduit::Node &out,
                                             const std::string &main_topology_name = "main");
 
+   /// Describes a MFEM quadrature function using the mesh blueprint
+   /** Sets up passed conduit::Node out to describe the given quadrature function
+       using the mesh field blueprint.
+
+       Zero-copies as much data as possible.
+
+       @a main_toplogy_name is used to set the associated topology name.
+       With the default setting, the resulting field is associated with the
+       topology `main`.
+   */
+   static void QuadratureFunctionToBlueprintField(QuadratureFunction *qf,
+                                                  conduit::Node &out,
+                                                  const std::string &main_topology_name = "main");
+
+
    /// Constructs and MFEM mesh from a Conduit Blueprint Description
    /** @a main_topology_name is used to select which topology to use, when
        empty ("") the first topology entry will be used.
@@ -208,6 +223,17 @@ public:
    static GridFunction *BlueprintFieldToGridFunction(Mesh *mesh,
                                                      const conduit::Node &n_field,
                                                      bool zero_copy = false);
+   /// Constructs and MFEM Quadrature Function from a Conduit Blueprint Description
+   /** If zero_copy == true, tries to construct a quadrature function that points to
+       the data described by the conduit node. This is only possible if the data
+       in the node matches the data types needed for the MFEM API (doubles for
+       field values, allocated in an interleavred/byVDIM order , etc). If these
+       constraints are not met, a grid function that owns the data is created
+       and returned.
+   */
+   static QuadratureFunction *BlueprintFieldToQuadratureFunction(Mesh *mesh,
+                                                                 const conduit::Node &n_field,
+                                                                 bool zero_copy = false);
 
 private:
    /// Converts from MFEM element type enum to mesh bp shape name
