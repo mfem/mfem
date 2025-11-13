@@ -2634,7 +2634,11 @@ const DofToQuad &TensorBasisElement::GetTensorDofToQuad(
       for (int i = 0; i < dof2quad_array.Size(); i++)
       {
          auto* d2q_ = dof2quad_array[i];
-         if (d2q_->IntRule == &ir && d2q_->mode == mode) { d2q = d2q_; }
+         if (d2q_->IntRule == &ir && d2q_->mode == mode)
+         {
+            d2q = d2q_;
+            break;
+         }
       }
       if (!d2q)
       {
