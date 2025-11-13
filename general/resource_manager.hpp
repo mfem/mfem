@@ -881,6 +881,7 @@ template <class T> Memory<T> &Memory<T>::operator=(const Memory &r)
       offset_ = r.offset_;
       size_ = r.size_;
       segment = r.segment;
+      flags = r.flags;
       if (inst.valid_segment(segment))
       {
          auto &seg = inst.storage.get_segment(segment);
