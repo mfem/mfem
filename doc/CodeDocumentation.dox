@@ -117,6 +117,8 @@ namespace mfem {
  * - <a class="el" href="ex39p_8cpp_source.html">Example 39p</a>: parallel named mesh attributes
  * - <a class="el" href="ex40_8cpp_source.html">Example 40</a>: eikonal equation
  * - <a class="el" href="ex40p_8cpp_source.html">Example 40p</a>: parallel eikonal equation
+ * - <a class="el" href="ex41_8cpp_source.html">Example 41</a>: bounds-preserving DG advection
+ * - <a class="el" href="ex41p_8cpp_source.html">Example 41p</a>: parallel bounds-preserving DG advection
  *
  * <H4>AmgX Examples</H4>
  * - Variants of Examples
