@@ -114,9 +114,14 @@ protected:
    TimeDependentOperator *f;  // f(.,t) : R^n --> R^n
    MemoryType mem_type;
 
-   /** @brief Compute the finite-difference stage slope, @a $\frac{du}{dt} = \frac{k-u}{\gamma}$,
-    * and store it in @a k. */
-   virtual void ComputeSlopeFromState(const real_t gamma, const Vector &u,
+   /** @brief Compute the finite-difference slope, @a $\frac{du}{dt} \approx \frac{u(t+dt)-u(t)}{dt}$,
+    * and store it in @a k.
+    * @param [in] dt Finite difference step size.
+    * @param [in] u  state vector, @a u(t).
+    * @param [in,out] k   On input, @a k contains the state vector, @a u( @a t+ @a dt).
+    * On output, @a k contains the computed slope, @a du/dt.
+    * */
+   virtual void ComputeSlopeFromState(const real_t dt, const Vector &u,
                                       Vector &k);
 
 public:
@@ -187,7 +192,8 @@ public:
    /// Returns how many State vectors the ODE requires
    virtual int GetStateSize() { return 0; };
 
-   ///@brief Returns whether the ODESolver supports the given #ImplicitVariable, @a var.
+   ///@brief Returns @a true if the ODESolver supports the given 
+   /// #ImplicitVariable, @a var, and returns @a false otherwise.
    ///@note Should be overriden in ODESolver that calls TimeDependentOperator::ImplicitSolve().
    virtual bool SupportsImplicitVariable(ImplicitVariable var) const
    { return false; };

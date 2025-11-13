@@ -165,13 +165,13 @@ void ODESolver::Init(TimeDependentOperator &f_)
    mem_type = GetMemoryType(f_.GetMemoryClass());
 }
 
-void ODESolver::ComputeSlopeFromState(const real_t gamma, const Vector &u,
+void ODESolver::ComputeSlopeFromState(const real_t dt, const Vector &u,
                                       Vector &k)
 {
-   // k currently holds stage value u_{i+1},
-   // convert to stage slope k = du/dt
+   // k currently holds state u(t+dt),
+   // convert to slope k = du/dt ~= (u(t+dt)-u(t))/dt
    const int usz = u.Size();
-   real_t fac = 1.0/gamma;
+   real_t fac = 1.0/dt;
    auto d_u = u.Read();
    auto d_k = k.ReadWrite();
 

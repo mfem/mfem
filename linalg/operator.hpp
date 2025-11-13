@@ -338,7 +338,7 @@ public:
       3. F(u,k,t) = M k - g(u,t) and G(u,t) = 0.
 
     Note that depending on the ODE solver, some of the above choices may be
-    preferable to the others. See ImplicitSolve() documentation for more details.
+    preferable to the others.
 */
 class TimeDependentOperator : public Operator
 {
@@ -492,40 +492,22 @@ public:
 
    /** @brief Solve for the unknown @a k, at the current time t, the following
        equation:
-        1. $F( \widehat{u} , \dot{u}, t) = G( \widehat{u}, t)$, if solving for stage-state, $k = \widehat{u}$
-        2. $F( u + \gamma  \dot{u}, \dot{u}, t) = G( u +  \gamma \dot{u}, t)$, if solving for stage-slope, $ k = \dot{u} = \frac{du}{dt} $
-
-        where the stage state and slope follow the relation: $\dot{u} = \frac{du}{dt} = \frac{\widehat{u} - u}{\gamma}$.
+        1. $F( u + \gamma k, k, t) = G( u +  \gamma k, t)$, if solving for stage-slope (default)
+        2. $F( u , \frac{k-u}{\gamma}, t) = G(k, t)$, if solving for stage-state
 
        For solving an ordinary differential equation of the form
        $ M \frac{dy}{dt} = g(y,t) $, recall that F and G can be defined in
-       various ways, depending on the stage variable:
+       various ways, e.g.:
 
-        <table>
-        <caption>Various definitions for $~F~$ and $~G~$</caption>
-        <tr>
-          <th>stage-state, $k = \widehat{u}$</th>
-          <th>stage-slope, $k = \dot{u} = \frac{du}{dt}$ </th>
-        </tr>
-        <tr>
-          <td>$F(\widehat{u},\dot{u},t) = \widehat{u}~$ and $~G(u,t) = \gamma M^{-1} g(u,t) + u$</td>
-          <td>$F(u,\dot{u},t) = \dot{u}~$ and $~G(u,t) = M^{-1} g(u,t)$</td>
-        </tr>
-        <tr>
-          <td>$F(\widehat{u},\dot{u},t) = M \widehat{u}~$ and $~G(u,t) = \gamma g(u,t) + M u$</td>
-          <td>$F(u,\dot{u},t) = M \dot{u}~$ and $~G(u,t) = g(u,t)$</td>
-        </tr>
-        <tr>
-          <td>$F(\widehat{u},\dot{u},t) = M \widehat{u} - \gamma g(\widehat{u},t)~$ and $~G(u,t) = M u$</td>
-          <td>$F(u,\dot{u},t) = M \dot{u} - g(u,t)~$ and $~G(u,t) = 0$</td>
-        </tr>
-        </table>
+         1. F(u,k,t) = k and G(u,t) = inv(M) g(u,t)
+         2. F(u,k,t) = M k and G(u,t) = g(u,t)
+         3. F(u,k,t) = M k - g(u,t) and G(u,t) = 0
 
-        Regardless of the choice of F and G, this function should solve for:
-        - $~k=\widehat{u}~$ in $~M \widehat{u} = \gamma g(\widehat{u}, t) + M u~$, if solving for stage-state
-        - $k=\dot{u}$ in $~M \dot{u} = g( u + \gamma \dot{u}, t)~$, if solving for stage-slope.
+        Regardless of the choice of F and G, this function should solve for @a k:
+        - $~Mk = g( u + \gamma k, t)~$, if solving for stage-slope.
+        - $~Mk  = \gamma g(k, t) + Mu~$, if solving for stage-state
 
-       To see how solving for stage-slope, @a $k=\dot{u}$, can be useful, consider the backward Euler method defined
+       To see how @a k can be useful, consider the backward Euler method defined
        by $ y(t + \Delta t) = y(t) + \Delta t k_0 $ where
        $ M k_0 = g \big( y(t) + \Delta t k_0, t + \Delta t \big) $. A backward
        Euler integrator can use @a k from this function for $k_0$, with the call
