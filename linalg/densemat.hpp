@@ -1234,6 +1234,20 @@ public:
       return buff;
    }
 
+   /// Allows the tensor data to be accessed as a Densematrix.
+   /// NOTE: The last two indices are flattened.
+   void GetDenseMatrix(DenseMatrix &Mi_jk)
+   {
+      Mi_jk.UseExternalData(Data(), SizeI(), SizeJ()*SizeK());
+   }
+
+   /// Allows the tensor data to be accessed as a Densematrix.
+   /// NOTE: The first two indices are flattened.
+   void GetDenseMatrix2(DenseMatrix &Mij_k)
+   {
+      Mij_k.UseExternalData(Data(), SizeI()*SizeJ(),SizeK());
+   }
+
    real_t &operator()(int i, int j, int k)
    {
       MFEM_ASSERT_INDEX_IN_RANGE(i, 0, SizeI());
@@ -1308,6 +1322,9 @@ public:
       mfem::Swap(nk, t.nk);
       Mk.Swap(t.Mk);
    }
+
+   /// Prints tensor to stream
+   void Print(std::ostream &out = mfem::out, int width_ = 4) const;
 
    ~DenseTensor() { tdata.Delete(); }
 };
