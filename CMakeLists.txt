@@ -685,7 +685,7 @@ if (MFEM_USE_CUDA)
 endif()
 
 add_subdirectory(config)
-set(MASTER_HEADERS
+set(MAIN_HEADERS
   ${PROJECT_SOURCE_DIR}/mfem.hpp
   ${PROJECT_SOURCE_DIR}/mfem-performance.hpp)
 
@@ -722,7 +722,7 @@ set(MFEM_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX})
 
 # Declaring the library
-mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
+mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MAIN_HEADERS})
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES} ${TPL_TARGETS})
 if (TPL_TARGETS)
@@ -921,12 +921,12 @@ install(TARGETS ${PROJECT_NAME}
   LIBRARY DESTINATION ${INSTALL_LIB_DIR}
   ARCHIVE DESTINATION ${INSTALL_LIB_DIR})
 
-# Install the master headers
+# Install the main headers
 foreach(Header mfem.hpp mfem-performance.hpp)
   install(FILES ${PROJECT_BINARY_DIR}/InstallHeaders/${Header}
     DESTINATION ${INSTALL_INCLUDE_DIR})
 endforeach()
-install(FILES ${MASTER_HEADERS} DESTINATION ${INSTALL_INCLUDE_DIR}/mfem)
+install(FILES ${MAIN_HEADERS} DESTINATION ${INSTALL_INCLUDE_DIR}/mfem)
 
 # Install the headers (except common miniapp which is installed from its subdir)
 install(DIRECTORY ${MFEM_SOURCE_DIRS}
