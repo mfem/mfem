@@ -54,20 +54,20 @@ The goal of this PR is to remove the need to ever call `Sync` or `SyncAlias`, an
 
 ```c++
     // full range: [0, 10)
-    Resource<int> base(10, ResourceManager::HOST);
+    Memory<int> base(10);
     // alias0 points to [0, 5)
-    Resource<int> alias0(base, 0, 5);
+    Memory<int> alias0(base, 0, 5);
     // alias1 points to [5, 10)
-    Resource<int> alias1(base, 5, 5);
+    Memory<int> alias1(base, 5, 5);
     {
-      auto ptr = alias1.HostWrite();
+      auto ptr = alias1.Write(MemoryClass:HOST);
       for (int i = 0; i < alias1.Size(); ++i)
       {
         ptr[i] = i;
       }
     }
     {
-      auto ptr = alias0.Write();
+      auto ptr = alias0.Write(MemoryClass::DEVICE);
       forall(alias0.Size(), [=] MFEM_HOST_DEVICE(int i) { ptr[i] = i + 10; });
     }
     // actual valid on device: [0, 5)
@@ -75,7 +75,7 @@ The goal of this PR is to remove the need to ever call `Sync` or `SyncAlias`, an
 
     {
       // [0, 5) is copied from device to host
-      auto ptr = base.HostReadWrite();
+      auto ptr = base.ReadWrite(MemoryClass::HOST);
       for (int i = 0; i < base.Size(); ++i)
       {
         ptr[i] *= 2;
@@ -84,8 +84,8 @@ The goal of this PR is to remove the need to ever call `Sync` or `SyncAlias`, an
 
     // alias0 and alias1 both are valid on host, no copies are required
     {
-      auto ptr0 = alias0.HostReadWrite();
-      auto ptr1 = alias1.HostRead();
+      auto ptr0 = alias0.ReadWrite(MemoryClass::HOST);
+      auto ptr1 = alias1.Read(MemoryClass::HOST);
       for (int i = 0; i < alias0.Size(); ++i)
       {
         ptr0[i] += ptr1[i];
@@ -93,15 +93,13 @@ The goal of this PR is to remove the need to ever call `Sync` or `SyncAlias`, an
     }
 ```
 
-Note: right now this PR implements a `Resource` and `ResourceManager` class. The goal is at some point `Resource` will be renamed to `Memory`, and similarly `ResourceManager` will be renamed to `MemoryManager` when the API is sufficient to be a drop-in replacement for the existing `Memory`/`MemoryManager` with no changes required in user code.
-
 Existing supported features:
 
 - External pointers
 
 ```c++
   int buffer[3];
-  Resource<int> res(buffer, 3, ResourceManager::HOST);
+  Memory<int> res(buffer, 3, MemoryType::HOST);
 ```
 
 - Temporary buffers
@@ -110,7 +108,7 @@ Existing supported features:
   for (int i = 0; i < 100; ++i)
   {
     // re-uses existing allocation, similar to PR #4065
-    Resource<int> res(3, ResourceManager::HOST, true);
+    Memory<int> res(3, MemoryType::HOST, true);
   }
 ```
 
@@ -118,7 +116,7 @@ Existing supported features:
 
 ```c++
   // HOSTPINNED and MANAGED memory spaces can also be used for temporary pools
-  Resource<int> res(10, ResourceManager::HOSTPINNED);
+  Memory<int> res(10, MemoryType::HOST_PINNED);
   {
     auto ptr = res.HostWrite();
     for (int i = 0; i < res.Size(); ++i)
@@ -133,63 +131,32 @@ Existing supported features:
   }
 ```
 
-- Reference counted allocations
-
-```c++
-  // HOSTPINNED and MANAGED memory spaces can also be used for temporary pools
-  Resource<int> res0(10, ResourceManager::HOST);
-
-  // res1 is an alias of res0
-  Resource<int> res1 = res0;
-  {
-    auto ptr = res0.HostWrite();
-    for (int i = 0; i < res.Size(); ++i)
-    {
-      ptr[i] = i;
-    }
-  }
-  // res0 allocates a new resource, res1 is still valid to use
-  res0 = Resource<int>(5, ResourceManager::MANAGED);
-  {
-    auto ptr1 = res1.Read();
-    // res1 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-    forall(ptr1.Size(), [=] MFEM_HOST_DEVICE(int i)
-      {
-        printf("res1[%d] = %d\n", i, ptr1[i]);
-      });
-  }
-```
-
 - ResourceManager tracks which Device backends are enabled (or not enabled) so common code can be written which supports CPU-only runs or mixed CPU/Device runs.
 
 See `tests/unit/general/test_resource_manager.cpp` for additional usage features/examples.
 
 # Implementation Details
 
-The `ResourceManager` keeps an internal list of "segments" representing a coupled region of memory. If the coupled regions point to the same memory addresses the segment operates under "zero-copy" rules, useful for avoiding double allocations on host-only runs, or host-pinned/managed buffers.
+The `MemoryManager` keeps an internal list of "segments" representing a coupled region of memory. If the coupled regions point to the same memory addresses the segment operates under "zero-copy" rules, useful for avoiding double allocations on host-only runs, or host-pinned/managed buffers.
 
 Validity tracking is performed at the byte level. Each segment uses two red-black tree to mark where where the regions changes from valid to invalid (and vice versa). There is an implicit valid marker at the start of each region. Marking a region as valid or invalid is `O(log(M) + K)`, where `M` is the total number of valid/invalid transitions in the segment and `K` is the number of `valid/invalid` transitions within the region being marked.
 
 # TODO
 
 - Umpire support
-- (deep) Copy data from one `Resource` (or raw pointer) to another `Resource`.
-- General API and code cleanup/matching Memory/MemoryManager API:
-  - `ResourceManager::ResourceLocation` -> `MemoryType`
-  - What to do with `MemoryClass`? `ResourceManager::ResourceLocation` currently merges the use of `MemoryType` and `MemoryClass`
   - `RBase` and `RBTree` can be cleaned up. I don't think `std::map` can be used here efficiently as the validity tracking process directly modifies the "key" in some situations in such a way that the red-black tree still remains valid; this would otherwise necessitate a `std::map::erase`/`std::map::insert` pair.
-- Using `Resource` in a multi-thread context is basically impossible. Right now the only supported model is getting a raw pointer from `Read`/`ReadWrite`/`Write` on the main thread and passing the pointer to worker threads. What multi-threading model do we want to support?
-- How to handle passing a duplicate pointer when requesting a new Resource/segment? Right now this will create a new unassociated segment.
+- Using `Memory` in a multi-thread context is basically impossible. Right now the only supported model is getting a raw pointer from `Read`/`ReadWrite`/`Write` on the main thread and passing the pointer to worker threads. What multi-threading model do we want to support?
+- How to handle passing a duplicate pointer when requesting a new Memory/segment? Right now this will create a new unassociated segment.
 ```c++
 int buffer[3];
-Resource<int> res0(buffer, 3, ResourceManager::HOST);
-Resource<int> res1(buffer, 3, ResourceManager::HOST);
+Memory<int> res0(buffer, 3, MemoryType::HOST);
+Memory<int> res1(buffer, 3, MemoryType::HOST);
 // res0 and res1 will have distinct tracking of validity flags, with no easy way to synchronize the two.
 auto ptr0 = res0.Write();
 auto ptr1 = res1.Write();
 // ptr0 != ptr1, there will be two device allocations
 ```
 - Documentation
-- Test renaming `Resource`->`Memory` and `ResourceManager`->`MemoryManager` and other API updates/cleanups to test compatibility.
+- More compatibility testing (currently passes unit tests)
 - Performance testing
 - Anything else?
