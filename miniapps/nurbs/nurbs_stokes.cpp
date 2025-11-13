@@ -395,15 +395,15 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_SUITESPARSE
       if (UMFPack)
       {
-         std::cout<<"Schur complement is exact"<<std::endl;
+         cout<<"Schur complement is exact"<<std::endl;
       }
       else
       {
-         std::cout<<"Schur complement is approximate!!"<<std::endl;
+         cout<<"Schur complement is approximate!!"<<std::endl;
       }
 #else
-      std::cout<<"Schur complement is approximate"<<std::endl;
-      std::cout<<" - Compile with SuiteSparse to have an exact Schur complement"<<std::endl;
+      cout<<"Schur complement is approximate"<<std::endl;
+      cout<<" - Compile with SuiteSparse to have an exact Schur complement"<<std::endl;
 #endif
    }
 
@@ -475,21 +475,21 @@ int main(int argc, char *argv[])
    bOffsets[2] = p_space.GetVSize();
    bOffsets.PartialSum();
 
-   std::cout<<"===========================================================\n";
-   std::cout<<"Velocity dofs     = "<<bOffsets[1] - bOffsets[0]<<endl;
-   std::cout<<"Pressure dofs     = "<<bOffsets[2] - bOffsets[1]<<endl;
-   std::cout<<"Total # of dofs   = "<<bOffsets.Last()<<endl;
+   cout<<"===========================================================\n";
+   cout<<"Velocity dofs     = "<<bOffsets[1] - bOffsets[0]<<endl;
+   cout<<"Pressure dofs     = "<<bOffsets[2] - bOffsets[1]<<endl;
+   cout<<"Total # of dofs   = "<<bOffsets.Last()<<endl;
    if (!weakBC)
    {
-      std::cout << "-----------------------------------------------------------\n";
+      cout << "-----------------------------------------------------------\n";
       Array<int> ess_tdof_list;
       u_space.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       int nbc_dofs = ess_tdof_list.Size();
-      std::cout<<"Velocity BC dofs  = "<<ess_tdof_list.Size()<<endl;
-      std::cout<<"Net Velocity dofs = "<<bOffsets[1]- bOffsets[0]- nbc_dofs<<endl;
-      std::cout<<"Net # of dofs     = "<<bOffsets.Last() - nbc_dofs<<endl;
+      cout<<"Velocity BC dofs  = "<<ess_tdof_list.Size()<<endl;
+      cout<<"Net Velocity dofs = "<<bOffsets[1]- bOffsets[0]- nbc_dofs<<endl;
+      cout<<"Net # of dofs     = "<<bOffsets.Last() - nbc_dofs<<endl;
    }
-   std::cout<<"===========================================================\n";
+   cout<<"===========================================================\n";
 
    // Define the viscosity, solution and forcing coefficients
    ConstantCoefficient mu_cf(mu);
@@ -572,7 +572,7 @@ int main(int argc, char *argv[])
    kVarf.Finalize();
    SparseMatrix &K(kVarf.SpMat());
    chrono.Stop();
-   std::cout<<" Assembly of diffusion matrix took "<<chrono.RealTime()<<"s\n";
+   cout<<" Assembly of diffusion matrix took "<<chrono.RealTime()<<"s\n";
 
    chrono.Clear();
    chrono.Start();
@@ -588,7 +588,7 @@ int main(int argc, char *argv[])
    G = new SparseMatrix(gVarf.SpMat());
    D = new TransposeOperator(G);
    chrono.Stop();
-   std::cout<<" Assembly of grad & div matrices took "<<chrono.RealTime()<<"s\n";
+   cout<<" Assembly of grad & div matrices took "<<chrono.RealTime()<<"s\n";
 
    BlockOperator stokesOp(bOffsets);
    stokesOp.SetBlock(0,0, &K);
@@ -697,17 +697,17 @@ int main(int argc, char *argv[])
 
    if (solver.GetConverged())
    {
-      std::cout << "Solver converged in " << solver.GetNumIterations()
-                << " iterations with a residual norm of "
-                << solver.GetFinalNorm() << ".\n";
+      cout << "Solver converged in " << solver.GetNumIterations()
+           << " iterations with a residual norm of "
+           << solver.GetFinalNorm() << ".\n";
    }
    else
    {
-      std::cout << "Solver did not converge in " << solver.GetNumIterations()
-                << " iterations. Residual norm is " << solver.GetFinalNorm()
-                << ".\n";
+      cout << "Solver did not converge in " << solver.GetNumIterations()
+           << " iterations. Residual norm is " << solver.GetFinalNorm()
+           << ".\n";
    }
-   std::cout << " Solver took " << chrono.RealTime() << "s.\n";
+   cout << " Solver took " << chrono.RealTime() << "s.\n";
 
    // Save the mesh and the solution. This output can be viewed later using
    // GLVis: "glvis -m stokes.mesh -g sol_u.gf" or "glvis -m stokes.mesh -g

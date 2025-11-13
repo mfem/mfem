@@ -228,10 +228,10 @@ int main(int argc, char *argv[])
    Array<int> ess_tdof_list;
    space.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-   std::cout << "***********************************************************\n";
-   std::cout << "Number of dofs       = " << space.GetVSize() << endl;
-   std::cout << "Number boundary dofs = " << ess_tdof_list.Size() << endl;
-   std::cout << "***********************************************************\n";
+   cout << "***********************************************************\n";
+   cout << "Number of dofs       = " << space.GetVSize() << endl;
+   cout << "Number boundary dofs = " << ess_tdof_list.Size() << endl;
+   cout << "***********************************************************\n";
 
    // 5. Define the coefficients, analytical solution.
    ConstantCoefficient k_c(1.0);
@@ -298,51 +298,51 @@ int main(int argc, char *argv[])
 
    if (solver.GetConverged())
    {
-      std::cout << "MINRES converged in " << solver.GetNumIterations()
-                << " iterations with a residual norm of "
-                << solver.GetFinalNorm() << ".\n";
+      cout << "MINRES converged in " << solver.GetNumIterations()
+           << " iterations with a residual norm of "
+           << solver.GetFinalNorm() << ".\n";
    }
    else
    {
-      std::cout << "MINRES did not converge in " << solver.GetNumIterations()
-                << " iterations. Residual norm is " << solver.GetFinalNorm()
-                << ".\n";
+      cout << "MINRES did not converge in " << solver.GetNumIterations()
+           << " iterations. Residual norm is " << solver.GetFinalNorm()
+           << ".\n";
    }
-   std::cout << "MINRES solver took " << chrono.RealTime() << "s.\n";
+   cout << "MINRES solver took " << chrono.RealTime() << "s.\n";
 
    // 10.  Print the previously computer interpolation errors.
    //      Compute and print the L2 error norms of the numerical solution.
-   std::cout << "Projection error:\n";
-   std::cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
+   cout << "Projection error:\n";
+   cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
 
    err_u  = u.ComputeL2Error(*ucoeff, irs);
    norm_u = ComputeLpNorm(2., *ucoeff, *mesh, irs);
 
    if (weakBC)
    {
-      std::cout << "Error when solving with weak boundary conditions:\n";
+      cout << "Error when solving with weak boundary conditions:\n";
    }
    else
    {
-      std::cout << "Error when solving with strong boundary conditions:\n";
+      cout << "Error when solving with strong boundary conditions:\n";
    }
-   std::cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
+   cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
 
-   std::cout << "Projection error:\n";
-   std::cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
+   cout << "Projection error:\n";
+   cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
 
    err_u  = u.ComputeL2Error(*ucoeff, irs);
    norm_u = ComputeLpNorm(2., *ucoeff, *mesh, irs);
 
    if (weakBC)
    {
-      std::cout << "Error when solving with weak boundary conditions:\n";
+      cout << "Error when solving with weak boundary conditions:\n";
    }
    else
    {
-      std::cout << "Error when solving with strong boundary conditions:\n";
+      cout << "Error when solving with strong boundary conditions:\n";
    }
-   std::cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
+   cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
 
    // 11. Save the mesh and the solution. This output can be viewed later using
    //     GLVis: "glvis -m ex5.mesh -g sol_u.gf" or "glvis -m ex5.mesh -g
