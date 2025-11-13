@@ -4273,7 +4273,7 @@ void VectorFEDGDiffusionIntegrator::AssembleFaceMatrix(
             {
                elmat(i, j) += vshape1(i,d) * dvshape1dn(j,d);
             }
-      /*        if (ndof2)
+      /*        if (ndof2) Modification of this code is necessary for the DG case
                {
                   el2.CalcVShape(eip2, vshape2);
                   el2.CalcDVShape(eip2, dvshape2);
@@ -4337,7 +4337,7 @@ void VectorFEDGDiffusionIntegrator::AssembleFaceMatrix(
                }
             }
          }
-         /* if (ndof2)
+         /* if (ndof2) Modification of this code is necessary for the DG case
           {
              for (int i = 0; i < ndof2; i++)
              {

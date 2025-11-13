@@ -3621,7 +3621,13 @@ private:
     DiffusionIntegrator):
     - $\sigma = -1$, $\kappa \geq \kappa_0$: symm. interior penalty (IP or SIPG) method,
     - $\sigma = +1$, $\kappa > 0$: non-symmetric interior penalty (NIPG) method,
-    - $\sigma = +1$, $\kappa = 0$: the method of Baumann and Oden.*/
+    - $\sigma = +1$, $\kappa = 0$: the method of Baumann and Oden.
+
+    This class currently only works when used a weak boundary condition.
+    The DG case, when defining the penalty on the interior faces, requires either:
+     - Vector-valued finite elements NURBS defined on multiple patches.
+     - Standard Vector-valued finite elements to also have gradients.
+    */
 class VectorFEDGDiffusionIntegrator : public BilinearFormIntegrator
 {
 protected:
