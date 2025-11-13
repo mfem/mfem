@@ -23,12 +23,29 @@ namespace mfem
 void SparseSmoother::SetOperator(const Operator &a)
 {
    oper = dynamic_cast<const SparseMatrix*>(&a);
-   if (oper == NULL)
-   {
-      mfem_error("SparseSmoother::SetOperator : not a SparseMatrix!");
-   }
+   MFEM_VERIFY(oper != nullptr, "Operator must be a SparseMatrix");
    height = oper->Height();
    width = oper->Width();
+
+   At.reset();
+   oper_T = nullptr;
+}
+
+void SparseSmoother::EnsureTranspose() const
+{
+   if (oper_T) { return; }
+
+   const real_t tol = 1e-14;
+   if (oper->IsSymmetric() > tol)
+   {
+      At.reset(Transpose(*oper));
+      oper_T = At.get();
+   }
+   else
+   {
+      At.reset();
+      oper_T = oper;
+   }
 }
 
 /// Matrix vector multiplication with GS Smoother.
@@ -51,6 +68,29 @@ void GSSmoother::Mult(const Vector &x, Vector &y) const
    }
 }
 
+/// Matrix vector multiplication with transpose GS Smoother.
+void GSSmoother::MultTranspose(const Vector &x, Vector &y) const
+{
+   EnsureTranspose();
+
+   if (!iterative_mode)
+   {
+      y = 0.0;
+   }
+
+   for (int i = 0; i < iterations; i++)
+   {
+      if (type != 1)
+      {
+         oper_T->Gauss_Seidel_forw(x, y);
+      }
+      if (type != 2)
+      {
+         oper_T->Gauss_Seidel_back(x, y);
+      }
+   }
+}
+
 /// Create the Jacobi smoother.
 DSmoother::DSmoother(const SparseMatrix &a, int t, real_t s, int it)
    : SparseSmoother(a)
@@ -61,11 +101,11 @@ DSmoother::DSmoother(const SparseMatrix &a, int t, real_t s, int it)
 }
 
 /// Matrix vector multiplication with Jacobi smoother.
-void DSmoother::Mult(const Vector &x, Vector &y) const
+void DSmoother::Mult_(const SparseMatrix &A, const Vector &x, Vector &y) const
 {
    if (!iterative_mode && type == 0 && iterations == 1)
    {
-      oper->DiagScale(x, y, scale, use_abs_diag);
+      A.DiagScale(x, y, scale, use_abs_diag);
       return;
    }
 
@@ -90,22 +130,35 @@ void DSmoother::Mult(const Vector &x, Vector &y) const
    {
       if (type == 0)
       {
-         oper->Jacobi(x, *p, *r, scale, use_abs_diag);
+         A.Jacobi(x, *p, *r, scale, use_abs_diag);
       }
       else if (type == 1)
       {
-         oper->Jacobi2(x, *p, *r, scale);
+         A.Jacobi2(x, *p, *r, scale);
       }
       else if (type == 2)
       {
-         oper->Jacobi3(x, *p, *r, scale);
+         A.Jacobi3(x, *p, *r, scale);
       }
       else
       {
-         mfem_error("DSmoother::Mult wrong type");
+         MFEM_ABORT("Invalid type.");
       }
       Swap<Vector*>(r, p);
    }
+}
+
+void DSmoother::Mult(const Vector &x, Vector &y) const
+{
+   Mult_(*oper, x, y);
+}
+
+void DSmoother::MultTranspose(const Vector &x, Vector &y) const
+{
+   EnsureTranspose();
+   MFEM_VERIFY(type == 0 || !At, "l1 or lumped Jacobi transpose not implemented"
+               " for non-symmetric matrices");
+   Mult_(*oper_T, x, y);
 }
 
 }
