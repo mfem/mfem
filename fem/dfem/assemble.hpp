@@ -55,7 +55,6 @@ MFEM_HOST_DEVICE void assemble_element_mat_t3d(
    const int test_vdim = qpdc.GetShape()[0];
    const int test_op_dim = qpdc.GetShape()[1];
    const int trial_vdim = qpdc.GetShape()[2];
-   const int num_qp = qpdc.GetShape()[4];
 
    // [num_test_dof, ...]
    const auto num_test_dof = A.GetShape()[0];
@@ -227,7 +226,6 @@ MFEM_HOST_DEVICE void assemble_element_mat_t2d(
    const int test_vdim = qpdc.GetShape()[0];
    const int test_op_dim = qpdc.GetShape()[1];
    const int trial_vdim = qpdc.GetShape()[2];
-   const int num_qp = qpdc.GetShape()[4];
 
    // [num_test_dof, ...]
    const auto num_test_dof = A.GetShape()[0];
