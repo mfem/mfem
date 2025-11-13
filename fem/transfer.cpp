@@ -837,11 +837,17 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::Mult(
 void L2ProjectionGridTransfer::L2ProjectionL2Space::EAMult(
    const Vector &x, Vector &y) const
 {
+   const int nel_ho = fes_ho.GetMesh()->GetNE();
+
+   if (nel_ho == 0)
+   {
+      return;
+   }
+
    const int iho = 0;
    const int nref = ho2lor.RowSize(iho);
    const int ndof_ho = fes_ho.GetFE(iho)->GetDof();
    const int ndof_lor = fes_lor.GetFE(ho2lor.GetRow(iho)[0])->GetDof();
-   const int nel_ho = fes_ho.GetMesh()->GetNE();
 
    DenseTensor R_dt;
    R_dt.NewMemoryAndSize(R.GetMemory(), ndof_lor*nref, ndof_ho, nel_ho, false);
@@ -893,11 +899,17 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::MultTranspose(
 void L2ProjectionGridTransfer::L2ProjectionL2Space::EAMultTranspose(
    const Vector &x, Vector &y) const
 {
+   const int nel_ho = fes_ho.GetMesh()->GetNE();
+
+   if (nel_ho == 0)
+   {
+      return;
+   }
+
    const int iho = 0;
    const int nref = ho2lor.RowSize(iho);
    const int ndof_ho = fes_ho.GetFE(iho)->GetDof();
    const int ndof_lor = fes_lor.GetFE(ho2lor.GetRow(iho)[0])->GetDof();
-   const int nel_ho = fes_ho.GetMesh()->GetNE();
 
    DenseTensor R_dt;
    R_dt.NewMemoryAndSize(R.GetMemory(), ndof_lor*nref, ndof_ho, nel_ho, false);
@@ -907,7 +919,6 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::EAMultTranspose(
 void L2ProjectionGridTransfer::L2ProjectionL2Space::Prolongate(
    const Vector &x, Vector &y) const
 {
-
    if (fes_ho.GetNE() == 0) { return; }
 
    if (use_ea)
@@ -966,14 +977,13 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::EAProlongate(
 void L2ProjectionGridTransfer::L2ProjectionL2Space::ProlongateTranspose(
    const Vector &x, Vector &y) const
 {
+   if (fes_ho.GetNE() == 0) { return; }
 
    if (use_ea)
    {
       return EAProlongateTranspose(x,y);
    }
 
-
-   if (fes_ho.GetNE() == 0) { return; }
    MFEM_VERIFY(P.Size() > 0, "Prolongation not supported for these spaces.")
    int vdim = fes_ho.GetVDim();
    Array<int> vdofs;
