@@ -698,7 +698,14 @@ static void TestSolveVec(FiniteElementSpace &fespace)
 
    GridFunction x(&fespace);
    x = 0.0;
-   x.ProjectBdrCoefficient(exsol, ess_attr);
+   if (x.BdrVectorDim() == 1)
+   {
+      x.ProjectBdrCoefficientNormal(exsol, ess_attr);
+   }
+   else
+   {
+      x.ProjectBdrCoefficientTangent(exsol, ess_attr);
+   }
 
    // Assemble the linear form
    LinearForm lf(&fespace);
@@ -1082,7 +1089,14 @@ static void TestSolveParVec(ParFiniteElementSpace &fespace)
 
    ParGridFunction x(&fespace);
    x = 0.0;
-   x.ProjectBdrCoefficient(exsol, ess_attr);
+   if (x.BdrVectorDim() == 1)
+   {
+      x.ProjectBdrCoefficientNormal(exsol, ess_attr);
+   }
+   else
+   {
+      x.ProjectBdrCoefficientTangent(exsol, ess_attr);
+   }
 
    // Assemble the linear form
    ParLinearForm lf(&fespace);

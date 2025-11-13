@@ -2354,6 +2354,9 @@ void GridFunction::ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
 
 void GridFunction::ProjectCoefficient(Coefficient &coeff)
 {
+   MFEM_VERIFY(
+      VectorDim() == 1,
+      "Cannot project scalar Coefficient onto vector GridFunction");
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
    DofTransformation doftrans;
 
@@ -2436,6 +2439,7 @@ void GridFunction::ProjectCoefficient(
 
 void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
 {
+   MFEM_VERIFY(VectorDim() == vcoeff.GetVDim(), "vcoeff vdim != VectorDim()");
    DofTransformation doftrans;
    if (fes->GetNURBSext() == NULL)
    {
@@ -2483,6 +2487,7 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
 void GridFunction::ProjectCoefficient(
    VectorCoefficient &vcoeff, Array<int> &dofs)
 {
+   MFEM_VERIFY(VectorDim() == vcoeff.GetVDim(), "vcoeff vdim != VectorDim()");
    int el = -1;
    ElementTransformation *T = NULL;
    const FiniteElement *fe = NULL;
@@ -2512,6 +2517,7 @@ void GridFunction::ProjectCoefficient(
 
 void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff, int attribute)
 {
+   MFEM_VERIFY(VectorDim() == vcoeff.GetVDim(), "vcoeff vdim != VectorDim()");
    int i;
    Array<int> vdofs;
    Vector vals;
@@ -2571,6 +2577,7 @@ void GridFunction::ProjectCoefficient(Coefficient *coeff[])
 void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff,
                                           Array<int> &dof_attr)
 {
+   MFEM_VERIFY(VectorDim() == coeff.GetVDim(), "coeff vdim != VectorDim()");
    Array<int> vdofs;
    Vector vals;
 
@@ -2602,6 +2609,7 @@ void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff,
 
 void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff)
 {
+   MFEM_VERIFY(VectorDim() == coeff.GetVDim(), "coeff vdim != VectorDim()");
    Array<int> dof_attr;
    ProjectDiscCoefficient(coeff, dof_attr);
 }
@@ -2610,6 +2618,10 @@ void GridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
 {
    // Harmonic  (x1 ... xn) = [ (1/x1 + ... + 1/xn) / n ]^-1.
    // Arithmetic(x1 ... xn) = (x1 + ... + xn) / n.
+
+   MFEM_VERIFY(
+      VectorDim() == 1,
+      "Cannot project a scalar coefficient onto a vector GridFunction");
 
    Array<int> zones_per_vdof;
    AccumulateAndCountZones(coeff, type, zones_per_vdof);
@@ -2620,6 +2632,7 @@ void GridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
 void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff,
                                           AvgType type)
 {
+   MFEM_VERIFY(VectorDim() == coeff.GetVDim(), "coeff vdim != VectorDim()");
    Array<int> zones_per_vdof;
    AccumulateAndCountZones(coeff, type, zones_per_vdof);
 
@@ -2629,6 +2642,8 @@ void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff,
 void GridFunction::ProjectBdrCoefficient(VectorCoefficient &vcoeff,
                                          const Array<int> &attr)
 {
+   MFEM_VERIFY(BdrVectorDim() == vcoeff.GetVDim(),
+               "vcoeff vdim != BdrVectorDim()");
    Array<int> values_counter;
    AccumulateAndCountBdrValues(NULL, &vcoeff, attr, values_counter);
    ComputeMeans(ARITHMETIC, values_counter);
@@ -2677,6 +2692,9 @@ void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[],
 void GridFunction::ProjectBdrCoefficientNormal(
    VectorCoefficient &vcoeff, const Array<int> &bdr_attr)
 {
+   MFEM_VERIFY(BdrVectorDim() == 1, "BdrVectorDim() != 1");
+   MFEM_VERIFY(vcoeff.GetVDim() == fes->GetMesh()->SpaceDimension(),
+               "vcoeff vdim != space dim");
 #if 0
    // implementation for the case when the face dofs are integrals of the
    // normal component.
@@ -2750,6 +2768,8 @@ void GridFunction::ProjectBdrCoefficientNormal(
 void GridFunction::ProjectBdrCoefficientTangent(
    VectorCoefficient &vcoeff, const Array<int> &bdr_attr)
 {
+   MFEM_VERIFY(BdrVectorDim()+1 == vcoeff.GetVDim(),
+               "vcoeff vdim != BdrVectorDim()+1");
    Array<int> values_counter;
    AccumulateAndCountBdrTangentValues(vcoeff, bdr_attr, values_counter);
    ComputeMeans(ARITHMETIC, values_counter);
