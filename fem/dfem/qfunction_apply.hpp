@@ -44,7 +44,16 @@ void call_qfunction(
 {
    if (use_sum_factorization)
    {
-      if (dimension == 2)
+      if (dimension == 1)
+      {
+         MFEM_FOREACH_THREAD(q, x, q1d)
+         {
+            auto qf_args = decay_tuple<qf_param_ts> {};
+            auto r = Reshape(&residual_shmem(0, q), rs_qp);
+            apply_kernel(r, qfunc, qf_args, input_shmem, q);
+         }
+      }
+      else if (dimension == 2)
       {
          MFEM_FOREACH_THREAD(qx, x, q1d)
          {
@@ -123,7 +132,22 @@ void call_qfunction_derivative_action(
 {
    if (use_sum_factorization)
    {
-      if (dimension == 2)
+      if (dimension == 1)
+      {
+         MFEM_FOREACH_THREAD(q, x, q1d)
+         {
+            auto r = Reshape(&residual_shmem(0, q), das_qp);
+            auto qf_args = decay_tuple<qf_param_ts> {};
+#ifdef MFEM_USE_ENZYME
+            auto qf_shadow_args = decay_tuple<qf_param_ts> {};
+            apply_kernel_fwddiff_enzyme(r, qfunc, qf_args, qf_shadow_args, input_shmem,
+                                        shadow_shmem, q);
+#else
+            apply_kernel_native_dual(r, qfunc, qf_args, input_shmem, shadow_shmem, q);
+#endif
+         }
+      }
+      else if (dimension == 2)
       {
          MFEM_FOREACH_THREAD(qx, x, q1d)
          {
@@ -164,7 +188,10 @@ void call_qfunction_derivative_action(
             }
          }
       }
-      MFEM_SYNC_THREAD;
+      else
+      {
+         MFEM_ABORT_KERNEL("unsupported dimension");
+      }
    }
    else
    {
@@ -180,8 +207,8 @@ void call_qfunction_derivative_action(
          apply_kernel_native_dual(r, qfunc, qf_args, input_shmem, shadow_shmem, q);
 #endif
       }
-      MFEM_SYNC_THREAD;
    }
+   MFEM_SYNC_THREAD;
 }
 
 template <typename qfunc_t, typename args_ts, size_t num_args>
