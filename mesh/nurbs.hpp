@@ -974,12 +974,12 @@ public:
    /** Returns the NURBSExtension to be used for @a component of
        an H(div) conforming NURBS space. Caller gets ownership of
        the returned object, and is responsible for deletion.*/
-   NURBSExtension* GetDivExtension(int component);
+   NURBSExtension* GetDivExtension(int component, bool H1 = false);
 
    /** Returns the NURBSExtension to be used for @a component of
        an H(curl) conforming NURBS space. Caller gets ownership of
        the returned object, and is responsible for deletion.*/
-   NURBSExtension* GetCurlExtension(int component);
+   NURBSExtension* GetCurlExtension(int component, bool H1 = false);
 
    void KnotRemove(Array<Vector *> &kv, real_t tol = 1.0e-12);
 

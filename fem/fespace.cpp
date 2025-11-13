@@ -2642,19 +2642,21 @@ void FiniteElementSpace::UpdateNURBS()
 
    if (dynamic_cast<const NURBS_HDivFECollection *>(fec))
    {
+      bool H1 = dynamic_cast<const NURBS_HDivH1FECollection *>(fec);
       VNURBSext.SetSize(mesh->Dimension());
       for (int d = 0; d < mesh->Dimension(); d++)
       {
-         VNURBSext[d] = NURBSext->GetDivExtension(d);
+         VNURBSext[d] = NURBSext->GetDivExtension(d, H1);
       }
    }
 
    if (dynamic_cast<const NURBS_HCurlFECollection *>(fec))
    {
+      bool H1 = dynamic_cast<const NURBS_HCurlH1FECollection *>(fec);
       VNURBSext.SetSize(mesh->Dimension());
       for (int d = 0; d < mesh->Dimension(); d++)
       {
-         VNURBSext[d] = NURBSext->GetCurlExtension(d);
+         VNURBSext[d] = NURBSext->GetCurlExtension(d,H1);
       }
    }
 
