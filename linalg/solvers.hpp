@@ -240,6 +240,21 @@ public:
    void SetMaxIter(int max_it) { max_iter = max_it; }
    ///@}
 
+#ifdef MFEM_USE_MPI
+   void SetComm(MPI_Comm new_comm)
+   {
+      if (new_comm == MPI_COMM_NULL)
+      {
+         dot_prod_type = 0;
+      }
+      else
+      {
+         dot_prod_type = 1;
+      }
+      comm = new_comm;
+   }
+#endif
+
    /** @name Reporting
        These options control the internal reporting behavior into ::mfem::out
        and ::mfem::err of the iterative solvers.
