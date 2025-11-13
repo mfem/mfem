@@ -442,19 +442,27 @@ public:
    bool OwnsHostPtr() const
    {
       auto &inst = MemoryManager::instance();
-      return inst.owns_host_ptr(segment);
+      return (flags & OWNS_CONTROL) && inst.owns_host_ptr(segment);
    }
 
    void SetHostPtrOwner(bool own) const
    {
       auto &inst = MemoryManager::instance();
       inst.set_owns_host_ptr(segment, own);
+      if (own)
+      {
+         flags = static_cast<Flags>(flags | OWNS_CONTROL);
+      }
+      else
+      {
+         flags = static_cast<Flags>(flags & ~OWNS_CONTROL);
+      }
    }
 
    bool OwnsDevicePtr() const
    {
       auto &inst = MemoryManager::instance();
-      return inst.owns_device_ptr(segment);
+      return (flags & OWNS_CONTROL) && inst.owns_device_ptr(segment);
    }
 
    bool ZeroCopy() const
@@ -467,6 +475,14 @@ public:
    {
       auto &inst = MemoryManager::instance();
       inst.set_owns_device_ptr(segment, own);
+      if (own)
+      {
+         flags = static_cast<Flags>(flags | OWNS_CONTROL);
+      }
+      else
+      {
+         flags = static_cast<Flags>(flags & ~OWNS_CONTROL);
+      }
    }
 
    void ClearOwnerFlags() const
