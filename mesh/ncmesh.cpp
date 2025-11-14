@@ -4131,8 +4131,7 @@ void NCMesh::CollectQuadFaceVertices(int v0, int v1, int v2, int v3,
 void NCMesh::BuildElementToVertexTable()
 {
    int nrows = leaf_elements.Size();
-   Memory<int> I_mem(nrows + 1);
-   int* I = I_mem.HostWrite();
+   int *I = Memory<int>(nrows + 1);
    int** JJ = new int*[nrows];
 
    Array<int> indices;
@@ -4193,8 +4192,7 @@ void NCMesh::BuildElementToVertexTable()
    I[nrows] = nnz;
 
    // copy the temporarily stored rows into one J array
-   Memory<int> J_mem(nnz);
-   int *J = J_mem.HostWrite();
+   int *J = Memory<int>(nnz);
    nnz = 0;
    for (int i = 0; i < nrows; i++)
    {
@@ -4204,7 +4202,7 @@ void NCMesh::BuildElementToVertexTable()
       nnz += cnt;
    }
 
-   element_vertex.SetIJ(std::move(I_mem), std::move(J_mem), nrows);
+   element_vertex.SetIJ(I, J, nrows);
 
    delete [] JJ;
 }

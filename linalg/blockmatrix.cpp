@@ -561,13 +561,9 @@ SparseMatrix * BlockMatrix::CreateMonolithic() const
 {
    int nnz = NumNonZeroElems();
 
-   Memory<int> i_amono_mem(row_offsets[nRowBlocks]+2);
-   Memory<int> j_amono_mem(nnz);
-   Memory<real_t> data_mem(nnz);
-
-   int * i_amono = i_amono_mem.HostWrite();
-   int * j_amono = j_amono_mem.HostWrite();
-   real_t * data = data_mem.HostWrite();
+   int *i_amono = Memory<int>(row_offsets[nRowBlocks] + 2);
+   int *j_amono = Memory<int>(nnz);
+   real_t *data = Memory<real_t>(nnz);
 
    for (int i = 0; i < row_offsets[nRowBlocks]+2; i++)
    {
@@ -637,8 +633,7 @@ SparseMatrix * BlockMatrix::CreateMonolithic() const
       }
    }
 
-   return new SparseMatrix(std::move(i_amono_mem), std::move(j_amono_mem),
-                           std::move(data_mem), row_offsets[nRowBlocks],
+   return new SparseMatrix(i_amono, j_amono, data, row_offsets[nRowBlocks],
                            col_offsets[nColBlocks]);
 }
 

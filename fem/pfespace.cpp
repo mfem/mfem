@@ -845,28 +845,15 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
       int ldof  = GetVSize();
       int ltdof = TrueVSize();
 
-      Memory<HYPRE_Int> i_diag_mem(ldof + 1);
-      Memory<HYPRE_Int> j_diag_mem(ltdof);
-      i_diag_mem.SetHostPtrOwner(false);
-      j_diag_mem.SetHostPtrOwner(false);
-
-      HYPRE_Int *i_diag = i_diag_mem.HostWrite();
-      HYPRE_Int *j_diag = j_diag_mem.HostWrite();
+      HYPRE_Int *i_diag = Memory<HYPRE_Int>(ldof + 1);
+      HYPRE_Int *j_diag = Memory<HYPRE_Int>(ltdof);
       int diag_counter;
 
-      Memory<HYPRE_Int> i_offd_mem(ldof + 1);
-      Memory<HYPRE_Int> j_offd_mem(ldof - ltdof);
-      i_offd_mem.SetHostPtrOwner(false);
-      j_offd_mem.SetHostPtrOwner(false);
-
-      HYPRE_Int *i_offd = i_offd_mem.HostWrite();
-      HYPRE_Int *j_offd = j_offd_mem.HostWrite();
+      HYPRE_Int *i_offd = Memory<HYPRE_Int>(ldof + 1);
+      HYPRE_Int *j_offd = Memory<HYPRE_Int>(ldof - ltdof);
       int offd_counter;
 
-      Memory<HYPRE_BigInt> cmap_mem(ldof - ltdof);
-      cmap_mem.SetHostPtrOwner(false);
-
-      HYPRE_BigInt *cmap   = cmap_mem.HostWrite();
+      HYPRE_BigInt *cmap = Memory<HYPRE_BigInt>(ldof - ltdof);
 
       HYPRE_BigInt *col_starts = GetTrueDofOffsets();
       HYPRE_BigInt *row_starts = GetDofOffsets();
@@ -975,33 +962,17 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
          }
       }
 
-      Memory<HYPRE_Int> i_diag_mem(ldof + 1);
-      Memory<HYPRE_Int> j_diag_mem(ltdof);
-      Memory<real_t> d_diag_mem(ltdof);
-      i_diag_mem.SetHostPtrOwner(false);
-      j_diag_mem.SetHostPtrOwner(false);
-      d_diag_mem.SetHostPtrOwner(false);
-
-      HYPRE_Int *i_diag = i_diag_mem.HostWrite();
-      HYPRE_Int *j_diag = j_diag_mem.HostWrite();
-      real_t    *d_diag = d_diag_mem.HostWrite();
+      HYPRE_Int *i_diag = Memory<HYPRE_Int>(ldof + 1);
+      HYPRE_Int *j_diag = Memory<HYPRE_Int>(ltdof);
+      real_t *d_diag = Memory<real_t>(ltdof);
       int diag_counter;
 
-      Memory<HYPRE_Int> i_offd_mem(ldof + 1);
-      Memory<HYPRE_Int> j_offd_mem(nnz_offd);
-      Memory<real_t> d_offd_mem(nnz_offd);
-      i_offd_mem.SetHostPtrOwner(false);
-      j_offd_mem.SetHostPtrOwner(false);
-      d_offd_mem.SetHostPtrOwner(false);
-
-      HYPRE_Int *i_offd = i_offd_mem.HostWrite();
-      HYPRE_Int *j_offd = j_offd_mem.HostWrite();
-      real_t    *d_offd = d_offd_mem.HostWrite();
+      HYPRE_Int *i_offd = Memory<HYPRE_Int>(ldof + 1);
+      HYPRE_Int *j_offd = Memory<HYPRE_Int>(nnz_offd);
+      real_t *d_offd = Memory<real_t>(nnz_offd);
       int offd_counter;
 
-      Memory<HYPRE_BigInt> cmap_mem(ldof - ltdof);
-      cmap_mem.SetHostPtrOwner(false);
-      HYPRE_BigInt *cmap   = cmap_mem.HostWrite();
+      HYPRE_BigInt *cmap = Memory<HYPRE_BigInt>(ldof - ltdof);
 
       HYPRE_BigInt *col_starts = GetTrueDofOffsets();
       HYPRE_BigInt *row_starts = GetDofOffsets();
@@ -4307,9 +4278,7 @@ HypreParMatrix* ParFiniteElementSpace
    }
 
    // create offd column mapping
-   Memory<HYPRE_BigInt> cmap_mem(static_cast<int>(col_map.size()));
-   cmap_mem.SetHostPtrOwner(false);
-   HYPRE_BigInt *cmap = cmap_mem.HostWrite();
+   HYPRE_BigInt *cmap = Memory<HYPRE_BigInt>(static_cast<int>(col_map.size()));
    int offd_col = 0;
    for (auto it = col_map.begin(); it != col_map.end(); ++it)
    {
@@ -4317,29 +4286,14 @@ HypreParMatrix* ParFiniteElementSpace
       it->second = offd_col++;
    }
 
-   Memory<HYPRE_Int> I_diag_mem(vdim * local_rows + 1);
-   Memory<HYPRE_Int> I_offd_mem(vdim * local_rows + 1);
-   I_diag_mem.SetHostPtrOwner(false);
-   I_offd_mem.SetHostPtrOwner(false);
+   HYPRE_Int *I_diag = Memory<HYPRE_Int>(vdim * local_rows + 1);
+   HYPRE_Int *I_offd = Memory<HYPRE_Int>(vdim * local_rows + 1);
 
-   HYPRE_Int *I_diag = I_diag_mem.HostWrite();
-   HYPRE_Int *I_offd = I_offd_mem.HostWrite();
+   HYPRE_Int *J_diag = Memory<HYPRE_Int>(nnz_diag);
+   HYPRE_Int *J_offd = Memory<HYPRE_Int>(nnz_offd);
 
-   Memory<HYPRE_Int> J_diag_mem(nnz_diag);
-   Memory<HYPRE_Int> J_offd_mem(nnz_offd);
-   J_diag_mem.SetHostPtrOwner(false);
-   J_offd_mem.SetHostPtrOwner(false);
-
-   HYPRE_Int *J_diag = J_diag_mem.HostWrite();
-   HYPRE_Int *J_offd = J_offd_mem.HostWrite();
-
-   Memory<real_t> A_diag_mem(nnz_diag);
-   Memory<real_t> A_offd_mem(nnz_offd);
-   A_diag_mem.SetHostPtrOwner(false);
-   A_offd_mem.SetHostPtrOwner(false);
-
-   real_t *A_diag = A_diag_mem.HostWrite();
-   real_t *A_offd = A_offd_mem.HostWrite();
+   real_t *A_diag = Memory<real_t>(nnz_diag);
+   real_t *A_offd = Memory<real_t>(nnz_offd);
 
    int vdim1 = bynodes ? vdim : 1;
    int vdim2 = bynodes ? 1 : vdim;
@@ -4390,9 +4344,7 @@ HypreParMatrix* ParFiniteElementSpace
 template <typename int_type>
 static int_type* make_i_array(int nrows)
 {
-   Memory<int_type> I_mem(nrows + 1);
-   I_mem.SetHostPtrOwner(false);
-   int_type *I = I_mem.HostWrite();
+   int_type *I = Memory<int_type>(nrows + 1);
    for (int i = 0; i <= nrows; i++) { I[i] = -1; }
    return I;
 }
@@ -4405,9 +4357,7 @@ static int_type* make_j_array(int_type* I, int nrows)
    {
       if (I[i] >= 0) { nnz++; }
    }
-   Memory<int_type> J_mem(nnz);
-   J_mem.SetHostPtrOwner(false);
-   int_type *J = J_mem.HostWrite();
+   int_type *J = Memory<int_type>(nnz);
 
    I[nrows] = -1;
    for (int i = 0, k = 0; i <= nrows; i++)
@@ -4502,9 +4452,7 @@ ParFiniteElementSpace::RebalanceMatrix(int old_ndofs,
    HYPRE_Int *i_offd_hi = i_offd;
 #else
    // Copy of i_offd array as array of HYPRE_Int
-   Memory<HYPRE_Int> i_offd_hi_mem(vsize + 1);
-   i_offd_hi_mem.SetHostPtrOwner(false);
-   HYPRE_Int *i_offd_hi = i_offd_hi_mem.HostWrite();
+   HYPRE_Int *i_offd_hi = Memory<HYPRE_Int>(vsize + 1);
    std::copy(i_offd, i_offd + vsize + 1, i_offd_hi);
    Memory<HYPRE_BigInt>(i_offd, vsize + 1, true).Delete();
 #endif
@@ -4521,17 +4469,13 @@ ParFiniteElementSpace::RebalanceMatrix(int old_ndofs,
 #ifndef HYPRE_MIXEDINT
    HYPRE_Int *j_offd_hi = j_offd;
 #else
-   Memory<HYPRE_Int> j_offd_hi_mem(offd_cols);
-   j_offd_hi_mem.SetHostPtrOwner(false);
-   HYPRE_Int *j_offd_hi = j_offd_hi_mem.HostWrite();
+   HYPRE_Int *j_offd_hi = Memory<HYPRE_Int>(offd_cols);
    Memory<HYPRE_BigInt>(j_offd, offd_cols, true).Delete();
 #endif
 
    SortPairs<HYPRE_BigInt, int>(cmap_offd, offd_cols);
 
-   Memory<HYPRE_BigInt> cmap_mem(offd_cols);
-   cmap_mem.SetHostPtrOwner(false);
-   HYPRE_BigInt* cmap = cmap_mem.HostWrite();
+   HYPRE_BigInt* cmap = Memory<HYPRE_BigInt>(offd_cols);
    for (int i = 0; i < offd_cols; i++)
    {
       cmap[i] = cmap_offd[i].one;
@@ -4768,9 +4712,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    offd->SetWidth(static_cast<int>(col_map.size()));
 
    // create offd column mapping for use by hypre
-   Memory<HYPRE_BigInt> cmap_mem(offd->Width());
-   cmap_mem.SetHostPtrOwner(false);
-   HYPRE_BigInt *cmap = cmap_mem.HostWrite();
+   HYPRE_BigInt *cmap = Memory<HYPRE_BigInt>(offd->Width());
    for (auto it = col_map.begin(); it != col_map.end(); ++it)
    {
       cmap[it->second-1] = it->first;

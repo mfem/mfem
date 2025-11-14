@@ -862,26 +862,17 @@ HypreParMatrix *ParAlgebraicCoarseSpace::GetProlongationHypreParMatrix()
       delete [] requests;
    }
 
-   Memory<HYPRE_Int> i_diag_mem(lsize + 1);
-   i_diag_mem.SetHostPtrOwner(false);
-   Memory<HYPRE_Int> j_diag_mem(ltsize);
-   j_diag_mem.SetHostPtrOwner(false);
-   HYPRE_Int *i_diag = i_diag_mem.HostWrite();
-   HYPRE_Int *j_diag = j_diag_mem.HostWrite();
+   HYPRE_Int *i_diag = Memory<HYPRE_Int>(lsize + 1);
+   HYPRE_Int *j_diag = Memory<HYPRE_Int>(ltsize);
    int diag_counter;
 
-   Memory<HYPRE_Int> i_offd_mem(lsize + 1);
-   i_offd_mem.SetHostPtrOwner(false);
-   Memory<HYPRE_Int> j_offd_mem(lsize - ltsize);
-   j_offd_mem.SetHostPtrOwner(false);
+   HYPRE_Int *i_offd = Memory<HYPRE_Int>(lsize + 1);
+   HYPRE_Int *j_offd = Memory<HYPRE_Int>(lsize - ltsize);
    HYPRE_Int *i_offd = i_offd_mem.HostWrite();
    HYPRE_Int *j_offd = j_offd_mem.HostWrite();
    int offd_counter;
 
-   Memory<HYPRE_BigInt> cmap_mem(lsize - ltsize);
-   cmap_mem.SetHostPtrOwner(cmap_mem);
-
-   HYPRE_BigInt *cmap   = cmap_mem.HostWrite();
+   HYPRE_BigInt *cmap = Memory<HYPRE_BigInt>(lsize - ltsize);
 
    HYPRE_BigInt *col_starts = tdof_offsets;
    HYPRE_BigInt *row_starts = dof_offsets;
