@@ -72,7 +72,6 @@ set(UNIT_TESTS_SRCS
   fem/test_1d_bilininteg.cpp
   fem/test_2d_bilininteg.cpp
   fem/test_3d_bilininteg.cpp
-  fem/test_assemblediagonalpa.cpp
   fem/test_assembly_levels.cpp
   fem/test_bilinearform.cpp
   fem/test_block_operators.cpp
@@ -121,6 +120,7 @@ set(UNIT_TESTS_SRCS
   fem/test_operatorjacobismoother.cpp
   fem/test_oscillation.cpp
   fem/test_pa_coeff.cpp
+  fem/test_pa_diagonal.cpp
   fem/test_pa_grad.cpp
   fem/test_pa_idinterp.cpp
   fem/test_pa_kernels.cpp
@@ -240,6 +240,9 @@ function(add_serial_miniapp_test name test_uvm)
     if (MFEM_USE_CUDA)
         set_property(SOURCE ${${NAME}_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
     endif(MFEM_USE_CUDA)
+    if (MFEM_USE_HIP)
+       set_property(SOURCE ${${NAME}_TESTS_SRCS} PROPERTY HIP_SOURCE_PROPERTY_FORMAT TRUE)
+    endif(MFEM_USE_HIP)
 
     mfem_add_executable(${name}_tests_cpu ${${NAME}_TESTS_SRCS})
     target_compile_definitions(${name}_tests_cpu PUBLIC MFEM_${NAME}_DEVICE="cpu")
