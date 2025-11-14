@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
-   real_t force_mag = 1.0;
+   real_t displ_mag = 0.1;
    int order = 1;
    bool static_cond = false;
    bool visualization = 1;
@@ -37,6 +37,8 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&displ_mag, "-un", "--displ",
+                  "Magnitude of the normal displacement.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
@@ -70,7 +72,7 @@ int main(int argc, char *argv[])
    //    elements.
    {
       int ref_levels =
-         (int)floor(log(5000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(500./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -103,7 +105,7 @@ int main(int argc, char *argv[])
    //    list of true dofs.
    Array<int> ess_tdof_list, ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 1;
-   fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   // fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
@@ -117,7 +119,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient lambda(1.0);
    ConstantCoefficient mu(1.0);
    real_t beta = -1.0;
-   real_t kappa = 100.0;
+   real_t kappa = 1000.0;
 
    BilinearForm *a = new BilinearForm(fespace);
    a->AddDomainIntegrator(new ElasticityIntegrator(lambda,mu));
@@ -133,12 +135,12 @@ int main(int argc, char *argv[])
    //    which is a vector of Coefficient objects. The fact that f is non-zero
    //    on boundary attribute 2 is indicated by the use of piece-wise constants
    //    coefficient for its last component. [FIXME]
-   ConstantCoefficient f(force_mag);
+   ConstantCoefficient un(displ_mag);
 
    LinearForm *b = new LinearForm(fespace);
    b->AddBdrFaceIntegrator(
          new NitscheElasticityDirichletLFIntegrator(
-            f, lambda, mu, beta, kappa), ess_bdr);
+            un, lambda, mu, beta, kappa), ess_bdr);
    b->Assemble();
 
    // 10. Assemble the bilinear form and the corresponding linear system,
