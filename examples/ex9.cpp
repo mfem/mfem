@@ -2,14 +2,14 @@
 //
 // Compile with: make ex9
 //
-// Sample runs:
+// DG sample runs:
 //    ex9 -m ../data/periodic-segment.mesh -p 0 -r 2 -dt 0.005
 //    ex9 -m ../data/periodic-square.mesh -p 0 -r 2 -dt 0.01 -tf 10
 //    ex9 -m ../data/periodic-hexagon.mesh -p 0 -r 2 -dt 0.01 -tf 10
 //    ex9 -m ../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/periodic-hexagon.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9
-//    ex9 -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.02 -s 23 -tf 9
+//    ex9 -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.02 -s 13 -tf 9
 //    ex9 -m ../data/star-q3.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/star-mixed.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/disc-nurbs.mesh -p 1 -r 3 -dt 0.005 -tf 9
@@ -18,6 +18,23 @@
 //    ex9 -m ../data/periodic-cube.mesh -p 0 -r 2 -o 2 -dt 0.02 -tf 8
 //    ex9 -m ../data/periodic-square.msh -p 0 -r 2 -dt 0.005 -tf 2
 //    ex9 -m ../data/periodic-cube.msh -p 0 -r 1 -o 2 -tf 2
+//
+// CG sample runs:
+//    ex9 -m ../data/periodic-segment.mesh -p 0 -r 5 -dt 0.001 -sc 11 -vs 50 -o 1 -s 2
+//    ex9 -m ../data/periodic-segment.mesh -p 0 -r 5 -dt 0.001 -sc 12 -vs 50 -o 1 -s 2
+//    ex9 -m ../data/periodic-segment.mesh -p 0 -r 5 -dt 0.001 -sc 13 -vs 50 -o 1 -s 2
+//    ex9 -m ../data/periodic-square.mesh -p 0 -r 3 -dt 0.01 -tf 10 -sc 11 -o 2 -s 3 -vs 20
+//    ex9 -m ../data/periodic-hexagon.mesh -p 0 -r 3 -dt 0.01 -tf 10 -sc 12 -vs 20
+//    ex9 -m ../data/periodic-square.mesh -p 1 -r 4 -dt 0.002 -tf 9 -sc 11 -o 1 -s 2 -vs 20
+//    ex9 -m ../data/periodic-square.mesh -p 1 -r 2 -dt 0.002 -tf 9 -sc 11 -vs 20
+//    ex9 -m ../data/periodic-square.mesh -p 1 -r 4 -dt 0.002 -tf 9 -sc 13 -o 1 -s 2 -vs 20
+//    ex9 -m ../data/star-mixed.mesh -p 1 -r 4 -dt 0.004 -tf 9 -vs 20 -sc 11 -o 1 -s 2
+//    ex9 -m ../data/star-q3.mesh -p 1 -r 4 -dt 0.004 -tf 9 -vs 20 -sc 11 -o 1 -s 2
+//    ex9 -m ../data/disc-nurbs.mesh -p 1 -r 3 -dt 0.005 -tf 9 -sc 11
+//    ex9 -m ../data/disc-nurbs.mesh -p 1 -r 4 -dt 0.005 -tf 9 -sc 12 -o 2 -s 3
+//    ex9 -m ../data/periodic-square.mesh -p 3 -r 4 -dt 0.005 -tf 9 -vs 20 -sc 11 -o 2 -s 3
+//    ex9 -m ../data/periodic-cube.mesh -p 0 -r 2 -dt 0.02 -tf 8 -sc 11 -o 2 -s 3
+//    ex9 -m ../data/periodic-cube.msh -p 0 -r 2 -o 2 -s 3 -tf 2 -sc 11
 //
 // Device sample runs:
 //    ex9 -pa
@@ -41,11 +58,16 @@
 //               solution. The saving of time-dependent data files for external
 //               visualization with VisIt (visit.llnl.gov) and ParaView
 //               (paraview.org) is also illustrated.
+//               Additionally, the example showcases the implementation of an
+//               element-based Clip & Scale limiter for continuous finite
+//               elements, which is designed to be bound-preserving.
+//               For more detail, see https://doi.org/10.1142/13466.
 
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
 #include <algorithm>
+#include "ex9.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -104,12 +126,12 @@ public:
       }
    }
 
-   void SetOperator(const Operator &op) override
+   void SetOperator(const Operator &op)
    {
       linear_solver.SetOperator(op);
    }
 
-   void Mult(const Vector &x, Vector &y) const override
+   virtual void Mult(const Vector &x, Vector &y) const
    {
       linear_solver.Mult(x, y);
    }
@@ -120,7 +142,7 @@ public:
     and advection matrices, and b describes the flow on the boundary. This can
     be written as a general ODE, du/dt = M^{-1} (K u + b), and this class is
     used to evaluate the right-hand side. */
-class FE_Evolution : public TimeDependentOperator
+class DG_FE_Evolution : public TimeDependentOperator
 {
 private:
    BilinearForm &M, &K;
@@ -132,14 +154,13 @@ private:
    mutable Vector z;
 
 public:
-   FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_);
+   DG_FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_);
 
-   void Mult(const Vector &x, Vector &y) const override;
-   void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override;
+   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void ImplicitSolve(const real_t dt, const Vector &x, Vector &k);
 
-   ~FE_Evolution() override;
+   virtual ~DG_FE_Evolution();
 };
-
 
 int main(int argc, char *argv[])
 {
@@ -153,6 +174,7 @@ int main(int argc, char *argv[])
    bool fa = false;
    const char *device_config = "cpu";
    int ode_solver_type = 4;
+   int scheme = 1;
    real_t t_final = 10.0;
    real_t dt = 0.01;
    bool visualization = true;
@@ -182,7 +204,17 @@ int main(int argc, char *argv[])
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  ODESolver::Types.c_str());
+                  "ODE solver: 1 - Forward Euler,\n\t"
+                  "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6,\n\t"
+                  "            11 - Backward Euler,\n\t"
+                  "            12 - SDIRK23 (L-stable), 13 - SDIRK33,\n\t"
+                  "            22 - Implicit Midpoint Method,\n\t"
+                  "            23 - SDIRK23 (A-stable), 24 - SDIRK34");
+   args.AddOption(&scheme, "-sc", "--scheme",
+                  "FE scheme: 1 - DG high-order, unstabilized,\n\t"
+                  "           11 - CG low-order,\n\t"
+                  "           12 - CG high-order, stabilized,\n\t"
+                  "           13 - CG high-order, stabilized, limited.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -209,6 +241,14 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
+   const bool DG = (scheme < 10);
+
+   // Limiter is only implemented to run on cpu.
+   if (!DG && strcmp(device_config, "cuda") == 0)
+   {
+      cout << "Cuda not supported for this CG implementation" << endl;
+      return 2;
+   }
    Device device(device_config);
    device.Print();
 
@@ -217,9 +257,49 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
+   // Nonconforming meshes are not feasible for continuous elements
+   if (!DG && !mesh.Conforming())
+   {
+      cout << "CG needs a conforming mesh." << endl;
+      return 3;
+   }
+
    // 3. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
-   unique_ptr<ODESolver> ode_solver = ODESolver::Select(ode_solver_type);
+   //    The CG Limiter is only implemented for explicit time-stepping methods.
+   if (!DG && ode_solver_type > 10)
+   {
+      cout << "The CG methods are supported only with explicit RK schemes.\n";
+      return 4;
+   }
+   // Limiter and low order scheme are only provably bound preserving
+   // when employing SSP-RK time-stepping methods
+   else if ((scheme == 11 || scheme == 13) && ode_solver_type > 3)
+   {
+      MFEM_WARNING("Non-SSP-RK method! Bounds might be violated.");
+   }
+   unique_ptr<ODESolver> ode_solver = nullptr;
+   switch (ode_solver_type)
+   {
+      // Explicit methods
+      case 1: ode_solver.reset(new ForwardEulerSolver); break;
+      case 2: ode_solver.reset(new RK2Solver(1.0)); break;
+      case 3: ode_solver.reset(new RK3SSPSolver); break;
+      case 4: ode_solver.reset(new RK4Solver); break;
+      case 6: ode_solver.reset(new RK6Solver); break;
+      // Implicit (L-stable) methods
+      case 11: ode_solver.reset(new BackwardEulerSolver); break;
+      case 12: ode_solver.reset(new SDIRK23Solver(2)); break;
+      case 13: ode_solver.reset(new SDIRK33Solver); break;
+      // Implicit A-stable methods (not L-stable)
+      case 22: ode_solver.reset(new ImplicitMidpointSolver); break;
+      case 23: ode_solver.reset(new SDIRK23Solver); break;
+      case 24: ode_solver.reset(new SDIRK34Solver); break;
+
+      default:
+         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+         return 5;
+   }
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
@@ -235,12 +315,21 @@ int main(int argc, char *argv[])
    }
    mesh.GetBoundingBox(bb_min, bb_max, max(order, 1));
 
-   // 5. Define the discontinuous DG finite element space of the given
-   //    polynomial order on the refined mesh.
-   DG_FECollection fec(order, dim, BasisType::GaussLobatto);
-   FiniteElementSpace fes(&mesh, &fec);
+   // 5. Define the finite element space of the given polynomial order on the
+   //    refined mesh. Continuous H1 and discontinuous L2 spaces are supported.
+   DG_FECollection fec_DG(order, dim, BasisType::GaussLobatto);
+   H1_FECollection fec_CG(order, dim, BasisType::Positive);
+   unique_ptr<FiniteElementSpace> fes = nullptr;
+   switch (scheme)
+   {
+      case 1: fes.reset(new FiniteElementSpace(&mesh, &fec_DG)); break;
+      case 11:
+      case 12:
+      case 13: fes.reset(new FiniteElementSpace(&mesh, &fec_CG)); break;
+      default: cout << "Unknown scheme: " << scheme << endl; return 6;
+   }
 
-   cout << "Number of unknowns: " << fes.GetVSize() << endl;
+   cout << "Number of unknowns: " << fes->GetVSize() << endl;
 
    // 6. Set up and assemble the bilinear and linear forms corresponding to the
    //    DG discretization. The DGTraceIntegrator involves integrals over mesh
@@ -249,46 +338,71 @@ int main(int argc, char *argv[])
    FunctionCoefficient inflow(inflow_function);
    FunctionCoefficient u0(u0_function);
 
-   BilinearForm m(&fes);
-   BilinearForm k(&fes);
-   if (pa)
+   BilinearForm m(fes.get());
+   BilinearForm k(fes.get());
+   if (DG)
    {
-      m.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      k.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      if (pa)
+      {
+         m.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+         k.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      }
+      else if (ea)
+      {
+         m.SetAssemblyLevel(AssemblyLevel::ELEMENT);
+         k.SetAssemblyLevel(AssemblyLevel::ELEMENT);
+      }
+      else if (fa)
+      {
+         m.SetAssemblyLevel(AssemblyLevel::FULL);
+         k.SetAssemblyLevel(AssemblyLevel::FULL);
+      }
    }
-   else if (ea)
+   else if (scheme == 13 && (pa || ea))
    {
-      m.SetAssemblyLevel(AssemblyLevel::ELEMENT);
-      k.SetAssemblyLevel(AssemblyLevel::ELEMENT);
+      cout << "The CG Limiter needs full assembly of the mass matrix to obtain "
+           << "the local stencil via its sparsity pattern.\n";
+      return 7;
    }
-   else if (fa)
-   {
-      m.SetAssemblyLevel(AssemblyLevel::FULL);
-      k.SetAssemblyLevel(AssemblyLevel::FULL);
-   }
+
    m.AddDomainIntegrator(new MassIntegrator);
-   constexpr real_t alpha = -1.0;
-   k.AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
-   k.AddInteriorFaceIntegrator(
-      new NonconservativeDGTraceIntegrator(velocity, alpha));
-   k.AddBdrFaceIntegrator(
-      new NonconservativeDGTraceIntegrator(velocity, alpha));
-
-   LinearForm b(&fes);
-   b.AddBdrFaceIntegrator(
-      new BoundaryFlowIntegrator(inflow, velocity, alpha));
-
    m.Assemble();
-   int skip_zeros = 0;
-   k.Assemble(skip_zeros);
-   b.Assemble();
    m.Finalize();
-   k.Finalize(skip_zeros);
+
+   constexpr real_t alpha = -1.0;
+   int skip_zeros = 0;
+   Vector lumpedmassmatrix(m.Height());
+
+   // The convective bilinear form is not needed in the CG case.
+   if (DG)
+   {
+      k.AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
+      k.AddInteriorFaceIntegrator(
+         new NonconservativeDGTraceIntegrator(velocity, alpha));
+      k.AddBdrFaceIntegrator(
+         new NonconservativeDGTraceIntegrator(velocity, alpha));
+
+      k.Assemble(skip_zeros);
+      k.Finalize(skip_zeros);
+   }
+   // lumped mass matrix not needed in the DG case
+   else
+   {
+      BilinearForm mL(fes.get());
+      mL.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
+      mL.Assemble();
+      mL.Finalize();
+      mL.SpMat().GetDiag(lumpedmassmatrix);
+   }
+
+   LinearForm b(fes.get());
+   b.AddBdrFaceIntegrator(new BoundaryFlowIntegrator(inflow, velocity, alpha));
+   b.Assemble();
 
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
-   GridFunction u(&fes);
+   GridFunction u(fes.get());
    u.ProjectCoefficient(u0);
 
    {
@@ -302,7 +416,7 @@ int main(int argc, char *argv[])
 
    // Create data collection for solution output: either VisItDataCollection for
    // ascii data files, or SidreDataCollection for binary data files.
-   DataCollection *dc = NULL;
+   unique_ptr<DataCollection> dc = nullptr;
    if (visit)
    {
       if (binary)
@@ -315,7 +429,7 @@ int main(int argc, char *argv[])
       }
       else
       {
-         dc = new VisItDataCollection("Example9", &mesh);
+         dc.reset(new VisItDataCollection("Example9", &mesh));
          dc->SetPrecision(precision);
       }
       dc->RegisterField("solution", &u);
@@ -324,10 +438,10 @@ int main(int argc, char *argv[])
       dc->Save();
    }
 
-   ParaViewDataCollection *pd = NULL;
+   unique_ptr<ParaViewDataCollection> pd = nullptr;
    if (paraview)
    {
-      pd = new ParaViewDataCollection("Example9", &mesh);
+      pd.reset(new ParaViewDataCollection("Example9", &mesh));
       pd->SetPrefixPath("ParaView");
       pd->RegisterField("solution", &u);
       pd->SetLevelsOfDetail(order);
@@ -365,11 +479,23 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(m, k, b);
+   //DG_FE_Evolution adv(m, k, b);
+   unique_ptr<TimeDependentOperator> adv = nullptr;
+   switch (scheme)
+   {
+      case 1: adv.reset(new DG_FE_Evolution(m, k, b)); break;
+      case 11: adv.reset(new LowOrderScheme(*fes, lumpedmassmatrix,
+                                               inflow, velocity, m)); break;
+      case 12: adv.reset(new HighOrderTargetScheme(*fes, lumpedmassmatrix,
+                                                      inflow, velocity, m)); break;
+      case 13: adv.reset(new ClipAndScale(*fes, lumpedmassmatrix,
+                                             inflow, velocity, m)); break;
+      default: cout << "Unknown scheme: " << scheme << '\n'; return 8;
+   }
 
    real_t t = 0.0;
-   adv.SetTime(t);
-   ode_solver->Init(adv);
+   adv->SetTime(t);
+   ode_solver->Init(*adv);
 
    bool done = false;
    for (int ti = 0; !done; )
@@ -413,16 +539,16 @@ int main(int argc, char *argv[])
       u.Save(osol);
    }
 
-   // 10. Free the used memory.
-   delete pd;
-   delete dc;
+   ConstantCoefficient zero(0.0);
+   std::cout << "Norm: " << u.ComputeL2Error(zero) << std::endl;
 
    return 0;
 }
 
 
-// Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_)
+// Implementation of class DG_FE_Evolution
+DG_FE_Evolution::DG_FE_Evolution(BilinearForm &M_, BilinearForm &K_,
+                                 const Vector &b_)
    : TimeDependentOperator(M_.FESpace()->GetTrueVSize()),
      M(M_), K(K_), b(b_), z(height)
 {
@@ -447,7 +573,7 @@ FE_Evolution::FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_)
    M_solver.SetPrintLevel(0);
 }
 
-void FE_Evolution::Mult(const Vector &x, Vector &y) const
+void DG_FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
    // y = M^{-1} (K x + b)
    K.Mult(x, z);
@@ -455,7 +581,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    M_solver.Mult(z, y);
 }
 
-void FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
+void DG_FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
 {
    MFEM_VERIFY(dg_solver != NULL,
                "Implicit time integration is not supported with partial assembly");
@@ -465,7 +591,7 @@ void FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
    dg_solver->Mult(z, k);
 }
 
-FE_Evolution::~FE_Evolution()
+DG_FE_Evolution::~DG_FE_Evolution()
 {
    delete M_prec;
    delete dg_solver;
