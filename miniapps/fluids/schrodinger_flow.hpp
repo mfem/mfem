@@ -12,6 +12,14 @@
 //             ---------------------------------------------
 //             Incompressible Schrödinger Flow (ISF) Miniapp
 //             ---------------------------------------------
+//
+// This miniapp introduces the Incompressible Schrödinger Flow (ISF) method,
+// an approach for simulating inviscid fluid dynamics by solving the linear
+// Schrödinger equation, leveraging the hydrodynamical analogy to quantum
+// mechanics proposed by Madelung in 1926. ISF offers a simple and efficient
+// framework, particularly effective for capturing vortex dynamics.
+// See README for more details.
+
 #pragma once
 
 #include "mfem.hpp"
@@ -248,13 +256,13 @@ struct SchrodingerBaseKernels: public Options
    Array<int> ess_tdof_list;
    std::function<void()> SetEssentialTrueDofs;
    bool ess_tdof_list_setup, diff_h1_setup;
-   OperatorJacobiSmoother Km1_h1_smoother;
-   OrthoSolver Km1_ortho;
-   CGSolver Mm1_h1, Mm1_nd, Km1_h1;
+   OperatorJacobiSmoother diff_h1_smoother;
+   OrthoSolver diff_h1_ortho;
+   CGSolver mass_h1_cgs, mass_nd_cgs, diff_h1_cgs;
    TComplexGridFunction psi1, psi2;
    TComplexGridFunction delta_psi1, delta_psi2, gpsi1_nd, gpsi2_nd;
    TComplexGridFunction gpsi1_x, gpsi2_x, gpsi1_y, gpsi2_y, gpsi1_z, gpsi2_z;
-   TGridFunction div_u, q, h1, nd;
+   TGridFunction div_u, q, h1_gf, nd_gf;
    TLinearForm rhs;
    GridFunctionCoefficient div_u_coeff;
    OperatorHandle mass_h1_op, mass_nd_op, diff_h1_op;
@@ -334,11 +342,11 @@ struct SchrodingerBaseKernels: public Options
                   diff_h1.SetAssemblyLevel(AssemblyLevel::PARTIAL),
                   diff_h1.Assemble(),
                   true)),
-   Km1_h1_smoother(diff_h1, ess_tdof_list),
-   Km1_ortho(CreateOrthoSolver()),
-   Mm1_h1(CreateCGSolver()),
-   Mm1_nd(CreateCGSolver()),
-   Km1_h1(CreateCGSolver()),
+   diff_h1_smoother(diff_h1, ess_tdof_list),
+   diff_h1_ortho(CreateOrthoSolver()),
+   mass_h1_cgs(CreateCGSolver()),
+   mass_nd_cgs(CreateCGSolver()),
+   diff_h1_cgs(CreateCGSolver()),
    psi1(&h1_fes),
    psi2(&h1_fes),
    delta_psi1(&h1_fes), delta_psi2(&h1_fes),
@@ -348,8 +356,8 @@ struct SchrodingerBaseKernels: public Options
    gpsi1_z(&h1_fes), gpsi2_z(&h1_fes),
    div_u(&h1_fes),
    q(&h1_fes),
-   h1(&h1_fes),
-   nd(&nd_fes),
+   h1_gf(&h1_fes),
+   nd_gf(&nd_fes),
    rhs(&h1_fes),
    div_u_coeff(&div_u)
    {
@@ -358,6 +366,7 @@ struct SchrodingerBaseKernels: public Options
       mass_h1.AddDomainIntegrator(new MassIntegrator(one));
       mass_nd.AddDomainIntegrator(new VectorFEMassIntegrator(one));
       grad_nd.AddDomainIntegrator(new MixedVectorGradientIntegrator());
+
       nd_dot_x_h1.AddDomainIntegrator(new MixedDotProductIntegrator(Vx));
       nd_dot_y_h1.AddDomainIntegrator(new MixedDotProductIntegrator(Vy));
       nd_dot_z_h1.AddDomainIntegrator(new MixedDotProductIntegrator(Vz));
@@ -365,6 +374,7 @@ struct SchrodingerBaseKernels: public Options
       mass_h1.SetAssemblyLevel(AssemblyLevel::PARTIAL);
       mass_nd.SetAssemblyLevel(AssemblyLevel::PARTIAL);
       grad_nd.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+
       nd_dot_x_h1.SetAssemblyLevel(AssemblyLevel::LEGACY);
       nd_dot_y_h1.SetAssemblyLevel(AssemblyLevel::LEGACY);
       nd_dot_z_h1.SetAssemblyLevel(AssemblyLevel::LEGACY);
@@ -372,9 +382,14 @@ struct SchrodingerBaseKernels: public Options
       mass_h1.Assemble();
       mass_nd.Assemble();
       grad_nd.Assemble();
-      nd_dot_x_h1.Assemble(), nd_dot_x_h1.Finalize();
-      nd_dot_y_h1.Assemble(), nd_dot_y_h1.Finalize();
-      if (dim == 3) { nd_dot_z_h1.Assemble(), nd_dot_z_h1.Finalize(); }
+
+      nd_dot_x_h1.Assemble();
+      nd_dot_y_h1.Assemble();
+      if (dim == 3) { nd_dot_z_h1.Assemble(); }
+
+      nd_dot_x_h1.Finalize();
+      nd_dot_y_h1.Finalize();
+      if (dim == 3) { nd_dot_z_h1.Finalize(); }
 
       mass_h1.FormSystemMatrix(ess_tdof_list, mass_h1_op);
       mass_nd.FormSystemMatrix(ess_tdof_list, mass_nd_op);
@@ -395,19 +410,28 @@ struct SchrodingerBaseKernels: public Options
          }
       }
 
-      Mm1_h1.SetRelTol(rtol), Mm1_h1.SetAbsTol(atol), Mm1_h1.SetMaxIter(max_iters);
-      Mm1_h1.SetOperator(*mass_h1_op), Mm1_h1.iterative_mode = false;
-      Mm1_h1.SetPrintLevel(print_level);
+      mass_h1_cgs.SetRelTol(rtol);
+      mass_h1_cgs.SetAbsTol(atol);
+      mass_h1_cgs.SetMaxIter(max_iters);
+      mass_h1_cgs.SetOperator(*mass_h1_op);
+      mass_h1_cgs.iterative_mode = false;
+      mass_h1_cgs.SetPrintLevel(print_level);
 
-      Mm1_nd.SetRelTol(rtol), Mm1_nd.SetAbsTol(atol), Mm1_nd.SetMaxIter(max_iters);
-      Mm1_nd.SetOperator(*mass_nd_op), Mm1_nd.iterative_mode = false;
-      Mm1_nd.SetPrintLevel(print_level);
+      mass_nd_cgs.SetRelTol(rtol);
+      mass_nd_cgs.SetAbsTol(atol);
+      mass_nd_cgs.SetMaxIter(max_iters);
+      mass_nd_cgs.SetOperator(*mass_nd_op);
+      mass_nd_cgs.iterative_mode = false;
+      mass_nd_cgs.SetPrintLevel(print_level);
 
-      Km1_h1.SetRelTol(rtol), Km1_h1.SetAbsTol(atol), Km1_h1.SetMaxIter(max_iters);
-      Km1_h1.SetOperator(*diff_h1_op), Km1_h1.iterative_mode = false;
-      Km1_ortho.SetSolver(Km1_h1_smoother);
-      Km1_h1.SetPreconditioner(Km1_ortho);
-      Km1_h1.SetPrintLevel(3);
+      diff_h1_cgs.SetRelTol(rtol);
+      diff_h1_cgs.SetAbsTol(atol);
+      diff_h1_cgs.SetMaxIter(max_iters);
+      diff_h1_cgs.SetOperator(*diff_h1_op);
+      diff_h1_cgs.iterative_mode = false;
+      diff_h1_ortho.SetSolver(diff_h1_smoother);
+      diff_h1_cgs.SetPreconditioner(diff_h1_ortho);
+      diff_h1_cgs.SetPrintLevel(3);
 
       rhs.AddDomainIntegrator(new DomainLFIntegrator(div_u_coeff));
       rhs.UseFastAssembly(true);
@@ -535,14 +559,14 @@ struct SchrodingerBaseKernels: public Options
 
       mfem::forall(ndofs, [=] MFEM_HOST_DEVICE(int n)
       {
-         vx(n) = +psi1r(n) * Gpsi1ix(n) - psi1i(n) * Gpsi1rx(n);
+         vx(n) = psi1r(n) * Gpsi1ix(n) - psi1i(n) * Gpsi1rx(n);
          vx(n) += psi2r(n) * Gpsi2ix(n) - psi2i(n) * Gpsi2rx(n);
          vx(n) *= (fabs(vx(n)) < FTZ) ? 0.0 : hbar;
-         vy(n) = +psi1r(n) * Gpsi1iy(n) - psi1i(n) * Gpsi1ry(n);
+         vy(n) = psi1r(n) * Gpsi1iy(n) - psi1i(n) * Gpsi1ry(n);
          vy(n) += psi2r(n) * Gpsi2iy(n) - psi2i(n) * Gpsi2ry(n);
          vy(n) *= (fabs(vy(n)) < FTZ) ? 0.0 : hbar;
          if (DIM == 2) { return; }
-         vz(n) = +psi1r(n) * Gpsi1iz(n) - psi1i(n) * Gpsi1rz(n);
+         vz(n) = psi1r(n) * Gpsi1iz(n) - psi1i(n) * Gpsi1rz(n);
          vz(n) += psi2r(n) * Gpsi2iz(n) - psi2i(n) * Gpsi2rz(n);
          vz(n) *= (fabs(vz(n)) < FTZ) ? 0.0 : hbar;
       });
@@ -562,7 +586,7 @@ struct SchrodingerBaseKernels: public Options
       auto div_u_w = Reshape(div_u.Write(), ndofs);
       mfem::forall(ndofs, [=] MFEM_HOST_DEVICE(int n)
       {
-         div_u_w(n) = +psi1i(n) * Dpsi1r(n) - psi1r(n) * Dpsi1i(n);
+         div_u_w(n) = psi1i(n) * Dpsi1r(n) - psi1r(n) * Dpsi1i(n);
          div_u_w(n) += psi2i(n) * Dpsi2r(n) - psi2r(n) * Dpsi2i(n);
          div_u_w(n) *= -1.0;
       });
@@ -626,29 +650,29 @@ struct SchrodingerBaseKernels: public Options
 template<typename TFiniteElementSpace,
          typename TSesquilinearForm,
          typename TComplexGridFunction>
-struct CrankNicolsonBaseSolver
+struct CrankNicolsonTimeBaseSolver
 {
    ConstantCoefficient one, dthq, mdthq;
    TSesquilinearForm C_form, R_form;
    Array<int> no_bc;
    OperatorHandle C_op, R_op;
    TComplexGridFunction z;
-   GMRESSolver Cm1;
+   GMRESSolver gmres_solver;
 
    // ∂ₜ𝝭 = ½ℏ𝑖∆𝝭
    // 𝝭ⁿ⁺¹ - 𝝭ⁿ = ¼𝛅t𝑖ℏ(∆𝝭ⁿ⁺¹ + ∆𝝭ⁿ)
    // 𝝭ⁿ⁺¹ - ¼𝑖ℏ𝛅t∆𝝭ⁿ⁺¹ = 𝝭ⁿ + ¼𝑖ℏ𝛅t∆𝝭ⁿ
    // [M + ¼𝑖ℏ𝛅tA]𝝭ⁿ⁺¹ = [M - ¼𝑖ℏ𝛅tA]𝝭ⁿ
    // C = M + ¼𝑖ℏ𝛅tA, R = M - ¼𝑖ℏ𝛅tA
-   CrankNicolsonBaseSolver(TFiniteElementSpace &fes,
-                           real_t hbar, real_t dt,
-                           std::function<GMRESSolver()> CreateGMRESSolver,
-                           real_t rtol, real_t atol, int maxiter,
-                           int print_level):
+   CrankNicolsonTimeBaseSolver(TFiniteElementSpace &fes,
+                               real_t hbar, real_t dt,
+                               std::function<GMRESSolver()> CreateGMRESSolver,
+                               real_t rtol, real_t atol, int maxiter,
+                               int print_level):
       one(1.0), dthq(dt * hbar / 4.0), mdthq(-dt * hbar / 4.0),
       C_form(&fes), R_form(&fes),
       z(&fes),
-      Cm1(CreateGMRESSolver())
+      gmres_solver(CreateGMRESSolver())
    {
       // C = M + ¼𝑖ℏ𝛅tA
       C_form.AddDomainIntegrator(new MassIntegrator(one),
@@ -664,12 +688,12 @@ struct CrankNicolsonBaseSolver
       R_form.Assemble();
       R_form.FormSystemMatrix(no_bc, R_op);
 
-      Cm1.SetPrintLevel(print_level);
-      Cm1.iterative_mode = false;
-      Cm1.SetMaxIter(maxiter);
-      Cm1.SetOperator(*C_op);
-      Cm1.SetRelTol(rtol);
-      Cm1.SetAbsTol(atol);
+      gmres_solver.SetPrintLevel(print_level);
+      gmres_solver.iterative_mode = false;
+      gmres_solver.SetMaxIter(maxiter);
+      gmres_solver.SetOperator(*C_op);
+      gmres_solver.SetRelTol(rtol);
+      gmres_solver.SetAbsTol(atol);
    }
 
    // 𝝭ⁿ⁺¹ = C⁻¹ R 𝝭ⁿ
@@ -759,13 +783,24 @@ public:
    /// @brief This function performs a single time step of the solver.
    void Step(const real_t &t)
    {
+      // Solve linear Schrödinger equation
       solver.Step();
-      solver.Normalize(), solver.PressureProject();
+
+      // Normalization of the wave function
+      solver.Normalize();
+
+      // Pressure projection
+      solver.PressureProject();
+
+      // Enforce geometry constraints
       if (jet)
       {
          solver.Restrict(t, isJet, omega, phase);
-         solver.Normalize(), solver.PressureProject();
+         solver.Normalize();
+         solver.PressureProject();
       }
+
+      // Compute velocity field for visualization
       if (visualization &&
           static_cast<VisData>(vis_data) == VisData::Velocity)
       {

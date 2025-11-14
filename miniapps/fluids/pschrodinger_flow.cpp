@@ -18,6 +18,7 @@
 // Schrödinger equation, leveraging the hydrodynamical analogy to quantum
 // mechanics proposed by Madelung in 1926. ISF offers a simple and efficient
 // framework, particularly effective for capturing vortex dynamics.
+// See README for more details.
 //
 // Compile with: make pschrodinger_flow
 //
@@ -50,12 +51,12 @@ using Kernels = SchrodingerBaseKernels<
                 ParLinearForm>;
 
 // Crank-Nicolson solver for time stepping
-using CrankNicolsonSolver = CrankNicolsonBaseSolver<
+using CrankNicolsonSolver = CrankNicolsonTimeBaseSolver<
                             ParFiniteElementSpace,
                             ParSesquilinearForm,
                             ParComplexGridFunction>;
 
-// Parallel mesh and solvers functions
+// Parallel mesh and solvers factories
 static auto SetParMesh = [](Mesh &mesh) { return ParMesh(MPI_COMM_WORLD, mesh); };
 static auto SetOrthoSolver = []() { return OrthoSolver(MPI_COMM_WORLD); };
 static auto SetCGSolver = []() { return CGSolver(MPI_COMM_WORLD); };
@@ -72,27 +73,28 @@ struct SchrodingerSolver : public Kernels
                                          real_t hbar, real_t dt,
                                          real_t rtol, real_t atol, int maxiter,
                                          int print_level):
-         CrankNicolsonBaseSolver(fes, hbar, dt, SetGMRESSolver,
-                                 rtol, atol, maxiter, print_level),
+         CrankNicolsonTimeBaseSolver(fes, hbar, dt, SetGMRESSolver,
+                                     rtol, atol, maxiter, print_level),
          PSI(2*fes.GetTrueVSize()),
          Z(2*fes.GetTrueVSize()) { }
 
       void Mult(ParComplexGridFunction &psi) override
       {
          psi.ParallelProject(PSI);
-         R_op->Mult(PSI, Z), Cm1.Mult(Z, PSI);
+         R_op->Mult(PSI, Z);
+         gmres_solver.Mult(Z, PSI);
          psi.Distribute(PSI);
-         MFEM_VERIFY(Cm1.GetConverged(), "Crank Nicolson solver failed");
+         MFEM_VERIFY(gmres_solver.GetConverged(), "Crank Nicolson solver failed");
       }
-   } cn1, cn2;
+   } time_1_solver, time_2_solver;
    Vector B;
 
 public:
    SchrodingerSolver(Options &config):
       Kernels(config, SetParMesh, SetOrthoSolver, SetCGSolver),
-      cn1(h1_fes, hbar, dt, rtol, atol, max_iters, print_level),
-      cn2(h1_fes, hbar, dt, rtol, atol, max_iters, print_level),
-      B(Km1_h1.Width())
+      time_1_solver(h1_fes, hbar, dt, rtol, atol, max_iters, print_level),
+      time_2_solver(h1_fes, hbar, dt, rtol, atol, max_iters, print_level),
+      B(diff_h1_cgs.Width())
    {
       B.UseDevice(true);
       serial_mesh.Clear();
@@ -100,36 +102,36 @@ public:
       nodes.SetFromTrueVector();
    }
 
-   void Step() { cn1.Mult(psi1), cn2.Mult(psi2); }
+   void Step() { time_1_solver.Mult(psi1); time_2_solver.Mult(psi2); }
 
    void GradPsi()
    {
       const auto Grad_nd = [&](ParGridFunction &in_h1, ParGridFunction &out_nd)
       {
          in_h1.SetTrueVector(), in_h1.SetFromTrueVector();
-         grad_nd_op->Mult(in_h1.GetTrueVector(), nd.GetTrueVector());
-         Mm1_nd.Mult(nd.GetTrueVector(), out_nd.GetTrueVector());
+         grad_nd_op->Mult(in_h1.GetTrueVector(), nd_gf.GetTrueVector());
+         mass_nd_cgs.Mult(nd_gf.GetTrueVector(), out_nd.GetTrueVector());
          out_nd.SetFromTrueVector();
       };
       const auto x_dot_Mm1 = [&](ParGridFunction &x, ParGridFunction &y)
       {
          x.SetTrueVector(), x.SetFromTrueVector();
-         nd_dot_x_h1_op->Mult(x.GetTrueVector(), h1.GetTrueVector());
-         Mm1_h1.Mult(h1.GetTrueVector(), y.GetTrueVector());
+         nd_dot_x_h1_op->Mult(x.GetTrueVector(), h1_gf.GetTrueVector());
+         mass_h1_cgs.Mult(h1_gf.GetTrueVector(), y.GetTrueVector());
          y.SetFromTrueVector();
       };
       const auto y_dot_Mm1 = [&](ParGridFunction &x, ParGridFunction &y)
       {
          x.SetTrueVector(), x.SetFromTrueVector();
-         nd_dot_y_h1_op->Mult(x.GetTrueVector(), h1.GetTrueVector());
-         Mm1_h1.Mult(h1.GetTrueVector(), y.GetTrueVector());
+         nd_dot_y_h1_op->Mult(x.GetTrueVector(), h1_gf.GetTrueVector());
+         mass_h1_cgs.Mult(h1_gf.GetTrueVector(), y.GetTrueVector());
          y.SetFromTrueVector();
       };
       const auto z_dot_Mm1 = [&](ParGridFunction &x, ParGridFunction &y)
       {
          x.SetTrueVector(), x.SetFromTrueVector();
-         nd_dot_z_h1_op->Mult(x.GetTrueVector(), h1.GetTrueVector());
-         Mm1_h1.Mult(h1.GetTrueVector(), y.GetTrueVector());
+         nd_dot_z_h1_op->Mult(x.GetTrueVector(), h1_gf.GetTrueVector());
+         mass_h1_cgs.Mult(h1_gf.GetTrueVector(), y.GetTrueVector());
          y.SetFromTrueVector();
       };
       Kernels::GradPsi(Grad_nd, x_dot_Mm1, y_dot_Mm1, z_dot_Mm1);
@@ -147,8 +149,8 @@ public:
       const auto diff_Mm1 = [&](ParGridFunction &x, ParGridFunction &y)
       {
          x.SetTrueVector(), x.SetFromTrueVector();
-         diff_h1_op->Mult(x.GetTrueVector(), h1.GetTrueVector());
-         Mm1_h1.Mult(h1.GetTrueVector(), y.GetTrueVector());
+         diff_h1_op->Mult(x.GetTrueVector(), h1_gf.GetTrueVector());
+         mass_h1_cgs.Mult(h1_gf.GetTrueVector(), y.GetTrueVector());
          y.SetFromTrueVector();
       };
       diff_Mm1(psi1.real(), delta_psi1.real());
@@ -162,9 +164,9 @@ public:
    {
       rhs.Assemble();
       rhs.ParallelAssemble(B);
-      Km1_h1.Mult(B, q.GetTrueVector());
+      diff_h1_cgs.Mult(B, q.GetTrueVector());
       q.SetFromTrueVector();
-      MFEM_VERIFY(Km1_h1.GetConverged(), "Km1_h1 solver did not converge");
+      MFEM_VERIFY(diff_h1_cgs.GetConverged(), "Km1_h1 solver did not converge");
    }
 
    void PressureProject() { ComputeDivU(); PoissonSolve(); GaugeTransform(); }
