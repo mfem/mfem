@@ -23,6 +23,7 @@ list(APPEND SRCS
   occa.cpp
   optparser.cpp
   osockstream.cpp
+  resource_manager.cpp
   sets.cpp
   socketstream.cpp
   stable3d.cpp
