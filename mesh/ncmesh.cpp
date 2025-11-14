@@ -600,6 +600,18 @@ void Refinement::SetType(char type, real_t scale)
    SetScale(ScaledType(type, scale));
 }
 
+int Refinement::GetNumChildren(Geometry::Type geom_type, char ref_type)
+{
+   if (geom_type != Geometry::PYRAMID)
+   {
+      return ref_type_num_children[ref_type];
+   }
+   else
+   {
+      return 10;
+   }
+}
+
 NCMesh::Element::Element(Geometry::Type geom, int attr)
    : geom(geom), ref_type(0), tet_type(0), flag(0), index(-1)
    , rank(0), attribute(attr), parent(-1)
@@ -6446,7 +6458,8 @@ void NCMesh::Print(std::ostream &os, const std::string &comments,
       if (el.parent == -2) { os << "-1\n"; continue; } // unused element
 
       os << int(el.geom) << " " << int(el.ref_type);
-      for (int j = 0; j < MaxElemNodes && el.node[j] >= 0; j++)
+      for (int j = 0; j < (int(el.ref_type) ? MaxElemChildren : MaxElemNodes)
+           && el.node[j] >= 0; j++)
       {
          os << " " << el.node[j];
       }
@@ -6624,13 +6637,20 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
          CheckSupportedGeom(type);
          GI[geom].InitGeom(type);
 
+         // if we have pyramids we will need tets after refinement
+         if (geom == Geometry::PYRAMID)
+         {
+            CheckSupportedGeom(Geometry::TETRAHEDRON);
+            GI[Geometry::TETRAHEDRON].InitGeom(Geometry::TETRAHEDRON);
+         }
+
          input >> ref_type;
          MFEM_VERIFY(ref_type >= 0 && ref_type < 8, "");
          el.ref_type = ref_type;
 
          if (ref_type) // refined element
          {
-            for (int j = 0; j < ref_type_num_children[ref_type]; j++)
+            for (int j = 0; j < Refinement::GetNumChildren(type, ref_type); j++)
             {
                input >> el.child[j];
             }
@@ -6780,7 +6800,7 @@ void NCMesh::LoadCoarseElements(std::istream &input)
       if (Dim == 3 && ref_type != 7) { iso = false; }
 
       // load child IDs and make parent-child links
-      int nch = ref_type_num_children[ref_type];
+      int nch = Refinement::GetNumChildren((Geometry::Type)el.geom, ref_type);
       for (int i = 0, id; i < nch; i++)
       {
          input >> id;
