@@ -129,7 +129,9 @@ public:
        big/monolithic vector has the correct memory location flags. */
    /** This method will copy the data validity flags from the big/monolithic
        block-vector to its sub-vector block. */
-   void SyncToBlocks() const;
+   [[deprecated]]
+   void SyncToBlocks() const
+   {}
 
    /** @brief Synchronize the memory location flags (i.e. the memory validity
        flags) of the big/monolithic block-vector with its sub-vector blocks. The
@@ -137,7 +139,9 @@ public:
    /** This method will copy/move the data of the sub-vector blocks (if
        necessary) so that each block matches the memory location flags of the
        big/monolithic block-vector. */
-   void SyncFromBlocks() const;
+   [[deprecated]]
+   void SyncFromBlocks() const
+   {}
 };
 
 }

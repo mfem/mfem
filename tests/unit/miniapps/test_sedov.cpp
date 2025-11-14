@@ -1795,7 +1795,6 @@ public:
          timer.H1iter += CG_VMass.GetNumIterations();
          if (Pconf) { Pconf->Mult(X, dvc_gf); }
          else { dvc_gf = X; }
-         dvc_gf.GetMemory().SyncAlias(dS_dt.GetMemory(), dvc_gf.Size());
       }
    }
 
@@ -1816,7 +1815,6 @@ public:
       timer.sw_cgL2.Stop();
       const int cg_num_iter = CG_EMass.GetNumIterations();
       timer.L2iter += (cg_num_iter==0) ? 1 : cg_num_iter;
-      de.GetMemory().SyncAlias(dS_dt.GetMemory(), de.Size());
       delete e_source;
    }
 
@@ -2011,10 +2009,8 @@ int sedov(int myid, int argc, char *argv[])
    v_gf.MakeRef(&H1FESpace, S, true_offset[1]);
    e_gf.MakeRef(&L2FESpace, S, true_offset[2]);
    pmesh->SetNodalGridFunction(&x_gf);
-   x_gf.SyncAliasMemory(S);
    VectorFunctionCoefficient v_coeff(pmesh->Dimension(), v0);
    v_gf.ProjectCoefficient(v_coeff);
-   v_gf.SyncAliasMemory(S);
    ParGridFunction rho(&L2FESpace);
    FunctionCoefficient rho_fct_coeff(rho0);
    ConstantCoefficient rho_coeff(1.0);
@@ -2028,7 +2024,6 @@ int sedov(int myid, int argc, char *argv[])
    e_coeff.SetWeight(new ConstantCoefficient(1.0));
    l2_e.ProjectCoefficient(e_coeff);
    e_gf.ProjectGridFunction(l2_e);
-   e_gf.SyncAliasMemory(S);
    L2_FECollection mat_fec(0, pmesh->Dimension());
    ParFiniteElementSpace mat_fes(pmesh, &mat_fec);
    ParGridFunction mat_gf(&mat_fes);
@@ -2080,9 +2075,6 @@ int sedov(int myid, int argc, char *argv[])
          ti--; continue;
       }
       else if (dt_est > 1.25 * dt) { dt *= 1.02; }
-      x_gf.SyncAliasMemory(S);
-      v_gf.SyncAliasMemory(S);
-      e_gf.SyncAliasMemory(S);
       pmesh->NewNodes(x_gf, false);
       if (last_step || (ti % vis_steps) == 0)
       {

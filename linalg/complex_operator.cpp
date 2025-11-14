@@ -78,9 +78,6 @@ void ComplexOperator::Mult(const Vector &x, Vector &y) const
    y_i_.MakeRef(y, height/2, height/2);
 
    this->Mult(x_r_, x_i_, y_r_, y_i_);
-
-   y_r_.SyncAliasMemory(y);
-   y_i_.SyncAliasMemory(y);
 }
 
 void ComplexOperator::Mult(const Vector &x_r, const Vector &x_i,
@@ -127,9 +124,6 @@ void ComplexOperator::MultTranspose(const Vector &x, Vector &y) const
    y_i_.MakeRef(y, width/2, width/2);
 
    this->MultTranspose(x_r_, x_i_, y_r_, y_i_);
-
-   y_r_.SyncAliasMemory(y);
-   y_i_.SyncAliasMemory(y);
 }
 
 void ComplexOperator::MultTranspose(const Vector &x_r, const Vector &x_i,

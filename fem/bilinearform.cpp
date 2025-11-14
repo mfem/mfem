@@ -976,14 +976,6 @@ void BilinearForm::RecoverFEMSolution(const Vector &X,
          // Primal unknowns recovery
          hybridization->ComputeSolution(b, X, x);
       }
-      else
-      {
-         // X and x point to the same data
-
-         // If the validity flags of X's Memory were changed (e.g. if it was
-         // moved to device memory) then we need to tell x about that.
-         x.SyncMemory(X);
-      }
    }
    else // non-conforming space
    {

@@ -970,7 +970,6 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
 
    by.UseDevice(true);
    by = 0.0;
-   by.SyncToBlocks();
    for (int s=0; s<fes.Size(); ++s)
    {
       el_x_const[s] = el_x[s] = new Vector();
@@ -1192,8 +1191,6 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
       delete el_y[s];
       delete el_x[s];
    }
-
-   by.SyncFromBlocks();
 }
 
 const BlockVector &BlockNonlinearForm::Prolongate(const BlockVector &bx) const

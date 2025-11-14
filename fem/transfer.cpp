@@ -770,8 +770,6 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::EAL2ProjectionL2Space()
       R_vec.NewMemoryAndSize(R.GetMemory(), R.Size(), false);
       Vector RtM_LR(ndof_ho * ndof_ho * nel_ho, d_mt);
       BatchedLinAlg::Mult(RtM_L_dt, R_vec, RtM_LR);
-      // Ensure that changes to the alias R_vec are propagated to the base, R
-      R_vec.GetMemory().SyncAlias(R.GetMemory(), P.Size());
 
       // Compute the inverse of InvRtM_LR
       DenseTensor InvRtM_LR;
@@ -784,8 +782,6 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::EAL2ProjectionL2Space()
       Vector P_vec;
       P_vec.NewMemoryAndSize(P.GetMemory(), P.Size(), false);
       BatchedLinAlg::Mult(InvRtM_LR, RtM_L, P_vec);
-      // Ensure that changes to the alias P_vec are propagated to the base, P
-      P_vec.GetMemory().SyncAlias(P.GetMemory(), P.Size());
    }
 }
 

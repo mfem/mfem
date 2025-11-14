@@ -868,8 +868,6 @@ HypreParMatrix *ParAlgebraicCoarseSpace::GetProlongationHypreParMatrix()
 
    HYPRE_Int *i_offd = Memory<HYPRE_Int>(lsize + 1);
    HYPRE_Int *j_offd = Memory<HYPRE_Int>(lsize - ltsize);
-   HYPRE_Int *i_offd = i_offd_mem.HostWrite();
-   HYPRE_Int *j_offd = j_offd_mem.HostWrite();
    int offd_counter;
 
    HYPRE_BigInt *cmap = Memory<HYPRE_BigInt>(lsize - ltsize);
