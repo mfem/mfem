@@ -111,7 +111,6 @@ void ParBilinearForm::pAllocMat()
    }
 
    int *I = dof_dof.GetI();
-   int *J = dof_dof.GetJ();
    int nrows = dof_dof.Size();
 
    mat = new SparseMatrix(dof_dof.GetIMemory(), dof_dof.GetJMemory(),
