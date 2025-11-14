@@ -149,7 +149,6 @@ int main(int argc, char *argv[])
               << "\nElapsed: " << tic_toc.RealTime() << endl;
       }
 
-      X_block.SyncToBlocks();
       x.SetFromTrueDofs(X_block.GetBlock(1));
       const real_t error = x.ComputeL2Error(u_vec_coeff);
       if (Mpi::Root()) { cout << "L2 error: " << error << endl; }
