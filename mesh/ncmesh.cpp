@@ -2858,21 +2858,10 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
                                       node[fv[3]]);
          if (id >= 0 && faces[id].Boundary())
          {
-            if ((nc_elem.geom == Geometry::CUBE) ||
-                ((nc_elem.geom == Geometry::PRISM ||
-                  nc_elem.geom == Geometry::PYRAMID) && nfv == 4))
-            {
-               auto* quad = (Quadrilateral*) mesh.NewElement(Geometry::SQUARE);
-               quad->SetAttribute(faces[id].attribute);
-               for (int j = 0; j < 4; j++)
-               {
-                  quad->GetVertices()[j] = nodes[node[fv[j]]].vert_index;
-               }
-               mesh.boundary.Append(quad);
-            }
-            else if (nc_elem.geom == Geometry::PRISM ||
-                     nc_elem.geom == Geometry::PYRAMID ||
-                     nc_elem.geom == Geometry::TETRAHEDRON)
+            const auto &face = faces[id];
+            if (face.elem[0] >= 0 && face.elem[1] >= 0 &&
+                nc_elem.rank != std::min(elements[face.elem[0]].rank,
+                                         elements[face.elem[1]].rank))
             {
                // This is a conformal internal face, but this element is not the
                // lowest ranking attached processor, thus not the owner of the
