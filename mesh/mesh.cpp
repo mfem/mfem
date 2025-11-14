@@ -4769,6 +4769,9 @@ Mesh::Mesh(real_t *vertices_, int num_vertices,
 Mesh::Mesh( const NURBSExtension& ext, Array<NURBSPatch*> patches)
    : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
+   Init();
+   InitTables();
+
    /// make an internal copy of the NURBSExtension
    NURBSext = new NURBSExtension( ext );
 
@@ -6245,11 +6248,11 @@ void Mesh::KnotInsert(Array<KnotVector *> &kv)
    {
       mfem_error("Mesh::KnotInsert : KnotVector array size mismatch!");
    }
-
+   sequence++;
    NURBSext->KnotInsert(Nodes, kv);
 
    last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
-   sequence++;
+
 
    UpdateNURBS();
 }
@@ -6265,11 +6268,11 @@ void Mesh::KnotInsert(Array<Vector *> &kv)
    {
       mfem_error("Mesh::KnotInsert : KnotVector array size mismatch!");
    }
-
+   sequence++;
    NURBSext->KnotInsert(Nodes, kv);
 
    last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
-   sequence++;
+   //sequence++;
 
    UpdateNURBS();
 }
@@ -6371,11 +6374,11 @@ void Mesh::DegreeElevate(int rel_degree, int degree)
    {
       mfem_error("Mesh::DegreeElevate : Not a NURBS mesh!");
    }
-
+   sequence++;
    NURBSext->DegreeElevate(Nodes, rel_degree, degree);
 
    last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
-   sequence++;
+
 
    UpdateNURBS();
 }

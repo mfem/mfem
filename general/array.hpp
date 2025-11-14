@@ -378,6 +378,15 @@ public:
    { return mfem::ReadWrite(data, size, false); }
 };
 
+template <typename T>
+static void DeleteArray(Array<T*> arr)
+{
+   for (int i = 0; i < arr.Size(); i++)
+   {
+      if (arr[i]) { delete arr[i]; }
+   }
+}
+
 template <class T>
 inline bool operator==(const Array<T> &LHS, const Array<T> &RHS)
 {

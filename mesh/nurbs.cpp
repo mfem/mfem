@@ -3386,7 +3386,6 @@ void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
 void NURBSExtension::GetPatchKnotVectors(int p, Array<KnotVector *> &kv)
 {
    Array<int> edges, orient;
-   patchTopo->GetElementEdges(p, edges, orient);  // USE ORIENT IDO
 
    kv.SetSize(Dimension());
 
@@ -3396,11 +3395,13 @@ void NURBSExtension::GetPatchKnotVectors(int p, Array<KnotVector *> &kv)
    }
    else if (Dimension() == 2)
    {
+      patchTopo->GetElementEdges(p, edges, orient);  // USE ORIENT IDO
       kv[0] = knotVectors[KnotInd(edges[0])];
       kv[1] = knotVectors[KnotInd(edges[1])];
    }
    else
    {
+      patchTopo->GetElementEdges(p, edges, orient);  // USE ORIENT IDO
       kv[0] = knotVectors[KnotInd(edges[0])];
       kv[1] = knotVectors[KnotInd(edges[3])];
       kv[2] = knotVectors[KnotInd(edges[8])];
@@ -3411,7 +3412,6 @@ void NURBSExtension::GetPatchKnotVectors(int p, Array<const KnotVector *> &kv)
 const
 {
    Array<int> edges, orient;
-   patchTopo->GetElementEdges(p, edges, orient);  // USE ORIENT IDO
 
    kv.SetSize(Dimension());
 
@@ -3421,11 +3421,13 @@ const
    }
    else if (Dimension() == 2)
    {
+      patchTopo->GetElementEdges(p, edges, orient);  // USE ORIENT IDO
       kv[0] = knotVectors[KnotInd(edges[0])];
       kv[1] = knotVectors[KnotInd(edges[1])];
    }
    else
    {
+      patchTopo->GetElementEdges(p, edges, orient);  // USE ORIENT IDO
       kv[0] = knotVectors[KnotInd(edges[0])];
       kv[1] = knotVectors[KnotInd(edges[3])];
       kv[2] = knotVectors[KnotInd(edges[8])];
@@ -3435,7 +3437,6 @@ const
 void NURBSExtension::GetPatchKnotVectors(int p, const KnotVector *kv[]) const
 {
    Array<int> edges, orient;
-   patchTopo->GetElementEdges(p, edges, orient);  // USE ORIENT IDO
 
    if (Dimension() == 1)
    {
@@ -3443,11 +3444,13 @@ void NURBSExtension::GetPatchKnotVectors(int p, const KnotVector *kv[]) const
    }
    else if (Dimension() == 2)
    {
+      patchTopo->GetElementEdges(p, edges, orient);  // USE ORIENT IDO
       kv[0] = knotVectors[KnotInd(edges[0])];
       kv[1] = knotVectors[KnotInd(edges[1])];
    }
    else
    {
+      patchTopo->GetElementEdges(p, edges, orient);  // USE ORIENT IDO
       kv[0] = knotVectors[KnotInd(edges[0])];
       kv[1] = knotVectors[KnotInd(edges[3])];
       kv[2] = knotVectors[KnotInd(edges[8])];
@@ -4465,7 +4468,6 @@ void NURBSExtension::ConvertPatchesToNodes(GridFunction& Nodes,
 
    Nodes.Update();
    SetSolutionVector(Nodes, Dimension(), patches);
-
 }
 
 void NURBSExtension::SetCoordsFromPatches(Vector &Nodes,
@@ -4568,6 +4570,7 @@ void NURBSExtension::DegreeElevate(GridFunction *Nodes, int rel_degree,
       }
    }
    ConvertPatchesToNodes(*Nodes, patches);
+   DeleteArray(patches);
 }
 
 NURBSExtension* NURBSExtension::GetDivExtension(int component)
@@ -4682,6 +4685,7 @@ void NURBSExtension::FullyCoarsen(GridFunction *Nodes)
       }
    }
    ConvertPatchesToNodes(*Nodes, patches);
+   DeleteArray(patches);
 }
 
 void NURBSExtension::Coarsen(GridFunction *Nodes, int cf, real_t tol)
@@ -4729,7 +4733,7 @@ void NURBSExtension::GetCoarseningFactors(Array<int> & f) const
          }
       }
    }
-   // IDO ConvertPatchesToNodes(*Nodes, patches);
+   // IDO ConvertPatchesToNodes(*Nodes, patches);   DeleteArray(patches);
 }
 
 void NURBSExtension::KnotInsert(GridFunction *Nodes, Array<KnotVector *> &kv)
@@ -5058,8 +5062,6 @@ void NURBSExtension::Set1DSolutionVector(Vector &coords, int vdim,
          }
          weights(l) = patch(i,vdim);
       }
-
-      delete patches[p];
    }
 }
 
@@ -5092,7 +5094,6 @@ void NURBSExtension::Set2DSolutionVector(Vector &coords, int vdim,
             weights(l) = patch(i,j,vdim);
          }
       }
-      delete patches[p];
    }
 }
 
@@ -5128,7 +5129,6 @@ void NURBSExtension::Set3DSolutionVector(Vector &coords, int vdim,
             }
          }
       }
-      delete patches[p];
    }
 }
 
