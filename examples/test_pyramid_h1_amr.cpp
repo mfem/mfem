@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
    int n = nx;
    Mesh mesh = Mesh::MakeCartesian3D(n,n,n,(Element::Type)e);
    mesh.EnsureNCMesh();
-   
+
    for (int i = 0; i <= r; i++)
    {
       if (d > 0.0)
@@ -83,24 +83,24 @@ int main(int argc, char *argv[])
          socketstream sol_sock(vishost, visport);
          sol_sock.precision(8);
          sol_sock << "solution\n" << mesh << x
-		  << "window_title '" << mesh.GetNE() << "'\n"
-		  << "keys 'm'\n" << flush;
+                  << "window_title '" << mesh.GetNE() << "'\n"
+                  << "keys 'm'\n" << flush;
       }
 
       if (i < r)
       {
-	Vector elem_errs(mesh.GetNE());
-	x.ComputeElementL2Errors(testCoef, elem_errs);
-	real_t max_elem_err = elem_errs.Max();
-	Array<int> elem_ids;
-	for (int j=0; j<elem_errs.Size(); j++)
-	  {
-	    if (elem_errs(j) > 0.9 * max_elem_err)
-	      {
-		elem_ids.Append(j);
-	      }
-	  }
-	mesh.GeneralRefinement(elem_ids);
+         Vector elem_errs(mesh.GetNE());
+         x.ComputeElementL2Errors(testCoef, elem_errs);
+         real_t max_elem_err = elem_errs.Max();
+         Array<int> elem_ids;
+         for (int j=0; j<elem_errs.Size(); j++)
+         {
+            if (elem_errs(j) > 0.9 * max_elem_err)
+            {
+               elem_ids.Append(j);
+            }
+         }
+         mesh.GeneralRefinement(elem_ids);
       }
    }
 }
