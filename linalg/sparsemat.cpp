@@ -150,8 +150,9 @@ SparseMatrix::SparseMatrix(int *i, int *j, real_t *data, int m, int n)
 
 SparseMatrix::SparseMatrix(Memory<int> i, Memory<int> j, Memory<real_t> data,
                            int m, int n)
-   : AbstractSparseMatrix(m, n), Rows(NULL), ColPtrJ(NULL), ColPtrNode(NULL),
-     At(NULL), isSorted(false), I(std::move(i)), J(std::move(j)), A(std::move(data))
+   : AbstractSparseMatrix(m, n), I(std::move(i)), J(std::move(j)),
+     A(std::move(data)), Rows(NULL), ColPtrJ(NULL), ColPtrNode(NULL), At(NULL),
+     isSorted(false)
 {
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
