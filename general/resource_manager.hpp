@@ -778,7 +778,7 @@ template <class T> Memory<T>::Memory(int count)
 
 template <class T> Memory<T>::Memory(MemoryType mt) : Memory()
 {
-   auto &inst = MemoryManager::instance();
+   MemoryManager::instance();
    Reset(mt);
 }
 
