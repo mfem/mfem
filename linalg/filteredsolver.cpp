@@ -11,10 +11,12 @@
 
 #include "filteredsolver.hpp"
 #include "sparsemat.hpp"
+#ifdef MFEM_USE_PETSC
+#include "petsc.hpp"
+#endif
 
 namespace mfem
 {
-
 
 std::unique_ptr<const Operator> FilteredSolver::GetPtAP(const Operator *Aop,
                                                         const Operator *Pop) const
@@ -25,8 +27,10 @@ std::unique_ptr<const Operator> FilteredSolver::GetPtAP(const Operator *Aop,
    if (Ah && Ph) { return std::unique_ptr<const Operator>(RAP(Ah, Ph)); }
 #endif
 #ifdef MFEM_USE_PETSC
-   const PetscParMatrix* Ap = dynamic_cast<const PetscParMatrix*>(Aop);
-   const PetscParMatrix* Pp = dynamic_cast<const PetscParMatrix*>(Pop);
+   PetscParMatrix* Ap = const_cast<PetscParMatrix*>(
+                           dynamic_cast<const PetscParMatrix*>(Aop));
+   PetscParMatrix* Pp = const_cast<PetscParMatrix*>(
+                           dynamic_cast<const PetscParMatrix*>(Pop));
    if (Ap && Pp) { return std::unique_ptr<const Operator>(RAP(Ap, Pp)); }
 #endif
    const SparseMatrix * Asp = dynamic_cast<const SparseMatrix*>(Aop);
@@ -52,7 +56,6 @@ void FilteredSolver::InitVectors() const
    rf.SetSize(P->Width());
    rf.UseDevice(true);
 }
-
 
 void FilteredSolver::MakeSolver() const
 {
