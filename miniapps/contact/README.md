@@ -100,7 +100,7 @@ point Tribol to them. The steps are as follows:
    ```bash
    cd .. && git clone --recursive https://github.com/LLNL/Tribol.git tribol-repo
    cd tribol-repo
-   python3 ./config-build.py -hc ../mfem/miniapps/tribol/tribol.cmake \
+   python3 ./config-build.py -hc ../mfem/miniapps/contact/tribol.cmake \
     -bt Release -DCMAKE_INSTALL_PREFIX=../tribol 
    cd build-tribol-release && make -j install
    ```

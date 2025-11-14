@@ -1,5 +1,5 @@
 #------------------------------------------------------------------------------
-# CMake executable path: /opt/homebrew/bin/cmake
+# CMake executable path: cmake
 #------------------------------------------------------------------------------
 
 set(CMAKE_C_COMPILER "gcc" CACHE PATH "")
