@@ -648,12 +648,6 @@ public:
    T *HostReadWrite() { return ReadWrite(false); }
    const T *HostRead() const { return Read(false); }
 
-   explicit operator bool() const
-   {
-      auto &inst = MemoryManager::instance();
-      return inst.valid_segment(segment);
-   }
-
    operator T *();
    operator const T *() const;
    template <class U> explicit operator U *();

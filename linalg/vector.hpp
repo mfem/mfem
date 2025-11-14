@@ -253,13 +253,13 @@ public:
    inline real_t *begin() { return data; }
 
    /// STL-like end.
-   inline real_t *end() { return data + size; }
+   inline real_t *end() { return static_cast<real_t*>(data) + size; }
 
    /// STL-like begin (const version).
    inline const real_t *begin() const { return data; }
 
    /// STL-like end (const version).
-   inline const real_t *end() const { return data + size; }
+   inline const real_t *end() const { return static_cast<const real_t*>(data) + size; }
 
    /// Return a reference to the Memory object used by the Vector.
    Memory<real_t> &GetMemory() { return data; }

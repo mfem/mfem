@@ -115,8 +115,8 @@ public:
 
    int RowSize(int i) const { return I[i+1]-I[i]; }
 
-   const int *GetRow(int i) const { return J+I[i]; }
-   int *GetRow(int i) { return J+I[i]; }
+   const int *GetRow(int i) const { return &J[I[i]]; }
+   int *GetRow(int i) { return &J[I[i]]; }
 
    int *GetI() { return I; }
    int *GetJ() { return J; }
