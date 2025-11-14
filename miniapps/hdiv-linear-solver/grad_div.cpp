@@ -135,7 +135,6 @@ int main(int argc, char *argv[])
       B_block.GetBlock(0) = 0.0;
       b.ParallelAssemble(B_block.GetBlock(1));
       B_block.GetBlock(1) *= -1.0;
-      B_block.SyncFromBlocks();
 
       x.ParallelProject(X_block.GetBlock(1));
       saddle_point_solver.SetBC(X_block.GetBlock(1));
