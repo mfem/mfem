@@ -37,6 +37,6 @@ set(BUILD_REDECOMP ON CACHE BOOL "")
 
 set(TPL_ROOT "${CMAKE_SOURCE_DIR}/.." CACHE PATH "")
 set(AXOM_DIR "${TPL_ROOT}/axom-repo/axom" CACHE PATH "")
-set(MFEM_DIR "${TPL_ROOT}/../mfem/mfem" CACHE PATH "")
+set(MFEM_DIR "${TPL_ROOT}/mfem/mfem" CACHE PATH "")
 
 

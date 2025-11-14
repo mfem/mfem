@@ -92,20 +92,20 @@ point Tribol to them. The steps are as follows:
    ```bash
    cd .. && git clone --recursive https://github.com/LLNL/axom.git axom-repo
    cd axom-repo
-   python3 ./config-build.py -hc ../mfem/miniapps/contact/axom.cmake \ 
-   -bt Release -DCMAKE_INSTALL_PREFIX=../axom
+   python3 ./config-build.py -hc ../mfem/miniapps/contact/axom.cmake -bt Release -DCMAKE_INSTALL_PREFIX=../axom
    cd build-axom-release && make -j install
    ```
 3. [**Tribol:**](https://github.com/LLNL/Tribol.git) Starting from the MFEM root directory type
    ```bash
    cd .. && git clone --recursive https://github.com/LLNL/Tribol.git tribol-repo
    cd tribol-repo
-   python3 ./config-build.py -hc ../mfem/miniapps/contact/tribol.cmake \
-    -bt Release -DCMAKE_INSTALL_PREFIX=../tribol 
+   python3 ./config-build.py -hc ../mfem/miniapps/contact/tribol.cmake -bt Release -DCMAKE_INSTALL_PREFIX=../tribol 
    cd build-tribol-release && make -j install
    ```
    > **C++ Standard**: Starting with version 4.8.1, MFEM requires a C++17 compiler. 
    Ensure that Tribol uses the same standard by adding `-DCMAKE_CXX_STANDARD=17 -DBLT_CXX_STD=c++17`.
+
+   > **tribol.cmake file**: Modify as needed to match `axom` and `mfem` paths.
 
 4. **MFEM Contact Miniapp**: Build from inside the directory `mfem/miniapps/contact`:  
      ```bash
