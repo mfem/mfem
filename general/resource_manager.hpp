@@ -417,7 +417,7 @@ template <class T> class Memory
    friend class MemoryManager;
 
 public:
-   Memory() = default;
+   Memory() { MemoryManager::instance(); };
    explicit Memory(int size);
    explicit Memory(MemoryType mt);
    Memory(T *ptr, size_t count, bool own);
@@ -776,7 +776,11 @@ template <class T> Memory<T>::Memory(int count)
    flags = OWNS_CONTROL;
 }
 
-template <class T> Memory<T>::Memory(MemoryType mt) : Memory() { Reset(mt); }
+template <class T> Memory<T>::Memory(MemoryType mt) : Memory()
+{
+   auto &inst = MemoryManager::instance();
+   Reset(mt);
+}
 
 template <class T> void Memory<T>::Reset(MemoryType host_mt)
 {

@@ -94,6 +94,24 @@ bool MemoryClassContainsType(MemoryClass mc, MemoryType mt)
 }
 
 
+MemoryClass operator*(MemoryClass mc1, MemoryClass mc2)
+{
+   //          | HOST     HOST_32  HOST_64  DEVICE   MANAGED
+   // ---------+---------------------------------------------
+   //  HOST    | HOST     HOST_32  HOST_64  DEVICE   MANAGED
+   //  HOST_32 | HOST_32  HOST_32  HOST_64  DEVICE   MANAGED
+   //  HOST_64 | HOST_64  HOST_64  HOST_64  DEVICE   MANAGED
+   //  DEVICE  | DEVICE   DEVICE   DEVICE   DEVICE   MANAGED
+   //  MANAGED | MANAGED  MANAGED  MANAGED  MANAGED  MANAGED
+
+   // Using the enumeration ordering:
+   //    HOST < HOST_32 < HOST_64 < DEVICE < MANAGED,
+   // the above table is simply: a*b = max(a,b).
+
+   return std::max(mc1, mc2);
+}
+
+#if !USE_NEW_MEM_MANAGER
 static void MFEM_VERIFY_TYPES(const MemoryType h_mt, const MemoryType d_mt)
 {
    MFEM_VERIFY(IsHostMemory(h_mt), "h_mt = " << (int)h_mt);
@@ -128,24 +146,6 @@ static void MFEM_VERIFY_TYPES(const MemoryType h_mt, const MemoryType d_mt)
 #endif
 }
 
-MemoryClass operator*(MemoryClass mc1, MemoryClass mc2)
-{
-   //          | HOST     HOST_32  HOST_64  DEVICE   MANAGED
-   // ---------+---------------------------------------------
-   //  HOST    | HOST     HOST_32  HOST_64  DEVICE   MANAGED
-   //  HOST_32 | HOST_32  HOST_32  HOST_64  DEVICE   MANAGED
-   //  HOST_64 | HOST_64  HOST_64  HOST_64  DEVICE   MANAGED
-   //  DEVICE  | DEVICE   DEVICE   DEVICE   DEVICE   MANAGED
-   //  MANAGED | MANAGED  MANAGED  MANAGED  MANAGED  MANAGED
-
-   // Using the enumeration ordering:
-   //    HOST < HOST_32 < HOST_64 < DEVICE < MANAGED,
-   // the above table is simply: a*b = max(a,b).
-
-   return std::max(mc1, mc2);
-}
-
-#if !USE_NEW_MEM_MANAGER
 // Instantiate Memory<T>::PrintFlags for T = int and T = real_t.
 template void Memory<int>::PrintFlags() const;
 template void Memory<real_t>::PrintFlags() const;
