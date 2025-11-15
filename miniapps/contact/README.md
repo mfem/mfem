@@ -84,21 +84,34 @@ point Tribol to them. The steps are as follows:
 
 ### Manual Build Steps
 
-1. **MFEM:** Build with `MFEM_USE_MPI`, `MFEM_USE_METIS`, and `MFEM_USE_TRIBOL`  
-   enabled, plus MUMPS or CPardiso if AMGF is desired.  
- 
-2. [**Axom:**](https://github.com/LLNL/axom.git) Starting from the MFEM root directory 
-   (we assume this directory is named mfem) type
+1. Pull axom and tribol (starting from the mfem folder):
    ```bash
-   cd .. && git clone --recursive https://github.com/LLNL/axom.git axom-repo
-   cd axom-repo
+   cd ..
+   git clone --recursive https://github.com/LLNL/axom.git axom-repo
+   git clone --recursive https://github.com/LLNL/Tribol.git tribol-repo
+   ```
+2. **MFEM:** Build with `MFEM_USE_MPI`, `MFEM_USE_METIS`, and `MFEM_USE_TRIBOL`  
+   enabled, plus MUMPS or CPardiso if AMGF is desired.
+   Note: it's important to do `make install`.
+   ```
+   MFEM_USE_TRIBOL = YES
+   AXOM_DIR = @MFEM_DIR@/../axom-repo/axom
+   TRIBOL_DIR = @MFEM_DIR@/../tribol-repo/tribol
+   TRIBOL_OPT = -I$(TRIBOL_DIR)/include -I$(AXOM_DIR)/include
+   TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -ltribol -lredecomp -L$(AXOM_DIR)/lib \
+   -laxom_mint -laxom_slam -laxom_slic -laxom_core
+   ```
+3. [**Axom:**](https://github.com/LLNL/axom.git) Starting from the MFEM root
+   directory (we assume this directory is named mfem):
+   ```bash
+   cd ../axom-repo
    python3 ./config-build.py -hc ../mfem/miniapps/contact/axom.cmake -bt Release -DCMAKE_INSTALL_PREFIX=../axom
    cd build-axom-release && make -j install
    ```
-3. [**Tribol:**](https://github.com/LLNL/Tribol.git) Starting from the MFEM root directory type
+4. [**Tribol:**](https://github.com/LLNL/Tribol.git) Starting from the MFEM root
+   directory:
    ```bash
-   cd .. && git clone --recursive https://github.com/LLNL/Tribol.git tribol-repo
-   cd tribol-repo
+   cd ../tribol-repo
    python3 ./config-build.py -hc ../mfem/miniapps/contact/tribol.cmake -bt Release -DCMAKE_INSTALL_PREFIX=../tribol 
    cd build-tribol-release && make -j install
    ```
@@ -107,7 +120,7 @@ point Tribol to them. The steps are as follows:
 
    > **tribol.cmake file**: Modify as needed to match `axom` and `mfem` paths.
 
-4. **MFEM Contact Miniapp**: Build from inside the directory `mfem/miniapps/contact`:  
+5. **MFEM Contact Miniapp**: Build from inside the directory `mfem/miniapps/contact`:  
      ```bash
       make contact
       ```  
