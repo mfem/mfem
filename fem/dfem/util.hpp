@@ -20,6 +20,7 @@
 #include <vector>
 #include <type_traits>
 #include <numeric>
+#include <iomanip>
 
 #include "../../general/communication.hpp"
 #include "../../general/forall.hpp"
@@ -200,24 +201,45 @@ void print_tuple(const std::tuple<Args...>& t)
 ///             ..., vmn]]
 /// which is compatible with numpy syntax.
 ///
-/// @param m mfem::DenseMatrix to print
+/// @param out ostream to print to
+/// @param A mfem::DenseMatrix to print
 inline
-void pretty_print(const mfem::DenseMatrix& m)
+void pretty_print(std::ostream &out, const mfem::DenseMatrix &A)
 {
-   out << "[";
-   for (int i = 0; i < m.NumRows(); i++)
+   // Determine the max width of any entry in scientific notation
+   int max_width = 0;
+   for (int i = 0; i < A.NumRows(); ++i)
    {
-      for (int j = 0; j < m.NumCols(); j++)
+      for (int j = 0; j < A.NumCols(); ++j)
       {
-         out << m(i, j);
-         if (j < m.NumCols() - 1)
+         std::ostringstream oss;
+         oss << std::scientific << std::setprecision(2) << A(i, j);
+         max_width = std::max(max_width, static_cast<int>(oss.str().length()));
+      }
+   }
+
+   out << "[\n";
+   for (int i = 0; i < A.NumRows(); ++i)
+   {
+      out << "  [";
+      for (int j = 0; j < A.NumCols(); ++j)
+      {
+         out << std::setw(max_width) << std::scientific << std::setprecision(2) <<
+             A(i, j);
+
+         if (j < A.NumCols() - 1)
          {
             out << ", ";
          }
       }
-      if (i < m.NumRows() - 1)
+      out << "]";
+      if (i < A.NumRows() - 1)
       {
-         out << ", ";
+         out << ",\n";
+      }
+      else
+      {
+         out << "\n";
       }
    }
    out << "]\n";
@@ -1404,12 +1426,12 @@ int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
 /// @tparam entity_t the entity type (see Entity).
 /// @returns an array mapping field operator types to field descriptor indices.
 template <typename entity_t, typename field_operator_ts>
-std::array<int, tuple_size<field_operator_ts>::value>
+std::array<size_t, tuple_size<field_operator_ts>::value>
 create_descriptors_to_fields_map(
    const std::vector<FieldDescriptor> &fields,
    field_operator_ts &fops)
 {
-   std::array<int, tuple_size<field_operator_ts>::value> map;
+   std::array<size_t, tuple_size<field_operator_ts>::value> map;
 
    auto find_id = [](const std::vector<FieldDescriptor> &fields, std::size_t i)
    {
@@ -1421,9 +1443,9 @@ create_descriptors_to_fields_map(
 
       if (it == fields.end())
       {
-         return -1;
+         return SIZE_MAX;
       }
-      return static_cast<int>(it - fields.begin());
+      return static_cast<size_t>(it - fields.begin());
    };
 
    auto f = [&](auto &fop, auto &map)
@@ -1434,7 +1456,7 @@ create_descriptors_to_fields_map(
          fop.dim = GetDimension<entity_t>(fields[0]);
          fop.vdim = 1;
          fop.size_on_qp = 1;
-         map = -1;
+         map = SIZE_MAX;
       }
       else
       {
@@ -2220,7 +2242,7 @@ template <
 std::array<DofToQuadMap, N> create_dtq_maps_impl(
    field_operator_ts &fops,
    std::vector<const DofToQuad*> &dtqs,
-   const std::array<int, N> &field_map,
+   const std::array<size_t, N> &field_map,
    std::index_sequence<Is...>)
 {
    auto f = [&](auto fop, std::size_t idx)
@@ -2305,7 +2327,7 @@ template <
 std::array<DofToQuadMap, num_fields> create_dtq_maps(
    field_operator_ts &fops,
    std::vector<const DofToQuad*> &dtqmaps,
-   const std::array<int, num_fields> &to_field_map)
+   const std::array<size_t, num_fields> &to_field_map)
 {
    return create_dtq_maps_impl<entity_t>(
              fops, dtqmaps,
