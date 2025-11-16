@@ -31,6 +31,11 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    real_t displ_mag = 0.1;
    int order = 1;
+   int ref_levels = 0;
+   real_t lambda = 1.0;
+   real_t mu = 1.0;
+   real_t beta = -1.0;
+   real_t kappa = -1.0;
    bool static_cond = false;
    bool visualization = 1;
 
@@ -41,6 +46,15 @@ int main(int argc, char *argv[])
                   "Magnitude of the normal displacement.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&ref_levels, "-r", "--ref_levels",
+                  "Number of uniform mesh refinements.");
+   args.AddOption(&lambda, "-l", "--lambda", "First Lamé parameter.");
+   args.AddOption(&mu, "-u", "--mu", "Second Lamé parameter.");
+   args.AddOption(&beta, "-b", "--beta",
+                  "The first Nitsche parameter, should be -1 or 0.");
+   args.AddOption(&kappa, "-k", "--kappa",
+                  "The second penalty parameter, should be positive."
+                  " Negative values are replaced with (order+1)^2.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -51,6 +65,10 @@ int main(int argc, char *argv[])
    {
       args.PrintUsage(cout);
       return 1;
+   }
+   if (kappa < 0)
+   {
+      kappa = (order+1)*(order+1);
    }
    args.PrintOptions(cout);
 
@@ -67,16 +85,10 @@ int main(int argc, char *argv[])
    }
 
    // 4. Refine the mesh to increase the resolution. In this example we do
-   //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
-   //    largest number that gives a final mesh with no more than 5,000
-   //    elements.
+   //    'ref_levels' of uniform refinement.
+   for (int i = 0; i < ref_levels; i++)
    {
-      int ref_levels =
-         (int)floor(log(500./mesh->GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels; l++)
-      {
-         mesh->UniformRefinement();
-      }
+      mesh->UniformRefinement();
    }
 
    // 5. Define a finite element space on the mesh. Here we use vector finite
@@ -113,18 +125,16 @@ int main(int argc, char *argv[])
    GridFunction x(fespace);
    x = 0.0;
 
-   // 8. Set up the bilinear form a(.,.) on the finite element space
-   //    corresponding to the linear elasticity integrator with piece-wise
-   //    constants coefficient lambda and mu.
-   ConstantCoefficient lambda(1.0);
-   ConstantCoefficient mu(1.0);
-   real_t beta = -1.0;
-   real_t kappa = 1000.0;
+   // 9. Set up the bilinear form a(.,.) on the finite element space
+   //    corresponding to the linear elasticity integrator with constant
+   //    coefficients lambda and mu.
+   ConstantCoefficient lambda_c(lambda);
+   ConstantCoefficient mu_c(mu);
 
    BilinearForm *a = new BilinearForm(fespace);
-   a->AddDomainIntegrator(new ElasticityIntegrator(lambda,mu));
+   a->AddDomainIntegrator(new ElasticityIntegrator(lambda_c,mu_c));
    a->AddBdrFaceIntegrator(
-      new NitscheElasticityIntegrator(lambda, mu, beta, kappa),
+      new NitscheElasticityIntegrator(lambda_c, mu_c, beta, kappa),
       ess_bdr);
 
    // 9. Set up the linear form b(.) which corresponds to the right-hand side of
@@ -140,7 +150,7 @@ int main(int argc, char *argv[])
    LinearForm *b = new LinearForm(fespace);
    b->AddBdrFaceIntegrator(
          new NitscheElasticityDirichletLFIntegrator(
-            un, lambda, mu, beta, kappa), ess_bdr);
+            un, lambda_c, mu_c, beta, kappa), ess_bdr);
    b->Assemble();
 
    // 10. Assemble the bilinear form and the corresponding linear system,
