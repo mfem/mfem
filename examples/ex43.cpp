@@ -171,12 +171,12 @@ int main(int argc, char *argv[])
    //     to impose the Dirichlet boundary conditions. Here, we set the
    //     prescribed displacement on the Dirichlet boundary to be a constant
    //     normal displacement of magnitude 'displ_mag'.
-   ConstantCoefficient un(displ_mag);
+   ConstantCoefficient g(displ_mag);
 
    LinearForm *b = new LinearForm(fespace);
    b->AddBdrFaceIntegrator(
          new NitscheElasticityDirichletLFIntegrator(
-            un, lambda_c, mu_c, beta, kappa), ess_bdr);
+            g, lambda_c, mu_c, beta, kappa), ess_bdr);
    b->Assemble();
 
    // 11. Assemble the bilinear form and the corresponding linear system,
