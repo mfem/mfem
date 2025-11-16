@@ -69,14 +69,14 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&displ_mag, "-un", "--displ",
+   args.AddOption(&displ_mag, "-g", "--displ",
                   "Magnitude of the normal displacement.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&ref_levels, "-r", "--ref_levels",
                   "Number of uniform mesh refinements.");
    args.AddOption(&lambda, "-l", "--lambda", "First Lamé parameter.");
-   args.AddOption(&mu, "-u", "--mu", "Second Lamé parameter.");
+   args.AddOption(&mu, "-mu", "--mu", "Second Lamé parameter.");
    args.AddOption(&beta, "-b", "--beta",
                   "The first Nitsche parameter, should be -1 or 0.");
    args.AddOption(&kappa, "-k", "--kappa",
@@ -175,8 +175,8 @@ int main(int argc, char *argv[])
 
    LinearForm *b = new LinearForm(fespace);
    b->AddBdrFaceIntegrator(
-         new NitscheElasticityDirichletLFIntegrator(
-            g, lambda_c, mu_c, beta, kappa), ess_bdr);
+      new NitscheElasticityDirichletLFIntegrator(
+         g, lambda_c, mu_c, beta, kappa), ess_bdr);
    b->Assemble();
 
    // 11. Assemble the bilinear form and the corresponding linear system,
