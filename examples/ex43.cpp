@@ -91,7 +91,11 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
-   // 5. Define a finite element space on the mesh. Here we use vector finite
+   // 5. Interpolate the geometry after refinement to control geometry error.
+   int curvature_order = max(order, 2);
+   mesh->SetCurvature(curvature_order);
+
+   // 6. Define a finite element space on the mesh. Here we use vector finite
    //    elements, i.e. dim copies of a scalar finite element space. The vector
    //    dimension is specified by the last argument of the FiniteElementSpace
    //    constructor. For NURBS meshes, we use the (degree elevated) NURBS space
@@ -111,7 +115,7 @@ int main(int argc, char *argv[])
    cout << "Number of finite element unknowns: " << fespace->GetTrueVSize()
         << endl << "Assembling: " << flush;
 
-   // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
+   // 7. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking only
    //    boundary attribute 1 from the mesh as essential and converting it to a
    //    list of true dofs.
@@ -119,7 +123,7 @@ int main(int argc, char *argv[])
    ess_bdr = 1;
    // fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-   // 7. Define the solution vector x as a finite element grid function
+   // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
    GridFunction x(fespace);
@@ -137,14 +141,10 @@ int main(int argc, char *argv[])
       new NitscheElasticityIntegrator(lambda_c, mu_c, beta, kappa),
       ess_bdr);
 
-   // 9. Set up the linear form b(.) which corresponds to the right-hand side of
-   //    the FEM linear system. In this case, b_i equals the boundary integral
-   //    of f*phi_i where f represents a "pull down" force on the Neumann part
-   //    of the boundary and phi_i are the basis functions in the finite element
-   //    fespace. The force is defined by the VectorArrayCoefficient object f,
-   //    which is a vector of Coefficient objects. The fact that f is non-zero
-   //    on boundary attribute 2 is indicated by the use of piece-wise constants
-   //    coefficient for its last component. [FIXME]
+   // 10. Set up the linear form b(.) corresponding to the Nitsche method
+   //     to impose the Dirichlet boundary conditions. Here, we set the
+   //     prescribed displacement on the Dirichlet boundary to be a constant
+   //     normal displacement of magnitude 'displ_mag'.
    ConstantCoefficient un(displ_mag);
 
    LinearForm *b = new LinearForm(fespace);
@@ -153,7 +153,7 @@ int main(int argc, char *argv[])
             un, lambda_c, mu_c, beta, kappa), ess_bdr);
    b->Assemble();
 
-   // 10. Assemble the bilinear form and the corresponding linear system,
+   // 11. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
    //     conditions, applying conforming constraints for non-conforming AMR,
    //     static condensation, etc.
@@ -169,22 +169,22 @@ int main(int argc, char *argv[])
    cout << "Size of linear system: " << A.Height() << endl;
 
 #ifndef MFEM_USE_SUITESPARSE
-   // 11. Define a simple symmetric Gauss-Seidel preconditioner and use it to
+   // 12. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //     solve the system Ax=b with PCG.
    GSSmoother M(A);
    PCG(A, M, B, X, 1, 500, 1e-8, 0.0);
 #else
-   // 11. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+   // 12. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;
    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
    umf_solver.SetOperator(A);
    umf_solver.Mult(B, X);
 #endif
 
-   // 12. Recover the solution as a finite element grid function.
+   // 13. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
 
-   // 13. For non-NURBS meshes, make the mesh curved based on the finite element
+   // 14. For non-NURBS meshes, make the mesh curved based on the finite element
    //     space. This means that we define the mesh elements through a fespace
    //     based transformation of the reference element. This allows us to save
    //     the displaced mesh as a curved mesh when using high-order finite
@@ -196,7 +196,7 @@ int main(int argc, char *argv[])
       mesh->SetNodalFESpace(fespace);
    }
 
-   // 14. Save the displaced mesh and the inverted solution (which gives the
+   // 15. Save the displaced mesh and the inverted solution (which gives the
    //     backward displacements to the original grid). This output can be
    //     viewed later using GLVis: "glvis -m displaced.mesh -g sol.gf".
    {
@@ -211,7 +211,7 @@ int main(int argc, char *argv[])
       x.Save(sol_ofs);
    }
 
-   // 15. Send the above data by socket to a GLVis server. Use the "n" and "b"
+   // 16. Send the above data by socket to a GLVis server. Use the "n" and "b"
    //     keys in GLVis to visualize the displacements.
    if (visualization)
    {
@@ -222,7 +222,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *mesh << x << flush;
    }
 
-   // 16. Free the used memory.
+   // 17. Free the used memory.
    delete a;
    delete b;
    if (fec)
