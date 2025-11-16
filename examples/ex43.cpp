@@ -148,7 +148,6 @@ int main(int argc, char *argv[])
    //    list of true dofs.
    Array<int> ess_tdof_list, ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 1;
-   // fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
