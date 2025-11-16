@@ -1,22 +1,49 @@
-//                                MFEM Example 2
+//                                MFEM Example 43
 //
-// Compile with: make ex2
+// Compile with: make ex43
 //
-// Sample runs:  ex2 -m ../data/beam-tri.mesh
-//               ex2 -m ../data/beam-quad.mesh
-//               ex2 -m ../data/beam-tet.mesh
-//               ex2 -m ../data/beam-hex.mesh
-//               ex2 -m ../data/beam-wedge.mesh
-//               ex2 -m ../data/beam-quad.mesh -o 3 -sc
-//               ex2 -m ../data/beam-quad-nurbs.mesh
-//               ex2 -m ../data/beam-hex-nurbs.mesh
+// Sample runs:  ex43 -m ../data/ball-nurbs.mesh
+//               ex43 -m ../data/fichera.mesh
 //
-// Description:  This example code solves a simple linear elasticity problem
-//               describing a multi-material cantilever beam.
+// Description:  This example code solves a linear elasticity problem using
+//               Nitsche's method to enforce Dirichlet boundary conditions. The
+//               problem is solved on a 2D or 3D domain. The essential
+//               (Dirichlet) boundary conditions are applied weakly using
+//               Nitsche's method, allowing for more flexibility in handling
+//               complex geometries and boundary conditions.
 //
-//               [TODO]
+//               The strong form is given by:
 //
-//               We recommend viewing Example 1 before viewing this example.
+//                          −div(σ(u)) = 0      in Ω
+//                                   u = g      on Γ
+//                            σ(u) ⋅ ñ = 0      on Γ
+//
+//               where σ(u) = λ tr(ε(u)) I + 2μ ε(u) is the stress tensor, ε(u)
+//               is the strain tensor, λ and μ are the Lamé parameters, and g is
+//               the prescribed displacement on the boundary. Here, ñ is a unit
+//               vector field, though we take it to be the outward normal n on
+//               the boundary Γ = ∂Ω.
+//
+//               The weak form using Nitsche's method is:
+//
+//               Find u ∈ V     such that   a(u,v) = b(v)   for all v ∈ V
+//
+//               where
+//
+//                          a(u,v) := ∫_Ω σ(u) : ε(v) dx
+//                                    - ∫_Γ (σ(u) n ⋅ ñ) (v ⋅ ñ) dS
+//                                    + β ∫_Γ (σ(v) n ⋅ ñ) (u ⋅ ñ) dS
+//                                    + κ ∫_Γ h⁻¹ (λ + 2μ) (u ⋅ ñ) (v ⋅ ñ) dS,
+//
+//                            b(v) := β ∫_Γ σ(v) n ⋅ ñ g dS
+//                                    + κ ∫_Γ h⁻¹ (λ + 2μ) (v ⋅ ñ) g dS,
+//
+//               with β = -1 (symmetric Nitsche) or β = 0 and κ > 0 being a
+//               penalty parameter. Here, h is a characteristic element size on
+//               the boundary. The function space V is a vector H1-conforming
+//               finite element space.
+//
+//               We recommend viewing Example 2 before viewing this example.
 
 #include "mfem.hpp"
 #include <fstream>
