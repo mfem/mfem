@@ -48,7 +48,7 @@ TEST_CASE("Sparse Smoothers Transposed", "[DSmoother][GSSmoother]")
 {
    const bool sym = GENERATE(true, false);
 
-   const int n = 10;
+   constexpr int n = 10;
    SparseMatrix A(n, n);
 
    for (int i = 0; i < n; ++i)
@@ -63,7 +63,7 @@ TEST_CASE("Sparse Smoothers Transposed", "[DSmoother][GSSmoother]")
    }
    A.Finalize();
 
-   const int nit = 2; // Number of smoother iterations
+   constexpr int nit = 2; // Number of smoother iterations
    TestTranspose(DSmoother(A, 0, 1.0, nit)); // scaled
    if (sym)
    {
