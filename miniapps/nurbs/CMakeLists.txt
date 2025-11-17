@@ -267,6 +267,30 @@ if (MFEM_ENABLE_TESTING)
     COMMAND $<TARGET_FILE:nurbs_surface> -no-vis
         -o 3 -nx 10 -ny 10 -fnx 40 -fny 14 -ex 1)
 
+  add_test(NAME nurbs_vector_diffusion_hdiv_2d_ser
+    COMMAND $<TARGET_FILE:nurbs_vector_diffusion>
+        -r 1 -o 2)
+
+  add_test(NAME nurbs_vector_diffusion_hcurl_2d_ser
+    COMMAND $<TARGET_FILE:nurbs_vector_diffusion>
+        -r 1 -o 2 --hcurl)
+
+  add_test(NAME nurbs_vector_diffusion_hdiv_3d_ser
+    COMMAND $<TARGET_FILE:nurbs_vector_diffusion>
+        -m ../../data/cube-nurbs.mesh -r 1 -o 1)
+
+  add_test(NAME nurbs_vector_diffusion_hcurl_3d_ser
+    COMMAND $<TARGET_FILE:nurbs_vector_diffusion>
+        -m ../../data/cube-nurbs.mesh -r 1 -o 1 --hcurl)
+
+  add_test(NAME nurbs_stokes_weak_ser
+    COMMAND $<TARGET_FILE:nurbs_stokes>
+        -r 1 --boundary-conditions 0)
+
+  add_test(NAME nurbs_stokes_hybrid_ser
+    COMMAND $<TARGET_FILE:nurbs_stokes>
+        -r 1 --boundary-conditions 1)
+        
 endif()
 
 if (MFEM_USE_MPI)
