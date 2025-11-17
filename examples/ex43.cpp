@@ -7,23 +7,21 @@
 //               ex43 -m ../data/fichera.mesh
 //
 // Description:  This example code solves a linear elasticity problem using
-//               Nitsche's method to enforce Dirichlet boundary conditions. The
-//               problem is solved on a 2D or 3D domain. The essential
-//               (Dirichlet) boundary conditions are applied weakly using
-//               Nitsche's method, allowing for more flexibility in handling
-//               complex geometries and boundary conditions.
+//               Nitsche's method to enforce sliding boundary conditions. The
+//               problem is solved on a 2D or 3D domain. These boundary conditions
+//               are applied weakly using Nitsche's method, allowing for more
+//               flexibility in handling complex geometries.
 //
-//               The strong form is given by:
+//               The strong form is given by: [FIXME]
 //
-//                          −div(σ(u)) = 0      in Ω
+//                          −Div(σ(u)) = 0      in Ω
 //                                   u = g      on Γ
-//                            σ(u) ⋅ ñ = 0      on Γ
+//                            σ(u) ⋅ n = 0      on Γ
 //
 //               where σ(u) = λ tr(ε(u)) I + 2μ ε(u) is the stress tensor, ε(u)
 //               is the strain tensor, λ and μ are the Lamé parameters, and g is
-//               the prescribed displacement on the boundary. Here, ñ is a unit
-//               vector field, though we take it to be the outward normal n on
-//               the boundary Γ = ∂Ω.
+//               the prescribed displacement on the boundary. Here, is the
+//               outward normal n on the boundary Γ = ∂Ω. [No need for ñ]
 //
 //               The weak form using Nitsche's method is:
 //
@@ -33,16 +31,15 @@
 //
 //                          a(u,v) := ∫_Ω σ(u) : ε(v) dx
 //                                    - ∫_Γ (σ(u) n ⋅ ñ) (v ⋅ ñ) dS
-//                                    + α ∫_Γ (σ(v) n ⋅ ñ) (u ⋅ ñ) dS
+//                                    - ∫_Γ (σ(v) n ⋅ ñ) (u ⋅ ñ) dS
 //                                    + κ ∫_Γ h⁻¹ (λ + 2μ) (u ⋅ ñ) (v ⋅ ñ) dS,
 //
-//                            b(v) := α ∫_Γ σ(v) n ⋅ ñ g dS
+//                            b(v) := - ∫_Γ σ(v) n ⋅ ñ g dS
 //                                    + κ ∫_Γ h⁻¹ (λ + 2μ) (v ⋅ ñ) g dS,
 //
-//               with α = -1 (symmetric Nitsche) or α = 0 and κ > 0 being a
-//               penalty parameter. Here, h is a characteristic element size on
-//               the boundary. The function space V is a vector H1-conforming
-//               finite element space.
+//               with κ > 0 being a penalty parameter. Here, h is a
+//               characteristic element size on the boundary. The function
+//               space V is a vector H1-conforming finite element space.
 //
 //               We recommend viewing Example 2 before viewing this example.
 
@@ -62,7 +59,7 @@ int main(int argc, char *argv[])
    int ref_levels = 0;
    real_t lambda = 1.0;
    real_t mu = 1.0;
-   real_t alpha = -1.0;
+   real_t alpha = -1.0; // I don't see a need for the non-symmetric setting. Remove?
    real_t kappa = -1.0;
    bool static_cond = false;
    bool visualization = 1;
