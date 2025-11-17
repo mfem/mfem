@@ -36,7 +36,7 @@ void SparseSmoother::EnsureTranspose() const
    if (oper_T) { return; }
 
    const real_t tol = 1e-14;
-   if (oper->IsSymmetric() > tol)
+   if (oper->IsSymmetric() > tol * oper->MaxNorm())
    {
       At.reset(Transpose(*oper));
       oper_T = At.get();
