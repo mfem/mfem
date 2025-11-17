@@ -337,7 +337,6 @@ int main (int argc, char *argv[])
       bdr_attr_fec = new Const2DFECollection;
       attr_fec = new Const3DFECollection;
    }
-
    int print_char = 1;
    while (1)
    {
@@ -1343,10 +1342,10 @@ int main (int argc, char *argv[])
                   sol_sock << "\n";
                }
             }
-            else
+            else // sdim == 3
             {
                sol_sock << "fem3d_gf_data_keys\n";
-               if (mk == 'v' || mk == 'h' || mk == 'k' || mk == 'J')
+               if (mk == 'v' || mk == 'h' || mk == 'k' || mk == 'J' || mk == 'm')
                {
                   mesh->Print(sol_sock);
                }
