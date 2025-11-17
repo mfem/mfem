@@ -155,6 +155,12 @@ void DSmoother::Mult(const Vector &x, Vector &y) const
 
 void DSmoother::MultTranspose(const Vector &x, Vector &y) const
 {
+   if (iterations == 1 && !iterative_mode)
+   {
+      Mult_(*oper, x, y);
+      return;
+   }
+
    EnsureTranspose();
    MFEM_VERIFY(type == 0 || !At, "l1 or lumped Jacobi transpose not implemented"
                " for non-symmetric matrices");
