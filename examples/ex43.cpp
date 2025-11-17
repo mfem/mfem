@@ -7,21 +7,30 @@
 //               ex43 -m ../data/fichera.mesh
 //
 // Description:  This example code solves a linear elasticity problem using
-//               Nitsche's method to enforce sliding boundary conditions. The
-//               problem is solved on a 2D or 3D domain. These boundary conditions
-//               are applied weakly using Nitsche's method, allowing for more
-//               flexibility in handling complex geometries.
+//               Nitsche's method to enforce sliding boundary conditions. In
+//               particular, we consider a linear elastic body that is fixed in
+//               the normal direction on the entire boundary, but is free to
+//               slide in the tangential direction. This is achieved by imposing
+//               homogeneous Dirichlet boundary conditions on the normal
+//               component of the displacement, while applying homogeneous
+//               Neumann boundary conditions on the tangential components of the
+//               displacement. By enforcing a uniform, constant normal
+//               displacement on the boundary, we can simulate the effect of
+//               compressing or expanding the elastic body uniformly. These
+//               boundary conditions are applied weakly using Nitsche's method,
+//               allowing for more flexibility in handling complex geometries in
+//               either 2D or 3D.
 //
-//               The strong form is given by: [FIXME]
+//               The strong form is given by:
 //
 //                          −Div(σ(u)) = 0      in Ω
 //                               u ⋅ n = g      on Γ
-//                                σ(u) ⟂ n      on Γ
+//                                σ(u) ⊥ n      on Γ
 //
 //               where σ(u) = λ tr(ε(u)) I + 2μ ε(u) is the stress tensor, ε(u)
 //               is the strain tensor, λ and μ are the Lamé parameters, and g is
-//               the prescribed displacement on the boundary. Here, is the
-//               outward normal n on the boundary Γ = ∂Ω. [No need for ñ]
+//               the prescribed displacement on the boundary. Here, n is the
+//               outward normal on the boundary Γ = ∂Ω.
 //
 //               The weak form using Nitsche's method is:
 //
@@ -30,12 +39,12 @@
 //               where
 //
 //                          a(u,v) := ∫_Ω σ(u) : ε(v) dx
-//                                    - ∫_Γ (σ(u) n ⋅ ñ) (v ⋅ ñ) dS
-//                                    - ∫_Γ (σ(v) n ⋅ ñ) (u ⋅ ñ) dS
-//                                    + κ ∫_Γ h⁻¹ (λ + 2μ) (u ⋅ ñ) (v ⋅ ñ) dS,
+//                                    - ∫_Γ (σ(u) n ⋅ n) (v ⋅ n) dS
+//                                    - ∫_Γ (σ(v) n ⋅ n) (u ⋅ n) dS
+//                                    + κ ∫_Γ h⁻¹ (λ + 2μ) (u ⋅ n) (v ⋅ n) dS,
 //
-//                            b(v) := - ∫_Γ σ(v) n ⋅ ñ g dS
-//                                    + κ ∫_Γ h⁻¹ (λ + 2μ) (v ⋅ ñ) g dS,
+//                            b(v) := - ∫_Γ σ(v) n ⋅ n g dS
+//                                    + κ ∫_Γ h⁻¹ (λ + 2μ) (v ⋅ n) g dS,
 //
 //               with κ > 0 being a penalty parameter. Here, h is a
 //               characteristic element size on the boundary. The function
