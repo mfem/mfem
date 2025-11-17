@@ -121,19 +121,17 @@ auto make_dependency_map_impl(
    std::index_sequence<Is...>)
 {
    constexpr std::size_t N = sizeof...(input_ts);
-   // MSVC tries to instantiate this codepath when N is zero,
-   // so we explicitly prevent it.
-   if constexpr (N == 0)
-   {
-      return std::unordered_map<std::size_t, std::array<bool, 0>> {};
-   }
    std::unordered_map<std::size_t, std::array<bool, N>> map;
    for_constexpr<N>([&](auto i)
    {
-      auto arr = make_dependency_array<i>(inputs, std::make_index_sequence<N> {});
-      map[get<i>(inputs).GetFieldId()] = arr;
+      // MSVC tries to instantiate this codepath when N is zero,
+      // so we explicitly prevent it.
+      if constexpr (N > 0)
+      {
+         auto arr = make_dependency_array<i>(inputs, std::make_index_sequence<N> {});
+         map[get<i>(inputs).GetFieldId()] = arr;
+      }
    });
-
    return map;
 }
 
