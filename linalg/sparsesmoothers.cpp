@@ -48,7 +48,6 @@ void SparseSmoother::EnsureTranspose() const
    }
 }
 
-/// Matrix vector multiplication with GS Smoother.
 void GSSmoother::Mult(const Vector &x, Vector &y) const
 {
    if (!iterative_mode)
@@ -68,7 +67,6 @@ void GSSmoother::Mult(const Vector &x, Vector &y) const
    }
 }
 
-/// Matrix vector multiplication with transpose GS Smoother.
 void GSSmoother::MultTranspose(const Vector &x, Vector &y) const
 {
    EnsureTranspose();
@@ -91,16 +89,6 @@ void GSSmoother::MultTranspose(const Vector &x, Vector &y) const
    }
 }
 
-/// Create the Jacobi smoother.
-DSmoother::DSmoother(const SparseMatrix &a, int t, real_t s, int it)
-   : SparseSmoother(a)
-{
-   type = t;
-   scale = s;
-   iterations = it;
-}
-
-/// Matrix vector multiplication with Jacobi smoother.
 void DSmoother::Mult_(const SparseMatrix &A, const Vector &x, Vector &y) const
 {
    if (!iterative_mode && type == 0 && iterations == 1)
