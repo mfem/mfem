@@ -12,7 +12,7 @@
 #ifndef MFEM_PARTICLEVECTOR
 #define MFEM_PARTICLEVECTOR
 
-#include "../general/ordering.hpp"
+#include "ordering.hpp"
 #include "vector.hpp"
 
 namespace mfem
