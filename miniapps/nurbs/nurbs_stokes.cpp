@@ -376,7 +376,8 @@ int main(int argc, char *argv[])
                   "Problem to solve:\n."
                   "\t 0 = Lid Driven Cavity (default)\n"
                   "\t 1 = Rotating domain\n"
-                  "\t 2 = Rotating box");
+                  "\t 2 = Rotating box"\n"
+                  "\t 3 = Manufactured solution");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
 
