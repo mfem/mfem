@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
                   "Number of uniform mesh refinements.");
    args.AddOption(&lambda, "-l", "--lambda", "First Lamé parameter.");
    args.AddOption(&mu, "-mu", "--mu", "Second Lamé parameter.");
-   args.AddOption(&alpha, "-b", "--alpha",
+   args.AddOption(&alpha, "-a", "--alpha",
                   "The first Nitsche parameter, should be -1 or 0.");
    args.AddOption(&kappa, "-k", "--kappa",
                   "The second penalty parameter, should be positive."
