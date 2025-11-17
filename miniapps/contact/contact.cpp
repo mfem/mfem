@@ -196,12 +196,6 @@ int main(int argc, char *argv[])
    // 5. Define problem-dependent BCs and material properties.
    switch (prob_name)
    {
-      // case twoblock:
-      //    ess_bdr_attr.Append(1); ess_bdr_attr_comp.Append(-1);
-      //    ess_bdr_attr.Append(10); ess_bdr_attr_comp.Append(-1);
-      //    E[0] = 1.0;  E[1] = 1e3;
-      //    nu[0] = 0.499;  nu[1] = 0.0;
-      //    break;
       case twoblock:
       case ironing:
          ess_bdr_attr.Append(2); ess_bdr_attr_comp.Append(-1);
@@ -226,7 +220,6 @@ int main(int argc, char *argv[])
    // It owns the FE space and will assemble the stiffness and RHS.
    ElasticityOperator prob(&pmesh, ess_bdr_attr,ess_bdr_attr_comp, E, nu,
                            nonlinear);
-
 
    ParFiniteElementSpace * fes = prob.GetFESpace();
    HYPRE_BigInt gndofs = fes->GlobalTrueVSize();
@@ -257,8 +250,6 @@ int main(int argc, char *argv[])
          MFEM_ABORT("Should be unreachable");
          break;
    }
-
-
 
    // Displacement field (current step), and a copy for visualization.
    ParGridFunction x_gf(fes); x_gf = 0.0;
@@ -312,7 +303,6 @@ int main(int argc, char *argv[])
    // transfer operator used by AMGF
    OptContactProblem contact(&prob, mortar_attr, nonmortar_attr,
                              tribol_ratio, bound_constraints);
-
 
    int dim = pmesh.Dimension();
    Vector ess_values(dim); ess_values = 0.0;
@@ -519,7 +509,6 @@ int main(int argc, char *argv[])
    if (paraview_dc) { delete paraview_dc; }
    return 0;
 }
-
 
 Mesh * GetProblemMesh(problem_name prob_name)
 {
