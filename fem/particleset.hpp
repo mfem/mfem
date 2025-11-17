@@ -31,8 +31,8 @@ extern "C"
 namespace mfem
 {
 
-/// Container for data associated with a single particle. See \ref ParticleSet
-/// for more information.
+/// Container for data associated with a single particle
+/** See ParticleSet for more information. */
 class Particle
 {
 protected:
@@ -41,7 +41,7 @@ protected:
    std::vector<Array<int>> tags;
 public:
    /** @brief Construct a Particle instance.
-    *  @param[in] dim          Spatial dimension (size of @a coords).
+    *  @param[in] dim          Spatial dimension (size of #coords).
     *  @param[in] field_vdims  Vector dimensions of particle fields.
     *  @param[in] num_tags     Number of integer tags.
     */
@@ -68,10 +68,10 @@ public:
    /// Get reference to field \p f , component \p c value.
    real_t& FieldValue(int f, int c=0)
    {
-      MFEM_ASSERT(f >= 0 && static_cast<std::size_t>(f) <  fields.size(),
-                  "invalid field index");
+      MFEM_ASSERT(f >= 0 && static_cast<std::size_t>(f) < fields.size(),
+                  "Invalid field index");
       MFEM_ASSERT(c >= 0 && c < fields[f].Size(),
-                  "invalid component index");
+                  "Invalid component index");
       return fields[f][c];
    }
 
@@ -201,7 +201,7 @@ protected:
    /// All particle tags.
    std::vector<std::unique_ptr<Array<int>>> tags;
 
-   /// Field names, to be written when \ref PrintCSV is called.
+   /// Field names, to be written when PrintCSV() is called.
    std::vector<std::string> field_names;
 
    /// Tag names, to be written when \ref PrintCSV is called.
@@ -424,8 +424,8 @@ public:
     */
    int AddTag(const char* tag_name=nullptr);
 
-   /// Reserve memory for \p res particles. Can help to avoid re-allocation for
-   /// adding + removing particles.
+   /// Reserve memory for \p res particles.
+   /** Can help to avoid re-allocation for adding + removing particles. */
    void Reserve(int res);
 
    /// Get the number of active particles currently held by this ParticleSet.
@@ -468,8 +468,8 @@ public:
    /// Get a const reference to tag \p t 's Array<int>.
    const Array<int>& Tag(int t) const { return *tags[t]; }
 
-   /// Get new \ref Particle object with copy of data associated with
-   /// particle \p i .
+   /** @brief Get new \ref Particle object with copy of data associated with
+       particle \p i . */
    Particle GetParticle(int i) const;
 
    /** @brief Get Particle object whose member reference the actual data
@@ -492,18 +492,19 @@ public:
    /// Print all particle data to a CSV file.
    void PrintCSV(const char *fname, int precision=16);
 
-   /// Print only particle field and tags given by \p field_idxs and
-   /// \p tag_idxs respectively to a CSV file.
+   /** @brief Print only particle field and tags given by \p field_idxs and
+       \p tag_idxs respectively to a CSV file. */
    void PrintCSV(const char *fname, const Array<int> &field_idxs,
                  const Array<int> &tag_idxs, int precision=16);
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
 
    /** @brief Redistribute particle data to \p rank_list
-    *
-    *  @arg[in] rank_list    Array of size \ref GetNParticles denoting ultimate
-    *  destination of particle data. Index = this rank means no data is moved.
-    */
+
+       @param[in] rank_list    Array of size GetNParticles() denoting ultimate
+                               destination of particle data. Index = this rank
+                               means no data is moved.
+     */
    void Redistribute(const Array<unsigned int> &rank_list);
 
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
