@@ -75,6 +75,14 @@ public:
    GSSmoother(const SparseMatrix &a, GSType t = SYMMETRIC, int it = 1)
       : GSSmoother(t, it) { SetOperator(a); }
 
+   /// Same as GSSmoother(GSType,int), for backwards compatibility.
+   GSSmoother(int t, int it = 1) : GSSmoother(GSType(t), it) { }
+
+   /// @brief Same as GSSmoother(const SparseMatrix&,GSType,int), for
+   /// backwards compatibility.
+   GSSmoother(const SparseMatrix &a, int t, int it = 1)
+      : GSSmoother(a, GSType(t), it) { }
+
    /// @brief Application of the Gauss-Seidel smoother.
    ///
    /// Applies a stationary Gauss-Seidel iteration. If Solver::iterative_mode is
@@ -128,6 +136,15 @@ public:
    /// @param[in]  it       Number of stationary iterations to perform
    DSmoother(const SparseMatrix &a, JacobiType t = JACOBI, real_t s = 1.,
              int it = 1) : DSmoother(t, s, it) { SetOperator(a); }
+
+   /// @brief Same as DSmoother(JacobiType,real_t,int), for backwards compatbility.
+   DSmoother(int t, real_t s = 1., int it = 1)
+      : DSmoother(JacobiType(t), s, it) { }
+
+   /// @brief Same as DSmoother(const SparseMatrix&,JacobiType,real_t,int), for
+   /// backwards compatbility.
+   DSmoother(const SparseMatrix &a, int t, real_t s = 1., int it = 1)
+      : DSmoother(a, JacobiType(t), s, it) { }
 
    /// @brief Replace diagonal entries with their absolute values. Relevant only
    /// with JacobiType::JACOBI.
