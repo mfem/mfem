@@ -3633,6 +3633,74 @@ protected:
       DenseMatrix &elmat, DenseMatrix &jmat);
 };
 
+/* Integrator for the Nitsche elasticity form,
+ *
+ * a(u,v) := - <σ(u) n⃗ ⋅ ñ, v ⋅ ñ>
+ *           + α <σ(v) n⃗ ⋅ ñ, u ⋅ ñ>
+ *           + κ <h⁻¹ (λ + 2μ) u ⋅ ñ, v ⋅ ñ>
+ *         = - ∫_Γ (σ(u) n ⋅ ñ) (v ⋅ ñ) dS
+ *           + α ∫_Γ (σ(v) n ⋅ ñ) (u ⋅ ñ) dS
+ *           + κ ∫_Γ h⁻¹ (λ + 2μ) (u ⋅ ñ) (v ⋅ ñ) dS.
+ *
+ * For isotropic media,
+ *
+ * σ(u) = λ (∇ ⋅ u) I + 2μ ε(u)
+ *      = λ (∇ ⋅ u) I + 2μ (∇u + ∇uᵀ)/2
+ *      = λ (∇ ⋅ u) I + μ (∇u + ∇uᵀ),
+ *
+ * where I is identity matrix, λ and μ are Lame coefficients (see
+ * ElasticityIntegrator), ñ is a unit vector field, and u, v are the trial and test
+ * functions, respectively.
+ *
+ * This is a '%Vector' integrator, i.e. defined for FE spaces using multiple
+ * copies of a scalar FE space.
+ */
+class NitscheElasticityIntegrator : public BilinearFormIntegrator
+{
+public:
+   NitscheElasticityIntegrator(Coefficient &lambda_, Coefficient &mu_,
+                               real_t alpha_, real_t kappa_)
+      : nt(NULL), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) { }
+
+   NitscheElasticityIntegrator(VectorCoefficient &nt_, Coefficient &lambda_,
+                               Coefficient &mu_, real_t alpha_, real_t kappa_)
+      : nt(&nt_), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) { }
+
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   void AssembleFaceMatrix(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
+
+protected:
+   VectorCoefficient *nt;
+   Coefficient *lambda, *mu;
+   real_t alpha, kappa;
+
+#ifndef MFEM_THREAD_SAFE
+   // values of all scalar basis functions for one component of u (which is a
+   // vector) at the integration point in the reference space
+   Vector shape1;
+   // values of derivatives of all scalar basis functions for one component
+   // of u (which is a vector) at the integration point in the reference space
+   DenseMatrix dshape1;
+   // Adjugate of the Jacobian of the transformation: adjJ = det(J) J^{-1}
+   DenseMatrix adjJ;
+   // gradient of shape functions in the real (physical, not reference)
+   // coordinates, scaled by det(J):
+   //    dshape_ps(jdof,jm) = sum_{t} adjJ(t,jm)*dshape(jdof,t)
+   DenseMatrix dshape1_ps;
+   Vector nor;  // nor = |weight(J_face)| n
+   Vector nL1;  // nL1 = (lambda1 * ip.weight / detJ1) nor
+   Vector nM1;  // nM1 = (mu1     * ip.weight / detJ1) nor
+   Vector nt1;  // nt1 = vector function ñ evaluated at ip1
+   Vector dshape1_dnM; // dshape1_dnM = dshape1_ps . nM1
+   Vector dshape1_dnt; // dshape1_dnt = dshape1_ps . nt1
+   // 'jmat' corresponds to the term: kappa <h⁻¹ u ⋅ ñ, v ⋅ ñ>
+   DenseMatrix jmat;
+#endif
+};
+
 /** Integrator for the DPG form:$ \langle v, [w] \rangle $ over all faces (the interface) where
     the trial variable $v$ is defined on the interface and the test variable $w$ is
     defined inside the elements, generally in a DG space. */
@@ -3649,83 +3717,6 @@ public:
                            const FiniteElement &test_fe2,
                            FaceElementTransformations &Trans,
                            DenseMatrix &elmat) override;
-};
-
-/* Integrator for the Nitsche elasticity form,
- *
- * a(u,v) := - <σ(u) n⃗ ⋅ w, v ⋅ w>
- *           + α <σ(v) n⃗ ⋅ w, u ⋅ w>
- *           + κ <h⁻¹ (λ + 2μ) u ⋅ w, v ⋅ w>
- *         = - ∫_Γ (σ(u) n ⋅ w) (v ⋅ w) dS
- *           + α ∫_Γ (σ(v) n ⋅ w) (u ⋅ w) dS
- *           + κ ∫_Γ h⁻¹ (λ + 2μ) (u ⋅ w) (v ⋅ w) dS.
- *
- * For isotropic media,
- *
- * σ(u) = λ (∇ ⋅ u) I + 2μ ε(u)
- *      = λ (∇ ⋅ u) I + 2μ (∇u + ∇uᵀ)/2
- *      = λ (∇ ⋅ u) I + μ (∇u + ∇uᵀ),
- *
- * where I is identity matrix, λ and μ are Lame coefficients (see
- * ElasticityIntegrator), w is a vector field, and u, v are the trial and test
- * functions, respectively.
- *
- * This is a '%Vector' integrator, i.e. defined for FE spaces using multiple
- * copies of a scalar FE space.
- */
-class NitscheElasticityIntegrator : public BilinearFormIntegrator
-{
-public:
-   NitscheElasticityIntegrator(Coefficient &lambda_, Coefficient &mu_,
-                               real_t alpha_, real_t kappa_)
-      : w(NULL), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) { }
-
-   NitscheElasticityIntegrator(VectorCoefficient &w_, Coefficient &lambda_,
-                               Coefficient &mu_, real_t alpha_, real_t kappa_)
-      : w(&w_), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) { }
-
-   using BilinearFormIntegrator::AssembleFaceMatrix;
-   void AssembleFaceMatrix(const FiniteElement &el1,
-                           const FiniteElement &el2,
-                           FaceElementTransformations &Trans,
-                           DenseMatrix &elmat) override;
-
-protected:
-   VectorCoefficient *w;
-   Coefficient *lambda, *mu;
-   real_t alpha, kappa;
-
-#ifndef MFEM_THREAD_SAFE
-   // values of all scalar basis functions for one component of u (which is a
-   // vector) at the integration point in the reference space
-   Vector shape1, shape2;
-   // values of derivatives of all scalar basis functions for one component
-   // of u (which is a vector) at the integration point in the reference space
-   DenseMatrix dshape1, dshape2;
-   // Adjugate of the Jacobian of the transformation: adjJ = det(J) J^{-1}
-   DenseMatrix adjJ;
-   // gradient of shape functions in the real (physical, not reference)
-   // coordinates, scaled by det(J):
-   //    dshape_ps(jdof,jm) = sum_{t} adjJ(t,jm)*dshape(jdof,t)
-   DenseMatrix dshape1_ps, dshape2_ps;
-   Vector nor;  // nor = |weight(J_face)| n
-   Vector nL1, nL2;  // nL1 = (lambda1 * ip.weight / detJ1) nor
-   Vector nM1, nM2;  // nM1 = (mu1     * ip.weight / detJ1) nor
-   Vector dshape1_dnM, dshape2_dnM; // dshape1_dnM = dshape1_ps . nM1
-   Vector dshape1_dw, dshape2_dw; // dshape1_dw = dshape1_ps . w1
-   Vector w1, w2;
-   // 'jmat' corresponds to the term: kappa <h⁻¹ u ⋅ w, v ⋅ w>
-   DenseMatrix jmat;
-#endif
-
-   static void AssembleBlock(
-      const int dim, const int row_ndofs, const int col_ndofs,
-      const int row_offset, const int col_offset,
-      const real_t jmatcoef, const Vector &col_nL, const Vector &col_nM,
-      const Vector &row_shape, const Vector &col_shape,
-      const Vector &col_dshape_dnM, const Vector &col_dshape_dw,
-      const DenseMatrix &col_dshape, const Vector &row_w,
-      const Vector &col_w, DenseMatrix &elmat, DenseMatrix &jmat);
 };
 
 /** Integrator for the form:$ \langle v, [w \cdot n] \rangle $ over all faces (the interface) where
