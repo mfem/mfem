@@ -59,7 +59,6 @@ int main(int argc, char *argv[])
    int ref_levels = 0;
    real_t lambda = 1.0;
    real_t mu = 1.0;
-   real_t alpha = -1.0; // I don't see a need for the non-symmetric setting. Remove?
    real_t kappa = -1.0;
    bool static_cond = false;
    bool visualization = 1;
@@ -75,10 +74,8 @@ int main(int argc, char *argv[])
                   "Number of uniform mesh refinements.");
    args.AddOption(&lambda, "-l", "--lambda", "First Lamé parameter.");
    args.AddOption(&mu, "-mu", "--mu", "Second Lamé parameter.");
-   args.AddOption(&alpha, "-a", "--alpha",
-                  "The first Nitsche parameter, should be -1 or 0.");
    args.AddOption(&kappa, "-k", "--kappa",
-                  "The second penalty parameter, should be positive."
+                  "The penalty parameter, should be positive."
                   " Negative values are replaced with (order+1)^2.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
@@ -162,7 +159,7 @@ int main(int argc, char *argv[])
    BilinearForm *a = new BilinearForm(fespace);
    a->AddDomainIntegrator(new ElasticityIntegrator(lambda_c,mu_c));
    a->AddBdrFaceIntegrator(
-      new NitscheElasticityIntegrator(lambda_c, mu_c, alpha, kappa),
+      new NitscheElasticityIntegrator(lambda_c, mu_c, kappa),
       ess_bdr);
 
    // 10. Set up the linear form b(.) corresponding to the Nitsche method
@@ -174,7 +171,7 @@ int main(int argc, char *argv[])
    LinearForm *b = new LinearForm(fespace);
    b->AddBdrFaceIntegrator(
       new NitscheElasticityDirichletLFIntegrator(
-         g, lambda_c, mu_c, alpha, kappa), ess_bdr);
+         g, lambda_c, mu_c, kappa), ess_bdr);
    b->Assemble();
 
    // 11. Assemble the bilinear form and the corresponding linear system,

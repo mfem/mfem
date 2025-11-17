@@ -3659,8 +3659,8 @@ class NitscheElasticityIntegrator : public BilinearFormIntegrator
 {
 public:
    NitscheElasticityIntegrator(Coefficient &lambda_, Coefficient &mu_,
-                               real_t alpha_, real_t kappa_)
-      : nt(NULL), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) { }
+                               real_t kappa_)
+      : nt(NULL), lambda(&lambda_), mu(&mu_), alpha(-1.0), kappa(kappa_) { }
 
    NitscheElasticityIntegrator(VectorCoefficient &nt_, Coefficient &lambda_,
                                Coefficient &mu_, real_t alpha_, real_t kappa_)
