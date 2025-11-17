@@ -115,9 +115,6 @@ point Tribol to them. The steps are as follows:
    python3 ./config-build.py -hc ../mfem/miniapps/contact/tribol.cmake -bt Release -DCMAKE_INSTALL_PREFIX=../tribol 
    cd build-tribol-release && make -j install
    ```
-   > **C++ Standard**: Starting with version 4.8.1, MFEM requires a C++17 compiler. 
-   Ensure that Tribol uses the same standard by adding `-DCMAKE_CXX_STANDARD=17 -DBLT_CXX_STD=c++17`.
-
    > **tribol.cmake file**: Modify as needed to match `axom` and `mfem` paths.
 
 5. **MFEM Contact Miniapp**: Build from inside the directory `mfem/miniapps/contact`:  
