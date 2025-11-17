@@ -1141,6 +1141,47 @@ public:
    virtual ~RectangularConstrainedOperator() { if (own_A) { delete A; } }
 };
 
+/** @brief Abstract class for defining inner products. The method Eval()
+    must be implemented in derived classes to compute the inner product
+    of two vectors according to a specific inner product definition.
+*/
+class InnerProductOperator : public Operator
+{
+#ifdef MFEM_USE_MPI
+private:
+   MPI_Comm comm = MPI_COMM_NULL;
+   int dot_prod_type = 0; // 0: local, 1: global
+
+public:
+   InnerProductOperator(MPI_Comm comm_) : Operator(1)
+   { comm = comm_; dot_prod_type = 1; }
+#endif
+protected:
+   /// @brief Standard global/local $\ell_2$ inner product.
+   virtual real_t Dot(const Vector &x, const Vector &y) const;
+
+public:
+   /// Create an operator of size 1 (scalar).
+   InnerProductOperator() : Operator(1)
+   {
+#ifdef MFEM_USE_MPI
+      dot_prod_type = 0;
+#endif
+   }
+
+   /// Operator application - not always needed/used but added
+   /// to satisfy the abstract base class interface.
+   virtual void Mult(const Vector &x, Vector &y) const override
+   {
+      MFEM_ABORT("Mult is not implemented.");
+   }
+
+   /** @brief Compute the inner product (x,y) of vectors x and y.
+              This is an abstract method that must be
+              implemented in derived classes. */
+   virtual real_t Eval(const Vector &x, const Vector &y) = 0;
+};
+
 /** @brief PowerMethod helper class to estimate the largest eigenvalue of an
            operator using the iterative power method. */
 class PowerMethod
