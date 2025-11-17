@@ -2,7 +2,8 @@
 //
 // Compile with: make ex43
 //
-// Sample runs:  ex43 -m ../data/ball-nurbs.mesh
+// Sample runs:  ex43 -m ../data/ball-nurbs.mesh -r 2
+//               ex43 -m ../data/ref-cube.mesh -r 2
 //               ex43 -m ../data/fichera.mesh
 //
 // Description:  This example code solves a linear elasticity problem using

@@ -3,6 +3,7 @@
 // Compile with: make ex43p
 //
 // Sample runs:  mpirun -np 4 ex43p -m ../data/ball-nurbs.mesh -r 2
+//               mpirun -np 4 ex43p -m ../data/ref-cube.mesh -r 2
 //               mpirun -np 4 ex43p -m ../data/fichera.mesh
 //
 // Description:  This example code solves a linear elasticity problem using
