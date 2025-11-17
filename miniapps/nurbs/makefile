@@ -166,13 +166,23 @@ nurbs_surface-test-seq: nurbs_surface
 	@$(call mfem-test,$<,, NURBS miniapp,$(SURF_ARGS_1))
 	@$(call mfem-test,$<,, NURBS miniapp,$(SURF_ARGS_2))
 
+VECT_DIFF_ARGS_1 := -r 1 -o 2
+VECT_DIFF_ARGS_2 := -r 1 -o 2 --hcurl
+VECT_DIFF_ARGS_3 := -r 1 -o 2 -m ../../data/cube-nurbs.mesh
+VECT_DIFF_ARGS_4 := -r 1 -o 2 -m ../../data/cube-nurbs.mesh --hcurl
+
 nurbs_vector_diffusion-test-seq: nurbs_vector_diffusion
-	@$(call mfem-test,$<,, NURBS miniapp)
+	@$(call mfem-test,$<,, NURBS miniapp,$(VECT_DIFF_ARGS_1))
+	@$(call mfem-test,$<,, NURBS miniapp,$(VECT_DIFF_ARGS_2))
+	@$(call mfem-test,$<,, NURBS miniapp,$(VECT_DIFF_ARGS_3))
+	@$(call mfem-test,$<,, NURBS miniapp,$(VECT_DIFF_ARGS_4))
 
-STOKES_ARGS_1 := -r 1
+STOKES_ARGS_1 := -r 1 --boundary-conditions 0
+STOKES_ARGS_2 := -r 1 --boundary-conditions 1
 
-nurbs_stokes-test-seq: nurbs_stokes
+nurbs_stokes-test-seq: nurbs_stokes 
 	@$(call mfem-test,$<,, NURBS miniapp,$(STOKES_ARGS_1))
+	@$(call mfem-test,$<,, NURBS miniapp,$(STOKES_ARGS_2))
 
 EX1P_ARGS_1 :=
 EX1P_ARGS_2 := -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp
