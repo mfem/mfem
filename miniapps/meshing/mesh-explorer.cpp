@@ -337,6 +337,7 @@ int main (int argc, char *argv[])
       bdr_attr_fec = new Const2DFECollection;
       attr_fec = new Const3DFECollection;
    }
+
    int print_char = 1;
    while (1)
    {
