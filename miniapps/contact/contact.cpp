@@ -388,6 +388,13 @@ int main(int argc, char *argv[])
       // 9(e). Choose preconditioner: AMGF (with direct solver for subspace) or AMG.
       Solver * prec = nullptr;
       Solver * subspacesolver = nullptr;
+#if MFEM_HYPRE_VERSION >= 23000
+      // new l1-hybrid symmetric Gauss-Seidel smoother
+      int amg_relax_type = 88;
+#else
+      int amg_relax_type = (!amgf && prob_name==problem_name::ironing) ? 18 : 8;
+#endif
+
       if (amgf)
       {
 #ifdef MFEM_USE_MUMPS
@@ -396,6 +403,7 @@ int main(int argc, char *argv[])
 #else
 #ifdef MFEM_USE_MKL_CPARDISO
          subspacesolver = new CPardisoSolver(MPI_COMM_WORLD);
+         dynamic_cast<CPardisoSolver*>(subspacesolver)->SetPrintLevel(0);
 #else
          MFEM_ABORT("MFEM must be built with MUMPS or MKL_CPARDISO in order to use AMGF");
 #endif
@@ -404,7 +412,7 @@ int main(int argc, char *argv[])
          auto * amgfprec = dynamic_cast<AMGFSolver *>(prec);
          amgfprec->GetAMG().SetSystemsOptions(3);
          amgfprec->GetAMG().SetPrintLevel(0);
-         amgfprec->GetAMG().SetRelaxType(88);
+         amgfprec->GetAMG().SetRelaxType(amg_relax_type);
          amgfprec->SetFilteredSubspaceSolver(*subspacesolver);
          amgfprec->SetFilteredSubspaceTransferOperator(
             *contact.GetContactSubspaceTransferOperator());
@@ -415,7 +423,7 @@ int main(int argc, char *argv[])
          auto * amgprec = dynamic_cast<HypreBoomerAMG *>(prec);
          amgprec->SetSystemsOptions(3);
          amgprec->SetPrintLevel(0);
-         amgprec->SetRelaxType(88);
+         amgprec->SetRelaxType(amg_relax_type);
       }
 
       // 9(f). Linear solver used inside the IP optimizer.
