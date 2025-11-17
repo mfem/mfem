@@ -629,10 +629,10 @@ public:
  * conditions, in a Nitsche elasticity formulation. Specifically, the linear
  * form is given by
  *
- * b(v) := α ∫_Γ (λ div(v) I + μ (∇v + ∇vᵀ))n ⋅ w g dS
- *       + κ ∫_Γ h⁻¹ (λ + 2μ) (v ⋅ w) g dS
+ * b(v) := α ∫_Γ (λ div(v) I + μ (∇v + ∇vᵀ))n ⋅ ñ g dS
+ *       + κ ∫_Γ h⁻¹ (λ + 2μ) (v ⋅ ñ) g dS
  *
- * where g is the given Dirichlet data, n is the unit normal, and w is a vector
+ * where g is the given Dirichlet data, n is the unit normal, and ñ is a unit vector
  * field. The parameters λ and μ should match the parameters with the same names
  * used in the bilinear form integrator, NitscheElasticityIntegrator.
  */
@@ -640,7 +640,7 @@ class NitscheElasticityDirichletLFIntegrator : public LinearFormIntegrator
 {
 protected:
    Coefficient *g;
-   VectorCoefficient *w;
+   VectorCoefficient *nt;
    Coefficient *lambda, *mu;
    real_t alpha, kappa;
 
@@ -653,19 +653,19 @@ protected:
    Vector dshape_dn;
    Vector dshape_du;
    real_t g_val;
-   Vector w_val;
+   Vector nt_val;
 #endif
 
 public:
    NitscheElasticityDirichletLFIntegrator(Coefficient &g_,
                                           Coefficient &lambda_, Coefficient &mu_,
                                           real_t alpha_, real_t kappa_)
-      : g(&g_), w(NULL), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) {}
+      : g(&g_), nt(NULL), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) {}
 
-   NitscheElasticityDirichletLFIntegrator(Coefficient &g_, VectorCoefficient &w_,
+   NitscheElasticityDirichletLFIntegrator(Coefficient &g_, VectorCoefficient &nt_,
                                           Coefficient &lambda_, Coefficient &mu_,
                                           real_t alpha_, real_t kappa_)
-      : g(&g_), w(&w_), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) {}
+      : g(&g_), nt(&nt_), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) {}
 
    void AssembleRHSElementVect(const FiniteElement &el,
                                ElementTransformation &Tr,

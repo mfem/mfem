@@ -1054,7 +1054,7 @@ void NitscheElasticityDirichletLFIntegrator::AssembleRHSElementVect(
    Vector dshape_dn;
    Vector dshape_du;
    real_t g_val;
-   Vector w_val;
+   Vector nt_val;
 #endif
 
    const int dim = el.GetDim();
@@ -1071,7 +1071,7 @@ void NitscheElasticityDirichletLFIntegrator::AssembleRHSElementVect(
    nor.SetSize(dim);
    dshape_dn.SetSize(ndofs);
    dshape_du.SetSize(ndofs);
-   w_val.SetSize(dim);
+   nt_val.SetSize(dim);
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
@@ -1105,16 +1105,16 @@ void NitscheElasticityDirichletLFIntegrator::AssembleRHSElementVect(
          CalcOrtho(Tr.Jacobian(), nor);
       }
 
-      if (!w)
+      if (!nt)
       {
          // Set w to the unit normal vector if not provided
-         w_val = nor;
-         w_val /= w_val.Norml2();
+         nt_val = nor;
+         nt_val /= nt_val.Norml2();
       }
       else
       {
          // Evaluate the vector field using the face transformation.
-         w->Eval(w_val, Tr, ip);
+         nt->Eval(nt_val, Tr, ip);
       }
 
       // Evaluate the Dirichlet b.c. using the face transformation.
@@ -1127,11 +1127,11 @@ void NitscheElasticityDirichletLFIntegrator::AssembleRHSElementVect(
          WM = W * mu->Eval(*Tr.Elem1, eip);
          jcoef = kappa * (WL + 2.0*WM) * (nor*nor);
          dshape_ps.Mult(nor, dshape_dn);
-         dshape_ps.Mult(w_val, dshape_du);
+         dshape_ps.Mult(nt_val, dshape_du);
       }
 
-      // alpha < g, (lambda div(v) I + mu (grad(v) + grad(v)^T)) n . w > +
-      //   + kappa < h^{-1} (lambda + 2 mu) g, v . w >
+      // alpha < g, (lambda div(v) I + mu (grad(v) + grad(v)^T)) n . ñ > +
+      //   + kappa < h^{-1} (lambda + 2 mu) g, v . ñ >
 
       // i = idof + ndofs * im
       // v_phi(i,d) = delta(im,d) phi(idof)
@@ -1139,41 +1139,41 @@ void NitscheElasticityDirichletLFIntegrator::AssembleRHSElementVect(
       // (grad(v_phi(i)))(k,l) = delta(im,k) dphi(idof,l)
       //
       // term 1:
-      //   alpha < g, lambda div(v_phi(i)) n . w > =
-      //   alpha lambda g div(v_phi(i)) (n.w) =
-      //   alpha lambda g dphi(idof,im) (n.w) --> quadrature -->
-      //   ip.weight/det(J1) alpha lambda g (nor.w) dshape_ps(idof,im) =
-      //   alpha * WL * g_val * (nor*w_val) * dshape_ps(idof,im)
+      //   alpha < g, lambda div(v_phi(i)) n . ñ > =
+      //   alpha lambda g div(v_phi(i)) (n.ñ) =
+      //   alpha lambda g dphi(idof,im) (n.ñ) --> quadrature -->
+      //   ip.weight/det(J1) alpha lambda g (nor.ñ) dshape_ps(idof,im) =
+      //   alpha * WL * g_val * (nor*nt_val) * dshape_ps(idof,im)
       // term 2:
-      //   alpha < g, mu grad(v_phi(i)) n . w > =
-      //   alpha mu g w^T grad(v_phi(i)) n =
-      //   alpha mu g w(k) delta(im,k) dphi(idof,l) n(l) =
-      //   alpha mu g w(im) dphi(idof,l) n(l) --> quadrature -->
-      //   ip.weight/det(J1) alpha mu w(im) g dshape_ps(idof,l) nor(l) =
-      //   alpha * WM * g_val * w_val(im) * dshape_dn(idof)
+      //   alpha < g, mu grad(v_phi(i)) n . ñ > =
+      //   alpha mu g ñ^T grad(v_phi(i)) n =
+      //   alpha mu g ñ(k) delta(im,k) dphi(idof,l) n(l) =
+      //   alpha mu g ñ(im) dphi(idof,l) n(l) --> quadrature -->
+      //   ip.weight/det(J1) alpha mu ñ(im) g dshape_ps(idof,l) nor(l) =
+      //   alpha * WM * g_val * nt_val(im) * dshape_dn(idof)
       // term 3:
-      //   alpha < g, mu (grad(v_phi(i)))^T n . w > =
-      //   alpha mu g n^T grad(v_phi(i)) w =
-      //   alpha mu g n(k) delta(im,k) dphi(idof,l) w(l) =
-      //   alpha mu g n(im) dphi(idof,l) w(l) --> quadrature -->
-      //   ip.weight/det(J1) alpha mu g nor(im) dshape_ps(idof,l) w(l) =
+      //   alpha < g, mu (grad(v_phi(i)))^T n . ñ > =
+      //   alpha mu g n^T grad(v_phi(i)) ñ =
+      //   alpha mu g n(k) delta(im,k) dphi(idof,l) ñ(l) =
+      //   alpha mu g n(im) dphi(idof,l) ñ(l) --> quadrature -->
+      //   ip.weight/det(J1) alpha mu g nor(im) dshape_ps(idof,l) ñ(l) =
       //   alpha * WM * g_val * nor(im) * dshape_du(idof)
       // term j:
-      //   < kappa h^{-1} (lambda + 2 mu) g, w . v_phi(i) > =
-      //   kappa/h (lambda + 2 mu) g w(k) v_phi(i,k) =
-      //   kappa/h (lambda + 2 mu) g w(k) delta(im,k) phi(idof) =
-      //   kappa/h (lambda + 2 mu) g w(im) phi(idof) --> quadrature -->
+      //   < kappa h^{-1} (lambda + 2 mu) g, ñ . v_phi(i) > =
+      //   kappa/h (lambda + 2 mu) g ñ(k) v_phi(i,k) =
+      //   kappa/h (lambda + 2 mu) g ñ(k) delta(im,k) phi(idof) =
+      //   kappa/h (lambda + 2 mu) g ñ(im) phi(idof) --> quadrature -->
       //      [ 1/h = |nor|/det(J1) ]
-      //   ip.weight/det(J1) |nor|^2 (lambda + 2 mu) kappa g w(im) phi(idof) =
-      //   jcoef * g_val * w_val(im) * shape(idof)
+      //   ip.weight/det(J1) |nor|^2 (lambda + 2 mu) kappa g ñ(im) phi(idof) =
+      //   jcoef * g_val * nt_val(im) * shape(idof)
 
       WM *= alpha;
-      const real_t t1 = alpha * WL * g_val * (nor*w_val);
+      const real_t t1 = alpha * WL * g_val * (nor*nt_val);
       for (int im = 0, i = 0; im < dim; ++im)
       {
-         const real_t t2 = WM * g_val * w_val(im);
+         const real_t t2 = WM * g_val * nt_val(im);
          const real_t t3 = WM * g_val * nor(im);
-         const real_t tj = jcoef * g_val * w_val(im);
+         const real_t tj = jcoef * g_val * nt_val(im);
          for (int idof = 0; idof < ndofs; ++idof, ++i)
          {
             elvect(i) += (t1*dshape_ps(idof,im) + t2*dshape_dn(idof) +
