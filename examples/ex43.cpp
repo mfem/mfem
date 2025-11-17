@@ -15,8 +15,8 @@
 //               The strong form is given by: [FIXME]
 //
 //                          −Div(σ(u)) = 0      in Ω
-//                                   u = g      on Γ
-//                            σ(u) ⋅ n = 0      on Γ
+//                               u ⋅ n = g      on Γ
+//                                σ(u) ⟂ n      on Γ
 //
 //               where σ(u) = λ tr(ε(u)) I + 2μ ε(u) is the stress tensor, ε(u)
 //               is the strain tensor, λ and μ are the Lamé parameters, and g is
