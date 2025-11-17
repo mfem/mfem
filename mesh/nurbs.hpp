@@ -149,7 +149,7 @@ public:
    /** @brief Return the parameter for element reference coordinate @a xi
        in [0,1], for the element beginning at knot @a ni. */
    MFEM_DEPRECATED real_t getKnotLocation(real_t xi, int ni) const
-   { return (xi*knot(ni+1) + (1. - xi)*knot(ni)); } // Use GetKnot instead
+   { return (xi*knot(ni+1) + (1. - xi)*knot(ni)); } // Use GetKnotLocation instead
 
    /// Return the index of the knot span containing parameter @a u.
    MFEM_DEPRECATED int findKnotSpan(real_t u) const;  // Use GetSpan instead
