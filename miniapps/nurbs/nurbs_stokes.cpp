@@ -162,6 +162,37 @@ real_t p_fun(const Vector & x)
 
 }
 
+
+// Functions
+namespace manufactoredSolution
+{
+
+void u_fun(const Vector & x, Vector & u)
+{
+   u[0] = sin(M_PI*x[0])*cos(M_PI*x[1]);
+   u[1] =-cos(M_PI*x[0])*sin(M_PI*x[1]);
+
+   u*= sin(M_PI*x[0])*sin(M_PI*x[1]);
+}
+
+void f_fun(const Vector & x, Vector & f)
+{
+   f[0] = 2*M_PI*M_PI*(sin(M_PI*x[0])*sin(M_PI*x[0]) - cos(M_PI*x[0])*cos(
+                          M_PI*x[0]))*sin(M_PI*x[1])*cos(M_PI*x[1])
+          +4*M_PI*M_PI*sin(M_PI*x[0])*sin(M_PI*x[0])*sin(M_PI*x[1])*cos(M_PI*x[1]);
+   f[1] = - 2*M_PI*M_PI*(sin(M_PI*x[1])*sin(M_PI*x[1]) - cos(M_PI*x[1])*cos(
+                            M_PI*x[1]))*sin(M_PI*x[0])*cos(M_PI*x[0])
+          - 4*M_PI*M_PI*sin(M_PI*x[0])*sin(M_PI*x[1])*sin(M_PI*x[1])*cos(M_PI*x[0]);
+}
+
+real_t p_fun(const Vector & x)
+{
+   return 0.0;
+}
+
+}
+
+
 /// Function to remove the undetermined pressure mode
 void MeanZero(GridFunction &p_gf)
 {
@@ -300,7 +331,7 @@ private:
 };
 
 
-enum BC {WEAK, HYBRID, STRONG};
+enum class BC {WEAK, HYBRID, STRONG};
 
 int main(int argc, char *argv[])
 {
@@ -310,8 +341,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../../data/square-nurbs.mesh";
    int ref_levels = -1;
    int order = 1;
-   bool weakBC = true;
-   int boundary_conditions = BC::WEAK;
+   int bcs = 0;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
@@ -333,9 +363,7 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&weakBC, "-wbc", "--weak-bc", "-sbc", "--strong-bc",
-                  "Weak boundary conditions.");
-   args.AddOption(&boundary_conditions, "-bcs", "--boundary-conditions",
+   args.AddOption(&bcs, "-bcs", "--boundary-conditions",
                   "Boundary condition flag:\n."
                   "\t 0 = Weak (default)\n"
                   "\t 1 = Hybrid (Weak in tangential direction, Strong in normal direction)\n"
@@ -413,6 +441,8 @@ int main(int argc, char *argv[])
       penalty = 10*(order+1)*(order+1);
    }
 
+   BC boundary_conditions = static_cast<BC>(bcs);
+
    // Enable hardware devices such as GPUs, and programming models such as
    // CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
@@ -480,7 +510,7 @@ int main(int argc, char *argv[])
    cout<<"Velocity dofs     = "<<bOffsets[1] - bOffsets[0]<<endl;
    cout<<"Pressure dofs     = "<<bOffsets[2] - bOffsets[1]<<endl;
    cout<<"Total # of dofs   = "<<bOffsets.Last()<<endl;
-   if (!weakBC)
+   if (boundary_conditions != BC::WEAK)
    {
       cout << "-----------------------------------------------------------\n";
       Array<int> ess_tdof_list;
@@ -518,6 +548,13 @@ int main(int argc, char *argv[])
       f_cf = new VectorFunctionCoefficient (dim, rotatingBox::f_fun);
       u_cf = new VectorFunctionCoefficient (dim, rotatingBox::u_fun);
       p_cf = new FunctionCoefficient (rotatingBox::p_fun);
+   }
+   else if (problem == 3)
+   {
+      cout<<"Manufactured solution\n";
+      f_cf = new VectorFunctionCoefficient (dim, manufactoredSolution::f_fun);
+      u_cf = new VectorFunctionCoefficient (dim, manufactoredSolution::u_fun);
+      p_cf = new FunctionCoefficient (manufactoredSolution::p_fun);
    }
    else
    {
@@ -742,6 +779,12 @@ int main(int argc, char *argv[])
       ofstream p_ofs("sol_p.gf");
       p_ofs.precision(8);
       p_gf.Save(p_ofs);
+   }
+
+   if (problem == 3)
+   {
+      cout << "\n|| u_h - u ||_{L^2} = " << u_gf.ComputeL2Error(*u_cf) << endl;
+      cout << "\n|| p_h - p ||_{L^2} = " << p_gf.ComputeL2Error(*p_cf) << endl;
    }
 
    // Save data in the VisIt format
