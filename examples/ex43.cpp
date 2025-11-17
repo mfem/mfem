@@ -32,13 +32,13 @@
 //
 //                          a(u,v) := ∫_Ω σ(u) : ε(v) dx
 //                                    - ∫_Γ (σ(u) n ⋅ ñ) (v ⋅ ñ) dS
-//                                    + β ∫_Γ (σ(v) n ⋅ ñ) (u ⋅ ñ) dS
+//                                    + α ∫_Γ (σ(v) n ⋅ ñ) (u ⋅ ñ) dS
 //                                    + κ ∫_Γ h⁻¹ (λ + 2μ) (u ⋅ ñ) (v ⋅ ñ) dS,
 //
-//                            b(v) := β ∫_Γ σ(v) n ⋅ ñ g dS
+//                            b(v) := α ∫_Γ σ(v) n ⋅ ñ g dS
 //                                    + κ ∫_Γ h⁻¹ (λ + 2μ) (v ⋅ ñ) g dS,
 //
-//               with β = -1 (symmetric Nitsche) or β = 0 and κ > 0 being a
+//               with α = -1 (symmetric Nitsche) or α = 0 and κ > 0 being a
 //               penalty parameter. Here, h is a characteristic element size on
 //               the boundary. The function space V is a vector H1-conforming
 //               finite element space.
@@ -61,7 +61,7 @@ int main(int argc, char *argv[])
    int ref_levels = 0;
    real_t lambda = 1.0;
    real_t mu = 1.0;
-   real_t beta = -1.0;
+   real_t alpha = -1.0;
    real_t kappa = -1.0;
    bool static_cond = false;
    bool visualization = 1;
@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
                   "Number of uniform mesh refinements.");
    args.AddOption(&lambda, "-l", "--lambda", "First Lamé parameter.");
    args.AddOption(&mu, "-mu", "--mu", "Second Lamé parameter.");
-   args.AddOption(&beta, "-b", "--beta",
+   args.AddOption(&alpha, "-b", "--alpha",
                   "The first Nitsche parameter, should be -1 or 0.");
    args.AddOption(&kappa, "-k", "--kappa",
                   "The second penalty parameter, should be positive."
@@ -164,7 +164,7 @@ int main(int argc, char *argv[])
    BilinearForm *a = new BilinearForm(fespace);
    a->AddDomainIntegrator(new ElasticityIntegrator(lambda_c,mu_c));
    a->AddBdrFaceIntegrator(
-      new NitscheElasticityIntegrator(lambda_c, mu_c, beta, kappa),
+      new NitscheElasticityIntegrator(lambda_c, mu_c, alpha, kappa),
       ess_bdr);
 
    // 10. Set up the linear form b(.) corresponding to the Nitsche method
@@ -176,7 +176,7 @@ int main(int argc, char *argv[])
    LinearForm *b = new LinearForm(fespace);
    b->AddBdrFaceIntegrator(
       new NitscheElasticityDirichletLFIntegrator(
-         g, lambda_c, mu_c, beta, kappa), ess_bdr);
+         g, lambda_c, mu_c, alpha, kappa), ess_bdr);
    b->Assemble();
 
    // 11. Assemble the bilinear form and the corresponding linear system,
