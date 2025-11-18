@@ -5,10 +5,8 @@
 // Sample runs:  nurbs_ex5 -m ../../data/square-nurbs.mesh -o 3
 //               nurbs_ex5 -m ../../data/cube-nurbs.mesh -r 3
 //               nurbs_ex5 -m ../../data/pipe-nurbs-2d.mesh
-//               nurbs_ex5 -m ../../data/beam-tet.mesh
-//               nurbs_ex5 -m ../../data/beam-hex.mesh
-//               nurbs_ex5 -m ../../data/escher.mesh
-//               nurbs_ex5 -m ../../data/fichera.mesh
+//               nurbs_ex5 -m ../../data/beam-quad-nurbs.mesh
+//               nurbs_ex5 -m ../../data/beam-hex-nurbs.mesh
 //
 // Description:  This example code solves a simple 2D/3D mixed Darcy problem
 //               corresponding to the saddle point system
