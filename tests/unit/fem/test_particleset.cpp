@@ -37,7 +37,7 @@ void InitializeRandom(Particle &p, int seed)
    }
    for (int f = 0; f < p.GetNFields(); f++)
    {
-      for (int c = 0; c < p.FieldVDim(f); c++)
+      for (int c = 0; c < p.GetFieldVDim(f); c++)
       {
          p.FieldValue(f,c) = real_dist(gen);
       }
