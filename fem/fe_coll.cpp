@@ -2173,12 +2173,13 @@ H1Bubble_FECollection::H1Bubble_FECollection(const int p, const int q,
 
    if (dim >= 2)
    {
-      dofs[Geometry::TRIANGLE] = (q-2)*(q-1)/2;
-      // dofs[Geometry::SQUARE] = pm1*pm1;
+      dofs[Geometry::TRIANGLE] = ((q+1)*(q+2))/2;
+      dofs[Geometry::SQUARE] = (q+1)*(q+1);
 
       elements[Geometry::TRIANGLE] =
          make_unique<H1Bubble_TriangleElement>(p, q, btype);
-      // elements[Geometry::SQUARE] = make_unique<H1_QuadrilateralElement>(p, btype);
+      elements[Geometry::SQUARE] =
+         make_unique<H1Bubble_QuadrilateralElement>(p, q, btype);
    }
 
    if (dim >= 3)
