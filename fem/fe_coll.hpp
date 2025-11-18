@@ -111,6 +111,8 @@ public:
    | :------: | :---: | :---: | :-------: | :-----: | :---: |
    | H1_[DIM]_[ORDER] | H1 | * | 1 | VALUE | H1 nodal elements |
    | H1@[BTYPE]_[DIM]_[ORDER] | H1 | * | * | VALUE | H1 nodal elements |
+   | H1Bubble_[DIM]_[ORDER]_[BUBBLE_ORDER] | H1 | * | 1 | VALUE | H1 nodal elements enriched with bubble functions |
+   | H1Bubble@[BTYPE]_[DIM]_[ORDER]_[BUBBLE_ORDER] | H1 | * | 1 | VALUE | H1 nodal elements enriched with bubble functions |
    | H1Pos_[DIM]_[ORDER] | H1 | * | 1 | VALUE | H1 nodal elements |
    | H1Pos_Trace_[DIM]_[ORDER] | H^{1/2} | * | 2 | VALUE | H^{1/2}-conforming trace elements for H1 defined on the interface between mesh elements (faces,edges,vertices) |
    | H1_Trace_[DIM]_[ORDER] | H^{1/2} | * | 1 | VALUE | H^{1/2}-conforming trace elements for H1 defined on the interface between mesh elements (faces,edges,vertices) |
@@ -315,6 +317,51 @@ public:
    { return new H1_FECollection(p, dim, b_type); }
 
    virtual ~H1_FECollection();
+};
+
+/// @brief Arbitrary order H1-conforming (continuous) finite elements enriched
+/// with bubble functions.
+class H1Bubble_FECollection : public FiniteElementCollection
+{
+protected:
+   int dim;
+   int b_type;
+   int bubble_order;
+
+   char fec_name[32];
+   std::array<int, Geometry::NumGeom> dofs{}; // zero initialize
+   std::array<std::unique_ptr<FiniteElement>, Geometry::NumGeom> elements;
+
+   std::vector<int> seg_ord_vec, tri_ord_vec, quad_ord_vec, tet_ord_vec;
+   // null initialize
+   std::array<int*, 2> seg_dof_ord{};
+   std::array<int*, 6> tri_dof_ord{};
+   std::array<int*, 8> quad_dof_ord{};
+   std::array<int*, 24> tet_dof_ord{};
+
+public:
+   explicit H1Bubble_FECollection(const int p, const int q, const int dim = 3,
+                                  const int btype = BasisType::GaussLobatto);
+
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
+
+   int DofForGeometry(Geometry::Type GeomType) const override
+   { return dofs[GeomType]; }
+
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
+
+   const char *Name() const override { return fec_name; }
+
+   int GetContType() const override { return CONTINUOUS; }
+
+   int GetBasisType() const { return b_type; }
+
+   FiniteElementCollection *GetTraceCollection() const override;
+
+   FiniteElementCollection *Clone(int p) const override
+   { return new H1Bubble_FECollection(p, bubble_order, dim, b_type); }
 };
 
 /** @brief Arbitrary order H1-conforming (continuous) finite elements with
