@@ -15,17 +15,17 @@
 
 // Sample runs
 // Problem 0: two-block (linear elasticity)
-// mpirun -np 4 ./contact -prob 0 -sr 0 -pr 0 -tr 2 -nsteps 4  -msteps 0 -amgf
+// mpirun -np 4 ./contact -prob 0 -sr 0 -pr 0 -tr 2 -nsteps 4  -msteps 0 -amgf -amgf-fsolver auto
 // mpirun -np 4 ./contact -prob 0 -sr 0 -pr 0 -tr 2 -nsteps 4  -msteps 0 -no-amgf
 
 // Problem 1: ironing (linear elasticity)
-// mpirun -np 4 ./contact -prob 1 -sr 0 -pr 0 -tr 2 -nsteps 4  -msteps 6 -amgf
+// mpirun -np 4 ./contact -prob 1 -sr 0 -pr 0 -tr 2 -nsteps 4  -msteps 6 -amgf -amgf-fsolver auto
 // mpirun -np 4 ./contact -prob 1 -sr 0 -pr 0 -tr 2 -nsteps 4  -msteps 6 -no-amgf
 
 // Problem 2: beam–sphere (linear or non-linear elasticity)
-// mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 6 -msteps 0 -lin -amgf
+// mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 6 -msteps 0 -lin -amgf -amgf-fsolver auto
 // mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 6 -msteps 0 -lin -no-amgf
-// mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 6 -msteps 0 -nonlin -amgf
+// mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 6 -msteps 0 -nonlin -amgf -amgf-fsolver auto
 // mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 6 -msteps 0 -nonlin -no-amgf
 
 // Description:
@@ -51,6 +51,7 @@
 #include <fstream>
 #include <iostream>
 #include "ip.hpp"
+#include "solver_utils.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -100,6 +101,11 @@ int main(int argc, char *argv[])
    // Enable/disable AMGF preconditioner (default is AMG)
    bool amgf = false;
 
+   // Direct solver for AMGF filtered subspace
+   // Choices:"auto", "mumps", "cpardiso", "superlu", "strumpack"
+   const char *amgf_fsolver = "auto";
+
+
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&prob_no, "-prob", "--problem-number",
@@ -118,8 +124,10 @@ int main(int argc, char *argv[])
    args.AddOption(&pref, "-pr", "--parallel-refinements",
                   "Number of uniform refinements.");
    args.AddOption(&amgf, "-amgf", "--amgf", "-no-amgf",
-                  "--no-amgf",
-                  "Enable or disable AMGF with Filtering solver.");
+                  "--no-amgf", "Enable or disable AMG with Filtering solver.");
+   args.AddOption(&amgf_fsolver, "-amgf-fsolver", "--amgf-filtered-solver",
+                  "Direct solver for AMGF filtered subspace.\n"
+                  "Choices: auto, mumps, cpardiso, superlu, strumpack.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -377,7 +385,7 @@ int main(int argc, char *argv[])
 
       // 9(e). Choose preconditioner: AMGF (with direct solver for subspace) or AMG.
       Solver * prec = nullptr;
-      Solver * subspacesolver = nullptr;
+      ParallelDirectSolver * subspacesolver = nullptr;
 #if MFEM_HYPRE_VERSION >= 23000
       // new l1-hybrid symmetric Gauss-Seidel smoother
       int amg_relax_type = 88;
@@ -387,22 +395,13 @@ int main(int argc, char *argv[])
 
       if (amgf)
       {
-#ifdef MFEM_USE_MUMPS
-         subspacesolver = new MUMPSSolver(MPI_COMM_WORLD);
-         dynamic_cast<MUMPSSolver*>(subspacesolver)->SetPrintLevel(0);
-#else
-#ifdef MFEM_USE_MKL_CPARDISO
-         subspacesolver = new CPardisoSolver(MPI_COMM_WORLD);
-         dynamic_cast<CPardisoSolver*>(subspacesolver)->SetPrintLevel(0);
-#else
-         MFEM_ABORT("MFEM must be built with MUMPS or MKL_CPARDISO in order to use AMGF");
-#endif
-#endif
          prec = new AMGFSolver();
          auto * amgfprec = dynamic_cast<AMGFSolver *>(prec);
          amgfprec->GetAMG().SetSystemsOptions(3);
          amgfprec->GetAMG().SetPrintLevel(0);
          amgfprec->GetAMG().SetRelaxType(amg_relax_type);
+         subspacesolver = new ParallelDirectSolver(MPI_COMM_WORLD, amgf_fsolver);
+         subspacesolver->SetPrintLevel(0);
          amgfprec->SetFilteredSubspaceSolver(*subspacesolver);
          amgfprec->SetFilteredSubspaceTransferOperator(
             *contact.GetContactSubspaceTransferOperator());
