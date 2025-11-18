@@ -36,6 +36,19 @@ namespace mfem
  * This solver contains less solver options than say ipopt
  * but the user has full control over the linear solver.
  *
+ * /* This solver is intended to solve problems of the form
+ *
+ * \min_(u, m) f(u, m)
+ *        s.t. c(u, m) = 0
+ *                  m >= 0
+ *
+ * In the context of frictionless quasi-static
+ * contact mechanics for the displacement variable d
+ * and slack variable s we have
+ * \min_(d, s) E(d, s)
+ *        s.t. g(u) - s = 0
+ *                    s>= 0
+ *
  * ## Typical usage
  * 1. Initialize IPSolver object.
  * 2. Set solver options e.g.,  SetTol, SetMaxIter, SetLinearSolver
