@@ -222,7 +222,6 @@ int main(int argc, char *argv[])
 
    BlockDiagonalPreconditioner darcyPrec(block_offsets);
    std::unique_ptr<Solver> invM, invS;
-   // SparseMatrix *S = NULL;
 
    SparseMatrix &M(mVarf.SpMat());
    M.GetDiag(Md);
@@ -236,15 +235,14 @@ int main(int argc, char *argv[])
       MinvBt->ScaleRow(i, 1./Md(i));
    }
 
-   // S = Mult(B, *MinvBt);
    std::unique_ptr<SparseMatrix> S(Mult(B, *MinvBt));
 
-   invM = std::make_unique<DSmoother>(M);
+   invM.reset(new DSmoother(M));
 
 #ifndef MFEM_USE_SUITESPARSE
-   invS = std::make_unique<GSSmoother>(*S);
+   invS.reset(new GSSmoother(*S));
 #else
-   invS = std::make_unique<UMFPackSolver>(*S);
+   invS.reset(new UMFPackSolver(*S));
 #endif
 
    invM->iterative_mode = false;
@@ -353,22 +351,6 @@ int main(int argc, char *argv[])
       p_sock.precision(8);
       p_sock << "solution\n" << mesh << p << "window_title 'Pressure'" << endl;
    }
-
-   // 17. Free the used memory.
-   // delete fform;
-   // delete gform;
-   // delete invM;
-   // delete invS;
-   // delete S;
-   // delete Bt;
-   // delete MinvBt;
-   // delete mVarf;
-   // delete bVarf;
-   // delete W_space;
-   // delete R_space;
-   // delete l2_coll;
-   // delete hdiv_coll;
-   // delete mesh;
 
    return 0;
 }
