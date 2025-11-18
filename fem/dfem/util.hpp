@@ -122,9 +122,9 @@ auto make_dependency_map_impl(tuple<input_ts...> inputs,
    constexpr std::size_t N = sizeof...(input_ts);
 
    if constexpr (N == 0)
-      return std::unordered_map<std::size_t, std::array<bool, 0>> {};
+      return std::unordered_map<int, std::array<bool, 0>> {};
 
-   std::unordered_map<std::size_t, std::array<bool, N>> map;
+   std::unordered_map<int, std::array<bool, N>> map;
 
    (void)std::initializer_list<int>
    {
