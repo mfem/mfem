@@ -75,7 +75,7 @@ if (MFEM_USE_MPI)
     MAIN navier_bifurcation.cpp
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem-common)
-    add_dependencies(navier_bifurcation copy_miniapps_navier_data)
+add_dependencies(navier_bifurcation copy_miniapps_navier_data)
 
   if (MFEM_USE_GSLIB)
     add_mfem_miniapp(navier_cht

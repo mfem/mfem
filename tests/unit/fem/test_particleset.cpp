@@ -28,7 +28,7 @@ static_assert(N_rm < N);
 void InitializeRandom(Particle &p, int seed)
 {
    std::mt19937 gen(seed);
-   std::uniform_real_distribution<> real_dist(0.0,1.0);
+   std::uniform_real_distribution<real_t> real_dist;
    std::uniform_int_distribution<> int_dist;
 
    for (int i = 0; i < p.GetDim(); i++)
