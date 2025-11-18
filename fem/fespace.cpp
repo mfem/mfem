@@ -233,8 +233,8 @@ FiniteElementSpace::IsoparametricConstructor(Mesh* mesh, int vdim, int ordering)
 NURBSSpace::NURBSSpace(Mesh* mesh,
                        Array<int> orders,
                        int vdim,
-                       int ordering,
                        NURBSSpace::Type type,
+                       int ordering,
                        Array<int>* master_boundary,
                        Array<int>* slave_boundary)
 {
@@ -275,7 +275,20 @@ NURBSSpace::NURBSSpace(Mesh* mesh,
             : new NURBSExtension(mesh->NURBSext, orders);
 
       // fespace does not own fec, so we define as a unique_ptr
-      nurbs_fec = std::make_unique<NURBSFECollection>(fixed_order);
+      switch (type)
+      {
+         case Type::H1:
+            nurbs_fec = std::make_unique<NURBSFECollection>(fixed_order);
+            break;
+         case Type::Hcurl:
+            nurbs_fec = std::make_unique<NURBS_HCurlFECollection>(fixed_order);
+            break;
+         case Type::Hdiv:
+            nurbs_fec = std::make_unique<NURBS_HDivFECollection>(fixed_order);
+            break;
+         default:
+            MFEM_ABORT("Unknown NURBSSpace type.")
+      }
 
       // Connect master/slave boundaries if provided
       if (connect_boundaries)
@@ -290,11 +303,11 @@ NURBSSpace::NURBSSpace(Mesh* mesh,
 NURBSSpace::NURBSSpace(Mesh* mesh,
                        int order,
                        int vdim,
-                       int ordering,
                        NURBSSpace::Type type,
+                       int ordering,
                        Array<int>* master_boundary,
                        Array<int>* slave_boundary)
-   : NURBSSpace(mesh, Array<int>({order}), vdim, ordering, type,
+   : NURBSSpace(mesh, Array<int>({order}), vdim, type, ordering,
 master_boundary, slave_boundary) {}
 
 void FiniteElementSpace::SetProlongation(const SparseMatrix& p)

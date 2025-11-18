@@ -1618,8 +1618,8 @@ struct NURBSSpace
    NURBSSpace(Mesh* mesh,
               Array<int> orders,
               int vdim = 1,
-              int ordering = Ordering::byNODES,
               Type type = Type::H1,
+              int ordering = Ordering::byNODES,
               Array<int>* master_boundary = nullptr,
               Array<int>* slave_boundary = nullptr);
 
@@ -1627,8 +1627,8 @@ struct NURBSSpace
    NURBSSpace(Mesh* mesh,
               int order,
               int vdim = 1,
-              int ordering = Ordering::byNODES,
               Type type = Type::H1,
+              int ordering = Ordering::byNODES,
               Array<int>* master_boundary = nullptr,
               Array<int>* slave_boundary = nullptr);
 };
