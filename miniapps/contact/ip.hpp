@@ -38,16 +38,13 @@ namespace mfem
  *
  * /* This solver is intended to solve problems of the form
  *
- * \min_(u, m) f(u, m)
- *        s.t. c(u, m) = 0
- *                  m >= 0
+ * $$ \min_{u, m} f(u, m) \qquad \text{s.t.} \quad c(u, m) = 0,  m \geq 0 $$
  *
  * In the context of frictionless quasi-static
- * contact mechanics for the displacement variable d
- * and slack variable s we have
- * \min_(d, s) E(d, s)
- *        s.t. g(u) - s = 0
- *                    s>= 0
+ * contact mechanics for the displacement variable $d$
+ * and slack variable $s$ we have
+ *
+ * $$ \min_{d, s} E(d, s) \qquad \text{s.t.} \quad g(d) - s = 0, \; s \geq 0 $$
  *
  * ## Typical usage
  * 1. Initialize IPSolver object.
