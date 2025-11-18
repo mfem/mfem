@@ -57,11 +57,14 @@ void NavierParticles::SetTimeIntegrationCoefficients()
       {
          beta_k[o][0] = 1.0 + rho1 / (1.0 + rho1)
                         + (rho2 * rho1) / (1.0 + rho2 * (1 + rho1));
-         beta_k[o][1] = -1.0 - rho1 - (rho2 * rho1 * (1.0 + rho1)) / (1.0 + rho2);
+         beta_k[o][1] = -1.0 - rho1 -
+                        (rho2 * rho1 * (1.0 + rho1)) / (1.0 + rho2);
          beta_k[o][2] = pow(rho1, 2.0) * (rho2 + 1.0 / (1.0 + rho1));
          beta_k[o][3] = -(pow(rho2, 3.0) * pow(rho1, 2.0) * (1.0 + rho1))
                         / ((1.0 + rho2) * (1.0 + rho2 + rho2 * rho1));
-         alpha_k[o][0] = ((1.0 + rho1) * (1.0 + rho2 * (1.0 + rho1))) / (1.0 + rho2);
+
+         alpha_k[o][0] = ((1.0 + rho1) *
+                          (1.0 + rho2 * (1.0 + rho1))) / (1.0 + rho2);
          alpha_k[o][1] = -rho1 * (1.0 + rho2 * (1.0 + rho1));
          alpha_k[o][2] = (pow(rho2, 2.0) * rho1 * (1.0 + rho1)) / (1.0 + rho2);
       }
@@ -90,7 +93,7 @@ void NavierParticles::ParticleStep2D(const real_t &dt, int p)
 
    // Assemble the 2D matrix B with implicit terms
    DenseMatrix B({{beta[0]+dt*kappa, zeta*dt*w_n_ext},
-      {-zeta*dt*w_n_ext, beta[0]+dt*kappa}});
+      {           -zeta*dt*w_n_ext, beta[0]+dt*kappa}});
 
    // Assemble the RHS with BDF and EXT terms
    r = 0.0;
@@ -105,7 +108,7 @@ void NavierParticles::ParticleStep2D(const real_t &dt, int p)
       // Create C
       C = up;
       C *= kappa;
-      add(C, -gamma, Vector({real_t(0.0), real_t(1.0)}), C);
+      add(C, -gamma, Vector({0_r, 1_r}), C);
       add(C, zeta*w_n_ext, Vector({ up[1], -up[0]}), C);
 
       // Add C
@@ -174,7 +177,7 @@ bool NavierParticles::Get2DSegmentIntersection(const Vector &s1_start,
                  (s1_end[1] - s1_start[1])*(s2_start[0] - s1_start[0]))/ denom;
 
    // If intersection falls on line segment of s1_start to s1_end AND s2_start to s2_end, set x_int and return true
-   if ((0 <= t1 && t1 <= 1) && (0 <= t2 && t2 <= 1))
+   if ((0_r <= t1 && t1 <= 1_r) && (0_r <= t2 && t2 <= 1_r))
    {
       // Get the point of intersection
       x_int = s2_end;

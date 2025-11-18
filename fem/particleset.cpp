@@ -162,10 +162,7 @@ std::string ParticleSet::GetDefaultTagName(int i)
 Array<const char*> ParticleSet::GetEmptyNameArray(int N)
 {
    Array<const char*> names(N);
-   for (int i = 0; i < N; i++)
-   {
-      names[i] = nullptr;
-   }
+   names = nullptr;
    return names;
 }
 

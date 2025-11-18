@@ -299,11 +299,11 @@ void SetInjectedParticles(NavierParticles &particle_solver,
    // Inject uniformly-distributed along inlet
    real_t height = 1.0;
 
-   MPI_Comm comm = particle_solver.GetParticles().GetComm();
+   ParticleSet &ps = particle_solver.GetParticles();
+   MPI_Comm comm = ps.GetComm();
 
    int rank_num_add = p_idxs.Size();
-   int global_num_particles = 0;
-   MPI_Allreduce(&rank_num_add, &global_num_particles, 1, MPI_INT, MPI_SUM, comm);
+   int global_num_particles = ps.GetGlobalNParticles();
 
    real_t spacing = height/(global_num_particles + 1);
 

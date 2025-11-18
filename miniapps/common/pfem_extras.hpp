@@ -201,6 +201,13 @@ void VisualizeField(socketstream &sock, const char *vishost, int visport,
                     int x = 0, int y = 0, int w = 400, int h = 400,
                     const char *keys = NULL, bool vec = false);
 
+/// Visualize a serial gridfunction constructed on each rank.
+void VisualizeField(socketstream &sock, const char *vishost, int visport,
+                    const GridFunction &gf, const char *title,
+                    int myid, int num_procs, MPI_Comm comm,
+                    int x = 0, int y = 0, int w = 400, int h = 400,
+                    const char *keys = NULL, bool vec = false);
+
 } // namespace common
 
 } // namespace mfem

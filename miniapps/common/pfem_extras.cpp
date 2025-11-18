@@ -357,6 +357,44 @@ void VisualizeField(socketstream &sock, const char *vishost, int visport,
    while (connection_failed);
 }
 
+void VisualizeField(socketstream &sock, const char *vishost, int visport,
+                    const GridFunction &gf, const char *title,
+                    int myid, int num_procs, MPI_Comm comm,
+                    int x, int y, int w, int h, const char *keys, bool vec)
+{
+   Mesh &mesh = *gf.FESpace()->GetMesh();
+
+   bool newly_opened = false;
+   bool connection_failed;
+
+   do
+   {
+      if (!sock.is_open() || !sock)
+      {
+         sock.open(vishost, visport);
+         sock.precision(8);
+         newly_opened = true;
+      }
+
+      sock << "parallel " << num_procs << " " << myid << "\n";
+      sock << "solution " << mesh << gf << std::flush;
+
+      if (newly_opened)
+      {
+         sock << "window_title '" << title << "'\n"
+              << "window_geometry "
+              << x << " " << y << " " << w << " " << h << "\n";
+         if ( keys ) { sock << "keys " << keys << "\n"; }
+         else { sock << "keys maaAc"; }
+         if ( vec ) { sock << "vvv"; }
+         sock << endl;
+         newly_opened = false;
+      }
+      connection_failed = !sock && !newly_opened;
+   }
+   while (connection_failed);
+}
+
 } // namespace common
 
 } // namespace mfem

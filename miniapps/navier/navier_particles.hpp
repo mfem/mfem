@@ -156,8 +156,10 @@ protected:
 
    /// Apply 2D reflection BCs to update particle positions and velocities
    void Apply2DReflectionBC(const ReflectionBC_2D &bc);
+
    /// Apply 2D recirculation BCs
    void Apply2DRecirculationBC(const RecirculationBC_2D &bc);
+
    /// Apply all BCs in \ref bcs
    void ApplyBCs();
 
@@ -168,8 +170,8 @@ protected:
     *  detect if particles are within the domain or not.
     *
     *  @param[in] findpts     If true, call FindPointsGSLIB::FindPoints prior
-    *  to deactivation (if particle coordinates out of sync with
-    *  FindPointsGSLIB)
+    *                         to deactivation (if particle coordinates out of
+    *                         sync with FindPointsGSLIB)
     */
    void DeactivateLostParticles(bool findpts);
 
@@ -182,7 +184,7 @@ public:
    NavierParticles(MPI_Comm comm, int num_particles, Mesh &m);
 
    /// Set initial timestep in time history array
-   void Setup(const real_t &dt) { dthist[0] = dt; }
+   void Setup(const real_t dt) { dthist[0] = dt; }
 
    /** @brief Step the particles in time.
     *
@@ -300,7 +302,9 @@ public:
          return abs(inlet_dist-outlet_dist)/inlet_dist < 1e-12;
 
       }(), "Inlet + outlet must be same length.");
-      bcs.push_back(RecirculationBC_2D{inlet_start, inlet_end, invert_inlet_normal, outlet_start, outlet_end, invert_outlet_normal});
+      bcs.push_back(RecirculationBC_2D{inlet_start, inlet_end,
+                                       invert_inlet_normal, outlet_start,
+                                       outlet_end, invert_outlet_normal});
    }
 };
 
