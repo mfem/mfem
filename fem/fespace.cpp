@@ -281,10 +281,10 @@ NURBSSpace::NURBSSpace(Mesh* mesh,
             nurbs_fec = std::make_unique<NURBSFECollection>(fixed_order);
             break;
          case Type::Hcurl:
-            nurbs_fec = std::make_unique<NURBS_HCurlFECollection>(fixed_order);
+            nurbs_fec = std::make_unique<NURBS_HCurlFECollection>(fixed_order, mesh->Dimension());
             break;
          case Type::Hdiv:
-            nurbs_fec = std::make_unique<NURBS_HDivFECollection>(fixed_order);
+            nurbs_fec = std::make_unique<NURBS_HDivFECollection>(fixed_order, mesh->Dimension());
             break;
          default:
             MFEM_ABORT("Unknown NURBSSpace type.")
