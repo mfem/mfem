@@ -217,6 +217,12 @@ void FiniteElementSpace::CopyProlongationAndRestriction(
 FiniteElementSpace
 FiniteElementSpace::IsoparametricConstructor(Mesh* mesh, int vdim, int ordering)
 {
+   MFEM_VERIFY(mesh->GetNodes(),
+               "Mesh must have Nodes in order to create an isoparametric space.");
+   MFEM_VERIFY(mesh->GetNodes()->OwnFEC(),
+               "Mesh Nodes should own their FiniteElementCollection and "
+               "FiniteElementSpace in order to create an isoparametric space.");
+
    FiniteElementCollection* fec = mesh->GetNodes()->OwnFEC();
    // A NULL NURBSext argument means mesh.NURBSext will be used
    // (if this is a nurbs mesh)
