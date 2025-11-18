@@ -27,7 +27,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 ifeq ($(MFEM_USE_TRIBOL)$(MFEM_USE_MPI),YESYES)
    MINIAPPS = contact
-   CONTACT_SRC =  elastoperator.cpp optcontactproblem.cpp ip.cpp 
+   CONTACT_SRC =  elastoperator.cpp optcontactproblem.cpp ip.cpp solver_utils.cpp
 else
    MINIAPPS = 
    CONTACT_SRC = 
