@@ -101,6 +101,25 @@ public:
                     DenseMatrix &ddshape) const override;
 };
 
+/// Arbitrary order H1 plus bubble elements in 2D on a triangle
+class H1Bubble_TriangleElement : public NodalFiniteElement
+{
+private:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_x, shape_y, shape_l, dshape_x, dshape_y, dshape_l, u;
+   mutable DenseMatrix du, ddu;
+#endif
+   int bubble_order;
+   DenseMatrix T_pinv;
+
+public:
+   // Degree-p polynomials, enriched with degree-q bubbles.
+   H1Bubble_TriangleElement(int p, int q, int btype = BasisType::GaussLobatto);
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+};
+
 
 /// Arbitrary order H1 elements in 3D  on a tetrahedron
 class H1_TetrahedronElement : public NodalFiniteElement

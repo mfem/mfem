@@ -2123,6 +2123,104 @@ H1_FECollection::~H1_FECollection()
 }
 
 
+H1Bubble_FECollection::H1Bubble_FECollection(const int p, const int q,
+                                             const int dim, const int btype)
+   : FiniteElementCollection(p),
+     dim(dim),
+     b_type(BasisType::Check(btype)),
+     bubble_order(q)
+{
+   MFEM_VERIFY(p >= 1, "H1Bubble_FECollection requires order >= 1.");
+   MFEM_VERIFY(dim >= 0 && dim <= 3, "H1_FECollection requires 0 <= dim <= 3.");
+
+   const int pm1 = p - 1;
+   const int pm2 = pm1 - 1;
+
+   switch (btype)
+   {
+      case BasisType::GaussLobatto:
+      {
+         snprintf(fec_name, 32, "H1Bubble_%dD_P%d_P%d", dim, p, q);
+         break;
+      }
+      default:
+      {
+         const int pt_type = BasisType::GetQuadrature1D(btype);
+         MFEM_VERIFY(Quadrature1D::CheckClosed(pt_type) != Quadrature1D::Invalid,
+                     "unsupported BasisType: " << BasisType::Name(btype));
+         snprintf(fec_name, 32, "H1Bubble@%c_%dD_P%d_P%d",
+                  (int)BasisType::GetChar(btype), dim, p, q);
+      }
+   }
+
+   dofs[Geometry::POINT] = 1;
+   elements[Geometry::POINT] = make_unique<PointFiniteElement>();
+
+   if (dim >= 1)
+   {
+      dofs[Geometry::SEGMENT] = pm1;
+      elements[Geometry::SEGMENT] = make_unique<H1_SegmentElement>(p, btype);
+
+      seg_ord_vec.resize(2*pm1);
+      seg_dof_ord[0] = seg_ord_vec.data();
+      seg_dof_ord[1] = seg_dof_ord[0] + pm1;
+      for (int i = 0; i < pm1; i++)
+      {
+         seg_dof_ord[0][i] = i;
+         seg_dof_ord[1][i] = pm2 - i;
+      }
+   }
+
+   if (dim >= 2)
+   {
+      dofs[Geometry::TRIANGLE] = (q-2)*(q-1)/2;
+      // dofs[Geometry::SQUARE] = pm1*pm1;
+
+      elements[Geometry::TRIANGLE] =
+         make_unique<H1Bubble_TriangleElement>(p, q, btype);
+      // elements[Geometry::SQUARE] = make_unique<H1_QuadrilateralElement>(p, btype);
+   }
+
+   if (dim >= 3)
+   {
+      MFEM_ABORT("Not implemented yet.");
+   }
+}
+
+const FiniteElement *
+H1Bubble_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
+{
+   return elements[GeomType].get();
+}
+
+const int *H1Bubble_FECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
+{
+   if (GeomType == Geometry::SEGMENT)
+   {
+      return (Or > 0) ? seg_dof_ord[0] : seg_dof_ord[1];
+   }
+   else if (GeomType == Geometry::TRIANGLE)
+   {
+      return tri_dof_ord[Or%6];
+   }
+   else if (GeomType == Geometry::SQUARE)
+   {
+      return quad_dof_ord[Or%8];
+   }
+   else if (GeomType == Geometry::TETRAHEDRON)
+   {
+      return tet_dof_ord[Or%24];
+   }
+   return nullptr;
+}
+
+FiniteElementCollection *H1Bubble_FECollection::GetTraceCollection() const
+{
+   return (dim < 0) ? NULL : new H1_Trace_FECollection(base_p, dim, b_type);
+}
+
+
 H1_Trace_FECollection::H1_Trace_FECollection(const int p, const int dim,
                                              const int btype)
    : H1_FECollection(p, dim-1, btype)
