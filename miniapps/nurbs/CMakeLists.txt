@@ -204,7 +204,7 @@ if (MFEM_ENABLE_TESTING)
   add_test(NAME nurbs_ex1_periodic_3d
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
     -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/cube-nurbs.mesh
-    -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/cube.ref
+    -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/cube-nurbs.ref
     --master "1" --slave "2")
 
   add_test(NAME nurbs_ex3_2d_r1_o2_ser
