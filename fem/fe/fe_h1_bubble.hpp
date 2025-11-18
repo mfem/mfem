@@ -25,6 +25,7 @@ private:
    mutable Vector shape_x, shape_y, shape_l, dshape_x, dshape_y, dshape_l, u;
    mutable DenseMatrix du;
 #endif
+   int base_order;
    int bubble_order;
    DenseMatrix T_pinv;
 
@@ -44,6 +45,7 @@ private:
    mutable Vector shape_x, shape_y, dshape_x, dshape_y, u;
    mutable DenseMatrix du;
 #endif
+   int base_order;
    int bubble_order;
    DenseMatrix T_pinv;
 
@@ -51,6 +53,48 @@ public:
    // Degree-p polynomials, enriched with degree-q bubbles.
    H1Bubble_QuadrilateralElement(
       int p, int q, int btype = BasisType::GaussLobatto);
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+};
+
+/// Arbitrary order H1 plus bubble elements in 3D on a tetrahedron
+class H1Bubble_TetrahedronElement : public NodalFiniteElement
+{
+private:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_x, shape_y, shape_z, shape_l;
+   mutable Vector dshape_x, dshape_y, dshape_z, dshape_l, u;
+   mutable DenseMatrix du;
+#endif
+   int base_order;
+   int bubble_order;
+   DenseMatrix T_pinv;
+
+public:
+   // Degree-p polynomials, enriched with degree-q bubbles.
+   H1Bubble_TetrahedronElement(int p, int q, int btype = BasisType::GaussLobatto);
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+};
+
+/// Arbitrary order H1 plus bubble elements in 3D on a hexahedron
+class H1Bubble_HexahedronElement : public NodalFiniteElement
+{
+private:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_x, shape_y, shape_z;
+   mutable Vector dshape_x, dshape_y, dshape_z, u;
+   mutable DenseMatrix du;
+#endif
+   int base_order;
+   int bubble_order;
+   DenseMatrix T_pinv;
+
+public:
+   // Degree-p polynomials, enriched with degree-q bubbles.
+   H1Bubble_HexahedronElement(int p, int q, int btype = BasisType::GaussLobatto);
    void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
    void CalcDShape(const IntegrationPoint &ip,
                    DenseMatrix &dshape) const override;
