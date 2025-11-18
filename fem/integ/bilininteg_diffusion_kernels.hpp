@@ -769,8 +769,8 @@ inline void SmemPADiffusionApply2D(const int NE,
                u += Gt[dx][qx] * QQ0[qy][qx];
                v += Bt[dx][qx] * QQ1[qy][qx];
             }
-            DQ0[qy][dx] = u;
-            DQ1[qy][dx] = v;
+            DQ0[dx][qy] = u;
+            DQ1[dx][qy] = v;
          }
       }
       MFEM_SYNC_THREAD;
@@ -782,8 +782,8 @@ inline void SmemPADiffusionApply2D(const int NE,
             real_t v = 0.0;
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               u += DQ0[qy][dx] * Bt[dy][qy];
-               v += DQ1[qy][dx] * Gt[dy][qy];
+               u += DQ0[dx][qy] * Bt[dy][qy];
+               v += DQ1[dx][qy] * Gt[dy][qy];
             }
             Y(dx,dy,e) += (u + v);
          }
