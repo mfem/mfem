@@ -25,8 +25,8 @@ namespace common
 /// Add a point to a given Mesh, represented as a hex sized \p scale
 void Add3DPoint(const Vector &center, Mesh &m, real_t scale=2e-3);
 
-/// Plot particles in ParticleSet \p pset, represented as hexes of
-/// size \p psize and colored by \p scalar_field .
+/** @brief Plot particles in ParticleSet \p pset, represented as hexes of
+    size \p psize and colored by \p scalar_field . */
 void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
                         const ParticleSet &pset,
                         const Vector &scalar_field, real_t psize,

@@ -124,7 +124,7 @@ int main (int argc, char *argv[])
 
    // Set particles randomly on entire mesh domain, for each rank
    std::mt19937 gen(rank);
-   std::uniform_real_distribution<> real_dist(0.0,1.0);
+   std::uniform_real_distribution<real_t> real_dist;
    for (int i = 0; i < pset.GetNParticles(); i++)
    {
       Particle p = pset.GetParticleRef(i);
