@@ -234,6 +234,7 @@ NURBSSpace::NURBSSpace(Mesh* mesh,
                        Array<int> orders,
                        int vdim,
                        int ordering,
+                       NURBSSpace::Type type,
                        Array<int>* master_boundary,
                        Array<int>* slave_boundary)
 {
@@ -290,10 +291,11 @@ NURBSSpace::NURBSSpace(Mesh* mesh,
                        int order,
                        int vdim,
                        int ordering,
+                       NURBSSpace::Type type,
                        Array<int>* master_boundary,
                        Array<int>* slave_boundary)
-   : NURBSSpace(mesh, Array<int>({order}), vdim, ordering, master_boundary,
-slave_boundary) {}
+   : NURBSSpace(mesh, Array<int>({order}), vdim, ordering, type,
+master_boundary, slave_boundary) {}
 
 void FiniteElementSpace::SetProlongation(const SparseMatrix& p)
 {

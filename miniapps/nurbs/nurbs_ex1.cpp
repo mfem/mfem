@@ -258,7 +258,8 @@ int main(int argc, char *argv[])
    // 4. Define a finite element space on the mesh. Here we use NURBS
    //    basis functions of the specified order(s). If order < 1, we
    //    instead use an isoparametric/isogeometric space.
-   NURBSSpace ns(&mesh, order);
+   NURBSSpace ns(&mesh, order, 1, Ordering::byNODES, NURBSSpace::Type::H1, &master,
+                 &slave);
    FiniteElementSpace& fespace = *ns.fespace;
    FiniteElementCollection& fec = *ns.fec;
 

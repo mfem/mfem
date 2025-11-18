@@ -1604,6 +1604,8 @@ public:
  */
 struct NURBSSpace
 {
+   enum class Type { H1, Hdiv, Hcurl, };
+
    std::unique_ptr<FiniteElementSpace> fespace;
    std::unique_ptr<NURBSFECollection> nurbs_fec;
    FiniteElementCollection* mesh_fec;
@@ -1617,6 +1619,7 @@ struct NURBSSpace
               Array<int> orders,
               int vdim = 1,
               int ordering = Ordering::byNODES,
+              Type type = Type::H1,
               Array<int>* master_boundary = nullptr,
               Array<int>* slave_boundary = nullptr);
 
@@ -1625,6 +1628,7 @@ struct NURBSSpace
               int order,
               int vdim = 1,
               int ordering = Ordering::byNODES,
+              Type type = Type::H1,
               Array<int>* master_boundary = nullptr,
               Array<int>* slave_boundary = nullptr);
 };
