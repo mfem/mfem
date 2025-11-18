@@ -255,15 +255,14 @@ int main(int argc, char *argv[])
       in.close();
    }
 
-   // 4. Define a finite element space on the mesh. Here we use continuous
-   //    Lagrange finite elements of the specified order. If order < 1, we
+   // 4. Define a finite element space on the mesh. Here we use NURBS
+   //    basis functions of the specified order(s). If order < 1, we
    //    instead use an isoparametric/isogeometric space.
-   auto [fespace, fec_] = FiniteElementSpace::NURBSConstructor(&mesh, &order);
+   NURBSSpace ns(&mesh, order);
+   FiniteElementSpace& fespace = *ns.fespace;
+   FiniteElementCollection& fec = *ns.fec;
 
-   // If isogeometric, get fec from mesh
-   FiniteElementCollection* fec = !fec_.get() ? mesh.GetNodes()->OwnFEC() :
-                                  fec_.get();
-   cout << "Finite element collection: " << fec->Name() << endl;
+   cout << "Finite element collection: " << fec.Name() << endl;
    cout << "Number of finite element unknowns: "
         << fespace.GetTrueVSize() << endl;
 
