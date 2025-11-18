@@ -2122,19 +2122,25 @@ H1_FECollection::~H1_FECollection()
    }
 }
 
+static int GetBubbleOrder(int q, int dim)
+{
+   switch (dim)
+   {
+      case 2: return 3;
+      case 3: return 4;
+   }
+   return 0;
+}
 
 H1Bubble_FECollection::H1Bubble_FECollection(const int p, const int q,
                                              const int dim, const int btype)
-   : FiniteElementCollection(p),
+   : FiniteElementCollection(max(p, GetBubbleOrder(q, dim))),
      dim(dim),
      b_type(BasisType::Check(btype)),
      bubble_order(q)
 {
    MFEM_VERIFY(p >= 1, "H1Bubble_FECollection requires order >= 1.");
    MFEM_VERIFY(dim >= 0 && dim <= 3, "H1_FECollection requires 0 <= dim <= 3.");
-
-   const int pm1 = p - 1;
-   const int pm2 = pm1 - 1;
 
    switch (btype)
    {
@@ -2158,20 +2164,20 @@ H1Bubble_FECollection::H1Bubble_FECollection(const int p, const int q,
 
    if (dim >= 1)
    {
-      dofs[Geometry::SEGMENT] = pm1;
+      dofs[Geometry::SEGMENT] = p - 1;
       elements[Geometry::SEGMENT] = make_unique<H1_SegmentElement>(p, btype);
 
-      seg_ord_vec.resize(2*pm1);
+      seg_ord_vec.resize(2*(p - 1));
       seg_dof_ord[0] = seg_ord_vec.data();
-      seg_dof_ord[1] = seg_dof_ord[0] + pm1;
-      for (int i = 0; i < pm1; i++)
+      seg_dof_ord[1] = seg_dof_ord[0] + p - 1;
+      for (int i = 0; i < p - 1; i++)
       {
          seg_dof_ord[0][i] = i;
-         seg_dof_ord[1][i] = pm2 - i;
+         seg_dof_ord[1][i] = p - 2 - i;
       }
    }
 
-   if (dim >= 2)
+   if (dim == 2)
    {
       dofs[Geometry::TRIANGLE] = ((q+1)*(q+2))/2;
       dofs[Geometry::SQUARE] = (q+1)*(q+1);
@@ -2182,9 +2188,20 @@ H1Bubble_FECollection::H1Bubble_FECollection(const int p, const int q,
          make_unique<H1Bubble_QuadrilateralElement>(p, q, btype);
    }
 
-   if (dim >= 3)
+   if (dim == 3)
    {
-      MFEM_ABORT("Not implemented yet.");
+      dofs[Geometry::TRIANGLE] = ((p-1)*(p-2))/2;
+      dofs[Geometry::SQUARE] = (p-1)*(p-1);
+      dofs[Geometry::TETRAHEDRON] = ((q+1)*(q+2)*(q+3))/6;
+      dofs[Geometry::CUBE] = (q+1)*(q+1)*(q+1);
+
+      elements[Geometry::TRIANGLE] = make_unique<H1_TriangleElement>(p, btype);
+      elements[Geometry::SQUARE] = make_unique<H1_QuadrilateralElement>(p, btype);
+
+      elements[Geometry::TETRAHEDRON] =
+         make_unique<H1Bubble_TetrahedronElement>(p, q, btype);
+      elements[Geometry::CUBE] =
+         make_unique<H1Bubble_HexahedronElement>(p, q, btype);
    }
 }
 
