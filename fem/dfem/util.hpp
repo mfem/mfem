@@ -108,25 +108,32 @@ constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg)
                           indices{});
 }
 
-template <typename... input_ts, std::size_t... Is>
-auto make_dependency_map_impl(
-   tuple<input_ts...> inputs,
-   std::index_sequence<Is...>)
+template <std::size_t I, typename Tuple, std::size_t... Is>
+std::array<bool, sizeof...(Is)>
+make_dependency_array(const Tuple& inputs, std::index_sequence<Is...>)
 {
-   auto make_dependency_array = [&](auto i)
-   {
-      return std::array<bool, sizeof...(input_ts)>
-      {
-         (get<i>(inputs).GetFieldId() == get<Is>(inputs).GetFieldId())...
-      };
-   };
+   return { (get<I>(inputs).GetFieldId() == get<Is>(inputs).GetFieldId())... };
+}
 
-   std::unordered_map<int, std::array<bool, sizeof...(input_ts)>> map;
-   for_constexpr<sizeof...(input_ts)>([&](auto i)
+template <typename... input_ts, std::size_t... Is>
+auto make_dependency_map_impl(tuple<input_ts...> inputs,
+                              std::index_sequence<Is...>)
+{
+   constexpr std::size_t N = sizeof...(input_ts);
+
+   if constexpr (N == 0)
+      return std::unordered_map<std::size_t, std::array<bool, 0>> {};
+
+   std::unordered_map<std::size_t, std::array<bool, N>> map;
+
+   (void)std::initializer_list<int>
    {
-      map[get<i>(inputs).GetFieldId()] =
-         make_dependency_array(std::integral_constant<std::size_t, i> {});
-   });
+      (
+         map[get<Is>(inputs).GetFieldId()] =
+      make_dependency_array<Is>(inputs, std::make_index_sequence<N>{}),
+      0
+      )...
+   };
 
    return map;
 }
