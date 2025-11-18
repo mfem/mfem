@@ -258,10 +258,11 @@ NURBSSpace::NURBSSpace(Mesh* mesh,
                "NURBSSpace - orders cannot be empty.");
 
    mesh_fec = mesh->GetNodes()->OwnFEC();
-   NURBSExtension *ext;
+   NURBSExtension *ext = nullptr;
    // Case 1 - Isoparametric (convention: order < 1)
    if ((orders.Size() == 1) && (orders[0] < 1))
    {
+      mfem::out << "ISOPARAMETRIC" << std::endl;
       nurbs_fec = nullptr;
       fec = mesh_fec;
    }
