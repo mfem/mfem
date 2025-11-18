@@ -36,7 +36,7 @@ namespace mfem
  * This solver contains less solver options than say ipopt
  * but the user has full control over the linear solver.
  *
- * /* This solver is intended to solve problems of the form
+ * This solver is intended to solve problems of the form
  *
  * $$ \min_{u, m} f(u, m) \qquad \text{s.t.} \quad c(u, m) = 0,  m \geq 0 $$
  *
