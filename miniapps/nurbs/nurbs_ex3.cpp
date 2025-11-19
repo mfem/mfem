@@ -110,7 +110,6 @@ int main(int argc, char *argv[])
    //    Raviart-Thomas finite elements of the specified order.
    NURBSSpace ns(&mesh, order, 1, NURBSSpace::Type::Hcurl);
    FiniteElementSpace* fespace = ns.fespace.get();
-   FiniteElementCollection* fec = ns.fec;
 
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
