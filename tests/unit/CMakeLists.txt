@@ -26,6 +26,7 @@ set(UNIT_TESTS_SRCS
   general/test_arrays_by_name.cpp
   general/test_error.cpp
   general/test_mem.cpp
+  general/test_ordering.cpp
   general/test_reduction.cpp
   general/test_text.cpp
   general/test_umpire_mem.cpp
@@ -51,6 +52,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_ode.cpp
   linalg/test_ode2.cpp
   linalg/test_operator.cpp
+  linalg/test_particlevector.cpp
   linalg/test_vector.cpp
   mesh/mesh_test_utils.cpp
   mesh/test_exodus_reader.cpp
