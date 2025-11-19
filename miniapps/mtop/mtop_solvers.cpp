@@ -346,7 +346,7 @@ void IsoLinElasticSolver::Mult(const Vector &x, Vector &y) const
    real_t *yp = y.ReadWrite();
    const real_t *sp = sol.Read();
    const int *ep = ess_tdofv.Read();
-   forall(N, [=] MFEM_HOST_DEVICE(int i) { yp[ep[i]] = sp[ep[i]]; });
+   mfem::forall(N, [=] MFEM_HOST_DEVICE(int i) { yp[ep[i]] = sp[ep[i]]; });
 }
 
 void IsoLinElasticSolver::MultTranspose(const Vector &x,
