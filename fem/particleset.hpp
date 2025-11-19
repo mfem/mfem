@@ -224,8 +224,8 @@ protected:
 
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
-   struct gslib::crystal *cr;               // gslib's internal data
-   struct gslib::comm *gsl_comm;            // gslib's internal data
+   struct gslib::crystal *cr = nullptr;               // gslib's internal data
+   struct gslib::comm *gsl_comm = nullptr;            // gslib's internal data
 
    /// \cond DO_NOT_DOCUMENT
    template<std::size_t NBytes>
@@ -415,6 +415,10 @@ public:
 
    /// Get the IDs of the active particles owned by this ParticleSet.
    const Array<IDType>& GetIDs() const { return ids; }
+
+   /// Update global ID of a particle.
+   void UpdateID(int local_idx, IDType new_global_id)
+   { ids[local_idx] = new_global_id; }
 
    /** @brief Add a field to the ParticleSet.
     *

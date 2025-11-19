@@ -300,31 +300,50 @@ void ParticleSet::TransferParticlesImpl(ParticleSet &pset,
       }
    }
 
-   // Remove particles that will be transferred
-   pset.RemoveParticles(send_idxs);
+   unsigned int nparticles = pset.GetNParticles();
+   unsigned int nsend      = send_idxs.Size();
 
    // Transfer particles
    sarray_transfer_ext(parr_t, &gsl_arr, send_ranks.GetData(),
                        sizeof(unsigned int), pset.cr);
 
-   // Add received particles to this rank
-   unsigned int recvd = gsl_arr.n;
-   pdata_arr = (parr_t*) gsl_arr.ptr;
-   int inter_np = pset.GetNParticles(); // pre-recvd NP (after remove)
-   int new_np = inter_np + recvd;
+   // Make sure we have enough space for received particles
+   unsigned int nrecv = gsl_arr.n;
+   int ndelete = (int)nsend - (int)nrecv;
+   if (ndelete > 0)
+   {
+      // Remove unneeded particles
+      auto datap = const_cast<unsigned int*>(send_idxs.GetData());
+      Array<unsigned int> delete_idxs(datap + nrecv,
+                                      ndelete);
+      pset.RemoveParticles(delete_idxs);
+   }
+   else
+   {
+      pset.Reserve(nparticles-ndelete);
+   }
 
-   // Make sure we have enough space
-   pset.Reserve(new_np);
+   pdata_arr = (parr_t*) gsl_arr.ptr;
 
    // Add newly-recvd data directly to active state
-   for (int i = 0; i < recvd; i++)
+   for (int i = 0; i < nrecv; i++)
    {
       parr_t &pdata = pdata_arr[i];
       IDType id = pdata.id;
 
-      Array<int> idx_temp;
-      pset.AddParticles(Array<IDType>({id}), &idx_temp);
-      int new_idx = idx_temp[0]; // Get index of newly-added particle
+      int new_loc_idx;
+      if (i < nsend) // update existing particle
+      {
+         new_loc_idx = send_idxs[i];
+         pset.UpdateID(new_loc_idx, id);
+      }
+      else
+      {
+         // add new particle
+         Array<int> idx_temp;
+         pset.AddParticles(Array<IDType>({id}), &idx_temp);
+         new_loc_idx = idx_temp[0]; // Get index of newly-added particle
+      }
 
       size_t counter = 0;
       for (int f = -1; f < pset.GetNFields(); f++)
@@ -332,7 +351,7 @@ void ParticleSet::TransferParticlesImpl(ParticleSet &pset,
          ParticleVector &pv = (f == -1 ? pset.Coords() : pset.Field(f));
          for (int c = 0; c < pv.GetVDim(); c++)
          {
-            real_t& val = pv(new_idx, c);
+            real_t& val = pv(new_loc_idx, c);
             std::memcpy(&val, pdata.data.data() + counter, sizeof(real_t));
             counter += sizeof(real_t);
          }
@@ -341,11 +360,12 @@ void ParticleSet::TransferParticlesImpl(ParticleSet &pset,
       for (int t = 0; t < pset.GetNTags(); t++)
       {
          Array<int> &tag_arr = pset.Tag(t);
-         std::memcpy(&tag_arr[new_idx],
+         std::memcpy(&tag_arr[new_loc_idx],
                      pdata.data.data() + counter, sizeof(int));
          counter += sizeof(int);
       }
    }
+   array_free(&gsl_arr);
 }
 
 template<size_t NBytes>
@@ -914,12 +934,15 @@ void ParticleSet::PrintCSV(const char *fname, const Array<int> &field_idxs,
 ParticleSet::~ParticleSet()
 {
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
-   if (!Mpi::IsFinalized())  // currently segfaults inside gslib otherwise
+   if (gsl_comm)
    {
-      crystal_free(cr);
-      comm_free(gsl_comm);
-      delete gsl_comm;
-      delete cr;
+      if (!Mpi::IsFinalized())  // currently segfaults inside gslib otherwise
+      {
+         crystal_free(cr);
+         comm_free(gsl_comm);
+         delete gsl_comm;
+         delete cr;
+      }
    }
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 }
