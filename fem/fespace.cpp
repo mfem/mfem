@@ -219,11 +219,13 @@ FiniteElementSpace::IsoparametricConstructor(Mesh* mesh, int vdim, int ordering)
 {
    MFEM_VERIFY(mesh->GetNodes(),
                "Mesh must have Nodes in order to create an isoparametric space.");
-   MFEM_VERIFY(mesh->GetNodes()->OwnFEC(),
-               "Mesh Nodes should own their FiniteElementCollection and "
+
+   const FiniteElementCollection* fec = mesh->GetNodes()->FESpace()->FEColl();
+
+   MFEM_ASSERT(fec,
+               "No FiniteElementCollection extracted from GridFunction"
                "FiniteElementSpace in order to create an isoparametric space.");
 
-   FiniteElementCollection* fec = mesh->GetNodes()->OwnFEC();
    // A NULL NURBSext argument means mesh.NURBSext will be used
    // (if this is a nurbs mesh)
    return FiniteElementSpace(mesh, nullptr, fec, vdim, ordering);
@@ -262,7 +264,7 @@ NURBSSpace::NURBSSpace(Mesh* mesh,
    // Case 1 - Isoparametric (convention: order < 1)
    if ((orders.Size() == 1) && (orders[0] < 1))
    {
-      mfem::out << "ISOPARAMETRIC" << std::endl;
+      mfem::out << "Generating an Isogeometric FE space" << std::endl;
       nurbs_fec = nullptr;
       fec = mesh_fec;
    }
