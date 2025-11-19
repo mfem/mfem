@@ -304,7 +304,7 @@ void SetInjectedParticles(NavierParticles &particle_solver,
    MPI_Comm comm = ps.GetComm();
 
    int rank_num_add = p_idxs.Size();
-   int global_num_particles = ps.GetGlobalNParticles();
+   unsigned long long global_num_particles = ps.GetGlobalNParticles();
 
    real_t spacing = height/(global_num_particles + 1);
 
