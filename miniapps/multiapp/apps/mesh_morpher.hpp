@@ -209,9 +209,9 @@ public:
           field_collection.Transfer("Displacement", x);
 
           zv.SetSize(fes.GetTrueVSize());
-          u_gf_bc.GetTrueDofs(zv);
-          Kmat.Mult(x, z);
-          z.Neg();
+          ParGridFunction *dxdt = field_collection.GetField("Velocity_BC");
+          dxdt->GetTrueDofs(zv);
+          bc_send_gf.GetTrueDofs(z);
           for (int i = 0; i < ess_tdofs.Size(); i++)
           {
                int idx = ess_tdofs[i];
