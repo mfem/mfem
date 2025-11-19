@@ -63,6 +63,8 @@ void SetSolverParameters(IterativeSolver *solver, real_t rtol, real_t atol , int
 bool ReadGridFunctionFromFile(const string &dirname, const string &gf_name,
                               ParMesh &mesh, ParGridFunction &gf);
 
+void CollectArrays(std::vector<Array<int>*> &dof_arrays, Array<int> &tdof_array);
+
 int main(int argc, char *argv[])
 {
     Mpi::Init();
@@ -339,14 +341,26 @@ int main(int argc, char *argv[])
     elasticity_app->Fields().AddTargetField("Velocity_BC", &dxf_gf_bc);
 
 
+    // Assemble the true (offseted) dofs array for the coupled FSI system
+    Array<int> tdofs;
+    std::vector<Array<int>*> state_dofs = {&nse.u_ess_tdofs, &nse.p_ess_tdofs,
+                                           &elasticity.ess_tdofs, &elasticity.ess_tdofs,
+                                           &morpher.ess_tdofs};
+    CollectArrays(state_dofs, tdofs);
+
 
     // Set up coupling parameters (schemes and solvers)
     FPISolver fp_solver(MPI_COMM_WORLD); // For partitioned solves
     AitkenRelaxation fp_relax;
+    ConstrainedInnerProduct constr_ipo(MPI_COMM_WORLD , tdofs);
     SetSolverParameters(&fp_solver, 0.0, 5e-4, 100, 1, false);
-    // fp_solver.SetRelaxation(relax_factor, &fp_relax);
-    fp_solver.SetRelaxation(relax_factor, nullptr); // Use default relaxation method
+    fp_solver.SetRelaxation(relax_factor, &fp_relax);
+    // fp_solver.SetRelaxation(relax_factor, nullptr); // Use default relaxation method
     // fp_relax.SetBounds(-1.0e0,1.0e0);
+    fp_relax.SetAbsoluteLowerBound(1e-1);
+    fp_solver.SetInnerProduct(&constr_ipo);
+    fp_relax.SetInnerProduct(&constr_ipo);
+
 
     NewtonSolver newton_solver(MPI_COMM_WORLD); // For fully coupled
     GMRESSolver gmres_solver(MPI_COMM_WORLD); // For fully coupled
@@ -521,7 +535,7 @@ int main(int argc, char *argv[])
         if (t + dt >= t_final - dt/2){ last_step = true; }
 
         coupled_solver->Step(xb, t, dt);
-        multiapp.Transfer(xb);
+        // multiapp.Transfer(xb);
         update_grid_functions(xb);
 
 
@@ -580,4 +594,23 @@ bool ReadGridFunctionFromFile(const string &dirname, const string &gf_name,
     }
 
     return sucess;
+}
+
+
+void CollectArrays(std::vector<Array<int>*> &dof_arrays, Array<int> &tdof_array)
+{
+    int total_dofs = 0;
+    for (const auto& arr : dof_arrays)
+    {
+        total_dofs += arr->Size();
+    }
+
+    int n = 0;
+    tdof_array.SetSize(total_dofs);
+    for (auto arr : dof_arrays)
+    {
+        std::transform(arr->begin(), arr->end(), tdof_array.begin() + n,
+                       [&](int i) { return i+n; });
+        n += arr->Size();
+    }
 }
