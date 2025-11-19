@@ -431,6 +431,13 @@ public:
    int AddField(int vdim, Ordering::Type field_ordering=Ordering::byVDIM,
                 const char* field_name=nullptr);
 
+   // Add a field [with different parameter order for convenience]
+   int AddField(int vdim, const char* field_name=nullptr,
+                Ordering::Type field_ordering=Ordering::byVDIM)
+   {
+      return AddField(vdim, field_ordering, field_name);
+   }
+
    /** @brief Add a tag to the ParticleSet.
     *
     *  @param[in] tag_name      (Optional) Name of the tag.
@@ -514,6 +521,8 @@ public:
     *  owning rank (in parallel), coordinates, followed by all fields and
     *  tags.
     *
+    *  The output can be visualized in Paraview by loading the csv files, and
+    *  applying the "Table To Points" filter.
     */
    void PrintCSV(const char *fname, int precision=16);
 

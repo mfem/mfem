@@ -332,28 +332,25 @@ NavierParticles::NavierParticles(MPI_Comm comm, int num_particles, Mesh &m)
 
    int dim = fluid_particles.GetDim();
 
-   // Initialize kappa, zeta, gamma
+   // Initialize kappa, zeta, gamma (ordering defaults to byVDIM if unspecified)
    fp_idx.field.kappa = fluid_particles.AddField(1, Ordering::byVDIM, "kappa");
    fp_idx.field.zeta = fluid_particles.AddField(1, Ordering::byVDIM, "zeta");
-   fp_idx.field.gamma = fluid_particles.AddField(1, Ordering::byVDIM, "gamma");
+   fp_idx.field.gamma = fluid_particles.AddField(1, "gamma");
 
-   inactive_fluid_particles.AddField(1, Ordering::byVDIM, "kappa");
-   inactive_fluid_particles.AddField(1, Ordering::byVDIM, "zeta");
-   inactive_fluid_particles.AddField(1, Ordering::byVDIM, "gamma");
+   inactive_fluid_particles.AddField(1, "kappa");
+   inactive_fluid_particles.AddField(1, "zeta");
+   inactive_fluid_particles.AddField(1, "gamma");
 
    // Initialize fluid particle fields
    for (int i = 0; i < 4; i++)
    {
       string suffix = i > 0 ? "_nm" + to_string(i) : "_n";
-      fp_idx.field.u[i] = fluid_particles.AddField(dim, Ordering::byVDIM,
-                                                   ("u" + suffix).c_str());
-      fp_idx.field.v[i] = fluid_particles.AddField(dim, Ordering::byVDIM,
-                                                   ("v" + suffix).c_str());
-      fp_idx.field.w[i] = fluid_particles.AddField(dim, Ordering::byVDIM,
-                                                   ("w" + suffix).c_str());
+      fp_idx.field.u[i] = fluid_particles.AddField(dim, ("u" + suffix).c_str());
+      fp_idx.field.v[i] = fluid_particles.AddField(dim, ("v" + suffix).c_str());
+      fp_idx.field.w[i] = fluid_particles.AddField(dim, ("w" + suffix).c_str());
       if (i > 0)
       {
-         fp_idx.field.x[i-1] = fluid_particles.AddField(dim, Ordering::byVDIM,
+         fp_idx.field.x[i-1] = fluid_particles.AddField(dim,
                                                         ("x" + suffix).c_str());
       }
    }

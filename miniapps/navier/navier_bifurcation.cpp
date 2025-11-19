@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // Sample run:
-//   mpirun -np 10 navier_bifurcation -rs 3 -npt 10 -pt 100 -nt 4e5 -csv 50 -pv 50
+// * mpirun -np 10 navier_bifurcation -rs 3 -npt 10 -pt 100 -nt 4e5 -csv 50 -pv 50
 
 
 #include "navier_solver.hpp"
@@ -54,7 +54,7 @@ struct flow_context
 void SetInjectedParticles(NavierParticles &particle_solver,
                           const Array<int> &p_idxs,
                           real_t kappa_min, real_t kappa_max, int kappa_seed,
-                          real_t zeta, real_t gamma);
+                          real_t zeta, real_t gamma, int step);
 #endif
 
 // Dirichlet conditions for velocity
@@ -235,7 +235,7 @@ int main(int argc, char *argv[])
                                                         &add_particle_idxs);
             SetInjectedParticles(particle_solver, add_particle_idxs,
                                  ctx.kappa_min, ctx.kappa_max,
-                                 (rank+1)*step, ctx.zeta, ctx.gamma);
+                                 (rank+1)*step, ctx.zeta, ctx.gamma, step);
          }
          particle_solver.Step(ctx.dt, u_gf, w_gf);
       }
@@ -279,8 +279,8 @@ int main(int argc, char *argv[])
          printf("\n%-11s %-11s %-11s %-11s\n", "Step", "Time", "dt", "CFL");
          printf("%-11i %-11.5E %-11.5E %-11.5E\n", step, time, ctx.dt, cfl);
 #ifdef MFEM_USE_GSLIB
-         printf("\n%16s: %-9i\n", "Active Particles", global_np);
-         printf("%16s: %-9i\n", "Lost Particles", inactive_global_np);
+         printf("\n%16s: %-9llu\n", "Active Particles", global_np);
+         printf("%16s: %-9llu\n", "Lost Particles", inactive_global_np);
 #endif
          printf("-----------------------------------------------\n");
          fflush(stdout);
@@ -294,25 +294,16 @@ int main(int argc, char *argv[])
 
 #ifdef MFEM_USE_GSLIB
 void SetInjectedParticles(NavierParticles &particle_solver,
-                          const Array<int> &p_idxs, real_t kappa_min, real_t kappa_max, int kappa_seed,
-                          real_t zeta, real_t gamma)
+                          const Array<int> &p_idxs, real_t kappa_min,
+                          real_t kappa_max, int kappa_seed,
+                          real_t zeta, real_t gamma, int step)
 {
-   // Inject uniformly-distributed along inlet
-   real_t height = 1.0;
-
-   ParticleSet &ps = particle_solver.GetParticles();
-   MPI_Comm comm = ps.GetComm();
-
-   int rank_num_add = p_idxs.Size();
-   unsigned long long global_num_particles = ps.GetGlobalNParticles();
-
-   real_t spacing = height/(global_num_particles + 1);
-
-   // Determine this rank's offset
-   int offset = 0;
-   MPI_Scan(&rank_num_add, &offset, 1, MPI_INT, MPI_SUM, comm);
-   offset -= rank_num_add;
-
+   // Set initial conditions for new particles.
+   MPI_Comm comm = particle_solver.GetParticles().GetComm();
+   int my_rank;
+   MPI_Comm_rank(comm, &my_rank);
+   Vector rand_init_yloc(p_idxs.Size());
+   rand_init_yloc.Randomize(my_rank + step);
    for (int i = 0; i < p_idxs.Size(); i++)
    {
       int idx = p_idxs[i];
@@ -321,9 +312,9 @@ void SetInjectedParticles(NavierParticles &particle_solver,
       {
          if (j == 0)
          {
-            // Set position
-            particle_solver.X().SetValues(idx,
-                                          Vector({0.0, spacing*(i+offset+1)}));
+            // Set position randomly along inlet
+            real_t yval = rand_init_yloc(i);
+            particle_solver.X().SetValues(idx, Vector({0.0, yval}));
          }
          else
          {
