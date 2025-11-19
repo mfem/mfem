@@ -687,6 +687,12 @@ public:
                       const FiniteElementCollection *fec,
                       int vdim = 1, int ordering = Ordering::byNODES);
 
+   /** Factory for an Isoparametric FiniteElementSpace. The
+       FiniteElementCollection is equal to mesh.GetNodes()->OwnFEC(). */
+   static FiniteElementSpace
+   IsoparametricConstructor(Mesh* mesh, int vdim = 1,
+                            int ordering = Ordering::byNODES);
+
    /// Copy assignment not supported
    FiniteElementSpace& operator=(const FiniteElementSpace&) = delete;
 
@@ -1591,6 +1597,40 @@ public:
    FiniteElementCollection *Load(Mesh *m, std::istream &input);
 
    virtual ~FiniteElementSpace();
+};
+
+/** @brief NURBS spaces can have some atypical ownership semantics. This
+    class helps to dispatch for various cases.
+ */
+struct NURBSSpace
+{
+   enum class Type { H1, Hdiv, Hcurl, };
+
+   std::unique_ptr<FiniteElementSpace> fespace;
+   std::unique_ptr<NURBSFECollection> nurbs_fec;
+   FiniteElementCollection* mesh_fec;
+   FiniteElementCollection* fec;
+
+   /** Primary constructor for NURBS FiniteElementSpace. The
+       FiniteElementCollection is related to mesh.GetNodes()->OwnFEC()
+       but with different order(s). Creates a NURBSExtension object that
+       is owned by the returned FiniteElementSpace. */
+   NURBSSpace(Mesh* mesh,
+              Array<int> orders,
+              int vdim = 1,
+              Type type = Type::H1,
+              int ordering = Ordering::byNODES,
+              Array<int>* master_boundary = nullptr,
+              Array<int>* slave_boundary = nullptr);
+
+   /** Fixed order NURBS constructor */
+   NURBSSpace(Mesh* mesh,
+              int order,
+              int vdim = 1,
+              Type type = Type::H1,
+              int ordering = Ordering::byNODES,
+              Array<int>* master_boundary = nullptr,
+              Array<int>* slave_boundary = nullptr);
 };
 
 /// @brief Return true if the mesh contains only one topology and the elements

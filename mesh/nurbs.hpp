@@ -772,8 +772,8 @@ public:
        unmodified. */
    NURBSExtension(NURBSExtension *parent, const Array<int> &newOrders,
                   Mode mode = Mode::H_1);
-   /// Construct a NURBSExtension by merging a partitioned NURBS mesh.
 
+   /// Construct a NURBSExtension by merging a partitioned NURBS mesh.
    NURBSExtension(Mesh *mesh_array[], int num_pieces);
 
    NURBSExtension(const Mesh *patch_topology,
@@ -949,6 +949,10 @@ public:
        KnotVector, the new degree is
        max(old_degree, min(old_degree + rel_degree, degree)). */
    void DegreeElevate(int rel_degree, int degree = 16);
+
+   /** @brief Call @a DegreeElevate for all KnotVectors of all patches. For the
+       ith KnotVector, the new degree is max(old_degree, degrees[i]). */
+   void DegreeElevate(const Array<int> &degrees);
 
    /** @brief Refine with optional refinement factor @a rf. Uniform means
        refinement is done everywhere by the same factor, although nonuniform
