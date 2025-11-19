@@ -757,6 +757,12 @@ ConduitDataCollection::BlueprintFieldToQuadratureFunction(Mesh *mesh,
       qf_order = atoi(qf_name_cstr + 3);
       // find second `_`
       const char *qf_vdim_cstr = strstr(qf_name_cstr+3,"_");
+      if(qf_vdim_cstr == NULL)
+      {
+         MFEM_ABORT("Error parsing quadrature function description string: "
+            << qf_name << std::endl
+            << "Expected: QF_{ORDER}_{VDIM}");
+      }
       // parse {VDIM}
       qf_vdim  = atoi(qf_vdim_cstr+1);
    }
