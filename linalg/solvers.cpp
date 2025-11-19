@@ -853,6 +853,7 @@ void SLI(const Operator &A, Solver &B, const Vector &b, Vector &x,
 
 real_t FPIRelaxation::Dot(const Vector &x, const Vector &y) const
 {
+   if (dot_oper) { return dot_oper->Eval(x,y); } // Use custom inner product (if provided)
 #ifndef MFEM_USE_MPI
    return (x * y);
 #else

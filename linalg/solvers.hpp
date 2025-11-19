@@ -640,6 +640,7 @@ protected:
    real_t lbnd = std::numeric_limits<real_t>::lowest();
    real_t ubnd = std::numeric_limits<real_t>::max();
    real_t abs_lbnd = 0.0;
+   InnerProductOperator *dot_oper = nullptr;
 
 public:
    FPIRelaxation() = default;
@@ -668,6 +669,9 @@ public:
    /// @brief Set the absolute bound for the relaxation factor.
    virtual void SetAbsoluteLowerBound(real_t abs_lb)
    { abs_lbnd = std::abs(abs_lb); }
+
+   /// @brief Set a user-defined inner product operator (not owned)
+   void SetInnerProduct(InnerProductOperator *ipo) { dot_oper = ipo; }
 
    /// @brief Clamp the relaxation factor to the specified range.
    virtual real_t Clamp(real_t factor) const
