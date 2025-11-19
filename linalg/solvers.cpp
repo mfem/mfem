@@ -2894,6 +2894,148 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
    }
 }
 
+BlockGS::BlockGS(const Operator &op, int block_size_)
+: Solver(0),
+block_size(block_size_)
+{
+   SetOperator(op);
+}
+
+void BlockGS::SetOperator(const Operator &op)
+{
+   const SparseMatrix *A = NULL;
+   if (A == NULL)
+   {
+      A = dynamic_cast<const SparseMatrix *>(&op);
+      if (A == NULL)
+      {
+         MFEM_ABORT("BlockGS must be created with a SparseMatrix or HypreParMatrix");
+      }
+   }
+   height = op.Height();
+   width = op.Width();
+   MFEM_VERIFY(A->Finalized(), "Matrix must be finalized.");
+   CreateBlockPattern(*A);
+}
+
+void BlockGS::CreateBlockPattern(const SparseMatrix &A)
+{
+   if (A.Height() % block_size != 0)
+   {
+      MFEM_ABORT("BlockGS: block size must evenly divide the matrix size");
+   }
+   int nrows = A.Height();
+   const int *I = A.HostReadI();
+   const int *J = A.HostReadJ();
+   const real_t *V = A.HostReadData();
+   int nnz = 0;
+   int nblockrows = nrows / block_size;
+
+   std::vector<std::set<int>> unique_block_cols(nblockrows);
+
+   for (int iblock = 0; iblock < nblockrows; ++iblock)
+   {
+      for (int bi = 0; bi < block_size; ++bi)
+      {
+         int i = iblock * block_size + bi;
+         for (int k = I[i]; k < I[i + 1]; ++k)
+         {
+            unique_block_cols[iblock].insert(J[k] / block_size);
+         }
+      }
+      nnz += static_cast<int>(unique_block_cols[iblock].size());
+   }
+   // No reordering: permutation is identity
+   P.SetSize(nblockrows);
+   for (int i=0; i<nblockrows; ++i)
+   {
+      P[i] = i;
+   }
+   // Compute inverse permutation
+   Pinv.SetSize(nblockrows);
+   for (int i=0; i<nblockrows; ++i)
+   {
+      Pinv[P[i]] = i;
+   }
+
+   ID.SetSize(nblockrows);
+   IB.SetSize(nblockrows + 1);
+   IB[0] = 0;
+   JB.SetSize(nnz);
+   AB.SetSize(block_size, block_size, nnz);
+   DB.SetSize(block_size, block_size, nblockrows);
+   AB = 0.0;
+   DB = 0.0;
+   ipiv.SetSize(block_size*nblockrows);
+   int counter = 0;
+   for (int iblock = 0; iblock < nblockrows; ++iblock)
+   {
+      for (int jblock : unique_block_cols[iblock])
+      {
+         JB[counter] = jblock;
+         if (iblock == jblock)
+         {
+            ID[iblock] = counter;
+         }
+         for (int bi = 0; bi < block_size; ++bi)
+         {
+            int i = iblock*block_size + bi;
+            for (int k = I[i]; k < I[i + 1]; ++k)
+            {
+               int j = J[k];
+               if (j >= jblock*block_size && j < (jblock + 1)*block_size)
+               {
+                  int bj = j - jblock*block_size;
+                  real_t val = V[k];
+                  AB(bi, bj, counter) = val;
+                  // Extract the diagonal
+                  if (iblock == jblock)
+                  {
+                     DB(bi, bj, iblock) = val;
+                  }
+               }
+            }
+         }
+         ++counter;
+      }
+      IB[iblock + 1] = counter;
+   }
+}
+
+void BlockGS::Mult(const Vector &b, Vector &x) const
+{
+   MFEM_VERIFY(height > 0, "BlockGS preconditioner is not constructed");
+   int nblockrows = Height()/block_size;
+   DenseMatrix L_ij;
+   //y.SetSize(Height());
+   Vector xi, xj;
+   
+   for (int i = 0; i<nblockrows; ++i)
+   {
+      xi.SetDataAndSize(&x[i*block_size], block_size);
+      for (int ib=0; ib<block_size; ++ib)
+      {
+         xi[ib] = b[ib + i*block_size];
+      }
+      for (int k=IB[i]; k<ID[i]; ++k)
+      {
+         int j = JB[k];
+         xj.SetDataAndSize(&x[j*block_size], block_size);
+         const DenseMatrix &L_ij = AB(k);
+         L_ij.AddMult_a(-1.0, xj, xi);
+      }
+      LUFactors A_ii_inv(DB.GetData(i), &ipiv[i*block_size]);
+      A_ii_inv.Factor(block_size);
+      // x_i = D_ii^{-1} x_i
+      A_ii_inv.Solve(block_size, 1, xi.GetData());
+   }
+}
+
+void BlockGS::MultTranspose(const Vector &b, Vector &x) const
+{
+   Mult(b,x);
+}
+
 BlockILU::BlockILU(int block_size_,
                    Reordering reordering_,
                    int k_fill_)

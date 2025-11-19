@@ -9,6 +9,11 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+// implement with gauss siedel
+// or implement with block jacobi with l1 scaling 
+
+
+
 #include "mg_agglom.hpp"
 #include "partition.hpp"
 
@@ -17,10 +22,9 @@ using namespace std;
 namespace mfem
 {
 
-std::vector<std::vector<int>> Agglomerate(Mesh &mesh)
+std::vector<std::vector<int>> Agglomerate(Mesh &mesh, int ncoarse)
 {
    const int ne = mesh.GetNE();
-   const int ncoarse = 2;
 
    const int num_partitions = std::ceil(std::log(ne)/std::log(ncoarse));
 
@@ -162,13 +166,12 @@ SparseMatrix *CreateInclusionProlongation(
 }
 
 AgglomerationMultigrid::AgglomerationMultigrid(
-   FiniteElementSpace &fes, SparseMatrix &Af)
+   FiniteElementSpace &fes, SparseMatrix &Af, int ncoarse, int num_levels)
 {
    MFEM_VERIFY(fes.GetMaxElementOrder() == 1, "Only linear elements supported.");
    // Create the mesh hierarchy
-   auto E = Agglomerate(*fes.GetMesh());
+   auto E = Agglomerate(*fes.GetMesh(), ncoarse);
    int num_levels_s = E.size() + 1;
-   int num_levels = 2;
 
    std::cout << "num levels: " << num_levels << std::endl;
 
@@ -226,14 +229,13 @@ AgglomerationMultigrid::AgglomerationMultigrid(
       k = k-1;
    }
 
-   // Create the smoothers (using BlockILU for now) remember block size is num degrees of freedom per element
+   // Create the smoothers remember block size is num degrees of freedom per element
    
    SparseMatrix &Ac = static_cast<SparseMatrix&>(*operators[0]);
    smoothers[0] = new UMFPackSolver(Ac);
-   for (int l=1; l < num_levels; ++l)
+   for (int l=1; l < num_levels; l++)
    {
-      smoothers[l] = new BlockILU(*operators[l], 4);
-
+      smoothers[l] = new BlockGS(*operators[l], 4);
    }
 }
 

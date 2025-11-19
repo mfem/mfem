@@ -22,7 +22,7 @@ std::vector<std::vector<int>> Agglomerate(Mesh &mesh);
 class AgglomerationMultigrid : public Multigrid
 {
 public:
-   AgglomerationMultigrid(FiniteElementSpace &fes, SparseMatrix &Af);
+   AgglomerationMultigrid(FiniteElementSpace &fes, SparseMatrix &Af, int ncoarse, int num_levels);
 };
 
 } // namespace mfem

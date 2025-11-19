@@ -1005,6 +1005,42 @@ public:
    void Mult(const Vector &xt, Vector &x) const override;
 };
 
+class BlockGS : public Solver
+{
+public:
+   /** Find L^{-1} for the matrix @a op.
+    *  @a op should be a SparseMatrix.
+    */
+   BlockGS(const Operator &op, int block_size_ = 1);
+
+   void SetOperator(const Operator &op);
+
+   /// Solve L^{-1} x  = b
+   void Mult(const Vector &b, Vector &x) const;
+
+   /// Solve U^{-1} x = b
+   void MultTranspose(const Vector &b, Vector &x) const;
+
+private:
+   /// Set up the block CSR structure corresponding to a sparse matrix @a A
+   void CreateBlockPattern(const class SparseMatrix &A);
+
+   int block_size;
+
+   /// Permutation and inverse permutation vectors for the block reordering.
+   Array<int> P, Pinv;
+
+   /// Temporary vector used in the Mult() function.
+   mutable Vector y;
+
+   // Block CSR storage
+   Array<int> IB, ID, JB;
+   DenseTensor AB;
+   mutable DenseTensor DB;
+   mutable Array<int> ipiv;
+
+};
+
 /** Block ILU solver:
  *  Performs a block ILU(k) approximate factorization with specified block
  *  size. Currently only k=0 is supported. This is useful as a preconditioner

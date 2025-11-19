@@ -144,12 +144,16 @@ int main(int argc, char *argv[])
    int ref_levels = 2;
    int order = 1;
    real_t kappa_0 = 1.0;
+   int ncoarse = 4; 
+   int num_levels = 2;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file.");
    args.AddOption(&ref_levels, "-r", "--refine", "Refinement levels.");
    args.AddOption(&order, "-o", "--order", "Polynomial degree.");
    args.AddOption(&kappa_0, "-k", "--kappa", "DG penalty parameter.");
+   args.AddOption(&ncoarse, "-nc", "--ncoarse", "Number of Fine Elements per Coarse.");
+   args.AddOption(&num_levels, "-nl", "--levels", "Number of Multigrid Levels.");
    args.ParseCheck();
 
    Mesh mesh(mesh_file);
@@ -184,7 +188,7 @@ int main(int argc, char *argv[])
 
    SparseMatrix &A = a.SpMat();
 
-   AgglomerationMultigrid mg(fespace, A);
+   AgglomerationMultigrid mg(fespace, A, ncoarse, num_levels);
 
    CGSolver cg;
    cg.SetRelTol(1e-12);
