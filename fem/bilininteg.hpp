@@ -2612,10 +2612,12 @@ protected:
    Vector pa_data;
 
 public:
-   /// Construct an integrator with coefficient 1.0
-   VectorMassIntegrator(const IntegrationRule *ir = NULL)
+
+   VectorMassIntegrator(const IntegrationRule *ir)
       : BilinearFormIntegrator(ir), vdim(-1), Q_order(0), Q(NULL), VQ(NULL),
         MQ(NULL) { }
+
+   /// Construct an integrator with coefficient 1.0
    VectorMassIntegrator() = default;
 
    /** Construct an integrator with scalar coefficient q.  If possible, save

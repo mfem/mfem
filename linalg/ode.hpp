@@ -194,7 +194,7 @@ public:
 
    /// Returns the associated TimeDependentOperator
    TimeDependentOperator* GetTimeDependentOperator() { return f; }
-   
+
    ///@brief Returns @a true if the ODESolver supports the given
    /// #ImplicitVariable, @a var, and returns @a false otherwise.
    ///@note Should be overriden in ODESolver that calls TimeDependentOperator::ImplicitSolve().
