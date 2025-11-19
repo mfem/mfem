@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 //
 // implicit 3point:
-//   ./laghos -p 3 -pt 1 -s 12 -tf 5.0 -rs 1 -cfl 16 -nmi 50 -dump-jacobians 0 -nretry 50000 -kmi 500 -av -av-type 7 -ov 2 -oe 1
+//   ./laghos -p 3 -pt 1 -s 12 -glvis -tf 5.0 -rs 1 -cfl 16 -nmi 50 -dump-jacobians 0 -nretry 50000 -kmi 500 -av -av-type 7 -ov 2 -oe 1
 //
 
 #include <mfem.hpp>
@@ -269,14 +269,16 @@ matd qdata_setup(
 
       if (viscosity_type == 2)
       {
+         // Default Laghos viscosity.
          auto symdvdx = sym(dvdxi * invJ);
          auto [eigvals, eigvecs] = eig(symdvdx);
 
+         // Measure of maximal compression.
          const real_t mu = eigvals(0);
          vecd compr_dir = get_col(eigvecs, 0);
+
          auto ph_dir = (J * inv(J0)) * compr_dir;
          const real_t h = h0 * norm(ph_dir) / norm(compr_dir);
-         // Measure of maximal compression.
          auto visc_coeff = 2.0 * rho * h * h * fabs(mu);
          visc_coeff += 0.5 * rho * h * cs * vorticity_coeff *
                        (1.0 - softstep(eps, mu - 2.0 * eps));
@@ -285,12 +287,13 @@ matd qdata_setup(
       }
       else if (viscosity_type == 21)
       {
+         // Default Laghos viscosity through a power method to
+         // get the measure of maximal compression.
          auto symdvdx = sym(dvdxi * invJ);
          auto [mu, compr_dir] = sinvpm(symdvdx, 10, 1e-12);
 
          auto ph_dir = (J * inv(J0)) * compr_dir;
          const real_t h = h0 * norm(ph_dir) / norm(compr_dir);
-         // Measure of maximal compression.
          auto visc_coeff = 2.0 * rho * h * h * softabs(1e-6, mu);
          visc_coeff += 0.5 * rho * h * cs * vorticity_coeff *
                        (1.0 - softstep(eps, mu - 2.0 * eps));
@@ -304,28 +307,26 @@ matd qdata_setup(
          auto symdvdx = sym(dvdxi * invJ);
          auto [eigvals, eigvecs] = eig2(symdvdx);
 
+         // Measure of maximal compression.
          const real_t mu = eigvals(0);
          vecd compr_dir = get_col(eigvecs, 0);
          for (int i = 0; i < compr_dir.first_dim; i++)
          {
             compr_dir(i) = softstep(delta, compr_dir(i));
          }
+
          auto ph_dir = (J * inv(J0)) * compr_dir;
          const real_t h = h0 * norm(ph_dir) / norm(compr_dir);
-         // Measure of maximal compression.
          auto visc_coeff = 2.0 * rho * h * h * softabs(delta, mu);
          visc_coeff += 0.5 * rho * h * cs * vorticity_coeff *
                        (1.0 - softstep(eps, mu - 2.0 * eps));
-         if (!std::isfinite(visc_coeff))
-         {
-            out << "err\n";
-            exit(1);
-         }
+         if (!std::isfinite(visc_coeff)) { out << "err\n"; exit(1); }
          stress += visc_coeff * symdvdx;
          dt_visc_coeff = visc_coeff;
       }
       else if (viscosity_type == 4)
       {
+         // Viscosity type 4 from the paper (use all eigenvalues).
          auto symdvdx = sym(dvdxi * invJ);
          auto [lam, s] = eig(symdvdx);
          const auto delta = 0.2 * cs;
@@ -343,6 +344,7 @@ matd qdata_setup(
       }
       else if (viscosity_type == 7)
       {
+         // Some new viscosity.
          const auto delta = 0.2 * cs;
          const auto dvdx = dvdxi * inv(J);
          const auto h = h0 * pow(det(J), 1.0 / DIMENSION);
@@ -350,8 +352,8 @@ matd qdata_setup(
          const auto psi1 = softstep(delta, -delta_v);
          const auto q1 = 5.0;
          const auto q2 = 5.0;
-         const auto mu = 3.0 / 4.0 * rho * h * psi1 * (q2 * softabs(delta,
-                                                                    delta_v) + q1 * cs);
+         const auto mu = 3.0 / 4.0 * rho * h * psi1 *
+                         (q2 * softabs(delta, delta_v) + q1 * cs);
          stress += 2.0 * mu * sym(dvdx);
          dt_visc_coeff = 2.0 * mu;
       }
@@ -707,6 +709,7 @@ public:
          s_new = x;
          s_new *= hydro.residual->dt;
          s_new += hydro.residual->x;
+
          real_t min_detJ = hydro.ComputeMinDet(s_new);
          if (min_detJ <= 0.0)
          {
@@ -751,17 +754,15 @@ public:
 
             // Evaluate residual at new point
             oper->Mult(x_new, r_new);
-            if (have_b)
-            {
-               subtract(r_new, b, r_new);
-            }
+            if (have_b) { subtract(r_new, b, r_new); }
 
             const real_t new_norm = Norm(r_new);
 
             if (new_norm <= initial_norm - alpha * lambda * grad_norm)
             {
                // Found acceptable step
-               out << "linesearch lambda: " << lambda << "\n";
+               if (Mpi::Root())
+               { out << "linesearch good lambda: " << lambda << "\n"; }
                return lambda;
             }
 
@@ -769,7 +770,7 @@ public:
             lambda *= beta;
          }
 
-         out << ">>> linesearch didn't converge\n";
+         if (Mpi::Root()) { out << ">>> linesearch didn't converge\n"; }
          return 0.0;
       }
 
@@ -780,7 +781,6 @@ public:
       mutable Vector x_new, r_new, s_new;
       const LagrangianHydroOperator &hydro;
    };
-
 
    class LagrangianHydroJacobianOperator : public Operator
    {
@@ -983,7 +983,7 @@ public:
 
          if (hydro.preconditioner_type == PRECONDITIONER_TYPE::BLOCK_DIAGONAL_AMG)
          {
-            out << "building pc\n";
+            if (Mpi::Root()) { out << "building pc\n"; }
             vv_mat.reset(Mv_hdRvdv_mat);
             amg_v.reset(new HypreBoomerAMG(*vv_mat));
             amg_v->SetPrintLevel(0);
@@ -1751,20 +1751,15 @@ public:
    real_t ComputeMinDet(const Vector &S) const
    {
       auto sptr = const_cast<Vector*>(&S);
-      Vector x, x_loc;
+      Vector x, x_loc(H1.GetVSize());
       x.MakeRef(*sptr, 0, H1.GetTrueVSize());
       H1.GetProlongationMatrix()->Mult(x, x_loc);
-
-      // out << "in ComputeMinDet\n";
-      // pretty_print(x_loc);
 
       ParGridFunction xgf;
       xgf.MakeRef(&H1, x_loc, 0);
 
-      auto g = GeometricFactors(xgf, ir,
-                                GeometricFactors::JACOBIANS |
-                                GeometricFactors::DETERMINANTS);
-
+      auto g = GeometricFactors(xgf, ir, GeometricFactors::JACOBIANS |
+                                         GeometricFactors::DETERMINANTS);
       return g.detJ.Min();
    }
 
@@ -2800,8 +2795,8 @@ int main(int argc, char *argv[])
             {
                if (Mpi::Root())
                {
-                  out << "writing viz for non converged newton step " << ti << " at time=" << t <<
-                      "\n";
+                  out << "writing viz for non converged newton step " << ti
+                      << " at time=" << t << "\n";
                }
                // vizcb(ti+100, t+100.0);
             }
@@ -2835,10 +2830,7 @@ int main(int argc, char *argv[])
                }
                else if (nretry == 0)
                {
-                  if (Mpi::Root())
-                  {
-                     out << "no retry planned, exit\n";
-                  }
+                  if (Mpi::Root()) { out << "no retry planned, exit\n"; }
                   exit(1);
                }
                nretry--;
