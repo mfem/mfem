@@ -37,6 +37,8 @@ extern "C"
 namespace mfem
 {
 
+#define IDType unsigned long long
+
 Particle::Particle(int dim, const Array<int> &field_vdims, int num_tags)
    : coords(dim), fields(), tags()
 {
@@ -208,7 +210,7 @@ const Array<int> ParticleSet::GetFieldVDims() const
    return field_vdims;
 }
 
-void ParticleSet::AddParticles(const Array<unsigned int> &new_ids,
+void ParticleSet::AddParticles(const Array<IDType> &new_ids,
                                Array<int> *new_indices)
 {
    int num_add = new_ids.Size();
@@ -251,7 +253,7 @@ void ParticleSet::TransferParticlesImpl(ParticleSet &pset,
    struct pdata_t
    {
       alignas(real_t) std::array<std::byte, NBytes> data;
-      unsigned int id;
+      IDType id;
    };
 
    int nreals = pset.GetFieldVDims().Sum() + pset.Coords().GetVDim();
@@ -318,10 +320,10 @@ void ParticleSet::TransferParticlesImpl(ParticleSet &pset,
    for (int i = 0; i < recvd; i++)
    {
       parr_t &pdata = pdata_arr[i];
-      int id = pdata.id;
+      IDType id = pdata.id;
 
       Array<int> idx_temp;
-      pset.AddParticles(Array<int>({id}), &idx_temp);
+      pset.AddParticles(Array<IDType>({id}), &idx_temp);
       int new_idx = idx_temp[0]; // Get index of newly-added particle
 
       size_t counter = 0;
@@ -504,7 +506,7 @@ void ParticleSet::WriteToFile(const char *fname,
 #endif // MFEM_USE_MPI
 }
 
-ParticleSet::ParticleSet(int id_stride_, int id_counter_, int num_particles,
+ParticleSet::ParticleSet(int id_stride_, IDType id_counter_, int num_particles,
                          int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims,
                          const Array<Ordering::Type> &field_orderings,
                          const Array<const char*> &field_names_, int num_tags,
@@ -526,7 +528,7 @@ ParticleSet::ParticleSet(int id_stride_, int id_counter_, int num_particles,
    }
 
    // Add num_particles
-   Array<int> init_ids(num_particles);
+   Array<IDType> init_ids(num_particles);
    for (int i = 0; i < num_particles; i++)
    {
       init_ids[i] = id_counter;
@@ -647,7 +649,7 @@ ParticleSet::ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
                          const Array<Ordering::Type> &field_orderings,
                          const Array<const char*> &field_names_, int num_tags,
                          const Array<const char*> &tag_names_)
-   : ParticleSet(GetSize(comm_), GetRank(comm_),
+   : ParticleSet(GetSize(comm_), (IDType)GetRank(comm_),
                  rank_num_particles,
                  dim,
                  coords_ordering,
@@ -667,11 +669,12 @@ ParticleSet::ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
 }
 #endif // MFEM_USE_MPI
 
-unsigned int ParticleSet::GetGlobalNParticles() const
+IDType ParticleSet::GetGlobalNParticles() const
 {
-   unsigned int total = GetNParticles();
+   IDType total = (IDType)GetNParticles();
 #ifdef MFEM_USE_MPI
-   MPI_Allreduce(MPI_IN_PLACE, &total, 1, MPI_UNSIGNED, MPI_SUM, comm);
+   MPI_Allreduce(MPI_IN_PLACE, &total, 1, MPI_UNSIGNED_LONG_LONG,
+                 MPI_SUM, comm);
 #endif // MFEM_USE_MPI
    return total;
 }
@@ -711,7 +714,7 @@ void ParticleSet::AddParticle(const Particle &p)
 
    // Add the particle
    Array<int> idxs;
-   AddParticles(Array<int>({id_counter}), &idxs);
+   AddParticles(Array<IDType>({id_counter}), &idxs);
    id_counter += id_stride;
 
    // Set the new particle data
@@ -721,7 +724,7 @@ void ParticleSet::AddParticle(const Particle &p)
 
 void ParticleSet::AddParticles(int num_particles, Array<int> *new_indices)
 {
-   Array<int> add_ids(num_particles);
+   Array<IDType> add_ids(num_particles);
    for (int i = 0; i < num_particles; i++)
    {
       add_ids[i] = id_counter;
@@ -920,6 +923,8 @@ ParticleSet::~ParticleSet()
    }
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 }
+
+#undef IDType
 
 
 } // namespace mfem

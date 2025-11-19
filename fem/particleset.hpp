@@ -20,6 +20,9 @@
 namespace mfem
 {
 
+
+#define IDType unsigned long long
+
 /// Container for data associated with a single particle
 /** See ParticleSet for more information. */
 class Particle
@@ -135,7 +138,7 @@ public:
  *  dimension equal to the spatial dimension, ordered either byNODES or byVDIM.
  *
  *  @par IDs:
- *  Each particle is assigned a unique global ID of type unsigned int. In
+ *  Each particle is assigned a unique global ID of type unsigned long long. In
  *  parallel, IDs are initialized starting with @b rank and striding by @b size.
  *
  *  @par Fields:
@@ -178,17 +181,17 @@ protected:
 
    /// Stride for IDs (when new particles are added).
    /** In parallel, this defaults to the number of MPI ranks. */
-   const unsigned int id_stride;
+   const int id_stride;
 
    /// Current ID to be assigned to the next particle added.
    /** In parallel, this starts locally as the rank and increments with
     * id_stride, ensuring a global unique identifier whenever a particle is
     * added.
     */
-   unsigned int id_counter;
+   IDType id_counter;
 
    /// Global unique IDs of particles owned by this rank.
-   Array<unsigned int> ids;
+   Array<IDType> ids;
 
    /// Spatial coordinates of particles owned by this rank.
    ParticleVector coords;
@@ -211,7 +214,7 @@ protected:
     *  @details Note the data of new particles is uninitialized and must be set
     *  using SetParticle
     */
-   void AddParticles(const Array<unsigned int> &new_ids,
+   void AddParticles(const Array<IDType> &new_ids,
                      Array<int> *new_indices=nullptr);
 
 
@@ -274,7 +277,7 @@ protected:
     *  @param[in] num_tags            Number of tags to register.
     *  @param[in] tag_names_          Array of tag names.
     */
-   ParticleSet(int id_stride_, int id_counter_, int num_particles, int dim,
+   ParticleSet(int id_stride_, IDType id_counter_, int num_particles, int dim,
                Ordering::Type coords_ordering, const Array<int> &field_vdims,
                const Array<Ordering::Type> &field_orderings,
                const Array<const char*> &field_names_, int num_tags,
@@ -405,13 +408,13 @@ public:
    MPI_Comm GetComm() const { return comm; };
 #endif // MFEM_USE_MPI
    /// Get the global number of active particles across all ranks.
-   unsigned int GetGlobalNParticles() const;
+   IDType GetGlobalNParticles() const;
 
    /// Get the spatial dimension.
    int GetDim() const { return coords.GetVDim(); }
 
    /// Get the IDs of the active particles owned by this ParticleSet.
-   const Array<unsigned int>& GetIDs() const { return ids; }
+   const Array<IDType>& GetIDs() const { return ids; }
 
    /** @brief Add a field to the ParticleSet.
     *
@@ -529,8 +532,11 @@ public:
 
    /// Destructor
    ~ParticleSet();
+   ParticleSet(const ParticleSet&) = delete;
+   ParticleSet& operator=(const ParticleSet&) = delete;
 };
 
+#undef IDType
 } // namespace mfem
 
 

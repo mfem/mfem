@@ -207,7 +207,7 @@ void ParticleTrajectories::AddSegmentStart()
 
 void ParticleTrajectories::SetSegmentEnd()
 {
-   const Array<unsigned int> &end_ids = pset.GetIDs();
+   const Array<unsigned long long> &end_ids = pset.GetIDs();
 
    // Add all endpoint vertices + segments for all particles
    int num_start = segment_ids.front().Size();

@@ -269,8 +269,9 @@ int main(int argc, char *argv[])
 
       cfl = flow_solver.ComputeCFL(u_gf, ctx.dt);
 #ifdef MFEM_USE_GSLIB
-      int global_np = particle_solver.GetParticles().GetGlobalNParticles();
-      int inactive_global_np =
+      unsigned long long global_np =
+         particle_solver.GetParticles().GetGlobalNParticles();
+      unsigned long long inactive_global_np =
          particle_solver.GetInactiveParticles().GetGlobalNParticles();
 #endif
       if (rank == 0)

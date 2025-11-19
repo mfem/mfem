@@ -47,7 +47,7 @@ protected:
 
    socketstream sock;
    /// Track particle IDs that exist at the segment start.
-   std::vector<Array<unsigned int>> segment_ids;
+   std::vector<Array<unsigned long long>> segment_ids;
    /// Each segment is stored as a Mesh snapshot
    std::vector<Mesh> segment_meshes;
 
