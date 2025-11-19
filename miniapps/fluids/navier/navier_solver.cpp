@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "navier_solver.hpp"
-#include "../../general/forall.hpp"
+#include "../../../general/forall.hpp"
 #include <fstream>
 #include <iomanip>
 

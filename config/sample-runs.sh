@@ -199,7 +199,7 @@ groups_parallel=(
 # todo: miniapps/multidomain
 '"navier"
    "Navier miniapps:"
-   "miniapps/navier"
+   "miniapps/fluids/navier"
    "navier_cht.cpp"'
 # todo: add other navier miniapps
 '"nurbs"
@@ -289,9 +289,9 @@ groups_all=(
    "miniapps/electromagnetics"
    "joule.cpp"'
 #   "{joule,maxwell,tesla,volta}.cpp"' # todo: multiline sample runs
-'"fluids"
+'"schrodinger_flow"
    "Fluids miniapps:"
-   "miniapps/fluids"
+   "miniapps/fluids/schrodinger_flow"
    "{,p}schrodinger_flow.cpp"'
 '"adjoint"
    "Adjoint miniapps:"
@@ -320,7 +320,7 @@ groups_all=(
 # todo: miniapps/multidomain
 '"navier"
    "Navier miniapps:"
-   "miniapps/navier"
+   "miniapps/fluids/navier"
    "navier_cht.cpp"'
 # todo: add other navier miniapps
 '"nurbs"
