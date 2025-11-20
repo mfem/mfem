@@ -25,8 +25,10 @@ class DarcyReduction : public Operator
 {
 protected:
    FiniteElementSpace &fes_u, &fes_p;
-   NonlinearFormIntegrator *m_nlfi_u{}, *m_nlfi_p{};
-   bool own_m_nlfi_u{}, own_m_nlfi_p{};
+   NonlinearFormIntegrator *m_nlfi_p{};
+   NonlinearFormIntegrator *m_nlfi_p{};
+   bool own_m_nlfi_u{};
+   bool own_m_nlfi_p{};
 
    Array<int> Af_offsets, Af_f_offsets;
    Array<real_t> Af_data;

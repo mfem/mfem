@@ -52,8 +52,10 @@ private:
    std::unique_ptr<BilinearFormIntegrator> c_bfi_p;
    std::unique_ptr<NonlinearFormIntegrator> c_nlfi_p;
    std::unique_ptr<BlockNonlinearFormIntegrator> c_nlfi;
-   NonlinearFormIntegrator *m_nlfi_u{}, *m_nlfi_p{};
-   bool own_m_nlfi_u{}, own_m_nlfi_p{};
+   NonlinearFormIntegrator *m_nlfi_u{};
+   NonlinearFormIntegrator *m_nlfi_p{};
+   bool own_m_nlfi_p{};
+   bool own_m_nlfi_p{};
    BlockNonlinearFormIntegrator *m_nlfi{};
    bool own_m_nlfi{};
 
@@ -67,7 +69,8 @@ private:
    /// Indicates if the boundary_constraint_pot_integs integrators are owned externally
    bool extern_bdr_constr_pot_integs{false};
 
-   bool bsym{}, bfin{};
+   bool bsym{};
+   bool bfin{};
    DiagonalPolicy diag_policy{DIAG_ONE};
 
    struct

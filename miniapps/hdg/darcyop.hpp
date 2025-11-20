@@ -40,12 +40,15 @@ private:
    LinearForm *g, *f, *h;
 #ifdef MFEM_USE_MPI
    ParDarcyForm *pdarcy {};
-   ParLinearForm *pg{}, *pf{}, *ph{};
+   ParLinearForm *pg{};
+   ParLinearForm *pf{};
+   ParLinearForm *ph{};
 #endif
    const Array<Coefficient*> &coeffs;
    SolverType solver_type;
    bool btime_u, btime_p;
-   real_t rtol{1e-6}, atol{1e-10};
+   real_t rtol{1e-6};
+   real_t atol{1e-10};
    int max_iters{1000};
 
    FiniteElementSpace *trace_space{};

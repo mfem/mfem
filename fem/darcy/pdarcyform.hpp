@@ -28,8 +28,10 @@ class ParDarcyForm : public DarcyForm
 protected:
    ParFiniteElementSpace &pfes_u, &pfes_p;
 
-   ParBilinearForm *pM_u{}, *pM_p{};
-   ParNonlinearForm *pMnl_u{}, *pMnl_p{};
+   ParBilinearForm *pM_u{};
+   ParBilinearForm *pM_p{};
+   ParNonlinearForm *pMnl_u{};
+   ParNonlinearForm *pMnl_p{};
    ParMixedBilinearForm *pB{};
    ParBlockNonlinearForm *pMnl{};
 
