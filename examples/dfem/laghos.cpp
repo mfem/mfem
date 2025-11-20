@@ -9,9 +9,18 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-// implicit 3point:
-//   ./laghos -p 3 -pt 1 -s 12 -glvis -tf 5.0 -rs 1 -cfl 16 -nmi 50 -dump-jacobians 0 -nretry 50000 -kmi 500 -av -av-type 7 -ov 2 -oe 1
+// 3point:
+// explicit:
+//   time mpirun -np 8 laghos -p 3 -glvis -tf 5.0 -av -av-type 2 -ov 4 -oe 3 -rs 2 -cfl 0.5 -s 2 -vis-steps 100
+// implicit:
+//   time mpirun -np 8 laghos -p 3 -glvis -tf 5.0 -nmi 50 -pt 1 -dump-jacobians 0 -nretry 50000 -kmi 20 -av -av-type 7 -ov 3 -oe 2 -rs 2 -cfl 32 -s 12 -vis-steps 10
 //
+// Sedov:
+// explicit:
+//   time mpirun -np 8 laghos -p 1 -glvis -tf 0.8 -av -av-type 2 -ov 4 -oe 3 -rs 2 -cfl 0.5 -s 2 -vis-steps 100
+// implicit:
+//   time mpirun -np 8 laghos -p 1 -glvis -tf 0.8 -nmi 50 -pt 1 -dump-jacobians 0 -nretry 50000 -kmi 20 -av -av-type 7 -ov 3 -oe 2 -rs 2 -cfl 32 -s 12 -vis-steps 10
+
 
 #include <mfem.hpp>
 
@@ -350,8 +359,8 @@ matd qdata_setup(
          const auto h = h0 * pow(det(J), 1.0 / DIMENSION);
          const auto delta_v = h * tr(dvdx);
          const auto psi1 = softstep(delta, -delta_v);
-         const auto q1 = 5.0;
-         const auto q2 = 5.0;
+         const auto q1 = 3.0;
+         const auto q2 = 3.0;
          const auto mu = 3.0 / 4.0 * rho * h * psi1 *
                          (q2 * softabs(delta, delta_v) + q1 * cs);
          stress += 2.0 * mu * sym(dvdx);
@@ -365,13 +374,14 @@ matd qdata_setup(
 
    if (rho < 0.0)
    {
-      MFEM_ABORT("negative density on quadrature point \n" "detJ = " << detJ);
-      exit(1);
+      //MFEM_ABORT("negative density on quadrature point \n" "detJ = " << detJ);
+      //exit(1);
+      dt_est = 0.0;
    }
 
    if (detJ < 0.0)
    {
-      // MFEM_ABORT("inverted element detected in qdata_setup");
+      //MFEM_ABORT("inverted element detected in qdata_setup");
       // This will force repetition of the step with smaller dt.
       dt_est = 0.0;
    }
@@ -1438,7 +1448,7 @@ public:
       gmres->SetMaxIter(krylov_maximum_iterations);
       gmres->SetRelTol(1e-12);
       gmres->SetAbsTol(0.0);
-      gmres->SetPrintLevel(IterativeSolver::PrintLevel().None());
+      gmres->SetPrintLevel(IterativeSolver::PrintLevel().Summary());
       gmres->SetPreconditioner(*preconditioner);
       krylov.reset(gmres);
 
@@ -1760,7 +1770,11 @@ public:
 
       auto g = GeometricFactors(xgf, ir, GeometricFactors::JACOBIANS |
                                          GeometricFactors::DETERMINANTS);
-      return g.detJ.Min();
+      auto min = g.detJ.Min();
+      MPI_Allreduce(MPI_IN_PLACE, &min, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_MIN, L2.GetComm());
+
+      return min;
    }
 
    void UpdateQuadratureData(const Vector &S) const
@@ -2766,10 +2780,7 @@ int main(int argc, char *argv[])
          last_step = true;
       }
 
-      if (last_step)
-      {
-         // hydro->residual->dump_jacobians = 1;
-      }
+      // if (last_step) { hydro->residual->dump_jacobians = 1; }
 
       S_old = S;
       t_old = t;
@@ -2789,6 +2800,7 @@ int main(int argc, char *argv[])
 
       if (ode_solver_type > 10)
       {
+         //if (false)
          if (dt_est < dt || !hydro->newton_converged)
          {
             if (!hydro->newton_converged)
@@ -2812,14 +2824,10 @@ int main(int argc, char *argv[])
                out << "Reason: ";
                if (!hydro->newton_converged)
                {
-                  out << "Newton did not converge in " << hydro->newton->GetNumIterations() <<
-                      " iterations. ";
+                  out << "Newton did not converge in "
+                      << hydro->newton->GetNumIterations() << " iterations.\n";
                }
-               else
-               {
-                  out << "Estimated time step lower than taken time step.";
-               }
-               out << std::endl;
+               else { out << "Estimated dt lower than taken dt.\n"; }
             }
 
             if (!hydro->newton_converged)
@@ -2838,7 +2846,7 @@ int main(int argc, char *argv[])
 
             ti--; continue;
          }
-         else if (dt_est > 1.25 * dt) { dt *= 1.15; }
+         else if (dt_est > 1.25 * dt) { dt *= 1.20; }
       }
       else if (dt_est < dt)
       {
@@ -2929,6 +2937,9 @@ int main(int argc, char *argv[])
              << "L_2    error: " << v_err_l2 << std::endl;
       }
    }
+
+   mesh.SaveAsOne("3point.mesh");
+   rho_gf.SaveAsOne("3point.gf");
 
    delete hydro;
 
