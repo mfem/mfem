@@ -116,6 +116,8 @@ public:
    DenseMatrix GetLowerBoundMatrix(int dim);
    DenseMatrix GetUpperBoundMatrix(int dim);
 
+   /// Get control points used to compute the bounds.
+   Vector GetControlPoints() const { return control_points; }
 private:
    /// Compute piecewise linear bounds for the lexicographically-ordered
    /// coefficients in @a coeff in 1D.
