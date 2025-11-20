@@ -204,6 +204,13 @@ public:
       }
    };
 
+   // creates a list with essential dofs
+   // sets the values in the bsol vector
+   // the list is written in ess_dofs
+   // The 'nvcc' compiler needs these SetEssTDofs functions to be public.
+   void SetEssTDofs(mfem::Vector &bsol, mfem::Array<int> &ess_dofs);
+   void SetEssTDofs(const int j, mfem::ParFiniteElementSpace& scalar_space,
+                    mfem::Array<int> &ess_dofs);
 private:
    mfem::ParMesh *pmesh;
    const bool pa, dfem; // partial assembly, dFEM operator
@@ -272,15 +279,7 @@ private:
    // holds the displacement contrained DOFs
    mfem::Array<int> ess_tdofv;
 
-   // creates a list with essetial dofs
-   // sets the values in the bsol vector
-   // the list is written in ess_dofs
-   void SetEssTDofs(mfem::Vector &bsol, mfem::Array<int> &ess_dofs);
-   void SetEssTDofs(const int j, mfem::ParFiniteElementSpace& scalar_space,
-                    mfem::Array<int> &ess_dofs);
-
    mfem::Coefficient *E, *nu;
-
    mfem::Coefficient *lambda, *mu;
 
    mfem::ParBilinearForm *bf;
@@ -315,6 +314,7 @@ private:
       {
          map = &cmap;
       }
+      using mfem::VectorCoefficient::Eval;
 
       void Eval(mfem::Vector &V, mfem::ElementTransformation &T,
                 const mfem::IntegrationPoint &ip) override
