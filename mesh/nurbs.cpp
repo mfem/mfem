@@ -2278,8 +2278,9 @@ void NURBSExtension::Load(std::istream &input, bool spacing)
 {
    own_topo = true;
 
-   CheckPatches();
-   // CheckBdrPatches();
+   MFEM_ASSERT(CheckPatches(),
+               "NURBSExtension::CheckPatch"
+               "\n  Inconsistent edge-to-knotvector mapping!");
 
    skip_comment_lines(input, '#');
 
@@ -2676,7 +2677,10 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
    patchTopo->GetEdgeToUniqueKnotvector(edge_to_ukv, ukv_to_rpkv);
    own_topo = true;
 
-   CheckPatches(); // This is checking the edge_to_ukv mapping
+   // CheckPatches(); // This is checking the edge_to_ukv mapping
+   MFEM_ASSERT(CheckPatches(),
+               "NURBSExtension::CheckPatch"
+               "\n  Inconsistent edge-to-knotvector mapping!");
 
    // Set number of unique (not comprehensive) knot vectors
    NumOfKnotVectors = ukv_to_rpkv.Size();
@@ -3246,7 +3250,7 @@ void NURBSExtension::MergeGridFunctions(
    }
 }
 
-void NURBSExtension::CheckPatches()
+bool NURBSExtension::CheckPatches()
 {
    // mfem::out << "CHECKING PATCHES" << std::endl;
    if (Dimension() == 1 ) { return; }
@@ -3284,11 +3288,13 @@ void NURBSExtension::CheckPatches()
             edges[8] != edges[9] || edges[8] != edges[10] ||
             edges[8] != edges[11])))
       {
-         mfem::err << "NURBSExtension::CheckPatch (patch = " << p
-                   << ")\n  Inconsistent edge-to-knotvector mapping!";
-         mfem_error();
+         return true;
+         // mfem::err << "NURBSExtension::CheckPatch (patch = " << p
+         //           << ")\n  Inconsistent edge-to-knotvector mapping!";
+         // mfem_error();
       }
    }
+   return false;
 }
 
 void NURBSExtension::CheckBdrPatches()
