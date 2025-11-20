@@ -376,46 +376,8 @@ int main(int argc, char *argv[])
       if (ctx.redist_freq > 0 && (step % ctx.redist_freq == 0 || step == 1) &&
           boris.GetParticles().GetGlobalNP() > 0)
       {
-         // Visualize particles pre-redistribute
-         // if (ctx.visualization)
-         // {
-         //    Vector rank_vector(boris.GetParticles().GetNP());
-         //    rank_vector = Mpi::WorldRank();
-         //    VisualizeParticles(pre_redist_sock, vishost, ctx.visport, boris.GetParticles(),
-         //                       rank_vector, 1e-2, "Particle Owning Rank (Pre-Redistribute)", 410, 0, 400, 400,
-         //                       "bca");
-         //    if (Mpi::Root())
-         //    {
-         //       cout << "Enter any key to redistribute: " << flush;
-         //       cin.ignore();
-         //       cin.get();
-         //    }
-         //    MPI_Barrier(MPI_COMM_WORLD);
-         // }
-
          // Redistribute
          boris.Redistribute(ctx.redist_mesh);
-
-         // Visualize particles post-redistribute
-         // if (ctx.visualization)
-         // {
-         //    Vector rank_vector(boris.GetParticles().GetNP());
-         //    rank_vector = Mpi::WorldRank();
-         //    VisualizeParticles(post_redist_sock, vishost, ctx.visport, boris.GetParticles(),
-         //                       rank_vector, 1e-2, "Particle Owning Rank (Post-Redistribute)", 820, 0, 400, 400,
-         //                       "bca");
-         //    if (Mpi::Root())
-         //    {
-         //       cout << "Enter any key to continue: " << flush;
-         //       cin.ignore();
-         //       cin.get();
-         //    }
-         //    MPI_Barrier(MPI_COMM_WORLD);
-         //    pre_redist_sock << "keys q" << flush;
-         //    post_redist_sock << "keys q" << flush;
-         //    pre_redist_sock.close();
-         //    post_redist_sock.close();
-         // }
       }
    }
 }
