@@ -383,11 +383,11 @@ public:
 
    /** Used to specify the variable being returned by ImplicitSolve(). This can
     * be queried by ODESolver to identify the variable being solved for.
-    * @warning Not all ODESolver may support all options. See ODESolver::SupportsImplicitVariable() */
-   enum ImplicitVariable
+    * @warning Not all ODESolver may support all options. See ODESolver::SupportsImplicitVariableType() */
+   enum ImplicitVariableType
    {
       SLOPE, ///< stage slope, $k = \frac{du}{dt}$.
-      STATE  ///< stage state, $k = \widehat{u}$.
+      STATE  ///< stage state, $k = u$.
    };
 
 protected:
@@ -395,7 +395,8 @@ protected:
    Type type; /**< @brief Describes the form of the TimeDependentOperator, see
                    the documentation of #Type. */
    EvalMode eval_mode; ///< Current evaluation mode.
-   ImplicitVariable implicit_variable = ImplicitVariable::SLOPE; /**< @brief
+   ImplicitVariableType implicit_variable_type =
+      ImplicitVariableType::SLOPE; /**< @brief
                                                         Return variable for
                                                         ImplicitSolve()*/
 
@@ -441,23 +442,23 @@ public:
    virtual void SetEvalMode(const EvalMode new_eval_mode)
    { eval_mode = new_eval_mode; }
 
-   /** @brief Sets the #ImplicitVariable for ImplicitSolve()*/
-   virtual void SetImplicitVariable(const ImplicitVariable variable)
-   { implicit_variable = variable; }
+   /** @brief Sets the #ImplicitVariableType for ImplicitSolve()*/
+   virtual void SetImplicitVariableType(const ImplicitVariableType variable_type)
+   { implicit_variable_type = variable_type; }
 
-   /** @brief Returns the #ImplicitVariable for ImplicitSolve(). */
-   virtual ImplicitVariable GetImplicitVariable() const
-   { return implicit_variable; }
+   /** @brief Returns the #ImplicitVariableType for ImplicitSolve(). */
+   virtual ImplicitVariableType GetImplicitVariableType() const
+   { return implicit_variable_type; }
 
    /** @brief Returns @a true if implicit variable is #STATE and @a false otherwise.
     * Used by ODESolver to identify the stage variable returned by ImplicitSolve() */
-   virtual bool ImplicitVarIsState() const
-   { return (implicit_variable == ImplicitVariable::STATE); }
+   virtual bool ImplicitVarTypeIsState() const
+   { return (implicit_variable_type == ImplicitVariableType::STATE); }
 
    /** @brief Returns @a true if implicit variable is #SLOPE and @a false otherwise.
     * Used by ODESolver to identify the stage variable returned by ImplicitSolve() */
-   virtual bool ImplicitVarIsSlope() const
-   { return (implicit_variable == ImplicitVariable::SLOPE); }
+   virtual bool ImplicitVarTypeIsSlope() const
+   { return (implicit_variable_type == ImplicitVariableType::SLOPE); }
 
    /** @brief Perform the action of the explicit part of the operator, G:
        @a v = G(@a u, t) where t is the current time.
@@ -523,7 +524,7 @@ public:
        $ y(t) + \Delta t \sum_{j=1}^{i-1} a_{ij} k_j $ and @a gamma set to
        $ a_{ii} \Delta t $, for $ k_i $. For example, see class SDIRK33Solver.
 
-       See SetImplicitVariable() to switch between different variable modes.
+       See SetImplicitVariableType() to switch between different variable modes.
        If not re-implemented, this method simply generates an error. */
    virtual void ImplicitSolve(const real_t gamma, const Vector &u, Vector &k);
 

@@ -109,7 +109,7 @@ public:
 class ODESolver
 {
 protected:
-   using ImplicitVariable = TimeDependentOperator::ImplicitVariable;
+   using ImplicitVariableType = TimeDependentOperator::ImplicitVariableType;
    /// Pointer to the associated TimeDependentOperator.
    TimeDependentOperator *f;  // f(.,t) : R^n --> R^n
    MemoryType mem_type;
@@ -193,9 +193,9 @@ public:
    virtual int GetStateSize() { return 0; };
 
    ///@brief Returns @a true if the ODESolver supports the given
-   /// #ImplicitVariable, @a var, and returns @a false otherwise.
+   /// #ImplicitVariableType, @a var, and returns @a false otherwise.
    ///@note Should be overriden in ODESolver that calls TimeDependentOperator::ImplicitSolve().
-   virtual bool SupportsImplicitVariable(ImplicitVariable var) const
+   virtual bool SupportsImplicitVariableType(ImplicitVariableType var) const
    { return false; };
 
    // Help info for ODESolver options
@@ -360,10 +360,10 @@ public:
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
 
-   bool SupportsImplicitVariable(ImplicitVariable var) const override
+   bool SupportsImplicitVariableType(ImplicitVariableType var) const override
    {
-      return (var == ImplicitVariable::STATE ||
-              var == ImplicitVariable::SLOPE);
+      return (var == ImplicitVariableType::STATE ||
+              var == ImplicitVariableType::SLOPE);
    }
 };
 
@@ -379,10 +379,10 @@ public:
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
 
-   bool SupportsImplicitVariable(ImplicitVariable var) const override
+   bool SupportsImplicitVariableType(ImplicitVariableType var) const override
    {
-      return (var == ImplicitVariable::STATE ||
-              var == ImplicitVariable::SLOPE);
+      return (var == ImplicitVariableType::STATE ||
+              var == ImplicitVariableType::SLOPE);
    }
 };
 
@@ -406,10 +406,10 @@ public:
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
 
-   bool SupportsImplicitVariable(ImplicitVariable var) const override
+   bool SupportsImplicitVariableType(ImplicitVariableType var) const override
    {
-      return (var == ImplicitVariable::STATE ||
-              var == ImplicitVariable::SLOPE);
+      return (var == ImplicitVariableType::STATE ||
+              var == ImplicitVariableType::SLOPE);
    }
 };
 
@@ -426,10 +426,10 @@ public:
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
 
-   bool SupportsImplicitVariable(ImplicitVariable var) const override
+   bool SupportsImplicitVariableType(ImplicitVariableType var) const override
    {
-      return (var == ImplicitVariable::STATE ||
-              var == ImplicitVariable::SLOPE);
+      return (var == ImplicitVariableType::STATE ||
+              var == ImplicitVariableType::SLOPE);
    }
 };
 
@@ -446,10 +446,10 @@ public:
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
 
-   bool SupportsImplicitVariable(ImplicitVariable var) const override
+   bool SupportsImplicitVariableType(ImplicitVariableType var) const override
    {
-      return (var == ImplicitVariable::STATE ||
-              var == ImplicitVariable::SLOPE);
+      return (var == ImplicitVariableType::STATE ||
+              var == ImplicitVariableType::SLOPE);
    }
 };
 
@@ -466,10 +466,10 @@ public:
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
 
-   bool SupportsImplicitVariable(ImplicitVariable var) const override
+   bool SupportsImplicitVariableType(ImplicitVariableType var) const override
    {
-      return (var == ImplicitVariable::STATE ||
-              var == ImplicitVariable::SLOPE);
+      return (var == ImplicitVariableType::STATE ||
+              var == ImplicitVariableType::SLOPE);
    }
 };
 
@@ -486,10 +486,10 @@ public:
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
 
-   bool SupportsImplicitVariable(ImplicitVariable var) const override
+   bool SupportsImplicitVariableType(ImplicitVariableType var) const override
    {
-      return (var == ImplicitVariable::STATE ||
-              var == ImplicitVariable::SLOPE);
+      return (var == ImplicitVariableType::STATE ||
+              var == ImplicitVariableType::SLOPE);
    }
 };
 
@@ -506,10 +506,10 @@ public:
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
 
-   bool SupportsImplicitVariable(ImplicitVariable var) const override
+   bool SupportsImplicitVariableType(ImplicitVariableType var) const override
    {
-      return (var == ImplicitVariable::STATE ||
-              var == ImplicitVariable::SLOPE);
+      return (var == ImplicitVariableType::STATE ||
+              var == ImplicitVariableType::SLOPE);
    }
 };
 
@@ -537,10 +537,10 @@ public:
    ODEStateData& GetState() override { return state; }
    const ODEStateData& GetState() const override { return state; }
 
-   bool SupportsImplicitVariable(ImplicitVariable var) const override
+   bool SupportsImplicitVariableType(ImplicitVariableType var) const override
    {
-      return (var == ImplicitVariable::STATE ||
-              var == ImplicitVariable::SLOPE);
+      return (var == ImplicitVariableType::STATE ||
+              var == ImplicitVariableType::SLOPE);
    }
 };
 
@@ -658,10 +658,10 @@ public:
 
    ODEStateData& GetState() override { return state; }
    const ODEStateData& GetState() const override { return state; }
-   bool SupportsImplicitVariable(ImplicitVariable var) const override
+   bool SupportsImplicitVariableType(ImplicitVariableType var) const override
    {
-      return (var == ImplicitVariable::STATE ||
-              var == ImplicitVariable::SLOPE);
+      return (var == ImplicitVariableType::STATE ||
+              var == ImplicitVariableType::SLOPE);
    }
 };
 
