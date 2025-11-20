@@ -262,10 +262,9 @@ void ParticleSet::TransferParticlesImpl(ParticleSet &pset,
    MPI_Allreduce(MPI_IN_PLACE, &nreals, 1, MPI_INT, MPI_MAX, pset.GetComm());
    MPI_Allreduce(MPI_IN_PLACE, &ntags, 1, MPI_INT, MPI_MAX, pset.GetComm());
    size_t nbytes = nreals*sizeof(real_t) + ntags*sizeof(int);
-
-   using parr_t = pdata_t;
    MFEM_VERIFY(nbytes <= NBytes, "More data than can be packed.");
 
+   using parr_t = pdata_t;
    gslib::array gsl_arr;
    parr_t *pdata_arr;
    array_init(parr_t, &gsl_arr, send_idxs.Size());
