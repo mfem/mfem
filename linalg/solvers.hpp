@@ -1022,13 +1022,10 @@ public:
    void MultTranspose(const Vector &b, Vector &x) const;
 
 private:
-   /// Set up the block CSR structure corresponding to a sparse matrix @a A
-   void CreateBlockPattern(const class SparseMatrix &A);
+   /// @brief Set up the block CSR structure corresponding to a sparse matrix @a A and factorize the diagonal blocks.
+   void CreateBlockPatternAndFactorize(const class SparseMatrix &A);
 
-   int block_size;
-
-   /// Permutation and inverse permutation vectors for the block reordering.
-   Array<int> P, Pinv;
+   const int block_size;
 
    /// Temporary vector used in the Mult() function.
    mutable Vector y;
@@ -1038,7 +1035,6 @@ private:
    DenseTensor AB;
    mutable DenseTensor DB;
    mutable Array<int> ipiv;
-
 };
 
 /** Block ILU solver:
