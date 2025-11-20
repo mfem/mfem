@@ -116,17 +116,24 @@ make_dependency_array(const Tuple& inputs, std::index_sequence<Is...>)
 }
 
 template <typename... input_ts, std::size_t... Is>
-auto make_dependency_map_impl(
-   tuple<input_ts...> inputs,
-   std::index_sequence<Is...>)
+auto make_dependency_map_impl(tuple<input_ts...> inputs,
+                              std::index_sequence<Is...>)
 {
    constexpr std::size_t N = sizeof...(input_ts);
-   std::unordered_map<std::size_t, std::array<bool, N>> map;
-   for_constexpr<N>([&](auto i)
+
+   if constexpr (N == 0)
+      return std::unordered_map<int, std::array<bool, 0>> {};
+
+   std::unordered_map<int, std::array<bool, N>> map;
+
+   (void)std::initializer_list<int>
    {
-      auto arr = make_dependency_array<i>(inputs, std::make_index_sequence<N> {});
-      map[get<i>(inputs).GetFieldId()] = arr;
-   });
+      (
+         map[get<Is>(inputs).GetFieldId()] =
+      make_dependency_array<Is>(inputs, std::make_index_sequence<N>{}),
+      0
+      )...
+   };
 
    return map;
 }
