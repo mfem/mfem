@@ -850,7 +850,7 @@ public:
                                   to the number of unique knotvectors.
    */
    void GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
-                                  Array<int> &ukv_to_rpkv) const;
+                                  Array<int> &ukv_to_rpkv);
 
    /// @}
 
