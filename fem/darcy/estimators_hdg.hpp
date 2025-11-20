@@ -71,7 +71,7 @@ public:
    /// Get an Array<int> with anisotropic flags for all mesh elements.
    /** Return an empty array when anisotropic estimates are not available or
        enabled. */
-   const Array<int> &GetAnisotropicFlags()
+   const Array<int> &GetAnisotropicFlags() override
    {
       if (MeshIsModified()) { ComputeEstimates(); }
       return aniso_flags;

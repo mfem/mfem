@@ -252,7 +252,7 @@ private:
          inv.Factor(*mat);
       }
 
-      void Mult(const Vector &x, Vector &y) const
+      void Mult(const Vector &x, Vector &y) const override
       {
          inv.Mult(x, y);
       }
