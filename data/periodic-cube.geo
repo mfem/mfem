@@ -31,7 +31,7 @@ Physical Volume(1) = {out[1]};
 Physical Surface(1) = {1,out[0],out[2],out[3],out[4],out[5]};
 
 Mesh 3;
-Mesh.MshFileVersion = 2.2;
+//Mesh.MshFileVersion = 2.2;
 
 Periodic Surface {out[0]} = {1} Translate {0, 0, 1};
 Periodic Surface {out[4]} = {out[2]} Translate {0, 1, 0};
