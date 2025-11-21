@@ -54,7 +54,7 @@ private:
    std::unique_ptr<BlockNonlinearFormIntegrator> c_nlfi;
    NonlinearFormIntegrator *m_nlfi_u{};
    NonlinearFormIntegrator *m_nlfi_p{};
-   bool own_m_nlfi_p{};
+   bool own_m_nlfi_u{};
    bool own_m_nlfi_p{};
    BlockNonlinearFormIntegrator *m_nlfi{};
    bool own_m_nlfi{};
