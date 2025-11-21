@@ -40,16 +40,20 @@ namespace mfem
  *  and values are stored in the same array. For a tensor grid with a total of
  *  N cells, the first N+1 entries store the offsets and the remaining entries
  *  store the values.
-
- *  For example:
- *  Index:      0         1          ...  N             N+1        ...
- *  Value:      [start_0] [start_1]  ... [Length(Map)] [elem_A] [elem_B] [elem_C]...
- *              |          |                              ^                 ^
- *              |          |______________________________|_________________|
- *              |_________________________________________|
  *
- *  For grid cell index i, the element indices are stored in [start_i, start_{i+1}).
- *  If the grid cell i does not intersect any elements, start_i = start_{i+1}.
+ *  The "lgrid_map" looks something like this:
+ *
+ *  Index: 0         1          ...  N             N+1        ...
+ *  Value: [start_0] [start_1]  ... [Length(Map)] [elem_A] [elem_B] [elem_C]...
+ *              |          |                          ^                 ^
+ *              |          |__________________________|_________________|
+ *              |_____________________________________|
+ *
+ *  For grid cell index i, the element indices are stored in
+ *  lgrid_map[j], where lgrid_map[i] <= j < lgrid_map[i+1].
+ *
+ *  If lgrid_map[i] = lgrid_map[i+1], the grid cell i does not intersect any
+ *  elements.
  *
  *  See Mittal et al., "General Field Evaluation in High-Order Meshes on GPUs".
  *  (2025). Computers & Fluids. for technical details.
