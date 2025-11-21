@@ -436,22 +436,12 @@ void Boris::ParticleStep(Particle &part, real_t &dt, bool zeroth_step)
    x.Add(dt / m, p);
 
    // periodic boundary: wrap around using ctx mesh extents
-   while (x(0) < 0.0)
-   {
+   x(0) = fmod(x(0), ctx.xmax);
+   if (x(0) < 0.0)
       x(0) += ctx.xmax;
-   }
-   while (x(0) > ctx.xmax)
-   {
-      x(0) -= ctx.xmax;
-   }
-   while (x(1) < 0.0)
-   {
+   x(1) = fmod(x(1), ctx.ymax);
+   if (x(1) < 0.0)
       x(1) += ctx.ymax;
-   }
-   while (x(1) > ctx.ymax)
-   {
-      x(1) -= ctx.ymax;
-   }
 }
 
 Boris::Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_,
