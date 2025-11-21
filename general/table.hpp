@@ -115,8 +115,8 @@ public:
 
    int RowSize(int i) const { return I[i+1]-I[i]; }
 
-   const int *GetRow(int i) const { return J+I[i]; }
-   int *GetRow(int i) { return J+I[i]; }
+   const int *GetRow(int i) const { return &J[I[i]]; }
+   int *GetRow(int i) { return &J[I[i]]; }
 
    int *GetI() { return I; }
    int *GetJ() { return J; }
@@ -160,6 +160,7 @@ public:
    /// Replace the #I and #J arrays with the given @a newI and @a newJ arrays.
    /** If @a newsize < 0, then the size of the Table is not modified. */
    void SetIJ(int *newI, int *newJ, int newsize = -1);
+   void SetIJ(Memory<int> newI, Memory<int> newJ, int newsize = -1);
 
    /** Establish connection between element i and element j in the table.
        The return value is the index of the connection. It returns -1 if it
