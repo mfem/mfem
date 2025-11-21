@@ -103,7 +103,6 @@ int main (int argc, char *argv[])
    int randomization     = 0;
    int npt               = 100; //points per proc
    int visport           = 19916;
-   int jobid             = 0;
    bool surface          = false;
 
    // Parse command-line options.
@@ -146,8 +145,6 @@ int main (int argc, char *argv[])
    args.AddOption(&npt, "-npt", "--npt",
                   "# points / rank initialized on entire mesh (random = 0) or every element (random = 1).");
    args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
-   args.AddOption(&jobid, "-jid", "--jid",
-                  "job id used for visit  save files");
    args.AddOption(&surface, "-surf", "--surface", "-no-surf",
                   "--no-surface",
                   "Extract surface mesh from volume mesh.");
@@ -166,7 +163,7 @@ int main (int argc, char *argv[])
 
    func_order = std::min(order, 2);
 
-   // Initialize and refine the starting mesh.
+   // Initialize and extract surface mesh if requested.
    Mesh *input_mesh = new Mesh(mesh_file, 1, 1, false);
    Mesh *mesh = surface ? nullptr : input_mesh;
    if (surface)
@@ -220,7 +217,6 @@ int main (int argc, char *argv[])
 
    // Distribute the mesh.
    if (hrefinement) { mesh->EnsureNCMesh(); }
-   // ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    ParMesh pmesh(MPI_COMM_WORLD, *mesh, nullptr,
                  (dim == 1 && sdim == 3) ? 0 : 1);
    if (randomization == 0)
@@ -403,7 +399,7 @@ int main (int argc, char *argv[])
    // Find and Interpolate FE function values on the desired points.
    Vector interp_vals(pts_cnt*vec_dim);
    FindPointsGSLIB finder(pmesh);
-
+   finder.SetDistanceToleranceForPointsFoundOnBoundary(10);
    // Enable GPU to CPU fallback for GPUData only if you are using an older
    // version of GSLIB.
    // finder.SetGPUtoCPUFallback(true);
@@ -484,23 +480,6 @@ int main (int argc, char *argv[])
            << "\nMax interp error:     " << max_error
            << "\nMax dist (of found):  " << max_dist
            << endl;
-   }
-   if (myid == 0)
-   {
-      cout << setprecision(16)
-           << "DebugInfo: " <<
-           "jobid,ncpus,nelements,spoints,foundloc,foundaway,facepts,faceptsexact,notfound,maxinterp,maxdist\n"
-           << jobid << ","
-           << num_procs << ","
-           << nelemglob << ","
-           << (search_on_rank_0 ? pts_cnt : pts_cnt*num_procs) << ","
-           << found_loc << ","
-           << found_away << ","
-           << face_pts << ","
-           << npt_total_face << ","
-           << not_found << ","
-           << max_error << ","
-           << max_dist << endl;
    }
 
    delete fec;
