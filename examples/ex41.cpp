@@ -223,7 +223,7 @@ public:
                   const Vector &b_);
 
    /// Evaluate k1=M^{-1}*G1(u,t); -> k1 = M^{-1}*(K*u + b)
-   void Mult1(const Vector &x, Vector &y) const ;
+   void Mult1(const Vector &x, Vector &y) const;
 
    /// Evaluate k2: M*k2 = G2(u+k2*dt,t); -> (M+S*dt)*k2=-S*u
    void ImplicitSolve2(const real_t dt, const Vector &x, Vector &k);
