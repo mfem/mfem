@@ -106,15 +106,17 @@ public:
 
 
 /// Abstract class for solving systems of ODEs: dx/dt = f(x,t)
-/// For systems of split ODEs:
-/// M dx/dt = f_1(x,t) + f_2(x,t)
-/// where M^{-1}*f_1 and M^{-1}*f_2 are treated differently (e.g.,
-/// explicitly and implicitly), the solver class
-/// expects a TimeDependentOperator with split
-/// functionality. Setting EvalMode=ADDITIVE_TERM_1 and calling
-/// Mult(...) should return k1=M^{-1}*f_1(x,t). Setting
-/// EvalMode=ADDITIVE_TERM_2 and calling ImplicitSolve(...) should
-/// solve M*k2 = f_2(x+gamma*k2,t).
+/** For systems of split ODEs:
+    $$ M dx/dt = f_1(x,t) + f_2(x,t) $$
+    where $ M^{-1} f_1 $ and $ M^{-1} f_2 $ are treated differently (e.g.,
+    explicitly and implicitly), the solver class expects a
+    TimeDependentOperator with split functionality. Setting
+    TimeDependentOperator::EvalMode = TimeDependentOperator::ADDITIVE_TERM_1
+    and calling TimeDependentOperator::Mult() should return
+    $ k_1=M^{-1} f_1(x,t) $. Setting TimeDependentOperator::EvalMode =
+    TimeDependentOperator::ADDITIVE_TERM_2 and calling
+    TimeDependentOperator::ImplicitSolve() should solve
+    $ M k_2 = f_2(x+\gamma k_2,t) $. */
 class ODESolver
 {
 protected:
