@@ -324,8 +324,8 @@ int main(int argc, char *argv[])
    const int dim = mesh.Dimension();
 
    // 3. Define the IMEX (Split) ODE solver used for time integration. The IMEX
-   // solvers currently available are: 55 - Forward Backward Euler,
-   // 56 - IMEXRK2(2,2,2), 57 - IMEXRK2(2,3,2), and  58 - IMEX_DIRK_RK3.
+   // solvers currently available are: 61 - Forward Backward Euler,
+   // 62 - IMEXRK2(2,2,2), 63 - IMEXRK2(2,3,2), and  64 - IMEX_DIRK_RK3.
    unique_ptr<ODESolver> ode_solver = ODESolver::SelectIMEX(ode_solver_type);
 
    // 4. Refine the mesh to increase the resolution. In this example we do
