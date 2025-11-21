@@ -162,10 +162,6 @@ int main (int argc, char *argv[])
 
    bool cpu_mode = strcmp(devopt,"cpu")==0;
    Device device(devopt);
-   int num_gpus = Device::GetDeviceCount();
-#ifdef MFEM_USE_MPI
-   MPI_Allreduce(MPI_IN_PLACE, &num_gpus, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-#endif
    if (myid == 0) { device.Print();}
 
    func_order = std::min(order, 2);
@@ -219,16 +215,6 @@ int main (int argc, char *argv[])
       if (sdim == 3)
       {
          cout << "z in [" << pos_min(2) << ", " << pos_max(2) << "]" << std::endl;
-      }
-   }
-
-   if (myid == 0)
-   {
-      if (true)
-      {
-         VisItDataCollection dc("inputmesh", mesh);
-         dc.SetFormat(DataCollection::SERIAL_FORMAT);
-         dc.Save();
       }
    }
 
@@ -416,57 +402,8 @@ int main (int argc, char *argv[])
 
    // Find and Interpolate FE function values on the desired points.
    Vector interp_vals(pts_cnt*vec_dim);
-   FindPointsGSLIB finder(pmesh, 0.1, 1e-12);
+   FindPointsGSLIB finder(pmesh);
 
-   // output the AABB and OBB meshes setup by GSLIB
-   Mesh *aabb_mesh = finder.GetBoundingBoxMesh(0);
-   Mesh *obb_mesh  = finder.GetBoundingBoxMesh(1);
-   if (myid == 0 && visualization)
-   {
-      {
-         ofstream mesh_ofs("aabb.mesh");
-         mesh_ofs.precision(14);
-         aabb_mesh->Print(mesh_ofs);
-      }
-      {
-         osockstream sock(19916, "localhost");
-         sock << "mesh\n";
-         aabb_mesh->Print(sock);
-         sock.send();
-         sock << "window_title 'Axis-Aligned Bounding Boxes'\n"
-              << "window_geometry "
-              << 500 << " " << 0 << " " << 400 << " " << 400 << "\n"
-              << "keys Rm" << endl;
-      }
-      {
-         osockstream sock(19916, "localhost");
-         sock << "mesh\n";
-         obb_mesh->Print(sock);
-         sock.send();
-         sock << "window_title 'Oriented Bounding Boxes'\n"
-              << "window_geometry "
-              << 1000 << " " << 0 << " " << 400 << " " << 400 << "\n"
-              << "keys Rm" << endl;
-      }
-      if (true)
-      {
-         VisItDataCollection dc("aabbmesh", aabb_mesh);
-         dc.SetFormat(DataCollection::SERIAL_FORMAT);
-         dc.Save();
-      }
-      if (true)
-      {
-         VisItDataCollection dc("obbmesh", obb_mesh);
-         dc.SetFormat(DataCollection::SERIAL_FORMAT);
-         dc.Save();
-      }
-   }
-   delete aabb_mesh;
-   delete obb_mesh;
-
-   MPI_Barrier(MPI_COMM_WORLD);
-
-   // finder.SetDistanceToleranceForPointsFoundOnBoundary(10);
    // Enable GPU to CPU fallback for GPUData only if you are using an older
    // version of GSLIB.
    // finder.SetGPUtoCPUFallback(true);
@@ -514,19 +451,7 @@ int main (int argc, char *argv[])
             max_dist = std::max(max_dist, dist_p_out(i));
             if (code_out[i] == 1 && j == 0) { face_pts++; }
          }
-         else
-         {
-            if (j == 0)
-            {
-               for (int d = 0; d < sdim; d++)
-               {
-                  pos(d) = point_ordering == Ordering::byNODES ?
-                           vxyz(d*pts_cnt + i) :
-                           vxyz(i*sdim + d);
-               }
-               not_found++;
-            }
-         }
+         else { if (j == 0) { not_found++; } }
       }
    }
 
@@ -549,7 +474,6 @@ int main (int argc, char *argv[])
       cout << setprecision(16)
            << "Total number of elements: " << nelemglob
            << "\nTotal number of procs: " << num_procs
-           << "\nTotal number of gpus : " << num_gpus
            << "\nSearched total points: " <<  (search_on_rank_0 ? pts_cnt :
                                                pts_cnt*num_procs)
            << "\nFound locally on ranks:  " << found_loc
@@ -565,10 +489,9 @@ int main (int argc, char *argv[])
    {
       cout << setprecision(16)
            << "DebugInfo: " <<
-           "jobid,ncpus,ngpus,nelements,spoints,foundloc,foundaway,facepts,faceptsexact,notfound,maxinterp,maxdist\n"
+           "jobid,ncpus,nelements,spoints,foundloc,foundaway,facepts,faceptsexact,notfound,maxinterp,maxdist\n"
            << jobid << ","
            << num_procs << ","
-           << num_gpus << ","
            << nelemglob << ","
            << (search_on_rank_0 ? pts_cnt : pts_cnt*num_procs) << ","
            << found_loc << ","
