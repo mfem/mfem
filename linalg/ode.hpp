@@ -979,10 +979,10 @@ public:
    void Step(Vector &x, real_t &t, real_t &dt) override;
 };
 
-
-/**(2,3,2) from "Implicit-explicit Runge-Kutta
-    methods for time-dependent partial differential equations" by Ascher, Ruuth
-    and Spiteri, Applied Numerical Mathematics (1997).**/
+/// Second order, 2/3-stage implicit-explicit (IMEX) Runge-Kutta (RK) method
+/** L-stable method (2,3,2) from "Implicit-explicit Runge-Kutta methods for
+    time-dependent partial differential equations" by Ascher, Ruuth and
+    Spiteri, Applied Numerical Mathematics (1997). */
 class IMEXRK2_3StageExplicit : public ODESolver
 {
 private:
