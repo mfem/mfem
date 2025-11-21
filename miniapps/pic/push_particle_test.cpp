@@ -768,8 +768,7 @@ void UpdateDensityGridFunction(ParticleSet &particles, ParGridFunction &rho_gf)
    // ------------------------------------------------------------------------
    rho_gf.SyncAliasMemory(rho_gf); // keep device/host in sync if needed
 
-   // visualization for debugging
-   if (true)
+   if (ctx.visualization)
    {
       static socketstream sol_sock; // persistent across calls
       static bool init = false;
