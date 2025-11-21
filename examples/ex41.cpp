@@ -230,7 +230,7 @@ public:
 
    void Mult(const Vector &x, Vector &y) const override
    {
-      if (TimeDependentOperator::EvalMode::ADDITIVE_TERM_1==GetEvalMode())
+      if (TimeDependentOperator::EvalMode::ADDITIVE_TERM_1 == GetEvalMode())
       {
          Mult1(x,y);
       }
@@ -242,7 +242,7 @@ public:
 
    void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override
    {
-      if (TimeDependentOperator::EvalMode::ADDITIVE_TERM_2==GetEvalMode())
+      if (TimeDependentOperator::EvalMode::ADDITIVE_TERM_2 == GetEvalMode())
       {
          ImplicitSolve2(dt,x,k);
       }
@@ -286,6 +286,8 @@ int main(int argc, char *argv[])
                   ODESolver::IMEXTypes.c_str());
    args.AddOption(&t_final, "-tf", "--t-final", "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step", "Time step.");
+   args.AddOption(&diffusion_term, "-dc", "--diffusion-coeff",
+                  "Diffusion coefficient in the PDE.");
    args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraview",
                   "--no-paraview-datafiles",
                   "Save data files for ParaView (paraview.org) visualization.");
@@ -371,7 +373,7 @@ int main(int argc, char *argv[])
    BilinearForm s(&fes);
 
    Vector b(fes.GetTrueVSize());
-   b=0.0; //The inflow on the boundaries is set to zero.
+   b = 0.0; //The inflow on the boundaries is set to zero.
 
    m.AddDomainIntegrator(new MassIntegrator);
 
