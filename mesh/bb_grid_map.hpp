@@ -99,7 +99,7 @@ public:
    int GetGridCellFromPoint(Vector &xyz) const;
 
    /// Get list of elements corresponding to a grid cell.
-   Array<int> GridCellToElements(int i) const;
+   Array<int> GridCellToElements(unsigned int i) const;
 
    // Some getters
    Array<int> GetGridMap() const { return lgrid_map; }
