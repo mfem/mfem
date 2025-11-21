@@ -64,6 +64,8 @@ static void InterpolateLocal2DKernel(const double *const gf_in,
    const int p_Np = D1D*D1D;
    MFEM_VERIFY(MD1 <= DofQuadLimits::MAX_D1D,
                "Increase Max allowable polynomial order.");
+   MFEM_VERIFY(pN<=DofQuadLimits::MAX_D1D,
+               "Increase Max allowable polynomial order.");
    MFEM_VERIFY(D1D != 0, "Polynomial order not specified.");
    mfem::forall_2D(npt, D1D, D1D, [=] MFEM_HOST_DEVICE (int i)
    {
