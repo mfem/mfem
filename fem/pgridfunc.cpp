@@ -1407,7 +1407,7 @@ real_t L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
 }
 
 PLBound ParGridFunction::GetBounds(Vector &lower, Vector &upper,
-                                   const int ref_factor, const int vdim)
+                                   const int ref_factor, const int vdim) const
 {
    PLBound plb = GridFunction::GetBounds(lower, upper, ref_factor, vdim);
    int siz = vdim > 0 ? 1 : fes->GetVDim();

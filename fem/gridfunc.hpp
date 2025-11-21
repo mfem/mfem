@@ -1604,7 +1604,7 @@ public:
    /// We compute the bounds for each vdim if @a vdim < 1.
    /// Note: For most cases, this method/interface will be sufficient.
    virtual PLBound GetBounds(Vector &lower, Vector &upper,
-                             const int ref_factor=1, const int vdim=-1);
+                             const int ref_factor=1, const int vdim=-1) const;
 
    /// Computes the \ref PLBound for the gridfunction with number of control
    /// points based on @a ref_factor, and returns the bounds for each element
@@ -1614,27 +1614,27 @@ public:
    /// PLBound object used to compute the bounds.
    /// We compute the bounds for each vdim if @a vdim < 1.
    PLBound GetElementBounds(Vector &lower, Vector &upper,
-                            const int ref_factor=1, const int vdim=-1);
+                            const int ref_factor=1, const int vdim=-1) const;
 
    /// Compute piecewise linear bounds on the given element at the grid of
    /// [plb.ncp x plb.ncp x plb.ncp] control points for each of the vdim
    /// components of the gridfunction.
    void GetElementBoundsAtControlPoints(const int elem, const PLBound &plb,
                                         Vector &lower, Vector &upper,
-                                        const int vdim = -1);
+                                        const int vdim = -1) const;
 
    /// Compute bounds on the grid function for the given element.
    /// The bounds are stored in @b lower and @b upper.
    void GetElementBounds(const int elem, const PLBound &plb,
                          Vector &lower, Vector &upper,
-                         const int vdim = -1);
+                         const int vdim = -1) const;
 
    /// Compute bounds on the grid function for all the elements. The bounds
    /// are returned in @b lower and @b upper, ordered byVDim:
    /// lower_{0,0}, lower_{1,0}, ..., lower_{ne-1,0},
    /// lower_{0,1}, ..., lower_{ne-1,vdim-1}
    void GetElementBounds(const PLBound &plb, Vector &lower, Vector &upper,
-                         const int vdim=-1);
+                         const int vdim=-1) const;
    ///@}
 
    /// Destroys grid function.
