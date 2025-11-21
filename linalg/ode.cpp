@@ -1383,7 +1383,6 @@ void IMEXRK2_3StageExplicit::Init(TimeDependentOperator &f_)
 
 void IMEXRK2_3StageExplicit::Step(Vector &x, real_t &t, real_t &dt)
 {
-   // WIP
    double gamma = 1 - sqrt(2)/2;
    double delta = -2*sqrt(2)/3;
 
