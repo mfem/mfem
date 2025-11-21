@@ -741,12 +741,12 @@ void UpdateDensityGridFunction(ParticleSet &particles, ParGridFunction &rho_gf)
       ElementTransformation *Tr = pmesh->GetElementTransformation(e);
       Tr->SetIntPoint(&ip);
 
-      const FiniteElement &fe = *pfes->GetFE(e);
+      const FiniteElement &el = *pfes->GetFE(e);
 
       // Shape functions at the particle position
-      const int ldofs = fe.GetDof();
+      const int ldofs = el.GetDof();
       Vector shape(ldofs);
-      fe.CalcShape(ip, shape);
+      el.CalcShape(ip, shape);
 
       // Local element DOFs for rho_gf
       pfes->GetElementDofs(e, dofs);
@@ -784,8 +784,6 @@ void UpdateDensityGridFunction(ParticleSet &particles, ParGridFunction &rho_gf)
          sol_sock.open(vishost, visport);
          if (!sol_sock)
          {
-            mfem::out << "Unable to connect to GLVis server at "
-                      << vishost << ":" << visport << std::endl;
             return;
          }
 
@@ -799,5 +797,4 @@ void UpdateDensityGridFunction(ParticleSet &particles, ParGridFunction &rho_gf)
       sol_sock << "solution\n"
                << *pmesh << rho_gf << std::flush;
    }
-   cin.get();
 }
