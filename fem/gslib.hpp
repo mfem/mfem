@@ -231,8 +231,8 @@ protected:
    /** @brief Searches positions given in physical space by @a point_pos.
        These positions can be ordered byNodes: (XXX...,YYY...,ZZZ) or
        byVDim: (XYZ,XYZ,....XYZ) specified by @a point_pos_ordering. */
-   void FindPointsSurfExecute(const Vector &point_pos,
-                              int point_pos_ordering = Ordering::byNODES);
+   void FindPointsSurfBase(const Vector &point_pos,
+                           int point_pos_ordering = Ordering::byNODES);
 
    /** @brief Interpolation of field values at prescribed reference space
     *         positions.
@@ -253,9 +253,9 @@ protected:
 
    /** @brief Interpolation of field values at prescribed reference space
     *         positions for surface meshes. */
-   void InterpolateSurfExecute(const Vector &field_in, Vector &field_out,
-                               const int nel, const int ncomp,
-                               const int dof1dsol, const int gf_ordering);
+   void InterpolateSurfBase(const Vector &field_in, Vector &field_out,
+                            const int nel, const int ncomp,
+                            const int dof1dsol, const int gf_ordering);
 
    /// Preprocess 2D surface mesh needed for FindPoints.
    void findptsedge_setup_2(DEV_STRUCT &devs,

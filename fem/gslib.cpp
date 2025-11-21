@@ -1075,7 +1075,7 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
    gsl_dist.SetSize(points_cnt);
    gsl_newton.SetSize(points_cnt);
 
-   FindPointsSurfExecute(point_pos, point_pos_ordering);
+   FindPointsSurfBase(point_pos, point_pos_ordering);
 
    // Set the element number and reference position to 0 for points not found
    for (int i=0; i<points_cnt; i++)
@@ -1878,8 +1878,8 @@ ulong hash_index_nd(const Vector &hash_min, const Vector &hash_fac,
    }
 }
 
-void FindPointsGSLIB::FindPointsSurfExecute(const Vector &point_pos,
-                                            int point_pos_ordering)
+void FindPointsGSLIB::FindPointsSurfBase(const Vector &point_pos,
+                                         int point_pos_ordering)
 {
    if (!DEV.setup_device)
    {
@@ -2340,12 +2340,12 @@ void FindPointsGSLIB::SetupSurfDevice()
    MFEM_DEVICE_SYNC;
 }
 
-void FindPointsGSLIB::InterpolateSurfExecute(const Vector &field_in,
-                                             Vector &field_out,
-                                             const int nel,
-                                             const int ncomp,
-                                             const int dof1Dsol,
-                                             const int gf_ordering)
+void FindPointsGSLIB::InterpolateSurfBase(const Vector &field_in,
+                                          Vector &field_out,
+                                          const int nel,
+                                          const int ncomp,
+                                          const int dof1Dsol,
+                                          const int gf_ordering)
 {
    field_out.HostWrite();
    struct gslib::array src, outpt;
@@ -2553,14 +2553,14 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
                                           const int dof1dsol,
                                           const int ordering) {};
 
-void FindPointsGSLIB::FindPointsSurfExecute(const Vector &point_pos,
-                                            int point_pos_ordering) {};
+void FindPointsGSLIB::FindPointsSurfBase(const Vector &point_pos,
+                                         int point_pos_ordering) {};
 void FindPointsGSLIB::SetupSurfDevice() {};
-void FindPointsGSLIB::InterpolateSurfExecute(const Vector &field_in_evec,
-                                             Vector &field_out,
-                                             const int nel, const int ncomp,
-                                             const int dof1dsol,
-                                             const int ordering) {};
+void FindPointsGSLIB::InterpolateSurfBase(const Vector &field_in_evec,
+                                          Vector &field_out,
+                                          const int nel, const int ncomp,
+                                          const int dof1dsol,
+                                          const int ordering) {};
 #endif
 
 void FindPointsGSLIB::FindPoints(Mesh &m, const Vector &point_pos,
@@ -3447,8 +3447,8 @@ void FindPointsGSLIB::InterpolateSurf(const GridFunction &field_in,
       field_out.SetSize(points_cnt*ncomp);
       field_out.UseDevice(device_mode);
 
-      InterpolateSurfExecute(node_vals, field_out, NE_split_total, ncomp,
-                             DEV.dof1d_sol, field_in.FESpace()->GetOrdering());
+      InterpolateSurfBase(node_vals, field_out, NE_split_total, ncomp,
+                          DEV.dof1d_sol, field_in.FESpace()->GetOrdering());
       return;
    }
    else
@@ -4193,6 +4193,7 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
 
    mesh = &m;
    dim  = mesh->Dimension();
+   spacedim = dim;
    const FiniteElement *fe = mesh->GetNodalFESpace()->GetTypicalFE();
    unsigned dof1D = fe->GetOrder() + 1;
 

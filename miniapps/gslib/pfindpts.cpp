@@ -78,26 +78,6 @@ void F_exact(const Vector &p, Vector &F)
    for (int i = 1; i < F.Size(); i++) { F(i) = (i+1)*F(0); }
 }
 
-std::string GetUUID(const int device_id)
-{
-   std::stringstream res;
-#if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
-#if defined(MFEM_USE_CUDA)
-   CUuuid uuid;
-   MFEM_GPU_CHECK(cuDeviceGetUuid(&uuid, device_id));
-#elif defined(MFEM_USE_HIP)
-   hipUUID uuid;
-   MFEM_GPU_CHECK(hipDeviceGetUuid(&uuid, device_id));
-#endif
-   for (int i = 0; i < 16; ++i)
-   {
-      res << std::setfill('0') << std::setw(2) << std::hex << static_cast<unsigned>
-          (uuid.bytes[i]);
-   }
-#endif
-   return res.str();
-}
-
 int main (int argc, char *argv[])
 {
    // Initialize MPI and HYPRE.
@@ -117,7 +97,7 @@ int main (int argc, char *argv[])
    int ncomp             = 1;
    bool search_on_rank_0 = false;
    bool hrefinement      = false;
-   int point_ordering    = 1;
+   int point_ordering    = 0;
    int gf_ordering       = 0;
    const char *devopt    = "cpu";
    int randomization     = 0;
@@ -188,15 +168,7 @@ int main (int argc, char *argv[])
 #endif
    if (myid == 0) { device.Print();}
 
-   func_order = floor(order/mesh_poly_deg);
-   MFEM_VERIFY(func_order > 0, "Gridfunction order must be at-least mesh "
-               " order.");
-   if (myid == 0)
-   {
-      cout << "Function order: " << func_order << endl;
-      cout << "Mesh order: " << mesh_poly_deg << endl;
-      cout << "Gridfunction order: " << order << endl;
-   }
+   func_order = std::min(order, 2);
 
    // Initialize and refine the starting mesh.
    Mesh *input_mesh = new Mesh(mesh_file, 1, 1, false);
@@ -582,9 +554,9 @@ int main (int argc, char *argv[])
                                                pts_cnt*num_procs)
            << "\nFound locally on ranks:  " << found_loc
            << "\nFound on other tasks: " << found_away
-           << "\nPoints on faces:      " << face_pts << " out of "
-           << npt_total_face
            << "\nPoints not found:     " << not_found
+           << "\nPoints on faces:      " << face_pts << " out of "
+                                         << npt_total_face
            << "\nMax interp error:     " << max_error
            << "\nMax dist (of found):  " << max_dist
            << endl;
