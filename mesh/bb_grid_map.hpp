@@ -22,8 +22,7 @@
 namespace mfem
 {
 
-/** \brief Class to map a point in physical space to candidate elements
- *   of a curved mesh.
+/** \brief Map a point in physical space to candidate elements of a curved mesh.
  *
  *  This class builds a Cartesian-aligned tensor grid that covers the domain
  *  and precomputes, for each grid cell, the set of curved mesh elements whose
@@ -33,70 +32,96 @@ namespace mfem
  *  intersecting that cell is returned. This yields a fast, conservative
  *  point-to-element candidate query.
  *
- *  Construction workflow:
- *  1) Compute an axis-aligned bounding box for each curved element.
- *     Optionally, the user can directly provided the element bounding boxes.
- *  2) Overlay the domain with a tensor-product grid. The user can specify the
- *     number of divisions in each coordinate direction, or specify a maximum
- *     size of the underlying map which implicitly determines the grid
- *     resolution.
- *  3) For each grid cell, record the indices of all elements whose AABBs
- *     intersect that cell.
+ *  The mapping procedure is currently setup such that if an element's bounding
+ *  box boundary is exactly on a grid cell boundary, the element is assigned
+ *  to the grid cell on the left/bottom side of the boundary in each dimension.
+ *
+ *  See Mittal et al., "General Field Evaluation in High-Order Meshes on GPUs".
+ *  (2025). Computers & Fluids. for technical details.
+ *
  */
-class BoundingBoxTensorGridMap
+class BBoxTensorGridMap
 {
 private:
-   int dim;
-   Array<int> lmap_n;
-   Vector lmap_bnd_min, lmap_bnd_max;
-   Vector lmap_fac;
-   Array<unsigned int> lgrid_map;
-   int lmap_nd;
+   int dim; // spatial dimension
+   Array<int> lmap_nx; // grid resolution in each direction
+   Vector lmap_bnd_min, lmap_bnd_max; // min and max extend of grid in x/y/z
+   Vector lmap_fac; // number of cells per unit extent
+   Array<unsigned int> lgrid_map; // actual map from grid cell to mesh elements.
+   unsigned int lmap_nxd; // total number of grid cells
 
 public:
-   // Constructor for a given mesh and resolution of Cartesian grid.
-   BoundingBoxTensorGridMap(Mesh &mesh, int nx);
+   /// Constructor for a given mesh and resolution of Cartesian grid.
+   BBoxTensorGridMap(Mesh &mesh, int nx);
 
-   // Constructor with mesh element bounding boxes and resolution of Cartesian
-   // grid in each direction.
-   // Assumes elmin, elmax Ordering::byVDim:
-   // elmin -> [x_{0,min},y_{0,min},z_{0,min}, x_{1,min},... ,z_{nel-1,min}]
-   // elmax -> [x_{0,max},y_{0,max},z_{0,max}, x_{1,max},... ,z_{nel-1,max}]
-   BoundingBoxTensorGridMap(Vector &elmin, Vector &elmax,
-                            Array<int> &nx, int nel);
+   /** @brief Constructor with mesh element bounding boxes and resolution of
+    *  Cartesian grid in each direction.
+    *
+    *  @details Assumes elmin, elmax Ordering::byNodes:
+    *  elmin -> [x_{0,min},x_{1,min},... ,y_{0,min},y_{1,min},..,z_{nel-1,min}]
+    *  elmax -> [x_{0,max},x_{1,max},... ,y_{0,max},y_{1,max},..,z_{nel-1,max}]
+    *  Note elmin, elmax can be obtained using GridFunction::GetElementBounds()
+    */
+   BBoxTensorGridMap(Vector &elmin, Vector &elmax,
+                     Array<int> &nx, int nel);
 
-   // Constructor for given element bounds. The user can either specify
-   // the max size of map (by_max_size=true) or the
-   // number of divisions (by_max_size=false).
-   // When by_max_size=true, lgrid_map.Size() <= n.
-   // Assumes elmin, elmax Ordering::byVDim:
-   // elmin -> [x_{0,min},y_{0,min},z_{0,min}, x_{1,min},... ,z_{nel-1,min}]
-   // elmax -> [x_{0,max},y_{0,max},z_{0,max}, x_{1,max},... ,z_{nel-1,max}]
-   BoundingBoxTensorGridMap(Vector &elmin, Vector &elmax,
-                            int n, int nel, bool by_max_size=false);
+   /** @brief Constructor for given element bounds. The user can either specify
+    *  the max size of map (by_max_size=true) or the number of divisions
+    *  (by_max_size=false).
+    *
+    *  @details  When by_max_size=true, lgrid_map.Size() <= n.
+    *  Assumes elmin, elmax Ordering::byNodes:
+    *  elmin -> [x_{0,min},x_{1,min},... ,y_{0,min},y_{1,min},..,z_{nel-1,min}]
+    *  elmax -> [x_{0,max},x_{1,max},... ,y_{0,max},y_{1,max},..,z_{nel-1,max}]
+    *  Note elmin, elmax can be obtained using GridFunction::GetElementBounds()
+    */
+   BBoxTensorGridMap(Vector &elmin, Vector &elmax,
+                     int n, int nel, bool by_max_size=false);
 
    /// Map a point to possible overlapping elements.
    Array<int> MapPointToElements(Vector &xyz) const;
 
+   /// Get grid cell index for a given point.
+   int GetGridCellFromPoint(Vector &xyz) const;
+
+   /// Get list of elements corresponding to a grid cell.
+   Array<int> GridCellToElements(int i) const;
+
    // Some getters
-   Array<int> GetHashMap() const { return lgrid_map; }
-   Vector GetHashFac() const { return lmap_fac; }
-   Vector GetHashMin() const { return lmap_bnd_min; }
-   Vector GetHashMax() const { return lmap_bnd_max; }
-   Array<int> GetHashN() const { return lmap_n; }
+   Array<int> GetGridMap() const { return lgrid_map; }
+   Vector GetGridFac() const { return lmap_fac; }
+   Vector GetGridMin() const { return lmap_bnd_min; }
+   Vector GetGridMax() const { return lmap_bnd_max; }
+   Array<int> GetGridN() const { return lmap_nx; }
 private:
-   // Setup using the element-wise bounding boxes.
-   // When by_max_size = false, nx gives number of cells in each direction.
-   // When by_max_size = true, nx[0] gives the max size of the map. i.e.
-   // lgrid_map.Size() <= nx[0].
+   /** @brief Setup using the element-wise bounding boxes.
+    *
+    *  @details When by_max_size = false, nx gives number of cells in each
+    * direction. When by_max_size = true, nx[0] gives the max size of the map.
+    * i.e. lgrid_map.Size() <= nx[0]. */
    void Setup(Vector &elmin, Vector &elmax,
               Array<int> &nx, int nel, bool by_max_size);
 
-   /// Get hash cell index for a given point.
-   int GetHashCellFromPoint(Vector &xyz) const;
+public:
+   /** @brief Get local (1D) indices for cells of tensor grid that intersect
+    *  with the given bounding box. */
+   static void GetGridRange(const int d, const Array<int> &lh_n,
+                            const Vector &lh_fac,
+                            const Vector &lh_bnd_min, const Vector &lh_bnd_max,
+                            const double &xmin, const double &xmax,
+                            int &imin, int &imax);
 
-   /// Get list of elements corresponding to a hash cell.
-   Array<int> HashCellToElements(int i) const;
+   /// Set grid fac - number of grid cells per unit grid extent.
+   static void SetGridFac(Vector &lh_fac, const Array<int> &nx,
+                          const Vector &lh_bnd_min, const Vector &lh_bnd_max);
+
+   /** @brief Get grid count and range - total number of grid cells that
+    *  intersect with all elements of the mesh and get corresponding ranges. */
+   static int GetGridCountAndRange(const Array<int> &lh_n, const Vector &lh_fac,
+                                   const Vector &lh_bnd_min,
+                                   const Vector &lh_bnd_max,
+                                   const Vector &elmin, const Vector &elmax,
+                                   Array<int> &elmin_h, Array<int> &elmax_h);
 };
 
 } // namespace mfem

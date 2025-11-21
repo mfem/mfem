@@ -49,11 +49,10 @@
 //    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3 -mo 2 -random 1 -d debug
 //    mpirun -np 2 pfindpts -m ../../data/amr-quad.mesh -rs 1 -o 4 -mo 2 -random 1 -npt 100 -d debug
 //    mpirun -np 2 pfindpts -m ../../data/inline-hex.mesh -o 3 -mo 2 -random 1 -d debug
-
-
-// make pfindpts -j4 && mpirun -np 11 ./pfindpts -m bladesurf.mesh -o 8 -mo 4 -vis -random 1
-// make pfindpts -j4 && mpirun -np 7 ./pfindpts -m 3dsurftriplept.mesh -o 6 -mo 3 -vis -random 1
-// make pfindpts -j4 && mpirun -np 3 ./pfindpts -m 3dedge.mesh -o 4 -mo 2 -vis -random 1 -npt 101 -rs 4
+//    Surface mesh runs:
+//    mpirun -np 4 pfindpts -m ../../data/square-disc-p2.mesh -o 4 -mo 2 -vis -random 1 -surf
+//    mpirun -np 4 pfindpts -m ../../data/star-q3.mesh -o 6 -mo 3 -vis -random 1 -surf
+//    mpirun -np 4 pfindpts -m ../../data/fichera-q2.mesh -o 3 -mo 3 -vis -random 1 -surf
 
 #include "mfem.hpp"
 #include "general/forall.hpp"
@@ -125,7 +124,7 @@ int main (int argc, char *argv[])
    int npt               = 100; //points per proc
    int visport           = 19916;
    int jobid             = 0;
-
+   bool surface          = false;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -169,6 +168,9 @@ int main (int argc, char *argv[])
    args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&jobid, "-jid", "--jid",
                   "job id used for visit  save files");
+   args.AddOption(&surface, "-surf", "--surface", "-no-surf",
+                  "--no-surface",
+                  "Extract surface mesh from volume mesh.");
 
    args.Parse();
    if (!args.Good())
@@ -197,7 +199,19 @@ int main (int argc, char *argv[])
    }
 
    // Initialize and refine the starting mesh.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
+   Mesh *input_mesh = new Mesh(mesh_file, 1, 1, false);
+   Mesh *mesh = surface ? nullptr : input_mesh;
+   if (surface)
+   {
+      int nattr = input_mesh->bdr_attributes.Max();
+      Array<int> subdomain_attributes(nattr);
+      for (int i = 0; i < nattr; i++)
+      {
+         subdomain_attributes[i] = i+1;
+      }
+      mesh = new Mesh(SubMesh::CreateFromBoundary(*input_mesh,
+                                                  subdomain_attributes));
+   }
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    const int dim = mesh->Dimension(),
              sdim = mesh->SpaceDimension();
@@ -251,7 +265,11 @@ int main (int argc, char *argv[])
    // ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    ParMesh pmesh(MPI_COMM_WORLD, *mesh, nullptr,
                  (dim == 1 && sdim == 3) ? 0 : 1);
-   if (randomization == 0) { delete mesh; }
+   if (randomization == 0)
+   {
+      delete mesh;
+      if (surface) { delete input_mesh; }
+   }
    else
    {
       // we will need mesh nodal space later
@@ -426,7 +444,7 @@ int main (int argc, char *argv[])
 
    // Find and Interpolate FE function values on the desired points.
    Vector interp_vals(pts_cnt*vec_dim);
-   FindPointsGSLIB finder(pmesh, 1.0, 1e-14);
+   FindPointsGSLIB finder(pmesh, 0.1, 1e-12);
 
    // output the AABB and OBB meshes setup by GSLIB
    Mesh *aabb_mesh = finder.GetBoundingBoxMesh(0);
@@ -564,7 +582,8 @@ int main (int argc, char *argv[])
                                                pts_cnt*num_procs)
            << "\nFound locally on ranks:  " << found_loc
            << "\nFound on other tasks: " << found_away
-           << "\nPoints on faces:      " << face_pts << " " << npt_total_face
+           << "\nPoints on faces:      " << face_pts << " out of "
+           << npt_total_face
            << "\nPoints not found:     " << not_found
            << "\nMax interp error:     " << max_error
            << "\nMax dist (of found):  " << max_dist
@@ -591,7 +610,11 @@ int main (int argc, char *argv[])
 
    delete fec;
 
-   if (randomization != 0) { delete mesh; }
+   if (randomization != 0)
+   {
+      delete mesh;
+      if (surface) { delete input_mesh; }
+   }
 
    return 0;
 }

@@ -795,20 +795,20 @@ void FindPointsGSLIB::findptssurf_setup_3(DEV_STRUCT &devs,
    }
 
    // build local map
-   BoundingBoxTensorGridMap bbmap(elmin, elmax, local_hash_size, nel, true);
-   devs.lh_min = bbmap.GetHashMin();
-   devs.lh_fac = bbmap.GetHashFac();
-   devs.lh_offset = bbmap.GetHashMap();
-   devs.lh_nx = bbmap.GetHashN()[0];
+   BBoxTensorGridMap bbmap(elmin, elmax, local_hash_size, nel, true);
+   devs.lh_min = bbmap.GetGridMin();
+   devs.lh_fac = bbmap.GetGridFac();
+   devs.lh_offset = bbmap.GetGridMap();
+   devs.lh_nx = bbmap.GetGridN()[0];
 
 #ifdef MFEM_USE_MPI
    // build global map
-   GlobalBoundingBoxTensorGridMap gbbmap(gsl_comm->c, elmin, elmax,
-                                         global_hash_size, nel, true);
-   devs.gh_min = gbbmap.GetHashMin();
-   devs.gh_fac = gbbmap.GetHashFac();
-   devs.gh_offset = gbbmap.GetHashMap();
-   devs.gh_nx = gbbmap.GetHashN()[0];
+   GlobalBBoxTensorGridMap gbbmap(gsl_comm->c, elmin, elmax,
+                                  global_hash_size, nel, true);
+   devs.gh_min = gbbmap.GetGridMin();
+   devs.gh_fac = gbbmap.GetGridFac();
+   devs.gh_offset = gbbmap.GetGridMap();
+   devs.gh_nx = gbbmap.GetGridN()[0];
 #endif
 }
 
@@ -835,20 +835,20 @@ void FindPointsGSLIB::findptsedge_setup_2(DEV_STRUCT &devs,
    }
 
    // build local map
-   BoundingBoxTensorGridMap bbmap(elmin, elmax, local_hash_size, nel, true);
-   devs.lh_min = bbmap.GetHashMin();
-   devs.lh_fac = bbmap.GetHashFac();
-   devs.lh_offset = bbmap.GetHashMap();
-   devs.lh_nx = bbmap.GetHashN()[0];
+   BBoxTensorGridMap bbmap(elmin, elmax, local_hash_size, nel, true);
+   devs.lh_min = bbmap.GetGridMin();
+   devs.lh_fac = bbmap.GetGridFac();
+   devs.lh_offset = bbmap.GetGridMap();
+   devs.lh_nx = bbmap.GetGridN()[0];
 
 #ifdef MFEM_USE_MPI
    // build global map
-   GlobalBoundingBoxTensorGridMap gbbmap(gsl_comm->c, elmin, elmax,
-                                         global_hash_size, nel, true);
-   devs.gh_min = gbbmap.GetHashMin();
-   devs.gh_fac = gbbmap.GetHashFac();
-   devs.gh_offset = gbbmap.GetHashMap();
-   devs.gh_nx = gbbmap.GetHashN()[0];
+   GlobalBBoxTensorGridMap gbbmap(gsl_comm->c, elmin, elmax,
+                                  global_hash_size, nel, true);
+   devs.gh_min = gbbmap.GetGridMin();
+   devs.gh_fac = gbbmap.GetGridFac();
+   devs.gh_offset = gbbmap.GetGridMap();
+   devs.gh_nx = gbbmap.GetGridN()[0];
 #endif
 }
 
@@ -1075,7 +1075,7 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
    gsl_dist.SetSize(points_cnt);
    gsl_newton.SetSize(points_cnt);
 
-   FindPointsSurfOnDevice(point_pos, point_pos_ordering);
+   FindPointsSurfExecute(point_pos, point_pos_ordering);
 
    // Set the element number and reference position to 0 for points not found
    for (int i=0; i<points_cnt; i++)
@@ -1878,8 +1878,8 @@ ulong hash_index_nd(const Vector &hash_min, const Vector &hash_fac,
    }
 }
 
-void FindPointsGSLIB::FindPointsSurfOnDevice(const Vector &point_pos,
-                                             int point_pos_ordering)
+void FindPointsGSLIB::FindPointsSurfExecute(const Vector &point_pos,
+                                            int point_pos_ordering)
 {
    if (!DEV.setup_device)
    {
@@ -2340,12 +2340,12 @@ void FindPointsGSLIB::SetupSurfDevice()
    MFEM_DEVICE_SYNC;
 }
 
-void FindPointsGSLIB::InterpolateSurfBase(const Vector &field_in,
-                                          Vector &field_out,
-                                          const int nel,
-                                          const int ncomp,
-                                          const int dof1Dsol,
-                                          const int gf_ordering)
+void FindPointsGSLIB::InterpolateSurfExecute(const Vector &field_in,
+                                             Vector &field_out,
+                                             const int nel,
+                                             const int ncomp,
+                                             const int dof1Dsol,
+                                             const int gf_ordering)
 {
    field_out.HostWrite();
    struct gslib::array src, outpt;
@@ -2553,14 +2553,14 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
                                           const int dof1dsol,
                                           const int ordering) {};
 
-void FindPointsGSLIB::FindPointsSurfOnDevice(const Vector &point_pos,
-                                             int point_pos_ordering) {};
+void FindPointsGSLIB::FindPointsSurfExecute(const Vector &point_pos,
+                                            int point_pos_ordering) {};
 void FindPointsGSLIB::SetupSurfDevice() {};
-void FindPointsGSLIB::InterpolateSurfBase(const Vector &field_in_evec,
-                                          Vector &field_out,
-                                          const int nel, const int ncomp,
-                                          const int dof1dsol,
-                                          const int ordering) {};
+void FindPointsGSLIB::InterpolateSurfExecute(const Vector &field_in_evec,
+                                             Vector &field_out,
+                                             const int nel, const int ncomp,
+                                             const int dof1dsol,
+                                             const int ordering) {};
 #endif
 
 void FindPointsGSLIB::FindPoints(Mesh &m, const Vector &point_pos,
@@ -3447,8 +3447,8 @@ void FindPointsGSLIB::InterpolateSurf(const GridFunction &field_in,
       field_out.SetSize(points_cnt*ncomp);
       field_out.UseDevice(device_mode);
 
-      InterpolateSurfBase(node_vals, field_out, NE_split_total, ncomp,
-                          DEV.dof1d_sol, field_in.FESpace()->GetOrdering());
+      InterpolateSurfExecute(node_vals, field_out, NE_split_total, ncomp,
+                             DEV.dof1d_sol, field_in.FESpace()->GetOrdering());
       return;
    }
    else
@@ -4368,11 +4368,16 @@ GSOPGSLIB::GSOPGSLIB(MPI_Comm comm_, Array<long long> &ids)
 
 GSOPGSLIB::~GSOPGSLIB()
 {
-   crystal_free(cr);
-   gslib_gs_free(gsl_data);
-   comm_free(gsl_comm);
-   delete gsl_comm;
-   delete cr;
+#ifdef MFEM_USE_MPI
+   if (!Mpi::IsFinalized())  // currently segfaults inside gslib otherwise
+#endif
+   {
+      crystal_free(cr);
+      comm_free(gsl_comm);
+      delete gsl_comm;
+      delete cr;
+      gslib_gs_free(gsl_data);
+   }
 }
 
 void GSOPGSLIB::UpdateIdentifiers(const Array<long long> &ids)
@@ -4417,87 +4422,23 @@ void GSOPGSLIB::GS(Vector &senddata, GSOp op)
    }
 }
 
-// Get Hash Range
-static void GetHashRange(const int d, const Array<int> &lh_n,
-                         const Vector &lh_fac,
-                         const Vector &lh_bnd_min, const Vector &lh_bnd_max,
-                         const double &xmin, const double &xmax,
-                         int &imin, int &imax)
-{
-   int i0 = floor( (xmin - lh_bnd_min[d]) * lh_fac[d] );
-   int i1 = ceil ( (xmax - lh_bnd_min[d]) * lh_fac[d] );
-   imin = i0 < 0 ? 0 : i0;
-   imax = i1 < lh_n[d] ? i1 : lh_n[d];
-   if (imax == imin) { ++imax; }
-}
-
-
-static void SetHashFac(Vector &lh_fac, const Array<int> &nx,
-                       const Vector &lh_bnd_min, const Vector &lh_bnd_max)
-{
-   int dim = lh_bnd_min.Size();
-   for (int d = 0; d < dim; d++)
-   {
-      lh_fac[d] = nx[d] / (lh_bnd_max[d] - lh_bnd_min[d]);
-   }
-}
-
-
-// Get HashCount
-static int GetHashCount(const Array<int> &lh_n, const Vector &lh_fac,
-                        const Vector &lh_bnd_min, const Vector &lh_bnd_max,
-                        const Vector &elmin, const Vector &elmax,
-                        Array<int> &elmin_h, Array<int> &elmax_h)
-{
-   int count = 0;
-   const int dim = lh_bnd_min.Size();
-   const int nel = elmin.Size()/dim;
-   elmin_h.SetSize(dim * nel);
-   elmax_h.SetSize(dim * nel);
-   for (int i = 0; i < nel; i++)
-   {
-      int count_el = 1;
-      for (int d = 0; d < dim; d++)
-      {
-         GetHashRange(d, lh_n, lh_fac, lh_bnd_min, lh_bnd_max,
-                      elmin[d*nel + i], elmax[d*nel + i],
-                      elmin_h[d*nel + i], elmax_h[d*nel + i]);
-         int imax = elmax_h[d*nel + i];
-         int imin = elmin_h[d*nel + i];
-         count_el *= (imax - imin);
-      }
-      count += count_el;
-   }
-   return count;
-}
-
 #if defined(MFEM_USE_MPI)
-void GlobalBoundingBoxTensorGridMap::SetupCrystal(const MPI_Comm &comm_)
+void GlobalBBoxTensorGridMap::SetupCrystal(const MPI_Comm &comm_)
 {
-   if (cr != nullptr)
-   {
-      crystal_free(cr);
-   }
-   if (gsl_comm != nullptr)
-   {
-      comm_free(gsl_comm);
-   }
 #if GSLIB_RELEASE_VERSION < 10009
    MFEM_ABORT("GSLIB version 1.0.9 or higher is required.");
 #endif
-
    gsl_comm = new gslib::comm;
    cr      = new gslib::crystal;
    comm_init(gsl_comm, comm_);
    gslib::crystal_init(cr, gsl_comm);
 }
 
-GlobalBoundingBoxTensorGridMap::GlobalBoundingBoxTensorGridMap(ParMesh &pmesh,
-                                                               int nx)
+GlobalBBoxTensorGridMap::GlobalBBoxTensorGridMap(ParMesh &pmesh, int nx)
 {
    GridFunction *nodes = pmesh.GetNodes();
    MFEM_VERIFY(nodes != nullptr,
-               "BoundingBoxTensorGridMap requires a mesh with nodes defined.");
+               "BBoxTensorGridMap requires a mesh with nodes defined.");
    const int nel = pmesh.GetNE();
    Vector elmin, elmax;
    int nref = 3;
@@ -4508,12 +4449,10 @@ GlobalBoundingBoxTensorGridMap::GlobalBoundingBoxTensorGridMap(ParMesh &pmesh,
    Setup(pmesh.GetComm(), elmin, elmax, nx_arr, nel);
 }
 
-GlobalBoundingBoxTensorGridMap::GlobalBoundingBoxTensorGridMap(
-   const MPI_Comm &comm,
-   Vector &elmin,
-   Vector &elmax,
-   int n, int nel,
-   bool by_max_size)
+GlobalBBoxTensorGridMap::GlobalBBoxTensorGridMap(const MPI_Comm &comm,
+                                                 Vector &elmin, Vector &elmax,
+                                                 int n, int nel,
+                                                 bool by_max_size)
 {
    dim = elmin.Size() / nel;
    Array<int> nx_arr(dim);
@@ -4531,17 +4470,16 @@ GlobalBoundingBoxTensorGridMap::GlobalBoundingBoxTensorGridMap(
    Setup(comm, elmin, elmax, nx_arr, nel);
 }
 
-GlobalBoundingBoxTensorGridMap::GlobalBoundingBoxTensorGridMap(
-   const MPI_Comm &comm,
-   Vector &elmin, Vector &elmax,
-   Array<int> &nx, int nel)
+GlobalBBoxTensorGridMap::GlobalBBoxTensorGridMap(const MPI_Comm &comm,
+                                                 Vector &elmin, Vector &elmax,
+                                                 Array<int> &nx, int nel)
 {
    Setup(comm, elmin, elmax, nx, nel);
 }
 
-void GlobalBoundingBoxTensorGridMap::Setup(const MPI_Comm &comm,
-                                           Vector &elmin, Vector &elmax,
-                                           Array<int> &nx, int nel)
+void GlobalBBoxTensorGridMap::Setup(const MPI_Comm &comm,
+                                    Vector &elmin, Vector &elmax,
+                                    Array<int> &nx, int nel)
 {
    SetupCrystal(comm);
    dim = elmin.Size() / nel;
@@ -4552,11 +4490,11 @@ void GlobalBoundingBoxTensorGridMap::Setup(const MPI_Comm &comm,
    gh_n = nx;
 
    MFEM_VERIFY(nx.Size() == dim,
-               "BoundingBoxTensorGridMap requires nx to have the same size as the number of dimensions.");
+               "BBoxTensorGridMap requires nx to have the same size as the number of dimensions.");
    for (int d = 0; d < nx.Size(); d++)
    {
       MFEM_VERIFY(nx[d] > 0,
-                  "BoundingBoxTensorGridMap requires positive number of divisions in each dimension.");
+                  "BBoxTensorGridMap requires positive number of divisions in each dimension.");
    }
    for (int d = 0; d < dim; d++)
    {
@@ -4578,7 +4516,7 @@ void GlobalBoundingBoxTensorGridMap::Setup(const MPI_Comm &comm,
    MPI_Comm_rank(MPI_COMM_WORLD, &rank); // Get rank of the current process
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
 
-   SetHashFac(gh_fac, gh_n, gh_bnd_min, gh_bnd_max);
+   BBoxTensorGridMap::SetGridFac(gh_fac, gh_n, gh_bnd_min, gh_bnd_max);
 
    int gh_nd = gh_n[0];
    for (int d = 1; d < dim; d++)
@@ -4586,21 +4524,22 @@ void GlobalBoundingBoxTensorGridMap::Setup(const MPI_Comm &comm,
       gh_nd *= gh_n[d];
    }
 
-   // Hash cell ranges for each element in each dimension
+   // Grid cell ranges for each element in each dimension
    Array<int> elmin_h, elmax_h;
-   int store_size = GetHashCount(gh_n, gh_fac,
-                                 gh_bnd_min, gh_bnd_max,
-                                 elmin, elmax,
-                                 elmin_h, elmax_h);
+   int store_size = BBoxTensorGridMap::GetGridCountAndRange(gh_n, gh_fac,
+                                                            gh_bnd_min,
+                                                            gh_bnd_max,
+                                                            elmin, elmax,
+                                                            elmin_h, elmax_h);
 
    Array<int> loc_idx_min(dim), loc_idx_max(dim), lh_n(dim);
    int loc_idx_tot = 1;
 
    for (int d = 0; d < dim; d++)
    {
-      GetHashRange(d, gh_n, gh_fac, gh_bnd_min, gh_bnd_max,
-                   gh_bnd_min_loc[d], gh_bnd_max_loc[d],
-                   loc_idx_min[d], loc_idx_max[d]);
+      BBoxTensorGridMap::GetGridRange(d, gh_n, gh_fac, gh_bnd_min, gh_bnd_max,
+                                      gh_bnd_min_loc[d], gh_bnd_max_loc[d],
+                                      loc_idx_min[d], loc_idx_max[d]);
       lh_n[d] = loc_idx_max[d] - loc_idx_min[d];
       loc_idx_tot *= lh_n[d];
    }
@@ -4694,8 +4633,7 @@ void GlobalBoundingBoxTensorGridMap::Setup(const MPI_Comm &comm,
    MPI_Barrier(comm);
 }
 
-int GlobalBoundingBoxTensorGridMap::GetGlobalHashCellFromPoint(
-   Vector &xyz) const
+int GlobalBBoxTensorGridMap::GetGlobalGridCellFromPoint(Vector &xyz) const
 {
    MFEM_ASSERT(xyz.Size() == dim,
                "Point must have the same dimension as the hash.");
@@ -4713,38 +4651,40 @@ int GlobalBoundingBoxTensorGridMap::GetGlobalHashCellFromPoint(
    return sum;
 }
 
-void GlobalBoundingBoxTensorGridMap::GlobalHashCellToProcAndLocalIndex(int i,
-                                                                       int &proc, int &idx) const
+void GlobalBBoxTensorGridMap::GlobalGridCellToProcAndLocalIndex(int i,
+                                                                int &proc,
+                                                                int &idx) const
 {
    proc = i % num_procs;
    idx = i / num_procs;
 }
 
-void GlobalBoundingBoxTensorGridMap::GetProcAndLocalIndexFromPoint(Vector &xyz,
-                                                                   int &proc, int &idx) const
+void GlobalBBoxTensorGridMap::GetProcAndLocalIndexFromPoint(Vector &xyz,
+                                                            int &proc, int &idx) const
 {
-   int cell = GetGlobalHashCellFromPoint(xyz);
+   int cell = GetGlobalGridCellFromPoint(xyz);
    if (cell < 0)
    {
       proc = -1;
       idx = -1;
-      return; // Point is outside the bounds of the hash
+      return; // Point is outside the bounds of the grid
    }
-   GlobalHashCellToProcAndLocalIndex(cell, proc, idx);
+   GlobalGridCellToProcAndLocalIndex(cell, proc, idx);
 }
 
-void GlobalBoundingBoxTensorGridMap::MapPointsToProcs(Vector &xyz, int ordering,
-                                                      std::map<int, std::vector<int>> &pt_idx_to_procs) const
+void GlobalBBoxTensorGridMap::MapPointsToProcs(Vector &xyz, int ordering,
+                                               std::map<int,
+                                               std::vector<int>> &pt_to_procs) const
 {
    MFEM_ASSERT(xyz.Size() % dim == 0,
-               "Point array size must be a multiple of the hash dimension.");
+               "Point array size must be a multiple of the grid dimension.");
    int npts = xyz.Size() / dim;
-   pt_idx_to_procs.clear();
+   pt_to_procs.clear();
 
    // struct to hold point info:
-   // info: holds local hash cell index when first sent.
+   // info: holds local grid cell index when first sent.
    //       holds proc when returned back.
-   // proc: holds the proc that the hash cell info is on.
+   // proc: holds the proc that the grid cell info is on.
    // loc_index: local index of the point in the input vector.
    struct ptInfo_s
    {
@@ -4763,14 +4703,14 @@ void GlobalBoundingBoxTensorGridMap::MapPointsToProcs(Vector &xyz, int ordering,
          pt_xyz(d) = ordering == 0 ? xyz(d*npts + i) : xyz(i*dim + d);
       }
 
-      int cell = GetGlobalHashCellFromPoint(pt_xyz);
+      int cell = GetGlobalGridCellFromPoint(pt_xyz);
       if (cell < 0)
       {
          ++pt;
          continue; // Point is outside the bounds of the hash
       }
       int proc, idx;
-      GlobalHashCellToProcAndLocalIndex(cell, proc, idx);
+      GlobalGridCellToProcAndLocalIndex(cell, proc, idx);
       pt->info = idx;
       pt->proc = proc;
       pt->loc_index = i;
@@ -4821,7 +4761,7 @@ void GlobalBoundingBoxTensorGridMap::MapPointsToProcs(Vector &xyz, int ordering,
    {
       int pt_idx = spt->loc_index;
       int proc = spt->info;
-      pt_idx_to_procs[pt_idx].push_back(proc);
+      pt_to_procs[pt_idx].push_back(proc);
       ++spt;
    }
 
@@ -4829,11 +4769,11 @@ void GlobalBoundingBoxTensorGridMap::MapPointsToProcs(Vector &xyz, int ordering,
    MPI_Barrier(MPI_COMM_WORLD);
 }
 
-Array<int> GlobalBoundingBoxTensorGridMap::MapCellToProcs(int l_idx) const
+Array<int> GlobalBBoxTensorGridMap::MapCellToProcs(int l_idx) const
 {
-   MFEM_ASSERT(l_idx >= 0 && l_idx < n_local_cells-1,
+   MFEM_ASSERT(l_idx >= 0 && l_idx < n_local_cells,
                "Access element " << l_idx << " of local hash with cells = "
-               << n_local_cells - 1);
+               << n_local_cells);
    int start = gh_offset[l_idx];
    int end = gh_offset[l_idx + 1];
    Array<int> elements(end - start);
@@ -4844,17 +4784,15 @@ Array<int> GlobalBoundingBoxTensorGridMap::MapCellToProcs(int l_idx) const
    return elements;
 }
 
-GlobalBoundingBoxTensorGridMap::~GlobalBoundingBoxTensorGridMap()
+GlobalBBoxTensorGridMap::~GlobalBBoxTensorGridMap()
 {
-   if (cr != nullptr)
+   if (!Mpi::IsFinalized())  // currently segfaults inside gslib otherwise
    {
+
       crystal_free(cr);
-      cr = nullptr;
-   }
-   if (gsl_comm != nullptr)
-   {
       comm_free(gsl_comm);
-      gsl_comm = nullptr;
+      delete gsl_comm;
+      delete cr;
    }
 }
 
