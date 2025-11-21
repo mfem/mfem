@@ -100,8 +100,6 @@ void fFun_hcurl(const Vector & x, Vector & f)
 int main(int argc, char *argv[])
 {
    StopWatch chrono;
-   Device device("cpu");
-   device.Print();
 
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/square-nurbs.mesh";
@@ -150,16 +148,17 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
-   args.PrintOptions(cout);
 
    if (penalty < 0)
    {
       penalty = 10*(order+1)*(order+1);
    }
 
-   // 2. Read the mesh from the given mesh file. We can handle triangular,
-   //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
-   //    the same code.
+   const char *device_config = "cpu";
+   Device device(device_config);
+   device.Print();
+
+   // 2. Read the mesh from the given mesh file.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    if (!mesh->NURBSext)
    {
@@ -255,11 +254,9 @@ int main(int argc, char *argv[])
    real_t err_u  = u.ComputeL2Error(*ucoeff, irs);
    real_t norm_u = ComputeLpNorm(2., *ucoeff, *mesh, irs);
 
-   // 6. Allocate memory (x, rhs) for the analytical solution and right hand
-   //    side.  Define the GridFunction u,p for the finite element solution and
-   //    linear forms fform and gform for the right hand side.  The data
-   //    allocated by x and rhs are passed as a reference to the grid functions
-   //    (u,p) and the linear forms (fform, gform).
+   // 6. Allocate memory rhs for the right hand side.
+   //    Define the linear form fform for the right hand side. The data
+   //    allocated by rhs is passed as a reference to the linear form fform.
    Vector rhs(space.GetVSize(),mt);
 
    LinearForm fform;
@@ -335,8 +332,7 @@ int main(int argc, char *argv[])
    cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
 
    // 11. Save the mesh and the solution. This output can be viewed later using
-   //     GLVis: "glvis -m ex5.mesh -g sol_u.gf" or "glvis -m ex5.mesh -g
-   //     sol_p.gf".
+   //     GLVis: "glvis -m vdif.mesh -g sol.gf"
    {
       ofstream mesh_ofs("vdif.mesh");
       mesh_ofs.precision(8);
