@@ -4536,8 +4536,6 @@ void GlobalBBoxTensorGridMap::Setup(const MPI_Comm &comm,
    MPI_Allreduce(MPI_IN_PLACE, gmap_bnd_max.GetData(), dim,
                  MFEM_MPI_REAL_T, MPI_MAX, comm);
 
-   int rank;
-   MPI_Comm_rank(comm, &rank); // Get rank of the current process
    MPI_Comm_size(comm, &num_procs);
 
    BBoxTensorGridMap::SetGridFac(gmap_fac, gmap_n, gmap_bnd_min, gmap_bnd_max);

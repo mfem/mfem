@@ -36,9 +36,23 @@ namespace mfem
  *  box boundary is exactly on a grid cell boundary, the element is assigned
  *  to the grid cell on the left/bottom side of the boundary in each dimension.
  *
+ *  The map itself is stored as a single array CSR structure where the offsets
+ *  and values are stored in the same array. For a tensor grid with a total of
+ *  N cells, the first N+1 entries store the offsets and the remaining entries
+ *  store the values.
+
+ *  For example:
+ *  Index:      0         1          ...  N             N+1        ...
+ *  Value:      [start_0] [start_1]  ... [Length(Map)] [elem_A] [elem_B] [elem_C]...
+ *              |          |                              ^                 ^
+ *              |          |______________________________|_________________|
+ *              |_________________________________________|
+ *
+ *  For grid cell index i, the element indices are stored in [start_i, start_{i+1}).
+ *  If the grid cell i does not intersect any elements, start_i = start_{i+1}.
+ *
  *  See Mittal et al., "General Field Evaluation in High-Order Meshes on GPUs".
  *  (2025). Computers & Fluids. for technical details.
- *
  */
 class BBoxTensorGridMap
 {

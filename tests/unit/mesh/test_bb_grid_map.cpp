@@ -17,7 +17,7 @@ using namespace mfem;
 
 TEST_CASE("BBoxTensorGridMap 2D", "[BBoxTensorGridMap]")
 {
-   // Create a 2x2 mesh on [0,1]x[0,1]
+   // Create a 2x2x2 mesh on [0,1]^D
    int dim  = GENERATE(2, 3);
    CAPTURE(dim);
    Mesh mesh;
