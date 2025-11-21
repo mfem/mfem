@@ -2674,6 +2674,7 @@ class VectorFEDivergenceIntegrator : public BilinearFormIntegrator
 {
 protected:
    Coefficient *Q;
+   real_t alpha;
 
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &trial_fes,
@@ -2695,8 +2696,8 @@ private:
    int dim, ne, dofs1D, L2dofs1D, quad1D;
 
 public:
-   VectorFEDivergenceIntegrator() { Q = NULL; }
-   VectorFEDivergenceIntegrator(Coefficient &q) { Q = &q; }
+   VectorFEDivergenceIntegrator(real_t a = 1.0) { alpha = a; Q = NULL; }
+   VectorFEDivergenceIntegrator(Coefficient &q, real_t a = 1.0) { alpha = a;  Q = &q; }
    void AssembleElementMatrix(const FiniteElement &el,
                               ElementTransformation &Trans,
                               DenseMatrix &elmat) override { }
@@ -3016,6 +3017,49 @@ public:
 
    const Coefficient *GetCoefficient() const { return Q; }
 };
+
+/** Integrator for $(Q u, v)$, where $Q$ is an optional coefficient (of type scalar,
+    vector (diagonal matrix), or matrix), trial function $u$ is in $H(curl$ or
+    $H(div)$, and test function $v$ is in $H(curl$, $H(div)$, or $v=(v_1,\dots,v_n)$, where
+    $v_i$ are in $H^1$. */
+class VectorFEDiffusionIntegrator: public BilinearFormIntegrator
+{
+private:
+   void Init(Coefficient *q, DiagonalMatrixCoefficient *dq, MatrixCoefficient *mq)
+   { Q = q; DQ = dq; MQ = mq; }
+
+#ifndef MFEM_THREAD_SAFE
+   Vector D;
+   DenseMatrix K;
+   DenseTensor test_dvshape;
+   DenseTensor trial_dvshape;
+#endif
+
+protected:
+   Coefficient *Q;
+   DiagonalMatrixCoefficient *DQ;
+   MatrixCoefficient *MQ;
+
+public:
+   VectorFEDiffusionIntegrator() { Init(NULL, NULL, NULL); }
+   VectorFEDiffusionIntegrator(Coefficient *q_) { Init(q_, NULL, NULL); }
+   VectorFEDiffusionIntegrator(Coefficient &q) { Init(&q, NULL, NULL); }
+   VectorFEDiffusionIntegrator(DiagonalMatrixCoefficient *dq_) { Init(NULL, dq_, NULL); }
+   VectorFEDiffusionIntegrator(DiagonalMatrixCoefficient &dq) { Init(NULL, &dq, NULL); }
+   VectorFEDiffusionIntegrator(MatrixCoefficient *mq_) { Init(NULL, NULL, mq_); }
+   VectorFEDiffusionIntegrator(MatrixCoefficient &mq) { Init(NULL, NULL, &mq); }
+
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat);
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+
+   const Coefficient *GetCoefficient() const { return Q; }
+};
+
 
 /** Integrator for $(Q \nabla \cdot u, v)$ where $u=(u_1,\cdots,u_n)$ and all $u_i$ are in the same
     scalar FE space; $v$ is also in a (different) scalar FE space.  */
@@ -3499,7 +3543,8 @@ public:
     - $\sigma = +1$, $\kappa > 0$: non-symmetric interior penalty (NIPG) method,
     - $\sigma = +1$, $\kappa = 0$: the method of Baumann and Oden.
 
-    \todo Clarify used notation. */
+    \todo Clarify used notation
+    \todo Please add clarification also to VectorFEDGDiffusionIntegrator */
 class DGDiffusionIntegrator : public BilinearFormIntegrator
 {
 protected:
@@ -3510,7 +3555,6 @@ protected:
    // these are not thread-safe!
    Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
    DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
-
 
    // PA extension
    Vector pa_data; // (Q, h, dot(n,J)|el0, dot(n,J)|el1)
@@ -3567,6 +3611,61 @@ public:
 private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);
 };
+
+/** Integrator for the DG form:
+    $$
+        - \langle \{(Q \nabla u) \cdot n\}, [v] \rangle + \sigma \langle [u], \{(Q \nabla v) \cdot n \} \rangle
+        + \kappa \langle \{h^{-1} Q\} [u], [v] \rangle
+    $$
+    where $Q$ is a scalar or matrix diffusion coefficient and $u$, $v$ are the trial
+    and test spaces, respectively.  These spaces are defined using vector-valued
+    finite elements. The parameters $\sigma$ and $\kappa$ determine the
+    DG method to be used (when this integrator is added to the "broken"
+    DiffusionIntegrator):
+    - $\sigma = -1$, $\kappa \geq \kappa_0$: symm. interior penalty (IP or SIPG) method,
+    - $\sigma = +1$, $\kappa > 0$: non-symmetric interior penalty (NIPG) method,
+    - $\sigma = +1$, $\kappa = 0$: the method of Baumann and Oden.
+
+    This class currently only works when used a weak boundary condition.
+    The DG case, when defining the penalty on the interior faces, requires either:
+     - Vector-valued finite elements NURBS defined on multiple patches.
+     - Standard Vector-valued finite elements to also have gradients.
+    */
+class VectorFEDGDiffusionIntegrator : public BilinearFormIntegrator
+{
+protected:
+   Coefficient *Q = nullptr;
+   MatrixCoefficient *MQ = nullptr;
+   real_t sigma, kappa;
+   int dim;
+
+   // these are not thread-safe!
+   Vector nor, nh, ni;
+   DenseMatrix jmat, mq;
+
+   // these are not thread-safe!
+   DenseMatrix vshape1, vshape2, dvshape1dn, dvshape2dn;
+   DenseTensor dvshape1, dvshape2;
+
+public:
+   VectorFEDGDiffusionIntegrator(const real_t s, const real_t k);
+   VectorFEDGDiffusionIntegrator(Coefficient &q, const real_t s, const real_t k);
+   VectorFEDGDiffusionIntegrator(MatrixCoefficient &q, const real_t s,
+                                 const real_t k);
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   void AssembleFaceMatrix(const FiniteElement &el1, const FiniteElement &el2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
+
+   bool RequiresFaceNormalDerivatives() const override { return true; }
+
+   const IntegrationRule &GetRule(int order, FaceElementTransformations &T);
+
+   const IntegrationRule &GetRule(int order, Geometry::Type geom);
+
+   real_t GetPenaltyParameter() const { return kappa; }
+};
+
 
 /** Integrator for the "BR2" diffusion stabilization term
     $$
@@ -3806,14 +3905,25 @@ class NormalTraceIntegrator : public BilinearFormIntegrator
 private:
    Vector face_shape, normal, shape_n;
    DenseMatrix shape;
+   real_t alpha;
 
 public:
-   NormalTraceIntegrator() { }
+   NormalTraceIntegrator(real_t a = 1.0) : alpha(a) { }
    void AssembleTraceFaceMatrix(int ielem,
                                 const FiniteElement &trial_face_fe,
                                 const FiniteElement &test_fe,
                                 FaceElementTransformations &Trans,
                                 DenseMatrix &elmat) override;
+
+   void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
+                           const FiniteElement &test_fe1,
+                           const FiniteElement &test_fe2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override
+   {
+      AssembleTraceFaceMatrix(Trans.Elem1->ElementNo,
+                              trial_face_fe, test_fe1, Trans,elmat);
+   }
 };
 
 
