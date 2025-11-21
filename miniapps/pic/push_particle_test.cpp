@@ -181,6 +181,9 @@ void InitializeChargedParticles(ParticleSet &particles, const Vector &pos_min,
                                 const Vector &pos_max, const Vector &x_init, const Vector &p_init, real_t m,
                                 real_t q);
 
+// Update the density grid function from the particles.
+void UpdateDensityGridFunction(ParticleSet &particles, ParGridFunction &rho_gf);
+
 int main(int argc, char *argv[])
 {
    Mpi::Init(argc, argv);
@@ -309,6 +312,10 @@ int main(int argc, char *argv[])
                << mesh << *E_gf << flush;
    }
 
+   // 6. Prepare an empty rho_gf for later use
+   ParGridFunction rho_gf(&sca_fespace);
+   rho_gf = 0.0;
+
    Ordering::Type ordering_type = ctx.ordering == 0 ? Ordering::byNODES : Ordering::byVDIM;
 
    // Initialize Boris
@@ -378,6 +385,7 @@ int main(int argc, char *argv[])
       {
          // Redistribute
          boris.Redistribute(ctx.redist_mesh);
+         UpdateDensityGridFunction(boris.GetParticles(), rho_gf);
       }
    }
 }
@@ -642,4 +650,154 @@ void InitializeChargedParticles(ParticleSet &charged_particles,
       M(i) = m;
       Q(i) = q;
    }
+}
+
+// rho_gf: FE representation of    rho(x) = sum_p q_p δ(x - x_p)
+void UpdateDensityGridFunction(ParticleSet &particles, ParGridFunction &rho_gf)
+{
+   // Zero out the density grid function
+   rho_gf = 0.0;
+
+   // Finite element space / mesh
+   ParFiniteElementSpace *pfes = rho_gf.ParFESpace();
+   ParMesh *pmesh = pfes->GetParMesh();
+   const int dim = pmesh->Dimension();
+
+   // Particle data
+   MultiVector &X = particles.Coords();             // coordinates
+   MultiVector &Q = particles.Field(Boris::CHARGE); // charges (assume scalar)
+
+   // Number of particles on this rank
+   const int npt = X.GetNumVectors();
+   MFEM_VERIFY(X.GetVDim() == dim, "Unexpected particle coordinate layout.");
+
+   // ------------------------------------------------------------------------
+   // 1) Build the list of physical coordinates in byVDIM ordering: (XYZ, XYZ, ...)
+   // ------------------------------------------------------------------------
+   Vector point_pos(X.GetData(), dim * npt);
+   // ------------------------------------------------------------------------
+   // 2) Locate the particles in the mesh with FindPointsGSLIB
+   // ------------------------------------------------------------------------
+   FindPointsGSLIB finder(pmesh->GetComm());
+   finder.Setup(*pmesh);
+
+   // point_pos is ordered by nodes: (XYZ, XYZ, ...)
+   finder.FindPoints(point_pos, Ordering::byVDIM);
+
+   // Info for each input point (still in original order)
+   Array<unsigned int> code = finder.GetCode(); // 0: inside, 1: boundary, 2: not found
+   Array<unsigned int> proc = finder.GetProc(); // owning MPI rank of the element
+   Array<unsigned int> elem = finder.GetElem(); // element id (local to owning rank)
+   Vector rref = finder.GetReferencePosition(); // ref coords in [0,1], ordered by vdim
+
+   // ------------------------------------------------------------------------
+   // 3) Deposit q_p onto basis functions of containing element
+   //      rho_h = sum_p q_p * Σ_i φ_i(x_p) e_i
+   // ------------------------------------------------------------------------
+   int myid;
+   MPI_Comm_rank(pmesh->GetComm(), &myid);
+
+   Array<int> dofs;
+   const int ndofs = pfes->GetNDofs();
+
+   // We'll update the local DOF vector directly
+   Vector &rho = rho_gf; // ParGridFunction inherits Vector interface
+
+   for (int p = 0; p < npt; ++p)
+   {
+      // Skip particles not successfully found
+      if (code[p] != 0)
+      {
+         cout << "Skipping particle " << p << " with code " << code[p] << endl;
+         continue;
+      }
+
+      // Raise error if particle is not on the current rank
+      if ((int)proc[p] != myid)
+      {
+         // raise error
+         MFEM_ABORT("Particle " << p << " found in element owned by rank "
+                                << proc[p] << " but current rank is " << myid << "." << endl
+                                << "You must call redistribute everytime before updating the density grid function.");
+         continue;
+      }
+
+      const int e = elem[p];
+
+      // Reference coordinates for this particle
+      IntegrationPoint ip;
+      if (dim == 1)
+      {
+         ip.x = rref(p);
+      }
+      else if (dim == 2)
+      {
+         ip.Set2(rref(p + 0 * npt), rref(p + 1 * npt));
+      }
+      else // dim == 3
+      {
+         ip.Set3(rref(p + 0 * npt), rref(p + 1 * npt), rref(p + 2 * npt));
+      }
+      ElementTransformation *Tr = pmesh->GetElementTransformation(e);
+      Tr->SetIntPoint(&ip);
+
+      const FiniteElement &fe = *pfes->GetFE(e);
+
+      // Shape functions at the particle position
+      const int ldofs = fe.GetDof();
+      Vector shape(ldofs);
+      fe.CalcShape(ip, shape);
+
+      // Local element DOFs for rho_gf
+      pfes->GetElementDofs(e, dofs);
+
+      // Charge of this particle (assuming scalar charge per particle)
+      const double q_p = Q(0, p); // adapt if Q stores differently
+
+      // Add q_p * φ_i(x_p) to the DOFs
+      for (int i = 0; i < ldofs; ++i)
+      {
+         const int di = dofs[i];
+         MFEM_ASSERT(di >= 0 && di < ndofs, "DOF index out of range.");
+         rho(di) += q_p * shape(i);
+      }
+   }
+
+   // ------------------------------------------------------------------------
+   // 4) Make sure shared DOFs are synchronized (sum contributions across ranks)
+   // ------------------------------------------------------------------------
+   rho_gf.SyncAliasMemory(rho_gf); // keep device/host in sync if needed
+
+   // visualization for debugging
+   if (true)
+   {
+      static socketstream sol_sock; // persistent across calls
+      static bool init = false;
+
+      int num_procs = Mpi::WorldSize();
+      int myid = Mpi::WorldRank();
+      char vishost[] = "localhost";
+      int visport = 19916;
+
+      if (!init)
+      {
+         sol_sock.open(vishost, visport);
+         if (!sol_sock)
+         {
+            mfem::out << "Unable to connect to GLVis server at "
+                      << vishost << ":" << visport << std::endl;
+            return;
+         }
+
+         // Optional: window/keys only once
+         // sol_sock << "window 800 800\n";
+         init = true;
+      }
+
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock.precision(8);
+      sol_sock << "solution\n"
+               << *pmesh << rho_gf << std::flush;
+   }
+   cin.get();
 }
