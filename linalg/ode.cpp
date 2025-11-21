@@ -117,10 +117,11 @@ std::unique_ptr<ODESolver> ODESolver::SelectIMEX(const int ode_solver_type)
    using ode_ptr = std::unique_ptr<ODESolver>;
    switch (ode_solver_type)
    {
-      case 55: return ode_ptr(new IMEXExpImplEuler);
-      case 56: return ode_ptr(new IMEXRK2);
-      case 57: return ode_ptr(new IMEXRK2_3StageExplicit);
-      case 58: return ode_ptr(new IMEX_DIRK_RK3);
+      // L-stable IMEX methods
+      case 61: return ode_ptr(new IMEXExpImplEuler);
+      case 62: return ode_ptr(new IMEXRK2);
+      case 63: return ode_ptr(new IMEXRK2_3StageExplicit);
+      case 64: return ode_ptr(new IMEX_DIRK_RK3);
 
       default: MFEM_ABORT("Unknown ODE solver type: " << ode_solver_type );
    }
