@@ -85,9 +85,9 @@ groups_serial=(
    "DPG miniapps:"
    "miniapps/dpg"
    "{acoustics,convection-diffusion,diffusion,maxwell}.cpp"'
-'"fluids"
-   "Fluids miniapps:"
-   "miniapps/fluids"
+'"isf"
+   "Schrodinger flow miniapps:"
+   "miniapps/fluids/schrodinger_flow"
    "schrodinger_flow.cpp"'
 '"gslib"
    "GSLIB miniapps:"
@@ -170,9 +170,9 @@ groups_parallel=(
    "miniapps/electromagnetics"
    "joule.cpp"'
 #   "{joule,maxwell,tesla,volta}.cpp"' # todo: multiline sample runs
-'"fluids"
-   "Fluids miniapps:"
-   "miniapps/fluids"
+'"isf"
+   "Schrodinger flow miniapps:"
+   "miniapps/fluids/schrodinger_flow"
    "pschrodinger_flow.cpp"'
 '"adjoint"
    "Adjoint miniapps:"
@@ -289,8 +289,8 @@ groups_all=(
    "miniapps/electromagnetics"
    "joule.cpp"'
 #   "{joule,maxwell,tesla,volta}.cpp"' # todo: multiline sample runs
-'"schrodinger_flow"
-   "Fluids miniapps:"
+'"isf"
+   "Schrodinger flow miniapps:"
    "miniapps/fluids/schrodinger_flow"
    "{,p}schrodinger_flow.cpp"'
 '"adjoint"
