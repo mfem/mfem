@@ -258,3 +258,8 @@ endif()
 if(MFEM_USE_MOONOLITH)
   add_subdirectory(moonolith)
 endif()
+
+# Include the examples/cudss directory if CUDSS is enabled.
+if (MFEM_USE_CUDSS)
+  add_subdirectory(cudss)
+endif()
