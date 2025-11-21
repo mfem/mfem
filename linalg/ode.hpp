@@ -950,7 +950,7 @@ public:
 
 };
 
-
+/// Forward-backward Euler method
 class IMEXExpImplEuler : public ODESolver
 {
 private:
