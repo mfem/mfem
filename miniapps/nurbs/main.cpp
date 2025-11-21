@@ -25,32 +25,32 @@ int main(int argc, char *argv[])
    // mesh.GetEdgeToUniqueKnotvector(edge_to_ukv, ukv_to_rpkv);
 
 
-   // // CheckKVDirection()
-   // cout << endl << "CheckKVDirection()" << endl;
-   // Array<int> patchvert, edges, orient, edgevert;
-   // Mesh patchTopo = mesh.NURBSext->GetPatchTopology();
-   // int NP = patchTopo.GetNE();
-   // for (int p = 0; p < NP; p++)
-   // {
-   //    patchTopo.GetElementVertices(p, patchvert);
-   //    patchTopo.GetElementEdges(p, edges, orient);
+   // CheckKVDirection()
+   cout << endl << "CheckKVDirection()" << endl;
+   Array<int> patchvert, edges, orient, edgevert;
+   Mesh patchTopo = mesh.NURBSext->GetPatchTopology();
+   int NP = patchTopo.GetNE();
+   for (int p = 0; p < NP; p++)
+   {
+      patchTopo.GetElementVertices(p, patchvert);
+      patchTopo.GetElementEdges(p, edges, orient);
 
-   //    cout << "Patch " << p << endl;
-   //    cout << "pv: " << patchvert[0] << ", " << patchvert[1] << ", " << patchvert[2] << ", " << patchvert[3] << endl;
+      cout << "Patch " << p << endl;
+      cout << "pv: " << patchvert[0] << ", " << patchvert[1] << ", " << patchvert[2] << ", " << patchvert[3] << endl;
 
-   //    cout << "i, e, ev0, ev1, pv[eev0], pv[eev1], oe" << endl;
-   //    for (int i = 0; i < edges.Size(); i++)
-   //    {
-   //       const int edge = edges[i];
-   //       patchTopo.GetEdgeVertices(edge, edgevert); // edge -> vert
-   //       const int *eev = patchTopo.GetElement(p)->GetEdgeVertices(i); // el -> edge -> vert
+      cout << "i, e, ev0, ev1, pv[eev0], pv[eev1], oe" << endl;
+      for (int i = 0; i < edges.Size(); i++)
+      {
+         const int edge = edges[i];
+         patchTopo.GetEdgeVertices(edge, edgevert); // edge -> vert
+         const int *eev = patchTopo.GetElement(p)->GetEdgeVertices(i); // el -> edge -> vert
 
-   //       cout << i << ", " << edges[i] << ", "
-   //            << edgevert[0] << ", " << edgevert[1] << ", "
-   //            << patchvert[eev[0]] << ", " << patchvert[eev[1]] << ", "
-   //            << orient[i] << endl;
-   //    }
-   // }
+         cout << i << ", " << edges[i] << ", "
+              << edgevert[0] << ", " << edgevert[1] << ", "
+              << patchvert[eev[0]] << ", " << patchvert[eev[1]] << ", "
+              << orient[i] << endl;
+      }
+   }
 
 
    // Check edge 7 specifically

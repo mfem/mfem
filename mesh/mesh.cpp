@@ -6546,29 +6546,6 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_ukv)
    mfem::out << "edge_to_ukv" << std::endl;
    edge_to_ukv.Print(mfem::out, 80);
 
-   // mfem::out << "ukv_to_rpkv" << std::endl;
-   // ukv_to_rpkv.Print(mfem::out, 80);
-
-   // JGL - debugging; lets look at orientations
-   // el_to_edge = new Table;
-   // NumOfEdges = GetElementToEdgeTable(*el_to_edge);
-   // mfem::out << "Table (el_to_edge)" << std::endl;
-   // el_to_edge->Print(mfem::out);
-
-   // Array<int> v(2); // vertices of an edge
-   // const int NP = NumOfElements;
-   // Array<int> edges, oedges;
-   // for (int p = 0; p < NP; p++)
-   // {
-   //    GetElementEdges(p, edges, oedges);
-   //    for (int i = 0; i < edges.Size(); i++)
-   //    {
-   //       const int edge = edges[i];
-   //       GetEdgeVertices(edge, v);
-   //       mfem::out << "edge " << edge << ": " << v[0] << ", " << v[1] << ", " << oedges[i] << std::endl;
-   //    }
-   // }
-
 }
 
 void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
@@ -6691,37 +6668,45 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
    mfem::out << "edge_to_pkv" << std::endl;
    edge_to_pkv.Print(mfem::out, 80);
 
-   // JGL - proper signs? Corrections
 
+}
 
-   const int Ncorrections = 5;
-   // Array<int> flips(NumOfEdges);
+void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv, int max_flips)
+{
+   // Sign convention
+   auto sign = [](int i) { return -1 - i; };
+   auto unsign = [](int i) { return (i < 0) ? -1 - i : i; };
+
+   max_flips = (max_flips < 1) ? NumOfEdges : max_flips;
+
+   Array<int> flips(NumOfEdges) = 0;
    Array<int> ukvs((dim==2) ? 4 : 8);
-
-   int eflip = notset;
-   for (int n = 0; n < Ncorrections; n++)
+   Array<int> e, oe;
+   int eflip; // edge to flip
+   for (int n = 0; n < max_flips; n++)
    {
-      int lastflip = eflip;
-
       for (int p = 0; p < NP; p++)
       {
-         GetElementEdges(p, edges, oedges);
+         // edges and orientations for this patch
+         GetElementEdges(p, e, oe);
 
          mfem::out << "p = " << p << std::endl;
-         edges.Print(mfem::out);
-         oedges.Print(mfem::out);
+         e.Print(mfem::out);
+         oe.Print(mfem::out);
          mfem::out << std::endl;
-         for (int i = 0; i < edges.Size(); i++)
+         // Get the signed unique knot vector index
+         for (int i = 0; i < e.Size(); i++)
          {
-            ukvs[i] = edge_to_ukv[edges[i]];
-            ukvs[i] = (oedges[i] < 0) ? sign(ukvs[i]) : ukvs[i];
+            ukvs[i] = edge_to_ukv[e[i]];
+            ukvs[i] = (oe[i] < 0) ? sign(ukvs[i]) : ukvs[i];
          }
 
          if (ukvs[0] != sign(ukvs[2]))
          {
             mfem::out << "0!=sign(2) " << ukvs[0] << "!=" << sign(ukvs[2]) << std::endl;
             // flips[edges[2]] = 1;
-            eflip = (eflip = edges[0]) ? edges[2] : edges[0];
+            eflip = (eflip = e[0]) ? e[2] : e[0];
+            eflip = std::min(flips)
             edge_to_ukv[eflip] = sign(edge_to_ukv[eflip]);
             break; // do only one flip at a time
          }
@@ -6729,188 +6714,30 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
          {
             mfem::out << "1!=sign(3) " << ukvs[1] << "!=" << sign(ukvs[3]) << std::endl;
             // flips[edges[3]] = 1;
-            eflip = (eflip = edges[1]) ? edges[3] : edges[1];
+            eflip = (eflip = e[1]) ? e[3] : e[1];
             edge_to_ukv[eflip] = sign(edge_to_ukv[eflip]);
             break;
          }
       }
       if (eflip == lastflip) {break;}
-      // mfem::out << "flips = " << std::endl;
-      // flips.Print(mfem::out);
-      // if (flips.Sum()==0) { break;}
 
-      // for (int e=0; e<NumOfEdges; e++)
+
+      mfem::out << "flips = " << std::endl;
+      flips.Print(mfem::out);
+      if (flips.Sum()==0) { break;}
+
+      // for (int i=0; i<NumOfEdges; i++)
       // {
-      //    if (flips[e] > 0)
+      //    if (flips[i] > 0)
       //    {
-      //       mfem::out << "flipping edge " << e << std::endl;
+      //       mfem::out << "flipping edge " << i << std::endl;
       //       edge_to_ukv[e] = sign(edge_to_ukv[e]);
       //    }
       // }
       mfem::out << std::endl << std::endl;
 
    }
-
-
-
 }
-
-
-
-// void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
-//                                      Array<int> &ukv_to_rpkv)
-// {
-//    const int dim = Dimension();  // topological (not physical) dimension
-//    const int NP = NumOfElements; // number of patches
-//    const int NPKV = NP * dim;    // number of patch knotvectors
-//    constexpr int notset = -9999999;
-//    // Sign convention
-//    auto sign = [](int i) { return -1 - i; };
-//    auto unsign = [](int i) { return (i < 0) ? -1 - i : i; };
-//    // Edge index -> dimension convention
-//    auto edge_to_dim = [](int i) { return (i < 8) ? ((i & 1) ? 1 : 0) : 2; };
-
-//    Array<int> v(2); // vertices of an edge
-
-//    // 1D case is special: edge index = signed element index
-//    // ukv_to_rpkv = Identity
-//    if (dim == 1)
-//    {
-//       edge_to_ukv.SetSize(NP);
-//       ukv_to_rpkv.SetSize(NP);
-//       for (int i = 0; i < NP; i++)
-//       {
-//          GetElementVertices(i, v);
-//          // Sign is based on the edge's vertex indices
-//          edge_to_ukv[i] = (v[1] > v[0]) ? i : sign(i);
-//          ukv_to_rpkv[i] = i;
-//       }
-//       return;
-//    }
-
-//    // Local (per-patch) variables
-//    Array<int> edges, oedges;
-//    // Edge index -> signed patch knotvector index (p*dim + d)
-//    Array<int> edge_to_pkv(NumOfEdges);
-//    edge_to_pkv.SetSize(NumOfEdges);
-//    edge_to_pkv = notset;
-
-//    // Initialize pkv_map as identity - this is the storage for the
-//    // disjoint-set/union-find algorithm which will later be used
-//    // to get the map pkv_to_rpkv
-//    Array<int> pkv_map(NPKV);
-//    for (int i = 0; i < NPKV; i++)
-//    {
-//       pkv_map[i] = i;
-//    }
-//    std::function<int(int)> get_root;
-//    get_root = [&pkv_map, &get_root](int i) -> int
-//    {
-//       return (pkv_map[i] == i) ? i : get_root(pkv_map[i]);
-//    };
-//    auto unite = [&pkv_map, &get_root](int i, int j)
-//    {
-//       const int ri = get_root(i);
-//       const int rj = get_root(j);
-//       if (ri == rj) { return; }
-//       // keep the lowest index
-//       (ri < rj) ? pkv_map[rj] = ri : pkv_map[ri] = rj;
-//    };
-
-//    // Get edge_to_pkv (one edge can link to multiple pkv) and pkv_map
-//    for (int p = 0; p < NP; p++)
-//    {
-//       GetElementEdges(p, edges, oedges);
-
-//       // First loop checks for if edge has already been set
-//       for (int i = 0; i < edges.Size(); i++)
-//       {
-//          const int edge = edges[i];
-//          const int d = edge_to_dim(i);
-//          const int pkv = p*dim+d;
-
-//          // We've set this edge already - link this index to it
-//          if (edge_to_pkv[edge] != notset)
-//          {
-//             const int pkv_other = unsign(edge_to_pkv[edge]);
-//             unite(pkv, pkv_other);
-//          }
-//          else
-//          {
-//             GetEdgeVertices(edge, v);
-//             // Sign is based on the edge's vertex indices
-//             edge_to_pkv[edge] = (v[1] > v[0]) ? pkv : sign(pkv);
-//          }
-//       }
-//    }
-
-//    // Construct the pkv_to_rpkv map by finding the lowest/root index
-//    Array<int> pkv_to_rpkv(NPKV);
-//    ukv_to_rpkv.SetSize(NPKV);
-//    for (int i = 0; i < NPKV; i++)
-//    {
-//       pkv_to_rpkv[i] = get_root(pkv_map[i]);
-//       ukv_to_rpkv[i] = pkv_to_rpkv[i];
-//    }
-//    ukv_to_rpkv.Sort(); // ukv is just a renumbering of rpkv
-//    ukv_to_rpkv.Unique();
-
-//    // Create inverse map
-//    std::map<int, int> rpkv_to_ukv;
-//    for (int i = 0; i < ukv_to_rpkv.Size(); i++)
-//    {
-//       rpkv_to_ukv[ukv_to_rpkv[i]] = i;
-//    }
-
-//    // Get edge_to_ukv = edge_to_pkv -> pkv_to_rpkv -> rpkv_to_ukv
-//    edge_to_ukv.SetSize(NumOfEdges);
-//    for (int i = 0; i < NumOfEdges; i++)
-//    {
-//       const int pkv = unsign(edge_to_pkv[i]);
-//       const int rpkv = pkv_to_rpkv[pkv];
-//       const int ukv = rpkv_to_ukv[rpkv];
-//       edge_to_ukv[i] = (edge_to_pkv[i] < 0) ? sign(ukv) : ukv;
-//    }
-
-//    // // JGL - debugging
-//    // mfem::out << "edge_to_ukv" << std::endl;
-//    // edge_to_ukv.Print(mfem::out, 80);
-
-//    // mfem::out << "pkv_to_rpkv" << std::endl;
-//    // pkv_to_rpkv.Print(mfem::out, 80);
-
-//    // mfem::out << "pkv_map" << std::endl;
-//    // pkv_map.Print(mfem::out, 80);
-
-//    // mfem::out << "ukv_to_rpkv" << std::endl;
-//    // ukv_to_rpkv.Print(mfem::out, 80);
-
-//    // mfem::out << "edge_to_pkv" << std::endl;
-//    // edge_to_pkv.Print(mfem::out, 80);
-
-//    // // JGL - debugging; lets look at orientations
-//    // el_to_edge = new Table;
-//    // NumOfEdges = GetElementToEdgeTable(*el_to_edge);
-//    // mfem::out << "Table (el_to_edge)" << std::endl;
-//    // el_to_edge->Print(mfem::out);
-//    // // GenerateFaces(); // 'Faces' in 2D refers to the edges
-
-
-//    // for (int p = 0; p < NP; p++)
-//    // {
-//    //    GetElementEdges(p, edges, oedges);
-//    //    for (int i = 0; i < edges.Size(); i++)
-//    //    {
-//    //       const int edge = edges[i];
-//    //       const int d = edge_to_dim(i);
-//    //       const int pkv = p*dim+d;
-//    //       GetEdgeVertices(edge, v);
-//    //       mfem::out << "edge " << edge << ": " << v[0] << ", " << v[1] << ", " << oedges[i] << std::endl;
-//    //    }
-//    // }
-
-
-// }
 
 void Mesh::LoadNonconformingPatchTopo(std::istream &input,
                                       Array<int> &edge_to_ukv)

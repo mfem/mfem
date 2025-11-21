@@ -852,6 +852,8 @@ public:
    void GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
                                   Array<int> &ukv_to_rpkv);
 
+   void CorrectPatchTopoOrientations(Array<int> &edge_to_ukv, int max_flips=-1);
+
    /// @}
 
    /** @anchor mfem_Mesh_named_ctors @name Named mesh constructors.
