@@ -4439,7 +4439,7 @@ GlobalBBoxTensorGridMap::GlobalBBoxTensorGridMap(ParMesh &pmesh, int nx)
 {
    GridFunction *nodes = pmesh.GetNodes();
    const int nel = pmesh.GetNE();
-   const int dim = pmesh.SpaceDimension();
+   dim = pmesh.SpaceDimension();
    Vector elmin(nel*dim), elmax(nel*dim);
    elmin = std::numeric_limits<real_t>::max();
    elmax = -std::numeric_limits<real_t>::max();
@@ -4537,8 +4537,8 @@ void GlobalBBoxTensorGridMap::Setup(const MPI_Comm &comm,
                  MFEM_MPI_REAL_T, MPI_MAX, comm);
 
    int rank;
-   MPI_Comm_rank(MPI_COMM_WORLD, &rank); // Get rank of the current process
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+   MPI_Comm_rank(comm, &rank); // Get rank of the current process
+   MPI_Comm_size(comm, &num_procs);
 
    BBoxTensorGridMap::SetGridFac(gmap_fac, gmap_n, gmap_bnd_min, gmap_bnd_max);
 

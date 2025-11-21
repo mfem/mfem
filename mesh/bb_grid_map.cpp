@@ -27,7 +27,7 @@ BBoxTensorGridMap::BBoxTensorGridMap(Mesh &mesh, int nx)
 {
    GridFunction *nodes = mesh.GetNodes();
    const int nel = mesh.GetNE();
-   const int dim = mesh.SpaceDimension();
+   dim = mesh.SpaceDimension();
    Vector elmin(nel*dim), elmax(nel*dim);
    elmin = numeric_limits<real_t>::max();
    elmax = -numeric_limits<real_t>::max();
