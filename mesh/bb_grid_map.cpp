@@ -211,9 +211,9 @@ void BBoxTensorGridMap::Setup(Vector &elmin, Vector &elmax,
    }
 }
 
-Array<int> BBoxTensorGridMap::GridCellToElements(unsigned int i) const
+Array<int> BBoxTensorGridMap::GridCellToElements(int i) const
 {
-   MFEM_ASSERT(i >= 0 && i < lmap_nxd,
+   MFEM_ASSERT(i >= 0 && (unsigned int)i < lmap_nxd,
                "Access element " << i << " of local grid with cells = "
                << lmap_nxd);
    int start = lgrid_map[i];
