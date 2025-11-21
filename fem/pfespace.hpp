@@ -483,6 +483,8 @@ public:
    const FiniteElement *GetFaceNbrFaceFE(int i) const;
    const Array<HYPRE_BigInt> &GetFaceNbrGlobalDofMapArray() { return face_nbr_glob_dof_map; }
    const HYPRE_BigInt *GetFaceNbrGlobalDofMap() { return face_nbr_glob_dof_map; }
+   const Array<HYPRE_BigInt> &GetFaceNbrGlobalDofMapArray() const
+   { return face_nbr_glob_dof_map; }
    ElementTransformation *GetFaceNbrElementTransformation(int i) const
    { return pmesh->GetFaceNbrElementTransformation(i); }
 
