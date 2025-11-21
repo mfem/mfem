@@ -30,8 +30,8 @@ std::string ODESolver::ImplicitTypes  =
 
 std::string ODESolver::IMEXTypes =
    "\n\tIMEX solver: \n\t"
-   "           55 - Forward Backward Euler, 56 - IMEXRK2(2,2,2), 57 - IMEXRK2(2,3,2)\n\t"
-   "           58 - IMEX_DIRK_RK3\n";
+   "        (L-Stab): 61 - Forward Backward Euler, 62 - IMEXRK2(2,2,2),\n\t"
+   "                  63 - IMEXRK2(2,3,2), 64 - IMEX_DIRK_RK3\n";
 
 std::string ODESolver::Types = ODESolver::ExplicitTypes +
                                ODESolver::ImplicitTypes +
