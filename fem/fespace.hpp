@@ -669,16 +669,6 @@ public:
                       const FiniteElementCollection *fec,
                       int vdim = 1, int ordering = Ordering::byNODES);
 
-   /** Construct a FiniteElementSpace based on the given
-       FiniteElementCollection, @a fec.*/
-   /** @note Periodic boundary conditions can be provided via @a masterBdr and
-       @a slaveBdr, this only works for NURBS FE at this point.
-       If FiniteElementCollection, @a fec is a NURBS FE the required
-       NURBSExtension will be generated.*/
-   FiniteElementSpace(Mesh *mesh, Array<int> &masterBdr, Array<int> &slaveBdr,
-                      const FiniteElementCollection *fec,
-                      int vdim = 1, int ordering = Ordering::byNODES);
-
    /// Construct a NURBS FE space based on the given NURBSExtension, @a ext.
    /** @note If the pointer @a ext is NULL, this constructor is equivalent to
        the standard constructor with the same arguments minus the
