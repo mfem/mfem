@@ -4438,13 +4438,36 @@ void GlobalBBoxTensorGridMap::SetupCrystal(const MPI_Comm &comm_)
 GlobalBBoxTensorGridMap::GlobalBBoxTensorGridMap(ParMesh &pmesh, int nx)
 {
    GridFunction *nodes = pmesh.GetNodes();
-   MFEM_VERIFY(nodes != nullptr,
-               "BBoxTensorGridMap requires a mesh with nodes defined.");
    const int nel = pmesh.GetNE();
-   Vector elmin, elmax;
-   int nref = 3;
-   nodes->GetElementBounds(elmin, elmax, nref);
-   dim = elmin.Size() / nel;
+   const int dim = pmesh.SpaceDimension();
+   Vector elmin(nel*dim), elmax(nel*dim);
+   elmin = std::numeric_limits<real_t>::max();
+   elmax = -std::numeric_limits<real_t>::max();
+   if (!nodes)
+   {
+      Array<int> verts;
+      real_t *coord;
+      // create bounding boxes from vertex coordinates
+      for (int e = 0; e < nel; e++)
+      {
+         pmesh.GetElementVertices(e, verts);
+         Vector center(dim);
+         for (int v = 0; v < verts.Size(); v++)
+         {
+            coord = pmesh.GetVertex(verts[v]);
+            for (int d = 0; d < dim; d++)
+            {
+               elmin(d*nel + e) = std::min(elmin(d*nel + e), coord[d]);
+               elmax(d*nel + e) = std::max(elmax(d*nel + e), coord[d]);
+            }
+         }
+      }
+   }
+   else
+   {
+      int nref = 3;
+      nodes->GetElementBounds(elmin, elmax, nref);
+   }
    Array<int> nx_arr(dim);
    nx_arr = nx;
    Setup(pmesh.GetComm(), elmin, elmax, nx_arr, nel);
@@ -4484,11 +4507,11 @@ void GlobalBBoxTensorGridMap::Setup(const MPI_Comm &comm,
 {
    SetupCrystal(comm);
    dim = elmin.Size() / nel;
-   gh_bnd_min.SetSize(dim);
-   gh_bnd_max.SetSize(dim);
-   gh_fac.SetSize(dim);
-   gh_n.SetSize(dim);
-   gh_n = nx;
+   gmap_bnd_min.SetSize(dim);
+   gmap_bnd_max.SetSize(dim);
+   gmap_fac.SetSize(dim);
+   gmap_n.SetSize(dim);
+   gmap_n = nx;
 
    MFEM_VERIFY(nx.Size() == dim,
                "BBoxTensorGridMap requires nx to have the same size as the number of dimensions.");
@@ -4501,35 +4524,35 @@ void GlobalBBoxTensorGridMap::Setup(const MPI_Comm &comm,
    {
       Vector elmind(elmin.GetData() + d*nel, nel);
       Vector elmaxd(elmax.GetData() + d*nel, nel);
-      gh_bnd_min[d] = elmind.Min();
-      gh_bnd_max[d] = elmaxd.Max();
+      gmap_bnd_min[d] = elmind.Min();
+      gmap_bnd_max[d] = elmaxd.Max();
    }
 
-   Vector gh_bnd_min_loc = gh_bnd_min;
-   Vector gh_bnd_max_loc = gh_bnd_max;
+   Vector gmap_bnd_min_loc = gmap_bnd_min;
+   Vector gmap_bnd_max_loc = gmap_bnd_max;
 
-   MPI_Allreduce(MPI_IN_PLACE, gh_bnd_min.GetData(), dim,
+   MPI_Allreduce(MPI_IN_PLACE, gmap_bnd_min.GetData(), dim,
                  MFEM_MPI_REAL_T, MPI_MIN, comm);
-   MPI_Allreduce(MPI_IN_PLACE, gh_bnd_max.GetData(), dim,
+   MPI_Allreduce(MPI_IN_PLACE, gmap_bnd_max.GetData(), dim,
                  MFEM_MPI_REAL_T, MPI_MAX, comm);
 
    int rank;
    MPI_Comm_rank(MPI_COMM_WORLD, &rank); // Get rank of the current process
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
 
-   BBoxTensorGridMap::SetGridFac(gh_fac, gh_n, gh_bnd_min, gh_bnd_max);
+   BBoxTensorGridMap::SetGridFac(gmap_fac, gmap_n, gmap_bnd_min, gmap_bnd_max);
 
-   int gh_nd = gh_n[0];
+   int gmap_nd = gmap_n[0];
    for (int d = 1; d < dim; d++)
    {
-      gh_nd *= gh_n[d];
+      gmap_nd *= gmap_n[d];
    }
 
    // Grid cell ranges for each element in each dimension
    Array<int> elmin_h, elmax_h;
-   int store_size = BBoxTensorGridMap::GetGridCountAndRange(gh_n, gh_fac,
-                                                            gh_bnd_min,
-                                                            gh_bnd_max,
+   int store_size = BBoxTensorGridMap::GetGridCountAndRange(gmap_n, gmap_fac,
+                                                            gmap_bnd_min,
+                                                            gmap_bnd_max,
                                                             elmin, elmax,
                                                             elmin_h, elmax_h);
 
@@ -4538,8 +4561,9 @@ void GlobalBBoxTensorGridMap::Setup(const MPI_Comm &comm,
 
    for (int d = 0; d < dim; d++)
    {
-      BBoxTensorGridMap::GetGridRange(d, gh_n, gh_fac, gh_bnd_min, gh_bnd_max,
-                                      gh_bnd_min_loc[d], gh_bnd_max_loc[d],
+      BBoxTensorGridMap::GetGridRange(d, gmap_n, gmap_fac,
+                                      gmap_bnd_min, gmap_bnd_max,
+                                      gmap_bnd_min_loc[d], gmap_bnd_max_loc[d],
                                       loc_idx_min[d], loc_idx_max[d]);
       lh_n[d] = loc_idx_max[d] - loc_idx_min[d];
       loc_idx_tot *= lh_n[d];
@@ -4564,12 +4588,12 @@ void GlobalBBoxTensorGridMap::Setup(const MPI_Comm &comm,
       int ilim = (elmax_h[0*nel+e]-elmin_h[0*nel+e]);
       for (int k = 0; k < klim; k++)
       {
-         int koff = dim < 3 ? 0 : (elmin_h[2*nel + e] + k)* gh_n[0] * gh_n[1];
+         int koff = dim < 3 ? 0 : (elmin_h[2*nel+e] + k)* gmap_n[0] * gmap_n[1];
          int koff_loc = dim < 3 ? 0 :
                         (elmin_h[2*nel+e]+k - loc_idx_min[2])*lh_n[0] * lh_n[1];
          for (int j = 0; j < jlim; j++)
          {
-            int joff = dim < 2 ? 0 : (elmin_h[1*nel + e] + j) * gh_n[0];
+            int joff = dim < 2 ? 0 : (elmin_h[1*nel + e] + j) * gmap_n[0];
             int joff_loc = dim < 2 ? 0 :
                            (elmin_h[1*nel+e]+j - loc_idx_min[1])*lh_n[0];
             for (int i = 0; i < ilim; i++)
@@ -4600,9 +4624,9 @@ void GlobalBBoxTensorGridMap::Setup(const MPI_Comm &comm,
 
    int nrecv = hashInfo_pt.n;
 
-   n_local_cells = (gh_nd-1)/num_procs+1;
-   gh_offset.SetSize(n_local_cells + 1 + nrecv);
-   gh_offset = 0;
+   n_local_cells = (gmap_nd-1)/num_procs+1;
+   ggrid_map.SetSize(n_local_cells + 1 + nrecv);
+   ggrid_map = 0;
    Array<int> hash_el_count(n_local_cells);
    hash_el_count = 0;
 
@@ -4614,10 +4638,10 @@ void GlobalBBoxTensorGridMap::Setup(const MPI_Comm &comm,
       ++pt;
    }
 
-   gh_offset[0] = n_local_cells + 1;
+   ggrid_map[0] = n_local_cells + 1;
    for (int e = 0; e < n_local_cells; e++)
    {
-      gh_offset[e + 1] = gh_offset[e] + hash_el_count[e];
+      ggrid_map[e + 1] = ggrid_map[e] + hash_el_count[e];
    }
 
    pt = (struct hashInfo_s *)hashInfo_pt.ptr;
@@ -4625,7 +4649,7 @@ void GlobalBBoxTensorGridMap::Setup(const MPI_Comm &comm,
    {
       int idx = pt->index;
       int proc = pt->proc;
-      gh_offset[gh_offset[idx+1]-hash_el_count[idx]]=proc;
+      ggrid_map[ggrid_map[idx+1]-hash_el_count[idx]]=proc;
       hash_el_count[idx]--;
       ++pt;
    }
@@ -4641,13 +4665,13 @@ int GlobalBBoxTensorGridMap::GetGlobalGridCellFromPoint(Vector &xyz) const
    int sum = 0;
    for (int d = dim-1; d >= 0; --d)
    {
-      if (xyz(d) < gh_bnd_min(d) || xyz(d) > gh_bnd_max(d))
+      if (xyz(d) < gmap_bnd_min(d) || xyz(d) > gmap_bnd_max(d))
       {
          return -1; // Point is outside the bounds of the hash
       }
-      sum *= gh_n[d];
-      int i = (int)floor((xyz(d) - gh_bnd_min(d)) * gh_fac[d]);
-      sum += i < 0 ? 0 : (gh_n[d] - 1 < i ? gh_n[d] - 1 : i);
+      sum *= gmap_n[d];
+      int i = (int)floor((xyz(d) - gmap_bnd_min(d)) * gmap_fac[d]);
+      sum += i < 0 ? 0 : (gmap_n[d] - 1 < i ? gmap_n[d] - 1 : i);
    }
    return sum;
 }
@@ -4712,9 +4736,9 @@ void GlobalBBoxTensorGridMap::MapPointsToProcs(Vector &xyz, int ordering,
       }
       int proc, idx;
       GlobalGridCellToProcAndLocalIndex(cell, proc, idx);
-      pt->info = idx;
-      pt->proc = proc;
-      pt->loc_index = i;
+      pt->info = idx; // local grid cell index on proc
+      pt->proc = proc; // proc that the grid cell info is on
+      pt->loc_index = i; // local index of the point in the input vector
       ++pt;
    }
    MPI_Barrier(MPI_COMM_WORLD);
@@ -4728,7 +4752,7 @@ void GlobalBBoxTensorGridMap::MapPointsToProcs(Vector &xyz, int ordering,
    for (int i = 0; i < nrecv; i++)
    {
       int idx = pt->info;
-      int loc_count = gh_offset[idx+1]-gh_offset[idx];
+      int loc_count = ggrid_map[idx+1]-ggrid_map[idx];
       ncount += loc_count;
       ++pt;
    }
@@ -4741,18 +4765,19 @@ void GlobalBBoxTensorGridMap::MapPointsToProcs(Vector &xyz, int ordering,
 
    for (int i = 0; i < nrecv; i++)
    {
-      Array<int> procs = MapCellToProcs(pt->info);
+      Array<int> procs = MapCellToProcs(pt->info); // map for local index
       for (int k = 0; k < procs.Size(); k++)
       {
-         spt->info = procs[k];
-         spt->proc = pt->proc;
-         spt->loc_index = pt->loc_index;
+         spt->info = procs[k]; // proc that has contribution to this cell
+         spt->proc = pt->proc; // proc that sent this point
+         spt->loc_index = pt->loc_index; // local index of the point originally
          ++spt;
       }
       ++pt;
    }
 
    array_free(&ptInfo_pt);
+   // transfer information back to ranks where the query originated from.
    sarray_transfer(struct ptInfo_s, &sendptInfo_pt, proc, 1, cr);
 
    nrecv = sendptInfo_pt.n;
@@ -4760,8 +4785,8 @@ void GlobalBBoxTensorGridMap::MapPointsToProcs(Vector &xyz, int ordering,
 
    for (int i =0; i < nrecv; i++)
    {
-      int pt_idx = spt->loc_index;
-      int proc = spt->info;
+      int pt_idx = spt->loc_index; // local index of the point
+      int proc = spt->info; // proc that could be holding this point
       pt_to_procs[pt_idx].push_back(proc);
       ++spt;
    }
@@ -4775,12 +4800,12 @@ Array<int> GlobalBBoxTensorGridMap::MapCellToProcs(int l_idx) const
    MFEM_ASSERT(l_idx >= 0 && l_idx < n_local_cells,
                "Access element " << l_idx << " of local hash with cells = "
                << n_local_cells);
-   int start = gh_offset[l_idx];
-   int end = gh_offset[l_idx + 1];
+   int start = ggrid_map[l_idx];
+   int end = ggrid_map[l_idx + 1];
    Array<int> elements(end - start);
    for (int j = start; j < end; j++)
    {
-      elements[j - start] = gh_offset[j];
+      elements[j - start] = ggrid_map[j];
    }
    return elements;
 }

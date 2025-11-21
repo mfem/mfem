@@ -654,10 +654,10 @@ private:
    struct gslib::crystal *cr = nullptr;               // gslib's internal data
    struct gslib::comm *gsl_comm = nullptr;            // gslib's internal data
    int dim, n_local_cells, num_procs;
-   Array<int> gh_n;
-   Vector gh_bnd_min, gh_bnd_max;
-   Vector gh_fac;
-   Array<int> gh_offset;
+   Array<int> gmap_n;
+   Vector gmap_bnd_min, gmap_bnd_max;
+   Vector gmap_fac;
+   Array<int> ggrid_map;
 
    void SetupCrystal(const MPI_Comm &comm);
 public:
@@ -685,11 +685,11 @@ public:
                          std::map<int, std::vector<int>> &pt_to_procs) const;
 
    // Some getters
-   Array<int> GetGridMap() const { return gh_offset; }
-   Vector GetGridFac() const { return gh_fac; }
-   Vector GetGridMin() const { return gh_bnd_min; }
-   Vector GetGridMax() const { return gh_bnd_max; }
-   Array<int> GetGridN() const { return gh_n; }
+   Array<int> GetGridMap() const { return ggrid_map; }
+   Vector GetGridFac() const { return gmap_fac; }
+   Vector GetGridMin() const { return gmap_bnd_min; }
+   Vector GetGridMax() const { return gmap_bnd_max; }
+   Array<int> GetGridN() const { return gmap_n; }
 
 private:
    /// Setup the map given element bounds and number of tensor grid divisions.
@@ -702,6 +702,7 @@ private:
    /** @brief Get owning proc and local index on that proc for given global
     *  grid cell index. */
    void GlobalGridCellToProcAndLocalIndex(int i, int &proc, int &idx) const;
+
    /// Map a point to proc and local index of the corresponding grid cell
    void GetProcAndLocalIndexFromPoint(Vector &xyz, int &proc, int &idx) const;
 
