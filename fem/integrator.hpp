@@ -113,6 +113,43 @@ protected:
       const ElementTransformation& trans) const
    { return NULL; }
 };
+
+/** @brief This struct contains information used in patch-wise integration
+    on NURBS meshes. */
+struct PatchBasisInfo
+{
+   // Patch index
+   unsigned int patch;
+   int dim;
+   // 1D shape functions [dim x Q1D[d] x D1D[d]]
+   std::vector<Array2D<real_t>> B;
+   // Derivatives of 1D shape functions [dim x Q1D[d] x D1D[d]]
+   std::vector<Array2D<real_t>> G;
+   Array<const IntegrationRule*> ir1d;
+   // 1D quadrature points / dofs
+   Array<int> Q1D;
+   Array<int> D1D;
+   Array<int> MAX1D; // max of Q1D and D1D in each dimension
+   // Dof index |-> min/max quadrature index within support
+   std::vector<std::vector<int>> minD;
+   std::vector<std::vector<int>> maxD;
+   // Quadrature index |-> min/max dof index that supports it
+   std::vector<std::vector<int>> minQ;
+   std::vector<std::vector<int>> maxQ;
+   // Dof index |-> min/max dof index with overlapping support
+   std::vector<std::vector<int>> minDD;
+   std::vector<std::vector<int>> maxDD;
+
+   Array<int> orders;
+   Array<int> E1D; // Number of elements in each dimension
+
+   // Total quadrature points / dofs
+   int NQ, ND;
+
+   PatchBasisInfo(Mesh *mesh, unsigned int patch,
+                  NURBSMeshRules *patchRules);
+
+};
 }
 
 #endif
