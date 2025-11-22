@@ -543,9 +543,7 @@ IMEX_Evolution::IMEX_Evolution(BilinearForm &M_, BilinearForm &K_,
    }
    else
    {
-      M_prec = make_unique<OperatorJacobiSmoother>(M, ess_tdof_list);
-      M_solver.SetOperator(M);
-      implicit_solver = NULL;
+      MFEM_ABORT("Implicit time integration is not supported with partial assembly");
    }
    M_solver.SetPreconditioner(*M_prec);
    M_solver.iterative_mode = false;
