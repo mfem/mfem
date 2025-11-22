@@ -111,6 +111,9 @@ New and updated examples and miniapps
   of a charged particle, subject to Lorentz forces, in electrostatic and/or
   magnetostatic fields as computed by the volta or tesla miniapps.
 
+- Updated the mtop miniapp with a GPU enabled forward and adjoint solver for
+  isotropic linear elasticity.
+
 API changes:
 -----------
 - mfem::internal::tensor and mfem::internal::dual have been moved to
