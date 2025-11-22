@@ -209,9 +209,10 @@ public:
 };
 
 /** A time-dependent operator for the right-hand side of the ODE. The DG weak
-    form of the advection-diffusion equation is (M + dt S) du/dt = Su - K u + b, where M and K are the mass
-    and advection matrices, and b describes the flow on the boundary. In the case of IMEX evolution, the diffusion term is treated
-    implicitly, and the advection term is treated explicitly.  */
+    form of the advection-diffusion equation is (M + dt S) du/dt = Su - K u + b
+    , where M and K are the mass and advection matrices, and b describes the 
+    flow on the boundary. In the case of IMEX evolution, the diffusion term is 
+    treated implicitly, and the advection term is treated explicitly.  */
 class IMEX_Evolution : public TimeDependentOperator
 {
 private:
@@ -243,7 +244,7 @@ public:
 
    void Mult(const Vector &x, Vector &y) const override
    {
-      if (TimeDependentOperator::EvalMode::ADDITIVE_TERM_1==GetEvalMode())
+      if (TimeDependentOperator::EvalMode::ADDITIVE_TERM_1 == GetEvalMode())
       {
          Mult1(x,y);
       }
@@ -255,7 +256,7 @@ public:
 
    void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override
    {
-      if (TimeDependentOperator::EvalMode::ADDITIVE_TERM_2==GetEvalMode())
+      if (TimeDependentOperator::EvalMode::ADDITIVE_TERM_2 == GetEvalMode())
       {
          ImplicitSolve2(dt,x,k);
       }
@@ -282,10 +283,10 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
    int order = 3;
-   int ode_solver_type = 58; //55 - Forward Backward Euler
-   //56 - IMEXRK2(2,2,2)
-   //57 - IMEXRK2(2,3,2)
-   //58 - IMEXRK3(3,4,3)
+   int ode_solver_type = 64; //61 - Forward Backward Euler
+   //62 - IMEXRK2(2,2,2)
+   //63 - IMEXRK2(2,3,2)
+   //64 - IMEXRK3(3,4,3)
    real_t t_final = 10.0;
    real_t dt = 0.001;
    bool paraview = false;
@@ -318,6 +319,8 @@ int main(int argc, char *argv[])
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
+   args.AddOption(&diffusion_term, "-dc", "--diffusion-coeff",
+                  "Diffusion coefficient in the PDE.");
    args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraview",
                   "--no-paraview-datafiles",
                   "Save data files for ParaView (paraview.org) visualization.");
@@ -677,8 +680,7 @@ IMEX_Evolution::IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
    }
    else
    {
-      M_prec = new OperatorJacobiSmoother(M_, ess_tdof_list);
-      implicit_solver = NULL;
+      MFEM_ABORT("Implicit time integration is not supported with partial assembly");
    }
    M_solver.SetPreconditioner(*M_prec);
    M_solver.iterative_mode = false;
