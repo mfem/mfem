@@ -457,6 +457,7 @@ int main(int argc, char *argv[])
       pv->SetTime(0.0);
       pv->Save();
    }
+
    socketstream sout;
    if (visualization)
    {
