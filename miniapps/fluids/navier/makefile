@@ -10,10 +10,10 @@
 # CONTRIBUTING.md for details.
 
 # Use the MFEM build directory
-MFEM_DIR ?= ../..
-MFEM_BUILD_DIR ?= ../..
-MFEM_INSTALL_DIR ?= ../../mfem
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/navier/,)
+MFEM_DIR ?= ../../..
+MFEM_BUILD_DIR ?= ../../..
+MFEM_INSTALL_DIR ?= ../../../mfem
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/fluids/navier/,)
 CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
    $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 

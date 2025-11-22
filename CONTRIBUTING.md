@@ -148,7 +148,8 @@ The MFEM source code has the following structure:
   │   ├── meshing
   │   ├── mtop
   │   ├── multidomain
-  │   ├── navier
+  │   ├── fluids/navier
+  │   ├── fluids/schrodinger_flow
   │   ├── nurbs
   │   ├── parelag
   │   ├── performance
