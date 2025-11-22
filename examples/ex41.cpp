@@ -569,7 +569,7 @@ void IMEX_Evolution::ImplicitSolve2(const real_t dt, const Vector &x, Vector &k)
    MFEM_VERIFY(implicit_solver != NULL,
                "Implicit time integration is not supported with partial assembly");
    S.Mult(x, z);
-   z*= -1.0;
+   z.Neg();
    implicit_solver->SetTimeStep(dt);
    implicit_solver->Mult(z, k);
 }
