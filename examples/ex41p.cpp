@@ -210,8 +210,8 @@ public:
 
 /** A time-dependent operator for the right-hand side of the ODE. The DG weak
     form of the advection-diffusion equation is (M + dt S) du/dt = Su - K u + b
-    , where M and K are the mass and advection matrices, and b describes the 
-    flow on the boundary. In the case of IMEX evolution, the diffusion term is 
+    , where M and K are the mass and advection matrices, and b describes the
+    flow on the boundary. In the case of IMEX evolution, the diffusion term is
     treated implicitly, and the advection term is treated explicitly.  */
 class IMEX_Evolution : public TimeDependentOperator
 {
