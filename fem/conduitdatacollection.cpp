@@ -318,10 +318,9 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
          std::string bndry_ele_shape = n_bndry_topo["elements/shape"].as_string();
 
          bndry_geo = ShapeNameToGeomType(bndry_ele_shape);
-         int num_idxs_per_bndry_ele = Geometry::NumVerts[mesh_geo];
+         int num_idxs_per_bndry_ele = Geometry::NumVerts[bndry_geo];
 
          const Node &n_bndry_conn = n_bndry_topo["elements/connectivity"];
-
          // mfem requires ints, we could have int64s, etc convert if necessary
          if ( n_bndry_conn.dtype().is_int() &&
               n_bndry_conn.is_compact())
