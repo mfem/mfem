@@ -28,7 +28,7 @@
 //               bilinear forms in MFEM (face integrators), and the use of IMEX
 //               ODE time integrators.
 //
-//               The Option to use Continuous Finite Elements is available too.
+//               The option to use continuous finite elements is available too.
 
 #include "mfem.hpp"
 
