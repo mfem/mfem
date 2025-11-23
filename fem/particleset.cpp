@@ -37,8 +37,6 @@ extern "C"
 namespace mfem
 {
 
-#define IDType unsigned long long
-
 Particle::Particle(int dim, const Array<int> &field_vdims, int num_tags)
    : coords(dim), fields(), tags()
 {
@@ -450,6 +448,8 @@ void ParticleSet::Redistribute(const Array<unsigned int> &rank_list)
    // (Avoid unnecessary copies of particle data into and out of buffers)
    Array<unsigned int> send_idxs;
    Array<unsigned int> send_ranks;
+   send_idxs.Reserve(rank_list.Size());
+   send_ranks.Reserve(rank_list.Size());
    for (int i = 0; i < rank_list.Size(); i++)
    {
       if (rank != rank_list[i])
@@ -689,7 +689,7 @@ ParticleSet::ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
 }
 #endif // MFEM_USE_MPI
 
-IDType ParticleSet::GetGlobalNParticles() const
+ParticleSet::IDType ParticleSet::GetGlobalNParticles() const
 {
    IDType total = (IDType)GetNParticles();
 #ifdef MFEM_USE_MPI
@@ -946,8 +946,6 @@ ParticleSet::~ParticleSet()
    }
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 }
-
-#undef IDType
 
 
 } // namespace mfem

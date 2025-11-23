@@ -152,9 +152,21 @@ void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
    int myid, num_procs;
    MPI_Comm_rank(pset.GetComm(), &myid);
    MPI_Comm_size(pset.GetComm(), &num_procs);
-   VisualizeField(sock, vishost, visport, gf, title,
-                  myid, num_procs, pset.GetComm(),
-                  x, y, w, h, keys, false);
+
+   sock.open(vishost, visport);
+   sock.precision(8);
+   sock << "parallel " << num_procs << " " << myid << "\n";
+   sock << "solution " << particles_mesh << gf << std::flush;
+
+   if (myid == 0)
+   {
+      sock << "window_title '" << title << "'\n"
+           << "window_geometry "
+           << x << " " << y << " " << w << " " << h << "\n";
+      if ( keys ) { sock << "keys " << keys << "\n"; }
+      else { sock << "keys maaAc"; }
+      sock << std::endl;
+   }
 #else
    VisualizeField(sock, vishost, visport, gf, title, x, y, w, h, keys, false);
 #endif // MFEM_USE_MPI
@@ -162,13 +174,13 @@ void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
 
 
 ParticleTrajectories::ParticleTrajectories(const ParticleSet &particles,
-                                           int tail_size_, const char *vishost,
-                                           int visport, const char *title_,
+                                           int tail_size_, const char *vishost_,
+                                           int visport_, const char *title_,
                                            int x_, int y_, int w_, int h_,
                                            const char *keys_)
    : pset(particles), tail_size(tail_size_),
      x(x_), y(y_), w(w_), h(h_),
-     title(title_), keys(keys_)
+     title(title_), keys(keys_), vishost(vishost_), visport(visport_)
 #ifdef MFEM_USE_MPI
    ,comm(particles.GetComm())
 #endif // MFEM_USE_MPI
@@ -182,6 +194,7 @@ ParticleTrajectories::ParticleTrajectories(const ParticleSet &particles,
 
 void ParticleTrajectories::AddSegmentStart()
 {
+   if (!pset.GetNParticles()) { return; }
    // Create a new mesh for all particle segments for this timestep
    segment_meshes.emplace(segment_meshes.begin(), 1, pset.GetNParticles()*2,
                           pset.GetNParticles(),
@@ -207,7 +220,9 @@ void ParticleTrajectories::AddSegmentStart()
 
 void ParticleTrajectories::SetSegmentEnd()
 {
-   const Array<unsigned long long> &end_ids = pset.GetIDs();
+   if (segment_meshes.empty()) { return; } // no segments to end
+
+   const Array<ParticleSet::IDType> &end_ids = pset.GetIDs();
 
    // Add all endpoint vertices + segments for all particles
    int num_start = segment_ids.front().Size();
@@ -229,13 +244,17 @@ void ParticleTrajectories::SetSegmentEnd()
       segment_meshes.front().AddSegment(i, i+num_start);
    }
    segment_meshes.front().FinalizeMesh();
-
 }
 
 
 void ParticleTrajectories::Visualize()
 {
    SetSegmentEnd();
+   if (segment_meshes.empty() && !mesh)
+   {
+      AddSegmentStart();
+      return;
+   }
 
    // Create a mesh of all the trajectory segments
    std::vector<Mesh*> all_meshes;
@@ -243,8 +262,26 @@ void ParticleTrajectories::Visualize()
    {
       all_meshes.push_back(&m);
    }
+   if (mesh)
+   {
+      all_meshes.push_back(mesh);
+   }
 
    Mesh trajectories(all_meshes.data(), all_meshes.size());
+
+   // re-open connection if needed
+   int connection_failed;
+   do
+   {
+      if (!sock.is_open() || !sock)
+      {
+         sock.open(vishost, visport);
+         sock.precision(8);
+         newly_opened = true;
+      }
+      connection_failed = !sock && !newly_opened;
+   }
+   while (connection_failed);
 
    // Update socketstream
 #ifdef MFEM_USE_MPI

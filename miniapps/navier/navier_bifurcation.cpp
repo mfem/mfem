@@ -12,6 +12,7 @@
 #include "navier_solver.hpp"
 #include "navier_particles.hpp"
 #include "../common/pfem_extras.hpp"
+#include "../common/particles_extras.hpp"
 #include "../../general/text.hpp"
 #include <fstream>
 #include <iostream>
@@ -161,16 +162,36 @@ int main(int argc, char *argv[])
                                      1.0, false);
 #endif
 
-   // Set up solution visualization
+   // Set up solution and particle visualization
    char vishost[] = "localhost";
    socketstream vis_sol;
    int Ww = 350, Wh = 350; // window size
    int Wx = 10, Wy = 0; // window position
    char keys[] = "mAcRjlmm]]]]]]]]]";
+   std::unique_ptr<ParticleTrajectories> traj_vis;
+   // Extract boundary mesh for particle visualization
+   int nattr = pmesh.bdr_attributes.Max();
+   Array<int> subdomain_attributes(nattr);
+   for (int i = 0; i < nattr; i++)
+   {
+      subdomain_attributes[i] = i+1;
+   }
+   auto psubmesh = std::unique_ptr<ParMesh>(new ParMesh(
+                                               ParSubMesh::CreateFromBoundary(pmesh, subdomain_attributes)));
+
    if (ctx.visualization)
    {
       VisualizeField(vis_sol, vishost, ctx.visport, u_gf, "Velocity",
                      Wx, Wy, Ww, Wh, keys);
+#ifdef MFEM_USE_GSLIB
+      traj_vis = std::make_unique<ParticleTrajectories>(
+                    particle_solver.GetParticles(),
+                    20, vishost, ctx.visport,
+                    "Particle Trajectories",
+                    Wx+Ww, Wy, Ww, Wh, "b");
+      traj_vis->AddMeshForVisualization(psubmesh.get());
+      traj_vis->Visualize();
+#endif
    }
 
    // Initialize ParaView DC (if freq != 0)
@@ -231,8 +252,10 @@ int main(int argc, char *argv[])
             int rank_num_particles = ctx.num_add_particles/size +
                                      (rank < (ctx.num_add_particles % size) ?
                                       1 : 0);
+            // Add particles to the ParticleSet
             particle_solver.GetParticles().AddParticles(rank_num_particles,
                                                         &add_particle_idxs);
+            // Initialize properties of the new particles
             SetInjectedParticles(particle_solver, add_particle_idxs,
                                  ctx.kappa_min, ctx.kappa_max,
                                  (rank+1)*step, ctx.zeta, ctx.gamma, step);
@@ -265,13 +288,15 @@ int main(int argc, char *argv[])
       {
          VisualizeField(vis_sol, vishost, ctx.visport, u_gf,
                         "Velocity", Wx, Wy, Ww, Wh, keys);
+#ifdef MFEM_USE_GSLIB
+         traj_vis->Visualize();
+#endif
       }
 
       cfl = flow_solver.ComputeCFL(u_gf, ctx.dt);
 #ifdef MFEM_USE_GSLIB
-      unsigned long long global_np =
-         particle_solver.GetParticles().GetGlobalNParticles();
-      unsigned long long inactive_global_np =
+      auto global_np =  particle_solver.GetParticles().GetGlobalNParticles();
+      auto inactive_global_np =
          particle_solver.GetInactiveParticles().GetGlobalNParticles();
 #endif
       if (rank == 0)
@@ -347,7 +372,6 @@ void vel_dbc(const Vector &x, real_t t, Vector &u)
 {
    real_t yi = x(1);
    real_t height = 1.0;
-
    u(0) = 0.;
    u(1) = 0.;
    if (std::fabs(yi)<1.0) { u(0) = 6.0*yi*(height-yi)/(height*height); }

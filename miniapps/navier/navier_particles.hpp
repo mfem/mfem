@@ -68,6 +68,9 @@ protected:
    /// EXTk coefficients, k=1,2,3.
    std::array<Array<real_t>, 3> alpha_k;
 
+   /// Number of timesteps to store (includes current)
+   static constexpr int N_HIST = 4;
+
    /// Carrier of field + tag indices. Allows for convenient access to
    /// corresponding ParticleVector from ParticleSet.
    struct FluidParticleIndices
@@ -75,10 +78,10 @@ protected:
       struct FieldIndices
       {
          int kappa, zeta, gamma;
-         int u[4];
-         int v[4];
-         int w[4];
-         int x[3];
+         int u[N_HIST];
+         int v[N_HIST];
+         int w[N_HIST];
+         int x[N_HIST-1]; // current position is in ParticleSet::Coords()
       } field;
 
       struct TagIndices
@@ -178,6 +181,7 @@ protected:
    // Temporary vectors for particle computation
    mutable Vector up, vp, xpn, xp;
    mutable Vector r, C;
+
 public:
 
    /// Initialize NavierParticles with \p num_particles using fluid mesh \p m .
@@ -192,7 +196,7 @@ public:
     *  @param[in] u_gf     Fluid velocity on fluid mesh.
     *  @param[in] w_gf     Fluid vorticity on fluid mesh.
     */
-   void Step(const real_t &dt, const ParGridFunction &u_gf,
+   void Step(const real_t dt, const ParGridFunction &u_gf,
              const ParGridFunction &w_gf);
 
    /** @brief Interpolate fluid velocity and vorticity onto current particles'
@@ -231,14 +235,14 @@ public:
    /// time n - \p nm .
    ParticleVector& U(int nm=0)
    {
-      MFEM_ASSERT(nm < 4, "nm must be <= 3");
+      MFEM_ASSERT(nm < N_HIST, "nm must be <= 3");
       return fluid_particles.Field(fp_idx.field.u[nm]);
    }
 
    /// Get reference to the particle velocity ParticleVector at time n - \p nm .
    ParticleVector& V(int nm=0)
    {
-      MFEM_ASSERT(nm < 4, "nm must be <= 3");
+      MFEM_ASSERT(nm < N_HIST, "nm must be <= 3");
       return fluid_particles.Field(fp_idx.field.v[nm]);
    }
 
@@ -246,14 +250,14 @@ public:
    /// time n - \p nm .
    ParticleVector& W(int nm=0)
    {
-      MFEM_ASSERT(nm < 4, "nm must be <= 3");
+      MFEM_ASSERT(nm < N_HIST, "nm must be <= 3");
       return fluid_particles.Field(fp_idx.field.w[nm]);
    }
 
    /// Get reference to the position ParticleVector at time n - \p nm .
    ParticleVector& X(int nm=0)
    {
-      MFEM_ASSERT(nm < 4, "nm must be <= 3");
+      MFEM_ASSERT(nm < N_HIST, "nm must be <= 3");
       return nm == 0 ? fluid_particles.Coords() : fluid_particles.Field(
                 fp_idx.field.x[nm-1]);
    }

@@ -342,7 +342,7 @@ NavierParticles::NavierParticles(MPI_Comm comm, int num_particles, Mesh &m)
    inactive_fluid_particles.AddField(1, "gamma");
 
    // Initialize fluid particle fields
-   for (int i = 0; i < 4; i++)
+   for (int i = 0; i < N_HIST; i++)
    {
       string suffix = i > 0 ? "_nm" + to_string(i) : "_n";
       fp_idx.field.u[i] = fluid_particles.AddField(dim, ("u" + suffix).c_str());
@@ -366,11 +366,11 @@ NavierParticles::NavierParticles(MPI_Comm comm, int num_particles, Mesh &m)
    C.SetSize(dim);
 }
 
-void NavierParticles::Step(const real_t &dt, const ParGridFunction &u_gf,
+void NavierParticles::Step(const real_t dt, const ParGridFunction &u_gf,
                            const ParGridFunction &w_gf)
 {
    // Shift fluid velocity, fluid vorticity, particle velocity, and particle position
-   for (int i = 3; i > 0; i--)
+   for (int i = N_HIST-1; i > 0; i--)
    {
       U(i) = U(i-1).GetData();
       V(i) = V(i-1).GetData();
@@ -404,7 +404,8 @@ void NavierParticles::Step(const real_t &dt, const ParGridFunction &u_gf,
    // Re-interpolate fluid velocity + vorticity onto particles' new location
    InterpolateUW(u_gf, w_gf);
 
-   // Move lost particles from active to inactive
+   // Move lost particles from active to inactive. We don't search for points again
+   // because that is already done in InterpolateUW.
    DeactivateLostParticles(false);
 
    // Rotate values in time step history

@@ -20,9 +20,6 @@
 namespace mfem
 {
 
-
-#define IDType unsigned long long
-
 /// Container for data associated with a single particle
 /** See ParticleSet for more information. */
 class Particle
@@ -159,6 +156,8 @@ public:
  */
 class ParticleSet
 {
+public:
+   using IDType = unsigned long long;
 private:
    /// Constructs an Array of size N filled with Ordering::Type o.
    static Array<Ordering::Type> GetOrderingArray(Ordering::Type o, int N);
@@ -178,7 +177,6 @@ private:
 #endif // MFEM_USE_MPI
 
 protected:
-
    /// Stride for IDs (when new particles are added).
    /** In parallel, this defaults to the number of MPI ranks. */
    const int id_stride;
@@ -217,11 +215,9 @@ protected:
    void AddParticles(const Array<IDType> &new_ids,
                      Array<int> *new_indices=nullptr);
 
-
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
 #endif // MFEM_USE_MPI
-
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
    struct gslib::crystal *cr = nullptr;               // gslib's internal data
@@ -549,7 +545,6 @@ public:
    ParticleSet& operator=(const ParticleSet&) = delete;
 };
 
-#undef IDType
 } // namespace mfem
 
 
