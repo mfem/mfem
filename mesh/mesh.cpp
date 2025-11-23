@@ -6682,21 +6682,42 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv,
    auto sign = [](int i) { return -1 - i; };
    auto unsign = [](int i) { return (i < 0) ? -1 - i : i; };
 
+   // constants
    max_flips = (max_flips < 1) ? NumOfEdges : max_flips;
+   const int dim = Dimension();  // topological (not physical) dimension
+   constexpr int notset = -9999999;
+
+   // pairs of edges to check
+   std::vector<std::pair<int,int>> edge_pairs;
+   if (dim == 2)
+   {
+      edge_pairs = {
+         {0,2},
+         {1,3}
+      };
+   }
+   else if (dim == 3)
+   {
+      edge_pairs = {
+         {0,2}, {0,4}, {0,6},
+         {1,3}, {1,5}, {1,7},
+         {8,9}, {8,10}, {8,11}
+      };
+   }
+
 
    Array<int> flips(NumOfEdges);
    flips = 0;
-   Array<int> ukvs((Dimension()==2) ? 4 : 8);
+   Array<int> ukvs((dim==2) ? 4 : 8);
    Array<int> e, oe;
-   constexpr int notset = -9999999;
    int eflip = notset; // edge to flip
    for (int n = 0; n < max_flips; n++)
    {
-      // Find an edge to flip
+      // Loop through patches and find an edge to flip
       eflip = notset;
       for (int p = 0; p < NumOfElements; p++)
       {
-         // edges and orientations for this patch
+         // Edges and orientations for this patch
          GetElementEdges(p, e, oe);
 
          // Get the signed unique knot vector indices
@@ -6706,16 +6727,16 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv,
             ukvs[i] = (oe[i] < 0) ? sign(ukvs[i]) : ukvs[i];
          }
 
-         // Figure out if an edge needs to be flipped (dim = 2)
-         if (Dimension()==2)
+         // Figure out if an edge needs to be flipped
+         for (auto [i, j] : edge_pairs)
          {
-            if (ukvs[0] != sign(ukvs[2])) // dim 0
+            if (
+               ((dim == 2) && (ukvs[i] != sign(ukvs[j]))) ||
+               ((dim == 3) && (ukvs[i] == sign(ukvs[j])))
+            )
             {
-               eflip = (flips[e[0]] < flips[e[2]]) ? e[0] : e[2];
-            }
-            else if (ukvs[1] != sign(ukvs[3])) // dim 1
-            {
-               eflip = (flips[e[1]] < flips[e[3]]) ? e[1] : e[3];
+               eflip = (flips[e[i]] < flips[e[j]]) ? e[i] : e[j];
+               break; // One flip at a time
             }
          }
          // Apply flip
