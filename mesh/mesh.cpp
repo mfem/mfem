@@ -6535,17 +6535,8 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_ukv)
    Array<int> ukv_to_rpkv;
    if (edge_to_ukv.Size() == 0)
    {
-      // Array<int> ukv_to_rpkv;
       GetEdgeToUniqueKnotvector(edge_to_ukv, ukv_to_rpkv);
-
-      // JGL - debugging
-      mfem::out << "Generated edge_to_ukv" << std::endl;
    }
-
-   // JGL - debugging
-   mfem::out << "edge_to_ukv" << std::endl;
-   edge_to_ukv.Print(mfem::out, 80);
-
 }
 
 void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
@@ -6663,11 +6654,7 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
       edge_to_ukv[i] = (edge_to_pkv[i] < 0) ? sign(ukv) : ukv;
    }
 
-   mfem::out << "edge_to_ukv" << std::endl;
-   edge_to_ukv.Print(mfem::out, 80);
-   mfem::out << "edge_to_pkv" << std::endl;
-   edge_to_pkv.Print(mfem::out, 80);
-
+   // Flip signs to ensure knotvectors are pointed in the same direction
    CorrectPatchTopoOrientations(edge_to_ukv);
 }
 
@@ -6677,12 +6664,12 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv, int max_flips)
    auto sign = [](int i) { return -1 - i; };
    auto unsign = [](int i) { return (i < 0) ? -1 - i : i; };
 
-   // constants
+   // Constants
    max_flips = (max_flips < 1) ? NumOfEdges : max_flips;
    const int dim = Dimension();  // topological (not physical) dimension
    constexpr int notset = -9999999;
 
-   // pairs of edges to check
+   // Pairs of edges to check
    std::vector<std::pair<int,int>> edge_pairs;
    if (dim == 2)
    {
@@ -6744,7 +6731,7 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv, int max_flips)
             flips[eflip]++;
             break; // One flip at a time
          }
-      }
+      } // patch loop
 
       // We are done flipping edges
       if (eflip == notset)

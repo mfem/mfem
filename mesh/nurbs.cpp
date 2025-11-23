@@ -3252,7 +3252,6 @@ void NURBSExtension::MergeGridFunctions(
 
 bool NURBSExtension::CheckPatches()
 {
-   // mfem::out << "CHECKING PATCHES" << std::endl;
    if (Dimension() == 1 ) { return true; }
 
    Array<int> edges, oedge;
@@ -3261,13 +3260,9 @@ bool NURBSExtension::CheckPatches()
    {
       patchTopo->GetElementEdges(p, edges, oedge);
 
-      // mfem::out << "Patch " << p << std::endl;
-      // mfem::out << "i, e, ukv, oe" << std::endl;
-
-      // Convert to ukv and apply sign-fip
+      // Convert to ukv and apply sign-flip
       for (int i = 0; i < edges.Size(); i++)
       {
-         // mfem::out << "  - " << i << ", " << edges[i] << ", " << edge_to_ukv[edges[i]] << ", " << oedge[i] << std::endl;
          edges[i] = edge_to_ukv[edges[i]];
          if (oedge[i] < 0)
          {
@@ -3279,7 +3274,6 @@ bool NURBSExtension::CheckPatches()
       // In 3d - opposite edges must be same knotvector with same sign
       if ((Dimension() == 2 &&
            (edges[0] != -1 - edges[2] || edges[1] != -1 - edges[3])) ||
-          //   (edges[0] != edges[2] || edges[1] != edges[3])) ||
 
           (Dimension() == 3 &&
            (edges[0] != edges[2] || edges[0] != edges[4] ||
@@ -3289,9 +3283,6 @@ bool NURBSExtension::CheckPatches()
             edges[8] != edges[11])))
       {
          return false;
-         // mfem::err << "NURBSExtension::CheckPatch (patch = " << p
-         //           << ")\n  Inconsistent edge-to-knotvector mapping!";
-         // mfem_error();
       }
    }
    return true;
