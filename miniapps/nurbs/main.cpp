@@ -18,13 +18,6 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
    Mesh mesh(mesh_file, 1, 1);
 
-   // mesh.Print(cout);
-
-   // Array<int> edge_to_ukv;
-   // Array<int> ukv_to_rpkv;
-   // mesh.GetEdgeToUniqueKnotvector(edge_to_ukv, ukv_to_rpkv);
-
-
    // CheckKVDirection()
    cout << endl << "CheckKVDirection()" << endl;
    Array<int> patchvert, edges, orient, edgevert;
@@ -54,19 +47,6 @@ int main(int argc, char *argv[])
       }
    }
 
-
    cout << "Mesh is consistent? " << mesh.NURBSext->CheckPatches() << endl;
-
-
-   // Check edge 7 specifically
-   // const int i = 2; // el 2
-   // const int j = 0; // local edge 0
-   // const int *v = patchTopo.GetElement(i)->GetVertices();
-   // const int *e = patchTopo.GetElement(i)->GetEdgeVertices(j);
-   // cout << "edge 7:" << endl;
-   // cout << "ev0, ev1, v0, v1" << endl;
-   // cout << e[0] << ", " << e[1] << ", " << v[e[0]] << ", " << v[e[1]] << endl;
-
-
 
 }

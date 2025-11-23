@@ -6668,15 +6668,10 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
    mfem::out << "edge_to_pkv" << std::endl;
    edge_to_pkv.Print(mfem::out, 80);
 
-
-
-   CorrectPatchTopoOrientations(edge_to_ukv, ukv_to_rpkv);
-
+   CorrectPatchTopoOrientations(edge_to_ukv);
 }
 
-void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv,
-                                        Array<int> &ukv_to_rpkv,
-                                        int max_flips)
+void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv, int max_flips)
 {
    // Sign convention
    auto sign = [](int i) { return -1 - i; };
@@ -6706,7 +6701,6 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv,
          {8,9}, {8,10}, {8,11}
       };
    }
-
 
    Array<int> flips(NumOfEdges);
    flips = 0;
