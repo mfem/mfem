@@ -3279,7 +3279,7 @@ bool NURBSExtension::CheckPatches()
       // In 3d - opposite edges must be same knotvector with same sign
       if ((Dimension() == 2 &&
            (edges[0] != -1 - edges[2] || edges[1] != -1 - edges[3])) ||
-         //   (edges[0] != edges[2] || edges[1] != edges[3])) ||
+          //   (edges[0] != edges[2] || edges[1] != edges[3])) ||
 
           (Dimension() == 3 &&
            (edges[0] != edges[2] || edges[0] != edges[4] ||

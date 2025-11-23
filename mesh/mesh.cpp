@@ -6691,14 +6691,16 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv,
    std::vector<std::pair<int,int>> edge_pairs;
    if (dim == 2)
    {
-      edge_pairs = {
+      edge_pairs =
+      {
          {0,2},
          {1,3}
       };
    }
    else if (dim == 3)
    {
-      edge_pairs = {
+      edge_pairs =
+      {
          {0,2}, {0,4}, {0,6},
          {1,3}, {1,5}, {1,7},
          {8,9}, {8,10}, {8,11}
@@ -6755,7 +6757,7 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv,
       {
          // For debugging - print flips
          mfem::out << "All edges oriented correctly after "
-                    << n << " flips." << std::endl;
+                   << n << " flips." << std::endl;
          return;
       }
    }
