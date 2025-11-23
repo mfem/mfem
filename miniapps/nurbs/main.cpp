@@ -53,6 +53,9 @@ int main(int argc, char *argv[])
    }
 
 
+   cout << "Mesh is consistent? " << mesh.NURBSext->CheckPatches() << endl;
+
+
    // Check edge 7 specifically
    // const int i = 2; // el 2
    // const int j = 0; // local edge 0

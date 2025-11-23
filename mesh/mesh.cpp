@@ -6558,7 +6558,7 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
    // Sign convention
    auto sign = [](int i) { return -1 - i; };
    auto unsign = [](int i) { return (i < 0) ? -1 - i : i; };
-   // Edge index -> dimension convention
+   // Local edge index -> dimension convention
    auto edge_to_dim = [](int i) { return (i < 8) ? ((i & 1) ? 1 : 0) : 2; };
 
    Array<int> v(2); // vertices of an edge
@@ -6669,9 +6669,14 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
    edge_to_pkv.Print(mfem::out, 80);
 
 
+
+   CorrectPatchTopoOrientations(edge_to_ukv, ukv_to_rpkv);
+
 }
 
-void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv, int max_flips)
+void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv,
+                                        Array<int> &ukv_to_rpkv,
+                                        int max_flips)
 {
    // Sign convention
    auto sign = [](int i) { return -1 - i; };
@@ -6679,63 +6684,59 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv, int max_flips)
 
    max_flips = (max_flips < 1) ? NumOfEdges : max_flips;
 
-   Array<int> flips(NumOfEdges) = 0;
-   Array<int> ukvs((dim==2) ? 4 : 8);
+   Array<int> flips(NumOfEdges);
+   flips = 0;
+   Array<int> ukvs((Dimension()==2) ? 4 : 8);
    Array<int> e, oe;
-   int eflip; // edge to flip
+   constexpr int notset = -9999999;
+   int eflip = notset; // edge to flip
    for (int n = 0; n < max_flips; n++)
    {
-      for (int p = 0; p < NP; p++)
+      // Find an edge to flip
+      eflip = notset;
+      for (int p = 0; p < NumOfElements; p++)
       {
          // edges and orientations for this patch
          GetElementEdges(p, e, oe);
 
-         mfem::out << "p = " << p << std::endl;
-         e.Print(mfem::out);
-         oe.Print(mfem::out);
-         mfem::out << std::endl;
-         // Get the signed unique knot vector index
+         // Get the signed unique knot vector indices
          for (int i = 0; i < e.Size(); i++)
          {
             ukvs[i] = edge_to_ukv[e[i]];
             ukvs[i] = (oe[i] < 0) ? sign(ukvs[i]) : ukvs[i];
          }
 
-         if (ukvs[0] != sign(ukvs[2]))
+         // Figure out if an edge needs to be flipped (dim = 2)
+         if (Dimension()==2)
          {
-            mfem::out << "0!=sign(2) " << ukvs[0] << "!=" << sign(ukvs[2]) << std::endl;
-            // flips[edges[2]] = 1;
-            eflip = (eflip = e[0]) ? e[2] : e[0];
-            eflip = std::min(flips)
-            edge_to_ukv[eflip] = sign(edge_to_ukv[eflip]);
-            break; // do only one flip at a time
+            if (ukvs[0] != sign(ukvs[2])) // dim 0
+            {
+               eflip = (flips[e[0]] < flips[e[2]]) ? e[0] : e[2];
+            }
+            else if (ukvs[1] != sign(ukvs[3])) // dim 1
+            {
+               eflip = (flips[e[1]] < flips[e[3]]) ? e[1] : e[3];
+            }
          }
-         if (ukvs[1] != sign(ukvs[3]))
+         // Apply flip
+         if (eflip != notset)
          {
-            mfem::out << "1!=sign(3) " << ukvs[1] << "!=" << sign(ukvs[3]) << std::endl;
-            // flips[edges[3]] = 1;
-            eflip = (eflip = e[1]) ? e[3] : e[1];
+            // For debugging - print flip
+            mfem::out << "Flipping edge " << eflip << std::endl;
             edge_to_ukv[eflip] = sign(edge_to_ukv[eflip]);
-            break;
+            flips[eflip]++;
+            break; // One flip at a time
          }
       }
-      if (eflip == lastflip) {break;}
 
-
-      mfem::out << "flips = " << std::endl;
-      flips.Print(mfem::out);
-      if (flips.Sum()==0) { break;}
-
-      // for (int i=0; i<NumOfEdges; i++)
-      // {
-      //    if (flips[i] > 0)
-      //    {
-      //       mfem::out << "flipping edge " << i << std::endl;
-      //       edge_to_ukv[e] = sign(edge_to_ukv[e]);
-      //    }
-      // }
-      mfem::out << std::endl << std::endl;
-
+      // We are done flipping edges
+      if (eflip == notset)
+      {
+         // For debugging - print flips
+         mfem::out << "All edges oriented correctly after "
+                    << n << " flips." << std::endl;
+         return;
+      }
    }
 }
 

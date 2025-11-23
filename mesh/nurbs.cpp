@@ -3253,7 +3253,7 @@ void NURBSExtension::MergeGridFunctions(
 bool NURBSExtension::CheckPatches()
 {
    // mfem::out << "CHECKING PATCHES" << std::endl;
-   if (Dimension() == 1 ) { return; }
+   if (Dimension() == 1 ) { return true; }
 
    Array<int> edges, oedge;
 
@@ -3288,13 +3288,13 @@ bool NURBSExtension::CheckPatches()
             edges[8] != edges[9] || edges[8] != edges[10] ||
             edges[8] != edges[11])))
       {
-         return true;
+         return false;
          // mfem::err << "NURBSExtension::CheckPatch (patch = " << p
          //           << ")\n  Inconsistent edge-to-knotvector mapping!";
          // mfem_error();
       }
    }
-   return false;
+   return true;
 }
 
 void NURBSExtension::CheckBdrPatches()

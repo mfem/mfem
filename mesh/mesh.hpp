@@ -852,7 +852,9 @@ public:
    void GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
                                   Array<int> &ukv_to_rpkv);
 
-   void CorrectPatchTopoOrientations(Array<int> &edge_to_ukv, int max_flips=-1);
+   void CorrectPatchTopoOrientations(Array<int> &edge_to_ukv,
+                                     Array<int> &ukv_to_rpkv,
+                                     int max_flips=-1);
 
    /// @}
 
