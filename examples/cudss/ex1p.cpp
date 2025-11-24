@@ -1,4 +1,5 @@
 //                       MFEM Example 1 - Parallel Version
+//                                cuDSS Modification
 //
 // Compile with: make ex1p
 //
@@ -151,7 +152,7 @@ int main(int argc, char *argv[])
    //    more than 10,000 elements.
    {
       int ref_levels =
-          (int)floor(log(10000. / mesh.GetNE()) / log(2.) / dim);
+         (int)floor(log(10000. / mesh.GetNE()) / log(2.) / dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
