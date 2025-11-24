@@ -31,7 +31,7 @@ namespace mfem::future
 using action_t =
    std::function<void(std::vector<Vector> &, const std::vector<Vector> &, Vector &)>;
 
-/// @brief Type alias for a function that computes the the cache for the action of a derivative
+/// @brief Type alias for a function that computes the cache for the action of a derivative
 using derivative_setup_t =
    std::function<void(std::vector<Vector> &, const Vector &)>;
 
