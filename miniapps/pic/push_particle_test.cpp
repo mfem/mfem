@@ -172,15 +172,19 @@ class GridFunctionUpdates
 private:
    real_t domain_volume;
    real_t neutralizing_const;
+   ParLinearForm *precomputed_neutralizing_lf = nullptr;
    bool neutralizing_const_computed = false;
    bool use_precomputed_neutralizing_const = false;
+   // Mass matrix
    HypreParMatrix *MassMatrix;
+   // Diffusion matrix
+   HypreParMatrix *DiffusionMatrix;
 
 public:
    // Update the density grid function from the particles.
    void UpdateDensityGridFunction(ParticleSet &particles, ParGridFunction &rho_gf);
-   // Update the phi_gf grid function from the new density grid function.
-   void UpdatePhiGridFunction(ParGridFunction &phi_gf, ParGridFunction &rho_gf);
+   // Update the phi_gf grid function from the particles.
+   void UpdatePhiGridFunction(ParticleSet &particles, ParGridFunction &phi_gf);
    // constructor
    GridFunctionUpdates(ParGridFunction &phi_gf, ParGridFunction &rho_gf, bool use_precomputed_neutralizing_const_ = false)
        : use_precomputed_neutralizing_const(use_precomputed_neutralizing_const_)
@@ -195,18 +199,30 @@ public:
 
       ParFiniteElementSpace *pfes = rho_gf.ParFESpace();
 
-      // Par bilinear form for the mass matrix
-      ParBilinearForm m(pfes);
-      m.AddDomainIntegrator(new MassIntegrator); // ∫ φ_i φ_j
+      { // Par bilinear form for the mass matrix
+         ParBilinearForm mm(pfes);
+         mm.AddDomainIntegrator(new MassIntegrator); // ∫ φ_i φ_j
 
-      m.Assemble();
-      m.Finalize();
+         mm.Assemble();
+         mm.Finalize();
 
-      MassMatrix = m.ParallelAssemble(); // global mass matrix
+         MassMatrix = mm.ParallelAssemble(); // global mass matrix
+      }
+      { // Par bilinear form for the gradgrad matrix
+         ParBilinearForm dm(pfes);
+         dm.AddDomainIntegrator(new DiffusionIntegrator); // ∫ ∇φ_i · ∇φ_j
+
+         dm.Assemble();
+         dm.Finalize();
+
+         DiffusionMatrix = dm.ParallelAssemble(); // global gradgrad matrix
+      }
    }
    ~GridFunctionUpdates()
    {
       delete MassMatrix;
+      delete DiffusionMatrix;
+      delete precomputed_neutralizing_lf;
    }
 };
 
@@ -305,9 +321,12 @@ int main(int argc, char *argv[])
    // build up E_gf, B_gf can remain nullptr
    // 1. make a 2D Cartesian Mesh
    Mesh serial_mesh(Mesh::MakeCartesian2D(ctx.nx, ctx.ny, Element::QUADRILATERAL, false, ctx.xmax, ctx.ymax));
+   std::vector<Vector> translations = {Vector({ctx.xmax, 0.0}), Vector({0.0, ctx.ymax})};
+   Mesh periodic_mesh(Mesh::MakePeriodic(serial_mesh, serial_mesh.CreatePeriodicVertexMapping(translations)));
    // 2. parallelize the mesh
-   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
-   serial_mesh.Clear(); // the serial mesh is no longer needed
+   ParMesh mesh(MPI_COMM_WORLD, periodic_mesh);
+   serial_mesh.Clear();   // the serial mesh is no longer needed
+   periodic_mesh.Clear(); // the periodic mesh is no longer needed
    // 3. Define a finite element space on the parallel mesh
    H1_FECollection sca_fec(ctx.order, dim);
    ParFiniteElementSpace sca_fespace(&mesh, &sca_fec);
@@ -325,7 +344,7 @@ int main(int argc, char *argv[])
       int num_procs = Mpi::WorldSize();
       int myid = Mpi::WorldRank();
       char vishost[] = "localhost";
-      int visport = 19916;
+      int visport = ctx.visport;
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
@@ -344,7 +363,7 @@ int main(int argc, char *argv[])
       int num_procs = Mpi::WorldSize();
       int myid = Mpi::WorldRank();
       char vishost[] = "localhost";
-      int visport = 19916;
+      int visport = ctx.visport;
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
@@ -429,10 +448,10 @@ int main(int argc, char *argv[])
          // Redistribute
          boris.Redistribute(ctx.redist_mesh);
 
-         // Update rho_gf from particles
-         gf_updates.UpdateDensityGridFunction(boris.GetParticles(), rho_gf);
-         // Update phi_gf from rho_gf
-         gf_updates.UpdatePhiGridFunction(phi_gf, rho_gf);
+         // // Update rho_gf from particles
+         // gf_updates.UpdateDensityGridFunction(boris.GetParticles(), rho_gf);
+         // Update phi_gf from particles
+         gf_updates.UpdatePhiGridFunction(boris.GetParticles(), rho_gf);
       }
    }
 }
@@ -710,41 +729,80 @@ void GridFunctionUpdates::UpdateDensityGridFunction(ParticleSet &particles,
 
    // Particle data
    MultiVector &X = particles.Coords();             // coordinates (vdim x npt)
-   MultiVector &Q = particles.Field(Boris::CHARGE); // charges (1 x npt expected)
+   MultiVector &Q = particles.Field(Boris::CHARGE); // charges (1 x npt)
 
    const int npt = X.GetNumVectors();
    MFEM_VERIFY(X.GetVDim() == dim, "Unexpected particle coordinate layout.");
    MFEM_VERIFY(Q.GetVDim() == 1, "Charge field must be scalar per particle.");
 
    // ------------------------------------------------------------------------
-   // 1) Build the list of physical coordinates with byVDIM ordering: (XYZ,XYZ,...)
-   //    We just alias the MultiVector storage; no copy.
+   // 1) Build positions in byVDIM ordering: (XYZ,XYZ,...)
    // ------------------------------------------------------------------------
-   Vector point_pos(X.GetData(), dim * npt); // alias, NOT a deep copy
+   Vector point_pos(X.GetData(), dim * npt); // alias underlying storage
 
    // ------------------------------------------------------------------------
-   // 2) Locate the particles in the mesh with FindPointsGSLIB
+   // 2) Locate particles with FindPointsGSLIB
    // ------------------------------------------------------------------------
    FindPointsGSLIB finder(pmesh->GetComm());
    finder.Setup(*pmesh);
-
    finder.FindPoints(point_pos, Ordering::byVDIM);
 
-   // Info for each input point (still in original order)
    const Array<unsigned int> &code = finder.GetCode(); // 0: inside, 1: boundary, 2: not found
-   const Array<unsigned int> &proc = finder.GetProc(); // owning MPI rank of the element
-   const Array<unsigned int> &elem = finder.GetElem(); // MFEM element id (local to owning rank)
-   const Vector &rref = finder.GetReferencePosition(); // (r,s,t) in byVDIM layout
+   const Array<unsigned int> &proc = finder.GetProc(); // owning MPI rank
+   const Array<unsigned int> &elem = finder.GetElem(); // local element id
+   const Vector &rref = finder.GetReferencePosition(); // (r,s,t) byVDIM
 
    // ------------------------------------------------------------------------
-   // 3) Deposit q_p * phi_i(x_p) into a ParLinearForm (RHS b)
+   // 3) Make RHS and pre-subtract averaged charge density => enforce zero-mean RHS
+   // ------------------------------------------------------------------------
+
+   MPI_Comm comm = pfes->GetComm();
+
+   if (!use_precomputed_neutralizing_const || !neutralizing_const_computed)
+   {
+      // compute neutralizing constant
+      real_t local_sum = 0.0;
+      for (int p = 0; p < npt; ++p)
+      {
+         // Skip particles not successfully found
+         if (code[p] == 2) // not found
+         {
+            continue;
+         }
+         const real_t q_p = Q(0, p); // charge of particle p
+         local_sum += q_p;
+      }
+
+      real_t global_sum = 0.0;
+      MPI_Allreduce(&local_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, comm);
+
+      neutralizing_const = -global_sum / domain_volume;
+      neutralizing_const_computed = true;
+      if (Mpi::Root())
+      {
+         cout << "Total charge: " << global_sum << ", Domain volume: " << domain_volume << ", Neutralizing constant: " << neutralizing_const << endl;
+         if (use_precomputed_neutralizing_const)
+         {
+            cout << "Further updates will use this precomputed neutralizing constant." << endl;
+         }
+      }
+      neutralizing_const_computed = true;
+      delete precomputed_neutralizing_lf;
+      precomputed_neutralizing_lf = new ParLinearForm(pfes);
+      *precomputed_neutralizing_lf = 0.0;
+      ConstantCoefficient neutralizing_coeff(neutralizing_const);
+      precomputed_neutralizing_lf->AddDomainIntegrator(new DomainLFIntegrator(neutralizing_coeff));
+      precomputed_neutralizing_lf->Assemble();
+   }
+   ParLinearForm b(pfes);
+   b = *precomputed_neutralizing_lf; // start with precomputed neutralizing contribution
+
+   // ------------------------------------------------------------------------
+   // 4) Deposit q_p * phi_i(x_p) into a ParLinearForm (RHS b)
    //      b_i = sum_p q_p * φ_i(x_p)
    // ------------------------------------------------------------------------
    int myid;
    MPI_Comm_rank(pmesh->GetComm(), &myid);
-
-   ParLinearForm b(pfes);
-   b = 0.0; // zero RHS
 
    Array<int> dofs;
 
@@ -790,7 +848,7 @@ void GridFunctionUpdates::UpdateDensityGridFunction(ParticleSet &particles,
 
       pfes->GetElementDofs(e, dofs); // local dof indices
 
-      const double q_p = Q(0, p); // charge of particle p
+      const real_t q_p = Q(0, p); // charge of particle p
 
       // Add q_p * φ_i(x_p) to b_i
       b.AddElementVector(dofs, q_p, shape);
@@ -800,11 +858,13 @@ void GridFunctionUpdates::UpdateDensityGridFunction(ParticleSet &particles,
    HypreParVector *B = b.ParallelAssemble(); // owns new vector on heap
 
    // ------------------------------------------------------------------------
-   // 4) Solve MassMatrix * rho = B for rho (true dofs), then put into rho_gf
+   // 5) Solve MassMatrix * rho = B for rho (true dofs), then put into rho_gf
    // ------------------------------------------------------------------------
-   rho_gf = 0.0;
+   MFEM_VERIFY(MassMatrix != nullptr, "MassMatrix must be precomputed.");
 
+   rho_gf = 0.0;
    HypreParVector Rho_true(pfes); // solution in true-dof space
+   Rho_true = 0.0;
 
    HyprePCG solver(MassMatrix->GetComm());
    solver.SetOperator(*MassMatrix);
@@ -830,7 +890,7 @@ void GridFunctionUpdates::UpdateDensityGridFunction(ParticleSet &particles,
       int num_procs = Mpi::WorldSize();
       int myid = Mpi::WorldRank();
       char vishost[] = "localhost";
-      int visport = 19916;
+      int visport = ctx.visport;
 
       if (!init)
       {
@@ -848,19 +908,8 @@ void GridFunctionUpdates::UpdateDensityGridFunction(ParticleSet &particles,
                   << *pmesh << rho_gf << std::flush;
       }
    }
-}
-
-// Update the phi_gf grid function from the new density grid function.
-void GridFunctionUpdates::UpdatePhiGridFunction(ParGridFunction &phi_gf, ParGridFunction &rho_gf)
-{
-   ParLinearForm b(phi_gf.ParFESpace());
-   GridFunctionCoefficient rho_coeff(&rho_gf);
-   b.AddDomainIntegrator(new DomainLFIntegrator(rho_coeff));
-   b.Assemble();
-
-   // compute the net-neutralizing constant
-   if (!use_precomputed_neutralizing_const || !neutralizing_const_computed)
    {
+      // for debug: compute total charge
       ParFiniteElementSpace *fes = rho_gf.ParFESpace();
       ParLinearForm lf(fes);
       ConstantCoefficient one(1.0);
@@ -870,15 +919,202 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParGridFunction &phi_gf, ParGrid
       double local_charge = rho_gf * lf; // inner product
       double global_charge;
       MPI_Allreduce(&local_charge, &global_charge, 1, MPI_DOUBLE, MPI_SUM, fes->GetComm());
-      neutralizing_const = -global_charge / domain_volume;
+      if (Mpi::Root())
+         cout << "Total charge: " << global_charge << endl;
+   }
+}
+
+// Solve periodic Poisson: DiffusionMatrix * phi = (rho - <rho>)
+// with zero-mean enforcement via OrthoSolver.
+void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
+                                                ParGridFunction &phi_gf)
+{
+   // FE space / mesh
+   ParFiniteElementSpace *pfes = phi_gf.ParFESpace();
+   ParMesh *pmesh = pfes->GetParMesh();
+   const int dim = pmesh->Dimension();
+
+   // Particle data
+   MultiVector &X = particles.Coords();             // coordinates (vdim x npt)
+   MultiVector &Q = particles.Field(Boris::CHARGE); // charges (1 x npt)
+
+   const int npt = X.GetNumVectors();
+   MFEM_VERIFY(X.GetVDim() == dim, "Unexpected particle coordinate layout.");
+   MFEM_VERIFY(Q.GetVDim() == 1, "Charge field must be scalar per particle.");
+
+   // ------------------------------------------------------------------------
+   // 1) Build positions in byVDIM ordering: (XYZ,XYZ,...)
+   // ------------------------------------------------------------------------
+   Vector point_pos(X.GetData(), dim * npt); // alias underlying storage
+
+   // ------------------------------------------------------------------------
+   // 2) Locate particles with FindPointsGSLIB
+   // ------------------------------------------------------------------------
+   FindPointsGSLIB finder(pmesh->GetComm());
+   finder.Setup(*pmesh);
+   finder.FindPoints(point_pos, Ordering::byVDIM);
+
+   const Array<unsigned int> &code = finder.GetCode(); // 0: inside, 1: boundary, 2: not found
+   const Array<unsigned int> &proc = finder.GetProc(); // owning MPI rank
+   const Array<unsigned int> &elem = finder.GetElem(); // local element id
+   const Vector &rref = finder.GetReferencePosition(); // (r,s,t) byVDIM
+
+   // ------------------------------------------------------------------------
+   // 3) Make RHS and pre-subtract averaged charge density => enforce zero-mean RHS
+   // ------------------------------------------------------------------------
+
+   MPI_Comm comm = pfes->GetComm();
+
+   if (!use_precomputed_neutralizing_const || !neutralizing_const_computed)
+   {
+      // compute neutralizing constant
+      real_t local_sum = 0.0;
+      for (int p = 0; p < npt; ++p)
+      {
+         // Skip particles not successfully found
+         if (code[p] == 2) // not found
+         {
+            continue;
+         }
+         const real_t q_p = Q(0, p); // charge of particle p
+         local_sum += q_p;
+      }
+
+      real_t global_sum = 0.0;
+      MPI_Allreduce(&local_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, comm);
+
+      neutralizing_const = -global_sum / domain_volume;
       neutralizing_const_computed = true;
       if (Mpi::Root())
       {
-         cout << "Total charge: " << global_charge << ", Domain volume: " << domain_volume << ", Neutralizing constant: " << neutralizing_const << endl;
+         cout << "Total charge: " << global_sum << ", Domain volume: " << domain_volume << ", Neutralizing constant: " << neutralizing_const << endl;
          if (use_precomputed_neutralizing_const)
          {
             cout << "Further updates will use this precomputed neutralizing constant." << endl;
          }
+      }
+      neutralizing_const_computed = true;
+      delete precomputed_neutralizing_lf;
+      precomputed_neutralizing_lf = new ParLinearForm(pfes);
+      *precomputed_neutralizing_lf = 0.0;
+      ConstantCoefficient neutralizing_coeff(neutralizing_const);
+      precomputed_neutralizing_lf->AddDomainIntegrator(new DomainLFIntegrator(neutralizing_coeff));
+      precomputed_neutralizing_lf->Assemble();
+   }
+   ParLinearForm b(pfes);
+   b = *precomputed_neutralizing_lf; // start with precomputed neutralizing contribution
+
+   // ------------------------------------------------------------------------
+   // 4) Deposit q_p * phi_i(x_p) into a ParLinearForm (RHS b)
+   //      b_i = sum_p q_p * φ_i(x_p)
+   // ------------------------------------------------------------------------
+   int myid;
+   MPI_Comm_rank(pmesh->GetComm(), &myid);
+
+   Array<int> dofs;
+
+   for (int p = 0; p < npt; ++p)
+   {
+      // Skip particles not successfully found
+      if (code[p] == 2) // not found
+      {
+         continue;
+      }
+
+      // Raise error if particle is not on the current rank
+      if ((int)proc[p] != myid)
+      {
+         // raise error
+         MFEM_ABORT("Particle " << p << " found in element owned by rank "
+                                << proc[p] << " but current rank is " << myid << "." << endl
+                                << "You must call redistribute everytime before updating the density grid function.");
+         continue;
+      }
+      const int e = elem[p];
+
+      // Reference coordinates for this particle (r,s[,t]) with byVDIM layout
+      IntegrationPoint ip;
+      if (dim == 1)
+      {
+         ip.x = rref(p);
+      }
+      else if (dim == 2)
+      {
+         ip.Set2(rref[2 * p + 0], rref[2 * p + 1]);
+      }
+      else // dim == 3
+      {
+         ip.Set3(rref[3 * p + 0], rref[3 * p + 1], rref[3 * p + 2]);
+      }
+
+      const FiniteElement &fe = *pfes->GetFE(e);
+      const int ldofs = fe.GetDof();
+
+      Vector shape(ldofs);
+      fe.CalcShape(ip, shape); // φ_i(x_p) in this element
+
+      pfes->GetElementDofs(e, dofs); // local dof indices
+
+      const real_t q_p = Q(0, p); // charge of particle p
+
+      // Add q_p * φ_i(x_p) to b_i
+      b.AddElementVector(dofs, q_p, shape);
+   }
+
+   // Assemble to a global true-dof RHS vector compatible with MassMatrix
+   HypreParVector *B = b.ParallelAssemble(); // owns new vector on heap
+
+   // ------------------------------------------------------------------
+   // 5) Solve A * phi = B with zero-mean enforcement via OrthoSolver
+   // ------------------------------------------------------------------
+   MFEM_VERIFY(DiffusionMatrix != nullptr, "DiffusionMatrix must be precomputed.");
+
+   phi_gf = 0.0;
+   HypreParVector Phi_true(pfes);
+   Phi_true = 0.0;
+
+   HyprePCG solver(DiffusionMatrix->GetComm());
+   solver.SetOperator(*DiffusionMatrix);
+   solver.SetTol(1e-12);
+   solver.SetMaxIter(200);
+   solver.SetPrintLevel(0);
+
+   HypreBoomerAMG prec(*DiffusionMatrix);
+   prec.SetPrintLevel(0);
+   solver.SetPreconditioner(prec);
+
+   OrthoSolver ortho(comm);
+   ortho.SetSolver(solver);
+   ortho.Mult(*B, Phi_true);
+
+   // Map true-dof solution back to the ParGridFunction
+   phi_gf.Distribute(Phi_true);
+
+   delete B;
+   if (ctx.visualization)
+   {
+      static socketstream sol_sock;
+      static bool init = false;
+
+      int num_procs = Mpi::WorldSize();
+      int myid_vis = Mpi::WorldRank();
+      char vishost[] = "localhost";
+      int visport = ctx.visport;
+
+      if (!init)
+      {
+         sol_sock.open(vishost, visport);
+         if (sol_sock)
+         {
+            init = true;
+         }
+      }
+      if (init)
+      {
+         sol_sock << "parallel " << num_procs << " " << myid_vis << "\n";
+         sol_sock.precision(8);
+         sol_sock << "solution\n"
+                  << *pmesh << phi_gf << std::flush;
       }
    }
 }
