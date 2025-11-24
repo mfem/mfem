@@ -510,15 +510,15 @@ void ParticleSet::WriteToFile(const char *fname,
    offset += ss_header.str().size();
 
    // Write data collectively
-   MPI_File_write_at_all(file, offset, ss_data.str().data(), data_size, MPI_BYTE,
-                         MPI_STATUS_IGNORE);
+   MPI_File_write_at_all(file, offset, ss_data.str().data(),
+                         data_size, MPI_BYTE, MPI_STATUS_IGNORE);
 
    // Close file
    MPI_File_close(&file);
 #else
    // Serial:
    std::ofstream ofs(fname);
-   MFEM_VERIFY(ofs.is_open && !ofs.fail(),
+   MFEM_VERIFY(ofs.is_open() && !ofs.fail(),
                "Error: Could not open file " << fname << " for writing.");
    ofs << ss_header.str() << ss_data.str();
    ofs.close();
