@@ -455,7 +455,12 @@ int main(int argc, char *argv[])
          // // Update rho_gf from particles
          // gf_updates.UpdateDensityGridFunction(boris.GetParticles(), rho_gf);
          // Update phi_gf from particles
-         gf_updates.UpdatePhiGridFunction(boris.GetParticles(), rho_gf);
+         gf_updates.UpdatePhiGridFunction(boris.GetParticles(), phi_gf);
+         ParGridFunction neg_phi_gf(&sca_fespace);
+         neg_phi_gf = 0.0;
+         neg_phi_gf -= phi_gf;
+         GradientGridFunctionCoefficient E_coeff(&neg_phi_gf);
+         E_gf->ProjectCoefficient(E_coeff);
       }
    }
 }
