@@ -185,6 +185,7 @@ public:
    void UpdateDensityGridFunction(ParticleSet &particles, ParGridFunction &rho_gf);
    // Update the phi_gf grid function from the particles.
    void UpdatePhiGridFunction(ParticleSet &particles, ParGridFunction &phi_gf);
+   void PhiValidation(const ParGridFunction &phi_gf);
    // constructor
    GridFunctionUpdates(ParGridFunction &phi_gf, ParGridFunction &rho_gf, bool use_precomputed_neutralizing_const_ = false)
        : use_precomputed_neutralizing_const(use_precomputed_neutralizing_const_)
