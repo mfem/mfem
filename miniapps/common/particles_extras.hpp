@@ -47,8 +47,6 @@ class ParticleTrajectories
 protected:
    const ParticleSet &pset;
    Mesh *mesh = nullptr;
-   const char *vishost;
-   int visport;
 
    socketstream sock;
    /// Track particle IDs that exist at the segment start.
@@ -59,6 +57,8 @@ protected:
    int tail_size;
    int x, y, w, h;
    const char *title, *keys;
+   const char *vishost;
+   int visport;
 
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
