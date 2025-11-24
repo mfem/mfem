@@ -19,9 +19,11 @@ namespace mfem
 {
 
 /** \brief ParticleVector carries vector data (of a given vector dimension) for
- *  an arbitrary number of particles. Data is stored contiguously in memory in an either
+ *  an arbitrary number of particles. Data is stored contiguously in memory in
+ *  an either
  *  byNODES (x0,x1,x2,...,xN,y0,y1,y2...yN,z0.....zN) or
- *  byVDIM (x0,y0,z0,...,xN,yN,zN) ordering, where N+1 is the number of particles.
+ *  byVDIM (x0,y0,z0,...,xN,yN,zN) ordering,
+ *  where N+1 is the number of particles.
  *  ParticleVector provides convenient methods for accessing and manipulating
  *  data for individual particles (e.g., \ref GetValues) or
  *  components across all particles (e.g., \ref GetComponents).
