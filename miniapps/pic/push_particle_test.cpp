@@ -1117,4 +1117,75 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
                   << *pmesh << phi_gf << std::flush;
       }
    }
+   PhiValidation(phi_gf);
+}
+class GreenFunctionCoefficient : public Coefficient
+{
+public:
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      // G(x,y) = \sum_{\substack{(m,n)\in\mathbb Z^2\\(m,n)\neq (0,0)}} \frac{(-1)^{m+n}\cos\big(2\pi (mx + ny)\big)}{2\pi^2 (m^2+n^2)}
+      // get r, z coordinates
+      Vector x;
+      T.Transform(ip, x);
+      real_t val = 0.0;
+      const int M_max = 15;
+      const int N_max = 15;
+
+      for (int m = -M_max; m <= M_max; ++m)
+      {
+         for (int n = -N_max; n <= N_max; ++n)
+         {
+            if (m == 0 && n == 0)
+               continue;
+
+            int parity = (m + n) & 1; // even/odd, works for negatives
+            real_t numerator = (parity == 0) ? 1.0 : -1.0;
+
+            real_t denominator = 4.0 * M_PI * M_PI * (m * m + n * n);
+            real_t angle = 2.0 * M_PI * (m * x[0] + n * x[1]);
+
+            val += numerator * cos(angle) / denominator;
+         }
+      }
+
+      return val;
+   }
+};
+
+void GridFunctionUpdates::PhiValidation(const ParGridFunction &phi_gf)
+{
+   // FE space / mesh
+   ParFiniteElementSpace *pfes = phi_gf.ParFESpace();
+   ParGridFunction var_phi_gf(pfes);
+   GreenFunctionCoefficient green_coeff;
+   var_phi_gf.ProjectCoefficient(green_coeff);
+   ParMesh *pmesh = pfes->GetParMesh();
+   var_phi_gf -= phi_gf;
+   if (ctx.visualization)
+   {
+      static socketstream sol_sock;
+      static bool init = false;
+
+      int num_procs = Mpi::WorldSize();
+      int myid_vis = Mpi::WorldRank();
+      char vishost[] = "localhost";
+      int visport = ctx.visport;
+
+      if (!init)
+      {
+         sol_sock.open(vishost, visport);
+         if (sol_sock)
+         {
+            init = true;
+         }
+      }
+      if (init)
+      {
+         sol_sock << "parallel " << num_procs << " " << myid_vis << "\n";
+         sol_sock.precision(8);
+         sol_sock << "solution\n"
+                  << *pmesh << var_phi_gf << std::flush;
+      }
+   }
 }
