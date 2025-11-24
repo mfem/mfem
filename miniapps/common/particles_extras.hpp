@@ -60,7 +60,6 @@ protected:
    int x, y, w, h;
    const char *title, *keys;
 
-   bool newly_opened;
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
 #endif // MFEM_USE_MPI

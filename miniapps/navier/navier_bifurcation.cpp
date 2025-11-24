@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // Sample run:
-// * mpirun -np 10 navier_bifurcation -rs 3 -npt 10 -pt 100 -nt 4e5 -csv 50 -pv 50
+// * mpirun -np 10 navier_bifurcation -rs 3 -npt 100 -pt 100 -nt 4e5
 
 
 #include "navier_solver.hpp"
@@ -38,8 +38,8 @@ struct flow_context
 
    // particle
    int pnt_0 = round(2.0/dt);
-   int add_particles_freq = 100;
-   int num_add_particles = 10;
+   int add_particles_freq = 300;
+   int num_add_particles = 100;
    real_t kappa_min = 1.0;
    real_t kappa_max = 10.0;
    real_t gamma = 0.0;
@@ -165,7 +165,7 @@ int main(int argc, char *argv[])
    // Set up solution and particle visualization
    char vishost[] = "localhost";
    socketstream vis_sol;
-   int Ww = 350, Wh = 350; // window size
+   int Ww = 500, Wh = 500; // window size
    int Wx = 10, Wy = 0; // window position
    char keys[] = "mAcRjlmm]]]]]]]]]";
    std::unique_ptr<ParticleTrajectories> traj_vis;
@@ -184,11 +184,12 @@ int main(int argc, char *argv[])
       VisualizeField(vis_sol, vishost, ctx.visport, u_gf, "Velocity",
                      Wx, Wy, Ww, Wh, keys);
 #ifdef MFEM_USE_GSLIB
+      int traj_tail_length = 10;
       traj_vis = std::make_unique<ParticleTrajectories>(
                     particle_solver.GetParticles(),
-                    20, vishost, ctx.visport,
+                    traj_tail_length, vishost, ctx.visport,
                     "Particle Trajectories",
-                    Wx+Ww, Wy, Ww, Wh, "b");
+                    Ww+Wx, Wy, Ww, Wh, "bbm");
       traj_vis->AddMeshForVisualization(psubmesh.get());
       traj_vis->Visualize();
 #endif
@@ -236,9 +237,9 @@ int main(int argc, char *argv[])
    int vis_count = 1;
 
    Array<int> add_particle_idxs;
+   real_t cfl;
    for (int step = 1; step <= ctx.nt; step++)
    {
-      real_t cfl;
       flow_solver.Step(time, ctx.dt, step-1);
 
 #ifdef MFEM_USE_GSLIB

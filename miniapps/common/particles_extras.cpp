@@ -149,24 +149,8 @@ void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
    }
 
 #ifdef MFEM_USE_MPI
-   int myid, num_procs;
-   MPI_Comm_rank(pset.GetComm(), &myid);
-   MPI_Comm_size(pset.GetComm(), &num_procs);
-
-   sock.open(vishost, visport);
-   sock.precision(8);
-   sock << "parallel " << num_procs << " " << myid << "\n";
-   sock << "solution " << particles_mesh << gf << std::flush;
-
-   if (myid == 0)
-   {
-      sock << "window_title '" << title << "'\n"
-           << "window_geometry "
-           << x << " " << y << " " << w << " " << h << "\n";
-      if ( keys ) { sock << "keys " << keys << "\n"; }
-      else { sock << "keys maaAc"; }
-      sock << std::endl;
-   }
+   VisualizeField(sock, vishost, visport, gf, pset.GetComm(), title,
+                  x, y, w, h, keys, false);
 #else
    VisualizeField(sock, vishost, visport, gf, title, x, y, w, h, keys, false);
 #endif // MFEM_USE_MPI
@@ -179,16 +163,12 @@ ParticleTrajectories::ParticleTrajectories(const ParticleSet &particles,
                                            int x_, int y_, int w_, int h_,
                                            const char *keys_)
    : pset(particles), tail_size(tail_size_),
-     x(x_), y(y_), w(w_), h(h_),
-     title(title_), keys(keys_), vishost(vishost_), visport(visport_)
+     x(x_), y(y_), w(w_), h(h_), title(title_), keys(keys_),
+     vishost(vishost_), visport(visport_)
 #ifdef MFEM_USE_MPI
    ,comm(particles.GetComm())
 #endif // MFEM_USE_MPI
 {
-   sock.open(vishost, visport);
-   sock.precision(8);
-   newly_opened = true;
-
    AddSegmentStart();
 }
 
@@ -269,41 +249,13 @@ void ParticleTrajectories::Visualize()
 
    Mesh trajectories(all_meshes.data(), all_meshes.size());
 
-   // re-open connection if needed
-   int connection_failed;
-   do
-   {
-      if (!sock.is_open() || !sock)
-      {
-         sock.open(vishost, visport);
-         sock.precision(8);
-         newly_opened = true;
-      }
-      connection_failed = !sock && !newly_opened;
-   }
-   while (connection_failed);
-
-   // Update socketstream
 #ifdef MFEM_USE_MPI
-   int myid, num_procs;
-   MPI_Comm_rank(comm, &myid);
-   MPI_Comm_size(comm, &num_procs);
-
-   sock << "parallel " << num_procs << " " << myid << "\n";
-#endif // MFEM_USE_MPI
-   sock << "mesh\n";
-   trajectories.Print(sock);
-
-   if (newly_opened)
-   {
-      sock << "window_title '" << title << "'\n"
-           << "window_geometry "
-           << x << " " << y << " " << w << " " << h << "\n";
-      if ( keys ) { sock << "keys " << keys << "\n"; }
-      else { sock << "keys maaAc\n"; }
-      sock << std::endl;
-      newly_opened = false;
-   }
+   VisualizeMesh(sock, vishost, visport, trajectories, comm,
+                 title, x, y, w, h, keys);
+#else
+   VisualizeMesh(sock, vishost, visport, trajectories,
+                 title, x, y, w, h, keys);
+#endif
 
    AddSegmentStart();
 }

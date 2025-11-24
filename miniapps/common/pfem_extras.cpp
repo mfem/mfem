@@ -166,8 +166,7 @@ IrrotationalProjector::~IrrotationalProjector()
    delete weakDiv_;
 }
 
-void
-IrrotationalProjector::InitSolver() const
+void IrrotationalProjector::InitSolver() const
 {
    delete pcg_;
    delete amg_;
@@ -181,8 +180,7 @@ IrrotationalProjector::InitSolver() const
    pcg_->SetPreconditioner(*amg_);
 }
 
-void
-IrrotationalProjector::Mult(const Vector &x, Vector &y) const
+void IrrotationalProjector::Mult(const Vector &x, Vector &y) const
 {
    // Compute the divergence of x
    weakDiv_->Mult(x,*xDiv_); *xDiv_ *= -1.0;
@@ -202,8 +200,7 @@ IrrotationalProjector::Mult(const Vector &x, Vector &y) const
    grad_->Mult(*psi_, y);
 }
 
-void
-IrrotationalProjector::Update()
+void IrrotationalProjector::Update()
 {
    delete pcg_; pcg_ = NULL;
    delete amg_; amg_ = NULL;
@@ -247,16 +244,14 @@ DivergenceFreeProjector
 DivergenceFreeProjector::~DivergenceFreeProjector()
 {}
 
-void
-DivergenceFreeProjector::Mult(const Vector &x, Vector &y) const
+void DivergenceFreeProjector::Mult(const Vector &x, Vector &y) const
 {
    this->IrrotationalProjector::Mult(x, y);
    y  -= x;
    y *= -1.0;
 }
 
-void
-DivergenceFreeProjector::Update()
+void DivergenceFreeProjector::Update()
 {
    this->IrrotationalProjector::Update();
 }
@@ -305,6 +300,45 @@ void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
       MPI_Bcast(&connection_failed, 1, MPI_INT, 0, comm);
    }
    while (connection_failed);
+}
+
+void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
+                   Mesh &mesh, MPI_Comm comm, const char *title,
+                   int x, int y, int w, int h, const char *keys)
+{
+   int num_procs, myid;
+   MPI_Comm_size(comm, &num_procs);
+   MPI_Comm_rank(comm, &myid);
+
+   bool newly_opened = false;
+   int connection_failed;
+   int ntries = 0;
+   const int max_tries = 5;
+
+   do
+   {
+      if (!sock.is_open() || !sock)
+      {
+         sock.open(vishost, visport);
+         sock.precision(8);
+         newly_opened = true;
+      }
+
+      sock << "parallel " << num_procs << " " << myid << "\n";
+      sock << "mesh " << mesh << std::flush;
+
+      if (newly_opened)
+      {
+         sock << "window_title '" << title << "'\n"
+              << "window_geometry "
+              << x << " " << y << " " << w << " " << h << "\n";
+         if ( keys ) { sock << "keys " << keys << "\n"; }
+         sock << endl;
+         newly_opened = false;
+      }
+      connection_failed = !sock && !newly_opened;
+   }
+   while (connection_failed && ++ntries < max_tries);
 }
 
 void VisualizeField(socketstream &sock, const char *vishost, int visport,
@@ -358,14 +392,18 @@ void VisualizeField(socketstream &sock, const char *vishost, int visport,
 }
 
 void VisualizeField(socketstream &sock, const char *vishost, int visport,
-                    const GridFunction &gf, const char *title,
-                    int myid, int num_procs, MPI_Comm comm,
+                    const GridFunction &gf, MPI_Comm comm, const char *title,
                     int x, int y, int w, int h, const char *keys, bool vec)
 {
    Mesh &mesh = *gf.FESpace()->GetMesh();
+   int myid, num_procs;
+   MPI_Comm_rank(comm, &myid);
+   MPI_Comm_size(comm, &num_procs);
 
    bool newly_opened = false;
    bool connection_failed;
+   int ntries = 0;
+   const int max_tries = 5;
 
    do
    {
@@ -392,7 +430,7 @@ void VisualizeField(socketstream &sock, const char *vishost, int visport,
       }
       connection_failed = !sock && !newly_opened;
    }
-   while (connection_failed);
+   while (connection_failed && ++ntries < max_tries);
 }
 
 } // namespace common
