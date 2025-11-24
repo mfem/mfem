@@ -120,6 +120,7 @@ struct LorentzContext
    int rm_lost_freq = 1;
 
    bool visualization = true;
+   bool validate_phi = false;
    int visport = 19916;
    int vis_tail_size = 5;
    int vis_freq = 50;
@@ -295,6 +296,8 @@ int main(int argc, char *argv[])
    args.AddOption(&ctx.nt, "-nt", "--num-timesteps", "Number of timesteps.");
    args.AddOption(&ctx.visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization", "Enable or disable GLVis visualization.");
+   args.AddOption(&ctx.validate_phi, "-val", "--validate-phi", "-no-val",
+                  "--no-validate-phi", "Enable validation of phi_gf against analytical solution.");
    args.AddOption(&ctx.vis_tail_size, "-vt", "--vis-tail-size",
                   "GLVis visualization trajectory truncation tail size.");
    args.AddOption(&ctx.vis_freq, "-vf", "--vis-freq",
@@ -1118,14 +1121,15 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
                   << *pmesh << phi_gf << std::flush;
       }
    }
-   PhiValidation(phi_gf);
+   if (ctx.validate_phi)
+      PhiValidation(phi_gf);
 }
 class GreenFunctionCoefficient : public Coefficient
 {
 public:
    real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
-      // G(x,y) = \sum_{\substack{(m,n)\in\mathbb Z^2\\(m,n)\neq (0,0)}} \frac{(-1)^{m+n}\cos\big(2\pi (mx + ny)\big)}{2\pi^2 (m^2+n^2)}
+      // G(x, y) = \sum_{(m,n)\neq(0,0)} \frac{(-1)^{m+n}}{4\pi^2(m^2+n^2)} \cos\big(2\pi(mx+ny)\big).
       // get r, z coordinates
       Vector x;
       T.Transform(ip, x);
