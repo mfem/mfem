@@ -325,7 +325,7 @@ void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
       }
 
       sock << "parallel " << num_procs << " " << myid << "\n";
-      sock << "mesh " << mesh << std::flush;
+      sock << "mesh\n" << mesh << std::flush;
 
       if (newly_opened)
       {

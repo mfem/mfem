@@ -428,8 +428,8 @@ public:
                 const char* field_name=nullptr);
 
    // Add a field [with different parameter order for convenience]
-   int AddField(int vdim, const char* field_name=nullptr,
-                Ordering::Type field_ordering=Ordering::byVDIM)
+   int AddNamedField(int vdim, const char* field_name,
+                     Ordering::Type field_ordering=Ordering::byVDIM)
    {
       return AddField(vdim, field_ordering, field_name);
    }
@@ -454,6 +454,9 @@ public:
 
    /// Get an Array<int> of the field vector-dimensions registered to particles.
    const Array<int> GetFieldVDims() const;
+
+   /// Get Field vector-dimension
+   int FieldVDim(int f) const { return fields[f]->GetVDim(); }
 
    /// Get the number of tags registered to particles.
    int GetNTags() const { return tags.size(); }

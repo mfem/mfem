@@ -214,12 +214,11 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_GSLIB
    std::string csv_prefix = "Navier_Bifurcation_";
    // Setup arrays to indicate what to print.
-   // Leave field array empty to only print minimal info, i.e. id, rank, and
-   // coordinates
-   Array<int> print_field_idxs;
+   // Particle id, rank, and coordinates are included by default. We also
+   // include the first field (i.e. \kappa with index 0 inside the ParticleSet)
+   Array<int> print_field_idxs({0});
    // Print the first tag for each particle.
-   Array<int> print_tag_idxs(1);
-   print_tag_idxs[0] = 0;
+   Array<int> print_tag_idxs({0});
    if (ctx.print_csv_freq > 0)
    {
       std::string file_name = csv_prefix +

@@ -332,26 +332,26 @@ NavierParticles::NavierParticles(MPI_Comm comm, int num_particles, Mesh &m)
 
    int dim = fluid_particles.GetDim();
 
-   // Initialize kappa, zeta, gamma (ordering defaults to byVDIM if unspecified)
+   // Initialize kappa, zeta, gamma
+   // Ordering defaults to byVDIM and name defaults to 'Field_{field_idx}' if
+   // unspecified.
    fp_idx.field.kappa = fluid_particles.AddField(1, Ordering::byVDIM, "kappa");
    fp_idx.field.zeta = fluid_particles.AddField(1, Ordering::byVDIM, "zeta");
-   fp_idx.field.gamma = fluid_particles.AddField(1, "gamma");
+   fp_idx.field.gamma = fluid_particles.AddNamedField(1, "gamma");
 
-   inactive_fluid_particles.AddField(1, "kappa");
-   inactive_fluid_particles.AddField(1, "zeta");
-   inactive_fluid_particles.AddField(1, "gamma");
+   inactive_fluid_particles.AddField(1);
+   inactive_fluid_particles.AddField(1);
+   inactive_fluid_particles.AddField(1);
 
    // Initialize fluid particle fields
    for (int i = 0; i < N_HIST; i++)
    {
-      string suffix = i > 0 ? "_nm" + to_string(i) : "_n";
-      fp_idx.field.u[i] = fluid_particles.AddField(dim, ("u" + suffix).c_str());
-      fp_idx.field.v[i] = fluid_particles.AddField(dim, ("v" + suffix).c_str());
-      fp_idx.field.w[i] = fluid_particles.AddField(dim, ("w" + suffix).c_str());
+      fp_idx.field.u[i] = fluid_particles.AddField(dim);
+      fp_idx.field.v[i] = fluid_particles.AddField(dim);
+      fp_idx.field.w[i] = fluid_particles.AddField(dim);
       if (i > 0)
       {
-         fp_idx.field.x[i-1] = fluid_particles.AddField(dim,
-                                                        ("x" + suffix).c_str());
+         fp_idx.field.x[i-1] = fluid_particles.AddField(dim);
       }
    }
 
@@ -373,10 +373,15 @@ void NavierParticles::Step(const real_t dt, const ParGridFunction &u_gf,
    for (int i = N_HIST-1; i > 0; i--)
    {
       U(i) = U(i-1).GetData();
-      V(i) = V(i-1).GetData();
-      W(i) = W(i-1).GetData();
-      X(i) = X(i-1).GetData();
+      // For performance, it is actually better to move ownership of data
+      // rather than the data itself.
+      V(i) = std::move(V(i-1));
+      W(i) = std::move(W(i-1));
+      X(i) = std::move(X(i-1));
    }
+   V(0).SetSize(V(1).Size());
+   W(0).SetSize(W(1).Size());
+   X(0).SetSize(X(1).Size());
 
    SetTimeIntegrationCoefficients();
 

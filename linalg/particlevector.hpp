@@ -42,7 +42,7 @@ protected:
    Ordering::Type ordering;
 
    /// Re-allocate + copy memory. See Array::GrowSize.
-   void GrowSize(int min_num_vectors, bool update_data);
+   void GrowSize(int min_num_vectors, bool keep_data);
 
 public:
 
