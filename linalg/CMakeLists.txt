@@ -29,6 +29,7 @@ list(APPEND SRCS
   mma.cpp
   ode.cpp
   operator.cpp
+  ordering.cpp
   particlevector.cpp
   solvers.cpp
   sparsemat.cpp
@@ -64,6 +65,7 @@ list(APPEND HDRS
   mma.hpp
   ode.hpp
   operator.hpp
+  ordering.hpp
   particlevector.hpp
   solvers.hpp
   sparsemat.hpp

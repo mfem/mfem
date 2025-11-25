@@ -49,17 +49,25 @@ void Ordering::Reorder(Vector &v, int vdim, Ordering::Type in_ord,
    if (out_ord == Ordering::byNODES) // byVDIM -> byNODES
    {
       Vector temp = v;
-      for (int i = 0; i < nvdofs; i++)
+      for (int d = 0; d < vdim; d++)
       {
-         v[i] = temp[Map<byVDIM>(nldofs,vdim,i%nldofs,i/nldofs)];
+         int off = d * nldofs;
+         for (int i = 0; i < nldofs; i++)
+         {
+            v[i + off] = temp[Map<byVDIM>(nldofs,vdim,i,d)];
+         }
       }
    }
    else // byNODES -> byVDIM
    {
       Vector temp = v;
-      for (int i = 0; i < nvdofs; i++)
+      for (int i = 0; i < nldofs; i++)
       {
-         v[i] = temp[Map<byNODES>(nldofs,vdim,i/vdim,i%vdim)];
+         int off = i*vdim;
+         for (int d = 0; d < vdim; d++)
+         {
+            v[d + off] = temp[Map<byNODES>(nldofs,vdim,i,d)];
+         }
       }
    }
 }
