@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // Sample run:
-// * mpirun -np 10 navier_bifurcation -rs 3 -npt 100 -pt 100 -nt 4e5
+// * mpirun -np 10 navier_bifurcation -rs 3 -npt 100 -nt 4e5
 
 
 #include "navier_solver.hpp"
@@ -31,20 +31,26 @@ struct flow_context
    // fluid
    int rs_levels = 3;
    int order = 4;
-   real_t Re = 1000;
-   int paraview_freq = 500;
-   bool visualization = true;
-   int visport = 19916;
+   real_t Re = 1000;             // Reynolds number
+   int paraview_freq = 500;      // frequency of ParaView output
 
    // particle
-   int pnt_0 = round(2.0/dt);
-   int add_particles_freq = 300;
-   int num_add_particles = 100;
-   real_t kappa_min = 1.0;
-   real_t kappa_max = 10.0;
-   real_t gamma = 0.0;
-   real_t zeta = 0.19;
-   int print_csv_freq = 500;
+   int add_particles_freq = 300; // frequency of particle injection
+   int num_add_particles = 100;  // total particles added each injection
+   real_t kappa_min = 1.0;       // drag characteristic min
+   real_t kappa_max = 10.0;      // drag characteristic max
+   real_t gamma = 0.0;           // gravity characteristic
+   real_t zeta = 0.19;           // lift characteristic
+   int print_csv_freq = 500;     // frequency of particle CSV outputting
+
+   // GLVis visualization for solution and (optionally) particles
+   bool visualization = true;
+   // Particle trajectory visualization [visualization must be set to true]
+   // traj_len_update_freq = 0 means no trajectory visualization.
+   // traj_len_update_freq > 0 means update trajectory every
+   // traj_len_update_freq time steps. This is useful for long simulations
+   // with small time-steps.
+   int traj_len_update_freq = 0;
 } ctx;
 
 #ifdef MFEM_USE_GSLIB
@@ -82,9 +88,6 @@ int main(int argc, char *argv[])
    args.AddOption(&ctx.visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&ctx.visport, "-p", "--send-port", "Socket for GLVis.");
-   args.AddOption(&ctx.pnt_0, "-pt", "--particle-timestep",
-                  "Timestep to begin injecting particles.");
    args.AddOption(&ctx.add_particles_freq, "-ipf", "--inject-particles-freq",
                   "Frequency of particle injection at domain inlet.");
    args.AddOption(&ctx.num_add_particles, "-npt", "--num-particles-inject",
@@ -97,6 +100,8 @@ int main(int argc, char *argv[])
    args.AddOption(&ctx.zeta, "-z", "--zeta", "Zeta constant.");
    args.AddOption(&ctx.print_csv_freq, "-csv", "--csv-freq",
                   "Frequency of particle CSV outputting. 0 to disable.");
+   args.AddOption(&ctx.traj_len_update_freq, "-traj", "--traj-freq",
+                  "Frequency of particle trajectory update. 0 to disable.");
    args.Parse();
    if (!args.Good())
    {
@@ -144,7 +149,7 @@ int main(int argc, char *argv[])
    ParGridFunction &w_gf = *flow_solver.GetCurrentVorticity();
    // Create the particle solver
    NavierParticles particle_solver(MPI_COMM_WORLD, 0, pmesh);
-   int nparticles = ((ctx.nt - ctx.pnt_0)/ctx.add_particles_freq) *
+   int nparticles = (ctx.nt/ctx.add_particles_freq) *
                     ctx.num_add_particles / Mpi::WorldSize();
    particle_solver.GetParticles().Reserve(nparticles);
 
@@ -164,6 +169,7 @@ int main(int argc, char *argv[])
 
    // Set up solution and particle visualization
    char vishost[] = "localhost";
+   int visport = 19916;
    socketstream vis_sol;
    int Ww = 500, Wh = 500; // window size
    int Wx = 10, Wy = 0; // window position
@@ -181,17 +187,20 @@ int main(int argc, char *argv[])
 
    if (ctx.visualization)
    {
-      VisualizeField(vis_sol, vishost, ctx.visport, u_gf, "Velocity",
+      VisualizeField(vis_sol, vishost, visport, u_gf, "Velocity",
                      Wx, Wy, Ww, Wh, keys);
 #ifdef MFEM_USE_GSLIB
-      int traj_tail_length = 10;
-      traj_vis = std::make_unique<ParticleTrajectories>(
-                    particle_solver.GetParticles(),
-                    traj_tail_length, vishost, ctx.visport,
-                    "Particle Trajectories",
-                    Ww+Wx, Wy, Ww, Wh, "bbm");
-      traj_vis->AddMeshForVisualization(psubmesh.get());
-      traj_vis->Visualize();
+      if (ctx.traj_len_update_freq > 0)
+      {
+         int traj_length = 4; // length of trajectory in number of segments
+         traj_vis = std::make_unique<ParticleTrajectories>(
+                       particle_solver.GetParticles(),
+                       traj_length, vishost, visport,
+                       "Particle Trajectories",
+                       Ww+Wx, Wy, Ww, Wh, "bbm");
+         traj_vis->AddMeshForVisualization(psubmesh.get());
+         traj_vis->Visualize();
+      }
 #endif
    }
 
@@ -242,26 +251,23 @@ int main(int argc, char *argv[])
       flow_solver.Step(time, ctx.dt, step-1);
 
 #ifdef MFEM_USE_GSLIB
-      // Step particles after pnt_0 once the flow is sufficiently developed.
-      if (step >= ctx.pnt_0)
+      // Inject particles at inlet and initialize their properties
+      if (step % ctx.add_particles_freq == 0)
       {
-         // Inject particles at inlet and initialize their properties
-         if (step % ctx.add_particles_freq == 0)
-         {
-            int size = Mpi::WorldSize();
-            int rank_num_particles = ctx.num_add_particles/size +
-                                     (rank < (ctx.num_add_particles % size) ?
-                                      1 : 0);
-            // Add particles to the ParticleSet
-            particle_solver.GetParticles().AddParticles(rank_num_particles,
-                                                        &add_particle_idxs);
-            // Initialize properties of the new particles
-            SetInjectedParticles(particle_solver, add_particle_idxs,
-                                 ctx.kappa_min, ctx.kappa_max,
-                                 (rank+1)*step, ctx.zeta, ctx.gamma, step);
-         }
-         particle_solver.Step(ctx.dt, u_gf, w_gf);
+         int size = Mpi::WorldSize();
+         int rank_num_particles = ctx.num_add_particles/size +
+                                  (rank < (ctx.num_add_particles % size) ?
+                                   1 : 0);
+         // Add particles to the ParticleSet
+         particle_solver.GetParticles().AddParticles(rank_num_particles,
+                                                     &add_particle_idxs);
+         // Initialize properties of the new particles
+         SetInjectedParticles(particle_solver, add_particle_idxs,
+                              ctx.kappa_min, ctx.kappa_max,
+                              (rank+1)*step, ctx.zeta, ctx.gamma, step);
       }
+      // Step the particles
+      particle_solver.Step(ctx.dt, u_gf, w_gf);
 
       // Output particle data to csv
       if (ctx.print_csv_freq > 0 && step % ctx.print_csv_freq == 0)
@@ -286,10 +292,14 @@ int main(int argc, char *argv[])
       // GLVis visualization
       if (ctx.visualization)
       {
-         VisualizeField(vis_sol, vishost, ctx.visport, u_gf,
+         VisualizeField(vis_sol, vishost, visport, u_gf,
                         "Velocity", Wx, Wy, Ww, Wh, keys);
 #ifdef MFEM_USE_GSLIB
-         traj_vis->Visualize();
+         if (ctx.traj_len_update_freq > 0 &&
+             step % ctx.traj_len_update_freq == 0)
+         {
+            traj_vis->Visualize();
+         }
 #endif
       }
 
