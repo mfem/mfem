@@ -57,7 +57,7 @@ CUDA_DIR = $(or $(CUDA_HOME),$(patsubst %/,%,$(dir \
 CLANG_CUDA_FLAGS = -xcuda --cuda-path=$(CUDA_DIR) --cuda-gpu-arch=$(CUDA_ARCH)
 # flags for nvcc
 NVCC_FLAGS = -x=cu --expt-extended-lambda --expt-relaxed-constexpr \
- -arch=$(CUDA_ARCH)
+ -arch=$(CUDA_ARCH) -isystem "$(CUDA_DIR)/include"
 # Prefixes for passing flags to the host compiler and linker when using
 # CUDA_CXX=nvcc
 CUDA_XCOMPILER = -Xcompiler=

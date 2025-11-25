@@ -675,11 +675,7 @@ class LUFactors : public Factors
 {
 public:
    int *ipiv;
-#ifdef MFEM_USE_LAPACK
-   static const int ipiv_base = 1;
-#else
-   static const int ipiv_base = 0;
-#endif
+   static constexpr int ipiv_base = 1;
 
    /** With this constructor, the (public) data and ipiv members should be set
        explicitly before calling class methods. */
@@ -1179,15 +1175,23 @@ public:
 
    DenseMatrix &operator()(int k)
    {
-      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
-      Mk.UseExternalData(GetData(k), SizeI(), SizeJ());
-      return Mk;
+      return operator()(k, Mk);
    }
    const DenseMatrix &operator()(int k) const
    {
+      return operator()(k, Mk);
+   }
+   DenseMatrix &operator()(int k, DenseMatrix& buff)
+   {
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
-      Mk.UseExternalData(const_cast<real_t*>(GetData(k)), SizeI(), SizeJ());
-      return Mk;
+      buff.UseExternalData(GetData(k), SizeI(), SizeJ());
+      return buff;
+   }
+   const DenseMatrix &operator()(int k, DenseMatrix& buff) const
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      buff.UseExternalData(const_cast<real_t*>(GetData(k)), SizeI(), SizeJ());
+      return buff;
    }
 
    real_t &operator()(int i, int j, int k)

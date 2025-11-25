@@ -226,6 +226,9 @@ public:
    /// Delete the first entry with value == 'el'.
    inline void DeleteFirst(const T &el);
 
+   /// Delete entries at @a indices, and resize.
+   inline void DeleteAt(const Array<int> &indices);
+
    /// Delete the whole array.
    inline void DeleteAll();
 
@@ -325,6 +328,9 @@ public:
 
    /// Does the Array have Size zero.
    bool IsEmpty() const { return Size() == 0; }
+
+   /// Return true if all entries of the array are the same.
+   bool IsConstant() const;
 
    /// Fill the entries of the array with the cumulative sum of the entries.
    void PartialSum();
@@ -428,11 +434,14 @@ private:
 
 public:
    Array2D() { M = N = 0; }
+
+   /// Construct an m x n 2D array.
    Array2D(int m, int n) : array1d(m*n) { M = m; N = n; }
 
    Array2D(const Array2D &) = default;
    Array2D(Array2D &&) = default;
 
+   /// Set the 2D array size to m x n.
    void SetSize(int m, int n) { array1d.SetSize(m*n); M = m; N = n; }
 
    int NumRows() const { return M; }
@@ -491,6 +500,7 @@ public:
 
    void Copy(Array2D &copy) const { copy = *this; }
 
+   /// Set all entries of the array to the provided constant.
    inline void operator=(const T &a)
    { array1d = a; }
 
@@ -514,6 +524,14 @@ public:
 
    /// Prints array to stream with width elements per row
    void Print(std::ostream &out = mfem::out, int width = 4);
+
+   /** @brief Find the maximal element in the array, using the comparison
+        operator `<` for class T. */
+   T Max() const { return array1d.Max(); }
+
+   /** @brief Find the minimal element in the array, using the comparison
+       operator `<` for class T. */
+   T Min() const { return array1d.Min(); }
 };
 
 
@@ -526,15 +544,32 @@ private:
 
 public:
    Array3D() { N2 = N3 = 0; }
+
+   /// Construct a 3D array of size n1 x n2 x n3.
    Array3D(int n1, int n2, int n3)
       : array1d(n1*n2*n3) { N2 = n2; N3 = n3; }
 
+   /// Set the 3D array size to n1 x n2 x n3.
    void SetSize(int n1, int n2, int n3)
    { array1d.SetSize(n1*n2*n3); N2 = n2; N3 = n3; }
+
+   /// Get the 3D array size in the first dimension.
+   int GetSize1() const
+   {
+      const int size = array1d.Size();
+      return size == 0 ? 0 : size / (N2 * N3);
+   }
+
+   /// Get the 3D array size in the second dimension.
+   int GetSize2() const { return N2; }
+
+   /// Get the 3D array size in the third dimension.
+   int GetSize3() const { return N3; }
 
    inline const T &operator()(int i, int j, int k) const;
    inline       T &operator()(int i, int j, int k);
 
+   /// Set all entries of the array to the provided constant.
    inline void operator=(const T &a)
    { array1d = a; }
 };
@@ -966,6 +1001,32 @@ inline void Array<T>::DeleteFirst(const T &el)
          return;
       }
    }
+}
+
+template <class T>
+inline void Array<T>::DeleteAt(const Array<int> &indices)
+{
+   HostReadWrite();
+
+   // Make a copy of the indices, sorted.
+   Array<int> sorted_indices(indices);
+   sorted_indices.Sort();
+
+   int rm_count = 0;
+   for (int i = 0; i < size; i++)
+   {
+      if (rm_count < sorted_indices.Size() && i == sorted_indices[rm_count])
+      {
+         rm_count++;
+      }
+      else
+      {
+         data[i-rm_count] = data[i]; // shift data rm_count
+      }
+   }
+
+   // Resize to remove tail
+   size -= rm_count;
 }
 
 template <class T>

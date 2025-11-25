@@ -253,6 +253,7 @@ int main(int argc, char *argv[])
 
    // Initialize VisIt visualization
    VisItDataCollection visit_dc("Tesla-AMR-Parallel", &pmesh);
+   visit_dc.SetFormat(DataCollection::PARALLEL_FORMAT);
 
    if ( visit )
    {

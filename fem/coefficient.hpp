@@ -897,6 +897,9 @@ public:
    void Eval(DenseMatrix &M, ElementTransformation &T,
              const IntegrationRule &ir) override;
 
+   /// @copydoc VectorCoefficient::Project(QuadratureFunction &)
+   void Project(QuadratureFunction &qf) override;
+
    virtual ~GradientGridFunctionCoefficient() { }
 };
 
@@ -1453,6 +1456,9 @@ public:
    /// Set the time for internally stored coefficients
    void SetTime(real_t t) override;
 
+   /// @copydoc Coefficient::Project(QuadratureFunction &)
+   void Project(QuadratureFunction &qf) override;
+
    /// Reset the first term in the linear combination as a constant
    void SetAConst(real_t A) { a = NULL; aConst = A; }
    /// Return the first term in the linear combination
@@ -1634,6 +1640,9 @@ public:
    /// Set the time for internally stored coefficients
    void SetTime(real_t t) override;
 
+   /// @copydoc Coefficient::Project(QuadratureFunction &)
+   void Project(QuadratureFunction &qf) override;
+
    /// Reset the first term in the product as a constant
    void SetAConst(real_t A) { a = NULL; aConst = A; }
    /// Return the first term in the product
@@ -1681,6 +1690,9 @@ public:
 
    /// Set the time for internally stored coefficients
    void SetTime(real_t t) override;
+
+   /// @copydoc Coefficient::Project(QuadratureFunction &)
+   void Project(QuadratureFunction &qf) override;
 
    /// Reset the numerator in the ratio as a constant
    void SetAConst(real_t A) { a = NULL; aConst = A; }
@@ -1774,6 +1786,9 @@ public:
    /// Evaluate the coefficient at @a ip.
    real_t Eval(ElementTransformation &T,
                const IntegrationPoint &ip) override;
+
+   /// @copydoc Coefficient::Project(QuadratureFunction &)
+   void Project(QuadratureFunction &qf) override;
 };
 
 /// Scalar coefficient defined as a cross product of two vectors in the xy-plane.
