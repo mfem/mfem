@@ -432,7 +432,7 @@ void VisItDataCollection::RegisterField(const std::string& name,
    DataCollection::RegisterField(name, gf);
    field_info_map[name] = VisItFieldInfo("nodes", gf->VectorDim(), LOD,
                                          gf->FESpace()->FEColl()->Name(),
-                                         gf->FESpace()->FEColl()->Order());
+                                         gf->FESpace()->FEColl()->GetOrder());
    visit_levels_of_detail = std::max(visit_levels_of_detail, LOD);
 }
 
