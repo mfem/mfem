@@ -43,6 +43,13 @@ Discretization improvements
 Meshing improvements
 --------------------
 
+- The TMOP kernel hierarchy has been restructured to reduce compilation time.
+  Most large kernels have been split into smaller, specific ones, with kernels
+  for each metric. The directory structure has been updated with assemble,
+  metrics, mult and tools subdirectories. The new kernel dispatch and
+  specialization system has also been integrated.
+  Unit tests have been revised to ensure --all tests pass.
+
 - Introduced NC-patch NURBS meshes, which are conforming element-wise but allow
   for nonconforming patch topology. This new mesh format supports element
   spacing formulas for refinement, as well as local refinement factors for a
@@ -75,6 +82,15 @@ GPU computing
   the gradients of a GridFunction on all elements.
 - Added GPU support in GradientGridFunctionCoefficient and
   InnerProductCoefficient by implementing their Project methods.
+
+Linear and nonlinear solvers
+----------------------------
+- Added `FilteredSolver`: a base class for solvers with filtering. It handles cases 
+  where a solver performs well except in small subspaces, by adding a filtering step 
+  formulated as a subspace correction.
+- Added `AMGFSolver`: a derived class of `FilteredSolver`, specialized for 
+  AMG with Filtering (AMGF), providing robust preconditioning for linear systems 
+  arising in constrained optimization problems such as frictionless contact.
 
 New and updated examples and miniapps
 -------------------------------------

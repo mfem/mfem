@@ -14,6 +14,7 @@
 #include "../general/forall.hpp"
 #include "../general/reducers.hpp"
 #include "../general/hash.hpp"
+#include "../general/scan.hpp"
 #include "vector.hpp"
 
 #ifdef MFEM_USE_OPENMP
@@ -1250,6 +1251,35 @@ real_t Vector::Sum() const
    },
    SumReducer<real_t> {}, UseDevice(), vector_workspace());
    return res;
+}
+
+void Vector::DeleteAt(const Array<int> &indices)
+{
+   if (indices.Size())
+   {
+      const bool use_dev = UseDevice();
+
+      // extra entry for number of selected out
+      Array<int> workspace(size + 1);
+      const auto d_flag = workspace.Write(use_dev);
+      mfem::forall_switch(use_dev, size,
+      [=] MFEM_HOST_DEVICE(int i) { d_flag[i] = true; });
+      const auto d_indices = indices.Read(use_dev);
+      mfem::forall_switch(use_dev, indices.Size(), [=] MFEM_HOST_DEVICE(int i)
+      {
+         // fine as long as indices are unique; to support non-unique indices
+         // assignment to d_flag must be atomic
+         d_flag[d_indices[i]] = false;
+      });
+
+      Vector copy(*this);
+      auto d_in = copy.Read(use_dev);
+      auto d_out = Write(use_dev);
+      CopyFlagged(use_dev, d_in, d_flag, d_out, d_flag + size, size);
+
+      // assumes indices are unique
+      size -= indices.Size();
+   }
 }
 
 } // namespace mfem
