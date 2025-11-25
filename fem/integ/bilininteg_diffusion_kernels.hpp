@@ -201,7 +201,7 @@ inline void SmemPADiffusionDiagonal2D(const int NE,
       MFEM_SHARED real_t BG[2][MQ1*MD1];
       real_t (*B)[MD1] = (real_t (*)[MD1]) (BG+0);
       real_t (*G)[MD1] = (real_t (*)[MD1]) (BG+1);
-      MFEM_SHARED real_t QD[3][NBZ][MD1][MQ1];
+      MFEM_SHARED real_t QD[3][NBZ][MQ1][MD1];
       real_t (*QD0)[MD1] = (real_t (*)[MD1])(QD[0] + tidz);
       real_t (*QD1)[MD1] = (real_t (*)[MD1])(QD[1] + tidz);
       real_t (*QD2)[MD1] = (real_t (*)[MD1])(QD[2] + tidz);
