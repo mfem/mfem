@@ -27,7 +27,7 @@ struct TMOP_PA_Metric_2D
    virtual MFEM_HOST_DEVICE real_t EvalW(const real_t (&Jpt)[DIM * DIM],
                                          const real_t *w) const
    {
-      MFEM_ABORT("TMOP_PA_Metric_2D::EvalW is not implemented");
+      MFEM_ABORT_KERNEL("TMOP_PA_Metric_2D::EvalW is not implemented");
       return -0.0_r;
    }
 
@@ -35,7 +35,7 @@ struct TMOP_PA_Metric_2D
                                        const real_t *w,
                                        real_t (&P)[DIM * DIM]) const
    {
-      MFEM_ABORT("TMOP_PA_Metric_2D::EvalP is not implemented");
+      MFEM_ABORT_KERNEL("TMOP_PA_Metric_2D::EvalP is not implemented");
    }
 
    virtual MFEM_HOST_DEVICE void AssembleH(const int qx, const int qy,
@@ -44,7 +44,7 @@ struct TMOP_PA_Metric_2D
                                            const real_t *w,
                                            const DeviceTensor<7> &H) const
    {
-      MFEM_ABORT("TMOP_PA_Metric_2D::AssembleH is not implemented");
+      MFEM_ABORT_KERNEL("TMOP_PA_Metric_2D::AssembleH is not implemented");
    }
 };
 
@@ -57,7 +57,7 @@ struct TMOP_PA_Metric_3D
    virtual MFEM_HOST_DEVICE real_t EvalW(const real_t (&Jpt)[DIM * DIM],
                                          const real_t *w) const
    {
-      MFEM_ABORT("TMOP_PA_Metric_3D::EvalW is not implemented");
+      MFEM_ABORT_KERNEL("TMOP_PA_Metric_3D::EvalW is not implemented");
       return -0.0_r;
    }
 
@@ -65,7 +65,7 @@ struct TMOP_PA_Metric_3D
                                        const real_t *w,
                                        real_t (&P)[DIM * DIM]) const
    {
-      MFEM_ABORT("TMOP_PA_Metric_3D::EvalP is not implemented");
+      MFEM_ABORT_KERNEL("TMOP_PA_Metric_3D::EvalP is not implemented");
    }
 
    virtual MFEM_HOST_DEVICE void AssembleH(const int qx, const int qy,
@@ -75,7 +75,7 @@ struct TMOP_PA_Metric_3D
                                            const real_t *w,
                                            const DeviceTensor<5 + DIM> &H) const
    {
-      MFEM_ABORT("TMOP_PA_Metric_3D::AssembleH is not implemented");
+      MFEM_ABORT_KERNEL("TMOP_PA_Metric_3D::AssembleH is not implemented");
    }
 };
 
