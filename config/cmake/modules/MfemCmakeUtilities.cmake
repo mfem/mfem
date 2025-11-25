@@ -711,7 +711,7 @@ function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
   if (NOT shared_link_flag)
     set(shared_link_flag "-Wl,-rpath,")
   endif()
-  if (MFEM_USE_CUDA AND CMAKE_CUDA_COMPILER MATCHES "nvcc$")
+  if (MFEM_USE_CUDA AND MFEM_CUDA_COMPILER_IS_NVCC)
     # nvcc doesn't support rpath normal linking, TODO make this work
     set(shared_link_flag "")
   endif()
@@ -776,15 +776,13 @@ function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
       get_filename_component(Dir ${Location} DIRECTORY)
       get_filename_component(NameWE ${Location} NAME_WE)
       string(REGEX REPLACE "^lib" "" LibName ${NameWE})
+      list(APPEND LinkOpts
+        "-L\"${Dir}\""
+        "-l${LibName}")
       if (shared_link_flag)
         list(APPEND LinkOpts
-          "-L\"${Dir}\""
-          "${shared_link_flag}\"${Dir}\""
-          "-l${LibName}")
+          "${shared_link_flag}\"${Dir}\"")
       else()
-        list(APPEND LinkOpts
-          "-L\"${Dir}\""
-          "-l${LibName}")
       endif()
     else()
       message(STATUS " *** Warning: [${tgt}] LOCATION not defined!")
@@ -878,10 +876,6 @@ function(mfem_export_mk_files)
   if (NOT shared_link_flag)
     set(shared_link_flag "-Wl,-rpath,")
   endif()
-  if (MFEM_USE_CUDA AND CMAKE_CUDA_COMPILER MATCHES "nvcc$")
-    # nvcc doesn't support rpath normal linking, TODO make this work
-    set(shared_link_flag "")
-  endif()
 
   # Convert Boolean vars to YES/NO without writing the values to cache
   set(CONFIG_MK_BOOL_VARS MFEM_USE_MPI MFEM_USE_METIS MFEM_USE_METIS_5
@@ -907,11 +901,16 @@ function(mfem_export_mk_files)
   endforeach()
   if (MFEM_USE_CUDA)
     set(MFEM_CXX ${CMAKE_CUDA_COMPILER})
+    if(MFEM_CUDA_COMPILER_IS_NVCC)
+      set(MFEM_HOST_CXX ${CMAKE_CUDA_HOST_COMPILER})
+    else()
+      set(MFEM_HOST_CXX ${CMAKE_CXX_COMPILER})
+    endif()
   else()
     # mfem doesn't use enable_language(HIP)
     set(MFEM_CXX ${CMAKE_CXX_COMPILER})
+    set(MFEM_HOST_CXX ${CMAKE_CXX_COMPILER})
   endif()
-  set(MFEM_HOST_CXX ${CMAKE_CXX_COMPILER})
   set(MFEM_CPPFLAGS "")
   get_target_property(cxx_std mfem CXX_STANDARD)
   # For now, we ignore the setting of the CXX_EXTENSIONS property. If this
@@ -923,9 +922,9 @@ function(mfem_export_mk_files)
          MFEM_CXXFLAGS)
   if (MFEM_USE_CUDA)
     set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} ${CMAKE_CUDA_FLAGS}")
-    if (CMAKE_CUDA_COMPILER MATCHES "nvcc$")
-      # set(MFEM_CXXFLAGS "-isystem ${CUDAToolkit_LIBRARY_ROOT} ${MFEM_CXXFLAGS}")
-      set(MFEM_CXXFLAGS "-x=cu ${MFEM_CXXFLAGS} -ccbin ${CMAKE_CXX_COMPILER}")
+    if (MFEM_CUDA_COMPILER_IS_NVCC)
+      set(MFEM_CXXFLAGS "-x=cu ${MFEM_CXXFLAGS} -ccbin ${CMAKE_CXX_COMPILER} --forward-unknown-to-host-compiler")
+      set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} -isystem ${CUDAToolkit_LIBRARY_ROOT}")
       if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.18.0)
         # architecture flags not part of CMAKE_CUDA_FLAGS
         if ("all" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}"
@@ -1007,7 +1006,7 @@ function(mfem_export_mk_files)
   set(MFEM_CONFIG_EXTRA "MFEM_BUILD_DIR ?= ${PROJECT_BINARY_DIR}")
   # TODO: CUDA/HIP support:
   if (MFEM_USE_CUDA)
-    if (CMAKE_CUDA_COMPILER MATCHES "nvcc$")
+    if (MFEM_CUDA_COMPILER_IS_NVCC)
       set(MFEM_XLINKER "-Xlinker=")
     else()
       set(MFEM_XLINKER "${CMAKE_CUDA_LINKER_WRAPPER_FLAG}")
