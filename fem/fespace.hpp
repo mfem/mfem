@@ -13,7 +13,7 @@
 #define MFEM_FESPACE
 
 #include "../config/config.hpp"
-#include "../general/ordering.hpp"
+#include "../linalg/ordering.hpp"
 #include "../linalg/sparsemat.hpp"
 #include "../mesh/mesh.hpp"
 #include "fe_coll.hpp"

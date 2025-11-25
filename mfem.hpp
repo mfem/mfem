@@ -26,7 +26,6 @@
 #include "general/table.hpp"
 #include "general/tic_toc.hpp"
 #include "general/annotation.hpp"
-#include "general/ordering.hpp"
 #ifdef MFEM_USE_ADIOS2
 #include "general/adios2stream.hpp"
 #endif // MFEM_USE_ADIOS2

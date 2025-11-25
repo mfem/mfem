@@ -2,7 +2,7 @@
 #define MFEM_ORDERING
 
 #include "../config/config.hpp"
-#include "../linalg/vector.hpp"
+#include "vector.hpp"
 
 namespace mfem
 {
