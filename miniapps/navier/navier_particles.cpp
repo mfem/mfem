@@ -57,11 +57,14 @@ void NavierParticles::SetTimeIntegrationCoefficients()
       {
          beta_k[o][0] = 1.0 + rho1 / (1.0 + rho1)
                         + (rho2 * rho1) / (1.0 + rho2 * (1 + rho1));
-         beta_k[o][1] = -1.0 - rho1 - (rho2 * rho1 * (1.0 + rho1)) / (1.0 + rho2);
+         beta_k[o][1] = -1.0 - rho1 -
+                        (rho2 * rho1 * (1.0 + rho1)) / (1.0 + rho2);
          beta_k[o][2] = pow(rho1, 2.0) * (rho2 + 1.0 / (1.0 + rho1));
          beta_k[o][3] = -(pow(rho2, 3.0) * pow(rho1, 2.0) * (1.0 + rho1))
                         / ((1.0 + rho2) * (1.0 + rho2 + rho2 * rho1));
-         alpha_k[o][0] = ((1.0 + rho1) * (1.0 + rho2 * (1.0 + rho1))) / (1.0 + rho2);
+
+         alpha_k[o][0] = ((1.0 + rho1) *
+                          (1.0 + rho2 * (1.0 + rho1))) / (1.0 + rho2);
          alpha_k[o][1] = -rho1 * (1.0 + rho2 * (1.0 + rho1));
          alpha_k[o][2] = (pow(rho2, 2.0) * rho1 * (1.0 + rho1)) / (1.0 + rho2);
       }
@@ -90,7 +93,7 @@ void NavierParticles::ParticleStep2D(const real_t &dt, int p)
 
    // Assemble the 2D matrix B with implicit terms
    DenseMatrix B({{beta[0]+dt*kappa, zeta*dt*w_n_ext},
-      {-zeta*dt*w_n_ext, beta[0]+dt*kappa}});
+      {           -zeta*dt*w_n_ext, beta[0]+dt*kappa}});
 
    // Assemble the RHS with BDF and EXT terms
    r = 0.0;
@@ -105,7 +108,7 @@ void NavierParticles::ParticleStep2D(const real_t &dt, int p)
       // Create C
       C = up;
       C *= kappa;
-      add(C, -gamma, Vector({real_t(0.0), real_t(1.0)}), C);
+      add(C, -gamma, Vector({0_r, 1_r}), C);
       add(C, zeta*w_n_ext, Vector({ up[1], -up[0]}), C);
 
       // Add C
@@ -174,7 +177,7 @@ bool NavierParticles::Get2DSegmentIntersection(const Vector &s1_start,
                  (s1_end[1] - s1_start[1])*(s2_start[0] - s1_start[0]))/ denom;
 
    // If intersection falls on line segment of s1_start to s1_end AND s2_start to s2_end, set x_int and return true
-   if ((0 <= t1 && t1 <= 1) && (0 <= t2 && t2 <= 1))
+   if ((0_r <= t1 && t1 <= 1_r) && (0_r <= t2 && t2 <= 1_r))
    {
       // Get the point of intersection
       x_int = s2_end;
@@ -330,28 +333,25 @@ NavierParticles::NavierParticles(MPI_Comm comm, int num_particles, Mesh &m)
    int dim = fluid_particles.GetDim();
 
    // Initialize kappa, zeta, gamma
+   // Ordering defaults to byVDIM and name defaults to 'Field_{field_idx}' if
+   // unspecified.
    fp_idx.field.kappa = fluid_particles.AddField(1, Ordering::byVDIM, "kappa");
    fp_idx.field.zeta = fluid_particles.AddField(1, Ordering::byVDIM, "zeta");
-   fp_idx.field.gamma = fluid_particles.AddField(1, Ordering::byVDIM, "gamma");
+   fp_idx.field.gamma = fluid_particles.AddNamedField(1, "gamma");
 
-   inactive_fluid_particles.AddField(1, Ordering::byVDIM, "kappa");
-   inactive_fluid_particles.AddField(1, Ordering::byVDIM, "zeta");
-   inactive_fluid_particles.AddField(1, Ordering::byVDIM, "gamma");
+   inactive_fluid_particles.AddField(1);
+   inactive_fluid_particles.AddField(1);
+   inactive_fluid_particles.AddField(1);
 
    // Initialize fluid particle fields
-   for (int i = 0; i < 4; i++)
+   for (int i = 0; i < N_HIST; i++)
    {
-      string suffix = i > 0 ? "_nm" + to_string(i) : "_n";
-      fp_idx.field.u[i] = fluid_particles.AddField(dim, Ordering::byVDIM,
-                                                   ("u" + suffix).c_str());
-      fp_idx.field.v[i] = fluid_particles.AddField(dim, Ordering::byVDIM,
-                                                   ("v" + suffix).c_str());
-      fp_idx.field.w[i] = fluid_particles.AddField(dim, Ordering::byVDIM,
-                                                   ("w" + suffix).c_str());
+      fp_idx.field.u[i] = fluid_particles.AddField(dim);
+      fp_idx.field.v[i] = fluid_particles.AddField(dim);
+      fp_idx.field.w[i] = fluid_particles.AddField(dim);
       if (i > 0)
       {
-         fp_idx.field.x[i-1] = fluid_particles.AddField(dim, Ordering::byVDIM,
-                                                        ("x" + suffix).c_str());
+         fp_idx.field.x[i-1] = fluid_particles.AddField(dim);
       }
    }
 
@@ -366,17 +366,21 @@ NavierParticles::NavierParticles(MPI_Comm comm, int num_particles, Mesh &m)
    C.SetSize(dim);
 }
 
-void NavierParticles::Step(const real_t &dt, const ParGridFunction &u_gf,
+void NavierParticles::Step(const real_t dt, const ParGridFunction &u_gf,
                            const ParGridFunction &w_gf)
 {
    // Shift fluid velocity, fluid vorticity, particle velocity, and particle position
-   for (int i = 3; i > 0; i--)
+   for (int i = N_HIST-1; i > 0; i--)
    {
-      U(i) = U(i-1).GetData();
-      V(i) = V(i-1).GetData();
-      W(i) = W(i-1).GetData();
-      X(i) = X(i-1).GetData();
+      U(i) = std::move(U(i-1));
+      V(i) = std::move(V(i-1));
+      W(i) = std::move(W(i-1));
+      X(i) = std::move(X(i-1));
    }
+   U(0).SetSize(U(1).Size());
+   V(0).SetSize(V(1).Size());
+   W(0).SetSize(W(1).Size());
+   X(0).SetSize(X(1).Size());
 
    SetTimeIntegrationCoefficients();
 
@@ -404,7 +408,8 @@ void NavierParticles::Step(const real_t &dt, const ParGridFunction &u_gf,
    // Re-interpolate fluid velocity + vorticity onto particles' new location
    InterpolateUW(u_gf, w_gf);
 
-   // Move lost particles from active to inactive
+   // Move lost particles from active to inactive. We don't search for points again
+   // because that is already done in InterpolateUW.
    DeactivateLostParticles(false);
 
    // Rotate values in time step history

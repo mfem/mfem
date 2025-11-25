@@ -13,7 +13,10 @@
 #define MFEM_PARTICLES_EXTRAS
 
 #include "mfem.hpp"
-#ifndef MFEM_USE_MPI
+#include <list>
+#ifdef MFEM_USE_MPI
+#include "pfem_extras.hpp"
+#else
 #include "fem_extras.hpp"
 #endif // !MFEM_USE_MPI
 
@@ -25,8 +28,12 @@ namespace common
 /// Add a point to a given Mesh, represented as a hex sized \p scale
 void Add3DPoint(const Vector &center, Mesh &m, real_t scale=2e-3);
 
-/// Plot particles in ParticleSet \p pset, represented as hexes of
-/// size \p psize and colored by \p scalar_field .
+/// Add a point to a given Mesh, represented as a quad sized \p scale
+void Add2DPoint(const Vector &center, Mesh &m, real_t scale=2e-3);
+
+/** @brief Plot particles in ParticleSet \p pset, represented as quads/hexes of
+ *  size \p psize and colored by \p scalar_field .
+ */
 void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
                         const ParticleSet &pset,
                         const Vector &scalar_field, real_t psize,
@@ -39,32 +46,53 @@ class ParticleTrajectories
 {
 protected:
    const ParticleSet &pset;
+   Mesh *mesh = nullptr;
 
    socketstream sock;
    /// Track particle IDs that exist at the segment start.
-   std::vector<Array<unsigned int>> segment_ids;
+   std::list<Array<ParticleSet::IDType>> segment_ids;
    /// Each segment is stored as a Mesh snapshot
-   std::vector<Mesh> segment_meshes;
+   std::list<Mesh> segment_meshes;
 
    int tail_size;
    int x, y, w, h;
    const char *title, *keys;
+   const char *vishost;
+   int visport;
 
-   bool newly_opened;
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
 #endif // MFEM_USE_MPI
 
+   // Mark the start of a new segment for all particles.
    void AddSegmentStart();
 
+   // Mark the end of the current segment for all particles.
    void SetSegmentEnd();
 
 public:
+   /** @brief Setup up the particle trajectory for visualization.
+    *
+    * @details Visualize particle trajectory by connecting their positions at
+    * each timestep with line segments. The trajectory "tail" length is
+    * controlled by \p tail_size_. If tail_size_ = 0, entire particle
+    * trajectory is visualized. Optionally, the mesh can also be visualized
+    * along the particles by calling AddMeshForVisualization().
+    *
+    * Note this is a helper utility for quick visualization with GLVis and
+    * not necessarily optimized for large number of particles or long tails.
+    * Consider using the output from ParticleSet::PrintCSV() with ParaView for
+    * more complex visualization needs.
+    */
    ParticleTrajectories(const ParticleSet &particles, int tail_size_,
-                        const char *vishost, int visport, const char *title_,
+                        const char *vishost_, int visport_, const char *title_,
                         int x_=0, int y_=0, int w_=400, int h_=400,
                         const char *keys_=nullptr);
 
+   /// Add a mesh to be visualized along with the particle trajectories.
+   void AddMeshForVisualization(Mesh *mesh_) { mesh = mesh_; }
+
+   /// Visualize the particle trajectories (and mesh if provided).
    void Visualize();
 };
 

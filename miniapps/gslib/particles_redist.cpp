@@ -35,49 +35,10 @@ using namespace std;
 using namespace mfem;
 using namespace mfem::common;
 
-void PrintOnOffRankCounts(const Array<unsigned int> &procs, MPI_Comm comm)
-{
-   int rank, size;
-   MPI_Comm_rank(comm, &rank);
-   MPI_Comm_size(comm, &size);
-
-   int on_rank = 0, off_rank = 0;
-   for (int i = 0; i < procs.Size(); i++)
-   {
-      if (procs[i] == rank)
-      {
-         on_rank++;
-      }
-      else
-      {
-         off_rank++;
-      }
-   }
-
-   std::vector<int> all_on_rank(size), all_off_rank(size);
-   MPI_Gather(&on_rank, 1, MPI_INT, all_on_rank.data(), 1, MPI_INT, 0, comm);
-   MPI_Gather(&off_rank, 1, MPI_INT, all_off_rank.data(), 1, MPI_INT, 0, comm);
-   if (rank == 0)
-   {
-      for (int r = 0; r < size; r++)
-      {
-         mfem::out << "Rank " << r << " owns "
-                   << all_on_rank[r] << " within it, "
-                   << all_off_rank[r] << " particles outside it\n";
-      }
-   }
-}
+void PrintOnOffRankCounts(const Array<unsigned int> &procs);
 
 template<typename T>
-Vector ArrayToVector(const Array<T> &fields)
-{
-   Vector v(fields.Size());
-   for (int i = 0; i < fields.Size(); i++)
-   {
-      v[i] = static_cast<real_t>(fields[i]);
-   }
-   return v;
-}
+Vector ArrayToVector(const Array<T> &fields);
 
 int main (int argc, char *argv[])
 {
@@ -124,7 +85,7 @@ int main (int argc, char *argv[])
 
    // Set particles randomly on entire mesh domain, for each rank
    std::mt19937 gen(rank);
-   std::uniform_real_distribution<> real_dist(0.0,1.0);
+   std::uniform_real_distribution<real_t> real_dist;
    for (int i = 0; i < pset.GetNParticles(); i++)
    {
       Particle p = pset.GetParticleRef(i);
@@ -152,15 +113,17 @@ int main (int argc, char *argv[])
                 " particles that were not within the mesh" << endl << endl;
    }
 
-   // Re-find w/ new particles to re-get Proc array
-   finder.FindPoints(pset.Coords(), pset.Coords().GetOrdering());
+   // Remove ranks from finder proc list corresponding to removed particles
+   Array<unsigned int> ranks = finder.GetProc();
+   ranks.DeleteAt(rm_idxs);
    if (rank == 0)
    {
       mfem::out << "Pre-Redistribute:" << endl;
    }
 
-   PrintOnOffRankCounts(finder.GetProc(), MPI_COMM_WORLD);
+   PrintOnOffRankCounts(ranks);
 
+   // Particle size for visualization
    real_t psize = Distance(pos_min, pos_max)*2e-3;
    if (visualization)
    {
@@ -169,12 +132,13 @@ int main (int argc, char *argv[])
       rank_vector = rank;
       VisualizeParticles(sock, vishost, visport,
                          pset, rank_vector, psize,
-                         "Particle Owning Rank (Pre-Redistribute)", 0, 0, 400, 400, "bc");
+                         "Particle Owning Rank (Pre-Redistribute)",
+                         0, 0, 400, 400, pset.GetDim() == 2 ? "Rjbcb" : "cb");
    }
 
 
    // Redistribute
-   pset.Redistribute(finder.GetProc());
+   pset.Redistribute(ranks);
 
    // Find again
    finder.FindPoints(pset.Coords(), pset.Coords().GetOrdering());
@@ -183,7 +147,7 @@ int main (int argc, char *argv[])
    {
       mfem::out << "\nPost-Redistribute:\n";
    }
-   PrintOnOffRankCounts(finder.GetProc(), MPI_COMM_WORLD);
+   PrintOnOffRankCounts(finder.GetProc());
 
    if (visualization)
    {
@@ -192,8 +156,53 @@ int main (int argc, char *argv[])
       rank_vector = rank;
       VisualizeParticles(sock, "localhost", visport, pset, rank_vector, psize,
                          "Particle Owning Rank (Post-Redistribute)",
-                         410, 0, 400, 400, "bc");
+                         410, 0, 400, 400, pset.GetDim() == 2 ? "Rjbcb" : "cb");
    }
 
    return 0;
+}
+
+void PrintOnOffRankCounts(const Array<unsigned int> &procs)
+{
+   int rank = Mpi::WorldRank(),
+       size = Mpi::WorldSize();
+
+   int on_rank = 0, off_rank = 0;
+   for (int i = 0; i < procs.Size(); i++)
+   {
+      if (static_cast<int>(procs[i]) == rank)
+      {
+         on_rank++;
+      }
+      else
+      {
+         off_rank++;
+      }
+   }
+
+   std::vector<int> all_on_rank(size), all_off_rank(size);
+   MPI_Gather(&on_rank, 1, MPI_INT, all_on_rank.data(), 1, MPI_INT, 0,
+              MPI_COMM_WORLD);
+   MPI_Gather(&off_rank, 1, MPI_INT, all_off_rank.data(), 1, MPI_INT, 0,
+              MPI_COMM_WORLD);
+   if (rank == 0)
+   {
+      for (int r = 0; r < size; r++)
+      {
+         mfem::out << "Rank " << r << " owns "
+                   << all_on_rank[r] << " within it, "
+                   << all_off_rank[r] << " particles outside it\n";
+      }
+   }
+}
+
+template<typename T>
+Vector ArrayToVector(const Array<T> &fields)
+{
+   Vector v(fields.Size());
+   for (int i = 0; i < fields.Size(); i++)
+   {
+      v[i] = static_cast<real_t>(fields[i]);
+   }
+   return v;
 }

@@ -64,16 +64,24 @@ if (MFEM_USE_MPI)
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem)
 
+  set(MESH_FILE "channel-bifurcation-2d.mesh")
+  add_custom_command(OUTPUT data_is_copied
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PROJECT_SOURCE_DIR}/data/${MESH_FILE}" .
+    COMMAND ${CMAKE_COMMAND} -E touch data_is_copied
+    COMMENT "Copying navier miniapps data files ...")
+  add_custom_target(copy_miniapps_navier_data DEPENDS data_is_copied)
+
+  add_mfem_miniapp(navier_bifurcation
+    MAIN navier_bifurcation.cpp
+    ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem-common)
+add_dependencies(navier_bifurcation copy_miniapps_navier_data)
+
   if (MFEM_USE_GSLIB)
     add_mfem_miniapp(navier_cht
       MAIN navier_cht.cpp
       ${NAVIER_COMMON_FILES}
       LIBRARIES mfem)
-
-    add_mfem_miniapp(navier_bifurcation
-      MAIN navier_bifurcation.cpp
-      ${NAVIER_COMMON_FILES}
-      LIBRARIES mfem-common)
 
     LIST(APPEND NAVIER_MESH_FILES
         fluid-cht.mesh

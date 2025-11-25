@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,8 +13,8 @@
 //           Lorentz Miniapp:  Simple Lorentz Force Particle Mover
 //           -----------------------------------------------------
 //
-// This miniapp computes the trajectories of a set of charged particles subject to
-// Lorentz forces.
+// This miniapp computes the trajectories of a set of charged particles subject
+// to Lorentz forces.
 //
 //                           dp/dt = q (E + v x B)
 //
@@ -29,8 +29,8 @@
 // box specified by command line input.
 //
 // This miniapp demonstrates the use of ParticleSet with FindPointsGSLIB. When
-// particles leave both domains, they are subject to removal. Redistribution of
-// particle data between MPI ranks is also demonstrated.
+// particles leave either domains, they are subject to removal. Redistribution
+// of particle data between MPI ranks is also demonstrated.
 //
 // Note that the VisItDataCollection objects must have been stored using the
 // parallel format e.g. visit_dc.SetFormat(DataCollection::PARALLEL_FORMAT);.
@@ -80,34 +80,34 @@ struct LorentzContext
    DColl E{"", "E", 10, 6, 6};
    DColl B{"", "B", 10, 6, 6};
 
-   int ordering = 1;
-   int npt = 1;
-   real_t q = 1.0;
-   real_t m = 1.0;
-   Vector x_min{-1.0,-1.0,-1.0};
-   Vector x_max{1.0,1.0,1.0};
-   Vector p_min{-1.0,-1.0,-1.0};
-   Vector p_max{1.0,1.0,1.0};
-   real_t dt = 1e-2;
-   real_t t0 = 0.0;
-   int nt = 1000;
-   int redist_freq = 1e6;
-   int redist_mesh = 0;
-   int rm_lost_freq = 1;
+   int ordering = 1;               // 0 - byNODES, 1 - byVDIM
+   int npt = 1;                    // total number of particles
+   real_t q = 1.0;                 // particle charge
+   real_t m = 1.0;                 // particle mass
+   Vector x_min{-1.0,-1.0,-1.0};   // initial position min
+   Vector x_max{1.0,1.0,1.0};      // initial position max
+   Vector p_min{-1.0,-1.0,-1.0};   // initial momentum min
+   Vector p_max{1.0,1.0,1.0};      // initial momentum max
+   real_t dt = 1e-2;               // time step
+   int nt = 1000;                  // number of timesteps
+   int redist_freq = 1e6;          // redistribution frequency
+   int redist_mesh = 0;            // redistribution mesh: 0: E mesh, 1: B mesh
+   int rm_lost_freq = 1;           // remove lost particles frequency
 
-   bool visualization = true;
+   bool visualization = true;      // enable visualization
    int visport = 19916;
    int vis_tail_size = 5;
    int vis_freq = 5;
 } ctx;
 
-/// This class implements the Boris algorithm as described in the
-/// article `Why is Boris algorithm so good?` by H. Qin et al in
-/// Physics of Plasmas, Volume 20 Issue 8, August 2013,
-/// https://doi.org/10.1063/1.4818428.
+/// This class implements the Boris algorithm as described in the article
+/// `Why is Boris algorithm so good?` by H. Qin et al in Physics of Plasmas,
+/// Volume 20 Issue 8, August 2013, https://doi.org/10.1063/1.4818428.
 class Boris
 {
 public:
+   /// Carrier of field indices. Allows for convenient access to corresponding
+   /// ParticleVector from ParticleSet.
    enum Fields
    {
       MASS,   // vdim = 1
@@ -118,29 +118,45 @@ public:
       SIZE
    };
 protected:
+   /// Pointers to E and B field GridFunctions
    GridFunction *E_gf;
    GridFunction *B_gf;
 
+   /// FindPointsGSLIB objects for E and B field meshes
    FindPointsGSLIB E_finder;
    FindPointsGSLIB B_finder;
 
+   /// ParticleSet of charged particles
    std::unique_ptr<ParticleSet> charged_particles;
 
+   // Temporary vectors for particle computation
    mutable Vector pxB_, pm_, pp_;
 
+   /// FindPointsGSLIB based interpolation of gridfunction to particle vector
    static void GetValues(const ParticleVector &coords, FindPointsGSLIB &finder,
                          GridFunction &gf, ParticleVector &pv);
+
+   /// Single particle Boris step
    void ParticleStep(Particle &part, real_t &dt);
 public:
 
    Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_,
          int num_particles, Ordering::Type pdata_ordering);
-   void InterpolateEB();
-   void Step(real_t &t, real_t &dt);
-   Array<int> RemoveLostParticles();
-   void Redistribute(int redist_mesh, Array<int> &removed_idxs); // 0 = E field, 1 = B field
-   ParticleSet& GetParticles() { return *charged_particles; }
 
+   /// Interpolate E and B field onto particles
+   void InterpolateEB();
+
+   /// Advance particles one time step using Boris algorithm
+   void Step(real_t &t, real_t &dt);
+
+   /// Remove lost particles and return their indices
+   Array<int> RemoveLostParticles();
+
+   /// Redistribute particles based on \p redist_mesh (0 - E field, 1 - B field)
+   void Redistribute(int redist_mesh, Array<int> &removed_idxs);
+
+   /// Get reference to the ParticleSet of charged particles
+   ParticleSet& GetParticles() { return *charged_particles; }
 };
 
 // Prints the program's logo to the given output stream
@@ -208,7 +224,6 @@ int main(int argc, char *argv[])
    args.AddOption(&ctx.p_max, "-pmax", "--p-max",
                   "Maximum initial particle momentum.");
    args.AddOption(&ctx.dt, "-dt", "--time-step", "Time Step.");
-   args.AddOption(&ctx.t0, "-t0", "--initial-time", "Initial Time.");
    args.AddOption(&ctx.nt, "-nt", "--num-timesteps", "Number of timesteps.");
    args.AddOption(&ctx.visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization", "Enable or disable GLVis visualization.");
@@ -256,17 +271,17 @@ int main(int argc, char *argv[])
       }
    }
 
-   Ordering::Type ordering_type = ctx.ordering == 0 ? Ordering::byNODES :
-                                  Ordering::byVDIM;
+   Ordering::Type ordering_type = ctx.ordering == 0 ?
+                                  Ordering::byNODES : Ordering::byVDIM;
 
    // Initialize Boris
    int num_particles = ctx.npt/size + (rank < (ctx.npt % size) ? 1 : 0);
    Boris boris(MPI_COMM_WORLD, E_gf, B_gf, num_particles, ordering_type);
    InitializeChargedParticles(boris.GetParticles(), ctx.x_min, ctx.x_max,
                               ctx.p_min, ctx.p_max, ctx.m, ctx.q);
-   boris.InterpolateEB(); // Interpolate E and B field onto updated particle positions
+   boris.InterpolateEB(); // Interpolate E and B field
 
-   real_t t = ctx.t0;
+   real_t t = 0.0;
    real_t dt = ctx.dt;
 
    // Setup visualization
@@ -276,8 +291,8 @@ int main(int argc, char *argv[])
    if (ctx.visualization)
    {
       traj_vis = std::make_unique<ParticleTrajectories>(boris.GetParticles(),
-                                                        ctx.vis_tail_size, vishost, ctx.visport, "Particle Trajectories", 0, 0, 800,
-                                                        800, "ba");
+                                                        ctx.vis_tail_size, vishost, ctx.visport, "Particle Trajectories", 0, 0, 600,
+                                                        600, "ba");
    }
 
    for (int step = 1; step <= ctx.nt; step++)
@@ -296,14 +311,10 @@ int main(int argc, char *argv[])
       }
 
       Array<int> removed_idxs;
-      // Remove lost particles
+      // Remove lost particles from particle set and output
       if (step % ctx.rm_lost_freq == 0)
       {
          removed_idxs = boris.RemoveLostParticles();
-         std::string csv_prefix = "Lorentz_Part_";
-         Array<int> field_idx, tag_idx;
-         std::string file_name = csv_prefix + mfem::to_padded_string(step, 6) + ".csv";
-         boris.GetParticles().PrintCSV(file_name.c_str(), field_idx, tag_idx);
       }
 
       // Redistribute
@@ -315,20 +326,14 @@ int main(int argc, char *argv[])
          {
             Vector rank_vector(boris.GetParticles().GetNParticles());
             rank_vector = Mpi::WorldRank();
-            VisualizeParticles(pre_redist_sock, vishost, ctx.visport, boris.GetParticles(),
-                               rank_vector, 1e-2, "Particle Owning Rank (Pre-Redistribute)", 410, 0, 400, 400,
+            VisualizeParticles(pre_redist_sock, vishost,
+                              ctx.visport, boris.GetParticles(),
+                               rank_vector, 1e-2, "Particle Owning Rank (Pre-Redistribute)", 600, 0, 400, 400,
                                "bca");
-            char c;
-            if (Mpi::Root())
-            {
-               cout << "Enter any key (except space) to redistribute: "
-               << flush;
-               cin >> c;
-            }
-            MPI_Barrier(MPI_COMM_WORLD);
          }
 
-         // Redistribute
+         // Redistribute particles - prior to redistribution, removed any lost
+         // particles that were just removed from the set.
          boris.Redistribute(ctx.redist_mesh, removed_idxs);
 
          // Visualize particles post-redistribute
@@ -337,19 +342,8 @@ int main(int argc, char *argv[])
             Vector rank_vector(boris.GetParticles().GetNParticles());
             rank_vector = Mpi::WorldRank();
             VisualizeParticles(post_redist_sock, vishost, ctx.visport, boris.GetParticles(),
-                               rank_vector, 1e-2, "Particle Owning Rank (Post-Redistribute)", 820, 0, 400, 400,
+                               rank_vector, 1e-2, "Particle Owning Rank (Post-Redistribute)", 1000, 0, 400, 400,
                                "bca");
-            char c;
-            if (Mpi::Root())
-            {
-               cout << "Enter any key (except space) to continue: " << flush;
-               cin >> c;
-            }
-            MPI_Barrier(MPI_COMM_WORLD);
-            pre_redist_sock << "keys q" << flush;
-            post_redist_sock << "keys q" << flush;
-            pre_redist_sock.close();
-            post_redist_sock.close();
          }
       }
    }
@@ -359,7 +353,6 @@ void Boris::GetValues(const ParticleVector &coords, FindPointsGSLIB &finder,
                       GridFunction &gf, ParticleVector &pv)
 {
    Mesh &mesh = *gf.FESpace()->GetMesh();
-   mesh.EnsureNodes();
    finder.FindPoints(mesh, coords, coords.GetOrdering());
    finder.Interpolate(gf, pv);
    Ordering::Reorder(pv, pv.GetVDim(), gf.FESpace()->GetOrdering(),
@@ -392,7 +385,7 @@ void Boris::ParticleStep(Particle &part, real_t &dt)
    pp_.Add(a2, pm_);
 
    // ... along B
-   const real_t a3 = 2.0 * dt * dt * q * q * (b * p);
+   const real_t a3 = 2.0 * dt * dt * q * q * (b * pm_);
    pp_.Add(a3, b);
 
    // scale by common denominator
@@ -406,7 +399,6 @@ void Boris::ParticleStep(Particle &part, real_t &dt)
    // Update the position
    x.Add(dt / m, p);
 }
-
 
 Boris::Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_,
              int num_particles, Ordering::Type pdata_ordering)
@@ -441,10 +433,13 @@ Boris::Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_,
 
    pxB_.SetSize(dim); pm_.SetSize(dim); pp_.SetSize(dim);
 
-   // Create particle set: 2 scalars of mass and charge, 3 vectors of size space dim for momentum, e field, and b field
+   /// Create particle set:
+   /// 2 scalars of mass and charge,
+   /// 3 vectors of size space dim for momentum, e field, and b field
    Array<int> field_vdims({1, 1, dim, dim, dim});
    charged_particles = std::make_unique<ParticleSet>(comm, ctx.npt, dim,
-                                                     field_vdims, pdata_ordering);
+                                                     field_vdims,
+                                                     pdata_ordering);
 }
 
 void Boris::InterpolateEB()
@@ -474,8 +469,9 @@ void Boris::InterpolateEB()
 
 void Boris::Step(real_t &t, real_t &dt)
 {
-   // Individually step each particle:
-   if (charged_particles->ParticleRefValid())
+   // Individually step each particle. If all ParticleSet fields are ordered
+   // byVDIM, we can use GetParticleRef for better performance.
+   if (charged_particles->IsParticleRefValid())
    {
       for (int i = 0; i < charged_particles->GetNParticles(); i++)
       {
@@ -522,7 +518,7 @@ Array<int> Boris::RemoveLostParticles()
 
 void Boris::Redistribute(int redist_mesh, Array<int> &removed_idxs)
 {
-   if (redist_mesh == 0)
+   if (redist_mesh == 0 && E_gf)
    {
       Array<int> proc_list = E_finder.GetProc();
       proc_list.DeleteAt(removed_idxs);

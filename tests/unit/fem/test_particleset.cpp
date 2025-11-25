@@ -28,7 +28,7 @@ static_assert(N_rm < N);
 void InitializeRandom(Particle &p, int seed)
 {
    std::mt19937 gen(seed);
-   std::uniform_real_distribution<> real_dist(0.0,1.0);
+   std::uniform_real_distribution<real_t> real_dist;
    std::uniform_int_distribution<> int_dist;
 
    for (int i = 0; i < p.GetDim(); i++)
@@ -37,7 +37,7 @@ void InitializeRandom(Particle &p, int seed)
    }
    for (int f = 0; f < p.GetNFields(); f++)
    {
-      for (int c = 0; c < p.FieldVDim(f); c++)
+      for (int c = 0; c < p.GetFieldVDim(f); c++)
       {
          p.FieldValue(f,c) = real_dist(gen);
       }
@@ -323,7 +323,7 @@ void TestRedistribute(Ordering::Type ordering)
    }
 }
 
-TEST_CASE("Particle Redistribution", "[ParticleSet]" "[Parallel]")
+TEST_CASE("Particle Redistribution", "[ParticleSet][Parallel]")
 {
    TestRedistribute(Ordering::byNODES);
    TestRedistribute(Ordering::byVDIM);

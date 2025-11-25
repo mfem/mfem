@@ -32,15 +32,15 @@ namespace navier
  *  https://www.ideals.illinois.edu/items/102343.
  *
  *  In short, the particles are advanced in time by solving the ODE:
- *  dv/dt = \kappa(u-v) - gamma \hat{e} + \zeta (u-v) x \omega,
+ *  dv/dt = κ(u-v) - γ ê + ζ (u-v) x ω,
  *  dx/dt = v,
  *  where
  *  x and v are the particle location and velocity,
  *  u is the fluid velocity at the particle location,
- *  \omega is the fluid vorticity at the particle location,
- *  \kappa depends on the drag characteristics of the particle,
- *  \zeta depends on the lift characteristics, and
- *  \gamma and \hat{e} depend on body forces such as gravity.
+ *  ω is the fluid vorticity at the particle location,
+ *  κ depends on the drag characteristics of the particle,
+ *  ζ depends on the lift characteristics, and
+ *  γ and ê depend on body forces such as gravity.
  *
  *  The model from Dutta et al. is general but this implementation is currently
  *  limited to 2D problems. Simple reflection and recirculation boundary
@@ -68,17 +68,20 @@ protected:
    /// EXTk coefficients, k=1,2,3.
    std::array<Array<real_t>, 3> alpha_k;
 
-   /// Carrier of field + tag indices. Allows for convient access to
+   /// Number of timesteps to store (includes current)
+   static constexpr int N_HIST = 4;
+
+   /// Carrier of field + tag indices. Allows for convenient access to
    /// corresponding ParticleVector from ParticleSet.
    struct FluidParticleIndices
    {
       struct FieldIndices
       {
          int kappa, zeta, gamma;
-         int u[4];
-         int v[4];
-         int w[4];
-         int x[3];
+         int u[N_HIST];
+         int v[N_HIST];
+         int w[N_HIST];
+         int x[N_HIST-1]; // current position is in ParticleSet::Coords()
       } field;
 
       struct TagIndices
@@ -156,9 +159,11 @@ protected:
 
    /// Apply 2D reflection BCs to update particle positions and velocities
    void Apply2DReflectionBC(const ReflectionBC_2D &bc);
+
    /// Apply 2D recirculation BCs
    void Apply2DRecirculationBC(const RecirculationBC_2D &bc);
-   /// Apply both reflection and recirculation BCs
+
+   /// Apply all BCs in \ref bcs
    void ApplyBCs();
 
    /** @brief Move any particles that have left the domain to the
@@ -168,21 +173,22 @@ protected:
     *  detect if particles are within the domain or not.
     *
     *  @param[in] findpts     If true, call FindPointsGSLIB::FindPoints prior
-    *  to deactivation (if particle coordinates out of sync with
-    *  FindPointsGSLIB)
+    *                         to deactivation (if particle coordinates out of
+    *                         sync with FindPointsGSLIB)
     */
    void DeactivateLostParticles(bool findpts);
 
    // Temporary vectors for particle computation
    mutable Vector up, vp, xpn, xp;
    mutable Vector r, C;
+
 public:
 
    /// Initialize NavierParticles with \p num_particles using fluid mesh \p m .
    NavierParticles(MPI_Comm comm, int num_particles, Mesh &m);
 
    /// Set initial timestep in time history array
-   void Setup(const real_t &dt) { dthist[0] = dt; }
+   void Setup(const real_t dt) { dthist[0] = dt; }
 
    /** @brief Step the particles in time.
     *
@@ -190,7 +196,7 @@ public:
     *  @param[in] u_gf     Fluid velocity on fluid mesh.
     *  @param[in] w_gf     Fluid vorticity on fluid mesh.
     */
-   void Step(const real_t &dt, const ParGridFunction &u_gf,
+   void Step(const real_t dt, const ParGridFunction &u_gf,
              const ParGridFunction &w_gf);
 
    /** @brief Interpolate fluid velocity and vorticity onto current particles'
@@ -229,14 +235,14 @@ public:
    /// time n - \p nm .
    ParticleVector& U(int nm=0)
    {
-      MFEM_ASSERT(nm < 4, "nm must be <= 3");
+      MFEM_ASSERT(nm < N_HIST, "nm must be <= 3");
       return fluid_particles.Field(fp_idx.field.u[nm]);
    }
 
    /// Get reference to the particle velocity ParticleVector at time n - \p nm .
    ParticleVector& V(int nm=0)
    {
-      MFEM_ASSERT(nm < 4, "nm must be <= 3");
+      MFEM_ASSERT(nm < N_HIST, "nm must be <= 3");
       return fluid_particles.Field(fp_idx.field.v[nm]);
    }
 
@@ -244,14 +250,14 @@ public:
    /// time n - \p nm .
    ParticleVector& W(int nm=0)
    {
-      MFEM_ASSERT(nm < 4, "nm must be <= 3");
+      MFEM_ASSERT(nm < N_HIST, "nm must be <= 3");
       return fluid_particles.Field(fp_idx.field.w[nm]);
    }
 
    /// Get reference to the position ParticleVector at time n - \p nm .
    ParticleVector& X(int nm=0)
    {
-      MFEM_ASSERT(nm < 4, "nm must be <= 3");
+      MFEM_ASSERT(nm < N_HIST, "nm must be <= 3");
       return nm == 0 ? fluid_particles.Coords() : fluid_particles.Field(
                 fp_idx.field.x[nm-1]);
    }
@@ -300,7 +306,9 @@ public:
          return abs(inlet_dist-outlet_dist)/inlet_dist < 1e-12;
 
       }(), "Inlet + outlet must be same length.");
-      bcs.push_back(RecirculationBC_2D{inlet_start, inlet_end, invert_inlet_normal, outlet_start, outlet_end, invert_outlet_normal});
+      bcs.push_back(RecirculationBC_2D{inlet_start, inlet_end,
+                                       invert_inlet_normal, outlet_start,
+                                       outlet_end, invert_outlet_normal});
    }
 };
 

@@ -66,20 +66,74 @@ void Add3DPoint(const Vector &center, Mesh &m, real_t scale)
    m.AddHex(vi);
 }
 
+void Add2DPoint(const Vector &center, Mesh &m, real_t scale)
+{
+   real_t s = 0.5*scale;
+   Vector v[4];
+
+   for (int i = 0; i < 4; i++)
+   {
+      v[i].SetSize(2);
+      v[i] = 0.0;
+   }
+
+   for (int i = 0; i < center.Size(); i++)
+   {
+      v[0][i] = center[i];
+   }
+
+   Vector v_s(2); v_s = s;
+   v[0] -= v_s;
+
+   v[1] = v[0];
+   v[1][0] += 2*s;
+
+   v[2] = v[1];
+   v[2][1] += 2*s;
+
+   v[3] = v[2];
+   v[3][0] -= 2*s;
+
+   for (int i = 0; i < 4; i++)
+   {
+      m.AddVertex(v[i]);
+   }
+
+   int vi[4];
+   for (int i = 0; i < 4; i++)
+   {
+      vi[i] = i + (m.GetNE())*4;
+   }
+   m.AddQuad(vi);
+}
+
 
 void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
                         const ParticleSet &pset, const Vector &scalar_field,
                         real_t psize,
                         const char* title, int x, int y, int w, int h, const char* keys)
 {
-   L2_FECollection l2fec(1,3);
-   Mesh particles_mesh(3, pset.GetNParticles()*8, pset.GetNParticles(), 0, 3);
+   const int dim = pset.GetDim();
+   MFEM_VERIFY(dim == 2 || dim == 3,
+               "ParticleSet dimension must be 2 or 3 for visualization.");
+   const int nv = dim == 2 ? 4 : 8;
+
+   L2_FECollection l2fec(1,dim);
+   Mesh particles_mesh(dim, pset.GetNParticles()*nv, pset.GetNParticles(),
+                       0, dim);
 
    for (int i = 0; i < pset.GetNParticles(); i++)
    {
       Vector pcoords;
       pset.Coords().GetValues(i, pcoords);
-      Add3DPoint(pcoords, particles_mesh, psize);
+      if (dim == 2)
+      {
+         Add2DPoint(pcoords, particles_mesh, psize);
+      }
+      else
+      {
+         Add3DPoint(pcoords, particles_mesh, psize);
+      }
    }
    particles_mesh.FinalizeMesh();
 
@@ -88,45 +142,15 @@ void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
 
    for (int i = 0; i < pset.GetNParticles(); i++)
    {
-      for (int j = 0; j < 8; j++)
+      for (int j = 0; j < nv; j++)
       {
-         gf[j+i*8] = scalar_field[i];
+         gf[j+i*nv] = scalar_field[i];
       }
    }
 
 #ifdef MFEM_USE_MPI
-   int myid, num_procs;
-   MPI_Comm_rank(pset.GetComm(), &myid);
-   MPI_Comm_size(pset.GetComm(), &num_procs);
-
-   bool newly_opened = false;
-   bool connection_failed;
-
-   do
-   {
-      if (!sock.is_open() || !sock)
-      {
-         sock.open(vishost, visport);
-         sock.precision(8);
-         newly_opened = true;
-      }
-
-      sock << "parallel " << num_procs << " " << myid << "\n";
-      sock << "solution " << particles_mesh << gf << std::flush;
-
-      if (newly_opened)
-      {
-         sock << "window_title '" << title << "'\n"
-              << "window_geometry "
-              << x << " " << y << " " << w << " " << h << "\n";
-         if ( keys ) { sock << "keys " << keys << "\n"; }
-         else { sock << "keys maaAc\n"; }
-         sock << std::endl;
-         newly_opened = false;
-      }
-      connection_failed = !sock && !newly_opened;
-   }
-   while (connection_failed);
+   VisualizeField(sock, vishost, visport, gf, pset.GetComm(), title,
+                  x, y, w, h, keys, false);
 #else
    VisualizeField(sock, vishost, visport, gf, title, x, y, w, h, keys, false);
 #endif // MFEM_USE_MPI
@@ -134,25 +158,23 @@ void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
 
 
 ParticleTrajectories::ParticleTrajectories(const ParticleSet &particles,
-                                           int tail_size_, const char *vishost,
-                                           int visport, const char *title_,
+                                           int tail_size_, const char *vishost_,
+                                           int visport_, const char *title_,
                                            int x_, int y_, int w_, int h_,
                                            const char *keys_)
-   : pset(particles), tail_size(tail_size_), x(x_), y(y_), w(w_), h(h_),
-     title(title_), keys(keys_)
+   : pset(particles), tail_size(tail_size_),
+     x(x_), y(y_), w(w_), h(h_), title(title_), keys(keys_),
+     vishost(vishost_), visport(visport_)
 #ifdef MFEM_USE_MPI
    ,comm(particles.GetComm())
 #endif // MFEM_USE_MPI
 {
-   sock.open(vishost, visport);
-   sock.precision(8);
-   newly_opened = true;
-
    AddSegmentStart();
 }
 
 void ParticleTrajectories::AddSegmentStart()
 {
+   if (!pset.GetNParticles()) { return; }
    // Create a new mesh for all particle segments for this timestep
    segment_meshes.emplace(segment_meshes.begin(), 1, pset.GetNParticles()*2,
                           pset.GetNParticles(),
@@ -178,7 +200,9 @@ void ParticleTrajectories::AddSegmentStart()
 
 void ParticleTrajectories::SetSegmentEnd()
 {
-   const Array<unsigned int> &end_ids = pset.GetIDs();
+   if (segment_meshes.empty()) { return; } // no segments to end
+
+   const Array<ParticleSet::IDType> &end_ids = pset.GetIDs();
 
    // Add all endpoint vertices + segments for all particles
    int num_start = segment_ids.front().Size();
@@ -200,13 +224,17 @@ void ParticleTrajectories::SetSegmentEnd()
       segment_meshes.front().AddSegment(i, i+num_start);
    }
    segment_meshes.front().FinalizeMesh();
-
 }
 
 
 void ParticleTrajectories::Visualize()
 {
    SetSegmentEnd();
+   if (segment_meshes.empty() && !mesh)
+   {
+      AddSegmentStart();
+      return;
+   }
 
    // Create a mesh of all the trajectory segments
    std::vector<Mesh*> all_meshes;
@@ -214,31 +242,20 @@ void ParticleTrajectories::Visualize()
    {
       all_meshes.push_back(&m);
    }
+   if (mesh)
+   {
+      all_meshes.push_back(mesh);
+   }
 
    Mesh trajectories(all_meshes.data(), all_meshes.size());
 
-   // Update socketstream
 #ifdef MFEM_USE_MPI
-   int myid, num_procs;
-   MPI_Comm_rank(comm, &myid);
-   MPI_Comm_size(comm, &num_procs);
-
-   sock << "parallel " << num_procs << " " << myid << "\n";
-#endif // MFEM_USE_MPI
-   sock << "mesh\n";
-   trajectories.Print(sock);
-
-
-   if (newly_opened)
-   {
-      sock << "window_title '" << title << "'\n"
-           << "window_geometry "
-           << x << " " << y << " " << w << " " << h << "\n";
-      if ( keys ) { sock << "keys " << keys << "\n"; }
-      else { sock << "keys maaAc\n"; }
-      sock << std::endl;
-      newly_opened = false;
-   }
+   VisualizeMesh(sock, vishost, visport, trajectories, comm,
+                 title, x, y, w, h, keys);
+#else
+   VisualizeMesh(sock, vishost, visport, trajectories,
+                 title, x, y, w, h, keys);
+#endif
 
    AddSegmentStart();
 }
