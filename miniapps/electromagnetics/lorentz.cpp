@@ -321,7 +321,8 @@ int main(int argc, char *argv[])
             char c;
             if (Mpi::Root())
             {
-               cout << "Enter any key to redistribute: " << flush;
+               cout << "Enter any key (except space) to redistribute: "
+               << flush;
                cin >> c;
             }
             MPI_Barrier(MPI_COMM_WORLD);
@@ -341,7 +342,7 @@ int main(int argc, char *argv[])
             char c;
             if (Mpi::Root())
             {
-               cout << "Enter any key to continue: " << flush;
+               cout << "Enter any key (except space) to continue: " << flush;
                cin >> c;
             }
             MPI_Barrier(MPI_COMM_WORLD);
