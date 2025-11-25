@@ -17,6 +17,9 @@ using namespace std;
 namespace mfem
 {
 
+namespace gmsh
+{
+
 static int BarycentricToGmshTet(int *b, int ref)
 {
    int i = b[0];
@@ -377,7 +380,7 @@ static int CartesianToGmshPyramid(int idx_in[], int ref)
    }
 }
 
-static void GmshHOSegmentMapping(int order, int *map)
+static void HOSegmentMapping(int order, int *map)
 {
    map[0] = 0;
    map[order] = 1;
@@ -387,7 +390,7 @@ static void GmshHOSegmentMapping(int order, int *map)
    }
 }
 
-static void GmshHOTriangleMapping(int order, int *map)
+static void HOTriangleMapping(int order, int *map)
 {
    int b[3];
    int o = 0;
@@ -402,7 +405,7 @@ static void GmshHOTriangleMapping(int order, int *map)
    }
 }
 
-static void GmshHOQuadrilateralMapping(int order, int *map)
+static void HOQuadrilateralMapping(int order, int *map)
 {
    int b[2];
    int o = 0;
@@ -416,7 +419,7 @@ static void GmshHOQuadrilateralMapping(int order, int *map)
    }
 }
 
-static void GmshHOTetrahedronMapping(int order, int *map)
+static void HOTetrahedronMapping(int order, int *map)
 {
    int b[4];
    int o = 0;
@@ -435,7 +438,7 @@ static void GmshHOTetrahedronMapping(int order, int *map)
    }
 }
 
-static void GmshHOHexahedronMapping(int order, int *map)
+static void HOHexahedronMapping(int order, int *map)
 {
    int b[3];
    int o = 0;
@@ -452,7 +455,7 @@ static void GmshHOHexahedronMapping(int order, int *map)
    }
 }
 
-static void GmshHOWedgeMapping(int order, int *map)
+static void HOWedgeMapping(int order, int *map)
 {
    int b[3];
    int o = 0;
@@ -469,7 +472,7 @@ static void GmshHOWedgeMapping(int order, int *map)
    }
 }
 
-static void GmshHOPyramidMapping(int order, int *map)
+static void HOPyramidMapping(int order, int *map)
 {
    int b[3];
    int o = 0;
@@ -486,122 +489,435 @@ static void GmshHOPyramidMapping(int order, int *map)
    }
 }
 
-static std::pair<Geometry::Type, int> GmshGetGeometryAndOrder(int elem_type)
-{
-   Geometry::Type geom = Geometry::INVALID;
-
-   int el_order = 11;
-   switch (elem_type)
-   {
-      case  1: el_order--; //   2-node line
-      case  8: el_order--; //   3-node line (2nd order)
-      case 26: el_order--; //   4-node line (3rd order)
-      case 27: el_order--; //   5-node line (4th order)
-      case 28: el_order--; //   6-node line (5th order)
-      case 62: el_order--; //   7-node line (6th order)
-      case 63: el_order--; //   8-node line (7th order)
-      case 64: el_order--; //   9-node line (8th order)
-      case 65: el_order--; //  10-node line (9th order)
-      case 66: el_order--; //  11-node line (10th order)
-         geom = Geometry::SEGMENT;
-         break;
-      case  2: el_order--; //  3-node triangle
-      case  9: el_order--; //  6-node triangle (2nd order)
-      case 21: el_order--; // 10-node triangle (3rd order)
-      case 23: el_order--; // 15-node triangle (4th order)
-      case 25: el_order--; // 21-node triangle (5th order)
-      case 42: el_order--; // 28-node triangle (6th order)
-      case 43: el_order--; // 36-node triangle (7th order)
-      case 44: el_order--; // 45-node triangle (8th order)
-      case 45: el_order--; // 55-node triangle (9th order)
-      case 46: el_order--; // 66-node triangle (10th order)
-         geom = Geometry::TRIANGLE;
-         break;
-      case  3: el_order--; //   4-node quadrangle
-      case 10: el_order--; //   9-node quadrangle (2nd order)
-      case 36: el_order--; //  16-node quadrangle (3rd order)
-      case 37: el_order--; //  25-node quadrangle (4th order)
-      case 38: el_order--; //  36-node quadrangle (5th order)
-      case 47: el_order--; //  49-node quadrangle (6th order)
-      case 48: el_order--; //  64-node quadrangle (7th order)
-      case 49: el_order--; //  81-node quadrangle (8th order)
-      case 50: el_order--; // 100-node quadrangle (9th order)
-      case 51: el_order--; // 121-node quadrangle (10th order)
-         geom = Geometry::SQUARE;
-         break;
-      case  4: el_order--; //   4-node tetrahedron
-      case 11: el_order--; //  10-node tetrahedron (2nd order)
-      case 29: el_order--; //  20-node tetrahedron (3rd order)
-      case 30: el_order--; //  35-node tetrahedron (4th order)
-      case 31: el_order--; //  56-node tetrahedron (5th order)
-      case 71: el_order--; //  84-node tetrahedron (6th order)
-      case 72: el_order--; // 120-node tetrahedron (7th order)
-      case 73: el_order--; // 165-node tetrahedron (8th order)
-      case 74: el_order--; // 220-node tetrahedron (9th order)
-      case 75: el_order--; // 286-node tetrahedron (10th order)
-         geom = Geometry::TETRAHEDRON;
-         break;
-      case  5: el_order--; //    8-node hexahedron
-      case 12: el_order--; //   27-node hexahedron (2nd order)
-      case 92: el_order--; //   64-node hexahedron (3rd order)
-      case 93: el_order--; //  125-node hexahedron (4th order)
-      case 94: el_order--; //  216-node hexahedron (5th order)
-      case 95: el_order--; //  343-node hexahedron (6th order)
-      case 96: el_order--; //  512-node hexahedron (7th order)
-      case 97: el_order--; //  729-node hexahedron (8th order)
-      case 98: el_order--; // 1000-node hexahedron (9th order)
-         geom = Geometry::CUBE;
-         break;
-      case   6: el_order--; //   6-node wedge
-      case  13: el_order--; //  18-node wedge (2nd order)
-      case  90: el_order--; //  40-node wedge (3rd order)
-      case  91: el_order--; //  75-node wedge (4th order)
-      case 106: el_order--; // 126-node wedge (5th order)
-      case 107: el_order--; // 196-node wedge (6th order)
-      case 108: el_order--; // 288-node wedge (7th order)
-      case 109: el_order--; // 405-node wedge (8th order)
-      case 110: el_order--; // 550-node wedge (9th order)
-         geom = Geometry::PRISM;
-         break;
-      case   7: el_order--; //   5-node pyramid
-      case  14: el_order--; //  14-node pyramid (2nd order)
-      case 118: el_order--; //  30-node pyramid (3rd order)
-      case 119: el_order--; //  55-node pyramid (4th order)
-      case 120: el_order--; //  91-node pyramid (5th order)
-      case 121: el_order--; // 140-node pyramid (6th order)
-      case 122: el_order--; // 204-node pyramid (7th order)
-      case 123: el_order--; // 285-node pyramid (8th order)
-      case 124: el_order--; // 385-node pyramid (9th order)
-         geom = Geometry::PYRAMID;
-         break;
-      case 15: // 1-node point
-         el_order = 1;
-         geom = Geometry::POINT;
-         break;
-      default: // any other element
-         MFEM_WARNING("Unsupported Gmsh element type.");
-         break;
-   } // switch (type_of_element)
-
-   return std::make_pair(geom, el_order);
-}
-
-static int GmshNumNodesInElement(Geometry::Type geom, int order)
+static int NumNodesInElement(Geometry::Type geom, int order)
 {
    return GlobGeometryRefiner.Refine(geom, order, 1)->RefPts.GetNPoints();
 }
 
-void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
+static void AddPhysicalNames(Mesh &mesh,
+                             map<int, map<int, string>> &phys_names_by_dim)
 {
-   string buff;
-   real_t version;
-   int binary, dsize;
-   input >> version >> binary >> dsize;
-   if (version < 2.2)
+   // Process boundary attribute set names
+   for (auto const &bdr_attr : phys_names_by_dim[mesh.Dimension() - 1])
    {
-      MFEM_ABORT("Gmsh file version < 2.2");
+      if (!mesh.bdr_attribute_sets.AttributeSetExists(bdr_attr.second))
+      {
+         mesh.bdr_attribute_sets.CreateAttributeSet(bdr_attr.second);
+      }
+      mesh.bdr_attribute_sets.AddToAttributeSet(bdr_attr.second, bdr_attr.first);
    }
+
+   // Process element attribute set names
+   for (auto const &attr : phys_names_by_dim[mesh.Dimension()])
+   {
+      if (!mesh.attribute_sets.AttributeSetExists(attr.second))
+      {
+         mesh.attribute_sets.CreateAttributeSet(attr.second);
+      }
+      mesh.attribute_sets.AddToAttributeSet(attr.second, attr.first);
+   }
+}
+
+/// Helper object that caches data used in Gmsh mesh creation.
+class Gmsh
+{
+   vector<vector<int>> types;
+   map<pair<Geometry::Type, int>, vector<int>> node_maps;
+public:
+   Gmsh()
+      : types(
+   {
+      {15}, // point
+      {1, 8, 26, 27, 28, 62, 63, 64, 65, 66}, // segment
+      {2, 9, 21, 23, 25, 42, 43, 44, 45, 46}, // triangle
+      {3, 10, 36, 37, 38, 47, 48, 49, 50, 51}, // quadrilateral
+      {4, 11, 29, 30, 31, 71, 72, 73, 74, 75}, // tetrahedron
+      {5, 12, 92, 93, 94, 95, 96, 97, 98}, // hexahedron
+      {6, 13, 90, 91, 106, 107, 108, 109, 110}, // prism
+      {7, 14, 118, 119, 120, 121, 122, 123, 124} // pyramid
+   }) { }
+
+   pair<Geometry::Type, int> GetGeometryAndOrder(int element_type)
+   {
+      for (int g = Geometry::POINT; g < Geometry::NUM_GEOMETRIES; ++g)
+      {
+         vector<int> &types_g = types[g];
+         const auto it = lower_bound(types_g.begin(), types_g.end(), element_type);
+         if (it != types_g.end() && *it == element_type)
+         {
+            return {Geometry::Type(g), int(distance(types_g.begin(), it) + 1)};
+         }
+      }
+      MFEM_WARNING("Unknown Gmsh element type.");
+      return {Geometry::INVALID, 0};
+   }
+
+   int GetNumNodesByType(int element_type)
+   {
+      auto [geom, order] = GetGeometryAndOrder(element_type);
+      return NumNodesInElement(geom, order);
+   }
+
+   const vector<int> &GetNodeMap(Geometry::Type geom, int order)
+   {
+      auto it = node_maps.find(make_pair(geom, order));
+      if (it == node_maps.end())
+      {
+         const int n_nodes = NumNodesInElement(geom, order);
+         auto ret = node_maps.emplace(piecewise_construct,
+                                      forward_as_tuple(geom, order),
+                                      forward_as_tuple(n_nodes));
+         auto &map = ret.first->second;
+         auto data = map.data();
+         switch (geom)
+         {
+            case Geometry::SEGMENT: HOSegmentMapping(order, data); break;
+            case Geometry::TRIANGLE: HOSegmentMapping(order, data); break;
+            case Geometry::SQUARE: HOSegmentMapping(order, data); break;
+            case Geometry::TETRAHEDRON: HOTetrahedronMapping(order, data); break;
+            case Geometry::CUBE: HOHexahedronMapping(order, data); break;
+            case Geometry::PRISM: HOWedgeMapping(order, data); break;
+            case Geometry::PYRAMID: HOPyramidMapping(order, data); break;
+            default: break; // Unknown element type
+         }
+         return map;
+      }
+      else
+      {
+         return it->second;
+      }
+   }
+};
+
+enum BinaryOrASCII : bool
+{
+   ASCII = false,
+   BINARY = true
+};
+
+static string GoToNextSection(istream &input)
+{
+   string line;
+   while (getline(input, line))
+   {
+      // Find the next line that starts with '$', but does not start with "$End"
+      if (line.size() >= 1 &&
+          line[0] == '$' &&
+          (line.size() < 4 || line.compare(1, 3, "End") != 0))
+      {
+         return line.substr(1, string::npos);
+      }
+   }
+   return "";
+}
+
+template <typename T>
+T ReadBinaryOrASCII(istream &input, gmsh::BinaryOrASCII binary)
+{
+   if (binary)
+   {
+      return bin_io::read<T>(input);
+   }
+   else
+   {
+      T val;
+      input >> val;
+      return val;
+   }
+}
+
+template <typename T>
+void Skip(istream &input, gmsh::BinaryOrASCII binary, int num)
+{
+   for (int i = 0; i < num; ++i) { ReadBinaryOrASCII<T>(input, binary); }
+}
+
+static string ReadQuotedString(istream &input)
+{
+   char c;
+   // Find opening quote
+   while (input.get(c))
+   {
+      if (c == '"') { break; }
+   }
+   MFEM_VERIFY(input, "Error reading string.");
+
+   string result;
+   while (input.get(c))
+   {
+      // Find closing quote
+      if (c == '"')
+      {
+         return result;
+      }
+      result.push_back(c);
+   }
+
+   MFEM_ABORT("Failed to read string.");
+}
+
+/// @brief Return the space dimension (at least 1) given a 3D bounding box.
+///
+/// If some of the sides of the box have zero (or very small) sides, then that
+/// dimension is not counted.
+static int GetSpaceDimension(double bb_min[3], double bb_max[3])
+{
+   static constexpr double bb_tol = 1e-14;
+   const double bb_size = max(bb_max[0] - bb_min[0],
+                              max(bb_max[1] - bb_min[1],
+                                  bb_max[2] - bb_min[2]));
+   int sd = 1;
+   if (bb_max[1] - bb_min[1] > bb_size * bb_tol)
+   {
+      sd += 1;
+   }
+   if (bb_max[2] - bb_min[2] > bb_size * bb_tol)
+   {
+      sd += 1;
+   }
+   return sd;
+}
+
+} // namespace gmsh
+
+void Mesh::ReadGmsh4Mesh(istream &input, int &curved, int &read_gf)
+{
+   using namespace gmsh;
+
+   // $MeshFormat is always encoded in ASCII
+   const BinaryOrASCII is_binary = BinaryOrASCII(
+                                      ReadBinaryOrASCII<bool>(input, ASCII));
+   const int data_size = ReadBinaryOrASCII<int>(input, ASCII);
+
+   MFEM_VERIFY(data_size == sizeof(size_t), "Incompatible Gmsh mesh.");
+
+   bool periodic = false;
+   int mesh_order = -1;
+   unordered_map<int, int> vertex_map;
+   map<int, map<int, string>> phys_names_by_dim;
+   map<pair<int,int>, int> entity_physical_tag;
+
+   vector<vector<int>> el_nodes;
+
+   string section;
+   do
+   {
+      section = GoToNextSection(input);
+      if (section == "PhysicalNames")
+      {
+         // $PhysicalNames is always encoded in ASCII
+         const int n_phys_names = ReadBinaryOrASCII<int>(input, ASCII);
+         for (int i = 0; i < n_phys_names; ++i)
+         {
+            const int phys_name_dim = ReadBinaryOrASCII<int>(input, ASCII);
+            const int phys_name_tag = ReadBinaryOrASCII<int>(input, ASCII);
+            const string phys_name = ReadQuotedString(input);
+
+            phys_names_by_dim[phys_name_dim][phys_name_tag] = phys_name;
+         }
+      }
+      else if (section == "Entities")
+      {
+         const size_t n_points = ReadBinaryOrASCII<size_t>(input, is_binary);
+         const size_t n_curves = ReadBinaryOrASCII<size_t>(input, is_binary);
+         const size_t n_surfaces = ReadBinaryOrASCII<size_t>(input, is_binary);
+         const size_t n_volumes = ReadBinaryOrASCII<size_t>(input, is_binary);
+
+         const size_t n_entities[4] = {n_points, n_curves, n_surfaces, n_volumes};
+
+         if (n_volumes > 0) { Dim = 3; }
+         else if (n_surfaces > 0) { Dim = 2; }
+         else { Dim = 1; }
+
+         for (int d = 0; d <= 3; ++d)
+         {
+            for (size_t i = 0; i < n_entities[d]; ++i)
+            {
+               const int tag = ReadBinaryOrASCII<int>(input, is_binary);
+               Skip<double>(input, is_binary, d == 0 ? 3 : 6); // Skip X, Y, Z
+               const int n_phys_tags = ReadBinaryOrASCII<size_t>(input, is_binary);
+               for (size_t iphys = 0; iphys < n_phys_tags; ++iphys)
+               {
+                  const int phys_tag = ReadBinaryOrASCII<int>(input, is_binary);
+                  // Keep track of codim-0 and codim-1 entities.
+                  if (d == Dim || d == Dim - 1)
+                  {
+                     entity_physical_tag[ {d, tag}] = phys_tag;
+                  }
+               }
+               if (d > 0)
+               {
+                  const size_t n_bounding = ReadBinaryOrASCII<size_t>(input, is_binary);
+                  Skip<int>(input, is_binary, n_bounding);
+               }
+            }
+         }
+      }
+      else if (section == "Nodes")
+      {
+         const size_t n_blocks = ReadBinaryOrASCII<size_t>(input, is_binary);
+         const size_t n_nodes = ReadBinaryOrASCII<size_t>(input, is_binary);
+         Skip<size_t>(input, is_binary, 2); // Skip min and max tags
+
+         NumOfVertices = n_nodes;
+         vertices.SetSize(n_nodes);
+         size_t vertex_counter = 0;
+
+         const double inf = numeric_limits<double>::infinity();
+         double bb_min[3] = {inf, inf, inf};
+         double bb_max[3] = {-inf, -inf, -inf};
+         double c[3];
+
+         for (int iblock = 0; iblock < n_blocks; ++iblock)
+         {
+            Skip<int>(input, is_binary, 2); // Skip entity dim and tag.
+            const int is_parametric = ReadBinaryOrASCII<int>(input, is_binary);
+            const size_t n_nodes_in_block = ReadBinaryOrASCII<size_t>(input, is_binary);
+
+            MFEM_VERIFY(!is_parametric, "Parametric nodes not supported.");
+
+            vector<size_t> node_tags(n_nodes_in_block);
+            for (int i = 0; i < n_nodes_in_block; ++i)
+            {
+               const size_t node_tag = ReadBinaryOrASCII<size_t>(input, is_binary);
+               node_tags[i] = node_tag;
+            }
+            for (int i = 0; i < n_nodes_in_block; ++i)
+            {
+               for (int d = 0; d < 3; ++d)
+               {
+                  c[d] = ReadBinaryOrASCII<double>(input, is_binary);
+                  bb_min[d] = min(bb_min[d], c[d]);
+                  bb_max[d] = max(bb_min[d], c[d]);
+               }
+               vertex_map[node_tags[i]] = vertex_counter;
+               vertices[vertex_counter] = Vertex(c[0], c[1], c[2]);
+               vertex_counter += 1;
+            }
+         }
+         spaceDim = GetSpaceDimension(bb_min, bb_max);
+      }
+      else if (section == "Elements")
+      {
+         Gmsh g;
+
+         const size_t n_blocks = ReadBinaryOrASCII<size_t>(input, is_binary);
+         Skip<size_t>(input, is_binary, 3); // Skip n_elements and min/max tags.
+
+         for (int iblock = 0; iblock < n_blocks; ++iblock)
+         {
+            const int entity_dim = ReadBinaryOrASCII<int>(input, is_binary);
+            const int entity_tag = ReadBinaryOrASCII<int>(input, is_binary);
+            const int element_type = ReadBinaryOrASCII<int>(input, is_binary);
+            const size_t n_elements = ReadBinaryOrASCII<size_t>(input, is_binary);
+
+            for (int ie = 0; ie < n_elements; ++ie)
+            {
+               Skip<size_t>(input, is_binary, 1); // Skip element tag
+               const auto [geom, el_order] = g.GetGeometryAndOrder(element_type);
+
+               if (mesh_order < 0) { mesh_order = el_order; }
+               MFEM_VERIFY(mesh_order == el_order,
+                           "Variable order Gmsh meshes are not supported");
+
+               const int n_elem_nodes = NumNodesInElement(geom, el_order);
+               vector<size_t> node_tags(n_elem_nodes);
+               for (int inode = 0; inode < n_elem_nodes; ++inode)
+               {
+                  node_tags[inode] = ReadBinaryOrASCII<size_t>(input, is_binary);
+               }
+
+               // We only add codim-0 and codim-1 elements.
+               if (entity_dim != Dim && entity_dim != Dim - 1) { continue; }
+
+               auto e = NewElement(geom);
+               Array<int> v(e->GetNVertices());
+               for (int i = 0; i < e->GetNVertices(); ++i)
+               {
+                  v[i] = vertex_map[node_tags[i]];
+               }
+               e->SetVertices(v);
+               e->SetAttribute(entity_physical_tag[ {entity_dim, entity_tag}]);
+
+               if (entity_dim == Dim) { elements.Append(e); }
+               else if (entity_dim == Dim - 1) { boundary.Append(e); }
+
+               // Store high-order node locations
+               if (el_order > 1 && entity_dim == Dim)
+               {
+                  const vector<int> &map = g.GetNodeMap(geom, el_order);
+                  vector<int> &nodes = el_nodes.emplace_back(n_elem_nodes);
+                  for (int i = 0; i < n_elem_nodes; ++i)
+                  {
+                     nodes[i] = vertex_map[node_tags[map[i]]];
+                  }
+               }
+            }
+         }
+         NumOfElements = elements.Size();
+         NumOfBdrElements = boundary.Size();
+      }
+      else if (section == "Periodic")
+      {
+         const size_t n_periodic = ReadBinaryOrASCII<size_t>(input, is_binary);
+         if (n_periodic > 0) { periodic = true; }
+
+         MFEM_ABORT("Not currently supported");
+      }
+   }
+   while (!section.empty());
+
+   // If the elements are high-order, keep a copy of the nodes before removing
+   // unused vertices.
+   Array<Vertex> ho_vertices;
+   if (mesh_order > 1) { ho_vertices = vertices; }
+
+   AddPhysicalNames(*this, phys_names_by_dim);
+   RemoveUnusedVertices();
+   RemoveInternalBoundaries();
+   FinalizeTopology();
+
+   // Now that the mesh topology has been fully created, set the high-order
+   // nodal information (if needed). For periodic meshes, we need to set the
+   // L2 grid function.
+   if (mesh_order > 1 || periodic)
+   {
+      SetCurvature(mesh_order, periodic, spaceDim, Ordering::byVDIM);
+      const FiniteElementSpace &fes = *GetNodalFESpace();
+      GridFunction &nodes_gf = *GetNodes();
+
+      Array<int> vdofs;
+      for (int e = 0; e < NumOfElements; ++e)
+      {
+         const FiniteElement *fe = fes.GetFE(e);
+         auto *nfe = dynamic_cast<const NodalFiniteElement*>(fe);
+         MFEM_ASSERT(nfe, "Invalid FE");
+         const Array<int> &lex = nfe->GetLexicographicOrdering();
+         fes.GetElementVDofs(e, vdofs);
+         const int n = vdofs.Size() / spaceDim;
+         for (int i = 0; i < n; ++i)
+         {
+            Vertex v = ho_vertices[el_nodes[e][i]];
+            for (int d = 0; d < spaceDim; ++d)
+            {
+               nodes_gf[vdofs[lex[i] + d*n]] = v(d);
+            }
+         }
+      }
+   }
+}
+
+void Mesh::ReadGmsh2Mesh(istream &input, int &curved, int &read_gf)
+{
+   using namespace gmsh;
+
+   int binary, dsize;
+   input >> binary >> dsize;
+
    MFEM_VERIFY(dsize == sizeof(double), "Gmsh file : dsize != sizeof(double)");
+
+   string buff;
+
    getline(input, buff);
    // There is a number 1 in binary format
    if (binary)
@@ -623,7 +939,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
    // The first index is the dimension of the physical manifold, the second
    // index is the element attribute number of the set, and the string is
    // the assigned name.
-   map<int,map<int,std::string> > phys_names_by_dim;
+   map<int,map<int,string> > phys_names_by_dim;
 
    // Gmsh always outputs coordinates in 3D, but MFEM distinguishes between the
    // mesh element dimension (Dim) and the dimension of the space in which the
@@ -635,9 +951,8 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
    // is non-trivial. Note that with these assumptions a 2D mesh parallel to the
    // yz plane will be considered a surface mesh embedded in 3D whereas the same
    // 2D mesh parallel to the xy plane will be considered a 2D mesh.
-   real_t bb_tol = 1e-14;
-   real_t bb_min[3];
-   real_t bb_max[3];
+   double bb_min[3];
+   double bb_max[3];
 
    // Mesh order
    int mesh_order = 1;
@@ -659,7 +974,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          vertices.SetSize(NumOfVertices);
          int serial_number;
          const int gmsh_dim = 3; // Gmsh always outputs 3 coordinates
-         real_t coord[gmsh_dim];
+         double coord[gmsh_dim];
          for (int ver = 0; ver < NumOfVertices; ++ver)
          {
             if (binary)
@@ -675,29 +990,18 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                   input >> coord[ci];
                }
             }
-            vertices[ver] = Vertex(coord, gmsh_dim);
+            vertices[ver] = Vertex(coord[0], coord[1], coord[2]);
             vertices_map[serial_number] = ver;
 
             for (int ci = 0; ci < gmsh_dim; ++ci)
             {
                bb_min[ci] = (ver == 0) ? coord[ci] :
-                            std::min(bb_min[ci], coord[ci]);
+                            min(bb_min[ci], coord[ci]);
                bb_max[ci] = (ver == 0) ? coord[ci] :
-                            std::max(bb_max[ci], coord[ci]);
+                            max(bb_max[ci], coord[ci]);
             }
          }
-         real_t bb_size = std::max(bb_max[0] - bb_min[0],
-                                   std::max(bb_max[1] - bb_min[1],
-                                            bb_max[2] - bb_min[2]));
-         spaceDim = 1;
-         if (bb_max[1] - bb_min[1] > bb_size * bb_tol)
-         {
-            spaceDim++;
-         }
-         if (bb_max[2] - bb_min[2] > bb_size * bb_tol)
-         {
-            spaceDim++;
-         }
+         spaceDim = GetSpaceDimension(bb_min, bb_max);
 
          if (static_cast<int>(vertices_map.size()) != NumOfVertices)
          {
@@ -706,6 +1010,8 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
       } // section '$Nodes'
       else if (buff == "$Elements") // reading mesh elements
       {
+         Gmsh g;
+
          int num_of_all_elements;
          input >> num_of_all_elements;
          // = NumOfElements + NumOfBdrElements + (maybe, PhysicalPoints)
@@ -757,11 +1063,8 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
 
                n_elem_part += n_elem_one_type;
 
-               const auto geom_and_order = GmshGetGeometryAndOrder(type_of_element);
-               const Geometry::Type geom = geom_and_order.first;
-               const int el_order = geom_and_order.second;
-
-               const int n_elem_nodes = GmshNumNodesInElement(geom, el_order);
+               const auto [geom, el_order] = g.GetGeometryAndOrder(type_of_element);
+               const int n_elem_nodes = NumNodesInElement(geom, el_order);
                vector<int> data(1+n_tags+n_elem_nodes);
                for (int el = 0; el < n_elem_one_type; ++el)
                {
@@ -867,10 +1170,8 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                // we currently just skip the partitions if they exist, and go
                // directly to vertices describing the mesh element
 
-               const auto geom_and_order = GmshGetGeometryAndOrder(type_of_element);
-               const Geometry::Type geom = geom_and_order.first;
-               const int el_order = geom_and_order.second;
-               const int n_elem_nodes = GmshNumNodesInElement(geom, el_order);
+               const auto [geom, el_order] = g.GetGeometryAndOrder(type_of_element);
+               const int n_elem_nodes = NumNodesInElement(geom, el_order);
                vector<int> vert_indices(n_elem_nodes);
                int index;
                for (int vi = 0; vi < n_elem_nodes; ++vi)
@@ -1074,7 +1375,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      if (ho_lin[el_order].empty())
                      {
                         ho_lin[el_order].resize(ho_verts->size());
-                        GmshHOSegmentMapping(el_order, ho_lin[el_order].data());
+                        HOSegmentMapping(el_order, ho_lin[el_order].data());
                      }
                      vm = ho_lin[el_order].data();
                      break;
@@ -1084,7 +1385,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      if (ho_tri[el_order].empty())
                      {
                         ho_tri[el_order].resize(ho_verts->size());
-                        GmshHOTriangleMapping(el_order, ho_tri[el_order].data());
+                        HOTriangleMapping(el_order, ho_tri[el_order].data());
                      }
                      vm = ho_tri[el_order].data();
                      break;
@@ -1094,7 +1395,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      if (ho_sqr[el_order].empty())
                      {
                         ho_sqr[el_order].resize(ho_verts->size());
-                        GmshHOQuadrilateralMapping(el_order, ho_sqr[el_order].data());
+                        HOQuadrilateralMapping(el_order, ho_sqr[el_order].data());
                      }
                      vm = ho_sqr[el_order].data();
                      break;
@@ -1104,7 +1405,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      if (ho_tet[el_order].empty())
                      {
                         ho_tet[el_order].resize(ho_verts->size());
-                        GmshHOTetrahedronMapping(el_order, ho_tet[el_order].data());
+                        HOTetrahedronMapping(el_order, ho_tet[el_order].data());
                      }
                      vm = ho_tet[el_order].data();
                      break;
@@ -1114,7 +1415,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      if (ho_hex[el_order].empty())
                      {
                         ho_hex[el_order].resize(ho_verts->size());
-                        GmshHOHexahedronMapping(el_order, ho_hex[el_order].data());
+                        HOHexahedronMapping(el_order, ho_hex[el_order].data());
                      }
                      vm = ho_hex[el_order].data();
                      break;
@@ -1124,7 +1425,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      if (ho_wdg[el_order].empty())
                      {
                         ho_wdg[el_order].resize(ho_verts->size());
-                        GmshHOWedgeMapping(el_order, ho_wdg[el_order].data());
+                        HOWedgeMapping(el_order, ho_wdg[el_order].data());
                      }
                      vm = ho_wdg[el_order].data();
                      break;
@@ -1134,7 +1435,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      if (ho_pyr[el_order].empty())
                      {
                         ho_pyr[el_order].resize(ho_verts->size());
-                        GmshHOPyramidMapping(el_order, ho_pyr[el_order].data());
+                        HOPyramidMapping(el_order, ho_pyr[el_order].data());
                      }
                      vm = ho_pyr[el_order].data();
                      break;
@@ -1172,27 +1473,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          for (int i=0; i < num_names; i++)
          {
             input >> mdim >> num;
-            getline(input, name);
-
-            // Trim leading white space
-            while (!name.empty() &&
-                   (*name.begin() == ' ' || *name.begin() == '\t'))
-            { name.erase(0,1);}
-
-            // Trim trailing white space
-            while (!name.empty() &&
-                   (*name.rbegin() == ' ' || *name.rbegin() == '\t' ||
-                    *name.rbegin() == '\n' || *name.rbegin() == '\r'))
-            { name.resize(name.length()-1);}
-
-            // Remove enclosing quotes
-            if ( (*name.begin() == '"' || *name.begin() == '\'') &&
-                 (*name.rbegin() == '"' || *name.rbegin() == '\''))
-            {
-               name = name.substr(1,name.length()-2);
-            }
-
-            phys_names_by_dim[mdim][num] = name;
+            phys_names_by_dim[mdim][num] = ReadQuotedString(input);
          }
       }
       else if (buff == "$Periodic") // Reading master/slave node pairs
@@ -1294,35 +1575,9 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
       }
    } // we reach the end of the file
 
-   // Process set names
-   if (phys_names_by_dim.size() > 0)
-   {
-      // Process boundary attribute set names
-      for (auto const &bdr_attr : phys_names_by_dim[Dim-1])
-      {
-         if (!bdr_attribute_sets.AttributeSetExists(bdr_attr.second))
-         {
-            bdr_attribute_sets.CreateAttributeSet(bdr_attr.second);
-         }
-         bdr_attribute_sets.AddToAttributeSet(bdr_attr.second, bdr_attr.first);
-      }
-
-      // Process element attribute set names
-      for (auto const &attr : phys_names_by_dim[Dim])
-      {
-         if (!attribute_sets.AttributeSetExists(attr.second))
-         {
-            attribute_sets.CreateAttributeSet(attr.second);
-         }
-         attribute_sets.AddToAttributeSet(attr.second, attr.first);
-      }
-   }
-
+   AddPhysicalNames(*this, phys_names_by_dim);
    RemoveUnusedVertices();
-   if (periodic)
-   {
-      RemoveInternalBoundaries();
-   }
+   RemoveInternalBoundaries();
    FinalizeTopology();
 
    // If a high order coordinate field was created project it onto the mesh
@@ -1332,6 +1587,28 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
 
       VectorGridFunctionCoefficient NodesCoef(&Nodes_gf);
       Nodes->ProjectCoefficient(NodesCoef);
+   }
+}
+
+void Mesh::ReadGmshMesh(istream &input, int &curved, int &read_gf)
+{
+   real_t version;
+   input >> version;
+
+   // Versions supported: 4.0, 4.1 and 2.2
+   if (version == 4.0 || version == 4.1)
+   {
+      ReadGmsh4Mesh(input, curved, read_gf);
+      return;
+   }
+   else if (version == 2.2)
+   {
+      ReadGmsh2Mesh(input, curved, read_gf);
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported Gmsh file version. "
+                 "Supported versions: 2.2, 4.0, 4.1");
    }
 }
 

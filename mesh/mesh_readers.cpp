@@ -10,7 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "mesh_headers.hpp"
-#include "gmsh.hpp"
 #include "ncnurbs.hpp"
 #include "../fem/fem.hpp"
 #include "../general/binaryio.hpp"
