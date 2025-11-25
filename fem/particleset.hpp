@@ -172,8 +172,8 @@ private:
    static Array<const char*> GetEmptyNameArray(int N);
 
 #ifdef MFEM_USE_MPI
-   static unsigned int GetRank(MPI_Comm comm_);
-   static unsigned int GetSize(MPI_Comm comm_);
+   static int GetRank(MPI_Comm comm_);
+   static int GetSize(MPI_Comm comm_);
 #endif // MFEM_USE_MPI
 
 protected:
@@ -226,11 +226,11 @@ protected:
    /// \cond DO_NOT_DOCUMENT
    template<std::size_t NBytes>
    static void TransferParticlesImpl(ParticleSet &pset,
-                                     const Array<unsigned int> &send_idxs,
+                                     const Array<int> &send_idxs,
                                      const Array<unsigned int> &send_ranks);
 
    using TransferParticlesType = void (*)(ParticleSet &pset,
-                                          const Array<unsigned int> &send_idxs,
+                                          const Array<int> &send_idxs,
                                           const Array<unsigned int> &send_ranks);
 
    // Specialization parameter: NBytes

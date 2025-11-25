@@ -167,12 +167,12 @@ Array<const char*> ParticleSet::GetEmptyNameArray(int N)
 }
 
 #ifdef MFEM_USE_MPI
-unsigned int ParticleSet::GetRank(MPI_Comm comm_)
+int ParticleSet::GetRank(MPI_Comm comm_)
 {
    int r; MPI_Comm_rank(comm_, &r);
    return r;
 }
-unsigned int ParticleSet::GetSize(MPI_Comm comm_)
+int ParticleSet::GetSize(MPI_Comm comm_)
 {
    int s; MPI_Comm_size(comm_, &s);
    return s;
@@ -246,7 +246,8 @@ void ParticleSet::AddParticles(const Array<IDType> &new_ids,
 /// \cond DO_NOT_DOCUMENT
 template<size_t NBytes>
 void ParticleSet::TransferParticlesImpl(ParticleSet &pset,
-                                        const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks)
+                                        const Array<int> &send_idxs,
+                                        const Array<unsigned int> &send_ranks)
 {
    struct pdata_t
    {
@@ -256,9 +257,6 @@ void ParticleSet::TransferParticlesImpl(ParticleSet &pset,
 
    int nreals = pset.GetFieldVDims().Sum() + pset.Coords().GetVDim();
    int ntags = pset.GetNTags();
-   // in-case particles have not been initialized on all ranks
-   MPI_Allreduce(MPI_IN_PLACE, &nreals, 1, MPI_INT, MPI_MAX, pset.GetComm());
-   MPI_Allreduce(MPI_IN_PLACE, &ntags, 1, MPI_INT, MPI_MAX, pset.GetComm());
    size_t nbytes = nreals*sizeof(real_t) + ntags*sizeof(int);
    MFEM_VERIFY(nbytes <= NBytes, "More data than can be packed.");
 
@@ -297,22 +295,21 @@ void ParticleSet::TransferParticlesImpl(ParticleSet &pset,
       }
    }
 
-   unsigned int nparticles = pset.GetNParticles();
-   unsigned int nsend      = send_idxs.Size();
+   int nparticles = pset.GetNParticles();
+   int nsend      = send_idxs.Size();
 
    // Transfer particles
    sarray_transfer_ext(parr_t, &gsl_arr, send_ranks.GetData(),
                        sizeof(unsigned int), pset.cr);
 
    // Make sure we have enough space for received particles
-   unsigned int nrecv = gsl_arr.n;
-   int ndelete = (int)nsend - (int)nrecv;
+   int nrecv = (int) gsl_arr.n;
+   int ndelete = nsend - nrecv;
    if (ndelete > 0)
    {
       // Remove unneeded particles
-      auto datap = const_cast<unsigned int*>(send_idxs.GetData());
-      Array<unsigned int> delete_idxs(datap + nrecv,
-                                      ndelete);
+      auto datap = const_cast<int*>(send_idxs.GetData());
+      Array<int> delete_idxs(datap + nrecv, ndelete);
       pset.RemoveParticles(delete_idxs);
    }
    else
@@ -445,7 +442,7 @@ void ParticleSet::Redistribute(const Array<unsigned int> &rank_list)
 
    // Get particles to be transferred
    // (Avoid unnecessary copies of particle data into and out of buffers)
-   Array<unsigned int> send_idxs;
+   Array<int> send_idxs;
    Array<unsigned int> send_ranks;
    send_idxs.Reserve(rank_list.Size());
    send_ranks.Reserve(rank_list.Size());
