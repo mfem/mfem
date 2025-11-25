@@ -36,6 +36,9 @@ public:
     */
    Particle(int dim, const Array<int> &field_vdims, int num_tags);
 
+   // Force default move constructor
+   Particle(Particle&&) = default;
+
    /// Get the spatial dimension of this particle.
    int GetDim() const { return coords.Size(); }
 
