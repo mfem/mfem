@@ -16,6 +16,7 @@ list(APPEND ALL_EXE_SRCS
   ex3.cpp
   ex4.cpp
   ex5.cpp
+  ex5-hdg.cpp
   ex6.cpp
   ex7.cpp
   ex8.cpp
@@ -56,6 +57,7 @@ if (MFEM_USE_MPI)
     ex3p.cpp
     ex4p.cpp
     ex5p.cpp
+    ex5p-hdg.cpp
     ex6p.cpp
     ex7p.cpp
     ex8p.cpp
