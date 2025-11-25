@@ -18,8 +18,10 @@
 
 if (MFEM_FETCH_GSLIB OR MFEM_FETCH_TPLS)
   enable_language(C)
-  string(TOUPPER "${CMAKE_BUILD_TYPE}" BUILD_TYPE)
   set(GSLIB_FETCH_VERSION 1.0.9)
+  add_library(GSLIB STATIC IMPORTED)
+  # set options
+  string(TOUPPER "${CMAKE_BUILD_TYPE}" BUILD_TYPE)
   set(GSLIB_C_FLAGS ${CMAKE_C_FLAGS_${BUILD_TYPE}})
   if (CMAKE_C_FLAGS)
     set(GSLIB_C_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_${BUILD_TYPE}}")
@@ -27,7 +29,6 @@ if (MFEM_FETCH_GSLIB OR MFEM_FETCH_TPLS)
   if (BUILD_SHARED_LIBS)
     set(GSLIB_C_FLAGS "${GSLIB_C_FLAGS} -fPIC")
   endif()
-  add_library(GSLIB STATIC IMPORTED)
   # define external project and create future include directory so it is present
   # to pass CMake checks at end of MFEM configuration step
   message(STATUS "Will fetch GSLIB ${GSLIB_FETCH_VERSION} to be built with ${GSLIB_C_FLAGS}")
