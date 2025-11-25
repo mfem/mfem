@@ -441,18 +441,6 @@ int main(int argc, char *argv[])
       solver.SetPreconditioner(darcyPrec);
       solver.SetPrintLevel(1);
 
-      DarcyOperator::SolutionController ctrl(
-         *darcy, x, rhs,
-         (DarcyOperator::SolutionController::Type)isol_ctrl,
-         rtol);
-
-      if (isol_ctrl != (int)DarcyOperator::SolutionController::Type::Native)
-      {
-         solver.SetController(ctrl);
-         solver.SetAbsTol(0.);//let the controller decide about convergence
-         solver.SetRelTol(0.);//let the controller decide about convergence
-      }
-
       solver.Mult(B, X);
       darcy->RecoverFEMSolution(X, rhs, x);
 
