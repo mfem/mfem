@@ -372,13 +372,12 @@ void NavierParticles::Step(const real_t dt, const ParGridFunction &u_gf,
    // Shift fluid velocity, fluid vorticity, particle velocity, and particle position
    for (int i = N_HIST-1; i > 0; i--)
    {
-      U(i) = U(i-1).GetData();
-      // For performance, it is actually better to move ownership of data
-      // rather than the data itself.
+      U(i) = std::move(U(i-1));
       V(i) = std::move(V(i-1));
       W(i) = std::move(W(i-1));
       X(i) = std::move(X(i-1));
    }
+   U(0).SetSize(U(1).Size());
    V(0).SetSize(V(1).Size());
    W(0).SetSize(W(1).Size());
    X(0).SetSize(X(1).Size());
