@@ -118,7 +118,8 @@ New and updated examples and miniapps
   Benchmark examples include the two-block, ironing, and beam-sphere problems. 
   The miniapp is available in `miniapps/contact`
 
-API changes:
+- Updated the mtop miniapp with a GPU enabled forward and adjoint solver for
+  isotropic linear elasticity.
 
 API changes:
 -----------
@@ -150,6 +151,10 @@ Miscellaneous
   The FreeData() method has also been moved to the destructor so the user does
   not need to manually free-up the memory if the destructor is called before
   MPI_Finalize().
+
+- Introduced ParticleVector, a Vector-derived container that stores vector 
+  data for an arbitrary number of particles contiguously based on user specified
+  vector-dimension and ordering (byNODES/byVDIM).
 
 Version 4.8, released on Apr 9, 2025
 ====================================
