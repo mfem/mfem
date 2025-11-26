@@ -572,8 +572,8 @@ public:
          switch (geom)
          {
             case Geometry::SEGMENT: HOSegmentMapping(order, data); break;
-            case Geometry::TRIANGLE: HOSegmentMapping(order, data); break;
-            case Geometry::SQUARE: HOSegmentMapping(order, data); break;
+            case Geometry::TRIANGLE: HOTriangleMapping(order, data); break;
+            case Geometry::SQUARE: HOQuadrilateralMapping(order, data); break;
             case Geometry::TETRAHEDRON: HOTetrahedronMapping(order, data); break;
             case Geometry::CUBE: HOHexahedronMapping(order, data); break;
             case Geometry::PRISM: HOWedgeMapping(order, data); break;
@@ -688,12 +688,16 @@ void Mesh::ReadGmsh4Mesh(istream &input, int &curved, int &read_gf)
    const BinaryOrASCII is_binary = BinaryOrASCII(
                                       ReadBinaryOrASCII<bool>(input, ASCII));
    const int data_size = ReadBinaryOrASCII<int>(input, ASCII);
-
    MFEM_VERIFY(data_size == sizeof(size_t), "Incompatible Gmsh mesh.");
+   if (is_binary)
+   {
+      const int one = ReadBinaryOrASCII<int>(input, is_binary);
+      MFEM_VERIFY(one == 1, "Incompatible endianness.");
+   }
 
    bool periodic = false;
    int mesh_order = -1;
-   unordered_map<int, int> vertex_map;
+   map<int, int> vertex_map;
    map<int, map<int, string>> phys_names_by_dim;
    map<pair<int,int>, int> entity_physical_tag;
 
@@ -874,7 +878,6 @@ void Mesh::ReadGmsh4Mesh(istream &input, int &curved, int &read_gf)
 
    AddPhysicalNames(*this, phys_names_by_dim);
    RemoveUnusedVertices();
-   RemoveInternalBoundaries();
    FinalizeTopology();
 
    // Now that the mesh topology has been fully created, set the high-order
@@ -897,10 +900,11 @@ void Mesh::ReadGmsh4Mesh(istream &input, int &curved, int &read_gf)
          const int n = vdofs.Size() / spaceDim;
          for (int i = 0; i < n; ++i)
          {
+            const int ii = lex.IsEmpty() ? i : lex[i];
             Vertex v = ho_vertices[el_nodes[e][i]];
             for (int d = 0; d < spaceDim; ++d)
             {
-               nodes_gf[vdofs[lex[i] + d*n]] = v(d);
+               nodes_gf[vdofs[ii + d*n]] = v(d);
             }
          }
       }
@@ -911,34 +915,26 @@ void Mesh::ReadGmsh2Mesh(istream &input, int &curved, int &read_gf)
 {
    using namespace gmsh;
 
-   int binary, dsize;
-   input >> binary >> dsize;
+   const BinaryOrASCII is_binary =
+      BinaryOrASCII(ReadBinaryOrASCII<int>(input, ASCII));
+   const int dsize = ReadBinaryOrASCII<int>(input, ASCII);
+   MFEM_VERIFY(dsize == sizeof(double), "Incompatible data size.");
 
-   MFEM_VERIFY(dsize == sizeof(double), "Gmsh file : dsize != sizeof(double)");
-
-   string buff;
-
-   getline(input, buff);
-   // There is a number 1 in binary format
-   if (binary)
+   if (is_binary)
    {
-      int one;
-      input.read(reinterpret_cast<char*>(&one), sizeof(one));
-      if (one != 1)
-      {
-         MFEM_ABORT("Gmsh file : wrong binary format");
-      }
+      const int one = ReadBinaryOrASCII<int>(input, is_binary);
+      MFEM_VERIFY(one == 1, "Incompatible endianness.");
    }
 
    // A map between a serial number of the vertex and its number in the file
    // (there may be gaps in the numbering, and also Gmsh enumerates vertices
    // starting from 1, not 0)
-   map<int, int> vertices_map;
+   map<int, int> vertex_map;
 
-   // A map containing names of physical curves, surfaces, and volumes.
-   // The first index is the dimension of the physical manifold, the second
-   // index is the element attribute number of the set, and the string is
-   // the assigned name.
+   // A map containing names of physical curves, surfaces, and volumes. The
+   // first index is the dimension of the physical manifold, the second index is
+   // the element attribute number of the set, and the string is the assigned
+   // name.
    map<int,map<int,string> > phys_names_by_dim;
 
    // Gmsh always outputs coordinates in 3D, but MFEM distinguishes between the
@@ -951,642 +947,277 @@ void Mesh::ReadGmsh2Mesh(istream &input, int &curved, int &read_gf)
    // is non-trivial. Note that with these assumptions a 2D mesh parallel to the
    // yz plane will be considered a surface mesh embedded in 3D whereas the same
    // 2D mesh parallel to the xy plane will be considered a 2D mesh.
-   double bb_min[3];
-   double bb_max[3];
+   const double inf = numeric_limits<double>::infinity();
+   double bb_min[3] = {inf, inf, inf};
+   double bb_max[3] = {-inf, -inf, -inf};
 
-   // Mesh order
-   int mesh_order = 1;
-
-   // Mesh type
+   int mesh_order = -1;
    bool periodic = false;
+   // Node indices of high-order elements, such that ho_el_nodes[dim][e][i] is
+   // the i-th node index of the e-th element of dimension dim.
+   vector<vector<vector<int>>> ho_el_nodes(4);
 
-   // Vector field to store uniformly spaced Gmsh high order mesh coords
-   GridFunction Nodes_gf;
-
-   // Read the lines of the mesh file. If we face specific keyword, we'll treat
-   // the section.
-   while (input >> buff)
+   string section;
+   do
    {
-      if (buff == "$Nodes") // reading mesh vertices
+      section = GoToNextSection(input);
+      if (section == "Nodes")
       {
-         input >> NumOfVertices;
-         getline(input, buff);
+         NumOfVertices = ReadBinaryOrASCII<int>(input, ASCII);
          vertices.SetSize(NumOfVertices);
-         int serial_number;
-         const int gmsh_dim = 3; // Gmsh always outputs 3 coordinates
-         double coord[gmsh_dim];
-         for (int ver = 0; ver < NumOfVertices; ++ver)
+         double c[3];
+         for (int v = 0; v < NumOfVertices; ++v)
          {
-            if (binary)
+            const int node_num = ReadBinaryOrASCII<int>(input, is_binary);
+            for (int d = 0; d < 3; ++d)
             {
-               input.read(reinterpret_cast<char*>(&serial_number), sizeof(int));
-               input.read(reinterpret_cast<char*>(coord), gmsh_dim*sizeof(double));
+               c[d] = ReadBinaryOrASCII<double>(input, is_binary);
+               bb_min[d] = min(bb_min[d], c[d]);
+               bb_max[d] = max(bb_max[d], c[d]);
             }
-            else // ASCII
-            {
-               input >> serial_number;
-               for (int ci = 0; ci < gmsh_dim; ++ci)
-               {
-                  input >> coord[ci];
-               }
-            }
-            vertices[ver] = Vertex(coord[0], coord[1], coord[2]);
-            vertices_map[serial_number] = ver;
-
-            for (int ci = 0; ci < gmsh_dim; ++ci)
-            {
-               bb_min[ci] = (ver == 0) ? coord[ci] :
-                            min(bb_min[ci], coord[ci]);
-               bb_max[ci] = (ver == 0) ? coord[ci] :
-                            max(bb_max[ci], coord[ci]);
-            }
+            vertices[v] = Vertex(c[0], c[1], c[2]);
+            vertex_map[node_num] = v;
          }
          spaceDim = GetSpaceDimension(bb_min, bb_max);
-
-         if (static_cast<int>(vertices_map.size()) != NumOfVertices)
-         {
-            MFEM_ABORT("Gmsh file : vertices indices are not unique");
-         }
-      } // section '$Nodes'
-      else if (buff == "$Elements") // reading mesh elements
+         MFEM_VERIFY(vertex_map.size() == NumOfVertices,
+                     "Gmsh node indices are not unique.");
+      }
+      else if (section == "Elements")
       {
          Gmsh g;
 
-         int num_of_all_elements;
-         input >> num_of_all_elements;
-         // = NumOfElements + NumOfBdrElements + (maybe, PhysicalPoints)
-         getline(input, buff);
+         const int num_elements = ReadBinaryOrASCII<int>(input, ASCII);
+         int num_el_read = 0;
 
-         int serial_number; // serial number of an element
-         int type_of_element; // ID describing a type of a mesh element
-         int n_tags; // number of different tags describing an element
-         int phys_domain; // element's attribute
-         int elem_domain; // another element's attribute (rarely used)
-         int n_partitions; // number of partitions where an element takes place
+         vector<vector<unique_ptr<Element>>> elems_by_dim(4);
 
-         vector<Element*> elements_0D, elements_1D, elements_2D, elements_3D;
-
-         // Temporary storage for high order vertices, if present
-         vector<vector<int>> ho_verts_1D, ho_verts_2D, ho_verts_3D;
-
-         // Temporary storage for order of elements
-         vector<int> ho_el_order_1D, ho_el_order_2D, ho_el_order_3D;
-
-         // Vertex order mappings
-         vector<vector<int>> ho_lin(11);
-         vector<vector<int>> ho_tri(11);
-         vector<vector<int>> ho_sqr(11);
-         vector<vector<int>> ho_tet(11);
-         vector<vector<int>> ho_hex(10);
-         vector<vector<int>> ho_wdg(10);
-         vector<vector<int>> ho_pyr(10);
-
-         bool has_nonpositive_phys_domain = false;
-         bool has_positive_phys_domain = false;
-
-         if (binary)
+         while (num_el_read < num_elements)
          {
-            int n_elem_part = 0; // partial sum of elements that are read
-            const int header_size = 3;
-            // header consists of 3 numbers: type of the element, number of
-            // elements of this type, and number of tags
-            int header[header_size];
-            int n_elem_one_type; // number of elements of a specific type
-
-            while (n_elem_part < num_of_all_elements)
+            auto add_element = [&](int el_type, int el_phys_tag, Geometry::Type geom,
+                                   int el_order, const vector<int> &el_nodes)
             {
-               input.read(reinterpret_cast<char*>(header),
-                          header_size*sizeof(int));
-               type_of_element = header[0];
-               n_elem_one_type = header[1];
-               n_tags          = header[2];
+               if (mesh_order < 0) { mesh_order = el_order; }
+               MFEM_VERIFY(mesh_order == el_order,
+                           "Variable order Gmsh meshes are not supported");
 
-               n_elem_part += n_elem_one_type;
-
-               const auto [geom, el_order] = g.GetGeometryAndOrder(type_of_element);
-               const int n_elem_nodes = NumNodesInElement(geom, el_order);
-               vector<int> data(1+n_tags+n_elem_nodes);
-               for (int el = 0; el < n_elem_one_type; ++el)
-               {
-                  input.read(reinterpret_cast<char*>(&data[0]),
-                             data.size()*sizeof(int));
-                  int dd = 0; // index for data array
-                  serial_number = data[dd++];
-                  // physical domain - the most important value (to distinguish
-                  // materials with different properties)
-                  phys_domain = (n_tags > 0) ? data[dd++] : 1;
-                  // elementary domain - to distinguish different geometrical
-                  // domains (typically, it's used rarely)
-                  elem_domain = (n_tags > 1) ? data[dd++] : 0;
-                  // the number of tags is bigger than 2 if there are some
-                  // partitions (domain decompositions)
-                  n_partitions = (n_tags > 2) ? data[dd++] : 0;
-                  // we currently just skip the partitions if they exist, and go
-                  // directly to vertices describing the mesh element
-                  vector<int> vert_indices(n_elem_nodes);
-                  for (int vi = 0; vi < n_elem_nodes; ++vi)
-                  {
-                     map<int, int>::const_iterator it =
-                        vertices_map.find(data[1+n_tags+vi]);
-                     if (it == vertices_map.end())
-                     {
-                        MFEM_ABORT("Gmsh file : vertex index doesn't exist");
-                     }
-                     vert_indices[vi] = it->second;
-                  }
-
-                  // Non-positive attributes are not allowed in MFEM. However,
-                  // by default, Gmsh sets the physical domain of all elements
-                  // to zero. In the case that all elements have physical domain
-                  // zero, we will given them attribute 1. If only some elements
-                  // have physical domain zero, we will throw an error.
-                  if (phys_domain <= 0)
-                  {
-                     has_nonpositive_phys_domain = true;
-                     phys_domain = 1;
-                  }
-                  else
-                  {
-                     has_positive_phys_domain = true;
-                  }
-
-                  // initialize the mesh element
-                  const int dim = Geometry::Dimension[geom];
-
-                  Element *new_elem = NewElement(geom);
-                  new_elem->SetVertices(&vert_indices[0]);
-                  new_elem->SetAttribute(phys_domain);
-
-                  vector<vector<int>> *ho_verts = nullptr;
-                  vector<int> *ho_el_order = nullptr;
-
-                  switch (dim)
-                  {
-                     case 0:
-                        elements_0D.push_back(new_elem);
-                        break;
-                     case 1:
-                        elements_1D.push_back(new_elem);
-                        ho_verts = &ho_verts_1D;
-                        ho_el_order = &ho_el_order_1D;
-                        break;
-                     case 2:
-                        elements_2D.push_back(new_elem);
-                        ho_verts = &ho_verts_2D;
-                        ho_el_order = &ho_el_order_2D;
-                        break;
-                     case 3:
-                        elements_3D.push_back(new_elem);
-                        ho_verts = &ho_verts_3D;
-                        ho_el_order = &ho_el_order_3D;
-                        break;
-                  }
-
-                  if (el_order > 1)
-                  {
-                     ho_verts->emplace_back(
-                        &vert_indices[0], &vert_indices[0] + n_elem_nodes);
-                     ho_el_order->push_back(el_order);
-                  }
-               } // el (elements of one type)
-            } // all elements
-         } // if binary
-         else // ASCII
-         {
-            for (int el = 0; el < num_of_all_elements; ++el)
-            {
-               input >> serial_number >> type_of_element >> n_tags;
-               vector<int> data(n_tags);
-               for (int i = 0; i < n_tags; ++i) { input >> data[i]; }
-               // physical domain - the most important value (to distinguish
-               // materials with different properties)
-               phys_domain = (n_tags > 0) ? data[0] : 1;
-               // elementary domain - to distinguish different geometrical
-               // domains (typically, it's used rarely)
-               elem_domain = (n_tags > 1) ? data[1] : 0;
-               // the number of tags is bigger than 2 if there are some
-               // partitions (domain decompositions)
-               n_partitions = (n_tags > 2) ? data[2] : 0;
-               // we currently just skip the partitions if they exist, and go
-               // directly to vertices describing the mesh element
-
-               const auto [geom, el_order] = g.GetGeometryAndOrder(type_of_element);
-               const int n_elem_nodes = NumNodesInElement(geom, el_order);
-               vector<int> vert_indices(n_elem_nodes);
-               int index;
-               for (int vi = 0; vi < n_elem_nodes; ++vi)
-               {
-                  input >> index;
-                  map<int, int>::const_iterator it = vertices_map.find(index);
-                  if (it == vertices_map.end())
-                  {
-                     MFEM_ABORT("Gmsh file : vertex index doesn't exist");
-                  }
-                  vert_indices[vi] = it->second;
-               }
-
-               // Non-positive attributes are not allowed in MFEM. However,
-               // by default, Gmsh sets the physical domain of all elements
-               // to zero. In the case that all elements have physical domain
-               // zero, we will given them attribute 1. If only some elements
-               // have physical domain zero, we will throw an error.
-               if (phys_domain <= 0)
-               {
-                  has_nonpositive_phys_domain = true;
-                  phys_domain = 1;
-               }
-               else
-               {
-                  has_positive_phys_domain = true;
-               }
-
-               // initialize the mesh element
                const int dim = Geometry::Dimension[geom];
-
-               Element *new_elem = NewElement(geom);
-               new_elem->SetVertices(&vert_indices[0]);
-               new_elem->SetAttribute(phys_domain);
-
-               vector<vector<int>> *ho_verts = nullptr;
-               vector<int> *ho_el_order = nullptr;
-
-               switch (dim)
+               Element *e = NewElement(geom);
+               Array<int> v(e->GetNVertices());
+               for (int i = 0; i < e->GetNVertices(); ++i)
                {
-                  case 0:
-                     elements_0D.push_back(new_elem);
-                     break;
-                  case 1:
-                     elements_1D.push_back(new_elem);
-                     ho_verts = &ho_verts_1D;
-                     ho_el_order = &ho_el_order_1D;
-                     break;
-                  case 2:
-                     elements_2D.push_back(new_elem);
-                     ho_verts = &ho_verts_2D;
-                     ho_el_order = &ho_el_order_2D;
-                     break;
-                  case 3:
-                     elements_3D.push_back(new_elem);
-                     ho_verts = &ho_verts_3D;
-                     ho_el_order = &ho_el_order_3D;
-                     break;
+                  v[i] = vertex_map[el_nodes[i]];
                }
+               e->SetVertices(v);
+               e->SetAttribute(el_phys_tag);
+
+               elems_by_dim[dim].emplace_back(e);
 
                if (el_order > 1)
                {
-                  ho_verts->emplace_back(
-                     &vert_indices[0], &vert_indices[0] + n_elem_nodes);
-                  ho_el_order->push_back(el_order);
-               }
-            } // el (all elements)
-         } // if ASCII
-
-         if (has_positive_phys_domain && has_nonpositive_phys_domain)
-         {
-            MFEM_ABORT("Non-positive element attribute in Gmsh mesh!\n"
-                       "By default Gmsh sets element tags (attributes)"
-                       " to '0' but MFEM requires that they be"
-                       " positive integers.\n"
-                       "Use \"Physical Curve\", \"Physical Surface\","
-                       " or \"Physical Volume\" to set tags/attributes"
-                       " for all curves, surfaces, or volumes in your"
-                       " Gmsh geometry to values which are >= 1.");
-         }
-         else if (has_nonpositive_phys_domain)
-         {
-            mfem::out << "\nGmsh reader: all element attributes were zero.\n"
-                      << "MFEM only supports positive element attributes.\n"
-                      << "Setting element attributes to 1.\n\n";
-         }
-
-         if (!elements_3D.empty())
-         {
-            Dim = 3;
-            NumOfElements = elements_3D.size();
-            elements.SetSize(NumOfElements);
-            for (int el = 0; el < NumOfElements; ++el)
-            {
-               elements[el] = elements_3D[el];
-            }
-            NumOfBdrElements = elements_2D.size();
-            boundary.SetSize(NumOfBdrElements);
-            for (int el = 0; el < NumOfBdrElements; ++el)
-            {
-               boundary[el] = elements_2D[el];
-            }
-            for (size_t el = 0; el < ho_el_order_3D.size(); el++)
-            {
-               mesh_order = max(mesh_order, ho_el_order_3D[el]);
-            }
-            // discard other elements
-            for (size_t el = 0; el < elements_1D.size(); ++el)
-            {
-               delete elements_1D[el];
-            }
-            for (size_t el = 0; el < elements_0D.size(); ++el)
-            {
-               delete elements_0D[el];
-            }
-         }
-         else if (!elements_2D.empty())
-         {
-            Dim = 2;
-            NumOfElements = elements_2D.size();
-            elements.SetSize(NumOfElements);
-            for (int el = 0; el < NumOfElements; ++el)
-            {
-               elements[el] = elements_2D[el];
-            }
-            NumOfBdrElements = elements_1D.size();
-            boundary.SetSize(NumOfBdrElements);
-            for (int el = 0; el < NumOfBdrElements; ++el)
-            {
-               boundary[el] = elements_1D[el];
-            }
-            for (size_t el = 0; el < ho_el_order_2D.size(); el++)
-            {
-               mesh_order = max(mesh_order, ho_el_order_2D[el]);
-            }
-            // discard other elements
-            for (size_t el = 0; el < elements_0D.size(); ++el)
-            {
-               delete elements_0D[el];
-            }
-         }
-         else if (!elements_1D.empty())
-         {
-            Dim = 1;
-            NumOfElements = elements_1D.size();
-            elements.SetSize(NumOfElements);
-            for (int el = 0; el < NumOfElements; ++el)
-            {
-               elements[el] = elements_1D[el];
-            }
-            NumOfBdrElements = elements_0D.size();
-            boundary.SetSize(NumOfBdrElements);
-            for (int el = 0; el < NumOfBdrElements; ++el)
-            {
-               boundary[el] = elements_0D[el];
-            }
-            for (size_t el = 0; el < ho_el_order_1D.size(); el++)
-            {
-               mesh_order = max(mesh_order, ho_el_order_1D[el]);
-            }
-         }
-         else
-         {
-            MFEM_ABORT("Gmsh file : no elements found");
-            return;
-         }
-
-         if (mesh_order > 1)
-         {
-            curved = 1;
-            read_gf = 0;
-
-            // initialize mesh_geoms so we can create Nodes FE space below
-            SetMeshGen();
-
-            // Generate faces and edges so that we can define
-            // FE space on the mesh
-            FinalizeTopology();
-
-            // Construct GridFunction for uniformly spaced high order coords
-            FiniteElementCollection* nfec;
-            FiniteElementSpace* nfes;
-            nfec = new L2_FECollection(mesh_order, Dim,
-                                       BasisType::ClosedUniform);
-            nfes = new FiniteElementSpace(this, nfec, spaceDim,
-                                          Ordering::byVDIM);
-            Nodes_gf.SetSpace(nfes);
-            Nodes_gf.MakeOwner(nfec);
-
-            int o = 0;
-            int el_order = 1;
-            for (int el = 0; el < NumOfElements; el++)
-            {
-               const int *vm = NULL;
-               vector<int> *ho_verts = NULL;
-               switch (GetElementType(el))
-               {
-                  case Element::SEGMENT:
-                     ho_verts = &ho_verts_1D[el];
-                     el_order = ho_el_order_1D[el];
-                     if (ho_lin[el_order].empty())
-                     {
-                        ho_lin[el_order].resize(ho_verts->size());
-                        HOSegmentMapping(el_order, ho_lin[el_order].data());
-                     }
-                     vm = ho_lin[el_order].data();
-                     break;
-                  case Element::TRIANGLE:
-                     ho_verts = &ho_verts_2D[el];
-                     el_order = ho_el_order_2D[el];
-                     if (ho_tri[el_order].empty())
-                     {
-                        ho_tri[el_order].resize(ho_verts->size());
-                        HOTriangleMapping(el_order, ho_tri[el_order].data());
-                     }
-                     vm = ho_tri[el_order].data();
-                     break;
-                  case Element::QUADRILATERAL:
-                     ho_verts = &ho_verts_2D[el];
-                     el_order = ho_el_order_2D[el];
-                     if (ho_sqr[el_order].empty())
-                     {
-                        ho_sqr[el_order].resize(ho_verts->size());
-                        HOQuadrilateralMapping(el_order, ho_sqr[el_order].data());
-                     }
-                     vm = ho_sqr[el_order].data();
-                     break;
-                  case Element::TETRAHEDRON:
-                     ho_verts = &ho_verts_3D[el];
-                     el_order = ho_el_order_3D[el];
-                     if (ho_tet[el_order].empty())
-                     {
-                        ho_tet[el_order].resize(ho_verts->size());
-                        HOTetrahedronMapping(el_order, ho_tet[el_order].data());
-                     }
-                     vm = ho_tet[el_order].data();
-                     break;
-                  case Element::HEXAHEDRON:
-                     ho_verts = &ho_verts_3D[el];
-                     el_order = ho_el_order_3D[el];
-                     if (ho_hex[el_order].empty())
-                     {
-                        ho_hex[el_order].resize(ho_verts->size());
-                        HOHexahedronMapping(el_order, ho_hex[el_order].data());
-                     }
-                     vm = ho_hex[el_order].data();
-                     break;
-                  case Element::WEDGE:
-                     ho_verts = &ho_verts_3D[el];
-                     el_order = ho_el_order_3D[el];
-                     if (ho_wdg[el_order].empty())
-                     {
-                        ho_wdg[el_order].resize(ho_verts->size());
-                        HOWedgeMapping(el_order, ho_wdg[el_order].data());
-                     }
-                     vm = ho_wdg[el_order].data();
-                     break;
-                  case Element::PYRAMID:
-                     ho_verts = &ho_verts_3D[el];
-                     el_order = ho_el_order_3D[el];
-                     if (ho_pyr[el_order].empty())
-                     {
-                        ho_pyr[el_order].resize(ho_verts->size());
-                        HOPyramidMapping(el_order, ho_pyr[el_order].data());
-                     }
-                     vm = ho_pyr[el_order].data();
-                     break;
-                  default: // Any other element type
-                     MFEM_WARNING("Unsupported Gmsh element type.");
-                     break;
-               }
-               int nv = (ho_verts) ? ho_verts->size() : 0;
-
-               for (int v = 0; v<nv; v++)
-               {
-                  real_t * c = GetVertex((*ho_verts)[vm[v]]);
-                  for (int d=0; d<spaceDim; d++)
+                  const vector<int> &map = g.GetNodeMap(geom, el_order);
+                  auto &nodes = ho_el_nodes[dim].emplace_back(el_nodes.size());
+                  for (int i = 0; i < el_nodes.size(); ++i)
                   {
-                     Nodes_gf(spaceDim * (o + v) + d) = c[d];
+                     nodes[i] = vertex_map[el_nodes[map[i]]];
                   }
                }
-               o += nv;
-            }
-         }
+            };
 
-         // Suppress warnings (MFEM_CONTRACT_VAR does not work here with nvcc):
-         ++n_partitions;
-         ++elem_domain;
-         MFEM_CONTRACT_VAR(n_partitions);
-         MFEM_CONTRACT_VAR(elem_domain);
-
-      } // section '$Elements'
-      else if (buff == "$PhysicalNames") // Named element sets
-      {
-         int num_names = 0;
-         int mdim,num;
-         string name;
-         input >> num_names;
-         for (int i=0; i < num_names; i++)
-         {
-            input >> mdim >> num;
-            phys_names_by_dim[mdim][num] = ReadQuotedString(input);
-         }
-      }
-      else if (buff == "$Periodic") // Reading master/slave node pairs
-      {
-         curved = 1;
-         read_gf = 0;
-         periodic = true;
-
-         Array<int> v2v(NumOfVertices);
-         for (int i = 0; i < v2v.Size(); i++)
-         {
-            v2v[i] = i;
-         }
-         int num_per_ent;
-         int num_nodes;
-         input >> num_per_ent;
-         getline(input, buff); // Read end-of-line
-         for (int i = 0; i < num_per_ent; i++)
-         {
-            getline(input, buff); // Read and ignore entity dimension and tags
-            getline(input, buff); // If affine mapping exist, read and ignore
-            if (!strncmp(buff.c_str(), "Affine", 6))
+            if (is_binary)
             {
-               input >> num_nodes;
+               // Header
+               const int el_type  = ReadBinaryOrASCII<int>(input, BINARY);
+               const int n_els  = ReadBinaryOrASCII<int>(input, BINARY);
+               const int n_tags = ReadBinaryOrASCII<int>(input, BINARY);
+               const auto [geom, el_order] = g.GetGeometryAndOrder(el_type);
+               const int n_el_nodes = NumNodesInElement(geom, el_order);
+               vector<int> el_nodes(n_el_nodes);
+               // Element blocks
+               for (int e = 0; e < n_els; ++e)
+               {
+                  Skip<int>(input, BINARY, 1); // Skip element number
+                  int el_phys_tag = 0;
+                  if (n_tags > 0)
+                  {
+                     el_phys_tag = ReadBinaryOrASCII<int>(input, BINARY);
+                     Skip<int>(input, BINARY, n_tags - 1);
+                  }
+                  for (int i = 0; i < n_el_nodes; ++i)
+                  {
+                     el_nodes[i] = ReadBinaryOrASCII<int>(input, BINARY);
+                  }
+                  add_element(el_type, el_phys_tag, geom, el_order, el_nodes);
+                  num_el_read += 1;
+               }
             }
             else
             {
-               num_nodes = atoi(buff.c_str());
+               Skip<int>(input, ASCII, 1); // Skip element number
+               const int el_type = ReadBinaryOrASCII<int>(input, ASCII);
+               const int n_tags = ReadBinaryOrASCII<int>(input, ASCII);
+               int el_phys_tag = 0;
+               if (n_tags > 0)
+               {
+                  el_phys_tag = ReadBinaryOrASCII<int>(input, ASCII);
+                  Skip<int>(input, ASCII, n_tags - 1);
+               }
+               const auto [geom, el_order] = g.GetGeometryAndOrder(el_type);
+               const int n_el_nodes = NumNodesInElement(geom, el_order);
+               vector<int> el_nodes(n_el_nodes);
+               for (int i = 0; i < n_el_nodes; ++i)
+               {
+                  el_nodes[i] = ReadBinaryOrASCII<int>(input, ASCII);
+               }
+               add_element(el_type, el_phys_tag, geom, el_order, el_nodes);
+               num_el_read += 1;
             }
-            for (int j=0; j<num_nodes; j++)
-            {
-               int slave, master;
-               input >> slave >> master;
-               v2v[slave - 1] = master - 1;
-            }
-            getline(input, buff); // Read end-of-line
          }
 
-         // Follow existing long chains of slave->master in v2v array.
-         // Upon completion of this loop, each v2v[slave] will point to a true
-         // master vertex. This algorithm is useful for periodicity defined in
-         // multiple directions.
-         for (int slave = 0; slave < v2v.Size(); slave++)
+         if (elems_by_dim[3].size() > 0) { Dim = 3; }
+         else if (elems_by_dim[2].size() > 0) { Dim = 2; }
+         else { Dim = 1; }
+
+         NumOfElements = elems_by_dim[Dim].size();
+         elements.SetSize(NumOfElements);
+         for (int i = 0; i < NumOfElements; ++i)
          {
-            int master = v2v[slave];
-            if (master != slave)
+            elements[i] = elems_by_dim[Dim][i].release();
+         }
+         NumOfBdrElements = elems_by_dim[Dim - 1].size();
+         boundary.SetSize(NumOfBdrElements);
+         for (int i = 0; i < NumOfBdrElements; ++i)
+         {
+            boundary[i] = elems_by_dim[Dim - 1][i].release();
+         }
+      }
+      else if (section == "PhysicalNames")
+      {
+         const int num_names = ReadBinaryOrASCII<int>(input, ASCII);
+         for (int i = 0; i < num_names; ++i)
+         {
+            const int phys_dim = ReadBinaryOrASCII<int>(input, ASCII);
+            const int phys_tag = ReadBinaryOrASCII<int>(input, ASCII);
+            phys_names_by_dim[phys_dim][phys_tag] = ReadQuotedString(input);
+         }
+      }
+      else if (section == "Periodic")
+      {
+         periodic = true;
+
+         vector<int> v2v(NumOfVertices);
+         for (int i = 0; i < NumOfVertices; i++) { v2v[i] = i; }
+
+         const int n_periodic_entities = ReadBinaryOrASCII<int>(input, ASCII);
+         for (int i = 0; i < n_periodic_entities; i++)
+         {
+            Skip<int>(input, ASCII, 3); // Skip dimension, tag, and master tag
+            // Next section might be "Affine"; if so, skip.
+            auto pos = input.tellg();
+            if (ReadBinaryOrASCII<string>(input, ASCII) == "Affine")
+            {
+               string line;
+               getline(input, line);
+            }
+            else
+            {
+               input.clear();
+               input.seekg(pos);
+            }
+            const int n_nodes = ReadBinaryOrASCII<int>(input, ASCII);
+            for (int j = 0; j < n_nodes; ++j)
+            {
+               const int node_num = ReadBinaryOrASCII<int>(input, ASCII);
+               const int primary_node_num = ReadBinaryOrASCII<int>(input, ASCII);
+               v2v[node_num - 1] = primary_node_num - 1;
+            }
+         }
+
+         // Follow existing long chains of duplicate->primary in v2v array. Upon
+         // completion of this loop, each v2v[duplicate] will point to a true
+         // primary vertex. This algorithm is useful for periodicity defined in
+         // multiple directions.
+         for (int duplicate = 0; duplicate < v2v.size(); duplicate++)
+         {
+            int primary = v2v[duplicate];
+            if (primary != duplicate)
             {
                // This loop will end if it finds a circular dependency.
-               while (v2v[master] != master && master != slave)
+               while (v2v[primary] != primary && primary != duplicate)
                {
-                  master = v2v[master];
+                  primary = v2v[primary];
                }
-               if (master == slave)
+               if (primary == duplicate)
                {
-                  // if master and slave are the same vertex, circular dependency
-                  // exists. We need to fix the problem, we choose slave.
-                  v2v[slave] = slave;
+                  // If primary and duplicate are the same vertex, circular
+                  // dependency exists. We need to fix the problem, we choose
+                  // duplicate.
+                  v2v[duplicate] = duplicate;
                }
                else
                {
-                  // the long chain has ended on the true master vertex.
-                  v2v[slave] = master;
+                  // The long chain has ended on the true primary vertex.
+                  v2v[duplicate] = primary;
                }
             }
          }
-
-         // Convert nodes to discontinuous GridFunction (if they aren't already)
-         if (mesh_order == 1)
+         // Replace duplicate vertex indices in the element connectivity with
+         // their corresponding primary vertex indices.
+         auto replace_vertices = [&](Array<Element*> &els)
          {
-            FinalizeTopology();
-            SetMeshGen();
-            SetCurvature(1, true, spaceDim, Ordering::byVDIM);
-         }
-
-         // Replace "slave" vertex indices in the element connectivity
-         // with their corresponding "master" vertex indices.
-         for (int i = 0; i < GetNE(); i++)
-         {
-            Element *el = GetElement(i);
-            int *v = el->GetVertices();
-            int nv = el->GetNVertices();
-            for (int j = 0; j < nv; j++)
+            for (int i = 0; i < els.Size(); i++)
             {
-               v[j] = v2v[v[j]];
+               Element *e = els[i];
+               int *v = e->GetVertices();
+               for (int j = 0; j < e->GetNVertices(); j++)
+               {
+                  v[j] = v2v[v[j]];
+               }
             }
-         }
-         // Replace "slave" vertex indices in the boundary element connectivity
-         // with their corresponding "master" vertex indices.
-         for (int i = 0; i < GetNBE(); i++)
-         {
-            Element *el = GetBdrElement(i);
-            int *v = el->GetVertices();
-            int nv = el->GetNVertices();
-            for (int j = 0; j < nv; j++)
-            {
-               v[j] = v2v[v[j]];
-            }
-         }
+         };
+         // Make element and boundary element connectivity periodic.
+         replace_vertices(elements);
+         replace_vertices(boundary);
       }
-   } // we reach the end of the file
+   }
+   while (section != "");
+
+   // If the elements are high-order, keep a copy of the nodes before removing
+   // unused vertices.
+   Array<Vertex> ho_vertices;
+   if (mesh_order > 1) { ho_vertices = vertices; }
 
    AddPhysicalNames(*this, phys_names_by_dim);
    RemoveUnusedVertices();
-   RemoveInternalBoundaries();
    FinalizeTopology();
 
-   // If a high order coordinate field was created project it onto the mesh
-   if (mesh_order > 1)
+   // Now that the mesh topology has been fully created, set the high-order
+   // nodal information (if needed). For periodic meshes, we need to set the
+   // L2 grid function.
+   if (mesh_order > 1 || periodic)
    {
       SetCurvature(mesh_order, periodic, spaceDim, Ordering::byVDIM);
+      const FiniteElementSpace &fes = *GetNodalFESpace();
+      GridFunction &nodes_gf = *GetNodes();
 
-      VectorGridFunctionCoefficient NodesCoef(&Nodes_gf);
-      Nodes->ProjectCoefficient(NodesCoef);
+      Array<int> vdofs;
+      for (int e = 0; e < NumOfElements; ++e)
+      {
+         const FiniteElement *fe = fes.GetFE(e);
+         auto *nfe = dynamic_cast<const NodalFiniteElement*>(fe);
+         MFEM_ASSERT(nfe, "Invalid FE");
+         const Array<int> &lex = nfe->GetLexicographicOrdering();
+         fes.GetElementVDofs(e, vdofs);
+         const int n = vdofs.Size() / spaceDim;
+         for (int i = 0; i < n; ++i)
+         {
+            const int ii = lex.IsEmpty() ? i : lex[i];
+            Vertex v = ho_vertices[ho_el_nodes[Dim][e][i]];
+            for (int d = 0; d < spaceDim; ++d)
+            {
+               nodes_gf[vdofs[ii + d*n]] = v(d);
+            }
+         }
+      }
    }
 }
 
@@ -1595,8 +1226,8 @@ void Mesh::ReadGmshMesh(istream &input, int &curved, int &read_gf)
    real_t version;
    input >> version;
 
-   // Versions supported: 4.0, 4.1 and 2.2
-   if (version == 4.0 || version == 4.1)
+   // Versions supported: 4.1 and 2.2
+   if (version == 4.1)
    {
       ReadGmsh4Mesh(input, curved, read_gf);
       return;
@@ -1607,8 +1238,7 @@ void Mesh::ReadGmshMesh(istream &input, int &curved, int &read_gf)
    }
    else
    {
-      MFEM_ABORT("Unsupported Gmsh file version. "
-                 "Supported versions: 2.2, 4.0, 4.1");
+      MFEM_ABORT("Unsupported Gmsh file version. Supported versions: 2.2 and 4.1");
    }
 }
 
