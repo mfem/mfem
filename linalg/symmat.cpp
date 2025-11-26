@@ -24,7 +24,7 @@ DenseSymmetricMatrix::DenseSymmetricMatrix(int s) : Matrix(s)
    MFEM_ASSERT(s >= 0, "invalid DenseSymmetricMatrix size: " << s);
    if (s > 0)
    {
-      data.New((s*(s+1))/2);
+      data.SetSize((s*(s+1))/2);
       *this = 0.0; // init with zeroes
    }
 }
@@ -42,8 +42,7 @@ void DenseSymmetricMatrix::SetSize(int s)
    const int s2 = (s*(s+1))/2;
    if (s2 > data.Capacity())
    {
-      data.Delete();
-      data.New(s2);
+      data.SetSize(s2);
       *this = 0.0; // init with zeroes
    }
 }
@@ -101,11 +100,6 @@ MatrixInverse *DenseSymmetricMatrix::Inverse() const
 {
    mfem_error("DenseSymmetricMatrix::Inverse() not implemented!");
    return nullptr;
-}
-
-DenseSymmetricMatrix::~DenseSymmetricMatrix()
-{
-   data.Delete();
 }
 
 }
