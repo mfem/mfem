@@ -129,6 +129,28 @@ public:
       prolongation_transpose(daction_l, result_t);
    };
 
+   void Assemble(Vector& result_t) const
+   {
+      daction_l.SetSize(width);
+      daction_l = 0.0;
+
+      direction_l.SetSize(width);
+      direction_l = 0.0;
+      for (const auto&f : derivative_actions)
+      {
+         for (int i{0}; i < direction_l.Size(); ++i)
+         {
+            direction_l[i] = 1.0;
+            mfem::Vector local_daction_l(daction_l_size);
+            local_daction_l = 0.0;
+            f(fields_e, direction_l, local_daction_l);
+            daction_l[i] += local_daction_l[0];
+            direction_l[i] = 0.0;
+         }
+      }
+      prolongation_transpose(daction_l, result_t);
+   }
+
    /// @brief Compute the transpose of the derivative operator on a given
    /// vector.
    ///
@@ -369,7 +391,7 @@ public:
                 sol_l,
                 par_l,
                 restriction_callback,
-                prolongation_transpose,
+                derivative_prolongation_transpose,
                 assemble_derivative_hypreparmatrix_callbacks[derivative_id]);
    }
 
@@ -400,6 +422,7 @@ private:
    mutable Vector residual_e;
 
    std::function<void(Vector &, Vector &)> prolongation_transpose;
+   std::function<void(Vector &, Vector &)> derivative_prolongation_transpose;
    std::function<void(Vector &, Vector &)> output_restriction_transpose;
    restriction_callback_t restriction_callback;
 
@@ -700,6 +723,17 @@ void DifferentiableOperator::AddDomainIntegrator(
    // will fail.
    if constexpr (derivative_ids_t::size() != 0)
    {
+      if constexpr (is_sum_fop<std::remove_const_t<decltype(output_fop)>>::value)
+      {
+         // NOTE: the field ID in Value isn't used, so set it to anything
+         derivative_prolongation_transpose = get_prolongation_transpose(
+            fields[test_space_field_idx], Value<0>(), mesh.GetComm());
+      }
+      else
+      {
+         derivative_prolongation_transpose = prolongation_transpose;
+      }
+
       // Create the action of the derivatives
       for_constexpr([&, &or_transpose =
                         this->output_restriction_transpose](const std::size_t derivative_id)

@@ -1140,7 +1140,9 @@ std::function<void(const Vector&, Vector&)> get_prolongation_transpose(
       {
          MFEM_ASSERT(y.Size() == 1, "output size doesn't match kernel description");
          real_t local_sum = r_local.Sum();
-         MPI_Allreduce(&local_sum, y.GetData(), 1, MPI_DOUBLE, MPI_SUM, mpi_comm);
+         // NOTE: This doesn't work for a DerivativeOperator. You need to apply prolongation transpose on the field, 
+         // since the DOF IDs are different across ranks.
+         // MPI_Allreduce(&local_sum, y.GetData(), 1, MPI_DOUBLE, MPI_SUM, mpi_comm);
       };
       return PT;
    }
