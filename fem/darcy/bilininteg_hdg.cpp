@@ -2068,7 +2068,7 @@ void HDGWeakDiffusionIntegrator::AssembleHDGFaceMatrix(
       for (int j = 0; j < i; j++)
       {
          elmat(ndof1*dim + j, ndof1*dim + i)
-            = -elmat(ndof1*dim + i, ndof1*dim + j);
+            = elmat(ndof1*dim + i, ndof1*dim + j);
       }
 
    // complete the constraint matrix
