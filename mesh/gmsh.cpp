@@ -489,43 +489,23 @@ static void HOPyramidMapping(int order, int *map)
    }
 }
 
+/// Number of nodes in an element of type @a geom with order @a order.
 static int NumNodesInElement(Geometry::Type geom, int order)
 {
    return GlobGeometryRefiner.Refine(geom, order, 1)->RefPts.GetNPoints();
 }
 
-static void AddPhysicalNames(Mesh &mesh,
-                             map<int, map<int, string>> &phys_names_by_dim)
+/// Enum to specify if values should be read in binary or ASCII format.
+enum BinaryOrASCII : bool
 {
-   // Process boundary attribute set names
-   for (auto const &bdr_attr : phys_names_by_dim[mesh.Dimension() - 1])
-   {
-      if (!mesh.bdr_attribute_sets.AttributeSetExists(bdr_attr.second))
-      {
-         mesh.bdr_attribute_sets.CreateAttributeSet(bdr_attr.second);
-      }
-      mesh.bdr_attribute_sets.AddToAttributeSet(bdr_attr.second, bdr_attr.first);
-   }
+   ASCII = false,
+   BINARY = true
+};
 
-   // Process element attribute set names
-   for (auto const &attr : phys_names_by_dim[mesh.Dimension()])
-   {
-      if (!mesh.attribute_sets.AttributeSetExists(attr.second))
-      {
-         mesh.attribute_sets.CreateAttributeSet(attr.second);
-      }
-      mesh.attribute_sets.AddToAttributeSet(attr.second, attr.first);
-   }
-}
-
-/// Helper object that caches data used in Gmsh mesh creation.
-class Gmsh
+/// Helper class for reading Gmsh meshes.
+class GmshReader
 {
-   vector<vector<int>> types;
-   map<pair<Geometry::Type, int>, vector<int>> node_maps;
-public:
-   Gmsh()
-      : types(
+   vector<vector<int>> types =
    {
       {15}, // point
       {1, 8, 26, 27, 28, 62, 63, 64, 65, 66}, // segment
@@ -535,29 +515,70 @@ public:
       {5, 12, 92, 93, 94, 95, 96, 97, 98}, // hexahedron
       {6, 13, 90, 91, 106, 107, 108, 109, 110}, // prism
       {7, 14, 118, 119, 120, 121, 122, 123, 124} // pyramid
-   }) { }
+   };
+   map<pair<Geometry::Type, int>, vector<int>> node_maps;
 
-   pair<Geometry::Type, int> GetGeometryAndOrder(int element_type)
+   bool has_positive_attrs = false;
+   bool has_non_positive_attrs = false;
+
+public:
+   BinaryOrASCII is_binary; ///< Is the file in binary or ascii format.
+   int data_size; ///< Data size in bytes (meaning depends on file format).
+
+   /// A map between a serial number of the vertex and its number in the file
+   /// (there may be gaps in the numbering, and also Gmsh enumerates vertices
+   /// starting from 1, not 0)
+   map<int, int> vertex_map;
+
+   /// A map containing names of physical curves, surfaces, and volumes. The
+   /// first index is the dimension of the physical manifold, the second index is
+   /// the element attribute number of the set, and the string is the assigned
+   /// name.
+   map<int,map<int,string> > phys_names_by_dim;
+
+   /// Gmsh always outputs coordinates in 3D, but MFEM distinguishes between the
+   /// mesh element dimension (Dim) and the dimension of the space in which the
+   /// mesh is embedded (spaceDim). For example, a 2D MFEM mesh has Dim = 2 and
+   /// spaceDim = 2, while a 2D surface mesh in 3D has Dim = 2 but spaceDim = 3.
+   /// Below we set spaceDim by measuring the mesh bounding box and checking for
+   /// a lower dimensional subspace. The assumption is that the mesh is at least
+   /// 2D if the y-dimension of the box is non-trivial and 3D if the z-dimension
+   /// is non-trivial. Note that with these assumptions a 2D mesh parallel to the
+   /// yz plane will be considered a surface mesh embedded in 3D whereas the same
+   /// 2D mesh parallel to the xy plane will be considered a 2D mesh.
+   ///@{
+   const double inf = numeric_limits<double>::infinity();
+   double bb_min[3] = {inf, inf, inf};
+   double bb_max[3] = {-inf, -inf, -inf};
+   ///@}
+
+   int mesh_order = -1; /// Mesh order. Variable order meshes are not supported.
+   bool periodic = false; ///< Is the mesh periodic?
+
+   /// Node indices of high-order elements, such that ho_el_nodes[dim][e][i] is
+   /// the i-th node index of the e-th element of dimension dim.
+   vector<vector<vector<int>>> ho_el_nodes{4};
+
+   vector<int> v2v; ///< Periodic vertex mapping (for periodic meshes only).
+
+   GmshReader() = default;
+
+   /// Get the geometry type and polynomial degree for a given Gmsh element type.
+   pair<Geometry::Type, int> GetGeometryAndOrder(int element_type) const
    {
       for (int g = Geometry::POINT; g < Geometry::NUM_GEOMETRIES; ++g)
       {
-         vector<int> &types_g = types[g];
+         const vector<int> &types_g = types[g];
          const auto it = lower_bound(types_g.begin(), types_g.end(), element_type);
          if (it != types_g.end() && *it == element_type)
          {
             return {Geometry::Type(g), int(distance(types_g.begin(), it) + 1)};
          }
       }
-      MFEM_WARNING("Unknown Gmsh element type.");
-      return {Geometry::INVALID, 0};
+      MFEM_ABORT("Unknown Gmsh element type.");
    }
 
-   int GetNumNodesByType(int element_type)
-   {
-      auto [geom, order] = GetGeometryAndOrder(element_type);
-      return NumNodesInElement(geom, order);
-   }
-
+   /// Return node map if it exists, otherwise lazily construct it.
    const vector<int> &GetNodeMap(Geometry::Type geom, int order)
    {
       auto it = node_maps.find(make_pair(geom, order));
@@ -587,14 +608,151 @@ public:
          return it->second;
       }
    }
+
+   /// Add the physical names (in @a phys_names_by_dim) to the mesh's attribute
+   /// sets and boundary attribute sets.
+   void AddPhysicalNames(Mesh &mesh)
+   {
+      // Process boundary attribute set names
+      for (auto const &bdr_attr : phys_names_by_dim[mesh.Dimension() - 1])
+      {
+         if (!mesh.bdr_attribute_sets.AttributeSetExists(bdr_attr.second))
+         {
+            mesh.bdr_attribute_sets.CreateAttributeSet(bdr_attr.second);
+         }
+         mesh.bdr_attribute_sets.AddToAttributeSet(bdr_attr.second, bdr_attr.first);
+      }
+
+      // Process element attribute set names
+      for (auto const &attr : phys_names_by_dim[mesh.Dimension()])
+      {
+         if (!mesh.attribute_sets.AttributeSetExists(attr.second))
+         {
+            mesh.attribute_sets.CreateAttributeSet(attr.second);
+         }
+         mesh.attribute_sets.AddToAttributeSet(attr.second, attr.first);
+      }
+   }
+
+   /// In the periodic vertex mapping @a v2v, there may be chains or cycles. This
+   /// will simplify all chains so that they are one link only, and break any
+   /// cycles.
+   void SimplifyPeriodicLinks()
+   {
+      // Follow existing long chains of duplicate->primary in v2v array. Upon
+      // completion of this loop, each v2v[duplicate] will point to a true
+      // primary vertex. This algorithm is useful for periodicity defined in
+      // multiple directions.
+      for (int duplicate = 0; duplicate < v2v.size(); duplicate++)
+      {
+         int primary = v2v[duplicate];
+         if (primary != duplicate)
+         {
+            // This loop will end if it finds a circular dependency.
+            while (v2v[primary] != primary && primary != duplicate)
+            {
+               primary = v2v[primary];
+            }
+            if (primary == duplicate)
+            {
+               // If primary and duplicate are the same vertex, circular
+               // dependency exists. We need to fix the problem, we choose
+               // duplicate.
+               v2v[duplicate] = duplicate;
+            }
+            else
+            {
+               // The long chain has ended on the true primary vertex.
+               v2v[duplicate] = primary;
+            }
+         }
+      }
+   }
+
+   /// In the list of Elements @a els, replace periodic vertices using the periodic
+   /// identification map @a v2v.
+   void ReplacePeriodicVertices(Array<Element*> &els) const
+   {
+      for (int i = 0; i < els.Size(); i++)
+      {
+         Element *e = els[i];
+         int *v = e->GetVertices();
+         for (int j = 0; j < e->GetNVertices(); j++)
+         {
+            v[j] = v2v[v[j]];
+         }
+      }
+   }
+
+   /// Set the attribute of element @a e to @a attribute. If the attribute is
+   /// non-positive, set it to 1. Keep track if non-positive or positive
+   /// attributes are encountered to potentially report errors to the user.
+   void SetAttribute(Element *e, int attribute)
+   {
+      if (attribute < 1)
+      {
+         has_non_positive_attrs = true;
+         attribute = 1; // Resetting non-positive attributes to be 1.
+      }
+      else
+      {
+         has_positive_attrs = true;
+      }
+      e->SetAttribute(attribute);
+   }
+
+   /// Check that all attributes are positive (or, if none are positive, give a
+   /// warning that they have been replaced by 1).
+   void CheckAttributes() const
+   {
+      if (has_non_positive_attrs)
+      {
+         // If mesh has a mix of positive and non-positive attributes, this is
+         // a user error. All attributes should be positive.
+         MFEM_VERIFY(!has_positive_attrs,
+                     "Non-positive element attribute in Gmsh mesh!\n"
+                     "By default Gmsh sets element tags (attributes)"
+                     " to '0' but MFEM requires that they be"
+                     " positive integers.\n"
+                     "Use \"Physical Curve\", \"Physical Surface\","
+                     " or \"Physical Volume\" to set tags/attributes"
+                     " for all curves, surfaces, or volumes in your"
+                     " Gmsh geometry to values which are >= 1.");
+         // If the mesh has only non-positive attributes, this could be because
+         // Gmsh by default will set zero attributes if no physical entities are
+         // defined. In this case, we warn the user, and set attributes to 1.
+         MFEM_WARNING("Gmsh reader: all element attributes were zero.\n"
+                      "MFEM only supports positive element attributes.\n"
+                      "Setting all element attributes to 1.\n");
+      }
+   }
 };
 
-enum BinaryOrASCII : bool
+/// @brief Return the space dimension (at least 1) given a 3D bounding box.
+///
+/// If some of the sides of the box have zero (or very small) sides, then that
+/// dimension is not counted.
+static int GetSpaceDimension(double bb_min[3], double bb_max[3])
 {
-   ASCII = false,
-   BINARY = true
-};
+   static constexpr double bb_tol = 1e-14;
+   const double bb_size = max(bb_max[0] - bb_min[0],
+                              max(bb_max[1] - bb_min[1],
+                                  bb_max[2] - bb_min[2]));
+   int sd = 1;
+   if (bb_max[1] - bb_min[1] > bb_size * bb_tol)
+   {
+      sd += 1;
+   }
+   if (bb_max[2] - bb_min[2] > bb_size * bb_tol)
+   {
+      sd += 1;
+   }
+   return sd;
+}
 
+/// Skip ahead in the input stream until the next section, which opens on a new
+/// line beginning with $ (but not beginning with $End, which ends the previous
+/// section).
 static string GoToNextSection(istream &input)
 {
    string line;
@@ -611,8 +769,10 @@ static string GoToNextSection(istream &input)
    return "";
 }
 
+/// Read a value of type @a T from the input stream, in either binary or ASCII
+/// format, depending on the value of @a binary.
 template <typename T>
-T ReadBinaryOrASCII(istream &input, gmsh::BinaryOrASCII binary)
+T ReadBinaryOrASCII(istream &input, BinaryOrASCII binary)
 {
    if (binary)
    {
@@ -622,16 +782,21 @@ T ReadBinaryOrASCII(istream &input, gmsh::BinaryOrASCII binary)
    {
       T val;
       input >> val;
+      if (input.peek() == '\n') { input.get(); } // Chomp up to one newline
       return val;
    }
 }
 
+/// Skip @a num values of type @a T from the input stream, in either binary or
+/// ASCII format, depending on the value of @a binary.
 template <typename T>
-void Skip(istream &input, gmsh::BinaryOrASCII binary, int num)
+void Skip(istream &input, BinaryOrASCII binary, int num)
 {
    for (int i = 0; i < num; ++i) { ReadBinaryOrASCII<T>(input, binary); }
 }
 
+/// Read a double-quoted string from the input stream, and return the result
+/// (without the enclosing quotes).
 static string ReadQuotedString(istream &input)
 {
    char c;
@@ -656,49 +821,17 @@ static string ReadQuotedString(istream &input)
    MFEM_ABORT("Failed to read string.");
 }
 
-/// @brief Return the space dimension (at least 1) given a 3D bounding box.
-///
-/// If some of the sides of the box have zero (or very small) sides, then that
-/// dimension is not counted.
-static int GetSpaceDimension(double bb_min[3], double bb_max[3])
-{
-   static constexpr double bb_tol = 1e-14;
-   const double bb_size = max(bb_max[0] - bb_min[0],
-                              max(bb_max[1] - bb_min[1],
-                                  bb_max[2] - bb_min[2]));
-   int sd = 1;
-   if (bb_max[1] - bb_min[1] > bb_size * bb_tol)
-   {
-      sd += 1;
-   }
-   if (bb_max[2] - bb_min[2] > bb_size * bb_tol)
-   {
-      sd += 1;
-   }
-   return sd;
-}
-
 } // namespace gmsh
 
-void Mesh::ReadGmsh4Mesh(istream &input, int &curved, int &read_gf)
+using namespace gmsh;
+
+void Mesh::ReadGmsh4Mesh(GmshReader &g, istream &input, int &curved,
+                         int &read_gf)
 {
-   using namespace gmsh;
+   MFEM_VERIFY(g.data_size == sizeof(size_t), "Incompatible Gmsh mesh.");
 
-   // $MeshFormat is always encoded in ASCII
-   const BinaryOrASCII is_binary = BinaryOrASCII(
-                                      ReadBinaryOrASCII<bool>(input, ASCII));
-   const int data_size = ReadBinaryOrASCII<int>(input, ASCII);
-   MFEM_VERIFY(data_size == sizeof(size_t), "Incompatible Gmsh mesh.");
-   if (is_binary)
-   {
-      const int one = ReadBinaryOrASCII<int>(input, is_binary);
-      MFEM_VERIFY(one == 1, "Incompatible endianness.");
-   }
+   const auto b = g.is_binary;
 
-   bool periodic = false;
-   int mesh_order = -1;
-   map<int, int> vertex_map;
-   map<int, map<int, string>> phys_names_by_dim;
    map<pair<int,int>, int> entity_physical_tag;
 
    vector<vector<int>> el_nodes;
@@ -717,15 +850,15 @@ void Mesh::ReadGmsh4Mesh(istream &input, int &curved, int &read_gf)
             const int phys_name_tag = ReadBinaryOrASCII<int>(input, ASCII);
             const string phys_name = ReadQuotedString(input);
 
-            phys_names_by_dim[phys_name_dim][phys_name_tag] = phys_name;
+            g.phys_names_by_dim[phys_name_dim][phys_name_tag] = phys_name;
          }
       }
       else if (section == "Entities")
       {
-         const size_t n_points = ReadBinaryOrASCII<size_t>(input, is_binary);
-         const size_t n_curves = ReadBinaryOrASCII<size_t>(input, is_binary);
-         const size_t n_surfaces = ReadBinaryOrASCII<size_t>(input, is_binary);
-         const size_t n_volumes = ReadBinaryOrASCII<size_t>(input, is_binary);
+         const size_t n_points = ReadBinaryOrASCII<size_t>(input, b);
+         const size_t n_curves = ReadBinaryOrASCII<size_t>(input, b);
+         const size_t n_surfaces = ReadBinaryOrASCII<size_t>(input, b);
+         const size_t n_volumes = ReadBinaryOrASCII<size_t>(input, b);
 
          const size_t n_entities[4] = {n_points, n_curves, n_surfaces, n_volumes};
 
@@ -737,12 +870,12 @@ void Mesh::ReadGmsh4Mesh(istream &input, int &curved, int &read_gf)
          {
             for (size_t i = 0; i < n_entities[d]; ++i)
             {
-               const int tag = ReadBinaryOrASCII<int>(input, is_binary);
-               Skip<double>(input, is_binary, d == 0 ? 3 : 6); // Skip X, Y, Z
-               const int n_phys_tags = ReadBinaryOrASCII<size_t>(input, is_binary);
+               const int tag = ReadBinaryOrASCII<int>(input, b);
+               Skip<double>(input, b, d == 0 ? 3 : 6); // Skip X, Y, Z
+               const int n_phys_tags = ReadBinaryOrASCII<size_t>(input, b);
                for (size_t iphys = 0; iphys < n_phys_tags; ++iphys)
                {
-                  const int phys_tag = ReadBinaryOrASCII<int>(input, is_binary);
+                  const int phys_tag = ReadBinaryOrASCII<int>(input, b);
                   // Keep track of codim-0 and codim-1 entities.
                   if (d == Dim || d == Dim - 1)
                   {
@@ -751,84 +884,79 @@ void Mesh::ReadGmsh4Mesh(istream &input, int &curved, int &read_gf)
                }
                if (d > 0)
                {
-                  const size_t n_bounding = ReadBinaryOrASCII<size_t>(input, is_binary);
-                  Skip<int>(input, is_binary, n_bounding);
+                  const size_t n_bounding = ReadBinaryOrASCII<size_t>(input, b);
+                  Skip<int>(input, b, n_bounding);
                }
             }
          }
       }
       else if (section == "Nodes")
       {
-         const size_t n_blocks = ReadBinaryOrASCII<size_t>(input, is_binary);
-         const size_t n_nodes = ReadBinaryOrASCII<size_t>(input, is_binary);
-         Skip<size_t>(input, is_binary, 2); // Skip min and max tags
+         const size_t n_blocks = ReadBinaryOrASCII<size_t>(input, b);
+         const size_t n_nodes = ReadBinaryOrASCII<size_t>(input, b);
+         Skip<size_t>(input, b, 2); // Skip min and max tags
 
          NumOfVertices = n_nodes;
          vertices.SetSize(n_nodes);
          size_t vertex_counter = 0;
 
-         const double inf = numeric_limits<double>::infinity();
-         double bb_min[3] = {inf, inf, inf};
-         double bb_max[3] = {-inf, -inf, -inf};
          double c[3];
 
          for (int iblock = 0; iblock < n_blocks; ++iblock)
          {
-            Skip<int>(input, is_binary, 2); // Skip entity dim and tag.
-            const int is_parametric = ReadBinaryOrASCII<int>(input, is_binary);
-            const size_t n_nodes_in_block = ReadBinaryOrASCII<size_t>(input, is_binary);
+            Skip<int>(input, b, 2); // Skip entity dim and tag.
+            const int is_parametric = ReadBinaryOrASCII<int>(input, b);
+            const size_t n_nodes_in_block = ReadBinaryOrASCII<size_t>(input, b);
 
             MFEM_VERIFY(!is_parametric, "Parametric nodes not supported.");
 
             vector<size_t> node_tags(n_nodes_in_block);
             for (int i = 0; i < n_nodes_in_block; ++i)
             {
-               const size_t node_tag = ReadBinaryOrASCII<size_t>(input, is_binary);
+               const size_t node_tag = ReadBinaryOrASCII<size_t>(input, b);
                node_tags[i] = node_tag;
             }
             for (int i = 0; i < n_nodes_in_block; ++i)
             {
                for (int d = 0; d < 3; ++d)
                {
-                  c[d] = ReadBinaryOrASCII<double>(input, is_binary);
-                  bb_min[d] = min(bb_min[d], c[d]);
-                  bb_max[d] = max(bb_min[d], c[d]);
+                  c[d] = ReadBinaryOrASCII<double>(input, b);
+                  g.bb_min[d] = min(g.bb_min[d], c[d]);
+                  g.bb_max[d] = max(g.bb_min[d], c[d]);
                }
-               vertex_map[node_tags[i]] = vertex_counter;
+               g.vertex_map[node_tags[i]] = vertex_counter;
                vertices[vertex_counter] = Vertex(c[0], c[1], c[2]);
                vertex_counter += 1;
             }
          }
-         spaceDim = GetSpaceDimension(bb_min, bb_max);
+         spaceDim = GetSpaceDimension(g.bb_min, g.bb_max);
       }
       else if (section == "Elements")
       {
-         Gmsh g;
-
-         const size_t n_blocks = ReadBinaryOrASCII<size_t>(input, is_binary);
-         Skip<size_t>(input, is_binary, 3); // Skip n_elements and min/max tags.
+         const size_t n_blocks = ReadBinaryOrASCII<size_t>(input, b);
+         Skip<size_t>(input, b, 3); // Skip n_elements and min/max tags.
 
          for (int iblock = 0; iblock < n_blocks; ++iblock)
          {
-            const int entity_dim = ReadBinaryOrASCII<int>(input, is_binary);
-            const int entity_tag = ReadBinaryOrASCII<int>(input, is_binary);
-            const int element_type = ReadBinaryOrASCII<int>(input, is_binary);
-            const size_t n_elements = ReadBinaryOrASCII<size_t>(input, is_binary);
+            const int entity_dim = ReadBinaryOrASCII<int>(input, b);
+            const int entity_tag = ReadBinaryOrASCII<int>(input, b);
+            const int element_type = ReadBinaryOrASCII<int>(input, b);
+            const size_t n_elements = ReadBinaryOrASCII<size_t>(input, b);
 
             for (int ie = 0; ie < n_elements; ++ie)
             {
-               Skip<size_t>(input, is_binary, 1); // Skip element tag
+               Skip<size_t>(input, b, 1); // Skip element tag
                const auto [geom, el_order] = g.GetGeometryAndOrder(element_type);
 
-               if (mesh_order < 0) { mesh_order = el_order; }
-               MFEM_VERIFY(mesh_order == el_order,
+               if (g.mesh_order < 0) { g.mesh_order = el_order; }
+               MFEM_VERIFY(g.mesh_order == el_order,
                            "Variable order Gmsh meshes are not supported");
 
                const int n_elem_nodes = NumNodesInElement(geom, el_order);
                vector<size_t> node_tags(n_elem_nodes);
                for (int inode = 0; inode < n_elem_nodes; ++inode)
                {
-                  node_tags[inode] = ReadBinaryOrASCII<size_t>(input, is_binary);
+                  node_tags[inode] = ReadBinaryOrASCII<size_t>(input, b);
                }
 
                // We only add codim-0 and codim-1 elements.
@@ -838,10 +966,10 @@ void Mesh::ReadGmsh4Mesh(istream &input, int &curved, int &read_gf)
                Array<int> v(e->GetNVertices());
                for (int i = 0; i < e->GetNVertices(); ++i)
                {
-                  v[i] = vertex_map[node_tags[i]];
+                  v[i] = g.vertex_map[node_tags[i]];
                }
                e->SetVertices(v);
-               e->SetAttribute(entity_physical_tag[ {entity_dim, entity_tag}]);
+               g.SetAttribute(e, entity_physical_tag[ {entity_dim, entity_tag}]);
 
                if (entity_dim == Dim) { elements.Append(e); }
                else if (entity_dim == Dim - 1) { boundary.Append(e); }
@@ -850,10 +978,10 @@ void Mesh::ReadGmsh4Mesh(istream &input, int &curved, int &read_gf)
                if (el_order > 1 && entity_dim == Dim)
                {
                   const vector<int> &map = g.GetNodeMap(geom, el_order);
-                  vector<int> &nodes = el_nodes.emplace_back(n_elem_nodes);
+                  auto &nodes = g.ho_el_nodes[Dim].emplace_back(n_elem_nodes);
                   for (int i = 0; i < n_elem_nodes; ++i)
                   {
-                     nodes[i] = vertex_map[node_tags[map[i]]];
+                     nodes[i] = g.vertex_map[node_tags[map[i]]];
                   }
                }
             }
@@ -863,99 +991,36 @@ void Mesh::ReadGmsh4Mesh(istream &input, int &curved, int &read_gf)
       }
       else if (section == "Periodic")
       {
-         const size_t n_periodic = ReadBinaryOrASCII<size_t>(input, is_binary);
-         if (n_periodic > 0) { periodic = true; }
+         const size_t n_periodic = ReadBinaryOrASCII<size_t>(input, b);
+         if (n_periodic == 0) { continue; }
 
-         MFEM_ABORT("Not currently supported");
-      }
-   }
-   while (!section.empty());
+         g.periodic = true;
+         g.v2v.resize(NumOfVertices);
+         for (int i = 0; i < NumOfVertices; i++) { g.v2v[i] = i; }
 
-   // If the elements are high-order, keep a copy of the nodes before removing
-   // unused vertices.
-   Array<Vertex> ho_vertices;
-   if (mesh_order > 1) { ho_vertices = vertices; }
-
-   AddPhysicalNames(*this, phys_names_by_dim);
-   RemoveUnusedVertices();
-   FinalizeTopology();
-
-   // Now that the mesh topology has been fully created, set the high-order
-   // nodal information (if needed). For periodic meshes, we need to set the
-   // L2 grid function.
-   if (mesh_order > 1 || periodic)
-   {
-      SetCurvature(mesh_order, periodic, spaceDim, Ordering::byVDIM);
-      const FiniteElementSpace &fes = *GetNodalFESpace();
-      GridFunction &nodes_gf = *GetNodes();
-
-      Array<int> vdofs;
-      for (int e = 0; e < NumOfElements; ++e)
-      {
-         const FiniteElement *fe = fes.GetFE(e);
-         auto *nfe = dynamic_cast<const NodalFiniteElement*>(fe);
-         MFEM_ASSERT(nfe, "Invalid FE");
-         const Array<int> &lex = nfe->GetLexicographicOrdering();
-         fes.GetElementVDofs(e, vdofs);
-         const int n = vdofs.Size() / spaceDim;
-         for (int i = 0; i < n; ++i)
+         for (int i = 0; i < n_periodic; ++i)
          {
-            const int ii = lex.IsEmpty() ? i : lex[i];
-            Vertex v = ho_vertices[el_nodes[e][i]];
-            for (int d = 0; d < spaceDim; ++d)
+            Skip<int>(input, b, 3); // Skip entity information
+            const int n_affine = ReadBinaryOrASCII<size_t>(input, b);
+            Skip<double>(input, b, n_affine); // Skip affine information
+            const size_t n_nodes = ReadBinaryOrASCII<size_t>(input, b);
+            for (int j = 0; j < n_nodes; ++j)
             {
-               nodes_gf[vdofs[ii + d*n]] = v(d);
+               const int node_num = ReadBinaryOrASCII<int>(input, b);
+               const int primary_node_num = ReadBinaryOrASCII<int>(input, b);
+               g.v2v[node_num - 1] = primary_node_num - 1;
             }
          }
       }
    }
+   while (!section.empty());
 }
 
-void Mesh::ReadGmsh2Mesh(istream &input, int &curved, int &read_gf)
+void Mesh::ReadGmsh2Mesh(GmshReader &g, istream &input, int &curved,
+                         int &read_gf)
 {
-   using namespace gmsh;
-
-   const BinaryOrASCII is_binary =
-      BinaryOrASCII(ReadBinaryOrASCII<int>(input, ASCII));
-   const int dsize = ReadBinaryOrASCII<int>(input, ASCII);
-   MFEM_VERIFY(dsize == sizeof(double), "Incompatible data size.");
-
-   if (is_binary)
-   {
-      const int one = ReadBinaryOrASCII<int>(input, is_binary);
-      MFEM_VERIFY(one == 1, "Incompatible endianness.");
-   }
-
-   // A map between a serial number of the vertex and its number in the file
-   // (there may be gaps in the numbering, and also Gmsh enumerates vertices
-   // starting from 1, not 0)
-   map<int, int> vertex_map;
-
-   // A map containing names of physical curves, surfaces, and volumes. The
-   // first index is the dimension of the physical manifold, the second index is
-   // the element attribute number of the set, and the string is the assigned
-   // name.
-   map<int,map<int,string> > phys_names_by_dim;
-
-   // Gmsh always outputs coordinates in 3D, but MFEM distinguishes between the
-   // mesh element dimension (Dim) and the dimension of the space in which the
-   // mesh is embedded (spaceDim). For example, a 2D MFEM mesh has Dim = 2 and
-   // spaceDim = 2, while a 2D surface mesh in 3D has Dim = 2 but spaceDim = 3.
-   // Below we set spaceDim by measuring the mesh bounding box and checking for
-   // a lower dimensional subspace. The assumption is that the mesh is at least
-   // 2D if the y-dimension of the box is non-trivial and 3D if the z-dimension
-   // is non-trivial. Note that with these assumptions a 2D mesh parallel to the
-   // yz plane will be considered a surface mesh embedded in 3D whereas the same
-   // 2D mesh parallel to the xy plane will be considered a 2D mesh.
-   const double inf = numeric_limits<double>::infinity();
-   double bb_min[3] = {inf, inf, inf};
-   double bb_max[3] = {-inf, -inf, -inf};
-
-   int mesh_order = -1;
-   bool periodic = false;
-   // Node indices of high-order elements, such that ho_el_nodes[dim][e][i] is
-   // the i-th node index of the e-th element of dimension dim.
-   vector<vector<vector<int>>> ho_el_nodes(4);
+   const auto b = g.is_binary;
+   MFEM_VERIFY(g.data_size == sizeof(double), "Incompatible data size.");
 
    string section;
    do
@@ -968,24 +1033,22 @@ void Mesh::ReadGmsh2Mesh(istream &input, int &curved, int &read_gf)
          double c[3];
          for (int v = 0; v < NumOfVertices; ++v)
          {
-            const int node_num = ReadBinaryOrASCII<int>(input, is_binary);
+            const int node_num = ReadBinaryOrASCII<int>(input, b);
             for (int d = 0; d < 3; ++d)
             {
-               c[d] = ReadBinaryOrASCII<double>(input, is_binary);
-               bb_min[d] = min(bb_min[d], c[d]);
-               bb_max[d] = max(bb_max[d], c[d]);
+               c[d] = ReadBinaryOrASCII<double>(input, b);
+               g.bb_min[d] = min(g.bb_min[d], c[d]);
+               g.bb_max[d] = max(g.bb_max[d], c[d]);
             }
             vertices[v] = Vertex(c[0], c[1], c[2]);
-            vertex_map[node_num] = v;
+            g.vertex_map[node_num] = v;
          }
-         spaceDim = GetSpaceDimension(bb_min, bb_max);
-         MFEM_VERIFY(vertex_map.size() == NumOfVertices,
+         spaceDim = GetSpaceDimension(g.bb_min, g.bb_max);
+         MFEM_VERIFY(g.vertex_map.size() == NumOfVertices,
                      "Gmsh node indices are not unique.");
       }
       else if (section == "Elements")
       {
-         Gmsh g;
-
          const int num_elements = ReadBinaryOrASCII<int>(input, ASCII);
          int num_el_read = 0;
 
@@ -996,8 +1059,8 @@ void Mesh::ReadGmsh2Mesh(istream &input, int &curved, int &read_gf)
             auto add_element = [&](int el_type, int el_phys_tag, Geometry::Type geom,
                                    int el_order, const vector<int> &el_nodes)
             {
-               if (mesh_order < 0) { mesh_order = el_order; }
-               MFEM_VERIFY(mesh_order == el_order,
+               if (g.mesh_order < 0) { g.mesh_order = el_order; }
+               MFEM_VERIFY(g.mesh_order == el_order,
                            "Variable order Gmsh meshes are not supported");
 
                const int dim = Geometry::Dimension[geom];
@@ -1005,25 +1068,25 @@ void Mesh::ReadGmsh2Mesh(istream &input, int &curved, int &read_gf)
                Array<int> v(e->GetNVertices());
                for (int i = 0; i < e->GetNVertices(); ++i)
                {
-                  v[i] = vertex_map[el_nodes[i]];
+                  v[i] = g.vertex_map[el_nodes[i]];
                }
                e->SetVertices(v);
-               e->SetAttribute(el_phys_tag);
+               g.SetAttribute(e, el_phys_tag);
 
                elems_by_dim[dim].emplace_back(e);
 
                if (el_order > 1)
                {
                   const vector<int> &map = g.GetNodeMap(geom, el_order);
-                  auto &nodes = ho_el_nodes[dim].emplace_back(el_nodes.size());
+                  auto &nodes = g.ho_el_nodes[dim].emplace_back(el_nodes.size());
                   for (int i = 0; i < el_nodes.size(); ++i)
                   {
-                     nodes[i] = vertex_map[el_nodes[map[i]]];
+                     nodes[i] = g.vertex_map[el_nodes[map[i]]];
                   }
                }
             };
 
-            if (is_binary)
+            if (b)
             {
                // Header
                const int el_type  = ReadBinaryOrASCII<int>(input, BINARY);
@@ -1097,17 +1160,18 @@ void Mesh::ReadGmsh2Mesh(istream &input, int &curved, int &read_gf)
          {
             const int phys_dim = ReadBinaryOrASCII<int>(input, ASCII);
             const int phys_tag = ReadBinaryOrASCII<int>(input, ASCII);
-            phys_names_by_dim[phys_dim][phys_tag] = ReadQuotedString(input);
+            g.phys_names_by_dim[phys_dim][phys_tag] = ReadQuotedString(input);
          }
       }
       else if (section == "Periodic")
       {
-         periodic = true;
-
-         vector<int> v2v(NumOfVertices);
-         for (int i = 0; i < NumOfVertices; i++) { v2v[i] = i; }
-
          const int n_periodic_entities = ReadBinaryOrASCII<int>(input, ASCII);
+         if (n_periodic_entities == 0) { continue; }
+
+         g.periodic = true;
+         g.v2v.resize(NumOfVertices);
+         for (int i = 0; i < NumOfVertices; i++) { g.v2v[i] = i; }
+
          for (int i = 0; i < n_periodic_entities; i++)
          {
             Skip<int>(input, ASCII, 3); // Skip dimension, tag, and master tag
@@ -1128,74 +1192,85 @@ void Mesh::ReadGmsh2Mesh(istream &input, int &curved, int &read_gf)
             {
                const int node_num = ReadBinaryOrASCII<int>(input, ASCII);
                const int primary_node_num = ReadBinaryOrASCII<int>(input, ASCII);
-               v2v[node_num - 1] = primary_node_num - 1;
+               g.v2v[node_num - 1] = primary_node_num - 1;
             }
          }
-
-         // Follow existing long chains of duplicate->primary in v2v array. Upon
-         // completion of this loop, each v2v[duplicate] will point to a true
-         // primary vertex. This algorithm is useful for periodicity defined in
-         // multiple directions.
-         for (int duplicate = 0; duplicate < v2v.size(); duplicate++)
-         {
-            int primary = v2v[duplicate];
-            if (primary != duplicate)
-            {
-               // This loop will end if it finds a circular dependency.
-               while (v2v[primary] != primary && primary != duplicate)
-               {
-                  primary = v2v[primary];
-               }
-               if (primary == duplicate)
-               {
-                  // If primary and duplicate are the same vertex, circular
-                  // dependency exists. We need to fix the problem, we choose
-                  // duplicate.
-                  v2v[duplicate] = duplicate;
-               }
-               else
-               {
-                  // The long chain has ended on the true primary vertex.
-                  v2v[duplicate] = primary;
-               }
-            }
-         }
-         // Replace duplicate vertex indices in the element connectivity with
-         // their corresponding primary vertex indices.
-         auto replace_vertices = [&](Array<Element*> &els)
-         {
-            for (int i = 0; i < els.Size(); i++)
-            {
-               Element *e = els[i];
-               int *v = e->GetVertices();
-               for (int j = 0; j < e->GetNVertices(); j++)
-               {
-                  v[j] = v2v[v[j]];
-               }
-            }
-         };
-         // Make element and boundary element connectivity periodic.
-         replace_vertices(elements);
-         replace_vertices(boundary);
       }
    }
    while (section != "");
+}
+
+void Mesh::ReadGmshMesh(istream &input, int &curved, int &read_gf)
+{
+   const real_t version = ReadBinaryOrASCII<real_t>(input, ASCII);
+
+   MFEM_VERIFY(version == 2.2 || version == 4.1,
+               "Unsupported Gmsh file version. Supported versions: 2.2 and 4.1");
+
+   GmshReader g;
+   g.is_binary = BinaryOrASCII(ReadBinaryOrASCII<bool>(input, ASCII));
+   g.data_size = ReadBinaryOrASCII<int>(input, ASCII);
+
+   if (g.is_binary)
+   {
+      const int one = ReadBinaryOrASCII<int>(input, BINARY);
+      MFEM_VERIFY(one == 1, "Incompatible endianness.");
+   }
+
+   // Versions supported: 4.1 and 2.2
+   if (version == 4.1)
+   {
+      ReadGmsh4Mesh(g, input, curved, read_gf);
+   }
+   else if (version == 2.2)
+   {
+      ReadGmsh2Mesh(g, input, curved, read_gf);
+   }
+
+   // Make sure all element and boundary attributes are positive.
+   g.CheckAttributes();
+
+   // Merge periodic vertices
+   if (g.periodic)
+   {
+      g.SimplifyPeriodicLinks();
+      // If the mesh is low-order, we need to populate g.ho_el_nodes before
+      // periodic vertices are identified in order to set the L2 nodes grid
+      // function.
+      if (g.mesh_order == 1)
+      {
+         g.ho_el_nodes[Dim].resize(NumOfElements);
+         for (int ie = 0; ie < NumOfElements; ++ie)
+         {
+            const Element *e = elements[ie];
+            const int nv = e->GetNVertices();
+            const int *v = e->GetVertices();
+            g.ho_el_nodes[Dim][ie].resize(nv);
+            for (int i = 0; i < nv; ++i)
+            {
+               g.ho_el_nodes[Dim][ie][i] = v[i];
+            }
+         }
+      }
+      g.ReplacePeriodicVertices(elements);
+      g.ReplacePeriodicVertices(boundary);
+   }
 
    // If the elements are high-order, keep a copy of the nodes before removing
    // unused vertices.
    Array<Vertex> ho_vertices;
-   if (mesh_order > 1) { ho_vertices = vertices; }
+   if (g.mesh_order > 1 || g.periodic) { ho_vertices = vertices; }
 
-   AddPhysicalNames(*this, phys_names_by_dim);
+   g.AddPhysicalNames(*this);
    RemoveUnusedVertices();
    FinalizeTopology();
 
    // Now that the mesh topology has been fully created, set the high-order
    // nodal information (if needed). For periodic meshes, we need to set the
    // L2 grid function.
-   if (mesh_order > 1 || periodic)
+   if (g.mesh_order > 1 || g.periodic)
    {
-      SetCurvature(mesh_order, periodic, spaceDim, Ordering::byVDIM);
+      SetCurvature(g.mesh_order, g.periodic, spaceDim, Ordering::byVDIM);
       const FiniteElementSpace &fes = *GetNodalFESpace();
       GridFunction &nodes_gf = *GetNodes();
 
@@ -1211,34 +1286,13 @@ void Mesh::ReadGmsh2Mesh(istream &input, int &curved, int &read_gf)
          for (int i = 0; i < n; ++i)
          {
             const int ii = lex.IsEmpty() ? i : lex[i];
-            Vertex v = ho_vertices[ho_el_nodes[Dim][e][i]];
+            Vertex v = ho_vertices[g.ho_el_nodes[Dim][e][i]];
             for (int d = 0; d < spaceDim; ++d)
             {
                nodes_gf[vdofs[ii + d*n]] = v(d);
             }
          }
       }
-   }
-}
-
-void Mesh::ReadGmshMesh(istream &input, int &curved, int &read_gf)
-{
-   real_t version;
-   input >> version;
-
-   // Versions supported: 4.1 and 2.2
-   if (version == 4.1)
-   {
-      ReadGmsh4Mesh(input, curved, read_gf);
-      return;
-   }
-   else if (version == 2.2)
-   {
-      ReadGmsh2Mesh(input, curved, read_gf);
-   }
-   else
-   {
-      MFEM_ABORT("Unsupported Gmsh file version. Supported versions: 2.2 and 4.1");
    }
 }
 
