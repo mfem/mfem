@@ -131,12 +131,14 @@ public:
 
    void Assemble(Vector& result_t) const
    {
-      daction_l.SetSize(width);
+      auto l_width = GetVSize(direction);
+
+      daction_l.SetSize(l_width);
       daction_l = 0.0;
 
-      direction_l.SetSize(width);
+      direction_l.SetSize(l_width);
       direction_l = 0.0;
-      for (const auto&f : derivative_actions)
+      for (const auto &f : derivative_actions)
       {
          for (int i{0}; i < direction_l.Size(); ++i)
          {
