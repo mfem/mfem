@@ -272,7 +272,7 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
       AllocD();
    }
 #ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-   Ae_data.SetSize(Ae_offsets[NE]);
+   Ae_data.SetSize(Ae_offsets[NE]); Ae_data = 0.;
    Be_data.SetSize(Be_offsets[NE]); Be_data = 0.;
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 
@@ -307,7 +307,7 @@ void DarcyHybridization::AssembleFluxMassMatrix(int el, const DenseMatrix &A)
 #ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
          for (int i = 0; i < s; i++)
          {
-            Ae_data[Ae_el_idx++] = A(i, j);
+            Ae_data[Ae_el_idx++] += A(i, j);
          }
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
          continue;
