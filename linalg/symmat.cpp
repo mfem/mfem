@@ -39,12 +39,8 @@ void DenseSymmetricMatrix::SetSize(int s)
    }
    height = s;
    width = s;
-   const int s2 = (s*(s+1))/2;
-   if (s2 > data.Capacity())
-   {
-      data.SetSize(s2);
-      *this = 0.0; // init with zeroes
-   }
+   data.SetSize((s*(s+1))/2);
+   *this = 0.0; // init with zeroes
 }
 
 DenseSymmetricMatrix &DenseSymmetricMatrix::operator=(real_t c)
@@ -54,20 +50,6 @@ DenseSymmetricMatrix &DenseSymmetricMatrix::operator=(real_t c)
    {
       data[i] = c;
    }
-   return *this;
-}
-
-DenseSymmetricMatrix &DenseSymmetricMatrix::operator=(const DenseSymmetricMatrix
-                                                      &m)
-{
-   SetSize(m.height);
-
-   const int hw = m.GetStoredSize();
-   for (int i = 0; i < hw; i++)
-   {
-      data[i] = m.data[i];
-   }
-
    return *this;
 }
 
