@@ -719,6 +719,37 @@ public:
       e->SetAttribute(attribute);
    }
 
+   /// Create and return a new Element of the given geometry, with specified
+   /// attribute. If the element is higher-order, store the high-order node
+   /// indices.
+   template <typename I>
+   Element *NewElement(Mesh &mesh, Geometry::Type geom, int el_order,
+                       const vector<I> &el_nodes, int attribute)
+   {
+      auto e = mesh.NewElement(geom);
+      int *v = e->GetVertices();
+      for (int i = 0; i < e->GetNVertices(); ++i)
+      {
+         v[i] = vertex_map[el_nodes[i]];
+      }
+      SetAttribute(e, attribute);
+
+      // Store high-order node locations
+      const int dim = Geometry::Dimension[geom];
+      if (el_order > 1)
+      {
+         const int n_elem_nodes = NumNodesInElement(geom, el_order);
+         const vector<int> &map = GetNodeMap(geom, el_order);
+         auto &nodes = ho_el_nodes[dim].emplace_back(n_elem_nodes);
+         for (int i = 0; i < n_elem_nodes; ++i)
+         {
+            nodes[i] = vertex_map[el_nodes[map[i]]];
+         }
+      }
+
+      return e;
+   }
+
    /// Check that all attributes are positive (or, if none are positive, give a
    /// warning that they have been replaced by 1).
    void CheckAttributes() const
@@ -979,28 +1010,10 @@ void Mesh::ReadGmsh4Mesh(GmshReader &g, istream &input)
                // We only add codim-0 and codim-1 elements.
                if (entity_dim != Dim && entity_dim != Dim - 1) { continue; }
 
-               auto e = NewElement(geom);
-               Array<int> v(e->GetNVertices());
-               for (int i = 0; i < e->GetNVertices(); ++i)
-               {
-                  v[i] = g.vertex_map[node_tags[i]];
-               }
-               e->SetVertices(v);
-               g.SetAttribute(e, entity_physical_tag[ {entity_dim, entity_tag}]);
-
+               const int attribute = entity_physical_tag[ {entity_dim, entity_tag}];
+               auto e = g.NewElement(*this, geom, el_order, node_tags, attribute);
                if (entity_dim == Dim) { elements.Append(e); }
                else if (entity_dim == Dim - 1) { boundary.Append(e); }
-
-               // Store high-order node locations
-               if (el_order > 1 && entity_dim == Dim)
-               {
-                  const vector<int> &map = g.GetNodeMap(geom, el_order);
-                  auto &nodes = g.ho_el_nodes[Dim].emplace_back(n_elem_nodes);
-                  for (int i = 0; i < n_elem_nodes; ++i)
-                  {
-                     nodes[i] = g.vertex_map[node_tags[map[i]]];
-                  }
-               }
             }
          }
          NumOfElements = elements.Size();
@@ -1078,28 +1091,8 @@ void Mesh::ReadGmsh2Mesh(GmshReader &g, istream &input)
                if (g.mesh_order < 0) { g.mesh_order = el_order; }
                MFEM_VERIFY(g.mesh_order == el_order,
                            "Variable order Gmsh meshes are not supported");
-
-               const int dim = Geometry::Dimension[geom];
-               Element *e = NewElement(geom);
-               Array<int> v(e->GetNVertices());
-               for (int i = 0; i < e->GetNVertices(); ++i)
-               {
-                  v[i] = g.vertex_map[el_nodes[i]];
-               }
-               e->SetVertices(v);
-               g.SetAttribute(e, el_phys_tag);
-
-               elems_by_dim[dim].emplace_back(e);
-
-               if (el_order > 1)
-               {
-                  const vector<int> &map = g.GetNodeMap(geom, el_order);
-                  auto &nodes = g.ho_el_nodes[dim].emplace_back(el_nodes.size());
-                  for (int i = 0; i < el_nodes.size(); ++i)
-                  {
-                     nodes[i] = g.vertex_map[el_nodes[map[i]]];
-                  }
-               }
+               Element *e = g.NewElement(*this, geom, el_order, el_nodes, el_phys_tag);
+               elems_by_dim[Geometry::Dimension[geom]].emplace_back(e);
             };
 
             if (b)
@@ -1249,7 +1242,6 @@ void Mesh::ReadGmshMesh(istream &input)
    // Merge periodic vertices
    if (g.periodic)
    {
-      g.SimplifyPeriodicLinks();
       // If the mesh is low-order, we need to populate g.ho_el_nodes before
       // periodic vertices are identified in order to set the L2 nodes grid
       // function.
@@ -1268,6 +1260,7 @@ void Mesh::ReadGmshMesh(istream &input)
             }
          }
       }
+      g.SimplifyPeriodicLinks();
       g.ReplacePeriodicVertices(elements);
       g.ReplacePeriodicVertices(boundary);
    }
