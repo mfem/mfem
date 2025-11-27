@@ -502,9 +502,24 @@ enum BinaryOrASCII : bool
    BINARY = true
 };
 
+/// Helper class for hashing std::pair of hashable types. Will not be needed
+/// after merge of PR #4974, which introduces more general hashing for pairs
+/// and tuples.
+class PairHash
+{
+public:
+   template <typename T, typename S>
+   size_t operator()(const pair<T, S> &p) const
+   {
+      return hash<T>()(p.first) ^ hash<S>()(p.second);
+   }
+};
+
 /// Helper class for reading Gmsh meshes.
 class GmshReader
 {
+   /// List of supported Gmsh element types. types[geom][order] contains the
+   /// Gmsh element type number for the element of the given geometry and order.
    vector<vector<int>> types =
    {
       {15}, // point
@@ -516,7 +531,9 @@ class GmshReader
       {6, 13, 90, 91, 106, 107, 108, 109, 110}, // prism
       {7, 14, 118, 119, 120, 121, 122, 123, 124} // pyramid
    };
-   map<pair<Geometry::Type, int>, vector<int>> node_maps;
+   /// Permutations mapping from MFEM lexicographic ordering to Gmsh ordering,
+   /// for a given element type and order. Constructed lazily.
+   unordered_map<pair<Geometry::Type, int>, vector<int>, PairHash> node_maps;
 
    bool has_positive_attrs = false;
    bool has_non_positive_attrs = false;
@@ -528,13 +545,13 @@ public:
    /// A map between a serial number of the vertex and its number in the file
    /// (there may be gaps in the numbering, and also Gmsh enumerates vertices
    /// starting from 1, not 0)
-   map<int, int> vertex_map;
+   unordered_map<int, int> vertex_map;
 
    /// A map containing names of physical curves, surfaces, and volumes. The
    /// first index is the dimension of the physical manifold, the second index is
    /// the element attribute number of the set, and the string is the assigned
    /// name.
-   map<int,map<int,string> > phys_names_by_dim;
+   unordered_map<int,unordered_map<int,string> > phys_names_by_dim;
 
    /// Gmsh always outputs coordinates in 3D, but MFEM distinguishes between the
    /// mesh element dimension (Dim) and the dimension of the space in which the
@@ -563,7 +580,8 @@ public:
 
    GmshReader() = default;
 
-   /// Get the geometry type and polynomial degree for a given Gmsh element type.
+   /// Get the geometry type and polynomial degree for a given Gmsh element
+   /// type.
    pair<Geometry::Type, int> GetGeometryAndOrder(int element_type) const
    {
       for (int g = Geometry::POINT; g < Geometry::NUM_GEOMETRIES; ++g)
@@ -599,7 +617,7 @@ public:
             case Geometry::CUBE: HOHexahedronMapping(order, data); break;
             case Geometry::PRISM: HOWedgeMapping(order, data); break;
             case Geometry::PYRAMID: HOPyramidMapping(order, data); break;
-            default: break; // Unknown element type
+            default: MFEM_ABORT("Unsupported element type.");
          }
          return map;
       }
@@ -634,9 +652,9 @@ public:
       }
    }
 
-   /// In the periodic vertex mapping @a v2v, there may be chains or cycles. This
-   /// will simplify all chains so that they are one link only, and break any
-   /// cycles.
+   /// In the periodic vertex mapping @a v2v, there may be chains or cycles.
+   /// This will simplify all chains so that they are one link only, and break
+   /// any cycles.
    void SimplifyPeriodicLinks()
    {
       // Follow existing long chains of duplicate->primary in v2v array. Upon
@@ -669,8 +687,8 @@ public:
       }
    }
 
-   /// In the list of Elements @a els, replace periodic vertices using the periodic
-   /// identification map @a v2v.
+   /// In the list of Elements @a els, replace periodic vertices using the
+   /// periodic identification map @a v2v.
    void ReplacePeriodicVertices(Array<Element*> &els) const
    {
       for (int i = 0; i < els.Size(); i++)
@@ -825,14 +843,13 @@ static string ReadQuotedString(istream &input)
 
 using namespace gmsh;
 
-void Mesh::ReadGmsh4Mesh(GmshReader &g, istream &input, int &curved,
-                         int &read_gf)
+void Mesh::ReadGmsh4Mesh(GmshReader &g, istream &input)
 {
    MFEM_VERIFY(g.data_size == sizeof(size_t), "Incompatible Gmsh mesh.");
 
    const auto b = g.is_binary;
 
-   map<pair<int,int>, int> entity_physical_tag;
+   unordered_map<pair<int,int>, int, PairHash> entity_physical_tag;
 
    vector<vector<int>> el_nodes;
 
@@ -1016,8 +1033,7 @@ void Mesh::ReadGmsh4Mesh(GmshReader &g, istream &input, int &curved,
    while (!section.empty());
 }
 
-void Mesh::ReadGmsh2Mesh(GmshReader &g, istream &input, int &curved,
-                         int &read_gf)
+void Mesh::ReadGmsh2Mesh(GmshReader &g, istream &input)
 {
    const auto b = g.is_binary;
    MFEM_VERIFY(g.data_size == sizeof(double), "Incompatible data size.");
@@ -1200,11 +1216,11 @@ void Mesh::ReadGmsh2Mesh(GmshReader &g, istream &input, int &curved,
    while (section != "");
 }
 
-void Mesh::ReadGmshMesh(istream &input, int &curved, int &read_gf)
+void Mesh::ReadGmshMesh(istream &input)
 {
-   const real_t version = ReadBinaryOrASCII<real_t>(input, ASCII);
+   const string version = ReadBinaryOrASCII<string>(input, ASCII);
 
-   MFEM_VERIFY(version == 2.2 || version == 4.1,
+   MFEM_VERIFY(version == "2.2" || version == "4.1",
                "Unsupported Gmsh file version. Supported versions: 2.2 and 4.1");
 
    GmshReader g;
@@ -1218,13 +1234,13 @@ void Mesh::ReadGmshMesh(istream &input, int &curved, int &read_gf)
    }
 
    // Versions supported: 4.1 and 2.2
-   if (version == 4.1)
+   if (version == "4.1")
    {
-      ReadGmsh4Mesh(g, input, curved, read_gf);
+      ReadGmsh4Mesh(g, input);
    }
-   else if (version == 2.2)
+   else if (version == "2.2")
    {
-      ReadGmsh2Mesh(g, input, curved, read_gf);
+      ReadGmsh2Mesh(g, input);
    }
 
    // Make sure all element and boundary attributes are positive.
