@@ -3270,8 +3270,16 @@ bool NURBSExtension::CheckPatches()
          }
       }
 
-      // In 2d - opposite edges must be same knotvector with opposite sign
-      // In 3d - opposite edges must be same knotvector with same sign
+      // In 2d - opposite edges must be same knotvector with opposite sign.
+      // In 3d - opposite edges must be same knotvector with same sign.
+      // This logic is the result of Mesh::GetElementEdges setting orientation
+      // for edges based on ascending vertex indices, using reference vertex
+      // ordering
+      // {0, 1}, {1, 2}, {2, 3}, {3, 0} for Geometry::SQUARE in 2D
+      // and
+      // {0, 1}, {1, 2}, {3, 2}, {0, 3}, {4, 5}, {5, 6},
+      // {7, 6}, {4, 7}, {0, 4}, {1, 5}, {2, 6}, {3, 7} for Geometry::CUBE in 3D
+      // See fem/geom.cpp for these definitions.
       if ((Dimension() == 2 &&
            (edges[0] != -1 - edges[2] || edges[1] != -1 - edges[3])) ||
 

@@ -6537,6 +6537,8 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_ukv)
    {
       GetEdgeToUniqueKnotvector(edge_to_ukv, ukv_to_rpkv);
    }
+
+   CorrectPatchTopoOrientations(edge_to_ukv);
 }
 
 void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
@@ -6654,94 +6656,134 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
       edge_to_ukv[i] = (edge_to_pkv[i] < 0) ? sign(ukv) : ukv;
    }
 
-   // Flip signs to ensure knotvectors are pointed in the same direction
    CorrectPatchTopoOrientations(edge_to_ukv);
 }
 
-void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv, int max_flips)
+void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv)
 {
+   const int dim = Dimension(); // Topological (not physical) dimension
+   if (dim == 1) { return; }
+
    // Sign convention
    auto sign = [](int i) { return -1 - i; };
-   auto unsign = [](int i) { return (i < 0) ? -1 - i : i; };
 
-   // Constants
-   max_flips = (max_flips < 1) ? NumOfEdges : max_flips;
-   const int dim = Dimension();  // topological (not physical) dimension
-   constexpr int notset = -9999999;
+   const Table *face2elem = GetFaceToElementTable();
 
-   // Pairs of edges to check
-   std::vector<std::pair<int,int>> edge_pairs;
+   Array<int> faces, orient;
+
+   auto faceNeighbors = [&](int p, std::set<int> &nghb)
+   {
+      if (dim == 2) { GetElementEdges(p, faces, orient); }
+      else { GetElementFaces(p, faces, orient); }
+
+      for (auto face : faces)
+      {
+         Array<int> row;
+         face2elem->GetRow(face, row);
+         for (auto elem : row) { nghb.insert(elem); }
+      }
+   };
+
+   std::vector<std::vector<int>> dir_edges;
    if (dim == 2)
    {
-      edge_pairs =
+      dir_edges =
       {
          {0,2},
          {1,3}
       };
    }
-   else if (dim == 3)
+   else
    {
-      edge_pairs =
+      dir_edges =
       {
-         {0,2}, {0,4}, {0,6},
-         {1,3}, {1,5}, {1,7},
-         {8,9}, {8,10}, {8,11}
+         {0,2,4,6},
+         {1,3,5,7},
+         {8,9,10,11}
       };
    }
 
-   Array<int> flips(NumOfEdges);
-   flips = 0;
-   Array<int> ukvs((dim==2) ? 4 : 8);
-   Array<int> e, oe;
-   int eflip = notset; // edge to flip
-   for (int n = 0; n < max_flips; n++)
+   Array<int> ukvs((dim==2) ? 4 : 12);
+   Array<int> pe, oe;
+
+   auto setPatchDirections = [&](int p, Array<bool> &edgeSet)
    {
-      // Loop through patches and find an edge to flip
-      eflip = notset;
-      for (int p = 0; p < NumOfElements; p++)
+      // Edges and orientations for this patch
+      GetElementEdges(p, pe, oe);
+
+      // Get the signed unique knot vector indices
+      for (int i = 0; i < pe.Size(); i++)
       {
-         // Edges and orientations for this patch
-         GetElementEdges(p, e, oe);
+         ukvs[i] = edge_to_ukv[pe[i]];
+         ukvs[i] = (oe[i] < 0) ? sign(ukvs[i]) : ukvs[i];
+      }
 
-         // Get the signed unique knot vector indices
-         for (int i = 0; i < e.Size(); i++)
+      for (int d=0; d<dim; ++d) // Loop over dimensions.
+      {
+         // For this dimension, find any edge already set. If no edge is set, we
+         // arbitrarily take the first.
+         int ref_edge0 = dir_edges[d][0];
+         for (auto ref_edge : dir_edges[d])
          {
-            ukvs[i] = edge_to_ukv[e[i]];
-            ukvs[i] = (oe[i] < 0) ? sign(ukvs[i]) : ukvs[i];
-         }
-
-         // Figure out if an edge needs to be flipped
-         for (auto [i, j] : edge_pairs)
-         {
-            if (
-               ((dim == 2) && (ukvs[i] != sign(ukvs[j]))) ||
-               ((dim == 3) && (ukvs[i] == sign(ukvs[j])))
-            )
+            const int edge = pe[ref_edge];
+            if (edgeSet[edge])
             {
-               eflip = (flips[e[i]] < flips[e[j]]) ? e[i] : e[j];
-               break; // One flip at a time
+               ref_edge0 = ref_edge;
             }
          }
-         // Apply flip
-         if (eflip != notset)
-         {
-            // For debugging - print flip
-            mfem::out << "Flipping edge " << eflip << std::endl;
-            edge_to_ukv[eflip] = sign(edge_to_ukv[eflip]);
-            flips[eflip]++;
-            break; // One flip at a time
-         }
-      } // patch loop
 
-      // We are done flipping edges
-      if (eflip == notset)
+         // Use ref_edge0 to set other edges in this dimension.
+         for (auto i : dir_edges[d])
+         {
+            if (i == ref_edge0)
+            {
+               continue;
+            }
+
+            const int edge = pe[i];
+            if ((dim == 2 && ukvs[i] != sign(ukvs[ref_edge0])) ||
+                (dim == 3) && (ukvs[i] == sign(ukvs[ref_edge0])))
+            {
+               // Flip the sign of this edge
+               edge_to_ukv[edge] = sign(edge_to_ukv[edge]);
+               //mfem::out << "Flipped edge " << edge << std::endl;
+            }
+
+            edgeSet[edge] = true;
+         }
+      }
+   };
+
+   std::set<int> nextPatches; // Next patches to visit
+   std::set<int> visited; // Visit each patch only once
+
+   Array<bool> edgeSet(NumOfEdges);
+   edgeSet = false;
+
+   nextPatches.insert(0); // Start from patch 0
+   while (nextPatches.size() > 0)
+   {
+      const int p = *nextPatches.begin();
+      nextPatches.erase(p);
+      visited.insert(p);
+
+      setPatchDirections(p, edgeSet);
+
+      // Find neighbors of patch p sharing a conforming face, via face2elem.
+      std::set<int> neighbors;
+      faceNeighbors(p, neighbors);
+
+      // Add neighbors not done to nextPatches.
+      for (auto n : neighbors)
       {
-         // For debugging - print flips
-         mfem::out << "All edges oriented correctly after "
-                   << n << " flips." << std::endl;
-         return;
+         if (n != p && visited.count(n) == 0)
+         {
+            nextPatches.insert(n);
+         }
       }
    }
+
+   delete face2elem;
 }
 
 void Mesh::LoadNonconformingPatchTopo(std::istream &input,

@@ -527,6 +527,9 @@ protected:
    void PrintTopoEdges(std::ostream &out, const Array<int> &e_to_k,
                        bool vmap = false) const;
 
+   /// Set signs to ensure knotvectors are pointed in the same direction.
+   void CorrectPatchTopoOrientations(Array<int> &edge_to_ukv);
+
    /// Used in GetFaceElementTransformations (...)
    void GetLocalPtToSegTransformation(IsoparametricTransformation &,
                                       int i) const;
@@ -851,8 +854,6 @@ public:
    */
    void GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
                                   Array<int> &ukv_to_rpkv);
-
-   void CorrectPatchTopoOrientations(Array<int> &edge_to_ukv, int max_flips=-1);
 
    /// @}
 
@@ -2535,13 +2536,16 @@ public:
        changing the mesh file itself. Examples in miniapps/nurbs/meshes. */
    void RefineNURBSFromFile(std::string ref_file);
 
-   /// For NURBS meshes, insert the new knots in @a kv, for each direction.
+   /// For NURBS meshes, insert the new knots in @a kv, for each KnotVector.
+   /// The size of @a kv should be the number of KnotVectors in NURBSExtension.
    void KnotInsert(Array<KnotVector*> &kv);
 
-   /// For NURBS meshes, insert the knots in @a kv, for each direction.
+   /// For NURBS meshes, insert the knots in @a kv, for each KnotVector.
+   /// The size of @a kv should be the number of KnotVectors in NURBSExtension.
    void KnotInsert(Array<Vector*> &kv);
 
-   /// For NURBS meshes, remove the knots in @a kv, for each direction.
+   /// For NURBS meshes, remove the knots in @a kv, for each KnotVector.
+   /// The size of @a kv should be the number of KnotVectors in NURBSExtension.
    void KnotRemove(Array<Vector*> &kv);
 
    /* For each knot vector:
