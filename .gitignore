@@ -223,8 +223,8 @@ miniapps/electromagnetics/Joule_[0-9]*
 miniapps/electromagnetics/Lorentz_[0-9]*
 miniapps/electromagnetics/Lorentz.dat
 
-miniapps/fluids/schrodinger_flow/schrodinger_flow
-miniapps/fluids/schrodinger_flow/pschrodinger_flow
+miniapps/fluids/schrodinger-flow/schrodinger_flow
+miniapps/fluids/schrodinger-flow/pschrodinger_flow
 
 miniapps/gslib/field-diff
 miniapps/gslib/field-interp
