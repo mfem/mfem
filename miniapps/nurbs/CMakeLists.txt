@@ -42,16 +42,6 @@ add_mfem_miniapp(nurbs_ex1
   LIBRARIES mfem)
   add_dependencies(nurbs_ex1 copy_miniapps_nurbs_data)
 
-# JGL - for testing
-add_mfem_miniapp(sbox
-  MAIN sbox.cpp
-  LIBRARIES mfem)
-  add_dependencies(sbox copy_miniapps_nurbs_data)
-add_mfem_miniapp(main
-  MAIN main.cpp
-  LIBRARIES mfem)
-  add_dependencies(main copy_miniapps_nurbs_data)
-
 add_mfem_miniapp(nurbs_ex3
   MAIN nurbs_ex3.cpp
   LIBRARIES mfem)

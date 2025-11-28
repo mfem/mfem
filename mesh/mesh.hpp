@@ -528,7 +528,7 @@ protected:
                        bool vmap = false) const;
 
    /// Set signs to ensure knotvectors are pointed in the same direction.
-   void CorrectPatchTopoOrientations(Array<int> &edge_to_ukv);
+   void CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const;
 
    /// Used in GetFaceElementTransformations (...)
    void GetLocalPtToSegTransformation(IsoparametricTransformation &,
@@ -853,7 +853,7 @@ public:
                                   to the number of unique knotvectors.
    */
    void GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
-                                  Array<int> &ukv_to_rpkv);
+                                  Array<int> &ukv_to_rpkv) const;
 
    /// @}
 

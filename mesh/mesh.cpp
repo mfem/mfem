@@ -6532,9 +6532,9 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_ukv)
    /* Generate edge to knotvector mapping if edges are not specified in the
       mesh file. See miniapps/nurbs/meshes/two-squares-nurbs-autoedge.mesh
       for an example */
-   Array<int> ukv_to_rpkv;
    if (edge_to_ukv.Size() == 0)
    {
+      Array<int> ukv_to_rpkv;
       GetEdgeToUniqueKnotvector(edge_to_ukv, ukv_to_rpkv);
    }
 
@@ -6542,7 +6542,7 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_ukv)
 }
 
 void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
-                                     Array<int> &ukv_to_rpkv)
+                                     Array<int> &ukv_to_rpkv) const
 {
    const int dim = Dimension();  // topological (not physical) dimension
    const int NP = NumOfElements; // number of patches
@@ -6659,7 +6659,7 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
    CorrectPatchTopoOrientations(edge_to_ukv);
 }
 
-void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv)
+void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
 {
    const int dim = Dimension(); // Topological (not physical) dimension
    if (dim == 1) { return; }
