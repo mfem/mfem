@@ -6668,15 +6668,14 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
    auto sign = [](int i) { return -1 - i; };
 
    const Table *face2elem = GetFaceToElementTable();
-
-   Array<int> faces, orient;
+   Array<int> pfaces, orient;
 
    auto faceNeighbors = [&](int p, std::set<int> &nghb)
    {
-      if (dim == 2) { GetElementEdges(p, faces, orient); }
-      else { GetElementFaces(p, faces, orient); }
+      if (dim == 2) { GetElementEdges(p, pfaces, orient); }
+      else { GetElementFaces(p, pfaces, orient); }
 
-      for (auto face : faces)
+      for (auto face : pfaces)
       {
          Array<int> row;
          face2elem->GetRow(face, row);
@@ -6742,7 +6741,7 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
 
             const int edge = pe[i];
             if ((dim == 2 && ukvs[i] != sign(ukvs[ref_edge0])) ||
-                (dim == 3) && (ukvs[i] == sign(ukvs[ref_edge0])))
+                (dim == 3 && ukvs[i] == sign(ukvs[ref_edge0])))
             {
                // Flip the sign of this edge
                edge_to_ukv[edge] = sign(edge_to_ukv[edge]);
