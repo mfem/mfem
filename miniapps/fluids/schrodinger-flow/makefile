@@ -13,7 +13,7 @@
 MFEM_DIR ?= ../../..
 MFEM_BUILD_DIR ?= ../../..
 MFEM_INSTALL_DIR ?= ../../../mfem
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/fluids/schrodinger_flow/,)
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/fluids/schrodinger-flow/,)
 CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
    $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
