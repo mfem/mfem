@@ -64,7 +64,6 @@ list(APPEND HDRS
   linalg.hpp
   matrix.hpp
   mma.hpp
-  multivector.hpp
   ode.hpp
   operator.hpp
   ordering.hpp
