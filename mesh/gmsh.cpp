@@ -518,7 +518,7 @@ public:
 /// Helper class for reading Gmsh meshes.
 class GmshReader
 {
-   /// List of supported Gmsh element types. types[geom][order] contains the
+   /// List of supported Gmsh element types. types[geom][order-1] contains the
    /// Gmsh element type number for the element of the given geometry and order.
    vector<vector<int>> types =
    {
@@ -539,7 +539,7 @@ class GmshReader
    bool has_non_positive_attrs = false;
 
 public:
-   BinaryOrASCII is_binary; ///< Is the file in binary or ascii format.
+   BinaryOrASCII is_binary; ///< Is the file in binary or ASCII format?
    int data_size; ///< Data size in bytes (meaning depends on file format).
 
    /// A map between a serial number of the vertex and its number in the file
@@ -557,19 +557,19 @@ public:
    /// mesh element dimension (Dim) and the dimension of the space in which the
    /// mesh is embedded (spaceDim). For example, a 2D MFEM mesh has Dim = 2 and
    /// spaceDim = 2, while a 2D surface mesh in 3D has Dim = 2 but spaceDim = 3.
-   /// Below we set spaceDim by measuring the mesh bounding box and checking for
-   /// a lower dimensional subspace. The assumption is that the mesh is at least
+   /// We set spaceDim by measuring the mesh bounding box and checking for a
+   /// lower dimensional subspace. The assumption is that the mesh is at least
    /// 2D if the y-dimension of the box is non-trivial and 3D if the z-dimension
-   /// is non-trivial. Note that with these assumptions a 2D mesh parallel to the
-   /// yz plane will be considered a surface mesh embedded in 3D whereas the same
-   /// 2D mesh parallel to the xy plane will be considered a 2D mesh.
+   /// is non-trivial. Note that with these assumptions a 2D mesh parallel to
+   /// the yz plane will be considered a surface mesh embedded in 3D whereas the
+   /// same 2D mesh parallel to the xy plane will be considered a 2D mesh.
    ///@{
    const double inf = numeric_limits<double>::infinity();
    double bb_min[3] = {inf, inf, inf};
    double bb_max[3] = {-inf, -inf, -inf};
    ///@}
 
-   int mesh_order = -1; /// Mesh order. Variable order meshes are not supported.
+   int mesh_order = -1; ///< Mesh order. Variable order meshes are not supported.
    bool periodic = false; ///< Is the mesh periodic?
 
    /// Node indices of high-order elements, such that ho_el_nodes[dim][e][i] is
@@ -866,7 +866,6 @@ static string ReadQuotedString(istream &input)
       }
       result.push_back(c);
    }
-
    MFEM_ABORT("Failed to read string.");
 }
 
