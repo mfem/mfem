@@ -970,9 +970,9 @@ public:
 class IMEXRK2 : public ODESolver
 {
 private:
-   Vector k1_exp; Vector k2_exp; Vector k2_imp; Vector k3_imp;
-   //helper vectors
-   Vector y; Vector z;
+   Vector k1_exp; Vector k2_exp; Vector k_imp; 
+   //helper vector
+   Vector y; 
 public:
    void Init(TimeDependentOperator &f_) override;
 
@@ -986,9 +986,10 @@ public:
 class IMEXRK2_3StageExplicit : public ODESolver
 {
 private:
-   Vector k1_exp; Vector k2_exp; Vector k3_exp; Vector k2_imp; Vector k3_imp;
+   Vector k1_exp; Vector k2_exp; Vector k3_exp; 
+   Vector k_imp;
    //helper vectors
-   Vector y; Vector z; Vector w;
+   Vector y; 
 public:
    void Init(TimeDependentOperator &f_) override;
 
@@ -1002,10 +1003,10 @@ public:
 class IMEX_DIRK_RK3 : public ODESolver
 {
 private:
-   Vector k1_exp; Vector k2_exp; Vector k3_exp; Vector k4_exp;
-   Vector k2_imp; Vector k3_imp; Vector k4_imp;
+   Vector k1_exp; Vector k2_exp; Vector k3_exp; Vector k4_exp;  
+   Vector k2_imp; Vector k3_imp; 
    //helper vectors
-   Vector y; Vector z; Vector w; Vector u; Vector v;
+   Vector y; 
 public:
    void Init(TimeDependentOperator &f_) override;
 
