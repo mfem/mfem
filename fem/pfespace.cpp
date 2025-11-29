@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -90,20 +90,19 @@ ParNURBSExtension *ParFiniteElementSpace::MakeLocalNURBSext(
 void ParFiniteElementSpace::ParInit(ParMesh *pm)
 {
    pmesh = pm;
-   pncmesh = NULL;
+   pncmesh = nullptr;
 
    MyComm = pmesh->GetComm();
    NRanks = pmesh->GetNRanks();
    MyRank = pmesh->GetMyRank();
 
-   gcomm = NULL;
+   gcomm = nullptr;
 
-   P = NULL;
-   Pconf = NULL;
-   Rconf = NULL;
-   R_transpose = NULL;
-   R = NULL;
-
+   P = nullptr;
+   Pconf = nullptr;
+   nonconf_P = false;
+   Rconf = nullptr;
+   R = nullptr;
    num_face_nbr_dofs = -1;
 
    if (NURBSext && !pNURBSext())
@@ -127,6 +126,9 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
    {
       ApplyLDofSigns(*elem_dof);
    }
+
+   // Check for shared triangular faces with interior Nedelec DoFs
+   CheckNDSTriaDofs();
 }
 
 void ParFiniteElementSpace::Construct()
@@ -159,18 +161,18 @@ void ParFiniteElementSpace::Construct()
 
       // calculate number of ghost DOFs
       ngvdofs = pncmesh->GetNGhostVertices()
-                * fec->DofForGeometry(Geometry::POINT);
+                * fec->DofForGeometry(Geometry::Type::POINT);
 
       if (pmesh->Dimension() > 1)
       {
          ngedofs = pncmesh->GetNGhostEdges()
-                   * fec->DofForGeometry(Geometry::SEGMENT);
+                   * fec->DofForGeometry(Geometry::Type::SEGMENT);
       }
 
       if (pmesh->Dimension() > 2)
       {
-         int stride = fec->DofForGeometry(Geometry::SQUARE);
-         ngfdofs = pncmesh->GetNGhostFaces() * stride;
+         ngfdofs = pncmesh->GetNGhostFaces()
+                   * fec->DofForGeometry(Geometry::Type::SQUARE);
       }
       ngpdofs = 0;
 
@@ -191,16 +193,16 @@ void ParFiniteElementSpace::Construct()
 
 void ParFiniteElementSpace::PrintPartitionStats()
 {
-   long ltdofs = ltdof_size;
-   long min_ltdofs, max_ltdofs, sum_ltdofs;
+   long long ltdofs = ltdof_size;
+   long long min_ltdofs, max_ltdofs, sum_ltdofs;
 
-   MPI_Reduce(&ltdofs, &min_ltdofs, 1, MPI_LONG, MPI_MIN, 0, MyComm);
-   MPI_Reduce(&ltdofs, &max_ltdofs, 1, MPI_LONG, MPI_MAX, 0, MyComm);
-   MPI_Reduce(&ltdofs, &sum_ltdofs, 1, MPI_LONG, MPI_SUM, 0, MyComm);
+   MPI_Reduce(&ltdofs, &min_ltdofs, 1, MPI_LONG_LONG, MPI_MIN, 0, MyComm);
+   MPI_Reduce(&ltdofs, &max_ltdofs, 1, MPI_LONG_LONG, MPI_MAX, 0, MyComm);
+   MPI_Reduce(&ltdofs, &sum_ltdofs, 1, MPI_LONG_LONG, MPI_SUM, 0, MyComm);
 
    if (MyRank == 0)
    {
-      double avg = double(sum_ltdofs) / NRanks;
+      real_t avg = real_t(sum_ltdofs) / NRanks;
       mfem::out << "True DOF partitioning: min " << min_ltdofs
                 << ", avg " << std::fixed << std::setprecision(1) << avg
                 << ", max " << max_ltdofs
@@ -216,20 +218,20 @@ void ParFiniteElementSpace::PrintPartitionStats()
          for (int i = 1; i < NRanks; i++)
          {
             MPI_Status status;
-            MPI_Recv(&ltdofs, 1, MPI_LONG, i, 123, MyComm, &status);
+            MPI_Recv(&ltdofs, 1, MPI_LONG_LONG, i, 123, MyComm, &status);
             mfem::out << " " << ltdofs;
          }
          mfem::out << "\n";
       }
       else
       {
-         MPI_Send(&ltdofs, 1, MPI_LONG, 0, 123, MyComm);
+         MPI_Send(&ltdofs, 1, MPI_LONG_LONG, 0, 123, MyComm);
       }
    }
 }
 
 void ParFiniteElementSpace::GetGroupComm(
-   GroupCommunicator &gc, int ldof_type, Array<int> *ldof_sign)
+   GroupCommunicator &gc, int ldof_type, Array<int> *g_ldof_sign)
 {
    int gr;
    int ng = pmesh->GetNGroups();
@@ -261,10 +263,10 @@ void ParFiniteElementSpace::GetGroupComm(
       }
    }
 
-   if (ldof_sign)
+   if (g_ldof_sign)
    {
-      ldof_sign->SetSize(GetNDofs());
-      *ldof_sign = 1;
+      g_ldof_sign->SetSize(GetNDofs());
+      *g_ldof_sign = 1;
    }
 
    // count the number of ldofs in all groups (excluding the local group 0)
@@ -343,9 +345,9 @@ void ParFiniteElementSpace::GetGroupComm(
                if (ind[l] < 0)
                {
                   dofs[l] = m + (-1-ind[l]);
-                  if (ldof_sign)
+                  if (g_ldof_sign)
                   {
-                     (*ldof_sign)[dofs[l]] = -1;
+                     (*g_ldof_sign)[dofs[l]] = -1;
                   }
                }
                else
@@ -388,9 +390,9 @@ void ParFiniteElementSpace::GetGroupComm(
                if (ind[l] < 0)
                {
                   dofs[l] = m + (-1-ind[l]);
-                  if (ldof_sign)
+                  if (g_ldof_sign)
                   {
-                     (*ldof_sign)[dofs[l]] = -1;
+                     (*g_ldof_sign)[dofs[l]] = -1;
                   }
                }
                else
@@ -426,9 +428,9 @@ void ParFiniteElementSpace::GetGroupComm(
                if (ind[l] < 0)
                {
                   dofs[l] = m + (-1-ind[l]);
-                  if (ldof_sign)
+                  if (g_ldof_sign)
                   {
-                     (*ldof_sign)[dofs[l]] = -1;
+                     (*g_ldof_sign)[dofs[l]] = -1;
                   }
                }
                else
@@ -459,15 +461,15 @@ void ParFiniteElementSpace::GetGroupComm(
             dofs.SetSize(nted);
             m = nvdofs+nedofs+npdofs+ FirstFaceDof(k);
             ind = fec->DofOrderForOrientation(
-                     mesh->GetFaceBaseGeometry(k), o);
+                     mesh->GetFaceGeometry(k), o);
             for (l = 0; l < nted; l++)
             {
                if (ind[l] < 0)
                {
                   dofs[l] = m + (-1-ind[l]);
-                  if (ldof_sign)
+                  if (g_ldof_sign)
                   {
-                     (*ldof_sign)[dofs[l]] = -1;
+                     (*g_ldof_sign)[dofs[l]] = -1;
                   }
                }
                else
@@ -523,28 +525,50 @@ void ParFiniteElementSpace::ApplyLDofSigns(Table &el_dof) const
    ApplyLDofSigns(all_dofs);
 }
 
-void ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs) const
+void ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs,
+                                           DofTransformation &doftrans) const
 {
    if (elem_dof)
    {
       elem_dof->GetRow(i, dofs);
+
+      if (DoFTransArray[mesh->GetElementBaseGeometry(i)])
+      {
+         Array<int> Fo;
+         elem_fos->GetRow(i, Fo);
+         doftrans.SetDofTransformation(
+            *DoFTransArray[mesh->GetElementBaseGeometry(i)]);
+         doftrans.SetFaceOrientations(Fo);
+         doftrans.SetVDim();
+      }
       return;
    }
-   FiniteElementSpace::GetElementDofs(i, dofs);
+   FiniteElementSpace::GetElementDofs(i, dofs, doftrans);
    if (Conforming())
    {
       ApplyLDofSigns(dofs);
    }
 }
 
-void ParFiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
+void ParFiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs,
+                                              DofTransformation &doftrans) const
 {
    if (bdr_elem_dof)
    {
       bdr_elem_dof->GetRow(i, dofs);
+
+      if (DoFTransArray[mesh->GetBdrElementGeometry(i)])
+      {
+         Array<int> Fo;
+         bdr_elem_fos->GetRow(i, Fo);
+         doftrans.SetDofTransformation(
+            *DoFTransArray[mesh->GetBdrElementGeometry(i)]);
+         doftrans.SetFaceOrientations(Fo);
+         doftrans.SetVDim();
+      }
       return;
    }
-   FiniteElementSpace::GetBdrElementDofs(i, dofs);
+   FiniteElementSpace::GetBdrElementDofs(i, dofs, doftrans);
    if (Conforming())
    {
       ApplyLDofSigns(dofs);
@@ -554,7 +578,7 @@ void ParFiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
 int ParFiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs,
                                        int variant) const
 {
-   if (face_dof && variant == 0)
+   if (face_dof != nullptr && variant == 0)
    {
       face_dof->GetRow(i, dofs);
       return fec->GetOrder();
@@ -574,13 +598,13 @@ const FiniteElement *ParFiniteElementSpace::GetFE(int i) const
    else { return FiniteElementSpace::GetFE(i); }
 }
 
-const Operator *ParFiniteElementSpace::GetFaceRestriction(
-   ElementDofOrdering e_ordering, FaceType type, L2FaceValues mul) const
+const FaceRestriction *ParFiniteElementSpace::GetFaceRestriction(
+   ElementDofOrdering f_ordering, FaceType type, L2FaceValues mul) const
 {
    const bool is_dg_space = IsDGSpace();
    const L2FaceValues m = (is_dg_space && mul==L2FaceValues::DoubleValued) ?
                           L2FaceValues::DoubleValued : L2FaceValues::SingleValued;
-   auto key = std::make_tuple(is_dg_space, e_ordering, type, m);
+   auto key = std::make_tuple(is_dg_space, f_ordering, type, m);
    auto itr = L2F.find(key);
    if (itr != L2F.end())
    {
@@ -588,14 +612,28 @@ const Operator *ParFiniteElementSpace::GetFaceRestriction(
    }
    else
    {
-      Operator* res;
+      FaceRestriction *res;
       if (is_dg_space)
       {
-         res = new ParL2FaceRestriction(*this, e_ordering, type, m);
+         if (Conforming())
+         {
+            res = new ParL2FaceRestriction(*this, f_ordering, type, m);
+         }
+         else
+         {
+            res = new ParNCL2FaceRestriction(*this, f_ordering, type, m);
+         }
       }
       else
       {
-         res = new H1FaceRestriction(*this, e_ordering, type);
+         if (Conforming())
+         {
+            res = new ConformingFaceRestriction(*this, f_ordering, type);
+         }
+         else
+         {
+            res = new ParNCH1FaceRestriction(*this, f_ordering, type);
+         }
       }
       L2F[key] = res;
       return res;
@@ -687,7 +725,7 @@ void ParFiniteElementSpace::GetSharedTetrahedronDofs(
    else
    {
       Array<int> rdofs;
-      fec->SubDofOrder(pmesh->GetFaceBaseGeometry(l_face), 2, ori, dofs);
+      fec->SubDofOrder(pmesh->GetFaceGeometry(l_face), 2, ori, dofs);
       GetFaceDofs(l_face, rdofs);
       for (int i = 0; i < dofs.Size(); i++)
       {
@@ -701,8 +739,8 @@ void ParFiniteElementSpace::GenerateGlobalOffsets() const
 {
    MFEM_ASSERT(Conforming(), "wrong code path");
 
-   HYPRE_Int ldof[2];
-   Array<HYPRE_Int> *offsets[2] = { &dof_offsets, &tdof_offsets };
+   HYPRE_BigInt ldof[2];
+   Array<HYPRE_BigInt> *offsets[2] = { &dof_offsets, &tdof_offsets };
 
    ldof[0] = GetVSize();
    ldof[1] = TrueVSize();
@@ -723,13 +761,13 @@ void ParFiniteElementSpace::GenerateGlobalOffsets() const
       int request_counter = 0;
       for (int i = 1; i <= nsize; i++)
       {
-         MPI_Irecv(&tdof_nb_offsets[i], 1, HYPRE_MPI_INT,
+         MPI_Irecv(&tdof_nb_offsets[i], 1, HYPRE_MPI_BIG_INT,
                    gt.GetNeighborRank(i), 5365, MyComm,
                    &requests[request_counter++]);
       }
       for (int i = 1; i <= nsize; i++)
       {
-         MPI_Isend(&tdof_nb_offsets[0], 1, HYPRE_MPI_INT,
+         MPI_Isend(&tdof_nb_offsets[0], 1, HYPRE_MPI_BIG_INT,
                    gt.GetNeighborRank(i), 5365, MyComm,
                    &requests[request_counter++]);
       }
@@ -740,59 +778,266 @@ void ParFiniteElementSpace::GenerateGlobalOffsets() const
    }
 }
 
+void ParFiniteElementSpace::CheckNDSTriaDofs()
+{
+   // Check for Nedelec basis
+   bool nd_basis = dynamic_cast<const ND_FECollection*>(fec);
+   if (!nd_basis)
+   {
+      nd_strias = false;
+      return;
+   }
+
+   // Check for interior face dofs on triangles (the use of TETRAHEDRON
+   // is not an error)
+   bool nd_fdof  = fec->HasFaceDofs(Geometry::TETRAHEDRON,
+                                    GetMaxElementOrder());
+   if (!nd_fdof)
+   {
+      nd_strias = false;
+      return;
+   }
+
+   // Check for shared triangle faces
+   bool strias   = false;
+   {
+      int ngrps = pmesh->GetNGroups();
+      for (int g = 1; g < ngrps; g++)
+      {
+         strias |= pmesh->GroupNTriangles(g);
+      }
+   }
+
+   // Combine results
+   int loc_nd_strias = strias ? 1 : 0;
+   int glb_nd_strias = 0;
+   MPI_Allreduce(&loc_nd_strias, &glb_nd_strias, 1,
+                 MPI_INTEGER, MPI_SUM, MyComm);
+   nd_strias = glb_nd_strias > 0;
+}
+
 void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
 {
    MFEM_ASSERT(Conforming(), "wrong code path");
 
    if (P) { return; }
 
-   int ldof  = GetVSize();
-   int ltdof = TrueVSize();
-
-   HYPRE_Int *i_diag = Memory<HYPRE_Int>(ldof+1);
-   HYPRE_Int *j_diag = Memory<HYPRE_Int>(ltdof);
-   int diag_counter;
-
-   HYPRE_Int *i_offd = Memory<HYPRE_Int>(ldof+1);
-   HYPRE_Int *j_offd = Memory<HYPRE_Int>(ldof-ltdof);
-   int offd_counter;
-
-   HYPRE_Int *cmap   = Memory<HYPRE_Int>(ldof-ltdof);
-
-   HYPRE_Int *col_starts = GetTrueDofOffsets();
-   HYPRE_Int *row_starts = GetDofOffsets();
-
-   Array<Pair<HYPRE_Int, int> > cmap_j_offd(ldof-ltdof);
-
-   i_diag[0] = i_offd[0] = 0;
-   diag_counter = offd_counter = 0;
-   for (int i = 0; i < ldof; i++)
+   if (!nd_strias)
    {
-      int ltdof = GetLocalTDofNumber(i);
-      if (ltdof >= 0)
+      // Safe to assume 1-1 correspondence between shared dofs
+      int ldof  = GetVSize();
+      int ltdof = TrueVSize();
+
+      HYPRE_Int *i_diag = Memory<HYPRE_Int>(ldof+1);
+      HYPRE_Int *j_diag = Memory<HYPRE_Int>(ltdof);
+      int diag_counter;
+
+      HYPRE_Int *i_offd = Memory<HYPRE_Int>(ldof+1);
+      HYPRE_Int *j_offd = Memory<HYPRE_Int>(ldof-ltdof);
+      int offd_counter;
+
+      HYPRE_BigInt *cmap   = Memory<HYPRE_BigInt>(ldof-ltdof);
+
+      HYPRE_BigInt *col_starts = GetTrueDofOffsets();
+      HYPRE_BigInt *row_starts = GetDofOffsets();
+
+      Array<Pair<HYPRE_BigInt, int> > cmap_j_offd(ldof-ltdof);
+
+      i_diag[0] = i_offd[0] = 0;
+      diag_counter = offd_counter = 0;
+      for (int i = 0; i < ldof; i++)
       {
-         j_diag[diag_counter++] = ltdof;
+         int ltdof_i = GetLocalTDofNumber(i);
+         if (ltdof_i >= 0)
+         {
+            j_diag[diag_counter++] = ltdof_i;
+         }
+         else
+         {
+            cmap_j_offd[offd_counter].one = GetGlobalTDofNumber(i);
+            cmap_j_offd[offd_counter].two = offd_counter;
+            offd_counter++;
+         }
+         i_diag[i+1] = diag_counter;
+         i_offd[i+1] = offd_counter;
       }
-      else
+
+      SortPairs<HYPRE_BigInt, int>(cmap_j_offd, offd_counter);
+
+      for (int i = 0; i < offd_counter; i++)
       {
-         cmap_j_offd[offd_counter].one = GetGlobalTDofNumber(i);
-         cmap_j_offd[offd_counter].two = offd_counter;
-         offd_counter++;
+         cmap[i] = cmap_j_offd[i].one;
+         j_offd[cmap_j_offd[i].two] = i;
       }
-      i_diag[i+1] = diag_counter;
-      i_offd[i+1] = offd_counter;
+
+      P = new HypreParMatrix(MyComm, MyRank, NRanks, row_starts, col_starts,
+                             i_diag, j_diag, i_offd, j_offd,
+                             cmap, offd_counter);
    }
-
-   SortPairs<HYPRE_Int, int>(cmap_j_offd, offd_counter);
-
-   for (int i = 0; i < offd_counter; i++)
+   else
    {
-      cmap[i] = cmap_j_offd[i].one;
-      j_offd[cmap_j_offd[i].two] = i;
-   }
+      // Some shared dofs will be linear combinations of others
+      HYPRE_BigInt ldof  = GetVSize();
+      HYPRE_BigInt ltdof = TrueVSize();
 
-   P = new HypreParMatrix(MyComm, MyRank, NRanks, row_starts, col_starts,
-                          i_diag, j_diag, i_offd, j_offd, cmap, offd_counter);
+      HYPRE_BigInt gdof  = -1;
+      HYPRE_BigInt gtdof = -1;
+
+      MPI_Allreduce(&ldof, &gdof, 1, HYPRE_MPI_BIG_INT, MPI_SUM, MyComm);
+      MPI_Allreduce(&ltdof, &gtdof, 1, HYPRE_MPI_BIG_INT, MPI_SUM, MyComm);
+
+      // Ensure face orientations have been communicated
+      pmesh->ExchangeFaceNbrData();
+
+      // Locate and count non-zeros in off-diagonal portion of P
+      int nnz_offd = 0;
+      Array<int> ldsize(ldof); ldsize = 0;
+      Array<int> ltori(ldof);  ltori = 0; // Local triangle orientations
+      {
+         int ngrps = pmesh->GetNGroups();
+         int nedofs = fec->DofForGeometry(Geometry::SEGMENT);
+         Array<int> sdofs;
+         for (int g = 1; g < ngrps; g++)
+         {
+            if (pmesh->gtopo.IAmMaster(g))
+            {
+               continue;
+            }
+            for (int ei=0; ei<pmesh->GroupNEdges(g); ei++)
+            {
+               this->GetSharedEdgeDofs(g, ei, sdofs);
+               for (int i=0; i<sdofs.Size(); i++)
+               {
+                  int ind = (sdofs[i]>=0) ? sdofs[i] : (-sdofs[i]-1);
+                  if (ldsize[ind] == 0) { nnz_offd++; }
+                  ldsize[ind] = 1;
+               }
+            }
+            for (int fi=0; fi<pmesh->GroupNTriangles(g); fi++)
+            {
+               int face, ori, info1, info2;
+               pmesh->GroupTriangle(g, fi, face, ori);
+               pmesh->GetFaceInfos(face, &info1, &info2);
+               this->GetSharedTriangleDofs(g, fi, sdofs);
+               for (int i=0; i<3*nedofs; i++)
+               {
+                  int ind = (sdofs[i]>=0) ? sdofs[i] : (-sdofs[i]-1);
+                  if (ldsize[ind] == 0) { nnz_offd++; }
+                  ldsize[ind] = 1;
+               }
+               for (int i=3*nedofs; i<sdofs.Size(); i++)
+               {
+                  if (ldsize[sdofs[i]] == 0) { nnz_offd += 2; }
+                  ldsize[sdofs[i]] = 2;
+                  ltori[sdofs[i]]  = info2 % 64;
+               }
+            }
+            for (int fi=0; fi<pmesh->GroupNQuadrilaterals(g); fi++)
+            {
+               this->GetSharedQuadrilateralDofs(g, fi, sdofs);
+               for (int i=0; i<sdofs.Size(); i++)
+               {
+                  int ind = (sdofs[i]>=0) ? sdofs[i] : (-sdofs[i]-1);
+                  if (ldsize[ind] == 0) { nnz_offd++; }
+                  ldsize[ind] = 1;
+               }
+            }
+         }
+      }
+
+      HYPRE_Int *i_diag = Memory<HYPRE_Int>(ldof+1);
+      HYPRE_Int *j_diag = Memory<HYPRE_Int>(ltdof);
+      real_t    *d_diag = Memory<real_t>(ltdof);
+      int diag_counter;
+
+      HYPRE_Int *i_offd = Memory<HYPRE_Int>(ldof+1);
+      HYPRE_Int *j_offd = Memory<HYPRE_Int>(nnz_offd);
+      real_t    *d_offd = Memory<real_t>(nnz_offd);
+      int offd_counter;
+
+      HYPRE_BigInt *cmap   = Memory<HYPRE_BigInt>(ldof-ltdof);
+
+      HYPRE_BigInt *col_starts = GetTrueDofOffsets();
+      HYPRE_BigInt *row_starts = GetDofOffsets();
+
+      Array<Pair<HYPRE_BigInt, int> > cmap_j_offd(ldof-ltdof);
+
+      i_diag[0] = i_offd[0] = 0;
+      diag_counter = offd_counter = 0;
+      int offd_col_counter = 0;
+      for (int i = 0; i < ldof; i++)
+      {
+         int ltdofi = GetLocalTDofNumber(i);
+         if (ltdofi >= 0)
+         {
+            j_diag[diag_counter]   = ltdofi;
+            d_diag[diag_counter++] = 1.0;
+         }
+         else
+         {
+            if (ldsize[i] == 1)
+            {
+               cmap_j_offd[offd_col_counter].one = GetGlobalTDofNumber(i);
+               cmap_j_offd[offd_col_counter].two = offd_counter;
+               offd_counter++;
+               offd_col_counter++;
+            }
+            else
+            {
+               cmap_j_offd[offd_col_counter].one = GetGlobalTDofNumber(i);
+               cmap_j_offd[offd_col_counter].two = offd_counter;
+               offd_counter += 2;
+               offd_col_counter++;
+               i_diag[i+1] = diag_counter;
+               i_offd[i+1] = offd_counter;
+               i++;
+               cmap_j_offd[offd_col_counter].one = GetGlobalTDofNumber(i);
+               cmap_j_offd[offd_col_counter].two = offd_counter;
+               offd_counter += 2;
+               offd_col_counter++;
+            }
+         }
+         i_diag[i+1] = diag_counter;
+         i_offd[i+1] = offd_counter;
+      }
+
+      SortPairs<HYPRE_BigInt, int>(cmap_j_offd, offd_col_counter);
+
+      for (int i = 0; i < nnz_offd; i++)
+      {
+         j_offd[i] = -1;
+         d_offd[i] = 0.0;
+      }
+
+      for (int i = 0; i < offd_col_counter; i++)
+      {
+         cmap[i] = cmap_j_offd[i].one;
+         j_offd[cmap_j_offd[i].two] = i;
+      }
+
+      for (int i = 0; i < ldof; i++)
+      {
+         if (i_offd[i+1] == i_offd[i] + 1)
+         {
+            d_offd[i_offd[i]] = 1.0;
+         }
+         else if (i_offd[i+1] == i_offd[i] + 2)
+         {
+            const real_t *T =
+               ND_DofTransformation::GetFaceTransform(ltori[i]).GetData();
+            j_offd[i_offd[i] + 1] = j_offd[i_offd[i]] + 1;
+            d_offd[i_offd[i]] = T[0]; d_offd[i_offd[i] + 1] = T[2];
+            i++;
+            j_offd[i_offd[i] + 1] = j_offd[i_offd[i]];
+            j_offd[i_offd[i]] = j_offd[i_offd[i] + 1] - 1;
+            d_offd[i_offd[i]] = T[1]; d_offd[i_offd[i] + 1] = T[3];
+         }
+      }
+
+      P = new HypreParMatrix(MyComm, gdof, gtdof, row_starts, col_starts,
+                             i_diag, j_diag, d_diag, i_offd, j_offd, d_offd,
+                             offd_col_counter, cmap);
+   }
 
    SparseMatrix Pdiag;
    P->GetDiag(Pdiag);
@@ -802,7 +1047,7 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
 HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
 {
    HypreParMatrix *P_pc;
-   Array<HYPRE_Int> P_pc_row_starts, P_pc_col_starts;
+   Array<HYPRE_BigInt> P_pc_row_starts, P_pc_col_starts;
    BuildParallelConformingInterpolation(&P_pc, NULL, P_pc_row_starts,
                                         P_pc_col_starts, NULL, true);
    P_pc->CopyRowStarts();
@@ -810,7 +1055,7 @@ HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
    return P_pc;
 }
 
-void ParFiniteElementSpace::DivideByGroupSize(double *vec)
+void ParFiniteElementSpace::DivideByGroupSize(real_t *vec)
 {
    GroupTopology &gt = GetGroupTopo();
    for (int i = 0; i < ldof_group.Size(); i++)
@@ -862,18 +1107,15 @@ void ParFiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
 {
    FiniteElementSpace::GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, component);
 
-   if (Conforming())
-   {
-      // Make sure that processors without boundary elements mark
-      // their boundary dofs (if they have any).
-      Synchronize(ess_dofs);
-   }
+   // Make sure that processors without boundary elements mark
+   // their boundary dofs (if they have any).
+   Synchronize(ess_dofs);
 }
 
 void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
                                                  &bdr_attr_is_ess,
                                                  Array<int> &ess_tdof_list,
-                                                 int component)
+                                                 int component) const
 {
    Array<int> ess_dofs, true_ess_dofs;
 
@@ -883,17 +1125,28 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
 #ifdef MFEM_DEBUG
    // Verify that in boolean arithmetic: P^T ess_dofs = R ess_dofs.
    Array<int> true_ess_dofs2(true_ess_dofs.Size());
-   HypreParMatrix *Pt = Dof_TrueDof_Matrix()->Transpose();
+   auto Pt = std::unique_ptr<HypreParMatrix>(Dof_TrueDof_Matrix()->Transpose());
+
    const int *ess_dofs_data = ess_dofs.HostRead();
    Pt->BooleanMult(1, ess_dofs_data, 0, true_ess_dofs2);
-   delete Pt;
    int counter = 0;
    const int *ted = true_ess_dofs.HostRead();
+   std::string error_msg = "failed dof: ";
    for (int i = 0; i < true_ess_dofs.Size(); i++)
    {
-      if (bool(ted[i]) != bool(true_ess_dofs2[i])) { counter++; }
+      if (bool(ted[i]) != bool(true_ess_dofs2[i]))
+      {
+         error_msg += std::to_string(i) += "(R ";
+         error_msg += std::to_string(bool(ted[i])) += " P^T ";
+         error_msg += std::to_string(bool(true_ess_dofs2[i])) += ") ";
+         ++counter;
+      }
    }
-   MFEM_VERIFY(counter == 0, "internal MFEM error: counter = " << counter);
+   MFEM_ASSERT(R->Height() == P->Width(), "!");
+   MFEM_ASSERT(R->Width() == P->Height(), "!");
+   MFEM_ASSERT(R->Width() == ess_dofs.Size(), "!");
+   MFEM_VERIFY(counter == 0, "internal MFEM error: counter = " << counter
+               << ", rank = " << MyRank << ", " << error_msg);
 #endif
 
    MarkerToList(true_ess_dofs, ess_tdof_list);
@@ -920,7 +1173,7 @@ int ParFiniteElementSpace::GetLocalTDofNumber(int ldof) const
    }
 }
 
-HYPRE_Int ParFiniteElementSpace::GetGlobalTDofNumber(int ldof) const
+HYPRE_BigInt ParFiniteElementSpace::GetGlobalTDofNumber(int ldof) const
 {
    if (Nonconforming())
    {
@@ -943,7 +1196,7 @@ HYPRE_Int ParFiniteElementSpace::GetGlobalTDofNumber(int ldof) const
    }
 }
 
-HYPRE_Int ParFiniteElementSpace::GetGlobalScalarTDofNumber(int sldof)
+HYPRE_BigInt ParFiniteElementSpace::GetGlobalScalarTDofNumber(int sldof)
 {
    if (Nonconforming())
    {
@@ -980,12 +1233,12 @@ HYPRE_Int ParFiniteElementSpace::GetGlobalScalarTDofNumber(int sldof)
    }
 }
 
-HYPRE_Int ParFiniteElementSpace::GetMyDofOffset() const
+HYPRE_BigInt ParFiniteElementSpace::GetMyDofOffset() const
 {
    return HYPRE_AssumedPartitionCheck() ? dof_offsets[0] : dof_offsets[MyRank];
 }
 
-HYPRE_Int ParFiniteElementSpace::GetMyTDofOffset() const
+HYPRE_BigInt ParFiniteElementSpace::GetMyTDofOffset() const
 {
    return HYPRE_AssumedPartitionCheck()? tdof_offsets[0] : tdof_offsets[MyRank];
 }
@@ -995,6 +1248,8 @@ const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
    if (Conforming())
    {
       if (Pconf) { return Pconf; }
+
+      if (nd_strias) { return Dof_TrueDof_Matrix(); }
 
       if (NRanks == 1)
       {
@@ -1027,35 +1282,29 @@ const Operator *ParFiniteElementSpace::GetRestrictionOperator() const
 
       if (NRanks == 1)
       {
-         R_transpose = new IdentityOperator(GetTrueVSize());
+         R_transpose.reset(new IdentityOperator(GetTrueVSize()));
       }
       else
       {
          if (!Device::Allows(Backend::DEVICE_MASK))
          {
-            R_transpose = new ConformingProlongationOperator(*this, true);
+            R_transpose.reset(new ConformingProlongationOperator(*this, true));
          }
          else
          {
-            R_transpose =
-               new DeviceConformingProlongationOperator(*this, true);
+            R_transpose.reset(
+               new DeviceConformingProlongationOperator(*this, true));
          }
       }
-      Rconf = new TransposeOperator(R_transpose);
+      Rconf = new TransposeOperator(*R_transpose);
       return Rconf;
    }
    else
    {
       Dof_TrueDof_Matrix();
-      R_transpose = new TransposeOperator(R);
+      if (!R_transpose) { R_transpose.reset(new TransposeOperator(R)); }
       return R;
    }
-}
-
-const Operator *ParFiniteElementSpace::GetRestrictionTransposeOperator() const
-{
-   GetRestrictionOperator();
-   return R_transpose;
 }
 
 void ParFiniteElementSpace::ExchangeFaceNbrData()
@@ -1179,12 +1428,12 @@ void ParFiniteElementSpace::ExchangeFaceNbrData()
    for (int fn = 0, j = 0; fn < num_face_nbrs; fn++)
    {
       int  num_ldofs = send_face_nbr_ldof.RowSize(fn);
-      int *ldofs     = send_face_nbr_ldof.GetRow(fn);
+      int *ldofs_fn  = send_face_nbr_ldof.GetRow(fn);
       int  j_end     = send_I[send_el_off[fn+1]];
 
       for (int i = 0; i < num_ldofs; i++)
       {
-         int ldof = (ldofs[i] >= 0 ? ldofs[i] : -1-ldofs[i]);
+         int ldof = (ldofs_fn[i] >= 0 ? ldofs_fn[i] : -1-ldofs_fn[i]);
          ldof_marker[ldof] = i;
       }
 
@@ -1261,17 +1510,17 @@ void ParFiniteElementSpace::ExchangeFaceNbrData()
    // send my_dof_offset (i.e. my_ldof_offset) to face neighbors and receive
    // their offset in dof_face_nbr_offsets, used to define face_nbr_glob_dof_map
    face_nbr_glob_dof_map.SetSize(num_face_nbr_dofs);
-   Array<HYPRE_Int> dof_face_nbr_offsets(num_face_nbrs);
-   HYPRE_Int my_dof_offset = GetMyDofOffset();
+   Array<HYPRE_BigInt> dof_face_nbr_offsets(num_face_nbrs);
+   HYPRE_BigInt my_dof_offset = GetMyDofOffset();
    for (int fn = 0; fn < num_face_nbrs; fn++)
    {
       int nbr_rank = pmesh->GetFaceNbrRank(fn);
       int tag = 0;
 
-      MPI_Isend(&my_dof_offset, 1, HYPRE_MPI_INT, nbr_rank, tag,
+      MPI_Isend(&my_dof_offset, 1, HYPRE_MPI_BIG_INT, nbr_rank, tag,
                 MyComm, &send_requests[fn]);
 
-      MPI_Irecv(&dof_face_nbr_offsets[fn], 1, HYPRE_MPI_INT, nbr_rank, tag,
+      MPI_Irecv(&dof_face_nbr_offsets[fn], 1, HYPRE_MPI_BIG_INT, nbr_rank, tag,
                 MyComm, &recv_requests[fn]);
    }
 
@@ -1300,9 +1549,27 @@ void ParFiniteElementSpace::ExchangeFaceNbrData()
 }
 
 void ParFiniteElementSpace::GetFaceNbrElementVDofs(
-   int i, Array<int> &vdofs) const
+   int i, Array<int> &vdofs, DofTransformation &doftrans) const
 {
    face_nbr_element_dof.GetRow(i, vdofs);
+
+   if (DoFTransArray[GetFaceNbrFE(i)->GetGeomType()])
+   {
+      Array<int> F, Fo;
+      pmesh->GetFaceNbrElementFaces(pmesh->GetNE() + i, F, Fo);
+      doftrans.SetDofTransformation(
+         *DoFTransArray[GetFaceNbrFE(i)->GetGeomType()]);
+      doftrans.SetFaceOrientations(Fo);
+      doftrans.SetVDim(vdim, ordering);
+   }
+}
+
+DofTransformation *ParFiniteElementSpace::GetFaceNbrElementVDofs(
+   int i, Array<int> &vdofs) const
+{
+   DoFTrans.SetDofTransformation(NULL);
+   GetFaceNbrElementVDofs(i, vdofs, DoFTrans);
+   return DoFTrans.GetDofTransformation() ? &DoFTrans : NULL;
 }
 
 void ParFiniteElementSpace::GetFaceNbrFaceVDofs(int i, Array<int> &vdofs) const
@@ -1355,18 +1622,23 @@ const FiniteElement *ParFiniteElementSpace::GetFaceNbrFaceFE(int i) const
    // Works in tandem with GetFaceNbrFaceVDofs() defined above.
 
    MFEM_ASSERT(Nonconforming() && !NURBSext, "");
-   Geometry::Type face_geom = pmesh->GetFaceGeometryType(i);
+   Geometry::Type face_geom = pmesh->GetFaceGeometry(i);
    return fec->FiniteElementForGeometry(face_geom);
 }
 
 void ParFiniteElementSpace::Lose_Dof_TrueDof_Matrix()
 {
+   P -> StealData();
+#if MFEM_HYPRE_VERSION <= 22200
    hypre_ParCSRMatrix *csrP = (hypre_ParCSRMatrix*)(*P);
    hypre_ParCSRMatrixOwnsRowStarts(csrP) = 1;
    hypre_ParCSRMatrixOwnsColStarts(csrP) = 1;
-   P -> StealData();
    dof_offsets.LoseData();
    tdof_offsets.LoseData();
+#else
+   dof_offsets.DeleteAll();
+   tdof_offsets.DeleteAll();
+#endif
 }
 
 void ParFiniteElementSpace::ConstructTrueDofs()
@@ -1827,9 +2099,13 @@ int ParFiniteElementSpace::PackDof(int entity, int index, int edof) const
 static int bisect(const int* array, int size, int value)
 {
    const int* end = array + size;
-   const int* pos = std::lower_bound(array, end, value);
-   MFEM_VERIFY(pos != end, "value not found");
-   return pos - array;
+   const int* pos = std::upper_bound(array, end, value);
+   MFEM_VERIFY(pos != array, "value not found");
+   if (pos == end)
+   {
+      MFEM_VERIFY(*(array+size - 1) == value, "Last entry must be exact")
+   }
+   return pos - array - 1;
 }
 
 /** Dissect a DOF number to obtain the entity type (0=vertex, 1=edge, 2=face),
@@ -1865,7 +2141,8 @@ void ParFiniteElementSpace::UnpackDof(int dof,
          else // mixed faces or var-order space
          {
             const Table &table = var_face_dofs;
-            MFEM_ASSERT(table.Size(), "");
+
+            MFEM_ASSERT(table.Size() > 0, "");
             int jpos = bisect(table.GetJ(), table.Size_of_connections(), dof);
             index = bisect(table.GetI(), table.Size(), jpos);
             edof = dof - table.GetRow(index)[0];
@@ -1909,10 +2186,11 @@ void ParFiniteElementSpace::UnpackDof(int dof,
  */
 struct PMatrixElement
 {
-   HYPRE_Int column, stride;
-   double value;
+   HYPRE_BigInt column;
+   int stride;
+   real_t value;
 
-   PMatrixElement(HYPRE_Int col = 0, HYPRE_Int str = 0, double val = 0)
+   PMatrixElement(HYPRE_BigInt col = 0, int str = 0, real_t val = 0)
       : column(col), stride(str), value(val) {}
 
    bool operator<(const PMatrixElement &other) const
@@ -1929,14 +2207,12 @@ struct PMatrixRow
    PMatrixElement::List elems;
 
    /// Add other row, times 'coef'.
-   void AddRow(const PMatrixRow &other, double coef)
+   void AddRow(const PMatrixRow &other, real_t coef)
    {
       elems.reserve(elems.size() + other.elems.size());
-      for (unsigned i = 0; i < other.elems.size(); i++)
+      for (const PMatrixElement &oei : other.elems)
       {
-         const PMatrixElement &oei = other.elems[i];
-         elems.push_back(
-            PMatrixElement(oei.column, oei.stride, coef * oei.value));
+         elems.emplace_back(oei.column, oei.stride, coef * oei.value);
       }
    }
 
@@ -1961,27 +2237,27 @@ struct PMatrixRow
       elems.resize(j+1);
    }
 
-   void write(std::ostream &os, double sign) const
+   void write(std::ostream &os, real_t sign) const
    {
       bin_io::write<int>(os, elems.size());
       for (unsigned i = 0; i < elems.size(); i++)
       {
          const PMatrixElement &e = elems[i];
-         bin_io::write<HYPRE_Int>(os, e.column);
-         bin_io::write<int>(os, e.stride); // truncate HYPRE_Int -> int
-         bin_io::write<double>(os, e.value * sign);
+         bin_io::write<HYPRE_BigInt>(os, e.column);
+         bin_io::write<int>(os, e.stride);
+         bin_io::write<real_t>(os, e.value * sign);
       }
    }
 
-   void read(std::istream &is, double sign)
+   void read(std::istream &is, real_t sign)
    {
       elems.resize(bin_io::read<int>(is));
       for (unsigned i = 0; i < elems.size(); i++)
       {
          PMatrixElement &e = elems[i];
-         e.column = bin_io::read<HYPRE_Int>(is);
+         e.column = bin_io::read<HYPRE_BigInt>(is);
          e.stride = bin_io::read<int>(is);
-         e.value = bin_io::read<double>(is) * sign;
+         e.value = bin_io::read<real_t>(is) * sign;
       }
    }
 };
@@ -1994,7 +2270,6 @@ class NeighborRowMessage : public VarMessage<314>
 public:
    typedef NCMesh::MeshId MeshId;
    typedef ParNCMesh::GroupId GroupId;
-
    struct RowInfo
    {
       int entity, index, edof;
@@ -2006,8 +2281,6 @@ public:
 
       RowInfo(int ent, int idx, int edof, GroupId grp)
          : entity(ent), index(idx), edof(edof), group(grp) {}
-
-      typedef std::vector<RowInfo> List;
    };
 
    NeighborRowMessage() : pncmesh(NULL) {}
@@ -2015,26 +2288,27 @@ public:
    void AddRow(int entity, int index, int edof, GroupId group,
                const PMatrixRow &row)
    {
-      rows.push_back(RowInfo(entity, index, edof, group, row));
+      rows.emplace_back(entity, index, edof, group, row);
    }
 
-   const RowInfo::List& GetRows() const { return rows; }
+   const std::vector<RowInfo>& GetRows() const { return rows; }
 
    void SetNCMesh(ParNCMesh* pnc) { pncmesh = pnc; }
-   void SetFEC(const FiniteElementCollection* fec) { this->fec = fec; }
+   void SetFEC(const FiniteElementCollection* fec_) { this->fec = fec_; }
 
    typedef std::map<int, NeighborRowMessage> Map;
 
 protected:
-   RowInfo::List rows;
+   std::vector<RowInfo> rows;
 
    ParNCMesh *pncmesh;
    const FiniteElementCollection* fec;
 
-   virtual void Encode(int rank);
-   virtual void Decode(int);
+   /// Encode a NeighborRowMessage for sending via MPI.
+   void Encode(int rank) override;
+   /// Decode a NeighborRowMessage received via MPI.
+   void Decode(int rank) override;
 };
-
 
 void NeighborRowMessage::Encode(int rank)
 {
@@ -2048,7 +2322,7 @@ void NeighborRowMessage::Encode(int rank)
    for (unsigned i = 0; i < rows.size(); i++)
    {
       const RowInfo &ri = rows[i];
-      const MeshId &id = pncmesh->GetNCList(ri.entity).LookUp(ri.index);
+      const MeshId &id = *pncmesh->GetNCList(ri.entity).GetMeshIdAndType(ri.index).id;
       ent_ids[ri.entity].Append(id);
       row_idx[ri.entity].Append(i);
       group_ids[ri.entity].Append(ri.group);
@@ -2084,7 +2358,7 @@ void NeighborRowMessage::Encode(int rank)
 
          // handle orientation and sign change
          int edof = ri.edof;
-         double s = 1.0;
+         real_t s = 1.0;
          if (ent == 1)
          {
             int eo = pncmesh->GetEdgeNCOrientation(id);
@@ -2122,37 +2396,61 @@ void NeighborRowMessage::Decode(int rank)
    rows.clear();
    rows.reserve(nrows);
 
-   // read rows
+   // read rows ent = {0,1,2} means vertex, edge and face entity
    for (int ent = 0, gi = 0; ent < 3; ent++)
    {
+      // extract the vertex list, edge list or face list.
       const Array<MeshId> &ids = ent_ids[ent];
       for (int i = 0; i < ids.Size(); i++)
       {
          const MeshId &id = ids[i];
+         // read the particular element dof value off the stream.
          int edof = bin_io::read<int>(stream);
 
-         // handle orientation and sign change
-         const int *ind = NULL;
+         // Handle orientation and sign change. This flips the sign on dofs
+         // where necessary, and for edges and faces also reorders if flipped,
+         // i.e. an edge with 1 -> 2 -> 3 -> 4 might become -4 -> -3 -> -2 -> -1
+         // This cannot treat all face dofs, as they can have rotations and
+         // reflections.
+         const int *ind = nullptr;
+         Geometry::Type geom = Geometry::Type::INVALID;
          if (ent == 1)
          {
+            // edge NC orientation is element defined.
             int eo = pncmesh->GetEdgeNCOrientation(id);
             ind = fec->DofOrderForOrientation(Geometry::SEGMENT, eo);
          }
          else if (ent == 2)
          {
-            Geometry::Type geom = pncmesh->GetFaceGeometry(id.index);
+            geom = pncmesh->GetFaceGeometry(id.index);
             int fo = pncmesh->GetFaceOrientation(id.index);
             ind = fec->DofOrderForOrientation(geom, fo);
          }
+         // Tri faces with second order basis have dofs that must be processed
+         // in pairs, as the doftransformation is not diagonal.
+         const bool process_dof_pairs = (ent == 2 &&
+                                         fec->GetContType() == FiniteElementCollection::TANGENTIAL
+                                         && !Geometry::IsTensorProduct(geom));
 
-         double s = 1.0;
+#ifdef MFEM_DEBUG_PMATRIX
+         mfem::out << "Rank " << pncmesh->MyRank << " receiving from " << rank
+                   << ": ent " << ent << ", index " << id.index
+                   << ", edof " << edof << " (id " << id.element << "/"
+                   << int(id.local) << ")" << std::endl;
+#endif
+
+         // If edof arrived with a negative index, flip it, and the scaling.
+         real_t s = (edof < 0) ? -1.0 : 1.0;
+         edof = (edof < 0) ? -1 - edof : edof;
          if (ind && (edof = ind[edof]) < 0)
          {
             edof = -1 - edof;
-            s = -1.0;
+            s *= -1.0;
          }
 
-         rows.push_back(RowInfo(ent, id.index, edof, group_ids[gi++]));
+         // Create a row for this entity, recording the index of the mesh
+         // element
+         rows.emplace_back(ent, id.index, edof, group_ids[gi++]);
          rows.back().row.read(stream, s);
 
 #ifdef MFEM_DEBUG_PMATRIX
@@ -2161,6 +2459,81 @@ void NeighborRowMessage::Decode(int rank)
                    << rows.back().index << ", edof " << rows.back().edof
                    << std::endl;
 #endif
+
+         if (process_dof_pairs)
+         {
+            // ND face dofs need to be processed together, as the transformation
+            // is given by a 2x2 matrix, so we manually apply an extra increment
+            // to the loop counter and add in a new row. Once these rows are
+            // placed, they represent the Identity transformation. To map across
+            // the processor boundary, we also need to apply a Primal
+            // Transformation (see doftrans.hpp) to a notional "global dof"
+            // orientation. For simplicity we perform the action of these 2x2
+            // matrices manually using the AddRow capability, followed by a
+            // Collapse.
+
+            // To perform the operations, we add and subtract initial versions
+            // of the rows, that represent [1 0; 0 1] in row major notation. The
+            // first row represents the 1 at (0,0) in [1 0; 0 1] The second row
+            // represents the 1 at (1,1) in [1 0; 0 1]
+
+            // We can safely bind this reference as rows was reserved above so
+            // there is no hidden copying that could result in a dangling
+            // reference.
+            auto &first_row = rows.back().row;
+            // This is the first "fundamental unit" used in the transformation.
+            const auto initial_first_row = first_row;
+            // Extract the next dof too, and apply any dof order transformation
+            // expected.
+            const MeshId &next_id = ids[++i];
+            const int fo = pncmesh->GetFaceOrientation(next_id.index);
+            ind = fec->DofOrderForOrientation(geom, fo);
+            edof = bin_io::read<int>(stream);
+
+            // If edof arrived with a negative index, flip it, and the scaling.
+            s = (edof < 0) ? -1.0 : 1.0;
+            edof = (edof < 0) ? -1 - edof : edof;
+            if (ind && (edof = ind[edof]) < 0)
+            {
+               edof = -1 - edof;
+               s *= -1.0;
+            }
+
+            rows.emplace_back(ent, next_id.index, edof, group_ids[gi++]);
+            rows.back().row.read(stream, s);
+            auto &second_row = rows.back().row;
+
+            // This is the second "fundamental unit" used in the transformation.
+            const auto initial_second_row = second_row;
+
+            // Transform the received dofs by the primal transform. This is
+            // because within mfem as a face is visited its orientation is
+            // assigned to match the element that visited it first. Thus on
+            // processor boundaries, the transform will always be identity going
+            // into the element. However, the sending processor also thought the
+            // face orientation was zero, so it has sent the information in a
+            // different orientation. To map onto the local orientation
+            // definition, extract the orientation of the sending rank (the
+            // lower rank face defines the orientation fo), then apply the
+            // transform to the dependencies. The action of this transform on
+            // the dependencies is performed by adding scaled versions of the
+            // original two rows (which by the mfem assumption of face
+            // orientation, represent the identity transform).
+            const real_t *T =
+               ND_DofTransformation::GetFaceTransform(fo).GetData();
+
+            MFEM_ASSERT(fo != 2 &&
+                        fo != 4, "This code branch is ambiguous for face orientations 2 and 4."
+                        " Please report this mesh for further testing.\n");
+
+            first_row.AddRow(initial_first_row, T[0] - 1.0);   // (0,0)
+            first_row.AddRow(initial_second_row, T[2]);        // (0,1)
+            second_row.AddRow(initial_first_row, T[1]);        // (1,0)
+            second_row.AddRow(initial_second_row, T[3] - 1.0); // (1,1)
+
+            first_row.Collapse();
+            second_row.Collapse();
+         }
       }
    }
 }
@@ -2173,10 +2546,8 @@ ParFiniteElementSpace::ScheduleSendRow(const PMatrixRow &row, int dof,
    int ent, idx, edof;
    UnpackDof(dof, ent, idx, edof);
 
-   const ParNCMesh::CommGroup &group = pncmesh->GetGroup(group_id);
-   for (unsigned i = 0; i < group.size(); i++)
+   for (const auto &rank : pncmesh->GetGroup(group_id))
    {
-      int rank = group[i];
       if (rank != MyRank)
       {
          NeighborRowMessage &msg = send_msg[rank];
@@ -2284,13 +2655,13 @@ void ParFiniteElementSpace
 #endif
 
 int ParFiniteElementSpace
-::BuildParallelConformingInterpolation(HypreParMatrix **P, SparseMatrix **R,
-                                       Array<HYPRE_Int> &dof_offs,
-                                       Array<HYPRE_Int> &tdof_offs,
+::BuildParallelConformingInterpolation(HypreParMatrix **P_, SparseMatrix **R_,
+                                       Array<HYPRE_BigInt> &dof_offs,
+                                       Array<HYPRE_BigInt> &tdof_offs,
                                        Array<int> *dof_tdof,
                                        bool partial) const
 {
-   bool dg = (nvdofs == 0 && nedofs == 0 && nfdofs == 0 && npdofs == 0);
+   const bool dg = (nvdofs == 0 && nedofs == 0 && nfdofs == 0 && npdofs == 0);
 
 #ifdef MFEM_PMATRIX_STATS
    n_msgs_sent = n_msgs_recv = 0;
@@ -2299,7 +2670,7 @@ int ParFiniteElementSpace
 
    // *** STEP 1: build master-slave dependency lists ***
 
-   int total_dofs = ndofs + ngdofs;
+   const int total_dofs = ndofs + ngdofs;
    SparseMatrix deps(ndofs, total_dofs);
 
    if (!dg && !partial)
@@ -2310,16 +2681,14 @@ int ParFiniteElementSpace
       for (int entity = 0; entity <= 2; entity++)
       {
          const NCMesh::NCList &list = pncmesh->GetNCList(entity);
-         if (!list.masters.Size()) { continue; }
+         if (list.masters.Size() == 0) { continue; }
 
          IsoparametricTransformation T;
          DenseMatrix I;
 
          // process masters that we own or that affect our edges/faces
-         for (int mi = 0; mi < list.masters.Size(); mi++)
+         for (const auto &mf : list.masters)
          {
-            const NCMesh::Master &mf = list.masters[mi];
-
             // get master DOFs
             if (pncmesh->IsGhost(entity, mf.index))
             {
@@ -2330,13 +2699,10 @@ int ParFiniteElementSpace
                GetEntityDofs(entity, mf.index, master_dofs, mf.Geom());
             }
 
-            if (!master_dofs.Size()) { continue; }
-            //            mfem::out << mf.slaves_end - mf.slaves_begin << "--------------------\n";
-            //            master_dofs.Print(mfem::out,master_dofs.Size());
-            //            mfem::out << "....................\n";
+            if (master_dofs.Size() == 0) { continue; }
 
-            const FiniteElement* fe = fec->FiniteElementForGeometry(mf.Geom());
-            if (!fe) { continue; }
+            const FiniteElement * const fe = fec->FiniteElementForGeometry(mf.Geom());
+            if (fe == nullptr) { continue; }
 
             switch (mf.Geom())
             {
@@ -2352,7 +2718,7 @@ int ParFiniteElementSpace
                const NCMesh::Slave &sf = list.slaves[si];
                if (pncmesh->IsGhost(entity, sf.index)) { continue; }
 
-               const int variant = 0; // TODO parallel var-order
+               constexpr int variant = 0; // TODO parallel var-order
                GetEntityDofs(entity, sf.index, slave_dofs, mf.Geom(), variant);
                if (!slave_dofs.Size()) { continue; }
 
@@ -2364,7 +2730,6 @@ int ParFiniteElementSpace
             }
          }
       }
-
       deps.Finalize();
    }
 
@@ -2379,44 +2744,45 @@ int ParFiniteElementSpace
    {
       Array<int> dofs;
 
-      // initialize dof_group[], dof_owner[]
-      for (int entity = 0; entity <= 2; entity++)
+      auto initialize_group_and_owner = [&dof_group, &dof_owner, &dofs,
+                                                     this](int entity, const MeshId &id)
       {
-         const NCMesh::NCList &list = pncmesh->GetNCList(entity);
+         if (id.index < 0) { return; }
 
-         int lsize[3] =
-         { list.conforming.Size(), list.masters.Size(), list.slaves.Size() };
+         GroupId owner = pncmesh->GetEntityOwnerId(entity, id.index);
+         GroupId group = pncmesh->GetEntityGroupId(entity, id.index);
 
-         for (int l = 0; l < 3; l++)
+         if (pmesh->Dimension() <= 3)
          {
-            for (int i = 0; i < lsize[l]; i++)
-            {
-               const MeshId &id =
-                  (l == 0) ? list.conforming[i] :
-                  (l == 1) ? (const MeshId&) list.masters[i]
-                  /*    */ : (const MeshId&) list.slaves[i];
+            GetBareDofs(entity, id.index, dofs);
+         }
+         else
+         {
+            GetBareDofs4D(entity, id.index, dofs);
+         }
 
-               if (id.index < 0) { continue; }
+         for (auto dof : dofs)
+         {
+            dof_owner[dof] = owner;
+            dof_group[dof] = group;
+         }
+      };
 
-               GroupId owner = pncmesh->GetEntityOwnerId(entity, id.index);
-               GroupId group = pncmesh->GetEntityGroupId(entity, id.index);
 
-               if (pmesh->Dimension() <= 3)
-               {
-                  GetBareDofs(entity, id.index, dofs);
-               }
-               else
-               {
-                  GetBareDofs4D(entity, id.index, dofs);
-               }
-
-               for (int j = 0; j < dofs.Size(); j++)
-               {
-                  int dof = dofs[j];
-                  dof_owner[dof] = owner;
-                  dof_group[dof] = group;
-               }
-            }
+      // initialize dof_group[], dof_owner[] in sequence
+      for (int entity : {0,1,2})
+      {
+         for (const auto &id : pncmesh->GetNCList(entity).conforming)
+         {
+            initialize_group_and_owner(entity, id);
+         }
+         for (const auto &id : pncmesh->GetNCList(entity).masters)
+         {
+            initialize_group_and_owner(entity, id);
+         }
+         for (const auto &id : pncmesh->GetNCList(entity).slaves)
+         {
+            initialize_group_and_owner(entity, id);
          }
       }
    }
@@ -2428,27 +2794,62 @@ int ParFiniteElementSpace
 
    // DOFs that stayed independent and are ours are true DOFs
    int num_true_dofs = 0;
-   for (int i = 0; i < ndofs; i++)
+   for (int i = 0; i < ndofs; ++i)
    {
       if (dof_owner[i] == 0 && deps.RowSize(i) == 0)
       {
-         num_true_dofs++;
+         ++num_true_dofs;
          finalized[i] = true;
       }
    }
 
+#ifdef MFEM_DEBUG_PMATRIX
+   // Helper for dumping diagnostics on one dof
+   auto dof_diagnostics = [&](int dof, bool print_diagnostic)
+   {
+      const auto &comm_group = pncmesh->GetGroup(dof_group[dof]);
+      std::stringstream msg;
+      msg << std::boolalpha;
+      msg << "R" << Mpi::WorldRank() << " dof " << dof
+          << " owner_rank " << pncmesh->GetGroup(dof_owner[dof])[0] << " CommGroup {";
+      for (const auto &x : comm_group)
+      {
+         msg << x << ' ';
+      }
+      msg << "} finalized " << finalized[dof];
+
+      Array<int> cols;
+      if (dof < ndofs)
+      {
+         Vector row;
+         deps.GetRow(dof, cols, row);
+         msg << " deps cols {";
+         for (const auto &x : cols)
+         {
+            msg << x << ' ';
+         }
+         msg << '}';
+      }
+
+      int entity, index, edof;
+      UnpackDof(dof, entity, index, edof);
+      msg << " entity " << entity << " index " << index << " edof " << edof;
+      return msg.str();
+   };
+#endif
+
    // calculate global offsets
-   HYPRE_Int loc_sizes[2] = { ndofs*vdim, num_true_dofs*vdim };
-   Array<HYPRE_Int>* offsets[2] = { &dof_offs, &tdof_offs };
+   HYPRE_BigInt loc_sizes[2] = { ndofs*vdim, num_true_dofs*vdim };
+   Array<HYPRE_BigInt>* offsets[2] = { &dof_offs, &tdof_offs };
    pmesh->GenerateOffsets(2, loc_sizes, offsets); // calls MPI_Scan, MPI_Bcast
 
-   HYPRE_Int my_tdof_offset =
+   HYPRE_BigInt my_tdof_offset =
       tdof_offs[HYPRE_AssumedPartitionCheck() ? 0 : MyRank];
 
-   if (R)
+   if (R_)
    {
       // initialize the restriction matrix (also parallel but block-diagonal)
-      *R = new SparseMatrix(num_true_dofs*vdim, ndofs*vdim);
+      *R_ = new SparseMatrix(num_true_dofs*vdim, ndofs*vdim);
    }
    if (dof_tdof)
    {
@@ -2458,22 +2859,22 @@ int ParFiniteElementSpace
 
    std::vector<PMatrixRow> pmatrix(total_dofs);
 
-   bool bynodes = (ordering == Ordering::byNODES);
-   int vdim_factor = bynodes ? 1 : vdim;
-   int dof_stride = bynodes ? ndofs : 1;
-   int tdof_stride = bynodes ? num_true_dofs : 1;
+   const bool bynodes = (ordering == Ordering::byNODES);
+   const int vdim_factor = bynodes ? 1 : vdim;
+   const int dof_stride = bynodes ? ndofs : 1;
+   const int tdof_stride = bynodes ? num_true_dofs : 1;
 
    // big container for all messages we send (the list is for iterations)
    std::list<NeighborRowMessage::Map> send_msg;
-   send_msg.push_back(NeighborRowMessage::Map());
+   send_msg.emplace_back();
 
    // put identity in P and R for true DOFs, set ldof_ltdof
    for (int dof = 0, tdof = 0; dof < ndofs; dof++)
    {
       if (finalized[dof])
       {
-         pmatrix[dof].elems.push_back(
-            PMatrixElement(my_tdof_offset + vdim_factor*tdof, tdof_stride, 1.));
+         pmatrix[dof].elems.emplace_back(
+            my_tdof_offset + vdim_factor*tdof, tdof_stride, 1.);
 
          // prepare messages to neighbors with identity rows
          if (dof_group[dof] != 0)
@@ -2483,13 +2884,13 @@ int ParFiniteElementSpace
 
          for (int vd = 0; vd < vdim; vd++)
          {
-            int vdof = dof*vdim_factor + vd*dof_stride;
-            int vtdof = tdof*vdim_factor + vd*tdof_stride;
+            const int vdof = dof*vdim_factor + vd*dof_stride;
+            const int vtdof = tdof*vdim_factor + vd*tdof_stride;
 
-            if (R) { (*R)->Add(vtdof, vdof, 1.0); }
+            if (R_) { (*R_)->Add(vtdof, vdof, 1.0); }
             if (dof_tdof) { (*dof_tdof)[vdof] = vtdof; }
          }
-         tdof++;
+         ++tdof;
       }
    }
 
@@ -2499,7 +2900,7 @@ int ParFiniteElementSpace
    n_msgs_sent += send_msg.back().size();
 #endif
 
-   if (R) { (*R)->Finalize(); }
+   if (R_) { (*R_)->Finalize(); }
 
    // *** STEP 4: main loop ***
 
@@ -2517,7 +2918,7 @@ int ParFiniteElementSpace
       // prepare a new round of send buffers
       if (send_msg.back().size())
       {
-         send_msg.push_back(NeighborRowMessage::Map());
+         send_msg.emplace_back();
       }
 
       // check for incoming messages, receive PMatrixRows
@@ -2530,14 +2931,12 @@ int ParFiniteElementSpace
          n_rows_recv += recv_msg.GetRows().size();
 #endif
 
-         const NeighborRowMessage::RowInfo::List &rows = recv_msg.GetRows();
-         for (unsigned i = 0; i < rows.size(); i++)
+         for (const auto &ri : recv_msg.GetRows())
          {
-            const NeighborRowMessage::RowInfo &ri = rows[i];
-            int dof = PackDof(ri.entity, ri.index, ri.edof);
+            const int dof = PackDof(ri.entity, ri.index, ri.edof);
             pmatrix[dof] = ri.row;
 
-            if (dof < ndofs && !finalized[dof]) { num_finalized++; }
+            if (dof < ndofs && !finalized[dof]) { ++num_finalized; }
             finalized[dof] = true;
 
             if (ri.group >= 0 && dof_group[dof] != ri.group)
@@ -2555,15 +2954,16 @@ int ParFiniteElementSpace
          done = true;
          for (int dof = 0; dof < ndofs; dof++)
          {
-            if (finalized[dof]) { continue; }
-
-            bool owned = (dof_owner[dof] == 0);
-            bool shared = (dof_group[dof] != 0);
-
-            if (owned && DofFinalizable(dof, finalized, deps))
+            const bool owned = (dof_owner[dof] == 0);
+            if (!finalized[dof]
+                && owned
+                && DofFinalizable(dof, finalized, deps))
             {
+               int ent, idx, edof;
+               UnpackDof(dof, ent, idx, edof);
+
                const int* dep_col = deps.GetRowColumns(dof);
-               const double* dep_coef = deps.GetRowEntries(dof);
+               const real_t* dep_coef = deps.GetRowEntries(dof);
                int num_dep = deps.RowSize(dof);
 
                // form linear combination of rows
@@ -2576,10 +2976,11 @@ int ParFiniteElementSpace
                pmatrix[dof] = buffer;
 
                finalized[dof] = true;
-               num_finalized++;
+               ++num_finalized;
                done = false;
 
                // send row to neighbors who need it
+               const bool shared = (dof_group[dof] != 0);
                if (shared)
                {
                   ScheduleSendRow(pmatrix[dof], dof, dof_group[dof],
@@ -2590,15 +2991,15 @@ int ParFiniteElementSpace
       }
 
 #ifdef MFEM_DEBUG_PMATRIX
-      /*static int dump = 0;
+      static int dump = 0;
       if (dump < 10)
       {
          char fname[100];
-         sprintf(fname, "dofs%02d.txt", MyRank);
+         snprintf(fname, 100, "dofs%02d.txt", MyRank);
          std::ofstream f(fname);
          DebugDumpDOFs(f, deps, dof_group, dof_owner, finalized);
          dump++;
-      }*/
+      }
 #endif
 
       // send current batch of messages
@@ -2608,10 +3009,10 @@ int ParFiniteElementSpace
 #endif
    }
 
-   if (P)
+   if (P_)
    {
-      *P = MakeVDimHypreMatrix(pmatrix, ndofs, num_true_dofs,
-                               dof_offs, tdof_offs);
+      *P_ = MakeVDimHypreMatrix(pmatrix, ndofs, num_true_dofs,
+                                dof_offs, tdof_offs);
    }
 
    // clean up possible remaining messages in the queue to avoid receiving
@@ -2623,10 +3024,9 @@ int ParFiniteElementSpace
    }
 
    // make sure we can discard all send buffers
-   for (std::list<NeighborRowMessage::Map>::iterator
-        it = send_msg.begin(); it != send_msg.end(); ++it)
+   for (auto &msg : send_msg)
    {
-      NeighborRowMessage::WaitAllSent(*it);
+      NeighborRowMessage::WaitAllSent(msg);
    }
 
 #ifdef MFEM_PMATRIX_STATS
@@ -2644,12 +3044,12 @@ int ParFiniteElementSpace
    if (MyRank == 0)
    {
       mfem::out << "P matrix stats (avg per rank): "
-                << double(glob_rounds)/NRanks << " rounds, "
-                << double(glob_msgs_sent)/NRanks << " msgs sent, "
-                << double(glob_msgs_recv)/NRanks << " msgs recv, "
-                << double(glob_rows_sent)/NRanks << " rows sent, "
-                << double(glob_rows_recv)/NRanks << " rows recv, "
-                << double(glob_rows_fwd)/NRanks << " rows forwarded."
+                << real_t(glob_rounds)/NRanks << " rounds, "
+                << real_t(glob_msgs_sent)/NRanks << " msgs sent, "
+                << real_t(glob_msgs_recv)/NRanks << " msgs recv, "
+                << real_t(glob_rows_sent)/NRanks << " rows sent, "
+                << real_t(glob_rows_recv)/NRanks << " rows recv, "
+                << real_t(glob_rows_fwd)/NRanks << " rows forwarded."
                 << std::endl;
    }
 #endif
@@ -2661,24 +3061,24 @@ int ParFiniteElementSpace
 HypreParMatrix* ParFiniteElementSpace
 ::MakeVDimHypreMatrix(const std::vector<PMatrixRow> &rows,
                       int local_rows, int local_cols,
-                      Array<HYPRE_Int> &row_starts,
-                      Array<HYPRE_Int> &col_starts) const
+                      Array<HYPRE_BigInt> &row_starts,
+                      Array<HYPRE_BigInt> &col_starts) const
 {
    bool assumed = HYPRE_AssumedPartitionCheck();
    bool bynodes = (ordering == Ordering::byNODES);
 
-   HYPRE_Int first_col = col_starts[assumed ? 0 : MyRank];
-   HYPRE_Int next_col = col_starts[assumed ? 1 : MyRank+1];
+   HYPRE_BigInt first_col = col_starts[assumed ? 0 : MyRank];
+   HYPRE_BigInt next_col = col_starts[assumed ? 1 : MyRank+1];
 
    // count nonzeros in diagonal/offdiagonal parts
    HYPRE_Int nnz_diag = 0, nnz_offd = 0;
-   std::map<HYPRE_Int, int> col_map;
+   std::map<HYPRE_BigInt, int> col_map;
    for (int i = 0; i < local_rows; i++)
    {
       for (unsigned j = 0; j < rows[i].elems.size(); j++)
       {
          const PMatrixElement &elem = rows[i].elems[j];
-         HYPRE_Int col = elem.column;
+         HYPRE_BigInt col = elem.column;
          if (col >= first_col && col < next_col)
          {
             nnz_diag += vdim;
@@ -2696,10 +3096,9 @@ HypreParMatrix* ParFiniteElementSpace
    }
 
    // create offd column mapping
-   HYPRE_Int *cmap = Memory<HYPRE_Int>(col_map.size());
+   HYPRE_BigInt *cmap = Memory<HYPRE_BigInt>(col_map.size());
    int offd_col = 0;
-   for (std::map<HYPRE_Int, int>::iterator
-        it = col_map.begin(); it != col_map.end(); ++it)
+   for (auto it = col_map.begin(); it != col_map.end(); ++it)
    {
       cmap[offd_col] = it->first;
       it->second = offd_col++;
@@ -2711,8 +3110,8 @@ HypreParMatrix* ParFiniteElementSpace
    HYPRE_Int *J_diag = Memory<HYPRE_Int>(nnz_diag);
    HYPRE_Int *J_offd = Memory<HYPRE_Int>(nnz_offd);
 
-   double *A_diag = Memory<double>(nnz_diag);
-   double *A_offd = Memory<double>(nnz_offd);
+   real_t *A_diag = Memory<real_t>(nnz_diag);
+   real_t *A_offd = Memory<real_t>(nnz_offd);
 
    int vdim1 = bynodes ? vdim : 1;
    int vdim2 = bynodes ? 1 : vdim;
@@ -2760,27 +3159,28 @@ HypreParMatrix* ParFiniteElementSpace
                              col_map.size(), cmap);
 }
 
-
-static HYPRE_Int* make_i_array(int nrows)
+template <typename int_type>
+static int_type* make_i_array(int nrows)
 {
-   HYPRE_Int *I = Memory<HYPRE_Int>(nrows+1);
+   int_type *I = Memory<int_type>(nrows+1);
    for (int i = 0; i <= nrows; i++) { I[i] = -1; }
    return I;
 }
 
-static HYPRE_Int* make_j_array(HYPRE_Int* I, int nrows)
+template <typename int_type>
+static int_type* make_j_array(int_type* I, int nrows)
 {
    int nnz = 0;
    for (int i = 0; i < nrows; i++)
    {
       if (I[i] >= 0) { nnz++; }
    }
-   HYPRE_Int *J = Memory<HYPRE_Int>(nnz);
+   int_type *J = Memory<int_type>(nnz);
 
    I[nrows] = -1;
    for (int i = 0, k = 0; i <= nrows; i++)
    {
-      HYPRE_Int col = I[i];
+      int_type col = I[i];
       I[i] = k;
       if (col >= 0) { J[k++] = col; }
    }
@@ -2789,29 +3189,30 @@ static HYPRE_Int* make_j_array(HYPRE_Int* I, int nrows)
 
 HypreParMatrix*
 ParFiniteElementSpace::RebalanceMatrix(int old_ndofs,
-                                       const Table* old_elem_dof)
+                                       const Table* old_elem_dof,
+                                       const Table* old_elem_fos)
 {
    MFEM_VERIFY(Nonconforming(), "Only supported for nonconforming meshes.");
    MFEM_VERIFY(old_dof_offsets.Size(), "ParFiniteElementSpace::Update needs to "
                "be called before ParFiniteElementSpace::RebalanceMatrix");
 
-   HYPRE_Int old_offset = HYPRE_AssumedPartitionCheck()
-                          ? old_dof_offsets[0] : old_dof_offsets[MyRank];
+   HYPRE_BigInt old_offset = HYPRE_AssumedPartitionCheck()
+                             ? old_dof_offsets[0] : old_dof_offsets[MyRank];
 
    // send old DOFs of elements we used to own
-   ParNCMesh* pncmesh = pmesh->pncmesh;
-   pncmesh->SendRebalanceDofs(old_ndofs, *old_elem_dof, old_offset, this);
+   ParNCMesh* old_pncmesh = pmesh->pncmesh;
+   old_pncmesh->SendRebalanceDofs(old_ndofs, *old_elem_dof, old_offset, this);
 
    Array<int> dofs;
    int vsize = GetVSize();
 
-   const Array<int> &old_index = pncmesh->GetRebalanceOldIndex();
+   const Array<int> &old_index = old_pncmesh->GetRebalanceOldIndex();
    MFEM_VERIFY(old_index.Size() == pmesh->GetNE(),
                "Mesh::Rebalance was not called before "
                "ParFiniteElementSpace::RebalanceMatrix");
 
    // prepare the local (diagonal) part of the matrix
-   HYPRE_Int* i_diag = make_i_array(vsize);
+   HYPRE_Int* i_diag = make_i_array<HYPRE_Int>(vsize);
    for (int i = 0; i < pmesh->GetNE(); i++)
    {
       if (old_index[i] >= 0) // we had this element before
@@ -2839,10 +3240,10 @@ ParFiniteElementSpace::RebalanceMatrix(int old_ndofs,
    // receive old DOFs for elements we obtained from others in Rebalance
    Array<int> new_elements;
    Array<long> old_remote_dofs;
-   pncmesh->RecvRebalanceDofs(new_elements, old_remote_dofs);
+   old_pncmesh->RecvRebalanceDofs(new_elements, old_remote_dofs);
 
    // create the offdiagonal part of the matrix
-   HYPRE_Int* i_offd = make_i_array(vsize);
+   HYPRE_BigInt* i_offd = make_i_array<HYPRE_BigInt>(vsize);
    for (int i = 0, pos = 0; i < new_elements.Size(); i++)
    {
       GetElementDofs(new_elements[i], dofs);
@@ -2863,41 +3264,59 @@ ParFiniteElementSpace::RebalanceMatrix(int old_ndofs,
          }
       }
    }
-   HYPRE_Int* j_offd = make_j_array(i_offd, vsize);
+   HYPRE_BigInt* j_offd = make_j_array(i_offd, vsize);
+
+#ifndef HYPRE_MIXEDINT
+   HYPRE_Int *i_offd_hi = i_offd;
+#else
+   // Copy of i_offd array as array of HYPRE_Int
+   HYPRE_Int *i_offd_hi = Memory<HYPRE_Int>(vsize + 1);
+   std::copy(i_offd, i_offd + vsize + 1, i_offd_hi);
+   Memory<HYPRE_BigInt>(i_offd, vsize + 1, true).Delete();
+#endif
 
    // create the offd column map
-   int offd_cols = i_offd[vsize];
-   Array<Pair<HYPRE_Int, int> > cmap_offd(offd_cols);
+   int offd_cols = i_offd_hi[vsize];
+   Array<Pair<HYPRE_BigInt, int> > cmap_offd(offd_cols);
    for (int i = 0; i < offd_cols; i++)
    {
       cmap_offd[i].one = j_offd[i];
       cmap_offd[i].two = i;
    }
-   SortPairs<HYPRE_Int, int>(cmap_offd, offd_cols);
 
-   HYPRE_Int* cmap = Memory<HYPRE_Int>(offd_cols);
+#ifndef HYPRE_MIXEDINT
+   HYPRE_Int *j_offd_hi = j_offd;
+#else
+   HYPRE_Int *j_offd_hi = Memory<HYPRE_Int>(offd_cols);
+   Memory<HYPRE_BigInt>(j_offd, offd_cols, true).Delete();
+#endif
+
+   SortPairs<HYPRE_BigInt, int>(cmap_offd, offd_cols);
+
+   HYPRE_BigInt* cmap = Memory<HYPRE_BigInt>(offd_cols);
    for (int i = 0; i < offd_cols; i++)
    {
       cmap[i] = cmap_offd[i].one;
-      j_offd[cmap_offd[i].two] = i;
+      j_offd_hi[cmap_offd[i].two] = i;
    }
 
    HypreParMatrix *M;
    M = new HypreParMatrix(MyComm, MyRank, NRanks, dof_offsets, old_dof_offsets,
-                          i_diag, j_diag, i_offd, j_offd, cmap, offd_cols);
+                          i_diag, j_diag, i_offd_hi, j_offd_hi, cmap, offd_cols);
    return M;
 }
 
 
 struct DerefDofMessage
 {
-   std::vector<HYPRE_Int> dofs;
+   std::vector<HYPRE_BigInt> dofs;
    MPI_Request request;
 };
 
 HypreParMatrix*
 ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
-                                                  const Table* old_elem_dof)
+                                                  const Table* old_elem_dof,
+                                                  const Table *old_elem_fos)
 {
    int nrk = HYPRE_AssumedPartitionCheck() ? 2 : NRanks;
 
@@ -2919,7 +3338,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    Array<int> dofs, old_dofs, old_vdofs;
    Vector row;
 
-   ParNCMesh* pncmesh = pmesh->pncmesh;
+   ParNCMesh* old_pncmesh = pmesh->pncmesh;
 
    int ldof[Geometry::NumGeom];
    for (int i = 0; i < Geometry::NumGeom; i++)
@@ -2932,13 +3351,14 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
       ldof[geom] = fec->FiniteElementForGeometry(geom)->GetDof();
    }
 
-   const CoarseFineTransformations &dtrans = pncmesh->GetDerefinementTransforms();
-   const Array<int> &old_ranks = pncmesh->GetDerefineOldRanks();
+   const CoarseFineTransformations &dtrans =
+      old_pncmesh->GetDerefinementTransforms();
+   const Array<int> &old_ranks = old_pncmesh->GetDerefineOldRanks();
 
    std::map<int, DerefDofMessage> messages;
 
-   HYPRE_Int old_offset = HYPRE_AssumedPartitionCheck()
-                          ? old_dof_offsets[0] : old_dof_offsets[MyRank];
+   HYPRE_BigInt old_offset = HYPRE_AssumedPartitionCheck()
+                             ? old_dof_offsets[0] : old_dof_offsets[MyRank];
 
    // communicate DOFs for derefinements that straddle processor boundaries,
    // note that this is infrequent due to the way elements are ordered
@@ -2948,7 +3368,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
 
       int fine_rank = old_ranks[k];
       int coarse_rank = (emb.parent < 0) ? (-1 - emb.parent)
-                        : pncmesh->ElementRank(emb.parent);
+                        : old_pncmesh->ElementRank(emb.parent);
 
       if (coarse_rank != MyRank && fine_rank == MyRank)
       {
@@ -2962,7 +3382,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
             msg.dofs[i] = old_offset + dofs[i];
          }
 
-         MPI_Isend(&msg.dofs[0], msg.dofs.size(), HYPRE_MPI_INT,
+         MPI_Isend(&msg.dofs[0], msg.dofs.size(), HYPRE_MPI_BIG_INT,
                    coarse_rank, 291, MyComm, &msg.request);
       }
       else if (coarse_rank == MyRank && fine_rank != MyRank)
@@ -2973,7 +3393,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
          DerefDofMessage &msg = messages[k];
          msg.dofs.resize(ldof[geom]*vdim);
 
-         MPI_Irecv(&msg.dofs[0], ldof[geom]*vdim, HYPRE_MPI_INT,
+         MPI_Irecv(&msg.dofs[0], ldof[geom]*vdim, HYPRE_MPI_BIG_INT,
                    fine_rank, 291, MyComm, &msg.request);
       }
       // TODO: coalesce Isends/Irecvs to the same rank. Typically, on uniform
@@ -2993,12 +3413,14 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    Array<char> mark(diag->Height());
    mark = 0;
 
+   bool is_dg = FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS;
+
    for (int k = 0; k < dtrans.embeddings.Size(); k++)
    {
       const Embedding &emb = dtrans.embeddings[k];
       if (emb.parent < 0) { continue; }
 
-      int coarse_rank = pncmesh->ElementRank(emb.parent);
+      int coarse_rank = old_pncmesh->ElementRank(emb.parent);
       int fine_rank = old_ranks[k];
 
       if (coarse_rank == MyRank && fine_rank == MyRank)
@@ -3021,7 +3443,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
                int r = DofToVDof(dofs[i], vd);
                int m = (r >= 0) ? r : (-1 - r);
 
-               if (!mark[m])
+               if (is_dg || !mark[m])
                {
                   lR.GetRow(i, row);
                   diag->SetRow(r, old_vdofs, row);
@@ -3042,13 +3464,13 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    // create the offdiagonal part of the derefinement matrix
    SparseMatrix *offd = new SparseMatrix(ndofs*vdim, 1);
 
-   std::map<HYPRE_Int, int> col_map;
+   std::map<HYPRE_BigInt, int> col_map;
    for (int k = 0; k < dtrans.embeddings.Size(); k++)
    {
       const Embedding &emb = dtrans.embeddings[k];
       if (emb.parent < 0) { continue; }
 
-      int coarse_rank = pncmesh->ElementRank(emb.parent);
+      int coarse_rank = old_pncmesh->ElementRank(emb.parent);
       int fine_rank = old_ranks[k];
 
       if (coarse_rank == MyRank && fine_rank != MyRank)
@@ -3064,7 +3486,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
          for (int vd = 0; vd < vdim; vd++)
          {
             MFEM_ASSERT(ldof[geom], "");
-            HYPRE_Int* remote_dofs = &msg.dofs[vd*ldof[geom]];
+            HYPRE_BigInt* remote_dofs = &msg.dofs[vd*ldof[geom]];
 
             for (int i = 0; i < lR.Height(); i++)
             {
@@ -3073,7 +3495,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
                int r = DofToVDof(dofs[i], vd);
                int m = (r >= 0) ? r : (-1 - r);
 
-               if (!mark[m])
+               if (is_dg || !mark[m])
                {
                   lR.GetRow(i, row);
                   MFEM_ASSERT(ldof[geom] == row.Size(), "");
@@ -3090,14 +3512,14 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
          }
       }
    }
+
    messages.clear();
    offd->Finalize(0);
    offd->SetWidth(col_map.size());
 
    // create offd column mapping for use by hypre
-   HYPRE_Int *cmap = Memory<HYPRE_Int>(offd->Width());
-   for (std::map<HYPRE_Int, int>::iterator
-        it = col_map.begin(); it != col_map.end(); ++it)
+   HYPRE_BigInt *cmap = Memory<HYPRE_BigInt>(offd->Width());
+   for (auto it = col_map.begin(); it != col_map.end(); ++it)
    {
       cmap[it->second-1] = it->first;
    }
@@ -3107,7 +3529,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    // sure cmap is determined and sorted before the offd matrix is created
    {
       int width = offd->Width();
-      Array<Pair<HYPRE_Int, int> > reorder(width);
+      Array<Pair<HYPRE_BigInt, int> > reorder(width);
       for (int i = 0; i < width; i++)
       {
          reorder[i].one = cmap[i];
@@ -3130,23 +3552,14 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
       offd->SortColumnIndices();
    }
 
-   HypreParMatrix* R;
-   R = new HypreParMatrix(MyComm, dof_offsets[nrk], old_dof_offsets[nrk],
-                          dof_offsets, old_dof_offsets, diag, offd, cmap);
+   HypreParMatrix* new_R;
+   new_R = new HypreParMatrix(MyComm, dof_offsets[nrk], old_dof_offsets[nrk],
+                              dof_offsets, old_dof_offsets, diag, offd, cmap,
+                              true);
 
-#ifndef HYPRE_BIGINT
-   diag->LoseData();
-   offd->LoseData();
-#else
-   diag->SetDataOwner(false);
-   offd->SetDataOwner(false);
-#endif
-   delete diag;
-   delete offd;
+   new_R->SetOwnerFlags(new_R->OwnsDiag(), new_R->OwnsOffd(), 1);
 
-   R->SetOwnerFlags(3, 3, 1);
-
-   return R;
+   return new_R;
 }
 
 void ParFiniteElementSpace::Destroy()
@@ -3162,7 +3575,6 @@ void ParFiniteElementSpace::Destroy()
    delete P; P = NULL;
    delete Pconf; Pconf = NULL;
    delete Rconf; Rconf = NULL;
-   delete R_transpose; R_transpose = NULL;
    delete R; R = NULL;
 
    delete gcomm; gcomm = NULL;
@@ -3172,6 +3584,67 @@ void ParFiniteElementSpace::Destroy()
    face_nbr_ldof.Clear();
    face_nbr_glob_dof_map.DeleteAll();
    send_face_nbr_ldof.Clear();
+}
+
+void ParFiniteElementSpace::CopyProlongationAndRestriction(
+   const FiniteElementSpace &fes, const Array<int> *perm)
+{
+   const ParFiniteElementSpace *pfes
+      = dynamic_cast<const ParFiniteElementSpace*>(&fes);
+   MFEM_VERIFY(pfes != NULL, "");
+   MFEM_VERIFY(P == NULL, "");
+   MFEM_VERIFY(R == NULL, "");
+
+   // Ensure R and P matrices are built
+   pfes->Dof_TrueDof_Matrix();
+
+   SparseMatrix *perm_mat = NULL, *perm_mat_tr = NULL;
+   if (perm)
+   {
+      // Note: although n and fes.GetVSize() are typically equal, in
+      // variable-order spaces they may differ, since nonconforming edges/faces
+      // my have fictitious DOFs.
+      int n = perm->Size();
+      perm_mat = new SparseMatrix(n, fes.GetVSize());
+      for (int i=0; i<n; ++i)
+      {
+         real_t s;
+         int j = DecodeDof((*perm)[i], s);
+         perm_mat->Set(i, j, s);
+      }
+      perm_mat->Finalize();
+      perm_mat_tr = Transpose(*perm_mat);
+   }
+
+   if (pfes->P != NULL)
+   {
+      if (perm) { P = pfes->P->LeftDiagMult(*perm_mat); }
+      else { P = new HypreParMatrix(*pfes->P); }
+      nonconf_P = true;
+   }
+   else if (perm != NULL)
+   {
+      HYPRE_BigInt glob_nrows = GlobalVSize();
+      HYPRE_BigInt glob_ncols = GlobalTrueVSize();
+      HYPRE_BigInt *col_starts = GetTrueDofOffsets();
+      HYPRE_BigInt *row_starts = GetDofOffsets();
+      P = new HypreParMatrix(MyComm, glob_nrows, glob_ncols, row_starts,
+                             col_starts, perm_mat);
+      nonconf_P = true;
+   }
+   if (pfes->R != NULL)
+   {
+      if (perm) { R = Mult(*pfes->R, *perm_mat_tr); }
+      else { R = new SparseMatrix(*pfes->R); }
+   }
+   else if (perm != NULL)
+   {
+      R = perm_mat_tr;
+      perm_mat_tr = NULL;
+   }
+
+   delete perm_mat;
+   delete perm_mat_tr;
 }
 
 void ParFiniteElementSpace::GetTrueTransferOperator(
@@ -3223,13 +3696,16 @@ void ParFiniteElementSpace::Update(bool want_transform)
    }
 
    Table* old_elem_dof = NULL;
+   Table* old_elem_fos = NULL;
    int old_ndofs;
 
    // save old DOF table
    if (want_transform)
    {
       old_elem_dof = elem_dof;
+      old_elem_fos = elem_fos;
       elem_dof = NULL;
+      elem_fos = NULL;
       old_ndofs = ndofs;
       Swap(dof_offsets, old_dof_offsets);
    }
@@ -3251,22 +3727,25 @@ void ParFiniteElementSpace::Update(bool want_transform)
          {
             if (Th.Type() != Operator::MFEM_SPARSEMAT)
             {
-               Th.Reset(new RefinementOperator(this, old_elem_dof, old_ndofs));
+               Th.Reset(new RefinementOperator(this, old_elem_dof,
+                                               old_elem_fos, old_ndofs));
                // The RefinementOperator takes ownership of 'old_elem_dofs', so
                // we no longer own it:
                old_elem_dof = NULL;
+               old_elem_fos = NULL;
             }
             else
             {
                // calculate fully assembled matrix
-               Th.Reset(RefinementMatrix(old_ndofs, old_elem_dof));
+               Th.Reset(RefinementMatrix(old_ndofs, old_elem_dof, old_elem_fos));
             }
             break;
          }
 
          case Mesh::DEREFINE:
          {
-            Th.Reset(ParallelDerefinementMatrix(old_ndofs, old_elem_dof));
+            Th.Reset(ParallelDerefinementMatrix(old_ndofs, old_elem_dof,
+                                                old_elem_fos));
             if (Nonconforming())
             {
                Th.SetOperatorOwner(false);
@@ -3278,7 +3757,7 @@ void ParFiniteElementSpace::Update(bool want_transform)
 
          case Mesh::REBALANCE:
          {
-            Th.Reset(RebalanceMatrix(old_ndofs, old_elem_dof));
+            Th.Reset(RebalanceMatrix(old_ndofs, old_elem_dof, old_elem_fos));
             break;
          }
 
@@ -3287,7 +3766,53 @@ void ParFiniteElementSpace::Update(bool want_transform)
       }
 
       delete old_elem_dof;
+      delete old_elem_fos;
    }
+}
+
+void ParFiniteElementSpace::UpdateMeshPointer(Mesh *new_mesh)
+{
+   ParMesh *new_pmesh = dynamic_cast<ParMesh*>(new_mesh);
+   MFEM_VERIFY(new_pmesh != NULL,
+               "ParFiniteElementSpace::UpdateMeshPointer(...) must be a ParMesh");
+   mesh = new_mesh;
+   pmesh = new_pmesh;
+}
+
+ConformingProlongationOperator::ConformingProlongationOperator(
+   int lsize, const GroupCommunicator &gc_, bool local_)
+   : gc(gc_), local(local_)
+{
+   const Table &group_ldof = gc.GroupLDofTable();
+
+   int n_external = 0;
+   for (int g=1; g<group_ldof.Size(); ++g)
+   {
+      if (!gc.GetGroupTopology().IAmMaster(g))
+      {
+         n_external += group_ldof.RowSize(g);
+      }
+   }
+   int tsize = lsize - n_external;
+
+   height = lsize;
+   width = tsize;
+
+   external_ldofs.Reserve(n_external);
+   for (int gr = 1; gr < group_ldof.Size(); gr++)
+   {
+      if (!gc.GetGroupTopology().IAmMaster(gr))
+      {
+         external_ldofs.Append(group_ldof.GetRow(gr), group_ldof.RowSize(gr));
+      }
+   }
+   external_ldofs.Sort();
+}
+
+const GroupCommunicator &ConformingProlongationOperator::GetGroupCommunicator()
+const
+{
+   return gc;
 }
 
 ConformingProlongationOperator::ConformingProlongationOperator(
@@ -3339,8 +3864,8 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    MFEM_ASSERT(x.Size() == Width(), "");
    MFEM_ASSERT(y.Size() == Height(), "");
 
-   const double *xdata = x.HostRead();
-   double *ydata = y.HostWrite();
+   const real_t *xdata = x.HostRead();
+   real_t *ydata = y.HostWrite();
    const int m = external_ldofs.Size();
 
    const int in_layout = 2; // 2 - input is ltdofs array
@@ -3350,7 +3875,7 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    }
    else
    {
-      gc.BcastBegin(const_cast<double*>(xdata), in_layout);
+      gc.BcastBegin(const_cast<real_t*>(xdata), in_layout);
    }
 
    int j = 0;
@@ -3375,8 +3900,8 @@ void ConformingProlongationOperator::MultTranspose(
    MFEM_ASSERT(x.Size() == Height(), "");
    MFEM_ASSERT(y.Size() == Width(), "");
 
-   const double *xdata = x.HostRead();
-   double *ydata = y.HostWrite();
+   const real_t *xdata = x.HostRead();
+   real_t *ydata = y.HostWrite();
    const int m = external_ldofs.Size();
 
    if (!local)
@@ -3396,25 +3921,19 @@ void ConformingProlongationOperator::MultTranspose(
    const int out_layout = 2; // 2 - output is an array on all ltdofs
    if (!local)
    {
-      gc.ReduceEnd<double>(ydata, out_layout, GroupCommunicator::Sum);
+      gc.ReduceEnd<real_t>(ydata, out_layout, GroupCommunicator::Sum);
    }
 }
 
 DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
-   const ParFiniteElementSpace &pfes,
-   bool local_) :
-   ConformingProlongationOperator(pfes),
-   mpi_gpu_aware(Device::GetGPUAwareMPI()),
-   local(local_)
+   const GroupCommunicator &gc_, const SparseMatrix *R, bool local_)
+   : ConformingProlongationOperator(R->Width(), gc_, local_),
+     mpi_gpu_aware(Device::GetGPUAwareMPI())
 {
-   MFEM_ASSERT(pfes.Conforming(), "internal error");
-   const SparseMatrix *R = pfes.GetRestrictionMatrix();
    MFEM_ASSERT(R->Finalized(), "");
    const int tdofs = R->Height();
-   MFEM_ASSERT(tdofs == pfes.GetTrueVSize(), "");
    MFEM_ASSERT(tdofs == R->HostReadI()[tdofs], "");
    ltdof_ldof = Array<int>(const_cast<int*>(R->HostReadJ()), tdofs);
-   ltdof_ldof.UseDevice();
    {
       Table nbr_ltdof;
       gc.GetNeighborLTDofTable(nbr_ltdof);
@@ -3425,18 +3944,18 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
       shr_buf.UseDevice(true);
       shr_buf_offsets = nbr_ltdof.GetIMemory();
       {
-         Array<int> shr_ltdof(nbr_ltdof.GetJ(), nb_connections);
-         Array<int> unique_ltdof(shr_ltdof);
+         Array<int> shared_ltdof(nbr_ltdof.GetJ(), nb_connections);
+         Array<int> unique_ltdof(shared_ltdof);
          unique_ltdof.Sort();
          unique_ltdof.Unique();
          // Note: the next loop modifies the J array of nbr_ltdof
-         for (int i = 0; i < shr_ltdof.Size(); i++)
+         for (int i = 0; i < shared_ltdof.Size(); i++)
          {
-            shr_ltdof[i] = unique_ltdof.FindSorted(shr_ltdof[i]);
-            MFEM_ASSERT(shr_ltdof[i] != -1, "internal error");
+            shared_ltdof[i] = unique_ltdof.FindSorted(shared_ltdof[i]);
+            MFEM_ASSERT(shared_ltdof[i] != -1, "internal error");
          }
          Table unique_shr;
-         Transpose(shr_ltdof, unique_shr, unique_ltdof.Size());
+         Transpose(shared_ltdof, unique_shr, unique_ltdof.Size());
          unq_ltdof = Array<int>(unique_ltdof, unique_ltdof.Size());
          unq_shr_i = Array<int>(unique_shr.GetI(), unique_shr.Size()+1);
          unq_shr_j = Array<int>(unique_shr.GetJ(), unique_shr.Size_of_connections());
@@ -3450,6 +3969,7 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
       const int nb_connections = nbr_ldof.Size_of_connections();
       ext_ldof.SetSize(nb_connections);
       ext_ldof.CopyFrom(nbr_ldof.GetJ());
+      ext_ldof.GetMemory().UseDevice(true);
       ext_buf.SetSize(nb_connections);
       ext_buf.UseDevice(true);
       ext_buf_offsets = nbr_ldof.GetIMemory();
@@ -3471,14 +3991,27 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
    requests = new MPI_Request[req_counter];
 }
 
-static void ExtractSubVector(const int N,
-                             const Array<int> &indices,
-                             const Vector &in, Vector &out)
+DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
+   const ParFiniteElementSpace &pfes, bool local_)
+   : DeviceConformingProlongationOperator(pfes.GroupComm(),
+                                          pfes.GetRestrictionMatrix(),
+                                          local_)
 {
-   auto y = out.Write();
-   const auto x = in.Read();
+   MFEM_ASSERT(pfes.Conforming(), "internal error");
+   MFEM_ASSERT(pfes.GetRestrictionMatrix()->Height() == pfes.GetTrueVSize(), "");
+}
+
+static void ExtractSubVector(const Array<int> &indices,
+                             const Vector &vin, Vector &vout)
+{
+   MFEM_ASSERT(indices.Size() == vout.Size(), "incompatible sizes!");
+   auto y = vout.Write();
+   const auto x = vin.Read();
    const auto I = indices.Read();
-   MFEM_FORALL(i, N, y[i] = x[I[i]];); // indices can be repeated
+   mfem::forall(indices.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      y[i] = x[I[i]];
+   }); // indices can be repeated
 }
 
 void DeviceConformingProlongationOperator::BcastBeginCopy(
@@ -3486,20 +4019,24 @@ void DeviceConformingProlongationOperator::BcastBeginCopy(
 {
    // shr_buf[i] = src[shr_ltdof[i]]
    if (shr_ltdof.Size() == 0) { return; }
-   ExtractSubVector(shr_ltdof.Size(), shr_ltdof, x, shr_buf);
+   ExtractSubVector(shr_ltdof, x, shr_buf);
    // If the above kernel is executed asynchronously, we should wait for it to
    // complete
    if (mpi_gpu_aware) { MFEM_STREAM_SYNC; }
 }
 
-static void SetSubVector(const int N,
-                         const Array<int> &indices,
-                         const Vector &in, Vector &out)
+static void SetSubVector(const Array<int> &indices,
+                         const Vector &vin, Vector &vout)
 {
-   auto y = out.Write();
-   const auto x = in.Read();
+   MFEM_ASSERT(indices.Size() == vin.Size(), "incompatible sizes!");
+   // Use ReadWrite() since we modify only a subset of the indices:
+   auto y = vout.ReadWrite();
+   const auto x = vin.Read();
    const auto I = indices.Read();
-   MFEM_FORALL(i, N, y[I[i]] = x[i];);
+   mfem::forall(indices.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      y[I[i]] = x[i];
+   });
 }
 
 void DeviceConformingProlongationOperator::BcastLocalCopy(
@@ -3507,7 +4044,7 @@ void DeviceConformingProlongationOperator::BcastLocalCopy(
 {
    // dst[ltdof_ldof[i]] = src[i]
    if (ltdof_ldof.Size() == 0) { return; }
-   SetSubVector(ltdof_ldof.Size(), ltdof_ldof, x, y);
+   SetSubVector(ltdof_ldof, x, y);
 }
 
 void DeviceConformingProlongationOperator::BcastEndCopy(
@@ -3515,7 +4052,7 @@ void DeviceConformingProlongationOperator::BcastEndCopy(
 {
    // dst[ext_ldof[i]] = ext_buf[i]
    if (ext_ldof.Size() == 0) { return; }
-   SetSubVector(ext_ldof.Size(), ext_ldof, ext_buf, y);
+   SetSubVector(ext_ldof, ext_buf, y);
 }
 
 void DeviceConformingProlongationOperator::Mult(const Vector &x,
@@ -3523,9 +4060,15 @@ void DeviceConformingProlongationOperator::Mult(const Vector &x,
 {
    const GroupTopology &gtopo = gc.GetGroupTopology();
    int req_counter = 0;
+   // Make sure 'y' is marked as valid on device and for use on device.
+   // This ensures that there is no unnecessary host to device copy when the
+   // input 'y' is valid on host (in 'y.SetSubVector(ext_ldof, 0.0)' when local
+   // is true) or BcastLocalCopy (when local is false).
+   y.Write();
    if (local)
    {
-      y = 0.0;
+      // done on device since we've marked ext_ldof for use on device:
+      y.SetSubVector(ext_ldof, 0.0);
    }
    else
    {
@@ -3537,7 +4080,7 @@ void DeviceConformingProlongationOperator::Mult(const Vector &x,
          if (send_size > 0)
          {
             auto send_buf = mpi_gpu_aware ? shr_buf.Read() : shr_buf.HostRead();
-            MPI_Isend(send_buf + send_offset, send_size, MPI_DOUBLE,
+            MPI_Isend(send_buf + send_offset, send_size, MPITypeMap<real_t>::mpi_type,
                       gtopo.GetNeighborRank(nbr), 41822,
                       gtopo.GetComm(), &requests[req_counter++]);
          }
@@ -3546,7 +4089,7 @@ void DeviceConformingProlongationOperator::Mult(const Vector &x,
          if (recv_size > 0)
          {
             auto recv_buf = mpi_gpu_aware ? ext_buf.Write() : ext_buf.HostWrite();
-            MPI_Irecv(recv_buf + recv_offset, recv_size, MPI_DOUBLE,
+            MPI_Irecv(recv_buf + recv_offset, recv_size, MPITypeMap<real_t>::mpi_type,
                       gtopo.GetNeighborRank(nbr), 41822,
                       gtopo.GetComm(), &requests[req_counter++]);
          }
@@ -3572,7 +4115,7 @@ void DeviceConformingProlongationOperator::ReduceBeginCopy(
 {
    // ext_buf[i] = src[ext_ldof[i]]
    if (ext_ldof.Size() == 0) { return; }
-   ExtractSubVector(ext_ldof.Size(), ext_ldof, x, ext_buf);
+   ExtractSubVector(ext_ldof, x, ext_buf);
    // If the above kernel is executed asynchronously, we should wait for it to
    // complete
    if (mpi_gpu_aware) { MFEM_STREAM_SYNC; }
@@ -3583,25 +4126,24 @@ void DeviceConformingProlongationOperator::ReduceLocalCopy(
 {
    // dst[i] = src[ltdof_ldof[i]]
    if (ltdof_ldof.Size() == 0) { return; }
-   ExtractSubVector(ltdof_ldof.Size(), ltdof_ldof, x, y);
+   ExtractSubVector(ltdof_ldof, x, y);
 }
 
-static void AddSubVector(const int num_unique_dst_indices,
-                         const Array<int> &unique_dst_indices,
+static void AddSubVector(const Array<int> &unique_dst_indices,
                          const Array<int> &unique_to_src_offsets,
                          const Array<int> &unique_to_src_indices,
                          const Vector &src,
                          Vector &dst)
 {
-   auto y = dst.Write();
+   auto y = dst.ReadWrite();
    const auto x = src.Read();
    const auto DST_I = unique_dst_indices.Read();
    const auto SRC_O = unique_to_src_offsets.Read();
    const auto SRC_I = unique_to_src_indices.Read();
-   MFEM_FORALL(i, num_unique_dst_indices,
+   mfem::forall(unique_dst_indices.Size(), [=] MFEM_HOST_DEVICE (int i)
    {
       const int dst_idx = DST_I[i];
-      double sum = y[dst_idx];
+      real_t sum = y[dst_idx];
       const int end = SRC_O[i+1];
       for (int j = SRC_O[i]; j != end; ++j) { sum += x[SRC_I[j]]; }
       y[dst_idx] = sum;
@@ -3611,9 +4153,8 @@ static void AddSubVector(const int num_unique_dst_indices,
 void DeviceConformingProlongationOperator::ReduceEndAssemble(Vector &y) const
 {
    // dst[shr_ltdof[i]] += shr_buf[i]
-   const int unq_ltdof_size = unq_ltdof.Size();
-   if (unq_ltdof_size == 0) { return; }
-   AddSubVector(unq_ltdof_size, unq_ltdof, unq_shr_i, unq_shr_j, shr_buf, y);
+   if (unq_ltdof.Size() == 0) { return; }
+   AddSubVector(unq_ltdof, unq_shr_i, unq_shr_j, shr_buf, y);
 }
 
 void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
@@ -3631,7 +4172,7 @@ void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
          if (send_size > 0)
          {
             auto send_buf = mpi_gpu_aware ? ext_buf.Read() : ext_buf.HostRead();
-            MPI_Isend(send_buf + send_offset, send_size, MPI_DOUBLE,
+            MPI_Isend(send_buf + send_offset, send_size, MPITypeMap<real_t>::mpi_type,
                       gtopo.GetNeighborRank(nbr), 41823,
                       gtopo.GetComm(), &requests[req_counter++]);
          }
@@ -3640,7 +4181,7 @@ void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
          if (recv_size > 0)
          {
             auto recv_buf = mpi_gpu_aware ? shr_buf.Write() : shr_buf.HostWrite();
-            MPI_Irecv(recv_buf + recv_offset, recv_size, MPI_DOUBLE,
+            MPI_Irecv(recv_buf + recv_offset, recv_size, MPITypeMap<real_t>::mpi_type,
                       gtopo.GetNeighborRank(nbr), 41823,
                       gtopo.GetComm(), &requests[req_counter++]);
          }

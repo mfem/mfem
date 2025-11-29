@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,19 +15,19 @@
 namespace mfem
 {
 
-void ODESolver::Init(TimeDependentOperator &f)
+void ODESolver::Init(TimeDependentOperator &f_)
 {
-   this->f = &f;
-   mem_type = GetMemoryType(f.GetMemoryClass());
+   this->f = &f_;
+   mem_type = GetMemoryType(f_.GetMemoryClass());
 }
 
-void ForwardEulerSolver::Init(TimeDependentOperator &_f)
+void ForwardEulerSolver::Init(TimeDependentOperator &f_)
 {
-   ODESolver::Init(_f);
+   ODESolver::Init(f_);
    dxdt.SetSize(f->Width(), mem_type);
 }
 
-void ForwardEulerSolver::Step(Vector &x, double &t, double &dt)
+void ForwardEulerSolver::Step(Vector &x, real_t &t, real_t &dt)
 {
    f->SetTime(t);
    f->Mult(x, dxdt);
@@ -36,22 +36,22 @@ void ForwardEulerSolver::Step(Vector &x, double &t, double &dt)
 }
 
 
-void RK2Solver::Init(TimeDependentOperator &_f)
+void RK2Solver::Init(TimeDependentOperator &f_)
 {
-   ODESolver::Init(_f);
+   ODESolver::Init(f_);
    int n = f->Width();
    dxdt.SetSize(n, mem_type);
    x1.SetSize(n, mem_type);
 }
 
-void RK2Solver::Step(Vector &x, double &t, double &dt)
+void RK2Solver::Step(Vector &x, real_t &t, real_t &dt)
 {
    //  0 |
    //  a |  a
    // ---+--------
    //    | 1-b  b      b = 1/(2a)
 
-   const double b = 0.5/a;
+   const real_t b = 0.5/a;
 
    f->SetTime(t);
    f->Mult(x, dxdt);
@@ -65,15 +65,15 @@ void RK2Solver::Step(Vector &x, double &t, double &dt)
 }
 
 
-void RK3SSPSolver::Init(TimeDependentOperator &_f)
+void RK3SSPSolver::Init(TimeDependentOperator &f_)
 {
-   ODESolver::Init(_f);
+   ODESolver::Init(f_);
    int n = f->Width();
    y.SetSize(n, mem_type);
    k.SetSize(n, mem_type);
 }
 
-void RK3SSPSolver::Step(Vector &x, double &t, double &dt)
+void RK3SSPSolver::Step(Vector &x, real_t &t, real_t &dt)
 {
    // x0 = x, t0 = t, k0 = dt*f(t0, x0)
    f->SetTime(t);
@@ -97,16 +97,16 @@ void RK3SSPSolver::Step(Vector &x, double &t, double &dt)
 }
 
 
-void RK4Solver::Init(TimeDependentOperator &_f)
+void RK4Solver::Init(TimeDependentOperator &f_)
 {
-   ODESolver::Init(_f);
+   ODESolver::Init(f_);
    int n = f->Width();
    y.SetSize(n, mem_type);
    k.SetSize(n, mem_type);
    z.SetSize(n, mem_type);
 }
 
-void RK4Solver::Step(Vector &x, double &t, double &dt)
+void RK4Solver::Step(Vector &x, real_t &t, real_t &dt)
 {
    //   0  |
    //  1/2 | 1/2
@@ -135,19 +135,19 @@ void RK4Solver::Step(Vector &x, double &t, double &dt)
    t += dt;
 }
 
-ExplicitRKSolver::ExplicitRKSolver(int _s, const double *_a, const double *_b,
-                                   const double *_c)
+ExplicitRKSolver::ExplicitRKSolver(int s_, const real_t *a_, const real_t *b_,
+                                   const real_t *c_)
 {
-   s = _s;
-   a = _a;
-   b = _b;
-   c = _c;
+   s = s_;
+   a = a_;
+   b = b_;
+   c = c_;
    k = new Vector[s];
 }
 
-void ExplicitRKSolver::Init(TimeDependentOperator &_f)
+void ExplicitRKSolver::Init(TimeDependentOperator &f_)
 {
-   ODESolver::Init(_f);
+   ODESolver::Init(f_);
    int n = f->Width();
    y.SetSize(n, mem_type);
    for (int i = 0; i < s; i++)
@@ -156,7 +156,7 @@ void ExplicitRKSolver::Init(TimeDependentOperator &_f)
    }
 }
 
-void ExplicitRKSolver::Step(Vector &x, double &t, double &dt)
+void ExplicitRKSolver::Step(Vector &x, real_t &t, real_t &dt)
 {
    //   0     |
    //  c[0]   | a[0]
@@ -191,7 +191,7 @@ ExplicitRKSolver::~ExplicitRKSolver()
    delete [] k;
 }
 
-const double RK6Solver::a[] =
+const real_t RK6Solver::a[] =
 {
    .6e-1,
    .1923996296296296296296296296296296296296e-1,
@@ -222,7 +222,7 @@ const double RK6Solver::a[] =
    -.1833878590504572306472782005141738268361e-1,
    -.5119484997882099077875432497245168395840e-3
 };
-const double RK6Solver::b[] =
+const real_t RK6Solver::b[] =
 {
    .3438957868357036009278820124728322386520e-1,
    0.,
@@ -233,7 +233,7 @@ const double RK6Solver::b[] =
    -176.4831190242986576151740942499002125029,
    172.3641334014150730294022582711902413315
 };
-const double RK6Solver::c[] =
+const real_t RK6Solver::c[] =
 {
    .6e-1,
    .9593333333333333333333333333333333333333e-1,
@@ -244,7 +244,7 @@ const double RK6Solver::c[] =
    1.,
 };
 
-const double RK8Solver::a[] =
+const real_t RK8Solver::a[] =
 {
    .5e-1,
    -.69931640625e-2,
@@ -313,7 +313,7 @@ const double RK8Solver::a[] =
    4.527592100324618189451265339351129035325,
    -5.828495485811622963193088019162985703755
 };
-const double RK8Solver::b[] =
+const real_t RK8Solver::b[] =
 {
    .4427989419007951074716746668098518862111e-1,
    0.,
@@ -328,7 +328,7 @@ const double RK8Solver::b[] =
    22.93828327398878395231483560344797018313,
    -.2361324633071542145259900641263517600737
 };
-const double RK8Solver::c[] =
+const real_t RK8Solver::c[] =
 {
    .5e-1,
    .1065625,
@@ -344,11 +344,12 @@ const double RK8Solver::c[] =
 };
 
 
-AdamsBashforthSolver::AdamsBashforthSolver(int _s, const double *_a)
+AdamsBashforthSolver::AdamsBashforthSolver(int s_, const real_t *a_)
 {
-   smax = std::min(_s,5);
-   a = _a;
+   smax = std::min(s_,5);
+   a = a_;
    k = new Vector[5];
+   dt_ = -1.0;
 
    if (smax <= 2)
    {
@@ -392,10 +393,10 @@ void AdamsBashforthSolver::SetStateVector(int i, Vector &state)
    s = std::max(i,s);
 }
 
-void AdamsBashforthSolver::Init(TimeDependentOperator &_f)
+void AdamsBashforthSolver::Init(TimeDependentOperator &f_)
 {
-   ODESolver::Init(_f);
-   RKsolver->Init(_f);
+   ODESolver::Init(f_);
+   RKsolver->Init(f_);
    idx.SetSize(smax);
    for (int i = 0; i < smax; i++)
    {
@@ -405,8 +406,22 @@ void AdamsBashforthSolver::Init(TimeDependentOperator &_f)
    s = 0;
 }
 
-void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
+void AdamsBashforthSolver::Step(Vector &x, real_t &t, real_t &dt)
 {
+   if ( (dt_ > 0.0) && (fabs(dt-dt_) >10*std::numeric_limits<real_t>::epsilon()))
+   {
+      s = 0;
+      dt_ = dt;
+
+      if (print())
+      {
+         mfem::out << "WARNING:" << std::endl;
+         mfem::out << " - Time step changed" << std::endl;
+         mfem::out << " - Purging Adams-Bashforth history" << std::endl;
+         mfem::out << " - Will run Runge-Kutta to rebuild history" << std::endl;
+      }
+   }
+
    s++;
    s = std::min(s, smax);
    if (s == smax)
@@ -417,35 +432,36 @@ void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
       {
          x.Add(a[i]*dt, k[idx[i]]);
       }
+      t += dt;
    }
    else
    {
       f->Mult(x,k[idx[0]]);
       RKsolver->Step(x,t,dt);
    }
-   t += dt;
 
    // Shift the index
    for (int i = 0; i < smax; i++) { idx[i] = ++idx[i]%smax; }
 }
 
-const double AB1Solver::a[] =
+const real_t AB1Solver::a[] =
 {1.0};
-const double AB2Solver::a[] =
+const real_t AB2Solver::a[] =
 {1.5,-0.5};
-const double AB3Solver::a[] =
+const real_t AB3Solver::a[] =
 {23.0/12.0,-4.0/3.0, 5.0/12.0};
-const double AB4Solver::a[] =
+const real_t AB4Solver::a[] =
 {55.0/24.0,-59.0/24.0, 37.0/24.0,-9.0/24.0};
-const double AB5Solver::a[] =
+const real_t AB5Solver::a[] =
 {1901.0/720.0,-2774.0/720.0, 2616.0/720.0,-1274.0/720.0, 251.0/720.0};
 
-AdamsMoultonSolver::AdamsMoultonSolver(int _s, const double *_a)
+AdamsMoultonSolver::AdamsMoultonSolver(int s_, const real_t *a_)
 {
    s = 0;
-   smax = std::min(_s+1,5);
-   a = _a;
+   smax = std::min(s_+1,5);
+   a = a_;
    k = new Vector[5];
+   dt_ = -1.0;
 
    if (smax <= 3)
    {
@@ -482,10 +498,10 @@ void AdamsMoultonSolver::SetStateVector(int i, Vector &state)
    s = std::max(i,s);
 }
 
-void AdamsMoultonSolver::Init(TimeDependentOperator &_f)
+void AdamsMoultonSolver::Init(TimeDependentOperator &f_)
 {
-   ODESolver::Init(_f);
-   RKsolver->Init(_f);
+   ODESolver::Init(f_);
+   RKsolver->Init(f_);
    int n = f->Width();
    idx.SetSize(smax);
    for (int i = 0; i < smax; i++)
@@ -496,8 +512,22 @@ void AdamsMoultonSolver::Init(TimeDependentOperator &_f)
    s = 0;
 }
 
-void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
+void AdamsMoultonSolver::Step(Vector &x, real_t &t, real_t &dt)
 {
+   if ( (dt_ > 0.0) && (fabs(dt-dt_) >10*std::numeric_limits<real_t>::epsilon()))
+   {
+      s = 0;
+      dt_ = dt;
+
+      if (print())
+      {
+         mfem::out << "WARNING:" << std::endl;
+         mfem::out << " - Time step changed" << std::endl;
+         mfem::out << " - Purging Adams-Moulton history" << std::endl;
+         mfem::out << " - Will run Runge-Kutta to rebuild history" << std::endl;
+      }
+   }
+
    if ((s == 0)&&(smax>1))
    {
       f->Mult(x,k[idx[1]]);
@@ -514,37 +544,38 @@ void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
       }
       f->ImplicitSolve(a[0]*dt, x, k[idx[0]]);
       x.Add(a[0]*dt, k[idx[0]]);
+      t += dt;
    }
    else
    {
       RKsolver->Step(x,t,dt);
       f->Mult(x,k[idx[0]]);
    }
-   t += dt;
+
 
    // Shift the index
    for (int i = 0; i < smax; i++) { idx[i] = ++idx[i]%smax; }
 }
 
-const double AM0Solver::a[] =
+const real_t AM0Solver::a[] =
 {1.0};
-const double AM1Solver::a[] =
+const real_t AM1Solver::a[] =
 {0.5, 0.5};
-const double AM2Solver::a[] =
+const real_t AM2Solver::a[] =
 {5.0/12.0, 2.0/3.0, -1.0/12.0};
-const double AM3Solver::a[] =
+const real_t AM3Solver::a[] =
 {3.0/8.0, 19.0/24.0,-5.0/24.0, 1.0/24.0};
-const double AM4Solver::a[] =
+const real_t AM4Solver::a[] =
 {251.0/720.0,646.0/720.0,-264.0/720.0, 106.0/720.0, -19.0/720.0};
 
 
-void BackwardEulerSolver::Init(TimeDependentOperator &_f)
+void BackwardEulerSolver::Init(TimeDependentOperator &f_)
 {
-   ODESolver::Init(_f);
+   ODESolver::Init(f_);
    k.SetSize(f->Width(), mem_type);
 }
 
-void BackwardEulerSolver::Step(Vector &x, double &t, double &dt)
+void BackwardEulerSolver::Step(Vector &x, real_t &t, real_t &dt)
 {
    f->SetTime(t + dt);
    f->ImplicitSolve(dt, x, k); // solve for k: k = f(x + dt*k, t + dt)
@@ -553,13 +584,13 @@ void BackwardEulerSolver::Step(Vector &x, double &t, double &dt)
 }
 
 
-void ImplicitMidpointSolver::Init(TimeDependentOperator &_f)
+void ImplicitMidpointSolver::Init(TimeDependentOperator &f_)
 {
-   ODESolver::Init(_f);
+   ODESolver::Init(f_);
    k.SetSize(f->Width(), mem_type);
 }
 
-void ImplicitMidpointSolver::Step(Vector &x, double &t, double &dt)
+void ImplicitMidpointSolver::Step(Vector &x, real_t &t, real_t &dt)
 {
    f->SetTime(t + dt/2);
    f->ImplicitSolve(dt/2, x, k);
@@ -588,14 +619,14 @@ SDIRK23Solver::SDIRK23Solver(int gamma_opt)
    }
 }
 
-void SDIRK23Solver::Init(TimeDependentOperator &_f)
+void SDIRK23Solver::Init(TimeDependentOperator &f_)
 {
-   ODESolver::Init(_f);
+   ODESolver::Init(f_);
    k.SetSize(f->Width(), mem_type);
    y.SetSize(f->Width(), mem_type);
 }
 
-void SDIRK23Solver::Step(Vector &x, double &t, double &dt)
+void SDIRK23Solver::Step(Vector &x, real_t &t, real_t &dt)
 {
    // with a = gamma:
    //   a   |   a
@@ -615,15 +646,15 @@ void SDIRK23Solver::Step(Vector &x, double &t, double &dt)
 }
 
 
-void SDIRK34Solver::Init(TimeDependentOperator &_f)
+void SDIRK34Solver::Init(TimeDependentOperator &f_)
 {
-   ODESolver::Init(_f);
+   ODESolver::Init(f_);
    k.SetSize(f->Width(), mem_type);
    y.SetSize(f->Width(), mem_type);
    z.SetSize(f->Width(), mem_type);
 }
 
-void SDIRK34Solver::Step(Vector &x, double &t, double &dt)
+void SDIRK34Solver::Step(Vector &x, real_t &t, real_t &dt)
 {
    //   a   |    a
    //  1/2  |  1/2-a    a
@@ -631,8 +662,8 @@ void SDIRK34Solver::Step(Vector &x, double &t, double &dt)
    // ------+--------------------
    //       |    b    1-2b   b
    // note: two solves are outside [t,t+dt] since c1=a>1, c3=1-a<0
-   const double a = 1./sqrt(3.)*cos(M_PI/18.) + 0.5;
-   const double b = 1./(6.*(2.*a-1.)*(2.*a-1.));
+   const real_t a = 1./sqrt(3.)*cos(M_PI/18.) + 0.5;
+   const real_t b = 1./(6.*(2.*a-1.)*(2.*a-1.));
 
    f->SetTime(t + a*dt);
    f->ImplicitSolve(a*dt, x, k);
@@ -652,23 +683,23 @@ void SDIRK34Solver::Step(Vector &x, double &t, double &dt)
 }
 
 
-void SDIRK33Solver::Init(TimeDependentOperator &_f)
+void SDIRK33Solver::Init(TimeDependentOperator &f_)
 {
-   ODESolver::Init(_f);
+   ODESolver::Init(f_);
    k.SetSize(f->Width(), mem_type);
    y.SetSize(f->Width(), mem_type);
 }
 
-void SDIRK33Solver::Step(Vector &x, double &t, double &dt)
+void SDIRK33Solver::Step(Vector &x, real_t &t, real_t &dt)
 {
    //   a  |   a
    //   c  |  c-a    a
    //   1  |   b   1-a-b  a
    // -----+----------------
    //      |   b   1-a-b  a
-   const double a = 0.435866521508458999416019;
-   const double b = 1.20849664917601007033648;
-   const double c = 0.717933260754229499708010;
+   const real_t a = 0.435866521508458999416019;
+   const real_t b = 1.20849664917601007033648;
+   const real_t c = 0.717933260754229499708010;
 
    f->SetTime(t + a*dt);
    f->ImplicitSolve(a*dt, x, k);
@@ -685,14 +716,14 @@ void SDIRK33Solver::Step(Vector &x, double &t, double &dt)
    t += dt;
 }
 
-void TrapezoidalRuleSolver::Init(TimeDependentOperator &_f)
+void TrapezoidalRuleSolver::Init(TimeDependentOperator &f_)
 {
-   ODESolver::Init(_f);
+   ODESolver::Init(f_);
    k.SetSize(f->Width(), mem_type);
    y.SetSize(f->Width(), mem_type);
 }
 
-void TrapezoidalRuleSolver::Step(Vector &x, double &t, double &dt)
+void TrapezoidalRuleSolver::Step(Vector &x, real_t &t, real_t &dt)
 {
    //   0   |   0    0
    //   1   |  1/2  1/2
@@ -709,23 +740,23 @@ void TrapezoidalRuleSolver::Step(Vector &x, double &t, double &dt)
    t += dt;
 }
 
-void ESDIRK32Solver::Init(TimeDependentOperator &_f)
+void ESDIRK32Solver::Init(TimeDependentOperator &f_)
 {
-   ODESolver::Init(_f);
+   ODESolver::Init(f_);
    k.SetSize(f->Width(), mem_type);
    y.SetSize(f->Width(), mem_type);
    z.SetSize(f->Width(), mem_type);
 }
 
-void ESDIRK32Solver::Step(Vector &x, double &t, double &dt)
+void ESDIRK32Solver::Step(Vector &x, real_t &t, real_t &dt)
 {
    //   0   |    0      0    0
    //   2a  |    a      a    0
    //   1   |  1-b-a    b    a
    // ------+--------------------
    //       |  1-b-a    b    a
-   const double a = (2.0 - sqrt(2.0)) / 2.0;
-   const double b = (1.0 - 2.0*a) / (4.0*a);
+   const real_t a = (2.0 - sqrt(2.0)) / 2.0;
+   const real_t b = (1.0 - 2.0*a) / (4.0*a);
 
    f->SetTime(t);
    f->Mult(x,k);
@@ -744,25 +775,25 @@ void ESDIRK32Solver::Step(Vector &x, double &t, double &dt)
    t += dt;
 }
 
-void ESDIRK33Solver::Init(TimeDependentOperator &_f)
+void ESDIRK33Solver::Init(TimeDependentOperator &f_)
 {
-   ODESolver::Init(_f);
+   ODESolver::Init(f_);
    k.SetSize(f->Width(), mem_type);
    y.SetSize(f->Width(), mem_type);
    z.SetSize(f->Width(), mem_type);
 }
 
-void ESDIRK33Solver::Step(Vector &x, double &t, double &dt)
+void ESDIRK33Solver::Step(Vector &x, real_t &t, real_t &dt)
 {
    //   0   |      0          0        0
    //   2a  |      a          a        0
    //   1   |    1-b-a        b        a
    // ------+----------------------------
    //       |  1-b_2-b_3     b_2      b_3
-   const double a   = (3.0 + sqrt(3.0)) / 6.0;
-   const double b   = (1.0 - 2.0*a) / (4.0*a);
-   const double b_2 = 1.0 / ( 12.0*a*(1.0 - 2.0*a) );
-   const double b_3 = (1.0 - 3.0*a) / ( 3.0*(1.0 - 2.0*a) );
+   const real_t a   = (3.0 + sqrt(3.0)) / 6.0;
+   const real_t b   = (1.0 - 2.0*a) / (4.0*a);
+   const real_t b_2 = 1.0 / ( 12.0*a*(1.0 - 2.0*a) );
+   const real_t b_3 = (1.0 - 3.0*a) / ( 3.0*(1.0 - 2.0*a) );
 
    f->SetTime(t);
    f->Mult(x,k);
@@ -781,9 +812,9 @@ void ESDIRK33Solver::Step(Vector &x, double &t, double &dt)
    t += dt;
 }
 
-void GeneralizedAlphaSolver::Init(TimeDependentOperator &_f)
+void GeneralizedAlphaSolver::Init(TimeDependentOperator &f_)
 {
-   ODESolver::Init(_f);
+   ODESolver::Init(f_);
    k.SetSize(f->Width(), mem_type);
    y.SetSize(f->Width(), mem_type);
    xdot.SetSize(f->Width(), mem_type);
@@ -816,7 +847,7 @@ void GeneralizedAlphaSolver::SetStateVector(int i, Vector &state)
    nstate = 1;
 }
 
-void GeneralizedAlphaSolver::SetRhoInf(double rho_inf)
+void GeneralizedAlphaSolver::SetRhoInf(real_t rho_inf)
 {
    rho_inf = (rho_inf > 1.0) ? 1.0 : rho_inf;
    rho_inf = (rho_inf < 0.0) ? 0.0 : rho_inf;
@@ -827,34 +858,34 @@ void GeneralizedAlphaSolver::SetRhoInf(double rho_inf)
    gamma = 0.5 + alpha_m - alpha_f;
 }
 
-void GeneralizedAlphaSolver::PrintProperties(std::ostream &out)
+void GeneralizedAlphaSolver::PrintProperties(std::ostream &os)
 {
-   out << "Generalized alpha time integrator:" << std::endl;
-   out << "alpha_m = " << alpha_m << std::endl;
-   out << "alpha_f = " << alpha_f << std::endl;
-   out << "gamma   = " << gamma   << std::endl;
+   os << "Generalized alpha time integrator:" << std::endl;
+   os << "alpha_m = " << alpha_m << std::endl;
+   os << "alpha_f = " << alpha_f << std::endl;
+   os << "gamma   = " << gamma   << std::endl;
 
    if (gamma == 0.5 + alpha_m - alpha_f)
    {
-      out<<"Second order"<<" and ";
+      os<<"Second order"<<" and ";
    }
    else
    {
-      out<<"First order"<<" and ";
+      os<<"First order"<<" and ";
    }
 
    if ((alpha_m >= alpha_f)&&(alpha_f >= 0.5))
    {
-      out<<"Stable"<<std::endl;
+      os<<"Stable"<<std::endl;
    }
    else
    {
-      out<<"Unstable"<<std::endl;
+      os<<"Unstable"<<std::endl;
    }
 }
 
 // This routine assumes xdot is initialized.
-void GeneralizedAlphaSolver::Step(Vector &x, double &t, double &dt)
+void GeneralizedAlphaSolver::Step(Vector &x, real_t &t, real_t &dt)
 {
    if (nstate == 0)
    {
@@ -866,7 +897,7 @@ void GeneralizedAlphaSolver::Step(Vector &x, double &t, double &dt)
    add(x, alpha_f*(1.0 - (gamma/alpha_m))*dt, xdot, y);
 
    // Solve k = f(y + dt_eff*k)
-   double dt_eff = (gamma*alpha_f/alpha_m)*dt;
+   real_t dt_eff = (gamma*alpha_f/alpha_m)*dt;
    f->SetTime(t + alpha_f*dt);
    f->ImplicitSolve(dt_eff, y, k);
 
@@ -891,7 +922,7 @@ SIASolver::Init(Operator &P, TimeDependentOperator & F)
 }
 
 void
-SIA1Solver::Step(Vector &q, Vector &p, double &t, double &dt)
+SIA1Solver::Step(Vector &q, Vector &p, real_t &t, real_t &dt)
 {
    F_->SetTime(t);
    F_->Mult(q,dp_);
@@ -904,7 +935,7 @@ SIA1Solver::Step(Vector &q, Vector &p, double &t, double &dt)
 }
 
 void
-SIA2Solver::Step(Vector &q, Vector &p, double &t, double &dt)
+SIA2Solver::Step(Vector &q, Vector &p, real_t &t, real_t &dt)
 {
    P_->Mult(p,dq_);
    q.Add(0.5*dt,dq_);
@@ -961,7 +992,7 @@ SIAVSolver::SIAVSolver(int order)
 }
 
 void
-SIAVSolver::Step(Vector &q, Vector &p, double &t, double &dt)
+SIAVSolver::Step(Vector &q, Vector &p, real_t &t, real_t &dt)
 {
    for (int i=0; i<order_; i++)
    {
@@ -986,57 +1017,57 @@ SIAVSolver::Step(Vector &q, Vector &p, double &t, double &dt)
    }
 }
 
-void SecondOrderODESolver::Init(SecondOrderTimeDependentOperator &f)
+void SecondOrderODESolver::Init(SecondOrderTimeDependentOperator &f_)
 {
-   this->f = &f;
-   mem_type = GetMemoryType(f.GetMemoryClass());
+   this->f = &f_;
+   mem_type = GetMemoryType(f_.GetMemoryClass());
 }
 
-void NewmarkSolver::Init(SecondOrderTimeDependentOperator &_f)
+void NewmarkSolver::Init(SecondOrderTimeDependentOperator &f_)
 {
-   SecondOrderODESolver::Init(_f);
+   SecondOrderODESolver::Init(f_);
    d2xdt2.SetSize(f->Width());
    d2xdt2 = 0.0;
    first = true;
 }
 
-void NewmarkSolver::PrintProperties(std::ostream &out)
+void NewmarkSolver::PrintProperties(std::ostream &os)
 {
-   out << "Newmark time integrator:" << std::endl;
-   out << "beta    = " << beta  << std::endl;
-   out << "gamma   = " << gamma << std::endl;
+   os << "Newmark time integrator:" << std::endl;
+   os << "beta    = " << beta  << std::endl;
+   os << "gamma   = " << gamma << std::endl;
 
    if (gamma == 0.5)
    {
-      out<<"Second order"<<" and ";
+      os<<"Second order"<<" and ";
    }
    else
    {
-      out<<"First order"<<" and ";
+      os<<"First order"<<" and ";
    }
 
    if ((gamma >= 0.5) && (beta >= (gamma + 0.5)*(gamma + 0.5)/4))
    {
-      out<<"A-Stable"<<std::endl;
+      os<<"A-Stable"<<std::endl;
    }
    else if ((gamma >= 0.5) && (beta >= 0.5*gamma))
    {
-      out<<"Conditionally stable"<<std::endl;
+      os<<"Conditionally stable"<<std::endl;
    }
    else
    {
-      out<<"Unstable"<<std::endl;
+      os<<"Unstable"<<std::endl;
    }
 }
 
-void NewmarkSolver::Step(Vector &x, Vector &dxdt, double &t, double &dt)
+void NewmarkSolver::Step(Vector &x, Vector &dxdt, real_t &t, real_t &dt)
 {
-   double fac0 = 0.5 - beta;
-   double fac2 = 1.0 - gamma;
-   double fac3 = beta;
-   double fac4 = gamma;
+   real_t fac0 = 0.5 - beta;
+   real_t fac2 = 1.0 - gamma;
+   real_t fac3 = beta;
+   real_t fac4 = gamma;
 
-   // In the first pass compute d2xdt2 directy from operator.
+   // In the first pass compute d2xdt2 directly from operator.
    if (first)
    {
       f->Mult(x, dxdt, d2xdt2);
@@ -1056,9 +1087,9 @@ void NewmarkSolver::Step(Vector &x, Vector &dxdt, double &t, double &dt)
    t += dt;
 }
 
-void GeneralizedAlpha2Solver::Init(SecondOrderTimeDependentOperator &_f)
+void GeneralizedAlpha2Solver::Init(SecondOrderTimeDependentOperator &f_)
 {
-   SecondOrderODESolver::Init(_f);
+   SecondOrderODESolver::Init(f_);
    xa.SetSize(f->Width());
    va.SetSize(f->Width());
    aa.SetSize(f->Width());
@@ -1093,46 +1124,46 @@ void GeneralizedAlpha2Solver::SetStateVector(int i, Vector &state)
    nstate = 1;
 }
 
-void GeneralizedAlpha2Solver::PrintProperties(std::ostream &out)
+void GeneralizedAlpha2Solver::PrintProperties(std::ostream &os)
 {
-   out << "Generalized alpha time integrator:" << std::endl;
-   out << "alpha_m = " << alpha_m << std::endl;
-   out << "alpha_f = " << alpha_f << std::endl;
-   out << "beta    = " << beta    << std::endl;
-   out << "gamma   = " << gamma   << std::endl;
+   os << "Generalized alpha time integrator:" << std::endl;
+   os << "alpha_m = " << alpha_m << std::endl;
+   os << "alpha_f = " << alpha_f << std::endl;
+   os << "beta    = " << beta    << std::endl;
+   os << "gamma   = " << gamma   << std::endl;
 
    if (gamma == 0.5 + alpha_m - alpha_f)
    {
-      out<<"Second order"<<" and ";
+      os<<"Second order"<<" and ";
    }
    else
    {
-      out<<"First order"<<" and ";
+      os<<"First order"<<" and ";
    }
 
    if ((alpha_m >= alpha_f)&&
        (alpha_f >= 0.5) &&
        (beta >= 0.25 + 0.5*(alpha_m - alpha_f)))
    {
-      out<<"Stable"<<std::endl;
+      os<<"Stable"<<std::endl;
    }
    else
    {
-      out<<"Unstable"<<std::endl;
+      os<<"Unstable"<<std::endl;
    }
 }
 
 void GeneralizedAlpha2Solver::Step(Vector &x, Vector &dxdt,
-                                   double &t, double &dt)
+                                   real_t &t, real_t &dt)
 {
-   double fac0 = (0.5 - (beta/alpha_m));
-   double fac1 = alpha_f;
-   double fac2 = alpha_f*(1.0 - (gamma/alpha_m));
-   double fac3 = beta*alpha_f/alpha_m;
-   double fac4 = gamma*alpha_f/alpha_m;
-   double fac5 = alpha_m;
+   real_t fac0 = (0.5 - (beta/alpha_m));
+   real_t fac1 = alpha_f;
+   real_t fac2 = alpha_f*(1.0 - (gamma/alpha_m));
+   real_t fac3 = beta*alpha_f/alpha_m;
+   real_t fac4 = gamma*alpha_f/alpha_m;
+   real_t fac5 = alpha_m;
 
-   // In the first pass compute d2xdt2 directy from operator.
+   // In the first pass compute d2xdt2 directly from operator.
    if (nstate == 0)
    {
       f->Mult(x, dxdt, d2xdt2);

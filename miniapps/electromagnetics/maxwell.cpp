@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -86,30 +86,30 @@ using namespace mfem::electromagnetics;
 // Permittivity Function
 static Vector ds_params_(0);  // Center, Radius, and Permittivity
 //                               of dielectric sphere
-double dielectric_sphere(const Vector &);
-double epsilon(const Vector &x) { return dielectric_sphere(x); }
+real_t dielectric_sphere(const Vector &);
+real_t epsilon(const Vector &x) { return dielectric_sphere(x); }
 
 // Permeability Function
 static Vector ms_params_(0);  // Center, Inner and Outer Radii, and
 //                               Permeability of magnetic shell
-double magnetic_shell(const Vector &);
-double muInv(const Vector & x) { return 1.0/magnetic_shell(x); }
+real_t magnetic_shell(const Vector &);
+real_t muInv(const Vector & x) { return 1.0/magnetic_shell(x); }
 
 // Conductivity Function
 static Vector cs_params_(0);  // Center, Radius, and Conductivity
 //                               of conductive sphere
-double conductive_sphere(const Vector &);
-double sigma(const Vector &x) { return conductive_sphere(x); }
+real_t conductive_sphere(const Vector &);
+real_t sigma(const Vector &x) { return conductive_sphere(x); }
 
 // Current Density Function
 static Vector dp_params_(0);  // Axis Start, Axis End, Rod Radius,
 //                               Total Current of Rod, and Frequency
-void dipole_pulse(const Vector &x, double t, Vector &j);
-void j_src(const Vector &x, double t, Vector &j) { dipole_pulse(x, t, j); }
+void dipole_pulse(const Vector &x, real_t t, Vector &j);
+void j_src(const Vector &x, real_t t, Vector &j) { dipole_pulse(x, t, j); }
 
 // dE/dt Boundary Condition: The following function returns zero but any time
 // dependent function could be used.
-void dEdtBCFunc(const Vector &x, double t, Vector &E);
+void dEdtBCFunc(const Vector &x, real_t t, Vector &E);
 
 // The following functions return zero but they could be modified to set initial
 // conditions for the electric and magnetic fields
@@ -117,18 +117,24 @@ void EFieldFunc(const Vector &, Vector&);
 void BFieldFunc(const Vector &, Vector&);
 
 // Scale factor between input time units and seconds
-static double tScale_ = 1e-9;  // Input time in nanosecond
+static real_t tScale_ = 1e-9;  // Input time in nanosecond
 
-int SnapTimeStep(double tmax, double dtmax, double & dt);
+int SnapTimeStep(real_t tmax, real_t dtmax, real_t & dt);
 
 // Prints the program's logo to the given output stream
 void display_banner(ostream & os);
 
 int main(int argc, char *argv[])
 {
-   MPI_Session mpi(argc, argv);
+#ifdef MFEM_USE_SINGLE
+   cout << "This miniapp is not supported in single precision.\n\n";
+   return MFEM_SKIP_RETURN_VALUE;
+#endif
 
-   if ( mpi.Root() ) { display_banner(cout); }
+   Mpi::Init();
+   Hypre::Init();
+
+   if ( Mpi::Root() ) { display_banner(cout); }
 
    // Parse command-line options.
    const char *mesh_file = "../../data/ball-nurbs.mesh";
@@ -138,11 +144,11 @@ int main(int argc, char *argv[])
    int parallel_ref_levels = 0;
    bool visualization = true;
    bool visit = true;
-   double dt = 1.0e-12;
-   double dtsf = 0.95;
-   double ti = 0.0;
-   double ts = 1.0;
-   double tf = 40.0;
+   real_t dt = 1.0e-12;
+   real_t dtsf = 0.95;
+   real_t ti = 0.0;
+   real_t ts = 1.0;
+   real_t tf = 40.0;
 
    Array<int> abcs;
    Array<int> dbcs;
@@ -189,13 +195,13 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          args.PrintUsage(cout);
       }
       return 1;
    }
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       args.PrintOptions(cout);
    }
@@ -207,7 +213,7 @@ int main(int argc, char *argv[])
    ifstream imesh(mesh_file);
    if (!imesh)
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cerr << "\nCan not open mesh file: " << mesh_file << '\n' << endl;
       }
@@ -265,28 +271,28 @@ int main(int argc, char *argv[])
    Maxwell.SetInitialBField(BFieldCoef);
 
    // Compute the energy of the initial fields
-   double energy = Maxwell.GetEnergy();
-   if ( mpi.Root() )
+   real_t energy = Maxwell.GetEnergy();
+   if ( Mpi::Root() )
    {
       cout << "Energy(" << ti << "ns):  " << energy << "J" << endl;
    }
 
    // Approximate the largest stable time step
-   double dtmax = Maxwell.GetMaximumTimeStep();
+   real_t dtmax = Maxwell.GetMaximumTimeStep();
 
    // Convert times from nanoseconds to seconds
    ti *= tScale_;
    tf *= tScale_;
    ts *= tScale_;
 
-   if ( mpi.Root() )
+   if ( Mpi::Root() )
    {
       cout << "Maximum Time Step:     " << dtmax / tScale_ << "ns" << endl;
    }
 
    // Round down the time step so that tf-ti is an integer multiple of dt
    int nsteps = SnapTimeStep(tf-ti, dtsf * dtmax, dt);
-   if ( mpi.Root() )
+   if ( Mpi::Root() )
    {
       cout << "Number of Time Steps:  " << nsteps << endl;
       cout << "Time Step Size:        " << dt / tScale_ << "ns" << endl;
@@ -306,7 +312,7 @@ int main(int argc, char *argv[])
    // Initialize VisIt visualization
    VisItDataCollection visit_dc("Maxwell-Parallel", &pmesh);
 
-   double t = ti;
+   real_t t = ti;
    Maxwell.SetTime(t);
 
    if ( visit )
@@ -336,7 +342,7 @@ int main(int argc, char *argv[])
 
       // Approximate the current energy if the fields
       energy = Maxwell.GetEnergy();
-      if ( mpi.Root() )
+      if ( Mpi::Root() )
       {
          cout << "Energy(" << t/tScale_ << "ns):  " << energy << "J" << endl;
       }
@@ -378,9 +384,9 @@ void display_banner(ostream & os)
 
 // A sphere with constant permittivity.  The sphere has a radius, center, and
 // permittivity specified on the command line and stored in ds_params_.
-double dielectric_sphere(const Vector &x)
+real_t dielectric_sphere(const Vector &x)
 {
-   double r2 = 0.0;
+   real_t r2 = 0.0;
 
    for (int i=0; i<x.Size(); i++)
    {
@@ -397,9 +403,9 @@ double dielectric_sphere(const Vector &x)
 // A spherical shell with constant permeability.  The sphere has inner and outer
 // radii, center, and relative permeability specified on the command line and
 // stored in ms_params_.
-double magnetic_shell(const Vector &x)
+real_t magnetic_shell(const Vector &x)
 {
-   double r2 = 0.0;
+   real_t r2 = 0.0;
 
    for (int i=0; i<x.Size(); i++)
    {
@@ -416,9 +422,9 @@ double magnetic_shell(const Vector &x)
 
 // A sphere with constant conductivity.  The sphere has a radius, center, and
 // conductivity specified on the command line and stored in ls_params_.
-double conductive_sphere(const Vector &x)
+real_t conductive_sphere(const Vector &x)
 {
-   double r2 = 0.0;
+   real_t r2 = 0.0;
 
    for (int i=0; i<x.Size(); i++)
    {
@@ -435,7 +441,7 @@ double conductive_sphere(const Vector &x)
 // A cylindrical rod of current density.  The rod has two axis end points, a
 // radius, a current amplitude in Amperes, a center time, and a width.  All of
 // these parameters are stored in dp_params_.
-void dipole_pulse(const Vector &x, double t, Vector &j)
+void dipole_pulse(const Vector &x, real_t t, Vector &j)
 {
    MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
 
@@ -453,7 +459,7 @@ void dipole_pulse(const Vector &x, double t, Vector &j)
       v[i]   = dp_params_[x.Size()+i] - dp_params_[i];
    }
 
-   double h = v.Norml2();
+   real_t h = v.Norml2();
 
    if ( h == 0.0 )
    {
@@ -461,24 +467,24 @@ void dipole_pulse(const Vector &x, double t, Vector &j)
    }
    v /= h;
 
-   double r = dp_params_[2*x.Size()+0];
-   double a = dp_params_[2*x.Size()+1] * tScale_;
-   double b = dp_params_[2*x.Size()+2] * tScale_;
-   double c = dp_params_[2*x.Size()+3] * tScale_;
+   real_t r = dp_params_[2*x.Size()+0];
+   real_t a = dp_params_[2*x.Size()+1] * tScale_;
+   real_t b = dp_params_[2*x.Size()+2] * tScale_;
+   real_t c = dp_params_[2*x.Size()+3] * tScale_;
 
-   double xv = xu * v;
+   real_t xv = xu * v;
 
    // Compute perpendicular vector from axis to x
    xu.Add(-xv, v);
 
-   double xp = xu.Norml2();
+   real_t xp = xu.Norml2();
 
    if ( xv >= 0.0 && xv <= h && xp <= r )
    {
       j = v;
    }
 
-   j *= a * (t - b) * exp(-0.5 * pow((t-b)/c, 2)) / (c * c);
+   j *= a * (t - b) * exp(-0.5 * pow((t-b)/c, 2.0)) / (c * c);
 }
 
 void
@@ -496,18 +502,18 @@ BFieldFunc(const Vector &x, Vector &B)
 }
 
 void
-dEdtBCFunc(const Vector &x, double t, Vector &dE)
+dEdtBCFunc(const Vector &x, real_t t, Vector &dE)
 {
    dE.SetSize(3);
    dE = 0.0;
 }
 
 int
-SnapTimeStep(double tmax, double dtmax, double & dt)
+SnapTimeStep(real_t tmax, real_t dtmax, real_t & dt)
 {
-   double dsteps = tmax/dtmax;
+   real_t dsteps = tmax/dtmax;
 
-   int nsteps = pow(10,(int)ceil(log10(dsteps)));
+   int nsteps = static_cast<int>(pow(10,(int)ceil(log10(dsteps))));
 
    for (int i=1; i<=5; i++)
    {

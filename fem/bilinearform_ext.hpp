@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -67,13 +67,18 @@ public:
 class PABilinearFormExtension : public BilinearFormExtension
 {
 protected:
-   const FiniteElementSpace *trialFes, *testFes; // Not owned
+   const FiniteElementSpace *trial_fes, *test_fes; // Not owned
+   /// Attributes of all mesh elements.
+   Array<int> elem_attributes, bdr_attributes;
+   mutable Vector tmp_evec; // Work array
    mutable Vector localX, localY;
-   mutable Vector faceIntX, faceIntY;
-   mutable Vector faceBdrX, faceBdrY;
+   mutable Vector int_face_X, int_face_Y;
+   mutable Vector bdr_face_X, bdr_face_Y;
+   mutable Vector int_face_dXdn, int_face_dYdn;
+   mutable Vector bdr_face_dXdn, bdr_face_dYdn;
    const Operator *elem_restrict; // Not owned
-   const Operator *int_face_restrict_lex; // Not owned
-   const Operator *bdr_face_restrict_lex; // Not owned
+   const FaceRestriction *int_face_restrict_lex; // Not owned
+   const FaceRestriction *bdr_face_restrict_lex; // Not owned
 
 public:
    PABilinearFormExtension(BilinearForm*);
@@ -91,6 +96,42 @@ public:
 
 protected:
    void SetupRestrictionOperators(const L2FaceValues m);
+
+   /// @brief Accumulate the action (or transpose) of the integrator on @a x
+   /// into @a y, taking into account the (possibly null) @a markers array.
+   ///
+   /// If @a markers is non-null, then only those elements or boundary elements
+   /// whose attribute is marked in the markers array will be added to @a y.
+   ///
+   /// @param integ The integrator (domain, boundary, or boundary face).
+   /// @param x Input E-vector.
+   /// @param markers Marked attributes (possibly null, meaning all attributes).
+   /// @param attributes Array of element or boundary element attributes.
+   /// @param transpose Compute the action or transpose of the integrator .
+   /// @param y Output E-vector
+   void AddMultWithMarkers(const BilinearFormIntegrator &integ,
+                           const Vector &x,
+                           const Array<int> *markers,
+                           const Array<int> &attributes,
+                           const bool transpose,
+                           Vector &y) const;
+
+   /// @brief Performs the same function as AddMultWithMarkers, but takes as
+   /// input and output face normal derivatives.
+   ///
+   /// This is required when the integrator requires face normal derivatives,
+   /// for example, DGDiffusionIntegrator.
+   ///
+   /// This is called when the integrator's member function
+   /// BilinearFormIntegrator::RequiresFaceNormalDerivatives() returns true.
+   void AddMultNormalDerivativesWithMarkers(
+      const BilinearFormIntegrator &integ,
+      const Vector &x,
+      const Vector &dxdn,
+      const Array<int> *markers,
+      const Array<int> &attributes,
+      Vector &y,
+      Vector &dydn) const;
 };
 
 /// Data and methods for element-assembled bilinear forms
@@ -125,6 +166,15 @@ public:
    FABilinearFormExtension(BilinearForm *form);
 
    void Assemble();
+   void RAP(OperatorHandle &A);
+   /** @note Always does `DIAG_ONE` policy to be consistent with
+       `Operator::FormConstrainedSystemOperator`. */
+   void EliminateBC(const Array<int> &ess_dofs, OperatorHandle &A);
+   void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);
+   void FormLinearSystem(const Array<int> &ess_tdof_list,
+                         Vector &x, Vector &b,
+                         OperatorHandle &A, Vector &X, Vector &B,
+                         int copy_interior = 0);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
 
@@ -138,13 +188,13 @@ public:
 class MFBilinearFormExtension : public BilinearFormExtension
 {
 protected:
-   const FiniteElementSpace *trialFes, *testFes; // Not owned
+   const FiniteElementSpace *trial_fes, *test_fes; // Not owned
    mutable Vector localX, localY;
-   mutable Vector faceIntX, faceIntY;
-   mutable Vector faceBdrX, faceBdrY;
+   mutable Vector int_face_X, int_face_Y;
+   mutable Vector bdr_face_X, bdr_face_Y;
    const Operator *elem_restrict; // Not owned
-   const Operator *int_face_restrict_lex; // Not owned
-   const Operator *bdr_face_restrict_lex; // Not owned
+   const FaceRestriction *int_face_restrict_lex; // Not owned
+   const FaceRestriction *bdr_face_restrict_lex; // Not owned
 
 public:
    MFBilinearFormExtension(BilinearForm *form);
@@ -199,10 +249,6 @@ public:
                                             Vector &x, Vector &b,
                                             OperatorHandle &A, Vector &X, Vector &B) = 0;
 
-   virtual void AddMult(const Vector &x, Vector &y, const double c=1.0) const = 0;
-   virtual void AddMultTranspose(const Vector &x, Vector &y,
-                                 const double c=1.0) const = 0;
-
    virtual void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const = 0;
 
    virtual void Update() = 0;
@@ -212,7 +258,7 @@ public:
 class PAMixedBilinearFormExtension : public MixedBilinearFormExtension
 {
 protected:
-   const FiniteElementSpace *trialFes, *testFes; // Not owned
+   const FiniteElementSpace *trial_fes, *test_fes; // Not owned
    mutable Vector localTrial, localTest, tempY;
    const Operator *elem_restrict_trial; // Not owned
    const Operator *elem_restrict_test;  // Not owned
@@ -221,7 +267,7 @@ protected:
    void SetupMultInputs(const Operator *elem_restrict_x,
                         const Vector &x, Vector &localX,
                         const Operator *elem_restrict_y,
-                        Vector &y, Vector &localY, const double c) const;
+                        Vector &y, Vector &localY, const real_t c) const;
 
 public:
    PAMixedBilinearFormExtension(MixedBilinearForm *form);
@@ -250,11 +296,11 @@ public:
    /// y = A*x
    void Mult(const Vector &x, Vector &y) const;
    /// y += c*A*x
-   void AddMult(const Vector &x, Vector &y, const double c=1.0) const;
+   void AddMult(const Vector &x, Vector &y, const real_t c=1.0) const;
    /// y = A^T*x
    void MultTranspose(const Vector &x, Vector &y) const;
    /// y += c*A^T*x
-   void AddMultTranspose(const Vector &x, Vector &y, const double c=1.0) const;
+   void AddMultTranspose(const Vector &x, Vector &y, const real_t c=1.0) const;
    /// Assemble the diagonal of ADA^T for a diagonal vector D.
    void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const;
 
@@ -278,9 +324,9 @@ public:
    /// Partial assembly of all internal integrators
    void Assemble();
 
-   void AddMult(const Vector &x, Vector &y, const double c) const;
+   void AddMult(const Vector &x, Vector &y, const real_t c=1.0) const;
 
-   void AddMultTranspose(const Vector &x, Vector &y, const double c=1.0) const;
+   void AddMultTranspose(const Vector &x, Vector &y, const real_t c=1.0) const;
 
    void FormRectangularSystemOperator(const Array<int>&, const Array<int>&,
                                       OperatorHandle& A);

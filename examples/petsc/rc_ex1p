@@ -14,4 +14,5 @@
 -mg_levels_esteig_ksp_type cg
 -mg_levels_esteig_ksp_max_it 10
 -mg_levels_ksp_chebyshev_esteig 0,0.05,0,1.05
+-pc_gamg_use_sa_esteig 0
 -mg_levels_pc_type sor

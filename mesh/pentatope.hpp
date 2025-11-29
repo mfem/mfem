@@ -14,6 +14,7 @@
 #define MFEM_PENTATOPE
 
 #include "../config/config.hpp"
+#include "../fem/fe.hpp"
 #include "element.hpp"
 
 namespace mfem
@@ -53,9 +54,6 @@ public:
    /// Return 1 if the element needs refinement in order to get conforming mesh.
    virtual int NeedRefinement(HashTable<Hashed2> &v_to_v) const;
 
-   /// Set the vertices according to the given input.
-   virtual void SetVertices(const int *ind);
-
    /// Mark the longest edge by assuming/changing the order of the vertices.
    virtual void MarkEdge(DenseMatrix &pmat)
    { MFEM_ABORT("PENTATOPE:: MarkEdge not implemented"); }
@@ -79,10 +77,14 @@ public:
    /// Return flag of element.
    virtual unsigned char GetFlag() const { return flag; }
 
-   /// Returns the indices of the element's  vertices.
-   virtual void GetVertices(Array<int> &v) const;
-
-   virtual int *GetVertices() { return indices; }
+   // Cancelled and added new version at the end of the file (2025 November)
+   // /// Set the vertices according to the given input.
+   // virtual void SetVertices(const int *ind);
+   //
+   // /// Returns the indices of the element's  vertices.
+   // virtual void GetVertices(Array<int> &v) const;
+   //
+   // virtual int *GetVertices() { return indices; }
 
    virtual int GetNVertices() const { return 5; }
 
@@ -115,11 +117,23 @@ public:
 
    virtual Element *Duplicate(Mesh *m) const;
 
+   /// Get the indices defining the vertices.
+   void GetVertices(Array<int> &v) const override;
+
+   /// Set the indices defining the vertices.
+   void SetVertices(const Array<int> &v) override;
+
+   /// @note The returned array should NOT be deleted by the caller.
+   int * GetVertices () override { return indices; }
+
+   /// Set the indices defining the vertices.
+   void SetVertices(const int *ind) override;
+
    virtual ~Pentatope() { }
 
 };
 
-extern Linear4DFiniteElement PentatopeFE;
+extern MFEM_EXPORT Linear4DFiniteElement PentatopeFE;
 
 }
 

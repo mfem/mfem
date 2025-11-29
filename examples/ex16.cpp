@@ -24,7 +24,10 @@
 //               class ConductionOperator defining C(u)), as well as their
 //               implicit time integration. Note that implementing the method
 //               ConductionOperator::ImplicitSolve is the only requirement for
-//               high-order implicit (SDIRK) time integration.
+//               high-order implicit (SDIRK) time integration. In this example,
+//               the diffusion operator is linearized by evaluating with the
+//               lagged solution from the previous timestep, so there is only
+//               a linear solve.
 //
 //               We recommend viewing examples 2, 9 and 10 before viewing this
 //               example.
@@ -57,7 +60,7 @@ protected:
 
    SparseMatrix Mmat, Kmat;
    SparseMatrix *T; // T = M + dt K
-   double current_dt;
+   real_t current_dt;
 
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
    DSmoother M_prec;  // Preconditioner for the mass matrix M
@@ -65,18 +68,18 @@ protected:
    CGSolver T_solver; // Implicit solver for T = M + dt K
    DSmoother T_prec;  // Preconditioner for the implicit solver
 
-   double alpha, kappa;
+   real_t alpha, kappa;
 
    mutable Vector z; // auxiliary vector
 
 public:
-   ConductionOperator(FiniteElementSpace &f, double alpha, double kappa,
+   ConductionOperator(FiniteElementSpace &f, real_t alpha, real_t kappa,
                       const Vector &u);
 
    virtual void Mult(const Vector &u, Vector &du_dt) const;
    /** Solve the Backward-Euler equation: k = f(u + dt*k, t), for the unknown k.
        This is the only requirement for high-order SDIRK implicit integration.*/
-   virtual void ImplicitSolve(const double dt, const Vector &u, Vector &k);
+   virtual void ImplicitSolve(const real_t dt, const Vector &u, Vector &k);
 
    /// Update the diffusion BilinearForm K using the given true-dof vector `u`.
    void SetParameters(const Vector &u);
@@ -84,7 +87,7 @@ public:
    virtual ~ConductionOperator();
 };
 
-double InitialTemperature(const Vector &x);
+real_t InitialTemperature(const Vector &x);
 
 int main(int argc, char *argv[])
 {
@@ -93,10 +96,10 @@ int main(int argc, char *argv[])
    int ref_levels = 2;
    int order = 2;
    int ode_solver_type = 3;
-   double t_final = 0.5;
-   double dt = 1.0e-2;
-   double alpha = 1.0e-2;
-   double kappa = 0.5;
+   real_t t_final = 0.5;
+   real_t dt = 1.0e-2;
+   real_t alpha = 1.0e-2;
+   real_t kappa = 0.5;
    bool visualization = true;
    bool visit = false;
    int vis_steps = 5;
@@ -243,7 +246,7 @@ int main(int argc, char *argv[])
    // 8. Perform time-integration (looping over the time iterations, ti, with a
    //    time-step dt).
    ode_solver->Init(oper);
-   double t = 0.0;
+   real_t t = 0.0;
 
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
@@ -290,12 +293,12 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-ConductionOperator::ConductionOperator(FiniteElementSpace &f, double al,
-                                       double kap, const Vector &u)
-   : TimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), M(NULL), K(NULL),
-     T(NULL), current_dt(0.0), z(height)
+ConductionOperator::ConductionOperator(FiniteElementSpace &f, real_t al,
+                                       real_t kap, const Vector &u)
+   : TimeDependentOperator(f.GetTrueVSize(), (real_t) 0.0), fespace(f),
+     M(NULL), K(NULL), T(NULL), current_dt(0.0), z(height)
 {
-   const double rel_tol = 1e-8;
+   const real_t rel_tol = 1e-8;
 
    M = new BilinearForm(&fespace);
    M->AddDomainIntegrator(new MassIntegrator());
@@ -326,19 +329,19 @@ ConductionOperator::ConductionOperator(FiniteElementSpace &f, double al,
 void ConductionOperator::Mult(const Vector &u, Vector &du_dt) const
 {
    // Compute:
-   //    du_dt = M^{-1}*-K(u)
-   // for du_dt
+   //    du_dt = M^{-1}*-Ku
+   // for du_dt, where K is linearized by using u from the previous timestep
    Kmat.Mult(u, z);
    z.Neg(); // z = -z
    M_solver.Mult(z, du_dt);
 }
 
-void ConductionOperator::ImplicitSolve(const double dt,
+void ConductionOperator::ImplicitSolve(const real_t dt,
                                        const Vector &u, Vector &du_dt)
 {
    // Solve the equation:
    //    du_dt = M^{-1}*[-K(u + dt*du_dt)]
-   // for du_dt
+   // for du_dt, where K is linearized by using u from the previous timestep
    if (!T)
    {
       T = Add(1.0, Mmat, dt, Kmat);
@@ -379,7 +382,7 @@ ConductionOperator::~ConductionOperator()
    delete K;
 }
 
-double InitialTemperature(const Vector &x)
+real_t InitialTemperature(const Vector &x)
 {
    if (x.Norml2() < 0.5)
    {

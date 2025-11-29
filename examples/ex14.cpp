@@ -18,7 +18,13 @@
 //               ex14 -m ../data/amr-quad.mesh -r 3
 //               ex14 -m ../data/amr-hex.mesh
 //               ex14 -m ../data/fichera-amr.mesh
+//               ex14 -pa -r 1 -o 3
+//               ex14 -pa -r 1 -o 3 -m ../data/fichera.mesh
 //               ex14 -m ../data/inline-tet.mesh -o 0 -nt 4 -s 1
+//
+// Device sample runs:
+//               ex14 -pa -r 2 -d cuda -o 3
+//               ex14 -pa -r 2 -d cuda -o 3 -m ../data/fichera.mesh
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               discontinuous Galerkin (DG) finite element discretization of
@@ -44,10 +50,12 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int ref_levels = -1;
    int order = 1;
-   double sigma = -1.0;
-   double kappa = -1.0;
-   double eta = 0.0;
+   real_t sigma = -1.0;
+   real_t kappa = -1.0;
+   real_t eta = 0.0;
+   bool pa = false;
    bool visualization = 1;
+   const char *device_config = "cpu";
    int nt = 0;
    double st = 1.0;
 
@@ -69,9 +77,13 @@ int main(int argc, char *argv[])
                   "One of the three DG penalty parameters, should be positive."
                   " Negative values are replaced with (order+1)^2.");
    args.AddOption(&eta, "-e", "--eta", "BR2 penalty parameter.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.Parse();
    if (!args.Good())
    {
@@ -84,7 +96,12 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // 2. Read the mesh from the given mesh file. We can handle triangular,
+   // 2. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   device.Print();
+
+   // 3. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
    //    NURBS meshes are projected to second order meshes.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
@@ -94,10 +111,12 @@ int main(int argc, char *argv[])
       Mesh* spat_mesh = mesh;
       mesh = new Mesh(spat_mesh, nt, Element::PENTATOPE, true, st);
       delete spat_mesh;
+
+      ref_levels = 0;
       dim = 4;
    }
 
-   // 3. Refine the mesh to increase the resolution. In this example we do
+   // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. By default, or if ref_levels < 0,
    //    we choose it to be the largest number that gives a final mesh with no
    //    more than 50,000 elements.
@@ -116,69 +135,83 @@ int main(int argc, char *argv[])
       mesh->SetCurvature(max(order, 1));
    }
 
-   // 4. Define a finite element space on the mesh. Here we use discontinuous
+   // 5. Define a finite element space on the mesh. Here we use discontinuous
    //    finite elements of the specified order >= 0.
-   FiniteElementCollection *fec = new DG_FECollection(order, dim);
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
-   cout << "Number of unknowns: " << fespace->GetVSize() << endl;
+   const auto bt = pa ? BasisType::GaussLobatto : BasisType::GaussLegendre;
+   DG_FECollection fec(order, dim, bt);
+   FiniteElementSpace fespace(mesh, &fec);
+   cout << "Number of unknowns: " << fespace.GetVSize() << endl;
 
-   // 5. Set up the linear form b(.) which corresponds to the right-hand side of
+   // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system.
-   LinearForm *b = new LinearForm(fespace);
+   LinearForm b(&fespace);
    ConstantCoefficient one(1.0);
    ConstantCoefficient zero(0.0);
-   b->AddDomainIntegrator(new DomainLFIntegrator(one));
-   b->AddBdrFaceIntegrator(
+   b.AddDomainIntegrator(new DomainLFIntegrator(one));
+   b.AddBdrFaceIntegrator(
       new DGDirichletLFIntegrator(zero, one, sigma, kappa));
-   b->Assemble();
+   b.Assemble();
 
-   // 6. Define the solution vector x as a finite element grid function
+   // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero.
-   GridFunction x(fespace);
+   GridFunction x(&fespace);
    x = 0.0;
 
-   // 7. Set up the bilinear form a(.,.) on the finite element space
+   // 8. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator and the interior and boundary DG face integrators.
    //    Note that boundary conditions are imposed weakly in the form, so there
    //    is no need for dof elimination. After assembly and finalizing we
    //    extract the corresponding sparse matrix A.
-   BilinearForm *a = new BilinearForm(fespace);
-   a->AddDomainIntegrator(new DiffusionIntegrator(one));
-   a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
-   a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+   BilinearForm a(&fespace);
+   a.AddDomainIntegrator(new DiffusionIntegrator(one));
+   a.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+   a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
    if (eta > 0)
    {
-      a->AddInteriorFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
-      a->AddBdrFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
+      MFEM_VERIFY(!pa, "BR2 not yet compatible with partial assembly.");
+      a.AddInteriorFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
+      a.AddBdrFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
    }
-   a->Assemble();
-   a->Finalize();
-   const SparseMatrix &A = a->SpMat();
+   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   a.Assemble();
+   a.Finalize();
 
-#ifndef MFEM_USE_SUITESPARSE
-   // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
+   // 9. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
-   //    non-symmetric one.
-   GSSmoother M(A);
-   if (sigma == -1.0)
+   //    non-symmetric one. (Note that tolerances are squared: 1e-12 corresponds
+   //    to a relative tolerance of 1e-6).
+   //
+   //    If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+   if (pa)
    {
-      PCG(A, M, *b, x, 1, 500, 1e-12, 0.0);
+      MFEM_VERIFY(sigma == -1.0,
+                  "The case of PA with sigma != -1 is not yet supported.");
+      CG(a, b, x, 1, 500, 1e-12, 0.0);
    }
    else
    {
-      GMRES(A, M, *b, x, 1, 500, 10, 1e-12, 0.0);
-   }
+      const SparseMatrix &A = a.SpMat();
+#ifndef MFEM_USE_SUITESPARSE
+      GSSmoother M(A);
+      if (sigma == -1.0)
+      {
+         PCG(A, M, b, x, 1, 500, 1e-12, 0.0);
+      }
+      else
+      {
+         GMRES(A, M, b, x, 1, 500, 10, 1e-12, 0.0);
+      }
 #else
-   // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-   UMFPackSolver umf_solver;
-   umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-   umf_solver.SetOperator(A);
-   umf_solver.Mult(*b, x);
+      UMFPackSolver umf_solver;
+      umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+      umf_solver.SetOperator(A);
+      umf_solver.Mult(b, x);
 #endif
+   }
 
-   // 9. Save the refined mesh and the solution. This output can be viewed later
-   //    using GLVis: "glvis -m refined.mesh -g sol.gf".
+   // 10. Save the refined mesh and the solution. This output can be viewed
+   //     later using GLVis: "glvis -m refined.mesh -g sol.gf".
    ofstream mesh_ofs("refined.mesh");
    mesh_ofs.precision(8);
    mesh->Print(mesh_ofs);
@@ -186,7 +219,7 @@ int main(int argc, char *argv[])
    sol_ofs.precision(8);
    x.Save(sol_ofs);
 
-   // 10. Send the solution by socket to a GLVis server.
+   // 11. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -196,11 +229,6 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *mesh << x << flush;
    }
 
-   // 11. Free the used memory.
-   delete a;
-   delete b;
-   delete fespace;
-   delete fec;
    delete mesh;
 
    return 0;

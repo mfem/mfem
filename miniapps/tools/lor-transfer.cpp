@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -58,23 +58,23 @@ string space;
 string direction;
 
 // Exact functions to project
-double RHO_exact(const Vector &x);
+real_t RHO_exact(const Vector &x);
 
 // Helper functions
 void visualize(VisItDataCollection &, string, int, int);
-double compute_mass(FiniteElementSpace *, double, VisItDataCollection &,
+real_t compute_mass(FiniteElementSpace *, real_t, VisItDataCollection &,
                     string);
 
 int main(int argc, char *argv[])
 {
    // Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
-   int order = 4;
-   int lref = order;
+   int order = 3;
+   int lref = order+1;
    int lorder = 0;
    bool vis = true;
    bool useH1 = false;
-   bool use_transfer = false;
+   bool use_pointwise_transfer = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -92,16 +92,10 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&useH1, "-h1", "--use-h1", "-l2", "--use-l2",
                   "Use H1 spaces instead of L2.");
-   args.AddOption(&use_transfer, "-t", "--use-pointwise-transfer", "-no-t",
-                  "--dont-use-pointwise-transfer",
+   args.AddOption(&use_pointwise_transfer, "-t", "--use-pointwise-transfer",
+                  "-no-t", "--dont-use-pointwise-transfer",
                   "Use pointwise transfer operators instead of L2 projection.");
-   args.Parse();
-   if (!args.Good())
-   {
-      args.PrintUsage(cout);
-      return 1;
-   }
-   args.PrintOptions(cout);
+   args.ParseCheck();
 
    // Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
@@ -109,7 +103,7 @@ int main(int argc, char *argv[])
 
    // Create the low-order refined mesh
    int basis_lor = BasisType::GaussLobatto; // BasisType::ClosedUniform;
-   Mesh mesh_lor(&mesh, lref, basis_lor);
+   Mesh mesh_lor = Mesh::MakeRefined(mesh, lref, basis_lor);
 
    // Create spaces
    FiniteElementCollection *fec, *fec_lor;
@@ -121,13 +115,13 @@ int main(int argc, char *argv[])
          lorder = 1;
          cerr << "Switching the H1 LOR space order from 0 to 1\n";
       }
-      fec = new H1_FECollection(order-1, dim);
+      fec = new H1_FECollection(order, dim);
       fec_lor = new H1_FECollection(lorder, dim);
    }
    else
    {
       space = "L2";
-      fec = new L2_FECollection(order-1, dim);
+      fec = new L2_FECollection(order, dim);
       fec_lor = new L2_FECollection(lorder, dim);
    }
 
@@ -143,16 +137,29 @@ int main(int argc, char *argv[])
    VisItDataCollection LOR_dc("LOR", &mesh_lor);
    LOR_dc.RegisterField("density", &rho_lor);
 
+   BilinearForm M_ho(&fespace);
+   M_ho.AddDomainIntegrator(new MassIntegrator);
+   M_ho.Assemble();
+   M_ho.Finalize();
+
+   BilinearForm M_lor(&fespace_lor);
+   M_lor.AddDomainIntegrator(new MassIntegrator);
+   M_lor.Assemble();
+   M_lor.Finalize();
 
    // HO projections
    direction = "HO -> LOR @ HO";
    FunctionCoefficient RHO(RHO_exact);
    rho.ProjectCoefficient(RHO);
-   double ho_mass = compute_mass(&fespace, -1.0, HO_dc, "HO       ");
+   // Make sure AMR constraints are satisfied
+   rho.SetTrueVector();
+   rho.SetFromTrueVector();
+
+   real_t ho_mass = compute_mass(&fespace, -1.0, HO_dc, "HO       ");
    if (vis) { visualize(HO_dc, "HO", Wx, Wy); Wx += offx; }
 
    GridTransfer *gt;
-   if (use_transfer)
+   if (use_pointwise_transfer)
    {
       gt = new InterpolationGridTransfer(fespace, fespace_lor);
    }
@@ -161,7 +168,6 @@ int main(int argc, char *argv[])
       gt = new L2ProjectionGridTransfer(fespace, fespace_lor);
    }
    const Operator &R = gt->ForwardOperator();
-   const Operator &P = gt->BackwardOperator();
 
    // HO->LOR restriction
    direction = "HO -> LOR @ LOR";
@@ -169,40 +175,66 @@ int main(int argc, char *argv[])
    compute_mass(&fespace_lor, ho_mass, LOR_dc, "R(HO)    ");
    if (vis) { visualize(LOR_dc, "R(HO)", Wx, Wy); Wx += offx; }
 
-   // LOR->HO prolongation
-   direction = "HO -> LOR @ HO";
-   GridFunction rho_prev = rho;
-   P.Mult(rho_lor, rho);
-   compute_mass(&fespace, ho_mass, HO_dc, "P(R(HO)) ");
-   if (vis) { visualize(HO_dc, "P(R(HO))", Wx, Wy); Wx = 0; Wy += offy; }
+   if (gt->SupportsBackwardsOperator())
+   {
+      const Operator &P = gt->BackwardOperator();
+      // LOR->HO prolongation
+      direction = "HO -> LOR @ HO";
+      GridFunction rho_prev = rho;
+      P.Mult(rho_lor, rho);
+      compute_mass(&fespace, ho_mass, HO_dc, "P(R(HO)) ");
+      if (vis) { visualize(HO_dc, "P(R(HO))", Wx, Wy); Wx = 0; Wy += offy; }
 
-   rho_prev -= rho;
-   cout.precision(12);
-   cout << "|HO - P(R(HO))|_∞   = " << rho_prev.Normlinf() << endl << endl;
+      rho_prev -= rho;
+      cout.precision(12);
+      cout << "|HO - P(R(HO))|_∞   = " << rho_prev.Normlinf() << endl;
+   }
+
+   // HO* to LOR* dual fields
+   LinearForm M_rho(&fespace), M_rho_lor(&fespace_lor);
+   if (!use_pointwise_transfer && gt->SupportsBackwardsOperator())
+   {
+      const Operator &P = gt->BackwardOperator();
+      M_ho.Mult(rho, M_rho);
+      P.MultTranspose(M_rho, M_rho_lor);
+      cout << "HO -> LOR dual field: " << abs(M_rho.Sum()-M_rho_lor.Sum()) << "\n\n";
+   }
 
    // LOR projections
    direction = "LOR -> HO @ LOR";
    rho_lor.ProjectCoefficient(RHO);
    GridFunction rho_lor_prev = rho_lor;
-   double lor_mass = compute_mass(&fespace_lor, -1.0, LOR_dc, "LOR      ");
+   real_t lor_mass = compute_mass(&fespace_lor, -1.0, LOR_dc, "LOR      ");
    if (vis) { visualize(LOR_dc, "LOR", Wx, Wy); Wx += offx; }
 
-   // Prolongate to HO space
-   direction = "LOR -> HO @ HO";
-   P.Mult(rho_lor, rho);
-   compute_mass(&fespace, lor_mass, HO_dc, "P(LOR)   ");
-   if (vis) { visualize(HO_dc, "P(LOR)", Wx, Wy); Wx += offx; }
+   if (gt->SupportsBackwardsOperator())
+   {
+      const Operator &P = gt->BackwardOperator();
+      // Prolongate to HO space
+      direction = "LOR -> HO @ HO";
+      P.Mult(rho_lor, rho);
+      compute_mass(&fespace, lor_mass, HO_dc, "P(LOR)   ");
+      if (vis) { visualize(HO_dc, "P(LOR)", Wx, Wy); Wx += offx; }
 
-   // Restrict back to LOR space. This won't give the original function because
-   // the rho_lor doesn't necessarily live in the range of R.
-   direction = "LOR -> HO @ LOR";
-   R.Mult(rho, rho_lor);
-   compute_mass(&fespace_lor, lor_mass, LOR_dc, "R(P(LOR))");
-   if (vis) { visualize(LOR_dc, "R(P(LOR))", Wx, Wy); }
+      // Restrict back to LOR space. This won't give the original function because
+      // the rho_lor doesn't necessarily live in the range of R.
+      direction = "LOR -> HO @ LOR";
+      R.Mult(rho, rho_lor);
+      compute_mass(&fespace_lor, lor_mass, LOR_dc, "R(P(LOR))");
+      if (vis) { visualize(LOR_dc, "R(P(LOR))", Wx, Wy); }
 
-   rho_lor_prev -= rho_lor;
-   cout.precision(12);
-   cout << "|LOR - R(P(LOR))|_∞ = " << rho_lor_prev.Normlinf() << endl;
+      rho_lor_prev -= rho_lor;
+      cout.precision(12);
+      cout << "|LOR - R(P(LOR))|_∞ = " << rho_lor_prev.Normlinf() << endl;
+   }
+
+   // LOR* to HO* dual fields
+   if (!use_pointwise_transfer)
+   {
+      M_lor.Mult(rho_lor, M_rho_lor);
+      R.MultTranspose(M_rho_lor, M_rho);
+      cout << "LOR -> HO dual field: " << abs(M_rho.Sum() - M_rho_lor.Sum()) << '\n';
+   }
 
    delete fec;
    delete fec_lor;
@@ -211,7 +243,7 @@ int main(int argc, char *argv[])
 }
 
 
-double RHO_exact(const Vector &x)
+real_t RHO_exact(const Vector &x)
 {
    switch (problem)
    {
@@ -245,18 +277,15 @@ void visualize(VisItDataCollection &dc, string prefix, int x, int y)
 }
 
 
-double compute_mass(FiniteElementSpace *L2, double massL2,
+real_t compute_mass(FiniteElementSpace *L2, real_t massL2,
                     VisItDataCollection &dc, string prefix)
 {
    ConstantCoefficient one(1.0);
-   BilinearForm ML2(L2);
-   ML2.AddDomainIntegrator(new MassIntegrator(one));
-   ML2.Assemble();
+   LinearForm lf(L2);
+   lf.AddDomainIntegrator(new DomainLFIntegrator(one));
+   lf.Assemble();
 
-   GridFunction rhoone(L2);
-   rhoone = 1.0;
-
-   double newmass = ML2.InnerProduct(*dc.GetField("density"),rhoone);
+   real_t newmass = lf(*dc.GetField("density"));
    cout.precision(18);
    cout << space << " " << prefix << " mass   = " << newmass;
    if (massL2 >= 0)

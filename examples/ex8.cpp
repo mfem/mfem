@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
    SparseMatrix * Shat = RAP(matBhat, matSinv, matBhat);
 
 #ifndef MFEM_USE_SUITESPARSE
-   const double prec_rtol = 1e-3;
+   const real_t prec_rtol = 1e-3;
    const int prec_maxit = 200;
    CGSolver *S0inv = new CGSolver;
    S0inv->SetOperator(matS0);
@@ -240,7 +240,7 @@ int main(int argc, char *argv[])
       Vector LSres(s_test);
       B.Mult(x, LSres);
       LSres -= F;
-      double res = sqrt(matSinv.InnerProduct(LSres, LSres));
+      real_t res = sqrt(matSinv.InnerProduct(LSres, LSres));
       cout << "\n|| B0*x0 + Bhat*xhat - F ||_{S^-1} = " << res << endl;
    }
 

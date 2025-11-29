@@ -45,22 +45,23 @@ Pentatope::Pentatope(int ind1, int ind2, int ind3, int ind4, int ind5, int attr,
    flag = f;
 }
 
-void Pentatope::GetVertices(Array<int> &v) const
-{
-   v.SetSize(5);
-   for (int i = 0; i < 5; i++)
-   {
-      v[i] = indices[i];
-   }
-}
-
-void Pentatope::SetVertices(const int *ind)
-{
-   for (int i = 0; i < 5; i++)
-   {
-      indices[i] = ind[i];
-   }
-}
+// Cancelled and added new version at the end of the file (2025 November)
+// void Pentatope::GetVertices(Array<int> &v) const
+// {
+//    v.SetSize(5);
+//    for (int i = 0; i < 5; i++)
+//    {
+//       v[i] = indices[i];
+//    }
+// }
+//
+// void Pentatope::SetVertices(const int *ind)
+// {
+//    for (int i = 0; i < 5; i++)
+//    {
+//       indices[i] = ind[i];
+//    }
+// }
 
 //static method
 void Pentatope::GetPointMatrix(unsigned transform, DenseMatrix &pm) // FIXME for bisection
@@ -97,7 +98,7 @@ void Pentatope::GetPointMatrix(unsigned transform, DenseMatrix &pm) // FIXME for
          if (swapped[n]) SWAP(a,e);
          AVG(f,a,e); ASGN(e,d); ASGN(d,c); ASGN(c,b); ASGN(b,f);
          if (!swapped[n]) SWAP(a,e);
-         break; // child 1, tag 0 parent
+         break; // chilTesseractd 1, tag 0 parent
       case 1:
          if (swapped[n]) SWAP(a,e);
          AVG(f,a,e); ASGN(e,d); ASGN(d,c); ASGN(c,b); ASGN(b,f);
@@ -211,9 +212,9 @@ void Pentatope::ParseFlag(char& t, bool& swap)
 
 void Pentatope::GetFace(int fi, int *fv)
 {
-    const int faces[5][4] = { {0, 1, 2, 3}, {0, 1, 2, 4},
-            {0, 1, 3, 4}, {0, 2, 3, 4},
-            {1, 2, 3, 4}};
+    // const int faces[5][4] = { {0, 1, 2, 3}, {0, 1, 2, 4},
+    //         {0, 1, 3, 4}, {0, 2, 3, 4},
+    //         {1, 2, 3, 4}};
     const int *v = geom_p::FaceVert[fi];
     for (int k = 0; k < 4; ++k)
     {
@@ -224,7 +225,22 @@ void Pentatope::GetFace(int fi, int *fv)
 //        std::swap(fv[1], fv[2]);
 }
 
+void Pentatope::GetVertices(Array<int> &v) const
+{
+   v.SetSize(5);
+   std::copy(indices, indices + 5, v.begin());
+}
 
-Linear4DFiniteElement PentatopeFE;
+void Pentatope::SetVertices(const Array<int> &v)
+{
+   MFEM_ASSERT(v.Size() == 5, "!");
+   std::copy(v.begin(), v.end(), indices);
+}
+
+void Pentatope::SetVertices(const int *ind)
+{
+   std::copy(ind, ind + 5, indices);
+}
+
 
 }

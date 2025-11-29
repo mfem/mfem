@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,6 +14,8 @@
 
 #include "../config/config.hpp"
 #include "coefficient.hpp"
+#include "bilininteg.hpp"
+#include <random>
 
 namespace mfem
 {
@@ -27,6 +29,15 @@ protected:
    LinearFormIntegrator(const IntegrationRule *ir = NULL) { IntRule = ir; }
 
 public:
+
+   /// Method probing for assembly on device
+   virtual bool SupportsDevice() const { return false; }
+
+   /// Method defining assembly on device
+   virtual void AssembleDevice(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
+
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element vector, elvect. */
    virtual void AssembleRHSElementVect(const FiniteElement &el,
@@ -93,7 +104,7 @@ public:
 };
 
 
-/// Class for domain integration L(v) := (f, v)
+/// Class for domain integration $ L(v) := (f, v) $
 class DomainLFIntegrator : public DeltaLFIntegrator
 {
    Vector shape;
@@ -110,6 +121,13 @@ public:
    DomainLFIntegrator(Coefficient &QF, const IntegrationRule *ir)
       : DeltaLFIntegrator(QF, ir), Q(QF), oa(1), ob(1) { }
 
+   virtual bool SupportsDevice() const { return true; }
+
+   /// Method defining assembly on device
+   virtual void AssembleDevice(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
+
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
    virtual void AssembleRHSElementVect(const FiniteElement &el,
@@ -123,7 +141,7 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-/// Class for domain integrator L(v) := (f, grad v)
+/// Class for domain integrator $ L(v) := (f, \nabla v) $
 class DomainLFGradIntegrator : public DeltaLFIntegrator
 {
 private:
@@ -132,9 +150,16 @@ private:
    DenseMatrix dshape;
 
 public:
-   /// Constructs the domain integrator (Q, grad v)
+   /// Constructs the domain integrator $ (Q, \nabla v) $
    DomainLFGradIntegrator(VectorCoefficient &QF)
       : DeltaLFIntegrator(QF), Q(QF) { }
+
+   virtual bool SupportsDevice() const { return true; }
+
+   /// Method defining assembly on device
+   virtual void AssembleDevice(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
@@ -149,7 +174,7 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-/// Class for boundary integration L(v) := (g, v)
+/// Class for boundary integration $ L(v) := (g, v) $
 class BoundaryLFIntegrator : public LinearFormIntegrator
 {
    Vector shape;
@@ -161,6 +186,13 @@ public:
    BoundaryLFIntegrator(Coefficient &QG, int a = 1, int b = 1)
       : Q(QG), oa(a), ob(b) { }
 
+   virtual bool SupportsDevice() const { return true; }
+
+   /// Method defining assembly on device
+   virtual void AssembleDevice(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
+
    /** Given a particular boundary Finite Element and a transformation (Tr)
        computes the element boundary vector, elvect. */
    virtual void AssembleRHSElementVect(const FiniteElement &el,
@@ -169,9 +201,11 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-/// Class for boundary integration \f$ L(v) = (g \cdot n, v) \f$
+/// Class for boundary integration $ L(v) = (g \cdot n, v) $
 class BoundaryNormalLFIntegrator : public LinearFormIntegrator
 {
    Vector shape;
@@ -182,6 +216,13 @@ public:
    BoundaryNormalLFIntegrator(VectorCoefficient &QG, int a = 1, int b = 1)
       : Q(QG), oa(a), ob(b) { }
 
+   virtual bool SupportsDevice() const { return true; }
+
+   /// Method defining assembly on device
+   virtual void AssembleDevice(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
+
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
                                        Vector &elvect);
@@ -189,7 +230,7 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-/// Class for boundary integration \f$ L(v) = (g \cdot \tau, v) \f$ in 2D
+/// Class for boundary integration $ L(v) = (g \cdot \tau, v) $ in 2D
 class BoundaryTangentialLFIntegrator : public LinearFormIntegrator
 {
    Vector shape;
@@ -207,8 +248,8 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-/** Class for domain integration of L(v) := (f, v), where
-    f=(f1,...,fn) and v=(v1,...,vn). */
+/** Class for domain integration of $ L(v) := (f, v) $, where
+    $ f = (f_1,\dots,f_n)$ and $ v = (v_1,\dots,v_n) $. */
 class VectorDomainLFIntegrator : public DeltaLFIntegrator
 {
 private:
@@ -219,6 +260,13 @@ public:
    /// Constructs a domain integrator with a given VectorCoefficient
    VectorDomainLFIntegrator(VectorCoefficient &QF)
       : DeltaLFIntegrator(QF), Q(QF) { }
+
+   virtual bool SupportsDevice() const { return true; }
+
+   /// Method defining assembly on device
+   virtual void AssembleDevice(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
@@ -233,8 +281,42 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-/** Class for boundary integration of L(v) := (g, v), where
-    f=(f1,...,fn) and v=(v1,...,vn). */
+/** Class for domain integrator $ L(v) := (f, \nabla v) $, where
+    $ f = (f_{1x},f_{1y},f_{1z},\dots,f_{nx},f_{ny},f_{nz})$ and $v=(v_1,\dots,v_n)$. */
+class VectorDomainLFGradIntegrator : public DeltaLFIntegrator
+{
+private:
+   Vector shape, Qvec;
+   VectorCoefficient &Q;
+   DenseMatrix dshape;
+
+public:
+   /// Constructs the domain integrator (Q, grad v)
+   VectorDomainLFGradIntegrator(VectorCoefficient &QF)
+      : DeltaLFIntegrator(QF), Q(QF) { }
+
+   virtual bool SupportsDevice() const override { return true; }
+
+   /// Method defining assembly on device
+   virtual void AssembleDevice(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b) override;
+
+   /** Given a particular Finite Element and a transformation (Tr)
+       computes the element right hand side element vector, elvect. */
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect) override;
+
+   virtual void AssembleDeltaElementVect(const FiniteElement &fe,
+                                         ElementTransformation &Trans,
+                                         Vector &elvect) override;
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
+/** Class for boundary integration of $ L(v) := (g, v) $, where
+    $g=(g_1,\dots,g_n)$ and $v=(v_1,\dots,v_n)$. */
 class VectorBoundaryLFIntegrator : public LinearFormIntegrator
 {
 private:
@@ -259,7 +341,7 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-/// \f$ (f, v)_{\Omega} \f$ for VectorFiniteElements (Nedelec, Raviart-Thomas)
+/// $ (f, v)_{\Omega} $ for VectorFiniteElements (Nedelec, Raviart-Thomas)
 class VectorFEDomainLFIntegrator : public DeltaLFIntegrator
 {
 private:
@@ -279,10 +361,16 @@ public:
                                          ElementTransformation &Trans,
                                          Vector &elvect);
 
+   virtual bool SupportsDevice() const { return true; }
+
+   virtual void AssembleDevice(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
+
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-/// \f$ (Q, curl v)_{\Omega} \f$ for Nedelec Elements)
+/// $ (Q, \mathrm{curl}(v))_{\Omega} $ for Nedelec Elements
 class VectorFEDomainLFCurlIntegrator : public DeltaLFIntegrator
 {
 private:
@@ -291,7 +379,7 @@ private:
    Vector vec;
 
 public:
-   /// Constructs the domain integrator (Q, curl v)
+   /// Constructs the domain integrator $(Q, \mathrm{curl}(v))  $
    VectorFEDomainLFCurlIntegrator(VectorCoefficient &F)
       : DeltaLFIntegrator(F), QF(&F) { }
 
@@ -306,14 +394,14 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-/// \f$ (Q, div v)_{\Omega} \f$ for RT Elements)
+/// $ (Q, \mathrm{div}(v))_{\Omega} $ for RT Elements
 class VectorFEDomainLFDivIntegrator : public DeltaLFIntegrator
 {
 private:
    Vector divshape;
    Coefficient &Q;
 public:
-   /// Constructs the domain integrator (Q, div v)
+   /// Constructs the domain integrator $ (Q, \mathrm{div}(v)) $
    VectorFEDomainLFDivIntegrator(Coefficient &QF)
       : DeltaLFIntegrator(QF), Q(QF) { }
 
@@ -330,18 +418,18 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-/** \f$ (f, v \cdot n)_{\partial\Omega} \f$ for vector test function
-    v=(v1,...,vn) where all vi are in the same scalar FE space and f is a
+/** $ (f, v \cdot n)_{\partial\Omega} $ for vector test function
+    $v=(v_1,\dots,v_n)$ where all vi are in the same scalar FE space and $f$ is a
     scalar function. */
 class VectorBoundaryFluxLFIntegrator : public LinearFormIntegrator
 {
 private:
-   double Sign;
+   real_t Sign;
    Coefficient *F;
    Vector shape, nor;
 
 public:
-   VectorBoundaryFluxLFIntegrator(Coefficient &f, double s = 1.0,
+   VectorBoundaryFluxLFIntegrator(Coefficient &f, real_t s = 1.0,
                                   const IntegrationRule *ir = NULL)
       : LinearFormIntegrator(ir), Sign(s), F(&f) { }
 
@@ -352,8 +440,8 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-/** Class for boundary integration of (f, v.n) for scalar coefficient f and
-    RT vector test function v. This integrator works with RT spaces defined
+/** Class for boundary integration of $ (f, v \cdot n) $ for scalar coefficient $f$ and
+    RT vector test function $v$. This integrator works with RT spaces defined
     using the RT_FECollection class. */
 class VectorFEBoundaryFluxLFIntegrator : public LinearFormIntegrator
 {
@@ -373,9 +461,15 @@ public:
                                        Vector &elvect);
 
    using LinearFormIntegrator::AssembleRHSElementVect;
+
+   virtual bool SupportsDevice() const { return true; }
+
+   virtual void AssembleDevice(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
 };
 
-/// Class for boundary integration \f$ L(v) = (n \times f, v) \f$
+/// Class for boundary integration $ L(v) = (n \times f, v) $
 class VectorFEBoundaryTangentLFIntegrator : public LinearFormIntegrator
 {
 private:
@@ -396,26 +490,26 @@ public:
 
 
 /** Class for boundary integration of the linear form:
-    (alpha/2) < (u.n) f, w > - beta < |u.n| f, w >,
-    where f and u are given scalar and vector coefficients, respectively,
-    and w is the scalar test function. */
+    $ \frac{\alpha}{2} \langle (u \cdot n) f, w \rangle - \beta \langle |u \cdot n| f, w \rangle $
+    where $f$ and $u$ are given scalar and vector coefficients, respectively,
+    and $w$ is the scalar test function. */
 class BoundaryFlowIntegrator : public LinearFormIntegrator
 {
 private:
    Coefficient *f;
    VectorCoefficient *u;
-   double alpha, beta;
+   real_t alpha, beta;
 
    Vector shape;
 
 public:
-   BoundaryFlowIntegrator(Coefficient &_f, VectorCoefficient &_u,
-                          double a)
-   { f = &_f; u = &_u; alpha = a; beta = 0.5*a; }
+   BoundaryFlowIntegrator(Coefficient &f_, VectorCoefficient &u_,
+                          real_t a)
+   { f = &f_; u = &u_; alpha = a; beta = 0.5*a; }
 
-   BoundaryFlowIntegrator(Coefficient &_f, VectorCoefficient &_u,
-                          double a, double b)
-   { f = &_f; u = &_u; alpha = a; beta = b; }
+   BoundaryFlowIntegrator(Coefficient &f_, VectorCoefficient &u_,
+                          real_t a, real_t b)
+   { f = &f_; u = &u_; alpha = a; beta = b; }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
@@ -423,37 +517,40 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
 };
+
 
 /** Boundary linear integrator for imposing non-zero Dirichlet boundary
     conditions, to be used in conjunction with DGDiffusionIntegrator.
-    Specifically, given the Dirichlet data u_D, the linear form assembles the
+    Specifically, given the Dirichlet data $u_D$, the linear form assembles the
     following integrals on the boundary:
-
-    sigma < u_D, (Q grad(v)).n > + kappa < {h^{-1} Q} u_D, v >,
-
+   $$
+    \sigma \langle u_D, (Q \nabla v)) \cdot n \rangle + \kappa \langle {h^{-1} Q} u_D, v \rangle,
+   $$
     where Q is a scalar or matrix diffusion coefficient and v is the test
-    function. The parameters sigma and kappa should be the same as the ones
+    function. The parameters $\sigma$ and $\kappa$ should be the same as the ones
     used in the DGDiffusionIntegrator. */
 class DGDirichletLFIntegrator : public LinearFormIntegrator
 {
 protected:
    Coefficient *uD, *Q;
    MatrixCoefficient *MQ;
-   double sigma, kappa;
+   real_t sigma, kappa;
 
    // these are not thread-safe!
    Vector shape, dshape_dn, nor, nh, ni;
    DenseMatrix dshape, mq, adjJ;
 
 public:
-   DGDirichletLFIntegrator(Coefficient &u, const double s, const double k)
+   DGDirichletLFIntegrator(Coefficient &u, const real_t s, const real_t k)
       : uD(&u), Q(NULL), MQ(NULL), sigma(s), kappa(k) { }
    DGDirichletLFIntegrator(Coefficient &u, Coefficient &q,
-                           const double s, const double k)
+                           const real_t s, const real_t k)
       : uD(&u), Q(&q), MQ(NULL), sigma(s), kappa(k) { }
    DGDirichletLFIntegrator(Coefficient &u, MatrixCoefficient &q,
-                           const double s, const double k)
+                           const real_t s, const real_t k)
       : uD(&u), Q(NULL), MQ(&q), sigma(s), kappa(k) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
@@ -462,25 +559,27 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
 
 /** Boundary linear form integrator for imposing non-zero Dirichlet boundary
     conditions, in a DG elasticity formulation. Specifically, the linear form is
     given by
-
-    alpha < u_D, (lambda div(v) I + mu (grad(v) + grad(v)^T)) . n > +
-      + kappa < h^{-1} (lambda + 2 mu) u_D, v >,
-
-    where u_D is the given Dirichlet data. The parameters alpha, kappa, lambda
-    and mu, should match the parameters with the same names used in the bilinear
+   $$
+    \alpha \langle u_D, (\lambda \mathrm{div}(v) I + \mu (\nabla v + \nabla v^{\mathrm{T}})) \cdot n \rangle +
+      + \kappa \langle h^{-1} (\lambda + 2 \mu) u_D, v \rangle,
+   $$
+    where u_D is the given Dirichlet data. The parameters $\alpha$, $\kappa$, $\lambda$
+    and $\mu$, should match the parameters with the same names used in the bilinear
     form integrator, DGElasticityIntegrator. */
 class DGElasticityDirichletLFIntegrator : public LinearFormIntegrator
 {
 protected:
    VectorCoefficient &uD;
    Coefficient *lambda, *mu;
-   double alpha, kappa;
+   real_t alpha, kappa;
 
 #ifndef MFEM_THREAD_SAFE
    Vector shape;
@@ -496,7 +595,7 @@ protected:
 public:
    DGElasticityDirichletLFIntegrator(VectorCoefficient &uD_,
                                      Coefficient &lambda_, Coefficient &mu_,
-                                     double alpha_, double kappa_)
+                                     real_t alpha_, real_t kappa_)
       : uD(uD_), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
@@ -505,10 +604,121 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-/** Class for domain integration of L(v) := (f, v), where
-    f=(f1,...,fn) and v=(v1,...,vn). that makes use of
+
+/** Class for spatial white Gaussian noise integration.
+
+    The target problem is the linear SPDE $ a(u,v) = F(v)$ with $F(v) := <\dot{W},v> $,
+    where $\dot{W}$ is spatial white Gaussian noise. When the Galerkin method is used to
+    discretize this problem into a linear system of equations $Ax = b$, the RHS is
+    a Gaussian random vector $b \sim N(0,M)$ whose covariance matrix is the same as the
+    mass matrix $M_{ij} = (v_i,v_j)$. This property can be ensured if $b = H w$, where
+    $HH^{\mathrm{T}} = M$ and each component $w_i\sim N(0,1)$.
+
+    There is much flexibility in how we may wish to define $H$. In this PR, we
+    define $H = P^{\mathrm{T}} diag(L_e)$, where $P$ is the local-to-global dof assembly matrix
+    and $\mathrm{diag}(L_e)$ is a block-diagonal matrix with $L_e L_e^{\mathrm{T}} = M_e$, where $M_e$ is
+    the element mass matrix for element $e$. A straightforward computation shows
+    that $HH^{\mathrm{T}} = P^{\mathrm{T}} diag(M_e) P = M$, as necessary. */
+class WhiteGaussianNoiseDomainLFIntegrator : public LinearFormIntegrator
+{
+#ifdef MFEM_USE_MPI
+   MPI_Comm comm;
+#endif
+   MassIntegrator massinteg;
+   Array<DenseMatrix *> L;
+
+   // Define random generator with Gaussian distribution
+   std::default_random_engine generator;
+   std::normal_distribution<real_t> dist;
+
+   bool save_factors = false;
+public:
+
+#ifdef MFEM_USE_MPI
+   /** @brief Sets the @a seed_ of the random number generator. A fixed seed
+       allows for a reproducible sequence of white noise vectors. */
+   WhiteGaussianNoiseDomainLFIntegrator(int seed_ = 0)
+      : LinearFormIntegrator(), comm(MPI_COMM_NULL)
+   {
+      if (seed_ > 0) { SetSeed(seed_); }
+   }
+
+   /** @brief Sets the MPI communicator @a comm_ and the @a seed_ of the random
+       number generator. A fixed seed allows for a reproducible sequence of
+       white noise vectors. */
+   WhiteGaussianNoiseDomainLFIntegrator(MPI_Comm comm_, int seed_)
+      : LinearFormIntegrator(), comm(comm_)
+   {
+      int myid;
+      MPI_Comm_rank(comm, &myid);
+
+      int seed = (seed_ > 0) ? seed_ + myid : time(0) + myid;
+      SetSeed(seed);
+   }
+#else
+   /** @brief Sets the @a seed_ of the random number generator. A fixed seed
+       allows for a reproducible sequence of white noise vectors. */
+   WhiteGaussianNoiseDomainLFIntegrator(int seed_ = 0)
+      : LinearFormIntegrator()
+   {
+      if (seed_ > 0) { SetSeed(seed_); }
+   }
+#endif
+   /// @brief Sets/resets the @a seed of the random number generator.
+   void SetSeed(int seed)
+   {
+      generator.seed(seed);
+   }
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
+   /** @brief Saves the lower triangular matrices in the element-wise Cholesky
+       decomposition. The parameter @a NE should be the number of elements in
+       the mesh. */
+   void SaveFactors(int NE)
+   {
+      save_factors = true;
+      ResetFactors(NE);
+   }
+
+   /** @brief Resets the array of saved lower triangular Cholesky decomposition
+       matrices. The parameter @a NE should be the number of elements in the
+       mesh. */
+   void ResetFactors(int NE)
+   {
+      for (int i = 0; i<L.Size(); i++)
+      {
+         delete L[i];
+      }
+      L.DeleteAll();
+
+      L.SetSize(NE);
+      for (int i = 0; i<NE; i++)
+      {
+         L[i] = nullptr;
+      }
+   }
+
+   ~WhiteGaussianNoiseDomainLFIntegrator()
+   {
+      for (int i = 0; i<L.Size(); i++)
+      {
+         delete L[i];
+      }
+      L.DeleteAll();
+   }
+};
+
+
+/** Class for domain integration of $ L(v) := (f, v) $, where
+    $ f=(f_1,\dots,f_n)$ and $v=(v_1,\dots,v_n)$. that makes use of
     VectorQuadratureFunctionCoefficient*/
 class VectorQuadratureLFIntegrator : public LinearFormIntegrator
 {
@@ -517,7 +727,7 @@ private:
 
 public:
    VectorQuadratureLFIntegrator(VectorQuadratureFunctionCoefficient &vqfc,
-                                const IntegrationRule *ir)
+                                const IntegrationRule *ir = NULL)
       : LinearFormIntegrator(ir), vqfc(vqfc)
    {
       if (ir)
@@ -539,7 +749,8 @@ public:
    }
 };
 
-/** Class for domain integration L(v) := (f, v) that makes use
+
+/** Class for domain integration $ L(v) := (f, v) $ that makes use
     of QuadratureFunctionCoefficient. */
 class QuadratureLFIntegrator : public LinearFormIntegrator
 {
@@ -548,7 +759,7 @@ private:
 
 public:
    QuadratureLFIntegrator(QuadratureFunctionCoefficient &qfc,
-                          const IntegrationRule *ir)
+                          const IntegrationRule *ir = NULL)
       : LinearFormIntegrator(ir), qfc(qfc)
    {
       if (ir)
@@ -622,5 +833,6 @@ public:
 };
 
 }
+
 
 #endif

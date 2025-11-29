@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -10,7 +10,9 @@
 # CONTRIBUTING.md for details.
 
 set(SRCS
+  attribute_sets.cpp
   element.cpp
+  face_nbr_geom.cpp
   gmsh.cpp
   hexahedron.cpp
   mesh.cpp
@@ -19,8 +21,10 @@ set(SRCS
   ncmesh.cpp
   nurbs.cpp
   point.cpp
+  pyramid.cpp
   quadrilateral.cpp
   segment.cpp
+  spacing.cpp
   tetrahedron.cpp
   triangle.cpp
   vertex.cpp
@@ -28,10 +32,15 @@ set(SRCS
   wedge.cpp
   pentatope.cpp
   tesseract.cpp
+  submesh/submesh.cpp
+  submesh/submesh_utils.cpp
+  submesh/transfermap.cpp
   )
 
 set(HDRS
+  attribute_sets.hpp
   element.hpp
+  face_nbr_geom.hpp
   gmsh.hpp
   hexahedron.hpp
   mesh.hpp
@@ -40,8 +49,10 @@ set(HDRS
   ncmesh.hpp
   nurbs.hpp
   point.hpp
+  pyramid.hpp
   quadrilateral.hpp
   segment.hpp
+  spacing.hpp
   tetrahedron.hpp
   tmesh.hpp
   triangle.hpp
@@ -50,24 +61,25 @@ set(HDRS
   wedge.hpp
   pentatope.hpp
   tesseract.hpp
-  )
+  submesh/submesh.hpp
+  submesh/submesh_utils.hpp
+  submesh/transfer_category.hpp
+  submesh/transfermap.hpp
+ )
 
 if (MFEM_USE_MPI)
   list(APPEND SRCS
     pmesh.cpp
-    pncmesh.cpp)
+    pncmesh.cpp
+    submesh/ptransfermap.cpp
+    submesh/psubmesh.cpp)
   # If this list (HDRS -> HEADERS) is used for install, we probably want the
   # headers added all the time.
   list(APPEND HDRS
     pmesh.hpp
-    pncmesh.hpp)
-endif()
-
-if (MFEM_USE_MESQUITE)
-  list(APPEND SRCS mesquite.cpp)
-  # If this list (HDRS -> HEADERS) is used for install, we probably want the
-  # header added all the time.
-  list(APPEND HDRS mesquite.hpp)
+    pncmesh.hpp
+    submesh/ptransfermap.hpp
+    submesh/psubmesh.hpp)
 endif()
 
 if (MFEM_USE_PUMI)

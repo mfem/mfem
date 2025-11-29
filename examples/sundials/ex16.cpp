@@ -109,6 +109,9 @@ double InitialTemperature(const Vector &x);
 
 int main(int argc, char *argv[])
 {
+   // 0. Initialize SUNDIALS.
+   Sundials::Init();
+
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
    int ref_levels = 2;
@@ -290,7 +293,10 @@ int main(int argc, char *argv[])
          arkode->Init(oper);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
-         if (ode_solver_type == 11) { arkode->SetERKTableNum(FEHLBERG_13_7_8); }
+         if (ode_solver_type == 11)
+         {
+            arkode->SetERKTableNum(ARKODE_FEHLBERG_13_7_8);
+         }
          ode_solver = arkode; break;
       case 12:
          arkode = new ARKStepSolver(ARKStepSolver::IMPLICIT);

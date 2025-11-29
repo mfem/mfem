@@ -84,13 +84,31 @@ Tesseract::Tesseract(int ind1, int ind2, int ind3, int ind4,
    indices[15] = ind16;
 }
 
-void Tesseract::GetVertices(Array<int> &v) const
+// Cancelled and added new version at the end of the file (2025 November)
+/*void Tesseract::GetVertices(Array<int> &v) const
 {
    v.SetSize(16);
    for (int i = 0; i < 16; i++)
    {
       v[i] = indices[i];
    }
+}*/
+
+void Tesseract::GetVertices(Array<int> &v) const
+{
+   v.SetSize(16);
+   std::copy(indices, indices + 16, v.begin());
+}
+
+void Tesseract::SetVertices(const Array<int> &v)
+{
+   MFEM_ASSERT(v.Size() == 16, "!");
+   std::copy(v.begin(), v.end(), indices);
+}
+
+void Tesseract::SetVertices(const int *ind)
+{
+   std::copy(ind, ind + 16, indices);
 }
 
 QuadLinear4DFiniteElement TesseractFE;

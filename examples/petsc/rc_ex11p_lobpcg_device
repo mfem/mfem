@@ -1,0 +1,28 @@
+-log_view
+# Options for the eigenvalue solver
+-eps_view
+-eps_monitor
+-eps_converged_reason
+-eps_view_values
+-eps_type lobpcg
+-eps_gen_hermitian
+-eps_smallest_real
+-eps_lobpcg_blocksize 5
+# Options for the spectral transform
+-st_type precond
+-prefix_push st_
+-pc_type gamg
+-pc_gamg_type agg
+-pc_gamg_agg_nsmooths 1
+-pc_gamg_coarse_eq_limit 100
+-pc_gamg_reuse_interpolation
+-pc_gamg_square_graph 1
+-pc_gamg_threshold 0.0
+-mg_levels_ksp_max_it 2
+-mg_levels_ksp_type chebyshev
+-mg_levels_esteig_ksp_type cg
+-mg_levels_esteig_ksp_max_it 10
+-mg_levels_ksp_chebyshev_esteig 0,0.05,0,1.05
+#sor is not implemented for GPU, use jacobi
+-mg_levels_pc_type jacobi
+-prefix_pop

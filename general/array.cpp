@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -20,32 +20,32 @@ namespace mfem
 {
 
 template <class T>
-void Array<T>::Print(std::ostream &out, int width) const
+void Array<T>::Print(std::ostream &os, int width) const
 {
    for (int i = 0; i < size; i++)
    {
-      out << data[i];
+      os << data[i];
       if ( !((i+1) % width) || i+1 == size )
       {
-         out << '\n';
+         os << '\n';
       }
       else
       {
-         out << " ";
+         os << " ";
       }
    }
 }
 
 template <class T>
-void Array<T>::Save(std::ostream &out, int fmt) const
+void Array<T>::Save(std::ostream &os, int fmt) const
 {
    if (fmt == 0)
    {
-      out << size << '\n';
+      os << size << '\n';
    }
    for (int i = 0; i < size; i++)
    {
-      out << operator[](i) << '\n';
+      os << operator[](i) << '\n';
    }
 }
 
@@ -124,7 +124,7 @@ T Array<T>::Sum()
 }
 
 template <class T>
-int Array<T>::IsSorted()
+int Array<T>::IsSorted() const
 {
    T val_prev = operator[](0), val;
    for (int i = 1; i < size; i++)
@@ -152,24 +152,24 @@ void Array2D<T>::Load(const char *filename, int fmt)
 }
 
 template <class T>
-void Array2D<T>::Print(std::ostream &out, int width_)
+void Array2D<T>::Print(std::ostream &os, int width_)
 {
    int height = this->NumRows();
    int width  = this->NumCols();
 
    for (int i = 0; i < height; i++)
    {
-      out << "[row " << i << "]\n";
+      os << "[row " << i << "]\n";
       for (int j = 0; j < width; j++)
       {
-         out << (*this)(i,j);
+         os << (*this)(i,j);
          if ( (j+1) == width_ || (j+1) % width_ == 0 )
          {
-            out << '\n';
+            os << '\n';
          }
          else
          {
-            out << ' ';
+            os << ' ';
          }
       }
    }
@@ -177,8 +177,9 @@ void Array2D<T>::Print(std::ostream &out, int width_)
 
 template class Array<char>;
 template class Array<int>;
-template class Array<double>;
+template class Array<long long>;
+template class Array<real_t>;
 template class Array2D<int>;
-template class Array2D<double>;
+template class Array2D<real_t>;
 
 } // namespace mfem

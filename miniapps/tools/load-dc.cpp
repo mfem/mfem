@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -33,19 +33,26 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
 #ifdef MFEM_USE_MPI
-   MPI_Session mpi;
-   if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   Mpi::Init();
+   if (!Mpi::Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   Hypre::Init();
 #endif
 
    // Parse command-line options.
    const char *coll_name = NULL;
    int cycle = 0;
+   int pad_digits_cycle = 6;
+   int pad_digits_rank = 6;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&coll_name, "-r", "--root-file",
                   "Set the VisIt data collection root file prefix.", true);
    args.AddOption(&cycle, "-c", "--cycle", "Set the cycle index to read.");
+   args.AddOption(&pad_digits_cycle, "-pdc", "--pad-digits-cycle",
+                  "Number of digits in cycle.");
+   args.AddOption(&pad_digits_rank, "-pdr", "--pad-digits-rank",
+                  "Number of digits in MPI rank.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -62,9 +69,11 @@ int main(int argc, char *argv[])
 #else
    VisItDataCollection dc(coll_name);
 #endif
+   dc.SetPadDigitsCycle(pad_digits_cycle);
+   dc.SetPadDigitsRank(pad_digits_rank);
    dc.Load(cycle);
 
-   if (dc.Error() != DataCollection::NO_ERROR)
+   if (dc.Error() != DataCollection::No_Error)
    {
       mfem::out << "Error loading VisIt data collection: " << coll_name << endl;
       return 1;
@@ -105,8 +114,8 @@ int main(int argc, char *argv[])
          return 1;
       }
 #ifdef MFEM_USE_MPI
-      sol_sock << "parallel " << mpi.WorldSize() << " " << mpi.WorldRank()
-               << "\n";
+      sol_sock << "parallel " << Mpi::WorldSize() << " "
+               << Mpi::WorldRank() << "\n";
 #endif
       if (fields.begin() == fields.end())
       {

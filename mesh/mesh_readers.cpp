@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,6 +11,7 @@
 
 #include "mesh_headers.hpp"
 #include "../fem/fem.hpp"
+#include "../general/binaryio.hpp"
 #include "../general/text.hpp"
 #include "../general/tinyxml2.h"
 #include "gmsh.hpp"
@@ -24,6 +25,10 @@
 #include "netcdf.h"
 #endif
 
+#ifdef MFEM_USE_ZLIB
+#include <zlib.h>
+#endif
+
 using namespace std;
 
 namespace mfem
@@ -33,8 +38,8 @@ bool Mesh::remove_unused_vertices = true;
 
 void Mesh::ReadMFEMMesh(std::istream &input, int version, int &curved)
 {
-   // Read MFEM mesh v1.0 or v1.2 format
-   MFEM_VERIFY(version == 10 || version == 12,
+   // Read MFEM mesh v1.0, v1.2, or v1.3 format
+   MFEM_VERIFY(version == 10 || version == 12 || version == 13,
                "unknown MFEM mesh version");
 
    string ident;
@@ -57,6 +62,18 @@ void Mesh::ReadMFEMMesh(std::istream &input, int version, int &curved)
       elements[j] = ReadElement(input);
    }
 
+   if (version == 13)
+   {
+      skip_comment_lines(input, '#');
+      input >> ident; // 'attribute_sets'
+
+      MFEM_VERIFY(ident == "attribute_sets", "invalid mesh file");
+
+      attribute_sets.attr_sets.Load(input);
+      attribute_sets.attr_sets.SortAll();
+      attribute_sets.attr_sets.UniqueAll();
+   }
+
    skip_comment_lines(input, '#');
    input >> ident; // 'boundary'
 
@@ -66,6 +83,18 @@ void Mesh::ReadMFEMMesh(std::istream &input, int version, int &curved)
    for (int j = 0; j < NumOfBdrElements; j++)
    {
       boundary[j] = ReadElement(input);
+   }
+
+   if (version == 13)
+   {
+      skip_comment_lines(input, '#');
+      input >> ident; // 'bdr_attribute_sets'
+
+      MFEM_VERIFY(ident == "bdr_attribute_sets", "invalid mesh file");
+
+      bdr_attribute_sets.attr_sets.Load(input);
+      bdr_attribute_sets.attr_sets.SortAll();
+      bdr_attribute_sets.attr_sets.UniqueAll();
    }
 
    skip_comment_lines(input, '#');
@@ -262,7 +291,7 @@ void Mesh::ReadTrueGridMesh(std::istream &input)
    if (Dim == 2)
    {
       int vari;
-      double varf;
+      real_t varf;
 
       input >> vari >> NumOfVertices >> vari >> vari >> NumOfElements;
       input.getline(buf, buflen);
@@ -298,7 +327,7 @@ void Mesh::ReadTrueGridMesh(std::istream &input)
    else if (Dim == 3)
    {
       int vari;
-      double varf;
+      real_t varf;
       input >> vari >> NumOfVertices >> NumOfElements;
       input.getline(buf, buflen);
       input.getline(buf, buflen);
@@ -347,6 +376,11 @@ void Mesh::ReadTrueGridMesh(std::istream &input)
 const int Mesh::vtk_quadratic_tet[10] =
 { 0, 1, 2, 3, 4, 7, 5, 6, 8, 9 };
 
+// see Pyramid::edges & Mesh::GenerateFaces
+// https://www.vtk.org/doc/nightly/html/classvtkBiQuadraticQuadraticWedge.html
+const int Mesh::vtk_quadratic_pyramid[13] =
+{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+
 // see Wedge::edges & Mesh::GenerateFaces
 // https://www.vtk.org/doc/nightly/html/classvtkBiQuadraticQuadraticWedge.html
 const int Mesh::vtk_quadratic_wedge[18] =
@@ -373,9 +407,9 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
    int order = -1;
    bool legacy_elem = false, lagrange_elem = false;
 
-   int j = 0;
    for (int i = 0; i < NumOfElements; i++)
    {
+      int j = (i > 0) ? cell_offsets[i-1] : 0;
       int ct = cell_types[i];
       Geometry::Type geom = VTKGeometry::GetMFEMGeometry(ct);
       elements[i] = NewElement(geom);
@@ -413,7 +447,28 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
                   "Mixing of legacy and Lagrange cell types is not supported");
       Dim = elem_dim;
       order = elem_order;
-      j = cell_offsets[i];
+   }
+
+   // determine spaceDim based on min/max differences detected each dimension
+   spaceDim = 0;
+   if (np > 0)
+   {
+      real_t min_value, max_value;
+      for (int d = 3; d > 0; --d)
+      {
+         min_value = max_value = points(3*0 + d-1);
+         for (int i = 1; i < np; i++)
+         {
+            min_value = std::min(min_value, points(3*i + d-1));
+            max_value = std::max(max_value, points(3*i + d-1));
+            if (min_value != max_value)
+            {
+               spaceDim = d;
+               break;
+            }
+         }
+         if (spaceDim > 0) { break; }
+      }
    }
 
    if (order == 1 && !lagrange_elem)
@@ -455,12 +510,12 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
       // canonical order
 
       // Keep the original ordering of the vertices
-      int i, n;
-      for (n = i = 0; i < np; i++)
+      NumOfVertices = 0;
+      for (int i = 0; i < np; i++)
       {
          if (pts_dof[i] != -1)
          {
-            pts_dof[i] = n++;
+            pts_dof[i] = NumOfVertices++;
          }
       }
       // update the element vertices
@@ -474,8 +529,7 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
          }
       }
       // Define the 'vertices' from the 'points' through the 'pts_dof' map
-      NumOfVertices = n;
-      vertices.SetSize(n);
+      vertices.SetSize(NumOfVertices);
       for (int i = 0; i < np; i++)
       {
          int j = pts_dof[i];
@@ -490,27 +544,7 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
       // No boundary is defined in a VTK mesh
       NumOfBdrElements = 0;
 
-      // determine spaceDim based on min/max differences detected each dimension
-      if (vertices.Size() > 0)
-      {
-         double min_value, max_value;
-         for (int d=0; d<3; ++d)
-         {
-            min_value = max_value = vertices[0](d);
-            for (int i = 1; i < vertices.Size(); i++)
-            {
-               min_value = std::min(min_value,vertices[i](d));
-               max_value = std::max(max_value,vertices[i](d));
-               if (min_value != max_value)
-               {
-                  spaceDim++;
-                  break;
-               }
-            }
-         }
-      }
-      // Generate faces and edges so that we can define
-      // FE space on the mesh
+      // Generate faces and edges so that we can define FE space on the mesh
       FinalizeTopology();
 
       FiniteElementCollection *fec;
@@ -541,6 +575,8 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
                   vtk_mfem = vtk_quadratic_hex; break;
                case Geometry::PRISM:
                   vtk_mfem = vtk_quadratic_wedge; break;
+               case Geometry::PYRAMID:
+                  vtk_mfem = vtk_quadratic_pyramid; break;
                default:
                   vtk_mfem = NULL; // suppress a warning
                   break;
@@ -642,32 +678,415 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
    }
 }
 
-void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
-                           bool &finalize_topo)
+namespace vtk_xml
 {
-   using namespace tinyxml2;
 
-   const char *erstr = "XML parsing error";
+using namespace tinyxml2;
 
-   // Read entire stream into buffer
+/// Return false if either string is NULL or if the strings differ, return true
+/// if the strings are the same.
+bool StringCompare(const char *s1, const char *s2)
+{
+   if (s1 == NULL || s2 == NULL) { return false; }
+   return strcmp(s1, s2) == 0;
+}
+
+/// Abstract base class for reading contiguous arrays of (potentially
+/// compressed, potentially base-64 encoded) binary data from a buffer into a
+/// destination array. The types of the source and destination arrays may be
+/// different (e.g. read data of type uint8_t into destination array of
+/// uint32_t), which is handled by the templated derived class @a BufferReader.
+struct BufferReaderBase
+{
+   enum HeaderType { UINT32_HEADER, UINT64_HEADER };
+   virtual void ReadBinary(const char *buf, void *dest, int n) const = 0;
+   virtual void ReadBase64(const char *txt, void *dest, int n) const = 0;
+   virtual ~BufferReaderBase() { }
+};
+
+/// Read an array of source data stored as (potentially compressed, potentially
+/// base-64 encoded) into a destination array. The types of the elements in the
+/// source array are given by template parameter @a F ("from") and the types of
+/// the elements of the destination array are given by @a T ("to"). The binary
+/// data has a header, which is one integer if the data is uncompressed, and is
+/// four integers if the data is compressed. The integers may either by uint32_t
+/// or uint64_t, according to the @a header_type. If the data is compressed and
+/// base-64 encoded, then the header is encoded separately from the data. If the
+/// data is uncompressed and base-64 encoded, then the header and data are
+/// encoded together.
+template <typename T, typename F>
+struct BufferReader : BufferReaderBase
+{
+   bool compressed;
+   HeaderType header_type;
+   BufferReader(bool compressed_, HeaderType header_type_)
+      : compressed(compressed_), header_type(header_type_) { }
+
+   /// Return the number of bytes of each header entry.
+   size_t HeaderEntrySize() const
+   {
+      return header_type == UINT64_HEADER ? sizeof(uint64_t) : sizeof(uint32_t);
+   }
+
+   /// Return the value of the header entry pointer to by @a header_buf. The
+   /// value is stored as either uint32_t or uint64_t, according to the @a
+   /// header_type, and is returned as uint64_t.
+   uint64_t ReadHeaderEntry(const char *header_buf) const
+   {
+      return (header_type == UINT64_HEADER) ? bin_io::read<uint64_t>(header_buf)
+             : bin_io::read<uint32_t>(header_buf);
+   }
+
+   /// Return the number of bytes in the header. The header consists of one
+   /// integer if the data is uncompressed, and @a N + 3 integers if the data is
+   /// compressed, where @a N is the number of blocks. The integers are either
+   /// 32 or 64 bytes depending on the value of @a header_type. The number of
+   /// blocks is determined by reading the first integer (of type @a
+   /// header_type) pointed to by @a header_buf.
+   int NumHeaderBytes(const char *header_buf) const
+   {
+      if (!compressed) { return HeaderEntrySize(); }
+      return (3 + ReadHeaderEntry(header_buf))*HeaderEntrySize();
+   }
+
+   /// Read @a n elements of type @a F from the source buffer @a buf into the
+   /// (pre-allocated) destination array of elements of type @a T stored in
+   /// the buffer @a dest_void. The header is stored @b separately from the
+   /// rest of the data, in the buffer @a header_buf. The data buffer @a buf
+   /// does @b not contain a header.
+   void ReadBinaryWithHeader(const char *header_buf, const char *buf,
+                             void *dest_void, int n) const
+   {
+      std::vector<char> uncompressed_data;
+      T *dest = static_cast<T*>(dest_void);
+
+      if (compressed)
+      {
+#ifdef MFEM_USE_ZLIB
+         // The header has format (where header_t is uint32_t or uint64_t):
+         //    header_t number_of_blocks;
+         //    header_t uncompressed_block_size;
+         //    header_t uncompressed_last_block_size;
+         //    header_t compressed_size[number_of_blocks];
+         int header_entry_size = HeaderEntrySize();
+         int nblocks = ReadHeaderEntry(header_buf);
+         header_buf += header_entry_size;
+         std::vector<int> header(nblocks + 2);
+         for (int i=0; i<nblocks+2; ++i)
+         {
+            header[i] = ReadHeaderEntry(header_buf);
+            header_buf += header_entry_size;
+         }
+         uncompressed_data.resize((nblocks-1)*header[0] + header[1]);
+         Bytef *dest_ptr = (Bytef *)uncompressed_data.data();
+         Bytef *dest_start = dest_ptr;
+         const Bytef *source_ptr = (const Bytef *)buf;
+         for (int i=0; i<nblocks; ++i)
+         {
+            uLongf source_len = header[i+2];
+            uLong dest_len = (i == nblocks-1) ? header[1] : header[0];
+            int res = uncompress(dest_ptr, &dest_len, source_ptr, source_len);
+            MFEM_VERIFY(res == Z_OK, "Error uncompressing");
+            dest_ptr += dest_len;
+            source_ptr += source_len;
+         }
+         MFEM_VERIFY(int(sizeof(F)*n) == (dest_ptr - dest_start),
+                     "AppendedData: wrong data size");
+         buf = uncompressed_data.data();
+#else
+         MFEM_ABORT("MFEM must be compiled with zlib enabled to uncompress.")
+#endif
+      }
+      else
+      {
+         // Each "data block" is preceded by a header that is either UInt32 or
+         // UInt64. The rest of the data follows.
+         uint64_t data_size;
+         if (header_type == UINT32_HEADER)
+         {
+            uint32_t *data_size_32 = (uint32_t *)header_buf;
+            data_size = *data_size_32;
+         }
+         else
+         {
+            uint64_t *data_size_64 = (uint64_t *)header_buf;
+            data_size = *data_size_64;
+         }
+         MFEM_VERIFY(sizeof(F)*n == data_size, "AppendedData: wrong data size");
+      }
+
+      if (std::is_same<T, F>::value)
+      {
+         // Special case: no type conversions necessary, so can just memcpy
+         memcpy(dest, buf, sizeof(T)*n);
+      }
+      else
+      {
+         for (int i=0; i<n; ++i)
+         {
+            // Read binary data as type F, place in array as type T
+            dest[i] = bin_io::read<F>(buf + i*sizeof(F));
+         }
+      }
+   }
+
+   /// Read @a n elements of type @a F from source buffer @a buf into
+   /// (pre-allocated) array of elements of type @a T stored in destination
+   /// buffer @a dest. The input buffer contains both the header and the data.
+   void ReadBinary(const char *buf, void *dest, int n) const override
+   {
+      ReadBinaryWithHeader(buf, buf + NumHeaderBytes(buf), dest, n);
+   }
+
+   /// Read @a n elements of type @a F from base-64 encoded source buffer into
+   /// (pre-allocated) array of elements of type @a T stored in destination
+   /// buffer @a dest. The base-64-encoded data is given by the null-terminated
+   /// string @a txt, which contains both the header and the data.
+   void ReadBase64(const char *txt, void *dest, int n) const override
+   {
+      // Skip whitespace
+      while (*txt)
+      {
+         if (*txt != ' ' && *txt != '\n') { break; }
+         ++txt;
+      }
+      if (compressed)
+      {
+         // Decode the first entry of the header, which we need to determine
+         // how long the rest of the header is.
+         std::vector<char> nblocks_buf;
+         int nblocks_b64 = bin_io::NumBase64Chars(HeaderEntrySize());
+         bin_io::DecodeBase64(txt, nblocks_b64, nblocks_buf);
+         std::vector<char> data, header;
+         // Compute number of characters needed to encode header in base 64,
+         // then round to nearest multiple of 4 to take padding into account.
+         int header_b64 = bin_io::NumBase64Chars(NumHeaderBytes(nblocks_buf.data()));
+         // If data is compressed, header is encoded separately
+         bin_io::DecodeBase64(txt, header_b64, header);
+         bin_io::DecodeBase64(txt + header_b64, strlen(txt)-header_b64, data);
+         ReadBinaryWithHeader(header.data(), data.data(), dest, n);
+      }
+      else
+      {
+         std::vector<char> data;
+         bin_io::DecodeBase64(txt, strlen(txt), data);
+         ReadBinary(data.data(), dest, n);
+      }
+   }
+};
+
+/// Class to read data from VTK's @a DataArary elements. Each @a DataArray can
+/// contain inline ASCII data, inline base-64-encoded data (potentially
+/// compressed), or reference "appended data", which may be raw or base-64, and
+/// may be compressed or uncompressed.
+struct XMLDataReader
+{
+   const char *appended_data, *byte_order, *compressor;
+   enum AppendedDataEncoding { RAW, BASE64 };
+   map<string,BufferReaderBase*> type_map;
+   AppendedDataEncoding encoding;
+
+   /// Create the data reader, where @a vtk is the @a VTKFile XML element, and
+   /// @a vtu is the child @a UnstructuredGrid XML element. This will determine
+   /// the header type (32 or 64 bit integers) and whether compression is
+   /// enabled or not. The appended data will be loaded.
+   XMLDataReader(const XMLElement *vtk, const XMLElement *vtu)
+   {
+      // Determine whether binary data header is 32 or 64 bit integer
+      BufferReaderBase::HeaderType htype;
+      if (StringCompare(vtk->Attribute("header_type"), "UInt64"))
+      {
+         htype = BufferReaderBase::UINT64_HEADER;
+      }
+      else
+      {
+         htype = BufferReaderBase::UINT32_HEADER;
+      }
+
+      // Get the byte order of the file (will check if we encounter binary data)
+      byte_order = vtk->Attribute("byte_order");
+
+      // Get the compressor. We will check that MFEM can handle the compression
+      // if we encounter binary data.
+      compressor = vtk->Attribute("compressor");
+      bool compressed = (compressor != NULL);
+
+      // Find the appended data.
+      appended_data = NULL;
+      for (const XMLElement *xml_elem = vtu->NextSiblingElement();
+           xml_elem != NULL;
+           xml_elem = xml_elem->NextSiblingElement())
+      {
+         if (StringCompare(xml_elem->Name(), "AppendedData"))
+         {
+            const char *encoding_str = xml_elem->Attribute("encoding");
+            if (StringCompare(encoding_str, "raw"))
+            {
+               appended_data = xml_elem->GetAppendedData();
+               encoding = RAW;
+            }
+            else if (StringCompare(encoding_str, "base64"))
+            {
+               appended_data = xml_elem->GetText();
+               encoding = BASE64;
+            }
+            MFEM_VERIFY(appended_data != NULL, "Invalid AppendedData");
+            // Appended data follows first underscore
+            bool found_leading_underscore = false;
+            while (*appended_data)
+            {
+               ++appended_data;
+               if (*appended_data == '_')
+               {
+                  found_leading_underscore = true;
+                  ++appended_data;
+                  break;
+               }
+            }
+            MFEM_VERIFY(found_leading_underscore, "Invalid AppendedData");
+            break;
+         }
+      }
+
+      type_map["Int8"] = new BufferReader<int, int8_t>(compressed, htype);
+      type_map["Int16"] = new BufferReader<int, int16_t>(compressed, htype);
+      type_map["Int32"] = new BufferReader<int, int32_t>(compressed, htype);
+      type_map["Int64"] = new BufferReader<int, int64_t>(compressed, htype);
+      type_map["UInt8"] = new BufferReader<int, uint8_t>(compressed, htype);
+      type_map["UInt16"] = new BufferReader<int, uint16_t>(compressed, htype);
+      type_map["UInt32"] = new BufferReader<int, uint32_t>(compressed, htype);
+      type_map["UInt64"] = new BufferReader<int, uint64_t>(compressed, htype);
+      type_map["Float32"] = new BufferReader<double, float>(compressed, htype);
+      type_map["Float64"] = new BufferReader<double, double>(compressed, htype);
+   }
+
+   /// Read the @a DataArray XML element given by @a xml_elem into
+   /// (pre-allocated) destination array @a dest, where @a dest stores @a n
+   /// elements of type @a T.
+   template <typename T>
+   void Read(const XMLElement *xml_elem, T *dest, int n)
+   {
+      static const char *erstr = "Error reading XML DataArray";
+      MFEM_VERIFY(StringCompare(xml_elem->Name(), "DataArray"), erstr);
+      const char *format = xml_elem->Attribute("format");
+      if (StringCompare(format, "ascii"))
+      {
+         const char *txt = xml_elem->GetText();
+         MFEM_VERIFY(txt != NULL, erstr);
+         std::istringstream data_stream(txt);
+         for (int i=0; i<n; ++i) { data_stream >> dest[i]; }
+      }
+      else if (StringCompare(format, "appended"))
+      {
+         VerifyBinaryOptions();
+         int offset = xml_elem->IntAttribute("offset");
+         const char *type = xml_elem->Attribute("type");
+         MFEM_VERIFY(type != NULL, erstr);
+         BufferReaderBase *reader = type_map[type];
+         MFEM_VERIFY(reader != NULL, erstr);
+         MFEM_VERIFY(appended_data != NULL, "No AppendedData found");
+         if (encoding == RAW)
+         {
+            reader->ReadBinary(appended_data + offset, dest, n);
+         }
+         else
+         {
+            reader->ReadBase64(appended_data + offset, dest, n);
+         }
+      }
+      else if (StringCompare(format, "binary"))
+      {
+         VerifyBinaryOptions();
+         const char *txt = xml_elem->GetText();
+         MFEM_VERIFY(txt != NULL, erstr);
+         const char *type = xml_elem->Attribute("type");
+         if (type == NULL) { MFEM_ABORT(erstr); }
+         BufferReaderBase *reader = type_map[type];
+         if (reader == NULL) { MFEM_ABORT(erstr); }
+         reader->ReadBase64(txt, dest, n);
+      }
+      else
+      {
+         MFEM_ABORT("Invalid XML VTK DataArray format");
+      }
+   }
+
+   /// Check that the byte order of the file is the same as the native byte
+   /// order that we're running with. We don't currently support converting
+   /// between byte orders. The byte order is only verified if we encounter
+   /// binary data.
+   void VerifyByteOrder() const
+   {
+      // Can't handle reading big endian from little endian or vice versa
+      if (byte_order && !StringCompare(byte_order, VTKByteOrder()))
+      {
+         MFEM_ABORT("Converting between different byte orders is unsupported.");
+      }
+   }
+
+   /// Check that the compressor is compatible (MFEM currently only supports
+   /// zlib compression). If MFEM is not compiled with zlib, then we cannot
+   /// read binary data with compression.
+   void VerifyCompressor() const
+   {
+      if (compressor && !StringCompare(compressor, "vtkZLibDataCompressor"))
+      {
+         MFEM_ABORT("Unsupported compressor. Only zlib is supported.")
+      }
+#ifndef MFEM_USE_ZLIB
+      MFEM_VERIFY(compressor == NULL, "MFEM must be compiled with zlib enabled "
+                  "to support reading compressed data.");
+#endif
+   }
+
+   /// Verify that the binary data is stored with compatible options (i.e.
+   /// native byte order and compatible compression).
+   void VerifyBinaryOptions() const
+   {
+      VerifyByteOrder();
+      VerifyCompressor();
+   }
+
+   ~XMLDataReader()
+   {
+      for (auto &x : type_map) { delete x.second; }
+   }
+};
+
+} // namespace vtk_xml
+
+void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
+                           bool &finalize_topo, const std::string &xml_prefix)
+{
+   using namespace vtk_xml;
+
+   static const char *erstr = "XML parsing error";
+
+   // Create buffer beginning with xml_prefix, then read the rest of the stream
+   std::vector<char> buf(xml_prefix.begin(), xml_prefix.end());
    std::istreambuf_iterator<char> eos;
-   std::vector<char> buf(std::istreambuf_iterator<char>(input), eos);
+   buf.insert(buf.end(), std::istreambuf_iterator<char>(input), eos);
    buf.push_back('\0'); // null-terminate buffer
 
    XMLDocument xml;
-   xml.Parse(buf.data());
-   MFEM_VERIFY(xml.ErrorID() == XML_SUCCESS, erstr);
+   xml.Parse(buf.data(), buf.size());
+   if (xml.ErrorID() != XML_SUCCESS)
+   {
+      MFEM_ABORT("Error parsing XML VTK file.\n" << xml.ErrorStr());
+   }
 
    const XMLElement *vtkfile = xml.FirstChildElement();
    MFEM_VERIFY(vtkfile, erstr);
-   MFEM_VERIFY(std::string(vtkfile->Name()) == "VTKFile", erstr);
+   MFEM_VERIFY(StringCompare(vtkfile->Name(), "VTKFile"), erstr);
    const XMLElement *vtu = vtkfile->FirstChildElement();
    MFEM_VERIFY(vtu, erstr);
-   MFEM_VERIFY(std::string(vtu->Name()) == "UnstructuredGrid", erstr);
+   MFEM_VERIFY(StringCompare(vtu->Name(), "UnstructuredGrid"), erstr);
+
+   XMLDataReader data_reader(vtkfile, vtu);
 
    // Count the number of points and cells
    const XMLElement *piece = vtu->FirstChildElement();
-   MFEM_VERIFY(std::string(piece->Name()) == "Piece", erstr);
+   MFEM_VERIFY(StringCompare(piece->Name(), "Piece"), erstr);
    MFEM_VERIFY(piece->NextSiblingElement() == NULL,
                "XML VTK meshes with more than one Piece are not supported");
    int npts = piece->IntAttribute("NumberOfPoints");
@@ -680,73 +1099,85 @@ void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
         pts_xml != NULL;
         pts_xml = pts_xml->NextSiblingElement())
    {
-      if (std::string(pts_xml->Name()) == "Points")
+      if (StringCompare(pts_xml->Name(), "Points"))
       {
          const XMLElement *pts_data = pts_xml->FirstChildElement();
-         MFEM_VERIFY(std::string(pts_data->Name()) == "DataArray", erstr);
-         MFEM_VERIFY(std::string(pts_data->Attribute("Name")) == "Points",
-                     erstr);
          MFEM_VERIFY(pts_data->IntAttribute("NumberOfComponents") == 3,
                      "XML VTK Points DataArray must have 3 components");
-         const char *pts_txt = pts_data->GetText();
-         MFEM_VERIFY(pts_txt != NULL, erstr);
-         std::istringstream pts_stream(pts_txt);
-         points.Load(pts_stream, 3*npts);
+         data_reader.Read(pts_data, points.GetData(), points.Size());
          break;
       }
    }
    if (pts_xml == NULL) { MFEM_ABORT(erstr); }
 
    // Read the cells
-   Array<int> cell_data, cell_offsets, cell_types;
+   Array<int> cell_data, cell_offsets(ncells), cell_types(ncells);
    const XMLElement *cells_xml;
    for (cells_xml = piece->FirstChildElement();
         cells_xml != NULL;
         cells_xml = cells_xml->NextSiblingElement())
    {
-      if (std::string(cells_xml->Name()) == "Cells")
+      if (StringCompare(cells_xml->Name(), "Cells"))
       {
-         const char *cell_data_txt = NULL;
+         const XMLElement *cell_data_xml = NULL;
          for (const XMLElement *data_xml = cells_xml->FirstChildElement();
               data_xml != NULL;
               data_xml = data_xml->NextSiblingElement())
          {
-            MFEM_VERIFY(std::string(data_xml->Name()) == "DataArray", erstr);
-            std::string data_name(data_xml->Attribute("Name"));
-            const char *data_txt = data_xml->GetText();
-            MFEM_VERIFY(data_txt != NULL, erstr);
-            if (data_name == "offsets")
+            const char *data_name = data_xml->Attribute("Name");
+            if (StringCompare(data_name, "offsets"))
             {
-               std::istringstream data_stream(data_txt);
-               cell_offsets.Load(ncells, data_stream);
+               data_reader.Read(data_xml, cell_offsets.GetData(), ncells);
             }
-            else if (data_name == "types")
+            else if (StringCompare(data_name, "types"))
             {
-               std::istringstream data_stream(data_txt);
-               cell_types.Load(ncells, data_stream);
+               data_reader.Read(data_xml, cell_types.GetData(), ncells);
             }
-            else if (data_name == "connectivity")
+            else if (StringCompare(data_name, "connectivity"))
             {
                // Have to read the connectivity after the offsets, because we
                // don't know how many points to read until we have the offsets
                // (size of connectivity array is equal to the last offset), so
-               // store the data pointer and read this array later.
-               cell_data_txt = data_txt;
+               // store the XML element pointer and read this data later.
+               cell_data_xml = data_xml;
             }
          }
-         MFEM_VERIFY(cell_offsets.Size() == ncells, erstr);
-         MFEM_VERIFY(cell_types.Size() == ncells, erstr);
-         MFEM_VERIFY(cell_data_txt != NULL, erstr);
+         MFEM_VERIFY(cell_data_xml != NULL, erstr);
          int cell_data_size = cell_offsets.Last();
-         std::istringstream cell_data_stream(cell_data_txt);
-         cell_data.Load(cell_data_size, cell_data_stream);
+         cell_data.SetSize(cell_data_size);
+         data_reader.Read(cell_data_xml, cell_data.GetData(), cell_data_size);
          break;
       }
    }
    if (cells_xml == NULL) { MFEM_ABORT(erstr); }
 
-   // Currently don't support reading cell attributes from XML VTK mesh
+   // Read the element attributes, which are stored as CellData named either
+   // "material" or "attribute". We prioritize "material" over "attribute" for
+   // backwards compatibility.
    Array<int> cell_attributes;
+   bool found_attributes = false;
+   for (const XMLElement *cell_data_xml = piece->FirstChildElement();
+        cell_data_xml != NULL;
+        cell_data_xml = cell_data_xml->NextSiblingElement())
+   {
+      const bool is_cell_data =
+         StringCompare(cell_data_xml->Name(), "CellData");
+      const bool is_material =
+         StringCompare(cell_data_xml->Attribute("Scalars"), "material");
+      const bool is_attribute =
+         StringCompare(cell_data_xml->Attribute("Scalars"), "attribute");
+      if (is_cell_data && (is_material || (is_attribute && !found_attributes)))
+      {
+         found_attributes = true;
+         const XMLElement *data_xml = cell_data_xml->FirstChildElement();
+         if (data_xml != NULL && StringCompare(data_xml->Name(), "DataArray"))
+         {
+            cell_attributes.SetSize(ncells);
+            data_reader.Read(data_xml, cell_attributes.GetData(), ncells);
+         }
+      }
+   }
+
    CreateVTKMesh(points, cell_data, cell_offsets, cell_types, cell_attributes,
                  curved, read_gf, finalize_topo);
 }
@@ -852,6 +1283,7 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
    // Read the cell materials
    // bool found_material = false;
    Array<int> cell_attributes;
+   bool found_attributes = false;
    while ((input.good()))
    {
       getline(input, buff);
@@ -859,8 +1291,10 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
       {
          break; // We have entered the POINT_DATA block. Quit.
       }
-      else if (buff.rfind("SCALARS material") == 0)
+      else if (buff.rfind("SCALARS material") == 0 ||
+               (buff.rfind("SCALARS attribute") == 0 && !found_attributes))
       {
+         found_attributes = true;
          getline(input, buff); // LOOKUP_TABLE default
          if (buff.rfind("LOOKUP_TABLE default") != 0)
          {
@@ -882,9 +1316,10 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
                  curved, read_gf, finalize_topo);
 } // end ReadVTKMesh
 
-void Mesh::ReadNURBSMesh(std::istream &input, int &curved, int &read_gf)
+void Mesh::ReadNURBSMesh(std::istream &input, int &curved, int &read_gf,
+                         bool spacing)
 {
-   NURBSext = new NURBSExtension(input);
+   NURBSext = new NURBSExtension(input, spacing);
 
    Dim              = NURBSext->Dimension();
    NumOfVertices    = NURBSext->GetNV();
@@ -931,9 +1366,9 @@ void Mesh::ReadInlineMesh(std::istream &input, bool generate_edges)
    int nx = -1;
    int ny = -1;
    int nz = -1;
-   double sx = -1.0;
-   double sy = -1.0;
-   double sz = -1.0;
+   real_t sx = -1.0;
+   real_t sy = -1.0;
+   real_t sz = -1.0;
    Element::Type type = Element::POINT;
 
    while (true)
@@ -1003,6 +1438,10 @@ void Mesh::ReadInlineMesh(std::istream &input, bool generate_edges)
          {
             type = Element::WEDGE;
          }
+         else if (eltype == "pyramid")
+         {
+            type = Element::PYRAMID;
+         }
          else if (eltype == "tet")
          {
             type = Element::TETRAHEDRON;
@@ -1057,7 +1496,7 @@ void Mesh::ReadInlineMesh(std::istream &input, bool generate_edges)
       Make2D(nx, ny, type, sx, sy, generate_edges, true);
    }
    else if (type == Element::TETRAHEDRON || type == Element::WEDGE ||
-            type == Element::HEXAHEDRON)
+            type == Element::HEXAHEDRON  || type == Element::PYRAMID)
    {
       MFEM_VERIFY(nx > 0 && ny > 0 && nz > 0 &&
                   sx > 0.0 && sy > 0.0 && sz > 0.0,
@@ -1082,7 +1521,7 @@ void Mesh::ReadInlineMesh(std::istream &input, bool generate_edges)
 void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
 {
    string buff;
-   double version;
+   real_t version;
    int binary, dsize;
    input >> version >> binary >> dsize;
    if (version < 2.2)
@@ -1110,6 +1549,12 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
    // starting from 1, not 0)
    map<int, int> vertices_map;
 
+   // A map containing names of physical curves, surfaces, and volumes.
+   // The first index is the dimension of the physical manifold, the second
+   // index is the element attribute number of the set, and the string is
+   // the assigned name.
+   map<int,map<int,std::string> > phys_names_by_dim;
+
    // Gmsh always outputs coordinates in 3D, but MFEM distinguishes between the
    // mesh element dimension (Dim) and the dimension of the space in which the
    // mesh is embedded (spaceDim). For example, a 2D MFEM mesh has Dim = 2 and
@@ -1120,9 +1565,9 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
    // is non-trivial. Note that with these assumptions a 2D mesh parallel to the
    // yz plane will be considered a surface mesh embedded in 3D whereas the same
    // 2D mesh parallel to the xy plane will be considered a 2D mesh.
-   double bb_tol = 1e-14;
-   double bb_min[3];
-   double bb_max[3];
+   real_t bb_tol = 1e-14;
+   real_t bb_min[3];
+   real_t bb_max[3];
 
    // Mesh order
    int mesh_order = 1;
@@ -1144,7 +1589,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          vertices.SetSize(NumOfVertices);
          int serial_number;
          const int gmsh_dim = 3; // Gmsh always outputs 3 coordinates
-         double coord[gmsh_dim];
+         real_t coord[gmsh_dim];
          for (int ver = 0; ver < NumOfVertices; ++ver)
          {
             if (binary)
@@ -1171,7 +1616,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                             std::max(bb_max[ci], coord[ci]);
             }
          }
-         double bb_size = std::max(bb_max[0] - bb_min[0],
+         real_t bb_size = std::max(bb_max[0] - bb_min[0],
                                    std::max(bb_max[1] - bb_min[1],
                                             bb_max[2] - bb_min[2]));
          spaceDim = 1;
@@ -1269,11 +1714,11 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             -1,-1, /* unsupported tetrahedral types */
             -1,-1, /* unsupported polygonal and polyhedral types */
             16,  /* 16-node third order quadrilateral (4 nodes associated with
-                    the vertices, 8 with the edges, 4 wth the face) */
+                    the vertices, 8 with the edges, 4 with the face) */
             25,  /* 25-node fourth order quadrilateral (4 nodes associated with
-                    the vertices, 12 with the edges, 9 wth the face) */
+                    the vertices, 12 with the edges, 9 with the face) */
             36,  /* 36-node fifth order quadrilateral (4 nodes associated with
-                    the vertices, 16 with the edges, 16 wth the face) */
+                    the vertices, 16 with the edges, 16 with the face) */
             -1,-1,-1, /* unsupported quadrilateral types */
             28,  /* 28-node sixth order complete triangle (3 nodes associated
                     with the vertices, 15 with the edges, 10 with the face) */
@@ -1286,15 +1731,15 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             66,  /* 66-node tenth order complete triangle (3 nodes associated
                     with the vertices, 27 with the edges, 36 with the face) */
             49,  /* 49-node sixth order quadrilateral (4 nodes associated with
-                    the vertices, 20 with the edges, 25 wth the face) */
+                    the vertices, 20 with the edges, 25 with the face) */
             64,  /* 64-node seventh order quadrilateral (4 nodes associated with
-                    the vertices, 24 with the edges, 36 wth the face) */
+                    the vertices, 24 with the edges, 36 with the face) */
             81,  /* 81-node eighth order quadrilateral (4 nodes associated with
-                    the vertices, 28 with the edges, 49 wth the face) */
+                    the vertices, 28 with the edges, 49 with the face) */
             100, /* 100-node ninth order quadrilateral (4 nodes associated with
-                    the vertices, 32 with the edges, 64 wth the face) */
+                    the vertices, 32 with the edges, 64 with the face) */
             121, /* 121-node tenth order quadrilateral (4 nodes associated with
-                    the vertices, 36 with the edges, 81 wth the face) */
+                    the vertices, 36 with the edges, 81 with the face) */
             -1,-1,-1,-1,-1, /* unsupported triangular types */
             -1,-1,-1,-1,-1, /* unsupported quadrilateral types */
             7,   /* 7-node sixth order edge (2 nodes associated with the
@@ -1494,6 +1939,9 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          ho_wdg[2] = wdg18; ho_wdg[3] = wdg40;
          ho_pyr[2] = pyr14; ho_pyr[3] = pyr30;
 
+         bool has_nonpositive_phys_domain = false;
+         bool has_positive_phys_domain = false;
+
          if (binary)
          {
             int n_elem_part = 0; // partial sum of elements that are read
@@ -1544,17 +1992,19 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      vert_indices[vi] = it->second;
                   }
 
-                  // non-positive attributes are not allowed in MFEM
+                  // Non-positive attributes are not allowed in MFEM. However,
+                  // by default, Gmsh sets the physical domain of all elements
+                  // to zero. In the case that all elements have physical domain
+                  // zero, we will given them attribute 1. If only some elements
+                  // have physical domain zero, we will throw an error.
                   if (phys_domain <= 0)
                   {
-                     MFEM_ABORT("Non-positive element attribute in Gmsh mesh!\n"
-                                "By default Gmsh sets element tags (attributes)"
-                                " to '0' but MFEM requires that they be"
-                                " positive integers.\n"
-                                "Use \"Physical Curve\", \"Physical Surface\","
-                                " or \"Physical Volume\" to set tags/attributes"
-                                " for all curves, surfaces, or volumes in your"
-                                " Gmsh geometry to values which are >= 1.");
+                     has_nonpositive_phys_domain = true;
+                     phys_domain = 1;
+                  }
+                  else
+                  {
+                     has_positive_phys_domain = true;
                   }
 
                   // initialize the mesh element
@@ -1700,8 +2150,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                            }
                            break;
                         }
-                     /*
-                     // MFEM does not support pyramids yet
                      case   7: el_order--; //   5-node pyramid
                      case  14: el_order--; //  14-node pyramid (2nd order)
                      case 118: el_order--; //  30-node pyramid (3rd order)
@@ -1714,7 +2162,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                         {
                            el_order--; // Gmsh does not define an order 10 pyr
                            elements_3D.push_back(
-                               new Pyramid(&vert_indices[0], phys_domain));
+                              new Pyramid(&vert_indices[0], phys_domain));
                            if (el_order > 1)
                            {
                               Array<int> * hov = new Array<int>;
@@ -1724,7 +2172,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                            }
                            break;
                         }
-                     */
                      case 15: // 1-node point
                      {
                         elements_0D.push_back(
@@ -1771,17 +2218,19 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                   vert_indices[vi] = it->second;
                }
 
-               // non-positive attributes are not allowed in MFEM
+               // Non-positive attributes are not allowed in MFEM. However,
+               // by default, Gmsh sets the physical domain of all elements
+               // to zero. In the case that all elements have physical domain
+               // zero, we will given them attribute 1. If only some elements
+               // have physical domain zero, we will throw an error.
                if (phys_domain <= 0)
                {
-                  MFEM_ABORT("Non-positive element attribute in Gmsh mesh!\n"
-                             "By default Gmsh sets element tags (attributes)"
-                             " to '0' but MFEM requires that they be"
-                             " positive integers.\n"
-                             "Use \"Physical Curve\", \"Physical Surface\","
-                             " or \"Physical Volume\" to set tags/attributes"
-                             " for all curves, surfaces, or volumes in your"
-                             " Gmsh geometry to values which are >= 1.");
+                  has_nonpositive_phys_domain = true;
+                  phys_domain = 1;
+               }
+               else
+               {
+                  has_positive_phys_domain = true;
                }
 
                // initialize the mesh element
@@ -1927,8 +2376,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                         }
                         break;
                      }
-                  /*
-                  // MFEM does not support pyramids yet
                   case   7: el_order--; //   5-node pyramid
                   case  14: el_order--; //  14-node pyramid (2nd order)
                   case 118: el_order--; //  30-node pyramid (3rd order)
@@ -1941,7 +2388,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      {
                         el_order--;
                         elements_3D.push_back(
-                            new Pyramid(&vert_indices[0], phys_domain));
+                           new Pyramid(&vert_indices[0], phys_domain));
                         if (el_order > 1)
                         {
                            Array<int> * hov = new Array<int>;
@@ -1951,7 +2398,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                         }
                         break;
                      }
-                  */
                   case 15: // 1-node point
                   {
                      elements_0D.push_back(
@@ -1965,6 +2411,24 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                } // switch (type_of_element)
             } // el (all elements)
          } // if ASCII
+
+         if (has_positive_phys_domain && has_nonpositive_phys_domain)
+         {
+            MFEM_ABORT("Non-positive element attribute in Gmsh mesh!\n"
+                       "By default Gmsh sets element tags (attributes)"
+                       " to '0' but MFEM requires that they be"
+                       " positive integers.\n"
+                       "Use \"Physical Curve\", \"Physical Surface\","
+                       " or \"Physical Volume\" to set tags/attributes"
+                       " for all curves, surfaces, or volumes in your"
+                       " Gmsh geometry to values which are >= 1.");
+         }
+         else if (has_nonpositive_phys_domain)
+         {
+            mfem::out << "\nGmsh reader: all element attributes were zero.\n"
+                      << "MFEM only supports positive element attributes.\n"
+                      << "Setting element attributes to 1.\n\n";
+         }
 
          if (!elements_3D.empty())
          {
@@ -2054,6 +2518,10 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             // initialize mesh_geoms so we can create Nodes FE space below
             this->SetMeshGen();
 
+            // Generate faces and edges so that we can define
+            // FE space on the mesh
+            this->FinalizeTopology();
+
             // Construct GridFunction for uniformly spaced high order coords
             FiniteElementCollection* nfec;
             FiniteElementSpace* nfes;
@@ -2132,16 +2600,16 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      }
                      vm = ho_wdg[el_order];
                      break;
-                  // case Element::PYRAMID:
-                  //    ho_verts = ho_verts_3D[el];
-                  //    el_order = ho_el_order_3D[el];
-                  //    if (ho_pyr[el_order])
-                  //    {
-                  //      ho_pyr[el_order] = new int[ho_verts->Size()];
-                  //      GmshHOPyramidMapping(el_order, ho_pyr[el_order]);
-                  //    }
-                  //    vm = ho_pyr[el_order];
-                  //    break;
+                  case Element::PYRAMID:
+                     ho_verts = ho_verts_3D[el];
+                     el_order = ho_el_order_3D[el];
+                     if (!ho_pyr[el_order])
+                     {
+                        ho_pyr[el_order] = new int[ho_verts->Size()];
+                        GmshHOPyramidMapping(el_order, ho_pyr[el_order]);
+                     }
+                     vm = ho_pyr[el_order];
+                     break;
                   default: // Any other element type
                      MFEM_WARNING("Unsupported Gmsh element type.");
                      break;
@@ -2150,7 +2618,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
 
                for (int v = 0; v<nv; v++)
                {
-                  double * c = GetVertex((*ho_verts)[vm[v]]);
+                  real_t * c = GetVertex((*ho_verts)[vm[v]]);
                   for (int d=0; d<spaceDim; d++)
                   {
                      Nodes_gf(spaceDim * (o + v) + d) = c[d];
@@ -2204,10 +2672,45 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             if (ho_pyr[ord] != NULL) { delete [] ho_pyr[ord]; }
          }
 
+         // Suppress warnings (MFEM_CONTRACT_VAR does not work here with nvcc):
+         ++n_partitions;
+         ++elem_domain;
          MFEM_CONTRACT_VAR(n_partitions);
          MFEM_CONTRACT_VAR(elem_domain);
 
       } // section '$Elements'
+      else if (buff == "$PhysicalNames") // Named element sets
+      {
+         int num_names = 0;
+         int mdim,num;
+         string name;
+         input >> num_names;
+         for (int i=0; i < num_names; i++)
+         {
+            input >> mdim >> num;
+            getline(input, name);
+
+            // Trim leading white space
+            while (!name.empty() &&
+                   (*name.begin() == ' ' || *name.begin() == '\t'))
+            { name.erase(0,1);}
+
+            // Trim trailing white space
+            while (!name.empty() &&
+                   (*name.rbegin() == ' ' || *name.rbegin() == '\t' ||
+                    *name.rbegin() == '\n' || *name.rbegin() == '\r'))
+            { name.resize(name.length()-1);}
+
+            // Remove enclosing quotes
+            if ( (*name.begin() == '"' || *name.begin() == '\'') &&
+                 (*name.rbegin() == '"' || *name.rbegin() == '\''))
+            {
+               name = name.substr(1,name.length()-2);
+            }
+
+            phys_names_by_dim[mdim][num] = name;
+         }
+      }
       else if (buff == "$Periodic") // Reading master/slave node pairs
       {
          curved = 1;
@@ -2221,7 +2724,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          }
          int num_per_ent;
          int num_nodes;
-         int slave, master;
          input >> num_per_ent;
          getline(input, buff); // Read end-of-line
          for (int i = 0; i < num_per_ent; i++)
@@ -2238,6 +2740,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             }
             for (int j=0; j<num_nodes; j++)
             {
+               int slave, master;
                input >> slave >> master;
                v2v[slave - 1] = master - 1;
             }
@@ -2275,6 +2778,8 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          // Convert nodes to discontinuous GridFunction (if they aren't already)
          if (mesh_order == 1)
          {
+            this->FinalizeTopology();
+            this->SetMeshGen();
             this->SetCurvature(1, true, spaceDim, Ordering::byVDIM);
          }
 
@@ -2305,6 +2810,30 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
       }
    } // we reach the end of the file
 
+   // Process set names
+   if (phys_names_by_dim.size() > 0)
+   {
+      // Process boundary attribute set names
+      for (auto const &bdr_attr : phys_names_by_dim[Dim-1])
+      {
+         if (!bdr_attribute_sets.AttributeSetExists(bdr_attr.second))
+         {
+            bdr_attribute_sets.CreateAttributeSet(bdr_attr.second);
+         }
+         bdr_attribute_sets.AddToAttributeSet(bdr_attr.second, bdr_attr.first);
+      }
+
+      // Process element attribute set names
+      for (auto const &attr : phys_names_by_dim[Dim])
+      {
+         if (!attribute_sets.AttributeSetExists(attr.second))
+         {
+            attribute_sets.CreateAttributeSet(attr.second);
+         }
+         attribute_sets.AddToAttributeSet(attr.second, attr.first);
+      }
+   }
+
    this->RemoveUnusedVertices();
    if (periodic)
    {
@@ -2324,765 +2853,1088 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
 
 
 #ifdef MFEM_USE_NETCDF
-void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
+
+namespace cubit
 {
-   read_gf = 0;
 
-   // curved set to zero will change if mesh is indeed curved
-   curved = 0;
+const int mfem_to_genesis_tet10[10] =
+{
+   // 1,2,3,4,5,6,7,8,9,10
+   1,2,3,4,5,7,8,6,9,10
+};
 
-   const int sideMapTri3[3][2] =
+const int mfem_to_genesis_hex27[27] =
+{
+   // 1,2,3,4,5,6,7,8,9,10,11,
+   1,2,3,4,5,6,7,8,9,10,11,
+
+   // 12,13,14,15,16,17,18,19
+   12,17,18,19,20,13,14,15,
+
+   // 20,21,22,23,24,25,26,27
+   16,22,26,25,27,24,23,21
+};
+
+const int mfem_to_genesis_tri6[6]   =
+{
+   1,2,3,4,5,6
+};
+
+const int mfem_to_genesis_quad9[9]  =
+{
+   1,2,3,4,5,6,7,8,9
+};
+
+const int cubit_side_map_tri3[3][2] =
+{
+   {1,2},
+   {2,3},
+   {3,1},
+};
+
+const int cubit_side_map_quad4[4][2] =
+{
+   {1,2},
+   {2,3},
+   {3,4},
+   {4,1},
+};
+
+const int cubit_side_map_tri6[3][3] =
+{
+   {1,2,4},
+   {2,3,5},
+   {3,1,6},
+};
+
+const int cubit_side_map_quad9[4][3] =
+{
+   {1,2,5},
+   {2,3,6},
+   {3,4,7},
+   {4,1,8},
+};
+
+const int cubit_side_map_tet4[4][3] =
+{
+   {1,2,4},
+   {2,3,4},
+   {1,4,3},
+   {1,3,2}
+};
+
+const int cubit_side_map_tet10[4][6] =
+{
+   {1,2,4,5,9,8},
+   {2,3,4,6,10,9},
+   {1,4,3,8,10,7},
+   {1,3,2,7,6,5}
+};
+
+const int cubit_side_map_hex8[6][4] =
+{
+   {1,2,6,5},
+   {2,3,7,6},
+   {4,3,7,8},
+   {1,4,8,5},
+   {1,4,3,2},
+   {5,8,7,6}
+};
+
+const int cubit_side_map_hex27[6][9] =
+{
+   {1,2,6,5,9,14,17,13,26},
+   {2,3,7,6,10,15,18,14,25},
+   {4,3,7,8,11,15,19,16,27},
+   {1,4,8,5,12,16,20,13,24},
+   {1,4,3,2,12,11,10,9,22},
+   {5,8,7,6,20,19,18,17,23}
+};
+
+
+enum CubitElementType
+{
+   ELEMENT_TRI3,
+   ELEMENT_TRI6,
+   ELEMENT_QUAD4,
+   ELEMENT_QUAD9,
+   ELEMENT_TET4,
+   ELEMENT_TET10,
+   ELEMENT_HEX8,
+   ELEMENT_HEX27
+};
+
+enum CubitFaceType
+{
+   FACE_EDGE2,
+   FACE_EDGE3,
+   FACE_TRI3,
+   FACE_TRI6,
+   FACE_QUAD4,
+   FACE_QUAD9
+};
+
+
+static void HandleNetCDFError(const int error)
+{
+   if (error == NC_NOERR) { return; }
+
+   MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(error));
+}
+
+
+static void ReadCubitNodeCoordinates(const int netcdf_descriptor,
+                                     double *coordx,
+                                     double *coordy,
+                                     double *coordz)
+{
+   if (!coordx || !coordy) { return; }  // Only allow coordz to be NULL if dimensions < 3.
+
+   int variable_id, netcdf_status;
+
+   netcdf_status = nc_inq_varid(netcdf_descriptor, "coordx", &variable_id);
+   netcdf_status = nc_get_var_double(netcdf_descriptor, variable_id, coordx);
+
+   netcdf_status = nc_inq_varid(netcdf_descriptor, "coordy", &variable_id);
+   netcdf_status = nc_get_var_double(netcdf_descriptor, variable_id, coordy);
+
+   if (coordz)
    {
-      {1,2},
-      {2,3},
-      {3,1},
-   };
-
-   const int sideMapQuad4[4][2] =
-   {
-      {1,2},
-      {2,3},
-      {3,4},
-      {4,1},
-   };
-
-   const int sideMapTri6[3][3] =
-   {
-      {1,2,4},
-      {2,3,5},
-      {3,1,6},
-   };
-
-   const int sideMapQuad9[4][3] =
-   {
-      {1,2,5},
-      {2,3,6},
-      {3,4,7},
-      {4,1,8},
-   };
-
-   const int sideMapTet4[4][3] =
-   {
-      {1,2,4},
-      {2,3,4},
-      {1,4,3},
-      {1,3,2}
-   };
-
-   const int sideMapTet10[4][6] =
-   {
-      {1,2,4,5,9,8},
-      {2,3,4,6,10,9},
-      {1,4,3,8,10,7},
-      {1,3,2,7,6,5}
-   };
-
-   const int sideMapHex8[6][4] =
-   {
-      {1,2,6,5},
-      {2,3,7,6},
-      {4,3,7,8},
-      {1,4,8,5},
-      {1,4,3,2},
-      {5,8,7,6}
-   };
-
-   const int sideMapHex27[6][9] =
-   {
-      {1,2,6,5,9,14,17,13,26},
-      {2,3,7,6,10,15,18,14,25},
-      {4,3,7,8,11,15,19,16,27},
-      {1,4,8,5,12,16,20,13,24},
-      {1,4,3,2,12,11,10,9,22},
-      {5,8,7,6,20,19,18,17,23}
-   };
-
-
-   //                                  1,2,3,4,5,6,7,8,9,10
-   const int mfemToGenesisTet10[10] = {1,2,3,4,5,7,8,6,9,10};
-
-   //                                  1,2,3,4,5,6,7,8,9,10,11,
-   const int mfemToGenesisHex27[27] = {1,2,3,4,5,6,7,8,9,10,11,
-                                       // 12,13,14,15,16,17,18,19
-                                       12,17,18,19,20,13,14,15,
-                                       // 20,21,22,23,24,25,26,27
-                                       16,22,26,25,27,24,23,21
-                                      };
-
-   const int mfemToGenesisTri6[6]   = {1,2,3,4,5,6};
-   const int mfemToGenesisQuad9[9]  = {1,2,3,4,5,6,7,8,9};
-
-
-   // error handling.
-   int retval;
-
-   // dummy string
-   char str_dummy[256];
-
-   char temp_str[256];
-   int temp_id;
-
-   // open the file.
-   int ncid;
-   if ((retval = nc_open(filename, NC_NOWRITE, &ncid)))
-   {
-      MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(retval));
+      netcdf_status = nc_inq_varid(netcdf_descriptor, "coordz", &variable_id);
+      netcdf_status = nc_get_var_double(netcdf_descriptor, variable_id, coordz);
    }
 
-   // read important dimensions
+   if (netcdf_status != NC_NOERR) { HandleNetCDFError(netcdf_status); }
+}
 
-   int id;
-   size_t num_dim=0, num_nodes=0, num_elem=0, num_el_blk=0, num_side_sets=0;
 
-   if ((retval = nc_inq_dimid(ncid, "num_dim", &id)) ||
-       (retval = nc_inq_dim(ncid, id, str_dummy, &num_dim)) ||
+static void ReadCubitNumElementsInBlock(const int netcdf_descriptor,
+                                        const int num_element_blocks,
+                                        std::vector<std::size_t> &num_elements_for_block)
+{
+   int netcdf_status, variable_id;
 
-       (retval = nc_inq_dimid(ncid, "num_nodes", &id)) ||
-       (retval = nc_inq_dim(ncid, id, str_dummy, &num_nodes)) ||
+   // NB: need to add 1 for '\0' terminating character.
+   const int buffer_size = NC_MAX_NAME + 1;
 
-       (retval = nc_inq_dimid(ncid, "num_elem", &id)) ||
-       (retval = nc_inq_dim(ncid, id, str_dummy, &num_elem)) ||
+   char string_buffer[buffer_size];
 
-       (retval = nc_inq_dimid(ncid, "num_el_blk", &id)) ||
-       (retval = nc_inq_dim(ncid, id, str_dummy, &num_el_blk)))
+   for (int iblock = 0; iblock < num_element_blocks; iblock++)
    {
-      MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(retval));
+      // Write variable name to buffer.
+      snprintf(string_buffer, buffer_size, "num_el_in_blk%d", iblock + 1);
+
+      // Set variable ID for variable name.
+      netcdf_status = nc_inq_dimid(netcdf_descriptor, string_buffer, &variable_id);
+
+      // Sets name and length for variable ID. We discard the name (just write to our string buffer).
+      netcdf_status = nc_inq_dim(netcdf_descriptor, variable_id, string_buffer,
+                                 &num_elements_for_block[iblock]);
+
+      if (netcdf_status != NC_NOERR) { break; }
    }
-   if ((retval = nc_inq_dimid(ncid, "num_side_sets", &id)) ||
-       (retval = nc_inq_dim(ncid, id, str_dummy, &num_side_sets)))
+
+   if (netcdf_status != NC_NOERR) { HandleNetCDFError(netcdf_status); }
+}
+
+
+static void ReadCubitNumNodesPerElement(const int netcdf_descriptor,
+                                        const int num_element_blocks,
+                                        size_t &num_nodes_per_element)
+{
+   int netcdf_status, variable_id;
+
+   // NB: need to add 1 for '\0' terminating character.
+   const int buffer_size = NC_MAX_NAME + 1;
+
+   char string_buffer[buffer_size];
+
+   size_t new_num_nodes_per_element, last_num_nodes_per_element;
+
+   bool different_element_types_detected = false;
+
+   for (int iblock = 0; iblock < num_element_blocks; iblock++)
+   {
+      // Write variable name to buffer.
+      snprintf(string_buffer, buffer_size, "num_nod_per_el%d", iblock + 1);
+
+      // Set variable ID.
+      netcdf_status = nc_inq_dimid(netcdf_descriptor, string_buffer, &variable_id);
+
+      // Set name and length. We discard the name.
+      netcdf_status = nc_inq_dim(netcdf_descriptor, variable_id, string_buffer,
+                                 &new_num_nodes_per_element);
+      if (netcdf_status != NC_NOERR) { break; }
+
+      // NB: currently can only support one element type!
+      if (iblock > 0 && new_num_nodes_per_element != last_num_nodes_per_element)
+      {
+         different_element_types_detected = true;
+         break;
+      }
+
+      last_num_nodes_per_element = new_num_nodes_per_element;
+   }
+
+   if (netcdf_status != NC_NOERR)
+   {
+      HandleNetCDFError(netcdf_status);
+   }
+   else if (different_element_types_detected)
+   {
+      MFEM_ABORT("Element blocks of different types are not supported!\n");
+   }
+
+   // Set:
+   num_nodes_per_element = new_num_nodes_per_element;
+}
+
+
+static void ReadCubitDimensions(const int netcdf_descriptor,
+                                size_t &num_dim,
+                                size_t &num_nodes,
+                                size_t &num_elem,
+                                size_t &num_el_blk,
+                                size_t &num_side_sets)
+{
+   int netcdf_status, variable_id;
+
+   const int buffer_size = NC_MAX_NAME + 1;
+   char string_buffer[buffer_size];
+
+   netcdf_status = nc_inq_dimid(netcdf_descriptor, "num_dim", &variable_id);
+   netcdf_status = nc_inq_dim(netcdf_descriptor, variable_id, string_buffer,
+                              &num_dim);
+   if (netcdf_status != NC_NOERR) { HandleNetCDFError(netcdf_status); }
+
+   netcdf_status = nc_inq_dimid(netcdf_descriptor, "num_nodes", &variable_id);
+   netcdf_status = nc_inq_dim(netcdf_descriptor, variable_id, string_buffer,
+                              &num_nodes);
+   if (netcdf_status != NC_NOERR) { HandleNetCDFError(netcdf_status); }
+
+   netcdf_status = nc_inq_dimid(netcdf_descriptor, "num_elem", &variable_id);
+   netcdf_status = nc_inq_dim(netcdf_descriptor, variable_id, string_buffer,
+                              &num_elem);
+   if (netcdf_status != NC_NOERR) { HandleNetCDFError(netcdf_status); }
+
+   netcdf_status = nc_inq_dimid(netcdf_descriptor, "num_el_blk", &variable_id);
+   netcdf_status = nc_inq_dim(netcdf_descriptor, variable_id, string_buffer,
+                              &num_el_blk);
+   if (netcdf_status != NC_NOERR) { HandleNetCDFError(netcdf_status); }
+
+   netcdf_status = nc_inq_dimid(netcdf_descriptor, "num_side_sets", &variable_id);
+   netcdf_status = nc_inq_dim(netcdf_descriptor, variable_id, string_buffer,
+                              &num_side_sets);
+
+   // Special case: there may be no sidesets. Ignore error.
+   if (netcdf_status != NC_NOERR)
    {
       num_side_sets = 0;
    }
+}
 
-   Dim = num_dim;
 
-   // create arrays for element blocks
-   size_t *num_el_in_blk   = new size_t[num_el_blk];
-   size_t num_node_per_el;
+static void ReadCubitBoundaries(const int netcdf_descriptor,
+                                const int num_boundaries,
+                                vector<size_t> &num_boundary_elements,
+                                vector<vector<int>> &boundary_elements,
+                                vector<vector<int>> &boundary_sides)
+{
+   int netcdf_status, variable_id;
 
-   int previous_num_node_per_el = 0;
-   for (int i = 0; i < (int) num_el_blk; i++)
+   const int buffer_size = NC_MAX_NAME + 1;
+   char string_buffer[buffer_size];
+
+   for (int iboundary = 0; iboundary < num_boundaries; iboundary++)
    {
-      sprintf(temp_str, "num_el_in_blk%d", i+1);
-      if ((retval = nc_inq_dimid(ncid, temp_str, &temp_id)) ||
-          (retval = nc_inq_dim(ncid, temp_id, str_dummy, &num_el_in_blk[i])))
-      {
-         MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(retval));
-      }
+      // 1. Extract number of elements/sides for boundary.
+      size_t num_sides = 0;
 
-      sprintf(temp_str, "num_nod_per_el%d", i+1);
-      if ((retval = nc_inq_dimid(ncid, temp_str, &temp_id)) ||
-          (retval = nc_inq_dim(ncid, temp_id, str_dummy, &num_node_per_el)))
-      {
-         MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(retval));
-      }
+      snprintf(string_buffer, buffer_size, "num_side_ss%d", iboundary + 1);
 
-      // check for different element types in each block
-      // which is not currently supported
-      if (i != 0)
-      {
-         if ((int) num_node_per_el != previous_num_node_per_el)
-         {
-            MFEM_ABORT("Element blocks of different element types not supported");
-         }
-      }
-      previous_num_node_per_el = num_node_per_el;
+      netcdf_status = nc_inq_dimid(netcdf_descriptor, string_buffer, &variable_id);
+      netcdf_status = nc_inq_dim(netcdf_descriptor, variable_id, string_buffer,
+                                 &num_sides);
+
+      if (netcdf_status != NC_NOERR) { break; }
+
+      num_boundary_elements[iboundary] = num_sides;
+
+      // 2. Extract elements and sides on each boundary.
+      boundary_elements[iboundary].resize(num_sides); // (element, face) pairs.
+      boundary_sides[iboundary].resize(num_sides);
+
+      //
+      snprintf(string_buffer, buffer_size, "elem_ss%d", iboundary + 1);
+
+      netcdf_status = nc_inq_varid(netcdf_descriptor, string_buffer, &variable_id);
+      netcdf_status = nc_get_var_int(netcdf_descriptor, variable_id,
+                                     boundary_elements[iboundary].data());
+
+      if (netcdf_status != NC_NOERR) { break; }
+
+      //
+      snprintf(string_buffer, buffer_size,"side_ss%d", iboundary + 1);
+
+      netcdf_status = nc_inq_varid(netcdf_descriptor, string_buffer, &variable_id);
+      netcdf_status = nc_get_var_int(netcdf_descriptor, variable_id,
+                                     boundary_sides[iboundary].data());
+
+      if (netcdf_status != NC_NOERR) { break; }
    }
 
-   // Determine CUBIT element and face type
-   enum CubitElementType
-   {
-      ELEMENT_TRI3,
-      ELEMENT_TRI6,
-      ELEMENT_QUAD4,
-      ELEMENT_QUAD9,
-      ELEMENT_TET4,
-      ELEMENT_TET10,
-      ELEMENT_HEX8,
-      ELEMENT_HEX27
-   };
+   if (netcdf_status != NC_NOERR) { HandleNetCDFError(netcdf_status); }
+}
 
-   enum CubitFaceType
-   {
-      FACE_EDGE2,
-      FACE_EDGE3,
-      FACE_TRI3,
-      FACE_TRI6,
-      FACE_QUAD4,
-      FACE_QUAD9
-   };
 
-   CubitElementType cubit_element_type = ELEMENT_TRI3; // suppress a warning
-   CubitFaceType cubit_face_type = FACE_EDGE2; // suppress a warning
-   int num_element_linear_nodes = 0; // initialize to suppress a warning
+static void ReadCubitElementBlocks(const int netcdf_descriptor,
+                                   const int num_element_blocks, const int num_nodes_per_element,
+                                   const vector<size_t> &num_elements_for_block,
+                                   vector<vector<int>> &block_elements)
+{
+   int netcdf_status, variable_id;
 
-   if (num_dim == 2)
+   const int buffer_size = NC_MAX_NAME + 1;
+   char string_buffer[buffer_size];
+
+   for (int iblock = 0; iblock < num_element_blocks; iblock++)
    {
-      switch (num_node_per_el)
-      {
-         case (3) :
-         {
-            cubit_element_type = ELEMENT_TRI3;
-            cubit_face_type = FACE_EDGE2;
-            num_element_linear_nodes = 3;
-            break;
-         }
-         case (6) :
-         {
-            cubit_element_type = ELEMENT_TRI6;
-            cubit_face_type = FACE_EDGE3;
-            num_element_linear_nodes = 3;
-            break;
-         }
-         case (4) :
-         {
-            cubit_element_type = ELEMENT_QUAD4;
-            cubit_face_type = FACE_EDGE2;
-            num_element_linear_nodes = 4;
-            break;
-         }
-         case (9) :
-         {
-            cubit_element_type = ELEMENT_QUAD9;
-            cubit_face_type = FACE_EDGE3;
-            num_element_linear_nodes = 4;
-            break;
-         }
-         default :
-         {
-            MFEM_ABORT("Don't know what to do with a " << num_node_per_el <<
-                       " node 2D element\n");
-         }
-      }
+      block_elements[iblock].resize(
+         num_elements_for_block[iblock]*num_nodes_per_element);
+
+      // Write variable name to buffer.
+      snprintf(string_buffer, buffer_size, "connect%d", iblock + 1);
+
+      // Get variable ID and then set all nodes of element in block.
+      netcdf_status = nc_inq_varid(netcdf_descriptor, string_buffer, &variable_id);
+      netcdf_status = nc_get_var_int(netcdf_descriptor, variable_id,
+                                     block_elements[iblock].data());
+
+      if (netcdf_status != NC_NOERR) { break; }
    }
-   else if (num_dim == 3)
+
+   if (netcdf_status != NC_NOERR) { HandleNetCDFError(netcdf_status); }
+}
+
+
+static void SetCubitElementAndFaceType2D(const int num_nodes_per_element,
+                                         CubitElementType &cubit_element_type,
+                                         CubitFaceType & cubit_face_type,
+                                         int & num_element_linear_nodes)
+{
+   switch (num_nodes_per_element)
    {
-      switch (num_node_per_el)
+      case 3:
       {
-         case (4) :
-         {
-            cubit_element_type = ELEMENT_TET4;
-            cubit_face_type = FACE_TRI3;
-            num_element_linear_nodes = 4;
-            break;
-         }
-         case (10) :
-         {
-            cubit_element_type = ELEMENT_TET10;
-            cubit_face_type = FACE_TRI6;
-            num_element_linear_nodes = 4;
-            break;
-         }
-         case (8) :
-         {
-            cubit_element_type = ELEMENT_HEX8;
-            cubit_face_type = FACE_QUAD4;
-            num_element_linear_nodes = 8;
-            break;
-         }
-         case (27) :
-         {
-            cubit_element_type = ELEMENT_HEX27;
-            cubit_face_type = FACE_QUAD9;
-            num_element_linear_nodes = 8;
-            break;
-         }
-         default :
-         {
-            MFEM_ABORT("Don't know what to do with a " << num_node_per_el <<
-                       " node 3D element\n");
-         }
+         cubit_element_type = ELEMENT_TRI3;
+         cubit_face_type = FACE_EDGE2;
+         num_element_linear_nodes = 3;
+         break;
+      }
+      case 6:
+      {
+         cubit_element_type = ELEMENT_TRI6;
+         cubit_face_type = FACE_EDGE3;
+         num_element_linear_nodes = 3;
+         break;
+      }
+      case 4:
+      {
+         cubit_element_type = ELEMENT_QUAD4;
+         cubit_face_type = FACE_EDGE2;
+         num_element_linear_nodes = 4;
+         break;
+      }
+      case 9:
+      {
+         cubit_element_type = ELEMENT_QUAD9;
+         cubit_face_type = FACE_EDGE3;
+         num_element_linear_nodes = 4;
+         break;
+      }
+      default:
+      {
+         MFEM_ABORT("Don't know what to do with a " << num_nodes_per_element <<
+                    " node 2D element\n");
+         break;
       }
    }
-   else
-   {
-      MFEM_ABORT("Invalid dimension: num_dim = " << num_dim);
-   }
+}
 
-   // Determine order of elements
-   int order = 0;
-   if (cubit_element_type == ELEMENT_TRI3 || cubit_element_type == ELEMENT_QUAD4 ||
-       cubit_element_type == ELEMENT_TET4 || cubit_element_type == ELEMENT_HEX8)
-   {
-      order = 1;
-   }
-   else if (cubit_element_type == ELEMENT_TRI6 ||
-            cubit_element_type == ELEMENT_QUAD9 ||
-            cubit_element_type == ELEMENT_TET10 || cubit_element_type == ELEMENT_HEX27)
-   {
-      order = 2;
-   }
 
-   // create array for number of sides in side sets
-   size_t *num_side_in_ss  = new size_t[num_side_sets];
-   for (int i = 0; i < (int) num_side_sets; i++)
+static void SetCubitElementAndFaceType3D(const int num_nodes_per_element,
+                                         CubitElementType &cubit_element_type,
+                                         CubitFaceType & cubit_face_type,
+                                         int & num_element_linear_nodes)
+{
+   switch (num_nodes_per_element)
    {
-      sprintf(temp_str, "num_side_ss%d", i+1);
-      if ((retval = nc_inq_dimid(ncid, temp_str, &temp_id)) ||
-          (retval = nc_inq_dim(ncid, temp_id, str_dummy, &num_side_in_ss[i])))
+      case 4:
       {
-         MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(retval));
+         cubit_element_type = ELEMENT_TET4;
+         cubit_face_type = FACE_TRI3;
+         num_element_linear_nodes = 4;
+         break;
+      }
+      case 10:
+      {
+         cubit_element_type = ELEMENT_TET10;
+         cubit_face_type = FACE_TRI6;
+         num_element_linear_nodes = 4;
+         break;
+      }
+      case 8:
+      {
+         cubit_element_type = ELEMENT_HEX8;
+         cubit_face_type = FACE_QUAD4;
+         num_element_linear_nodes = 8;
+         break;
+      }
+      case 27:
+      {
+         cubit_element_type = ELEMENT_HEX27;
+         cubit_face_type = FACE_QUAD9;
+         num_element_linear_nodes = 8;
+         break;
+      }
+      default:
+      {
+         MFEM_ABORT("Don't know what to do with a " << num_nodes_per_element <<
+                    " node 3D element\n");
+         break;
       }
    }
+}
 
-   // read the coordinates
-   double *coordx = new double[num_nodes];
-   double *coordy = new double[num_nodes];
-   double *coordz = new double[num_nodes];
 
-   if ((retval = nc_inq_varid(ncid, "coordx", &id)) ||
-       (retval = nc_get_var_double(ncid, id, coordx)) ||
-       (retval = nc_inq_varid(ncid, "coordy", &id)) ||
-       (retval = nc_get_var_double(ncid, id, coordy)))
+static void SetCubitElementAndFaceType(const int num_dimensions,
+                                       const int num_nodes_per_element,
+                                       CubitElementType &cubit_element_type,
+                                       CubitFaceType &cubit_face_type,
+                                       int & num_element_linear_nodes)
+{
+   switch (num_dimensions)
    {
-      MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(retval));
-   }
-
-   if (num_dim == 3)
-   {
-      if ((retval = nc_inq_varid(ncid, "coordz", &id)) ||
-          (retval = nc_get_var_double(ncid, id, coordz)))
+      case 2:
       {
-         MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(retval));
+         SetCubitElementAndFaceType2D(num_nodes_per_element, cubit_element_type,
+                                      cubit_face_type, num_element_linear_nodes);
+         break;
+      }
+      case 3:
+      {
+         SetCubitElementAndFaceType3D(num_nodes_per_element, cubit_element_type,
+                                      cubit_face_type, num_element_linear_nodes);
+         break;
+      }
+      default:
+      {
+         MFEM_ABORT("Invalid dimension: " << num_dimensions);
+         break;
       }
    }
-
-   // read the element blocks
-   int **elem_blk = new int*[num_el_blk];
-   for (int i = 0; i < (int) num_el_blk; i++)
-   {
-      elem_blk[i] = new int[num_el_in_blk[i] * num_node_per_el];
-      sprintf(temp_str, "connect%d", i+1);
-      if ((retval = nc_inq_varid(ncid, temp_str, &temp_id)) ||
-          (retval = nc_get_var_int(ncid, temp_id, elem_blk[i])))
-      {
-         MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(retval));
-      }
-   }
-   int *ebprop = new int[num_el_blk];
-   if ((retval = nc_inq_varid(ncid, "eb_prop1", &id)) ||
-       (retval = nc_get_var_int(ncid, id, ebprop)))
-   {
-      MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(retval));
-   }
-
-   // read the side sets, a side is is given by (element, face) pairs
-
-   int **elem_ss = new int*[num_side_sets];
-   int **side_ss = new int*[num_side_sets];
-
-   for (int i = 0; i < (int) num_side_sets; i++)
-   {
-      elem_ss[i] = new int[num_side_in_ss[i]];
-      side_ss[i] = new int[num_side_in_ss[i]];
-
-      sprintf(temp_str, "elem_ss%d", i+1);
-      if ((retval = nc_inq_varid(ncid, temp_str, &temp_id)) ||
-          (retval = nc_get_var_int(ncid, temp_id, elem_ss[i])))
-      {
-         MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(retval));
-      }
-
-      sprintf(temp_str,"side_ss%d",i+1);
-      if ((retval = nc_inq_varid(ncid, temp_str, &temp_id)) ||
-          (retval = nc_get_var_int(ncid, temp_id, side_ss[i])))
-      {
-         MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(retval));
-      }
-   }
-
-   int *ssprop = new int[num_side_sets];
-   if ((num_side_sets > 0) &&
-       ((retval = nc_inq_varid(ncid, "ss_prop1", &id)) ||
-        (retval = nc_get_var_int(ncid, id, ssprop))))
-   {
-      MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(retval));
-   }
-
-   // convert (elem,side) pairs to 2D elements
+}
 
 
-   int num_face_nodes = 0;
-   int num_face_linear_nodes = 0;
-
+static void SetCubitFaceInfo(const CubitFaceType cubit_face_type,
+                             int & num_face_nodes,
+                             int & num_face_linear_nodes)
+{
    switch (cubit_face_type)
    {
-      case (FACE_EDGE2):
+      case FACE_EDGE2:
       {
          num_face_nodes = 2;
          num_face_linear_nodes = 2;
          break;
       }
-      case (FACE_EDGE3):
+      case FACE_EDGE3:
       {
          num_face_nodes = 3;
          num_face_linear_nodes = 2;
          break;
       }
-      case (FACE_TRI3):
+      case FACE_TRI3:
       {
          num_face_nodes = 3;
          num_face_linear_nodes = 3;
          break;
       }
-      case (FACE_TRI6):
+      case FACE_TRI6:
       {
          num_face_nodes = 6;
          num_face_linear_nodes = 3;
          break;
       }
-      case (FACE_QUAD4):
+      case FACE_QUAD4:
       {
          num_face_nodes = 4;
          num_face_linear_nodes = 4;
          break;
       }
-      case (FACE_QUAD9):
+      case FACE_QUAD9:
       {
          num_face_nodes = 9;
          num_face_linear_nodes = 4;
          break;
       }
-   }
-
-   // given a global element number, determine the element block and local
-   // element number
-   int *start_of_block = new int[num_el_blk+1];
-   start_of_block[0] = 0;
-   for (int i = 1; i < (int) num_el_blk+1; i++)
-   {
-      start_of_block[i] = start_of_block[i-1] + num_el_in_blk[i-1];
-   }
-
-   int **ss_node_id = new int*[num_side_sets];
-
-   for (int i = 0; i < (int) num_side_sets; i++)
-   {
-      ss_node_id[i] = new int[num_side_in_ss[i]*num_face_nodes];
-      for (int j = 0; j < (int) num_side_in_ss[i]; j++)
+      default:
       {
-         int glob_ind = elem_ss[i][j]-1;
-         int iblk = 0;
-         int loc_ind;
-         while (iblk < (int) num_el_blk && glob_ind >= start_of_block[iblk+1])
-         {
-            iblk++;
-         }
-         if (iblk >= (int) num_el_blk)
-         {
-            MFEM_ABORT("Sideset element does not exist");
-         }
-         loc_ind = glob_ind - start_of_block[iblk];
-         int this_side = side_ss[i][j];
-         int ielem = loc_ind*num_node_per_el;
+         MFEM_ABORT("Unsupported cubit face type encountered.");
+         break;
+      }
+   }
+}
 
-         for (int k = 0; k < num_face_nodes; k++)
+static int GetOrderFromCubitElementType(const CubitElementType element_type)
+{
+   int order;
+
+   switch (element_type)
+   {
+      case ELEMENT_TRI3:
+      case ELEMENT_QUAD4:
+      case ELEMENT_TET4:
+      case ELEMENT_HEX8:
+      {
+         order = 1;
+         break;
+      }
+      case ELEMENT_TRI6:
+      case ELEMENT_QUAD9:
+      case ELEMENT_TET10:
+      case ELEMENT_HEX27:
+      {
+         order = 2;
+         break;
+      }
+      default:
+      {
+         MFEM_ABORT("Unsupported cubit element type encountered.");
+         break;
+      }
+   }
+
+   return order;
+}
+
+
+static int GetCubitBlockIndexForElement(const int global_element_index,
+                                        const int num_element_blocks,
+                                        const int *start_of_block)
+{
+   int iblock = 0;
+
+   while (iblock < num_element_blocks &&
+          global_element_index >= start_of_block[iblock + 1])
+   {
+      iblock++;
+   }
+
+   if (iblock >= num_element_blocks)
+   {
+      MFEM_ABORT("Element is not part of any blocks.");
+   }
+
+   return iblock;
+}
+
+mfem::Element *NewElement(Mesh &mesh, Geometry::Type geom, const int *vertices,
+                          const int attribute)
+{
+   Element *new_element = mesh.NewElement(geom);
+   new_element->SetVertices(vertices);
+   new_element->SetAttribute(attribute);
+   return new_element;
+}
+
+/// @brief Returns a pointer to a new mfem::Element based on the provided cubit
+/// element type. This is used to create the mesh elements from a Genesis file.
+mfem::Element *CreateCubitElement(Mesh &mesh,
+                                  const int cubit_element_type,
+                                  const int *vertex_ids,
+                                  const int block_id)
+{
+   switch (cubit_element_type)
+   {
+      case ELEMENT_TRI3:
+      case ELEMENT_TRI6:
+         return NewElement(mesh, Geometry::TRIANGLE, vertex_ids, block_id);
+      case ELEMENT_QUAD4:
+      case ELEMENT_QUAD9:
+         return NewElement(mesh, Geometry::SQUARE, vertex_ids, block_id);
+      case ELEMENT_TET4:
+      case ELEMENT_TET10:
+         return NewElement(mesh, Geometry::TETRAHEDRON, vertex_ids, block_id);
+      case ELEMENT_HEX8:
+      case ELEMENT_HEX27:
+         return NewElement(mesh, Geometry::CUBE, vertex_ids, block_id);
+      default:
+         MFEM_ABORT("Unsupported cubit element type encountered.");
+         return nullptr;
+   }
+}
+
+/// @brief Returns a pointer to a new mfem::Element based on the provided cubit
+/// face type. This is used to create the boundary elements from a Genesis file.
+mfem::Element *CreateCubitBoundaryElement(Mesh &mesh,
+                                          const int cubit_face_type,
+                                          const int *vertex_ids,
+                                          const int sideset_id)
+{
+   switch (cubit_face_type)
+   {
+      case FACE_EDGE2:
+      case FACE_EDGE3:
+         return NewElement(mesh, Geometry::SEGMENT, vertex_ids, sideset_id);
+      case FACE_TRI3:
+      case FACE_TRI6:
+         return NewElement(mesh, Geometry::TRIANGLE, vertex_ids, sideset_id);
+      case FACE_QUAD4:
+      case FACE_QUAD9:
+         return NewElement(mesh, Geometry::SQUARE, vertex_ids, sideset_id);
+      default:
+         MFEM_ABORT("Unsupported cubit face type encountered.");
+         return nullptr;
+   }
+}
+
+/// @brief The final step in constructing the mesh from a Genesis file. This is
+/// only called if the mesh order == 2 (determined internally from the cubit
+/// element type).
+void FinalizeCubitSecondOrderMesh(Mesh &mesh,
+                                  const int cubit_element_type,
+                                  const int num_element_blocks,
+                                  const int num_nodes_per_element,
+                                  const int *start_of_block,
+                                  const double *coordx,
+                                  const double *coordy,
+                                  const double *coordz,
+                                  const vector<vector<int>> &element_blocks)
+{
+   int *mfem_to_genesis_map = nullptr;
+
+   switch (cubit_element_type)
+   {
+      case ELEMENT_TRI6:
+         mfem_to_genesis_map = (int *) mfem_to_genesis_tri6;
+         break;
+      case ELEMENT_QUAD9:
+         mfem_to_genesis_map = (int *) mfem_to_genesis_quad9;
+         break;
+      case ELEMENT_TET10:
+         mfem_to_genesis_map = (int *) mfem_to_genesis_tet10;
+         break;
+      case ELEMENT_HEX27:
+         mfem_to_genesis_map = (int *) mfem_to_genesis_hex27;
+         break;
+      default:
+         MFEM_ABORT("Something went wrong. Linear elements detected when order is 2.");
+   }
+
+   mesh.FinalizeTopology();
+
+   // Define quadratic FE space.
+   const int Dim = mesh.Dimension();
+   FiniteElementCollection *fec = new H1_FECollection(2,3);
+   FiniteElementSpace *fes = new FiniteElementSpace(&mesh, fec, Dim,
+                                                    Ordering::byVDIM);
+   GridFunction *Nodes = new GridFunction(fes);
+   Nodes->MakeOwner(fec); // Nodes will destroy 'fec' and 'fes'
+   mesh.SetNodalGridFunction(Nodes, true);
+
+   for (int ielement = 0; ielement < mesh.GetNE(); ielement++)
+   {
+      Array<int> dofs;
+      fes->GetElementDofs(ielement, dofs);
+
+      Array<int> vdofs = dofs;   // Deep copy.
+      fes->DofsToVDofs(vdofs);
+
+      // Find block that element is part of.
+      const int iblock = GetCubitBlockIndexForElement(ielement,
+                                                      num_element_blocks,
+                                                      start_of_block);
+
+      // Find element offset in block.
+      const int element_offset = ielement - start_of_block[iblock];
+      const int node_offset    = element_offset * num_nodes_per_element;
+
+      for (int jnode = 0; jnode < dofs.Size(); jnode++)
+      {
+         const int node_index = element_blocks[iblock][node_offset +
+                                                       mfem_to_genesis_map[jnode] - 1] - 1;
+
+         (*Nodes)(vdofs[jnode])     = coordx[node_index];
+         (*Nodes)(vdofs[jnode] + 1) = coordy[node_index];
+
+         if (Dim == 3)
+         {
+            (*Nodes)(vdofs[jnode] + 2) = coordz[node_index];
+         }
+      }
+   }
+}
+
+}  // namespace cubit.
+
+
+void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
+{
+   using namespace cubit;
+
+   read_gf  = 0;
+   curved   = 0; // Set to 1 if mesh is curved.
+
+   // Setup buffer used to write variable names to.
+   int variable_id;
+
+   // Open the file.
+   int netcdf_status, netcdf_descriptor;
+
+   netcdf_status = nc_open(filename.c_str(), NC_NOWRITE, &netcdf_descriptor);
+   if (netcdf_status != NC_NOERR) { HandleNetCDFError(netcdf_status); }
+
+   // Read important dimensions from file.
+   size_t num_dimensions, num_nodes, num_elements, num_element_blocks,
+          num_boundaries;
+
+   ReadCubitDimensions(netcdf_descriptor, num_dimensions, num_nodes, num_elements,
+                       num_element_blocks, num_boundaries);
+
+   Dim = num_dimensions;
+
+   // Read the number of elements for each block.
+   std::vector<std::size_t> num_elements_for_block(num_element_blocks);
+
+   ReadCubitNumElementsInBlock(netcdf_descriptor, num_element_blocks,
+                               num_elements_for_block);
+
+   // Read number of nodes for each element. NB: we currently only support
+   // reading in a single type of element!
+   size_t num_nodes_per_element;
+
+   ReadCubitNumNodesPerElement(netcdf_descriptor, num_element_blocks,
+                               num_nodes_per_element);
+
+   // Determine the cubit element and face type.
+   CubitElementType cubit_element_type;
+   CubitFaceType cubit_face_type;
+   int num_element_linear_nodes;
+
+   SetCubitElementAndFaceType(num_dimensions, num_nodes_per_element,
+                              cubit_element_type,
+                              cubit_face_type, num_element_linear_nodes);
+
+   // Read the face info. NB: "linear" refers to nodes on the edges.
+   int num_face_nodes, num_face_linear_nodes;
+
+   SetCubitFaceInfo(cubit_face_type, num_face_nodes, num_face_linear_nodes);
+
+   // Read the (element, corresponding side) on each of the boundaries.
+   vector<size_t> num_boundary_elements(num_boundaries);
+
+   vector<vector<int>> boundary_elements(num_boundaries);
+   vector<vector<int>> boundary_sides(num_boundaries);
+
+   ReadCubitBoundaries(netcdf_descriptor, num_boundaries, num_boundary_elements,
+                       boundary_elements, boundary_sides);
+
+   // Read the boundary ids.
+   vector<int> boundary_ids;
+
+   if (num_boundaries > 0)
+   {
+      boundary_ids.resize(num_boundaries);
+
+      netcdf_status = nc_inq_varid(netcdf_descriptor, "ss_prop1", &variable_id);
+      netcdf_status = nc_get_var_int(netcdf_descriptor, variable_id,
+                                     boundary_ids.data());
+
+      if (netcdf_status != NC_NOERR) { HandleNetCDFError(netcdf_status); }
+   }
+
+   // Read the xyz coordinates for each node.
+   vector<double> coordx(num_nodes);
+   vector<double> coordy(num_nodes);
+   vector<double> coordz(num_dimensions == 3 ? num_nodes : 0);
+
+   ReadCubitNodeCoordinates(netcdf_descriptor, coordx.data(), coordy.data(),
+                            coordz.data());
+
+   // Read the elements that make-up each block.
+   vector<vector<int>> block_elements(num_element_blocks);
+
+   ReadCubitElementBlocks(netcdf_descriptor, num_element_blocks,
+                          num_nodes_per_element, num_elements_for_block,
+                          block_elements);
+
+   // Read the block IDs.
+   vector<int> block_ids(num_element_blocks);
+
+   {
+      netcdf_status = nc_inq_varid(netcdf_descriptor, "eb_prop1", &variable_id);
+      netcdf_status = nc_get_var_int(netcdf_descriptor, variable_id,
+                                     block_ids.data());
+
+      if (netcdf_status != NC_NOERR) { HandleNetCDFError(netcdf_status); }
+   }
+
+   // Create an array holding the index of the first element in each block. This
+   // will allow the determination of the block that each element is in.
+   vector<int> start_of_block(num_element_blocks + 1);
+
+   start_of_block[0] = 0;
+
+   for (size_t iblock = 1; iblock < num_element_blocks + 1; iblock++)
+   {
+      start_of_block[iblock] = start_of_block[iblock - 1] +
+                               num_elements_for_block[iblock - 1];
+   }
+
+   // Iterate over each boundary. For each boundary, we run through the
+   // (element, side) pairs and extract the face nodes of each element on the
+   // corresponding side.
+   vector<vector<int>> boundary_nodes(num_boundaries);
+
+   // Iterate over boundaries.
+   for (size_t iboundary = 0; iboundary < num_boundaries; iboundary++)
+   {
+      const int num_elements_on_boundary = num_boundary_elements[iboundary];
+      const int num_nodes_on_boundary = num_elements_on_boundary * num_face_nodes;
+
+      boundary_nodes[iboundary].resize(num_nodes_on_boundary);
+
+      // Iterate over (element, side) pairs on boundary.
+      for (int jelement = 0; jelement < num_elements_on_boundary; jelement++)
+      {
+         const int element_global_index = boundary_elements[iboundary][jelement] - 1;
+
+         // NB: Sides numbers start at 1.
+         const int this_side = boundary_sides[iboundary][jelement];
+
+         // Determine the block the element is part-of.
+         const int iblock = GetCubitBlockIndexForElement(element_global_index,
+                                                         num_element_blocks,
+                                                         start_of_block.data());
+
+         const int element_block_offset = element_global_index - start_of_block[iblock];
+         const int node_block_offset    = element_block_offset * num_nodes_per_element;
+
+         // Iterate over the element's face nodes on the matching side.
+         for (int knode = 0; knode < num_face_nodes; knode++)
          {
             int inode;
+
             switch (cubit_element_type)
             {
                case (ELEMENT_TRI3):
                {
-                  inode = sideMapTri3[this_side-1][k];
+                  inode = cubit_side_map_tri3[this_side - 1][knode];
                   break;
                }
                case (ELEMENT_TRI6):
                {
-                  inode = sideMapTri6[this_side-1][k];
+                  inode = cubit_side_map_tri6[this_side - 1][knode];
                   break;
                }
                case (ELEMENT_QUAD4):
                {
-                  inode = sideMapQuad4[this_side-1][k];
+                  inode = cubit_side_map_quad4[this_side - 1][knode];
                   break;
                }
                case (ELEMENT_QUAD9):
                {
-                  inode = sideMapQuad9[this_side-1][k];
+                  inode = cubit_side_map_quad9[this_side - 1][knode];
                   break;
                }
                case (ELEMENT_TET4):
                {
-                  inode = sideMapTet4[this_side-1][k];
+                  inode = cubit_side_map_tet4[this_side - 1][knode];
                   break;
                }
                case (ELEMENT_TET10):
                {
-                  inode = sideMapTet10[this_side-1][k];
+                  inode = cubit_side_map_tet10[this_side - 1][knode];
                   break;
                }
                case (ELEMENT_HEX8):
                {
-                  inode = sideMapHex8[this_side-1][k];
+                  inode = cubit_side_map_hex8[this_side - 1][knode];
                   break;
                }
                case (ELEMENT_HEX27):
                {
-                  inode = sideMapHex27[this_side-1][k];
+                  inode = cubit_side_map_hex27[this_side - 1][knode];
+                  break;
+               }
+               default:
+               {
+                  MFEM_ABORT("Unsupported element type encountered.\n");
                   break;
                }
             }
-            ss_node_id[i][j*num_face_nodes+k] =
-               elem_blk[iblk][ielem + inode - 1];
+
+            boundary_nodes[iboundary][jelement * num_face_nodes + knode] =
+               block_elements[iblock][node_block_offset + inode - 1];
          }
       }
    }
 
-   // we need another node ID mapping since MFEM needs contiguous vertex IDs
-   std::vector<int> uniqueVertexID;
+   // We need another node ID mapping since MFEM needs contiguous vertex ids.
+   vector<int> unique_vertex_ids;
 
-   for (int iblk = 0; iblk < (int) num_el_blk; iblk++)
+   for (size_t iblock = 0; iblock < num_element_blocks; iblock++)
    {
-      for (int i = 0; i < (int) num_el_in_blk[iblk]; i++)
+      const vector<int> &nodes_in_block = block_elements[iblock];
+
+      for (size_t jelement = 0; jelement < num_elements_for_block[iblock]; jelement++)
       {
-         for (int j = 0; j < num_element_linear_nodes; j++)
+         const int element_block_offset = jelement * num_nodes_per_element;
+
+         for (int knode = 0; knode < num_element_linear_nodes; knode++)
          {
-            uniqueVertexID.push_back(elem_blk[iblk][i*num_node_per_el + j]);
+            unique_vertex_ids.push_back(nodes_in_block[element_block_offset + knode]);
          }
       }
    }
-   std::sort(uniqueVertexID.begin(), uniqueVertexID.end());
-   std::vector<int>::iterator newEnd;
-   newEnd = std::unique(uniqueVertexID.begin(), uniqueVertexID.end());
-   uniqueVertexID.resize(std::distance(uniqueVertexID.begin(), newEnd));
 
-   // OK at this point uniqueVertexID contains a list of all the nodes that are
-   // actually used by the mesh, 1-based, and sorted. We need to invert this
-   // list, the inverse is a map
+   // Sort and only retain unique node IDs.
+   std::sort(unique_vertex_ids.begin(), unique_vertex_ids.end());
 
-   std::map<int,int> cubitToMFEMVertMap;
-   for (int i = 0; i < (int) uniqueVertexID.size(); i++)
+   auto new_end = std::unique(unique_vertex_ids.begin(), unique_vertex_ids.end());
+   unique_vertex_ids.resize(std::distance(unique_vertex_ids.begin(), new_end));
+
+   // unique_vertex_ids now contains a 1-based sorted list of node IDs for each
+   // node used by the mesh. We now create a map by running over the node IDs
+   // and remapping to contiguous 1-based integers.
+   // ie. [1, 4, 5, 8, 9] --> [1, 2, 3, 4, 5].
+   std::map<int,int> cubit_to_mfem_vertex_map;
+
+   for (size_t ivertex = 0; ivertex < unique_vertex_ids.size(); ivertex++)
    {
-      cubitToMFEMVertMap[uniqueVertexID[i]] = i+1;
+      const int key     = unique_vertex_ids[ivertex];
+      const int value   = ivertex + 1;
+
+      cubit_to_mfem_vertex_map[key] = value;
    }
-   MFEM_ASSERT(cubitToMFEMVertMap.size() == uniqueVertexID.size(),
-               "This should never happen\n");
 
-   // OK now load up the MFEM mesh structures
-
-   // load up the vertices
-
-   NumOfVertices = uniqueVertexID.size();
+   //
+   // Load up the vertices.
+   //
+   NumOfVertices = unique_vertex_ids.size();
    vertices.SetSize(NumOfVertices);
-   for (int i = 0; i < (int) uniqueVertexID.size(); i++)
+
+   for (int ivertex = 0; ivertex < NumOfVertices; ivertex++)
    {
-      vertices[i](0) = coordx[uniqueVertexID[i] - 1];
-      vertices[i](1) = coordy[uniqueVertexID[i] - 1];
+      const int original_1based_id = unique_vertex_ids[ivertex];
+
+      vertices[ivertex](0) = coordx[original_1based_id - 1];
+      vertices[ivertex](1) = coordy[original_1based_id - 1];
+
       if (Dim == 3)
       {
-         vertices[i](2) = coordz[uniqueVertexID[i] - 1];
+         vertices[ivertex](2) = coordz[original_1based_id - 1];
       }
    }
 
-   NumOfElements = num_elem;
-   elements.SetSize(num_elem);
-   int elcount = 0;
-   int renumberedVertID[8];
-   for (int iblk = 0; iblk < (int) num_el_blk; iblk++)
+   //
+   // Now load the elements.
+   //
+   NumOfElements = num_elements;
+   elements.SetSize(num_elements);
+
+   std::vector<int> renumbered_vertex_ids(max(num_element_linear_nodes,
+                                              num_face_linear_nodes));
+
+   int element_counter = 0;
+
+   // Iterate over blocks.
+   for (size_t iblock = 0; iblock < num_element_blocks; iblock++)
    {
-      int NumNodePerEl = num_node_per_el;
-      for (int i = 0; i < (int) num_el_in_blk[iblk]; i++)
+      const vector<int> &nodes_ids_for_block = block_elements[iblock];
+
+      // Iterate over elements in block.
+      for (size_t jelement = 0; jelement < num_elements_for_block[iblock]; jelement++)
       {
-         for (int j = 0; j < num_element_linear_nodes; j++)
+         // Iterate over linear nodes in block.
+         for (int knode = 0; knode < num_element_linear_nodes; knode++)
          {
-            renumberedVertID[j] =
-               cubitToMFEMVertMap[elem_blk[iblk][i*NumNodePerEl+j]]-1;
+            const int node_id = nodes_ids_for_block[jelement * num_nodes_per_element +
+                                                             knode];
+
+            // Renumber using the mapping.
+            renumbered_vertex_ids[knode] = cubit_to_mfem_vertex_map[node_id] - 1;
          }
 
-         switch (cubit_element_type)
-         {
-            case (ELEMENT_TRI3):
-            case (ELEMENT_TRI6):
-            {
-               elements[elcount] = new Triangle(renumberedVertID,ebprop[iblk]);
-               break;
-            }
-            case (ELEMENT_QUAD4):
-            case (ELEMENT_QUAD9):
-            {
-               elements[elcount] = new Quadrilateral(renumberedVertID,ebprop[iblk]);
-               break;
-            }
-            case (ELEMENT_TET4):
-            case (ELEMENT_TET10):
-            {
-#ifdef MFEM_USE_MEMALLOC
-               elements[elcount] = TetMemory.Alloc();
-               elements[elcount]->SetVertices(renumberedVertID);
-               elements[elcount]->SetAttribute(ebprop[iblk]);
-#else
-               elements[elcount] = new Tetrahedron(renumberedVertID,
-                                                   ebprop[iblk]);
-#endif
-               break;
-            }
-            case (ELEMENT_HEX8):
-            case (ELEMENT_HEX27):
-            {
-               elements[elcount] = new Hexahedron(renumberedVertID,ebprop[iblk]);
-               break;
-            }
-         }
-         elcount++;
+         // Create element.
+         elements[element_counter++] = CreateCubitElement(*this, cubit_element_type,
+                                                          renumbered_vertex_ids.data(),
+                                                          block_ids[iblock]);
       }
    }
 
-   // load up the boundary elements
-
+   //
+   // Load up the boundary elements.
+   //
    NumOfBdrElements = 0;
-   for (int iss = 0; iss < (int) num_side_sets; iss++)
+   for (size_t iboundary = 0; iboundary < num_boundaries; iboundary++)
    {
-      NumOfBdrElements += num_side_in_ss[iss];
+      NumOfBdrElements += num_boundary_elements[iboundary];
    }
+
    boundary.SetSize(NumOfBdrElements);
-   int sidecount = 0;
-   for (int iss = 0; iss < (int) num_side_sets; iss++)
+
+   int boundary_counter = 0;
+
+   // Iterate over boundaries.
+   for (size_t iboundary = 0; iboundary < num_boundaries; iboundary++)
    {
-      for (int i = 0; i < (int) num_side_in_ss[iss]; i++)
+      const vector<int> &nodes_on_boundary = boundary_nodes[iboundary];
+
+      // Iterate over elements on boundary.
+      for (size_t jelement = 0; jelement < num_boundary_elements[iboundary];
+           jelement++)
       {
-         for (int j = 0; j < num_face_linear_nodes; j++)
+         // Iterate over element's face linear nodes.
+         for (int knode = 0; knode < num_face_linear_nodes; knode++)
          {
-            renumberedVertID[j] =
-               cubitToMFEMVertMap[ss_node_id[iss][i*num_face_nodes+j]] - 1;
+            const int node_id = nodes_on_boundary[jelement * num_face_nodes + knode];
+
+            // Renumber using the mapping.
+            renumbered_vertex_ids[knode] = cubit_to_mfem_vertex_map[node_id] - 1;
          }
-         switch (cubit_face_type)
-         {
-            case (FACE_EDGE2):
-            case (FACE_EDGE3):
-            {
-               boundary[sidecount] = new Segment(renumberedVertID,ssprop[iss]);
-               break;
-            }
-            case (FACE_TRI3):
-            case (FACE_TRI6):
-            {
-               boundary[sidecount] = new Triangle(renumberedVertID,ssprop[iss]);
-               break;
-            }
-            case (FACE_QUAD4):
-            case (FACE_QUAD9):
-            {
-               boundary[sidecount] = new Quadrilateral(renumberedVertID,ssprop[iss]);
-               break;
-            }
-         }
-         sidecount++;
+
+         // Create boundary element.
+         boundary[boundary_counter++] = CreateCubitBoundaryElement(*this,
+                                                                   cubit_face_type,
+                                                                   renumbered_vertex_ids.data(),
+                                                                   boundary_ids[iboundary]);
       }
    }
+
+   // Additional setup for second order.
+   const int order = GetOrderFromCubitElementType(cubit_element_type);
 
    if (order == 2)
    {
       curved = 1;
-      int *mymap = NULL;
 
-      switch (cubit_element_type)
-      {
-         case (ELEMENT_TRI6):
-         {
-            mymap = (int *) mfemToGenesisTri6;
-            break;
-         }
-         case (ELEMENT_QUAD9):
-         {
-            mymap = (int *) mfemToGenesisQuad9;
-            break;
-         }
-         case (ELEMENT_TET10):
-         {
-            mymap = (int *) mfemToGenesisTet10;
-            break;
-         }
-         case (ELEMENT_HEX27):
-         {
-            mymap = (int *) mfemToGenesisHex27;
-            break;
-         }
-         case (ELEMENT_TRI3):
-         case (ELEMENT_QUAD4):
-         case (ELEMENT_TET4):
-         case (ELEMENT_HEX8):
-         {
-            MFEM_ABORT("Something went wrong. Linear elements detected when order is 2.");
-            break;
-         }
-      }
-
-      FinalizeTopology();
-
-      // Define quadratic FE space
-      FiniteElementCollection *fec = new H1_FECollection(2,3);
-      FiniteElementSpace *fes = new FiniteElementSpace(this, fec, Dim,
-                                                       Ordering::byVDIM);
-      Nodes = new GridFunction(fes);
-      Nodes->MakeOwner(fec); // Nodes will destroy 'fec' and 'fes'
-      own_nodes = 1;
-
-      // int nTotDofs = fes->GetNDofs();
-      // int nTotVDofs = fes->GetVSize();
-      //    mfem::out << endl << "nTotDofs = " << nTotDofs << "  nTotVDofs "
-      //              << nTotVDofs << endl << endl;
-
-      for (int i = 0; i < NumOfElements; i++)
-      {
-         Array<int> dofs;
-
-         fes->GetElementDofs(i, dofs);
-         Array<int> vdofs;
-         vdofs.SetSize(dofs.Size());
-         for (int l = 0; l < dofs.Size(); l++) { vdofs[l] = dofs[l]; }
-         fes->DofsToVDofs(vdofs);
-         int iblk = 0;
-         int loc_ind;
-         while (iblk < (int) num_el_blk && i >= start_of_block[iblk+1]) { iblk++; }
-         loc_ind = i - start_of_block[iblk];
-         for (int j = 0; j < dofs.Size(); j++)
-         {
-            int point_id = elem_blk[iblk][loc_ind*num_node_per_el + mymap[j] - 1] - 1;
-            (*Nodes)(vdofs[j])   = coordx[point_id];
-            (*Nodes)(vdofs[j]+1) = coordy[point_id];
-            if (Dim == 3)
-            {
-               (*Nodes)(vdofs[j]+2) = coordz[point_id];
-            }
-         }
-      }
+      FinalizeCubitSecondOrderMesh(*this,
+                                   cubit_element_type,
+                                   num_element_blocks,
+                                   num_nodes_per_element,
+                                   start_of_block.data(),
+                                   coordx.data(),
+                                   coordy.data(),
+                                   coordz.data(),
+                                   block_elements);
    }
 
-   // clean up all netcdf stuff
-
-   nc_close(ncid);
-
-   for (int i = 0; i < (int) num_side_sets; i++)
-   {
-      delete [] elem_ss[i];
-      delete [] side_ss[i];
-   }
-
-   delete [] elem_ss;
-   delete [] side_ss;
-   delete [] num_el_in_blk;
-   delete [] num_side_in_ss;
-   delete [] coordx;
-   delete [] coordy;
-   delete [] coordz;
-
-   for (int i = 0; i < (int) num_el_blk; i++)
-   {
-      delete [] elem_blk[i];
-   }
-
-   delete [] elem_blk;
-   delete [] start_of_block;
-
-   for (int i = 0; i < (int) num_side_sets; i++)
-   {
-      delete [] ss_node_id[i];
-   }
-   delete [] ss_node_id;
-   delete [] ebprop;
-   delete [] ssprop;
-
+   // Clean up all netcdf stuff.
+   nc_close(netcdf_descriptor);
 }
+
 #endif // #ifdef MFEM_USE_NETCDF
 
 } // namespace mfem

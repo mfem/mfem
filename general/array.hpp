@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <algorithm>
+#include <type_traits>
 
 namespace mfem
 {
@@ -36,9 +37,9 @@ void Swap(Array<T> &, Array<T> &);
    Abstract data type Array.
 
    Array<T> is an automatically increasing array containing elements of the
-   generic type T, which must be a POD (plain old data) type. The allocated size
-   may be larger then the logical size of the array. The elements can be
-   accessed by the [] operator, the range is 0 to size-1.
+   generic type T, which must be a trivial type, see `std::is_trivial`. The
+   allocated size may be larger then the logical size of the array. The elements
+   can be accessed by the [] operator, the range is 0 to size-1.
 */
 template <class T>
 class Array
@@ -50,6 +51,11 @@ protected:
    int size;
 
    inline void GrowSize(int minsize);
+
+   static inline void TypeAssert()
+   {
+      static_assert(std::is_trivial<T>::value, "type T must be trivial");
+   }
 
 public:
    friend void Swap<T>(Array<T> &, Array<T> &);
@@ -64,11 +70,18 @@ public:
    explicit inline Array(int asize)
       : size(asize) { asize > 0 ? data.New(asize) : data.Reset(); }
 
-   /** @brief Creates array using an existing c-array of asize elements;
-       allocsize is set to -asize to indicate that the data will not
-       be deleted. */
-   inline Array(T *_data, int asize)
-   { data.Wrap(_data, asize, false); size = asize; }
+   /// Creates array of @a asize elements with a given MemoryType
+   inline Array(int asize, MemoryType mt)
+      : size(asize) { asize > 0 ? data.New(asize, mt) : data.Reset(mt); }
+
+   /** @brief Creates array using an externally allocated host pointer @a data_
+       to @a asize elements. If @a own_data is true, the array takes ownership
+       of the pointer.
+
+       When @a own_data is true, the pointer @a data_ must be allocated with
+       MemoryType given by MemoryManager::GetHostMemoryType(). */
+   inline Array(T *data_, int asize, bool own_data = false)
+   { data.Wrap(data_, asize, own_data); size = asize; }
 
    /// Copy constructor: deep copy from @a src
    /** This method supports source arrays using any MemoryType. */
@@ -82,8 +95,11 @@ public:
    template <typename CT, int N>
    explicit inline Array(const CT (&values)[N]);
 
+   /// Move constructor ("steals" data from 'src')
+   inline Array(Array<T> &&src) { Swap(src, *this); }
+
    /// Destructor
-   inline ~Array() { data.Delete(); }
+   inline ~Array() { TypeAssert(); data.Delete(); }
 
    /// Assignment operator: deep copy from 'src'.
    Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }
@@ -112,7 +128,7 @@ public:
    /// Return the device flag of the Memory object used by the Array
    bool UseDevice() const { return data.UseDevice(); }
 
-   /// Return true if the data will be deleted by the array
+   /// Return true if the data will be deleted by the Array
    inline bool OwnsData() const { return data.OwnsHostPtr(); }
 
    /// Changes the ownership of the data
@@ -193,7 +209,14 @@ public:
    inline void Copy(Array &copy) const;
 
    /// Make this Array a reference to a pointer.
-   inline void MakeRef(T *, int);
+   /** When @a own_data is true, the pointer @a data_ must be allocated with
+       MemoryType given by MemoryManager::GetHostMemoryType(). */
+   inline void MakeRef(T *data_, int size_, bool own_data = false);
+
+   /// Make this Array a reference to a pointer.
+   /** When @a own_data is true, the pointer @a data_ must be allocated with
+       MemoryType given by @a mt. */
+   inline void MakeRef(T *data_, int size, MemoryType mt, bool own_data);
 
    /// Make this Array a reference to 'master'.
    inline void MakeRef(const Array &master);
@@ -250,7 +273,7 @@ public:
    }
 
    /// Return 1 if the array is sorted from lowest to highest.  Otherwise return 0.
-   int IsSorted();
+   int IsSorted() const;
 
    /// Fill the entries of the array with the cumulative sum of the entries.
    void PartialSum();
@@ -288,7 +311,7 @@ public:
    inline const T* end() const { return data + size; }
 
    /// Returns the number of bytes allocated for the array including any reserve.
-   long MemoryUsage() const { return Capacity() * sizeof(T); }
+   std::size_t MemoryUsage() const { return Capacity() * sizeof(T); }
 
    /// Shortcut for mfem::Read(a.GetMemory(), a.Size(), on_dev).
    const T *Read(bool on_dev = true) const
@@ -333,6 +356,10 @@ inline bool operator!=(const Array<T> &LHS, const Array<T> &RHS)
 }
 
 
+/// Utility function similar to std::as_const in c++17.
+template <typename T> const T &AsConst(const T &a) { return a; }
+
+
 template <class T>
 class Array2D;
 
@@ -352,6 +379,8 @@ private:
 public:
    Array2D() { M = N = 0; }
    Array2D(int m, int n) : array1d(m*n) { M = m; N = n; }
+
+   Array2D(const Array2D &) = default;
 
    void SetSize(int m, int n) { array1d.SetSize(m*n); M = m; N = n; }
 
@@ -383,10 +412,10 @@ public:
           0 - write the number of rows and columns, followed by all entries
           1 - write only the entries, using row-major layout
    */
-   void Save(std::ostream &out, int fmt = 0) const
+   void Save(std::ostream &os, int fmt = 0) const
    {
-      if (fmt == 0) { out << NumRows() << ' ' << NumCols() << '\n'; }
-      array1d.Save(out, 1);
+      if (fmt == 0) { os << NumRows() << ' ' << NumCols() << '\n'; }
+      array1d.Save(os, 1);
    }
 
    /** @brief Read an Array2D from the stream @a in using format @a fmt.
@@ -446,6 +475,9 @@ public:
 
    inline const T &operator()(int i, int j, int k) const;
    inline       T &operator()(int i, int j, int k);
+
+   inline void operator=(const T &a)
+   { array1d = a; }
 };
 
 
@@ -459,6 +491,7 @@ class BlockArray
 public:
    BlockArray(int block_size = 16*1024);
    BlockArray(const BlockArray<T> &other); // deep copy
+   BlockArray& operator=(const BlockArray&) = delete; // not supported
    ~BlockArray() { Destroy(); }
 
    /// Allocate and construct a new item in the array, return its index.
@@ -494,7 +527,7 @@ public:
 
    void Swap(BlockArray<T> &other);
 
-   long MemoryUsage() const;
+   std::size_t MemoryUsage() const;
 
 protected:
    template <typename cA, typename cT>
@@ -846,20 +879,27 @@ inline void Array<T>::Copy(Array &copy) const
 }
 
 template <class T>
-inline void Array<T>::MakeRef(T *p, int s)
+inline void Array<T>::MakeRef(T *data_, int size_, bool own_data)
 {
    data.Delete();
-   data.Wrap(p, s, false);
-   size = s;
+   data.Wrap(data_, size_, own_data);
+   size = size_;
+}
+
+template <class T>
+inline void Array<T>::MakeRef(T *data_, int size_, MemoryType mt, bool own_data)
+{
+   data.Delete();
+   data.Wrap(data_, size_, mt, own_data);
+   size = size_;
 }
 
 template <class T>
 inline void Array<T>::MakeRef(const Array &master)
 {
    data.Delete();
-   data = master.data; // note: copies the device flag
    size = master.size;
-   data.ClearOwnerFlags();
+   data.MakeAlias(master.GetMemory(), 0, size);
 }
 
 template <class T>
@@ -1028,10 +1068,9 @@ void BlockArray<T>::Swap(BlockArray<T> &other)
 }
 
 template<typename T>
-long BlockArray<T>::MemoryUsage() const
+std::size_t BlockArray<T>::MemoryUsage() const
 {
-   return blocks.Size()*(mask+1)*sizeof(T) +
-          blocks.MemoryUsage();
+   return (mask+1)*sizeof(T)*blocks.Size() + blocks.MemoryUsage();
 }
 
 template<typename T>

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,12 +15,11 @@
 namespace mfem
 {
 
+static double exact_sln(const Vector &p);
 static void TestSolve(FiniteElementSpace &fespace);
-
 
 // Check basic functioning of variable order spaces, hp interpolation and
 // some corner cases.
-//
 TEST_CASE("Variable Order FiniteElementSpace",
           "[FiniteElementCollection]"
           "[FiniteElementSpace]"
@@ -29,7 +28,7 @@ TEST_CASE("Variable Order FiniteElementSpace",
    SECTION("Quad mesh")
    {
       // 2-element quad mesh
-      Mesh mesh(2, 1, Element::QUADRILATERAL);
+      Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL);
       mesh.EnsureNCMesh();
 
       // standard H1 space with order 1 elements
@@ -93,10 +92,54 @@ TEST_CASE("Variable Order FiniteElementSpace",
       TestSolve(fespace);
    }
 
+   SECTION("Quad/hex mesh projection")
+   {
+      for (int dim=2; dim<=3; ++dim)
+      {
+         // 2-element mesh
+         Mesh mesh = dim == 2 ? Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL) :
+                     Mesh::MakeCartesian3D(2, 1, 1, Element::HEXAHEDRON);
+         mesh.EnsureNCMesh();
+
+         // h-refine element 1
+         Array<Refinement> refinements;
+         refinements.Append(Refinement(1));
+
+         int nonconformity_limit = 0; // 0 meaning allow unlimited ratio
+         mesh.GeneralRefinement(refinements, 1, nonconformity_limit);  // h-refinement
+
+         // standard H1 space with order 2 elements
+         H1_FECollection fec(2, mesh.Dimension());
+         FiniteElementSpace fespace(&mesh, &fec);
+
+         GridFunction x(&fespace);
+
+         // p-refine element 0
+         fespace.SetElementOrder(0, 3);
+
+         fespace.Update(false);
+         x.SetSpace(&fespace);
+
+         // Test projection of the coefficient
+         FunctionCoefficient exsol(exact_sln);
+         x.ProjectCoefficient(exsol);
+
+         // Enforce space constraints on locally interpolated GridFunction x
+         const SparseMatrix *R = fespace.GetHpRestrictionMatrix();
+         const SparseMatrix *P = fespace.GetConformingProlongation();
+         Vector y(fespace.GetTrueVSize());
+         R->Mult(x, y);
+         P->Mult(y, x);
+
+         const double error = x.ComputeL2Error(exsol);
+         REQUIRE(error == MFEM_Approx(0.0));
+      }
+   }
+
    SECTION("Hex mesh")
    {
       // 2-element hex mesh
-      Mesh mesh(2, 1, 1, Element::HEXAHEDRON);
+      Mesh mesh = Mesh::MakeCartesian3D(2, 1, 1, Element::HEXAHEDRON);
       mesh.EnsureNCMesh();
 
       // standard H1 space with order 1 elements
@@ -167,7 +210,7 @@ TEST_CASE("Variable Order FiniteElementSpace",
    SECTION("Prism mesh")
    {
       // 2-element prism mesh
-      Mesh mesh(1, 1, 1, Element::WEDGE);
+      Mesh mesh = Mesh::MakeCartesian3D(1, 1, 1, Element::WEDGE);
       mesh.EnsureNCMesh();
 
       // standard H1 space with order 2 elements

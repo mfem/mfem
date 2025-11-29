@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,26 +15,26 @@
 
 using namespace mfem;
 
-double compare_pa_id_assembly(int dim, int num_elements, int order,
+real_t compare_pa_id_assembly(int dim, int num_elements, int order,
                               bool transpose)
 {
-   Mesh * mesh;
+   Mesh mesh;
    if (num_elements == 0)
    {
       if (dim == 2)
       {
-         mesh = new Mesh("../../data/star.mesh", order);
+         mesh = Mesh::LoadFromFile("../../data/star.mesh", order);
       }
       else
       {
-         mesh = new Mesh("../../data/beam-hex.mesh", order);
+         mesh = Mesh::LoadFromFile("../../data/beam-hex.mesh", order);
 
          // Transform mesh vertices to test without alignment with coordinate axes.
-         for (int i=0; i<mesh->GetNV(); ++i)
+         for (int i=0; i<mesh.GetNV(); ++i)
          {
-            double *v = mesh->GetVertex(i);
-            const double yscale = 1.0 + v[1];
-            const double zscale = 1.0 + v[2];
+            real_t *v = mesh.GetVertex(i);
+            const real_t yscale = 1.0 + v[1];
+            const real_t zscale = 1.0 + v[2];
             v[0] *= zscale;
             v[1] *= zscale;
             v[2] *= yscale;
@@ -45,18 +45,19 @@ double compare_pa_id_assembly(int dim, int num_elements, int order,
    {
       if (dim == 2)
       {
-         mesh = new Mesh(num_elements, num_elements, Element::QUADRILATERAL, true);
+         mesh = Mesh::MakeCartesian2D(num_elements, num_elements, Element::QUADRILATERAL,
+                                      true);
       }
       else
       {
-         mesh = new Mesh(num_elements, num_elements, num_elements,
-                         Element::HEXAHEDRON, true);
+         mesh = Mesh::MakeCartesian3D(num_elements, num_elements, num_elements,
+                                      Element::HEXAHEDRON);
       }
    }
    FiniteElementCollection *h1_fec = new H1_FECollection(order, dim);
    FiniteElementCollection *nd_fec = new ND_FECollection(order, dim);
-   FiniteElementSpace h1_fespace(mesh, h1_fec, dim);
-   FiniteElementSpace nd_fespace(mesh, nd_fec);
+   FiniteElementSpace h1_fespace(&mesh, h1_fec, dim);
+   FiniteElementSpace nd_fespace(&mesh, nd_fec);
 
    DiscreteLinearOperator assembled_id(&h1_fespace, &nd_fespace);
    assembled_id.AddDomainInterpolator(new IdentityInterpolator);
@@ -89,7 +90,6 @@ double compare_pa_id_assembly(int dim, int num_elements, int order,
    x.Randomize();
    if (transpose)
    {
-      assembled_id_mat.BuildTranspose();
       assembled_id_mat.MultTranspose(x, assembled_y);
       pa_id.MultTranspose(x, pa_y);
    }
@@ -100,13 +100,12 @@ double compare_pa_id_assembly(int dim, int num_elements, int order,
    }
 
    pa_y -= assembled_y;
-   double error = pa_y.Norml2() / assembled_y.Norml2();
+   real_t error = pa_y.Norml2() / assembled_y.Norml2();
    INFO("dim " << dim << " ne " << num_elements << " order " << order
         << (transpose ? " T:" : ":") << " error in PA identity: " << error);
 
    delete h1_fec;
    delete nd_fec;
-   delete mesh;
 
    return error;
 }
@@ -118,6 +117,6 @@ TEST_CASE("PAIdentityInterp", "[CUDA]")
    auto dim = GENERATE(2, 3);
    auto num_elements = GENERATE(0, 1, 2, 3, 4);
 
-   double error = compare_pa_id_assembly(dim, num_elements, order, transpose);
+   real_t error = compare_pa_id_assembly(dim, num_elements, order, transpose);
    REQUIRE(error == MFEM_Approx(0.0, 1.0e-14));
 }

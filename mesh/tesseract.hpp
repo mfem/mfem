@@ -42,10 +42,11 @@ public:
    /// Return element's type
    Type GetType() const { return Element::TESSERACT; }
 
-   /// Returns the indices of the element's vertices.
-   virtual void GetVertices(Array<int> &v) const;
-
-   virtual int *GetVertices() { return indices; }
+   // Cancelled and added new version at the end of the file (2025 November)
+   // /// Returns the indices of the element's vertices.
+   // virtual void GetVertices(Array<int> &v) const;
+   //
+   // virtual int *GetVertices() { return indices; }
 
    virtual int GetNVertices() const { return 16; }
 
@@ -66,6 +67,18 @@ public:
 
    virtual Element *Duplicate(Mesh *m) const
    { return new Tesseract(indices, attribute); }
+
+   /// Get the indices defining the vertices.
+   void GetVertices(Array<int> &v) const override;
+
+   /// Set the indices defining the vertices.
+   void SetVertices(const Array<int> &v) override;
+
+   /// @note The returned array should NOT be deleted by the caller.
+   int * GetVertices () override { return indices; }
+
+   /// Set the indices defining the vertices.
+   void SetVertices(const int *ind) override;
 
    virtual ~Tesseract() { }
 };
