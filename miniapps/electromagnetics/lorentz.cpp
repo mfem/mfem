@@ -327,7 +327,7 @@ int main(int argc, char *argv[])
             Vector rank_vector(boris.GetParticles().GetNParticles());
             rank_vector = Mpi::WorldRank();
             VisualizeParticles(pre_redist_sock, vishost,
-                              ctx.visport, boris.GetParticles(),
+                               ctx.visport, boris.GetParticles(),
                                rank_vector, 1e-2, "Particle Owning Rank (Pre-Redistribute)", 600, 0, 400, 400,
                                "bca");
          }
@@ -342,7 +342,8 @@ int main(int argc, char *argv[])
             Vector rank_vector(boris.GetParticles().GetNParticles());
             rank_vector = Mpi::WorldRank();
             VisualizeParticles(post_redist_sock, vishost, ctx.visport, boris.GetParticles(),
-                               rank_vector, 1e-2, "Particle Owning Rank (Post-Redistribute)", 1000, 0, 400, 400,
+                               rank_vector, 1e-2, "Particle Owning Rank (Post-Redistribute)", 1000, 0, 400,
+                               400,
                                "bca");
          }
       }
