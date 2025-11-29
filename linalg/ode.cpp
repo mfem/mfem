@@ -1350,18 +1350,18 @@ void IMEXRK2::Step(Vector &x, real_t &t, real_t &dt)
 
    //K2_imp = f_2(t + gamma dt, x + dt gamma K2_imp)
    f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
-   f->ImplicitSolve(dt*gamma, x, k_imp); 
+   f->ImplicitSolve(dt*gamma, x, k_imp);
    //reuse k_imp to avoid extra vector
 
    //K3_imp = f_2(t+dt,x + dt(1-gamma)K2_imp + dt gamma K3_imp)
    f -> SetTime(t + dt);
-   //add(x, dt*(1-gamma), k2_imp, z); 
+   //add(x, dt*(1-gamma), k2_imp, z);
    //optimization to avoid extra vector
    x.Add(dt*(1-gamma), k_imp);
    f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
    //f->ImplicitSolve(dt*gamma, z, k3_imp);
    //reuse k_imp to avoid extra vector
-   f->ImplicitSolve(dt*gamma, x, k_imp); 
+   f->ImplicitSolve(dt*gamma, x, k_imp);
 
    //add it all up
    x.Add(dt*delta, k1_exp);
@@ -1404,7 +1404,7 @@ void IMEXRK2_3StageExplicit::Step(Vector &x, real_t &t, real_t &dt)
    //add(x, dt*delta, k1_exp, y);
    //add(y, dt*(1-delta), k2_exp, w);
    //optimization to avoid extra vector
-   y.Add(dt*(1-delta), k2_exp); 
+   y.Add(dt*(1-delta), k2_exp);
    f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
    f->Mult(y, k3_exp);
 
@@ -1490,7 +1490,7 @@ void IMEX_DIRK_RK3::Step(Vector &x, real_t &t, real_t &dt)
    //add(z, dt*b2, k3_imp, u);
    //optimization to avoid extra vector
    x.Add(dt*b1, k2_imp);
-   x.Add(dt*b2, k3_imp);  
+   x.Add(dt*b2, k3_imp);
    f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
    f->ImplicitSolve(dt*gamma, x, k3_imp);
 
