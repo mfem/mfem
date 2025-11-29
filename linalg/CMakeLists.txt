@@ -27,7 +27,6 @@ list(APPEND SRCS
   handle.cpp
   matrix.cpp
   mma.cpp
-  multivector.cpp
   ode.cpp
   operator.cpp
   ordering.cpp
