@@ -167,7 +167,7 @@ void MagmaBatchedLinAlg::Invert(DenseTensor &A) const
    magma_int_t status;
 
    status = MFEM_MAGMA_PREFIX(getrf_batched)(
-               n, n, d_A_ptrs, n, d_P_ptrs, info_array.Write(), n_mat,
+               n, n, d_LU_ptrs, n, d_P_ptrs, info_array.Write(), n_mat,
                Magma::Queue());
    MFEM_VERIFY(status == MAGMA_SUCCESS, "");
 

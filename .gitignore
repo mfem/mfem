@@ -19,8 +19,14 @@ CMakeFiles/
 # Clangd server cache
 *.cache*
 
+#vscode settings
+/.vscode/
+
 # Backup files
 *~
+
+# clangd index
+/.cache/
 
 # Default install location
 /mfem/
@@ -79,6 +85,7 @@ examples/sol_u.*
 examples/sol_p.*
 examples/sol_r.*
 examples/sol_i.*
+examples/sol_z.*
 examples/ex6p-checkpoint.*
 examples/order.*
 examples/ex9.mesh
@@ -208,10 +215,13 @@ miniapps/electromagnetics/volta
 miniapps/electromagnetics/tesla
 miniapps/electromagnetics/maxwell
 miniapps/electromagnetics/joule
+miniapps/electromagnetics/lorentz
 miniapps/electromagnetics/Volta-AMR*
 miniapps/electromagnetics/Tesla-AMR*
 miniapps/electromagnetics/Maxwell-Parallel*
 miniapps/electromagnetics/Joule_[0-9]*
+miniapps/electromagnetics/Lorentz_[0-9]*
+miniapps/electromagnetics/Lorentz.dat
 
 miniapps/gslib/field-diff
 miniapps/gslib/field-interp
@@ -266,10 +276,8 @@ miniapps/meshing/refined.mesh
 miniapps/meshing/bounding-box*
 miniapps/meshing/jacobian-determinant*
 
-miniapps/mtop/parheat
-miniapps/mtop/ParHeat/*
-miniapps/mtop/seqheat
-miniapps/mtop/SeqHeat/*
+miniapps/mtop/ParaView/
+miniapps/mtop/mtop_test_iso_elasticity
 
 miniapps/autodiff/paradiff
 miniapps/autodiff/seqadiff
