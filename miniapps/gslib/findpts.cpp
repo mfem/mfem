@@ -330,8 +330,7 @@ int main (int argc, char *argv[])
 
    // Find and Interpolate FE function values on the desired points.
    Vector interp_vals(pts_cnt*vec_dim);
-   FindPointsGSLIB finder;
-   finder.Setup(mesh);
+   FindPointsGSLIB finder(mesh);
    finder.SetL2AvgType(FindPointsGSLIB::NONE);
    finder.Interpolate(vxyz, field_vals, interp_vals, point_ordering);
    Array<unsigned int> code_out    = finder.GetCode();
@@ -373,9 +372,6 @@ int main (int argc, char *argv[])
         << "\nMax dist (of found): " << max_dist
         << "\nPoints not found:    " << not_found
         << "\nPoints on faces:     " << face_pts << endl;
-
-   // Free the internal gslib data.
-   finder.FreeData();
 
    delete fec;
 

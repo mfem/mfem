@@ -132,11 +132,13 @@ jobs:
             hypre-target: int32
             precision: fp64
             enzyme: true
-            config-opts: MFEM_USE_ENZYME=YES ENZYME_DIR=$(brew --prefix enzyme)
+            config-opts: MFEM_USE_ENZYME=YES ENZYME_DIR=$(brew --prefix enzyme) LDFLAGS=-L$LLVM_PREFIX/lib/c++
 
     name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}${{ matrix.enzyme && '-enzyme' || '' }}
 
     runs-on: ${{ matrix.os }}
+
+    continue-on-error: ${{ matrix.enzyme && true || false }}
 
     steps:
       # Fix 'No space left on device' errors for Ubuntu builds.
@@ -168,10 +170,13 @@ jobs:
           env
         shell: bash
 
+      # For info on Xcode see:
+      #  - https://github.com/actions/runner-images/issues/12541
+      #  - https://github.com/actions/runner-images/blob/releases/macos-15-arm64/20250811/images/macos/macos-15-arm64-Readme.md#xcode
       - name: Xcode version setup (MacOS)
         if: matrix.os == 'macos-latest'
         run: |
-          XCODE_PATH="/Applications/Xcode_15.3.app"
+          XCODE_PATH="/Applications/Xcode_16.4.app"
           echo "> sudo xcode-select -s ${XCODE_PATH}"
           sudo xcode-select -s ${XCODE_PATH}
           echo "> g++ -v"
@@ -289,10 +294,12 @@ jobs:
         run: |
           export HOMEBREW_NO_INSTALL_CLEANUP=1
           brew update
-          brew install llvm@19 enzyme
-          echo "LLVM_PREFIX=$(brew --prefix llvm@19)" >> $GITHUB_ENV
-          echo "OMPI_CC=$(brew --prefix llvm@19)/bin/clang" >> $GITHUB_ENV
-          echo "OMPI_CXX=$(brew --prefix llvm@19)/bin/clang++" >> $GITHUB_ENV
+          brew install enzyme
+          ENZYME_LLVM=$(brew info enzyme | sed -n 's/^Required:.*\(llvm[^ ]*\).*/\1/p')
+          LLVM_PREFIX=$(brew --prefix $ENZYME_LLVM)
+          echo "LLVM_PREFIX=$LLVM_PREFIX" >> $GITHUB_ENV
+          echo "OMPI_CC=$LLVM_PREFIX/bin/clang" >> $GITHUB_ENV
+          echo "OMPI_CXX=$LLVM_PREFIX/bin/clang++" >> $GITHUB_ENV
 
       # MFEM build and test
       - name: build

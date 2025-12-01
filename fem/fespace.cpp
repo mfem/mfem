@@ -17,6 +17,9 @@
 #include "fem.hpp"
 #include "ceed/interface/util.hpp"
 
+#include "derefmat_op.hpp"
+
+#include <algorithm>
 #include <cmath>
 #include <cstdarg>
 
@@ -24,37 +27,6 @@ using namespace std;
 
 namespace mfem
 {
-
-template <> void Ordering::
-DofsToVDofs<Ordering::byNODES>(int ndofs, int vdim, Array<int> &dofs)
-{
-   // static method
-   int size = dofs.Size();
-   dofs.SetSize(size*vdim);
-   for (int vd = 1; vd < vdim; vd++)
-   {
-      for (int i = 0; i < size; i++)
-      {
-         dofs[i+size*vd] = Map<byNODES>(ndofs, vdim, dofs[i], vd);
-      }
-   }
-}
-
-template <> void Ordering::
-DofsToVDofs<Ordering::byVDIM>(int ndofs, int vdim, Array<int> &dofs)
-{
-   // static method
-   int size = dofs.Size();
-   dofs.SetSize(size*vdim);
-   for (int vd = vdim-1; vd >= 0; vd--)
-   {
-      for (int i = 0; i < size; i++)
-      {
-         dofs[i+size*vd] = Map<byVDIM>(ndofs, vdim, dofs[i], vd);
-      }
-   }
-}
-
 
 FiniteElementSpace::FiniteElementSpace()
    : mesh(NULL), fec(NULL), vdim(0), ordering(Ordering::byNODES),
@@ -4244,7 +4216,11 @@ void FiniteElementSpace::Update(bool want_transform)
          case Mesh::DEREFINE:
          {
             BuildConformingInterpolation();
+#if 0
             Th.Reset(DerefinementMatrix(old_ndofs, old_elem_dof, old_elem_fos));
+#else
+            Th.Reset(new DerefineMatrixOp(*this, old_ndofs, old_elem_dof, old_elem_fos));
+#endif
             if (IsVariableOrder())
             {
                if (cP && cR_hp)

@@ -24,9 +24,12 @@
 namespace mfem
 {
 
+struct ParDerefineMatrixOp;
+
 /// Abstract parallel finite element space.
 class ParFiniteElementSpace : public FiniteElementSpace
 {
+   friend struct ParDerefineMatrixOp;
 private:
    /// MPI data.
    MPI_Comm MyComm;
@@ -478,6 +481,7 @@ public:
        that the number of DOFs is @a ndofs. */
    const FiniteElement *GetFaceNbrFE(int i, int ndofs = 0) const;
    const FiniteElement *GetFaceNbrFaceFE(int i) const;
+   const Array<HYPRE_BigInt> &GetFaceNbrGlobalDofMapArray() { return face_nbr_glob_dof_map; }
    const HYPRE_BigInt *GetFaceNbrGlobalDofMap() { return face_nbr_glob_dof_map; }
    ElementTransformation *GetFaceNbrElementTransformation(int i) const
    { return pmesh->GetFaceNbrElementTransformation(i); }
