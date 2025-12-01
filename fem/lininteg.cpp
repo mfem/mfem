@@ -1054,7 +1054,154 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
    }
 }
 
+void SlidingElasticityDirichletLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   mfem_error("SlidingElasticityDirichletLFIntegrator::AssembleRHSElementVect");
+}
 
+void SlidingElasticityDirichletLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+{
+   MFEM_ASSERT(Tr.Elem2No < 0, "interior boundary is not supported");
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape;
+   DenseMatrix dshape;
+   DenseMatrix adjJ;
+   DenseMatrix dshape_ps;
+   Vector nor;
+   Vector dshape_dn;
+   Vector dshape_du;
+   real_t g_val;
+   Vector nt_val;
+#endif
+
+   const int dim = el.GetDim();
+   const int ndofs = el.GetDof();
+   const int nvdofs = dim*ndofs;
+
+   elvect.SetSize(nvdofs);
+   elvect = 0.0;
+
+   adjJ.SetSize(dim);
+   shape.SetSize(ndofs);
+   dshape.SetSize(ndofs, dim);
+   dshape_ps.SetSize(ndofs, dim);
+   nor.SetSize(dim);
+   dshape_dn.SetSize(ndofs);
+   dshape_du.SetSize(ndofs);
+   nt_val.SetSize(dim);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      const int order = 2*el.GetOrder(); // <-----
+      ir = &IntRules.Get(Tr.GetGeometryType(), order);
+   }
+
+   for (int pi = 0; pi < ir->GetNPoints(); ++pi)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(pi);
+
+      // Set the integration point in the face and the neighboring element
+      Tr.SetAllIntPoints(&ip);
+
+      // Access the neighboring element's integration point
+      const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+
+      el.CalcShape(eip, shape);
+      el.CalcDShape(eip, dshape);
+
+      CalcAdjugate(Tr.Elem1->Jacobian(), adjJ);
+      Mult(dshape, adjJ, dshape_ps);
+
+      if (dim == 1)
+      {
+         nor(0) = 2*eip.x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Tr.Jacobian(), nor);
+      }
+
+      if (!nt)
+      {
+         // Set w to the unit normal vector if not provided
+         nt_val = nor;
+         nt_val /= nt_val.Norml2();
+      }
+      else
+      {
+         // Evaluate the vector field using the face transformation.
+         nt->Eval(nt_val, Tr, ip);
+      }
+
+      // Evaluate the Dirichlet b.c. using the face transformation.
+      g_val = g->Eval(Tr, ip);
+
+      real_t WL, WM, jcoef;
+      {
+         const real_t W = ip.weight / Tr.Elem1->Weight();
+         WL = W * lambda->Eval(*Tr.Elem1, eip);
+         WM = W * mu->Eval(*Tr.Elem1, eip);
+         jcoef = kappa * (WL + 2.0*WM) * (nor*nor);
+         dshape_ps.Mult(nor, dshape_dn);
+         dshape_ps.Mult(nt_val, dshape_du);
+      }
+
+      // alpha < g, (lambda div(v) I + mu (grad(v) + grad(v)^T)) n . ñ > +
+      //   + kappa < h^{-1} (lambda + 2 mu) g, v . ñ >
+
+      // i = idof + ndofs * im
+      // v_phi(i,d) = delta(im,d) phi(idof)
+      // div(v_phi(i)) = dphi(idof,im)
+      // (grad(v_phi(i)))(k,l) = delta(im,k) dphi(idof,l)
+      //
+      // term 1:
+      //   alpha < g, lambda div(v_phi(i)) n . ñ > =
+      //   alpha lambda g div(v_phi(i)) (n.ñ) =
+      //   alpha lambda g dphi(idof,im) (n.ñ) --> quadrature -->
+      //   ip.weight/det(J1) alpha lambda g (nor.ñ) dshape_ps(idof,im) =
+      //   alpha * WL * g_val * (nor*nt_val) * dshape_ps(idof,im)
+      // term 2:
+      //   alpha < g, mu grad(v_phi(i)) n . ñ > =
+      //   alpha mu g ñ^T grad(v_phi(i)) n =
+      //   alpha mu g ñ(k) delta(im,k) dphi(idof,l) n(l) =
+      //   alpha mu g ñ(im) dphi(idof,l) n(l) --> quadrature -->
+      //   ip.weight/det(J1) alpha mu ñ(im) g dshape_ps(idof,l) nor(l) =
+      //   alpha * WM * g_val * nt_val(im) * dshape_dn(idof)
+      // term 3:
+      //   alpha < g, mu (grad(v_phi(i)))^T n . ñ > =
+      //   alpha mu g n^T grad(v_phi(i)) ñ =
+      //   alpha mu g n(k) delta(im,k) dphi(idof,l) ñ(l) =
+      //   alpha mu g n(im) dphi(idof,l) ñ(l) --> quadrature -->
+      //   ip.weight/det(J1) alpha mu g nor(im) dshape_ps(idof,l) ñ(l) =
+      //   alpha * WM * g_val * nor(im) * dshape_du(idof)
+      // term j:
+      //   < kappa h^{-1} (lambda + 2 mu) g, ñ . v_phi(i) > =
+      //   kappa/h (lambda + 2 mu) g ñ(k) v_phi(i,k) =
+      //   kappa/h (lambda + 2 mu) g ñ(k) delta(im,k) phi(idof) =
+      //   kappa/h (lambda + 2 mu) g ñ(im) phi(idof) --> quadrature -->
+      //      [ 1/h = |nor|/det(J1) ]
+      //   ip.weight/det(J1) |nor|^2 (lambda + 2 mu) kappa g ñ(im) phi(idof) =
+      //   jcoef * g_val * nt_val(im) * shape(idof)
+
+      WM *= alpha;
+      const real_t t1 = alpha * WL * g_val * (nor*nt_val);
+      for (int im = 0, i = 0; im < dim; ++im)
+      {
+         const real_t t2 = WM * g_val * nt_val(im);
+         const real_t t3 = WM * g_val * nor(im);
+         const real_t tj = jcoef * g_val * nt_val(im);
+         for (int idof = 0; idof < ndofs; ++idof, ++i)
+         {
+            elvect(i) += (t1*dshape_ps(idof,im) + t2*dshape_dn(idof) +
+                          t3*dshape_du(idof) + tj*shape(idof));
+         }
+      }
+   }
+}
 
 void WhiteGaussianNoiseDomainLFIntegrator::AssembleRHSElementVect
 (const FiniteElement &el,
