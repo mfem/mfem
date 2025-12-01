@@ -331,6 +331,65 @@ private:
 };
 
 
+/// This Class defines a generic stabilisation parameter.
+class TauCoeff: public Coefficient
+{
+protected:
+
+   /// The diffusion parameter field
+   Coefficient *kappa;
+
+   /// The inverse estimate
+   real_t Cinv;
+
+   /** Returns element size according to:
+       Harari, I, & Hughes, T.J.R.
+       What are C and h?: Inequalities for the analysis and design of
+       finite element methods.
+       Computer methods in applied mechanics and engineering 97(2), 157-192.*/
+   real_t GetElementSize(ElementTransformation &T)
+   {
+      const DenseMatrix &dxdxi = T.Jacobian();
+      int dim = dxdxi.Width();
+      Vector h(dim);
+      Vector row(dim);
+
+      for (int i = 0; i < dim; i++)
+      {
+         dxdxi.GetRow(i, row);
+         h[i] = row.Norml2();
+      }
+      switch (dim)
+      {
+         case 1:
+            return h[0];
+         case 2:
+            return h[0]*h[1]*sqrt(2.0/(h[0]*h[0] + h[1]*h[1]));
+         case 3:
+            return h[0]*h[1]*h[2]*(3.0/(h[0]*h[0] + h[1]*h[1] + h[2]*h[2]));
+      }
+      mfem_error("Wrong dim!");
+      return -1.0;
+   }
+
+public:
+   /** Construct a stabilized confection-diffusion integrator with:
+       - @a a the convection velocity
+       - @a d the diffusion coefficient*/
+   TauCoeff (Coefficient *k, real_t c) : kappa(k), Cinv(c)
+   {   };
+
+   /// Evaluate the coefficient at @a ip.
+   virtual real_t Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip) override
+   {
+      real_t k = kappa->Eval(T, ip);
+      real_t h = GetElementSize(T);
+      return Cinv*h*h/k;
+   }
+};
+
+
 enum class BC {WEAK, HYBRID, STRONG};
 
 int main(int argc, char *argv[])
@@ -351,10 +410,10 @@ int main(int argc, char *argv[])
    real_t penalty = -1.0;
    int problem = 0;
    int maxiter = 200;
-   real_t rtol = 1.e-6;
+   real_t rtol = 1.e-8;
    bool schur_complement = true;
-   int schur_maxiter = 10000;
-   real_t schur_rtol = 1.e-8;
+   int schur_maxiter = 250;
+   real_t schur_rtol = 1.e-6;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -630,7 +689,6 @@ int main(int argc, char *argv[])
    chrono.Clear();
    chrono.Start();
    Operator *D, *G;
-   ConstantCoefficient minus(-1.0);
    MixedBilinearForm gVarf(&p_space, &u_space);
    gVarf.AddDomainIntegrator(new TransposeIntegrator(
                                 new VectorFEDivergenceIntegrator(-1.0)));
@@ -669,13 +727,11 @@ int main(int argc, char *argv[])
 
    // Construct an approximate Schur complement operator
    // This is the continuity-pressure PSPG matrix
-   real_t h = std::pow(real_t(mesh->GetNE()),-1.0/real_t(mesh->Dimension()));
-   cout<<"h = "<<h<<endl;
-   double Cinv = 1.0;
-   ConstantCoefficient tau_c(Cinv*h*h/mu);
    BilinearForm pVarf(&p_space);
-
+   TauCoeff tau_c(&mu_cf, 1.0/24.0);
    pVarf.AddDomainIntegrator(new DiffusionIntegrator(tau_c));
+   ConstantCoefficient eps(1e-8);
+   pVarf.AddDomainIntegrator(new MassIntegrator(eps)); //Force matrix to be SPD
    pVarf.Assemble();
    pVarf.Finalize();
 
@@ -696,30 +752,28 @@ int main(int argc, char *argv[])
 #else
    invSp = new GSSmoother(Sp);
 #endif
-
-   invSp->iterative_mode = false;
+   invSp->iterative_mode = true;
 
    // Construct the Schur complement operator
    ProductOperator KiG(invK, G, false, false);
    ProductOperator S(D, &KiG, false, false);
 
    // Construct the exact Schur complement inverse operator
-   GMRESSolver invS;
+   CGSolver invS;
    invS.SetRelTol(schur_rtol);
    invS.SetMaxIter(schur_maxiter);
-   invS.SetKDim(schur_maxiter+100);
    if (schur_complement)
    {
       invS.SetOperator(S);
+      invS.SetPrintLevel(1);
    }
    else
    {
       invS.SetOperator(Sp);
+      invS.SetPreconditioner(*invSp);
+      invS.SetPrintLevel(0);
    }
-   invS.SetPreconditioner(*invSp);
-
-   invS.SetPrintLevel(0);
-   invS.iterative_mode = false;
+   invS.iterative_mode = true;
 
    // Construct the operators for preconditioner
    //
