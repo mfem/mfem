@@ -1401,7 +1401,7 @@ void IMEXRK2_3StageExplicit::Step(Vector &x, real_t &t, real_t &dt)
 
    //K3 Exp is f_1(t + dt, x + dt gamma K1_exp + dt (1-gamma) K2_exp)
    f->SetTime(t + dt);
-   //add(x, dt*delta, k1_exp, y);
+   add(x, dt*delta, k1_exp, y);
    //add(y, dt*(1-delta), k2_exp, w);
    //optimization to avoid extra vector
    y.Add(dt*(1-delta), k2_exp);
