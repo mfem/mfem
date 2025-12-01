@@ -4,14 +4,6 @@
 //
 // Sample runs:
 //    nurbs_ex10 -m ../../data/beam-quad-nurbs.mesh -s 23 -r 2 -o 2 -dt 0.1
-//    nurbs_ex10 -m ../../data/beam-quad.mesh -s 23 -r 2 -o 2 -dt 0.1
-//    nurbs_ex10 -m ../../data/beam-tri.mesh -s 23 -r 2 -o 2 -dt 0.1
-//    nurbs_ex10 -m ../../data/beam-hex.mesh -s 22 -r 1 -o 2 -dt 0.1
-//    nurbs_ex10 -m ../../data/beam-tet.mesh -s 22 -r 1 -o 2 -dt 0.1
-//    nurbs_ex10 -m ../../data/beam-wedge.mesh -s 22 -r 1 -o 2 -dt 0.1
-//    nurbs_ex10 -m ../../data/beam-quad.mesh -s 4 -r 2 -o 2 -dt 0.03 -vs 20
-//    nurbs_ex10 -m ../../data/beam-hex.mesh -s 4 -r 1 -o 2 -dt 0.05 -vs 20
-//    nurbs_ex10 -m ../../data/beam-quad-amr.mesh -s 23 -r 2 -o 2 -dt 3
 //
 // Description:  This examples solves a time dependent nonlinear elasticity
 //               problem of the form dv/dt = H(x) + S v, dx/dt = v, where H is a
