@@ -191,7 +191,7 @@ FiniteElementSpace::IsoparametricConstructor(Mesh* mesh, int vdim, int ordering)
 
    const FiniteElementCollection* fec = mesh->GetNodes()->FESpace()->FEColl();
 
-   MFEM_ASSERT(fec,
+   MFEM_VERIFY(fec,
                "No FiniteElementCollection extracted from GridFunction"
                "FiniteElementSpace in order to create an isoparametric space.");
 
@@ -202,7 +202,7 @@ FiniteElementSpace::IsoparametricConstructor(Mesh* mesh, int vdim, int ordering)
 
 
 NURBSSpace::NURBSSpace(Mesh* mesh,
-                       Array<int> orders,
+                       Array<int> &orders,
                        int vdim,
                        NURBSSpace::Type type,
                        int ordering,

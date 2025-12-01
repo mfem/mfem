@@ -1606,7 +1606,7 @@ struct NURBSSpace
        but with different order(s). Creates a NURBSExtension object that
        is owned by the returned FiniteElementSpace. */
    NURBSSpace(Mesh* mesh,
-              Array<int> orders,
+              Array<int> &orders,
               int vdim = 1,
               Type type = Type::H1,
               int ordering = Ordering::byNODES,
