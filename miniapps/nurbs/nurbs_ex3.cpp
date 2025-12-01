@@ -4,7 +4,7 @@
 //
 // Sample runs:  nurbs_ex3 -m ../../data/square-nurbs.mesh
 //               nurbs_ex3 -m ../../data/square-nurbs.mesh -o 2
-//               nurbs_ex3 -m ../../data/cube-nurbs.mesh
+//               nurbs_ex3 -m ../../data/cube-nurbs.mesh -r 3
 //
 // Description:  This example code solves a simple electromagnetic diffusion
 //               problem corresponding to the second order definite Maxwell
