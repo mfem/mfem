@@ -256,6 +256,7 @@ public:
    static int GetDeviceCount();
 
    /// Gets a string representation of the GPU UUID.
+   /// 0 <= @a device_id < GetDeviceCount()
    static std::string GetUUID(const int device_id = 0);
 
    /** @brief Return true if any of the backends in the backend mask, @a b_mask,
