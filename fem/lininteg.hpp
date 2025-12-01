@@ -632,9 +632,10 @@ public:
  * b(v) := α ∫_Γ (λ div(v) I + μ (∇v + ∇vᵀ))n ⋅ ñ g dS
  *       + κ ∫_Γ h⁻¹ (λ + 2μ) (v ⋅ ñ) g dS
  *
- * where g is the given Dirichlet data, n is the unit normal, and ñ is a unit vector
- * field. The parameters λ and μ should match the parameters with the same names
- * used in the bilinear form integrator, NitscheElasticityIntegrator.
+ * where g is the given Dirichlet data, n is the unit normal, ñ is a unit vector
+ * field, and α = ±1, κ > 0 are the Nitsche parameters. The parameters λ and μ should
+ * match the parameters with the same names used in the bilinear form
+ * integrator, SlidingElasticityIntegrator.
  */
 class SlidingElasticityDirichletLFIntegrator : public LinearFormIntegrator
 {

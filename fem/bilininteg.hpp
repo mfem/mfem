@@ -3649,8 +3649,8 @@ protected:
  *      = λ (∇ ⋅ u) I + μ (∇u + ∇uᵀ),
  *
  * where I is identity matrix, λ and μ are Lame coefficients (see
- * ElasticityIntegrator), ñ is a unit vector field, and u, v are the trial and test
- * functions, respectively.
+ * ElasticityIntegrator), ñ is a unit vector field, α = ±1, κ > 0 are the
+ * Nitsche parameters, and u, v are the trial and test functions, respectively.
  *
  * This is a '%Vector' integrator, i.e. defined for FE spaces using multiple
  * copies of a scalar FE space.
