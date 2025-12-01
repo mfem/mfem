@@ -4214,7 +4214,7 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
    }
 }
 
-void NitscheElasticityIntegrator::AssembleFaceMatrix(
+void SlidingElasticityIntegrator::AssembleFaceMatrix(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {

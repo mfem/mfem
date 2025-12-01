@@ -3655,14 +3655,14 @@ protected:
  * This is a '%Vector' integrator, i.e. defined for FE spaces using multiple
  * copies of a scalar FE space.
  */
-class NitscheElasticityIntegrator : public BilinearFormIntegrator
+class SlidingElasticityIntegrator : public BilinearFormIntegrator
 {
 public:
-   NitscheElasticityIntegrator(Coefficient &lambda_, Coefficient &mu_,
+   SlidingElasticityIntegrator(Coefficient &lambda_, Coefficient &mu_,
                                real_t kappa_)
       : nt(NULL), lambda(&lambda_), mu(&mu_), alpha(-1.0), kappa(kappa_) { }
 
-   NitscheElasticityIntegrator(VectorCoefficient &nt_, Coefficient &lambda_,
+   SlidingElasticityIntegrator(VectorCoefficient &nt_, Coefficient &lambda_,
                                Coefficient &mu_, real_t alpha_, real_t kappa_)
       : nt(&nt_), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) { }
 

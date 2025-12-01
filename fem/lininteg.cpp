@@ -1034,13 +1034,13 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
    }
 }
 
-void NitscheElasticityDirichletLFIntegrator::AssembleRHSElementVect(
+void SlidingElasticityDirichletLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
    mfem_error("NitscheElasticityDirichletLFIntegrator::AssembleRHSElementVect");
 }
 
-void NitscheElasticityDirichletLFIntegrator::AssembleRHSElementVect(
+void SlidingElasticityDirichletLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
 {
    MFEM_ASSERT(Tr.Elem2No < 0, "interior boundary is not supported");

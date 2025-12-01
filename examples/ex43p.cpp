@@ -201,7 +201,7 @@ int main(int argc, char *argv[])
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new ElasticityIntegrator(lambda_c,mu_c));
    a->AddBdrFaceIntegrator(
-      new NitscheElasticityIntegrator(lambda_c, mu_c, kappa),
+      new SlidingElasticityIntegrator(lambda_c, mu_c, kappa),
       ess_bdr);
 
    // 12. Set up the linear form b(.) corresponding to the Nitsche method
@@ -212,7 +212,7 @@ int main(int argc, char *argv[])
 
    ParLinearForm *b = new ParLinearForm(fespace);
    b->AddBdrFaceIntegrator(
-      new NitscheElasticityDirichletLFIntegrator(
+      new SlidingElasticityDirichletLFIntegrator(
          g, lambda_c, mu_c, kappa), ess_bdr);
    b->Assemble();
 
