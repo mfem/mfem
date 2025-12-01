@@ -414,7 +414,6 @@ public:
    std::string basis = "";
    int order = -1;
    VisItFieldInfo() = default;
-   // CYRUS Question: Would it make sense to reorder?
    VisItFieldInfo(std::string association_, int num_components_, int lod_ = 1,
                   std::string basis_ = "", int order_ = -1)
    {
