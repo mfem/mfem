@@ -1594,24 +1594,32 @@ public:
  */
 struct NURBSSpace
 {
-   enum class Type { H1, Hdiv, Hcurl, };
+   /// Type of finite element to be used
+   enum class Type { H1, Hdiv, Hcurl};
 
+   /// FiniteElementSpace this NURBSSpace encapsulates
    std::unique_ptr<FiniteElementSpace> fespace;
+   /// FiniteElementCollection generated - if required.
    std::unique_ptr<NURBSFECollection> nurbs_fec;
-   FiniteElementCollection* mesh_fec;
-   FiniteElementCollection* fec;
+   /// FiniteElementCollection used for generating the FiniteElementSpace
+   const FiniteElementCollection* fec;
 
-   /** Primary constructor for NURBS FiniteElementSpace. The
-       FiniteElementCollection is related to mesh.GetNodes()->OwnFEC()
-       but with different order(s). Creates a NURBSExtension object that
-       is owned by the returned FiniteElementSpace. */
+   /** Primary constructor for NURBS FiniteElementSpace.
+       The FiniteElementCollection for the space is either:
+       - mesh->GetNodes()->FESpace()->FEColl() (when order[0] < 0)
+         this is the isoparametric/isogeometric case.
+       - a dedicated FiniteElementCollection generated based on type input.
+      Creates a NURBSExtension object that is owned by the returned
+      FiniteElementSpace. For this NURBSExtension object the orders of the
+      knotvectors are specified by @a orders, and the periodicity is pecified by @a
+      master_boundary and @a slave_boundary respectivly.*/
    NURBSSpace(Mesh* mesh,
-              Array<int> &orders,
+              Array<int> orders,
               int vdim = 1,
               Type type = Type::H1,
               int ordering = Ordering::byNODES,
-              Array<int>* master_boundary = nullptr,
-              Array<int>* slave_boundary = nullptr);
+              Array<int>* master_boundaries = nullptr,
+              Array<int>* slave_boundaries = nullptr);
 
    /** Fixed order NURBS constructor */
    NURBSSpace(Mesh* mesh,
@@ -1619,8 +1627,10 @@ struct NURBSSpace
               int vdim = 1,
               Type type = Type::H1,
               int ordering = Ordering::byNODES,
-              Array<int>* master_boundary = nullptr,
-              Array<int>* slave_boundary = nullptr);
+              Array<int>* master_boundaries = nullptr,
+              Array<int>* slave_boundaries = nullptr)
+      : NURBSSpace(mesh, Array<int>({order}), vdim, type, ordering,master_boundaries,
+   slave_boundaries) {}
 };
 
 /// @brief Return true if the mesh contains only one topology and the elements

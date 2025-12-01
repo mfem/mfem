@@ -202,21 +202,21 @@ FiniteElementSpace::IsoparametricConstructor(Mesh* mesh, int vdim, int ordering)
 
 
 NURBSSpace::NURBSSpace(Mesh* mesh,
-                       Array<int> &orders,
+                       Array<int> orders,
                        int vdim,
                        NURBSSpace::Type type,
                        int ordering,
-                       Array<int>* master_boundary,
-                       Array<int>* slave_boundary)
+                       Array<int>* master_boundaries,
+                       Array<int>* slave_boundaries)
 {
    // Verify inputs
    MFEM_VERIFY(mesh->IsNURBS(), "NURBSSpace - requires a NURBS mesh.");
 
    bool connect_boundaries = false;
-   if (master_boundary && slave_boundary)
+   if (master_boundaries && slave_boundaries)
    {
-      const int msize = master_boundary->Size();
-      const int ssize = slave_boundary->Size();
+      const int msize = master_boundaries->Size();
+      const int ssize = slave_boundaries->Size();
       if (msize != 0 && ssize != 0)
       {
          MFEM_VERIFY(msize == ssize,
@@ -228,19 +228,18 @@ NURBSSpace::NURBSSpace(Mesh* mesh,
    MFEM_VERIFY(orders.Size() > 0,
                "NURBSSpace - orders cannot be empty.");
 
-   mesh_fec = mesh->GetNodes()->OwnFEC();
    NURBSExtension *ext = nullptr;
    // Case 1 - Isoparametric (convention: order < 1)
    if ((orders.Size() == 1) && (orders[0] < 1))
    {
       mfem::out << "Generating an Isogeometric FE space" << std::endl;
       nurbs_fec = nullptr;
-      fec = mesh_fec;
+      fec = mesh->GetNodes()->FESpace()->FEColl();
    }
    // Case 2/3 - Variable/Fixed order
    else
    {
-      int fixed_order = (orders.Size() == 1) ? orders[0] : -1;
+      const int fixed_order = (orders.Size() == 1) ? orders[0] : -1;
       // This NURBSExtension's lifetime will be managed by fespace
       ext = (orders.Size() == 1)
             ? new NURBSExtension(mesh->NURBSext, fixed_order)
@@ -267,22 +266,12 @@ NURBSSpace::NURBSSpace(Mesh* mesh,
       // Connect master/slave boundaries if provided
       if (connect_boundaries)
       {
-         ext->ConnectBoundaries(*master_boundary, *slave_boundary);
+         ext->ConnectBoundaries(*master_boundaries, *slave_boundaries);
       }
       fec = nurbs_fec.get();
    }
    fespace = std::make_unique<FiniteElementSpace>(mesh, ext, fec, vdim, ordering);
 }
-
-NURBSSpace::NURBSSpace(Mesh* mesh,
-                       int order,
-                       int vdim,
-                       NURBSSpace::Type type,
-                       int ordering,
-                       Array<int>* master_boundary,
-                       Array<int>* slave_boundary)
-   : NURBSSpace(mesh, Array<int>({order}), vdim, type, ordering,
-master_boundary, slave_boundary) {}
 
 void FiniteElementSpace::SetProlongation(const SparseMatrix& p)
 {

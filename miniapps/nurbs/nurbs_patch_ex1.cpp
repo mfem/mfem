@@ -106,7 +106,6 @@ int main(int argc, char *argv[])
 
    // 5. Define an isoparametric/isogeometric finite element space on the mesh.
    NURBSSpace ns(&mesh, -1);
-   FiniteElementCollection* fec = ns.fec;
    FiniteElementSpace& fespace = *ns.fespace;
    cout << "Number of finite element unknowns: "
         << fespace.GetTrueVSize() << endl;
@@ -159,7 +158,7 @@ int main(int argc, char *argv[])
    NURBSMeshRules *patchRule = nullptr;
    if (order < 0)
    {
-      if (ir_order == -1) { ir_order = 2*fec->GetOrder(); }
+      if (ir_order == -1) { ir_order = 2*ns.fec->GetOrder(); }
       cout << "Using ir_order " << ir_order << endl;
 
       patchRule = new NURBSMeshRules(mesh.NURBSext->GetNP(), dim);

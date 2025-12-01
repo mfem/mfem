@@ -261,9 +261,8 @@ int main(int argc, char *argv[])
    NURBSSpace ns(&mesh, order, 1, NURBSSpace::Type::H1, Ordering::byNODES, &master,
                  &slave);
    FiniteElementSpace& fespace = *ns.fespace;
-   FiniteElementCollection& fec = *ns.fec;
 
-   cout << "Finite element collection: " << fec.Name() << endl;
+   cout << "Finite element collection: " << ns.fec->Name() << endl;
    cout << "Number of finite element unknowns: "
         << fespace.GetTrueVSize() << endl;
 
