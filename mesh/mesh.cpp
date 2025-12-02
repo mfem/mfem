@@ -5622,7 +5622,7 @@ Array<int> Mesh::MakeSimplicial_(const Mesh &orig_mesh, int *vglobal)
    NumOfVertices = nv;
    for (int i=0; i<nv; ++i)
    {
-      vertices[i].SetCoords(dim, orig_mesh.vertices[i]());
+      vertices[i].SetCoords(sdim, orig_mesh.vertices[i]());
    }
 
    // We need a global vertex numbering to identify which diagonals to split
@@ -6000,17 +6000,17 @@ void Mesh::MakeHigherOrderSimplicial_(const Mesh &orig_mesh,
                   child_nodes_in_parent[0].x +
                   simplex_node.x * (child_nodes_in_parent[1].x - child_nodes_in_parent[0].x)
                   + simplex_node.y * (child_nodes_in_parent[2].x - child_nodes_in_parent[0].x)
-                  + simplex_node.z * (child_nodes_in_parent[(sdim > 2) ? 3 : 0].x -
+                  + simplex_node.z * (child_nodes_in_parent[(Dim > 2) ? 3 : 0].x -
                                       child_nodes_in_parent[0].x),
                   child_nodes_in_parent[0].y +
                   simplex_node.x * (child_nodes_in_parent[1].y - child_nodes_in_parent[0].y)
                   + simplex_node.y * (child_nodes_in_parent[2].y - child_nodes_in_parent[0].y)
-                  + simplex_node.z * (child_nodes_in_parent[(sdim > 2) ? 3 : 0].y -
+                  + simplex_node.z * (child_nodes_in_parent[(Dim > 2) ? 3 : 0].y -
                                       child_nodes_in_parent[0].y),
                   child_nodes_in_parent[0].z +
                   simplex_node.x * (child_nodes_in_parent[1].z - child_nodes_in_parent[0].z)
                   + simplex_node.y * (child_nodes_in_parent[2].z - child_nodes_in_parent[0].z)
-                  + simplex_node.z * (child_nodes_in_parent[(sdim > 2) ? 3 : 0].z -
+                  + simplex_node.z * (child_nodes_in_parent[(Dim > 2) ? 3 : 0].z -
                                       child_nodes_in_parent[0].z));
                shape.GetColumnReference(j, col);
                orig_FE->CalcShape(simplex_node_in_orig, col);
@@ -7577,6 +7577,12 @@ void Mesh::GetGeometries(int dim, Array<Geometry::Type> &el_geoms) const
          el_geoms.Append(Geometry::Type(g));
       }
    }
+}
+
+bool Mesh::IsMixedMesh() const
+{
+   // Return true if meshgen has more than one bit set, zero otherwise
+   return meshgen & (meshgen - 1);
 }
 
 void Mesh::GetElementEdges(int i, Array<int> &edges, Array<int> &cor) const
@@ -12353,7 +12359,7 @@ void Mesh::PrintVTU(std::string fname,
                     VTKFormat format,
                     bool high_order_output,
                     int compression_level,
-                    bool bdr)
+                    bool bdr_elements)
 {
    int ref = (high_order_output && Nodes)
              ? Nodes->FESpace()->GetMaxElementOrder() : 1;
@@ -12367,7 +12373,7 @@ void Mesh::PrintVTU(std::string fname,
    }
    os << " byte_order=\"" << VTKByteOrder() << "\">\n";
    os << "<UnstructuredGrid>\n";
-   PrintVTU(os, ref, format, high_order_output, compression_level, bdr);
+   PrintVTU(os, ref, format, high_order_output, compression_level, bdr_elements);
    os << "</Piece>\n"; // need to close the piece open in the PrintVTU method
    os << "</UnstructuredGrid>\n";
    os << "</VTKFile>" << std::endl;

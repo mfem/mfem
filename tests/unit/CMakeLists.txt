@@ -19,17 +19,19 @@ include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 set(UNIT_TESTS_SRCS
   dfem/test_diffusion.cpp
   dfem/test_divergence.cpp
-  dfem/test_mass.cpp
   dfem/test_lvector_interface.cpp
+  dfem/test_mass.cpp
   general/test_array.cpp
   general/test_scan.cpp
   general/test_arrays_by_name.cpp
   general/test_error.cpp
   general/test_mem.cpp
+  general/test_ordering.cpp
   general/test_reduction.cpp
   general/test_text.cpp
   general/test_umpire_mem.cpp
   general/test_zlib.cpp
+  linalg/test_amgfsolver.cpp
   linalg/test_cg_indefinite.cpp
   linalg/test_chebyshev.cpp
   linalg/test_complex_dense_matrix.cpp
@@ -50,6 +52,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_ode.cpp
   linalg/test_ode2.cpp
   linalg/test_operator.cpp
+  linalg/test_particlevector.cpp
   linalg/test_vector.cpp
   mesh/mesh_test_utils.cpp
   mesh/test_exodus_reader.cpp
@@ -239,6 +242,9 @@ function(add_serial_miniapp_test name test_uvm)
     if (MFEM_USE_CUDA)
         set_property(SOURCE ${${NAME}_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
     endif(MFEM_USE_CUDA)
+    if (MFEM_USE_HIP)
+       set_property(SOURCE ${${NAME}_TESTS_SRCS} PROPERTY HIP_SOURCE_PROPERTY_FORMAT TRUE)
+    endif(MFEM_USE_HIP)
 
     mfem_add_executable(${name}_tests_cpu ${${NAME}_TESTS_SRCS})
     target_compile_definitions(${name}_tests_cpu PUBLIC MFEM_${NAME}_DEVICE="cpu")
