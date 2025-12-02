@@ -666,7 +666,9 @@ DenseMatrix PLBound::GetLowerBoundMatrix(int dim)
 {
    if (dim == 1)
    {
-      return lbound;
+      DenseMatrix lbound1D(lbound);
+      lbound1D.Transpose();
+      return lbound1D;
    }
    else if (dim == 2)
    {
@@ -685,7 +687,7 @@ DenseMatrix PLBound::GetLowerBoundMatrix(int dim)
          for (int i = 0; i < nb; i++)
          {
             cx(i) = 1.0;
-            MultVWt(cy, cx, coeff_mat);
+            MultVWt(cx, cy, coeff_mat);
             Vector coeffvec(coeff_mat.GetData(), nb*nb);
             lbound2D.GetColumnReference(j*nb + i, phimin);
             Get2DBounds(coeffvec, phimin, phimax);
@@ -706,7 +708,9 @@ DenseMatrix PLBound::GetUpperBoundMatrix(int dim)
 {
    if (dim == 1)
    {
-      return ubound;
+      DenseMatrix ubound1D(ubound);
+      ubound1D.Transpose();
+      return ubound1D;
    }
    else if (dim == 2)
    {

@@ -111,13 +111,14 @@ public:
    /// Get number of control points used to compute the bounds.
    int GetNControlPoints() const { return ncp; }
 
-   DenseMatrix GetLowerBoundMatrix() { return lbound; }
-   DenseMatrix GetUpperBoundMatrix() { return ubound; }
    DenseMatrix GetLowerBoundMatrix(int dim);
    DenseMatrix GetUpperBoundMatrix(int dim);
+   DenseMatrix GetLowerBoundMatrix() { return GetLowerBoundMatrix(1); }
+   DenseMatrix GetUpperBoundMatrix() { return GetUpperBoundMatrix(1); }
 
    /// Get control points used to compute the bounds.
    Vector GetControlPoints() const { return control_points; }
+   Vector GetNodes() const { return nodes; }
 private:
    /// Compute piecewise linear bounds for the lexicographically-ordered
    /// coefficients in @a coeff in 1D.
