@@ -587,7 +587,7 @@ public:
    /// PLBound object used to compute the bounds. Note: if vdim < 1, we compute
    /// the bounds for each vector dimension.
    PLBound GetBounds(Vector &lower, Vector &upper,
-                     const int ref_factor=1, const int vdim=-1) override;
+                     const int ref_factor=1, const int vdim=-1) const override;
 
    /** Save the local portion of the ParGridFunction. This differs from the
        serial GridFunction::Save in that it takes into account the signs of
