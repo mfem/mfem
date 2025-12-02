@@ -27,6 +27,9 @@ class Particle
 protected:
    Vector coords;
    std::vector<Vector> fields;
+
+   // An Array of length 1 is used for EACH tag, strictly for its
+   // owning/non-owning semantics (see Array<T>::MakeRef)
    std::vector<Array<int>> tags;
 public:
    /** @brief Construct a Particle instance.
