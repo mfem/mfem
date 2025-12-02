@@ -711,10 +711,6 @@ function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
   if (NOT shared_link_flag)
     set(shared_link_flag "-Wl,-rpath,")
   endif()
-  if (MFEM_USE_CUDA AND MFEM_CUDA_COMPILER_IS_NVCC)
-    # nvcc doesn't support rpath normal linking, TODO make this work
-    set(shared_link_flag "")
-  endif()
 
   set(tgt "${Target}")
   unset(CompileOpts)
