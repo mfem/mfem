@@ -1348,7 +1348,15 @@ void DarcyHybridization::ComputeParH(ComputeHMode mode,
       pP.ConvertFrom(c_pfes->Dof_TrueDof_Matrix());
       pH.MakePtAP(dH, pP);
       dH.Clear();
+      pP.Clear();
       H.reset();
+
+      if (diag_policy == DIAG_ONE)
+      {
+         MFEM_ASSERT(pH.Type() == Operator::Hypre_ParCSR,
+                     "Fix of the diagonal is implemented only for HypreParMatrix");
+         pH.As<HypreParMatrix>()->EliminateZeroRows();
+      }
    }
 }
 #endif //MFEM_USE_MPI
