@@ -1127,7 +1127,7 @@ void SlidingElasticityDirichletLFIntegrator::AssembleRHSElementVect(
 
       if (!nt)
       {
-         // Set w to the unit normal vector if not provided
+         // Set nt to the unit normal vector if not provided
          nt_val = nor;
          nt_val /= nt_val.Norml2();
       }
