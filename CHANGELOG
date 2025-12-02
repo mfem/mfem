@@ -39,6 +39,9 @@ Discretization improvements
   provided that neighboring hexahedra are not refined in conflicting directions.
   A new ParMesh method is added to check for such conflicts, before refinement.
 
+- Added support for interior face integration enabling DG methods in
+  ParMixedBilinearForm, ParNonlinearForm and ParBlockNonlinearForm.
+
 Meshing improvements
 --------------------
 - The TMOP kernel hierarchy has been restructured to reduce compilation time.
@@ -121,6 +124,9 @@ API changes
 - API addition: in class Operator, added virtual functions: AbsMult, and
   AbsMultTranspose; in class Vector, added Abs and Pow.
 
+- ParBilinearForm::EliminateEssentialVDofsInRhs() has been depracated in favor
+  of ParallelEliminateEssentialTDofsInRhs().
+
 Miscellaneous
 -------------
 - Added the 'gpu', 'raja-gpu', and 'ceed-gpu' backend aliases/shortcuts which
@@ -147,6 +153,9 @@ Miscellaneous
 - Introduced ParticleVector, a Vector-derived container that stores vector data
   for an arbitrary number of particles contiguously based on user specified
   vector-dimension and ordering (byNODES/byVDIM).
+
+- Added access to the internal parallel matrix in Par(Mixed)BilinearForm and
+  related utility methods for elimination of BCs.
 
 
 Version 4.8, released on Apr 9, 2025
