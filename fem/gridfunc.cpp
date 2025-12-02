@@ -446,6 +446,52 @@ void GridFunction::GetNodalValues(int i, Array<real_t> &nval, int vdim) const
    }
 }
 
+/* HDG */
+double GridFunction::GetValueFacet(FaceElementTransformations &T,
+                                   const IntegrationPoint &ip, int vdim, Vector *tr)
+const
+{
+   if (tr)
+   {
+      T.SetIntPoint(&ip);
+      T.Transform(ip, *tr);
+   }
+
+   const FiniteElement * fe = NULL;
+   Array<int> dofs;
+
+   switch (T.ElementType)
+   {
+      case ElementTransformation::FACE:
+      {
+         fe = fes->GetFaceElement(T.ElementNo);
+         fes->GetFaceDofs(T.ElementNo, dofs);
+         break;
+      }
+      case ElementTransformation::BDR_FACE:
+      {
+         fe = fes->GetBE(T.ElementNo);
+         fes->GetBdrElementDofs(T.ElementNo, dofs);
+         break;
+      }
+   }
+
+   fes->DofsToVDofs(vdim-1, dofs);
+   Vector DofVal(dofs.Size()), LocVec;
+   if (fe->GetMapType() == FiniteElement::VALUE)
+   {
+      fe->CalcShape(ip, DofVal);
+   }
+   else
+   {
+      fe->CalcPhysShape(T, DofVal);
+   }
+   GetSubVector(dofs, LocVec);
+
+   return (DofVal * LocVec);
+
+}
+
 real_t GridFunction::GetValue(int i, const IntegrationPoint &ip, int vdim)
 const
 {
@@ -2261,6 +2307,42 @@ void GridFunction::AccumulateAndCountBdrTangentValues(
    }
 }
 
+/* HDG */
+double GridFunction::ComputeMean(const IntegrationRule *irs[]) const
+{
+   double global_mean = 0.0;
+   double element_mean;
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   Vector vals;
+
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fe = fes->GetFE(i);
+      const IntegrationRule *ir;
+      if (irs)
+      {
+         ir = irs[fe->GetGeomType()];
+      }
+      else
+      {
+         int intorder = 2*fe->GetOrder() + 1; // <----------
+         ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+      }
+      GetValues(i, *ir, vals);
+      T = fes->GetElementTransformation(i);
+      element_mean = 0.0;
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+         element_mean += ip.weight * T->Weight() * vals(j);
+      }
+      global_mean += element_mean;
+   }
+   return global_mean;
+}
+
 void GridFunction::ComputeMeans(AvgType type, Array<int> &zones_per_vdof)
 {
    switch (type)
@@ -2351,6 +2433,133 @@ void GridFunction::ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
          }
    }
 }
+
+/* HDG */
+void GridFunction::ProjectCoefficientSkeleton(Coefficient &coeff)
+{
+   DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
+
+   // check if the GridFunction belongs to a skeletal FEColl
+   MFEM_ASSERT(bool(dynamic_cast<const DG_Interface_FECollection*>
+                    (fes->FEColl())) || bool (dynamic_cast<const H1_Trace_FECollection*>
+                                              (fes->FEColl())),
+               "Incorrect FEColl");
+
+   if (delta_c == NULL)
+   {
+      Mesh *mesh = fes->GetMesh();
+      int nfaces = mesh->GetNumFaces();
+
+      Array<int> vdofs;
+      Vector vals;
+
+      for (int i = 0; i < nfaces; i++)
+      {
+         fes->GetFaceVDofs(i, vdofs);
+         vals.SetSize(vdofs.Size());
+         fes->GetFaceElement(i)->Project(coeff, *mesh->GetFaceElementTransformations(i),
+                                         vals);
+         SetSubVector(vdofs, vals);
+      }
+   }
+   else
+   {
+      real_t integral;
+
+      ProjectDeltaCoefficient(*delta_c, integral);
+
+      (*this) *= (delta_c->Scale() / integral);
+   }
+}
+
+void GridFunction::ProjectCoefficientSkeleton(VectorCoefficient &vcoeff)
+{
+   Mesh *mesh = fes->GetMesh();
+   int nfaces = mesh->GetNumFaces();
+   Array<int> vdofs;
+   Vector vals;
+
+   // check if the GridFunction belongs to a skeletal FEColl
+   MFEM_ASSERT(bool(dynamic_cast<const DG_Interface_FECollection*>
+                    (fes->FEColl())) || bool (dynamic_cast<const H1_Trace_FECollection*>
+                                              (fes->FEColl())),
+               "Incorrect FEColl");
+
+   for (int i = 0; i < nfaces; i++)
+   {
+      fes->GetFaceVDofs(i, vdofs);
+      vals.SetSize(vdofs.Size());
+      fes->GetFaceElement(i)->Project(vcoeff, *mesh->GetFaceElementTransformations(i),
+                                      vals);
+      SetSubVector(vdofs, vals);
+   }
+}
+
+void GridFunction::ProjectCoefficientSkeletonBdr(Coefficient &coeff)
+{
+   DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
+
+   // check if the GridFunction belongs to a skeletal FEColl
+   MFEM_ASSERT(bool(dynamic_cast<const DG_Interface_FECollection*>
+                    (fes->FEColl())) || bool (dynamic_cast<const H1_Trace_FECollection*>
+                                              (fes->FEColl())),
+               "Incorrect FEColl");
+
+   if (delta_c == NULL)
+   {
+      Mesh *mesh = fes->GetMesh();
+      int nbdrfaces = mesh->GetNBE();
+      Array<int> vdofs;
+      Vector vals;
+
+      for (int i = 0; i < nbdrfaces; i++)
+      {
+         int face = mesh->GetBdrElementFaceIndex(i);
+         fes->GetFaceVDofs(face, vdofs);
+         vals.SetSize(vdofs.Size());
+         fes->GetFaceElement(face)->Project(coeff,
+                                            *mesh->GetFaceElementTransformations(face),
+                                            vals);
+         SetSubVector(vdofs, vals);
+      }
+   }
+   else
+   {
+      real_t integral;
+
+      ProjectDeltaCoefficient(*delta_c, integral);
+
+      (*this) *= (delta_c->Scale() / integral);
+   }
+}
+
+void GridFunction::ProjectCoefficientSkeletonBdr(VectorCoefficient &vcoeff)
+{
+   Mesh *mesh = fes->GetMesh();
+   int nbdrfaces = mesh->GetNBE();
+   Array<int> vdofs;
+   Vector vals;
+
+   // check if the GridFunction belongs to a skeletal FEColl
+   MFEM_ASSERT(bool(dynamic_cast<const DG_Interface_FECollection*>
+                    (fes->FEColl())) || bool (dynamic_cast<const H1_Trace_FECollection*>
+                                              (fes->FEColl())),
+               "Incorrect FEColl");
+
+   for (int i = 0; i < nbdrfaces; i++)
+   {
+      int face = mesh->GetBdrElementFaceIndex(i);
+      fes->GetFaceVDofs(face, vdofs);
+      vals.SetSize(vdofs.Size());
+      fes->GetFaceElement(face)->Project(vcoeff,
+                                         *mesh->GetFaceElementTransformations(face),
+                                         vals);
+      SetSubVector(vdofs, vals);
+   }
+
+}
+
+/* HDG ends */
 
 void GridFunction::ProjectCoefficient(Coefficient &coeff)
 {
@@ -3361,6 +3570,69 @@ real_t GridFunction::ComputeW11Error(
          }
          error += fabs(elem_error);
       }
+
+   return error;
+}
+
+/// To compute \| mean(u) - mean(u_h) \|_p
+double GridFunction::ComputeMeanLpError(const double p, Coefficient &exsol,
+                                        const IntegrationRule *irs[]) const
+{
+   double error = 0.0;
+   double aux, local_error, local_size ;
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   Vector vals;
+
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fe = fes->GetFE(i);
+      const IntegrationRule *ir;
+      if (irs)
+      {
+         ir = irs[fe->GetGeomType()];
+      }
+      else
+      {
+         int intorder = 2*fe->GetOrder() + 1; // <----------
+         ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+      }
+      GetValues(i, *ir, vals);
+      T = fes->GetElementTransformation(i);
+      local_error = local_size = 0.0 ;
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+         aux = (vals(j) - exsol.Eval(*T, ip));
+         local_error += ip.weight * T->Weight() * aux;
+         local_size += ip.weight * T->Weight();
+      }
+
+      if (p < numeric_limits<double>::infinity())
+      {
+         aux = pow(fabs(local_error), p) / pow(local_size, p-1.);
+         error += aux;
+      }
+      else
+      {
+         aux = fabs(local_error) / fabs(local_size);
+         error = std::max(error, aux);
+      }
+   }
+
+   if (p < numeric_limits<double>::infinity())
+   {
+      // negative quadrature weights may cause the error to be negative
+      if (error < 0.)
+      {
+         error = -pow(-error, 1./p);
+      }
+      else
+      {
+         error = pow(error, 1./p);
+      }
+   }
 
    return error;
 }

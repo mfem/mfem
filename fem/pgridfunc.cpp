@@ -565,6 +565,50 @@ void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
    }
 }
 
+/* HDG */
+void ParGridFunction::ProjectCoefficientSkeleton(Coefficient &coeff)
+{
+   DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
+
+   if (delta_c == NULL)
+   {
+      GridFunction::ProjectCoefficientSkeleton(coeff);
+   }
+   else
+   {
+      real_t loc_integral, glob_integral;
+
+      ProjectDeltaCoefficient(*delta_c, loc_integral);
+
+      MPI_Allreduce(&loc_integral, &glob_integral, 1, MPI_DOUBLE, MPI_SUM,
+                    pfes->GetComm());
+
+      (*this) *= (delta_c->Scale() / glob_integral);
+   }
+}
+
+/* HDG */
+void ParGridFunction::ProjectCoefficientSkeletonBdr(Coefficient &coeff)
+{
+   DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
+
+   if (delta_c == NULL)
+   {
+      GridFunction::ProjectCoefficientSkeletonBdr(coeff);
+   }
+   else
+   {
+      real_t loc_integral, glob_integral;
+
+      ProjectDeltaCoefficient(*delta_c, loc_integral);
+
+      MPI_Allreduce(&loc_integral, &glob_integral, 1, MPI_DOUBLE, MPI_SUM,
+                    pfes->GetComm());
+
+      (*this) *= (delta_c->Scale() / glob_integral);
+   }
+}
+
 void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff)
 {
    // local maximal element attribute for each dof
@@ -1213,6 +1257,15 @@ void ParGridFunction::SaveAsOne(std::ostream &os) const
    delete [] nedofs;
    delete [] nfdofs;
    delete [] nrdofs;
+}
+
+/* HDG */
+double GlobalMean(double loc_mean, MPI_Comm comm)
+{
+   double glob_mean;
+   MPI_Allreduce(&loc_mean, &glob_mean, 1, MPI_DOUBLE, MPI_SUM, comm);
+
+   return glob_mean;
 }
 
 real_t GlobalLpNorm(const real_t p, real_t loc_norm, MPI_Comm comm)

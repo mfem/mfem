@@ -238,6 +238,8 @@ public:
 };
 
 class ElementTransformation;
+/* HDG */
+class FaceElementTransformations;
 class Coefficient;
 class VectorCoefficient;
 class MatrixCoefficient;
@@ -523,6 +525,15 @@ public:
                                   ElementTransformation &Trans,
                                   DenseMatrix &I) const;
 
+   /* HDG */
+   /** Given a coefficient and a transformation, compute its projection
+       (approximation) in the local finite dimensional skeleton space in terms
+       of the degrees of freedom. */
+   virtual void Project (Coefficient &coeff,
+                         FaceElementTransformations &Trans, Vector &dofs) const;
+   /* HDG */
+   virtual void Project (VectorCoefficient &coeff,
+                         FaceElementTransformations &Trans, Vector &dofs) const;
    /** @brief Given a coefficient and a transformation, compute its projection
        (approximation) in the local finite dimensional space in terms
        of the degrees of freedom. */
@@ -763,6 +774,13 @@ public:
 
    void Project(VectorCoefficient &vc,
                 ElementTransformation &Trans, Vector &dofs) const override;
+
+   /* HDG */
+   virtual void Project (Coefficient &coeff,
+                         FaceElementTransformations &Trans, Vector &dofs) const override;
+   /* HDG */
+   virtual void Project (VectorCoefficient &vc,
+                         FaceElementTransformations &Trans, Vector &dofs) const override;
 
    // (mc.height x mc.width) @ DOFs -> (Dof x mc.width x mc.height) in dofs
    void ProjectMatrixCoefficient(

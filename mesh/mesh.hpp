@@ -1609,6 +1609,10 @@ public:
    void GetElementVertices(int i, Array<int> &v) const
    { elements[i]->GetVertices(v); }
 
+   /// HDG:sets the indices of the vertices of element i.
+   void SetElementVertices(int i, Array<int> &v) const
+   { elements[i]->SetVertices(v); }
+
    /// Returns the indices of the vertices of boundary element i.
    void GetBdrElementVertices(int i, Array<int> &v) const
    { boundary[i]->GetVertices(v); }
@@ -1941,7 +1945,6 @@ public:
                                   IsoparametricTransformation &ElTr2) const;
 
    /// @}
-
    /// @anchor mfem_Mesh_geom_factors
    /// @name Access the coordinate transformation at quadrature points
    ///

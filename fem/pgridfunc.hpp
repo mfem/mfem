@@ -45,6 +45,11 @@ namespace mfem
 ///       such integration rules.
 real_t GlobalLpNorm(const real_t p, real_t loc_norm, MPI_Comm comm);
 
+/* HDG */
+/* Compute the mean of a coefficient in parallel */
+double GlobalMean(double loc_mean, MPI_Comm comm);
+
+
 /// Class for parallel grid function
 class ParGridFunction : public GridFunction
 {
@@ -259,6 +264,12 @@ public:
    using GridFunction::ProjectCoefficient;
    void ProjectCoefficient(Coefficient &coeff) override;
 
+   /* HDG */
+   using GridFunction::ProjectCoefficientSkeleton;
+   void ProjectCoefficientSkeleton(Coefficient &coeff);
+   using GridFunction::ProjectCoefficientSkeletonBdr;
+   void ProjectCoefficientSkeletonBdr(Coefficient &coeff);
+
    using GridFunction::ProjectDiscCoefficient;
    /** @brief Project a discontinuous vector coefficient as a grid function on
        a continuous finite element space. The values in shared dofs are
@@ -433,6 +444,7 @@ public:
    ///       function uses the absolute values of the element-wise integrals.
    ///       This may lead to results which are not entirely consistent with
    ///       such integration rules.
+
    real_t ComputeDGFaceJumpError(Coefficient *exsol,
                                  Coefficient *ell_coeff,
                                  JumpScaling jump_scaling,
@@ -575,6 +587,12 @@ public:
    {
       return GlobalLpNorm(p, GridFunction::ComputeLpError(
                              p, exsol, weight, v_weight, irs), pfes->GetComm());
+   }
+
+   /* HDG */
+   double ComputeMean(const IntegrationRule *irs[] = NULL) const
+   {
+      return GlobalMean(GridFunction::ComputeMean(irs), pfes->GetComm());
    }
 
    void ComputeFlux(BilinearFormIntegrator &blfi,

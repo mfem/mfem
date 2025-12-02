@@ -133,6 +133,20 @@ void FiniteElement::GetTransferMatrix(const FiniteElement &fe,
    MFEM_ABORT("method is not overloaded");
 }
 
+/* HDG */
+void FiniteElement::Project (
+   Coefficient &coeff, FaceElementTransformations &Trans, Vector &dofs) const
+{
+   mfem_error ("FiniteElement::Project (...) (skeleton) is not overloaded !");
+}
+
+/* HDG */
+void FiniteElement::Project (
+   VectorCoefficient &coeff, FaceElementTransformations &Trans, Vector &dofs) const
+{
+   mfem_error ("FiniteElement::Project (...) (skeleton - VectorCoefficient) is not overloaded !");
+}
+
 void FiniteElement::Project(
    Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
 {
@@ -815,6 +829,52 @@ void NodalFiniteElement::GetLocalRestriction(ElementTransformation &Trans,
    }
    R.Threshold(1e-12);
 }
+
+/* HDG */
+void NodalFiniteElement::Project (
+   Coefficient &coeff, FaceElementTransformations &Trans, Vector &dofs) const
+{
+   for (int i = 0; i < dof; i++)
+   {
+      const IntegrationPoint &ip = Nodes.IntPoint(i);
+      // some coefficients expect that Trans.IntPoint is the same
+      // as the second argument of Eval
+      Trans.Face->SetIntPoint(&ip);
+      dofs(i) = coeff.Eval (*Trans.Face, ip);
+      if (map_type == INTEGRAL)
+      {
+         dofs(i) *= Trans.Face->Weight();
+      }
+   }
+}
+
+/* HDG */
+void NodalFiniteElement::Project (
+   VectorCoefficient &vc, FaceElementTransformations &Trans, Vector &dofs) const
+{
+   MFEM_ASSERT(dofs.Size() == vc.GetVDim()*dof, "");
+
+   Vector x (vc.GetVDim());
+
+   for (int i = 0; i < dof; i++)
+   {
+      const IntegrationPoint &ip = Nodes.IntPoint(i);
+      // some coefficients expect that Trans.IntPoint is the same
+      // as the second argument of Eval
+      Trans.Face->SetIntPoint(&ip);
+      vc.Eval (x, *Trans.Face, ip);
+      if (map_type == INTEGRAL)
+      {
+         x *= Trans.Face->Weight();
+      }
+      for (int j = 0; j < x.Size(); j++)
+      {
+         dofs(dof*j+i) = x(j);
+      }
+   }
+}
+
+
 
 void NodalFiniteElement::Project(
    Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const

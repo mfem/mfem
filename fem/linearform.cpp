@@ -105,6 +105,25 @@ void LinearForm::AddInteriorFaceIntegrator(LinearFormIntegrator *lfi)
    interior_face_integs.Append(lfi);
 }
 
+/* HDG */
+void LinearForm::AddSktBoundaryNeumannIntegrator(LinearFormIntegrator * lfi)
+{
+   bdrsklneufi.Append (lfi);
+   bdrsklneufi_marker.Append(NULL); // NULL -> all attributes are active
+}
+void LinearForm::AddSktBoundaryNeumannIntegrator(LinearFormIntegrator * lfi,
+                                                 Array<int> &bdr_attr_marker)
+{
+   bdrsklneufi.Append (lfi);
+   bdrsklneufi_marker.Append(
+      &bdr_attr_marker); // NULL -> all attributes are active
+}
+/* HDG */
+void LinearForm::AddSktInteriorFaceIntegrator(LinearFormIntegrator * lfi)
+{
+   interiorsklfi.Append (lfi);
+}
+
 bool LinearForm::SupportsDevice() const
 {
    // return false for NURBS meshes, so we don’t convert it to non-NURBS
@@ -338,6 +357,77 @@ void LinearForm::Assemble()
          }
       }
    }
+
+   /* HDG */
+   if (bdrsklneufi.Size())
+   {
+      FaceElementTransformations *ftr;
+      const FiniteElement *face_fe;
+      int nbdrfaces = fes->GetNBE();
+      Mesh *mesh = fes -> GetMesh();
+
+      for (int i = 0; i < nbdrfaces; i++)
+      {
+         int face = mesh->GetBdrElementFaceIndex(i);
+         ftr = mesh->GetBdrFaceTransformations(
+                  i); // the transformation of the face
+         //          fes->GetBdrElementVDofs(i, vdofs);   // the degrees of freedom related to the face
+         fes->GetFaceVDofs(face, vdofs);   // the degrees of freedom related to the face
+         face_fe = fes->GetFaceElement(
+                      face);   // point face_fe to the FiniteElement over the edge
+
+         if (ftr != NULL)
+         {
+            for (int k = 0; k < bdrsklneufi.Size(); k++) // Loop over the related interals
+            {
+               int compute = 0;
+               if (bdrsklneufi_marker[k] == NULL)
+               {
+                  compute = 1;
+               }
+               else
+               {
+                  Array<int> &bdr_marker = *bdrsklneufi_marker[k];
+                  const int bdr_attr = mesh->GetBdrAttribute(i);
+                  if (bdr_marker[bdr_attr-1] == 1)
+                  {
+                     compute = 1;
+                  }
+               }
+               if (compute)
+               {
+                  bdrsklneufi[k] -> AssembleRHSElementVect (*face_fe, *ftr, elemvect);
+                  AddElementVector (vdofs, elemvect);
+               }
+            }
+         }
+
+      }
+   }
+
+   /* HDG */
+   if (interiorsklfi.Size())
+   {
+      Mesh *mesh = fes->GetMesh();
+
+      for (int k = 0; k < interiorsklfi.Size(); k++)
+      {
+         for (int i = 0; i < mesh->GetNumFaces(); i++)
+         {
+            FaceElementTransformations *tr = NULL;
+            tr = mesh->GetInteriorFaceTransformations (i);
+            if (tr != NULL)
+            {
+               fes->GetFaceVDofs(i, vdofs);   // the degrees of freedom related to the face
+
+               interiorsklfi[k]->
+               AssembleRHSElementVect(*fes->GetFaceElement(i),
+                                      *tr, elemvect);
+               AddElementVector (vdofs, elemvect);
+            }
+         }
+      }
+   }
 }
 
 void LinearForm::Update()
@@ -428,6 +518,8 @@ LinearForm::~LinearForm()
       { delete boundary_face_integs[k]; }
       for (k=0; k < interior_face_integs.Size(); k++)
       { delete interior_face_integs[k]; }
+      for (k=0; k < bdrsklneufi.Size(); k++)
+      { delete bdrsklneufi[k]; }
    }
 
    delete ext;
