@@ -8,8 +8,8 @@
 //
 // Description:  This example code solves a linear elasticity problem using
 //               Nitsche's method to enforce sliding boundary conditions. In
-//               particular, we consider a linear elastic body that is fixed in
-//               the normal direction on the entire boundary, but is free to
+//               particular, we consider a linear elastic body that is displaced
+//               in the normal direction on the entire boundary, but is free to
 //               slide in the tangential direction. This is achieved by imposing
 //               homogeneous Dirichlet boundary conditions on the normal
 //               component of the displacement, while applying homogeneous
