@@ -17,23 +17,17 @@
 
 using namespace mfem;
 
-/**
- * Utility function to generate IntegerationPoints, based on param ip
- * that are outside the unit interval.  Results are placed in output
- * parameter arr.
- *
- * Note: this is defined in test_calcshape.cpp
- */
-void GetRelatedIntegrationPoints(const IntegrationPoint& ip, int dim,
-                                 Array<IntegrationPoint>& arr);
 
 /**
-
- */
-real_t CalcHessianError(FiniteElement* fe,
-                        IntegrationPoint &ip,
-                        Vector &dx,
-                        real_t eps)
+Compute the error of the taylor series expansion of the shapefunctions, upto
+and including the hessian term:
+  res = shape(xi) + dshape(xi)*eps*dx + 0.5*hessian(xi)*eps*dx*dx 
+        - shape(xi + eps*dx)
+*/
+real_t TaylorSeriesError(FiniteElement* fe,
+                         IntegrationPoint &ip,
+                         Vector &dx,
+                         real_t eps)
 {
    const int dof = fe->GetDof();
    const int dim = fe->GetDim();
@@ -84,20 +78,26 @@ real_t CalcHessianError(FiniteElement* fe,
    return res.Norml2();
 }
 
-void ConvHessian(FiniteElement* fe,
-                 IntegrationPoint &ip,
-                 Vector &dx)
+/**
+Check the convergence of the taylor series, of a given element @a fe at
+a given point @a ip in a given direction @a dx.
+For linear and quadratic elements the taylor series is exact.
+For other elements the convergence should be third order.
+*/
+void CheckTaylorSeries(FiniteElement* fe,
+                       IntegrationPoint &ip,
+                       Vector &dx)
 {
    real_t eps = 0.1;
    real_t red = 2.0;
    int steps = 100;
-   real_t err = CalcHessianError(fe, ip, dx, eps);
+   real_t err = TaylorSeriesError(fe, ip, dx, eps);
    real_t order;
    int i;
    for (i = 0; i < steps; ++i)
    {
       eps /= red;
-      real_t err_new = CalcHessianError(fe, ip, dx, eps);
+      real_t err_new = TaylorSeriesError(fe, ip, dx, eps);
       order = log(err/err_new)/log(red);
       err = err_new;
       if (err < 1e-10) { break; }
@@ -113,6 +113,9 @@ void ConvHessian(FiniteElement* fe,
    }
 }
 
+/**
+Test if a given element @a fe has the correct behaviour of the taylor series.
+*/
 void TestCalcHessian(FiniteElement* fe)
 {
    int res = 3;
