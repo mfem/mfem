@@ -607,7 +607,36 @@ ConduitDataCollection::BlueprintFieldToGridFunction(Mesh *mesh,
    }
 
    // we need basis name to create the proper mfem fec
-   std::string fec_name = n_field["basis"].as_string();
+   std::string fec_name;
+   if(n_field.has_path("basis"))
+   {
+      fec_name = n_field["basis"].as_string();
+   }
+   else
+   {
+      namespace bputils = conduit::blueprint::mesh::utils;
+      // There was no basis so pick an appropriate one for typical Blueprint data.
+      int dim = 2;
+      const auto association = n_field["association"].as_string();
+      const conduit::Node *n_topo =
+         bputils::find_reference_node(n_field, "topology");
+      if(n_topo != nullptr)
+      {
+         bputils::ShapeType shape(*n_topo);
+         dim = shape.dim;
+      }
+      std::stringstream ss;
+      if(association == "element")
+      {
+         ss << "L2_" << dim << "D_P0";
+      }
+      else
+      {
+         ss << "H1_" << dim << "D_P1";
+      }
+      fec_name = ss.str();
+      std::cout << "Picked fec_name: " << fec_name << std::endl;
+   }
 
    GridFunction *res = NULL;
    mfem::FiniteElementCollection *fec = FiniteElementCollection::New(
