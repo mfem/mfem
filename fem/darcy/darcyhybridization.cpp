@@ -793,11 +793,47 @@ void DarcyHybridization::AssembleNCSlaveFaceMatrix(int f,
 
       //reorder the interpolation matrix edge->face
       Io.SetSize(I.Height(), I.Width());
-      for (int j = 0; j < I.Width(); j++)
-         for (int i = 0; i < I.Height(); i++)
+      if (c_fec->GetContType() == FiniteElementCollection::CONTINUOUS)
+      {
+         for (int j = 0; j < I.Width(); j++)
          {
-            Io(ord_s[i], ord_m[j]) = I(i,j);
+            int ord_mj;
+            if (j <= 1)
+            {
+               // vertices
+               ord_mj = (oris_m[0] > 0)?(j):(1-j);
+            }
+            else
+            {
+               // internal DOFs
+               ord_mj = ord_m[j-2]+2;
+            }
+            for (int i = 0; i < I.Height(); i++)
+            {
+               int ord_si;
+               if (i <= 1)
+               {
+                  // vertices
+                  ord_si = (oris_s[0] > 0)?(i):(1-i);
+               }
+               else
+               {
+                  // internal DOFs
+                  ord_si = ord_s[i-2]+2;
+               }
+               Io(ord_si, ord_mj) = I(i,j);
+            }
          }
+      }
+      else
+      {
+         // reorder DOFs
+         for (int j = 0; j < I.Width(); j++)
+            for (int i = 0; i < I.Height(); i++)
+            {
+               Io(ord_s[i], ord_m[j]) = I(i,j);
+            }
+      }
    }
    else
    {
@@ -2733,6 +2769,10 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
 void DarcyHybridization::ProjectSolution(const BlockVector &sol,
                                          Vector &sol_r) const
 {
+   MFEM_VERIFY(c_fes.FEColl()->GetContType() !=
+               FiniteElementCollection::CONTINUOUS,
+               "Continuous trace collections are not supported in projection!");
+
    Mesh *mesh = c_fes.GetMesh();
    const int nfaces = mesh->GetNumFaces();
 
