@@ -137,7 +137,7 @@ void TestCalcHessian(FiniteElement* fe)
          dx[0] = sin(2*j + 0.3);
          if (dim >= 2) { dx[1] = cos(5*j + 0.2); }
          if (dim == 3) { dx[2] = sin(3*j + 0.1); }
-         ConvHessian(fe, pt, dx);
+         CheckTaylorSeries(fe, pt, dx);
       }
    }
 }
