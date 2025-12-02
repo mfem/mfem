@@ -111,6 +111,13 @@ New and updated examples and miniapps
   of a charged particle, subject to Lorentz forces, in electrostatic and/or
   magnetostatic fields as computed by the volta or tesla miniapps.
 
+- Added a new miniapp for optimization-based contact mechanics. This miniapp solves 
+  large-scale frictionless contact problems using a self-contained Interior Point (IP) solver, 
+  with Tribol integration for mortar-based contact constraints. Linear systems arising in the IP 
+  iterations are solved with CG preconditioned by the recently introduced AMGF solver. 
+  Benchmark examples include the two-block, ironing, and beam-sphere problems. 
+  The miniapp is available in `miniapps/contact`
+
 - Introduced the new Incompressible Schrödinger Flow (ISF) miniapp, which
   models inviscid fluid dynamics by solving the linear Schrödinger equation,
   leveraging the hydrodynamical analogy to quantum mechanics.
