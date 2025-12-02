@@ -114,6 +114,7 @@ int main(int argc, char *argv[])
    bool bc_neumann = false;
    bool reduction = false;
    bool hybridization = false;
+   bool trace_h1 = false;
    bool nonlinear = false;
    bool nonlinear_flux = false;
    bool nonlinear_pot = false;
@@ -182,6 +183,8 @@ int main(int argc, char *argv[])
                   "--no-reduction", "Enable reduction.");
    args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
                   "--no-hybridization", "Enable hybridization.");
+   args.AddOption(&trace_h1, "-trh1", "--trace-H1", "-trdg",
+                  "--trace-DG", "Switch between H1 and DG trace spaces (default DG).");
    args.AddOption(&nonlinear, "-nl", "--nonlinear", "-no-nl",
                   "--no-nonlinear", "Enable non-linear regime.");
    args.AddOption(&nonlinear_flux, "-nlu", "--nonlinear-flux", "-no-nlu",
@@ -664,8 +667,16 @@ int main(int argc, char *argv[])
       chrono.Clear();
       chrono.Start();
 
-      trace_coll = new DG_Interface_FECollection(order, dim);
-      trace_space = new FiniteElementSpace(mesh, trace_coll);
+      if (trace_h1)
+      {
+         trace_coll = new H1_Trace_FECollection(order+1, dim);
+         trace_space = new FiniteElementSpace(mesh, trace_coll);
+      }
+      else
+      {
+         trace_coll = new DG_Interface_FECollection(order, dim);
+         trace_space = new FiniteElementSpace(mesh, trace_coll);
+      }
       darcy->EnableHybridization(trace_space,
                                  new NormalTraceJumpIntegrator(),
                                  ess_flux_tdofs_list);

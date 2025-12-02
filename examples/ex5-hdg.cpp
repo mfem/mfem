@@ -64,8 +64,9 @@ int main(int argc, char *argv[])
    bool dg = false;
    bool brt = false;
    real_t td = 0.5;
-   bool hybridization = false;
    bool reduction = false;
+   bool hybridization = false;
+   bool trace_h1 = false;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = 1;
@@ -85,10 +86,12 @@ int main(int argc, char *argv[])
                   "--no-broken-RT", "Enable broken RT elements for fluxes.");
    args.AddOption(&td, "-td", "--stab_diff",
                   "Diffusion stabilization factor (1/2=default)");
-   args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
-                  "--no-hybridization", "Enable hybridization.");
    args.AddOption(&reduction, "-rd", "--reduction", "-no-rd",
                   "--no-reduction", "Enable reduction of DG flux.");
+   args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
+                  "--no-hybridization", "Enable hybridization.");
+   args.AddOption(&trace_h1, "-trh1", "--trace-H1", "-trdg",
+                  "--trace-DG", "Switch between H1 and DG trace spaces (default DG).");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -274,8 +277,16 @@ int main(int argc, char *argv[])
 
    if (hybridization)
    {
-      trace_coll = new DG_Interface_FECollection(order, dim);
-      trace_space = new FiniteElementSpace(mesh, trace_coll);
+      if (trace_h1)
+      {
+         trace_coll = new H1_Trace_FECollection(order+1, dim);
+         trace_space = new FiniteElementSpace(mesh, trace_coll);
+      }
+      else
+      {
+         trace_coll = new DG_Interface_FECollection(order, dim);
+         trace_space = new FiniteElementSpace(mesh, trace_coll);
+      }
       darcy->EnableHybridization(trace_space,
                                  new NormalTraceJumpIntegrator(),
                                  ess_flux_tdofs_list);
