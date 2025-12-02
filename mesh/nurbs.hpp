@@ -61,7 +61,7 @@ public:
 
    /** @brief Create a KnotVector with undefined knots (initialized to -1) of
        order @a order and number of control points @a NCP. */
-   KnotVector(int order, int NCP);
+   KnotVector(int order, int NCP = -1);
 
    /** @brief Create a KnotVector by passing in a degree, a Vector of interval
        lengths of length n, and a list of continuity of length n + 1.
