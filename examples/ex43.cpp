@@ -50,7 +50,17 @@
 //               characteristic element size on the boundary. The function
 //               space V is a vector H1-conforming finite element space.
 //
-//               We recommend viewing Example 2 before viewing this example.
+//               This example can be viewed as an alternative to Example 28.
+//               Whereas Example 28 imposes sliding boundary conditions using
+//               the general-purpose constrained system solvers found in
+//               mfem/linalg/constraints.hpp, this example employs Nitsche's
+//               method to weakly enforce the same condition by modifying the
+//               underlying variational formulation. Unlike Example 28, the
+//               approach here is specialized to isotropic linear elasticity,
+//               but it has the advantage of producing a well-conditioned SPD
+//               stiffness matrix that can be readily preconditioned with
+//               standard AMG. We recommend reviewing Example 2 before working
+//               through this example.
 
 #include "mfem.hpp"
 #include <fstream>
