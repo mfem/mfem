@@ -70,6 +70,7 @@ int main(int argc, char *argv[])
    int ref_levels = -1;
    int order = 1;
    bool dg = false;
+   bool brt = false;
    real_t td = 0.5;
    bool hybridization = false;
    bool reduction = false;
@@ -91,6 +92,8 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&dg, "-dg", "--discontinuous", "-no-dg",
                   "--no-discontinuous", "Enable DG elements for fluxes.");
+   args.AddOption(&brt, "-brt", "--broken-RT", "-no-brt",
+                  "--no-broken-RT", "Enable broken RT elements for fluxes.");
    args.AddOption(&td, "-td", "--stab_diff",
                   "Diffusion stabilization factor (1/2=default)");
    args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
@@ -178,13 +181,18 @@ int main(int argc, char *argv[])
 
    // 7. Define a finite element space on the mesh. Here we use the
    //    Raviart-Thomas finite elements of the specified order.
-   FiniteElementCollection *R_coll;
+   FiniteElementCollection *R_coll, *R_coll_dg = NULL;
    if (dg)
    {
       // In the case of LDG formulation, we chose a closed basis as it
       // is customary for HDG to match trace DOFs, but an open basis can
       // be used instead.
       R_coll = new L2_FECollection(order, dim, BasisType::GaussLobatto);
+   }
+   else if (brt)
+   {
+      R_coll = new BrokenRT_FECollection(order, dim);
+      R_coll_dg = new L2_FECollection(order+1, dim);
    }
    else
    {
@@ -194,6 +202,8 @@ int main(int argc, char *argv[])
 
    ParFiniteElementSpace *R_space = new ParFiniteElementSpace(pmesh, R_coll,
                                                               (dg)?(dim):(1));
+   ParFiniteElementSpace *R_space_dg = (R_coll_dg)?(new ParFiniteElementSpace(
+                                                       pmesh, R_coll_dg, dim)):(NULL);
    ParFiniteElementSpace *W_space = new ParFiniteElementSpace(pmesh, W_coll);
 
    ParDarcyForm *darcy = new ParDarcyForm(R_space, W_space);
@@ -246,7 +256,14 @@ int main(int argc, char *argv[])
    else
    {
       fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
-      fform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(fnatcoeff));
+      if (brt)
+      {
+         fform->AddBdrFaceIntegrator(new VectorFEBoundaryFluxLFIntegrator(fnatcoeff));
+      }
+      else
+      {
+         fform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(fnatcoeff));
+      }
    }
    fform->Assemble();
    fform->SyncAliasMemory(rhs);
@@ -281,6 +298,11 @@ int main(int argc, char *argv[])
    {
       mVarf->AddDomainIntegrator(new VectorFEMassIntegrator(kcoeff));
       bVarf->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
+      if (brt)
+      {
+         bVarf->AddInteriorFaceIntegrator(new TransposeIntegrator(
+                                             new DGNormalTraceIntegrator(-1.)));
+      }
    }
 
    //set hybridization / assembly level
@@ -301,7 +323,7 @@ int main(int argc, char *argv[])
                                  new NormalTraceJumpIntegrator(),
                                  ess_flux_tdofs_list);
    }
-   else if (reduction && dg)
+   else if (reduction && (dg || brt))
    {
       darcy->EnableFluxReduction();
    }
@@ -327,7 +349,7 @@ int main(int argc, char *argv[])
    real_t rtol(1.e-6);
    real_t atol(1.e-10);
 
-   if (hybridization || (reduction && dg))
+   if (hybridization || (reduction && (dg || brt)))
    {
       // 12. Construct the preconditioner
       HypreBoomerAMG prec;
@@ -477,7 +499,17 @@ int main(int argc, char *argv[])
    //     approximation X. This is the local solution on each processor. Compute
    //     L2 error norms.
    ParGridFunction u, p;
-   u.MakeRef(R_space, x.GetBlock(0), 0);
+   if (R_space_dg)
+   {
+      ParGridFunction u_broken(R_space, x.GetBlock(0), 0);
+      VectorGridFunctionCoefficient coeff(&u_broken);
+      u.SetSpace(R_space_dg);
+      u.ProjectCoefficient(coeff);
+   }
+   else
+   {
+      u.MakeRef(R_space, x.GetBlock(0), 0);
+   }
    p.MakeRef(W_space, x.GetBlock(1), 0);
 
    int order_quad = max(2, 2*order+1);
@@ -588,9 +620,11 @@ int main(int argc, char *argv[])
    delete darcy;
    delete W_space;
    delete R_space;
+   delete R_space_dg;
    delete trace_space;
    delete W_coll;
    delete R_coll;
+   delete R_coll_dg;
    delete trace_coll;
    delete pmesh;
 
