@@ -115,6 +115,9 @@ New and updated examples and miniapps
   models inviscid fluid dynamics by solving the linear Schrödinger equation,
   leveraging the hydrodynamical analogy to quantum mechanics.
 
+- Added the miniapps/fluids directory and moved the Navier and Incompressible
+  Schrödinger Flow miniapps into it.
+
 - Updated the mtop miniapp with a GPU enabled forward and adjoint solver for
   isotropic linear elasticity.
 
