@@ -142,13 +142,14 @@ The MFEM source code has the following structure:
   │   ├── dfem
   │   ├── dpg
   │   ├── electromagnetics
+  │   ├── fluids/navier
+  │   ├── fluids/schrodinger-flow
   │   ├── gslib
   │   ├── hdiv-linear-solver
   │   ├── hooke
   │   ├── meshing
   │   ├── mtop
   │   ├── multidomain
-  │   ├── navier
   │   ├── nurbs
   │   ├── parelag
   │   ├── performance
