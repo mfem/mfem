@@ -156,8 +156,8 @@ public:
  *  byVDIM).
  *
  *  @par Tags:
- *  Tags represent an integer to be associated with each particle. For a given
- *  tag, all particle integers are stored in a single Array<int>.
+ *  Tags represent integers associated with each particle. For a given tag,
+ *  all particle integers are stored in a single Array<int>.
  *
  *  @par Names:
  *  Each field and tag can optionally be given a name (string) to be used when
@@ -253,6 +253,17 @@ protected:
    /// \endcond
 
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
+
+   /** @brief  Update global ID of a particle.
+    *
+    *  @details This method updates the global ID of the particle at given
+    *  local index after Redistribute().
+    *
+    *  @warning This method must be used very carefully as it updates global
+    *  ID of a particle.
+    */
+   void UpdateID(int local_idx, IDType new_global_id)
+   { ids[local_idx] = new_global_id; }
 
    /** @brief Create a Particle object with the same spatial dimension,
     *  number of fields and field vdims, and number of tags as this ParticleSet.
@@ -421,10 +432,6 @@ public:
 
    /// Get the IDs of the active particles owned by this ParticleSet.
    const Array<IDType>& GetIDs() const { return ids; }
-
-   /// Update global ID of a particle.
-   void UpdateID(int local_idx, IDType new_global_id)
-   { ids[local_idx] = new_global_id; }
 
    /** @brief Add a field to the ParticleSet.
     *
