@@ -23,7 +23,6 @@
 #pragma once
 
 #include "mfem.hpp"
-#include "general/forall.hpp"
 
 using namespace mfem;
 
@@ -837,6 +836,7 @@ struct VisualizerBase : private Options
    const int ndofs;
    const Options::VisData vis_data;
    const TIncompressibleFlow &isf;
+   const TSchrodingerSolver &solver;
 
 #ifndef MFEM_USE_HDF5
    ParaViewDataCollection dc;
@@ -855,7 +855,10 @@ struct VisualizerBase : private Options
       ndofs(solver.h1_fes.GetNDofs()),
       vis_data(static_cast<Options::VisData>(config.vis_data)),
       isf(isf),
-      dc("ISF", &mesh)
+      solver(solver),
+      dc("ISF", &mesh) { Visualize(); }
+
+   void Visualize()
    {
       vis_gf = 0.0;
 
