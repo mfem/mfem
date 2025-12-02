@@ -189,7 +189,7 @@ int main(int argc, char *argv[])
 
    LinearForm *b = new LinearForm(fespace);
    b->AddBdrFaceIntegrator(
-      new SlidingElasticityDirichletLFIntegrator(
+      new SlidingElasticityLFIntegrator(
          g, lambda_c, mu_c, kappa), ess_bdr);
    b->Assemble();
 

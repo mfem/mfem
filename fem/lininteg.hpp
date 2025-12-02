@@ -658,7 +658,7 @@ public:
  * match the parameters with the same names used in the bilinear form
  * integrator, SlidingElasticityIntegrator.
  */
-class SlidingElasticityDirichletLFIntegrator : public LinearFormIntegrator
+class SlidingElasticityLFIntegrator : public LinearFormIntegrator
 {
 protected:
    Coefficient *g;
@@ -679,12 +679,12 @@ protected:
 #endif
 
 public:
-   SlidingElasticityDirichletLFIntegrator(Coefficient &g_,
+   SlidingElasticityLFIntegrator(Coefficient &g_,
                                           Coefficient &lambda_, Coefficient &mu_,
                                           real_t kappa_)
       : g(&g_), nt(NULL), lambda(&lambda_), mu(&mu_), alpha(-1.0), kappa(kappa_) {}
 
-   SlidingElasticityDirichletLFIntegrator(Coefficient &g_, VectorCoefficient &nt_,
+   SlidingElasticityLFIntegrator(Coefficient &g_, VectorCoefficient &nt_,
                                           Coefficient &lambda_, Coefficient &mu_,
                                           real_t alpha_, real_t kappa_)
       : g(&g_), nt(&nt_), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) {}

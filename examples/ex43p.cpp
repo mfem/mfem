@@ -222,7 +222,7 @@ int main(int argc, char *argv[])
 
    ParLinearForm *b = new ParLinearForm(fespace);
    b->AddBdrFaceIntegrator(
-      new SlidingElasticityDirichletLFIntegrator(
+      new SlidingElasticityLFIntegrator(
          g, lambda_c, mu_c, kappa), ess_bdr);
    b->Assemble();
 
