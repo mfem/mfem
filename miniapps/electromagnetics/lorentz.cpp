@@ -166,11 +166,13 @@ void display_banner(ostream & os);
 // Returns pointers to the two new objects.
 int ReadGridFunction(std::string coll_name, std::string field_name,
                      int pad_digits_cycle, int pad_digits_rank, int cycle,
-                     std::unique_ptr<VisItDataCollection> &dc, ParGridFunction *&gf);
+                     std::unique_ptr<VisItDataCollection> &dc,
+                     ParGridFunction *&gf);
 
 // Initialize particles from user input.
 void InitializeChargedParticles(ParticleSet &particles, const Vector &pos_min,
-                                const Vector &pos_max, const Vector &x_init, const Vector &p_init, real_t m,
+                                const Vector &pos_max, const Vector &x_init,
+                                const Vector &p_init, real_t m,
                                 real_t q);
 
 int main(int argc, char *argv[])
@@ -251,20 +253,24 @@ int main(int argc, char *argv[])
    std::unique_ptr<VisItDataCollection> E_dc, B_dc;
    ParGridFunction *E_gf = nullptr, *B_gf = nullptr;
 
+   // Read E field if provided
    if (ctx.E.coll_name != "")
    {
-      if (ReadGridFunction(ctx.E.coll_name, ctx.E.field_name, ctx.E.pad_digits_cycle,
-                           ctx.E.pad_digits_rank, ctx.E.cycle, E_dc, E_gf))
+      if (ReadGridFunction(ctx.E.coll_name, ctx.E.field_name,
+                           ctx.E.pad_digits_cycle, ctx.E.pad_digits_rank,
+                           ctx.E.cycle, E_dc, E_gf))
       {
          mfem::err << "Error loading E field" << endl;
          return 1;
       }
    }
 
+   // Read B field if provided
    if (ctx.B.coll_name != "")
    {
-      if (ReadGridFunction(ctx.B.coll_name, ctx.B.field_name, ctx.B.pad_digits_cycle,
-                           ctx.B.pad_digits_rank, ctx.B.cycle, B_dc, B_gf))
+      if (ReadGridFunction(ctx.B.coll_name, ctx.B.field_name,
+                           ctx.B.pad_digits_cycle, ctx.B.pad_digits_rank,
+                           ctx.B.cycle, B_dc, B_gf))
       {
          mfem::err << "Error loading B field" << endl;
          return 1;
@@ -274,7 +280,7 @@ int main(int argc, char *argv[])
    Ordering::Type ordering_type = ctx.ordering == 0 ?
                                   Ordering::byNODES : Ordering::byVDIM;
 
-   // Initialize Boris
+   // Initialize particles
    int num_particles = ctx.npt/size + (rank < (ctx.npt % size) ? 1 : 0);
    Boris boris(MPI_COMM_WORLD, E_gf, B_gf, num_particles, ordering_type);
    InitializeChargedParticles(boris.GetParticles(), ctx.x_min, ctx.x_max,
@@ -291,8 +297,10 @@ int main(int argc, char *argv[])
    if (ctx.visualization)
    {
       traj_vis = std::make_unique<ParticleTrajectories>(boris.GetParticles(),
-                                                        ctx.vis_tail_size, vishost, ctx.visport, "Particle Trajectories", 0, 0, 600,
-                                                        600, "ba");
+                                                        ctx.vis_tail_size,
+                                                        vishost, ctx.visport,
+                                                        "Trajectories",
+                                                        0, 0, 600, 600, "ba");
    }
 
    for (int step = 1; step <= ctx.nt; step++)
@@ -326,10 +334,11 @@ int main(int argc, char *argv[])
          {
             Vector rank_vector(boris.GetParticles().GetNParticles());
             rank_vector = Mpi::WorldRank();
-            VisualizeParticles(pre_redist_sock, vishost,
-                              ctx.visport, boris.GetParticles(),
-                               rank_vector, 1e-2, "Particle Owning Rank (Pre-Redistribute)", 600, 0, 400, 400,
-                               "bca");
+            VisualizeParticles(pre_redist_sock, vishost, ctx.visport,
+                               boris.GetParticles(),
+                               rank_vector, 1e-2,
+                               "Particle Owning Rank (Pre-Redistribute)",
+                               600, 0, 400, 400, "bca");
          }
 
          // Redistribute particles - prior to redistribution, removed any lost
@@ -341,9 +350,11 @@ int main(int argc, char *argv[])
          {
             Vector rank_vector(boris.GetParticles().GetNParticles());
             rank_vector = Mpi::WorldRank();
-            VisualizeParticles(post_redist_sock, vishost, ctx.visport, boris.GetParticles(),
-                               rank_vector, 1e-2, "Particle Owning Rank (Post-Redistribute)", 1000, 0, 400, 400,
-                               "bca");
+            VisualizeParticles(post_redist_sock, vishost, ctx.visport,
+                               boris.GetParticles(),
+                               rank_vector, 1e-2,
+                               "Particle Owning Rank (Post-Redistribute)",
+                               1000, 0, 400, 400, "bca");
          }
       }
    }
