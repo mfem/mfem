@@ -680,13 +680,13 @@ protected:
 
 public:
    SlidingElasticityLFIntegrator(Coefficient &g_,
-                                          Coefficient &lambda_, Coefficient &mu_,
-                                          real_t kappa_)
+                                 Coefficient &lambda_, Coefficient &mu_,
+                                 real_t kappa_)
       : g(&g_), nt(NULL), lambda(&lambda_), mu(&mu_), alpha(-1.0), kappa(kappa_) {}
 
    SlidingElasticityLFIntegrator(Coefficient &g_, VectorCoefficient &nt_,
-                                          Coefficient &lambda_, Coefficient &mu_,
-                                          real_t alpha_, real_t kappa_)
+                                 Coefficient &lambda_, Coefficient &mu_,
+                                 real_t alpha_, real_t kappa_)
       : g(&g_), nt(&nt_), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) {}
 
    void AssembleRHSElementVect(const FiniteElement &el,
