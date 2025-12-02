@@ -59,8 +59,11 @@ public:
        integers are read, for order and number of control points. */
    KnotVector(std::istream &input);
 
-   /** @brief Create a KnotVector with undefined knots (initialized to -1) of
-       order @a order and number of control points @a NCP. */
+   /** @brief Create a KnotVector with order @a order.
+       When @a NCP is not provided  the number of control points is set to
+       @a order + 1, and the knots are set to 0 and 1 respectivily.
+       When @a NCP is given number of control points is @a NCP and
+       the knots are initialized to -1) */
    KnotVector(int order, int NCP = -1);
 
    /** @brief Create a KnotVector by passing in a degree, a Vector of interval
