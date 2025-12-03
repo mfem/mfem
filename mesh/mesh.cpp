@@ -6767,7 +6767,6 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
       initKV = true;
 
       // Use ref_edge0 to set other edges in this dimension.
-      const int pe0 = pe[ref_edge0];
       edgeSet[pe[ref_edge0]] = true;
       for (auto i : dir_edges[thisDim])
       {

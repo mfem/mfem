@@ -2278,7 +2278,7 @@ void NURBSExtension::Load(std::istream &input, bool spacing)
 {
    own_topo = true;
 
-   MFEM_ASSERT(CheckPatches(),
+   MFEM_VERIFY(CheckPatches(),
                "NURBSExtension::CheckPatch"
                "\n  Inconsistent edge-to-knotvector mapping!");
 
@@ -2677,8 +2677,7 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
    patchTopo->GetEdgeToUniqueKnotvector(edge_to_ukv, ukv_to_rpkv);
    own_topo = true;
 
-   // CheckPatches(); // This is checking the edge_to_ukv mapping
-   MFEM_ASSERT(CheckPatches(),
+   MFEM_VERIFY(CheckPatches(),
                "NURBSExtension::CheckPatch"
                "\n  Inconsistent edge-to-knotvector mapping!");
 
