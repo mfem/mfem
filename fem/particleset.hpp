@@ -40,16 +40,16 @@ namespace mfem
  */
 // For clarity, we will use the particles below to illustrate the data layout
 // for \ref coords, \ref fields, and \ref tags. In each case, the name of the
-// field and tag is enclosed in '...' for clarity.  \n
-// Particle 0: coords = (x0, y0),  \n
-//             fields = {'mass'=m0, 'vel' = (vx0, vy0)},  \n
-//               tags = {'type'=t0, 'color'=color0}  \n
-// Particle 1: coords = (x1, y1),  \n
-//             fields = {'mass'=m1, 'vel' = (vx1, vy1)},  \n
-//               tags = {'type'=t1, 'color'=color1}  \n
-// Particle 2: coords = (x2, y2),  \n
-//             fields = {'mass'=m2, 'vel' = (vx2, vy2)},  \n
-//               tags = {'type'=t2, 'color'=color2} \n
+// field and tag is enclosed in '...' for clarity.
+// Particle 0: coords = (x0, y0),
+//             fields = {'mass'=m0, 'vel' = (vx0, vy0)},
+//               tags = {'type'=t0, 'color'=color0}
+// Particle 1: coords = (x1, y1),
+//             fields = {'mass'=m1, 'vel' = (vx1, vy1)},
+//               tags = {'type'=t1, 'color'=color1}
+// Particle 2: coords = (x2, y2),
+//             fields = {'mass'=m2, 'vel' = (vx2, vy2)},
+//               tags = {'type'=t2, 'color'=color2}
 class Particle
 {
 protected:
@@ -214,15 +214,15 @@ public:
 // \ref fields, \ref tags, \ref field_names, and \ref tag_names.
 // In each case, the name of the field and tag is enclosed in '...' for clarity.
 // The ordering of data in ParticleVector in \ref fields is assumed to be
-// byVDIM for this example. \n
-// Particle0: id = id0, coords = (x0, y0), \n
-//             fields = {'mass'=m0, 'vel' = (vx0, vy0)}, \n
-//               tags = {'type'=t0, 'color'=c0} \n
-// Particle1: id = id1, coords = (x1, y1), \n
-//             fields = {'mass'=m1, 'vel' = (vx1, vy1)}, \n
-//               tags = {'type'=t1, 'color'=c1} \n
-// Particle2: id = id2, coords = (x2, y2), \n
-//             fields = {'mass'=m2, 'vel' = (vx2, vy2)}, \n
+// byVDIM for this example.
+// Particle0: id = id0, coords = (x0, y0),
+//             fields = {'mass'=m0, 'vel' = (vx0, vy0)},
+//               tags = {'type'=t0, 'color'=c0}
+// Particle1: id = id1, coords = (x1, y1),
+//             fields = {'mass'=m1, 'vel' = (vx1, vy1)},
+//               tags = {'type'=t1, 'color'=c1}
+// Particle2: id = id2, coords = (x2, y2),
+//             fields = {'mass'=m2, 'vel' = (vx2, vy2)},
 //               tags = {'type'=t2, 'color'=c2}
 class ParticleSet
 {
