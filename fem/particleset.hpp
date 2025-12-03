@@ -630,7 +630,7 @@ public:
     *  @see IsParticleRefValid for when this method can be used.
     *
     *  @warning If particles are added, removed, or redistributed after
-    *  invoking this, the returned Particle member references will be
+    *  invoking this, the returned Particle member references may be
     *  invalidated.
     */
    Particle GetParticleRef(int i);
