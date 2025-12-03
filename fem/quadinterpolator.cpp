@@ -225,12 +225,15 @@ static void Eval2D(const int NE,
               Reshape(q_der.Write(), NQ, VDIM, 2, NE):
               Reshape(q_der.Write(), VDIM, 2, NQ, NE);
    auto det = Reshape(q_det.Write(), NQ, NE);
-   mfem::forall_2D(NE, NMAX, 1, [=,
+   int q_layout_int = static_cast<int>(q_layout);
+   mfem::forall_2D(NE, NMAX, 1,  [=,
       eval_flags = proteus::jit_variable(eval_flags),
-      q_layout = proteus::jit_variable(q_layout),
+      // todo(Bowen) enum tyoe is unsupported, fix this
+      q_layout_int = proteus::jit_variable(q_layout_int),
       NQ = proteus::jit_variable(NQ),
-      ND = proteus::jit_variable(ND)] MFEM_HOST_DEVICE (int e)
+      ND = proteus::jit_variable(ND)] __attribute__((always_inline)) MFEM_HOST_DEVICE (int e)
    {
+      auto q_layout_enum = static_cast<QVectorLayout>(q_layout_int);
       // const int ND = T_ND ? T_ND : nd;
       // const int NQ = T_NQ ? T_NQ : nq;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
@@ -259,8 +262,8 @@ static void Eval2D(const int NE,
             }
             for (int c = 0; c < VDIM; c++)
             {
-               if (q_layout == QVectorLayout::byVDIM)  { val(c,q,e) = ed[c]; }
-               if (q_layout == QVectorLayout::byNODES) { val(q,c,e) = ed[c]; }
+               if (q_layout_enum == QVectorLayout::byVDIM)  { val(c,q,e) = ed[c]; }
+               if (q_layout_enum == QVectorLayout::byNODES) { val(q,c,e) = ed[c]; }
             }
          }
          if ((eval_flags & QI::DERIVATIVES) ||
@@ -285,12 +288,12 @@ static void Eval2D(const int NE,
             {
                for (int c = 0; c < VDIM; c++)
                {
-                  if (q_layout == QVectorLayout::byVDIM)
+                  if (q_layout_enum == QVectorLayout::byVDIM)
                   {
                      der(c,0,q,e) = D[c+VDIM*0];
                      der(c,1,q,e) = D[c+VDIM*1];
                   }
-                  if (q_layout == QVectorLayout::byNODES)
+                  if (q_layout_enum == QVectorLayout::byNODES)
                   {
                      der(q,c,0,e) = D[c+VDIM*0];
                      der(q,c,1,e) = D[c+VDIM*1];
@@ -311,12 +314,12 @@ static void Eval2D(const int NE,
                   const real_t v = D[c+VDIM*1];
                   const real_t JiU = Jinv[0]*u + Jinv[1]*v;
                   const real_t JiV = Jinv[2]*u + Jinv[3]*v;
-                  if (q_layout == QVectorLayout::byVDIM)
+                  if (q_layout_enum == QVectorLayout::byVDIM)
                   {
                      der(c,0,q,e) = JiU;
                      der(c,1,q,e) = JiV;
                   }
-                  if (q_layout == QVectorLayout::byNODES)
+                  if (q_layout_enum == QVectorLayout::byNODES)
                   {
                      der(q,c,0,e) = JiU;
                      der(q,c,1,e) = JiV;
@@ -383,13 +386,15 @@ static void Eval3D(const int NE,
               Reshape(q_der.Write(), NQ, VDIM, 3, NE):
               Reshape(q_der.Write(), VDIM, 3, NQ, NE);
    auto det = Reshape(q_det.Write(), NQ, NE);
+   int q_layout_int = static_cast<int>(q_layout);
    mfem::forall_2D(NE, NMAX, 1, [=,
       eval_flags = proteus::jit_variable(eval_flags),
-      q_layout = proteus::jit_variable(q_layout),
+      q_layout_int = proteus::jit_variable(q_layout_int),
       NQ = proteus::jit_variable(NQ),
       ND = proteus::jit_variable(ND)]
-   MFEM_HOST_DEVICE (int e)
+   MFEM_HOST_DEVICE __attribute__((always_inline)) (int e)
    {
+      auto q_layout_enum = static_cast<QVectorLayout>(q_layout_int);
       // const int ND = T_ND ? T_ND : nd;
       // const int NQ = T_NQ ? T_NQ : nq;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
@@ -418,8 +423,8 @@ static void Eval3D(const int NE,
             }
             for (int c = 0; c < VDIM; c++)
             {
-               if (q_layout == QVectorLayout::byVDIM)  { val(c,q,e) = ed[c]; }
-               if (q_layout == QVectorLayout::byNODES) { val(q,c,e) = ed[c]; }
+               if (q_layout_enum == QVectorLayout::byVDIM)  { val(c,q,e) = ed[c]; }
+               if (q_layout_enum == QVectorLayout::byNODES) { val(q,c,e) = ed[c]; }
             }
          }
          if ((eval_flags & QI::DERIVATIVES) ||
@@ -446,13 +451,13 @@ static void Eval3D(const int NE,
             {
                for (int c = 0; c < VDIM; c++)
                {
-                  if (q_layout == QVectorLayout::byVDIM)
+                  if (q_layout_enum == QVectorLayout::byVDIM)
                   {
                      der(c,0,q,e) = D[c+VDIM*0];
                      der(c,1,q,e) = D[c+VDIM*1];
                      der(c,2,q,e) = D[c+VDIM*2];
                   }
-                  if (q_layout == QVectorLayout::byNODES)
+                  if (q_layout_enum == QVectorLayout::byNODES)
                   {
                      der(q,c,0,e) = D[c+VDIM*0];
                      der(q,c,1,e) = D[c+VDIM*1];
@@ -479,13 +484,13 @@ static void Eval3D(const int NE,
                   const real_t JiU = Jinv[0]*u + Jinv[1]*v + Jinv[2]*w;
                   const real_t JiV = Jinv[3]*u + Jinv[4]*v + Jinv[5]*w;
                   const real_t JiW = Jinv[6]*u + Jinv[7]*v + Jinv[8]*w;
-                  if (q_layout == QVectorLayout::byVDIM)
+                  if (q_layout_enum == QVectorLayout::byVDIM)
                   {
                      der(c,0,q,e) = JiU;
                      der(c,1,q,e) = JiV;
                      der(c,2,q,e) = JiW;
                   }
-                  if (q_layout == QVectorLayout::byNODES)
+                  if (q_layout_enum == QVectorLayout::byNODES)
                   {
                      der(q,c,0,e) = JiU;
                      der(q,c,1,e) = JiV;

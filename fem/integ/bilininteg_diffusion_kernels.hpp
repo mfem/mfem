@@ -108,7 +108,9 @@ inline void PADiffusionDiagonal2D(const int NE,
    // store necessary entries
    auto D = Reshape(d.Read(), Q1D*Q1D, symmetric ? 3 : 4, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
-   mfem::forall(NE, [=, symmetric = proteus::jit_variable(symmetric)] MFEM_HOST_DEVICE (int e)
+   mfem::forall(NE, [=
+      , symmetric = proteus::jit_variable(symmetric)
+      ] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -191,11 +193,15 @@ inline void SmemPADiffusionDiagonal2D(const int NE,
    auto g = Reshape(g_.Read(), Q1D, D1D);
    auto D = Reshape(d_.Read(), Q1D*Q1D, symmetric ? 3 : 4, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=, symmetric = proteus::jit_variable(symmetric)] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=
+      , symmetric = proteus::jit_variable(symmetric)
+      , D1D = proteus::jit_variable(D1D)
+     , Q1D = proteus::jit_variable(Q1D)
+      ] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
+//       const int D1D = T_D1D ? T_D1D : d1d;
+//       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       MFEM_SHARED real_t BG[2][MQ1*MD1];
@@ -285,10 +291,14 @@ inline void PADiffusionDiagonal3D(const int NE,
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto Q = Reshape(d.Read(), Q1D*Q1D*Q1D, symmetric ? 6 : 9, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
-   mfem::forall(NE, [=, symmetric = proteus::jit_variable(symmetric)] MFEM_HOST_DEVICE (int e)
+   mfem::forall(NE, [=
+      , symmetric = proteus::jit_variable(symmetric)
+      , D1D = proteus::jit_variable(D1D)
+     , Q1D = proteus::jit_variable(Q1D)
+      ] MFEM_HOST_DEVICE (int e)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
+//       const int D1D = T_D1D ? T_D1D : d1d;
+//       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       real_t QQD[MQ1][MQ1][MD1];
@@ -386,11 +396,15 @@ inline void SmemPADiffusionDiagonal3D(const int NE,
    auto g = Reshape(g_.Read(), Q1D, D1D);
    auto D = Reshape(d_.Read(), Q1D*Q1D*Q1D, symmetric ? 6 : 9, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=, symmetric = proteus::jit_variable(symmetric)] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=
+      , symmetric = proteus::jit_variable(symmetric)
+      , D1D = proteus::jit_variable(D1D)
+     , Q1D = proteus::jit_variable(Q1D)
+   ] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
+//       const int D1D = T_D1D ? T_D1D : d1d;
+//       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       MFEM_SHARED real_t BG[2][MQ1*MD1];
@@ -534,10 +548,14 @@ inline void PADiffusionApply2D(const int NE,
    auto D = Reshape(d_.Read(), Q1D*Q1D, symmetric ? 3 : 4, NE);
    auto X = Reshape(x_.Read(), D1D, D1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   mfem::forall(NE, [=, symmetric = proteus::jit_variable(symmetric)] MFEM_HOST_DEVICE (int e)
+   mfem::forall(NE, [=
+      , symmetric = proteus::jit_variable(symmetric)
+      , D1D = proteus::jit_variable(D1D)
+     , Q1D = proteus::jit_variable(Q1D)
+      ] MFEM_HOST_DEVICE (int e)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
+//       const int D1D = T_D1D ? T_D1D : d1d;
+//       const int Q1D = T_Q1D ? T_Q1D : q1d;
       // the following variables are evaluated at compile time
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
@@ -658,11 +676,15 @@ inline void SmemPADiffusionApply2D(const int NE,
    auto D = Reshape(d_.Read(), Q1D*Q1D, symmetric ? 3 : 4, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=, symmetric = proteus::jit_variable(symmetric)] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=
+     , symmetric = proteus::jit_variable(symmetric)
+     , D1D = proteus::jit_variable(D1D)
+     , Q1D = proteus::jit_variable(Q1D)
+   ] MFEM_HOST_DEVICE(int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
+//       const int D1D = T_D1D ? T_D1D : d1d;
+//       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       MFEM_SHARED real_t sBG[2][MQ1*MD1];
@@ -815,10 +837,14 @@ inline void PADiffusionApply3D(const int NE,
    auto D = Reshape(d_.Read(), Q1D*Q1D*Q1D, symmetric ? 6 : 9, NE);
    auto X = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   mfem::forall(NE, [=, symmetric = proteus::jit_variable(symmetric)] MFEM_HOST_DEVICE (int e)
+   mfem::forall(NE, [=
+      , symmetric = proteus::jit_variable(symmetric)
+      , D1D = proteus::jit_variable(D1D)
+     , Q1D = proteus::jit_variable(Q1D)
+   ] MFEM_HOST_DEVICE (int e)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
+//       const int D1D = T_D1D ? T_D1D : d1d;
+//       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       real_t grad[max_Q1D][max_Q1D][max_Q1D][3];
@@ -1010,10 +1036,14 @@ inline void SmemPADiffusionApply3D(const int NE,
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
    MFEM_VERIFY(D1D <= Q1D, "THREAD_DIRECT requires D1D <= Q1D");
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=, symmetric = proteus::jit_variable(symmetric)] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=
+      , symmetric = proteus::jit_variable(symmetric)
+      , D1D = proteus::jit_variable(D1D)
+     , Q1D = proteus::jit_variable(Q1D)
+   ] MFEM_HOST_DEVICE (int e)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
+//       const int D1D = T_D1D ? T_D1D : d1d;
+//       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;

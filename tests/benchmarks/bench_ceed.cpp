@@ -141,10 +141,10 @@ struct Problem : public BakeOff<VDIM, GLL>
    }                                                                 \
    BENCHMARK(BP##i##Kernel)->DenseRange(1, 8)->Unit(bm::kMillisecond);
 
-// BP1: scalar PCG with mass matrix, q=p+2
+/// BP1: scalar PCG with mass matrix, q=p+2
 BakeOff_Problem(1, Mass, 1, false)
 
-// /// BP2: vector PCG with mass matrix, q=p+2
+/// BP2: vector PCG with mass matrix, q=p+2
 BakeOff_Problem(2, VectorMass, 3, false)
 
 /// BP3: scalar PCG with stiffness matrix, q=p+2

@@ -45,11 +45,15 @@ PAVectorDiffusionApply2D(const int NE, const Array<real_t> &b,
    auto D = Reshape(d_.Read(), Q1D * Q1D, 3, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, VDIM, NE);
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall(NE, [=
+   , D1D = proteus::jit_variable(D1D)
+   , Q1D = proteus::jit_variable(Q1D)
+   , VDIM = proteus::jit_variable(VDIM)
+   ] MFEM_HOST_DEVICE(int e)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      const int VDIM = T_VDIM ? T_VDIM : vdim;
+      // const int D1D = T_D1D ? T_D1D : d1d;
+      // const int Q1D = T_Q1D ? T_Q1D : q1d;
+      // const int VDIM = T_VDIM ? T_VDIM : vdim;
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
@@ -163,10 +167,14 @@ PAVectorDiffusionApply3D(const int NE, const Array<real_t> &b,
    auto op = Reshape(op_.Read(), Q1D * Q1D * Q1D, 6, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall(NE, [=
+   , D1D = proteus::jit_variable(D1D)
+   , Q1D = proteus::jit_variable(Q1D)
+   , VDIM = proteus::jit_variable(VDIM)
+] MFEM_HOST_DEVICE(int e)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      // const int D1D = T_D1D ? T_D1D : d1d;
+      // const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       for (int c = 0; c < VDIM; ++c)

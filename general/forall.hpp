@@ -833,6 +833,7 @@ inline void ForallWrap(const bool use_dev, const int N, lambda &&body,
                        const int X=0, const int Y=0, const int Z=0,
                        const int G=0)
 {
+   proteus::register_lambda(body);
    ForallWrap<DIM>(use_dev, N, body, body, X, Y, Z, G);
 }
 
@@ -842,6 +843,7 @@ inline void forall(int N, lambda &&body) { ForallWrap<1>(true, N, body); }
 template<typename lambda>
 inline void forall(int Nx, int Ny, lambda &&body)
 {
+   proteus::register_lambda(body);
    if (Device::Allows(Backend::DEVICE_MASK))
    {
       forall(Nx * Ny, [=] MFEM_HOST_DEVICE(int idx)
@@ -878,9 +880,9 @@ inline void forall(int Nx, int Ny, lambda &&body)
 template<typename lambda>
 inline void forall(int Nx, int Ny, int Nz, lambda &&body)
 {
+   proteus::register_lambda(body);
    if (Device::Allows(Backend::DEVICE_MASK))
    {
-      proteus::register_lambda(body);
       forall(Nx * Ny * Nz, [=] MFEM_HOST_DEVICE(int idx)
       {
          int i = idx % Nx;
