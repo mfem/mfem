@@ -308,8 +308,14 @@ public:
       tmp1 = rhs.GetBlock(1);
       tmp1.Neg();
       ops(1,0)->AddMult(sol.GetBlock(0), tmp1);         // tmp = -g + Du
-      ops(1,1)->Mult(tmp1, sol.GetBlock(1));            // p = S^{-1} (-g + Du)
-
+      if (ops(1,1))
+      {
+         ops(1,1)->Mult(tmp1, sol.GetBlock(1));            // p = S^{-1} (-g + Du)
+      }
+      else
+      {
+         sol.GetBlock(1) = tmp1;
+      }
       ops(0,1)->Mult(sol.GetBlock(1), tmp0);
       ops(0,0)->AddMult(tmp0, sol.GetBlock(0), -1.0);    // u = u - K^-1 G p
    }
@@ -329,66 +335,6 @@ private:
    mutable Vector tmp0;
    mutable Vector tmp1;
 };
-
-
-/// This Class defines a generic stabilisation parameter.
-class TauCoeff: public Coefficient
-{
-protected:
-
-   /// The diffusion parameter field
-   Coefficient *kappa;
-
-   /// The inverse estimate
-   real_t Cinv;
-
-   /** Returns element size according to:
-       Harari, I, & Hughes, T.J.R.
-       What are C and h?: Inequalities for the analysis and design of
-       finite element methods.
-       Computer methods in applied mechanics and engineering 97(2), 157-192.*/
-   real_t GetElementSize(ElementTransformation &T)
-   {
-      const DenseMatrix &dxdxi = T.Jacobian();
-      int dim = dxdxi.Width();
-      Vector h(dim);
-      Vector row(dim);
-
-      for (int i = 0; i < dim; i++)
-      {
-         dxdxi.GetRow(i, row);
-         h[i] = row.Norml2();
-      }
-      switch (dim)
-      {
-         case 1:
-            return h[0];
-         case 2:
-            return h[0]*h[1]*sqrt(2.0/(h[0]*h[0] + h[1]*h[1]));
-         case 3:
-            return h[0]*h[1]*h[2]*(3.0/(h[0]*h[0] + h[1]*h[1] + h[2]*h[2]));
-      }
-      mfem_error("Wrong dim!");
-      return -1.0;
-   }
-
-public:
-   /** Construct a stabilized confection-diffusion integrator with:
-       - @a a the convection velocity
-       - @a d the diffusion coefficient*/
-   TauCoeff (Coefficient *k, real_t c) : kappa(k), Cinv(c)
-   {   };
-
-   /// Evaluate the coefficient at @a ip.
-   virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip) override
-   {
-      real_t k = kappa->Eval(T, ip);
-      real_t h = GetElementSize(T);
-      return Cinv*h*h/k;
-   }
-};
-
 
 enum class BC {WEAK, HYBRID, STRONG};
 
@@ -726,12 +672,11 @@ int main(int argc, char *argv[])
    invK->iterative_mode = false;
 
    // Construct an approximate Schur complement operator
-   // This is the continuity-pressure PSPG matrix
+   // This is a scaled mass matrix
    BilinearForm pVarf(&p_space);
-   TauCoeff tau_c(&mu_cf, 1.0/24.0);
-   pVarf.AddDomainIntegrator(new DiffusionIntegrator(tau_c));
-   ConstantCoefficient eps(1e-8);
-   pVarf.AddDomainIntegrator(new MassIntegrator(eps)); //Force matrix to be SPD
+
+   ConstantCoefficient schur_scale(1.0/mu);
+   pVarf.AddDomainIntegrator(new MassIntegrator(schur_scale));
    pVarf.Assemble();
    pVarf.Finalize();
 
@@ -770,9 +715,9 @@ int main(int argc, char *argv[])
    else
    {
       invS.SetOperator(Sp);
-      invS.SetPreconditioner(*invSp);
       invS.SetPrintLevel(0);
    }
+   invS.SetPreconditioner(*invSp);
    invS.iterative_mode = true;
 
    // Construct the operators for preconditioner
