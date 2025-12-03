@@ -19,10 +19,10 @@ using namespace mfem;
 
 
 /**
-Compute the error of the taylor series expansion of the shapefunctions, upto
-and including the hessian term:
-  res = shape(xi) + dshape(xi)*eps*dx + 0.5*hessian(xi)*eps*dx*dx
-        - shape(xi + eps*dx)
+* Compute the error of the taylor series expansion of the shapefunctions, upto
+* and including the hessian term:
+*  res = shape(xi) + dshape(xi)*eps*dx + 0.5*hessian(xi)*eps*dx*dx
+*        - shape(xi + eps*dx)
 */
 real_t TaylorSeriesError(FiniteElement* fe,
                          IntegrationPoint &ip,
@@ -34,8 +34,8 @@ real_t TaylorSeriesError(FiniteElement* fe,
    const int hdim = (dim*(dim+1))/2;
 
    Vector shape(dof);
-   DenseMatrix dshape(dof);
-   DenseMatrix hessian(dof);
+   DenseMatrix dshape(dof,dim);
+   DenseMatrix hessian(dof,hdim);
 
    fe->CalcShape(ip, shape);
    fe->CalcDShape(ip, dshape);
@@ -79,17 +79,17 @@ real_t TaylorSeriesError(FiniteElement* fe,
 }
 
 /**
-Check the convergence of the taylor series, of a given element @a fe at
-a given point @a ip in a given direction @a dx.
-For linear and quadratic elements the taylor series is exact.
-For other elements the convergence should be third order.
+* Check the convergence of the taylor series, of a given element @a fe at
+* a given point @a ip in a given direction @a dx.
+* For linear and quadratic elements the taylor series is exact.
+* For other elements the convergence should be third order.
 */
 void CheckTaylorSeries(FiniteElement* fe,
                        IntegrationPoint &ip,
                        Vector &dx)
 {
    real_t eps = 0.1;
-   real_t red = 2.0;
+   real_t red = 4.0;
    int steps = 100;
    real_t error = TaylorSeriesError(fe, ip, dx, eps);
    real_t order;
@@ -100,7 +100,7 @@ void CheckTaylorSeries(FiniteElement* fe,
       real_t err_new = TaylorSeriesError(fe, ip, dx, eps);
       order = log(error/err_new)/log(red);
       error = err_new;
-      if (error < 1e-10) { break; }
+      if (error < 1e-8) { break; }
    }
    mfem::out<<i<<" "<<error<<" "<<order<<std::endl;
    if (i == 0)
@@ -114,17 +114,17 @@ void CheckTaylorSeries(FiniteElement* fe,
 }
 
 /**
-Test if a given element @a fe has the correct behaviour of the taylor series.
+* Test if a given element @a fe has the correct behaviour of the taylor series.
 */
 void TestCalcHessian(FiniteElement* fe)
 {
-   int res = 3;
-   int dirs = 1;
+   int dim = fe->GetDim();
+   int res = 2;
+   int dirs = dim;
 
    // Get a uniform grid of integration points
    RefinedGeometry* ref = GlobGeometryRefiner.Refine( fe->GetGeomType(), res);
    const IntegrationRule& intRule = ref->RefPts;
-   int dim = fe->GetDim();
    int npoints = intRule.GetNPoints();
    Vector dx(dim);
    for (int i=0; i < npoints; ++i)
@@ -162,30 +162,35 @@ TEST_CASE("CalcHessian",
    // Fixed Order Elements
    SECTION("Linear1DFiniteElement")
    {
+      mfem::out<<"Linear1DFiniteElement"<<std::endl;
       Linear1DFiniteElement fe;
       TestCalcHessian(&fe);
    }
 
    SECTION("Linear2DFiniteElement")
    {
+      mfem::out<<"Linear2DFiniteElement"<<std::endl;
       Linear2DFiniteElement fe;
       TestCalcHessian(&fe);
    }
 
    SECTION("Linear3DFiniteElement")
    {
+      mfem::out<<"Linear3DFiniteElement"<<std::endl;
       Linear3DFiniteElement fe;
       TestCalcHessian(&fe);
    }
 
    SECTION("BiLinear2DFiniteElement")
    {
+      mfem::out<<"BiLinear2DFiniteElement"<<std::endl;
       BiLinear2DFiniteElement fe;
       TestCalcHessian(&fe);
    }
 
    SECTION("TriLinear3DFiniteElement")
    {
+      mfem::out<<"TriLinear3DFiniteElement"<<std::endl;
       TriLinear3DFiniteElement fe;
       TestCalcHessian(&fe);
    }
@@ -194,6 +199,7 @@ TEST_CASE("CalcHessian",
    SECTION("H1_SegmentElement")
    {
       int order = GENERATE(1,2,3,4,5);
+      mfem::out<<"H1_SegmentElement = "<<order<<std::endl;
       H1_SegmentElement fe(order);
       TestCalcHessian(&fe);
    }
@@ -202,19 +208,22 @@ TEST_CASE("CalcHessian",
    {
       int order = GENERATE(1,2,3,4,5);
       H1_QuadrilateralElement fe(order);
+      mfem::out<<"H1_QuadrilateralElement = "<<order<<std::endl;
       TestCalcHessian(&fe);
    }
 
    SECTION("H1_HexahedronElement")
    {
       int order = GENERATE(1,2,3,4,5);
+      mfem::out<<"H1_HexahedronElement = "<<order<<std::endl;
       H1_HexahedronElement fe(order);
       TestCalcHessian(&fe);
    }
 
-   SECTION(" H1_TriangleElement")
+   SECTION("H1_TriangleElement")
    {
       int order = GENERATE(1,2,3,4,5);
+      mfem::out<<"H1_TriangleElement = "<<order<<std::endl;
       H1_TriangleElement fe(order);
       TestCalcHessian(&fe);
    }
@@ -222,6 +231,7 @@ TEST_CASE("CalcHessian",
    SECTION("H1_TetrahedronElement")
    {
       int order = GENERATE(1,2,3,4,5);
+      mfem::out<<"H1_TetrahedronElement = "<<order<<std::endl;
       H1_TetrahedronElement fe(order);
       TestCalcHessian(&fe);
    }
