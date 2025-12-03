@@ -276,6 +276,24 @@ void call_qfunction_derivative(
 }
 }
 
+/// @brief Call a qfunction with the given parameters and
+/// compute it's derivative represented by the Jacobian on
+/// each quadrature point.
+///
+/// @param qfunc the qfunction to call.
+/// @param input_shmem the input shared memory.
+/// @param shadow_shmem the shadow shared memory.
+/// @param residual_shmem the residual shared memory.
+/// @param qpdc the quadrature point data cache holding the resulting
+/// Jacobians on each quadrature point.
+/// @param itod inputs trial operator dimension.
+/// If input is dependent the value corresponds to the spatial dimension, otherwise
+/// a zero indicates non-dependence on the variable.
+/// @param das_qp the size of the derivative action.
+/// @param q1d the number of quadrature points in 1D.
+/// @param dimension the spatial dimension.
+/// @param use_sum_factorization whether to use sum factorization.
+/// @tparam qf_param_ts the tuple type of the qfunction parameters.
 template <
    typename qf_param_ts,
    typename qfunc_t,
@@ -350,6 +368,22 @@ void call_qfunction_derivative(
 
 namespace detail
 {
+
+/// @brief Apply the quadrature point data cache (qpdc) to a vector
+/// (usually a direction) on quadrature point q.
+///
+/// The qpdc consists of compatible data to be used for integration with a test
+/// operator, e.g. Jacobians of a linearization from a FE operation with a trial
+/// function including integration weights and necessesary transformations.
+///
+/// @param fhat the qpdc applied to a vector in shadow_memory.
+/// @param shadow_shmem the shadow shared memory.
+/// @param qpdc the quadrature point data cache holding the resulting
+/// Jacobians on each quadrature point.
+/// @param itod inputs trial operator dimension.
+/// If input is dependent the value corresponds to the spatial dimension, otherwise
+/// a zero indicates non-dependence on the variable.
+/// @param q the current quadrature point index.
 template <
    int num_inputs,
    size_t num_fields>
@@ -396,6 +430,23 @@ void apply_qpdc(
 }
 }
 
+/// @brief Apply the quadrature point data cache (qpdc) to a vector
+/// (usually a direction).
+///
+/// The qpdc consists of compatible data to be used for integration with a test
+/// operator, e.g. Jacobians of a linearization from a FE operation with a trial
+/// function including integration weights and necessesary transformations.
+///
+/// @param fhat the qpdc applied to a vector in shadow_memory.
+/// @param shadow_shmem the shadow shared memory.
+/// @param qpdc the quadrature point data cache holding the resulting
+/// Jacobians on each quadrature point.
+/// @param itod inputs trial operator dimension.
+/// If input is dependent the value corresponds to the spatial dimension, otherwise
+/// a zero indicates non-dependence on the variable.
+/// @param q1d number of quadrature points in 1D.
+/// @param dimension spatial dimension.
+/// @param use_sum_factorization whether to use sum factorization.
 template <
    int num_inputs,
    size_t num_fields>
