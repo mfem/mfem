@@ -1,0 +1,21 @@
+#include "util.hpp"
+
+#define NUM_SPACES {{ spaces | count }}
+#define NUM_INPUTS {{ inputs | count }}
+#define NUM_OUTPUTS {{ outputs | count }}
+
+extern "C" __global__ void dfem_jit_{{kernel_name}}(int num_entities, const real_t *fields[NUM_INPUTS], real_t *outputs[NUM_OUTPUTS], const real_t *B[NUM_SPACES]) {
+  // transform fields
+  const real_t *inputs = ...;
+
+  // call qfunctions
+  {% for qf in qfuncs -%}
+  {
+    {%- for qfinput in qf.inputs %}
+    {{ qfinput.datatype }}* in{{ loop.index0 }} =
+      reinterpret_cast<{{ qfinput.datatype }}>(inputs[{{ qfinput.index }}]);
+    {% endfor %}
+    {{ qf.name }}({% for qfinput in qf.inputs %}*in{{ loop.index0 }}{{ "," if not loop.last else "" }}{% endfor %});
+  }
+  {% endfor %}
+}
