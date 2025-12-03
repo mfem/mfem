@@ -30,7 +30,7 @@
 //   mpirun -np 4 navier_windtunnel -o 2 -rs 1 -dt 1e-2 -tf 2.0 -profile 0 -u0 1.0
 //
 //   Logarithmic profile:
-//   mpirun -np 4 navier_windtunnel -o 2 -rs 1 -dt 5e-3 -tf 2.0 \
+//   mpirun -np 4 navier_windtunnel -o 2 -rs 1 -dt 5e-3 -tf 2.0
 //          -profile 2 -ustar 0.3 -z0 0.01 -href 0.4 --visualization
 
 #include "navier_solver.hpp"
