@@ -551,7 +551,7 @@ public:
                 const char* field_name=nullptr);
 
    /** @brief Add a field to the ParticleSet.
-    * 
+    *
     *  @details Same as AddField but with different parameter order
     *  for convenience
     */

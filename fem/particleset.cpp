@@ -829,7 +829,7 @@ void ParticleSet::SetParticle(int i, const Particle &p)
 {
    MFEM_ASSERT(IsValidParticle(p),
                "Particle is incompatible with ParticleSet.");
-               
+
    Coords().SetValues(i, p.Coords());
 
    for (int f = 0; f < GetNFields(); f++)
