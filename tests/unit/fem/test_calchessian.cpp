@@ -91,21 +91,21 @@ void CheckTaylorSeries(FiniteElement* fe,
    real_t eps = 0.1;
    real_t red = 2.0;
    int steps = 100;
-   real_t err = TaylorSeriesError(fe, ip, dx, eps);
+   real_t error = TaylorSeriesError(fe, ip, dx, eps);
    real_t order;
    int i;
    for (i = 0; i < steps; ++i)
    {
       eps /= red;
       real_t err_new = TaylorSeriesError(fe, ip, dx, eps);
-      order = log(err/err_new)/log(red);
-      err = err_new;
-      if (err < 1e-10) { break; }
+      order = log(error/err_new)/log(red);
+      error = err_new;
+      if (error < 1e-10) { break; }
    }
-   mfem::out<<i<<" "<<err<<" "<<order<<std::endl;
+   mfem::out<<i<<" "<<error<<" "<<order<<std::endl;
    if (i == 0)
    {
-      REQUIRE(err == MFEM_Approx(0));
+      REQUIRE(error == MFEM_Approx(0));
    }
    else
    {
