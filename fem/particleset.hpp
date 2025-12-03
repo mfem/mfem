@@ -241,8 +241,8 @@ public:
  *              fields = {'mass'=m1, 'vel' = (vx1, vy1)},
  *              tags = {'type'=t1, 'color'=c1}
  *  Particle_2: id = id2, coords = (x2, y2),
- *             fields = {'mass'=m2, 'vel' = (vx2, vy2)},
- *             tags = {'type'=t2, 'color'=c2}
+ *              fields = {'mass'=m2, 'vel' = (vx2, vy2)},
+ *              tags = {'type'=t2, 'color'=c2}
  *  @endcode
  */
 class ParticleSet
@@ -536,7 +536,7 @@ public:
    /// Get the spatial dimension.
    int GetDim() const { return coords.GetVDim(); }
 
-   /// Get the IDs of the active particles owned by this ParticleSet.
+   /// Get the global IDs of the active particles owned by this ParticleSet.
    const Array<IDType>& GetIDs() const { return ids; }
 
    /** @brief Add a field to the ParticleSet.
@@ -550,7 +550,11 @@ public:
    int AddField(int vdim, Ordering::Type field_ordering=Ordering::byVDIM,
                 const char* field_name=nullptr);
 
-   // Add a field [with different parameter order for convenience]
+   /** @brief Add a field to the ParticleSet.
+    * 
+    *  @details Same as AddField but with different parameter order
+    *  for convenience
+    */
    int AddNamedField(int vdim, const char* field_name,
                      Ordering::Type field_ordering=Ordering::byVDIM)
    {
