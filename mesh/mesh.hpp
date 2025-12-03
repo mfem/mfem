@@ -1354,6 +1354,11 @@ public:
        The returned geometries are sorted. */
    void GetGeometries(int dim, Array<Geometry::Type> &el_geoms) const;
 
+   /// @brief Returns true if the mesh is a mixed mesh, false otherwise.
+   ///
+   /// A mixed mesh is one where there are multiple types of element geometries.
+   bool IsMixedMesh() const;
+
    /// Returns the minimum and maximum corners of the mesh bounding box.
    /** For high-order meshes, the geometry is first refined @a ref times. */
    void GetBoundingBox(Vector &min, Vector &max, int ref = 2);

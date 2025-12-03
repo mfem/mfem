@@ -27,6 +27,8 @@ protected:
    bool own_qspace; ///< Does this own the associated QuadratureSpaceBase?
    int vdim; ///< Vector dimension.
 
+   void ProjectGridFunctionFallback(const GridFunction &gf);
+
 public:
    /// Default constructor, results in an empty vector.
    QuadratureFunction() : qspace(nullptr), own_qspace(false), vdim(0)
