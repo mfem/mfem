@@ -24,6 +24,14 @@
 // - Right (attr 3, x=3): Outlet - Do nothing (no BC)
 // - Back (attr 4, y=1): Back wall - No-penetration BC (zero y-velocity component)
 // - Top (attr 6, z=0.5): Top wall - No-penetration BC (zero z-velocity component)
+//
+// Example usage:
+//   Constant velocity profile (default):
+//   mpirun -np 4 navier_windtunnel -o 2 -rs 1 -dt 1e-2 -tf 2.0 -profile 0 -u0 1.0
+//
+//   Logarithmic profile:
+//   mpirun -np 4 navier_windtunnel -o 2 -rs 1 -dt 5e-3 -tf 2.0 \
+//          -profile 2 -ustar 0.3 -z0 0.01 -href 0.4 --visualization
 
 #include "navier_solver.hpp"
 #include <fstream>
@@ -108,18 +116,6 @@ void logarithmic(const Vector &x, real_t t, Vector &u)
 }
 } // END OF INLET PROFILE NAMESPACE
 
-// Profile selection function
-void (*get_inlet_profile())(const Vector &, real_t, Vector &)
-{
-   switch (ctx.inlet_profile_type)
-   {
-      case 0: return InletProfile::constant;
-      case 1: return InletProfile::power_law;
-      case 2: return InletProfile::logarithmic;
-      default: return InletProfile::constant;
-   }
-}
-
 int main(int argc, char *argv[])
 {
    Mpi::Init(argc, argv);
@@ -179,8 +175,6 @@ int main(int argc, char *argv[])
    {
       MFEM_WARNING("Power law exponent outside of (0.1, 0.4).");
    }
-
-
 
    if (!args.Good())
    {
@@ -265,7 +259,20 @@ int main(int argc, char *argv[])
    Array<int> attr_inlet(pmesh->bdr_attributes.Max());
    attr_inlet = 0;
    attr_inlet[4] = 1;  // attr 5
-   flowsolver.AddVelDirichletBC(get_inlet_profile(), attr_inlet);
+
+   // Select the inlet profile function
+   VecFuncT *inlet_profile = InletProfile::constant;
+   switch (ctx.inlet_profile_type)
+   {
+      case 0: inlet_profile = InletProfile::constant; break;
+      case 1: inlet_profile = InletProfile::power_law; break;
+      case 2: inlet_profile = InletProfile::logarithmic; break;
+      default:
+         MFEM_WARNING("Invalid inlet profile type. Using default profile (Constant).");
+         inlet_profile = InletProfile::constant;
+         break;
+   }
+   flowsolver.AddVelDirichletBC(inlet_profile, attr_inlet);
 
    // 6. OUTLET: Do nothing
 

@@ -579,10 +579,15 @@ void NavierSolver::Step(real_t &time, real_t dt, int current_step,
       un_next_gf.ProjectBdrCoefficient(*vel_dbc.coeff, vel_dbc.attr);
    }
 
+   const int dim = vfes->GetVDim();
+   mfem::Array<Coefficient*> coeff_array(dim);
+   coeff_array = nullptr;
+
    for (auto &vel_comp_dbc : vel_comp_dbcs)
    {
-      int dim = vfes->GetVDim();
-      Coefficient** coeff_array = new Coefficient*[dim]();
+      coeff_array = nullptr;
+      MFEM_ASSERT(vel_comp_dbc.comp >= 0 && vel_comp_dbc.comp < dim,
+                  "Invalid velocity component.");
       coeff_array[vel_comp_dbc.comp] = vel_comp_dbc.coeff;
 
       un_next_gf.ProjectBdrCoefficient(coeff_array, vel_comp_dbc.attr);
@@ -996,10 +1001,9 @@ real_t NavierSolver::ComputeCFL(ParGridFunction &u, real_t dt)
    return cflmax_global;
 }
 
-void NavierSolver::AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr,
-                                     bool own)
+void NavierSolver::AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr)
 {
-   vel_dbcs.emplace_back(attr, coeff, own);
+   vel_dbcs.emplace_back(attr, coeff);
 
    if (verbose && pmesh->GetMyRank() == 0)
    {
@@ -1027,16 +1031,17 @@ void NavierSolver::AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr,
 
 void NavierSolver::AddVelDirichletBC(VecFuncT *f, Array<int> &attr)
 {
-   AddVelDirichletBC(new VectorFunctionCoefficient(pmesh->Dimension(), f), attr,
-                     true);
+   AddVelDirichletBC(
+      new VectorFunctionCoefficient(pmesh->Dimension(), f), attr);
 }
 
 void NavierSolver::AddVelDirichletBC(Coefficient *coeff, Array<int> &attr,
-                                     int component, bool own)
+                                     int component)
 {
    MFEM_VERIFY(component >= 0 && component < vfes->GetVDim(),
                "Invalid velocity component.");
-   vel_comp_dbcs.emplace_back(attr, coeff, component, own);
+
+   vel_comp_dbcs.emplace_back(attr, coeff, component);
 
    if (verbose && pmesh->GetMyRank() == 0)
    {
@@ -1063,10 +1068,9 @@ void NavierSolver::AddVelDirichletBC(Coefficient *coeff, Array<int> &attr,
    }
 }
 
-void NavierSolver::AddPresDirichletBC(Coefficient *coeff, Array<int> &attr,
-                                      bool own)
+void NavierSolver::AddPresDirichletBC(Coefficient *coeff, Array<int> &attr)
 {
-   pres_dbcs.emplace_back(attr, coeff, own);
+   pres_dbcs.emplace_back(attr, coeff);
 
    if (verbose && pmesh->GetMyRank() == 0)
    {
@@ -1094,13 +1098,12 @@ void NavierSolver::AddPresDirichletBC(Coefficient *coeff, Array<int> &attr,
 
 void NavierSolver::AddPresDirichletBC(ScalarFuncT *f, Array<int> &attr)
 {
-   AddPresDirichletBC(new FunctionCoefficient(f), attr, true);
+   AddPresDirichletBC(new FunctionCoefficient(f), attr);
 }
 
-void NavierSolver::AddAccelTerm(VectorCoefficient *coeff, Array<int> &attr,
-                                bool own)
+void NavierSolver::AddAccelTerm(VectorCoefficient *coeff, Array<int> &attr)
 {
-   accel_terms.emplace_back(attr, coeff, own);
+   accel_terms.emplace_back(attr, coeff);
 
    if (verbose && pmesh->GetMyRank() == 0)
    {
@@ -1118,7 +1121,8 @@ void NavierSolver::AddAccelTerm(VectorCoefficient *coeff, Array<int> &attr,
 
 void NavierSolver::AddAccelTerm(VecFuncT *f, Array<int> &attr)
 {
-   AddAccelTerm(new VectorFunctionCoefficient(pmesh->Dimension(), f), attr, true);
+   AddAccelTerm(
+      new VectorFunctionCoefficient(pmesh->Dimension(), f), attr);
 }
 
 void NavierSolver::SetTimeIntegrationCoefficients(int step)

@@ -27,119 +27,84 @@ using ScalarFuncT = real_t(const Vector &x, real_t t);
 class VelDirichletBC_T
 {
 public:
-   VelDirichletBC_T(Array<int> attr, VectorCoefficient *coeff, bool own = true)
-      : attr(attr), coeff(coeff), own(own)
-   {}
+   VelDirichletBC_T(Array<int> attr_, VectorCoefficient *coeff_)
+      : attr(attr_), coeff(coeff_) {}
 
    VelDirichletBC_T(VelDirichletBC_T &&obj)
    {
       // Deep copy the attribute array
       this->attr = obj.attr;
-
       // Move the coefficient pointer
       this->coeff = obj.coeff;
-      this->own = obj.own;
-      if (own)  // reset only if ownership is transferred
-      {
-         obj.coeff = nullptr;
-         obj.own = false;
-      }
+      obj.coeff = nullptr;
    }
 
-   ~VelDirichletBC_T() { if (own && coeff) delete coeff; }
+   ~VelDirichletBC_T() { delete coeff; }
 
-   Array<int> attr;
+   Array<int>        attr;
    VectorCoefficient *coeff;
-   bool own;
 };
 
 /// Container for a component-wise Dirichlet boundary condition of the velocity field.
 class VelComponentDirichletBC_T
 {
 public:
-   VelComponentDirichletBC_T(Array<int> attr, Coefficient *coeff, int comp,
-                             bool own = true)
-      : attr(attr), coeff(coeff), comp(comp), own(own) {}
+   VelComponentDirichletBC_T(Array<int> attr_, Coefficient *coeff_, int comp_)
+      : attr(attr_), coeff(coeff_), comp(comp_) {}
 
-   VelComponentDirichletBC_T(VelComponentDirichletBC_T &&obj) noexcept
+   VelComponentDirichletBC_T(VelComponentDirichletBC_T &&obj)
    {
-      this->attr = obj.attr;
+      this->attr  = obj.attr;
       this->coeff = obj.coeff;
-      this->comp = obj.comp;
-      this->own = obj.own;
-      if (own)  // reset only if ownership is transferred
-      {
-         obj.coeff = nullptr;
-         obj.own = false;
-      }
+      this->comp  = obj.comp;
+      obj.coeff   = nullptr;
    }
 
-   ~VelComponentDirichletBC_T() { if (own && coeff) delete coeff; }
+   ~VelComponentDirichletBC_T() { delete coeff; }
 
-   Array<int> attr;
+   Array<int>  attr;
    Coefficient *coeff;
-   int comp;
-   bool own;
+   int         comp;
 };
 
 /// Container for a Dirichlet boundary condition of the pressure field.
 class PresDirichletBC_T
 {
 public:
-   PresDirichletBC_T(Array<int> attr, Coefficient *coeff, bool own = true)
-      : attr(attr), coeff(coeff), own(own)
-   {}
+   PresDirichletBC_T(Array<int> attr_, Coefficient *coeff_)
+      : attr(attr_), coeff(coeff_) {}
 
    PresDirichletBC_T(PresDirichletBC_T &&obj)
    {
-      // Deep copy the attribute array
-      this->attr = obj.attr;
-
-      // Move the coefficient pointer
+      this->attr  = obj.attr;
       this->coeff = obj.coeff;
-      this->own = obj.own;
-      if (own)  // reset only if ownership is transferred
-      {
-         obj.coeff = nullptr;
-         obj.own = false;
-      }
+      obj.coeff   = nullptr;
    }
 
-   ~PresDirichletBC_T() { if (own && coeff) delete coeff; }
+   ~PresDirichletBC_T() { delete coeff; }
 
-   Array<int> attr;
+   Array<int>  attr;
    Coefficient *coeff;
-   bool own;
 };
 
 /// Container for an acceleration term.
 class AccelTerm_T
 {
 public:
-   AccelTerm_T(Array<int> attr, VectorCoefficient *coeff, bool own = true)
-      : attr(attr), coeff(coeff), own(own)
-   {}
+   AccelTerm_T(Array<int> attr_, VectorCoefficient *coeff_)
+      : attr(attr_), coeff(coeff_) {}
 
    AccelTerm_T(AccelTerm_T &&obj)
    {
-      // Deep copy the attribute array
-      this->attr = obj.attr;
-
-      // Move the coefficient pointer
+      this->attr  = obj.attr;
       this->coeff = obj.coeff;
-      this->own = obj.own;
-      if (own)  // reset only if ownership is transferred
-      {
-         obj.coeff = nullptr;
-         obj.own = false;
-      }
+      obj.coeff   = nullptr;
    }
 
-   ~AccelTerm_T() { if (own && coeff) delete coeff; }
+   ~AccelTerm_T() { delete coeff; }
 
-   Array<int> attr;
+   Array<int>        attr;
    VectorCoefficient *coeff;
-   bool own;
 };
 
 /// Transient incompressible Navier Stokes solver in a split scheme formulation.
@@ -239,16 +204,14 @@ public:
    ParGridFunction *GetCurrentPressure() { return &pn_gf; }
 
    /// Add a Dirichlet boundary condition to the velocity field.
-   void AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr,
-                          bool own = true);
+   void AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr);
 
    void AddVelDirichletBC(VecFuncT *f, Array<int> &attr);
 
-   void AddVelDirichletBC(Coefficient *coeff, Array<int> &attr, int component,
-                          bool own = true);
+   void AddVelDirichletBC(Coefficient *coeff, Array<int> &attr, int component);
 
    /// Add a Dirichlet boundary condition to the pressure field.
-   void AddPresDirichletBC(Coefficient *coeff, Array<int> &attr, bool own = true);
+   void AddPresDirichletBC(Coefficient *coeff, Array<int> &attr);
 
    void AddPresDirichletBC(ScalarFuncT *f, Array<int> &attr);
 
@@ -257,7 +220,7 @@ public:
     * The VecFuncT @a f is evaluated at the current time t and extrapolated
     * together with the nonlinear parts of the Navier Stokes equation.
     */
-   void AddAccelTerm(VectorCoefficient *coeff, Array<int> &attr, bool own = true);
+   void AddAccelTerm(VectorCoefficient *coeff, Array<int> &attr);
 
    void AddAccelTerm(VecFuncT *f, Array<int> &attr);
 
