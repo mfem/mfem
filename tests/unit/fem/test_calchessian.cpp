@@ -21,7 +21,7 @@ using namespace mfem;
 /**
 Compute the error of the taylor series expansion of the shapefunctions, upto
 and including the hessian term:
-  res = shape(xi) + dshape(xi)*eps*dx + 0.5*hessian(xi)*eps*dx*dx 
+  res = shape(xi) + dshape(xi)*eps*dx + 0.5*hessian(xi)*eps*dx*dx
         - shape(xi + eps*dx)
 */
 real_t TaylorSeriesError(FiniteElement* fe,
