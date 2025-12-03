@@ -975,6 +975,10 @@ void DifferentiableOperator::AddIntegrator(
          auto& fields_ref = this->fields;
          auto& derivative_qp_caches_ref = this->derivative_qp_caches[derivative_id];
 
+         // In each of the callbacks we're saving the derivatives in the quadrature point
+         // caches. This trades memory with computational effort but also minimizes
+         // data movement on each multiplication of the gradient with a directional
+         // vector.
          derivative_setup_callbacks[derivative_id].push_back(
             [
                // capture by copy:
@@ -1057,6 +1061,8 @@ void DifferentiableOperator::AddIntegrator(
             shmem_cache.ReadWrite());
          });
 
+         // The derivative action only uses the quadrature point caches and applies
+         // them to an input vector before integrating with the desired trial operator.
          derivative_action_callbacks[derivative_id].push_back(
             [
                // capture by copy:
