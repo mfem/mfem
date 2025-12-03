@@ -22,7 +22,7 @@ namespace mfem
 
 /** @brief  Container for data associated with a single particle.
  *
- *  @warning This class mainly serves as a convenience interface to individual
+ *  @note This class mainly serves as a convenience interface to individual
  *  particle data from ParticleSet. We recommend seeing ParticleSet first.
  *
  *  @details As described in ParticleSet documentation, each particle has a
@@ -40,17 +40,20 @@ namespace mfem
  *
  *
  * For clarity, we will use the particles below to illustrate the data layout
- * for \ref coords, \ref fields, and \ref tags. \n
+ * for \ref coords, \ref fields, and \ref tags:
  *
- * Particle_0: coords = (x0, y0), \n
- *             fields = {'mass'=m0, 'vel' = (vx0, vy0)}, \n
- *               tags = {'type'=t0, 'color'=color0} \n
- * Particle_1: coords = (x1, y1), \n
- *             fields = {'mass'=m1, 'vel' = (vx1, vy1)}, \n
- *               tags = {'type'=t1, 'color'=color1} \n
- * Particle_2: coords = (x2, y2), \n
- *             fields = {'mass'=m2, 'vel' = (vx2, vy2)}, \n
- *               tags = {'type'=t2, 'color'=color2} \n
+ * @anchor sample_particle_data
+ * @code
+ * Particle_0: coords = (x0, y0),
+ *             fields = {'mass'=m0, 'vel' = (vx0, vy0)},
+ *               tags = {'type'=t0, 'color'=color0}
+ * Particle_1: coords = (x1, y1),
+ *             fields = {'mass'=m1, 'vel' = (vx1, vy1)},
+ *               tags = {'type'=t1, 'color'=color1}
+ * Particle_2: coords = (x2, y2),
+ *             fields = {'mass'=m2, 'vel' = (vx2, vy2)},
+ *               tags = {'type'=t2, 'color'=color2}
+ * @endcode
  *
  */
 class Particle
@@ -58,7 +61,7 @@ class Particle
 protected:
    /** @brief Spatial coordinates
     *
-    *  @details For the example particles above, \ref coords would hold
+    *  @details For the \ref sample_particle_data, \ref coords would hold
     *  (x_i, y_i) for each particle i.
     */
    Vector coords;
@@ -66,7 +69,7 @@ protected:
    /** @brief A std::vector of Vector where each Vector holds data for a given
     *  field (e.g., mass, momentum or velocity) associated with the particle.
     *
-    *  @details For the example particles above, \ref fields would be
+    *  @details For the \ref sample_particle_data, \ref fields would be
     *  fields[0]=(m_i), fields[1]=(vx_i,vy_i) for each particle i.
     */
    std::vector<Vector> fields;
@@ -74,11 +77,11 @@ protected:
    /** @brief A std::vector of Array<int> where each Array<int> holds data
     *  for a given tag.
     *
-    *  @details For the example particles above, \ref tags would be
+    *  @details For the \ref sample_particle_data, \ref tags would be
     *  tags[0]=(type_i), tags[1]=(color_i) for each particle i. \n
     *
-    *  Note that an Array of length 1 is used for EACH tag,
-    *  strictly for its owning/non-owning semantics (see Array<T>::MakeRef).
+    *  @note An Array of length 1 is used for EACH tag, strictly for
+    *  its owning/non-owning semantics (see Array<T>::MakeRef).
     */
    std::vector<Array<int>> tags;
 public:
@@ -219,23 +222,28 @@ public:
  *  fields and tags are stored in the std::vectors \ref field_names and
  *  \ref tag_names, respectively.
  *
- *  @warning We assume that all particles in a ParticleSet have the same number
+ *  @note We assume that all particles in a ParticleSet have the same number
  *  of fields and tags.
  *
  *  Following the example in the Particle class, we will use the
  *  particles below to illustrate the data layout for \ref coords, \ref ids,
  *  \ref fields, \ref tags, \ref field_names, and \ref tag_names.
  *  In each case, the name of the field and tag is enclosed in '...' for
- *  clarity. \n
- *  Particle_0: id = id0, coords = (x0, y0), \n
- *              fields = {'mass'=m0, 'vel' = (vx0, vy0)}, \n
- *              tags = {'type'=t0, 'color'=c0} \n
- *  Particle_1: id = id1, coords = (x1, y1), \n
- *              fields = {'mass'=m1, 'vel' = (vx1, vy1)}, \n
- *              tags = {'type'=t1, 'color'=c1} \n
- *  Particle_2: id = id2, coords = (x2, y2), \n
- *             fields = {'mass'=m2, 'vel' = (vx2, vy2)}, \n
- *             tags = {'type'=t2, 'color'=c2} \n
+ *  clarity. Additionally, we assume for this example that the particle
+ *  coordinates and the 'vel' field are ordered byVDIM in their respective
+ *  ParticleVector.
+ *  @anchor sample_particleset_data
+ *  @code
+ *  Particle_0: id = id0, coords = (x0, y0),
+ *              fields = {'mass'=m0, 'vel' = (vx0, vy0)},
+ *              tags = {'type'=t0, 'color'=c0}
+ *  Particle_1: id = id1, coords = (x1, y1),
+ *              fields = {'mass'=m1, 'vel' = (vx1, vy1)},
+ *              tags = {'type'=t1, 'color'=c1}
+ *  Particle_2: id = id2, coords = (x2, y2),
+ *             fields = {'mass'=m2, 'vel' = (vx2, vy2)},
+ *             tags = {'type'=t2, 'color'=c2}
+ *  @endcode
  */
 class ParticleSet
 {
@@ -273,22 +281,21 @@ protected:
 
    /** @brief Global unique IDs of particles owned by this rank.
     *
-    *  @details For the example particles above, \ref ids would be
+    *  @details For the \ref sample_particleset_data, \ref ids would be
     *  ids[0]=id0, ids[1]=id1, ids[2]=id2.
     */
    Array<IDType> ids;
 
    /** @brief Spatial coordinates of particles owned by this rank.
     *
-    *  @details For the example particles above, \ref coords would be
-    *  coords=(x0,y0,x1,y1,x2,y2) if coords::Ordering is byVDIM
-    *  and    (x0,x1,x2,y0,y1,y2) if coords::ordering is byNODES.
+    *  @details For the \ref sample_particleset_data, \ref coords would be
+    *  coords=(x0,y0,x1,y1,x2,y2) assuming coords::Ordering is byVDIM.
     */
    ParticleVector coords;
 
    /** @brief All particle fields for particles owned by this rank.
     *
-    *  @details For the example particles above, \ref fields would be
+    *  @details For the \ref sample_particleset_data, \ref fields would be
     *  *fields[0]=(m0,m1,m2), *fields[1]=(vx0,vy0,vx1,vy1,vx2,vy2)
     *  assuming fields[1]::Ordering is byVDIM.
     */
@@ -296,21 +303,21 @@ protected:
 
    /** @brief All particle tags for particles owned by this rank.
     *
-    *  @details For the example particles above, \ref tags would be
+    *  @details For the \ref sample_particleset_data, \ref tags would be
     *  *tags[0]=(t0,t1,t2), *tags[1]=(c0,c1,c2).
     */
    std::vector<std::unique_ptr<Array<int>>> tags;
 
    /** @brief Field names, to be written when PrintCSV() is called.
     *
-    *  @details For the example particles above, \ref field_names would be
+    *  @details For the \ref sample_particleset_data, \ref field_names would be
     *  field_names[0]='mass', field_names[1]='vel'.
     */
    std::vector<std::string> field_names;
 
    /** @brief Tag names, to be written when PrintCSV() is called.
     *
-    *  @details For the example particles above, \ref tag_names would be
+    *  @details For the \ref sample_particleset_data, \ref tag_names would be
     *  tag_names[0]='type', tag_names[1]='color'.
     */
    std::vector<std::string> tag_names;
@@ -358,7 +365,7 @@ protected:
     *  @details This method updates the global ID of the particle at given
     *  local index after Redistribute().
     *
-    *  @warning This method must be used very carefully as it updates global
+    *  @note This method must be used very carefully as it updates global
     *  ID of a particle.
     */
    void UpdateID(int local_idx, IDType new_global_id)
