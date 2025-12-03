@@ -235,7 +235,7 @@ public:
    /// time n - \p nm .
    ParticleVector& U(int nm=0)
    {
-      MFEM_ASSERT(nm < N_HIST, "nm must be <= 3");
+      MFEM_ASSERT(nm < N_HIST, "nm must be < " << N_HIST);
       return fluid_particles.Field(fp_idx.field.u[nm]);
    }
 
@@ -281,8 +281,8 @@ public:
 
    /** @brief Add a 2D recirculation / one-way periodic boundary condition.
     *
-    *  @warning *Both* normals must be facing into the domain. See \ref
-    *  Get2DNormal for details on the normal direction.
+    *  @warning *Both* normals must be facing into the domain. See
+    *  Get2DNormal() for details on the normal direction.
     *
     *  @param[in] inlet_start             Inlet line segment start point.
     *  @param[in] inlet_end               Inlet line segment end point.
