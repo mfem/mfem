@@ -251,6 +251,7 @@ TEST_CASE("CalcHessian",
       fe.SetOrder();
       fe.Weights() = 1.0;
       TestCalcHessian(&fe);
+      delete kv[0];
    }
 
    SECTION("NURBS2DFiniteElement")
@@ -268,6 +269,8 @@ TEST_CASE("CalcHessian",
       fe.SetOrder();
       fe.Weights() = 1.0;
       TestCalcHessian(&fe);
+      delete kv[0];
+      delete kv[1];
    }
 
    SECTION("NURBS3DFiniteElement")
@@ -286,5 +289,8 @@ TEST_CASE("CalcHessian",
       fe.SetOrder();
       fe.Weights() = 1.0;
       TestCalcHessian(&fe);
+      delete kv[0];
+      delete kv[1];
+      delete kv[2];
    }
 }
