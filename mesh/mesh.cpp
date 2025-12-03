@@ -36,6 +36,7 @@
 #include <numeric>
 #include <unordered_map>
 #include <unordered_set>
+#include <list>
 
 // Include the METIS header, if using version 5. If using METIS 4, the needed
 // declarations are inlined below, i.e. no header is needed.
@@ -4772,12 +4773,12 @@ Mesh::Mesh(real_t *vertices_, int num_vertices,
    FinalizeTopology();
 }
 
-Mesh::Mesh( const NURBSExtension& ext )
+Mesh::Mesh(const NURBSExtension& ext)
    : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    SetEmpty();
    /// make an internal copy of the NURBSExtension
-   NURBSext = new NURBSExtension( ext );
+   NURBSext = new NURBSExtension(ext);
 
    Dim              = NURBSext->Dimension();
    NumOfVertices    = NURBSext->GetNV();
@@ -6537,6 +6538,8 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_ukv)
       Array<int> ukv_to_rpkv;
       GetEdgeToUniqueKnotvector(edge_to_ukv, ukv_to_rpkv);
    }
+
+   CorrectPatchTopoOrientations(edge_to_ukv);
 }
 
 void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
@@ -6549,7 +6552,7 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
    // Sign convention
    auto sign = [](int i) { return -1 - i; };
    auto unsign = [](int i) { return (i < 0) ? -1 - i : i; };
-   // Edge index -> dimension convention
+   // Local edge index -> dimension convention
    auto edge_to_dim = [](int i) { return (i < 8) ? ((i & 1) ? 1 : 0) : 2; };
 
    Array<int> v(2); // vertices of an edge
@@ -6653,6 +6656,242 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
       const int ukv = rpkv_to_ukv[rpkv];
       edge_to_ukv[i] = (edge_to_pkv[i] < 0) ? sign(ukv) : ukv;
    }
+
+   CorrectPatchTopoOrientations(edge_to_ukv);
+}
+
+void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
+{
+   const int dim = Dimension(); // Topological (not physical) dimension
+   if (dim == 1) { return; }
+
+   // Sign convention
+   auto sign = [](int i) { return -1 - i; };
+
+   const Table *face2elem = GetFaceToElementTable();
+   Array<int> pfaces, orient;
+   Array<int> fe, feo;
+
+   auto faceNeighbors = [&](int p, int kv, std::unordered_set<int> &nghb)
+   {
+      if (dim == 2) { GetElementEdges(p, pfaces, orient); }
+      else { GetElementFaces(p, pfaces, orient); }
+
+      for (auto face : pfaces)
+      {
+         // Check whether this face contains kv.
+         GetFaceEdges(face, fe, feo);
+         bool hasKV = false;
+         for (auto e : fe)
+         {
+            const int skv = edge_to_ukv[e];
+            if (skv == kv || sign(skv) == kv) { hasKV = true; }
+         }
+         if (!hasKV) { continue; }
+
+         Array<int> row;
+         face2elem->GetRow(face, row);
+         for (auto elem : row) { nghb.insert(elem); }
+      }
+   };
+
+   std::vector<std::vector<int>> dir_edges;
+   if (dim == 2)
+   {
+      dir_edges =
+      {
+         {0,2},
+         {1,3}
+      };
+   }
+   else
+   {
+      dir_edges =
+      {
+         {0,2,4,6},
+         {1,3,5,7},
+         {8,9,10,11}
+      };
+   }
+
+   Array<int> ukvs((dim==2) ? 4 : 12);
+   Array<int> pe, oe;
+   bool initKV = false;
+
+   auto setPatchDirections = [&](int p, int kv, Array<bool> &edgeSet,
+                                 std::unordered_set<int> &visited)
+   {
+      // Edges and orientations for this patch
+      GetElementEdges(p, pe, oe);
+
+      // Get the signed unique knot vector indices
+      for (int i = 0; i < pe.Size(); i++)
+      {
+         ukvs[i] = edge_to_ukv[pe[i]];
+         ukvs[i] = (oe[i] < 0) ? sign(ukvs[i]) : ukvs[i];
+      }
+
+      // Find the dimension with this kv.
+      int thisDim = -1;
+      for (int d=0; d<dim; ++d) // Loop over dimensions.
+      {
+         const int skv = edge_to_ukv[pe[dir_edges[d][0]]];
+         if (skv == kv || sign(skv) == kv)
+         {
+            thisDim = d;
+         }
+      }
+      if (thisDim == -1)
+      {
+         return false;
+      }
+
+      // For this dimension, find any edge already set. If no edge is set, we
+      // arbitrarily take the first.
+      int ref_edge0 = dir_edges[thisDim][0];
+      for (auto ref_edge : dir_edges[thisDim])
+      {
+         const int edge = pe[ref_edge];
+         if (edgeSet[edge])
+         {
+            ref_edge0 = ref_edge;
+         }
+      }
+
+      if (initKV && !edgeSet[pe[ref_edge0]])
+      {
+         visited.erase(p);
+         return false; // There is no set edge in this direction on this patch.
+      }
+
+      initKV = true;
+
+      // Use ref_edge0 to set other edges in this dimension.
+      edgeSet[pe[ref_edge0]] = true;
+      for (auto i : dir_edges[thisDim])
+      {
+         if (i == ref_edge0)
+         {
+            continue;
+         }
+
+         const int edge = pe[i];
+         if ((dim == 2 && ukvs[i] != sign(ukvs[ref_edge0])) ||
+             (dim == 3 && ukvs[i] == sign(ukvs[ref_edge0])))
+         {
+            // Flip the sign of this edge
+            MFEM_VERIFY(!edgeSet[edge], "");
+            edge_to_ukv[edge] = sign(edge_to_ukv[edge]);
+         }
+
+         edgeSet[edge] = true;
+      }
+
+      return true;
+   };
+
+   Array<bool> edgeSet(NumOfEdges);
+   edgeSet = false;
+
+   std::unordered_set<int> unset;
+   for (int i=0; i<NumOfElements; ++i) { unset.insert(i); }
+
+   const int max_iter = 3 * NumOfElements;
+   for (int iter=0; iter<max_iter; ++iter)
+   {
+      std::list<int> nextPatches; // Next patches to visit, ordered
+      std::unordered_set<int> nextSet; // nextPatches as a set
+      std::unordered_set<int> visited; // Visit each patch only once
+
+      if (unset.size() == 0)
+      {
+         break;
+      }
+
+      const int p0 = *unset.begin();
+      nextPatches.push_back(p0); // Start from arbitrary unset patch
+      nextSet.insert(p0);
+
+      // Choose an arbitrary unset direction for the first patch.
+      GetElementEdges(p0, pe, oe);
+      int unsetDim = -1;
+      for (int d=0; d<dim; ++d) // Loop over dimensions.
+      {
+         if (!edgeSet[pe[dir_edges[d][0]]])
+         {
+            unsetDim = d;
+         }
+      }
+
+      if (unsetDim == -1)
+      {
+         unset.erase(p0);
+         continue;
+      }
+
+      const int kv_signed = edge_to_ukv[pe[dir_edges[unsetDim][0]]];
+      const int kv = kv_signed < 0 ? sign(kv_signed) : kv_signed;
+      MFEM_VERIFY(!edgeSet[pe[dir_edges[unsetDim][0]]], "");
+
+      initKV = false;
+
+      while (nextPatches.size() > 0)
+      {
+         const int p = nextPatches.front();
+         nextPatches.pop_front();
+         nextSet.erase(p);
+         visited.insert(p);
+
+         const bool somethingSet = setPatchDirections(p, kv, edgeSet, visited);
+         if (!somethingSet)
+         {
+            continue;
+         }
+
+         // Find neighbors of patch p sharing a conforming face, via face2elem.
+         std::unordered_set<int> neighbors;
+         faceNeighbors(p, kv, neighbors);
+
+         bool allSet = true;
+         GetElementEdges(p, pe, oe);
+         for (auto edge : pe)
+         {
+            if (!edgeSet[edge])
+            {
+               allSet = false;
+            }
+         }
+         if (allSet)
+         {
+            unset.erase(p);
+         }
+
+         // Add neighbors not done to nextPatches.
+         for (auto n : neighbors)
+         {
+            if (n != p && visited.count(n) == 0 && unset.count(n) > 0)
+            {
+               if (nextSet.count(n) == 0)
+               {
+                  nextPatches.push_back(n);
+                  nextSet.insert(n);
+               }
+            }
+         }
+      }
+   }
+
+   bool allSet = true;
+   for (auto eset : edgeSet)
+   {
+      if (!eset)
+      {
+         allSet = false;
+      }
+   }
+   MFEM_VERIFY(allSet && unset.size() == 0, "Some edge is not set");
+
+   delete face2elem;
 }
 
 void Mesh::LoadNonconformingPatchTopo(std::istream &input,
@@ -9563,6 +9802,8 @@ void Mesh::GetVertices(Vector &vert_coord) const
 
 void Mesh::SetVertices(const Vector &vert_coord)
 {
+   MFEM_VERIFY(vert_coord.Size() == spaceDim * NumOfVertices, "");
+   vertices.SetSize(NumOfVertices);
    for (int i = 0, nv = vertices.Size(); i < nv; i++)
       for (int j = 0; j < spaceDim; j++)
       {
