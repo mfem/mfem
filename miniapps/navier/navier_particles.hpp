@@ -242,7 +242,7 @@ public:
    /// Get reference to the particle velocity ParticleVector at time n - \p nm .
    ParticleVector& V(int nm=0)
    {
-      MFEM_ASSERT(nm < N_HIST, "nm must be <= 3");
+      MFEM_ASSERT(nm < N_HIST, "nm must be < " << N_HIST);
       return fluid_particles.Field(fp_idx.field.v[nm]);
    }
 
@@ -250,14 +250,14 @@ public:
    /// time n - \p nm .
    ParticleVector& W(int nm=0)
    {
-      MFEM_ASSERT(nm < N_HIST, "nm must be <= 3");
+      MFEM_ASSERT(nm < N_HIST, "nm must be < " << N_HIST);
       return fluid_particles.Field(fp_idx.field.w[nm]);
    }
 
    /// Get reference to the position ParticleVector at time n - \p nm .
    ParticleVector& X(int nm=0)
    {
-      MFEM_ASSERT(nm < N_HIST, "nm must be <= 3");
+      MFEM_ASSERT(nm < N_HIST, "nm must be < " << N_HIST);
       return nm == 0 ? fluid_particles.Coords() : fluid_particles.Field(
                 fp_idx.field.x[nm-1]);
    }

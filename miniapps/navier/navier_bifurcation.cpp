@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // Sample run:
-// * mpirun -np 10 navier_bifurcation -rs 3 -npt 100 -nt 4e5
+// * mpirun -np 10 navier_bifurcation -rs 3 -npt 100 -nt 4e5 -traj 10
 
 
 #include "navier_solver.hpp"
