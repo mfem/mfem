@@ -25,17 +25,27 @@ struct TMOP_PA_Metric_2D
    using Args = kernels::InvariantsEvaluator2D::Buffers;
 
    virtual MFEM_HOST_DEVICE real_t EvalW(const real_t (&Jpt)[DIM * DIM],
-                                         const real_t *w) = 0;
+                                         const real_t *w) const
+   {
+      MFEM_ABORT_KERNEL("TMOP_PA_Metric_2D::EvalW is not implemented");
+      return -0.0_r;
+   }
 
    virtual MFEM_HOST_DEVICE void EvalP(const real_t (&Jpt)[DIM * DIM],
                                        const real_t *w,
-                                       real_t (&P)[DIM * DIM]) = 0;
+                                       real_t (&P)[DIM * DIM]) const
+   {
+      MFEM_ABORT_KERNEL("TMOP_PA_Metric_2D::EvalP is not implemented");
+   }
 
    virtual MFEM_HOST_DEVICE void AssembleH(const int qx, const int qy,
                                            const int e, const real_t weight,
                                            const real_t (&Jpt)[DIM * DIM],
                                            const real_t *w,
-                                           const DeviceTensor<7> &H) = 0;
+                                           const DeviceTensor<7> &H) const
+   {
+      MFEM_ABORT_KERNEL("TMOP_PA_Metric_2D::AssembleH is not implemented");
+   }
 };
 
 /// Abstract base class for the 3D metric TMOP PA kernels.
@@ -45,18 +55,28 @@ struct TMOP_PA_Metric_3D
    using Args = kernels::InvariantsEvaluator3D::Buffers;
 
    virtual MFEM_HOST_DEVICE real_t EvalW(const real_t (&Jpt)[DIM * DIM],
-                                         const real_t *w) = 0;
+                                         const real_t *w) const
+   {
+      MFEM_ABORT_KERNEL("TMOP_PA_Metric_3D::EvalW is not implemented");
+      return -0.0_r;
+   }
 
    virtual MFEM_HOST_DEVICE void EvalP(const real_t (&Jpt)[DIM * DIM],
                                        const real_t *w,
-                                       real_t (&P)[DIM * DIM]) = 0;
+                                       real_t (&P)[DIM * DIM]) const
+   {
+      MFEM_ABORT_KERNEL("TMOP_PA_Metric_3D::EvalP is not implemented");
+   }
 
    virtual MFEM_HOST_DEVICE void AssembleH(const int qx, const int qy,
                                            const int qz, const int e, const real_t weight,
                                            real_t *Jrt, real_t *Jpr,
                                            const real_t (&Jpt)[DIM * DIM],
                                            const real_t *w,
-                                           const DeviceTensor<5 + DIM> &H) const = 0;
+                                           const DeviceTensor<5 + DIM> &H) const
+   {
+      MFEM_ABORT_KERNEL("TMOP_PA_Metric_3D::AssembleH is not implemented");
+   }
 };
 
 namespace tmop
