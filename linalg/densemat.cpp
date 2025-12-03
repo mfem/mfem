@@ -4358,20 +4358,11 @@ void DenseTensor::Print(std::ostream &os, int width_) const
    os << setiosflags(ios::scientific | ios::showpos);
    for (int i = 0; i < SizeI(); i++)
    {
-      // os << "[row " << i << "]\n";
       for (int j = 0; j <SizeJ(); j++)
       {
          for (int k = 0; k <SizeJ(); k++)
          {
             os << (*this)(i,j,k);
-            // if (j+1 == width || (j+1) % width_ == 0)
-            // {
-            //    os << '\n';
-            //  }
-            //  else
-            //  {
-            //     os << ' ';
-            //  }
          }
          os << ',';
       }
