@@ -216,8 +216,7 @@ namespace detail
 template <
    typename qf_param_ts,
    typename qfunc_t,
-   std::size_t num_fields,
-   int num_inputs>
+   std::size_t num_fields>
 MFEM_HOST_DEVICE inline
 void call_qfunction_derivative(
    qfunc_t &qfunc,
@@ -225,7 +224,7 @@ void call_qfunction_derivative(
    const std::array<DeviceTensor<2>, num_fields> &shadow_shmem,
    DeviceTensor<2> &residual_shmem,
    DeviceTensor<5> &qpdc,
-   const DeviceTensor<num_inputs, const real_t> &itod,
+   const DeviceTensor<1, const real_t> &itod,
    const int &das_qp,
    const int &q)
 {
@@ -233,6 +232,7 @@ void call_qfunction_derivative(
    const int test_op_dim = qpdc.GetShape()[1];
    const int trial_vdim = qpdc.GetShape()[2];
    const int num_qp = qpdc.GetShape()[4];
+   const size_t num_inputs = itod.GetShape()[0];
 
    for (int j = 0; j < trial_vdim; j++)
    {
@@ -297,8 +297,7 @@ void call_qfunction_derivative(
 template <
    typename qf_param_ts,
    typename qfunc_t,
-   std::size_t num_fields,
-   int num_inputs>
+   std::size_t num_fields>
 MFEM_HOST_DEVICE inline
 void call_qfunction_derivative(
    qfunc_t &qfunc,
@@ -306,7 +305,7 @@ void call_qfunction_derivative(
    const std::array<DeviceTensor<2>, num_fields> &shadow_shmem,
    DeviceTensor<2> &residual_shmem,
    DeviceTensor<5> &qpdc,
-   const DeviceTensor<num_inputs, const real_t> &itod,
+   const DeviceTensor<1, const real_t> &itod,
    const int &das_qp,
    const int &q1d,
    const int &dimension,
@@ -384,21 +383,20 @@ namespace detail
 /// If input is dependent the value corresponds to the spatial dimension, otherwise
 /// a zero indicates non-dependence on the variable.
 /// @param q the current quadrature point index.
-template <
-   int num_inputs,
-   size_t num_fields>
+template <size_t num_fields>
 MFEM_HOST_DEVICE inline
 void apply_qpdc(
    DeviceTensor<3> &fhat,
    const std::array<DeviceTensor<2>, num_fields> &shadow_shmem,
    const DeviceTensor<5, const real_t> &qpdc,
-   const DeviceTensor<num_inputs, const real_t> &itod,
+   const DeviceTensor<1, const real_t> &itod,
    const int &q)
 {
    const int test_vdim = qpdc.GetShape()[0];
    const int test_op_dim = qpdc.GetShape()[1];
    const int trial_vdim = qpdc.GetShape()[2];
    const int num_qp = qpdc.GetShape()[4];
+   const size_t num_inputs = itod.GetShape()[0];
 
    for (int i = 0; i < test_vdim; i++)
    {
@@ -447,15 +445,13 @@ void apply_qpdc(
 /// @param q1d number of quadrature points in 1D.
 /// @param dimension spatial dimension.
 /// @param use_sum_factorization whether to use sum factorization.
-template <
-   int num_inputs,
-   size_t num_fields>
+template <size_t num_fields>
 MFEM_HOST_DEVICE inline
 void apply_qpdc(
    DeviceTensor<3> &fhat,
    const std::array<DeviceTensor<2>, num_fields> &shadow_shmem,
    const DeviceTensor<5, const real_t> &qpdc,
-   const DeviceTensor<num_inputs, const real_t> &itod,
+   const DeviceTensor<1, const real_t> &itod,
    const int &q1d,
    const int &dimension,
    const bool &use_sum_factorization)
