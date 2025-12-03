@@ -624,10 +624,14 @@ public:
        particle \p i . */
    Particle GetParticle(int i) const;
 
-   /** @brief Get Particle object whose member reference the actual data
+   /** @brief Get Particle object whose members reference the actual data
     *  associated with particle \p i in this ParticleSet.
     *
-    * @see IsParticleRefValid for when this method can be used.
+    *  @see IsParticleRefValid for when this method can be used.
+    *
+    *  @warning If particles are added, removed, or redistributed after
+    *  invoking this, the returned Particle member references will be
+    *  invalidated.
     */
    Particle GetParticleRef(int i);
 
