@@ -40,7 +40,7 @@ namespace mfem
  *
  *
  * For clarity, we will use the particles below to illustrate the data layout
- * for \ref coords, \ref fields, and \ref tags:
+ * for \ref coords, \ref fields, and \ref tags
  *
  * @anchor sample_particle_data
  * @code
@@ -289,7 +289,7 @@ protected:
    /** @brief Spatial coordinates of particles owned by this rank.
     *
     *  @details For the \ref sample_particleset_data, \ref coords would be
-    *  coords=(x0,y0,x1,y1,x2,y2) assuming coords::Ordering is byVDIM.
+    *  coords=(x0,y0,x1,y1,x2,y2) assuming coords ordering is byVDIM.
     */
    ParticleVector coords;
 
@@ -297,7 +297,7 @@ protected:
     *
     *  @details For the \ref sample_particleset_data, \ref fields would be
     *  *fields[0]=(m0,m1,m2), *fields[1]=(vx0,vy0,vx1,vy1,vx2,vy2)
-    *  assuming fields[1]::Ordering is byVDIM.
+    *  assuming fields[1] ordering is byVDIM.
     */
    std::vector<std::unique_ptr<ParticleVector>> fields;
 
