@@ -987,8 +987,8 @@ public:
 
    ///@}
 
-   /// Construct a Mesh from a NURBSExtension
-   explicit Mesh( const NURBSExtension& ext );
+   /// Construct a Mesh from a NURBSExtension, which is deep-copied.
+   explicit Mesh(const NURBSExtension& ext);
 
    /** @anchor mfem_Mesh_construction
        @name Methods for piecewise Mesh construction.

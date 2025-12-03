@@ -4773,12 +4773,12 @@ Mesh::Mesh(real_t *vertices_, int num_vertices,
    FinalizeTopology();
 }
 
-Mesh::Mesh( const NURBSExtension& ext )
+Mesh::Mesh(const NURBSExtension& ext)
    : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    SetEmpty();
    /// make an internal copy of the NURBSExtension
-   NURBSext = new NURBSExtension( ext );
+   NURBSext = new NURBSExtension(ext);
 
    Dim              = NURBSext->Dimension();
    NumOfVertices    = NURBSext->GetNV();

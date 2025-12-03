@@ -1120,7 +1120,12 @@ Mesh* ReflectNURBSMesh(Mesh &mesh, const Vector &origin, const Vector &normal)
    }
 
    NURBSExtension *ne = new NURBSExtension(reflectedPatchTopo, patches);
+   delete reflectedPatchTopo;
+
+   for (auto patch : patches) { delete patch; }
+
    Mesh *reflected = new Mesh(*ne);
+   delete ne;
    return reflected;
 }
 
