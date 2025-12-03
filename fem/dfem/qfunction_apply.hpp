@@ -46,7 +46,7 @@ void call_qfunction(
    {
       if (dimension == 1)
       {
-         MFEM_FOREACH_THREAD(q, x, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(q, x, q1d)
          {
             auto qf_args = decay_tuple<qf_param_ts> {};
             auto r = Reshape(&residual_shmem(0, q), rs_qp);
@@ -55,9 +55,9 @@ void call_qfunction(
       }
       else if (dimension == 2)
       {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
          {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
             {
                const int q = qx + q1d * qy;
                auto qf_args = decay_tuple<qf_param_ts> {};
@@ -68,11 +68,11 @@ void call_qfunction(
       }
       else if (dimension == 3)
       {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
          {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
             {
-               MFEM_FOREACH_THREAD(qz, z, q1d)
+               MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
                {
                   const int q = qx + q1d * (qy + q1d * qz);
                   auto qf_args = decay_tuple<qf_param_ts> {};
@@ -92,7 +92,7 @@ void call_qfunction(
    }
    else
    {
-      MFEM_FOREACH_THREAD(q, x, num_qp)
+      MFEM_FOREACH_THREAD_DIRECT(q, x, num_qp)
       {
          auto qf_args = decay_tuple<qf_param_ts> {};
          auto r = Reshape(&residual_shmem(0, q), rs_qp);
@@ -134,7 +134,7 @@ void call_qfunction_derivative_action(
    {
       if (dimension == 1)
       {
-         MFEM_FOREACH_THREAD(q, x, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(q, x, q1d)
          {
             auto r = Reshape(&residual_shmem(0, q), das_qp);
             auto qf_args = decay_tuple<qf_param_ts> {};
@@ -149,9 +149,9 @@ void call_qfunction_derivative_action(
       }
       else if (dimension == 2)
       {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
          {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
             {
                const int q = qx + q1d * qy;
                auto r = Reshape(&residual_shmem(0, q), das_qp);
@@ -168,11 +168,11 @@ void call_qfunction_derivative_action(
       }
       else if (dimension == 3)
       {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
          {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
             {
-               MFEM_FOREACH_THREAD(qz, z, q1d)
+               MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
                {
                   const int q = qx + q1d * (qy + q1d * qz);
                   auto r = Reshape(&residual_shmem(0, q), das_qp);
@@ -195,7 +195,7 @@ void call_qfunction_derivative_action(
    }
    else
    {
-      MFEM_FOREACH_THREAD(q, x, num_qp)
+      MFEM_FOREACH_THREAD_DIRECT(q, x, num_qp)
       {
          auto r = Reshape(&residual_shmem(0, q), das_qp);
          auto qf_args = decay_tuple<qf_param_ts> {};
@@ -298,7 +298,7 @@ void call_qfunction_derivative(
    {
       if (dimension == 1)
       {
-         MFEM_FOREACH_THREAD(q, x, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(q, x, q1d)
          {
             detail::call_qfunction_derivative<qf_param_ts>(
                qfunc, input_shmem, shadow_shmem, residual_shmem, qpdc, itod, das_qp, q);
@@ -306,9 +306,9 @@ void call_qfunction_derivative(
       }
       else if (dimension == 2)
       {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
          {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
             {
                const int q = qx + q1d * qy;
                detail::call_qfunction_derivative<qf_param_ts>(
@@ -318,11 +318,11 @@ void call_qfunction_derivative(
       }
       else if (dimension == 3)
       {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
          {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
             {
-               MFEM_FOREACH_THREAD(qz, z, q1d)
+               MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
                {
                   const int q = qx + q1d * (qy + q1d * qz);
                   detail::call_qfunction_derivative<qf_param_ts>(
@@ -339,7 +339,7 @@ void call_qfunction_derivative(
    else
    {
       const int num_qp = qpdc.GetShape()[4];
-      MFEM_FOREACH_THREAD(q, x, num_qp)
+      MFEM_FOREACH_THREAD_DIRECT(q, x, num_qp)
       {
          detail::call_qfunction_derivative<qf_param_ts>(
             qfunc, input_shmem, shadow_shmem, residual_shmem, qpdc, itod, das_qp, q);
@@ -413,16 +413,16 @@ void apply_qpdc(
    {
       if (dimension == 1)
       {
-         MFEM_FOREACH_THREAD(q, x, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(q, x, q1d)
          {
             detail::apply_qpdc(fhat, shadow_shmem, qpdc, itod, q);
          }
       }
       else if (dimension == 2)
       {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
          {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
             {
                const int q = qx + q1d * qy;
                detail::apply_qpdc(fhat, shadow_shmem, qpdc, itod, q);
@@ -431,11 +431,11 @@ void apply_qpdc(
       }
       else if (dimension == 3)
       {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
          {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
             {
-               MFEM_FOREACH_THREAD(qz, z, q1d)
+               MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
                {
                   const int q = qx + q1d * (qy + q1d * qz);
                   detail::apply_qpdc(fhat, shadow_shmem, qpdc, itod, q);
@@ -451,7 +451,7 @@ void apply_qpdc(
    else
    {
       const int num_qp = qpdc.GetShape()[4];
-      MFEM_FOREACH_THREAD(q, x, num_qp)
+      MFEM_FOREACH_THREAD_DIRECT(q, x, num_qp)
       {
          detail::apply_qpdc(fhat, shadow_shmem, qpdc, itod, q);
       }
