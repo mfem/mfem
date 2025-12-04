@@ -2166,6 +2166,15 @@ H1Bubble_FECollection::H1Bubble_FECollection(const int p, const int q,
    {
       dofs[Geometry::SEGMENT] = p - 1;
       elements[Geometry::SEGMENT] = make_unique<H1_SegmentElement>(p, btype);
+
+      seg_ord_vec.resize(2*(p - 1));
+      seg_dof_ord[0] = seg_ord_vec.data();
+      seg_dof_ord[1] = seg_dof_ord[0] + p - 1;
+      for (int i = 0; i < p - 1; i++)
+      {
+         seg_dof_ord[0][i] = i;
+         seg_dof_ord[1][i] = p - 2 - i;
+      }
    }
 
    if (dim == 2)
@@ -2200,6 +2209,28 @@ const FiniteElement *
 H1Bubble_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
    return elements[GeomType].get();
+}
+
+const int *H1Bubble_FECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
+{
+   if (GeomType == Geometry::SEGMENT)
+   {
+      return (Or > 0) ? seg_dof_ord[0] : seg_dof_ord[1];
+   }
+   else if (GeomType == Geometry::TRIANGLE)
+   {
+      return tri_dof_ord[Or%6];
+   }
+   else if (GeomType == Geometry::SQUARE)
+   {
+      return quad_dof_ord[Or%8];
+   }
+   else if (GeomType == Geometry::TETRAHEDRON)
+   {
+      return tet_dof_ord[Or%24];
+   }
+   return nullptr;
 }
 
 FiniteElementCollection *H1Bubble_FECollection::GetTraceCollection() const
