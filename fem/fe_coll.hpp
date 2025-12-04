@@ -332,12 +332,10 @@ protected:
    std::array<int, Geometry::NumGeom> dofs{}; // zero initialize
    std::array<std::unique_ptr<FiniteElement>, Geometry::NumGeom> elements;
 
-   std::vector<int> seg_ord_vec, tri_ord_vec, quad_ord_vec, tet_ord_vec;
-   // null initialize
-   std::array<int*, 2> seg_dof_ord{};
-   std::array<int*, 6> tri_dof_ord{};
-   std::array<int*, 8> quad_dof_ord{};
-   std::array<int*, 24> tet_dof_ord{};
+   std::array<std::vector<int>, 2> seg_dof_ord;
+   std::array<std::vector<int>, 6> tri_dof_ord;
+   std::array<std::vector<int>, 8> quad_dof_ord;
+   std::array<std::vector<int>, 24> tet_dof_ord;
 
 public:
    explicit H1Bubble_FECollection(const int p, const int q, const int dim = 3,

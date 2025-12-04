@@ -2166,15 +2166,6 @@ H1Bubble_FECollection::H1Bubble_FECollection(const int p, const int q,
    {
       dofs[Geometry::SEGMENT] = p - 1;
       elements[Geometry::SEGMENT] = make_unique<H1_SegmentElement>(p, btype);
-
-      seg_ord_vec.resize(2*(p - 1));
-      seg_dof_ord[0] = seg_ord_vec.data();
-      seg_dof_ord[1] = seg_dof_ord[0] + p - 1;
-      for (int i = 0; i < p - 1; i++)
-      {
-         seg_dof_ord[0][i] = i;
-         seg_dof_ord[1][i] = p - 2 - i;
-      }
    }
 
    if (dim == 2)
@@ -2203,6 +2194,67 @@ H1Bubble_FECollection::H1Bubble_FECollection(const int p, const int q,
       elements[Geometry::CUBE] =
          make_unique<H1Bubble_HexahedronElement>(p, q, btype);
    }
+
+   // DOF orderings. Need only for lower-dimensional entities.
+   // Segment DOF orderings in 2D.
+   if (dim >= 2)
+   {
+      seg_dof_ord[0].resize(p - 1);
+      seg_dof_ord[1].resize(p - 1);
+      for (int i = 0; i < p - 1; i++)
+      {
+         seg_dof_ord[0][i] = i;
+         seg_dof_ord[1][i] = p - 2 - i;
+      }
+   }
+
+   // Face (triangle or quadrilateral) DOF orderings in 3D.
+   if (dim == 3)
+   {
+      const int n_tri_dof = dofs[Geometry::TRIANGLE];
+      for (int i = 0; i < 6; i++)
+      {
+         tri_dof_ord[i].resize(n_tri_dof);
+      }
+      // see Mesh::GetTriOrientation in mesh/mesh.cpp
+      const int pm1 = p - 1;
+      const int pm2 = p - 2;
+      for (int j = 0; j < pm2; j++)
+      {
+         for (int i = 0; i + j < pm2; i++)
+         {
+            int o = n_tri_dof - ((pm1 - j)*(pm2 - j))/2 + i;
+            int k = (p - 3) - j - i;
+            tri_dof_ord[0][o] = o;  // (0,1,2)
+            tri_dof_ord[1][o] = n_tri_dof - ((pm1-j)*(pm2-j))/2 + k;  // (1,0,2)
+            tri_dof_ord[2][o] = n_tri_dof - ((pm1-i)*(pm2-i))/2 + k;  // (2,0,1)
+            tri_dof_ord[3][o] = n_tri_dof - ((pm1-k)*(pm2-k))/2 + i;  // (2,1,0)
+            tri_dof_ord[4][o] = n_tri_dof - ((pm1-k)*(pm2-k))/2 + j;  // (1,2,0)
+            tri_dof_ord[5][o] = n_tri_dof - ((pm1-i)*(pm2-i))/2 + j;  // (0,2,1)
+         }
+      }
+
+      const int n_quad_dof = dofs[Geometry::SQUARE];
+      for (int i = 0; i < 8; i++)
+      {
+         quad_dof_ord[i].resize(n_quad_dof);
+      }
+      for (int j = 0; j < pm1; j++)
+      {
+         for (int i = 0; i < pm1; i++)
+         {
+            int o = i + j*pm1;
+            quad_dof_ord[0][o] = i + j*pm1;  // (0,1,2,3)
+            quad_dof_ord[1][o] = j + i*pm1;  // (0,3,2,1)
+            quad_dof_ord[2][o] = j + (pm2 - i)*pm1;  // (1,2,3,0)
+            quad_dof_ord[3][o] = (pm2 - i) + j*pm1;  // (1,0,3,2)
+            quad_dof_ord[4][o] = (pm2 - i) + (pm2 - j)*pm1;  // (2,3,0,1)
+            quad_dof_ord[5][o] = (pm2 - j) + (pm2 - i)*pm1;  // (2,1,0,3)
+            quad_dof_ord[6][o] = (pm2 - j) + i*pm1;  // (3,0,1,2)
+            quad_dof_ord[7][o] = i + (pm2 - j)*pm1;  // (3,2,1,0)
+         }
+      }
+   }
 }
 
 const FiniteElement *
@@ -2216,19 +2268,15 @@ const int *H1Bubble_FECollection::DofOrderForOrientation(
 {
    if (GeomType == Geometry::SEGMENT)
    {
-      return (Or > 0) ? seg_dof_ord[0] : seg_dof_ord[1];
+      return (Or > 0) ? seg_dof_ord[0].data() : seg_dof_ord[1].data();
    }
    else if (GeomType == Geometry::TRIANGLE)
    {
-      return tri_dof_ord[Or%6];
+      return tri_dof_ord[Or%6].data();
    }
    else if (GeomType == Geometry::SQUARE)
    {
-      return quad_dof_ord[Or%8];
-   }
-   else if (GeomType == Geometry::TETRAHEDRON)
-   {
-      return tet_dof_ord[Or%24];
+      return quad_dof_ord[Or%8].data();
    }
    return nullptr;
 }
