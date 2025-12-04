@@ -991,7 +991,7 @@ void Mesh::ReadGmsh4Mesh(GmshReader &g, istream &input)
                {
                   c[d] = g.ReadBinaryOrASCII<double>(b);
                   g.bb_min[d] = min(g.bb_min[d], c[d]);
-                  g.bb_max[d] = max(g.bb_min[d], c[d]);
+                  g.bb_max[d] = max(g.bb_max[d], c[d]);
                }
                g.vertex_map[node_tags[i]] = vertex_counter;
                vertices[vertex_counter] = Vertex(c[0], c[1], c[2]);
@@ -1052,7 +1052,7 @@ void Mesh::ReadGmsh4Mesh(GmshReader &g, istream &input)
          for (size_t i = 0; i < n_periodic; ++i)
          {
             g.Skip<int>(3, b); // Skip entity information
-            const int n_affine = g.ReadBinaryOrASCII<size_t>(b);
+            const size_t n_affine = g.ReadBinaryOrASCII<size_t>(b);
             g.Skip<double>(n_affine, b); // Skip affine information
             const size_t n_nodes = g.ReadBinaryOrASCII<size_t>(b);
             for (size_t j = 0; j < n_nodes; ++j)
