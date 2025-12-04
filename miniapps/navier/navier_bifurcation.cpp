@@ -5,8 +5,17 @@
 // This file is part of the MFEM library. For more information and source code
 // availability visit https://mfem.org.
 //
+//   -----------------------------------------------------------------------
+//   Navier Bifurcation: Particle Advection in a 2D Bifurcating Channel Flow
+//   -----------------------------------------------------------------------
+//
+// This miniapp demonstrates the usage of NavierParticles in fluid flow
+// computed by the NavierSolver in a 2D bifurcating channel. Particles are
+// injected periodically with a range of κ at random locations along the inlet
+// boundary. Reflection boundary conditions are used on the channel walls.
+//
 // Sample run:
-// * mpirun -np 10 navier_bifurcation -rs 3 -npt 100 -nt 4e5 -traj 10
+//   mpirun -np 10 navier_bifurcation -rs 3 -npt 100 -nt 4e5 -traj 10
 
 
 #include "navier_solver.hpp"
