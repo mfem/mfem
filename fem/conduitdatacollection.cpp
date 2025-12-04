@@ -70,8 +70,8 @@ ConduitDataCollection::~ConduitDataCollection()
 void ConduitDataCollection::Save()
 {
    std::string dir_name = MeshDirectoryName();
-   int err = create_directory(dir_name, mesh, myid);
-   if (err)
+   int err_ = create_directory(dir_name, mesh, myid);
+   if (err_)
    {
       MFEM_ABORT("Error creating directory: " << dir_name);
    }
@@ -772,6 +772,8 @@ ConduitDataCollection::BlueprintFieldToQuadratureFunction(Mesh *mesh,
                  << qf_name << std::endl
                  << "Expected: QF_{ORDER}_{VDIM}");
    }
+   MFEM_VERIFY(qf_vdim == vdim, "vector dimension mismatch: vdim = " << vdim
+               << ", qf_vdim = " << qf_vdim);
 
    mfem::QuadratureSpace *quad_space = new mfem::QuadratureSpace(mesh, qf_order);
    mfem::QuadratureFunction *res = new mfem::QuadratureFunction();
@@ -1114,11 +1116,13 @@ ConduitDataCollection::QuadratureFunctionToBlueprintField(
    int qf_order = qf->GetSpace()->GetOrder();
    int qf_size  = qf->GetSpace()->GetSize();
 
-   std::ostringstream oss;
-   oss << "QF_" << qf_order << "_" << qf_vdim;
+   {
+      std::ostringstream oss;
+      oss << "QF_" << qf_order << "_" << qf_vdim;
 
-   n_field["basis"] = oss.str();
-   n_field["topology"] = main_topology_name;
+      n_field["basis"] = oss.str();
+      n_field["topology"] = main_topology_name;
+   }
 
    if (qf_vdim == 1) // scalar case
    {
@@ -1176,7 +1180,7 @@ ConduitDataCollection::RootFileName()
 //---------------------------------------------------------------------------//
 std::string
 ConduitDataCollection::MeshFileName(int domain_id,
-                                    const std::string &relay_protocol)
+                                    const std::string &relay_protocol_)
 {
    std::string res = prefix_path +
                      name  +
@@ -1185,7 +1189,7 @@ ConduitDataCollection::MeshFileName(int domain_id,
                      "/domain_" +
                      to_padded_string(domain_id, pad_digits_rank) +
                      "." +
-                     relay_protocol;
+                     relay_protocol_;
 
    return res;
 }
@@ -1203,7 +1207,7 @@ ConduitDataCollection::MeshDirectoryName()
 
 //---------------------------------------------------------------------------//
 std::string
-ConduitDataCollection::MeshFilePattern(const std::string &relay_protocol)
+ConduitDataCollection::MeshFilePattern(const std::string &relay_protocol_)
 {
    std::ostringstream oss;
    oss << name
@@ -1212,7 +1216,7 @@ ConduitDataCollection::MeshFilePattern(const std::string &relay_protocol)
        << "/domain_%0"
        << pad_digits_rank
        << "d."
-       << relay_protocol;
+       << relay_protocol_;
 
    return oss.str();
 }
@@ -1222,14 +1226,14 @@ ConduitDataCollection::MeshFilePattern(const std::string &relay_protocol)
 void
 ConduitDataCollection::SaveRootFile(int num_domains,
                                     const Node &n_mesh,
-                                    const std::string &relay_protocol)
+                                    const std::string &relay_protocol_)
 {
    // default to json root file, except for hdf5 case
    std::string root_proto = "json";
 
-   if (relay_protocol == "hdf5")
+   if (relay_protocol_ == "hdf5")
    {
-      root_proto = relay_protocol;
+      root_proto = relay_protocol_;
    }
 
    Node n_root;
@@ -1260,14 +1264,14 @@ ConduitDataCollection::SaveRootFile(int num_domains,
       }
    }
    // add extra header info
-   n_root["protocol/name"]    =  relay_protocol;
+   n_root["protocol/name"]    =  relay_protocol_;
    n_root["protocol/version"] = "0.3.1";
 
 
    // we will save one file per domain, so trees == files
    n_root["number_of_files"]  = num_domains;
    n_root["number_of_trees"]  = num_domains;
-   n_root["file_pattern"]     = MeshFilePattern(relay_protocol);
+   n_root["file_pattern"]     = MeshFilePattern(relay_protocol_);
    n_root["tree_pattern"]     = "";
 
    // Add the time, time step, and cycle
@@ -1282,9 +1286,9 @@ ConduitDataCollection::SaveRootFile(int num_domains,
 void
 ConduitDataCollection::SaveMeshAndFields(int domain_id,
                                          const Node &n_mesh,
-                                         const std::string &relay_protocol)
+                                         const std::string &relay_protocol_)
 {
-   relay::io::save(n_mesh, MeshFileName(domain_id, relay_protocol));
+   relay::io::save(n_mesh, MeshFileName(domain_id, relay_protocol_));
 }
 
 //---------------------------------------------------------------------------//
@@ -1381,13 +1385,13 @@ ConduitDataCollection::LoadRootFile(Node &root_out)
 //---------------------------------------------------------------------------//
 void
 ConduitDataCollection::LoadMeshAndFields(int domain_id,
-                                         const std::string &relay_protocol)
+                                         const std::string &relay_protocol_)
 {
    // Note: This path doesn't use any info from the root file
    // it uses the implicit mfem ConduitDataCollection layout
 
    Node n_mesh;
-   relay::io::load( MeshFileName(domain_id, relay_protocol), n_mesh);
+   relay::io::load( MeshFileName(domain_id, relay_protocol_), n_mesh);
 
 
    Node verify_info;
