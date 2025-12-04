@@ -199,9 +199,9 @@ public:
  *  The ParticleVector \ref coords contains the coordinates of all particles.
  *
  *  @par IDs:
- *  Each particle is assigned a unique global ID of type unsigned long long. In
- *  parallel, IDs are initialized starting with @b rank and striding by @b size.
- *  The IDs of all particles owned by this rank are stored in \ref ids.
+ *  Each particle is assigned a unique global ID of type IDType. In parallel,
+ *  IDs are initialized starting with @b rank and striding by @b size. The IDs
+ *  of all particles owned by this rank are stored in \ref ids.
  *
  *  @par Fields:
  *  Fields represent scalar or vector \ref real_t data to be associated with
