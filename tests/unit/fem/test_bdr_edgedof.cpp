@@ -366,7 +366,6 @@ TEST_CASE("BoundaryEdgeDoFs2DSquareInSquare",
    serial_mesh.UniformRefinement();
 
    int num_procs = Mpi::WorldSize();
-   int rank = Mpi::WorldRank();
 
    // Test each boundary attribute
    for (int inner_attr : inner_attrs_to_test)
@@ -406,7 +405,6 @@ TEST_CASE("BoundaryEdgeDoFs2DSquareInSquare",
       all_dof_results.reserve(all_partitionings.size());
 
       // Test each partitioning
-      int partition_idx = 0;
       for (const auto& partition : all_partitionings)
       {
          // Create parallel mesh with current partitioning
@@ -457,8 +455,6 @@ TEST_CASE("BoundaryEdgeDoFs2DSquareInSquare",
                        MPI_COMM_WORLD);
 
          all_dof_results.push_back(global_dof_count);
-
-         partition_idx++;
       }
 
       // Verify all partitionings give identical results
