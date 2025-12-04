@@ -201,7 +201,7 @@ inline void SmemPADiffusionDiagonal2D(const int NE,
       MFEM_SHARED real_t BG[2][MQ1*MD1];
       real_t (*B)[MD1] = (real_t (*)[MD1]) (BG+0);
       real_t (*G)[MD1] = (real_t (*)[MD1]) (BG+1);
-      MFEM_SHARED real_t QD[3][NBZ][MD1][MQ1];
+      MFEM_SHARED real_t QD[3][NBZ][MQ1][MD1];
       real_t (*QD0)[MD1] = (real_t (*)[MD1])(QD[0] + tidz);
       real_t (*QD1)[MD1] = (real_t (*)[MD1])(QD[1] + tidz);
       real_t (*QD2)[MD1] = (real_t (*)[MD1])(QD[2] + tidz);
@@ -672,12 +672,12 @@ inline void SmemPADiffusionApply2D(const int NE,
       real_t (*Gt)[MQ1] = (real_t (*)[MQ1]) (sBG+1);
       MFEM_SHARED real_t Xz[NBZ][MD1][MD1];
       MFEM_SHARED real_t GD[2][NBZ][MD1][MQ1];
-      MFEM_SHARED real_t GQ[2][NBZ][MD1][MQ1];
+      MFEM_SHARED real_t GQ[2][NBZ][MQ1][MQ1];
       real_t (*X)[MD1] = (real_t (*)[MD1])(Xz + tidz);
-      real_t (*DQ0)[MD1] = (real_t (*)[MD1])(GD[0] + tidz);
-      real_t (*DQ1)[MD1] = (real_t (*)[MD1])(GD[1] + tidz);
-      real_t (*QQ0)[MD1] = (real_t (*)[MD1])(GQ[0] + tidz);
-      real_t (*QQ1)[MD1] = (real_t (*)[MD1])(GQ[1] + tidz);
+      real_t (*DQ0)[MQ1] = (real_t (*)[MQ1])(GD[0] + tidz);
+      real_t (*DQ1)[MQ1] = (real_t (*)[MQ1])(GD[1] + tidz);
+      real_t (*QQ0)[MQ1] = (real_t (*)[MQ1])(GQ[0] + tidz);
+      real_t (*QQ1)[MQ1] = (real_t (*)[MQ1])(GQ[1] + tidz);
       MFEM_FOREACH_THREAD(dy,y,D1D)
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
@@ -769,8 +769,8 @@ inline void SmemPADiffusionApply2D(const int NE,
                u += Gt[dx][qx] * QQ0[qy][qx];
                v += Bt[dx][qx] * QQ1[qy][qx];
             }
-            DQ0[qy][dx] = u;
-            DQ1[qy][dx] = v;
+            DQ0[dx][qy] = u;
+            DQ1[dx][qy] = v;
          }
       }
       MFEM_SYNC_THREAD;
@@ -782,8 +782,8 @@ inline void SmemPADiffusionApply2D(const int NE,
             real_t v = 0.0;
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               u += DQ0[qy][dx] * Bt[dy][qy];
-               v += DQ1[qy][dx] * Gt[dy][qy];
+               u += DQ0[dx][qy] * Bt[dy][qy];
+               v += DQ1[dx][qy] * Gt[dy][qy];
             }
             Y(dx,dy,e) += (u + v);
          }
@@ -1221,9 +1221,9 @@ using DiagonalKernelType = DiffusionIntegrator::DiagonalKernelType;
 template<int DIM, int T_D1D, int T_Q1D>
 ApplyKernelType DiffusionIntegrator::ApplyPAKernels::Kernel()
 {
-   if (DIM == 2) { return internal::SmemPADiffusionApply2D<T_D1D,T_Q1D>; }
-   else if (DIM == 3) { return internal::SmemPADiffusionApply3D<T_D1D, T_Q1D>; }
-   else { MFEM_ABORT(""); }
+   if constexpr (DIM == 2) { return internal::SmemPADiffusionApply2D<T_D1D,T_Q1D>; }
+   else if constexpr (DIM == 3) { return internal::SmemPADiffusionApply3D<T_D1D, T_Q1D>; }
+   MFEM_ABORT("");
 }
 
 inline
@@ -1237,9 +1237,9 @@ ApplyKernelType DiffusionIntegrator::ApplyPAKernels::Fallback(int DIM, int, int)
 template<int DIM, int D1D, int Q1D>
 DiagonalKernelType DiffusionIntegrator::DiagonalPAKernels::Kernel()
 {
-   if (DIM == 2) { return internal::SmemPADiffusionDiagonal2D<D1D,Q1D>; }
-   else if (DIM == 3) { return internal::SmemPADiffusionDiagonal3D<D1D, Q1D>; }
-   else { MFEM_ABORT(""); }
+   if constexpr (DIM == 2) { return internal::SmemPADiffusionDiagonal2D<D1D,Q1D>; }
+   else if constexpr (DIM == 3) { return internal::SmemPADiffusionDiagonal3D<D1D, Q1D>; }
+   MFEM_ABORT("");
 }
 
 inline DiagonalKernelType

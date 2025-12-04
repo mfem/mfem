@@ -29,37 +29,6 @@ using namespace std;
 
 namespace mfem
 {
-template <>
-void Ordering::DofsToVDofs<Ordering::byNODES>(int ndofs, int vdim,
-                                              Array<int> &dofs)
-{
-   // static method
-   int size = dofs.Size();
-   dofs.SetSize(size*vdim);
-   for (int vd = 1; vd < vdim; vd++)
-   {
-      for (int i = 0; i < size; i++)
-      {
-         dofs[i+size*vd] = Map<byNODES>(ndofs, vdim, dofs[i], vd);
-      }
-   }
-}
-
-template <>
-void Ordering::DofsToVDofs<Ordering::byVDIM>(int ndofs, int vdim,
-                                             Array<int> &dofs)
-{
-   // static method
-   int size = dofs.Size();
-   dofs.SetSize(size*vdim);
-   for (int vd = vdim-1; vd >= 0; vd--)
-   {
-      for (int i = 0; i < size; i++)
-      {
-         dofs[i+size*vd] = Map<byVDIM>(ndofs, vdim, dofs[i], vd);
-      }
-   }
-}
 
 FiniteElementSpace::FiniteElementSpace()
    : mesh(NULL), fec(NULL), vdim(0), ordering(Ordering::byNODES),
@@ -1585,6 +1554,11 @@ const FaceRestriction *FiniteElementSpace::GetFaceRestriction(
 const QuadratureInterpolator *FiniteElementSpace::GetQuadratureInterpolator(
    const IntegrationRule &ir) const
 {
+   if (!QuadratureInterpolator::SupportsFESpace(*this))
+   {
+      return nullptr;
+   }
+
    for (int i = 0; i < E2Q_array.Size(); i++)
    {
       const QuadratureInterpolator *qi = E2Q_array[i];
@@ -1599,6 +1573,11 @@ const QuadratureInterpolator *FiniteElementSpace::GetQuadratureInterpolator(
 const QuadratureInterpolator *FiniteElementSpace::GetQuadratureInterpolator(
    const QuadratureSpace &qs) const
 {
+   if (!QuadratureInterpolator::SupportsFESpace(*this))
+   {
+      return nullptr;
+   }
+
    for (int i = 0; i < E2Q_array.Size(); i++)
    {
       const QuadratureInterpolator *qi = E2Q_array[i];
@@ -1614,6 +1593,11 @@ const FaceQuadratureInterpolator
 *FiniteElementSpace::GetFaceQuadratureInterpolator(
    const IntegrationRule &ir, FaceType type) const
 {
+   if (!FaceQuadratureInterpolator::SupportsFESpace(*this))
+   {
+      return nullptr;
+   }
+
    if (type==FaceType::Interior)
    {
       for (int i = 0; i < E2IFQ_array.Size(); i++)
