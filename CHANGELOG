@@ -42,7 +42,6 @@ Discretization improvements
 
 Meshing improvements
 --------------------
-
 - The TMOP kernel hierarchy has been restructured to reduce compilation time.
   Most large kernels have been split into smaller, specific ones, with kernels
   for each metric. The directory structure has been updated with assemble,
