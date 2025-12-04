@@ -552,7 +552,7 @@ public:
 
    /** @brief Add a field to the ParticleSet.
     *
-    *  @details Same as AddField but with different parameter order
+    *  @details Same as AddField() but with different parameter order
     *  for convenience
     */
    int AddNamedField(int vdim, const char* field_name,
