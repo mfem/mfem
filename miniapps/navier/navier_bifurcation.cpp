@@ -9,6 +9,9 @@
 //   Navier Bifurcation: Particle Advection in a 2D Bifurcating Channel Flow
 //   -----------------------------------------------------------------------
 //
+// Note: MFEM must be compiled with GSLIB for this miniapp to include
+//       particles - otherwise, it will just compute the channel flow.
+//
 // This miniapp demonstrates the usage of NavierParticles in fluid flow
 // computed by the NavierSolver in a 2D bifurcating channel. Particles are
 // injected periodically with a range of κ at random locations along the inlet
