@@ -191,6 +191,8 @@ protected:
    void NURBSUniformRefinement(int rf = 2, real_t tol=1.0e-12) override;
    void NURBSUniformRefinement(const Array<int> &rf, real_t tol=1.e-12) override;
 
+   void RefineNURBSWithKVFactors(int rf, const std::string &kvf) override;
+
    /// This function is not public anymore. Use GeneralRefinement instead.
    void LocalRefinement(const Array<int> &marked_el, int type = 3) override;
 
@@ -788,7 +790,7 @@ public:
                  VTKFormat format=VTKFormat::ASCII,
                  bool high_order_output=false,
                  int compression_level=0,
-                 bool bdr=false) override;
+                 bool bdr_elements=false) override;
 
    /// Parallel version of Mesh::Load().
    void Load(std::istream &input, int generate_edges = 0,

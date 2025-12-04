@@ -24,7 +24,7 @@
 
 namespace mfem
 {
-
+/// \cond DO_NOT_DOCUMENT
 namespace internal
 {
 
@@ -426,8 +426,11 @@ void PACurlCurlSetup3D(const int Q1D,
 // PA H(curl) curl-curl Diagonal 2D kernel
 void PACurlCurlAssembleDiagonal2D(const int D1D,
                                   const int Q1D,
+                                  const bool symmetric, // unused
                                   const int NE,
                                   const Array<real_t> &bo,
+                                  const Array<real_t> &bc, // unused
+                                  const Array<real_t> &go, // unused
                                   const Array<real_t> &gc,
                                   const Vector &pa_data,
                                   Vector &diag);
@@ -831,9 +834,12 @@ inline void SmemPACurlCurlAssembleDiagonal3D(const int d1d,
 // PA H(curl) curl-curl Apply/AbsApply 2D kernel
 void PACurlCurlApply2D(const int D1D,
                        const int Q1D,
+                       const bool symmetric, // unused
                        const int NE,
                        const Array<real_t> &bo,
+                       const Array<real_t> &bc, // unused
                        const Array<real_t> &bot,
+                       const Array<real_t> &bct, // unused
                        const Array<real_t> &gc,
                        const Array<real_t> &gct,
                        const Vector &pa_data,
@@ -3158,6 +3164,49 @@ inline void SmemPAHcurlL2ApplyTranspose3D(const int d1d,
 
 } // namespace internal
 
+template<int DIM, int T_D1D, int T_Q1D>
+CurlCurlIntegrator::ApplyKernelType CurlCurlIntegrator::ApplyPAKernels::Kernel()
+{
+   if constexpr (DIM == 2)
+   {
+      return internal::PACurlCurlApply2D;
+   }
+   else if constexpr (DIM == 3)
+   {
+      if (Device::Allows(Backend::DEVICE_MASK))
+      {
+         return internal::SmemPACurlCurlApply3D<T_D1D, T_Q1D>;
+      }
+      else
+      {
+         return internal::PACurlCurlApply3D;
+      }
+   }
+   MFEM_ABORT("");
+}
+
+template <int DIM, int T_D1D, int T_Q1D>
+CurlCurlIntegrator::DiagonalKernelType
+CurlCurlIntegrator::DiagonalPAKernels::Kernel()
+{
+   if constexpr (DIM == 2)
+   {
+      return internal::PACurlCurlAssembleDiagonal2D;
+   }
+   else if constexpr (DIM == 3)
+   {
+      if (Device::Allows(Backend::DEVICE_MASK))
+      {
+         return internal::SmemPACurlCurlAssembleDiagonal3D<T_D1D, T_Q1D>;
+      }
+      else
+      {
+         return internal::PACurlCurlAssembleDiagonal3D;
+      }
+   }
+   MFEM_ABORT("");
+}
+/// \endcond DO_NOT_DOCUMENT
 } // namespace mfem
 
 #endif

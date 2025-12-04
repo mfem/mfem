@@ -18,7 +18,7 @@
 #   - METIS (imported library target)
 #   - METIS_VERSION_5 (cache variable)
 
-if (METIS_FETCH OR FETCH_TPLS)
+if (MFEM_FETCH_METIS OR MFEM_FETCH_TPLS)
   set(METIS_FETCH_VERSION 4.0.3)
   add_library(METIS STATIC IMPORTED)
   # define external project
@@ -32,6 +32,7 @@ if (METIS_FETCH OR FETCH_TPLS)
     UPDATE_DISCONNECTED TRUE
     PREFIX ${PREFIX}
     CONFIGURE_COMMAND tar -xzf ../metis/metis-${METIS_FETCH_VERSION}-mac.tgz --strip=1
+    BUILD_COMMAND $(MAKE) COPTIONS=-Wno-incompatible-pointer-types
     INSTALL_COMMAND mkdir -p ${PREFIX}/lib && cp libmetis.a ${PREFIX}/lib/)
   # set imported library target properties
   add_dependencies(METIS metis)
