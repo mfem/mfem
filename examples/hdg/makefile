@@ -20,8 +20,8 @@ CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = ex5
-PAR_EXAMPLES = ex5p
+SEQ_EXAMPLES = ex5 ex14
+PAR_EXAMPLES = ex5p ex14p
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else

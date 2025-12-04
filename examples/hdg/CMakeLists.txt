@@ -10,10 +10,10 @@
 # CONTRIBUTING.md for details.
 
 set(HDG_EXAMPLES_SRCS)
-list(APPEND HDG_EXAMPLES_SRCS ex5.cpp)
+list(APPEND HDG_EXAMPLES_SRCS ex5.cpp ex14.cpp)
 
 if (MFEM_USE_MPI)
-  list(APPEND HDG_EXAMPLES_SRCS ex5p.cpp)
+  list(APPEND HDG_EXAMPLES_SRCS ex5p.cpp ex14p.cpp)
 endif()
 
 # Include the source directory where mfem.hpp and mfem-performance.hpp are.
