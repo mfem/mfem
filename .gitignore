@@ -54,15 +54,6 @@ doc/warnings.log
 # Example and miniapp binaries and outputs
 
 examples/ex[0-9]
-examples/ex5-max
-examples/ex5-hdg
-examples/ex5p-hdg
-examples/ex5-heat
-examples/ex5-nguyen
-examples/ex5p-nguyen
-examples/ex5-plasma
-examples/ex5-aniso
-examples/ex5-scatter
 examples/ex[0-9]p
 examples/ex1[04-9]
 examples/ex1[0-9]p
@@ -154,6 +145,14 @@ examples/caliper/sol.*
 examples/ginkgo/ex1
 examples/ginkgo/refined.mesh
 examples/ginkgo/sol.gf
+
+examples/hdg/ex5
+examples/hdg/ex5p
+examples/hdg/ex5.mesh
+examples/hdg/sol_p.*
+examples/hdg/sol_u.*
+examples/hdg/Example5*
+examples/hdg/Paraview
 
 examples/hiop/ex9
 examples/hiop/ex9p
