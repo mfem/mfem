@@ -18,7 +18,7 @@
 #include "pfem_extras.hpp"
 #else
 #include "fem_extras.hpp"
-#endif // !MFEM_USE_MPI
+#endif // MFEM_USE_MPI
 
 namespace mfem
 {
