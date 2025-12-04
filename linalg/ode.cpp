@@ -1399,7 +1399,7 @@ void IMEXRK2_3StageExplicit::Step(Vector &x, real_t &t, real_t &dt)
    f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
    f->Mult(y, k2_exp);
 
-   //K3 Exp is f_1(t + dt, x + dt gamma K1_exp + dt (1-gamma) K2_exp)
+   //K3 Exp is f_1(t + dt, x + dt delta K1_exp + dt (1-delta) K2_exp)
    f->SetTime(t + dt);
    add(x, dt*delta, k1_exp, y);
    //add(y, dt*(1-delta), k2_exp, w);
