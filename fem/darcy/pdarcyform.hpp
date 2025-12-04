@@ -155,8 +155,8 @@ public:
                          Vector &B, int copy_interior = 0) override;
 
    /// Form the linear system matrix @a A, see FormLinearSystem() for details.
-   virtual void FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
-                                 OperatorHandle &A);
+   void FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
+                         OperatorHandle &A) override;
 
    /// Recover the solution of a linear system formed with FormLinearSystem().
    /** Call this method after solving a linear system constructed using the

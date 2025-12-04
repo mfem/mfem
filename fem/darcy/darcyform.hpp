@@ -204,7 +204,7 @@ public:
        destructor is called. */
    template <typename OpType>
    void FormLinearSystem(const Array<int> &ess_flux_tdof_list,
-                         Vector &x, Vector &b,
+                         BlockVector &x, BlockVector &b,
                          OpType &A, Vector &X, Vector &B,
                          int copy_interior = 0)
    {
@@ -217,7 +217,7 @@ public:
 
    template <typename OpType>
    void FormLinearSystem(const Array<int> &ess_flux_tdof_list,
-                         Vector &x, OpType &A, Vector &X, Vector &B,
+                         BlockVector &x, OpType &A, Vector &X, Vector &B,
                          int copy_interior = 0)
    {
       OperatorHandle Ah;
