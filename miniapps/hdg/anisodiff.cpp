@@ -76,7 +76,6 @@ using namespace mfem::hdg;
 
 // Define the analytical solution and forcing terms / boundary conditions
 typedef std::function<real_t(const Vector &, real_t)> TFunc;
-typedef std::function<void(const Vector &, Vector &)> VecFunc;
 typedef std::function<void(const Vector &, real_t, Vector &)> VecTFunc;
 typedef std::function<void(const Vector &, DenseMatrix &)> MatFunc;
 
@@ -106,16 +105,12 @@ struct ProblemParams
    real_t k, ks, ka;
    real_t t_0;
    real_t a;
-   real_t c;
 };
 
 MatFunc GetKFun(const ProblemParams &params);
 TFunc GetTFun(const ProblemParams &params);
 VecTFunc GetQFun(const ProblemParams &params);
-VecFunc GetCFun(const ProblemParams &params);
 TFunc GetFFun(const ProblemParams &params);
-FluxFunction* GetFluxFun(const ProblemParams &params,
-                         VectorCoefficient &ccoeff);
 MixedFluxFunction* GetHeatFluxFun(const ProblemParams &params, int dim);
 
 real_t UmanskyTestWidth(const GridFunction &u);
@@ -134,7 +129,6 @@ int main(int argc, char *argv[])
    real_t dr = 0.;
    bool dg = false;
    bool brt = false;
-   bool upwinded = false;
    int iproblem = Problem::SteadyDiffusion;
    ProblemParams pars;
    pars.nx = 0;
@@ -149,16 +143,13 @@ int main(int argc, char *argv[])
    pars.ks = 1.;
    pars.ka = 0.;
    pars.a = 0.;
-   pars.c = 1.;
    real_t td = 0.5;
    bool bc_neumann = false;
    bool reduction = false;
    bool hybridization = false;
    bool trace_h1 = false;
    bool nonlinear = false;
-   bool nonlinear_conv = false;
    bool nonlinear_diff = false;
-   int hdg_scheme = 1;
    int solver_type = (int)DarcyOperator::SolverType::LBFGS;
    int isol_ctrl = (int)DarcyOperator::SolutionController::Type::Native;
    int amr_nrefs = 0;
@@ -193,8 +184,6 @@ int main(int argc, char *argv[])
                   "--no-discontinuous", "Enable DG elements for fluxes.");
    args.AddOption(&brt, "-brt", "--broken-RT", "-no-brt",
                   "--no-broken-RT", "Enable broken RT elements for fluxes.");
-   args.AddOption(&upwinded, "-up", "--upwinded", "-ce", "--centered",
-                  "Switches between upwinded (1) and centered (0=default) stabilization.");
    args.AddOption(&iproblem, "-p", "--problem",
                   "Problem to solve:\n\t\t"
                   "1=sine diffusion\n\t\t"
@@ -216,8 +205,6 @@ int main(int argc, char *argv[])
                   "Antisymmetric anisotropy of the heat conductivity tensor");
    args.AddOption(&pars.a, "-a", "--heat_capacity",
                   "Heat capacity coefficient (0=indefinite problem)");
-   args.AddOption(&pars.c, "-c", "--velocity",
-                  "Convection velocity");
    args.AddOption(&td, "-td", "--stab_diff",
                   "Diffusion stabilization factor (1/2=default)");
    args.AddOption(&bc_neumann, "-bcn", "--bc-neumann", "-no-bcn",
@@ -230,12 +217,8 @@ int main(int argc, char *argv[])
                   "--trace-DG", "Switch between H1 and DG trace spaces (default DG).");
    args.AddOption(&nonlinear, "-nl", "--nonlinear", "-no-nl",
                   "--no-nonlinear", "Enable non-linear regime.");
-   args.AddOption(&nonlinear_conv, "-nlc", "--nonlinear-convection", "-no-nlc",
-                  "--no-nonlinear-convection", "Enable non-linear convection regime.");
    args.AddOption(&nonlinear_diff, "-nld", "--nonlinear-diffusion", "-no-nld",
                   "--no-nonlinear-diffusion", "Enable non-linear diffusion regime.");
-   args.AddOption(&hdg_scheme, "-hdg", "--hdg_scheme",
-                  "HDG scheme (1=HDG-I, 2=HDG-II, 3=Rusanov, 4=Godunov).");
    args.AddOption(&solver_type, "-nls", "--nonlinear-solver",
                   "Nonlinear solver type (1=LBFGS, 2=LBB, 3=Newton).");
    args.AddOption(&isol_ctrl, "-sn", "--solution-norm",
@@ -278,7 +261,7 @@ int main(int argc, char *argv[])
    // Set the problem options
    pars.prob = (Problem)iproblem;
    const Problem &problem = pars.prob;
-   bool bconv = false, bnlconv = false, bnldiff = nonlinear_diff;
+   bool bnldiff = nonlinear_diff;
    switch (problem)
    {
       case Problem::SteadyDiffusion:
@@ -301,18 +284,6 @@ int main(int argc, char *argv[])
    if (bnldiff && reduction)
    {
       cerr << "Reduction is not possible with non-linear diffusion" << endl;
-      return 1;
-   }
-
-   if (!bconv && !bnlconv && upwinded)
-   {
-      cerr << "Upwinded scheme cannot work without advection" << endl;
-      return 1;
-   }
-
-   if (bnlconv && !nonlinear)
-   {
-      cerr << "Nonlinear convection can only work in the nonlinear regime" << endl;
       return 1;
    }
 
@@ -451,9 +422,6 @@ int main(int argc, char *argv[])
    MatrixFunctionCoefficient kcoeff(dim, kFun); //tensor conductivity
    InverseMatrixCoefficient ikcoeff(kcoeff); //inverse tensor conductivity
 
-   auto cFun = GetCFun(pars);
-   VectorFunctionCoefficient ccoeff(dim, cFun); //velocity
-
    auto tFun = GetTFun(pars);
    FunctionCoefficient tcoeff(tFun); //temperature
    SumCoefficient gcoeff(0., tcoeff, 1., -1.); //boundary heat flux rhs
@@ -463,10 +431,6 @@ int main(int argc, char *argv[])
 
    auto qFun = GetQFun(pars);
    VectorFunctionCoefficient qcoeff(dim, qFun); //heat flux
-   ConstantCoefficient one;
-   VectorSumCoefficient qtcoeff_(ccoeff, qcoeff, tcoeff, one);//total flux
-   VectorCoefficient &qtcoeff = (bconv)?((VectorCoefficient&)qtcoeff_)
-                                :((VectorCoefficient&)qcoeff);//<--velocity is undefined
 
    // 7. Assemble the finite element matrices for the Darcy operator
    //
@@ -481,13 +445,10 @@ int main(int argc, char *argv[])
                          (darcy->GetFluxMassNonlinearForm()):(NULL);
    BlockNonlinearForm *Mnl = (bnldiff)?(darcy->GetBlockNonlinearForm()):(NULL);
    MixedBilinearForm *B = darcy->GetFluxDivForm();
-   BilinearForm *Mt = (!nonlinear && ((dg && td > 0.) || bconv || pars.a > 0.))?
+   BilinearForm *Mt = (!nonlinear && ((dg && td > 0.) || pars.a > 0.))?
                       (darcy->GetPotentialMassForm()):(NULL);
-   NonlinearForm *Mtnl = (nonlinear && ((dg && td > 0.) || bconv || bnlconv ||
-                                        pars.a > 0.))?
+   NonlinearForm *Mtnl = (nonlinear && ((dg && td > 0.) || pars.a > 0.))?
                          (darcy->GetPotentialMassNonlinearForm()):(NULL);
-   FluxFunction *FluxFun = NULL;
-   NumericalFlux *FluxSolver = NULL;
    MixedFluxFunction *HeatFluxFun = NULL;
 
    //diffusion
@@ -540,22 +501,7 @@ int main(int argc, char *argv[])
          cerr << "Warning: Using linear stabilization for non-linear diffusion" << endl;
       }
 
-      if (upwinded && td > 0. && hybridization)
-      {
-         if (Mt)
-         {
-            Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td));
-            Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td),
-                                     bdr_is_neumann);
-         }
-         if (Mtnl)
-         {
-            Mtnl->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td));
-            Mtnl->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td),
-                                       bdr_is_neumann);
-         }
-      }
-      else if (!upwinded && td > 0.)
+      if (td > 0.)
       {
          if (Mt)
          {
@@ -585,96 +531,10 @@ int main(int argc, char *argv[])
 
    if (dg || brt)
    {
-      if (upwinded)
-      {
-         B->AddInteriorFaceIntegrator(new TransposeIntegrator(
-                                         new DGNormalTraceIntegrator(ccoeff, -1.)));
-         B->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
-                                                            ccoeff, -1.)), bdr_is_neumann);
-      }
-      else
-      {
-         B->AddInteriorFaceIntegrator(new TransposeIntegrator(
-                                         new DGNormalTraceIntegrator(-1.)));
-         B->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
-                                                            -1.)), bdr_is_neumann);
-      }
-   }
-
-   //linear convection in the linear regime
-
-   if (bconv && Mt)
-   {
-      Mt->AddDomainIntegrator(new ConservativeConvectionIntegrator(ccoeff));
-      if (upwinded)
-      {
-         Mt->AddInteriorFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff));
-         Mt->AddBdrFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff));
-      }
-      else
-      {
-         Mt->AddInteriorFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff));
-         if (hybridization)
-         {
-            //centered scheme does not work with Dirichlet when hybridized,
-            //giving an diverging system, we use the full BC flux here
-            Mt->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff),
-                                     bdr_is_neumann);
-         }
-         else
-         {
-            Mt->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff));
-         }
-      }
-   }
-
-   //linear convection in the nonlinear regime
-
-   if (bconv && Mtnl)
-   {
-      Mtnl->AddDomainIntegrator(new ConservativeConvectionIntegrator(ccoeff));
-      if (upwinded)
-      {
-         Mtnl->AddInteriorFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff));
-         Mtnl->AddBdrFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff));
-      }
-      else
-      {
-         Mtnl->AddInteriorFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff));
-         if (hybridization)
-         {
-            //centered scheme does not work with Dirichlet when hybridized,
-            //giving an diverging system, we use the full BC flux here
-            Mtnl->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff),
-                                       bdr_is_neumann);
-         }
-         else
-         {
-            Mtnl->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff));
-         }
-      }
-   }
-
-   //nonlinear convection in the nonlinear regime
-
-   if (bnlconv && Mtnl)
-   {
-      FluxFun = GetFluxFun(pars, ccoeff);
-      switch (hdg_scheme)
-      {
-         case 1: FluxSolver = new HDGFlux(*FluxFun, HDGFlux::HDGScheme::HDG_1); break;
-         case 2: FluxSolver = new HDGFlux(*FluxFun, HDGFlux::HDGScheme::HDG_2); break;
-         case 3: FluxSolver = new RusanovFlux(*FluxFun); break;
-         case 4: FluxSolver = new ComponentwiseUpwindFlux(*FluxFun); break;
-         default:
-            cerr << "Unknown HDG scheme" << endl;
-            exit(1);
-      }
-      Mtnl->AddDomainIntegrator(new HyperbolicFormIntegrator(*FluxSolver, 0, -1.));
-      Mtnl->AddInteriorFaceIntegrator(new HyperbolicFormIntegrator(
-                                         *FluxSolver, 0, -1.));
-      Mtnl->AddBdrFaceIntegrator(new HyperbolicFormIntegrator(
-                                    *FluxSolver, 0, -1.));
+      B->AddInteriorFaceIntegrator(new TransposeIntegrator(
+                                      new DGNormalTraceIntegrator(-1.)));
+      B->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
+                                                         -1.)), bdr_is_neumann);
    }
 
    //inertial term
@@ -733,10 +593,6 @@ int main(int argc, char *argv[])
       if (dg || brt)
       {
          darcy->EnableFluxReduction();
-      }
-      else if (!bconv && !bnlconv)
-      {
-         darcy->EnablePotentialReduction(ess_flux_tdofs_list);
       }
       else
       {
@@ -824,27 +680,9 @@ int main(int argc, char *argv[])
    fform->AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
    if (!hybridization)
    {
-      if (upwinded)
-         fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qtcoeff, +1.),
-                                     bdr_is_neumann);
-      else
-         fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qtcoeff, +1., 0.),
-                                     bdr_is_neumann);
-   }
-   if (bconv)
-   {
-      if (upwinded)
-         fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(tcoeff, ccoeff, +1.),
-                                     bdr_is_dirichlet);
-      else
-      {
-         if (hybridization)
-            fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(tcoeff, ccoeff, +2., 0.),
-                                        bdr_is_dirichlet);//<-- full BC flux, see above
-         else
-            fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(tcoeff, ccoeff, +1., 0.),
-                                        bdr_is_dirichlet);
-      }
+      static ConstantCoefficient one;
+      fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qcoeff, +1., 0.),
+                                  bdr_is_neumann);
    }
 
    //prepare (reduced) solution and rhs vectors
@@ -867,7 +705,7 @@ int main(int argc, char *argv[])
 
    Array<Coefficient*> coeffs({(Coefficient*)&gcoeff,
                                (Coefficient*)&fcoeff,
-                               (Coefficient*)&qtcoeff});
+                               (Coefficient*)&qcoeff});
 
    DarcyOperator op(ess_flux_tdofs_list, darcy, gform, fform, hform, coeffs,
                     (DarcyOperator::SolverType) solver_type);
@@ -890,7 +728,6 @@ int main(int argc, char *argv[])
 
    if (amr_nrefs > 0 && hybridization)
    {
-      MFEM_ASSERT(!bconv, "Not implemented");
       amr_bfi.reset(new HDGDiffusionIntegrator(kcoeff, td));
       amr_err.reset(new HDGErrorEstimator(*amr_bfi, tr_h, t_h));
       static_cast<HDGErrorEstimator*>(amr_err.get())->SetAnisotropic();
@@ -947,8 +784,8 @@ int main(int argc, char *argv[])
       if (reconstruct)
       {
          darcy->Reconstruct(x, x.GetBlock(2), qt_h, q_hs, t_hs, tr_hs);
-         real_t err_qt = qt_h.ComputeL2Error(qtcoeff, irs);
-         real_t norm_qt = ComputeLpNorm(2., qtcoeff, *mesh, irs);
+         real_t err_qt = qt_h.ComputeL2Error(qcoeff, irs);
+         real_t norm_qt = ComputeLpNorm(2., qcoeff, *mesh, irs);
          cout << "|| qt_h - qt_ex || / || qt_ex || = " << err_qt / norm_qt << "\n";
          real_t err_qs = q_hs.ComputeL2Error(qcoeff, irs);
          cout << "|| q_hs - q_ex || / || q_ex || = " << err_qs / norm_q << "\n";
@@ -973,22 +810,13 @@ int main(int argc, char *argv[])
 
       // Project the analytic solution
 
-      static GridFunction q_a, qt_a, t_a, c_gf;
+      static GridFunction q_a, t_a;
 
       q_a.SetSpace((V_space_dg)?(V_space_dg):(V_space));
       q_a.ProjectCoefficient(qcoeff);
 
-      qt_a.SetSpace((V_space_dg)?(V_space_dg):(V_space));
-      qt_a.ProjectCoefficient(qtcoeff);
-
       t_a.SetSpace(W_space);
       t_a.ProjectCoefficient(tcoeff);
-
-      if (bconv)
-      {
-         c_gf.SetSpace((V_space_dg)?(V_space_dg):(V_space));
-         c_gf.ProjectCoefficient(ccoeff);
-      }
 
       // 13. Save the mesh and the solution. This output can be viewed later using
       //     GLVis: "glvis -m ex5.mesh -g sol_q.gf" or "glvis -m ex5.mesh -g
@@ -1078,15 +906,7 @@ int main(int argc, char *argv[])
          {
             static socketstream qa_sock, qta_sock, ta_sock, c_sock;
             VisualizeField(qa_sock, q_a, "Heat flux analytic", amr_it);
-            if (bconv || bnlconv)
-            {
-               VisualizeField(qta_sock, qt_a, "Total flux analytic", amr_it);
-            }
             VisualizeField(ta_sock, t_a, "Temperature analytic", amr_it);
-            if (bconv)
-            {
-               VisualizeField(c_sock, c_gf, "Velocity", amr_it);
-            }
          }
 
          // refine the mesh
@@ -1146,8 +966,6 @@ int main(int argc, char *argv[])
    // 17. Free the used memory.
 
    delete HeatFluxFun;
-   delete FluxFun;
-   delete FluxSolver;
    delete fform;
    delete gform;
    delete hform;
@@ -1695,29 +1513,6 @@ VecTFunc GetQFun(const ProblemParams &params)
    return VecTFunc();
 }
 
-VecFunc GetCFun(const ProblemParams &params)
-{
-   const real_t &c = params.c;
-
-   switch (params.prob)
-   {
-      case Problem::SteadyDiffusion:
-      case Problem::DiffusionRing:
-      case Problem::DiffusionRingGauss:
-      case Problem::DiffusionRingSine:
-      case Problem::BoundaryLayer:
-      case Problem::SteadyPeak:
-      case Problem::SteadyVaryingAngle:
-      case Problem::Sovinec:
-      case Problem::Umansky:
-      case Problem::SingleNull:
-      case Problem::DoubleNull:
-         // null
-         break;
-   }
-   return VecFunc();
-}
-
 TFunc GetFFun(const ProblemParams &params)
 {
    const real_t &k = params.k;
@@ -1788,28 +1583,6 @@ TFunc GetFFun(const ProblemParams &params)
          };
    }
    return TFunc();
-}
-
-FluxFunction* GetFluxFun(const ProblemParams &params, VectorCoefficient &ccoef)
-{
-   switch (params.prob)
-   {
-      case Problem::SteadyDiffusion:
-      case Problem::DiffusionRing:
-      case Problem::DiffusionRingGauss:
-      case Problem::DiffusionRingSine:
-      case Problem::BoundaryLayer:
-      case Problem::SteadyPeak:
-      case Problem::SteadyVaryingAngle:
-      case Problem::Sovinec:
-      case Problem::Umansky:
-      case Problem::SingleNull:
-      case Problem::DoubleNull:
-         //null
-         break;
-   }
-
-   return NULL;
 }
 
 MixedFluxFunction* GetHeatFluxFun(const ProblemParams &params, int dim)
