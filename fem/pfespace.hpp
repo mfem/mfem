@@ -452,7 +452,7 @@ public:
 
    /** @brief Get a list of edge degrees of freedom on the boundary with the specified
        attributes. This function handles parallel meshes by removing
-       artificial boundary edges that appear at processor boundaries.       
+       artificial boundary edges that appear at processor boundaries.
        Requirements:
        - Mesh must be conforming (no hanging nodes)
        - Mesh dimension must be >= 2

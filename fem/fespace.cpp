@@ -4546,14 +4546,14 @@ void FiniteElementSpace::GetBoundaryLoopEdgeDofs(
       {
          const int boundary_element_idx = boundary_element_indices[i];
          mesh->GetBdrElementEdges(boundary_element_idx, edges, edge_orientations);
-         
+
          // In 2D, each boundary element should have exactly one edge
-         MFEM_VERIFY(edges.Size() == 1, 
+         MFEM_VERIFY(edges.Size() == 1,
                      "2D boundary element should have exactly one edge");
-         
+
          int edge_index = edges[0];
          int edge_orientation = edge_orientations[0];
-         
+
          GetEdgeDofs(edge_index, edge_dofs);
          for (int k = 0; k < edge_dofs.Size(); ++k)
          {
@@ -4639,7 +4639,7 @@ void ComputeLoopEdgeOrientationsImpl(
    std::unordered_map<int, int>& edge_loop_orientations)
 {
    Array<int> edge_verts, bdr_elem_verts;
-   Vector edge_vec(3), to_edge_vec(3), cross_product(3);   
+   Vector edge_vec(3), to_edge_vec(3), cross_product(3);
    // Process each edge locally
    for (const auto& [dof, bdr_elem_idx] : dof_to_boundary_element)
    {
@@ -4670,10 +4670,10 @@ void ComputeLoopEdgeOrientationsImpl(
          }
       }
 
-      if (third_vertex == -1) 
-      { 
+      if (third_vertex == -1)
+      {
          MFEM_ABORT("Boundary element " << bdr_elem_idx << " has only 2 vertices, "
-                   "but 3D boundary elements must have at least 3 vertices"); 
+                    "but 3D boundary elements must have at least 3 vertices");
       }
 
       const real_t *v2 = mesh->GetVertex(third_vertex);

@@ -1384,13 +1384,13 @@ public:
    /** @brief Extract edge degrees of freedom from specified boundary elements.
        This method identifies all edge-based degrees of freedom that lie on the
        boundary edges of the specified boundary elements.
-       @param[in] boundary_element_indices Array of all boundary element indices on a certain 
+       @param[in] boundary_element_indices Array of all boundary element indices on a certain
        boundary surface (3D) or boundary curve (2D)
        @param[out] boundary_edge_dofs Set of local DoF indices that lie on boundary edges
        @param[out] dof_to_edge Map from boundary edge DoF index to local edge index
        @param[out] dof_to_boundary_element Map from DoF index to a boundary element containing it
        @param[out] dof_to_edge_orientation Map from DoF index to edge orientation (+1 or -1)
-       
+
        @note In 3D: Extracts edge DoFs from the 1D edges of 2D boundary elements (faces).
        @note In 2D: Extracts edge DoFs directly from 1D boundary elements (segments).
        In 2D, dof_to_edge and dof_to_boundary_element contain identical edge indices.

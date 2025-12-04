@@ -1256,14 +1256,14 @@ void ParFiniteElementSpace::GetExteriorVDofs(Array<int> &ext_dofs,
 }
 
 void ParFiniteElementSpace::GetBoundaryLoopEdgeDofs(
-                           const Array<int> &boundary_element_indices,
-                           Array<int> &ess_tdof_list,
-                           Array<int> &ldof_marker,
-                           std::unordered_set<int> &boundary_edge_dofs_out,
-                           std::unordered_map<int, int> *dof_to_edge,
-                           std::unordered_map<int, int> *dof_to_orientation,
-                           std::unordered_map<int, int> *dof_to_boundary_element_out,
-                           Array<int> *ess_edge_list)
+   const Array<int> &boundary_element_indices,
+   Array<int> &ess_tdof_list,
+   Array<int> &ldof_marker,
+   std::unordered_set<int> &boundary_edge_dofs_out,
+   std::unordered_map<int, int> *dof_to_edge,
+   std::unordered_map<int, int> *dof_to_orientation,
+   std::unordered_map<int, int> *dof_to_boundary_element_out,
+   Array<int> *ess_edge_list)
 {
    MFEM_VERIFY(!pmesh->Nonconforming(),
                "GetBoundaryLoopEdgeDofs does not support nonconforming meshes");
@@ -1311,7 +1311,7 @@ void ParFiniteElementSpace::GetBoundaryLoopEdgeDofs(
    Array<HYPRE_BigInt> global_face_indices;
    std::unordered_map<int, int> boundary_element_to_companion;
    std::unordered_set<int> dofs_to_remove;
-   
+
    const int dim = pmesh->Dimension();
    if (dim == 3)
    {
@@ -1405,18 +1405,18 @@ void ParFiniteElementSpace::GetBoundaryLoopEdgeDofs(
             if (edge_to_faces[global_edge_id].size() >= 2)
             {
                int local_edge = global_to_local_edge[global_edge_id];
-                  Array<int> local_edge_dofs;
-                  GetEdgeDofs(local_edge, local_edge_dofs);
+               Array<int> local_edge_dofs;
+               GetEdgeDofs(local_edge, local_edge_dofs);
 
-                  // Mark boundary DoFs of this edge for removal
-                  for (int k = 0; k < local_edge_dofs.Size(); ++k)
+               // Mark boundary DoFs of this edge for removal
+               for (int k = 0; k < local_edge_dofs.Size(); ++k)
+               {
+                  int dof = local_edge_dofs[k];
+                  if (boundary_edge_dofs.count(dof))
                   {
-                     int dof = local_edge_dofs[k];
-                     if (boundary_edge_dofs.count(dof))
-                     {
-                        dofs_to_remove.insert(dof);
-                     }
+                     dofs_to_remove.insert(dof);
                   }
+               }
             }
          }
       }
@@ -1498,7 +1498,7 @@ void GetBoundaryElementsByAttributeImpl(
    Array<int> &boundary_elements);
 
 void ParFiniteElementSpace::GetBoundaryElementsByAttribute(int bdr_attr,
-                                                   Array<int> &boundary_elements)
+                                                           Array<int> &boundary_elements)
 {
    GetBoundaryElementsByAttributeImpl(pmesh, bdr_attr, boundary_elements);
 }
