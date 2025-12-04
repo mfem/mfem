@@ -69,8 +69,6 @@
 #include "darcyop.hpp"
 #include <fstream>
 #include <iostream>
-#include <algorithm>
-#include <random>
 
 using namespace std;
 using namespace mfem;
@@ -85,7 +83,6 @@ typedef std::function<void(const Vector &, DenseMatrix &)> MatFunc;
 enum Problem
 {
    SteadyDiffusion = 1,
-   MFEMLogo,
    DiffusionRing,
    DiffusionRingGauss,
    DiffusionRingSine,
@@ -201,17 +198,16 @@ int main(int argc, char *argv[])
    args.AddOption(&iproblem, "-p", "--problem",
                   "Problem to solve:\n\t\t"
                   "1=sine diffusion\n\t\t"
-                  "2=MFEM logo\n\t\t"
-                  "3=diffusion ring\n\t\t"
-                  "4=diffusion ring - Gauss source\n\t\t"
-                  "5=diffusion ring - sine source\n\t\t"
-                  "6=boundary layer\n\t\t"
-                  "7=steady peak\n\t\t"
-                  "8=steady varying angle\n\t\t"
-                  "9=Sovinec\n\t\t"
-                  "10=Umansky\n\t\t"
-                  "11=Single null\n\t\t"
-                  "12=Double null\n\t\t");
+                  "2=diffusion ring\n\t\t"
+                  "3=diffusion ring - Gauss source\n\t\t"
+                  "4=diffusion ring - sine source\n\t\t"
+                  "5=boundary layer\n\t\t"
+                  "6=steady peak\n\t\t"
+                  "7=steady varying angle\n\t\t"
+                  "8=Sovinec\n\t\t"
+                  "9=Umansky\n\t\t"
+                  "10=Single null\n\t\t"
+                  "11=Double null\n\t\t");
    args.AddOption(&pars.k, "-k", "--kappa",
                   "Heat conductivity");
    args.AddOption(&pars.ks, "-ks", "--kappa_sym",
@@ -297,9 +293,6 @@ int main(int argc, char *argv[])
       case Problem::SingleNull:
       case Problem::DoubleNull:
          break;
-      case Problem::MFEMLogo:
-         bconv = true;
-         break;
       default:
          cerr << "Unknown problem" << endl;
          return 1;
@@ -371,7 +364,6 @@ int main(int argc, char *argv[])
    switch (problem)
    {
       case Problem::SteadyDiffusion:
-      case Problem::MFEMLogo:
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
       case Problem::DiffusionRingSine:
@@ -1201,52 +1193,6 @@ MatFunc GetKFun(const ProblemParams &params)
                kappa(2,0) = -ka * k;
             }
          };
-      case Problem::MFEMLogo:
-      {
-         constexpr int n = 80;
-         constexpr real_t xmax = 1.;
-         constexpr real_t ymax = 1.;
-         constexpr real_t wmax = .05;
-         constexpr real_t kmax = .8;
-         DenseMatrix bubbles(5, n);
-         for (int i = 0; i < n; i++)
-         {
-            bubbles(0, i) = rand_real() * xmax;
-            bubbles(1, i) = rand_real() * ymax;
-            bubbles(2, i) = rand_real() * wmax;
-            bubbles(3, i) = rand_real() * k * kmax;
-            bubbles(4, i) = rand_real() * ks;
-            //bubbles(5, i) = rand_real() * ka;
-         }
-
-         return [=](const Vector &x, DenseMatrix &kappa)
-         {
-            real_t kap = 0.;
-            real_t kap_s = 0.;
-            real_t kap_a = 0.;
-            for (int i = 0; i < bubbles.Width(); i++)
-            {
-               const real_t dx = x(0) - bubbles(0,i);
-               const real_t dy = x(1) - bubbles(1,i);
-               const real_t w = bubbles(2,i);
-               const real_t k = bubbles(3,i) * exp(-(dx*dx+dy*dy)/(w*w));
-               kap += k;
-               kap_s += k * bubbles(4,i);
-               //kap_a += k * bubbles(5, i);
-            }
-            const int ndim = x.Size();
-            const real_t kmin = (1. - kmax) * k;
-            kappa.Diag(kmin + kap, ndim);
-            kappa(0,0) = kmin + kap_s;
-            kappa(0,1) = +kap_a * k;
-            kappa(1,0) = -kap_a * k;
-            if (ndim > 2)
-            {
-               kappa(0,2) = +kap_a * k;
-               kappa(2,0) = -kap_a * k;
-            }
-         };
-      }
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
       case Problem::DiffusionRingSine:
@@ -1440,56 +1386,6 @@ TFunc GetTFun(const ProblemParams &params)
                - (kappa(1,2) + kappa(2,1)) * ddT(3);
             }
             return t0 - div / a * t;
-         };
-      case Problem::MFEMLogo:
-         return [=](const Vector &x, real_t t) -> real_t
-         {
-#if 1
-            //Banner
-            constexpr int iw = 38;
-            constexpr int ih = 7;
-            static const unsigned char logo[ih][iw] = {
-               "##     ## ######## ######## ##     ##",
-               "###   ### ##       ##       ###   ###",
-               "#### #### ##       ##       #### ####",
-               "## ### ## ######   ######   ## ### ##",
-               "##     ## ##       ##       ##     ##",
-               "##     ## ##       ##       ##     ##",
-               "##     ## ##       ######## ##     ##",
-            };
-#else
-            //Collosal
-            constexpr int iw = 50;
-            constexpr int ih = 8;
-            static const unsigned char logo[ih][iw] = {
-               "888b     d888 8888888888 8888888888 888b     d888",
-               "8888b   d8888 888        888        8888b   d8888",
-               "88888b.d88888 888        888        88888b.d88888",
-               "888Y88888P888 8888888    8888888    888Y88888P888",
-               "888 Y888P 888 888        888        888 Y888P 888",
-               "888  Y8P  888 888        888        888  Y8P  888",
-               "888   8   888 888        888        888   8   888",
-               "888       888 888        8888888888 888       888",
-            };
-#endif
-
-            constexpr real_t w = 0.8;
-            constexpr real_t h = (w * ih) / iw;
-            constexpr real_t xo = 0.5;
-            constexpr real_t yo = 0.5;
-            const real_t dx = x(0) - xo;
-            const real_t dy = x(1) - yo;
-
-            const int ix = (dx/w + 0.5) * iw;
-            const int iy = (dy/h + 0.5) * ih;
-
-            if (ix < 0 || ix >= iw || iy < 0 || iy >= ih)
-            {
-               return 0.;
-            }
-
-            const real_t T = (logo[ih-1-iy][ix] != ' ')?(t_0):(0.);
-            return T;
          };
       case Problem::DiffusionRing:
          return [=](const Vector &x, real_t t) -> real_t
@@ -1699,7 +1595,6 @@ VecTFunc GetQFun(const ProblemParams &params)
                v.Neg();
             }
          };
-      case Problem::MFEMLogo:
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
       case Problem::Umansky:
@@ -1819,37 +1714,6 @@ VecFunc GetCFun(const ProblemParams &params)
       case Problem::DoubleNull:
          // null
          break;
-      case Problem::MFEMLogo:
-      {
-         constexpr int n = 80;
-         constexpr real_t xmax = 1.;
-         constexpr real_t ymax = 1.;
-         constexpr real_t wmax = .05;
-         DenseMatrix bubbles(4, n);
-         for (int i = 0; i < n; i++)
-         {
-            bubbles(0, i) = rand_real() * xmax;
-            bubbles(1, i) = rand_real() * ymax;
-            bubbles(2, i) = rand_real() * wmax;
-            bubbles(3, i) = (rand_real() * 2. - 1.) * c;
-         }
-
-         return [=](const Vector &x, Vector &v)
-         {
-            const int vdim = x.Size();
-            v.SetSize(vdim);
-            v = 0.;
-            for (int i = 0; i < bubbles.Width(); i++)
-            {
-               const real_t dx = x(0) - bubbles(0,i);
-               const real_t dy = x(1) - bubbles(1,i);
-               const real_t w = bubbles(2,i);
-               const real_t c = bubbles(3,i) * exp(-(dx*dx+dy*dy)/(w*w));
-               v(0) += +c * dy;
-               v(1) += -c * dx;
-            }
-         };
-      }
    }
    return VecFunc();
 }
@@ -1871,7 +1735,6 @@ TFunc GetFFun(const ProblemParams &params)
    switch (params.prob)
    {
       case Problem::SteadyDiffusion:
-      case Problem::MFEMLogo:
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
       case Problem::DiffusionRingSine:
@@ -1932,7 +1795,6 @@ FluxFunction* GetFluxFun(const ProblemParams &params, VectorCoefficient &ccoef)
    switch (params.prob)
    {
       case Problem::SteadyDiffusion:
-      case Problem::MFEMLogo:
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
       case Problem::DiffusionRingSine:
@@ -1957,7 +1819,6 @@ MixedFluxFunction* GetHeatFluxFun(const ProblemParams &params, int dim)
    switch (params.prob)
    {
       case Problem::SteadyDiffusion:
-      case Problem::MFEMLogo:
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
       case Problem::DiffusionRingSine:

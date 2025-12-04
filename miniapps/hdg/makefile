@@ -24,7 +24,7 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = anisodiff nguyen
+SEQ_MINIAPPS = anisodiff nguyen mfem_logo
 PAR_MINIAPPS = pnguyen
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
