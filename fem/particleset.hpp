@@ -325,8 +325,8 @@ protected:
    /** @brief Add particles with global identifiers \p new_ids and
     *  optionally get the local indices of new particles in \p new_indices .
     *
-    *  @details Note the data of new particles is uninitialized and must be set
-    *  using SetParticle
+    *  @details Note the data of new particles is uninitialized and must be
+    *  set.
     */
    void AddParticles(const Array<IDType> &new_ids,
                      Array<int> *new_indices=nullptr);
@@ -594,8 +594,8 @@ public:
    /** @brief Add \p num_particles particles, and optionally get the local
     *  indices of new particles in \p new_indices .
     *
-    *  @details The data of new particles is uninitialized and must be set
-    *  using SetParticle.
+    *  @details The data of new particles is uninitialized and must be
+    *  set.
     */
    void AddParticles(int num_particles, Array<int> *new_indices=nullptr);
 

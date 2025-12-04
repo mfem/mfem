@@ -213,26 +213,27 @@ public:
    /// Get reference to the inactive ParticleSet.
    ParticleSet& GetInactiveParticles() { return inactive_fluid_particles; }
 
-   /// Get reference to the kappa ParticleVector.
+   /// Get reference to the κ ParticleVector.
    ParticleVector& Kappa()
    {
       return fluid_particles.Field(fp_idx.field.kappa);
    }
 
-   /// Get reference to the Zeta ParticleVector.
+   /// Get reference to the ζ ParticleVector.
    ParticleVector& Zeta()
    {
       return fluid_particles.Field(fp_idx.field.zeta);
    }
 
-   /// Get reference to the Gamma ParticleVector.
+   /// Get reference to the γ ParticleVector.
    ParticleVector& Gamma()
    {
       return fluid_particles.Field(fp_idx.field.gamma);
    }
 
-   /// Get reference to the fluid velocity-interpolated ParticleVector at
-   /// time n - \p nm .
+   /** @brief Get reference to the fluid velocity-interpolated ParticleVector at
+    *  time n - \p nm .
+    */
    ParticleVector& U(int nm=0)
    {
       MFEM_ASSERT(nm < N_HIST, "nm must be < " << N_HIST);
@@ -246,8 +247,9 @@ public:
       return fluid_particles.Field(fp_idx.field.v[nm]);
    }
 
-   /// Get reference to the fluid vorticity-interpolated ParticleVector at
-   /// time n - \p nm .
+   /** @brief Get reference to the fluid vorticity-interpolated ParticleVector at
+    *  time n - \p nm .
+    */
    ParticleVector& W(int nm=0)
    {
       MFEM_ASSERT(nm < N_HIST, "nm must be < " << N_HIST);
@@ -287,7 +289,7 @@ public:
     *  @param[in] inlet_start             Inlet line segment start point.
     *  @param[in] inlet_end               Inlet line segment end point.
     *  @param[in] invert_inlet_normal     Invert direction of the inlet normal.
-    *  @param[in] outlet_start              Outlet line segment start point.
+    *  @param[in] outlet_start            Outlet line segment start point.
     *  @param[in] outlet_end              Outlet line segment end point.
     *  @param[in] invert_outlet_normal    Invert direction of the outlet normal.
     *
