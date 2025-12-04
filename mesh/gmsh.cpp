@@ -679,7 +679,7 @@ public:
       // completion of this loop, each v2v[duplicate] will point to a true
       // primary vertex. This algorithm is useful for periodicity defined in
       // multiple directions.
-      for (int duplicate = 0; duplicate < v2v.size(); duplicate++)
+      for (int duplicate = 0; duplicate < int(v2v.size()); duplicate++)
       {
          int primary = v2v[duplicate];
          if (primary != duplicate)
@@ -941,7 +941,7 @@ void Mesh::ReadGmsh4Mesh(GmshReader &g, istream &input)
             {
                const int tag = g.ReadBinaryOrASCII<int>(b);
                g.Skip<double>(d == 0 ? 3 : 6, b); // Skip X, Y, Z
-               const int n_phys_tags = g.ReadBinaryOrASCII<size_t>(b);
+               const size_t n_phys_tags = g.ReadBinaryOrASCII<size_t>(b);
                for (size_t iphys = 0; iphys < n_phys_tags; ++iphys)
                {
                   const int phys_tag = g.ReadBinaryOrASCII<int>(b);
@@ -971,7 +971,7 @@ void Mesh::ReadGmsh4Mesh(GmshReader &g, istream &input)
 
          double c[3];
 
-         for (int iblock = 0; iblock < n_blocks; ++iblock)
+         for (size_t iblock = 0; iblock < n_blocks; ++iblock)
          {
             g.Skip<int>(2, b); // Skip entity dim and tag.
             const int is_parametric = g.ReadBinaryOrASCII<int>(b);
@@ -980,12 +980,12 @@ void Mesh::ReadGmsh4Mesh(GmshReader &g, istream &input)
             MFEM_VERIFY(!is_parametric, "Parametric nodes not supported.");
 
             vector<size_t> node_tags(n_nodes_in_block);
-            for (int i = 0; i < n_nodes_in_block; ++i)
+            for (size_t i = 0; i < n_nodes_in_block; ++i)
             {
                const size_t node_tag = g.ReadBinaryOrASCII<size_t>(b);
                node_tags[i] = node_tag;
             }
-            for (int i = 0; i < n_nodes_in_block; ++i)
+            for (size_t i = 0; i < n_nodes_in_block; ++i)
             {
                for (int d = 0; d < 3; ++d)
                {
@@ -1005,14 +1005,14 @@ void Mesh::ReadGmsh4Mesh(GmshReader &g, istream &input)
          const size_t n_blocks = g.ReadBinaryOrASCII<size_t>(b);
          g.Skip<size_t>(3, b); // Skip n_elements and min/max tags.
 
-         for (int iblock = 0; iblock < n_blocks; ++iblock)
+         for (size_t iblock = 0; iblock < n_blocks; ++iblock)
          {
             const int entity_dim = g.ReadBinaryOrASCII<int>(b);
             const int entity_tag = g.ReadBinaryOrASCII<int>(b);
             const int element_type = g.ReadBinaryOrASCII<int>(b);
             const size_t n_elements = g.ReadBinaryOrASCII<size_t>(b);
 
-            for (int ie = 0; ie < n_elements; ++ie)
+            for (size_t ie = 0; ie < n_elements; ++ie)
             {
                g.Skip<size_t>(1, b); // Skip element tag
                const auto [geom, el_order] = g.GetGeometryAndOrder(element_type);
@@ -1049,13 +1049,13 @@ void Mesh::ReadGmsh4Mesh(GmshReader &g, istream &input)
          g.v2v.resize(NumOfVertices);
          for (int i = 0; i < NumOfVertices; i++) { g.v2v[i] = i; }
 
-         for (int i = 0; i < n_periodic; ++i)
+         for (size_t i = 0; i < n_periodic; ++i)
          {
             g.Skip<int>(3, b); // Skip entity information
             const int n_affine = g.ReadBinaryOrASCII<size_t>(b);
             g.Skip<double>(n_affine, b); // Skip affine information
             const size_t n_nodes = g.ReadBinaryOrASCII<size_t>(b);
-            for (int j = 0; j < n_nodes; ++j)
+            for (size_t j = 0; j < n_nodes; ++j)
             {
                const int node_num = g.ReadBinaryOrASCII<int>(b);
                const int primary_node_num = g.ReadBinaryOrASCII<int>(b);
@@ -1094,7 +1094,7 @@ void Mesh::ReadGmsh2Mesh(GmshReader &g, istream &input)
             g.vertex_map[node_num] = v;
          }
          spaceDim = GetSpaceDimension(g.bb_min, g.bb_max);
-         MFEM_VERIFY(g.vertex_map.size() == NumOfVertices,
+         MFEM_VERIFY(g.vertex_map.size() == size_t(NumOfVertices),
                      "Gmsh node indices are not unique.");
       }
       else if (section == "Elements")
