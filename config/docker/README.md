@@ -17,7 +17,7 @@ We provide two containers, which you can either build or use directly from
 
 In the above, "ghcr.io" means "GitHub Container Registry" and
 is the [GitHub packages](https://github.com/features/packages) registry that supports
-Docker images and other OCI artifacts. 
+Docker images and other OCI artifacts.
 
 ### Ubuntu
 
@@ -132,7 +132,7 @@ examples.
 
 > Use this build for a development environment with spack and mfem
 
-This container is also [provided on GitHub packages](https://github.com/mfem/mfem/pkgs/container/mfem-ubuntu-base), 
+This container is also [provided on GitHub packages](https://github.com/mfem/mfem/pkgs/container/mfem-ubuntu-base),
 however you can build it locally too:
 
 ```bash
@@ -197,7 +197,7 @@ Average reduction factor = 0.140201
 
 This container is likely ideal for someone that wants to develop mfem itself.
 For other use cases, we recommend using the slimmer image. As an example,
-if you want to develop with your own code base (and mfem as is in the container) 
+if you want to develop with your own code base (and mfem as is in the container)
 you can bind to somewhere else in the container (e.g., src)
 
 ```bash

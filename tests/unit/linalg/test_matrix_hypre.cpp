@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -18,7 +18,7 @@ namespace mfem
 
 #ifdef MFEM_USE_MPI
 
-TEST_CASE("HypreParMatrixWrapConstructors-SyncChecks", "[Parallel], [CUDA]")
+TEST_CASE("HypreParMatrixWrapConstructors-SyncChecks", "[Parallel], [GPU]")
 {
    const int dim = 2;
    const int n1d = 6;

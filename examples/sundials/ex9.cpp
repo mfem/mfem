@@ -76,7 +76,7 @@ public:
    DG_Solver(SparseMatrix &M_, SparseMatrix &K_, const FiniteElementSpace &fes)
       : M(M_),
         K(K_),
-        prec(fes.GetFE(0)->GetDof(),
+        prec(fes.GetTypicalFE()->GetDof(),
              BlockILU::Reordering::MINIMUM_DISCARDED_FILL),
         dt(-1.0)
    {

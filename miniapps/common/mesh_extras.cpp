@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -129,6 +129,25 @@ ElementMeshStream::ElementMeshStream(Element::Type e)
                << "1 0 1" << endl
                << "0 1 1" << endl;
          break;
+      case Element::PYRAMID:
+         *this << "dimension" << endl << 3 << endl
+               << "elements" << endl << 1 << endl
+               << "1 7 0 1 2 3 4" << endl
+               << "boundary" << endl << 5 << endl
+               << "1 3 3 2 1 0" << endl
+               << "1 2 0 1 4" << endl
+               << "1 2 1 2 4" << endl
+               << "1 2 3 4 2" << endl
+               << "1 2 0 4 3" << endl
+               << "vertices" << endl
+               << "5" << endl
+               << "3" << endl
+               << "0 0 0" << endl
+               << "1 0 0" << endl
+               << "1 1 0" << endl
+               << "0 1 0" << endl
+               << "0 0 1" << endl;
+         break;
       default:
          mfem_error("Invalid element type!");
          break;
@@ -234,6 +253,23 @@ void AttrToMarker(int max_attr, const Array<int> &attrs, Array<int> &marker)
    }
 }
 
+void AffineTransformation::Eval(Vector &V, ElementTransformation &T,
+                                const IntegrationPoint &ip)
+{
+   V = 0.0;
+   T.Transform(ip, x);
+
+   if (A.Height() == vdim)
+   {
+      A.Mult(x, V);
+   }
+
+   if (b.Size() == vdim)
+   {
+      V.Add(1.0, b);
+   }
+}
+
 void KershawTransformation::Eval(Vector &V, ElementTransformation &T,
                                  const IntegrationPoint &ip)
 {
@@ -278,6 +314,97 @@ void KershawTransformation::Eval(Vector &V, ElementTransformation &T,
    V(0) = X;
    V(1) = Y;
    if (dim == 3) { V(2) = Z; }
+}
+
+void SpiralTransformation::Eval(Vector &V, ElementTransformation &T,
+                                const IntegrationPoint &ip)
+{
+   Vector pos(dim);
+   T.Transform(ip, pos);
+   real_t x = pos(0), y = pos(1), z = dim == 3 ? pos(2) : 0;
+
+   real_t theta = 2.0*M_PI*turns*x;
+   real_t r_min = (0.5-0.5*width) + (gap+width)*turns*x;
+   real_t r_xyz = r_min + (width)*y;
+
+   V.SetSize(dim);
+   V(0) = r_xyz*std::cos(theta);
+   V(1) = r_xyz*std::sin(theta);
+   if (dim == 3) { V(2) = z*width + x*height; }
+}
+
+
+IntegrationRule PermuteIR(const IntegrationRule &irule,
+                          const Array<int> ordering)
+{
+   const int np = irule.GetNPoints();
+   MFEM_VERIFY(np == ordering.Size(), "Invalid permutation size");
+   IntegrationRule ir(np);
+   ir.SetOrder(irule.GetOrder());
+
+   for (int i = 0; i < np; i++)
+   {
+      IntegrationPoint &ip_new = ir.IntPoint(i);
+      const IntegrationPoint &ip_old = irule.IntPoint(ordering[i]);
+      ip_new.Set(ip_old.x, ip_old.y, ip_old.z, ip_old.weight);
+   }
+
+   return ir;
+}
+
+GridFunction *GetDeterminantJacobianGF(Mesh *mesh)
+{
+   const int dim = mesh->Dimension();
+   GridFunction *nodes = mesh->GetNodes();
+   int mesh_poly_deg = nodes ?
+                       nodes->FESpace()->GetMaxElementOrder() : 1;
+   int det_order = dim*mesh_poly_deg-1;
+   L2_FECollection *fec_det = new L2_FECollection(det_order, dim,
+                                                  BasisType::GaussLobatto);
+   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec_det);
+   GridFunction *detgf = new GridFunction(fespace);
+   detgf->MakeOwner(fec_det);
+
+   Array<int> dofs;
+   for (int e = 0; e < mesh->GetNE(); e++)
+   {
+      const FiniteElement *fe = fespace->GetFE(e);
+      const IntegrationRule ir = fe->GetNodes();
+      ElementTransformation *transf = mesh->GetElementTransformation(e);
+      DenseMatrix Jac(fe->GetDim());
+      const NodalFiniteElement *nfe = dynamic_cast<const NodalFiniteElement*>
+                                      (fe);
+      const Array<int> &irordering = nfe->GetLexicographicOrdering();
+      IntegrationRule ir2 = irordering.Size() ?
+                            PermuteIR(ir, irordering) :
+                            ir;
+
+      Vector detvals(ir2.GetNPoints());
+      Vector loc(dim);
+      for (int q = 0; q < ir2.GetNPoints(); q++)
+      {
+         IntegrationPoint ip = ir2.IntPoint(q);
+         transf->SetIntPoint(&ip);
+         transf->Transform(ip, loc);
+         Jac = transf->Jacobian();
+         detvals(q) = Jac.Weight();
+      }
+
+      fespace->GetElementDofs(e, dofs);
+      if (irordering.Size())
+      {
+         for (int i = 0; i < dofs.Size(); i++)
+         {
+            (*detgf)(dofs[i]) = detvals(irordering[i]);
+         }
+      }
+      else
+      {
+         detgf->SetSubVector(dofs, detvals);
+      }
+   }
+
+   return detgf;
 }
 
 } // namespace common

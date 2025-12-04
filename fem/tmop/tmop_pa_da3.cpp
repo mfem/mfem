@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,7 +17,108 @@
 namespace mfem
 {
 
-MFEM_REGISTER_TMOP_KERNELS(void, DatcSize,
+MFEM_REGISTER_TMOP_KERNELS(void, DatcSize_2D,
+                           const int NE,
+                           const int ncomp,
+                           const int sizeidx,
+                           const real_t input_min_size,
+                           const DenseMatrix &w_,
+                           const Array<real_t> &b_,
+                           const Vector &x_,
+                           const Vector &nc_reduce,
+                           DenseTensor &j_,
+                           const int d1d,
+                           const int q1d)
+{
+   MFEM_VERIFY(ncomp==1,"");
+   constexpr int DIM = 2;
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= Q1D, "");
+
+   const auto b = Reshape(b_.Read(), Q1D, D1D);
+   const auto W = Reshape(w_.Read(), DIM,DIM);
+   const auto X = Reshape(x_.Read(), D1D, D1D, ncomp, NE);
+   auto J = Reshape(j_.Write(), DIM,DIM, Q1D,Q1D, NE);
+
+   const real_t infinity = std::numeric_limits<real_t>::infinity();
+   MFEM_VERIFY(sizeidx == 0,"");
+   MFEM_VERIFY(MFEM_CUDA_BLOCKS==256,"");
+
+   const real_t *nc_red = nc_reduce.Read();
+
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
+      constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
+      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
+
+      MFEM_SHARED real_t sB[MQ1*MD1];
+      MFEM_SHARED real_t sm0[MDQ*MDQ];
+      MFEM_SHARED real_t sm1[MDQ*MDQ];
+
+      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,sB);
+
+      ConstDeviceMatrix B(sB, D1D, Q1D);
+      DeviceMatrix DD(sm0, MD1,MD1);
+      DeviceMatrix DQ(sm1, MD1,MQ1);
+      DeviceMatrix QQ(sm0, MQ1,MQ1);
+
+      kernels::internal::LoadX(e,D1D,sizeidx,X,DD);
+
+      real_t min;
+      MFEM_SHARED real_t min_size[MFEM_CUDA_BLOCKS];
+      DeviceTensor<2,real_t> M((real_t*)(min_size),D1D,D1D);
+      const DeviceTensor<2,const real_t> D((real_t*)(DD+sizeidx),D1D,D1D);
+      MFEM_FOREACH_THREAD(t,x,MFEM_CUDA_BLOCKS) { min_size[t] = infinity; }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            M(dx,dy) = D(dx,dy);
+         }
+      }
+      MFEM_SYNC_THREAD;
+      for (int wrk = MFEM_CUDA_BLOCKS >> 1; wrk > 0; wrk >>= 1)
+      {
+         MFEM_FOREACH_THREAD(t,x,MFEM_CUDA_BLOCKS)
+         {
+            if (t < wrk && MFEM_THREAD_ID(y)==0 && MFEM_THREAD_ID(z)==0)
+            {
+               min_size[t] = fmin(min_size[t], min_size[t+wrk]);
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+      min = min_size[0];
+      if (input_min_size > 0.) { min = input_min_size; }
+      kernels::internal::EvalX(D1D,Q1D,B,DD,DQ);
+      kernels::internal::EvalY(D1D,Q1D,B,DQ,QQ);
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            real_t T;
+            kernels::internal::PullEval(qx,qy,QQ,T);
+            const real_t shape_par_vals = T;
+            const real_t size = fmax(shape_par_vals, min) / nc_red[e];
+            const real_t alpha = std::pow(size, 1.0/DIM);
+            for (int i = 0; i < DIM; i++)
+            {
+               for (int j = 0; j < DIM; j++)
+               {
+                  J(i,j,qx,qy,e) = alpha * W(i,j);
+               }
+            }
+         }
+      }
+   });
+}
+
+MFEM_REGISTER_TMOP_KERNELS(void, DatcSize_3D,
                            const int NE,
                            const int ncomp,
                            const int sizeidx,
@@ -133,30 +234,27 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
                                                DenseTensor &Jtr) const
 {
    MFEM_VERIFY(target_type == IDEAL_SHAPE_GIVEN_SIZE ||
-               target_type == GIVEN_SHAPE_AND_SIZE,"");
+               target_type == GIVEN_SHAPE_AND_SIZE, "Wrong target type.");
 
    MFEM_VERIFY(tspec_fesv, "No target specifications have been set.");
    const FiniteElementSpace *fes = tspec_fesv;
 
-   // Cases that are not implemented below
-   if (skewidx != -1 ||
-       aspectratioidx != -1 ||
-       orientationidx != -1 ||
-       fes->GetMesh()->Dimension() != 3 ||
-       sizeidx == -1)
+   // The kernels are implemented only for size-adaptivity with ideal shape.
+   const bool use_kernel = (skewidx == -1 && aspectratioidx == -1 &&
+                            orientationidx == -1 && sizeidx != -1 &&
+                            target_type == IDEAL_SHAPE_GIVEN_SIZE);
+   if (use_kernel == false)
    {
       return ComputeAllElementTargets_Fallback(pa_fes, ir, xe, Jtr);
    }
 
    const Mesh *mesh = fes->GetMesh();
    const int NE = mesh->GetNE();
-   // Quick return for empty processors:
-   if (NE == 0) { return; }
    const int dim = mesh->Dimension();
    MFEM_VERIFY(mesh->GetNumGeometries(dim) <= 1,
                "mixed meshes are not supported");
    MFEM_VERIFY(!fes->IsVariableOrder(), "variable orders are not supported");
-   const FiniteElement &fe = *fes->GetFE(0);
+   const FiniteElement &fe = *fes->GetTypicalFE();
    const DenseMatrix &W = Geometries.GetGeomToPerfGeomJac(fe.GetGeomType());
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    const DofToQuad &maps = fe.GetDofToQuad(ir, mode);
@@ -173,18 +271,25 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
       nc_size_red(e) = (ncmesh) ? ncmesh->GetElementSizeReduction(e) : 1.0;
    }
 
-   Vector tspec_e;
-   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   const Operator *R = fes->GetElementRestriction(ordering);
-   MFEM_VERIFY(R,"");
-   MFEM_VERIFY(R->Height() == NE*ncomp*D1D*D1D*D1D,"");
-   tspec_e.SetSize(R->Height(), Device::GetDeviceMemoryType());
+   auto R = fes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+   MFEM_VERIFY(R, "Invalid ElementRestriction.");
+   const int R_height = (dim == 2) ? NE*ncomp*D1D*D1D : NE*ncomp*D1D*D1D*D1D;
+   MFEM_VERIFY(R->Height() == R_height, "Incorrect ElementRestriction size.");
+   Vector tspec_e(R->Height(), Device::GetDeviceMemoryType());
    tspec_e.UseDevice(true);
    tspec.UseDevice(true);
    R->Mult(tspec, tspec_e);
    const int id = (D1D << 4 ) | Q1D;
-   MFEM_LAUNCH_TMOP_KERNEL(DatcSize,id,NE,ncomp,sizeidx,input_min_size,W,B,
-                           tspec_e, nc_size_red, Jtr);
+   if (dim == 2)
+   {
+      MFEM_LAUNCH_TMOP_KERNEL(DatcSize_2D,id,NE,ncomp,sizeidx,input_min_size,
+                              W, B,tspec_e, nc_size_red, Jtr);
+   }
+   else
+   {
+      MFEM_LAUNCH_TMOP_KERNEL(DatcSize_3D,id,NE,ncomp,sizeidx,input_min_size,
+                              W, B, tspec_e, nc_size_red, Jtr);
+   }
 }
 
 } // namespace mfem

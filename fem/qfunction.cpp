@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -78,7 +78,7 @@ void QuadratureFunction::ProjectGridFunction(const GridFunction &gf)
          gf_fes.GetQuadratureInterpolator(*qs_elem);
       qi->SetOutputLayout(QVectorLayout::byVDIM);
       qi->DisableTensorProducts(!use_tensor_products);
-      qi->Values(e_vec, *this);
+      qi->PhysValues(e_vec, *this);
    }
    else if (auto *qs_face = dynamic_cast<FaceQuadratureSpace*>(qspace))
    {
@@ -120,7 +120,7 @@ void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,
                                  int compression_level,
                                  const std::string &field_name) const
 {
-   os << R"(<VTKFile type="UnstructuredGrid" version="0.1")";
+   os << R"(<VTKFile type="UnstructuredGrid" version="2.2")";
    if (compression_level != 0)
    {
       os << R"( compressor="vtkZLibDataCompressor")";

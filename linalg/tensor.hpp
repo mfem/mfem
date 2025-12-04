@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,26 +15,17 @@
  * @brief Implementation of the tensor class
  */
 
-#ifndef MFEM_INTERNAL_TENSOR_HPP
-#define MFEM_INTERNAL_TENSOR_HPP
+#pragma once
 
+#include "../general/backends.hpp"
 #include "dual.hpp"
+#include <limits>
 #include <type_traits> // for std::false_type
 
 namespace mfem
 {
-namespace internal
+namespace future
 {
-
-#if defined(__CUDACC__)
-#if __CUDAVER__ >= 75000
-#define MFEM_SUPPRESS_NVCC_HOSTDEVICE_WARNING #pragma nv_exec_check_disable
-#else
-#define MFEM_SUPPRESS_NVCC_HOSTDEVICE_WARNING #pragma hd_warning_disable
-#endif
-#else  //__CUDACC__
-#define MFEM_SUPPRESS_NVCC_HOSTDEVICE_WARNING
-#endif
 
 template <typename T, int... n>
 struct tensor;
@@ -149,7 +140,7 @@ struct tensor<T, n0, n1, n2, n3, n4>
  */
 struct zero
 {
-   /** @brief `zero` is implicitly convertible to double with value 0.0 */
+   /** @brief `zero` is implicitly convertible to real_t with value 0.0 */
    MFEM_HOST_DEVICE operator real_t() { return 0.0; }
 
    /** @brief `zero` is implicitly convertible to a tensor of any shape */
@@ -304,7 +295,6 @@ using reduced_tensor = typename std::conditional<
  * @note the different cases of 0D, 1D, 2D, 3D, and 4D are implemented separately
  *       to work around a limitation in nvcc involving __host__ __device__ lambdas with `auto` parameters.
  */
-MFEM_SUPPRESS_NVCC_HOSTDEVICE_WARNING
 template <typename lambda_type>
 MFEM_HOST_DEVICE constexpr auto make_tensor(lambda_type f) ->
 tensor<decltype(f())>
@@ -323,7 +313,6 @@ tensor<decltype(f())>
  * @note the different cases of 0D, 1D, 2D, 3D, and 4D are implemented separately
  *       to work around a limitation in nvcc involving __host__ __device__ lambdas with `auto` parameters.
  */
-MFEM_SUPPRESS_NVCC_HOSTDEVICE_WARNING
 template <int n1, typename lambda_type>
 MFEM_HOST_DEVICE auto make_tensor(lambda_type f) ->
 tensor<decltype(f(n1)), n1>
@@ -349,7 +338,6 @@ tensor<decltype(f(n1)), n1>
  * @note the different cases of 0D, 1D, 2D, 3D, and 4D are implemented separately
  *       to work around a limitation in nvcc involving __host__ __device__ lambdas with `auto` parameters.
  */
-MFEM_SUPPRESS_NVCC_HOSTDEVICE_WARNING
 template <int n1, int n2, typename lambda_type>
 MFEM_HOST_DEVICE auto make_tensor(lambda_type f) ->
 tensor<decltype(f(n1, n2)), n1, n2>
@@ -379,7 +367,6 @@ tensor<decltype(f(n1, n2)), n1, n2>
  * @note the different cases of 0D, 1D, 2D, 3D, and 4D are implemented separately
  *       to work around a limitation in nvcc involving __host__ __device__ lambdas with `auto` parameters.
  */
-MFEM_SUPPRESS_NVCC_HOSTDEVICE_WARNING
 template <int n1, int n2, int n3, typename lambda_type>
 MFEM_HOST_DEVICE auto make_tensor(lambda_type f) ->
 tensor<decltype(f(n1, n2, n3)), n1, n2, n3>
@@ -413,7 +400,6 @@ tensor<decltype(f(n1, n2, n3)), n1, n2, n3>
  * @note the different cases of 0D, 1D, 2D, 3D, and 4D are implemented separately
  *       to work around a limitation in nvcc involving __host__ __device__ lambdas with `auto` parameters.
  */
-MFEM_SUPPRESS_NVCC_HOSTDEVICE_WARNING
 template <int n1, int n2, int n3, int n4, typename lambda_type>
 MFEM_HOST_DEVICE auto make_tensor(lambda_type f) ->
 tensor<decltype(f(n1, n2, n3, n4)), n1, n2, n3, n4>
@@ -434,6 +420,23 @@ tensor<decltype(f(n1, n2, n3, n4)), n1, n2, n3, n4>
       }
    }
    return A;
+}
+
+// needs to be generalized
+template <typename T, int m, int n> MFEM_HOST_DEVICE
+tensor<T, n> get_col(tensor<T, m, n> A, int j)
+{
+   tensor<T, n> c{};
+   c(0) = A[0][j];
+   c(1) = A[1][j];
+   return c;
+}
+
+/// @overload
+template <typename T> MFEM_HOST_DEVICE
+tensor<T, 1> get_col(tensor<T, 1, 1> A, int j)
+{
+   return tensor<T, 1> {A[0][0]};
 }
 
 /**
@@ -497,7 +500,7 @@ tensor<decltype(S {} + T{}), n...>
 
 /**
  * @brief multiply a tensor by a scalar value
- * @tparam S the scalar value type. Must be arithmetic (e.g. float, double, int) or a dual number
+ * @tparam S the scalar value type. Must be arithmetic (e.g. float, real_t, int) or a dual number
  * @tparam T the underlying type of the tensor (righthand) argument
  * @tparam n integers describing the tensor shape
  * @param[in] scale The scaling factor
@@ -519,7 +522,7 @@ tensor<decltype(S {} * T{}), n...>
 
 /**
  * @brief multiply a tensor by a scalar value
- * @tparam S the scalar value type. Must be arithmetic (e.g. float, double, int) or a dual number
+ * @tparam S the scalar value type. Must be arithmetic (e.g. float, real_t, int) or a dual number
  * @tparam T the underlying type of the tensor (righthand) argument
  * @tparam n integers describing the tensor shape
  * @param[in] A The tensor to be scaled
@@ -541,7 +544,7 @@ tensor<decltype(T {} * S{}), n...>
 
 /**
  * @brief divide a scalar by each element in a tensor
- * @tparam S the scalar value type. Must be arithmetic (e.g. float, double, int) or a dual number
+ * @tparam S the scalar value type. Must be arithmetic (e.g. float, real_t, int) or a dual number
  * @tparam T the underlying type of the tensor (righthand) argument
  * @tparam n integers describing the tensor shape
  * @param[in] scale The numerator
@@ -563,7 +566,7 @@ tensor<decltype(S {} * T{}), n...>
 
 /**
  * @brief divide a tensor by a scalar
- * @tparam S the scalar value type. Must be arithmetic (e.g. float, double, int) or a dual number
+ * @tparam S the scalar value type. Must be arithmetic (e.g. float, real_t, int) or a dual number
  * @tparam T the underlying type of the tensor (righthand) argument
  * @tparam n integers describing the tensor shape
  * @param[in] A The tensor of numerators
@@ -695,6 +698,20 @@ auto outer(S A, T B) -> decltype(A * B)
    static_assert(std::is_arithmetic<S>::value && std::is_arithmetic<T>::value,
                  "outer product types must be tensor or arithmetic_type");
    return A * B;
+}
+
+template <typename T, int n, int m> MFEM_HOST_DEVICE
+tensor<T, n + m> flatten(tensor<T, n, m> A)
+{
+   tensor<T, n + m> B{};
+   for (int i = 0; i < n; i++)
+   {
+      for (int j = 0; j < m; j++)
+      {
+         B(i + j * m) = A(i, j);
+      }
+   }
+   return B;
 }
 
 /**
@@ -1051,13 +1068,25 @@ decltype(S {} * T{})
    return AB;
 }
 
-template <typename S, typename T, int m, int... n> MFEM_HOST_DEVICE
-auto dot(const tensor<S, m>& A, const tensor<T, m, n...>& B) ->
-tensor<decltype(S {} * T{}), n...>
+template <typename T, int m> MFEM_HOST_DEVICE
+auto dot(const tensor<T, m>& A, const tensor<T, m>& B) ->
+decltype(T {})
 {
-   constexpr int dimensions[] = {n...};
-   tensor<decltype(S{} * T{}), n...> AB{};
-   for (int i = 0; i < dimensions[0]; i++)
+   decltype(T{}) AB{};
+   for (int i = 0; i < m; i++)
+   {
+      AB += A[i] * B[i];
+   }
+   return AB;
+}
+
+template <typename S, typename T, int m, int n0, int n1, int... n>
+MFEM_HOST_DEVICE
+auto dot(const tensor<S, m>& A, const tensor<T, m, n0, n1, n...>& B) ->
+tensor<decltype(S {} * T{}), n0, n1, n...>
+{
+   tensor<decltype(S{} * T{}), n0, n1, n...> AB{};
+   for (int i = 0; i < n0; i++)
    {
       for (int j = 0; j < m; j++)
       {
@@ -1088,7 +1117,7 @@ decltype(S {} * T{} * U{})
 }
 
 /**
- * @brief double dot product, contracting over the two "middle" indices
+ * @brief real_t dot product, contracting over the two "middle" indices
  * @tparam S the underlying type of the tensor (lefthand) argument
  * @tparam T the underlying type of the tensor (righthand) argument
  * @tparam m first dimension of A
@@ -1285,7 +1314,7 @@ tensor<T, n, n> dev(const tensor<T, n, n>& A)
  * @return I_dim
  */
 template <int dim>
-MFEM_HOST_DEVICE tensor<real_t, dim, dim> Identity()
+MFEM_HOST_DEVICE tensor<real_t, dim, dim> IdentityMatrix()
 {
    tensor<real_t, dim, dim> I{};
    for (int i = 0; i < dim; i++)
@@ -1321,6 +1350,12 @@ tensor<T, n, m> transpose(const tensor<T, m, n>& A)
  * @param[in] A The matrix to obtain the determinant of
  */
 template <typename T> MFEM_HOST_DEVICE
+T det(const tensor<T, 1, 1>& A)
+{
+   return A[0][0];
+}
+/// @overload
+template <typename T> MFEM_HOST_DEVICE
 T det(const tensor<T, 2, 2>& A)
 {
    return A[0][0] * A[1][1] - A[0][1] * A[1][0];
@@ -1334,6 +1369,145 @@ T det(const tensor<T, 3, 3>& A)
           A[0][0] * A[1][2] * A[2][1] - A[0][1] * A[1][0] * A[2][2] - A[0][2] * A[1][1] *
           A[2][0];
 }
+
+template <typename T> MFEM_HOST_DEVICE
+std::tuple<tensor<T, 1>, tensor<T, 1, 1>> eig(tensor<T, 1, 1> &A)
+{
+   return {tensor<T, 1>{A[0][0]}, tensor<T, 1, 1>{{{1.0}}}};
+}
+
+template <typename T> MFEM_HOST_DEVICE
+std::tuple<tensor<T, 2>, tensor<T, 2, 2>> eig(tensor<T, 2, 2> &A)
+{
+   tensor<T, 2> e;
+   tensor<T, 2, 2> v;
+
+   real_t d0 = A(0, 0);
+   real_t d2 = A(0, 1);
+   real_t d3 = A(1, 1);
+   real_t c, s;
+
+   if (d2 == 0.0)
+   {
+      c = 1.0;
+      s = 0.0;
+   }
+   else
+   {
+      real_t t;
+      const real_t zeta = (d3 - d0) / (2.0 * d2);
+      const real_t azeta = fabs(zeta);
+      if (azeta < std::sqrt(1.0/std::numeric_limits<T>::epsilon()))
+      {
+         t = copysign(1./(azeta + std::sqrt(1. + zeta*zeta)), zeta);
+      }
+      else
+      {
+         t = copysign(0.5/azeta, zeta);
+      }
+      c = std::sqrt(1./(1. + t*t));
+      s = c*t;
+      t *= d2;
+      d0 -= t;
+      d3 += t;
+   }
+
+   if (d0 <= d3)
+   {
+      e(0) = d0;
+      e(1) = d3;
+      v(0, 0) =  c;
+      v(1, 0) = -s;
+      v(0, 1) =  s;
+      v(1, 1) =  c;
+   }
+   else
+   {
+      e(0) = d3;
+      e(1) = d0;
+      v(0, 0) =  s;
+      v(1, 0) =  c;
+      v(0, 1) =  c;
+      v(1, 1) = -s;
+   }
+
+   return {e, v};
+}
+
+template <typename T> MFEM_HOST_DEVICE
+void GetScalingFactor(const T &d_max, T &mult)
+{
+   int d_exp;
+   if (d_max > 0.)
+   {
+      mult = frexp(d_max, &d_exp);
+      if (d_exp == std::numeric_limits<T>::max_exponent)
+      {
+         mult *= std::numeric_limits<T>::radix;
+      }
+      mult = d_max/mult;
+   }
+   else
+   {
+      mult = 1.;
+   }
+}
+
+template <typename T> MFEM_HOST_DEVICE
+T calcsv(const tensor<T, 1, 1> A, const int i)
+{
+   return A[0][0];
+}
+
+/**
+ * @brief Compute the i-th singular value of a 2x2 matrix A
+ */
+template <typename T> MFEM_HOST_DEVICE
+T calcsv(const tensor<T, 2, 2> A, const int i)
+{
+   real_t mult;
+   real_t d0, d1, d2, d3;
+   d0 = A(0, 0);
+   d1 = A(1, 0);
+   d2 = A(0, 1);
+   d3 = A(1, 1);
+
+   real_t d_max = fabs(d0);
+   if (d_max < fabs(d1)) { d_max = fabs(d1); }
+   if (d_max < fabs(d2)) { d_max = fabs(d2); }
+   if (d_max < fabs(d3)) { d_max = fabs(d3); }
+
+   GetScalingFactor(d_max, mult);
+
+   d0 /= mult;
+   d1 /= mult;
+   d2 /= mult;
+   d3 /= mult;
+
+   real_t t = 0.5*((d0+d2)*(d0-d2)+(d1-d3)*(d1+d3));
+   real_t s = d0*d2 + d1*d3;
+   s = std::sqrt(0.5*(d0*d0 + d1*d1 + d2*d2 + d3*d3) + std::sqrt(t*t + s*s));
+
+   if (s == 0.0)
+   {
+      return 0.0;
+   }
+   t = fabs(d0*d3 - d1*d2) / s;
+   if (t > s)
+   {
+      if (i == 0)
+      {
+         return t*mult;
+      }
+      return s*mult;
+   }
+   if (i == 0)
+   {
+      return s*mult;
+   }
+   return t*mult;
+}
+
 
 /**
  * @brief Return whether a square rank 2 tensor is symmetric
@@ -1474,13 +1648,20 @@ tensor<T, n> linear_solve(tensor<T, n, n> A, const tensor<T, n> b)
 /**
  * @brief Inverts a matrix
  * @param[in] A The matrix to invert
- * @note Uses a shortcut for inverting a 2-by-2 matrix
+ * @note Uses a shortcut for inverting a 1x1, 2x2 and 3x3 matrix
  */
-inline MFEM_HOST_DEVICE tensor<real_t, 2, 2> inv(const tensor<real_t, 2, 2>& A)
+template <typename T>
+inline MFEM_HOST_DEVICE tensor<T, 1, 1> inv(const tensor<T, 1, 1>& A)
 {
-   real_t inv_detA(1.0 / det(A));
+   return tensor<T, 1, 1> {{{T{1.0} / A[0][0]}}};
+}
 
-   tensor<real_t, 2, 2> invA{};
+template <typename T>
+inline MFEM_HOST_DEVICE tensor<T, 2, 2> inv(const tensor<T, 2, 2>& A)
+{
+   T inv_detA(1.0 / det(A));
+
+   tensor<T, 2, 2> invA{};
 
    invA[0][0] = A[1][1] * inv_detA;
    invA[0][1] = -A[0][1] * inv_detA;
@@ -1494,11 +1675,12 @@ inline MFEM_HOST_DEVICE tensor<real_t, 2, 2> inv(const tensor<real_t, 2, 2>& A)
  * @overload
  * @note Uses a shortcut for inverting a 3-by-3 matrix
  */
-inline MFEM_HOST_DEVICE tensor<real_t, 3, 3> inv(const tensor<real_t, 3, 3>& A)
+template <typename T>
+inline MFEM_HOST_DEVICE tensor<T, 3, 3> inv(const tensor<T, 3, 3>& A)
 {
-   real_t inv_detA(1.0 / det(A));
+   T inv_detA(1.0 / det(A));
 
-   tensor<real_t, 3, 3> invA{};
+   tensor<T, 3, 3> invA{};
 
    invA[0][0] = (A[1][1] * A[2][2] - A[1][2] * A[2][1]) * inv_detA;
    invA[0][1] = (A[0][2] * A[2][1] - A[0][1] * A[2][2]) * inv_detA;
@@ -1517,10 +1699,12 @@ inline MFEM_HOST_DEVICE tensor<real_t, 3, 3> inv(const tensor<real_t, 3, 3>& A)
  * @note For N-by-N matrices with N > 3, requires Gaussian elimination
  * with partial pivoting
  */
-template <typename T, int n> MFEM_HOST_DEVICE
-tensor<T, n, n> inv(const tensor<T, n, n>& A)
+template <typename T, int n>
+MFEM_HOST_DEVICE
+typename std::enable_if<(n > 3), tensor<T, n, n>>::type
+                                               inv(const tensor<T, n, n>& A)
 {
-   auto abs  = [](real_t x) { return (x < 0) ? -x : x; };
+   auto abs  = [](T x) { return (x < 0) ? -x : x; };
    auto swap = [](tensor<T, n>& x, tensor<T, n>& y)
    {
       auto tmp = x;
@@ -1528,12 +1712,12 @@ tensor<T, n, n> inv(const tensor<T, n, n>& A)
       y        = tmp;
    };
 
-   tensor<real_t, n, n> B = Identity<n>();
+   tensor<T, n, n> B = IdentityMatrix<n>();
 
    for (int i = 0; i < n; i++)
    {
       // Search for maximum in this column
-      real_t max_val = abs(A[i][i]);
+      T max_val = abs(A[i][i]);
 
       int max_row = i;
       for (int j = i + 1; j < n; j++)
@@ -1553,7 +1737,7 @@ tensor<T, n, n> inv(const tensor<T, n, n>& A)
       {
          if (A[j][i] != 0.0)
          {
-            real_t c = -A[j][i] / A[i][i];
+            T c = -A[j][i] / A[i][i];
             A[j] += c * A[i];
             B[j] += c * B[i];
             A[j][i] = 0;
@@ -1716,7 +1900,7 @@ template <typename T1, typename T2>
 using outer_product_t = typename detail::outer_prod<T1, T2>::type;
 
 /**
- * @brief Retrieves the gradient component of a double (which is nothing)
+ * @brief Retrieves the gradient component of a real_t (which is nothing)
  * @return The sentinel, @see zero
  */
 inline MFEM_HOST_DEVICE zero get_gradient(real_t /* arg */) { return zero{}; }
@@ -2046,11 +2230,8 @@ auto ddot(const isotropic_tensor<S, m, m, m, m>& I,
           const tensor<T, m, m>& A)
 -> tensor<decltype(S {} * T{}), m, m>
 {
-   return I.c1 * tr(A) * Identity<m>() + I.c2 * sym(A) + I.c3 * antisym(A);
+   return I.c1 * tr(A) * IdentityMatrix<m>() + I.c2 * sym(A) + I.c3 * antisym(A);
 }
 
-} // namespace internal
-
+} // namespace future
 } // namespace mfem
-
-#endif

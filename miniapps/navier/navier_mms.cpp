@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -87,6 +87,7 @@ int main(int argc, char *argv[])
 {
    Mpi::Init(argc, argv);
    Hypre::Init();
+   int visport = 19916;
 
    OptionsParser args(argc, argv);
    args.AddOption(&ctx.ser_ref_levels,
@@ -124,6 +125,7 @@ int main(int argc, char *argv[])
       "-no-cr",
       "--no-checkresult",
       "Enable or disable checking of the result. Returns -1 on failure.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -219,7 +221,6 @@ int main(int argc, char *argv[])
    if (ctx.visualization)
    {
       char vishost[] = "localhost";
-      int visport = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << Mpi::WorldSize() << " "
                << Mpi::WorldRank() << "\n";

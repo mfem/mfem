@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -20,7 +20,7 @@
 namespace mfem
 {
 
-void TMOP_Integrator::AssembleGradPA(const Vector &xe,
+void TMOP_Integrator::AssembleGradPA(const Vector &de,
                                      const FiniteElementSpace &fes)
 {
    MFEM_VERIFY(PA.enabled, "PA extension setup has not been done!");
@@ -28,6 +28,15 @@ void TMOP_Integrator::AssembleGradPA(const Vector &xe,
    // TODO: we need a more robust way to check that the 'fes' used when
    // AssemblePA() was called has not been modified or completely destroyed and
    // a new object created at the same address.
+
+   // Form the Vector of node positions, depending on what's the input.
+   Vector xe(de.Size());
+   if (x_0)
+   {
+      // The input is the displacement.
+      add(PA.X0, de, xe);
+   }
+   else { xe = de; }
 
    if (PA.Jtr_needs_update || targetC->UsesPhysicalCoordinates())
    {
@@ -96,17 +105,17 @@ void TMOP_Integrator::AssemblePA_Limiting()
       }
    }
 
-   // lim_nodes0 -> PA.X0 (E-vector)
+   // lim_nodes0 -> PA.XL (E-vector)
    MFEM_VERIFY(lim_nodes0->FESpace() == fes, "");
    const Operator *n0_R = fes->GetElementRestriction(ordering);
-   PA.X0.SetSize(n0_R->Height(), Device::GetMemoryType());
-   PA.X0.UseDevice(true);
-   n0_R->Mult(*lim_nodes0, PA.X0);
+   PA.XL.SetSize(n0_R->Height(), Device::GetMemoryType());
+   PA.XL.UseDevice(true);
+   n0_R->Mult(*lim_nodes0, PA.XL);
 
    // Limiting distances: lim_dist -> PA.LD (E-vector)
    // TODO: remove the hack for the case lim_dist == NULL.
    const FiniteElementSpace *limfes = (lim_dist) ? lim_dist->FESpace() : fes;
-   const FiniteElement &lim_fe = *limfes->GetFE(0);
+   const FiniteElement &lim_fe = *limfes->GetTypicalFE();
    PA.maps_lim = &lim_fe.GetDofToQuad(ir, DofToQuad::TENSOR);
    PA.LD.SetSize(NE*lim_fe.GetDof(), Device::GetMemoryType());
    PA.LD.UseDevice(true);
@@ -115,10 +124,7 @@ void TMOP_Integrator::AssemblePA_Limiting()
       const Operator *ld_R = limfes->GetElementRestriction(ordering);
       ld_R->Mult(*lim_dist, PA.LD);
    }
-   else
-   {
-      PA.LD = 1.0;
-   }
+   else { PA.LD = 1.0; }
 }
 
 void TargetConstructor::ComputeAllElementTargets(const FiniteElementSpace &fes,
@@ -176,8 +182,19 @@ void TMOP_Integrator::ComputeAllElementTargets(const Vector &xe) const
    targetC->ComputeAllElementTargets(*fes, ir, xe, PA.Jtr);
 }
 
-void TMOP_Integrator::UpdateCoefficientsPA(const Vector &x_loc)
+void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
 {
+   Vector x_loc;
+   if (periodic)
+   {
+      GetPeriodicPositions(*x_0, d_loc, *x_0->FESpace(), *PA.fes, x_loc);
+   }
+   else
+   {
+      x_loc.SetSize(x_0->Size());
+      add(*x_0, d_loc, x_loc);
+   }
+
    // Both are constant or not specified.
    if (PA.MC.Size() == 1 && PA.C0.Size() == 1) { return; }
 
@@ -220,22 +237,37 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    PA.fes = &fes;
    Mesh *mesh = fes.GetMesh();
    const int ne = PA.ne = mesh->GetNE();
-   if (ne == 0) { return; }  // Quick return for empty processors
    const int dim = PA.dim = mesh->Dimension();
+
    MFEM_VERIFY(PA.dim == 2 || PA.dim == 3, "Not yet implemented!");
    MFEM_VERIFY(mesh->GetNumGeometries(dim) <= 1,
-               "mixed meshes are not supported");
+               "TMOP+PA does not support mixed meshes.");
+   MFEM_VERIFY(mesh->HasGeometry(Geometry::SQUARE) ||
+               mesh->HasGeometry(Geometry::CUBE),
+               "TMOP+PA only supports squares and cubes.");
    MFEM_VERIFY(!fes.IsVariableOrder(), "variable orders are not supported");
-   const FiniteElement &fe = *fes.GetFE(0);
+   MFEM_VERIFY(fes.GetOrdering() == Ordering::byNODES,
+               "TMOP+PAP only supports Ordering::byNODES!");
+
+   const FiniteElement &fe = *fes.GetTypicalFE();
    PA.ir = &EnergyIntegrationRule(fe);
    const IntegrationRule &ir = *PA.ir;
-   MFEM_VERIFY(fes.GetOrdering() == Ordering::byNODES,
-               "PA Only supports Ordering::byNODES!");
-
    const int nq = PA.nq = ir.GetNPoints();
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    PA.maps = &fe.GetDofToQuad(ir, mode);
+   // Note - initial mesh. TODO delete this?
    PA.geom = mesh->GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
+
+   // Initial node positions.
+   // PA.X0 is also updated in TMOP_Integrator::SetInitialMeshPos.
+   if (x_0 != nullptr)
+   {
+      const ElementDofOrdering ord = ElementDofOrdering::LEXICOGRAPHIC;
+      auto n0_R = x_0->FESpace()->GetElementRestriction(ord);
+      PA.X0.UseDevice(true);
+      PA.X0.SetSize(n0_R->Height(), Device::GetMemoryType());
+      n0_R->Mult(*x_0, PA.X0);
+   }
 
    // Energy vector, scalar Q-vector
    PA.E.UseDevice(true);
@@ -266,6 +298,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
             ElementTransformation& T = *PA.fes->GetElementTransformation(e);
             for (int q = 0; q < ir.GetNPoints(); ++q)
             {
+               // Note that this is always on the initial mesh.
                M0(q,e) = metric_coeff->Eval(T, ir.IntPoint(q));
             }
          }
@@ -283,7 +316,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    PA.Jtr_needs_update = true;
    PA.Jtr_debug_grad = false;
 
-   // Limiting: lim_coeff -> PA.C0, lim_nodes0 -> PA.X0, lim_dist -> PA.LD, PA.H0
+   // Limiting: lim_coeff -> PA.C0, lim_nodes0 -> PA.XL, lim_dist -> PA.LD, PA.H0
    if (lim_coeff) { AssemblePA_Limiting(); }
 }
 
@@ -312,9 +345,18 @@ void TMOP_Integrator::AssembleGradDiagonalPA(Vector &de) const
    }
 }
 
-void TMOP_Integrator::AddMultPA(const Vector &xe, Vector &ye) const
+void TMOP_Integrator::AddMultPA(const Vector &de, Vector &ye) const
 {
    // This method must be called after AssemblePA().
+
+   // Form the Vector of node positions, depending on what's the input.
+   Vector xe(de.Size());
+   if (x_0)
+   {
+      // The input is the displacement.
+      add(PA.X0, de, xe);
+   }
+   else { xe = de; }
 
    if (PA.Jtr_needs_update || targetC->UsesPhysicalCoordinates())
    {
@@ -359,9 +401,18 @@ void TMOP_Integrator::AddMultGradPA(const Vector &re, Vector &ce) const
    }
 }
 
-real_t TMOP_Integrator::GetLocalStateEnergyPA(const Vector &xe) const
+real_t TMOP_Integrator::GetLocalStateEnergyPA(const Vector &de) const
 {
    // This method must be called after AssemblePA().
+
+   // Form the Vector of node positions, depending on what's the input.
+   Vector xe(de.Size());
+   if (x_0)
+   {
+      // The input is the displacement.
+      add(PA.X0, de, xe);
+   }
+   else { xe = de; }
 
    real_t energy = 0.0;
 
@@ -372,13 +423,13 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA(const Vector &xe) const
 
    if (PA.dim == 2)
    {
-      energy = GetLocalStateEnergyPA_2D(xe);
+      GetLocalStateEnergyPA_2D(xe, energy);
       if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_2D(xe); }
    }
 
    if (PA.dim == 3)
    {
-      energy = GetLocalStateEnergyPA_3D(xe);
+      GetLocalStateEnergyPA_3D(xe, energy);
       if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_3D(xe); }
    }
 

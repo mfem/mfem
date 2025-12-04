@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -38,7 +38,7 @@
 //    mpirun -np 4 pmesh-fitting -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -vl 1 -sfc 1e4 -rtol 1e-5
 //    mpirun -np 4 pmesh-fitting -o 3 -mid 58 -tid 1 -vl 1 -sfc 100 -rtol 1e-5 -sfa 5 -sft 1e-10 -ni 50
 //  Surface fitting with weight adaptation and termination based on fitting error:
-//    mpirun -np 4 pmesh-fitting -o 2 -mid 2 -tid 1 -vl 2 -sfc 10 -rtol 1e-20 -sfa 10.0 -sft 1e-5 -no-resid
+//    mpirun -np 4 pmesh-fitting -o 2 -mid 2 -tid 1 -vl 2 -sfc 10 -rtol 1e-20 -sfa 10.0 -sft 1e-5 -no-resid -ni 40
 //  Surface fitting with weight adaptation, limit on max weight, and convergence based on residual.
 //  * mpirun -np 4 pmesh-fitting -m ../../data/inline-tri.mesh -o 2 -mid 2 -tid 4 -vl 2 -sfc 10 -rtol 1e-10 -sfa 10.0 -sft 1e-5 -bgamriter 3 -sbgmesh -ae 1 -marking -slstype 3 -resid -sfcmax 10000 -mod-bndr-attr
 //  Surface fitting to Fischer-Tropsch reactor like domain (requires GSLIB):
@@ -46,7 +46,17 @@
 //  * mpirun -np 6 pmesh-fitting -m ../../data/inline-quad.mesh -o 2 -rs 4 -mid 2 -tid 1 -vl 2 -sfc 50 -rtol 1e-12 -li 20 -ae 1 -bnd -sbgmesh -slstype 2 -smtype 0 -sfa 5.0 -sft 1e-4 -no-resid -bgamriter 5 -dist -mod-bndr-attr -ni 100 -vis
 
 // make pmesh-fitting -j && mpirun -np 8 pmesh-fitting -m ../../data/inline-tet.mesh -o 1 -rs 2  -mid 328 -tid 4 -vl 2 -sfc 10 -rtol 1e-5 -sfa 5 -sft 1e-10 -ni 100 -sbgmesh -bgamriter 4 -slstype 1 -ae 1 -fix-bnd
-// make pmesh-fitting -j && mpirun -np 8 pmesh-fitting -m ../../data/inline-tet.mesh -o 1 -rs 2  -mid 328 -tid 4 -vl 2 -sfc 10 -rtol 1e-5 -sfa 5 -sft 1e-10 -ni 100 -sbgmesh -bgamriter 4 -slstype 1 -ae 1 -fix-bnd -vis -marking
+// for tets we need to do atleast order 2
+// make pmesh-fitting -j && mpirun -np 8 pmesh-fitting -m ../../data/inline-tet.mesh -o 2 -rs 1  -mid 328 -tid 4 -vl 2 -sfc 10 -rtol 1e-10 -sfa 5 -sft 1e-10 -ni 100 -sbgmesh -bgamriter 4 -slstype 1 -ae 1 -fix-bnd -vis -marking
+// make pmesh-fitting -j && mpirun -np 8 pmesh-fitting -m ../../data/inline-tet.mesh -o 2 -rs 1  -mid 328 -tid 4 -vl 2 -sfc 10 -rtol 1e-10 -sfa 5 -sft 1e-10 -ni 100 -sbgmesh -bgamriter 4 -slstype 7 -ae 1 -bnd -vis -marking
+
+// quad mesh on circle with and without conforming refinement
+// make pmesh-fitting -j4 && mpirun -np 4 pmesh-fitting -o 3 -mid 80 -tid 4 -vl 1 -sfc 5e4 -rtol 1e-5 -vis -cref
+// make pmesh-fitting -j4 && mpirun -np 4 pmesh-fitting -o 3 -mid 2 -tid 1 -vl 1 -sfc 5e4 -rtol 1e-5 -vis -no-cref
+
+// quad mesh on inclined line with and without conforming refinement
+// make pmesh-fitting -j4 && mpirun -np 4 pmesh-fitting -o 3 -mid 80 -tid 4 -vl 1 -sfc 5e4 -rtol 1e-5 -vis -cref
+// make pmesh-fitting -j4 && mpirun -np 4 pmesh-fitting -o 3 -mid 2 -tid 1 -vl 1 -sfc 5e4 -rtol 1e-5 -vis -no-cref
 
 // Test hex mesh - inclined plane
 // make pmesh-fitting -j4 && mpirun -np 6 pmesh-fitting -m ../../data/inline-hex.mesh -o 2 -rs 2 -mid 303 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -li 20 -ae 1 -bnd -slstype 7 -smtype 0 -sfa 10.0 -sft 1e-8 -no-resid -mod-bndr-attr -vis -ni 100
@@ -54,39 +64,15 @@
 // Test hex mesh - sphere
 // make pmesh-fitting -j4 && mpirun -np 6 pmesh-fitting -m ../../data/inline-hex.mesh -o 2 -rs 2 -mid 303 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -li 20 -ae 1 -bnd -slstype 1 -smtype 0 -sfa 10.0 -sft 1e-8 -no-resid -mod-bndr-attr -vis -ni 100
 
+//  * mpirun -np 6 pmesh-fitting -m ../../data/inline-tri.mesh -o 2 -rs 4 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -li 20 -ae 1 -bnd -sbgmesh -slstype 2 -smtype 0 -sfa 10.0 -sft 1e-4 -no-resid -bgamriter 5 -dist -mod-bndr-attr -ni 50
+
+// make pmesh-fitting -j4 && mpirun -np 6 pmesh-fitting -m preprocessed_ls_1_rs_2.mesh -o 2 -rs 0 -mid 303 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -li 20 -ae 1 -bnd -slstype 1 -smtype 0 -sfa 10.0 -sft 1e-8 -no-resid -mod-bndr-attr -vis -ni 100 -mat
+// make pmesh-fitting -j4 && mpirun -np 6 pmesh-fitting -m preprocessed_ls_7_rs_2.mesh -o 1 -rs 0 -mid 303 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -li 20 -ae 1 -bnd -slstype 7 -smtype 0 -sfa 10.0 -sft 1e-8 -no-resid -mod-bndr-attr -vis -ni 100 -mat
+
 #include "mesh-fitting.hpp"
 
 using namespace mfem;
 using namespace std;
-
-double inclined_plane(const Vector &x)
-{
-   double val = x(1) - (0.23 + 0.5*(x(0)));
-   return val;
-}
-
-void GetMarkedFaceStatistics(ParGridFunction &numfaces,
-                             Array<int> &num_face_count,
-                            int myid, bool print)
-{
-      num_face_count = 0;
-      for (int i = 0; i < numfaces.Size(); i++)
-      {
-         int nf = (int)numfaces(i);
-         MFEM_VERIFY(nf >= 0 && nf < num_face_count.Size(),
-                     "Number of faces on interface out of range.");
-         num_face_count[nf]++;
-      }
-      MPI_Allreduce(MPI_IN_PLACE, num_face_count.GetData(),
-                    num_face_count.Size(), MPI_INT, MPI_SUM,
-                    numfaces.ParFESpace()->GetParMesh()->GetComm());
-      if (myid == 0)
-      {
-         cout << "Number of elements with given number of faces on the interface: " << endl;
-         num_face_count.Print(cout, 7);
-      }
-}
-
 
 int main (int argc, char *argv[])
 {
@@ -135,6 +121,7 @@ int main (int argc, char *argv[])
    int mesh_node_ordering = 0;
    int bg_amr_iters       = 0;
    bool conv_residual     = true;
+   bool conforming        = false;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -219,6 +206,9 @@ int main (int argc, char *argv[])
    args.AddOption(&conv_residual, "-resid", "--resid", "-no-resid",
                   "--no-resid",
                   "Enable residual based convergence.");
+   args.AddOption(&conforming, "-cref", "--cref", "-no-cref",
+                  "--no-cref",
+                  "Enable conforming refinement.");
    args.Parse();
    if (!args.Good())
    {
@@ -330,19 +320,20 @@ int main (int argc, char *argv[])
       pmesh->PrintAsSerial(mesh_ofs);
    }
 
-   // 11. Store the starting (prior to the optimization) positions.
+   // Store the starting (prior to the optimization) positions.
    ParGridFunction x0(pfespace);
    x0 = x;
 
-   // 12. Form the integrator that uses the chosen metric and target.
+   // Form the integrator that uses the chosen metric and target.
    TMOP_QualityMetric *metric = NULL;
    switch (metric_id)
    {
       // T-metrics
       case 2: metric = new TMOP_Metric_002; break;
       case 58: metric = new TMOP_Metric_058; break;
-      case 80: metric = new TMOP_Metric_080(0.5); break;
+      case 80: metric = new TMOP_Metric_080(0.1); break;
       case 303: metric = new TMOP_Metric_303; break;
+      case 321: metric = new TMOP_Metric_321; break;
       case 328: metric = new TMOP_Metric_328; break;
       default:
          if (myid == 0) { cout << "Unknown metric_id: " << metric_id << endl; }
@@ -463,22 +454,24 @@ int main (int argc, char *argv[])
    }
 
    bool tensor_product_elements = (pmesh->GetNE() == 0 ||
-                                 pmesh->GetElementBaseGeometry(0) == Geometry::CUBE ||
-                                 pmesh->GetElementBaseGeometry(0) == Geometry::SQUARE);
+                                   pmesh->GetElementBaseGeometry(0) == Geometry::CUBE ||
+                                   pmesh->GetElementBaseGeometry(0) == Geometry::SQUARE);
    bool mixed_mesh = (pmesh->GetNumGeometries(dim) > 1);
    MPI_Allreduce(MPI_IN_PLACE, &mixed_mesh, 1,
-                  MPI_C_BOOL, MPI_LAND, pmesh->GetComm());
+                 MPI_C_BOOL, MPI_LAND, pmesh->GetComm());
    MPI_Allreduce(MPI_IN_PLACE, &tensor_product_elements, 1,
-                  MPI_C_BOOL, MPI_LAND, pmesh->GetComm());
+                 MPI_C_BOOL, MPI_LAND, pmesh->GetComm());
 
-   MFEM_VERIFY(!mixed_mesh, "Mixed meshes not supported for conforming refinement yet.");
+   MFEM_VERIFY(!mixed_mesh,
+               "Mixed meshes not supported for conforming refinement yet.");
 
    bool hex_mesh = dim == 3 && tensor_product_elements && !mixed_mesh;
    bool quad_mesh = dim == 2 && tensor_product_elements && !mixed_mesh;
    bool tri_mesh = dim == 2 && !tensor_product_elements && !mixed_mesh;
    bool tet_mesh = dim == 3 && !tensor_product_elements && !mixed_mesh;
 
-   Array<int> num_face_count; // number of elements that have 0-6 faces on the interface
+   Array<int>
+   num_face_count; // number of elements that have 0-6 faces on the interface
    // triangle has 3 face, quad has 4 faces, tet has 4 faces, hex has 6 faces
    // we add 1 to its length to account for 0 face case
    if (tri_mesh)
@@ -495,6 +488,8 @@ int main (int argc, char *argv[])
    }
 
    Array<int> vdofs;
+   int vis_cycle = 0;
+   VisItDataCollection visit_dc("fitting"+std::to_string(surf_ls_type), pmesh);
    if (surface_fit_const > 0.0)
    {
       surf_fit_gf0.ProjectCoefficient(*ls_coeff);
@@ -562,7 +557,7 @@ int main (int argc, char *argv[])
          }
       }
 
-      // Set material gridfunction
+      // Set material grid function
       for (int i = 0; i < pmesh->GetNE(); i++)
       {
          if (material)
@@ -591,16 +586,17 @@ int main (int argc, char *argv[])
       GetMarkedFaceStatistics(numfaces, num_face_count, myid, true);
       pmesh->SetAttributes();
 
-      bool conforming_ref = true;
       num_face_count = 0;
       GetMarkedFaceStatistics(numfaces, num_face_count, myid, true);
-      // VisItDataCollection visit_dc("fitting", pmesh);
-      // visit_dc.RegisterField("numfaces", &numfaces);
-      // visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
-      // visit_dc.Save();
+
+      visit_dc.RegisterField("numfaces", &numfaces);
+      visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
+      visit_dc.SetCycle(vis_cycle++);
+      visit_dc.SetTime(0.0);
+      visit_dc.Save();
       // MFEM_ABORT(" ");
 
-      if (conforming_ref)
+      if (conforming)
       {
          if (myid == 0)
          {
@@ -609,9 +605,11 @@ int main (int argc, char *argv[])
          }
          if (hex_mesh)
          {
+            cout << "Cannot perform it for hex mesh yet" << endl;
             Array<int> els_to_refine, intfaces;
             std::set<std::array<int, 4>> intfaces_verts;
-            GetHexConformingRefinementInfo(pmesh, mat, els_to_refine, intfaces, intfaces_verts);
+            GetHexConformingRefinementInfo(pmesh, mat, els_to_refine, intfaces,
+                                           intfaces_verts);
             infogf = 0.0;
             for (int e = 0; e < els_to_refine.Size(); e++)
             {
@@ -628,6 +626,10 @@ int main (int argc, char *argv[])
                   refs.Append(i);
                }
             }
+            int nref = refs.Size();
+            MPI_Allreduce(MPI_IN_PLACE, &nref, 1, MPI_INT, MPI_SUM,
+                          pmesh->GetComm());
+            if (nref)
             {
                pmesh->ConformingRefinement(refs);
                surf_fit_fes.Update();
@@ -660,14 +662,17 @@ int main (int argc, char *argv[])
       surf_fit_mat_gf = 0.0;
 
       // Set DOFs for fitting
+      surf_fit_marker = false;
+      surf_fit_mat_gf = 0.;
+
       // Strategy 1: Choose face between elements of different attributes.
       if (marking_type == 0)
       {
          mat.ExchangeFaceNbrData();
          const Vector &FaceNbrData = mat.FaceNbrData();
-
          Array<int> dof_list;
          Array<int> dofs;
+
          for (int i = 0; i < pmesh->GetNumFaces(); i++)
          {
             auto tr = pmesh->GetInteriorFaceTransformations(i);
@@ -778,7 +783,8 @@ int main (int argc, char *argv[])
          common::VisualizeField(vis1, "localhost", 19916, surf_fit_gf0,
                                 "Level Set", 0, 0, 300, 300);
          common::VisualizeField(vis2, "localhost", 19916, mat,
-                                "Materials", 300, 0, 300, 300);
+                                "Materials", 300, 0, 300, 300,
+                                "jRmppppppppppppp");
          common::VisualizeField(vis3, "localhost", 19916, surf_fit_mat_gf,
                                 "Surface DOFs", 600, 0, 300, 300);
          if (surf_bg_mesh)
@@ -930,7 +936,7 @@ int main (int argc, char *argv[])
 
    // Perform the nonlinear optimization.
    const IntegrationRule &ir =
-      irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
+      irules->Get(pmesh->GetTypicalElementGeometry(), quad_order);
    TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
    if (surface_fit_adapt > 0.0)
    {
@@ -957,7 +963,7 @@ int main (int argc, char *argv[])
    solver.SetRelTol(solver_rtol);
    solver.SetAbsTol(0.0);
    solver.SetMinimumDeterminantThreshold(0.001*min_detJ);
-   solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
+   solver.SetPrintLevel(verbosity_level >= 1 ? 1 : 0);
    solver.SetOperator(a);
    Vector b(0);
    solver.Mult(b, x.GetTrueVector());
@@ -972,6 +978,9 @@ int main (int argc, char *argv[])
       mesh_ofs.precision(8);
       pmesh->PrintAsSerial(mesh_ofs);
    }
+   visit_dc.SetCycle(vis_cycle++);
+   visit_dc.SetTime(0.0);
+   visit_dc.Save();
 
    // Compute the final energy of the functional.
    const real_t fin_energy = a.GetParGridFunctionEnergy(x);
@@ -1006,7 +1015,8 @@ int main (int argc, char *argv[])
          common::VisualizeField(vis1, "localhost", 19916, surf_fit_gf0,
                                 "Level Set", 000, 400, 300, 300);
          common::VisualizeField(vis2, "localhost", 19916, mat,
-                                "Materials", 300, 400, 300, 300);
+                                "Materials", 300, 400, 300, 300,
+                                "jRmppppppppppppp");
          common::VisualizeField(vis3, "localhost", 19916, surf_fit_mat_gf,
                                 "Surface DOFs", 600, 400, 300, 300);
       }

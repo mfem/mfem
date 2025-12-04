@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -56,7 +56,7 @@ real_t AvgElementSize(ParMesh &pmesh)
    MPI_Allreduce(&loc_area, &glob_area, 1, MPITypeMap<real_t>::mpi_type,
                  MPI_SUM, pmesh.GetComm());
    const int glob_zones = pmesh.GetGlobalNE();
-   switch (pmesh.GetElementBaseGeometry(0))
+   switch (pmesh.GetTypicalElementGeometry())
    {
       case Geometry::SEGMENT:
          dx = glob_area / glob_zones; break;

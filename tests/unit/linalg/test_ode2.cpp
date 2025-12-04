@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -34,22 +34,22 @@ TEST_CASE("Second order ODE methods", "[ODE]")
          SecondOrderTimeDependentOperator(1, (real_t) 0.0), a(a), b(b) {};
 
       using SecondOrderTimeDependentOperator::Mult;
-      virtual void Mult(const Vector &u, const Vector &dudt,
-                        Vector &d2udt2) const
+      void Mult(const Vector &u, const Vector &dudt,
+                Vector &d2udt2) const override
       {
          d2udt2[0] = -a*u[0] - b*dudt[0];
       }
 
       using SecondOrderTimeDependentOperator::ImplicitSolve;
-      virtual void ImplicitSolve(const real_t fac0, const real_t fac1,
-                                 const Vector &u, const Vector &dudt,
-                                 Vector &d2udt2)
+      void ImplicitSolve(const real_t fac0, const real_t fac1,
+                         const Vector &u, const Vector &dudt,
+                         Vector &d2udt2) override
       {
          real_t T = 1.0 + a*fac0 + fac1*b;
          d2udt2[0] = (-a*u[0] - b*dudt[0])/T;
       }
 
-      virtual ~ODE2() {};
+      ~ODE2() override {};
    };
 
    // Class for checking order of convergence of second order ODE.
@@ -80,17 +80,16 @@ TEST_CASE("Second order ODE methods", "[ODE]")
 
       void init_hist(SecondOrderODESolver* ode_solver,real_t dt_)
       {
-         int nstate = ode_solver->GetStateSize();
+         int nstate = ode_solver->GetState().Size();
 
          for (int s = 0; s< nstate; s++)
          {
             real_t t = -(s)*dt_;
             Vector uh(1);
             uh[0] = -cos(t) - sin(t);
-            ode_solver->SetStateVector(s,uh);
+            ode_solver->GetState().Set(s,uh);
          }
       }
-
 
       real_t order(SecondOrderODESolver* ode_solver, bool init_hist_ = false)
       {
@@ -124,7 +123,7 @@ TEST_CASE("Second order ODE methods", "[ODE]")
          mfem::out<<std::setw(12)<<err_u[0]
                   <<std::setw(12)<<err_du[0]<<std::endl;
 
-         std::vector<Vector> uh(ode_solver->GetMaxStateSize());
+         std::vector<Vector> uh(ode_solver->GetState().MaxSize());
          for (int l = 1; l< levels; l++)
          {
             int lvl = static_cast<int>(pow(2,l));
@@ -144,26 +143,26 @@ TEST_CASE("Second order ODE methods", "[ODE]")
                ode_solver->Step(u, du, t, dt_order);
             }
 
-            int nstate = ode_solver->GetStateSize();
+            int nstate = ode_solver->GetState().Size();
             for (int s = 0; s < nstate; s++)
             {
-               ode_solver->GetStateVector(s,uh[s]);
+               uh[s] = ode_solver->GetState().Get(s);
             }
 
             for (int ll = 1; ll < lvl; ll++)
             {
                for (int s = 0; s < nstate; s++)
                {
-                  ode_solver->SetStateVector(s,uh[s]);
+                  ode_solver->GetState().Set(s,uh[s]);
                }
                for (int ti = 0; ti < steps; ti++)
                {
                   ode_solver->Step(u, du, t, dt_order);
                }
-               nstate = ode_solver->GetStateSize();
+               nstate = ode_solver->GetState().Size();
                for (int s = 0; s< nstate; s++)
                {
-                  uh[s] = ode_solver->GetStateVector(s);
+                  uh[s] = ode_solver->GetState().Get(s);
                }
             }
 

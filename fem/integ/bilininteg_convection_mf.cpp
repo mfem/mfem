@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -21,8 +21,8 @@ void ConvectionIntegrator::AssembleMF(const FiniteElementSpace &fes)
    // Assuming the same element type
    Mesh *mesh = fes.GetMesh();
    if (mesh->GetNE() == 0) { return; }
-   const FiniteElement &el = *fes.GetFE(0);
-   ElementTransformation &Trans = *fes.GetElementTransformation(0);
+   const FiniteElement &el = *fes.GetTypicalFE();
+   ElementTransformation &Trans = *mesh->GetTypicalElementTransformation();
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, Trans);
    if (DeviceCanUseCeed())
    {

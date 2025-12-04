@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -9,10 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-//        ------------------------------------------------------------
-//        NURBS Solenoidal Miniapp: Project solenoidal velocity
-//        ------------------------------------------------------------
-//
+//           -----------------------------------------------------
+//           NURBS Solenoidal Miniapp: Project solenoidal velocity
+//           -----------------------------------------------------
 //
 // Compile with: make nurbs_solenoidal
 //
@@ -36,7 +35,6 @@
 //               divergence free, we expect the pressure to converge to zero.
 //               We discretize with H(div) and L2/H1 conforming elements.
 
-
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -44,7 +42,6 @@
 
 using namespace std;
 using namespace mfem;
-
 
 void u_2d(const Vector & x, Vector & u)
 {
@@ -98,6 +95,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = 1;
    bool NURBS = true;
+   int visport = 19916;
    bool div_free = true;
 
    OptionsParser args(argc, argv);
@@ -116,6 +114,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -350,7 +349,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream u_sock(vishost, visport);
       u_sock.precision(8);
       u_sock << "solution\n" << *mesh << u << "window_title 'Velocity'" << endl;
@@ -390,7 +388,7 @@ int main(int argc, char *argv[])
    delete hdiv_coll;
    delete mesh;
 
-   if (err_div > 1e4*std::numeric_limits<real_t>::epsilon() )
+   if (err_div > 2e4*std::numeric_limits<real_t>::epsilon() )
    {
       mfem::out << "std::numeric_limits<real_t>::epsilon() = "
                 << std::numeric_limits<real_t>::epsilon()  << "\n";

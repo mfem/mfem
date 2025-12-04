@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,8 +15,8 @@
 //
 // Compile with: make nurbs_curveint
 //
-// Sample runs:  ./nurbs_curveint -uw -n 9
-//               ./nurbs_curveint -nw -n 9
+// Sample runs:  nurbs_curveint -uw -n 9
+//               nurbs_curveint -nw -n 9
 //
 // Description:  This example code demonstrates the use of MFEM to interpolate a
 //               curve in a NURBS patch. We first define a square shaped NURBS

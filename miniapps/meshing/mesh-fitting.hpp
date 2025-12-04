@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,6 +15,64 @@
 using namespace std;
 using namespace mfem;
 using namespace common;
+
+void GetMarkedFaceStatistics(GridFunction &numfaces,
+                             Array<int> &num_face_count,
+                             int myid, bool print)
+{
+   num_face_count = 0;
+   for (int i = 0; i < numfaces.Size(); i++)
+   {
+      int nf = (int)numfaces(i);
+      MFEM_VERIFY(nf >= 0 && nf < num_face_count.Size(),
+                  "Number of faces on interface out of range.");
+      num_face_count[nf]++;
+   }
+   if (myid == 0)
+   {
+      cout << "Number of elements with given number of faces on the interface: " <<
+           endl;
+      num_face_count.Print(cout, 7);
+   }
+}
+
+void GetMarkedFaceStatistics(ParGridFunction &numfaces,
+                             Array<int> &num_face_count,
+                             int myid, bool print)
+{
+   num_face_count = 0;
+   for (int i = 0; i < numfaces.Size(); i++)
+   {
+      int nf = (int)numfaces(i);
+      MFEM_VERIFY(nf >= 0 && nf < num_face_count.Size(),
+                  "Number of faces on interface out of range.");
+      num_face_count[nf]++;
+   }
+   MPI_Allreduce(MPI_IN_PLACE, num_face_count.GetData(),
+                 num_face_count.Size(), MPI_INT, MPI_SUM,
+                 numfaces.ParFESpace()->GetParMesh()->GetComm());
+   if (myid == 0)
+   {
+      cout << "Number of elements with given number of faces on the interface: " <<
+           endl;
+      num_face_count.Print(cout, 7);
+   }
+}
+
+double inclined_plane(const Vector &x)
+{
+   double val = 0.0;
+   int dim = x.Size();
+   if (dim == 2)
+   {
+      val = x(1) - (0.23 + 0.5*(x(0)));
+   }
+   else
+   {
+      val = x(2) + 0.0 - (0.23 + 0.25 * x(0) + 0.3 * x(1));
+   }
+   return val;
+}
 
 // Used for exact surface alignment
 real_t circle_level_set(const Vector &x)
@@ -199,6 +257,392 @@ real_t csg_cubecylsph(const Vector &x)
    return in_return_val;
 }
 
+void ModifyBoundaryAttributesForNodeMovement(Mesh *mesh, GridFunction *x)
+{
+   bool nodes = (x != NULL);
+   const int dim = mesh->Dimension();
+   for (int i = 0; i < mesh->GetNBE(); i++)
+   {
+      Array<int> dofs;
+      if (!nodes)
+      {
+         mesh->GetBdrElementVertices(i, dofs);
+      }
+      else
+      {
+         x->FESpace()->GetBdrElementDofs(i, dofs);
+      }
+      Vector bdr_xy_data;
+      Vector dof_xyz(dim);
+      Vector dof_xyz_compare;
+      Array<int> xyz_check(dim);
+      for (int j = 0; j < dofs.Size(); j++)
+      {
+         for (int d = 0; d < dim; d++)
+         {
+            if (!nodes)
+            {
+               dof_xyz(d) = mesh->GetVertex(dofs[j])[d];
+            }
+            else
+            {
+               dof_xyz(d) = (*x)(x->FESpace()->DofToVDof(dofs[j], d));
+            }
+         }
+         if (j == 0)
+         {
+            dof_xyz_compare = dof_xyz;
+            xyz_check = 1;
+         }
+         else
+         {
+            for (int d = 0; d < dim; d++)
+            {
+               if (std::abs(dof_xyz(d)-dof_xyz_compare(d)) < 1.e-10)
+               {
+                  xyz_check[d] += 1;
+               }
+            }
+         }
+      }
+      if (dim == 2)
+      {
+         if (xyz_check[0] == dofs.Size())
+         {
+            mesh->SetBdrAttribute(i, 1);
+         }
+         else if (xyz_check[1] == dofs.Size())
+         {
+            mesh->SetBdrAttribute(i, 2);
+         }
+         else
+         {
+            mesh->SetBdrAttribute(i, 4);
+         }
+      }
+      else if (dim == 3)
+      {
+         if (xyz_check[0] == dofs.Size())
+         {
+            mesh->SetBdrAttribute(i, 1);
+         }
+         else if (xyz_check[1] == dofs.Size())
+         {
+            mesh->SetBdrAttribute(i, 2);
+         }
+         else if (xyz_check[2] == dofs.Size())
+         {
+            mesh->SetBdrAttribute(i, 3);
+         }
+         else
+         {
+            mesh->SetBdrAttribute(i, 4);
+         }
+      }
+   }
+}
+
+void MakeGridFunctionWithNumberOfInterfaceFaces(
+   Mesh *pmesh,
+   GridFunction &mat,
+   GridFunction &NumFaces)
+{
+   NumFaces = 0.0;
+
+   for (int e = 0; e < pmesh->GetNE(); e++)
+   {
+      Array<int> faces, ori;
+      Array<int> faces_ele2, ori_ele2;
+      Array<int> faces_ele1, ori_ele1;
+      if (pmesh->Dimension() == 2)
+      {
+         pmesh->GetElementEdges(e, faces, ori);
+      }
+      else
+      {
+         pmesh->GetElementFaces(e, faces, ori);
+      }
+      int inf1, inf2;
+      int elem1, elem2;
+      int attr1;
+      int attr2;
+      attr1 = mat(e);
+      // bool bdr_element = false;
+
+      for (int f = 0; f < faces.Size(); f++)
+      {
+         pmesh->GetFaceElements(faces[f], &elem1, &elem2);
+
+         if (elem2 >= 0)
+         {
+            attr1 = (elem1 == e) ? static_cast<int>(mat(elem1)) : static_cast<int>(mat(
+                                                                                      elem2));
+            attr2 = (elem1 == e) ? static_cast<int>(mat(elem2)) : static_cast<int>(mat(
+                                                                                      elem1));
+
+            if (attr1 != attr2 )
+            {
+               NumFaces[e] += 1;
+            }
+         }
+         else
+         {
+            pmesh->GetFaceInfos(faces[f], &inf1, &inf2);
+            if (inf2 >= 0)
+            {
+               Vector dof_vals;
+               Array<int> dofs;
+               mat.GetElementDofValues(pmesh->GetNE() + (-1-elem2), dof_vals);
+
+               attr1 = mat(e);
+               attr2 = static_cast<int>(dof_vals(0));
+
+               if (attr1 != attr2 )
+               {
+                  NumFaces[e] += 1;
+               }
+            }
+            else
+            {
+               // bdr_element = true;
+            }
+         }
+      }
+   }
+   int counter = 0;
+   int tot_counter = 0;
+   for (int e = 0; e < pmesh->GetNE(); e++)
+   {
+      counter += (NumFaces(e) > 1);
+      tot_counter += (NumFaces(e) > 0);
+   }
+   if (tot_counter == 0)
+   {
+      std::cout << " No interface faces\n";
+   }
+   if (true)
+   {
+      std::cout<<"Number of element with more than 1 face for fitting: "<<counter<<
+               " out of " << tot_counter << std::endl;
+   }
+}
+
+void ModifyAttributeForMarkingDOFS(Mesh *pmesh,
+                                   GridFunction &mat,
+                                   int attr_to_switch)
+{
+   const int dim = pmesh->Dimension();
+   // Switch attribute if all but 1 of the faces of an element will be marked?
+   Array<int> element_attr(pmesh->GetNE());
+   element_attr = 0;
+   for (int e = 0; e < pmesh->GetNE(); e++)
+   {
+      Array<int> faces, ori;
+      if (pmesh->Dimension() == 2)
+      {
+         pmesh->GetElementEdges(e, faces, ori);
+      }
+      else
+      {
+         pmesh->GetElementFaces(e, faces, ori);
+      }
+      int inf1, inf2;
+      int elem1, elem2;
+      int diff_attr_count = 0;
+      int attr1;
+      int attr2;
+      attr1 = mat(e);
+      bool bdr_element = false;
+      element_attr[e] = attr1;
+      int target_attr = -1;
+      for (int f = 0; f < faces.Size(); f++)
+      {
+         pmesh->GetFaceElements(faces[f], &elem1, &elem2);
+         if (elem2 >= 0)
+         {
+            attr2 = elem1 == e ? (int)(mat(elem2)) : (int)(mat(elem1));
+            if (attr1 != attr2 && attr1 == attr_to_switch)
+            {
+               diff_attr_count += 1;
+               target_attr = attr2;
+            }
+         }
+         else
+         {
+            pmesh->GetFaceInfos(faces[f], &inf1, &inf2);
+            if (inf2 >= 0)
+            {
+               Vector dof_vals;
+               Array<int> dofs;
+               mat.GetElementDofValues(pmesh->GetNE() + (-1-elem2), dof_vals);
+               attr2 = (int)(dof_vals(0));
+               if (attr1 != attr2 && attr1 == attr_to_switch)
+               {
+                  diff_attr_count += 1;
+                  target_attr = attr2;
+               }
+            }
+            else
+            {
+               bdr_element = true;
+            }
+         }
+      }
+
+      if (diff_attr_count == faces.Size()-1 && !bdr_element)
+      {
+         element_attr[e] = target_attr;
+      }
+      else if (dim == 3 && diff_attr_count == 4 && !bdr_element)
+      {
+         element_attr[e] = target_attr;
+      }
+   }
+   for (int e = 0; e < pmesh->GetNE(); e++)
+   {
+      mat(e) = element_attr[e];
+      pmesh->SetAttribute(e, element_attr[e]+1);
+   }
+   pmesh->SetAttributes();
+}
+
+void GetHexConformingRefinementInfo(
+   Mesh *pmesh,
+   GridFunction &mat,
+   Array<int> &elems_to_refine,
+   Array<int> &intfaces,
+   std::set<std::array<int, 4>> &intfaces_verts)
+{
+   intfaces.SetSize(0); // contains list of faces on interface
+   intfaces_verts.clear(); // list of vertices of faces on interface
+   elems_to_refine.SetSize(0); // elements to refine
+
+   Array<int> custom_ref_face(0); // faces to refine for conforming refinement
+   Array<int> verts;
+   const int dim = pmesh->Dimension();
+   MFEM_VERIFY(dim == 3, "Only 3D mesh is supported.");
+
+   // make list of faces that are on the interface
+   for (int e = 0; e < pmesh->GetNE(); e++)
+   {
+      Array<int> faces, ori;
+      pmesh->GetElementFaces(e, faces, ori);
+      int inf1, inf2;
+      int elem1, elem2;
+      int attr1;
+      int attr2;
+      attr1 = mat(e);
+
+      for (int f = 0; f < faces.Size(); f++)
+      {
+         pmesh->GetFaceElements(faces[f], &elem1, &elem2);
+
+         if (elem2 >= 0)
+         {
+            attr1 = (elem1 == e) ? static_cast<int>(mat(elem1)) : static_cast<int>(mat(
+                                                                                      elem2));
+            attr2 = (elem1 == e) ? static_cast<int>(mat(elem2)) : static_cast<int>(mat(
+                                                                                      elem1));
+
+            if (attr1 != attr2 && intfaces.Find(faces[f]) == -1)
+            {
+               intfaces.Append(faces[f]);
+            }
+         }
+         else
+         {
+            pmesh->GetFaceInfos(faces[f], &inf1, &inf2);
+            if (inf2 >= 0)
+            {
+               Vector dof_vals;
+               mat.GetElementDofValues(pmesh->GetNE() + (-1-elem2), dof_vals);
+
+               attr1 = mat(e);
+               attr2 = static_cast<int>(dof_vals(0));
+
+               if (attr1 != attr2 && intfaces.Find(faces[f]) == -1)
+               {
+                  intfaces.Append(faces[f]);
+               }
+            }
+         }
+      }
+   }
+
+   Array<int> opp_face_idx(6);
+   opp_face_idx[0] = 5;
+   opp_face_idx[1] = 3;
+   opp_face_idx[2] = 4;
+   opp_face_idx[3] = 1;
+   opp_face_idx[4] = 2;
+   opp_face_idx[5] = 0;
+
+   // make a list of faces that need to be split for conforming refinement
+   for (int e = 0; e < pmesh->GetNE(); e++)
+   {
+      Array<int> faces, ori;
+      pmesh->GetElementFaces(e, faces, ori);
+      int fcount = 0;
+      Array<int> lfidx;
+      Array<int> all_face_list({0,1,2,3,4,5});
+      for (int f = 0; f < faces.Size(); f++)
+      {
+         if (intfaces.Find(faces[f]) != -1)
+         {
+            lfidx.Append(f);
+            fcount++;
+         }
+      }
+      if (fcount == 2)
+      {
+         // if the faces are not opposite faces
+         if (lfidx[1] != opp_face_idx[lfidx[0]])
+         {
+            all_face_list.DeleteFirst(lfidx[0]);
+            all_face_list.DeleteFirst(lfidx[1]);
+            all_face_list.DeleteFirst(opp_face_idx[lfidx[0]]);
+            all_face_list.DeleteFirst(opp_face_idx[lfidx[1]]);
+         }
+         custom_ref_face.Append(faces[all_face_list[0]]);
+         custom_ref_face.Append(faces[all_face_list[1]]);
+      }
+      else if (fcount > 2)
+      {
+         // we will need to split all faces
+         for (int f = 0; f < faces.Size(); f++)
+         {
+            custom_ref_face.Append(faces[f]);
+         }
+      }
+   }
+
+   // any element with more than 2 (or even 1?) faces on custom_ref_face
+   // gets marked for refinement
+   for (int e = 0; e < pmesh->GetNE(); e++)
+   {
+      Array<int> faces, ori;
+      pmesh->GetElementFaces(e, faces, ori);
+      int fcount = 0;
+      for (int f = 0; f < faces.Size(); f++)
+      {
+         if (custom_ref_face.Find(faces[f]) != -1)
+         {
+            fcount++;
+            pmesh->GetFaceVertices(faces[f], verts);
+            verts.Sort();
+            intfaces_verts.insert({verts[0], verts[1],
+                                   verts[2], verts[3]});
+         }
+      }
+      // std::cout << e << " " << fcount << " " << " k101\n";
+      if (fcount > 1 && elems_to_refine.Find(e) == -1) // fcount>0?
+      {
+         elems_to_refine.Append(e);
+      }
+   }
+   // std::cout << elems_to_refine.Size() << " elements to refine for conforming refinement.\n";
+}
+
 #ifdef MFEM_USE_MPI
 void MakeGridFunctionWithNumberOfInterfaceFaces(
    ParMesh *pmesh,
@@ -330,8 +774,10 @@ void GetHexConformingRefinementInfo(
 
          if (elem2 >= 0)
          {
-            attr1 = (elem1 == e) ? static_cast<int>(mat(elem1)) : static_cast<int>(mat(elem2));
-            attr2 = (elem1 == e) ? static_cast<int>(mat(elem2)) : static_cast<int>(mat(elem1));
+            attr1 = (elem1 == e) ? static_cast<int>(mat(elem1)) : static_cast<int>(mat(
+                                                                                      elem2));
+            attr2 = (elem1 == e) ? static_cast<int>(mat(elem2)) : static_cast<int>(mat(
+                                                                                      elem1));
 
             if (attr1 != attr2 && intfaces.Find(faces[f]) == -1)
             {
@@ -452,7 +898,7 @@ void GetHexConformingRefinementInfo(
             pmesh->GetFaceVertices(faces[f], verts);
             verts.Sort();
             intfaces_verts.insert({verts[0], verts[1],
-                                  verts[2], verts[3]});
+                                   verts[2], verts[3]});
          }
       }
       if (fcount > 1 && elems_to_refine.Find(e) == -1) // fcount>0?
@@ -460,96 +906,6 @@ void GetHexConformingRefinementInfo(
          elems_to_refine.Append(e);
       }
    }
-
-
-   // int in_count = intfaces.Size();
-   // int out_count = 0;
-   // MPI_Allreduce(MPI_IN_PLACE, &in_count, 1,
-   //               MPI_INT, MPI_SUM, pmesh->GetComm());
-
-   // while (in_count != out_count)
-   // {
-   //    in_count = intfaces.Size();
-   //    MPI_Allreduce(MPI_IN_PLACE, &in_count, 1,
-   //                 MPI_INT, MPI_SUM, pmesh->GetComm());
-
-   //    // Mark all faces of elements with more than one marked face
-   //    for (int e = 0; e < pmesh->GetNE(); e++)
-   //    {
-   //       Array<int> faces, ori;
-   //       if (pmesh->Dimension() == 2)
-   //       {
-   //          pmesh->GetElementEdges(e, faces, ori);
-   //       }
-   //       else
-   //       {
-   //          pmesh->GetElementFaces(e, faces, ori);
-   //       }
-   //       int fcount = 0;
-   //       for (int f = 0; f < faces.Size(); f++)
-   //       {
-   //          if (intfaces.Find(faces[f]) != -1)
-   //          {
-   //             fcount++;
-   //          }
-   //       }
-   //       if (fcount > 1 && elems_to_refine.Find(e) == -1)
-   //       {
-   //          elems_to_refine.Append(e);
-   //       //    for (int f = 0; f < faces.Size(); f++)
-   //       //    {
-   //       //       if (intfaces.Find(faces[f]) == -1)
-   //       //       {
-   //       //          intfaces.Append(faces[f]);
-   //       //          pmesh->GetFaceVertices(faces[f], verts);
-   //       //          verts.Sort();
-   //       //          intfaces_verts.insert({verts[0], verts[1],
-   //       //                                 verts[2], verts[3]});
-   //       //       }
-   //       //    }
-   //       }
-   //    }
-
-   //    // Setup marker
-   //    for (int i = 0; i < intfaces.Size(); i++)
-   //    {
-   //       Array<int> dofs;
-   //       fes_rt.GetFaceDofs(intfaces[i], dofs);
-   //       int idx = dofs[0] < 0 ? -dofs[0] - 1 : dofs[0];
-   //       marker(idx) = 1.0;
-   //    }
-
-   //    // exchange marker across boundary
-   //    marker.ExchangeFaceNbrData();
-   //    GroupCommunicator &gcomm = fes_rt.GroupComm();
-   //    gcomm.Reduce<double>(marker.GetData(), GroupCommunicator::Max);
-   //    gcomm.Bcast(marker.GetData());
-
-   //    // Loop over all faces, check marker value for all face dofs.
-   //    // If it is 1.0, add the face to intfaces if it does not already exist
-   //    for (int f = 0; f < pmesh->GetNumFaces(); f++)
-   //    {
-   //       Array<int> face_dofs;
-   //       fes_rt.GetFaceDofs(f, face_dofs);
-   //       int idx = face_dofs[0] < 0 ? -face_dofs[0] - 1 : face_dofs[0];
-   //       if (marker(idx) == 1.0 && intfaces.Find(f) == -1)
-   //       {
-   //          intfaces.Append(f);
-   //          pmesh->GetFaceVertices(f, verts);
-   //          verts.Sort();
-   //          intfaces_verts.insert({verts[0], verts[1],
-   //                                  verts[2], verts[3]});
-   //       }
-   //    }
-
-   //    out_count = intfaces.Size();
-   //    MPI_Allreduce(MPI_IN_PLACE, &out_count, 1,
-   //                  MPI_INT, MPI_SUM, pmesh->GetComm());
-   // } // parallel consistent
-
-   // // intfaces.Sort();
-   // // intfaces.Unique();
-   // // return intfaces;
 }
 
 
@@ -711,7 +1067,7 @@ void OptimizeMeshWithAMRAroundZeroLevelSet(ParMesh &pmesh,
                                            Array<ParGridFunction *> *pgf_to_update = NULL)
 {
    H1_FECollection h1fec(distance_s.ParFESpace()->FEColl()->GetOrder(),
-                               pmesh.Dimension());
+                         pmesh.Dimension());
    ParFiniteElementSpace h1fespace(&pmesh, &h1fec);
    ParGridFunction x(&h1fespace);
 
@@ -823,7 +1179,7 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
                                        const int pLapNewton = 50)
 {
    H1_FECollection h1fec(distance_s.ParFESpace()->FEColl()->GetOrder(),
-                               pmesh.Dimension());
+                         pmesh.Dimension());
    ParFiniteElementSpace h1fespace(&pmesh, &h1fec);
    ParGridFunction x(&h1fespace);
 

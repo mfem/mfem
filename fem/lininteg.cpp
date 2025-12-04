@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,10 +11,10 @@
 
 #include "fem.hpp"
 #include <cmath>
+#include "intrules.hpp"
 
 namespace mfem
 {
-
 void LinearFormIntegrator::AssembleDevice(const FiniteElementSpace &fes,
                                           const Array<int> &markers,
                                           Vector &b)
@@ -35,6 +35,19 @@ void LinearFormIntegrator::AssembleRHSElementVect(
    mfem_error("LinearFormIntegrator::AssembleRHSElementVect(...)");
 }
 
+DomainLFIntegrator::DomainLFIntegrator(Coefficient &QF, int a, int b)
+   : DeltaLFIntegrator(QF), Q(QF), oa(a), ob(b)
+{
+   static Kernels kernels;
+}
+
+DomainLFIntegrator::DomainLFIntegrator(Coefficient &QF,
+                                       const IntegrationRule *ir)
+   : DeltaLFIntegrator(QF, ir), Q(QF), oa(1), ob(1)
+{
+   static Kernels kernels;
+}
+
 void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
                                                 ElementTransformation &Tr,
                                                 Vector &elvect)
@@ -45,7 +58,8 @@ void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
    elvect.SetSize(dof);
    elvect = 0.0;
 
-   const IntegrationRule *ir = IntRule;
+   const IntegrationRule *ir = GetIntegrationRule(el, Tr);
+
    if (ir == NULL)
    {
       // ir = &IntRules.Get(el.GetGeomType(),
@@ -86,7 +100,7 @@ void DomainLFGradIntegrator::AssembleRHSElementVect(
    elvect.SetSize(dof);
    elvect = 0.0;
 
-   const IntegrationRule *ir = IntRule;
+   const IntegrationRule *ir = GetIntegrationRule(el, Tr);
    if (ir == NULL)
    {
       int intorder = 2 * el.GetOrder();
@@ -265,6 +279,13 @@ void BoundaryTangentialLFIntegrator::AssembleRHSElementVect(
    }
 }
 
+VectorDomainLFIntegrator::VectorDomainLFIntegrator(VectorCoefficient &QF,
+                                                   const IntegrationRule *ir)
+   : DeltaLFIntegrator(QF, ir), Q(QF)
+{
+   static DomainLFIntegrator::Kernels kernels;
+}
+
 void VectorDomainLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
@@ -278,7 +299,7 @@ void VectorDomainLFIntegrator::AssembleRHSElementVect(
    elvect.SetSize(dof * vdim);
    elvect = 0.0;
 
-   const IntegrationRule *ir = IntRule;
+   const IntegrationRule *ir = GetIntegrationRule(el, Tr);
    if (ir == NULL)
    {
       int intorder = 2*el.GetOrder();
@@ -337,7 +358,7 @@ void VectorDomainLFGradIntegrator::AssembleRHSElementVect(
    elvect.SetSize(dof*(vdim/sdim));
    elvect = 0.0;
 
-   const IntegrationRule *ir = IntRule;
+   const IntegrationRule *ir = GetIntegrationRule(el, Tr);
    if (ir == NULL)
    {
       int intorder = 2 * el.GetOrder();
@@ -463,7 +484,7 @@ void VectorFEDomainLFIntegrator::AssembleRHSElementVect(
    elvect.SetSize(dof);
    elvect = 0.0;
 
-   const IntegrationRule *ir = IntRule;
+   const IntegrationRule *ir = GetIntegrationRule(el, Tr);
    if (ir == NULL)
    {
       // int intorder = 2*el.GetOrder() - 1; // ok for O(h^{k+1}) conv. in L2
@@ -512,7 +533,7 @@ void VectorFEDomainLFCurlIntegrator::AssembleRHSElementVect(
    elvect.SetSize(dof);
    elvect = 0.0;
 
-   const IntegrationRule *ir = IntRule;
+   const IntegrationRule *ir = GetIntegrationRule(el, Tr);
    if (ir == NULL)
    {
       int intorder = 2*el.GetOrder();
@@ -558,7 +579,7 @@ void VectorFEDomainLFDivIntegrator::AssembleRHSElementVect(
    elvect.SetSize(dof);
    elvect = 0.0;
 
-   const IntegrationRule *ir = IntRule;
+   const IntegrationRule *ir = GetIntegrationRule(el, Tr);
    if (ir == NULL)
    {
       int intorder = 2 * el.GetOrder();

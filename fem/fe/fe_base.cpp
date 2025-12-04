@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,6 +19,16 @@ namespace mfem
 {
 
 using namespace std;
+
+DofToQuad DofToQuad::Abs() const
+{
+   DofToQuad d2q(*this);
+   d2q.B.Abs();
+   d2q.Bt.Abs();
+   d2q.G.Abs();
+   d2q.Gt.Abs();
+   return d2q;
+}
 
 FiniteElement::FiniteElement(int D, Geometry::Type G,
                              int Do, int O, int F)
@@ -651,65 +661,78 @@ void ScalarFiniteElement::ScalarLocalL2Restriction(
 void NodalFiniteElement::CreateLexicographicFullMap(const IntegrationRule &ir)
 const
 {
-   // Get the FULL version of the map.
-   auto &d2q = GetDofToQuad(ir, DofToQuad::FULL);
-   //Undo the native ordering which is what FiniteElement::GetDofToQuad returns.
-   auto *d2q_new = new DofToQuad(d2q);
-   d2q_new->mode = DofToQuad::LEXICOGRAPHIC_FULL;
-   const int nqpt = ir.GetNPoints();
 
-   const int b_dim = (range_type == VECTOR) ? dim : 1;
-
-   for (int i = 0; i < nqpt; i++)
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   #pragma omp critical (DofToQuad)
+#endif
    {
-      for (int d = 0; d < b_dim; d++)
+      // Get the FULL version of the map.
+      auto &d2q = GetDofToQuad(ir, DofToQuad::FULL);
+      //Undo the native ordering which is what FiniteElement::GetDofToQuad returns.
+      auto *d2q_new = new DofToQuad(d2q);
+      d2q_new->mode = DofToQuad::LEXICOGRAPHIC_FULL;
+      const int nqpt = ir.GetNPoints();
+
+      const int b_dim = (range_type == VECTOR) ? dim : 1;
+
+      for (int i = 0; i < nqpt; i++)
       {
-         for (int j = 0; j < dof; j++)
+         for (int d = 0; d < b_dim; d++)
          {
-            const double val = d2q.B[i + nqpt*(d+b_dim*lex_ordering[j])];
-            d2q_new->B[i+nqpt*(d+b_dim*j)] = val;
-            d2q_new->Bt[j+dof*(i+nqpt*d)] = val;
+            for (int j = 0; j < dof; j++)
+            {
+               const double val = d2q.B[i + nqpt*(d+b_dim*lex_ordering[j])];
+               d2q_new->B[i+nqpt*(d+b_dim*j)] = val;
+               d2q_new->Bt[j+dof*(i+nqpt*d)] = val;
+            }
          }
       }
-   }
 
-   const int g_dim = [this]()
-   {
-      switch (deriv_type)
+      const int g_dim = [this]()
       {
-         case GRAD: return dim;
-         case DIV: return 1;
-         case CURL: return cdim;
-         default: return 0;
-      }
-   }();
-
-   for (int i = 0; i < nqpt; i++)
-   {
-      for (int d = 0; d < g_dim; d++)
-      {
-         for (int j = 0; j < dof; j++)
+         switch (deriv_type)
          {
-            const double val = d2q.G[i + nqpt*(d+g_dim*lex_ordering[j])];
-            d2q_new->G[i+nqpt*(d+g_dim*j)] = val;
-            d2q_new->Gt[j+dof*(i+nqpt*d)] = val;
+            case GRAD: return dim;
+            case DIV: return 1;
+            case CURL: return cdim;
+            default: return 0;
+         }
+      }();
+
+      for (int i = 0; i < nqpt; i++)
+      {
+         for (int d = 0; d < g_dim; d++)
+         {
+            for (int j = 0; j < dof; j++)
+            {
+               const double val = d2q.G[i + nqpt*(d+g_dim*lex_ordering[j])];
+               d2q_new->G[i+nqpt*(d+g_dim*j)] = val;
+               d2q_new->Gt[j+dof*(i+nqpt*d)] = val;
+            }
          }
       }
-   }
 
-   dof2quad_array.Append(d2q_new);
+      dof2quad_array.Append(d2q_new);
+   }
 }
 
 const DofToQuad &NodalFiniteElement::GetDofToQuad(const IntegrationRule &ir,
                                                   DofToQuad::Mode mode) const
 {
-   //Should make this loop a function of FiniteElement
-   for (int i = 0; i < dof2quad_array.Size(); i++)
+   DofToQuad *d2q = nullptr;
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   #pragma omp critical (DofToQuad)
+#endif
    {
-      const DofToQuad &d2q = *dof2quad_array[i];
-      if (d2q.IntRule == &ir && d2q.mode == mode) { return d2q; }
+      //Should make this loop a function of FiniteElement
+      for (int i = 0; i < dof2quad_array.Size(); i++)
+      {
+         d2q = dof2quad_array[i];
+         if (d2q->IntRule == &ir && d2q->mode == mode) { break; }
+         d2q = nullptr;
+      }
    }
-
+   if (d2q) { return *d2q; }
    if (mode != DofToQuad::LEXICOGRAPHIC_FULL)
    {
       return FiniteElement::GetDofToQuad(ir, mode);
@@ -973,6 +996,22 @@ void NodalFiniteElement::ProjectDiv(
    }
 }
 
+void NodalFiniteElement::ReorderLexToNative(int ncomp,
+                                            Vector &dofs) const
+{
+   MFEM_ASSERT(lex_ordering.Size() == dof, "Permutation is not defined by FE.");
+   MFEM_ASSERT(dofs.Size() == ncomp * dof, "Wrong input size.");
+
+   Vector dofs_native(ncomp * dof);
+   for (int i = 0; i < dof; i++)
+   {
+      for (int c = 0; c < ncomp; c++)
+      {
+         dofs_native(c*dof + lex_ordering[i]) = dofs(c*dof + i);
+      }
+   }
+   dofs = dofs_native;
+}
 
 VectorFiniteElement::VectorFiniteElement(int D, Geometry::Type G,
                                          int Do, int O, int M, int F)
@@ -2168,6 +2207,64 @@ void Poly_1D::CalcDBinomTerms(const int p, const real_t x, const real_t y,
    }
 }
 
+void Poly_1D::CalcDxBinomTerms(const int p, const real_t x, const real_t y,
+                               real_t *u)
+{
+   if (p == 0)
+   {
+      u[0] = 0.;
+   }
+   else
+   {
+      int i;
+      const int *b = Binom(p);
+      real_t z = 1.;
+
+      for (i = 1; i < p; i++)
+      {
+         u[i] = i * b[i]*z;
+         z *= x;
+      }
+      u[p] = i * z;
+      z = y;
+      for (i--; i > 0; i--)
+      {
+         u[i] *= z;
+         z *= y;
+      }
+      u[0] = 0;
+   }
+}
+
+void Poly_1D::CalcDyBinomTerms(const int p, const real_t x, const real_t y,
+                               real_t *u)
+{
+   if (p == 0)
+   {
+      u[0] = 0.;
+   }
+   else
+   {
+      int i;
+      const int *b = Binom(p);
+      real_t z = x;
+
+      for (i = 1; i < p; i++)
+      {
+         u[i] = b[i]*z;
+         z *= x;
+      }
+      u[p] = 0.;
+      z = 1.;
+      for (i--; i > 0; i--)
+      {
+         u[i] *= (p - i) * z;
+         z *= y;
+      }
+      u[0] = p * z;
+   }
+}
+
 void Poly_1D::CalcLegendre(const int p, const real_t x, real_t *u)
 {
    // use the recursive definition for [-1,1]:
@@ -2267,99 +2364,58 @@ void Poly_1D::CalcChebyshev(const int p, const real_t x, real_t *u, real_t *d,
    }
 }
 
-const real_t *Poly_1D::GetPoints(const int p, const int btype)
+const Array<real_t>* Poly_1D::GetPointsArray(const int p, const int btype)
 {
-   Array<real_t*> *pts;
+   Array<real_t> *val;
    BasisType::Check(btype);
    const int qtype = BasisType::GetQuadrature1D(btype);
-   if (qtype == Quadrature1D::Invalid) { return NULL; }
+   if (qtype == Quadrature1D::Invalid) { return nullptr; }
 
 #if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
    #pragma omp critical (Poly1DGetPoints)
 #endif
    {
-      auto it = points_container.find(btype);
-      if (it != points_container.end())
+      std::pair<int, int> key(btype, p);
+      auto it = points_container.find(key);
+      if (it == points_container.end())
       {
-         pts = it->second;
+         it = points_container.emplace(key, new Array<real_t>(p + 1, h_mt)).first;
+         val = it->second.get();
+         real_t* hptr = val->HostWrite();
+         quad_func.GivePolyPoints(p + 1, hptr, qtype);
       }
       else
       {
-         pts = new Array<real_t*>(h_mt);
-         points_container[btype] = pts;
-      }
-      if (pts->Size() <= p)
-      {
-         pts->SetSize(p + 1, NULL);
-      }
-      if ((*pts)[p] == NULL)
-      {
-         (*pts)[p] = new real_t[p + 1];
-         quad_func.GivePolyPoints(p + 1, (*pts)[p], qtype);
+         val = it->second.get();
       }
    }
-   return (*pts)[p];
+   return val;
 }
 
 Poly_1D::Basis &Poly_1D::GetBasis(const int p, const int btype)
 {
-   Array<Basis*> *bases;
    BasisType::Check(btype);
+   Basis* val;
 
 #if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
    #pragma omp critical (Poly1DGetBasis)
 #endif
    {
-      auto it = bases_container.find(btype);
-      if (it != bases_container.end())
-      {
-         bases = it->second;
-      }
-      else
-      {
-         // we haven't been asked for basis or points of this type yet
-         bases = new Array<Basis*>(h_mt);
-         bases_container[btype] = bases;
-      }
-      if (bases->Size() <= p)
-      {
-         bases->SetSize(p + 1, NULL);
-      }
-      if ((*bases)[p] == NULL)
+      std::pair<int, int> key(btype, p);
+      auto it = bases_container.find(key);
+      if (it == bases_container.end())
       {
          EvalType etype;
          if (btype == BasisType::Positive) { etype = Positive; }
          else if (btype == BasisType::IntegratedGLL) { etype = Integrated; }
          else { etype = Barycentric; }
-         (*bases)[p] = new Basis(p, GetPoints(p, btype), etype);
+         it = bases_container
+              .emplace(key, new Basis(p, GetPoints(p, btype), etype))
+              .first;
       }
+      val = it->second.get();
    }
-   return *(*bases)[p];
-}
-
-Poly_1D::~Poly_1D()
-{
-   for (PointsMap::iterator it = points_container.begin();
-        it != points_container.end() ; ++it)
-   {
-      Array<real_t*>& pts = *it->second;
-      for (int i = 0; i < pts.Size(); ++i)
-      {
-         delete [] pts[i];
-      }
-      delete it->second;
-   }
-
-   for (BasisMap::iterator it = bases_container.begin();
-        it != bases_container.end() ; ++it)
-   {
-      Array<Basis*>& bases = *it->second;
-      for (int i = 0; i < bases.Size(); ++i)
-      {
-         delete bases[i];
-      }
-      delete it->second;
-   }
+   return *val;
 }
 
 

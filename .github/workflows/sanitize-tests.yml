@@ -1,0 +1,197 @@
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+---
+name: Sanitize
+on:
+  workflow_call:
+    inputs:
+      par:
+        description: 'Whether to build for parallel (true/false)'
+        required: false
+        default: false
+        type: boolean
+      sanitizer:
+        description: 'Sanitizer to use (asan, msan, ubsan)'
+        required: true
+        default: asan
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/sanitize/mfem
+        with:
+          par: ${{inputs.par}}
+          sanitizer: ${{inputs.sanitizer}}
+
+  check:
+    needs: [build]
+    runs-on: ubuntu-latest
+    env:
+      ex: ${{inputs.par && 'ex1p' || 'ex1'}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/sanitize/restore
+        id: restore
+        with:
+          par: ${{inputs.par}}
+          sanitizer: ${{inputs.sanitizer}}
+          cache-path: mfem/build/examples/${{env.ex}}
+      - name: MFEM Check
+        if: ${{steps.restore.outputs.cache-hit != 'true'}}
+        working-directory: mfem/build
+        run: ninja -v check
+
+  examples:
+    needs: [check]
+    runs-on: ubuntu-latest
+    env:
+      exclude: ${{inputs.par && '-E "_ser"' || ''}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/sanitize/restore
+        id: restore
+        with:
+          par: ${{inputs.par}}
+          sanitizer: ${{inputs.sanitizer}}
+          cache-path: mfem/build/examples/ex1
+      - name: Build Examples
+        if: ${{steps.restore.outputs.cache-hit != 'true'}}
+        working-directory: mfem/build
+        run: ninja -v examples
+      - name: Test Examples
+        if: ${{steps.restore.outputs.cache-hit != 'true'}}
+        working-directory: mfem/build
+        run: |
+          ${{env.CTEST}} examples ${{env.exclude}} --show-only
+          ${{env.CTEST}} examples ${{env.exclude}}
+
+  miniapps:
+    needs: [check]
+    runs-on: ubuntu-latest
+    env:
+      exclude: ${{inputs.par && '-E "_ser"' || ''}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/sanitize/restore
+        id: restore
+        with:
+          par: ${{inputs.par}}
+          sanitizer: ${{inputs.sanitizer}}
+          cache-path: mfem/build/miniapps/meshing/minimal-surface
+      - name: Build Miniapps
+        if: ${{steps.restore.outputs.cache-hit != 'true'}}
+        working-directory: mfem/build
+        run: ninja -v miniapps
+      - name: Test Miniapps
+        if: ${{steps.restore.outputs.cache-hit != 'true'}}
+        working-directory: mfem/build
+        run: |
+          ${{env.CTEST}} miniapps ${{env.exclude}} --show-only
+          ${{env.CTEST}} miniapps ${{env.exclude}}
+
+  tests-miniapps:
+    needs: [check]
+    runs-on: ubuntu-latest
+    env:
+      run: ${{inputs.par && '-R "_cpu_np"' || ''}}
+      exclude: ${{inputs.par && '"unit_tests|debug"' || '"^unit_tests$|debug"'}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/sanitize/restore
+        id: restore
+        with:
+          par: ${{inputs.par}}
+          sanitizer: ${{inputs.sanitizer}}
+          cache-path: mfem/build/tests/unit/sedov_tests_cpu
+      - name: Build Tests Unit Miniapps
+        if: ${{steps.restore.outputs.cache-hit != 'true'}}
+        working-directory: mfem/build
+        run: ninja -v tests/unit/all
+      - name: Run Tests Unit Miniapps
+        if: ${{steps.restore.outputs.cache-hit != 'true'}}
+        working-directory: mfem/build
+        run: |
+          ${{env.CTEST}} tests/unit -E ${{env.exclude}} ${{env.run}} --show-only
+          ${{env.CTEST}} tests/unit -E ${{env.exclude}} ${{env.run}}
+
+  tests-unit-build:
+    needs: [check]
+    runs-on: ubuntu-latest
+    env:
+      unit_tests: ${{inputs.par && 'punit_tests' || 'unit_tests'}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/sanitize/restore
+        id: restore
+        with:
+          par: ${{inputs.par}}
+          sanitizer: ${{inputs.sanitizer}}
+          cache-path: mfem/build/tests/unit/${{env.unit_tests}}
+      - name: Build Unit Tests
+        if: ${{steps.restore.outputs.cache-hit != 'true'}}
+        working-directory: mfem/build
+        run: ninja -v ${{env.unit_tests}}
+      - name: Delete object files
+        if: ${{steps.restore.outputs.cache-hit != 'true'}}
+        working-directory: mfem/build/tests/unit
+        run: find . -type f -name '*.o' -delete
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tests-${{inputs.par}}-${{inputs.sanitizer}}
+          path: mfem/build/tests/unit/${{env.unit_tests}}
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: false
+
+  tests-unit-run:
+    needs: [tests-unit-build]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        tag: [0, 1, 2, 3]
+    name: tests-unit-run-${{matrix.tag}}
+    env:
+      unit_tests: ${{inputs.par && 'punit_tests' || 'unit_tests'}}
+      np: ${{inputs.par && '_np=2' || ''}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/sanitize/restore
+        id: restore
+        with:
+          par: ${{inputs.par}}
+          sanitizer: ${{inputs.sanitizer}}
+          cache-path: mfem/build/tests/unit/${{env.unit_tests}}
+      - uses: actions/download-artifact@v4
+        if: ${{steps.restore.outputs.cache-hit != 'true'}}
+        with:
+          name: tests-${{inputs.par}}-${{inputs.sanitizer}}
+          path: mfem/build/tests/unit
+      - name: Split Unit Tests
+        if: ${{steps.restore.outputs.cache-hit != 'true'}}
+        working-directory: mfem/build/tests/unit
+        run: |
+          chmod 755 ${{env.unit_tests}}
+          ./${{env.unit_tests}} --list-test-names-only | tail -n +2 > list-test-names
+          shuf list-test-names -o list-test-names
+          split --verbose -n l/4 -d -a 1 list-test-names list-test-names-
+      - name: Cat Unit Tests ${{matrix.tag}}
+        if: ${{steps.restore.outputs.cache-hit != 'true'}}
+        working-directory: mfem/build/tests/unit
+        run: cat list-test-names-${{matrix.tag}}
+      - name: Run Unit Tests ${{matrix.tag}}
+        if: ${{steps.restore.outputs.cache-hit != 'true'}}
+        working-directory: mfem/build
+        run: |
+          ${{env.CTEST}} tests/unit -R "${{env.unit_tests}}${{env.np}}" --show-only
+          ${{env.CTEST}} tests/unit -R "${{env.unit_tests}}${{env.np}}"

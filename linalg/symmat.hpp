@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -92,10 +92,10 @@ public:
    inline const real_t &operator()(int i, int j) const;
 
    /// Returns reference to a_{ij}.
-   virtual real_t &Elem(int i, int j);
+   real_t &Elem(int i, int j) override;
 
    /// Returns constant reference to a_{ij}.
-   virtual const real_t &Elem(int i, int j) const;
+   const real_t &Elem(int i, int j) const override;
 
    /// Sets the matrix elements equal to constant c
    DenseSymmetricMatrix &operator=(real_t c);
@@ -132,10 +132,10 @@ public:
    { return mfem::ReadWrite(data, Height()*Width(), false); }
 
    /// Matrix vector multiplication.
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    /// Returns a pointer to (an approximation) of the matrix inverse.
-   virtual MatrixInverse *Inverse() const;
+   MatrixInverse *Inverse() const override;
 
    /// Destroys the symmetric matrix.
    virtual ~DenseSymmetricMatrix();

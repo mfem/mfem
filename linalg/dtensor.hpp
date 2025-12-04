@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,6 +13,7 @@
 #define MFEM_DTENSOR
 
 #include "../general/backends.hpp"
+#include <array>
 
 namespace mfem
 {
@@ -42,7 +43,8 @@ public:
    static inline int result(const int* sizes, T first, Args... args)
    {
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-      MFEM_ASSERT(first<sizes[Dim-1],"Trying to access out of boundary.");
+      MFEM_ASSERT(first<static_cast<T>(sizes[Dim-1]),
+                  "Trying to access out of boundary.");
 #endif
       return static_cast<int>(first);
    }
@@ -87,7 +89,9 @@ protected:
 
 public:
    /// Default constructor
-   DeviceTensor() = delete;
+   // DeviceTensor() = delete;
+   MFEM_HOST_DEVICE
+   DeviceTensor() {}
 
    /// Constructor to initialize a tensor from the Scalar array data_
    template <typename... Args> MFEM_HOST_DEVICE
@@ -122,6 +126,9 @@ public:
    {
       return data[i];
    }
+
+   /// Returns the shape of the tensor.
+   MFEM_HOST_DEVICE inline auto &GetShape() const { return sizes; }
 };
 
 

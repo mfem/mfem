@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,7 +11,7 @@
 
 #include "../tmop.hpp"
 #include "tmop_pa.hpp"
-#include "../linearform.hpp"
+#include "../gridfunc.hpp"
 #include "../../general/forall.hpp"
 #include "../../linalg/kernels.hpp"
 #include "../../linalg/dinvariants.hpp"
@@ -80,8 +80,9 @@ real_t EvalW_338(const real_t *J, const real_t *w)
    return w[0] * EvalW_302(J) + w[1] * EvalW_318(J);
 }
 
-MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_3D,
+MFEM_REGISTER_TMOP_KERNELS(void, EnergyPA_3D,
                            const real_t metric_normal,
+                           const bool use_detA,
                            const Vector &mc_,
                            const Array<real_t> &metric_param,
                            const int mid,
@@ -93,6 +94,9 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_3D,
                            const Vector &ones,
                            const Vector &x_,
                            Vector &energy,
+                           Vector &l_energy,
+                           real_t &metric_energy,
+                           real_t &lim_energy,
                            const int d1d,
                            const int q1d)
 {
@@ -116,6 +120,7 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_3D,
    const auto X = Reshape(x_.Read(), D1D, D1D, D1D, DIM, NE);
 
    auto E = Reshape(energy.Write(), Q1D, Q1D, Q1D, NE);
+   auto L = Reshape(l_energy.Write(), Q1D, Q1D, Q1D, NE);
 
    const real_t *metric_data = metric_param.Read();
 
@@ -146,10 +151,7 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_3D,
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                const real_t *Jtr = &J(0,0,qx,qy,qz,e);
-               const real_t detJtr = kernels::Det<3>(Jtr);
                const real_t m_coef = const_m0 ? MC(0,0,0,0) : MC(qx,qy,qz,e);
-               const real_t weight = metric_normal * m_coef *
-                                     W(qx,qy,qz) * detJtr;
 
                // Jrt = Jtr^{-1}
                real_t Jrt[9];
@@ -163,6 +165,9 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_3D,
                real_t Jpt[9];
                kernels::Mult(3,3,3, Jpr, Jrt, Jpt);
 
+               const real_t det = kernels::Det<3>(use_detA ? Jpr : Jtr);
+               const real_t weight = metric_normal * m_coef * W(qx,qy,qz) * det;
+
                // metric->EvalW(Jpt);
                const real_t EvalW =
                   mid == 302 ? EvalW_302(Jpt) :
@@ -174,14 +179,17 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_3D,
                   mid == 338 ? EvalW_338(Jpt, metric_data) : 0.0;
 
                E(qx,qy,qz,e) = weight * EvalW;
+               L(qx,qy,qz,e) = weight;
             }
          }
       }
    });
-   return energy * ones;
+   metric_energy = energy * ones;
+   lim_energy    = l_energy * ones;
 }
 
-real_t TMOP_Integrator::GetLocalStateEnergyPA_3D(const Vector &X) const
+void TMOP_Integrator::GetLocalStateEnergyPA_3D(const Vector &X,
+                                               real_t &energy) const
 {
    const int N = PA.ne;
    const int M = metric->Id();
@@ -196,6 +204,7 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_3D(const Vector &X) const
    const Array<real_t> &G = PA.maps->G;
    const Vector &O = PA.O;
    Vector &E = PA.E;
+   Vector L(E.Size(), Device::GetMemoryType()); L.UseDevice(true);
 
    Array<real_t> mp;
    if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(metric))
@@ -203,7 +212,80 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_3D(const Vector &X) const
       m->GetWeights(mp);
    }
 
-   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_3D,id,mn,MC,mp,M,N,J,W,B,G,O,X,E);
+   real_t lim_energy;
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_3D,id,mn,false,MC,mp,M,N,J,W,B,G,O,X,E,L,
+                           energy, lim_energy);
+}
+
+void TMOP_Integrator::GetLocalNormalizationEnergiesPA_3D(const Vector &X,
+                                                         real_t &met_energy,
+                                                         real_t &lim_energy) const
+{
+   const int N = PA.ne;
+   const int M = metric->Id();
+   const int D1D = PA.maps->ndof;
+   const int Q1D = PA.maps->nqpt;
+   const int id = (D1D << 4 ) | Q1D;
+   const real_t mn = 1.0;
+   Vector MC(1); MC = 1.0;
+   const DenseTensor &J = PA.Jtr;
+   const Array<real_t> &W = PA.ir->GetWeights();
+   const Array<real_t> &B = PA.maps->B;
+   const Array<real_t> &G = PA.maps->G;
+   const Vector &O = PA.O;
+   Vector &E = PA.E;
+   Vector L(E.Size(), Device::GetMemoryType()); L.UseDevice(true);
+
+   Array<real_t> mp;
+   if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(metric))
+   {
+      m->GetWeights(mp);
+   }
+
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_3D,id,mn,false,MC,mp,M,N,J,W,B,G,O,X,E,L,
+                           met_energy, lim_energy);
+}
+
+void TMOP_Combo_QualityMetric::GetLocalEnergyPA_3D(const GridFunction &nodes,
+                                                   const TargetConstructor &tc,
+                                                   int m_index,
+                                                   real_t &energy, real_t &vol,
+                                                   const IntegrationRule &ir) const
+{
+   auto fes = nodes.FESpace();
+
+   const int N = fes->GetNE();
+   const int M = tmop_q_arr[m_index]->Id();
+   auto fe = fes->GetTypicalFE();
+   const DofToQuad::Mode mode = DofToQuad::TENSOR;
+   auto maps = fe->GetDofToQuad(ir, mode);
+   const int D1D = maps.ndof;
+   const int Q1D = maps.nqpt;
+   const int id = (D1D << 4 ) | Q1D;
+   const real_t mn = 1.0;
+   Vector MC(1); MC = 1.0;
+   const Array<real_t> &W = ir.GetWeights();
+   const Array<real_t> &B = maps.B;
+   const Array<real_t> &G = maps.G;
+   Vector E(N * ir.GetNPoints(), Device::GetDeviceMemoryType());
+   Vector O(N * ir.GetNPoints(), Device::GetDeviceMemoryType()); O = 1.0;
+   Vector L(N * ir.GetNPoints(), Device::GetDeviceMemoryType());
+
+   auto R = fes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+   Vector X(R->Height());
+   R->Mult(nodes, X);
+
+   DenseTensor Jtr(3, 3, N * ir.GetNPoints(), Device::GetDeviceMemoryType());
+   tc.ComputeAllElementTargets(*fes, ir, X, Jtr);
+
+   Array<real_t> mp;
+   if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(tmop_q_arr[m_index]))
+   {
+      m->GetWeights(mp);
+   }
+
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_3D,id,mn,true,MC,mp,M,N,Jtr,W,B,G,O,X,E,L,
+                           energy, vol);
 }
 
 } // namespace mfem

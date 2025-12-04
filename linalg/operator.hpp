@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -88,10 +88,22 @@ public:
    /// Operator application: `y=A(x)`.
    virtual void Mult(const Vector &x, Vector &y) const = 0;
 
+   /** @brief Action of the absolute-value operator: `y=|A|(x)`. The default
+     behavior in class Operator is to generate an error. If the Operator is a
+     composition of several operators, the composition unfold into a product
+     of absolute-value operators too. */
+   virtual void AbsMult(const Vector &x, Vector &y) const
+   { MFEM_ABORT("Operator::AbsMult() is not overridden!"); }
+
    /** @brief Action of the transpose operator: `y=A^t(x)`. The default behavior
        in class Operator is to generate an error. */
    virtual void MultTranspose(const Vector &x, Vector &y) const
-   { mfem_error("Operator::MultTranspose() is not overridden!"); }
+   { MFEM_ABORT("Operator::MultTranspose() is not overridden!"); }
+
+   /** @brief Action of the transpose absolute-value operator: `y=|A|^t(x)`.
+      The default behavior in class Operator is to generate an error. */
+   virtual void AbsMultTranspose(const Vector &x, Vector &y) const
+   { MFEM_ABORT("Operator::AbsMultTranspose() is not overridden!"); }
 
    /// Operator application: `y+=A(x)` (default) or `y+=a*A(x)`.
    virtual void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const;
@@ -121,7 +133,7 @@ public:
        behavior in class Operator is to generate an error. */
    virtual Operator &GetGradient(const Vector &x) const
    {
-      mfem_error("Operator::GetGradient() is not overridden!");
+      MFEM_ABORT("Operator::GetGradient() is not overridden!");
       return const_cast<Operator &>(*this);
    }
 
@@ -446,7 +458,7 @@ public:
 
        Regardless of the choice of F and G, this function should always compute
        @a k = inv(M) g(@a u, t). */
-   virtual void Mult(const Vector &u, Vector &k) const override;
+   void Mult(const Vector &u, Vector &k) const override;
 
    /** @brief Solve for the unknown @a k, at the current time t, the following
        equation:
@@ -691,7 +703,7 @@ public:
                                  const Vector &xB, const Vector &fxB,
                                  int jokB, int *jcurB, real_t gammaB)
    {
-      mfem_error("TimeDependentAdjointOperator::SUNImplicitSetupB() is not "
+      MFEM_ABORT("TimeDependentAdjointOperator::SUNImplicitSetupB() is not "
                  "overridden!");
       return (-1);
    }
@@ -709,7 +721,7 @@ public:
        see the SUNDIALS User Guides. */
    virtual int SUNImplicitSolveB(Vector &x, const Vector &b, real_t tol)
    {
-      mfem_error("TimeDependentAdjointOperator::SUNImplicitSolveB() is not "
+      MFEM_ABORT("TimeDependentAdjointOperator::SUNImplicitSolveB() is not "
                  "overridden!");
       return (-1);
    }
@@ -806,10 +818,10 @@ public:
    explicit IdentityOperator(int n) : Operator(n) { }
 
    /// Operator application
-   virtual void Mult(const Vector &x, Vector &y) const { y = x; }
+   void Mult(const Vector &x, Vector &y) const override { y = x; }
 
    /// Application of the transpose
-   virtual void MultTranspose(const Vector &x, Vector &y) const { y = x; }
+   void MultTranspose(const Vector &x, Vector &y) const override { y = x; }
 };
 
 /// Returns true if P is the identity prolongation, i.e. if it is either NULL or
@@ -832,11 +844,11 @@ public:
       : Operator(A->Height(), A->Width()), A_(*A), a_(a) { }
 
    /// Operator application
-   virtual void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    { A_.Mult(x, y); y *= a_; }
 
    /// Application of the transpose.
-   virtual void MultTranspose(const Vector &x, Vector &y) const
+   void MultTranspose(const Vector &x, Vector &y) const override
    { A_.MultTranspose(x, y); y *= a_; }
 };
 
@@ -858,11 +870,11 @@ public:
       : Operator(a.Width(), a.Height()), A(a) { }
 
    /// Operator application. Apply the transpose of the original Operator.
-   virtual void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    { A.MultTranspose(x, y); }
 
    /// Application of the transpose. Apply the original Operator.
-   virtual void MultTranspose(const Vector &x, Vector &y) const
+   void MultTranspose(const Vector &x, Vector &y) const override
    { A.Mult(x, y); }
 };
 
@@ -880,10 +892,10 @@ public:
       const Operator *B, const real_t beta,
       bool ownA, bool ownB);
 
-   virtual void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    { z.SetSize(A->Height()); A->Mult(x, z); B->Mult(x, y); add(alpha, z, beta, y, y); }
 
-   virtual void MultTranspose(const Vector &x, Vector &y) const
+   void MultTranspose(const Vector &x, Vector &y) const override
    { z.SetSize(A->Width()); A->MultTranspose(x, z); B->MultTranspose(x, y); add(alpha, z, beta, y, y); }
 
    virtual ~SumOperator();
@@ -899,10 +911,10 @@ class ProductOperator : public Operator
 public:
    ProductOperator(const Operator *A, const Operator *B, bool ownA, bool ownB);
 
-   virtual void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    { B->Mult(x, z); A->Mult(z, y); }
 
-   virtual void MultTranspose(const Vector &x, Vector &y) const
+   void MultTranspose(const Vector &x, Vector &y) const override
    { A->MultTranspose(x, z); B->MultTranspose(z, y); }
 
    virtual ~ProductOperator();
@@ -924,11 +936,15 @@ public:
    /// Construct the RAP operator given R^T, A and P.
    RAPOperator(const Operator &Rt_, const Operator &A_, const Operator &P_);
 
-   virtual MemoryClass GetMemoryClass() const { return mem_class; }
+   MemoryClass GetMemoryClass() const override { return mem_class; }
 
    /// Operator application.
-   virtual void Mult(const Vector & x, Vector & y) const
+   void Mult(const Vector & x, Vector & y) const override
    { P.Mult(x, Px); A.Mult(Px, APx); Rt.MultTranspose(APx, y); }
+
+   /// Operator-wise absolute-value application.
+   void AbsMult(const Vector & x, Vector & y) const override
+   { P.AbsMult(x, Px); A.AbsMult(Px, APx); Rt.AbsMultTranspose(APx, y); }
 
    /// Approximate diagonal of the RAP Operator.
    /** Returns the diagonal of A, as returned by its AssembleDiagonal method,
@@ -937,7 +953,7 @@ public:
        When P is the FE space prolongation operator on a mesh without hanging
        nodes and Rt = P, the returned diagonal is exact, as long as the diagonal
        of A is also exact. */
-   virtual void AssembleDiagonal(Vector &diag) const
+   void AssembleDiagonal(Vector &diag) const override
    {
       A.AssembleDiagonal(APx);
       P.MultTranspose(APx, diag);
@@ -948,8 +964,16 @@ public:
    }
 
    /// Application of the transpose.
-   virtual void MultTranspose(const Vector & x, Vector & y) const
+   void MultTranspose(const Vector & x, Vector & y) const override
    { Rt.Mult(x, APx); A.MultTranspose(APx, Px); P.MultTranspose(Px, y); }
+
+   /// Operator-wise absolute-value application of the transpose
+   void AbsMultTranspose(const Vector & x, Vector & y) const override
+   {
+      Rt.AbsMult(x, APx);
+      A.AbsMultTranspose(APx, Px);
+      P.AbsMultTranspose(Px, y);
+   }
 };
 
 
@@ -967,12 +991,12 @@ public:
    TripleProductOperator(const Operator *A, const Operator *B,
                          const Operator *C, bool ownA, bool ownB, bool ownC);
 
-   virtual MemoryClass GetMemoryClass() const { return mem_class; }
+   MemoryClass GetMemoryClass() const override { return mem_class; }
 
-   virtual void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    { C->Mult(x, t1); B->Mult(t1, t2); A->Mult(t2, y); }
 
-   virtual void MultTranspose(const Vector &x, Vector &y) const
+   void MultTranspose(const Vector &x, Vector &y) const override
    { A->MultTranspose(x, t2); B->MultTranspose(t2, t1); C->MultTranspose(t1, y); }
 
    virtual ~TripleProductOperator();
@@ -1045,12 +1069,20 @@ public:
 
    void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const override;
 
+   void AbsMult(const Vector &x, Vector &y) const override;
+
    void MultTranspose(const Vector &x, Vector &y) const override;
 
+   void AbsMultTranspose(const Vector &x, Vector &y) const override;
+
    /** @brief Implementation of Mult or MultTranspose.
-    *  TODO - Generalize to allow constraining rows and columns differently.
-   */
+       TODO - Generalize to allow constraining rows and columns differently. */
    void ConstrainedMult(const Vector &x, Vector &y, const bool transpose) const;
+
+   /** @brief Implementation of AbsMult or AbsMultTranspose.
+       TODO - Generalize to allow constraining rows and columns differently. */
+   void ConstrainedAbsMult(const Vector &x, Vector &y,
+                           const bool transpose) const;
 
    /// Destructor: destroys the unconstrained Operator, if owned.
    ~ConstrainedOperator() override { if (own_A) { delete A; } }
@@ -1083,7 +1115,7 @@ public:
    RectangularConstrainedOperator(Operator *A, const Array<int> &trial_list,
                                   const Array<int> &test_list, bool own_A = false);
    /// Returns the type of memory in which the solution and temporaries are stored.
-   virtual MemoryClass GetMemoryClass() const { return mem_class; }
+   MemoryClass GetMemoryClass() const override { return mem_class; }
    /** @brief Eliminate columns corresponding to "essential boundary condition"
        values specified in @a x from the given right-hand side @a b.
 
@@ -1104,8 +1136,8 @@ public:
 
        where the "_i" subscripts denote all the nonessential (boundary) trial
        indices and the "_j" subscript denotes the essential test indices */
-   virtual void Mult(const Vector &x, Vector &y) const;
-   virtual void MultTranspose(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
+   void MultTranspose(const Vector &x, Vector &y) const override;
    virtual ~RectangularConstrainedOperator() { if (own_A) { delete A; } }
 };
 

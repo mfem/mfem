@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -358,8 +358,8 @@ TEST_CASE("LUFactors RightSolve", "[DenseMatrix]")
    REQUIRE(C.MaxMaxNorm() < tol);
 }
 
-TEST_CASE("DenseTensor LinearSolve methods",
-          "[DenseMatrix][CUDA]")
+TEST_CASE("Batched Linear Algebra",
+          "[DenseMatrix][GPU]")
 {
    auto backend = GENERATE(BatchedLinAlg::NATIVE,
                            BatchedLinAlg::GPU_BLAS,
@@ -373,6 +373,7 @@ TEST_CASE("DenseTensor LinearSolve methods",
    const int n_rhs = 2;
 
    DenseTensor A_batch(n, n, n_mat);
+   DenseTensor A_inv_batch(n, n, n_mat);
    Vector x_batch(n * n_rhs * n_mat), y_batch(n * n_rhs * n_mat);
    std::vector<DenseMatrix> As;
    std::vector<DenseMatrix> xs, ys;
@@ -404,11 +405,34 @@ TEST_CASE("DenseTensor LinearSolve methods",
       ys.back() = 0.0;
       AddMult_a(1.5, As.back(), xs.back(), ys.back());
       A_batch(i) = As.back();
+      A_inv_batch(i) = As.back();
    }
 
    // Test batched matrix-vector products
    y_batch = 0.0;
    BatchedLinAlg::Get(backend).AddMult(A_batch, x_batch, y_batch, 1.5, 1.0);
+   y_batch.HostReadWrite();
+   for (int i = 0; i < n_mat; ++i)
+   {
+      for (int j = 0; j < n_rhs; ++j)
+      {
+         for (int k = 0; k < n; ++k)
+         {
+            REQUIRE(y_batch[k + j*n + i*n*n_rhs] == MFEM_Approx(ys[i](k, j)));
+         }
+      }
+   }
+
+   // Test batched transposed matrix-vector products
+   for (int i = 0; i < n_mat; ++i)
+   {
+      ys[i] = 0.0;
+      // AddMult_a_AtB(1.5, As[i], xs[i], ys[i]);
+      AddMult_a_AtB(1.5, As[i], xs[i], ys[i]);
+   }
+   const BatchedLinAlg::Op op = BatchedLinAlg::Op::T;
+   y_batch = 0.0;
+   BatchedLinAlg::Get(backend).AddMult(A_batch, x_batch, y_batch, 1.5, 1.0, op);
    y_batch.HostReadWrite();
    for (int i = 0; i < n_mat; ++i)
    {
@@ -438,6 +462,33 @@ TEST_CASE("DenseTensor LinearSolve methods",
          for (int k = 0; k < n; ++k)
          {
             REQUIRE(x_batch[k + j*n + i*n*n_rhs] == MFEM_Approx(xs[i](k, j), 1e-10));
+         }
+      }
+   }
+
+   // Test batched matrix inverse
+   BatchedLinAlg::Get(backend).Invert(A_inv_batch);
+   A_inv_batch.HostReadWrite();
+   Vector output_col(n);
+   Vector col;
+   for (int i = 0; i < n_mat; ++i)
+   {
+      DenseMatrix Ai_inv(A_inv_batch(i));
+      for (int j = 0; j < n; ++j)
+      {
+         output_col = 0.0;
+         As[i].GetColumnReference(j, col);
+         Ai_inv.Mult(col, output_col);
+         for (int k = 0; k < n; ++k)
+         {
+            if (j == k)
+            {
+               REQUIRE(output_col(k) == MFEM_Approx(1.0));
+            }
+            else
+            {
+               REQUIRE(output_col(k) == MFEM_Approx(0.0));
+            }
          }
       }
    }
