@@ -253,6 +253,11 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
       fec = new H1_FECollection(atoi(name + 9), atoi(name + 5),
                                 BasisType::GetType(name[3]));
    }
+   else if (!strncmp(name, "H1Bubble@", 9))
+   {
+      fec = new H1Bubble_FECollection(atoi(name + 15), atoi(name + 18),
+                                      atoi(name + 11), BasisType::GetType(name[9]));
+   }
    else if (!strncmp(name, "L2_T", 4))
       fec = new L2_FECollection(atoi(name + 10), atoi(name + 6),
                                 atoi(name + 4));
