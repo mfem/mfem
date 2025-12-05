@@ -90,7 +90,7 @@ public:
    virtual void Eval(Vector &K, ElementTransformation &T,
                      const IntegrationPoint &ip)
    {
-      double x[3];
+      real_t x[3];
       Vector transip(x, 3);
       T.Transform(ip, transip);
       K.SetSize(vdim);
@@ -98,7 +98,7 @@ public:
    }
 };
 template <typename T> T pow2(const T &x) { return x*x; }
-void maxwell_solution(const Vector &x, vector<complex<double>> &Eval);
+void maxwell_solution(const Vector &x, vector<complex<real_t>> &Eval);
 
 void E_bdr_data_Re(const Vector &x, Vector &E);
 void E_bdr_data_Im(const Vector &x, Vector &E);
@@ -118,12 +118,12 @@ void detJ_inv_JT_J_Re(const Vector &x, PML * pml, Vector & D);
 void detJ_inv_JT_J_Im(const Vector &x, PML * pml, Vector & D);
 void detJ_inv_JT_J_abs(const Vector &x, PML * pml, Vector & D);
 
-Array2D<double> comp_domain_bdr;
-Array2D<double> domain_bdr;
+Array2D<real_t> comp_domain_bdr;
+Array2D<real_t> domain_bdr;
 
-double mu = 1.0;
-double epsilon = 1.0;
-double omega;
+real_t mu = 1.0;
+real_t epsilon = 1.0;
+real_t omega;
 int dim;
 bool exact_known = false;
 
@@ -143,7 +143,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = 1;
-   double freq = 5.0;
+   real_t freq = 5.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -437,20 +437,20 @@ int main(int argc, char *argv[])
 void source(const Vector &x, Vector &f)
 {
    Vector center(dim);
-   double r = 0.0;
+   real_t r = 0.0;
    for (int i = 0; i < dim; ++i)
    {
       center(i) = 0.5 * (comp_domain_bdr(i, 0) + comp_domain_bdr(i, 1));
       r += pow(x[i] - center[i], 2.);
    }
-   double n = 5.0 * omega * sqrt(epsilon * mu) / M_PI;
-   double coeff = pow(n, 2) / M_PI;
-   double alpha = -pow(n, 2) * r;
+   real_t n = 5.0 * omega * sqrt(epsilon * mu) / M_PI;
+   real_t coeff = pow(n, 2) / M_PI;
+   real_t alpha = -pow(n, 2) * r;
    f = 0.0;
    f[0] = 1000* coeff * exp(alpha);
 }
 
-void maxwell_solution(const Vector &x, vector<complex<double>> &E)
+void maxwell_solution(const Vector &x, vector<complex<real_t>> &E)
 {
    // Initialize
    for (int i = 0; i < dim; ++i)
@@ -458,23 +458,23 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
       E[i] = 0.0;
    }
 
-   complex<double> zi = complex<double>(0., 1.);
-   double k = omega * sqrt(epsilon * mu);
+   complex<real_t> zi = complex<real_t>(0., 1.);
+   real_t k = omega * sqrt(epsilon * mu);
    // T_10 mode
    if (dim == 3)
    {
-      double k10 = sqrt(k * k - M_PI * M_PI);
-      E[1] = -zi * k / M_PI * sin(M_PI*x(2))*exp(zi * k10 * x(0));
+      real_t k10 = sqrt(k * k - M_PI * M_PI);
+      E[1] = -zi * k / real_t(M_PI) * sin(real_t(M_PI)*x(2))*exp(zi * k10 * x(0));
    }
    else if (dim == 2)
    {
-      E[1] = -zi * k / M_PI * exp(zi * k * x(0));
+      E[1] = -zi * k / real_t(M_PI) * exp(zi * k * x(0));
    }
 }
 
 void E_exact_Re(const Vector &x, Vector &E)
 {
-   vector<complex<double>> Eval(E.Size());
+   vector<complex<real_t>> Eval(E.Size());
    maxwell_solution(x, Eval);
    for (int i = 0; i < dim; ++i)
    {
@@ -484,7 +484,7 @@ void E_exact_Re(const Vector &x, Vector &E)
 
 void E_exact_Im(const Vector &x, Vector &E)
 {
-   vector<complex<double>> Eval(E.Size());
+   vector<complex<real_t>> Eval(E.Size());
    maxwell_solution(x, Eval);
    for (int i = 0; i < dim; ++i)
    {
@@ -510,7 +510,7 @@ void E_bdr_data_Re(const Vector &x, Vector &E)
    }
    if (!in_pml)
    {
-      vector<complex<double>> Eval(E.Size());
+      vector<complex<real_t>> Eval(E.Size());
       maxwell_solution(x, Eval);
       for (int i = 0; i < dim; ++i)
       {
@@ -537,7 +537,7 @@ void E_bdr_data_Im(const Vector &x, Vector &E)
    }
    if (!in_pml)
    {
-      vector<complex<double>> Eval(E.Size());
+      vector<complex<real_t>> Eval(E.Size());
       maxwell_solution(x, Eval);
       for (int i = 0; i < dim; ++i)
       {
@@ -548,8 +548,8 @@ void E_bdr_data_Im(const Vector &x, Vector &E)
 
 void detJ_JT_J_inv_Re(const Vector &x, PML * pml, Vector & D)
 {
-   vector<complex<double>> dxs(dim);
-   complex<double> det(1.0, 0.0);
+   vector<complex<real_t>> dxs(dim);
+   complex<real_t> det(1.0, 0.0);
    pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
@@ -566,8 +566,8 @@ void detJ_JT_J_inv_Re(const Vector &x, PML * pml, Vector & D)
 
 void detJ_JT_J_inv_Im(const Vector &x, PML * pml, Vector & D)
 {
-   vector<complex<double>> dxs(dim);
-   complex<double> det = 1.0;
+   vector<complex<real_t>> dxs(dim);
+   complex<real_t> det = 1.0;
    pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
@@ -583,8 +583,8 @@ void detJ_JT_J_inv_Im(const Vector &x, PML * pml, Vector & D)
 
 void detJ_JT_J_inv_abs(const Vector &x, PML * pml, Vector & D)
 {
-   vector<complex<double>> dxs(dim);
-   complex<double> det = 1.0;
+   vector<complex<real_t>> dxs(dim);
+   complex<real_t> det = 1.0;
    pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
@@ -600,8 +600,8 @@ void detJ_JT_J_inv_abs(const Vector &x, PML * pml, Vector & D)
 
 void detJ_inv_JT_J_Re(const Vector &x, PML * pml, Vector & D)
 {
-   vector<complex<double>> dxs(dim);
-   complex<double> det(1.0, 0.0);
+   vector<complex<real_t>> dxs(dim);
+   complex<real_t> det(1.0, 0.0);
    pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
@@ -625,8 +625,8 @@ void detJ_inv_JT_J_Re(const Vector &x, PML * pml, Vector & D)
 
 void detJ_inv_JT_J_Im(const Vector &x, PML * pml, Vector & D)
 {
-   vector<complex<double>> dxs(dim);
-   complex<double> det = 1.0;
+   vector<complex<real_t>> dxs(dim);
+   complex<real_t> det = 1.0;
    pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
@@ -649,8 +649,8 @@ void detJ_inv_JT_J_Im(const Vector &x, PML * pml, Vector & D)
 
 void detJ_inv_JT_J_abs(const Vector &x, PML * pml, Vector & D)
 {
-   vector<complex<double>> dxs(dim);
-   complex<double> det = 1.0;
+   vector<complex<real_t>> dxs(dim);
+   complex<real_t> det = 1.0;
    pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
