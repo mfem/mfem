@@ -260,16 +260,6 @@ void Table::SetIJ(int *newI, int *newJ, int newsize)
    J.MakeRef(newJ, I[size], true);
 }
 
-void Table::SetIJ(Memory<int> newI, Memory<int> newJ, int newsize)
-{
-   I = std::move(newI);
-   J = std::move(newJ);
-   if (newsize >= 0)
-   {
-      size = newsize;
-   }
-}
-
 int Table::Push(int i, int j)
 {
    MFEM_ASSERT(i >=0 &&
