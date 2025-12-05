@@ -13,7 +13,7 @@
 //       particles - otherwise, it will just compute the fluid flow.
 //
 // This miniapp demonstrates the usage of tracer particles (i.e. one-way
-// couplled) in fluid flow. The fluid flow is computed with NavierSolver and
+// coupled) in fluid flow. The fluid flow is computed with NavierSolver and
 // the particles are advected with NavierParticles. Particles are injected
 // periodically at random locations along the inlet boundary. Reflection
 // boundary conditions are used on the channel walls.
