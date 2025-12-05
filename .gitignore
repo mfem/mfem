@@ -237,6 +237,7 @@ miniapps/gslib/pfindpts
 miniapps/gslib/schwarz_ex1
 miniapps/gslib/schwarz_ex1p
 miniapps/gslib/interpolated.gf
+miniapps/gslib/particles_redist
 
 miniapps/meshing/mobius-strip
 miniapps/meshing/klein-bottle
@@ -302,6 +303,9 @@ miniapps/fluids/navier/navier_shear
 miniapps/fluids/navier/navier_3dfoc
 miniapps/fluids/navier/navier_turbchan
 miniapps/fluids/navier/navier_cht
+miniapps/fluids/navier/navier_bifurcation
+miniapps/fluids/navier/Navier_Bifurcation_[0-9]*
+miniapps/fluids/navier/ParaView
 miniapps/fluids/navier/tgv_out*.txt
 miniapps/fluids/navier/*_output
 
