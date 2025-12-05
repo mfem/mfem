@@ -365,6 +365,10 @@ int main(int argc, char *argv[])
    {
       velocity.reset(new VectorFunctionCoefficient(dim, velocity_function<2>));
    }
+   else if (3==problem)
+   {
+      velocity.reset(new VectorFunctionCoefficient(dim, velocity_function<3>));
+   }
 
    ConstantCoefficient diff_coeff(diffusion_term);
 
@@ -414,6 +418,10 @@ int main(int argc, char *argv[])
    else if (2==problem)
    {
       u0.reset(new FunctionCoefficient(u0_function<2>));
+   }
+   else if (3==problem)
+   {
+      u0.reset(new FunctionCoefficient(u0_function<3>));
    }
 
    GridFunction u(&fes);
