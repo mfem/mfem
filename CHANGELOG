@@ -137,15 +137,15 @@ New and updated examples and miniapps
   viewing particle locations and trajectories (ParticleTrajectories) using
   GLVis.
 
-- Added a new miniapp (gslib/particles_redist) that demonstrates parallel-
-  redistribution of particle data amongst MPI ranks.
+- Added a new miniapp miniapps/gslib/particles_redist that demonstrates
+  parallel-redistribution of particle data amongst MPI ranks.
 
-- Added a new transient Navier-Stokes fluid-particles solver NavierParticles
-  (navier/navier_particles), for modeling tracer particles in fluid flow,
-  demonstrating use of the new ParticleSet class.
+- Added a new transient Navier-Stokes fluid-particles solver NavierParticles,
+  miniapps/fluids/navier/navier_particles, for modeling tracer particles in
+  fluid flow, demonstrating use of the new ParticleSet class.
 
-- Added new miniapp (navier/navier_bifurcation) demonstrating the use of
-  NavierParticles in a 2D bifurcating channel flow.
+- Added a new miniapp miniapps/fluids/navier/navier_bifurcation demonstrating
+  the use of NavierParticles in a 2D bifurcating channel flow.
 
 API changes:
 -----------
