@@ -30,7 +30,8 @@ private:
    DenseMatrix T_pinv;
 
 public:
-   // Degree-p polynomials, enriched with degree-q bubbles.
+   /// @brief Construct the triangular bubble element with degree-p polynomials,
+   /// enriched with cubic bubble times degree q polynomial.
    H1Bubble_TriangleElement(int p, int q, int btype = BasisType::GaussLobatto);
    void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
    void CalcDShape(const IntegrationPoint &ip,
@@ -50,7 +51,8 @@ private:
    DenseMatrix T_pinv;
 
 public:
-   // Degree-p polynomials, enriched with degree-q bubbles.
+   /// @brief Construct the quadrilateral bubble element with degree-p
+   /// polynomials, enriched with biquadratic bubble times degree q polynomial.
    H1Bubble_QuadrilateralElement(
       int p, int q, int btype = BasisType::GaussLobatto);
    void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
@@ -72,7 +74,8 @@ private:
    DenseMatrix T_pinv;
 
 public:
-   // Degree-p polynomials, enriched with degree-q bubbles.
+   /// @brief Construct the tetrahedral bubble element with degree-p
+   /// polynomials, enriched with quartic bubble times degree q polynomial.
    H1Bubble_TetrahedronElement(int p, int q, int btype = BasisType::GaussLobatto);
    void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
    void CalcDShape(const IntegrationPoint &ip,
@@ -93,7 +96,8 @@ private:
    DenseMatrix T_pinv;
 
 public:
-   // Degree-p polynomials, enriched with degree-q bubbles.
+   /// @brief Construct the hexahedral bubble element with degree-p polynomials,
+   /// enriched with triquadratic bubble times degree q polynomial.
    H1Bubble_HexahedronElement(int p, int q, int btype = BasisType::GaussLobatto);
    void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
    void CalcDShape(const IntegrationPoint &ip,

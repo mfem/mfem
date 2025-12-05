@@ -319,8 +319,14 @@ public:
    virtual ~H1_FECollection();
 };
 
-/// @brief Arbitrary order H1-conforming (continuous) finite elements enriched
-/// with bubble functions.
+/// @brief Arbitrary order $H^1$-conforming (continuous) finite elements
+/// enriched with bubble functions.
+///
+/// The bubble space consists of the standard $P_p$ or $Q_p$ space, enriched
+/// with bubble functions, which are degree-$q$ polynomials times $b$, where $b$
+/// is the lowest-order bubble function.
+///
+/// The traces are the same as the standard $H^1$ traces.
 class H1Bubble_FECollection : public FiniteElementCollection
 {
 protected:
@@ -338,6 +344,9 @@ protected:
    std::array<std::vector<int>, 24> tet_dof_ord;
 
 public:
+   /// Construct the $H^1$ bubble collection consisting of degree-$p$
+   /// polynomials enriched with the bubble function times degree-$q$
+   /// polynomials.
    explicit H1Bubble_FECollection(const int p, const int q, const int dim = 3,
                                   const int btype = BasisType::GaussLobatto);
 
