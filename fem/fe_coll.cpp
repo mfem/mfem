@@ -243,6 +243,11 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    {
       fec = new H1Ser_FECollection(atoi(name + 10), atoi(name + 6));
    }
+   else if (!strncmp(name, "H1Bubble_", 9))
+   {
+      fec = new H1Bubble_FECollection(atoi(name + 13), atoi(name + 16),
+                                      atoi(name + 9));
+   }
    else if (!strncmp(name, "H1@", 3))
    {
       fec = new H1_FECollection(atoi(name + 9), atoi(name + 5),
