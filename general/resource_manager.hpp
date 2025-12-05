@@ -524,8 +524,8 @@ public:
 
    void ClearOwnerFlags() const
    {
-      auto &inst = MemoryManager::instance();
-      inst.clear_owner_flags(segment);
+      // auto &inst = MemoryManager::instance();
+      // inst.clear_owner_flags(segment);
       flags = static_cast<Flags>(flags & ~OWNS_CONTROL);
    }
 
@@ -571,6 +571,10 @@ public:
    {
       auto &inst = MemoryManager::instance();
       auto old_flags = flags;
+      if (inst.valid_segment(segment) && size_)
+      {
+         throw std::runtime_error("warning: leaking memory");
+      }
       *this = Memory(size, inst.memory_types[0], temporary);
       flags = static_cast<Flags>(flags | old_flags);
    }
