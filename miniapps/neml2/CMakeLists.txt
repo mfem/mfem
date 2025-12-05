@@ -39,7 +39,7 @@ if(MFEM_USE_MPI AND neml2_FOUND)
   if(MFEM_ENABLE_TESTING)
     add_test(NAME neml2_np=${MFEM_MPI_NP}
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-      ${MPIEXEC_PREFLAGS} $<TARGET_FILE:dfem-neml2> -rs 0 -no-vis
+      ${MPIEXEC_PREFLAGS} $<TARGET_FILE:dfem-neml2>
       ${MPIEXEC_POSTFLAGS})
   endif()
 endif()
