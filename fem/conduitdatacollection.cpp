@@ -168,6 +168,16 @@ ConduitDataCollection::SetProtocol(const std::string &protocol)
    relay_protocol = protocol;
 }
 
+// Conduit data type id for the MFEM precision
+constexpr conduit::index_t mfem_precision_conduit_id =
+#if defined(MFEM_USE_DOUBLE)
+   CONDUIT_NATIVE_DOUBLE_ID;
+#elif defined(MFEM_USE_SINGLE)
+   CONDUIT_NATIVE_FLOAT_ID;
+#else
+#error Unknown MFEM precision
+#endif
+
 //------------------------------
 // begin static public methods
 //------------------------------
@@ -217,42 +227,41 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
    // get the number of points
    int num_verts = n_coordset_vals[0].dtype().number_of_elements();
    // get vals for points
-   const double *verts_ptr = NULL;
+   const real_t *verts_ptr = NULL;
 
    // the mfem mesh constructor needs coords with interleaved (aos) type
-   // ordering, even for 1d + 2d we always need 3 doubles b/c it uses
-   // Array<Vertex> and Vertex is a pod of 3 doubles. we check for this
+   // ordering, even for 1d + 2d we always need 3 real_t (double/float) b/c it
+   // uses Array<Vertex> and Vertex is a pod of 3 real_t. we check for this
    // case, if we don't have it we convert the data
 
    if (ndims == 3 &&
-       n_coordset_vals[0].dtype().is_double() &&
+       n_coordset_vals[0].dtype().id() == mfem_precision_conduit_id &&
        blueprint::mcarray::is_interleaved(n_coordset_vals) )
    {
-      // already interleaved mcarray of 3 doubles,
+      // already interleaved mcarray of 3 real_t (double/float),
       // return ptr to beginning
       verts_ptr = n_coordset_vals[0].value();
    }
    else
    {
       Node n_tmp;
-      // check all vals, if we don't have doubles convert
-      // to doubles
+      // check all vals, if we don't have real_t (double/float) convert
+      // to real_t
       NodeConstIterator itr = n_coordset_vals.children();
       while (itr.has_next())
       {
          const Node &c_vals = itr.next();
          std::string c_name = itr.name();
 
-         if ( c_vals.dtype().is_double() )
+         if ( c_vals.dtype().id() == mfem_precision_conduit_id )
          {
             // zero copy current coords
             n_tmp[c_name].set_external(c_vals);
-
          }
          else
          {
             // convert
-            c_vals.to_double_array(n_tmp[c_name]);
+            c_vals.to_data_type(mfem_precision_conduit_id, n_tmp[c_name]);
          }
       }
 
@@ -261,13 +270,13 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
       if (ndims < 3)
       {
          // add dummy z
-         n_tmp["z"].set(DataType::c_double(num_verts));
+         n_tmp["z"].set(DataType(mfem_precision_conduit_id, num_verts));
       }
 
       if (ndims < 2)
       {
          // add dummy y
-         n_tmp["y"].set(DataType::c_double(num_verts));
+         n_tmp["y"].set(DataType(mfem_precision_conduit_id, num_verts));
       }
 
       Node &n_conv_coords_vals = n_conv["coordsets"][coords_name]["values"];
@@ -463,7 +472,7 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
    //       if nodes gf is attached later, it resets the space dim based
    //       on the gf's fes.
    Mesh *mesh = new Mesh(// from coordset
-      const_cast<double*>(verts_ptr),
+      const_cast<real_t*>(verts_ptr),
       num_verts,
       // from topology
       const_cast<int*>(elem_indices),
@@ -530,7 +539,7 @@ ConduitDataCollection::BlueprintFieldToGridFunction(Mesh *mesh,
    // can't return a gf that zero copies the conduit data
    Node n_conv;
 
-   const double *vals_ptr = NULL;
+   const real_t *vals_ptr = NULL;
 
    int vdim = 1;
 
@@ -540,10 +549,10 @@ ConduitDataCollection::BlueprintFieldToGridFunction(Mesh *mesh,
    {
       vdim = n_field["values"].number_of_children();
 
-      // need to check that we have doubles and
+      // need to check that we have real_t (double/float) and
       // cover supported layouts
 
-      if ( n_field["values"][0].dtype().is_double() )
+      if ( n_field["values"][0].dtype().id() == mfem_precision_conduit_id )
       {
          // check for contig
          if (n_field["values"].is_contiguous())
@@ -567,27 +576,26 @@ ConduitDataCollection::BlueprintFieldToGridFunction(Mesh *mesh,
             vals_ptr = n_conv["values"].child(0).value();
          }
       }
-      else // convert to doubles and use contig
+      else // convert to real_t (double/float) and use contig
       {
          Node n_tmp;
-         // check all vals, if we don't have doubles convert
-         // to doubles
+         // check all vals, if we don't have real_t (double/float) convert
+         // to real_t
          NodeConstIterator itr = n_field["values"].children();
          while (itr.has_next())
          {
             const Node &c_vals = itr.next();
             std::string c_name = itr.name();
 
-            if ( c_vals.dtype().is_double() )
+            if ( c_vals.dtype().id() == mfem_precision_conduit_id )
             {
                // zero copy current coords
                n_tmp[c_name].set_external(c_vals);
-
             }
             else
             {
                // convert
-               c_vals.to_double_array(n_tmp[c_name]);
+               c_vals.to_data_type(mfem_precision_conduit_id, n_tmp[c_name]);
             }
          }
 
@@ -600,14 +608,15 @@ ConduitDataCollection::BlueprintFieldToGridFunction(Mesh *mesh,
    }
    else
    {
-      if (n_field["values"].dtype().is_double() &&
+      if (n_field["values"].dtype().id() == mfem_precision_conduit_id &&
           n_field["values"].is_compact())
       {
          vals_ptr = n_field["values"].value();
       }
       else
       {
-         n_field["values"].to_double_array(n_conv["values"]);
+         n_field["values"].to_data_type(mfem_precision_conduit_id,
+                                        n_conv["values"]);
          vals_ptr = n_conv["values"].value();
       }
    }
@@ -631,14 +640,14 @@ ConduitDataCollection::BlueprintFieldToGridFunction(Mesh *mesh,
 
    if (zero_copy)
    {
-      res = new GridFunction(fes,const_cast<double*>(vals_ptr));
+      res = new GridFunction(fes,const_cast<real_t*>(vals_ptr));
    }
    else
    {
       // copy case, this constructor will alloc the space for the GF data
       res = new GridFunction(fes);
       // create an mfem vector that wraps the conduit data
-      Vector vals_vec(const_cast<double*>(vals_ptr),fes->GetVSize());
+      Vector vals_vec(const_cast<real_t*>(vals_ptr),fes->GetVSize());
       // copy values into the result
       (*res) = vals_vec;
    }
@@ -662,16 +671,16 @@ ConduitDataCollection::BlueprintFieldToQuadratureFunction(Mesh *mesh,
    // can't return a qf that zero copies the conduit data
    Node n_conv;
 
-   const double *vals_ptr = NULL;
+   const real_t *vals_ptr = NULL;
    int vdim = 1;
 
    if (n_field["values"].dtype().is_object())
    {
       vdim = n_field["values"].number_of_children();
 
-      // need to check that we have doubles and
+      // need to check that we have real_t (double/float) and
       // cover supported layouts
-      if ( n_field["values"][0].dtype().is_double() )
+      if ( n_field["values"][0].dtype().id() == mfem_precision_conduit_id )
       {
          // quad funcs use what mfem calls byVDIM
          // and what conduit calls interleaved
@@ -690,27 +699,26 @@ ConduitDataCollection::BlueprintFieldToQuadratureFunction(Mesh *mesh,
             vals_ptr = n_conv["values"].child(0).value();
          }
       }
-      else // convert to doubles and use interleaved
+      else // convert to real_t (double/float) and use interleaved
       {
          Node n_tmp;
-         // check all vals, if we don't have doubles convert
-         // to doubles
+         // check all vals, if we don't have real_t (double/float) convert
+         // to real_t
          NodeConstIterator itr = n_field["values"].children();
          while (itr.has_next())
          {
             const Node &c_vals = itr.next();
             std::string c_name = itr.name();
 
-            if ( c_vals.dtype().is_double() )
+            if ( c_vals.dtype().id() == mfem_precision_conduit_id )
             {
                // zero copy current coords
                n_tmp[c_name].set_external(c_vals);
-
             }
             else
             {
                // convert
-               c_vals.to_double_array(n_tmp[c_name]);
+               c_vals.to_data_type(mfem_precision_conduit_id, n_tmp[c_name]);
             }
          }
 
@@ -723,14 +731,15 @@ ConduitDataCollection::BlueprintFieldToQuadratureFunction(Mesh *mesh,
    }
    else // scalar case
    {
-      if (n_field["values"].dtype().is_double() &&
+      if (n_field["values"].dtype().id() == mfem_precision_conduit_id &&
           n_field["values"].is_compact())
       {
          vals_ptr = n_field["values"].value();
       }
       else
       {
-         n_field["values"].to_double_array(n_conv["values"]);
+         n_field["values"].to_data_type(mfem_precision_conduit_id,
+                                        n_conv["values"]);
          vals_ptr = n_conv["values"].value();
       }
    }
@@ -780,7 +789,7 @@ ConduitDataCollection::BlueprintFieldToQuadratureFunction(Mesh *mesh,
 
    if (zero_copy)
    {
-      res->SetSpace(quad_space, const_cast<double*>(vals_ptr), vdim);
+      res->SetSpace(quad_space, const_cast<real_t*>(vals_ptr), vdim);
       res->SetOwnsSpace(true);
    }
    else
@@ -789,7 +798,7 @@ ConduitDataCollection::BlueprintFieldToQuadratureFunction(Mesh *mesh,
       res->SetOwnsSpace(true);
       // copy case, this constructor will alloc the space for the quad data
       // create an mfem vector that wraps the conduit data
-      Vector vals_vec(const_cast<double*>(vals_ptr),res->Size());
+      Vector vals_vec(const_cast<real_t*>(vals_ptr),res->Size());
       // copy values into the result
       (*res) = vals_vec;
    }
@@ -816,20 +825,20 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
    // Setup main coordset
    ////////////////////////////////////////////
 
-   // Assumes  mfem::Vertex has the layout of a double array.
+   // Assumes  mfem::Vertex has the layout of a real_t (double/float) array.
 
-   // this logic assumes an mfem vertex is always 3 doubles wide
+   // this logic assumes an mfem vertex is always 3 real_t (double/float) wide
    int stride = sizeof(mfem::Vertex);
    int num_vertices = mesh->GetNV();
 
-   MFEM_ASSERT( ( stride == 3 * sizeof(double) ),
+   MFEM_ASSERT( ( stride == 3 * sizeof(real_t) ),
                 "Unexpected stride for Vertex");
 
    Node &n_mesh_coords = n_mesh["coordsets"][coordset_name];
    n_mesh_coords["type"] =  "explicit";
 
 
-   double *coords_ptr = mesh->GetVertex(0);
+   real_t *coords_ptr = mesh->GetVertex(0);
 
    n_mesh_coords["values/x"].set_external(coords_ptr,
                                           num_vertices,
@@ -840,14 +849,14 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
    {
       n_mesh_coords["values/y"].set_external(coords_ptr,
                                              num_vertices,
-                                             sizeof(double),
+                                             sizeof(real_t),
                                              stride);
    }
    if (dim >= 3)
    {
       n_mesh_coords["values/z"].set_external(coords_ptr,
                                              num_vertices,
-                                             sizeof(double) * 2,
+                                             sizeof(real_t) * 2,
                                              stride);
    }
 
