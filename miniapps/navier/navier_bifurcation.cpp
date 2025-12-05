@@ -50,10 +50,10 @@ struct flow_context
    // particle
    int add_particles_freq = 300; // frequency of particle injection
    int num_add_particles = 100;  // total particles added each injection
-   real_t kappa_min = 1.0;       // drag characteristic min
-   real_t kappa_max = 10.0;      // drag characteristic max
-   real_t gamma = 0.0;           // gravity characteristic
-   real_t zeta = 0.19;           // lift characteristic
+   real_t kappa_min = 1.0;       // drag property min
+   real_t kappa_max = 10.0;      // drag property max
+   real_t gamma = 0.0;           // gravity property
+   real_t zeta = 0.19;           // lift property
    int print_csv_freq = 500;     // frequency of particle CSV outputting
 
    // GLVis visualization for solution and (optionally) particles
@@ -69,7 +69,7 @@ struct flow_context
 #ifdef MFEM_USE_GSLIB
 // Set properties for injected particles. The location is set randomly to be
 // on the inlet boundary (x=0), velocity is initialized to 0, and
-// kappa (drag characteristic) is set randomly in [kappa_min, kappa_max]
+// kappa (drag property) is set randomly in [kappa_min, kappa_max]
 // using kappa_seed.
 void SetInjectedParticles(NavierParticles &particle_solver,
                           const Array<int> &p_idxs,

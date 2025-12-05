@@ -38,8 +38,8 @@ namespace navier
  *  x and v are the particle location and velocity,
  *  u is the fluid velocity at the particle location,
  *  ω is the fluid vorticity at the particle location,
- *  κ depends on the drag characteristics of the particle,
- *  ζ depends on the lift characteristics, and
+ *  κ depends on the drag properties of the particle,
+ *  ζ depends on the lift properties, and
  *  γ and ê depend on body forces such as gravity.
  *
  *  The model from Dutta et al. is general but this implementation is currently
