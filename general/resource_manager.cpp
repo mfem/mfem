@@ -7,6 +7,20 @@
 #include "forall.hpp"
 #include "hip.hpp"
 
+#ifdef MFEM_USE_UMPIRE
+#include <umpire/Umpire.hpp>
+#include <umpire/strategy/QuickPool.hpp>
+
+// Make sure Umpire is build with CUDA support if MFEM is built with it.
+#if defined(MFEM_USE_CUDA) && !defined(UMPIRE_ENABLE_CUDA)
+#error "CUDA is not enabled in Umpire!"
+#endif
+// Make sure Umpire is build with HIP support if MFEM is built with it.
+#if defined(MFEM_USE_HIP) && !defined(UMPIRE_ENABLE_HIP)
+#error "HIP is not enabled in Umpire!"
+#endif
+#endif // MFEM_USE_UMPIRE
+
 #include <algorithm>
 #include <cstdlib>
 #include <tuple>
@@ -15,6 +29,51 @@
 
 namespace mfem
 {
+
+#ifdef MFEM_USE_UMPIRE
+struct UmpireAllocator : public Allocator
+{
+protected:
+   umpire::ResourceManager &rm;
+   umpire::Allocator allocator;
+   bool owns_allocator = false;
+
+public:
+   UmpireAllocator(const char *name,
+                   const char *space) : rm(umpire::ResourceManager::getInstance())
+   {
+      if (!rm.isAllocator(name))
+      {
+         allocator = rm.makeAllocator<umpire::strategy::QuickPool>(
+                        name, rm.getAllocator(space));
+         owns_allocator = true;
+      }
+      else
+      {
+         allocator = rm.getAllocator(name);
+         owns_allocator = false;
+      }
+   }
+
+   void Alloc(void **ptr, size_t nbytes) override
+   {
+      *ptr = allocator.allocate(nbytes);
+   }
+
+   void Dealloc(void *ptr) override { allocator.deallocate(ptr); }
+   virtual ~UmpireAllocator() = default;
+};
+
+struct UmpireHostAllocator : public UmpireAllocator
+{
+private:
+   umpire::strategy::AllocationStrategy *strat;
+public:
+   UmpireHostAllocator(const char *name, const char *space)
+      : UmpireAllocator(name, space), strat(allocator.getAllocationStrategy())
+   {}
+};
+#endif
 
 struct StdAllocator : public Allocator
 {
@@ -375,7 +434,13 @@ MemoryManager::MemoryManager()
    allocs[static_cast<int>(MemoryType::DEVICE_DEBUG) + MemoryTypeSize] =
       allocs_storage[1].get();
 
-   // TODO HOST_UMPIRE
+#ifdef MFEM_USE_UMPIRE
+   allocs_storage[10].reset(new UmpireHostAllocator(h_umpire_name, "HOST"));
+   allocs[static_cast<int>(MemoryType::HOST_UMPIRE)] = allocs_storage[10].get();
+   // TODO: temp host? for now, fallback to TempAllocator<StdAllocator>
+   allocs[static_cast<int>(MemoryType::HOST_UMPIRE) + MemoryTypeSize] =
+      allocs_storage[1].get();
+#endif
 
 #if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
    allocs_storage[4].reset(new HostPinnedAllocator);
@@ -395,6 +460,22 @@ MemoryManager::MemoryManager()
    allocs[static_cast<int>(MemoryType::DEVICE)] = allocs_storage[8].get();
    allocs[static_cast<int>(MemoryType::DEVICE) + MemoryTypeSize] =
       allocs_storage[9].get();
+
+#ifdef MFEM_USE_UMPIRE
+   allocs_storage[11].reset(new UmpireAllocator(d_umpire_name, "DEVICE"));
+   allocs_storage[12].reset(new UmpireAllocator(d_umpire_2_name, "DEVICE"));
+   allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE)] = allocs_storage[11].get();
+   allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE_2)] =
+      allocs_storage[12].get();
+   // TODO: temp?
+   // treat UMPIRE_2 as the temporary space for UMPIRE and UMPIRE_2
+   allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE) + MemoryTypeSize] =
+      allocs_storage[12].get();
+   allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE_2) + MemoryTypeSize] =
+      allocs_storage[12].get();
+   // TODO: managed/host-pinned umpire pools?
+#endif
+
 #else
    allocs[static_cast<int>(MemoryType::HOST_PINNED)] = allocs_storage[0].get();
    allocs[static_cast<int>(MemoryType::HOST_PINNED) + MemoryTypeSize] =
@@ -408,9 +489,6 @@ MemoryManager::MemoryManager()
    allocs[static_cast<int>(MemoryType::DEVICE) + MemoryTypeSize] =
       allocs_storage[1].get();
 #endif
-
-   // TODO: UMPIRE
-   // TODO: UMPIRE_2
 
    Configure();
 }
@@ -2297,6 +2375,12 @@ MemoryType MemoryManager::dual_map[MemoryTypeSize] =
    /* DEVICE_UMPIRE   */  MemoryType::HOST_UMPIRE,
    /* DEVICE_UMPIRE_2 */  MemoryType::HOST_UMPIRE
 };
+
+#ifdef MFEM_USE_UMPIRE
+const char *MemoryManager::h_umpire_name = "MFEM_HOST";
+const char *MemoryManager::d_umpire_name = "MFEM_DEVICE";
+const char *MemoryManager::d_umpire_2_name = "MFEM_DEVICE_2";
+#endif
 
 } // namespace mfem
 

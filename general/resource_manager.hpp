@@ -305,6 +305,13 @@ private:
    /// Update the dual memory type of @a mt to be @a dual_mt.
    void UpdateDualMemoryType(MemoryType mt, MemoryType dual_mt);
 
+   /// Host and device allocator names for Umpire.
+#ifdef MFEM_USE_UMPIRE
+   static const char *h_umpire_name;
+   static const char *d_umpire_name;
+   static const char *d_umpire_2_name;
+#endif
+
 public:
    MemoryManager(const MemoryManager &) = delete;
 
@@ -345,6 +352,36 @@ public:
    void Dealloc(char *ptr, MemoryType type, bool temporary);
    /// Raw unregistered allocation of a buffer
    char *Alloc(size_t nbytes, MemoryType type, bool temporary);
+
+#ifdef MFEM_USE_UMPIRE
+   /// Set the host Umpire allocator name used with MemoryType::HOST_UMPIRE
+   static void SetUmpireHostAllocatorName(const char *h_name)
+   {
+      h_umpire_name = h_name;
+   }
+   /// Set the device Umpire allocator name used with MemoryType::DEVICE_UMPIRE
+   static void SetUmpireDeviceAllocatorName(const char *d_name)
+   {
+      d_umpire_name = d_name;
+   }
+   /// Set the device Umpire allocator name used with
+   /// MemoryType::DEVICE_UMPIRE_2
+   static void SetUmpireDevice2AllocatorName(const char *d_name)
+   {
+      d_umpire_2_name = d_name;
+   }
+
+   /// Get the host Umpire allocator name used with MemoryType::HOST_UMPIRE
+   static const char *GetUmpireHostAllocatorName() { return h_umpire_name; }
+   /// Get the device Umpire allocator name used with MemoryType::DEVICE_UMPIRE
+   static const char *GetUmpireDeviceAllocatorName() { return d_umpire_name; }
+   /// Get the device Umpire allocator name used with
+   /// MemoryType::DEVICE_UMPIRE_2
+   static const char *GetUmpireDevice2AllocatorName()
+   {
+      return d_umpire_2_name;
+   }
+#endif
 };
 
 template <class T> class AllocatorAdaptor
