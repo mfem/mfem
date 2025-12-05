@@ -48,7 +48,6 @@ Discretization improvements
 
 Meshing improvements
 --------------------
-
 - The TMOP kernel hierarchy has been restructured to reduce compilation time.
   Most large kernels have been split into smaller, specific ones, with kernels
   for each metric. The directory structure has been updated with assemble,
@@ -123,6 +122,13 @@ New and updated examples and miniapps
   iterations are solved with CG preconditioned by the recently introduced AMGF solver.
   Benchmark examples include the two-block, ironing, and beam-sphere problems.
   The miniapp is available in `miniapps/contact`
+
+- Introduced the new Incompressible Schrödinger Flow (ISF) miniapp, which
+  models inviscid fluid dynamics by solving the linear Schrödinger equation,
+  leveraging the hydrodynamical analogy to quantum mechanics.
+
+- Added the miniapps/fluids directory and moved the Navier and Incompressible
+  Schrödinger Flow miniapps into it.
 
 - Updated the mtop miniapp with a GPU enabled forward and adjoint solver for
   isotropic linear elasticity.
