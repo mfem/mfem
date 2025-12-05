@@ -176,8 +176,6 @@ Miscellaneous
   data for an arbitrary number of particles contiguously based on user specified
   vector-dimension and ordering (byNODES/byVDIM).
 
-- Introduced ParticleSet, 
-
 Version 4.8, released on Apr 9, 2025
 ====================================
 
