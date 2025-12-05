@@ -489,8 +489,6 @@ MemoryManager::MemoryManager()
    allocs[static_cast<int>(MemoryType::DEVICE) + MemoryTypeSize] =
       allocs_storage[1].get();
 #endif
-
-   Configure();
 }
 
 void MemoryManager::Configure(MemoryType host_loc, MemoryType device_loc,

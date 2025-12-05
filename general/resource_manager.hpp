@@ -187,8 +187,7 @@ private:
    // host, device, host-pinned, managed
    std::array<MemoryType, 4> memory_types =
    {
-      MemoryType::DEFAULT, MemoryType::DEFAULT, MemoryType::DEFAULT,
-      MemoryType::DEFAULT
+      MemoryType::HOST, MemoryType::HOST, MemoryType::HOST, MemoryType::HOST
    };
 
    MFEM_ENZYME_INACTIVE static MemoryType dual_map[MemoryTypeSize];
