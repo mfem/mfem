@@ -24,9 +24,9 @@
 
 #include "navier_solver.hpp"
 #include "navier_particles.hpp"
-#include "../common/pfem_extras.hpp"
-#include "../common/particles_extras.hpp"
-#include "../../general/text.hpp"
+#include "../../common/pfem_extras.hpp"
+#include "../../common/particles_extras.hpp"
+#include "../../../general/text.hpp"
 #include <fstream>
 #include <iostream>
 
