@@ -61,19 +61,18 @@ public:
 
    /** @brief Create a KnotVector with order @a order.
        When @a NCP is not provided  the number of control points is set to
-       @a order + 1, and the knots are set to 0 and 1 respectivily.
+       @a order + 1, and the first @a order + 1 knots are set to 0 and last
+       @a order + 1 knots are set to 1.
        When @a NCP is given number of control points is @a NCP and
        the knots are initialized to -1) */
    KnotVector(int order, int NCP = -1);
 
    /** @brief Create a KnotVector by passing in a degree, a Vector of interval
        lengths of length n, and a list of continuity of length n + 1.
-
        The intervals refer to spans between unique knot values (not counting
        zero-size intervals at repeated knots), and the continuity values should
        be >= -1 (discontinuous) and <= order-1 (maximally-smooth for the given
-       polynomial degree). Periodicity is not supported.
-   */
+       polynomial degree). Periodicity is not supported.*/
    KnotVector(int order, const Vector& intervals,
               const Array<int>& continuity);
 

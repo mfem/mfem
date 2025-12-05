@@ -21,13 +21,13 @@ using namespace mfem;
 /**
 * Compute the error of the taylor series expansion of the shapefunctions, upto
 * and including the hessian term:
-*  res = shape(xi) + dshape(xi)*eps*dx + 0.5*hessian(xi)*eps*dx*dx
+*  res = shape(xi) + dshape(xi)*eps*dx + 0.5*hessian(xi)*eps*eps*dx*dx
 *        - shape(xi + eps*dx)
 */
-real_t TaylorSeriesError(FiniteElement* fe,
-                         IntegrationPoint &ip,
-                         Vector &dx,
-                         real_t eps)
+real_t TaylorSeriesError(const FiniteElement* fe,
+                         const IntegrationPoint &ip,
+                         const Vector &dx,
+                         const real_t eps)
 {
    const int dof = fe->GetDof();
    const int dim = fe->GetDim();
@@ -84,13 +84,15 @@ real_t TaylorSeriesError(FiniteElement* fe,
 * For linear and quadratic elements the taylor series is exact.
 * For other elements the convergence should be third order.
 */
-void CheckTaylorSeries(FiniteElement* fe,
-                       IntegrationPoint &ip,
-                       Vector &dx)
+void CheckTaylorSeries(const FiniteElement* fe,
+                       const IntegrationPoint &ip,
+                       const Vector &dx)
 {
    real_t eps = 0.1;
-   real_t red = 4.0;
-   int steps = 100;
+   constexpr real_t red = 4.0;
+   constexpr int steps = 100;
+   constexpr real_t tol = 1e-8;
+
    real_t error = TaylorSeriesError(fe, ip, dx, eps);
    real_t order;
    int i;
@@ -100,7 +102,7 @@ void CheckTaylorSeries(FiniteElement* fe,
       real_t err_new = TaylorSeriesError(fe, ip, dx, eps);
       order = log(error/err_new)/log(red);
       error = err_new;
-      if (error < 1e-8) { break; }
+      if (error < tol) { break; }
    }
    mfem::out<<i<<" "<<error<<" "<<order<<std::endl;
    if (i == 0)
@@ -116,14 +118,16 @@ void CheckTaylorSeries(FiniteElement* fe,
 /**
 * Test if a given element @a fe has the correct behaviour of the taylor series.
 */
-void TestCalcHessian(FiniteElement* fe)
+void TestCalcHessian(const FiniteElement* fe)
 {
-   int dim = fe->GetDim();
-   int res = 2;
-   int dirs = dim;
+   const int dim = fe->GetDim();
+
+   constexpr int check_res = 2;
+   int num_check_dirs = dim;
 
    // Get a uniform grid of integration points
-   RefinedGeometry* ref = GlobGeometryRefiner.Refine( fe->GetGeomType(), res);
+   RefinedGeometry* ref = GlobGeometryRefiner.Refine(fe->GetGeomType(),
+                                                     check_res);
    const IntegrationRule& intRule = ref->RefPts;
    int npoints = intRule.GetNPoints();
    Vector dx(dim);
@@ -132,7 +136,7 @@ void TestCalcHessian(FiniteElement* fe)
       // Get the current integration point from intRule
       IntegrationPoint pt = intRule.IntPoint(i);
 
-      for (int j=0; j < dirs; ++j)
+      for (int j=0; j < num_check_dirs; ++j)
       {
          dx[0] = sin(2*j + 0.3);
          if (dim >= 2) { dx[1] = cos(5*j + 0.2); }
