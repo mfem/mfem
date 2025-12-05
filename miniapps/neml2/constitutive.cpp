@@ -22,7 +22,7 @@ static neml2::Tensor mfem_to_neml2_tensor(const neml2::TensorOptions &options,
 
   // Use torch::from_blob to create a tensor wrapper around the data
   // (without copying!)
-  auto &q_space = pf.GetParameterSpace();
+  const auto &q_space = pf.GetParameterSpace();
   auto neml2_tensor = neml2::Tensor(
       torch::from_blob(strain_data,
                        {(int64_t)(q_space.GetTrueVSize() / q_space.GetVDim()),
@@ -32,11 +32,11 @@ static neml2::Tensor mfem_to_neml2_tensor(const neml2::TensorOptions &options,
   return neml2_tensor;
 }
 
-static void neml2_to_mfem_tensor(neml2::Tensor &neml2_tensor,
+static void neml2_to_mfem_tensor(const neml2::Tensor &neml2_tensor,
                                  ParameterFunction &pf) {
   // Copy the stress data back to MFEM
   // (either a host-host or device-device copy)
-  auto &q_space = pf.GetParameterSpace();
+  const auto &q_space = pf.GetParameterSpace();
   auto nbyte = q_space.GetTrueVSize() * sizeof(real_t);
   if (neml2_tensor.options().device().is_cpu())
     std::memcpy(pf.HostWrite(), neml2_tensor.data_ptr<real_t>(), nbyte);
@@ -68,7 +68,7 @@ void ConstitutiveModel::Tangent(ParameterFunction &strain,
   tangent = outputs.at(_stress_name).at(_strain_name);
 }
 
-void ConstitutiveModel::ApplyTangent(neml2::Tensor tangent,
+void ConstitutiveModel::ApplyTangent(const neml2::Tensor &tangent,
                                      ParameterFunction &dstrain,
                                      ParameterFunction &dstress) const {
   auto dstrain_tensor =

@@ -48,7 +48,7 @@ public:
    * @param dstrain Input delta strain
    * @param dstress Output delta stress
    */
-  void ApplyTangent(neml2::Tensor tangent, ParameterFunction &dstrain,
+  void ApplyTangent(const neml2::Tensor &tangent, ParameterFunction &dstrain,
                     ParameterFunction &dstress) const;
 
 private:

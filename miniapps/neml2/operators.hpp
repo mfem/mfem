@@ -151,8 +151,8 @@ struct StressDivergence {
    * Given the stress tensor $\sigma$, the contribution to the residual at
    * quadrature point is given by $\nabla \phi \cdot \sigma$.
    *
-   * @note The definition here is incomplete; we need to multiply by B^T which
-   * is handled by the DifferentiableOperator.
+   * @note The definition here appears incomplete, but it's not; multiplication
+   * by B^T is handled by the DifferentiableOperator's output operator.
    *
    * @param stress Stress tensor in Mandel notation at the quadrature point
    * @param J Jacobian of the parametric to physical mapping
