@@ -137,7 +137,7 @@ private:
    cudssMatrixType_t mat_type = CUDSS_MTYPE_GENERAL;
 
    mutable int nrhs = 0; // the number of the RHSs
-   int n = 0; // global number of rows
+   int n_global = 0;     // global number of rows
 
    int nnz = 0; // the number of non zeros
    int row_start = 0;  // the first row index in CSR matrix operator
