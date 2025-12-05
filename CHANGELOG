@@ -40,6 +40,12 @@ Discretization improvements
   provided that neighboring hexahedra are not refined in conflicting directions.
   A new ParMesh method is added to check for such conflicts, before refinement.
 
+- Introduced ParticleSet, a class for managing and storing particle data
+  in a Struct-of-Arrays form, carrying particle coordinates and IDs along with 
+  an arbitrary number of Vector and integer data for each particle.
+
+- Introduced Particle, a convenient interface for individual particle data.
+
 Meshing improvements
 --------------------
 
@@ -121,6 +127,20 @@ New and updated examples and miniapps
 - Updated the mtop miniapp with a GPU enabled forward and adjoint solver for
   isotropic linear elasticity.
 
+- Added new particle visualization features (common/particles_extras) for
+  viewing particle locations and trajectories (ParticleTrajectories) using
+  GLVis.
+
+- Added a new miniapp (gslib/particles_redist) that demonstrates parallel-
+  redistribution of particle data amongst MPI ranks.
+
+- Added a new transient Navier-Stokes fluid-particles solver NavierParticles
+  (navier/navier_particles), for modeling tracer particles in fluid flow,
+  demonstrating use of the new ParticleSet class.
+
+- Added new miniapp (navier/navier_bifurcation) demonstrating the use of
+  NavierParticles in a 2D bifurcating channel flow.
+
 API changes:
 -----------
 - mfem::internal::tensor and mfem::internal::dual have been moved to
@@ -155,6 +175,8 @@ Miscellaneous
 - Introduced ParticleVector, a Vector-derived container that stores vector 
   data for an arbitrary number of particles contiguously based on user specified
   vector-dimension and ordering (byNODES/byVDIM).
+
+- Introduced ParticleSet, 
 
 Version 4.8, released on Apr 9, 2025
 ====================================
