@@ -41,7 +41,7 @@ Discretization improvements
   A new ParMesh method is added to check for such conflicts, before refinement.
 
 - Introduced ParticleSet, a class for managing and storing particle data
-  in a Struct-of-Arrays form, carrying particle coordinates and IDs along with 
+  in a Struct-of-Arrays form, carrying particle coordinates and IDs along with
   an arbitrary number of Vector and integer data for each particle.
 
 - Introduced Particle, a convenient interface for individual particle data.
@@ -91,11 +91,11 @@ GPU computing
 
 Linear and nonlinear solvers
 ----------------------------
-- Added `FilteredSolver`: a base class for solvers with filtering. It handles cases 
-  where a solver performs well except in small subspaces, by adding a filtering step 
+- Added `FilteredSolver`: a base class for solvers with filtering. It handles cases
+  where a solver performs well except in small subspaces, by adding a filtering step
   formulated as a subspace correction.
-- Added `AMGFSolver`: a derived class of `FilteredSolver`, specialized for 
-  AMG with Filtering (AMGF), providing robust preconditioning for linear systems 
+- Added `AMGFSolver`: a derived class of `FilteredSolver`, specialized for
+  AMG with Filtering (AMGF), providing robust preconditioning for linear systems
   arising in constrained optimization problems such as frictionless contact.
 
 New and updated examples and miniapps
@@ -117,11 +117,11 @@ New and updated examples and miniapps
   of a charged particle, subject to Lorentz forces, in electrostatic and/or
   magnetostatic fields as computed by the volta or tesla miniapps.
 
-- Added a new miniapp for optimization-based contact mechanics. This miniapp solves 
-  large-scale frictionless contact problems using a self-contained Interior Point (IP) solver, 
-  with Tribol integration for mortar-based contact constraints. Linear systems arising in the IP 
-  iterations are solved with CG preconditioned by the recently introduced AMGF solver. 
-  Benchmark examples include the two-block, ironing, and beam-sphere problems. 
+- Added a new miniapp for optimization-based contact mechanics. This miniapp solves
+  large-scale frictionless contact problems using a self-contained Interior Point (IP) solver,
+  with Tribol integration for mortar-based contact constraints. Linear systems arising in the IP
+  iterations are solved with CG preconditioned by the recently introduced AMGF solver.
+  Benchmark examples include the two-block, ironing, and beam-sphere problems.
   The miniapp is available in `miniapps/contact`
 
 - Updated the mtop miniapp with a GPU enabled forward and adjoint solver for
@@ -172,11 +172,9 @@ Miscellaneous
   not need to manually free-up the memory if the destructor is called before
   MPI_Finalize().
 
-- Introduced ParticleVector, a Vector-derived container that stores vector 
+- Introduced ParticleVector, a Vector-derived container that stores vector
   data for an arbitrary number of particles contiguously based on user specified
   vector-dimension and ordering (byNODES/byVDIM).
-
-- Introduced ParticleSet, 
 
 Version 4.8, released on Apr 9, 2025
 ====================================
