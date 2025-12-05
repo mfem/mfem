@@ -36,7 +36,7 @@ void CheckCudaAPI(cudaError_t status, std::string msg)
              << "Details : " << msg << " successfully!\n";
 #endif
 }
-}
+} // namespace
 
 CuDSSSolver::CuDSSSolver(MPI_Comm comm_)
 {
@@ -48,11 +48,12 @@ void CuDSSSolver::Init(MPI_Comm comm_)
 {
    mpi_comm = (MPI_Comm *)malloc(sizeof(MPI_Comm));
    mpi_comm[0] = comm_; // MPI_COMM_WORLD
+   MPI_Comm_rank(comm_, &myid);
 }
 
 void CuDSSSolver::InitHandle()
 {
-   // Checkout the cudss API
+   // Checkout the cuDSS API
    cudssStatus_t status = CUDSS_STATUS_SUCCESS;
 
    status = cudssCreate(&handle);
@@ -72,7 +73,7 @@ void CuDSSSolver::InitHandle()
 
 CuDSSSolver::~CuDSSSolver()
 {
-   // Checkout the cudss API
+   // Checkout the cuDSS API
    cudssStatus_t status = CUDSS_STATUS_SUCCESS;
    cudaError_t cuda_status = cudaSuccess;
 
@@ -88,7 +89,7 @@ CuDSSSolver::~CuDSSSolver()
    status = cudssMatrixDestroy(yc);
    CheckCudssAPI(status, "cudssMatrixDestroy for solution Vector");
 
-   // Destroy the cudss handle, solver config and solver data
+   // Destroy the cuDSS handle, solver config and solver data
    status = cudssDataDestroy(handle, solverData);
    CheckCudssAPI(status, "cudssDataDestroy");
    status = cudssConfigDestroy(solverConfig);
@@ -101,13 +102,13 @@ CuDSSSolver::~CuDSSSolver()
       free(mpi_comm);
    }
 
-   if (csr_offsets_d !=NULL)
+   if (csr_offsets_d != NULL)
    {
       cuda_status = cudaFree(csr_offsets_d);
       CheckCudaAPI(cuda_status, "cudaFree for CSR I vector");
    }
 
-   if (csr_columns_d!=NULL)
+   if (csr_columns_d != NULL)
    {
       cuda_status = cudaFree(csr_columns_d);
       CheckCudaAPI(cuda_status, "cudaFree for CSR J vector");
@@ -134,8 +135,8 @@ void CuDSSSolver::SetMatrixSymType(MatType mtype_)
 
 void CuDSSSolver::SetMatrixViewType(MatViewType mvtype_)
 {
-   // If the MatType is UNSYMMETRIC, the matrix view type must be FULL.
-   if (mtype == MatType::UNSYMMETRIC)
+   // If the MatType is NONSYMMETRIC, the matrix view type must be FULL.
+   if (mtype == MatType::NONSYMMETRIC)
    {
       mview = CUDSS_MVIEW_FULL;
       return;
@@ -156,15 +157,9 @@ void CuDSSSolver::SetMatrixViewType(MatViewType mvtype_)
    }
 }
 
-void CuDSSSolver::SetReorderingReuse(bool reuse)
-{
-   reorder_reuse = reuse;
-}
+void CuDSSSolver::SetReorderingReuse(bool reuse) { reorder_reuse = reuse; }
 
-void CuDSSSolver::SetMatrixSortRow(bool sort_row_)
-{
-   sort_row = sort_row_;
-}
+void CuDSSSolver::SetMatrixSortRow(bool sort_row_) { sort_row = sort_row_; }
 
 void CuDSSSolver::SetOperator(const Operator &op)
 {
@@ -178,8 +173,8 @@ void CuDSSSolver::SetOperator(const Operator &op)
    const HypreParMatrix *A = dynamic_cast<const HypreParMatrix *>(&op);
    MFEM_VERIFY(A, "Not a compatible matrix type");
 
-   hypre_ParCSRMatrix *parcsr_op = (hypre_ParCSRMatrix *)
-                                   const_cast<HypreParMatrix &>(*A);
+   hypre_ParCSRMatrix *parcsr_op =
+      (hypre_ParCSRMatrix *)const_cast<HypreParMatrix &>(*A);
    hypre_CSRMatrix *csr_op = hypre_MergeDiagAndOffd(parcsr_op);
    A->HypreRead();
 #if MFEM_HYPRE_VERSION >= 21600
@@ -191,10 +186,10 @@ void CuDSSSolver::SetOperator(const Operator &op)
       hypre_CSRMatrixSortRow(csr_op);
    }
 
-   // parameters of the Operator
-   n_loc = csr_op->num_rows;
-   n = parcsr_op->global_num_rows;
-   int64_t nrows = n;
+   // Parameters of the Operator
+   n_loc = height;  // Equal to the csr_op->num_rows
+   n_global = internal::to_int(parcsr_op->global_num_rows);
+   int64_t nrows = n_global;
    row_start = parcsr_op->first_row_index;
    row_end = row_start + n_loc - 1;
    MFEM_VERIFY(!cuDSSObjectInitialized || !reorder_reuse ||
@@ -202,7 +197,7 @@ void CuDSSSolver::SetOperator(const Operator &op)
                "CuDSSSolver::SetOperator: Inconsistent new matrix pattern!");
    nnz = csr_op->num_nonzeros;
 
-   // Checkout the cudss API
+   // Checkout the cuDSS API
    cudssStatus_t status = CUDSS_STATUS_SUCCESS;
 
    // Initial the cudssMatrix objects
@@ -214,14 +209,15 @@ void CuDSSSolver::SetOperator(const Operator &op)
       InitRhsSol(1);
    }
 
-   // New cudss CSR matrix object and analysis or reuse the one from a previous matrix
+   // New cuDSS CSR matrix object and analysis or reuse the one from a previous
+   // matrix
    if (!cuDSSObjectInitialized || !reorder_reuse)
    {
       if (reorder_reuse) // !cuDSSObjectInitialized && reorder_reuse
       {
-         // NOTE: For CuDSS solver to reuse the reordering (skipping analysis phase),
-         // it needs to access the I and J arrays of the **initial** matrix.
-         // Therefore, we need to copy and keep I and J in device memory.
+         // NOTE: For CuDSS solver to reuse the reordering (skipping analysis
+         // phase), it needs to access the I and J arrays of the **initial**
+         // matrix. Therefore, we need to copy and keep I and J in device memory.
          cudaError_t cuda_status = cudaSuccess;
 
          cuda_status = cudaMalloc(&csr_offsets_d, (n_loc + 1) * sizeof(int));
@@ -230,7 +226,8 @@ void CuDSSSolver::SetOperator(const Operator &op)
          cuda_status = cudaMalloc(&csr_columns_d, nnz * sizeof(int));
          CheckCudaAPI(cuda_status, "cudaMalloc for CSR J vector");
 
-         cuda_status = cudaMemcpy(csr_offsets_d, csr_op->i, (n_loc + 1) * sizeof(int),
+         cuda_status = cudaMemcpy(csr_offsets_d, csr_op->i,
+                                  (n_loc + 1) * sizeof(int),
                                   cudaMemcpyDeviceToDevice);
          CheckCudaAPI(cuda_status, "cudaMemcpy for CSR I vector");
 
@@ -238,8 +235,9 @@ void CuDSSSolver::SetOperator(const Operator &op)
                                   cudaMemcpyDeviceToDevice);
          CheckCudaAPI(cuda_status, "cudaMemcpy for CSR J vector");
 
-         status = cudssMatrixCreateCsr(Ac.get(), nrows, nrows, nnz, csr_offsets_d, NULL,
-                                       csr_columns_d, csr_op->data, CUDA_R_32I, CUDA_REAL_T,
+         status = cudssMatrixCreateCsr(Ac.get(), nrows, nrows, nnz,
+                                       csr_offsets_d, NULL, csr_columns_d,
+                                       csr_op->data, CUDA_R_32I, CUDA_REAL_T,
                                        mat_type, mview, CUDSS_BASE_ZERO);
          CheckCudssAPI(status, "cudssMatrixCreateCsr for Operator");
       }
@@ -250,9 +248,10 @@ void CuDSSSolver::SetOperator(const Operator &op)
             status = cudssMatrixDestroy(*Ac);
             CheckCudssAPI(status, "cudssMatrixDestroy for Operator");
          }
-         status = cudssMatrixCreateCsr(Ac.get(), nrows, nrows, nnz, csr_op->i, NULL,
-                                       csr_op->j, csr_op->data, CUDA_R_32I, CUDA_REAL_T,
-                                       mat_type, mview, CUDSS_BASE_ZERO);
+         status = cudssMatrixCreateCsr(Ac.get(), nrows, nrows, nnz, csr_op->i,
+                                       NULL, csr_op->j, csr_op->data,
+                                       CUDA_R_32I, CUDA_REAL_T, mat_type, mview,
+                                       CUDSS_BASE_ZERO);
          CheckCudssAPI(status, "cudssMatrixCreateCsr for Operator");
       }
 
@@ -260,8 +259,8 @@ void CuDSSSolver::SetOperator(const Operator &op)
       CheckCudssAPI(status, "cudssMatrixSetDistributionRow1d for Operator");
 
       // Analysis
-      status = cudssExecute(handle, CUDSS_PHASE_ANALYSIS, solverConfig, solverData,
-                            *Ac, yc, xc);
+      status = cudssExecute(handle, CUDSS_PHASE_ANALYSIS, solverConfig,
+                            solverData, *Ac, yc, xc);
       CheckCudssAPI(status, "cudssExecute for CUDSS_PHASE_ANALYSIS");
    }
    else // cuDSSObjectInitialized && reorder_reuse
@@ -295,16 +294,17 @@ void CuDSSSolver::InitRhsSol(int nrhs_) const
          CheckCudssAPI(status, "cudssMatrixDestroy for solution Vector");
       }
       // Create empty RHS and solution vectors
-      status = cudssMatrixCreateDn(&xc, n, nrhs_, n, NULL, CUDA_REAL_T,
-                                   CUDSS_LAYOUT_COL_MAJOR);
+      status = cudssMatrixCreateDn(&xc, n_global, nrhs_, n_global, NULL,
+                                   CUDA_REAL_T, CUDSS_LAYOUT_COL_MAJOR);
       CheckCudssAPI(status, "cudssMatrixCreateDn for RHS");
       status = cudssMatrixSetDistributionRow1d(xc, row_start, row_end);
       CheckCudssAPI(status, "cudssMatrixSetDistributionRow1d for RHS");
-      status = cudssMatrixCreateDn(&yc, n, nrhs_, n, NULL, CUDA_REAL_T,
-                                   CUDSS_LAYOUT_COL_MAJOR);
+      status = cudssMatrixCreateDn(&yc, n_global, nrhs_, n_global, NULL,
+                                   CUDA_REAL_T, CUDSS_LAYOUT_COL_MAJOR);
       CheckCudssAPI(status, "cudssMatrixCreateDn for solution Vector");
       status = cudssMatrixSetDistributionRow1d(yc, row_start, row_end);
-      CheckCudssAPI(status, "cudssMatrixSetDistributionRow1d for solution Vector");
+      CheckCudssAPI(status,
+                    "cudssMatrixSetDistributionRow1d for solution Vector");
    }
    nrhs = nrhs_;
 }
@@ -333,15 +333,15 @@ void CuDSSSolver::ArrayMult(const Array<const Vector *> &X,
    else
    {
       // NOTE: RHS must have **global** num_rows and nrhs columns
-      RHS.SetSize(nrhs * n, *X[0]);
+      RHS.SetSize(nrhs * n_global, *X[0]);
       for (int i = 0; i < nrhs; i++)
       {
-         Vector s(RHS, i * n, n_loc);
+         Vector s(RHS, i * n_global, n_loc);
          s = *X[i];
       }
 
       // NOTE: SOL must have **global** num_rows and nrhs columns
-      SOL.SetSize(nrhs * n, *Y[0]);
+      SOL.SetSize(nrhs * n_global, *Y[0]);
    }
 
    cudssStatus_t status = CUDSS_STATUS_SUCCESS;
@@ -361,7 +361,7 @@ void CuDSSSolver::ArrayMult(const Array<const Vector *> &X,
       // Get solution for each right-hand side
       for (int i = 0; i < nrhs; i++)
       {
-         Vector s(SOL, i * n, n_loc);
+         Vector s(SOL, i * n_global, n_loc);
          *Y[i] = s;
       }
    }

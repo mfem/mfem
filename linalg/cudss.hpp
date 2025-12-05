@@ -29,24 +29,24 @@ class CuDSSSolver : public Solver
 {
 public:
    /// Specify the type of matrix we are applying the solver to
-   enum MatType
+   enum class MatType
    {
-      /// CUDSS_MTYPE_GENERAL: General matrix [default] $LDU$ factorization will be computed with optional local or global pivoting
-      UNSYMMETRIC = 0,
-      /// CUDSS_MTYPE_SYMMETRIC: Real symmetric matrix. $LDL^{T}$ factorization will be computed with optional local pivoting
+      /// CUDSS_MTYPE_GENERAL: General matrix [default].
+      NONSYMMETRIC = 0,
+      /// CUDSS_MTYPE_SYMMETRIC: Real symmetric matrix.
       SYMMETRIC_INDEFINITE = 1,
-      /// CUDSS_MTYPE_SPD: Symmetric positive-definite matrix Cholesky factorization will be computed with optional local pivoting
+      /// CUDSS_MTYPE_SPD: Symmetric positive-definite matrix.
       SYMMETRIC_POSITIVE_DEFINITE = 2,
    };
 
    /// Specify the view type of matrix we are applying the solver to
-   enum MatViewType
+   enum class MatViewType
    {
       /// CUDSS_MVIEW_FULL: Full matrix [default]
       FULL = 0,
-      /// CUDSS_MVIEW_LOWER: Lower-triangular matrix (including the diagonal) All values above the main diagonal will be ignored.
+      /// CUDSS_MVIEW_LOWER: Lower-triangular matrix (including the diagonal).
       LOWER = 1,
-      /// CUDSS_MVIEW_UPPER: Upper-triangular matrix (including the diagonal) All values below the main diagonal will be ignored.
+      /// CUDSS_MVIEW_UPPER: Upper-triangular matrix (including the diagonal).
       UPPER = 2,
    };
 
@@ -132,7 +132,7 @@ private:
    bool sort_row = false;
 
    // Matrix type
-   MatType mtype = MatType::UNSYMMETRIC;
+   MatType mtype = MatType::NONSYMMETRIC;
    // Parameter controlling the matrix type
    cudssMatrixType_t mat_type = CUDSS_MTYPE_GENERAL;
 
@@ -166,7 +166,7 @@ private:
    /// Method for initialization
    void Init(MPI_Comm comm_);
 
-   /// Method for the initialization of cudss Handle
+   /// Method for the initialization of cuDSS Handle
    void InitHandle();
 
    /// Method for configuring storage for distributed/centralized RHS and
