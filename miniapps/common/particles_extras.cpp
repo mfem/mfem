@@ -176,12 +176,12 @@ void ParticleTrajectories::AddSegmentStart()
 {
    if (!pset.GetNParticles()) { return; }
    // Create a new mesh for all particle segments for this timestep
-   segment_meshes.emplace(segment_meshes.begin(), 1, pset.GetNParticles()*2,
-                          pset.GetNParticles(),
-                          0, pset.GetDim());
+   segment_meshes.emplace_front(1, pset.GetNParticles()*2,
+                                pset.GetNParticles(),
+                                0, pset.GetDim());
 
    // Add segment start particle IDs
-   segment_ids.emplace(segment_ids.begin(), pset.GetIDs());
+   segment_ids.emplace_front(pset.GetIDs());
 
    if (tail_size > 0 && static_cast<int>(segment_meshes.size()) > tail_size)
    {

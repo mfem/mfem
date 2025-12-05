@@ -5,8 +5,21 @@
 // This file is part of the MFEM library. For more information and source code
 // availability visit https://mfem.org.
 //
+//   ---------------------------------------------------------------------
+//   Navier Bifurcation: Tracer Particles in a 2D Bifurcating Channel Flow
+//   ---------------------------------------------------------------------
+//
+// Note: MFEM must be compiled with GSLIB for this miniapp to include
+//       particles - otherwise, it will just compute the fluid flow.
+//
+// This miniapp demonstrates the usage of tracer particles (i.e. one-way
+// coupled) in fluid flow. The fluid flow is computed with NavierSolver and
+// the particles are advected with NavierParticles. Particles are injected
+// periodically at random locations along the inlet boundary. Reflection
+// boundary conditions are used on the channel walls.
+//
 // Sample run:
-// * mpirun -np 10 navier_bifurcation -rs 3 -npt 100 -nt 4e5
+// * mpirun -np 10 navier_bifurcation -rs 3 -npt 100 -nt 4e5 -traj 10
 
 #include "navier_solver.hpp"
 #include "navier_particles.hpp"
@@ -36,10 +49,10 @@ struct flow_context
    // particle
    int add_particles_freq = 300; // frequency of particle injection
    int num_add_particles = 100;  // total particles added each injection
-   real_t kappa_min = 1.0;       // drag characteristic min
-   real_t kappa_max = 10.0;      // drag characteristic max
-   real_t gamma = 0.0;           // gravity characteristic
-   real_t zeta = 0.19;           // lift characteristic
+   real_t kappa_min = 1.0;       // drag property min
+   real_t kappa_max = 10.0;      // drag property max
+   real_t gamma = 0.0;           // gravity property
+   real_t zeta = 0.19;           // lift property
    int print_csv_freq = 500;     // frequency of particle CSV outputting
 
    // GLVis visualization for solution and (optionally) particles
@@ -55,7 +68,7 @@ struct flow_context
 #ifdef MFEM_USE_GSLIB
 // Set properties for injected particles. The location is set randomly to be
 // on the inlet boundary (x=0), velocity is initialized to 0, and
-// kappa (drag characteristic) is set randomly in [kappa_min, kappa_max]
+// kappa (drag property) is set randomly in [kappa_min, kappa_max]
 // using kappa_seed.
 void SetInjectedParticles(NavierParticles &particle_solver,
                           const Array<int> &p_idxs,

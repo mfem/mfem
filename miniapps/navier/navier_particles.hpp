@@ -38,8 +38,8 @@ namespace navier
  *  x and v are the particle location and velocity,
  *  u is the fluid velocity at the particle location,
  *  ω is the fluid vorticity at the particle location,
- *  κ depends on the drag characteristics of the particle,
- *  ζ depends on the lift characteristics, and
+ *  κ depends on the drag properties of the particle,
+ *  ζ depends on the lift properties, and
  *  γ and ê depend on body forces such as gravity.
  *
  *  The model from Dutta et al. is general but this implementation is currently
@@ -213,51 +213,53 @@ public:
    /// Get reference to the inactive ParticleSet.
    ParticleSet& GetInactiveParticles() { return inactive_fluid_particles; }
 
-   /// Get reference to the kappa ParticleVector.
+   /// Get reference to the κ ParticleVector.
    ParticleVector& Kappa()
    {
       return fluid_particles.Field(fp_idx.field.kappa);
    }
 
-   /// Get reference to the Zeta ParticleVector.
+   /// Get reference to the ζ ParticleVector.
    ParticleVector& Zeta()
    {
       return fluid_particles.Field(fp_idx.field.zeta);
    }
 
-   /// Get reference to the Gamma ParticleVector.
+   /// Get reference to the γ ParticleVector.
    ParticleVector& Gamma()
    {
       return fluid_particles.Field(fp_idx.field.gamma);
    }
 
-   /// Get reference to the fluid velocity-interpolated ParticleVector at
-   /// time n - \p nm .
+   /** @brief Get reference to the fluid velocity-interpolated ParticleVector at
+    *  time n - \p nm .
+    */
    ParticleVector& U(int nm=0)
    {
-      MFEM_ASSERT(nm < N_HIST, "nm must be <= 3");
+      MFEM_ASSERT(nm < N_HIST, "nm must be < " << N_HIST);
       return fluid_particles.Field(fp_idx.field.u[nm]);
    }
 
    /// Get reference to the particle velocity ParticleVector at time n - \p nm .
    ParticleVector& V(int nm=0)
    {
-      MFEM_ASSERT(nm < N_HIST, "nm must be <= 3");
+      MFEM_ASSERT(nm < N_HIST, "nm must be < " << N_HIST);
       return fluid_particles.Field(fp_idx.field.v[nm]);
    }
 
-   /// Get reference to the fluid vorticity-interpolated ParticleVector at
-   /// time n - \p nm .
+   /** @brief Get reference to the fluid vorticity-interpolated ParticleVector at
+    *  time n - \p nm .
+    */
    ParticleVector& W(int nm=0)
    {
-      MFEM_ASSERT(nm < N_HIST, "nm must be <= 3");
+      MFEM_ASSERT(nm < N_HIST, "nm must be < " << N_HIST);
       return fluid_particles.Field(fp_idx.field.w[nm]);
    }
 
    /// Get reference to the position ParticleVector at time n - \p nm .
    ParticleVector& X(int nm=0)
    {
-      MFEM_ASSERT(nm < N_HIST, "nm must be <= 3");
+      MFEM_ASSERT(nm < N_HIST, "nm must be < " << N_HIST);
       return nm == 0 ? fluid_particles.Coords() : fluid_particles.Field(
                 fp_idx.field.x[nm-1]);
    }
@@ -281,13 +283,13 @@ public:
 
    /** @brief Add a 2D recirculation / one-way periodic boundary condition.
     *
-    *  @warning *Both* normals must be facing into the domain. See \ref
-    *  Get2DNormal for details on the normal direction.
+    *  @warning *Both* normals must be facing into the domain. See
+    *  Get2DNormal() for details on the normal direction.
     *
     *  @param[in] inlet_start             Inlet line segment start point.
     *  @param[in] inlet_end               Inlet line segment end point.
     *  @param[in] invert_inlet_normal     Invert direction of the inlet normal.
-    *  @param[in] outlet_start              Outlet line segment start point.
+    *  @param[in] outlet_start            Outlet line segment start point.
     *  @param[in] outlet_end              Outlet line segment end point.
     *  @param[in] invert_outlet_normal    Invert direction of the outlet normal.
     *

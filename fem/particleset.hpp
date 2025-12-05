@@ -20,13 +20,69 @@
 namespace mfem
 {
 
-/// Container for data associated with a single particle
-/** See ParticleSet for more information. */
+/** @brief  Container for data associated with a single particle.
+ *
+ *  @note This class mainly serves as a convenience interface to individual
+ *  particle data from ParticleSet. We recommend seeing ParticleSet first.
+ *
+ *  @details As described in ParticleSet documentation, each particle has a
+ *  position (\ref coords), arbitrary number of scalar or vector \ref real_t
+ *  data (\ref fields), and arbitrary number of integers (\ref tags)
+ *  associated with it.
+ *
+ *  \ref fields can thus hold data such as mass, momentum, and velocity, while
+ *  \ref tags can hold integer data such as particle type, color, etc.
+ *
+ *  Each particle also has a unique global ID, but that is managed by the
+ *  ParticleSet class and not stored in this Particle class. Simiarly, the names
+ *  of the fields and tags, typically useful for output purposes, are managed by
+ *  the ParticleSet class.
+ *
+ *
+ * For clarity, we will use the particles below to illustrate the data layout
+ * for \ref coords, \ref fields, and \ref tags
+ *
+ * @anchor sample_particle_data
+ * @code
+ * Particle_0: coords = (x0, y0),
+ *             fields = {'mass'=m0, 'vel' = (vx0, vy0)},
+ *               tags = {'type'=t0, 'color'=color0}
+ * Particle_1: coords = (x1, y1),
+ *             fields = {'mass'=m1, 'vel' = (vx1, vy1)},
+ *               tags = {'type'=t1, 'color'=color1}
+ * Particle_2: coords = (x2, y2),
+ *             fields = {'mass'=m2, 'vel' = (vx2, vy2)},
+ *               tags = {'type'=t2, 'color'=color2}
+ * @endcode
+ *
+ */
 class Particle
 {
 protected:
+   /** @brief Spatial coordinates
+    *
+    *  @details For the \ref sample_particle_data, \ref coords would hold
+    *  (x_i, y_i) for each particle i.
+    */
    Vector coords;
+
+   /** @brief A std::vector of Vector where each Vector holds data for a given
+    *  field (e.g., mass, momentum or velocity) associated with the particle.
+    *
+    *  @details For the \ref sample_particle_data, \ref fields would be
+    *  fields[0]=(m_i), fields[1]=(vx_i,vy_i) for each particle i.
+    */
    std::vector<Vector> fields;
+
+   /** @brief A std::vector of Array<int> where each Array<int> holds data
+    *  for a given tag.
+    *
+    *  @details For the \ref sample_particle_data, \ref tags would be
+    *  tags[0]=(type_i), tags[1]=(color_i) for each particle i. \n
+    *
+    *  @note An Array of length 1 is used for EACH tag, strictly for
+    *  its owning/non-owning semantics (see Array<T>::MakeRef).
+    */
    std::vector<Array<int>> tags;
 public:
    /** @brief Construct a Particle instance.
@@ -140,26 +196,54 @@ public:
  *  @par Coordinates:
  *  All particle coordinates are stored in a ParticleVector with vector
  *  dimension equal to the spatial dimension, ordered either byNODES or byVDIM.
+ *  The ParticleVector \ref coords contains the coordinates of all particles.
  *
  *  @par IDs:
- *  Each particle is assigned a unique global ID of type unsigned long long. In
- *  parallel, IDs are initialized starting with @b rank and striding by @b size.
+ *  Each particle is assigned a unique global ID of type IDType. In parallel,
+ *  IDs are initialized starting with @b rank and striding by @b size. The IDs
+ *  of all particles owned by this rank are stored in \ref ids.
  *
  *  @par Fields:
  *  Fields represent scalar or vector \ref real_t data to be associated with
  *  each particles, such as mass, momentum, or moment. For a given field, all
  *  particle data is stored in a single ParticleVector with a given
  *  vector dimension (1 for scalar data) and Ordering::Type (byNODES or
- *  byVDIM).
+ *  byVDIM). The unique_ptrs to all the ParticleVectors are stored in the
+ *  std::vector \ref fields.
  *
  *  @par Tags:
- *  Tags represent an integer to be associated with each particle. For a given
- *  tag, all particle integers are stored in a single Array<int>.
+ *  Tags represent integers associated with each particle. For a given tag,
+ *  all particle data are stored in a single Array<int>. The unique_ptrs to all
+ *  the Array<int> is stored in the std::vector \ref tags.
  *
  *  @par Names:
  *  Each field and tag can optionally be given a name (string) to be used when
- *  printing particle data in CSV format using PrintCSV().
+ *  printing particle data in CSV format using PrintCSV(). The names of all
+ *  fields and tags are stored in the std::vectors \ref field_names and
+ *  \ref tag_names, respectively.
  *
+ *  @note We assume that all particles in a ParticleSet have the same number
+ *  of fields and tags.
+ *
+ *  Following the example in the Particle class, we will use the
+ *  particles below to illustrate the data layout for \ref coords, \ref ids,
+ *  \ref fields, \ref tags, \ref field_names, and \ref tag_names.
+ *  In each case, the name of the field and tag is enclosed in '...' for
+ *  clarity. Additionally, we assume for this example that the particle
+ *  coordinates and the 'vel' field are ordered byVDIM in their respective
+ *  ParticleVector.
+ *  @anchor sample_particleset_data
+ *  @code
+ *  Particle_0: id = id0, coords = (x0, y0),
+ *              fields = {'mass'=m0, 'vel' = (vx0, vy0)},
+ *              tags = {'type'=t0, 'color'=c0}
+ *  Particle_1: id = id1, coords = (x1, y1),
+ *              fields = {'mass'=m1, 'vel' = (vx1, vy1)},
+ *              tags = {'type'=t1, 'color'=c1}
+ *  Particle_2: id = id2, coords = (x2, y2),
+ *              fields = {'mass'=m2, 'vel' = (vx2, vy2)},
+ *              tags = {'type'=t2, 'color'=c2}
+ *  @endcode
  */
 class ParticleSet
 {
@@ -184,40 +268,65 @@ private:
 #endif // MFEM_USE_MPI
 
 protected:
-   /// Stride for IDs (when new particles are added).
+   /// Stride for IDs (used internally when new particles are added).
    /** In parallel, this defaults to the number of MPI ranks. */
    const int id_stride;
 
-   /// Current ID to be assigned to the next particle added.
+   /// Current globally unique ID to be assigned to the next particle added.
    /** In parallel, this starts locally as the rank and increments with
     * id_stride, ensuring a global unique identifier whenever a particle is
     * added.
     */
    IDType id_counter;
 
-   /// Global unique IDs of particles owned by this rank.
+   /** @brief Global unique IDs of particles owned by this rank.
+    *
+    *  @details For the \ref sample_particleset_data, \ref ids would be
+    *  ids[0]=id0, ids[1]=id1, ids[2]=id2.
+    */
    Array<IDType> ids;
 
-   /// Spatial coordinates of particles owned by this rank.
+   /** @brief Spatial coordinates of particles owned by this rank.
+    *
+    *  @details For the \ref sample_particleset_data, \ref coords would be
+    *  coords=(x0,y0,x1,y1,x2,y2) assuming coords ordering is byVDIM.
+    */
    ParticleVector coords;
 
-   /// All particle fields for particles owned by this rank.
+   /** @brief All particle fields for particles owned by this rank.
+    *
+    *  @details For the \ref sample_particleset_data, \ref fields would be
+    *  *fields[0]=(m0,m1,m2), *fields[1]=(vx0,vy0,vx1,vy1,vx2,vy2)
+    *  assuming fields[1] ordering is byVDIM.
+    */
    std::vector<std::unique_ptr<ParticleVector>> fields;
 
-   /// All particle tags for particles owned by this rank.
+   /** @brief All particle tags for particles owned by this rank.
+    *
+    *  @details For the \ref sample_particleset_data, \ref tags would be
+    *  *tags[0]=(t0,t1,t2), *tags[1]=(c0,c1,c2).
+    */
    std::vector<std::unique_ptr<Array<int>>> tags;
 
-   /// Field names, to be written when PrintCSV() is called.
+   /** @brief Field names, to be written when PrintCSV() is called.
+    *
+    *  @details For the \ref sample_particleset_data, \ref field_names would be
+    *  field_names[0]='mass', field_names[1]='vel'.
+    */
    std::vector<std::string> field_names;
 
-   /// Tag names, to be written when PrintCSV() is called.
+   /** @brief Tag names, to be written when PrintCSV() is called.
+    *
+    *  @details For the \ref sample_particleset_data, \ref tag_names would be
+    *  tag_names[0]='type', tag_names[1]='color'.
+    */
    std::vector<std::string> tag_names;
 
    /** @brief Add particles with global identifiers \p new_ids and
     *  optionally get the local indices of new particles in \p new_indices .
     *
-    *  @details Note the data of new particles is uninitialized and must be set
-    *  using SetParticle
+    *  @details Note the data of new particles is uninitialized and must be
+    *  set.
     */
    void AddParticles(const Array<IDType> &new_ids,
                      Array<int> *new_indices=nullptr);
@@ -250,6 +359,17 @@ protected:
    /// \endcond
 
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
+
+   /** @brief  Update global ID of a particle.
+    *
+    *  @details This method updates the global ID of the particle at given
+    *  local index after Redistribute().
+    *
+    *  @note This method must be used very carefully as it updates global
+    *  ID of a particle.
+    */
+   void UpdateID(int local_idx, IDType new_global_id)
+   { ids[local_idx] = new_global_id; }
 
    /** @brief Create a Particle object with the same spatial dimension,
     *  number of fields and field vdims, and number of tags as this ParticleSet.
@@ -416,12 +536,8 @@ public:
    /// Get the spatial dimension.
    int GetDim() const { return coords.GetVDim(); }
 
-   /// Get the IDs of the active particles owned by this ParticleSet.
+   /// Get the global IDs of the active particles owned by this ParticleSet.
    const Array<IDType>& GetIDs() const { return ids; }
-
-   /// Update global ID of a particle.
-   void UpdateID(int local_idx, IDType new_global_id)
-   { ids[local_idx] = new_global_id; }
 
    /** @brief Add a field to the ParticleSet.
     *
@@ -434,7 +550,11 @@ public:
    int AddField(int vdim, Ordering::Type field_ordering=Ordering::byVDIM,
                 const char* field_name=nullptr);
 
-   // Add a field [with different parameter order for convenience]
+   /** @brief Add a field to the ParticleSet.
+    *
+    *  @details Same as AddField() but with different parameter order
+    *  for convenience
+    */
    int AddNamedField(int vdim, const char* field_name,
                      Ordering::Type field_ordering=Ordering::byVDIM)
    {
@@ -474,8 +594,8 @@ public:
    /** @brief Add \p num_particles particles, and optionally get the local
     *  indices of new particles in \p new_indices .
     *
-    *  @details The data of new particles is uninitialized and must be set
-    *  using SetParticle.
+    *  @details The data of new particles is uninitialized and must be
+    *  set.
     */
    void AddParticles(int num_particles, Array<int> *new_indices=nullptr);
 
@@ -504,10 +624,14 @@ public:
        particle \p i . */
    Particle GetParticle(int i) const;
 
-   /** @brief Get Particle object whose member reference the actual data
+   /** @brief Get Particle object whose members reference the actual data
     *  associated with particle \p i in this ParticleSet.
     *
-    * @see IsParticleRefValid for when this method can be used.
+    *  @see IsParticleRefValid for when this method can be used.
+    *
+    *  @warning If particles are added, removed, or redistributed after
+    *  invoking this, the returned Particle member references may be
+    *  invalidated.
     */
    Particle GetParticleRef(int i);
 
