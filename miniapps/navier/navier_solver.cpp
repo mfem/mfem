@@ -114,7 +114,17 @@ void NavierSolver::Setup(real_t dt)
 
    sw_setup.Start();
 
+   // Get essential true DOFs for vector velocity BCs
    vfes->GetEssentialTrueDofs(vel_ess_attr, vel_ess_tdof);
+
+   // Add essential true DOFs for component-wise velocity BCs
+   for (auto &vel_comp_dbc : vel_comp_dbcs)
+   {
+      Array<int> comp_ess_tdof;
+      vfes->GetEssentialTrueDofs(vel_comp_dbc.attr, comp_ess_tdof, vel_comp_dbc.comp);
+      vel_ess_tdof.Append(comp_ess_tdof);
+   }
+
    pfes->GetEssentialTrueDofs(pres_ess_attr, pres_ess_tdof);
 
    Array<int> empty;
@@ -219,6 +229,7 @@ void NavierSolver::Setup(real_t dt)
    {
       ftext_bnlfi->SetIntRule(&ir_ni);
    }
+
    FText_bdr_form->AddBoundaryIntegrator(ftext_bnlfi, vel_ess_attr);
 
    g_bdr_form = new ParLinearForm(pfes);
@@ -375,6 +386,11 @@ void NavierSolver::Step(real_t &time, real_t dt, int current_step,
    for (auto &vel_dbc : vel_dbcs)
    {
       vel_dbc.coeff->SetTime(time + dt);
+   }
+
+   for (auto &vel_comp_dbc : vel_comp_dbcs)
+   {
+      vel_comp_dbc.coeff->SetTime(time + dt);
    }
 
    // Set current time for pressure Dirichlet boundary conditions.
@@ -561,6 +577,20 @@ void NavierSolver::Step(real_t &time, real_t dt, int current_step,
    for (auto &vel_dbc : vel_dbcs)
    {
       un_next_gf.ProjectBdrCoefficient(*vel_dbc.coeff, vel_dbc.attr);
+   }
+
+   const int dim = vfes->GetVDim();
+   mfem::Array<Coefficient*> coeff_array(dim);
+   coeff_array = nullptr;
+
+   for (auto &vel_comp_dbc : vel_comp_dbcs)
+   {
+      coeff_array = nullptr;
+      MFEM_ASSERT(vel_comp_dbc.comp >= 0 && vel_comp_dbc.comp < dim,
+                  "Invalid velocity component.");
+      coeff_array[vel_comp_dbc.comp] = vel_comp_dbc.coeff;
+
+      un_next_gf.ProjectBdrCoefficient(coeff_array, vel_comp_dbc.attr);
    }
 
    vfes->GetRestrictionMatrix()->MultTranspose(resu, resu_gf);
@@ -991,7 +1021,7 @@ void NavierSolver::AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr)
    for (int i = 0; i < attr.Size(); ++i)
    {
       MFEM_ASSERT((vel_ess_attr[i] && attr[i]) == 0,
-                  "Duplicate boundary definition deteceted.");
+                  "Duplicate boundary definition detected.");
       if (attr[i] == 1)
       {
          vel_ess_attr[i] = 1;
@@ -1001,7 +1031,41 @@ void NavierSolver::AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr)
 
 void NavierSolver::AddVelDirichletBC(VecFuncT *f, Array<int> &attr)
 {
-   AddVelDirichletBC(new VectorFunctionCoefficient(pmesh->Dimension(), f), attr);
+   AddVelDirichletBC(
+      new VectorFunctionCoefficient(pmesh->Dimension(), f), attr);
+}
+
+void NavierSolver::AddVelDirichletBC(Coefficient *coeff, Array<int> &attr,
+                                     int component)
+{
+   MFEM_VERIFY(component >= 0 && component < vfes->GetVDim(),
+               "Invalid velocity component.");
+
+   vel_comp_dbcs.emplace_back(attr, coeff, component);
+
+   if (verbose && pmesh->GetMyRank() == 0)
+   {
+      mfem::out << "Adding Velocity Component " << component
+                << " Dirichlet BC to attributes ";
+      for (int i = 0; i < attr.Size(); ++i)
+      {
+         if (attr[i] == 1)
+         {
+            mfem::out << i << " ";
+         }
+      }
+      mfem::out << std::endl;
+   }
+
+   for (int i = 0; i < attr.Size(); ++i)
+   {
+      MFEM_ASSERT((vel_ess_attr[i] && attr[i]) == 0,
+                  "Duplicate boundary definition detected.");
+      if (attr[i] == 1)
+      {
+         vel_ess_attr[i] = 1;
+      }
+   }
 }
 
 void NavierSolver::AddPresDirichletBC(Coefficient *coeff, Array<int> &attr)
@@ -1024,7 +1088,7 @@ void NavierSolver::AddPresDirichletBC(Coefficient *coeff, Array<int> &attr)
    for (int i = 0; i < attr.Size(); ++i)
    {
       MFEM_ASSERT((pres_ess_attr[i] && attr[i]) == 0,
-                  "Duplicate boundary definition deteceted.");
+                  "Duplicate boundary definition detected.");
       if (attr[i] == 1)
       {
          pres_ess_attr[i] = 1;
@@ -1057,7 +1121,8 @@ void NavierSolver::AddAccelTerm(VectorCoefficient *coeff, Array<int> &attr)
 
 void NavierSolver::AddAccelTerm(VecFuncT *f, Array<int> &attr)
 {
-   AddAccelTerm(new VectorFunctionCoefficient(pmesh->Dimension(), f), attr);
+   AddAccelTerm(
+      new VectorFunctionCoefficient(pmesh->Dimension(), f), attr);
 }
 
 void NavierSolver::SetTimeIntegrationCoefficients(int step)

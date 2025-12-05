@@ -27,15 +27,13 @@ using ScalarFuncT = real_t(const Vector &x, real_t t);
 class VelDirichletBC_T
 {
 public:
-   VelDirichletBC_T(Array<int> attr, VectorCoefficient *coeff)
-      : attr(attr), coeff(coeff)
-   {}
+   VelDirichletBC_T(Array<int> attr_, VectorCoefficient *coeff_)
+      : attr(attr_), coeff(coeff_) {}
 
    VelDirichletBC_T(VelDirichletBC_T &&obj)
    {
       // Deep copy the attribute array
       this->attr = obj.attr;
-
       // Move the coefficient pointer
       this->coeff = obj.coeff;
       obj.coeff = nullptr;
@@ -43,31 +41,49 @@ public:
 
    ~VelDirichletBC_T() { delete coeff; }
 
-   Array<int> attr;
+   Array<int>        attr;
    VectorCoefficient *coeff;
+};
+
+/// Container for a component-wise Dirichlet boundary condition of the velocity field.
+class VelComponentDirichletBC_T
+{
+public:
+   VelComponentDirichletBC_T(Array<int> attr_, Coefficient *coeff_, int comp_)
+      : attr(attr_), coeff(coeff_), comp(comp_) {}
+
+   VelComponentDirichletBC_T(VelComponentDirichletBC_T &&obj)
+   {
+      this->attr  = obj.attr;
+      this->coeff = obj.coeff;
+      this->comp  = obj.comp;
+      obj.coeff   = nullptr;
+   }
+
+   ~VelComponentDirichletBC_T() { delete coeff; }
+
+   Array<int>  attr;
+   Coefficient *coeff;
+   int         comp;
 };
 
 /// Container for a Dirichlet boundary condition of the pressure field.
 class PresDirichletBC_T
 {
 public:
-   PresDirichletBC_T(Array<int> attr, Coefficient *coeff)
-      : attr(attr), coeff(coeff)
-   {}
+   PresDirichletBC_T(Array<int> attr_, Coefficient *coeff_)
+      : attr(attr_), coeff(coeff_) {}
 
    PresDirichletBC_T(PresDirichletBC_T &&obj)
    {
-      // Deep copy the attribute array
-      this->attr = obj.attr;
-
-      // Move the coefficient pointer
+      this->attr  = obj.attr;
       this->coeff = obj.coeff;
-      obj.coeff = nullptr;
+      obj.coeff   = nullptr;
    }
 
    ~PresDirichletBC_T() { delete coeff; }
 
-   Array<int> attr;
+   Array<int>  attr;
    Coefficient *coeff;
 };
 
@@ -75,23 +91,19 @@ public:
 class AccelTerm_T
 {
 public:
-   AccelTerm_T(Array<int> attr, VectorCoefficient *coeff)
-      : attr(attr), coeff(coeff)
-   {}
+   AccelTerm_T(Array<int> attr_, VectorCoefficient *coeff_)
+      : attr(attr_), coeff(coeff_) {}
 
    AccelTerm_T(AccelTerm_T &&obj)
    {
-      // Deep copy the attribute array
-      this->attr = obj.attr;
-
-      // Move the coefficient pointer
+      this->attr  = obj.attr;
       this->coeff = obj.coeff;
-      obj.coeff = nullptr;
+      obj.coeff   = nullptr;
    }
 
    ~AccelTerm_T() { delete coeff; }
 
-   Array<int> attr;
+   Array<int>        attr;
    VectorCoefficient *coeff;
 };
 
@@ -195,6 +207,8 @@ public:
    void AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr);
 
    void AddVelDirichletBC(VecFuncT *f, Array<int> &attr);
+
+   void AddVelDirichletBC(Coefficient *coeff, Array<int> &attr, int component);
 
    /// Add a Dirichlet boundary condition to the pressure field.
    void AddPresDirichletBC(Coefficient *coeff, Array<int> &attr);
@@ -399,8 +413,9 @@ protected:
 
    ParGridFunction pn_gf, resp_gf;
 
-   // All essential attributes.
+   // All velocity essential attributes
    Array<int> vel_ess_attr;
+   // All pressure essential attributes
    Array<int> pres_ess_attr;
 
    // All essential true dofs.
@@ -409,6 +424,9 @@ protected:
 
    // Bookkeeping for velocity Dirichlet BCs.
    std::vector<VelDirichletBC_T> vel_dbcs;
+
+   // Bookkeeping for velocity component Dirichlet BCs.
+   std::vector<VelComponentDirichletBC_T> vel_comp_dbcs;
 
    // Bookkeeping for pressure Dirichlet BCs.
    std::vector<PresDirichletBC_T> pres_dbcs;
