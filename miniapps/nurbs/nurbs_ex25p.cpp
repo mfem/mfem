@@ -559,7 +559,7 @@ void detJ_JT_J_inv_Re(const Vector &x, PML * pml, Vector & D)
 
    for (int i = 0; i < dim; ++i)
    {
-      D(i) = (det / pow(dxs[i], 2)).real();
+      D(i) = (det / pow2(dxs[i])).real();
    }
 
 }
@@ -577,7 +577,7 @@ void detJ_JT_J_inv_Im(const Vector &x, PML * pml, Vector & D)
 
    for (int i = 0; i < dim; ++i)
    {
-      D(i) = (det / pow(dxs[i], 2)).imag();
+      D(i) = (det / pow2(dxs[i])).imag();
    }
 }
 
@@ -594,7 +594,7 @@ void detJ_JT_J_inv_abs(const Vector &x, PML * pml, Vector & D)
 
    for (int i = 0; i < dim; ++i)
    {
-      D(i) = abs(det / pow(dxs[i], 2));
+      D(i) = abs(det / pow2(dxs[i]));
    }
 }
 
@@ -612,13 +612,13 @@ void detJ_inv_JT_J_Re(const Vector &x, PML * pml, Vector & D)
    // in the 2D case the coefficient is scalar 1/det(J)
    if (dim == 2)
    {
-      D = (1.0 / det).real();
+      D = (real_t(1.0) / det).real();
    }
    else
    {
       for (int i = 0; i < dim; ++i)
       {
-         D(i) = (pow(dxs[i], 2) / det).real();
+         D(i) = (pow2(dxs[i]) / det).real();
       }
    }
 }
@@ -636,13 +636,13 @@ void detJ_inv_JT_J_Im(const Vector &x, PML * pml, Vector & D)
 
    if (dim == 2)
    {
-      D = (1.0 / det).imag();
+      D = (real_t(1.0) / det).imag();
    }
    else
    {
       for (int i = 0; i < dim; ++i)
       {
-         D(i) = (pow(dxs[i], 2) / det).imag();
+         D(i) = (pow2(dxs[i]) / det).imag();
       }
    }
 }
@@ -660,13 +660,13 @@ void detJ_inv_JT_J_abs(const Vector &x, PML * pml, Vector & D)
 
    if (dim == 2)
    {
-      D = abs(1.0 / det);
+      D = abs(real_t(1.0) / det);
    }
    else
    {
       for (int i = 0; i < dim; ++i)
       {
-         D(i) = abs(pow(dxs[i], 2) / det);
+         D(i) = abs(pow2(dxs[i]) / det);
       }
    }
 }
