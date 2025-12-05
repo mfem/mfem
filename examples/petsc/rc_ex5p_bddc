@@ -1,0 +1,63 @@
+# KSP options
+
+-ksp_view
+-ksp_converged_reason
+
+# Internal use (don't remove it)
+# It is duplicated because we support older versions of PETSc
+-matis_convert_local_nest
+-mat_is_convert_local_nest
+
+# PCBDDC options
+
+# mandatory options
+
+# activate support for saddle point problems
+-prec_pc_bddc_benign_trick
+
+# primal space customization
+-prec_pc_bddc_nonetflux
+
+# dofs connectivity
+-prec_pc_bddc_use_local_mat_graph 0
+-prec_pc_bddc_detect_disconnected
+
+# additional options
+
+# verbose output
+#-prec_pc_bddc_check_level 1
+
+# local solvers (default "petsc" solvers will fail)
+# needs PETSc compiled with support for MUMPS or SuiteSparse
+# use "umfpack" in place of "mumps" if you want to use
+# SuiteSparse solvers
+#
+# With PETSc versions older than 3.9
+# use "mat_solver_package" instead of "mat_solver_type"
+#
+-prec_pc_bddc_neumann_pc_type lu
+-prec_pc_bddc_neumann_pc_factor_mat_solver_type mumps
+-prec_pc_bddc_neumann_pc_factor_mat_solver_package mumps
+-prec_pc_bddc_dirichlet_pc_type lu
+-prec_pc_bddc_dirichlet_pc_factor_mat_solver_type mumps
+-prec_pc_bddc_dirichlet_pc_factor_mat_solver_package mumps
+
+#  MUMPS sometimes fails with a very annoying error
+-mat_mumps_icntl_14 500
+-prec_pc_bddc_dirichlet_mat_mumps_icntl_14 500
+-prec_pc_bddc_neumann_mat_mumps_icntl_14 500
+
+# coarse solver (needs PETSc compiled with support for MUMPS)
+# default solver may fail
+-prec_pc_bddc_coarse_pc_factor_mat_solver_type mumps
+-prec_pc_bddc_coarse_pc_factor_mat_solver_package mumps
+-prec_pc_bddc_coarse_pc_type cholesky
+
+# deluxe scaling (needs PETSc compiled with support for MUMPS)
+#-prec_pc_bddc_use_deluxe_scaling
+-prec_pc_bddc_deluxe_zerorows
+-prec_sub_schurs_mat_mumps_icntl_14 500
+
+# adaptive generation of primal space (needs MUMPS)
+#-prec_pc_bddc_adaptive_threshold 5
+#-prec_pc_bddc_schur_exact

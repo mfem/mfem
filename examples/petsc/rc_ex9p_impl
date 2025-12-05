@@ -1,0 +1,40 @@
+# you can set options for the nonlinear solver
+
+#-snes_converged_reason
+#-snes_type newtonls
+#-snes_monitor
+#-snes_atol 1.e-12
+
+# you can set options for the linear solver
+
+#-ksp_converged_reason
+#-ksp_monitor
+-pc_type jacobi
+
+# These are some of the methods you can test
+# Consult the PETSc manual and the web page for many other
+
+#-ts_type beuler # Backward Euler
+-ts_type bdf # Backward Differentiation Formulas
+#-ts_type rosw # Rosenbrock-W
+
+# Using SDIRK of order 5 with adaptive time stepping
+
+#-ts_type arkimex
+#-ts_arkimex_type 5
+#-ts_arkimex_fully_implicit
+#-ts_adapt_type basic
+
+# Used only when using the Mult method for the ODE
+#-ts_view
+
+-ts_monitor
+
+# Dumps log of PETSc code
+# For 3D runs with large number of local elements you'll notice
+# that TSJacobianEval will take a large portion of the computation
+# this is because in this example we are providing both RHS and
+# I jacobians, and PETSc has to sum them up when using fully
+# implicit methods
+
+-log_view

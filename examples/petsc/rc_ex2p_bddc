@@ -1,0 +1,25 @@
+# Sample options for BDDC
+
+-ksp_converged_reason
+-ksp_view
+-pc_type bddc
+
+# Turn on diagnostic for errors
+#-pc_bddc_check_level 1
+
+# This is an H1 problem, local problems may be singular
+# Turn on automatic corner selection
+-pc_bddc_corner_selection
+
+# Advanced customization
+
+# Deluxe scaling
+-pc_bddc_use_deluxe_scaling
+
+# Adaptive primal space (requires PETSc configured with MUMPS or PARDISO support)
+#-pc_bddc_adaptive_threshold 1.2 # tolerance for eigenvalue selection
+#-pc_bddc_adaptive_userdefined # preserve RBMs
+#-pc_bddc_monolithic # treat all displacements components at once -> smaller primal spaces, larger eigenvalue problems
+
+# Select solver for coarse problem
+# -pc_bddc_coarse_pc_type cholesky

@@ -1,0 +1,25 @@
+# Dump info about the Krylov solver
+-ksp_view
+
+# BDDC verbose output
+#-pc_bddc_check_level 1
+
+# tell BDDC not to use the connectivity graph
+# induced by the sparsity pattern of the local
+# operators
+-pc_bddc_use_local_mat_graph 0
+
+# Deluxe scaling (needs PETSc compiled with support for MUMPS)
+#-pc_bddc_use_deluxe_scaling
+
+# Use adaptive construction of BDDC coarse space
+#-pc_bddc_adaptive_threshold 10
+
+# Customization of the local solvers
+# With PETSc versions older than 3.9
+# use "mat_solver_package" instead of "mat_solver_type"
+#
+#-pc_bddc_neumann_pc_factor_mat_solver_type mumps
+#-pc_bddc_dirichlet_pc_factor_mat_solver_type mumps
+#-pc_bddc_coarse_pc_type cholesky
+#-pc_bddc_coarse_pc_factor_mat_solver_type mumps

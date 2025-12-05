@@ -1,0 +1,39 @@
+# 编译产物
+*.o
+*.a
+*.so
+*.so.*
+*.dylib
+
+# MFEM 库文件
+libmfem.a
+libmfem.so*
+
+# 编译配置
+config/config.mk
+config/_config.hpp
+config/get_hypre_version
+config/get_hypre_version.out
+
+# 示例程序编译产物
+examples/*.o
+examples/ex*
+examples/!ex*.cpp
+examples/test_*
+examples/!test_*.cpp
+
+# 临时文件
+*~
+*.swp
+*.swo
+.DS_Store
+
+# IDE 配置
+.vscode/
+.idea/
+*.sublime-*
+
+# 其他
+*.log
+core
+a.out
