@@ -4735,6 +4735,30 @@ void NURBSExtension::DegreeElevate(int rel_degree, int degree)
    }
 }
 
+void NURBSExtension::DegreeElevate(const Array<int> &degrees)
+{
+   MFEM_VERIFY(degrees.Size() == GetNKV(),
+               "Size of degrees must be equal to number of knotvectors");
+
+   Array<int> edge_to_ukv_;
+   Array<int> ukv_to_rpkv;
+   patchTopo->GetEdgeToUniqueKnotvector(edge_to_ukv_, ukv_to_rpkv);
+
+   // Elevate degrees
+   for (int i = 0; i < GetNKV(); i++)
+   {
+      const int pkv = ukv_to_rpkv[i];
+      const int p = pkv / Dimension();
+      const int d = pkv % Dimension();
+      const int oldd = patches[p]->GetKV(d)->GetOrder();
+      const int newd = degrees[i];
+      if (newd > oldd)
+      {
+         patches[p]->DegreeElevate(d, newd - oldd);
+      }
+   }
+}
+
 NURBSExtension* NURBSExtension::GetDivExtension(int component)
 {
    // Smarter routine

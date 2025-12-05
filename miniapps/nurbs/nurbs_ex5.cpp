@@ -5,15 +5,6 @@
 // Sample runs:  nurbs_ex5 -m ../../data/square-nurbs.mesh -o 3
 //               nurbs_ex5 -m ../../data/cube-nurbs.mesh -r 3
 //               nurbs_ex5 -m ../../data/pipe-nurbs-2d.mesh
-//               nurbs_ex5 -m ../../data/beam-tet.mesh
-//               nurbs_ex5 -m ../../data/beam-hex.mesh
-//               nurbs_ex5 -m ../../data/escher.mesh
-//               nurbs_ex5 -m ../../data/fichera.mesh
-//
-// Device sample runs -- do not work for NURBS:
-//               nurbs_ex5 -m ../../data/escher.mesh -pa -d cuda
-//               nurbs_ex5 -m ../../data/escher.mesh -pa -d raja-cuda
-//               nurbs_ex5 -m ../../data/escher.mesh -pa -d raja-omp
 //
 // Description:  This example code solves a simple 2D/3D mixed Darcy problem
 //               corresponding to the saddle point system
@@ -59,7 +50,6 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../../data/square-nurbs.mesh";
    int ref_levels = -1;
    int order = 1;
-   bool pa = false;
    const char *device_config = "cpu";
    int visport = 19916;
    bool visualization = 1;
@@ -71,8 +61,6 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
-                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -95,8 +83,8 @@ int main(int argc, char *argv[])
    // 3. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   int dim = mesh->Dimension();
+   Mesh mesh(mesh_file, 1, 1);
+   int dim = mesh.Dimension();
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
@@ -106,38 +94,20 @@ int main(int argc, char *argv[])
       if (ref_levels < 0)
       {
          ref_levels =
-            (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+            (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
       }
       for (int l = 0; l < ref_levels; l++)
       {
-         mesh->UniformRefinement();
+         mesh.UniformRefinement();
       }
    }
 
    // 5. Define a finite element space on the mesh. Here we use the
    //    Raviart-Thomas finite elements of the specified order.
-   FiniteElementCollection *hdiv_coll = nullptr;
-   FiniteElementCollection *l2_coll = nullptr;
-   NURBSExtension *NURBSext = nullptr;
-
-   if (mesh->NURBSext && !pa)
-   {
-      hdiv_coll = new NURBS_HDivFECollection(order,dim);
-      l2_coll   = new NURBSFECollection(order);
-      NURBSext  = new NURBSExtension(mesh->NURBSext, order);
-      mfem::out<<"Create NURBS fec and ext"<<std::endl;
-   }
-   else
-   {
-      hdiv_coll = new RT_FECollection(order, dim);
-      l2_coll   = new L2_FECollection(order, dim);
-      mfem::out<<"Create Normal fec"<<std::endl;
-   }
-   pa = false;
-   FiniteElementSpace *W_space = new FiniteElementSpace(mesh, NURBSext, l2_coll);
-   FiniteElementSpace *R_space = new FiniteElementSpace(mesh,
-                                                        W_space->StealNURBSext(),
-                                                        hdiv_coll);
+   NURBSSpace hdiv_ns(&mesh, order, 1, NURBSSpace::Type::Hdiv);
+   NURBSSpace ns(&mesh, order, 1);
+   FiniteElementSpace* W_space = ns.fespace.get();
+   FiniteElementSpace* R_space = hdiv_ns.fespace.get();
 
    // 6. Define the BlockStructure of the problem, i.e. define the array of
    //    offsets for each variable. The last component of the Array is the sum
@@ -155,9 +125,9 @@ int main(int argc, char *argv[])
    std::cout << "***********************************************************\n";
    {
       Array<int> ess_tdof_list;
-      if (mesh->bdr_attributes.Size())
+      if (mesh.bdr_attributes.Size())
       {
-         Array<int> ess_bdr(mesh->bdr_attributes.Max());
+         Array<int> ess_bdr(mesh.bdr_attributes.Max());
          ess_bdr = 1;
          R_space->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       }
@@ -167,9 +137,9 @@ int main(int argc, char *argv[])
 
    {
       Array<int> ess_tdof_list;
-      if (mesh->bdr_attributes.Size())
+      if (mesh.bdr_attributes.Size())
       {
-         Array<int> ess_bdr(mesh->bdr_attributes.Max());
+         Array<int> ess_bdr(mesh.bdr_attributes.Max());
          ess_bdr = 1;
          W_space->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       }
@@ -195,18 +165,18 @@ int main(int argc, char *argv[])
    MemoryType mt = device.GetMemoryType();
    BlockVector x(block_offsets, mt), rhs(block_offsets, mt);
 
-   LinearForm *fform(new LinearForm);
-   fform->Update(R_space, rhs.GetBlock(0), 0);
-   fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
-   fform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(fnatcoeff));
-   fform->Assemble();
-   fform->SyncAliasMemory(rhs);
+   LinearForm fform;
+   fform.Update(R_space, rhs.GetBlock(0), 0);
+   fform.AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
+   fform.AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(fnatcoeff));
+   fform.Assemble();
+   fform.SyncAliasMemory(rhs);
 
-   LinearForm *gform(new LinearForm);
-   gform->Update(W_space, rhs.GetBlock(1), 0);
-   gform->AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
-   gform->Assemble();
-   gform->SyncAliasMemory(rhs);
+   LinearForm gform;
+   gform.Update(W_space, rhs.GetBlock(1), 0);
+   gform.AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
+   gform.Assemble();
+   gform.SyncAliasMemory(rhs);
 
    // 9. Assemble the finite element matrices for the Darcy operator
    //
@@ -216,42 +186,26 @@ int main(int argc, char *argv[])
    //
    //     M = \int_\Omega k u_h \cdot v_h d\Omega   u_h, v_h \in R_h
    //     B   = -\int_\Omega \div u_h q_h d\Omega   u_h \in R_h, q_h \in W_h
-   BilinearForm *mVarf(new BilinearForm(R_space));
-   MixedBilinearForm *bVarf(new MixedBilinearForm(R_space, W_space));
+   BilinearForm mVarf(R_space);
+   MixedBilinearForm bVarf(R_space, W_space);
 
-   if (pa) { mVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   mVarf->AddDomainIntegrator(new VectorFEMassIntegrator(k));
-   mVarf->Assemble();
-   if (!pa) { mVarf->Finalize(); }
-
-   if (pa) { bVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   bVarf->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
-   bVarf->Assemble();
-   if (!pa) { bVarf->Finalize(); }
+   mVarf.AddDomainIntegrator(new VectorFEMassIntegrator(k));
+   mVarf.Assemble();
+   mVarf.Finalize();
+   bVarf.AddDomainIntegrator(new VectorFEDivergenceIntegrator);
+   bVarf.Assemble();
+   bVarf.Finalize();
 
    BlockOperator darcyOp(block_offsets);
 
-   TransposeOperator *Bt = NULL;
+   SparseMatrix &Mv(mVarf.SpMat());
+   SparseMatrix &Bv(bVarf.SpMat());
+   Bv *= -1.;
+   TransposeOperator Bt(&Bv);
 
-   if (pa)
-   {
-      Bt = new TransposeOperator(bVarf);
-
-      darcyOp.SetBlock(0,0, mVarf);
-      darcyOp.SetBlock(0,1, Bt, -1.0);
-      darcyOp.SetBlock(1,0, bVarf, -1.0);
-   }
-   else
-   {
-      SparseMatrix &M(mVarf->SpMat());
-      SparseMatrix &B(bVarf->SpMat());
-      B *= -1.;
-      Bt = new TransposeOperator(&B);
-
-      darcyOp.SetBlock(0,0, &M);
-      darcyOp.SetBlock(0,1, Bt);
-      darcyOp.SetBlock(1,0, &B);
-   }
+   darcyOp.SetBlock(0,0, &Mv);
+   darcyOp.SetBlock(0,1, &Bt);
+   darcyOp.SetBlock(1,0, &Bv);
 
    // 10. Construct the operators for preconditioner
    //
@@ -260,61 +214,38 @@ int main(int argc, char *argv[])
    //
    //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
    //     pressure Schur Complement
-   SparseMatrix *MinvBt = NULL;
-   Vector Md(mVarf->Height());
+   Vector Md(mVarf.Height());
 
    BlockDiagonalPreconditioner darcyPrec(block_offsets);
-   Solver *invM, *invS;
-   SparseMatrix *S = NULL;
+   std::unique_ptr<Solver> invM, invS;
 
-   if (pa)
+   SparseMatrix &M(mVarf.SpMat());
+   M.GetDiag(Md);
+   Md.HostReadWrite();
+
+   SparseMatrix &B(bVarf.SpMat());
+   std::unique_ptr<SparseMatrix> MinvBt(Transpose(B));
+
+   for (int i = 0; i < Md.Size(); i++)
    {
-      mVarf->AssembleDiagonal(Md);
-      auto Md_host = Md.HostRead();
-      Vector invMd(mVarf->Height());
-      for (int i=0; i<mVarf->Height(); ++i)
-      {
-         invMd(i) = 1.0 / Md_host[i];
-      }
-
-      Vector BMBt_diag(bVarf->Height());
-      bVarf->AssembleDiagonal_ADAt(invMd, BMBt_diag);
-
-      Array<int> ess_tdof_list;  // empty
-
-      invM = new OperatorJacobiSmoother(Md, ess_tdof_list);
-      invS = new OperatorJacobiSmoother(BMBt_diag, ess_tdof_list);
+      MinvBt->ScaleRow(i, 1./Md(i));
    }
-   else
-   {
-      SparseMatrix &M(mVarf->SpMat());
-      M.GetDiag(Md);
-      Md.HostReadWrite();
 
-      SparseMatrix &B(bVarf->SpMat());
-      MinvBt = Transpose(B);
+   std::unique_ptr<SparseMatrix> S(Mult(B, *MinvBt));
 
-      for (int i = 0; i < Md.Size(); i++)
-      {
-         MinvBt->ScaleRow(i, 1./Md(i));
-      }
-
-      S = Mult(B, *MinvBt);
-
-      invM = new DSmoother(M);
+   invM.reset(new DSmoother(M));
 
 #ifndef MFEM_USE_SUITESPARSE
-      invS = new GSSmoother(*S);
+   invS.reset(new GSSmoother(*S));
 #else
-      invS = new UMFPackSolver(*S);
+   invS.reset(new UMFPackSolver(*S));
 #endif
-   }
 
    invM->iterative_mode = false;
    invS->iterative_mode = false;
 
-   darcyPrec.SetDiagonalBlock(0, invM);
-   darcyPrec.SetDiagonalBlock(1, invS);
+   darcyPrec.SetDiagonalBlock(0, invM.get());
+   darcyPrec.SetDiagonalBlock(1, invS.get());
 
    // 11. Solve the linear system with MINRES.
    //     Check the norm of the unpreconditioned residual.
@@ -363,9 +294,9 @@ int main(int argc, char *argv[])
    }
 
    real_t err_u  = u.ComputeL2Error(ucoeff, irs);
-   real_t norm_u = ComputeLpNorm(2., ucoeff, *mesh, irs);
+   real_t norm_u = ComputeLpNorm(2., ucoeff, mesh, irs);
    real_t err_p  = p.ComputeL2Error(pcoeff, irs);
-   real_t norm_p = ComputeLpNorm(2., pcoeff, *mesh, irs);
+   real_t norm_p = ComputeLpNorm(2., pcoeff, mesh, irs);
 
    std::cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
    std::cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
@@ -376,7 +307,7 @@ int main(int argc, char *argv[])
    {
       ofstream mesh_ofs("ex5.mesh");
       mesh_ofs.precision(8);
-      mesh->Print(mesh_ofs);
+      mesh.Print(mesh_ofs);
 
       ofstream u_ofs("sol_u.gf");
       u_ofs.precision(8);
@@ -388,13 +319,13 @@ int main(int argc, char *argv[])
    }
 
    // 14. Save data in the VisIt format
-   VisItDataCollection visit_dc("Example5", mesh);
+   VisItDataCollection visit_dc("Example5", &mesh);
    visit_dc.RegisterField("velocity", &u);
    visit_dc.RegisterField("pressure", &p);
    visit_dc.Save();
 
    // 15. Save data in the ParaView format
-   ParaViewDataCollection paraview_dc("Example5", mesh);
+   ParaViewDataCollection paraview_dc("Example5", &mesh);
    paraview_dc.SetPrefixPath("ParaView");
    paraview_dc.SetLevelsOfDetail(order);
    paraview_dc.SetCycle(0);
@@ -411,27 +342,11 @@ int main(int argc, char *argv[])
       char vishost[] = "localhost";
       socketstream u_sock(vishost, visport);
       u_sock.precision(8);
-      u_sock << "solution\n" << *mesh << u << "window_title 'Velocity'" << endl;
+      u_sock << "solution\n" << mesh << u << "window_title 'Velocity'" << endl;
       socketstream p_sock(vishost, visport);
       p_sock.precision(8);
-      p_sock << "solution\n" << *mesh << p << "window_title 'Pressure'" << endl;
+      p_sock << "solution\n" << mesh << p << "window_title 'Pressure'" << endl;
    }
-
-   // 17. Free the used memory.
-   delete fform;
-   delete gform;
-   delete invM;
-   delete invS;
-   delete S;
-   delete Bt;
-   delete MinvBt;
-   delete mVarf;
-   delete bVarf;
-   delete W_space;
-   delete R_space;
-   delete l2_coll;
-   delete hdiv_coll;
-   delete mesh;
 
    return 0;
 }
