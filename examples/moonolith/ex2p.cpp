@@ -20,6 +20,10 @@
 #include "example_utils.hpp"
 #include "mfem.hpp"
 
+#ifndef MFEM_USE_MOONOLITH
+#error This example requires that MFEM is built with MFEM_USE_MOONOLITH=YES
+#endif
+
 using namespace mfem;
 using namespace std;
 
@@ -186,8 +190,8 @@ int main(int argc, char *argv[])
                       << std::endl;
          }
 
-         plot(*p_src_mesh, src_fun, "source");
-         plot(*p_dest_mesh, dest_fun, "destination");
+         plot(*p_src_mesh, src_fun, "source", 0);
+         plot(*p_dest_mesh, dest_fun, "destination", 1);
       }
    }
    else

@@ -85,9 +85,9 @@ public:
    /// This function is no-op if HYPRE is built without GPU support or the HYPRE
    /// version is less than 2.31.0.
    ///
-   /// This function is NOT called by Init(). Instead it is called by
+   /// In addition to being called by Init(), this function is also called by
    /// Device::Configure() (when MFEM_USE_MPI=YES) after the MFEM device
-   /// configuration is complete.
+   /// configuration is complete, configuring HYPRE for device.
    static void InitDevice();
 
    /// @brief Finalize hypre (called automatically at program exit if

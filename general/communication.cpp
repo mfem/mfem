@@ -351,6 +351,8 @@ void GroupTopology::Swap(GroupTopology &other)
 const MPI_Datatype MPITypeMap<int>::mpi_type = MPI_INT;
 const MPI_Datatype MPITypeMap<float>::mpi_type = MPI_FLOAT;
 const MPI_Datatype MPITypeMap<double>::mpi_type = MPI_DOUBLE;
+const MPI_Datatype MPITypeMap<int64_t>::mpi_type = MPI_INT64_T;
+const MPI_Datatype MPITypeMap<uint64_t>::mpi_type = MPI_UINT64_T;
 
 
 GroupCommunicator::GroupCommunicator(const GroupTopology &gt, Mode m)
