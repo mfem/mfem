@@ -2149,10 +2149,11 @@ H1Bubble_FECollection::H1Bubble_FECollection(const int p, const int q,
    : FiniteElementCollection(GetBubbleSpaceOrder(p, q, dim)),
      dim(dim),
      b_type(BasisType::Check(btype)),
+     h1_order(p),
      bubble_order(q)
 {
    MFEM_VERIFY(p >= 1, "H1Bubble_FECollection requires order >= 1.");
-   MFEM_VERIFY(dim >= 0 && dim <= 3, "H1_FECollection requires 0 <= dim <= 3.");
+   MFEM_VERIFY(dim >= 0 && dim <= 3, "Unsupported dimension.");
 
    switch (btype)
    {
@@ -2295,7 +2296,7 @@ const int *H1Bubble_FECollection::DofOrderForOrientation(
 
 FiniteElementCollection *H1Bubble_FECollection::GetTraceCollection() const
 {
-   return (dim < 0) ? NULL : new H1_Trace_FECollection(base_p, dim, b_type);
+   return (dim < 0) ? NULL : new H1_Trace_FECollection(h1_order, dim, b_type);
 }
 
 

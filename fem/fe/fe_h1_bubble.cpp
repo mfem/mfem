@@ -921,7 +921,8 @@ void H1Bubble_HexahedronElement::CalcDShape(const IntegrationPoint &ip,
 #ifdef MFEM_THREAD_SAFE
    const int n1d = max(p + 1, q + 1);
    const int npq = (p+1)*(p+1)*(p+1) + (q+1)*(q+1)*(q+1);
-   Vector shape_x(n1d), shape_y(n1d), dshape_x(n1d), dshape_y(n1d);
+   Vector shape_x(n1d), shape_y(n1d), shape_z(n1d), dshape_x(n1d),
+          dshape_y(n1d), dshape_z(n1d);
    DenseMatrix du(npq, dim);
 #endif
 

@@ -332,6 +332,7 @@ class H1Bubble_FECollection : public FiniteElementCollection
 protected:
    int dim;
    int b_type;
+   int h1_order;
    int bubble_order;
 
    char fec_name[32];
