@@ -13,6 +13,7 @@
 #define MFEM_FESPACE
 
 #include "../config/config.hpp"
+#include "../linalg/ordering.hpp"
 #include "../linalg/sparsemat.hpp"
 #include "../mesh/mesh.hpp"
 #include "fe_coll.hpp"
@@ -23,29 +24,6 @@
 
 namespace mfem
 {
-
-/** @brief The ordering method used when the number of unknowns per mesh node
-    (vector dimension) is bigger than 1. */
-class Ordering
-{
-public:
-   /// %Ordering methods:
-   enum Type
-   {
-      byNODES, /**< loop first over the nodes (inner loop) then over the vector
-                    dimension (outer loop); symbolically it can be represented
-                    as: XXX...,YYY...,ZZZ... */
-      byVDIM   /**< loop first over the vector dimension (inner loop) then over
-                    the nodes (outer loop); symbolically it can be represented
-                    as: XYZ,XYZ,XYZ,... */
-   };
-
-   template <Type Ord>
-   static inline int Map(int ndofs, int vdim, int dof, int vd);
-
-   template <Type Ord>
-   static void DofsToVDofs(int ndofs, int vdim, Array<int> &dofs);
-};
 
 /// @brief Type describing possible layouts for Q-vectors.
 /// @sa QuadratureInterpolator and FaceQuadratureInterpolator.
@@ -63,20 +41,6 @@ enum class QVectorLayout
        - vector RT/ND spaces, values: SDIM x NQPT x NE (vdim = 1). */
    byVDIM
 };
-
-template <> inline int
-Ordering::Map<Ordering::byNODES>(int ndofs, int vdim, int dof, int vd)
-{
-   MFEM_ASSERT(dof < ndofs && -1-dof < ndofs && 0 <= vd && vd < vdim, "");
-   return (dof >= 0) ? dof+ndofs*vd : dof-ndofs*vd;
-}
-
-template <> inline int
-Ordering::Map<Ordering::byVDIM>(int ndofs, int vdim, int dof, int vd)
-{
-   MFEM_ASSERT(dof < ndofs && -1-dof < ndofs && 0 <= vd && vd < vdim, "");
-   return (dof >= 0) ? vd+vdim*dof : -1-(vd+vdim*(-1-dof));
-}
 
 /// Constants describing the possible orderings of the DOFs in one element.
 enum class ElementDofOrdering
@@ -799,7 +763,10 @@ public:
        @note The returned pointer is shared. A good practice, before using it,
        is to set all its properties to their expected values, as other parts of
        the code may also change them. That is, it's good to call
-       SetOutputLayout() and DisableTensorProducts() before interpolating. */
+       SetOutputLayout() and DisableTensorProducts() before interpolating.
+
+       @note If the space is not supported by QuadratureInterpolator, nullptr is
+       returned. */
    const QuadratureInterpolator *GetQuadratureInterpolator(
       const IntegrationRule &ir) const;
 
@@ -815,7 +782,10 @@ public:
        @note The returned pointer is shared. A good practice, before using it,
        is to set all its properties to their expected values, as other parts of
        the code may also change them. That is, it's good to call
-       SetOutputLayout() and DisableTensorProducts() before interpolating. */
+       SetOutputLayout() and DisableTensorProducts() before interpolating.
+
+       @note If the space is not supported by QuadratureInterpolator, nullptr is
+       returned. */
    const QuadratureInterpolator *GetQuadratureInterpolator(
       const QuadratureSpace &qs) const;
 
@@ -825,7 +795,10 @@ public:
        @note The returned pointer is shared. A good practice, before using it,
        is to set all its properties to their expected values, as other parts of
        the code may also change them. That is, it's good to call
-       SetOutputLayout() and DisableTensorProducts() before interpolating. */
+       SetOutputLayout() and DisableTensorProducts() before interpolating.
+
+       @note If the space is not supported by FaceQuadratureInterpolator,
+       nullptr is returned. */
    const FaceQuadratureInterpolator *GetFaceQuadratureInterpolator(
       const IntegrationRule &ir, FaceType type) const;
 
