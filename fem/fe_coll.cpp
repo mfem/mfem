@@ -2132,19 +2132,21 @@ H1_FECollection::~H1_FECollection()
    }
 }
 
-static int GetBubbleOrder(int q, int dim)
+static int GetBubbleSpaceOrder(int p, int q, int dim)
 {
    switch (dim)
    {
-      case 2: return 3;
-      case 3: return 4;
+      case 0: return 0;
+      case 1: return std::max(p, q + 2);
+      case 2: return std::max(p, q + 3);
+      case 3: return std::max(p, q + 4);
    }
-   return 0;
+   MFEM_ABORT("Unsupported dimension.");
 }
 
 H1Bubble_FECollection::H1Bubble_FECollection(const int p, const int q,
                                              const int dim, const int btype)
-   : FiniteElementCollection(max(p, GetBubbleOrder(q, dim))),
+   : FiniteElementCollection(GetBubbleSpaceOrder(p, q, dim)),
      dim(dim),
      b_type(BasisType::Check(btype)),
      bubble_order(q)

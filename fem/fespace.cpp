@@ -3843,14 +3843,17 @@ const FiniteElement *FiniteElementSpace::GetFE(int i) const
    else
    {
 #ifdef MFEM_DEBUG
-      // consistency check: fec->GetOrder() and FE->GetOrder() should return
-      // the same value (for standard, constant-order spaces)
-      // if (!IsVariableOrder() && FE->GetDim() > 0)
-      // {
-      //    MFEM_ASSERT(FE->GetOrder() == fec->GetOrder(),
-      //                "internal error: " <<
-      //                FE->GetOrder() << " != " << fec->GetOrder());
-      // }
+      // Consistency check: fec->GetOrder() and FE->GetOrder() should return
+      // the same value (for standard, constant-order spaces). Skip this check
+      // even for constant-order bubble spaces, since the bubble functions on
+      // different geometries have different orders.
+      if (!IsVariableOrder() && FE->GetDim() > 0 &&
+          dynamic_cast<const H1Bubble_FECollection*>(fec) == nullptr)
+      {
+         MFEM_ASSERT(FE->GetOrder() == fec->GetOrder(),
+                     "internal error: " <<
+                     FE->GetOrder() << " != " << fec->GetOrder());
+      }
 #endif
    }
 
