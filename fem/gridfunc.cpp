@@ -1781,6 +1781,17 @@ void GridFunction::GetElementDofValues(int el, Vector &dof_vals) const
    doftrans.InvTransformPrimal(dof_vals);
 }
 
+void GridFunction::SetElementDofValues(int el, Vector &dof_vals)
+{
+   Array<int> dof_idx;
+   DofTransformation * doftrans = fes->GetElementVDofs(el, dof_idx);
+   if (doftrans)
+   {
+      doftrans->TransformPrimal(dof_vals);
+   }
+   SetSubVector(dof_idx, dof_vals);
+}
+
 void GridFunction::ProjectGridFunction(const GridFunction &src)
 {
    Mesh *mesh = fes->GetMesh();
