@@ -970,6 +970,7 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/examples/pumi \
                          @MFEM_SOURCE_DIR@/examples/sundials \
                          @MFEM_SOURCE_DIR@/examples/superlu \
+                         @MFEM_SOURCE_DIR@/examples/cudss \
                          @MFEM_SOURCE_DIR@/miniapps/adjoint \
                          @MFEM_SOURCE_DIR@/miniapps/autodiff \
                          @MFEM_SOURCE_DIR@/miniapps/common \
