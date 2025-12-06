@@ -179,15 +179,22 @@ public:
    {
       real_t ddt = dt-dt_;
 
+      // syncronize ddt across all processes
+      MPI_Comm comm = M.GetComm();
+      int myrank;
+      MPI_Comm_rank(comm, &myrank);
+      MPI_Broadcast(&ddt, 1, MPI_DOUBLE, 0, comm);
+
       real_t epsilon;
       epsilon = std::numeric_limits<real_t>::epsilon();
+      // allow for some tolerance in the time stepping process
       epsilon*=10;
 
       if (fabs(ddt) > epsilon)
       {
          delete A;
          dt = dt_;
-         // // Form operator A = M + dt*S
+         // Form operator A = M + dt*S
          A = Add(dt, S, 1.0, M);
          linear_solver.SetOperator(*A);
       }
@@ -609,6 +616,8 @@ int main(int argc, char *argv[])
       ti++;
 
       done = (t >= t_final - 1e-8*dt);
+      // syncronize done across all processes
+      MPI_Broadcast(&done, 1, MPI_CXX_BOOL, 0, MPI_COMM_WORLD);
 
       if (done || ti % vis_steps == 0)
       {
