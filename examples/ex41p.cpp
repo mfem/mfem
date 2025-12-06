@@ -192,6 +192,12 @@ public:
 
       if (fabs(ddt) > epsilon)
       {
+         if (0==myrank)
+         {
+            cout << "Updating Implicit_Solver time step from " << dt
+                 << " to " << dt_ << endl;
+         }
+
          delete A;
          dt = dt_;
          // Form operator A = M + dt*S
