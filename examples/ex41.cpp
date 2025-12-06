@@ -177,7 +177,21 @@ public:
 
    void SetTimeStep(real_t dt_)
    {
-      if (dt_ != dt)
+      real_t ddt = dt-dt_;
+
+      real_t epsilon;
+      #if defined(MFEM_USE_DOUBLE)  
+         epsilon = std::numeric_limits<double>::epsilon();
+         epsilon*=10;
+      #elif defined(MFEM_USE_SINGLE)
+         epsilon = std::numeric_limits<float>::epsilon();
+         epsilon*=10;      
+      #else
+      #error "Only single and double precision are supported!"
+         epsilon = std::numeric_limits<float>::epsilon();  
+      #endif
+
+      if (std::abs(ddt) > epsilon)
       {
          dt = dt_;
          // Form operator A = M + dt*S
