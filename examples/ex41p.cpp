@@ -183,7 +183,7 @@ public:
       MPI_Comm comm = M.GetComm();
       int myrank;
       MPI_Comm_rank(comm, &myrank);
-      MPI_Broadcast(&ddt, 1, MPI_DOUBLE, 0, comm);
+      MPI_Bcast(&ddt, 1, MPI_DOUBLE, 0, comm);
 
       real_t epsilon;
       epsilon = std::numeric_limits<real_t>::epsilon();
@@ -623,7 +623,7 @@ int main(int argc, char *argv[])
 
       done = (t >= t_final - 1e-8*dt);
       // syncronize done across all processes
-      MPI_Broadcast(&done, 1, MPI_CXX_BOOL, 0, MPI_COMM_WORLD);
+      MPI_Bcast(&done, 1, MPI_CXX_BOOL, 0, MPI_COMM_WORLD);
 
       if (done || ti % vis_steps == 0)
       {
