@@ -73,6 +73,7 @@ set(SRCS
   fe/fe_base.cpp
   fe/fe_fixed_order.cpp
   fe/fe_h1.cpp
+  fe/fe_h1_bubble.cpp
   fe/fe_l2.cpp
   fe/fe_nd.cpp
   fe/fe_nurbs.cpp
@@ -133,7 +134,7 @@ set(SRCS
   tmop/assemble/diag2.cpp
   tmop/assemble/grad2_limit.cpp
   tmop/assemble/grad2.cpp
-  tmop/assemble/diag3_limit.cpp  
+  tmop/assemble/diag3_limit.cpp
   tmop/assemble/diag3.cpp
   tmop/assemble/grad3_limit.cpp
   tmop/assemble/grad3.cpp
@@ -221,6 +222,7 @@ set(HDRS
   fe/fe_base.hpp
   fe/fe_fixed_order.hpp
   fe/fe_h1.hpp
+  fe/fe_h1_bubble.hpp
   fe/fe_l2.hpp
   fe/fe_nd.hpp
   fe/fe_nurbs.hpp
