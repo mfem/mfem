@@ -334,7 +334,6 @@ miniapps/nurbs/Naca_cmesh
 miniapps/nurbs/*-Surface.mesh
 miniapps/nurbs/nurbs_ex25p.*
 miniapps/nurbs/nurbs_ex25p-*
-miniapps/nurbs/nurbs_ex25p_ParaView/
 
 miniapps/performance/ex1
 miniapps/performance/ex1p

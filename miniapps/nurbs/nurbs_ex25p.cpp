@@ -406,10 +406,10 @@ int main(int argc, char *argv[])
    ParaViewDataCollection *pd = NULL;
    if (myid == 0)
    {
-      cout << " Saving ParaView output to: nurbs_ex25p_ParaView" << endl;
+      cout << " Saving ParaView output to: ParaView" << endl;
    }
    pd = new ParaViewDataCollection("nurbs_ex25p", pmesh);
-   pd->SetPrefixPath("./nurbs_ex25p_ParaView");
+   pd->SetPrefixPath("./ParaView");
    pd->RegisterField("solution_real", &(x.real()));
    pd->RegisterField("solution_imag", &(x.imag()));
    pd->SetLevelsOfDetail(order);
