@@ -622,8 +622,6 @@ int main(int argc, char *argv[])
       ti++;
 
       done = (t >= t_final - 1e-8*dt);
-      // syncronize done across all processes
-      MPI_Bcast(&done, 1, MFEM_MPI_CXX_BOOL, 0, MPI_COMM_WORLD);
 
       if (done || ti % vis_steps == 0)
       {
