@@ -385,6 +385,9 @@ int main (int argc, char *argv[])
    ParGridFunction x(pfespace);
    pmesh->SetNodalGridFunction(&x);
 
+   auto detgf = pmesh->GetJacobianDeterminantGF();
+
+
    // We create an H1 space for the mesh displacement. The displacement is
    // always in a continuous space, even if the mesh is periodic.
    // The nonlinear problem will be solved for the continuous displacement.
@@ -468,6 +471,7 @@ int main (int argc, char *argv[])
          common::VisualizeMesh(vis1, "localhost", 19916, *pmesh, "Perturbed",
                                300, 600, 300, 300);
       }
+      pmesh->UpdateJacobianDeterminantGF(detgf.get());
    }
 
    // Save the starting (prior to the optimization) mesh to a file. This

@@ -204,6 +204,9 @@ protected:
    // These fields are relevant for mixed meshes.
    IntegrationRules *IntegRules;
    int integ_order;
+   // Bounding determinant grid function
+   bool detj_bound = false;
+   GridFunction *detgf = nullptr; 
 
    MemoryType temp_mt = MemoryType::DEFAULT;
 

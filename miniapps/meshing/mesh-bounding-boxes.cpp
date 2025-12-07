@@ -41,7 +41,7 @@ using namespace mfem;
 using namespace std;
 
 Mesh MakeBoundingBoxMesh(Mesh &mesh, GridFunction &nodal_bb_gf);
-void GetDeterminantJacobianGF(ParMesh *mesh, ParGridFunction *detgf);
+void GetJacobianDeterminantGF(ParMesh *mesh, ParGridFunction *detgf);
 void VisualizeBB(Mesh &mesh, char *title, int pos_x, int pos_y);
 void VisualizeField(ParMesh &pmesh, ParGridFunction &input,
                     char *title, int pos_x, int pos_y);
@@ -154,7 +154,7 @@ int main (int argc, char *argv[])
    L2_FECollection fec_det(det_order, rdim, BasisType::GaussLobatto);
    ParFiniteElementSpace fespace_det(&pmesh, &fec_det);
    ParGridFunction detgf(&fespace_det);
-   GetDeterminantJacobianGF(&pmesh, &detgf);
+   GetJacobianDeterminantGF(&pmesh, &detgf);
 
    // Setup piecewise constant gridfunction to save bounds on the determinant
    // of the Jacobian
@@ -312,7 +312,7 @@ IntegrationRule PermuteIR(const IntegrationRule &irule,
    return ir;
 }
 
-void GetDeterminantJacobianGF(ParMesh *mesh, ParGridFunction *detgf)
+void GetJacobianDeterminantGF(ParMesh *mesh, ParGridFunction *detgf)
 {
    int dim = mesh->Dimension();
    FiniteElementSpace *fespace = detgf->FESpace();

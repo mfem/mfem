@@ -6795,7 +6795,7 @@ const FiniteElementSpace *Mesh::GetNodalFESpace() const
 {
    return ((Nodes) ? Nodes->FESpace() : NULL);
 }
-
+ 
 void Mesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
 {
    if (order <= 0)
@@ -6841,6 +6841,64 @@ void Mesh::SetVerticesFromNodes(const GridFunction *nodes)
          vertices[j](i) = vert_val(j);
       }
    }
+}
+
+void Mesh::UpdateJacobianDeterminantGF(GridFunction *detgf)
+{
+   const FiniteElementSpace *fespace_det = detgf->FESpace();
+   int det_order = fespace_det->GetMaxElementOrder();
+   Array<int> dofs;
+   for (int e = 0; e < GetNE(); e++)
+   {
+      const FiniteElement *fe = fespace_det->GetFE(e);
+      const IntegrationRule ir = fe->GetNodes();
+      ElementTransformation *transf = GetElementTransformation(e);
+      DenseMatrix Jac(spaceDim, Dim);
+      const NodalFiniteElement *nfe = dynamic_cast<const NodalFiniteElement*>
+                                      (fe);
+      MFEM_VERIFY(nfe != nullptr, "Expected nodal finite element.");
+      const Array<int> &irordering = nfe->GetLexicographicOrdering();
+      IntegrationRule ir2 = irordering.Size() ?
+                            ir.Permute(irordering) :
+                            ir;
+
+      Vector detvals(ir2.GetNPoints());
+      for (int q = 0; q < ir2.GetNPoints(); q++)
+      {
+         IntegrationPoint ip = ir2.IntPoint(q);
+         transf->SetIntPoint(&ip);
+         Jac = transf->Jacobian();
+         detvals(q) = Jac.Weight();
+      }
+
+      fespace_det->GetElementDofs(e, dofs);
+      if (irordering.Size())
+      {
+         for (int i = 0; i < dofs.Size(); i++)
+         {
+            (*detgf)(dofs[irordering[i]]) = detvals(i);
+         }
+      }
+      else
+      {
+         detgf->SetSubVector(dofs, detvals);
+      }
+   }
+}
+
+std::unique_ptr<GridFunction> Mesh::GetJacobianDeterminantGF()
+{
+   int mesh_poly_deg = Nodes != NULL ? Nodes->FESpace()->GetMaxElementOrder() : 1; 
+   // determinant order is d*p-1 for tensor product elements and 
+   // d*(p-1) for simplices. We use the former here for simplicity.
+   int det_order = Dim*mesh_poly_deg-1;
+   L2_FECollection *fec_det = new L2_FECollection(det_order, Dim,
+                                                  BasisType::GaussLobatto);
+   FiniteElementSpace *fespace_det = new FiniteElementSpace(this, fec_det);
+   auto detgf = std::make_unique<GridFunction>(fespace_det);
+   detgf->MakeOwner(fec_det);
+   UpdateJacobianDeterminantGF(detgf.get());
+   return detgf;
 }
 
 int Mesh::GetNumFaces() const
