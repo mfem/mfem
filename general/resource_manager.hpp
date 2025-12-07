@@ -306,9 +306,13 @@ private:
 
    /// Host and device allocator names for Umpire.
 #ifdef MFEM_USE_UMPIRE
-   static const char *h_umpire_name;
-   static const char *d_umpire_name;
-   static const char *d_umpire_2_name;
+   std::string h_umpire_name = "MFEM_HOST";
+   std::string d_umpire_name = "MFEM_DEVICE";
+   std::string d_umpire_2_name = "MFEM_DEVICE_2";
+
+   void SetUmpireHostAllocatorName_(const char *h_name);
+   void SetUmpireDeviceAllocatorName_(const char *d_name);
+   void SetUmpireDevice2AllocatorName_(const char *d_name);
 #endif
 
 public:
@@ -356,29 +360,35 @@ public:
    /// Set the host Umpire allocator name used with MemoryType::HOST_UMPIRE
    static void SetUmpireHostAllocatorName(const char *h_name)
    {
-      h_umpire_name = h_name;
+      instance().SetUmpireHostAllocatorName_(h_name);
    }
    /// Set the device Umpire allocator name used with MemoryType::DEVICE_UMPIRE
    static void SetUmpireDeviceAllocatorName(const char *d_name)
    {
-      d_umpire_name = d_name;
+      instance().SetUmpireDeviceAllocatorName_(d_name);
    }
    /// Set the device Umpire allocator name used with
    /// MemoryType::DEVICE_UMPIRE_2
    static void SetUmpireDevice2AllocatorName(const char *d_name)
    {
-      d_umpire_2_name = d_name;
+      instance().SetUmpireDevice2AllocatorName_(d_name);
    }
 
    /// Get the host Umpire allocator name used with MemoryType::HOST_UMPIRE
-   static const char *GetUmpireHostAllocatorName() { return h_umpire_name; }
+   static const char *GetUmpireHostAllocatorName()
+   {
+      return instance().h_umpire_name.c_str();
+   }
    /// Get the device Umpire allocator name used with MemoryType::DEVICE_UMPIRE
-   static const char *GetUmpireDeviceAllocatorName() { return d_umpire_name; }
+   static const char *GetUmpireDeviceAllocatorName()
+   {
+      return instance().d_umpire_name.c_str();
+   }
    /// Get the device Umpire allocator name used with
    /// MemoryType::DEVICE_UMPIRE_2
    static const char *GetUmpireDevice2AllocatorName()
    {
-      return d_umpire_2_name;
+      return instance().d_umpire_2_name.c_str();
    }
 #endif
 };

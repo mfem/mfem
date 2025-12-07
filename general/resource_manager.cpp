@@ -434,14 +434,6 @@ MemoryManager::MemoryManager()
    allocs[static_cast<int>(MemoryType::DEVICE_DEBUG) + MemoryTypeSize] =
       allocs_storage[1].get();
 
-#ifdef MFEM_USE_UMPIRE
-   allocs_storage[10].reset(new UmpireHostAllocator(h_umpire_name, "HOST"));
-   allocs[static_cast<int>(MemoryType::HOST_UMPIRE)] = allocs_storage[10].get();
-   // TODO: temp host? for now, fallback to TempAllocator<StdAllocator>
-   allocs[static_cast<int>(MemoryType::HOST_UMPIRE) + MemoryTypeSize] =
-      allocs_storage[1].get();
-#endif
-
 #if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
    allocs_storage[4].reset(new HostPinnedAllocator);
    allocs_storage[5].reset(new TempAllocator<HostPinnedAllocator, true>);
@@ -461,21 +453,6 @@ MemoryManager::MemoryManager()
    allocs[static_cast<int>(MemoryType::DEVICE) + MemoryTypeSize] =
       allocs_storage[9].get();
 
-#ifdef MFEM_USE_UMPIRE
-   allocs_storage[11].reset(new UmpireAllocator(d_umpire_name, "DEVICE"));
-   allocs_storage[12].reset(new UmpireAllocator(d_umpire_2_name, "DEVICE"));
-   allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE)] = allocs_storage[11].get();
-   allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE_2)] =
-      allocs_storage[12].get();
-   // TODO: temp?
-   // treat UMPIRE_2 as the temporary space for UMPIRE and UMPIRE_2
-   allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE) + MemoryTypeSize] =
-      allocs_storage[12].get();
-   allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE_2) + MemoryTypeSize] =
-      allocs_storage[12].get();
-   // TODO: managed/host-pinned umpire pools?
-#endif
-
 #else
    allocs[static_cast<int>(MemoryType::HOST_PINNED)] = allocs_storage[0].get();
    allocs[static_cast<int>(MemoryType::HOST_PINNED) + MemoryTypeSize] =
@@ -488,6 +465,28 @@ MemoryManager::MemoryManager()
    allocs[static_cast<int>(MemoryType::DEVICE)] = allocs_storage[0].get();
    allocs[static_cast<int>(MemoryType::DEVICE) + MemoryTypeSize] =
       allocs_storage[1].get();
+#endif
+
+#ifdef MFEM_USE_UMPIRE
+   // default umpire allocators to internal ones until later so users can set
+   // the pool names
+   allocs[static_cast<int>(MemoryType::HOST_UMPIRE)] = nullptr;
+   //      allocs[static_cast<int>(MemoryType::HOST)];
+   allocs[static_cast<int>(MemoryType::HOST_UMPIRE) + MemoryTypeSize] = nullptr;
+   //      allocs[static_cast<int>(MemoryType::HOST) + MemoryTypeSize];
+
+   allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE)] = nullptr;
+   //      allocs[static_cast<int>(MemoryType::DEVICE)];
+   allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE) + MemoryTypeSize] =
+      nullptr;
+   //      allocs[static_cast<int>(MemoryType::DEVICE) + MemoryTypeSize];
+
+   allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE_2)] = nullptr;
+   //      allocs[static_cast<int>(MemoryType::DEVICE) + MemoryTypeSize];
+   allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE_2) + MemoryTypeSize] =
+      nullptr;
+   //      allocs[static_cast<int>(MemoryType::DEVICE) + MemoryTypeSize];
+   // TODO: managed/host-pinned umpire pools?
 #endif
 }
 
@@ -556,6 +555,44 @@ void MemoryManager::Configure(MemoryType host_loc, MemoryType device_loc,
    memory_types[1] = device_loc;
    memory_types[2] = hostpinned_loc;
    memory_types[3] = managed_loc;
+   if (host_loc == MemoryType::HOST_UMPIRE)
+   {
+#ifdef MFEM_USE_UMPIRE
+      if (!allocs_storage[10])
+      {
+         allocs_storage[10].reset(
+            new UmpireAllocator(h_umpire_name.c_str(), "HOST"));
+      }
+      allocs[static_cast<int>(MemoryType::HOST_UMPIRE)] =
+         allocs_storage[10].get();
+      // TODO: temporary host umpire pool?
+   }
+   if (device_loc == MemoryType::DEVICE_UMPIRE ||
+       device_loc == MemoryType::DEVICE_UMPIRE_2)
+   {
+      if (!allocs_storage[11])
+      {
+         allocs_storage[11].reset(
+            new UmpireAllocator(d_umpire_name.c_str(), "DEVICE"));
+      }
+      if (!allocs_storage[12])
+      {
+         allocs_storage[12].reset(
+            new UmpireAllocator(d_umpire_2_name.c_str(), "DEVICE"));
+      }
+      allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE)] =
+         allocs_storage[11].get();
+      // DEVICE_UMPIRE_2 is the temp pool
+      allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE) + MemoryTypeSize] =
+         allocs_storage[12].get();
+
+      allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE_2)] =
+         allocs_storage[12].get();
+      allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE_2) + MemoryTypeSize] =
+         allocs_storage[12].get();
+      // TODO: Umpire HostPinned and Managed pools?
+   }
+#endif
 
    UpdateDualMemoryType(host_loc, device_loc);
    UpdateDualMemoryType(device_loc, host_loc);
@@ -606,6 +643,8 @@ void MemoryManager::Destroy()
                   [[fallthrough]];
                case MemoryType::DEVICE:
                   [[fallthrough]];
+               case MemoryType::HOST_UMPIRE:
+                  [[fallthrough]];
                case MemoryType::DEVICE_UMPIRE:
                   [[fallthrough]];
                case MemoryType::DEVICE_UMPIRE_2:
@@ -640,6 +679,20 @@ void MemoryManager::Destroy()
    allocs_storage[7]->Clear();
    // DEVICE
    allocs_storage[9]->Clear();
+#ifdef MFEM_USE_UMPIRE
+   // make sure umpire allocators are destroyed
+   allocs_storage[10].reset();
+   allocs_storage[11].reset();
+   allocs_storage[12].reset();
+   allocs[static_cast<int>(MemoryType::HOST_UMPIRE)] = nullptr;
+   allocs[static_cast<int>(MemoryType::HOST_UMPIRE) + MemoryTypeSize] = nullptr;
+   allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE)] = nullptr;
+   allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE) + MemoryTypeSize] =
+      nullptr;
+   allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE_2)] = nullptr;
+   allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE_2) + MemoryTypeSize] =
+      nullptr;
+#endif
 #endif
 }
 
@@ -2329,6 +2382,32 @@ void MemoryManager::SetValidity(size_t segment, bool host_valid,
    }
 }
 
+#ifdef MFEM_USE_UMPIRE
+void MemoryManager::SetUmpireHostAllocatorName_(const char *h_name)
+{
+   MFEM_ASSERT(
+      !allocs_storage[10],
+      "Umpire Host Allocator has already been created and cannot be change");
+   h_umpire_name = h_name;
+}
+
+void MemoryManager::SetUmpireDeviceAllocatorName_(const char *d_name)
+{
+   MFEM_ASSERT(
+      !allocs_storage[11],
+      "Umpire Device Allocator has already been created and cannot be change");
+   d_umpire_name = d_name;
+}
+
+void MemoryManager::SetUmpireDevice2AllocatorName_(const char *d_name)
+{
+   MFEM_ASSERT(
+      !allocs_storage[12],
+      "Umpire Device 2 Allocator has already been created and cannot be change");
+   d_umpire_2_name = d_name;
+}
+#endif
+
 void MemoryManager::SetDualMemoryType(MemoryType mt, MemoryType dual_mt)
 {
    auto &inst = instance();
@@ -2366,19 +2445,13 @@ MemoryType MemoryManager::dual_map[MemoryTypeSize] =
    /* HOST_64         */  MemoryType::DEVICE,
    /* HOST_DEBUG      */  MemoryType::DEVICE_DEBUG,
    /* HOST_UMPIRE     */  MemoryType::DEVICE_UMPIRE,
-   /* HOST_PINNED     */  MemoryType::DEVICE,
+   /* HOST_PINNED     */  MemoryType::HOST_PINNED,
    /* MANAGED         */  MemoryType::MANAGED,
    /* DEVICE          */  MemoryType::HOST,
    /* DEVICE_DEBUG    */  MemoryType::HOST_DEBUG,
    /* DEVICE_UMPIRE   */  MemoryType::HOST_UMPIRE,
    /* DEVICE_UMPIRE_2 */  MemoryType::HOST_UMPIRE
 };
-
-#ifdef MFEM_USE_UMPIRE
-const char *MemoryManager::h_umpire_name = "MFEM_HOST";
-const char *MemoryManager::d_umpire_name = "MFEM_DEVICE";
-const char *MemoryManager::d_umpire_2_name = "MFEM_DEVICE_2";
-#endif
 
 } // namespace mfem
 
