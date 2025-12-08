@@ -358,15 +358,17 @@ void Device::UpdateMemoryTypeAndClass(const std::string &device_option)
 {
    const bool debug = Device::Allows(Backend::DEBUG_DEVICE);
    const bool device = Device::Allows(Backend::DEVICE_MASK);
+   bool use_umpire = false;
 
 #ifdef MFEM_USE_UMPIRE
    // If MFEM has been compiled with Umpire support, use it as the default
    if (!mem_host_env && !mem_types_set)
    {
-      host_mem_type = MemoryType::HOST_UMPIRE;
+      host_mem_type = MemoryType::HOST;
+      use_umpire = true;
       if (!mem_device_env)
       {
-         device_mem_type = MemoryType::HOST_UMPIRE;
+         device_mem_type = MemoryType::HOST;
       }
    }
 #endif
@@ -387,7 +389,14 @@ void Device::UpdateMemoryTypeAndClass(const std::string &device_option)
                   device_mem_type = MemoryType::DEVICE_DEBUG;
                   break;
                default:
-                  device_mem_type = MemoryType::DEVICE;
+                  if (use_umpire)
+                  {
+                     device_mem_type = MemoryType::DEVICE_UMPIRE;
+                  }
+                  else
+                  {
+                     device_mem_type = MemoryType::DEVICE;
+                  }
             }
          }
          else if (!mem_types_set)
