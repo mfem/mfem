@@ -555,9 +555,9 @@ void MemoryManager::Configure(MemoryType host_loc, MemoryType device_loc,
    memory_types[1] = device_loc;
    memory_types[2] = hostpinned_loc;
    memory_types[3] = managed_loc;
+#ifdef MFEM_USE_UMPIRE
    if (host_loc == MemoryType::HOST_UMPIRE)
    {
-#ifdef MFEM_USE_UMPIRE
       if (!allocs_storage[10])
       {
          allocs_storage[10].reset(
