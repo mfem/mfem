@@ -142,8 +142,9 @@ The MFEM source code has the following structure:
   │   ├── dfem
   │   ├── dpg
   │   ├── electromagnetics
-  │   ├── fluids/navier
-  │   ├── fluids/schrodinger-flow
+  │   ├── fluids
+  │   │   ├── navier
+  │   │   └── schrodinger-flow
   │   ├── gslib
   │   ├── hdiv-linear-solver
   │   ├── hooke
