@@ -144,6 +144,8 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = 1;
    real_t freq = 5.0;
+   bool use_ams =
+      true;  // Use AMS preconditioner by default (more efficient for HCurl)
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -156,6 +158,9 @@ int main(int argc, char *argv[])
                   "NURBS.");
    args.AddOption(&freq, "-f", "--frequency", "Set the frequency for the exact"
                   " solution.");
+   args.AddOption(&use_ams, "-ams", "--ams-preconditioner", "-amg",
+                  "--amg-preconditioner",
+                  "Use AMS preconditioner (true) or block diagonal AMG (false).");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -339,7 +344,7 @@ int main(int argc, char *argv[])
    prec.Assemble();
 
    // 11. Define and apply a GMRES solver for AU=B with a block diagonal
-   //     preconditioner based on the Gauss-Seidel or Jacobi sparse smoother.
+   //     preconditioner. Choose between AMS (for HCurl) or AMG (general purpose).
    Array<int> offsets(3);
    offsets[0] = 0;
    offsets[1] = fespace->GetTrueVSize();
@@ -348,16 +353,35 @@ int main(int argc, char *argv[])
 
    std::unique_ptr<Operator> pc_r;
    std::unique_ptr<Operator> pc_i;
-   real_t s = (conv == ComplexOperator::HERMITIAN) ? -1_r : 1_r;
+   int s = (conv == ComplexOperator::HERMITIAN) ? -1 : 1;
 
    OperatorPtr PCOpAh;
-   prec.SetDiagonalPolicy(mfem::Operator::DIAG_ONE);
    prec.FormSystemMatrix(ess_tdof_list, PCOpAh);
 
-
-   // diagonal AMG preconditioner
-   pc_r.reset(new HypreBoomerAMG(*PCOpAh.As<HypreParMatrix>()));
-   pc_i.reset(new ScaledOperator(pc_r.get(), s));
+   if (use_ams)
+   {
+      // Use Hypre AMS preconditioner for NURBS HCurl space
+      if (myid == 0)
+      {
+         cout << "\n" << string(80, '-') << endl;
+         cout << "Using AMS preconditioner for NURBS HCurl space..." << endl;
+      }
+      pc_r.reset(new HypreAMS(*PCOpAh.As<HypreParMatrix>(), fespace));
+      pc_i.reset(new ScaledOperator(pc_r.get(), s));
+   }
+   else
+   {
+      // Use Hypre BoomerAMG preconditioner
+      if (myid == 0)
+      {
+         cout << "\n" << string(80, '-') << endl;
+         cout << "Using BoomerAMG preconditioner..." << endl;
+      }
+      HypreBoomerAMG *amg = new HypreBoomerAMG(*PCOpAh.As<HypreParMatrix>());
+      amg->SetPrintLevel(0);
+      pc_r.reset(amg);
+      pc_i.reset(new ScaledOperator(pc_r.get(), s));
+   }
 
    BlockDiagonalPreconditioner BlockDP(offsets);
    BlockDP.SetDiagonalBlock(0, pc_r.get());
@@ -380,6 +404,15 @@ int main(int argc, char *argv[])
    {
       cout << "\n Iterations: " << gmres.GetNumIterations() << "\n";
       cout << " Converged: " << gmres.GetConverged() << "\n";
+      if (use_ams)
+      {
+         cout << "\nAMS preconditioner successfully used for NURBS HCurl space!" << endl;
+      }
+      else
+      {
+         cout << "\nBoomerAMG preconditioner successfully used!" << endl;
+      }
+      cout << string(80, '-') << endl;
    }
 
    // 13. Save the refined mesh and the solution in parallel. This output can be
