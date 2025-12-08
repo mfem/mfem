@@ -33,8 +33,8 @@ cmake -S . -B build-with-proteus \
 -DCMAKE_CXX_COMPILER=amdclang++ \
 -DMFEM_USE_HIP=on \
 -DHIP_ARCH=gfx90a \
--DMFEM_USE_PROTEUS=on \
--Dproteus_DIR=<proteus-install-path>
+-DENABLE_JIT=on \
+-DPROTEUS_INSTALL_DIR=<proteus-install-path>
 
 cd build-with-proteus
 make -j

@@ -177,6 +177,7 @@ endif()
 
 # Proteus config
 if (ENABLE_JIT)
+  set(MFEM_USE_PROTEUS ON)
   if (NOT "${PROTEUS_INSTALL_DIR}" STREQUAL "")
     find_package(proteus REQUIRED PATHS "${PROTEUS_INSTALL_DIR}")
     message(STATUS "${PROTEUS_INSTALL_DIR}/include")

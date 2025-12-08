@@ -19,7 +19,22 @@
 #include "device.hpp"
 #include "mem_manager.hpp"
 #include "../linalg/dtensor.hpp"
+#ifdef MFEM_USE_PROTEUS
 #include <proteus/JitInterface.hpp>
+#define MFEM_JIT_ANNOTATE __attribute__((annotate("jit", 1)))
+#else
+// Provide no-op stubs for proteus functions when JIT is disabled
+#include <utility>
+namespace proteus
+{
+template <typename T>
+inline T&& register_lambda(T &&lambda) { return std::forward<T>(lambda); }
+
+template <typename T>
+inline T jit_variable(T val) { return val; }
+} // namespace proteus
+#define MFEM_JIT_ANNOTATE
+#endif
 #ifdef MFEM_USE_MPI
 #include <_hypre_utilities.h>
 #endif
@@ -663,7 +678,7 @@ struct CuWrap<3>
 #if defined(MFEM_USE_HIP) && defined(__HIP__)
 
 template <typename BODY> __global__ static
-__attribute__((annotate("jit", 1)))
+MFEM_JIT_ANNOTATE
 void HipKernel1D(const int N, BODY body)
 {
    const int k = hipBlockDim_x*hipBlockIdx_x + hipThreadIdx_x;
@@ -672,7 +687,7 @@ void HipKernel1D(const int N, BODY body)
 }
 
 template <typename BODY> __global__ static
-__attribute__((annotate("jit", 1)))
+MFEM_JIT_ANNOTATE
 void HipKernel2D(const int N, BODY body)
 {
    const int k = hipBlockIdx_x*hipBlockDim_z + hipThreadIdx_z;
@@ -681,7 +696,7 @@ void HipKernel2D(const int N, BODY body)
 }
 
 template <typename BODY> __global__ static
-__attribute__((annotate("jit", 1)))
+MFEM_JIT_ANNOTATE
 void HipKernel3D(const int N, BODY body)
 {
    for (int k = hipBlockIdx_x; k < N; k += hipGridDim_x) { body(k); }
