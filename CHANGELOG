@@ -15,6 +15,10 @@ Starting with this version, MFEM requires a C++17 compiler.
 
 Discretization improvements
 ---------------------------
+- Introduced IMEX ODE solvers based on a split-operator framework. Added 
+  examples ex41 and ex41p demonstrating IMEX DG/CG discretizations of the 
+  convection–diffusion equation, with ex41p using DG LOR preconditioning.
+
 - Introduced dFEM: a new MFEM capability for Automatic Differentiation (AD) of
   nonlinear finite element operators, based on Enzyme or dual numbers AD at
   quadrature points. These features are part of the new mfem::future namespace
@@ -41,6 +45,12 @@ Discretization improvements
 
 - Added support for interior face integration enabling DG methods in
   ParMixedBilinearForm, ParNonlinearForm and ParBlockNonlinearForm.
+
+- Introduced ParticleSet, a class for managing and storing particle data
+  in a Struct-of-Arrays form, carrying particle coordinates and IDs along with
+  an arbitrary number of Vector and integer data for each particle.
+
+- Introduced Particle, a convenient interface for individual particle data.
 
 Meshing improvements
 --------------------
@@ -113,8 +123,36 @@ New and updated examples and miniapps
   of a charged particle, subject to Lorentz forces, in electrostatic and/or
   magnetostatic fields as computed by the volta or tesla miniapps.
 
+- Added a new miniapp for optimization-based contact mechanics. This miniapp solves
+  large-scale frictionless contact problems using a self-contained Interior Point (IP) solver,
+  with Tribol integration for mortar-based contact constraints. Linear systems arising in the IP
+  iterations are solved with CG preconditioned by the recently introduced AMGF solver.
+  Benchmark examples include the two-block, ironing, and beam-sphere problems.
+  The miniapp is available in `miniapps/contact`
+
+- Introduced the new Incompressible Schrödinger Flow (ISF) miniapp, which
+  models inviscid fluid dynamics by solving the linear Schrödinger equation,
+  leveraging the hydrodynamical analogy to quantum mechanics.
+
+- Added the miniapps/fluids directory and moved the Navier and Incompressible
+  Schrödinger Flow miniapps into it.
+
 - Updated the mtop miniapp with a GPU enabled forward and adjoint solver for
   isotropic linear elasticity.
+
+- Added new particle visualization features (common/particles_extras) for
+  viewing particle locations and trajectories (ParticleTrajectories) using
+  GLVis.
+
+- Added a new miniapp miniapps/gslib/particles_redist that demonstrates
+  parallel-redistribution of particle data amongst MPI ranks.
+
+- Added a new transient Navier-Stokes fluid-particles solver NavierParticles,
+  miniapps/fluids/navier/navier_particles, for modeling tracer particles in
+  fluid flow, demonstrating use of the new ParticleSet class.
+
+- Added a new miniapp miniapps/fluids/navier/navier_bifurcation demonstrating
+  the use of NavierParticles in a 2D bifurcating channel flow.
 
 API changes
 -----------
