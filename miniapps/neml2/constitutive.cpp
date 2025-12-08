@@ -37,14 +37,8 @@ static void neml2_to_mfem_tensor(const neml2::Tensor &neml2_tensor,
   // Copy the stress data back to MFEM
   // (either a host-host or device-device copy)
   const auto &q_space = pf.GetParameterSpace();
-  auto nbyte = q_space.GetTrueVSize() * sizeof(real_t);
-  if (neml2_tensor.options().device().is_cpu())
-    std::memcpy(pf.HostWrite(), neml2_tensor.data_ptr<real_t>(), nbyte);
-  else if (neml2_tensor.options().device().is_cuda())
-    MFEM_GPU_CHECK(cudaMemcpy(pf.ReadWrite(), neml2_tensor.data_ptr<real_t>(),
-                              nbyte, cudaMemcpyDeviceToDevice));
-  else
-    MFEM_ABORT("Unsupported device backend for NEML2");
+  Vector mfem_tensor(neml2_tensor.data_ptr<real_t>(), q_space.GetTrueVSize());
+  pf = mfem_tensor;
 }
 
 ConstitutiveModel::ConstitutiveModel(std::shared_ptr<neml2::Model> cmodel)
