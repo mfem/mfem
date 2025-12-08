@@ -216,13 +216,12 @@ int main(int argc, char *argv[])
       if (trace_h1)
       {
          trace_coll = new H1_Trace_FECollection(order+1, dim);
-         trace_space = new FiniteElementSpace(&mesh, trace_coll);
       }
       else
       {
          trace_coll = new DG_Interface_FECollection(order, dim);
-         trace_space = new FiniteElementSpace(&mesh, trace_coll);
       }
+      trace_space = new FiniteElementSpace(&mesh, trace_coll);
       darcy.EnableHybridization(trace_space,
                                 new NormalTraceJumpIntegrator(),
                                 ess_flux_tdofs_list);
