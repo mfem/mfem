@@ -130,7 +130,7 @@ MINIAPP_SUBDIRS = common electromagnetics meshing performance tools \
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
 MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics meshing tools \
- toys shifted dpg diag-smoothers)
+ toys shifted dpg diag-smoothers fluids/navier)
 
 EM_DIRS = $(EXAMPLE_DIRS) $(MINIAPP_DIRS)
 
