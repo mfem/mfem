@@ -755,7 +755,7 @@ public:
       {
          return inst.storage.get_segment(segment).mtypes[0];
       }
-      return MemoryType::DEFAULT;
+      return inst.memory_types[0];
    }
 
    MemoryType GetDeviceMemoryType() const
