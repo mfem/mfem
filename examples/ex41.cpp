@@ -177,7 +177,13 @@ public:
 
    void SetTimeStep(real_t dt_)
    {
-      if (dt_ != dt)
+      real_t ddt = dt-dt_;
+
+      real_t epsilon;
+      epsilon = std::numeric_limits<real_t>::epsilon();
+      epsilon*=10;
+
+      if (std::abs(ddt) > epsilon)
       {
          dt = dt_;
          // Form operator A = M + dt*S

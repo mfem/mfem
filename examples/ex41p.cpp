@@ -177,11 +177,30 @@ public:
 
    void SetTimeStep(real_t dt_)
    {
-      if (dt_ != dt)
+      real_t ddt = dt-dt_;
+
+      // syncronize ddt across all processes
+      MPI_Comm comm = M.GetComm();
+      int myrank;
+      MPI_Comm_rank(comm, &myrank);
+      MPI_Bcast(&ddt, 1, MPI_DOUBLE, 0, comm);
+
+      real_t epsilon;
+      epsilon = std::numeric_limits<real_t>::epsilon();
+      // allow for some tolerance in the time stepping process
+      epsilon*=10;
+
+      if (fabs(ddt) > epsilon)
       {
+         if (0==myrank)
+         {
+            cout << "Updating Implicit_Solver time step from " << dt
+                 << " to " << dt_ << endl;
+         }
+
          delete A;
          dt = dt_;
-         // // Form operator A = M + dt*S
+         // Form operator A = M + dt*S
          A = Add(dt, S, 1.0, M);
          linear_solver.SetOperator(*A);
       }
