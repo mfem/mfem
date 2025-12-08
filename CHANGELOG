@@ -157,8 +157,10 @@ Miscellaneous
 - Added access to the internal parallel matrix in Par(Mixed)BilinearForm and
   related utility methods for elimination of BCs.
 
- - Introduced `MFEM_FETCH_TPLS` CMake option to enable downloading, configuring, and
-   building of TPLs alongside MFEM (currently supported TPLs are hypre, METIS, and GSLIB).
+- Introduced `MFEM_FETCH_TPLS` CMake option to enable downloading, configuring, and
+  building of TPLs alongside MFEM (currently supported TPLs are hypre, METIS, and GSLIB).
+
+- Added quadrature function support to the VisIt and Conduit data collections.
 
 Version 4.8, released on Apr 9, 2025
 ====================================
