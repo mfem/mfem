@@ -173,20 +173,14 @@ int main(int argc, char *argv[])
    //    allocated by x and rhs are passed as a reference to the grid functions
    //    (u,p) and the linear forms (fform, gform).
    MemoryType mt = device.GetMemoryType();
-   BlockVector x(block_offsets, mt), rhs(block_offsets, mt);
+   BlockVector x(block_offsets, mt);
 
-   LinearForm *fform(new LinearForm);
-   fform->Update(R_space, rhs.GetBlock(0), 0);
+   LinearForm *fform = darcy->GetFluxRHS();
    fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
    fform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(fnatcoeff));
-   fform->Assemble();
-   fform->SyncAliasMemory(rhs);
 
-   LinearForm *gform(new LinearForm);
-   gform->Update(W_space, rhs.GetBlock(1), 0);
+   LinearForm *gform = darcy->GetPotentialRHS();
    gform->AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
-   gform->Assemble();
-   gform->SyncAliasMemory(rhs);
 
    // 9. Assemble the finite element matrices for the Darcy operator
    //
@@ -268,8 +262,7 @@ int main(int argc, char *argv[])
    Vector X, B;
    x = 0.;
    //darcy->FormSystemMatrix(ess_flux_tdofs_list, pDarcyOp);
-   darcy->FormLinearSystem(ess_flux_tdofs_list, x, rhs,
-                           pDarcyOp, X, B);
+   darcy->FormLinearSystem(ess_flux_tdofs_list, x, pDarcyOp, X, B);
 
    chrono.Stop();
    std::cout << "Assembly took " << chrono.RealTime() << "s.\n";
@@ -297,7 +290,7 @@ int main(int argc, char *argv[])
       solver.SetPrintLevel(1);
 
       solver.Mult(B, X);
-      darcy->RecoverFEMSolution(X, rhs, x);
+      darcy->RecoverFEMSolution(X, x);
 
       chrono.Stop();
 
@@ -394,7 +387,7 @@ int main(int argc, char *argv[])
       solver.SetPrintLevel(1);
 
       solver.Mult(B, X);
-      darcy->RecoverFEMSolution(X, rhs, x);
+      darcy->RecoverFEMSolution(X, x);
 
       if (device.IsEnabled()) { x.HostRead(); }
       chrono.Stop();
@@ -491,10 +484,6 @@ int main(int argc, char *argv[])
    }
 
    // 17. Free the used memory.
-   delete fform;
-   delete gform;
-   //delete mVarf;
-   //delete bVarf;
    delete darcy;
    delete W_space;
    delete R_space;

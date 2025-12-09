@@ -141,16 +141,10 @@ int main(int argc, char *argv[])
 
    DarcyForm darcy(R_space, W_space);
 
-   MemoryType mt = device.GetMemoryType();
-   BlockVector b(darcy.GetOffsets(), mt);
-
-   b.GetBlock(0) = 0.0;
-
    ConstantCoefficient one(1.0), negone(-1.0);
 
-   LinearForm f;
-   f.Update(W_space, b.GetBlock(1), 0);
-   f.AddDomainIntegrator(new DomainLFIntegrator(negone));
+   LinearForm *f = darcy.GetPotentialRHS();
+   f->AddDomainIntegrator(new DomainLFIntegrator(negone));
 
    BilinearForm *Mq = darcy.GetFluxMassForm();
    MixedBilinearForm *Bq = darcy.GetFluxDivForm();
@@ -197,6 +191,7 @@ int main(int argc, char *argv[])
 
    // 7. The solution vector x and the associated finite element grid function
    //    will be maintained over the AMR iterations. We initialize it to zero.
+   MemoryType mt = device.GetMemoryType();
    BlockVector x(darcy.GetOffsets(), mt);
    x = 0.0;
 
@@ -239,9 +234,6 @@ int main(int argc, char *argv[])
       cout << "Number of potential unknowns: " << u_dofs << endl;
       cout << "Number of trace unknowns: " << uhat_dofs << endl;
 
-      // 13. Assemble the right-hand side.
-      f.Assemble();
-
       // 15. Assemble the stiffness matrix.
       darcy.Assemble();
 
@@ -251,7 +243,7 @@ int main(int argc, char *argv[])
       OperatorPtr A;
       Vector B, X;
 
-      darcy.FormLinearSystem(ess_flux_tdofs_list, x, b, A, X, B);
+      darcy.FormLinearSystem(ess_flux_tdofs_list, x, A, X, B);
 
       // 17. Solve the linear system A X = B.
 #ifndef MFEM_USE_SUITESPARSE
@@ -269,7 +261,7 @@ int main(int argc, char *argv[])
       // 18. After solving the linear system, reconstruct the solution as a
       //     finite element GridFunction. Constrained nodes are interpolated
       //     from true DOFs (it may therefore happen that x.Size() >= X.Size()).
-      darcy.RecoverFEMSolution(X, b, x);
+      darcy.RecoverFEMSolution(X, x);
       uhat_h.MakeTRef(trace_space, X, 0);
       uhat_h.SetFromTrueVector();
 
@@ -312,13 +304,9 @@ int main(int argc, char *argv[])
 
       darcy.Update();
       x.Update(darcy.GetOffsets(), mt);
-      b.Update(darcy.GetOffsets(), mt);
 
       x = 0.;
       u_h.MakeRef(W_space, x.GetBlock(1), 0);
-
-      b.GetBlock(0) = 0.;
-      f.Update(W_space, b.GetBlock(1), 0);
 
       darcy.EnableHybridization(trace_space,
                                 new NormalTraceJumpIntegrator(),

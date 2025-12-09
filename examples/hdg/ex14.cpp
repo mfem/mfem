@@ -157,21 +157,14 @@ int main(int argc, char *argv[])
    const Array<int> &block_offsets = darcy.GetOffsets();
    const Array<int> &block_trueOffsets = darcy.GetTrueOffsets();
 
-   MemoryType mt = device.GetMemoryType();
-   BlockVector b(block_offsets, mt);
-
-   b.GetBlock(0) = 0.0;
-
    ConstantCoefficient one(1.0), negone(-1.0);
 
-   LinearForm f;
-   f.Update(W_space, b.GetBlock(1), 0);
-   f.AddDomainIntegrator(new DomainLFIntegrator(negone));
-   f.Assemble();
-   f.SyncAliasMemory(b);
+   LinearForm *f = darcy.GetPotentialRHS();
+   f->AddDomainIntegrator(new DomainLFIntegrator(negone));
 
    // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero.
+   MemoryType mt = device.GetMemoryType();
    BlockVector x(block_offsets, mt);
    x = 0.0;
 
@@ -236,8 +229,7 @@ int main(int argc, char *argv[])
 
    OperatorHandle A;
    Vector X, B;
-   darcy.FormLinearSystem(ess_flux_tdofs_list, x, b,
-                          A, X, B);
+   darcy.FormLinearSystem(ess_flux_tdofs_list, x, A, X, B);
 
    // 9. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
@@ -360,7 +352,7 @@ int main(int argc, char *argv[])
       delete MinvBt;
    }
 
-   darcy.RecoverFEMSolution(X, b, x);
+   darcy.RecoverFEMSolution(X, x);
    if (device.IsEnabled()) { x.HostRead(); }
 
    // 10. Save the refined mesh and the solution. This output can be viewed

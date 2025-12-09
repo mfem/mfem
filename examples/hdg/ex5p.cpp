@@ -247,10 +247,9 @@ int main(int argc, char *argv[])
    // 10. Define the parallel grid function and parallel linear forms, solution
    //     vector and rhs.
    MemoryType mt = device.GetMemoryType();
-   BlockVector x(block_offsets, mt), rhs(block_offsets, mt);
+   BlockVector x(block_offsets, mt);
 
-   ParLinearForm *fform(new ParLinearForm);
-   fform->Update(R_space, rhs.GetBlock(0), 0);
+   ParLinearForm *fform = darcy->GetParFluxRHS();
    if (dg)
    {
       fform->AddDomainIntegrator(new VectorDomainLFIntegrator(fcoeff));
@@ -268,14 +267,9 @@ int main(int argc, char *argv[])
          fform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(fnatcoeff));
       }
    }
-   fform->Assemble();
-   fform->SyncAliasMemory(rhs);
 
-   ParLinearForm *gform(new ParLinearForm);
-   gform->Update(W_space, rhs.GetBlock(1), 0);
+   ParLinearForm *gform = darcy->GetParPotentialRHS();
    gform->AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
-   gform->Assemble();
-   gform->SyncAliasMemory(rhs);
 
    // 11. Assemble the finite element matrices for the Darcy operator
    //
@@ -345,8 +339,7 @@ int main(int argc, char *argv[])
    OperatorHandle pDarcyOp;
    Vector X, B;
    x = 0.;
-   darcy->FormLinearSystem(ess_flux_tdofs_list, x, rhs,
-                           pDarcyOp, X, B);
+   darcy->FormLinearSystem(ess_flux_tdofs_list, x, pDarcyOp, X, B);
 
    chrono.Stop();
    if (verbose)
@@ -377,7 +370,7 @@ int main(int argc, char *argv[])
       solver.SetPrintLevel(verbose);
 
       solver.Mult(B, X);
-      darcy->RecoverFEMSolution(X, rhs, x);
+      darcy->RecoverFEMSolution(X, x);
 
       chrono.Stop();
 
@@ -476,7 +469,7 @@ int main(int argc, char *argv[])
       solver.SetPrintLevel(verbose);
 
       solver.Mult(B, X);
-      darcy->RecoverFEMSolution(X, rhs, x);
+      darcy->RecoverFEMSolution(X, x);
 
       if (device.IsEnabled()) { x.HostRead(); }
       chrono.Stop();
@@ -625,8 +618,6 @@ int main(int argc, char *argv[])
    }
 
    // 20. Free the used memory.
-   delete fform;
-   delete gform;
    delete darcy;
    delete W_space;
    delete R_space;

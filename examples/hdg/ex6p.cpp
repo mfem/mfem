@@ -219,16 +219,10 @@ int main(int argc, char *argv[])
    //     problem yet, this will be done in the main loop.
    ParDarcyForm darcy(R_space, W_space);
 
-   MemoryType mt = device.GetMemoryType();
-   BlockVector b(darcy.GetOffsets(), mt);
-
-   b.GetBlock(0) = 0.0;
-
    ConstantCoefficient one(1.0), negone(-1.0);
 
-   ParLinearForm f;
-   f.Update(W_space, b.GetBlock(1), 0);
-   f.AddDomainIntegrator(new DomainLFIntegrator(negone));
+   ParLinearForm *f = darcy.GetParPotentialRHS();
+   f->AddDomainIntegrator(new DomainLFIntegrator(negone));
 
    ParBilinearForm *Mq = darcy.GetParFluxMassForm();
    ParMixedBilinearForm *Bq = darcy.GetParFluxDivForm();
@@ -275,6 +269,7 @@ int main(int argc, char *argv[])
 
    // 12. The solution vector x and the associated finite element grid function
    //     will be maintained over the AMR iterations. We initialize it to zero.
+   MemoryType mt = device.GetMemoryType();
    BlockVector x(darcy.GetOffsets(), mt);
    x = 0.0;
 
@@ -332,10 +327,6 @@ int main(int argc, char *argv[])
          cout << "Number of trace unknowns: " << uhat_dofs << endl;
       }
 
-      // 17. Assemble the right-hand side and determine the list of true
-      //     (i.e. parallel conforming) essential boundary dofs.
-      f.Assemble();
-
       // 18. Assemble the stiffness matrix. Note that MFEM doesn't care at this
       //     point that the mesh is nonconforming and parallel.  The FE space is
       //     considered 'cut' along hanging edges/faces, and also across
@@ -347,7 +338,7 @@ int main(int argc, char *argv[])
       OperatorPtr A;
       Vector B, X;
 
-      darcy.FormLinearSystem(ess_flux_tdofs_list, x, b, A, X, B);
+      darcy.FormLinearSystem(ess_flux_tdofs_list, x, A, X, B);
 
       // 20. Solve the linear system A X = B.
       //     * With full assembly, use the BoomerAMG preconditioner from hypre.
@@ -366,7 +357,7 @@ int main(int argc, char *argv[])
       // 21. Switch back to the host and extract the parallel grid function
       //     corresponding to the finite element approximation X. This is the
       //     local solution on each processor.
-      darcy.RecoverFEMSolution(X, b, x);
+      darcy.RecoverFEMSolution(X, x);
       uhat_h.MakeTRef(trace_space, X, 0);
       uhat_h.SetFromTrueVector();
 
@@ -426,13 +417,9 @@ int main(int argc, char *argv[])
       //     changed.
       darcy.Update();
       x.Update(darcy.GetOffsets(), mt);
-      b.Update(darcy.GetOffsets(), mt);
 
       x = 0.;
       u_h.MakeRef(W_space, x.GetBlock(1), 0);
-
-      b.GetBlock(0) = 0.;
-      f.Update(W_space, b.GetBlock(1), 0);
 
       darcy.EnableHybridization(trace_space,
                                 new NormalTraceJumpIntegrator(),

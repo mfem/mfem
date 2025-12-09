@@ -186,21 +186,14 @@ int main(int argc, char *argv[])
    const Array<int> &block_offsets = darcy.GetOffsets();
    const Array<int> &block_trueOffsets = darcy.GetTrueOffsets();
 
-   MemoryType mt = device.GetMemoryType();
-   BlockVector b(block_offsets, mt);
-
-   b.GetBlock(0) = 0.0;
-
    ConstantCoefficient one(1.0), negone(-1.0);
 
-   ParLinearForm f;
-   f.Update(W_space, b.GetBlock(1), 0);
-   f.AddDomainIntegrator(new DomainLFIntegrator(negone));
-   f.Assemble();
-   f.SyncAliasMemory(b);
+   ParLinearForm *f = darcy.GetParPotentialRHS();
+   f->AddDomainIntegrator(new DomainLFIntegrator(negone));
 
    // 8. Define the solution vector x as a parallel finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero.
+   MemoryType mt = device.GetMemoryType();
    BlockVector x(block_offsets, mt);
    x = 0.0;
 
@@ -268,7 +261,7 @@ int main(int argc, char *argv[])
 
    OperatorHandle A;
    Vector X, B;
-   darcy.FormLinearSystem(ess_flux_tdofs_list, x, b, A, X, B);
+   darcy.FormLinearSystem(ess_flux_tdofs_list, x, A, X, B);
 
    // 11. Depending on the symmetry of A, define and apply a parallel PCG or
    //     GMRES solver for AX=B using the BoomerAMG preconditioner from hypre.
@@ -378,7 +371,7 @@ int main(int argc, char *argv[])
       delete MinvBt;
    }
 
-   darcy.RecoverFEMSolution(X, b, x);
+   darcy.RecoverFEMSolution(X, x);
    if (device.IsEnabled()) { x.HostRead(); }
 
    // 12. Save the refined mesh and the solution in parallel. This output can
