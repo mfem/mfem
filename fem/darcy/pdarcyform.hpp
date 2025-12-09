@@ -19,6 +19,7 @@
 #include "darcyform.hpp"
 #include "../pbilinearform.hpp"
 #include "../pnonlinearform.hpp"
+#include "../plinearform.hpp"
 
 namespace mfem
 {
@@ -34,6 +35,7 @@ protected:
    ParNonlinearForm *pMnl_p{};
    ParMixedBilinearForm *pB{};
    ParBlockNonlinearForm *pMnl{};
+   ParLinearForm *pb_u{}, *pb_p{};
 
    void UpdateTOffsets();
    void AllocBlockOp();
@@ -115,6 +117,18 @@ public:
    ParBlockNonlinearForm *GetParBlockNonlinearForm();
    const ParBlockNonlinearForm *GetParBlockNonlinearForm() const { return pMnl; }
 
+   using DarcyForm::GetFluxRHS;
+   LinearForm *GetFluxRHS();
+   ParLinearForm *GetParFluxRHS()
+   { return static_cast<ParLinearForm*>(GetFluxRHS()); }
+   const ParLinearForm *GetParFluxRHS() const { return pb_u; }
+
+   using DarcyForm::GetPotentialRHS;
+   LinearForm *GetPotentialRHS();
+   ParLinearForm *GetParPotentialRHS()
+   { return static_cast<ParLinearForm*>(GetPotentialRHS()); }
+   const ParLinearForm *GetParPotentialRHS() const { return pb_p; }
+
    /// Assembles the form i.e. sums over all domain/bdr integrators.
    void Assemble(int skip_zeros = 1);
 
@@ -154,6 +168,10 @@ public:
                          BlockVector &x, BlockVector &b, OperatorHandle &A, Vector &X,
                          Vector &B, int copy_interior = 0) override;
 
+   void FormLinearSystem(const Array<int> &ess_flux_tdof_list,
+                         BlockVector &x, OperatorHandle &A, Vector &X,
+                         Vector &B, int copy_interior = 0) override;
+
    /// Form the linear system matrix @a A, see FormLinearSystem() for details.
    void FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
                          OperatorHandle &A) override;
@@ -168,6 +186,8 @@ public:
 
    void RecoverFEMSolution(const Vector &X, const BlockVector &b,
                            BlockVector &x) override;
+
+   void RecoverFEMSolution(const Vector &X, BlockVector &x) override;
 
    /** @brief Use the stored eliminated part of the matrix (see
        EliminateVDofs(const Array<int> &, DiagonalPolicy)) to modify the r.h.s.

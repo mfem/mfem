@@ -74,6 +74,30 @@ ParBlockNonlinearForm *ParDarcyForm::GetParBlockNonlinearForm()
    return pMnl;
 }
 
+LinearForm *ParDarcyForm::GetFluxRHS()
+{
+   if (!pb_u)
+   {
+      AllocRHS();
+      pb_u = new ParLinearForm();
+      pb_u->MakeRef(&pfes_u, block_b->GetBlock(0), 0);
+      b_u.reset(pb_u);
+   }
+   return pb_u;
+}
+
+LinearForm *ParDarcyForm::GetPotentialRHS()
+{
+   if (!pb_p)
+   {
+      AllocRHS();
+      pb_p = new ParLinearForm();
+      pb_p->MakeRef(&pfes_p, block_b->GetBlock(1), 0);
+      b_p.reset(pb_p);
+   }
+   return pb_p;
+}
+
 void ParDarcyForm::Assemble(int skip_zeros)
 {
    if (pB || pM_p || pMnl_p)
@@ -206,6 +230,18 @@ void ParDarcyForm::Assemble(int skip_zeros)
    {
       Mnl_p->Setup();
    }
+
+   if (pb_u)
+   {
+      pb_u->Assemble();
+      pb_u->SyncAliasMemory(*block_b);
+   }
+
+   if (pb_p)
+   {
+      pb_p->Assemble();
+      pb_p->SyncAliasMemory(*block_b);
+   }
 }
 
 void ParDarcyForm::Finalize(int skip_zeros)
@@ -325,6 +361,14 @@ void ParDarcyForm::FormLinearSystem(
          X.GetBlock(1) = 0.;
       }
    }
+}
+
+void ParDarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
+                                    BlockVector &x, OperatorHandle &A, Vector &X, Vector &B, int copy_interior)
+{
+   AllocRHS();
+
+   FormLinearSystem(ess_flux_tdof_list, x, *block_b, A, X, B, copy_interior);
 }
 
 void ParDarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
@@ -458,6 +502,13 @@ void ParDarcyForm::RecoverFEMSolution(const Vector &X_, const BlockVector &b,
          P_p.Mult(X.GetBlock(1), x.GetBlock(1));
       }
    }
+}
+
+void ParDarcyForm::RecoverFEMSolution(const Vector &X, BlockVector &x)
+{
+   MFEM_ASSERT(block_b, "RHS does not exist");
+
+   RecoverFEMSolution(X, *block_b, x);
 }
 
 void ParDarcyForm::ParallelEliminateTDofsInRHS(const Array<int> &tdofs_flux,
