@@ -47,32 +47,49 @@ private:
             VALID = 1 << 2,
          };
          // 0 is null, i>0 refers to nodes[i-1]
-         size_t parent = 0;
-         size_t child[2] = {0, 0};
-         ptrdiff_t offset;
-         Flags flag = static_cast<Flags>(Flags::USED);
+         MFEM_ENZYME_INACTIVE size_t parent = 0;
+         MFEM_ENZYME_INACTIVE size_t child[2] = {0, 0};
+         MFEM_ENZYME_INACTIVE ptrdiff_t offset;
+         MFEM_ENZYME_INACTIVE Flags flag = static_cast<Flags>(Flags::USED);
 
-         bool is_valid() const { return flag & VALID; }
-         void set_unused() { flag = static_cast<Flags>(flag & ~USED); }
-         void set_valid() { flag = static_cast<Flags>(flag | VALID); }
-         void set_invalid() { flag = static_cast<Flags>(flag & ~VALID); }
-         void set_black() { flag = static_cast<Flags>(flag & ~RED_COLOR); }
-         void set_red() { flag = static_cast<Flags>(flag | RED_COLOR); }
-         void copy_color(const Node &o)
+         MFEM_ENZYME_INACTIVE bool is_valid() const { return flag & VALID; }
+         MFEM_ENZYME_INACTIVE void set_unused()
+         {
+            flag = static_cast<Flags>(flag & ~USED);
+         }
+         MFEM_ENZYME_INACTIVE void set_valid()
+         {
+            flag = static_cast<Flags>(flag | VALID);
+         }
+         MFEM_ENZYME_INACTIVE void set_invalid()
+         {
+            flag = static_cast<Flags>(flag & ~VALID);
+         }
+         MFEM_ENZYME_INACTIVE void set_black()
+         {
+            flag = static_cast<Flags>(flag & ~RED_COLOR);
+         }
+         MFEM_ENZYME_INACTIVE void set_red()
+         {
+            flag = static_cast<Flags>(flag | RED_COLOR);
+         }
+         MFEM_ENZYME_INACTIVE void copy_color(const Node &o)
          {
             set_black();
             flag = static_cast<Flags>(flag & (o.flag & RED_COLOR));
          }
 
-         bool is_red() const { return flag & RED_COLOR; }
+         MFEM_ENZYME_INACTIVE bool is_red() const { return flag & RED_COLOR; }
       };
       struct Segment
       {
-         char *lowers[2] = {nullptr, nullptr};
-         ptrdiff_t nbytes = 0;
-         size_t roots[2] = {0, 0};
-         MemoryType mtypes[2] = {MemoryType::DEFAULT, MemoryType::DEFAULT};
-         size_t ref_count = 1;
+         MFEM_ENZYME_INACTIVE char *lowers[2] = {nullptr, nullptr};
+         MFEM_ENZYME_INACTIVE ptrdiff_t nbytes = 0;
+         MFEM_ENZYME_INACTIVE size_t roots[2] = {0, 0};
+         MFEM_ENZYME_INACTIVE MemoryType mtypes[2] = {MemoryType::DEFAULT,
+                                                      MemoryType::DEFAULT
+                                                     };
+         MFEM_ENZYME_INACTIVE size_t ref_count = 1;
          enum Flags
          {
             NONE = 0,
@@ -80,11 +97,14 @@ private:
             OWN_DEVICE = 1 << 1,
             TEMPORARY = 1 << 2,
          };
-         Flags flag = Flags::NONE;
+         MFEM_ENZYME_INACTIVE Flags flag = Flags::NONE;
 
-         bool is_temporary() const { return flag & TEMPORARY; }
+         MFEM_ENZYME_INACTIVE bool is_temporary() const
+         {
+            return flag & TEMPORARY;
+         }
 
-         void set_owns_host(bool own)
+         MFEM_ENZYME_INACTIVE void set_owns_host(bool own)
          {
             if (own)
             {
@@ -96,7 +116,7 @@ private:
             }
          }
 
-         void set_owns_device(bool own)
+         MFEM_ENZYME_INACTIVE void set_owns_device(bool own)
          {
             if (own)
             {
@@ -108,8 +128,8 @@ private:
             }
          }
       };
-      std::vector<Node> nodes;
-      std::vector<Segment> segments;
+      MFEM_ENZYME_INACTIVE std::vector<Node> nodes;
+      MFEM_ENZYME_INACTIVE std::vector<Segment> segments;
 
       using RBTree<RBase>::insert;
       using RBTree<RBase>::erase;
@@ -119,11 +139,20 @@ private:
 
       constexpr static size_t seg_offset = 1;
 
-      Node &get_node(size_t curr) { return nodes[curr - 1]; }
-      const Node &get_node(size_t curr) const { return nodes[curr - 1]; }
+      MFEM_ENZYME_INACTIVE Node &get_node(size_t curr)
+      {
+         return nodes[curr - 1];
+      }
+      MFEM_ENZYME_INACTIVE const Node &get_node(size_t curr) const
+      {
+         return nodes[curr - 1];
+      }
 
-      Segment &get_segment(size_t curr) { return segments[curr - seg_offset]; }
-      const Segment &get_segment(size_t curr) const
+      MFEM_ENZYME_INACTIVE Segment &get_segment(size_t curr)
+      {
+         return segments[curr - seg_offset];
+      }
+      MFEM_ENZYME_INACTIVE const Segment &get_segment(size_t curr) const
       {
          return segments[curr - seg_offset];
       }
@@ -132,21 +161,24 @@ private:
       void post_right_rotate(size_t) {}
       void erase_swap_hook(size_t) {}
 
-      auto compare_nodes(size_t a, size_t b) const
+      MFEM_ENZYME_INACTIVE auto compare_nodes(size_t a, size_t b) const
       {
          auto &na = get_node(a);
          auto &nb = get_node(b);
          return nb.offset - na.offset;
       }
 
-      void insert_duplicate(size_t curr) { nodes.pop_back(); }
+      MFEM_ENZYME_INACTIVE void insert_duplicate(size_t curr)
+      {
+         nodes.pop_back();
+      }
 
-      void cleanup_nodes();
-      void cleanup_segments();
+      MFEM_ENZYME_INACTIVE void cleanup_nodes();
+      MFEM_ENZYME_INACTIVE void cleanup_segments();
 
       /// Insert a validity transition marker for a given @a segment
-      size_t insert(size_t segment, ptrdiff_t offset, bool on_device,
-                    bool valid)
+      MFEM_ENZYME_INACTIVE size_t insert(size_t segment, ptrdiff_t offset,
+                                         bool on_device, bool valid)
       {
          nodes.emplace_back();
          nodes.back().offset = offset;
@@ -158,8 +190,9 @@ private:
       }
 
       /// Insert a validity transition marker for a given @a segment
-      size_t insert(size_t segment, size_t node, ptrdiff_t offset, bool on_device,
-                    bool valid)
+      MFEM_ENZYME_INACTIVE size_t insert(size_t segment, size_t node,
+                                         ptrdiff_t offset, bool on_device,
+                                         bool valid)
       {
          nodes.emplace_back();
          nodes.back().offset = offset;
@@ -172,7 +205,7 @@ private:
       }
    };
 
-   void print_segment(size_t segment);
+   MFEM_ENZYME_INACTIVE void print_segment(size_t segment);
 
 private:
    template <class T> friend class Memory;
@@ -180,112 +213,132 @@ private:
 
    MemoryManager();
 
-   RBase storage;
-   size_t next_segment = 1;
+   MFEM_ENZYME_INACTIVE RBase storage;
+   MFEM_ENZYME_INACTIVE size_t next_segment = 1;
+   MFEM_ENZYME_INACTIVE
    std::array<std::unique_ptr<Allocator>, 2 * MemoryTypeSize> allocs_storage;
-   std::array<Allocator *, 2 * MemoryTypeSize> allocs = {nullptr};
+   MFEM_ENZYME_INACTIVE std::array<Allocator *, 2 * MemoryTypeSize> allocs =
+   {
+      nullptr
+   };
    // host, device, host-pinned, managed
-   std::array<MemoryType, 4> memory_types =
+   MFEM_ENZYME_INACTIVE std::array<MemoryType, 4> memory_types =
    {
       MemoryType::HOST, MemoryType::HOST, MemoryType::HOST, MemoryType::HOST
    };
 
    MFEM_ENZYME_INACTIVE static MemoryType dual_map[MemoryTypeSize];
 
-   bool ZeroCopy(size_t segment);
+   MFEM_ENZYME_INACTIVE bool ZeroCopy(size_t segment);
 
-   bool valid_segment(size_t seg) const { return seg >= storage.seg_offset; }
+   MFEM_ENZYME_INACTIVE bool valid_segment(size_t seg) const { return seg >= storage.seg_offset; }
 
    /// remove all validity markers for a segment
-   void clear_segment(size_t segment);
-   void clear_segment(RBase::Segment &seg);
+   MFEM_ENZYME_INACTIVE void clear_segment(size_t segment);
+   MFEM_ENZYME_INACTIVE void clear_segment(RBase::Segment &seg);
 
-   void clear_segment(RBase::Segment &seg, bool on_device);
-   void clear_segment(size_t segment, bool on_device);
+   MFEM_ENZYME_INACTIVE void clear_segment(RBase::Segment &seg, bool on_device);
+   MFEM_ENZYME_INACTIVE void clear_segment(size_t segment, bool on_device);
 
-   size_t find_marker(size_t segment, ptrdiff_t offset, bool on_device);
+   MFEM_ENZYME_INACTIVE size_t find_marker(size_t segment, ptrdiff_t offset,
+                                           bool on_device);
 
    template <class F>
-   void check_valid(size_t segment, bool on_device, ptrdiff_t start,
-                    ptrdiff_t stop, F &&func);
+   MFEM_ENZYME_INACTIVE void check_valid(size_t segment, bool on_device,
+                                         ptrdiff_t start, ptrdiff_t stop,
+                                         F &&func);
 
    /// @a curr is a marker node index
    template <class F>
-   void check_valid(size_t curr, ptrdiff_t start, ptrdiff_t stop, F &&func);
+   MFEM_ENZYME_INACTIVE void check_valid(size_t curr, ptrdiff_t start,
+                                         ptrdiff_t stop, F &&func);
 
    template <class F>
-   void mark_valid(size_t segment, bool on_device, ptrdiff_t start,
-                   ptrdiff_t stop, F &&func);
+   MFEM_ENZYME_INACTIVE void mark_valid(size_t segment, bool on_device,
+                                        ptrdiff_t start, ptrdiff_t stop,
+                                        F &&func);
 
    template <class F>
-   void mark_invalid(size_t segment, bool on_device, ptrdiff_t start,
-                     ptrdiff_t stop, F &&func);
+   MFEM_ENZYME_INACTIVE void mark_invalid(size_t segment, bool on_device,
+                                          ptrdiff_t start, ptrdiff_t stop,
+                                          F &&func);
 
-   size_t insert(char *hptr, size_t nbytes, MemoryType loc, bool own,
-                 bool temporary);
+   MFEM_ENZYME_INACTIVE size_t insert(char *hptr, size_t nbytes, MemoryType loc,
+                                      bool own, bool temporary);
 
-   size_t insert(char *hptr, char *dptr, size_t nbytes, MemoryType hloc,
-                 MemoryType dloc, bool own_host, bool own_device,
-                 bool temporary);
+   MFEM_ENZYME_INACTIVE size_t insert(char *hptr, char *dptr, size_t nbytes,
+                                      MemoryType hloc, MemoryType dloc,
+                                      bool own_host, bool own_device,
+                                      bool temporary);
 
    /// Actually deallocate memory in segment (if owned)
-   void Dealloc(size_t segment);
+   MFEM_ENZYME_FN_LIKE_FREE void Dealloc(size_t segment);
 
    /// Decreases reference count on @a segment
-   void erase(size_t segment);
+   MFEM_ENZYME_INACTIVE void erase(size_t segment);
 
-   MemoryType GetMemoryType(size_t segment, size_t offset, size_t nbytes);
+   MFEM_ENZYME_INACTIVE MemoryType GetMemoryType(size_t segment, size_t offset,
+                                                 size_t nbytes);
 
-   bool is_valid(size_t segment, size_t offset, size_t nbytes, bool on_device);
+   MFEM_ENZYME_INACTIVE bool is_valid(size_t segment, size_t offset,
+                                      size_t nbytes, bool on_device);
 
-   char *write(size_t segment, size_t offset, size_t nbytes, bool on_device);
-   char *read_write(size_t segment, size_t offset, size_t nbytes,
-                    bool on_device);
+   MFEM_ENZYME_FN_LIKE_DYNCAST char *write(size_t segment, size_t offset,
+                                           size_t nbytes, bool on_device);
+   MFEM_ENZYME_FN_LIKE_DYNCAST char *read_write(size_t segment, size_t offset,
+                                                size_t nbytes, bool on_device);
 
-   const char *read(size_t segment, size_t offset, size_t nbytes,
-                    bool on_device);
+   MFEM_ENZYME_FN_LIKE_DYNCAST const char *read(size_t segment, size_t offset,
+                                                size_t nbytes, bool on_device);
 
-   char *write(size_t segment, size_t offset, size_t nbytes, MemoryClass mc);
-   char *read_write(size_t segment, size_t offset, size_t nbytes,
-                    MemoryClass mc);
+   MFEM_ENZYME_FN_LIKE_DYNCAST char *write(size_t segment, size_t offset,
+                                           size_t nbytes, MemoryClass mc);
+   MFEM_ENZYME_FN_LIKE_DYNCAST char *read_write(size_t segment, size_t offset,
+                                                size_t nbytes, MemoryClass mc);
 
-   const char *read(size_t segment, size_t offset, size_t nbytes,
-                    MemoryClass mc);
-
+   MFEM_ENZYME_FN_LIKE_DYNCAST const char *read(size_t segment, size_t offset,
+                                                size_t nbytes, MemoryClass mc);
 
    /// src0 is the preferred copy-from location
-   void CopyImpl(char *dst, MemoryType dloc, size_t dst_offset, size_t marker,
-                 size_t nbytes, const char *src0, const char *src1,
-                 MemoryType sloc0, MemoryType sloc1, size_t src_offset,
-                 size_t marker0, size_t marker1);
+   MFEM_ENZYME_INACTIVE void CopyImpl(char *dst, MemoryType dloc,
+                                      size_t dst_offset, size_t marker,
+                                      size_t nbytes, const char *src0,
+                                      const char *src1, MemoryType sloc0,
+                                      MemoryType sloc1, size_t src_offset,
+                                      size_t marker0, size_t marker1);
 
    /// copies to the part of dst_seg which is valid
-   void Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
-             size_t src_offset, size_t nbytes);
+   MFEM_ENZYME_INACTIVE void Copy(size_t dst_seg, size_t src_seg,
+                                  size_t dst_offset, size_t src_offset,
+                                  size_t nbytes);
 
-   void CopyFromHost(size_t segment, size_t offset, const char *src,
-                     size_t nbytes);
+   MFEM_ENZYME_INACTIVE void CopyFromHost(size_t segment, size_t offset,
+                                          const char *src, size_t nbytes);
 
-   void CopyToHost(size_t segment, size_t offset, char *dst, size_t nbytes);
+   MFEM_ENZYME_INACTIVE void CopyToHost(size_t segment, size_t offset,
+                                        char *dst, size_t nbytes);
 
    /// Does no checking/updating of validity flags
-   const char *fast_read(size_t segment, size_t offset, size_t nbytes,
-                         bool on_device);
-   char *fast_read_write(size_t segment, size_t offset, size_t nbytes,
-                         bool on_device);
+   MFEM_ENZYME_FN_LIKE_DYNCAST const char *
+   fast_read(size_t segment, size_t offset, size_t nbytes, bool on_device);
+   MFEM_ENZYME_FN_LIKE_DYNCAST char *fast_read_write(size_t segment,
+                                                     size_t offset,
+                                                     size_t nbytes,
+                                                     bool on_device);
 
-   bool owns_host_ptr(size_t segment);
-   void set_owns_host_ptr(size_t segment, bool own);
+   MFEM_ENZYME_INACTIVE bool owns_host_ptr(size_t segment);
+   MFEM_ENZYME_INACTIVE void set_owns_host_ptr(size_t segment, bool own);
 
-   bool owns_device_ptr(size_t segment);
-   void set_owns_device_ptr(size_t segment, bool own);
+   MFEM_ENZYME_INACTIVE bool owns_device_ptr(size_t segment);
+   MFEM_ENZYME_INACTIVE void set_owns_device_ptr(size_t segment, bool own);
 
-   void clear_owner_flags(size_t segment);
+   MFEM_ENZYME_INACTIVE void clear_owner_flags(size_t segment);
 
-   int compare_host_device(size_t segment, size_t offset, size_t nbytes);
+   MFEM_ENZYME_INACTIVE int compare_host_device(size_t segment, size_t offset,
+                                                size_t nbytes);
 
    /// @a copy_segs first is start offset, second is stop offset
-   void BatchMemCopy(
+   MFEM_ENZYME_INACTIVE void BatchMemCopy(
       char *dst, const char *src, MemoryType dst_loc, MemoryType src_loc,
       const std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
       AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
@@ -293,16 +346,19 @@ private:
 
    /// @a copy_segs is flattened of length 3 * num segments
    /// order: src offset, dst offset, nbytes
-   void BatchMemCopy2(
+   MFEM_ENZYME_INACTIVE void BatchMemCopy2(
       char *dst, const char *src, MemoryType dst_loc, MemoryType src_loc,
       const std::vector<ptrdiff_t, AllocatorAdaptor<ptrdiff_t>> &copy_segs);
 
-   void SetDeviceMemoryType(size_t segment, MemoryType loc);
+   MFEM_ENZYME_INACTIVE void SetDeviceMemoryType(size_t segment,
+                                                 MemoryType loc);
 
-   void SetValidity(size_t segment, bool host_valid, bool device_valid);
+   MFEM_ENZYME_INACTIVE void SetValidity(size_t segment, bool host_valid,
+                                         bool device_valid);
 
    /// Update the dual memory type of @a mt to be @a dual_mt.
-   void UpdateDualMemoryType(MemoryType mt, MemoryType dual_mt);
+   MFEM_ENZYME_INACTIVE void UpdateDualMemoryType(MemoryType mt,
+                                                  MemoryType dual_mt);
 
    /// Host and device allocator names for Umpire.
 #ifdef MFEM_USE_UMPIRE
