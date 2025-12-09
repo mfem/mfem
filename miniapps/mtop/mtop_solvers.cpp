@@ -547,3 +547,35 @@ void IsoLinElasticSolver::FSolve()
    delete lf;
    lf = nullptr;
 }
+
+template <int DIM> struct FilterQFunction
+{
+   using matd_t = tensor<real_t, DIM, DIM>;
+   using vecd_t = tensor<dscalar_t, DIM>;
+
+   struct Diffusion
+   {
+      MFEM_HOST_DEVICE inline auto operator()(const vecd_t &dudxi,
+                                              const real_t &diff,
+                                              const matd_t &J,
+                                              const real_t &w) const
+      {
+         const auto invJ = mfem::future::inv(J);
+         const auto TinJ = mfem::future::transpose(invJ);
+         const auto detJ = mfem::future::det(J);
+         return tuple{ (dudxi * invJ) * TinJ * detJ * w * diff };
+      }
+   };
+
+   struct Mass
+   {
+      MFEM_HOST_DEVICE inline auto operator()(const real_t &frho,
+                                              const real_t &urho,
+                                              const matd_t &J,
+                                              const real_t &w) const
+      {
+         const auto detJ = mfem::future::det(J);
+         return tuple{ (frho - urho)* detJ * w };
+      }
+   };
+};

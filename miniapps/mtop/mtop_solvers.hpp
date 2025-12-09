@@ -326,3 +326,63 @@ private:
       }
    };
 };
+
+class PDEFilter : public mfem::Operator
+{
+public:
+   /// Construct the PDE filter for a given mesh and discretization
+   /// order.
+   PDEFilter(mfem::ParMesh *mesh, int order = 1, real_t r = 1.0);
+   
+   /// Destructor of the filter.
+   virtual ~PDEFilter();
+
+   /// Set the filter radius
+   void SetFilterRadius(real_t r);
+
+   /// Set the linear solver relative tolerance (rtol),
+   /// absolute tolerance (atol) and maximum number of
+   /// iterations miter.
+   void SetLinearSolver(real_t rtol = 1e-8,
+                        real_t atol = 1e-12,
+                        int miter = 200);
+
+   /// Apply the filter to input x, output y.
+   virtual
+   void Mult(const mfem::Vector &x, mfem::Vector &y) const override;
+
+   /// Adjoint apply the filter to input x, output y.
+   virtual
+   void MultTranspose(const mfem::Vector &x, mfem::Vector &y) const override;
+
+private:
+   mfem::ParMesh *pmesh;
+   const int dim; 
+   const int spaceDim;
+
+   mfem::FiniteElementCollection *fec;
+   mfem::ParFiniteElementSpace *fes;
+
+   mfem::HypreBoomerAMG *prec; // preconditioner
+   mfem::CGSolver *ls;         // linear solver
+
+   // holds the displacement contrained DOFs
+   mfem::Array<int> ess_tdofv;
+
+   real_t filter_radius;
+
+   // boundary conditions
+   std::map<int, mfem::ConstantCoefficient> bcr;
+
+   // DFEM related definitions
+   std::unique_ptr<mfem::future::DifferentiableOperator> dop;
+   mfem::ParGridFunction *nodes;
+   mfem::ParFiniteElementSpace *mfes;
+   const mfem::FiniteElement *fe;
+   const mfem::IntegrationRule &ir;
+   mfem::QuadratureSpace qs;
+   mfem::Array<int> domain_attributes;
+   // Fsol - filtered solution, USol - unfiltered solution
+   // Coords - nodal coordinates
+   static constexpr int FSol = 0, USol=1, Coords = 2;
+};
