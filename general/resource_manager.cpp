@@ -1734,8 +1734,8 @@ void MemoryManager::BatchMemCopy2(
       }
       else
       {
-         MFEM_ASSERT(src + copy_segs[i] + copy_segs[i + 1] <=
-                     dst + copy_segs[i + 2],
+         MFEM_ASSERT(src + copy_segs[i] + copy_segs[i + 2] <=
+                     dst + copy_segs[i + 1],
                      "BatchMemCopy2 overlap in src and dst");
       }
    }
