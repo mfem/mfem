@@ -5217,7 +5217,8 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
    }
 
    // vertices / nodes
-   MPI_Reduce(const_cast<int*>(&NumOfVertices), &nv, 1, MPI_INT, MPI_SUM, 0, MyComm);
+   MPI_Reduce(const_cast<int*>(&NumOfVertices), &nv, 1, MPI_INT, MPI_SUM, 0,
+              MyComm);
    if (MyRank == 0)
    {
       os << "\nvertices\n" << nv << '\n';
