@@ -763,7 +763,10 @@ public:
        @note The returned pointer is shared. A good practice, before using it,
        is to set all its properties to their expected values, as other parts of
        the code may also change them. That is, it's good to call
-       SetOutputLayout() and DisableTensorProducts() before interpolating. */
+       SetOutputLayout() and DisableTensorProducts() before interpolating.
+
+       @note If the space is not supported by QuadratureInterpolator, nullptr is
+       returned. */
    const QuadratureInterpolator *GetQuadratureInterpolator(
       const IntegrationRule &ir) const;
 
@@ -779,7 +782,10 @@ public:
        @note The returned pointer is shared. A good practice, before using it,
        is to set all its properties to their expected values, as other parts of
        the code may also change them. That is, it's good to call
-       SetOutputLayout() and DisableTensorProducts() before interpolating. */
+       SetOutputLayout() and DisableTensorProducts() before interpolating.
+
+       @note If the space is not supported by QuadratureInterpolator, nullptr is
+       returned. */
    const QuadratureInterpolator *GetQuadratureInterpolator(
       const QuadratureSpace &qs) const;
 
@@ -789,7 +795,10 @@ public:
        @note The returned pointer is shared. A good practice, before using it,
        is to set all its properties to their expected values, as other parts of
        the code may also change them. That is, it's good to call
-       SetOutputLayout() and DisableTensorProducts() before interpolating. */
+       SetOutputLayout() and DisableTensorProducts() before interpolating.
+
+       @note If the space is not supported by FaceQuadratureInterpolator,
+       nullptr is returned. */
    const FaceQuadratureInterpolator *GetFaceQuadratureInterpolator(
       const IntegrationRule &ir, FaceType type) const;
 

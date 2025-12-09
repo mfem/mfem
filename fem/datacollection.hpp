@@ -408,12 +408,18 @@ public:
 class VisItFieldInfo
 {
 public:
-   std::string association;
-   int num_components;
-   int lod;
-   VisItFieldInfo() { association = ""; num_components = 0; lod = 1;}
-   VisItFieldInfo(std::string association_, int num_components_, int lod_ = 1)
-   { association = association_; num_components = num_components_; lod =lod_;}
+   std::string association = "";
+   int num_components = 0;
+   int lod = 1;
+   std::string basis = "";
+   int order = -1;
+   VisItFieldInfo() = default;
+   VisItFieldInfo(std::string association_, int num_components_, int lod_ = 1,
+                  std::string basis_ = "", int order_ = -1)
+   {
+      association = association_; num_components = num_components_; lod =lod_;
+      basis = basis_; order = order_;
+   }
 };
 
 /// Data collection with VisIt I/O routines

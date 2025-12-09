@@ -140,7 +140,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(mfem::out);
    }
 
-   Mesh *mesh = new Mesh("../../data/inline-quad.mesh");
+   Mesh *mesh = new Mesh("../../../data/inline-quad.mesh");
    mesh->EnsureNodes();
    GridFunction *nodes = mesh->GetNodes();
    *nodes *= 2.0;

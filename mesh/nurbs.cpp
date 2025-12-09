@@ -4817,7 +4817,7 @@ void NURBSExtension::FullyCoarsen()
    // and the number of control points in each dimension is
    // 2*(maxOrder + 1) - maxOrder - 1
    const int ncp1D = maxOrder + 1;
-   const int ncp = pow(ncp1D, Dimension());
+   const int ncp = static_cast<int>(pow(ncp1D, Dimension()));
 
    for (int p = 0; p < patches.Size(); p++)
    {
