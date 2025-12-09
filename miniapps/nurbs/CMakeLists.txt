@@ -272,6 +272,11 @@ if (MFEM_USE_MPI)
     LIBRARIES mfem)
     add_dependencies(nurbs_ex11p copy_miniapps_nurbs_data)
 
+  add_mfem_miniapp(nurbs_ex24p
+    MAIN nurbs_ex24p.cpp
+    LIBRARIES mfem)
+    add_dependencies(nurbs_ex24p copy_miniapps_nurbs_data)
+
   if (MFEM_ENABLE_TESTING)
     add_test(NAME nurbs_ex1p_np=4
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
