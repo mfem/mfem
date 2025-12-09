@@ -33,14 +33,18 @@ void GetRowColumnsRef(const SparseMatrix& A, int row, Array<int>& cols)
 SparseMatrix ElemToDof(const ParFiniteElementSpace& fes)
 {
    Memory<int> I(fes.GetNE() + 1);
-   copy_n(fes.GetElementToDofTable().GetI(), fes.GetNE()+1, static_cast<int*>(I));
+   MFEM_ASSERT(fes.GetElementToDofTable().GetISize() == fes.GetNE() + 1,
+               "unexpected I size");
+   I.CopyFrom(fes.GetElementToDofTable().GetIMemory(), I.Capacity());
    // underlying memory for J will be owned by the resulting sparse matrix
-   Array<int> J(Memory<int>(I[fes.GetNE()]), I[fes.GetNE()]);
-   copy_n(fes.GetElementToDofTable().GetJ(), J.Size(), J.begin());
+   Array<int> J(Memory<int>(I[fes.GetNE()]), I[fes.GetNE()], false);
+   MFEM_ASSERT(fes.GetElementToDofTable().Size_of_connections() == J.Size(),
+               "unexpected J size");
+   fes.GetElementToDofTable().GetJMemory().CopyTo(J.GetMemory(), J.Size());
    fes.AdjustVDofs(J);
    Memory<real_t> D(J.Size());
-   fill_n(static_cast<real_t *>(D), J.Size(), 1.0);
-   return SparseMatrix(I, Memory<int>(J.begin(), J.Size(), true), D, fes.GetNE(),
+   fill_n(D.HostWrite(), J.Size(), 1_r);
+   return SparseMatrix(I, Memory<int>(J.GetData(), J.Size(), true), D, fes.GetNE(),
                        fes.GetVSize());
 }
 
