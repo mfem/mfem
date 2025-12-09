@@ -448,7 +448,7 @@ void ParticleSet::Redistribute(const Array<unsigned int> &rank_list)
    send_ranks.Reserve(rank_list.Size());
    for (int i = 0; i < rank_list.Size(); i++)
    {
-      if (rank != rank_list[i])
+      if (rank != static_cast<int>(rank_list[i]))
       {
          send_idxs.Append(i);
          send_ranks.Append(rank_list[i]);
