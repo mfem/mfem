@@ -61,6 +61,8 @@ SparseMatrix ElemToDof(const ParFiniteElementSpace& fes)
                   "mismatch from tmpI at " << i << " " << tmpI[i] << " " << I[i]);
    }
    // underlying memory for J will be owned by the resulting sparse matrix
+   MFEM_ASSERT(I[fes.GetNE()] >= 0,
+               "negative last I " << I[fes.GetNE()] << " " << fes.GetNE());
    Array<int> J(Memory<int>(I[fes.GetNE()]), I[fes.GetNE()], false);
    MFEM_ASSERT(fes.GetElementToDofTable().Size_of_connections() == J.Size(),
                "unexpected J size");
