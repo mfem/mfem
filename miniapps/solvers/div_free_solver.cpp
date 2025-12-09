@@ -32,6 +32,7 @@ void GetRowColumnsRef(const SparseMatrix& A, int row, Array<int>& cols)
 
 SparseMatrix ElemToDof(const ParFiniteElementSpace& fes)
 {
+   std::cout << "ElemToDof" << std::endl;
    int *tmpI = new int[fes.GetNE() + 1];
    for (int i = 0; i < fes.GetNE() + 1; ++i)
    {
@@ -70,6 +71,7 @@ SparseMatrix ElemToDof(const ParFiniteElementSpace& fes)
    fes.AdjustVDofs(J);
    Memory<real_t> D(J.Size());
    fill_n(D.HostWrite(), J.Size(), 1_r);
+   std::cout << "ElemToDof done" << std::endl;
    return SparseMatrix(I, Memory<int>(J.GetData(), J.Size(), true), D, fes.GetNE(),
                        fes.GetVSize());
 }

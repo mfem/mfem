@@ -1724,6 +1724,21 @@ void MemoryManager::BatchMemCopy2(
    char *dst, const char *src, MemoryType dst_loc, MemoryType src_loc,
    const std::vector<ptrdiff_t, AllocatorAdaptor<ptrdiff_t>> &copy_segs)
 {
+   for (size_t i = 0; i < copy_segs.size(); i += 3)
+   {
+      if (dst + copy_segs[i + 1] <= src + copy_segs[i])
+      {
+         MFEM_ASSERT(dst + copy_segs[i + 1] + copy_segs[i + 2] <=
+                     src + copy_segs[i],
+                     "BatchMemCopy2 overlap in src and dst");
+      }
+      else
+      {
+         MFEM_ASSERT(src + copy_segs[i] + copy_segs[i + 1] <=
+                     dst + copy_segs[i + 2],
+                     "BatchMemCopy2 overlap in src and dst");
+      }
+   }
    // copy_segs is assumed to be allocated in either HOSTPINNED or MANAGED
    switch (copy_segs.size())
    {
