@@ -32,48 +32,16 @@ void GetRowColumnsRef(const SparseMatrix& A, int row, Array<int>& cols)
 
 SparseMatrix ElemToDof(const ParFiniteElementSpace& fes)
 {
-   std::cout << "ElemToDof" << std::endl;
-   int *tmpI = new int[fes.GetNE() + 1];
-   for (int i = 0; i < fes.GetNE() + 1; ++i)
-   {
-      tmpI[i] = fes.GetElementToDofTable().GetI()[i];
-   }
-   Memory<int> I(fes.GetNE() + 1);
-   MFEM_ASSERT(fes.GetElementToDofTable().GetISize() == fes.GetNE() + 1,
-               "unexpected I size");
-   auto start_a = fes.GetElementToDofTable().GetI();
-   auto start_b = I.HostWrite();
-   if (start_a <= start_b)
-   {
-      MFEM_ASSERT(start_a + fes.GetNE() + 1 <= start_b, "overlap in fes and I");
-   }
-   else
-   {
-      MFEM_ASSERT(start_b + fes.GetNE() + 1 <= start_a, "overlap in fes and I");
-   }
-   I.CopyFrom(fes.GetElementToDofTable().GetIMemory(), I.Capacity());
-   for (int i = 0; i < fes.GetNE() + 1; ++i)
-   {
-      MFEM_ASSERT(fes.GetElementToDofTable().GetI()[i] == I[i],
-                  "mismatch from fes at "
-                  << i << " " << fes.GetElementToDofTable().GetI()[i] << " "
-                  << I[i]);
-      MFEM_ASSERT(tmpI[i] == I[i],
-                  "mismatch from tmpI at " << i << " " << tmpI[i] << " " << I[i]);
-   }
-   // underlying memory for J will be owned by the resulting sparse matrix
-   MFEM_ASSERT(I[fes.GetNE()] >= 0,
-               "negative last I " << I[fes.GetNE()] << " " << fes.GetNE());
-   Array<int> J(Memory<int>(I[fes.GetNE()]), I[fes.GetNE()], false);
-   MFEM_ASSERT(fes.GetElementToDofTable().Size_of_connections() == J.Size(),
-               "unexpected J size");
-   fes.GetElementToDofTable().GetJMemory().CopyTo(J.GetMemory(), J.Size());
+
+   int *I = (int *)malloc(sizeof(int) * (fes.GetNE() + 1));
+   copy_n(fes.GetElementToDofTable().GetI(), fes.GetNE()+1, I);
+   int *tmpJ = (int *)malloc(sizeof(int) * I[fes.GetNE()]);
+   Array<int> J(tmpJ, I[fes.GetNE()]);
+   copy_n(fes.GetElementToDofTable().GetJ(), J.Size(), J.begin());
    fes.AdjustVDofs(J);
-   Memory<real_t> D(J.Size());
-   fill_n(D.HostWrite(), J.Size(), 1_r);
-   std::cout << "ElemToDof done" << std::endl;
-   return SparseMatrix(I, Memory<int>(J.GetData(), J.Size(), true), D, fes.GetNE(),
-                       fes.GetVSize());
+   real_t *D = (real_t *)malloc(sizeof(real_t) * J.Size());
+   fill_n(D, J.Size(), 1.0);
+   return SparseMatrix(I, J, D, fes.GetNE(), fes.GetVSize());
 }
 
 DFSSpaces::DFSSpaces(int order, int num_refine, ParMesh *mesh,
