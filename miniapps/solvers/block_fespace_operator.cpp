@@ -14,29 +14,27 @@
 namespace mfem
 {
 
-BlockFESpaceOperator::BlockFESpaceOperator(const
-                                           std::vector<const FiniteElementSpace*> &fespaces):
+BlockFESpaceOperator::BlockFESpaceOperator(const FESVector &fespaces):
    Operator(GetHeight(fespaces)),
    offsets(GetBlockOffsets(fespaces)),
    prolongColOffsets(GetProColBlockOffsets(fespaces)),
    restrictRowOffsets(GetResRowBlockOffsets(fespaces)),
    A(offsets),
-   prolongation(offsets,prolongColOffsets),
+   prolongation(offsets, prolongColOffsets),
    restriction(restrictRowOffsets, offsets)
 {
    for (size_t i = 0; i <fespaces.size(); i++)
    {
       // Since const_cast is required here, be sure to avoid using
       // BlockOperator::GetBlock on restriction or prolongation.
-      prolongation.SetDiagonalBlock(i,
-                                    const_cast<Operator *>(fespaces[i]->GetProlongationMatrix()));
-      restriction.SetDiagonalBlock(i,
-                                   const_cast<Operator *>(fespaces[i]->GetRestrictionOperator()));
+      auto prolongation_matrix = fespaces[i]->GetProlongationMatrix();
+      auto restriction_matrix = fespaces[i]->GetRestrictionOperator();
+      prolongation.SetDiagonalBlock(i, const_cast<Operator *>(prolongation_matrix));
+      restriction.SetDiagonalBlock(i, const_cast<Operator *>(restriction_matrix));
    }
 }
 
-int BlockFESpaceOperator::GetHeight(const std::vector<const FiniteElementSpace*>
-                                    &fespaces)
+int BlockFESpaceOperator::GetHeight(const FESVector &fespaces)
 {
    int height = 0;
    for (size_t i = 0; i < fespaces.size(); i++)
@@ -46,8 +44,7 @@ int BlockFESpaceOperator::GetHeight(const std::vector<const FiniteElementSpace*>
    return height;
 }
 
-Array<int> BlockFESpaceOperator::GetBlockOffsets(const
-                                                 std::vector<const FiniteElementSpace*> &fespaces)
+Array<int> BlockFESpaceOperator::GetBlockOffsets(const FESVector &fespaces)
 {
    Array<int> offsets(fespaces.size()+1);
    offsets[0] = 0;
@@ -60,8 +57,8 @@ Array<int> BlockFESpaceOperator::GetBlockOffsets(const
    return offsets;
 }
 
-Array<int> BlockFESpaceOperator::GetProColBlockOffsets(const
-                                                       std::vector<const FiniteElementSpace*> &fespaces)
+Array<int> BlockFESpaceOperator::GetProColBlockOffsets(const FESVector
+                                                       &fespaces)
 {
    Array<int> offsets(fespaces.size()+1);
    offsets[0] = 0;
@@ -83,8 +80,8 @@ Array<int> BlockFESpaceOperator::GetProColBlockOffsets(const
    return offsets;
 }
 
-Array<int> BlockFESpaceOperator::GetResRowBlockOffsets(const
-                                                       std::vector<const FiniteElementSpace*> &fespaces)
+Array<int> BlockFESpaceOperator::GetResRowBlockOffsets(const FESVector
+                                                       &fespaces)
 {
    Array<int> offsets(fespaces.size()+1);
    std::cout << "fespaces.size() = " << fespaces.size() << std::endl;

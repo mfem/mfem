@@ -599,13 +599,11 @@ void PACurlCurlSetup3D(const int Q1D,
    });
 }
 
-void PACurlCurlAssembleDiagonal2D(const int D1D,
-                                  const int Q1D,
-                                  const int NE,
-                                  const Array<real_t> &bo,
+void PACurlCurlAssembleDiagonal2D(const int D1D, const int Q1D, const bool,
+                                  const int NE, const Array<real_t> &bo,
+                                  const Array<real_t> &, const Array<real_t> &,
                                   const Array<real_t> &gc,
-                                  const Vector &pa_data,
-                                  Vector &diag)
+                                  const Vector &pa_data, Vector &diag)
 {
    auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
    auto Gc = Reshape(gc.Read(), Q1D, D1D);
@@ -653,16 +651,12 @@ void PACurlCurlAssembleDiagonal2D(const int D1D,
    }); // end of element loop
 }
 
-void PACurlCurlApply2D(const int D1D,
-                       const int Q1D,
-                       const int NE,
-                       const Array<real_t> &bo,
-                       const Array<real_t> &bot,
-                       const Array<real_t> &gc,
-                       const Array<real_t> &gct,
-                       const Vector &pa_data,
-                       const Vector &x,
-                       Vector &y)
+void PACurlCurlApply2D(const int D1D, const int Q1D, const bool, const int NE,
+                       const Array<real_t> &bo, const Array<real_t> &,
+                       const Array<real_t> &bot, const Array<real_t> &,
+                       const Array<real_t> &gc, const Array<real_t> &gct,
+                       const Vector &pa_data, const Vector &x, Vector &y,
+                       const bool useAbs)
 {
 
    auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
@@ -717,7 +711,8 @@ void PACurlCurlApply2D(const int D1D,
 
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               const real_t wy = (c == 0) ? -Gc(qy,dy) : Bo(qy,dy);
+               const int sign = useAbs ? 1 : -1;
+               const real_t wy = (c == 0) ? (sign*Gc(qy,dy)) : Bo(qy,dy);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   curl[qy][qx] += gradX[qx] * wy;
@@ -760,7 +755,8 @@ void PACurlCurlApply2D(const int D1D,
             }
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               const real_t wy = (c == 0) ? -Gct(dy,qy) : Bot(dy,qy);
+               const int sign = useAbs ? 1 : -1;
+               const real_t wy = (c == 0) ? (sign*Gct(dy,qy)) : Bot(dy,qy);
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {

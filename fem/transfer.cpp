@@ -2100,10 +2100,11 @@ void PRefinementTransferOperator::Mult(const Vector& x, Vector& y) const
 
    y = 0.0;
 
+   DofTransformation doftrans_h, doftrans_l;
    for (int i = 0; i < mesh->GetNE(); i++)
    {
-      DofTransformation * doftrans_h = hFESpace.GetElementDofs(i, h_dofs);
-      DofTransformation * doftrans_l = lFESpace.GetElementDofs(i, l_dofs);
+      hFESpace.GetElementDofs(i, h_dofs, doftrans_h);
+      lFESpace.GetElementDofs(i, l_dofs, doftrans_l);
 
       const Geometry::Type geom = mesh->GetElementBaseGeometry(i);
       if (geom != cached_geom || isvar_order)
@@ -2123,15 +2124,9 @@ void PRefinementTransferOperator::Mult(const Vector& x, Vector& y) const
          h_dofs.Copy(h_vdofs);
          hFESpace.DofsToVDofs(vd, h_vdofs);
          x.GetSubVector(l_vdofs, subX);
-         if (doftrans_l)
-         {
-            doftrans_l->InvTransformPrimal(subX);
-         }
+         doftrans_l.InvTransformPrimal(subX);
          loc_prol.Mult(subX, subY);
-         if (doftrans_h)
-         {
-            doftrans_h->TransformPrimal(subY);
-         }
+         doftrans_h.TransformPrimal(subY);
          y.SetSubVector(h_vdofs, subY);
       }
    }
@@ -2157,10 +2152,12 @@ void PRefinementTransferOperator::MultTranspose(const Vector& x,
 
    int vdim = lFESpace.GetVDim();
 
+   DofTransformation doftrans_h, doftrans_l;
+
    for (int i = 0; i < mesh->GetNE(); i++)
    {
-      DofTransformation * doftrans_h = hFESpace.GetElementDofs(i, h_dofs);
-      DofTransformation * doftrans_l = lFESpace.GetElementDofs(i, l_dofs);
+      hFESpace.GetElementDofs(i, h_dofs, doftrans_h);
+      lFESpace.GetElementDofs(i, l_dofs, doftrans_l);
 
       const Geometry::Type geom = mesh->GetElementBaseGeometry(i);
       if (geom != cached_geom || isvar_order)
@@ -2182,10 +2179,7 @@ void PRefinementTransferOperator::MultTranspose(const Vector& x,
          hFESpace.DofsToVDofs(vd, h_vdofs);
 
          x.GetSubVector(h_vdofs, subX);
-         if (doftrans_h)
-         {
-            doftrans_h->InvTransformDual(subX);
-         }
+         doftrans_h.InvTransformDual(subX);
          for (int p = 0; p < h_dofs.Size(); ++p)
          {
             if (processed[lFESpace.DecodeDof(h_dofs[p])])
@@ -2195,10 +2189,7 @@ void PRefinementTransferOperator::MultTranspose(const Vector& x,
          }
 
          loc_prol.Mult(subX, subY);
-         if (doftrans_l)
-         {
-            doftrans_l->TransformDual(subY);
-         }
+         doftrans_l.TransformDual(subY);
          y.AddElementVector(l_vdofs, subY);
       }
 

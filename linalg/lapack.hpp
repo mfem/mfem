@@ -42,6 +42,13 @@ extern "C" void
 MFEM_LAPACK_PREFIX(getri_)(int *N, real_t *A, int *LDA, int *IPIV, real_t *WORK,
                            int *LWORK, int *INFO);
 extern "C" void
+MFEM_LAPACK_PREFIX(gbsv_)(int *, int *, int *, int *, real_t *, int *, int *,
+                          real_t *, int *, int *);
+extern "C" void
+MFEM_LAPACK_PREFIX(gbtrs_)(char *, int *, int *, int *, int *, real_t *, int *,
+                           int *, real_t *, int *, int *);
+
+extern "C" void
 MFEM_LAPACK_PREFIX(syevr_)(char *JOBZ, char *RANGE, char *UPLO, int *N,
                            real_t *A, int *LDA, real_t *VL, real_t *VU, int *IL,
                            int *IU, real_t *ABSTOL, int *M, real_t *W,

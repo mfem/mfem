@@ -36,6 +36,10 @@
 #include "batched/batched.hpp"
 #include "batched/gpu_blas.hpp"
 #include "batched/solver.hpp"
+#include "tensor.hpp"
+#include "filteredsolver.hpp"
+#include "ordering.hpp"
+#include "particlevector.hpp"
 
 #ifdef MFEM_USE_AMGX
 #include "amgxsolver.hpp"

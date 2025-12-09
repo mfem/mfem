@@ -98,9 +98,17 @@ protected:
 #ifdef MFEM_USE_CUDA_OR_HIP
    // common for hipSPARSE and cuSPARSE
    static int SparseMatrixCount;
+   mutable bool initBuffers = false;
+
+#if defined(MFEM_USE_CUDA) && CUDA_VERSION >= 12300 && CUDA_VERSION < 12602
+   // Workaround for bug CUSPARSE-1897
+#define MFEM_CUDA_1897_WORKAROUND
+   mutable size_t bufferSize = 0;
+   mutable void *dBuffer = nullptr;
+#else
    static size_t bufferSize;
    static void *dBuffer;
-   mutable bool initBuffers = false;
+#endif
 
 #if defined(MFEM_USE_CUDA)
    cusparseStatus_t status;
@@ -422,13 +430,13 @@ public:
    void BooleanMultTranspose(const Array<int> &x, Array<int> &y) const;
 
    /// y = |A| * x, using entry-wise absolute values of matrix A
-   void AbsMult(const Vector &x, Vector &y) const;
+   void AbsMult(const Vector &x, Vector &y) const override;
 
    /// y = |At| * x, using entry-wise absolute values of the transpose of matrix A
    /** If the matrix is modified, call ResetTranspose() and optionally
        EnsureMultTranspose() to make sure this method uses the correct updated
        transpose. */
-   void AbsMultTranspose(const Vector &x, Vector &y) const;
+   void AbsMultTranspose(const Vector &x, Vector &y) const override;
 
    /// Compute y^t A x
    real_t InnerProduct(const Vector &x, const Vector &y) const;

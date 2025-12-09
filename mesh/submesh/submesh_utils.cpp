@@ -257,15 +257,7 @@ template <typename SubMeshT>
 void AddBoundaryElements(SubMeshT &mesh,
                          const std::unordered_map<int,int> &lface_to_boundary_attribute)
 {
-   mesh.Dimension();
-   const int num_codim_1 = [&mesh]()
-   {
-      auto Dim = mesh.Dimension();
-      if (Dim == 1) { return mesh.GetNV(); }
-      else if (Dim == 2) { return mesh.GetNEdges(); }
-      else if (Dim == 3) { return mesh.GetNFaces(); }
-      else { MFEM_ABORT("Invalid dimension."); return -1; }
-   }();
+   const int num_codim_1 = mesh.GetNumFaces();
 
    if (mesh.Dimension() == 3)
    {

@@ -236,7 +236,7 @@ static bool testQuadratureInterpolator(const int dim,
    return true;
 }
 
-TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator][CUDA]")
+TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator][GPU]")
 {
    SECTION("H1 tensor elements: compare tensor and non-tensor evaluations")
    {

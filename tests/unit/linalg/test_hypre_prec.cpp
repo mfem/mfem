@@ -11,6 +11,7 @@
 
 #include "unit_tests.hpp"
 #include "mfem.hpp"
+#include <memory>
 
 namespace mfem
 {
@@ -85,7 +86,7 @@ void GeneratePart(PartType part_type, int nelems, int world_size,
    }
 }
 
-TEST_CASE("HypreBoomerAMG", "[Parallel], [HypreBoomerAMG]")
+TEST_CASE("HypreBoomerAMG", "[Parallel][HypreBoomerAMG]")
 {
    int world_size, rank;
    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
@@ -98,14 +99,14 @@ TEST_CASE("HypreBoomerAMG", "[Parallel], [HypreBoomerAMG]")
    Mesh mesh = Mesh::MakeCartesian3D(n, n, n, Element::HEXAHEDRON);
 
    int nelems = mesh.GetNE();
-   int *partitioning = new int[nelems];
+   auto partitioning = std::make_unique<int[]>(nelems);
 
    PartType last_type = (world_size == 1) ? ALL : ALL_BUT_FIRST;
    for (int part_type = ALL; part_type <= last_type; part_type++)
    {
-      GeneratePart((PartType)part_type, nelems, world_size, partitioning);
+      GeneratePart((PartType)part_type, nelems, world_size, partitioning.get());
 
-      ParMesh pmesh(MPI_COMM_WORLD, mesh, partitioning);
+      ParMesh pmesh(MPI_COMM_WORLD, mesh, partitioning.get());
 
       H1_FECollection fec(order, dim);
       ParFiniteElementSpace fespace(&pmesh, &fec);
@@ -150,7 +151,7 @@ TEST_CASE("HypreBoomerAMG", "[Parallel], [HypreBoomerAMG]")
    }
 }
 
-TEST_CASE("HypreAMS", "[Parallel], [HypreAMS]")
+TEST_CASE("HypreAMS", "[Parallel][HypreAMS]")
 {
    int world_size, rank;
    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
@@ -165,14 +166,14 @@ TEST_CASE("HypreAMS", "[Parallel], [HypreAMS]")
                Mesh::MakeCartesian3D(n, n, n, Element::HEXAHEDRON);
 
    int nelems = mesh.GetNE();
-   int *partitioning = new int[nelems];
+   auto partitioning = std::make_unique<int[]>(nelems);
 
    PartType last_type = (world_size == 1) ? ALL : ALL_BUT_FIRST;
    for (int part_type = ALL; part_type <= last_type; part_type++)
    {
-      GeneratePart((PartType)part_type, nelems, world_size, partitioning);
+      GeneratePart((PartType)part_type, nelems, world_size, partitioning.get());
 
-      ParMesh pmesh(MPI_COMM_WORLD, mesh, partitioning);
+      ParMesh pmesh(MPI_COMM_WORLD, mesh, partitioning.get());
 
       ND_FECollection fec(order, dim);
       ParFiniteElementSpace fespace(&pmesh, &fec);
@@ -218,7 +219,7 @@ TEST_CASE("HypreAMS", "[Parallel], [HypreAMS]")
    }
 }
 
-TEST_CASE("HypreADS", "[Parallel], [HypreADS]")
+TEST_CASE("HypreADS", "[Parallel][HypreADS]")
 {
    int world_size, rank;
    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
@@ -231,14 +232,14 @@ TEST_CASE("HypreADS", "[Parallel], [HypreADS]")
    Mesh mesh = Mesh::MakeCartesian3D(n, n, n, Element::HEXAHEDRON);
 
    int nelems = mesh.GetNE();
-   int *partitioning = new int[nelems];
+   auto partitioning = std::make_unique<int[]>(nelems);
 
    PartType last_type = (world_size == 1) ? ALL : ALL_BUT_FIRST;
    for (int part_type = ALL; part_type <= last_type; part_type++)
    {
-      GeneratePart((PartType)part_type, nelems, world_size, partitioning);
+      GeneratePart((PartType)part_type, nelems, world_size, partitioning.get());
 
-      ParMesh pmesh(MPI_COMM_WORLD, mesh, partitioning);
+      ParMesh pmesh(MPI_COMM_WORLD, mesh, partitioning.get());
 
       RT_FECollection fec(order, dim);
       ParFiniteElementSpace fespace(&pmesh, &fec);

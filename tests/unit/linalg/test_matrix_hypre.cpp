@@ -10,7 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "general/forall.hpp"
 #include "unit_tests.hpp"
 
 namespace mfem
@@ -18,7 +17,7 @@ namespace mfem
 
 #ifdef MFEM_USE_MPI
 
-TEST_CASE("HypreParMatrixWrapConstructors-SyncChecks", "[Parallel], [CUDA]")
+TEST_CASE("HypreParMatrixWrapConstructors-SyncChecks", "[Parallel], [GPU]")
 {
    const int dim = 2;
    const int n1d = 6;

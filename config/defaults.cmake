@@ -89,6 +89,13 @@ option(MFEM_ENABLE_EXAMPLES "Build all of the examples" OFF)
 option(MFEM_ENABLE_MINIAPPS "Build all of the miniapps" OFF)
 option(MFEM_ENABLE_BENCHMARKS "Build all of the benchmarks" OFF)
 
+# Allow a user to specify fetching of certain third-party libraries instead of
+# searching for existing installations.
+option(MFEM_FETCH_TPLS "Enable fetching of all supported third-party libraries" OFF)
+option(MFEM_FETCH_GSLIB "Enable fetching of GSLIB" OFF)
+option(MFEM_FETCH_HYPRE "Enable fetching of hypre" OFF)
+option(MFEM_FETCH_METIS "Enable fetching of METIS" OFF)
+
 # Setting CXX/MPICXX on the command line or in user.cmake will overwrite the
 # autodetected C++ compiler.
 # set(CXX g++)
@@ -267,6 +274,8 @@ set(PARELAG_LIBRARIES "${PARELAG_DIR}/build/src/libParELAG.a" CACHE STRING
 set(TRIBOL_DIR "${MFEM_DIR}/../tribol" CACHE PATH "Path to Tribol")
 set(Tribol_REQUIRED_PACKAGES "Axom/core/mint/slam/slic" CACHE STRING
     "Additional packages required by Tribol")
+
+set(ENZYME_DIR "${MFEM_DIR}/../enzyme" CACHE PATH "Path to Enzyme")
 
 set(BLAS_INCLUDE_DIRS "" CACHE STRING "Path to BLAS headers.")
 set(BLAS_LIBRARIES "" CACHE STRING "The BLAS library.")

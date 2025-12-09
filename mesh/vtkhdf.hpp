@@ -76,14 +76,14 @@ private:
    /// Wrapper for storing dataset dimensions (max ndims is 2D in VTKHDF).
    struct Dims
    {
-      static constexpr int MAX_NDIMS = 2;
+      static constexpr size_t MAX_NDIMS = 2;
       std::array<hsize_t, MAX_NDIMS> data = { }; // Zero initialized
       int ndims = 0;
       Dims() = default;
       Dims(int ndims_) : ndims(ndims_) { MFEM_ASSERT(ndims <= MAX_NDIMS, ""); }
       Dims(int ndims_, hsize_t val) : Dims(ndims_) { data.fill(val); }
       template <typename T>
-      Dims(std::initializer_list<T> data_) : Dims(data_.size())
+      Dims(std::initializer_list<T> data_) : Dims(int(data_.size()))
       { std::copy(data_.begin(), data_.end(), data.begin()); }
       operator hsize_t*() { return data.data(); }
       hsize_t &operator[](int i) { return data[i]; }
@@ -97,7 +97,7 @@ private:
    hid_t steps = H5I_INVALID_HID;
 
    /// Number of time steps saved.
-   int nsteps = 0;
+   unsigned long nsteps = 0;
 
    /// Keep track of the offsets into the data arrays at each time step.
    struct Offsets
@@ -123,8 +123,8 @@ private:
    class MeshId
    {
       const Mesh *mesh_ptr = nullptr;
-      int sequence = -1;
-      int nodes_sequence = -1;
+      long sequence = -1;
+      long nodes_sequence = -1;
       bool high_order = true;
       int ref = -1;
    public:
@@ -187,8 +187,10 @@ private:
    /// The rank (number of dimensions) of the dataset is given by @a ndims and
    /// its data type is given by @a type.
    ///
-   /// The dataset will initially have zero size and unlimited maximum size.
-   hid_t EnsureDataset(hid_t f, const std::string &name, hid_t type, int ndims);
+   /// If the dataset does not exist, it will initially have size @a dims.
+   /// Otherwise, it will be resized to append data of size @a dims, and @a dims
+   /// will be set to the new total size.
+   hid_t EnsureDataset(hid_t f, const std::string &name, hid_t type, Dims &dims);
 
    /// @brief Ensure the named group is open, creating it if needed. Set @a
    /// group to the ID.

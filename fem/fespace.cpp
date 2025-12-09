@@ -17,6 +17,9 @@
 #include "fem.hpp"
 #include "ceed/interface/util.hpp"
 
+#include "derefmat_op.hpp"
+
+#include <algorithm>
 #include <cmath>
 #include <cstdarg>
 
@@ -24,37 +27,6 @@ using namespace std;
 
 namespace mfem
 {
-
-template <> void Ordering::
-DofsToVDofs<Ordering::byNODES>(int ndofs, int vdim, Array<int> &dofs)
-{
-   // static method
-   int size = dofs.Size();
-   dofs.SetSize(size*vdim);
-   for (int vd = 1; vd < vdim; vd++)
-   {
-      for (int i = 0; i < size; i++)
-      {
-         dofs[i+size*vd] = Map<byNODES>(ndofs, vdim, dofs[i], vd);
-      }
-   }
-}
-
-template <> void Ordering::
-DofsToVDofs<Ordering::byVDIM>(int ndofs, int vdim, Array<int> &dofs)
-{
-   // static method
-   int size = dofs.Size();
-   dofs.SetSize(size*vdim);
-   for (int vd = vdim-1; vd >= 0; vd--)
-   {
-      for (int i = 0; i < size; i++)
-      {
-         dofs[i+size*vd] = Map<byVDIM>(ndofs, vdim, dofs[i], vd);
-      }
-   }
-}
-
 
 FiniteElementSpace::FiniteElementSpace()
    : mesh(NULL), fec(NULL), vdim(0), ordering(Ordering::byNODES),
@@ -331,7 +303,6 @@ void FiniteElementSpace::GetElementVDofs(int i, Array<int> &vdofs,
 DofTransformation *
 FiniteElementSpace::GetElementVDofs(int i, Array<int> &vdofs) const
 {
-   DoFTrans.SetDofTransformation(NULL);
    GetElementVDofs(i, vdofs, DoFTrans);
    return DoFTrans.GetDofTransformation() ? &DoFTrans : NULL;
 }
@@ -347,7 +318,6 @@ void FiniteElementSpace::GetBdrElementVDofs(int i, Array<int> &vdofs,
 DofTransformation *
 FiniteElementSpace::GetBdrElementVDofs(int i, Array<int> &vdofs) const
 {
-   DoFTrans.SetDofTransformation(NULL);
    GetBdrElementVDofs(i, vdofs, DoFTrans);
    return DoFTrans.GetDofTransformation() ? &DoFTrans : NULL;
 }
@@ -1582,6 +1552,11 @@ const FaceRestriction *FiniteElementSpace::GetFaceRestriction(
 const QuadratureInterpolator *FiniteElementSpace::GetQuadratureInterpolator(
    const IntegrationRule &ir) const
 {
+   if (!QuadratureInterpolator::SupportsFESpace(*this))
+   {
+      return nullptr;
+   }
+
    for (int i = 0; i < E2Q_array.Size(); i++)
    {
       const QuadratureInterpolator *qi = E2Q_array[i];
@@ -1596,6 +1571,11 @@ const QuadratureInterpolator *FiniteElementSpace::GetQuadratureInterpolator(
 const QuadratureInterpolator *FiniteElementSpace::GetQuadratureInterpolator(
    const QuadratureSpace &qs) const
 {
+   if (!QuadratureInterpolator::SupportsFESpace(*this))
+   {
+      return nullptr;
+   }
+
    for (int i = 0; i < E2Q_array.Size(); i++)
    {
       const QuadratureInterpolator *qi = E2Q_array[i];
@@ -1611,6 +1591,11 @@ const FaceQuadratureInterpolator
 *FiniteElementSpace::GetFaceQuadratureInterpolator(
    const IntegrationRule &ir, FaceType type) const
 {
+   if (!FaceQuadratureInterpolator::SupportsFESpace(*this))
+   {
+      return nullptr;
+   }
+
    if (type==FaceType::Interior)
    {
       for (int i = 0; i < E2IFQ_array.Size(); i++)
@@ -1936,6 +1921,7 @@ void FiniteElementSpace::RefinementOperator::Mult(const Vector &x,
 
    DenseMatrix eP;
    IsoparametricTransformation isotr;
+   DofTransformation doftrans;
 
    for (int k = 0; k < mesh_ref->GetNE(); k++)
    {
@@ -1956,10 +1942,10 @@ void FiniteElementSpace::RefinementOperator::Mult(const Vector &x,
 
       subY.SetSize(lP.Height());
 
-      DofTransformation *doftrans = fespace->GetElementDofs(k, dofs);
+      fespace->GetElementDofs(k, dofs, doftrans);
       old_elem_dof->GetRow(emb.parent, old_dofs);
 
-      if (!doftrans)
+      if (doftrans.IsIdentity())
       {
          for (int vd = 0; vd < rvdim; vd++)
          {
@@ -1979,7 +1965,7 @@ void FiniteElementSpace::RefinementOperator::Mult(const Vector &x,
          old_DoFTrans.SetDofTransformation(*old_DoFTransArray[geom]);
          old_DoFTrans.SetFaceOrientations(old_Fo);
 
-         doftrans->SetVDim();
+         doftrans.SetVDim();
          for (int vd = 0; vd < rvdim; vd++)
          {
             dofs.Copy(vdofs);
@@ -1990,10 +1976,10 @@ void FiniteElementSpace::RefinementOperator::Mult(const Vector &x,
             x.GetSubVector(old_vdofs, subX);
             old_DoFTrans.InvTransformPrimal(subX);
             lP.Mult(subX, subY);
-            doftrans->TransformPrimal(subY);
+            doftrans.TransformPrimal(subY);
             y.SetSubVector(vdofs, subY);
          }
-         doftrans->SetVDim(rvdim, fespace->GetOrdering());
+         doftrans.SetVDim(rvdim, fespace->GetOrdering());
       }
    }
 }
@@ -2020,6 +2006,7 @@ void FiniteElementSpace::RefinementOperator::MultTranspose(const Vector &x,
    DenseMatrix eP;
    IsoparametricTransformation isotr;
    const FiniteElement *fe = nullptr;
+   DofTransformation doftrans;
 
    for (int k = 0; k < mesh_ref->GetNE(); k++)
    {
@@ -2040,10 +2027,10 @@ void FiniteElementSpace::RefinementOperator::MultTranspose(const Vector &x,
       const DenseMatrix &lP = (fespace->IsVariableOrder()) ? eP : localP[geom](
                                  emb.matrix);
 
-      DofTransformation *doftrans = fespace->GetElementDofs(k, f_dofs);
+      fespace->GetElementDofs(k, f_dofs, doftrans);
       old_elem_dof->GetRow(emb.parent, c_dofs);
 
-      if (!doftrans)
+      if (doftrans.IsIdentity())
       {
          subY.SetSize(lP.Width());
 
@@ -2074,7 +2061,7 @@ void FiniteElementSpace::RefinementOperator::MultTranspose(const Vector &x,
          old_DoFTrans.SetDofTransformation(*old_DoFTransArray[geom]);
          old_DoFTrans.SetFaceOrientations(old_Fo);
 
-         doftrans->SetVDim();
+         doftrans.SetVDim();
          for (int vd = 0; vd < rvdim; vd++)
          {
             f_dofs.Copy(f_vdofs);
@@ -2083,7 +2070,7 @@ void FiniteElementSpace::RefinementOperator::MultTranspose(const Vector &x,
             fespace->DofsToVDofs(vd, c_vdofs, old_ndofs);
 
             x.GetSubVector(f_vdofs, subX);
-            doftrans->InvTransformDual(subX);
+            doftrans.InvTransformDual(subX);
             for (int p = 0; p < f_dofs.Size(); ++p)
             {
                if (processed[DecodeDof(f_dofs[p])])
@@ -2095,7 +2082,7 @@ void FiniteElementSpace::RefinementOperator::MultTranspose(const Vector &x,
             old_DoFTrans.TransformDual(subYt);
             y.AddElementVector(c_vdofs, subYt);
          }
-         doftrans->SetVDim(rvdim, fespace->GetOrdering());
+         doftrans.SetVDim(rvdim, fespace->GetOrdering());
       }
 
       for (int p = 0; p < f_dofs.Size(); ++p)
@@ -3407,6 +3394,8 @@ void FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs,
 {
    MFEM_VERIFY(!orders_changed, msg_orders_changed);
 
+   doftrans.SetDofTransformation(nullptr);
+
    if (elem_dof)
    {
       elem_dof->GetRow(elem, dofs);
@@ -3513,7 +3502,6 @@ void FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs,
 DofTransformation *FiniteElementSpace::GetElementDofs(int elem,
                                                       Array<int> &dofs) const
 {
-   DoFTrans.SetDofTransformation(NULL);
    GetElementDofs(elem, dofs, DoFTrans);
    return DoFTrans.GetDofTransformation() ? &DoFTrans : NULL;
 }
@@ -3522,6 +3510,8 @@ void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs,
                                            DofTransformation &doftrans) const
 {
    MFEM_VERIFY(!orders_changed, msg_orders_changed);
+
+   doftrans.SetDofTransformation(nullptr);
 
    if (bdr_elem_dof)
    {
@@ -3617,7 +3607,6 @@ void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs,
 DofTransformation *FiniteElementSpace::GetBdrElementDofs(int bel,
                                                          Array<int> &dofs) const
 {
-   DoFTrans.SetDofTransformation(NULL);
    GetBdrElementDofs(bel, dofs, DoFTrans);
    return DoFTrans.GetDofTransformation() ? &DoFTrans : NULL;
 }
@@ -4242,7 +4231,11 @@ void FiniteElementSpace::Update(bool want_transform)
          case Mesh::DEREFINE:
          {
             BuildConformingInterpolation();
+#if 0
             Th.Reset(DerefinementMatrix(old_ndofs, old_elem_dof, old_elem_fos));
+#else
+            Th.Reset(new DerefineMatrixOp(*this, old_ndofs, old_elem_dof, old_elem_fos));
+#endif
             if (IsVariableOrder())
             {
                if (cP && cR_hp)
@@ -4276,9 +4269,6 @@ void FiniteElementSpace::Update(bool want_transform)
 void FiniteElementSpace::PRefineAndUpdate(const Array<pRefinement> & refs,
                                           bool want_transfer)
 {
-   MFEM_VERIFY(PRefinementSupported(),
-               "p-refinement is not supported in this space");
-
    if (want_transfer)
    {
       fesPrev.reset(new FiniteElementSpace(mesh, fec, vdim, ordering));

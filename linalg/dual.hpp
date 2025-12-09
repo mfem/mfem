@@ -15,8 +15,7 @@
  * @brief This file contains the declaration of a dual number class
  */
 
-#ifndef MFEM_INTERNAL_DUAL_HPP
-#define MFEM_INTERNAL_DUAL_HPP
+#pragma once
 
 #include <type_traits> // for is_arithmetic
 #include <cmath>
@@ -24,7 +23,7 @@
 
 namespace mfem
 {
-namespace internal
+namespace future
 {
 
 /**
@@ -40,8 +39,9 @@ struct dual
    /// the partial derivatives of value w.r.t. some other quantity
    gradient_type gradient;
 
-   /** @brief assignment of a double to a value of a dual. Promotes a double to
+   /** @brief assignment of a real_t to a value of a dual. Promotes a real_t to
     * a dual with a zero gradient value. */
+   MFEM_HOST_DEVICE
    auto operator=(real_t a) -> dual<value_type, gradient_type>&
    {
       value = a;
@@ -258,7 +258,7 @@ dual<value_type, gradient_type>& operator-=(dual<value_type, gradient_type>& a,
    return a;
 }
 
-/** @brief compound assignment (+) for dual numbers with `double` righthand side */
+/** @brief compound assignment (+) for dual numbers with `real_t` righthand side */
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type>& operator+=(dual<value_type, gradient_type>& a,
                                             real_t b)
@@ -267,7 +267,7 @@ dual<value_type, gradient_type>& operator+=(dual<value_type, gradient_type>& a,
    return a;
 }
 
-/** @brief compound assignment (-) for dual numbers with `double` righthand side */
+/** @brief compound assignment (-) for dual numbers with `real_t` righthand side */
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type>& operator-=(dual<value_type, gradient_type>& a,
                                             real_t b)
@@ -435,7 +435,5 @@ MFEM_HOST_DEVICE gradient_type get_gradient(dual<value_type, gradient_type> arg)
    return arg.gradient;
 }
 
-} // namespace internal
+} // namespace future
 } // namespace mfem
-
-#endif
