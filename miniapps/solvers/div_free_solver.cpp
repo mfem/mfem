@@ -32,10 +32,34 @@ void GetRowColumnsRef(const SparseMatrix& A, int row, Array<int>& cols)
 
 SparseMatrix ElemToDof(const ParFiniteElementSpace& fes)
 {
+   int *tmpI = new int[fes.GetNE() + 1];
+   for (int i = 0; i < fes.GetNE() + 1; ++i)
+   {
+      tmpI[i] = fes.GetElementToDofTable().GetI()[i];
+   }
    Memory<int> I(fes.GetNE() + 1);
    MFEM_ASSERT(fes.GetElementToDofTable().GetISize() == fes.GetNE() + 1,
                "unexpected I size");
+   auto start_a = fes.GetElementToDofTable().GetI();
+   auto start_b = I.HostWrite();
+   if (start_a <= start_b)
+   {
+      MFEM_ASSERT(start_a + fes.GetNE() + 1 <= start_b, "overlap in fes and I");
+   }
+   else
+   {
+      MFEM_ASSERT(start_b + fes.GetNE() + 1 <= start_a, "overlap in fes and I");
+   }
    I.CopyFrom(fes.GetElementToDofTable().GetIMemory(), I.Capacity());
+   for (int i = 0; i < fes.GetNE() + 1; ++i)
+   {
+      MFEM_ASSERT(fes.GetElementToDofTable().GetI()[i] == I[i],
+                  "mismatch from fes at "
+                  << i << " " << fes.GetElementToDofTable().GetI()[i] << " "
+                  << I[i]);
+      MFEM_ASSERT(tmpI[i] == I[i],
+                  "mismatch from tmpI at " << i << " " << tmpI[i] << " " << I[i]);
+   }
    // underlying memory for J will be owned by the resulting sparse matrix
    Array<int> J(Memory<int>(I[fes.GetNE()]), I[fes.GetNE()], false);
    MFEM_ASSERT(fes.GetElementToDofTable().Size_of_connections() == J.Size(),
