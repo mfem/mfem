@@ -33,13 +33,13 @@ void GetRowColumnsRef(const SparseMatrix& A, int row, Array<int>& cols)
 SparseMatrix ElemToDof(const ParFiniteElementSpace& fes)
 {
 
-   int *I = (int *)malloc(sizeof(int) * (fes.GetNE() + 1));
+   int *I = Memory<int>(fes.GetNE() + 1);
    copy_n(fes.GetElementToDofTable().GetI(), fes.GetNE()+1, I);
-   int *tmpJ = (int *)malloc(sizeof(int) * I[fes.GetNE()]);
+   int *tmpJ = Memory<int>(I[fes.GetNE()]);
    Array<int> J(tmpJ, I[fes.GetNE()]);
    copy_n(fes.GetElementToDofTable().GetJ(), J.Size(), J.begin());
    fes.AdjustVDofs(J);
-   real_t *D = (real_t *)malloc(sizeof(real_t) * J.Size());
+   real_t *D = Memory<real_t>(J.Size());
    fill_n(D, J.Size(), 1.0);
    return SparseMatrix(I, J, D, fes.GetNE(), fes.GetVSize());
 }
@@ -110,6 +110,7 @@ SparseMatrix* AggToInteriorDof(const Array<int>& bdr_truedofs,
 
    Memory<int> I(tdof_agg.NumRows() + 1);
    Memory<int> J(tdof_agg.NumNonZeroElems());
+   I[0] = 0;
 
    Array<int> is_bdr;
    FiniteElementSpace::ListToMarker(bdr_truedofs, tdof_agg.NumRows(), is_bdr);
@@ -124,7 +125,7 @@ SparseMatrix* AggToInteriorDof(const Array<int>& bdr_truedofs,
    }
 
    Memory<real_t> D(I[tdof_agg.NumRows()]);
-   std::fill_n(static_cast<real_t *>(D), I[tdof_agg.NumRows()], 1.0);
+   std::fill_n(D.HostWrite(), I[tdof_agg.NumRows()], 1.0);
 
    SparseMatrix intdof_agg(I, J, D, tdof_agg.NumRows(), tdof_agg.NumCols());
    return Transpose(intdof_agg);
