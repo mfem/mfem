@@ -811,6 +811,10 @@ template <class T> Memory<T>::Memory(const Memory &base, int offset, int size)
 
 template <class T> Memory<T>::Memory(int count)
 {
+   if (count < 0)
+   {
+      MFEM_ABORT("negative count: " << count);
+   }
    auto &inst = MemoryManager::instance();
    offset_ = 0;
    size_ = count;
