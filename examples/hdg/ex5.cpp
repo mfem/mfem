@@ -57,9 +57,7 @@ int main(int argc, char *argv[])
    StopWatch chrono;
 
    // 1. Parse command-line options.
-   const char *mesh_file = "";
-   int nx = 0;
-   int ny = 0;
+   const char *mesh_file = "../../data/star.mesh";
    int order = 1;
    bool dg = false;
    bool brt = false;
@@ -74,10 +72,6 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&nx, "-nx", "--ncells-x",
-                  "Number of cells in x.");
-   args.AddOption(&ny, "-ny", "--ncells-y",
-                  "Number of cells in y.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&dg, "-dg", "--discontinuous", "-no-dg",
@@ -115,28 +109,13 @@ int main(int argc, char *argv[])
    // 3. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
-   if (ny <= 0)
-   {
-      ny = nx;
-   }
-
-   Mesh *mesh = NULL;
-   if (strlen(mesh_file) > 0)
-   {
-      mesh = new Mesh(mesh_file, 1, 1);
-   }
-   else
-   {
-      mesh = new Mesh(Mesh::MakeCartesian2D(nx, ny, Element::QUADRILATERAL));
-   }
-
+   Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 10,000
    //    elements.
-   if (strlen(mesh_file) > 0)
    {
       int ref_levels =
          (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
@@ -173,12 +152,12 @@ int main(int argc, char *argv[])
                                                     mesh, R_coll_dg, dim)):(NULL);
    FiniteElementSpace *W_space = new FiniteElementSpace(mesh, W_coll);
 
-   DarcyForm *darcy = new DarcyForm(R_space, W_space);
-
    // 6. Define the BlockStructure of the problem, i.e. define the array of
    //    offsets for each variable. The last component of the Array is the sum
    //    of the dimensions of each block.
+   DarcyForm *darcy = new DarcyForm(R_space, W_space);
    const Array<int> &block_offsets = darcy->GetOffsets();
+   const Array<int> &block_trueOffsets = darcy->GetTrueOffsets();
 
    std::cout << "***********************************************************\n";
    std::cout << "dim(R) = " << block_offsets[1] - block_offsets[0] << "\n";
@@ -293,23 +272,23 @@ int main(int argc, char *argv[])
 
    darcy->Assemble();
 
-   OperatorHandle pDarcyOp;
+   OperatorPtr A;
    Vector X, B;
    x = 0.;
-   darcy->FormLinearSystem(ess_flux_tdofs_list, x, pDarcyOp, X, B);
+   darcy->FormLinearSystem(ess_flux_tdofs_list, x, A, X, B);
 
    chrono.Stop();
    std::cout << "Assembly took " << chrono.RealTime() << "s.\n";
 
 
-   int maxIter(1000);
-   real_t rtol(1.e-6);
-   real_t atol(1.e-10);
+   constexpr int maxIter(1000);
+   constexpr real_t rtol(1.e-6);
+   constexpr real_t atol(1.e-10);
 
    if (hybridization || (reduction && (dg || brt)))
    {
       // 10. Construct the preconditioner
-      GSSmoother prec(*pDarcyOp.As<SparseMatrix>());
+      GSSmoother prec;
 
       // 11. Solve the linear system with GMRES.
       //     Check the norm of the unpreconditioned residual.
@@ -319,8 +298,8 @@ int main(int argc, char *argv[])
       solver.SetAbsTol(atol);
       solver.SetRelTol(rtol);
       solver.SetMaxIter(maxIter);
-      solver.SetOperator(*pDarcyOp);
       solver.SetPreconditioner(prec);
+      solver.SetOperator(*A);
       solver.SetPrintLevel(1);
 
       solver.Mult(B, X);
@@ -354,7 +333,6 @@ int main(int argc, char *argv[])
       SparseMatrix *MinvBt = NULL;
       Vector Md(mVarf->Height());
 
-      BlockDiagonalPreconditioner darcyPrec(block_offsets);
       Solver *invM, *invS;
       SparseMatrix *S = NULL;
 
@@ -411,6 +389,7 @@ int main(int argc, char *argv[])
       invM->iterative_mode = false;
       invS->iterative_mode = false;
 
+      BlockDiagonalPreconditioner darcyPrec(block_trueOffsets);
       darcyPrec.SetDiagonalBlock(0, invM);
       darcyPrec.SetDiagonalBlock(1, invS);
 
@@ -423,7 +402,7 @@ int main(int argc, char *argv[])
       solver.SetAbsTol(atol);
       solver.SetRelTol(rtol);
       solver.SetMaxIter(maxIter);
-      solver.SetOperator(*pDarcyOp);
+      solver.SetOperator(*A);
       solver.SetPreconditioner(darcyPrec);
       solver.SetPrintLevel(1);
 
@@ -526,11 +505,9 @@ int main(int argc, char *argv[])
       socketstream u_sock(vishost, visport);
       u_sock.precision(8);
       u_sock << "solution\n" << *mesh << u << "window_title 'Velocity'" << endl;
-      u_sock << "keys Rljvvvvvmmc" << endl;
       socketstream p_sock(vishost, visport);
       p_sock.precision(8);
       p_sock << "solution\n" << *mesh << p << "window_title 'Pressure'" << endl;
-      p_sock << "keys Rljmmc" << endl;
    }
 
    // 17. Free the used memory.

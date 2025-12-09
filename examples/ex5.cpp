@@ -56,9 +56,7 @@ int main(int argc, char *argv[])
    StopWatch chrono;
 
    // 1. Parse command-line options.
-   const char *mesh_file = "";
-   int nx = 0;
-   int ny = 0;
+   const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool hybridization = false;
    bool pa = false;
@@ -68,10 +66,6 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&nx, "-nx", "--ncells-x",
-                  "Number of cells in x.");
-   args.AddOption(&ny, "-ny", "--ncells-y",
-                  "Number of cells in y.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
@@ -99,28 +93,13 @@ int main(int argc, char *argv[])
    // 3. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
-   if (ny <= 0)
-   {
-      ny = nx;
-   }
-
-   Mesh *mesh = NULL;
-   if (strlen(mesh_file) > 0)
-   {
-      mesh = new Mesh(mesh_file, 1, 1);
-   }
-   else
-   {
-      mesh = new Mesh(Mesh::MakeCartesian2D(nx, ny, Element::QUADRILATERAL));
-   }
-
+   Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 10,000
    //    elements.
-   if (strlen(mesh_file) > 0)
    {
       int ref_levels =
          (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
@@ -138,17 +117,12 @@ int main(int argc, char *argv[])
    FiniteElementSpace *R_space = new FiniteElementSpace(mesh, R_coll);
    FiniteElementSpace *W_space = new FiniteElementSpace(mesh, W_coll);
 
-   DarcyForm *darcy = new DarcyForm(R_space, W_space, false);
-
    // 6. Define the BlockStructure of the problem, i.e. define the array of
    //    offsets for each variable. The last component of the Array is the sum
    //    of the dimensions of each block.
+   DarcyForm *darcy = new DarcyForm(R_space, W_space, false);
    const Array<int> &block_offsets = darcy->GetOffsets();
-   /*(3); // number of variables + 1
-   block_offsets[0] = 0;
-   block_offsets[1] = R_space->GetVSize();
-   block_offsets[2] = W_space->GetVSize();
-   block_offsets.PartialSum();*/
+   const Array<int> &block_trueOffsets = darcy->GetTrueOffsets();
 
    std::cout << "***********************************************************\n";
    std::cout << "dim(R) = " << block_offsets[1] - block_offsets[0] << "\n";
@@ -158,14 +132,14 @@ int main(int argc, char *argv[])
 
    // 7. Define the coefficients, analytical solution, and rhs of the PDE.
    const double k = 1.0;
-   ConstantCoefficient kcoeff(k);
+   ConstantCoefficient kcoeff(k); //acoustic resistance
 
-   VectorFunctionCoefficient fcoeff(dim, fFun);
-   FunctionCoefficient fnatcoeff(f_natural);
-   FunctionCoefficient gcoeff(gFun);
+   VectorFunctionCoefficient fcoeff(dim, fFun); //velocity rhs
+   FunctionCoefficient fnatcoeff(f_natural); //boundary velocity rhs
+   FunctionCoefficient gcoeff(gFun); //pressure rhs
 
-   VectorFunctionCoefficient ucoeff(dim, uFun_ex);
-   FunctionCoefficient pcoeff(pFun_ex);
+   VectorFunctionCoefficient ucoeff(dim, uFun_ex); //velocity
+   FunctionCoefficient pcoeff(pFun_ex); //pressure
 
    // 8. Allocate memory (x, rhs) for the analytical solution and the right hand
    //    side.  Define the GridFunction u,p for the finite element solution and
@@ -190,29 +164,17 @@ int main(int argc, char *argv[])
    //
    //     M = \int_\Omega k u_h \cdot v_h d\Omega   u_h, v_h \in R_h
    //     B   = -\int_\Omega \div u_h q_h d\Omega   u_h \in R_h, q_h \in W_h
-   //BilinearForm *mVarf(new BilinearForm(R_space));
-   //MixedBilinearForm *bVarf(new MixedBilinearForm(R_space, W_space));
    BilinearForm *mVarf = darcy->GetFluxMassForm();
    MixedBilinearForm *bVarf = darcy->GetFluxDivForm();
 
-   //if (pa) { mVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    mVarf->AddDomainIntegrator(new VectorFEMassIntegrator(kcoeff));
-   //mVarf->Assemble();
-   //if (!pa) { mVarf->Finalize(); }
 
-   //if (pa) { bVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    ConstantCoefficient cdiv(-1.);
    bVarf->AddDomainIntegrator(new VectorFEDivergenceIntegrator(cdiv));
-   //bVarf->Assemble();
-   //if (!pa) { bVarf->Finalize(); }
 
    //set hybridization / assembly level
 
    Array<int> ess_flux_tdofs_list;
-   /*Array<int> bdr_is_ess(mesh->bdr_attributes.Max());
-   bdr_is_ess = 0;
-   bdr_is_ess[3] = -1;
-   R_space->GetEssentialTrueDofs(bdr_is_ess, ess_flux_tdofs_list);*/
 
    FiniteElementCollection *trace_coll = NULL;
    FiniteElementSpace *trace_space = NULL;
@@ -232,50 +194,24 @@ int main(int argc, char *argv[])
    if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
    darcy->Assemble();
-   //if (!pa) { darcy->Finalize(); }
 
-   //BlockOperator darcyOp(block_offsets);
-
-   //TransposeOperator *Bt = NULL;
-
-   /*if (pa)
-   {
-      Bt = new TransposeOperator(bVarf);
-
-      darcyOp.SetBlock(0,0, mVarf);
-      darcyOp.SetBlock(0,1, Bt, -1.0);
-      darcyOp.SetBlock(1,0, bVarf, -1.0);
-   }
-   else
-   {
-      SparseMatrix &M(mVarf->SpMat());
-      SparseMatrix &B(bVarf->SpMat());
-      B *= -1.;
-      Bt = new TransposeOperator(&B);
-
-      darcyOp.SetBlock(0,0, &M);
-      darcyOp.SetBlock(0,1, Bt);
-      darcyOp.SetBlock(1,0, &B);
-   }*/
-
-   OperatorHandle pDarcyOp;
+   OperatorPtr A;
    Vector X, B;
    x = 0.;
-   //darcy->FormSystemMatrix(ess_flux_tdofs_list, pDarcyOp);
-   darcy->FormLinearSystem(ess_flux_tdofs_list, x, pDarcyOp, X, B);
+   darcy->FormLinearSystem(ess_flux_tdofs_list, x, A, X, B);
 
    chrono.Stop();
    std::cout << "Assembly took " << chrono.RealTime() << "s.\n";
 
 
-   int maxIter(1000);
-   real_t rtol(1.e-6);
-   real_t atol(1.e-10);
+   constexpr int maxIter(1000);
+   constexpr real_t rtol(1.e-6);
+   constexpr real_t atol(1.e-10);
 
    if (hybridization)
    {
       // 10. Construct the preconditioner
-      GSSmoother prec(*pDarcyOp.As<SparseMatrix>());
+      GSSmoother prec;
 
       // 11. Solve the linear system with GMRES.
       //     Check the norm of the unpreconditioned residual.
@@ -285,8 +221,8 @@ int main(int argc, char *argv[])
       solver.SetAbsTol(atol);
       solver.SetRelTol(rtol);
       solver.SetMaxIter(maxIter);
-      solver.SetOperator(*pDarcyOp);
       solver.SetPreconditioner(prec);
+      solver.SetOperator(*A);
       solver.SetPrintLevel(1);
 
       solver.Mult(B, X);
@@ -320,7 +256,6 @@ int main(int argc, char *argv[])
       SparseMatrix *MinvBt = NULL;
       Vector Md(mVarf->Height());
 
-      BlockDiagonalPreconditioner darcyPrec(block_offsets);
       Solver *invM, *invS;
       SparseMatrix *S = NULL;
 
@@ -370,6 +305,7 @@ int main(int argc, char *argv[])
       invM->iterative_mode = false;
       invS->iterative_mode = false;
 
+      BlockDiagonalPreconditioner darcyPrec(block_trueOffsets);
       darcyPrec.SetDiagonalBlock(0, invM);
       darcyPrec.SetDiagonalBlock(1, invS);
 
@@ -382,7 +318,7 @@ int main(int argc, char *argv[])
       solver.SetAbsTol(atol);
       solver.SetRelTol(rtol);
       solver.SetMaxIter(maxIter);
-      solver.SetOperator(*pDarcyOp);
+      solver.SetOperator(*A);
       solver.SetPreconditioner(darcyPrec);
       solver.SetPrintLevel(1);
 
@@ -409,7 +345,6 @@ int main(int argc, char *argv[])
       delete invM;
       delete invS;
       delete S;
-      //delete Bt;
       delete MinvBt;
    }
 
@@ -476,11 +411,9 @@ int main(int argc, char *argv[])
       socketstream u_sock(vishost, visport);
       u_sock.precision(8);
       u_sock << "solution\n" << *mesh << u << "window_title 'Velocity'" << endl;
-      u_sock << "keys Rljvvvvvmmc" << endl;
       socketstream p_sock(vishost, visport);
       p_sock.precision(8);
       p_sock << "solution\n" << *mesh << p << "window_title 'Pressure'" << endl;
-      p_sock << "keys Rljmmc" << endl;
    }
 
    // 17. Free the used memory.

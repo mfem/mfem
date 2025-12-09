@@ -1,21 +1,21 @@
-//                                MFEM Example 5
+//                       MFEM Example 5 - Parallel Version
 //
-// Compile with: make ex5
+// Compile with: make ex5p
 //
-// Sample runs:  ex5 -m ../data/square-disc.mesh
-//               ex5 -m ../data/star.mesh
-//               ex5 -m ../data/star.mesh -pa
-//               ex5 -m ../data/beam-tet.mesh
-//               ex5 -m ../data/beam-hex.mesh
-//               ex5 -m ../data/beam-hex.mesh -pa
-//               ex5 -m ../data/escher.mesh
-//               ex5 -m ../data/fichera.mesh
+// Sample runs:  mpirun -np 4 ex5p -m ../data/square-disc.mesh
+//               mpirun -np 4 ex5p -m ../data/star.mesh
+//               mpirun -np 4 ex5p -m ../data/star.mesh -r 2 -pa
+//               mpirun -np 4 ex5p -m ../data/beam-tet.mesh
+//               mpirun -np 4 ex5p -m ../data/beam-hex.mesh
+//               mpirun -np 4 ex5p -m ../data/beam-hex.mesh -pa
+//               mpirun -np 4 ex5p -m ../data/escher.mesh
+//               mpirun -np 4 ex5p -m ../data/fichera.mesh
 //
 // Device sample runs:
-//               ex5 -m ../data/star.mesh -pa -d cuda
-//               ex5 -m ../data/star.mesh -pa -d raja-cuda
-//               ex5 -m ../data/star.mesh -pa -d raja-omp
-//               ex5 -m ../data/beam-hex.mesh -pa -d cuda
+//               mpirun -np 4 ex5p -m ../data/star.mesh -r 2 -pa -d cuda
+//               mpirun -np 4 ex5p -m ../data/star.mesh -r 2 -pa -d raja-cuda
+//               mpirun -np 4 ex5p -m ../data/star.mesh -r 2 -pa -d raja-omp
+//               mpirun -np 4 ex5p -m ../data/beam-hex.mesh -pa -d cuda
 //
 // Description:  This example code solves a simple 2D/3D mixed Darcy problem
 //               corresponding to the saddle point system
@@ -27,20 +27,20 @@
 //               Here, we use a given exact solution (u,p) and compute the
 //               corresponding r.h.s. (f,g).  We discretize with Raviart-Thomas
 //               finite elements (velocity u) and piecewise discontinuous
-//               polynomials (pressure p). Alternatively, the piecewise discontinuous
-//               polynomials are used for both quantities.
+//               polynomials (pressure p). Alternatively, the piecewise
+//               discontinuous polynomials are used for both quantities.
 //
 //               The example demonstrates the use of the DarcyForm class, as
 //               well as hybridization of mixed systems and the collective saving
 //               of several grid functions in VisIt (visit.llnl.gov) and ParaView
-//               (paraview.org) formats.
+//               (paraview.org) formats. Optional saving with ADIOS2
+//               (adios2.readthedocs.io) streams is also illustrated.
 //
 //               We recommend viewing examples 1-4 before viewing this example.
 
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include <algorithm>
 
 using namespace std;
 using namespace mfem;
@@ -64,9 +64,7 @@ int main(int argc, char *argv[])
    bool verbose = (myid == 0);
 
    // 2. Parse command-line options.
-   const char *mesh_file = "";
-   int nx = 0;
-   int ny = 0;
+   const char *mesh_file = "../../data/star.mesh";
    int ref_levels = -1;
    int order = 1;
    bool dg = false;
@@ -79,16 +77,13 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = 1;
    bool par_format = false;
+   bool adios2 = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
-   args.AddOption(&nx, "-nx", "--ncells-x",
-                  "Number of cells in x.");
-   args.AddOption(&ny, "-ny", "--ncells-y",
-                  "Number of cells in y.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&dg, "-dg", "--discontinuous", "-no-dg",
@@ -113,6 +108,9 @@ int main(int argc, char *argv[])
    args.AddOption(&par_format, "-pf", "--parallel-format", "-sf",
                   "--serial-format",
                   "Format to use when saving the results for VisIt.");
+   args.AddOption(&adios2, "-adios2", "--adios2-streams", "-no-adios2",
+                  "--no-adios2-streams",
+                  "Save data using adios2 streams.");
    args.Parse();
    if (!args.Good())
    {
@@ -135,28 +133,13 @@ int main(int argc, char *argv[])
    // 4. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
-   if (ny <= 0)
-   {
-      ny = nx;
-   }
-
-   Mesh *mesh = NULL;
-   if (strlen(mesh_file) > 0)
-   {
-      mesh = new Mesh(mesh_file, 1, 1);
-   }
-   else
-   {
-      mesh = new Mesh(Mesh::MakeCartesian2D(nx, ny, Element::QUADRILATERAL));
-   }
-
+   Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
    // 5. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements, unless the user specifies it as input.
-   if (strlen(mesh_file) > 0)
    {
       if (ref_levels == -1)
       {
@@ -174,16 +157,16 @@ int main(int argc, char *argv[])
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
-   /*{
+   {
       int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
       }
-   }*/
+   }
 
-   // 7. Define a finite element space on the mesh. Here we use the
-   //    Raviart-Thomas finite elements of the specified order.
+   // 7. Define a parallel finite element space on the parallel mesh. Here we
+   //    use the Raviart-Thomas finite elements of the specified order.
    FiniteElementCollection *R_coll, *R_coll_dg = NULL;
    if (dg)
    {
@@ -209,8 +192,6 @@ int main(int argc, char *argv[])
                                                        pmesh, R_coll_dg, dim)):(NULL);
    ParFiniteElementSpace *W_space = new ParFiniteElementSpace(pmesh, W_coll);
 
-   ParDarcyForm *darcy = new ParDarcyForm(R_space, W_space);
-
    HYPRE_BigInt dimR = R_space->GlobalTrueVSize();
    HYPRE_BigInt dimW = W_space->GlobalTrueVSize();
 
@@ -219,7 +200,7 @@ int main(int argc, char *argv[])
       std::cout << "***********************************************************\n";
       std::cout << "dim(R) = " << dimR << "\n";
       std::cout << "dim(W) = " << dimW << "\n";
-      std::cout << "dim(R+W) = " << dimR + dimR << "\n";
+      std::cout << "dim(R+W) = " << dimR + dimW << "\n";
       std::cout << "***********************************************************\n";
    }
 
@@ -228,7 +209,7 @@ int main(int argc, char *argv[])
    //    block_trueOffstes is used for Vector based on trueDof (HypreParVector
    //    for the rhs and solution of the linear system).  The offsets computed
    //    here are local to the processor.
-
+   ParDarcyForm *darcy = new ParDarcyForm(R_space, W_space);
    const Array<int> &block_offsets = darcy->GetOffsets();
    const Array<int> &block_trueOffsets = darcy->GetTrueOffsets();
 
@@ -336,10 +317,10 @@ int main(int argc, char *argv[])
 
    darcy->Assemble();
 
-   OperatorHandle pDarcyOp;
+   OperatorPtr A;
    Vector X, B;
    x = 0.;
-   darcy->FormLinearSystem(ess_flux_tdofs_list, x, pDarcyOp, X, B);
+   darcy->FormLinearSystem(ess_flux_tdofs_list, x, A, X, B);
 
    chrono.Stop();
    if (verbose)
@@ -348,9 +329,9 @@ int main(int argc, char *argv[])
    }
 
 
-   int maxIter(1000);
-   real_t rtol(1.e-6);
-   real_t atol(1.e-10);
+   constexpr int maxIter(500);
+   constexpr real_t rtol(1.e-6);
+   constexpr real_t atol(1.e-10);
 
    if (hybridization || (reduction && (dg || brt)))
    {
@@ -366,8 +347,8 @@ int main(int argc, char *argv[])
       solver.SetRelTol(rtol);
       solver.SetMaxIter(maxIter);
       solver.SetPreconditioner(prec);
-      solver.SetOperator(*pDarcyOp);
-      solver.SetPrintLevel(verbose);
+      solver.SetOperator(*A);
+      solver.SetPrintLevel(1);
 
       solver.Mult(B, X);
       darcy->RecoverFEMSolution(X, x);
@@ -464,9 +445,9 @@ int main(int argc, char *argv[])
       solver.SetAbsTol(atol);
       solver.SetRelTol(rtol);
       solver.SetMaxIter(maxIter);
-      solver.SetOperator(*pDarcyOp);
+      solver.SetOperator(*A);
       solver.SetPreconditioner(darcyPrec);
-      solver.SetPrintLevel(verbose);
+      solver.SetPrintLevel(1);
 
       solver.Mult(B, X);
       darcy->RecoverFEMSolution(X, x);
@@ -605,7 +586,6 @@ int main(int argc, char *argv[])
       u_sock.precision(8);
       u_sock << "solution\n" << *pmesh << u << "window_title 'Velocity'"
              << endl;
-      u_sock << "keys Rljvvvvvmmc" << endl;
       // Make sure all ranks have sent their 'u' solution before initiating
       // another set of GLVis connections (one from each rank):
       MPI_Barrier(pmesh->GetComm());
@@ -614,7 +594,6 @@ int main(int argc, char *argv[])
       p_sock.precision(8);
       p_sock << "solution\n" << *pmesh << p << "window_title 'Pressure'"
              << endl;
-      p_sock << "keys Rljmmc" << endl;
    }
 
    // 20. Free the used memory.

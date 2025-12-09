@@ -29,11 +29,11 @@
 //               finite elements (velocity u) and piecewise discontinuous
 //               polynomials (pressure p).
 //
-//               The example demonstrates the use of the BlockOperator class, as
-//               well as the collective saving of several grid functions in
-//               VisIt (visit.llnl.gov) and ParaView (paraview.org) formats.
-//               Optional saving with ADIOS2 (adios2.readthedocs.io) streams is
-//               also illustrated.
+//               The example demonstrates the use of the DarcyForm class, as
+//               well as hybridization of mixed systems and the collective saving
+//               of several grid functions in VisIt (visit.llnl.gov) and ParaView
+//               (paraview.org) formats. Optional saving with ADIOS2
+//               (adios2.readthedocs.io) streams is also illustrated.
 //
 //               We recommend viewing examples 1-4 before viewing this example.
 
@@ -66,10 +66,11 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int ref_levels = -1;
    int order = 1;
-   bool par_format = false;
+   bool hybridization = false;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = 1;
+   bool par_format = false;
    bool adios2 = false;
 
    OptionsParser args(argc, argv);
@@ -79,9 +80,8 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&par_format, "-pf", "--parallel-format", "-sf",
-                  "--serial-format",
-                  "Format to use when saving the results for VisIt.");
+   args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
+                  "--no-hybridization", "Enable hybridization.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -89,6 +89,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&par_format, "-pf", "--parallel-format", "-sf",
+                  "--serial-format",
+                  "Format to use when saving the results for VisIt.");
    args.AddOption(&adios2, "-adios2", "--adios2-streams", "-no-adios2",
                   "--no-adios2-streams",
                   "Save data using adios2 streams.");
@@ -148,11 +151,11 @@ int main(int argc, char *argv[])
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Raviart-Thomas finite elements of the specified order.
-   FiniteElementCollection *hdiv_coll(new RT_FECollection(order, dim));
-   FiniteElementCollection *l2_coll(new L2_FECollection(order, dim));
+   FiniteElementCollection *R_coll = new RT_FECollection(order, dim);
+   FiniteElementCollection *W_coll = new L2_FECollection(order, dim);
 
-   ParFiniteElementSpace *R_space = new ParFiniteElementSpace(pmesh, hdiv_coll);
-   ParFiniteElementSpace *W_space = new ParFiniteElementSpace(pmesh, l2_coll);
+   ParFiniteElementSpace *R_space = new ParFiniteElementSpace(pmesh, R_coll);
+   ParFiniteElementSpace *W_space = new ParFiniteElementSpace(pmesh, W_coll);
 
    HYPRE_BigInt dimR = R_space->GlobalTrueVSize();
    HYPRE_BigInt dimW = W_space->GlobalTrueVSize();
@@ -171,50 +174,32 @@ int main(int argc, char *argv[])
    //    block_trueOffstes is used for Vector based on trueDof (HypreParVector
    //    for the rhs and solution of the linear system).  The offsets computed
    //    here are local to the processor.
-   Array<int> block_offsets(3); // number of variables + 1
-   block_offsets[0] = 0;
-   block_offsets[1] = R_space->GetVSize();
-   block_offsets[2] = W_space->GetVSize();
-   block_offsets.PartialSum();
-
-   Array<int> block_trueOffsets(3); // number of variables + 1
-   block_trueOffsets[0] = 0;
-   block_trueOffsets[1] = R_space->TrueVSize();
-   block_trueOffsets[2] = W_space->TrueVSize();
-   block_trueOffsets.PartialSum();
+   ParDarcyForm *darcy = new ParDarcyForm(R_space, W_space, false);
+   const Array<int> &block_offsets = darcy->GetOffsets();
+   const Array<int> &block_trueOffsets = darcy->GetTrueOffsets();
 
    // 9. Define the coefficients, analytical solution, and rhs of the PDE.
-   ConstantCoefficient k(1.0);
+   const double k = 1.0;
+   ConstantCoefficient kcoeff(k); //acoustic resistance
 
-   VectorFunctionCoefficient fcoeff(dim, fFun);
-   FunctionCoefficient fnatcoeff(f_natural);
-   FunctionCoefficient gcoeff(gFun);
+   VectorFunctionCoefficient fcoeff(dim, fFun); //velocity rhs
+   FunctionCoefficient fnatcoeff(f_natural); //boundary velocity rhs
+   FunctionCoefficient gcoeff(gFun); //pressure rhs
 
-   VectorFunctionCoefficient ucoeff(dim, uFun_ex);
-   FunctionCoefficient pcoeff(pFun_ex);
+   VectorFunctionCoefficient ucoeff(dim, uFun_ex); //velocity
+   FunctionCoefficient pcoeff(pFun_ex); //pressure
 
    // 10. Define the parallel grid function and parallel linear forms, solution
    //     vector and rhs.
    MemoryType mt = device.GetMemoryType();
-   BlockVector x(block_offsets, mt), rhs(block_offsets, mt);
-   BlockVector trueX(block_trueOffsets, mt), trueRhs(block_trueOffsets, mt);
+   BlockVector x(block_offsets, mt);
 
-   ParLinearForm *fform(new ParLinearForm);
-   fform->Update(R_space, rhs.GetBlock(0), 0);
+   ParLinearForm *fform = darcy->GetParFluxRHS();
    fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
    fform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(fnatcoeff));
-   fform->Assemble();
-   fform->SyncAliasMemory(rhs);
-   fform->ParallelAssemble(trueRhs.GetBlock(0));
-   trueRhs.GetBlock(0).SyncAliasMemory(trueRhs);
 
-   ParLinearForm *gform(new ParLinearForm);
-   gform->Update(W_space, rhs.GetBlock(1), 0);
+   ParLinearForm *gform = darcy->GetParPotentialRHS();
    gform->AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
-   gform->Assemble();
-   gform->SyncAliasMemory(rhs);
-   gform->ParallelAssemble(trueRhs.GetBlock(1));
-   trueRhs.GetBlock(1).SyncAliasMemory(trueRhs);
 
    // 11. Assemble the finite element matrices for the Darcy operator
    //
@@ -224,145 +209,197 @@ int main(int argc, char *argv[])
    //
    //     M = \int_\Omega k u_h \cdot v_h d\Omega   u_h, v_h \in R_h
    //     B   = -\int_\Omega \div u_h q_h d\Omega   u_h \in R_h, q_h \in W_h
-   ParBilinearForm *mVarf(new ParBilinearForm(R_space));
-   ParMixedBilinearForm *bVarf(new ParMixedBilinearForm(R_space, W_space));
+   ParBilinearForm *mVarf = darcy->GetParFluxMassForm();
+   ParMixedBilinearForm *bVarf = darcy->GetParFluxDivForm();
 
-   HypreParMatrix *M = NULL;
-   HypreParMatrix *B = NULL;
+   mVarf->AddDomainIntegrator(new VectorFEMassIntegrator(kcoeff));
 
-   if (pa) { mVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   mVarf->AddDomainIntegrator(new VectorFEMassIntegrator(k));
-   mVarf->Assemble();
-   if (!pa) { mVarf->Finalize(); }
+   ConstantCoefficient cdiv(-1.);
+   bVarf->AddDomainIntegrator(new VectorFEDivergenceIntegrator(cdiv));
 
-   if (pa) { bVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   bVarf->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
-   bVarf->Assemble();
-   if (!pa) { bVarf->Finalize(); }
+   //set hybridization / assembly level
 
-   BlockOperator *darcyOp = new BlockOperator(block_trueOffsets);
+   Array<int> ess_flux_tdofs_list;
 
-   Array<int> empty_tdof_list;  // empty
-   OperatorPtr opM, opB;
-
-   TransposeOperator *Bt = NULL;
-
-   if (pa)
-   {
-      mVarf->FormSystemMatrix(empty_tdof_list, opM);
-      bVarf->FormRectangularSystemMatrix(empty_tdof_list, empty_tdof_list, opB);
-      Bt = new TransposeOperator(opB.Ptr());
-
-      darcyOp->SetBlock(0,0, opM.Ptr());
-      darcyOp->SetBlock(0,1, Bt, -1.0);
-      darcyOp->SetBlock(1,0, opB.Ptr(), -1.0);
-   }
-   else
-   {
-      M = mVarf->ParallelAssemble();
-      B = bVarf->ParallelAssemble();
-      (*B) *= -1;
-      Bt = new TransposeOperator(B);
-
-      darcyOp->SetBlock(0,0, M);
-      darcyOp->SetBlock(0,1, Bt);
-      darcyOp->SetBlock(1,0, B);
-   }
-
-   // 12. Construct the operators for preconditioner
-   //
-   //                 P = [ diag(M)         0         ]
-   //                     [  0       B diag(M)^-1 B^T ]
-   //
-   //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
-   //     pressure Schur Complement.
-   HypreParMatrix *MinvBt = NULL;
-   HypreParVector *Md = NULL;
-   HypreParMatrix *S = NULL;
-   Vector Md_PA;
-   Solver *invM, *invS;
-
-   if (pa)
-   {
-      Md_PA.SetSize(R_space->GetTrueVSize());
-      mVarf->AssembleDiagonal(Md_PA);
-      auto Md_host = Md_PA.HostRead();
-      Vector invMd(Md_PA.Size());
-      for (int i=0; i<Md_PA.Size(); ++i)
-      {
-         invMd(i) = 1.0 / Md_host[i];
-      }
-
-      Vector BMBt_diag(W_space->GetTrueVSize());
-      bVarf->AssembleDiagonal_ADAt(invMd, BMBt_diag);
-
-      Array<int> ess_tdof_list;  // empty
-
-      invM = new OperatorJacobiSmoother(Md_PA, ess_tdof_list);
-      invS = new OperatorJacobiSmoother(BMBt_diag, ess_tdof_list);
-   }
-   else
-   {
-      Md = new HypreParVector(MPI_COMM_WORLD, M->GetGlobalNumRows(),
-                              M->GetRowStarts());
-      M->GetDiag(*Md);
-
-      MinvBt = B->Transpose();
-      MinvBt->InvScaleRows(*Md);
-      S = ParMult(B, MinvBt);
-
-      invM = new HypreDiagScale(*M);
-      invS = new HypreBoomerAMG(*S);
-   }
-
-   invM->iterative_mode = false;
-   invS->iterative_mode = false;
-
-   BlockDiagonalPreconditioner *darcyPr = new BlockDiagonalPreconditioner(
-      block_trueOffsets);
-   darcyPr->SetDiagonalBlock(0, invM);
-   darcyPr->SetDiagonalBlock(1, invS);
-
-   // 13. Solve the linear system with MINRES.
-   //     Check the norm of the unpreconditioned residual.
-   int maxIter(pa ? 1000 : 500);
-   real_t rtol(1.e-6);
-   real_t atol(1.e-10);
+   FiniteElementCollection *trace_coll = NULL;
+   ParFiniteElementSpace *trace_space = NULL;
 
    chrono.Clear();
    chrono.Start();
-   MINRESSolver solver(MPI_COMM_WORLD);
-   solver.SetAbsTol(atol);
-   solver.SetRelTol(rtol);
-   solver.SetMaxIter(maxIter);
-   solver.SetOperator(*darcyOp);
-   solver.SetPreconditioner(*darcyPr);
-   solver.SetPrintLevel(verbose);
-   trueX = 0.0;
-   solver.Mult(trueRhs, trueX);
-   if (device.IsEnabled()) { trueX.HostRead(); }
-   chrono.Stop();
 
+   if (hybridization)
+   {
+      trace_coll = new DG_Interface_FECollection(order, dim);
+      trace_space = new ParFiniteElementSpace(pmesh, trace_coll);
+      darcy->EnableHybridization(trace_space,
+                                 new NormalTraceJumpIntegrator(),
+                                 ess_flux_tdofs_list);
+   }
+
+   if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+
+   darcy->Assemble();
+
+   OperatorPtr A;
+   Vector X, B;
+   x = 0.;
+   darcy->FormLinearSystem(ess_flux_tdofs_list, x, A, X, B);
+
+   chrono.Stop();
    if (verbose)
    {
-      if (solver.GetConverged())
-         std::cout << "MINRES converged in " << solver.GetNumIterations()
-                   << " iterations with a residual norm of " << solver.GetFinalNorm() << ".\n";
+      std::cout << "Assembly took " << chrono.RealTime() << "s.\n";
+   }
+
+
+   constexpr int maxIter(500);
+   constexpr real_t rtol(1.e-6);
+   constexpr real_t atol(1.e-10);
+
+   if (hybridization)
+   {
+      // 12. Construct the preconditioner
+      HypreBoomerAMG prec;
+
+      // 13. Solve the linear system with GMRES.
+      //     Check the norm of the unpreconditioned residual.
+      chrono.Clear();
+      chrono.Start();
+      GMRESSolver solver(MPI_COMM_WORLD);
+      solver.SetAbsTol(atol);
+      solver.SetRelTol(rtol);
+      solver.SetMaxIter(maxIter);
+      solver.SetPreconditioner(prec);
+      solver.SetOperator(*A);
+      solver.SetPrintLevel(1);
+
+      solver.Mult(B, X);
+      darcy->RecoverFEMSolution(X, x);
+
+      chrono.Stop();
+
+      if (verbose)
+      {
+         if (solver.GetConverged())
+         {
+            std::cout << "GMRES converged in " << solver.GetNumIterations()
+                      << " iterations with a residual norm of "
+                      << solver.GetFinalNorm() << ".\n";
+         }
+         else
+         {
+            std::cout << "GMRES did not converge in " << solver.GetNumIterations()
+                      << " iterations. Residual norm is " << solver.GetFinalNorm()
+                      << ".\n";
+         }
+         std::cout << "GMRES solver took " << chrono.RealTime() << "s.\n";
+      }
+   }
+   else
+   {
+      // 12. Construct the operators for preconditioner
+      //
+      //                 P = [ diag(M)         0         ]
+      //                     [  0       B diag(M)^-1 B^T ]
+      //
+      //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
+      //     pressure Schur Complement
+      HypreParMatrix *MinvBt = NULL;
+      HypreParVector *Md = NULL;
+      HypreParMatrix *S = NULL;
+      Solver *invM, *invS;
+
+      if (pa)
+      {
+         Vector Md(R_space->GetTrueVSize());
+         mVarf->AssembleDiagonal(Md);
+         auto Md_host = Md.HostRead();
+         Vector invMd(Md.Size());
+         for (int i=0; i<Md.Size(); ++i)
+         {
+            invMd(i) = 1.0 / Md_host[i];
+         }
+
+         Vector BMBt_diag(W_space->GetTrueVSize());
+         bVarf->AssembleDiagonal_ADAt(invMd, BMBt_diag);
+
+         Array<int> ess_tdof_list;  // empty
+
+         invM = new OperatorJacobiSmoother(Md, ess_tdof_list);
+         invS = new OperatorJacobiSmoother(BMBt_diag, ess_tdof_list);
+      }
       else
-         std::cout << "MINRES did not converge in " << solver.GetNumIterations()
-                   << " iterations. Residual norm is " << solver.GetFinalNorm() << ".\n";
-      std::cout << "MINRES solver took " << chrono.RealTime() << "s. \n";
+      {
+         HypreParMatrix &M = *mVarf->ParallelAssembleInternalMatrix();
+         Md = new HypreParVector(MPI_COMM_WORLD, M.GetGlobalNumRows(),
+                                 M.GetRowStarts());
+         M.GetDiag(*Md);
+
+         HypreParMatrix &B = *bVarf->ParallelAssembleInternalMatrix();
+         MinvBt = B.Transpose();
+         MinvBt->InvScaleRows(*Md);
+         S = ParMult(&B, MinvBt);
+
+         invM = new HypreDiagScale(M);
+         invS = new HypreBoomerAMG(*S);
+      }
+
+      invM->iterative_mode = false;
+      invS->iterative_mode = false;
+
+      BlockDiagonalPreconditioner darcyPrec(block_trueOffsets);
+      darcyPrec.SetDiagonalBlock(0, invM);
+      darcyPrec.SetDiagonalBlock(1, invS);
+
+      // 13. Solve the linear system with MINRES.
+      //     Check the norm of the unpreconditioned residual.
+
+      chrono.Clear();
+      chrono.Start();
+      MINRESSolver solver(MPI_COMM_WORLD);
+      solver.SetAbsTol(atol);
+      solver.SetRelTol(rtol);
+      solver.SetMaxIter(maxIter);
+      solver.SetOperator(*A);
+      solver.SetPreconditioner(darcyPrec);
+      solver.SetPrintLevel(1);
+
+      solver.Mult(B, X);
+      darcy->RecoverFEMSolution(X, x);
+
+      if (device.IsEnabled()) { x.HostRead(); }
+      chrono.Stop();
+
+      if (verbose)
+      {
+         if (solver.GetConverged())
+         {
+            std::cout << "MINRES converged in " << solver.GetNumIterations()
+                      << " iterations with a residual norm of "
+                      << solver.GetFinalNorm() << ".\n";
+         }
+         else
+         {
+            std::cout << "MINRES did not converge in " << solver.GetNumIterations()
+                      << " iterations. Residual norm is " << solver.GetFinalNorm()
+                      << ".\n";
+         }
+         std::cout << "MINRES solver took " << chrono.RealTime() << "s.\n";
+      }
+
+      delete invM;
+      delete invS;
+      delete S;
+      delete Md;
+      delete MinvBt;
    }
 
    // 14. Extract the parallel grid function corresponding to the finite element
    //     approximation X. This is the local solution on each processor. Compute
    //     L2 error norms.
-   ParGridFunction *u(new ParGridFunction);
-   ParGridFunction *p(new ParGridFunction);
-   u->MakeRef(R_space, x.GetBlock(0), 0);
-   p->MakeRef(W_space, x.GetBlock(1), 0);
-   u->Distribute(&(trueX.GetBlock(0)));
-   p->Distribute(&(trueX.GetBlock(1)));
+   ParGridFunction u, p;
+   u.MakeRef(R_space, x.GetBlock(0), 0);
+   p.MakeRef(W_space, x.GetBlock(1), 0);
 
    int order_quad = max(2, 2*order+1);
    const IntegrationRule *irs[Geometry::NumGeom];
@@ -371,10 +408,10 @@ int main(int argc, char *argv[])
       irs[i] = &(IntRules.Get(i, order_quad));
    }
 
-   real_t err_u  = u->ComputeL2Error(ucoeff, irs);
-   real_t norm_u = ComputeGlobalLpNorm(2, ucoeff, *pmesh, irs);
-   real_t err_p  = p->ComputeL2Error(pcoeff, irs);
-   real_t norm_p = ComputeGlobalLpNorm(2, pcoeff, *pmesh, irs);
+   real_t err_u  = u.ComputeL2Error(ucoeff, irs);
+   real_t norm_u = ComputeGlobalLpNorm(2., ucoeff, *pmesh, irs);
+   real_t err_p  = p.ComputeL2Error(pcoeff, irs);
+   real_t norm_p = ComputeGlobalLpNorm(2., pcoeff, *pmesh, irs);
 
    if (verbose)
    {
@@ -396,17 +433,17 @@ int main(int argc, char *argv[])
 
       ofstream u_ofs(u_name.str().c_str());
       u_ofs.precision(8);
-      u->Save(u_ofs);
+      u.Save(u_ofs);
 
       ofstream p_ofs(p_name.str().c_str());
       p_ofs.precision(8);
-      p->Save(p_ofs);
+      p.Save(p_ofs);
    }
 
    // 16. Save data in the VisIt format
    VisItDataCollection visit_dc("Example5-Parallel", pmesh);
-   visit_dc.RegisterField("velocity", u);
-   visit_dc.RegisterField("pressure", p);
+   visit_dc.RegisterField("velocity", &u);
+   visit_dc.RegisterField("pressure", &p);
    visit_dc.SetFormat(!par_format ?
                       DataCollection::SERIAL_FORMAT :
                       DataCollection::PARALLEL_FORMAT);
@@ -419,9 +456,9 @@ int main(int argc, char *argv[])
    paraview_dc.SetDataFormat(VTKFormat::BINARY);
    paraview_dc.SetHighOrderOutput(true);
    paraview_dc.SetCycle(0);
-   paraview_dc.SetTime(0.0);
-   paraview_dc.RegisterField("velocity",u);
-   paraview_dc.RegisterField("pressure",p);
+   paraview_dc.SetTime(0.0); // set the time
+   paraview_dc.RegisterField("velocity",&u);
+   paraview_dc.RegisterField("pressure",&p);
    paraview_dc.Save();
 
    // 18. Optionally output a BP (binary pack) file using ADIOS2. This can be
@@ -438,8 +475,8 @@ int main(int argc, char *argv[])
       adios2_dc.SetLevelsOfDetail(1);
       adios2_dc.SetCycle(1);
       adios2_dc.SetTime(0.0);
-      adios2_dc.RegisterField("velocity",u);
-      adios2_dc.RegisterField("pressure",p);
+      adios2_dc.RegisterField("velocity",&u);
+      adios2_dc.RegisterField("pressure",&p);
       adios2_dc.Save();
    }
 #endif
@@ -452,7 +489,7 @@ int main(int argc, char *argv[])
       socketstream u_sock(vishost, visport);
       u_sock << "parallel " << num_procs << " " << myid << "\n";
       u_sock.precision(8);
-      u_sock << "solution\n" << *pmesh << *u << "window_title 'Velocity'"
+      u_sock << "solution\n" << *pmesh << u << "window_title 'Velocity'"
              << endl;
       // Make sure all ranks have sent their 'u' solution before initiating
       // another set of GLVis connections (one from each rank):
@@ -460,31 +497,18 @@ int main(int argc, char *argv[])
       socketstream p_sock(vishost, visport);
       p_sock << "parallel " << num_procs << " " << myid << "\n";
       p_sock.precision(8);
-      p_sock << "solution\n" << *pmesh << *p << "window_title 'Pressure'"
+      p_sock << "solution\n" << *pmesh << p << "window_title 'Pressure'"
              << endl;
    }
 
    // 20. Free the used memory.
-   delete fform;
-   delete gform;
-   delete u;
-   delete p;
-   delete darcyOp;
-   delete darcyPr;
-   delete invM;
-   delete invS;
-   delete S;
-   delete Md;
-   delete MinvBt;
-   delete Bt;
-   delete B;
-   delete M;
-   delete mVarf;
-   delete bVarf;
+   delete darcy;
    delete W_space;
    delete R_space;
-   delete l2_coll;
-   delete hdiv_coll;
+   delete trace_space;
+   delete W_coll;
+   delete R_coll;
+   delete trace_coll;
    delete pmesh;
 
    return 0;
