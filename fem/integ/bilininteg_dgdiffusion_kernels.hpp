@@ -231,20 +231,12 @@ static void PADGDiffusionApply3D(const int NF, const Array<real_t> &b,
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
-      MFEM_SHARED real_t u0[max_Q1D][max_Q1D];
-      MFEM_SHARED real_t u1[max_Q1D][max_Q1D];
+      MFEM_SHARED real_t u[2][max_Q1D][max_Q1D];
+      MFEM_SHARED real_t du[2][max_Q1D][max_Q1D];
 
-      MFEM_SHARED real_t du0[max_Q1D][max_Q1D];
-      MFEM_SHARED real_t du1[max_Q1D][max_Q1D];
-
-      MFEM_SHARED real_t Gu0[max_Q1D][max_Q1D];
-      MFEM_SHARED real_t Gu1[max_Q1D][max_Q1D];
-
-      MFEM_SHARED real_t Bu0[max_Q1D][max_Q1D];
-      MFEM_SHARED real_t Bu1[max_Q1D][max_Q1D];
-
-      MFEM_SHARED real_t Bdu0[max_Q1D][max_Q1D];
-      MFEM_SHARED real_t Bdu1[max_Q1D][max_Q1D];
+      MFEM_SHARED real_t Gu[2][max_Q1D][max_Q1D];
+      MFEM_SHARED real_t Bu[2][max_Q1D][max_Q1D];
+      MFEM_SHARED real_t Bdu[2][max_Q1D][max_Q1D];
 
       MFEM_SHARED real_t kappa_Qh[max_Q1D][max_Q1D];
 
@@ -252,12 +244,9 @@ static void PADGDiffusionApply3D(const int NF, const Array<real_t> &b,
       MFEM_SHARED real_t BG[2 * max_D1D * max_Q1D];
 
       // some buffers are reused multiple times, but for clarity have new names:
-      real_t(*Bj0)[max_Q1D] = Bu0;
-      real_t(*Bj1)[max_Q1D] = Bu1;
-      real_t(*Bjn0)[max_Q1D] = Bdu0;
-      real_t(*Bjn1)[max_Q1D] = Bdu1;
-      real_t(*Gj0)[max_Q1D] = Gu0;
-      real_t(*Gj1)[max_Q1D] = Gu1;
+      real_t(*const Bj)[max_Q1D][max_Q1D] = Bu;
+      real_t(*const Bjn)[max_Q1D][max_Q1D] = Bdu;
+      real_t(*const Gj)[max_Q1D][max_Q1D] = Gu;
 
       DeviceMatrix B(BG, Q1D, D1D);
       DeviceMatrix G(BG + D1D * Q1D, Q1D, D1D);
@@ -265,16 +254,14 @@ static void PADGDiffusionApply3D(const int NF, const Array<real_t> &b,
       // copy face values to u0, u1 and copy normals to du0, du1
       MFEM_FOREACH_THREAD(side, z, 2)
       {
-         real_t(*u)[max_Q1D] = (side == 0) ? u0 : u1;
-         real_t(*du)[max_Q1D] = (side == 0) ? du0 : du1;
 
          MFEM_FOREACH_THREAD(d2, x, D1D)
          {
             MFEM_FOREACH_THREAD(d1, y, D1D)
             {
-               u[d2][d1] = x(d1, d2, side,
+               u[side][d2][d1] = x(d1, d2, side,
                              f); // copy transposed for better memory access
-               du[d2][d1] = dxdn(d1, d2, side, f);
+               du[side][d2][d1] = dxdn(d1, d2, side, f);
             }
          }
 
@@ -311,12 +298,6 @@ static void PADGDiffusionApply3D(const int NF, const Array<real_t> &b,
       // eval u and normal derivative @ quad points
       MFEM_FOREACH_THREAD(side, z, 2)
       {
-         real_t(*u)[max_Q1D] = (side == 0) ? u0 : u1;
-         real_t(*du)[max_Q1D] = (side == 0) ? du0 : du1;
-         real_t(*Bu)[max_Q1D] = (side == 0) ? Bu0 : Bu1;
-         real_t(*Bdu)[max_Q1D] = (side == 0) ? Bdu0 : Bdu1;
-         real_t(*Gu)[max_Q1D] = (side == 0) ? Gu0 : Gu1;
-
          MFEM_FOREACH_THREAD(p1, x, Q1D)
          {
             MFEM_FOREACH_THREAD(d2, y, D1D)
@@ -330,14 +311,14 @@ static void PADGDiffusionApply3D(const int NF, const Array<real_t> &b,
                   const real_t b = B(p1, d1);
                   const real_t g = G(p1, d1);
 
-                  bu += b * u[d2][d1];
-                  bdu += b * du[d2][d1];
-                  gu += g * u[d2][d1];
+                  bu += b * u[side][d2][d1];
+                  bdu += b * du[side][d2][d1];
+                  gu += g * u[side][d2][d1];
                }
 
-               Bu[p1][d2] = bu;
-               Bdu[p1][d2] = bdu;
-               Gu[p1][d2] = gu;
+               Bu[side][p1][d2] = bu;
+               Bdu[side][p1][d2] = bdu;
+               Gu[side][p1][d2] = gu;
             }
          }
       }
@@ -345,12 +326,6 @@ static void PADGDiffusionApply3D(const int NF, const Array<real_t> &b,
 
       MFEM_FOREACH_THREAD(side, z, 2)
       {
-         real_t(*u)[max_Q1D] = (side == 0) ? u0 : u1;
-         real_t(*du)[max_Q1D] = (side == 0) ? du0 : du1;
-         real_t(*Bu)[max_Q1D] = (side == 0) ? Bu0 : Bu1;
-         real_t(*Gu)[max_Q1D] = (side == 0) ? Gu0 : Gu1;
-         real_t(*Bdu)[max_Q1D] = (side == 0) ? Bdu0 : Bdu1;
-
          MFEM_FOREACH_THREAD(p2, x, Q1D)
          {
             MFEM_FOREACH_THREAD(p1, y, Q1D)
@@ -366,15 +341,15 @@ static void PADGDiffusionApply3D(const int NF, const Array<real_t> &b,
                {
                   const real_t b = B(p2, d2);
                   const real_t g = G(p2, d2);
-                  bbu += b * Bu[p1][d2];
-                  gbu += g * Bu[p1][d2];
-                  bgu += b * Gu[p1][d2];
-                  bbdu += b * Bdu[p1][d2];
+                  bbu += b * Bu[side][p1][d2];
+                  gbu += g * Bu[side][p1][d2];
+                  bgu += b * Gu[side][p1][d2];
+                  bbdu += b * Bdu[side][p1][d2];
                }
 
-               u[p2][p1] = bbu;
+               u[side][p2][p1] = bbu;
                // du <- Q du/dn * w * det(J)
-               du[p2][p1] = Je[0] * bbdu + Je[1] * bgu + Je[2] * gbu;
+               du[side][p2][p1] = Je[0] * bbdu + Je[1] * bgu + Je[2] * gbu;
             }
          }
       }
@@ -382,10 +357,6 @@ static void PADGDiffusionApply3D(const int NF, const Array<real_t> &b,
 
       MFEM_FOREACH_THREAD(side, z, 2)
       {
-         real_t(*Bj)[max_Q1D] = (side == 0) ? Bj0 : Bj1;
-         real_t(*Bjn)[max_Q1D] = (side == 0) ? Bjn0 : Bjn1;
-         real_t(*Gj)[max_Q1D] = (side == 0) ? Gj0 : Gj1;
-
          MFEM_FOREACH_THREAD(d1, x, D1D)
          {
             MFEM_FOREACH_THREAD(p2, y, Q1D)
@@ -402,8 +373,8 @@ static void PADGDiffusionApply3D(const int NF, const Array<real_t> &b,
 
                   const real_t *Je = nJe[side][p2][p1];
 
-                  const real_t jump = u0[p2][p1] - u1[p2][p1];
-                  const real_t avg = du0[p2][p1] + du1[p2][p1];
+                  const real_t jump = u[0][p2][p1] - u[1][p2][p1];
+                  const real_t avg = du[0][p2][p1] + du[1][p2][p1];
 
                   // r = - < {Q du/dn}, [v] > + kappa * < {Q/h} [u], [v] >
                   const real_t r = -avg + kappa_Qh[p2][p1] * jump;
@@ -416,13 +387,13 @@ static void PADGDiffusionApply3D(const int NF, const Array<real_t> &b,
                   br += b * r;
                }
 
-               Bj[d1][p2] = sigma * bj;
-               Bjn[d1][p2] = sigma * bjn;
+               Bj[side][d1][p2] = sigma * bj;
+               Bjn[side][d1][p2] = sigma * bjn;
 
                // group br and gj together since we will multiply them both by B
                // and then sum
                const real_t sgn = (side == 0) ? 1.0 : -1.0;
-               Gj[d1][p2] = sgn * br + sigma * gj;
+               Gj[side][d1][p2] = sgn * br + sigma * gj;
             }
          }
       }
@@ -430,12 +401,6 @@ static void PADGDiffusionApply3D(const int NF, const Array<real_t> &b,
 
       MFEM_FOREACH_THREAD(side, z, 2)
       {
-         real_t(*u)[max_Q1D] = (side == 0) ? u0 : u1;
-         real_t(*du)[max_Q1D] = (side == 0) ? du0 : du1;
-         real_t(*Bj)[max_Q1D] = (side == 0) ? Bj0 : Bj1;
-         real_t(*Bjn)[max_Q1D] = (side == 0) ? Bjn0 : Bjn1;
-         real_t(*Gj)[max_Q1D] = (side == 0) ? Gj0 : Gj1;
-
          MFEM_FOREACH_THREAD(d2, x, D1D)
          {
             MFEM_FOREACH_THREAD(d1, y, D1D)
@@ -449,13 +414,13 @@ static void PADGDiffusionApply3D(const int NF, const Array<real_t> &b,
                   const real_t b = B(p2, d2);
                   const real_t g = G(p2, d2);
 
-                  bbj += b * Bj[d1][p2];
-                  bgj += b * Gj[d1][p2];
-                  gbj += g * Bjn[d1][p2];
+                  bbj += b * Bj[side][d1][p2];
+                  bgj += b * Gj[side][d1][p2];
+                  gbj += g * Bjn[side][d1][p2];
                }
 
-               du[d2][d1] = bbj;
-               u[d2][d1] = bgj + gbj;
+               du[side][d2][d1] = bbj;
+               u[side][d2][d1] = bgj + gbj;
             }
          }
       }
@@ -464,15 +429,12 @@ static void PADGDiffusionApply3D(const int NF, const Array<real_t> &b,
       // map back to y and dydn
       MFEM_FOREACH_THREAD(side, z, 2)
       {
-         const real_t(*u)[max_Q1D] = (side == 0) ? u0 : u1;
-         const real_t(*du)[max_Q1D] = (side == 0) ? du0 : du1;
-
          MFEM_FOREACH_THREAD(d2, x, D1D)
          {
             MFEM_FOREACH_THREAD(d1, y, D1D)
             {
-               y(d1, d2, side, f) += u[d2][d1];
-               dydn(d1, d2, side, f) += du[d2][d1];
+               y(d1, d2, side, f) += u[side][d2][d1];
+               dydn(d1, d2, side, f) += du[side][d2][d1];
             }
          }
       }
