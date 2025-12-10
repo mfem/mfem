@@ -548,10 +548,10 @@ void IsoLinElasticSolver::FSolve()
    lf = nullptr;
 }
 
-template <int DIM> struct FilterQFunction
+template <int DIM, typename scalar_t=real_t> struct FilterQFunction
 {
    using matd_t = tensor<real_t, DIM, DIM>;
-   using vecd_t = tensor<dscalar_t, DIM>;
+   using vecd_t = tensor<scalar_t, DIM>;
 
    struct Diffusion
    {
@@ -579,3 +579,155 @@ template <int DIM> struct FilterQFunction
       }
    };
 };
+
+PDEFilter::PDEFilter(ParMesh *mesh,int order, real_t r):
+   pmesh(mesh),
+   dim(mesh->Dimension()),
+   spaceDim(mesh->SpaceDimension()),
+   filter_radius(r),
+   ffec(new H1_FECollection(order, dim)),
+   ffes(new ParFiniteElementSpace(pmesh, ffec, 1, Ordering::byNODES)),
+   ifec(new L2_FECollection(order, dim)),
+   ifes(new ParFiniteElementSpace(pmesh, ifec, 1, Ordering::byNODES)),
+   filtered_field(ffes),
+   input_field(ifes),
+   prec(nullptr),
+   ls(nullptr),
+   ess_tdofv(),
+   fe(ffes->GetFE(0)),
+   nodes((pmesh->EnsureNodes(),
+          static_cast<ParGridFunction *>(pmesh->GetNodes()))),
+   mfes(nodes->ParFESpace()),
+   ir(IntRules.Get(fe->GetGeomType(),
+                   fe->GetOrder() + fe->GetOrder() + fe->GetDim() - 1)),
+   qs(*pmesh, ir),
+   diff_ps(*pmesh, ir, 1)
+{
+
+   filtered_field = 0.0;
+   input_field = 0.0;   
+
+   SetLinearSolver();
+
+   Operator::width = ifes->GetTrueVSize();
+   Operator::height = ffes->GetTrueVSize();
+
+
+   if (pmesh->attributes.Size() > 0)
+   {
+      domain_attributes.SetSize(pmesh->attributes.Max());
+      domain_attributes = 1;
+   }
+}
+
+PDEFilter::~PDEFilter()
+{
+   delete prec;
+   delete ls;
+
+   delete ffes;
+   delete ffec;
+
+   delete ifes;
+   delete ifec;
+}  
+
+void PDEFilter::SetFilterRadius(real_t r)
+{
+   filter_radius = r;
+}
+
+void PDEFilter::SetLinearSolver(real_t rtol,
+                                 real_t atol,
+                                 int miter)
+{
+   linear_rtol = rtol;
+   linear_atol = atol;
+   linear_iter = miter;
+}
+
+void PDEFilter::Assemble()
+{
+   delete prec; prec=nullptr;
+   delete ls; ls=nullptr;
+
+   // define the differentiable operator
+   dop= std::make_unique<mfem::future::DifferentiableOperator>(
+      std::vector<mfem::future::FieldDescriptor> {{ FSol, ffes }},
+      std::vector<mfem::future::FieldDescriptor>
+      {
+         { DiffCoeff, &diff_ps },
+         { USol, ifes },
+         { Coords, mfes }
+      },
+      *pmesh);
+
+   // sample filter coefficient on the integration points
+   diff_cv = std::make_unique<CoefficientVector>(
+                     ConstantCoefficient(1.0/(filter_radius*filter_radius)), qs);
+
+   // set the parameters of the differentiable operator
+   dop->SetParameters({ diff_cv.get(), &input_field, nodes });
+
+   // define the q-function for dimensions 2 and 3
+   const auto dinputs =
+      mfem::future::tuple{ Gradient<FSol>{},
+                           Identity<DiffCoeff>{},
+                           Gradient<Coords>{},
+                           Weight{} };
+   const auto minputs =
+      mfem::future::tuple{ Identity<Fsol>{},
+                           Identity<USol>{},
+                           Gradient<Coords>{},
+                           Weight{} };
+
+   const auto doutput = mfem::future::tuple{ Gradient<FSol>{} };
+   const auto moutput = mfem::future::tuple{ Identity<Fsol>{} };  
+
+   if (2 == spaceDim)
+   {
+      typename FilterQFunction<2>::Diffusion diff_qf;
+      dop->AddDomainIntegrator(diff_qf, dinputs, doutput, ir, domain_attributes);
+
+      typename FilterQFunction<2>::Mass mass_qf;
+      dop->AddDomainIntegrator(mass_qf, minputs, moutput, ir, domain_attributes);
+   }
+   else if (3 == spaceDim)
+   {
+      typename FilterQFunction<3>::Diffusion diff_qf;
+      dop->AddDomainIntegrator(diff_qf, dinputs, doutput, ir, domain_attributes);
+
+      typename FilterQFunction<3>::Mass mass_qf;
+      dop->AddDomainIntegrator(mass_qf, minputs, moutput, ir, domain_attributes);
+   }
+   else { MFEM_ABORT("Space dimension not supported"); }
+
+   // set BC
+
+
+   Operator *Kop;
+   dop->FormSystemOperator(ess_tdofv, Kop);
+   Kh = std::make_unique<OperatorHandle>(Kop);
+   Kc = dynamic_cast<mfem::ConstrainedOperator*>(Kop);
+
+   // set the linear solver
+   ls = new CGSolver(pmesh->GetComm());
+   prec = new HypreBoomerAMG();
+   ls->SetOperator(*Kh->Ptr());
+   ls->SetPrintLevel(1); 
+   ls->SetPreconditioner(*prec);
+
+}
+
+virtual void PDEFilter::Mult(const Vector &x, Vector &y) const override
+{
+
+}
+
+virtual void PDEFilter::MultTranspose(const Vector &x,
+                                        Vector &y) const override
+{
+
+}
+
+

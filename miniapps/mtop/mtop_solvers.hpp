@@ -347,6 +347,9 @@ public:
                         real_t atol = 1e-12,
                         int miter = 200);
 
+   /// Assemble the filter operator
+   void Assemble();
+
    /// Apply the filter to input x, output y.
    virtual
    void Mult(const mfem::Vector &x, mfem::Vector &y) const override;
@@ -355,13 +358,44 @@ public:
    virtual
    void MultTranspose(const mfem::Vector &x, mfem::Vector &y) const override;
 
+   /// Returns the filtered field.
+   mfem::ParGridFunction &GetFilteredField()
+   {
+      return filtered_field;
+   }
+
+   /// Returns the filtered finite element space
+   mfem::ParFiniteElementSpace &GetFilteredFESpace()
+   {
+      return *ffes;
+   }
+
+   /// Returns the input finite element space
+   mfem::ParFiniteElementSpace &GetInputFESpace()
+   {
+      return *ifes;
+   }
+
 private:
    mfem::ParMesh *pmesh;
    const int dim; 
    const int spaceDim;
 
-   mfem::FiniteElementCollection *fec;
-   mfem::ParFiniteElementSpace *fes;
+   real_t filter_radius;
+
+   mfem::FiniteElementCollection *ffec;
+   mfem::ParFiniteElementSpace *ffes;
+
+   mfem::FiniteElementCollection *ifec;
+   mfem::ParFiniteElementSpace *ifes;
+
+   mfem::ParGridFunction filtered_field;
+   mfem::ParGridFunction input_field;
+
+   // Linear solver parameters
+   real_t linear_rtol;
+   real_t linear_atol;
+   int linear_iter;
 
    mfem::HypreBoomerAMG *prec; // preconditioner
    mfem::CGSolver *ls;         // linear solver
@@ -369,20 +403,21 @@ private:
    // holds the displacement contrained DOFs
    mfem::Array<int> ess_tdofv;
 
-   real_t filter_radius;
-
    // boundary conditions
    std::map<int, mfem::ConstantCoefficient> bcr;
 
    // DFEM related definitions
    std::unique_ptr<mfem::future::DifferentiableOperator> dop;
+   const mfem::FiniteElement *fe;
    mfem::ParGridFunction *nodes;
    mfem::ParFiniteElementSpace *mfes;
-   const mfem::FiniteElement *fe;
    const mfem::IntegrationRule &ir;
    mfem::QuadratureSpace qs;
    mfem::Array<int> domain_attributes;
+   NqptUniformParameterSpace diff_ps;
+   std::unique_ptr<mfem::CoefficientVector> diff_cv;
    // Fsol - filtered solution, USol - unfiltered solution
    // Coords - nodal coordinates
-   static constexpr int FSol = 0, USol=1, Coords = 2;
+   static constexpr int FSol = 0, USol=1, Coords = 2, DiffCoeff = 3;
+
 };
