@@ -137,7 +137,7 @@ TEST_CASE("NCMesh 3D Refined Volume", "[NCMesh]")
    {
       return;
    }
-   
+
 
    Mesh mesh(mesh_fname, 1, 1);
    mesh.EnsureNCMesh(true);
@@ -2929,12 +2929,13 @@ TEST_CASE("Test3DMixedMeshRefinement", "[NCMesh]")
    SECTION("Various Refinements of the Hex")
    {
       std::map<char,int> refined_zones = {{Refinement::X, 2},
-                                          {Refinement::Y, 2},
-                                          {Refinement::Z, 2},
-                                          {Refinement::XY, 4},
-                                          {Refinement::XZ, 4},
-                                          {Refinement::YZ, 4},
-                                          {Refinement::XYZ, 8}};
+         {Refinement::Y, 2},
+         {Refinement::Z, 2},
+         {Refinement::XY, 4},
+         {Refinement::XZ, 4},
+         {Refinement::YZ, 4},
+         {Refinement::XYZ, 8}
+      };
       R.SetSize(1);
       R[0].Set(0, ref_type);
       mesh.GeneralRefinement(R,1);
@@ -2946,12 +2947,13 @@ TEST_CASE("Test3DMixedMeshRefinement", "[NCMesh]")
    SECTION("Refine the Prism")
    {
       std::map<char,int> refined_zones = {{Refinement::X, 4},
-                                          {Refinement::Y, 4},
-                                          {Refinement::Z, 2},
-                                          {Refinement::XY, 4},
-                                          {Refinement::XZ, 8},
-                                          {Refinement::YZ, 8},
-                                          {Refinement::XYZ, 8}};
+         {Refinement::Y, 4},
+         {Refinement::Z, 2},
+         {Refinement::XY, 4},
+         {Refinement::XZ, 8},
+         {Refinement::YZ, 8},
+         {Refinement::XYZ, 8}
+      };
       R.SetSize(1);
       R[0].Set(1, ref_type);
       mesh.GeneralRefinement(R,1);
@@ -2963,34 +2965,36 @@ TEST_CASE("Test3DMixedMeshRefinement", "[NCMesh]")
    SECTION("Refine the Pyramid")
    {
       std::map<char,int> refined_zones = {{Refinement::X, 10},
-                                          {Refinement::Y, 10},
-                                          {Refinement::Z, 10},
-                                          {Refinement::XY, 10},
-                                          {Refinement::XZ, 10},
-                                          {Refinement::YZ, 10},
-                                          {Refinement::XYZ, 10}}; //Forced full refinement 
+         {Refinement::Y, 10},
+         {Refinement::Z, 10},
+         {Refinement::XY, 10},
+         {Refinement::XZ, 10},
+         {Refinement::YZ, 10},
+         {Refinement::XYZ, 10}
+      }; //Forced full refinement
       R.SetSize(1);
       R[0].Set(2, ref_type);
       mesh.GeneralRefinement(R,1);
       int num_zones_expected = 4 + refined_zones[ref_type] - 1;
-      CHECK(mesh.GetNE() == num_zones_expected);      
+      CHECK(mesh.GetNE() == num_zones_expected);
       test_mesh_vol(mesh, 2.0);
    }
 
    SECTION("Refine the Tet")
    {
       std::map<char,int> refined_zones = {{Refinement::X, 8},
-                                          {Refinement::Y, 8},
-                                          {Refinement::Z, 8},
-                                          {Refinement::XY, 8},
-                                          {Refinement::XZ, 8},
-                                          {Refinement::YZ, 8},
-                                          {Refinement::XYZ, 8}};  //Forced full refinement 
+         {Refinement::Y, 8},
+         {Refinement::Z, 8},
+         {Refinement::XY, 8},
+         {Refinement::XZ, 8},
+         {Refinement::YZ, 8},
+         {Refinement::XYZ, 8}
+      };  //Forced full refinement
       R.SetSize(1);
-      R[0].Set(3, ref_type);       
+      R[0].Set(3, ref_type);
       mesh.GeneralRefinement(R,1);
       int num_zones_expected = 4 + refined_zones[ref_type] - 1;
-      CHECK(mesh.GetNE() == num_zones_expected);        
+      CHECK(mesh.GetNE() == num_zones_expected);
       test_mesh_vol(mesh, 2.0);
    }
 }
