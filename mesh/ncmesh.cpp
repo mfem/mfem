@@ -604,7 +604,7 @@ int Refinement::GetNumChildren(Geometry::Type geom_type, char ref_type)
 {
    if (geom_type != Geometry::PYRAMID)
    {
-      return ref_type_num_children[ref_type];
+      return ref_type_num_children[int(ref_type)];
    }
    else
    {
