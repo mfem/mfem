@@ -385,8 +385,8 @@ ParticleSet::Kernels::Kernels()
    TransferParticles::Specialization<40*sizd>::Add();
 }
 
-ParticleSet::TransferParticlesType
-ParticleSet::TransferParticles::Fallback(size_t bufsize)
+auto ParticleSet::TransferParticles::Fallback(size_t bufsize)
+-> ParticleSet::TransferParticlesType
 {
    constexpr size_t sizd = sizeof(real_t);
    if (bufsize < 4*sizd)
