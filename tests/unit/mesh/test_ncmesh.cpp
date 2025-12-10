@@ -120,7 +120,8 @@ TEST_CASE("NCMesh 3D Refined Volume", "[NCMesh]")
    auto mesh_fname = GENERATE("../../data/ref-tetrahedron.mesh",
                               "../../data/ref-cube.mesh",
                               "../../data/ref-prism.mesh",
-                              "../../data/ref-pyramid.mesh"
+                              "../../data/ref-pyramid.mesh",
+                              "data/tinyzoo-3d.mesh"
                              );
 
    auto ref_type = GENERATE(Refinement::X,
@@ -132,15 +133,20 @@ TEST_CASE("NCMesh 3D Refined Volume", "[NCMesh]")
                             Refinement::XYZ);
 
    const real_t scale = GENERATE(0.5, 0.25);  // Only affects hex mesh so far
-
    if (scale != 0.5 && std::strcmp(mesh_fname, "../../data/ref-cube.mesh") != 0)
    {
       return;
    }
+   
 
    Mesh mesh(mesh_fname, 1, 1);
    mesh.EnsureNCMesh(true);
-   real_t original_volume = mesh.GetElementVolume(0);
+   real_t original_volume = 0.0;
+   for (int i = 0; i < mesh.GetNE(); ++i)
+   {
+      original_volume += mesh.GetElementVolume(i);
+   }
+   mesh.GetElementVolume(0);
    Array<Refinement> ref(1);
    ref[0].Set(0, ref_type, scale);
 
@@ -158,7 +164,8 @@ TEST_CASE("NCMesh 3D Derefined Volume", "[NCMesh]")
    auto mesh_fname = GENERATE("../../data/ref-tetrahedron.mesh",
                               "../../data/ref-cube.mesh",
                               "../../data/ref-prism.mesh",
-                              "../../data/ref-pyramid.mesh"
+                              "../../data/ref-pyramid.mesh",
+                              "data/tinyzoo-3d.mesh"
                              );
 
    auto ref_type = GENERATE(Refinement::XYZ);
@@ -166,8 +173,11 @@ TEST_CASE("NCMesh 3D Derefined Volume", "[NCMesh]")
    Mesh mesh(mesh_fname, 1, 1);
    mesh.EnsureNCMesh(true);
    real_t original_volume = mesh.GetElementVolume(0);
-   Array<Refinement> ref(1);
-   ref[0].Set(0, ref_type);
+   Array<Refinement> ref(mesh.GetNE());
+   for (int i = 0; i < mesh.GetNE(); ++i)
+   {
+      ref[i].Set(i, ref_type);
+   }
 
    mesh.GeneralRefinement(ref, 1);
 
@@ -2889,6 +2899,99 @@ TEST_CASE("InternalBoundaryProjectBdrCoefficient", "[NCMesh]")
       smesh.EnsureNCMesh(true);
       OneSidedNCRefine(smesh);
       test_project_H1(smesh, 3, 0.25);
+   }
+}
+
+TEST_CASE("Test3DMixedMeshRefinement", "[NCMesh]")
+{
+   Mesh mesh("data/tinyzoo-3d.mesh");
+   mesh.EnsureNCMesh();
+   Array<Refinement> R;
+
+   auto ref_type = GENERATE(Refinement::X,
+                            Refinement::Y,
+                            Refinement::Z,
+                            Refinement::XY,
+                            Refinement::XZ,
+                            Refinement::YZ,
+                            Refinement::XYZ);
+
+   auto test_mesh_vol = [](Mesh &mesh, real_t target_volume)
+   {
+      real_t vol = 0.0;
+      for (int e = 0; e < mesh.GetNE(); ++e)
+      {
+         vol += mesh.GetElementVolume(e);
+      }
+      CHECK(vol == Approx(target_volume));
+   };
+
+   SECTION("Various Refinements of the Hex")
+   {
+      std::map<char,int> refined_zones = {{Refinement::X, 2},
+                                          {Refinement::Y, 2},
+                                          {Refinement::Z, 2},
+                                          {Refinement::XY, 4},
+                                          {Refinement::XZ, 4},
+                                          {Refinement::YZ, 4},
+                                          {Refinement::XYZ, 8}};
+      R.SetSize(1);
+      R[0].Set(0, ref_type);
+      mesh.GeneralRefinement(R,1);
+      int num_zones_expected = 4 + refined_zones[ref_type] - 1;
+      CHECK(mesh.GetNE() == num_zones_expected);
+      test_mesh_vol(mesh, 2.0);
+   }
+
+   SECTION("Refine the Prism")
+   {
+      std::map<char,int> refined_zones = {{Refinement::X, 4},
+                                          {Refinement::Y, 4},
+                                          {Refinement::Z, 2},
+                                          {Refinement::XY, 4},
+                                          {Refinement::XZ, 8},
+                                          {Refinement::YZ, 8},
+                                          {Refinement::XYZ, 8}};
+      R.SetSize(1);
+      R[0].Set(1, ref_type);
+      mesh.GeneralRefinement(R,1);
+      int num_zones_expected = 4 + refined_zones[ref_type] - 1;
+      CHECK(mesh.GetNE() == num_zones_expected);
+      test_mesh_vol(mesh, 2.0);
+   }
+
+   SECTION("Refine the Pyramid")
+   {
+      std::map<char,int> refined_zones = {{Refinement::X, 10},
+                                          {Refinement::Y, 10},
+                                          {Refinement::Z, 10},
+                                          {Refinement::XY, 10},
+                                          {Refinement::XZ, 10},
+                                          {Refinement::YZ, 10},
+                                          {Refinement::XYZ, 10}}; //Forced full refinement 
+      R.SetSize(1);
+      R[0].Set(2, ref_type);
+      mesh.GeneralRefinement(R,1);
+      int num_zones_expected = 4 + refined_zones[ref_type] - 1;
+      CHECK(mesh.GetNE() == num_zones_expected);      
+      test_mesh_vol(mesh, 2.0);
+   }
+
+   SECTION("Refine the Tet")
+   {
+      std::map<char,int> refined_zones = {{Refinement::X, 8},
+                                          {Refinement::Y, 8},
+                                          {Refinement::Z, 8},
+                                          {Refinement::XY, 8},
+                                          {Refinement::XZ, 8},
+                                          {Refinement::YZ, 8},
+                                          {Refinement::XYZ, 8}};  //Forced full refinement 
+      R.SetSize(1);
+      R[0].Set(3, ref_type);       
+      mesh.GeneralRefinement(R,1);
+      int num_zones_expected = 4 + refined_zones[ref_type] - 1;
+      CHECK(mesh.GetNE() == num_zones_expected);        
+      test_mesh_vol(mesh, 2.0);
    }
 }
 
