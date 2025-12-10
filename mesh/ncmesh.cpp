@@ -6447,10 +6447,19 @@ void NCMesh::Print(std::ostream &os, const std::string &comments,
       if (el.parent == -2) { os << "-1\n"; continue; } // unused element
 
       os << int(el.geom) << " " << int(el.ref_type);
-      for (int j = 0; j < (int(el.ref_type) ? MaxElemChildren : MaxElemNodes)
-           && el.node[j] >= 0; j++)
+      if (int(el.ref_type))
       {
-         os << " " << el.node[j];
+         for (int j = 0; (j < MaxElemChildren) && (el.child[j] >= 0); j++)
+         {
+            os << " " << el.child[j];
+         }
+      }
+      else
+      {
+         for (int j = 0; (j < MaxElemNodes) && (el.node[j] >= 0); j++)
+         {
+            os << " " << el.node[j];
+         }
       }
       os << "\n";
    }
