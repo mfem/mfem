@@ -133,6 +133,8 @@ if (MFEM_ENABLE_TESTING)
       list(APPEND THIS_TEST_OPTIONS "-dg")
     elseif(${TEST_NAME} MATCHES "ex37p*")
       list(APPEND THIS_TEST_OPTIONS "-mi" "3")
+    elseif(${TEST_NAME} MATCHES "ex41p*")
+      list(APPEND THIS_TEST_OPTIONS "-tf" "1.0")
     endif()
 
     if (NOT (${TEST_NAME} MATCHES ".*p$"))

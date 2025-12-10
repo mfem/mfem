@@ -269,7 +269,7 @@ int main(int argc, char *argv[])
    int ref_levels = 2;
    int order = 3;
    int ode_solver_type = 64; //IMEXRK3(3,4,3)
-   real_t t_final = 1.0;
+   real_t t_final = 10.0;
    real_t dt = 0.001;
    bool paraview = false;
    bool cg = false;
