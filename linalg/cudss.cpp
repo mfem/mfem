@@ -7,111 +7,60 @@
 
 namespace mfem
 {
-namespace
+void mfem_cudss_error(cudssStatus_t status, const char *expr,
+                      const char *func, const char *file, int line)
 {
-void CheckCudssAPI(cudssStatus_t status, std::string msg)
-{
-   MFEM_VERIFY(status == CUDSS_STATUS_SUCCESS,
-               "mpi rank [" << Mpi::WorldRank() << "] "
-               << "CUDSS call ended unsuccessfully with status = "
-               << static_cast<int>(status)
-               << ", details : " << msg << " Failed!");
-#ifdef MFEM_DEBUG
-   mfem::out << "mpi rank [" << Mpi::WorldRank() << "] "
-             << "CUDSS call ended successfully! "
-             << "Details : " << msg << " successfully!\n";
-#endif
+   mfem::err << "\n\nCUDSS error: (" << expr << ") failed with error:\n --> "
+             << "CUDSS call ended unsuccessfully"
+             << " [code: " << static_cast<int>(status) << ']'
+             << "\n ... in function: " << func << "\n ... in file: " << file
+             << ':' << line << '\n';
+   mfem_error();
 }
 
-void CheckCudaAPI(cudaError_t status, std::string msg)
+CuDSSSolver::CuDSSSolver(MPI_Comm comm_) : mpi_comm(comm_)
 {
-   MFEM_VERIFY(status == cudaSuccess,
-               "mpi rank [" << Mpi::WorldRank() << "] "
-               << "CUDA call ended unsuccessfully with status = "
-               << static_cast<int>(status)
-               << ", details : " << msg << " Failed!");
-#ifdef MFEM_DEBUG
-   mfem::out << "mpi rank [" << Mpi::WorldRank() << "] "
-             << "CUDA call ended successfully! "
-             << "Details : " << msg << " successfully!\n";
-#endif
-}
-} // namespace
-
-CuDSSSolver::CuDSSSolver(MPI_Comm comm_)
-{
-   Init(comm_);
    InitHandle();
-}
-
-void CuDSSSolver::Init(MPI_Comm comm_)
-{
-   mpi_comm = (MPI_Comm *)malloc(sizeof(MPI_Comm));
-   mpi_comm[0] = comm_; // MPI_COMM_WORLD
-   MPI_Comm_rank(comm_, &myid);
 }
 
 void CuDSSSolver::InitHandle()
 {
-   // Checkout the cuDSS API
-   cudssStatus_t status = CUDSS_STATUS_SUCCESS;
+   MFEM_CUDSS_CHECK(cudssCreate(&handle));
+   // NOTE: Set the communication layer to NULL so that cuDSS picks it from the
+   // environment variable "CUDSS_COMM_LIB"
+   MFEM_CUDSS_CHECK(cudssSetCommLayer(handle, NULL));
 
-   status = cudssCreate(&handle);
-   CheckCudssAPI(status, "cudssCreate");
-   status = cudssSetCommLayer(handle, NULL);
-   CheckCudssAPI(status, "cudssSetCommLayer");
+   MFEM_CUDSS_CHECK(cudssConfigCreate(&solverConfig));
+   MFEM_CUDSS_CHECK(cudssDataCreate(handle, &solverData));
 
-   status = cudssConfigCreate(&solverConfig);
-   CheckCudssAPI(status, "cudssConfigCreate");
-   status = cudssDataCreate(handle, &solverData);
-   CheckCudssAPI(status, "cudssDataCreate");
-
-   status = cudssDataSet(handle, solverData, CUDSS_DATA_COMM, mpi_comm,
-                         sizeof(MPI_Comm *));
-   CheckCudssAPI(status, "cudssDataSet for CUDSS_DATA_COMM");
+   MFEM_CUDSS_CHECK(cudssDataSet(handle, solverData, CUDSS_DATA_COMM, &mpi_comm,
+                                 sizeof(MPI_Comm *)));
 }
 
 CuDSSSolver::~CuDSSSolver()
 {
-   // Checkout the cuDSS API
-   cudssStatus_t status = CUDSS_STATUS_SUCCESS;
-   cudaError_t cuda_status = cudaSuccess;
-
    // Destroy the system Matrix
-   if (Ac.get())
+   if (Ac)
    {
-      status = cudssMatrixDestroy(*Ac);
-      CheckCudssAPI(status, "cudssMatrixDestroy for Operator");
+      MFEM_CUDSS_CHECK(cudssMatrixDestroy(*Ac));
    }
    // Destroy the empty RHS vector and solution vector
-   status = cudssMatrixDestroy(xc);
-   CheckCudssAPI(status, "cudssMatrixDestroy for RHS");
-   status = cudssMatrixDestroy(yc);
-   CheckCudssAPI(status, "cudssMatrixDestroy for solution Vector");
+   MFEM_CUDSS_CHECK(cudssMatrixDestroy(xc));
+   MFEM_CUDSS_CHECK(cudssMatrixDestroy(yc));
 
    // Destroy the cuDSS handle, solver config and solver data
-   status = cudssDataDestroy(handle, solverData);
-   CheckCudssAPI(status, "cudssDataDestroy");
-   status = cudssConfigDestroy(solverConfig);
-   CheckCudssAPI(status, "cudssConfigDestroy");
-   status = cudssDestroy(handle);
-   CheckCudssAPI(status, "cudssDestroy");
-
-   if (mpi_comm != NULL)
-   {
-      free(mpi_comm);
-   }
+   MFEM_CUDSS_CHECK(cudssDataDestroy(handle, solverData));
+   MFEM_CUDSS_CHECK(cudssConfigDestroy(solverConfig));
+   MFEM_CUDSS_CHECK(cudssDestroy(handle));
 
    if (csr_offsets_d != NULL)
    {
-      cuda_status = cudaFree(csr_offsets_d);
-      CheckCudaAPI(cuda_status, "cudaFree for CSR I vector");
+      CuMemFree(csr_offsets_d);
    }
 
    if (csr_columns_d != NULL)
    {
-      cuda_status = cudaFree(csr_columns_d);
-      CheckCudaAPI(cuda_status, "cudaFree for CSR J vector");
+      CuMemFree(csr_columns_d);
    }
 }
 
@@ -163,7 +112,7 @@ void CuDSSSolver::SetMatrixSortRow(bool sort_row_) { sort_row = sort_row_; }
 
 void CuDSSSolver::SetOperator(const Operator &op)
 {
-   bool cuDSSObjectInitialized = (Ac.get() != nullptr);
+   bool cuDSSObjectInitialized = (Ac != nullptr);
    MFEM_VERIFY(!cuDSSObjectInitialized ||
                (height == op.Height() && width == op.Width()),
                "CuDSSSolver::SetOperator: Inconsistent new matrix size!");
@@ -173,8 +122,7 @@ void CuDSSSolver::SetOperator(const Operator &op)
    const HypreParMatrix *A = dynamic_cast<const HypreParMatrix *>(&op);
    MFEM_VERIFY(A, "Not a compatible matrix type");
 
-   hypre_ParCSRMatrix *parcsr_op =
-      (hypre_ParCSRMatrix *)const_cast<HypreParMatrix &>(*A);
+   hypre_ParCSRMatrix *parcsr_op = *A;
    hypre_CSRMatrix *csr_op = hypre_MergeDiagAndOffd(parcsr_op);
    A->HypreRead();
 #if MFEM_HYPRE_VERSION >= 21600
@@ -197,16 +145,13 @@ void CuDSSSolver::SetOperator(const Operator &op)
                "CuDSSSolver::SetOperator: Inconsistent new matrix pattern!");
    nnz = csr_op->num_nonzeros;
 
-   // Checkout the cuDSS API
-   cudssStatus_t status = CUDSS_STATUS_SUCCESS;
-
    // Initial the cudssMatrix objects
    if (!cuDSSObjectInitialized)
    {
       // Set the cudssMatrix object of csr operator
       Ac = std::make_unique<cudssMatrix_t>();
       // Create empty RHS and solution vectors
-      InitRhsSol(1);
+      SetNumRHS(1);
    }
 
    // New cuDSS CSR matrix object and analysis or reuse the one from a previous
@@ -218,93 +163,71 @@ void CuDSSSolver::SetOperator(const Operator &op)
          // NOTE: For CuDSS solver to reuse the reordering (skipping analysis
          // phase), it needs to access the I and J arrays of the **initial**
          // matrix. Therefore, we need to copy and keep I and J in device memory.
-         cudaError_t cuda_status = cudaSuccess;
+         CuMemAlloc(&csr_offsets_d, (n_loc + 1) * sizeof(int));
+         CuMemAlloc(&csr_columns_d, nnz * sizeof(int));
 
-         cuda_status = cudaMalloc(&csr_offsets_d, (n_loc + 1) * sizeof(int));
-         CheckCudaAPI(cuda_status, "cudaMalloc for CSR I vector");
+         CuMemcpyDtoD(csr_offsets_d, csr_op->i, (n_loc + 1) * sizeof(int));
+         CuMemcpyDtoD(csr_columns_d, csr_op->j, nnz * sizeof(int));
 
-         cuda_status = cudaMalloc(&csr_columns_d, nnz * sizeof(int));
-         CheckCudaAPI(cuda_status, "cudaMalloc for CSR J vector");
-
-         cuda_status = cudaMemcpy(csr_offsets_d, csr_op->i,
-                                  (n_loc + 1) * sizeof(int),
-                                  cudaMemcpyDeviceToDevice);
-         CheckCudaAPI(cuda_status, "cudaMemcpy for CSR I vector");
-
-         cuda_status = cudaMemcpy(csr_columns_d, csr_op->j, nnz * sizeof(int),
-                                  cudaMemcpyDeviceToDevice);
-         CheckCudaAPI(cuda_status, "cudaMemcpy for CSR J vector");
-
-         status = cudssMatrixCreateCsr(Ac.get(), nrows, nrows, nnz,
-                                       csr_offsets_d, NULL, csr_columns_d,
-                                       csr_op->data, CUDA_R_32I, CUDA_REAL_T,
-                                       mat_type, mview, CUDSS_BASE_ZERO);
-         CheckCudssAPI(status, "cudssMatrixCreateCsr for Operator");
+         MFEM_CUDSS_CHECK(
+            cudssMatrixCreateCsr(
+               Ac.get(), nrows, nrows, nnz, csr_offsets_d,
+               NULL, csr_columns_d, csr_op->data, CUDA_R_32I,
+               CUDA_REAL_T, mat_type, mview, CUDSS_BASE_ZERO));
       }
       else // !reorder_reuse
       {
          if (cuDSSObjectInitialized)
          {
-            status = cudssMatrixDestroy(*Ac);
-            CheckCudssAPI(status, "cudssMatrixDestroy for Operator");
+            MFEM_CUDSS_CHECK(cudssMatrixDestroy(*Ac));
          }
-         status = cudssMatrixCreateCsr(Ac.get(), nrows, nrows, nnz, csr_op->i,
-                                       NULL, csr_op->j, csr_op->data,
-                                       CUDA_R_32I, CUDA_REAL_T, mat_type, mview,
-                                       CUDSS_BASE_ZERO);
-         CheckCudssAPI(status, "cudssMatrixCreateCsr for Operator");
+         MFEM_CUDSS_CHECK(
+            cudssMatrixCreateCsr(
+               Ac.get(), nrows, nrows, nnz, csr_op->i, NULL, csr_op->j,
+               csr_op->data, CUDA_R_32I, CUDA_REAL_T, mat_type, mview,
+               CUDSS_BASE_ZERO));
       }
-
-      status = cudssMatrixSetDistributionRow1d(*Ac, row_start, row_end);
-      CheckCudssAPI(status, "cudssMatrixSetDistributionRow1d for Operator");
+      MFEM_CUDSS_CHECK(cudssMatrixSetDistributionRow1d(*Ac, row_start, row_end));
 
       // Analysis
-      status = cudssExecute(handle, CUDSS_PHASE_ANALYSIS, solverConfig,
-                            solverData, *Ac, yc, xc);
-      CheckCudssAPI(status, "cudssExecute for CUDSS_PHASE_ANALYSIS");
+      MFEM_CUDSS_CHECK(
+         cudssExecute(handle, CUDSS_PHASE_ANALYSIS, solverConfig,
+                      solverData, *Ac, yc, xc));
    }
    else // cuDSSObjectInitialized && reorder_reuse
    {
       // NOTE: When reusing analysis result, we only update the Data array,
       // without changing the I and J arrays.
-      status = cudssMatrixSetValues(*Ac, csr_op->data);
-      CheckCudssAPI(status, "cudssMatrixSetValues");
+      MFEM_CUDSS_CHECK(cudssMatrixSetValues(*Ac, csr_op->data));
    }
 
    // Factorization
-   status = cudssExecute(handle, CUDSS_PHASE_FACTORIZATION, solverConfig,
-                         solverData, *Ac, yc, xc);
-   CheckCudssAPI(status, "cudssExecute for CUDSS_PHASE_FACTORIZATION");
+   MFEM_CUDSS_CHECK(cudssExecute(handle, CUDSS_PHASE_FACTORIZATION,
+                                 solverConfig, solverData, *Ac, yc, xc));
 
    hypre_CSRMatrixDestroy(csr_op);
 }
 
-void CuDSSSolver::InitRhsSol(int nrhs_) const
+void CuDSSSolver::SetNumRHS(int nrhs_) const
 {
    if (nrhs != nrhs_)
    {
-      cudssStatus_t status = CUDSS_STATUS_SUCCESS;
-
       if (nrhs > 0)
       {
          // Destroy the previous RHS vector and solution vector
-         status = cudssMatrixDestroy(xc);
-         CheckCudssAPI(status, "cudssMatrixDestroy for RHS");
-         status = cudssMatrixDestroy(yc);
-         CheckCudssAPI(status, "cudssMatrixDestroy for solution Vector");
+         MFEM_CUDSS_CHECK(cudssMatrixDestroy(xc));
+         MFEM_CUDSS_CHECK(cudssMatrixDestroy(yc));
       }
       // Create empty RHS and solution vectors
-      status = cudssMatrixCreateDn(&xc, n_global, nrhs_, n_global, NULL,
-                                   CUDA_REAL_T, CUDSS_LAYOUT_COL_MAJOR);
-      CheckCudssAPI(status, "cudssMatrixCreateDn for RHS");
-      status = cudssMatrixSetDistributionRow1d(xc, row_start, row_end);
-      CheckCudssAPI(status, "cudssMatrixSetDistributionRow1d for RHS");
-      status = cudssMatrixCreateDn(&yc, n_global, nrhs_, n_global, NULL,
-                                   CUDA_REAL_T, CUDSS_LAYOUT_COL_MAJOR);
-      CheckCudssAPI(status, "cudssMatrixCreateDn for solution Vector");
-      status = cudssMatrixSetDistributionRow1d(yc, row_start, row_end);
-      CheckCudssAPI(status,
-                    "cudssMatrixSetDistributionRow1d for solution Vector");
+      MFEM_CUDSS_CHECK(
+         cudssMatrixCreateDn(&xc, n_global, nrhs_, n_global, NULL,
+                             CUDA_REAL_T, CUDSS_LAYOUT_COL_MAJOR));
+      MFEM_CUDSS_CHECK(cudssMatrixSetDistributionRow1d(xc, row_start, row_end));
+
+      MFEM_CUDSS_CHECK(
+         cudssMatrixCreateDn(&yc, n_global, nrhs_, n_global, NULL,
+                             CUDA_REAL_T, CUDSS_LAYOUT_COL_MAJOR));
+      MFEM_CUDSS_CHECK(cudssMatrixSetDistributionRow1d(yc, row_start, row_end));
    }
    nrhs = nrhs_;
 }
@@ -321,7 +244,7 @@ void CuDSSSolver::Mult(const Vector &x, Vector &y) const
 void CuDSSSolver::ArrayMult(const Array<const Vector *> &X,
                             Array<Vector *> &Y) const
 {
-   InitRhsSol(X.Size());
+   SetNumRHS(X.Size());
 
    Vector RHS, SOL;
 
@@ -344,17 +267,12 @@ void CuDSSSolver::ArrayMult(const Array<const Vector *> &X,
       SOL.SetSize(nrhs * n_global, *Y[0]);
    }
 
-   cudssStatus_t status = CUDSS_STATUS_SUCCESS;
-
-   status = cudssMatrixSetValues(xc, const_cast<real_t *>(RHS.Read()));
-   CheckCudssAPI(status, "cudssMatrixSetValues for RHS");
-   status = cudssMatrixSetValues(yc, SOL.Write());
-   CheckCudssAPI(status, "cudssMatrixSetValues for solution Vector");
+   MFEM_CUDSS_CHECK(cudssMatrixSetValues(xc, const_cast<real_t *>(RHS.Read())));
+   MFEM_CUDSS_CHECK(cudssMatrixSetValues(yc, SOL.Write()));
 
    // Solve
-   status = cudssExecute(handle, CUDSS_PHASE_SOLVE, solverConfig, solverData,
-                         *Ac, yc, xc);
-   CheckCudssAPI(status, "cudssExecute for CUDSS_PHASE_SOLVE");
+   MFEM_CUDSS_CHECK(cudssExecute(handle, CUDSS_PHASE_SOLVE, solverConfig,
+                                 solverData, *Ac, yc, xc));
 
    if (nrhs > 1)
    {

@@ -17,8 +17,22 @@
 #define CUDA_REAL_T CUDA_R_64F
 #endif
 
+// Define a cuDSS error check macro, MFEM_CUDSS_CHECK(x), where x returns/is of
+// type 'cudssStatus_t'. This macro evaluates 'x' and raises an error if the
+// result is not CUDSS_STATUS_SUCCESS.
+#define MFEM_CUDSS_CHECK(x)                                                     \
+  do {                                                                          \
+    cudssStatus_t mfem_err_internal_var_name = (x);                             \
+    if (mfem_err_internal_var_name != CUDSS_STATUS_SUCCESS) {                   \
+      ::mfem::mfem_cudss_error(mfem_err_internal_var_name, #x, _MFEM_FUNC_NAME, \
+                              __FILE__, __LINE__);                              \
+    }                                                                           \
+  } while (0)
 namespace mfem
 {
+// Function used by the macro MFEM_CUDSS_CHECK.
+void mfem_cudss_error(cudssStatus_t status, const char *expr, const char *func,
+                      const char *file, int line);
 
 /**
  * @brief cuDSS: A high-performance CUDA Library for Direct Sparse Solvers
@@ -120,7 +134,7 @@ public:
 
 private:
    // MPI_Comm
-   MPI_Comm *mpi_comm = NULL;
+   MPI_Comm mpi_comm = MPI_COMM_NULL;
    // MPI rank
    int myid;
 
@@ -146,8 +160,8 @@ private:
 
    // copy and keep the I and J arrays in device memory when skipping analysis
    // phase
-   int *csr_offsets_d = NULL; // copy and keep I in device
-   int *csr_columns_d = NULL; // copy and keep J in device
+   void *csr_offsets_d = NULL; // copy and keep I in device
+   void *csr_columns_d = NULL; // copy and keep J in device
 
    // cuDSS object specifies available matrix types for sparse matrices
    cudssMatrixViewType_t mview = CUDSS_MVIEW_FULL;
@@ -163,15 +177,12 @@ private:
    // cuDSS object holds internal data
    mutable cudssData_t solverData;
 
-   /// Method for initialization
-   void Init(MPI_Comm comm_);
-
    /// Method for the initialization of cuDSS Handle
    void InitHandle();
 
    /// Method for configuring storage for distributed/centralized RHS and
    /// solution
-   void InitRhsSol(int nrhs_) const;
+   void SetNumRHS(int nrhs_) const;
 };
 
 } // namespace mfem
