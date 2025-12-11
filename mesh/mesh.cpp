@@ -7584,6 +7584,12 @@ void Mesh::GetGeometries(int dim, Array<Geometry::Type> &el_geoms) const
    }
 }
 
+bool Mesh::IsMixedMesh() const
+{
+   // Return true if meshgen has more than one bit set, zero otherwise
+   return meshgen & (meshgen - 1);
+}
+
 void Mesh::GetElementEdges(int i, Array<int> &edges, Array<int> &cor) const
 {
    if (elem_to_edge)
