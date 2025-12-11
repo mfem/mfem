@@ -216,8 +216,8 @@ static void PADGDiffusionApply3D(const int NF, const Array<real_t> &b,
    auto B_ = Reshape(b.Read(), Q1D, D1D);
    auto G_ = Reshape(g.Read(), Q1D, D1D);
 
-   // (J0[0], J0[1], J0[2], J1[0], J1[1], J1[2], q/h)
-   auto pa = Reshape(pa_data.Read(), 7, Q1D, Q1D, NF);
+   // (nJ[0], nJ[1], nJ[2], kappa * {Q}/h)
+   const auto pa = Reshape(pa_data.Read(), 4, Q1D, Q1D, 2, NF);
 
    auto x = Reshape(x_.Read(), D1D, D1D, 2, NF);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, 2, NF);
@@ -232,209 +232,426 @@ static void PADGDiffusionApply3D(const int NF, const Array<real_t> &b,
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       MFEM_SHARED real_t u[2][max_Q1D][max_Q1D];
-      MFEM_SHARED real_t du[2][max_Q1D][max_Q1D];
-
-      MFEM_SHARED real_t Gu[2][max_Q1D][max_Q1D];
       MFEM_SHARED real_t Bu[2][max_Q1D][max_Q1D];
-      MFEM_SHARED real_t Bdu[2][max_Q1D][max_Q1D];
 
-      MFEM_SHARED real_t kappa_Qh[max_Q1D][max_Q1D];
+      MFEM_SHARED real_t jmp[max_Q1D][max_Q1D];
 
-      MFEM_SHARED real_t nJe[2][max_Q1D][max_Q1D][3];
-      MFEM_SHARED real_t BG[2 * max_D1D * max_Q1D];
+      MFEM_SHARED real_t Y[2][max_Q1D][max_Q1D];
+
+      MFEM_SHARED real_t B[max_Q1D][max_Q1D]; // not Q1D x D1D because we apply inplace transpose later
+      MFEM_SHARED real_t G[max_Q1D][max_Q1D];
 
       // some buffers are reused multiple times, but for clarity have new names:
+      real_t(*const du)[max_Q1D][max_Q1D] = u;
+      
+      real_t(*const Gu)[max_Q1D][max_Q1D] = Bu;
+      real_t(*const Bdu)[max_Q1D][max_Q1D] = Bu;
+
+      real_t(*const avg)[max_Q1D] = Y[0];
+      real_t(*const R)[max_Q1D] = Y[0];
+
       real_t(*const Bj)[max_Q1D][max_Q1D] = Bu;
-      real_t(*const Bjn)[max_Q1D][max_Q1D] = Bdu;
-      real_t(*const Gj)[max_Q1D][max_Q1D] = Gu;
+      real_t(*const Bjn)[max_Q1D][max_Q1D] = Bu;
+      real_t(*const Gj)[max_Q1D][max_Q1D] = Bu;
 
-      DeviceMatrix B(BG, Q1D, D1D);
-      DeviceMatrix G(BG + D1D * Q1D, Q1D, D1D);
+      real_t(*const nJj)[max_Q1D][max_Q1D] = u;
 
-      // copy face values to u0, u1 and copy normals to du0, du1
-      MFEM_FOREACH_THREAD(side, z, 2)
+      #ifdef __CUDA_ARCH__
+      real_t _pa[4];
       {
+         int p1 = MFEM_THREAD_ID(x);
+         int p2 = MFEM_THREAD_ID(y);
+         int side = MFEM_THREAD_ID(z);
 
-         MFEM_FOREACH_THREAD(d2, x, D1D)
+         #ifdef MFEM_USE_SINGLE
+         using vec_t = float4;
+         #else // MFEM_USE_DOUBLE
+         using vec_t = double4; // use double4_16a for cuda >= 13
+         #endif
+
+         // coallesced read
+         reinterpret_cast<vec_t&>(_pa) = *reinterpret_cast<const vec_t*>(&pa(0, p1, p2, side, f));
+         // for (int l = 0; l < 4; ++l)
+         //       _pa[l] = pa(l, p1, p2, side, f);
+      }
+
+      auto nJ = [&_pa](int l, int p1, int p2, int side) -> real_t
+      {
+         MFEM_ASSERT_KERNEL(p1 == MFEM_THREAD_ID(x)
+                           && p2 == MFEM_THREAD_ID(y)
+                           && side == MFEM_THREAD_ID(z),
+                           "nJ accessed incorrectly by threads.");
+         return _pa[l];
+      };
+
+      auto kappa_Qh = [&_pa](int p1, int p2) -> real_t
+      {
+         MFEM_ASSERT_KERNEL(p1 == MFEM_THREAD_ID(x) && p2 == MFEM_THREAD_ID(y),
+                           "kappa_Qh accessed incorrectly by threads.");
+         return _pa[3];
+      };
+      #else
+      auto nJ = [&](int l, int p1, int p2, int side) -> real_t
+      {
+         return pa(l, p1, p2, side, f);
+      };
+
+      auto kappa_Qh = [&](int p1, int p2) -> real_t
+      {
+         return pa(3, p1, p2, 0, f);
+      };
+      #endif
+
+      MFEM_FOREACH_THREAD_DIRECT(side, z, 2)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(p1, x, Q1D)
          {
-            MFEM_FOREACH_THREAD(d1, y, D1D)
+            MFEM_FOREACH_THREAD_DIRECT(p2, y, Q1D)
             {
-               u[side][d2][d1] = x(d1, d2, side,
-                             f); // copy transposed for better memory access
-               du[side][d2][d1] = dxdn(d1, d2, side, f);
-            }
-         }
-
-         MFEM_FOREACH_THREAD(p1, x, Q1D)
-         {
-            MFEM_FOREACH_THREAD(p2, y, Q1D)
-            {
-               for (int l = 0; l < 3; ++l)
-               {
-                  nJe[side][p2][p1][l] = pa(3 * side + l, p1, p2, f);
-               }
-
                if (side == 0)
-               {
-                  kappa_Qh[p2][p1] = pa(6, p1, p2, f);
-               }
+                  avg[p1][p2] = 0.0;
+               else
+                  jmp[p1][p2] = 0.0;
             }
          }
 
-         if (side == 0)
+         MFEM_FOREACH_THREAD_DIRECT(p, x, Q1D)
          {
-            MFEM_FOREACH_THREAD(p, x, Q1D)
+            MFEM_FOREACH_THREAD_DIRECT(d, y, D1D)
             {
-               MFEM_FOREACH_THREAD(d, y, D1D)
-               {
-                  B(p, d) = B_(p, d);
-                  G(p, d) = G_(p, d);
-               }
+               if (side == 0)
+                  B[d][p] = B_(p, d);
+               else
+                  G[d][p] = G_(p, d);
+            }
+         }
+
+         MFEM_FOREACH_THREAD_DIRECT(d1, x, D1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(d2, y, D1D)
+            {
+               u[side][d1][d2] = x(d1, d2, side, f);
             }
          }
       }
       MFEM_SYNC_THREAD;
 
-      // eval u and normal derivative @ quad points
-      MFEM_FOREACH_THREAD(side, z, 2)
+      // compute u and Dy*u on quad points
+      MFEM_FOREACH_THREAD_DIRECT(side, z, 2)
       {
-         MFEM_FOREACH_THREAD(p1, x, Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(p1, x, Q1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(d2, y, D1D)
+            {
+               real_t bu = 0.0;
+
+               MFEM_UNROLL(max_D1D)
+               for (int d1 = 0; d1 < D1D; ++d1)
+               {
+                  bu += B[d1][p1] * u[side][d1][d2];
+               }
+
+               Bu[side][d2][p1] = bu;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD_DIRECT(side, z, 2)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(p1, x, Q1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(p2, y, Q1D)
+            {
+               real_t bbu = 0.0;
+               real_t gbu = 0.0;
+
+               MFEM_UNROLL(max_D1D)
+               for (int d2 = 0; d2 < D1D; ++d2)
+               {
+                  bbu += B[d2][p2] * Bu[side][d2][p1];
+                  gbu += G[d2][p2] * Bu[side][d2][p1];
+               }
+
+               gbu *= nJ(2, p1, p2, side);
+               bbu *= (side == 0) ? 1.0 : -1.0;
+
+               AtomicAdd(avg[p1][p2], gbu); // at worst serialization of `side` by atomic add
+               AtomicAdd(jmp[p1][p2], bbu);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // compute Dx*u on quad points
+      MFEM_FOREACH_THREAD_DIRECT(side, z, 2)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(p1, x, Q1D)
          {
             MFEM_FOREACH_THREAD(d2, y, D1D)
             {
-               real_t bu = 0.0;
-               real_t bdu = 0.0;
                real_t gu = 0.0;
 
+               MFEM_UNROLL(max_D1D)
                for (int d1 = 0; d1 < D1D; ++d1)
                {
-                  const real_t b = B(p1, d1);
-                  const real_t g = G(p1, d1);
-
-                  bu += b * u[side][d2][d1];
-                  bdu += b * du[side][d2][d1];
-                  gu += g * u[side][d2][d1];
+                  gu += G[d1][p1] * u[side][d1][d2];
                }
 
-               Bu[side][p1][d2] = bu;
-               Bdu[side][p1][d2] = bdu;
-               Gu[side][p1][d2] = gu;
+               Gu[side][d2][p1] = gu;
             }
          }
       }
       MFEM_SYNC_THREAD;
 
-      MFEM_FOREACH_THREAD(side, z, 2)
+      MFEM_FOREACH_THREAD_DIRECT(side, z, 2)
       {
-         MFEM_FOREACH_THREAD(p2, x, Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(p1, x, Q1D)
          {
-            MFEM_FOREACH_THREAD(p1, y, Q1D)
+            MFEM_FOREACH_THREAD_DIRECT(p2, y, Q1D)
             {
-               const real_t *Je = nJe[side][p2][p1];
-
-               real_t bbu = 0.0;
                real_t bgu = 0.0;
-               real_t gbu = 0.0;
-               real_t bbdu = 0.0;
 
+               MFEM_UNROLL(max_D1D)
                for (int d2 = 0; d2 < D1D; ++d2)
                {
-                  const real_t b = B(p2, d2);
-                  const real_t g = G(p2, d2);
-                  bbu += b * Bu[side][p1][d2];
-                  gbu += g * Bu[side][p1][d2];
-                  bgu += b * Gu[side][p1][d2];
-                  bbdu += b * Bdu[side][p1][d2];
+                  bgu += B[d2][p2] * Gu[side][d2][p1];
                }
 
-               u[side][p2][p1] = bbu;
-               // du <- Q du/dn * w * det(J)
-               du[side][p2][p1] = Je[0] * bbdu + Je[1] * bgu + Je[2] * gbu;
+               bgu *= nJ(1, p1, p2, side);
+
+               AtomicAdd(avg[p1][p2], bgu);
+            }
+         }
+      }
+      // MFEM_SYNC_THREAD;
+
+      // compute du on quadrature points
+      MFEM_FOREACH_THREAD_DIRECT(side, z, 2)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(d1, x, D1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(d2, y, D1D)
+            {
+               du[side][d1][d2] = dxdn(d1, d2, side, f);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      
+      MFEM_FOREACH_THREAD_DIRECT(side, z, 2)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(p1, x, Q1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(d2, y, D1D)
+            {
+               real_t bdu = 0.0;
+
+               MFEM_UNROLL(max_D1D)
+               for (int d1 = 0; d1 < D1D; ++d1)
+               {
+                  bdu += B[d1][p1] * du[side][d1][d2];
+               }
+
+               Bdu[side][d2][p1] = bdu;
             }
          }
       }
       MFEM_SYNC_THREAD;
 
-      MFEM_FOREACH_THREAD(side, z, 2)
+      MFEM_FOREACH_THREAD_DIRECT(side, z, 2)
       {
-         MFEM_FOREACH_THREAD(d1, x, D1D)
+         MFEM_FOREACH_THREAD_DIRECT(p1, x, Q1D)
          {
-            MFEM_FOREACH_THREAD(p2, y, Q1D)
+            MFEM_FOREACH_THREAD_DIRECT(p2, y, Q1D)
             {
-               real_t bj = 0.0;
-               real_t bjn = 0.0;
-               real_t gj = 0.0;
-               real_t br = 0.0;
+               real_t bbdu = 0.0;
 
+               MFEM_UNROLL(max_D1D)
+               for (int d2 = 0; d2 < D1D; ++d2)
+               {
+                  bbdu += B[d2][p2] * Bdu[side][d2][p1];
+               }
+
+               bbdu *= nJ(0, p1, p2, side);
+
+               AtomicAdd(avg[p1][p2], bbdu);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // integrate
+      MFEM_FOREACH_THREAD_DIRECT(side, z, 2)
+      {
+         real_t (*const mat)[max_Q1D] = (side == 0) ? B : G;
+
+         MFEM_FOREACH_THREAD_DIRECT(p1, x, Q1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(p2, y, Q1D)
+            {
+               if (side == 0)
+               {
+                  // r = - < {Q du/dn}, [v] > + kappa * < {Q/h} [u], [v] >
+                  R[p1][p2] = -avg[p1][p2] + kappa_Qh(p1, p2) * jmp[p1][p2];
+               }
+
+               nJj[side][p1][p2] = nJ(1, p1, p2, side) * jmp[p1][p2];
+
+
+               // transpose B and G for better access
+               if (p1 < p2)
+               {
+                  real_t tmp = mat[p1][p2];
+                  mat[p1][p2] = mat[p2][p1];
+                  mat[p2][p1] = tmp;
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD_DIRECT(side, z, 2)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(d1, x, D1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(p2, y, Q1D)
+            {
+               real_t br = 0.0, gj = 0.0;
+
+               MFEM_UNROLL(max_Q1D)
                for (int p1 = 0; p1 < Q1D; ++p1)
                {
-                  const real_t b = B(p1, d1);
-                  const real_t g = G(p1, d1);
-
-                  const real_t *Je = nJe[side][p2][p1];
-
-                  const real_t jump = u[0][p2][p1] - u[1][p2][p1];
-                  const real_t avg = du[0][p2][p1] + du[1][p2][p1];
-
-                  // r = - < {Q du/dn}, [v] > + kappa * < {Q/h} [u], [v] >
-                  const real_t r = -avg + kappa_Qh[p2][p1] * jump;
-
-                  // bj, gj, bjn contribute to sigma term
-                  bj += b * Je[0] * jump;
-                  gj += g * Je[1] * jump;
-                  bjn += b * Je[2] * jump;
-
-                  br += b * r;
+                  br += B[p1][d1] * R[p1][p2];
+                  gj += G[p1][d1] * nJj[side][p1][p2];
                }
 
-               Bj[side][d1][p2] = sigma * bj;
-               Bjn[side][d1][p2] = sigma * bjn;
-
-               // group br and gj together since we will multiply them both by B
-               // and then sum
                const real_t sgn = (side == 0) ? 1.0 : -1.0;
-               Gj[side][d1][p2] = sgn * br + sigma * gj;
+               Gj[side][p2][d1] = sgn * br + sigma * gj;
             }
          }
       }
       MFEM_SYNC_THREAD;
 
-      MFEM_FOREACH_THREAD(side, z, 2)
+      MFEM_FOREACH_THREAD_DIRECT(side, z, 2)
       {
-         MFEM_FOREACH_THREAD(d2, x, D1D)
+         MFEM_FOREACH_THREAD_DIRECT(d1, x, D1D)
          {
-            MFEM_FOREACH_THREAD(d1, y, D1D)
+            MFEM_FOREACH_THREAD_DIRECT(d2, y, D1D)
             {
-               real_t bbj = 0.0;
-               real_t gbj = 0.0;
                real_t bgj = 0.0;
 
+               MFEM_UNROLL(max_Q1D)
                for (int p2 = 0; p2 < Q1D; ++p2)
                {
-                  const real_t b = B(p2, d2);
-                  const real_t g = G(p2, d2);
-
-                  bbj += b * Bj[side][d1][p2];
-                  bgj += b * Gj[side][d1][p2];
-                  gbj += g * Bjn[side][d1][p2];
+                  bgj += B[p2][d2] * Gj[side][p2][d1];
                }
 
-               du[side][d2][d1] = bbj;
-               u[side][d2][d1] = bgj + gbj;
+               Y[side][d1][d2] = bgj;
+            }
+         }
+      }
+      // MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD_DIRECT(side, z, 2)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(p1, x, Q1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(p2, y, Q1D)
+            {
+               nJj[side][p1][p2] = nJ(2, p1, p2, side) * jmp[p1][p2];
             }
          }
       }
       MFEM_SYNC_THREAD;
 
-      // map back to y and dydn
-      MFEM_FOREACH_THREAD(side, z, 2)
+      MFEM_FOREACH_THREAD_DIRECT(side, z, 2)
       {
-         MFEM_FOREACH_THREAD(d2, x, D1D)
+         MFEM_FOREACH_THREAD_DIRECT(d1, x, D1D)
          {
-            MFEM_FOREACH_THREAD(d1, y, D1D)
+            MFEM_FOREACH_THREAD_DIRECT(p2, y, Q1D)
             {
-               y(d1, d2, side, f) += u[side][d2][d1];
-               dydn(d1, d2, side, f) += du[side][d2][d1];
+               real_t bjn = 0.0;
+
+               MFEM_UNROLL(max_Q1D)
+               for (int p1 = 0; p1 < Q1D; ++p1)
+               {
+                  bjn += B[p1][d1] * nJj[side][p1][p2];
+               }
+
+               Bjn[side][p2][d1] = sigma * bjn;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD_DIRECT(side, z, 2)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(d1, x, D1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(d2, y, D1D)
+            {
+               real_t gbj = 0.0;
+
+               MFEM_UNROLL(max_Q1D)
+               for (int p2 = 0; p2 < Q1D; ++p2)
+               {
+                  gbj += G[p2][d2] * Bjn[side][p2][d1];
+               }
+
+               y(d1, d2, side, f) += gbj + Y[side][d1][d2];
+            }
+         }
+      }
+      // MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD_DIRECT(side, z, 2)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(p1, x, Q1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(p2, y, Q1D)
+            {
+               nJj[side][p1][p2] = nJ(0, p1, p2, side) * jmp[p1][p2];
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD_DIRECT(side, z, 2)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(d1, x, D1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(p2, y, Q1D)
+            {
+               real_t bj = 0.0;
+
+               MFEM_UNROLL(max_Q1D)
+               for (int p1 = 0; p1 < Q1D; ++p1)
+               {
+                  bj += B[p1][d1] * nJj[side][p1][p2];
+               }
+
+               Bj[side][p2][d1] = sigma * bj;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD_DIRECT(side, z, 2)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(d1, x, D1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(d2, y, D1D)
+            {
+               real_t bbj = 0.0;
+
+               MFEM_UNROLL(max_Q1D)
+               for (int p2 = 0; p2 < Q1D; ++p2)
+               {
+                  bbj += B[p2][d2] * Bj[side][p2][d1];
+               }
+
+               dydn(d1, d2, side, f) += bbj;
             }
          }
       }

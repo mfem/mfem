@@ -154,8 +154,8 @@ static void PADGDiffusionSetup3D(const int Q1D, const int NE, const int NF,
    constexpr int _fid_ = 4; // offset in face_info for local face id
    constexpr int _or_ = 5;  // offset in face_info for orientation
 
-   // (J00, J01, J02, J10, J11, J12, q/h)
-   const auto pa = Reshape(pa_data.Write(), 7, Q1D, Q1D, NF);
+   // (nJ[0], nJ[1], nJ[2], kappa * {Q}/h)
+   const auto pa = Reshape(pa_data.Write(), 4, Q1D, Q1D, 2, NF);
 
    mfem::forall_2D(NF, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int f) -> void
    {
@@ -247,7 +247,7 @@ static void PADGDiffusionSetup3D(const int Q1D, const int NE, const int NF,
                {
                   const int idx = std::abs(perm[side][d]) - 1;
                   const int sgn = (perm[side][d] < 0) ? -1 : 1;
-                  pa(3 * side + d, p1, p2, f) = sgn * val * nJi[idx];
+                  pa(d, p1, p2, side, f) = sgn * val * nJi[idx];
                }
 
                hi += factor * dJf / dJe;
@@ -255,12 +255,13 @@ static void PADGDiffusionSetup3D(const int Q1D, const int NE, const int NF,
 
             if (nsides == 1)
             {
-               pa(3, p1, p2, f) = 0.0;
-               pa(4, p1, p2, f) = 0.0;
-               pa(5, p1, p2, f) = 0.0;
+               for (int d = 0; d < 3; ++d)
+                  pa(d, p1, p2, 1, f) = 0.0;
             }
 
-            pa(6, p1, p2, f) = kappa * hi * Qp * W(p1, p2) * dJf;
+            real_t kappa_Qh = kappa * hi * Qp * W(p1, p2) * dJf;
+            pa(3, p1, p2, 0, f) = kappa_Qh;
+            pa(3, p1, p2, 1, f) = kappa_Qh; // duplicate for better access in kernel
          }
       }
    });
@@ -497,7 +498,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
 
-   const int pa_size = (dim == 2) ? (6 * q1d * nf) : (7 * q1d * q1d * nf);
+   const int pa_size = (dim == 2) ? (6 * q1d * nf) : (8 * q1d * q1d * nf);
    pa_data.SetSize(pa_size, Device::GetMemoryType());
 
    // Evaluate the coefficient at the face quadrature points.

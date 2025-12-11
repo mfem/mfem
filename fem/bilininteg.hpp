@@ -3528,7 +3528,7 @@ protected:
 
 
    // PA extension
-   Vector pa_data; // (Q, h, dot(n,J)|el0, dot(n,J)|el1)
+   Vector pa_data;
    const DofToQuad *maps; ///< Not owned
    int dim, nf, nq, dofs1D, quad1D;
    IntegrationRules irs{0, Quadrature1D::GaussLobatto};
