@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_BOUND
-#define MFEM_BOUND
+#ifndef MFEM_BOUNDS
+#define MFEM_BOUNDS
 
 #include "../config/config.hpp"
 #include "fespace.hpp"
@@ -134,4 +134,4 @@ private:
 
 } // namespace mfem
 
-#endif // MFEM_BOUND
+#endif // MFEM_BOUNDS
