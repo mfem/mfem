@@ -10,10 +10,10 @@
 # CONTRIBUTING.md for details.
 
 # Use the MFEM build directory
-MFEM_DIR ?= ../..
-MFEM_BUILD_DIR ?= ../..
-MFEM_INSTALL_DIR ?= ../../mfem
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/navier/,)
+MFEM_DIR ?= ../../..
+MFEM_BUILD_DIR ?= ../../..
+MFEM_INSTALL_DIR ?= ../../../mfem
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/fluids/navier/,)
 CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
    $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
@@ -23,20 +23,19 @@ MFEM_LIB_FILE = mfem_is_not_built
 NAVIER_COMMON_SRC = navier_solver.cpp
 NAVIER_COMMON_OBJ = $(NAVIER_COMMON_SRC:.cpp=.o)
 
-ifeq ($(MFEM_USE_GSLIB), YES)
-	NAVIER_PARTICLE_COMMON_SRC = navier_particles.cpp
-	NAVIER_PARTICLE_COMMON_OBJ = $(NAVIER_PARTICLE_COMMON_SRC:.cpp=.o)
+ifeq ($(MFEM_USE_GSLIB),YES)
+   NAVIER_PARTICLE_COMMON_SRC = navier_particles.cpp
+   NAVIER_PARTICLE_COMMON_OBJ = $(NAVIER_PARTICLE_COMMON_SRC:.cpp=.o)
 
-	NAVIER_COMMON_SRC += $(NAVIER_PARTICLE_COMMON_SRC)
-	NAVIER_COMMON_OBJ += $(NAVIER_PARTICLE_COMMON_OBJ)
+   NAVIER_COMMON_SRC += $(NAVIER_PARTICLE_COMMON_SRC)
+   NAVIER_COMMON_OBJ += $(NAVIER_PARTICLE_COMMON_OBJ)
 endif
 
 COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
 
 # If MFEM_SHARED is set, add the ../common rpath
 COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
-   $(if $(MFEM_USE_CUDA:YES=),$(CXX_XLINKER),$(CUDA_XLINKER))-rpath,$(abspath\
-   $(MFEM_BUILD_DIR)/miniapps/common))
+   $(MFEM_XLINKER)-rpath,$(abspath $(MFEM_BUILD_DIR)/miniapps/common))
 
 PAR_MINIAPPS = navier_mms navier_kovasznay navier_kovasznay_vs navier_tgv\
  navier_shear navier_3dfoc navier_turbchan navier_bifurcation
@@ -53,14 +52,6 @@ endif
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
 .PHONY: all lib-common clean clean-build clean-exec
-.PRECIOUS: %.o
-
-COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
-
-# If MFEM_SHARED is set, add the ../common rpath
-COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
-   $(if $(MFEM_USE_CUDA:YES=),$(CXX_XLINKER),$(CUDA_XLINKER))-rpath,$(abspath\
-   $(MFEM_BUILD_DIR)/miniapps/common))
 
 # Remove built-in rules
 %: %.cpp
