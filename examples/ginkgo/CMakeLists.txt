@@ -14,6 +14,12 @@ list(APPEND GINKGO_EXAMPLES_SRCS
   ex1.cpp
 )
 
+if (MFEM_USE_MPI AND GINKGO_BUILD_MPI)
+    list(APPEND GINKGO_EXAMPLES_SRCS
+    ex1p.cpp
+)
+endif()
+
 # Include the source directory where mfem.hpp and mfem-performance.hpp are.
 include_directories(BEFORE ${PROJECT_BINARY_DIR})
 
