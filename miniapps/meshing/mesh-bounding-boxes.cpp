@@ -41,7 +41,6 @@ using namespace mfem;
 using namespace std;
 
 Mesh MakeBoundingBoxMesh(Mesh &mesh, GridFunction &nodal_bb_gf);
-void GetJacobianDeterminantGF(ParMesh *mesh, ParGridFunction *detgf);
 void VisualizeBB(Mesh &mesh, char *title, int pos_x, int pos_y);
 void VisualizeField(ParMesh &pmesh, ParGridFunction &input,
                     char *title, int pos_x, int pos_y);
@@ -149,12 +148,7 @@ int main (int argc, char *argv[])
    if (!jacobian) { return 0; }
 
    // Setup gridfunction for the determinant of the Jacobian.
-   // Note: determinant order = rdim*mesh_order - 1 for quads/hexes
-   int det_order = rdim*mesh_poly_deg-1;
-   L2_FECollection fec_det(det_order, rdim, BasisType::GaussLobatto);
-   ParFiniteElementSpace fespace_det(&pmesh, &fec_det);
-   ParGridFunction detgf(&fespace_det);
-   GetJacobianDeterminantGF(&pmesh, &detgf);
+   auto detgf = pmesh.GetJacobianDeterminantGF();
 
    // Setup piecewise constant gridfunction to save bounds on the determinant
    // of the Jacobian
@@ -164,13 +158,13 @@ int main (int argc, char *argv[])
    ParGridFunction bounds_detgf_upper(&fes_det_pc);
 
    // Compute bounds
-   detgf.GetElementBounds(bounds_detgf_lower, bounds_detgf_upper, ref_factor);
+   detgf->GetElementBounds(bounds_detgf_lower, bounds_detgf_upper, ref_factor);
 
    // GLVis Visualization
    if (visualization)
    {
       char title1[] = "Determinant of Jacobian (det J)";
-      VisualizeField(pmesh, detgf, title1, 0, 465);
+      VisualizeField(pmesh, *detgf, title1, 0, 465);
       char title2[] = "Element-wise lower bound on det J";
       VisualizeField(pmesh, bounds_detgf_lower, title2, 400, 465);
       char title3[] = "Element-wise upper bound on det J";
@@ -181,14 +175,14 @@ int main (int argc, char *argv[])
    {
       VisItDataCollection visit_dc("jacobian-determinant-bounds", &pmesh);
       visit_dc.SetFormat(DataCollection::PARALLEL_FORMAT);
-      visit_dc.RegisterField("determinant", &detgf);
+      visit_dc.RegisterField("determinant", detgf.get());
       visit_dc.RegisterField("det-lower-bound", &bounds_detgf_lower);
       visit_dc.RegisterField("det-upper-bound", &bounds_detgf_upper);
       visit_dc.Save();
    }
 
    // Print min and max bound of determinant gridfunction
-   detgf.GetBounds(lower, upper, ref_factor);
+   detgf->GetBounds(lower, upper, ref_factor);
    if (Mpi::Root())
    {
       out << "Jacobian determinant minimum bound: " << lower(0) << endl;
@@ -312,7 +306,7 @@ IntegrationRule PermuteIR(const IntegrationRule &irule,
    return ir;
 }
 
-void GetJacobianDeterminantGF(ParMesh *mesh, ParGridFunction *detgf)
+void GetDeterminantJacobianGF(ParMesh *mesh, ParGridFunction *detgf)
 {
    int dim = mesh->Dimension();
    FiniteElementSpace *fespace = detgf->FESpace();
