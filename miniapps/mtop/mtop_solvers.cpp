@@ -717,6 +717,7 @@ void PDEFilter::Assemble()
    ls->SetPrintLevel(1); 
    ls->SetPreconditioner(*prec);
 
+
 }
 
 virtual void PDEFilter::Mult(const Vector &x, Vector &y) const override
