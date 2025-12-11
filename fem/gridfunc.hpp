@@ -1623,16 +1623,9 @@ public:
                                         Vector &lower, Vector &upper,
                                         const int vdim = -1);
 
-   struct IntervalRef
-   {
-      Vector pos_min;
-      Vector pos_max;
-      IntervalRef(const Vector &pmin, const Vector &pmax)
-         : pos_min(pmin), pos_max(pmax) {}
-   };
-
+   /// pos_min_max = {xmin,ymin,zmin,xmax,ymax,zmax}
    void GetElementBoundsAtControlPoints(const int elem, const PLBound &plb,
-                                        const IntervalRef &iref,
+                                        const Vector &ref_range,
                                         const int vdim,
                                         Vector &lower, Vector &upper,
                                         Vector &control_pos);
@@ -1650,8 +1643,9 @@ public:
    void GetElementBounds(const PLBound &plb, Vector &lower, Vector &upper,
                          const int vdim=-1);
 
-   std::pair<real_t, real_t> GetElementMinima(const int elem,
-                                              const PLBound &plb);
+   std::pair<real_t, real_t> EstimateElementMinima(const int elem,
+                                              const PLBound &plb,
+                                              const int max_depth);
    ///@}
 
    /// Destroys grid function.

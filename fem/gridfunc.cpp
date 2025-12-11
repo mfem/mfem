@@ -4658,14 +4658,13 @@ void GridFunction::GetElementBoundsAtControlPoints(const int elem,
 
 void GridFunction::GetElementBoundsAtControlPoints(const int elem,
                                                    const PLBound &plb,
-                                                   const IntervalRef &iref,
+                                                   const Vector &ref_range,
                                                    const int vdim,
                                                    Vector &lower, Vector &upper,
                                                    Vector &control_pos)
 {
    FiniteElementSpace *fes = FESpace();
    const FiniteElement *fe = fes->GetFE(elem);
-   ElementTransformation *eltran = fes->GetElementTransformation(elem);
    const IntegrationRule ir_in = fe->GetNodes();
    IntegrationRule ir_new(ir_in.GetNPoints());
    const int dim = fes->GetMesh()->Dimension();
@@ -4675,95 +4674,60 @@ void GridFunction::GetElementBoundsAtControlPoints(const int elem,
    const TensorBasisElement *tbe =
       dynamic_cast<const TensorBasisElement *>(fe);
    MFEM_VERIFY(tbe != NULL, "TensorBasis FiniteElement expected.");
+
    const Array<int> &dof_map = tbe->GetDofMap();
+   bool lexico = (dof_map.Size() == 0);
+   bool bern = (tbe->GetBasisType() == BasisType::Positive);
+   bool h1   = (l2fec == nullptr);
 
    Vector loc_data; // gridfunction values
    // Construct an integration rule to evaluate the gridfunction in
    // subinterval.
-   if (tbe->GetBasisType() == BasisType::Positive)
+   for (int i = 0; i < ir_in.GetNPoints(); i++)
    {
-      for (int i = 0; i < ir_in.GetNPoints(); i++)
+      IntegrationPoint &ip_new = ir_new.IntPoint(i);
+      const IntegrationPoint &ip_old = ir_in.IntPoint((lexico || bern) ? i : dof_map[i]);
+      Vector ip_coord(dim);
+      ip_old.Get(ip_coord.GetData(), dim);
+      for (int d = 0; d < dim; d++)
       {
-         IntegrationPoint &ip_new = ir_new.IntPoint(i);
-         const IntegrationPoint &ip_old = ir_in.IntPoint(i);
-         Vector ip_coord(dim);
-         ip_old.Get(ip_coord.GetData(), dim);
-         for (int d = 0; d < dim; d++)
-         {
-            ip_coord(d) = iref.pos_min(d) +
-                          (iref.pos_max(d) - iref.pos_min(d)) * ip_coord(d);
-         }
-         ip_new.Set(ip_coord.GetData(), dim);
+         ip_coord(d) = ref_range(d) +
+                        (ref_range(dim+d) - ref_range(d)) * ip_coord(d);
       }
-      GetValues(elem, ir_new, loc_data, vdim);
+      ip_new.Set(ip_coord.GetData(), dim);
    }
-   else
-   {
-      for (int i = 0; i < ir_in.GetNPoints(); i++)
-      {
-         IntegrationPoint &ip_new = ir_new.IntPoint(i);
-         if (dof_map.Size() > 0)
-         {
-            const IntegrationPoint &ip_old = ir_in.IntPoint(dof_map[i]);
-            Vector ip_coord(dim);
-            ip_old.Get(ip_coord.GetData(), dim);
-            for (int d = 0; d < dim; d++)
-            {
-               ip_coord(d) = iref.pos_min(d) +
-                             (iref.pos_max(d) - iref.pos_min(d)) * ip_coord(d);
-            }
-            ip_new.Set(ip_coord.GetData(), dim);
-         }
-         else
-         {
-            const IntegrationPoint &ip_old = ir_in.IntPoint(i);
-            Vector ip_coord(dim);
-            ip_old.Get(ip_coord.GetData(), dim);
-            for (int d = 0; d < dim; d++)
-            {
-               ip_coord(d) = iref.pos_min(d) +
-                             (iref.pos_max(d) - iref.pos_min(d)) * ip_coord(d);
-            }
-            ip_new.Set(ip_coord.GetData(), dim);
-         }
-      }
-      GetValues(elem, ir_new, loc_data, vdim);
-   }
+   GetValues(elem, ir_new, loc_data, vdim);
+   // At this point, the loc_data contains function values ordered lexicographically,
+   // unless we are using Bernstein bases. For Bernstein, we need to project and
+   // get coefficients first
 
    // For bernstein, we get coefficients corresponding to these function values
-   if (tbe->GetBasisType() == BasisType::Positive)
+   if (bern)
    {
+      int bt = 4; // BasisType::ClosedUniform
+      int o = fe->GetOrder();
       DenseMatrix projmat;
       NodalTensorFiniteElement *ntfe = nullptr;
       if (dim == 1)
       {
-         if (l2fec != nullptr)
-         {
-            ntfe = new L2_SegmentElement(fe->GetOrder(),
-                                         BasisType::ClosedUniform);
-         }
-         else
-         {
-            ntfe = new H1_SegmentElement(fe->GetOrder(),
-                                         BasisType::ClosedUniform);
-         }
+         if (h1) { ntfe = new H1_SegmentElement(o, bt); }
+         else    { ntfe = new L2_SegmentElement(o, bt); }
       }
       else if (dim == 2)
       {
-         ntfe = new H1_QuadrilateralElement(fe->GetOrder(),
-                                            BasisType::ClosedUniform);
+         if (h1) { ntfe = new H1_QuadrilateralElement(o, bt); }
+         else    { ntfe = new L2_QuadrilateralElement(o, bt); }
       }
       else if (dim == 3)
       {
-         ntfe = new H1_HexahedronElement(fe->GetOrder(),
-                                         BasisType::ClosedUniform);
+         if (h1) { ntfe = new H1_HexahedronElement(o, bt); }
+         else    { ntfe = new L2_HexahedronElement(o, bt); }
       }
       // projection matrix from H1 to Positive
+      ElementTransformation *eltran = fes->GetElementTransformation(elem);
       fe->Project(*ntfe, *eltran, projmat);
-      Vector loc_data_temp = loc_data;
-      projmat.Mult(loc_data_temp, loc_data);
-      // Now we re-order the coefficients lexicographically
-      loc_data_temp = loc_data;
+      Vector loc_data_temp(loc_data.Size());
+      projmat.Mult(loc_data, loc_data_temp);
       for (int i = 0; i < dof_map.Size(); i++)
       {
          loc_data(i) = loc_data_temp(dof_map[i]);
@@ -4783,7 +4747,7 @@ void GridFunction::GetElementBoundsAtControlPoints(const int elem,
       for (int d = 0; d < dim; d++)
       {
          control_pos(i + d*ncp) =
-            iref.pos_min(d) + (iref.pos_max(d)-iref.pos_min(d))*control_pos_1D(i);
+            ref_range(d) + (ref_range(dim+d)-ref_range(d))*control_pos_1D(i);
       }
    }
 }
@@ -4870,35 +4834,76 @@ PLBound GridFunction::GetBounds(Vector &lower, Vector &upper,
 
 struct Interval
 {
-   GridFunction::IntervalRef int_ref;
+   Vector ref_range;
    real_t val_min;
    real_t val_max;
    int depth;
-   Interval(const Vector &pmin, const Vector &pmax,
+   Array<Interval *> child;
+   Interval(const Vector &ref_range_in,
             real_t vmin, real_t vmax, int d)
-      : int_ref(pmin, pmax), val_min(vmin), val_max(vmax), depth(d) {}
+      : ref_range(ref_range_in), val_min(vmin), val_max(vmax), depth(d) 
+      {
+         child.SetSize(0);
+      }
    void Print(std::ostream &out = mfem::out, int precision=12)
    {
       out << std::setprecision(precision);
       out << "IntervalInfo: ";
       out << depth << " ";
-      for (int i = 0; i < int_ref.pos_min.Size(); i++)
+      for (int i = 0; i < ref_range.Size()/2; i++)
       {
-         out << int_ref.pos_min(i) << " " << int_ref.pos_max(i) << " ";
+         out << ref_range(i) << " " << ref_range(i + ref_range.Size()/2) << " ";
       }
       out << val_min << " " << val_max << endl;
    }
+   void AddChild(Interval *ch) { child.Append(ch); }
+   real_t GetChildMinima() 
+   {
+      if (child.Size() == 0) {
+         return val_min;
+      }
+      real_t valmin = numeric_limits<real_t>::max();
+      for (int i = 0; i < child.Size(); i++)
+      {
+         real_t candidate = child[i]->GetChildMinima();
+         valmin = std::min(valmin, candidate);
+      }
+      return valmin;
+   }
+   real_t GetChildMaxima() 
+   {
+      if (child.Size() == 0) {
+         return val_max;
+      }
+      real_t valmax = numeric_limits<real_t>::max();
+      for (int i = 0; i < child.Size(); i++)
+      {
+         real_t candidate = child[i]->GetChildMaxima();
+         valmax = std::min(valmax, candidate);
+      }
+      return valmax;
+   }
+   void DeleteChildren()
+   {
+      for (int i = 0; i < child.Size(); i++)
+      {
+         child[i]->DeleteChildren();
+         delete child[i];
+      }
+      child.SetSize(0);
+   }
 };
 
-std::pair<real_t, real_t> GridFunction::GetElementMinima(const int elem,
-                                                         const PLBound &plb)
+std::pair<real_t, real_t> GridFunction::EstimateElementMinima(const int elem,
+                                                         const PLBound &plb,
+                                                         const int max_depth)
 {
    const int dim = this->FESpace()->GetMesh()->Dimension();
-   const int max_depth = dim > 1 ? 4 : 10;
    const int vdim = 0;
    const int ncp = plb.GetNControlPoints();
-   Vector pos_min(dim); pos_min = 0.0;
-   Vector pos_max(dim); pos_max = 1.0;
+   Vector pos_range(2*dim); pos_range = 0.0;
+   Vector pos_range_dummy(0);
+   for (int d = 0; d < dim; d++) { pos_range(d+dim) = 1.0; }
    Vector lower, upper, cp_ref_loc;
    Vector depth_estimate(max_depth);
 
@@ -4909,13 +4914,13 @@ std::pair<real_t, real_t> GridFunction::GetElementMinima(const int elem,
    GetElementBoundsAtControlPoints(elem, plb, lower, upper, vdim);
    real_t val_min = lower.Min();
    real_t val_max = upper.Min();
-   if (val_min == val_max)
+   if (val_min == val_max || max_depth == 0) 
    {
       return std::make_pair(val_min, val_max);
    }
    real_t abs_tol = 1e-7*(val_max-val_min);
 
-   Interval *initial_interval = new Interval(pos_min, pos_max,
+   Interval *initial_interval = new Interval(pos_range,
                                              val_min, val_max, 0);
 
    Array<Interval *> intervals;
@@ -4939,17 +4944,10 @@ std::pair<real_t, real_t> GridFunction::GetElementMinima(const int elem,
                                          -depth_estimate(curr_depth-2));
          if (diff_estimate < abs_tol || curr_depth == max_depth)
          {
-            // // Print interval information to file
-            mfem::out << "Converged with " << intervals.Size() <<
-                      " intervals\n";
-            for (int i = 0; i < intervals.Size(); i++)
-            {
-               if (intervals[i])
-               {
-                  intervals[i]->Print();
-                  delete intervals[i];
-               }
-            }
+            min_lower_bound = intervals[0]->GetChildMinima();
+            min_upper_bound = intervals[0]->GetChildMaxima();
+            intervals[0]->DeleteChildren();
+            delete intervals[0];
             return std::make_pair(min_lower_bound, min_upper_bound);
          }
       }
@@ -4961,7 +4959,7 @@ std::pair<real_t, real_t> GridFunction::GetElementMinima(const int elem,
       else
       {
          // Subdivide the interval and get bounds on it
-         GetElementBoundsAtControlPoints(elem, plb, current->int_ref,
+         GetElementBoundsAtControlPoints(elem, plb, current->ref_range,
                                          vdim, lower, upper, cp_ref_loc);
          nproc++;
 
@@ -5018,41 +5016,52 @@ std::pair<real_t, real_t> GridFunction::GetElementMinima(const int elem,
                   if (lv < min_upper_bound)
                   {
                      if (uv < min_upper_bound)
-                     {
+                     {                        
                         min_upper_bound = uv;
-                        min_lower_bound = lv;
                      }
                      if (curr_depth < max_depth)
                      {
-                        pos_min(0) = cp_ref_loc(i);
-                        pos_max(0) = cp_ref_loc(i+1);
+                        pos_range(0) = cp_ref_loc(i);
+                        pos_range(0+dim) = cp_ref_loc(i+1);
                         if (dim >= 2)
                         {
-                           pos_min(1) = cp_ref_loc(ncp + j);
-                           pos_max(1) = cp_ref_loc(ncp + j+1);
+                           pos_range(1) = cp_ref_loc(ncp + j);
+                           pos_range(1+dim) = cp_ref_loc(ncp + j+1);
                         }
                         if (dim == 3)
                         {
-                           pos_min(2) = cp_ref_loc(2*ncp + k);
-                           pos_max(2) = cp_ref_loc(2*ncp + k+1);
+                           pos_range(2) = cp_ref_loc(2*ncp + k);
+                           pos_range(2+dim) = cp_ref_loc(2*ncp + k+1);
                         }
-                        intervals.Append(new Interval(pos_min, pos_max,
+                        Interval *child = new Interval(pos_range,
                                                       lv, uv,
-                                                      curr_depth + 1));
+                                                      curr_depth + 1);
+                        intervals.Append(child);
+                        current->AddChild(child);
                         nlen++;
                      }
+                     else {
+                        Interval *child = new Interval(pos_range_dummy,
+                                                      lv, uv,
+                                                      curr_depth + 1);
+                        current->AddChild(child);
+                     }
+                  }
+                  else { // we still add to tree so that we can use it to estimate minima
+                        Interval *child = new Interval(pos_range_dummy,
+                                                      lv, uv,
+                                                      curr_depth + 1);
+                        current->AddChild(child);
                   }
                }
             }
          }
       }
    }
-
-   mfem::out << "Converged with " << intervals.Size() << " intervals\n";
-   for (int i = 0; i < intervals.Size(); i++)
-   {
-      if (intervals[i]) { intervals[i]->Print(); delete intervals[i]; }
-   }
+   min_lower_bound = intervals[0]->GetChildMinima();
+   min_upper_bound = intervals[0]->GetChildMaxima();
+   intervals[0]->DeleteChildren();
+   delete intervals[0];
 
    return std::make_pair(min_lower_bound, min_upper_bound);
 }

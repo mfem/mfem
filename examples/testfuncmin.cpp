@@ -21,6 +21,7 @@ int main(int argc, char *argv[])
    int seed = 0;
    bool continuous = true;
    int case_num = 0;
+   int max_depth = 4;
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order", "Finite element polynomial degree");
@@ -37,6 +38,7 @@ int main(int argc, char *argv[])
    args.AddOption(&continuous, "-h1", "--h1", "-l2", "--l2",
                   "Use continuous or discontinuous space.");
    args.AddOption(&case_num, "-c", "--case", "Case number for testing.");
+   args.AddOption(&max_depth, "-md", "--max-depth", "Max depth for recursion.");
 
    args.ParseCheck();
 
@@ -179,7 +181,7 @@ int main(int argc, char *argv[])
    PLBound plb(order + 1, bound_ref*(order+1), b_type, 0, 0.0);
    // plb.SetProjectionFlagForBounding(false);
    x.GetElementBoundsAtControlPoints(0, plb, lower, upper);
-   auto minima = x.GetElementMinima(0, plb);
+   auto minima = x.EstimateElementMinima(0, plb, max_depth);
 
    cout << "Brute force minima " << global_min(0) << endl;
    cout << "Computed minima using one-shot bounds: " << lower.Min() << " " <<

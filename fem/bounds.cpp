@@ -140,6 +140,10 @@ void PLBound::Setup(const int nb_i, const int ncp_i,
             vals(2) =  bpv(i) +  dp*bdpv(i);
             lbound(i, j) = vals.Min()-tol; // tolerance for good measure
             ubound(i, j) = vals.Max()+tol; // tolerance for good measure
+            if (b_type == 2)
+            {
+               lbound(i,j) = std::max(lbound(i,j),0.0);
+            }
          }
       }
    }
@@ -510,7 +514,7 @@ void PLBound::Get3DBounds(Vector &coeff, Vector &intmin, Vector &intmax) const
    Vector a0V(ncp2), a1V(ncp2);
    a0V = 0.0;
    a1V = 0.0;
-   real_t x,w,t;
+   real_t x,w,t; 
    if (proj)
    {
       if (b_type == 2) // Bernstein bases
@@ -670,39 +674,25 @@ DenseMatrix PLBound::GetLowerBoundMatrix(int dim)
       lbound1D.Transpose();
       return lbound1D;
    }
-   else if (dim == 2)
+   else
    {
       int ncpd = static_cast<int>(std::pow(ncp, dim));
       int nbd = static_cast<int>(std::pow(nb, dim));
-      DenseMatrix lbound2D(ncpd, nbd);
+      DenseMatrix lboundND(ncpd, nbd);
       Vector phimin, phimax;
-      DenseMatrix coeff_mat(nb, nb);
-      coeff_mat = 0.0;
-      Vector cx(nb), cy(nb);
-      cx = 0.0;
-      cy = 0.0;
-      for (int j = 0; j < nb; j++)
+      Vector coeffs(nb*nb);
+      coeffs = 0.0;
+      for (int j = 0; j < nbd; j++)
       {
-         cy(j) = 1.0;
-         for (int i = 0; i < nb; i++)
-         {
-            cx(i) = 1.0;
-            MultVWt(cx, cy, coeff_mat);
-            Vector coeffvec(coeff_mat.GetData(), nb*nb);
-            lbound2D.GetColumnReference(j*nb + i, phimin);
-            Get2DBounds(coeffvec, phimin, phimax);
-            cx(i) = 0.0;
-         }
-         cy(j) = 0.0;
+         coeffs(j) = 1.0;
+         lboundND.GetColumnReference(j, phimin);
+         GetNDBounds(dim, coeffs, phimin, phimax);
+         coeffs(j) = 0.0;
       }
-      return lbound2D;
-   }
-   else if (dim == 3)
-   {
-      MFEM_ABORT("3D lower bound matrix not implemented.");
+      return lboundND;
    }
    return lbound;
-}
+} 
 
 DenseMatrix PLBound::GetUpperBoundMatrix(int dim)
 {
@@ -712,30 +702,22 @@ DenseMatrix PLBound::GetUpperBoundMatrix(int dim)
       ubound1D.Transpose();
       return ubound1D;
    }
-   else if (dim == 2)
+   else
    {
       int ncpd = static_cast<int>(std::pow(ncp, dim));
       int nbd = static_cast<int>(std::pow(nb, dim));
-      DenseMatrix ubound2D(ncpd, nbd);
+      DenseMatrix uboundND(ncpd, nbd);
       Vector phimin, phimax;
-      DenseMatrix coeff_mat(nb, nb);
-      coeff_mat = 0.0;
-      for (int j = 0; j < nb; j++)
+      Vector coeffs(nb*nb);
+      coeffs = 0.0;
+      for (int j = 0; j < nbd; j++)
       {
-         for (int i = 0; i < nb; i++)
-         {
-            coeff_mat(i, j) = 1.0;
-            Vector coeffvec(coeff_mat.GetData(), nb*nb);
-            ubound2D.GetColumnReference(j*nb + i, phimax);
-            Get2DBounds(coeffvec, phimin, phimax);
-            coeff_mat(i, j) = 0.0;
-         }
+         coeffs(j) = 1.0;
+         uboundND.GetColumnReference(j, phimax);
+         GetNDBounds(dim, coeffs, phimin, phimax);
+         coeffs(j) = 0.0;
       }
-      return ubound2D;
-   }
-   else if (dim == 3)
-   {
-      MFEM_ABORT("3D lower bound matrix not implemented.");
+      return uboundND;
    }
    return ubound;
 }
