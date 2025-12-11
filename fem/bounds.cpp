@@ -514,7 +514,7 @@ void PLBound::Get3DBounds(Vector &coeff, Vector &intmin, Vector &intmax) const
    Vector a0V(ncp2), a1V(ncp2);
    a0V = 0.0;
    a1V = 0.0;
-   real_t x,w,t; 
+   real_t x,w,t;
    if (proj)
    {
       if (b_type == 2) // Bernstein bases
@@ -680,7 +680,7 @@ DenseMatrix PLBound::GetLowerBoundMatrix(int dim)
       int nbd = static_cast<int>(std::pow(nb, dim));
       DenseMatrix lboundND(ncpd, nbd);
       Vector phimin, phimax;
-      Vector coeffs(nb*nb);
+      Vector coeffs(nbd);
       coeffs = 0.0;
       for (int j = 0; j < nbd; j++)
       {
@@ -692,7 +692,7 @@ DenseMatrix PLBound::GetLowerBoundMatrix(int dim)
       return lboundND;
    }
    return lbound;
-} 
+}
 
 DenseMatrix PLBound::GetUpperBoundMatrix(int dim)
 {
@@ -708,7 +708,7 @@ DenseMatrix PLBound::GetUpperBoundMatrix(int dim)
       int nbd = static_cast<int>(std::pow(nb, dim));
       DenseMatrix uboundND(ncpd, nbd);
       Vector phimin, phimax;
-      Vector coeffs(nb*nb);
+      Vector coeffs(nbd);
       coeffs = 0.0;
       for (int j = 0; j < nbd; j++)
       {

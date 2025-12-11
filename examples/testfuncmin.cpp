@@ -213,11 +213,11 @@ int main(int argc, char *argv[])
    uboundmat.Mult(xlex, ubcheck);
    std::cout << "Without projection, with projection, difference\n";
    std::cout << "Lower minimum " << lbcheck.Min() << " " << lower.Min() <<
-   " " << lower.Min() - lbcheck.Min() << std::endl;
+             " " << lower.Min() - lbcheck.Min() << std::endl;
    std::cout << "Upper minimum " << ubcheck.Min() << " " << upper.Min() <<
-   " " << ubcheck.Min()- upper.Min() << std::endl;
+             " " << ubcheck.Min()- upper.Min() << std::endl;
    std::cout << "Upper maximum " << ubcheck.Max() << " " << upper.Max() <<
-   " " << ubcheck.Max() - upper.Max() << std::endl;
+             " " << ubcheck.Max() - upper.Max() << std::endl;
 
    // compute bounds after subtracting linear projection
    DenseMatrix PHo2Lin, PLin2Ho;
@@ -272,7 +272,7 @@ int main(int argc, char *argv[])
    lboundmat.AddMult(xlexoffneg, ubcheck);
    {
       x = xproj; // set x to linear projection so that we can
-                 // evaluate linear part easily
+      // evaluate linear part easily
    }
    // add back linear fit to bounds
    Vector cps = plb.GetControlPoints();
@@ -307,11 +307,11 @@ int main(int argc, char *argv[])
 
    std::cout << "global lin projection, and 1D projections, difference\n";
    std::cout << "Lower minimum " << lbcheck.Min() << " " << lower.Min() <<
-   " " << lower.Min() - lbcheck.Min() << std::endl;
+             " " << lower.Min() - lbcheck.Min() << std::endl;
    std::cout << "Upper minimum " << ubcheck.Min() << " " << upper.Min() <<
-   " " << ubcheck.Min()- upper.Min() << std::endl;
+             " " << ubcheck.Min()- upper.Min() << std::endl;
    std::cout << "Upper maximum " << ubcheck.Max() << " " << upper.Max() <<
-   " " << ubcheck.Max() - upper.Max() << std::endl;
+             " " << ubcheck.Max() - upper.Max() << std::endl;
 
    delete fec;
    delete mesh;

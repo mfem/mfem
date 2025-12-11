@@ -1644,8 +1644,8 @@ public:
                          const int vdim=-1);
 
    std::pair<real_t, real_t> EstimateElementMinima(const int elem,
-                                              const PLBound &plb,
-                                              const int max_depth);
+                                                   const PLBound &plb,
+                                                   const int max_depth);
    ///@}
 
    /// Destroys grid function.

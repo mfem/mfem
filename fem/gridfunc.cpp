@@ -4686,13 +4686,14 @@ void GridFunction::GetElementBoundsAtControlPoints(const int elem,
    for (int i = 0; i < ir_in.GetNPoints(); i++)
    {
       IntegrationPoint &ip_new = ir_new.IntPoint(i);
-      const IntegrationPoint &ip_old = ir_in.IntPoint((lexico || bern) ? i : dof_map[i]);
+      const IntegrationPoint &ip_old = ir_in.IntPoint((lexico ||
+                                                       bern) ? i : dof_map[i]);
       Vector ip_coord(dim);
       ip_old.Get(ip_coord.GetData(), dim);
       for (int d = 0; d < dim; d++)
       {
          ip_coord(d) = ref_range(d) +
-                        (ref_range(dim+d) - ref_range(d)) * ip_coord(d);
+                       (ref_range(dim+d) - ref_range(d)) * ip_coord(d);
       }
       ip_new.Set(ip_coord.GetData(), dim);
    }
@@ -4841,10 +4842,10 @@ struct Interval
    Array<Interval *> child;
    Interval(const Vector &ref_range_in,
             real_t vmin, real_t vmax, int d)
-      : ref_range(ref_range_in), val_min(vmin), val_max(vmax), depth(d) 
-      {
-         child.SetSize(0);
-      }
+      : ref_range(ref_range_in), val_min(vmin), val_max(vmax), depth(d)
+   {
+      child.SetSize(0);
+   }
    void Print(std::ostream &out = mfem::out, int precision=12)
    {
       out << std::setprecision(precision);
@@ -4857,9 +4858,10 @@ struct Interval
       out << val_min << " " << val_max << endl;
    }
    void AddChild(Interval *ch) { child.Append(ch); }
-   real_t GetChildMinima() 
+   real_t GetChildMinima()
    {
-      if (child.Size() == 0) {
+      if (child.Size() == 0)
+      {
          return val_min;
       }
       real_t valmin = numeric_limits<real_t>::max();
@@ -4870,9 +4872,10 @@ struct Interval
       }
       return valmin;
    }
-   real_t GetChildMaxima() 
+   real_t GetChildMaxima()
    {
-      if (child.Size() == 0) {
+      if (child.Size() == 0)
+      {
          return val_max;
       }
       real_t valmax = numeric_limits<real_t>::max();
@@ -4895,8 +4898,8 @@ struct Interval
 };
 
 std::pair<real_t, real_t> GridFunction::EstimateElementMinima(const int elem,
-                                                         const PLBound &plb,
-                                                         const int max_depth)
+                                                              const PLBound &plb,
+                                                              const int max_depth)
 {
    const int dim = this->FESpace()->GetMesh()->Dimension();
    const int vdim = 0;
@@ -4914,7 +4917,7 @@ std::pair<real_t, real_t> GridFunction::EstimateElementMinima(const int elem,
    GetElementBoundsAtControlPoints(elem, plb, lower, upper, vdim);
    real_t val_min = lower.Min();
    real_t val_max = upper.Min();
-   if (val_min == val_max || max_depth == 0) 
+   if (val_min == val_max || max_depth == 0)
    {
       return std::make_pair(val_min, val_max);
    }
@@ -5016,7 +5019,7 @@ std::pair<real_t, real_t> GridFunction::EstimateElementMinima(const int elem,
                   if (lv < min_upper_bound)
                   {
                      if (uv < min_upper_bound)
-                     {                        
+                     {
                         min_upper_bound = uv;
                      }
                      if (curr_depth < max_depth)
@@ -5034,24 +5037,26 @@ std::pair<real_t, real_t> GridFunction::EstimateElementMinima(const int elem,
                            pos_range(2+dim) = cp_ref_loc(2*ncp + k+1);
                         }
                         Interval *child = new Interval(pos_range,
-                                                      lv, uv,
-                                                      curr_depth + 1);
+                                                       lv, uv,
+                                                       curr_depth + 1);
                         intervals.Append(child);
                         current->AddChild(child);
                         nlen++;
                      }
-                     else {
+                     else
+                     {
                         Interval *child = new Interval(pos_range_dummy,
-                                                      lv, uv,
-                                                      curr_depth + 1);
+                                                       lv, uv,
+                                                       curr_depth + 1);
                         current->AddChild(child);
                      }
                   }
-                  else { // we still add to tree so that we can use it to estimate minima
-                        Interval *child = new Interval(pos_range_dummy,
-                                                      lv, uv,
-                                                      curr_depth + 1);
-                        current->AddChild(child);
+                  else   // we still add to tree so that we can use it to estimate minima
+                  {
+                     Interval *child = new Interval(pos_range_dummy,
+                                                    lv, uv,
+                                                    curr_depth + 1);
+                     current->AddChild(child);
                   }
                }
             }
