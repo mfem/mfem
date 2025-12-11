@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 // implement with gauss siedel
-// or implement with block jacobi with l1 scaling 
+// or implement with block jacobi with l1 scaling
 
 
 
@@ -64,12 +64,12 @@ std::vector<std::vector<int>> Agglomerate(Mesh &mesh, int ncoarse)
       macro_elements[i].push_back(k);
    }
 
-   // Iterate through each level, and populate E. 
+   // Iterate through each level, and populate E.
    int j = 1;
    while (E[j-1].size() != ne)
    {
       // If j is >= num_partitions, but we still have not fully refined the mesh, resize E
-      if(j >= num_partitions){E.resize(E.size()+1);}
+      if (j >= num_partitions) {E.resize(E.size()+1);}
 
       // populate macro-elements
       std::vector<std::vector<int>> macro_elements(E[j-1].size());
@@ -173,6 +173,49 @@ AgglomerationMultigrid::AgglomerationMultigrid(
    auto E = Agglomerate(*fes.GetMesh(), ncoarse);
    int num_levels_s = E.size() + 1;
 
+   {
+      Mesh &mesh = *fes.GetMesh();
+      L2_FECollection l2_fec(0, mesh.Dimension());
+      FiniteElementSpace l2_fes(&mesh, &l2_fec);
+      GridFunction p_gf(&l2_fes);
+
+      ParaViewDataCollection pv("Agglomeration", &mesh);
+      pv.SetPrefixPath("ParaView");
+      pv.RegisterField("p", &p_gf);
+
+      const int ne = mesh.GetNE();
+      vector<vector<int>> E2(E.size());
+      E2.back() = E.back();
+      for (int i = E.size() - 2; i >= 0; --i)
+      {
+         E2[i].resize(ne);
+         for (int e = 0; e < ne; ++e)
+         {
+            const int m_e = E2[i+1][e];
+            E2[i][e] = E[i][m_e];
+         }
+      }
+
+      for (int i = 0; i < E.size(); ++i)
+      {
+         for (int e = 0; e < ne; ++e)
+         {
+            p_gf[e] = E2[i][e];
+         }
+         pv.SetCycle(i);
+         pv.SetTime(i);
+         pv.Save();
+      }
+
+      for (int e = 0; e < ne; ++e)
+      {
+         p_gf[e] = e;
+         pv.SetCycle(num_levels_s - 1);
+         pv.SetTime(num_levels_s - 1);
+         pv.Save();
+      }
+   }
+
    std::cout << "num levels: " << num_levels << std::endl;
 
    // Populate the arrays: operators, smoothers, ownedOperators, ownedSmoothers
@@ -230,7 +273,7 @@ AgglomerationMultigrid::AgglomerationMultigrid(
    }
 
    // Create the smoothers remember block size is num degrees of freedom per element
-   
+
    SparseMatrix &Ac = static_cast<SparseMatrix&>(*operators[0]);
    smoothers[0] = new UMFPackSolver(Ac);
    for (int l=1; l < num_levels; l++)
