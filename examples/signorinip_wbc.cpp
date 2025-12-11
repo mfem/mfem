@@ -301,7 +301,7 @@ int main(int argc, char *argv[])
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new ElasticityIntegrator(one,lambda_g,mu_g));
    a->AddBdrFaceIntegrator(
-      new NitscheElasticityIntegrator(n_tilde_c, lambda_c, mu_c, beta, kappa),
+      new SlidingElasticityIntegrator(n_tilde_c, lambda_c, mu_c, beta, kappa),
       ess_bdr_z);
    if (myid == 0)
    {
@@ -351,11 +351,30 @@ int main(int argc, char *argv[])
    {
       // Step 1: Assemble the linear form b(⋅).
       TractionBoundary trac_coeff(&u_previous, n_tilde, lambda_g, mu_g, alpha);
+
+      H1_FECollection primal_col(1, dim);
+      ParFiniteElementSpace primal_space(&pmesh, &primal_col);
+      ParGridFunction trac_gf(&primal_space);
+      trac_gf = 0;
+      trac_gf.ProjectBdrCoefficient(trac_coeff,ess_bdr_z);
+      GridFunctionCoefficient trac_H1gf(&trac_gf);
+      // if (visualization)
+      // {
+      //    char vishost[] = "localhost";
+      //    int  visport   = 19916;
+      //    socketstream sol_sock_(vishost, visport);
+      //    sol_sock_ << "parallel " << num_procs << " " << myid << "\n";
+      //    sol_sock_.precision(8);
+      //    sol_sock_ << "solution\n" << pmesh << trac_gf
+      //     << "window_title 'trac_coef' " << flush;
+      // }
+      // cin.get();
+
       ParLinearForm *b = new ParLinearForm(fespace);
       b->AddDomainIntegrator(new VectorDomainLFIntegrator(f_coeff));
       b->AddBdrFaceIntegrator(
-         new NitscheElasticityDirichletLFIntegrator(
-            trac_coeff, n_tilde_c, lambda_c, mu_c, beta, kappa), ess_bdr_z);
+         new SlidingElasticityDirichletLFIntegrator(
+            trac_H1gf, n_tilde_c, lambda_c, mu_c, beta, kappa), ess_bdr_z);
       b->Assemble();
 
       // Step 3: Form the linear system A X = B. This includes eliminating boundary

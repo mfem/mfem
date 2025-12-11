@@ -192,13 +192,9 @@ int main(int argc, char *argv[])
       }
       z_centroid /= vertices.Size();
       
-      if (z_centroid < 0.5)
+      if (z_centroid < 0.4)
       {
          facet->SetAttribute(5);
-      }
-      else
-      {
-         facet->SetAttribute(6);
       }
    }
    pmesh.SetAttributes();
@@ -238,10 +234,9 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr_x(pmesh.bdr_attributes.Max()),
               ess_bdr_y(pmesh.bdr_attributes.Max()),
               ess_bdr_z(pmesh.bdr_attributes.Max());
-   ess_bdr_x = 0, ess_bdr_y = 0, ess_bdr_z = 0;
-
-   ess_bdr_x[3] = 1; ess_bdr_y[3] = 1; ess_bdr_z[3] = 1;
-   ess_bdr_x[1] = 1; ess_bdr_x[2] = 1;
+   ess_bdr_x = 0; ess_bdr_x[1] = 1; ess_bdr_x[2] = 1;
+   ess_bdr_y = 0; ess_bdr_y[1] = 1; ess_bdr_y[2] = 1;
+   ess_bdr_z = 0;
 
    Array<int> ess_tdof_list, tmp;
    fespace->GetEssentialTrueDofs(ess_bdr_x, tmp, 0); ess_tdof_list.Append(tmp);
@@ -277,8 +272,9 @@ int main(int argc, char *argv[])
    ParGridFunction u_current(fespace);
    VectorGridFunctionCoefficient u_previous_coeff(&u_previous);
 
-   VectorFunctionCoefficient init_u(dim, InitDisplacement);
-   u_previous.ProjectCoefficient(init_u);
+   // VectorFunctionCoefficient init_u(dim, InitDisplacement);
+   // u_previous.ProjectCoefficient(init_u);
+   u_current = 0.0;
    u_current = u_previous;
 
    // 9. Set up the bilinear form a(⋅,⋅) on the finite element space
@@ -322,11 +318,30 @@ int main(int argc, char *argv[])
    {
       // Step 1: Assemble the linear form b(⋅).
       TractionBoundary g_coeff(u_previous, n_tilde, lambda_g, mu_g, alpha);
+
+      H1_FECollection primal_col(1, dim);
+      ParFiniteElementSpace primal_space(&pmesh, &primal_col);
+      ParGridFunction g_gf(&primal_space);
+      g_gf = 0;
+      g_gf.ProjectBdrCoefficient(g_coeff,weak_bdr);
+      GridFunctionCoefficient g_H1coeff(&g_gf);
+      // if (visualization)
+      // {
+      //    char vishost[] = "localhost";
+      //    int  visport   = 19916;
+      //    socketstream sol_sock_(vishost, visport);
+      //    sol_sock_ << "parallel " << num_procs << " " << myid << "\n";
+      //    sol_sock_.precision(8);
+      //    sol_sock_ << "solution\n" << pmesh << g_gf
+      //     << "window_title 'trac_coef' " << flush;
+      // }
+      // cin.get();
+
       ParLinearForm *b = new ParLinearForm(fespace);
       b->AddDomainIntegrator(new VectorDomainLFIntegrator(f_coeff));
       b->AddBdrFaceIntegrator(
          new SlidingElasticityDirichletLFIntegrator(
-            g_coeff, n_tilde_c, lambda_c, mu_c, beta, kappa), weak_bdr);
+            g_H1coeff, n_tilde_c, lambda_c, mu_c, beta, kappa), weak_bdr);
       b->Assemble();
 
       // Step 2: Form the linear system A X = B. This includes eliminating boundary
@@ -357,6 +372,16 @@ int main(int argc, char *argv[])
 
       // Step 5: Compute difference between current and previous solutions.
       iter_error = u_current.ComputeL2Error(u_previous_coeff);
+
+      if (iter_error < 1e-4)
+      {
+         alpha = alpha*1.01;
+      }
+
+      if (iter_error < 1e-5)
+      {
+         break;
+      }
 
       if (myid == 0)
       {
@@ -410,11 +435,11 @@ int main(int argc, char *argv[])
  */
 void InitDisplacement(const Vector &x, Vector &u)
 {
-   const real_t displacement = -0.0;
-   const int dim = x.Size();
+   // const real_t displacement = -0.0;
+   // const int dim = x.Size();
 
    u = 0.0;
-   u(dim-1) = displacement*x(dim-1);
+   // u(dim-1) = displacement*x(dim-1);
 }
 
 /**
