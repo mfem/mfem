@@ -1037,6 +1037,39 @@ private:
    mutable Array<int> ipiv;
 };
 
+class Blockl1Jacobi : public Solver
+{
+public:
+   /** Find L^{-1} for the matrix @a op.
+    *  @a op should be a SparseMatrix.
+    */
+   Blockl1Jacobi(const Operator &op, int block_size_ = 1);
+
+   void SetOperator(const Operator &op);
+
+   /// Solve L^{-1} x  = b
+   void Mult(const Vector &b, Vector &x) const;
+
+   /// Solve U^{-1} x = b
+   void MultTranspose(const Vector &b, Vector &x) const;
+
+private:
+   /// @brief Set up the block CSR structure corresponding to a sparse matrix @a A and factorize the diagonal blocks.
+   void GetDiagonalBlocks(const class SparseMatrix &A);
+
+   const int block_size;
+
+   /// Temporary vector used in the Mult() function.
+   mutable Vector y;
+
+   // Block CSR storage
+   Array<int> IB, ID, JB;
+   DenseTensor AB;
+   mutable DenseTensor DB;
+   mutable Array<int> ipiv;
+};
+
+
 /** Block ILU solver:
  *  Performs a block ILU(k) approximate factorization with specified block
  *  size. Currently only k=0 is supported. This is useful as a preconditioner

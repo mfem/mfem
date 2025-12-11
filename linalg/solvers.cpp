@@ -2894,6 +2894,111 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
    }
 }
 
+Blockl1Jacobi::Blockl1Jacobi(const Operator &op, int block_size_)
+   : Solver(0),
+     block_size(block_size_)
+{
+   SetOperator(op);
+}
+
+void Blockl1Jacobi::SetOperator(const Operator &op)
+{
+   const SparseMatrix *A = NULL;
+   if (A == NULL)
+   {
+      A = dynamic_cast<const SparseMatrix *>(&op);
+      if (A == NULL)
+      {
+         MFEM_ABORT("Blockl1Jacobi must be created with a SparseMatrix or HypreParMatrix");
+      }
+   }
+   height = op.Height();
+   width = op.Width();
+   MFEM_VERIFY(A->Finalized(), "Matrix must be finalized.");
+   GetDiagonalBlocks(*A);
+}
+
+void Blockl1Jacobi::GetDiagonalBlocks(const SparseMatrix &A)
+{
+   if (A.Height() % block_size != 0)
+   {
+      MFEM_ABORT("Blockl1Jacobi: block size must evenly divide the matrix size");
+   }
+
+   const int nrows = A.Height();
+   const int nblockrows = nrows / block_size;
+
+   const int *I = A.HostReadI();
+   const int *J = A.HostReadJ();
+   const real_t *V = A.HostReadData();
+
+   DB.SetSize(block_size, block_size, nblockrows);
+   DB = 0.0;
+   real_t row_sum;
+   ipiv.SetSize(block_size*nblockrows);
+
+   for (int iblock = 0; iblock < nblockrows; ++iblock)
+   {
+      for (int bi = 0; bi < block_size; ++bi)
+      {
+         int i = iblock * block_size + bi;
+         row_sum = 0;
+         for (int k = I[i]; k < I[i+1]; ++k)
+         {
+            const int j = J[k];
+            real_t val = V[k];
+            if (j >= iblock*block_size && j < (iblock + 1)*block_size)
+            {
+               const int bj = j - iblock*block_size;
+               DB(bi, bj, iblock) = val;
+            }
+            row_sum = row_sum+val;
+         }
+         DB(bi, bi, iblock) += row_sum;
+      }
+      LUFactors factorization(DB.GetData(iblock), &ipiv[iblock*block_size]);
+      factorization.Factor(block_size);
+   }
+}
+
+void Blockl1Jacobi::Mult(const Vector &b, Vector &x) const
+{
+   MFEM_VERIFY(height > 0, "Blockl1Jacobi preconditioner is not constructed");
+   const int nblockrows = Height()/block_size;
+   Vector xi;
+
+   for (int i = 0; i<nblockrows; ++i)
+   {
+      xi.SetDataAndSize(&x[i*block_size], block_size);
+      for (int ib=0; ib<block_size; ++ib)
+      {
+         xi[ib] = b[ib + i*block_size];
+      }
+      // x_i = D_ii^{-1} x_i
+      LUFactors A_ii_inv(DB.GetData(i), &ipiv[i*block_size]);
+      A_ii_inv.Solve(block_size, 1, xi.GetData());
+   }
+}
+
+void Blockl1Jacobi::MultTranspose(const Vector &b, Vector &x) const
+{
+   MFEM_VERIFY(height > 0, "Blockl1Jacobi preconditioner is not constructed");
+   const int nblockrows = Height()/block_size;
+
+   Vector xi;
+   for (int i = nblockrows-1; i>=0; --i)
+   {
+      xi.SetDataAndSize(&x[i*block_size], block_size);
+      for (int ib=0; ib<block_size; ++ib)
+      {
+         xi[ib] = b[ib + i*block_size];
+      }
+      // x_i = D_ii^{-1} x_i
+      LUFactors A_ii_inv(DB.GetData(i), &ipiv[i*block_size]);
+      A_ii_inv.Solve(block_size, 1, xi.GetData());
+   }
+}
+
 BlockGS::BlockGS(const Operator &op, int block_size_)
    : Solver(0),
      block_size(block_size_)

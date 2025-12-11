@@ -235,7 +235,7 @@ AgglomerationMultigrid::AgglomerationMultigrid(
    smoothers[0] = new UMFPackSolver(Ac);
    for (int l=1; l < num_levels; l++)
    {
-      smoothers[l] = new BlockGS(*operators[l], 4);
+      smoothers[l] = new Blockl1Jacobi(*operators[l], 4);
    }
 }
 
