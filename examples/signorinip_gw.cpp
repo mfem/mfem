@@ -179,8 +179,8 @@ int main(int argc, char *argv[])
    for (int i = 0; i < pmesh.GetNBE(); i++)
    {
       Element *facet = pmesh.GetBdrElement(i);
-      if(facet->GetAttribute() != 1) continue; // Marking only the outter surface
-      
+      if (facet->GetAttribute() != 1) { continue; } // Marking only the outter surface
+
       Array<int> vertices;
       facet->GetVertices(vertices);
 
@@ -191,7 +191,7 @@ int main(int argc, char *argv[])
          z_centroid += pmesh.GetVertex(vertices[j])[dim-1];
       }
       z_centroid /= vertices.Size();
-      
+
       if (z_centroid < 0.4)
       {
          facet->SetAttribute(5);
@@ -232,8 +232,8 @@ int main(int argc, char *argv[])
    // 6. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs.
    Array<int> ess_bdr_x(pmesh.bdr_attributes.Max()),
-              ess_bdr_y(pmesh.bdr_attributes.Max()),
-              ess_bdr_z(pmesh.bdr_attributes.Max());
+         ess_bdr_y(pmesh.bdr_attributes.Max()),
+         ess_bdr_z(pmesh.bdr_attributes.Max());
    ess_bdr_x = 0; ess_bdr_x[1] = 1; ess_bdr_x[2] = 1;
    ess_bdr_y = 0; ess_bdr_y[1] = 1; ess_bdr_y[2] = 1;
    ess_bdr_z = 0;
