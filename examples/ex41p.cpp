@@ -288,7 +288,6 @@ public:
 
 int main(int argc, char *argv[])
 {
-
    // 1. Initialize MPI and HYPRE.
    Mpi::Init();
    int num_procs = Mpi::WorldSize();
@@ -658,7 +657,6 @@ int main(int argc, char *argv[])
    delete U;
    delete u;
    delete a;
-   // delete b;
    delete s;
    delete k;
    delete m;
