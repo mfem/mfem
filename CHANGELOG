@@ -177,7 +177,7 @@ Miscellaneous
   related utility methods for elimination of BCs.
 
 - FindPointsGSLIB has a new constructor that accepts the mesh object and
-  internally calls the Setup() method so users does not have to. The FreeData()
+  internally calls the Setup() method so users do not have to. The FreeData()
   method has also been moved to the destructor so users do not need to manually
   free-up the memory if the destructor is called before MPI_Finalize().
 
