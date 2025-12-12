@@ -56,4 +56,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@true
+	rm *.csv
