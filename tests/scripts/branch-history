@@ -27,7 +27,7 @@ sub usage {
           -h|--help   prints this usage information and exits
 
    This script checks if the current branch history, defined as the commits that
-   will be merged in master (those shown in a GitHub PR), contains unusually
+   will be merged in main (those shown in a GitHub PR), contains unusually
    large files, unusually large number of changes in a commit, unusually large
    number of commits, etc.
 
@@ -72,7 +72,7 @@ my $max_branch_kb = 1000;
 my $status = 0; # Return code
 
 # Get SHA hash of all commits in this branch
-my @commits = split /\n/, `git log --pretty=format:%H master..$branch`;
+my @commits = split /\n/, `git log --pretty=format:%H main..$branch`;
 
 # Check if total number of commits in this branch exceeds the maximum allowable
 my $ncommits = scalar @commits;

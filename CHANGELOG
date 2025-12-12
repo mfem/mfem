@@ -62,6 +62,8 @@ Discretization improvements
   examples ex41 and ex41p demonstrating IMEX DG/CG discretizations of the
   convection–diffusion equation, with ex41p using DG LOR preconditioning.
 
+- Renamed the default GitHub branch from "master" to "main".
+
 Meshing improvements
 --------------------
 - The TMOP kernel hierarchy has been restructured to reduce compilation time.
