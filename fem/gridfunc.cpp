@@ -30,6 +30,7 @@
 #include <cmath>
 #include <iostream>
 #include <algorithm>
+#include <queue>
 
 namespace mfem
 {
@@ -4686,8 +4687,8 @@ void GridFunction::GetElementBoundsAtControlPoints(const int elem,
    for (int i = 0; i < ir_in.GetNPoints(); i++)
    {
       IntegrationPoint &ip_new = ir_new.IntPoint(i);
-      const IntegrationPoint &ip_old = ir_in.IntPoint((lexico ||
-                                                       bern) ? i : dof_map[i]);
+      const IntegrationPoint &ip_old =
+         ir_in.IntPoint((lexico || bern) ? i : dof_map[i]);
       Vector ip_coord(dim);
       ip_old.Get(ip_coord.GetData(), dim);
       for (int d = 0; d < dim; d++)
@@ -4733,6 +4734,7 @@ void GridFunction::GetElementBoundsAtControlPoints(const int elem,
       {
          loc_data(i) = loc_data_temp(dof_map[i]);
       }
+      if (dof_map.Size() == 0) { loc_data = loc_data_temp; }
       delete ntfe;
    }
 
@@ -4846,19 +4848,8 @@ struct Interval
    {
       child.SetSize(0);
    }
-   void Print(std::ostream &out = mfem::out, int precision=12)
-   {
-      out << std::setprecision(precision);
-      out << "IntervalInfo: ";
-      out << depth << " ";
-      for (int i = 0; i < ref_range.Size()/2; i++)
-      {
-         out << ref_range(i) << " " << ref_range(i + ref_range.Size()/2) << " ";
-      }
-      out << val_min << " " << val_max << endl;
-   }
    void AddChild(Interval *ch) { child.Append(ch); }
-   real_t GetChildMinima()
+   real_t GetChildMinLower()
    {
       if (child.Size() == 0)
       {
@@ -4867,12 +4858,12 @@ struct Interval
       real_t valmin = numeric_limits<real_t>::max();
       for (int i = 0; i < child.Size(); i++)
       {
-         real_t candidate = child[i]->GetChildMinima();
+         real_t candidate = child[i]->GetChildMinLower();
          valmin = std::min(valmin, candidate);
       }
       return valmin;
    }
-   real_t GetChildMaxima()
+   real_t GetChildMinUpper()
    {
       if (child.Size() == 0)
       {
@@ -4881,7 +4872,7 @@ struct Interval
       real_t valmax = numeric_limits<real_t>::max();
       for (int i = 0; i < child.Size(); i++)
       {
-         real_t candidate = child[i]->GetChildMaxima();
+         real_t candidate = child[i]->GetChildMinUpper();
          valmax = std::min(valmax, candidate);
       }
       return valmax;
@@ -4897,6 +4888,14 @@ struct Interval
    }
 };
 
+struct IntervalCompare
+{
+   bool operator()(const Interval *a, const Interval *b) const
+   {
+      return a->val_min > b->val_min;
+   }
+};
+
 std::pair<real_t, real_t> GridFunction::EstimateElementMinima(const int elem,
                                                               const PLBound &plb,
                                                               const int max_depth)
@@ -4908,165 +4907,117 @@ std::pair<real_t, real_t> GridFunction::EstimateElementMinima(const int elem,
    Vector pos_range_dummy(0);
    for (int d = 0; d < dim; d++) { pos_range(d+dim) = 1.0; }
    Vector lower, upper, cp_ref_loc;
-   Vector depth_estimate(max_depth);
 
-   const FiniteElement *fe = FESpace()->GetFE(elem);
-   const TensorBasisElement *tbe =
-      dynamic_cast<const TensorBasisElement *>(fe);
-   MFEM_VERIFY(tbe != NULL, "TensorBasis FiniteElement expected.");
    GetElementBoundsAtControlPoints(elem, plb, lower, upper, vdim);
    real_t val_min = lower.Min();
    real_t val_max = upper.Min();
-   if (val_min == val_max || max_depth == 0)
-   {
-      return std::make_pair(val_min, val_max);
-   }
+   if (val_min == val_max || max_depth == 0) { return std::make_pair(val_min, val_max); }
    real_t abs_tol = 1e-7*(val_max-val_min);
 
-   Interval *initial_interval = new Interval(pos_range,
-                                             val_min, val_max, 0);
+   Interval *initial_interval = new Interval(pos_range, val_min, val_max, 0);
 
-   Array<Interval *> intervals;
-   intervals.Reserve(max_depth*ncp);
-   intervals.Append(initial_interval);
+   std::priority_queue<Interval*, std::vector<Interval*>, IntervalCompare> pq;
+   pq.push(initial_interval);
+
    real_t min_upper_bound = upper.Min();
    real_t min_lower_bound = lower.Min();
-   depth_estimate = HUGE_VAL;
-   int nlen = 1;
-   int nproc = 0;
    int nverts = dim == 1 ? 2 : (dim == 2 ? 4 : 8);
 
-   while (nproc < nlen)
+   while (!pq.empty())
    {
-      Interval *current = intervals[nproc];
+      Interval *current = pq.top();
+      pq.pop();
       int curr_depth = current->depth;
 
-      if (curr_depth > 1)
+      if (current->val_min >= min_upper_bound || curr_depth >= max_depth) { continue; }
+
+      min_lower_bound = initial_interval->GetChildMinLower();
+      if (min_upper_bound - min_lower_bound < abs_tol) { break; } 
+
+      // Subdivide the interval and get bounds on it
+      GetElementBoundsAtControlPoints(elem, plb, current->ref_range,
+                                      vdim, lower, upper, cp_ref_loc);
+
+      Vector lowerv(nverts), upperv(nverts);
+
+      // process the bounds and create sub-intervals
+      for (int k = 0; k < (dim == 3 ? ncp-1 : 1); k++)
       {
-         real_t diff_estimate = std::abs(depth_estimate(curr_depth-1)
-                                         -depth_estimate(curr_depth-2));
-         if (diff_estimate < abs_tol || curr_depth == max_depth)
+         for (int j = 0; j < (dim >= 2 ? ncp-1 : 1); j++)
          {
-            min_lower_bound = intervals[0]->GetChildMinima();
-            min_upper_bound = intervals[0]->GetChildMaxima();
-            intervals[0]->DeleteChildren();
-            delete intervals[0];
-            return std::make_pair(min_lower_bound, min_upper_bound);
-         }
-      }
-
-      if (current->val_min >= min_upper_bound)
-      {
-         nproc++;
-      }
-      else
-      {
-         // Subdivide the interval and get bounds on it
-         GetElementBoundsAtControlPoints(elem, plb, current->ref_range,
-                                         vdim, lower, upper, cp_ref_loc);
-         nproc++;
-
-         Vector lowerv(nverts), upperv(nverts);
-
-         // process the bounds and create sub-intervals
-         for (int k = 0; k < (dim == 3 ? ncp-1 : 1); k++)
-         {
-            for (int j = 0; j < (dim >= 2 ? ncp-1 : 1); j++)
+            for (int i = 0; i < ncp-1; i++)
             {
-               for (int i = 0; i < ncp-1; i++)
+               if (dim == 1)
                {
-                  if (dim == 1)
+                  lowerv(0) = lower(i);
+                  lowerv(1) = lower(i+1);
+                  upperv(0) = upper(i);
+                  upperv(1) = upper(i+1);
+               }
+               else if (dim == 2)
+               {
+                  lowerv(0) = lower(i + j*ncp);
+                  lowerv(1) = lower((i+1) + j*ncp);
+                  lowerv(2) = lower(i + (j+1)*ncp);
+                  lowerv(3) = lower((i+1) + (j+1)*ncp);
+                  upperv(0) = upper(i + j*ncp);
+                  upperv(1) = upper((i+1) + j*ncp);
+                  upperv(2) = upper(i + (j+1)*ncp);
+                  upperv(3) = upper((i+1) + (j+1)*ncp);
+               }
+               else if (dim == 3)
+               {
+                  lowerv(0) = lower(i + j*ncp + k*ncp*ncp);
+                  lowerv(1) = lower((i+1) + j*ncp + k*ncp*ncp);
+                  lowerv(2) = lower(i + (j+1)*ncp + k*ncp*ncp);
+                  lowerv(3) = lower((i+1) + (j+1)*ncp + k*ncp*ncp);
+                  lowerv(4) = lower(i + j*ncp + (k+1)*ncp*ncp);
+                  lowerv(5) = lower((i+1) + j*ncp + (k+1)*ncp*ncp);
+                  lowerv(6) = lower(i + (j+1)*ncp + (k+1)*ncp*ncp);
+                  lowerv(7) = lower((i+1) + (j+1)*ncp + (k+1)*ncp*ncp);
+                  upperv(0) = upper(i + j*ncp + k*ncp*ncp);
+                  upperv(1) = upper((i+1) + j*ncp + k*ncp*ncp);
+                  upperv(2) = upper(i + (j+1)*ncp + k*ncp*ncp);
+                  upperv(3) = upper((i+1) + (j+1)*ncp + k*ncp*ncp);
+                  upperv(4) = upper(i + j*ncp + (k+1)*ncp*ncp);
+                  upperv(5) = upper((i+1) + j*ncp + (k+1)*ncp*ncp);
+                  upperv(6) = upper(i + (j+1)*ncp + (k+1)*ncp*ncp);
+                  upperv(7) = upper((i+1) + (j+1)*ncp + (k+1)*ncp*ncp);
+               }
+               real_t lv = lowerv.Min();
+               real_t uv = upperv.Min();
+               Interval *child = new Interval(pos_range_dummy,
+                                              lv, uv, curr_depth + 1);
+               current->AddChild(child); // add to tree but not to queue yet
+               if (lv < min_upper_bound)
+               {
+                  min_upper_bound = std::min(min_upper_bound, uv);
+                  if (curr_depth < max_depth)
                   {
-                     lowerv(0) = lower(i);
-                     lowerv(1) = lower(i+1);
-                     upperv(0) = upper(i);
-                     upperv(1) = upper(i+1);
-                  }
-                  else if (dim == 2)
-                  {
-                     lowerv(0) = lower(i + j*ncp);
-                     lowerv(1) = lower((i+1) + j*ncp);
-                     lowerv(2) = lower(i + (j+1)*ncp);
-                     lowerv(3) = lower((i+1) + (j+1)*ncp);
-                     upperv(0) = upper(i + j*ncp);
-                     upperv(1) = upper((i+1) + j*ncp);
-                     upperv(2) = upper(i + (j+1)*ncp);
-                     upperv(3) = upper((i+1) + (j+1)*ncp);
-                  }
-                  else if (dim == 3)
-                  {
-                     lowerv(0) = lower(i + j*ncp + k*ncp*ncp);
-                     lowerv(1) = lower((i+1) + j*ncp + k*ncp*ncp);
-                     lowerv(2) = lower(i + (j+1)*ncp + k*ncp*ncp);
-                     lowerv(3) = lower((i+1) + (j+1)*ncp + k*ncp*ncp);
-                     lowerv(4) = lower(i + j*ncp + (k+1)*ncp*ncp);
-                     lowerv(5) = lower((i+1) + j*ncp + (k+1)*ncp*ncp);
-                     lowerv(6) = lower(i + (j+1)*ncp + (k+1)*ncp*ncp);
-                     lowerv(7) = lower((i+1) + (j+1)*ncp + (k+1)*ncp*ncp);
-                     upperv(0) = upper(i + j*ncp + k*ncp*ncp);
-                     upperv(1) = upper((i+1) + j*ncp + k*ncp*ncp);
-                     upperv(2) = upper(i + (j+1)*ncp + k*ncp*ncp);
-                     upperv(3) = upper((i+1) + (j+1)*ncp + k*ncp*ncp);
-                     upperv(4) = upper(i + j*ncp + (k+1)*ncp*ncp);
-                     upperv(5) = upper((i+1) + j*ncp + (k+1)*ncp*ncp);
-                     upperv(6) = upper(i + (j+1)*ncp + (k+1)*ncp*ncp);
-                     upperv(7) = upper((i+1) + (j+1)*ncp + (k+1)*ncp*ncp);
-                  }
-                  real_t lv = lowerv.Min();
-                  real_t uv = upperv.Min();
-                  depth_estimate(curr_depth) =
-                     std::min(depth_estimate(curr_depth), uv);
-                  if (lv < min_upper_bound)
-                  {
-                     if (uv < min_upper_bound)
+                     pos_range(0) = cp_ref_loc(i);
+                     pos_range(0+dim) = cp_ref_loc(i+1);
+                     if (dim >= 2)
                      {
-                        min_upper_bound = uv;
+                        pos_range(1) = cp_ref_loc(ncp + j);
+                        pos_range(1+dim) = cp_ref_loc(ncp + j+1);
                      }
-                     if (curr_depth < max_depth)
+                     if (dim == 3)
                      {
-                        pos_range(0) = cp_ref_loc(i);
-                        pos_range(0+dim) = cp_ref_loc(i+1);
-                        if (dim >= 2)
-                        {
-                           pos_range(1) = cp_ref_loc(ncp + j);
-                           pos_range(1+dim) = cp_ref_loc(ncp + j+1);
-                        }
-                        if (dim == 3)
-                        {
-                           pos_range(2) = cp_ref_loc(2*ncp + k);
-                           pos_range(2+dim) = cp_ref_loc(2*ncp + k+1);
-                        }
-                        Interval *child = new Interval(pos_range,
-                                                       lv, uv,
-                                                       curr_depth + 1);
-                        intervals.Append(child);
-                        current->AddChild(child);
-                        nlen++;
+                        pos_range(2) = cp_ref_loc(2*ncp + k);
+                        pos_range(2+dim) = cp_ref_loc(2*ncp + k+1);
                      }
-                     else
-                     {
-                        Interval *child = new Interval(pos_range_dummy,
-                                                       lv, uv,
-                                                       curr_depth + 1);
-                        current->AddChild(child);
-                     }
-                  }
-                  else   // we still add to tree so that we can use it to estimate minima
-                  {
-                     Interval *child = new Interval(pos_range_dummy,
-                                                    lv, uv,
-                                                    curr_depth + 1);
-                     current->AddChild(child);
+                     child->ref_range = pos_range;
+                     pq.push(child);
                   }
                }
             }
          }
       }
    }
-   min_lower_bound = intervals[0]->GetChildMinima();
-   min_upper_bound = intervals[0]->GetChildMaxima();
-   intervals[0]->DeleteChildren();
-   delete intervals[0];
+
+   min_lower_bound = initial_interval->GetChildMinLower();
+   initial_interval->DeleteChildren();
+   delete initial_interval;
 
    return std::make_pair(min_lower_bound, min_upper_bound);
 }
