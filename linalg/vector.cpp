@@ -100,9 +100,10 @@ static Array<T>& vector_workspace()
    return instance;
 }
 
-static Array<DevicePair<real_t, real_t>> &Lpvector_workspace()
+template <class T>
+static Array<DevicePair<T, T>> &Lpvector_workspace()
 {
-   static Array<DevicePair<real_t, real_t>> instance;
+   static Array<DevicePair<T, T>> instance;
    return instance;
 }
 
@@ -191,7 +192,7 @@ template <class T>
 T VectorMP<T>::operator*(const T *v) const
 {
    HostRead();
-   real_t dot = 0.0;
+   T dot = 0.0;
 #ifdef MFEM_USE_LEGACY_OPENMP
    #pragma omp parallel for reduction(+:dot)
 #endif
@@ -1038,30 +1039,30 @@ T VectorMP<T>::Norml2() const
    if (size == 0) { return 0.0; }
 
    const auto m_data = Read(UseDevice());
-   using value_type = DevicePair<real_t, real_t>;
+   using value_type = DevicePair<T, T>;
    value_type res;
    res.first = 0;
    res.second = 0;
    // first compute sum (|m_data|/scale)^2
    reduce(size, res, [=] MFEM_HOST_DEVICE(int i, value_type &r)
    {
-      real_t n = fabs(m_data[i]);
+      T n = fabs(m_data[i]);
       if (n > 0)
       {
          if (r.second <= n)
          {
-            real_t arg = r.second / n;
+            T arg = r.second / n;
             r.first = r.first * (arg * arg) + 1;
             r.second = n;
          }
          else
          {
-            real_t arg = n / r.second;
+            T arg = n / r.second;
             r.first += arg * arg;
          }
       }
    },
-   L2Reducer{}, UseDevice(), Lpvector_workspace());
+   L2Reducer{}, UseDevice(), Lpvector_workspace<T>());
    // final answer
    return res.second * sqrt(res.first);
 }
@@ -1112,7 +1113,7 @@ T VectorMP<T>::Normlp(T p) const
       // argument of each call to std::pow is <= 1 to avoid overflow.
       if (size == 0) { return 0.0; }
 
-      using value_type = DevicePair<real_t, real_t>;
+      using value_type = DevicePair<T, T>;
       value_type res;
       res.first = 0;
       res.second = 0;
@@ -1120,23 +1121,23 @@ T VectorMP<T>::Normlp(T p) const
       // first compute sum (|m_data|/scale)^p
       reduce(size, res, [=] MFEM_HOST_DEVICE(int i, value_type &r)
       {
-         real_t n = fabs(m_data[i]);
+         T n = fabs(m_data[i]);
          if (n > 0)
          {
             if (r.second <= n)
             {
-               real_t arg = r.second / n;
+               T arg = r.second / n;
                r.first = r.first * pow(arg, p) + 1;
                r.second = n;
             }
             else
             {
-               real_t arg = n / r.second;
+               T arg = n / r.second;
                r.first += pow(arg, p);
             }
          }
       },
-      LpReducer{p}, UseDevice(), Lpvector_workspace());
+      LpReducer{p}, UseDevice(), Lpvector_workspace<T>());
       // final answer
       return res.second * pow(res.first, 1.0 / p);
    } // end if p < infinity()
