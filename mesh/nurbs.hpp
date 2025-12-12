@@ -1027,6 +1027,13 @@ public:
 
    /// Print control points for coarse patches.
    virtual void PrintCoarsePatches(std::ostream &os);
+
+protected:
+   /// Construct and return a table of DOFs for each global element.
+   Table *GetGlobalElementDofTable();
+   Table *Get1DGlobalElementDofTable();
+   Table *Get2DGlobalElementDofTable();
+   Table *Get3DGlobalElementDofTable();
 };
 
 
@@ -1072,6 +1079,13 @@ public:
        @a par_parent; the @a parent object is destroyed.
        The @a parent can be either a local NURBSExtension or a global one. */
    ParNURBSExtension(NURBSExtension *parent,
+                     const ParNURBSExtension *par_parent);
+
+   /** @brief Create a parallel version of @a parent with partitioning as in
+       @a par_parent based on @a VNURBSExt in Hcurl space; the @a parent object is destroyed.
+       The @a parent can be either a local NURBSExtension or a global one. */
+   ParNURBSExtension(NURBSExtension *parent,
+                     Array<NURBSExtension *> VNURBSExt,
                      const ParNURBSExtension *par_parent);
 };
 #endif
