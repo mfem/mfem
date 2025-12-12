@@ -60,6 +60,7 @@ public:
    /// Creates an empty table
    Table() { size = -1; }
 
+   /// Merge constructor: combine two tables into one table.
    Table(const Table &table1,
          const Table &table2, int offset2);
 

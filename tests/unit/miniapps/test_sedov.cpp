@@ -20,7 +20,6 @@
 
 #include <unordered_map>
 #include <cstring>
-#include "general/forall.hpp"
 #include "linalg/kernels.hpp"
 
 #if defined(MFEM_SEDOV_MPI) && !defined(MFEM_USE_MPI)

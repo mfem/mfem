@@ -1236,7 +1236,7 @@ public:
    void Clear()
    { UseExternalData(NULL, 0, 0, 0); }
 
-   std::size_t MemoryUsage() const { return tdata.Capacity(); }
+   std::size_t MemoryUsage() const { return tdata.MemoryUsage(); }
 
    /// Shortcut for mfem::Read( GetMemory(), TotalSize(), on_dev).
    const real_t *Read(bool on_dev = true) const { return tdata.Read(on_dev); }
