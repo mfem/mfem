@@ -113,6 +113,7 @@ set(SRCS
   nonlinearform.cpp
   nonlinearform_ext.cpp
   nonlininteg.cpp
+  nonlininteg_mixed.cpp
   fespacehierarchy.cpp
   qfunction.cpp
   qinterp/det.cpp
@@ -177,6 +178,11 @@ set(SRCS
   gslib/interpolate_local_3.cpp
   transfer.cpp
   hyperbolic.cpp
+  darcy/bilininteg_hdg.cpp
+  darcy/darcyform.cpp
+  darcy/darcyhybridization.cpp
+  darcy/darcyreduction.cpp
+  darcy/pdarcyform.cpp
   integrator.cpp
   bounds.cpp
   particleset.cpp
@@ -275,6 +281,7 @@ set(HDRS
   nonlinearform.hpp
   nonlinearform_ext.hpp
   nonlininteg.hpp
+  nonlininteg_mixed.hpp
   qfunction.hpp
   qinterp/det.hpp
   qinterp/eval.hpp
@@ -307,6 +314,13 @@ set(HDRS
   gslib.hpp
   transfer.hpp
   hyperbolic.hpp
+  darcy/bilininteg_hdg.hpp
+  darcy/estimators_hdg.hpp
+  darcy/darcy.hpp
+  darcy/darcyform.hpp
+  darcy/darcyhybridization.hpp
+  darcy/darcyreduction.hpp
+  darcy/pdarcyform.hpp
   integrator.hpp
   bounds.hpp
   particleset.hpp

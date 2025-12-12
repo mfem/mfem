@@ -1,0 +1,103 @@
+Options used:
+   --mesh ../../data/amr-quad.mesh
+   --ncells-x 0
+   --ncells-y 0
+   --size-x 1
+   --size-y 1
+   --ref-levels 1
+   --delta-random 0
+   --order 3
+   --discontinuous
+   --no-broken-RT
+   --centered
+   --problem 2
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 1
+   --velocity 1
+   --stab_diff 0.5
+   --bc-neumann
+   --reduction
+   --no-hybridization
+   --no-nonlinear
+   --no-nonlinear-flux
+   --no-nonlinear-pot
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 0
+   --no-partial-assembly
+   --device cpu
+   --no-reconstruct
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+Device configuration: cpu
+Memory configuration: host-std
+Reduction init took 0.000676938s.
+***********************************************************
+dim(W) = 1792
+***********************************************************
+Assembly took 0.303547s.
+Preconditioner took 6.995e-06s.
+   Pass :  1   Iteration :   0  ||B r|| = 0.0640428
+   Pass :  1   Iteration :   1  ||B r|| = 0.0262126
+   Pass :  1   Iteration :   2  ||B r|| = 0.0183947
+   Pass :  1   Iteration :   3  ||B r|| = 0.0161711
+   Pass :  1   Iteration :   4  ||B r|| = 0.0151424
+   Pass :  1   Iteration :   5  ||B r|| = 0.014193
+   Pass :  1   Iteration :   6  ||B r|| = 0.0134486
+   Pass :  1   Iteration :   7  ||B r|| = 0.0123389
+   Pass :  1   Iteration :   8  ||B r|| = 0.0114609
+   Pass :  1   Iteration :   9  ||B r|| = 0.0104029
+   Pass :  1   Iteration :  10  ||B r|| = 0.00950283
+   Pass :  1   Iteration :  11  ||B r|| = 0.00865368
+   Pass :  1   Iteration :  12  ||B r|| = 0.00756145
+   Pass :  1   Iteration :  13  ||B r|| = 0.00575551
+   Pass :  1   Iteration :  14  ||B r|| = 0.00419342
+   Pass :  1   Iteration :  15  ||B r|| = 0.00315855
+   Pass :  1   Iteration :  16  ||B r|| = 0.00237912
+   Pass :  1   Iteration :  17  ||B r|| = 0.00156335
+   Pass :  1   Iteration :  18  ||B r|| = 0.00110171
+   Pass :  1   Iteration :  19  ||B r|| = 0.000890678
+   Pass :  1   Iteration :  20  ||B r|| = 0.00076702
+   Pass :  1   Iteration :  21  ||B r|| = 0.00066222
+   Pass :  1   Iteration :  22  ||B r|| = 0.000573123
+   Pass :  1   Iteration :  23  ||B r|| = 0.00047695
+   Pass :  1   Iteration :  24  ||B r|| = 0.000379651
+   Pass :  1   Iteration :  25  ||B r|| = 0.000273662
+   Pass :  1   Iteration :  26  ||B r|| = 0.00018816
+   Pass :  1   Iteration :  27  ||B r|| = 0.000124088
+   Pass :  1   Iteration :  28  ||B r|| = 8.42564e-05
+   Pass :  1   Iteration :  29  ||B r|| = 5.51635e-05
+   Pass :  1   Iteration :  30  ||B r|| = 3.82417e-05
+   Pass :  1   Iteration :  31  ||B r|| = 2.54824e-05
+   Pass :  1   Iteration :  32  ||B r|| = 1.66362e-05
+   Pass :  1   Iteration :  33  ||B r|| = 1.03083e-05
+   Pass :  1   Iteration :  34  ||B r|| = 6.74431e-06
+   Pass :  1   Iteration :  35  ||B r|| = 4.83322e-06
+   Pass :  1   Iteration :  36  ||B r|| = 3.82944e-06
+   Pass :  1   Iteration :  37  ||B r|| = 2.95443e-06
+   Pass :  1   Iteration :  38  ||B r|| = 2.27633e-06
+   Pass :  1   Iteration :  39  ||B r|| = 1.82188e-06
+   Pass :  1   Iteration :  40  ||B r|| = 1.51763e-06
+   Pass :  1   Iteration :  41  ||B r|| = 1.29571e-06
+   Pass :  1   Iteration :  42  ||B r|| = 1.06473e-06
+   Pass :  1   Iteration :  43  ||B r|| = 8.22965e-07
+   Pass :  1   Iteration :  44  ||B r|| = 6.34248e-07
+   Pass :  1   Iteration :  45  ||B r|| = 5.0075e-07
+   Pass :  1   Iteration :  46  ||B r|| = 4.03511e-07
+   Pass :  1   Iteration :  47  ||B r|| = 3.16923e-07
+   Pass :  1   Iteration :  48  ||B r|| = 2.34974e-07
+   Pass :  1   Iteration :  49  ||B r|| = 1.62404e-07
+   Pass :  1   Iteration :  50  ||B r|| = 1.04917e-07
+Restarting...
+   Pass :  2   Iteration :  51  ||B r|| = 8.268e-08
+   Pass :  2   Iteration :  52  ||B r|| = 6.0686e-08
+GMRES+GS converged in 52 iterations with a residual norm of 6.0686e-08.
+solver took 0.0580948s.
+|| q_h - q_ex || / || q_ex || = 1.38931e-05
+|| t_h - t_ex || / || t_ex || = 7.28192e-06
