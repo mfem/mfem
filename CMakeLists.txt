@@ -59,7 +59,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 4.8.1)
+set(${PROJECT_NAME}_VERSION 4.9.1)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -300,7 +300,14 @@ if (MFEM_USE_OPENMP OR MFEM_USE_LEGACY_OPENMP)
   endif()
 endif()
 
-# Umpire (must be included before hypre, so hypre can use it if needed)
+# Warn user if deprecated FETCH_TPLS is provided
+if (DEFINED FETCH_TPLS)
+  message(STATUS "Setting MFEM_FETCH_TPLS to user-provided value of FETCH_TPLS (i.e., MFEM_FETCH_TPLS=${FETCH_TPLS})")
+  set (MFEM_FETCH_TPLS FETCH_TPLS)
+  message(DEPRECATION "The use of FETCH_TPLS is deprecated and will be removed in future verison. Please use MFEM_FETCH_TPLS instead.")
+endif()
+
+  # Umpire (must be included before hypre, so hypre can use it if needed)
 if (MFEM_USE_UMPIRE)
    # umpire uses FindCUDA, which needs CMP0146=OLD in CMake >= 3.27
    if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.27.0)

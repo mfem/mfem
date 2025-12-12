@@ -52,6 +52,7 @@
 #include "hyperbolic.hpp"
 #include "darcy/darcy.hpp"
 #include "bounds.hpp"
+#include "particleset.hpp"
 
 #include "dfem/doperator.hpp"
 
