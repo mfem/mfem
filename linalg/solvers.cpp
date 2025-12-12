@@ -925,17 +925,17 @@ void CGSolverMP<T>::Mult(const VectorMP<T> &b, VectorMP<T> &x) const
       this->initial_norm = nom;
       final_norm = nom;
 
-      Monitor(0, nom, r, x, true);
+      this->Monitor(0, nom, r, x, true);
       return;
    }
    r0 = std::max(nom*this->rel_tol*this->rel_tol, this->abs_tol*this->abs_tol);
-   if (Monitor(0, nom, r, x) || nom <= r0)
+   if (this->Monitor(0, nom, r, x) || nom <= r0)
    {
       converged = true;
       final_iter = 0;
       final_norm = sqrt(nom);
 
-      Monitor(0, nom, r, x, true);
+      this->Monitor(0, nom, r, x, true);
       return;
    }
 
@@ -955,7 +955,7 @@ void CGSolverMP<T>::Mult(const VectorMP<T> &b, VectorMP<T> &x) const
          final_iter = 0;
          final_norm = sqrt(nom);
 
-         Monitor(0, nom, r, x, true);
+         this->Monitor(0, nom, r, x, true);
          return;
       }
    }
@@ -997,7 +997,7 @@ void CGSolverMP<T>::Mult(const VectorMP<T> &b, VectorMP<T> &x) const
                    << betanom << std::endl;
       }
 
-      if (Monitor(i, betanom, r, x) || betanom <= r0)
+      if (this->Monitor(i, betanom, r, x) || betanom <= r0)
       {
          converged = true;
          final_iter = i;

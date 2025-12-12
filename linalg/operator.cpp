@@ -902,7 +902,9 @@ void RectangularConstrainedOperatorMP<T>::MultTranspose(const VectorMP<T> &x,
    }
 }
 
-real_t InnerProductOperator::Dot(const Vector &x, const Vector &y) const
+template <class T>
+T InnerProductOperatorMP<T>::Dot(const VectorMP<T> &x,
+                                 const VectorMP<T> &y) const
 {
 #ifndef MFEM_USE_MPI
    return (x * y);
@@ -995,4 +997,6 @@ template class ProductOperatorMP<double>;
 template class TripleProductOperatorMP<float>;
 template class TripleProductOperatorMP<double>;
 
+template class InnerProductOperatorMP<float>;
+template class InnerProductOperatorMP<double>;
 }

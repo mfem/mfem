@@ -397,7 +397,7 @@ public:
    void Abs();
 
    /// (*this)(i) = pow((*this)(i), p)
-   void Pow(const real_t p);
+   void Pow(const T p);
 
    /// Swap the contents of two Vectors
    /** Implemented without using move assignment, avoiding Destroy() calls. */
@@ -456,7 +456,7 @@ public:
        As opposed to SetSubVector(const Array<int>&, const real_t), this
        function will execute only on host, even if the vector or the @a dofs
        array have the device flag set. */
-   void SetSubVectorHost(const Array<int> &dofs, const real_t value);
+   void SetSubVectorHost(const Array<int> &dofs, const T value);
 
    /** @brief Set the entries listed in @a dofs to the values given in the @a
        elemvect Vector. Negative dof values cause the -dof-1 position in this

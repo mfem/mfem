@@ -416,7 +416,8 @@ void VectorMP<T>::Reciprocal()
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = 1.0/y[i]; });
 }
 
-void Vector::Abs()
+template <class T>
+void VectorMP<T>::Abs()
 {
    const bool use_dev = UseDevice();
    const int N = size;
@@ -427,7 +428,8 @@ void Vector::Abs()
    });
 }
 
-void Vector::Pow(const real_t p)
+template <class T>
+void VectorMP<T>::Pow(const T p)
 {
    const bool use_dev = UseDevice();
    const int N = size;
@@ -760,7 +762,8 @@ void VectorMP<T>::SetSubVector(const Array<int> &dofs, const T value)
    });
 }
 
-void Vector::SetSubVectorHost(const Array<int> &dofs, const real_t value)
+template <class T>
+void VectorMP<T>::SetSubVectorHost(const Array<int> &dofs, const T value)
 {
    HostReadWrite();
    for (int i = 0; i < dofs.Size(); ++i)
@@ -1326,7 +1329,8 @@ T VectorMP<T>::Sum() const
    return res;
 }
 
-void Vector::DeleteAt(const Array<int> &indices)
+template <class T>
+void VectorMP<T>::DeleteAt(const Array<int> &indices)
 {
    if (indices.Size())
    {
@@ -1345,7 +1349,7 @@ void Vector::DeleteAt(const Array<int> &indices)
          d_flag[d_indices[i]] = false;
       });
 
-      Vector copy(*this);
+      VectorMP<T> copy(*this);
       auto d_in = copy.Read(use_dev);
       auto d_out = Write(use_dev);
       CopyFlagged(use_dev, d_in, d_flag, d_out, d_flag + size, size);

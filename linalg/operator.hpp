@@ -1199,12 +1199,12 @@ private:
    int dot_prod_type = 0; // 0: local, 1: global
 
 public:
-   InnerProductOperatorMP(MPI_Comm comm_) : Operator(1)
+   InnerProductOperatorMP(MPI_Comm comm_) : OperatorMP<T>(1)
    { comm = comm_; dot_prod_type = 1; }
 #endif
 protected:
    /// @brief Standard global/local $\ell_2$ inner product.
-   virtual real_t Dot(const Vector &x, const Vector &y) const;
+   virtual T Dot(const VectorMP<T> &x, const VectorMP<T> &y) const;
 
 public:
    /// Create an operator of size 1 (scalar).
