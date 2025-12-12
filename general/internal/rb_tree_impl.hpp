@@ -48,8 +48,8 @@ void RBTree<ChildType>::erase_fixup(size_t &root, size_t x, size_t x_parent,
          }
          if (!static_cast<ChildType &>(*this).get_node(w).is_red() &&
              !static_cast<ChildType &>(*this)
-                 .get_node(static_cast<ChildType &>(*this).get_node(w).child[1])
-                 .is_red())
+             .get_node(static_cast<ChildType &>(*this).get_node(w).child[1])
+             .is_red())
          {
             static_cast<ChildType &>(*this).get_node(w).set_red();
             x = x_parent;
@@ -61,14 +61,14 @@ void RBTree<ChildType>::erase_fixup(size_t &root, size_t x, size_t x_parent,
          else
          {
             if (!static_cast<ChildType &>(*this)
-                    .get_node(
-                       static_cast<ChildType &>(*this).get_node(w).child[1])
-                    .is_red())
+                .get_node(
+                   static_cast<ChildType &>(*this).get_node(w).child[1])
+                .is_red())
             {
                static_cast<ChildType &>(*this)
-                  .get_node(
-                     static_cast<ChildType &>(*this).get_node(w).child[0])
-                  .set_black();
+               .get_node(
+                  static_cast<ChildType &>(*this).get_node(w).child[0])
+               .set_black();
                static_cast<ChildType &>(*this).get_node(w).set_red();
                right_rotate(root, w);
                w = static_cast<ChildType &>(*this).get_node(x_parent).child[1];
@@ -79,9 +79,9 @@ void RBTree<ChildType>::erase_fixup(size_t &root, size_t x, size_t x_parent,
             if (static_cast<ChildType &>(*this).get_node(w).child[1])
             {
                static_cast<ChildType &>(*this)
-                  .get_node(
-                     static_cast<ChildType &>(*this).get_node(w).child[1])
-                  .set_black();
+               .get_node(
+                  static_cast<ChildType &>(*this).get_node(w).child[1])
+               .set_black();
             }
             left_rotate(root, x_parent);
             x = root;
@@ -99,11 +99,11 @@ void RBTree<ChildType>::erase_fixup(size_t &root, size_t x, size_t x_parent,
             w = static_cast<ChildType &>(*this).get_node(x_parent).child[0];
          }
          if (!static_cast<ChildType &>(*this)
-                 .get_node(static_cast<ChildType &>(*this).get_node(w).child[1])
-                 .is_red() &&
+             .get_node(static_cast<ChildType &>(*this).get_node(w).child[1])
+             .is_red() &&
              !static_cast<ChildType &>(*this)
-                 .get_node(static_cast<ChildType &>(*this).get_node(w).child[0])
-                 .is_red())
+             .get_node(static_cast<ChildType &>(*this).get_node(w).child[0])
+             .is_red())
          {
             static_cast<ChildType &>(*this).get_node(w).set_red();
             x = x_parent;
@@ -115,14 +115,14 @@ void RBTree<ChildType>::erase_fixup(size_t &root, size_t x, size_t x_parent,
          else
          {
             if (!static_cast<ChildType &>(*this)
-                    .get_node(
-                       static_cast<ChildType &>(*this).get_node(w).child[0])
-                    .is_red())
+                .get_node(
+                   static_cast<ChildType &>(*this).get_node(w).child[0])
+                .is_red())
             {
                static_cast<ChildType &>(*this)
-                  .get_node(
-                     static_cast<ChildType &>(*this).get_node(w).child[1])
-                  .set_black();
+               .get_node(
+                  static_cast<ChildType &>(*this).get_node(w).child[1])
+               .set_black();
                static_cast<ChildType &>(*this).get_node(w).set_red();
                left_rotate(root, w);
                w = static_cast<ChildType &>(*this).get_node(x_parent).child[0];
@@ -133,9 +133,9 @@ void RBTree<ChildType>::erase_fixup(size_t &root, size_t x, size_t x_parent,
             if (static_cast<ChildType &>(*this).get_node(w).child[0])
             {
                static_cast<ChildType &>(*this)
-                  .get_node(
-                     static_cast<ChildType &>(*this).get_node(w).child[0])
-                  .set_black();
+               .get_node(
+                  static_cast<ChildType &>(*this).get_node(w).child[0])
+               .set_black();
             }
             right_rotate(root, x_parent);
             x = root;
@@ -404,8 +404,8 @@ void RBTree<ChildType>::erase(size_t &root, size_t idx)
             if (n.parent)
             {
                if (static_cast<ChildType &>(*this)
-                      .get_node(n.parent)
-                      .child[0] == y)
+                   .get_node(n.parent)
+                   .child[0] == y)
                {
                   static_cast<ChildType &>(*this).get_node(n.parent).child[0] =
                      idx;
@@ -435,8 +435,8 @@ void RBTree<ChildType>::erase(size_t &root, size_t idx)
                if (curr->child[1])
                {
                   static_cast<ChildType &>(*this)
-                     .get_node(curr->child[1])
-                     .parent = idx;
+                  .get_node(curr->child[1])
+                  .parent = idx;
                }
             }
             else
@@ -457,8 +457,8 @@ void RBTree<ChildType>::erase(size_t &root, size_t idx)
                if (curr->child[0])
                {
                   static_cast<ChildType &>(*this)
-                     .get_node(curr->child[0])
-                     .parent = idx;
+                  .get_node(curr->child[0])
+                  .parent = idx;
                }
             }
          }
@@ -468,18 +468,18 @@ void RBTree<ChildType>::erase(size_t &root, size_t idx)
             if (curr->parent)
             {
                if (static_cast<ChildType &>(*this)
-                      .get_node(curr->parent)
-                      .child[0] == idx)
+                   .get_node(curr->parent)
+                   .child[0] == idx)
                {
                   static_cast<ChildType &>(*this)
-                     .get_node(curr->parent)
-                     .child[0] = y;
+                  .get_node(curr->parent)
+                  .child[0] = y;
                }
                else
                {
                   static_cast<ChildType &>(*this)
-                     .get_node(curr->parent)
-                     .child[1] = y;
+                  .get_node(curr->parent)
+                  .child[1] = y;
                }
             }
             curr->parent = y;
@@ -491,14 +491,14 @@ void RBTree<ChildType>::erase(size_t &root, size_t idx)
                if (curr->child[0])
                {
                   static_cast<ChildType &>(*this)
-                     .get_node(curr->child[0])
-                     .parent = idx;
+                  .get_node(curr->child[0])
+                  .parent = idx;
                }
                if (curr->child[1])
                {
                   static_cast<ChildType &>(*this)
-                     .get_node(curr->child[1])
-                     .parent = idx;
+                  .get_node(curr->child[1])
+                  .parent = idx;
                }
                if (n.child[1])
                {
@@ -514,14 +514,14 @@ void RBTree<ChildType>::erase(size_t &root, size_t idx)
                if (curr->child[1])
                {
                   static_cast<ChildType &>(*this)
-                     .get_node(curr->child[1])
-                     .parent = idx;
+                  .get_node(curr->child[1])
+                  .parent = idx;
                }
                if (curr->child[0])
                {
                   static_cast<ChildType &>(*this)
-                     .get_node(curr->child[0])
-                     .parent = idx;
+                  .get_node(curr->child[0])
+                  .parent = idx;
                }
                if (n.child[0])
                {
