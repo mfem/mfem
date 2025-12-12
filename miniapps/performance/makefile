@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -68,7 +68,13 @@ MFEM_PERF_CXXFLAGS = $$(MFEM_PERF_CXXFLAGS_$$(MFEM_PERF_SW))
 # Add MFEM_PERF_CXXFLAGS to MFEM_CXXFLAGS:
 ifeq (YES,$$(MFEM_USE_CUDA))
   ifneq (,$$(MFEM_PERF_CXXFLAGS))
-    MFEM_CXXFLAGS += -Xcompiler="$$(MFEM_PERF_CXXFLAGS)"
+    ifneq ($$(MFEM_HOST_CXX),$$(MFEM_CXX))
+      # using nvcc
+      MFEM_CXXFLAGS += -Xcompiler="$$(MFEM_PERF_CXXFLAGS)"
+    else
+      # using clang+cuda
+      MFEM_CXXFLAGS += $$(MFEM_PERF_CXXFLAGS)
+    endif
   endif
 else
   MFEM_CXXFLAGS += $$(MFEM_PERF_CXXFLAGS)
@@ -99,8 +105,11 @@ MFEM_PERF_CXXFLAGS_xlc = -mcpu=native
 # - Clang extra options:
 ifeq ($(MFEM_MACHINE),riscv64)
   MFEM_PERF_CXXFLAGS_clang += -march=rv64gc
-else ifneq ($(MFEM_MACHINE),arm64)
-  # -march=native is unavailable on clang/ARM64 as of 05/2021: support could be added later.
+else ifneq (,$(findstring ppc,$(MFEM_MACHINE)))
+  MFEM_PERF_CXXFLAGS_clang += -mcpu=native -mtune=native
+else ifeq ($(MFEM_MACHINE),arm64)
+  MFEM_PERF_CXXFLAGS_clang += -mcpu=native -mtune=native
+else
   MFEM_PERF_CXXFLAGS_clang += -march=native
 endif
 MFEM_PERF_CXXFLAGS_clang += $(PEDANTIC_FLAG) -Wall

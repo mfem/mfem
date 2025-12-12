@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -119,10 +119,22 @@ public:
    /// Operator application: `y=A(x)`.
    virtual void Mult(const VectorMP<T> &x, VectorMP<T> &y) const = 0;
 
+   /** @brief Action of the absolute-value operator: `y=|A|(x)`. The default
+     behavior in class Operator is to generate an error. If the Operator is a
+     composition of several operators, the composition unfold into a product
+     of absolute-value operators too. */
+   virtual void AbsMult(const VectorMP<T> &x, VectorMP<T> &y) const
+   { MFEM_ABORT("Operator::AbsMult() is not overridden!"); }
+
    /** @brief Action of the transpose operator: `y=A^t(x)`. The default behavior
        in class Operator is to generate an error. */
    virtual void MultTranspose(const VectorMP<T> &x, VectorMP<T> &y) const
-   { mfem_error("Operator::MultTranspose() is not overridden!"); }
+   { MFEM_ABORT("Operator::MultTranspose() is not overridden!"); }
+
+   /** @brief Action of the transpose absolute-value operator: `y=|A|^t(x)`.
+      The default behavior in class Operator is to generate an error. */
+   virtual void AbsMultTranspose(const VectorMP<T> &x, VectorMP<T> &y) const
+   { MFEM_ABORT("Operator::AbsMultTranspose() is not overridden!"); }
 
    /// Operator application: `y+=A(x)` (default) or `y+=a*A(x)`.
    virtual void AddMult(const VectorMP<T> &x, VectorMP<T> &y,
@@ -154,7 +166,7 @@ public:
        behavior in class Operator is to generate an error. */
    virtual OperatorMP<T> &GetGradient(const VectorMP<T> &x) const
    {
-      mfem_error("Operator::GetGradient() is not overridden!");
+      MFEM_ABORT("Operator::GetGradient() is not overridden!");
       return const_cast<OperatorMP<T> &>(*this);
    }
 
@@ -705,7 +717,7 @@ public:
                                  const Vector &xB, const Vector &fxB,
                                  int jokB, int *jcurB, real_t gammaB)
    {
-      mfem_error("TimeDependentAdjointOperator::SUNImplicitSetupB() is not "
+      MFEM_ABORT("TimeDependentAdjointOperator::SUNImplicitSetupB() is not "
                  "overridden!");
       return (-1);
    }
@@ -723,7 +735,7 @@ public:
        see the SUNDIALS User Guides. */
    virtual int SUNImplicitSolveB(Vector &x, const Vector &b, real_t tol)
    {
-      mfem_error("TimeDependentAdjointOperator::SUNImplicitSolveB() is not "
+      MFEM_ABORT("TimeDependentAdjointOperator::SUNImplicitSolveB() is not "
                  "overridden!");
       return (-1);
    }
@@ -958,6 +970,10 @@ public:
    void Mult(const VectorMP<T> & x, VectorMP<T> & y) const override
    { P.Mult(x, Px); A.Mult(Px, APx); Rt.MultTranspose(APx, y); }
 
+   /// Operator-wise absolute-value application.
+   void AbsMult(const VectorMP<T> & x, VectorMP<T> & y) const override
+   { P.AbsMult(x, Px); A.AbsMult(Px, APx); Rt.AbsMultTranspose(APx, y); }
+
    /// Approximate diagonal of the RAP Operator.
    /** Returns the diagonal of A, as returned by its AssembleDiagonal method,
        multiplied be P^T.
@@ -978,6 +994,14 @@ public:
    /// Application of the transpose.
    void MultTranspose(const VectorMP<T> & x, VectorMP<T> & y) const override
    { Rt.Mult(x, APx); A.MultTranspose(APx, Px); P.MultTranspose(Px, y); }
+
+   /// Operator-wise absolute-value application of the transpose
+   void AbsMultTranspose(const VectorMP<T> & x, VectorMP<T> & y) const override
+   {
+      Rt.AbsMult(x, APx);
+      A.AbsMultTranspose(APx, Px);
+      P.AbsMultTranspose(Px, y);
+   }
 };
 
 using RAPOperator = RAPOperatorMP<real_t>;
@@ -1084,13 +1108,21 @@ public:
    void AddMult(const VectorMP<T> &x, VectorMP<T> &y,
                 const T a = 1.0) const override;
 
+   void AbsMult(const VectorMP<T> &x, VectorMP<T> &y) const override;
+
    void MultTranspose(const VectorMP<T> &x, VectorMP<T> &y) const override;
 
+   void AbsMultTranspose(const VectorMP<T> &x, VectorMP<T> &y) const override;
+
    /** @brief Implementation of Mult or MultTranspose.
-    *  TODO - Generalize to allow constraining rows and columns differently.
-   */
+    *  TODO - Generalize to allow constraining rows and columns differently. */
    void ConstrainedMult(const VectorMP<T> &x, VectorMP<T> &y,
                         const bool transpose) const;
+
+   /** @brief Implementation of AbsMult or AbsMultTranspose.
+       TODO - Generalize to allow constraining rows and columns differently. */
+   void ConstrainedAbsMult(const VectorMP<T> &x, VectorMP<T> &y,
+                           const bool transpose) const;
 
    /// Destructor: destroys the unconstrained Operator, if owned.
    ~ConstrainedOperatorMP<T>() override { if (own_A) { delete A; } }
@@ -1153,6 +1185,50 @@ public:
 };
 
 using RectangularConstrainedOperator = RectangularConstrainedOperatorMP<real_t>;
+
+/** @brief Abstract class for defining inner products. The method Eval()
+    must be implemented in derived classes to compute the inner product
+    of two vectors according to a specific inner product definition.
+*/
+template <class T>
+class InnerProductOperatorMP : public OperatorMP<T>
+{
+#ifdef MFEM_USE_MPI
+private:
+   MPI_Comm comm = MPI_COMM_NULL;
+   int dot_prod_type = 0; // 0: local, 1: global
+
+public:
+   InnerProductOperatorMP(MPI_Comm comm_) : Operator(1)
+   { comm = comm_; dot_prod_type = 1; }
+#endif
+protected:
+   /// @brief Standard global/local $\ell_2$ inner product.
+   virtual real_t Dot(const Vector &x, const Vector &y) const;
+
+public:
+   /// Create an operator of size 1 (scalar).
+   InnerProductOperatorMP() : OperatorMP<T>(1)
+   {
+#ifdef MFEM_USE_MPI
+      dot_prod_type = 0;
+#endif
+   }
+
+   /// Operator application - not always needed/used but added
+   /// to satisfy the abstract base class interface.
+   virtual void Mult(const VectorMP<T> &x, VectorMP<T> &y) const override
+   {
+      MFEM_ABORT("Mult is not implemented.");
+   }
+
+   /** @brief Compute the inner product (x,y) of vectors x and y.
+              This is an abstract method that must be
+              implemented in derived classes. */
+   virtual real_t Eval(const VectorMP<T> &x, const VectorMP<T> &y) = 0;
+};
+
+using InnerProductOperator = InnerProductOperatorMP<real_t>;
 
 /** @brief PowerMethod helper class to estimate the largest eigenvalue of an
            operator using the iterative power method. */

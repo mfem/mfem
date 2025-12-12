@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -182,9 +182,18 @@ public:
    /// Disable copy assignment
    void operator=(const Sundials &other) = delete;
 
-   /// Initializes SUNContext and SundialsMemHelper objects. Should be called at
+   /// @brief Initializes SUNContext and SundialsMemHelper objects. Should be called at
    /// the beginning of the calling program (after Mpi::Init if applicable)
+   ///
+   /// Multiple calls to Sundials::Init() have no effect.
    static void Init();
+
+   /// @brief Finalize sundials (called automatically at program exit if
+   /// Sundials::Init() has been called).
+   ///
+   /// Multiple calls to Sundials::Finalize() have no effect. This function can be
+   /// called manually to more precisely control when sundials is finalized.
+   static void Finalize();
 
    /// Provides access to the SUNContext object
    static SUNContext &GetContext();
@@ -202,6 +211,7 @@ private:
    /// Destructor called at end of calling program (does nothing for version < 6)
    ~Sundials();
 
+   bool isInitialized;
    SUNContext context;
    SundialsMemHelper memHelper;
 };
@@ -313,7 +323,7 @@ public:
    /// Typecasting to SUNDIALS' N_Vector type
    operator N_Vector() const { return x; }
 
-   /// Changes the ownership of the the vector
+   /// Changes the ownership of the vector
    N_Vector StealNVector() { own_NVector = 0; return x; }
 
    /// Sets ownership of the internal N_Vector

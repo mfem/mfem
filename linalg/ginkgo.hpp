@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -37,13 +37,7 @@ namespace mfem
 namespace Ginkgo
 {
 
-/// The alias 'gko_array' refers to 'gko::Array' (Ginkgo < 1.5.0) or
-/// 'gko::array' (Ginkgo >= 1.5.0).
-#if MFEM_GINKGO_VERSION < 10500
-template <typename T> using gko_array = gko::Array<T>;
-#else
 template <typename T> using gko_array = gko::array<T>;
-#endif
 
 /**
 * Helper class for a case where a wrapped MFEM Vector
@@ -265,11 +259,7 @@ real_t compute_norm(const gko::matrix::Dense<ValueType> *b)
    // Initialize a result scalar containing the value 0.0.
    auto b_norm = gko::initialize<gko::matrix::Dense<ValueType>>({0.0}, exec);
    // Use the dense `compute_norm2` function to compute the norm.
-#if MFEM_GINKGO_VERSION < 10600
-   b->compute_norm2(gko::lend(b_norm));
-#else
    b->compute_norm2(b_norm);
-#endif
    // Use the other utility function to return the norm contained in `b_norm``
    return std::pow(get_norm(b_norm.get()),2);
 }
@@ -344,7 +334,6 @@ struct ResidualLogger : gko::log::Logger
       iteration_complete_core(iteration, residual, solution, residual_norm,
                               implicit_sq_residual_norm);
    }
-#if MFEM_GINKGO_VERSION > 10500
    // Ginkgo 1.6 and newer
    void on_iteration_complete(const gko::LinOp *op,
                               const gko::LinOp *rhs,
@@ -359,19 +348,13 @@ struct ResidualLogger : gko::log::Logger
       iteration_complete_core(iteration, residual, solution, residual_norm,
                               implicit_sq_residual_norm);
    }
-#endif
 
    // Construct the logger and store the system matrix and b vectors
    ResidualLogger(std::shared_ptr<const gko::Executor> exec,
                   const gko::LinOp *matrix, const gko_dense *b,
                   bool compute_real_residual=false)
       :
-#if MFEM_GINKGO_VERSION < 10500
-      gko::log::Logger(exec,
-                       gko::log::Logger::iteration_complete_mask),
-#else
       gko::log::Logger(gko::log::Logger::iteration_complete_mask),
-#endif
       matrix {matrix},
       b{b},
       compute_real_residual{compute_real_residual}
@@ -407,11 +390,7 @@ private:
          auto exec = matrix->get_executor();
          // Compute the real residual vector by calling apply on the system
          // First, compute res = A * x
-#if MFEM_GINKGO_VERSION < 10600
-         matrix->apply(gko::lend(solution), gko::lend(res));
-#else
          matrix->apply(solution, res);
-#endif
          // Now do res = res - b, depending on which vector/oper type
          // Check if b is a Ginkgo vector or wrapped MFEM Vector
          if (dynamic_cast<const VectorWrapper*>(b))
@@ -425,20 +404,12 @@ private:
          {
             // Create a scalar containing the value -1.0
             auto neg_one = gko::initialize<gko_dense>({-1.0}, exec);
-#if MFEM_GINKGO_VERSION < 10600
-            res->add_scaled(gko::lend(neg_one), gko::lend(b));
-#else
             res->add_scaled(neg_one, b);
-#endif
          }
 
          // Compute the norm of the residual vector and add it to the
          // `residual_norms` vector
-#if MFEM_GINKGO_VERSION < 10600
-         residual_norms.push_back(compute_norm(gko::lend(res)));
-#else
          residual_norms.push_back(compute_norm(res));
-#endif
       }
       else
       {
@@ -461,11 +432,7 @@ private:
          {
             auto dense_residual = gko::as<gko_dense>(residual);
             // Compute the residual vector's norm
-#if MFEM_GINKGO_VERSION < 10600
-            auto norm = compute_norm(gko::lend(dense_residual));
-#else
             auto norm = compute_norm(dense_residual);
-#endif
             // Add the computed norm to the `residual_norms` vector
             residual_norms.push_back(norm);
          }

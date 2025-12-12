@@ -20,7 +20,7 @@
 //               nurbs_ex1 -m ../../data/segment-nurbs.mesh -r 2 -o 2 -lod 3
 //
 // Description:  This example code demonstrates the use of MFEM to define a
-//               simple finite element discretization of the Laplace problem
+//               simple finite element discretization of the Poisson problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
 //               The boundary conditions can be enforced either strongly or weakly.
 //               Specifically, we discretize using a FE space of the specified
@@ -59,7 +59,7 @@ class Diffusion2Integrator: public BilinearFormIntegrator
 {
 private:
 #ifndef MFEM_THREAD_SAFE
-   Vector shape,laplace;
+   Vector shape, laplace;
 #endif
    Coefficient *Q;
 

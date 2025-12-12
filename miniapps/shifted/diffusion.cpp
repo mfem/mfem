@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -34,19 +34,19 @@
 //   Problem 1: Circular hole of radius 0.2 at the center of the domain.
 //              Solves -nabla^2 u = 1 with homogeneous boundary conditions.
 //     Dirichlet boundary condition
-//     mpirun -np 4 diffusion -rs 3 -o 1 -vis -lst 1
-//     mpirun -np 4 diffusion -m ../../data/inline-hex.mesh -rs 2 -o 2 -vis -lst 1 -ho 1 -alpha 10
+//     mpirun -np 4 diffusion -rs 3 -o 1 -lst 1
+//     mpirun -np 4 diffusion -m ../../data/inline-hex.mesh -rs 2 -o 2 -lst 1 -ho 1 -alpha 10
 //     Neumann boundary condition
-//     mpirun -np 4 diffusion -rs 3 -o 1 -vis -nlst 1 -ho 1
+//     mpirun -np 4 diffusion -rs 3 -o 1 -nlst 1 -ho 1
 //
 //   Problem 2: Circular hole of radius 0.2 at the center of the domain.
 //              Solves -nabla^2 u = f with inhomogeneous boundary conditions,
 //              and f is setup such that u = x^p + y^p, where p = 2 by default.
 //              This is a 2D convergence test.
 //     Dirichlet BC
-//     mpirun -np 4 diffusion -rs 2 -o 2 -vis -lst 2
+//     mpirun -np 4 diffusion -rs 2 -o 2 -lst 2
 //     Neumann BC (inhomogeneous condition derived using exact solution)
-//     mpirun -np 4 diffusion -rs 2 -o 2 -vis -nlst 2 -ho 1
+//     mpirun -np 4 diffusion -rs 2 -o 2 -nlst 2 -ho 1
 //
 //   Problem 3: Domain is y = [0, 1] but mesh is shifted to [-1.e-4, 1].
 //              Solves -nabla^2 u = f with inhomogeneous boundary conditions,
@@ -57,7 +57,7 @@
 //              the finite element space and the number of high-order terms
 //              (-ho) to be included from the Taylor expansion used to enforce
 //              the boundary conditions.
-//     mpirun -np 4 diffusion -rs 2 -o 1 -vis -lst 3
+//     mpirun -np 4 diffusion -rs 2 -o 1 -lst 3
 //
 //   Problem 4: Complex 2D / 3D shapes:
 //              Solves -nabla^2 u = 1 with homogeneous boundary conditions.
@@ -69,7 +69,7 @@
 //   Problem 5: Circular hole with homogeneous Neumann, triangular hole with
 //            inhomogeneous Dirichlet, and a square hole with homogeneous
 //            Dirichlet boundary condition.
-//     mpirun -np 4 diffusion -rs 3 -o 1 -vis -lst 5 -ho 1 -nlst 7 -alpha 10.0 -dc
+//     mpirun -np 4 diffusion -rs 3 -o 1 -lst 5 -ho 1 -nlst 7 -alpha 10.0 -dc
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -377,8 +377,8 @@ int main(int argc, char *argv[])
       }
    }
    bool inactive_elements_global;
-   MPI_Allreduce(&inactive_elements, &inactive_elements_global, 1, MPI_C_BOOL,
-                 MPI_LOR, MPI_COMM_WORLD);
+   MPI_Allreduce(&inactive_elements, &inactive_elements_global, 1,
+                 MFEM_MPI_CXX_BOOL, MPI_LOR, MPI_COMM_WORLD);
    if (inactive_elements_global) { ess_elem.Append(0); }
    pmesh.SetAttributes();
 
@@ -532,7 +532,7 @@ int main(int argc, char *argv[])
                                                          ho_terms), ess_shift_bdr);
    }
 
-   // Add neumann bilinearform integrator.
+   // Add Neumann bilinear form integrator.
    if (neumann_level_set_type > 0)
    {
       a.AddInteriorFaceIntegrator(new SBM2NeumannIntegrator(&pmesh,

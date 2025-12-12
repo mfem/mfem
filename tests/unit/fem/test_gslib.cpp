@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -548,7 +548,7 @@ TEST_CASE("GSLIBGSOP", "[GSLIBGSOP][Parallel][GSLIB]")
    if (myid != 0) { vals.Randomize(); }
    gs.GS(vals, GSOPGSLIB::GSOp::MUL);
 
-   // Check for multipled values to be negative
+   // Check for multiplied values to be negative
    for (int i = 0; i < nlen; i++)
    {
       REQUIRE(vals(i) < 0);

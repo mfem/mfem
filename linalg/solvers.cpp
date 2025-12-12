@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -32,6 +32,7 @@ IterativeSolverMP<T>::IterativeSolverMP()
 {
    oper = NULL;
    prec = NULL;
+   dot_oper = NULL;
    max_iter = 10;
    rel_tol = abs_tol = 0.0;
 #ifdef MFEM_USE_MPI
@@ -47,6 +48,7 @@ IterativeSolverMP<T>::IterativeSolverMP(MPI_Comm comm_)
 {
    oper = NULL;
    prec = NULL;
+   dot_oper = NULL;
    max_iter = 10;
    rel_tol = abs_tol = 0.0;
    dot_prod_type = 1;
@@ -58,6 +60,8 @@ IterativeSolverMP<T>::IterativeSolverMP(MPI_Comm comm_)
 template <class T>
 T IterativeSolverMP<T>::Dot(const VectorMP<T> &x, const VectorMP<T> &y) const
 {
+   if (dot_oper) { return dot_oper->Eval(x,y); } // Use custom inner product (if provided)
+
 #ifndef MFEM_USE_MPI
    return (x * y);
 #else
@@ -199,14 +203,133 @@ void IterativeSolverMP<T>::SetOperator(const OperatorMP<T> &op)
 }
 
 template <class T>
-void IterativeSolverMP<T>::Monitor(int it, T norm, const VectorMP<T>& r,
+bool IterativeSolverMP<T>::Monitor(int it, T norm, const VectorMP<T>& r,
                                    const VectorMP<T>& x, bool final) const
 {
-   if (monitor != nullptr)
+   if (controller != nullptr)
    {
-      monitor->MonitorResidual(it, norm, r, final);
-      monitor->MonitorSolution(it, norm, x, final);
+      if (it == 0 && !final)
+      {
+         controller->Reset();
+      }
+      controller->MonitorResidual(it, norm, r, final);
+      controller->MonitorSolution(it, norm, x, final);
+      return controller->HasConverged();
    }
+   return false;
+}
+
+void ConstrainedInnerProduct::SetIndices(const Array<int> &list)
+{
+   list.Read(); // TODO: just ensure 'list' is registered, no need to copy it
+   constraint_list.MakeRef(list);
+   const int csz = constraint_list.Size();
+   xr.SetSize(csz); xr.UseDevice(true);
+   yr.SetSize(csz); yr.UseDevice(true);
+}
+
+real_t ConstrainedInnerProduct::Eval(const Vector &x, const Vector &y)
+{
+   const int csz = constraint_list.Size();
+
+   auto idx = constraint_list.Read();
+   auto d_x = x.Read();
+   auto d_y = y.Read();
+   auto d_xr = xr.ReadWrite();
+   auto d_yr = yr.ReadWrite();
+
+   mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i)
+   {
+      d_xr[i] = d_x[idx[i]];
+      d_yr[i] = d_y[idx[i]];
+   });
+
+   return Dot(xr, yr);
+}
+
+void ConstrainedInnerProduct::Mult(const Vector &x, Vector &y) const
+{
+   const int csz = constraint_list.Size();
+   y.SetSize(csz);
+
+   auto idx = constraint_list.Read();
+   auto d_x = x.Read();
+   auto d_y = y.ReadWrite();
+
+   mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i)
+   {
+      d_y[i] = d_x[idx[i]];
+   });
+}
+
+void WeightedInnerProduct::SetOperator(Operator *X, Operator *Y)
+{
+   if (X && Y)
+   {
+      MFEM_VERIFY(X->Height() == Y->Height(),
+                  "Incompatible operator heights in WeightedInnerProduct");
+   }
+
+   operX = X;
+   operY = Y;
+   if (operX)
+   {
+      mem_class = operX->GetMemoryClass()*Device::GetMemoryClass();
+      MemoryType mem_type = GetMemoryType(mem_class);
+      const int ht = operX->Height();
+      wx.SetSize(ht, mem_type);
+      wx.UseDevice(true);
+   }
+
+   if (operY)
+   {
+      mem_class = operY->GetMemoryClass()*Device::GetMemoryClass();
+      MemoryType mem_type = GetMemoryType(mem_class);
+      const int ht = operY->Height();
+      wy.SetSize(ht, mem_type);
+      wy.UseDevice(true);
+   }
+}
+
+real_t WeightedInnerProduct::Eval(const Vector &x, const Vector &y)
+{
+   MFEM_VERIFY((operX || operY),
+               "Weighting operator not set; set using ::SetOperator")
+
+   if (operY && operX)
+   {
+      operX->Mult(x, wx);
+      operY->Mult(y, wy);
+      return Dot(wy,wx);
+   }
+   else if (operY)
+   {
+      operY->Mult(y, wy);
+      return Dot(wy,x);
+   }
+   // if(operX)
+   operX->Mult(x, wx);
+   return Dot(y,wx);
+}
+
+void WeightedInnerProduct::Mult(const Vector &x, Vector &y) const
+{
+   MFEM_VERIFY((operX || operY),
+               "Weighting operator not set; set using ::SetOperator")
+
+   if (operY && operX)
+   {
+      operX->Mult(x, wx);
+      operY->Mult(wx, y);
+      return;
+   }
+   else if (operY)
+   {
+      operY->Mult(x, y);
+      return;
+   }
+   // if(operX)
+   operX->Mult(x, y);
 }
 
 OperatorJacobiSmoother::OperatorJacobiSmoother(const real_t dmpng)
@@ -360,12 +483,18 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
-                                                     int order_, MPI_Comm comm, int power_iterations, real_t power_tolerance)
+                                                     int order_, MPI_Comm comm,
+                                                     int power_iterations,
+                                                     real_t power_tolerance,
+                                                     int power_seed)
 #else
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
-                                                     int order_, int power_iterations, real_t power_tolerance)
+                                                     int order_,
+                                                     int power_iterations,
+                                                     real_t power_tolerance,
+                                                     int power_seed)
 #endif
    : Solver(d.Size()),
      order(order_),
@@ -386,8 +515,11 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
    PowerMethod powerMethod;
 #endif
    Vector ev(oper->Width());
+   MFEM_VERIFY(power_seed != 0, "invalid seed!");
    max_eig_estimate = powerMethod.EstimateLargestEigenvalue(diagPrecond, ev,
-                                                            power_iterations, power_tolerance);
+                                                            power_iterations,
+                                                            power_tolerance,
+                                                            power_seed);
 
    Setup();
 }
@@ -418,6 +550,7 @@ void OperatorChebyshevSmoother::Setup()
 {
    // Invert diagonal
    residual.UseDevice(true);
+   helperVector.UseDevice(true);
    auto D = diag.Read();
    auto X = dinv.Write();
    mfem::forall(N, [=] MFEM_HOST_DEVICE (int i) { X[i] = 1.0 / D[i]; });
@@ -508,6 +641,7 @@ void OperatorChebyshevSmoother::Mult(const Vector& x, Vector &y) const
 
    residual = x;
    helperVector.SetSize(x.Size());
+   helperVector.UseDevice(true);
 
    y.UseDevice(true);
    y = 0.0;
@@ -537,12 +671,19 @@ void OperatorChebyshevSmoother::Mult(const Vector& x, Vector &y) const
 void SLISolver::UpdateVectors()
 {
    r.SetSize(width);
+   r.UseDevice(true);
+
    z.SetSize(width);
+   z.UseDevice(true);
 }
 
 void SLISolver::Mult(const Vector &b, Vector &x) const
 {
+   const bool zero_b = (b.Size() == 0);
    int i;
+
+   MFEM_VERIFY(!zero_b || iterative_mode || width == 0,
+               "empty 'b' can be used only in iterative mode!");
 
    // Optimized preconditioned SLI with fixed number of iterations and given
    // initial guess
@@ -551,9 +692,10 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
       for (i = 0; i < max_iter; i++)
       {
          oper->Mult(x, r);  // r = A x
-         subtract(b, r, r); // r = b - A x
+         if (!zero_b) { subtract(b, r, r); } // r = b - A x
          prec->Mult(r, z);  // z = B r
-         add(x, 1.0, z, x); // x = x + B (b - A x)
+         if (!zero_b) { x += z; } // x = x + B (b - A x)
+         else { x -= z; }         // x = x - B (A x)
       }
       converged = true;
       final_iter = i;
@@ -570,7 +712,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
          oper->Mult(x, r);  // r = A x
          subtract(b, r, r); // r = b - A x
          prec->Mult(r, z);  // z = B r
-         add(x, 1.0, z, x); // x = x + B (b - A x)
+         x += z;            // x = x + B (b - A x)
       }
       converged = true;
       final_iter = i;
@@ -584,7 +726,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
    if (iterative_mode)
    {
       oper->Mult(x, r);
-      subtract(b, r, r); // r = b - A x
+      if (!zero_b) { subtract(b, r, r); } // r = b - A x
    }
    else
    {
@@ -610,7 +752,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
    }
 
    r0 = std::max(nom*rel_tol, abs_tol);
-   if (nom <= r0)
+   if (Monitor(0, nom, r, x) || nom <= r0)
    {
       converged = true;
       final_iter = 0;
@@ -623,17 +765,19 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
    final_iter = max_iter;
    for (i = 1; true; )
    {
-      if (prec) //  x = x + B (b - A x)
+      if (prec)
       {
-         add(x, 1.0, z, x);
+         if (!zero_b) { x += z; }  // x = x + B (b - A x)
+         else { x -= z; }          // x = x - B (A x)
       }
       else
       {
-         add(x, 1.0, r, x);
+         if (!zero_b) { x += r; }  // x = x + (b - A x)
+         else { x -= r; }          // x = x - (A x)
       }
 
       oper->Mult(x, r);
-      subtract(b, r, r); // r = b - A x
+      if (!zero_b) { subtract(b, r, r); } // r = b - A x
 
       if (prec)
       {
@@ -649,15 +793,10 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
       nomold = nom;
 
       bool done = false;
-      if (nom < r0)
+      if (Monitor(i, nom, r, x) || nom < r0)
       {
          converged = true;
          final_iter = i;
-         done = true;
-      }
-
-      if (++i > max_iter)
-      {
          done = true;
       }
 
@@ -666,6 +805,11 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
          mfem::out << "   Iteration : " << setw(3) << right << (i-1)
                    << "  ||Br|| = " << setw(11) << left << nom
                    << "\tConv. rate: " << cf << '\n';
+      }
+
+      if (++i > max_iter)
+      {
+         done = true;
       }
 
       if (done) { break; }
@@ -684,6 +828,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
    }
 
    final_norm = nom;
+   Monitor(final_iter, final_norm, r, x, true);
 }
 
 void SLI(const Operator &A, const Vector &b, Vector &x,
@@ -722,9 +867,14 @@ void CGSolverMP<T>::UpdateVectors()
 {
    MemoryType mt = GetMemoryType(this->oper->GetMemoryClass());
 
-   r.SetSize(this->width, mt); r.UseDevice(true);
-   d.SetSize(this->width, mt); d.UseDevice(true);
-   z.SetSize(this->width, mt); z.UseDevice(true);
+   r.SetSize(this->width, mt);
+   r.UseDevice(true);
+
+   d.SetSize(this->width, mt);
+   d.UseDevice(true);
+
+   z.SetSize(this->width, mt);
+   z.UseDevice(true);
 }
 
 template <class T>
@@ -762,7 +912,6 @@ void CGSolverMP<T>::Mult(const VectorMP<T> &b, VectorMP<T> &x) const
       mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
                 << nom << (this->print_options.first_and_last ? " ...\n" : "\n");
    }
-   this->Monitor(0, nom, r, x);
 
    if (nom < 0.0)
    {
@@ -771,18 +920,22 @@ void CGSolverMP<T>::Mult(const VectorMP<T> &b, VectorMP<T> &x) const
          mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
                    << nom << '\n';
       }
-      this->converged = false;
-      this->final_iter = 0;
+      converged = false;
+      final_iter = 0;
       this->initial_norm = nom;
-      this->final_norm = nom;
+      final_norm = nom;
+
+      Monitor(0, nom, r, x, true);
       return;
    }
    r0 = std::max(nom*this->rel_tol*this->rel_tol, this->abs_tol*this->abs_tol);
-   if (nom <= r0)
+   if (Monitor(0, nom, r, x) || nom <= r0)
    {
       converged = true;
       final_iter = 0;
       final_norm = sqrt(nom);
+
+      Monitor(0, nom, r, x, true);
       return;
    }
 
@@ -801,6 +954,8 @@ void CGSolverMP<T>::Mult(const VectorMP<T> &b, VectorMP<T> &x) const
          converged = false;
          final_iter = 0;
          final_norm = sqrt(nom);
+
+         Monitor(0, nom, r, x, true);
          return;
       }
    }
@@ -842,9 +997,7 @@ void CGSolverMP<T>::Mult(const VectorMP<T> &b, VectorMP<T> &x) const
                    << betanom << std::endl;
       }
 
-      this->Monitor(i, betanom, r, x);
-
-      if (betanom <= r0)
+      if (Monitor(i, betanom, r, x) || betanom <= r0)
       {
          converged = true;
          final_iter = i;
@@ -1012,8 +1165,23 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
 
    DenseMatrix H(m+1, m);
    Vector s(m+1), cs(m+1), sn(m+1);
-   Vector r(n), w(n);
+   Vector r(n), w(n), x_monitor;
    Array<Vector *> v;
+
+   b.UseDevice(true);
+   x.UseDevice(true);
+   r.UseDevice(true);
+   w.UseDevice(true);
+
+   if (ControllerRequiresUpdate())
+   {
+      x_monitor.SetSize(n);
+      x_monitor.UseDevice(true);
+   }
+   else
+   {
+      x_monitor.MakeRef(x, 0, n);
+   }
 
    int i, j, k;
 
@@ -1054,7 +1222,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
 
    final_norm = std::max(rel_tol*beta, abs_tol);
 
-   if (beta <= final_norm)
+   if (Monitor(0, beta, r, x) || beta <= final_norm)
    {
       final_norm = beta;
       final_iter = 0;
@@ -1071,13 +1239,15 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
                 << (print_options.first_and_last ? " ...\n" : "\n");
    }
 
-   Monitor(0, beta, r, x);
-
    v.SetSize(m+1, NULL);
 
    for (j = 1; j <= max_iter; )
    {
-      if (v[0] == NULL) { v[0] = new Vector(n); }
+      if (v[0] == NULL)
+      {
+         v[0] = new Vector(n);
+         v[0]->UseDevice(true);
+      }
       v[0]->Set(1.0/beta, r);
       s = 0.0; s(0) = beta;
 
@@ -1116,7 +1286,13 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
          const real_t resid = fabs(s(i+1));
          MFEM_VERIFY(IsFinite(resid), "resid = " << resid);
 
-         if (resid <= final_norm)
+         if (ControllerRequiresUpdate())
+         {
+            x_monitor = x;
+            Update(x_monitor, i, H, s, v);
+         }
+
+         if (Monitor(j, resid, r, x_monitor) || resid <= final_norm)
          {
             Update(x, i, H, s, v);
             final_norm = resid;
@@ -1131,8 +1307,6 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
                       << "   Iteration : " << setw(3) << j
                       << "  ||B r|| = " << resid << '\n';
          }
-
-         Monitor(j, resid, r, x);
       }
 
       if (print_options.iterations && j <= max_iter)
@@ -1195,7 +1369,21 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
 {
    DenseMatrix H(m+1,m);
    Vector s(m+1), cs(m+1), sn(m+1);
-   Vector r(b.Size());
+   Vector r(b.Size()), x_monitor;
+
+   b.UseDevice(true);
+   x.UseDevice(true);
+   r.UseDevice(true);
+
+   if (ControllerRequiresUpdate())
+   {
+      x_monitor.SetSize(x.Size());
+      x_monitor.UseDevice(true);
+   }
+   else
+   {
+      x_monitor.MakeRef(x, 0, x.Size());
+   }
 
    int i, j, k;
 
@@ -1214,15 +1402,18 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
 
    final_norm = std::max(rel_tol*beta, abs_tol);
 
-   converged = false;
-
-   if (beta <= final_norm)
+   if (Monitor(0, beta, r, x) || beta <= final_norm)
    {
+      converged = true;
       final_norm = beta;
       final_iter = 0;
-      converged = true;
+
+      Monitor(0, beta, r, x, true);
       return;
    }
+
+   // initialize the first pass
+   converged = false;
 
    if (print_options.iterations || print_options.first_and_last)
    {
@@ -1231,8 +1422,6 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
                 << "  || r || = " << beta
                 << (print_options.first_and_last ? " ...\n" : "\n");
    }
-
-   Monitor(0, beta, r, x);
 
    Array<Vector*> v(m+1);
    Array<Vector*> z(m+1);
@@ -1245,7 +1434,11 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
    j = 1;
    while (j <= max_iter)
    {
-      if (v[0] == NULL) { v[0] = new Vector(b.Size()); }
+      if (v[0] == NULL)
+      {
+         v[0] = new Vector(b.Size());
+         v[0]->UseDevice(true);
+      }
       (*v[0]) = 0.0;
       v[0] -> Add (1.0/beta, r);   // v[0] = r / ||r||
       s = 0.0; s(0) = beta;
@@ -1253,7 +1446,11 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       for (i = 0; i < m && j <= max_iter; i++, j++)
       {
 
-         if (z[i] == NULL) { z[i] = new Vector(b.Size()); }
+         if (z[i] == NULL)
+         {
+            z[i] = new Vector(b.Size());
+            z[i]->UseDevice(true);
+         }
          (*z[i]) = 0.0;
 
          if (prec)
@@ -1273,7 +1470,11 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
          }
 
          H(i+1,i)  = Norm(r);       // H(i+1,i) = ||r||
-         if (v[i+1] == NULL) { v[i+1] = new Vector(b.Size()); }
+         if (v[i+1] == NULL)
+         {
+            v[i+1] = new Vector(b.Size());
+            v[i+1]->UseDevice(true);
+         }
          (*v[i+1]) = 0.0;
          v[i+1] -> Add (1.0/H(i+1,i), r); // v[i+1] = r / H(i+1,i)
 
@@ -1295,9 +1496,14 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
                       << "   Iteration : " << setw(3) << j
                       << "  || r || = " << resid << endl;
          }
-         Monitor(j, resid, r, x, resid <= final_norm);
 
-         if (resid <= final_norm)
+         if (ControllerRequiresUpdate())
+         {
+            x_monitor = x;
+            Update(x_monitor, i, H, s, z);
+         }
+
+         if (Monitor(j, resid, r, x_monitor) || resid <= final_norm)
          {
             Update(x, i, H, s, z);
             final_norm = resid;
@@ -1314,6 +1520,8 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
                if (v[i]) { delete v[i]; }
                if (z[i]) { delete z[i]; }
             }
+
+            Monitor(j, resid, r, x, true);
             return;
          }
       }
@@ -1362,6 +1570,8 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
    {
       mfem::out << "FGMRES: No convergence!\n";
    }
+
+   Monitor(final_iter, final_norm, r, x, true);
 }
 
 
@@ -1394,13 +1604,28 @@ void GMRES(const Operator &A, Solver &B, const Vector &b, Vector &x,
 void BiCGSTABSolver::UpdateVectors()
 {
    p.SetSize(width);
+   p.UseDevice(true);
+
    phat.SetSize(width);
+   phat.UseDevice(true);
+
    s.SetSize(width);
+   s.UseDevice(true);
+
    shat.SetSize(width);
+   shat.UseDevice(true);
+
    t.SetSize(width);
+   t.UseDevice(true);
+
    v.SetSize(width);
+   v.UseDevice(true);
+
    r.SetSize(width);
+   r.UseDevice(true);
+
    rtilde.SetSize(width);
+   rtilde.UseDevice(true);
 }
 
 void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
@@ -1411,6 +1636,9 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
    int i;
    real_t resid, tol_goal;
    real_t rho_1, rho_2=1.0, alpha=1.0, beta, omega=1.0;
+
+   b.UseDevice(true);
+   x.UseDevice(true);
 
    if (iterative_mode)
    {
@@ -1432,15 +1660,15 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
                 << "   ||r|| = " << resid << (print_options.first_and_last ? " ...\n" : "\n");
    }
 
-   Monitor(0, resid, r, x);
-
    tol_goal = std::max(resid*rel_tol, abs_tol);
 
-   if (resid <= tol_goal)
+   if (Monitor(0, resid, r, x) || resid <= tol_goal)
    {
       final_norm = resid;
       final_iter = 0;
       converged = true;
+
+      Monitor(0, resid, r, x, true);
       return;
    }
 
@@ -1455,8 +1683,6 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
                       << "   ||r|| = " << resid << '\n';
          }
 
-         Monitor(i, resid, r, x);
-
          final_norm = resid;
          final_iter = i;
          converged = false;
@@ -1468,6 +1694,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          {
             mfem::out << "BiCGStab: No convergence!\n";
          }
+
+         Monitor(i, resid, r, x, true);
          return;
       }
       if (i == 1)
@@ -1493,7 +1721,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       add(r, -alpha, v, s); //  s = r - alpha * v
       resid = Norm(s);
       MFEM_VERIFY(IsFinite(resid), "resid = " << resid);
-      if (resid < tol_goal)
+      if (Monitor(i, resid, r, x) || resid < tol_goal)
       {
          x.Add(alpha, phat);  //  x = x + alpha * phat
          if (print_options.iterations || print_options.first_and_last)
@@ -1508,6 +1736,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          {
             mfem::out << "BiCGStab: Number of iterations: " << final_iter << '\n';
          }
+
+         Monitor(i, resid, r, x, true);
          return;
       }
       if (print_options.iterations)
@@ -1515,7 +1745,6 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          mfem::out << "   Iteration : " << setw(3) << i
                    << "   ||s|| = " << resid;
       }
-      Monitor(i, resid, r, x);
       if (prec)
       {
          prec->Mult(s, shat);  //  shat = M^{-1} * s
@@ -1537,8 +1766,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       {
          mfem::out << "   ||r|| = " << resid << '\n';
       }
-      Monitor(i, resid, r, x);
-      if (resid < tol_goal)
+      if (Monitor(i, resid, r, x) || resid < tol_goal)
       {
          final_norm = resid;
          final_iter = i;
@@ -1552,6 +1780,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          {
             mfem::out << "BiCGStab: Number of iterations: " << final_iter << '\n';
          }
+
+         Monitor(i, resid, r, x, true);
          return;
       }
       if (omega == 0)
@@ -1572,6 +1802,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          {
             mfem::out << "BiCGStab: No convergence!\n";
          }
+
+         Monitor(i, resid, r, x, true);
          return;
       }
    }
@@ -1593,6 +1825,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
    {
       mfem::out << "BiCGStab: No convergence!\n";
    }
+
+   Monitor(final_iter, final_norm, r, x, true);
 }
 
 int BiCGSTAB(const Operator &A, Vector &x, const Vector &b, Solver &M,
@@ -1622,21 +1856,25 @@ void MINRESSolver::SetOperator(const Operator &op)
 {
    IterativeSolver::SetOperator(op);
    v0.SetSize(width);
+   v0.UseDevice(true);
+
    v1.SetSize(width);
+   v1.UseDevice(true);
+
    w0.SetSize(width);
+   w0.UseDevice(true);
+
    w1.SetSize(width);
+   w1.UseDevice(true);
+
    q.SetSize(width);
+   q.UseDevice(true);
+
    if (prec)
    {
       u1.SetSize(width);
+      u1.UseDevice(true);
    }
-
-   v0.UseDevice(true);
-   v1.UseDevice(true);
-   w0.UseDevice(true);
-   w1.UseDevice(true);
-   q.UseDevice(true);
-   u1.UseDevice(true);
 }
 
 void MINRESSolver::Mult(const Vector &b, Vector &x) const
@@ -1678,7 +1916,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
 
    norm_goal = std::max(rel_tol*eta, abs_tol);
 
-   if (eta <= norm_goal)
+   if (Monitor(0, eta, *z, x) || eta <= norm_goal)
    {
       it = 0;
       goto loop_end;
@@ -1689,7 +1927,6 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
       mfem::out << "MINRES: iteration " << setw(3) << 0 << ": ||r||_B = "
                 << eta << (print_options.first_and_last ? " ..." : "") << '\n';
    }
-   Monitor(0, eta, *z, x);
 
    for (it = 1; it <= max_iter; it++)
    {
@@ -1757,7 +1994,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
          mfem::out << "MINRES: iteration " << setw(3) << it << ": ||r||_B = "
                    << fabs(eta) << '\n';
       }
-      Monitor(it, fabs(eta), *z, x);
+      if (Monitor(it, fabs(eta), *z, x)) { goto loop_end; }
 
       if (prec)
       {
@@ -1784,7 +2021,7 @@ loop_end:
       mfem::out << "MINRES: Number of iterations: " << setw(3) << final_iter << '\n';
    }
 
-   Monitor(final_iter, final_norm, *z, x, true);
+   converged = Monitor(final_iter, final_norm, *z, x, true) || converged;
 
    // if (print_options.iteration_details || (!converged && print_options.errors))
    // {
@@ -1841,7 +2078,10 @@ void NewtonSolver::SetOperator(const Operator &op)
    MFEM_VERIFY(height == width, "square Operator is required.");
 
    r.SetSize(width);
+   r.UseDevice(true);
+
    c.SetSize(width);
+   c.UseDevice(true);
 }
 
 void NewtonSolver::Mult(const Vector &b, Vector &x) const
@@ -1890,9 +2130,8 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          }
          mfem::out << '\n';
       }
-      Monitor(it, norm, r, x);
 
-      if (norm <= norm_goal)
+      if (Monitor(it, norm, r, x) || norm <= norm_goal)
       {
          converged = true;
          break;
@@ -1951,6 +2190,8 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    {
       mfem::out << "Newton: No convergence!\n";
    }
+
+   Monitor(final_iter, final_norm, r, x, true);
 }
 
 void NewtonSolver::SetAdaptiveLinRtol(const int type,
@@ -2027,6 +2268,7 @@ void NewtonSolver::AdaptiveLinRtolPostSolve(const Vector &x,
    {
       // lnorm_last = ||F(x0) + DF(x0) s0||
       Vector linres(x.Size());
+      linres.UseDevice(true);
       grad->Mult(x, linres);
       linres -= b;
       lnorm_last = Norm(linres);
@@ -2037,15 +2279,28 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
 {
    MFEM_VERIFY(oper != NULL, "the Operator is not set (use SetOperator).");
 
+   b.UseDevice(true);
+   x.UseDevice(true);
+
    // Quadrature points that are checked for negative Jacobians etc.
    Vector sk, rk, yk, rho, alpha;
 
    // r - r_{k+1}, c - descent direction
-   sk.SetSize(width);    // x_{k+1}-x_k
-   rk.SetSize(width);    // nabla(f(x_{k}))
-   yk.SetSize(width);    // r_{k+1}-r_{k}
-   rho.SetSize(m);       // 1/(dot(yk,sk)
-   alpha.SetSize(m);     // rhok*sk'*c
+   sk.SetSize(width); // x_{k+1}-x_k
+   sk.UseDevice(true);
+
+   rk.SetSize(width); // nabla(f(x_{k}))
+   rk.UseDevice(true);
+
+   yk.SetSize(width); // r_{k+1}-r_{k}
+   yk.UseDevice(true);
+
+   rho.SetSize(m); // 1/(dot(yk,sk)
+   rho.UseDevice(true);
+
+   alpha.SetSize(m); // rhok*sk'*c
+   alpha.UseDevice(true);
+
    int last_saved_id = -1;
 
    int it;
@@ -2189,6 +2444,11 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
    Vector s(m+1), cs(m+1), sn(m+1);
    Vector w(n), av(n);
 
+   b.UseDevice(true);
+   x.UseDevice(true);
+   w.UseDevice(true);
+   av.UseDevice(true);
+
    real_t r1, resid;
    int i, j, k;
 
@@ -2200,6 +2460,7 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
    }
 
    Vector r(n);
+   r.UseDevice(true);
    A.Mult(x, r);
    subtract(b,r,w);
    M.Mult(w, r);           // r = M (b - A x)
@@ -2229,6 +2490,7 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
    for (i= 0; i<=m; i++)
    {
       v[i] = new Vector(n);
+      v[i]->UseDevice(true);
       (*v[i]) = 0.0;
    }
 
@@ -2673,9 +2935,10 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
    // Scale rows by reciprocal of diagonal and take absolute value
    Vector D;
    C.GetDiag(D);
-   int *I = C.GetI();
-   int *J = C.GetJ();
-   real_t *V = C.GetData();
+   D.HostRead();
+
+   const int *I = C.HostReadI(), *J = C.HostReadJ();
+   real_t *V = C.HostReadWriteData();
    for (int i=0; i<n; ++i)
    {
       for (int j=I[i]; j<I[i+1]; ++j)
@@ -2828,9 +3091,9 @@ void BlockILU::CreateBlockPattern(const SparseMatrixMP<real_t> &A)
    }
 
    int nrows = A.Height();
-   const int *I = A.GetI();
-   const int *J = A.GetJ();
-   const real_t *V = A.GetData();
+   const int *I = A.HostReadI();
+   const int *J = A.HostReadJ();
+   const real_t *V = A.HostReadData();
    int nnz = 0;
    int nblockrows = nrows / block_size;
 
@@ -3529,6 +3792,7 @@ void OrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
 
    real_t ratio = global_sum / static_cast<real_t>(global_size);
    v_ortho.SetSize(v.Size());
+   v_ortho.UseDevice(true);
    v.HostRead();
    v_ortho.HostWrite();
    for (int i = 0; i < v_ortho.Size(); ++i)
@@ -3590,6 +3854,7 @@ void NNLSSolver::SetOperator(const Operator &op)
    width = op.Height();
 
    row_scaling_.SetSize(mat->NumRows());
+   row_scaling_.UseDevice(true);
    row_scaling_ = 1.0;
 }
 
@@ -3623,6 +3888,7 @@ void NNLSSolver::NormalizeConstraints(Vector& rhs_lb, Vector& rhs_ub) const
    halfgap_target = 1.0e3 * const_tol_;
 
    row_scaling_.SetSize(m);
+   row_scaling_.UseDevice(true);
 
    for (int i=0; i<m; ++i)
    {

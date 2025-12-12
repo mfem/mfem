@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,8 +11,7 @@
 //
 // Compile with: make nurbs_naca_cmesh
 //
-// Sample run:   ./nurbs_naca_cmesh -ntail 80 -nbnd 80 -ntip 20 -nwake 40
-//                 -sw 2.0 -sbnd 2.5 -stip 1.1 -aoa 3
+// Sample run:   nurbs_naca_cmesh -ntail 80 -nbnd 80 -ntip 20 -nwake 40 -sw 2.0 -sbnd 2.5 -stip 1.1 -aoa 3
 //
 // Description:  This example code demonstrates the use of MFEM to create a
 //               C-mesh around a NACA-foil section. The foil section is defined

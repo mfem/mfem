@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -33,23 +33,40 @@ namespace mfem
 
 class BilinearForm;
 
+
 template <class T>
 class IterativeSolverMP;
 
-/// Abstract base class for an iterative solver monitor
+/// Abstract base class for an iterative solver controller
 template <class T>
-class IterativeSolverMonitorMP
+class IterativeSolverControllerMP
 {
 protected:
-   /// The last IterativeSolver to which this monitor was attached.
+   /// The last IterativeSolver to which this controller was attached.
    const class IterativeSolverMP<T> *iter_solver;
 
+   /// In MonitorResidual or MonitorSolution, this member variable can be set
+   /// to true to indicate early convergence.
+   bool converged = false;
+
 public:
-   IterativeSolverMonitorMP() : iter_solver(nullptr) {}
+   IterativeSolverControllerMP() : iter_solver(nullptr) {}
 
-   virtual ~IterativeSolverMonitorMP() {}
+   virtual ~IterativeSolverControllerMP() {}
 
-   /// Monitor the residual vector r
+   /// Has the solver converged?
+   ///
+   /// Can be used if convergence is detected in the controller (before reaching
+   /// the relative or absolute tolerance of the IterativeSolver).
+   bool HasConverged() { return converged; }
+
+   /// Reset the controller to its initial state.
+   ///
+   /// This function is called by the IterativeSolver::Mult()
+   /// method on the first iteration.
+   virtual void Reset() { converged = false; }
+
+   /// Monitor the solution vector r
    virtual void MonitorResidual(int it, T norm, const VectorMP<T> &r,
                                 bool final)
    {
@@ -61,13 +78,19 @@ public:
    {
    }
 
-   /** @brief This method is invoked by IterativeSolver::SetMonitor, informing
-       the monitor which IterativeSolver is using it. */
+   /// Indicates if the controller requires an updated solution every iteration
+   /** The default behavior is to not require the updated solution to allow
+       solvers to skip it if not needed otherwise. */
+   virtual bool RequiresUpdatedSolution() const { return false; }
+
+   /** @brief This method is invoked by IterativeSolver::SetController(),
+       informing the controller which IterativeSolver is using it. */
    void SetIterativeSolver(const IterativeSolverMP<T> &solver)
    { iter_solver = &solver; }
 };
 
-using IterativeSolverMonitor = IterativeSolverMonitorMP<real_t>;
+/// Keeping the alias for backward compatibility
+using IterativeSolverMonitor = IterativeSolverControllerMP<real_t>;
 
 /// Abstract base class for iterative solver
 template <class T>
@@ -128,7 +151,8 @@ private:
 protected:
    const OperatorMP<T> *oper;
    SolverMP<T> *prec;
-   IterativeSolverMonitorMP<T> *monitor = nullptr;
+   IterativeSolverControllerMP<T> *controller = nullptr;
+   InnerProductOperatorMP<T> *dot_oper = nullptr;
 
    /// @name Reporting (protected attributes and member functions)
    ///@{
@@ -177,6 +201,7 @@ protected:
 
    ///@}
 
+
    /** @brief Return the standard (l2, i.e., Euclidean) inner product of
        @a x and @a y
        @details Overriding this method in a derived class enables a
@@ -187,8 +212,11 @@ protected:
    /// Return the inner product norm of @a x, using the inner product defined by Dot()
    T Norm(const VectorMP<T> &x) const { return sqrt(Dot(x, x)); }
 
+   /// Indicated if the controller requires an update of the solution
+   bool ControllerRequiresUpdate() const { return controller && controller->RequiresUpdatedSolution(); }
+
    /// Monitor both the residual @a r and the solution @a x
-   void Monitor(int it, T norm, const VectorMP<T>& r, const VectorMP<T>& x,
+   bool Monitor(int it, T norm, const VectorMP<T>& r, const VectorMP<T>& x,
                 bool final=false) const;
 
 public:
@@ -300,9 +328,15 @@ public:
    /// Also calls SetOperator for the preconditioner if there is one
    void SetOperator(const OperatorMP<T> &op) override;
 
-   /// Set the iterative solver monitor
-   void SetMonitor(IterativeSolverMonitorMP<T> &m)
-   { monitor = &m; m.SetIterativeSolver(*this); }
+   /// Set the iterative solver controller
+   void SetController(IterativeSolverControllerMP<T> &c)
+   { controller = &c; c.SetIterativeSolver(*this); }
+
+   /// An alias of SetController() for backward compatibility
+   void SetMonitor(IterativeSolverControllerMP<T> &m) { SetController(m); }
+
+   /// Set a user-defined inner product operator (not owned)
+   void SetInnerProduct(InnerProductOperatorMP<T> *ipo) { dot_oper = ipo; }
 
 #ifdef MFEM_USE_MPI
    /** @brief Return the associated MPI communicator, or MPI_COMM_NULL if no
@@ -313,6 +347,80 @@ public:
 };
 
 using IterativeSolver = IterativeSolverMP<real_t>;
+
+/** @brief Inner product operator constrained to a list of indices/dofs.
+    The method Eval() computes the inner product of two vectors
+    only on the constrained entries specified in the constraint list. */
+class ConstrainedInnerProduct : public InnerProductOperator
+{
+protected:
+   Array<int> constraint_list; /// List of constrained indices
+   mutable Vector xr, yr; /// Restricted vectors
+
+public:
+#ifdef MFEM_USE_MPI
+   /// @brief Constructor from MPI communicator and a list of constraint indices.
+   ConstrainedInnerProduct(MPI_Comm comm_, const Array<int> &list)
+      : InnerProductOperator(comm_) { SetIndices(list); }
+   /// @brief Constructor from MPI communicator.
+   ConstrainedInnerProduct(MPI_Comm comm_) : InnerProductOperator(comm_) {}
+#endif
+
+   /** @brief Constructor from a list of constraint indices/dofs.
+       Specify a @a list of indices to constrain, i.e. each entry
+       @a list[i] represents an element of the inner product. */
+   ConstrainedInnerProduct(const Array<int> &list) : InnerProductOperator()
+   { SetIndices(list); }
+
+   /// @brief Set/update the list of constraint indices.
+   void SetIndices(const Array<int> &list);
+
+   /** @brief Compute the inner product (x,y) of vectors x and y,
+              only on the constrained entries. */
+   virtual real_t Eval(const Vector &x, const Vector &y) override;
+
+   /// @brief Apply the constraint to vector @a x and return in @a y.
+   virtual void Mult(const Vector &x, Vector &y) const override;
+};
+
+/** @brief Inner product weighted by operators, @a X and @a Y.
+    The method Eval() computes the inner product of two vectors,
+    @a x and @a y, weighted by the operators, @a X and @a Y,
+    as (Y(y),X(x)). */
+class WeightedInnerProduct : public InnerProductOperator
+{
+protected:
+   Operator *operX = nullptr; /// Weighting operator for x
+   Operator *operY = nullptr; /// Weighting operator for y
+   mutable Vector wx, wy; /// Weighted vectors
+   MemoryClass mem_class;
+
+public:
+#ifdef MFEM_USE_MPI
+   /// @brief Constructor from MPI communicator.
+   WeightedInnerProduct(MPI_Comm comm_) : InnerProductOperator(comm_) {}
+#endif
+   /// @brief Constructor from weighting operators.
+   WeightedInnerProduct(Operator *X, Operator *Y)
+      : InnerProductOperator() { SetOperator(X, Y); }
+
+   /** @brief Set/update the weighting operators (not owned) for each term. */
+   void SetOperator(Operator *X, Operator *Y);
+
+   /// @brief Set/update the same weighting operator (not owned) for both terms.
+   void SetOperator(Operator *XY) { SetOperator(XY, XY); }
+
+   /** @brief Compute the inner product (Y(y),X(x)) of vectors x and y,
+              weighted by the operators @a X and @a Y.
+       @note Either (but not both) operator, @a X or @a Y, can be set as null, in
+             which case the corresponding vector is unmodified (i.e. the operator
+             acts as an identity operator). */
+   virtual real_t Eval(const Vector &x, const Vector &y) override;
+
+   /// @brief Apply the weighting operator to vector @a x and return in @a y=Y(X(x)).
+   virtual void Mult(const Vector &x, Vector &y) const override;
+};
+
 
 /// Jacobi smoothing for a given bilinear form (no matrix necessary).
 /** Useful with tensorized, partially assembled operators. Can also be defined
@@ -430,7 +538,8 @@ public:
                              const Array<int>& ess_tdof_list,
                              int order, MPI_Comm comm = MPI_COMM_NULL,
                              int power_iterations = 10,
-                             real_t power_tolerance = 1e-8);
+                             real_t power_tolerance = 1e-8,
+                             int power_seed = 12345);
 
    /// Deprecated: see pass-by-reference version above
    MFEM_DEPRECATED
@@ -443,7 +552,8 @@ public:
    OperatorChebyshevSmoother(const Operator &oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
                              int order, int power_iterations = 10,
-                             real_t power_tolerance = 1e-8);
+                             real_t power_tolerance = 1e-8,
+                             int power_seed = 12345);
 
    /// Deprecated: see pass-by-reference version above
    MFEM_DEPRECATED
@@ -503,6 +613,9 @@ public:
    { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
    /// Iterative solution of the linear system using Stationary Linear Iteration
+   /** When using iterative mode (see Solver::iterative_mode), the case of zero
+       r.h.s., @a b = 0, can be optimized by calling this method with empty
+       @a b, i.e. b.Size() == 0. */
    void Mult(const Vector &b, Vector &x) const override;
 };
 
@@ -919,7 +1032,7 @@ public:
 #ifdef MFEM_USE_MPI
    OptimizationSolver(MPI_Comm comm_): IterativeSolver(comm_), problem(NULL) { }
 #endif
-   virtual ~OptimizationSolver() { }
+   ~OptimizationSolver() override { }
 
    /** This function is virtual as solvers might need to perform some initial
     *  actions (e.g. validation) with the OptimizationProblem. */

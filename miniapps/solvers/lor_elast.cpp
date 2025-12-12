@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -65,17 +65,17 @@
 //    latter may only work for order 1 on GPUs.
 //
 // Sample runs:
+//       lor_elast -m ../../data/beam-tri.mesh
+//       lor_elast -m ../../data/beam-quad.mesh
+//       lor_elast -m ../../data/beam-hex.mesh
+//       mpirun -np 4 lor_elast -m ../../data/beam-hex.mesh -l 3 -vdim
+//       mpirun -np 4 lor_elast -m ../../data/beam-hex.mesh -l 3 -vdim -elast
 //
-//       ./lor_elast -m ../../data/beam-tri.mesh
-//       ./lor_elast -m ../../data/beam-quad.mesh
-//       ./lor_elast -m ../../data/beam-hex.mesh
-//       mpirun -np 4 ./lor_elast -m ../../data/beam-hex.mesh -l 5 -vdim
-//       mpirun -np 4 ./lor_elast -m ../../data/beam-hex.mesh -l 5 -vdim -elast
-//       ./lor_elast --device cuda -m ../../data/beam-hex.mesh -l 4 -o 2 -pa
-//       ./lor_elast --device cuda -m ../../data/beam-hex.mesh -l 4 -o 2 -pa -pv
-//       ./lor_elast --device cuda -m ../../data/beam-hex.mesh -l 4 -o 2 -pa -ss
-//       ./lor_elast --device cuda -m ../../data/beam-hex.mesh -l 4 -o 2 -pa -ca
-//       ./lor_elast --device cuda -m ../../data/beam-hex.mesh -l 5 -ca
+// Device sample runs:
+//       lor_elast --device cuda -m ../../data/beam-hex.mesh -l 3 -o 2 -pa
+//       lor_elast --device cuda -m ../../data/beam-hex.mesh -l 3 -o 2 -pa -ss
+//       lor_elast --device cuda -m ../../data/beam-hex.mesh -l 3 -o 2 -pa -ca
+//       lor_elast --device cuda -m ../../data/beam-hex.mesh -l 3 -ca
 //
 // References:
 //    [1] Mihajlović, M.D. and Mijalković, S., "A component decomposition

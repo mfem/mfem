@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,6 +13,7 @@
 #define MFEM_FE_H1
 
 #include "fe_base.hpp"
+#include "fe_pyramid.hpp"
 
 namespace mfem
 {
@@ -146,6 +147,73 @@ public:
    void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
    void CalcDShape(const IntegrationPoint &ip,
                    DenseMatrix &dshape) const override;
+};
+
+/** Arbitrary order H1 basis functions defined on pyramid-shaped elements
+
+  This implementation is closely based on the finite elements
+  described in section 9.1 of the paper "Orientation embedded high
+  order shape functions for the exact sequence elements of all shapes"
+  by Federico Fuentes, Brendan Keith, Leszek Demkowicz, and Sriram
+  Nagaraj, see https://doi.org/10.1016/j.camwa.2015.04.027.
+ */
+class H1_FuentesPyramidElement
+   : public NodalFiniteElement, public FuentesPyramid
+{
+private:
+   mutable real_t zmax;
+
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector tmp_i, tmp_u;
+   mutable DenseMatrix tmp1_ij, tmp2_ij, tmp_du;
+   mutable DenseTensor tmp_ijk;
+#endif
+   DenseMatrixInverse Ti;
+
+   void calcBasis(const int p, const IntegrationPoint &ip,
+                  Vector &phi_i, DenseMatrix &phi_ij, Vector &u) const;
+   void calcGradBasis(const int p, const IntegrationPoint &ip,
+                      Vector &phi_i, DenseMatrix &dphi_i,
+                      DenseMatrix &phi_ij, DenseTensor &dphi_ij,
+                      DenseMatrix &du) const;
+
+public:
+   H1_FuentesPyramidElement(const int p,
+                            const int btype = BasisType::GaussLobatto);
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+   void CalcRawShape(const IntegrationPoint &ip, Vector &shape) const;
+   void CalcRawDShape(const IntegrationPoint &ip,
+                      DenseMatrix &dshape) const;
+
+   real_t GetZetaMax() const { return zmax; }
+};
+
+/** Arbitrary order H1 basis functions defined on pyramid-shaped elements
+
+  This implementation is based on the finite elements described in the
+  2010 paper "Higher-Order Finite Elements for Hybrid Meshes Using New
+  Nodal Pyramidal Elements" by Morgane Bergot, Gary Cohen, and Marc
+  Durufle, see https://hal.archives-ouvertes.fr/hal-00454261.
+ */
+class H1_BergotPyramidElement : public NodalFiniteElement
+{
+private:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_x, shape_y, shape_z;
+   mutable Vector dshape_x, dshape_y, dshape_z, dshape_z_dt, u;
+   mutable Vector ddshape_x, ddshape_y, ddshape_z;
+   mutable DenseMatrix du, ddu;
+#endif
+   DenseMatrixInverse Ti;
+
+public:
+   H1_BergotPyramidElement(const int p,
+                           const int btype = BasisType::GaussLobatto);
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
 };
 
 } // namespace mfem

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -681,10 +681,82 @@ void ConstrainedOperatorMP<T>::ConstrainedMult(const VectorMP<T> &x,
 }
 
 template <class T>
+void ConstrainedOperatorMP<T>::ConstrainedAbsMult(const VectorMP<T> &x,
+                                                  VectorMP<T> &y,
+                                                  const bool transpose) const
+{
+   const int csz = constraint_list.Size();
+   if (csz == 0)
+   {
+      if (transpose)
+      {
+         A->AbsMultTranspose(x, y);
+      }
+      else
+      {
+         A->AbsMult(x, y);
+      }
+      return;
+   }
+
+   z = x;
+
+   auto idx = constraint_list.Read();
+   // Use read+write access - we are modifying sub-vector of z
+   auto d_z = z.ReadWrite();
+   mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i) { d_z[idx[i]] = 0.0; });
+
+   if (transpose)
+   {
+      A->AbsMultTranspose(z, y);
+   }
+   else
+   {
+      A->AbsMult(z, y);
+   }
+
+   auto d_x = x.Read();
+   // Use read+write access - we are modifying sub-vector of y
+   auto d_y = y.ReadWrite();
+   switch (diag_policy)
+   {
+      case DIAG_ONE:
+         mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i)
+         {
+            const int id = idx[i];
+            d_y[id] = d_x[id];
+         });
+         break;
+      case DIAG_ZERO:
+         mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i)
+         {
+            const int id = idx[i];
+            d_y[id] = 0.0;
+         });
+         break;
+      case DIAG_KEEP:
+         // Needs action of the operator diagonal on vector
+         mfem_error("ConstrainedOperator::AbsMult #1");
+         break;
+      default:
+         mfem_error("ConstrainedOperator::AbsMult #2");
+         break;
+   }
+}
+
+template <class T>
 void ConstrainedOperatorMP<T>::Mult(const VectorMP<T> &x, VectorMP<T> &y) const
 {
    constexpr bool transpose = false;
    ConstrainedMult(x, y, transpose);
+}
+
+template <class T>
+void ConstrainedOperatorMP<T>::AbsMult(const VectorMP<T> &x,
+                                       VectorMP<T> &y) const
+{
+   constexpr bool transpose = false;
+   ConstrainedAbsMult(x, y, transpose);
 }
 
 template <class T>
@@ -693,6 +765,14 @@ void ConstrainedOperatorMP<T>::MultTranspose(const VectorMP<T> &x,
 {
    constexpr bool transpose = true;
    ConstrainedMult(x, y, transpose);
+}
+
+template <class T>
+void ConstrainedOperatorMP<T>::AbsMultTranspose(const VectorMP<T> &x,
+                                                VectorMP<T> &y) const
+{
+   constexpr bool transpose = true;
+   ConstrainedAbsMult(x, y, transpose);
 }
 
 template <class T>
@@ -822,8 +902,25 @@ void RectangularConstrainedOperatorMP<T>::MultTranspose(const VectorMP<T> &x,
    }
 }
 
+real_t InnerProductOperator::Dot(const Vector &x, const Vector &y) const
+{
+#ifndef MFEM_USE_MPI
+   return (x * y);
+#else
+   if (dot_prod_type == 0)
+   {
+      return (x * y);
+   }
+   else
+   {
+      return InnerProduct(comm, x, y);
+   }
+#endif
+}
+
 real_t PowerMethod::EstimateLargestEigenvalue(Operator& opr, Vector& v0,
-                                              int numSteps, real_t tolerance, int seed)
+                                              int numSteps, real_t tolerance,
+                                              int seed)
 {
    v1.SetSize(v0.Size());
    if (seed != 0)

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1015,6 +1015,34 @@ public:
    void ProjectGrad(const FiniteElement &fe,
                     ElementTransformation &Trans,
                     DenseMatrix &grad) const override;
+};
+
+
+/// A 3D 2nd order Nedelec element on a pyramid
+class Nedelec2PyrFiniteElement : public VectorFiniteElement
+{
+private:
+   static const real_t tk[28][3];
+
+public:
+   /// Construct the Nedelec2PyrFiniteElement
+   Nedelec2PyrFiniteElement();
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const
+   { CalcVShape_ND(Trans, shape); }
+   virtual void CalcCurlShape(const IntegrationPoint &ip,
+                              DenseMatrix &curl_shape) const;
+   virtual void GetLocalInterpolation (ElementTransformation &Trans,
+                                       DenseMatrix &I) const;
+   using FiniteElement::Project;
+   virtual void Project (VectorCoefficient &vc,
+                         ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void ProjectGrad(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &grad) const;
 };
 
 

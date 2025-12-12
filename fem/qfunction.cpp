@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -56,6 +56,20 @@ void QuadratureFunction::Save(std::ostream &os) const
    os.flush();
 }
 
+void QuadratureFunction::ProjectGridFunctionFallback(const GridFunction &gf)
+{
+   if (gf.VectorDim() == 1)
+   {
+      GridFunctionCoefficient coeff(&gf);
+      coeff.Coefficient::Project(*this);
+   }
+   else
+   {
+      VectorGridFunctionCoefficient coeff(&gf);
+      coeff.VectorCoefficient::Project(*this);
+   }
+}
+
 void QuadratureFunction::ProjectGridFunction(const GridFunction &gf)
 {
    SetVDim(gf.VectorDim());
@@ -68,27 +82,49 @@ void QuadratureFunction::ProjectGridFunction(const GridFunction &gf)
                                           ElementDofOrdering::LEXICOGRAPHIC :
                                           ElementDofOrdering::NATIVE;
 
+      // Use quadrature interpolator to go from E-vector to Q-vector
+      const QuadratureInterpolator *qi =
+         gf_fes.GetQuadratureInterpolator(*qs_elem);
+
+      // If quadrature interpolator doesn't support this space, then fallback
+      // on slower (non-device) version, and return early.
+      if (!qi)
+      {
+         ProjectGridFunctionFallback(gf);
+         return;
+      }
+
       // Use element restriction to go from L-vector to E-vector
       const Operator *R = gf_fes.GetElementRestriction(ordering);
       Vector e_vec(R->Height());
       R->Mult(gf, e_vec);
 
-      // Use quadrature interpolator to go from E-vector to Q-vector
-      const QuadratureInterpolator *qi =
-         gf_fes.GetQuadratureInterpolator(*qs_elem);
       qi->SetOutputLayout(QVectorLayout::byVDIM);
       qi->DisableTensorProducts(!use_tensor_products);
-      qi->Values(e_vec, *this);
+      qi->PhysValues(e_vec, *this);
    }
    else if (auto *qs_face = dynamic_cast<FaceQuadratureSpace*>(qspace))
    {
       const FiniteElementSpace &gf_fes = *gf.FESpace();
+      const FaceType face_type = qs_face->GetFaceType();
       const bool use_tensor_products = UsesTensorBasis(gf_fes);
       const ElementDofOrdering ordering = use_tensor_products ?
                                           ElementDofOrdering::LEXICOGRAPHIC :
                                           ElementDofOrdering::NATIVE;
 
-      const FaceType face_type = qs_face->GetFaceType();
+      // Use quadrature interpolator to go from E-vector to Q-vector
+      const FaceQuadratureInterpolator *qi =
+         gf_fes.GetFaceQuadratureInterpolator(qspace->GetIntRule(0), face_type);
+
+      // If quadrature interpolator doesn't support this space, then fallback
+      // on slower (non-device) version, and return early. Also, currently,
+      // ElementDofOrdering::NATIVE in FaceRestriction, so fall back in that
+      // case too.
+      if (qi == nullptr || ordering == ElementDofOrdering::NATIVE)
+      {
+         ProjectGridFunctionFallback(gf);
+         return;
+      }
 
       // Use element restriction to go from L-vector to E-vector
       const Operator *R = gf_fes.GetFaceRestriction(
@@ -96,9 +132,6 @@ void QuadratureFunction::ProjectGridFunction(const GridFunction &gf)
       Vector e_vec(R->Height());
       R->Mult(gf, e_vec);
 
-      // Use quadrature interpolator to go from E-vector to Q-vector
-      const FaceQuadratureInterpolator *qi =
-         gf_fes.GetFaceQuadratureInterpolator(qspace->GetIntRule(0), face_type);
       qi->SetOutputLayout(QVectorLayout::byVDIM);
       qi->DisableTensorProducts(!use_tensor_products);
       qi->Values(e_vec, *this);
@@ -120,7 +153,7 @@ void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,
                                  int compression_level,
                                  const std::string &field_name) const
 {
-   os << R"(<VTKFile type="UnstructuredGrid" version="0.1")";
+   os << R"(<VTKFile type="UnstructuredGrid" version="2.2")";
    if (compression_level != 0)
    {
       os << R"( compressor="vtkZLibDataCompressor")";

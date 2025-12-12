@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1341,7 +1341,7 @@ const
 
 
 LinearPyramidFiniteElement::LinearPyramidFiniteElement()
-   : NodalFiniteElement(3, Geometry::PYRAMID, 5, 1)
+   : NodalFiniteElement(3, Geometry::PYRAMID, 5, 1, FunctionSpace::Uk)
 {
    Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(0).y = 0.0;
@@ -3015,7 +3015,7 @@ void P0WdgFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
 
 P0PyrFiniteElement::P0PyrFiniteElement()
-   : NodalFiniteElement(3, Geometry::PYRAMID, 1, 0, FunctionSpace::Qk)
+   : NodalFiniteElement(3, Geometry::PYRAMID, 1, 0, FunctionSpace::Uk)
 {
    Nodes.IntPoint(0).x = 0.375;
    Nodes.IntPoint(0).y = 0.375;
@@ -4818,7 +4818,7 @@ void Nedelec1WdgFiniteElement::ProjectGrad(const FiniteElement &fe,
 
 
 Nedelec1PyrFiniteElement::Nedelec1PyrFiniteElement()
-   : VectorFiniteElement(3, Geometry::PYRAMID, 8, 1, H_CURL)
+   : VectorFiniteElement(3, Geometry::PYRAMID, 8, 1, H_CURL, FunctionSpace::Uk)
 {
    // not real nodes ...
    Nodes.IntPoint(0).x = 0.5;
@@ -4866,7 +4866,11 @@ void Nedelec1PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
    {
       // We must return the limit of the basis functions as z->1.  In order to
       // remain inside the pyramid in this limit the x and y coordinates must
-      // be approaching 0. The resulting limiting basis function values are:
+      // be approaching 0. Unfortunately we obtain different limits if we
+      // approach (0,0,1) from different directions. The values provided below
+      // are the limits as x->(1-z)/2 and y->(1-z)/2 i.e. along the line from
+      // the center of the base of the pyramid towards the apex. The resulting
+      // limiting basis function values are:
       shape(0,0) =   0.;
       shape(0,1) =   0.;
       shape(0,2) =   0.;
@@ -4883,21 +4887,21 @@ void Nedelec1PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
       shape(3,1) =   0.;
       shape(3,2) =   0.;
 
-      shape(4,0) =   1.;
-      shape(4,1) =   1.;
-      shape(4,2) =   1.;
+      shape(4,0) =   0.5;
+      shape(4,1) =   0.5;
+      shape(4,2) =   0.75;
 
-      shape(5,0) = - 1.;
-      shape(5,1) =   0.;
-      shape(5,2) =   0.;
+      shape(5,0) = - 0.5;
+      shape(5,1) =   0.5;
+      shape(5,2) =   0.25;
 
-      shape(6,0) =   0.;
-      shape(6,1) =   0.;
-      shape(6,2) =   0.;
+      shape(6,0) = - 0.5;
+      shape(6,1) = - 0.5;
+      shape(6,2) = - 0.25;
 
-      shape(7,0) =   0.;
-      shape(7,1) = - 1.;
-      shape(7,2) =   0.;
+      shape(7,0) =   0.5;
+      shape(7,1) = - 0.5;
+      shape(7,2) =   0.25;
 
       return;
    }
@@ -4952,36 +4956,36 @@ const
       // In order to remain inside the pyramid in this limit the x and y
       // coordinates must be approaching 0. The resulting limiting basis
       // function values are:
-      curl_shape(0,0) =   0.;
-      curl_shape(0,1) = - 2.;
+      curl_shape(0,0) = - 0.5;
+      curl_shape(0,1) = - 1.5;
       curl_shape(0,2) =   1.;
 
-      curl_shape(1,0) =   0.;
-      curl_shape(1,1) =   0.;
+      curl_shape(1,0) =   0.5;
+      curl_shape(1,1) = - 0.5;
       curl_shape(1,2) =   1.;
 
-      curl_shape(2,0) =   0.;
-      curl_shape(2,1) =   0.;
+      curl_shape(2,0) =   0.5;
+      curl_shape(2,1) = - 0.5;
       curl_shape(2,2) = - 1.;
 
-      curl_shape(3,0) =   2.;
-      curl_shape(3,1) =   0.;
+      curl_shape(3,0) =   1.5;
+      curl_shape(3,1) =   0.5;
       curl_shape(3,2) = - 1.;
 
-      curl_shape(4,0) = - 2.;
-      curl_shape(4,1) =   2.;
+      curl_shape(4,0) = - 1.;
+      curl_shape(4,1) =   1.;
       curl_shape(4,2) =   0.;
 
-      curl_shape(5,0) =   0.;
-      curl_shape(5,1) = - 2.;
+      curl_shape(5,0) = - 1.;
+      curl_shape(5,1) = - 1.;
       curl_shape(5,2) =   0.;
 
-      curl_shape(6,0) =   0.;
-      curl_shape(6,1) =   0.;
+      curl_shape(6,0) =   1.;
+      curl_shape(6,1) = - 1.;
       curl_shape(6,2) =   0.;
 
-      curl_shape(7,0) =   2.;
-      curl_shape(7,1) =   0.;
+      curl_shape(7,0) =   1.;
+      curl_shape(7,1) =   1.;
       curl_shape(7,2) =   0.;
 
       return;
@@ -5100,6 +5104,540 @@ void Nedelec1PyrFiniteElement::Project (
 }
 
 void Nedelec1PyrFiniteElement::ProjectGrad(const FiniteElement &fe,
+                                           ElementTransformation &Trans,
+                                           DenseMatrix &grad) const
+{
+   DenseMatrix dshape(fe.GetDof(), 3);
+   Vector grad_k(fe.GetDof());
+
+   grad.SetSize(dof, fe.GetDof());
+   for (int k = 0; k < dof; k++)
+   {
+      fe.CalcDShape(Nodes.IntPoint(k), dshape);
+      dshape.Mult(tk[k], grad_k);
+      for (int j = 0; j < grad_k.Size(); j++)
+      {
+         grad(k,j) = (fabs(grad_k(j)) < 1e-12) ? 0.0 : grad_k(j);
+      }
+   }
+}
+
+
+Nedelec2PyrFiniteElement::Nedelec2PyrFiniteElement()
+   : VectorFiniteElement(3, Geometry::PYRAMID, 28, 2, H_CURL, FunctionSpace::Uk)
+{
+   const real_t *eop = poly1d.OpenPoints(2 - 1);
+   const real_t  fop = 1. / 3.;
+
+   // not real nodes ...
+   Nodes.IntPoint(0).Set3(eop[0], 0., 0.);
+   Nodes.IntPoint(1).Set3(eop[1], 0., 0.);
+
+   Nodes.IntPoint(2).Set3(1.0, eop[0], 0.);
+   Nodes.IntPoint(3).Set3(1.0, eop[1], 0.);
+
+   Nodes.IntPoint(4).Set3(eop[0], 1.0, 0.);
+   Nodes.IntPoint(5).Set3(eop[1], 1.0, 0.);
+
+   Nodes.IntPoint(6).Set3(0., eop[0], 0.);
+   Nodes.IntPoint(7).Set3(0., eop[1], 0.);
+
+   Nodes.IntPoint(8).Set3(0., 0., eop[0]);
+   Nodes.IntPoint(9).Set3(0., 0., eop[1]);
+
+   Nodes.IntPoint(10).Set3(eop[1], 0., eop[0]);
+   Nodes.IntPoint(11).Set3(eop[0], 0., eop[1]);
+
+   Nodes.IntPoint(12).Set3(eop[1], eop[1], eop[0]);
+   Nodes.IntPoint(13).Set3(eop[0], eop[0], eop[1]);
+
+   Nodes.IntPoint(14).Set3(0., eop[1], eop[0]);
+   Nodes.IntPoint(15).Set3(0., eop[0], eop[1]);
+
+   Nodes.IntPoint(16).Set3(eop[0], 0.5, 0.);
+   Nodes.IntPoint(17).Set3(eop[1], 0.5, 0.);
+
+   Nodes.IntPoint(18).Set3(0.5, eop[0], 0.);
+   Nodes.IntPoint(19).Set3(0.5, eop[1], 0.);
+
+   Nodes.IntPoint(20).Set3(fop, 0., fop);
+   Nodes.IntPoint(21).Set3(fop, 0., fop);
+
+   Nodes.IntPoint(22).Set3(2.*fop, fop, fop);
+   Nodes.IntPoint(23).Set3(2.*fop, fop, fop);
+
+   Nodes.IntPoint(24).Set3(fop, 2.*fop, fop);
+   Nodes.IntPoint(25).Set3(fop, 2.*fop, fop);
+
+   Nodes.IntPoint(26).Set3(0., fop, fop);
+   Nodes.IntPoint(27).Set3(0., fop, fop);
+
+   {
+      int n = 28;
+      DenseMatrix I(n,n);
+      DenseMatrix vecs(n,3);
+      I = 0.0;
+
+      for (int i=0; i<n; i++)
+      {
+         CalcVShape(Nodes.IntPoint(i), vecs);
+         for (int j=0; j<n; j++)
+         {
+            I(j,i) = vecs(j,0)*tk[i][0]+vecs(j,1)*tk[i][1]+vecs(j,2)*tk[i][2];
+         }
+      }
+   }
+}
+
+void Nedelec2PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
+                                          DenseMatrix &shape) const
+{
+   shape = 0.0;
+
+   const real_t one = 1.0;
+   const real_t x = ip.x, y = ip.y, z = ip.z;
+   const real_t ox = one - x - z, oy = one - y - z, oz = one - z;
+   const real_t sq3 = sqrt(3.0);
+   const real_t tol = 1e-6;
+
+   if (oz <= tol)
+   {
+      // We must return the limit of the basis functions as z->1.  In order to
+      // remain inside the pyramid in this limit the x and y coordinates must
+      // be approaching 0. The resulting limiting basis function values are:
+      shape(0,0) =   0.;
+      shape(0,1) =   0.;
+      shape(0,2) =   0.;
+
+      shape(1,0) =   0.;
+      shape(1,1) =   0.;
+      shape(1,2) =   0.;
+
+      shape(2,0) =   0.;
+      shape(2,1) =   0.;
+      shape(2,2) =   0.;
+
+      shape(3,0) =   0.;
+      shape(3,1) =   0.;
+      shape(3,2) =   0.;
+
+      shape(4,0) =   0.;
+      shape(4,1) =   0.;
+      shape(4,2) =   0.;
+
+      shape(5,0) =   0.;
+      shape(5,1) =   0.;
+      shape(5,2) =   0.;
+
+      shape(6,0) =   0.;
+      shape(6,1) =   0.;
+      shape(6,2) =   0.;
+
+      shape(7,0) =   0.;
+      shape(7,1) =   0.;
+      shape(7,2) =   0.;
+
+      return;
+   }
+
+   const real_t ozi = one / oz;
+
+   const real_t me0120[3] = {oy, 0., x * oy * ozi};
+   const real_t me1120[3] = {(x - ox) * oy, 0., (x - ox) * x * oy * ozi};
+
+   const real_t me0121[3] = {y, 0., x * y * ozi};
+   const real_t me1121[3] = {(x - ox) * y, 0., (x - ox) * x * y * ozi};
+
+   const real_t me0210[3] = {0., ox, ox * y * ozi};
+   const real_t me1210[3] = {0., ox * (y - oy), ox * y * (y - oy) * ozi};
+
+   const real_t me0211[3] = {0., x, x * y * ozi};
+   const real_t me1211[3] = {0., x * (y - oy), x * y * (y - oy) * ozi};
+
+   const real_t te01[3] = {oy * z * ozi, ox * z * ozi,
+                           (ox * oy + (x * oy + ox * y) * z) * ozi * ozi
+                          };
+   const real_t te11[3] = {oy * z * (z * oz - ox * oy) * ozi * ozi,
+                           ox * z * (z * oz - ox * oy) * ozi * ozi,
+                           (ox * oy + z * (x * oy + ox * y)) *
+                           (z * oz - ox * oy) * ozi * ozi * ozi
+                          };
+
+   const real_t te02[3] = {-oy * z * ozi, x * z * ozi,
+                           x * (y * z + oy * oz) * ozi * ozi
+                          };
+   const real_t te12[3] = {oy * z * (x * oy - z * oz) * ozi * ozi,
+                           -x * z * (x * oy - z * oz) * ozi * ozi,
+                           -x * (y * z + oy * oz) * (x * oy - z * oz)
+                           * ozi * ozi * ozi
+                          };
+
+   const real_t te03[3] = {-y * z * ozi, -x * z * ozi,
+                           x * y * (one - 2_r * z) * ozi * ozi
+                          };
+   const real_t te13[3] = {y * z * (x * y - z * oz) * ozi * ozi,
+                           x * z * (x * y - z * oz) * ozi * ozi,
+                           -x * y * (one - 2_r * z) * (x * y - z * oz)
+                           * ozi * ozi * ozi
+                          };
+
+   const real_t te04[3] = {y * z * ozi, -ox * z * ozi,
+                           y * (x * z + ox * oz) * ozi * ozi
+                          };
+   const real_t te14[3] = {-y * z * (ox * y - z * oz) * ozi * ozi,
+                           ox * z * (ox * y - z * oz) * ozi * ozi,
+                           -y * (x * z + ox * oz) * (ox * y - z * oz)
+                           * ozi * ozi * ozi
+                          };
+
+   const real_t qI02[3] = {-y * oy * ozi, 0., -x * y * oy * ozi * ozi};
+   const real_t qI12[3] = {-(x - ox) * y * oy * ozi * ozi, 0.,
+                           -(x - ox) * x * y * oy * ozi * ozi * ozi
+                          };
+
+   const real_t qII02[3] = {0., -x * ox * ozi, -x * y * ox * ozi * ozi};
+   const real_t qII12[3] = {0., -x * ox * (y - oy) * ozi * ozi,
+                            -x * ox * y * (y - oy) * ozi * ozi * ozi
+                           };
+
+   const real_t tI120[3] = {oy * z, 0., x * oy * z * ozi};
+   const real_t tI121[3] = {y * z, 0., x * y * z * ozi};
+   const real_t tI210[3] = {0., ox * z, ox * y * z * ozi};
+   const real_t tI211[3] = {0., x * z, x * y * z * ozi};
+
+   const real_t tII120[3] = {-ox * oy * z * ozi, 0., x * ox * oy * ozi};
+   const real_t tII121[3] = {-ox * y * z * ozi, 0., x * ox * y * ozi};
+   const real_t tII210[3] = {0., -ox * oy * z * ozi, ox * y * oy * ozi};
+   const real_t tII211[3] = {0., -x * oy * z * ozi, x * y * oy * ozi};
+
+   // Edge 0,1
+   for (int d=0; d<3; d++)
+   {
+      shape(0,d) = 0.5 * me0120[d] + qI02[d]
+                   - sq3 * (0.5 * me1120[d] + qI12[d]) - 1.5 * tI120[d];
+   }
+   for (int d=0; d<3; d++)
+   {
+      shape(1,d) = 0.5 * me0120[d] + qI02[d]
+                   + sq3 * (0.5 * me1120[d] + qI12[d]) - 1.5 * tI120[d];
+   }
+
+   // Edge 1,2
+   for (int d=0; d<3; d++)
+   {
+      shape(2,d) = 0.5 * me0211[d] + qII02[d]
+                   - sq3 * (0.5 * me1211[d] + qII12[d]) - 1.5 * tI211[d];
+   }
+   for (int d=0; d<3; d++)
+   {
+      shape(3,d) = 0.5 * me0211[d] + qII02[d]
+                   + sq3 * (0.5 * me1211[d] + qII12[d]) - 1.5 * tI211[d];
+   }
+
+   // Edge 3,2
+   for (int d=0; d<3; d++)
+   {
+      shape(4,d) = 0.5 * me0121[d] + qI02[d]
+                   - sq3 * (0.5 * me1121[d] + qI12[d]) - 1.5 * tI121[d];
+   }
+   for (int d=0; d<3; d++)
+   {
+      shape(5,d) = 0.5 * me0121[d] + qI02[d]
+                   + sq3 * (0.5 * me1121[d] + qI12[d]) - 1.5 * tI121[d];
+   }
+
+   // Edge 0,3
+   for (int d=0; d<3; d++)
+   {
+      shape(6,d) = 0.5 * me0210[d] + qII02[d]
+                   - sq3 * (0.5 * me1210[d] + qII12[d]) - 1.5 * tI210[d];
+   }
+   for (int d=0; d<3; d++)
+   {
+      shape(7,d) = 0.5 * me0210[d] + qII02[d]
+                   + sq3 * (0.5 * me1210[d] + qII12[d]) - 1.5 * tI210[d];
+   }
+
+   // Edge 0,4
+   for (int d=0; d<3; d++)
+   {
+      shape(8,d) = 0.5 * te01[d] - sq3 * 0.5 * te11[d]
+                   - 1.5 * (tI120[d] + tII120[d] + tI210[d] + tII210[d]);
+   }
+   for (int d=0; d<3; d++)
+   {
+      shape(9,d) = 0.5 * te01[d] + sq3 * 0.5 * te11[d]
+                   - 1.5 * (tI120[d] + tII120[d] + tI210[d] + tII210[d]);
+   }
+
+   // Edge 1,4
+   for (int d=0; d<3; d++)
+   {
+      shape(10,d) = 0.5 * te02[d] - sq3 * 0.5 * te12[d]
+                    - 1.5 * (tII120[d] + tI211[d] + tII211[d]);
+   }
+   for (int d=0; d<3; d++)
+   {
+      shape(11,d) = 0.5 * te02[d] + sq3 * 0.5 * te12[d]
+                    - 1.5 * (tII120[d] + tI211[d] + tII211[d]);
+   }
+
+   // Edge 2,4
+   for (int d=0; d<3; d++)
+   {
+      shape(12,d) = 0.5 * te03[d] - sq3 * 0.5 * te13[d]
+                    - 1.5 * (tII211[d] + tII121[d]);
+   }
+   for (int d=0; d<3; d++)
+   {
+      shape(13,d) = 0.5 * te03[d] + sq3 * 0.5 * te13[d]
+                    - 1.5 * (tII211[d] + tII121[d]);
+   }
+
+   // Edge 3,4
+   for (int d=0; d<3; d++)
+   {
+      shape(14,d) = 0.5 * te04[d] - sq3 * 0.5 * te14[d]
+                    - 1.5 * (tI121[d] + tII121[d] + tII210[d]);
+   }
+   for (int d=0; d<3; d++)
+   {
+      shape(15,d) = 0.5 * te04[d] + sq3 * 0.5 * te14[d]
+                    - 1.5 * (tI121[d] + tII121[d] + tII210[d]);
+   }
+
+   // Quadrilateral face
+   for (int d=0; d<3; d++)
+   {
+      shape(16,d) = -2. * qI02[d] + 2. * sq3 * qI12[d];
+   }
+   for (int d=0; d<3; d++)
+   {
+      shape(17,d) = -2. * qI02[d] - 2. * sq3 * qI12[d];
+   }
+
+   for (int d=0; d<3; d++)
+   {
+      shape(18,d) = 2. * qII02[d] - 2. * sq3 * qII12[d];
+   }
+   for (int d=0; d<3; d++)
+   {
+      shape(19,d) = 2. * qII02[d] + 2. * sq3 * qII12[d];
+   }
+
+   // Triangular face 0,1,4
+   for (int d=0; d<3; d++)
+   {
+      shape(20,d) = 3. * tI120[d] - 3. * tII120[d];
+   }
+   for (int d=0; d<3; d++)
+   {
+      shape(21,d) = 3. * tI120[d] + 6. * tII120[d];
+   }
+
+   // Triangular face 1,2,4
+   for (int d=0; d<3; d++)
+   {
+      shape(22,d) = 3. * tI211[d] - 3. * tII211[d];
+   }
+   for (int d=0; d<3; d++)
+   {
+      shape(23,d) = 3. * tI211[d] + 6. * tII211[d];
+   }
+
+   // Triangular face 2,3,4
+   for (int d=0; d<3; d++)
+   {
+      shape(24,d) = -6. * tI121[d] - 3. * tII121[d];
+   }
+   for (int d=0; d<3; d++)
+   {
+      shape(25,d) = 3. * tI121[d] + 6. * tII121[d];
+   }
+
+   // Triangular face 3,0,4
+   for (int d=0; d<3; d++)
+   {
+      shape(26,d) = -6. * tI210[d] - 3. * tII210[d];
+   }
+   for (int d=0; d<3; d++)
+   {
+      shape(27,d) = 3. * tI210[d] + 6. * tII210[d];
+   }
+}
+
+void Nedelec2PyrFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
+                                             DenseMatrix &curl_shape)
+const
+{
+   const real_t one = 1.0;
+   const real_t x = ip.x, y = ip.y, z = ip.z, z2 = 2. * z;
+   const real_t ox = one - x - z, oy = one - y - z, oz = one - z;
+
+   const real_t tol = 1e-6;
+
+   if (oz <= tol)
+   {
+      // We must return the limit of the basis function derivatives as z->1.
+      // In order to remain inside the pyramid in this limit the x and y
+      // coordinates must be approaching 0. The resulting limiting basis
+      // function values are:
+      curl_shape(0,0) =   0.;
+      curl_shape(0,1) = - 2.;
+      curl_shape(0,2) =   1.;
+
+      curl_shape(1,0) =   0.;
+      curl_shape(1,1) =   0.;
+      curl_shape(1,2) =   1.;
+
+      curl_shape(2,0) =   0.;
+      curl_shape(2,1) =   0.;
+      curl_shape(2,2) = - 1.;
+
+      curl_shape(3,0) =   2.;
+      curl_shape(3,1) =   0.;
+      curl_shape(3,2) = - 1.;
+
+      curl_shape(4,0) = - 2.;
+      curl_shape(4,1) =   2.;
+      curl_shape(4,2) =   0.;
+
+      curl_shape(5,0) =   0.;
+      curl_shape(5,1) = - 2.;
+      curl_shape(5,2) =   0.;
+
+      curl_shape(6,0) =   0.;
+      curl_shape(6,1) =   0.;
+      curl_shape(6,2) =   0.;
+
+      curl_shape(7,0) =   2.;
+      curl_shape(7,1) =   0.;
+      curl_shape(7,2) =   0.;
+
+      return;
+   }
+
+   real_t ozi = one / oz;
+
+   curl_shape(0,0) = - x * ozi;
+   curl_shape(0,1) = - 2. + y * ozi;
+   curl_shape(0,2) =   1.;
+
+   curl_shape(1,0) =   x * ozi;
+   curl_shape(1,1) = - y * ozi;
+   curl_shape(1,2) =   1.;
+
+   curl_shape(2,0) =   x * ozi;
+   curl_shape(2,1) = - y * ozi;
+   curl_shape(2,2) = - 1.;
+
+   curl_shape(3,0) =   (2. - x  - z2) * ozi;
+   curl_shape(3,1) =   y * ozi;
+   curl_shape(3,2) = - 1.;
+
+   curl_shape(4,0) = - 2. * ox * ozi;
+   curl_shape(4,1) =   2. * oy * ozi;
+   curl_shape(4,2) =   0.;
+
+   curl_shape(5,0) = - 2. * x * ozi;
+   curl_shape(5,1) = - 2. * oy * ozi;
+   curl_shape(5,2) =   0.;
+
+   curl_shape(6,0) =   2. * x * ozi;
+   curl_shape(6,1) = - 2. * y * ozi;
+   curl_shape(6,2) =   0.;
+
+   curl_shape(7,0) =   2. * ox * ozi;
+   curl_shape(7,1) =   2. * y * ozi;
+   curl_shape(7,2) =   0.;
+}
+
+const real_t Nedelec2PyrFiniteElement::tk[28][3] =
+{
+   {1,0,0}, {1,0,0}, {0,1,0}, {0,1,0},
+   {1,0,0}, {1,0,0}, {0,1,0}, {0,1,0},
+   {0,0,1}, {0,0,1}, {-1,0,1}, {-1,0,1},
+   {-1,-1,1}, {-1,-1,1}, {0,-1,1}, {0,-1,1},
+   {1,0,0}, {1,0,0}, {0,-1,0}, {0,-1,0},
+   {1,0,0}, {0,0,1}, {0,1,0}, {-1,0,1},
+   {-1,0,0}, {-1,-1,1}, {0,-1,0}, {0,-1,1}
+};
+
+void Nedelec2PyrFiniteElement::GetLocalInterpolation (
+   ElementTransformation &Trans, DenseMatrix &I) const
+{
+   int k, j;
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape(dof, dim);
+#endif
+
+#ifdef MFEM_DEBUG
+   for (k = 0; k < dof; k++)
+   {
+      CalcVShape (Nodes.IntPoint(k), vshape);
+      for (j = 0; j < dof; j++)
+      {
+         real_t d = ( vshape(j,0)*tk[k][0] + vshape(j,1)*tk[k][1] +
+                      vshape(j,2)*tk[k][2] );
+         if (j == k) { d -= 1.0; }
+         if (fabs(d) > 1.0e-12)
+         {
+            mfem::err << "Nedelec1PyrFiniteElement::GetLocalInterpolation (...)\n"
+                      " k = " << k << ", j = " << j << ", d = " << d << endl;
+            mfem_error();
+         }
+      }
+   }
+#endif
+
+   IntegrationPoint ip;
+   ip.x = ip.y = ip.z = 0.0;
+   Trans.SetIntPoint (&ip);
+   // Trans must be linear
+   const DenseMatrix &J = Trans.Jacobian();
+   real_t vk[3];
+   Vector xk (vk, 3);
+
+   for (k = 0; k < dof; k++)
+   {
+      Trans.Transform (Nodes.IntPoint (k), xk);
+      ip.x = vk[0]; ip.y = vk[1]; ip.z = vk[2];
+      CalcVShape (ip, vshape);
+      //  vk = J tk
+      vk[0] = J(0,0)*tk[k][0]+J(0,1)*tk[k][1]+J(0,2)*tk[k][2];
+      vk[1] = J(1,0)*tk[k][0]+J(1,1)*tk[k][1]+J(1,2)*tk[k][2];
+      vk[2] = J(2,0)*tk[k][0]+J(2,1)*tk[k][1]+J(2,2)*tk[k][2];
+      for (j = 0; j < dof; j++)
+         if (fabs (I(k,j) = (vshape(j,0)*vk[0]+vshape(j,1)*vk[1]+
+                             vshape(j,2)*vk[2])) < 1.0e-12)
+         {
+            I(k,j) = 0.0;
+         }
+   }
+}
+
+void Nedelec2PyrFiniteElement::Project (
+   VectorCoefficient &vc, ElementTransformation &Trans,
+   Vector &dofs) const
+{
+   real_t vk[3];
+   Vector xk (vk, 3);
+
+   for (int k = 0; k < dof; k++)
+   {
+      Trans.SetIntPoint (&Nodes.IntPoint (k));
+      const DenseMatrix &J = Trans.Jacobian();
+
+      vc.Eval (xk, Trans, Nodes.IntPoint (k));
+      //  xk^t J tk
+      dofs(k) =
+         vk[0] * ( J(0,0)*tk[k][0]+J(0,1)*tk[k][1]+J(0,2)*tk[k][2] ) +
+         vk[1] * ( J(1,0)*tk[k][0]+J(1,1)*tk[k][1]+J(1,2)*tk[k][2] ) +
+         vk[2] * ( J(2,0)*tk[k][0]+J(2,1)*tk[k][1]+J(2,2)*tk[k][2] );
+   }
+}
+
+void Nedelec2PyrFiniteElement::ProjectGrad(const FiniteElement &fe,
                                            ElementTransformation &Trans,
                                            DenseMatrix &grad) const
 {
@@ -5950,7 +6488,8 @@ void RT0WdgFiniteElement::ProjectCurl(const FiniteElement &fe,
 }
 
 RT0PyrFiniteElement::RT0PyrFiniteElement(bool rt0tets)
-   : VectorFiniteElement(3, Geometry::PYRAMID, 5, 1, H_DIV), rt0(rt0tets)
+   : VectorFiniteElement(3, Geometry::PYRAMID, 5, 1, H_DIV, FunctionSpace::Uk),
+     rt0(rt0tets)
 {
    // not real nodes ...
    Nodes.IntPoint(0).x = 0.5;
@@ -6073,7 +6612,7 @@ void RT0PyrFiniteElement::CalcDivShape(const IntegrationPoint &ip,
 }
 
 const real_t RT0PyrFiniteElement::nk[5][3] =
-{{0.,0.,-1.}, {0,-.5,0}, {.5,0,.5}, {0,.5,.5}, {-.5,0,0}};
+{{0.,0.,-1}, {0,-1,0}, {1,0,1}, {0,1,1}, {-1,0,0}};
 
 void RT0PyrFiniteElement::GetLocalInterpolation (
    ElementTransformation &Trans, DenseMatrix &I) const

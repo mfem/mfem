@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -77,17 +77,17 @@ FaceQuadratureInterpolator::FaceQuadratureInterpolator(
 
    if (fespace->GetNE() == 0) { return; }
    GetSigns(*fespace, type, signs);
-   const FiniteElement *fe = fespace->GetTypicalFE();
-   const ScalarFiniteElement *sfe =
-      dynamic_cast<const ScalarFiniteElement*>(fe);
-   const TensorBasisElement *tfe =
-      dynamic_cast<const TensorBasisElement*>(fe);
-   MFEM_VERIFY(sfe != NULL, "Only scalar finite elements are supported");
-   MFEM_VERIFY(tfe != NULL &&
-               (tfe->GetBasisType()==BasisType::GaussLobatto ||
-                tfe->GetBasisType()==BasisType::Positive),
-               "Only Gauss-Lobatto and Bernstein basis are supported in "
-               "FaceQuadratureInterpolator.");
+   MFEM_VERIFY(SupportsFESpace(fes), "Unsupported finite element space");
+}
+
+bool FaceQuadratureInterpolator::SupportsFESpace(const FiniteElementSpace &fes)
+{
+   const FiniteElement *fe = fes.GetTypicalFE();
+   const auto *sfe = dynamic_cast<const ScalarFiniteElement*>(fe);
+   const auto *tfe = dynamic_cast<const TensorBasisElement*>(fe);
+   return sfe != nullptr && tfe != nullptr && (
+             tfe->GetBasisType() == BasisType::GaussLobatto ||
+             tfe->GetBasisType() == BasisType::Positive);
 }
 
 template<const int T_VDIM, const int T_ND1D, const int T_NQ1D>

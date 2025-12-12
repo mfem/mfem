@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -47,7 +47,7 @@ public:
    int                  GetPatch   ()         const { return patch; }
    /// Set which patch should be evaluated
    void                 SetPatch   (int p)    const { patch = p; }
-   /// Set which elemenet should be evaluated
+   /// Set which element should be evaluated
    int                  GetElement ()         const { return elem; }
    /// Get which element is currently considered
    void                 SetElement (int e)    const { elem = e; }

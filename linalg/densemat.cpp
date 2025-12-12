@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -41,23 +41,12 @@ using namespace std;
 
 DenseMatrix::DenseMatrix() : Matrix(0) { }
 
-DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
-{
-   const int hw = height * width;
-   if (hw > 0)
-   {
-      MFEM_ASSERT(m.data, "invalid source matrix");
-      data.New(hw);
-      std::memcpy(data, m.data, sizeof(real_t)*hw);
-   }
-}
-
 DenseMatrix::DenseMatrix(int s) : Matrix(s)
 {
    MFEM_ASSERT(s >= 0, "invalid DenseMatrix size: " << s);
    if (s > 0)
    {
-      data.New(s*s);
+      data.SetSize(s*s);
       *this = 0.0; // init with zeroes
    }
 }
@@ -69,7 +58,7 @@ DenseMatrix::DenseMatrix(int m, int n) : Matrix(m, n)
    const int capacity = m*n;
    if (capacity > 0)
    {
-      data.New(capacity);
+      data.SetSize(capacity);
       *this = 0.0; // init with zeroes
    }
 }
@@ -81,7 +70,7 @@ DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
    const int capacity = height*width;
    if (capacity > 0)
    {
-      data.New(capacity);
+      data.SetSize(capacity);
 
       for (int i = 0; i < height; i++)
       {
@@ -103,13 +92,7 @@ void DenseMatrix::SetSize(int h, int w)
    }
    height = h;
    width = w;
-   const int hw = h*w;
-   if (hw > data.Capacity())
-   {
-      data.Delete();
-      data.New(hw);
-      *this = 0.0; // init with zeroes
-   }
+   data.SetSize(h*w, 0.0);
 }
 
 real_t &DenseMatrix::Elem(int i, int j)
@@ -124,21 +107,21 @@ const real_t &DenseMatrix::Elem(int i, int j) const
 
 void DenseMatrix::Mult(const real_t *x, real_t *y) const
 {
-   kernels::Mult(height, width, Data(), x, y);
+   kernels::Mult(height, width, HostRead(), x, y);
 }
 
 void DenseMatrix::Mult(const real_t *x, Vector &y) const
 {
    MFEM_ASSERT(height == y.Size(), "incompatible dimensions");
 
-   Mult(x, y.GetData());
+   Mult(x, y.HostWrite());
 }
 
 void DenseMatrix::Mult(const Vector &x, real_t *y) const
 {
    MFEM_ASSERT(width == x.Size(), "incompatible dimensions");
 
-   Mult(x.GetData(), y);
+   Mult(x.HostRead(), y);
 }
 
 void DenseMatrix::Mult(const Vector &x, Vector &y) const
@@ -146,7 +129,15 @@ void DenseMatrix::Mult(const Vector &x, Vector &y) const
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
                "incompatible dimensions");
 
-   Mult(x.GetData(), y.GetData());
+   Mult(x.HostRead(), y.HostWrite());
+}
+
+void DenseMatrix::AbsMult(const Vector &x, Vector &y) const
+{
+   MFEM_ASSERT(height == y.Size() && width == x.Size(),
+               "incompatible dimensions");
+
+   kernels::AbsMult(height, width, HostRead(), x.HostRead(), y.HostWrite());
 }
 
 real_t DenseMatrix::operator *(const DenseMatrix &m) const
@@ -166,31 +157,21 @@ real_t DenseMatrix::operator *(const DenseMatrix &m) const
 
 void DenseMatrix::MultTranspose(const real_t *x, real_t *y) const
 {
-   real_t *d_col = Data();
-   for (int col = 0; col < width; col++)
-   {
-      real_t y_col = 0.0;
-      for (int row = 0; row < height; row++)
-      {
-         y_col += x[row]*d_col[row];
-      }
-      y[col] = y_col;
-      d_col += height;
-   }
+   kernels::MultTranspose(height, width, HostRead(), x, y);
 }
 
 void DenseMatrix::MultTranspose(const real_t *x, Vector &y) const
 {
    MFEM_ASSERT(width == y.Size(), "incompatible dimensions");
 
-   MultTranspose(x, y.GetData());
+   MultTranspose(x, y.HostWrite());
 }
 
 void DenseMatrix::MultTranspose(const Vector &x, real_t *y) const
 {
    MFEM_ASSERT(height == x.Size(), "incompatible dimensions");
 
-   MultTranspose(x.GetData(), y);
+   MultTranspose(x.HostRead(), y);
 }
 
 void DenseMatrix::MultTranspose(const Vector &x, Vector &y) const
@@ -198,7 +179,16 @@ void DenseMatrix::MultTranspose(const Vector &x, Vector &y) const
    MFEM_ASSERT(height == x.Size() && width == y.Size(),
                "incompatible dimensions");
 
-   MultTranspose(x.GetData(), y.GetData());
+   MultTranspose(x.HostRead(), y.HostWrite());
+}
+
+void DenseMatrix::AbsMultTranspose(const Vector &x, Vector &y) const
+{
+   MFEM_ASSERT(height == x.Size() && width == y.Size(),
+               "incompatible dimensions");
+
+   kernels::AbsMultTranspose(height, width, HostRead(),
+                             x.HostRead(), y.HostWrite());
 }
 
 void DenseMatrix::AddMult(const Vector &x, Vector &y, const real_t a) const
@@ -253,6 +243,9 @@ void DenseMatrix::AddMult_a(real_t a, const Vector &x, Vector &y) const
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
                "incompatible dimensions");
 
+   HostRead();
+   x.HostRead();
+   y.HostReadWrite();
    const real_t *xp = x.GetData(), *d_col = data;
    real_t *yp = y.GetData();
    for (int col = 0; col < width; col++)
@@ -630,19 +623,6 @@ DenseMatrix &DenseMatrix::operator=(const real_t *d)
    {
       data[i] = d[i];
    }
-   return *this;
-}
-
-DenseMatrix &DenseMatrix::operator=(const DenseMatrix &m)
-{
-   SetSize(m.height, m.width);
-
-   const int hw = height * width;
-   for (int i = 0; i < hw; i++)
-   {
-      data[i] = m.data[i];
-   }
-
    return *this;
 }
 
@@ -2352,16 +2332,8 @@ void DenseMatrix::TestInversion()
 
 void DenseMatrix::Swap(DenseMatrix &other)
 {
-   mfem::Swap(width, other.width);
-   mfem::Swap(height, other.height);
-   mfem::Swap(data, other.data);
+   mfem::Swap(*this, other);
 }
-
-DenseMatrix::~DenseMatrix()
-{
-   data.Delete();
-}
-
 
 
 void Add(const DenseMatrix &A, const DenseMatrix &B,
@@ -3396,7 +3368,7 @@ bool LUFactors::Factor(int m, real_t TOL)
                piv = j;
             }
          }
-         ipiv[i] = piv;
+         ipiv[i] = piv + 1;
          if (piv != i)
          {
             // swap rows i and piv in both L and U parts
@@ -3436,7 +3408,7 @@ real_t LUFactors::Det(int m) const
    real_t det = 1.0;
    for (int i=0; i<m; i++)
    {
-      if (ipiv[i] != i-ipiv_base)
+      if (ipiv[i] != i - ipiv_base)
       {
          det *= -data[m * i + i];
       }
@@ -3487,20 +3459,7 @@ void LUFactors::LSolve(int m, int n, real_t *X) const
    real_t *x = X;
    for (int k = 0; k < n; k++)
    {
-      // X <- P X
-      for (int i = 0; i < m; i++)
-      {
-         mfem::Swap<real_t>(x[i], x[ipiv[i]-ipiv_base]);
-      }
-      // X <- L^{-1} X
-      for (int j = 0; j < m; j++)
-      {
-         const real_t x_j = x[j];
-         for (int i = j+1; i < m; i++)
-         {
-            x[i] -= data[i+j*m] * x_j;
-         }
-      }
+      kernels::LSolve(data, m, ipiv, x);
       x += m;
    }
 }
@@ -3508,17 +3467,9 @@ void LUFactors::LSolve(int m, int n, real_t *X) const
 void LUFactors::USolve(int m, int n, real_t *X) const
 {
    real_t *x = X;
-   // X <- U^{-1} X
    for (int k = 0; k < n; k++)
    {
-      for (int j = m-1; j >= 0; j--)
-      {
-         const real_t x_j = ( x[j] /= data[j+j*m] );
-         for (int i = 0; i < j; i++)
-         {
-            x[i] -= data[i+j*m] * x_j;
-         }
-      }
+      kernels::USolve(data, m, x);
       x += m;
    }
 }
@@ -3661,44 +3612,13 @@ void LUFactors::GetInverseMatrix(int m, real_t *X) const
 void LUFactors::SubMult(int m, int n, int r, const real_t *A21,
                         const real_t *X1, real_t *X2)
 {
-   // X2 <- X2 - A21 X1
-   for (int k = 0; k < r; k++)
-   {
-      for (int j = 0; j < m; j++)
-      {
-         const real_t x1_jk = X1[j+k*m];
-         for (int i = 0; i < n; i++)
-         {
-            X2[i+k*n] -= A21[i+j*n] * x1_jk;
-         }
-      }
-   }
+   kernels::SubMult(m, n, r, A21, X1, X2);
 }
 
 void LUFactors::BlockFactor(
    int m, int n, real_t *A12, real_t *A21, real_t *A22) const
 {
-   // A12 <- L^{-1} P A12
-   LSolve(m, n, A12);
-   // A21 <- A21 U^{-1}
-   for (int j = 0; j < m; j++)
-   {
-      const real_t u_jj_inv = 1.0/data[j+j*m];
-      for (int i = 0; i < n; i++)
-      {
-         A21[i+j*n] *= u_jj_inv;
-      }
-      for (int k = j+1; k < m; k++)
-      {
-         const real_t u_jk = data[j+k*m];
-         for (int i = 0; i < n; i++)
-         {
-            A21[i+k*n] -= A21[i+j*n] * u_jk;
-         }
-      }
-   }
-   // A22 <- A22 - A21 A12
-   SubMult(m, n, n, A21, A12, A22);
+   kernels::BlockFactor(data, m, ipiv, n, A12, A21, A22);
 }
 
 void LUFactors::BlockForwSolve(int m, int n, int r, const real_t *L21,
@@ -4370,7 +4290,7 @@ const
 {
    int n = SizeI(), ne = SizeK();
    const int *I = elem_dof.GetI(), *J = elem_dof.GetJ(), *dofs;
-   const real_t *d_col = mfem::HostRead(tdata, n*SizeJ()*ne);
+   const real_t *d_col = tdata.HostRead();
    real_t *yp = y.HostReadWrite();
    real_t x_col;
    const real_t *xp = x.HostRead();
@@ -4430,13 +4350,6 @@ DenseTensor &DenseTensor::operator=(real_t c)
    return *this;
 }
 
-DenseTensor &DenseTensor::operator=(const DenseTensor &other)
-{
-   DenseTensor new_tensor(other);
-   Swap(new_tensor);
-   return *this;
-}
-
 void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const real_t TOL)
 {
    BatchedLinAlg::LUFactor(Mlu, P);
@@ -4446,5 +4359,33 @@ void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X)
 {
    BatchedLinAlg::LUSolve(Mlu, P, X);
 }
+
+#ifdef MFEM_USE_LAPACK
+void BandedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
+                 Array<int> &ipiv)
+{
+   int LDAB = (2*KL) + KU + 1;
+   int N = AB.NumCols();
+   int NRHS = B.NumCols();
+   int info;
+   ipiv.SetSize(N);
+   MFEM_LAPACK_PREFIX(gbsv_)(&N, &KL, &KU, &NRHS, AB.GetData(), &LDAB,
+                             ipiv.GetData(), B.GetData(), &N, &info);
+   MFEM_ASSERT(info == 0, "BandedSolve failed in LAPACK");
+}
+
+void BandedFactorizedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
+                           bool transpose, Array<int> &ipiv)
+{
+   int LDAB = (2*KL) + KU + 1;
+   int N = AB.NumCols();
+   int NRHS = B.NumCols();
+   char trans = transpose ? 'T' : 'N';
+   int info;
+   MFEM_LAPACK_PREFIX(gbtrs_)(&trans, &N, &KL, &KU, &NRHS, AB.GetData(), &LDAB,
+                              ipiv.GetData(), B.GetData(), &N, &info);
+   MFEM_ASSERT(info == 0, "BandedFactorizedSolve failed in LAPACK");
+}
+#endif
 
 } // namespace mfem

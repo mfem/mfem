@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,6 +14,7 @@
 
 #include "fe_base.hpp"
 #include "fe_h1.hpp"
+#include "fe_pyramid.hpp"
 
 namespace mfem
 {
@@ -412,6 +413,126 @@ public:
                     ElementTransformation &Trans,
                     DenseMatrix &curl) const override
    { ProjectCurl_ND(tk, dof2tk, fe, Trans, curl); }
+};
+
+
+/** Arbitrary order H(Curl) basis functions defined on pyramid-shaped elements
+
+  This implementation is closely based on the finite elements
+  described in section 9.2 of the paper "Orientation embedded high
+  order shape functions for the exact sequence elements of all shapes"
+  by Federico Fuentes, Brendan Keith, Leszek Demkowicz, and Sriram
+  Nagaraj, see https://doi.org/10.1016/j.camwa.2015.04.027.
+ */
+class ND_FuentesPyramidElement
+   : public VectorFiniteElement, public FuentesPyramid
+{
+private:
+   static const real_t tk[27];
+
+   mutable real_t zmax;
+
+#ifndef MFEM_THREAD_SAFE
+   mutable DenseMatrix tmp_E_E_ij;
+   mutable DenseMatrix tmp_dE_E_ij;
+   mutable DenseTensor tmp_E_Q1_ijk;
+   mutable DenseTensor tmp_dE_Q1_ijk;
+   mutable DenseTensor tmp_E_Q2_ijk;
+   mutable DenseTensor tmp_dE_Q2_ijk;
+   mutable DenseTensor tmp_E_T_ijk;
+   mutable DenseTensor tmp_dE_T_ijk;
+   mutable DenseMatrix tmp_phi_Q1_ij;
+   mutable DenseTensor tmp_dphi_Q1_ij;
+   mutable DenseMatrix tmp_phi_Q2_ij;
+   mutable DenseTensor tmp_dphi_Q2_ij;
+   mutable Vector      tmp_phi_E_i;
+   mutable DenseMatrix tmp_dphi_E_i;
+   mutable DenseMatrix u;
+   mutable DenseMatrix curlu;
+#endif
+   Array<int> dof2tk;
+   DenseMatrixInverse Ti;
+
+   ND_PyramidDofTransformation doftrans;
+
+   void calcBasis(const int p, const IntegrationPoint & ip,
+                  DenseMatrix & E_E_ik,
+                  DenseTensor & E_Q1_ijk,
+                  DenseTensor & E_Q2_ijk,
+                  DenseTensor & E_T_ijk,
+                  DenseMatrix & phi_Q1_ij,
+                  DenseTensor & dphi_Q1_ij,
+                  DenseMatrix & phi_Q2_ij,
+                  Vector      & phi_E_k,
+                  DenseMatrix & dphi_E_k,
+                  DenseMatrix & W) const;
+
+   void calcCurlBasis(const int p, const IntegrationPoint & ip,
+                      DenseMatrix & E_E_ik,
+                      DenseMatrix & dE_E_ik,
+                      DenseTensor & E_Q1_ijk,
+                      DenseTensor & dE_Q1_ijk,
+                      DenseTensor & E_Q2_ijk,
+                      DenseTensor & dE_Q2_ijk,
+                      DenseTensor & E_T_ijk,
+                      DenseTensor & dE_T_ijk,
+                      DenseMatrix & phi_Q2_ij,
+                      DenseTensor & dphi_Q2_ij,
+                      Vector      & phi_E_k,
+                      DenseMatrix & dphi_E_k,
+                      DenseMatrix & dW) const;
+
+public:
+   ND_FuentesPyramidElement(const int p,
+                            const int cb_type = BasisType::GaussLobatto,
+                            const int ob_type = BasisType::GaussLegendre);
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const
+   { CalcVShape_ND(Trans, shape); }
+   virtual void CalcCurlShape(const IntegrationPoint &ip,
+                              DenseMatrix &curl_shape) const;
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_ND(tk, dof2tk, Trans, R); }
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
+
+   using FiniteElement::Project;
+
+   virtual void Project(VectorCoefficient &vc,
+                        ElementTransformation &Trans, Vector &dofs) const
+   { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+   virtual void ProjectMatrixCoefficient(
+      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+   { ProjectMatrixCoefficient_ND(tk, dof2tk, mc, T, dofs); }
+   virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
+                        DenseMatrix &I) const
+   { Project_ND(tk, dof2tk, fe, Trans, I); }
+
+   virtual void ProjectGrad(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &grad) const
+   { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
+
+   virtual void ProjectCurl(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &curl) const
+   { ProjectCurl_ND(tk, dof2tk, fe, Trans, curl); }
+
+   void CalcRawVShape(const IntegrationPoint &ip,
+                      DenseMatrix &shape) const;
+
+   void CalcRawCurlShape(const IntegrationPoint &ip,
+                         DenseMatrix &dshape) const;
+
+   real_t GetZetaMax() const { return zmax; }
 };
 
 

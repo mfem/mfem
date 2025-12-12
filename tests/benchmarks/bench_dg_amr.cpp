@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -93,6 +93,7 @@ struct Kernel: public KernelMesh
          a.AddBdrFaceIntegrator(
             new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
          a.Assemble();
+         x = 0.0;
          a.Mult(x, y);
          MFEM_DEVICE_SYNC;
       }
@@ -166,10 +167,11 @@ int main(int argc, char *argv[])
 
    // Device setup, cpu by default
    std::string device_config = "cpu";
-   if (bmi::global_context != nullptr)
+   auto global_context = bmi::GetGlobalContext();
+   if (global_context != nullptr)
    {
-      const auto device = bmi::global_context->find("device");
-      if (device != bmi::global_context->end())
+      const auto device = global_context->find("device");
+      if (device != global_context->end())
       {
          mfem::out << device->first << " : " << device->second << std::endl;
          device_config = device->second;

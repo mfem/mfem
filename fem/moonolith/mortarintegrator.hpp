@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,6 +11,10 @@
 
 #ifndef MFEML2_MORTAR_INTEGRATOR_HPP
 #define MFEML2_MORTAR_INTEGRATOR_HPP
+
+#include "../../config/config.hpp"
+
+#ifdef MFEM_USE_MOONOLITH
 
 #include "../fem.hpp"
 
@@ -60,9 +64,9 @@ public:
    virtual ~MortarIntegrator() {}
 
    /*!
-    * @return true if it uses vector fe and false otherwise
+    * @return an equivalent BilinearFormIntegrator
     */
-   virtual bool is_vector_fe() const = 0;
+   virtual BilinearFormIntegrator * newBFormIntegrator() const = 0;
 };
 
 /*!
@@ -81,7 +85,7 @@ public:
                               ElementTransformation &test_Trans,
                               DenseMatrix &elemmat) override;
 
-   inline bool is_vector_fe() const override { return false; }
+   BilinearFormIntegrator * newBFormIntegrator() const override;
 };
 
 /*!
@@ -101,6 +105,8 @@ public:
 #endif
 
 public:
+   BilinearFormIntegrator * newBFormIntegrator() const override;
+
    VectorL2MortarIntegrator() { Init(NULL, NULL, NULL); }
    VectorL2MortarIntegrator(Coefficient *_q) { Init(_q, NULL, NULL); }
    VectorL2MortarIntegrator(VectorCoefficient *_vq) { Init(NULL, _vq, NULL); }
@@ -113,8 +119,6 @@ public:
                               const IntegrationRule &test_ir,
                               ElementTransformation &test_Trans,
                               DenseMatrix &elemmat) override;
-
-   inline bool is_vector_fe() const override { return true; }
 
 private:
    Coefficient *Q;
@@ -129,6 +133,56 @@ private:
    }
 };
 
+/*!
+ * @brief Integrator for Lagrange vector finite elements. Experimental.
+ * $$ (u, v)_{L^2(\mathcal{T}_m \cap \mathcal{T}_s)}, u \in U(\mathcal{T}_m )
+ * and v \in V(\mathcal{T}_s ) $$
+ */
+class LagrangeVectorL2MortarIntegrator : public MortarIntegrator
+{
+public:
+#ifndef MFEM_THREAD_SAFE
+   Vector D;
+   Vector vec;
+   DenseMatrix K;
+   Vector test_shape;
+   Vector trial_shape;
+   DenseMatrix partelmat;
+   DenseMatrix mcoeff;
+#endif
+
+public:
+   BilinearFormIntegrator * newBFormIntegrator() const override;
+
+   LagrangeVectorL2MortarIntegrator() : vdim(-1) { Init(NULL, NULL, NULL); }
+   LagrangeVectorL2MortarIntegrator(Coefficient *_q) : vdim(-1) { Init(_q, NULL, NULL); }
+   LagrangeVectorL2MortarIntegrator(VectorCoefficient *_vq) : vdim(-1) { Init(NULL, _vq, NULL); }
+   LagrangeVectorL2MortarIntegrator(MatrixCoefficient *_mq) : vdim(-1) { Init(NULL, NULL, _mq); }
+   inline void SetVDim(const int _vdim) { vdim = _vdim; }
+
+   void AssembleElementMatrix(const FiniteElement &trial,
+                              const IntegrationRule &trial_ir,
+                              ElementTransformation &trial_Trans,
+                              const FiniteElement &test,
+                              const IntegrationRule &test_ir,
+                              ElementTransformation &test_Trans,
+                              DenseMatrix &elemmat) override;
+
+private:
+   int vdim;
+   Coefficient *Q;
+   VectorCoefficient *VQ;
+   MatrixCoefficient *MQ;
+
+   void Init(Coefficient *q, VectorCoefficient *vq, MatrixCoefficient *mq)
+   {
+      Q = q;
+      VQ = vq;
+      MQ = mq;
+   }
+};
+
 } // namespace mfem
 
+#endif // MFEM_USE_MOONOLITH
 #endif // MFEML2_MORTAR_INTEGRATOR_HPP

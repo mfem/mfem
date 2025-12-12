@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -183,6 +183,10 @@ TEST_CASE("ParMeshMakeSimplicial", "[Parallel], [ParMesh]")
    // to solver tolerance.
 
    Mesh mesh = Mesh::MakeCartesian3D(3, 3, 3, Element::HEXAHEDRON);
+   if (GENERATE(false,true))
+   {
+      mesh.SetCurvature(2);
+   }
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    ParMesh pmesh_tet = ParMesh::MakeSimplicial(pmesh);
 
