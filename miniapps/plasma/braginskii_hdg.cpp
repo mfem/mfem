@@ -601,13 +601,11 @@ int main(int argc, char *argv[])
 
    // convection Dirichlet boundary condition
 
-   unique_ptr<BdrHyperbolicFormIntegrator> hyperbolicIntegrator_bc;
-
-
+   unique_ptr<BdrHyperbolicDirichletIntegrator> hyperbolicIntegrator_bc;
 
    if (bc_dirichlet)
    {
-      hyperbolicIntegrator_bc.reset(new BdrHyperbolicFormIntegrator(
+      hyperbolicIntegrator_bc.reset(new BdrHyperbolicDirichletIntegrator(
                                        numericalFlux, bc_coeff, IntOrderOffset, -1.));
 
       Mt_ex->AddBdrFaceIntegrator(hyperbolicIntegrator_bc.get(),
