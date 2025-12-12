@@ -59,12 +59,13 @@ namespace mfem
 
 MemoryType GetMemoryType(MemoryClass mc)
 {
+   auto &inst = MemoryManager::instance();
    switch (mc)
    {
-      case MemoryClass::HOST:    return mm.GetHostMemoryType();
+      case MemoryClass::HOST:    return inst.GetHostMemoryType();
       case MemoryClass::HOST_32: return MemoryType::HOST_32;
       case MemoryClass::HOST_64: return MemoryType::HOST_64;
-      case MemoryClass::DEVICE:  return mm.GetDeviceMemoryType();
+      case MemoryClass::DEVICE:  return inst.GetDeviceMemoryType();
       case MemoryClass::MANAGED: return MemoryType::MANAGED;
    }
    MFEM_VERIFY(false,"");
@@ -93,6 +94,24 @@ bool MemoryClassContainsType(MemoryClass mc, MemoryType mt)
 }
 
 
+MemoryClass operator*(MemoryClass mc1, MemoryClass mc2)
+{
+   //          | HOST     HOST_32  HOST_64  DEVICE   MANAGED
+   // ---------+---------------------------------------------
+   //  HOST    | HOST     HOST_32  HOST_64  DEVICE   MANAGED
+   //  HOST_32 | HOST_32  HOST_32  HOST_64  DEVICE   MANAGED
+   //  HOST_64 | HOST_64  HOST_64  HOST_64  DEVICE   MANAGED
+   //  DEVICE  | DEVICE   DEVICE   DEVICE   DEVICE   MANAGED
+   //  MANAGED | MANAGED  MANAGED  MANAGED  MANAGED  MANAGED
+
+   // Using the enumeration ordering:
+   //    HOST < HOST_32 < HOST_64 < DEVICE < MANAGED,
+   // the above table is simply: a*b = max(a,b).
+
+   return std::max(mc1, mc2);
+}
+
+#if !USE_NEW_MEM_MANAGER
 static void MFEM_VERIFY_TYPES(const MemoryType h_mt, const MemoryType d_mt)
 {
    MFEM_VERIFY(IsHostMemory(h_mt), "h_mt = " << (int)h_mt);
@@ -127,24 +146,6 @@ static void MFEM_VERIFY_TYPES(const MemoryType h_mt, const MemoryType d_mt)
 #endif
 }
 
-MemoryClass operator*(MemoryClass mc1, MemoryClass mc2)
-{
-   //          | HOST     HOST_32  HOST_64  DEVICE   MANAGED
-   // ---------+---------------------------------------------
-   //  HOST    | HOST     HOST_32  HOST_64  DEVICE   MANAGED
-   //  HOST_32 | HOST_32  HOST_32  HOST_64  DEVICE   MANAGED
-   //  HOST_64 | HOST_64  HOST_64  HOST_64  DEVICE   MANAGED
-   //  DEVICE  | DEVICE   DEVICE   DEVICE   DEVICE   MANAGED
-   //  MANAGED | MANAGED  MANAGED  MANAGED  MANAGED  MANAGED
-
-   // Using the enumeration ordering:
-   //    HOST < HOST_32 < HOST_64 < DEVICE < MANAGED,
-   // the above table is simply: a*b = max(a,b).
-
-   return std::max(mc1, mc2);
-}
-
-
 // Instantiate Memory<T>::PrintFlags for T = int and T = real_t.
 template void Memory<int>::PrintFlags() const;
 template void Memory<real_t>::PrintFlags() const;
@@ -152,7 +153,6 @@ template void Memory<real_t>::PrintFlags() const;
 // Instantiate Memory<T>::CompareHostAndDevice for T = int and T = real_t.
 template int Memory<int>::CompareHostAndDevice(int size) const;
 template int Memory<real_t>::CompareHostAndDevice(int size) const;
-
 
 namespace internal
 {
@@ -1748,7 +1748,6 @@ int MemoryManager::CompareHostAndDevice_(void *h_ptr, size_t size,
    return res;
 }
 
-
 void MemoryPrintFlags(unsigned flags)
 {
    typedef Memory<int> Mem;
@@ -1786,6 +1785,11 @@ void MemoryManager::CheckHostMemoryType_(MemoryType h_mt, void *h_ptr,
 
 MemoryManager mm;
 
+MemoryManager& MemoryManager::instance()
+{
+   return mm;
+}
+
 bool MemoryManager::exists = false;
 bool MemoryManager::configured = false;
 
@@ -1812,7 +1816,7 @@ const char * MemoryManager::h_umpire_name = "MFEM_HOST";
 const char * MemoryManager::d_umpire_name = "MFEM_DEVICE";
 const char * MemoryManager::d_umpire_2_name = "MFEM_DEVICE_2";
 #endif
-
+#endif
 
 const char *MemoryTypeName[MemoryTypeSize] =
 {
