@@ -275,8 +275,7 @@ void PLBound::Get1DBounds(Vector &coeff, Vector &intmin, Vector &intmax) const
    intmax.SetSize(ncp);
    intmin = 0.0;
    intmax = 0.0;
-   Vector coeffm(nb);
-   coeffm = 0.0;
+   Vector coeffm;
 
    real_t a0 = 0.0;
    real_t a1 = 0.0;
@@ -304,6 +303,8 @@ void PLBound::Get1DBounds(Vector &coeff, Vector &intmin, Vector &intmax) const
    // compute L2 projection for linear bases: a0 + a1*x
    if (proj)
    {
+      coeffm.SetSize(nb);
+      coeffm = 0.0;
       for (int i = 0; i < nb; i++)
       {
          x = 2.0*nodes_int(i)-1;

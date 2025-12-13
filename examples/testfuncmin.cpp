@@ -181,8 +181,9 @@ int main(int argc, char *argv[])
    PLBound plb(order + 1, bound_ref*(order+1), b_type, 0, 0.0);
    // plb.SetProjectionFlagForBounding(false);
    x.GetElementBoundsAtControlPoints(0, plb, lower, upper);
-   auto minima = x.EstimateElementMinima(0, plb, max_depth);
+   auto minima = x.EstimateElementMinima(0, plb, max_depth, 1e-5);
 
+   cout << "==================================" << endl;
    cout << "Brute force minima " << global_min(0) << endl;
    cout << "Computed minima using one-shot bounds: " << lower.Min() << " " <<
         upper.Min() << std::endl;
@@ -192,6 +193,15 @@ int main(int argc, char *argv[])
         << std::endl;
    cout <<  x.Min() << " " << global_min(0) << " " << lower.Min() << " " <<
         minima.first << " " << std::endl;
+
+
+   auto maxima = x.EstimateElementMaxima(0, plb, max_depth, 1e-5);
+   cout << "==================================" << endl;
+   cout << "Brute force maxima " << global_max(0) << endl;
+   cout << "Computed maxima using one-shot bounds: " << lower.Max() << " " <<
+        upper.Max() << std::endl;
+   cout << "Computed maxima using recursion: " << maxima.first << " " <<
+        maxima.second << std::endl;
 
    cout << "PlottingData: ";
    cout << order << "," << continuous << "," << b_type << ","  << dim << ",";
@@ -313,6 +323,7 @@ int main(int argc, char *argv[])
    std::cout << "Upper maximum " << ubcheck.Max() << " " << upper.Max() <<
              " " << ubcheck.Max() - upper.Max() << std::endl;
 
+   delete fec_lin;
    delete fec;
    delete mesh;
 

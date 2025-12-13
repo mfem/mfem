@@ -4835,20 +4835,17 @@ PLBound GridFunction::GetBounds(Vector &lower, Vector &upper,
    return plb;
 }
 
-struct Interval
+struct IntervalNode
 {
-   Vector ref_range;
    real_t val_min;
    real_t val_max;
-   int depth;
-   Array<Interval *> child;
-   Interval(const Vector &ref_range_in,
-            real_t vmin, real_t vmax, int d)
-      : ref_range(ref_range_in), val_min(vmin), val_max(vmax), depth(d)
+   Array<IntervalNode *> child;
+   IntervalNode(real_t vmin, real_t vmax)
+      : val_min(vmin), val_max(vmax)
    {
       child.SetSize(0);
    }
-   void AddChild(Interval *ch) { child.Append(ch); }
+   void AddChild(IntervalNode *ch) { child.Append(ch); }
    real_t GetChildMinLower()
    {
       if (child.Size() == 0)
@@ -4877,6 +4874,34 @@ struct Interval
       }
       return valmax;
    }
+   real_t GetChildMaxLower()
+   {
+      if (child.Size() == 0)
+      {
+         return val_min;
+      }
+      real_t valmin = numeric_limits<real_t>::lowest();
+      for (int i = 0; i < child.Size(); i++)
+      {
+         real_t candidate = child[i]->GetChildMaxLower();
+         valmin = std::max(valmin, candidate);
+      }
+      return valmin;
+   }
+   real_t GetChildMaxUpper()
+   {
+      if (child.Size() == 0)
+      {
+         return val_max;
+      }
+      real_t valmax = numeric_limits<real_t>::lowest();
+      for (int i = 0; i < child.Size(); i++)
+      {
+         real_t candidate = child[i]->GetChildMaxUpper();
+         valmax = std::max(valmax, candidate);
+      }
+      return valmax;
+   }
    void DeleteChildren()
    {
       for (int i = 0; i < child.Size(); i++)
@@ -4888,23 +4913,39 @@ struct Interval
    }
 };
 
-struct IntervalCompare
+struct SearchInterval
 {
-   bool operator()(const Interval *a, const Interval *b) const
+   Vector ref_range;
+   int depth;
+   IntervalNode *node;
+   SearchInterval(const Vector &ref_range_in, int d, IntervalNode *n)
+      : ref_range(ref_range_in), depth(d), node(n)
+   { }
+};
+
+struct IntervalCompareMin
+{
+   bool operator()(const SearchInterval *a, const SearchInterval *b) const
    {
-      return a->val_min > b->val_min;
+      return a->node->val_min > b->node->val_min;
    }
 };
 
-std::pair<real_t, real_t> GridFunction::EstimateElementMinima(const int elem,
-                                                              const PLBound &plb,
-                                                              const int max_depth)
+struct IntervalCompareMax
+{
+   bool operator()(const SearchInterval *a, const SearchInterval *b) const
+   {
+      return a->node->val_max < b->node->val_max;
+   }
+};
+
+std::pair<real_t, real_t> GridFunction::EstimateElementMinima(
+   const int elem, const PLBound &plb, const int max_depth, const real_t tol)
 {
    const int dim = this->FESpace()->GetMesh()->Dimension();
    const int vdim = 0;
    const int ncp = plb.GetNControlPoints();
    Vector pos_range(2*dim); pos_range = 0.0;
-   Vector pos_range_dummy(0);
    for (int d = 0; d < dim; d++) { pos_range(d+dim) = 1.0; }
    Vector lower, upper, cp_ref_loc;
 
@@ -4912,11 +4953,14 @@ std::pair<real_t, real_t> GridFunction::EstimateElementMinima(const int elem,
    real_t val_min = lower.Min();
    real_t val_max = upper.Min();
    if (val_min == val_max || max_depth == 0) { return std::make_pair(val_min, val_max); }
-   real_t abs_tol = 1e-7*(val_max-val_min);
+   real_t abs_tol = tol*(val_max-val_min);
 
-   Interval *initial_interval = new Interval(pos_range, val_min, val_max, 0);
+   IntervalNode *initial_node = new IntervalNode(val_min, val_max);
+   SearchInterval *initial_interval = new SearchInterval(pos_range, 0,
+                                                         initial_node);
 
-   std::priority_queue<Interval*, std::vector<Interval*>, IntervalCompare> pq;
+   std::priority_queue<SearchInterval*, std::vector<SearchInterval*>, IntervalCompareMin>
+   pq;
    pq.push(initial_interval);
 
    real_t min_upper_bound = upper.Min();
@@ -4925,14 +4969,22 @@ std::pair<real_t, real_t> GridFunction::EstimateElementMinima(const int elem,
 
    while (!pq.empty())
    {
-      Interval *current = pq.top();
+      SearchInterval *current = pq.top();
       pq.pop();
       int curr_depth = current->depth;
 
-      if (current->val_min >= min_upper_bound || curr_depth >= max_depth) { continue; }
+      if (current->node->val_min >= min_upper_bound || curr_depth >= max_depth)
+      {
+         delete current;
+         continue;
+      }
 
-      min_lower_bound = initial_interval->GetChildMinLower();
-      if (min_upper_bound - min_lower_bound < abs_tol) { break; } 
+      min_lower_bound = initial_node->GetChildMinLower();
+      if (min_upper_bound - min_lower_bound < abs_tol)
+      {
+         delete current;
+         break;
+      }
 
       // Subdivide the interval and get bounds on it
       GetElementBoundsAtControlPoints(elem, plb, current->ref_range,
@@ -4986,9 +5038,9 @@ std::pair<real_t, real_t> GridFunction::EstimateElementMinima(const int elem,
                }
                real_t lv = lowerv.Min();
                real_t uv = upperv.Min();
-               Interval *child = new Interval(pos_range_dummy,
-                                              lv, uv, curr_depth + 1);
-               current->AddChild(child); // add to tree but not to queue yet
+               IntervalNode *child_node = new IntervalNode(lv, uv);
+               current->node->AddChild(child_node);
+
                if (lv < min_upper_bound)
                {
                   min_upper_bound = std::min(min_upper_bound, uv);
@@ -5006,20 +5058,177 @@ std::pair<real_t, real_t> GridFunction::EstimateElementMinima(const int elem,
                         pos_range(2) = cp_ref_loc(2*ncp + k);
                         pos_range(2+dim) = cp_ref_loc(2*ncp + k+1);
                      }
-                     child->ref_range = pos_range;
-                     pq.push(child);
+                     SearchInterval *child_interval = new SearchInterval(pos_range,
+                                                                         curr_depth + 1,
+                                                                         child_node);
+                     pq.push(child_interval);
                   }
                }
             }
          }
       }
+      delete current;
    }
 
-   min_lower_bound = initial_interval->GetChildMinLower();
-   initial_interval->DeleteChildren();
-   delete initial_interval;
+   // clean up remaining intervals in queue
+   while (!pq.empty())
+   {
+      delete pq.top();
+      pq.pop();
+   }
+
+   min_lower_bound = initial_node->GetChildMinLower();
+   initial_node->DeleteChildren();
+   delete initial_node;
 
    return std::make_pair(min_lower_bound, min_upper_bound);
+}
+
+std::pair<real_t, real_t> GridFunction::EstimateElementMaxima(
+   const int elem, const PLBound &plb, const int max_depth, const real_t tol)
+{
+   const int dim = this->FESpace()->GetMesh()->Dimension();
+   const int vdim = 0;
+   const int ncp = plb.GetNControlPoints();
+   Vector pos_range(2*dim); pos_range = 0.0;
+   for (int d = 0; d < dim; d++) { pos_range(d+dim) = 1.0; }
+   Vector lower, upper, cp_ref_loc;
+
+   GetElementBoundsAtControlPoints(elem, plb, lower, upper, vdim);
+   real_t val_min = lower.Max();
+   real_t val_max = upper.Max();
+
+   if (val_min == val_max || max_depth == 0) { return std::make_pair(val_min, val_max); }
+   real_t abs_tol = tol*(val_max-val_min);
+
+   IntervalNode *initial_node = new IntervalNode(val_min, val_max);
+   SearchInterval *initial_interval = new SearchInterval(pos_range, 0,
+                                                         initial_node);
+
+   std::priority_queue<SearchInterval*, std::vector<SearchInterval*>, IntervalCompareMax>
+   pq;
+   pq.push(initial_interval);
+
+   real_t max_lower_bound = val_min;
+   real_t max_upper_bound = val_max;
+   int nverts = dim == 1 ? 2 : (dim == 2 ? 4 : 8);
+
+   while (!pq.empty())
+   {
+      SearchInterval *current = pq.top();
+      pq.pop();
+      int curr_depth = current->depth;
+
+      // Pruning: if the current interval's max is less than the best guaranteed max (max_lower_bound),
+      // then this interval cannot contain the global maximum.
+      if (current->node->val_max <= max_lower_bound || curr_depth >= max_depth)
+      {
+         delete current;
+         continue;
+      }
+
+      max_upper_bound = initial_node->GetChildMaxUpper();
+      if (max_upper_bound - max_lower_bound < abs_tol)
+      {
+         delete current;
+         break;
+      }
+
+      // Subdivide the interval and get bounds on it
+      GetElementBoundsAtControlPoints(elem, plb, current->ref_range,
+                                      vdim, lower, upper, cp_ref_loc);
+
+      Vector lowerv(nverts), upperv(nverts);
+
+      // process the bounds and create sub-intervals
+      for (int k = 0; k < (dim == 3 ? ncp-1 : 1); k++)
+      {
+         for (int j = 0; j < (dim >= 2 ? ncp-1 : 1); j++)
+         {
+            for (int i = 0; i < ncp-1; i++)
+            {
+               if (dim == 1)
+               {
+                  lowerv(0) = lower(i);
+                  lowerv(1) = lower(i+1);
+                  upperv(0) = upper(i);
+                  upperv(1) = upper(i+1);
+               }
+               else if (dim == 2)
+               {
+                  lowerv(0) = lower(i + j*ncp);
+                  lowerv(1) = lower((i+1) + j*ncp);
+                  lowerv(2) = lower(i + (j+1)*ncp);
+                  lowerv(3) = lower((i+1) + (j+1)*ncp);
+                  upperv(0) = upper(i + j*ncp);
+                  upperv(1) = upper((i+1) + j*ncp);
+                  upperv(2) = upper(i + (j+1)*ncp);
+                  upperv(3) = upper((i+1) + (j+1)*ncp);
+               }
+               else if (dim == 3)
+               {
+                  lowerv(0) = lower(i + j*ncp + k*ncp*ncp);
+                  lowerv(1) = lower((i+1) + j*ncp + k*ncp*ncp);
+                  lowerv(2) = lower(i + (j+1)*ncp + k*ncp*ncp);
+                  lowerv(3) = lower((i+1) + (j+1)*ncp + k*ncp*ncp);
+                  lowerv(4) = lower(i + j*ncp + (k+1)*ncp*ncp);
+                  lowerv(5) = lower((i+1) + j*ncp + (k+1)*ncp*ncp);
+                  lowerv(6) = lower(i + (j+1)*ncp + (k+1)*ncp*ncp);
+                  lowerv(7) = lower((i+1) + (j+1)*ncp + (k+1)*ncp*ncp);
+                  upperv(0) = upper(i + j*ncp + k*ncp*ncp);
+                  upperv(1) = upper((i+1) + j*ncp + k*ncp*ncp);
+                  upperv(2) = upper(i + (j+1)*ncp + k*ncp*ncp);
+                  upperv(3) = upper((i+1) + (j+1)*ncp + k*ncp*ncp);
+                  upperv(4) = upper(i + j*ncp + (k+1)*ncp*ncp);
+                  upperv(5) = upper((i+1) + j*ncp + (k+1)*ncp*ncp);
+                  upperv(6) = upper(i + (j+1)*ncp + (k+1)*ncp*ncp);
+                  upperv(7) = upper((i+1) + (j+1)*ncp + (k+1)*ncp*ncp);
+               }
+               real_t lv = lowerv.Max();
+               real_t uv = upperv.Max();
+               IntervalNode *child_node = new IntervalNode(lv, uv);
+               current->node->AddChild(child_node);
+
+               if (uv > max_lower_bound)
+               {
+                  max_lower_bound = std::max(max_lower_bound, lv);
+                  if (curr_depth < max_depth)
+                  {
+                     pos_range(0) = cp_ref_loc(i);
+                     pos_range(0+dim) = cp_ref_loc(i+1);
+                     if (dim >= 2)
+                     {
+                        pos_range(1) = cp_ref_loc(ncp + j);
+                        pos_range(1+dim) = cp_ref_loc(ncp + j+1);
+                     }
+                     if (dim == 3)
+                     {
+                        pos_range(2) = cp_ref_loc(2*ncp + k);
+                        pos_range(2+dim) = cp_ref_loc(2*ncp + k+1);
+                     }
+                     SearchInterval *child_interval = new SearchInterval(pos_range,
+                                                                         curr_depth + 1,
+                                                                         child_node);
+                     pq.push(child_interval);
+                  }
+               }
+            }
+         }
+      }
+      delete current;
+   }
+   // clean up remaining intervals in queue
+   while (!pq.empty())
+   {
+      delete pq.top();
+      pq.pop();
+   }
+
+   max_upper_bound = initial_node->GetChildMaxUpper();
+   initial_node->DeleteChildren();
+   delete initial_node;
+
+   return std::make_pair(max_lower_bound, max_upper_bound);
 }
 
 }
