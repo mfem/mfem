@@ -39,8 +39,8 @@ void PLBound::Setup(const int nb_i, const int ncp_i,
    b_type = b_type_i;
    cp_type = cp_type_i;
    tol = tol_i;
-   lbound.SetSize(nb, ncp);
-   ubound.SetSize(nb, ncp);
+   lbound.SetSize(ncp, nb);
+   ubound.SetSize(ncp, nb);
    nodes.SetSize(nb);
    weights.SetSize(nb);
    control_points.SetSize(ncp);
@@ -125,24 +125,24 @@ void PLBound::Setup(const int nb_i, const int ncp_i,
       {
          if (j == 0)
          {
-            lbound(i, j) = bv(i);
-            ubound(i, j) = bv(i);
+            lbound(j,i) = bv(i);
+            ubound(j,i) = bv(i);
          }
          else if (j == ncp-1)
          {
-            lbound(i, j) = bv(i);
-            ubound(i, j) = bv(i);
+            lbound(j,i) = bv(i);
+            ubound(j,i) = bv(i);
          }
          else
          {
             vals(0)  = bv(i);
             vals(1) =  bmv(i) +  dm*bdmv(i);
             vals(2) =  bpv(i) +  dp*bdpv(i);
-            lbound(i, j) = vals.Min()-tol; // tolerance for good measure
-            ubound(i, j) = vals.Max()+tol; // tolerance for good measure
+            lbound(j,i) = vals.Min()-tol; // tolerance for good measure
+            ubound(j,i) = vals.Max()+tol; // tolerance for good measure
             if (b_type == 2)
             {
-               lbound(i,j) = std::max(lbound(i,j),0.0);
+               lbound(j,i) = std::max(lbound(j,i),0.0);
             }
          }
       }
@@ -345,8 +345,8 @@ void PLBound::Get1DBounds(Vector &coeff, Vector &intmin, Vector &intmax) const
       real_t c = coeffm(i);
       for (int j = 0; j < ncp; j++)
       {
-         intmin(j) += min(lbound(i,j)*c, ubound(i,j)*c);
-         intmax(j) += max(lbound(i,j)*c, ubound(i,j)*c);
+         intmin(j) += min(lbound(j,i)*c, ubound(j,i)*c);
+         intmax(j) += max(lbound(j,i)*c, ubound(j,i)*c);
       }
    }
 }
@@ -476,10 +476,10 @@ void PLBound::Get2DBounds(Vector &coeff, Vector &intmin, Vector &intmax) const
          real_t w1 = intmaxT(id2++);
          for (int k = 0; k < ncp; k++) // kth row
          {
-            vals(0) = w0*lbound(j,k);
-            vals(1) = w0*ubound(j,k);
-            vals(2) = w1*lbound(j,k);
-            vals(3) = w1*ubound(j,k);
+            vals(0) = w0*lbound(k,j);
+            vals(1) = w0*ubound(k,j);
+            vals(2) = w1*lbound(k,j);
+            vals(3) = w1*ubound(k,j);
             intmin(k*ncp+i) += vals.Min();
             intmax(k*ncp+i) += vals.Max();
          }
@@ -618,10 +618,10 @@ void PLBound::Get3DBounds(Vector &coeff, Vector &intmin, Vector &intmax) const
          real_t w1 = intmaxT(id2++);
          for (int k = 0; k < ncp; k++) // kth slice
          {
-            vals(0) = w0*lbound(j,k);
-            vals(1) = w0*ubound(j,k);
-            vals(2) = w1*lbound(j,k);
-            vals(3) = w1*ubound(j,k);
+            vals(0) = w0*lbound(k,j);
+            vals(1) = w0*ubound(k,j);
+            vals(2) = w1*lbound(k,j);
+            vals(3) = w1*ubound(k,j);
             intmin(k*ncp2+i) += vals.Min();
             intmax(k*ncp2+i) += vals.Max();
          }
@@ -671,9 +671,7 @@ DenseMatrix PLBound::GetLowerBoundMatrix(int dim)
 {
    if (dim == 1)
    {
-      DenseMatrix lbound1D(lbound);
-      lbound1D.Transpose();
-      return lbound1D;
+      return lbound;
    }
    else
    {
@@ -699,9 +697,7 @@ DenseMatrix PLBound::GetUpperBoundMatrix(int dim)
 {
    if (dim == 1)
    {
-      DenseMatrix ubound1D(ubound);
-      ubound1D.Transpose();
-      return ubound1D;
+      return ubound;
    }
    else
    {
