@@ -4939,11 +4939,11 @@ struct IntervalCompareMax
    }
 };
 
-std::pair<real_t, real_t> GridFunction::EstimateElementMinima(
-   const int elem, const PLBound &plb, const int max_depth, const real_t tol)
+std::pair<real_t, real_t> GridFunction::EstimateElementMinimum(
+   const int elem, const PLBound &plb, const int vdim,
+   const int max_depth, const real_t tol)
 {
    const int dim = this->FESpace()->GetMesh()->Dimension();
-   const int vdim = 0;
    const int ncp = plb.GetNControlPoints();
    Vector pos_range(2*dim); pos_range = 0.0;
    for (int d = 0; d < dim; d++) { pos_range(d+dim) = 1.0; }
@@ -4959,8 +4959,8 @@ std::pair<real_t, real_t> GridFunction::EstimateElementMinima(
    SearchInterval *initial_interval = new SearchInterval(pos_range, 0,
                                                          initial_node);
 
-   std::priority_queue<SearchInterval*, std::vector<SearchInterval*>, IntervalCompareMin>
-   pq;
+   std::priority_queue<SearchInterval*,
+                       std::vector<SearchInterval*>, IntervalCompareMin> pq;
    pq.push(initial_interval);
 
    real_t min_upper_bound = upper.Min();
@@ -5084,11 +5084,11 @@ std::pair<real_t, real_t> GridFunction::EstimateElementMinima(
    return std::make_pair(min_lower_bound, min_upper_bound);
 }
 
-std::pair<real_t, real_t> GridFunction::EstimateElementMaxima(
-   const int elem, const PLBound &plb, const int max_depth, const real_t tol)
+std::pair<real_t, real_t> GridFunction::EstimateElementMaximum(
+   const int elem, const PLBound &plb, const int vdim,
+   const int max_depth, const real_t tol)
 {
    const int dim = this->FESpace()->GetMesh()->Dimension();
-   const int vdim = 0;
    const int ncp = plb.GetNControlPoints();
    Vector pos_range(2*dim); pos_range = 0.0;
    for (int d = 0; d < dim; d++) { pos_range(d+dim) = 1.0; }
@@ -5105,8 +5105,8 @@ std::pair<real_t, real_t> GridFunction::EstimateElementMaxima(
    SearchInterval *initial_interval = new SearchInterval(pos_range, 0,
                                                          initial_node);
 
-   std::priority_queue<SearchInterval*, std::vector<SearchInterval*>, IntervalCompareMax>
-   pq;
+   std::priority_queue<SearchInterval*,
+                       std::vector<SearchInterval*>, IntervalCompareMax> pq;
    pq.push(initial_interval);
 
    real_t max_lower_bound = val_min;

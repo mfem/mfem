@@ -1647,11 +1647,15 @@ public:
        The method uses the PLBound class to compute the bounds.
        @param[in] elem       Index of the element.
        @param[in] plb        PLBound object used to compute the bounds.
+       @param[in] vdim       The vector dimension to consider.
        @param[in] max_depth  Maximum depth of the subdivision.
-       @param[in] tol        Tolerance for the estimation.
-       @return               A pair of values (min_lower_bound, min_upper_bound). */
-   std::pair<real_t, real_t> EstimateElementMinima(const int elem,
+       @param[in] tol        Converge criterion for recursion.
+       @return               A pair of values that bracket the minimum, i.e.
+                             [min_lower_bound, min_upper_bound].
+    */
+   std::pair<real_t, real_t> EstimateElementMinimum(const int elem,
                                                    const PLBound &plb,
+                                                   const int vdim,
                                                    const int max_depth,
                                                    const real_t tol = 0.0);
 
@@ -1659,11 +1663,15 @@ public:
        The method uses the PLBound class to compute the bounds.
        @param[in] elem       Index of the element.
        @param[in] plb        PLBound object used to compute the bounds.
+       @param[in] vdim       The vector dimension to consider.
        @param[in] max_depth  Maximum depth of the subdivision.
-       @param[in] tol        Tolerance for the estimation.
-       @return               A pair of values (max_lower_bound, max_upper_bound). */
-   std::pair<real_t, real_t> EstimateElementMaxima(const int elem,
+       @param[in] tol        Converge criterion for recursion.
+       @return               A pair of values that bracket the maximum, i.e.
+                             [max_lower_bound, max_upper_bound]
+    */
+   std::pair<real_t, real_t> EstimateElementMaximum(const int elem,
                                                    const PLBound &plb,
+                                                   const int vdim,
                                                    const int max_depth,
                                                    const real_t tol = 0.0);
    ///@}

@@ -508,6 +508,8 @@ void PLBound::Get3DBounds(Vector &coeff, Vector &intmin, Vector &intmax) const
       Vector intmaxrow(intmaxT.GetData()+i*ncp2, ncp2);
       Get2DBounds(solcoeff, intminrow, intmaxrow);
    }
+   DenseMatrix intminTM(intminT.GetData(), ncp2, nb),
+               intmaxTM(intmaxT.GetData(), ncp2, nb);
 
    // Compute a0 and a1 for each tower of nodes
    Vector a0V(ncp2), a1V(ncp2);
@@ -518,44 +520,51 @@ void PLBound::Get3DBounds(Vector &coeff, Vector &intmin, Vector &intmax) const
    {
       if (b_type == 2) // Bernstein bases
       {
-         DenseMatrix intminTM(intminT.GetData(), ncp2, nb),
-                     intmaxTM(intmaxT.GetData(), ncp2, nb),
-                     intmeanTM(ncp2, nb);
-         DenseMatrix minvalsM(nb, ncp2), maxvalsM(nb, ncp2), meanintvalsM(nb, ncp2);
-         MultABt(basisMatNodes, intminTM, minvalsM);
-         MultABt(basisMatNodes, intmaxTM, maxvalsM);
-         intmeanTM = intminTM;
-         intmeanTM += intmaxTM;
-         intmeanTM *= 0.5;
-         MultABt(basisMatInt, intmeanTM, meanintvalsM);
-
-         // Compute the linear fit along each tower and then offset it from
-         // the bounds on the coefficient.
+         // Compute the mean coefficients along each tower.
          for (int j = 0; j < ncp2; j++) // slice of interval points
          {
+            Vector meanBounds(nb), minBounds(nb), maxBounds(nb);
+            intminTM.GetRow(j, minBounds);
+            intmaxTM.GetRow(j, maxBounds);
+            for (int i = 0; i < nb; i++) // column of nodes
+            {
+               meanBounds(i) = 0.5*(minBounds(i)+maxBounds(i));
+            }
+            Vector meanNodalIntVals(nb);
+            Vector minNodalVals(nb);
+            Vector maxNodalVals(nb);
+            Vector row(nb);
+            for (int i = 0; i < nb; i++)
+            {
+               basisMatNodes.GetRow(i, row);
+               minNodalVals(i) = row*minBounds;
+               maxNodalVals(i) = row*maxBounds;
+               basisMatInt.GetRow(i, row);
+               meanNodalIntVals(i) = row*meanBounds;
+            }
+            // linear fit along each tower
             for (int i = 0; i < nb; i++)
             {
                x = 2.0*nodes_int(i)-1; // x-coordinate
                w = 2.0*weights_int(i); // weight
-               t = meanintvalsM(i,j);
-               a0V(j) += 0.5*t*w;
-               a1V(j) += 1.5*t*w*x;
+               a0V(j) += 0.5*meanNodalIntVals(i)*w;
+               a1V(j) += 1.5*meanNodalIntVals(i)*w*x;
             }
-            // Offset linear fit
+            // offset the linear fit from bounding coefficients
             for (int i = 0; i < nb; i++)
             {
                x = 2.0*nodes(i)-1; // x-coordinate
-               minvalsM(i,j) -= a0V(j) + a1V(j)*x;
-               maxvalsM(i,j) -= a0V(j) + a1V(j)*x;
+               minNodalVals(i) -= a0V(j) + a1V(j)*x;
+               maxNodalVals(i) -= a0V(j) + a1V(j)*x;
             }
             // Compute Bernstein coefficients
             LUFactors lu(basisMatLU.GetData(), lu_ip.GetData());
-            lu.Solve(nb, 1, minvalsM.GetColumn(j));
-            lu.Solve(nb, 1, maxvalsM.GetColumn(j));
+            lu.Solve(nb, 1, minNodalVals.GetData());
+            lu.Solve(nb, 1, maxNodalVals.GetData());
             for (int i = 0; i < nb; i++)
             {
-               intminT(i*ncp2+j) = minvalsM(i,j);
-               intmaxT(i*ncp2+j) = maxvalsM(i,j);
+               intminT(i*ncp2+j) = minNodalVals(i);
+               intmaxT(i*ncp2+j) = maxNodalVals(i);
             }
          }
       }
