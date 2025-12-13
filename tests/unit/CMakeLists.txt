@@ -79,6 +79,7 @@ set(UNIT_TESTS_SRCS
   fem/test_block_operators.cpp
   fem/test_blocknonlinearform.cpp
   fem/test_build_dof_to_arrays.cpp
+  fem/test_calcdvshape.cpp
   fem/test_calccurlshape.cpp
   fem/test_calcdivshape.cpp
   fem/test_calcdshape.cpp

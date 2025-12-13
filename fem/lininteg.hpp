@@ -241,6 +241,10 @@ public:
                                ElementTransformation &Tr,
                                Vector &elvect) override;
 
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               FaceElementTransformations &Tr,
+                               Vector &elvect)  override;
+
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
@@ -590,6 +594,55 @@ public:
    DGDirichletLFIntegrator(Coefficient &u, MatrixCoefficient &q,
                            const real_t s, const real_t k)
       : uD(&u), Q(NULL), MQ(&q), sigma(s), kappa(k) { }
+
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               FaceElementTransformations &Tr,
+                               Vector &elvect) override;
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
+
+/** Boundary linear integrator for imposing non-zero Dirichlet boundary
+    conditions, to be used in conjunction with DGDiffusionIntegrator.
+    Specifically, given the Dirichlet data $u_D$, the linear form assembles the
+    following integrals on the boundary:
+   $$
+    \sigma \langle u_D, (Q \nabla v) \cdot n \rangle + \kappa \langle {h^{-1} Q} u_D, v \rangle,
+   $$
+    where Q is a scalar or matrix diffusion coefficient and v is the test
+    function. The parameters $\sigma$ and $\kappa$ should be the same as the ones
+    used in the DGDiffusionIntegrator. */
+class VectorFEDGDirichletLFIntegrator : public LinearFormIntegrator
+{
+protected:
+   Coefficient *Q;
+   VectorCoefficient *vD;
+   MatrixCoefficient *MQ;
+   real_t sigma, kappa;
+
+   // these are not thread-safe!
+   Vector nor, nh, ni;
+   DenseMatrix mq;
+
+   DenseMatrix vshape, dvshape_dn;
+   DenseTensor dvshape;
+   DenseMatrix dvshape_flat;
+   Vector dvshape_dn_flat, vshape_flat;
+
+public:
+   VectorFEDGDirichletLFIntegrator(VectorCoefficient &v, const real_t s,
+                                   const real_t k)
+      : Q(NULL), vD(&v),  MQ(NULL), sigma(s), kappa(k) { }
+   VectorFEDGDirichletLFIntegrator(VectorCoefficient &v, Coefficient &q,
+                                   const real_t s, const real_t k)
+      : Q(&q), vD(&v), MQ(NULL), sigma(s), kappa(k) { }
+   VectorFEDGDirichletLFIntegrator(VectorCoefficient &v, MatrixCoefficient &q,
+                                   const real_t s, const real_t k)
+      : Q(NULL), vD(&v), MQ(&q), sigma(s), kappa(k) { }
 
    void AssembleRHSElementVect(const FiniteElement &el,
                                ElementTransformation &Tr,
