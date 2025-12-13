@@ -561,7 +561,7 @@ Boris::Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_,
    // Create particle set: 2 scalars of mass and charge, 3 vectors of size space dim for momentum, e field, and b field
    Array<int> field_vdims({1, 1, dim, dim, dim});
    charged_particles = std::make_unique<ParticleSet>(comm, ctx.npt, dim,
-                                                     field_vdims, pdata_ordering);
+                                                     field_vdims, 1, pdata_ordering);
 }
 
 void Boris::InterpolateEB()
@@ -736,6 +736,7 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
    // Particle data
    MultiVector &X = particles.Coords();             // coordinates (vdim x npt)
    MultiVector &Q = particles.Field(Boris::CHARGE); // charges (1 x npt)
+   Ordering::Type ordering_type = X.GetOrdering();
 
    const int npt = X.GetNumVectors();
    MFEM_VERIFY(X.GetVDim() == dim, "Unexpected particle coordinate layout.");
@@ -751,7 +752,7 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
    // ------------------------------------------------------------------------
    FindPointsGSLIB finder(pmesh->GetComm());
    finder.Setup(*pmesh);
-   finder.FindPoints(point_pos, Ordering::byVDIM);
+   finder.FindPoints(point_pos, ordering_type);
 
    const Array<unsigned int> &code = finder.GetCode(); // 0: inside, 1: boundary, 2: not found
    const Array<unsigned int> &proc = finder.GetProc(); // owning MPI rank
@@ -775,8 +776,8 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
          {
             continue;
          }
-         const real_t q_p = Q(0, p); // charge of particle p
-         local_sum += q_p;
+
+         local_sum += ordering_type == Ordering::byNODES ? Q(p) : Q(0, p);
       }
 
       real_t global_sum = 0.0;
@@ -854,7 +855,7 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
 
       pfes->GetElementDofs(e, dofs); // local dof indices
 
-      const real_t q_p = Q(0, p); // charge of particle p
+      const real_t q_p = ordering_type == Ordering::byNODES ? Q(p) : Q(0, p);
 
       // Add q_p * φ_i(x_p) to b_i
       b.AddElementVector(dofs, q_p, shape);
