@@ -38,15 +38,16 @@ namespace mfem
  *
  * This form is resiliant against overflow/underflow, similar to std::hypot
  */
+template <class T>
 struct L2Reducer
 {
-   using value_type = DevicePair<real_t, real_t>;
+   using value_type = DevicePair<T, T>;
    static MFEM_HOST_DEVICE void Join(value_type& a, const value_type &b)
    {
-      real_t scale = fmax(a.second, b.second);
+      T scale = fmax(a.second, b.second);
       if (scale > 0)
       {
-         real_t s = a.second / scale;
+         T s = a.second / scale;
          a.first *= s * s;
          s = b.second / scale;
          a.first += b.first * s * s;
@@ -71,13 +72,14 @@ struct L2Reducer
  *
  * This form is resiliant against overflow/underflow, similar to std::hypot
  */
+template <class T>
 struct LpReducer
 {
-   real_t p;
-   using value_type = DevicePair<real_t, real_t>;
+   T p;
+   using value_type = DevicePair<T, T>;
    MFEM_HOST_DEVICE void Join(value_type& a, const value_type &b) const
    {
-      real_t scale = fmax(a.second, b.second);
+      T scale = fmax(a.second, b.second);
       if (scale > 0)
       {
          a.first = a.first * pow(a.second / scale, p) +
@@ -1062,7 +1064,7 @@ T VectorMP<T>::Norml2() const
          }
       }
    },
-   L2Reducer{}, UseDevice(), Lpvector_workspace<T>());
+   L2Reducer<T> {}, UseDevice(), Lpvector_workspace<T>());
    // final answer
    return res.second * sqrt(res.first);
 }
@@ -1137,7 +1139,7 @@ T VectorMP<T>::Normlp(T p) const
             }
          }
       },
-      LpReducer{p}, UseDevice(), Lpvector_workspace<T>());
+      LpReducer<T> {p}, UseDevice(), Lpvector_workspace<T>());
       // final answer
       return res.second * pow(res.first, 1.0 / p);
    } // end if p < infinity()
