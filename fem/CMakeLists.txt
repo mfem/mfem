@@ -28,6 +28,7 @@ set(SRCS
   integ/bilininteg_divdiv_pa.cpp
   integ/bilininteg_elasticity_ea.cpp
   integ/bilininteg_elasticity_pa.cpp
+  integ/bilininteg_elasticity_patch.cpp
   integ/bilininteg_gradient_pa.cpp
   integ/bilininteg_interp_pa.cpp
   integ/bilininteg_mass_mf.cpp
@@ -186,6 +187,7 @@ set(HDRS
   bilinearform.hpp
   bilinearform_ext.hpp
   bilininteg.hpp
+  integ/bilininteg_patch.hpp
   integ/lininteg_domain_kernels.hpp
   integ/bilininteg_dgdiffusion_kernels.hpp
   integ/bilininteg_dgtrace_kernels.hpp
