@@ -379,13 +379,14 @@ const DofToQuad &FiniteElement::GetDofToQuad(const IntegrationRule &ir,
    MFEM_VERIFY(mode == DofToQuad::FULL, "invalid mode requested");
 
 #if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
-   #pragma omp critical (DofToQuad)
+   #pragma omp critical (FiniteElement_GetDofToQuad)
 #endif
    {
       for (int i = 0; i < dof2quad_array.Size(); i++)
       {
          d2q = dof2quad_array[i];
-         if (d2q->IntRule != &ir || d2q->mode != mode) { d2q = nullptr; }
+         if (d2q->IntRule == &ir && d2q->mode == mode) { break; }
+         d2q = nullptr;
       }
       if (!d2q)
       {
@@ -663,7 +664,7 @@ const
 {
 
 #if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
-   #pragma omp critical (DofToQuad)
+   #pragma omp critical (NodalFiniteElement_CreateLexicographicFullMap)
 #endif
    {
       // Get the FULL version of the map.
@@ -721,7 +722,7 @@ const DofToQuad &NodalFiniteElement::GetDofToQuad(const IntegrationRule &ir,
 {
    DofToQuad *d2q = nullptr;
 #if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
-   #pragma omp critical (DofToQuad)
+   #pragma omp critical (NodalFiniteElement_GetDofToQuad)
 #endif
    {
       //Should make this loop a function of FiniteElement
@@ -2628,7 +2629,7 @@ const DofToQuad &TensorBasisElement::GetTensorDofToQuad(
    MFEM_VERIFY(mode == DofToQuad::TENSOR, "invalid mode requested");
 
 #if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
-   #pragma omp critical (DofToQuad)
+   #pragma omp critical (TensorBasisElement_GetTensorDofToQuad)
 #endif
    {
       for (int i = 0; i < dof2quad_array.Size(); i++)
