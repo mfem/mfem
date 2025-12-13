@@ -297,6 +297,18 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *pmesh << x << flush;
    }
 
+   VectorMP<float> xf(x.Size());
+   for (int i=0; i<x.Size(); ++i)
+   {
+      xf[i] = x[i];
+   }
+
+   if (myid == 0)
+   {
+      cout << "Norm of x " << x.Norml2() << endl;
+      cout << "Norm of xf " << xf.Norml2() << endl;
+   }
+
    // 18. Free the used memory.
    delete a;
    delete sigma;

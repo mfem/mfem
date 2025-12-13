@@ -26,8 +26,9 @@ namespace mfem
 
 using namespace std;
 
-IterativeSolver::IterativeSolver()
-   : Solver(0, true)
+template <class T>
+IterativeSolverMP<T>::IterativeSolverMP()
+   : SolverMP<T>(0, true)
 {
    oper = NULL;
    prec = NULL;
@@ -41,8 +42,9 @@ IterativeSolver::IterativeSolver()
 
 #ifdef MFEM_USE_MPI
 
-IterativeSolver::IterativeSolver(MPI_Comm comm_)
-   : Solver(0, true)
+template <class T>
+IterativeSolverMP<T>::IterativeSolverMP(MPI_Comm comm_)
+   : SolverMP<T>(0, true)
 {
    oper = NULL;
    prec = NULL;
@@ -55,7 +57,8 @@ IterativeSolver::IterativeSolver(MPI_Comm comm_)
 
 #endif // MFEM_USE_MPI
 
-real_t IterativeSolver::Dot(const Vector &x, const Vector &y) const
+template <class T>
+T IterativeSolverMP<T>::Dot(const VectorMP<T> &x, const VectorMP<T> &y) const
 {
    if (dot_oper) { return dot_oper->Eval(x,y); } // Use custom inner product (if provided)
 
@@ -73,7 +76,8 @@ real_t IterativeSolver::Dot(const Vector &x, const Vector &y) const
 #endif
 }
 
-void IterativeSolver::SetPrintLevel(int print_lvl)
+template <class T>
+void IterativeSolverMP<T>::SetPrintLevel(int print_lvl)
 {
    print_options = FromLegacyPrintLevel(print_lvl);
    int print_level_ = print_lvl;
@@ -94,7 +98,8 @@ void IterativeSolver::SetPrintLevel(int print_lvl)
    print_level = print_level_;
 }
 
-void IterativeSolver::SetPrintLevel(PrintLevel options)
+template <class T>
+void IterativeSolverMP<T>::SetPrintLevel(PrintLevel options)
 {
    print_options = options;
 
@@ -116,7 +121,9 @@ void IterativeSolver::SetPrintLevel(PrintLevel options)
    print_level = derived_print_level;
 }
 
-IterativeSolver::PrintLevel IterativeSolver::FromLegacyPrintLevel(
+template <class T>
+typename IterativeSolverMP<T>::PrintLevel
+IterativeSolverMP<T>::FromLegacyPrintLevel(
    int print_level_)
 {
 #ifdef MFEM_USE_MPI
@@ -151,7 +158,8 @@ IterativeSolver::PrintLevel IterativeSolver::FromLegacyPrintLevel(
    }
 }
 
-int IterativeSolver::GuessLegacyPrintLevel(PrintLevel print_options_)
+template <class T>
+int IterativeSolverMP<T>::GuessLegacyPrintLevel(PrintLevel print_options_)
 {
    if (print_options_.iterations)
    {
@@ -175,25 +183,28 @@ int IterativeSolver::GuessLegacyPrintLevel(PrintLevel print_options_)
    }
 }
 
-void IterativeSolver::SetPreconditioner(Solver &pr)
+template <class T>
+void IterativeSolverMP<T>::SetPreconditioner(SolverMP<T> &pr)
 {
    prec = &pr;
    prec->iterative_mode = false;
 }
 
-void IterativeSolver::SetOperator(const Operator &op)
+template <class T>
+void IterativeSolverMP<T>::SetOperator(const OperatorMP<T> &op)
 {
    oper = &op;
-   height = op.Height();
-   width = op.Width();
+   this->height = op.Height();
+   this->width = op.Width();
    if (prec)
    {
       prec->SetOperator(*oper);
    }
 }
 
-bool IterativeSolver::Monitor(int it, real_t norm, const Vector& r,
-                              const Vector& x, bool final) const
+template <class T>
+bool IterativeSolverMP<T>::Monitor(int it, T norm, const VectorMP<T>& r,
+                                   const VectorMP<T>& x, bool final) const
 {
    if (controller != nullptr)
    {
@@ -851,30 +862,31 @@ void SLI(const Operator &A, Solver &B, const Vector &b, Vector &x,
    sli.Mult(b, x);
 }
 
-
-void CGSolver::UpdateVectors()
+template <class T>
+void CGSolverMP<T>::UpdateVectors()
 {
-   MemoryType mt = GetMemoryType(oper->GetMemoryClass());
+   MemoryType mt = GetMemoryType(this->oper->GetMemoryClass());
 
-   r.SetSize(width, mt);
+   r.SetSize(this->width, mt);
    r.UseDevice(true);
 
-   d.SetSize(width, mt);
+   d.SetSize(this->width, mt);
    d.UseDevice(true);
 
-   z.SetSize(width, mt);
+   z.SetSize(this->width, mt);
    z.UseDevice(true);
 }
 
-void CGSolver::Mult(const Vector &b, Vector &x) const
+template <class T>
+void CGSolverMP<T>::Mult(const VectorMP<T> &b, VectorMP<T> &x) const
 {
    int i;
-   real_t r0, den, nom, nom0, betanom, alpha, beta;
+   T r0, den, nom, nom0, betanom, alpha, beta;
 
    x.UseDevice(true);
-   if (iterative_mode)
+   if (this->iterative_mode)
    {
-      oper->Mult(x, r);
+      this->oper->Mult(x, r);
       subtract(b, r, r); // r = b - A x
    }
    else
@@ -883,56 +895,56 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       x = 0.0;
    }
 
-   if (prec)
+   if (this->prec)
    {
-      prec->Mult(r, z); // z = B r
+      this->prec->Mult(r, z); // z = B r
       d = z;
    }
    else
    {
       d = r;
    }
-   nom0 = nom = Dot(d, r);
-   if (nom0 >= 0.0) { initial_norm = sqrt(nom0); }
+   nom0 = nom = this->Dot(d, r);
+   if (nom0 >= 0.0) { this->initial_norm = sqrt(nom0); }
    MFEM_VERIFY(IsFinite(nom), "nom = " << nom);
-   if (print_options.iterations || print_options.first_and_last)
+   if (this->print_options.iterations || this->print_options.first_and_last)
    {
       mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
-                << nom << (print_options.first_and_last ? " ...\n" : "\n");
+                << nom << (this->print_options.first_and_last ? " ...\n" : "\n");
    }
 
    if (nom < 0.0)
    {
-      if (print_options.warnings)
+      if (this->print_options.warnings)
       {
          mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
                    << nom << '\n';
       }
       converged = false;
       final_iter = 0;
-      initial_norm = nom;
+      this->initial_norm = nom;
       final_norm = nom;
 
-      Monitor(0, nom, r, x, true);
+      this->Monitor(0, nom, r, x, true);
       return;
    }
-   r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
-   if (Monitor(0, nom, r, x) || nom <= r0)
+   r0 = std::max(nom*this->rel_tol*this->rel_tol, this->abs_tol*this->abs_tol);
+   if (this->Monitor(0, nom, r, x) || nom <= r0)
    {
       converged = true;
       final_iter = 0;
       final_norm = sqrt(nom);
 
-      Monitor(0, nom, r, x, true);
+      this->Monitor(0, nom, r, x, true);
       return;
    }
 
    oper->Mult(d, z);  // z = A d
-   den = Dot(z, d);
+   den = this->Dot(z, d);
    MFEM_VERIFY(IsFinite(den), "den = " << den);
    if (den <= 0.0)
    {
-      if (Dot(d, d) > 0.0 && print_options.warnings)
+      if (this->Dot(d, d) > 0.0 && print_options.warnings)
       {
          mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
                    << den << '\n';
@@ -943,7 +955,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
          final_iter = 0;
          final_norm = sqrt(nom);
 
-         Monitor(0, nom, r, x, true);
+         this->Monitor(0, nom, r, x, true);
          return;
       }
    }
@@ -960,11 +972,11 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       if (prec)
       {
          prec->Mult(r, z);      //  z = B r
-         betanom = Dot(r, z);
+         betanom = this->Dot(r, z);
       }
       else
       {
-         betanom = Dot(r, r);
+         betanom = this->Dot(r, r);
       }
       MFEM_VERIFY(IsFinite(betanom), "betanom = " << betanom);
       if (betanom < 0.0)
@@ -985,7 +997,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
                    << betanom << std::endl;
       }
 
-      if (Monitor(i, betanom, r, x) || betanom <= r0)
+      if (this->Monitor(i, betanom, r, x) || betanom <= r0)
       {
          converged = true;
          final_iter = i;
@@ -1007,11 +1019,11 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
          add(r, beta, d, d);
       }
       oper->Mult(d, z);       //  z = A d
-      den = Dot(d, z);
+      den = this->Dot(d, z);
       MFEM_VERIFY(IsFinite(den), "den = " << den);
       if (den <= 0.0)
       {
-         if (Dot(d, d) > 0.0 && print_options.warnings)
+         if (this->Dot(d, d) > 0.0 && print_options.warnings)
          {
             mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
                       << den << '\n';
@@ -1046,7 +1058,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 
    final_norm = sqrt(betanom);
 
-   Monitor(final_iter, final_norm, r, x, true);
+   this->Monitor(final_iter, final_norm, r, x, true);
 }
 
 void CG(const Operator &A, const Vector &b, Vector &x,
@@ -1064,22 +1076,35 @@ void CG(const Operator &A, const Vector &b, Vector &x,
    cg.Mult(b, x);
 }
 
-void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
+template <class T>
+void PCG(const OperatorMP<T> &A, SolverMP<T> &B, const VectorMP<T> &b,
+         VectorMP<T> &x,
          int print_iter, int max_num_iter,
-         real_t RTOLERANCE, real_t ATOLERANCE)
+         double RTOLERANCE, double ATOLERANCE)
 {
    MFEM_PERF_FUNCTION;
 
-   CGSolver pcg;
+   CGSolverMP<T> pcg;
    pcg.SetPrintLevel(print_iter);
    pcg.SetMaxIter(max_num_iter);
-   pcg.SetRelTol(sqrt(RTOLERANCE));
-   pcg.SetAbsTol(sqrt(ATOLERANCE));
+   pcg.SetRelTol(sqrt((T)RTOLERANCE));
+   pcg.SetAbsTol(sqrt((T)ATOLERANCE));
    pcg.SetOperator(A);
    pcg.SetPreconditioner(B);
    pcg.Mult(b, x);
 }
 
+template
+void PCG<float>(const OperatorMP<float> &A, SolverMP<float> &B,
+                const VectorMP<float> &b, VectorMP<float> &x,
+                int print_iter, int max_num_iter,
+                double RTOLERANCE, double ATOLERANCE);
+
+template
+void PCG<double>(const OperatorMP<double> &A, SolverMP<double> &B,
+                 const VectorMP<double> &b, VectorMP<double> &x,
+                 int print_iter, int max_num_iter,
+                 double RTOLERANCE, double ATOLERANCE);
 
 inline void GeneratePlaneRotation(real_t &dx, real_t &dy,
                                   real_t &cs, real_t &sn)
@@ -1940,7 +1965,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
       }
       else if (it == 2)
       {
-         add(1./rho1, *z, -rho2/rho1, w1, w0);   // (w0 == 0)
+         add((real_t) 1./rho1, *z, -rho2/rho1, w1, w0);   // (w0 == 0)
       }
       else
       {
@@ -3057,7 +3082,7 @@ void BlockILU::SetOperator(const Operator &op)
    Factorize();
 }
 
-void BlockILU::CreateBlockPattern(const SparseMatrix &A)
+void BlockILU::CreateBlockPattern(const SparseMatrixMP<real_t> &A)
 {
    MFEM_VERIFY(k_fill == 0, "Only block ILU(0) is currently supported.");
    if (A.Height() % block_size != 0)
@@ -4623,5 +4648,11 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
    }
 }
 #endif // MFEM_USE_LAPACK
+
+template class CGSolverMP<float>;
+template class CGSolverMP<double>;
+
+template class IterativeSolverMP<float>;
+template class IterativeSolverMP<double>;
 
 }

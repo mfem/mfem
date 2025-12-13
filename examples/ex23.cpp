@@ -139,7 +139,7 @@ void WaveOperator::ImplicitSolve(const real_t fac0, const real_t fac1,
    // for d2udt2
    if (!T)
    {
-      T = Add(1.0, Mmat, fac0, Kmat);
+      T = Add((real_t)1.0, Mmat, fac0, Kmat);
       T_solver.SetOperator(*T);
    }
    K->FullMult(u, z);

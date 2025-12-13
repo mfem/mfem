@@ -1574,7 +1574,7 @@ void FuentesPyramid::V_R(int p, Vector s, const DenseMatrix &grad_s,
    {
       // dphi_E_i.GetRow(i, dphi);
       for (int l=0; l<3; l++) { dphi[l] = dphi_E_i(i, l); }
-      add(t * t, dphi, 2.0 * t * phi_E_i(i), dt3, dphit2);
+      add(t * t, dphi, 2 * t * phi_E_i(i), dt3, dphit2);
       dphit2.cross3D(dmu3, dphixdmu);
       // u.SetRow(i, dphixdmu);
       for (int l=0; l<3; l++) { u(i, l) = dphixdmu(l); }

@@ -414,7 +414,7 @@ void ConductionOperator::ImplicitSolve(const real_t dt,
    // for du_dt, where K is linearized by using u from the previous timestep
    if (!T)
    {
-      T = Add(1.0, Mmat, dt, Kmat);
+      T = Add((real_t)1.0, Mmat, dt, Kmat);
       current_dt = dt;
       T_solver.SetOperator(*T);
    }

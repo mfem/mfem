@@ -23,7 +23,11 @@
 namespace mfem
 {
 // forward declaration
-class Vector;
+template <class T>
+class VectorMP;
+
+using Vector = VectorMP<real_t>;
+
 
 /** \brief MMA (Method of Moving Asymptotes) solves a nonlinear optimization
  *         problem involving an objective function, inequality constraints,
