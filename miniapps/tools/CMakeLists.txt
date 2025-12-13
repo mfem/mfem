@@ -20,11 +20,9 @@ set(SRC_MESH_GF_FILES)
 foreach(MESH_FILE ${MESH_GF_FILES})
   list(APPEND SRC_MESH_GF_FILES ${CMAKE_CURRENT_SOURCE_DIR}/${MESH_FILE})
 endforeach()
-add_custom_command(OUTPUT data_is_copied
-  COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SRC_MESH_GF_FILES} ../gslib/.
-  COMMAND ${CMAKE_COMMAND} -E touch data_is_copied
-  COMMENT "Copying tools miniapps data files ...")
-add_custom_target(copy_miniapps_tools_data DEPENDS data_is_copied)
+add_custom_target(copy_miniapps_tools_data
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SRC_MESH_GF_FILES} .
+  COMMENT "Syncing tools miniapps data files ...")
 
 add_mfem_miniapp(display-basis
   MAIN display-basis.cpp
