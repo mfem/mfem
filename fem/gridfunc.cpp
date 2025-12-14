@@ -4626,7 +4626,7 @@ void GridFunction::GetElementBoundsAtControlPoints(const int elem,
    fes->GetElementDofs(elem, dof_idx);
    int ndofs = dof_idx.Size();
 
-   int n_c_pts = std::pow(plb.GetNControlPoints(), rdim);
+   int n_c_pts = static_cast<int>(std::pow(plb.GetNControlPoints(), rdim));
    lower.SetSize(n_c_pts*(vdim > 0 ? 1 : fes_dim));
    upper.SetSize(n_c_pts*(vdim > 0 ? 1 : fes_dim));
 
@@ -4664,7 +4664,7 @@ void GridFunction::GetElementBounds(const int elem, const PLBound &plb,
    GetElementBoundsAtControlPoints(elem, plb, lowerC, upperC, vdim);
    const FiniteElement *fe = fes->GetFE(elem);
    int rdim  = fe->GetDim();
-   int n_c_pts = std::pow(plb.GetNControlPoints(), rdim);
+   int n_c_pts = static_cast<int>(std::pow(plb.GetNControlPoints(), rdim));
    int fes_dim  = fes->GetVDim();
    lower.SetSize((vdim > 0 ? 1 :fes_dim));
    upper.SetSize((vdim > 0 ? 1 :fes_dim));
