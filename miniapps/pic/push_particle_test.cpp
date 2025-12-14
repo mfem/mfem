@@ -777,7 +777,7 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
             continue;
          }
 
-         local_sum += ordering_type == Ordering::byNODES ? Q(p) : Q(0, p);
+         local_sum += Q(p);
       }
 
       real_t global_sum = 0.0;
@@ -855,7 +855,7 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
 
       pfes->GetElementDofs(e, dofs); // local dof indices
 
-      const real_t q_p = ordering_type == Ordering::byNODES ? Q(p) : Q(0, p);
+      const real_t q_p = Q(p);
 
       // Add q_p * φ_i(x_p) to b_i
       b.AddElementVector(dofs, q_p, shape);
