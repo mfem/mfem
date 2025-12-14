@@ -163,15 +163,12 @@ int main (int argc, char *argv[])
    real_t rel_tol = 1e-4;
    for (int d = 0; d < vdim; d++)
    {
-      for (int e = 0; e < pmesh.GetNE(); e++)
-      {
-         auto min_interval = pfunc_proj->EstimateElementMinimum(e, plb, 0,
-                                                                rec_depth, rel_tol);
-         auto max_interval = pfunc_proj->EstimateElementMaximum(e, plb, 0,
-                                                                rec_depth, rel_tol);
-         gf_min(d) = min(gf_min(d), min_interval.first);
-         gf_max(d) = max(gf_max(d), max_interval.second);
-      }
+      auto min_interval = pfunc_proj->EstimateFunctionMinimum(d, plb, rec_depth,
+                                                              rel_tol);
+      auto max_interval = pfunc_proj->EstimateFunctionMaximum(d, plb, rec_depth,
+                                                              rel_tol);
+      gf_min(d) = min(gf_min(d), min_interval.first);
+      gf_max(d) = max(gf_max(d), max_interval.second);
    }
    MPI_Allreduce(MPI_IN_PLACE, gf_min.GetData(), vdim,
                  MPITypeMap<real_t>::mpi_type, MPI_MIN, pmesh.GetComm());
