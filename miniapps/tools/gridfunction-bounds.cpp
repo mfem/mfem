@@ -56,6 +56,7 @@ int main (int argc, char *argv[])
    int  b_type           = -1;
    bool continuous       = true;
    int  nbrute           = 0;
+   int  rec_depth        = 4;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -83,6 +84,8 @@ int main (int argc, char *argv[])
    args.AddOption(&nbrute, "-nb", "--nbrute",
                   "Brute force search for minimum in an array of nxnxn points "
                   "in each element.");
+   args.AddOption(&rec_depth, "-rd", "--rec-depth",
+                  "Maximum recursion depth for recursive search.");
    args.ParseCheck();
 
    Mesh mesh(mesh_file, 1, 1, false);
@@ -151,7 +154,29 @@ int main (int argc, char *argv[])
    ParGridFunction lowerb(&fes_pc), upperb(&fes_pc);
 
    // Compute bounds
-   pfunc_proj->GetElementBounds(lowerb, upperb, ref);
+   PLBound plb = pfunc_proj->GetElementBounds(lowerb, upperb, ref);
+
+   // Compute minimum and maximum bounds via recursion
+   Vector gf_min(vdim), gf_max(vdim);
+   gf_min = numeric_limits<real_t>::max();
+   gf_max = numeric_limits<real_t>::min();
+   real_t rel_tol = 1e-4;
+   for (int d = 0; d < vdim; d++)
+   {
+      for (int e = 0; e < pmesh.GetNE(); e++)
+      {
+         auto min_interval = pfunc_proj->EstimateElementMinimum(e, plb, 0,
+                                                                rec_depth, rel_tol);
+         auto max_interval = pfunc_proj->EstimateElementMaximum(e, plb, 0,
+                                                                rec_depth, rel_tol);
+         gf_min(d) = min(gf_min(d), min_interval.first);
+         gf_max(d) = max(gf_max(d), max_interval.second);
+      }
+   }
+   MPI_Allreduce(MPI_IN_PLACE, gf_min.GetData(), vdim,
+                 MPITypeMap<real_t>::mpi_type, MPI_MIN, pmesh.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, gf_max.GetData(), vdim,
+                 MPITypeMap<real_t>::mpi_type, MPI_MAX, pmesh.GetComm());
 
    Vector bound_min(vdim), bound_max(vdim);
    for (int d = 0; d < vdim; d++)
@@ -248,6 +273,16 @@ int main (int argc, char *argv[])
                  global_min(d)-bound_min(d) << " " <<
                  bound_max(d)-global_max(d) << endl;
          }
+
+         cout << "\nBounds via recursive search with up to " << rec_depth <<
+              " recursions:" << endl;
+         for (int d = 0; d < vdim; d++)
+         {
+            cout << "Minimum bound for component " << d << " is " <<
+                 gf_min(d) << endl;
+            cout << "Maximum bound for component " << d << " is " <<
+                 gf_max(d) << endl;
+         }
       }
    }
 
@@ -259,6 +294,16 @@ int main (int argc, char *argv[])
               bound_min(d) << endl;
          cout << "Maximum bound for component " << d << " is " <<
               bound_max(d) << endl;
+      }
+
+      cout << "\nBounds via recursive search with up to " << rec_depth <<
+           " recursions:" << endl;
+      for (int d = 0; d < vdim; d++)
+      {
+         cout << "Minimum bound for component " << d << " is " <<
+              gf_min(d) << endl;
+         cout << "Maximum bound for component " << d << " is " <<
+              gf_max(d) << endl;
       }
    }
 
