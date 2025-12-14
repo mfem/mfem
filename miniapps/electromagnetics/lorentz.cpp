@@ -25,7 +25,7 @@
 // such as those produced by the Volta and Tesla miniapps. It is notable that
 // these two fields do not need to be defined on the same mesh. At least
 // one of either an electric field or a magnetic field must be provided. The
-// particles' location and momentum are randomly initialized within a bounding
+// particles' locations and momenta are randomly initialized within a bounding
 // box specified by command line input.
 //
 // This miniapp demonstrates the use of ParticleSet with FindPointsGSLIB. When
@@ -252,6 +252,7 @@ int main(int argc, char *argv[])
 
    std::unique_ptr<VisItDataCollection> E_dc, B_dc;
    ParGridFunction *E_gf = nullptr, *B_gf = nullptr;
+   Vector bb_xmin, bb_xmax;
 
    // Read E field if provided
    if (ctx.E.coll_name != "")
@@ -263,6 +264,7 @@ int main(int argc, char *argv[])
          mfem::err << "Error loading E field" << endl;
          return 1;
       }
+      E_gf->ParFESpace()->GetParMesh()->GetBoundingBox(bb_xmin, bb_xmax, 2);
    }
 
    // Read B field if provided
@@ -274,6 +276,21 @@ int main(int argc, char *argv[])
       {
          mfem::err << "Error loading B field" << endl;
          return 1;
+      }
+      Vector bb_xmint, bb_xmaxt;
+      B_gf->ParFESpace()->GetParMesh()->GetBoundingBox(bb_xmint, bb_xmaxt, 2);
+      if (ctx.E.coll_name != "")
+      {
+         for (int d = 0; d < bb_xmin.Size(); d++)
+         {
+            bb_xmin[d] = std::min(bb_xmin[d], bb_xmint[d]);
+            bb_xmax[d] = std::max(bb_xmax[d], bb_xmaxt[d]);
+         }
+      }
+      else
+      {
+         bb_xmin = bb_xmint;
+         bb_xmax = bb_xmaxt;
       }
    }
 
@@ -296,11 +313,13 @@ int main(int argc, char *argv[])
    std::unique_ptr<ParticleTrajectories> traj_vis;
    if (ctx.visualization)
    {
+      const char *keys = "baaa";
       traj_vis = std::make_unique<ParticleTrajectories>(boris.GetParticles(),
                                                         ctx.vis_tail_size,
                                                         vishost, ctx.visport,
                                                         "Trajectories",
-                                                        0, 0, 600, 600, "ba");
+                                                        0, 0, 600, 600, keys);
+      traj_vis->SetVisualizationBoundingBox(bb_xmin, bb_xmax);
    }
 
    for (int step = 1; step <= ctx.nt; step++)
@@ -448,6 +467,7 @@ Boris::Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_,
    /// 2 scalars of mass and charge,
    /// 3 vectors of size space dim for momentum, e field, and b field
    Array<int> field_vdims({1, 1, dim, dim, dim});
+
    charged_particles = std::make_unique<ParticleSet>(comm, ctx.npt, dim,
                                                      field_vdims,
                                                      pdata_ordering);

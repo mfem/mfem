@@ -174,7 +174,6 @@ ParticleTrajectories::ParticleTrajectories(const ParticleSet &particles,
 
 void ParticleTrajectories::AddSegmentStart()
 {
-   if (!pset.GetNParticles()) { return; }
    // Create a new mesh for all particle segments for this timestep
    segment_meshes.emplace_front(1, pset.GetNParticles()*2,
                                 pset.GetNParticles(),
@@ -200,11 +199,10 @@ void ParticleTrajectories::AddSegmentStart()
 
 void ParticleTrajectories::SetSegmentEnd()
 {
-   if (segment_meshes.empty()) { return; } // no segments to end
-
    const Array<ParticleSet::IDType> &end_ids = pset.GetIDs();
 
-   // Add all endpoint vertices + segments for all particles
+   // Add all endpoint vertices + segments for all particles that were in
+   // SetSegmentStart
    int num_start = segment_ids.front().Size();
    for (int i = 0; i < num_start; i++)
    {
@@ -230,11 +228,9 @@ void ParticleTrajectories::SetSegmentEnd()
 void ParticleTrajectories::Visualize()
 {
    SetSegmentEnd();
-   if (segment_meshes.empty() && !mesh)
-   {
-      AddSegmentStart();
-      return;
-   }
+   int num_procs, myid;
+   MPI_Comm_size(comm, &num_procs);
+   MPI_Comm_rank(comm, &myid);
 
    // Create a mesh of all the trajectory segments
    std::vector<Mesh*> all_meshes;
@@ -245,6 +241,10 @@ void ParticleTrajectories::Visualize()
    if (mesh)
    {
       all_meshes.push_back(mesh);
+   }
+   if (mesh_bb)
+   {
+      all_meshes.push_back(mesh_bb);
    }
 
    Mesh trajectories(all_meshes.data(), all_meshes.size());
@@ -258,6 +258,100 @@ void ParticleTrajectories::Visualize()
 #endif
 
    AddSegmentStart();
+}
+
+void ParticleTrajectories::SetVisualizationBoundingBox(const Vector &xmin,
+                                                       const Vector &xmax)
+{
+   MFEM_VERIFY(xmin.Size() == pset.GetDim() &&
+               xmax.Size() == pset.GetDim(),
+               "Bounding box dimension must match ParticleSet dimension.");
+
+   // Create a box mesh for visualization
+   if (mesh_bb)
+   {
+      delete mesh_bb;
+      mesh_bb = nullptr;
+   }
+
+   if (pset.GetDim() == 2)
+   {
+      int dim = 2;
+      int nvert = 4;
+      int nelem = 4;
+      mesh_bb = new Mesh(1, nvert, nelem, 0, dim);
+      Vector v0(dim), v1(dim), v2(dim), v3(dim);
+      v0 = xmin;
+      v1 = xmax;
+      v2[0] = xmax[0]; v2[1] = xmin[1];
+      v3[0] = xmin[0]; v3[1] = xmax[1];
+
+      mesh_bb->AddVertex(v0);
+      mesh_bb->AddVertex(v1);
+      mesh_bb->AddVertex(v2);
+      mesh_bb->AddVertex(v3);
+
+      int vi[2] = {0,1};
+      mesh_bb->AddSegment(vi);
+      vi[0] = 1; vi[1] = 2;
+      mesh_bb->AddSegment(vi);
+      vi[0] = 2; vi[1] = 3;
+      mesh_bb->AddSegment(vi);
+      vi[0] = 3; vi[1] = 0;
+      mesh_bb->AddSegment(vi);
+      mesh_bb->FinalizeMesh();
+   }
+   else // dim == 3
+   {
+      int dim = 3;
+      int nvert = 8;
+      int nelem = 12;
+      mesh_bb = new Mesh(1, nvert, nelem, 0, dim);
+      Vector v(dim);
+
+      // Vertices
+      v[0] = xmin[0]; v[1] = xmin[1]; v[2] = xmin[2];
+      mesh_bb->AddVertex(v); // 0: 000
+      v[0] = xmax[0]; v[1] = xmin[1]; v[2] = xmin[2];
+      mesh_bb->AddVertex(v); // 1: 100
+      v[0] = xmax[0]; v[1] = xmax[1]; v[2] = xmin[2];
+      mesh_bb->AddVertex(v); // 2: 110
+      v[0] = xmin[0]; v[1] = xmax[1]; v[2] = xmin[2];
+      mesh_bb->AddVertex(v); // 3: 010
+
+      v[0] = xmin[0]; v[1] = xmin[1]; v[2] = xmax[2];
+      mesh_bb->AddVertex(v); // 4: 001
+      v[0] = xmax[0]; v[1] = xmin[1]; v[2] = xmax[2];
+      mesh_bb->AddVertex(v); // 5: 101
+      v[0] = xmax[0]; v[1] = xmax[1]; v[2] = xmax[2];
+      mesh_bb->AddVertex(v); // 6: 111
+      v[0] = xmin[0]; v[1] = xmax[1]; v[2] = xmax[2];
+      mesh_bb->AddVertex(v); // 7: 011
+
+      // Segments
+      int vi[2];
+      // Bottom face
+      vi[0] = 0; vi[1] = 1; mesh_bb->AddSegment(vi);
+      vi[0] = 1; vi[1] = 2; mesh_bb->AddSegment(vi);
+      vi[0] = 2; vi[1] = 3; mesh_bb->AddSegment(vi);
+      vi[0] = 3; vi[1] = 0; mesh_bb->AddSegment(vi);
+
+      // Top face
+      vi[0] = 4; vi[1] = 5; mesh_bb->AddSegment(vi);
+      vi[0] = 5; vi[1] = 6; mesh_bb->AddSegment(vi);
+      vi[0] = 6; vi[1] = 7; mesh_bb->AddSegment(vi);
+      vi[0] = 7; vi[1] = 4; mesh_bb->AddSegment(vi);
+
+      // Vertical edges
+      vi[0] = 0; vi[1] = 4; mesh_bb->AddSegment(vi);
+      vi[0] = 1; vi[1] = 5; mesh_bb->AddSegment(vi);
+      vi[0] = 2; vi[1] = 6; mesh_bb->AddSegment(vi);
+      vi[0] = 3; vi[1] = 7; mesh_bb->AddSegment(vi);
+
+      mesh_bb->FinalizeMesh();
+   }
+
+   mesh = mesh_bb;
 }
 
 } // namespace common
