@@ -347,8 +347,6 @@ void ParticleTrajectories::SetVisualizationBoundingBox(const Vector &xmin,
 
       mesh_bb->FinalizeMesh();
    }
-
-   mesh = mesh_bb;
 }
 
 } // namespace common
