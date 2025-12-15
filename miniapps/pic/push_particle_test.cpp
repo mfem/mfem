@@ -185,6 +185,7 @@ public:
    // Update the phi_gf grid function from the particles.
    void UpdatePhiGridFunction(ParticleSet &particles, ParGridFunction &phi_gf);
    void PhiValidation(const ParGridFunction &phi_gf);
+   void TotalEnergyValidation(const ParticleSet &particles, const ParGridFunction &E_gf);
    // constructor
    GridFunctionUpdates(ParGridFunction &phi_gf, ParGridFunction &rho_gf, bool use_precomputed_neutralizing_const_ = false)
        : use_precomputed_neutralizing_const(use_precomputed_neutralizing_const_)
@@ -457,6 +458,7 @@ int main(int argc, char *argv[])
          neg_phi_gf -= phi_gf;
          GradientGridFunctionCoefficient E_coeff(&neg_phi_gf);
          E_gf->ProjectCoefficient(E_coeff);
+         gf_updates.TotalEnergyValidation(boris.GetParticles(), *E_gf);
       }
    }
 }
@@ -988,5 +990,75 @@ void GridFunctionUpdates::PhiValidation(const ParGridFunction &phi_gf)
          sol_sock << "solution\n"
                   << *pmesh << var_phi_gf << std::flush;
       }
+   }
+}
+
+void GridFunctionUpdates::TotalEnergyValidation(const ParticleSet &particles,
+                                                const ParGridFunction &E_gf)
+{
+   const MultiVector &P = particles.Field(Boris::MOM);
+   const MultiVector &M = particles.Field(Boris::MASS);
+
+   real_t kinetic_energy = 0.0;
+   for (int p = 0; p < particles.GetNP(); ++p)
+   {
+      real_t p_square_p = 0.0;
+      for (int d = 0; d < P.GetVDim(); ++d)
+      {
+         p_square_p += P(p, d) * P(p, d);
+      }
+      kinetic_energy += 0.5 * p_square_p / M(p);
+   }
+
+   // ---- Field energy: 0.5 * ∫ ||E||^2 dx ----
+   const ParFiniteElementSpace *fes = E_gf.ParFESpace();
+   const ParMesh *pmesh = fes->GetParMesh();
+
+   const int order = fes->GetMaxElementOrder();
+   const int qorder = std::max(2, 2 * order + 1);
+
+   const IntegrationRule *irs[Geometry::NumGeom];
+   for (int g = 0; g < Geometry::NumGeom; g++)
+   {
+      irs[g] = &IntRules.Get(g, qorder);
+   }
+
+   real_t field_energy = 0.0;
+
+   // IMPORTANT: ND/RT use VectorFiniteElement even if fes->GetVDim() == 1
+   if (fes->GetFE(0)->GetRangeType() == FiniteElement::VECTOR)
+   {
+      Vector zero(pmesh->Dimension());
+      zero = 0.0;
+      VectorConstantCoefficient zero_vec(zero);
+
+      const real_t E_l2 = E_gf.ComputeL2Error(zero_vec, irs);
+      field_energy = 0.5 * E_l2 * E_l2;
+   }
+   else
+   {
+      ConstantCoefficient zero_s(0.0);
+      const real_t E_l2 = E_gf.ComputeL2Error(zero_s, irs);
+      field_energy = 0.5 * E_l2 * E_l2;
+   }
+
+   // reduce kinetic energy and field energy
+   real_t global_kinetic_energy = 0.0;
+   MPI_Allreduce(&kinetic_energy, &global_kinetic_energy, 1, MPI_DOUBLE, MPI_SUM,
+                 fes->GetComm());
+   real_t global_field_energy = 0.0;
+   MPI_Allreduce(&field_energy, &global_field_energy, 1, MPI_DOUBLE, MPI_SUM,
+                 fes->GetComm());
+   if (Mpi::Root())
+   {
+      cout << "Kinetic energy: " << global_kinetic_energy << "\t";
+      cout << "Field energy: " << global_field_energy << "\t";
+      cout << "Total energy: " << global_kinetic_energy - global_field_energy << endl;
+   }
+   // write to a csv
+   if (Mpi::Root())
+   {
+      std::ofstream energy_file("energy.csv", std::ios::app);
+      energy_file << global_kinetic_energy << "," << global_field_energy << "," << global_kinetic_energy - global_field_energy << "\n";
    }
 }
