@@ -247,7 +247,8 @@ void ParticleTrajectories::Visualize()
    Mesh trajectories(all_meshes.data(), all_meshes.size());
    bool vis = trajectories.GetNE() > 0;
 #ifdef MFEM_USE_MPI
-   MPI_Allreduce(MPI_IN_PLACE, &vis, 1, MPI_CXX_BOOL, MPI_LOR, pset.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &vis, 1, MFEM_MPI_CXX_BOOL,
+                 MPI_LOR, pset.GetComm());
 #endif // MFEM_USE_MPI
    if (!vis) // if all rank have 0 elements, skip visualization
    {
