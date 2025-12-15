@@ -1606,7 +1606,7 @@ public:
    virtual PLBound GetBounds(Vector &lower, Vector &upper,
                              const int ref_factor=1, const int vdim=-1) const;
 
-   virtual void GetBounds(Vector &lower, Vector &upper, 
+   virtual void GetBounds(Vector &lower, Vector &upper,
                           PLBound &plb, int vdim=-1) const;
 
    /// Computes the \ref PLBound for the gridfunction with number of control
@@ -1693,6 +1693,11 @@ public:
                                                     const int vdim,
                                                     const int max_depth,
                                                     const real_t tol = 0.0);
+
+   std::pair<bool, int> IsFunctionPositiveInElement(const int elem,
+                                                    const PLBound &plb,
+                                                    const int vdim,
+                                                    const int max_depth);
    ///@}
 
    /// Destroys grid function.

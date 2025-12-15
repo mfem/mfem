@@ -5884,8 +5884,8 @@ ComputeUntangleMetricQuantiles(const Vector &d, const FiniteElementSpace &fes)
    if (wcuo->GetBarrierType() ==
        TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Shifted)
    {
-      real_t min_detT = (det_gf != nullptr) ? 
-                        GetDeterminantLowerBound(d, fes, true) : 
+      real_t min_detT = (det_gf != nullptr) ?
+                        GetDeterminantLowerBound(d, fes, true) :
                         ComputeMinDetT(x_loc, fes);
       real_t min_detT_all = min_detT;
 #ifdef MFEM_USE_MPI
@@ -5960,7 +5960,7 @@ real_t TMOP_Integrator::GetDeterminantLowerBound(const Vector &d,
          UpdateDeterminantGridFunction(x_loc, *x_0->FESpace());
       }
       else
-      {   
+      {
          if (x_0)
          {
             x_loc.SetSize(x_0->Size());
@@ -5974,9 +5974,22 @@ real_t TMOP_Integrator::GetDeterminantLowerBound(const Vector &d,
       }
    }
 
-   Vector lowerV, upperV;
-   det_gf->GetBounds(lowerV, upperV, *det_plb, -1);
-   return lowerV.Min(); 
+   real_t det_minimum = std::numeric_limits<real_t>::max();
+   for (int e = 0; e < det_gf->FESpace()->GetNE(); e++)
+   {
+      auto minimum = det_gf->EstimateElementMinimum(e, *det_plb, 0, plb_rec_depth,
+                                                    1e-5);
+      det_minimum = std::min(det_minimum, minimum.first);
+   }
+#ifdef MFEM_USE_MPI
+   auto par_gf = dynamic_cast<const ParGridFunction *>(det_gf);
+   if (par_gf)
+   {
+      MPI_Allreduce(MPI_IN_PLACE, &det_minimum, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_MIN, par_gf->ParFESpace()->GetComm());
+   }
+#endif
+   return det_minimum;
 }
 
 void TMOPComboIntegrator::EnableLimiting(const GridFunction &n0,

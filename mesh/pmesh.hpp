@@ -568,7 +568,7 @@ public:
    void SetCurvature(int order, bool discont = false, int space_dim = -1,
                      int ordering = 1) override;
 
-    std::unique_ptr<ParGridFunction> GetJacobianDeterminantGF();
+   std::unique_ptr<ParGridFunction> GetJacobianDeterminantGF();
 
    /** Replace the internal node GridFunction with a new GridFunction defined on
        the given FiniteElementSpace. The new node coordinates are projected

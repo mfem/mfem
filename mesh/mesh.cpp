@@ -6795,7 +6795,7 @@ const FiniteElementSpace *Mesh::GetNodalFESpace() const
 {
    return ((Nodes) ? Nodes->FESpace() : NULL);
 }
- 
+
 void Mesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
 {
    if (order <= 0)
@@ -6888,8 +6888,8 @@ void Mesh::UpdateJacobianDeterminantGF(GridFunction *detgf)
 
 std::unique_ptr<GridFunction> Mesh::GetJacobianDeterminantGF()
 {
-   int mesh_poly_deg = Nodes != NULL ? Nodes->FESpace()->GetMaxElementOrder() : 1; 
-   // determinant order is d*p-1 for tensor product elements and 
+   int mesh_poly_deg = Nodes != NULL ? Nodes->FESpace()->GetMaxElementOrder() : 1;
+   // determinant order is d*p-1 for tensor product elements and
    // d*(p-1) for simplices. We use the former here for simplicity.
    int det_order = Dim*mesh_poly_deg-1;
    L2_FECollection *fec_det = new L2_FECollection(det_order, Dim,

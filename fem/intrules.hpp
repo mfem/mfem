@@ -272,7 +272,7 @@ public:
 
    /** @brief  Returns an integration rule such that the new IntegrationPoints
     *  are re-ordered based on @a ordering.
-    *  
+    *
     *  @details In the new integration rule, ip_new[i] = ip_old[ordering[i]]
     */
    IntegrationRule Permute(const Array<int> &ordering) const;

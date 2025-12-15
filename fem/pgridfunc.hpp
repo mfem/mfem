@@ -589,7 +589,7 @@ public:
    PLBound GetBounds(Vector &lower, Vector &upper,
                      const int ref_factor=1, const int vdim=-1) const override;
 
-   void GetBounds(Vector &lower, Vector &upper, 
+   void GetBounds(Vector &lower, Vector &upper,
                   PLBound &plb, int vdim=-1) const override;
 
    /** Save the local portion of the ParGridFunction. This differs from the

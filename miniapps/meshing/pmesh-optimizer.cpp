@@ -947,7 +947,7 @@ int main (int argc, char *argv[])
    }
 
    // Enable determinant bounding if requested
-   if (detj_bound) { tmop_integ->EnableDeterminantPLBounds(detgf.get(), 4); } 
+   if (detj_bound) { tmop_integ->EnableDeterminantPLBounds(detgf.get(), 4, 4); }
 
    //
    // Setup the ParNonlinearForm which defines the integral of interest, its

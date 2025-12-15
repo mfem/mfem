@@ -550,7 +550,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
       min_detT_out = detj_bound ?
                      GetDeterminantLowerBound(d_loc, *fes, true) :
                      ComputeMinDet(d_loc, *fes);
-               
+
       if (untangling == false && min_detT_out <= min_detJ_limit)
       {
          // No untangling, and detJ got negative (or small) -- no good.
