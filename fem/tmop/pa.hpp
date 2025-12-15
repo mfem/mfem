@@ -127,7 +127,7 @@ int KernelSpecializationsMDQ()
 #define MFEM_TMOP_MDQ_SPECIALIZE(Name)                                    \
    namespace                                                              \
    {                                                                      \
-   static bool k##Name{ (tmop::KernelSpecializationsMDQ<Name>(), true) }; \
+   [[maybe_unused]] static bool k##Name{ (tmop::KernelSpecializationsMDQ<Name>(), true) }; \
    }
 
 // Register TMOP kernels using two templated parameters (D1D, Q1D).
@@ -166,7 +166,7 @@ int KernelSpecializations()
 #define MFEM_TMOP_ADD_SPECIALIZED_KERNELS(Name)                        \
    namespace                                                           \
    {                                                                   \
-   static bool k##Name{ (tmop::KernelSpecializations<Name>(), true) }; \
+   [[maybe_unused]] static bool k##Name{ (tmop::KernelSpecializations<Name>(), true) }; \
    }
 
 // Register TMOP kernels using a single templated parameter (Q1D).
@@ -192,7 +192,7 @@ int KernelSpecializations1()
 #define MFEM_TMOP_ADD_SPECIALIZED_KERNELS_1(Name)                       \
    namespace                                                            \
    {                                                                    \
-   static bool k##Name{ (tmop::KernelSpecializations1<Name>(), true) }; \
+   [[maybe_unused]] static bool k##Name{ (tmop::KernelSpecializations1<Name>(), true) }; \
    }
 
 // Register TMOP kernels for a templated metric id.
