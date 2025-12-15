@@ -592,6 +592,22 @@ public:
    void GetBounds(Vector &lower, Vector &upper,
                   PLBound &plb, int vdim=-1) const override;
 
+   /** @brief Estimate the GridFunction minimum across all elements. */
+   virtual std::pair<real_t, real_t> EstimateFunctionMinimum
+   (const int vdim,
+    const PLBound &plb,
+    const int max_depth,
+    const real_t tol = 0.0)
+   override;
+
+   /** @brief Estimate the GridFunction maximum across all elements. */
+   virtual std::pair<real_t, real_t> EstimateFunctionMaximum
+   (const int vdim,
+    const PLBound &plb,
+    const int max_depth,
+    const real_t tol = 0.0)
+   override;
+
    /** Save the local portion of the ParGridFunction. This differs from the
        serial GridFunction::Save in that it takes into account the signs of
        the local dofs. */

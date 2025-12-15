@@ -5974,22 +5974,9 @@ real_t TMOP_Integrator::GetDeterminantLowerBound(const Vector &d,
       }
    }
 
-   real_t det_minimum = std::numeric_limits<real_t>::max();
-   for (int e = 0; e < det_gf->FESpace()->GetNE(); e++)
-   {
-      auto minimum = det_gf->EstimateElementMinimum(e, *det_plb, 0, plb_rec_depth,
-                                                    1e-5);
-      det_minimum = std::min(det_minimum, minimum.first);
-   }
-#ifdef MFEM_USE_MPI
-   auto par_gf = dynamic_cast<const ParGridFunction *>(det_gf);
-   if (par_gf)
-   {
-      MPI_Allreduce(MPI_IN_PLACE, &det_minimum, 1, MPITypeMap<real_t>::mpi_type,
-                    MPI_MIN, par_gf->ParFESpace()->GetComm());
-   }
-#endif
-   return det_minimum;
+   auto minbounds = det_gf->EstimateFunctionMinimum(0, *det_plb,
+                                                    plb_rec_depth, 1e-5);
+   return minbounds.first;
 }
 
 void TMOPComboIntegrator::EnableLimiting(const GridFunction &n0,

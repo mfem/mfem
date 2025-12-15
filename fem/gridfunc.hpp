@@ -500,6 +500,70 @@ protected:
    /// P-refinement version of Update().
    void UpdatePRef();
 
+   /** @brief Estimate the minimum value of the GridFunction in element @a elem
+    *  if it is below a certain @a min_threshold.
+    *
+    *  @details For a given element \ref e and grid function component \ref vdim
+    *  an estimate of the function minimum is the minimum of the piecewise
+    *  linear lower bound obtained using the given PLBound object. The actual
+    *  minimum is between [minimum lower bound, minimum upper bound]. We
+    *  improve the estimate of the function minimum by recursively
+    *  subdividing the interval with the lowest lower bound, and computing
+    *  bounds on the sub-intervals.
+    *  This process continues until (i) the maximum recursion depth is reached
+    *  or (ii) the difference between the minimum upper bound and minimum lower
+    *  bound is less than a certain tolerance (\ref tol * [initial maximum
+    *  upper bound - initial minimum lower bound]).
+    *  The function also terminates if the lowest minima estimate is found
+    *  to be above the given threshold \ref min_threshold. This is useful when
+    *  we are interested in computing the global minimum of the function
+    *  over all elements. In this case we can reject elements where the lowest
+    *  bound is above the current global minimum. In case the function
+    *  minimum on the element is below the global minimum, we update
+    *  \ref min_threshold.
+    *
+    *  We return a pair of values that bracket the actual minimum, i.e.
+    *  [min_lower_bound, min_upper_bound].
+    */
+   std::pair<real_t, real_t> EstimateFunctionMinimum(const int elem,
+                                                     const PLBound &plb,
+                                                     const int vdim,
+                                                     const int max_depth,
+                                                     const real_t tol,
+                                                     real_t &min_threshold);
+
+   /** @brief Estimate the maximum value of the GridFunction in element @a elem
+    *  if it is below a certain @a max_threshold.
+    *
+    *  @details For a given element \ref e and grid function component \ref vdim
+    *  an estimate of the function maximum is the maximum of the piecewise
+    *  linear upper bound obtained using the given PLBound object. The actual
+    *  maximum is between [maximum lower bound, maximum upper bound]. We
+    *  improve the estimate of the function maximum by recursively
+    *  subdividing the interval with the highest upper bound, and computing
+    *  bounds on the sub-intervals.
+    *  This process continues until (i) the maximum recursion depth is reached
+    *  or (ii) the difference between the maximum upper bound and maximum lower
+    *  bound is less than a certain tolerance (\ref tol * [initial maximum
+    *  upper bound - initial maximum lower bound]).
+    *  The function also terminates if the highest maxima estimate is found
+    *  to be below the given threshold \ref max_threshold. This is useful when
+    *  we are interested in computing the global maximum of the function
+    *  over all elements. In this case we can reject elements where the upper
+    *  bound is below the current global maximum. In case the function
+    *  maximum on the element is above the global maximum, we update
+    *  \ref max_threshold.
+    *
+    *  We return a pair of values that bracket the actual maximum, i.e.
+    *  [max_lower_bound, max_upper_bound].
+    */
+   std::pair<real_t, real_t> EstimateFunctionMaximum(const int elem,
+                                                     const PLBound &plb,
+                                                     const int vdim,
+                                                     const int max_depth,
+                                                     const real_t tol,
+                                                     real_t &max_threshold);
+
 public:
    /** @brief For each vdof, counts how many elements contain the vdof,
        as containment is determined by FiniteElementSpace::GetElementVDofs(). */
@@ -1648,57 +1712,45 @@ public:
 
    /** @brief Estimate the minimum value of the GridFunction in element @a elem.
     *
-    *  @details For a given element \ref e and grid function component \ref vdim
-    *  the best estimate of the function minimum is the minimum lower bound
-    *  obtained using the given PLBound object. The actual minimum is between
-    *  minimum lower bound and minimum upper bound]. To improve this estimate,
-    *  we recursively subdivide the interval with the minimum lower bound, and
-    *  compute bounds on the sub-intervals. This process continues until either
-    *  the maximum recursion depth is reached or the difference between the
-    *  minimum upper bound and minimum lower bound is less than a threshold.
-    *  The threshold is set to \ref tol * (initial maximum upper bound - initial
-    *  minimum lower bound).
-    *
-    *  We return a pair of values that bracket the minimum, i.e.
-    *  [min_lower_bound, min_upper_bound]. @note The first value in the pair
-    *  is the lower bound on the minimum, and the second value is the upper
-    *  bound on the minimum.
+    *  @details See the protected version of EstimateFunctionMinimum for
+    *  details.
     */
-   std::pair<real_t, real_t> EstimateElementMinimum(const int elem,
-                                                    const PLBound &plb,
-                                                    const int vdim,
-                                                    const int max_depth,
-                                                    const real_t tol = 0.0);
+   std::pair<real_t, real_t> EstimateFunctionMinimum(const int elem,
+                                                     const PLBound &plb,
+                                                     const int vdim,
+                                                     const int max_depth,
+                                                     const real_t tol = 0.0);
 
    /** @brief Estimate the minimum value of the GridFunction in element @a elem.
     *
-    *  @details For a given element \ref e and grid function component \ref vdim
-    *  the best estimate of the function maximum is the maximum upper bound
-    *  obtained using the given PLBound object. The actual maximum is between
-    *  maximum lower bound and maximum upper bound]. To improve this estimate,
-    *  we recursively subdivide the interval with the maximum upper bound, and
-    *  compute bounds on the sub-intervals. This process continues until either
-    *  the maximum recursion depth is reached or the difference between the
-    *  maximum upper bound and maximum lower bound is less than a threshold.
-    *  The threshold is set to \ref tol * (initial maximum upper bound - initial
-    *  minimum lower bound).
-    *
-    *  We return a pair of values that bracket the maximum, i.e.
-    *  [max_lower_bound, max_upper_bound]. @note The first value in the pair
-    *  is the lower bound on the maximum, and the second value is the upper
-    *  bound on the maximum.
+    *  @details See the protected version of EstimateFunctionMaximum for
+    *  details.
     */
-   std::pair<real_t, real_t> EstimateElementMaximum(const int elem,
-                                                    const PLBound &plb,
-                                                    const int vdim,
-                                                    const int max_depth,
-                                                    const real_t tol = 0.0);
+   std::pair<real_t, real_t> EstimateFunctionMaximum(const int elem,
+                                                     const PLBound &plb,
+                                                     const int vdim,
+                                                     const int max_depth,
+                                                     const real_t tol = 0.0);
 
-   std::pair<bool, int> IsFunctionPositiveInElement(const int elem,
-                                                    const PLBound &plb,
-                                                    const int vdim,
-                                                    const int max_depth);
+   /** @brief Estimate the GridFunction minimum across all elements. */
+   virtual std::pair<real_t, real_t> EstimateFunctionMinimum
+   (const int vdim,
+    const PLBound &plb,
+    const int max_depth,
+    const real_t tol = 0.0);
+
+   /** @brief Estimate the GridFunction maximum across all elements. */
+   virtual std::pair<real_t, real_t> EstimateFunctionMaximum
+   (const int vdim,
+    const PLBound &plb,
+    const int max_depth,
+    const real_t tol = 0.0);
+
+    std::pair<bool, int> IsFunctionPositiveInElement(
+        const int elem, const PLBound &plb, const int vdim,
+        const int max_depth);
    ///@}
+
 
    /// Destroys grid function.
    virtual ~GridFunction() { Destroy(); }
