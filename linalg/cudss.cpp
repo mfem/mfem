@@ -5,10 +5,25 @@
 #ifdef MFEM_USE_CUDSS
 #ifdef MFEM_USE_MPI
 
+// Define a cuDSS error check macro, MFEM_CUDSS_CHECK(x), where x returns/is of
+// type 'cudssStatus_t'. This macro evaluates 'x' and raises an error if the
+// result is not CUDSS_STATUS_SUCCESS.
+#define MFEM_CUDSS_CHECK(x)                                          \
+  do {                                                               \
+    cudssStatus_t mfem_err_internal_var_name = (x);                  \
+    if (mfem_err_internal_var_name != CUDSS_STATUS_SUCCESS) {        \
+      ::mfem::mfem_cudss_error(mfem_err_internal_var_name, #x,       \
+                               _MFEM_FUNC_NAME, __FILE__, __LINE__); \
+    }                                                                \
+  } while (0)
 namespace mfem
 {
-void mfem_cudss_error(cudssStatus_t status, const char *expr,
-                      const char *func, const char *file, int line)
+cudssHandle_t CuDSSHandle::global_cudss_handle = nullptr;
+CuDSSHandle::State CuDSSHandle::state = CuDSSHandle::State::UNINITIALIZED;
+
+// Function used by the macro MFEM_CUDSS_CHECK.
+void mfem_cudss_error(cudssStatus_t status, const char *expr, const char *func,
+                      const char *file, int line)
 {
    mfem::err << "\n\nCUDSS error: (" << expr << ") failed with error:\n --> "
              << "CUDSS call ended unsuccessfully"
@@ -18,22 +33,52 @@ void mfem_cudss_error(cudssStatus_t status, const char *expr,
    mfem_error();
 }
 
-CuDSSSolver::CuDSSSolver(MPI_Comm comm_) : mpi_comm(comm_)
+void CuDSSHandle::Init()
 {
-   InitHandle();
+   if (state == State::UNINITIALIZED)
+   {
+      MFEM_CUDSS_CHECK(cudssCreate(&global_cudss_handle));
+      // NOTE: Set the communication layer to NULL so that cuDSS picks it from
+      // the environment variable "CUDSS_COMM_LIB"
+      MFEM_CUDSS_CHECK(
+         cudssSetCommLayer(global_cudss_handle, NULL));
+      state = State::INITIALIZED;
+   }
 }
 
-void CuDSSSolver::InitHandle()
+void CuDSSHandle::Finalize()
 {
-   MFEM_CUDSS_CHECK(cudssCreate(&handle));
-   // NOTE: Set the communication layer to NULL so that cuDSS picks it from the
-   // environment variable "CUDSS_COMM_LIB"
-   MFEM_CUDSS_CHECK(cudssSetCommLayer(handle, NULL));
+   if (state == State::INITIALIZED)
+   {
+      MFEM_CUDSS_CHECK(cudssDestroy(global_cudss_handle));
+      global_cudss_handle = nullptr;
+      state = State::UNINITIALIZED;
+   }
+}
 
+cudssHandle_t CuDSSHandle::Get()
+{
+   MFEM_VERIFY(state == State::INITIALIZED,
+               "cuDSS handle is not initialized!");
+   return global_cudss_handle;
+}
+
+CuDSSSolver::CuDSSSolver(MPI_Comm comm_) : mpi_comm(comm_)
+{
+   Init();
+}
+
+void CuDSSSolver::Init()
+{
+   // Note: Ensure that the cuDSS handle is initialized
+   MFEM_VERIFY(CuDSSHandle::IsInitialized(),
+               "cuDSS handle is not initialized!");
+
+   // Create the solver configuration and data objects
    MFEM_CUDSS_CHECK(cudssConfigCreate(&solverConfig));
-   MFEM_CUDSS_CHECK(cudssDataCreate(handle, &solverData));
-
-   MFEM_CUDSS_CHECK(cudssDataSet(handle, solverData, CUDSS_DATA_COMM, &mpi_comm,
+   MFEM_CUDSS_CHECK(cudssDataCreate(CuDSSHandle::Get(), &solverData));
+   MFEM_CUDSS_CHECK(cudssDataSet(CuDSSHandle::Get(), solverData, CUDSS_DATA_COMM,
+                                 &mpi_comm,
                                  sizeof(MPI_Comm *)));
 }
 
@@ -49,9 +94,8 @@ CuDSSSolver::~CuDSSSolver()
    MFEM_CUDSS_CHECK(cudssMatrixDestroy(yc));
 
    // Destroy the cuDSS handle, solver config and solver data
-   MFEM_CUDSS_CHECK(cudssDataDestroy(handle, solverData));
+   MFEM_CUDSS_CHECK(cudssDataDestroy(CuDSSHandle::Get(), solverData));
    MFEM_CUDSS_CHECK(cudssConfigDestroy(solverConfig));
-   MFEM_CUDSS_CHECK(cudssDestroy(handle));
 
    if (csr_offsets_d != NULL)
    {
@@ -106,16 +150,27 @@ void CuDSSSolver::SetMatrixViewType(MatViewType mvtype_)
    }
 }
 
-void CuDSSSolver::SetReorderingReuse(bool reuse) { reorder_reuse = reuse; }
+void CuDSSSolver::SetReorderingReuse(bool reuse)
+{
+   MFEM_VERIFY(Ac == nullptr,
+               "Set reordering reuse before setting the operator!");
+   reorder_reuse = reuse;
+}
 
-void CuDSSSolver::SetMatrixSortRow(bool sort_row_) { sort_row = sort_row_; }
+void CuDSSSolver::SetMatrixSortRow(bool sort_row_)
+{
+   MFEM_VERIFY(Ac == nullptr,
+               "Set the flag controlling sort the rows of CSR matrix before "
+               "setting the operator!");
+   sort_row = sort_row_;
+}
 
 void CuDSSSolver::SetOperator(const Operator &op)
 {
    bool cuDSSObjectInitialized = (Ac != nullptr);
    MFEM_VERIFY(!cuDSSObjectInitialized ||
                (height == op.Height() && width == op.Width()),
-               "CuDSSSolver::SetOperator: Inconsistent new matrix size!");
+               "Inconsistent new matrix size!");
    height = op.Height();
    width = op.Width();
 
@@ -142,7 +197,7 @@ void CuDSSSolver::SetOperator(const Operator &op)
    row_end = row_start + n_loc - 1;
    MFEM_VERIFY(!cuDSSObjectInitialized || !reorder_reuse ||
                (reorder_reuse && (nnz == csr_op->num_nonzeros)),
-               "CuDSSSolver::SetOperator: Inconsistent new matrix pattern!");
+               "Inconsistent new matrix pattern!");
    nnz = csr_op->num_nonzeros;
 
    // Initial the cudssMatrix objects
@@ -191,7 +246,7 @@ void CuDSSSolver::SetOperator(const Operator &op)
 
       // Analysis
       MFEM_CUDSS_CHECK(
-         cudssExecute(handle, CUDSS_PHASE_ANALYSIS, solverConfig,
+         cudssExecute(CuDSSHandle::Get(), CUDSS_PHASE_ANALYSIS, solverConfig,
                       solverData, *Ac, yc, xc));
    }
    else // cuDSSObjectInitialized && reorder_reuse
@@ -202,7 +257,7 @@ void CuDSSSolver::SetOperator(const Operator &op)
    }
 
    // Factorization
-   MFEM_CUDSS_CHECK(cudssExecute(handle, CUDSS_PHASE_FACTORIZATION,
+   MFEM_CUDSS_CHECK(cudssExecute(CuDSSHandle::Get(), CUDSS_PHASE_FACTORIZATION,
                                  solverConfig, solverData, *Ac, yc, xc));
 
    hypre_CSRMatrixDestroy(csr_op);
@@ -271,7 +326,8 @@ void CuDSSSolver::ArrayMult(const Array<const Vector *> &X,
    MFEM_CUDSS_CHECK(cudssMatrixSetValues(yc, SOL.Write()));
 
    // Solve
-   MFEM_CUDSS_CHECK(cudssExecute(handle, CUDSS_PHASE_SOLVE, solverConfig,
+   MFEM_CUDSS_CHECK(cudssExecute(CuDSSHandle::Get(), CUDSS_PHASE_SOLVE,
+                                 solverConfig,
                                  solverData, *Ac, yc, xc));
 
    if (nrhs == 1)

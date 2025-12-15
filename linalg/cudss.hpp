@@ -17,22 +17,50 @@
 #define CUDA_REAL_T CUDA_R_64F
 #endif
 
-// Define a cuDSS error check macro, MFEM_CUDSS_CHECK(x), where x returns/is of
-// type 'cudssStatus_t'. This macro evaluates 'x' and raises an error if the
-// result is not CUDSS_STATUS_SUCCESS.
-#define MFEM_CUDSS_CHECK(x)                                                     \
-  do {                                                                          \
-    cudssStatus_t mfem_err_internal_var_name = (x);                             \
-    if (mfem_err_internal_var_name != CUDSS_STATUS_SUCCESS) {                   \
-      ::mfem::mfem_cudss_error(mfem_err_internal_var_name, #x, _MFEM_FUNC_NAME, \
-                              __FILE__, __LINE__);                              \
-    }                                                                           \
-  } while (0)
 namespace mfem
 {
-// Function used by the macro MFEM_CUDSS_CHECK.
-void mfem_cudss_error(cudssStatus_t status, const char *expr, const char *func,
-                      const char *file, int line);
+/**
+ * @brief A simple singleton class for cuDSS handle.
+ * 1) Call Init() to initialize the cuDSS library.
+ * 2) Call Finalize() at destruction.
+ */
+class CuDSSHandle
+{
+public:
+   /// Initialize the cuDSS library
+   static void Init();
+
+   /// Finalize the cuDSS library
+   static void Finalize();
+
+   /// Get the cuDSS handle
+   static cudssHandle_t Get();
+
+   /// Get the initialization state of cuDSS handle
+   static bool IsInitialized() { return state == State::INITIALIZED; }
+
+private:
+   /// Private constructor for singleton pattern
+   CuDSSHandle() = default;
+
+   /// Copy constructor. Deleted.
+   CuDSSHandle(const CuDSSHandle &) = delete;
+
+   /// Move constructor. Deleted.
+   CuDSSHandle(CuDSSHandle &&) = delete;
+
+   /// The singleton destructor (called at program exit) finalizes cudss handle.
+   ~CuDSSHandle() {Finalize();}
+
+   /// State of the cuDSS library
+   enum class State { UNINITIALIZED, INITIALIZED };
+
+   /// Tracks whether CuDSSHandle was initialized or finalized by this class.
+   static State state;
+
+   /// The global cuDSS handle
+   static cudssHandle_t global_cudss_handle;
+};
 
 /**
  * @brief cuDSS: A high-performance CUDA Library for Direct Sparse Solvers
@@ -65,6 +93,11 @@ public:
    };
 
    CuDSSSolver(MPI_Comm comm);
+
+   // Note: CuDSSSolver disables the move copy constructor and move assignment
+   // operator
+   CuDSSSolver(CuDSSSolver &&) = delete;
+   CuDSSSolver &operator=(CuDSSSolver &&) = delete;
 
    /**
     * @brief Set the matrix type
@@ -135,8 +168,6 @@ public:
 private:
    // MPI_Comm
    MPI_Comm mpi_comm = MPI_COMM_NULL;
-   // MPI rank
-   int myid;
 
    // Parameter controlling whether or not to reuse the symbolic factorization
    // for multiple calls to SetOperator
@@ -170,15 +201,13 @@ private:
    std::unique_ptr<cudssMatrix_t> Ac;
    mutable cudssMatrix_t xc, yc;
 
-   // cuDSS object holds the cuDSS library context
-   mutable cudssHandle_t handle;
    // cuDSS object stores configuration settings for the solver
    mutable cudssConfig_t solverConfig;
    // cuDSS object holds internal data
    mutable cudssData_t solverData;
 
-   /// Method for the initialization of cuDSS Handle
-   void InitHandle();
+   /// Method for the initialization of cuDSS solver
+   void Init();
 
    /// Method for configuring storage for distributed/centralized RHS and
    /// solution
