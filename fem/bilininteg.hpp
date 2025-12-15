@@ -3179,6 +3179,48 @@ protected:
    }
 };
 
+/** Integrator for $(Q \nabla \cdot u, v)$ where $u$ is the decomposed stress
+    tensor (scalar and symmetric gradient parts) with all components in the
+    same scalar FE space; $v$ is the displacement also in a (different)
+    scalar FE space.  */
+class StressDivergenceIntegrator : public BilinearFormIntegrator
+{
+protected:
+   real_t sign;
+   Coefficient *Q;
+
+private:
+   Vector shape;
+   DenseMatrix dshape;
+   DenseMatrix gshape;
+   DenseMatrix Jadj;
+
+public:
+   StressDivergenceIntegrator(real_t s = 1.)
+      : sign(s), Q(NULL) {  }
+
+   StressDivergenceIntegrator(Coefficient &Q_, real_t s = 1.)
+      : sign(s), Q(&Q_) {  }
+
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
+
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe,
+                                         const ElementTransformation &Trans);
+
+protected:
+   const IntegrationRule* GetDefaultIntegrationRule(
+      const FiniteElement& trial_fe,
+      const FiniteElement& test_fe,
+      const ElementTransformation& trans) const override
+   {
+      return &GetRule(trial_fe, test_fe, trans);
+   }
+};
+
 /// $(Q \nabla \cdot u, \nabla \cdot v)$ for Raviart-Thomas elements
 class DivDivIntegrator: public BilinearFormIntegrator
 {
@@ -3608,12 +3650,63 @@ public:
                            real_t a, real_t b)
    { rho = &rho_; u = &u_; alpha = a; beta = b; }
 
-   virtual void AssembleFaceMatrix(const FiniteElement &trial_fe1,
-                                   const FiniteElement &test_fe1,
-                                   const FiniteElement &trial_fe2,
-                                   const FiniteElement &test_fe2,
-                                   FaceElementTransformations &Trans,
-                                   DenseMatrix &elmat) override;
+   void AssembleFaceMatrix(const FiniteElement &trial_fe1,
+                           const FiniteElement &test_fe1,
+                           const FiniteElement &trial_fe2,
+                           const FiniteElement &test_fe2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
+};
+
+/** Integrator for the DG form:
+    $$
+      \alpha \langle \rho_u \{v\},[w \cdot n] \rangle
+      + \beta \langle \rho_u (u \cdot n) / |u \cdot n| [v],[w \cdot n] \rangle,
+    $$
+    where $v$ is the trial displacement variable and $w$ is the test decomposed
+    stress tensor (scalar and symmetric gradient parts). $\rho$/$u$ are given
+    scalar/vector coefficients. $\{v\}$ represents the average value of $v$ on
+    the face and $[v]$ is the jump such that $\{v\}=(v_1+v_2)/2$ and
+    $[v]=(v_1-v_2)$ for the face between elements $1$ and $2$. For boundary
+    elements, $v_2=0$. The vector coefficient, $u$, is assumed to be continuous
+    across the faces and when given the scalar coefficient, $\rho$, is assumed
+    to be discontinuous. The integrator uses the upwind value of $\rho$,
+    denoted by $\rho_u$, which is value from the side into which the vector
+    coefficient, $u$, points.
+    */
+class DGNormalStressIntegrator : public BilinearFormIntegrator
+{
+protected:
+   Coefficient *rho;
+   VectorCoefficient *u;
+   real_t alpha, beta;
+
+private:
+   Vector tr_shape1, te_shape1, tr_shape2, te_shape2;
+
+public:
+   /// Construct integrator with $\rho = 1$, $\beta = 0$.
+   DGNormalStressIntegrator(real_t a)
+   { rho = NULL; u = NULL; alpha = a; beta = 0.; }
+
+   /// Construct integrator with $\rho = 1$, $\beta = \alpha/2$.
+   DGNormalStressIntegrator(VectorCoefficient &u_, real_t a)
+   { rho = NULL; u = &u_; alpha = a; beta = 0.5*a; }
+
+   /// Construct integrator with $\rho = 1$.
+   DGNormalStressIntegrator(VectorCoefficient &u_, real_t a, real_t b)
+   { rho = NULL; u = &u_; alpha = a; beta = b; }
+
+   DGNormalStressIntegrator(Coefficient &rho_, VectorCoefficient &u_,
+                            real_t a, real_t b)
+   { rho = &rho_; u = &u_; alpha = a; beta = b; }
+
+   void AssembleFaceMatrix(const FiniteElement &trial_fe1,
+                           const FiniteElement &test_fe1,
+                           const FiniteElement &trial_fe2,
+                           const FiniteElement &test_fe2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
 };
 
 // Alias for @a DGTraceIntegrator.

@@ -437,6 +437,32 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
+/** $ (f, v \cdot n)_{\partial\Omega} $ for test decomposed stress function $v$
+    (scalar and symmetric gradient parts) where all components are in the same
+    scalar FE space and $f$ is a vector function. */
+class DGBdrDisplacementLFIntegrator : public LinearFormIntegrator
+{
+private:
+   real_t Sign;
+   VectorCoefficient &VF;
+   Vector shape, nor, vf;
+
+public:
+   DGBdrDisplacementLFIntegrator(VectorCoefficient &f, real_t s = 1.0,
+                                 const IntegrationRule *ir = NULL)
+      : LinearFormIntegrator(ir), Sign(s), VF(f) { }
+
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
+
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               FaceElementTransformations &Tr,
+                               Vector &elvect) override;
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
 /** $ (f, v \cdot n)_{\partial\Omega} $ for vector test function
     $v=(v_1,\dots,v_n)$ where all vi are in the same scalar FE space and $f$ is
     a scalar or vector function. */

@@ -607,6 +607,90 @@ void VectorFEDomainLFDivIntegrator::AssembleDeltaElementVect(
    elvect *= delta->EvalDelta(Trans, Trans.GetIntPoint());
 }
 
+void DGBdrDisplacementLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   mfem_error("DGBdrDisplacementLFIntegrator::AssembleRHSElementVect\n"
+              "  is not implemented as boundary integrator!\n"
+              "  Use LinearForm::AddBdrFaceIntegrator instead of\n"
+              "  LinearForm::AddBoundaryIntegrator.");
+}
+
+void DGBdrDisplacementLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+{
+   const int dim = el.GetDim();
+   const int dim_lame = 1 + dim * (dim+1) / 2;
+   const int vdim = VF.GetVDim();
+   MFEM_ASSERT(dim == vdim, "");
+   int dof = el.GetDof();
+
+   shape.SetSize(dof);
+   nor.SetSize(dim);
+   vf.SetSize(vdim);
+   elvect.SetSize(dof * dim_lame);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      const int intorder = 2 * el.GetOrder();  // <----------
+      ir = &IntRules.Get(el.GetGeomType(), intorder);
+   }
+
+   elvect = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      Tr.SetIntPoint (&ip);
+
+      const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+      if (dim == 1)
+      {
+         nor(0) = 2*eip.x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Tr.Jacobian(), nor);
+      }
+
+      el.CalcPhysShape (*Tr.Elem1, shape);
+      real_t w = Sign * ip.weight;
+
+      VF.Eval(vf, Tr, ip);
+
+      // scalar term
+      const real_t VF_n = w * (vf * nor);
+      for (int d = 0; d < dim; d++)
+         for (int i = 0; i < dof; i++)
+         {
+            elvect(i) += shape(i) * VF_n;
+         }
+
+      // symmetric tensor term
+      int doff = 1;
+      for (int di = 0; di < dim; di++)
+      {
+         // diagonal term
+         const real_t VF_n_d = w * vf(di) * nor(di);
+         for (int i = 0; i < dof; i++)
+         {
+            elvect(i + doff*dof) += shape(i) * VF_n_d;
+         }
+         doff++;
+         // off-diagonal term
+         for (int dj = di+1; dj < dim; dj++)
+         {
+            const real_t VF_n_d = w * (vf(di) * nor(dj) + vf(dj) * nor(di));
+            for (int i = 0; i < dof; i++)
+            {
+               elvect(i + doff*dof) += shape(i) * VF_n_d;
+            }
+            doff++;
+         }
+      }
+   }
+}
+
 void VectorBoundaryFluxLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
