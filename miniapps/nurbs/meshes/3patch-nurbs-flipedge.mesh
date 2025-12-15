@@ -1,5 +1,7 @@
-# Similar to 3patch-nurbs.mesh but with some flipped edges
 MFEM NURBS mesh v1.0
+
+# Same as 3patch-nurbs.mesh but with some flipped edges
+# This will fail to load without CorrectPatchTopoOrientations
 
 dimension
 2
