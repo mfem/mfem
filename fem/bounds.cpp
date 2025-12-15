@@ -207,7 +207,8 @@ void PLBound::Setup(const int nb_i, const int ncp_i,
    }
 }
 
-PLBound::PLBound(FiniteElementSpace *fes, int ncp_i, int cp_type_i)
+PLBound::PLBound(const FiniteElementSpace *fes, const int ncp_i,
+                 const int cp_type_i)
 {
    MFEM_VERIFY(!fes->IsVariableOrder(),
                "Variable order meshes not yet supported.");
@@ -264,7 +265,8 @@ PLBound::PLBound(FiniteElementSpace *fes, int ncp_i, int cp_type_i)
    Setup(nb, ncp, b_type, cp_type, tol);
 }
 
-void PLBound::Get1DBounds(Vector &coeff, Vector &intmin, Vector &intmax) const
+void PLBound::Get1DBounds(const Vector &coeff, Vector &intmin,
+                          Vector &intmax) const
 {
    real_t x,w;
    intmin.SetSize(ncp);
@@ -346,7 +348,8 @@ void PLBound::Get1DBounds(Vector &coeff, Vector &intmin, Vector &intmax) const
    }
 }
 
-void PLBound::Get2DBounds(Vector &coeff, Vector &intmin, Vector &intmax) const
+void PLBound::Get2DBounds(const Vector &coeff, Vector &intmin,
+                          Vector &intmax) const
 {
    intmin.SetSize(ncp*ncp);
    intmax.SetSize(ncp*ncp);
@@ -482,7 +485,8 @@ void PLBound::Get2DBounds(Vector &coeff, Vector &intmin, Vector &intmax) const
    }
 }
 
-void PLBound::Get3DBounds(Vector &coeff, Vector &intmin, Vector &intmax) const
+void PLBound::Get3DBounds(const Vector &coeff, Vector &intmin,
+                          Vector &intmax) const
 {
    int nb2 = nb*nb,
        ncp2 = ncp*ncp,
@@ -624,7 +628,7 @@ void PLBound::Get3DBounds(Vector &coeff, Vector &intmin, Vector &intmax) const
    }
 }
 
-void PLBound::GetNDBounds(int rdim, Vector &coeff,
+void PLBound::GetNDBounds(const int rdim, const Vector &coeff,
                           Vector &intmin, Vector &intmax) const
 {
    if (rdim == 1)

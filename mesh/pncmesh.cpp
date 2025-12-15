@@ -1381,7 +1381,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
             const int send_tag = (rank < kv.first)
                                  ? std::min(rank, kv.first)
                                  : std::max(rank, kv.first);
-            MPI_Isend(&kv.second[0][0], int(kv.second.size() * 6),
+            MPI_Isend(const_cast<int*>(&kv.second[0][0]), int(kv.second.size() * 6),
                       MPI_INT, kv.first, send_tag, pmesh.MyComm, &send_requests.back());
          }
 
