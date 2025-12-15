@@ -1618,7 +1618,7 @@ bool ParMesh::HasBoundaryElements() const
 {
    // maximum number of boundary elements over all ranks
    int maxNumOfBdrElements;
-   MPI_Allreduce(&NumOfBdrElements, &maxNumOfBdrElements, 1,
+   MPI_Allreduce(const_cast<int*>(&NumOfBdrElements), &maxNumOfBdrElements, 1,
                  MPI_INT, MPI_MAX, MyComm);
    return (maxNumOfBdrElements > 0);
 }
@@ -5217,7 +5217,8 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
    }
 
    // vertices / nodes
-   MPI_Reduce(&NumOfVertices, &nv, 1, MPI_INT, MPI_SUM, 0, MyComm);
+   MPI_Reduce(const_cast<int*>(&NumOfVertices), &nv, 1, MPI_INT, MPI_SUM, 0,
+              MyComm);
    if (MyRank == 0)
    {
       os << "\nvertices\n" << nv << '\n';
@@ -5259,7 +5260,7 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
       }
       else
       {
-         MPI_Send(&NumOfVertices, 1, MPI_INT, 0, 448, MyComm);
+         MPI_Send(const_cast<int*>(&NumOfVertices), 1, MPI_INT, 0, 448, MyComm);
          vert.SetSize(NumOfVertices*spaceDim);
          for (i = 0; i < NumOfVertices; i++)
          {
@@ -6425,7 +6426,7 @@ void ParMesh::PrintVTU(std::string pathname,
                        VTKFormat format,
                        bool high_order_output,
                        int compression_level,
-                       bool bdr)
+                       bool bdr_elements)
 {
    int pad_digits_rank = 6;
    DataCollection::create_directory(pathname, this, MyRank);
@@ -6485,7 +6486,8 @@ void ParMesh::PrintVTU(std::string pathname,
 
    std::string vtu_fname = pathname + "/" + fname + ".proc"
                            + to_padded_string(MyRank, pad_digits_rank);
-   Mesh::PrintVTU(vtu_fname, format, high_order_output, compression_level, bdr);
+   Mesh::PrintVTU(vtu_fname, format, high_order_output, compression_level,
+                  bdr_elements);
 }
 
 int ParMesh::FindPoints(DenseMatrix& point_mat, Array<int>& elem_id,

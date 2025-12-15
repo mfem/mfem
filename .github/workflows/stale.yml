@@ -53,7 +53,7 @@ jobs:
         operations-per-run: 500
 
   # Stale action for PRs with "WIP" label.
-  stale-in-review-pr:
+  stale-wip-pr:
 
     runs-on: ubuntu-latest
     permissions:

@@ -444,7 +444,7 @@ bool ComplexLUFactors::Factor(int m, real_t TOL)
                piv = j;
             }
          }
-         ipiv[i] = piv;
+         ipiv[i] = piv + 1;
          if (piv != i)
          {
             // swap rows i and piv in both L and U parts
