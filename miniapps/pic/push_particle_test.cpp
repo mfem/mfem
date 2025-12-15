@@ -77,8 +77,11 @@ public:
       // get r, z coordinates
       Vector x;
       T.Transform(ip, x);
-      real_t r = x(0), z = x(1);
-      return Phi_0 * (cos(k_x * r) + cos(k_y * z));
+      return Phi(x[0], x[1]);
+   }
+   real_t Phi(real_t x, real_t y) const
+   {
+      return Phi_0 * (cos(k_x * x) + cos(k_y * y));
    }
 };
 struct LorentzContext
@@ -186,6 +189,7 @@ public:
    void UpdatePhiGridFunction(ParticleSet &particles, ParGridFunction &phi_gf);
    void PhiValidation(const ParGridFunction &phi_gf);
    void TotalEnergyValidation(const ParticleSet &particles, const ParGridFunction &E_gf);
+   void TotalEnergyValidation(const ParticleSet &particles, const PhiGridFunctionCoefficient &phi_coeff);
    // constructor
    GridFunctionUpdates(ParGridFunction &phi_gf, ParGridFunction &rho_gf, bool use_precomputed_neutralizing_const_ = false)
        : use_precomputed_neutralizing_const(use_precomputed_neutralizing_const_)
@@ -452,13 +456,15 @@ int main(int argc, char *argv[])
          boris.Redistribute(ctx.redist_mesh);
 
          // Update phi_gf from particles
-         gf_updates.UpdatePhiGridFunction(boris.GetParticles(), phi_gf);
-         ParGridFunction neg_phi_gf(&sca_fespace);
-         neg_phi_gf = 0.0;
-         neg_phi_gf -= phi_gf;
-         GradientGridFunctionCoefficient E_coeff(&neg_phi_gf);
-         E_gf->ProjectCoefficient(E_coeff);
-         gf_updates.TotalEnergyValidation(boris.GetParticles(), *E_gf);
+         // gf_updates.UpdatePhiGridFunction(boris.GetParticles(), phi_gf);
+         // ParGridFunction neg_phi_gf(&sca_fespace);
+         // neg_phi_gf = 0.0;
+         // neg_phi_gf -= phi_gf;
+         // GradientGridFunctionCoefficient E_coeff(&neg_phi_gf);
+         // E_gf->ProjectCoefficient(E_coeff);
+         // gf_updates.TotalEnergyValidation(boris.GetParticles(), *E_gf);
+
+         // gf_updates.TotalEnergyValidation(boris.GetParticles(), phi_coeff);
       }
    }
 }
@@ -1060,5 +1066,49 @@ void GridFunctionUpdates::TotalEnergyValidation(const ParticleSet &particles,
    {
       std::ofstream energy_file("energy.csv", std::ios::app);
       energy_file << global_kinetic_energy << "," << global_field_energy << "," << global_kinetic_energy - global_field_energy << "\n";
+   }
+}
+void GridFunctionUpdates::TotalEnergyValidation(const ParticleSet &particles,
+                                                const PhiGridFunctionCoefficient &phi_coeff)
+{
+   const MultiVector &P = particles.Field(Boris::MOM);
+   const MultiVector &X = particles.Coords();
+   const MultiVector &M = particles.Field(Boris::MASS);
+   const MultiVector &Q = particles.Field(Boris::CHARGE);
+
+   real_t kinetic_energy = 0.0;
+   for (int p = 0; p < particles.GetNP(); ++p)
+   {
+      real_t p_square_p = 0.0;
+      for (int d = 0; d < P.GetVDim(); ++d)
+      {
+         p_square_p += P(p, d) * P(p, d);
+      }
+      kinetic_energy += 0.5 * p_square_p / M(p);
+   }
+
+   real_t field_energy = 0.0;
+   for (int p = 0; p < particles.GetNP(); ++p)
+   {
+      field_energy += Q(p) * phi_coeff.Phi(X(p, 0), X(p, 1));
+   }
+   // reduce kinetic energy and field energy
+   real_t global_kinetic_energy = 0.0;
+   MPI_Allreduce(&kinetic_energy, &global_kinetic_energy, 1, MPI_DOUBLE, MPI_SUM,
+                 particles.GetComm());
+   real_t global_field_energy = 0.0;
+   MPI_Allreduce(&field_energy, &global_field_energy, 1, MPI_DOUBLE, MPI_SUM,
+                 particles.GetComm());
+   if (Mpi::Root())
+   {
+      cout << "Kinetic energy: " << global_kinetic_energy << "\t";
+      cout << "Field energy: " << global_field_energy << "\t";
+      cout << "Total energy: " << global_kinetic_energy - global_field_energy << endl;
+   }
+   // write to a csv
+   if (Mpi::Root())
+   {
+      std::ofstream energy_file("energy.csv", std::ios::app);
+      energy_file << global_kinetic_energy << "," << global_field_energy << "," << global_kinetic_energy + global_field_energy << "\n";
    }
 }
