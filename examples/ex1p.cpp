@@ -73,6 +73,9 @@ int main(int argc, char *argv[])
    int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
    Hypre::Init();
+#ifdef MFEM_USE_CUDSS
+   CuDSSHandle::Init();
+#endif
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
