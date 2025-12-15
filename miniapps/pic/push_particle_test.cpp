@@ -179,8 +179,6 @@ private:
    ParLinearForm *precomputed_neutralizing_lf = nullptr;
    bool neutralizing_const_computed = false;
    bool use_precomputed_neutralizing_const = false;
-   // Mass matrix
-   HypreParMatrix *MassMatrix;
    // Diffusion matrix
    HypreParMatrix *DiffusionMatrix;
 
@@ -191,7 +189,7 @@ public:
    void TotalEnergyValidation(const ParticleSet &particles, const ParGridFunction &E_gf);
    void TotalEnergyValidation(const ParticleSet &particles, const PhiGridFunctionCoefficient &phi_coeff);
    // constructor
-   GridFunctionUpdates(ParGridFunction &phi_gf, ParGridFunction &rho_gf, bool use_precomputed_neutralizing_const_ = false)
+   GridFunctionUpdates(ParGridFunction &phi_gf, bool use_precomputed_neutralizing_const_ = false)
        : use_precomputed_neutralizing_const(use_precomputed_neutralizing_const_)
    {
       // compute domain volume
@@ -202,17 +200,8 @@ public:
       MPI_Allreduce(&local_domain_volume, &domain_volume, 1, MPI_DOUBLE, MPI_SUM,
                     phi_gf.ParFESpace()->GetParMesh()->GetComm());
 
-      ParFiniteElementSpace *pfes = rho_gf.ParFESpace();
+      ParFiniteElementSpace *pfes = phi_gf.ParFESpace();
 
-      { // Par bilinear form for the mass matrix
-         ParBilinearForm mm(pfes);
-         mm.AddDomainIntegrator(new MassIntegrator); // ∫ φ_i φ_j
-
-         mm.Assemble();
-         mm.Finalize();
-
-         MassMatrix = mm.ParallelAssemble(); // global mass matrix
-      }
       { // Par bilinear form for the gradgrad matrix
          ParBilinearForm dm(pfes);
          dm.AddDomainIntegrator(new DiffusionIntegrator); // ∫ ∇φ_i · ∇φ_j
@@ -225,7 +214,6 @@ public:
    }
    ~GridFunctionUpdates()
    {
-      delete MassMatrix;
       delete DiffusionMatrix;
       delete precomputed_neutralizing_lf;
    }
@@ -378,12 +366,8 @@ int main(int argc, char *argv[])
                << mesh << *E_gf << flush;
    }
 
-   // 6. Prepare an empty rho_gf for later use
-   ParGridFunction rho_gf(&sca_fespace);
-   rho_gf = 0.0;
-
-   // 7. Build the grid function updates
-   GridFunctionUpdates gf_updates(phi_gf, rho_gf, true);
+   // 6. Build the grid function updates
+   GridFunctionUpdates gf_updates(phi_gf, true);
 
    Ordering::Type ordering_type = ctx.ordering == 0 ? Ordering::byNODES : Ordering::byVDIM;
 
