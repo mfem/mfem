@@ -1730,16 +1730,18 @@ public:
                                                      const real_t tol = 0.0);
 
    /** @brief Estimate the GridFunction minimum across all elements. */
-   std::pair<real_t, real_t> EstimateFunctionMinimum(const int vdim,
-                                                     const PLBound &plb,
-                                                     const int max_depth,
-                                                     const real_t tol = 0.0);
+   virtual std::pair<real_t, real_t> EstimateFunctionMinimum
+   (const int vdim,
+    const PLBound &plb,
+    const int max_depth,
+    const real_t tol = 0.0);
 
    /** @brief Estimate the GridFunction maximum across all elements. */
-   std::pair<real_t, real_t> EstimateFunctionMaximum(const int vdim,
-                                                     const PLBound &plb,
-                                                     const int max_depth,
-                                                     const real_t tol = 0.0);
+   virtual std::pair<real_t, real_t> EstimateFunctionMaximum
+   (const int vdim,
+    const PLBound &plb,
+    const int max_depth,
+    const real_t tol = 0.0);
    ///@}
 
 

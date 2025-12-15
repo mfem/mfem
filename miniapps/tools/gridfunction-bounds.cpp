@@ -157,9 +157,9 @@ int main (int argc, char *argv[])
    PLBound plb = pfunc_proj->GetElementBounds(lowerb, upperb, ref);
 
    // Compute minimum and maximum bounds via recursion
-   Vector gf_min(vdim), gf_max(vdim);
-   gf_min = numeric_limits<real_t>::max();
-   gf_max = numeric_limits<real_t>::min();
+   Vector bound_rec_min(vdim), bound_rec_max(vdim);
+   bound_rec_min = numeric_limits<real_t>::max();
+   bound_rec_max = numeric_limits<real_t>::min();
    real_t rel_tol = 1e-4;
    for (int d = 0; d < vdim; d++)
    {
@@ -167,13 +167,9 @@ int main (int argc, char *argv[])
                                                               rel_tol);
       auto max_interval = pfunc_proj->EstimateFunctionMaximum(d, plb, rec_depth,
                                                               rel_tol);
-      gf_min(d) = min(gf_min(d), min_interval.first);
-      gf_max(d) = max(gf_max(d), max_interval.second);
+      bound_rec_min(d) = min(bound_rec_min(d), min_interval.first);
+      bound_rec_max(d) = max(bound_rec_max(d), max_interval.second);
    }
-   MPI_Allreduce(MPI_IN_PLACE, gf_min.GetData(), vdim,
-                 MPITypeMap<real_t>::mpi_type, MPI_MIN, pmesh.GetComm());
-   MPI_Allreduce(MPI_IN_PLACE, gf_max.GetData(), vdim,
-                 MPITypeMap<real_t>::mpi_type, MPI_MAX, pmesh.GetComm());
 
    Vector bound_min(vdim), bound_max(vdim);
    for (int d = 0; d < vdim; d++)
@@ -260,25 +256,20 @@ int main (int argc, char *argv[])
          {
             cout << "Brute force and bounding comparison for component " <<
                  d << endl;
-            cout << "Brute force minimum and minimum bound: " << global_min(d)
-                 << " " <<  bound_min(d) << endl;
+            cout << "Brute force/minimum bound/minimum bound+recursion:"
+                 << global_min(d) << " " <<  bound_min(d) << " " <<
+                 bound_rec_min(d) << endl;
 
-            cout << "Brute force maximum and maximum bound: " << global_max(d)
-                 << " " <<  bound_max(d) << endl;
+            cout << "Brute force/maximum bound/maximum bound+recursion:"
+                 << global_max(d) << " " <<  bound_max(d) << " " <<
+                 bound_rec_max(d) << endl;
 
-            cout << "The difference in bounds is: " <<
-                 global_min(d)-bound_min(d) << " " <<
-                 bound_max(d)-global_max(d) << endl;
-         }
-
-         cout << "\nBounds via recursive search with up to " << rec_depth <<
-              " recursions:" << endl;
-         for (int d = 0; d < vdim; d++)
-         {
-            cout << "Minimum bound for component " << d << " is " <<
-                 gf_min(d) << endl;
-            cout << "Maximum bound for component " << d << " is " <<
-                 gf_max(d) << endl;
+            cout << "Difference in brute force versus bounds without and with "
+                 "recursion is:\n";
+            cout << "Minimum: " << global_min(d)-bound_min(d) << " " <<
+                 global_min(d)-bound_rec_min(d) << "\n";
+            cout << "Maximum: " <<  bound_max(d)-global_max(d) << " " <<
+                 bound_rec_max(d)-global_max(d) << endl;
          }
       }
    }
@@ -287,10 +278,12 @@ int main (int argc, char *argv[])
    {
       for (int d = 0; d < vdim; d++)
       {
-         cout << "Minimum bound for component " << d << " is " <<
-              bound_min(d) << endl;
-         cout << "Maximum bound for component " << d << " is " <<
-              bound_max(d) << endl;
+         cout << "Minimum bound for component " << d <<
+                 " without/with recursion is " <<
+                 bound_min(d) << " " << bound_rec_min(d) << endl;
+         cout << "Maximum bound for component " << d <<
+                 " without/with recursion is " <<
+                bound_max(d) << " " << bound_rec_max(d) << endl;
       }
 
       cout << "\nBounds via recursive search with up to " << rec_depth <<
@@ -298,9 +291,9 @@ int main (int argc, char *argv[])
       for (int d = 0; d < vdim; d++)
       {
          cout << "Minimum bound for component " << d << " is " <<
-              gf_min(d) << endl;
+              bound_rec_min(d) << endl;
          cout << "Maximum bound for component " << d << " is " <<
-              gf_max(d) << endl;
+              bound_rec_max(d) << endl;
       }
    }
 

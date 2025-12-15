@@ -5084,7 +5084,7 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMinimum(
                         pos_range(2+dim) = cp_ref_loc(2*ncp + k+1);
                      }
                      SearchInterval *child_interval =
-                     new  SearchInterval(pos_range, curr_depth + 1, child_node);
+                        new  SearchInterval(pos_range, curr_depth + 1, child_node);
                      pq.push(child_interval);
                   }
                }
@@ -5255,7 +5255,7 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMaximum(
                         pos_range(2+dim) = cp_ref_loc(2*ncp + k+1);
                      }
                      SearchInterval *child_interval =
-                     new SearchInterval(pos_range, curr_depth + 1, child_node);
+                        new SearchInterval(pos_range, curr_depth + 1, child_node);
                      pq.push(child_interval);
                   }
                }
