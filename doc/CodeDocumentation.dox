@@ -182,11 +182,6 @@ namespace mfem {
  *   <a class="el" href="examples_2superlu_2ex1p_8cpp_source.html">1p</a>,
  *   demonstrating the use of MFEM's \link superlu.hpp SuperLU integration\endlink.
  *
- * <H4>cuDSS Examples</H4>
- * - Variants of Example
- *   <a class="el" href="examples_2cudss_2ex1p_8cpp_source.html">1p</a>,
- *   demonstrating the use of MFEM's \link cudss.hpp cuDSS integration\endlink.
- *
  * <H4>NURBS Examples</H4>
  * - Variants of Examples
  *  <a class="el" href="nurbs__ex1_8cpp_source.html">1</a>,

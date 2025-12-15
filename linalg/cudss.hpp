@@ -92,6 +92,9 @@ public:
       UPPER = 2,
    };
 
+   /**
+    * @brief Constructor with MPI_Comm parameter.
+    */
    CuDSSSolver(MPI_Comm comm);
 
    // Note: CuDSSSolver disables the move copy constructor and move assignment

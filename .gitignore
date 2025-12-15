@@ -205,9 +205,6 @@ examples/superlu/ex1p
 examples/superlu/mesh.*
 examples/superlu/sol.*
 
-examples/cudss/ex1p
-examples/cudss/sol*
-
 miniapps/adjoint/cvsRoberts_ASAi_dns
 miniapps/adjoint/adjoint_advection_diffusion
 
