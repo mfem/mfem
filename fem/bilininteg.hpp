@@ -4347,18 +4347,22 @@ public:
                            DenseMatrix &elmat) override;
 };
 
-/** Integrator for the form:$ \langle v, [w \cdot n] \rangle $ over all faces (the interface) where
-    the trial variable $v$ is defined on the interface and the test variable $w$ is
-    in an $H(div)$-conforming space or in a DG space. */
+/** Integrator for the form:$ \langle v, [w \cdot n] \rangle $ over all faces
+    (the interface) where the trial variable $v$ is defined on the interface
+    and the test variable $w$ is in an $H(div)$-conforming space or in a DG
+    space. */
 class NormalTraceJumpIntegrator : public BilinearFormIntegrator
 {
+protected:
+   real_t sign;
+
 private:
    Vector face_shape, normal, shape1_n, shape2_n;
    DenseMatrix shape1, shape2;
-   real_t sign;
 
 public:
    NormalTraceJumpIntegrator(real_t sign_ = 1.) : sign(sign_) { }
+
    using BilinearFormIntegrator::AssembleFaceMatrix;
    void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
                            const FiniteElement &test_fe1,

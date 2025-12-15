@@ -5058,29 +5058,21 @@ void NormalTraceJumpIntegrator::AssembleFaceMatrix(
    const FiniteElement &test_fe2, FaceElementTransformations &Trans,
    DenseMatrix &elmat)
 {
-   int i, j, face_ndof, ndof1, ndof2, dim;
-   int order;
-
    MFEM_VERIFY(trial_face_fe.GetMapType() == FiniteElement::VALUE, "");
 
-   face_ndof = trial_face_fe.GetDof();
-   ndof1 = test_fe1.GetDof();
-   dim = test_fe1.GetDim();
+   const int face_ndof = trial_face_fe.GetDof();
+   const int ndof1 = test_fe1.GetDof();
+   const int ndof2 = (Trans.Elem2No >= 0)?(test_fe2.GetDof()):(0);
+   const int dim = test_fe1.GetDim();
 
    face_shape.SetSize(face_ndof);
    normal.SetSize(dim);
-   shape1.SetSize(ndof1,dim);
    shape1_n.SetSize(ndof1);
 
-   if (Trans.Elem2No >= 0)
+   if (ndof2)
    {
-      ndof2 = test_fe2.GetDof();
       shape2.SetSize(ndof2,dim);
       shape2_n.SetSize(ndof2);
-   }
-   else
-   {
-      ndof2 = 0;
    }
 
    if (test_fe1.GetRangeType() == FiniteElement::SCALAR)
@@ -5091,6 +5083,7 @@ void NormalTraceJumpIntegrator::AssembleFaceMatrix(
       const IntegrationRule *ir = IntRule;
       if (ir == NULL)
       {
+         int order;
          if (Trans.Elem2No >= 0)
          {
             order = max(test_fe1.GetOrder(), test_fe2.GetOrder());
@@ -5114,19 +5107,20 @@ void NormalTraceJumpIntegrator::AssembleFaceMatrix(
          test_fe1.CalcPhysShape(*Trans.Elem1, shape1_n);
          face_shape *= ip.weight * sign;
          for (int d = 0; d < dim; d++)
-            for (i = 0; i < ndof1; i++)
-               for (j = 0; j < face_ndof; j++)
+            for (int i = 0; i < ndof1; i++)
+               for (int j = 0; j < face_ndof; j++)
                {
                   elmat(i+d*ndof1, j) += shape1_n(i) * face_shape(j) * normal(d);
                }
+
          if (ndof2)
          {
             // Side 2 finite element shape function
             test_fe2.CalcPhysShape(*Trans.Elem2, shape2_n);
             // Subtract contribution from side 2
             for (int d = 0; d < dim; d++)
-               for (i = 0; i < ndof2; i++)
-                  for (j = 0; j < face_ndof; j++)
+               for (int i = 0; i < ndof2; i++)
+                  for (int j = 0; j < face_ndof; j++)
                   {
                      elmat(ndof1*dim+i+d*ndof2, j) -= shape2_n(i) * face_shape(j) * normal(d);
                   }
@@ -5135,12 +5129,16 @@ void NormalTraceJumpIntegrator::AssembleFaceMatrix(
    }
    else
    {
+      shape1.SetSize(ndof1, dim);
+      if (ndof2) { shape2.SetSize(ndof2, dim); }
+
       elmat.SetSize(ndof1 + ndof2, face_ndof);
       elmat = 0.0;
 
       const IntegrationRule *ir = IntRule;
       if (ir == NULL)
       {
+         int order;
          if (Trans.Elem2No >= 0)
          {
             order = max(test_fe1.GetOrder(), test_fe2.GetOrder()) - 1;
@@ -5175,16 +5173,17 @@ void NormalTraceJumpIntegrator::AssembleFaceMatrix(
             shape2.Mult(normal, shape2_n);
          }
          face_shape *= ip.weight * sign;
-         for (i = 0; i < ndof1; i++)
-            for (j = 0; j < face_ndof; j++)
+         for (int i = 0; i < ndof1; i++)
+            for (int j = 0; j < face_ndof; j++)
             {
                elmat(i, j) += shape1_n(i) * face_shape(j);
             }
+
          if (ndof2)
          {
             // Subtract contribution from side 2
-            for (i = 0; i < ndof2; i++)
-               for (j = 0; j < face_ndof; j++)
+            for (int i = 0; i < ndof2; i++)
+               for (int j = 0; j < face_ndof; j++)
                {
                   elmat(ndof1+i, j) -= shape2_n(i) * face_shape(j);
                }
