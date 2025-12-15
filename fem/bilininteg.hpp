@@ -632,6 +632,348 @@ public:
    virtual ~SumIntegrator();
 };
 
+/// Integrator extending the given integrator(s) in the vector dimension
+/** When given a single intergrator and dimension, the element/face matrix of
+    the integrator is repated along the diagonal. With an array of integrators,
+    their element/face matrices are placed along diagonal instead. */
+class VectorBlockDiagonalIntegrator : public BilinearFormIntegrator
+{
+   int numBlocks;
+   std::vector<BilinearFormIntegrator*> integs;
+   bool own_integs{true};
+
+   std::vector<DenseMatrix> elmats;
+
+   template<typename FType, typename... Args> void AssembleElementMat(
+      FType f, DenseMatrix &elmat, Args&&... args)
+   {
+      AssembleMat<FType, 0, 0, Args...>(f, {}, {}, elmat, args...);
+   }
+
+   template<typename FType, typename... Args> void AssembleTraceMat(
+      FType f, const FiniteElement &test_fe1, const FiniteElement &test_fe2,
+      DenseMatrix &elmat, Args&&... args)
+   {
+      AssembleMat<FType, 0, 2, Args...>(f, {}, {&test_fe1, &test_fe2}, elmat,
+                                        args...);
+   }
+
+   template<typename FType, typename... Args> void AssembleFaceMat(
+      FType f, const FiniteElement &trial_fe1, const FiniteElement &test_fe1,
+      const FiniteElement &trial_fe2, const FiniteElement &test_fe2,
+      DenseMatrix &elmat, Args&&... args)
+   {
+      AssembleMat<FType, 2, 2, Args...>(f, {&trial_fe1, &trial_fe2}, {&test_fe1, &test_fe2},
+                                        elmat, args...);
+   }
+
+   template<typename FType, typename... Args> void AssembleHDGFaceMat(
+      FType f, const FiniteElement &trace_el, const FiniteElement &fe1,
+      const FiniteElement &fe2, DenseMatrix &elmat, Args&&... args)
+   {
+      AssembleMat<FType, 3, 3, Args...>(f, {&fe1, &fe2, &trace_el}, {&fe1, &fe2, &trace_el},
+                                        elmat, args...);
+   }
+
+   template<typename FType, int N, int M, typename... Args> void AssembleMat(
+      FType f,
+      std::array<const FiniteElement*,N> trial_fe,
+      std::array<const FiniteElement*,M> test_fe,
+      DenseMatrix &elmat, Args&&... args);
+
+public:
+   /// Constructor (dimension only)
+   VectorBlockDiagonalIntegrator(int n) : numBlocks(n) { integs.resize(n); }
+
+   /// Constructor (single repeated integrator)
+   VectorBlockDiagonalIntegrator(int n, BilinearFormIntegrator *integ_)
+      : numBlocks(n) { integs.push_back(integ_); }
+
+   /// Constructor (compounded integrators)
+   VectorBlockDiagonalIntegrator(const std::vector<BilinearFormIntegrator*>
+                                 &integs_)
+      : numBlocks(integs_.size())
+   {
+      integs.reserve(numBlocks);
+      for (BilinearFormIntegrator *bfi : integs_)
+      {
+         integs.push_back(bfi);
+      }
+   }
+
+   /// Constructor (compounded integrators)
+   template<int N>
+   VectorBlockDiagonalIntegrator(BilinearFormIntegrator *integs_[N])
+      : numBlocks(N)
+   {
+      integs.reserve(numBlocks);
+      for (BilinearFormIntegrator *bfi : integs_)
+      {
+         integs.push_back(bfi);
+      }
+   }
+
+   /// Constructor (compounded integrators)
+   VectorBlockDiagonalIntegrator(
+      std::initializer_list<BilinearFormIntegrator*> integs_)
+      : numBlocks(integs_.size())
+   {
+      integs.reserve(numBlocks);
+      for (BilinearFormIntegrator *bfi : integs_)
+      {
+         integs.push_back(bfi);
+      }
+   }
+
+   /// Destructor
+   ~VectorBlockDiagonalIntegrator()
+   {
+      if (own_integs)
+      {
+         for (BilinearFormIntegrator *bfi : integs) { delete bfi; }
+      }
+   }
+
+   /// Set the integrator for the given block index
+   void SetIntegrator(int i, BilinearFormIntegrator *integ_) { integs[i] = integ_; }
+
+   /// Get the integrator for the given block index
+   BilinearFormIntegrator *GetIntegrator(int i) const { return integs[i]; }
+
+   /// Get the number of diagonal blocks
+   inline int GetNumBlocks() const { return numBlocks; }
+
+   /// Set the flag of ownership of the integrator(s)
+   void UseExternalIntegrators() { own_integs = false; }
+
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override
+   {
+      AssembleElementMat<>(&BilinearFormIntegrator::AssembleElementMatrix,
+                           elmat, el, Trans);
+   }
+
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override
+   {
+      AssembleElementMat<>(&BilinearFormIntegrator::AssembleElementMatrix2,
+                           elmat, trial_fe, test_fe, Trans);
+   }
+
+   void AssembleFaceMatrix(const FiniteElement &fe1,
+                           const FiniteElement &fe2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override
+   {
+      using face_fx = void (BilinearFormIntegrator::*)(
+                         const FiniteElement &, const FiniteElement &,
+                         FaceElementTransformations &, DenseMatrix &);
+      face_fx fx = &BilinearFormIntegrator::AssembleFaceMatrix;
+      if (Trans.Elem2No >= 0)
+         AssembleFaceMat<>(fx, fe1, fe1, fe2, fe2,
+                           elmat, fe1, fe2, Trans);
+      else
+      {
+         AssembleElementMat<>(fx, elmat, fe1, fe2, Trans);
+      }
+
+   }
+
+   void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
+                           const FiniteElement &test_fe1,
+                           const FiniteElement &test_fe2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override
+   {
+      using face_fx = void (BilinearFormIntegrator::*)(
+                         const FiniteElement &, const FiniteElement &, const FiniteElement &,
+                         FaceElementTransformations &, DenseMatrix &);
+      face_fx fx = &BilinearFormIntegrator::AssembleFaceMatrix;
+      if (Trans.Elem2No >= 0)
+         AssembleTraceMat<>(fx, test_fe1, test_fe2, elmat, trial_face_fe,
+                            test_fe1, test_fe2, Trans);
+      else
+         AssembleElementMat<>(fx, elmat, trial_face_fe, test_fe1,
+                              test_fe2, Trans);
+   }
+
+   void AssembleFaceMatrix(const FiniteElement &trial_fe1,
+                           const FiniteElement &test_fe1,
+                           const FiniteElement &trial_fe2,
+                           const FiniteElement &test_fe2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override
+   {
+      using face_fx = void (BilinearFormIntegrator::*)(
+                         const FiniteElement &, const FiniteElement &,
+                         const FiniteElement &, const FiniteElement &,
+                         FaceElementTransformations &, DenseMatrix &);
+      face_fx fx = &BilinearFormIntegrator::AssembleFaceMatrix;
+      if (Trans.Elem2No >= 0)
+         AssembleFaceMat<>(fx, trial_fe1, test_fe1, trial_fe2, test_fe2,
+                           elmat, trial_fe1, test_fe1, trial_fe2, test_fe2,
+                           Trans);
+      else
+         AssembleElementMat<>(fx, elmat, trial_fe1, test_fe1,
+                              trial_fe2, test_fe2, Trans);
+   }
+
+   void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
+                              const FiniteElement &el1,
+                              const FiniteElement &el2,
+                              FaceElementTransformations &Trans,
+                              DenseMatrix &elmat) override
+   {
+      using face_fx = void (BilinearFormIntegrator::*)(
+                         const FiniteElement &,
+                         const FiniteElement &, const FiniteElement &,
+                         FaceElementTransformations &, DenseMatrix &);
+      face_fx fx = &BilinearFormIntegrator::AssembleHDGFaceMatrix;
+      if (Trans.Elem2No >= 0)
+         AssembleHDGFaceMat<>(fx, trace_el, el1, el2, elmat,
+                              trace_el, el1, el2, Trans);
+      else
+         AssembleFaceMat<>(fx, el1, trace_el, el1, trace_el,
+                           elmat, trace_el, el1, el2, Trans);
+   }
+};
+
+template<typename FType, int N, int M, typename... Args>
+void VectorBlockDiagonalIntegrator::AssembleMat(
+   FType f,
+   std::array<const FiniteElement*,N> trial_fes,
+   std::array<const FiniteElement*,M> test_fes,
+   DenseMatrix &elmat, Args&&... args)
+{
+   constexpr int NN = (N > 0)?(N):(1);
+   constexpr int MM = (M > 0)?(M):(1);
+   int tr_ndofs = 0, te_ndofs = 0;
+   for (auto *fe : trial_fes) { tr_ndofs += fe->GetDof(); }
+   for (auto *fe : test_fes) { te_ndofs += fe->GetDof(); }
+
+   if (numBlocks > (int)integs.size())
+   {
+      // single integrator
+      elmats.resize(1);
+      (integs[0]->*f)(args..., elmats[0]);
+      const int w = elmats[0].Width();
+      const int h = elmats[0].Height();
+      const int tr_vdim = (N > 0)?(w / tr_ndofs):(1);
+      const int te_vdim = (M > 0)?(h / te_ndofs):(1);
+
+      elmat.SetSize(numBlocks * h, numBlocks * w);
+      elmat = 0.0;
+
+      int off_n = 0;
+      for (int n = 0; n < NN; n++)
+      {
+         const int w_n = (N != 0)?(trial_fes[n]->GetDof() * tr_vdim):(w);
+
+         int off_m = 0;
+         for (int m = 0; m < MM; m++)
+         {
+            const int h_m = (M != 0)?(test_fes[m]->GetDof() * te_vdim):(h);
+
+            for (int i = 0; i < numBlocks; i++)
+            {
+               elmat.CopyMN(elmats[0],
+                            h_m, w_n, off_m, off_n,
+                            numBlocks * off_m + i * h_m,
+                            numBlocks * off_n + i * w_n);
+            }
+            off_m += h_m;
+         }
+         off_n += w_n;
+      }
+   }
+   else
+   {
+      // corresponding number of integrators
+      elmats.resize(numBlocks);
+      std::array<int, NN> ws{};
+      std::array<int, MM> hs{};
+      for (int i = 0; i < numBlocks; i++)
+      {
+         if (!integs[i])
+         {
+            elmats[i].SetSize(0);
+            continue;
+         }
+         (integs[i]->*f)(args..., elmats[i]);
+         const int w = elmats[i].Width();
+         const int h = elmats[i].Height();
+         if (N > 0)
+         {
+            const int tr_vdim = w / tr_ndofs;
+            for (int n = 0; n < N; n++)
+            { ws[n] += trial_fes[n]->GetDof() * tr_vdim; }
+         }
+         else
+         {
+            ws[0] += w;
+         }
+
+         if (M > 0)
+         {
+            const int te_vdim = h / te_ndofs;
+            for (int m = 0; m < M; m++)
+            { hs[m] += test_fes[m]->GetDof() * te_vdim; }
+         }
+         else
+         {
+            hs[0] += h;
+         }
+      }
+
+      int tot_w = 0;
+      for (int w : ws) { tot_w += w; }
+      int tot_h = 0;
+      for (int h : hs) { tot_h += h; }
+
+      elmat.SetSize(tot_h, tot_w);
+      elmat = 0.0;
+
+      std::array<int, NN> off_js{};
+      std::array<int, MM> off_is{};
+      for (int j = 0; j < NN-1; j++)
+      {
+         off_js[j+1] = off_js[j] + ws[j];
+      }
+      for (int i = 0; i < MM-1; i++)
+      {
+         off_is[i+1] = off_is[i] + hs[i];
+      }
+      for (int i = 0; i < numBlocks; i++)
+      {
+         const int w = elmats[i].Width();
+         const int h = elmats[i].Height();
+         const int tr_vdim = (N > 0)?(w / tr_ndofs):(1);
+         const int te_vdim = (M > 0)?(h / te_ndofs):(1);
+         int off_n = 0;
+         for (int n = 0; n < NN; n++)
+         {
+            const int w_n = (N > 0)?(trial_fes[n]->GetDof() * tr_vdim):(w);
+            int off_m = 0;
+            for (int m = 0; m < MM; m++)
+            {
+               const int h_m = (M > 0)?(test_fes[m]->GetDof() * te_vdim):(h);
+               elmat.CopyMN(elmats[i], h_m, w_n, off_m, off_n, off_is[m], off_js[n]);
+               off_m += h_m;
+               if (n == NN-1)
+               {
+                  off_is[m] += h_m;
+               }
+            }
+            off_n += w_n;
+            off_js[n] += w_n;
+         }
+      }
+   }
+}
+
 /** An abstract class for integrating the product of two scalar basis functions
     with an optional scalar coefficient. */
 class MixedScalarIntegrator: public BilinearFormIntegrator
@@ -3613,14 +3955,15 @@ private:
       \alpha \langle \rho_u \{v\},[w \cdot n] \rangle
       + \beta \langle \rho_u (u \cdot n) / |u \cdot n| [v],[w \cdot n] \rangle,
     $$
-    where $v$ and $w$ are the trial and test variables, respectively, and $\rho$/$u$ are
-    given scalar/vector coefficients. $\{v\}$ represents the average value of $v$ on
-    the face and $[v]$ is the jump such that $\{v\}=(v_1+v_2)/2$ and $[v]=(v_1-v_2)$ for the
-    face between elements $1$ and $2$. For boundary elements, $v_2=0$. The vector
-    coefficient, $u$, is assumed to be continuous across the faces and when given
-    the scalar coefficient, $\rho$, is assumed to be discontinuous. The integrator
-    uses the upwind value of $\rho$, denoted by $\rho_u$, which is value from the side into
-    which the vector coefficient, $u$, points.
+    where $v$ is the scalar trial variable and $w$ is the vector test variable.
+    $\rho$/$u$ are given scalar/vector coefficients. $\{v\}$ represents the
+    average value of $v$ on the face and $[v]$ is the jump such that
+    $\{v\}=(v_1+v_2)/2$ and $[v]=(v_1-v_2)$ for the face between elements $1$
+    and $2$. For boundary elements, $v_2=0$. The vector coefficient, $u$, is
+    assumed to be continuous across the faces and when given the scalar
+    coefficient, $\rho$, is assumed to be discontinuous. The integrator uses
+    the upwind value of $\rho$, denoted by $\rho_u$, which is value from the
+    side into which the vector coefficient, $u$, points.
     */
 class DGNormalTraceIntegrator : public BilinearFormIntegrator
 {
