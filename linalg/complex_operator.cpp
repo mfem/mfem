@@ -907,14 +907,23 @@ ComplexBlockOperator::ComplexBlockOperator(const ComplexOperator &A)
    {
       for (int j = 0; j < Ar->NumColBlocks(); ++j)
       {
-         HypreParMatrix *Rij = const_cast<HypreParMatrix*>
-                               (dynamic_cast<const HypreParMatrix*>(&Ar->GetBlock(i, j)));
-         HypreParMatrix *Iij = const_cast<HypreParMatrix*>
-                               (dynamic_cast<const HypreParMatrix*>(&Ai->GetBlock(i, j)));
+         HypreParMatrix *Rij = nullptr;
+         if (!Ar->IsZeroBlock(i, j))
+         {
+            Rij = const_cast<HypreParMatrix*>
+                  (dynamic_cast<const HypreParMatrix*>(&Ar->GetBlock(i, j)));
+         }
 
-         MFEM_VERIFY((Rij && Iij) || (!Rij && !Iij),
-                     "ComplexBlockOperator: inconsistent sparsity at block ("
-                     << i << "," << j << ").");
+         HypreParMatrix *Iij = nullptr;
+         if (!Ai->IsZeroBlock(i, j))
+         {
+            Iij = const_cast<HypreParMatrix*>
+                  (dynamic_cast<const HypreParMatrix*>(&Ai->GetBlock(i, j)));
+         }
+
+         // MFEM_VERIFY((Rij && Iij) || (!Rij && !Iij),
+         //             "ComplexBlockOperator: inconsistent sparsity at block ("
+         //             << i << "," << j << ").");
 
          if (Rij)
          {
