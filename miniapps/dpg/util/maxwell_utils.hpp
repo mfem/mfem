@@ -55,8 +55,8 @@ class DielectricTensorComponentCoefficient : public Coefficient
 {
 private:
    real_t delta, a0, a1;
-   bool use_imag;
    int row, col;
+   bool use_imag;
 
 public:
    /// Constructor

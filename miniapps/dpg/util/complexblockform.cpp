@@ -254,7 +254,6 @@ void ComplexBlockForm::Assemble(int skip_zeros)
    }
 
    // loop through the elements
-   int dim = mesh->Dimension();
    DenseMatrix A_r, Ae_r;
    DenseMatrix A_i, Ae_i;
    Array<int> vdofs;
