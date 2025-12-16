@@ -15,6 +15,8 @@
 //        ( (b⋅∇)J₁ , (b⋅∇) G) + c₁ (J₁ , G) - c₁ (P(r) (b ⊗ b) E, G) = 0,  ∀ G ∈ (H¹(Ω))ᵈ 
 //        ( (b⋅∇)J₂ , (b⋅∇) H) + c₂ (J₂ , H) + c₂ (P(r) (b ⊗ b) E, H) = 0,  ∀ H ∈ (H¹(Ω))ᵈ
 
+// mpirun -np 8 ./lh-eld-fem -o 4 -paraview -eld -m data/quad.msh 
+
 #include "mfem.hpp"
 #include "../util/pcomplexweakform.hpp"
 #include "../util/pcomplexblockform.hpp"
