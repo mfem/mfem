@@ -824,6 +824,13 @@ void MemoryManager::RBase::create_next_node(size_t &nn)
 #endif
 }
 
+void MemoryManager::RBase::insert_duplicate(size_t a, size_t b)
+{
+   get_node(b).flag = static_cast<RBase::Node::Flags>(0);
+   instance().next_node = std::min(instance().next_node, b);
+   cleanup_nodes();
+}
+
 void MemoryManager::RBase::cleanup_nodes()
 {
    while (nodes.size())

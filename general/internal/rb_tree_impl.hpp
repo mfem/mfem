@@ -300,7 +300,7 @@ size_t RBTree<ChildType>::insert(size_t &root, size_t pos, size_t curr)
       else
       {
          // duplicate range, ignore
-         static_cast<ChildType &>(*this).insert_duplicate(x);
+         static_cast<ChildType &>(*this).insert_duplicate(x, curr);
          return x;
       }
    }
@@ -345,7 +345,7 @@ size_t RBTree<ChildType>::insert(size_t &root, size_t curr)
       else
       {
          // duplicate range, ignore
-         static_cast<ChildType &>(*this).insert_duplicate(x);
+         static_cast<ChildType &>(*this).insert_duplicate(x, curr);
          return x;
       }
    }

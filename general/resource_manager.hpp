@@ -139,7 +139,7 @@ private:
          return nb.offset - na.offset;
       }
 
-      void insert_duplicate(size_t curr) { nodes.pop_back(); }
+      void insert_duplicate(size_t a, size_t b);
 
       void cleanup_nodes();
       void cleanup_segments();
