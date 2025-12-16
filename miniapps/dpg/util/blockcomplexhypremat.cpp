@@ -56,18 +56,24 @@ ComplexOperator * ParBlockComplexSystem::EliminateBC(const Array<int>
          {
             auto mat_r = &(HypreParMatrix &)op_r->GetBlock(i,i);
             op_e_r->SetBlock(i, i, mat_r->EliminateRowsCols(*ess_tdofs[i]));
-            auto mat_i = &(HypreParMatrix &)op_i->GetBlock(i,i);
-            op_e_i->SetBlock(i, i, mat_i->EliminateCols(*ess_tdofs[i]));
-            mat_i->EliminateRows(*ess_tdofs[i]);
+            if (!op_i->IsZeroBlock(i,j))
+            {
+               auto mat_i = &(HypreParMatrix &)op_i->GetBlock(i,i);
+               op_e_i->SetBlock(i, i, mat_i->EliminateCols(*ess_tdofs[i]));
+               mat_i->EliminateRows(*ess_tdofs[i]);
+            }
          }
          else
          {
             auto mat_r = &(HypreParMatrix &)op_r->GetBlock(i,j);
             op_e_r->SetBlock(i, j, mat_r->EliminateCols(*ess_tdofs[j]));
             mat_r->EliminateRows(*ess_tdofs[i]);
-            auto mat_i = &(HypreParMatrix &)op_i->GetBlock(i,j);
-            op_e_i->SetBlock(i, j, mat_i->EliminateCols(*ess_tdofs[j]));
-            mat_i->EliminateRows(*ess_tdofs[i]);
+            if (!op_i->IsZeroBlock(i,j))
+            {
+               auto mat_i = &(HypreParMatrix &)op_i->GetBlock(i,j);
+               op_e_i->SetBlock(i, j, mat_i->EliminateCols(*ess_tdofs[j]));
+               mat_i->EliminateRows(*ess_tdofs[i]);
+            }
          }
       }
    }
