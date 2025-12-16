@@ -334,7 +334,7 @@ int main(int argc, char *argv[])
 
       // 11. Solve the linear system with GMRES.
       //     Check the norm of the unpreconditioned residual.
-      GMRES(*A, M, B, X, 3, maxIter, 100, rtol*rtol, 0.0);
+      GMRES(*A, M, B, X, 3, maxIter, 500, rtol*rtol, 0.0);
 #else
       // 11. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
       UMFPackSolver umf_solver;
