@@ -467,27 +467,23 @@ MemoryManager::MemoryManager()
       allocs_storage[1].get();
 #endif
 
-#ifdef MFEM_USE_UMPIRE
    // default umpire allocators to internal ones until later so users can set
    // the pool names
-   allocs[static_cast<int>(MemoryType::HOST_UMPIRE)] = nullptr;
-   //      allocs[static_cast<int>(MemoryType::HOST)];
-   allocs[static_cast<int>(MemoryType::HOST_UMPIRE) + MemoryTypeSize] = nullptr;
-   //      allocs[static_cast<int>(MemoryType::HOST) + MemoryTypeSize];
+   allocs[static_cast<int>(MemoryType::HOST_UMPIRE)] =
+      allocs[static_cast<int>(MemoryType::HOST)];
+   allocs[static_cast<int>(MemoryType::HOST_UMPIRE) + MemoryTypeSize] =
+      allocs[static_cast<int>(MemoryType::HOST) + MemoryTypeSize];
 
-   allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE)] = nullptr;
-   //      allocs[static_cast<int>(MemoryType::DEVICE)];
+   allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE)] =
+      allocs[static_cast<int>(MemoryType::DEVICE)];
    allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE) + MemoryTypeSize] =
-      nullptr;
-   //      allocs[static_cast<int>(MemoryType::DEVICE) + MemoryTypeSize];
+      allocs[static_cast<int>(MemoryType::DEVICE) + MemoryTypeSize];
 
-   allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE_2)] = nullptr;
-   //      allocs[static_cast<int>(MemoryType::DEVICE) + MemoryTypeSize];
+   allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE_2)] =
+      allocs[static_cast<int>(MemoryType::DEVICE) + MemoryTypeSize];
    allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE_2) + MemoryTypeSize] =
-      nullptr;
-   //      allocs[static_cast<int>(MemoryType::DEVICE) + MemoryTypeSize];
+      allocs[static_cast<int>(MemoryType::DEVICE) + MemoryTypeSize];
    // TODO: managed/host-pinned umpire pools?
-#endif
 }
 
 void MemoryManager::Configure(MemoryType host_loc, MemoryType device_loc,
