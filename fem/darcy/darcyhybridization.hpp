@@ -72,6 +72,7 @@ private:
    bool bsym{};
    bool bfin{};
    DiagonalPolicy diag_policy{DIAG_ONE};
+   Array<int> ess_tdof_list;
 
    struct
    {
@@ -118,6 +119,7 @@ private:
    Vector darcy_u, darcy_p;
    mutable Array<int> f_2_b;
 
+   std::unique_ptr<SparseMatrix> He;
    mutable std::unique_ptr<SparseMatrix> Grad;
    mutable OperatorHandle pGrad;
 
@@ -503,6 +505,20 @@ public:
    /// Prepare the Hybridization object for assembly.
    void Init(const Array<int> &ess_flux_tdof_list) override;
 
+   /// Specify essential boundary conditions.
+   void SetEssentialBC(const Array<int> &bdr_attr_is_ess);
+
+   /// Specify essential boundary conditions.
+   /** Use either SetEssentialBC() or SetEssentialTrueDofs() if possible. */
+   void SetEssentialVDofs(const Array<int> &ess_vdofs_list);
+
+   /// Specify essential boundary conditions.
+   void SetEssentialTrueDofs(const Array<int> &ess_tdof_list_)
+   { ess_tdof_list_.Copy(ess_tdof_list); }
+
+   /// Return a (read-only) list of all essential true dofs.
+   const Array<int> &GetEssentialTrueDofs() const { return ess_tdof_list; }
+
    /// Assemble the element matrix A into the hybridized system matrix.
    void AssembleMatrix(int el, const DenseMatrix &A) override
    { MFEM_ABORT("Not supported, system part must be specified"); }
@@ -542,6 +558,30 @@ public:
        */
    virtual void EliminateTrueDofsInRHS(const Array<int> &tdofs_flux,
                                        const BlockVector &X, BlockVector &B);
+
+   /** @brief Eliminate the given @a tdofs, storing the eliminated part
+       internally in $ H_e $.
+
+       This method works in conjunction with EliminateTraceVDofsInRHS() and
+       allows elimination of boundary conditions in multiple right-hand sides.
+       In this method, @a tdofs is a list of DOFs. */
+   void EliminateTraceTrueDofs(const Array<int> &tdofs,
+                               DiagonalPolicy dpolicy = DIAG_ONE);
+
+   /// Eliminate the essential true DOFs
+   void EliminateTraceTrueDofs(DiagonalPolicy dpolicy = DIAG_ONE);
+
+   /** @brief Use the stored eliminated part of the matrix (see
+       EliminateTraceVDofs(const Array<int> &, DiagonalPolicy)) to modify the
+       r.h.s. @a b; @a vdofs is a list of DOFs (non-directional, i.e. >= 0). */
+   void EliminateTraceTrueDofsInRHS(const Array<int> &vdofs, const Vector &x,
+                                    Vector &b);
+
+   /// Eliminate the essential true DOFs in r.h.s.
+   void EliminateTraceTrueDofsInRHS(const Vector &x, Vector &b);
+
+   /// Return the eliminated part of the hybridized matrix.
+   SparseMatrix& GetMatrixElim() const { return *He; };
 
 #ifdef MFEM_USE_MPI
    /// Return the parallel hybridized operator.

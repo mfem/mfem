@@ -731,6 +731,10 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
          {
             X_ = 0.0;
          }
+         else if (hybridization)
+         {
+            hybridization->EliminateTraceTrueDofsInRHS(X_, B_);
+         }
       }
       else
       {
@@ -777,6 +781,10 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
          else if (!copy_interior)
          {
             X_ = 0.0;
+         }
+         else if (hybridization)
+         {
+            hybridization->EliminateTraceTrueDofsInRHS(X_, B_);
          }
       }
       else

@@ -251,6 +251,40 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
    }
 }
 
+void DarcyHybridization::SetEssentialBC(const Array<int> &bdr_attr_is_ess)
+{
+   c_fes.GetEssentialTrueDofs(bdr_attr_is_ess, ess_tdof_list);
+}
+
+void DarcyHybridization::SetEssentialVDofs(const Array<int> &ess_vdofs_list)
+{
+   if (c_fes.Conforming())
+   {
+      ess_vdofs_list.Copy(ess_tdof_list); // ess_vdofs_list --> ess_tdof_list
+   }
+   else
+   {
+      Array<int> ess_vdof_marker, ess_tdof_marker;
+      FiniteElementSpace::ListToMarker(ess_vdofs_list, c_fes.GetVSize(),
+                                       ess_vdof_marker);
+      if (!ParallelC())
+      {
+         c_fes.ConvertToConformingVDofs(ess_vdof_marker, ess_tdof_marker);
+      }
+      else
+      {
+#ifdef MFEM_USE_MPI
+         ess_tdof_marker.SetSize(c_pfes->GetTrueVSize());
+         c_pfes->Dof_TrueDof_Matrix()->BooleanMultTranspose(1, ess_vdof_marker,
+                                                            0, ess_tdof_marker);
+#else
+         MFEM_ABORT("internal MFEM error");
+#endif
+      }
+      FiniteElementSpace::MarkerToList(ess_tdof_marker, ess_tdof_list);
+   }
+}
+
 void DarcyHybridization::AssembleFluxMassMatrix(int el, const DenseMatrix &A)
 {
    const int o = hat_offsets[el];
@@ -1912,6 +1946,11 @@ void DarcyHybridization::Finalize()
       ComputeParH(ComputeHMode::Linear, H, pH);
       pOp = pH;
 #endif //MFEM_USE_MPI
+      if (H)
+      {
+         EliminateTraceTrueDofs(diag_policy);
+         He->Finalize();
+      }
    }
    else
    {
@@ -2124,6 +2163,37 @@ void DarcyHybridization::EliminateTrueDofsInRHS(
    {
       b_t(tdof) = x_t(tdof);//<--can be arbitrary as it is ignored
    }
+}
+
+void DarcyHybridization::EliminateTraceTrueDofs(const Array<int> &vdofs,
+                                                DiagonalPolicy dpolicy)
+{
+   if (!He) { He.reset(new SparseMatrix(H->Height())); }
+
+   if (vdofs.Size() == 0) { return; }
+
+   for (int vdof : vdofs)
+   {
+      H->EliminateRowCol(vdof, *He, diag_policy);
+   }
+}
+
+void DarcyHybridization::EliminateTraceTrueDofs(DiagonalPolicy dpolicy)
+{
+   EliminateTraceTrueDofs(GetEssentialTrueDofs(), dpolicy);
+}
+
+void DarcyHybridization::EliminateTraceTrueDofsInRHS(const Array<int> &vdofs_,
+                                                     const Vector &x, Vector &b)
+{
+   MFEM_VERIFY(H && He, "The hybridization matrix is not assembled!");
+   He->AddMult(x, b, -1.);
+   H->PartMult(vdofs_, x, b);
+}
+
+void DarcyHybridization::EliminateTraceTrueDofsInRHS(const Vector &x, Vector &b)
+{
+   EliminateTraceTrueDofsInRHS(GetEssentialTrueDofs(), x, b);
 }
 
 void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
@@ -3288,6 +3358,8 @@ void DarcyHybridization::Reset()
 {
    Hybridization::Reset();
    bfin = false;
+   ess_tdof_list.DeleteAll();
+   He.reset();
 
    A_empty = true;
    Bf_data = 0.;
