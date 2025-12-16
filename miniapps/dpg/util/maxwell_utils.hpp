@@ -99,7 +99,7 @@ public:
 
 };
 
-// Integrator for (vq·∇) u · v where u ∈ (H¹(Ω))ᵈ ,v ∈ (H¹(Ω))ᵈ or (L²(Ω))ᵈ
+// Integrator for (vq·∇) u · v where u ∈ (H¹(Ω))ᵈ, v ∈ (H¹(Ω))ᵈ or (L²(Ω))ᵈ
 class DirectionalVectorGradientIntegrator : public BilinearFormIntegrator
 {
 private:
