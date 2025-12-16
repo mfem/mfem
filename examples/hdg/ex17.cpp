@@ -81,13 +81,14 @@ ostream &operator<<(ostream &v, void (*f)(VisMan&));
 int main(int argc, char *argv[])
 {
    // 1. Define and parse command-line options.
-   const char *mesh_file = "../../data/beam-quad.mesh";
+   const char *mesh_file = "../../data/beam-tri.mesh";
    int ref_levels = -1;
    int order = 1;
    real_t td = 0.5;
    bool reduction = false;
    bool hybridization = false;
    bool trace_h1 = true;
+   bool trace_ess_bc = true;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -105,6 +106,8 @@ int main(int argc, char *argv[])
                   "--no-hybridization", "Enable hybridization.");
    args.AddOption(&trace_h1, "-trh1", "--trace-H1", "-trdg",
                   "--trace-DG", "Switch between H1 and DG trace spaces (default H1).");
+   args.AddOption(&trace_ess_bc, "-trbc", "--trace-ess-bc", "-no-trbc",
+                  "--no-trace-ess-bc", "Switch between essential and weak trace BC.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -164,7 +167,7 @@ int main(int argc, char *argv[])
    //    These b.c. are imposed weakly, by adding the appropriate boundary
    //    integrators over the marked 'dir_bdr' to the bilinear and linear forms.
    //    With this DG formulation, there are no essential boundary conditions.
-   Array<int> ess_tdof_list; // no essential b.c. (empty list)
+   Array<int> ess_flux_tdofs_list; // no essential b.c. (empty list)
    Array<int> dir_bdr(mesh.bdr_attributes.Max());
    dir_bdr = 0;
    dir_bdr[0] = 1; // boundary attribute 1 is Dirichlet
@@ -234,7 +237,10 @@ int main(int argc, char *argv[])
    //    function 'InitDisplacement'.
    LinearForm *f = darcy.GetFluxRHS();
    cout << "r.h.s. ... " << flush;
-   f->AddBdrFaceIntegrator(new DGBdrDisplacementLFIntegrator(init_u), dir_bdr);
+   if (!hybridization || !trace_ess_bc)
+   {
+      f->AddBdrFaceIntegrator(new DGBdrDisplacementLFIntegrator(init_u), dir_bdr);
+   }
 
    // 9. Set up the bilinear form a(.,.) on the DG finite element space
    //    corresponding to the linear elasticity integrator with coefficients
@@ -255,13 +261,19 @@ int main(int argc, char *argv[])
                                new DGNormalStressIntegrator(+2.)), neu_bdr);
    Mu->AddInteriorFaceIntegrator(new VectorBlockDiagonalIntegrator(
                                     dim, new HDGDiffusionIntegrator(sumlame_c, td)));
+   if (hybridization && trace_ess_bc)
+   {
+      Bs->AddBdrFaceIntegrator(new TransposeIntegrator(
+                                  new DGNormalStressIntegrator(+2.)), dir_bdr);
+      Mu->AddBdrFaceIntegrator(new VectorBlockDiagonalIntegrator(
+                                  dim, new HDGDiffusionIntegrator(sumlame_c, td)), dir_bdr);
+   }
 
    //set hybridization / assembly level
 
-   Array<int> ess_flux_tdofs_list;
-
    FiniteElementCollection *trace_coll = NULL;
    FiniteElementSpace *trace_space = NULL;
+   Vector X;
 
    if (hybridization)
    {
@@ -277,6 +289,19 @@ int main(int argc, char *argv[])
       darcy.EnableHybridization(trace_space,
                                 new NormalStressJumpIntegrator(-1.),
                                 ess_flux_tdofs_list);
+      // set essential BC
+      if (trace_ess_bc)
+      {
+         X.SetSize(trace_space->GetTrueVSize());
+         // project essential BC
+         GridFunction uhat;
+         uhat.MakeTRef(trace_space, X, 0);
+         uhat = 0.;
+         uhat.ProjectBdrCoefficient(init_u, dir_bdr);
+         uhat.SetTrueVector();
+
+         darcy.GetHybridization()->SetEssentialBC(dir_bdr);
+      }
    }
    else if (reduction)
    {
@@ -288,8 +313,8 @@ int main(int argc, char *argv[])
    darcy.Assemble();
 
    OperatorPtr A;
-   Vector B, X;
-   darcy.FormLinearSystem(ess_tdof_list, x, A, X, B);
+   Vector B;
+   darcy.FormLinearSystem(ess_flux_tdofs_list, x, A, X, B, true);
    cout << "done." << endl;
 
    cout << "Size of linear system: " << A->Height() << endl;
