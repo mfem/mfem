@@ -5192,6 +5192,122 @@ void NormalTraceJumpIntegrator::AssembleFaceMatrix(
    }
 }
 
+void NormalStressJumpIntegrator::AssembleFaceMatrix(
+   const FiniteElement &trial_face_fe, const FiniteElement &test_fe1,
+   const FiniteElement &test_fe2, FaceElementTransformations &Trans,
+   DenseMatrix &elmat)
+{
+   MFEM_VERIFY(trial_face_fe.GetMapType() == FiniteElement::VALUE, "");
+
+   const int face_ndof = trial_face_fe.GetDof();
+   const int ndof1 = test_fe1.GetDof();
+   const int ndof2 = (Trans.Elem2No >= 0)?(test_fe2.GetDof()):(0);
+   const int dim = test_fe1.GetDim();
+   const int dim_lame = 1 + dim * (dim+1) / 2;
+   Vector nor(dim);
+
+   face_shape.SetSize(face_ndof);
+   shape1.SetSize(ndof1);
+
+   if (ndof2)
+   {
+      shape2.SetSize(ndof2);
+   }
+
+   elmat.SetSize((ndof1 + ndof2) * dim_lame, face_ndof * dim);
+   elmat = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int order;
+      if (Trans.Elem2No >= 0)
+      {
+         order = max(test_fe1.GetOrder(), test_fe2.GetOrder());
+      }
+      else
+      {
+         order = test_fe1.GetOrder();
+      }
+      order += trial_face_fe.GetOrder() + Trans.OrderW();
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
+   }
+
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+      // Trace finite element shape function
+      trial_face_fe.CalcShape(ip, face_shape);
+      Trans.SetIntPoint(&ip);
+      CalcOrtho(Trans.Jacobian(), nor);
+      // Side 1 finite element shape function
+      test_fe1.CalcPhysShape(*Trans.Elem1, shape1);
+      const real_t w = ip.weight * sign;
+
+      auto kernel = [&elmat, &dim, &nor](const real_t w, const Vector &te_shape,
+                                         const Vector tr_face_shape, int ioff)
+      {
+         const int tr_face_ndof = tr_face_shape.Size();
+         const int te_ndof = te_shape.Size();
+
+         // scalar term
+         for (int d = 0; d < dim; d++)
+            for (int j = 0; j < tr_face_ndof; j++)
+            {
+               const real_t tr_shapen_d = w * tr_face_shape(j) * nor(d);
+               for (int i = 0; i < te_ndof; i++)
+               {
+                  elmat(ioff + i, j + d*tr_face_ndof) += te_shape(i) * tr_shapen_d;
+               }
+            }
+
+         // symmetric tensor term
+         int doff = 1;
+         for (int di = 0; di < dim; di++)
+         {
+            // diagonal term
+            for (int j = 0; j < tr_face_ndof; j++)
+            {
+               const real_t tr_shapen_d = w * tr_face_shape(j) * nor(di);
+               for (int i = 0; i < te_ndof; i++)
+               {
+                  elmat(ioff + i + doff*te_ndof,
+                        j + di*tr_face_ndof) += te_shape(i) * tr_shapen_d;
+               }
+            }
+            doff++;
+            // off-diagonal term
+            for (int dj = di+1; dj < dim; dj++)
+            {
+               for (int j = 0; j < tr_face_ndof; j++)
+               {
+                  const real_t tr_shapen_dj = w * tr_face_shape(j) * nor(dj);
+                  const real_t tr_shapen_di = w * tr_face_shape(j) * nor(di);
+                  for (int i = 0; i < te_ndof; i++)
+                  {
+                     elmat(ioff + i + doff*te_ndof,
+                           j + di*tr_face_ndof) += te_shape(i) * tr_shapen_dj;
+                     elmat(ioff + i + doff*te_ndof,
+                           j + dj*tr_face_ndof) += te_shape(i) * tr_shapen_di;
+                  }
+               }
+               doff++;
+            }
+         }
+      };
+
+      kernel(+w, shape1, face_shape, 0);
+
+      if (ndof2)
+      {
+         // Side 2 finite element shape function
+         test_fe2.CalcPhysShape(*Trans.Elem2, shape2);
+         // Subtract contribution from side 2
+         kernel(-w, shape2, face_shape, dim_lame*ndof1);
+      }
+   }
+}
+
 void TangentTraceJumpIntegrator::AssembleFaceMatrix(
    const FiniteElement &trial_face_fe, const FiniteElement &test_fe1,
    const FiniteElement &test_fe2, FaceElementTransformations &Trans,
