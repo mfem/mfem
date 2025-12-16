@@ -1014,7 +1014,7 @@ void NCNURBSExtension::GetMasterFaceDofs(bool dof, int mf,
       std::array<int, 4> orderedVertices;
       std::array<bool, 4> edgeBdry;
       std::set<int> vbdry;
-      int nf1, nf2;
+      int nf1 = 0, nf2 = 0;
       auto SetEdgeEntries = [&](int eidx, int edge, const Array<int> &evert,
                                 int &vstart)
       {
@@ -2607,7 +2607,7 @@ int NCNURBSExtension::SetPatchFactors(int p)
 
       // Set the same factor for all knotvectors in direction d.
       LoopEdgesForDirection(d, rf, false);
-      if (rf.Min() > unsetFactor) { dirSet += pow(2, d); }
+      if (rf.Min() > unsetFactor) { dirSet += static_cast<int>(pow(2, d)); }
    }
 
    MFEM_VERIFY(consistent, "");
@@ -2928,7 +2928,7 @@ void NCNURBSExtension::ReadCoarsePatchCP(std::istream &input)
    // element, and the number of control points in each dimension is
    // 2*(maxOrder + 1) - maxOrder - 1
    const int ncp1D = maxOrder + 1;
-   const int ncp = pow(ncp1D, Dimension());
+   const int ncp = static_cast<int>(pow(ncp1D, Dimension()));
 
    patchCP.SetSize(num_structured_patches, ncp, Dimension());
    for (int p=0; p<num_structured_patches; ++p)
@@ -2949,7 +2949,7 @@ void NCNURBSExtension::PrintCoarsePatches(std::ostream &os)
    // and the number of control points in each dimension is
    // 2*(maxOrder + 1) - maxOrder - 1
    const int ncp1D = maxOrder + 1;
-   const int ncp = pow(ncp1D, Dimension());
+   const int ncp = static_cast<int>(pow(ncp1D, Dimension()));
 
    os << "\npatch_cp\n" << num_structured_patches << "\n";
    for (int p=0; p<num_structured_patches; ++p)
