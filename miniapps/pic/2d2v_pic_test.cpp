@@ -58,44 +58,13 @@ using namespace mfem;
 using namespace mfem::common;
 using namespace mfem::electromagnetics;
 
-/// @brief Return weighted harmonic function
-class PhiGridFunctionCoefficient : public Coefficient
-{
-private:
-   real_t Phi_0;
-   real_t k_x;
-   real_t k_y;
-
-public:
-   PhiGridFunctionCoefficient(real_t Phi_0, real_t nl_x, real_t nl_y, real_t xmax, real_t ymax)
-       // k = 2 pi n / L  where L is the domain length
-       : Coefficient(), Phi_0(Phi_0), k_x(2.0 * M_PI * nl_x / xmax), k_y(2.0 * M_PI * nl_y / ymax)
-   {
-   }
-   real_t Eval(ElementTransformation &T,
-               const IntegrationPoint &ip) override
-   {
-      // get r, z coordinates
-      Vector x;
-      T.Transform(ip, x);
-      return Phi(x[0], x[1]);
-   }
-   real_t Phi(real_t x, real_t y) const
-   {
-      return Phi_0 * (cos(k_x * x) + cos(k_y * y));
-   }
-};
 struct LorentzContext
 {
    // mesh related parameters
    int order = 1;
-   real_t nl_x = 1.0;
-   real_t nl_y = 1.0;
-   real_t Phi_0 = 1.0;
    int nx = 100;
    int ny = 100;
-   real_t xmax = 1.0;
-   real_t ymax = 1.0;
+   real_t L_x = 1.0;
 
    struct DColl
    {
@@ -112,10 +81,10 @@ struct LorentzContext
    int npt = 1;
    real_t q = 1.0;
    real_t m = 1.0;
-   Vector x_min{-1.0, -1.0, -1.0};
-   Vector x_max{1.0, 1.0, 1.0};
-   Vector p_min{-1.0, -1.0, -1.0};
-   Vector p_max{1.0, 1.0, 1.0};
+
+   real_t k = 1;
+   real_t alpha = 0.1;
+
    real_t dt = 1e-2;
    real_t t0 = 0.0;
    int nt = 1000;
@@ -124,7 +93,6 @@ struct LorentzContext
    int rm_lost_freq = 1;
 
    bool visualization = true;
-   bool validate_phi = false;
    int visport = 19916;
    int vis_tail_size = 5;
    int vis_freq = 50;
@@ -186,9 +154,7 @@ private:
 public:
    // Update the phi_gf grid function from the particles.
    void UpdatePhiGridFunction(ParticleSet &particles, ParGridFunction &phi_gf);
-   void PhiValidation(const ParGridFunction &phi_gf);
    void TotalEnergyValidation(const ParticleSet &particles, const ParGridFunction &E_gf);
-   void TotalEnergyValidation(const ParticleSet &particles, const PhiGridFunctionCoefficient &phi_coeff);
    // constructor
    GridFunctionUpdates(ParGridFunction &phi_gf, bool use_precomputed_neutralizing_const_ = false)
        : use_precomputed_neutralizing_const(use_precomputed_neutralizing_const_)
@@ -205,7 +171,7 @@ public:
 
       { // Par bilinear form for the gradgrad matrix
          ParBilinearForm dm(pfes);
-         ConstantCoefficient epsilon(EPSILON); // ε_0
+         ConstantCoefficient epsilon(EPSILON);                     // ε_0
          dm.AddDomainIntegrator(new DiffusionIntegrator(epsilon)); // ∫ ∇φ_i · ∇φ_j
 
          dm.Assemble();
@@ -231,9 +197,9 @@ int ReadGridFunction(std::string coll_name, std::string field_name,
                      std::unique_ptr<VisItDataCollection> &dc, ParGridFunction *&gf);
 
 // Initialize particles from user input.
-void InitializeChargedParticles(ParticleSet &particles, const Vector &pos_min,
-                                const Vector &pos_max, const Vector &x_init, const Vector &p_init, real_t m,
-                                real_t q);
+void InitializeChargedParticles(ParticleSet &charged_particles,
+                                const real_t &k, const real_t &alpha,
+                                real_t m, real_t q, real_t L_x);
 
 int main(int argc, char *argv[])
 {
@@ -254,15 +220,10 @@ int main(int argc, char *argv[])
 
    // Field variables (moved into ctx)
    args.AddOption(&ctx.order, "-O", "--order", "Finite element polynomial degree");
-   args.AddOption(&ctx.nl_x, "-nlx", "--nl-x", "Number of wavelengths in the x direction.");
-   args.AddOption(&ctx.nl_y, "-nly", "--nl-y", "Number of wavelengths in the y direction.");
-   args.AddOption(&ctx.Phi_0, "-phi0", "--phi-0", "Initial scalar potential.");
 
    // Mesh parameters (moved into ctx)
    args.AddOption(&ctx.nx, "-nx", "--num-x", "Number of elements in the x direction.");
    args.AddOption(&ctx.ny, "-ny", "--num-y", "Number of elements in the y direction.");
-   args.AddOption(&ctx.xmax, "-mxmax", "--m-x-max", "Maximum x coordinate.");
-   args.AddOption(&ctx.ymax, "-mymax", "--m-y-max", "Maximum y coordinate.");
 
    args.AddOption(&ctx.redist_freq, "-rdf", "--redist-freq",
                   "Redistribution frequency.");
@@ -276,21 +237,14 @@ int main(int argc, char *argv[])
                   "Total number of particles.");
    args.AddOption(&ctx.m, "-m", "--mass", "Particles' mass.");
    args.AddOption(&ctx.q, "-q", "--charge", "Particles' charge.");
-   args.AddOption(&ctx.x_min, "-xmin", "--x-min",
-                  "Minimum initial particle location.");
-   args.AddOption(&ctx.x_max, "-xmax", "--x-max",
-                  "Maximum initial particle location.");
-   args.AddOption(&ctx.p_min, "-pmin", "--p-min",
-                  "Minimum initial particle momentum.");
-   args.AddOption(&ctx.p_max, "-pmax", "--p-max",
-                  "Maximum initial particle momentum.");
+   args.AddOption(&ctx.k, "-k", "--k", "K parameter for initial distribution.");
+   args.AddOption(&ctx.alpha, "-a", "--alpha", "Alpha parameter for initial distribution.");
+
    args.AddOption(&ctx.dt, "-dt", "--time-step", "Time Step.");
    args.AddOption(&ctx.t0, "-t0", "--initial-time", "Initial Time.");
    args.AddOption(&ctx.nt, "-nt", "--num-timesteps", "Number of timesteps.");
    args.AddOption(&ctx.visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization", "Enable or disable GLVis visualization.");
-   args.AddOption(&ctx.validate_phi, "-val", "--validate-phi", "-no-val",
-                  "--no-validate-phi", "Enable validation of phi_gf against analytical solution.");
    args.AddOption(&ctx.vis_tail_size, "-vt", "--vis-tail-size",
                   "GLVis visualization trajectory truncation tail size.");
    args.AddOption(&ctx.vis_freq, "-vf", "--vis-freq",
@@ -311,14 +265,15 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
+   ctx.L_x = 2.0 * M_PI / ctx.k;
 
    std::unique_ptr<VisItDataCollection> E_dc, B_dc;
    ParGridFunction *E_gf = nullptr, *B_gf = nullptr;
 
    // build up E_gf, B_gf can remain nullptr
    // 1. make a 2D Cartesian Mesh
-   Mesh serial_mesh(Mesh::MakeCartesian2D(ctx.nx, ctx.ny, Element::QUADRILATERAL, false, ctx.xmax, ctx.ymax));
-   std::vector<Vector> translations = {Vector({ctx.xmax, 0.0}), Vector({0.0, ctx.ymax})};
+   Mesh serial_mesh(Mesh::MakeCartesian2D(ctx.nx, ctx.ny, Element::QUADRILATERAL, false, ctx.L_x, ctx.L_x));
+   std::vector<Vector> translations = {Vector({ctx.L_x, 0.0}), Vector({0.0, ctx.L_x})};
    Mesh periodic_mesh(Mesh::MakePeriodic(serial_mesh, serial_mesh.CreatePeriodicVertexMapping(translations)));
    // 2. parallelize the mesh
    ParMesh mesh(MPI_COMM_WORLD, periodic_mesh);
@@ -330,54 +285,21 @@ int main(int argc, char *argv[])
    ND_FECollection vec_fec(ctx.order, dim);
    ParFiniteElementSpace vec_fespace(&mesh, &vec_fec);
 
-   // 4. Define phi_gf as \phi(x, y) = \Phi_0 \cos(nl_x x)\cos(nl_y y)
+   // 4. Prepare an empty phi_gf and E_gf for later use
    ParGridFunction phi_gf(&sca_fespace);
    E_gf = new ParGridFunction(&vec_fespace);
+   phi_gf = 0.0; // Initialize phi_gf to zero
+   *E_gf = 0.0;  // Initialize E_gf to zero
 
-   PhiGridFunctionCoefficient phi_coeff(ctx.Phi_0, ctx.nl_x, ctx.nl_y, ctx.xmax, ctx.ymax);
-   phi_gf.ProjectCoefficient(phi_coeff);
-   if (ctx.visualization)
-   {
-      int num_procs = Mpi::WorldSize();
-      int myid = Mpi::WorldRank();
-      char vishost[] = "localhost";
-      int visport = ctx.visport;
-      socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock.precision(8);
-      sol_sock << "solution\n"
-               << mesh << phi_gf << flush;
-   }
-
-   // 5. Compute E_gf = - \grad \phi_gf
-   ParGridFunction neg_phi_gf(&sca_fespace);
-   neg_phi_gf = 0.0;
-   neg_phi_gf -= phi_gf;
-   GradientGridFunctionCoefficient E_coeff(&neg_phi_gf);
-   E_gf->ProjectCoefficient(E_coeff);
-   if (ctx.visualization)
-   {
-      int num_procs = Mpi::WorldSize();
-      int myid = Mpi::WorldRank();
-      char vishost[] = "localhost";
-      int visport = ctx.visport;
-      socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock.precision(8);
-      sol_sock << "solution\n"
-               << mesh << *E_gf << flush;
-   }
-
-   // 6. Build the grid function updates
+   // 7. Build the grid function updates
    GridFunctionUpdates gf_updates(phi_gf, true);
-
    Ordering::Type ordering_type = ctx.ordering == 0 ? Ordering::byNODES : Ordering::byVDIM;
 
    // Initialize Boris
    int num_particles = ctx.npt / size + (rank < (ctx.npt % size) ? 1 : 0);
    Boris boris(MPI_COMM_WORLD, E_gf, B_gf, num_particles, ordering_type);
-   InitializeChargedParticles(boris.GetParticles(), ctx.x_min, ctx.x_max,
-                              ctx.p_min, ctx.p_max, ctx.m, ctx.q);
+   InitializeChargedParticles(boris.GetParticles(),
+                              ctx.k, ctx.alpha, ctx.m, ctx.q, ctx.L_x);
    boris.InterpolateEB(); // Interpolate E and B field onto updated particle positions
 
    real_t t = ctx.t0;
@@ -391,7 +313,7 @@ int main(int argc, char *argv[])
    {
       traj_vis = std::make_unique<ParticleTrajectories>(boris.GetParticles(),
                                                         ctx.vis_tail_size, vishost, ctx.visport, "Particle Trajectories", 0, 0, 800,
-                                                        800, "ba", 0.75 * max(ctx.xmax, ctx.ymax));
+                                                        800, "ba", 0.75 * ctx.L_x);
    }
 
    // set up timer
@@ -429,7 +351,7 @@ int main(int argc, char *argv[])
       {
          boris.RemoveLostParticles();
          std::string csv_prefix = "Lorentz_Part_";
-         Array<int> field_idx, tag_idx;
+         Array<int> field_idx{2}, tag_idx;
          std::string file_name = csv_prefix + mfem::to_padded_string(step, 6) + ".csv";
          boris.GetParticles().PrintCSV(file_name.c_str(), field_idx, tag_idx);
       }
@@ -442,15 +364,13 @@ int main(int argc, char *argv[])
          boris.Redistribute(ctx.redist_mesh);
 
          // Update phi_gf from particles
-         // gf_updates.UpdatePhiGridFunction(boris.GetParticles(), phi_gf);
-         // ParGridFunction neg_phi_gf(&sca_fespace);
-         // neg_phi_gf = 0.0;
-         // neg_phi_gf -= phi_gf;
-         // GradientGridFunctionCoefficient E_coeff(&neg_phi_gf);
-         // E_gf->ProjectCoefficient(E_coeff);
-         // gf_updates.TotalEnergyValidation(boris.GetParticles(), *E_gf);
-
-         // gf_updates.TotalEnergyValidation(boris.GetParticles(), phi_coeff);
+         gf_updates.UpdatePhiGridFunction(boris.GetParticles(), phi_gf);
+         ParGridFunction neg_phi_gf(&sca_fespace);
+         neg_phi_gf = 0.0;
+         neg_phi_gf -= phi_gf;
+         GradientGridFunctionCoefficient E_coeff(&neg_phi_gf);
+         E_gf->ProjectCoefficient(E_coeff);
+         gf_updates.TotalEnergyValidation(boris.GetParticles(), *E_gf);
       }
    }
 }
@@ -509,12 +429,12 @@ void Boris::ParticleStep(Particle &part, real_t &dt, bool zeroth_step)
    x.Add(dt / m, p);
 
    // periodic boundary: wrap around using ctx mesh extents
-   x(0) = fmod(x(0), ctx.xmax);
+   x(0) = fmod(x(0), ctx.L_x);
    if (x(0) < 0.0)
-      x(0) += ctx.xmax;
-   x(1) = fmod(x(1), ctx.ymax);
+      x(0) += ctx.L_x;
+   x(1) = fmod(x(1), ctx.L_x);
    if (x(1) < 0.0)
-      x(1) += ctx.ymax;
+      x(1) += ctx.L_x;
 }
 
 Boris::Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_,
@@ -686,15 +606,18 @@ int ReadGridFunction(std::string coll_name, std::string field_name,
 }
 
 void InitializeChargedParticles(ParticleSet &charged_particles,
-                                const Vector &x_min, const Vector &x_max, const Vector &p_min,
-                                const Vector &p_max, real_t m, real_t q)
+                                const real_t &k, const real_t &alpha,
+                                real_t m, real_t q, real_t L_x)
 {
    int rank;
    MPI_Comm_rank(charged_particles.GetComm(), &rank);
    std::mt19937 gen(rank);
    std::uniform_real_distribution<> real_dist(0.0, 1.0);
+   std::normal_distribution<> norm_dist(0.0, 1.0);
 
    int dim = charged_particles.Coords().GetVDim();
+   // assert alpha in [0, 1/d)
+   MFEM_VERIFY(alpha >= -1.0 && alpha < 1.0, "Alpha should be in range [-1, 1).");
 
    MultiVector &X = charged_particles.Coords();
    MultiVector &P = charged_particles.Field(Boris::MOM);
@@ -704,12 +627,19 @@ void InitializeChargedParticles(ParticleSet &charged_particles,
    for (int i = 0; i < charged_particles.GetNP(); i++)
    {
       for (int d = 0; d < dim; d++)
-      {
-         // Initialize coords
-         X(i, d) = x_min[d] + real_dist(gen) * (x_max[d] - x_min[d]);
-
          // Initialize momentum
-         P(i, d) = p_min[d] + real_dist(gen) * (p_max[d] - p_min[d]);
+         P(i, d) = m * norm_dist(gen);
+
+      for (int d = 0; d < dim; d++)
+      {
+         while (true)
+         {
+            X(i, d) = real_dist(gen) * L_x;
+            double w = 1.0 + alpha * std::cos(k * X(i, d)); // should be >= 0 if |alpha|<=1
+
+            if (real_dist(gen) < w / (1.0 + std::abs(alpha)))
+               break;
+         }
       }
       // Initialize mass + charge
       M(i) = m;
@@ -911,8 +841,6 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
                   << *pmesh << phi_gf << std::flush;
       }
    }
-   if (ctx.validate_phi)
-      PhiValidation(phi_gf);
 }
 class GreenFunctionCoefficient : public Coefficient
 {
@@ -947,43 +875,6 @@ public:
       return val;
    }
 };
-
-void GridFunctionUpdates::PhiValidation(const ParGridFunction &phi_gf)
-{
-   // FE space / mesh
-   ParFiniteElementSpace *pfes = phi_gf.ParFESpace();
-   ParGridFunction var_phi_gf(pfes);
-   GreenFunctionCoefficient green_coeff;
-   var_phi_gf.ProjectCoefficient(green_coeff);
-   ParMesh *pmesh = pfes->GetParMesh();
-   var_phi_gf -= phi_gf;
-   if (ctx.visualization)
-   {
-      static socketstream sol_sock;
-      static bool init = false;
-
-      int num_procs = Mpi::WorldSize();
-      int myid_vis = Mpi::WorldRank();
-      char vishost[] = "localhost";
-      int visport = ctx.visport;
-
-      if (!init)
-      {
-         sol_sock.open(vishost, visport);
-         if (sol_sock)
-         {
-            init = true;
-         }
-      }
-      if (init)
-      {
-         sol_sock << "parallel " << num_procs << " " << myid_vis << "\n";
-         sol_sock.precision(8);
-         sol_sock << "solution\n"
-                  << *pmesh << var_phi_gf << std::flush;
-      }
-   }
-}
 
 void GridFunctionUpdates::TotalEnergyValidation(const ParticleSet &particles,
                                                 const ParGridFunction &E_gf)
@@ -1051,50 +942,6 @@ void GridFunctionUpdates::TotalEnergyValidation(const ParticleSet &particles,
    if (Mpi::Root())
    {
       std::ofstream energy_file("energy.csv", std::ios::app);
-      energy_file << global_kinetic_energy << "," << global_field_energy << "," << global_kinetic_energy + global_field_energy << "\n";
-   }
-}
-void GridFunctionUpdates::TotalEnergyValidation(const ParticleSet &particles,
-                                                const PhiGridFunctionCoefficient &phi_coeff)
-{
-   const MultiVector &P = particles.Field(Boris::MOM);
-   const MultiVector &X = particles.Coords();
-   const MultiVector &M = particles.Field(Boris::MASS);
-   const MultiVector &Q = particles.Field(Boris::CHARGE);
-
-   real_t kinetic_energy = 0.0;
-   for (int p = 0; p < particles.GetNP(); ++p)
-   {
-      real_t p_square_p = 0.0;
-      for (int d = 0; d < P.GetVDim(); ++d)
-      {
-         p_square_p += P(p, d) * P(p, d);
-      }
-      kinetic_energy += 0.5 * p_square_p / M(p);
-   }
-
-   real_t field_energy = 0.0;
-   for (int p = 0; p < particles.GetNP(); ++p)
-   {
-      field_energy += Q(p) * phi_coeff.Phi(X(p, 0), X(p, 1));
-   }
-   // reduce kinetic energy and field energy
-   real_t global_kinetic_energy = 0.0;
-   MPI_Allreduce(&kinetic_energy, &global_kinetic_energy, 1, MPI_DOUBLE, MPI_SUM,
-                 particles.GetComm());
-   real_t global_field_energy = 0.0;
-   MPI_Allreduce(&field_energy, &global_field_energy, 1, MPI_DOUBLE, MPI_SUM,
-                 particles.GetComm());
-   if (Mpi::Root())
-   {
-      cout << "Kinetic energy: " << global_kinetic_energy << "\t";
-      cout << "Field energy: " << global_field_energy << "\t";
-      cout << "Total energy: " << global_kinetic_energy - global_field_energy << endl;
-   }
-   // write to a csv
-   if (Mpi::Root())
-   {
-      std::ofstream energy_file("energy.csv", std::ios::app);
-      energy_file << global_kinetic_energy << "," << global_field_energy << "," << global_kinetic_energy + global_field_energy << "\n";
+      energy_file << setprecision(10) << global_kinetic_energy << "," << global_field_energy << "," << global_kinetic_energy + global_field_energy << "\n";
    }
 }
