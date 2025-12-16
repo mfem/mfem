@@ -45,6 +45,9 @@ LH_ELD_DPG_OBJ = $(LH_ELD_DPG_SRC:.cpp=.o)
 LH_ELD_FOSLS_DPG_SRC = lh-eld-fosls-dpg.cpp $(DPG_COMPLEX_PAR_SRC) $(LH_UTILS_SRC)
 LH_ELD_FOSLS_DPG_OBJ = $(LH_ELD_FOSLS_DPG_SRC:.cpp=.o)
 
+LH_ELD_FOSLS_FEM_SRC = lh-eld-fosls-fem.cpp $(DPG_COMPLEX_PAR_SRC) $(LH_UTILS_SRC)
+LH_ELD_FOSLS_FEM_OBJ = $(LH_ELD_FOSLS_FEM_SRC:.cpp=.o)
+
 LH_ELD_DPG_FEM_SRC = lh-eld-dpg-fem.cpp $(DPG_COMPLEX_PAR_SRC) $(LH_UTILS_SRC)	
 LH_ELD_DPG_FEM_OBJ = $(LH_ELD_DPG_FEM_SRC:.cpp=.o)
 
@@ -54,9 +57,14 @@ LH_ELD_WEAK_OBJ = $(LH_ELD_WEAK_SRC:.cpp=.o)
 LH_ELD_DPG_FEM_WEAK_SRC = lh-eld-dpg-fem-weak.cpp $(DPG_COMPLEX_PAR_SRC) $(LH_UTILS_SRC)
 LH_ELD_DPG_FEM_WEAK_OBJ = $(LH_ELD_DPG_FEM_WEAK_SRC:.cpp=.o)
 
+LH_ELD_UW_SRC = lh-eld-uw.cpp $(DPG_COMPLEX_PAR_SRC) $(LH_UTILS_SRC)
+LH_ELD_UW_OBJ = $(LH_ELD_UW_SRC:.cpp=.o)
+
+
 SEQ_MINIAPPS = 
 PAR_MINIAPPS = lh-primal-dpg lh-eld-fem lh-eld-fem-symm lh-eld-dpg  \
- lh-eld-dpg-fem lh-eld-weak lh-eld-dpg-fem-weak lh-eld-fosls-dpg
+ lh-eld-dpg-fem lh-eld-weak lh-eld-dpg-fem-weak lh-eld-fosls-dpg\
+ lh-eld-fosls-fem lh-eld-uw
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -100,6 +108,9 @@ lh-eld-dpg: $(LH_ELD_DPG_OBJ)
 lh-eld-fosls-dpg: $(LH_ELD_FOSLS_DPG_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(LH_ELD_FOSLS_DPG_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
+lh-eld-fosls-fem: $(LH_ELD_FOSLS_FEM_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(LH_ELD_FOSLS_FEM_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
 lh-eld-dpg-fem: $(LH_ELD_DPG_FEM_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(LH_ELD_DPG_FEM_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
@@ -108,6 +119,9 @@ lh-eld-weak: $(LH_ELD_WEAK_OBJ)
 
 lh-eld-dpg-fem-weak: $(LH_ELD_DPG_FEM_WEAK_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(LH_ELD_DPG_FEM_WEAK_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
+lh-eld-uw: $(LH_ELD_UW_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(LH_ELD_UW_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
 # Rule for building lib-common
 lib-common:
