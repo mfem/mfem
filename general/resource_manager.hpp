@@ -144,33 +144,15 @@ private:
       void cleanup_nodes();
       void cleanup_segments();
 
+      void create_next_node(size_t &next_node);
+
       /// Insert a validity transition marker for a given @a segment
       size_t insert(size_t segment, ptrdiff_t offset, bool on_device,
-                    bool valid)
-      {
-         nodes.emplace_back();
-         nodes.back().offset = offset;
-         if (valid)
-         {
-            nodes.back().set_valid();
-         }
-         return insert(get_segment(segment).roots[on_device], nodes.size());
-      }
+                    bool valid, size_t &next_node);
 
       /// Insert a validity transition marker for a given @a segment
       size_t insert(size_t segment, size_t node, ptrdiff_t offset,
-                    bool on_device, bool valid)
-      {
-         nodes.emplace_back();
-         nodes.back().offset = offset;
-
-         if (valid)
-         {
-            nodes.back().set_valid();
-         }
-         return insert(get_segment(segment).roots[on_device], node,
-                       nodes.size());
-      }
+                    bool on_device, bool valid, size_t &next_node);
    };
 
    void print_segment(size_t segment);
@@ -182,7 +164,9 @@ private:
    MemoryManager();
 
    RBase storage;
+   size_t next_node = 1;
    size_t next_segment = 1;
+   void erase_node(size_t &root, size_t idx);
    std::array<std::unique_ptr<Allocator>, 2 * MemoryTypeSize> allocs_storage;
    std::array<Allocator *, 2 * MemoryTypeSize> allocs = {nullptr};
    // host, device, host-pinned, managed

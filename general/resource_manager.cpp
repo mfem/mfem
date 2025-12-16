@@ -769,6 +769,61 @@ char *MemoryManager::Alloc(size_t nbytes, MemoryType type, bool temporary)
    return static_cast<char *>(res);
 }
 
+size_t MemoryManager::RBase::insert(size_t segment, ptrdiff_t offset,
+                                    bool on_device, bool valid,
+                                    size_t &next_node)
+{
+   create_next_node(next_node);
+   auto &n = nodes[next_node - 1];
+   n.offset = offset;
+   if (valid)
+   {
+      n.set_valid();
+   }
+   return insert(get_segment(segment).roots[on_device], next_node);
+}
+size_t MemoryManager::RBase::insert(size_t segment, size_t node,
+                                    ptrdiff_t offset, bool on_device,
+                                    bool valid, size_t &next_node)
+{
+   create_next_node(next_node);
+   auto &n = nodes[next_node - 1];
+   n.offset = offset;
+   if (valid)
+   {
+      n.set_valid();
+   }
+
+   return insert(get_segment(segment).roots[on_device], node, next_node);
+}
+
+void MemoryManager::RBase::create_next_node(size_t &next_node)
+{
+#if 1
+   while (next_node <= nodes.size())
+   {
+      if (!(nodes[next_node - 1].flag & Node::Flags::USED))
+      {
+         // found a node we can reuse
+         break;
+      }
+      ++next_node;
+   }
+   if (next_node > nodes.size())
+   {
+      nodes.emplace_back();
+      MFEM_ASSERT(next_node <= nodes.size(), "next_node too large");
+   }
+   else
+   {
+      nodes[next_node - 1] = Node{};
+   }
+#else
+   nodes.emplace_back();
+   next_node = nodes.size();
+#endif
+}
+
 void MemoryManager::RBase::cleanup_nodes()
 {
    while (nodes.size())
@@ -791,6 +846,12 @@ void MemoryManager::RBase::cleanup_segments()
       }
       segments.pop_back();
    }
+}
+
+void MemoryManager::erase_node(size_t &root, size_t idx)
+{
+   next_node = std::min(next_node, idx);
+   storage.erase(root, idx);
 }
 
 template <class F>
@@ -823,9 +884,9 @@ void MemoryManager::mark_valid(size_t segment, bool on_device,
                   // entire span is validated
                   n.set_unused();
                   pn.set_unused();
-                  storage.erase(seg.roots[on_device], curr);
+                  erase_node(seg.roots[on_device], curr);
                   curr = storage.successor(next);
-                  storage.erase(seg.roots[on_device], next);
+                  erase_node(seg.roots[on_device], next);
                   storage.cleanup_nodes();
                   if (curr)
                   {
@@ -851,10 +912,10 @@ void MemoryManager::mark_valid(size_t segment, bool on_device,
                }
                else
                {
-                  storage.insert(
-                     segment,
-                     storage.insert(segment, curr, pos, on_device, true), stop,
-                     on_device, false);
+                  storage.insert(segment,
+                                 storage.insert(segment, curr, pos, on_device,
+                                                true, next_node),
+                                 stop, on_device, false, next_node);
                }
                break;
             }
@@ -871,16 +932,18 @@ void MemoryManager::mark_valid(size_t segment, bool on_device,
                else
                {
                   n.set_unused();
-                  storage.erase(seg.roots[on_device], curr);
+                  erase_node(seg.roots[on_device], curr);
                   storage.cleanup_nodes();
                }
             }
             else
             {
-               auto tmp = storage.insert(segment, curr, pos, on_device, true);
+               auto tmp = storage.insert(segment, curr, pos, on_device, true,
+                                         next_node);
                if (stop < seg.nbytes)
                {
-                  storage.insert(segment, tmp, stop, on_device, false);
+                  storage.insert(segment, tmp, stop, on_device, false,
+                                 next_node);
                }
             }
             break;
@@ -917,10 +980,10 @@ void MemoryManager::mark_invalid(size_t segment, bool on_device,
    if (!curr)
    {
       func(start, stop);
-      storage.insert(segment, start, on_device, false);
+      storage.insert(segment, start, on_device, false, next_node);
       if (stop < seg.nbytes)
       {
-         storage.insert(segment, stop, on_device, true);
+         storage.insert(segment, stop, on_device, true, next_node);
       }
       return;
    }
@@ -951,8 +1014,9 @@ void MemoryManager::mark_invalid(size_t segment, bool on_device,
             func(start, stop);
             // need new start and stop markers
             storage.insert(segment,
-                           storage.insert(segment, curr, start, on_device, false),
-                           stop, on_device, true);
+                           storage.insert(segment, curr, start, on_device,
+                                          false, next_node),
+                           stop, on_device, true, next_node);
             return;
          }
       }
@@ -976,9 +1040,9 @@ void MemoryManager::mark_invalid(size_t segment, bool on_device,
                   // entire span is invalidated
                   n.set_unused();
                   pn.set_unused();
-                  storage.erase(seg.roots[on_device], curr);
+                  erase_node(seg.roots[on_device], curr);
                   curr = storage.successor(next);
-                  storage.erase(seg.roots[on_device], next);
+                  erase_node(seg.roots[on_device], next);
                   storage.cleanup_nodes();
 
                   if (curr)
@@ -1006,8 +1070,9 @@ void MemoryManager::mark_invalid(size_t segment, bool on_device,
                else
                {
                   storage.insert(segment,
-                                 storage.insert(segment, curr, pos, on_device, false),
-                                 stop, on_device, true);
+                                 storage.insert(segment, curr, pos, on_device,
+                                                false, next_node),
+                                 stop, on_device, true, next_node);
                }
                break;
             }
@@ -1024,16 +1089,18 @@ void MemoryManager::mark_invalid(size_t segment, bool on_device,
                else
                {
                   n.set_unused();
-                  storage.erase(seg.roots[on_device], curr);
+                  erase_node(seg.roots[on_device], curr);
                   storage.cleanup_nodes();
                }
             }
             else
             {
-               auto tmp = storage.insert(segment, curr, pos, on_device, false);
+               auto tmp = storage.insert(segment, curr, pos, on_device, false,
+                                         next_node);
                if (stop < seg.nbytes)
                {
-                  storage.insert(segment, tmp, stop, on_device, true);
+                  storage.insert(segment, tmp, stop, on_device, true,
+                                 next_node);
                }
             }
             break;
@@ -1171,10 +1238,10 @@ void MemoryManager::clear_segment(RBase::Segment &seg)
    // cleanup nodes
    for (int i = 0; i < 2; ++i)
    {
-      storage.visit(
-      seg.roots[i], [](size_t) { return true; }, [](size_t) { return true; },
-      [&](size_t idx)
+      storage.visit(seg.roots[i], [](size_t) { return true; },
+      [](size_t) { return true; }, [&](size_t idx)
       {
+         next_node = std::min(next_node, idx);
          storage.get_node(idx).flag = static_cast<RBase::Node::Flags>(0);
          return false;
       });
@@ -1191,11 +1258,10 @@ void MemoryManager::clear_segment(size_t segment)
 void MemoryManager::clear_segment(RBase::Segment& seg, bool on_device)
 {
    // cleanup nodes
-   storage.visit(
-   seg.roots[on_device], [](size_t) { return true; },
-   [](size_t) { return true; },
-   [&](size_t idx)
+   storage.visit(seg.roots[on_device], [](size_t) { return true; },
+   [](size_t) { return true; }, [&](size_t idx)
    {
+      next_node = std::min(next_node, idx);
       storage.get_node(idx).flag = static_cast<RBase::Node::Flags>(0);
       return false;
    });
