@@ -1086,16 +1086,17 @@ void KnotVector::GetInterpolant(Array<Vector*> &x, const Vector &u,
    int KU = 0; // Number of superdiagonals
    for (int i = 0; i < ncp; i++)
    {
-      for (int p = 0; p < order+1; p++)
+      const int ks = GetSpan(u[i]);
+      for (int p = 0; p < Order+1; p++)
       {
-         const int col = i_args[i] + p;
-         if (col < i)
+         const int j = ks - Order + p;
+         if (j < i)
          {
-            KL = std::max(KL, i - col);
+            KL = std::max(KL, i - j);
          }
-         else if (i < col)
+         else if (i < j)
          {
-            KU = std::max(KU, col - i);
+            KU = std::max(KU, j - i);
          }
       }
    }
@@ -1125,7 +1126,7 @@ void KnotVector::GetInterpolant(Array<Vector*> &x, const Vector &u,
 
          for (int p = 0; p < Order+1; p++)
          {
-            int j = ks - Order + p;
+            const int j = ks - Order + p;
 #ifdef MFEM_USE_LAPACK
             fact_AB(KL+KU+i-j,j) = shape[p];
 #else
