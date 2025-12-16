@@ -217,7 +217,7 @@ int main(int argc, char *argv[])
    //     B   = -\int_\Omega \div u_h q_h d\Omega   u_h \in R_h, q_h \in W_h
    BilinearForm *mVarf = darcy->GetFluxMassForm();
    MixedBilinearForm *bVarf = darcy->GetFluxDivForm();
-   BilinearForm *mtVarf = (dg)?(darcy->GetPotentialMassForm()):(NULL);
+   BilinearForm *mpVarf = (dg)?(darcy->GetPotentialMassForm()):(NULL);
 
    if (dg)
    {
@@ -225,7 +225,7 @@ int main(int argc, char *argv[])
       bVarf->AddDomainIntegrator(new VectorDivergenceIntegrator());
       bVarf->AddInteriorFaceIntegrator(new TransposeIntegrator(
                                           new DGNormalTraceIntegrator(-1.)));
-      mtVarf->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(ikcoeff, td));
+      mpVarf->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(ikcoeff, td));
    }
    else
    {
@@ -369,10 +369,10 @@ int main(int argc, char *argv[])
          }
 
          S = Mult(B, *MinvBt);
-         if (mtVarf)
+         if (mpVarf)
          {
-            SparseMatrix &Mtm(mtVarf->SpMat());
-            SparseMatrix *Snew = Add(Mtm, *S);
+            SparseMatrix &Mpm(mpVarf->SpMat());
+            SparseMatrix *Snew = Add(Mpm, *S);
             delete S;
             S = Snew;
          }

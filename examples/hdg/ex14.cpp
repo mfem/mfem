@@ -310,8 +310,8 @@ int main(int argc, char *argv[])
          S = Mult(B, *MinvBt);
          if (Mu)
          {
-            SparseMatrix &Mtm(Mu->SpMat());
-            SparseMatrix *Snew = Add(Mtm, *S);
+            SparseMatrix &Mum(Mu->SpMat());
+            SparseMatrix *Snew = Add(Mum, *S);
             delete S;
             S = Snew;
          }

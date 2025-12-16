@@ -262,7 +262,7 @@ int main(int argc, char *argv[])
    //     B   = -\int_\Omega \div u_h q_h d\Omega   u_h \in R_h, q_h \in W_h
    ParBilinearForm *mVarf = darcy->GetParFluxMassForm();
    ParMixedBilinearForm *bVarf = darcy->GetParFluxDivForm();
-   ParBilinearForm *mtVarf = (dg)?(darcy->GetParPotentialMassForm()):(NULL);
+   ParBilinearForm *mpVarf = (dg)?(darcy->GetParPotentialMassForm()):(NULL);
 
    if (dg)
    {
@@ -270,7 +270,7 @@ int main(int argc, char *argv[])
       bVarf->AddDomainIntegrator(new VectorDivergenceIntegrator());
       bVarf->AddInteriorFaceIntegrator(new TransposeIntegrator(
                                           new DGNormalTraceIntegrator(-1.)));
-      mtVarf->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(ikcoeff, td));
+      mpVarf->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(ikcoeff, td));
    }
    else
    {
@@ -417,10 +417,10 @@ int main(int argc, char *argv[])
          MinvBt->InvScaleRows(*Md);
          S = ParMult(&B, MinvBt);
 
-         if (mtVarf)
+         if (mpVarf)
          {
-            HypreParMatrix &Mt = *mtVarf->ParallelAssembleInternalMatrix();
-            HypreParMatrix *Snew = ParAdd(&Mt, S);
+            HypreParMatrix &Mp = *mpVarf->ParallelAssembleInternalMatrix();
+            HypreParMatrix *Snew = ParAdd(&Mp, S);
             delete S;
             S = Snew;
          }

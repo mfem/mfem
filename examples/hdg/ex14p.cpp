@@ -334,8 +334,8 @@ int main(int argc, char *argv[])
 
          if (Mu)
          {
-            HypreParMatrix &Mt = *Mu->ParallelAssembleInternalMatrix();
-            HypreParMatrix *Snew = ParAdd(&Mt, S);
+            HypreParMatrix &Mum = *Mu->ParallelAssembleInternalMatrix();
+            HypreParMatrix *Snew = ParAdd(&Mum, S);
             delete S;
             S = Snew;
          }
