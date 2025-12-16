@@ -81,7 +81,7 @@ void NURBS1DFiniteElement::CalcHessian (const IntegrationPoint &ip,
 
    sum = 1.0/sum;
    add(sum, hess, -2*dsum*sum*sum, grad, hess);
-   add(1.0, hess, (-d2sum + 2*dsum*dsum*sum)*sum*sum, shape_x, hess);
+   add((real_t)1.0, hess, (-d2sum + 2*dsum*dsum*sum)*sum*sum, shape_x, hess);
 }
 
 

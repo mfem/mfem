@@ -476,7 +476,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
 Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
 {
    delete Jacobian;
-   SparseMatrix *localJ = Add(1.0, M->SpMat(), dt, S->SpMat());
+   SparseMatrix *localJ = Add((real_t)1.0, M->SpMat(), dt, S->SpMat());
    add(*v, dt, k, w);
    add(*x, dt, w, z);
    localJ->Add(dt*dt, H->GetLocalGradient(z));

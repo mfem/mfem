@@ -19,7 +19,8 @@
 namespace mfem
 {
 
-void Matrix::Print (std::ostream & os, int width_) const
+template <class T>
+void MatrixMP<T>::Print(std::ostream & os, int width_) const
 {
    using namespace std;
    // output flags = scientific + show sign
@@ -39,5 +40,11 @@ void Matrix::Print (std::ostream & os, int width_) const
    }
    os << '\n';
 }
+
+template class MatrixMP<float>;
+template class MatrixMP<double>;
+
+template class AbstractSparseMatrixMP<float>;
+template class AbstractSparseMatrixMP<double>;
 
 }

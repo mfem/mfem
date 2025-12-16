@@ -412,7 +412,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
 Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
 {
    delete Jacobian;
-   Jacobian = Add(1.0, M->SpMat(), dt, S->SpMat());
+   Jacobian = Add((real_t)1.0, M->SpMat(), dt, S->SpMat());
    add(*v, dt, k, w);
    add(*x, dt, w, z);
    SparseMatrix *grad_H = dynamic_cast<SparseMatrix *>(&H->GetGradient(z));

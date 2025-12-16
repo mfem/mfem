@@ -18,7 +18,6 @@
 namespace mfem
 {
 
-class Operator;
 class LinearForm;
 
 /// Class extending the LinearForm class to support assembly on devices.
