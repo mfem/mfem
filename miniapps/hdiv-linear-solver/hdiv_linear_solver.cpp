@@ -11,7 +11,6 @@
 
 #include "hdiv_linear_solver.hpp"
 #include "discrete_divergence.hpp"
-#include "../../general/forall.hpp"
 
 namespace mfem
 {

@@ -39,8 +39,8 @@ template <typename input_fop_ts, size_t num_inputs, typename output_fop_t>
 MFEM_HOST_DEVICE void assemble_element_mat_t3d(
    const DeviceTensor<4, real_t>& A,
    const DeviceTensor<3, real_t>& fhat,
-   const DeviceTensor<5, real_t>& qpdc,
-   const DeviceTensor<1, real_t>& itod,
+   const DeviceTensor<5, const real_t>& qpdc,
+   const DeviceTensor<1, const real_t>& itod,
    const input_fop_ts& inputs,
    const output_fop_t& output,
    const std::array<DofToQuadMap, num_inputs>& input_dtqmaps,
@@ -210,8 +210,8 @@ template <typename input_fop_ts, size_t num_inputs, typename output_fop_t>
 MFEM_HOST_DEVICE void assemble_element_mat_t2d(
    const DeviceTensor<4, real_t>& A,
    const DeviceTensor<3, real_t>& fhat,
-   const DeviceTensor<5, real_t>& qpdc,
-   const DeviceTensor<1, real_t>& itod,
+   const DeviceTensor<5, const real_t>& qpdc,
+   const DeviceTensor<1, const real_t>& itod,
    const input_fop_ts& inputs,
    const output_fop_t& output,
    const std::array<DofToQuadMap, num_inputs>& input_dtqmaps,
@@ -366,8 +366,8 @@ template <typename input_fop_ts, size_t num_inputs, typename output_fop_t>
 MFEM_HOST_DEVICE void assemble_element_mat_naive(
    const DeviceTensor<4, real_t>& A,
    const DeviceTensor<3, real_t>& fhat,
-   const DeviceTensor<5, real_t>& qpdc,
-   const DeviceTensor<1, real_t>& itod,
+   const DeviceTensor<5, const real_t>& qpdc,
+   const DeviceTensor<1, const real_t>& itod,
    const input_fop_ts& inputs,
    const output_fop_t& output,
    const std::array<DofToQuadMap, num_inputs>& input_dtqmaps,
