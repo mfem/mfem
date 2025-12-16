@@ -771,56 +771,56 @@ char *MemoryManager::Alloc(size_t nbytes, MemoryType type, bool temporary)
 
 size_t MemoryManager::RBase::insert(size_t segment, ptrdiff_t offset,
                                     bool on_device, bool valid,
-                                    size_t &next_node)
+                                    size_t &nn)
 {
-   create_next_node(next_node);
-   auto &n = nodes[next_node - 1];
+   create_next_node(nn);
+   auto &n = nodes[nn - 1];
    n.offset = offset;
    if (valid)
    {
       n.set_valid();
    }
-   return insert(get_segment(segment).roots[on_device], next_node);
+   return insert(get_segment(segment).roots[on_device], nn);
 }
 size_t MemoryManager::RBase::insert(size_t segment, size_t node,
                                     ptrdiff_t offset, bool on_device,
-                                    bool valid, size_t &next_node)
+                                    bool valid, size_t &nn)
 {
-   create_next_node(next_node);
-   auto &n = nodes[next_node - 1];
+   create_next_node(nn);
+   auto &n = nodes[nn - 1];
    n.offset = offset;
    if (valid)
    {
       n.set_valid();
    }
 
-   return insert(get_segment(segment).roots[on_device], node, next_node);
+   return insert(get_segment(segment).roots[on_device], node, nn);
 }
 
-void MemoryManager::RBase::create_next_node(size_t &next_node)
+void MemoryManager::RBase::create_next_node(size_t &nn)
 {
 #if 1
-   while (next_node <= nodes.size())
+   while (nn <= nodes.size())
    {
-      if (!(nodes[next_node - 1].flag & Node::Flags::USED))
+      if (!(nodes[nn - 1].flag & Node::Flags::USED))
       {
          // found a node we can reuse
          break;
       }
-      ++next_node;
+      ++nn;
    }
-   if (next_node > nodes.size())
+   if (nn > nodes.size())
    {
       nodes.emplace_back();
-      MFEM_ASSERT(next_node <= nodes.size(), "next_node too large");
+      MFEM_ASSERT(nn <= nodes.size(), "nn too large");
    }
    else
    {
-      nodes[next_node - 1] = Node{};
+      nodes[nn - 1] = Node{};
    }
 #else
    nodes.emplace_back();
-   next_node = nodes.size();
+   nn = nodes.size();
 #endif
 }
 

@@ -144,15 +144,15 @@ private:
       void cleanup_nodes();
       void cleanup_segments();
 
-      void create_next_node(size_t &next_node);
+      void create_next_node(size_t &nn);
 
       /// Insert a validity transition marker for a given @a segment
       size_t insert(size_t segment, ptrdiff_t offset, bool on_device,
-                    bool valid, size_t &next_node);
+                    bool valid, size_t &nn);
 
       /// Insert a validity transition marker for a given @a segment
       size_t insert(size_t segment, size_t node, ptrdiff_t offset,
-                    bool on_device, bool valid, size_t &next_node);
+                    bool on_device, bool valid, size_t &nn);
    };
 
    void print_segment(size_t segment);
