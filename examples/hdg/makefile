@@ -21,7 +21,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_EXAMPLES = ex5 ex6 ex14 ex17
-PAR_EXAMPLES = ex5p ex6p ex14p
+PAR_EXAMPLES = ex5p ex6p ex14p ex17p
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else

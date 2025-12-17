@@ -158,6 +158,8 @@ examples/ginkgo/refined.mesh
 examples/ginkgo/sol.gf
 
 examples/hdg/refined.mesh
+examples/hdg/displaced.mesh
+examples/hdg/mesh.*
 examples/hdg/ex5.mesh
 examples/hdg/ex5
 examples/hdg/ex5p
