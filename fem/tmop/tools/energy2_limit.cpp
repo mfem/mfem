@@ -92,67 +92,64 @@ void TMOP_EnergyPA_C0_2D(const real_t lim_normal,
    });
 }
 
-// template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
-// void TMOP_EnergyPA_AdaptLim_2D(const real_t lim_normal,
-//                                const real_t adapt_lim_delta_max,
-//                                const bool const_coeff,
-//                                const DeviceTensor<3, const real_t> &ALC,
-//                                const int NE,
-//                                const DeviceTensor<5, const real_t> &J,
-//                                const ConstDeviceMatrix &W,
-//                                const real_t *b,
-//                                const real_t *bld,
-//                                const ConstDeviceCube &ALF,
-//                                const ConstDeviceCube &ALF0,
-//                                DeviceTensor<3> &E,
-//                                const int d1d,
-//                                const int q1d)
-// {
-//    const int D1D = T_D1D ? T_D1D : d1d;
-//    const int Q1D = T_Q1D ? T_Q1D : q1d;
+template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
+void TMOP_EnergyPA_AdaptLim_2D(const real_t lim_normal,
+                               const real_t adapt_lim_delta_max,
+                               const bool const_coeff,
+                               const DeviceTensor<3, const real_t> &ALC,
+                               const int NE,
+                               const DeviceTensor<5, const real_t> &J,
+                               const ConstDeviceMatrix &W,
+                               const real_t *b,
+                               const ConstDeviceCube &ALF,
+                               const ConstDeviceCube &ALF0,
+                               DeviceTensor<3> &E,
+                               const int d1d,
+                               const int q1d)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-//    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
-//    {
-//       MFEM_SHARED real_t smem[MQ1][MQ1];
-//       MFEM_SHARED real_t sB[MD1][MQ1];
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   {
+      MFEM_SHARED real_t smem[MQ1][MQ1];
+      MFEM_SHARED real_t sB[MD1][MQ1];
 
-//       // Load basis functions for ALF/ALF0 (use bld, same as LD)
-//       kernels::internal::LoadMatrix(D1D, Q1D, bld, sB);
+      // Load basis functions for ALF/ALF0 (use bld, same as LD)
+      kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
 
-//       // Load ALF and ALF0 (scalar pattern).
-//       kernels::internal::s_regs2d_t<MQ1> ralf_0, ralf_1; // scalar ALF
-//       kernels::internal::LoadDofs2d(e, D1D, ALF, ralf_0);
-//       kernels::internal::Eval2d(D1D, Q1D, smem, sB, ralf_0, ralf_1);
+      // Load ALF and ALF0 (scalar pattern).
+      kernels::internal::s_regs2d_t<MQ1> ralf_0, ralf_1; // scalar ALF
+      kernels::internal::LoadDofs2d(e, D1D, ALF, ralf_0);
+      kernels::internal::Eval2d(D1D, Q1D, smem, sB, ralf_0, ralf_1);
 
-//       kernels::internal::s_regs2d_t<MQ1> ralf0_0, ralf0_1; // scalar ALF0
-//       kernels::internal::LoadDofs2d(e, D1D, ALF0, ralf0_0);
-//       kernels::internal::Eval2d(D1D, Q1D, smem, sB, ralf0_0, ralf0_1);
+      kernels::internal::s_regs2d_t<MQ1> ralf0_0, ralf0_1; // scalar ALF0
+      kernels::internal::LoadDofs2d(e, D1D, ALF0, ralf0_0);
+      kernels::internal::Eval2d(D1D, Q1D, smem, sB, ralf0_0, ralf0_1);
 
-//       MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
-//       {
-//          MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
-//          {
-//             const real_t *Jtr = &J(0, 0, qx, qy, e);
-//             const real_t detJtr = kernels::Det<2>(Jtr);
-//             const real_t weight = W(qx, qy) * detJtr;
+      MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+         {
+            const real_t *Jtr = &J(0, 0, qx, qy, e);
+            const real_t detJtr = kernels::Det<2>(Jtr);
+            const real_t weight = W(qx, qy) * detJtr;
 
-//             const real_t gf_val = ralf_1(qy, qx);
-//             const real_t gf0_val = ralf0_1(qy, qx);
-//             const real_t diff = (gf_val - gf0_val) / adapt_lim_delta_max;
+            const real_t gf_val = ralf_1(qy, qx);
+            const real_t gf0_val = ralf0_1(qy, qx);
+            const real_t diff = (gf_val - gf0_val) / adapt_lim_delta_max;
 
-//             const real_t coeff = const_coeff ? ALC(0, 0, 0) : ALC(qx, qy, e);
+            const real_t coeff = const_coeff ? ALC(0, 0, 0) : ALC(qx, qy, e);
             
-//             // Energy: coeff * lim_normal * diff^2
-//             E(qx, qy, e) = weight * coeff * lim_normal * diff * diff;
-//          }
-//       }
-//    });
-// }
+            // Energy: coeff * lim_normal * diff^2
+            E(qx, qy, e) = weight * coeff * lim_normal * diff * diff;
+         }
+      }
+   });
+}
 
 MFEM_TMOP_MDQ_REGISTER(TMOPEnergyCoef2D, TMOP_EnergyPA_C0_2D);
-//MFEM_TMOP_MDQ_REGISTER(TMOPEnergyAdaptLim2D, TMOP_EnergyPA_AdaptLim_2D);
 MFEM_TMOP_MDQ_SPECIALIZE(TMOPEnergyCoef2D);
-//MFEM_TMOP_MDQ_SPECIALIZE(TMOPEnergyAdaptLim2D);
 
 real_t TMOP_Integrator::GetLocalStateEnergyPA_C0_2D(const Vector &x) const
 {
@@ -186,36 +183,32 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_C0_2D(const Vector &x) const
    return PA.E * PA.O;
 }
 
-// real_t TMOP_Integrator::GetLocalStateEnergyPA_AdaptLim_2D(const Vector &x) const
-// {
-//    const real_t ln = lim_normal;
-//    const real_t delta_max = PA.al_delta;
-//    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
+MFEM_TMOP_MDQ_REGISTER(TMOPEnergyAdaptLim2D, TMOP_EnergyPA_AdaptLim_2D);
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPEnergyAdaptLim2D);
 
-//    std::cout << d << " " << PA.maps_alim->ndof << std::endl;
-//    MFEM_ABORT("tesT");
+real_t TMOP_Integrator::GetLocalStateEnergyPA_AdaptLim_2D(const Vector &x) const
+{
+   const real_t ln = lim_normal;
+   const real_t delta_max = PA.al_delta;
+   const int NE = PA.ne, d = PA.maps_alim->ndof, q = PA.maps_alim->nqpt;
 
-//    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-//    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+   MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
-//    MFEM_VERIFY(PA.maps_lim->ndof == d, "");
-//    MFEM_VERIFY(PA.maps_lim->nqpt == q, "");
+   const bool const_coeff = PA.ALC.Size() == 1;
+   const auto ALC = const_coeff
+                    ? Reshape(PA.ALC.Read(), 1, 1, 1)
+                    : Reshape(PA.ALC.Read(), q, q, NE);
+   const auto J = Reshape(PA.Jtr.Read(), 2, 2, q, q, NE);
+   const auto *b = PA.maps_alim->B.Read();
+   const auto W = Reshape(PA.ir->GetWeights().Read(), q, q);
+   const auto ALF = Reshape(PA.ALF.Read(), d, d, NE);
+   const auto ALF0 = Reshape(PA.ALF0.Read(), d, d, NE);
+   auto E = Reshape(PA.E.Write(), q, q, NE);
 
-//    const bool const_coeff = PA.ALC.Size() == 1;
-//    const auto ALC = const_coeff
-//                     ? Reshape(PA.ALC.Read(), 1, 1, 1)
-//                     : Reshape(PA.ALC.Read(), q, q, NE);
-//    const auto J = Reshape(PA.Jtr.Read(), 2, 2, q, q, NE);
-//    const auto *b = PA.maps->B.Read();
-//    const auto *bld = PA.maps_lim->B.Read();
-//    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q);
-//    const auto ALF = Reshape(PA.ALF.Read(), d, d, NE);
-//    const auto ALF0 = Reshape(PA.ALF0.Read(), d, d, NE);
-//    auto E = Reshape(PA.E.Write(), q, q, NE);
-
-//    TMOPEnergyAdaptLim2D::Run(d, q, ln, delta_max, const_coeff, ALC, NE, J, W, b,
-//                              bld, ALF, ALF0, E, d, q);
-//    return PA.E * PA.O;
-// }
+   TMOPEnergyAdaptLim2D::Run(d, q, ln, delta_max, const_coeff, ALC, NE, J, W, b,
+                             ALF, ALF0, E, d, q);
+   return PA.E * PA.O;
+}
 
 } // namespace mfem

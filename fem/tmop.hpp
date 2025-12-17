@@ -2238,7 +2238,7 @@ protected:
    void GetLocalStateEnergyPA_3D(const Vector&, real_t &energy) const;
    real_t GetLocalStateEnergyPA_C0_2D(const Vector&) const;
    real_t GetLocalStateEnergyPA_C0_3D(const Vector&) const;
-   // real_t GetLocalStateEnergyPA_AdaptLim_2D(const Vector&) const;
+   real_t GetLocalStateEnergyPA_AdaptLim_2D(const Vector&) const;
    // real_t GetLocalStateEnergyPA_AdaptLim_3D(const Vector&) const;
    void GetLocalNormalizationEnergiesPA_2D(const Vector &x,
                                            real_t &met_energy,
