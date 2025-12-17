@@ -445,10 +445,27 @@ protected:
                                std::map<std::array<int, 3>,
                                std::tuple<bool, int>> &face_marker,
                                int split_mask);
-   void HexFaceSplitRefinement(int e,
-                               std::map<std::array<int, 4>,
-                               std::tuple<int, std::array<int, 4>>> &face_marker,
-                               int face_to_split);
+   /** @brief Helper function for HexSingleFaceSplitRefinement.
+       Refines a hexahedron by splitting one of its faces.
+       @param e Element index
+       @param face_marker map of face vertices to tuple of refinement flag and new vertices
+       @param face_to_split Index of the face to split (0-5)
+   */
+   void HexSingleFaceSplitRefinement(int e,
+                                     std::map<std::array<int, 4>,
+                                     std::tuple<int, std::array<int, 4>>> &face_marker,
+                                     int face_to_split);
+
+   /** @brief Helper function for HexDoubleFaceSplitRefinement.
+       Refines a hexahedron by splitting two opposite faces.
+       @param e Element index
+       @param face_marker map of face vertices to tuple of refinement flag and new vertices
+       @param split_type Type of split (6 for Z-split, 7 for Y-split, 8 for X-split)
+   */
+   void HexDoubleFaceSplitRefinement(int e,
+                                     std::map<std::array<int, 4>,
+                                     std::tuple<int, std::array<int, 4>>> &face_marker,
+                                     int split_type);
 
    /// Bisect a boundary triangle: boundary element with index @a i is bisected.
    void BdrBisection(int i, const HashTable<Hashed2> &);
@@ -480,7 +497,13 @@ protected:
 
    void ConformingRefinement_base(const Array<int> &el_to_refine);
    void ConformingHexRefinement_base(const Array<int> &el_to_refine);
-   void ConformingHexRefinement2_base(
+   /** @brief Base function for conforming hexahedral refinement (each face split into 5 quads).
+       Identifies faces to be split and calls appropriate single/double split helpers.
+       @param face_verts Set of face vertices to track refinement status
+       @return map of face vertices to tuple of (refinement_flag, new_vertices_array)
+   */
+   std::map<std::array<int, 4>, std::tuple<int, std::array<int, 4>>>
+   ConformingHexRefinement2_base(
       std::set<std::array<int, 4>> &face_verts);
 
    void CollectTetFaceConformingRefinementFlags(Array<int> el_to_refine,

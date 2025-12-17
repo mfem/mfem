@@ -4430,6 +4430,209 @@ void ParMesh::RefineGroupsAfterConformingTet(std::map<std::array<int, 3>,
    I_group_stria.LoseData(); J_group_stria.LoseData();
 }
 
+void ParMesh::RefineGroupsAfterConformingHex2(
+   std::map<std::array<int, 4>, std::tuple<int, std::array<int, 4>>> &face_marker)
+{
+   auto get4arraysorted = [](Array<int> v)
+   {
+      v.Sort();
+      return std::array<int, 4> {v[0], v[1], v[2], v[3]};
+   };
+
+   Array<int> group_verts, group_edges, group_quads;
+   Array<int> I_group_svert, J_group_svert;
+   Array<int> I_group_sedge, J_group_sedge;
+   Array<int> I_group_squad, J_group_squad;
+
+   I_group_svert.SetSize(GetNGroups());
+   I_group_sedge.SetSize(GetNGroups());
+   I_group_squad.SetSize(GetNGroups());
+
+   I_group_svert[0] = 0;
+   I_group_sedge[0] = 0;
+   I_group_squad[0] = 0;
+
+   auto FindMatchingVertex = [this](DenseMatrix &xyz, Vector &xyzv, double tol)
+   {
+      int n = xyz.Height();
+      for (int i = 0; i < n; i++)
+      {
+         bool match = true;
+         for (int d = 0; d < spaceDim; d++)
+         {
+            if (fabs(xyz(i,d) - xyzv(d)) > tol)
+            {
+               match = false;
+               break;
+            }
+         }
+         if (match) { return i; }
+      }
+      return -1;
+   };
+
+   for (int group = 0; group < GetNGroups()-1; group++)
+   {
+      // Get the group shared objects
+      group_svert.GetRow(group, group_verts);
+      group_sedge.GetRow(group, group_edges);
+      group_squad.GetRow(group, group_quads);
+
+      // Check which quads have been refined
+      for (int i = 0; i < group_squad.RowSize(group); i++)
+      {
+         int *v = shared_quads[group_quads[i]].v;
+         Array<int> fva(4);
+         fva[0] = v[0]; fva[1] = v[1]; fva[2] = v[2]; fva[3] = v[3];
+         auto t = get4arraysorted(fva);
+         auto it = face_marker.find(t);
+         if (it != face_marker.end())
+         {
+            // Get new vertices and original vertices
+            std::array<int, 4> new_verts_raw = std::get<1>(it->second);
+            std::array<int, 4> orig_verts_raw = {v[0], v[1], v[2], v[3]};
+
+
+            int n_map[4] = {-1, -1, -1, -1};
+            DenseMatrix xyz(4, spaceDim);
+            DenseMatrix xyz_new(4, spaceDim);
+            Vector xyzv(spaceDim);
+            for (int v = 0; v < 4; v++)
+            {
+               real_t *vp = GetVertex(orig_verts_raw[v]);
+               real_t *vp_new = GetVertex(new_verts_raw[v]);
+               for (int d = 0; d < spaceDim; d++)
+               {
+                  xyz(v, d) = vp[d];
+                  xyz_new(v, d) = vp_new[d];
+               }
+            }
+            int idx;
+
+            real_t r = 0.25, s = 0.25;
+            for (int d = 0; d < spaceDim; d++)
+            {
+               xyzv(d) = xyz(0,d)*(1-r)*(1-s) + xyz(1,d)*(r)*(1-s) +
+                         xyz(2, d)*r*s + xyz(3,d)*(1-r)*s;
+            }
+            idx = FindMatchingVertex(xyz_new, xyzv, 1e-10);
+            MFEM_VERIFY(idx != -1, "Could not find matching vertex");
+            n_map[0] = new_verts_raw[idx];
+
+            r = 0.75, s = 0.25;
+            for (int d = 0; d < spaceDim; d++)
+            {
+               xyzv(d) = xyz(0,d)*(1-r)*(1-s) + xyz(1,d)*(r)*(1-s) +
+                         xyz(2, d)*r*s + xyz(3,d)*(1-r)*s;
+            }
+            idx = FindMatchingVertex(xyz_new, xyzv, 1e-10);
+            MFEM_VERIFY(idx != -1, "Could not find matching vertex");
+            n_map[1] = new_verts_raw[idx];
+
+            r = 0.75, s = 0.75;
+            for (int d = 0; d < spaceDim; d++)
+            {
+               xyzv(d) = xyz(0,d)*(1-r)*(1-s) + xyz(1,d)*(r)*(1-s) +
+                         xyz(2, d)*r*s + xyz(3,d)*(1-r)*s;
+            }
+            idx = FindMatchingVertex(xyz_new, xyzv, 1e-10);
+            MFEM_VERIFY(idx != -1, "Could not find matching vertex");
+            n_map[2] = new_verts_raw[idx];
+
+            r = 0.25, s = 0.75;
+            for (int d = 0; d < spaceDim; d++)
+            {
+               xyzv(d) = xyz(0,d)*(1-r)*(1-s) + xyz(1,d)*(r)*(1-s) +
+                         xyz(2, d)*r*s + xyz(3,d)*(1-r)*s;
+            }
+            idx = FindMatchingVertex(xyz_new, xyzv, 1e-10);
+            MFEM_VERIFY(idx != -1, "Could not find matching vertex");
+            n_map[3] = new_verts_raw[idx];
+
+            int n0 = n_map[0];
+            int n1 = n_map[1];
+            int n2 = n_map[2];
+            int n3 = n_map[3];
+
+            // Add new vertices to group
+            int idx0 = svert_lvert.Append(n0) - 1;
+            int idx1 = svert_lvert.Append(n1) - 1;
+            int idx2 = svert_lvert.Append(n2) - 1;
+            int idx3 = svert_lvert.Append(n3) - 1;
+
+            group_verts.Append(idx0);
+            group_verts.Append(idx1);
+            group_verts.Append(idx2);
+            group_verts.Append(idx3);
+
+            // Cache original values because shared_quads.Append can reallocate memory,
+            // invalidating the 'v' pointer.
+            const int v_orig[4] = {v[0], v[1], v[2], v[3]};
+            const int quad_idx = group_quads[i]; // Store index to re-acquire pointer later
+
+            const int edge_attr = 1;
+
+            shared_edges.Append(new Segment(v_orig[0], n0, edge_attr));
+            group_edges.Append(sedge_ledge.Append(-1)-1);
+            shared_edges.Append(new Segment(v_orig[1], n1, edge_attr));
+            group_edges.Append(sedge_ledge.Append(-1)-1);
+            shared_edges.Append(new Segment(v_orig[2], n2, edge_attr));
+            group_edges.Append(sedge_ledge.Append(-1)-1);
+            shared_edges.Append(new Segment(v_orig[3], n3, edge_attr));
+            group_edges.Append(sedge_ledge.Append(-1)-1);
+
+            shared_edges.Append(new Segment(n0, n1, edge_attr));
+            group_edges.Append(sedge_ledge.Append(-1)-1);
+            shared_edges.Append(new Segment(n1, n2, edge_attr));
+            group_edges.Append(sedge_ledge.Append(-1)-1);
+            shared_edges.Append(new Segment(n2, n3, edge_attr));
+            group_edges.Append(sedge_ledge.Append(-1)-1);
+            shared_edges.Append(new Segment(n3, n0, edge_attr));
+            group_edges.Append(sedge_ledge.Append(-1)-1);
+
+            // Add 4 new quads using cached v_orig
+            // 1. Center: (n0, n1, n2, n3)
+            shared_quads.Append(Vert4(n0, n1, n2, n3));
+            group_quads.Append(sface_lface.Append(-1)-1);
+
+            // 2. Side 2: (v1, v2, n2, n1)
+            shared_quads.Append(Vert4(v_orig[1], v_orig[2], n2, n1));
+            group_quads.Append(sface_lface.Append(-1)-1);
+
+            // 3. Side 3: (v2, v3, n3, n2)
+            shared_quads.Append(Vert4(v_orig[2], v_orig[3], n3, n2));
+            group_quads.Append(sface_lface.Append(-1)-1);
+
+            // 4. Side 4: (v3, v0, n0, n3)
+            shared_quads.Append(Vert4(v_orig[3], v_orig[0], n0, n3));
+            group_quads.Append(sface_lface.Append(-1)-1);
+
+            // Reconfigure original quad to be Side Quad 1: (v0, v1, n1, n0)
+            // Re-acquire pointer because it might have been invalidated
+            int *v_update = shared_quads[quad_idx].v;
+            v_update[2] = n1;
+            v_update[3] = n0;
+         }
+      }
+
+      I_group_svert[group+1] = I_group_svert[group] + group_verts.Size();
+      I_group_sedge[group+1] = I_group_sedge[group] + group_edges.Size();
+      I_group_squad[group+1] = I_group_squad[group] + group_quads.Size();
+
+      J_group_svert.Append(group_verts);
+      J_group_sedge.Append(group_edges);
+      J_group_squad.Append(group_quads);
+   }
+
+   FinalizeParTopo();
+   group_svert.SetIJ(I_group_svert, J_group_svert);
+   group_sedge.SetIJ(I_group_sedge, J_group_sedge);
+   group_squad.SetIJ(I_group_squad, J_group_squad);
+   I_group_svert.LoseData(); J_group_svert.LoseData();
+   I_group_sedge.LoseData(); J_group_sedge.LoseData();
+   I_group_squad.LoseData(); J_group_squad.LoseData();
+}
+
 void ParMesh::UniformRefineGroups2D(int old_nv)
 {
    Array<int> sverts, sedges;
@@ -4735,204 +4938,227 @@ void ParMesh::ConformingRefinement(const Array<int> &el_to_refine)
    }
    else if (Dim == 3)
    {
-      InitRefinementTransforms();
-      // Set coarse fine transformations
-      static Vector tet_conf_children((1+4+4*3)*4*3); //3 dim x 4 vert x 17 tets
-      GetTetConformingRefinementCoordinates(tet_conf_children);
-
-      CoarseFineTr.point_matrices[Geometry::TETRAHEDRON]
-      .UseExternalData(tet_conf_children.GetData(), 3, 4, 17);
-
-      int nref = el_to_refine.Size();
-      MPI_Allreduce(MPI_IN_PLACE, &nref, 1, MPI_INT, MPI_SUM, MyComm);
-
-      if (nref == 0) { return; }
-      ResetLazyData();
-
-      std::map<std::array<int, 3>, std::tuple<bool, int>> face_marker;
-      Array<int> elflags(NumOfElements);
-      elflags = 0;
-
-      CollectTetFaceConformingRefinementFlags(el_to_refine,
-                                              face_marker,
-                                              elflags);
-
-      auto get3arraysorted = [](Array<int> v)
+      int geom = GetTypicalElementGeometry();
+      int nels = GetNE();
+      MFEM_VERIFY(nels == 0 ||
+                  (geom == Geometry::TETRAHEDRON || geom == Geometry::CUBE),
+                  "Conforming refinement is only supported for "
+                  "tet/hex meshes");
+      if (geom == Geometry::TETRAHEDRON)
       {
-         v.Sort();
-         return std::array<int, 3> {v[0], v[1], v[2]};
-      };
+         InitRefinementTransforms();
+         // Set coarse fine transformations
+         static Vector tet_conf_children((1+4+4*3)*4*3); //3 dim x 4 vert x 17 tets
+         GetTetConformingRefinementCoordinates(tet_conf_children);
 
-      // Now check which of the faces on shared boundaries have been
-      // marked and send them to neighbors
-      const int tag = 294;
-      int req_count = 0;
+         CoarseFineTr.point_matrices[Geometry::TETRAHEDRON]
+         .UseExternalData(tet_conf_children.GetData(), 3, 4, 17);
 
-      // some preprocessing first
-      int max_faces_in_group = 0;
-      for (int i = 0; i < GetNGroups()-1; i++)
-      {
-         const int faces_in_group = GroupNTriangles(i+1);
-         if (faces_in_group > max_faces_in_group)
+         int nref = el_to_refine.Size();
+         MPI_Allreduce(MPI_IN_PLACE, &nref, 1, MPI_INT, MPI_SUM, MyComm);
+
+         if (nref == 0) { return; }
+         ResetLazyData();
+
+         std::map<std::array<int, 3>, std::tuple<bool, int>> face_marker;
+         Array<int> elflags(NumOfElements);
+         elflags = 0;
+
+         CollectTetFaceConformingRefinementFlags(el_to_refine,
+                                                 face_marker,
+                                                 elflags);
+
+         auto get3arraysorted = [](Array<int> v)
          {
-            max_faces_in_group = faces_in_group;
+            v.Sort();
+            return std::array<int, 3> {v[0], v[1], v[2]};
+         };
+
+         // Now check which of the faces on shared boundaries have been
+         // marked and send them to neighbors
+         const int tag = 294;
+         int req_count = 0;
+
+         // some preprocessing first
+         int max_faces_in_group = 0;
+         for (int i = 0; i < GetNGroups()-1; i++)
+         {
+            const int faces_in_group = GroupNTriangles(i+1);
+            if (faces_in_group > max_faces_in_group)
+            {
+               max_faces_in_group = faces_in_group;
+            }
          }
-      }
-      int neighbor;
-      Array<int> iBuf(max_faces_in_group);
-      MPI_Request *requests = new MPI_Request[GetNGroups()-1];
-      MPI_Status  status;
+         int neighbor;
+         Array<int> iBuf(max_faces_in_group);
+         MPI_Request *requests = new MPI_Request[GetNGroups()-1];
+         MPI_Status  status;
 
-      for (int i = 0; i < GetNGroups()-1; i++)
-      {
-         const int *group_faces = group_stria.GetRow(i);
-         const int faces_in_group = group_stria.RowSize(i);
-         // it is enough to communicate through the faces
-         if (faces_in_group == 0) { continue; }
-
-         // int group_size = gtopo.GetGroupSize(i);
-         // if (group_size != 2) { continue; }
-
-         Array<int> shared_face_inds;
-
-         for (int j = 0; j < faces_in_group; j++)
+         for (int i = 0; i < GetNGroups()-1; i++)
          {
-            int *fv = shared_trias[group_faces[j]].v;
-            Array<int> fva(3);
-            fva[0] = fv[0]; fva[1] = fv[1]; fva[2] = fv[2];
-            auto t = get3arraysorted(fva);
+            const int *group_faces = group_stria.GetRow(i);
+            const int faces_in_group = group_stria.RowSize(i);
+            // it is enough to communicate through the faces
+            if (faces_in_group == 0) { continue; }
+
+            // int group_size = gtopo.GetGroupSize(i);
+            // if (group_size != 2) { continue; }
+
+            Array<int> shared_face_inds;
+
+            for (int j = 0; j < faces_in_group; j++)
+            {
+               int *fv = shared_trias[group_faces[j]].v;
+               Array<int> fva(3);
+               fva[0] = fv[0]; fva[1] = fv[1]; fva[2] = fv[2];
+               auto t = get3arraysorted(fva);
+               auto it = face_marker.find(t);
+               if (it != face_marker.end())
+               {
+                  shared_face_inds.Append(j);
+               }
+            }
+            const int *nbs = gtopo.GetGroup(i+1);
+            neighbor = gtopo.GetNeighborRank(nbs[0] ? nbs[0] : nbs[1]);
+            MPI_Isend(shared_face_inds.GetData(), shared_face_inds.Size(),
+                      MPI_INT, neighbor, tag, MyComm,
+                      &requests[req_count++]);
+         }
+
+         MPI_Barrier(GetComm());
+
+         // receive.
+         for (int i = 0; i < GetNGroups()-1; i++)
+         {
+            const int *group_faces = group_stria.GetRow(i);
+            const int faces_in_group = group_stria.RowSize(i);
+            if (faces_in_group == 0) { continue; }
+
+            const int *nbs = gtopo.GetGroup(i+1);
+            neighbor = gtopo.GetNeighborRank(nbs[0] ? nbs[0] : nbs[1]);
+            MPI_Probe(neighbor, tag, MyComm, &status);
+            int count;
+            MPI_Get_count(&status, MPI_INT, &count);
+            iBuf.SetSize(count);
+            MPI_Recv(iBuf, count, MPI_INT, neighbor, tag, MyComm,
+                     MPI_STATUS_IGNORE);
+
+            // now check if these faces are already marked or not. If they are
+            // not, we mark them here.
+            for (int j = 0; j < count; j++)
+            {
+               int *fv = shared_trias[group_faces[iBuf[j]]].v;
+               Array<int> fva(3);
+               fva[0] = fv[0]; fva[1] = fv[1]; fva[2] = fv[2];
+               auto t = get3arraysorted(fva);
+               auto it = face_marker.find(t);
+               if (it == face_marker.end())
+               {
+                  face_marker.insert({t,std::make_tuple(true, -1)});
+               }
+            }
+         }
+         delete [] requests;
+         iBuf.DeleteAll();
+
+         // Mark element flags
+         int *vert;
+         Array<int> fvl(3);
+         for (int e = 0; e < NumOfElements; e++)
+         {
+            Element *el = elements[e];
+            vert = el->GetVertices();
+            if (elflags[e] == 1+2+4+8) { continue; }
+            // ignore elements already marked
+            for (int f = 0; f < 4; f++) // loop over all faces
+            {
+               fvl[0] = vert[tet_t::FaceVert[f][0]];
+               fvl[1] = vert[tet_t::FaceVert[f][1]];
+               fvl[2] = vert[tet_t::FaceVert[f][2]];
+               auto it = face_marker.find(get3arraysorted(fvl));
+               if (it != face_marker.end())
+                  // this face should be split for this element
+               {
+                  elflags[e] |= (1 << f);
+               }
+            }
+         }
+
+         for (int e = 0; e < elflags.Size(); e++)
+         {
+            if (elflags[e] == 0) { continue; }
+            TetFaceSplitRefinement(e, face_marker, elflags[e]);
+         }
+
+         int temp = NumOfBdrElements;
+         for (int i = 0; i < temp; i++)
+         {
+            int *v;
+            Element *bdr_el = boundary[i];
+            v = bdr_el->GetVertices();
+            Array<int> bvl(3);
+            bvl[0] = v[0]; bvl[1] = v[1]; bvl[2] = v[2];
+            auto t = get3arraysorted(bvl);
             auto it = face_marker.find(t);
             if (it != face_marker.end())
             {
-               shared_face_inds.Append(j);
+               int new_v = std::get<1>(it->second);
+               auto t = bdr_el->GetType();
+               auto attr = bdr_el->GetAttribute();
+               if (t == Element::TRIANGLE)
+               {
+                  int vv[3];
+                  vv[0] = bvl[0]; vv[1] = bvl[1]; vv[2] = new_v;
+                  bdr_el->SetVertices(vv);
+
+                  vv[0] = bvl[1]; vv[1] = bvl[2]; vv[2] = new_v;
+                  boundary.Append(new Triangle(vv, attr));
+
+                  vv[0] = bvl[2]; vv[1] = bvl[0]; vv[2] = new_v;
+                  boundary.Append(new Triangle(vv, attr));
+                  NumOfBdrElements += 2;
+               }
+               else
+               {
+                  MFEM_ABORT("Only triangles are supported for boundary elements.");
+               }
             }
          }
-         const int *nbs = gtopo.GetGroup(i+1);
-         neighbor = gtopo.GetNeighborRank(nbs[0] ? nbs[0] : nbs[1]);
-         MPI_Isend(shared_face_inds.GetData(), shared_face_inds.Size(),
-                   MPI_INT, neighbor, tag, MyComm,
-                   &requests[req_count++]);
-      }
 
-      MPI_Barrier(GetComm());
+         // Refine groups
+         // each group will have 3 new shared triangles but
+         // 1 will replace original and we will add 2 more to the list.
+         // 1 new shared vertex
+         // 3 new shared edges
+         RefineGroupsAfterConformingTet(face_marker);
 
-      // receive.
-      for (int i = 0; i < GetNGroups()-1; i++)
-      {
-         const int *group_faces = group_stria.GetRow(i);
-         const int faces_in_group = group_stria.RowSize(i);
-         if (faces_in_group == 0) { continue; }
-
-         const int *nbs = gtopo.GetGroup(i+1);
-         neighbor = gtopo.GetNeighborRank(nbs[0] ? nbs[0] : nbs[1]);
-         MPI_Probe(neighbor, tag, MyComm, &status);
-         int count;
-         MPI_Get_count(&status, MPI_INT, &count);
-         iBuf.SetSize(count);
-         MPI_Recv(iBuf, count, MPI_INT, neighbor, tag, MyComm,
-                  MPI_STATUS_IGNORE);
-
-         // now check if these faces are already marked or not. If they are
-         // not, we mark them here.
-         for (int j = 0; j < count; j++)
+         // 5. Update the groups after refinement.
+         if (el_to_face != NULL)
          {
-            int *fv = shared_trias[group_faces[iBuf[j]]].v;
-            Array<int> fva(3);
-            fva[0] = fv[0]; fva[1] = fv[1]; fva[2] = fv[2];
-            auto t = get3arraysorted(fva);
-            auto it = face_marker.find(t);
-            if (it == face_marker.end())
-            {
-               face_marker.insert({t,std::make_tuple(true, -1)});
-            }
+            GetElementToFaceTable();
+            GenerateFaces();
          }
-      }
-      delete [] requests;
-      iBuf.DeleteAll();
 
-      // Mark element flags
-      int *vert;
-      Array<int> fvl(3);
-      for (int e = 0; e < NumOfElements; e++)
-      {
-         Element *el = elements[e];
-         vert = el->GetVertices();
-         if (elflags[e] == 1+2+4+8) { continue; }
-         // ignore elements already marked
-         for (int f = 0; f < 4; f++) // loop over all faces
+         // 6. Update element-to-edge relations.
+         if (el_to_edge != NULL)
          {
-            fvl[0] = vert[tet_t::FaceVert[f][0]];
-            fvl[1] = vert[tet_t::FaceVert[f][1]];
-            fvl[2] = vert[tet_t::FaceVert[f][2]];
-            auto it = face_marker.find(get3arraysorted(fvl));
-            if (it != face_marker.end())
-               // this face should be split for this element
-            {
-               elflags[e] |= (1 << f);
-            }
+            NumOfEdges = GetElementToEdgeTable(*el_to_edge);
          }
       }
-
-      for (int e = 0; e < elflags.Size(); e++)
+      else if (geom == Geometry::CUBE)
       {
-         if (elflags[e] == 0) { continue; }
-         TetFaceSplitRefinement(e, face_marker, elflags[e]);
-      }
-
-      int temp = NumOfBdrElements;
-      for (int i = 0; i < temp; i++)
-      {
-         int *v;
-         Element *bdr_el = boundary[i];
-         v = bdr_el->GetVertices();
-         Array<int> bvl(3);
-         bvl[0] = v[0]; bvl[1] = v[1]; bvl[2] = v[2];
-         auto t = get3arraysorted(bvl);
-         auto it = face_marker.find(t);
-         if (it != face_marker.end())
+         Mesh::ConformingHexRefinement_base(el_to_refine);
+         if (el_to_face != NULL)
          {
-            int new_v = std::get<1>(it->second);
-            auto t = bdr_el->GetType();
-            auto attr = bdr_el->GetAttribute();
-            if (t == Element::TRIANGLE)
-            {
-               int vv[3];
-               vv[0] = bvl[0]; vv[1] = bvl[1]; vv[2] = new_v;
-               bdr_el->SetVertices(vv);
-
-               vv[0] = bvl[1]; vv[1] = bvl[2]; vv[2] = new_v;
-               boundary.Append(new Triangle(vv, attr));
-
-               vv[0] = bvl[2]; vv[1] = bvl[0]; vv[2] = new_v;
-               boundary.Append(new Triangle(vv, attr));
-               NumOfBdrElements += 2;
-            }
-            else
-            {
-               MFEM_ABORT("Only triangles are supported for boundary elements.");
-            }
+            GetElementToFaceTable();
+            GenerateFaces();
+         }
+         if (el_to_edge != NULL)
+         {
+            NumOfEdges = GetElementToEdgeTable(*el_to_edge);
          }
       }
-
-      // Refine groups
-      // each group will have 3 new shared triangles but
-      // 1 will replace original and we will add 2 more to the list.
-      // 1 new shared vertex
-      // 3 new shared edges
-      RefineGroupsAfterConformingTet(face_marker);
-
-      // 5. Update the groups after refinement.
-      if (el_to_face != NULL)
-      {
-         GetElementToFaceTable();
-         GenerateFaces();
-      }
-
-      // 6. Update element-to-edge relations.
-      if (el_to_edge != NULL)
-      {
-         NumOfEdges = GetElementToEdgeTable(*el_to_edge);
-      }
+      FinalizeParTopo(); // update the parallel topology - necessary for CUBEs
    }
 
    last_operation = Mesh::REFINE;
@@ -4944,6 +5170,39 @@ void ParMesh::ConformingRefinement(const Array<int> &el_to_refine)
    CheckBdrElementOrientation(true);
 #endif
 }
+
+void ParMesh::ConformingHexRefinement2(std::set<std::array<int, 4>> &face_verts)
+{
+   DeleteFaceNbrData();
+
+   // 1. Serial Refinement and capture face_marker
+   auto face_marker = Mesh::ConformingHexRefinement2_base(face_verts);
+
+   // 2. Parallel Synchronization (Update Groups)
+   RefineGroupsAfterConformingHex2(face_marker);
+
+   // 3. Update element-to-face/edge tables if internal tables exist
+   if (el_to_face != NULL)
+   {
+      GetElementToFaceTable();
+      GenerateFaces();
+   }
+   if (el_to_edge != NULL)
+   {
+      NumOfEdges = GetElementToEdgeTable(*el_to_edge);
+   }
+
+   last_operation = Mesh::REFINE;
+   sequence++;
+   UpdateNodes();
+
+#ifdef MFEM_DEBUG
+   CheckElementOrientation(true);
+   CheckBdrElementOrientation(true);
+#endif
+}
+
+
 
 void ParMesh::RefineNURBSWithKVFactors(int rf, const std::string &kvf)
 {

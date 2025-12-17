@@ -807,7 +807,6 @@ void GetHexConformingRefinementInfo(
    RT_FECollection fec_rt(0, pmesh->Dimension());
    ParFiniteElementSpace fes_rt(pmesh, &fec_rt);
    ParGridFunction marker(&fes_rt);
-   marker = 0.0;
    Array<int> opp_face_idx(6);
    opp_face_idx[0] = 5;
    opp_face_idx[1] = 3;
@@ -816,95 +815,112 @@ void GetHexConformingRefinementInfo(
    opp_face_idx[4] = 2;
    opp_face_idx[5] = 0;
 
-   // make a list of faces that need to be split for conforming refinement
-   for (int e = 0; e < pmesh->GetNE(); e++)
+   int nold = 0;
+   int nnew = 1;
+   while (nnew != nold)
    {
-      Array<int> faces, ori;
-      pmesh->GetElementFaces(e, faces, ori);
-      int fcount = 0;
-      Array<int> lfidx;
-      Array<int> all_face_list({0,1,2,3,4,5});
-      for (int f = 0; f < faces.Size(); f++)
+      nold = nnew;
+      marker = 0.0;
+      // make a list of faces that need to be split for conforming refinement
+      for (int e = 0; e < pmesh->GetNE(); e++)
       {
-         if (intfaces.Find(faces[f]) != -1)
+         Array<int> faces, ori;
+         pmesh->GetElementFaces(e, faces, ori);
+         int fcount = 0;
+         Array<int> lfidx;
+         Array<int> all_face_list({0,1,2,3,4,5});
+         for (int f = 0; f < faces.Size(); f++)
          {
-            lfidx.Append(f);
-            fcount++;
+            if (intfaces.Find(faces[f]) != -1)
+            {
+               lfidx.Append(f);
+               fcount++;
+            }
          }
-      }
-      if (fcount == 2)
-      {
-         // if the faces are not opposite faces
-         if (lfidx[1] != opp_face_idx[lfidx[0]])
+         if (fcount == 2 && lfidx[1] != opp_face_idx[lfidx[0]])
          {
+            // 2 faces on interface and they are not opposite faces
             all_face_list.DeleteFirst(lfidx[0]);
             all_face_list.DeleteFirst(lfidx[1]);
             all_face_list.DeleteFirst(opp_face_idx[lfidx[0]]);
             all_face_list.DeleteFirst(opp_face_idx[lfidx[1]]);
+            if (custom_ref_face.Find(faces[all_face_list[0]]) == -1)
+            {
+               custom_ref_face.Append(faces[all_face_list[0]]);
+            }
+            if (custom_ref_face.Find(faces[all_face_list[1]]) == -1)
+            {
+               custom_ref_face.Append(faces[all_face_list[1]]);
+            }
          }
-         custom_ref_face.Append(faces[all_face_list[0]]);
-         custom_ref_face.Append(faces[all_face_list[1]]);
+         else if (fcount > 2) // more than 2 faces on interface
+         {
+            // we will need to split all faces
+            for (int f = 0; f < faces.Size(); f++)
+            {
+               if (custom_ref_face.Find(faces[f]) == -1)
+               {
+                  custom_ref_face.Append(faces[f]);
+               }
+            }
+         }
       }
-      else if (fcount > 2)
+
+      // Setup marker
+      for (int i = 0; i < custom_ref_face.Size(); i++)
       {
-         // we will need to split all faces
+         Array<int> dofs;
+         fes_rt.GetFaceDofs(custom_ref_face[i], dofs);
+         int idx = dofs[0] < 0 ? -dofs[0] - 1 : dofs[0];
+         marker(idx) = 1.0;
+      }
+
+      // exchange marker across boundary
+      marker.ExchangeFaceNbrData();
+      GroupCommunicator &gcomm = fes_rt.GroupComm();
+      gcomm.Reduce<double>(marker.GetData(), GroupCommunicator::Max);
+      gcomm.Bcast(marker.GetData());
+
+      // Loop over all faces, check marker value for all face dofs.
+      // If it is 1.0, add the face to list for refinement if was not already added
+      for (int f = 0; f < pmesh->GetNumFaces(); f++)
+      {
+         Array<int> face_dofs;
+         fes_rt.GetFaceDofs(f, face_dofs);
+         int idx = face_dofs[0] < 0 ? -face_dofs[0] - 1 : face_dofs[0];
+         if (marker(idx) == 1.0 && custom_ref_face.Find(f) == -1)
+         {
+            custom_ref_face.Append(f);
+         }
+      }
+
+      // any element with more than 2 faces on custom_ref_face
+      // gets marked for refinement if it was not already added
+      // and all its faces are marked for splitting
+      for (int e = 0; e < pmesh->GetNE(); e++)
+      {
+         Array<int> faces, ori;
+         pmesh->GetElementFaces(e, faces, ori);
+         int fcount = 0;
          for (int f = 0; f < faces.Size(); f++)
          {
-            custom_ref_face.Append(faces[f]);
+            if (custom_ref_face.Find(faces[f]) != -1)
+            {
+               fcount++;
+               pmesh->GetFaceVertices(faces[f], verts);
+               verts.Sort();
+               intfaces_verts.insert({verts[0], verts[1],
+                                      verts[2], verts[3]});
+            }
          }
-      }
-   }
-
-   // Setup marker
-   for (int i = 0; i < custom_ref_face.Size(); i++)
-   {
-      Array<int> dofs;
-      fes_rt.GetFaceDofs(custom_ref_face[i], dofs);
-      int idx = dofs[0] < 0 ? -dofs[0] - 1 : dofs[0];
-      marker(idx) = 1.0;
-   }
-
-   // exchange marker across boundary
-   marker.ExchangeFaceNbrData();
-   GroupCommunicator &gcomm = fes_rt.GroupComm();
-   gcomm.Reduce<double>(marker.GetData(), GroupCommunicator::Max);
-   gcomm.Bcast(marker.GetData());
-
-   // Loop over all faces, check marker value for all face dofs.
-   // If it is 1.0, add the face to list for refinement
-   for (int f = 0; f < pmesh->GetNumFaces(); f++)
-   {
-      Array<int> face_dofs;
-      fes_rt.GetFaceDofs(f, face_dofs);
-      int idx = face_dofs[0] < 0 ? -face_dofs[0] - 1 : face_dofs[0];
-      if (marker(idx) == 1.0 && custom_ref_face.Find(f) == -1)
-      {
-         custom_ref_face.Append(f);
-      }
-   }
-
-   // any element with more than 2 (or even 1?) faces on custom_ref_face
-   // gets marked for refinement
-   for (int e = 0; e < pmesh->GetNE(); e++)
-   {
-      Array<int> faces, ori;
-      pmesh->GetElementFaces(e, faces, ori);
-      int fcount = 0;
-      for (int f = 0; f < faces.Size(); f++)
-      {
-         if (custom_ref_face.Find(faces[f]) != -1)
+         if (fcount > 1 && elems_to_refine.Find(e) == -1) // fcount>0?
          {
-            fcount++;
-            pmesh->GetFaceVertices(faces[f], verts);
-            verts.Sort();
-            intfaces_verts.insert({verts[0], verts[1],
-                                   verts[2], verts[3]});
+            elems_to_refine.Append(e);
          }
       }
-      if (fcount > 1 && elems_to_refine.Find(e) == -1) // fcount>0?
-      {
-         elems_to_refine.Append(e);
-      }
+
+      nnew = custom_ref_face.Size();
+      MPI_Allreduce(MPI_IN_PLACE, &nnew, 1, MPI_INT, MPI_SUM, pmesh->GetComm());
    }
 }
 

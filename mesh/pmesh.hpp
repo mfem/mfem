@@ -170,6 +170,14 @@ protected:
    void RefineGroupsAfterConformingTet(std::map<std::array<int, 3>,
                                        std::tuple<bool, int>> &face_marker);
 
+   /** @brief Refine groups after conforming hex refinement (each face split into 5 quads).
+       Synchronizes shared faces and edges after local refinement.
+       @param face_marker map of face vertices to tuple of refinement flag and new vertices,
+       populated by ConformingHexRefinement2_base.
+   */
+   void RefineGroupsAfterConformingHex2(
+      std::map<std::array<int, 4>, std::tuple<int, std::array<int, 4>>> &face_marker);
+
    void UniformRefineGroups2D(int old_nv);
 
    // f2qf can be NULL if all faces are quads or there are no quad faces
@@ -728,6 +736,14 @@ public:
    void Rebalance(const Array<int> &partition);
 
    void ConformingRefinement(const Array<int> &el_to_refine) override;
+
+   void ConformingHexRefinement(const Array<int> &el_to_refine) override
+   {
+      ConformingRefinement(el_to_refine);
+   }
+
+   void ConformingHexRefinement2(std::set<std::array<int, 4>> &face_verts)
+   override;
 
    /** Save the mesh in a parallel mesh format. If @a comments is non-empty, it
        will be printed after the first line of the file, and each line should

@@ -8519,9 +8519,6 @@ STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)
    for (int i = 0; i < NumOfElements; i++)
    {
       elements[i]->GetVertices(v);
-      // std::cout << " elem " << i << " :";
-      // v.Print(mfem::out, 8);
-      // std::cout << std::endl;
       switch (GetElementType(i))
       {
          case Element::TETRAHEDRON:
@@ -8573,8 +8570,6 @@ STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)
             for (int j = 0; j < 6; j++)
             {
                const int *fv = hex_t::FaceVert[j];
-               // std::cout << i << " "  << j << " Push: " <<
-               // v[fv[0]] << " " << v[fv[1]] << " " << v[fv[2]] << " " << v[fv[3]] << "\n";
                el_to_face->Push(
                   i, faces_tbl->Push4(v[fv[0]], v[fv[1]], v[fv[2]], v[fv[3]]));
             }
@@ -8587,15 +8582,10 @@ STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)
    el_to_face->Finalize();
    NumOfFaces = faces_tbl->NumberOfElements();
    be_to_face.SetSize(NumOfBdrElements);
-   // std::cout << NumOfBdrElements << " k10dobdr\n";
 
    for (int i = 0; i < NumOfBdrElements; i++)
    {
       boundary[i]->GetVertices(v);
-      // std::cout << " bdr " << i << " type "
-      //           << GetBdrElementType(i) << " " <<
-      //           v[0] << " " << v[1] << " " << v[2] << " " <<
-      //           v[3] << "\n";
       switch (GetBdrElementType(i))
       {
          case Element::TRIANGLE:
@@ -11596,31 +11586,6 @@ void Mesh::ConformingHexRefinement_base(const Array<int> &el_to_refine)
       }
    }
 
-   // static real_t hex_conf_children[3*8*8] = //3dim x 8vert x 8hexes
-   // {
-   //    // project hex element inwards. connect each original face to new hex.
-   //    //x,y,z for vertices 0,1,2,3,4,5,6,7
-   //    A,A,A, B,A,A, B,B,A, A,B,A, A,A,B, B,A,B, B,B,B, A,B,B, // original
-   //    //x,y,z for hex with vertices 0,1,2,3,8,9,10,11
-   //    A,A,A, B,A,A, B,B,A, A,B,A, D,D,D, E,D,D, E,E,D, D,E,D, // z=0 to z=0.25
-   //    //x,y,z for hex with vertices 4,5,6,7,12,13,14,15
-   //    A,A,B, B,A,B, B,B,B, A,B,B, D,D,E, E,D,E, E,E,E, D,E,E, // z=1 to z=0.75
-   //    //x,y,z for hex with vertices 0,1,5,4,8,9,13,12
-   //    A,A,A, B,A,A, B,A,B, A,A,B, D,D,D, E,D,D, E,D,E, D,D,E, // y=0 to y=0.25
-   //    //x,y,z for hex with vertices 3,2,6,7,11,10,14,15
-   //    A,B,A, B,B,A, B,B,B, A,B,B, D,E,D, E,E,D, E,E,E, D,E,E, // y=1 to y=0.75
-   //    //x,y,z for hex with vertices 0,3,7,4,8,11,15,12
-   //    A,A,A, A,B,A, A,B,B, A,A,B, D,D,D, D,E,D, D,E,E, D,D,E, // x=0 to x=0.25
-   //    //x,y,z for hex with vertices 1,2,6,5,9,10,14,13
-   //    B,A,A, B,B,A, B,B,B, B,A,B, E,D,D, E,E,D, E,E,E, E,D,E, // x=1 to x=0.75
-   //    //x,y,z for vertices 8-15
-   //    D,D,D, E,D,D, E,E,D, D,E,D, D,D,E, E,D,E, E,E,E, D,E,E  // [0.25,0.75]^3
-   // };
-
-   // for (int i = 0; i < 3*8*8; ++i) {
-   //    std::cout << i << " " <<  hex_conf_children[i]-hex_conf_children2[i] << endl;
-   // }
-
    CoarseFineTr.point_matrices[Geometry::CUBE]
    .UseExternalData(hex_conf_children, 3, 8, 8);
    if (el_to_refine.Size() == 0) { return; }
@@ -11654,7 +11619,8 @@ void Mesh::ConformingHexRefinement_base(const Array<int> &el_to_refine)
    }
 }
 
-void Mesh::ConformingHexRefinement2_base(
+std::map<std::array<int, 4>, std::tuple<int, std::array<int, 4>>>
+Mesh::ConformingHexRefinement2_base(
    std::set<std::array<int, 4>> &face_verts)
 {
    if (ncmesh)
@@ -11668,7 +11634,7 @@ void Mesh::ConformingHexRefinement2_base(
    const real_t D = 0.25, E = 0.75;
    constexpr int dim = 3;
    constexpr int verts = 8;
-   constexpr int hexes = 1+6*6;
+   constexpr int hexes = 1+6*9;
    real_t x[16][dim];
    const int hex_idx[hexes*verts] = {0,1,2,3,4,5,6,7, // original element
                                      // face 0
@@ -11723,7 +11689,37 @@ void Mesh::ConformingHexRefinement2_base(
                                      3,2,6,7,11,10,14,15, // y=1 to y=0.75
                                      0,3,7,4,8,11,15,12, // x=0 to x=0.25
                                      9,10,14,13,1,2,6,5, // x=1 to x=0.75
-                                     8,9,10,11,12,13,14,15
+                                     8,9,10,11,12,13,14,15,
+
+                                     // face 6
+                                     /* ignore z min projection */
+                                     /* ignore z max projection */
+                                     8,9,13,12,0,1,5,4, // y=0 to y=0.25
+                                     3,2,6,7,11,10,14,15, // y=1 to y=0.75
+                                     0,3,7,4,8,11,15,12, // x=0 to x=0.25
+                                     9,10,14,13,1,2,6,5, // x=1 to x=0.75
+                                     0,0,0,0,0,0,0,0, // dummy
+                                     8,9,10,11,12,13,14,15, // center
+
+                                     // face 7 (Y split)
+                                     /* ignore y min projection */
+                                     /* ignore y max projection */
+                                     0,1,2,3,8,9,10,11, // z=0 to z=0.25 (mixed with inner y)
+                                     12,13,14,15,4,5,6,7, // z=1 to z=0.75
+                                     0,3,7,4,8,11,15,12, // x=0 to x=0.25
+                                     9,10,14,13,1,2,6,5, // x=1 to x=0.75
+                                     0,0,0,0,0,0,0,0,     // dummy
+                                     8,9,10,11,12,13,14,15, // center (rotated)
+
+                                     // face 8 (X split)
+                                     /* ignore x min projection */
+                                     /* ignore x max projection */
+                                     0,1,2,3,8,9,10,11, // z=0
+                                     12,13,14,15,4,5,6,7, // z=1
+                                     8,9,13,12,0,1,5,4, // y=0
+                                     3,2,6,7,11,10,14,15, // y=1
+                                     0,0,0,0,0,0,0,0, // dummy
+                                     8,9,10,11,12,13,14,15 // center
                                     };
    auto xFill = [&](const int f)
    {
@@ -11736,14 +11732,29 @@ void Mesh::ConformingHexRefinement2_base(
       x[6][0] = B; x[6][1] = B; x[6][2] = B;
       x[7][0] = A; x[7][1] = B; x[7][2] = B;
 
-      x[8][0] = f==5?A:D;   x[8][1] = f == 2 ? A : D; x[8][2] = f == 1 ? A : D;
-      x[9][0] = f==3?B:E;   x[9][1] = f == 2 ? A : D; x[9][2] = f == 1 ? A : D;
-      x[10][0] = f==3?B:E; x[10][1] = f == 4 ? B : E; x[10][2] = f == 1 ? A : D;
-      x[11][0] = f==5?A:D; x[11][1] = f == 4 ? B : E; x[11][2] = f == 1 ? A : D;
-      x[12][0] = f==5?A:D; x[12][1] = f == 2 ? A : D; x[12][2] = f == 6 ? B : E;
-      x[13][0] = f==3?B:E; x[13][1] = f == 2 ? A : D; x[13][2] = f == 6 ? B : E;
-      x[14][0] = f==3?B:E; x[14][1] = f == 4 ? B : E; x[14][2] = f == 6 ? B : E;
-      x[15][0] = f==5?A:D; x[15][1] = f == 4 ? B : E; x[15][2] = f == 6 ? B : E;
+      x[8][0] = (f==5 || f==9)?A:D;   x[8][1] = (f == 2 || f == 8) ? A : D;
+      x[8][2] = (f == 1 || f == 7) ? A : D;
+
+      x[9][0] = (f==3 || f==9)?B:E;   x[9][1] = (f == 2 || f == 8) ? A : D;
+      x[9][2] = (f == 1 || f == 7) ? A : D;
+
+      x[10][0] = (f==3 || f==9)?B:E; x[10][1] = (f == 4 || f == 8) ? B : E;
+      x[10][2] = (f == 1 || f == 7) ? A : D;
+
+      x[11][0] = (f==5 || f==9)?A:D; x[11][1] = (f == 4 || f == 8) ? B : E;
+      x[11][2] = (f == 1 || f == 7) ? A : D;
+
+      x[12][0] = (f==5 || f==9)?A:D; x[12][1] = (f == 2 || f == 8) ? A : D;
+      x[12][2] = (f == 6 || f == 7) ? B : E;
+
+      x[13][0] = (f==3 || f==9)?B:E; x[13][1] = (f == 2 || f == 8) ? A : D;
+      x[13][2] = (f == 6 || f == 7) ? B : E;
+
+      x[14][0] = (f==3 || f==9)?B:E; x[14][1] = (f == 4 || f == 8) ? B : E;
+      x[14][2] = (f == 6 || f == 7) ? B : E;
+
+      x[15][0] = (f==5 || f==9)?A:D; x[15][1] = (f == 4 || f == 8) ? B : E;
+      x[15][2] = (f == 6 || f == 7) ? B : E;
    };
 
 
@@ -11763,8 +11774,7 @@ void Mesh::ConformingHexRefinement2_base(
    }
 
    CoarseFineTr.point_matrices[Geometry::CUBE]
-   .UseExternalData(hex_conf_children, 3, 8, 37);
-   // if (el_to_refine.Size() == 0) { return; }
+   .UseExternalData(hex_conf_children, 3, 8, 55);
    ResetLazyData();
 
    typedef std::array<int, 4> id4;
@@ -11790,23 +11800,44 @@ void Mesh::ConformingHexRefinement2_base(
             auto it = face_verts.find(t);
             if (it != face_verts.end())
             {
-               MFEM_VERIFY(elflags[e] == -1,
-                           "We only accept one face per element marked for refinement.");
-               elflags[e] = f;
+               if (elflags[e] == -1)
+               {
+                  elflags[e] = f;
+               }
+               else if ((elflags[e] == 0 && f == 5) || (elflags[e] == 5 && f == 0))
+               {
+                  elflags[e] = 6;
+               }
+               else if ((elflags[e] == 1 && f == 3) || (elflags[e] == 3 && f == 1))
+               {
+                  elflags[e] = 7;
+               }
+               else if ((elflags[e] == 2 && f == 4) || (elflags[e] == 4 && f == 2))
+               {
+                  elflags[e] = 8;
+               }
+               else
+               {
+                  MFEM_ABORT("We only accept one face per element marked for refinement (or opposite faces).");
+               }
                face_marker.insert({t,std::make_tuple(-1, id4{-1,-1,-1,-1})} );
-               // std::cout << " Element " << e << " face " << f << "\n";
             }
          }
       }
    }
 
-   // std::cout << " k10-do-ref\n";
    for (int e = 0; e < elflags.Size(); e++)
    {
       if (elflags[e] == -1) { continue; }
-      HexFaceSplitRefinement(e, face_marker, elflags[e]);
+      if (elflags[e] >= 6)
+      {
+         HexDoubleFaceSplitRefinement(e, face_marker, elflags[e]);
+      }
+      else
+      {
+         HexSingleFaceSplitRefinement(e, face_marker, elflags[e]);
+      }
    }
-   // std::cout << " k10-done-ref\n";
 
    auto get4arraysorted = [](Array<int> v)
    {
@@ -11814,7 +11845,6 @@ void Mesh::ConformingHexRefinement2_base(
       return std::array<int, 4> {v[0], v[1], v[2], v[3]};
    };
 
-   //todo:
    real_t r[4], s[4];
    r[0] = D; s[0] = D;
    r[1] = E; s[1] = D;
@@ -11823,7 +11853,6 @@ void Mesh::ConformingHexRefinement2_base(
    DenseMatrix xyz(4, spaceDim);
    Vertex V;
 
-   // std::cout << " k10-do-bdr\n";
    int temp = NumOfBdrElements;
    for (int i = 0; i < temp; i++)
    {
@@ -11833,15 +11862,10 @@ void Mesh::ConformingHexRefinement2_base(
       Array<int> bvl(4);
       Array<int> bvnew(4);
       bvl[0] = v[0]; bvl[1] = v[1]; bvl[2] = v[2]; bvl[3] = v[3];
-      // std::cout << " print bvl pre-sort\n";
-      // bvl.Print();
       auto t = get4arraysorted(bvl);
-      // std::cout << " print bvl post-sort\n";
-      // bvl.Print();
       auto it = face_marker.find(t);
       if (it != face_marker.end())
       {
-         // int new_v = it->second;
          std::array<int, 4> new_verts = std::get<1>(it->second);
          auto t = bdr_el->GetType();
          auto attr = bdr_el->GetAttribute();
@@ -11885,7 +11909,6 @@ void Mesh::ConformingHexRefinement2_base(
             }
             bvnew[i] = vert_match;
          }
-         // bvnew.Print();
          bdr_el->SetVertices(bvnew.GetData());
 
          {
@@ -11905,23 +11928,19 @@ void Mesh::ConformingHexRefinement2_base(
          }
       }
    }
-   // std::cout << " k10-done-bdr\n";
-
 
    // Boundary elements stay the same because those vertices are untouched
-   // CheckElementOrientation(true);
-   // std::cout << " k10-done-bdr-2\n";
    if (el_to_edge != NULL)
    {
       NumOfEdges = GetElementToEdgeTable(*el_to_edge);
    }
-   // std::cout << " k10-done-bdr-4\n";
    if (el_to_face != NULL)
    {
       GetElementToFaceTable();
       GenerateFaces();
    }
-   // std::cout << " k10-done-bdr-5\n";
+
+   return face_marker;
 }
 
 void Mesh::GeneralRefinement(const Array<int> &el_to_refine, int nonconforming,
@@ -12987,10 +13006,10 @@ void Mesh::ConformingHexRefinement(int e, Array<int> &v)
    NumOfElements += 6;
 }
 
-void Mesh::HexFaceSplitRefinement(int e,
-                                  std::map<std::array<int, 4>,
-                                  std::tuple<int, std::array<int, 4>>> &face_marker,
-                                  int face_to_split)
+void Mesh::HexSingleFaceSplitRefinement(int e,
+                                        std::map<std::array<int, 4>,
+                                        std::tuple<int, std::array<int, 4>>> &face_marker,
+                                        int face_to_split)
 {
    int FV[6][4] =
    {
@@ -12998,28 +13017,16 @@ void Mesh::HexFaceSplitRefinement(int e,
       {2, 3, 7, 6}, {3, 0, 4, 7}, {4, 5, 6, 7}
    };
 
-   // std::cout << "Splitting face " << face_to_split << " of element " << e << "\n";
    Array<int> v;
    GetElementVertices(e, v);
-   // std::cout << "Element e will be split" << " " << e << " \n";
-   // v.Print();
 
    Array<int> faces, ori;
    GetElementFaces(e, faces, ori);
    int fnum = faces[face_to_split];
    Array<int> fverts;
-   // Array<int> lfi(4);
-   // Array<int> lvi(4);
    GetFaceVertices(fnum, fverts);
+   auto fverts_orig = fverts;
    fverts.Sort();
-   // lvi[0] = FV[face_to_split][0];
-   // lvi[1] = FV[face_to_split][1];
-   // lvi[2] = FV[face_to_split][2];
-   // lvi[3] = FV[face_to_split][3];
-   // lfi[0] = v[lvi[0]];
-   // lfi[1] = v[lvi[1]];
-   // lfi[2] = v[lvi[2]];
-   // lfi[3] = v[lvi[3]];
 
    // get the vertices of the hex element
    DenseMatrix xyz(8, spaceDim);
@@ -13067,10 +13074,6 @@ void Mesh::HexFaceSplitRefinement(int e,
    {
       split_flag = std::get<0>(it->second);
       face_split_verts = std::get<1>(it->second);
-      // std::cout << face_split_verts[0] << " "
-      //           << face_split_verts[1] << " "
-      //           << face_split_verts[2] << " "
-      //           << face_split_verts[3] << " K1001-vidx\n";
    }
    else
    {
@@ -13133,8 +13136,7 @@ void Mesh::HexFaceSplitRefinement(int e,
          }
       };
    }
-   // std::cout << "Print new vertices after face split K1000\n";
-   // vnewprint.Print(mfem::out, 8);
+
 
    constexpr int hexes = 1 + 6*6;
    constexpr int verts = 8;
@@ -13197,14 +13199,10 @@ void Mesh::HexFaceSplitRefinement(int e,
    unsigned code = hex0->GetTransform();
    hex0->SetVertices(vnew);
    //  Now we create the nex hexahedras
-   // std::cout << "Splitting element " << e << " face " << face_to_split << "\n";
-   // v.Print(mfem::out, 8);
-   // vnewprint.Print(mfem::out, 8);
    for (int i = 0; i < 5; i++)
    {
       int o = (1 + face_to_split*6 + i)*8; // offset in hex_idx
       int co = 1 + face_to_split*6 + i; // child ordinal
-      // std::cout << face_to_split << " " << i << " " << o << " k10check\n";
       for (int j = 0; j < 8; j++)
       {
          if (hex_idx[o+j] >= 8)
@@ -13216,19 +13214,6 @@ void Mesh::HexFaceSplitRefinement(int e,
             v1[j] = v[hex_idx[o+j]];
          }
       }
-      // v1[0] = v[hex_idx[o+0]];
-      // v1[1] = v[hex_idx[o+1]];
-      // v1[2] = v[hex_idx[o+2]];
-      // v1[3] = v[hex_idx[o+3]];
-      // v1[4] = vnew[hex_idx[o+4]-8];
-      // v1[5] = vnew[hex_idx[o+5]-8];
-      // v1[6] = vnew[hex_idx[o+6]-8];
-      // v1[7] = vnew[hex_idx[o+7]-8];
-      // std::cout << "Creating hex with vertices: ";
-      // std::cout << v1[0] << " " << v1[1] << " " << v1[2] << " " << v1[3]
-      //           << " " << v1[4] << " " << v1[5] << " " << v1[6] << " " << v1[7]
-      //           << "\n";
-      // std::cout << code << " " << face_to_split << " " << co << " k10codeinfo\n";
       Hexahedron* hex = new Hexahedron(v1, hex0->GetAttribute());
       elements.Append(hex);
       hex->ResetTransform(code);
@@ -13238,12 +13223,9 @@ void Mesh::HexFaceSplitRefinement(int e,
       }
       hex->PushTransform(co);
    }
-   // std::cout << elements.Size() << " Total elements after face split\n";
 
    // set parent indices. again needs to be consistent with hex_conf_children
    int coarse = FindCoarseElement(e);
-   // std::cout << "Setting parent coarse index: " << coarse << " " <<
-   // face_to_split*6 + 6 << "\n";
    for (int i = 0; i < 5; i++)
    {
       int co = 1 + face_to_split*6 + i; // child ordinal
@@ -13252,8 +13234,6 @@ void Mesh::HexFaceSplitRefinement(int e,
          CoarseFineTr.embeddings[e] = Embedding(coarse, Geometry::CUBE,
                                                 face_to_split*6 + 6);
       }
-      // std::cout << "Setting embedding for child " << i << " with coarse "
-      //  << coarse << " and ordinal " << co << "\n";
       CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::CUBE, co));
    }
    NumOfElements += 5;
@@ -17049,4 +17029,294 @@ void Mesh::DebugDump(std::ostream &os) const
 }
 #endif
 
+
+void Mesh::HexDoubleFaceSplitRefinement(int e,
+                                        std::map<std::array<int, 4>,
+                                        std::tuple<int, std::array<int, 4>>> &face_marker,
+                                        int split_type)
+{
+   int FV[6][4] =
+   {
+      {3, 2, 1, 0}, {0, 1, 5, 4}, {1, 2, 6, 5},
+      {2, 3, 7, 6}, {3, 0, 4, 7}, {4, 5, 6, 7}
+   };
+
+   Array<int> v;
+   GetElementVertices(e, v);
+
+   Array<int> faces, ori;
+   GetElementFaces(e, faces, ori);
+
+   int fA_idx = -1, fB_idx = -1;
+   if (split_type == 6) { fA_idx = 0; fB_idx = 5; }
+   else if (split_type == 7) { fA_idx = 1; fB_idx = 3; }
+   else if (split_type == 8) { fA_idx = 2; fB_idx = 4; }
+   else { MFEM_ABORT("Invalid split_type in HexDoubleFaceSplitRefinement"); }
+
+   int fnumA = faces[fA_idx];
+   int fnumB = faces[fB_idx];
+
+   Array<int> fvertsA, fvertsB;
+   GetFaceVertices(fnumA, fvertsA);
+   GetFaceVertices(fnumB, fvertsB);
+   auto fvertsA_orig = fvertsA;
+   auto fvertsB_orig = fvertsB;
+   fvertsA.Sort();
+   fvertsB.Sort();
+
+   // Get element geometry
+   DenseMatrix xyz(8, spaceDim);
+   for (int i = 0; i < 8; i++)
+   {
+      real_t *vp = vertices[v[i]]();
+      for (int d = 0; d < spaceDim; d++)
+      {
+         xyz(i, d) = vp[d];
+      }
+   }
+
+   int vnew[8];
+   Vertex V;
+
+   real_t r[8], s[8], t[8];
+   const real_t A = 0.0, B = 1.0;
+   const real_t D = 0.25, E = 0.75;
+
+   auto rstFillDouble = [&]()
+   {
+      if (split_type == 6) // z=0 and 1 are split
+      {
+         r[0] = D; s[0] = D; t[0] = A;
+         r[1] = E; s[1] = D; t[1] = A;
+         r[2] = E; s[2] = E; t[2] = A;
+         r[3] = D; s[3] = E; t[3] = A;
+
+         r[4] = D; s[4] = D; t[4] = B;
+         r[5] = E; s[5] = D; t[5] = B;
+         r[6] = E; s[6] = E; t[6] = B;
+         r[7] = D; s[7] = E; t[7] = B;
+      }
+      else if (split_type == 7) // y = 0 and 1 are split
+      {
+         r[0] = D; s[0] = A; t[0] = D;
+         r[1] = E; s[1] = A; t[1] = D;
+         r[2] = E; s[2] = B; t[2] = D;
+         r[3] = D; s[3] = B; t[3] = D;
+
+         r[4] = D; s[4] = A; t[4] = E;
+         r[5] = E; s[5] = A; t[5] = E;
+         r[6] = E; s[6] = B; t[6] = E;
+         r[7] = D; s[7] = B; t[7] = E;
+      }
+      else if (split_type == 8) // x = 0 and 1 are split
+      {
+         r[0] = A; s[0] = D; t[0] = D;
+         r[1] = B; s[1] = D; t[1] = D;
+         r[2] = B; s[2] = E; t[2] = D;
+         r[3] = A; s[3] = E; t[3] = D;
+
+         r[4] = A; s[4] = D; t[4] = E;
+         r[5] = B; s[5] = D; t[5] = E;
+         r[6] = B; s[6] = E; t[6] = E;
+         r[7] = A; s[7] = E; t[7] = E;
+      }
+   };
+
+   rstFillDouble();
+
+   // Look up splits
+   std::array<int, 4> split_vertsA, split_vertsB;
+   int split_flagA = -1, split_flagB = -1;
+
+   // Face A
+   {
+      auto it = face_marker.find({fvertsA[0],fvertsA[1],fvertsA[2],fvertsA[3]});
+      if (it != face_marker.end())
+      {
+         split_flagA = std::get<0>(it->second);
+         split_vertsA = std::get<1>(it->second);
+      }
+      else { MFEM_ABORT("DoubleSplit: Face A not found."); }
+   }
+   // Face B
+   {
+      auto it = face_marker.find({fvertsB[0],fvertsB[1],fvertsB[2],fvertsB[3]});
+      if (it != face_marker.end())
+      {
+         split_flagB = std::get<0>(it->second);
+         split_vertsB = std::get<1>(it->second);
+      }
+      else { MFEM_ABORT("DoubleSplit: Face B not found."); }
+   }
+
+   // Create/Find Vertices
+   for (int i = 0; i < 8; i++)
+   {
+      for (int d = 0; d < spaceDim; d++)
+      {
+         V(d) = xyz(0,d)*(1-r[i])*(1-s[i])*(1-t[i]) +
+                xyz(1,d)*(r[i])*(1-s[i])*(1-t[i]) +
+                xyz(2, d)*r[i]*s[i]*(1-t[i]) +
+                xyz(3,d)*(1-r[i])*s[i]*(1-t[i]) +
+                xyz(4,d)*(1-r[i])*(1-s[i])*t[i] +
+                xyz(5,d)*(r[i])*(1-s[i])*t[i] +
+                xyz(6, d)*r[i]*s[i]*t[i] +
+                xyz(7,d)*(1-r[i])*s[i]*t[i];
+      }
+
+      bool found = false;
+      int *target_vnew = &vnew[i];
+
+      if (split_flagA != -1)
+      {
+         double dx;
+         for (int j = 0; j < 4; j++)
+         {
+            dx = 0.0;
+            for (int d = 0; d < spaceDim; d++) { dx += std::abs(V(d) - vertices[split_vertsA[j]](d)); }
+            if (dx < 1e-12)
+            {
+               *target_vnew = split_vertsA[j];
+               found = true;
+               break;
+            }
+         }
+      }
+      if (split_flagB != -1)
+      {
+         double dx;
+         for (int j = 0; j < 4; j++)
+         {
+            dx = 0.0;
+            for (int d = 0; d < spaceDim; d++)
+            {
+               dx += std::abs(V(d) - vertices[split_vertsB[j]](d));
+            }
+            if (dx < 1e-12)
+            {
+               *target_vnew = split_vertsB[j];
+               found = true;
+               break;
+            }
+         }
+      }
+
+      if (!found)
+      {
+         vertices.Append(V);
+         *target_vnew = NumOfVertices++;
+      }
+   }
+
+   // Update face markers if they were unset
+   if (split_flagA == -1)
+   {
+      face_marker[ {fvertsA[0],fvertsA[1],fvertsA[2],fvertsA[3]}] =
+      {
+         1, {
+            vnew[FV[fA_idx][0]],
+            vnew[FV[fA_idx][1]],
+            vnew[FV[fA_idx][2]],
+            vnew[FV[fA_idx][3]]
+         }
+      };
+   }
+   if (split_flagB == -1)
+   {
+      face_marker[ {fvertsB[0],fvertsB[1],fvertsB[2],fvertsB[3]}] =
+      {
+         1, {
+            vnew[FV[fB_idx][0]],
+            vnew[FV[fB_idx][1]],
+            vnew[FV[fB_idx][2]],
+            vnew[FV[fB_idx][3]]
+         }
+      };
+   }
+
+   // Local Hex Indices
+   int local_hex_idx_7[5][8] =
+   {
+      {8,9,13,12,0,1,5,4},   // Y=0 Slab (Index 0 in hex_idx block 7)
+      {3,2,6,7,11,10,14,15}, // Y=1 Slab (Index 1)
+      {0,3,7,4,8,11,15,12},  // X=0 Slab (Index 2)
+      {9,10,14,13,1,2,6,5},  // X=1 Slab (Index 3)
+      {8,9,10,11,12,13,14,15}    // Center
+   };
+   int local_hex_idx_8[5][8] =
+   {
+      {0,1,2,3,8,9,10,11},    // Z=0 slab (Index 0)
+      {12,13,14,15,4,5,6,7},  // Z=1 slab (Index 1)
+      {0,3,7,4,8,11,15,12},   // X=0 slab (Index 2)
+      {9,10,14,13,1,2,6,5},   // X=1 slab (Index 3)
+      {8,9,10,11,12,13,14,15}    // Center
+   };
+   int local_hex_idx_9[5][8] =
+   {
+      {0,1,2,3,8,9,10,11},    // Z=0 slab (Index 0)
+      {12,13,14,15,4,5,6,7},  // Z=1 slab (Index 1)
+      {8,9,13,12,0,1,5,4},    // Y=0 slab (Index 2)
+      {3,2,6,7,11,10,14,15},  // Y=1 slab (Index 3)
+      {8,9,10,11,12,13,14,15}    // Center
+   };
+
+   // Update hex0 to be the Center Hex (Child 4)
+   Hexahedron *hex0 = (Hexahedron*) elements[e];
+   hex0->SetVertices(vnew);
+   unsigned code = hex0->GetTransform();
+
+   //  Now we create the nex hexahedras
+   int v1[8], idx;
+   for (int i = 0; i < 4; i++)
+   {
+      int co = 1 + split_type*6 + i; // child ordinal
+      for (int j = 0; j < 8; j++)
+      {
+         if (split_type == 6)
+         {
+            idx = local_hex_idx_7[i][j];
+         }
+         else if (split_type == 7)
+         {
+            idx = local_hex_idx_8[i][j];
+         }
+         else if (split_type == 8)
+         {
+            idx = local_hex_idx_9[i][j];
+         }
+         if (idx >= 8)
+         {
+            v1[j] = vnew[idx-8];
+         }
+         else
+         {
+            v1[j] = v[idx];
+         }
+      }
+      Hexahedron* hex = new Hexahedron(v1, hex0->GetAttribute());
+      elements.Append(hex);
+      hex->ResetTransform(code);
+      if (i == 0)
+      {
+         hex0->PushTransform(split_type*6 + 6);
+      }
+      hex->PushTransform(co);
+   }
+
+   // set parent indices. again needs to be consistent with hex_conf_children
+   int coarse = FindCoarseElement(e);
+   for (int i = 0; i < 4; i++)
+   {
+      int co = 1 + split_type*6 + i; // child ordinal
+      if (i == 0)
+      {
+         CoarseFineTr.embeddings[e] = Embedding(coarse,
+                                                Geometry::CUBE,
+                                                split_type*6 + 6);
+      }
+      CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::CUBE, co));
+   }
+   NumOfElements += 4;
 }
+}
+
