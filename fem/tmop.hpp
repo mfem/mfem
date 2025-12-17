@@ -2044,6 +2044,7 @@ protected:
    GridFunction *adapt_lim_gf;           // Owned. Updated by adapt_lim_eval.
    Coefficient *adapt_lim_coeff;         // Not owned.
    AdaptivityEvaluator *adapt_lim_eval;  // Not owned.
+   real_t adapt_lim_delta_max = 1.0;
 
    // Surface fitting.
    const Array<bool> *surf_fit_marker;      // Not owned. Nodes to fit.
@@ -2110,9 +2111,16 @@ protected:
    //     Updated by every call to PANonlinearFormExtension::GetGradient().
    // MC: Q-Vector for the metric Coefficient.
    //     Updated when the mesh nodes change.
+   // ALC:  Q-Vector for spatial weight used for the adaptive limiting term.
+   //       Updated when the mesh nodes change.
+   // ALF:  E-Vector constructed using adaptive limiting GF.
+   //       Remapped when the mesh nodes change.
+   // ALF0: E-Vector constructed using the initial adaptive limiting GF.
+   //       Does not change during the TMOP iteration.
    //
-   // maps:     Dof2Quad map for fes associated with the nodal coordinates.
-   // maps_lim: Dof2Quad map for fes associated with the limiting dist GridFunc.
+   // maps:      Dof2Quad map for fes associated with the nodal coordinates.
+   // maps_lim:  Dof2Quad map for fes associated with the limiting dist GF.
+   // maps_alim: Dof2Quad map for fes associated with the adaptive limiting GFs.
    //
    // Jtr_debug_grad
    //     We keep track if Jtr was set by AssembleGradPA() in Jtr_debug_grad: it
@@ -2131,9 +2139,11 @@ protected:
       mutable DenseTensor Jtr;
       mutable bool Jtr_needs_update;
       mutable bool Jtr_debug_grad;
-      mutable Vector E, O, X0, XL, H, C0, LD, H0, MC;
+      mutable Vector E, O, X0, XL, H, C0, LD, H0, MC, ALC, ALF, ALF0;
+      real_t al_delta;
       const DofToQuad *maps;
       const DofToQuad *maps_lim = nullptr;
+      const DofToQuad *maps_alim = nullptr;
       const GeometricFactors *geom;
       const FiniteElementSpace *fes;
       const IntegrationRule *ir;
@@ -2221,11 +2231,15 @@ protected:
    void AssembleGradPA_3D(const Vector&) const;
    void AssembleGradPA_C0_2D(const Vector&) const;
    void AssembleGradPA_C0_3D(const Vector&) const;
+   // void AssembleGradPA_AdaptLim_2D(const Vector&) const;
+   // void AssembleGradPA_AdaptLim_3D(const Vector&) const;
 
    void GetLocalStateEnergyPA_2D(const Vector &x, real_t &energy) const;
    void GetLocalStateEnergyPA_3D(const Vector&, real_t &energy) const;
    real_t GetLocalStateEnergyPA_C0_2D(const Vector&) const;
    real_t GetLocalStateEnergyPA_C0_3D(const Vector&) const;
+   // real_t GetLocalStateEnergyPA_AdaptLim_2D(const Vector&) const;
+   // real_t GetLocalStateEnergyPA_AdaptLim_3D(const Vector&) const;
    void GetLocalNormalizationEnergiesPA_2D(const Vector &x,
                                            real_t &met_energy,
                                            real_t &lim_energy) const;
@@ -2237,18 +2251,25 @@ protected:
    void AddMultPA_3D(const Vector&, Vector&) const;
    void AddMultPA_C0_2D(const Vector&, Vector&) const;
    void AddMultPA_C0_3D(const Vector&, Vector&) const;
+   // void AddMultPA_AdaptLim_2D(const Vector&, Vector&) const;
+   // void AddMultPA_AdaptLim_3D(const Vector&, Vector&) const;
 
    void AddMultGradPA_2D(const Vector&, Vector&) const;
    void AddMultGradPA_3D(const Vector&, Vector&) const;
    void AddMultGradPA_C0_2D(const Vector&, Vector&) const;
    void AddMultGradPA_C0_3D(const Vector&, Vector&) const;
+   // void AddMultGradPA_AdaptLim_2D(const Vector&, Vector&) const;
+   // void AddMultGradPA_AdaptLim_3D(const Vector&, Vector&) const;
 
    void AssembleDiagonalPA_2D(Vector&) const;
    void AssembleDiagonalPA_3D(Vector&) const;
    void AssembleDiagonalPA_C0_2D(Vector&) const;
    void AssembleDiagonalPA_C0_3D(Vector&) const;
+   // void AssembleDiagonalPA_AdaptLim_2D(Vector&) const;
+   // void AssembleDiagonalPA_AdaptLim_3D(Vector&) const;
 
    void AssemblePA_Limiting();
+   void AssemblePA_AdaptLim();
    void ComputeAllElementTargets(const Vector &xe = Vector()) const;
    // Updates the Q-vectors for the metric_coeff and lim_coeff, based on the
    // new physical positions of the quadrature points.
@@ -2361,11 +2382,11 @@ public:
        @param[in] coeff  Coefficient c for the above integral.
        @param[in] ae     AdaptivityEvaluator to compute z(x) from z0(x0). */
    void EnableAdaptiveLimiting(const GridFunction &z0, Coefficient &coeff,
-                               AdaptivityEvaluator &ae);
+                               AdaptivityEvaluator &ae, double delta_max);
 #ifdef MFEM_USE_MPI
    /// Parallel support for adaptive limiting.
    void EnableAdaptiveLimiting(const ParGridFunction &z0, Coefficient &coeff,
-                               AdaptivityEvaluator &ae);
+                               AdaptivityEvaluator &ae, double delta_max);
 #endif
 
    /** @brief Fitting of certain DOFs to the zero level set of a function.

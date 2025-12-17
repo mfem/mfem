@@ -321,7 +321,57 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    PA.Jtr_debug_grad = false;
 
    // Limiting: lim_coeff -> PA.C0, lim_nodes0 -> PA.XL, lim_dist -> PA.LD, PA.H0
-   if (lim_coeff) { AssemblePA_Limiting(); }
+   if (lim_coeff)    { AssemblePA_Limiting(); }
+   // Adaptive limiting: adapt_lim_coeff -> PA.ALC, adapt_lim_gf -> PA.ALF,
+   //                    adapt_lim_gf0 -> PA.ALF0, adapt_lim_delta_max -> PA.ALD
+   if (adapt_lim_gf) { AssemblePA_AdaptLim(); }
+}
+
+void TMOP_Integrator::AssemblePA_AdaptLim()
+{
+   // adapt_lim_coeff -> PA.ALC (Q-vector).
+   PA.ALC.UseDevice(true);
+   if (auto *cQ = dynamic_cast<ConstantCoefficient *>(adapt_lim_coeff))
+   {
+      PA.ALC.SetSize(1, Device::GetMemoryType());
+      PA.ALC.HostWrite();
+      PA.ALC(0) = cQ->constant;
+   }
+   else
+   {
+      PA.ALC.SetSize(PA.nq * PA.ne, Device::GetMemoryType());
+      auto ALC = Reshape(PA.ALC.HostWrite(), PA.nq, PA.ne);
+      for (int e = 0; e < PA.ne; ++e)
+      {
+         ElementTransformation &T = *PA.fes->GetElementTransformation(e);
+         for (int q = 0; q < PA.ir->GetNPoints(); ++q)
+         {
+            ALC(q, e) = adapt_lim_coeff->Eval(T, PA.ir->IntPoint(q));
+         }
+      }
+   }
+
+   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+
+   const FiniteElementSpace *alfes = adapt_lim_gf->FESpace();
+   PA.maps_alim = &alfes->GetTypicalFE()->GetDofToQuad(*PA.ir, DofToQuad::TENSOR);
+
+   // adapt_lim_gf -> PA.ALF (E-vector, same pattern as LD)
+   const FiniteElement &alf_fe = *alfes->GetTypicalFE();
+   PA.ALF.SetSize(PA.ne * alf_fe.GetDof(), Device::GetMemoryType());
+   PA.ALF.UseDevice(true);
+   const Operator *alf_R = alfes->GetElementRestriction(ordering);
+   alf_R->Mult(*adapt_lim_gf, PA.ALF);
+
+   // adapt_lim_gf0 -> PA.ALF0 (E-vector, same pattern as LD)
+   const FiniteElementSpace *alf0es = adapt_lim_gf0->FESpace();
+   PA.ALF0.SetSize(PA.ne * alf_fe.GetDof(), Device::GetMemoryType());
+   PA.ALF0.UseDevice(true);
+   const Operator *alf0_R = alf0es->GetElementRestriction(ordering);
+   alf0_R->Mult(*adapt_lim_gf0, PA.ALF0);
+
+   // adapt_lim_delta_max -> PA.al_delta.
+   PA.al_delta = adapt_lim_delta_max;
 }
 
 void TMOP_Integrator::AssembleGradDiagonalPA(Vector &de) const
@@ -433,12 +483,14 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA(const Vector &de) const
    {
       GetLocalStateEnergyPA_2D(xe, energy);
       if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_2D(xe); }
+      //if (adapt_lim_gf) { energy += GetLocalStateEnergyPA_AdaptLim_2D(xe); }
    }
 
    if (PA.dim == 3)
    {
       GetLocalStateEnergyPA_3D(xe, energy);
       if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_3D(xe); }
+      //if (adapt_lim_gf) { energy += GetLocalStateEnergyPA_AdaptLim_3D(xe); }
    }
 
    return energy;

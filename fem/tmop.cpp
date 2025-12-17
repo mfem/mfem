@@ -3797,13 +3797,15 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
 
 void TMOP_Integrator::EnableAdaptiveLimiting(const GridFunction &z0,
                                              Coefficient &coeff,
-                                             AdaptivityEvaluator &ae)
+                                             AdaptivityEvaluator &ae,
+                                             real_t delta_max)
 {
    adapt_lim_gf0 = &z0;
    delete adapt_lim_gf;
    adapt_lim_gf   = new GridFunction(z0);
    adapt_lim_coeff = &coeff;
    adapt_lim_eval = &ae;
+   adapt_lim_delta_max = delta_max;
 
    adapt_lim_eval->SetSerialMetaInfo(*z0.FESpace()->GetMesh(),
                                      *z0.FESpace());
@@ -3814,7 +3816,8 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const GridFunction &z0,
 #ifdef MFEM_USE_MPI
 void TMOP_Integrator::EnableAdaptiveLimiting(const ParGridFunction &z0,
                                              Coefficient &coeff,
-                                             AdaptivityEvaluator &ae)
+                                             AdaptivityEvaluator &ae,
+                                             real_t delta_max)
 {
    adapt_lim_gf0 = &z0;
    adapt_lim_pgf0 = &z0;
@@ -3822,6 +3825,7 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const ParGridFunction &z0,
    adapt_lim_gf   = new GridFunction(z0);
    adapt_lim_coeff = &coeff;
    adapt_lim_eval = &ae;
+   adapt_lim_delta_max = delta_max;
 
    adapt_lim_eval->SetParMetaInfo(*z0.ParFESpace()->GetParMesh(),
                                   *z0.ParFESpace());
@@ -4294,7 +4298,8 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       // Contribution from the adaptive limiting term.
       if (adaptive_limiting)
       {
-         const real_t diff = adapt_lim_gf_q(i) - adapt_lim_gf0_q(i);
+         const real_t diff = (adapt_lim_gf_q(i) - adapt_lim_gf0_q(i)) /
+                             adapt_lim_delta_max;
          val += adapt_lim_coeff->Eval(*Tpr, ip) * lim_normal * diff * diff;
       }
 
@@ -4851,7 +4856,8 @@ void TMOP_Integrator::AssembleElemVecAdaptLim(const FiniteElement &el,
       const IntegrationPoint &ip = ir.IntPoint(q);
       el.CalcShape(ip, shape);
       adapt_lim_gf_grad_e.MultTranspose(shape, adapt_lim_gf_grad_q);
-      adapt_lim_gf_grad_q *= 2.0 * (adapt_lim_gf_q(q) - adapt_lim_gf0_q(q));
+      adapt_lim_gf_grad_q *= 2.0 * (adapt_lim_gf_q(q) - adapt_lim_gf0_q(q)) /
+                             adapt_lim_delta_max / adapt_lim_delta_max;
       adapt_lim_gf_grad_q *= weights(q) * lim_normal * adapt_lim_coeff->Eval(Tpr, ip);
       AddMultVWt(shape, adapt_lim_gf_grad_q, mat);
    }
@@ -4910,7 +4916,8 @@ void TMOP_Integrator::AssembleElemGradAdaptLim(const FiniteElement &el,
                w * ( 2.0 * adapt_lim_gf_grad_q(idim) * shape(idof) *
                      /* */ adapt_lim_gf_grad_q(jdim) * shape(jdof) +
                      2.0 * (adapt_lim_gf_q(q) - adapt_lim_gf0_q(q)) *
-                     adapt_lim_gf_hess_q(idim, jdim) * shape(idof) * shape(jdof));
+                     adapt_lim_gf_hess_q(idim, jdim) * shape(idof) * shape(jdof)) /
+                   adapt_lim_delta_max / adapt_lim_delta_max;
             mat(i, j) += entry;
             if (i != j) { mat(j, i) += entry; }
          }
