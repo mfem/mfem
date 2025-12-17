@@ -6733,22 +6733,22 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
          ukvs[i] = (oe[i] < 0) ? sign(ukvs[i]) : ukvs[i];
       }
 
-      // Find the dimension with this kv.
-      int thisDim = -1;
-      for (int d=0; d<dim; ++d) // Loop over dimensions.
+      // Find the direction with this kv.
+      int thisDir = -1;
+      for (int d=0; d<dim; ++d) // Loop over directions.
       {
          const int skv = edge_to_ukv[pe[dir_edges[d][0]]];
          if (skv == kv || sign(skv) == kv)
          {
-            thisDim = d;
+            thisDir = d;
          }
       }
-      MFEM_VERIFY(thisDim >= 0, "");
+      MFEM_VERIFY(thisDir >= 0, "");
 
-      // For this dimension, find any edge already set. If no edge is set, we
+      // For this direction, find any edge already set. If no edge is set, we
       // arbitrarily take the first.
-      int ref_edge0 = dir_edges[thisDim][0];
-      for (auto ref_edge : dir_edges[thisDim])
+      int ref_edge0 = dir_edges[thisDir][0];
+      for (auto ref_edge : dir_edges[thisDir])
       {
          const int edge = pe[ref_edge];
          if (edgeSet[edge])
@@ -6765,9 +6765,9 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
 
       initKV = true;
 
-      // Use ref_edge0 to set other edges in this dimension.
+      // Use ref_edge0 to set other edges in this direction.
       edgeSet[pe[ref_edge0]] = true;
-      for (auto i : dir_edges[thisDim])
+      for (auto i : dir_edges[thisDir])
       {
          if (i == ref_edge0)
          {
