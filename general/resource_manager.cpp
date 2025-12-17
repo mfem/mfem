@@ -39,8 +39,8 @@ protected:
    bool owns_allocator = false;
 
 public:
-   UmpireAllocator(const char *name,
-                   const char *space) : rm(umpire::ResourceManager::getInstance())
+   UmpireAllocator(const char *name, const char *space)
+      : rm(umpire::ResourceManager::getInstance())
    {
       if (!rm.isAllocator(name))
       {
@@ -68,6 +68,7 @@ struct UmpireHostAllocator : public UmpireAllocator
 {
 private:
    umpire::strategy::AllocationStrategy *strat;
+
 public:
    UmpireHostAllocator(const char *name, const char *space)
       : UmpireAllocator(name, space), strat(allocator.getAllocationStrategy())
@@ -487,8 +488,7 @@ MemoryManager::MemoryManager()
 }
 
 void MemoryManager::Configure(MemoryType host_loc, MemoryType device_loc,
-                              MemoryType hostpinned_loc,
-                              MemoryType managed_loc)
+                              MemoryType hostpinned_loc, MemoryType managed_loc)
 {
    if (device_loc == MemoryType::DEVICE_DEBUG)
    {
@@ -766,8 +766,7 @@ char *MemoryManager::Alloc(size_t nbytes, MemoryType type, bool temporary)
 }
 
 size_t MemoryManager::RBase::insert(size_t segment, ptrdiff_t offset,
-                                    bool on_device, bool valid,
-                                    size_t &nn)
+                                    bool on_device, bool valid, size_t &nn)
 {
    create_next_node(nn);
    auto &n = nodes[nn - 1];
@@ -858,8 +857,8 @@ void MemoryManager::erase_node(size_t &root, size_t idx)
 }
 
 template <class F>
-void MemoryManager::mark_valid(size_t segment, bool on_device,
-                               ptrdiff_t start, ptrdiff_t stop, F &&func)
+void MemoryManager::mark_valid(size_t segment, bool on_device, ptrdiff_t start,
+                               ptrdiff_t stop, F &&func)
 {
    auto &seg = storage.get_segment(segment);
    size_t curr = find_marker(segment, start, on_device);
@@ -1258,7 +1257,7 @@ void MemoryManager::clear_segment(size_t segment)
    clear_segment(seg);
 }
 
-void MemoryManager::clear_segment(RBase::Segment& seg, bool on_device)
+void MemoryManager::clear_segment(RBase::Segment &seg, bool on_device)
 {
    // cleanup nodes
    storage.visit(seg.roots[on_device], [](size_t) { return true; },
@@ -1343,9 +1342,8 @@ size_t MemoryManager::find_marker(size_t segment, ptrdiff_t offset,
 
    // mark valid
    size_t start = seg.roots[on_device];
-   storage.visit(
-      seg.roots[on_device],
-      [&](size_t idx)
+   storage.visit(seg.roots[on_device],
+                 [&](size_t idx)
    {
       // if idx <= lower, then everything to the left is too small
       return storage.get_node(idx).offset > offset;
@@ -1354,8 +1352,7 @@ size_t MemoryManager::find_marker(size_t segment, ptrdiff_t offset,
    {
       // if idx >= lower, then everything to the right is too large
       return storage.get_node(idx).offset < offset;
-   },
-   [&](size_t idx)
+   }, [&](size_t idx)
    {
       if (storage.get_node(start).offset < offset)
       {
@@ -1396,8 +1393,9 @@ void MemoryManager::print_segment(size_t segment)
          {
             mfem::out << "device";
          }
-         mfem::out << " seg " << segment << ", " << static_cast<int>(seg.mtypes[i])
-                   << ": " << (uint64_t)seg.lowers[i] << ", "
+         mfem::out << " seg " << segment << ", "
+                   << static_cast<int>(seg.mtypes[i]) << ": "
+                   << (uint64_t)seg.lowers[i] << ", "
                    << (uint64_t)seg.lowers[i] + seg.nbytes << std::endl;
          auto curr = storage.first(seg.roots[i]);
          while (curr)
@@ -1419,8 +1417,8 @@ void MemoryManager::print_segment(size_t segment)
 }
 
 template <class F>
-void MemoryManager::check_valid(size_t segment, bool on_device,
-                                ptrdiff_t start, ptrdiff_t stop, F &&func)
+void MemoryManager::check_valid(size_t segment, bool on_device, ptrdiff_t start,
+                                ptrdiff_t stop, F &&func)
 {
    size_t curr = find_marker(segment, start, on_device);
    check_valid(curr, start, stop, func);
@@ -1600,7 +1598,6 @@ static bool rw_on_dev(MemoryClass mc)
    return true;
 }
 
-
 char *MemoryManager::write(size_t segment, size_t offset, size_t nbytes,
                            MemoryClass mc)
 {
@@ -1634,7 +1631,8 @@ char *MemoryManager::write(size_t segment, size_t offset, size_t nbytes,
          // need to allocate
          if (seg.mtypes[on_device] == MemoryType::DEFAULT)
          {
-            seg.mtypes[on_device] = on_device ? memory_types[1] : memory_types[0];
+            seg.mtypes[on_device] =
+               on_device ? memory_types[1] : memory_types[0];
          }
          seg.lowers[on_device] =
             Alloc(seg.nbytes, seg.mtypes[on_device], seg.is_temporary());
@@ -1649,7 +1647,8 @@ char *MemoryManager::write(size_t segment, size_t offset, size_t nbytes,
          // initially all invalid
          mark_invalid(segment, on_device, 0, seg.nbytes, [&](auto, auto) {});
       }
-      mark_valid(segment, on_device, offset, offset + nbytes, [](auto, auto) {});
+      mark_valid(segment, on_device, offset, offset + nbytes,
+      [](auto, auto) {});
       if (seg.lowers[!on_device])
       {
          mark_invalid(segment, !on_device, offset, offset + nbytes,
@@ -1670,7 +1669,10 @@ struct BatchCopyKernel
    {
       ptrdiff_t start = segs[seg].first;
       ptrdiff_t stop = segs[seg].second;
-      MFEM_FOREACH_THREAD(i, x, stop - start) { dst[start + i] = src[start + i]; }
+      MFEM_FOREACH_THREAD(i, x, stop - start)
+      {
+         dst[start + i] = src[start + i];
+      }
    }
 };
 
@@ -1817,8 +1819,8 @@ void MemoryManager::BatchMemCopy2(
                // on device
                for (size_t i = 0; i < copy_segs.size(); i += 3)
                {
-                  MemCopy(dst + copy_segs[i + 1], src + copy_segs[i], copy_segs[i + 2],
-                          dst_loc, src_loc);
+                  MemCopy(dst + copy_segs[i + 1], src + copy_segs[i],
+                          copy_segs[i + 2], dst_loc, src_loc);
                }
             }
             else
@@ -1826,8 +1828,8 @@ void MemoryManager::BatchMemCopy2(
                // dst and src accessible from host
                for (size_t i = 0; i < copy_segs.size(); i += 3)
                {
-                  MemCopy(dst + copy_segs[i + 1], src + copy_segs[i], copy_segs[i + 2],
-                          dst_loc, src_loc);
+                  MemCopy(dst + copy_segs[i + 1], src + copy_segs[i],
+                          copy_segs[i + 2], dst_loc, src_loc);
                }
                MFEM_STREAM_SYNC;
             }
@@ -1840,8 +1842,8 @@ void MemoryManager::BatchMemCopy2(
                // on device
                for (size_t i = 0; i < copy_segs.size(); i += 3)
                {
-                  MemCopy(dst + copy_segs[i + 1], src + copy_segs[i], copy_segs[i + 2],
-                          dst_loc, src_loc);
+                  MemCopy(dst + copy_segs[i + 1], src + copy_segs[i],
+                          copy_segs[i + 2], dst_loc, src_loc);
                }
             }
             else
@@ -1861,8 +1863,8 @@ void MemoryManager::BatchMemCopy2(
                // dst and src accessible from host
                for (size_t i = 0; i < copy_segs.size(); i += 3)
                {
-                  MemCopy(dst + copy_segs[i + 1], src + copy_segs[i], copy_segs[i + 2],
-                          dst_loc, src_loc);
+                  MemCopy(dst + copy_segs[i + 1], src + copy_segs[i],
+                          copy_segs[i + 2], dst_loc, src_loc);
                }
             }
             else
@@ -1900,7 +1902,8 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
          // need to allocate
          if (seg.mtypes[on_device] == MemoryType::DEFAULT)
          {
-            seg.mtypes[on_device] = on_device ? memory_types[1] : memory_types[0];
+            seg.mtypes[on_device] =
+               on_device ? memory_types[1] : memory_types[0];
          }
          seg.lowers[on_device] =
             Alloc(seg.nbytes, seg.mtypes[on_device], seg.is_temporary());
@@ -1923,9 +1926,9 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
       }
       else
       {
-         mark_valid(
-            segment, on_device, offset, offset + nbytes,
-         [&](auto start, auto stop) { copy_segs.emplace_back(start, stop); });
+         mark_valid(segment, on_device, offset, offset + nbytes,
+                    [&](auto start, auto stop)
+         { copy_segs.emplace_back(start, stop); });
       }
       if (copy_segs.size())
       {
@@ -1990,7 +1993,8 @@ const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
          // need to allocate
          if (seg.mtypes[on_device] == MemoryType::DEFAULT)
          {
-            seg.mtypes[on_device] = on_device ? memory_types[1] : memory_types[0];
+            seg.mtypes[on_device] =
+               on_device ? memory_types[1] : memory_types[0];
          }
          seg.lowers[on_device] =
             Alloc(seg.nbytes, seg.mtypes[on_device], seg.is_temporary());
@@ -2014,9 +2018,9 @@ const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
       }
       else
       {
-         mark_valid(
-            segment, on_device, offset, offset + nbytes,
-         [&](auto start, auto stop) { copy_segs.emplace_back(start, stop); });
+         mark_valid(segment, on_device, offset, offset + nbytes,
+                    [&](auto start, auto stop)
+         { copy_segs.emplace_back(start, stop); });
       }
       if (copy_segs.size())
       {
@@ -2136,9 +2140,8 @@ void MemoryManager::CopyImpl(char *dst, MemoryType dloc, size_t dst_offset,
                                                        AllocatorAdaptor<ptrdiff_t>(GetManagedMemoryType(), true));
    std::vector<ptrdiff_t, AllocatorAdaptor<ptrdiff_t>> copy1(
                                                        AllocatorAdaptor<ptrdiff_t>(GetManagedMemoryType(), true));
-   check_valid(
-      marker, dst_offset, dst_offset + nbytes,
-      [&](auto dst_start, auto dst_stop, bool valid)
+   check_valid(marker, dst_offset, dst_offset + nbytes,
+               [&](auto dst_start, auto dst_stop, bool valid)
    {
       if (valid)
       {
@@ -2169,7 +2172,8 @@ void MemoryManager::CopyImpl(char *dst, MemoryType dloc, size_t dst_offset,
                {
                   if (next_marker)
                   {
-                     auto pos = storage.get_node(next_marker).offset - src_offset;
+                     auto pos =
+                        storage.get_node(next_marker).offset - src_offset;
                      if (pos > start)
                      {
                         return;
@@ -2268,7 +2272,8 @@ void MemoryManager::CopyImpl(char *dst, MemoryType dloc, size_t dst_offset,
                            auto npos = stop;
                            if (next_m1)
                            {
-                              npos = storage.get_node(next_m1).offset - src_offset;
+                              npos =
+                                 storage.get_node(next_m1).offset - src_offset;
                            }
                            if (stop <= npos)
                            {
@@ -2328,9 +2333,9 @@ void MemoryManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
    }
    if (dst_seg != src_seg)
    {
+      size_t currs[2] = {0, 0};
       auto &dseg = storage.get_segment(dst_seg);
       auto &sseg = storage.get_segment(src_seg);
-      size_t currs[2] = {0, 0};
       if (sseg.lowers[0])
       {
          currs[0] = find_marker(src_seg, src_offset, false);
@@ -2339,22 +2344,33 @@ void MemoryManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
       {
          currs[1] = find_marker(src_seg, src_offset, true);
       }
-
-      for (int i = 0; i < 2 - (dseg.lowers[1] == dseg.lowers[0]); ++i)
+      if (dseg.lowers[1] == dseg.lowers[0])
       {
-         if (dseg.lowers[i])
+         // assume dst is valid in either host or device over the entire range
+         CopyImpl(dseg.lowers[0], dseg.mtypes[1], dst_offset, 0, nbytes,
+                  sseg.lowers[1], sseg.lowers[0], sseg.mtypes[1],
+                  sseg.mtypes[0], src_offset, currs[1], currs[0]);
+      }
+      else
+      {
+         // distinct host and device buffers, copy to each as needed
+         for (int i = 0; i < 2; ++i)
          {
-            size_t curr = find_marker(dst_seg, dst_offset, i);
-            CopyImpl(dseg.lowers[i], dseg.mtypes[i], dst_offset, curr, nbytes,
-                     sseg.lowers[i], sseg.lowers[1 - i], sseg.mtypes[i],
-                     sseg.mtypes[1 - i], src_offset, currs[i], currs[1 - i]);
+            if (dseg.lowers[i])
+            {
+               size_t curr = find_marker(dst_seg, dst_offset, i);
+               CopyImpl(dseg.lowers[i], dseg.mtypes[i], dst_offset, curr,
+                        nbytes, sseg.lowers[i], sseg.lowers[1 - i],
+                        sseg.mtypes[i], sseg.mtypes[1 - i], src_offset,
+                        currs[i], currs[1 - i]);
+            }
          }
       }
    }
 }
 
-void MemoryManager::CopyFromHost(size_t segment, size_t offset,
-                                 const char *src, size_t nbytes)
+void MemoryManager::CopyFromHost(size_t segment, size_t offset, const char *src,
+                                 size_t nbytes)
 {
    if (nbytes == 0)
    {
@@ -2362,25 +2378,39 @@ void MemoryManager::CopyFromHost(size_t segment, size_t offset,
    }
    auto &dseg = storage.get_segment(segment);
 
-   for (int i = 0; i < 2; ++i)
+   if (dseg.lowers[0] == dseg.lowers[1])
    {
-      if (dseg.lowers[i])
+      // assume dst is valid in either host or device over the entire range
+      std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
+          AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
+          copy_segs(AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(
+                       GetManagedMemoryType(), true));
+      copy_segs.emplace_back(offset, offset + nbytes);
+      BatchMemCopy(dseg.lowers[1], src - offset, dseg.mtypes[1],
+                   MemoryType::HOST, copy_segs);
+   }
+   else
+   {
+      for (int i = 0; i < 2; ++i)
       {
-         std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
-             AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
-             copy_segs(AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(
-                          GetManagedMemoryType(), true));
-         check_valid(segment, i, offset, offset + nbytes,
-                     [&](auto start, auto stop, bool valid)
+         if (dseg.lowers[i])
          {
-            if (valid)
+            std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
+                AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
+                copy_segs(AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(
+                             GetManagedMemoryType(), true));
+            check_valid(segment, i, offset, offset + nbytes,
+                        [&](auto start, auto stop, bool valid)
             {
-               copy_segs.emplace_back(start, stop);
-            }
-            return false;
-         });
-         BatchMemCopy(dseg.lowers[i], src - offset, dseg.mtypes[i],
-                      MemoryType::HOST, copy_segs);
+               if (valid)
+               {
+                  copy_segs.emplace_back(start, stop);
+               }
+               return false;
+            });
+            BatchMemCopy(dseg.lowers[i], src - offset, dseg.mtypes[i],
+                         MemoryType::HOST, copy_segs);
+         }
       }
    }
 }
@@ -2474,9 +2504,8 @@ void MemoryManager::SetUmpireDeviceAllocatorName_(const char *d_name)
 
 void MemoryManager::SetUmpireDevice2AllocatorName_(const char *d_name)
 {
-   MFEM_ASSERT(
-      !allocs_storage[12],
-      "Umpire Device 2 Allocator has already been created and cannot be change");
+   MFEM_ASSERT(!allocs_storage[12], "Umpire Device 2 Allocator has already "
+               "been created and cannot be change");
    d_umpire_2_name = d_name;
 }
 #endif
@@ -2513,17 +2542,17 @@ void MemoryManager::UpdateDualMemoryType(MemoryType mt, MemoryType dual_mt)
 
 MemoryType MemoryManager::dual_map[MemoryTypeSize] =
 {
-   /* HOST            */  MemoryType::DEVICE,
-   /* HOST_32         */  MemoryType::DEVICE,
-   /* HOST_64         */  MemoryType::DEVICE,
-   /* HOST_DEBUG      */  MemoryType::DEVICE_DEBUG,
-   /* HOST_UMPIRE     */  MemoryType::DEVICE_UMPIRE,
-   /* HOST_PINNED     */  MemoryType::HOST_PINNED,
-   /* MANAGED         */  MemoryType::MANAGED,
-   /* DEVICE          */  MemoryType::HOST,
-   /* DEVICE_DEBUG    */  MemoryType::HOST_DEBUG,
-   /* DEVICE_UMPIRE   */  MemoryType::HOST_UMPIRE,
-   /* DEVICE_UMPIRE_2 */  MemoryType::HOST_UMPIRE
+   /* HOST            */ MemoryType::DEVICE,
+   /* HOST_32         */ MemoryType::DEVICE,
+   /* HOST_64         */ MemoryType::DEVICE,
+   /* HOST_DEBUG      */ MemoryType::DEVICE_DEBUG,
+   /* HOST_UMPIRE     */ MemoryType::DEVICE_UMPIRE,
+   /* HOST_PINNED     */ MemoryType::HOST_PINNED,
+   /* MANAGED         */ MemoryType::MANAGED,
+   /* DEVICE          */ MemoryType::HOST,
+   /* DEVICE_DEBUG    */ MemoryType::HOST_DEBUG,
+   /* DEVICE_UMPIRE   */ MemoryType::HOST_UMPIRE,
+   /* DEVICE_UMPIRE_2 */ MemoryType::HOST_UMPIRE
 };
 
 } // namespace mfem
