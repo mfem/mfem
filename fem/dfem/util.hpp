@@ -385,7 +385,7 @@ void print_mpi_sync(const std::string& msg)
    else
    {
       // Other ranks: Send message to rank 0
-      MPI_Send(msg.c_str(), static_cast<int>(msg_len), MPI_CHAR,
+      MPI_Send(const_cast<char*>(msg.c_str()), static_cast<int>(msg_len), MPI_CHAR,
                0, 0, MPI_COMM_WORLD);
    }
 
