@@ -1021,6 +1021,14 @@ NURBSPatch* ReflectPatch(NURBSPatch *patch, int nx, int ny, int nz,
                          const Vector &origin, const Vector &normal,
                          const std::array<int, 8> &hexPerm)
 {
+   // The hexahedral element for this patch in the reflected patch topology mesh
+   // is the reflection of an original patch topology mesh element, with
+   // reference vertices permuted according to hexPerm. The original grid of
+   // (nx + 1) x (ny + 1) x (nz + 1)
+   // control points has a new size and ordering, depending on hexPerm. Now,
+   // ReorderHexArray finds the new dimensions of this grid in `dims`, maps the
+   // directions in `dir`, and sets the permutation of grid indices as triples
+   // in `permArray`.
    std::array<int, 3> dims, dir;
    Array3D<int> permArray;
    ReorderHexArray({nx+1, ny+1, nz+1}, hexPerm, dir, dims, permArray);

@@ -6672,6 +6672,7 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
    Array<int> pfaces, orient;
    Array<int> fe, feo;
 
+   // Finds elements sharing a face containing knotvector kv.
    auto faceNeighbors = [&](int p, int kv, std::unordered_set<int> &nghb)
    {
       if (dim == 2) { GetElementEdges(p, pfaces, orient); }
@@ -6687,11 +6688,12 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
             const int skv = edge_to_ukv[e];
             if (skv == kv || sign(skv) == kv) { hasKV = true; }
          }
-         if (!hasKV) { continue; }
-
-         Array<int> row;
-         face2elem->GetRow(face, row);
-         for (auto elem : row) { nghb.insert(elem); }
+         if (hasKV)
+         {
+            Array<int> row;
+            face2elem->GetRow(face, row);
+            for (auto elem : row) { nghb.insert(elem); }
+         }
       }
    };
 
@@ -6741,10 +6743,7 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
             thisDim = d;
          }
       }
-      if (thisDim == -1)
-      {
-         return false;
-      }
+      MFEM_VERIFY(thisDim >= 0, "");
 
       // For this dimension, find any edge already set. If no edge is set, we
       // arbitrarily take the first.
@@ -6790,15 +6789,24 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
       return true;
    };
 
-   Array<bool> edgeSet(NumOfEdges);
+   Array<bool> edgeSet(NumOfEdges); // Whether edge has orientation set
    edgeSet = false;
 
-   std::unordered_set<int> unset;
+   std::unordered_set<int> unset; // Patches with an unset edge
    for (int i=0; i<NumOfElements; ++i) { unset.insert(i); }
 
    const int max_iter = 3 * NumOfElements;
    for (int iter=0; iter<max_iter; ++iter)
    {
+      // Iteratively choose an unset patch (meaning not all edges have
+      // orientation set), choose a knotvector index for which the corresponding
+      // edges on this patch are not set, and sweep over all patches containing
+      // this knotvector. The patch sweep is ordered, by maintaining an ordered
+      // list `nextPatches` set by finding face-neighbor patches of visited
+      // patches, where the common face contains the knotvector. When each patch
+      // is visited, the edge orientations are set consistently. This iteration
+      // terminates when all edges have been set on all patches.
+
       std::list<int> nextPatches; // Next patches to visit, ordered
       std::unordered_set<int> nextSet; // nextPatches as a set
       std::unordered_set<int> visited; // Visit each patch only once
