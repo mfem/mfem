@@ -146,7 +146,7 @@ TEST_CASE("NURBS NC-patch mesh loading", "[NURBS]")
    REQUIRE(mesh.GetNE() == ne * std::pow(2, dim));
 }
 
-TEST_CASE("NURBS 1D mesh load", "[NURBS]")
+TEST_CASE("NURBS 1D variable-order mesh load", "[NURBS]")
 {
    auto mesh_fname = GENERATE("../../data/nurbs-segments.mesh");
 
@@ -162,7 +162,7 @@ TEST_CASE("NURBS 1D mesh load", "[NURBS]")
    REQUIRE(mesh.NURBSext != nullptr);
    REQUIRE(mesh.NURBSext->Dimension() == 1);
 
-   // Check that we have three knotvectors
+   // Check that we have three knotvectors with orders {1,2,3} (in some order)
    const int n_kv = mesh.NURBSext->GetNKV();
    REQUIRE(n_kv == 3);
 
@@ -172,8 +172,38 @@ TEST_CASE("NURBS 1D mesh load", "[NURBS]")
    Array<int> uniq_orders(orders);
    uniq_orders.Sort();
    uniq_orders.Unique();
-   REQUIRE(uniq_orders.Size() == 1);
-   REQUIRE(uniq_orders[0] == 2);
+   REQUIRE(uniq_orders.Size() == 3);
+   REQUIRE(uniq_orders[0] == 1);
+   REQUIRE(uniq_orders[1] == 2);
+   REQUIRE(uniq_orders[2] == 3);
+
+   // Validate each KnotVector's order and number of control points.
+   // Expected:
+   //   kv0: order 1, ncp 2
+   //   kv1: order 2, ncp 3
+   //   kv2: order 3, ncp 4
+   Array<int> expected_order({1, 2, 3});
+   Array<int> expected_ncp({2, 3, 4});
+
+   for (int i = 0; i < n_kv; i++)
+   {
+      const KnotVector *kv = mesh.NURBSext->GetKnotVector(i);
+      REQUIRE(kv != nullptr);
+
+      const int o = kv->GetOrder();
+      const int ncp = kv->GetNCP();
+
+      bool matched = false;
+      for (int j = 0; j < expected_order.Size(); j++)
+      {
+         if (o == expected_order[j] && ncp == expected_ncp[j])
+         {
+            matched = true;
+            break;
+         }
+      }
+      REQUIRE(matched);
+   }
 }
 
 TEST_CASE("NURBS NC-patch large meshes", "[MFEMData][NURBS]")

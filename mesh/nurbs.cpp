@@ -906,10 +906,12 @@ NURBSPatch::NURBSPatch(std::istream &input)
    if (ident == "controlpoints" || ident == "controlpoints_homogeneous")
    {
       for (int j = 0, i = 0; i < size; i++)
+      {
          for (int d = 0; d <= dim; d++, j++)
          {
             input >> data[j];
          }
+      }
    }
    else // "controlpoints_cartesian" (Cartesian coordinates with weight)
    {
@@ -3757,8 +3759,8 @@ void NURBSExtension::GetPatchOffsets(int &meshCounter, int &spaceCounter)
 
       if (dim == 1)
       {
-         meshCounter  += KnotVec(0)->GetNE() - 1;
-         spaceCounter += KnotVec(0)->GetNCP() - 2;
+         meshCounter  += KnotVec(p)->GetNE() - 1;
+         spaceCounter += KnotVec(p)->GetNCP() - 2;
       }
       else if (dim == 2)
       {
