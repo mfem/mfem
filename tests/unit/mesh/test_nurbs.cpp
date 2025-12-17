@@ -146,6 +146,36 @@ TEST_CASE("NURBS NC-patch mesh loading", "[NURBS]")
    REQUIRE(mesh.GetNE() == ne * std::pow(2, dim));
 }
 
+TEST_CASE("NURBS 1D mesh load", "[NURBS]")
+{
+   auto mesh_fname = GENERATE("../../data/nurbs-segments.mesh");
+
+   Mesh mesh(mesh_fname, 1, 0);
+
+   // Basic mesh properties
+   REQUIRE(mesh.Dimension() == 1);
+   REQUIRE(mesh.SpaceDimension() == 2);
+   REQUIRE(mesh.GetNE() == 3);
+   REQUIRE(mesh.GetNV() == 6);
+
+   // NURBS extension must be present and 1D
+   REQUIRE(mesh.NURBSext != nullptr);
+   REQUIRE(mesh.NURBSext->Dimension() == 1);
+
+   // Check that we have three knotvectors
+   const int n_kv = mesh.NURBSext->GetNKV();
+   REQUIRE(n_kv == 3);
+
+   const Array<int> &orders = mesh.NURBSext->GetOrders();
+   REQUIRE(orders.Size() == n_kv);
+
+   Array<int> uniq_orders(orders);
+   uniq_orders.Sort();
+   uniq_orders.Unique();
+   REQUIRE(uniq_orders.Size() == 1);
+   REQUIRE(uniq_orders[0] == 2);
+}
+
 TEST_CASE("NURBS NC-patch large meshes", "[MFEMData][NURBS]")
 {
    auto mesh_fname = GENERATE("bricks2D.mesh",
