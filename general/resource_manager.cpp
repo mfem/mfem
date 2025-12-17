@@ -1591,43 +1591,32 @@ bool MemoryManager::is_valid(size_t segment, size_t offset, size_t nbytes,
    return false;
 }
 
+static bool rw_on_dev(MemoryClass mc)
+{
+   if (IsHostMemory(GetMemoryType(mc)) && mc < MemoryClass::DEVICE)
+   {
+      return false;
+   }
+   return true;
+}
+
+
 char *MemoryManager::write(size_t segment, size_t offset, size_t nbytes,
                            MemoryClass mc)
 {
-   if (IsHostMemory(::mfem::GetMemoryType(mc)))
-   {
-      return write(segment, offset, nbytes, false);
-   }
-   else
-   {
-      return write(segment, offset, nbytes, true);
-   }
+   return write(segment, offset, nbytes, rw_on_dev(mc));
 }
 
 char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
                                 MemoryClass mc)
 {
-   if (IsHostMemory(::mfem::GetMemoryType(mc)))
-   {
-      return read_write(segment, offset, nbytes, false);
-   }
-   else
-   {
-      return read_write(segment, offset, nbytes, true);
-   }
+   return read_write(segment, offset, nbytes, rw_on_dev(mc));
 }
 
 const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
                                 MemoryClass mc)
 {
-   if (IsHostMemory(::mfem::GetMemoryType(mc)))
-   {
-      return read(segment, offset, nbytes, false);
-   }
-   else
-   {
-      return read(segment, offset, nbytes, true);
-   }
+   return read(segment, offset, nbytes, rw_on_dev(mc));
 }
 
 char *MemoryManager::write(size_t segment, size_t offset, size_t nbytes,
