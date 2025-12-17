@@ -258,7 +258,7 @@ void DarcyHybridization::SetEssentialBC(const Array<int> &bdr_attr_is_ess)
 
 void DarcyHybridization::SetEssentialVDofs(const Array<int> &ess_vdofs_list)
 {
-   if (c_fes.Conforming())
+   if (c_fes.Conforming() && !ParallelC())
    {
       ess_vdofs_list.Copy(ess_tdof_list); // ess_vdofs_list --> ess_tdof_list
    }
@@ -1946,11 +1946,7 @@ void DarcyHybridization::Finalize()
       ComputeParH(ComputeHMode::Linear, H, pH);
       pOp = pH;
 #endif //MFEM_USE_MPI
-      if (H)
-      {
-         EliminateTraceTrueDofs(diag_policy);
-         He->Finalize();
-      }
+      EliminateTraceTrueDofs(diag_policy);
    }
    else
    {
@@ -2165,16 +2161,27 @@ void DarcyHybridization::EliminateTrueDofsInRHS(
    }
 }
 
-void DarcyHybridization::EliminateTraceTrueDofs(const Array<int> &vdofs,
+void DarcyHybridization::EliminateTraceTrueDofs(const Array<int> &tdofs,
                                                 DiagonalPolicy dpolicy)
 {
-   if (!He) { He.reset(new SparseMatrix(H->Height())); }
-
-   if (vdofs.Size() == 0) { return; }
-
-   for (int vdof : vdofs)
+   if (!ParallelC())
    {
-      H->EliminateRowCol(vdof, *He, diag_policy);
+      He.reset(new SparseMatrix(H->Height()));
+
+      if (tdofs.Size() == 0) { return; }
+
+      for (int vdof : tdofs)
+      {
+         H->EliminateRowCol(vdof, *He, diag_policy);
+      }
+
+      He->Finalize();
+   }
+   else
+   {
+      MFEM_ASSERT(pH.Type() == Operator::Hypre_ParCSR,
+                  "Implemented for HypreParMatrix only!");
+      pHe.Reset(pH.As<HypreParMatrix>()->EliminateRowsCols(tdofs));
    }
 }
 
@@ -2183,12 +2190,21 @@ void DarcyHybridization::EliminateTraceTrueDofs(DiagonalPolicy dpolicy)
    EliminateTraceTrueDofs(GetEssentialTrueDofs(), dpolicy);
 }
 
-void DarcyHybridization::EliminateTraceTrueDofsInRHS(const Array<int> &vdofs_,
+void DarcyHybridization::EliminateTraceTrueDofsInRHS(const Array<int> &tdofs_,
                                                      const Vector &x, Vector &b)
 {
-   MFEM_VERIFY(H && He, "The hybridization matrix is not assembled!");
-   He->AddMult(x, b, -1.);
-   H->PartMult(vdofs_, x, b);
+   if (!ParallelC())
+   {
+      MFEM_VERIFY(H && He, "The hybridization matrix is not assembled!");
+      He->AddMult(x, b, -1.);
+      H->PartMult(tdofs_, x, b);
+   }
+   else
+   {
+      MFEM_VERIFY(pH.Ptr() && pHe.Ptr(),
+                  "The hybridization matrix is not assembled!");
+      pH.As<HypreParMatrix>()->EliminateBC(*pHe.As<HypreParMatrix>(), tdofs_, x, b);
+   }
 }
 
 void DarcyHybridization::EliminateTraceTrueDofsInRHS(const Vector &x, Vector &b)
@@ -3360,6 +3376,7 @@ void DarcyHybridization::Reset()
    bfin = false;
    ess_tdof_list.DeleteAll();
    He.reset();
+   pHe.Clear();
 
    A_empty = true;
    Bf_data = 0.;

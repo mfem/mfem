@@ -120,6 +120,7 @@ private:
    mutable Array<int> f_2_b;
 
    std::unique_ptr<SparseMatrix> He;
+   OperatorHandle pHe;
    mutable std::unique_ptr<SparseMatrix> Grad;
    mutable OperatorHandle pGrad;
 

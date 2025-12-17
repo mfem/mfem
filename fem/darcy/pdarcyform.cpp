@@ -336,6 +336,10 @@ void ParDarcyForm::FormLinearSystem(
       {
          X_ = 0.0;
       }
+      else if (hybridization)
+      {
+         hybridization->EliminateTraceTrueDofsInRHS(X_, B_);
+      }
    }
    else
    {
