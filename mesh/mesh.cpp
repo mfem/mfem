@@ -6550,8 +6550,8 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
    const int NPKV = NP * dim;    // number of patch knotvectors
    constexpr int notset = -9999999;
    // Sign convention
-   auto sign = [](int i) { return -1 - i; };
-   auto unsign = [](int i) { return (i < 0) ? -1 - i : i; };
+   auto flipSign = [](int i) { return -1 - i; };
+   auto unSign = [](int i) { return (i < 0) ? -1 - i : i; };
    // Local edge index -> dimension convention
    auto edge_to_dim = [](int i) { return (i < 8) ? ((i & 1) ? 1 : 0) : 2; };
 
@@ -6567,7 +6567,7 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
       {
          GetElementVertices(i, v);
          // Sign is based on the edge's vertex indices
-         edge_to_ukv[i] = (v[1] > v[0]) ? i : sign(i);
+         edge_to_ukv[i] = (v[1] > v[0]) ? i : flipSign(i);
          ukv_to_rpkv[i] = i;
       }
       return;
@@ -6617,14 +6617,14 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
          // We've set this edge already - link this index to it
          if (edge_to_pkv[edge] != notset)
          {
-            const int pkv_other = unsign(edge_to_pkv[edge]);
+            const int pkv_other = unSign(edge_to_pkv[edge]);
             unite(pkv, pkv_other);
          }
          else
          {
             GetEdgeVertices(edge, v);
             // Sign is based on the edge's vertex indices
-            edge_to_pkv[edge] = (v[1] > v[0]) ? pkv : sign(pkv);
+            edge_to_pkv[edge] = (v[1] > v[0]) ? pkv : flipSign(pkv);
          }
       }
    }
@@ -6651,10 +6651,10 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
    edge_to_ukv.SetSize(NumOfEdges);
    for (int i = 0; i < NumOfEdges; i++)
    {
-      const int pkv = unsign(edge_to_pkv[i]);
+      const int pkv = unSign(edge_to_pkv[i]);
       const int rpkv = pkv_to_rpkv[pkv];
       const int ukv = rpkv_to_ukv[rpkv];
-      edge_to_ukv[i] = (edge_to_pkv[i] < 0) ? sign(ukv) : ukv;
+      edge_to_ukv[i] = (edge_to_pkv[i] < 0) ? flipSign(ukv) : ukv;
    }
 
    CorrectPatchTopoOrientations(edge_to_ukv);
@@ -6666,7 +6666,7 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
    if (dim == 1) { return; }
 
    // Sign convention
-   auto sign = [](int i) { return -1 - i; };
+   auto flipSign = [](int i) { return -1 - i; };
 
    const Table *face2elem = GetFaceToElementTable();
    Array<int> pfaces, orient;
@@ -6686,7 +6686,7 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
          for (auto e : fe)
          {
             const int skv = edge_to_ukv[e];
-            if (skv == kv || sign(skv) == kv) { hasKV = true; }
+            if (skv == kv || flipSign(skv) == kv) { hasKV = true; }
          }
          if (hasKV)
          {
@@ -6730,7 +6730,7 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
       for (int i = 0; i < pe.Size(); i++)
       {
          ukvs[i] = edge_to_ukv[pe[i]];
-         ukvs[i] = (oe[i] < 0) ? sign(ukvs[i]) : ukvs[i];
+         ukvs[i] = (oe[i] < 0) ? flipSign(ukvs[i]) : ukvs[i];
       }
 
       // Find the direction with this kv.
@@ -6738,7 +6738,7 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
       for (int d=0; d<dim; ++d) // Loop over directions.
       {
          const int skv = edge_to_ukv[pe[dir_edges[d][0]]];
-         if (skv == kv || sign(skv) == kv)
+         if (skv == kv || flipSign(skv) == kv)
          {
             thisDir = d;
          }
@@ -6775,12 +6775,12 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
          }
 
          const int edge = pe[i];
-         if ((dim == 2 && ukvs[i] != sign(ukvs[ref_edge0])) ||
-             (dim == 3 && ukvs[i] == sign(ukvs[ref_edge0])))
+         if ((dim == 2 && ukvs[i] != flipSign(ukvs[ref_edge0])) ||
+             (dim == 3 && ukvs[i] == flipSign(ukvs[ref_edge0])))
          {
             // Flip the sign of this edge
             MFEM_VERIFY(!edgeSet[edge], "");
-            edge_to_ukv[edge] = sign(edge_to_ukv[edge]);
+            edge_to_ukv[edge] = flipSign(edge_to_ukv[edge]);
          }
 
          edgeSet[edge] = true;
@@ -6838,7 +6838,7 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
       }
 
       const int kv_signed = edge_to_ukv[pe[dir_edges[unsetDim][0]]];
-      const int kv = kv_signed < 0 ? sign(kv_signed) : kv_signed;
+      const int kv = kv_signed < 0 ? flipSign(kv_signed) : kv_signed;
       MFEM_VERIFY(!edgeSet[pe[dir_edges[unsetDim][0]]], "");
 
       initKV = false;
