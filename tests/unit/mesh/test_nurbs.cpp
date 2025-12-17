@@ -148,7 +148,8 @@ TEST_CASE("NURBS NC-patch mesh loading", "[NURBS]")
 
 TEST_CASE("NURBS 1D variable-order mesh load", "[NURBS]")
 {
-   auto mesh_fname = GENERATE("../../data/nurbs-segments.mesh");
+   auto mesh_fname = GENERATE("../../data/nurbs-segments.mesh", 
+                              "../../data/nurbs-segments-patches.mesh");
 
    Mesh mesh(mesh_fname, 1, 0);
 

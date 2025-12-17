@@ -4791,11 +4791,12 @@ Mesh::Mesh( const NURBSExtension& ext )
    if (NURBSext->HavePatches())
    {
       NURBSFECollection  *fec = new NURBSFECollection(NURBSext->GetOrder());
-      FiniteElementSpace *fes = new FiniteElementSpace(this, fec, Dim,
+      const int vdim = NURBSext->GetPhysicalDim();
+      FiniteElementSpace *fes = new FiniteElementSpace(this, fec, vdim,
                                                        Ordering::byVDIM);
       Nodes = new GridFunction(fes);
       Nodes->MakeOwner(fec);
-      NURBSext->SetCoordsFromPatches(*Nodes);
+      NURBSext->SetCoordsFromPatches(*Nodes, vdim);
       own_nodes = 1;
       spaceDim = Nodes->VectorDim();
       for (int i = 0; i < spaceDim; i++)
@@ -6434,7 +6435,7 @@ void Mesh::UpdateNURBS()
    Nodes->FESpace()->Update();
    Nodes->Update();
    NodesUpdated();
-   NURBSext->SetCoordsFromPatches(*Nodes);
+   NURBSext->SetCoordsFromPatches(*Nodes, Nodes->VectorDim());
 
    if (NumOfVertices != NURBSext->GetNV())
    {

@@ -2371,13 +2371,22 @@ void NURBSExtension::Load(std::istream &input, bool spacing)
          patches[p] = new NURBSPatch(input);
       }
 
-      NumOfKnotVectors = 0;
-      for (int i = 0; i < patchTopo->GetNEdges(); i++)
-         if (NumOfKnotVectors < KnotInd(i))
-         {
-            NumOfKnotVectors = KnotInd(i);
-         }
-      NumOfKnotVectors++;
+      if (Dimension() == 1)
+      {
+         // In 1D, each patch has its own (possibly different) KnotVector.
+         // The number of unique KnotVectors is equal to the number of patches.
+         NumOfKnotVectors = patches.Size();
+      }
+      else
+      {
+         NumOfKnotVectors = 0;
+         for (int i = 0; i < patchTopo->GetNEdges(); i++)
+            if (NumOfKnotVectors < KnotInd(i))
+            {
+               NumOfKnotVectors = KnotInd(i);
+            }
+         NumOfKnotVectors++;
+      }
       knotVectors.SetSize(NumOfKnotVectors);
       knotVectors = NULL;
 
@@ -4597,11 +4606,11 @@ void NURBSExtension::ConvertToPatches(const Vector &Nodes)
    }
 }
 
-void NURBSExtension::SetCoordsFromPatches(Vector &Nodes)
+void NURBSExtension::SetCoordsFromPatches(Vector &Nodes, int vdim)
 {
    if (patches.Size() == 0) { return; }
 
-   SetSolutionVector(Nodes, Dimension());
+   SetSolutionVector(Nodes, vdim);
    patches.SetSize(0);
 }
 
@@ -5171,6 +5180,8 @@ void NURBSExtension::Set1DSolutionVector(Vector &coords, int vdim)
    Array<const KnotVector *> kv(1);
    NURBSPatchMap p2g(this);
 
+   const bool d2p = dof2patch.Size() > 0;
+
    weights.SetSize(GetNDof());
    for (int p = 0; p < GetNP(); p++)
    {
@@ -5181,9 +5192,14 @@ void NURBSExtension::Set1DSolutionVector(Vector &coords, int vdim)
       for (int i = 0; i < kv[0]->GetNCP(); i++)
       {
          const int l = p2g(i);
+         if (d2p && dof2patch[l] >= 0 && dof2patch[l] != p) { continue; }
+
          for (int d = 0; d < vdim; d++)
          {
-            coords(l*vdim + d) = patch(i,d)/patch(i,vdim);
+            const int idx = l*vdim + d;
+            MFEM_ASSERT(idx >= 0 && idx < coords.Size(),
+                        "Set1DSolutionVector: invalid coordinate index.");
+            coords(idx) = patch(i,d)/patch(i,vdim);
          }
          weights(l) = patch(i,vdim);
       }
@@ -5273,6 +5289,18 @@ void NURBSExtension::GetPatches(Array<NURBSPatch*> &patches_copy)
    {
       patches_copy[p] = new NURBSPatch(*GetPatch(p));
    }
+}
+
+int NURBSExtension::GetPhysicalDim() const
+{
+   if (patches.Size() > 0)
+   {
+      // Patch dimension includes the weight coordinate.
+      return patches[0]->GetNC() - 1;
+   }
+   // Fallback: for non-patch-based extensions, assume the physical dimension
+   // matches the reference dimension.
+   return Dimension();
 }
 
 void NURBSExtension::SetPatchToElements()
