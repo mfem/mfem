@@ -5,6 +5,12 @@
 #ifdef MFEM_USE_CUDSS
 #ifdef MFEM_USE_MPI
 
+#ifdef MFEM_USE_SINGLE
+#define CUDA_REAL_T CUDA_R_32F
+#else
+#define CUDA_REAL_T CUDA_R_64F
+#endif
+
 // Define a cuDSS error check macro, MFEM_CUDSS_CHECK(x), where x returns/is of
 // type 'cudssStatus_t'. This macro evaluates 'x' and raises an error if the
 // result is not CUDSS_STATUS_SUCCESS.
@@ -16,10 +22,11 @@
                                _MFEM_FUNC_NAME, __FILE__, __LINE__); \
     }                                                                \
   } while (0)
+
 namespace mfem
 {
-cudssHandle_t CuDSSHandle::global_cudss_handle = nullptr;
-CuDSSHandle::State CuDSSHandle::state = CuDSSHandle::State::UNINITIALIZED;
+cudssHandle_t CuDSSSolver::handle = nullptr;
+int CuDSSSolver::CuDSSSolverCount = 0;
 
 // Function used by the macro MFEM_CUDSS_CHECK.
 void mfem_cudss_error(cudssStatus_t status, const char *expr, const char *func,
@@ -33,36 +40,6 @@ void mfem_cudss_error(cudssStatus_t status, const char *expr, const char *func,
    mfem_error();
 }
 
-void CuDSSHandle::Init()
-{
-   if (state == State::UNINITIALIZED)
-   {
-      MFEM_CUDSS_CHECK(cudssCreate(&global_cudss_handle));
-      // NOTE: Set the communication layer to NULL so that cuDSS picks it from
-      // the environment variable "CUDSS_COMM_LIB"
-      MFEM_CUDSS_CHECK(
-         cudssSetCommLayer(global_cudss_handle, NULL));
-      state = State::INITIALIZED;
-   }
-}
-
-void CuDSSHandle::Finalize()
-{
-   if (state == State::INITIALIZED)
-   {
-      MFEM_CUDSS_CHECK(cudssDestroy(global_cudss_handle));
-      global_cudss_handle = nullptr;
-      state = State::UNINITIALIZED;
-   }
-}
-
-cudssHandle_t CuDSSHandle::Get()
-{
-   MFEM_VERIFY(state == State::INITIALIZED,
-               "cuDSS handle is not initialized!");
-   return global_cudss_handle;
-}
-
 CuDSSSolver::CuDSSSolver(MPI_Comm comm_) : mpi_comm(comm_)
 {
    Init();
@@ -70,32 +47,46 @@ CuDSSSolver::CuDSSSolver(MPI_Comm comm_) : mpi_comm(comm_)
 
 void CuDSSSolver::Init()
 {
-   // Note: Ensure that the cuDSS handle is initialized
-   MFEM_VERIFY(CuDSSHandle::IsInitialized(),
-               "cuDSS handle is not initialized!");
+   if (!handle)
+   {
+      // Create the cuDSS handle
+      MFEM_CUDSS_CHECK(cudssCreate(&handle));
+      // NOTE: Set the communication layer to NULL so that cuDSS picks it
+      // from the environment variable "CUDSS_COMM_LIB"
+      MFEM_CUDSS_CHECK(cudssSetCommLayer(handle, NULL));
+   }
 
    // Create the solver configuration and data objects
    MFEM_CUDSS_CHECK(cudssConfigCreate(&solverConfig));
-   MFEM_CUDSS_CHECK(cudssDataCreate(CuDSSHandle::Get(), &solverData));
-   MFEM_CUDSS_CHECK(cudssDataSet(CuDSSHandle::Get(), solverData, CUDSS_DATA_COMM,
-                                 &mpi_comm,
-                                 sizeof(MPI_Comm *)));
+   MFEM_CUDSS_CHECK(cudssDataCreate(handle, &solverData));
+   MFEM_CUDSS_CHECK(cudssDataSet(handle, solverData, CUDSS_DATA_COMM,
+                                 &mpi_comm, sizeof(MPI_Comm *)));
+
+   CuDSSSolverCount++;
 }
 
 CuDSSSolver::~CuDSSSolver()
 {
-   // Destroy the system Matrix
+   // Destroy the system Matrix, RHS vector and solution vector
    if (Ac)
    {
       MFEM_CUDSS_CHECK(cudssMatrixDestroy(*Ac));
+      MFEM_CUDSS_CHECK(cudssMatrixDestroy(xc));
+      MFEM_CUDSS_CHECK(cudssMatrixDestroy(yc));
    }
-   // Destroy the empty RHS vector and solution vector
-   MFEM_CUDSS_CHECK(cudssMatrixDestroy(xc));
-   MFEM_CUDSS_CHECK(cudssMatrixDestroy(yc));
+
 
    // Destroy the cuDSS handle, solver config and solver data
-   MFEM_CUDSS_CHECK(cudssDataDestroy(CuDSSHandle::Get(), solverData));
+   MFEM_CUDSS_CHECK(cudssDataDestroy(handle, solverData));
    MFEM_CUDSS_CHECK(cudssConfigDestroy(solverConfig));
+
+   if (CuDSSSolverCount == 1)
+   {
+      MFEM_CUDSS_CHECK(cudssDestroy(handle));
+      handle = nullptr;
+   }
+
+   CuDSSSolverCount--;
 
    if (csr_offsets_d != NULL)
    {
@@ -246,7 +237,7 @@ void CuDSSSolver::SetOperator(const Operator &op)
 
       // Analysis
       MFEM_CUDSS_CHECK(
-         cudssExecute(CuDSSHandle::Get(), CUDSS_PHASE_ANALYSIS, solverConfig,
+         cudssExecute(handle, CUDSS_PHASE_ANALYSIS, solverConfig,
                       solverData, *Ac, yc, xc));
    }
    else // cuDSSObjectInitialized && reorder_reuse
@@ -257,7 +248,7 @@ void CuDSSSolver::SetOperator(const Operator &op)
    }
 
    // Factorization
-   MFEM_CUDSS_CHECK(cudssExecute(CuDSSHandle::Get(), CUDSS_PHASE_FACTORIZATION,
+   MFEM_CUDSS_CHECK(cudssExecute(handle, CUDSS_PHASE_FACTORIZATION,
                                  solverConfig, solverData, *Ac, yc, xc));
 
    hypre_CSRMatrixDestroy(csr_op);
@@ -326,8 +317,7 @@ void CuDSSSolver::ArrayMult(const Array<const Vector *> &X,
    MFEM_CUDSS_CHECK(cudssMatrixSetValues(yc, SOL.Write()));
 
    // Solve
-   MFEM_CUDSS_CHECK(cudssExecute(CuDSSHandle::Get(), CUDSS_PHASE_SOLVE,
-                                 solverConfig,
+   MFEM_CUDSS_CHECK(cudssExecute(handle, CUDSS_PHASE_SOLVE, solverConfig,
                                  solverData, *Ac, yc, xc));
 
    if (nrhs == 1)

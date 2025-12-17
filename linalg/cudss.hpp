@@ -11,57 +11,8 @@
 #include "hypre.hpp"
 #include <mpi.h>
 
-#ifdef MFEM_USE_SINGLE
-#define CUDA_REAL_T CUDA_R_32F
-#else
-#define CUDA_REAL_T CUDA_R_64F
-#endif
-
 namespace mfem
 {
-/**
- * @brief A simple singleton class for cuDSS handle.
- * 1) Call Init() to initialize the cuDSS library.
- * 2) Call Finalize() at destruction.
- */
-class CuDSSHandle
-{
-public:
-   /// Initialize the cuDSS library
-   static void Init();
-
-   /// Finalize the cuDSS library
-   static void Finalize();
-
-   /// Get the cuDSS handle
-   static cudssHandle_t Get();
-
-   /// Get the initialization state of cuDSS handle
-   static bool IsInitialized() { return state == State::INITIALIZED; }
-
-private:
-   /// Private constructor for singleton pattern
-   CuDSSHandle() = default;
-
-   /// Copy constructor. Deleted.
-   CuDSSHandle(const CuDSSHandle &) = delete;
-
-   /// Move constructor. Deleted.
-   CuDSSHandle(CuDSSHandle &&) = delete;
-
-   /// The singleton destructor (called at program exit) finalizes cudss handle.
-   ~CuDSSHandle() {Finalize();}
-
-   /// State of the cuDSS library
-   enum class State { UNINITIALIZED, INITIALIZED };
-
-   /// Tracks whether CuDSSHandle was initialized or finalized by this class.
-   static State state;
-
-   /// The global cuDSS handle
-   static cudssHandle_t global_cudss_handle;
-};
-
 /**
  * @brief cuDSS: A high-performance CUDA Library for Direct Sparse Solvers
  *
@@ -203,6 +154,11 @@ private:
    // cuDSS objects storage for sparse matrix Ac, RHS yc and solution xc
    std::unique_ptr<cudssMatrix_t> Ac;
    mutable cudssMatrix_t xc, yc;
+
+   // common for all cuDSS solver instances.
+   // cuDSS object holds the cuDSS library context
+   static cudssHandle_t handle;
+   static int CuDSSSolverCount;
 
    // cuDSS object stores configuration settings for the solver
    mutable cudssConfig_t solverConfig;

@@ -19,9 +19,6 @@
 #include "communication.hpp"
 #include "../linalg/hypre.hpp"
 #endif
-#ifdef MFEM_USE_CUDSS
-#include "../linalg/cudss.hpp"
-#endif
 
 #include <unordered_map>
 #include <map>
@@ -181,9 +178,6 @@ Device::~Device()
 #endif
       mm.Destroy();
    }
-#ifdef MFEM_USE_CUDSS
-   CuDSSHandle::Finalize();
-#endif
    Get().ngpu = -1;
    Get().backends = Backend::CPU;
    Get().host_mem_type = MemoryType::HOST;
