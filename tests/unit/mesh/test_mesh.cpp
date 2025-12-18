@@ -373,7 +373,8 @@ TEST_CASE("NURBS 1D curve in 2D from patches", "[Mesh]")
    // given in (x, y, w) format so that the physical dimension is 2 while the
    // topological dimension is 1.
 
-   auto set_knots = [](KnotVector &kv, std::initializer_list<real_t> knots) {
+   auto set_knots = [](KnotVector &kv, std::initializer_list<real_t> knots)
+   {
       MFEM_VERIFY(kv.Size() == static_cast<int>(knots.size()),
                   "KnotVector and knot list must have the same size.");
       int i = 0;
@@ -383,7 +384,8 @@ TEST_CASE("NURBS 1D curve in 2D from patches", "[Mesh]")
       }
    };
 
-   auto set_cp = [](std::initializer_list<std::array<real_t, 3>> pts) {
+   auto set_cp = [](std::initializer_list<std::array<real_t, 3>> pts)
+   {
       Array<real_t> cp(3 * static_cast<int>(pts.size()));
       int i = 0;
       for (const auto &[x, y, w] : pts)
@@ -399,29 +401,35 @@ TEST_CASE("NURBS 1D curve in 2D from patches", "[Mesh]")
    KnotVector kv1(1, 4);
    set_knots(kv1, {0.0, 0.0, 0.4, 0.6, 1.0, 1.0});
    kv1.GetElements();
-   Array<real_t> cp1 = set_cp({{0.0, 0.0, 1.0},
-                               {0.4, 0.6, 1.0},
-                               {0.6, 0.4, 1.0},
-                               {1.0, 1.0, 1.0}});
+   Array<real_t> cp1 = set_cp(
+   {
+      {0.0, 0.0, 1.0},
+      {0.4, 0.6, 1.0},
+      {0.6, 0.4, 1.0},
+      {1.0, 1.0, 1.0}});
    Array<const KnotVector *> kvs1({&kv1});
 
    // Patch 1: order 2, 3 control points
    KnotVector kv2(2, 3);
    set_knots(kv2, {0.0, 0.0, 0.0, 1.0, 1.0, 1.0});
    kv2.GetElements();
-   Array<real_t> cp2 = set_cp({{1.0, 0.0, 1.0},
-                               {1.0, 1.0, 1.2},
-                               {2.0, 1.0, 1.0}});
+   Array<real_t> cp2 = set_cp(
+   {
+      {1.0, 0.0, 1.0},
+      {1.0, 1.0, 1.2},
+      {2.0, 1.0, 1.0}});
    Array<const KnotVector *> kvs2({&kv2});
 
    // Patch 2: order 3, 4 control points
    KnotVector kv3(3, 4);
    set_knots(kv3, {0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0});
    kv3.GetElements();
-   Array<real_t> cp3 = set_cp({{2.0, 0.0, 1.0},
-                               {2.0, 0.9, 1.31},
-                               {2.1, 1.0, 1.32},
-                               {3.0, 1.0, 1.0}});
+   Array<real_t> cp3 = set_cp(
+   {
+      {2.0, 0.0, 1.0},
+      {2.0, 0.9, 1.31},
+      {2.1, 1.0, 1.32},
+      {3.0, 1.0, 1.0}});
    Array<const KnotVector *> kvs3({&kv3});
 
    auto p1 = std::make_unique<NURBSPatch>(kvs1, 3, cp1.GetData());

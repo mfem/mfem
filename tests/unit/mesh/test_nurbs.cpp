@@ -162,7 +162,8 @@ TEST_CASE("NURBS 1D variable-order mesh load", "[NURBS]")
       Array<int> orders, ncp;
    };
 
-   const auto expected = [&]() -> ExpectedSizes {
+   const auto expected = [&]() -> ExpectedSizes
+   {
       ExpectedSizes e;
 
       const bool is_2d = (std::string(mesh_fname).find("2d") != std::string::npos);

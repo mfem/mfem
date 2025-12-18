@@ -5202,7 +5202,7 @@ void NURBSExtension::Set1DSolutionVector(Vector &coords, int vdim)
             const int idx = l * vdim + d;
             MFEM_ASSERT(idx >= 0 && idx < coords.Size(),
                         "Set1DSolutionVector: invalid coordinate index: " << idx << ", size: "
-                                                                          << coords.Size() << "\n");
+                        << coords.Size() << "\n");
             coords(idx) = patch(i, d) / patch(i, vdim);
          }
          weights(l) = patch(i, vdim);

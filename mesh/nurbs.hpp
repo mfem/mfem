@@ -755,8 +755,8 @@ private:
    virtual void SetDofToPatch() { };
 
 public:
-   /** @brief Return the physical dimension of the NURBS geometry, 
-       inferred from the first patch when available, i.e. number of coordinates 
+   /** @brief Return the physical dimension of the NURBS geometry,
+       inferred from the first patch when available, i.e. number of coordinates
        per control point minus one (for the weight). */
    int GetPhysicalDim() const;
 
@@ -938,7 +938,7 @@ public:
    void ConvertToPatches(const Vector &Nodes);
    /// Set KnotVectors from @a patches and construct mesh and space data.
    void SetKnotsFromPatches();
-   /** @brief Set FE coordinates in @a Nodes, using data from @a patches, 
+   /** @brief Set FE coordinates in @a Nodes, using data from @a patches,
        with physical vector dimension @a vdim, and erase @a patches. */
    void SetCoordsFromPatches(Vector &Nodes, int vdim);
 
