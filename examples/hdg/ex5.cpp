@@ -40,7 +40,6 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include <algorithm>
 
 using namespace std;
 using namespace mfem;
@@ -252,7 +251,7 @@ int main(int argc, char *argv[])
    {
       if (trace_h1)
       {
-         trace_coll = new H1_Trace_FECollection(order+1, dim);
+         trace_coll = new H1_Trace_FECollection(max(order, 1), dim);
       }
       else
       {

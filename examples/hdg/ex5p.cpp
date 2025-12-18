@@ -297,7 +297,7 @@ int main(int argc, char *argv[])
    {
       if (trace_h1)
       {
-         trace_coll = new H1_Trace_FECollection(order+1, dim);
+         trace_coll = new H1_Trace_FECollection(max(order, 1), dim);
       }
       else
       {
