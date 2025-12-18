@@ -19,6 +19,11 @@
 #include <type_traits> // std::is_const
 #include <cstddef> // std::max_align_t
 
+#ifdef MFEM_USE_ENZYME
+#else
+#warning "Building WITHOUT ENZYME attr"
+#endif
+
 #ifdef MFEM_USE_MPI
 // Enable internal hypre timing routines
 #define HYPRE_TIMING
@@ -875,8 +880,8 @@ public:
    /// returning the number of printed pointers
    int PrintAliases(std::ostream &out = mfem::out);
 
-   static MemoryType GetHostMemoryType() { return host_mem_type; }
-   static MemoryType GetDeviceMemoryType() { return device_mem_type; }
+   MFEM_ENZYME_INACTIVE static MemoryType GetHostMemoryType() { return host_mem_type; }
+   MFEM_ENZYME_INACTIVE static MemoryType GetDeviceMemoryType() { return device_mem_type; }
 
 #ifdef MFEM_USE_ENZYME
    static void myfree(void* mem, MemoryType MT, unsigned &flags)

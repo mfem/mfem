@@ -861,9 +861,11 @@ void *MemoryManager::New_(void *h_tmp, size_t bytes, MemoryType h_mt,
    return h_ptr;
 }
 
-void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
-                               MemoryType mt,
-                               bool own, bool alias, unsigned &flags)
+MFEM_ENZYME_INACTIVE void *MemoryManager::Register_(
+   void *ptr, void *h_tmp,
+   size_t bytes,
+   MemoryType mt,
+   bool own, bool alias, unsigned &flags)
 {
    MFEM_ASSERT(exists, "Internal error!");
    const bool is_host_mem = IsHostMemory(mt);
@@ -1173,7 +1175,8 @@ void MemoryManager::SyncAlias_(const void *base_h_ptr, void *alias_h_ptr,
                  (base_flags & (Mem::VALID_HOST | Mem::VALID_DEVICE));
 }
 
-MemoryType MemoryManager::GetDeviceMemoryType_(void *h_ptr, bool alias)
+MFEM_ENZYME_INACTIVE MemoryType MemoryManager::GetDeviceMemoryType_(void *h_ptr,
+                                                                    bool alias)
 {
    if (mm.exists)
    {
@@ -1192,7 +1195,7 @@ MemoryType MemoryManager::GetDeviceMemoryType_(void *h_ptr, bool alias)
    return MemoryManager::host_mem_type;
 }
 
-MemoryType MemoryManager::GetHostMemoryType_(void *h_ptr)
+MFEM_ENZYME_INACTIVE MemoryType MemoryManager::GetHostMemoryType_(void *h_ptr)
 {
    if (!mm.exists) { return MemoryManager::host_mem_type; }
    if (mm.IsKnown(h_ptr)) { return maps->memories.at(h_ptr).h_mt; }
@@ -1789,8 +1792,9 @@ MemoryManager mm;
 bool MemoryManager::exists = false;
 bool MemoryManager::configured = false;
 
-MemoryType MemoryManager::host_mem_type = MemoryType::HOST;
-MemoryType MemoryManager::device_mem_type = MemoryType::HOST;
+MFEM_ENZYME_INACTIVE MemoryType MemoryManager::host_mem_type = MemoryType::HOST;
+MFEM_ENZYME_INACTIVE MemoryType MemoryManager::device_mem_type =
+   MemoryType::HOST;
 
 MemoryType MemoryManager::dual_map[MemoryTypeSize] =
 {
