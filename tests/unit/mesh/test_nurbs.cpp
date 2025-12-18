@@ -148,14 +148,18 @@ TEST_CASE("NURBS NC-patch mesh loading", "[NURBS]")
 
 TEST_CASE("NURBS 1D variable-order mesh load", "[NURBS]")
 {
-   auto mesh_fname = GENERATE("../../data/nurbs-segments2d.mesh", 
-                              "../../data/nurbs-segments2d-patches.mesh");
+   auto mesh_fname = GENERATE("../../data/nurbs-segments2d.mesh",
+                              "../../data/nurbs-segments3d.mesh",
+                              "../../data/nurbs-segments2d-patches.mesh",
+                              "../../data/nurbs-segments3d-patches.mesh");
+
+   const int phys_dim = (std::string(mesh_fname).find("2d") != std::string::npos) ? 2 : 3;
 
    Mesh mesh(mesh_fname, 1, 0);
 
    // Basic mesh properties
    REQUIRE(mesh.Dimension() == 1);
-   REQUIRE(mesh.SpaceDimension() == 2);
+   REQUIRE(mesh.SpaceDimension() == phys_dim);
    REQUIRE(mesh.GetNE() == 3);
    REQUIRE(mesh.GetNV() == 6);
 
@@ -191,7 +195,7 @@ TEST_CASE("NURBS 1D variable-order mesh load", "[NURBS]")
       const KnotVector *kv = mesh.NURBSext->GetKnotVector(i);
       REQUIRE(kv != nullptr);
 
-      const int o = kv->GetOrder();
+      const int o   = kv->GetOrder();
       const int ncp = kv->GetNCP();
 
       bool matched = false;
