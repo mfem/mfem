@@ -5187,21 +5187,25 @@ void NURBSExtension::Set1DSolutionVector(Vector &coords, int vdim)
    {
       p2g.SetPatchDofMap(p, kv);
       NURBSPatch &patch = *patches[p];
-      MFEM_ASSERT(vdim+1 == patch.GetNC(), "");
+      MFEM_ASSERT(vdim + 1 == patch.GetNC(), "");
 
       for (int i = 0; i < kv[0]->GetNCP(); i++)
       {
          const int l = p2g(i);
-         if (d2p && dof2patch[l] >= 0 && dof2patch[l] != p) { continue; }
+         if (d2p && dof2patch[l] >= 0 && dof2patch[l] != p)
+         {
+            continue;
+         }
 
          for (int d = 0; d < vdim; d++)
          {
-            const int idx = l*vdim + d;
+            const int idx = l * vdim + d;
             MFEM_ASSERT(idx >= 0 && idx < coords.Size(),
-                        "Set1DSolutionVector: invalid coordinate index.");
-            coords(idx) = patch(i,d)/patch(i,vdim);
+                        "Set1DSolutionVector: invalid coordinate index: " << idx << ", size: "
+                                                                          << coords.Size() << "\n");
+            coords(idx) = patch(i, d) / patch(i, vdim);
          }
-         weights(l) = patch(i,vdim);
+         weights(l) = patch(i, vdim);
       }
 
       delete patches[p];
