@@ -6435,7 +6435,8 @@ void Mesh::UpdateNURBS()
    Nodes->FESpace()->Update();
    Nodes->Update();
    NodesUpdated();
-   NURBSext->SetCoordsFromPatches(*Nodes, Nodes->VectorDim());
+   const int vdim = Nodes->FESpace()->GetVDim();
+   NURBSext->SetCoordsFromPatches(*Nodes, vdim);
 
    if (NumOfVertices != NURBSext->GetNV())
    {
