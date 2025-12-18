@@ -6410,7 +6410,7 @@ void Mesh::UpdateNURBS()
    NURBSext->SetKnotsFromPatches();
 
    Dim = NURBSext->Dimension();
-   spaceDim = Dim;
+   spaceDim = Nodes->FESpace()->GetVDim();
 
    if (NumOfElements != NURBSext->GetNE())
    {

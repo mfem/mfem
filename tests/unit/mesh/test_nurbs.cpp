@@ -231,6 +231,24 @@ TEST_CASE("NURBS 1D variable-order mesh load", "[NURBS]")
       }
       REQUIRE(matched);
    }
+
+   // Additionally, exercise degree elevation and ensure basic invariants hold
+   {
+      const int max_order = orders.Max();
+      mesh.DegreeElevate(max_order, max_order);
+
+      REQUIRE(mesh.NURBSext != nullptr);
+      REQUIRE(mesh.Dimension() == 1);
+      REQUIRE(mesh.SpaceDimension() == expected.phys_dim);
+      REQUIRE(mesh.NURBSext->Dimension() == 1);
+
+      const Array<int> &new_orders = mesh.NURBSext->GetOrders();
+      REQUIRE(new_orders.Size() == orders.Size());
+      for (int i = 0; i < new_orders.Size(); ++i)
+      {
+         REQUIRE(new_orders[i] == max_order);
+      }
+   }
 }
 
 TEST_CASE("NURBS NC-patch large meshes", "[MFEMData][NURBS]")
