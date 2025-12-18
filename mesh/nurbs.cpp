@@ -4602,7 +4602,15 @@ void NURBSExtension::ConvertToPatches(const Vector &Nodes)
 
    if (patches.Size() == 0)
    {
-      GetPatchNets(Nodes, Dimension());
+      // Determine the physical vector dimension from the coordinate vector and
+      // the number of DOFs. This is needed in particular for curves/surfaces
+      // embedded in higher-dimensional physical spaces.
+      MFEM_VERIFY(GetNDof() > 0,
+                  "NURBSExtension::ConvertToPatches: invalid number of DOFs.");
+      MFEM_VERIFY(Nodes.Size() % GetNDof() == 0,
+                  "NURBSExtension::ConvertToPatches: coordinate size not divisible by DOFs.");
+      const int phys_vdim = Nodes.Size() / GetNDof();
+      GetPatchNets(Nodes, phys_vdim);
    }
 }
 
