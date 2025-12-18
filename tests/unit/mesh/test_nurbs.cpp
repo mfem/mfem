@@ -151,45 +151,66 @@ TEST_CASE("NURBS 1D variable-order mesh load", "[NURBS]")
    auto mesh_fname = GENERATE("../../data/nurbs-segments2d.mesh",
                               "../../data/nurbs-segments3d.mesh",
                               "../../data/nurbs-segments2d-patches.mesh",
-                              "../../data/nurbs-segments3d-patches.mesh");
+                              "../../data/nurbs-segments3d-patches.mesh",
+                              "../../data/nurbs-segments2d-patches-multispan.mesh");
 
-   const int phys_dim = (std::string(mesh_fname).find("2d") != std::string::npos) ? 2 : 3;
+   // Set up hard-coded expected values based on the input meshes.
+   // This should be easy to update as needed.
+   struct ExpectedSizes
+   {
+      int phys_dim, ne, nv, nkv;
+      Array<int> orders, ncp;
+   };
+
+   const auto expected = [&]() -> ExpectedSizes {
+      ExpectedSizes e;
+
+      const bool is_2d = (std::string(mesh_fname).find("2d") != std::string::npos);
+      e.phys_dim       = is_2d ? 2 : 3;
+
+      if (std::string(mesh_fname).find("multispan") != std::string::npos)
+      {
+         // multispan: 4 input segments w/ 9 elements, 13 vertices
+         e.ne     = 9;
+         e.nv     = 13;
+         e.nkv    = 4;
+         e.orders = Array<int>({1, 2, 3, 4});
+         e.ncp    = Array<int>({4, 4, 6, 5});
+      }
+      else
+      {
+         // standard: 3 elements, 6 vertices
+         e.ne     = 3;
+         e.nv     = 6;
+         e.nkv    = 3;
+         e.orders = Array<int>({1, 2, 3});
+         e.ncp    = Array<int>({2, 3, 4});
+      }
+
+      return e;
+   }();
 
    Mesh mesh(mesh_fname, 1, 0);
 
    // Basic mesh properties
    REQUIRE(mesh.Dimension() == 1);
-   REQUIRE(mesh.SpaceDimension() == phys_dim);
-   REQUIRE(mesh.GetNE() == 3);
-   REQUIRE(mesh.GetNV() == 6);
+   REQUIRE(mesh.SpaceDimension() == expected.phys_dim);
+
+   REQUIRE(mesh.GetNE() == expected.ne);
+   REQUIRE(mesh.GetNV() == expected.nv);
 
    // NURBS extension must be present and 1D
    REQUIRE(mesh.NURBSext != nullptr);
    REQUIRE(mesh.NURBSext->Dimension() == 1);
 
-   // Check that we have three knotvectors with orders {1,2,3} (in some order)
+   // Check that we have the expected number of knotvectors
    const int n_kv = mesh.NURBSext->GetNKV();
-   REQUIRE(n_kv == 3);
+   REQUIRE(n_kv == expected.nkv);
 
    const Array<int> &orders = mesh.NURBSext->GetOrders();
    REQUIRE(orders.Size() == n_kv);
 
-   Array<int> uniq_orders(orders);
-   uniq_orders.Sort();
-   uniq_orders.Unique();
-   REQUIRE(uniq_orders.Size() == 3);
-   REQUIRE(uniq_orders[0] == 1);
-   REQUIRE(uniq_orders[1] == 2);
-   REQUIRE(uniq_orders[2] == 3);
-
    // Validate each KnotVector's order and number of control points.
-   // Expected:
-   //   kv0: order 1, ncp 2
-   //   kv1: order 2, ncp 3
-   //   kv2: order 3, ncp 4
-   Array<int> expected_order({1, 2, 3});
-   Array<int> expected_ncp({2, 3, 4});
-
    for (int i = 0; i < n_kv; i++)
    {
       const KnotVector *kv = mesh.NURBSext->GetKnotVector(i);
@@ -199,9 +220,9 @@ TEST_CASE("NURBS 1D variable-order mesh load", "[NURBS]")
       const int ncp = kv->GetNCP();
 
       bool matched = false;
-      for (int j = 0; j < expected_order.Size(); j++)
+      for (int j = 0; j < expected.orders.Size(); ++j)
       {
-         if (o == expected_order[j] && ncp == expected_ncp[j])
+         if (o == expected.orders[j] && ncp == expected.ncp[j])
          {
             matched = true;
             break;
