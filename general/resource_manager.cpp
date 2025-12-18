@@ -1790,8 +1790,13 @@ void MemoryManager::BatchMemCopy2(
    char *dst, const char *src, MemoryType dst_loc, MemoryType src_loc,
    const std::vector<ptrdiff_t, AllocatorAdaptor<ptrdiff_t>> &copy_segs)
 {
+#if 0
+   // for debugging
    for (size_t i = 0; i < copy_segs.size(); i += 3)
    {
+      mfem::out << "copy " << copy_segs[i] << ", "
+                << copy_segs[i] + copy_segs[i + 2] << " to " << copy_segs[i + 1]
+                << ", " << copy_segs[i + 1] + copy_segs[i + 2] << std::endl;
       if (dst + copy_segs[i + 1] <= src + copy_segs[i])
       {
          MFEM_ASSERT(dst + copy_segs[i + 1] + copy_segs[i + 2] <=
@@ -1805,6 +1810,8 @@ void MemoryManager::BatchMemCopy2(
                      "BatchMemCopy2 overlap in src and dst");
       }
    }
+   mfem::out << std::endl;
+#endif
    // copy_segs is assumed to be allocated in either HOSTPINNED or MANAGED
    switch (copy_segs.size())
    {
@@ -2134,7 +2141,7 @@ void MemoryManager::CopyImpl(char *dst, MemoryType dloc, size_t dst_offset,
    }
    // heuristic: copy from src0 unless invalid, then copy from src1
 
-   // loc(marker0)/loc(marker1) are either <= dst_start, or everything before
+   // loc(marker0)/loc(marker1) are either <= src_offset, or everything before
    // them is the same state (opposite of get_node(marker).is_valid())
    // This should only occur if marker is the first marker, which is always
    // invalid
@@ -2154,163 +2161,188 @@ void MemoryManager::CopyImpl(char *dst, MemoryType dloc, size_t dst_offset,
          if (src0 == src1)
          {
             // ignore all markers
-            copy1.emplace_back(dst_start - dst_offset + src_offset);
-            copy1.emplace_back(dst_start);
-            copy1.emplace_back(dst_stop - dst_start);
+            copy0.emplace_back(dst_start - dst_offset + src_offset);
+            copy0.emplace_back(dst_start);
+            copy0.emplace_back(dst_stop - dst_start);
             return false;
          }
          if (marker0)
          {
             auto start = dst_start - dst_offset;
             auto stop = dst_stop - dst_offset;
-            auto pos0 = storage.get_node(marker0).offset - src_offset;
             // move marker until next(marker) is after start
             auto advance_marker = [&](size_t &marker, size_t &next_marker)
             {
-               // assume marker is always valid
-               MFEM_ASSERT(marker, "marker should always be valid");
-               // assume pos(marker) <= start
-               if (next_marker == marker)
+               if (marker)
                {
-                  next_marker = storage.successor(marker);
-               }
-               while (true)
-               {
-                  if (next_marker)
                   {
-                     auto pos =
-                        storage.get_node(next_marker).offset - src_offset;
-                     if (pos > start)
+                     auto pos = storage.get_node(marker).offset - src_offset;
+                     if (start < pos)
                      {
+                        // start < mpos, don't advance marker
                         return;
                      }
                   }
-                  else
+                  // assume marker is always valid
+                  MFEM_ASSERT(marker, "marker should always be valid");
+                  if (next_marker == marker)
                   {
-                     return;
+                     next_marker = storage.successor(marker);
                   }
-                  marker = next_marker;
-                  next_marker = storage.successor(marker);
+                  while (true)
+                  {
+                     if (next_marker)
+                     {
+                        auto pos =
+                           storage.get_node(next_marker).offset - src_offset;
+                        if (start < pos)
+                        {
+                           return;
+                        }
+                     }
+                     else
+                     {
+                        return;
+                     }
+                     marker = next_marker;
+                     next_marker = storage.successor(marker);
+                  }
                }
             };
 
-            if (start < pos0)
-            {
-               MFEM_ASSERT(!storage.get_node(marker0).is_valid(),
-                           "unexpected first marker0 is valid");
-               // start is before marker0, safe to copy up to marker0
-               if (stop <= pos0)
-               {
-                  // copy up to stop
-                  copy0.emplace_back(src_offset + start);
-                  copy0.emplace_back(dst_offset + start);
-                  copy0.emplace_back(stop - start);
-                  return false;
-               }
-               else
-               {
-                  // copy up to pos0
-                  copy0.emplace_back(src_offset + start);
-                  copy0.emplace_back(dst_offset + start);
-                  copy0.emplace_back(pos0 - start);
-                  start = pos0;
-               }
-            }
             while (true)
             {
                advance_marker(marker0, next_m0);
-               // can always call get_node(marker0)
-               // start <= marker0.offset
-               if (storage.get_node(marker0).is_valid())
+               auto pos0 = storage.get_node(marker0).offset - src_offset;
+               if (start < pos0)
                {
-                  auto npos = stop;
-                  if (next_m0)
-                  {
-                     npos = storage.get_node(next_m0).offset - src_offset;
-                  }
-                  if (stop <= npos)
+                  MFEM_ASSERT(!storage.get_node(marker0).is_valid(),
+                              "marker0 should always be invalid at this point");
+                  copy0.emplace_back(src_offset + start);
+                  copy0.emplace_back(dst_offset + start);
+                  if (stop <= pos0)
                   {
                      // copy up to stop
-                     copy0.emplace_back(src_offset + start);
-                     copy0.emplace_back(dst_offset + start);
                      copy0.emplace_back(stop - start);
                      return false;
                   }
                   else
                   {
-                     // copy up to npos
-                     copy0.emplace_back(src_offset + start);
-                     copy0.emplace_back(dst_offset + start);
-                     copy0.emplace_back(npos - start);
-                     start = npos;
+                     // copy up to pos0
+                     copy0.emplace_back(pos0 - start);
+                     start = pos0;
                   }
                }
                else
                {
-                  if (marker1)
+                  if (storage.get_node(marker0).is_valid())
                   {
-                     advance_marker(marker1, next_m1);
-                     auto pos1 = storage.get_node(marker1).offset - src_offset;
-                     if (pos1 < start)
+                     // copy from src0
+                     copy0.emplace_back(src_offset + start);
+                     copy0.emplace_back(dst_offset + start);
+                     if (next_m0)
                      {
-                        // marker1.is_valid() == false
-                        if (stop <= pos1)
+                        auto npos0 =
+                           storage.get_node(next_m0).offset - src_offset;
+                        MFEM_ASSERT(npos0 > pos0, "invalid segment 0");
+                        if (stop <= npos0)
                         {
                            // copy up to stop
-                           copy1.emplace_back(src_offset + start);
-                           copy1.emplace_back(dst_offset + start);
-                           copy1.emplace_back(stop - start);
+                           copy0.emplace_back(stop - start);
                            return false;
                         }
                         else
                         {
-                           // copy up to pos1
-                           copy1.emplace_back(src_offset + start);
-                           copy1.emplace_back(dst_offset + start);
-                           copy1.emplace_back(pos1 - start);
-                           start = pos1;
+                           // copy up to npos0
+                           copy0.emplace_back(npos0 - start);
+                           start = npos0;
                         }
                      }
                      else
                      {
-                        if (storage.get_node(marker1).is_valid())
+                        // copy up to stop
+                        copy0.emplace_back(stop - start);
+                        return false;
+                     }
+                  }
+                  else
+                  {
+                     if (marker1)
+                     {
+                        advance_marker(marker1, next_m1);
+                        auto pos1 =
+                           storage.get_node(marker1).offset - src_offset;
+                        if (start < pos1)
                         {
-                           auto npos = stop;
-                           if (next_m1)
-                           {
-                              npos =
-                                 storage.get_node(next_m1).offset - src_offset;
-                           }
-                           if (stop <= npos)
+                           MFEM_ASSERT(
+                              !storage.get_node(marker1).is_valid(),
+                              "marker1 should always be invalid at this point");
+                           copy1.emplace_back(src_offset + start);
+                           copy1.emplace_back(dst_offset + start);
+                           if (stop <= pos1)
                            {
                               // copy up to stop
-                              copy1.emplace_back(src_offset + start);
-                              copy1.emplace_back(dst_offset + start);
                               copy1.emplace_back(stop - start);
                               return false;
                            }
                            else
                            {
-                              // copy up to npos
-                              copy1.emplace_back(src_offset + start);
-                              copy1.emplace_back(dst_offset + start);
-                              copy1.emplace_back(npos - start);
-                              start = npos;
+                              // copy up to pos1
+                              copy1.emplace_back(pos1 - start);
+                              start = pos1;
                            }
                         }
                         else
                         {
-                           throw std::runtime_error(
-                              "Copy source not valid on host or device");
+                           if (storage.get_node(marker1).is_valid())
+                           {
+                              // copy from src1
+                              copy1.emplace_back(src_offset + start);
+                              copy1.emplace_back(dst_offset + start);
+                              if (next_m1)
+                              {
+                                 auto npos1 = storage.get_node(next_m1).offset -
+                                              src_offset;
+                                 MFEM_ASSERT(npos1 > pos1, "invalid segment 1");
+                                 if (stop <= npos1)
+                                 {
+                                    // copy up to stop
+                                    copy1.emplace_back(stop - start);
+                                    return false;
+                                 }
+                                 else
+                                 {
+                                    // copy up to npos1
+                                    copy1.emplace_back(npos1 - start);
+                                    start = npos1;
+                                 }
+                              }
+                              else
+                              {
+                                 // copy up to stop
+                                 copy1.emplace_back(stop - start);
+                                 return false;
+                              }
+                           }
+                           else
+                           {
+                              mfem::err << "start = " << start
+                                        << " stop = " << stop << std::endl;
+                              mfem::err << "pos0 = " << pos0
+                                        << " pos1 = " << pos1 << std::endl;
+                              throw std::runtime_error(
+                                 "no src0 or src1 to copy from");
+                           }
                         }
                      }
-                  }
-                  else
-                  {
-                     copy1.emplace_back(src_offset + start);
-                     copy1.emplace_back(dst_offset + start);
-                     copy1.emplace_back(stop - start);
-                     return false;
+                     else
+                     {
+                        // no marker1, copy from src1 up to stop
+                        copy1.emplace_back(src_offset + start);
+                        copy1.emplace_back(dst_offset + start);
+                        copy1.emplace_back(stop - start);
+                        return false;
+                     }
                   }
                }
             }

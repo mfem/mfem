@@ -119,12 +119,12 @@ TEST_CASE("Resource Aliasing", "[Resource Manager][GPU]")
    tmp.Delete();
 }
 
-TEST_CASE("Resource Copy", "[Resource Manager][GPU]")
+TEST_CASE("Resource Copy 1", "[Resource Manager][GPU]")
 {
-   Memory<char> tmp0(100, MemoryType::HOST, false);
-   Memory<char> tmp1(100, MemoryType::HOST, false);
+   Memory<char> tmp0(30, MemoryType::HOST, false);
+   Memory<char> tmp1(30, MemoryType::HOST, false);
 
-   for (int i = 0; i < 100; ++i)
+   for (int i = 0; i < tmp0.Capacity(); ++i)
    {
       tmp0[i] = i;
    }
@@ -139,10 +139,16 @@ TEST_CASE("Resource Copy", "[Resource Manager][GPU]")
       auto dptr = tmp0.CreateAlias(15, 5).Write();
       forall(5, [=] MFEM_HOST_DEVICE(int i) { dptr[i] = -3; });
    }
+
+   mfem::out << "src flags:" << std::endl;
+   tmp0.PrintFlags();
+   mfem::out << "dst flags:" << std::endl;
+   tmp1.PrintFlags();
+
    tmp1.CopyFrom(tmp0, tmp0.Capacity());
    MFEM_DEVICE_SYNC;
    auto hptr = tmp1.HostRead();
-   for (int i = 0; i < 100; ++i)
+   for (int i = 0; i < tmp0.Capacity(); ++i)
    {
       if (i >= 5 && i < 10)
       {
@@ -159,6 +165,59 @@ TEST_CASE("Resource Copy", "[Resource Manager][GPU]")
    }
    tmp0.Delete();
    tmp1.Delete();
+}
+
+TEST_CASE("Resource Copy 2", "[Resource Manager][GPU]")
+{
+   Memory<char> src(7, MemoryType::HOST, false);
+   for (int i = 0; i < src.Capacity(); ++i)
+   {
+      src[i] = i;
+   }
+   {
+      Memory<char> tmp = src.CreateAlias(5);
+      {
+         auto dptr = tmp.Write(mfem::MemoryClass::DEVICE, tmp.Capacity());
+         forall(tmp.Capacity(),
+         [=] MFEM_HOST_DEVICE(int i) { dptr[i] = 7 + i; });
+      }
+      tmp = src.CreateAlias(3);
+      tmp.Read(mfem::MemoryClass::DEVICE, tmp.Capacity());
+      tmp = src.CreateAlias(2, 3 - 2);
+      {
+         auto hptr = tmp.Write(mfem::MemoryClass::HOST, tmp.Capacity());
+         for (int i = 0; i < tmp.Capacity(); ++i)
+         {
+            hptr[i] = 20 + i;
+         }
+      }
+      tmp = src.CreateAlias(0, 2);
+      tmp.Read(mfem::MemoryClass::DEVICE, tmp.Capacity());
+   }
+
+   mfem::out << "src flags:" << std::endl;
+   src.PrintFlags();
+   Memory<char> dst(5, MemoryType::DEVICE, false);
+   mfem::out << "dst flags:" << std::endl;
+   dst.PrintFlags();
+   {
+      Memory<char> tmp = src.CreateAlias(2, dst.Capacity());
+      dst.CopyFrom(tmp, dst.Capacity());
+
+      src.Read(mfem::MemoryClass::HOST, src.Capacity());
+      Memory<char> cmp(dst.Capacity(), MemoryType::HOST, false);
+      dst.CopyTo(cmp, dst.Capacity());
+      for (int i = 0; i < dst.Capacity(); ++i)
+      {
+         REQUIRE(cmp[i] == tmp[i]);
+      }
+
+      cmp.Delete();
+   }
+
+
+   src.Delete();
+   dst.Delete();
 }
 
 #endif
