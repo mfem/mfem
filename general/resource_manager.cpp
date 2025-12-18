@@ -1380,6 +1380,11 @@ size_t MemoryManager::find_marker(size_t segment, ptrdiff_t offset,
 
 void MemoryManager::print_segment(size_t segment)
 {
+   if (!valid_segment(segment))
+   {
+      mfem::out << "nullptr" << std::endl;
+      return;
+   }
    auto &seg = storage.get_segment(segment);
    for (int i = 0; i < 2; ++i)
    {
@@ -1395,8 +1400,9 @@ void MemoryManager::print_segment(size_t segment)
          }
          mfem::out << " seg " << segment << ", "
                    << static_cast<int>(seg.mtypes[i]) << ": "
-                   << (uint64_t)seg.lowers[i] << ", "
-                   << (uint64_t)seg.lowers[i] + seg.nbytes << std::endl;
+                   << static_cast<void *>(seg.lowers[i]) << ", "
+                   << static_cast<void *>(seg.lowers[i] + seg.nbytes)
+                   << std::endl;
          auto curr = storage.first(seg.roots[i]);
          while (curr)
          {

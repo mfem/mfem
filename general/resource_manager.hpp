@@ -784,8 +784,11 @@ public:
    void CopyTo(Memory &dst, int size) const;
    void CopyToHost(T *dst, int size) const;
 
-   /// no-op
-   [[deprecated]] void PrintFlags() const {}
+   void PrintFlags() const
+   {
+      auto &inst = MemoryManager::instance();
+      inst.print_segment(segment);
+   }
 
    int CompareHostAndDevice(int size) const
    {
