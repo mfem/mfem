@@ -73,6 +73,7 @@ examples/signorini
 examples/signorinip
 examples/signorinip_mms
 examples/signorinip_wbc
+examples/signorinip_gw
 
 examples/refined.mesh
 examples/displaced.mesh
