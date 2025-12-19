@@ -1142,7 +1142,19 @@ void DarcyOperator::ParSolutionController::MonitorSolution(
 DarcyOperator::IterativeGLVis::IterativeGLVis(
    DarcyForm &darcy_, BlockVector &x_, const BlockVector &rhs_, int step_,
    bool save_files_)
-   : darcy(darcy_), x(x_), rhs(rhs_), step(step_), save_files(save_files_)
+   : darcy(darcy_), x(x_), rhs(&rhs_), step(step_), save_files(save_files_)
+{
+   Init();
+}
+
+DarcyOperator::IterativeGLVis::IterativeGLVis(
+   DarcyForm &darcy_, BlockVector &x_, int step_, bool save_files_)
+   : darcy(darcy_), x(x_), rhs(NULL), step(step_), save_files(save_files_)
+{
+   Init();
+}
+
+void DarcyOperator::IterativeGLVis::Init()
 {
    const char vishost[] = "localhost";
    const int  visport   = 19916;
@@ -1165,7 +1177,14 @@ void DarcyOperator::IterativeGLVis::MonitorSolution(int it, real_t norm,
 {
    if (step != 0 && it % step != 0 && !final) { return; }
 
-   darcy.RecoverFEMSolution(X, rhs, x);
+   if (rhs)
+   {
+      darcy.RecoverFEMSolution(X, *rhs, x);
+   }
+   else
+   {
+      darcy.RecoverFEMSolution(X, x);
+   }
 
    GridFunction q_h(darcy.FluxFESpace(), x.GetBlock(0));
    GridFunction t_h(darcy.PotentialFESpace(), x.GetBlock(1));

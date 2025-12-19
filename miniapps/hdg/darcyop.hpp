@@ -161,18 +161,22 @@ private:
    protected:
       DarcyForm &darcy;
       BlockVector &x;
-      const BlockVector &rhs;
+      const BlockVector *rhs;
       int step;
       bool save_files;
 
       socketstream q_sock, t_sock;
 
+      void Init();
       virtual void StreamPreamble(socketstream &ss) { }
       virtual std::string FormFilename(const char *base, int it,
                                        const char *suff = "gf");
    public:
       IterativeGLVis(DarcyForm &darcy, BlockVector &x, const BlockVector &rhs,
                      int step = 0, bool save_files = false);
+
+      IterativeGLVis(DarcyForm &darcy, BlockVector &x, int step = 0,
+                     bool save_files = false);
 
       void MonitorSolution(int it, real_t norm, const Vector &x,
                            bool final) override;
@@ -192,6 +196,10 @@ private:
       ParIterativeGLVis(ParDarcyForm &pdarcy_, BlockVector &x, const BlockVector &rhs,
                         int step = 0, bool save_files = false)
          : IterativeGLVis(pdarcy_, x, rhs, step), pdarcy(pdarcy_) { }
+
+      ParIterativeGLVis(ParDarcyForm &pdarcy_, BlockVector &x, int step = 0,
+                        bool save_files = false)
+         : IterativeGLVis(pdarcy_, x, step), pdarcy(pdarcy_) { }
    };
 #endif //MFEM_USE_MPI
 
