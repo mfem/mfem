@@ -160,15 +160,18 @@ examples/ginkgo/sol.gf
 examples/hdg/refined.mesh
 examples/hdg/displaced.mesh
 examples/hdg/mesh.*
-examples/hdg/ex5.mesh
 examples/hdg/ex5
 examples/hdg/ex5p
 examples/hdg/ex5.mesh
+examples/hdg/ex5-p-*.bp
+examples/hdg/ex14
+examples/hdg/ex14p
+examples/hdg/ex17
+examples/hdg/ex17p
 examples/hdg/sol.*
 examples/hdg/sol_p.*
 examples/hdg/sol_u.*
 examples/hdg/ex6p-checkpoint.*
-examples/ex5-p-*.bp
 examples/hdg/Example5*
 examples/hdg/Paraview
 
