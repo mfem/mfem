@@ -274,7 +274,7 @@ int main(int argc, char *argv[])
 
    // VectorFunctionCoefficient init_u(dim, InitDisplacement);
    // u_previous.ProjectCoefficient(init_u);
-   u_current = 0.0;
+   u_previous = 0.0;
    u_current = u_previous;
 
    // 9. Set up the bilinear form a(⋅,⋅) on the finite element space
