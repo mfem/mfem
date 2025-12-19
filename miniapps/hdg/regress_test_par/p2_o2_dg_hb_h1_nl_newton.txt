@@ -40,18 +40,18 @@ Options used:
 Device configuration: cpu
 Memory configuration: host-std
 Mesh::GeneratePartitioning(...): edgecut = 10
-Hybridization init took 0.0043699s.
+Hybridization init took 0.00567571s.
 ***********************************************************
 dim(V) = 900
 dim(W) = 450
-dim(M) = 296
-dim(V+W+M) = 1646
+dim(M) = 181
+dim(V+W+M) = 1531
 ***********************************************************
-Assembly took 0.00515109s.
-Preconditioner took 0.000116571s.
-Newton iteration  0 : ||r|| = 0.0509519
-Newton iteration  1 : ||r|| = 2.29214e-08, ||r||/||r_0|| = 4.49863e-07
-Newton+GMRES+HypreAMG/Newton+GMRES converged in 1 iterations with a residual norm of 2.29214e-08.
-solver took 0.20873s.
-|| q_h - q_ex || / || q_ex || = 0.000103702
-|| t_h - t_ex || / || t_ex || = 6.13026e-05
+Assembly took 0.0042702s.
+Preconditioner took 0.00136822s.
+Newton iteration  0 : ||r|| = 0.064388
+Newton iteration  1 : ||r|| = 1.87978e-08, ||r||/||r_0|| = 2.91946e-07
+Newton+GMRES+HypreAMG/Newton+GMRES converged in 1 iterations with a residual norm of 1.87978e-08.
+solver took 0.215841s.
+|| q_h - q_ex || / || q_ex || = 0.000630476
+|| t_h - t_ex || / || t_ex || = 7.88292e-05

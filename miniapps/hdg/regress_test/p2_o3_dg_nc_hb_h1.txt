@@ -38,51 +38,41 @@ Options used:
    --no-analytic
 Device configuration: cpu
 Memory configuration: host-std
-Hybridization init took 0.0495165s.
+Hybridization init took 0.0502401s.
 ***********************************************************
 dim(V) = 3584
 dim(W) = 1792
-dim(M) = 929
-dim(V+W+M) = 6305
+dim(M) = 665
+dim(V+W+M) = 6041
 ***********************************************************
-Assembly took 0.142186s.
-Preconditioner took 9.67e-06s.
-   Pass :  1   Iteration :   0  ||B r|| = 0.0537545
-   Pass :  1   Iteration :   1  ||B r|| = 0.034948
-   Pass :  1   Iteration :   2  ||B r|| = 0.0333971
-   Pass :  1   Iteration :   3  ||B r|| = 0.0290121
-   Pass :  1   Iteration :   4  ||B r|| = 0.024419
-   Pass :  1   Iteration :   5  ||B r|| = 0.0193303
-   Pass :  1   Iteration :   6  ||B r|| = 0.012599
-   Pass :  1   Iteration :   7  ||B r|| = 0.00628922
-   Pass :  1   Iteration :   8  ||B r|| = 0.00378908
-   Pass :  1   Iteration :   9  ||B r|| = 0.0029456
-   Pass :  1   Iteration :  10  ||B r|| = 0.00239009
-   Pass :  1   Iteration :  11  ||B r|| = 0.00194214
-   Pass :  1   Iteration :  12  ||B r|| = 0.00141209
-   Pass :  1   Iteration :  13  ||B r|| = 0.000949655
-   Pass :  1   Iteration :  14  ||B r|| = 0.000471621
-   Pass :  1   Iteration :  15  ||B r|| = 0.000241083
-   Pass :  1   Iteration :  16  ||B r|| = 0.000144176
-   Pass :  1   Iteration :  17  ||B r|| = 0.000106819
-   Pass :  1   Iteration :  18  ||B r|| = 8.11017e-05
-   Pass :  1   Iteration :  19  ||B r|| = 4.99428e-05
-   Pass :  1   Iteration :  20  ||B r|| = 2.78281e-05
-   Pass :  1   Iteration :  21  ||B r|| = 1.77118e-05
-   Pass :  1   Iteration :  22  ||B r|| = 1.27193e-05
-   Pass :  1   Iteration :  23  ||B r|| = 7.11195e-06
-   Pass :  1   Iteration :  24  ||B r|| = 3.87904e-06
-   Pass :  1   Iteration :  25  ||B r|| = 3.02618e-06
-   Pass :  1   Iteration :  26  ||B r|| = 2.27284e-06
-   Pass :  1   Iteration :  27  ||B r|| = 1.64487e-06
-   Pass :  1   Iteration :  28  ||B r|| = 1.05453e-06
-   Pass :  1   Iteration :  29  ||B r|| = 6.19905e-07
-   Pass :  1   Iteration :  30  ||B r|| = 3.15265e-07
-   Pass :  1   Iteration :  31  ||B r|| = 1.81389e-07
-   Pass :  1   Iteration :  32  ||B r|| = 9.94867e-08
-   Pass :  1   Iteration :  33  ||B r|| = 5.60788e-08
-   Pass :  1   Iteration :  34  ||B r|| = 3.17444e-08
-GMRES+GS converged in 34 iterations with a residual norm of 3.17444e-08.
-solver took 0.00960875s.
-|| q_h - q_ex || / || q_ex || = 1.4888e-06
-|| t_h - t_ex || / || t_ex || = 1.29428e-06
+Assembly took 0.156055s.
+Preconditioner took 1.5045e-05s.
+   Pass :  1   Iteration :   0  ||B r|| = 0.0495974
+   Pass :  1   Iteration :   1  ||B r|| = 0.0301355
+   Pass :  1   Iteration :   2  ||B r|| = 0.0292511
+   Pass :  1   Iteration :   3  ||B r|| = 0.0248644
+   Pass :  1   Iteration :   4  ||B r|| = 0.0213498
+   Pass :  1   Iteration :   5  ||B r|| = 0.0166888
+   Pass :  1   Iteration :   6  ||B r|| = 0.0108921
+   Pass :  1   Iteration :   7  ||B r|| = 0.00351746
+   Pass :  1   Iteration :   8  ||B r|| = 0.00155421
+   Pass :  1   Iteration :   9  ||B r|| = 0.000560994
+   Pass :  1   Iteration :  10  ||B r|| = 0.000335083
+   Pass :  1   Iteration :  11  ||B r|| = 0.000262051
+   Pass :  1   Iteration :  12  ||B r|| = 0.000174925
+   Pass :  1   Iteration :  13  ||B r|| = 8.4137e-05
+   Pass :  1   Iteration :  14  ||B r|| = 4.86158e-05
+   Pass :  1   Iteration :  15  ||B r|| = 2.85719e-05
+   Pass :  1   Iteration :  16  ||B r|| = 1.15886e-05
+   Pass :  1   Iteration :  17  ||B r|| = 7.12355e-06
+   Pass :  1   Iteration :  18  ||B r|| = 3.32861e-06
+   Pass :  1   Iteration :  19  ||B r|| = 1.41978e-06
+   Pass :  1   Iteration :  20  ||B r|| = 7.86849e-07
+   Pass :  1   Iteration :  21  ||B r|| = 3.82153e-07
+   Pass :  1   Iteration :  22  ||B r|| = 1.84335e-07
+   Pass :  1   Iteration :  23  ||B r|| = 8.99656e-08
+   Pass :  1   Iteration :  24  ||B r|| = 3.70679e-08
+GMRES+GS converged in 24 iterations with a residual norm of 3.70679e-08.
+solver took 0.00482203s.
+|| q_h - q_ex || / || q_ex || = 4.70918e-06
+|| t_h - t_ex || / || t_ex || = 8.32245e-07
