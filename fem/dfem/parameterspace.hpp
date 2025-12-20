@@ -40,6 +40,9 @@ public:
    /// returns the local size of the space
    virtual int GetVSize() const = 0;
 
+   /// Number of elements
+   virtual int GetNE() const = 0;
+
    /// Get spatial dimension
    ///
    /// returns always 1.
@@ -74,6 +77,7 @@ public:
       return elem_restr.get();
    }
 
+
 protected:
    int vdim;
    DofToQuad dtq;
@@ -96,7 +100,7 @@ public:
    /// taken directly from the integration rule.
    UniformParameterSpace(Mesh &mesh, const IntegrationRule &ir, int vdim,
                          bool used_in_tensor_product = true) :
-      ParameterSpace(vdim)
+      ParameterSpace(vdim), ne(mesh.GetNE())
    {
       // Setup DofToQuad information
       dtq.nqpt = (int)floor(std::pow(ir.GetNPoints(), 1.0 / mesh.Dimension()) + 0.5);
@@ -122,12 +126,20 @@ public:
       return lsize;
    }
 
+   int GetNE() const override
+   {
+      return ne;
+   }
+
 private:
    /// T-vector size
    int tsize;
 
    /// L-vector size
    int lsize;
+
+   /// Number of elements
+   int ne;
 };
 
 class ParameterFunction : public Vector

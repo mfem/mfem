@@ -1052,7 +1052,7 @@ inline int get_num_entities(const FieldDescriptor& f)
                return arg->GetNE();
             } else if constexpr (std::is_same_v<T, const ParameterSpace*>) {
                // TODO: implement GetNE() on ParameterSpace
-               return 1;  // arg->GetNE();
+               return arg->GetNE();
             } else {
                static_assert(dfem::always_false<T>, "can't use get_num_entities on type");
             }
