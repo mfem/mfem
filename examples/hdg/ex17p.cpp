@@ -308,7 +308,7 @@ int main(int argc, char *argv[])
    {
       if (trace_h1)
       {
-         trace_coll = new H1_Trace_FECollection(max(order, 1) , dim);
+         trace_coll = new H1_Trace_FECollection(max(order, 1), dim);
       }
       else
       {
@@ -346,7 +346,7 @@ int main(int argc, char *argv[])
    darcy.FormLinearSystem(ess_flux_tdofs_list, x, A, X, B, true);
    if (Mpi::Root()) { cout << "done." << endl; }
 
-   constexpr int maxIter(5000);
+   constexpr int maxIter(500);
    constexpr real_t rtol(1.0e-6);
    constexpr real_t atol(0.0);
 
@@ -354,16 +354,13 @@ int main(int argc, char *argv[])
    {
       // 10. Construct the preconditioner
       HypreBoomerAMG amg(*A.As<HypreParMatrix>());
-      if (reduction)
+      if (reduction && amg_elast)
       {
-         if (amg_elast)
-         {
-            amg.SetElasticityOptions(&W_space);
-         }
-         else
-         {
-            amg.SetSystemsOptions(dim);
-         }
+         amg.SetElasticityOptions(&W_space);
+      }
+      else
+      {
+         amg.SetSystemsOptions(dim, true);
       }
 
       // 11. Solve the linear system with GMRES.
@@ -372,7 +369,7 @@ int main(int argc, char *argv[])
       solver.SetAbsTol(atol);
       solver.SetRelTol(rtol);
       solver.SetMaxIter(maxIter);
-      solver.SetKDim(500);
+      solver.SetKDim(50);
       solver.SetOperator(*A);
       solver.SetPreconditioner(amg);
       solver.SetPrintLevel(1);
@@ -391,7 +388,8 @@ int main(int argc, char *argv[])
       HypreParMatrix *MinvBt = NULL;
       HypreParVector *Md = NULL;
       HypreParMatrix *S = NULL;
-      Solver *invM, *invS;
+      Solver *invM;
+      HypreBoomerAMG *invS;
 
       HypreParMatrix &M = *Ms->ParallelAssembleInternalMatrix();
       Md = new HypreParVector(pmesh.GetComm(), M.GetGlobalNumRows(),
@@ -413,6 +411,14 @@ int main(int argc, char *argv[])
 
       invM = new HypreDiagScale(M);
       invS = new HypreBoomerAMG(*S);
+      if (amg_elast)
+      {
+         invS->SetElasticityOptions(&W_space);
+      }
+      else
+      {
+         invS->SetSystemsOptions(dim, true);
+      }
 
       invM->iterative_mode = false;
       invS->iterative_mode = false;
