@@ -14,11 +14,13 @@
 
 namespace op {
 
-LinearMomentumBalance::LinearMomentumBalance(
+template <typename dscalar_t>
+LinearMomentumBalance<dscalar_t>::LinearMomentumBalance(
     ParFiniteElementSpace &fe_space, const IntegrationRule &ir,
-    std::shared_ptr<neml2::Model> cmodel)
+    std::shared_ptr<neml2::Model> cmodel, DerivativeType deriv_type)
     : Operator(fe_space.GetTrueVSize(), fe_space.GetTrueVSize()),
-      fe_space(fe_space), ir(ir), pmesh(*fe_space.GetParMesh()),
+      fe_space(fe_space), ir(ir), derivative_type(deriv_type),
+      pmesh(*fe_space.GetParMesh()), u(&fe_space),
       nodes(*static_cast<ParGridFunction *>(pmesh.GetNodes())),
       coord_space(*nodes.ParFESpace()), q_space_symr2(pmesh, ir, 6),
       _strain(q_space_symr2), _stress(q_space_symr2) {
@@ -39,26 +41,31 @@ LinearMomentumBalance::LinearMomentumBalance(
   strain_op = std::make_unique<DifferentiableOperator>(fields, params, pmesh);
   Strain strain_qfunc;
   strain_op->SetParameters({&nodes, &_strain});
+  const auto strain_derivatives =
+      std::integer_sequence<std::size_t, SOLUTION>{};
   strain_op->AddDomainIntegrator(
       strain_qfunc, tuple{Gradient<SOLUTION>{}, Gradient<NODAL_COORDS>{}},
-      tuple{Identity<STRAIN>{}}, ir, everywhere);
+      tuple{Identity<STRAIN>{}}, ir, everywhere, strain_derivatives);
 
   // Set up the constitutive operator
   constit_op = std::make_unique<ConstitutiveModel>(cmodel);
 
   // Set up the stress divergence operator
-  fields = {{RESIDUAL, &fe_space}};
+  fields = {{SOLUTION, &fe_space}};
   params = {{NODAL_COORDS, &coord_space}, {STRESS, &q_space_symr2}};
   stressdiv_op =
       std::make_unique<DifferentiableOperator>(fields, params, pmesh);
   StressDivergence balance_qfunc;
+  const auto residual_derivatives =
+      std::integer_sequence<std::size_t, STRESS>{};
   stressdiv_op->AddDomainIntegrator(
       balance_qfunc,
       tuple{Identity<STRESS>{}, Gradient<NODAL_COORDS>{}, Weight{}},
-      tuple{Gradient<RESIDUAL>{}}, ir, everywhere);
+      tuple{Gradient<SOLUTION>{}}, ir, everywhere, residual_derivatives);
 }
 
-void LinearMomentumBalance::SetEssBdrConditions(
+template <typename dscalar_t>
+void LinearMomentumBalance<dscalar_t>::SetEssBdrConditions(
     const std::map<Array<int> *, VectorCoefficient *> &ebcs) {
   ParGridFunction ug(&fe_space);
   for (const auto [attr, coef] : ebcs) {
@@ -70,7 +77,8 @@ void LinearMomentumBalance::SetEssBdrConditions(
   ug.GetSubVector(ess_tdofs, ess_dof_vals);
 }
 
-void LinearMomentumBalance::Mult(const Vector &X, Vector &R) const {
+template <typename dscalar_t>
+void LinearMomentumBalance<dscalar_t>::Mult(const Vector &X, Vector &R) const {
   // displacement -> strain
   strain_op->Mult(X, _strain);
 
@@ -88,13 +96,24 @@ void LinearMomentumBalance::Mult(const Vector &X, Vector &R) const {
   R.SetSubVector(ess_tdofs, X_ess);
 }
 
-Operator &LinearMomentumBalance::GetGradient(const Vector &X) const {
-  _deriv_op = std::make_unique<LinearMomentumBalanceJacobian>(*this, X);
-  return *_deriv_op;
+template <typename dscalar_t>
+Operator &LinearMomentumBalance<dscalar_t>::GetGradient(const Vector &X) const {
+  switch (derivative_type) {
+  case HANDCODED:
+    _man_deriv_op = std::make_unique<LinearMomentumBalanceJacobian>(*this, X);
+    return *_man_deriv_op;
+  case AUTODIFF:
+  default:
+    _autodiff_deriv_op =
+        std::make_unique<AutodiffLinearMomentumBalanceJacobian>(this, X);
+    return *_autodiff_deriv_op;
+  }
 }
 
-LinearMomentumBalanceJacobian::LinearMomentumBalanceJacobian(
-    const LinearMomentumBalance &op, const Vector &X)
+template <typename dscalar_t>
+LinearMomentumBalance<dscalar_t>::LinearMomentumBalanceJacobian::
+    LinearMomentumBalanceJacobian(const LinearMomentumBalance &op,
+                                  const Vector &X)
     : Operator(op.Height(), op.Width()), _op(op),
       _q_space_symr2(op.pmesh, op.ir, 6), _delta_strain(_q_space_symr2),
       _delta_stress(_q_space_symr2) {
@@ -108,7 +127,9 @@ LinearMomentumBalanceJacobian::LinearMomentumBalanceJacobian(
   _op.constit_op->Tangent(strain, _tangent);
 }
 
-void LinearMomentumBalanceJacobian::Mult(const Vector &dX, Vector &dR) const {
+template <typename dscalar_t>
+void LinearMomentumBalance<dscalar_t>::LinearMomentumBalanceJacobian::Mult(
+    const Vector &dX, Vector &dR) const {
   // essential boundary conditions
   Vector dX_non_ess, dX_ess;
   dX_non_ess = dX;
@@ -130,4 +151,55 @@ void LinearMomentumBalanceJacobian::Mult(const Vector &dX, Vector &dR) const {
   dR.SetSubVector(_op.ess_tdofs, dX_ess);
 }
 
+template <typename dscalar_t>
+LinearMomentumBalance<dscalar_t>::AutodiffLinearMomentumBalanceJacobian::
+    AutodiffLinearMomentumBalanceJacobian(
+        const LinearMomentumBalance *momentum_balance, const Vector &x)
+    : Operator(momentum_balance->Height()), momentum_balance(momentum_balance),
+      _q_space_symr2(momentum_balance->pmesh, momentum_balance->ir, 6),
+      _strain(_q_space_symr2), _stress(_q_space_symr2),
+      _delta_strain(_q_space_symr2), _delta_stress(_q_space_symr2) {
+  momentum_balance->u.SetFromTrueDofs(x);
+
+  // Evaluate the tangent at the current state
+  momentum_balance->strain_op->SetParameters(
+      {&momentum_balance->nodes, &_strain});
+  momentum_balance->strain_op->Mult(x, _strain);
+  momentum_balance->constit_op->Tangent(_strain, _tangent);
+  momentum_balance->constit_op->Mult(_strain, _stress);
+
+  // One can retrieve the derivative of a DifferentiableOperator wrt a
+  // field variable if the derivative has been requested during the
+  // DifferentiableOperator::AddDomainIntegrator call.
+  dstrain_du = momentum_balance->strain_op->GetDerivative(
+      LinearMomentumBalance::SOLUTION, {&momentum_balance->u},
+      {&momentum_balance->nodes, &_strain});
+  dres_dstress = momentum_balance->stressdiv_op->GetDerivative(
+      LinearMomentumBalance::STRESS, {&momentum_balance->u},
+      {&momentum_balance->nodes, &_stress});
+}
+
+template <typename dscalar_t>
+void LinearMomentumBalance<
+    dscalar_t>::AutodiffLinearMomentumBalanceJacobian::Mult(const Vector &dX,
+                                                            Vector &dR) const {
+  Vector dX_non_ess = dX, dX_ess;
+  dX_non_ess.SetSubVector(momentum_balance->ess_tdofs, 0.0);
+  dX.GetSubVector(momentum_balance->ess_tdofs, dX_ess);
+
+  dstrain_du->Mult(dX_non_ess, _delta_strain);
+  momentum_balance->constit_op->ApplyTangent(_tangent, _delta_strain,
+                                             _delta_stress);
+  dres_dstress->Mult(_delta_stress, dR);
+
+  // essential boundary conditions
+  dR.SetSubVector(momentum_balance->ess_tdofs, dX_ess);
+}
+#ifdef MFEM_USE_ENZYME
+template class LinearMomentumBalance<real_t>
+#else
+using mfem::future::dual;
+using dual_t = dual<real_t, real_t>;
+template class LinearMomentumBalance<dual_t>;
+#endif
 } // namespace op
