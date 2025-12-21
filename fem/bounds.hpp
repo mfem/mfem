@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_BOUND
-#define MFEM_BOUND
+#ifndef MFEM_BOUNDS
+#define MFEM_BOUNDS
 
 #include "../config/config.hpp"
 #include "fespace.hpp"
@@ -89,42 +89,64 @@ public:
    }
 
    // Constructor
-   PLBound(FiniteElementSpace *fes, int ncp_i = -1, int cp_type_i = 0);
+   PLBound(const FiniteElementSpace *fes,
+           const int ncp_i = -1, const int cp_type_i = 0);
 
-   // Get minimum number of control points needed to bound the given bases
+   /// Get minimum number of control points needed to bound the given bases
    int GetMinimumPointsForGivenBases(int nb_i, int b_type_i,
                                      int cp_type_i) const;
 
-   // Print information about the bounds
+   /// Print information about the bounds
    void Print(std::ostream &outp = mfem::out) const;
 
-   // Enable (default) or disable linear projection before bounding.
-   // This projection increases the computational cost but results in tighter
-   // bounds.
+   /** @brief Enable (default) or disable linear projection before bounding.
+    *
+    *  @details This projection increases the computational cost but results in
+    *  tighter bounds.
+    */
    void SetProjectionFlagForBounding(bool proj_) { proj = proj_; }
 
-   /// Compute piecewise linear bounds for the lexicographically-ordered
-   /// coefficients in @a coeff in 1D/2D/3D.
-   void GetNDBounds(int rdim, Vector &coeff,
+   /** @brief Compute piecewise linear bounds for the lexicographically-ordered
+    *  coefficients in @a coeff in 1D/2D/3D.
+    */
+   void GetNDBounds(const int rdim, const Vector &coeff,
                     Vector &intmin, Vector &intmax) const;
 
    /// Get number of control points used to compute the bounds.
    int GetNControlPoints() const { return ncp; }
+
+   /// Get control point locations in [0,1].
+   Vector GetControlPoints() const { return control_points; }
+
+   /** @name Get lower and upper bounding matrices
+
+       @note These matrices do not account for the linear projection step that
+             is optionally done in GetnDBounds before bounding the function.
+    */
+   ///@{
+   DenseMatrix GetLowerBoundMatrix(int dim = 1);
+   DenseMatrix GetUpperBoundMatrix(int dim = 1);
+   ///@}
+
 private:
-   /// Compute piecewise linear bounds for the lexicographically-ordered
-   /// coefficients in @a coeff in 1D.
-   void Get1DBounds(Vector &coeff, Vector &intmin, Vector &intmax) const;
+   /** @brief Compute piecewise linear bounds for the lexicographically-ordered
+    *  coefficients in @a coeff in 1D.
+    */
+   void Get1DBounds(const Vector &coeff, Vector &intmin, Vector &intmax) const;
 
-   /// Compute piecewise linear bounds for the lexicographically-ordered
-   /// coefficients in @a coeff in 2D.
-   void Get2DBounds(Vector &coeff, Vector &intmin, Vector &intmax) const;
+   /** @brief Compute piecewise linear bounds for the lexicographically-ordered
+    *  coefficients in @a coeff in 2D.
+    */
+   void Get2DBounds(const Vector &coeff, Vector &intmin, Vector &intmax) const;
 
-   /// Compute piecewise linear bounds for the lexicographically-ordered
-   /// coefficients in @a coeff in 3D.
-   void Get3DBounds(Vector &coeff, Vector &intmin, Vector &intmax) const;
+   /** @brief Compute piecewise linear bounds for the lexicographically-ordered
+    *  coefficients in @a coeff in 3D.
+    */
+   void Get3DBounds(const Vector &coeff, Vector &intmin, Vector &intmax) const;
 
-   /// Setup matrix used to compute values at given 1D locations in [0,1]
-   /// for Bernstein bases.
+   /** @brief Setup matrix used to compute values at given 1D locations in [0,1]
+    *  for Bernstein bases.
+    */
    void SetupBernsteinBasisMat(DenseMatrix &basisMat, Vector &nodesBern) const;
 
    void Setup(const int nb_i, const int ncp_i, const int b_type_i,
@@ -133,4 +155,4 @@ private:
 
 } // namespace mfem
 
-#endif // MFEM_BOUND
+#endif // MFEM_BOUNDS
