@@ -39,10 +39,14 @@ int main(int argc, char *argv[]) {
 
   // Parse command-line options
   const char *device_config = "cpu";
+  int derivative_type = static_cast<int>(op::AUTODIFF);
 
   OptionsParser args(argc, argv);
   args.AddOption(&device_config, "-d", "--device",
                  "Device configuration string, see Device::Configure().");
+  args.AddOption(&derivative_type, "-der", "--derivative-type",
+                 "Derivative computation type: 0=AutomaticDifferentiation,"
+                 " 1=HandCoded, 2=FiniteDifference");
   args.ParseCheck();
 
   // Enable hardware devices such as GPUs, and programming models such as CUDA
@@ -82,8 +86,19 @@ int main(int argc, char *argv[]) {
     MFEM_ABORT("Unsupported device backend for NEML2");
   cmodel->to(options);
 
+#ifdef MFEM_USE_ENZYME
   // The finite element operator for linear momentum balance
-  auto op = std::make_unique<op::LinearMomentumBalance>(fe_space, ir, cmodel);
+  auto op = std::make_unique<op::LinearMomentumBalance<real_t>>(
+      fe_space, ir, cmodel, static_cast<op::DerivativeType>(derivative_type));
+#else
+  // When Enzyme is not available, use the dual type for automatic
+  // differentiation
+  using mfem::future::dual;
+  using dual_t = dual<real_t, real_t>;
+  // The finite element operator for linear momentum balance
+  auto op = std::make_unique<op::LinearMomentumBalance<dual_t>>(
+      fe_space, ir, cmodel, static_cast<op::DerivativeType>(derivative_type));
+#endif
 
   // Essential boundary condition (fixed)
   Array<int> fixed_bnd(pmesh.bdr_attributes.Max());
