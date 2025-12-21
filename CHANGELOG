@@ -8,8 +8,12 @@
                                https://mfem.org
 
 
-Version 4.8.1 (development)
+Version 4.9.1 (development)
 ===========================
+
+
+Version 4.9, released on Dec 11, 2025
+=====================================
 
 Starting with this version, MFEM requires a C++17 compiler.
 
@@ -19,70 +23,132 @@ Discretization improvements
   nonlinear finite element operators, based on Enzyme or dual numbers AD at
   quadrature points. These features are part of the new mfem::future namespace
   and some of the API can change in the future. See the new dFEM minimal surface
-  miniapp in the miniapps/dfem/ directory for illustration of dFEM's use.
+  miniapp in the miniapps/dfem/ directory for illustration of dFEM's use. Using
+  Enzyme for AD in MFEM is tested with clang v19 and requires clang/LLVM built
+  with plugin support. See INSTALL for more details.
 
-- Using Enzyme for AD in MFEM is tested with clang v19 and requires clang/LLVM
-  built with plugin support. See INSTALL for more details.
+- Introduced initial support for particle methods in MFEM with new classes
+  Particle, ParticleSet and ParticleVector.
+  * Particle is a convenient interface for individual particle data.
+  * ParticleSet manages and stores particle data in a struct-of-arrays form,
+    carrying particle coordinates and IDs along with an arbitrary number of
+    Vector and integer data for each particle.
+  * ParticleVector is a Vector-derived container that stores vector data for an
+    arbitrary number of particles contiguously based on specified vdim/ordering.
+  See the new particle miniapps in miniapps/gslib/ and miniapps/fluids/navier/.
+
+- Added a new miniapp and specialized AMG solver (AMGF) for optimization-based
+  contact mechanics. The miniapp solves large-scale frictionless contact using a
+  self-contained Interior Point (IP) solver, mortar-based contact constraints
+  provided by Tribol. The resulting linear systems are solved with the new AMGF
+  solver (see below). Benchmark examples include the two-block, ironing, and
+  beam-sphere problems. See the miniapps/contact/ directory.
+
+- Added support for boundary integration to the hyperbolic framework. Two new
+  classes BdrHyperbolicDirichletIntegrator and BoundaryHyperbolicFlowIntegrator
+  have been introduced for implementation of weak Dirichlet boundary conditions
+  with a general flux or for the linear case respectively.
+
+- Added a method to compute piecewise linear bounds on high-order functions on
+  tensor-product elements.
+
+- Added support for interior face integration enabling DG methods in
+  ParMixedBilinearForm, ParNonlinearForm and ParBlockNonlinearForm.
 
 - In the ParMoonolith integration, added support for variational resampling of
   H1 vector fields.
 
-- Added support for boundary integration to the hyperbolic framework. In this
-  regard, new classes `BdrHyperbolicDirichletIntegrator` and
-  `BoundaryHyperbolicFlowIntegrator` have been introduced for implementation
-  of weak Dirichlet boundary conditions with a general flux or for the linear
-  case respectively.
-
-- Added method to compute piecewise linear bounds on high-order functions on
-  tensor-product elements.
-
-- Parallel anisotropic refinement of hexahedral meshes is now supported,
-  provided that neighboring hexahedra are not refined in conflicting directions.
-  A new ParMesh method is added to check for such conflicts, before refinement.
+- Introduced IMEX ODE solvers based on a split-operator framework. Added
+  examples ex41 and ex41p demonstrating IMEX DG/CG discretizations of the
+  convection–diffusion equation, with ex41p using DG LOR preconditioning.
 
 Meshing improvements
 --------------------
+- The TMOP kernel hierarchy has been restructured to reduce compilation time.
+  Most large kernels have been split into smaller specific kernels for each
+  metric. The directory structure has been updated with assemble, metrics, mult
+  and tools subdirectories. New kernel dispatch and specialization system has
+  also been integrated. Unit tests have been revised to ensure --all tests pass.
 
 - Introduced NC-patch NURBS meshes, which are conforming element-wise but allow
   for nonconforming patch topology. This new mesh format supports element
   spacing formulas for refinement, as well as local refinement factors for a
   subset of knot vectors.
 
-- Added support for higher order meshes in Mesh::MakeSimplicial and
-  ParMesh::MakeSimplicial.
-
 - Added a new miniapp for interpolating a surface grid of points in 3D using a
   smooth NURBS surface, that can then be sampled at arbitrary resolution while
   staying close to the original geometry. See miniapps/nurbs/nurbs_surface.
 
+- Parallel anisotropic refinement of hexahedral meshes is now supported,
+  provided that neighboring hexahedra are not refined in conflicting directions.
+  A new ParMesh method is added to check for such conflicts, before refinement.
+
+- Added support for higher order meshes in (Par)Mesh::MakeSimplicial.
+
+Linear and nonlinear solvers
+----------------------------
+- Added FilteredSolver: a base class for solvers with filtering. It handles
+  cases where a solver performs well except in small subspaces, by adding a
+  filtering step formulated as a subspace correction.
+
+- Added AMGFSolver: a derived class of FilteredSolver, specialized for AMG with
+  Filtering (AMGF), providing robust preconditioning for linear systems arising
+  in constrained optimization problems such as frictionless contact.
+
 GPU computing
 -------------
-- The function Vector::SetSubVector(const Array<int> &, const real_t) now
-  executes on device if either the vector or the array have the device flag
-  set. This is most often used for setting constant essential boundary
-  conditions. A new function Vector::SetSubVectorHost has been added in cases
-  where host execution is always needed (e.g. when the DOFs array is small).
+- Added the 'gpu', 'raja-gpu', and 'ceed-gpu' backend aliases/shortcuts which
+  automatically select between CUDA or HIP.
+
+- Added the option to enable GPU-aware MPI in MFEM using the environment
+  variable 'MFEM_GPU_AWARE_MPI' set to any value. Setting this environment
+  variable is an alternative to calling 'Device::SetGPUAwareMPI(true)'.
+
+- Implemented a GPU-accelerated matrix-free AMR derefinement GridFunction update
+  operator. This supports mixed geometry meshes and variable order spaces, and
+  is the default derefinement operator constructed by FiniteElementSpace::Update
+  and ParFiniteElementSpace::Update. The operator requires the finite element
+  space to be nonconforming.
 
 - Introduced MFEM_FOREACH_THREAD_DIRECT, which directly maps loop tasks to GPU
   threads, assigning one task per thread.
 
-- Implemented a GPU-accelerated matrix-free AMR derefinement `GridFunction`
-  update operator. This supports mixed geometry meshes and variable order
-  spaces, and is the default derefinement operator constructed by
-  `FiniteElementSpace::Update` and `ParFiniteElementSpace::Update`.
-  The operator requires `FiniteElementSpace::Nonconforming() == true`.
+- The function Vector::SetSubVector(const Array<int> &, const real_t) now
+  executes on device if either the vector or the array have the device flag
+  set. This is most often used for setting constant essential BCs. A new method,
+  SetSubVectorHost, has been added for cases where host execution is always
+  needed (e.g. when the DOFs array is small).
+
+- Added GPU support in GradientGridFunction and InnerProduct Coefficient classes
+  by implementing their Project methods.
+
 - Added new method: GridFunction::GetGradients, with GPU support, for computing
   the gradients of a GridFunction on all elements.
-- Added GPU support in GradientGridFunctionCoefficient and
-  InnerProductCoefficient by implementing their Project methods.
+
+- The CUDA-specific names used by some of the unit tests like 'cunit_tests' and
+  'pcunit_tests' were replaced by names using 'gpu' instead of 'c' (short for
+  CUDA) or 'cuda'. These tests automatically run the CUDA/HIP tests based on the
+  MFEM build configuration.
 
 New and updated examples and miniapps
 -------------------------------------
-- Added miniapps to demonstrate an implementation of the absolute-value
-  L(1)-Jacobi preconditioners in partially assembled operators. This includes
-  Multigrid wrapper to demonstrate the effectiveness of these Jacobi-type
-  operators as smoothers.
-  These miniapps can be found in `miniapps/diag-smoothers`.
+- Added the miniapps/fluids directory and moved the previous Navier and the new
+  incompressible Schrödinger flow miniapps into it.
+
+- Introduced the new Incompressible Schrödinger Flow (ISF) miniapp, which models
+  inviscid fluid dynamics by solving the linear Schrödinger equation, leveraging
+  the hydrodynamical analogy to quantum mechanics.
+
+- New particle-related miniapps:
+  * New transient Navier-Stokes fluid-particles solver NavierParticles in
+    miniapps/fluids/navier/navier_particles, for modeling tracer particles in
+    fluid flow, demonstrating use of the new ParticleSet class.
+  * New Navier miniapp, miniapps/fluids/navier/navier_bifurcation, showing the
+    use of NavierParticles in a 2D bifurcating channel flow.
+  * New FindPointsGSLIB miniapp, miniapps/gslib/particles_redist, showing
+    parallel-redistribution of particle data between MPI ranks.
+  * Particle visualization features in common/particles_extras for viewing
+    particle locations and trajectories (ParticleTrajectories) using GLVis.
 
 - Added a new miniapp (meshing/mesh-bounding-boxes) that computes the bounding
   boxes for each element of a given mesh, and the bounds on the determinant of
@@ -95,36 +161,44 @@ New and updated examples and miniapps
   of a charged particle, subject to Lorentz forces, in electrostatic and/or
   magnetostatic fields as computed by the volta or tesla miniapps.
 
-API changes:
------------
-- mfem::internal::tensor and mfem::internal::dual have been moved to
-  mfem::future::tensor and mfem::future::dual.
+- Added miniapps to demonstrate an implementation of the absolute-value
+  l1-Jacobi preconditioners in partially assembled operators. This includes
+  Multigrid wrapper to demonstrate the effectiveness of these Jacobi-type
+  operators as smoothers. See the miniapps/diag-smoothers/ directory.
 
-- API addition: in class `Operator`, added virtual functions: `AbsMult`, and
-  `AbsMultTranspose`; in class `Vector`, added `Abs` and `Pow`.
+- Updated the mtop miniapp with a GPU enabled forward and adjoint solver for
+  isotropic linear elasticity.
 
 Miscellaneous
 -------------
-- Added the "gpu", "raja-gpu", and "ceed-gpu" backend aliases/shortcuts which
-  automatically select between CUDA or HIP.
+- Introduced MFEM_FETCH_TPLS CMake option to enable downloading, configuring,
+  and building of TPLs alongside MFEM (currently supported TPLs are hypre,
+  METIS, and GSLIB).
 
-- The CUDA-specific names used by some of the unit tests like 'cunit_tests' and
-  'pcunit_tests' were replaced by names using 'gpu' instead of 'c' (short for
-  CUDA) or 'cuda'. These tests automatically run the CUDA/HIP tests based on the
-  MFEM build configuration.
+- Added quadrature function support to the VisIt and Conduit data collections.
 
-- Added the option to enable GPU-aware MPI in MFEM using the environment
-  variable 'MFEM_GPU_AWARE_MPI' set to any value. Setting this environment
-  variable is an alternative to calling 'Device::SetGPUAwareMPI(true)'.
+- Added access to the internal parallel matrix in Par(Mixed)BilinearForm and
+  related utility methods for elimination of BCs.
+
+- FindPointsGSLIB has a new constructor that accepts the mesh object and
+  internally calls the Setup() method so users do not have to. The FreeData()
+  method has also been moved to the destructor so users do not need to manually
+  free-up the memory if the destructor is called before MPI_Finalize().
 
 - Added parallel Address Sanitizer, serial and parallel Undefined Behavior
   Sanitizer and serial Memory Sanitizer GitHub actions tests on Ubuntu.
 
-- FindPointsGSLIB has a new constructor that accepts the mesh object and
-  internally calls the Setup() method so that the user does not have to.
-  The FreeData() method has also been moved to the destructor so the user does
-  not need to manually free-up the memory if the destructor is called before
-  MPI_Finalize().
+API changes
+-----------
+- mfem::internal::tensor and mfem::internal::dual have been moved to
+  mfem::future::tensor and mfem::future::dual.
+
+- API addition: in class Operator, added virtual functions: AbsMult, and
+  AbsMultTranspose; in class Vector, added Abs and Pow.
+
+- ParBilinearForm::EliminateEssentialVDofsInRhs() has been deprecated in favor
+  of ParallelEliminateEssentialTDofsInRhs().
+
 
 Version 4.8, released on Apr 9, 2025
 ====================================

@@ -63,7 +63,6 @@
 //               mpirun -np 4 pminimal-surface -d  cuda -no-pa -c -a
 
 #include "mfem.hpp"
-#include "../../general/forall.hpp"
 
 using namespace mfem;
 using namespace std;
