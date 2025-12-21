@@ -3639,12 +3639,12 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
       // make sure ess/nat_dof have been collectively set
       PetscBool lpr = PETSC_FALSE,pr;
       if (opts.ess_dof) { lpr = PETSC_TRUE; }
-      mpiierr = MPI_Allreduce(&lpr,&pr,1,MPIU_BOOL,MPI_LOR,comm);
+      mpiierr = MPI_Allreduce(&lpr,&pr,1,MPI_C_BOOL,MPI_LOR,comm);
       CCHKERRQ(comm,mpiierr);
       MFEM_VERIFY(lpr == pr,"ess_dof should be collectively set");
       lpr = PETSC_FALSE;
       if (opts.nat_dof) { lpr = PETSC_TRUE; }
-      mpiierr = MPI_Allreduce(&lpr,&pr,1,MPIU_BOOL,MPI_LOR,comm);
+      mpiierr = MPI_Allreduce(&lpr,&pr,1,MPI_C_BOOL,MPI_LOR,comm);
       CCHKERRQ(comm,mpiierr);
       MFEM_VERIFY(lpr == pr,"nat_dof should be collectively set");
       // make sure fields have been collectively set
@@ -4058,7 +4058,7 @@ void PetscNonlinearSolver::SetOperator(const Operator &op)
       ls = (PetscBool)(height == op.Height() && width  == op.Width() &&
                        (void*)&op == fctx &&
                        (void*)&op == jctx);
-      mpiierr = MPI_Allreduce(&ls,&gs,1,MPIU_BOOL,MPI_LAND,
+      mpiierr = MPI_Allreduce(&ls,&gs,1,MPI_C_BOOL,MPI_LAND,
                               PetscObjectComm((PetscObject)snes));
       CCHKERRQ(PetscObjectComm((PetscObject)snes),mpiierr);
       if (!gs)
