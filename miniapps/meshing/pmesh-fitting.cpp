@@ -69,6 +69,12 @@
 // make pmesh-fitting -j4 && mpirun -np 6 pmesh-fitting -m preprocessed_ls_1_rs_2.mesh -o 2 -rs 0 -mid 303 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -li 20 -ae 1 -bnd -slstype 1 -smtype 0 -sfa 10.0 -sft 1e-8 -no-resid -mod-bndr-attr -vis -ni 100 -mat
 // make pmesh-fitting -j4 && mpirun -np 6 pmesh-fitting -m preprocessed_ls_7_rs_2.mesh -o 1 -rs 0 -mid 303 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -li 20 -ae 1 -bnd -slstype 7 -smtype 0 -sfa 10.0 -sft 1e-8 -no-resid -mod-bndr-attr -vis -ni 100 -mat
 
+// conforming hexes
+// make pmesh-fitting -j4 && mpirun -np 6 pmesh-fitting -m cube.mesh -o 2 -rs 2 -mid 303 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -li 20 -ae 1 -bnd -slstype 1 -smtype 0 -sfa 10.0 -sft 1e-8 -no-resid -mod-bndr-attr -vis -ni 100 -cref
+
+// CSG example
+// make pmesh-fitting -j4 && mpirun -np 11 pmesh-fitting -m ../../data/inline-hex.mesh -o 2 -rs 4 -mid 321 -tid 2 -vl 2 -sfc 100 -rtol 1e-12 -li 20 -ae 1 -bnd -slstype 6 -smtype 0 -sfa 10.0 -sft 1e-8 -no-resid -mod-bndr-attr -vis -ni 200 -cref -bgamriter 4 -dist -sbgmesh
+
 #include "mesh-fitting.hpp"
 
 using namespace mfem;
@@ -605,7 +611,6 @@ int main (int argc, char *argv[])
          }
          if (hex_mesh)
          {
-            cout << "Cannot perform it for hex mesh yet" << endl;
             Array<int> els_to_refine, intfaces;
             std::set<std::array<int, 4>> intfaces_verts;
             GetHexConformingRefinementInfo(pmesh, mat, els_to_refine, intfaces,
@@ -614,6 +619,43 @@ int main (int argc, char *argv[])
             for (int e = 0; e < els_to_refine.Size(); e++)
             {
                infogf(els_to_refine[e]) = 1.0;
+            }
+
+            {
+               pmesh->ConformingRefinement(els_to_refine);
+               surf_fit_fes.Update();
+               mat_fes.Update();
+               surf_fit_gf0.Update();
+               mat.Update();
+               surf_fit_mat_gf.Update();
+               numfaces.Update();
+               surf_fit_marker.SetSize(surf_fit_gf0.Size());
+               x0.Update();
+               if (surf_fit_grad_fes)
+               {
+                  surf_fit_grad_fes->Update();
+                  surf_fit_grad->Update();
+                  surf_fit_hess_fes->Update();
+                  surf_fit_hess->Update();
+               }
+            }
+            {
+               pmesh->ConformingHexRefinement2(intfaces_verts);
+               surf_fit_fes.Update();
+               mat_fes.Update();
+               surf_fit_gf0.Update();
+               mat.Update();
+               surf_fit_mat_gf.Update();
+               numfaces.Update();
+               surf_fit_marker.SetSize(surf_fit_gf0.Size());
+               x0.Update();
+               if (surf_fit_grad_fes)
+               {
+                  surf_fit_grad_fes->Update();
+                  surf_fit_grad->Update();
+                  surf_fit_hess_fes->Update();
+                  surf_fit_hess->Update();
+               }
             }
          }
          else
@@ -650,6 +692,9 @@ int main (int argc, char *argv[])
             }
          }
          MakeGridFunctionWithNumberOfInterfaceFaces(pmesh, mat, numfaces);
+         visit_dc.SetCycle(vis_cycle++);
+         visit_dc.SetTime(0.0);
+         visit_dc.Save();
       }
 
       GridFunctionCoefficient coeff_mat(&mat);
