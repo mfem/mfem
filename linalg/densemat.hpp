@@ -325,8 +325,8 @@ public:
 
    void GetRow(int r, Vector &row) const;
    void GetColumn(int c, Vector &col) const;
-   real_t *GetColumn(int col) { return data + col*height; }
-   const real_t *GetColumn(int col) const { return data + col*height; }
+   real_t *GetColumn(int col) { return &data[col*height]; }
+   const real_t *GetColumn(int col) const { return &data[col*height]; }
 
    void GetColumnReference(int c, Vector &col)
    { col.SetDataAndSize(data + c * height, height); }

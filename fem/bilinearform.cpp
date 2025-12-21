@@ -55,10 +55,9 @@ void BilinearForm::AllocMat()
    dof_dof.SortRows();
 
    int *I = dof_dof.GetI();
-   int *J = dof_dof.GetJ();
-   real_t *data = Memory<real_t>(I[height]);
 
-   mat = new SparseMatrix(I, J, data, height, height, true, true, true);
+   mat = new SparseMatrix(dof_dof.GetIMemory(), dof_dof.GetJMemory(),
+                          Memory<real_t>(I[height]), height, height, true);
    *mat = 0.0;
 
    dof_dof.LoseData();
@@ -975,14 +974,6 @@ void BilinearForm::RecoverFEMSolution(const Vector &X,
       {
          // Primal unknowns recovery
          hybridization->ComputeSolution(b, X, x);
-      }
-      else
-      {
-         // X and x point to the same data
-
-         // If the validity flags of X's Memory were changed (e.g. if it was
-         // moved to device memory) then we need to tell x about that.
-         x.SyncMemory(X);
       }
    }
    else // non-conforming space

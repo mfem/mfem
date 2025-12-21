@@ -366,13 +366,13 @@ public:
    inline T* begin() { return data; }
 
    /// STL-like end.  Returns pointer after the last element of the array.
-   inline T* end() { return data + size; }
+   inline T* end() { return static_cast<T*>(data) + size; }
 
    /// STL-like begin.  Returns const pointer to the first element of the array.
    inline const T* begin() const { return data; }
 
    /// STL-like end.  Returns const pointer after the last element of the array.
-   inline const T* end() const { return data + size; }
+   inline const T* end() const { return static_cast<const T*>(data) + size; }
 
    /// Returns the number of bytes allocated for the array including any reserve.
    std::size_t MemoryUsage() const { return Capacity() * sizeof(T); }
@@ -796,7 +796,7 @@ inline void Array<T>::GrowSize(int minsize)
    p.CopyFrom(data, size);
    p.UseDevice(data.UseDevice());
    data.Delete();
-   data = p;
+   data = std::move(p);
 }
 
 template <typename T>
@@ -807,7 +807,7 @@ inline void Array<T>::ShrinkToFit()
    p.CopyFrom(data, size);
    p.UseDevice(data.UseDevice());
    data.Delete();
-   data = p;
+   data = std::move(p);
 }
 
 template <typename T>
