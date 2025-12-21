@@ -391,9 +391,23 @@ void MemoryManager::MemCopy(void *dst, const void *src, size_t nbytes,
       return;
    }
 #if defined(MFEM_USE_CUDA)
-   MFEM_GPU_CHECK(cudaMemcpy(dst, src, nbytes, cudaMemcpyDefault));
+   if (Device::Allows(Backend::CUDA_MASK))
+   {
+      MFEM_GPU_CHECK(cudaMemcpy(dst, src, nbytes, cudaMemcpyDefault));
+   }
+   else
+   {
+      std::memcpy(dst, src, nbytes);
+   }
 #elif defined(MFEM_USE_HIP)
-   MFEM_GPU_CHECK(hipMemcpy(dst, src, nbytes, hipMemcpyDefault));
+   if (Device::Allows(Backend::HIP_MASK))
+   {
+      MFEM_GPU_CHECK(hipMemcpy(dst, src, nbytes, hipMemcpyDefault));
+   }
+   else
+   {
+      std::memcpy(dst, src, nbytes);
+   }
 #else
    std::memcpy(dst, src, nbytes);
 #endif

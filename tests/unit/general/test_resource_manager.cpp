@@ -177,12 +177,12 @@ TEST_CASE("Resource Copy 2", "[Resource Manager][GPU]")
    {
       Memory<char> tmp = src.CreateAlias(5);
       {
-         auto dptr = tmp.Write(mfem::MemoryClass::DEVICE, tmp.Capacity());
+         auto dptr = tmp.Write(MemoryClass::DEVICE, tmp.Capacity());
          forall(tmp.Capacity(),
          [=] MFEM_HOST_DEVICE(int i) { dptr[i] = 7 + i; });
       }
       tmp = src.CreateAlias(3);
-      tmp.Read(mfem::MemoryClass::DEVICE, tmp.Capacity());
+      tmp.Read(MemoryClass::DEVICE, tmp.Capacity());
       tmp = src.CreateAlias(2, 3 - 2);
       {
          auto hptr = tmp.Write(mfem::MemoryClass::HOST, tmp.Capacity());
@@ -192,19 +192,19 @@ TEST_CASE("Resource Copy 2", "[Resource Manager][GPU]")
          }
       }
       tmp = src.CreateAlias(0, 2);
-      tmp.Read(mfem::MemoryClass::DEVICE, tmp.Capacity());
+      tmp.Read(MemoryClass::DEVICE, tmp.Capacity());
    }
 
    mfem::out << "src flags:" << std::endl;
    src.PrintFlags();
-   Memory<char> dst(5, MemoryType::DEVICE, false);
+   Memory<char> dst(5, MemoryManager::instance().GetDeviceMemoryType(), false);
    mfem::out << "dst flags:" << std::endl;
    dst.PrintFlags();
    {
       Memory<char> tmp = src.CreateAlias(2, dst.Capacity());
       dst.CopyFrom(tmp, dst.Capacity());
 
-      src.Read(mfem::MemoryClass::HOST, src.Capacity());
+      src.Read(MemoryClass::HOST, src.Capacity());
       Memory<char> cmp(dst.Capacity(), MemoryType::HOST, false);
       dst.CopyTo(cmp, dst.Capacity());
       for (int i = 0; i < dst.Capacity(); ++i)
