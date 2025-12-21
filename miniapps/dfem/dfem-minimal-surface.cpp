@@ -318,7 +318,7 @@ public:
       // on the reference coordinates of the FIELD_ID field to be interpolated
       // and translated to the pointwise function as the first and second input.
       // Other choices are possible, e.g. Value<FIELD_ID> to interpolate the
-      // pointwise funciton. `Weight` is a special field that translates the
+      // pointwise function. `Weight` is a special field that translates the
       // integration rule weights to the input of the pointwise function.
       auto input_operators = tuple
       {
