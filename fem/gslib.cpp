@@ -324,6 +324,7 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
          gsl_elem[i] = 0;
          for (int d = 0; d < dim; d++) { gsl_ref(i*dim + d) = -1.; }
          gsl_code[i] = 2;
+         gsl_proc[i] = gsl_comm->id;
       }
    }
 
