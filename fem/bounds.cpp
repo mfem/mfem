@@ -723,26 +723,21 @@ IntegrationRule PLBound::GetIntegrationRule(int dim) const
       irule_1D.IntPoint(i).x = control_points(i);
       irule_1D.IntPoint(i).weight = 0.0; // weights are not used
    }
-   IntegrationRule *irule_nd_temp = nullptr;
-   if (dim == 1)
+   if (dim == 2)
    {
-      irule_nd_temp = new IntegrationRule(irule_1D);
-   }
-   else if (dim == 2)
-   {
-      irule_nd_temp = new IntegrationRule(irule_1D, irule_1D);
+      IntegrationRule irule_2D(irule_1D, irule_1D);
+      return irule_2D;
    }
    else if (dim == 3)
    {
-      irule_nd_temp = new IntegrationRule(irule_1D, irule_1D, irule_1D);
+      IntegrationRule irule_3D(irule_1D, irule_1D, irule_1D);
+      return irule_3D;
    }
-   else
+   else if (dim != 1)
    {
       MFEM_ABORT("Currently not supported.");
    }
-   IntegrationRule irule = *irule_nd_temp;
-   delete irule_nd_temp;
-   return irule;
+   return irule_1D;
 }
 
 constexpr int PLBound::min_ncp_gl_x[2][11];
