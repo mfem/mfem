@@ -32,6 +32,46 @@
 using namespace mfem;
 using namespace mfem::future;
 
+template <typename dscalar_t> class AMGPC : public Solver {
+public:
+  AMGPC(Operator &op) : Solver(op.Height()), op(op) {}
+
+  void SetOperator(const Operator &) override {
+    auto &momentum_balance =
+        static_cast<op::LinearMomentumBalance<dscalar_t> &>(op);
+    // We leverage dFEM to assemble the Jacobian of the linear monetum balance
+    // operator into a HypreParMatrix.
+    A.reset();
+    delete A_dstrain_du;
+    delete A_dres_dstress;
+    delete A_dstress_dstrain;
+    A_dstrain_du = nullptr;
+    A_dres_dstress = nullptr;
+    A_dstress_dstrain = nullptr;
+    auto &autodiff_jacobian = momentum_balance.GetJacobian();
+    autodiff_jacobian.dstrain_du->Assemble(A_dstrain_du);
+    autodiff_jacobian.dres_dstress->Assemble(A_dres_dstress);
+    // Pseudo-code
+    // A_dstress_dstrain = autodiff_jacobian->GetDStressDStrain();
+    // A = A_dres_dstress * A_dstress_dstrain * A_dstress_du
+    auto Ae = A->EliminateRowsCols(momentum_balance.ess_tdofs);
+    delete Ae;
+    amg.SetPrintLevel(0);
+    amg.SetOperator(*A);
+  }
+
+  void Mult(const Vector &x, Vector &y) const override { amg.Mult(x, y); }
+
+  ~AMGPC() = default;
+
+private:
+  Operator &op;
+  std::unique_ptr<HypreParMatrix> A = nullptr;
+  HypreParMatrix *A_dstrain_du = nullptr, *A_dres_dstress = nullptr,
+                 *A_dstress_dstrain = nullptr;
+  HypreBoomerAMG amg;
+};
+
 int main(int argc, char *argv[]) {
   // Initialize MPI and HYPRE
   Mpi::Init();
@@ -40,6 +80,7 @@ int main(int argc, char *argv[]) {
   // Parse command-line options
   const char *device_config = "cpu";
   int derivative_type = static_cast<int>(op::AUTODIFF);
+  bool enable_pcamg = false;
 
   OptionsParser args(argc, argv);
   args.AddOption(&device_config, "-d", "--device",
@@ -47,6 +88,9 @@ int main(int argc, char *argv[]) {
   args.AddOption(&derivative_type, "-der", "--derivative-type",
                  "Derivative computation type: 0=AutomaticDifferentiation,"
                  " 1=HandCoded, 2=FiniteDifference");
+  args.AddOption(
+      &enable_pcamg, "-pcamg", "--pcamg", "-no-pcamg", "--no-pcamg",
+      "Enable AMG as a preconditioner when using automatic differentiation.");
   args.ParseCheck();
 
   // Enable hardware devices such as GPUs, and programming models such as CUDA
@@ -133,6 +177,16 @@ int main(int argc, char *argv[]) {
   krylov.SetRelTol(1e-12);
   krylov.SetMaxIter(200);
   krylov.SetPrintLevel(2);
+
+  std::shared_ptr<AMGPC<real_t>> amgpc;
+  if (enable_pcamg) {
+    if (derivative_type == op::AUTODIFF) {
+      amgpc.reset(new AMGPC<real_t>(*op));
+      krylov.SetPreconditioner(*amgpc);
+    } else {
+      MFEM_ABORT("AMG only available for the AUTODIFF derivative type");
+    }
+  }
 
   // Nonlinear solver
   NewtonSolver newton(MPI_COMM_WORLD);
