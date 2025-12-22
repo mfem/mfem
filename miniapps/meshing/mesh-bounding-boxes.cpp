@@ -306,51 +306,6 @@ IntegrationRule PermuteIR(const IntegrationRule &irule,
    return ir;
 }
 
-void GetDeterminantJacobianGF(ParMesh *mesh, ParGridFunction *detgf)
-{
-   int dim = mesh->Dimension();
-   FiniteElementSpace *fespace = detgf->FESpace();
-   Array<int> dofs;
-
-   for (int e = 0; e < mesh->GetNE(); e++)
-   {
-      const FiniteElement *fe = fespace->GetFE(e);
-      const IntegrationRule ir = fe->GetNodes();
-      ElementTransformation *transf = mesh->GetElementTransformation(e);
-      DenseMatrix Jac(fe->GetDim());
-      const NodalFiniteElement *nfe = dynamic_cast<const NodalFiniteElement*>
-                                      (fe);
-      const Array<int> &irordering = nfe->GetLexicographicOrdering();
-      IntegrationRule ir2 = irordering.Size() ?
-                            PermuteIR(ir, irordering) :
-                            ir;
-
-      Vector detvals(ir2.GetNPoints());
-      Vector loc(dim);
-      for (int q = 0; q < ir2.GetNPoints(); q++)
-      {
-         IntegrationPoint ip = ir2.IntPoint(q);
-         transf->SetIntPoint(&ip);
-         transf->Transform(ip, loc);
-         Jac = transf->Jacobian();
-         detvals(q) = Jac.Weight();
-      }
-
-      fespace->GetElementDofs(e, dofs);
-      if (irordering.Size())
-      {
-         for (int i = 0; i < dofs.Size(); i++)
-         {
-            (*detgf)(dofs[i]) = detvals(irordering[i]);
-         }
-      }
-      else
-      {
-         detgf->SetSubVector(dofs, detvals);
-      }
-   }
-}
-
 void VisualizeBB(Mesh &mesh, char *title, int pos_x, int pos_y)
 {
    socketstream sock;
