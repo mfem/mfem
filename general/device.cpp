@@ -721,14 +721,17 @@ void Device::DeviceMem(size_t *free, size_t *total)
 std::string Device::GetUUID(const int device_id)
 {
    std::stringstream res;
-#if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
 #if defined(MFEM_USE_CUDA)
-   CUuuid uuid;
-   MFEM_GPU_CHECK(cuDeviceGetUuid(&uuid, device_id));
+   cudaDeviceProp prop;
+   MFEM_GPU_CHECK(cudaGetDeviceProperties(&prop, device_id));
+   for (int i = 0; i < 16; ++i)
+   {
+      res << std::setfill('0') << std::setw(2) << std::hex
+          << static_cast<unsigned>(prop.uuid.bytes[i]);
+   }
 #elif defined(MFEM_USE_HIP)
    hipUUID uuid;
    MFEM_GPU_CHECK(hipDeviceGetUuid(&uuid, device_id));
-#endif
    for (int i = 0; i < 16; ++i)
    {
       res << std::setfill('0') << std::setw(2) << std::hex
