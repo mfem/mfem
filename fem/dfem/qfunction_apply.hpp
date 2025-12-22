@@ -390,43 +390,115 @@ void apply_qpdc(
    const std::array<DeviceTensor<2>, num_fields> &shadow_shmem,
    const DeviceTensor<5, const real_t> &qpdc,
    const DeviceTensor<1, const real_t> &itod,
-   const int &q)
+   const int &q,
+   bool transpose)
 {
+   const size_t num_inputs = itod.GetShape()[0];
+   const int num_qp = qpdc.GetShape()[4];
    const int test_vdim = qpdc.GetShape()[0];
    const int test_op_dim = qpdc.GetShape()[1];
    const int trial_vdim = qpdc.GetShape()[2];
-   const int num_qp = qpdc.GetShape()[4];
-   const size_t num_inputs = itod.GetShape()[0];
+   const int total_trial_op_dim = qpdc.GetShape()[3];
 
-   for (int i = 0; i < test_vdim; i++)
+   if (transpose)
    {
-      for (int k = 0; k < test_op_dim; k++)
+      for (int j = 0; j < trial_vdim; j++)
       {
-         real_t sum = 0.0;
-         int m_offset = 0;
-         for (size_t s = 0; s < num_inputs; s++)
+         for (int m = 0; m < total_trial_op_dim; m++)
          {
-            const int trial_op_dim = static_cast<int>(itod(s));
-            if (trial_op_dim == 0)
-            {
-               continue;
-            }
-            const auto d_qp =
-               Reshape(&(shadow_shmem[s])[0], trial_vdim, trial_op_dim, num_qp);
-            for (int j = 0; j < trial_vdim; j++)
-            {
-               for (int m = 0; m < trial_op_dim; m++)
-               {
-                  sum += qpdc(i, k, j, m + m_offset, q) * d_qp(j, m, q);
-               }
-            }
-            m_offset += trial_op_dim;
+            fhat(j, m, q) = 0.0;
          }
-         fhat(i, k, q) = sum;
+      }
+
+      int m_offset = 0;
+      for (size_t s = 0; s < num_inputs; s++)
+      {
+         const int trial_op_dim = static_cast<int>(itod(s));
+         if (trial_op_dim == 0) { continue; }
+
+         auto d_qp = Reshape(&(shadow_shmem[s])[0], test_vdim, test_op_dim, num_qp);
+
+         // ==== BEGIN DEBUG PRINT ====
+         // if (q == 0)
+         // {
+         //    printf("---- [DEBUG s=%zu, m_offset=%d] ----\n", s, m_offset);
+         //    printf("trial_op_dim=%d\n", trial_op_dim);
+         //    for (int j = 0; j < trial_vdim; j++)
+         //       for (int m = 0; m < trial_op_dim; m++)
+         //       {
+         //          for (int i = 0; i < test_vdim; i++)
+         //             for (int k = 0; k < test_op_dim; k++)
+         //                printf("qpdc(%d,%d,%d,%d,%d) = %g, d_qp(%d,%d,%d) = %g\n",
+         //                       i, k, j, m + m_offset, q, qpdc(i, k, j, m + m_offset, q),
+         //                       i, k, q, d_qp(i, k, q));
+         //       }
+         // }
+         // ==== END DEBUG PRINT ====
+
+         for (int j = 0; j < trial_vdim; j++)
+         {
+            for (int m = 0; m < total_trial_op_dim; m++)
+            {
+               real_t sum = 0.0;
+               for (int i = 0; i < test_vdim; i++)
+               {
+                  for (int k = 0; k < test_op_dim; k++)
+                  {
+                     const real_t contrib = qpdc(i, k, j, m + m_offset, q) * d_qp(i, k, q);
+                     sum += contrib;
+
+                     // ==== BEGIN DEBUG PRINT ====
+                     // if (q == 0)
+                     //    printf("[s=%zu] Adding: qpdc(%d,%d,%d,%d,%d) * d_qp(%d,%d,%d) = %g * %g = %g, sum=%g\n",
+                     //           s, i, k, j, m + m_offset, q,
+                     //           i, k, q, qpdc(i, k, j, m + m_offset, q),
+                     //           d_qp(i, k, q), contrib, sum
+                     //          );
+                     // ==== END DEBUG PRINT ====
+                  }
+               }
+               fhat(j, m + m_offset, q) += sum;
+               // ==== BEGIN DEBUG PRINT ====
+               // if (q == 0)
+               //    printf("  -> fhat(%d,%d,%d) incremented by sum=%g, total=%g\n",
+               //           j, m + m_offset, q, sum, fhat(j, m + m_offset, q));
+               // ==== END DEBUG PRINT ====
+            }
+         }
+         m_offset += trial_op_dim;
+      }
+   }
+   else
+   {
+      for (int i = 0; i < test_vdim; i++)
+      {
+         for (int k = 0; k < test_op_dim; k++)
+         {
+            real_t sum = 0.0;
+            int m_offset = 0;
+            for (size_t s = 0; s < num_inputs; s++)
+            {
+               const int trial_op_dim = static_cast<int>(itod(s));
+               if (trial_op_dim == 0) { continue; }
+
+               const auto d_qp =
+                  Reshape(&(shadow_shmem[s])[0], trial_vdim, trial_op_dim, num_qp);
+               for (int j = 0; j < trial_vdim; j++)
+               {
+                  for (int m = 0; m < trial_op_dim; m++)
+                  {
+                     sum += qpdc(i, k, j, m + m_offset, q) * d_qp(j, m, q);
+                  }
+               }
+               m_offset += trial_op_dim;
+            }
+            fhat(i, k, q) = sum;
+         }
       }
    }
 }
-}
+
+} // namespace detail
 
 /// @brief Apply the quadrature point data cache (qpdc) to a vector
 /// (usually a direction).
@@ -454,7 +526,8 @@ void apply_qpdc(
    const DeviceTensor<1, const real_t> &itod,
    const int &q1d,
    const int &dimension,
-   const bool &use_sum_factorization)
+   const bool &use_sum_factorization,
+   const bool T = false)
 {
    if (use_sum_factorization)
    {
@@ -462,7 +535,7 @@ void apply_qpdc(
       {
          MFEM_FOREACH_THREAD_DIRECT(q, x, q1d)
          {
-            detail::apply_qpdc(fhat, shadow_shmem, qpdc, itod, q);
+            detail::apply_qpdc(fhat, shadow_shmem, qpdc, itod, q, T);
          }
       }
       else if (dimension == 2)
@@ -472,7 +545,7 @@ void apply_qpdc(
             MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
             {
                const int q = qx + q1d * qy;
-               detail::apply_qpdc(fhat, shadow_shmem, qpdc, itod, q);
+               detail::apply_qpdc(fhat, shadow_shmem, qpdc, itod, q, T);
             }
          }
       }
@@ -485,7 +558,7 @@ void apply_qpdc(
                MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
                {
                   const int q = qx + q1d * (qy + q1d * qz);
-                  detail::apply_qpdc(fhat, shadow_shmem, qpdc, itod, q);
+                  detail::apply_qpdc(fhat, shadow_shmem, qpdc, itod, q, T);
                }
             }
          }
@@ -500,7 +573,7 @@ void apply_qpdc(
       const int num_qp = qpdc.GetShape()[4];
       MFEM_FOREACH_THREAD_DIRECT(q, x, num_qp)
       {
-         detail::apply_qpdc(fhat, shadow_shmem, qpdc, itod, q);
+         detail::apply_qpdc(fhat, shadow_shmem, qpdc, itod, q, T);
       }
    }
 }
