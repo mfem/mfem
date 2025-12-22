@@ -128,6 +128,8 @@ public:
    DenseMatrix GetUpperBoundMatrix(int dim = 1);
    ///@}
 
+   IntegrationRule GetIntegrationRule(int dim) const;
+
 private:
    /** @brief Compute piecewise linear bounds for the lexicographically-ordered
     *  coefficients in @a coeff in 1D.
