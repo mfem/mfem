@@ -1745,10 +1745,6 @@ public:
     const PLBound &plb,
     const int max_depth,
     const real_t tol = 0.0);
-
-    std::pair<bool, int> IsFunctionPositiveInElement(
-        const int elem, const PLBound &plb, const int vdim,
-        const int max_depth);
    ///@}
 
 
