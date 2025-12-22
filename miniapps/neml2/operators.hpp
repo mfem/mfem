@@ -235,6 +235,12 @@ public:
   /// Essential dof values
   Vector ess_dof_vals;
 
+  /// Get the autodiff Jacobian class
+  AutodiffLinearMomentumBalanceJacobian &GetJacobian() {
+    MFEM_ASSERT(_autodiff_deriv_op, "Must have the autodiff op");
+    return *_autodiff_deriv_op;
+  }
+
 private:
   /// The strain storage
   mutable ParameterFunction _strain;
