@@ -302,6 +302,7 @@ private:
    void SetUmpireDeviceAllocatorName_(const char *d_name);
    void SetUmpireDevice2AllocatorName_(const char *d_name);
 #endif
+   void EnsureAlloc(MemoryType mt);
 
 public:
    MemoryManager(const MemoryManager &) = delete;

@@ -482,22 +482,17 @@ MemoryManager::MemoryManager()
       allocs_storage[1].get();
 #endif
 
-   // default umpire allocators to internal ones until later so users can set
-   // the pool names
-   allocs[static_cast<int>(MemoryType::HOST_UMPIRE)] =
-      allocs[static_cast<int>(MemoryType::HOST)];
-   allocs[static_cast<int>(MemoryType::HOST_UMPIRE) + MemoryTypeSize] =
-      allocs[static_cast<int>(MemoryType::HOST) + MemoryTypeSize];
+   // delay creation of umpire allocators so users can set the pool names
+   allocs[static_cast<int>(MemoryType::HOST_UMPIRE)] = nullptr;
+   allocs[static_cast<int>(MemoryType::HOST_UMPIRE) + MemoryTypeSize] = nullptr;
 
-   allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE)] =
-      allocs[static_cast<int>(MemoryType::DEVICE)];
+   allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE)] = nullptr;
    allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE) + MemoryTypeSize] =
-      allocs[static_cast<int>(MemoryType::DEVICE) + MemoryTypeSize];
+      nullptr;
 
-   allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE_2)] =
-      allocs[static_cast<int>(MemoryType::DEVICE) + MemoryTypeSize];
+   allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE_2)] = nullptr;
    allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE_2) + MemoryTypeSize] =
-      allocs[static_cast<int>(MemoryType::DEVICE) + MemoryTypeSize];
+      nullptr;
    // TODO: managed/host-pinned umpire pools?
 }
 
@@ -565,44 +560,6 @@ void MemoryManager::Configure(MemoryType host_loc, MemoryType device_loc,
    memory_types[1] = device_loc;
    memory_types[2] = hostpinned_loc;
    memory_types[3] = managed_loc;
-#ifdef MFEM_USE_UMPIRE
-   if (host_loc == MemoryType::HOST_UMPIRE)
-   {
-      if (!allocs_storage[10])
-      {
-         allocs_storage[10].reset(
-            new UmpireAllocator(h_umpire_name.c_str(), "HOST"));
-      }
-      allocs[static_cast<int>(MemoryType::HOST_UMPIRE)] =
-         allocs_storage[10].get();
-      // TODO: temporary host umpire pool?
-   }
-   if (device_loc == MemoryType::DEVICE_UMPIRE ||
-       device_loc == MemoryType::DEVICE_UMPIRE_2)
-   {
-      if (!allocs_storage[11])
-      {
-         allocs_storage[11].reset(
-            new UmpireAllocator(d_umpire_name.c_str(), "DEVICE"));
-      }
-      if (!allocs_storage[12])
-      {
-         allocs_storage[12].reset(
-            new UmpireAllocator(d_umpire_2_name.c_str(), "DEVICE"));
-      }
-      allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE)] =
-         allocs_storage[11].get();
-      // DEVICE_UMPIRE_2 is the temp pool
-      allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE) + MemoryTypeSize] =
-         allocs_storage[12].get();
-
-      allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE_2)] =
-         allocs_storage[12].get();
-      allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE_2) + MemoryTypeSize] =
-         allocs_storage[12].get();
-      // TODO: Umpire HostPinned and Managed pools?
-   }
-#endif
 
    UpdateDualMemoryType(host_loc, device_loc);
    UpdateDualMemoryType(device_loc, host_loc);
@@ -614,15 +571,19 @@ MemoryManager::~MemoryManager()
    {
       if (seg.ref_count)
       {
-         if (seg.flag & RBase::Segment::Flags::OWN_HOST)
+         if (seg.flag & RBase::Segment::Flags::OWN_HOST && seg.lowers[0])
          {
-            Dealloc(seg.lowers[0], seg.mtypes[0],
-                    seg.flag & RBase::Segment::Flags::TEMPORARY);
+            mfem::err << "Leaked host memory " << (void *)seg.lowers[0]
+                      << std::endl;
+            // Dealloc(seg.lowers[0], seg.mtypes[0],
+            //         seg.flag & RBase::Segment::Flags::TEMPORARY);
          }
-         if (seg.flag & RBase::Segment::Flags::OWN_DEVICE)
+         if (seg.flag & RBase::Segment::Flags::OWN_DEVICE && seg.lowers[1])
          {
-            Dealloc(seg.lowers[1], seg.mtypes[1],
-                    seg.flag & RBase::Segment::Flags::TEMPORARY);
+            mfem::err << "Leaked device memory " << (void *)seg.lowers[1]
+                      << std::endl;
+            // Dealloc(seg.lowers[1], seg.mtypes[1],
+            //         seg.flag & RBase::Segment::Flags::TEMPORARY);
          }
       }
    }
@@ -759,6 +720,56 @@ std::array<size_t, 4> MemoryManager::Usage() const
    return res;
 }
 
+void MemoryManager::EnsureAlloc(MemoryType mt)
+{
+   // lazy initialized allocators
+   switch (mt)
+   {
+#ifdef MFEM_USE_UMPIRE
+      case MemoryType::HOST_UMPIRE:
+      {
+         if (!allocs_storage[10])
+         {
+            allocs_storage[10].reset(
+               new UmpireAllocator(h_umpire_name.c_str(), "HOST"));
+            allocs[static_cast<int>(MemoryType::HOST_UMPIRE)] =
+               allocs_storage[10].get();
+            // TODO: temporary host umpire pool? Right now use the same host
+            // allocator
+            allocs[static_cast<int>(MemoryType::HOST_UMPIRE) + MemoryTypeSize] =
+               allocs_storage[10].get();
+         }
+      }
+      break;
+      case MemoryType::DEVICE_UMPIRE:
+      case MemoryType::DEVICE_UMPIRE_2:
+      {
+         if (!allocs_storage[11])
+         {
+            allocs_storage[11].reset(
+               new UmpireAllocator(d_umpire_name.c_str(), "DEVICE"));
+            allocs_storage[12].reset(
+               new UmpireAllocator(d_umpire_2_name.c_str(), "DEVICE"));
+            allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE)] =
+               allocs_storage[11].get();
+            // DEVICE_UMPIRE_2 is the temp pool
+            allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE) + MemoryTypeSize] =
+               allocs_storage[12].get();
+
+            allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE_2)] =
+               allocs_storage[12].get();
+            allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE_2) +
+                   MemoryTypeSize] = allocs_storage[12].get();
+            // TODO: Umpire HostPinned and Managed pools?
+         }
+      }
+      break;
+#endif
+      default:
+         break;
+   }
+}
+
 char *MemoryManager::Alloc(size_t nbytes, MemoryType type, bool temporary)
 {
    size_t offset = 0;
@@ -774,6 +785,7 @@ char *MemoryManager::Alloc(size_t nbytes, MemoryType type, bool temporary)
       case MemoryType::DEFAULT:
          type = GetHostMemoryType();
       default:
+         EnsureAlloc(type);
          allocs[offset + static_cast<int>(type)]->Alloc(&res, nbytes);
    }
    return static_cast<char *>(res);
