@@ -124,8 +124,17 @@ public:
              is optionally done in GetnDBounds before bounding the function.
     */
    ///@{
-   DenseMatrix GetLowerBoundMatrix(int dim = 1);
-   DenseMatrix GetUpperBoundMatrix(int dim = 1);
+   // These matrices work for lexicographically-ordered dofs
+   DenseMatrix GetLowerBoundMatrix(int dim);
+   DenseMatrix GetUpperBoundMatrix(int dim);
+
+   // Returns matrices that work for dof ordering based on given fes.
+   // Note the return bounds are still based on lexicographically ordered
+   // control points.
+   DenseMatrix GetLowerBoundMatrix(int dim,
+                                   const FiniteElementSpace *fes);
+   DenseMatrix GetUpperBoundMatrix(int dim,
+                                   const FiniteElementSpace *fes);
    ///@}
 
    IntegrationRule GetIntegrationRule(int dim) const;

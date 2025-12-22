@@ -715,6 +715,52 @@ DenseMatrix PLBound::GetUpperBoundMatrix(int dim)
    return ubound;
 }
 
+DenseMatrix PLBound::GetLowerBoundMatrix(int dim, const FiniteElementSpace *fes)
+{
+   DenseMatrix lboundT = GetLowerBoundMatrix(dim);
+   int ncpd = static_cast<int>(std::pow(ncp, dim));
+   int nbd = static_cast<int>(std::pow(nb, dim));
+   DenseMatrix lbound_permuted(ncpd, nbd);
+   const FiniteElement *fe = fes->GetTypicalFE();
+   const TensorBasisElement *tbe =
+      dynamic_cast<const TensorBasisElement *>(fe);
+   MFEM_VERIFY(tbe != NULL, "TensorBasis FiniteElement expected.");
+   const Array<int> &dof_map = tbe->GetDofMap();
+   if (dof_map.Size() == 0) { return lboundT; }
+   DenseMatrix lboundND_permuted(ncpd, nbd);
+   for (int j = 0; j < nbd; j++)
+   {
+      for (int i = 0; i < ncpd; i++)
+      {
+         lboundND_permuted(i, dof_map[j]) = lboundT(i, j);
+      }
+   }
+   return lboundND_permuted;
+}
+
+DenseMatrix PLBound::GetUpperBoundMatrix(int dim, const FiniteElementSpace *fes)
+{
+   DenseMatrix uboundT = GetUpperBoundMatrix(dim);
+   int ncpd = static_cast<int>(std::pow(ncp, dim));
+   int nbd = static_cast<int>(std::pow(nb, dim));
+   DenseMatrix ubound_permuted(ncpd, nbd);
+   const FiniteElement *fe = fes->GetTypicalFE();
+   const TensorBasisElement *tbe =
+      dynamic_cast<const TensorBasisElement *>(fe);
+   MFEM_VERIFY(tbe != NULL, "TensorBasis FiniteElement expected.");
+   const Array<int> &dof_map = tbe->GetDofMap();
+   if (dof_map.Size() == 0) { return uboundT; }
+   DenseMatrix uboundND_permuted(ncpd, nbd);
+   for (int j = 0; j < nbd; j++)
+   {
+      for (int i = 0; i < ncpd; i++)
+      {
+         uboundND_permuted(i, dof_map[j]) = uboundT(i, j);
+      }
+   }
+   return uboundND_permuted;
+}
+
 IntegrationRule PLBound::GetIntegrationRule(int dim) const
 {
    IntegrationRule irule_1D(ncp);
