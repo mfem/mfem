@@ -2408,6 +2408,7 @@ public:
 
    /// @}
 
+   /// Create a GridFunction representing the Jacobian determinant
    std::unique_ptr<GridFunction> GetJacobianDeterminantGF();
 
    /// Update Jacobian determinant values in a given gridfunction

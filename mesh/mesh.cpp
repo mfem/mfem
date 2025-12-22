@@ -6854,35 +6854,18 @@ void Mesh::UpdateJacobianDeterminantGF(GridFunction *detgf)
       const IntegrationRule ir = fe->GetNodes();
       ElementTransformation *transf = GetElementTransformation(e);
       DenseMatrix Jac(spaceDim, Dim);
-      const NodalFiniteElement *nfe = dynamic_cast<const NodalFiniteElement*>
-                                      (fe);
-      MFEM_VERIFY(nfe != nullptr, "Expected nodal finite element.");
-      const Array<int> &irordering = nfe->GetLexicographicOrdering();
-      IntegrationRule ir2 = irordering.Size() ?
-                            ir.Permute(irordering) :
-                            ir;
 
-      Vector detvals(ir2.GetNPoints());
-      for (int q = 0; q < ir2.GetNPoints(); q++)
+      Vector detvals(ir.GetNPoints());
+      for (int q = 0; q < ir.GetNPoints(); q++)
       {
-         IntegrationPoint ip = ir2.IntPoint(q);
+         IntegrationPoint ip = ir.IntPoint(q);
          transf->SetIntPoint(&ip);
          Jac = transf->Jacobian();
          detvals(q) = Jac.Weight();
       }
 
       fespace_det->GetElementDofs(e, dofs);
-      if (irordering.Size())
-      {
-         for (int i = 0; i < dofs.Size(); i++)
-         {
-            (*detgf)(dofs[irordering[i]]) = detvals(i);
-         }
-      }
-      else
-      {
-         detgf->SetSubVector(dofs, detvals);
-      }
+      detgf->SetSubVector(dofs, detvals);
    }
 }
 
