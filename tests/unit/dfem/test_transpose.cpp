@@ -50,9 +50,22 @@ void transpose(const char *filename, int p)
    ParFiniteElementSpace vector_fes(&mesh, &fec, DIM);
 
    ParGridFunction sgf(&scalar_fes);
+
+   auto f0 = [](const Vector &x)
+   {
+      if constexpr (DIM == 3)
+      {
+         return M_PI*cos(M_PI*x[0]) * sin(M_PI*x[1]) * sin(M_PI*x[2]);
+      }
+      return M_PI*cos(M_PI*x[0]) * sin(M_PI*x[1]);
+   };
+
+   FunctionCoefficient f0_coeff(f0);
+   sgf.ProjectCoefficient(f0_coeff);
+
    ParGridFunction vgf(&vector_fes);
 
-   auto gradf0 = [](const Vector &x, Vector &u)
+   auto gradf1 = [](const Vector &x, Vector &u)
    {
       if constexpr (DIM == 3)
       {
@@ -65,8 +78,8 @@ void transpose(const char *filename, int p)
       u(1) = M_PI*sin(M_PI*x[0]) * cos(M_PI*x[1]);
    };
 
-   VectorFunctionCoefficient gradf0_coeff(DIM, gradf0);
-   vgf.ProjectCoefficient(gradf0_coeff);
+   VectorFunctionCoefficient gradf1_coeff(DIM, gradf1);
+   vgf.ProjectCoefficient(gradf1_coeff);
 
    const auto* ir = &IntRules.Get(mesh.GetTypicalElementGeometry(), 2 * p);
 
