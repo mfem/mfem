@@ -4850,7 +4850,6 @@ void TMOP_Integrator::AssembleElemVecAdaptLim(const FiniteElement &el,
    grad_phys.Mult(adapt_lim_gf_e, grad_ptr);
 
    Vector adapt_lim_gf_grad_q(dim);
-
    for (int q = 0; q < nqp; q++)
    {
       const IntegrationPoint &ip = ir.IntPoint(q);

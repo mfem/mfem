@@ -2251,7 +2251,7 @@ protected:
    void AddMultPA_3D(const Vector&, Vector&) const;
    void AddMultPA_C0_2D(const Vector&, Vector&) const;
    void AddMultPA_C0_3D(const Vector&, Vector&) const;
-   // void AddMultPA_AdaptLim_2D(const Vector&, Vector&) const;
+   void AddMultPA_AdaptLim_2D(const Vector&, Vector&) const;
    // void AddMultPA_AdaptLim_3D(const Vector&, Vector&) const;
 
    void AddMultGradPA_2D(const Vector&, Vector&) const;

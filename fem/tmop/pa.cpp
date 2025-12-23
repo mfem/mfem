@@ -354,7 +354,9 @@ void TMOP_Integrator::AssemblePA_AdaptLim()
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
 
    const FiniteElementSpace *alfes = adapt_lim_gf->FESpace();
-   PA.maps_alim = &alfes->GetTypicalFE()->GetDofToQuad(*PA.ir, DofToQuad::TENSOR);
+   const IntegrationRule *ir = &alfes->GetTypicalFE()->GetNodes();
+   // We get the maps at the nodes - needed for the gradient projection.
+   PA.maps_alim = &alfes->GetTypicalFE()->GetDofToQuad(*ir, DofToQuad::TENSOR);
 
    // adapt_lim_gf -> PA.ALF (E-vector, same pattern as LD)
    const FiniteElement &alf_fe = *alfes->GetTypicalFE();
@@ -423,6 +425,8 @@ void TMOP_Integrator::AddMultPA(const Vector &de, Vector &ye) const
    {
       AddMultPA_2D(xe, ye);
       if (lim_coeff) { AddMultPA_C0_2D(xe, ye); }
+      if (adapt_lim_gf) { AddMultPA_AdaptLim_2D(xe, ye); }
+
    }
 
    if (PA.dim == 3)
