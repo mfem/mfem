@@ -518,6 +518,7 @@ void apply_qpdc(
 /// @param q1d number of quadrature points in 1D.
 /// @param dimension spatial dimension.
 /// @param use_sum_factorization whether to use sum factorization.
+/// @param T switch to use transpose application.
 template <size_t num_fields>
 MFEM_HOST_DEVICE inline
 void apply_qpdc(
