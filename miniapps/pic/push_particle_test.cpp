@@ -1073,17 +1073,14 @@ void GridFunctionUpdates::TotalEnergyValidation(const ParticleSet &particles,
       kinetic_energy += 0.5 * p_square_p / M(p);
    }
 
-   real_t field_energy = 0.0;
+   real_t global_field_energy = 0.0;
    for (int p = 0; p < particles.GetNP(); ++p)
    {
-      field_energy += Q(p) * phi_coeff.Phi(X(p, 0), X(p, 1));
+      global_field_energy += Q(p) * phi_coeff.Phi(X(p, 0), X(p, 1));
    }
    // reduce kinetic energy and field energy
    real_t global_kinetic_energy = 0.0;
    MPI_Allreduce(&kinetic_energy, &global_kinetic_energy, 1, MPI_DOUBLE, MPI_SUM,
-                 particles.GetComm());
-   real_t global_field_energy = 0.0;
-   MPI_Allreduce(&field_energy, &global_field_energy, 1, MPI_DOUBLE, MPI_SUM,
                  particles.GetComm());
    if (Mpi::Root())
    {
