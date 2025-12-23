@@ -569,8 +569,8 @@ template <int DIM, typename scalar_t=real_t> struct FilterQFunction
 
    struct Mass
    {
-      MFEM_HOST_DEVICE inline auto operator()(const real_t &frho,
-                                              const real_t &urho,
+      MFEM_HOST_DEVICE inline auto operator()(const scalar_t &frho,
+                                              const scalar_t &urho,
                                               const matd_t &J,
                                               const real_t &w) const
       {
@@ -707,9 +707,9 @@ void PDEFilter::Assemble()
       },
       *pmesh);
 
+   ConstantCoefficient diffusion_coeff(filter_radius*filter_radius); 
    // sample filter coefficient on the integration points
-   diff_cv = std::make_unique<CoefficientVector>(
-                     ConstantCoefficient(filter_radius*filter_radius), qs);
+   diff_cv = std::make_unique<CoefficientVector>(diffusion_coeff, qs);
 
    // set the parameters of the differentiable operator
    dop->SetParameters({ diff_cv.get(), &input_field, nodes });
@@ -730,26 +730,33 @@ void PDEFilter::Assemble()
 
    // output of the diffusion term
    const auto doutput = mfem::future::tuple{ Gradient<FSol>{} };
+
    // output of the mass term
    const auto moutput = mfem::future::tuple{ Identity<FSol>{} };  
 
+   
    if (2 == spaceDim)
    {
       typename FilterQFunction<2>::Diffusion diff_qf;
-      dop->AddDomainIntegrator(diff_qf, dinputs, doutput, ir, domain_attributes);
+      dop->AddDomainIntegrator(diff_qf, dinputs, doutput, ir,
+                                 domain_attributes);
 
       typename FilterQFunction<2>::Mass mass_qf;
-      dop->AddDomainIntegrator(mass_qf, minputs, moutput, ir, domain_attributes);
+      dop->AddDomainIntegrator(mass_qf, minputs, moutput, ir, 
+                                 domain_attributes);
    }
    else if (3 == spaceDim)
    {
       typename FilterQFunction<3>::Diffusion diff_qf;
-      dop->AddDomainIntegrator(diff_qf, dinputs, doutput, ir, domain_attributes);
+      dop->AddDomainIntegrator(diff_qf, dinputs, doutput, ir,
+                                 domain_attributes);
 
       typename FilterQFunction<3>::Mass mass_qf;
-      dop->AddDomainIntegrator(mass_qf, minputs, moutput, ir, domain_attributes);
+      dop->AddDomainIntegrator(mass_qf, minputs, moutput, ir, 
+                                 domain_attributes);
    }
    else { MFEM_ABORT("Space dimension not supported"); }
+   
 
    // set BC
    // TODO:: Do not forget to set the BCs here 
@@ -770,28 +777,75 @@ void PDEFilter::Assemble()
    ls->SetAbsTol(linear_atol);
    ls->SetMaxIter(linear_iter);
 
+
+   // delete old assembled Jacobian if it exists
+   delete K; K=nullptr;
    // Get the Jacobian of the differentiable operator
-   std::shared_ptr<mfem::future::DerivativeOperator> dr_du;
-   dr_du = dop->GetDerivativeOperator(FSol,{&filtered_field},
-                                       { diff_cv.get(), &input_field, nodes });
-   
-   delete K; K=nullptr;            
-   dr_du->Assemble(K); // assemble the Jacobian
+   {
+      std::unique_ptr<mfem::future::DifferentiableOperator> dopd;
+      // define the differentiable operator
+      dopd= std::make_unique<mfem::future::DifferentiableOperator>(
+         std::vector<mfem::future::FieldDescriptor> {{ FSol, ffes }},
+         std::vector<mfem::future::FieldDescriptor>
+         {
+            { DiffCoeff, &diff_ps },
+            { USol, ifes },
+            { Coords, mfes }
+         },
+         *pmesh);
+
+      // set the parameters of the differentiable operator
+      dopd->SetParameters({ diff_cv.get(), &input_field, nodes });
+      
+      auto derivatives = std::integer_sequence<size_t, FSol, USol> {};
+
+      // define the q-function for dimensions 2 and 3
+      using mfem::future::dual;
+      using dual_t = dual<real_t, real_t>;
+      if (2 == spaceDim)
+      {
+         typename FilterQFunction<2,dual_t>::Diffusion diff_qfd;
+         dopd->AddDomainIntegrator(diff_qfd, dinputs, doutput, ir,
+                                    domain_attributes, derivatives);
+
+         typename FilterQFunction<2,dual_t>::Mass mass_qfd;
+         dopd->AddDomainIntegrator(mass_qfd, minputs, moutput, ir, 
+                                    domain_attributes, derivatives);
+      }
+      else if (3 == spaceDim)
+      {
+         typename FilterQFunction<3,dual_t>::Diffusion diff_qfd;
+         dopd->AddDomainIntegrator(diff_qfd, dinputs, doutput, ir,
+                                    domain_attributes, derivatives);
+
+         typename FilterQFunction<3,dual_t>::Mass mass_qfd;
+         dopd->AddDomainIntegrator(mass_qfd, minputs, moutput, ir, 
+                                    domain_attributes, derivatives);
+      }
+
+      std::shared_ptr<mfem::future::DerivativeOperator> dres_du;
+      // set parameters using grid functions
+      dres_du = dopd->GetDerivative(USol, {&filtered_field}, 
+                              { diff_cv.get(), &input_field, nodes });
+
+      // get the Jacobian
+      dres_du->Assemble(K);
+   }
 
    // set the preconditioner for the linear solver
    prec->SetOperator(*K);
 }
 
-void PDEFilter::Mult(const Vector &x, Vector &y)
+void PDEFilter::Mult(const Vector &x, Vector &y) const
 {
-   input_field.SetFromTrueDofs(x);
-   dop->SetParameters({ diff_cv.get(), &input_field, nodes });
-   ls->Mult(x, y);
-   filtered_field.SetFromTrueDofs(y);
+   //input_field.SetFromTrueDofs(x);
+   //dop->SetParameters({ diff_cv.get(), &input_field, nodes });
+   //ls->Mult(x, y);
+   //filtered_field.SetFromTrueDofs(y);
 }
 
 void PDEFilter::MultTranspose(const Vector &x,
-                                        Vector &y) 
+                                        Vector &y) const
 {
 
 }
