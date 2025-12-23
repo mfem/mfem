@@ -1173,14 +1173,14 @@ void DifferentiableOperator::AddIntegrator(
                              (fields[d_field_idx],
                               element_dof_ordering, dummy_fop);
 
+         const auto input_restriction_transpose = input_rt;
+
          derivative_tr_prolongation_transpose[derivative_id] =
             get_prolongation_transpose(
                fields[d_field_idx], dummy_fop, mesh.GetComm());
 
          const auto d_tr_field_idx = test_space_field_idx;
          const auto direction_tr = fields[d_tr_field_idx];
-         const int da_tr_size_on_qp =
-            GetSizeOnQP<entity_t>(output_fop, fields[d_tr_field_idx]);
 
          auto output_size_on_qp =
             get_input_size_on_qp(outputs, std::make_index_sequence<num_outputs> {});
@@ -1254,7 +1254,7 @@ void DifferentiableOperator::AddIntegrator(
                outputs_trial_op_dim,
                total_trial_op_dim,
                trial_vdim,
-               input_rt,
+               input_rt = input_restriction_transpose,
 
                // capture by ref:
                &qpdc_mem = derivative_qp_caches_ref

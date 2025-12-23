@@ -383,6 +383,7 @@ namespace detail
 /// If input is dependent the value corresponds to the spatial dimension, otherwise
 /// a zero indicates non-dependence on the variable.
 /// @param q the current quadrature point index.
+/// @param transpose switch to use transpose action.
 template <size_t num_fields>
 MFEM_HOST_DEVICE inline
 void apply_qpdc(
