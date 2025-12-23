@@ -906,7 +906,7 @@ void GridFunctionUpdates::TotalEnergyValidation(const ParticleSet &particles,
       irs[g] = &IntRules.Get(g, qorder);
    }
 
-   real_t field_energy = 0.0;
+   real_t global_field_energy = 0.0;
 
    // IMPORTANT: ND/RT use VectorFiniteElement even if fes->GetVDim() == 1
    if (fes->GetFE(0)->GetRangeType() == FiniteElement::VECTOR)
@@ -916,13 +916,13 @@ void GridFunctionUpdates::TotalEnergyValidation(const ParticleSet &particles,
       VectorConstantCoefficient zero_vec(zero);
 
       const real_t E_l2 = E_gf.ComputeL2Error(zero_vec, irs);
-      field_energy = 0.5 * EPSILON * E_l2 * E_l2;
+      global_field_energy = 0.5 * EPSILON * E_l2 * E_l2;
    }
    else
    {
       ConstantCoefficient zero_s(0.0);
       const real_t E_l2 = E_gf.ComputeL2Error(zero_s, irs);
-      field_energy = 0.5 * EPSILON * E_l2 * E_l2;
+      global_field_energy = 0.5 * EPSILON * E_l2 * E_l2;
    }
 
    // reduce kinetic energy and field energy
