@@ -55,6 +55,10 @@ ConvectionIntegrator::Kernels::Kernels()
    ConvectionIntegrator::AddSpecialization<3, 4, 5>();
    ConvectionIntegrator::AddSpecialization<3, 5, 6>();
    ConvectionIntegrator::AddSpecialization<3, 6, 7>();
+   // Q = P + 3
+   ConvectionIntegrator::AddSpecialization<3, 2, 4>();
+   ConvectionIntegrator::AddSpecialization<3, 3, 5>();
+   ConvectionIntegrator::AddSpecialization<3, 4, 6>();
 }
 
 // PA Convection Assemble 2D kernel
