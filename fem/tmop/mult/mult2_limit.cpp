@@ -132,90 +132,83 @@ void TMOP_AddMultPA_AdaptLim_2D(const real_t lim_normal,
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      MFEM_SHARED real_t sB[MD1][MQ1];
-      MFEM_SHARED real_t sG[MD1][MQ1];
-      MFEM_SHARED real_t smem[MQ1][MQ1];
+      MFEM_SHARED real_t sB_d[MD1][MD1];
+      MFEM_SHARED real_t sG_d[MD1][MD1];
+      MFEM_SHARED real_t smem_dof[MD1][MD1];
 
       // Limiting basis and gradient matrices (at limiting DOF nodes).
-      kernels::internal::LoadMatrix(D1D, D1D, alB, sB);
-      kernels::internal::LoadMatrix(D1D, D1D, alG, sG);
+      kernels::internal::LoadMatrix(D1D, D1D, alB, sB_d);
+      kernels::internal::LoadMatrix(D1D, D1D, alG, sG_d);
       
       // Load positions.
-      kernels::internal::vd_regs2d_t<2, 2, MQ1> r_X;
+      kernels::internal::vd_regs2d_t<2, 2, MD1> r_X;
       kernels::internal::LoadDofs2d(e, D1D, X, r_X);
 
-      // Load ALF DOFs (scalar field).
-      kernels::internal::s_regs2d_t<MQ1> ralf_val_dof;
-      kernels::internal::LoadDofs2d(e, D1D, ALF, ralf_val_dof);
+      // Load ALF DOFs into MD1 array for gradient computation.
+      kernels::internal::s_regs2d_t<MD1> ralf_dofs;
+      kernels::internal::LoadDofs2d(e, D1D, ALF, ralf_dofs);
+
+      // Compute gradient of X at DOF nodes.
+      kernels::internal::vd_regs2d_t<2, 2, MD1> r_X_grad;
+      kernels::internal::Grad2d(D1D, D1D, smem_dof, sB_d, sG_d, r_X, r_X_grad);
 
       // Project gradient of ALF at the DOFs.
-      // grad_e(k,d) = sum_j grad_phys(k*dim+d, j) * alf_dof(j)
+      // grad_e(k,d) = sum_j grad_phys(k*dim+d, j) * alf_dof(j).
       real_t grad_e[MD1][MD1][2];
-      
       for (int dy_dof = 0; dy_dof < D1D; dy_dof++)
       {
          for (int dx_dof = 0; dx_dof < D1D; dx_dof++)
-         {
-            grad_e[dy_dof][dx_dof][0] = 0.0;
-            grad_e[dy_dof][dx_dof][1] = 0.0;
-            
-            // Compute Jpr at this DOF node by manually computing gradient of X
-            // Jpr = [dX/dxi, dX/deta] where X is 2D position
-            real_t Jpr_dof[4] = {0.0, 0.0, 0.0, 0.0};
-            
-            for (int dy = 0; dy < D1D; dy++)
+         {  
+            // Jpr = X^t.DSh at this DOF node.
+            const real_t Jpr[4] =
             {
-               for (int dx = 0; dx < D1D; dx++)
-               {
-                  // Gradient of basis (dx,dy) at DOF location (dx_dof, dy_dof)
-                  const real_t dshape_dxi = sG[dx][dx_dof] * sB[dy][dy_dof];
-                  const real_t dshape_deta = sB[dx][dx_dof] * sG[dy][dy_dof];
-                  
-                  // dX/dxi and dX/deta (for both x and y components)
-                  Jpr_dof[0] += dshape_dxi * r_X[0][0][dy][dx];    // dX_x/dxi
-                  Jpr_dof[1] += dshape_deta * r_X[0][0][dy][dx];   // dX_x/deta  
-                  Jpr_dof[2] += dshape_dxi * r_X[1][0][dy][dx];    // dX_y/dxi
-                  Jpr_dof[3] += dshape_deta * r_X[1][0][dy][dx];   // dX_y/deta
-               }
-            }
+               r_X_grad[0][0][dy_dof][dx_dof], r_X_grad[1][0][dy_dof][dx_dof],
+               r_X_grad[0][1][dy_dof][dx_dof], r_X_grad[1][1][dy_dof][dx_dof]
+            };
             
-            // Invert Jpr to get Jpr_inv
             real_t Jpr_inv[4];
-            kernels::CalcInverse<2>(Jpr_dof, Jpr_inv);
+            kernels::CalcInverse<2>(Jpr, Jpr_inv);
             
             // Compute physical gradient at this DOF node
             // grad_phys = Jpr^{-T} * grad_ref
+            grad_e[dy_dof][dx_dof][0] = 0.0;
+            grad_e[dy_dof][dx_dof][1] = 0.0;
             for (int dy = 0; dy < D1D; dy++)
             {
                for (int dx = 0; dx < D1D; dx++)
                {
-                  // Reference gradient at DOF location (dx_dof, dy_dof)
-                  const real_t dsdx = sG[dx][dx_dof] * sB[dy][dy_dof];
-                  const real_t dsdy = sB[dx][dx_dof] * sG[dy][dy_dof];
+                  // Reference gradient at DOF location (dx_dof, dy_dof).
+                  const real_t dsdx = sG_d[dx][dx_dof] * sB_d[dy][dy_dof];
+                  const real_t dsdy = sB_d[dx][dx_dof] * sG_d[dy][dy_dof];
                   
-                  // Physical gradient: grad_phys = Jpr^{-T} * grad_ref
+                  // Physical gradient: grad_phys = Jpr^{-T} * grad_ref.
                   const real_t grad_phys_x = Jpr_inv[0] * dsdx + Jpr_inv[2] * dsdy;
                   const real_t grad_phys_y = Jpr_inv[1] * dsdx + Jpr_inv[3] * dsdy;
                   
-                  // Apply to ALF DOF values to get gradient field DOFs
-                  grad_e[dy_dof][dx_dof][0] += grad_phys_x * ralf_val_dof(dy, dx);
-                  grad_e[dy_dof][dx_dof][1] += grad_phys_y * ralf_val_dof(dy, dx);
+                  // Grad of ALF at the DOFs.
+                  grad_e[dy_dof][dx_dof][0] += grad_phys_x * ralf_dofs(dy, dx);
+                  grad_e[dy_dof][dx_dof][1] += grad_phys_y * ralf_dofs(dy, dx);
                }
             }
          }
       }
 
       // Load quad basis matrices for evaluation at quadrature points
-      MFEM_SHARED real_t sB_quad[MD1][MQ1];
-      kernels::internal::LoadMatrix(D1D, Q1D, b, sB_quad);
+      MFEM_SHARED real_t smem[MQ1][MQ1];
+      MFEM_SHARED real_t sB_q[MD1][MQ1];
+      kernels::internal::LoadMatrix(D1D, Q1D, b, sB_q);
+      
+      // Load ALF DOFs into MQ1 array for Eval2d.
+      kernels::internal::s_regs2d_t<MQ1> ralf_val_dof;
+      kernels::internal::LoadDofs2d(e, D1D, ALF, ralf_val_dof);
       
       // Evaluate ALF and ALF0 at quad points
       kernels::internal::s_regs2d_t<MQ1> ralf_val_quad;
-      kernels::internal::Eval2d(D1D, Q1D, smem, sB_quad, ralf_val_dof, ralf_val_quad);
+      kernels::internal::Eval2d(D1D, Q1D, smem, sB_q, ralf_val_dof, ralf_val_quad);
       
       kernels::internal::s_regs2d_t<MQ1> ralf0_val_dof, ralf0_val_quad;
       kernels::internal::LoadDofs2d(e, D1D, ALF0, ralf0_val_dof);
-      kernels::internal::Eval2d(D1D, Q1D, smem, sB_quad, ralf0_val_dof, ralf0_val_quad);
+      kernels::internal::Eval2d(D1D, Q1D, smem, sB_q, ralf0_val_dof, ralf0_val_quad);
 
       // Storage for output gradient.
       kernels::internal::v_regs2d_t<2,MQ1> r00, r01;
@@ -238,9 +231,9 @@ void TMOP_AddMultPA_AdaptLim_2D(const real_t lim_normal,
             {
                for (int dx_dof = 0; dx_dof < D1D; dx_dof++)
                {
-                  const real_t shape_val = sB_quad[dx_dof][qx] * sB_quad[dy_dof][qy];
-                  grad_alf[0] += grad_e[dy_dof][dx_dof][0] * shape_val;
-                  grad_alf[1] += grad_e[dy_dof][dx_dof][1] * shape_val;
+                  const real_t shape = sB_q[dx_dof][qx] * sB_q[dy_dof][qy];
+                  grad_alf[0] += grad_e[dy_dof][dx_dof][0] * shape;
+                  grad_alf[1] += grad_e[dy_dof][dx_dof][1] * shape;
                }
             }
 
@@ -257,7 +250,7 @@ void TMOP_AddMultPA_AdaptLim_2D(const real_t lim_normal,
       MFEM_SYNC_THREAD;
 
       // Apply transpose: shape functions times gradient (AddMultVWt in full assembly)
-      kernels::internal::EvalTranspose2d(D1D, Q1D, smem, sB_quad, r00, r01);
+      kernels::internal::EvalTranspose2d(D1D, Q1D, smem, sB_q, r00, r01);
       kernels::internal::WriteDofs2d(e, D1D, r01, Y);
    });
 }
