@@ -3203,7 +3203,7 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const real_t sz);
 
 /** \brief Constructs the smallest possible [0,1]^dim serial mesh that can be
     used later to obtain a ParMesh with @a elem_per_mpi elements, with the same
-    topology, for each of the @a mpi_cnt MPI tasks.
+    topology, for each of the @a mpi_cnt MPI tasks. For quads and hexes.
 
     The serial mesh has the smallest possible number of elements. The parallel
     mesh will be obtained by parallel refinements. Each MPI task will have
