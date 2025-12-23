@@ -332,7 +332,11 @@ class PDEFilter : public mfem::Operator
 public:
    /// Construct the PDE filter for a given mesh and discretization
    /// order.
-   PDEFilter(mfem::ParMesh *mesh, int order = 1, real_t r = 1.0);
+   PDEFilter(mfem::ParMesh *mesh, real_t r = 1.0, int order = 1);
+
+   /// Construct the PDE filter for a input finite element space,
+   /// discretization order and filter radius.
+   PDEFilter(mfem::ParFiniteElementSpace *fespace, real_t r = 1.0, int order = 1); 
    
    /// Destructor of the filter.
    virtual ~PDEFilter();
@@ -375,6 +379,19 @@ public:
    {
       return *ifes;
    }
+
+   class NqptUniformParameterSpace : public
+      mfem::future::UniformParameterSpace
+   {
+   public:
+      NqptUniformParameterSpace(mfem::ParMesh &mesh,
+                                const mfem::IntegrationRule &ir,
+                                int vdim) :
+         mfem::future::UniformParameterSpace(mesh, ir, vdim, false)
+      {
+         dtq.nqpt = ir.GetNPoints();
+      }
+   };
 
 private:
    mfem::ParMesh *pmesh;
@@ -420,4 +437,7 @@ private:
    // Coords - nodal coordinates
    static constexpr int FSol = 0, USol=1, Coords = 2, DiffCoeff = 3;
 
+   mfem::HypreParMatrix *K;
+   mfem::ConstrainedOperator *Kc;
+   std::unique_ptr<mfem::OperatorHandle> Kh;
 };

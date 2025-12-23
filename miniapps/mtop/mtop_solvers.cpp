@@ -580,7 +580,7 @@ template <int DIM, typename scalar_t=real_t> struct FilterQFunction
    };
 };
 
-PDEFilter::PDEFilter(ParMesh *mesh,int order, real_t r):
+PDEFilter::PDEFilter(ParMesh *mesh, real_t r, int order):
    pmesh(mesh),
    dim(mesh->Dimension()),
    spaceDim(mesh->SpaceDimension()),
@@ -601,7 +601,8 @@ PDEFilter::PDEFilter(ParMesh *mesh,int order, real_t r):
    ir(IntRules.Get(fe->GetGeomType(),
                    fe->GetOrder() + fe->GetOrder() + fe->GetDim() - 1)),
    qs(*pmesh, ir),
-   diff_ps(*pmesh, ir, 1)
+   diff_ps(*pmesh, ir, 1),
+   K(nullptr)
 {
 
    filtered_field = 0.0;
@@ -620,6 +621,48 @@ PDEFilter::PDEFilter(ParMesh *mesh,int order, real_t r):
    }
 }
 
+PDEFilter::PDEFilter(ParFiniteElementSpace *fespace, real_t r, int order):
+   pmesh(fespace->GetParMesh()),
+   dim(fespace->GetParMesh()->Dimension()),
+   spaceDim(fespace->GetParMesh()->SpaceDimension()),
+   filter_radius(r),
+   ffec(new H1_FECollection(order, dim)),
+   ffes(new ParFiniteElementSpace(pmesh, ffec, 1, Ordering::byNODES)),
+   ifec(nullptr),
+   ifes(new ParFiniteElementSpace(*fespace)),
+   filtered_field(ffes),
+   input_field(ifes),
+   prec(nullptr),
+   ls(nullptr),
+   ess_tdofv(),
+   fe(ffes->GetFE(0)),
+   nodes((pmesh->EnsureNodes(),
+          static_cast<ParGridFunction *>(pmesh->GetNodes()))),
+   mfes(nodes->ParFESpace()),
+   ir(IntRules.Get(fe->GetGeomType(),
+                   fe->GetOrder() + fe->GetOrder() + fe->GetDim() - 1)),
+   qs(*pmesh, ir),
+   diff_ps(*pmesh, ir, 1),
+   K(nullptr)
+{
+
+   filtered_field = 0.0;
+   input_field = 0.0;   
+
+   SetLinearSolver();
+
+   Operator::width = ifes->GetTrueVSize();
+   Operator::height = ffes->GetTrueVSize();
+
+
+   if (pmesh->attributes.Size() > 0)
+   {
+      domain_attributes.SetSize(pmesh->attributes.Max());
+      domain_attributes = 1;
+   }
+}
+
+
 PDEFilter::~PDEFilter()
 {
    delete prec;
@@ -630,6 +673,8 @@ PDEFilter::~PDEFilter()
 
    delete ifes;
    delete ifec;
+
+   delete K;
 }  
 
 void PDEFilter::SetFilterRadius(real_t r)
@@ -664,25 +709,29 @@ void PDEFilter::Assemble()
 
    // sample filter coefficient on the integration points
    diff_cv = std::make_unique<CoefficientVector>(
-                     ConstantCoefficient(1.0/(filter_radius*filter_radius)), qs);
+                     ConstantCoefficient(filter_radius*filter_radius), qs);
 
    // set the parameters of the differentiable operator
    dop->SetParameters({ diff_cv.get(), &input_field, nodes });
 
    // define the q-function for dimensions 2 and 3
+   // diffusion term
    const auto dinputs =
       mfem::future::tuple{ Gradient<FSol>{},
                            Identity<DiffCoeff>{},
                            Gradient<Coords>{},
                            Weight{} };
+   // mass term
    const auto minputs =
-      mfem::future::tuple{ Identity<Fsol>{},
+      mfem::future::tuple{ Identity<FSol>{},
                            Identity<USol>{},
                            Gradient<Coords>{},
                            Weight{} };
 
+   // output of the diffusion term
    const auto doutput = mfem::future::tuple{ Gradient<FSol>{} };
-   const auto moutput = mfem::future::tuple{ Identity<Fsol>{} };  
+   // output of the mass term
+   const auto moutput = mfem::future::tuple{ Identity<FSol>{} };  
 
    if (2 == spaceDim)
    {
@@ -703,7 +752,7 @@ void PDEFilter::Assemble()
    else { MFEM_ABORT("Space dimension not supported"); }
 
    // set BC
-
+   // TODO:: Do not forget to set the BCs here 
 
    Operator *Kop;
    dop->FormSystemOperator(ess_tdofv, Kop);
@@ -717,16 +766,32 @@ void PDEFilter::Assemble()
    ls->SetPrintLevel(1); 
    ls->SetPreconditioner(*prec);
 
+   ls->SetRelTol(linear_rtol);
+   ls->SetAbsTol(linear_atol);
+   ls->SetMaxIter(linear_iter);
 
+   // Get the Jacobian of the differentiable operator
+   std::shared_ptr<mfem::future::DerivativeOperator> dr_du;
+   dr_du = dop->GetDerivativeOperator(FSol,{&filtered_field},
+                                       { diff_cv.get(), &input_field, nodes });
+   
+   delete K; K=nullptr;            
+   dr_du->Assemble(K); // assemble the Jacobian
+
+   // set the preconditioner for the linear solver
+   prec->SetOperator(*K);
 }
 
-virtual void PDEFilter::Mult(const Vector &x, Vector &y) const override
+void PDEFilter::Mult(const Vector &x, Vector &y)
 {
-
+   input_field.SetFromTrueDofs(x);
+   dop->SetParameters({ diff_cv.get(), &input_field, nodes });
+   ls->Mult(x, y);
+   filtered_field.SetFromTrueDofs(y);
 }
 
-virtual void PDEFilter::MultTranspose(const Vector &x,
-                                        Vector &y) const override
+void PDEFilter::MultTranspose(const Vector &x,
+                                        Vector &y) 
 {
 
 }
