@@ -70,7 +70,6 @@ void transpose(const char *filename, int p)
 
    const auto* ir = &IntRules.Get(mesh.GetTypicalElementGeometry(), 2 * p);
 
-
    SECTION("Mass Transpose Action")
    {
       ParBilinearForm Mblf(&scalar_fes);
@@ -212,11 +211,6 @@ void transpose(const char *filename, int p)
 
       auto ddop = dop.GetDerivative(SCALAR, {&sgf}, {&vgf, nodes});
       ddop->MultTranspose(V, T);
-
-      // std::cout << "S\n";
-      // pretty_print(S);
-      // std::cout << "T\n";
-      // pretty_print(T);
 
       S -= T;
       real_t norm_g, norm_l = S.Normlinf();

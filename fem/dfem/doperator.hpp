@@ -85,6 +85,7 @@ public:
       const FieldDescriptor &direction,
       const int &daction_l_size,
       const std::vector<derivative_action_t> &derivative_tr_actions,
+      const int &derivative_action_tr_l_size,
       const FieldDescriptor &transpose_direction,
       const int &daction_transpose_l_size,
       const std::vector<Vector *> &solutions_l,
@@ -102,6 +103,7 @@ public:
       daction_l(daction_l_size),
       daction_l_size(daction_l_size),
       derivative_tr_actions(derivative_tr_actions),
+      derivative_action_tr_l_size(derivative_action_tr_l_size),
       transpose_direction(transpose_direction),
       prolongation_transpose(prolongation_transpose),
       tr_prolongation_transpose(tr_prolongation_transpose),
@@ -161,7 +163,7 @@ public:
       MFEM_ASSERT(!derivative_tr_actions.empty(),
                   "derivative can't be used to be multiplied in transpose mode");
 
-      daction_l.SetSize(width);
+      daction_l.SetSize(derivative_action_tr_l_size);
       daction_l = 0.0;
 
       prolongation(transpose_direction, direction_t, direction_l);
@@ -213,6 +215,8 @@ private:
    mutable Vector daction_l;
 
    const int daction_l_size;
+
+   const int derivative_action_tr_l_size;
 
    /// Transpose Derivative action callbacks. Depending on the requested
    /// derivatives in DifferentiableOperator the callbacks represent certain
@@ -470,6 +474,7 @@ public:
                 fields[derivative_idx],
                 residual_l.Size(),
                 derivative_action_tr_callbacks[derivative_id],
+                derivative_action_tr_l_size[derivative_id],
                 fields[test_space_field_idx],
                 GetVSize(fields[test_space_field_idx]),
                 sol_l,
@@ -494,6 +499,7 @@ private:
        std::vector<derivative_action_t>> derivative_action_tr_callbacks;
    std::map<size_t,
        std::function<void(Vector &, Vector &)>> derivative_tr_prolongation_transpose;
+   std::map<size_t, int> derivative_action_tr_l_size;
    std::map<size_t,
        std::vector<assemble_derivative_sparsematrix_callback_t>>
        assemble_derivative_sparsematrix_callbacks;
@@ -1218,6 +1224,10 @@ void DifferentiableOperator::AddIntegrator(
          Vector direction_tr_e(get_restriction<entity_t>(
                                   fields[test_space_field_idx],
                                   element_dof_ordering)->Height());
+
+         derivative_action_tr_l_size[derivative_id] =
+            get_restriction<entity_t>(fields[d_field_idx],
+                                      element_dof_ordering)->Width();
 
          Vector derivative_action_tr_e(input_e_sz);
          derivative_action_tr_e = 0.0;
