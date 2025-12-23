@@ -3213,10 +3213,10 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const real_t sz);
     @param out partitioning partitioning to create the desired PMesh.
 
     Usual use case:
-    int *part = nullptr;
-    Mesh *mesh = PartitionMPI(dim, Mpi::WorldSize(), elem_per_mpi, print, par_ref, &part);
-    ParMesh pmesh(MPI_COMM_WORLD, *mesh, part);
-    delete mesh; delete mpi_partitioning;
+    int *par = nullptr;
+    Mesh *mesh = PartitionMPI(dim, mpi_cnt, elem_per_mpi, print, par_ref, &par);
+    ParMesh pmesh(MPI_COMM_WORLD, *mesh, par);
+    delete mesh; delete par;
     for (int lev = 0; lev < par_ref; lev++) { pmesh.UniformRefinement(); }   */
 Mesh *PartitionMPI(int dim, int mpi_cnt, int elem_per_mpi, bool print,
                    int &par_ref, int **partitioning);
