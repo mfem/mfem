@@ -472,7 +472,7 @@ public:
 
       // Dummy
       Vector dir_l;
-      if (derivative_idx > s_l.size())
+      if (derivative_idx >= s_l.size())
       {
          dir_l = p_l[derivative_idx - s_l.size()];
       }
