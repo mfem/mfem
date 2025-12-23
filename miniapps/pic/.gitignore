@@ -1,6 +1,9 @@
 push_*
 !push_*.cpp
 !push_*.hpp
+pic_*
+!pic_*.cpp
+!pic_*.hpp
 *.csv
 *.gif
 *.mp4
