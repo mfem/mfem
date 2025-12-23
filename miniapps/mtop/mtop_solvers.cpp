@@ -578,6 +578,37 @@ template <int DIM, typename scalar_t=real_t> struct FilterQFunction
          return tuple{ (frho - urho)* detJ * w };
       }
    };
+
+
+   // the input (igrad) to the reverse filter for the H1 gradient is provided 
+   // as a coefficient which is samples on the integration points
+   // see eq26b in Kim2025 - the igrad term should include all terms on the 
+   // RHS of the equation.
+   struct H1GradMass
+   {
+      MFEM_HOST_DEVICE inline auto operator()(const scalar_t &fgrad,
+                                              const real_t &igrad,
+                                              const matd_t &J,
+                                              const real_t &w) const
+      {
+         const auto detJ = mfem::future::det(J);
+         return tuple{ (fgrad - igrad)* detJ * w };
+      }
+   };
+
+   // see eq 27 in Kim2025
+   struct H1GradMap2Input
+   {
+      MFEM_HOST_DEVICE inline auto operator()(const real_t &fgrad,
+                                              const matd_t &J,
+                                              const real_t &w) const
+      {
+         const auto detJ = mfem::future::det(J);
+         return tuple{ fgrad * detJ * w };
+      }
+   };
+   
+
 };
 
 PDEFilter::PDEFilter(ParMesh *mesh, real_t r, int order):
@@ -591,6 +622,7 @@ PDEFilter::PDEFilter(ParMesh *mesh, real_t r, int order):
    ifes(new ParFiniteElementSpace(pmesh, ifec, 1, Ordering::byNODES)),
    filtered_field(ffes),
    input_field(ifes),
+   h1_gradient(ffes),
    prec(nullptr),
    ls(nullptr),
    ess_tdofv(),
@@ -607,6 +639,7 @@ PDEFilter::PDEFilter(ParMesh *mesh, real_t r, int order):
 
    filtered_field = 0.0;
    input_field = 0.0;   
+   h1_gradient = 0.0;
 
    SetLinearSolver();
 
@@ -632,6 +665,7 @@ PDEFilter::PDEFilter(ParFiniteElementSpace *fespace, real_t r, int order):
    ifes(new ParFiniteElementSpace(*fespace)),
    filtered_field(ffes),
    input_field(ifes),
+   h1_gradient(ffes),
    prec(nullptr),
    ls(nullptr),
    ess_tdofv(),
@@ -648,6 +682,7 @@ PDEFilter::PDEFilter(ParFiniteElementSpace *fespace, real_t r, int order):
 
    filtered_field = 0.0;
    input_field = 0.0;   
+   h1_gradient = 0.0;
 
    SetLinearSolver();
 
@@ -838,10 +873,18 @@ void PDEFilter::Assemble()
 
 void PDEFilter::Mult(const Vector &x, Vector &y) const
 {
-   //input_field.SetFromTrueDofs(x);
-   //dop->SetParameters({ diff_cv.get(), &input_field, nodes });
-   //ls->Mult(x, y);
-   //filtered_field.SetFromTrueDofs(y);
+   input_field.SetFromTrueDofs(x);
+   dop->SetParameters({ diff_cv.get(), &input_field, nodes });
+   
+   ls->SetRelTol(linear_rtol);
+   ls->SetAbsTol(linear_atol);
+   ls->SetMaxIter(linear_iter);
+
+   Vector& b= h1_gradient.GetTrueVector(); b=0.0;
+
+   ls->Mult(b, y);
+
+   filtered_field.SetFromTrueDofs(y);
 }
 
 void PDEFilter::MultTranspose(const Vector &x,

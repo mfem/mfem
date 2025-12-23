@@ -334,7 +334,7 @@ public:
    /// order.
    PDEFilter(mfem::ParMesh *mesh, real_t r = 1.0, int order = 1);
 
-   /// Construct the PDE filter for a input finite element space,
+   /// Construct the PDE filter for a given input finite element space,
    /// discretization order and filter radius.
    PDEFilter(mfem::ParFiniteElementSpace *fespace, real_t r = 1.0, int order = 1); 
    
@@ -406,8 +406,14 @@ private:
    mfem::FiniteElementCollection *ifec;
    mfem::ParFiniteElementSpace *ifes;
 
-   mfem::ParGridFunction filtered_field;
-   mfem::ParGridFunction input_field;
+   mutable mfem::ParGridFunction filtered_field;
+   mutable mfem::ParGridFunction input_field;
+
+   // H1 gradient of the input field: for more info see the paper
+   // "A Simple Introduciton to the SiMPL-method for density-based topology optimization"
+   // by D. Kim, B. Lazarov, T. Surowiec, B. Keith, 
+   // Structural and Multidisciplinary Optimization, 2025, 68.
+   mutable mfem::ParGridFunction h1_gradient;
 
    // Linear solver parameters
    real_t linear_rtol;
