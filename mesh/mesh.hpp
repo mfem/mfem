@@ -3209,8 +3209,8 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const real_t sz);
     mesh will be obtained by parallel refinements. Each MPI task will have
     elements with the same topology (same number, same connectivity).
 
-    @param out par_ref      number of parallel refinement needed afterwards.
-    @param out partitioning partitioning to create the desired PMesh.
+    @param[out] par_ref      number of parallel refinement needed afterwards.
+    @param[out] partitioning partitioning to create the desired PMesh.
 
     Usual use case:
     int *par = nullptr;
