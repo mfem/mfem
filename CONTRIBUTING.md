@@ -129,6 +129,10 @@ The MFEM source code has the following structure:
   │   ├── moonolith
   │   ├── qinterp
   │   └── tmop
+  │   |   ├── assemble
+  │   |   ├── metrics
+  │   |   ├── mult
+  │   |   └── tools
   ├── general
   ├── linalg
   │   ├── batched
@@ -139,6 +143,7 @@ The MFEM source code has the following structure:
   │   ├── adjoint
   │   ├── autodiff
   │   ├── common
+  │   ├── contact
   │   ├── dfem
   │   ├── dpg
   │   ├── electromagnetics
