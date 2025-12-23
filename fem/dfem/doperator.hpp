@@ -1254,7 +1254,7 @@ void DifferentiableOperator::AddIntegrator(
                outputs_trial_op_dim,
                total_trial_op_dim,
                trial_vdim,
-               input_rt = input_restriction_transpose,
+               input_restriction_transpose,
 
                // capture by ref:
                &qpdc_mem = derivative_qp_caches_ref
@@ -1346,7 +1346,7 @@ void DifferentiableOperator::AddIntegrator(
                   scratch_shmem, dimension, use_sum_factorization);
             }, num_entities, thread_blocks, shmem_tr_info.total_size,
             shmem_tr_cache.ReadWrite());
-            input_rt(derivative_action_tr_e, derivative_action_tr_l);
+            input_restriction_transpose(derivative_action_tr_e, derivative_action_tr_l);
          });
 
          assemble_derivative_sparsematrix_callbacks[derivative_id].push_back(
