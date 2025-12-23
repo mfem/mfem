@@ -2620,7 +2620,8 @@ void MixedCurlIntegrator::AssembleElementMatrix2(
 
 
       if (MQ)
-      {  // use transformed curl
+      {
+         // use transformed curl
          for (int d = 0; d < dimc; ++d)
          {
             for (int jj = 0; jj < trial_dof; ++jj)

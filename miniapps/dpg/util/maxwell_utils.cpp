@@ -528,7 +528,7 @@ void MixedDirectionalVectorGradientIntegrator::AssembleElementMatrix2(
       trial_fe.CalcPhysDShape(Trans, trial_dshape);
 
       // vector-valued test shape
-      test_fe.CalcPhysShape(Trans, test_vshape); 
+      test_fe.CalcPhysShape(Trans, test_vshape);
 
       // (q · ∇) phi_i
       q_dot_grad_phi = 0.0;
