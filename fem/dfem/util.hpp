@@ -1202,7 +1202,14 @@ std::function<void(const Vector&, Vector&)> get_prolongation_transpose(
    const Operator *P = get_prolongation(f);
    auto PT = [=](const Vector &r_local, Vector &y)
    {
-      P->MultTranspose(r_local, y);
+      if (P)
+      {
+         P->MultTranspose(r_local, y);
+      }
+      else
+      {
+         y = r_local;
+      }
    };
    return PT;
 }
