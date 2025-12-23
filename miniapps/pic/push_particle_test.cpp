@@ -350,11 +350,47 @@ int main(int argc, char *argv[])
    }
 
    // 5. Compute E_gf = - \grad \phi_gf
-   ParGridFunction neg_phi_gf(&sca_fespace);
-   neg_phi_gf = 0.0;
-   neg_phi_gf -= phi_gf;
-   GradientGridFunctionCoefficient E_coeff(&neg_phi_gf);
-   E_gf->ProjectCoefficient(E_coeff);
+   {
+      ParLinearForm b(E_gf->ParFESpace());
+      // 1.a make the RHS bilinear form
+      ParMixedBilinearForm b_bi(phi_gf.ParFESpace(), E_gf->ParFESpace());
+      ConstantCoefficient neg_one_coef(-1.0);
+      b_bi.AddDomainIntegrator(new MixedVectorGradientIntegrator(neg_one_coef));
+      b_bi.Assemble();
+      b_bi.Finalize();
+      // 1.b form linear form from bilinear form
+      ParLinearForm b_li(E_gf->ParFESpace());
+      b_bi.Mult(phi_gf, b_li);
+      b.Assemble();
+      b += b_li;
+      // Convert to true-dof (parallel) vector
+      HypreParVector *B = b.ParallelAssemble();
+
+      // 2. make the bilinear form
+      ParBilinearForm a(E_gf->ParFESpace());
+      ConstantCoefficient one_coef(1.0);
+      a.AddDomainIntegrator(new VectorFEMassIntegrator(one_coef));
+      a.Assemble();
+      a.Finalize();
+      // Parallel operator (HypreParMatrix)
+      HypreParMatrix *A = a.ParallelAssemble();
+
+      // 3. solve for E_gf
+      CGSolver M_solver(E_gf->ParFESpace()->GetComm());
+      M_solver.iterative_mode = false;
+      M_solver.SetRelTol(1e-12);
+      M_solver.SetAbsTol(0.0);
+      M_solver.SetMaxIter(1e5);
+      M_solver.SetPrintLevel(0);
+      M_solver.SetOperator(*A);
+
+      HypreParVector X(E_gf->ParFESpace()->GetComm(), E_gf->ParFESpace()->GlobalTrueVSize(), E_gf->ParFESpace()->GetTrueDofOffsets());
+      X = 0.0;
+      M_solver.Mult(*B, X);
+      E_gf->SetFromTrueDofs(X);
+      delete A;
+      delete B;
+   }
    if (ctx.visualization)
    {
       int num_procs = Mpi::WorldSize();
@@ -429,7 +465,7 @@ int main(int argc, char *argv[])
       {
          boris.RemoveLostParticles();
          std::string csv_prefix = "Lorentz_Part_";
-         Array<int> field_idx, tag_idx;
+         Array<int> field_idx{2}, tag_idx;
          std::string file_name = csv_prefix + mfem::to_padded_string(step, 6) + ".csv";
          boris.GetParticles().PrintCSV(file_name.c_str(), field_idx, tag_idx);
       }
@@ -450,7 +486,7 @@ int main(int argc, char *argv[])
          // E_gf->ProjectCoefficient(E_coeff);
          // gf_updates.TotalEnergyValidation(boris.GetParticles(), *E_gf);
 
-         // gf_updates.TotalEnergyValidation(boris.GetParticles(), phi_coeff);
+         gf_updates.TotalEnergyValidation(boris.GetParticles(), phi_coeff);
       }
    }
 }
@@ -1086,7 +1122,7 @@ void GridFunctionUpdates::TotalEnergyValidation(const ParticleSet &particles,
    {
       cout << "Kinetic energy: " << global_kinetic_energy << "\t";
       cout << "Field energy: " << global_field_energy << "\t";
-      cout << "Total energy: " << global_kinetic_energy - global_field_energy << endl;
+      cout << "Total energy: " << global_kinetic_energy + global_field_energy << endl;
    }
    // write to a csv
    if (Mpi::Root())
