@@ -477,3 +477,85 @@ void DirectionalVectorGradientIntegrator::AssembleElementMatrix2(
       }
    }
 }
+
+void MixedDirectionalVectorGradientIntegrator::AssembleElementMatrix2(
+   const FiniteElement &trial_fe,
+   const FiniteElement &test_fe,
+   ElementTransformation &Trans,
+   DenseMatrix &elmat)
+{
+   const int trial_dof = trial_fe.GetDof();
+   const int test_dof  = test_fe.GetDof();
+   const int sdim      = Trans.GetSpaceDim();
+
+   MFEM_VERIFY(test_fe.GetMapType() == mfem::FiniteElement::H_CURL ||
+               test_fe.GetMapType() == mfem::FiniteElement::H_DIV,
+               "MixedDirectionalVectorGradientIntegrator requires "
+               "H(curl) or H(div) test space.");
+
+   // Trial is treated as a vector field with sdim components
+   const int vdim = sdim;
+
+   // Test dofs already correspond to vector basis functions
+   elmat.SetSize(test_dof, trial_dof * vdim);
+   elmat = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      const int order =
+         trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW();
+      ir = &IntRules.Get(trial_fe.GetGeomType(), order);
+   }
+
+   Vector q(vdim);
+   DenseMatrix trial_dshape(trial_dof, vdim);
+   DenseMatrix test_vshape(test_dof, vdim);
+
+   Vector q_dot_grad_phi(trial_dof);
+
+   for (int k = 0; k < ir->GetNPoints(); k++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(k);
+      Trans.SetIntPoint(&ip);
+
+      const double w = ip.weight * Trans.Weight();
+
+      // q in physical space
+      VQ->Eval(q, Trans, ip);
+
+      // ∇phi_i in physical space
+      trial_fe.CalcPhysDShape(Trans, trial_dshape);
+
+      // vector-valued test shape
+      test_fe.CalcVShape(Trans, test_vshape);
+
+      // (q · ∇) phi_i
+      q_dot_grad_phi = 0.0;
+      for (int i = 0; i < trial_dof; i++)
+      {
+         double val = 0.0;
+         for (int d = 0; d < vdim; d++)
+         {
+            val += q(d) * trial_dshape(i, d);
+         }
+         q_dot_grad_phi(i) = val;
+      }
+
+      // Assemble: v_j · (q·∇phi_i)
+      for (int j = 0; j < test_dof; j++)
+      {
+         for (int comp = 0; comp < vdim; comp++)
+         {
+            const double vj = test_vshape(j, comp);
+            const int offset_trial = comp * trial_dof;
+
+            for (int i = 0; i < trial_dof; i++)
+            {
+               elmat(j, offset_trial + i) +=
+                  w * vj * q_dot_grad_phi(i);
+            }
+         }
+      }
+   }
+}

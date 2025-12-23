@@ -241,6 +241,10 @@ int main(int argc, char *argv[])
    R(1,0) = -1.0;  R(1,1) = 0.0;
    R.Transpose(Rt);
 
+   VectorFunctionCoefficient bvec_cf(dim,bfunc);// b
+   ScalarVectorProductCoefficient neg_bvec_cf(-1.0,bvec_cf); // -b
+   ScalarVectorProductCoefficient omega_eps0_bvec_cf(eps0*omega,bvec_cf); // ω ϵ₀ b
+
    MatrixFunctionCoefficient B_cf(dim, bcrossb);
    FunctionCoefficient p_r_cf(pfunc_r);
    FunctionCoefficient p_i_cf(pfunc_i);
@@ -261,9 +265,18 @@ int main(int argc, char *argv[])
 
    Array<Vector *> cf_arrays(ndiffusionequations);
    Array<PWConstCoefficient *> c_cf(ndiffusionequations);
+   Array<ProductCoefficient *> neg_c_omega_eps0_cf(ndiffusionequations);
+   Array<ProductCoefficient *> c2_cf(ndiffusionequations);
    Array<ProductCoefficient *> signed_c_cf(ndiffusionequations);
    Array<MatrixCoefficient*> signed_PB_r_cf(ndiffusionequations);
    Array<MatrixCoefficient*> signed_PB_i_cf(ndiffusionequations);
+   Array<ProductCoefficient*> neg_signed_c_omega_eps_cf(ndiffusionequations);
+   Array<ProductCoefficient*> signed_c_omega_eps_cf(ndiffusionequations);
+   Array<MatrixCoefficient*> signed_PBR_r_cf(ndiffusionequations);
+   Array<MatrixCoefficient*> signed_PBR_i_cf(ndiffusionequations);
+   Array<MatrixCoefficient *> c2_absP2BB_cf(ndiffusionequations);
+   Array<VectorCoefficient*> neg_c_bvec_cf(ndiffusionequations);
+
    Vector zerovec(nattr); zerovec=0.0;
 
    // ϵᵣ in plasma (real)
@@ -276,6 +289,10 @@ int main(int argc, char *argv[])
 
    // ωμ₀ 
    ConstantCoefficient omegamu_cf(mu * omega);
+   // -ωμ₀
+   ConstantCoefficient neg_omegamu_cf(-mu * omega);
+   // ω² μ₀²
+   ConstantCoefficient omega2mu2_cf(mu * mu * omega * omega);  
    // R 
    MatrixConstantCoefficient R_cf(R);
    // Rᵀ
@@ -288,6 +305,27 @@ int main(int argc, char *argv[])
    ScalarMatrixProductCoefficient neg_omega_eps0_eps_r_cf(neg_omega_eps0, eps_r_cf);
    // ω ϵ₀ ϵᵣ (imag)
    ScalarMatrixProductCoefficient omega_eps0_eps_i_cf(omega_eps0, eps_i_cf);
+   // ω ϵ₀ ϵᵣᵢ R 
+   MatrixProductCoefficient omega_eps0_eps_i_R_cf(omega_eps0_eps_i_cf, R_cf);
+   // -ω ϵ₀ ϵᵣᵣ R
+   MatrixProductCoefficient neg_omega_eps0_eps_r_Rt_cf(neg_omega_eps0_eps_r_cf, R_cf); 
+   // 
+   // ω ϵ₀ Rᵀ ϵᵣᵢ
+   MatrixProductCoefficient omega_eps0_Rt_eps_i_cf(Rt_cf, omega_eps0_eps_i_cf);
+   // ω ϵ₀ ϵᵣ 
+   ScalarMatrixProductCoefficient omega_eps0_eps_r_cf(omega_eps0, eps_r_cf);
+   // ω ϵ₀ Rᵀ ϵᵣᵣ 
+   MatrixProductCoefficient omega_eps0_Rt_eps_r_cf(Rt_cf, omega_eps0_eps_r_cf);
+   // |ϵᵣ|² = ϵᵣᵣϵᵣᵣ + ϵᵣᵢϵᵣᵢ   
+   MatrixProductCoefficient eps_r_eps_r_cf(eps_r_cf, eps_r_cf);
+   MatrixProductCoefficient eps_i_eps_i_cf(eps_i_cf, eps_i_cf);
+
+   MatrixSumCoefficient abseps2_cf(eps_r_eps_r_cf, eps_i_eps_i_cf);
+   // ω² ϵ₀² 
+   ConstantCoefficient omega2_eps02(omega * omega * eps0 * eps0);
+   // ω² ϵ₀² |ϵᵣ|²   
+   ScalarMatrixProductCoefficient omega2_eps02_abseps2_cf(omega*omega*eps0*eps0, abseps2_cf);
+
    // 1
    ConstantCoefficient one_cf(1.0);
    // -1
@@ -299,15 +337,47 @@ int main(int argc, char *argv[])
    ScalarMatrixProductCoefficient PB_r_cf(p_r_cf, B_cf);
    ScalarMatrixProductCoefficient PB_i_cf(p_i_cf, B_cf);
 
+   // BB
+   MatrixProductCoefficient BB_cf(B_cf, B_cf);
+   
+   // Pᵣ²
+   ProductCoefficient P2_r_cf(p_r_cf, p_r_cf);
+   // Pᵢ²
+   ProductCoefficient P2_i_cf(p_i_cf, p_i_cf);
+   // |P|²
+   SumCoefficient absP2_cf(P2_r_cf, P2_i_cf);
+   // |P|² B B
+   ScalarMatrixProductCoefficient absP2_BB_cf(absP2_cf, BB_cf);
    // cᵢ  
    for (int i = 0; i<ndiffusionequations; i++)
    {
       zerovec[nattr-1] = cvals(i);
       c_cf[i] = new PWConstCoefficient(zerovec);
+      neg_c_omega_eps0_cf[i] = new ProductCoefficient(-omega_eps0, *c_cf[i]);
+      c2_cf[i] = new ProductCoefficient(*c_cf[i], *c_cf[i]);
       signed_c_cf[i] = new ProductCoefficient(csigns(i), *c_cf[i]);
       signed_PB_r_cf[i] = new ScalarMatrixProductCoefficient(*signed_c_cf[i], PB_r_cf);
       signed_PB_i_cf[i] = new ScalarMatrixProductCoefficient(*signed_c_cf[i], PB_i_cf);
+      signed_c_omega_eps_cf[i] = new ProductCoefficient(omega_eps0, *signed_c_cf[i]);
+      neg_signed_c_omega_eps_cf[i] = new ProductCoefficient(neg_omega_eps0, *signed_c_cf[i]);
+      // cᵢ P B R
+      signed_PBR_r_cf[i] = new MatrixProductCoefficient(*signed_PB_r_cf[i], R_cf);
+      signed_PBR_i_cf[i] = new MatrixProductCoefficient(*signed_PB_i_cf[i], R_cf);
+      // cᵢ² |P|² B B
+      c2_absP2BB_cf[i] = new ScalarMatrixProductCoefficient(*c2_cf[i], absP2_BB_cf);
+      neg_c_bvec_cf[i] = new ScalarVectorProductCoefficient(-1.0 * cvals(i), bvec_cf);
    }   
+
+   ProductCoefficient neg_c1_c2_cf(*signed_c_cf[0], *signed_c_cf[1]);
+   // -c₁ c₂ |P|² B B
+   ScalarMatrixProductCoefficient neg_c1_c2_absP2BB_cf(neg_c1_c2_cf, absP2_BB_cf);
+
+
+   MatrixProductCoefficient PB_r_eps_r_cf(PB_r_cf, eps_r_cf);
+   MatrixProductCoefficient PB_r_eps_i_cf(PB_r_cf, eps_i_cf);
+   MatrixProductCoefficient PB_i_eps_r_cf(PB_i_cf, eps_r_cf);
+   MatrixProductCoefficient PB_i_eps_i_cf(PB_i_cf, eps_i_cf);
+
 
    Array<FiniteElementCollection *> trial_fecols;
    Array<ParFiniteElementSpace *> trial_pfes;
@@ -482,52 +552,185 @@ int main(int argc, char *argv[])
 
    // Test integrators 
    // (∇×F,∇×δF) = (R ∇ F, R ∇δF) = (Rᵀ R ∇F, ∇δF) = (∇F, ∇δF)
+   a->AddTestIntegrator(new DiffusionIntegrator(one_cf),
+                        nullptr,
+                        TestSpace::F_space, TestSpace::F_space);
+   // i(-ω ϵ₀ ϵᵣ ∇ × F, δW) = i(-ω ϵ₀ (ϵᵣᵣ + i ϵᵣᵢ) ∇ × F, δW)
+   //                       = (ω ϵ₀ ϵᵣᵢ ∇ × F, δW) + i(-ω ϵ₀ ϵᵣᵣ ∇ × F, δW)
+   //                       = (ω ϵ₀ ϵᵣᵢ R ∇ F, δW) + i(-ω ϵ₀ ϵᵣᵣ R ∇ F, δW)
+   a->AddTestIntegrator(new MixedVectorGradientIntegrator(omega_eps0_eps_i_R_cf),
+                        new MixedVectorGradientIntegrator(neg_omega_eps0_eps_r_Rt_cf),
+                        TestSpace::F_space, TestSpace::W_space);
 
-   // i(-ω ϵ₀ ϵᵣ ∇ × F, δW)
-   // (-c₁ P B ∇ × F, δK₁) 
+
+   // (-c₁ P B ∇ × F, δK₁) = (-c₁ Pᵣ B ∇ × F, δK₁) + i (-c₁ Pᵢ B ∇ × F, δK₁)
+   a->AddTestIntegrator(new MixedCurlIntegrator(*signed_PB_r_cf[0]),
+                        new MixedCurlIntegrator(*signed_PB_i_cf[0]),
+                        TestSpace::F_space, TestSpace::K1_space);
    // ( c₂ P B ∇ × F, δK₂)
-   // i(ω ϵ₀ ϵᵣ⋆ W, ∇×δF)  
-   // (ω² ϵ²₀ ϵᵣϵᵣ⋆ W, δ W)
-   // i(-ω ϵ₀c₁ P B ϵᵣ⋆ W, δK₁) 
-   // i( ω ϵ₀c₂ P B ϵᵣ⋆ W, δK₂)  
-   // (-c₁ P̄ B K₁, ∇×δF)
-   // i(ω ϵ₀c₁ P̄ B K₁, δW)
-   // (c²₁ P P̄ B B K₁, δK₁)
-   // (-c₁ c₂ P P̄ B B K₁, δK₂)
-   // (c₂ P̄ B K₂, ∇×δF)
-   // i(-ω ϵ₀c₂ P̄ B K₂, δW)
+   a->AddTestIntegrator(new MixedCurlIntegrator(*signed_PB_r_cf[1]),
+                        new MixedCurlIntegrator(*signed_PB_i_cf[1]),
+                        TestSpace::F_space, TestSpace::K2_space);   
+
+   // i(ω ϵ₀ ϵᵣ⋆ W, ∇×δF) = i(ω ϵ₀ (ϵᵣᵣ - i ϵᵣᵢ) W, ∇×δF) (ϵᵣᵣ & ϵᵣᵢ are symmetric)
+   //                     = (ω ϵ₀ ϵᵣᵢ W, ∇×δF) + i(ω ϵ₀ ϵᵣᵣ W, ∇×δF) 
+   //                     = (ω ϵ₀ Rᵀ ϵᵣᵢ W, ∇δF) + i(ω ϵ₀ Rᵀ ϵᵣᵣ W, ∇δF) 
+   a->AddTestIntegrator(new TransposeIntegrator(new MixedVectorGradientIntegrator(omega_eps0_Rt_eps_i_cf)),
+                        new TransposeIntegrator(new MixedVectorGradientIntegrator(omega_eps0_Rt_eps_r_cf)),
+                        TestSpace::W_space, TestSpace::F_space);
+   // (ω² ϵ²₀ ϵᵣϵᵣ⋆ W, δ W) = (ω² ϵ²₀ |ϵᵣ|² W, δW) 
+   a->AddTestIntegrator(new VectorFEMassIntegrator(omega2_eps02_abseps2_cf),
+                        nullptr,
+                        TestSpace::W_space, TestSpace::W_space); 
+   
+   // Pᵢ B ϵᵣᵣ - Pᵣ B ϵᵣᵢ
+   MatrixSumCoefficient PB_i_eps_r_minus_PB_r_eps_i_cf(PB_i_eps_r_cf, PB_r_eps_i_cf, 1.0, -1.0);
+   // Pᵣ B ϵᵣᵣ + Pᵢ B ϵᵣᵢ)
+   MatrixSumCoefficient PB_r_eps_r_plus_PB_i_eps_i_cf(PB_r_eps_r_cf, PB_i_eps_i_cf, 1.0, 1.0);
+   //   ω ϵ₀ c₁ (Pᵢ B ϵᵣᵣ - Pᵣ B ϵᵣᵢ) (negsigned)
+   //  -ω ϵ₀ c₂ (Pᵢ B ϵᵣᵣ - Pᵣ B ϵᵣᵢ) (negsigned) 
+   // - ω ϵ₀ c₁ (Pᵣ B ϵᵣᵣ + Pᵢ B ϵᵣᵢ) (signed)
+   //   ω ϵ₀ c₂ (Pᵣ B ϵᵣᵣ + Pᵢ B ϵᵣᵢ) (signed)
+   Array<MatrixCoefficient*> neg_signed_c_PB_i_eps_r_minus_PB_r_eps_i_cf(ndiffusionequations);
+   Array<MatrixCoefficient*> signed_c_PB_i_eps_r_minus_PB_r_eps_i_cf(ndiffusionequations);
+   Array<MatrixCoefficient*> signed_c_PB_r_eps_r_plus_PB_i_eps_i_cf(ndiffusionequations);
+   Array<MatrixCoefficient*> neg_signed_c_PB_r_eps_r_plus_PB_i_eps_i_cf(ndiffusionequations);
+   for (int i = 0; i<ndiffusionequations; i++)
+   {
+      neg_signed_c_PB_i_eps_r_minus_PB_r_eps_i_cf[i] = new ScalarMatrixProductCoefficient(*neg_signed_c_omega_eps_cf[i], PB_i_eps_r_minus_PB_r_eps_i_cf);
+      signed_c_PB_r_eps_r_plus_PB_i_eps_i_cf[i] = new ScalarMatrixProductCoefficient(*signed_c_omega_eps_cf[i], PB_r_eps_r_plus_PB_i_eps_i_cf);
+   
+      // i(-ω ϵ₀c₁ P B ϵᵣ⋆ W, δK₁) = ω ϵ₀ c₁ (Pᵢ B ϵᵣᵣ - Pᵣ B ϵᵣᵢ) + i (-ωϵ₀ c₁ (Pᵣ B ϵᵣᵣ + Pᵢ B ϵᵣᵢ))
+      // i( ω ϵ₀c₂ P B ϵᵣ⋆ W, δK₂) = -ω ϵ₀ c₂ (Pᵢ B ϵᵣᵣ - Pᵣ B ϵᵣᵢ) + i (ωϵ₀ c₂ (Pᵣ B ϵᵣᵣ + Pᵢ B ϵᵣᵢ))
+      // TestSpace K1_space and K2_space (2,4)
+      TestSpace tspace = static_cast<TestSpace>(2*i+2);
+      a->AddTestIntegrator(new VectorFEMassIntegrator(*neg_signed_c_PB_i_eps_r_minus_PB_r_eps_i_cf[i]),
+                           new VectorFEMassIntegrator(*signed_c_PB_r_eps_r_plus_PB_i_eps_i_cf[i]),
+                           TestSpace::W_space, tspace);
+   
+      signed_c_PB_i_eps_r_minus_PB_r_eps_i_cf[i] = new ScalarMatrixProductCoefficient(*signed_c_omega_eps_cf[i], PB_i_eps_r_minus_PB_r_eps_i_cf);
+      neg_signed_c_PB_r_eps_r_plus_PB_i_eps_i_cf[i] = new ScalarMatrixProductCoefficient(*neg_signed_c_omega_eps_cf[i], PB_r_eps_r_plus_PB_i_eps_i_cf);
+      // Note that P is scalar and also ϵᵣ B = B ϵᵣ 
+      // i( ω ϵ₀c₁ ϵᵣ P̄ B K₁, δW) = i (K₁,  ω ϵ₀ c₁ P B ϵᵣ⋆ δW) 
+      // i(-ω ϵ₀c₂ ϵᵣ P̄ B K₂, δW) = i (K₂, -ω ϵ₀ c₂ P B ϵᵣ⋆ δW)
+      a->AddTestIntegrator(new TransposeIntegrator(new VectorFEMassIntegrator(*signed_c_PB_i_eps_r_minus_PB_r_eps_i_cf[i])),
+                           new TransposeIntegrator(new VectorFEMassIntegrator(*neg_signed_c_PB_r_eps_r_plus_PB_i_eps_i_cf[i])),
+                           tspace, TestSpace::W_space);
+      // (c²₁ P P̄ B B K₁, δK₁)
+      // (c²₂ P P̄ B B K₂, δK₂)
+      a->AddTestIntegrator(new VectorMassIntegrator(*c2_absP2BB_cf[i]),
+                           nullptr,
+                           tspace, tspace);
+
+      // (c₁²K₁, δK₁) 
+      // (c₂²K₂, δK₂)
+      a->AddTestIntegrator(new VectorMassIntegrator(*c2_cf[i]),
+                           nullptr,
+                           tspace, tspace);     
+                           
+      // (-c₁ ω ϵ₀ W, δK₁) 
+      // (-c₂ ω ϵ₀ W, δK₂)
+      a->AddTestIntegrator(new VectorFEMassIntegrator(*neg_signed_c_omega_eps_cf[i]),
+                           nullptr,
+                           TestSpace::W_space, tspace);
+      // (-c₁ ω ϵ₀ K₁, δW) 
+      // (-c₂ ω ϵ₀ K₂, δW)                            
+      a->AddTestIntegrator(new TransposeIntegrator(new VectorFEMassIntegrator(*neg_signed_c_omega_eps_cf[i])),
+                           nullptr,
+                           tspace, TestSpace::W_space);
+
+      // (-c₁ b⋅∇L₁, δK₁) 
+      // (-c₂ b⋅∇L₂, δK₂) 
+      TestSpace Kspace = static_cast<TestSpace>(2*i+2);
+      TestSpace Lspace = static_cast<TestSpace>(2*i+3);
+
+      a->AddTestIntegrator(new DirectionalVectorGradientIntegrator(*neg_c_bvec_cf[i]),
+                           nullptr,
+                           Lspace, Kspace);
+      // (K₁,-c₁ b ⋅ ∇δL₁)
+      // (K₂,-c₂ b ⋅ ∇δL₂)
+      a->AddTestIntegrator(new TransposeIntegrator(new DirectionalVectorGradientIntegrator(*neg_c_bvec_cf[i])),
+                           nullptr,
+                           Kspace, Lspace);
+      // (L₁, δL₁) 
+      // (L₂, δL₂)
+      a->AddTestIntegrator(new VectorMassIntegrator(one_cf),
+                           nullptr,
+                           Lspace, Lspace);   
+      // (b⋅ ∇L₁, b ⋅ ∇δL₁)   
+      // (b⋅ ∇L₂, b ⋅ ∇δL₂)
+      a->AddTestIntegrator(new DirectionalVectorDiffusionIntegrator(bvec_cf),
+                           nullptr, Lspace, Lspace);
+      // (b ⋅ ∇K₁, b ⋅ ∇δK₁)
+      // (b ⋅ ∇K₂, b ⋅ ∇δK₂)       
+      a->AddTestIntegrator(new DirectionalVectorDiffusionIntegrator(bvec_cf),
+                           nullptr, Kspace, Kspace);                    
+
+      //-(b ⋅ ∇K₁, δL₁) 
+      //-(b ⋅ ∇K₂, δL₂) 
+      a->AddTestIntegrator(new DirectionalVectorGradientIntegrator(neg_b_cf),
+                           nullptr, Kspace, Lspace);
+      //(L₁, - b ⋅ ∇δK₁) 
+      //(L₂, - b ⋅ ∇δK₂) 
+      a->AddTestIntegrator(new TransposeIntegrator(new DirectionalVectorGradientIntegrator(neg_b_cf)),
+                           nullptr, Lspace, Kspace);
+
+      // (ω ϵ₀ b⋅ ∇L₁, δW) 
+      // (ω ϵ₀ b⋅ ∇L₂, δW)                            
+      a->AddTestIntegrator(new MixedDirectionalVectorGradientIntegrator(omega_eps0_bvec_cf),
+                           nullptr,
+                           Lspace, TestSpace::W_space);
+      // (W, ω ϵ₀ b ⋅ ∇δL₁)
+      // (W, ω ϵ₀ b ⋅ ∇δL₂)
+      a->AddTestIntegrator(new TransposeIntegrator(new MixedDirectionalVectorGradientIntegrator(omega_eps0_bvec_cf)),
+                           nullptr,
+                           TestSpace::W_space, Lspace);
+
+   }
+
+   // (-c₁ P̄ B K₁, ∇×δF) = (K₁, -c₁ P B ∇×δF) = (K₁, -c₁ Pᵣ B ∇×δF) + i (K₁, -c₁ Pᵢ B ∇×δF)
+   a->AddTestIntegrator(new TransposeIntegrator(new MixedCurlIntegrator(*signed_PB_r_cf[0])),
+                        new TransposeIntegrator(new MixedCurlIntegrator(*signed_PB_i_cf[0])),
+                        TestSpace::K1_space, TestSpace::F_space); 
+   // (c₂ P̄ B K₂, ∇×δF) = (K₂, c₂ P B ∇×δF) = (K₂, c₂ Pᵣ B ∇×δF) + i (K₂, c₂ Pᵢ B ∇×δF)
+   a->AddTestIntegrator(new TransposeIntegrator(new MixedCurlIntegrator(*signed_PB_r_cf[1])),
+                        new TransposeIntegrator(new MixedCurlIntegrator(*signed_PB_i_cf[1])),
+                        TestSpace::K2_space, TestSpace::F_space); 
+
+
+   // (- c₁c₂ P P̄ B B K₁, δK₂)
    // (- c₁c₂ P P̄ B B K₂, δK₁)
-   // (c²₂ P P̄ B B K₂, δK₂)
+   a->AddTestIntegrator(new VectorMassIntegrator(neg_c1_c2_absP2BB_cf),
+                        nullptr,
+                        TestSpace::K1_space, TestSpace::K2_space);
+   a->AddTestIntegrator(new VectorMassIntegrator(neg_c1_c2_absP2BB_cf),
+                        nullptr,
+                        TestSpace::K2_space, TestSpace::K1_space);
+
    // (∇ × W, ∇ × δW)
+   a->AddTestIntegrator(new CurlCurlIntegrator(one_cf),
+                        nullptr,
+                        TestSpace::W_space, TestSpace::W_space);
    // i(ω μ₀ ∇ × W, δF)
+   a->AddTestIntegrator(nullptr,
+                        new MixedCurlIntegrator(omegamu_cf),
+                        TestSpace::W_space, TestSpace::F_space);
    // i(-ω μ₀ F, ∇ ×δW)
+   a->AddTestIntegrator(nullptr, 
+                        new TransposeIntegrator(new MixedCurlIntegrator(neg_omegamu_cf)),
+                        TestSpace::F_space, TestSpace::W_space);
    // (ω² μ₀² F, δF)
-   // (c₁²K₁, δK₁) 
-   // (-c₁ ω ϵ₀ K₁, δW) 
-   // (-K₁,c₁ b ⋅ ∇δL₁)
-   // (-c₁ ωϵ₀W, δK₁) 
+   a->AddTestIntegrator(new MassIntegrator(omega2mu2_cf),
+                        nullptr,
+                        TestSpace::F_space, TestSpace::F_space);
    // (ω² ϵ₀² W, δW) 
-   // (W, ω ϵ₀ b ⋅ ∇δL₁)
-   // (-c₁ b⋅∇L₁, δK₁) 
-   // (ω ϵ₀ b⋅ ∇L₁, δW) 
-   // (b⋅ ∇L₁, b ⋅ ∇δL₁)   
-   // (L₁, δL₁) 
-   //-(L₁, b ⋅ ∇δK₁) 
-   //-(b ⋅ ∇K₁, δL₁) 
-   // (b ⋅ ∇K₁, b ⋅ ∇δK₁)
-   // (c₂² K₂, δK₂) 
-   //-(c₂ ω ϵ₀ K₂, δW) 
-   //-(K₂, c₂ b ⋅ ∇δL₂)
-   //-(c₂ ω ϵ₀ W, δK₂) 
+   a->AddTestIntegrator(new VectorFEMassIntegrator(omega2_eps02),
+                        nullptr,
+                        TestSpace::W_space,TestSpace::W_space);   
    // (ω² ϵ₀² W, δW) 
-   // (W, ω ϵ₀ b ⋅ ∇δL₂)
-   //-(c₂ b⋅ ∇L₂, δK₂) 
-   // (ω ϵ₀ b⋅ ∇L₂, δW) 
-   // (b⋅ ∇L₂, b ⋅ ∇δL₂)
-   // (L₂, δL₂) 
-   //-(L₂, b ⋅ ∇δK₂) 
-   //-(b ⋅ ∇K₂, δL₂) 
-   // (b ⋅ ∇K₂, b ⋅ ∇δK₂)
+   a->AddTestIntegrator(new VectorFEMassIntegrator(omega2_eps02),
+                        nullptr,
+                        TestSpace::W_space,TestSpace::W_space);   
 
    // (F, δF) 
    a->AddTestIntegrator(new MassIntegrator(one_cf),
@@ -556,13 +759,223 @@ int main(int argc, char *argv[])
 
    a->Assemble();
 
-for (int i = 0; i<ndiffusionequations; i++)
+   for (int i = 0; i<ndiffusionequations; i++)
    {
       delete c_cf[i];
       delete signed_c_cf[i];
       delete signed_PB_r_cf[i];
       delete signed_PB_i_cf[i];
+      delete signed_PBR_r_cf[i];
+      delete signed_PBR_i_cf[i];
    }   
+
+   socketstream E_out_r;
+
+   int npfes = trial_pfes.Size();
+   Array<int> offsets(npfes+1);  offsets[0] = 0;
+   Array<int> toffsets(npfes+1); toffsets[0] = 0;
+   for (int i = 0; i<npfes; i++)
+   {
+      offsets[i+1] = trial_pfes[i]->GetVSize();
+      toffsets[i+1] = trial_pfes[i]->TrueVSize();
+   }
+   offsets.PartialSum();
+   toffsets.PartialSum();
+
+   Vector x(2*offsets.Last());
+   x = 0.;
+   
+   Array<ParGridFunction *> pgf_r(npfes);
+   Array<ParGridFunction *> pgf_i(npfes);
+
+   for (int i = 0; i < npfes; ++i)
+   {
+      pgf_r[i] = new ParGridFunction(trial_pfes[i], x, offsets[i]);
+      pgf_i[i] = new ParGridFunction(trial_pfes[i], x, offsets.Last() + offsets[i]);
+   }
+
+   L2_FECollection L2fec(order, dim);
+   ParFiniteElementSpace L2_fes(&pmesh, &L2fec);
+   ParGridFunction E_par_r(&L2_fes);
+   ParGridFunction E_par_i(&L2_fes);
+
+   ParaViewDataCollection * paraview_dc = nullptr;
+
+   std::string output_dir = "ParaView/UW/" + GetTimestamp();
+
+   if (paraview)
+   {
+      if (Mpi::Root()) { WriteParametersToFile(args, output_dir); }
+      std::ostringstream paraview_file_name;
+      std::string filename = GetFilename(mesh_file);
+      paraview_file_name << filename
+                         << "_par_ref_" << par_ref_levels
+                         << "_order_" << order;
+      paraview_dc = new ParaViewDataCollection(paraview_file_name.str(), &pmesh);
+      paraview_dc->SetPrefixPath(output_dir);
+      paraview_dc->SetLevelsOfDetail(order);
+      paraview_dc->SetCycle(0);
+      paraview_dc->SetDataFormat(VTKFormat::BINARY);
+      paraview_dc->SetHighOrderOutput(true);
+      paraview_dc->SetTime(0.0); // set the time
+      paraview_dc->RegisterField("E_r",pgf_r[0]);
+      paraview_dc->RegisterField("E_i",pgf_i[0]);
+      paraview_dc->RegisterField("E_par_r",&E_par_r);
+      paraview_dc->RegisterField("E_par_i",&E_par_i);
+      paraview_dc->RegisterField("H_r",pgf_r[1]);
+      paraview_dc->RegisterField("H_i",pgf_i[1]);      
+      paraview_dc->RegisterField("J_1_r",pgf_r[2]);
+      paraview_dc->RegisterField("J_1_i",pgf_i[2]);
+      paraview_dc->RegisterField("Q_1_r",pgf_r[3]);
+      paraview_dc->RegisterField("Q_1_i",pgf_i[3]);
+      paraview_dc->RegisterField("J_2_r",pgf_r[4]);
+      paraview_dc->RegisterField("J_2_i",pgf_i[4]);
+      paraview_dc->RegisterField("Q_2_r",pgf_r[5]);
+      paraview_dc->RegisterField("Q_2_i",pgf_i[5]);
+   }
+
+   Array<int> ess_tdof_list;
+   Array<int> ess_tdof_listJhat;
+   Array<int> ess_bdr;
+   Array<int> one_r_bdr;
+   Array<int> one_i_bdr;
+   Array<int> negone_r_bdr;
+   Array<int> negone_i_bdr;
+
+   if (pmesh.bdr_attributes.Size())
+   {
+      ess_bdr.SetSize(pmesh.bdr_attributes.Max());
+      one_r_bdr.SetSize(pmesh.bdr_attributes.Max());
+      one_i_bdr.SetSize(pmesh.bdr_attributes.Max());
+      negone_r_bdr.SetSize(pmesh.bdr_attributes.Max());
+      negone_i_bdr.SetSize(pmesh.bdr_attributes.Max());
+      ess_bdr = 1;
+
+      // remove internal boundaries
+      for (int i = 0; i<int_bdr_attr.Size(); i++)
+      {
+         ess_bdr[int_bdr_attr[i]-1] = 0;
+      }
+
+      trial_pfes[2+2*ndiffusionequations]->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      for (int j = 0; j < ess_tdof_list.Size(); j++)
+      {
+         ess_tdof_list[j] += toffsets[2+2*ndiffusionequations];
+      }
+      // ess_bdr=1;
+      for (int i = 0; i<ndiffusionequations;i++)
+      {
+         ess_tdof_listJhat.SetSize(0);
+         trial_pfes[2*i+8]->GetEssentialTrueDofs(ess_bdr, ess_tdof_listJhat);
+         for (int j = 0; j < ess_tdof_listJhat.Size(); j++)
+         {
+            ess_tdof_listJhat[j] += toffsets[2*i+8];
+         }
+
+         ess_tdof_list.Append(ess_tdof_listJhat);
+      }
+
+      one_r_bdr = 0;  one_i_bdr = 0;
+      negone_r_bdr = 0;  negone_i_bdr = 0;
+      // attr = 30,2 (real)
+      one_r_bdr[30-1] = 1;  one_r_bdr[2-1] = 1;
+      // attr = 26,6 (imag)
+      one_i_bdr[26-1] = 1;  one_i_bdr[6-1] = 1;
+      // attr = 22,10 (real)
+      negone_r_bdr[22-1] = 1; negone_r_bdr[10-1] = 1;
+      // attr = 18,14 (imag)
+      negone_i_bdr[18-1] = 1; negone_i_bdr[14-1] = 1;
+   }
+   
+   // rotate the vector
+   // (x,y) -> (y,-x)
+   Vector rot_one_x(dim); rot_one_x = 0.0; rot_one_x(1) = -1.0;
+   Vector rot_negone_x(dim); rot_negone_x = 0.0; rot_negone_x(1) = 1.0;
+   VectorConstantCoefficient rot_one_x_cf(rot_one_x);
+   VectorConstantCoefficient rot_negone_x_cf(rot_negone_x);
+
+   pgf_r[2+2*ndiffusionequations]->ProjectBdrCoefficientNormal(rot_one_x_cf, one_r_bdr);
+   pgf_r[2+2*ndiffusionequations]->ProjectBdrCoefficientNormal(rot_negone_x_cf, negone_r_bdr);
+   pgf_i[2+2*ndiffusionequations]->ProjectBdrCoefficientNormal(rot_one_x_cf, one_i_bdr);
+   pgf_i[2+2*ndiffusionequations]->ProjectBdrCoefficientNormal(rot_negone_x_cf, negone_i_bdr);
+
+   OperatorPtr Ah;
+   Vector X,B;
+   a->FormLinearSystem(ess_tdof_list,x,Ah, X,B);
+   ComplexOperator * Ahc = Ah.As<ComplexOperator>();
+
+
+   BlockOperator * BlockA_r = dynamic_cast<BlockOperator *>(&Ahc->real());
+   BlockOperator * BlockA_i = dynamic_cast<BlockOperator *>(&Ahc->imag());
+   int nblocks = BlockA_r->NumRowBlocks();
+
+   {
+      ComplexBlockOperator Ac(*Ahc);
+      Vector Xc(X.Size()); Xc = 0.0;
+      Vector Bc(B.Size());
+      Ac.BlockComplexToComplexBlock(B, Bc);
+   
+      BlockDiagonalPreconditioner Mc(Ac.RowOffsets());
+      for (int i = 0; i < nblocks; ++i)
+      {
+         auto solver = new ComplexMUMPSSolver;
+         solver->SetPrintLevel(0);
+         solver->SetOperator(Ac.GetBlock(i,i));
+         Mc.SetDiagonalBlock(i, solver);
+      }
+
+      CGSolver cg(MPI_COMM_WORLD);
+      cg.SetRelTol(1e-5);
+      cg.SetMaxIter(2000);
+      cg.SetPrintLevel(1);
+      cg.SetPreconditioner(Mc);
+      cg.SetOperator(Ac);
+      cg.Mult(Bc, Xc);
+      Ac.ComplexBlockToBlockComplex(Xc, X);
+   }
+
+   a->RecoverFEMSolution(X, x);
+
+   for (int i = 0; i < npfes; ++i)
+   {
+      pgf_r[i]->MakeRef(trial_pfes[i], x, offsets[i]);
+      pgf_i[i]->MakeRef(trial_pfes[i], x, offsets.Last() + offsets[i]);
+   }
+   
+   ParallelECoefficient par_e_r(pgf_r[0]);
+   ParallelECoefficient par_e_i(pgf_i[0]);
+   E_par_r.ProjectCoefficient(par_e_r);
+   E_par_i.ProjectCoefficient(par_e_i);
+
+   if (visualization)
+   {
+      const char * keys = nullptr;
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      common::VisualizeField(E_out_r,vishost, visport, *pgf_r[0],
+                             "Numerical Electric field (real part)", 0, 0, 500, 500, keys);
+   }
+
+   if (paraview)
+   {
+      paraview_dc->SetCycle(0);
+      paraview_dc->SetTime((real_t)0);
+      paraview_dc->Save();
+      delete paraview_dc;
+   }
+
+   delete a;
+   for (int i = 0; i < trial_fecols.Size(); ++i)
+   {
+      delete trial_fecols[i];
+      delete trial_pfes[i];
+   }
+   for (int i = 0; i< test_fecols.Size(); ++i)
+   {
+      delete test_fecols[i];
+   }
+
 
    return 0;
 }   
+

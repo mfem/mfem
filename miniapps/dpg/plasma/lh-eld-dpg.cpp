@@ -303,11 +303,16 @@ int main(int argc, char *argv[])
    rot_mat(0,0) = 0.; rot_mat(0,1) = 1.;
    rot_mat(1,0) = -1.; rot_mat(1,1) = 0.;
    MatrixConstantCoefficient rot(rot_mat);
+   TransposeMatrixCoefficient Rt(rot);
 
    // ω ϵ₀ ϵᵣ A
    MatrixProductCoefficient eps0omeg_eps_r_rot(eps0omeg_eps_r, rot);
    // ω ϵ₀ ϵᵢ A
    MatrixProductCoefficient eps0omeg_eps_i_rot(eps0omeg_eps_i, rot);
+   // ω ϵ₀ Aᵀ ϵᵢ
+   MatrixProductCoefficient eps0omeg_Rt_eps_i(Rt, eps0omeg_eps_i);
+   // ω ϵ₀ Aᵀ ϵᵣ
+   MatrixProductCoefficient eps0omeg_Rt_eps_r(Rt, eps0omeg_eps_r);
    // -ω ϵ₀ ϵᵣ A
    MatrixProductCoefficient negeps0omeg_eps_r_rot(negeps0omeg_eps_r, rot);
    // -ω ϵ₀ ϵᵢ A
@@ -481,10 +486,17 @@ int main(int argc, char *argv[])
                         1, 0);
    // i ω ϵ₀ϵ̄ (δH, ∇ × δE ) = i (ω ϵ₀(ϵᵣ -i ϵᵢ) δH, A ∇ δE) 
    //                        = ( δH, ω ϵ₀ ϵᵢ A ∇ δE) + i (δH, ω ϵ₀ ϵᵣ A ∇ δE)
-   a->AddTestIntegrator(
-      new TransposeIntegrator(new MixedVectorGradientIntegrator(eps0omeg_eps_i_rot)),
-      new TransposeIntegrator(new MixedVectorGradientIntegrator(eps0omeg_eps_r_rot)),1, 0);
-   // (ωϵ₀ϵ)(ωϵ₀ϵ)^*  (δH, δH)
+
+
+   a->AddTestIntegrator(new TransposeIntegrator(new MixedVectorGradientIntegrator(eps0omeg_Rt_eps_i)),
+                        new TransposeIntegrator(new MixedVectorGradientIntegrator(eps0omeg_Rt_eps_r)),1, 0);
+
+   // a->AddTestIntegrator(
+   //    new TransposeIntegrator(new MixedVectorGradientIntegrator(eps0omeg_eps_i_rot)),
+   //    new TransposeIntegrator(new MixedVectorGradientIntegrator(eps0omeg_eps_r_rot)),1, 0);
+   
+   
+      // (ωϵ₀ϵ)(ωϵ₀ϵ)^*  (δH, δH)
    // (MᵣMᵣᵗ + MᵢMᵢᵗ) + i (MᵢMᵣᵗ - MᵣMᵢᵗ)
    a->AddTestIntegrator(new VectorFEMassIntegrator(Mreal_cf),
                         new VectorFEMassIntegrator(Mimag_cf),1, 1);

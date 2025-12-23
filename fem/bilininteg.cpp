@@ -2561,6 +2561,22 @@ void MixedCurlIntegrator::AssembleElementMatrix2(
       ir = &IntRules.Get(trial_fe.GetGeomType(), order);
    }
 
+   // Workspace for matrix-coefficient path
+   DenseMatrix M;
+   DenseMatrix Mcurl; // (dimc x trial_dof) when MQ is used
+
+   if (MQ)
+   {
+      // MQ only makes sense when curl(u) is vector-valued (case 1 or 3)
+      MFEM_VERIFY(dimc == dim,
+                  "MixedCurlIntegrator: MatrixCoefficient requires vector-valued curl(u) "
+                  "(3D H(curl) or 2D H1 rotated-grad case).");
+
+      M.SetSize(dimc);
+      Mcurl.SetSize(dimc, trial_dof);
+   }
+
+
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
@@ -2576,20 +2592,58 @@ void MixedCurlIntegrator::AssembleElementMatrix2(
       }
       test_fe.CalcPhysShape(Trans, shape);
       c = ip.weight*Trans.Weight();
-      if (Q)
+
+      if (MQ)
+      {
+         // apply matrix coefficient to curl(u)
+         MQ->Eval(M, Trans, ip);
+
+         for (int d = 0; d < dimc; ++d)
+         {
+            for (int jj = 0; jj < trial_dof; ++jj)
+            {
+               real_t val = 0.0;
+               for (int k = 0; k < dimc; ++k)
+               {
+                  const real_t *curl_k = &(curlshape.GetData())[k * trial_dof];
+                  val += M(d, k) * curl_k[jj];
+               }
+               Mcurl(d, jj) = val;
+            }
+         }
+      }
+      else if (Q)
       {
          c *= Q->Eval(Trans, ip);
       }
       shape *= c;
 
-      for (int d = 0; d < dimc; ++d)
-      {
-         real_t * curldata = &(curlshape.GetData())[d*trial_dof];
-         for (int jj = 0; jj < trial_dof; ++jj)
+
+      if (MQ)
+      {  // use transformed curl
+         for (int d = 0; d < dimc; ++d)
          {
-            for (int ii = 0; ii < test_dof; ++ii)
+            for (int jj = 0; jj < trial_dof; ++jj)
             {
-               elmat(d * test_dof + ii, jj) += shape(ii) * curldata[jj];
+               const real_t cur_val = Mcurl(d, jj);
+               for (int ii = 0; ii < test_dof; ++ii)
+               {
+                  elmat(d * test_dof + ii, jj) += shape(ii) * cur_val;
+               }
+            }
+         }
+      }
+      else
+      {
+         for (int d = 0; d < dimc; ++d)
+         {
+            real_t * curldata = &(curlshape.GetData())[d*trial_dof];
+            for (int jj = 0; jj < trial_dof; ++jj)
+            {
+               for (int ii = 0; ii < test_dof; ++ii)
+               {
+                  elmat(d * test_dof + ii, jj) += shape(ii) * curldata[jj];
+               }
             }
          }
       }

@@ -2806,16 +2806,27 @@ class MixedCurlIntegrator : public BilinearFormIntegrator
 {
 protected:
    Coefficient *Q;
-
+   MatrixCoefficient *MQ;
 private:
    Vector shape;
    DenseMatrix dshape;
    DenseMatrix curlshape;
    DenseMatrix elmat_comp;
 public:
-   MixedCurlIntegrator() : Q{NULL} { }
-   MixedCurlIntegrator(Coefficient *q_) :  Q{q_} { }
-   MixedCurlIntegrator(Coefficient &q) :  Q{&q} { }
+   MixedCurlIntegrator() : Q(nullptr), MQ(nullptr) { }
+   // Scalar coefficient
+   explicit MixedCurlIntegrator(Coefficient *q)
+      : Q(q), MQ(nullptr) { }
+
+   explicit MixedCurlIntegrator(Coefficient &q)
+      : Q(&q), MQ(nullptr) { }
+
+   // Matrix coefficient
+   explicit MixedCurlIntegrator(MatrixCoefficient *mq)
+      : Q(nullptr), MQ(mq) { }
+
+   explicit MixedCurlIntegrator(MatrixCoefficient &mq)
+      : Q(nullptr), MQ(&mq) { }
 
    void AssembleElementMatrix2(const FiniteElement &trial_fe,
                                const FiniteElement &test_fe,

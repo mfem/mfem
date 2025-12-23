@@ -117,3 +117,19 @@ public:
                                        DenseMatrix &elmat);
 
 };
+
+// Integrator for (vq·∇) u · v where u ∈ (H¹(Ω))ᵈ, v ∈ H(curl) or H(div)
+class MixedDirectionalVectorGradientIntegrator : public BilinearFormIntegrator
+{
+private:
+   VectorCoefficient *VQ;
+
+public:
+   MixedDirectionalVectorGradientIntegrator(VectorCoefficient &q) : VQ(&q) { }
+
+   virtual void AssembleElementMatrix2(const FiniteElement &tr_el,
+                                       const FiniteElement &te_el,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+
+};
