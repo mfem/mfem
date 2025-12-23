@@ -86,7 +86,7 @@ void transpose(const char *filename, int p)
       const auto par = std::vector{FieldDescriptor{COORDINATES, nodes->ParFESpace()}};
       DifferentiableOperator dop(sol, par, mesh);
       const auto gradient_qf = [] MFEM_HOST_DEVICE(
-                                  const real_t &u,
+                                  const dscalar_t &u,
                                   const tensor<real_t, DIM, DIM> &J,
                                   const real_t &w)
       {
@@ -135,7 +135,7 @@ void transpose(const char *filename, int p)
       const auto par = std::vector{FieldDescriptor{COORDINATES, nodes->ParFESpace()}};
       DifferentiableOperator dop(sol, par, mesh);
       const auto gradient_qf = [] MFEM_HOST_DEVICE(
-                                  const tensor<real_t, DIM> &u,
+                                  const tensor<dscalar_t, DIM> &u,
                                   const tensor<real_t, DIM, DIM> &J,
                                   const real_t &w)
       {
@@ -188,7 +188,7 @@ void transpose(const char *filename, int p)
       };
       DifferentiableOperator dop(sol, par, mesh);
       const auto gradient_qf = [] MFEM_HOST_DEVICE(
-                                  const tensor<real_t, DIM> &dudxi,
+                                  const tensor<dscalar_t, DIM> &dudxi,
                                   const tensor<real_t, DIM, DIM> &J,
                                   const real_t &w)
       {
