@@ -224,7 +224,7 @@ Mesh *skin_mesh(Mesh *mesh)
          FiniteElementSpace *fes_copy =
             new FiniteElementSpace(*fes, bmesh, fec_copy);
          GridFunction *bdr_nodes = new GridFunction(fes_copy);
-         bdr_nodes->MakeOwner(fec_copy);
+         bdr_nodes->MakeOwner();
 
          bmesh->NewNodes(*bdr_nodes, true);
 

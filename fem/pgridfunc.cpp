@@ -39,10 +39,13 @@ ParGridFunction::ParGridFunction(ParMesh *pmesh, const GridFunction *gf,
 {
    const FiniteElementSpace *glob_fes = gf->FESpace();
    // duplicate the FiniteElementCollection from 'gf'
-   fec_owned = FiniteElementCollection::New(glob_fes->FEColl()->Name());
+   fec.reset(FiniteElementCollection::New(glob_fes->FEColl()->Name()));
+
    // create a local ParFiniteElementSpace from the global one:
-   fes = pfes = new ParFiniteElementSpace(pmesh, glob_fes, partitioning,
-                                          fec_owned);
+   owned_fes = std::make_shared<ParFiniteElementSpace>(pmesh, glob_fes,
+                                                       partitioning, fec.get());
+   fes = owned_fes.get();
+   pfes = static_cast<ParFiniteElementSpace *>(fes);
    SetSize(pfes->GetVSize());
 
    if (partitioning)
@@ -76,10 +79,17 @@ ParGridFunction::ParGridFunction(ParMesh *pmesh, std::istream &input)
    : GridFunction(pmesh, input)
 {
    // Convert the FiniteElementSpace, fes, to a ParFiniteElementSpace:
-   pfes = new ParFiniteElementSpace(pmesh, fec_owned, fes->GetVDim(),
-                                    fes->GetOrdering());
-   delete fes;
-   fes = pfes;
+   owned_fes = std::make_shared<ParFiniteElementSpace>(
+                  pmesh, fec.get(), fes->GetVDim(), fes->GetOrdering());
+   fes = owned_fes.get();
+   pfes = static_cast<ParFiniteElementSpace*>(fes);
+}
+
+ParGridFunction& ParGridFunction::operator=(const ParGridFunction &rhs)
+{
+   operator=((const GridFunction &)rhs);
+   pfes = rhs.pfes;
+   return *this;
 }
 
 void ParGridFunction::Update()
@@ -1056,7 +1066,7 @@ GridFunction ParGridFunction::GetSerialGridFunction(int save_rank,
                                              pfes->GetVDim(),
                                              pfes->GetOrdering());
    GridFunction serial_gf = GetSerialGridFunction(save_rank, *serial_fes);
-   serial_gf.MakeOwner(serial_fec); // Also assumes ownership of serial_fes
+   serial_gf.MakeOwner(); // Also assumes ownership of serial_fes
    return serial_gf;
 }
 
@@ -1296,7 +1306,7 @@ std::unique_ptr<ParGridFunction> ParGridFunction::ProlongateToMaxOrder() const
    PRefinementTransferOperator P(*pfes, *pfesMax);
    P.Mult(*this, *xMax);
 
-   xMax->MakeOwner(fecMax);
+   xMax->MakeOwner();
    return std::unique_ptr<ParGridFunction>(xMax);
 }
 
