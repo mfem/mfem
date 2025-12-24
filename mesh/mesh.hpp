@@ -3214,7 +3214,7 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const real_t sz);
     @param[in]  elem_per_mpi number of elements per MPI task.
     @param[in]  print        shows meshing info in the terminal.
     @param[out] par_ref      number of parallel refinement needed afterwards.
-    @param[out] partitioning partitioning to create the desired PMesh.
+    @param[out] partitioning partitioning to create the desired ParMesh.
 
     Usual use case:
     int *par = nullptr;
