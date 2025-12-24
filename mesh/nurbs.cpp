@@ -4545,6 +4545,12 @@ void NURBSExtension::LoadFE(int i, const FiniteElement *FE) const
    const NURBSFiniteElement *NURBSFE =
       dynamic_cast<const NURBSFiniteElement *>(FE);
 
+   if (!NURBSFE)
+   {
+      // Failed to cast - element may not be a NURBS element
+      return;
+   }
+
    if (NURBSFE->GetElement() != i)
    {
       Array<int> dofs;
@@ -4567,6 +4573,12 @@ void NURBSExtension::LoadBE(int i, const FiniteElement *BE) const
 
    const NURBSFiniteElement *NURBSFE =
       dynamic_cast<const NURBSFiniteElement *>(BE);
+
+   if (!NURBSFE)
+   {
+      // Failed to cast - element may not be a NURBS element
+      return;
+   }
 
    if (NURBSFE->GetElement() != i)
    {
