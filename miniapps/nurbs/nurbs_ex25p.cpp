@@ -1,4 +1,4 @@
-//                                MFEM Example nurbs_25p -- modified for NURBS FE
+//                                MFEM Example nurbs_ex25p -- modified for NURBS FE
 //
 // Compile with: make nurbs_ex25p
 //
