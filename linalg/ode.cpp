@@ -184,6 +184,12 @@ void ODESolver::Init(TimeDependentOperator &f_)
    mem_type = GetMemoryType(f_.GetMemoryClass());
 }
 
+void DAESolver::Init(TimeDependentOperator &f_)
+{
+   this->f = &f_;
+   mem_type = GetMemoryType(f_.GetMemoryClass());
+}
+
 void ForwardEulerSolver::Init(TimeDependentOperator &f_)
 {
    ODESolver::Init(f_);
