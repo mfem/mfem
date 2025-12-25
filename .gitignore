@@ -340,8 +340,6 @@ miniapps/nurbs/nurbs_ex25p.*
 miniapps/nurbs/nurbs_ex25p-*
 miniapps/nurbs/ex25p-sol_r.*
 miniapps/nurbs/ex25p-sol_i.*
-miniapps/nurbs/ex25p-sol_r.??????
-miniapps/nurbs/ex25p-sol_i.??????
 miniapps/nurbs/test_*
 miniapps/nurbs/*.sh
 
