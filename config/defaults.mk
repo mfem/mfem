@@ -407,7 +407,7 @@ AMGX_LIB = -L$(AMGX_DIR)/lib -lamgx -lcusparse -lcusolver -lcublas -lnvToolsExt
 # MAGMA library configuration
 MAGMA_DIR = @MFEM_DIR@/../magma
 MAGMA_OPT = -I$(MAGMA_DIR)/include
-MAGMA_LIB = -L$(MAGMA_DIR)/lib -l:libmagma.a -lcublas -lcusparse $(LAPACK_LIB)
+MAGMA_LIB = -L$(MAGMA_DIR)/lib -l:libmagma.a $(LAPACK_LIB)
 
 # GnuTLS library configuration
 GNUTLS_OPT =
