@@ -5197,8 +5197,6 @@ void NURBSExtension::Set1DSolutionVector(Vector &coords, int vdim)
    Array<const KnotVector *> kv(1);
    NURBSPatchMap p2g(this);
 
-   const bool d2p = dof2patch.Size() > 0;
-
    weights.SetSize(GetNDof());
    for (int p = 0; p < GetNP(); p++)
    {
@@ -5209,18 +5207,9 @@ void NURBSExtension::Set1DSolutionVector(Vector &coords, int vdim)
       for (int i = 0; i < kv[0]->GetNCP(); i++)
       {
          const int l = p2g(i);
-         if (d2p && dof2patch[l] >= 0 && dof2patch[l] != p)
-         {
-            continue;
-         }
-
          for (int d = 0; d < vdim; d++)
          {
-            const int idx = l * vdim + d;
-            MFEM_ASSERT(idx >= 0 && idx < coords.Size(),
-                        "Set1DSolutionVector: invalid coordinate index: " << idx << ", size: "
-                        << coords.Size() << "\n");
-            coords(idx) = patch(i, d) / patch(i, vdim);
+            coords(l * vdim + d) = patch(i, d) / patch(i, vdim);
          }
          weights(l) = patch(i, vdim);
       }
