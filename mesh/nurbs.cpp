@@ -3400,6 +3400,7 @@ void NURBSExtension::CreateComprehensiveKV()
          knotVectorsCompr[p] = new KnotVector(*(KnotVec(p)));
          if (KnotSign(p) == -1) { knotVectorsCompr[p]->Flip(); }
       }
+      MFEM_VERIFY(ConsistentKVSets(), "Mismatch in KnotVectors");
       return;
    }
    else if (Dimension() == 2)
@@ -3455,6 +3456,7 @@ void NURBSExtension::UpdateUniqueKV()
 
          seen[kv] = 1;
       }
+      MFEM_VERIFY(ConsistentKVSets(), "Mismatch in KnotVectors");
       return;
    }
    else if (Dimension() == 2)
@@ -3527,9 +3529,6 @@ void NURBSExtension::UpdateUniqueKV()
 
 bool NURBSExtension::ConsistentKVSets()
 {
-   // patchTopo->GetElementEdges is not yet implemented for 1D
-   MFEM_VERIFY(Dimension() > 1, "1D not yet implemented.");
-
    Array<int> edges, orient, kvdir;
    Vector diff;
 
@@ -3537,7 +3536,43 @@ bool NURBSExtension::ConsistentKVSets()
 
    e[0] = 0;
 
-   if (Dimension() == 2)
+   if (Dimension() == 1)
+   {
+      for (int p = 0; p < GetNP(); p++)
+      {
+         const int edge = p; // 1D: edge index == patch index
+         const int icomp = Dimension()*p;
+
+         // Check if KnotVectors are of equal order
+         const int o1 = KnotVec(edge)->GetOrder();
+         const int o2 = knotVectorsCompr[icomp]->GetOrder();
+         if (o1 != o2)
+         {
+            mfem::out << "\norder of knotVectorsCompr 0 of patch " << p;
+            mfem::out << " does not agree with knotVectors " << KnotInd(edge) << "\n";
+            return false;
+         }
+
+         // Check if KnotVectors have the same knots. The comprehensive set is
+         // stored in the per-patch orientation, while the unique set uses the
+         // canonical orientation encoded in edge_to_ukv.
+         const bool flip = (KnotSign(edge) == -1);
+         if (flip) { knotVectorsCompr[icomp]->Flip(); }
+
+         KnotVec(edge)->Difference(*(knotVectorsCompr[icomp]), diff);
+
+         if (flip) { knotVectorsCompr[icomp]->Flip(); }
+
+         if (diff.Size() > 0)
+         {
+            mfem::out << "\nknotVectorsCompr 0 of patch " << p;
+            mfem::out << " does not agree with knotVectors " << KnotInd(edge) << "\n";
+            return false;
+         }
+      }
+      return true;
+   }
+   else if (Dimension() == 2)
    {
       e[1] = 1;
    }
