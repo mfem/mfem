@@ -20,6 +20,7 @@
 #include "fe/fe_base.hpp"
 #include "fe/fe_fixed_order.hpp"
 #include "fe/fe_h1.hpp"
+#include "fe/fe_h1_bubble.hpp"
 #include "fe/fe_nd.hpp"
 #include "fe/fe_rt.hpp"
 #include "fe/fe_l2.hpp"

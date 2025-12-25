@@ -103,19 +103,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.Parse();
-   if (!args.Good())
-   {
-      if (myid == 0)
-      {
-         args.PrintUsage(cout);
-      }
-      return 1;
-   }
-   if (myid == 0)
-   {
-      args.PrintOptions(cout);
-   }
+   args.ParseCheck();
 
    // 2. Read the mesh from the mesh file.
    const char *mesh_file = "../data/disc-nurbs.mesh";
@@ -143,7 +131,7 @@ int main(int argc, char *argv[])
    mesh.Clear();
 
    // 4. Define the necessary finite element spaces on the mesh.
-   H1_FECollection H1fec(order+1, dim);
+   H1Bubble_FECollection H1fec(order, order - 1, dim);
    ParFiniteElementSpace H1fes(&pmesh, &H1fec);
 
    L2_FECollection L2fec(order-1, dim);
