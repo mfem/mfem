@@ -14,6 +14,8 @@ using namespace mfem;
 
 #include "unit_tests.hpp"
 
+#include <sstream>
+
 TEST_CASE("NURBS knot insertion and removal", "[NURBS]")
 {
    auto mesh_fname = "../../data/pipe-nurbs.mesh";
@@ -248,6 +250,186 @@ TEST_CASE("NURBS 1D variable-order mesh load", "[NURBS]")
       {
          REQUIRE(new_orders[i] == max_order);
       }
+   }
+}
+
+TEST_CASE("NURBS 1D shared KnotVector in patches", "[Mesh]")
+{
+   auto RequireSameKnotVector = [](const KnotVector &a, const KnotVector &b)
+   {
+      REQUIRE(a.GetOrder() == b.GetOrder());
+      REQUIRE(a.GetNCP() == b.GetNCP());
+      REQUIRE(a.Size() == b.Size());
+      for (int i = 0; i < a.Size(); i++)
+      {
+         REQUIRE( (a[i]-b[i]) == MFEM_Approx(0.));
+      }
+   };
+
+   const char *mesh_same_orientation = R"(
+MFEM NURBS mesh v1.0
+
+dimension
+1
+
+elements
+2
+1 1 0 1
+1 1 1 2
+
+boundary
+2
+1 0 0
+1 0 2
+
+# Both edges map to the same unique KnotVector (index 0).
+edges
+2
+0 0 1
+0 1 2
+
+vertices
+3
+
+patches
+
+# Patch 0: quadratic, 4 control points, 1 interior knot at u=0.3
+knotvectors
+1
+2 4  0 0 0 0.3  1 1 1
+
+dimension
+2
+
+controlpoints
+0.0 0.0 1.0
+0.3 0.0 1.0
+0.7 0.0 1.0
+1.0 0.0 1.0
+
+# Patch 1: same KnotVector, different control points (translated)
+knotvectors
+1
+2 4  0 0 0 0.3  1 1 1
+
+dimension
+2
+
+controlpoints
+1.0 0.0 1.0
+1.3 0.0 1.0
+1.7 0.0 1.0
+2.0 0.0 1.0
+)";
+
+   const char *mesh_opposite_orientation = R"(
+MFEM NURBS mesh v1.0
+
+dimension
+1
+
+elements
+2
+1 1 0 1
+1 1 2 1
+
+boundary
+2
+1 0 0
+1 0 2
+
+# Both edges map to the same unique KnotVector (index 0), but the second edge
+# has opposite orientation (v0 > v1), so its mapping is signed.
+edges
+2
+0 0 1
+0 2 1
+
+vertices
+3
+
+patches
+
+# Patch 0: u increases from x=0 to x=1
+knotvectors
+1
+2 4  0 0 0 0.3  1 1 1
+
+dimension
+2
+
+controlpoints
+0.0 0.0 1.0
+0.3 0.0 1.0
+0.7 0.0 1.0
+1.0 0.0 1.0
+
+# Patch 1: same KnotVector, but control points are reversed to match the
+# element/edge orientation.
+knotvectors
+1
+2 4  0 0 0 0.3  1 1 1
+
+dimension
+2
+
+controlpoints
+2.0 0.0 1.0
+1.7 0.0 1.0
+1.3 0.0 1.0
+1.0 0.0 1.0
+)";
+
+   SECTION("Same orientation")
+   {
+      std::istringstream iss(mesh_same_orientation);
+      Mesh mesh(iss, 1, 0);
+
+      REQUIRE(mesh.NURBSext != nullptr);
+      REQUIRE(mesh.Dimension() == 1);
+      REQUIRE(mesh.SpaceDimension() == 2);
+      REQUIRE(mesh.NURBSext->GetNP() == 2);
+      REQUIRE(mesh.NURBSext->GetNKV() == 1);
+
+      const KnotVector *unique_kv = mesh.NURBSext->GetKnotVector(0);
+      REQUIRE(unique_kv != nullptr);
+
+      Array<const KnotVector *> pkv0, pkv1;
+      mesh.NURBSext->GetPatchKnotVectors(0, pkv0);
+      mesh.NURBSext->GetPatchKnotVectors(1, pkv1);
+      REQUIRE(pkv0.Size() == 1);
+      REQUIRE(pkv1.Size() == 1);
+
+      RequireSameKnotVector(*unique_kv, *pkv0[0]);
+      RequireSameKnotVector(*unique_kv, *pkv1[0]);
+      RequireSameKnotVector(*pkv0[0], *pkv1[0]);
+   }
+
+   SECTION("Opposite orientation")
+   {
+      std::istringstream iss(mesh_opposite_orientation);
+      Mesh mesh(iss, 1, 0);
+
+      REQUIRE(mesh.NURBSext != nullptr);
+      REQUIRE(mesh.Dimension() == 1);
+      REQUIRE(mesh.SpaceDimension() == 2);
+      REQUIRE(mesh.NURBSext->GetNP() == 2);
+      REQUIRE(mesh.NURBSext->GetNKV() == 1);
+
+      const KnotVector *unique_kv = mesh.NURBSext->GetKnotVector(0);
+      REQUIRE(unique_kv != nullptr);
+
+      Array<const KnotVector *> pkv0, pkv1;
+      mesh.NURBSext->GetPatchKnotVectors(0, pkv0);
+      mesh.NURBSext->GetPatchKnotVectors(1, pkv1);
+      REQUIRE(pkv0.Size() == 1);
+      REQUIRE(pkv1.Size() == 1);
+
+      RequireSameKnotVector(*unique_kv, *pkv0[0]);
+
+      KnotVector flipped(*unique_kv);
+      flipped.Flip();
+      RequireSameKnotVector(flipped, *pkv1[0]);
    }
 }
 
