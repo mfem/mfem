@@ -315,6 +315,7 @@ miniapps/nurbs/nurbs_ex3
 miniapps/nurbs/nurbs_ex5
 miniapps/nurbs/nurbs_ex11p
 miniapps/nurbs/nurbs_ex24
+miniapps/nurbs/nurbs_ex25p
 miniapps/nurbs/nurbs_solenoidal
 miniapps/nurbs/nurbs_printfunc
 miniapps/nurbs/nurbs_patch_ex1
@@ -339,6 +340,14 @@ miniapps/nurbs/naca-cmesh.mesh
 miniapps/nurbs/glvis_naca-cmesh.mesh
 miniapps/nurbs/Naca_cmesh
 miniapps/nurbs/*-Surface.mesh
+miniapps/nurbs/nurbs_ex25p.*
+miniapps/nurbs/nurbs_ex25p-*
+miniapps/nurbs/ex25p-sol_r.*
+miniapps/nurbs/ex25p-sol_i.*
+miniapps/nurbs/ex25p-sol_r.??????
+miniapps/nurbs/ex25p-sol_i.??????
+miniapps/nurbs/test_*
+miniapps/nurbs/*.sh
 
 miniapps/performance/ex1
 miniapps/performance/ex1p

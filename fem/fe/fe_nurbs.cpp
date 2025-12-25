@@ -817,6 +817,99 @@ void NURBS_HCurl2DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
    }
 }
 
+// ProjectGrad implementation for NURBS_HCurl2DFiniteElement
+void NURBS_HCurl2DFiniteElement::ProjectGrad(const FiniteElement &fe,
+                                             ElementTransformation &Trans,
+                                             DenseMatrix &grad) const
+{
+   MFEM_ASSERT(fe.GetMapType() == VALUE, "ProjectGrad requires H1 element");
+   MFEM_ASSERT(fe.GetDim() == 2, "Dimension mismatch in ProjectGrad");
+
+   // Get the integration points (nodes) of this HCurl element
+   const IntegrationRule &ir = Nodes;
+   DenseMatrix dshape(fe.GetDof(), 2);
+   Vector grad_k(fe.GetDof());
+
+   grad.SetSize(dof, fe.GetDof());
+
+   // For each DOF in the HCurl space
+   for (int k = 0; k < dof; k++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(k);
+      // Compute the gradient of H1 basis functions at this point
+      fe.CalcDShape(ip, dshape);
+
+      // Determine the edge direction for this DOF
+      // NURBS HCurl in 2D: first (orders[0]+1)*(orders[1]+2) are x-directed
+      //                   remaining are y-directed
+      int ndof_x = (orders[0]+1)*(orders[1]+2);
+
+      if (k < ndof_x)
+      {
+         // x-directed DOF: project gradient onto x-direction (tk = [1,0])
+         for (int j = 0; j < fe.GetDof(); j++)
+         {
+            grad(k, j) = dshape(j, 0);  // dx component
+         }
+      }
+      else
+      {
+         // y-directed DOF: project gradient onto y-direction (tk = [0,1])
+         for (int j = 0; j < fe.GetDof(); j++)
+         {
+            grad(k, j) = dshape(j, 1);  // dy component
+         }
+      }
+   }
+}
+
+// Project implementation for NURBS_HCurl2DFiniteElement
+void NURBS_HCurl2DFiniteElement::Project(const FiniteElement &fe,
+                                         ElementTransformation &Trans,
+                                         DenseMatrix &I) const
+{
+   if (fe.GetRangeType() == SCALAR)
+   {
+      int sdim = Trans.GetSpaceDim();
+      real_t vk[Geometry::MaxDim];
+      Vector shape(fe.GetDof());
+      real_t tk_2d[4] = {1.0, 0.0, 0.0, 1.0};  // Unit tangents in x and y
+
+      I.SetSize(dof, sdim*fe.GetDof());
+      for (int k = 0; k < dof; k++)
+      {
+         const IntegrationPoint &ip = Nodes.IntPoint(k);
+
+         fe.CalcShape(ip, shape);
+         Trans.SetIntPoint(&ip);
+
+         // Determine tangent direction for this DOF
+         int ndof_x = (orders[0]+1)*(orders[1]+2);
+         const real_t *tk = (k < ndof_x) ? &tk_2d[0] : &tk_2d[2];
+
+         // Transform ND edge tangents from reference to physical space
+         // vk = J tk
+         Trans.Jacobian().Mult(tk, vk);
+
+         for (int j = 0; j < shape.Size(); j++)
+         {
+            real_t s = shape(j);
+            if (fabs(s) < 1e-12) { s = 0.0; }
+            // Project scalar basis function multiplied by each coordinate
+            // direction onto the transformed edge tangents
+            for (int d = 0; d < sdim; d++)
+            {
+               I(k, j + d*shape.Size()) = s*vk[d];
+            }
+         }
+      }
+   }
+   else
+   {
+      MFEM_ABORT("NURBS_HCurl2DFiniteElement::Project for vector FE not implemented");
+   }
+}
+
 NURBS_HCurl2DFiniteElement::~NURBS_HCurl2DFiniteElement()
 {
    if (kv1[0]) { delete kv1[0]; }
@@ -1005,6 +1098,110 @@ void NURBS_HCurl3DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
             curl_shape(o,2) = 0.0;
          }
       }
+   }
+}
+
+// ProjectGrad implementation for NURBS_HCurl3DFiniteElement
+void NURBS_HCurl3DFiniteElement::ProjectGrad(const FiniteElement &fe,
+                                             ElementTransformation &Trans,
+                                             DenseMatrix &grad) const
+{
+   MFEM_ASSERT(fe.GetMapType() == VALUE, "ProjectGrad requires H1 element");
+   MFEM_ASSERT(fe.GetDim() == 3, "Dimension mismatch in ProjectGrad");
+
+   // Get the integration points (nodes) of this HCurl element
+   const IntegrationRule &ir = Nodes;
+   DenseMatrix dshape(fe.GetDof(), 3);
+
+   grad.SetSize(dof, fe.GetDof());
+
+   // For each DOF in the HCurl space
+   for (int k = 0; k < dof; k++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(k);
+      // Compute the gradient of H1 basis functions at this point
+      fe.CalcDShape(ip, dshape);
+
+      // Determine the edge direction for this DOF
+      // NURBS HCurl in 3D: first segment is x-directed, second is y-directed, third is z-directed
+      int ndof_x = (orders[0]+1)*(orders[1]+2)*(orders[2]+2);
+      int ndof_y = (orders[0]+2)*(orders[1]+1)*(orders[2]+2);
+
+      if (k < ndof_x)
+      {
+         // x-directed DOF: project gradient onto x-direction
+         for (int j = 0; j < fe.GetDof(); j++)
+         {
+            grad(k, j) = dshape(j, 0);  // dx component
+         }
+      }
+      else if (k < ndof_x + ndof_y)
+      {
+         // y-directed DOF: project gradient onto y-direction
+         for (int j = 0; j < fe.GetDof(); j++)
+         {
+            grad(k, j) = dshape(j, 1);  // dy component
+         }
+      }
+      else
+      {
+         // z-directed DOF: project gradient onto z-direction
+         for (int j = 0; j < fe.GetDof(); j++)
+         {
+            grad(k, j) = dshape(j, 2);  // dz component
+         }
+      }
+   }
+}
+
+// Project implementation for NURBS_HCurl3DFiniteElement
+void NURBS_HCurl3DFiniteElement::Project(const FiniteElement &fe,
+                                         ElementTransformation &Trans,
+                                         DenseMatrix &I) const
+{
+   if (fe.GetRangeType() == SCALAR)
+   {
+      int sdim = Trans.GetSpaceDim();
+      real_t vk[Geometry::MaxDim];
+      Vector shape(fe.GetDof());
+      real_t tk_3d[9] = {1.0, 0.0, 0.0,  0.0, 1.0, 0.0,  0.0, 0.0, 1.0};  // Unit tangents
+
+      I.SetSize(dof, sdim*fe.GetDof());
+      for (int k = 0; k < dof; k++)
+      {
+         const IntegrationPoint &ip = Nodes.IntPoint(k);
+
+         fe.CalcShape(ip, shape);
+         Trans.SetIntPoint(&ip);
+
+         // Determine tangent direction for this DOF
+         int ndof_x = (orders[0]+1)*(orders[1]+2)*(orders[2]+2);
+         int ndof_y = (orders[0]+2)*(orders[1]+1)*(orders[2]+2);
+         const real_t *tk;
+         if (k < ndof_x) { tk = &tk_3d[0]; }  // x-direction
+         else if (k < ndof_x + ndof_y) { tk = &tk_3d[3]; }  // y-direction
+         else { tk = &tk_3d[6]; }  // z-direction
+
+         // Transform ND edge tangents from reference to physical space
+         // vk = J tk
+         Trans.Jacobian().Mult(tk, vk);
+
+         for (int j = 0; j < shape.Size(); j++)
+         {
+            real_t s = shape(j);
+            if (fabs(s) < 1e-12) { s = 0.0; }
+            // Project scalar basis function multiplied by each coordinate
+            // direction onto the transformed edge tangents
+            for (int d = 0; d < sdim; d++)
+            {
+               I(k, j + d*shape.Size()) = s*vk[d];
+            }
+         }
+      }
+   }
+   else
+   {
+      MFEM_ABORT("NURBS_HCurl3DFiniteElement::Project for vector FE not implemented");
    }
 }
 
