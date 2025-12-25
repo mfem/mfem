@@ -351,7 +351,6 @@ int main(int argc, char *argv[])
 
    // 5. Compute E_gf = - \grad \phi_gf
    {
-      ParLinearForm b(E_gf->ParFESpace());
       // 1.a make the RHS bilinear form
       ParMixedBilinearForm b_bi(phi_gf.ParFESpace(), E_gf->ParFESpace());
       ConstantCoefficient neg_one_coef(-1.0);
@@ -359,10 +358,9 @@ int main(int argc, char *argv[])
       b_bi.Assemble();
       b_bi.Finalize();
       // 1.b form linear form from bilinear form
-      ParLinearForm b_li(E_gf->ParFESpace());
-      b_bi.Mult(phi_gf, b_li);
-      b.Assemble();
-      b += b_li;
+      ParLinearForm b(E_gf->ParFESpace());
+      b = 0.0;
+      b_bi.Mult(phi_gf, b);
       // Convert to true-dof (parallel) vector
       HypreParVector *B = b.ParallelAssemble();
 
