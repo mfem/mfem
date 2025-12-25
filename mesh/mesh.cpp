@@ -12142,6 +12142,44 @@ void Mesh::PrintTopoEdges(std::ostream &os, const Array<int> &e_to_k,
 {
    Array<int> vert;
 
+   // In 1D patch-topology NURBS meshes, knotvector orientation is stored in the
+   // file's `edges` section, but the topological 1D mesh has NumOfEdges == 0
+   // (its "faces" are vertices). When a valid edge->knotvector map is provided,
+   // print a pseudo-edge list derived from the 1D elements so external tools
+   // (e.g. VisIt) can consume the mapping.
+   if (Dim == 1 && NumOfEdges == 0 && e_to_k.Size() == NumOfElements)
+   {
+      const int ne = NumOfElements;
+      os << "\nedges\n" << ne << '\n';
+      for (int i = 0; i < ne; i++)
+      {
+         const int *v = elements[i]->GetVertices();
+         int v0 = v[0], v1 = v[1];
+
+         int ki = e_to_k[i];
+         const bool flip = (ki < 0); // desired output vertex order: descending
+         if (flip) { ki = -1 - ki; } // print the unsigned knotvector index
+
+         if (vmap && ncmesh)
+         {
+            v0 = ncmesh->vertex_nodeId[v0];
+            v1 = ncmesh->vertex_nodeId[v1];
+         }
+
+         // Encode the sign of e_to_k in the vertex ordering, consistent with
+         // Mesh::LoadPatchTopo(): v0 > v1 => negative sign.
+         if ((v0 > v1) != flip) { std::swap(v0, v1); }
+
+         os << ki << ' ' << v0 << ' ' << v1 << '\n';
+      }
+
+      if (!vmap)
+      {
+         os << "\nvertices\n" << NumOfVertices << '\n';
+      }
+      return;
+   }
+
    os << "\nedges\n" << NumOfEdges << '\n';
    for (int i = 0; i < NumOfEdges; i++)
    {
