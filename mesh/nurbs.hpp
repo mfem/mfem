@@ -617,7 +617,9 @@ protected:
 
    /** @brief Check if the comprehensive array of KnotVectors agrees with the
        unique set of KnotVectors, on each patch. Return false if there is a
-       difference, true otherwise. This function throws an error in 1D. */
+       difference, true otherwise.
+
+       In 1D, this uses the convention that patch index == edge index. */
    bool ConsistentKVSets();
 
    /// Return KnotVectors in @a kv in each dimension for patch @a p.

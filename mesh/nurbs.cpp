@@ -3388,44 +3388,44 @@ void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
 
 void NURBSExtension::CreateComprehensiveKV()
 {
+   const int dim = Dimension();
    Array<int> edges, orient, kvdir;
-   Array<int> e(Dimension());
+   Array<int> e(dim);
 
-   knotVectorsCompr.SetSize(GetNP()*Dimension());
+   knotVectorsCompr.SetSize(GetNP()*dim);
 
-   if (Dimension() == 1)  // 1D: edge index == patch index
+   e[0] = 0;
+   if (dim == 2)
    {
-      for (int p = 0; p < GetNP(); p++)
-      {
-         knotVectorsCompr[p] = new KnotVector(*(KnotVec(p)));
-         if (KnotSign(p) == -1) { knotVectorsCompr[p]->Flip(); }
-      }
-      MFEM_VERIFY(ConsistentKVSets(), "Mismatch in KnotVectors");
-      return;
-   }
-   else if (Dimension() == 2)
-   {
-      e[0] = 0;
       e[1] = 1;
    }
-   else if (Dimension() == 3)
+   else if (dim == 3)
    {
-      e[0] = 0;
       e[1] = 3;
       e[2] = 8;
    }
 
    for (int p = 0; p < GetNP(); p++)
    {
-      CheckKVDirection(p, kvdir);
+      if (dim == 1)
+      {
+         // 1D: patch index == edge index
+         edges.SetSize(1);
+         edges[0] = p;
+         kvdir.SetSize(1);
+         kvdir[0] = KnotSign(p);
+      }
+      else
+      {
+         CheckKVDirection(p, kvdir);
+         patchTopo->GetElementEdges(p, edges, orient);
+      }
 
-      patchTopo->GetElementEdges(p, edges, orient);
-
-      for (int d = 0; d < Dimension(); d++)
+      for (int d = 0; d < dim; d++)
       {
          // Indices in unique and comprehensive sets of the KnotVector
-         int iun = edges[e[d]];
-         int icomp = Dimension()*p+d;
+         const int iun = edges[e[d]];
+         const int icomp = dim*p + d;
          knotVectorsCompr[icomp] = new KnotVector(*(KnotVec(iun)));
          if (kvdir[d] == -1) { knotVectorsCompr[icomp]->Flip(); }
       }
@@ -3436,90 +3436,68 @@ void NURBSExtension::CreateComprehensiveKV()
 
 void NURBSExtension::UpdateUniqueKV()
 {
-   Array<int> e(Dimension());
+   const int dim = Dimension();
+   Array<int> e(dim);
 
-   if (Dimension() == 1)
+   e[0] = 0;
+   if (dim == 2)
    {
-      Array<char> seen(GetNKV());
-      seen = 0;
-      for (int p = 0; p < GetNP(); p++)
-      {
-         const int edge = p; // 1D: edge index = patch index
-         const int kv = KnotInd(edge);
-         if (seen[kv]) { continue; }
-
-         const int icomp = Dimension()*p;
-         const bool flip = (KnotSign(edge) == -1);
-         if (flip) { knotVectorsCompr[icomp]->Flip(); }
-         *(KnotVec(edge)) = *(knotVectorsCompr[icomp]);
-         if (flip) { knotVectorsCompr[icomp]->Flip(); }
-
-         seen[kv] = 1;
-      }
-      MFEM_VERIFY(ConsistentKVSets(), "Mismatch in KnotVectors");
-      return;
-   }
-   else if (Dimension() == 2)
-   {
-      e[0] = 0;
       e[1] = 1;
    }
-   else if (Dimension() == 3)
+   else if (dim == 3)
    {
-      e[0] = 0;
       e[1] = 3;
       e[2] = 8;
    }
 
+   Array<int> edges, orient, kvdir;
    for (int p = 0; p < GetNP(); p++)
    {
-      Array<int> edges, orient, kvdir;
-
-      patchTopo->GetElementEdges(p, edges, orient);
-      CheckKVDirection(p, kvdir);
-
-      for (int d = 0; d < Dimension(); d++)
+      if (dim == 1)
       {
-         bool flip = false;
-         if (kvdir[d] == -1) { flip = true; }
+         // 1D: patch index == edge index
+         edges.SetSize(1);
+         edges[0] = p;
+         kvdir.SetSize(1);
+         kvdir[0] = KnotSign(p);
+      }
+      else
+      {
+         patchTopo->GetElementEdges(p, edges, orient);
+         CheckKVDirection(p, kvdir);
+      }
+
+      for (int d = 0; d < dim; d++)
+      {
+         const bool flip = (kvdir[d] == -1);
 
          // Indices in unique and comprehensive sets of the KnotVector
-         int iun = edges[e[d]];
-         int icomp = Dimension()*p+d;
+         const int iun = edges[e[d]];
+         const int icomp = dim*p + d;
 
-         // Check if difference in order
-         int o1 = KnotVec(iun)->GetOrder();
-         int o2 = knotVectorsCompr[icomp]->GetOrder();
-         int diffo = abs(o1 - o2);
+         // Check if difference in order/element count
+         const int o1 = KnotVec(iun)->GetOrder();
+         const int o2 = knotVectorsCompr[icomp]->GetOrder();
+         const int ne1 = KnotVec(iun)->GetNE();
+         const int ne2 = knotVectorsCompr[icomp]->GetNE();
 
-         int ne1 = KnotVec(iun)->GetNE();
-         int ne2 = knotVectorsCompr[icomp]->GetNE();
-
-         if (diffo || ne1 != ne2)
+         if (o1 != o2 || ne1 != ne2)
          {
             // Update reduced set of knotvectors
             *(KnotVec(iun)) = *(knotVectorsCompr[icomp]);
-
-            // Give correct direction to unique knotvector.
             if (flip) { KnotVec(iun)->Flip(); }
          }
 
          // Check if difference between knots
          Vector diffknot;
-
          if (flip) { knotVectorsCompr[icomp]->Flip(); }
-
          KnotVec(iun)->Difference(*(knotVectorsCompr[icomp]), diffknot);
-
          if (flip) { knotVectorsCompr[icomp]->Flip(); }
 
          if (diffknot.Size() > 0)
          {
-            // Update reduced set of knotvectors
             *(KnotVec(iun)) = *(knotVectorsCompr[icomp]);
-
-            // Give correct direction to unique knotvector.
-            if (flip) {KnotVec(iun)->Flip();}
+            if (flip) { KnotVec(iun)->Flip(); }
          }
       }
    }
@@ -3529,54 +3507,17 @@ void NURBSExtension::UpdateUniqueKV()
 
 bool NURBSExtension::ConsistentKVSets()
 {
+   const int dim = Dimension();
    Array<int> edges, orient, kvdir;
    Vector diff;
 
-   Array<int> e(Dimension());
-
+   Array<int> e(dim);
    e[0] = 0;
-
-   if (Dimension() == 1)
-   {
-      for (int p = 0; p < GetNP(); p++)
-      {
-         const int edge = p; // 1D: edge index == patch index
-         const int icomp = Dimension()*p;
-
-         // Check if KnotVectors are of equal order
-         const int o1 = KnotVec(edge)->GetOrder();
-         const int o2 = knotVectorsCompr[icomp]->GetOrder();
-         if (o1 != o2)
-         {
-            mfem::out << "\norder of knotVectorsCompr 0 of patch " << p;
-            mfem::out << " does not agree with knotVectors " << KnotInd(edge) << "\n";
-            return false;
-         }
-
-         // Check if KnotVectors have the same knots. The comprehensive set is
-         // stored in the per-patch orientation, while the unique set uses the
-         // canonical orientation encoded in edge_to_ukv.
-         const bool flip = (KnotSign(edge) == -1);
-         if (flip) { knotVectorsCompr[icomp]->Flip(); }
-
-         KnotVec(edge)->Difference(*(knotVectorsCompr[icomp]), diff);
-
-         if (flip) { knotVectorsCompr[icomp]->Flip(); }
-
-         if (diff.Size() > 0)
-         {
-            mfem::out << "\nknotVectorsCompr 0 of patch " << p;
-            mfem::out << " does not agree with knotVectors " << KnotInd(edge) << "\n";
-            return false;
-         }
-      }
-      return true;
-   }
-   else if (Dimension() == 2)
+   if (dim == 2)
    {
       e[1] = 1;
    }
-   else if (Dimension() == 3)
+   else if (dim == 3)
    {
       e[1] = 3;
       e[2] = 8;
@@ -3584,37 +3525,44 @@ bool NURBSExtension::ConsistentKVSets()
 
    for (int p = 0; p < GetNP(); p++)
    {
-      patchTopo->GetElementEdges(p, edges, orient);
-
-      CheckKVDirection(p, kvdir);
-
-      for (int d = 0; d < Dimension(); d++)
+      if (dim == 1)
       {
-         bool flip = false;
-         if (kvdir[d] == -1) {flip = true;}
+         // 1D: patch index == edge index
+         edges.SetSize(1);
+         edges[0] = p;
+         kvdir.SetSize(1);
+         kvdir[0] = KnotSign(p);
+      }
+      else
+      {
+         patchTopo->GetElementEdges(p, edges, orient);
+         CheckKVDirection(p, kvdir);
+      }
+
+      for (int d = 0; d < dim; d++)
+      {
+         const bool flip = (kvdir[d] == -1);
 
          // Indices in unique and comprehensive sets of the KnotVector
-         int iun = edges[e[d]];
-         int icomp = Dimension()*p+d;
+         const int iun = edges[e[d]];
+         const int icomp = dim*p + d;
 
          // Check if KnotVectors are of equal order
-         int o1 = KnotVec(iun)->GetOrder();
-         int o2 = knotVectorsCompr[icomp]->GetOrder();
-         int diffo = abs(o1 - o2);
-
-         if (diffo)
+         const int o1 = KnotVec(iun)->GetOrder();
+         const int o2 = knotVectorsCompr[icomp]->GetOrder();
+         if (o1 != o2)
          {
             mfem::out << "\norder of knotVectorsCompr " << d << " of patch " << p;
             mfem::out << " does not agree with knotVectors " << KnotInd(iun) << "\n";
             return false;
          }
 
-         // Check if Knotvectors have the same knots
-         if (flip) {knotVectorsCompr[icomp]->Flip();}
-
+         // Check if KnotVectors have the same knots. The comprehensive set is
+         // stored in the per-patch orientation, while the unique set uses the
+         // canonical orientation encoded in edge_to_ukv.
+         if (flip) { knotVectorsCompr[icomp]->Flip(); }
          KnotVec(iun)->Difference(*(knotVectorsCompr[icomp]), diff);
-
-         if (flip) {knotVectorsCompr[icomp]->Flip();}
+         if (flip) { knotVectorsCompr[icomp]->Flip(); }
 
          if (diff.Size() > 0)
          {
