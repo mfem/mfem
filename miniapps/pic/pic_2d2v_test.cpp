@@ -144,9 +144,12 @@ class GridFunctionUpdates
 {
 private:
    real_t domain_volume;
-   real_t neutralizing_const;
+   real_t neutralizing_const_1;
+   real_t neutralizing_const_2;
+   ParLinearForm *vol_lf = nullptr;
    ParLinearForm *precomputed_neutralizing_lf = nullptr;
-   bool neutralizing_const_computed = false;
+   bool neutralizing_const_computed_1 = false;
+   bool neutralizing_const_computed_2 = false;
    bool use_precomputed_neutralizing_const = false;
    // Diffusion matrix
    HypreParMatrix *DiffusionMatrix;
@@ -184,6 +187,7 @@ public:
    {
       delete DiffusionMatrix;
       delete precomputed_neutralizing_lf;
+      delete vol_lf;
    }
 };
 
@@ -685,7 +689,7 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
 
       MPI_Comm comm = pfes->GetComm();
 
-      if (!use_precomputed_neutralizing_const || !neutralizing_const_computed)
+      if (!use_precomputed_neutralizing_const || !neutralizing_const_computed_1)
       {
          // compute neutralizing constant
          real_t local_sum = 0.0;
@@ -703,21 +707,20 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
          real_t global_sum = 0.0;
          MPI_Allreduce(&local_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, comm);
 
-         neutralizing_const = -global_sum / domain_volume;
-         neutralizing_const_computed = true;
+         neutralizing_const_1 = -global_sum / domain_volume;
          if (Mpi::Root())
          {
-            cout << "Total charge: " << global_sum << ", Domain volume: " << domain_volume << ", Neutralizing constant: " << neutralizing_const << endl;
+            cout << "Total charge: " << global_sum << ", Domain volume: " << domain_volume << ", Neutralizing constant: " << neutralizing_const_1 << endl;
             if (use_precomputed_neutralizing_const)
             {
                cout << "Further updates will use this precomputed neutralizing constant." << endl;
             }
          }
-         neutralizing_const_computed = true;
+         neutralizing_const_computed_1 = true;
          delete precomputed_neutralizing_lf;
          precomputed_neutralizing_lf = new ParLinearForm(pfes);
          *precomputed_neutralizing_lf = 0.0;
-         ConstantCoefficient neutralizing_coeff(neutralizing_const);
+         ConstantCoefficient neutralizing_coeff(neutralizing_const_1);
          precomputed_neutralizing_lf->AddDomainIntegrator(new DomainLFIntegrator(neutralizing_coeff));
          precomputed_neutralizing_lf->Assemble();
       }
@@ -780,9 +783,70 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
          // Add q_p * φ_i(x_p) to b_i
          b.AddElementVector(dofs, q_p, shape);
       }
+      if (!use_precomputed_neutralizing_const || !neutralizing_const_computed_2)
+      {
+         ParGridFunction one_gf(pfes);
+         one_gf = 1.0;
+
+         // Compute b(1)
+         double local_b1 = b(one_gf);
+         double global_b1 = 0.0;
+         MPI_Allreduce(&local_b1, &global_b1, 1, MPI_DOUBLE, MPI_SUM, comm);
+
+         // Build v_i = ∫ phi_i dx  (linear form for coefficient 1)
+         vol_lf = new ParLinearForm(pfes);
+         *vol_lf = 0.0;
+         ConstantCoefficient one(1.0);
+         vol_lf->AddDomainIntegrator(new DomainLFIntegrator(one));
+         vol_lf->Assemble();
+
+         // Compute ∫ 1 dx consistently (same discrete measure)
+         double local_V = (*vol_lf)(one_gf);
+         double global_V = 0.0;
+         MPI_Allreduce(&local_V, &global_V, 1, MPI_DOUBLE, MPI_SUM, comm);
+
+         neutralizing_const_2 = global_b1 / global_V; // amount to subtract
+
+         // b <- b - neutralizing_const_2 * vol_lf  so that b(1) becomes exactly 0 (up to roundoff in this step)
+         neutralizing_const_computed_2 = true;
+         if (Mpi::Root())
+         {
+            cout << "RHS total before neutralization: " << global_b1 << ", Domain volume (discrete): " << global_V << ", Neutralizing constant 2: " << neutralizing_const_2 << endl;
+         }
+      }
+      b.Add(-neutralizing_const_2, *vol_lf);
 
       // Assemble to a global true-dof RHS vector compatible with MassMatrix
       HypreParVector *B = b.ParallelAssemble(); // owns new vector on heap
+
+      {
+         ParLinearForm v_lf(pfes);
+         v_lf = 0.0;
+         ConstantCoefficient one(1.0);
+         v_lf.AddDomainIntegrator(new DomainLFIntegrator(one));
+         v_lf.Assemble();
+         HypreParVector *V = v_lf.ParallelAssemble(); // true-dof linear functional for v=1
+
+         real_t BdotV = InnerProduct(*B, *V);
+
+         if (Mpi::Root())
+         {
+            std::cout << "<B, v=1> = " << BdotV << std::endl;
+         }
+         delete V;
+
+         ParGridFunction one_gf(pfes);
+         one_gf = 1.0;
+
+         HypreParVector one_true(pfes);
+         one_gf.GetTrueDofs(one_true);
+
+         real_t net_rhs = InnerProduct(*B, one_true);
+         if (Mpi::Root())
+         {
+            std::cout << "<B,1> = " << net_rhs << std::endl;
+         }
+      }
 
       // ------------------------------------------------------------------
       // 5) Solve A * phi = B with zero-mean enforcement via OrthoSolver
