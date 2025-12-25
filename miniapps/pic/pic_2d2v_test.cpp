@@ -819,35 +819,6 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
       // Assemble to a global true-dof RHS vector compatible with MassMatrix
       HypreParVector *B = b.ParallelAssemble(); // owns new vector on heap
 
-      {
-         ParLinearForm v_lf(pfes);
-         v_lf = 0.0;
-         ConstantCoefficient one(1.0);
-         v_lf.AddDomainIntegrator(new DomainLFIntegrator(one));
-         v_lf.Assemble();
-         HypreParVector *V = v_lf.ParallelAssemble(); // true-dof linear functional for v=1
-
-         real_t BdotV = InnerProduct(*B, *V);
-
-         if (Mpi::Root())
-         {
-            std::cout << "<B, v=1> = " << BdotV << std::endl;
-         }
-         delete V;
-
-         ParGridFunction one_gf(pfes);
-         one_gf = 1.0;
-
-         HypreParVector one_true(pfes);
-         one_gf.GetTrueDofs(one_true);
-
-         real_t net_rhs = InnerProduct(*B, one_true);
-         if (Mpi::Root())
-         {
-            std::cout << "<B,1> = " << net_rhs << std::endl;
-         }
-      }
-
       // ------------------------------------------------------------------
       // 5) Solve A * phi = B with zero-mean enforcement via OrthoSolver
       // ------------------------------------------------------------------
