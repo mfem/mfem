@@ -2371,22 +2371,14 @@ void NURBSExtension::Load(std::istream &input, bool spacing)
          patches[p] = new NURBSPatch(input);
       }
 
-      if (Dimension() == 1)
+      // Determine the number of unique KnotVectors from the edge-to-unique-KV
+      // mapping. In 1D, edge indices correspond to patch indices.
+      NumOfKnotVectors = 0;
+      for (int i = 0; i < edge_to_ukv.Size(); i++)
       {
-         // In 1D, each patch has its own (possibly different) KnotVector.
-         // The number of unique KnotVectors is equal to the number of patches.
-         NumOfKnotVectors = patches.Size();
+         NumOfKnotVectors = std::max(NumOfKnotVectors, KnotInd(i));
       }
-      else
-      {
-         NumOfKnotVectors = 0;
-         for (int i = 0; i < patchTopo->GetNEdges(); i++)
-            if (NumOfKnotVectors < KnotInd(i))
-            {
-               NumOfKnotVectors = KnotInd(i);
-            }
-         NumOfKnotVectors++;
-      }
+      NumOfKnotVectors++;
       knotVectors.SetSize(NumOfKnotVectors);
       knotVectors = NULL;
 
@@ -2395,10 +2387,14 @@ void NURBSExtension::Load(std::istream &input, bool spacing)
       {
          if (Dimension() == 1)
          {
-            if (knotVectors[KnotInd(p)] == NULL)
+            const int edge = p;
+            const int kv = KnotInd(edge);
+            if (knotVectors[kv] == NULL)
             {
-               knotVectors[KnotInd(p)] =
-                  new KnotVector(*patches[p]->GetKV(0));
+               knotVectors[kv] = new KnotVector(*patches[p]->GetKV(0));
+               // Store the unique KnotVector in the canonical orientation;
+               // the per-patch orientation is encoded in edge_to_ukv.
+               if (KnotSign(edge) == -1) { knotVectors[kv]->Flip(); }
             }
          }
          else if (Dimension() == 2)
@@ -3395,13 +3391,15 @@ void NURBSExtension::CreateComprehensiveKV()
    Array<int> edges, orient, kvdir;
    Array<int> e(Dimension());
 
-   // 1D: comprehensive and unique KV are the same
    if (Dimension() == 1)
    {
-      knotVectorsCompr.SetSize(GetNKV());
-      for (int i = 0; i < GetNKV(); i++)
+      knotVectorsCompr.SetSize(GetNP()*Dimension());
+      for (int p = 0; p < GetNP(); p++)
       {
-         knotVectorsCompr[i] = new KnotVector(*(KnotVec(i)));
+         const int edge = p; // 1D: edge index = patch index
+         const int icomp = Dimension()*p;
+         knotVectorsCompr[icomp] = new KnotVector(*(KnotVec(edge)));
+         if (KnotSign(edge) == -1) { knotVectorsCompr[icomp]->Flip(); }
       }
       return;
    }
@@ -3442,12 +3440,23 @@ void NURBSExtension::UpdateUniqueKV()
 {
    Array<int> e(Dimension());
 
-   // 1D: comprehensive and unique KV are the same
    if (Dimension() == 1)
    {
-      for (int i = 0; i < GetNKV(); i++)
+      Array<char> seen(GetNKV());
+      seen = 0;
+      for (int p = 0; p < GetNP(); p++)
       {
-         *(KnotVec(i)) = *(knotVectorsCompr[i]);
+         const int edge = p; // 1D: edge index = patch index
+         const int kv = KnotInd(edge);
+         if (seen[kv]) { continue; }
+
+         const int icomp = Dimension()*p;
+         const bool flip = (KnotSign(edge) == -1);
+         if (flip) { knotVectorsCompr[icomp]->Flip(); }
+         *(KnotVec(edge)) = *(knotVectorsCompr[icomp]);
+         if (flip) { knotVectorsCompr[icomp]->Flip(); }
+
+         seen[kv] = 1;
       }
       return;
    }

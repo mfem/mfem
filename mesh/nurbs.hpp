@@ -607,12 +607,12 @@ protected:
        KnotVector direction is flipped, +1 otherwise. */
    void CheckKVDirection(int p, Array <int> &kvdir);
 
-   /**  @brief Create the comprehensive set of KnotVectors. In 1D, this set is
-    identical to the unique set of KnotVectors. */
+   /** @brief Create the comprehensive set of KnotVectors, one per patch and
+       parametric direction, accounting for the edge orientations. */
    void CreateComprehensiveKV();
 
-   /**  Update the unique set of KnotVectors. In 1D, this set is identical to
-    the comprehensive set of KnotVectors. */
+   /** @brief Update the unique set of KnotVectors from the comprehensive set
+       of KnotVectors. */
    void UpdateUniqueKV();
 
    /** @brief Check if the comprehensive array of KnotVectors agrees with the
