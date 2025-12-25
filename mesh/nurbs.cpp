@@ -3317,13 +3317,49 @@ void NURBSExtension::CheckBdrPatches()
    }
 }
 
+void NURBSExtension::GetPatchKnotVectorEdges(int p, Array<int> &edges)
+{
+   const int dim = Dimension();
+   edges.SetSize(dim);
+
+   if (dim == 1)
+   {
+      // patchTopo->GetElementEdges is not yet implemented for 1D
+      edges[0] = p; // patch index == edge index
+      return;
+   }
+
+   Array<int> all_edges, orient;
+   patchTopo->GetElementEdges(p, all_edges, orient);
+
+   edges[0] = all_edges[0];
+   if (dim == 2)
+   {
+      edges[1] = all_edges[1];
+   }
+   else if (dim == 3)
+   {
+      edges[1] = all_edges[3];
+      edges[2] = all_edges[8];
+   }
+   else
+   {
+      MFEM_ABORT("Invalid NURBS dimension.");
+   }
+}
+
 void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
 {
-   // patchTopo->GetElementEdges is not yet implemented for 1D
-   MFEM_VERIFY(Dimension()>1, "1D not yet implemented.");
-
-   kvdir.SetSize(Dimension());
+   const int dim = Dimension();
+   kvdir.SetSize(dim);
    kvdir = 0;
+
+   if (dim == 1)
+   {
+      // In 1D, the sign of edge_to_ukv encodes the per-patch orientation.
+      kvdir[0] = KnotSign(p);
+      return;
+   }
 
    Array<int> patchvert, edges, orient, edgevert;
 
@@ -3389,42 +3425,19 @@ void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
 void NURBSExtension::CreateComprehensiveKV()
 {
    const int dim = Dimension();
-   Array<int> edges, orient, kvdir;
-   Array<int> e(dim);
+   Array<int> edges, kvdir;
 
    knotVectorsCompr.SetSize(GetNP()*dim);
 
-   e[0] = 0;
-   if (dim == 2)
-   {
-      e[1] = 1;
-   }
-   else if (dim == 3)
-   {
-      e[1] = 3;
-      e[2] = 8;
-   }
-
    for (int p = 0; p < GetNP(); p++)
    {
-      if (dim == 1)
-      {
-         // 1D: patch index == edge index
-         edges.SetSize(1);
-         edges[0] = p;
-         kvdir.SetSize(1);
-         kvdir[0] = KnotSign(p);
-      }
-      else
-      {
-         CheckKVDirection(p, kvdir);
-         patchTopo->GetElementEdges(p, edges, orient);
-      }
+      GetPatchKnotVectorEdges(p, edges);
+      CheckKVDirection(p, kvdir);
 
       for (int d = 0; d < dim; d++)
       {
          // Indices in unique and comprehensive sets of the KnotVector
-         const int iun = edges[e[d]];
+         const int iun = edges[d];
          const int icomp = dim*p + d;
          knotVectorsCompr[icomp] = new KnotVector(*(KnotVec(iun)));
          if (kvdir[d] == -1) { knotVectorsCompr[icomp]->Flip(); }
@@ -3437,42 +3450,18 @@ void NURBSExtension::CreateComprehensiveKV()
 void NURBSExtension::UpdateUniqueKV()
 {
    const int dim = Dimension();
-   Array<int> e(dim);
-
-   e[0] = 0;
-   if (dim == 2)
-   {
-      e[1] = 1;
-   }
-   else if (dim == 3)
-   {
-      e[1] = 3;
-      e[2] = 8;
-   }
-
-   Array<int> edges, orient, kvdir;
+   Array<int> edges, kvdir;
    for (int p = 0; p < GetNP(); p++)
    {
-      if (dim == 1)
-      {
-         // 1D: patch index == edge index
-         edges.SetSize(1);
-         edges[0] = p;
-         kvdir.SetSize(1);
-         kvdir[0] = KnotSign(p);
-      }
-      else
-      {
-         patchTopo->GetElementEdges(p, edges, orient);
-         CheckKVDirection(p, kvdir);
-      }
+      GetPatchKnotVectorEdges(p, edges);
+      CheckKVDirection(p, kvdir);
 
       for (int d = 0; d < dim; d++)
       {
          const bool flip = (kvdir[d] == -1);
 
          // Indices in unique and comprehensive sets of the KnotVector
-         const int iun = edges[e[d]];
+         const int iun = edges[d];
          const int icomp = dim*p + d;
 
          // Check if difference in order/element count
@@ -3508,43 +3497,20 @@ void NURBSExtension::UpdateUniqueKV()
 bool NURBSExtension::ConsistentKVSets()
 {
    const int dim = Dimension();
-   Array<int> edges, orient, kvdir;
+   Array<int> edges, kvdir;
    Vector diff;
-
-   Array<int> e(dim);
-   e[0] = 0;
-   if (dim == 2)
-   {
-      e[1] = 1;
-   }
-   else if (dim == 3)
-   {
-      e[1] = 3;
-      e[2] = 8;
-   }
 
    for (int p = 0; p < GetNP(); p++)
    {
-      if (dim == 1)
-      {
-         // 1D: patch index == edge index
-         edges.SetSize(1);
-         edges[0] = p;
-         kvdir.SetSize(1);
-         kvdir[0] = KnotSign(p);
-      }
-      else
-      {
-         patchTopo->GetElementEdges(p, edges, orient);
-         CheckKVDirection(p, kvdir);
-      }
+      GetPatchKnotVectorEdges(p, edges);
+      CheckKVDirection(p, kvdir);
 
       for (int d = 0; d < dim; d++)
       {
          const bool flip = (kvdir[d] == -1);
 
          // Indices in unique and comprehensive sets of the KnotVector
-         const int iun = edges[e[d]];
+         const int iun = edges[d];
          const int icomp = dim*p + d;
 
          // Check if KnotVectors are of equal order
@@ -4889,30 +4855,16 @@ void NURBSExtension::GetCoarseningFactors(Array<int> & f) const
 
 void NURBSExtension::KnotInsert(Array<KnotVector *> &kv)
 {
-   Array<int> edges;
-   Array<int> orient;
-   Array<int> kvdir;
+   Array<int> edges, kvdir;
 
    Array<KnotVector *> pkv(Dimension());
 
    for (int p = 0; p < patches.Size(); p++)
    {
-      if (Dimension()==1)
+      GetPatchKnotVectorEdges(p, edges);
+      for (int d = 0; d < Dimension(); d++)
       {
-         pkv[0] = kv[KnotInd(p)];
-      }
-      else if (Dimension()==2)
-      {
-         patchTopo->GetElementEdges(p, edges, orient);
-         pkv[0] = kv[KnotInd(edges[0])];
-         pkv[1] = kv[KnotInd(edges[1])];
-      }
-      else if (Dimension()==3)
-      {
-         patchTopo->GetElementEdges(p, edges, orient);
-         pkv[0] = kv[KnotInd(edges[0])];
-         pkv[1] = kv[KnotInd(edges[3])];
-         pkv[2] = kv[KnotInd(edges[8])];
+         pkv[d] = kv[KnotInd(edges[d])];
       }
 
       // Check whether inserted knots should be flipped before inserting.
@@ -4939,30 +4891,16 @@ void NURBSExtension::KnotInsert(Array<KnotVector *> &kv)
 
 void NURBSExtension::KnotInsert(Array<Vector *> &kv)
 {
-   Array<int> edges;
-   Array<int> orient;
-   Array<int> kvdir;
+   Array<int> edges, kvdir;
 
    Array<Vector *> pkv(Dimension());
 
    for (int p = 0; p < patches.Size(); p++)
    {
-      if (Dimension()==1)
+      GetPatchKnotVectorEdges(p, edges);
+      for (int d = 0; d < Dimension(); d++)
       {
-         pkv[0] = kv[KnotInd(p)];
-      }
-      else if (Dimension()==2)
-      {
-         patchTopo->GetElementEdges(p, edges, orient);
-         pkv[0] = kv[KnotInd(edges[0])];
-         pkv[1] = kv[KnotInd(edges[1])];
-      }
-      else if (Dimension()==3)
-      {
-         patchTopo->GetElementEdges(p, edges, orient);
-         pkv[0] = kv[KnotInd(edges[0])];
-         pkv[1] = kv[KnotInd(edges[3])];
-         pkv[2] = kv[KnotInd(edges[8])];
+         pkv[d] = kv[KnotInd(edges[d])];
       }
 
       // Check whether inserted knots should be flipped before inserting.
@@ -5001,30 +4939,16 @@ void NURBSExtension::KnotInsert(Array<Vector *> &kv)
 
 void NURBSExtension::KnotRemove(Array<Vector *> &kv, real_t tol)
 {
-   Array<int> edges;
-   Array<int> orient;
-   Array<int> kvdir;
+   Array<int> edges, kvdir;
 
    Array<Vector *> pkv(Dimension());
 
    for (int p = 0; p < patches.Size(); p++)
    {
-      if (Dimension()==1)
+      GetPatchKnotVectorEdges(p, edges);
+      for (int d = 0; d < Dimension(); d++)
       {
-         pkv[0] = kv[KnotInd(p)];
-      }
-      else if (Dimension()==2)
-      {
-         patchTopo->GetElementEdges(p, edges, orient);
-         pkv[0] = kv[KnotInd(edges[0])];
-         pkv[1] = kv[KnotInd(edges[1])];
-      }
-      else if (Dimension()==3)
-      {
-         patchTopo->GetElementEdges(p, edges, orient);
-         pkv[0] = kv[KnotInd(edges[0])];
-         pkv[1] = kv[KnotInd(edges[3])];
-         pkv[2] = kv[KnotInd(edges[8])];
+         pkv[d] = kv[KnotInd(edges[d])];
       }
 
       // Check whether knots should be flipped before removing.

@@ -602,6 +602,11 @@ protected:
    /// Throw an error if any boundary patch has invalid KnotVector orientation.
    void CheckBdrPatches();
 
+   /// Return the patch-topology edge indices that define the KnotVectors for
+   /// patch @a p in each parametric direction. In 1D, this uses the convention
+   /// that patch index == edge index.
+   void GetPatchKnotVectorEdges(int p, Array<int> &edges);
+
    /** @brief Return the directions in @a kvdir of the KnotVectors in patch @a p
        based on the patch edge orientations. Each entry of @a kvdir is -1 if the
        KnotVector direction is flipped, +1 otherwise. */
