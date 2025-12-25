@@ -105,19 +105,8 @@ int main(int argc, char *argv[])
    }
 
    // 5. Define an isoparametric/isogeometric finite element space on the mesh.
-   FiniteElementCollection *fec = nullptr;
-   bool delete_fec;
-   if (mesh.GetNodes())
-   {
-      fec = mesh.GetNodes()->OwnFEC();
-      delete_fec = false;
-      cout << "Using isoparametric FEs: " << fec->Name() << endl;
-   }
-   else
-   {
-      MFEM_ABORT("Mesh must have nodes");
-   }
-   FiniteElementSpace fespace(&mesh, fec);
+   NURBSSpace ns(&mesh, -1);
+   FiniteElementSpace& fespace = *ns.fespace;
    cout << "Number of finite element unknowns: "
         << fespace.GetTrueVSize() << endl;
 
@@ -169,7 +158,7 @@ int main(int argc, char *argv[])
    NURBSMeshRules *patchRule = nullptr;
    if (order < 0)
    {
-      if (ir_order == -1) { ir_order = 2*fec->GetOrder(); }
+      if (ir_order == -1) { ir_order = 2*ns.fec->GetOrder(); }
       cout << "Using ir_order " << ir_order << endl;
 
       patchRule = new NURBSMeshRules(mesh.NURBSext->GetNP(), dim);
@@ -241,12 +230,6 @@ int main(int argc, char *argv[])
       cout << "Element-wise solution norm " << solNorm << endl;
       cout << "Relative error of patch-wise solution "
            << x_ew.Norml2() / solNorm << endl;
-   }
-
-   // 14. Free the used memory.
-   if (delete_fec)
-   {
-      delete fec;
    }
 
    return 0;
