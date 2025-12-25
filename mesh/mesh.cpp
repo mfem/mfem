@@ -5066,7 +5066,10 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    }
    else if (mesh_type == "$MeshFormat") // Gmsh
    {
-      ReadGmshMesh(input, curved, read_gf);
+      ReadGmshMesh(input);
+      finalize_topo = false; // Gmsh mesh reader already finalizes the topology
+      curved = Nodes != nullptr;
+      read_gf = false;
    }
    else if
    ((mesh_type.size() > 2 &&
