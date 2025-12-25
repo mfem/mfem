@@ -5301,16 +5301,12 @@ void NURBSExtension::GetPatches(Array<NURBSPatch*> &patches_copy)
    }
 }
 
-int NURBSExtension::GetPhysicalDim() const
+int NURBSExtension::GetPatchDim() const
 {
-   if (patches.Size() > 0)
-   {
-      // Patch dimension includes the weight coordinate.
-      return patches[0]->GetNC() - 1;
-   }
-   // Fallback: for non-patch-based extensions, assume the physical dimension
-   // matches the reference dimension.
-   return Dimension();
+   MFEM_VERIFY(patches.Size() > 0, "NURBS extension has no patches.");
+
+   // Patch dimension includes the weight coordinate.
+   return patches[0]->GetNC() - 1;
 }
 
 void NURBSExtension::SetPatchToElements()

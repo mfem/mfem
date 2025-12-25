@@ -755,10 +755,12 @@ private:
    virtual void SetDofToPatch() { };
 
 public:
-   /** @brief Return the physical dimension of the NURBS geometry,
-       inferred from the first patch when available, i.e. number of coordinates
-       per control point minus one (for the weight). */
-   int GetPhysicalDim() const;
+   /** @brief Return the physical dimension of the NURBS geometry
+
+       The physical dimension is inferred from the first patch,
+       i.e. number of coordinates per control point minus one (for the weight).
+       This method requires patch data to be present, i.e. HavePatches() == true */
+   int GetPatchDim() const;
 
    /// Copy constructor: deep copy
    NURBSExtension(const NURBSExtension &orig);
