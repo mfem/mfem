@@ -3391,27 +3391,24 @@ void NURBSExtension::CreateComprehensiveKV()
    Array<int> edges, orient, kvdir;
    Array<int> e(Dimension());
 
-   if (Dimension() == 1)
+   knotVectorsCompr.SetSize(GetNP()*Dimension());
+
+   if (Dimension() == 1)  // 1D: edge index == patch index
    {
-      knotVectorsCompr.SetSize(GetNP()*Dimension());
       for (int p = 0; p < GetNP(); p++)
       {
-         const int edge = p; // 1D: edge index = patch index
-         const int icomp = Dimension()*p;
-         knotVectorsCompr[icomp] = new KnotVector(*(KnotVec(edge)));
-         if (KnotSign(edge) == -1) { knotVectorsCompr[icomp]->Flip(); }
+         knotVectorsCompr[p] = new KnotVector(*(KnotVec(p)));
+         if (KnotSign(p) == -1) { knotVectorsCompr[p]->Flip(); }
       }
       return;
    }
    else if (Dimension() == 2)
    {
-      knotVectorsCompr.SetSize(GetNP()*Dimension());
       e[0] = 0;
       e[1] = 1;
    }
    else if (Dimension() == 3)
    {
-      knotVectorsCompr.SetSize(GetNP()*Dimension());
       e[0] = 0;
       e[1] = 3;
       e[2] = 8;
