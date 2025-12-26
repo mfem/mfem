@@ -603,8 +603,7 @@ protected:
    void CheckBdrPatches();
 
    /// Return the patch-topology edge indices that define the KnotVectors for
-   /// patch @a p in each parametric direction. In 1D, this uses the convention
-   /// that patch index == edge index.
+   /// patch @a p in each parametric direction.
    void GetPatchKnotVectorEdges(int p, Array<int> &edges);
 
    /** @brief Return the directions in @a kvdir of the KnotVectors in patch @a p
@@ -622,9 +621,7 @@ protected:
 
    /** @brief Check if the comprehensive array of KnotVectors agrees with the
        unique set of KnotVectors, on each patch. Return false if there is a
-       difference, true otherwise.
-
-       In 1D, this uses the convention that patch index == edge index. */
+       difference, true otherwise. */
    bool ConsistentKVSets();
 
    /// Return KnotVectors in @a kv in each dimension for patch @a p.
@@ -762,13 +759,6 @@ private:
    virtual void SetDofToPatch() { };
 
 public:
-   /** @brief Return the physical dimension of the NURBS geometry
-
-       The physical dimension is inferred from the first patch,
-       i.e. number of coordinates per control point minus one (for the weight).
-       This method requires patch data to be present, i.e. HavePatches() == true */
-   int GetPatchDim() const;
-
    /// Copy constructor: deep copy
    NURBSExtension(const NURBSExtension &orig);
    /// Read-in a NURBSExtension from a stream @a input.
@@ -833,6 +823,13 @@ public:
 
    /// Return the dimension of the reference space (not physical space).
    int Dimension() const { return patchTopo->Dimension(); }
+
+   /** @brief Return the physical dimension of the NURBS geometry
+
+       The physical dimension is inferred from the first patch,
+       i.e. number of coordinates per control point minus one (for the weight).
+       This method requires patch data to be present, i.e. HavePatches() == true */
+   int GetPatchDim() const;
 
    /// Return the number of patches.
    int GetNP()     const { return patchTopo->GetNE(); }

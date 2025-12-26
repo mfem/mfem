@@ -3322,15 +3322,10 @@ void NURBSExtension::GetPatchKnotVectorEdges(int p, Array<int> &edges)
    const int dim = Dimension();
    edges.SetSize(dim);
 
-   if (dim == 1)
-   {
-      // patchTopo->GetElementEdges is not yet implemented for 1D
-      edges[0] = p; // patch index == edge index
-      return;
-   }
-
    Array<int> all_edges, orient;
    patchTopo->GetElementEdges(p, all_edges, orient);
+   MFEM_VERIFY(all_edges.Size() > 0, "");
+   MFEM_VERIFY(dim >= 1 && dim <=3, "Invalid NURBS dimension.");
 
    edges[0] = all_edges[0];
    if (dim == 2)
@@ -3342,10 +3337,6 @@ void NURBSExtension::GetPatchKnotVectorEdges(int p, Array<int> &edges)
       edges[1] = all_edges[3];
       edges[2] = all_edges[8];
    }
-   else
-   {
-      MFEM_ABORT("Invalid NURBS dimension.");
-   }
 }
 
 void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
@@ -3356,8 +3347,10 @@ void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
 
    if (dim == 1)
    {
+      Array<int> edges;
+      GetPatchKnotVectorEdges(p, edges);
       // In 1D, the sign of edge_to_ukv encodes the per-patch orientation.
-      kvdir[0] = KnotSign(p);
+      kvdir[0] = KnotSign(edges[0]);
       return;
    }
 

@@ -7589,6 +7589,17 @@ bool Mesh::IsMixedMesh() const
 
 void Mesh::GetElementEdges(int i, Array<int> &edges, Array<int> &cor) const
 {
+   if (Dim == 1)
+   {
+      // In 1D, elements are segments and can be treated as edges.
+      edges.SetSize(1);
+      cor.SetSize(1);
+      edges[0] = i;
+      const int *v = elements[i]->GetVertices();
+      cor[0] = (v[0] < v[1]) ? (1) : (-1);
+      return;
+   }
+
    if (el_to_edge)
    {
       el_to_edge->GetRow(i, edges);
