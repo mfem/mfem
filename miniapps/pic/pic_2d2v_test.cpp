@@ -323,6 +323,19 @@ int main(int argc, char *argv[])
    auto start_time = std::chrono::high_resolution_clock::now();
    for (int step = 1; step <= ctx.nt; step++)
    {
+      // Redistribute
+      if (ctx.redist_freq > 0 && (step % ctx.redist_freq == 0 || step == 1) &&
+          boris.GetParticles().GetGlobalNP() > 0)
+      {
+         // Redistribute
+         boris.Redistribute(ctx.redist_mesh);
+
+         // Update phi_gf from particles
+         gf_updates.UpdatePhiGridFunction(boris.GetParticles(), phi_gf, *E_gf);
+
+         gf_updates.TotalEnergyValidation(boris.GetParticles(), *E_gf);
+      }
+      
       if (step == 1)
       {
          real_t neg_half_dt = -dt / 2.0;
@@ -359,18 +372,6 @@ int main(int argc, char *argv[])
          boris.GetParticles().PrintCSV(file_name.c_str(), field_idx, tag_idx);
       }
 
-      // Redistribute
-      if (ctx.redist_freq > 0 && (step % ctx.redist_freq == 0 || step == 1) &&
-          boris.GetParticles().GetGlobalNP() > 0)
-      {
-         // Redistribute
-         boris.Redistribute(ctx.redist_mesh);
-
-         // Update phi_gf from particles
-         gf_updates.UpdatePhiGridFunction(boris.GetParticles(), phi_gf, *E_gf);
-
-         gf_updates.TotalEnergyValidation(boris.GetParticles(), *E_gf);
-      }
    }
 }
 
