@@ -1,0 +1,68 @@
+Options used:
+   --mesh ../../data/amr-quad.mesh
+   --ncells-x 0
+   --ncells-y 0
+   --size-x 1
+   --size-y 1
+   --ref-levels 1
+   --delta-random 0
+   --order 3
+   --no-discontinuous
+   --no-broken-RT
+   --centered
+   --problem 2
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 1
+   --velocity 1
+   --stab_diff 0.5
+   --bc-neumann
+   --no-reduction
+   --no-hybridization
+   --no-nonlinear
+   --no-nonlinear-flux
+   --no-nonlinear-pot
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 0
+   --no-partial-assembly
+   --device cpu
+   --no-reconstruct
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+Device configuration: cpu
+Memory configuration: host-std
+***********************************************************
+dim(V) = 3744
+dim(W) = 1792
+dim(V+W) = 5536
+***********************************************************
+Assembly took 0.281182s.
+Preconditioner took 0.0366791s.
+   Pass :  1   Iteration :   0  ||B r|| = 2.48486
+   Pass :  1   Iteration :   1  ||B r|| = 2.36409
+   Pass :  1   Iteration :   2  ||B r|| = 0.258243
+   Pass :  1   Iteration :   3  ||B r|| = 0.258024
+   Pass :  1   Iteration :   4  ||B r|| = 0.0376767
+   Pass :  1   Iteration :   5  ||B r|| = 0.0199346
+   Pass :  1   Iteration :   6  ||B r|| = 0.00538401
+   Pass :  1   Iteration :   7  ||B r|| = 0.00264707
+   Pass :  1   Iteration :   8  ||B r|| = 0.000849004
+   Pass :  1   Iteration :   9  ||B r|| = 0.000245256
+   Pass :  1   Iteration :  10  ||B r|| = 0.000197433
+   Pass :  1   Iteration :  11  ||B r|| = 5.45791e-05
+   Pass :  1   Iteration :  12  ||B r|| = 5.12916e-05
+   Pass :  1   Iteration :  13  ||B r|| = 2.30667e-05
+   Pass :  1   Iteration :  14  ||B r|| = 6.95049e-06
+   Pass :  1   Iteration :  15  ||B r|| = 6.89675e-06
+   Pass :  1   Iteration :  16  ||B r|| = 2.71584e-06
+   Pass :  1   Iteration :  17  ||B r|| = 1.48131e-06
+GMRES+UMFPack converged in 17 iterations with a residual norm of 1.48131e-06.
+solver took 0.0542593s.
+|| q_h - q_ex || / || q_ex || = 2.8554e-06
+|| t_h - t_ex || / || t_ex || = 1.14893e-06

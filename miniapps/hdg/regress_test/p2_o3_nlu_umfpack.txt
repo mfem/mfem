@@ -1,0 +1,59 @@
+Options used:
+   --mesh 
+   --ncells-x 10
+   --ncells-y 10
+   --size-x 1
+   --size-y 1
+   --order 3
+   --no-discontinuous
+   --no-broken-RT
+   --centered
+   --problem 2
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 1
+   --velocity 1
+   --stab_diff 0.5
+   --no-bc-neumann
+   --no-reduction
+   --no-hybridization
+   --no-nonlinear
+   --nonlinear-flux
+   --no-nonlinear-pot
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 0
+   --no-partial-assembly
+   --device cpu
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+Device configuration: cpu
+Memory configuration: host-std
+***********************************************************
+dim(V) = 3280
+dim(W) = 1600
+dim(V+W) = 4880
+***********************************************************
+Assembly took 0.244139s.
+Preconditioner took 0.163206s.
+   Pass :  1   Iteration :   0  ||B r|| = 1.8759
+   Pass :  1   Iteration :   1  ||B r|| = 1.87404
+   Pass :  1   Iteration :   2  ||B r|| = 0.10605
+   Pass :  1   Iteration :   3  ||B r|| = 0.0890947
+   Pass :  1   Iteration :   4  ||B r|| = 0.00999938
+   Pass :  1   Iteration :   5  ||B r|| = 0.00420422
+   Pass :  1   Iteration :   6  ||B r|| = 0.00113566
+   Pass :  1   Iteration :   7  ||B r|| = 0.00016919
+   Pass :  1   Iteration :   8  ||B r|| = 8.64586e-05
+   Pass :  1   Iteration :   9  ||B r|| = 5.74549e-06
+   Pass :  1   Iteration :  10  ||B r|| = 5.21245e-06
+   Pass :  1   Iteration :  11  ||B r|| = 2.97692e-07
+GMRES+UMFPack converged in 11 iterations with a residual norm of 2.97692e-07.
+solver took 1.72204s.
+|| q_h - q_ex || / || q_ex || = 4.12091e-07
+|| t_h - t_ex || / || t_ex || = 1.10557e-07

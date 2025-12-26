@@ -1,0 +1,52 @@
+Options used:
+   --mesh ../../data/amr-quad.mesh
+   --ncells-x 0
+   --ncells-y 0
+   --size-x 1
+   --size-y 1
+   --ref-levels 1
+   --delta-random 0
+   --order 2
+   --discontinuous
+   --no-broken-RT
+   --centered
+   --problem 2
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 1
+   --velocity 1
+   --stab_diff 0.5
+   --no-bc-neumann
+   --no-reduction
+   --no-hybridization
+   --no-nonlinear
+   --no-nonlinear-flux
+   --no-nonlinear-pot
+   --no-nonlinear-convection
+   --nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 3
+   --no-partial-assembly
+   --device cpu
+   --no-reconstruct
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+Device configuration: cpu
+Memory configuration: host-std
+***********************************************************
+dim(V) = 2016
+dim(W) = 1008
+dim(V+W) = 3024
+***********************************************************
+Assembly took 0.0913234s.
+Preconditioner took 2.8327e-05s.
+Newton iteration  0 : ||r|| = 0.0589549
+Newton iteration  1 : ||r|| = 2.6352e-10, ||r||/||r_0|| = 4.46986e-09
+Newton+GMRES+GS converged in 1 iterations with a residual norm of 2.6352e-10.
+solver took 0.79407s.
+|| q_h - q_ex || / || q_ex || = 0.000275258
+|| t_h - t_ex || / || t_ex || = 4.53711e-05

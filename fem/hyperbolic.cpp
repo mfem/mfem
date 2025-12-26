@@ -417,6 +417,264 @@ void HyperbolicFormIntegrator::AssembleFaceGrad(
    }
 }
 
+void HyperbolicFormIntegrator::AssembleHDGFaceVector(
+   int type, const FiniteElement &trace_face_fe, const FiniteElement &fe,
+   FaceElementTransformations &Tr, const Vector &trfun, const Vector &elfun,
+   Vector &elvect)
+{
+   MFEM_ASSERT((type & HDGFaceType::ELEM && type & HDGFaceType::TRACE) ||
+               (type & HDGFaceType::CONSTR && type & HDGFaceType::FACE),
+               "Not allowed combination of types");
+
+   const int dof_el = fe.GetDof();
+   const int dof_tr = trace_face_fe.GetDof();
+
+   const int dof_dual_el = (type & (HDGFaceType::ELEM | HDGFaceType::TRACE))?
+                           (dof_el):(0);
+   const int dof_dual_tr = (type & (HDGFaceType::CONSTR | HDGFaceType::FACE))?
+                           (dof_tr):(0);
+
+#ifdef MFEM_THREAD_SAFE
+   // Local storage for element integration
+
+   // normal vector (usually not a unit vector)
+   Vector nor(Tr.GetSpaceDim());
+   // shape function value at an integration point - elem
+   Vector shape_el(dof_el);
+   // shape function value at an integration point - trace
+   Vector shape_tr(dof_tr);
+   // state value at an integration point - elem
+   Vector state_el(num_equations);
+   // state value at an integration point - trace
+   Vector state_tr(num_equations);
+   // hat(F)(u,x)
+   Vector fluxN(num_equations);
+#else
+   Vector &shape_el(shape1);
+   Vector &shape_tr(shape2);
+   Vector &state_el(state1);
+   Vector &state_tr(state2);
+   shape_el.SetSize(dof_el);
+   shape_tr.SetSize(dof_tr);
+#endif
+
+   elvect.SetSize((dof_dual_el + dof_dual_tr) * num_equations);
+   elvect = 0.0;
+
+   const DenseMatrix elfun_mat(elfun.GetData(), dof_el, num_equations);
+   const DenseMatrix trfun_mat(trfun.GetData(), dof_tr, num_equations);
+
+   DenseMatrix elvect_mat(elvect.GetData(), dof_dual_el, num_equations);
+   DenseMatrix trvect_mat(elvect.GetData() + dof_dual_el * num_equations,
+                          dof_dual_tr, num_equations);
+
+   const IntegrationRule *ir = IntRule;
+   if (!ir)
+   {
+      const int order = 2*std::max(fe.GetOrder(),
+                                   trace_face_fe.GetOrder()) + IntOrderOffset;
+      ir = &IntRules.Get(Tr.GetGeometryType(), order);
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.SetAllIntPoints(&ip); // set face and element int. points
+      const IntegrationPoint &eip = (type & 1)?(Tr.GetElement2IntPoint()):
+                                    (Tr.GetElement1IntPoint());
+
+      // Calculate basis functions on both elements at the face
+      fe.CalcShape(eip, shape_el);
+      trace_face_fe.CalcShape(ip, shape_tr);
+
+      // Interpolate elfun and trfun at the point
+      elfun_mat.MultTranspose(shape_el, state_el);
+      trfun_mat.MultTranspose(shape_tr, state_tr);
+
+      // Get the normal vector and the flux on the face
+      if (nor.Size() == 1)  // if 1D, use 1 or -1.
+      {
+         // This assume the 1D integration point is in (0,1). This may not work
+         // if this changes.
+         nor(0) = (Tr.GetElement1IntPoint().x - 0.5) * 2.0;
+      }
+      else
+      {
+         CalcOrtho(Tr.Jacobian(), nor);
+      }
+      if (type & 1) { nor.Neg(); }
+
+      // Compute average flux hat(F)(û,u) with maximum characteristic speed
+      numFlux.Average(state_tr, state_el, nor, Tr, fluxN);
+
+      // pre-multiply integration weight to flux
+      if (type & (HDGFaceType::ELEM | HDGFaceType::TRACE))
+      {
+         AddMult_a_VWt(-ip.weight*sign, shape_el, fluxN, elvect_mat);
+      }
+      if (type & (HDGFaceType::CONSTR | HDGFaceType::FACE))
+      {
+         AddMult_a_VWt(-ip.weight*sign, shape_tr, fluxN, trvect_mat);
+      }
+   }
+}
+
+void HyperbolicFormIntegrator::AssembleHDGFaceGrad(
+   int type, const FiniteElement &trace_face_fe, const FiniteElement &fe,
+   FaceElementTransformations &Tr, const Vector &trfun, const Vector &elfun,
+   DenseMatrix &elmat)
+{
+   const int dof_el = fe.GetDof();
+   const int dof_tr = trace_face_fe.GetDof();
+
+   const int dof_prim_el = (type & (HDGFaceType::ELEM | HDGFaceType::CONSTR))?
+                           (dof_el):(0);
+   const int dof_prim_tr = (type & (HDGFaceType::TRACE | HDGFaceType::FACE))?
+                           (dof_tr):(0);
+   const int dof_dual_el = (type & (HDGFaceType::ELEM | HDGFaceType::TRACE))?
+                           (dof_el):(0);
+   const int dof_dual_tr = (type & (HDGFaceType::CONSTR | HDGFaceType::FACE))?
+                           (dof_tr):(0);
+   const int dof_prim = dof_prim_el + dof_prim_tr;
+   const int dof_dual = dof_dual_el + dof_dual_tr;
+
+#ifdef MFEM_THREAD_SAFE
+   // Local storage for element integration
+
+   // normal vector (usually not a unit vector)
+   Vector nor(Tr.GetSpaceDim());
+   // shape function value at an integration point - elem
+   Vector shape_el(dof_el);
+   // shape function value at an integration point - trace
+   Vector shape_tr(dof_tr);
+   // state value at an integration point - elem
+   Vector state_el(num_equations);
+   // state value at an integration point - trace
+   Vector state_tr(num_equations);
+   // J(F)(u,x)
+   DenseMatrix JDotN(num_equations);
+#else
+   Vector &shape_el(shape1);
+   Vector &shape_tr(shape2);
+   Vector &state_el(state1);
+   Vector &state_tr(state2);
+   shape_el.SetSize(dof_el);
+   shape_tr.SetSize(dof_tr);
+#endif
+
+   elmat.SetSize(dof_dual * num_equations,
+                 dof_prim * num_equations);
+   elmat = 0.0;
+
+   const DenseMatrix elfun_mat(elfun.GetData(), dof_el, num_equations);
+   const DenseMatrix trfun_mat(trfun.GetData(), dof_tr, num_equations);
+
+   const IntegrationRule *ir = IntRule;
+   if (!ir)
+   {
+      const int order = 2*std::max(fe.GetOrder(),
+                                   trace_face_fe.GetOrder()) + IntOrderOffset;
+      ir = &IntRules.Get(Tr.GetGeometryType(), order);
+   }
+
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+
+      Tr.SetAllIntPoints(&ip); // set face and element int. points
+      const IntegrationPoint &eip = (type & 1)?(Tr.GetElement2IntPoint()):
+                                    (Tr.GetElement1IntPoint());
+
+      // Calculate basis functions on both elements at the face
+      fe.CalcShape(eip, shape_el);
+      trace_face_fe.CalcShape(ip, shape_tr);
+
+      // Interpolate elfun and trfun at the point
+      elfun_mat.MultTranspose(shape_el, state_el);
+      trfun_mat.MultTranspose(shape_tr, state_tr);
+
+      // Get the normal vector and the flux on the face
+      if (nor.Size() == 1)  // if 1D, use 1 or -1.
+      {
+         // This assume the 1D integration point is in (0,1). This may not work
+         // if this changes.
+         nor(0) = (Tr.GetElement1IntPoint().x - 0.5) * 2.0;
+      }
+      else
+      {
+         CalcOrtho(Tr.Jacobian(), nor);
+      }
+      if (type & 1) { nor.Neg(); }
+
+      // Compute average J(û, u)
+      int joff = 0;
+      if (type & (HDGFaceType::ELEM | HDGFaceType::CONSTR))
+      {
+         numFlux.AverageGrad(2, state_tr, state_el, nor, Tr, JDotN);
+
+         // pre-multiply integration weight to Jacobians
+         const real_t w = -ip.weight*sign;
+         int ioff = 0;
+         if (type & HDGFaceType::ELEM)
+         {
+            for (int di = 0; di < num_equations; di++)
+               for (int dj = 0; dj < num_equations; dj++)
+                  for (int i = 0; i < dof_el; i++)
+                     for (int j = 0; j < dof_el; j++)
+                     {
+                        elmat(di*dof_dual+ioff+i, dj*dof_prim+joff+j) +=
+                           w * JDotN(di,dj) * shape_el(i) * shape_el(j);
+                     }
+            ioff += dof_el;
+         }
+         if (type & HDGFaceType::CONSTR)
+         {
+            for (int di = 0; di < num_equations; di++)
+               for (int dj = 0; dj < num_equations; dj++)
+                  for (int i = 0; i < dof_tr; i++)
+                     for (int j = 0; j < dof_el; j++)
+                     {
+                        elmat(di*dof_dual+ioff+i, dj*dof_prim+joff+j) +=
+                           w * JDotN(di,dj) * shape_tr(i) * shape_el(j);
+                     }
+         }
+         joff += dof_el;
+      }
+      if (type & (HDGFaceType::TRACE | HDGFaceType::FACE))
+      {
+         numFlux.AverageGrad(1, state_tr, state_el, nor, Tr, JDotN);
+
+         // pre-multiply integration weight to Jacobians
+         const real_t w = -ip.weight*sign;
+         int ioff = 0;
+         if (type & HDGFaceType::TRACE)
+         {
+            for (int di = 0; di < num_equations; di++)
+               for (int dj = 0; dj < num_equations; dj++)
+                  for (int i = 0; i < dof_el; i++)
+                     for (int j = 0; j < dof_tr; j++)
+                     {
+                        elmat(di*dof_dual+ioff+i, dj*dof_prim+joff+j) +=
+                           w * JDotN(di,dj) * shape_el(i) * shape_tr(j);
+                     }
+            ioff += dof_el;
+         }
+         if (type & HDGFaceType::FACE)
+         {
+            for (int di = 0; di < num_equations; di++)
+               for (int dj = 0; dj < num_equations; dj++)
+                  for (int i = 0; i < dof_tr; i++)
+                     for (int j = 0; j < dof_tr; j++)
+                     {
+                        elmat(di*dof_dual+ioff+i, dj*dof_prim+joff+j) +=
+                           w * JDotN(di,dj) * shape_tr(i) * shape_tr(j);
+                     }
+         }
+      }
+   }
+}
+
 BdrHyperbolicDirichletIntegrator::BdrHyperbolicDirichletIntegrator(
    const NumericalFlux &numFlux,
    VectorCoefficient &bdrState,
@@ -1087,6 +1345,70 @@ void ComponentwiseUpwindFlux::AverageGrad(int side, const Vector &state1,
    }
 }
 
+real_t HDGFlux::Average(const Vector &state1, const Vector &state2,
+                        const Vector &nor, FaceElementTransformations &Tr,
+                        Vector &flux) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);
+#endif
+
+   // HDG-I/II schemes
+
+   const real_t speed1 = fluxFunction.ComputeFluxDotN(state1, nor, Tr, fluxN1);
+   const real_t speed2 = fluxFunction.ComputeFluxDotN(state2, nor, Tr, fluxN2);
+   switch (scheme)
+   {
+      case HDGScheme::HDG_1:
+         flux = fluxN1;
+         break;
+      case HDGScheme::HDG_2:
+         flux = fluxN2;
+         break;
+   }
+   for (int i = 0; i < fluxFunction.num_equations; i++)
+   {
+      flux(i) += Ctau * (state2(i) - state1(i)) * nor.Norml2();
+   }
+   return std::max(speed1, speed2);
+}
+
+void HDGFlux::AverageGrad(int side, const Vector &state1, const Vector &state2,
+                          const Vector &nor, FaceElementTransformations &Tr,
+                          DenseMatrix &grad) const
+{
+   MFEM_ASSERT(side == 1 || side == 2, "Unknown side");
+
+   // HDG-I/II schemes
+
+   switch (scheme)
+   {
+      case HDGScheme::HDG_1:
+         if (side == 1)
+         { fluxFunction.ComputeFluxJacobianDotN(state1, nor, Tr, grad); }
+         else
+         { grad = 0.; }
+         break;
+      case HDGScheme::HDG_2:
+         if (side == 1)
+         { grad = 0.; }
+         else
+         { fluxFunction.ComputeFluxJacobianDotN(state2, nor, Tr, grad); }
+         break;
+   }
+
+   if (side == 1)
+      for (int i = 0; i < fluxFunction.num_equations; i++)
+      {
+         grad(i,i) -= Ctau * nor.Norml2();
+      }
+   else
+      for (int i = 0; i < fluxFunction.num_equations; i++)
+      {
+         grad(i,i) += Ctau * nor.Norml2();
+      }
+}
+
 real_t AdvectionFlux::ComputeFlux(const Vector &U,
                                   ElementTransformation &Tr,
                                   DenseMatrix &FU) const
@@ -1282,7 +1604,8 @@ real_t EulerFlux::ComputeFlux(const Vector &U,
    const real_t density = U(0);                  // ρ
    const Vector momentum(U.GetData() + 1, dim);  // ρu
    const real_t energy = U(1 + dim);             // E, internal energy ρe
-   const real_t kinetic_energy = 0.5 * (momentum*momentum) / density;
+   const real_t kinetic_energy = (density > 0.)?(0.5 * (momentum*momentum) /
+                                                 density):(0.);
    // pressure, p = (γ-1)*(E - ½ρ|u|^2)
    const real_t pressure = (specific_heat_ratio - 1.0) *
                            (energy - kinetic_energy);
@@ -1291,6 +1614,13 @@ real_t EulerFlux::ComputeFlux(const Vector &U,
    MFEM_ASSERT(density >= 0, "Negative Density");
    MFEM_ASSERT(pressure >= 0, "Negative Pressure");
    MFEM_ASSERT(energy >= 0, "Negative Energy");
+
+   // Detect vacuum state
+   if (density == 0.)
+   {
+      FU = 0.;
+      return 0.;
+   }
 
    // 2. Compute Flux
    for (int d = 0; d < dim; d++)
@@ -1332,7 +1662,8 @@ real_t EulerFlux::ComputeFluxDotN(const Vector &x,
    const real_t density = x(0);                  // ρ
    const Vector momentum(x.GetData() + 1, dim);  // ρu
    const real_t energy = x(1 + dim);             // E, internal energy ρe
-   const real_t kinetic_energy = 0.5 * (momentum*momentum) / density;
+   const real_t kinetic_energy = (density > 0.)?(0.5 * (momentum*momentum) /
+                                                 density):(0.);
    // pressure, p = (γ-1)*(E - ½ρ|u|^2)
    const real_t pressure = (specific_heat_ratio - 1.0) *
                            (energy - kinetic_energy);
@@ -1341,6 +1672,13 @@ real_t EulerFlux::ComputeFluxDotN(const Vector &x,
    MFEM_ASSERT(density >= 0, "Negative Density");
    MFEM_ASSERT(pressure >= 0, "Negative Pressure");
    MFEM_ASSERT(energy >= 0, "Negative Energy");
+
+   // Detect vacuum state
+   if (density == 0.)
+   {
+      FUdotN = 0.;
+      return 0.;
+   }
 
    // 2. Compute normal flux
 
@@ -1363,6 +1701,427 @@ real_t EulerFlux::ComputeFluxDotN(const Vector &x,
    const real_t speed = std::fabs(normal_velocity) / std::sqrt(normal*normal);
    // max characteristic speed = fluid speed + sound speed
    return speed + sound;
+}
+
+real_t EulerFlux::CalcAvgKineticEnergy(real_t density1, real_t density2,
+                                       const Vector &momentum1, const Vector &momentum2)
+{
+   real_t kinetic_energy = 0.;
+
+   const real_t density = 0.5 * (density1 + density2);
+   const real_t dden = (density2 - density1) / density;
+   constexpr real_t den_tol = 5e-6;
+   const int dim = momentum1.Size();
+
+   if (fabs(dden) > den_tol)
+   {
+      const real_t dlnden = (-log(1. - dden/2.) + log(1. + dden/2.)) / dden;
+      for (int d = 0; d < dim; d++)
+      {
+         const real_t &mom1 = momentum1(d);
+         const real_t &mom2 = momentum2(d);
+         const real_t dmom = mom1 - mom2;
+         const real_t amom = 0.5 * (mom1 + mom2);
+         kinetic_energy += 0.5 * ((dlnden - 1.) / (dden*dden) * dmom *
+                                  (dmom + amom * 2. * dden)
+                                  + amom*amom * dlnden) / density;
+      }
+   }
+   else
+   {
+      for (int d = 0; d < dim; d++)
+      {
+         const real_t &mom1 = momentum1(d);
+         const real_t &mom2 = momentum2(d);
+         const real_t dmom = mom1 - mom2;
+         const real_t amom = 0.5 * (mom1 + mom2);
+         kinetic_energy += (mom1*mom1 + mom1*mom2 + mom2*mom2 + amom * dmom * dden /
+                            2.) / (6. * density);
+      }
+   }
+
+   return kinetic_energy;
+}
+
+void EulerFlux::CalcAvgFlux(real_t density1, real_t density2,
+                            const Vector &momentum1, const Vector &momentum2, real_t vel1, real_t vel2,
+                            Vector &flux)
+{
+   const real_t density = 0.5 * (density1 + density2);
+   const real_t dden = (density2 - density1) / density;
+   constexpr real_t den_tol = 5e-6;
+   const int dim = momentum1.Size();
+   const real_t avel = 0.5 * (vel1 + vel2);
+   const real_t dvel = vel1 - vel2;
+
+   if (fabs(dden) > den_tol)
+   {
+      const real_t dlnden = (-log(1. - dden/2.) + log(1. + dden/2.)) / dden;
+      for (int d = 0; d < dim; d++)
+      {
+         const real_t &mom1 = momentum1(d);
+         const real_t &mom2 = momentum2(d);
+         const real_t dmom = mom1 - mom2;
+         const real_t amom = 0.5 * (mom1 + mom2);
+         flux(d) = (dlnden - 1.) / (dden*dden) *
+                   (dmom * dvel + (dmom * avel + amom * dvel) * dden)
+                   + amom*avel * dlnden;
+      }
+   }
+   else
+   {
+      for (int d = 0; d < dim; d++)
+      {
+         const real_t &mom1 = momentum1(d);
+         const real_t &mom2 = momentum2(d);
+         const real_t dmom = mom1 - mom2;
+         const real_t amom = 0.5 * (mom1 + mom2);
+         flux(d) = (2.*mom1*vel1 + mom1*vel2 + mom2*vel1 + 2.*mom2*vel2) / 6. +
+                   (amom * dvel + dmom * avel) * dden / 12.;
+      }
+   }
+}
+
+real_t EulerFlux::CalcAvgFlux(real_t den1, real_t den2, real_t mom1,
+                              real_t mom2, real_t vel1, real_t vel2)
+{
+   Vector vmom1{mom1}, vmom2{mom2}, flux(1);
+   CalcAvgFlux(den1, den2, vmom1, vmom2, vel1, vel2, flux);
+   return flux(0);
+}
+
+real_t EulerFlux::ComputeAvgFlux(const Vector &U1, const Vector &U2,
+                                 ElementTransformation &Tr, DenseMatrix &FAvgU) const
+{
+   // 1. Get states
+   const real_t density1 = U1(0);                 // ρ1
+   const real_t density2 = U2(0);                 // ρ2
+   const Vector momentum1(U1.GetData() + 1, dim); // ρu1
+   const Vector momentum2(U2.GetData() + 1, dim); // ρu2
+   const real_t energy1 = U1(1 + dim);            // E1, internal energy ρe1
+   const real_t energy2 = U2(1 + dim);            // E2, internal energy ρe2
+   const real_t kinetic_energy1 = (density1 > 0.)?(0.5 * (momentum1*momentum1) /
+                                                   density1):(0.);
+   const real_t kinetic_energy2 = (density2 > 0.)?(0.5 * (momentum2*momentum2) /
+                                                   density2):(0.);
+   // pressure, p = (γ-1)*(E - ½ρ|u|^2)
+   const real_t pressure1 = (specific_heat_ratio - 1.0) *
+                            (energy1 - kinetic_energy1);
+   const real_t pressure2 = (specific_heat_ratio - 1.0) *
+                            (energy2 - kinetic_energy2);
+
+   // Check whether the solution is physical only in debug mode
+   MFEM_ASSERT(density1 >= 0 && density2 >= 0, "Negative Density");
+   MFEM_ASSERT(pressure1 >= 0 && pressure2 >= 0, "Negative Pressure");
+   MFEM_ASSERT(energy1 >= 0 && energy2 >= 0, "Negative Energy");
+
+   // Detect vacuum state
+   if (density1 == 0.)
+   {
+      return ComputeFlux(U2, Tr, FAvgU);
+   }
+   else if (density2 == 0.)
+   {
+      return ComputeFlux(U1, Tr, FAvgU);
+   }
+
+   // density
+   const real_t density = 0.5 * (density1 + density2);
+
+   // energy
+   const real_t energy = 0.5 * (energy1 + energy2);
+
+   // kinetic energy, ½ρ|u|^2
+   const real_t kinetic_energy = CalcAvgKineticEnergy(density1, density2,
+                                                      momentum1, momentum2);
+
+   // pressure, p = (γ-1)*(E - ½ρ|u|^2)
+   const real_t pressure = (specific_heat_ratio - 1.0) * (energy - kinetic_energy);
+   MFEM_ASSERT(pressure >= 0, "Negative Pressure");
+
+   // 2. Compute Flux
+   for (int d = 0; d < dim; d++)
+   {
+      const real_t &mom1_d = momentum1(d);
+      const real_t &mom2_d = momentum2(d);
+      FAvgU(0, d) = 0.5 * (mom1_d + mom2_d); // ρu
+
+      // ρuuᵀ
+      Vector FAvgU_mom(FAvgU.GetData() + 1 + d*(2+dim), dim);
+      const real_t vel1_d = mom1_d / density;
+      const real_t vel2_d = mom2_d / density;
+      CalcAvgFlux(density1, density2, momentum1, momentum2, vel1_d, vel2_d,
+                  FAvgU_mom);
+      // (ρuuᵀ) + p
+      FAvgU(1 + d, d) += pressure;
+   }
+   // enthalpy H = e + p/ρ = (E + p)/ρ
+   // note we take Hρ = E + p as a primary variable and average it, neglecting
+   // higher order terms in averaging of the kinetic energy in the definition
+   // of pressure
+   // u(E+p) = ρu*(E + p)/ρ = ρu*H
+   const real_t H1 = (energy1 + pressure1) / density;
+   const real_t H2 = (energy2 + pressure2) / density;
+   Vector FAvgU_en(dim);
+   CalcAvgFlux(density1, density2, momentum1, momentum2, H1, H2, FAvgU_en);
+   FAvgU.SetRow(1 + dim, FAvgU_en);
+
+   // 3. Compute maximum characteristic speed
+
+   // sound speed, √(γ p / ρ)
+   const real_t sound = std::sqrt(specific_heat_ratio * pressure / density);
+   // fluid speed |u|
+   const real_t speed = std::sqrt(2.0 * kinetic_energy / density);
+   // max characteristic speed = fluid speed + sound speed
+   return speed + sound;
+}
+
+real_t EulerFlux::ComputeAvgFluxDotN(const Vector &U1, const Vector &U2,
+                                     const Vector &normal, FaceElementTransformations &Tr,
+                                     Vector &FAvgUDotN) const
+{
+   // 1. Get states
+   const real_t density1 = U1(0);                 // ρ1
+   const real_t density2 = U2(0);                 // ρ2
+   const Vector momentum1(U1.GetData() + 1, dim); // ρu1
+   const Vector momentum2(U2.GetData() + 1, dim); // ρu2
+   const real_t energy1 = U1(1 + dim);            // E1, internal energy ρe1
+   const real_t energy2 = U2(1 + dim);            // E2, internal energy ρe2
+   const real_t kinetic_energy1 = (density1 > 0.)?(0.5 * (momentum1*momentum1) /
+                                                   density1):(0.);
+   const real_t kinetic_energy2 = (density2 > 0.)?(0.5 * (momentum2*momentum2) /
+                                                   density2):(0.);
+   // pressure, p = (γ-1)*(E - ½ρ|u|^2)
+   const real_t pressure1 = (specific_heat_ratio - 1.0) *
+                            (energy1 - kinetic_energy1);
+   const real_t pressure2 = (specific_heat_ratio - 1.0) *
+                            (energy2 - kinetic_energy2);
+
+   // Check whether the solution is physical only in debug mode
+   MFEM_ASSERT(density1 >= 0 && density2 >= 0, "Negative Density");
+   MFEM_ASSERT(pressure1 >= 0 && pressure2 >= 0, "Negative Pressure");
+   MFEM_ASSERT(energy1 >= 0 && energy2 >= 0, "Negative Energy");
+
+   // Detect vacuum state
+   if (density1 == 0.)
+   {
+      return ComputeFluxDotN(U2, normal, Tr, FAvgUDotN);
+   }
+   else if (density2 == 0.)
+   {
+      return ComputeFluxDotN(U1, normal, Tr, FAvgUDotN);
+   }
+
+   // density
+   const real_t density = 0.5 * (density1 + density2);
+
+   // energy
+   const real_t energy = 0.5 * (energy1 + energy2);
+
+   // kinetic energy, ½ρ|u|^2
+   const real_t kinetic_energy = CalcAvgKineticEnergy(density1, density2,
+                                                      momentum1, momentum2);
+
+   // pressure, p = (γ-1)*(E - ½ρ|u|^2)
+   const real_t pressure = (specific_heat_ratio - 1.0) * (energy - kinetic_energy);
+   MFEM_ASSERT(pressure >= 0, "Negative Pressure");
+
+   // 2. Compute normal flux
+
+   FAvgUDotN(0) = 0.5 * (momentum1 * normal + momentum2 * normal); // ρu⋅n
+
+   // ρuu⋅n + pn
+   Vector FAvgUDotN_mom(FAvgUDotN, 1, dim);
+   const real_t nvel1 = momentum1 * normal / density;
+   const real_t nvel2 = momentum2 * normal / density;
+   CalcAvgFlux(density1, density2, momentum1, momentum2, nvel1, nvel2,
+               FAvgUDotN_mom);
+   FAvgUDotN_mom.Add(pressure, normal);
+
+   // enthalpy H = e + p/ρ = (E + p)/ρ
+   // note we take Hρ = E + p as a primary variable and average it, neglecting
+   // higher order terms in averaging of the kinetic energy in the definition
+   // of pressure
+   const real_t Hrho1 = energy1 + pressure1;
+   const real_t Hrho2 = energy2 + pressure2;
+   // u⋅n(E+p) = ρu⋅n*(E + p)/ρ = ρu⋅n*H
+   FAvgUDotN(1 + dim) = CalcAvgFlux(density1, density2, Hrho1, Hrho2, nvel1,
+                                    nvel2);
+
+   // 3. Compute maximum characteristic speed
+
+   // sound speed, √(γ p / ρ)
+   const real_t sound = std::sqrt(specific_heat_ratio * pressure / density);
+   // fluid speed |u|
+   const real_t speed = std::sqrt(2.0 * kinetic_energy / density);
+   // max characteristic speed = fluid speed + sound speed
+   return speed + sound;
+}
+
+void EulerFlux::ComputeFluxJacobian(const Vector &U, ElementTransformation &Tr,
+                                    DenseTensor &JU) const
+{
+   // 1. Get states
+   const real_t density = U(0);                  // ρ
+   const Vector momentum(U.GetData() + 1, dim);  // ρu
+   const real_t energy = U(1 + dim);             // E, internal energy ρe
+   const real_t kinetic_energy = (density > 0.)?(0.5 * (momentum*momentum) /
+                                                 density):(0.);
+   // pressure, p = (γ-1)*(E - ½ρ|u|^2)
+   const real_t pressure = (specific_heat_ratio - 1.0) *
+                           (energy - kinetic_energy);
+
+   // Check whether the solution is physical only in debug mode
+   MFEM_ASSERT(density >= 0, "Negative Density");
+   MFEM_ASSERT(pressure >= 0, "Negative Pressure");
+   MFEM_ASSERT(energy >= 0, "Negative Energy");
+
+   // Detect vacuum state
+   if (density == 0.)
+   {
+      JU = 0.;
+      return;
+   }
+
+   // 2. Compute Jacobian
+   JU = 0.;
+   for (int d = 0; d < dim; d++)
+   {
+      const real_t velocity_d = momentum(d) / density;
+      // ρu
+      JU(0, 1 + d, d) = 1.;
+      // ρuuᵀ
+      JU(1 + d, 1 + d, d) = 2. * velocity_d;
+      for (int i = 0; i < dim; i++)
+      {
+         const real_t velocity_i = momentum(i) / density;
+         // ρuuᵀ
+         JU(1 + i, 0, d) = -velocity_i * velocity_d;
+         if (i != d)
+         {
+            JU(1 + i, 1 + i, d) = velocity_d;
+            JU(1 + i, 1 + d, d) = velocity_i;
+         }
+      }
+      // (ρuuᵀ) + p
+      JU(1 + d, 0, d) += (specific_heat_ratio - 1.0) * kinetic_energy / density;
+      for (int i = 0; i < dim; i++)
+      {
+         JU(1 + d, 1 + i, d) -= (specific_heat_ratio - 1.0) * momentum(i) / density;
+      }
+      JU(1 + d, 1 + dim, d) = specific_heat_ratio - 1.0;
+   }
+   // enthalpy H = e + p/ρ = (E + p)/ρ
+   const real_t H = (energy + pressure) / density;
+   // u(E+p) = ρu*(E + p)/ρ = ρu*H
+   for (int d = 0; d < dim; d++)
+   {
+      const real_t velocity_d = momentum(d) / density;
+      JU(1 + dim, 0, d) = velocity_d * (-H + (specific_heat_ratio - 1.0) *
+                                        kinetic_energy);
+      for (int i = 0; i < dim; i++)
+      {
+         JU(1 + dim, 1 + i, d) = -(specific_heat_ratio - 1.0) * velocity_d
+                                 * momentum(i) / density;
+      }
+      JU(1 + dim, 1 + d, d) += H;
+      JU(1 + dim, 1 + dim, d) = specific_heat_ratio * velocity_d;
+   }
+}
+
+real_t CompoundFlux::ComputeFlux(const Vector &Uv, ElementTransformation &Tr,
+                                 DenseMatrix &Fv) const
+{
+   Vector U(1);
+   DenseMatrix F(1, dim);
+   real_t max_char_speed = 0.;
+   for (int i = 0; i < num_equations; i++)
+   {
+      U(0) = Uv(i);
+      const real_t speed = flux.ComputeFlux(U, Tr, F);
+      max_char_speed = std::max(speed, max_char_speed);
+      Fv.SetRow(i, F.GetData());
+   }
+   return max_char_speed;
+}
+
+real_t CompoundFlux::ComputeFluxDotN(const Vector &Uv, const Vector &normal,
+                                     FaceElementTransformations &Tr, Vector &FvDotN) const
+{
+   Vector U(1);
+   Vector FDotN(1);
+   real_t max_char_speed = 0.;
+   for (int i = 0; i < num_equations; i++)
+   {
+      U(0) = Uv(i);
+      const real_t speed = flux.ComputeFluxDotN(U, normal, Tr, FDotN);
+      max_char_speed = std::max(speed, max_char_speed);
+      FvDotN(i) = FDotN(0);
+   }
+   return max_char_speed;
+}
+
+real_t CompoundFlux::ComputeAvgFlux(const Vector &Uv1, const Vector &Uv2,
+                                    ElementTransformation &Tr, DenseMatrix &Fv) const
+{
+   Vector U1(1), U2(1);
+   DenseMatrix F(1, dim);
+   real_t max_char_speed = 0.;
+   for (int i = 0; i < num_equations; i++)
+   {
+      U1(0) = Uv1(i);
+      U2(0) = Uv2(i);
+      const real_t speed = flux.ComputeAvgFlux(U1, U2, Tr, F);
+      max_char_speed = std::max(speed, max_char_speed);
+      Fv.SetRow(i, F.GetData());
+   }
+   return max_char_speed;
+}
+
+real_t CompoundFlux::ComputeAvgFluxDotN(const Vector &Uv1, const Vector &Uv2,
+                                        const Vector &normal, FaceElementTransformations &Tr, Vector &FvDotN) const
+{
+   Vector U1(1), U2(1);
+   Vector FDotN(1);
+   real_t max_char_speed = 0.;
+   for (int i = 0; i < num_equations; i++)
+   {
+      U1(0) = Uv1(i);
+      U2(0) = Uv2(i);
+      const real_t speed = flux.ComputeAvgFluxDotN(U1, U2, normal, Tr, FDotN);
+      max_char_speed = std::max(speed, max_char_speed);
+      FvDotN(i) = FDotN(0);
+   }
+   return max_char_speed;
+}
+
+void CompoundFlux::ComputeFluxJacobian(const Vector &Uv,
+                                       ElementTransformation &Tr, DenseTensor &Jv) const
+{
+   Vector U(1);
+   DenseTensor J(1, 1, dim);
+   for (int i = 0; i < num_equations; i++)
+   {
+      U(0) = Uv(i);
+      flux.ComputeFluxJacobian(U, Tr, J);
+      for (int d = 0; d < dim; d++)
+      {
+         Jv(i, i, d) = J(0, 0, d);
+      }
+   }
+}
+
+void CompoundFlux::ComputeFluxJacobianDotN(const Vector &Uv,
+                                           const Vector &normal, ElementTransformation &Tr, DenseMatrix &JvDotN) const
+{
+   Vector U(1);
+   DenseMatrix JDotN(1, 1);
+   for (int i = 0; i < num_equations; i++)
+   {
+      U(0) = Uv(i);
+      flux.ComputeFluxJacobianDotN(U, normal, Tr, JDotN);
+      JvDotN(i, i) = JDotN(0, 0);
+   }
 }
 
 } // namespace mfem

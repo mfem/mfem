@@ -73,7 +73,7 @@ examples/ex4[0-9]p
 examples/refined.mesh
 examples/displaced.mesh
 examples/mesh.*
-examples/ex5.mesh
+examples/ex5*.mesh
 examples/Example5*
 examples/ParaView
 examples/Example9*
@@ -83,6 +83,8 @@ examples/sphere_refined.*
 examples/sol.*
 examples/sol_u.*
 examples/sol_p.*
+examples/sol_q.*
+examples/sol_t.*
 examples/sol_r.*
 examples/sol_i.*
 examples/sol_z.*
@@ -101,7 +103,7 @@ examples/velocity.*
 examples/elastic_energy.*
 examples/mode_*
 examples/mode_deriv_*
-examples/ex5-p-*.bp
+examples/ex5*-p-*.bp
 examples/ex9-p-*.bp
 examples/ex12-p-*.bp
 examples/ex16-p-*.bp
@@ -154,6 +156,24 @@ examples/caliper/sol.*
 examples/ginkgo/ex1
 examples/ginkgo/refined.mesh
 examples/ginkgo/sol.gf
+
+examples/hdg/refined.mesh
+examples/hdg/displaced.mesh
+examples/hdg/mesh.*
+examples/hdg/ex5
+examples/hdg/ex5p
+examples/hdg/ex5.mesh
+examples/hdg/ex5-p-*.bp
+examples/hdg/ex14
+examples/hdg/ex14p
+examples/hdg/ex17
+examples/hdg/ex17p
+examples/hdg/sol.*
+examples/hdg/sol_p.*
+examples/hdg/sol_u.*
+examples/hdg/ex6p-checkpoint.*
+examples/hdg/Example5*
+examples/hdg/Paraview
 
 examples/hiop/ex9
 examples/hiop/ex9p

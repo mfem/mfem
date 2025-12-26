@@ -1,0 +1,60 @@
+Options used:
+   --mesh 
+   --ncells-x 8
+   --ncells-y 8
+   --size-x 1
+   --size-y 1
+   --order 3
+   --discontinuous
+   --centered
+   --problem 1
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 1
+   --velocity 1
+   --stab_diff 0.5
+   --hybridization
+   --no-partial-assembly
+   --device cpu
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --visualization
+   --no-analytic
+Device configuration: cpu
+Memory configuration: host-std
+***********************************************************
+dim(V) = 2048
+dim(W) = 1024
+dim(V+W) = 3072
+***********************************************************
+Assembly took 0.0120309s.
+Preconditioner took 9.286e-06s.
+   Pass :  1   Iteration :   0  ||B r|| = 1.96731
+   Pass :  1   Iteration :   1  ||B r|| = 1.24082
+   Pass :  1   Iteration :   2  ||B r|| = 0.785152
+   Pass :  1   Iteration :   3  ||B r|| = 0.612962
+   Pass :  1   Iteration :   4  ||B r|| = 0.444865
+   Pass :  1   Iteration :   5  ||B r|| = 0.308536
+   Pass :  1   Iteration :   6  ||B r|| = 0.181062
+   Pass :  1   Iteration :   7  ||B r|| = 0.0872824
+   Pass :  1   Iteration :   8  ||B r|| = 0.048816
+   Pass :  1   Iteration :   9  ||B r|| = 0.0234022
+   Pass :  1   Iteration :  10  ||B r|| = 0.0119249
+   Pass :  1   Iteration :  11  ||B r|| = 0.00419618
+   Pass :  1   Iteration :  12  ||B r|| = 0.00219869
+   Pass :  1   Iteration :  13  ||B r|| = 0.00115642
+   Pass :  1   Iteration :  14  ||B r|| = 0.000637756
+   Pass :  1   Iteration :  15  ||B r|| = 0.000297414
+   Pass :  1   Iteration :  16  ||B r|| = 0.000196751
+   Pass :  1   Iteration :  17  ||B r|| = 0.000123272
+   Pass :  1   Iteration :  18  ||B r|| = 6.14247e-05
+   Pass :  1   Iteration :  19  ||B r|| = 2.32696e-05
+   Pass :  1   Iteration :  20  ||B r|| = 1.13978e-05
+   Pass :  1   Iteration :  21  ||B r|| = 4.39964e-06
+   Pass :  1   Iteration :  22  ||B r|| = 1.71455e-06
+GMRES+GS converged in 22 iterations with a residual norm of 1.71455e-06.
+GMRES solver took 0.00161297s.
+|| q_h - q_ex || / || q_ex || = 1.03793e-05
+|| t_h - t_ex || / || t_ex || = 1.12283e-05

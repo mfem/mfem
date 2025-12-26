@@ -468,7 +468,7 @@ private:
    // hypre_csr. Shallow copy the data. Return the appropriate ownership flag.
    // The CSR arrays are wrapped in the mem_csr struct which is used to move
    // these arrays to device, if necessary.
-   static signed char CopyCSR(SparseMatrix *csr,
+   static signed char CopyCSR(const SparseMatrix *csr,
                               MemoryIJData &mem_csr,
                               hypre_CSRMatrix *hypre_csr,
                               bool mem_owner);
@@ -476,7 +476,7 @@ private:
    // bool_csr to hypre_csr. Allocate the data array and set it to all ones.
    // Return the appropriate ownership flag. The CSR arrays are wrapped in the
    // mem_csr struct which is used to move these arrays to device, if necessary.
-   static signed char CopyBoolCSR(Table *bool_csr,
+   static signed char CopyBoolCSR(const Table *bool_csr,
                                   MemoryIJData &mem_csr,
                                   hypre_CSRMatrix *hypre_csr);
 
@@ -1128,6 +1128,9 @@ protected:
    /// A flag that indicates whether the linear system matrix A is symmetric
    bool A_is_symmetric;
 
+   /// Ownership flag of the operator. Owned operator is freed in the destructor.
+   bool own_oper;
+
 public:
    /// HYPRE smoother types
    enum Type
@@ -1209,6 +1212,11 @@ public:
    /// Apply transpose of the smoother to relax the linear system Ax=b
    void MultTranspose(const Vector &b, Vector &x) const override;
 
+   /// Sets the ownership flag of the operator
+   void SetOwnership(bool own) { own_oper = own; }
+   /// Returns the ownership flag of the operator
+   bool GetOwnership() const { return own_oper; }
+
    virtual ~HypreSmoother();
 };
 
@@ -1239,6 +1247,9 @@ protected:
 
    /// How to treat hypre errors.
    mutable ErrorMode error_mode;
+
+   /// Ownership flag of the operator. Owned operator is freed in the destructor.
+   bool own_oper;
 
    /// @brief Makes the internal HypreParVector%s @a B and @a X wrap the input
    /// vectors @a b and @a x.
@@ -1295,6 +1306,11 @@ public:
        hypre_ParCSRComputeL1Norms() encounters zero row in a matrix, which is
        expected in some cases with the above solvers. */
    void SetErrorMode(ErrorMode err_mode) const { error_mode = err_mode; }
+
+   /// Sets the ownership flag of the operator
+   void SetOwnership(bool own) { own_oper = own; }
+   /// Returns the ownership flag of the operator
+   bool GetOwnership() const { return own_oper; }
 
    virtual ~HypreSolver();
 };
