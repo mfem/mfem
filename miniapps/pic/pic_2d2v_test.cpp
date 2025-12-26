@@ -686,7 +686,7 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
 
       MPI_Comm comm = pfes->GetComm();
 
-      if (!use_precomputed_neutralizing_const || !neutralizing_const_computed_1)
+      if (!use_precomputed_neutralizing_const || !neutralizing_const_computed)
       {
          // compute neutralizing constant
          real_t local_sum = 0.0;
