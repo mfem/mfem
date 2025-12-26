@@ -419,21 +419,21 @@ int main(int argc, char *argv[])
    // 13. Save the refined mesh and the solution in parallel. This output can be
    //     viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
-      ostringstream mesh_name, sol_r_name, sol_i_name;
-      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
-      sol_r_name << "ex25p-sol_r." << setfill('0') << setw(6) << myid;
-      sol_i_name << "ex25p-sol_i." << setfill('0') << setw(6) << myid;
-
-      ofstream mesh_ofs(mesh_name.str().c_str());
-      mesh_ofs.precision(8);
-      pmesh->Print(mesh_ofs);
-
-      ofstream sol_r_ofs(sol_r_name.str().c_str());
-      ofstream sol_i_ofs(sol_i_name.str().c_str());
-      sol_r_ofs.precision(8);
-      sol_i_ofs.precision(8);
-      x.real().Save(sol_r_ofs);
-      x.imag().Save(sol_i_ofs);
+      // ostringstream mesh_name, sol_r_name, sol_i_name;
+      // mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+      // sol_r_name << "ex25p-sol_r." << setfill('0') << setw(6) << myid;
+      // sol_i_name << "ex25p-sol_i." << setfill('0') << setw(6) << myid;
+      //
+      // ofstream mesh_ofs(mesh_name.str().c_str());
+      // mesh_ofs.precision(8);
+      // pmesh->Print(mesh_ofs);
+      //
+      // ofstream sol_r_ofs(sol_r_name.str().c_str());
+      // ofstream sol_i_ofs(sol_i_name.str().c_str());
+      // sol_r_ofs.precision(8);
+      // sol_i_ofs.precision(8);
+      // x.real().Save(sol_r_ofs);
+      // x.imag().Save(sol_i_ofs);
    }
 
    // 14. Save data in ParaView format.
