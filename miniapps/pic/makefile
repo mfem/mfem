@@ -31,7 +31,7 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 MFEM_FLAGS += -I$(MFEM_DIR)/miniapps/electromagnetics
 
 # Executable(s)
-APPS = push_particle_test pic_2d2v_test
+APPS = push_particle_test pic_2d2v_test phi_update_test
 
 all: $(APPS)
 
