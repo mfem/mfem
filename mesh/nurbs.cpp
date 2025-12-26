@@ -2380,7 +2380,7 @@ void NURBSExtension::Load(std::istream &input, bool spacing)
       }
       NumOfKnotVectors++;
       knotVectors.SetSize(NumOfKnotVectors);
-      knotVectors = nullptr;
+      knotVectors.operator=(nullptr);
 
       const int dim = Dimension();
       Array<int> edges, kvdir;
@@ -2432,7 +2432,7 @@ void NURBSExtension::Load(std::istream &input, bool spacing)
       input >> NumOfActiveElems;
       activeElem.SetSize(GetGNE());
       activeElem = false;
-      int glob_elem;
+      int glob_elem{};
       for (int i = 0; i < NumOfActiveElems; i++)
       {
          input >> glob_elem;
@@ -3473,13 +3473,17 @@ void NURBSExtension::UpdateUniqueKV()
          // Check if difference in order/element count
          const int o1 = KnotVec(iun)->GetOrder();
          const int o2 = knotVectorsCompr[icomp]->GetOrder();
+         const int diffo = abs(o1 - o2);
+
          const int ne1 = KnotVec(iun)->GetNE();
          const int ne2 = knotVectorsCompr[icomp]->GetNE();
 
-         if (o1 != o2 || ne1 != ne2)
+         if (diffo || ne1 != ne2)
          {
             // Update reduced set of knotvectors
             *(KnotVec(iun)) = *(knotVectorsCompr[icomp]);
+
+            // Give correct direction to unique knotvector.
             if (flip) { KnotVec(iun)->Flip(); }
          }
 
@@ -3491,7 +3495,10 @@ void NURBSExtension::UpdateUniqueKV()
 
          if (diffknot.Size() > 0)
          {
+            // Update reduced set of knotvectors
             *(KnotVec(iun)) = *(knotVectorsCompr[icomp]);
+
+            // Give correct direction to unique knotvector.
             if (flip) { KnotVec(iun)->Flip(); }
          }
       }
@@ -3522,7 +3529,8 @@ bool NURBSExtension::ConsistentKVSets()
          // Check if KnotVectors are of equal order
          const int o1 = KnotVec(iun)->GetOrder();
          const int o2 = knotVectorsCompr[icomp]->GetOrder();
-         if (o1 != o2)
+         const int diffo = abs(o1 - o2);
+         if (diffo)
          {
             mfem::out << "\norder of knotVectorsCompr " << d << " of patch " << p;
             mfem::out << " does not agree with knotVectors " << KnotInd(iun) << "\n";
@@ -5112,16 +5120,16 @@ void NURBSExtension::Set1DSolutionVector(Vector &coords, int vdim)
    {
       p2g.SetPatchDofMap(p, kv);
       NURBSPatch &patch = *patches[p];
-      MFEM_ASSERT(vdim + 1 == patch.GetNC(), "");
+      MFEM_ASSERT(vdim+1 == patch.GetNC(), "");
 
       for (int i = 0; i < kv[0]->GetNCP(); i++)
       {
          const int l = p2g(i);
          for (int d = 0; d < vdim; d++)
          {
-            coords(l * vdim + d) = patch(i, d) / patch(i, vdim);
+            coords(l*vdim + d) = patch(i,d)/patch(i,vdim);
          }
-         weights(l) = patch(i, vdim);
+         weights(l) = patch(i,vdim);
       }
 
       delete patches[p];
