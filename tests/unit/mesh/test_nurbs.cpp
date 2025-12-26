@@ -14,6 +14,8 @@ using namespace mfem;
 
 #include "unit_tests.hpp"
 
+#include <sstream>
+
 TEST_CASE("NURBS knot insertion and removal", "[NURBS]")
 {
    auto mesh_fname = "../../data/pipe-nurbs.mesh";
@@ -144,6 +146,291 @@ TEST_CASE("NURBS NC-patch mesh loading", "[NURBS]")
 
    mesh.NURBSUniformRefinement();
    REQUIRE(mesh.GetNE() == ne * std::pow(2, dim));
+}
+
+TEST_CASE("NURBS 1D variable-order mesh load", "[NURBS]")
+{
+   auto mesh_fname = GENERATE("../../data/nurbs-segments2d.mesh",
+                              "../../data/nurbs-segments3d.mesh",
+                              "../../data/nurbs-segments2d-patches.mesh",
+                              "../../data/nurbs-segments3d-patches.mesh",
+                              "../../data/nurbs-segments2d-patches-multispan.mesh");
+
+   // Set up hard-coded expected values based on the input meshes.
+   // This should be easy to update as needed.
+   struct ExpectedSizes
+   {
+      int phys_dim, ne, nv, nkv;
+      Array<int> orders, ncp;
+   };
+
+   const auto expected = [&]() -> ExpectedSizes
+   {
+      ExpectedSizes e;
+
+      const bool is_2d = (std::string(mesh_fname).find("2d") != std::string::npos);
+      e.phys_dim       = is_2d ? 2 : 3;
+
+      if (std::string(mesh_fname).find("multispan") != std::string::npos)
+      {
+         // multispan: 4 input segments w/ 9 elements, 13 vertices
+         e.ne     = 9;
+         e.nv     = 13;
+         e.nkv    = 4;
+         e.orders = Array<int>({1, 2, 3, 4});
+         e.ncp    = Array<int>({4, 4, 6, 5});
+      }
+      else
+      {
+         // standard: 3 elements, 6 vertices
+         e.ne     = 3;
+         e.nv     = 6;
+         e.nkv    = 3;
+         e.orders = Array<int>({1, 2, 3});
+         e.ncp    = Array<int>({2, 3, 4});
+      }
+
+      return e;
+   }();
+
+   Mesh mesh(mesh_fname, 1, 0);
+
+   // Basic mesh properties
+   REQUIRE(mesh.Dimension() == 1);
+   REQUIRE(mesh.SpaceDimension() == expected.phys_dim);
+
+   REQUIRE(mesh.GetNE() == expected.ne);
+   REQUIRE(mesh.GetNV() == expected.nv);
+
+   // NURBS extension must be present and 1D
+   REQUIRE(mesh.NURBSext != nullptr);
+   REQUIRE(mesh.NURBSext->Dimension() == 1);
+
+   // Check that we have the expected number of knotvectors
+   const int n_kv = mesh.NURBSext->GetNKV();
+   REQUIRE(n_kv == expected.nkv);
+
+   const Array<int> &orders = mesh.NURBSext->GetOrders();
+   REQUIRE(orders.Size() == n_kv);
+
+   // Validate each KnotVector's order and number of control points.
+   for (int i = 0; i < n_kv; i++)
+   {
+      const KnotVector *kv = mesh.NURBSext->GetKnotVector(i);
+      REQUIRE(kv != nullptr);
+
+      const int o   = kv->GetOrder();
+      const int ncp = kv->GetNCP();
+
+      bool matched = false;
+      for (int j = 0; j < expected.orders.Size(); ++j)
+      {
+         if (o == expected.orders[j] && ncp == expected.ncp[j])
+         {
+            matched = true;
+            break;
+         }
+      }
+      REQUIRE(matched);
+   }
+
+   // Additionally, exercise degree elevation and ensure basic invariants hold
+   {
+      const int max_order = orders.Max();
+      mesh.DegreeElevate(max_order, max_order);
+
+      REQUIRE(mesh.NURBSext != nullptr);
+      REQUIRE(mesh.Dimension() == 1);
+      REQUIRE(mesh.SpaceDimension() == expected.phys_dim);
+      REQUIRE(mesh.NURBSext->Dimension() == 1);
+
+      const Array<int> &new_orders = mesh.NURBSext->GetOrders();
+      REQUIRE(new_orders.Size() == orders.Size());
+      for (int i = 0; i < new_orders.Size(); ++i)
+      {
+         REQUIRE(new_orders[i] == max_order);
+      }
+   }
+}
+
+TEST_CASE("NURBS 1D shared KnotVector in patches", "[Mesh]")
+{
+   auto RequireSameKnotVector = [](const KnotVector &a, const KnotVector &b)
+   {
+      REQUIRE(a.GetOrder() == b.GetOrder());
+      REQUIRE(a.GetNCP() == b.GetNCP());
+      REQUIRE(a.Size() == b.Size());
+      for (int i = 0; i < a.Size(); i++)
+      {
+         REQUIRE( (a[i]-b[i]) == MFEM_Approx(0.));
+      }
+   };
+
+   const char *mesh_same_orientation = R"(
+MFEM NURBS mesh v1.0
+
+dimension
+1
+
+elements
+2
+1 1 0 1
+1 1 1 2
+
+boundary
+2
+1 0 0
+1 0 2
+
+# Both edges map to the same unique KnotVector (index 0).
+edges
+2
+0 0 1
+0 1 2
+
+vertices
+3
+
+patches
+
+# Patch 0: quadratic, 4 control points, 1 interior knot at u=0.3
+knotvectors
+1
+2 4  0 0 0 0.3  1 1 1
+
+dimension
+2
+
+controlpoints
+0.0 0.0 1.0
+0.3 0.0 1.0
+0.7 0.0 1.0
+1.0 0.0 1.0
+
+# Patch 1: same KnotVector, different control points (translated)
+knotvectors
+1
+2 4  0 0 0 0.3  1 1 1
+
+dimension
+2
+
+controlpoints
+1.0 0.0 1.0
+1.3 0.0 1.0
+1.7 0.0 1.0
+2.0 0.0 1.0
+)";
+
+   const char *mesh_opposite_orientation = R"(
+MFEM NURBS mesh v1.0
+
+dimension
+1
+
+elements
+2
+1 1 0 1
+1 1 2 1
+
+boundary
+2
+1 0 0
+1 0 2
+
+# Both edges map to the same unique KnotVector (index 0), but the second edge
+# has opposite orientation (v0 > v1), so its mapping is signed.
+edges
+2
+0 0 1
+0 2 1
+
+vertices
+3
+
+patches
+
+# Patch 0: u increases from x=0 to x=1
+knotvectors
+1
+2 4  0 0 0 0.3  1 1 1
+
+dimension
+2
+
+controlpoints
+0.0 0.0 1.0
+0.3 0.0 1.0
+0.7 0.0 1.0
+1.0 0.0 1.0
+
+# Patch 1: same KnotVector, but control points are reversed to match the
+# element/edge orientation.
+knotvectors
+1
+2 4  0 0 0 0.3  1 1 1
+
+dimension
+2
+
+controlpoints
+2.0 0.0 1.0
+1.7 0.0 1.0
+1.3 0.0 1.0
+1.0 0.0 1.0
+)";
+
+   SECTION("Same orientation")
+   {
+      std::istringstream iss(mesh_same_orientation);
+      Mesh mesh(iss, 1, 0);
+
+      REQUIRE(mesh.NURBSext != nullptr);
+      REQUIRE(mesh.Dimension() == 1);
+      REQUIRE(mesh.SpaceDimension() == 2);
+      REQUIRE(mesh.NURBSext->GetNP() == 2);
+      REQUIRE(mesh.NURBSext->GetNKV() == 1);
+
+      const KnotVector *unique_kv = mesh.NURBSext->GetKnotVector(0);
+      REQUIRE(unique_kv != nullptr);
+
+      Array<const KnotVector *> pkv0, pkv1;
+      mesh.NURBSext->GetPatchKnotVectors(0, pkv0);
+      mesh.NURBSext->GetPatchKnotVectors(1, pkv1);
+      REQUIRE(pkv0.Size() == 1);
+      REQUIRE(pkv1.Size() == 1);
+
+      RequireSameKnotVector(*unique_kv, *pkv0[0]);
+      RequireSameKnotVector(*unique_kv, *pkv1[0]);
+      RequireSameKnotVector(*pkv0[0], *pkv1[0]);
+   }
+
+   SECTION("Opposite orientation")
+   {
+      std::istringstream iss(mesh_opposite_orientation);
+      Mesh mesh(iss, 1, 0);
+
+      REQUIRE(mesh.NURBSext != nullptr);
+      REQUIRE(mesh.Dimension() == 1);
+      REQUIRE(mesh.SpaceDimension() == 2);
+      REQUIRE(mesh.NURBSext->GetNP() == 2);
+      REQUIRE(mesh.NURBSext->GetNKV() == 1);
+
+      const KnotVector *unique_kv = mesh.NURBSext->GetKnotVector(0);
+      REQUIRE(unique_kv != nullptr);
+
+      Array<const KnotVector *> pkv0, pkv1;
+      mesh.NURBSext->GetPatchKnotVectors(0, pkv0);
+      mesh.NURBSext->GetPatchKnotVectors(1, pkv1);
+      REQUIRE(pkv0.Size() == 1);
+      REQUIRE(pkv1.Size() == 1);
+
+      RequireSameKnotVector(*unique_kv, *pkv0[0]);
+
+      KnotVector flipped(*unique_kv);
+      flipped.Flip();
+      RequireSameKnotVector(flipped, *pkv1[0]);
+   }
 }
 
 TEST_CASE("NURBS NC-patch large meshes", "[MFEMData][NURBS]")
