@@ -2380,54 +2380,28 @@ void NURBSExtension::Load(std::istream &input, bool spacing)
       }
       NumOfKnotVectors++;
       knotVectors.SetSize(NumOfKnotVectors);
-      knotVectors = NULL;
+      knotVectors = nullptr;
 
-      Array<int> edges, oedge;
+      const int dim = Dimension();
+      Array<int> edges, kvdir;
       for (int p = 0; p < patches.Size(); p++)
       {
-         if (Dimension() == 1)
+         GetPatchKnotVectorEdges(p, edges);
+         CheckKVDirection(p, kvdir);
+
+         for (int d = 0; d < dim; d++)
          {
-            const int edge = p;
+            const int edge = edges[d];
             const int kv = KnotInd(edge);
-            if (knotVectors[kv] == NULL)
+            if (knotVectors[kv] != nullptr) { continue; }
+
+            knotVectors[kv] = new KnotVector(*patches[p]->GetKV(d));
+
+            // Store the unique KnotVector in the canonical orientation; the
+            // per-patch orientation is encoded in edge_to_ukv.
+            if (kvdir[d] == -1)
             {
-               knotVectors[kv] = new KnotVector(*patches[p]->GetKV(0));
-               // Store the unique KnotVector in the canonical orientation;
-               // the per-patch orientation is encoded in edge_to_ukv.
-               if (KnotSign(edge) == -1) { knotVectors[kv]->Flip(); }
-            }
-         }
-         else if (Dimension() == 2)
-         {
-            patchTopo->GetElementEdges(p, edges, oedge);
-            if (knotVectors[KnotInd(edges[0])] == NULL)
-            {
-               knotVectors[KnotInd(edges[0])] =
-                  new KnotVector(*patches[p]->GetKV(0));
-            }
-            if (knotVectors[KnotInd(edges[1])] == NULL)
-            {
-               knotVectors[KnotInd(edges[1])] =
-                  new KnotVector(*patches[p]->GetKV(1));
-            }
-         }
-         else if (Dimension() == 3)
-         {
-            patchTopo->GetElementEdges(p, edges, oedge);
-            if (knotVectors[KnotInd(edges[0])] == NULL)
-            {
-               knotVectors[KnotInd(edges[0])] =
-                  new KnotVector(*patches[p]->GetKV(0));
-            }
-            if (knotVectors[KnotInd(edges[3])] == NULL)
-            {
-               knotVectors[KnotInd(edges[3])] =
-                  new KnotVector(*patches[p]->GetKV(1));
-            }
-            if (knotVectors[KnotInd(edges[8])] == NULL)
-            {
-               knotVectors[KnotInd(edges[8])] =
-                  new KnotVector(*patches[p]->GetKV(2));
+               knotVectors[kv]->Flip();
             }
          }
       }
