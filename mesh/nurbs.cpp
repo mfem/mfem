@@ -3757,8 +3757,8 @@ void NURBSExtension::GetPatchOffsets(int &meshCounter, int &spaceCounter)
 
       if (dim == 1)
       {
-         meshCounter  += KnotVec(0)->GetNE() - 1;
-         spaceCounter += KnotVec(0)->GetNCP() - 2;
+         meshCounter  += KnotVec(p)->GetNE() - 1;
+         spaceCounter += KnotVec(p)->GetNCP() - 2;
       }
       else if (dim == 2)
       {
