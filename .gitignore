@@ -340,7 +340,7 @@ miniapps/nurbs/naca-cmesh.mesh
 miniapps/nurbs/glvis_naca-cmesh.mesh
 miniapps/nurbs/Naca_cmesh
 miniapps/nurbs/*-Surface.mesh
-miniapps/nurbs/ex25p-*.*
+miniapps/nurbs/ex25p*.*
 miniapps/nurbs/test_*
 miniapps/nurbs/*.sh
 
