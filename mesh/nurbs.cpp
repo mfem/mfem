@@ -3255,7 +3255,46 @@ void NURBSExtension::MergeGridFunctions(
 
 void NURBSExtension::CheckPatches()
 {
-   if (Dimension() == 1 ) { return; }
+   const int dim = Dimension();
+
+   if (dim == 1)
+   {
+      // In 1D, we treat each patch as a single patch-topology "edge" whose
+      // index is the patch index. The signed edge_to_ukv entry encodes the
+      // per-patch orientation.
+      MFEM_VERIFY(edge_to_ukv.Size() == patchTopo->GetNE(),
+                  "Invalid 1D edge_to_ukv size (expected one entry per patch).");
+
+      Array<int> v(2);
+
+      // If the patch topology has an explicit `edges` section, require it to be
+      // consistent with the 1D element list so patch index == edge index.
+      if (patchTopo->GetNEdges() > 0)
+      {
+         MFEM_VERIFY(patchTopo->GetNEdges() == patchTopo->GetNE(),
+                     "Invalid 1D patch-topology: number of edges must equal "
+                     "the number of patches.");
+         Array<int> ev(2);
+         for (int p = 0; p < GetNP(); p++)
+         {
+            patchTopo->GetElementVertices(p, v);
+            patchTopo->GetEdgeVertices(p, ev);
+            MFEM_VERIFY(v[0] == ev[0] && v[1] == ev[1],
+                        "Invalid 1D patch-topology: edge vertex ordering must "
+                        "match element vertex ordering (patch " << p << ").");
+         }
+      }
+
+      for (int p = 0; p < GetNP(); p++)
+      {
+         patchTopo->GetElementVertices(p, v);
+         const int expected_sign = (v[0] < v[1]) ? (1) : (-1);
+         MFEM_VERIFY(KnotSign(p) == expected_sign,
+                     "Inconsistent 1D edge_to_ukv orientation (patch " << p
+                     << ").");
+      }
+      return;
+   }
 
    Array<int> edges, oedge;
 
@@ -3282,7 +3321,7 @@ void NURBSExtension::CheckPatches()
             edges[8] != edges[9] || edges[8] != edges[10] ||
             edges[8] != edges[11])))
       {
-         mfem::err << "NURBSExtension::CheckPatch (patch = " << p
+         mfem::err << "NURBSExtension::CheckPatches (patch = " << p
                    << ")\n  Inconsistent edge-to-knotvector mapping!";
          mfem_error();
       }
