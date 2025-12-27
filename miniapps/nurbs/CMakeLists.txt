@@ -84,6 +84,11 @@ add_mfem_miniapp(nurbs_surface
   MAIN nurbs_surface.cpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(nurbs_ex25p
+  MAIN nurbs_ex25p.cpp
+  LIBRARIES mfem)
+  add_dependencies(nurbs_ex25p copy_miniapps_nurbs_data)
+
 if (MFEM_ENABLE_TESTING)
   add_test(NAME nurbs_ex1_1d_r1_o2_ser
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
