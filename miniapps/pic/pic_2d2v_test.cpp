@@ -359,7 +359,7 @@ int main(int argc, char *argv[])
       }
 
       // Remove lost particles
-      if (step % ctx.rm_lost_freq == 0)
+      if (step % ctx.rm_lost_freq == 0 || step == 1)
       {
          boris.RemoveLostParticles();
          std::string csv_prefix = "Lorentz_Part_";
