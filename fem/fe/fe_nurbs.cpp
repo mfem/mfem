@@ -869,7 +869,7 @@ void NURBS_HCurl2DFiniteElement::Project(const FiniteElement &fe,
    if (fe.GetRangeType() == SCALAR)
    {
       int sdim = Trans.GetSpaceDim();
-      constexpr real_t vk[Geometry::MaxDim];
+      real_t vk[Geometry::MaxDim];
       Vector shape(fe.GetDof());
       constexpr real_t tk_2d[4] = {1.0, 0.0, 0.0, 1.0};  // Unit tangents in x and y
 
@@ -1158,7 +1158,7 @@ void NURBS_HCurl3DFiniteElement::Project(const FiniteElement &fe,
    if (fe.GetRangeType() == SCALAR)
    {
       int sdim = Trans.GetSpaceDim();
-      constexpr real_t vk[Geometry::MaxDim];
+      real_t vk[Geometry::MaxDim];
       Vector shape(fe.GetDof());
       constexpr real_t tk_3d[9] = {1.0, 0.0, 0.0,  0.0, 1.0, 0.0,  0.0, 0.0, 1.0};  // Unit tangents
 
