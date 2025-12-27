@@ -50,7 +50,7 @@ TEST_CASE("NURBS ProjectGrad 2D", "[NURBSProjectGrad2D]")
    int order = 2;
 
    // Create a simple 2D NURBS mesh from a NURBS mesh file
-   Mesh mesh = Mesh("data/square-nurbs.mesh");
+   Mesh mesh = Mesh("tests/unit/data/square-nurbs.mesh");
 
    // Verify that the mesh is actually a NURBS mesh
    if (!mesh.NURBSext)
@@ -116,7 +116,7 @@ TEST_CASE("NURBS ProjectGrad 3D", "[NURBSProjectGrad3D]")
    int order = 2;
 
    // Create a simple 3D NURBS mesh from a NURBS mesh file
-   Mesh mesh = Mesh("data/cube-nurbs.mesh");
+   Mesh mesh = Mesh("tests/unit/data/cube-nurbs.mesh");
 
    // Verify that the mesh is actually a NURBS mesh
    if (!mesh.NURBSext)
@@ -181,7 +181,7 @@ TEST_CASE("NURBS ProjectGrad Detailed 2D", "[NURBSProjectGrad2D][.]" )
    int order = 1;
 
    // Create a simple 2D NURBS mesh from a NURBS mesh file
-   Mesh mesh = Mesh("data/square-nurbs.mesh");
+   Mesh mesh = Mesh("tests/unit/data/square-nurbs.mesh");
 
    // Verify that the mesh is actually a NURBS mesh
    if (!mesh.NURBSext)
@@ -239,7 +239,7 @@ TEST_CASE("NURBS ProjectGrad Detailed 3D", "[NURBSProjectGrad3D][.]" )
    int order = 1;
 
    // Create a simple 3D NURBS mesh from a NURBS mesh file
-   Mesh mesh = Mesh("data/cube-nurbs.mesh");
+   Mesh mesh = Mesh("tests/unit/data/cube-nurbs.mesh");
 
    // Verify that the mesh is actually a NURBS mesh
    if (!mesh.NURBSext)
@@ -300,7 +300,7 @@ TEST_CASE("NURBS Project 2D", "[NURBSProject2D]" )
    int order = 2;
 
    // Create a simple 2D NURBS mesh from a NURBS mesh file
-   Mesh mesh = Mesh("data/square-nurbs.mesh");
+   Mesh mesh = Mesh("tests/unit/data/square-nurbs.mesh");
 
    // Verify that the mesh is actually a NURBS mesh
    if (!mesh.NURBSext)
@@ -360,7 +360,7 @@ TEST_CASE("NURBS Project 3D", "[NURBSProject3D]" )
    int order = 1;
 
    // Create a simple 3D NURBS mesh from a NURBS mesh file
-   Mesh mesh = Mesh("data/cube-nurbs.mesh");
+   Mesh mesh = Mesh("tests/unit/data/cube-nurbs.mesh");
 
    // Verify that the mesh is actually a NURBS mesh
    if (!mesh.NURBSext)
