@@ -21,6 +21,8 @@ set(MESH_FILES
   two-squares-nurbs-autoedge.mesh
   two-squares-nurbs-rot.mesh
   two-squares-nurbs.mesh
+  3patch-nurbs.mesh
+  3patch-nurbs-flipedge.mesh
 )
 # Add a target to copy the mesh files from the source directory; used by sample
 # runs.
