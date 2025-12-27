@@ -317,56 +317,38 @@ int main(int argc, char *argv[])
 
    // set up timer
    auto start_time = std::chrono::high_resolution_clock::now();
-   for (int step = 1; step <= ctx.nt; step++)
+   for (int i = 0; i < charged_particles.GetNP(); i++)
    {
-      // Redistribute
-      if (ctx.redist_freq > 0 && (step % ctx.redist_freq == 0 || step == 1) &&
-          boris.GetParticles().GetGlobalNP() > 0)
+      // --- Momentum: Maxwellian in ALL velocity dimensions ---
+      for (int d = 0; d < dim; d++)
+         P(i, d) = m * norm_dist(gen);
+
+      // --- Uniform positions in ALL spatial dimensions ---
+      for (int d = 0; d < dim; d++)
+         X(i, d) = real_dist(gen) * L_x;
+
+      // --- Option 2: density perturbation via displacement ---
+      // phase = k · x  (here assuming k has equal components)
+      real_t phase = 0.0;
+      for (int d = 0; d < dim; d++)
+         phase += k * X(i, d);
+
+      real_t shift = (alpha / k) * std::sin(phase);
+
+      // Displace along k̂ : same fractional shift in each dimension
+      for (int d = 0; d < dim; d++)
       {
-         // Redistribute
-         boris.Redistribute(ctx.redist_mesh);
+         X(i, d) -= shift;
 
-         // Update phi_gf from particles
-         gf_updates.UpdatePhiGridFunction(boris.GetParticles(), phi_gf, *E_gf);
-
-         gf_updates.TotalEnergyValidation(boris.GetParticles(), *E_gf);
+         // periodic wrap
+         X(i, d) = std::fmod(X(i, d), L_x);
+         if (X(i, d) < 0)
+            X(i, d) += L_x;
       }
 
-      if (step == 1)
-      {
-         real_t neg_half_dt = -dt / 2.0;
-         // Perform a "zeroth" step to move p half step backward
-         boris.Step(t, neg_half_dt, true);
-      }
-      // Step the Boris algorithm
-      boris.Step(t, dt);
-      if (Mpi::Root())
-      {
-         mfem::out << "Step: " << step << " | Time: " << t;
-         // Print timing information every 100 steps
-         if (step % 10 == 0)
-         {
-            std::chrono::duration<double> elapsed = std::chrono::high_resolution_clock::now() - start_time;
-            mfem::out << " | Time per step: " << elapsed.count() / step;
-         }
-         mfem::out << endl;
-      }
-
-      // Visualize trajectories
-      if (ctx.visualization && step % ctx.vis_freq == 0)
-      {
-         traj_vis->Visualize();
-      }
-
-      // Remove lost particles
-      if (step % ctx.rm_lost_freq == 0 || step == 1)
-      {
-         boris.RemoveLostParticles();
-         std::string csv_prefix = "Lorentz_Part_";
-         Array<int> field_idx{2}, tag_idx;
-         std::string file_name = csv_prefix + mfem::to_padded_string(step, 6) + ".csv";
-         boris.GetParticles().PrintCSV(file_name.c_str(), field_idx, tag_idx);
-      }
+      // --- Mass & charge ---
+      M(i) = m;
+      Q(i) = q;
    }
 }
 
