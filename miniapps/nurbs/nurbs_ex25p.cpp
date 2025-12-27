@@ -6,9 +6,10 @@
 //               mpirun -np 4 nurbs_ex25p -m ../../data/square-nurbs.mesh -o 2
 //               mpirun -np 4 nurbs_ex25p -m ../../data/cube-nurbs.mesh
 
-// Description:  This example code solves a simple electromagnetic wave parallel IGA(NURBS)
-//               propagation problem corresponding to the second order
-//               indefinite Maxwell equation
+// Description:  This example code solves a simple electromagnetic
+//               wave parallel IGA(NURBS) propagation problem
+//               corresponding to the second order indefinite
+//               Maxwell equation
 //
 //                  (1/mu) * curl curl E - \omega^2 * epsilon E = f
 //
@@ -24,6 +25,7 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <iomanip>
 
 using namespace std;
 using namespace mfem;
@@ -126,8 +128,6 @@ real_t mu = 1.0;
 real_t epsilon = 1.0;
 real_t omega;
 int dim;
-bool exact_known = false;
-
 
 int main(int argc, char *argv[])
 {
@@ -137,10 +137,8 @@ int main(int argc, char *argv[])
    Hypre::Init();
    // Parse command-line options.
    const char *mesh_file = "../../data/square-nurbs.mesh";
-   int ref_levels = -1;
-   bool NURBS = true;
+   int ref_levels = 5;
    int order = 1;
-   bool static_cond = false;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = 1;
@@ -155,15 +153,11 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&NURBS, "-n", "--nurbs", "-nn","--no-nurbs",
-                  "NURBS.");
    args.AddOption(&freq, "-f", "--frequency", "Set the frequency for the exact"
                   " solution.");
    args.AddOption(&use_ams, "-ams", "--ams-preconditioner", "-amg",
                   "--amg-preconditioner",
                   "Use AMS preconditioner (true) or block diagonal AMG (false).");
-   args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
-                  "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -181,7 +175,6 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
-
 
    // Enable hardware devices such as GPUs, and programming models such as
    // CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -204,7 +197,11 @@ int main(int argc, char *argv[])
    domain_bdr = pml->GetDomainBdr();
 
    // 4. Refine the mesh to increase the resolution.
-   for (int l = 0; l < 5; l++)
+   if (ref_levels == -1)
+   {
+      ref_levels = (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+   }
+   for (int l = 0; l < ref_levels; l++)
    {
       mesh->UniformRefinement();
    }
@@ -213,21 +210,17 @@ int main(int argc, char *argv[])
    delete mesh;
    pml->SetAttributes(pmesh);
 
-
-   // 5. Define a finite element space on the mesh. Here we use the
-   //    Raviart-Thomas finite elements of the specified order.
+   // 5. Define a finite element space on the mesh.
    FiniteElementCollection *fec = nullptr;
    NURBSExtension *NURBSext = nullptr;
 
    fec = new NURBS_HCurlFECollection(order,dim);
    NURBSext  = new NURBSExtension(pmesh->NURBSext, order);
-   mfem::out<<" Create NURBS fec and ext"<<std::endl;
 
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, NURBSext,
                                                               fec);
    cout <<"Number of finite element unknowns in rank "<<myid<<": "
         << fespace->GetTrueVSize() << endl;
-
 
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
@@ -252,6 +245,7 @@ int main(int argc, char *argv[])
    b.AddDomainIntegrator(NULL, new VectorFEDomainLFIntegrator(f));
    b.Vector::operator=(0.0);
    b.Assemble();
+
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x by projecting the exact
    //    solution. Note that only values from the boundary edges will be used
@@ -289,7 +283,7 @@ int main(int argc, char *argv[])
    a.AddDomainIntegrator(new CurlCurlIntegrator(restr_muinv),NULL);
    a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_omeg),NULL);
 
-   int cdim = (dim == 2) ? 1 : dim;
+   const int cdim = (dim == 2) ? 1 : dim;
    PMLDiagMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, pml);
    PMLDiagMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, pml);
    ScalarVectorProductCoefficient c1_Re(muinv,pml_c1_Re);
@@ -314,7 +308,6 @@ int main(int argc, char *argv[])
    //     applying any necessary transformations such as: eliminating boundary
    //     conditions, applying conforming constraints for non-conforming AMR,
    //     static condensation, etc.
-
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.Assemble(0);
 
@@ -327,6 +320,9 @@ int main(int argc, char *argv[])
    ConstantCoefficient absomeg(pow2(omega) * epsilon);
    RestrictedCoefficient restr_absomeg(absomeg,attr);
 
+   // Define bilinear form for the preconditioner
+   // This creates a Hermitian, positive definite approximation to the original
+   // sesquilinear form for use in the preconditioner
    ParBilinearForm prec(fespace);
    prec.AddDomainIntegrator(new CurlCurlIntegrator(restr_muinv));
    prec.AddDomainIntegrator(new VectorFEMassIntegrator(restr_absomeg));
@@ -354,7 +350,7 @@ int main(int argc, char *argv[])
 
    std::unique_ptr<Operator> pc_r;
    std::unique_ptr<Operator> pc_i;
-   int s = (conv == ComplexOperator::HERMITIAN) ? -1 : 1;
+   const int s = (conv == ComplexOperator::HERMITIAN) ? -1 : 1;
 
    OperatorPtr PCOpAh;
    prec.FormSystemMatrix(ess_tdof_list, PCOpAh);
@@ -407,7 +403,7 @@ int main(int argc, char *argv[])
       cout << " Converged: " << gmres.GetConverged() << "\n";
       if (use_ams)
       {
-         cout << "\nAMS preconditioner successfully used for NURBS HCurl space!" << endl;
+         cout << "\nAMS preconditioner successfully used!" << endl;
       }
       else
       {
@@ -417,14 +413,20 @@ int main(int argc, char *argv[])
    }
 
    // 13. Save the refined mesh and the solution in parallel. This output can be
-   //     viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+   //     viewed later using GLVis: "glvis -np <np> -m refined.mesh -g sol_r.gf -g sol_i.gf".
    {
-      ofstream mesh_ofs("refined.mesh");
+      // Add rank number to filenames to prevent conflicts in parallel
+      ostringstream mesh_name, sol_r_name, sol_i_name;
+      mesh_name << "refined.mesh." << setfill('0') << setw(6) << myid;
+      sol_r_name << "sol_r.gf." << setfill('0') << setw(6) << myid;
+      sol_i_name << "sol_i.gf." << setfill('0') << setw(6) << myid;
+
+      ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
       pmesh->Print(mesh_ofs);
 
-      ofstream sol_r_ofs("sol_r.gf");
-      ofstream sol_i_ofs("sol_i.gf");
+      ofstream sol_r_ofs(sol_r_name.str().c_str());
+      ofstream sol_i_ofs(sol_i_name.str().c_str());
       sol_r_ofs.precision(8);
       sol_i_ofs.precision(8);
       x.real().Save(sol_r_ofs);
@@ -449,6 +451,39 @@ int main(int argc, char *argv[])
    pd->Save();
    delete pd;
 
+   // Send the solution by socket to a GLVis server.
+   if (visualization)
+   {
+      // Define visualization keys for GLVis (see GLVis documentation)
+      string keys;
+      keys = (dim == 3) ? "keys macF\n" : "keys amrRljcUUuu\n";
+
+      char vishost[] = "localhost";
+      int visport = 19916;
+
+      // Send real part
+      {
+         socketstream sol_sock_re(vishost, visport);
+         sol_sock_re.precision(8);
+         sol_sock_re << "parallel " << Mpi::WorldSize() << " " << myid << "\n"
+                     << "solution\n" << *pmesh << x.real() << keys
+                     << "window_title 'Solution real part'" << flush;
+         MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
+      }
+
+      MPI_Barrier(MPI_COMM_WORLD); // Additional barrier between real and imag parts
+      
+      // Send imaginary part
+      {
+         socketstream sol_sock_im(vishost, visport);
+         sol_sock_im.precision(8);
+         sol_sock_im << "parallel " << Mpi::WorldSize() << " " << myid << "\n"
+                     << "solution\n" << *pmesh << x.imag() << keys
+                     << "window_title 'Solution imag part'" << flush;
+         MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
+      }
+   }
+
    if (myid == 0)
    {
       cout << "\n" << string(80, '-') << endl;
@@ -459,7 +494,7 @@ int main(int argc, char *argv[])
    delete fespace;
    delete fec;
    delete pmesh;
-   // fespace owns and destroys NURBSext
+
    return 0;
 }
 
