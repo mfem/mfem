@@ -621,34 +621,29 @@ void InitializeChargedParticles(ParticleSet &charged_particles,
 
    for (int i = 0; i < charged_particles.GetNP(); i++)
    {
-      // --- Momentum: Maxwellian in ALL velocity dimensions ---
+      // Initialize momentum
       for (int d = 0; d < dim; d++)
          P(i, d) = m * norm_dist(gen);
 
-      // --- Uniform positions in ALL spatial dimensions ---
+      // Uniform positions (no accept-reject)
       for (int d = 0; d < dim; d++)
          X(i, d) = real_dist(gen) * L_x;
 
-      // --- Option 2: density perturbation via displacement ---
-      // phase = k · x  (here assuming k has equal components)
-      real_t phase = 0.0;
-      for (int d = 0; d < dim; d++)
-         phase += k * X(i, d);
-
-      real_t shift = (alpha / k) * std::sin(phase);
-
-      // Displace along k̂ : same fractional shift in each dimension
+      // Option 2: displacement along x for perturbation ~ cos(k x)
       for (int d = 0; d < dim; d++)
       {
-         X(i, d) -= shift;
+         real_t x = X(i, d);
+         x -= (alpha / k) * std::sin(k * x);
 
-         // periodic wrap
-         X(i, d) = std::fmod(X(i, d), L_x);
-         if (X(i, d) < 0)
-            X(i, d) += L_x;
+         // periodic wrap to [0, L_x)
+         x = std::fmod(x, L_x);
+         if (x < 0)
+            x += L_x;
+
+         X(i, d) = x;
       }
 
-      // --- Mass & charge ---
+      // Initialize mass + charge
       M(i) = m;
       Q(i) = q;
    }
