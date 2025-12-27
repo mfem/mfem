@@ -367,7 +367,6 @@ int main(int argc, char *argv[])
          std::string file_name = csv_prefix + mfem::to_padded_string(step, 6) + ".csv";
          boris.GetParticles().PrintCSV(file_name.c_str(), field_idx, tag_idx);
       }
-
    }
 }
 
@@ -612,8 +611,8 @@ void InitializeChargedParticles(ParticleSet &charged_particles,
    std::normal_distribution<> norm_dist(0.0, 1.0);
 
    int dim = charged_particles.Coords().GetVDim();
-   // assert alpha in [0, 1/d)
    MFEM_VERIFY(alpha >= -1.0 && alpha < 1.0, "Alpha should be in range [-1, 1).");
+   MFEM_VERIFY(k != 0.0, "k must be nonzero for displacement initialization.");
 
    MultiVector &X = charged_particles.Coords();
    MultiVector &P = charged_particles.Field(Boris::MOM);
@@ -622,21 +621,27 @@ void InitializeChargedParticles(ParticleSet &charged_particles,
 
    for (int i = 0; i < charged_particles.GetNP(); i++)
    {
+      // Initialize momentum
       for (int d = 0; d < dim; d++)
-         // Initialize momentum
          P(i, d) = m * norm_dist(gen);
 
+      // Uniform positions (no accept-reject)
       for (int d = 0; d < dim; d++)
-      {
-         while (true)
-         {
-            X(i, d) = real_dist(gen) * L_x;
-            double w = 1.0 + alpha * std::cos(k * X(i, d)); // should be >= 0 if |alpha|<=1
+         X(i, d) = real_dist(gen) * L_x;
 
-            if (real_dist(gen) < w / (1.0 + std::abs(alpha)))
-               break;
-         }
+      // Option 2: displacement along x for perturbation ~ cos(k x)
+      {
+         real_t x = X(i, 0);
+         x -= (alpha / k) * std::sin(k * x);
+
+         // periodic wrap to [0, L_x)
+         x = std::fmod(x, L_x);
+         if (x < 0)
+            x += L_x;
+
+         X(i, 0) = x;
       }
+
       // Initialize mass + charge
       M(i) = m;
       Q(i) = q;
