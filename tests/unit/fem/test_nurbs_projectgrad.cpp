@@ -76,7 +76,7 @@ TEST_CASE("NURBS ProjectGrad 2D", "[NURBSProjectGrad2D]")
       if (nurbs_fe->GetGeomType() == Geometry::SQUARE)
       {
          // Cast to NURBS_HCurl2DFiniteElement to access ProjectGrad
-         const NURBS_HCurl2DFiniteElement *hc_fe = 
+         const NURBS_HCurl2DFiniteElement *hc_fe =
             dynamic_cast<const NURBS_HCurl2DFiniteElement*>(nurbs_fe);
 
          if (hc_fe != nullptr)
@@ -135,7 +135,7 @@ TEST_CASE("NURBS ProjectGrad 3D", "[NURBSProjectGrad3D]")
       if (nurbs_fe->GetGeomType() == Geometry::CUBE)
       {
          // Cast to NURBS_HCurl3DFiniteElement to access ProjectGrad
-         const NURBS_HCurl3DFiniteElement *hc_fe = 
+         const NURBS_HCurl3DFiniteElement *hc_fe =
             dynamic_cast<const NURBS_HCurl3DFiniteElement*>(nurbs_fe);
 
          if (hc_fe != nullptr)
@@ -189,7 +189,7 @@ TEST_CASE("NURBS ProjectGrad Detailed 2D", "[NURBSProjectGrad2D][.]")
    const FiniteElement *nurbs_fe = nurbs_fes.GetFE(0);
 
    // Test ProjectGrad if it's a NURBS_HCurl element
-   const NURBS_HCurl2DFiniteElement *hc_fe = 
+   const NURBS_HCurl2DFiniteElement *hc_fe =
       dynamic_cast<const NURBS_HCurl2DFiniteElement*>(nurbs_fe);
 
    if (hc_fe != nullptr)
@@ -226,8 +226,9 @@ TEST_CASE("NURBS ProjectGrad Detailed 3D", "[NURBSProjectGrad3D][.]")
    FiniteElementSpace nurbs_fes(&mesh, &nurbs_fec, 3); // 3D vector space
 
    // Create a quadratic function to test with: f(x,y,z) = x^2 + y^2 + z^2
-   FunctionCoefficient f_coeff([](const Vector &x) { 
-      return x[0]*x[0] + x[1]*x[1] + x[2]*x[2]; 
+   FunctionCoefficient f_coeff([](const Vector &x)
+   {
+      return x[0]*x[0] + x[1]*x[1] + x[2]*x[2];
    });
    GridFunction h1_gf(&h1_fes);
    h1_gf.ProjectCoefficient(f_coeff);
@@ -238,7 +239,7 @@ TEST_CASE("NURBS ProjectGrad Detailed 3D", "[NURBSProjectGrad3D][.]")
    const FiniteElement *nurbs_fe = nurbs_fes.GetFE(0);
 
    // Test ProjectGrad if it's a NURBS_HCurl element
-   const NURBS_HCurl3DFiniteElement *hc_fe = 
+   const NURBS_HCurl3DFiniteElement *hc_fe =
       dynamic_cast<const NURBS_HCurl3DFiniteElement*>(nurbs_fe);
 
    if (hc_fe != nullptr)
