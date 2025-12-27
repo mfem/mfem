@@ -33,6 +33,8 @@ struct LorentzContext
    int visport = 19916;
 
    int N_max = 60;
+
+   bool analytical = true;
 } ctx;
 
 class GreenFunctionCoefficient : public Coefficient
@@ -363,52 +365,114 @@ public:
    {
       // FE space / mesh
       ParFiniteElementSpace *phi_pfes = phi_gf.ParFESpace();
-      ParGridFunction var_phi_gf(phi_pfes);
-      GreenFunctionCoefficient green_coeff;
-      var_phi_gf.ProjectCoefficient(green_coeff);
       ParMesh *pmesh = phi_pfes->GetParMesh();
-
+      ParGridFunction var_phi_gf(phi_pfes);
       ParFiniteElementSpace *E_pfes = E_gf.ParFESpace();
       ParGridFunction var_E_gf(E_pfes);
-
+      ParFiniteElementSpace *pfes = phi_gf.ParFESpace();
+      if (ctx.analytical)
       {
-         // 1.a make the RHS bilinear form
-         ParMixedBilinearForm b_bi(phi_gf.ParFESpace(), var_E_gf.ParFESpace());
-         ConstantCoefficient neg_one_coef(-1.0);
-         b_bi.AddDomainIntegrator(new MixedVectorGradientIntegrator(neg_one_coef));
-         b_bi.Assemble();
-         b_bi.Finalize();
-         // 1.b form linear form from bilinear form
-         ParLinearForm b(var_E_gf.ParFESpace());
-         b = 0.0;
-         b_bi.Mult(var_phi_gf, b);
-         // Convert to true-dof (parallel) vector
-         HypreParVector *B = b.ParallelAssemble();
+         GreenFunctionCoefficient green_coeff;
+         var_phi_gf.ProjectCoefficient(green_coeff);
+      }
+      else
+      {
+         // ------------------------------------------------------------------
+         // 1) Build RHS with delta function and neutralizing constant
+         // ------------------------------------------------------------------
 
-         // 2. make the bilinear form
-         ParBilinearForm a(var_E_gf.ParFESpace());
-         ConstantCoefficient one_coef(1.0);
-         a.AddDomainIntegrator(new VectorFEMassIntegrator(one_coef));
-         a.Assemble();
-         a.Finalize();
-         // Parallel operator (HypreParMatrix)
-         HypreParMatrix *A = a.ParallelAssemble();
+         // pfes is assumed to be: ParFiniteElementSpace *pfes
+         ParLinearForm b(pfes);
 
-         // 3. solve for var_E_gf
-         CGSolver M_solver(var_E_gf.ParFESpace()->GetComm());
-         M_solver.iterative_mode = false;
-         M_solver.SetRelTol(1e-24);
-         M_solver.SetAbsTol(0.0);
-         M_solver.SetMaxIter(1e5);
-         M_solver.SetPrintLevel(0);
-         M_solver.SetOperator(*A);
+         // Communicator
+         MPI_Comm comm = pfes->GetComm();
 
-         HypreParVector X(var_E_gf.ParFESpace()->GetComm(), var_E_gf.ParFESpace()->GlobalTrueVSize(), var_E_gf.ParFESpace()->GetTrueDofOffsets());
-         X = 0.0;
-         M_solver.Mult(*B, X);
-         var_E_gf.SetFromTrueDofs(X);
-         delete A;
+         // Location of the delta (2D periodic Cartesian domain)
+         double x0 = 0.5;
+         double y0 = 0.5;
+
+         // Strength of the delta
+         double delta_strength = 1.0;
+
+         // MFEM DeltaCoefficient (2D signature)
+         DeltaCoefficient delta_coeff(x0, y0, delta_strength);
+
+         // Add delta contribution
+         b.AddDomainIntegrator(new DomainLFIntegrator(delta_coeff));
+
+         // ------------------------------------------------------------------
+         // 2) Compute global domain volume |Ω|
+         // ------------------------------------------------------------------
+         double local_vol = 0.0;
+         double global_vol = 0.0;
+
+         ParMesh *pmesh = pfes->GetParMesh();
+         for (int i = 0; i < pmesh->GetNE(); i++)
+         {
+            local_vol += pmesh->GetElementVolume(i);
+         }
+
+         MPI_Allreduce(&local_vol, &global_vol, 1, MPI_DOUBLE, MPI_SUM, comm);
+
+         // ------------------------------------------------------------------
+         // 3) Neutralizing constant:  -(1/|Ω|) * ∫ delta dx
+         //    For DeltaCoefficient, ∫ delta dx = delta_strength
+         // ------------------------------------------------------------------
+         double mean_value = delta_strength / global_vol;
+         ConstantCoefficient neutral_coeff(-mean_value);
+
+         // Add neutralizing term
+         b.AddDomainIntegrator(new DomainLFIntegrator(neutral_coeff));
+
+         // Assemble RHS
+         b.Assemble();
+
+         // ------------------------------------------------------------------
+         // 4) Assemble to a global true-dof RHS vector
+         // ------------------------------------------------------------------
+         HypreParVector *B = b.ParallelAssemble(); // owns heap memory
+
+         // ------------------------------------------------------------------
+         // 5) Solve A * phi = B with zero-mean enforcement via OrthoSolver
+         // ------------------------------------------------------------------
+         MFEM_VERIFY(DiffusionMatrix != nullptr,
+                     "DiffusionMatrix must be precomputed.");
+
+         var_phi_gf = 0.0;
+
+         HypreParVector Phi_true(pfes);
+         Phi_true = 0.0;
+
+         // Krylov solver
+         HyprePCG solver(DiffusionMatrix->GetComm());
+         solver.SetOperator(*DiffusionMatrix);
+         solver.SetTol(1e-24);
+         solver.SetMaxIter(200);
+         solver.SetPrintLevel(0);
+
+         // AMG preconditioner
+         HypreBoomerAMG prec(*DiffusionMatrix);
+         prec.SetPrintLevel(0);
+         solver.SetPreconditioner(prec);
+
+         // OrthoSolver removes constant nullspace (periodic Laplacian)
+         OrthoSolver ortho(comm);
+         ortho.SetSolver(solver);
+         ortho.Mult(*B, Phi_true);
+
+         // ------------------------------------------------------------------
+         // 6) Map true-dof solution back to the ParGridFunction
+         // ------------------------------------------------------------------
+         var_phi_gf.Distribute(Phi_true);
+
+         // Cleanup
          delete B;
+      }
+      {
+         // Project -grad(phi) to get E field
+         GradientGridFunctionCoefficient grad_phi_coeff(&var_phi_gf);
+         var_E_gf.ProjectCoefficient(grad_phi_coeff);
+         var_E_gf *= -1.0;
       }
       {
          static socketstream sol_sock;
@@ -591,6 +655,9 @@ int main(int argc, char *argv[])
                      "Visualization socket port");
       args.AddOption(&ctx.N_max, "-Nmax", "--Nmax",
                      "Maximum number of terms in Green's function summation");
+      args.AddOption(&ctx.analytical, "-analytical", "--analytical",
+                     "-no-analytical", "--no-analytical",
+                     "Use analytical solution for validation");
       args.Parse();
       if (!args.Good())
       {
