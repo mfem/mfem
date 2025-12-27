@@ -1053,11 +1053,6 @@ private:
    void BuildGroups(const int *partitioning_, const Table &elem_dof);
 
 protected:
-   /// Construct and return a table of DOFs for each global element.
-   Table *GetGlobalElementDofTable() override;
-   Table *Get1DGlobalElementDofTable() override;
-   Table *Get2DGlobalElementDofTable() override;
-   Table *Get3DGlobalElementDofTable() override;
 
 public:
    GroupTopology gtopo;
