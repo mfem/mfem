@@ -50,8 +50,9 @@ TEST_CASE("NURBS ProjectGrad 2D", "[NURBSProjectGrad2D]")
    int order = 2;
    int n = 2;
 
-   // Create a simple 2D mesh
+   // Create a simple 2D NURBS mesh
    Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, 1, 2.0, 2.0);
+   mesh.SetCurvature(2);  // Make it a NURBS mesh with order 2
 
    // Create H1 finite element space for the source function
    H1_FECollection h1_fec(order, 2);
@@ -109,8 +110,9 @@ TEST_CASE("NURBS ProjectGrad 3D", "[NURBSProjectGrad3D]")
    int order = 2;
    int n = 1;
 
-   // Create a simple 3D mesh
+   // Create a simple 3D NURBS mesh
    Mesh mesh = Mesh::MakeCartesian3D(n, n, n, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
+   mesh.SetCurvature(2);  // Make it a NURBS mesh with order 2
 
    // Create H1 finite element space for the source function
    H1_FECollection h1_fec(order, 3);
@@ -167,8 +169,9 @@ TEST_CASE("NURBS ProjectGrad Detailed 2D", "[NURBSProjectGrad2D][.]")
    int order = 1;
    int n = 1;
 
-   // Create a simple 2D mesh
+   // Create a simple 2D NURBS mesh
    Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, 1, 1.0, 1.0);
+   mesh.SetCurvature(1);  // Make it a NURBS mesh with order 1
 
    // Create H1 finite element space
    H1_FECollection h1_fec(order, 2);
@@ -214,8 +217,9 @@ TEST_CASE("NURBS ProjectGrad Detailed 3D", "[NURBSProjectGrad3D][.]")
    int order = 1;
    int n = 1;
 
-   // Create a simple 3D mesh
+   // Create a simple 3D NURBS mesh
    Mesh mesh = Mesh::MakeCartesian3D(n, n, n, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
+   mesh.SetCurvature(1);  // Make it a NURBS mesh with order 1
 
    // Create H1 finite element space
    H1_FECollection h1_fec(order, 3);
@@ -264,8 +268,9 @@ TEST_CASE("NURBS Project 2D", "[NURBSProject2D]")
    int order = 2;
    int n = 1;
 
-   // Create a simple 2D mesh
+   // Create a simple 2D NURBS mesh
    Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, 1, 1.0, 1.0);
+   mesh.SetCurvature(2);  // Make it a NURBS mesh with order 2
 
    // Create H1 finite element space for the source function
    H1_FECollection h1_fec(order, 2);
@@ -317,8 +322,9 @@ TEST_CASE("NURBS Project 3D", "[NURBSProject3D]")
    int order = 1;
    int n = 1;
 
-   // Create a simple 3D mesh
+   // Create a simple 3D NURBS mesh
    Mesh mesh = Mesh::MakeCartesian3D(n, n, n, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
+   mesh.SetCurvature(1);  // Make it a NURBS mesh with order 1
 
    // Create H1 finite element space for the source function
    H1_FECollection h1_fec(order, 3);
