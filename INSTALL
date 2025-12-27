@@ -395,6 +395,13 @@ MFEM_USE_STRUMPACK = YES/NO
    classes. When enabled, this option uses the STRUMPACK_* library options, see
    below.
 
+MFEM_USE_CUDSS = YES/NO
+   Enable MFEM functionality based on the cuDSS library. Currently, this option
+   adds the class CuDSSSolver (a parallel sparse direct solver). When using cuDSS,
+   both CUDA support and MPI must be also enabled in MFEM, i.e. MFEM_USE_CUDA=YES
+   and MFEM_USE_MPI=YES must be set. When enabled, this option uses the CUDSS_* 
+   library options, see below.
+
 MFEM_USE_GINKGO = YES/NO
    Enable MFEM functionality based on the Ginkgo library, which provides
    iterative linear solvers and preconditioners with OpenMP, CUDA backends, see
@@ -718,6 +725,12 @@ The specific libraries and their options are:
   URL: http://portal.nersc.gov/project/sparse/strumpack
   Options: STRUMPACK_OPT, STRUMPACK_LIB.
   Versions: STRUMPACK >= 3.0.0.
+
+- CUDSS (optional), used when MFEM_USE_CUDSS = YES. Note that CUDSS needs CUDA 12.x 
+  toolkit, MPI, and the cuDSS libraries.
+  URL: https://developer.nvidia.com/cudss
+  Options: CUDSS_DIR.
+  Versions: cuDSS >= 0.6.0.
 
 - Ginkgo (optional), used when MFEM_USE_GINKGO = YES. Note that Ginkgo needs a
   C++ compiler that supports the C++-17 standard. For additional requirements
