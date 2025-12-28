@@ -137,14 +137,14 @@ int main(int argc, char *argv[])
    Hypre::Init();
    // Parse command-line options.
    const char *mesh_file = "../../data/square-nurbs.mesh";
-   int ref_levels = 5;
+   int ref_levels = 8;
    int order = 1;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = 1;
    real_t freq = 5.0;
-   bool use_ams =
-      true;  // Use AMS preconditioner by default (more efficient for HCurl)
+   bool use_ams = true;  // Use AMS preconditioner by default (more efficient
+   // for HCurl)
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -433,24 +433,6 @@ int main(int argc, char *argv[])
       x.imag().Save(sol_i_ofs);
    }
 
-   // 14. Save data in ParaView format.
-   ParaViewDataCollection *pd = NULL;
-   if (myid == 0)
-   {
-      cout << " Saving ParaView output to: ParaView" << endl;
-   }
-   pd = new ParaViewDataCollection("nurbs_ex25p", pmesh);
-   pd->SetPrefixPath("./ParaView");
-   pd->RegisterField("solution_real", &(x.real()));
-   pd->RegisterField("solution_imag", &(x.imag()));
-   pd->SetLevelsOfDetail(order);
-   pd->SetDataFormat(VTKFormat::BINARY);
-   pd->SetHighOrderOutput(true);
-   pd->SetCycle(0);
-   pd->SetTime(0.0);
-   pd->Save();
-   delete pd;
-
    // Send the solution by socket to a GLVis server.
    if (visualization)
    {
@@ -471,8 +453,9 @@ int main(int argc, char *argv[])
          MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
       }
 
-      MPI_Barrier(MPI_COMM_WORLD); // Additional barrier between real and imag parts
-      
+      MPI_Barrier(MPI_COMM_WORLD); // Additional barrier between real and imag
+      // parts
+
       // Send imaginary part
       {
          socketstream sol_sock_im(vishost, visport);
@@ -482,7 +465,60 @@ int main(int argc, char *argv[])
                      << "window_title 'Solution imag part'" << flush;
          MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
       }
+
+      // Send time-harmonic solution as animation
+      {
+         ParGridFunction x_t(fespace);
+         x_t = x.real();
+
+         socketstream sol_sock(vishost, visport);
+         sol_sock.precision(8);
+         sol_sock << "parallel " << Mpi::WorldSize() << " " << myid << "\n"
+                  << "solution\n" << *pmesh << x_t << keys << "autoscale off\n"
+                  << "window_title 'Harmonic Solution (t = 0.0 T)'"
+                  << "pause\n" << flush;
+
+         if (myid == 0)
+         {
+            cout << "GLVis visualization paused."
+                 << " Press space (in the GLVis window) to resume it.\n";
+         }
+
+         int num_frames = 32;
+         int i = 0;
+         while (sol_sock)
+         {
+            real_t t = (real_t)(i % num_frames) / num_frames;
+            ostringstream oss;
+            oss << "Harmonic Solution (t = " << t << " T)";
+
+            add(cos(real_t(2.0*M_PI)*t), x.real(),
+                sin(real_t(2.0*M_PI)*t), x.imag(), x_t);
+            sol_sock << "parallel " << Mpi::WorldSize() << " " << myid << "\n";
+            sol_sock << "solution\n" << *pmesh << x_t
+                     << "window_title '" << oss.str() << "'" << flush;
+            i++;
+         }
+      }
    }
+
+   // 14. Save data in ParaView format.
+   ParaViewDataCollection *pd = NULL;
+   if (myid == 0)
+   {
+      cout << " Saving ParaView output to: ParaView" << endl;
+   }
+   pd = new ParaViewDataCollection("nurbs_ex25p", pmesh);
+   pd->SetPrefixPath("./ParaView");
+   pd->RegisterField("solution_real", &(x.real()));
+   pd->RegisterField("solution_imag", &(x.imag()));
+   pd->SetLevelsOfDetail(order);
+   pd->SetDataFormat(VTKFormat::BINARY);
+   pd->SetHighOrderOutput(true);
+   pd->SetCycle(0);
+   pd->SetTime(0.0);
+   pd->Save();
+   delete pd;
 
    if (myid == 0)
    {
