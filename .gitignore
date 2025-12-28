@@ -325,6 +325,8 @@ miniapps/nurbs/refined.*
 miniapps/nurbs/refined.mesh.*
 miniapps/nurbs/mesh.*
 miniapps/nurbs/sol.*
+miniapps/nurbs/sol_u.gf
+miniapps/nurbs/sol_p.gf
 miniapps/nurbs/sol_*.gf.*
 miniapps/nurbs/sol_i.gf.*
 miniapps/nurbs/sol_r.gf.*
