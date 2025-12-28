@@ -322,10 +322,12 @@ miniapps/nurbs/nurbs_patch_ex1
 miniapps/nurbs/nurbs_curveint
 miniapps/nurbs/nurbs_surface
 miniapps/nurbs/refined.*
+miniapps/nurbs/refined.mesh.*
 miniapps/nurbs/mesh.*
-miniapps/nurbs/sol_??.gf
-miniapps/nurbs/sol_?.gf
 miniapps/nurbs/sol.*
+miniapps/nurbs/sol_*.gf.*
+miniapps/nurbs/sol_i.gf.*
+miniapps/nurbs/sol_r.gf.*
 miniapps/nurbs/mode_*
 miniapps/nurbs/Example1*
 miniapps/nurbs/Example3*
