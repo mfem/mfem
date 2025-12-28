@@ -1,4 +1,4 @@
-//                                MFEM Example nurbs_25p -- modified for NURBS FE
+//                                MFEM Example nurbs_ex25p -- modified for NURBS FE
 //
 // Compile with: make nurbs_ex25p
 //
@@ -6,9 +6,10 @@
 //               mpirun -np 4 nurbs_ex25p -m ../../data/square-nurbs.mesh -o 2
 //               mpirun -np 4 nurbs_ex25p -m ../../data/cube-nurbs.mesh
 
-// Description:  This example code solves a simple electromagnetic wave parallel IGA(NURBS)
-//               propagation problem corresponding to the second order
-//               indefinite Maxwell equation
+// Description:  This example code solves a simple electromagnetic
+//               wave parallel IGA(NURBS) propagation problem
+//               corresponding to the second order indefinite
+//               Maxwell equation
 //
 //                  (1/mu) * curl curl E - \omega^2 * epsilon E = f
 //
@@ -126,8 +127,6 @@ real_t mu = 1.0;
 real_t epsilon = 1.0;
 real_t omega;
 int dim;
-bool exact_known = false;
-
 
 int main(int argc, char *argv[])
 {
@@ -137,16 +136,14 @@ int main(int argc, char *argv[])
    Hypre::Init();
    // Parse command-line options.
    const char *mesh_file = "../../data/square-nurbs.mesh";
-   int ref_levels = -1;
-   bool NURBS = true;
+   int ref_levels = 8;
    int order = 1;
-   bool static_cond = false;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = 1;
    real_t freq = 5.0;
-   bool use_ams =
-      true;  // Use AMS preconditioner by default (more efficient for HCurl)
+   bool use_ams = true;  // Use AMS preconditioner by default (more efficient
+   // for HCurl)
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -155,15 +152,11 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&NURBS, "-n", "--nurbs", "-nn","--no-nurbs",
-                  "NURBS.");
    args.AddOption(&freq, "-f", "--frequency", "Set the frequency for the exact"
                   " solution.");
    args.AddOption(&use_ams, "-ams", "--ams-preconditioner", "-amg",
                   "--amg-preconditioner",
                   "Use AMS preconditioner (true) or block diagonal AMG (false).");
-   args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
-                  "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -181,7 +174,6 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
-
 
    // Enable hardware devices such as GPUs, and programming models such as
    // CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -204,7 +196,11 @@ int main(int argc, char *argv[])
    domain_bdr = pml->GetDomainBdr();
 
    // 4. Refine the mesh to increase the resolution.
-   for (int l = 0; l < 5; l++)
+   if (ref_levels == -1)
+   {
+      ref_levels = (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+   }
+   for (int l = 0; l < ref_levels; l++)
    {
       mesh->UniformRefinement();
    }
@@ -213,21 +209,17 @@ int main(int argc, char *argv[])
    delete mesh;
    pml->SetAttributes(pmesh);
 
-
-   // 5. Define a finite element space on the mesh. Here we use the
-   //    Raviart-Thomas finite elements of the specified order.
+   // 5. Define a finite element space on the mesh.
    FiniteElementCollection *fec = nullptr;
    NURBSExtension *NURBSext = nullptr;
 
    fec = new NURBS_HCurlFECollection(order,dim);
    NURBSext  = new NURBSExtension(pmesh->NURBSext, order);
-   mfem::out<<" Create NURBS fec and ext"<<std::endl;
 
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, NURBSext,
                                                               fec);
    cout <<"Number of finite element unknowns in rank "<<myid<<": "
         << fespace->GetTrueVSize() << endl;
-
 
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
@@ -252,6 +244,7 @@ int main(int argc, char *argv[])
    b.AddDomainIntegrator(NULL, new VectorFEDomainLFIntegrator(f));
    b.Vector::operator=(0.0);
    b.Assemble();
+
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x by projecting the exact
    //    solution. Note that only values from the boundary edges will be used
@@ -289,7 +282,7 @@ int main(int argc, char *argv[])
    a.AddDomainIntegrator(new CurlCurlIntegrator(restr_muinv),NULL);
    a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_omeg),NULL);
 
-   int cdim = (dim == 2) ? 1 : dim;
+   const int cdim = (dim == 2) ? 1 : dim;
    PMLDiagMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, pml);
    PMLDiagMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, pml);
    ScalarVectorProductCoefficient c1_Re(muinv,pml_c1_Re);
@@ -314,7 +307,6 @@ int main(int argc, char *argv[])
    //     applying any necessary transformations such as: eliminating boundary
    //     conditions, applying conforming constraints for non-conforming AMR,
    //     static condensation, etc.
-
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.Assemble(0);
 
@@ -327,6 +319,9 @@ int main(int argc, char *argv[])
    ConstantCoefficient absomeg(pow2(omega) * epsilon);
    RestrictedCoefficient restr_absomeg(absomeg,attr);
 
+   // Define bilinear form for the preconditioner
+   // This creates a Hermitian, positive definite approximation to the original
+   // sesquilinear form for use in the preconditioner
    ParBilinearForm prec(fespace);
    prec.AddDomainIntegrator(new CurlCurlIntegrator(restr_muinv));
    prec.AddDomainIntegrator(new VectorFEMassIntegrator(restr_absomeg));
@@ -354,7 +349,7 @@ int main(int argc, char *argv[])
 
    std::unique_ptr<Operator> pc_r;
    std::unique_ptr<Operator> pc_i;
-   int s = (conv == ComplexOperator::HERMITIAN) ? -1 : 1;
+   const int s = (conv == ComplexOperator::HERMITIAN) ? -1 : 1;
 
    OperatorPtr PCOpAh;
    prec.FormSystemMatrix(ess_tdof_list, PCOpAh);
@@ -407,7 +402,7 @@ int main(int argc, char *argv[])
       cout << " Converged: " << gmres.GetConverged() << "\n";
       if (use_ams)
       {
-         cout << "\nAMS preconditioner successfully used for NURBS HCurl space!" << endl;
+         cout << "\nAMS preconditioner successfully used!" << endl;
       }
       else
       {
@@ -417,7 +412,7 @@ int main(int argc, char *argv[])
    }
 
    // 13. Save the refined mesh and the solution in parallel. This output can be
-   //     viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+   //     viewed later using GLVis: "glvis -np <np> -m refined.mesh -g sol_r.gf -g sol_i.gf".
    {
       ostringstream mesh_name, sol_r_name, sol_i_name;
       mesh_name << "mesh." << setfill('0') << setw(6) << myid;
@@ -434,6 +429,75 @@ int main(int argc, char *argv[])
       sol_i_ofs.precision(8);
       x.real().Save(sol_r_ofs);
       x.imag().Save(sol_i_ofs);
+   }
+
+   // Send the solution by socket to a GLVis server.
+   if (visualization)
+   {
+      // Define visualization keys for GLVis (see GLVis documentation)
+      string keys;
+      keys = (dim == 3) ? "keys macF\n" : "keys amrRljcUUuu\n";
+
+      char vishost[] = "localhost";
+      int visport = 19916;
+
+      // Send real part
+      {
+         socketstream sol_sock_re(vishost, visport);
+         sol_sock_re.precision(8);
+         sol_sock_re << "parallel " << Mpi::WorldSize() << " " << myid << "\n"
+                     << "solution\n" << *pmesh << x.real() << keys
+                     << "window_title 'Solution real part'" << flush;
+         MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
+      }
+
+      MPI_Barrier(MPI_COMM_WORLD); // Additional barrier between real and imag
+      // parts
+
+      // Send imaginary part
+      {
+         socketstream sol_sock_im(vishost, visport);
+         sol_sock_im.precision(8);
+         sol_sock_im << "parallel " << Mpi::WorldSize() << " " << myid << "\n"
+                     << "solution\n" << *pmesh << x.imag() << keys
+                     << "window_title 'Solution imag part'" << flush;
+         MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
+      }
+
+      // Send time-harmonic solution as animation
+      {
+         ParGridFunction x_t(fespace);
+         x_t = x.real();
+
+         socketstream sol_sock(vishost, visport);
+         sol_sock.precision(8);
+         sol_sock << "parallel " << Mpi::WorldSize() << " " << myid << "\n"
+                  << "solution\n" << *pmesh << x_t << keys << "autoscale off\n"
+                  << "window_title 'Harmonic Solution (t = 0.0 T)'"
+                  << "pause\n" << flush;
+
+         if (myid == 0)
+         {
+            cout << "GLVis visualization paused."
+                 << " Press space (in the GLVis window) to resume it.\n";
+         }
+
+         int num_frames = 32;
+         int i = 0;
+         while (sol_sock)
+         {
+            real_t t = (real_t)(i % num_frames) / num_frames;
+            ostringstream oss;
+            oss << "Harmonic Solution (t = " << t << " T)";
+
+            add(cos(real_t(2.0*M_PI)*t), x.real(),
+                sin(real_t(2.0*M_PI)*t), x.imag(), x_t);
+            sol_sock << "parallel " << Mpi::WorldSize() << " " << myid << "\n";
+            sol_sock << "solution\n" << *pmesh << x_t
+                     << "window_title '" << oss.str() << "'" << flush;
+            i++;
+         }
+      }
    }
 
    // 14. Save data in ParaView format.
@@ -464,7 +528,7 @@ int main(int argc, char *argv[])
    delete fespace;
    delete fec;
    delete pmesh;
-   // fespace owns and destroys NURBSext
+
    return 0;
 }
 

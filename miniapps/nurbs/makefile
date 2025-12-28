@@ -200,6 +200,6 @@ clean-build:
 clean-exec:
 	@rm -f refined.mesh sin-fit.mesh ex5.mesh exsol.mesh mesh.* sol.* mode_*
 	@rm -f naca-cmesh.mesh sol_?.gf *-Surface.mesh
-	@rm -f nurbs_ex25p.mesh* nurbs_ex25p-*
+	@rm -f refined.mesh.* sol_r.gf.* sol_i.gf.* sol_p.gf sol_u.gf
 	@rm -rf Example1* Example3* Example5* Solenoidal_* ParaView
 	@rm -rf CurveInt Naca_cmesh glvis_naca-cmesh.mesh solution.dat

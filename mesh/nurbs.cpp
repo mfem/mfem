@@ -3757,8 +3757,8 @@ void NURBSExtension::GetPatchOffsets(int &meshCounter, int &spaceCounter)
 
       if (dim == 1)
       {
-         meshCounter  += KnotVec(0)->GetNE() - 1;
-         spaceCounter += KnotVec(0)->GetNCP() - 2;
+         meshCounter  += KnotVec(p)->GetNE() - 1;
+         spaceCounter += KnotVec(p)->GetNCP() - 2;
       }
       else if (dim == 2)
       {
@@ -5956,145 +5956,7 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
    delete global_elem_dof;
 }
 
-Table *ParNURBSExtension::GetGlobalElementDofTable()
-{
-   if (Dimension() == 1)
-   {
-      return Get1DGlobalElementDofTable();
-   }
-   else if (Dimension() == 2)
-   {
-      return Get2DGlobalElementDofTable();
-   }
-   else
-   {
-      return Get3DGlobalElementDofTable();
-   }
-}
 
-Table *ParNURBSExtension::Get1DGlobalElementDofTable()
-{
-   int el = 0;
-   const KnotVector *kv[1];
-   NURBSPatchMap p2g(this);
-   Array<Connection> gel_dof_list;
-
-   for (int p = 0; p < GetNP(); p++)
-   {
-      p2g.SetPatchDofMap(p, kv);
-
-      // Load dofs
-      const int ord0 = kv[0]->GetOrder();
-
-      for (int i = 0; i < kv[0]->GetNKS(); i++)
-      {
-         if (kv[0]->isElement(i))
-         {
-            Connection conn(el,0);
-            for (int ii = 0; ii <= ord0; ii++)
-            {
-               conn.to = DofMap(p2g(i+ii));
-               gel_dof_list.Append(conn);
-            }
-            el++;
-         }
-      }
-   }
-   // We must NOT sort gel_dof_list in this case.
-   return (new Table(GetGNE(), gel_dof_list));
-}
-
-Table *ParNURBSExtension::Get2DGlobalElementDofTable()
-{
-   int el = 0;
-   const KnotVector *kv[2];
-   NURBSPatchMap p2g(this);
-   Array<Connection> gel_dof_list;
-
-   for (int p = 0; p < GetNP(); p++)
-   {
-      p2g.SetPatchDofMap(p, kv);
-
-      // Load dofs
-      const int ord0 = kv[0]->GetOrder();
-      const int ord1 = kv[1]->GetOrder();
-      for (int j = 0; j < kv[1]->GetNKS(); j++)
-      {
-         if (kv[1]->isElement(j))
-         {
-            for (int i = 0; i < kv[0]->GetNKS(); i++)
-            {
-               if (kv[0]->isElement(i))
-               {
-                  Connection conn(el,0);
-                  for (int jj = 0; jj <= ord1; jj++)
-                  {
-                     for (int ii = 0; ii <= ord0; ii++)
-                     {
-                        conn.to = DofMap(p2g(i+ii,j+jj));
-                        gel_dof_list.Append(conn);
-                     }
-                  }
-                  el++;
-               }
-            }
-         }
-      }
-   }
-   // We must NOT sort gel_dof_list in this case.
-   return (new Table(GetGNE(), gel_dof_list));
-}
-
-Table *ParNURBSExtension::Get3DGlobalElementDofTable()
-{
-   int el = 0;
-   const KnotVector *kv[3];
-   NURBSPatchMap p2g(this);
-   Array<Connection> gel_dof_list;
-
-   for (int p = 0; p < GetNP(); p++)
-   {
-      p2g.SetPatchDofMap(p, kv);
-
-      // Load dofs
-      const int ord0 = kv[0]->GetOrder();
-      const int ord1 = kv[1]->GetOrder();
-      const int ord2 = kv[2]->GetOrder();
-      for (int k = 0; k < kv[2]->GetNKS(); k++)
-      {
-         if (kv[2]->isElement(k))
-         {
-            for (int j = 0; j < kv[1]->GetNKS(); j++)
-            {
-               if (kv[1]->isElement(j))
-               {
-                  for (int i = 0; i < kv[0]->GetNKS(); i++)
-                  {
-                     if (kv[0]->isElement(i))
-                     {
-                        Connection conn(el,0);
-                        for (int kk = 0; kk <= ord2; kk++)
-                        {
-                           for (int jj = 0; jj <= ord1; jj++)
-                           {
-                              for (int ii = 0; ii <= ord0; ii++)
-                              {
-                                 conn.to = DofMap(p2g(i+ii,j+jj,k+kk));
-                                 gel_dof_list.Append(conn);
-                              }
-                           }
-                        }
-                        el++;
-                     }
-                  }
-               }
-            }
-         }
-      }
-   }
-   // We must NOT sort gel_dof_list in this case.
-   return (new Table(GetGNE(), gel_dof_list));
-}
 
 void ParNURBSExtension::SetActive(const int *partition,
                                   const Array<bool> &active_bel)

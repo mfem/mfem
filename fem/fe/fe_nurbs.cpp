@@ -817,7 +817,6 @@ void NURBS_HCurl2DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
    }
 }
 
-// ProjectGrad implementation for NURBS_HCurl2DFiniteElement
 void NURBS_HCurl2DFiniteElement::ProjectGrad(const FiniteElement &fe,
                                              ElementTransformation &Trans,
                                              DenseMatrix &grad) const
@@ -863,7 +862,6 @@ void NURBS_HCurl2DFiniteElement::ProjectGrad(const FiniteElement &fe,
    }
 }
 
-// Project implementation for NURBS_HCurl2DFiniteElement
 void NURBS_HCurl2DFiniteElement::Project(const FiniteElement &fe,
                                          ElementTransformation &Trans,
                                          DenseMatrix &I) const
@@ -873,7 +871,7 @@ void NURBS_HCurl2DFiniteElement::Project(const FiniteElement &fe,
       int sdim = Trans.GetSpaceDim();
       real_t vk[Geometry::MaxDim];
       Vector shape(fe.GetDof());
-      real_t tk_2d[4] = {1.0, 0.0, 0.0, 1.0};  // Unit tangents in x and y
+      constexpr real_t tk_2d[4] = {1.0, 0.0, 0.0, 1.0};  // Unit tangents in x and y
 
       I.SetSize(dof, sdim*fe.GetDof());
       for (int k = 0; k < dof; k++)
@@ -1101,7 +1099,6 @@ void NURBS_HCurl3DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
    }
 }
 
-// ProjectGrad implementation for NURBS_HCurl3DFiniteElement
 void NURBS_HCurl3DFiniteElement::ProjectGrad(const FiniteElement &fe,
                                              ElementTransformation &Trans,
                                              DenseMatrix &grad) const
@@ -1154,7 +1151,6 @@ void NURBS_HCurl3DFiniteElement::ProjectGrad(const FiniteElement &fe,
    }
 }
 
-// Project implementation for NURBS_HCurl3DFiniteElement
 void NURBS_HCurl3DFiniteElement::Project(const FiniteElement &fe,
                                          ElementTransformation &Trans,
                                          DenseMatrix &I) const
@@ -1164,7 +1160,7 @@ void NURBS_HCurl3DFiniteElement::Project(const FiniteElement &fe,
       int sdim = Trans.GetSpaceDim();
       real_t vk[Geometry::MaxDim];
       Vector shape(fe.GetDof());
-      real_t tk_3d[9] = {1.0, 0.0, 0.0,  0.0, 1.0, 0.0,  0.0, 0.0, 1.0};  // Unit tangents
+      constexpr real_t tk_3d[9] = {1.0, 0.0, 0.0,  0.0, 1.0, 0.0,  0.0, 0.0, 1.0};  // Unit tangents
 
       I.SetSize(dof, sdim*fe.GetDof());
       for (int k = 0; k < dof; k++)
