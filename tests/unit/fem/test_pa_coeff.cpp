@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -130,7 +130,7 @@ TEST_CASE("H1 PA Coefficient", "[PartialAssembly][Coefficient]")
 {
    for (dimension = 2; dimension < 4; ++dimension)
    {
-      for (int coeffType = 0; coeffType < 6; ++coeffType)
+      for (int coeffType = 0; coeffType < 7; ++coeffType)
       {
          for (int integrator = 0; integrator < 2; ++integrator)
          {
@@ -179,6 +179,16 @@ TEST_CASE("H1 PA Coefficient", "[PartialAssembly][Coefficient]")
                {
                   mcoeff = new MatrixFunctionCoefficient(dimension,
                                                          &asymmetricMatrixCoeffFunction);
+               }
+               else if (coeffType == 6)
+               {
+                  DenseMatrix mat(dimension);
+                  for (int i = 0; i < dimension*dimension; ++i)
+                  {
+                     mat.GetData()[i] = rand_real();
+                  }
+                  for (int i = 0; i < dimension; ++i) { mat(i,i) += 2.0; }
+                  mcoeff = new MatrixConstantCoefficient(mat);
                }
 
                paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -263,7 +273,7 @@ TEST_CASE("H1 PA Coefficient", "[PartialAssembly][Coefficient]")
 }
 
 TEST_CASE("Hcurl/Hdiv PA Coefficient",
-          "[CUDA][PartialAssembly][Coefficient]")
+          "[GPU][PartialAssembly][Coefficient]")
 {
    const bool all_tests = launch_all_non_regression_tests;
    enum MixedSpaces {Hcurl, Hdiv, HcurlHdiv, HdivHcurl, NumSpaceTypes};
@@ -397,13 +407,13 @@ TEST_CASE("Hcurl/Hdiv PA Coefficient",
          {
             if (space_type == HcurlHdiv)
             {
-               pa_form.AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff));
-               fa_form.AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff));
+               pa_form.AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff2));
+               fa_form.AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff2));
             }
             else
             {
-               pa_form.AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*coeff));
-               fa_form.AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*coeff));
+               pa_form.AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*coeff2));
+               fa_form.AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*coeff2));
             }
          }
       }
@@ -466,9 +476,9 @@ TEST_CASE("Hcurl/Hdiv PA Coefficient",
 
       if (space_type == Hcurl)
       {
-         const FiniteElement *fel = fes.GetFE(0);
+         const FiniteElement *fel = fes.GetTypicalFE();
          const IntegrationRule &ir =
-            MassIntegrator::GetRule(*fel, *fel, *mesh.GetElementTransformation(0));
+            MassIntegrator::GetRule(*fel, *fel, *mesh.GetTypicalElementTransformation());
 
          if (coeff_type >= 3 && dimension == 3)
          {
@@ -510,7 +520,7 @@ TEST_CASE("Hcurl/Hdiv PA Coefficient",
 }
 
 TEST_CASE("Hcurl/Hdiv Mixed PA Coefficient",
-          "[CUDA][PartialAssembly][Coefficient]")
+          "[GPU][PartialAssembly][Coefficient]")
 {
    const real_t tol = 4e-12;
 

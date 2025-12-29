@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -151,13 +151,13 @@ public:
    }
 
    /// Get the input finite element space prolongation matrix
-   virtual const Operator *GetProlongation() const
+   const Operator *GetProlongation() const override
    { return ((FiniteElementSpace &)in_fes).GetProlongationMatrix(); }
    /// Get the input finite element space restriction matrix
-   virtual const Operator *GetRestriction() const
+   const Operator *GetRestriction() const override
    { return ((FiniteElementSpace &)in_fes).GetRestrictionMatrix(); }
 
-   virtual void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    {
       if (!assembled_data.Empty())
       {

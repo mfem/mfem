@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -12,11 +12,10 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
+MFEM_INSTALL_DIR ?= ../../mfem
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/solvers/,)
-CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
-# Use the MFEM install directory
-# MFEM_INSTALL_DIR = ../../mfem
-# CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
+CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
+   $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
@@ -67,6 +66,8 @@ include $(MFEM_TEST_MK)
 
 # Testing: Specific execution options
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
+
+# Block solvers miniapp tests
 block-solvers-test-par: block-solvers-constant block-solvers-anisotropic
 block-solvers-constant: block-solvers
 	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-rs 1 -rp 1)
@@ -74,11 +75,15 @@ block-solvers-anisotropic: block-solvers
 	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-rs 1 -rp 1\
 	  -m $(SRC)anisotropic.mesh -c $(SRC)anisotropic.coeff\
 	  -eb $(SRC)anisotropic.bdr)
+
+# LOR solvers miniapp tests
 lor_solvers-test-seq: lor_solvers
 	@$(call mfem-test,$<,, LOR solvers miniapp,-fe n)
 plor_solvers-test-par: plor_solvers
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel LOR solvers miniapp,-fe n\
 	  -m ../../data/fichera.mesh)
+
+# LOR elasticity miniapp tests
 lor_elast-test-par: lor_elast-tri lor_elast-hex
 lor_elast-tri: lor_elast
 	@$(call mfem-test,$<, $(RUN_MPI), Elasticity LOR miniapp,-l 2 -ca -pa -ss\

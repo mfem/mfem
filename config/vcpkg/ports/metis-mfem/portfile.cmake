@@ -22,6 +22,7 @@ vcpkg_extract_source_archive_ex(
         fix-linux-build-error.patch
         install-metisConfig.patch
         fix-INT_MIN_define.patch
+        cmake4.patch
 )
 
 vcpkg_configure_cmake(

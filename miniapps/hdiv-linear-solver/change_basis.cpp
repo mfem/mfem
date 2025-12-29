@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,9 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "change_basis.hpp"
-#include "../../fem/qinterp/dispatch.hpp"
-#include "../../general/forall.hpp"
-#include "../../linalg/dtensor.hpp"
 
 namespace mfem
 {
@@ -25,7 +22,7 @@ void ComputeInverse(const Array<real_t> &A, Array<real_t> &Ainv)
 {
    Array<real_t> A2 = A;
    const int n2 = A.Size();
-   const int n = sqrt(n2);
+   const int n = static_cast<const int>(sqrt(n2));
    Array<int> ipiv(n);
    LUFactors lu(A2.GetData(), ipiv.GetData());
    lu.Factor(n);
@@ -61,7 +58,7 @@ void SubcellIntegrals(int n, const Poly_1D::Basis &basis, Array<real_t> &B)
 
 void Transpose(const Array<real_t> &B, Array<real_t> &Bt)
 {
-   const int n = sqrt(B.Size());
+   const int n = static_cast<const int>(sqrt(B.Size()));
    Bt.SetSize(n*n);
    for (int i=0; i<n; ++i) for (int j=0; j<n; ++j) { Bt[i+j*n] = B[j+i*n]; }
 }
@@ -81,7 +78,7 @@ ChangeOfBasis_L2::ChangeOfBasis_L2(FiniteElementSpace &fes)
 
    // Convert from the given basis to the "integrated GLL basis".
    // The degrees of freedom are integrals over subcells.
-   const FiniteElement *fe = fes.GetFE(0);
+   const FiniteElement *fe = fes.GetTypicalFE();
    auto *tbe = dynamic_cast<const TensorBasisElement*>(fe);
    MFEM_VERIFY(tbe != nullptr, "Must be a tensor element.");
    const Poly_1D::Basis &basis = tbe->GetBasis1D();
@@ -105,17 +102,25 @@ ChangeOfBasis_L2::ChangeOfBasis_L2(FiniteElementSpace &fes)
 void ChangeOfBasis_L2::Mult(const Vector &x, Vector &y) const
 {
    if (no_op) { y = x; return; }
-   using namespace internal::quadrature_interpolator;
    dof2quad.B.MakeRef(B_1d);
-   TensorValues<QVectorLayout::byVDIM>(ne, 1, dof2quad, x, y);
+   const int dim = dof2quad.FE->GetDim();
+   const int nd = dof2quad.ndof;
+   const int nq = dof2quad.nqpt;
+   QuadratureInterpolator::TensorEvalKernels::Run(
+      dim, QVectorLayout::byVDIM, 1, nd, nq, ne, dof2quad.B.Read(), x.Read(),
+      y.Write(), 1, nd, nq);
 }
 
 void ChangeOfBasis_L2::MultTranspose(const Vector &x, Vector &y) const
 {
    if (no_op) { y = x; return; }
-   using namespace internal::quadrature_interpolator;
    dof2quad.B.MakeRef(Bt_1d);
-   TensorValues<QVectorLayout::byVDIM>(ne, 1, dof2quad, x, y);
+   const int dim = dof2quad.FE->GetDim();
+   const int nd = dof2quad.ndof;
+   const int nq = dof2quad.nqpt;
+   QuadratureInterpolator::TensorEvalKernels::Run(
+      dim, QVectorLayout::byVDIM, 1, nd, nq, ne, dof2quad.B.Read(), x.Read(),
+      y.Write(), 1, nd, nq);
 }
 
 ChangeOfBasis_RT::ChangeOfBasis_RT(FiniteElementSpace &fes)

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -24,7 +24,7 @@ DenseSymmetricMatrix::DenseSymmetricMatrix(int s) : Matrix(s)
    MFEM_ASSERT(s >= 0, "invalid DenseSymmetricMatrix size: " << s);
    if (s > 0)
    {
-      data.New((s*(s+1))/2);
+      data.SetSize((s*(s+1))/2);
       *this = 0.0; // init with zeroes
    }
 }
@@ -39,13 +39,8 @@ void DenseSymmetricMatrix::SetSize(int s)
    }
    height = s;
    width = s;
-   const int s2 = (s*(s+1))/2;
-   if (s2 > data.Capacity())
-   {
-      data.Delete();
-      data.New(s2);
-      *this = 0.0; // init with zeroes
-   }
+   data.SetSize((s*(s+1))/2);
+   *this = 0.0; // init with zeroes
 }
 
 DenseSymmetricMatrix &DenseSymmetricMatrix::operator=(real_t c)
@@ -55,20 +50,6 @@ DenseSymmetricMatrix &DenseSymmetricMatrix::operator=(real_t c)
    {
       data[i] = c;
    }
-   return *this;
-}
-
-DenseSymmetricMatrix &DenseSymmetricMatrix::operator=(const DenseSymmetricMatrix
-                                                      &m)
-{
-   SetSize(m.height);
-
-   const int hw = m.GetStoredSize();
-   for (int i = 0; i < hw; i++)
-   {
-      data[i] = m.data[i];
-   }
-
    return *this;
 }
 
@@ -101,11 +82,6 @@ MatrixInverse *DenseSymmetricMatrix::Inverse() const
 {
    mfem_error("DenseSymmetricMatrix::Inverse() not implemented!");
    return nullptr;
-}
-
-DenseSymmetricMatrix::~DenseSymmetricMatrix()
-{
-   data.Delete();
 }
 
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,6 +13,22 @@
 
 namespace mfem
 {
+
+Element::Type Element::TypeFromGeometry(const Geometry::Type geom)
+{
+   switch (geom)
+   {
+      case Geometry::POINT: return Element::POINT;
+      case Geometry::SEGMENT: return Element::SEGMENT;
+      case Geometry::TRIANGLE: return Element::TRIANGLE;
+      case Geometry::SQUARE: return Element::QUADRILATERAL;
+      case Geometry::TETRAHEDRON: return Element::TETRAHEDRON;
+      case Geometry::CUBE: return Element::HEXAHEDRON;
+      case Geometry::PRISM: return Element::WEDGE;
+      case Geometry::PYRAMID: return Element::PYRAMID;
+      default: MFEM_ABORT("Unknown geometry type.");
+   }
+}
 
 void Element::SetVertices(const int *ind)
 {

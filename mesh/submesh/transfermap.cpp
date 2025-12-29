@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,17 +15,14 @@
 
 using namespace mfem;
 
-TransferMap::TransferMap(const GridFunction &src,
-                         const GridFunction &dst)
+TransferMap::TransferMap(const FiniteElementSpace &src,
+                         const FiniteElementSpace &dst)
 {
-   const FiniteElementSpace *parentfes = nullptr, *subfes1 = nullptr,
-                             *subfes2 = nullptr;
-
-   if (SubMesh::IsSubMesh(src.FESpace()->GetMesh()) &&
-       SubMesh::IsSubMesh(dst.FESpace()->GetMesh()))
+   if (SubMesh::IsSubMesh(src.GetMesh()) &&
+       SubMesh::IsSubMesh(dst.GetMesh()))
    {
-      SubMesh* src_sm = static_cast<SubMesh*>(src.FESpace()->GetMesh());
-      SubMesh* dst_sm = static_cast<SubMesh*>(dst.FESpace()->GetMesh());
+      SubMesh* src_sm = static_cast<SubMesh*>(src.GetMesh());
+      SubMesh* dst_sm = static_cast<SubMesh*>(dst.GetMesh());
 
       // There is no immediate relation and both src and dst come from a
       // SubMesh, check if they have an equivalent root parent.
@@ -48,11 +45,8 @@ TransferMap::TransferMap(const GridFunction &src,
          bool root_fes_reset = false;
          if (src_sm_dim == parent_dim - 1 && dst_sm_dim == parent_dim - 1)
          {
-            const FiniteElementSpace *src_fes = src.FESpace();
-            const FiniteElementSpace *dst_fes = dst.FESpace();
-
-            const FiniteElementCollection *src_fec = src_fes->FEColl();
-            const FiniteElementCollection *dst_fec = dst_fes->FEColl();
+            const FiniteElementCollection *src_fec = src.FEColl();
+            const FiniteElementCollection *dst_fec = dst.FEColl();
 
             const L2_FECollection *src_l2_fec =
                dynamic_cast<const L2_FECollection*>(src_fec);
@@ -92,8 +86,8 @@ TransferMap::TransferMap(const GridFunction &src,
 
          if (!root_fes_reset)
          {
-            const FiniteElementCollection *src_fec = src.FESpace()->FEColl();
-            const FiniteElementCollection *dst_fec = dst.FESpace()->FEColl();
+            const FiniteElementCollection *src_fec = src.FEColl();
+            const FiniteElementCollection *dst_fec = dst.FEColl();
             auto *root_fec = src_sm_dim == parent_dim ? src_fec : dst_fec;
 
             root_fes_.reset(new FiniteElementSpace(
@@ -102,46 +96,33 @@ TransferMap::TransferMap(const GridFunction &src,
          }
       }
 
-      subfes1 = src.FESpace();
-      subfes2 = dst.FESpace();
+      src_to_parent.reset(new TransferMap(src, *root_fes_));
+      dst_to_parent.reset(new TransferMap(dst, *root_fes_));
+      parent_to_dst.reset(new TransferMap(*root_fes_, dst));
 
-      SubMeshUtils::BuildVdofToVdofMap(*subfes1,
-                                       *root_fes_,
-                                       src_sm->GetFrom(),
-                                       src_sm->GetParentElementIDMap(),
-                                       sub1_to_parent_map_);
-
-      SubMeshUtils::BuildVdofToVdofMap(*subfes2,
-                                       *root_fes_,
-                                       dst_sm->GetFrom(),
-                                       dst_sm->GetParentElementIDMap(),
-                                       sub2_to_parent_map_);
-
-      z_.SetSize(root_fes_->GetVSize());
+      z_.SetSpace(root_fes_.get());
    }
-   else if (SubMesh::IsSubMesh(src.FESpace()->GetMesh()))
+   else if (SubMesh::IsSubMesh(src.GetMesh()))
    {
       category_ = TransferCategory::SubMeshToParent;
-      SubMesh* src_sm = static_cast<SubMesh*>(src.FESpace()->GetMesh());
-      subfes1 = src.FESpace();
-      parentfes = dst.FESpace();
-      SubMeshUtils::BuildVdofToVdofMap(*subfes1,
-                                       *parentfes,
+      SubMesh* src_sm = static_cast<SubMesh*>(src.GetMesh());
+      SubMeshUtils::BuildVdofToVdofMap(src,
+                                       dst,
                                        src_sm->GetFrom(),
                                        src_sm->GetParentElementIDMap(),
-                                       sub1_to_parent_map_);
+                                       sub_to_parent_map_);
+      sub_fes_ = &src;
    }
-   else if (SubMesh::IsSubMesh(dst.FESpace()->GetMesh()))
+   else if (SubMesh::IsSubMesh(dst.GetMesh()))
    {
       category_ = TransferCategory::ParentToSubMesh;
-      SubMesh* dst_sm = static_cast<SubMesh*>(dst.FESpace()->GetMesh());
-      subfes1 = dst.FESpace();
-      parentfes = src.FESpace();
-      SubMeshUtils::BuildVdofToVdofMap(*subfes1,
-                                       *parentfes,
+      SubMesh* dst_sm = static_cast<SubMesh*>(dst.GetMesh());
+      SubMeshUtils::BuildVdofToVdofMap(dst,
+                                       src,
                                        dst_sm->GetFrom(),
                                        dst_sm->GetParentElementIDMap(),
-                                       sub1_to_parent_map_);
+                                       sub_to_parent_map_);
+      sub_fes_ = &dst;
    }
    else
    {
@@ -149,22 +130,26 @@ TransferMap::TransferMap(const GridFunction &src,
    }
 }
 
-void TransferMap::Transfer(const GridFunction &src,
-                           GridFunction &dst) const
+TransferMap::TransferMap(const GridFunction &src,
+                         const GridFunction &dst)
+   : TransferMap(*src.FESpace(), *dst.FESpace())
+{ }
+
+void TransferMap::Transfer(const GridFunction &src, GridFunction &dst) const
 {
    if (category_ == TransferCategory::ParentToSubMesh)
    {
       // dst = S1^T src
       src.HostRead();
       dst.HostWrite(); // dst is fully overwritten
-      for (int i = 0; i < sub1_to_parent_map_.Size(); i++)
+      for (int i = 0; i < sub_to_parent_map_.Size(); i++)
       {
          real_t s = 1.0;
-         int j = FiniteElementSpace::DecodeDof(sub1_to_parent_map_[i], s);
+         int j = FiniteElementSpace::DecodeDof(sub_to_parent_map_[i], s);
          dst(i) = s * src(j);
       }
 
-      CorrectFaceOrientations(*dst.FESpace(), src, dst);
+      CorrectFaceOrientations(*sub_fes_, src, dst);
    }
    else if (category_ == TransferCategory::SubMeshToParent)
    {
@@ -175,55 +160,21 @@ void TransferMap::Transfer(const GridFunction &src,
 
       src.HostRead();
       dst.HostReadWrite(); // dst is only partially overwritten
-      for (int i = 0; i < sub1_to_parent_map_.Size(); i++)
+      for (int i = 0; i < sub_to_parent_map_.Size(); i++)
       {
          real_t s = 1.0;
-         int j = FiniteElementSpace::DecodeDof(sub1_to_parent_map_[i], s);
+         int j = FiniteElementSpace::DecodeDof(sub_to_parent_map_[i], s);
          dst(j) = s * src(i);
       }
 
-      CorrectFaceOrientations(*src.FESpace(), src, dst,
-                              &sub1_to_parent_map_);
+      CorrectFaceOrientations(*sub_fes_, src, dst,
+                              &sub_to_parent_map_);
    }
    else if (category_ == TransferCategory::SubMeshToSubMesh)
    {
-      // dst = S2^T G (S1 src (*) S2 dst)
-      //
-      // G is identity if the partitioning matches
-
-      src.HostRead();
-      dst.HostReadWrite();
-
-      z_ = 0.0;
-
-      for (int i = 0; i < sub2_to_parent_map_.Size(); i++)
-      {
-         real_t s = 1.0;
-         int j = FiniteElementSpace::DecodeDof(sub2_to_parent_map_[i], s);
-         z_(j) = s * dst(i);
-      }
-
-      CorrectFaceOrientations(*dst.FESpace(), dst, z_,
-                              &sub2_to_parent_map_);
-
-      for (int i = 0; i < sub1_to_parent_map_.Size(); i++)
-      {
-         real_t s = 1.0;
-         int j = FiniteElementSpace::DecodeDof(sub1_to_parent_map_[i], s);
-         z_(j) = s * src(i);
-      }
-
-      CorrectFaceOrientations(*src.FESpace(), src, z_,
-                              &sub1_to_parent_map_);
-
-      for (int i = 0; i < sub2_to_parent_map_.Size(); i++)
-      {
-         real_t s = 1.0;
-         int j = FiniteElementSpace::DecodeDof(sub2_to_parent_map_[i], s);
-         dst(i) = s * z_(j);
-      }
-
-      CorrectFaceOrientations(*dst.FESpace(), z_, dst);
+      dst_to_parent->Transfer(dst, z_);
+      src_to_parent->Transfer(src, z_);
+      parent_to_dst->Transfer(z_, dst);
    }
    else
    {

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -76,8 +76,13 @@ static PetscErrorCode __mfem_mat_shell_apply(Mat,Vec,Vec);
 static PetscErrorCode __mfem_mat_shell_apply_transpose(Mat,Vec,Vec);
 static PetscErrorCode __mfem_mat_shell_destroy(Mat);
 static PetscErrorCode __mfem_mat_shell_copy(Mat,Mat,MatStructure);
+#if PETSC_VERSION_LT(3,23,0)
 static PetscErrorCode __mfem_array_container_destroy(void*);
-static PetscErrorCode __mfem_matarray_container_destroy(void*);
+static PetscErrorCode __mfem_matarray_container_destroy(void *);
+#else
+static PetscErrorCode __mfem_array_container_destroy(void**);
+static PetscErrorCode __mfem_matarray_container_destroy(void**);
+#endif
 static PetscErrorCode __mfem_monitor_ctx_destroy(void**);
 
 // auxiliary functions
@@ -1312,7 +1317,11 @@ BlockDiagonalConstructor(MPI_Comm comm,
 
          ierr = PetscContainerCreate(comm,&c); CCHKERRQ(comm,ierr);
          ierr = PetscContainerSetPointer(c,ptrs[i]); CCHKERRQ(comm,ierr);
+#if PETSC_VERSION_LT(3,23,0)
          ierr = PetscContainerSetUserDestroy(c,__mfem_array_container_destroy);
+#else
+         ierr = PetscContainerSetCtxDestroy(c,__mfem_array_container_destroy);
+#endif
          CCHKERRQ(comm,ierr);
          ierr = PetscObjectCompose((PetscObject)A,names[i],(PetscObject)c);
          CCHKERRQ(comm,ierr);
@@ -1347,6 +1356,7 @@ void PetscParMatrix::MakeWrapper(MPI_Comm comm, const Operator* op, Mat *A)
                       PETSC_DECIDE,PETSC_DECIDE); PCHKERRQ(A,ierr);
    ierr = MatSetType(*A,MATSHELL); PCHKERRQ(A,ierr);
    ierr = MatShellSetContext(*A,(void *)op); PCHKERRQ(A,ierr);
+#if PETSC_VERSION_LT(3,24,0)
    ierr = MatShellSetOperation(*A,MATOP_MULT,
                                (void (*)())__mfem_mat_shell_apply);
    PCHKERRQ(A,ierr);
@@ -1358,6 +1368,19 @@ void PetscParMatrix::MakeWrapper(MPI_Comm comm, const Operator* op, Mat *A)
    PCHKERRQ(A,ierr);
    ierr = MatShellSetOperation(*A,MATOP_DESTROY,
                                (void (*)())__mfem_mat_shell_destroy);
+#else
+   ierr = MatShellSetOperation(*A,MATOP_MULT,
+                               (PetscErrorCodeFn*)__mfem_mat_shell_apply);
+   PCHKERRQ(A,ierr);
+   ierr = MatShellSetOperation(*A,MATOP_MULT_TRANSPOSE,
+                               (PetscErrorCodeFn*)__mfem_mat_shell_apply_transpose);
+   PCHKERRQ(A,ierr);
+   ierr = MatShellSetOperation(*A,MATOP_COPY,
+                               (PetscErrorCodeFn*)__mfem_mat_shell_copy);
+   PCHKERRQ(A,ierr);
+   ierr = MatShellSetOperation(*A,MATOP_DESTROY,
+                               (PetscErrorCodeFn*)__mfem_mat_shell_destroy);
+#endif
 #if defined(_USE_DEVICE)
    MemoryType mt = GetMemoryType(op->GetMemoryClass());
    if (mt == MemoryType::DEVICE || mt == MemoryType::MANAGED)
@@ -1625,7 +1648,11 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
          PetscContainer c;
          ierr = PetscContainerCreate(comm,&c); CCHKERRQ(comm,ierr);
          ierr = PetscContainerSetPointer(c,vmatsl2l); PCHKERRQ(c,ierr);
+#if PETSC_VERSION_LT(3,23,0)
          ierr = PetscContainerSetUserDestroy(c,__mfem_matarray_container_destroy);
+#else
+         ierr = PetscContainerSetCtxDestroy(c,__mfem_matarray_container_destroy);
+#endif
          PCHKERRQ(c,ierr);
          ierr = PetscObjectCompose((PetscObject)(*A),"_MatIS_PtAP_l2l",(PetscObject)c);
          PCHKERRQ((*A),ierr);
@@ -1721,7 +1748,11 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
 
             ierr = PetscContainerCreate(PETSC_COMM_SELF,&c); PCHKERRQ(B,ierr);
             ierr = PetscContainerSetPointer(c,ptrs[i]); PCHKERRQ(B,ierr);
+#if PETSC_VERSION_LT(3,23,0)
             ierr = PetscContainerSetUserDestroy(c,__mfem_array_container_destroy);
+#else
+            ierr = PetscContainerSetCtxDestroy(c,__mfem_array_container_destroy);
+#endif
             PCHKERRQ(B,ierr);
             ierr = PetscObjectCompose((PetscObject)(B),names[i],(PetscObject)c);
             PCHKERRQ(B,ierr);
@@ -2167,7 +2198,11 @@ PetscParMatrix * RAP(PetscParMatrix *Rt, PetscParMatrix *A, PetscParMatrix *P)
          ierr = PetscContainerCreate(PetscObjectComm((PetscObject)B),&c);
          PCHKERRQ(B,ierr);
          ierr = PetscContainerSetPointer(c,vmatsl2l); PCHKERRQ(c,ierr);
+#if PETSC_VERSION_LT(3,23,0)
          ierr = PetscContainerSetUserDestroy(c,__mfem_matarray_container_destroy);
+#else
+         ierr = PetscContainerSetCtxDestroy(c,__mfem_matarray_container_destroy);
+#endif
          PCHKERRQ(c,ierr);
          ierr = PetscObjectCompose((PetscObject)B,"_MatIS_PtAP_l2l",(PetscObject)c);
          PCHKERRQ(B,ierr);
@@ -2309,11 +2344,9 @@ Operator::Type PetscParMatrix::GetType() const
    MFEM_VERIFY(A, "no associated PETSc Mat object");
    PetscObject oA = (PetscObject)(this->A);
    // map all of MATAIJ, MATSEQAIJ, and MATMPIAIJ to -> PETSC_MATAIJ
-   ierr = PetscObjectTypeCompare(oA, MATAIJ, &ok); PCHKERRQ(A,ierr);
+   ierr = PetscObjectBaseTypeCompare(oA, MATSEQAIJ, &ok); PCHKERRQ(A,ierr);
    if (ok == PETSC_TRUE) { return PETSC_MATAIJ; }
-   ierr = PetscObjectTypeCompare(oA, MATSEQAIJ, &ok); PCHKERRQ(A,ierr);
-   if (ok == PETSC_TRUE) { return PETSC_MATAIJ; }
-   ierr = PetscObjectTypeCompare(oA, MATMPIAIJ, &ok); PCHKERRQ(A,ierr);
+   ierr = PetscObjectBaseTypeCompare(oA, MATMPIAIJ, &ok); PCHKERRQ(A,ierr);
    if (ok == PETSC_TRUE) { return PETSC_MATAIJ; }
    ierr = PetscObjectTypeCompare(oA, MATIS, &ok); PCHKERRQ(A,ierr);
    if (ok == PETSC_TRUE) { return PETSC_MATIS; }
@@ -5283,6 +5316,8 @@ static PetscErrorCode __mfem_pc_shell_destroy(PC pc)
    PetscFunctionReturn(PETSC_SUCCESS);
 }
 
+#if PETSC_VERSION_LT(3,23,0)
+
 static PetscErrorCode __mfem_array_container_destroy(void *ptr)
 {
    PetscErrorCode ierr;
@@ -5307,6 +5342,35 @@ static PetscErrorCode __mfem_matarray_container_destroy(void *ptr)
    delete a;
    PetscFunctionReturn(PETSC_SUCCESS);
 }
+
+#else
+
+static PetscErrorCode __mfem_array_container_destroy(void **ptr)
+{
+   PetscErrorCode ierr;
+
+   PetscFunctionBeginUser;
+   ierr = PetscFree(*ptr); CHKERRQ(ierr);
+   PetscFunctionReturn(PETSC_SUCCESS);
+}
+
+static PetscErrorCode __mfem_matarray_container_destroy(void **ptr)
+{
+   mfem::Array<Mat> *a = (mfem::Array<Mat>*)*ptr;
+   PetscErrorCode   ierr;
+
+   PetscFunctionBeginUser;
+   for (int i=0; i<a->Size(); i++)
+   {
+      Mat M = (*a)[i];
+      MPI_Comm comm = PetscObjectComm((PetscObject)M);
+      ierr = MatDestroy(&M); CCHKERRQ(comm,ierr);
+   }
+   delete a;
+   PetscFunctionReturn(PETSC_SUCCESS);
+}
+
+#endif
 
 static PetscErrorCode __mfem_monitor_ctx_destroy(void **ctx)
 {
@@ -5558,7 +5622,11 @@ static PetscErrorCode MatConvert_hypreParCSR_AIJ(hypre_ParCSRMatrix* hA,Mat* pA)
 
       ierr = PetscContainerCreate(comm,&c); CHKERRQ(ierr);
       ierr = PetscContainerSetPointer(c,ptrs[i]); CHKERRQ(ierr);
+#if PETSC_VERSION_LT(3,23,0)
       ierr = PetscContainerSetUserDestroy(c,__mfem_array_container_destroy);
+#else
+      ierr = PetscContainerSetCtxDestroy(c,__mfem_array_container_destroy);
+#endif
       CHKERRQ(ierr);
       ierr = PetscObjectCompose((PetscObject)(*pA),names[i],(PetscObject)c);
       CHKERRQ(ierr);
@@ -5652,7 +5720,11 @@ static PetscErrorCode MatConvert_hypreParCSR_IS(hypre_ParCSRMatrix* hA,Mat* pA)
 
       ierr = PetscContainerCreate(PETSC_COMM_SELF,&c); CHKERRQ(ierr);
       ierr = PetscContainerSetPointer(c,ptrs[i]); CHKERRQ(ierr);
+#if PETSC_VERSION_LT(3,23,0)
       ierr = PetscContainerSetUserDestroy(c,__mfem_array_container_destroy);
+#else
+      ierr = PetscContainerSetCtxDestroy(c,__mfem_array_container_destroy);
+#endif
       CHKERRQ(ierr);
       ierr = PetscObjectCompose((PetscObject)lA,names[i],(PetscObject)c);
       CHKERRQ(ierr);

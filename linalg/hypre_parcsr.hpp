@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -20,6 +20,10 @@
 
 // hypre header files
 #include <_hypre_parcsr_mv.h>
+
+#if MFEM_HYPRE_VERSION < 30000
+#define hypre_GenerateDiagAndOffd GenerateDiagAndOffd
+#endif
 
 // Older hypre versions do not define HYPRE_BigInt and HYPRE_MPI_BIG_INT, so we
 // define them here for backward compatibility.

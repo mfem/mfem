@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,8 +17,8 @@
 #include "linalg/tensor.hpp"
 #include "mfem.hpp"
 
-using mfem::internal::tensor;
-using mfem::internal::make_tensor;
+using mfem::future::tensor;
+using mfem::future::make_tensor;
 
 /**
  * @brief Neo-Hookean material
@@ -51,7 +51,7 @@ struct NeoHookeanMaterial
    MFEM_HOST_DEVICE tensor<T, dim, dim>
    stress(const tensor<T, dim, dim> &dudx) const
    {
-      static constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
+      static constexpr auto I = mfem::future::IsotropicIdentity<dim>();
       T J = det(I + dudx);
       T p = -2.0 * D1 * J * (J - 1);
       auto devB = dev(dudx + transpose(dudx) + dot(dudx, transpose(dudx)));
@@ -89,7 +89,7 @@ struct NeoHookeanMaterial
    MFEM_HOST_DEVICE tensor<mfem::real_t, dim, dim, dim, dim>
    gradient(tensor<mfem::real_t, dim, dim> dudx) const
    {
-      static constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
+      static constexpr auto I = mfem::future::IsotropicIdentity<dim>();
 
       tensor<mfem::real_t, dim, dim> F = I + dudx;
       tensor<mfem::real_t, dim, dim> invF = inv(F);
@@ -153,7 +153,7 @@ struct NeoHookeanMaterial
    {
       auto sigma = stress(make_tensor<dim, dim>([&](int i, int j)
       {
-         return mfem::internal::dual<mfem::real_t, mfem::real_t> {dudx[i][j], ddudx[i][j]};
+         return mfem::future::dual<mfem::real_t, mfem::real_t> {dudx[i][j], ddudx[i][j]};
       }));
       return make_tensor<dim, dim>(
       [&](int i, int j) { return sigma[i][j].gradient; });
@@ -210,7 +210,7 @@ struct NeoHookeanMaterial
    action_of_gradient_symbolic(const tensor<mfem::real_t, dim, dim> &du_dx,
                                const tensor<mfem::real_t, dim, dim> &ddu_dx) const
    {
-      static constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
+      static constexpr auto I = mfem::future::IsotropicIdentity<dim>();
 
       tensor<mfem::real_t, dim, dim> F = I + du_dx;
       tensor<mfem::real_t, dim, dim> invFT = inv(transpose(F));

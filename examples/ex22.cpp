@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
    // 7. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system.
    ComplexLinearForm b(fespace, conv);
-   b.Vector::operator=(0.0);
+   b = 0.0;
 
    // 8. Define the solution vector u as a complex finite element grid function
    //    corresponding to fespace. Initialize u with initial guess of 1+0i or
@@ -471,10 +471,13 @@ int main(int argc, char *argv[])
 
       ofstream sol_r_ofs("sol_r.gf");
       ofstream sol_i_ofs("sol_i.gf");
+      ofstream sol_z_ofs("sol_z.gf");
       sol_r_ofs.precision(8);
       sol_i_ofs.precision(8);
+      sol_z_ofs.precision(8);
       u.real().Save(sol_r_ofs);
       u.imag().Save(sol_i_ofs);
+      u.Save(sol_z_ofs);
    }
 
    // 14. Send the solution by socket to a GLVis server.

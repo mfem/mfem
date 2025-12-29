@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -12,20 +12,15 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
+MFEM_INSTALL_DIR ?= ../../mfem
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/toys/,)
-CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
-# Use the MFEM install directory
-# MFEM_INSTALL_DIR = ../../mfem
-# CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
-
-# Include defaults.mk to get XLINKER
-DEFAULTS_MK = $(MFEM_DIR)/config/defaults.mk
-include $(DEFAULTS_MK)
+CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
+   $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = automata life mandel rubik snake lissajous mondrian
+SEQ_MINIAPPS = automata life mandel rubik snake lissajous mondrian spiral
 PAR_MINIAPPS =
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -42,8 +37,7 @@ COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
 
 # If MFEM_SHARED is set, add the ../common rpath
 COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
-   $(if $(MFEM_USE_CUDA:YES=),$(CXX_XLINKER),$(CUDA_XLINKER))-rpath,$(abspath\
-   $(MFEM_BUILD_DIR)/miniapps/common))
+   $(MFEM_XLINKER)-rpath,$(abspath $(MFEM_BUILD_DIR)/miniapps/common))
 
 all: $(MINIAPPS)
 
@@ -88,6 +82,8 @@ rubik-test-seq: rubik
 	@$(call mfem-test-file,$<,, Toys miniapp,$(<)-init.mesh)
 
 # Testing: Specific execution options
+spiral-test-seq:
+	@true
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 

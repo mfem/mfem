@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -138,7 +138,7 @@ protected:
    /** @brief Apply the MeshOperatorSequence.
        @return ActionInfo value corresponding to the last applied operator from
        the sequence. */
-   virtual int ApplyImpl(Mesh &mesh);
+   int ApplyImpl(Mesh &mesh) override;
 
 public:
    /// Constructor. Use the Append() method to create the sequence.
@@ -155,7 +155,7 @@ public:
    Array<MeshOperator*> &GetSequence() { return sequence; }
 
    /// Reset all MeshOperators in the sequence.
-   virtual void Reset();
+   void Reset() override;
 };
 
 
@@ -198,7 +198,7 @@ protected:
    /** @brief Apply the operator to the mesh.
        @return STOP if a stopping criterion is satisfied or no elements were
        marked for refinement; REFINED + CONTINUE otherwise. */
-   virtual int ApplyImpl(Mesh &mesh);
+   int ApplyImpl(Mesh &mesh) override;
 
 public:
    /// Construct a ThresholdRefiner using the given ErrorEstimator.
@@ -254,7 +254,10 @@ public:
    real_t GetThreshold() const { return threshold; }
 
    /// Reset the associated estimator.
-   virtual void Reset();
+   void Reset() override;
+
+   /// Set the array @a refinements of elements to refine, without refining.
+   int MarkWithoutRefining(Mesh & mesh, Array<Refinement> & refinements);
 };
 
 // TODO: BulkRefiner to refine a portion of the global error
@@ -279,7 +282,7 @@ protected:
    /** @brief Apply the operator to the mesh.
        @return DEREFINED + CONTINUE if some elements were de-refined; NONE
        otherwise. */
-   virtual int ApplyImpl(Mesh &mesh);
+   int ApplyImpl(Mesh &mesh) override;
 
 public:
    /// Construct a ThresholdDerefiner using the given ErrorEstimator.
@@ -307,7 +310,7 @@ public:
    }
 
    /// Reset the associated estimator.
-   virtual void Reset() { estimator.Reset(); }
+   void Reset() override { estimator.Reset(); }
 };
 
 
@@ -347,7 +350,7 @@ protected:
    /** @brief Apply the operator to the mesh once.
        @return STOP if a stopping criterion is satisfied or no elements were
        marked for refinement; REFINED + CONTINUE otherwise. */
-   virtual int ApplyImpl(Mesh &mesh);
+   int ApplyImpl(Mesh &mesh) override;
 
 public:
    /// Constructor
@@ -419,7 +422,7 @@ public:
    }
 
    /// Reset
-   virtual void Reset();
+   void Reset() override;
 };
 
 
@@ -433,11 +436,11 @@ protected:
    /** @brief Rebalance a parallel mesh (only non-conforming parallel meshes are
        supported).
        @return CONTINUE + REBALANCE on success, NONE otherwise. */
-   virtual int ApplyImpl(Mesh &mesh);
+   int ApplyImpl(Mesh &mesh) override;
 
 public:
    /// Empty.
-   virtual void Reset() { }
+   void Reset() override { }
 };
 
 } // namespace mfem
