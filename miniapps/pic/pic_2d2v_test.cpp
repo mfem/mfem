@@ -353,10 +353,10 @@ int main(int argc, char *argv[])
       }
 
       // Visualize trajectories
-      if (ctx.visualization && step % ctx.vis_freq == 0)
-      {
-         traj_vis->Visualize();
-      }
+      // if (ctx.visualization && step % ctx.vis_freq == 0)
+      // {
+      //    traj_vis->Visualize();
+      // }
 
       // Remove lost particles
       if (step % ctx.rm_lost_freq == 0 || step == 1)
