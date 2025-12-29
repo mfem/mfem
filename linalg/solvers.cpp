@@ -212,8 +212,8 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const real_t dmpng)
 { }
 
 OperatorJacobiSmoother::OperatorJacobiSmoother(const BilinearForm &a,
-                                               const Array<int> &ess_tdofs,
-                                               const real_t dmpng)
+      const Array<int> &ess_tdofs,
+      const real_t dmpng)
    :
    Solver(a.FESpace()->GetTrueVSize()),
    dinv(height),
@@ -231,8 +231,8 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const BilinearForm &a,
 }
 
 OperatorJacobiSmoother::OperatorJacobiSmoother(const Vector &d,
-                                               const Array<int> &ess_tdofs,
-                                               const real_t dmpng)
+      const Array<int> &ess_tdofs,
+      const real_t dmpng)
    :
    Solver(d.Size()),
    dinv(height),
@@ -336,9 +336,9 @@ void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
 }
 
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
-                                                     const Vector &d,
-                                                     const Array<int>& ess_tdofs,
-                                                     int order_, real_t max_eig_estimate_)
+      const Vector &d,
+      const Array<int>& ess_tdofs,
+      int order_, real_t max_eig_estimate_)
    :
    Solver(d.Size()),
    order(order_),
@@ -353,20 +353,20 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
 
 #ifdef MFEM_USE_MPI
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
-                                                     const Vector &d,
-                                                     const Array<int>& ess_tdofs,
-                                                     int order_, MPI_Comm comm,
-                                                     int power_iterations,
-                                                     real_t power_tolerance,
-                                                     int power_seed)
+      const Vector &d,
+      const Array<int>& ess_tdofs,
+      int order_, MPI_Comm comm,
+      int power_iterations,
+      real_t power_tolerance,
+      int power_seed)
 #else
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
-                                                     const Vector &d,
-                                                     const Array<int>& ess_tdofs,
-                                                     int order_,
-                                                     int power_iterations,
-                                                     real_t power_tolerance,
-                                                     int power_seed)
+      const Vector &d,
+      const Array<int>& ess_tdofs,
+      int order_,
+      int power_iterations,
+      real_t power_tolerance,
+      int power_seed)
 #endif
    : Solver(d.Size()),
      order(order_),
@@ -389,31 +389,31 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
    Vector ev(oper->Width());
    MFEM_VERIFY(power_seed != 0, "invalid seed!");
    max_eig_estimate = powerMethod.EstimateLargestEigenvalue(diagPrecond, ev,
-                                                            power_iterations,
-                                                            power_tolerance,
-                                                            power_seed);
+                      power_iterations,
+                      power_tolerance,
+                      power_seed);
 
    Setup();
 }
 
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
-                                                     const Vector &d,
-                                                     const Array<int>& ess_tdofs,
-                                                     int order_, real_t max_eig_estimate_)
+      const Vector &d,
+      const Array<int>& ess_tdofs,
+      int order_, real_t max_eig_estimate_)
    : OperatorChebyshevSmoother(*oper_, d, ess_tdofs, order_, max_eig_estimate_) { }
 
 #ifdef MFEM_USE_MPI
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
-                                                     const Vector &d,
-                                                     const Array<int>& ess_tdofs,
-                                                     int order_, MPI_Comm comm, int power_iterations, real_t power_tolerance)
+      const Vector &d,
+      const Array<int>& ess_tdofs,
+      int order_, MPI_Comm comm, int power_iterations, real_t power_tolerance)
    : OperatorChebyshevSmoother(*oper_, d, ess_tdofs, order_, comm,
                                power_iterations, power_tolerance) { }
 #else
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
-                                                     const Vector &d,
-                                                     const Array<int>& ess_tdofs,
-                                                     int order_, int power_iterations, real_t power_tolerance)
+      const Vector &d,
+      const Array<int>& ess_tdofs,
+      int order_, int power_iterations, real_t power_tolerance)
    : OperatorChebyshevSmoother(*oper_, d, ess_tdofs, order_, power_iterations,
                                power_tolerance) { }
 #endif
@@ -2066,8 +2066,8 @@ void NewtonSolver::SetAdaptiveLinRtol(const int type,
 }
 
 void NewtonSolver::AdaptiveLinRtolPreSolve(const Vector &x,
-                                           const int it,
-                                           const real_t fnorm) const
+      const int it,
+      const real_t fnorm) const
 {
    // Assume that when adaptive linear solver relative tolerance is activated,
    // we are working with an iterative solver.
@@ -2113,9 +2113,9 @@ void NewtonSolver::AdaptiveLinRtolPreSolve(const Vector &x,
 }
 
 void NewtonSolver::AdaptiveLinRtolPostSolve(const Vector &x,
-                                            const Vector &b,
-                                            const int it,
-                                            const real_t fnorm) const
+      const Vector &b,
+      const int it,
+      const real_t fnorm) const
 {
    fnorm_last = fnorm;
 
@@ -2452,8 +2452,8 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
 }
 
 OptimizationProblem::OptimizationProblem(const int insize,
-                                         const Operator *C_,
-                                         const Operator *D_)
+      const Operator *C_,
+      const Operator *D_)
    : C(C_), D(D_), c_e(NULL), d_lo(NULL), d_hi(NULL), x_lo(NULL), x_hi(NULL),
      input_size(insize)
 {
@@ -2470,7 +2470,7 @@ void OptimizationProblem::SetEqualityConstraint(const Vector &c)
 }
 
 void OptimizationProblem::SetInequalityConstraint(const Vector &dl,
-                                                  const Vector &dh)
+      const Vector &dh)
 {
    MFEM_VERIFY(D, "The D operator is unspecified -- can't set constraints.");
    MFEM_VERIFY(dl.Size() == D->Height() && dh.Size() == D->Height(),
@@ -2489,8 +2489,6 @@ void OptimizationProblem::SetSolutionBounds(const Vector &xl, const Vector &xh)
 
 int OptimizationProblem::GetNumConstraints() const
 {
-   return c_e->Size();
-
    int m = 0;
    if (C) { m += C->Height(); }
    if (D) { m += D->Height(); }
@@ -3509,7 +3507,7 @@ KLUSolver::~KLUSolver()
 #endif // MFEM_USE_SUITESPARSE
 
 DirectSubBlockSolver::DirectSubBlockSolver(const SparseMatrix &A,
-                                           const SparseMatrix &block_dof_)
+      const SparseMatrix &block_dof_)
    : Solver(A.NumRows()), block_dof(const_cast<SparseMatrix&>(block_dof_)),
      block_solvers(new DenseMatrixInverse[block_dof.NumRows()])
 {

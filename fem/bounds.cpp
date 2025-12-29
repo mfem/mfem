@@ -13,23 +13,23 @@
 
 #include "bounds.hpp"
 
-#include <limits>
-#include <cstring>
-#include <string>
-#include <cmath>
-#include <iostream>
 #include <algorithm>
+#include <cmath>
+#include <cstring>
+#include <iostream>
+#include <limits>
+#include <string>
 
 namespace mfem
 {
 
 using namespace std;
 
-void PLBound::Setup(const int nb_i, const int ncp_i,
-                    const int b_type_i, const int cp_type_i,
-                    const real_t tol_i)
+void PLBound::Setup(const int nb_i, const int ncp_i, const int b_type_i,
+                    const int cp_type_i, const real_t tol_i)
 {
-   MFEM_VERIFY(b_type_i >= 0 && b_type_i <= 2, "Bases not supported. "
+   MFEM_VERIFY(b_type_i >= 0 && b_type_i <= 2,
+               "Bases not supported. "
                "Please read class description to see supported types.");
    MFEM_VERIFY(cp_type_i == 0 || cp_type_i == 1,
                "Control point type not supported. Please read class "
@@ -45,34 +45,35 @@ void PLBound::Setup(const int nb_i, const int ncp_i,
    weights.SetSize(nb);
    control_points.SetSize(ncp);
 
-   auto scalenodes = [](const Vector &in, const real_t a, const real_t b) -> Vector
+   auto scalenodes = [](const Vector &in, const real_t a,
+                        const real_t b) -> Vector
    {
       Vector outVec(in.Size());
       real_t maxv = in.Max();
       real_t minv = in.Min();
       for (int i = 0; i < in.Size(); i++)
       {
-         outVec(i) = a + (b-a)*(in(i)-minv)/(maxv-minv);
+         outVec(i) = a + (b - a) * (in(i)-minv) / (maxv - minv);
       }
       return outVec;
    };
-   MFEM_VERIFY(ncp >= 2,"At least 2 control points are required.");
+   MFEM_VERIFY(ncp >= 2, "At least 2 control points are required.");
 
    if (cp_type == 0) // GL + End Point
    {
       control_points(0) = 0.0;
-      control_points(ncp-1) = 1.0;
+      control_points(ncp - 1) = 1.0;
       if (ncp > 2)
       {
-         const real_t *x = poly1d.GetPoints(ncp-3, 0);
+         const real_t *x = poly1d.GetPoints(ncp - 3, 0);
          MFEM_VERIFY(x, "Error in getting points.");
-         for (int i = 0; i < ncp-2; i++)
+         for (int i = 0; i < ncp - 2; i++)
          {
-            control_points(i+1) = x[i];
+            control_points(i + 1) = x[i];
          }
       }
    }
-   else if (cp_type == 1) // Chebyshev
+   else if (cp_type == 1)   // Chebyshev
    {
       auto GetChebyshevNodes = [](int n) -> Vector
       {
@@ -91,13 +92,13 @@ void PLBound::Setup(const int nb_i, const int ncp_i,
    }
    control_points = scalenodes(control_points, 0.0, 1.0); // rescale to [0,1]
 
-   Poly_1D::Basis &basis1d(poly1d.GetBasis(nb-1, b_type));
+   Poly_1D::Basis &basis1d(poly1d.GetBasis(nb - 1, b_type));
 
    // Initialize bounds
    lbound = 0.0;
    ubound = 0.0;
 
-   Vector bmv(nb), bpv(nb), bv(nb); // basis values
+   Vector bmv(nb), bpv(nb), bv(nb);    // basis values
    Vector bdmv(nb), bdpv(nb), bdv(nb); // basis derivative values
    Vector vals(3);
 
@@ -109,40 +110,40 @@ void PLBound::Setup(const int nb_i, const int ncp_i,
       real_t xm = x;
       if (j != 0)
       {
-         xm = 0.5*(control_points(j-1)+control_points(j));
+         xm = 0.5 * (control_points(j - 1) + control_points(j));
       }
       real_t xp = x;
-      if (j != ncp-1)
+      if (j != ncp - 1)
       {
-         xp = 0.5*(control_points(j)+control_points(j+1));
+         xp = 0.5 * (control_points(j) + control_points(j + 1));
       }
       basis1d.Eval(xm, bmv, bdmv);
       basis1d.Eval(xp, bpv, bdpv);
       basis1d.Eval(x, bv);
-      real_t dm = x-xm;
-      real_t dp = x-xp;
+      real_t dm = x - xm;
+      real_t dp = x - xp;
       for (int i = 0; i < nb; i++)
       {
          if (j == 0)
          {
-            lbound(j,i) = bv(i);
-            ubound(j,i) = bv(i);
+            lbound(j, i) = bv(i);
+            ubound(j, i) = bv(i);
          }
-         else if (j == ncp-1)
+         else if (j == ncp - 1)
          {
-            lbound(j,i) = bv(i);
-            ubound(j,i) = bv(i);
+            lbound(j, i) = bv(i);
+            ubound(j, i) = bv(i);
          }
          else
          {
-            vals(0)  = bv(i);
-            vals(1) =  bmv(i) +  dm*bdmv(i);
-            vals(2) =  bpv(i) +  dp*bdpv(i);
-            lbound(j,i) = vals.Min()-tol; // tolerance for good measure
-            ubound(j,i) = vals.Max()+tol; // tolerance for good measure
+            vals(0) = bv(i);
+            vals(1) = bmv(i) + dm * bdmv(i);
+            vals(2) = bpv(i) + dp * bdpv(i);
+            lbound(j, i) = vals.Min() - tol; // tolerance for good measure
+            ubound(j, i) = vals.Max() + tol; // tolerance for good measure
             if (b_type == 2)
             {
-               lbound(j,i) = std::max(lbound(j,i),0.0);
+               lbound(j, i) = std::max(lbound(j, i), 0.0);
             }
          }
       }
@@ -198,7 +199,7 @@ void PLBound::Setup(const int nb_i, const int ncp_i,
       // Compute lu factors
       LUFactors lu(basisMatLU.GetData(), lu_ip.GetData());
       bool factor = lu.Factor(nb);
-      MFEM_VERIFY(factor,"Failure in LU factorization in PLBound.");
+      MFEM_VERIFY(factor, "Failure in LU factorization in PLBound.");
 
       // Setup the Bernstein basis matrix for the GLL integration points. This
       // is used to compute linear fit.
@@ -221,43 +222,43 @@ PLBound::PLBound(const FiniteElementSpace *fes, const int ncp_i,
 
    cp_type = cp_type_i;
    b_type = BasisType::Invalid;
-   nb = fes->GetMaxElementOrder()+1;
+   nb = fes->GetMaxElementOrder() + 1;
    tol = 0.0;
 
    int minncp = 2;
    if (nb > 12)
    {
-      minncp = 2*nb;
+      minncp = 2 * nb;
    }
    else if (!strncmp(name, "H1_", 3) && strncmp(name, "H1_Trace_", 9))
    {
       // H1 GLL
       b_type = BasisType::GaussLobatto;
-      minncp = min_ncp_gll_x[cp_type][nb-2];
+      minncp = min_ncp_gll_x[cp_type][nb - 2];
    }
    else if (!strncmp(name, "H1Pos_", 6) && strncmp(name, "H1Pos_Trace_", 12))
    {
       // H1 Positive
       b_type = BasisType::Positive;
-      minncp = min_ncp_pos_x[cp_type][nb-2];
+      minncp = min_ncp_pos_x[cp_type][nb - 2];
    }
    else if (!strncmp(name, "L2_", 3) && strncmp(name, "L2_T", 4))
    {
       // L2 Gauss-Legendre
       b_type = BasisType::GaussLegendre;
-      minncp = min_ncp_gl_x[cp_type][nb-2];
+      minncp = min_ncp_gl_x[cp_type][nb - 2];
    }
    else if (!strncmp(name, "L2_T1", 5))
    {
       // L2 GLL
       b_type = BasisType::GaussLobatto;
-      minncp = min_ncp_gll_x[cp_type][nb-2];
+      minncp = min_ncp_gll_x[cp_type][nb - 2];
    }
    else if (!strncmp(name, "L2_T2", 5))
    {
       // L2 Positive
       b_type = BasisType::Positive;
-      minncp = min_ncp_pos_x[cp_type][nb-2];
+      minncp = min_ncp_pos_x[cp_type][nb - 2];
    }
    else
    {
@@ -272,7 +273,7 @@ PLBound::PLBound(const FiniteElementSpace *fes, const int ncp_i,
 void PLBound::Get1DBounds(const Vector &coeff, Vector &intmin,
                           Vector &intmax) const
 {
-   real_t x,w;
+   real_t x, w;
    intmin.SetSize(ncp);
    intmax.SetSize(ncp);
    intmin = 0.0;
@@ -291,9 +292,9 @@ void PLBound::Get1DBounds(const Vector &coeff, Vector &intmin,
       for (int i = 0; i < nb; i++)
       {
          basisMatNodes.GetRow(i, shape);
-         nodal_vals(i) = shape*coeff;
+         nodal_vals(i) = shape * coeff;
          basisMatInt.GetRow(i, shape);
-         nodal_integ_vals(i) = shape*coeff;
+         nodal_integ_vals(i) = shape * coeff;
       }
    }
    else
@@ -309,17 +310,17 @@ void PLBound::Get1DBounds(const Vector &coeff, Vector &intmin,
       coeffm = 0.0;
       for (int i = 0; i < nb; i++)
       {
-         x = 2.0*nodes_int(i)-1;
-         w = 2.0*weights_int(i);
-         a0 += 0.5*nodal_integ_vals(i)*w;
-         a1 += 1.5*nodal_integ_vals(i)*w*x;
+         x = 2.0 * nodes_int(i) - 1;
+         w = 2.0 * weights_int(i);
+         a0 += 0.5 * nodal_integ_vals(i) * w;
+         a1 += 1.5 * nodal_integ_vals(i) * w * x;
       }
 
       // offset the linear fit from nodal values
       for (int i = 0; i < nb; i++)
       {
-         x = 2.0*nodes(i)-1;
-         coeffm(i) = nodal_vals(i) - a0 - a1*x;
+         x = 2.0 * nodes(i) - 1;
+         coeffm(i) = nodal_vals(i) - a0 - a1 * x;
       }
 
       // compute coefficients for Bernstein
@@ -332,8 +333,8 @@ void PLBound::Get1DBounds(const Vector &coeff, Vector &intmin,
       // initialize the bounds to be the linear fit
       for (int j = 0; j < ncp; j++)
       {
-         x = 2.0*control_points(j)-1;
-         intmin(j) = a0 + a1*x;
+         x = 2.0 * control_points(j) - 1;
+         intmin(j) = a0 + a1 * x;
          intmax(j) = intmin(j);
       }
    }
@@ -347,8 +348,8 @@ void PLBound::Get1DBounds(const Vector &coeff, Vector &intmin,
       real_t c = coeffm(i);
       for (int j = 0; j < ncp; j++)
       {
-         intmin(j) += min(lbound(j,i)*c, ubound(j,i)*c);
-         intmax(j) += max(lbound(j,i)*c, ubound(j,i)*c);
+         intmin(j) += min(lbound(j, i) * c, ubound(j, i) * c);
+         intmax(j) += max(lbound(j, i) * c, ubound(j, i) * c);
       }
    }
 }
@@ -356,18 +357,18 @@ void PLBound::Get1DBounds(const Vector &coeff, Vector &intmin,
 void PLBound::Get2DBounds(const Vector &coeff, Vector &intmin,
                           Vector &intmax) const
 {
-   intmin.SetSize(ncp*ncp);
-   intmax.SetSize(ncp*ncp);
+   intmin.SetSize(ncp * ncp);
+   intmax.SetSize(ncp * ncp);
    intmin = 0.0;
    intmax = 0.0;
-   Vector intminT(ncp*nb);
-   Vector intmaxT(ncp*nb);
+   Vector intminT(ncp * nb);
+   Vector intmaxT(ncp * nb);
    // Get bounds for each row of the solution
    for (int i = 0; i < nb; i++)
    {
-      Vector solcoeff(coeff.GetData()+i*nb, nb);
-      Vector intminrow(intminT.GetData()+i*ncp, ncp);
-      Vector intmaxrow(intmaxT.GetData()+i*ncp, ncp);
+      Vector solcoeff(coeff.GetData() + i * nb, nb);
+      Vector intminrow(intminT.GetData() + i * ncp, ncp);
+      Vector intmaxrow(intmaxT.GetData() + i * ncp, ncp);
       Get1DBounds(solcoeff, intminrow, intmaxrow);
    }
    Vector intminT2 = intminT;
@@ -376,7 +377,7 @@ void PLBound::Get2DBounds(const Vector &coeff, Vector &intmin,
    Vector a0V(ncp), a1V(ncp);
    a0V = 0.0;
    a1V = 0.0;
-   real_t x,w,t;
+   real_t x, w, t;
    if (proj)
    {
       if (b_type == 2)
@@ -384,8 +385,7 @@ void PLBound::Get2DBounds(const Vector &coeff, Vector &intmin,
          // Note: DenseMatrix uses column-major ordering so we will need to
          // transpose the matrix.
          DenseMatrix intminTM(intminT.GetData(), ncp, nb),
-                     intmaxTM(intmaxT.GetData(), ncp, nb),
-                     intmeanTM(ncp, nb);
+                     intmaxTM(intmaxT.GetData(), ncp, nb), intmeanTM(ncp, nb);
          DenseMatrix minvalsM(nb, ncp), maxvalsM(nb, ncp), meanintvalsM(nb, ncp);
          MultABt(basisMatNodes, intminTM, minvalsM);
          MultABt(basisMatNodes, intmaxTM, maxvalsM);
@@ -406,18 +406,18 @@ void PLBound::Get2DBounds(const Vector &coeff, Vector &intmin,
          {
             for (int i = 0; i < nb; i++)
             {
-               x = 2.0*nodes_int(i)-1; // x-coordinate
-               w = 2.0*weights_int(i); // weight
-               t = meanintvalsM(i,j);
-               a0V(j) += 0.5*t*w;
-               a1V(j) += 1.5*t*w*x;
+               x = 2.0 * nodes_int(i) - 1; // x-coordinate
+               w = 2.0 * weights_int(i);   // weight
+               t = meanintvalsM(i, j);
+               a0V(j) += 0.5 * t * w;
+               a1V(j) += 1.5 * t * w * x;
             }
             // Offset linear fit
             for (int i = 0; i < nb; i++)
             {
-               x = 2.0*nodes(i)-1; // x-coordinate
-               minvalsM(i,j) -= a0V(j) + a1V(j)*x;
-               maxvalsM(i,j) -= a0V(j) + a1V(j)*x;
+               x = 2.0 * nodes(i) - 1; // x-coordinate
+               minvalsM(i, j) -= a0V(j) + a1V(j) * x;
+               maxvalsM(i, j) -= a0V(j) + a1V(j) * x;
             }
             // Compute Bernstein coefficients
             LUFactors lu(basisMatLU.GetData(), lu_ip.GetData());
@@ -425,8 +425,8 @@ void PLBound::Get2DBounds(const Vector &coeff, Vector &intmin,
             lu.Solve(nb, 1, maxvalsM.GetColumn(j));
             for (int i = 0; i < nb; i++)
             {
-               intminT(i*ncp+j) = minvalsM(i,j);
-               intmaxT(i*ncp+j) = maxvalsM(i,j);
+               intminT(i * ncp + j) = minvalsM(i, j);
+               intmaxT(i * ncp + j) = maxvalsM(i, j);
             }
          }
       }
@@ -434,24 +434,24 @@ void PLBound::Get2DBounds(const Vector &coeff, Vector &intmin,
       {
          for (int j = 0; j < nb; j++) // row of nodes
          {
-            x = 2.0*nodes(j)-1; // x-coordinate
-            w = 2.0*weights(j); // weight
+            x = 2.0 * nodes(j) - 1;       // x-coordinate
+            w = 2.0 * weights(j);         // weight
             for (int i = 0; i < ncp; i++) // column of interval points
             {
-               t = 0.5*(intminT(j*ncp+i)+intmaxT(j*ncp+i));
-               a0V(i) += 0.5*t*w;
-               a1V(i) += 1.5*t*w*x;
+               t = 0.5 * (intminT(j * ncp + i) + intmaxT(j * ncp + i));
+               a0V(i) += 0.5 * t * w;
+               a1V(i) += 1.5 * t * w * x;
             }
          }
          // offset the linear fit from nodal values
          for (int j = 0; j < nb; j++) // row of nodes
          {
-            x = 2.0*nodes(j)-1; // x-coordinate
+            x = 2.0 * nodes(j) - 1;       // x-coordinate
             for (int i = 0; i < ncp; i++) // column of interval points
             {
-               t = a0V(i) + a1V(i)*x;
-               intminT(j*ncp+i) -= t;
-               intmaxT(j*ncp+i) -= t;
+               t = a0V(i) + a1V(i) * x;
+               intminT(j * ncp + i) -= t;
+               intmaxT(j * ncp + i) -= t;
             }
          }
       }
@@ -459,11 +459,11 @@ void PLBound::Get2DBounds(const Vector &coeff, Vector &intmin,
       // Initialize bounds using a0 and a1 values
       for (int j = 0; j < ncp; j++) // row j
       {
-         x = 2.0*control_points(j)-1;
+         x = 2.0 * control_points(j) - 1;
          for (int i = 0; i < ncp; i++) // column i
          {
-            intmin(j*ncp+i) = a0V(i) + a1V(i)*x;
-            intmax(j*ncp+i) = intmin(j*ncp+i);
+            intmin(j * ncp + i) = a0V(i) + a1V(i) * x;
+            intmax(j * ncp + i) = intmin(j * ncp + i);
          }
       }
    }
@@ -479,12 +479,12 @@ void PLBound::Get2DBounds(const Vector &coeff, Vector &intmin,
          real_t w1 = intmaxT(id2++);
          for (int k = 0; k < ncp; k++) // kth row
          {
-            vals(0) = w0*lbound(k,j);
-            vals(1) = w0*ubound(k,j);
-            vals(2) = w1*lbound(k,j);
-            vals(3) = w1*ubound(k,j);
-            intmin(k*ncp+i) += vals.Min();
-            intmax(k*ncp+i) += vals.Max();
+            vals(0) = w0 * lbound(k, j);
+            vals(1) = w0 * ubound(k, j);
+            vals(2) = w1 * lbound(k, j);
+            vals(3) = w1 * ubound(k, j);
+            intmin(k * ncp + i) += vals.Min();
+            intmax(k * ncp + i) += vals.Max();
          }
       }
    }
@@ -493,23 +493,21 @@ void PLBound::Get2DBounds(const Vector &coeff, Vector &intmin,
 void PLBound::Get3DBounds(const Vector &coeff, Vector &intmin,
                           Vector &intmax) const
 {
-   int nb2 = nb*nb,
-       ncp2 = ncp*ncp,
-       ncp3 = ncp*ncp*ncp;
+   int nb2 = nb * nb, ncp2 = ncp * ncp, ncp3 = ncp * ncp * ncp;
 
    intmin.SetSize(ncp3);
    intmax.SetSize(ncp3);
    intmin = 0.0;
    intmax = 0.0;
-   Vector intminT(ncp2*nb);
-   Vector intmaxT(ncp2*nb);
+   Vector intminT(ncp2 * nb);
+   Vector intmaxT(ncp2 * nb);
 
    // Get bounds for each slice of the solution
    for (int i = 0; i < nb; i++)
    {
-      Vector solcoeff(coeff.GetData()+i*nb2, nb2);
-      Vector intminrow(intminT.GetData()+i*ncp2, ncp2);
-      Vector intmaxrow(intmaxT.GetData()+i*ncp2, ncp2);
+      Vector solcoeff(coeff.GetData() + i * nb2, nb2);
+      Vector intminrow(intminT.GetData() + i * ncp2, ncp2);
+      Vector intmaxrow(intmaxT.GetData() + i * ncp2, ncp2);
       Get2DBounds(solcoeff, intminrow, intmaxrow);
    }
    DenseMatrix intminTM(intminT.GetData(), ncp2, nb),
@@ -519,7 +517,7 @@ void PLBound::Get3DBounds(const Vector &coeff, Vector &intmin,
    Vector a0V(ncp2), a1V(ncp2);
    a0V = 0.0;
    a1V = 0.0;
-   real_t x,w,t;
+   real_t x, w, t;
    if (proj)
    {
       if (b_type == 2) // Bernstein bases
@@ -532,7 +530,7 @@ void PLBound::Get3DBounds(const Vector &coeff, Vector &intmin,
             intmaxTM.GetRow(j, maxBounds);
             for (int i = 0; i < nb; i++) // column of nodes
             {
-               meanBounds(i) = 0.5*(minBounds(i)+maxBounds(i));
+               meanBounds(i) = 0.5 * (minBounds(i) + maxBounds(i));
             }
             Vector meanNodalIntVals(nb);
             Vector minNodalVals(nb);
@@ -541,25 +539,25 @@ void PLBound::Get3DBounds(const Vector &coeff, Vector &intmin,
             for (int i = 0; i < nb; i++)
             {
                basisMatNodes.GetRow(i, row);
-               minNodalVals(i) = row*minBounds;
-               maxNodalVals(i) = row*maxBounds;
+               minNodalVals(i) = row * minBounds;
+               maxNodalVals(i) = row * maxBounds;
                basisMatInt.GetRow(i, row);
-               meanNodalIntVals(i) = row*meanBounds;
+               meanNodalIntVals(i) = row * meanBounds;
             }
             // linear fit along each tower
             for (int i = 0; i < nb; i++)
             {
-               x = 2.0*nodes_int(i)-1; // x-coordinate
-               w = 2.0*weights_int(i); // weight
-               a0V(j) += 0.5*meanNodalIntVals(i)*w;
-               a1V(j) += 1.5*meanNodalIntVals(i)*w*x;
+               x = 2.0 * nodes_int(i) - 1; // x-coordinate
+               w = 2.0 * weights_int(i);   // weight
+               a0V(j) += 0.5 * meanNodalIntVals(i) * w;
+               a1V(j) += 1.5 * meanNodalIntVals(i) * w * x;
             }
             // offset the linear fit from bounding coefficients
             for (int i = 0; i < nb; i++)
             {
-               x = 2.0*nodes(i)-1; // x-coordinate
-               minNodalVals(i) -= a0V(j) + a1V(j)*x;
-               maxNodalVals(i) -= a0V(j) + a1V(j)*x;
+               x = 2.0 * nodes(i) - 1; // x-coordinate
+               minNodalVals(i) -= a0V(j) + a1V(j) * x;
+               maxNodalVals(i) -= a0V(j) + a1V(j) * x;
             }
             // Compute Bernstein coefficients
             LUFactors lu(basisMatLU.GetData(), lu_ip.GetData());
@@ -567,8 +565,8 @@ void PLBound::Get3DBounds(const Vector &coeff, Vector &intmin,
             lu.Solve(nb, 1, maxNodalVals.GetData());
             for (int i = 0; i < nb; i++)
             {
-               intminT(i*ncp2+j) = minNodalVals(i);
-               intmaxT(i*ncp2+j) = maxNodalVals(i);
+               intminT(i * ncp2 + j) = minNodalVals(i);
+               intmaxT(i * ncp2 + j) = maxNodalVals(i);
             }
          }
       }
@@ -577,24 +575,24 @@ void PLBound::Get3DBounds(const Vector &coeff, Vector &intmin,
          // nodal bases
          for (int j = 0; j < nb; j++) // tower of nodes
          {
-            x = 2.0*nodes(j)-1; // x-coordinate
-            w = 2.0*weights(j); // weight
+            x = 2.0 * nodes(j) - 1;        // x-coordinate
+            w = 2.0 * weights(j);          // weight
             for (int i = 0; i < ncp2; i++) // slice of interval points
             {
-               t = 0.5*(intminT(j*ncp2+i)+intmaxT(j*ncp2+i));
-               a0V(i) += 0.5*t*w;
-               a1V(i) += 1.5*t*w*x;
+               t = 0.5 * (intminT(j * ncp2 + i) + intmaxT(j * ncp2 + i));
+               a0V(i) += 0.5 * t * w;
+               a1V(i) += 1.5 * t * w * x;
             }
          }
          // offset the linear fit from nodal values
          for (int j = 0; j < nb; j++) // row of nodes
          {
-            x = 2.0*nodes(j)-1; // x-coordinate
+            x = 2.0 * nodes(j) - 1;        // x-coordinate
             for (int i = 0; i < ncp2; i++) // column of interval points
             {
-               t = a0V(i) + a1V(i)*x;
-               intminT(j*ncp2+i) -= t;
-               intmaxT(j*ncp2+i) -= t;
+               t = a0V(i) + a1V(i) * x;
+               intminT(j * ncp2 + i) -= t;
+               intmaxT(j * ncp2 + i) -= t;
             }
          }
       }
@@ -602,11 +600,11 @@ void PLBound::Get3DBounds(const Vector &coeff, Vector &intmin,
       // Initialize bounds using a0 and a1 values
       for (int j = 0; j < ncp; j++) // slice j
       {
-         x = 2.0*control_points(j)-1;
+         x = 2.0 * control_points(j) - 1;
          for (int i = 0; i < ncp2; i++) // tower i
          {
-            intmin(j*ncp2+i) = a0V(i) + a1V(i)*x;
-            intmax(j*ncp2+i) = a0V(i) + a1V(i)*x;
+            intmin(j * ncp2 + i) = a0V(i) + a1V(i) * x;
+            intmax(j * ncp2 + i) = a0V(i) + a1V(i) * x;
          }
       }
    }
@@ -622,19 +620,19 @@ void PLBound::Get3DBounds(const Vector &coeff, Vector &intmin,
          real_t w1 = intmaxT(id2++);
          for (int k = 0; k < ncp; k++) // kth slice
          {
-            vals(0) = w0*lbound(k,j);
-            vals(1) = w0*ubound(k,j);
-            vals(2) = w1*lbound(k,j);
-            vals(3) = w1*ubound(k,j);
-            intmin(k*ncp2+i) += vals.Min();
-            intmax(k*ncp2+i) += vals.Max();
+            vals(0) = w0 * lbound(k, j);
+            vals(1) = w0 * ubound(k, j);
+            vals(2) = w1 * lbound(k, j);
+            vals(3) = w1 * ubound(k, j);
+            intmin(k * ncp2 + i) += vals.Min();
+            intmax(k * ncp2 + i) += vals.Max();
          }
       }
    }
 }
 
-void PLBound::GetNDBounds(const int rdim, const Vector &coeff,
-                          Vector &intmin, Vector &intmax) const
+void PLBound::GetNDBounds(const int rdim, const Vector &coeff, Vector &intmin,
+                          Vector &intmax) const
 {
    if (rdim == 1)
    {
@@ -658,7 +656,8 @@ void PLBound::SetupBernsteinBasisMat(DenseMatrix &basisMat,
                                      Vector &nodesBern) const
 {
    const int nbern = nodesBern.Size();
-   L2_SegmentElement el(nbern-1, 2); // we use L2 to leverage lexicographic order
+   L2_SegmentElement el(nbern - 1,
+                        2); // we use L2 to leverage lexicographic order
    Array<int> ordering = el.GetLexicographicOrdering();
    basisMat.SetSize(nbern, nbern);
    Vector shape(nbern);
@@ -715,18 +714,21 @@ DenseMatrix PLBound::GetUpperBoundMatrix(int dim)
    return ubound;
 }
 
-DenseMatrix PLBound::GetLowerBoundMatrix(int dim, const FiniteElementSpace *fes)
+DenseMatrix PLBound::GetLowerBoundMatrix(int dim,
+      const FiniteElementSpace *fes)
 {
    DenseMatrix lboundT = GetLowerBoundMatrix(dim);
    int ncpd = static_cast<int>(std::pow(ncp, dim));
    int nbd = static_cast<int>(std::pow(nb, dim));
    DenseMatrix lbound_permuted(ncpd, nbd);
    const FiniteElement *fe = fes->GetTypicalFE();
-   const TensorBasisElement *tbe =
-      dynamic_cast<const TensorBasisElement *>(fe);
+   const TensorBasisElement *tbe = dynamic_cast<const TensorBasisElement *>(fe);
    MFEM_VERIFY(tbe != NULL, "TensorBasis FiniteElement expected.");
    const Array<int> &dof_map = tbe->GetDofMap();
-   if (dof_map.Size() == 0) { return lboundT; }
+   if (dof_map.Size() == 0)
+   {
+      return lboundT;
+   }
    DenseMatrix lboundND_permuted(ncpd, nbd);
    for (int j = 0; j < nbd; j++)
    {
@@ -738,18 +740,21 @@ DenseMatrix PLBound::GetLowerBoundMatrix(int dim, const FiniteElementSpace *fes)
    return lboundND_permuted;
 }
 
-DenseMatrix PLBound::GetUpperBoundMatrix(int dim, const FiniteElementSpace *fes)
+DenseMatrix PLBound::GetUpperBoundMatrix(int dim,
+      const FiniteElementSpace *fes)
 {
    DenseMatrix uboundT = GetUpperBoundMatrix(dim);
    int ncpd = static_cast<int>(std::pow(ncp, dim));
    int nbd = static_cast<int>(std::pow(nb, dim));
    DenseMatrix ubound_permuted(ncpd, nbd);
    const FiniteElement *fe = fes->GetTypicalFE();
-   const TensorBasisElement *tbe =
-      dynamic_cast<const TensorBasisElement *>(fe);
+   const TensorBasisElement *tbe = dynamic_cast<const TensorBasisElement *>(fe);
    MFEM_VERIFY(tbe != NULL, "TensorBasis FiniteElement expected.");
    const Array<int> &dof_map = tbe->GetDofMap();
-   if (dof_map.Size() == 0) { return uboundT; }
+   if (dof_map.Size() == 0)
+   {
+      return uboundT;
+   }
    DenseMatrix uboundND_permuted(ncpd, nbd);
    for (int j = 0; j < nbd; j++)
    {
@@ -767,7 +772,12 @@ IntegrationRule PLBound::GetIntegrationRule(int dim) const
    for (int i = 0; i < ncp; i++)
    {
       irule_1D.IntPoint(i).x = control_points(i);
-      irule_1D.IntPoint(i).weight = 0.0; // weights are not used
+      irule_1D.IntPoint(i).weight = 1.0 /
+                                    control_points.Size(); // weights are not used
+   }
+   if (dim == 1)
+   {
+      return irule_1D;
    }
    if (dim == 2)
    {
@@ -779,10 +789,7 @@ IntegrationRule PLBound::GetIntegrationRule(int dim) const
       IntegrationRule irule_3D(irule_1D, irule_1D, irule_1D);
       return irule_3D;
    }
-   else if (dim != 1)
-   {
-      MFEM_ABORT("Currently not supported.");
-   }
+   MFEM_ABORT("Currently not supported.");
    return irule_1D;
 }
 
@@ -791,11 +798,14 @@ constexpr int PLBound::min_ncp_gll_x[2][11];
 constexpr int PLBound::min_ncp_pos_x[2][11];
 
 int PLBound::GetMinimumPointsForGivenBases(int nb_i, int b_type_i,
-                                           int cp_type_i) const
+      int cp_type_i) const
 {
-   MFEM_VERIFY(b_type_i >= 0 && b_type_i <= 2, "Invalid node type. Specify 0 "
-               "for GL, 1 for GLL, and 2 for positive " "bases.");
-   MFEM_VERIFY(cp_type_i == 0 || cp_type_i == 1, "Invalid control point type. "
+   MFEM_VERIFY(b_type_i >= 0 && b_type_i <= 2,
+               "Invalid node type. Specify 0 "
+               "for GL, 1 for GLL, and 2 for positive "
+               "bases.");
+   MFEM_VERIFY(cp_type_i == 0 || cp_type_i == 1,
+               "Invalid control point type. "
                "Specify 0 for GL+end points, 1 for Chebyshev.");
    if (nb_i > 12)
    {
@@ -805,15 +815,15 @@ int PLBound::GetMinimumPointsForGivenBases(int nb_i, int b_type_i,
    }
    else if (b_type_i == 0)
    {
-      return min_ncp_gl_x[cp_type_i][nb_i-2];
+      return min_ncp_gl_x[cp_type_i][nb_i - 2];
    }
    else if (b_type_i == 1)
    {
-      return min_ncp_gll_x[cp_type_i][nb_i-2];
+      return min_ncp_gll_x[cp_type_i][nb_i - 2];
    }
    else if (b_type_i == 2)
    {
-      return min_ncp_pos_x[cp_type_i][nb_i-2];
+      return min_ncp_pos_x[cp_type_i][nb_i - 2];
    }
    return 0;
 }
@@ -836,4 +846,4 @@ void PLBound::Print(std::ostream &outp) const
    ubound.Print(outp);
 }
 
-}
+} // namespace mfem
