@@ -782,6 +782,7 @@ void DifferentiableOperator::AddIntegrator(
    auto input_size_on_qp =
       get_input_size_on_qp(inputs, std::make_index_sequence<num_inputs> {});
 
+   printf("calculate shmem action info\n");
    auto action_shmem_info =
       get_shmem_info<entity_t, num_fields, num_inputs, num_outputs>
       (input_dtq_maps, output_dtq_maps, fields, num_entities, inputs, num_qp,
@@ -907,6 +908,7 @@ void DifferentiableOperator::AddIntegrator(
          const int da_size_on_qp =
             GetSizeOnQP<entity_t>(output_fop, fields[test_space_field_idx]);
 
+         printf("calculate shmem derivative action info\n");
          auto shmem_info =
             get_shmem_info<entity_t, num_fields, num_inputs, num_outputs>(
                input_dtq_maps, output_dtq_maps, fields, num_entities, inputs,
@@ -915,7 +917,7 @@ void DifferentiableOperator::AddIntegrator(
 
          Vector shmem_cache(shmem_info.total_size);
 
-         // print_shared_memory_info(shmem_info);
+         print_shared_memory_info(shmem_info);
 
          Vector direction_e(get_restriction<entity_t>(fields[d_field_idx],
                                                       element_dof_ordering)->Height());
@@ -1161,10 +1163,56 @@ void DifferentiableOperator::AddIntegrator(
                apply_qpdc(fhat, shadow_shmem, qpdce, itod, q1d, dimension,
                           use_sum_factorization);
 
+               // if (e == 0)
+               // {
+               //    mfem::out << ">>> QPDC\n";
+               //    mfem::out << " (test_vdim, test_op_dim, trial_vdim, total_trial_op_dim)="
+               //              << "(" << test_vdim << ", " << test_op_dim << ", "
+               //              << trial_vdim << ", " << total_trial_op_dim << ")\n";
+
+               //    // Show d_qp shape & first values
+               //    auto d_qp = Reshape(&(shadow_shmem[0])[0], trial_vdim, total_trial_op_dim,
+               //                        num_qp);
+               //    for (int i = 0; i < trial_vdim; i++)
+               //       for (int k = 0; k < total_trial_op_dim; k++)
+               //          mfem::out << "d_qp(" << i << "," << k << ",0) = "
+               //                    << d_qp(i,k,0) << "\n";
+
+               //    // Show qpdc shape & first values
+               //    for (int i = 0; i < test_vdim; i++)
+               //       for (int k = 0; k < test_op_dim; k++)
+               //          for (int j = 0; j < trial_vdim; j++)
+               //             for (int m = 0; m < total_trial_op_dim; m++)
+               //                mfem::out << "qpdc("<<i<<","<<k<<","<<j<<","<<m<<",0) = "
+               //                          << qpdce(i,k,j,m,0) << "\n";
+
+               //    for (int q = 0; q < num_qp; q++)
+               //       for (int j = 0; j < test_vdim; j++)
+               //          for (int m = 0; m < test_op_dim; m++)
+               //          {
+               //             mfem::out << "fhat("<<j<<","<<m<<","<<q<<") = " << fhat(j,m,q) << "\n";
+               //          }
+               // }
+
                auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
                map_quadrature_data_to_fields(
                   y, fhat, output_fop, output_dtq_shmem[0],
                   scratch_shmem, dimension, use_sum_factorization);
+
+               if (e == 0)
+               {
+                  mfem::out << "map_quadrature_data_to_fields output: ";
+                  mfem::out << " num_test_dof=" << num_test_dof << ", test_vdim=" << test_vdim
+                            << "\n";
+                  for (int i = 0; i < num_test_dof; i++)
+                  {
+                     for (int j = 0; j < test_vdim; j++)
+                     {
+                        mfem::out << "y(" << i << "," << j << ") = " << y(i, j) << "\n";
+                     }
+                  }
+               }
+
             }, num_entities, thread_blocks, shmem_info.total_size,
             shmem_cache.ReadWrite());
             or_transpose(derivative_action_e, der_action_l);
@@ -1213,11 +1261,14 @@ void DifferentiableOperator::AddIntegrator(
             });
          }
 
+         printf("calculate shmem derivative tr info\n");
          auto shmem_tr_info =
             get_shmem_info<entity_t, num_fields, num_outputs, num_inputs>(
                output_dtq_maps, input_dtq_maps, fields, num_entities, outputs,
                num_qp, output_size_on_qp, residual_size_on_qp,
                element_dof_ordering, test_space_field_idx);
+
+         print_shared_memory_info(shmem_tr_info);
 
          Vector shmem_tr_cache(shmem_tr_info.total_size);
 
@@ -1261,7 +1312,7 @@ void DifferentiableOperator::AddIntegrator(
                direction_tr_e,           // Vector
                derivative_action_tr_e,   // Vector
                element_dof_ordering,  // ElementDofOrdering
-               outputs_trial_op_dim,
+               inputs_trial_op_dim,
                total_trial_op_dim,
                trial_vdim,
                input_restriction_transpose,
@@ -1285,7 +1336,7 @@ void DifferentiableOperator::AddIntegrator(
             auto qpdc = Reshape(qpdc_mem.Read(), test_vdim, test_op_dim,
                                 trial_vdim, total_trial_op_dim, num_qp, num_entities);
 
-            auto otod = Reshape(outputs_trial_op_dim.Read(), num_outputs);
+            auto itod = Reshape(inputs_trial_op_dim.Read(), num_inputs);
 
             const bool has_attr = attributes.Size() > 0;
             const auto d_attr = attributes.Read();
@@ -1317,12 +1368,12 @@ void DifferentiableOperator::AddIntegrator(
                                     trial_vdim, total_trial_op_dim, num_qp);
 
                constexpr bool transpose = true;
-               apply_qpdc(fhat, shadow_shmem, qpdce, otod, q1d, dimension,
+               apply_qpdc(fhat, shadow_shmem, qpdce, itod, q1d, dimension,
                           use_sum_factorization, transpose);
 
                // if (e == 0)
                // {
-               //    mfem::out << ">>> Transpose QPDC DIAG\n";
+               //    mfem::out << ">>> Transpose QPDC\n";
                //    mfem::out << " (test_vdim, test_op_dim, trial_vdim, total_trial_op_dim)="
                //              << "(" << test_vdim << ", " << test_op_dim << ", "
                //              << trial_vdim << ", " << total_trial_op_dim << ")\n";
@@ -1342,18 +1393,32 @@ void DifferentiableOperator::AddIntegrator(
                //                mfem::out << "qpdc("<<i<<","<<k<<","<<j<<","<<m<<",0) = "
                //                          << qpdce(i,k,j,m,0) << "\n";
 
-               //    for (int j = 0; j < trial_vdim; j++)
-               //       for (int m = 0; m < total_trial_op_dim; m++)
-               //       {
-               //          mfem::out << "fhat("<<j<<","<<m<<",0) = " << fhat(j,m,0) << "\n";
-               //       }
+               //    for (int q = 0; q < num_qp; q++)
+               //       for (int j = 0; j < trial_vdim; j++)
+               //          for (int m = 0; m < total_trial_op_dim; m++)
+               //          {
+               //             mfem::out << "fhat("<<j<<","<<m<<","<<q<<") = " << fhat(j,m,q) << "\n";
+               //          }
                // }
 
                auto y = Reshape(&ye(0, 0, e), num_trial_dof, trial_vdim);
                // TODO: Needs to reflect that dependent sizeof(inputs) might be > 1.
                map_quadrature_data_to_fields(
-                  y, fhat, get<0>(inputs), input_dtq_shmem[0],
+                  y, fhat, get<0>(inputs), input_dtq_shmem[0], // FIXME
                   scratch_shmem, dimension, use_sum_factorization);
+               if (e == 0)
+               {
+                  mfem::out << "map_quadrature_data_to_fields output: ";
+                  mfem::out << " num_trial_dof=" << num_trial_dof << ", trial_vdim=" << trial_vdim
+                            << "\n";
+                  for (int i = 0; i < num_trial_dof; i++)
+                  {
+                     for (int j = 0; j < trial_vdim; j++)
+                     {
+                        mfem::out << "y(" << i << "," << j << ") = " << y(i, j) << "\n";
+                     }
+                  }
+               }
             }, num_entities, thread_blocks, shmem_tr_info.total_size,
             shmem_tr_cache.ReadWrite());
             input_restriction_transpose(derivative_action_tr_e, derivative_action_tr_l);

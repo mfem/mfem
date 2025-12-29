@@ -236,8 +236,49 @@ void map_quadrature_data_to_fields_tensor_impl_2d(
       auto fqp = Reshape(&f(0, 0, 0), vdim, test_dim, q1d, q1d);
       auto yd = Reshape(&y(0, 0), d1d, d1d, vdim);
 
-      auto s0 = Reshape(&scratch_mem[0](0), q1d, d1d);
-      auto s1 = Reshape(&scratch_mem[1](0), q1d, d1d);
+      // auto s0 = Reshape(&scratch_mem[0](0), q1d, d1d);
+      // auto s1 = Reshape(&scratch_mem[1](0), q1d, d1d);
+
+      std::vector<real_t> s0mem(q1d*q1d);
+      auto s0 = Reshape(s0mem.data(), q1d, d1d);
+      std::vector<real_t> s1mem(q1d*q1d);
+      auto s1 = Reshape(s1mem.data(), q1d, d1d);
+
+      // printf(">>> DEBUG Gradient mapping details:\n");
+      // printf("  q1d=%d, d1d=%d, vdim=%d, test_dim=%d\n", q1d, d1d, vdim, test_dim);
+      // printf("  fqp values:\n");
+      // for (int vd = 0; vd < vdim; vd++)
+      // {
+      //    for (int td = 0; td < test_dim; td++)
+      //    {
+      //       for (int qy = 0; qy < q1d; qy++)
+      //       {
+      //          for (int qx = 0; qx < q1d; qx++)
+      //          {
+      //             printf("  fqp(%d,%d,%d,%d) = %f\n", vd, td, qx, qy, fqp(vd, td, qx, qy));
+      //          }
+      //       }
+      //    }
+      // }
+
+      // Print G and B matrices
+      // printf("  G matrix:\n");
+      // for (int qx = 0; qx < q1d; qx++)
+      // {
+      //    for (int dx = 0; dx < d1d; dx++)
+      //    {
+      //       printf("  G(%d,0,%d) = %f\n", qx, dx, G(qx, 0, dx));
+      //    }
+      // }
+
+      // printf("  B matrix:\n");
+      // for (int qx = 0; qx < q1d; qx++)
+      // {
+      //    for (int dx = 0; dx < d1d; dx++)
+      //    {
+      //       printf("  B(%d,0,%d) = %f\n", qx, dx, B(qx, 0, dx));
+      //    }
+      // }
 
       for (int vd = 0; vd < vdim; vd++)
       {
@@ -256,6 +297,15 @@ void map_quadrature_data_to_fields_tensor_impl_2d(
             }
          }
          MFEM_SYNC_THREAD;
+         printf("  After first sync (vd=%d), s0 and s1 values:\n", vd);
+         for (int qy = 0; qy < q1d; qy++)
+         {
+            for (int dx = 0; dx < d1d; dx++)
+            {
+               printf("  s0(%d,%d) = %f, s1(%d,%d) = %f\n",
+                      qy, dx, s0(qy, dx), qy, dx, s1(qy, dx));
+            }
+         }
 
          MFEM_FOREACH_THREAD(dy, y, d1d)
          {
@@ -271,6 +321,14 @@ void map_quadrature_data_to_fields_tensor_impl_2d(
             }
          }
          MFEM_SYNC_THREAD;
+         // printf("  After second sync (vd=%d), yd values:\n", vd);
+         // for (int dx = 0; dx < d1d; dx++)
+         // {
+         //    for (int dy = 0; dy < d1d; dy++)
+         //    {
+         //       printf("  yd(%d,%d,%d) = %f\n", dx, dy, vd, yd(dx, dy, vd));
+         //    }
+         // }
       }
    }
    else if constexpr (is_identity_fop<std::decay_t<output_t>>::value)

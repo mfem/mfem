@@ -384,22 +384,24 @@ namespace detail
 /// a zero indicates non-dependence on the variable.
 /// @param q the current quadrature point index.
 /// @param transpose switch to use transpose action.
-template <size_t num_fields>
+template <size_t N>
 MFEM_HOST_DEVICE inline
 void apply_qpdc(
    DeviceTensor<3> &fhat,
-   const std::array<DeviceTensor<2>, num_fields> &shadow_shmem,
+   const std::array<DeviceTensor<2>, N> &shadow_shmem,
    const DeviceTensor<5, const real_t> &qpdc,
-   const DeviceTensor<1, const real_t> &itod,
+   const DeviceTensor<1, const real_t> &op_dims,
    const int &q,
    bool transpose)
 {
-   const size_t num_inputs = itod.GetShape()[0];
-   const int num_qp = qpdc.GetShape()[4];
+   const size_t num_inputs = op_dims.GetShape()[0];
+
    const int test_vdim = qpdc.GetShape()[0];
    const int test_op_dim = qpdc.GetShape()[1];
    const int trial_vdim = qpdc.GetShape()[2];
    const int total_trial_op_dim = qpdc.GetShape()[3];
+
+   const int num_qp = qpdc.GetShape()[4];
 
    if (transpose)
    {
@@ -411,19 +413,25 @@ void apply_qpdc(
          }
       }
 
+      // Since we don't support more than output space right now
+      // shadow_shmem will always be of size 1.
+      constexpr int shadow_idx_tr = 0;
+      auto d_qp = Reshape(&(shadow_shmem[shadow_idx_tr])[0], test_vdim, test_op_dim,
+                          num_qp);
+
       int m_offset = 0;
       for (size_t s = 0; s < num_inputs; s++)
       {
-         const int trial_op_dim = static_cast<int>(itod(s));
+         const int trial_op_dim = static_cast<int>(op_dims(s));
          if (trial_op_dim == 0) { continue; }
-
-         auto d_qp = Reshape(&(shadow_shmem[s])[0], test_vdim, test_op_dim, num_qp);
 
          // ==== BEGIN DEBUG PRINT ====
          // if (q == 0)
          // {
          //    printf("---- [DEBUG s=%zu, m_offset=%d] ----\n", s, m_offset);
-         //    printf("trial_op_dim=%d\n", trial_op_dim);
+         //    printf("qpdc layout: test_vdim: %d, test_op_dim: %d, trial_vdim: %d, total_trial_op_dim: %d\n",
+         //           test_vdim, test_op_dim, trial_vdim, total_trial_op_dim);
+         //    printf("s=%zu trial_op_dim=%d\n", s, trial_op_dim);
          //    for (int j = 0; j < trial_vdim; j++)
          //       for (int m = 0; m < trial_op_dim; m++)
          //       {
@@ -438,7 +446,7 @@ void apply_qpdc(
 
          for (int j = 0; j < trial_vdim; j++)
          {
-            for (int m = 0; m < total_trial_op_dim; m++)
+            for (int m = 0; m < trial_op_dim; m++)
             {
                real_t sum = 0.0;
                for (int i = 0; i < test_vdim; i++)
@@ -479,7 +487,7 @@ void apply_qpdc(
             int m_offset = 0;
             for (size_t s = 0; s < num_inputs; s++)
             {
-               const int trial_op_dim = static_cast<int>(itod(s));
+               const int trial_op_dim = static_cast<int>(op_dims(s));
                if (trial_op_dim == 0) { continue; }
 
                const auto d_qp =
@@ -519,11 +527,11 @@ void apply_qpdc(
 /// @param dimension spatial dimension.
 /// @param use_sum_factorization whether to use sum factorization.
 /// @param T switch to use transpose application.
-template <size_t num_fields>
+template <size_t N>
 MFEM_HOST_DEVICE inline
 void apply_qpdc(
    DeviceTensor<3> &fhat,
-   const std::array<DeviceTensor<2>, num_fields> &shadow_shmem,
+   const std::array<DeviceTensor<2>, N> &shadow_shmem,
    const DeviceTensor<5, const real_t> &qpdc,
    const DeviceTensor<1, const real_t> &itod,
    const int &q1d,
