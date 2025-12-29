@@ -500,6 +500,7 @@ void Boris::InterpolateEB()
 
 void Boris::Step(real_t &t, real_t &dt, bool zeroth_step)
 {
+   InterpolateEB();
    // Individually step each particle:
    if (charged_particles->ParticleRefValid())
    {
