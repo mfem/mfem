@@ -1128,6 +1128,9 @@ protected:
    /// A flag that indicates whether the linear system matrix A is symmetric
    bool A_is_symmetric;
 
+   /// Ownership flag of the operator. Owned operator is freed in the destructor.
+   bool own_oper;
+
 public:
    /// HYPRE smoother types
    enum Type
@@ -1209,6 +1212,11 @@ public:
    /// Apply transpose of the smoother to relax the linear system Ax=b
    void MultTranspose(const Vector &b, Vector &x) const override;
 
+   /// Sets the ownership flag of the operator
+   void SetOwnership(bool own) { own_oper = own; }
+   /// Returns the ownership flag of the operator
+   bool GetOwnership() const { return own_oper; }
+
    virtual ~HypreSmoother();
 };
 
@@ -1239,6 +1247,9 @@ protected:
 
    /// How to treat hypre errors.
    mutable ErrorMode error_mode;
+
+   /// Ownership flag of the operator. Owned operator is freed in the destructor.
+   bool own_oper;
 
    /// @brief Makes the internal HypreParVector%s @a B and @a X wrap the input
    /// vectors @a b and @a x.
@@ -1295,6 +1306,11 @@ public:
        hypre_ParCSRComputeL1Norms() encounters zero row in a matrix, which is
        expected in some cases with the above solvers. */
    void SetErrorMode(ErrorMode err_mode) const { error_mode = err_mode; }
+
+   /// Sets the ownership flag of the operator
+   void SetOwnership(bool own) { own_oper = own; }
+   /// Returns the ownership flag of the operator
+   bool GetOwnership() const { return own_oper; }
 
    virtual ~HypreSolver();
 };

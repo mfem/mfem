@@ -102,6 +102,9 @@ public:
        should not be used with DenseMatrix that owns its current data array. */
    void ClearExternalData() { data.LoseData(); height = width = 0; }
 
+   /// Set the owenership of the data
+   void MakeDataOwner() { data.SetHostPtrOwner(true); }
+
    /// Delete the matrix data array (if owned) and reset the matrix state.
    void Clear()
    { data.DeleteAll(); height = width = 0; }

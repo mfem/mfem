@@ -22,14 +22,20 @@ class SparseSmoother : public MatrixInverse
 {
 protected:
    const SparseMatrix *oper;
+   bool own_oper;
 
 public:
-   SparseSmoother() { oper = NULL; }
+   SparseSmoother() { oper = NULL; own_oper = false; }
 
-   SparseSmoother(const SparseMatrix &a)
-      : MatrixInverse(a) { oper = &a; }
+   SparseSmoother(const SparseMatrix &a, bool own = false)
+      : MatrixInverse(a) { oper = &a; own_oper = own; }
+
+   virtual ~SparseSmoother() { if (own_oper) { delete oper; } }
 
    void SetOperator(const Operator &a) override;
+
+   void SetOwnership(bool own) { own_oper = own; }
+   bool GetOwnership() const { return own_oper; }
 };
 
 /// Data type for Gauss-Seidel smoother of sparse matrix
@@ -44,8 +50,8 @@ public:
    GSSmoother(int t = 0, int it = 1) { type = t; iterations = it; }
 
    /// Create GSSmoother.
-   GSSmoother(const SparseMatrix &a, int t = 0, int it = 1)
-      : SparseSmoother(a) { type = t; iterations = it; }
+   GSSmoother(const SparseMatrix &a, int t = 0, int it = 1, bool own = false)
+      : SparseSmoother(a, own) { type = t; iterations = it; }
 
    /// Matrix vector multiplication with GS Smoother.
    void Mult(const Vector &x, Vector &y) const override;
@@ -69,7 +75,8 @@ public:
    { type = t; scale = s; iterations = it; }
 
    /// Create Jacobi smoother.
-   DSmoother(const SparseMatrix &a, int t = 0, real_t s = 1., int it = 1);
+   DSmoother(const SparseMatrix &a, int t = 0, real_t s = 1., int it = 1,
+             bool own = false);
 
    /// Replace diag entries with their abs values. Relevant only when type = 0.
    void SetPositiveDiagonal(bool pos_diag = true) { use_abs_diag = pos_diag; }
