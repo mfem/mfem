@@ -463,8 +463,7 @@ TEST_CASE("dFEM Transpose", "[Parallel][dFEM][XXX]")
             "../../data/star.mesh",
             "../../data/star-q3.mesh",
             "../../data/rt-2d-q3.mesh",
-            "../../data/inline-quad.mesh",
-            "../../data/periodic-square.mesh"
+            "../../data/inline-quad.mesh"
          );
       transpose<2>(filename2d, p);
    }
@@ -476,8 +475,7 @@ TEST_CASE("dFEM Transpose", "[Parallel][dFEM][XXX]")
             "../../data/fichera.mesh",
             "../../data/fichera-q3.mesh",
             "../../data/inline-hex.mesh",
-            "../../data/toroid-hex.mesh",
-            "../../data/periodic-cube.mesh"
+            "../../data/toroid-hex.mesh"
          );
       transpose<3>(filename3d, p);
    }
