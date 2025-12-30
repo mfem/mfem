@@ -13,8 +13,6 @@
 
 #ifdef MFEM_USE_BENCHMARK
 
-#include "general/forall.hpp"
-
 using namespace mfem;
 
 // Default macro to register the tests

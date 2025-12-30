@@ -46,6 +46,7 @@ struct DofQuadLimits_CUDA
 {
    static constexpr int MAX_D1D = 14;
    static constexpr int MAX_Q1D = 14;
+   static constexpr int MAX_T1D = 32;
    static constexpr int HCURL_MAX_D1D = 5;
    static constexpr int HCURL_MAX_Q1D = 6;
    static constexpr int HDIV_MAX_D1D = 5;
@@ -58,6 +59,7 @@ struct DofQuadLimits_HIP
 {
    static constexpr int MAX_D1D = 10;
    static constexpr int MAX_Q1D = 10;
+   static constexpr int MAX_T1D = 32;
    static constexpr int HCURL_MAX_D1D = 5;
    static constexpr int HCURL_MAX_Q1D = 5;
    static constexpr int HDIV_MAX_D1D = 5;
@@ -75,6 +77,7 @@ struct DofQuadLimits_CPU
    static constexpr int MAX_D1D = 14;
    static constexpr int MAX_Q1D = 14;
 #endif
+   static constexpr int MAX_T1D = 32;
    static constexpr int HCURL_MAX_D1D = 10;
    static constexpr int HCURL_MAX_Q1D = 10;
    static constexpr int HDIV_MAX_D1D = 10;
@@ -273,7 +276,7 @@ void OmpWrap3D(const int Nx, const int Ny, const int Nz, HBODY &&h_body)
 
 
 /// RAJA Cuda and Hip backends
-#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA) && defined(__CUDACC__)
 using cuda_launch_policy =
    RAJA::LaunchPolicy<RAJA::cuda_launch_t<true>>;
 using cuda_teams_x =
@@ -282,7 +285,7 @@ using cuda_threads_z =
    RAJA::LoopPolicy<RAJA::cuda_thread_z_direct>;
 #endif
 
-#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_HIP)
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_HIP) && defined(__HIP__)
 using hip_launch_policy =
    RAJA::LaunchPolicy<RAJA::hip_launch_t<true>>;
 using hip_teams_x =
@@ -291,7 +294,7 @@ using hip_threads_z =
    RAJA::LoopPolicy<RAJA::hip_thread_z_direct>;
 #endif
 
-#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA) && defined(__CUDACC__)
 template <const int BLOCKS = MFEM_CUDA_BLOCKS, typename DBODY>
 void RajaCuWrap1D(const int N, DBODY &&d_body)
 {
@@ -391,7 +394,7 @@ struct RajaCuWrap<3>
 
 #endif
 
-#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_HIP)
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_HIP) && defined(__HIP__)
 template <const int BLOCKS = MFEM_HIP_BLOCKS, typename DBODY>
 void RajaHipWrap1D(const int N, DBODY &&d_body)
 {
@@ -767,7 +770,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    MFEM_CONTRACT_VAR(d_body);
    if (!use_dev) { goto backend_cpu; }
 
-#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA) && defined(__CUDACC__)
    // If Backend::RAJA_CUDA is allowed, use it
    if (Device::Allows(Backend::RAJA_CUDA))
    {
@@ -775,7 +778,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    }
 #endif
 
-#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_HIP)
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_HIP) && defined(__HIP__)
    // If Backend::RAJA_HIP is allowed, use it
    if (Device::Allows(Backend::RAJA_HIP))
    {
