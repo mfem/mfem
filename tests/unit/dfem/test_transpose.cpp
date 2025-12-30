@@ -232,6 +232,222 @@ void transpose(const char *filename, int p)
 
       delete Gmat;
    }
+
+   SECTION("Scalar Convection Transpose Action")
+   {
+      auto b_func = [](const Vector &x, Vector &b)
+      {
+         b(0) = 1.0;
+         b(1) = 1.0;
+         // b(0) = sqrt(2.0);
+         // b(1) = 1.0 + sqrt(2.0);
+         // if constexpr (DIM == 3)
+         // {
+         //    b(2) = 2.0 + sqrt(2.0);
+         // }
+      };
+      VectorFunctionCoefficient b_coeff(DIM, b_func);
+
+      ParBilinearForm Gblf(&scalar_fes);
+      auto conv_integ = new ConvectionIntegrator(b_coeff);
+      conv_integ->SetIntegrationRule(*ir);
+      Gblf.AddDomainIntegrator(conv_integ);
+      Gblf.Assemble();
+      Gblf.Finalize();
+      auto Gmat = Gblf.ParallelAssemble();
+
+      // Gmat->PrintMatlab(std::cout, 0, 0);
+      // Gmat->PrintMatlabTranspose(std::cout, 0, 0);
+
+      static constexpr int SCALAR = 0, COORDINATES = 1;
+      const auto sol = std::vector{FieldDescriptor{SCALAR, &scalar_fes}};
+      const auto par = std::vector
+      {
+         FieldDescriptor{COORDINATES, nodes->ParFESpace()}
+      };
+      DifferentiableOperator dop(sol, par, mesh);
+
+      const auto convection_qf =
+         [] MFEM_HOST_DEVICE(
+            const tensor<dscalar_t, DIM> &dudxi,
+            const tensor<real_t, DIM, DIM> &J,
+            const real_t &w)
+      {
+         const auto dudx = dudxi * inv(J);
+         tensor<dscalar_t, DIM> b{};
+         b(0) = 1.0;
+         b(1) = 1.0;
+         return tuple{dot(b, dudx) * w * det(J)};
+      };
+
+      auto derivatives = std::integer_sequence<size_t, SCALAR> {};
+      dop.AddDomainIntegrator(convection_qf,
+                              tuple{Gradient<SCALAR>{}, Gradient<COORDINATES>{}, Weight{}},
+                              tuple{Value<SCALAR>{}},
+                              *ir, all_domain_attr, derivatives);
+      dop.SetParameters({nodes});
+
+      DifferentiableOperator dop_tr(sol, par, mesh);
+      const auto convection_transpose_qf =
+         [] MFEM_HOST_DEVICE(
+            const dscalar_t &u,
+            const tensor<real_t, DIM, DIM> &J,
+            const real_t &w)
+      {
+         tensor<dscalar_t, DIM> b{};
+         b(0) = 1.0;
+         b(1) = 1.0;
+         return tuple{b * u * w * det(J) * transpose(inv(J))};
+      };
+      dop_tr.AddDomainIntegrator(convection_transpose_qf,
+                                 tuple{Value<SCALAR>{}, Gradient<COORDINATES>{}, Weight{}},
+                                 tuple{Gradient<SCALAR>{}},
+                                 *ir, all_domain_attr, derivatives);
+      dop_tr.SetParameters({nodes});
+
+      Vector S, T, U;
+      S.SetSize(scalar_fes.GetTrueVSize());
+      T.SetSize(scalar_fes.GetTrueVSize());
+      U.SetSize(scalar_fes.GetTrueVSize());
+      U.Randomize(1);
+
+      // printf("Handcoded dFEM convection transpose\n");
+      // // Mmat->MultTranspose(U, S);
+      // Gmat->MultTranspose(U, S);
+      // dop_tr.Mult(U, T);
+      // printf("S: ");
+      // pretty_print(S);
+      // printf("T: ");
+      // pretty_print(T);
+
+      // S -= T;
+      // real_t norm_g, norm_l = S.Normlinf();
+      // MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, mesh.GetComm());
+      // REQUIRE(norm_g == MFEM_Approx(0.0));
+
+      // {
+      //    printf("\nHandcoded dFEM convection using qpdc\n");
+      //    Gmat->Mult(U, S);
+      //    auto ddop = dop.GetDerivative(SCALAR, {&sgf}, {nodes});
+      //    ddop->Mult(U, T);
+      //    printf("S: ");
+      //    pretty_print(S);
+      //    printf("T: ");
+      //    pretty_print(T);
+
+      //    S -= T;
+      //    real_t norm_g, norm_l = S.Normlinf();
+      //    MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, mesh.GetComm());
+      //    // REQUIRE(norm_g == MFEM_Approx(0.0));
+      // }
+
+      // {
+      //    Gmat->MultTranspose(U, S);
+      //    auto ddop_tr = dop_tr.GetDerivative(SCALAR, {&sgf}, {nodes});
+      //    ddop_tr->Mult(U, T);
+      //    printf("S: ");
+      //    pretty_print(S);
+      //    printf("T: ");
+      //    pretty_print(T);
+
+      //    S -= T;
+      //    real_t norm_g, norm_l = S.Normlinf();
+      //    MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, mesh.GetComm());
+      //    // REQUIRE(norm_g == MFEM_Approx(0.0));
+      // }
+
+      {
+         Gmat->MultTranspose(U, S);
+
+         auto ddop = dop.GetDerivative(SCALAR, {&sgf}, {nodes});
+         // ddop->PrintMatlab(std::cout, 0);
+         ddop->MultTranspose(U, T);
+
+         // ddop->PrintMatlabTranspose(std::cout, 0, 0);
+         // std::cout << std::flush;
+
+         // printf("S: ");
+         // pretty_print(S);
+         // printf("T: ");
+         // pretty_print(T);
+
+         S -= T;
+         real_t norm_g, norm_l = S.Normlinf();
+         MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, mesh.GetComm());
+         REQUIRE(norm_g == MFEM_Approx(0.0));
+      }
+
+      delete Gmat;
+   }
+
+   SECTION("Nonlinear VectorConvection Transpose Action")
+   {
+      auto b_func = [](const Vector &x, Vector &b)
+      {
+         b(0) = x[0] * sqrt(2.0);
+         b(1) = 1.0 + x[1] * sqrt(2.0);
+         if constexpr (DIM == 3)
+         {
+            b(2) = 2.0 + x[2] * sqrt(2.0);
+         }
+      };
+      VectorFunctionCoefficient b_coeff(DIM, b_func);
+
+      ParGridFunction ugf(&vector_fes);
+      ugf.ProjectCoefficient(b_coeff);
+
+      Vector U(vector_fes.GetTrueVSize());
+      ugf.GetTrueDofs(U);
+
+      ParNonlinearForm nlf(&vector_fes);
+      const auto vcinteg = new VectorConvectionNLFIntegrator();
+      vcinteg->SetIntegrationRule(*ir);
+      nlf.AddDomainIntegrator(vcinteg);
+      HypreParMatrix &Nmat = dynamic_cast<HypreParMatrix&>(nlf.GetGradient(U));
+
+      static constexpr int VELOCITY = 0, COORDINATES = 1;
+      const auto sol = std::vector{FieldDescriptor{VELOCITY, &vector_fes}};
+      const auto par = std::vector
+      {
+         FieldDescriptor{COORDINATES, nodes->ParFESpace()}
+      };
+      DifferentiableOperator dop(sol, par, mesh);
+
+      const auto nlconvection_qf =
+         [] MFEM_HOST_DEVICE(
+            const tensor<dscalar_t, DIM> &u,
+            const tensor<dscalar_t, DIM, DIM> &dudxi,
+            const tensor<real_t, DIM, DIM> &J,
+            const real_t &w)
+      {
+         const auto invJ = inv(J);
+         const auto dudx = dudxi * invJ;
+         return tuple{dot(u, dudx) * w * det(J)};
+      };
+
+      auto derivatives = std::integer_sequence<size_t, VELOCITY> {};
+      dop.AddDomainIntegrator(nlconvection_qf,
+                              tuple{Value<VELOCITY>{}, Gradient<VELOCITY>{}, Gradient<COORDINATES>{}, Weight{}},
+                              tuple{Value<VELOCITY>{}},
+                              *ir, all_domain_attr, derivatives);
+      dop.SetParameters({nodes});
+
+      auto ddop = dop.GetDerivative(VELOCITY, {&ugf}, {nodes});
+
+      Vector S(U.Size()), T(U.Size());
+
+      Nmat.MultTranspose(U, S);
+      ddop->MultTranspose(U, T);
+      // printf("S: ");
+      // pretty_print(S);
+      // printf("T: ");
+      // pretty_print(T);
+
+      S -= T;
+      real_t norm_g, norm_l = S.Normlinf();
+      MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, mesh.GetComm());
+      REQUIRE(norm_g == MFEM_Approx(0.0));
+   }
 }
 
 TEST_CASE("dFEM Transpose", "[Parallel][dFEM][XXX]")

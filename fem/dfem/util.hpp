@@ -1587,14 +1587,13 @@ struct SharedMemoryInfo
    std::array<int, 6> temp_sizes;
 };
 
-template <typename entity_t, std::size_t num_fields, std::size_t num_inputs, std::size_t num_outputs, typename input_t>
+template <typename entity_t, std::size_t num_fields, std::size_t num_inputs, std::size_t num_outputs>
 SharedMemoryInfo<num_fields, num_inputs, num_outputs>
 get_shmem_info(
    const std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
    const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
    const std::vector<FieldDescriptor> &fields,
    const int &num_entities,
-   const input_t &inputs,
    const int &num_qp,
    const std::vector<int> &input_size_on_qp,
    const int &residual_size_on_qp,
