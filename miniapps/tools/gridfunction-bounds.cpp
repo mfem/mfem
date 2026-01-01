@@ -56,6 +56,7 @@ int main (int argc, char *argv[])
    int  b_type           = -1;
    bool continuous       = true;
    int  nbrute           = 0;
+   int  rec_depth        = 4;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -83,6 +84,8 @@ int main (int argc, char *argv[])
    args.AddOption(&nbrute, "-nb", "--nbrute",
                   "Brute force search for minimum in an array of nxnxn points "
                   "in each element.");
+   args.AddOption(&rec_depth, "-rd", "--rec-depth",
+                  "Maximum recursion depth for recursive search.");
    args.ParseCheck();
 
    Mesh mesh(mesh_file, 1, 1, false);
@@ -151,7 +154,22 @@ int main (int argc, char *argv[])
    ParGridFunction lowerb(&fes_pc), upperb(&fes_pc);
 
    // Compute bounds
-   pfunc_proj->GetElementBounds(lowerb, upperb, ref);
+   PLBound plb = pfunc_proj->GetElementBounds(lowerb, upperb, ref);
+
+   // Compute minimum and maximum bounds via recursion
+   Vector bound_rec_min(vdim), bound_rec_max(vdim);
+   bound_rec_min = numeric_limits<real_t>::max();
+   bound_rec_max = numeric_limits<real_t>::min();
+   real_t rel_tol = 1e-4;
+   for (int d = 0; d < vdim; d++)
+   {
+      auto min_interval = pfunc_proj->EstimateFunctionMinimum(d, plb, rec_depth,
+                                                              rel_tol);
+      auto max_interval = pfunc_proj->EstimateFunctionMaximum(d, plb, rec_depth,
+                                                              rel_tol);
+      bound_rec_min(d) = min(bound_rec_min(d), min_interval.first);
+      bound_rec_max(d) = max(bound_rec_max(d), max_interval.second);
+   }
 
    Vector bound_min(vdim), bound_max(vdim);
    for (int d = 0; d < vdim; d++)
@@ -238,15 +256,20 @@ int main (int argc, char *argv[])
          {
             cout << "Brute force and bounding comparison for component " <<
                  d << endl;
-            cout << "Brute force minimum and minimum bound: " << global_min(d)
-                 << " " <<  bound_min(d) << endl;
+            cout << "Brute force/minimum bound/minimum bound+recursion:"
+                 << global_min(d) << " " <<  bound_min(d) << " " <<
+                 bound_rec_min(d) << endl;
 
-            cout << "Brute force maximum and maximum bound: " << global_max(d)
-                 << " " <<  bound_max(d) << endl;
+            cout << "Brute force/maximum bound/maximum bound+recursion:"
+                 << global_max(d) << " " <<  bound_max(d) << " " <<
+                 bound_rec_max(d) << endl;
 
-            cout << "The difference in bounds is: " <<
-                 global_min(d)-bound_min(d) << " " <<
-                 bound_max(d)-global_max(d) << endl;
+            cout << "Difference in brute force versus bounds without and with "
+                 "recursion is:\n";
+            cout << "Minimum: " << global_min(d)-bound_min(d) << " " <<
+                 global_min(d)-bound_rec_min(d) << "\n";
+            cout << "Maximum: " <<  bound_max(d)-global_max(d) << " " <<
+                 bound_rec_max(d)-global_max(d) << endl;
          }
       }
    }
@@ -255,10 +278,22 @@ int main (int argc, char *argv[])
    {
       for (int d = 0; d < vdim; d++)
       {
+         cout << "Minimum bound for component " << d <<
+              " without/with recursion is " <<
+              bound_min(d) << " " << bound_rec_min(d) << endl;
+         cout << "Maximum bound for component " << d <<
+              " without/with recursion is " <<
+              bound_max(d) << " " << bound_rec_max(d) << endl;
+      }
+
+      cout << "\nBounds via recursive search with up to " << rec_depth <<
+           " recursions:" << endl;
+      for (int d = 0; d < vdim; d++)
+      {
          cout << "Minimum bound for component " << d << " is " <<
-              bound_min(d) << endl;
+              bound_rec_min(d) << endl;
          cout << "Maximum bound for component " << d << " is " <<
-              bound_max(d) << endl;
+              bound_rec_max(d) << endl;
       }
    }
 
