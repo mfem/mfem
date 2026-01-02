@@ -55,12 +55,6 @@ add_mfem_miniapp(par_obstacle_mixed
   LIBRARIES mfem)
 add_dependencies(par_obstacle_mixed copy_pg_petsc_rc_files)
 
-add_mfem_miniapp(par_obstacle_prec
-  MAIN par_obstacle_prec.cpp
-  ${PG_COMMON_FILES}
-  LIBRARIES mfem)
-add_dependencies(par_obstacle_prec copy_pg_petsc_rc_files)
-
 add_mfem_miniapp(pos_proj
   MAIN pos_proj.cpp
   ${PG_COMMON_FILES}
