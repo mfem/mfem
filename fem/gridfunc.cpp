@@ -88,6 +88,9 @@ GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)
    fec_owned = FiniteElementCollection::New(fes->FEColl()->Name());
    vdim = fes->GetVDim();
    ordering = fes->GetOrdering();
+   // For NURBS collections, set the dimension before creating the FE space
+   NURBSFECollection *nurbs_fec = dynamic_cast<NURBSFECollection*>(fec_owned);
+   if (nurbs_fec) { nurbs_fec->SetDim(m->Dimension()); }
    fes = new FiniteElementSpace(m, fec_owned, vdim, ordering);
    SetSize(fes->GetVSize());
 
