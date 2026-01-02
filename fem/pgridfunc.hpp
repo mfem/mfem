@@ -72,6 +72,10 @@ public:
 
    ParGridFunction(ParFiniteElementSpace *pf) : GridFunction(pf), pfes(pf) { }
 
+   /// Same as above but specify the device memory type
+   ParGridFunction(ParFiniteElementSpace *pf, MemoryType mt) :
+      GridFunction(pf, mt), pfes(pf) { }
+
    /// Construct a ParGridFunction using previously allocated array @a data.
    /** The ParGridFunction does not assume ownership of @a data which is assumed
        to be of size at least `pf->GetVSize()`. Similar to the GridFunction and
