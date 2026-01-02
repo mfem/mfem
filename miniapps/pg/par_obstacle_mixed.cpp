@@ -43,6 +43,7 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.ParseCheck();
+   MFEMInitializePetsc(nullptr, nullptr, "rc_bddc", nullptr);
 
    Mesh ser_mesh("../../data/disc-nurbs.mesh", 1, 1);
    const int dim = ser_mesh.Dimension();
@@ -67,8 +68,8 @@ int main(int argc, char *argv[])
    ParMesh mesh(MPI_COMM_WORLD, ser_mesh);
    ser_mesh.Clear();
 
-   // H1Bubble_FECollection primal_fec(order, order-1, dim);
-   H1_FECollection primal_fec(order+1, dim);
+   H1Bubble_FECollection primal_fec(order, order-1, dim);
+   // H1_FECollection primal_fec(order+1, dim);
    L2_FECollection latent_fec(order-1, dim);
 
    ParFiniteElementSpace primal_fes(&mesh, &primal_fec);
@@ -116,57 +117,37 @@ int main(int argc, char *argv[])
    GridFunctionCoefficient lambda_cf(&lambda_gf);
    ProductCoefficient neg_alpha_du_mapped_lambda(neg_alpha_du_mapped, lambda_cf);
 
+   const auto tid = Operator::Type::PETSC_MATIS;
+   OperatorHandle Ah(tid), Bh(tid), Hh(tid);
    // Setup bilinear forms
-   ParBilinearForm diffusion(&primal_fes);
-   diffusion.AddDomainIntegrator(new DiffusionIntegrator);
-   diffusion.Assemble();
-   HypreParMatrix diffusion_mat;
-   diffusion.FormLinearSystem(ess_tdof_list, x.GetBlock(0), rhs.GetBlock(0),
-                              diffusion_mat, tx.GetBlock(0), trhs.GetBlock(0));
+   ParBilinearForm dE(&primal_fes);
+   dE.AddDomainIntegrator(new DiffusionIntegrator);
+   dE.SetOperatorType(tid);
+   dE.Assemble();
+   dE.FormLinearSystem(ess_tdof_list, x.GetBlock(0), rhs.GetBlock(0),
+                       Ah, tx.GetBlock(0), trhs.GetBlock(0));
+   PetscParMatrix &A = *Ah.As<PetscParMatrix>();
 
-   ParMixedBilinearForm coupling(&primal_fes, &latent_fes);
-   coupling.AddDomainIntegrator(new MassIntegrator);
-   coupling.Assemble();
-   HypreParMatrix coupling_mat;
-   Array<int> dummy;
-   coupling.FormRectangularLinearSystem(ess_tdof_list, dummy, x.GetBlock(0),
-                                        rhs.GetBlock(1), coupling_mat,
-                                        tx.GetBlock(0), bdry);
+   ParMixedBilinearForm b(&primal_fes, &latent_fes);
+   b.AddDomainIntegrator(new MassIntegrator);
+   b.Assemble();
+   b.Finalize();
+   b.ParallelAssemble(Bh);
+   PetscParMatrix &B = *Bh.As<PetscParMatrix>();
 
-   std::unique_ptr<HypreParMatrix> coupling_transpose(coupling_mat.Transpose());
+   std::unique_ptr<PetscParMatrix> Bt(B.Transpose());
 
-   ParBilinearForm hess_map(&latent_fes);
-   hess_map.AddDomainIntegrator(new MassIntegrator(du_mapped));
-   // ConstantCoefficient eps_cf(-1e-06);
-   // hess_map.AddDomainIntegrator(new DiffusionIntegrator(eps_cf));
+   ParBilinearForm hessR(&latent_fes);
+   hessR.AddDomainIntegrator(new MassIntegrator(du_mapped));
 
-   ParLinearForm previous_primal_form(&latent_fes, rhs.GetBlock(1).GetData());
-   previous_primal_form.AddDomainIntegrator(new DomainLFIntegrator(u_mapped));
-   // previous_primal_form.AddDomainIntegrator(
-   //    new DomainLFIntegrator(neg_alpha_du_mapped_lambda));
+   ParLinearForm res_form(&latent_fes, rhs.GetBlock(1).GetData());
+   res_form.AddDomainIntegrator(new DomainLFIntegrator(u_mapped));
 
    BlockOperator pg_op(toffsets);
-   pg_op.SetBlock(0, 0, &diffusion_mat);
-   pg_op.SetBlock(1, 0, &coupling_mat);
-   pg_op.SetBlock(0, 1, coupling_transpose.get());
+   pg_op.SetBlock(0, 0, &A);
+   pg_op.SetBlock(1, 0, &B);
+   pg_op.SetBlock(0, 1, Bt.get());
    pg_op.owns_blocks = 0;
-
-   BlockDiagonalPreconditioner pg_prec(toffsets);
-   HypreBoomerAMG diffusion_prec(diffusion_mat);
-   diffusion_prec.SetPrintLevel(0);
-   pg_prec.SetDiagonalBlock(0, &diffusion_prec);
-   HypreSmoother hess_map_prec; // placeholder
-   pg_prec.owns_blocks = 0;
-
-   GMRESSolver pg_solver(MPI_COMM_WORLD);
-   pg_solver.SetPreconditioner(pg_prec);
-   pg_solver.SetKDim(10000);
-   pg_solver.SetOperator(pg_op);
-   pg_solver.SetAbsTol(0.0);
-   pg_solver.SetRelTol(1e-09);
-   pg_solver.SetMaxIter(1e05);
-   pg_solver.SetPrintLevel(0);
-   pg_solver.iterative_mode = true;
 
    char vishost[] = "localhost";
    int  visport   = 19916;
@@ -201,37 +182,41 @@ int main(int argc, char *argv[])
          add(psi_k_gf, alpha, lambda_gf, psi_gf);
 
          // Update LHS
-         if (hess_map.HasSpMat())
+         if (hessR.HasSpMat())
          {
-            delete hess_map.LoseMat();
-            hess_map.Update();
+            delete hessR.LoseMat();
+            hessR.Update();
          }
-         hess_map.Assemble();
-         hess_map.Finalize(0);
-         std::unique_ptr<HypreParMatrix> hess_mat(hess_map.ParallelAssemble());
-         *hess_mat *= -alpha;
+         hessR.Assemble();
+         hessR.Finalize(0);
+         hessR.ParallelAssemble(Hh);
+         PetscParMatrix &hess_mat = *Hh.As<PetscParMatrix>();
+         hess_mat *= -alpha;
          // out << "Assembled hess from proc " << myid << std::endl;
          // MPI_Barrier(MPI_COMM_WORLD);
 
          // Update RHS
-         previous_primal_form.Assemble();
-         previous_primal_form.ParallelAssemble(trhs.GetBlock(1));
+         res_form.Assemble();
+         res_form.ParallelAssemble(trhs.GetBlock(1));
          trhs.GetBlock(1) += bdry; // account for essential BCs on primal
-         hess_mat->AddMult(tx.GetBlock(1), trhs.GetBlock(1), 1.0);
+         hess_mat.AddMult(tx.GetBlock(1), trhs.GetBlock(1), 1.0);
          // out << "Assembled rhs from proc " << myid << std::endl;
          // MPI_Barrier(MPI_COMM_WORLD);
 
          // Update Solver
-         pg_op.SetBlock(1, 1, hess_mat.get());
-         hess_map_prec.SetOperator(*hess_mat);
-         pg_prec.SetDiagonalBlock(1, &hess_map_prec);
-         // out << "Set Solver from proc " << myid << std::endl;
-         // MPI_Barrier(MPI_COMM_WORLD);
-
-         // Solve
+         pg_op.SetBlock(1, 1, &hess_mat);
+         PetscParMatrix pg_mat(MPI_COMM_WORLD, &pg_op, tid);
+         PetscBDDCSolverParams opts;
+         opts.SetEssBdrDofs(&ess_tdof_list, false);
+         PetscBDDCSolver pg_prec(MPI_COMM_WORLD, pg_mat, opts, "prec_");
+         PetscLinearSolver pg_solver(MPI_COMM_WORLD, "gmres_");
+         pg_solver.SetPreconditioner(pg_prec);
+         pg_solver.SetOperator(pg_mat);
+         pg_solver.SetAbsTol(1e-10);
+         pg_solver.SetRelTol(1e-08);
+         pg_solver.SetMaxIter(5e03);
+         pg_solver.SetPrintLevel(0);
          pg_solver.Mult(trhs, tx);
-         // out << "Solved from proc " << myid << std::endl;
-         // MPI_Barrier(MPI_COMM_WORLD);
          u_gf.SetFromTrueDofs(tx.GetBlock(0));
          lambda_gf.SetFromTrueDofs(tx.GetBlock(1));
 

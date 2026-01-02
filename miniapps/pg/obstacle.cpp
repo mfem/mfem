@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
       *nodes /= scale;
    }
 
-   H1_FECollection primal_fec(order+1, dim);
+   H1Bubble_FECollection primal_fec(order, order-1, dim);
    L2_FECollection latent_fec(order-1, dim);
 
    FiniteElementSpace primal_fes(&mesh, &primal_fec);

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "linalg/densemat.hpp"
 #include "mfem.hpp"
 #include "./legendre.hpp"
 
