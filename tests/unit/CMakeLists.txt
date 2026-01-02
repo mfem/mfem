@@ -53,6 +53,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_ode2.cpp
   linalg/test_operator.cpp
   linalg/test_particlevector.cpp
+  linalg/test_sparsesmoothers.cpp
   linalg/test_vector.cpp
   mesh/mesh_test_utils.cpp
   mesh/test_exodus_reader.cpp
@@ -68,8 +69,6 @@ set(UNIT_TESTS_SRCS
   mesh/test_psubmesh.cpp
   mesh/test_submesh.cpp
   mesh/test_vtu.cpp
-  mesh/test_nurbs.cpp
-  mesh/test_exodus_writer.cpp
   fem/make_permuted_mesh.cpp
   fem/test_1d_bilininteg.cpp
   fem/test_2d_bilininteg.cpp
@@ -126,6 +125,7 @@ set(UNIT_TESTS_SRCS
   fem/test_pa_grad.cpp
   fem/test_pa_idinterp.cpp
   fem/test_pa_kernels.cpp
+  fem/test_particleset.cpp
   fem/test_pgridfunc_save_serial.cpp
   fem/test_poly1d.cpp
   fem/test_project_bdr_par.cpp
