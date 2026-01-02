@@ -4247,6 +4247,10 @@ void HyprePCG::SetPreconditioner(HypreSolver &precond_)
                              precond_.SolveFcn(),
                              precond_.SetupFcn(),
                              precond_);
+
+#if MFEM_HYPRE_VERSION >= 30000
+   HYPRE_PCGSetPrecondMatrix(pcg_solver, NULL);
+#endif
 }
 
 void HyprePCG::SetResidualConvergenceOptions(int res_frequency, real_t rtol)
@@ -4437,6 +4441,10 @@ void HypreGMRES::SetPreconditioner(HypreSolver &precond_)
                                precond_.SolveFcn(),
                                precond_.SetupFcn(),
                                precond_);
+
+#if MFEM_HYPRE_VERSION >= 30000
+   HYPRE_GMRESSetPrecondMatrix(gmres_solver, NULL);
+#endif
 }
 
 void HypreGMRES::Mult(const HypreParVector &b, HypreParVector &x) const
