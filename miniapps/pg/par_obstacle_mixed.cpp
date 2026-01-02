@@ -20,12 +20,14 @@ int main(int argc, char *argv[])
    int ref_levels = 5;
    int max_prox_it = 1000;
    real_t prox_tol = 1e-06;
-   int max_newt_it = 10;
+   int max_newt_it = 50;
    real_t newt_tol = 1e-08;
 
    real_t alpha = 0.1;
 
    bool visualization = true;
+
+   const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
@@ -42,8 +44,14 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.ParseCheck();
    MFEMInitializePetsc(nullptr, nullptr, "rc_bddc", nullptr);
+
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
+   MemoryType mt = device.GetMemoryType();
 
    Mesh ser_mesh("../../data/disc-nurbs.mesh", 1, 1);
    const int dim = ser_mesh.Dimension();
@@ -90,17 +98,19 @@ int main(int argc, char *argv[])
    Array<int> ess_tdof_list;
    primal_fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-   BlockVector x(offsets), rhs(offsets);
-   BlockVector tx(toffsets), trhs(toffsets);
-   Vector bdry(num_dofs_latent);
+   BlockVector x(offsets, mt), rhs(offsets, mt);
+   BlockVector tx(toffsets, mt), trhs(toffsets, mt);
+   Vector bdry(num_dofs_latent, mt);
    x = 0.0; rhs = 0.0; bdry = 0.0;
    tx = 0.0; trhs = 0.0;
 
    // unknowns
-   ParGridFunction u_gf(&primal_fes, x.GetBlock(0), 0);
+   ParGridFunction u_gf;
+   u_gf.MakeRef(&primal_fes, x.GetBlock(0), 0);
    u_gf.ProjectBdrCoefficient(u_exact, ess_bdr);
    u_gf.ParallelAssemble(tx.GetBlock(0));
-   ParGridFunction lambda_gf(&latent_fes, x.GetBlock(1), 0);
+   ParGridFunction lambda_gf;
+   lambda_gf.MakeRef(&latent_fes, x.GetBlock(1), 0);
    ParGridFunction u_prox_prev_gf(&primal_fes);
    ParGridFunction u_newt_prev_gf(&primal_fes);
    GridFunctionCoefficient u_prox_prev(&u_prox_prev_gf);
@@ -152,27 +162,22 @@ int main(int argc, char *argv[])
    char vishost[] = "localhost";
    int  visport   = 19916;
    socketstream sol_sock;
-   sol_sock.open(vishost,visport);
-   sol_sock.precision(8);
-   sol_sock << "parallel " << num_procs << " " << myid << "\n"
-            << "solution\n" << mesh << u_gf << "window_title 'Discrete solution'"
-            << std::flush;
-   MPI_Barrier(MPI_COMM_WORLD);
-
-   QuadratureSpace qspace(&mesh, order*2 + 2);
-   QuadratureFunction err_qf(qspace);
-   GridFunctionCoefficient u_cf(&u_gf);
-   SumCoefficient err_cf(u_exact, u_cf, 1.0, -1.0);
-
-   socketstream err_sock;
+   if (visualization)
+   {
+      sol_sock.open(vishost,visport);
+      sol_sock.precision(8);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n"
+               << "solution\n" << mesh << u_gf << "window_title 'Discrete solution'"
+               << std::flush;
+      MPI_Barrier(MPI_COMM_WORLD);
+   }
 
    for (int prox_it = 0; prox_it < max_prox_it; prox_it++)
    {
       psi_k_gf = psi_gf;
+      psi_k_gf.SyncAliasMemory(psi_k_gf);
       u_prox_prev_gf = u_gf;
-      // neg_alpha_du_mapped.SetAConst(-alpha);
-      // out << "HI from proc " << myid << std::endl;
-      // MPI_Barrier(MPI_COMM_WORLD);
+      u_prox_prev_gf.SyncAliasMemory(u_prox_prev_gf);
 
       bool newt_converged = false;
       for (int newt_it = 0; newt_it < max_newt_it; newt_it++)
@@ -180,6 +185,7 @@ int main(int argc, char *argv[])
          // Store previous, and update latent variable
          u_newt_prev_gf = u_gf;
          add(psi_k_gf, alpha, lambda_gf, psi_gf);
+         psi_gf.SyncAliasMemory(psi_gf);
 
          // Update LHS
          if (hessR.HasSpMat())
@@ -198,8 +204,11 @@ int main(int argc, char *argv[])
          // Update RHS
          res_form.Assemble();
          res_form.ParallelAssemble(trhs.GetBlock(1));
+         trhs.GetBlock(1).SyncAliasMemory(trhs.GetBlock(1));
          trhs.GetBlock(1) += bdry; // account for essential BCs on primal
+         trhs.GetBlock(1).SyncAliasMemory(trhs.GetBlock(1));
          hess_mat.AddMult(tx.GetBlock(1), trhs.GetBlock(1), 1.0);
+         trhs.GetBlock(1).SyncAliasMemory(trhs.GetBlock(1));
          // out << "Assembled rhs from proc " << myid << std::endl;
          // MPI_Barrier(MPI_COMM_WORLD);
 
@@ -240,20 +249,15 @@ int main(int argc, char *argv[])
          MFEM_WARNING("Newton solver did not converge in "
                       << max_newt_it << " iterations.");
       }
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock << "solution\n" << mesh << u_gf << "window_title 'Discrete solution'"
-               << std::flush;
+      alpha *= 2.0;
+      if (visualization)
+      {
+         sol_sock << "parallel " << num_procs << " " << myid << "\n";
+         sol_sock << "solution\n" << mesh << u_gf << "window_title 'Discrete solution'"
+                  << std::flush;
+      }
       real_t prox_cauchy = u_gf.ComputeL2Error(u_prox_prev);
       real_t err = u_gf.ComputeL2Error(u_exact);
-      err_cf.Project(err_qf);
-      if (!err_sock.is_open())
-      {
-         err_sock.open(vishost,visport);
-         err_sock.precision(8);
-      }
-      err_sock << "parallel " << num_procs << " " << myid << "\n";
-      err_sock << "quadrature\n" << mesh << err_qf
-               << "window_title 'Error at quadrature points'" << std::flush;
       if (myid == 0)
       {
          out << "Proximal iteration " << prox_it + 1
