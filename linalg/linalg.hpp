@@ -89,6 +89,10 @@
 #include "cpardiso.hpp"
 #endif
 
+#ifdef MFEM_USE_CUDSS
+#include "cudss.hpp"
+#endif
+
 #endif // MFEM_USE_MPI
 
 #endif
