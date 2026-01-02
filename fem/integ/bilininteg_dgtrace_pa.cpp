@@ -278,8 +278,11 @@ DGTraceIntegrator::Kernels::Kernels()
 {
    // 2D
    DGTraceIntegrator::AddSpecialization<2, 2, 2>();
+   DGTraceIntegrator::AddSpecialization<2, 2, 3>();
    DGTraceIntegrator::AddSpecialization<2, 3, 3>();
+   DGTraceIntegrator::AddSpecialization<2, 3, 4>();
    DGTraceIntegrator::AddSpecialization<2, 4, 4>();
+   DGTraceIntegrator::AddSpecialization<2, 4, 5>();
    DGTraceIntegrator::AddSpecialization<2, 5, 5>();
    DGTraceIntegrator::AddSpecialization<2, 6, 6>();
    DGTraceIntegrator::AddSpecialization<2, 7, 7>();
@@ -287,8 +290,11 @@ DGTraceIntegrator::Kernels::Kernels()
    DGTraceIntegrator::AddSpecialization<2, 9, 9>();
    // 3D
    DGTraceIntegrator::AddSpecialization<3, 2, 3>();
+   DGTraceIntegrator::AddSpecialization<3, 2, 4>();
    DGTraceIntegrator::AddSpecialization<3, 3, 4>();
+   DGTraceIntegrator::AddSpecialization<3, 3, 5>();
    DGTraceIntegrator::AddSpecialization<3, 4, 5>();
+   DGTraceIntegrator::AddSpecialization<3, 4, 6>();
    DGTraceIntegrator::AddSpecialization<3, 5, 6>();
    DGTraceIntegrator::AddSpecialization<3, 6, 7>();
    DGTraceIntegrator::AddSpecialization<3, 7, 8>();

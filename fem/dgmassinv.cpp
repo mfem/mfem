@@ -280,9 +280,12 @@ DGMassInvKernels::DGMassInvKernels()
    // 2D
    k::Specialization<2,1,1>::Add();
    k::Specialization<2,2,2>::Add();
+   k::Specialization<2,2,3>::Add();
    k::Specialization<2,3,3>::Add();
+   k::Specialization<2,3,4>::Add();
    k::Specialization<2,3,5>::Add();
    k::Specialization<2,4,4>::Add();
+   k::Specialization<2,4,5>::Add();
    k::Specialization<2,4,6>::Add();
    k::Specialization<2,5,5>::Add();
    k::Specialization<2,5,7>::Add();
@@ -291,6 +294,7 @@ DGMassInvKernels::DGMassInvKernels()
    // 3D
    k::Specialization<3,2,2>::Add();
    k::Specialization<3,2,3>::Add();
+   k::Specialization<3,2,4>::Add();
    k::Specialization<3,3,3>::Add();
    k::Specialization<3,3,4>::Add();
    k::Specialization<3,3,5>::Add();
