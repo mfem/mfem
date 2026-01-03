@@ -2,8 +2,10 @@
 
 # -ksp_view
 # -ksp_converged_reason
--gmres_ksp_type gmres
--gmres_ksp_restart 1000
+-solver_ksp_type gmres
+# -solver_ksp_type gmres
+-solver_ksp_restart 50
+# -gmres_ksp_monitor_singular_value
 # Use LU factorization (common for non-symmetric matrices)
 -mumps_ksp_type preonly
 -mumps_pc_type lu
@@ -58,5 +60,5 @@
 -prec_pc_bddc_deluxe_zerorows
 
 # adaptive generation of primal space (needs MUMPS)
-#-prec_pc_bddc_adaptive_threshold 5
+-prec_pc_bddc_adaptive_threshold 5
 #-prec_pc_bddc_schur_exact

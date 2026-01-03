@@ -4,7 +4,7 @@
 using namespace std;
 using namespace mfem;
 
-real_t spherical_obstacle(const Vector &pt);
+real_t obstacle_func(const Vector &pt);
 real_t exact_solution(const Vector &pt);
 void exact_solution_gradient(const Vector &pt, Vector &grad);
 
@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
    Mesh ser_mesh("../../data/disc-nurbs.mesh", 1, 1);
    const int dim = ser_mesh.Dimension();
 
-   FunctionCoefficient obstacle(spherical_obstacle);
+   FunctionCoefficient obstacle(obstacle_func);
    FunctionCoefficient u_exact(exact_solution);
    VectorFunctionCoefficient u_grad_exact(dim, exact_solution_gradient);
    CoefficientScaledLegendreFunction entropy(new Shannon);
@@ -123,9 +123,6 @@ int main(int argc, char *argv[])
 
    PrimalCoefficient u_mapped(psi_gf, entropy); // u_k = grad R^*(psi_k)
    PrimalJacobianCoefficient du_mapped(psi_gf, entropy);
-   ProductCoefficient neg_alpha_du_mapped(-1.0, du_mapped);
-   GridFunctionCoefficient lambda_cf(&lambda_gf);
-   ProductCoefficient neg_alpha_du_mapped_lambda(neg_alpha_du_mapped, lambda_cf);
 
    const auto tid = Operator::Type::PETSC_MATIS;
    OperatorHandle Ah(tid), Bh(tid), Hh(tid);
@@ -218,11 +215,10 @@ int main(int argc, char *argv[])
          PetscBDDCSolverParams opts;
          opts.SetEssBdrDofs(&ess_tdof_list, false);
          PetscBDDCSolver pg_prec(MPI_COMM_WORLD, pg_mat, opts, "prec_");
-         PetscLinearSolver pg_solver(MPI_COMM_WORLD, "gmres_");
+         PetscLinearSolver pg_solver(pg_mat, "solver_");
          pg_solver.SetPreconditioner(pg_prec);
-         pg_solver.SetOperator(pg_mat);
          pg_solver.SetAbsTol(1e-10);
-         pg_solver.SetRelTol(1e-08);
+         pg_solver.SetRelTol(1e-07);
          pg_solver.SetMaxIter(5e03);
          pg_solver.SetPrintLevel(0);
          pg_solver.Mult(trhs, tx);
@@ -273,7 +269,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-real_t spherical_obstacle(const Vector &pt)
+real_t obstacle_func(const Vector &pt)
 {
    real_t x = pt(0), y = pt(1);
    real_t r = sqrt(x*x + y*y);

@@ -33,7 +33,7 @@ list(APPEND PETSC_RC_FILES
 foreach(RC_FILE ${PETSC_RC_FILES})
   add_custom_command(OUTPUT ${RC_FILE}
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    ${CMAKE_CURRENT_SOURCE_DIR}/${RC_FILE} ${RC_FILE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/${RC_FILE} ${CMAKE_CURRENT_BINARY_DIR}/${RC_FILE}
     COMMENT "copy ${RC_FILE}")
 endforeach()
 add_custom_target(copy_pg_petsc_rc_files DEPENDS ${PETSC_RC_FILES}
@@ -49,14 +49,15 @@ add_mfem_miniapp(par_obstacle
   ${PG_COMMON_FILES}
   LIBRARIES mfem)
 
-add_mfem_miniapp(par_obstacle_mixed
-  MAIN par_obstacle_mixed.cpp
+add_mfem_miniapp(par_obstacle_prec
+  MAIN par_obstacle_prec.cpp
   ${PG_COMMON_FILES}
   LIBRARIES mfem)
-add_dependencies(par_obstacle_mixed copy_pg_petsc_rc_files)
+add_dependencies(par_obstacle_prec copy_pg_petsc_rc_files)
 
 add_mfem_miniapp(pos_proj
   MAIN pos_proj.cpp
   ${PG_COMMON_FILES}
   LIBRARIES mfem)
+add_dependencies(pos_proj copy_pg_petsc_rc_files)
 
