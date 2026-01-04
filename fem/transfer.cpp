@@ -770,8 +770,6 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::EAL2ProjectionL2Space()
       R_vec.NewMemoryAndSize(R.GetMemory(), R.Size(), false);
       Vector RtM_LR(ndof_ho * ndof_ho * nel_ho, d_mt);
       BatchedLinAlg::Mult(RtM_L_dt, R_vec, RtM_LR);
-      // Ensure that changes to the alias R_vec are propagated to the base, R
-      R_vec.GetMemory().SyncAlias(R.GetMemory(), P.Size());
 
       // Compute the inverse of InvRtM_LR
       DenseTensor InvRtM_LR;
@@ -784,8 +782,6 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::EAL2ProjectionL2Space()
       Vector P_vec;
       P_vec.NewMemoryAndSize(P.GetMemory(), P.Size(), false);
       BatchedLinAlg::Mult(InvRtM_LR, RtM_L, P_vec);
-      // Ensure that changes to the alias P_vec are propagated to the base, P
-      P_vec.GetMemory().SyncAlias(P.GetMemory(), P.Size());
    }
 }
 
@@ -1594,8 +1590,8 @@ std::unique_ptr<SparseMatrix>>
       J[jcol] = r_and_mlh.first->GetJ()[jcol];
    }
    r_and_mlh.second = std::unique_ptr<SparseMatrix>(
-                         new SparseMatrix(I, J, NULL, r_and_mlh.first->Height(),
-                                          r_and_mlh.first->Width(), true, true, true));
+                         new SparseMatrix(I, J, Memory<real_t> {}, r_and_mlh.first->Height(),
+                                          r_and_mlh.first->Width(), true));
 
    IntegrationPointTransformation ip_tr;
    IsoparametricTransformation& emb_tr = ip_tr.Transf;
@@ -1836,11 +1832,10 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::AllocR()
    }
 
    dof_lor_dof_ho.SortRows();
-   real_t* data = Memory<real_t>(dof_dofI[ndof_lor]);
 
-   std::unique_ptr<SparseMatrix> R_local(new SparseMatrix(
-                                            dof_dofI, dof_dofJ, data, ndof_lor,
-                                            ndof_ho, true, true, true));
+   std::unique_ptr<SparseMatrix> R_local(
+      new SparseMatrix(dof_lor_dof_ho.GetIMemory(), dof_lor_dof_ho.GetJMemory(),
+                       Memory<real_t>(dof_dofI[ndof_lor]), ndof_lor, ndof_ho));
    (*R_local) = 0.0;
 
    dof_lor_dof_ho.LoseData();
