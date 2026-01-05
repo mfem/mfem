@@ -3228,8 +3228,8 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const real_t sz);
     ParMesh pmesh(MPI_COMM_WORLD, *mesh, par);
     delete mesh; delete[] par;
     for (int lev = 0; lev < par_ref; lev++) { pmesh.UniformRefinement(); }   */
-Mesh *PartitionMPI(int dim, int mpi_cnt, int elem_per_mpi, bool print,
-                   int &par_ref, int **partitioning);
+Mesh PartitionMPI(int dim, int mpi_cnt, int elem_per_mpi, bool print,
+                  int &par_ref, Array<int> &partitioning);
 
 // shift cyclically 3 integers left-to-right
 inline void ShiftRight(int &a, int &b, int &c)

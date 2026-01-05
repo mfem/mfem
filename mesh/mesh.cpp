@@ -15701,8 +15701,8 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const real_t sz)
    return mesh3d;
 }
 
-Mesh *PartitionMPI(int dim, int mpi_cnt, int elem_per_mpi, bool print,
-                   int &par_ref, int **partitioning)
+Mesh PartitionMPI(int dim, int mpi_cnt, int elem_per_mpi, bool print,
+                  int &par_ref, Array<int> &partitioning)
 {
    MFEM_VERIFY(dim > 1, "Not implemented for 1D meshes.");
 
@@ -15799,25 +15799,26 @@ Mesh *PartitionMPI(int dim, int mpi_cnt, int elem_per_mpi, bool print,
       mfem::out << "--- \n";
    }
 
-   Mesh *mesh;
+   Mesh mesh;
+   int nxyz[3];
    if (dim == 2)
    {
-      mesh = new Mesh(Mesh::MakeCartesian2D(mpi_x * el0_x,
-                                            mpi_y * el0_y,
-                                            Element::QUADRILATERAL, true));
+      mesh = Mesh::MakeCartesian2D(mpi_x * el0_x,
+                                   mpi_y * el0_y, Element::QUADRILATERAL, true);
+      nxyz[0] = mpi_x; nxyz[1] = mpi_y;
    }
    else
    {
-      mesh = new Mesh(Mesh::MakeCartesian3D(mpi_x * el0_x,
-                                            mpi_y * el0_y,
-                                            mpi_z * el0_z,
-                                            Element::HEXAHEDRON, true));
+      mesh = Mesh::MakeCartesian3D(mpi_x * el0_x,
+                                   mpi_y * el0_y,
+                                   mpi_z * el0_z, Element::HEXAHEDRON, true);
+      nxyz[0] = mpi_x; nxyz[1] = mpi_y; nxyz[2] = mpi_z;
    }
 
-   int nxyz[3];
-   if (dim == 2) { nxyz[0] = mpi_x; nxyz[1] = mpi_y; }
-   else          { nxyz[0] = mpi_x; nxyz[1] = mpi_y; nxyz[2] = mpi_z; }
-   *partitioning = mesh->CartesianPartitioning(nxyz);
+   const int NE = mesh.GetNE();
+   partitioning.SetSize(NE);
+   std::unique_ptr<int[]> p_raw(mesh.CartesianPartitioning(nxyz));
+   std::copy(p_raw.get(), p_raw.get() + NE, partitioning.GetData());
 
    return mesh;
 }
