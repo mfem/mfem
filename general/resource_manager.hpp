@@ -652,18 +652,26 @@ public:
    void Wrap(T *ptr, size_t size, MemoryType loc, bool own)
    {
       *this = Memory(ptr, size, loc);
-      if (own)
+      auto &inst = MemoryManager::instance();
+      auto &seg = inst.storage.get_segment(segment);
+      if (!seg.lowers[0])
       {
-         auto &inst = MemoryManager::instance();
-         auto &seg = inst.storage.get_segment(segment);
-         if (seg.lowers[0])
-         {
-            SetHostPtrOwner(true);
-         }
-         else
+         if (own)
          {
             SetDevicePtrOwner(true);
          }
+         // need to allocate the host part too
+         MFEM_ASSERT(IsDeviceMemory(seg.mtypes[1]),
+                     "invalid device memory type");
+         auto hloc = MemoryManager::GetDualMemoryType(seg.mtypes[1]);
+         seg.lowers[0] = inst.Alloc(size * sizeof(T), hloc, false);
+         SetHostPtrOwner(true);
+         // make initially valid on host and not device
+         inst.SetValidity(segment, true, false);
+      }
+      else
+      {
+         SetHostPtrOwner(own);
       }
    }
 
@@ -824,12 +832,20 @@ template <class T> Memory<T>::Memory(MemoryType mt) : Memory()
 
 template <class T> void Memory<T>::Reset(MemoryType host_mt)
 {
+   auto &inst = MemoryManager::instance();
+   MemoryType device_mt = MemoryType::DEFAULT;
+   if (inst.valid_segment(segment))
+   {
+      device_mt = inst.storage.get_segment(segment).mtypes[1];
+   }
    *this = Memory{};
-   // TODO: how to track host_mt?
+   // track memory types with an empty segment
+   inst.insert(nullptr, nullptr, 0, host_mt, device_mt, false, false, false);
 }
 
 template <class T> Memory<T>::Memory(T *ptr, size_t count, MemoryType loc)
 {
+   // TODO: should this ensure host ptr is allocated if loc is a device loc?
    auto &inst = MemoryManager::instance();
    segment = inst.insert(reinterpret_cast<char *>(ptr), count * sizeof(T), loc,
                          false, false);
@@ -851,6 +867,7 @@ template <class T> Memory<T>::Memory(T *ptr, size_t count, bool own)
 template <class T>
 Memory<T>::Memory(T *ptr, size_t count, MemoryType loc, bool own)
 {
+   // TODO: should this ensure host ptr is allocated if loc is a device loc?
    auto &inst = MemoryManager::instance();
    segment = inst.insert(reinterpret_cast<char *>(ptr), count * sizeof(T), loc,
                          own, false);
@@ -865,8 +882,17 @@ Memory<T>::Memory(size_t count, MemoryType loc, bool temporary)
    auto &inst = MemoryManager::instance();
    offset_ = 0;
    size_ = count;
-   segment = inst.insert(inst.Alloc(count * sizeof(T), loc, temporary),
-                         count * sizeof(T), loc, true, temporary);
+   auto h_mt = (loc == MemoryType::DEFAULT || IsHostMemory(loc))
+               ? loc
+               : MemoryManager::GetDualMemoryType(loc);
+   // ensure host is also allocated if loc is a device type
+   segment = inst.insert(inst.Alloc(count * sizeof(T), h_mt, temporary),
+                         count * sizeof(T), h_mt, true, temporary);
+   if (IsDeviceMemory(loc))
+   {
+      // lazy device memory allocation
+      inst.storage.get_segment(segment).mtypes[1] = loc;
+   }
    flags = OWNS_CONTROL;
 }
 
@@ -884,9 +910,9 @@ Memory<T>::Memory(size_t count, MemoryType hloc, MemoryType dloc,
    }
    else
    {
+      // lazy device memory allocation
       segment =
-         inst.insert(inst.Alloc(count * sizeof(T), hloc, temporary),
-                     inst.Alloc(count * sizeof(T), dloc, temporary),
+         inst.insert(inst.Alloc(count * sizeof(T), hloc, temporary), nullptr,
                      count * sizeof(T), hloc, dloc, true, true, temporary);
    }
    flags = OWNS_CONTROL;

@@ -1188,8 +1188,11 @@ size_t MemoryManager::insert(char *hptr, size_t nbytes, MemoryType loc,
       case MemoryType::HOST_PINNED:
          [[fallthrough]];
       case MemoryType::MANAGED:
-         dptr = hptr;
-         dloc = loc;
+         if (GetDualMemoryType(loc) == loc)
+         {
+            dptr = hptr;
+            dloc = loc;
+         }
          break;
       case MemoryType::PRESERVE:
       default:
@@ -2518,10 +2521,11 @@ void MemoryManager::SetDeviceMemoryType(size_t segment, MemoryType loc)
       else
       {
          seg.mtypes[1] = loc;
-         seg.lowers[1] = Alloc(seg.nbytes, seg.mtypes[1], seg.is_temporary());
-         seg.set_owns_device(true);
-         // initially all invalid
-         mark_invalid(segment, 1, 0, seg.nbytes, [&](auto, auto) {});
+         // lazy device memory allocation
+         // seg.lowers[1] = Alloc(seg.nbytes, seg.mtypes[1], seg.is_temporary());
+         // seg.set_owns_device(true);
+         // // initially all invalid
+         // mark_invalid(segment, 1, 0, seg.nbytes, [&](auto, auto) {});
       }
    }
 }
