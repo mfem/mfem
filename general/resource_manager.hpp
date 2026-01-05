@@ -661,8 +661,6 @@ public:
             SetDevicePtrOwner(true);
          }
          // need to allocate the host part too
-         MFEM_ASSERT(IsDeviceMemory(seg.mtypes[1]),
-                     "invalid device memory type");
          auto hloc = MemoryManager::GetDualMemoryType(seg.mtypes[1]);
          seg.lowers[0] = inst.Alloc(size * sizeof(T), hloc, false);
          SetHostPtrOwner(true);
