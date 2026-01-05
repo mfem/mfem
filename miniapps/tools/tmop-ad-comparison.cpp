@@ -72,38 +72,82 @@ int main(int argc, char *argv[])
 
    int ndofs = 10;
    DenseMatrix DS(ndofs, dim);
-   DS = 0.0;
+   DS = 1.0;
    real_t weight_m = 1.0;
    DenseMatrix elmat(ndofs*dim);
+   DenseMatrix elmat_save(ndofs*dim);
 
-   // Measure average AssembleH time for each ad_type over ntrial_iter.
+   // Measure average AssembleH time for each ad_type over ntrial_iter,
+   // comparing Dual (1) vs Enzyme (2) per trial.
    Vector timings(3);
    timings = -1.0;
-   for (int i = 0; i < 3; i++)
+   TMOP_QualityMetric *metric0 = GetMetric(metric_id, 0);
+   TMOP_QualityMetric *metric1 = GetMetric(metric_id, 1);
+   TMOP_QualityMetric *metric2 = GetMetric(metric_id, 2);
+   MFEM_VERIFY(metric1 != nullptr && metric2 != nullptr,
+               "Failed to create metrics for AD types 1 and 2.");
+   using clock = std::chrono::steady_clock;
+   using dur_s = std::chrono::duration<double>;
+   double tot_s_arr[3] = {0.0, 0.0, 0.0};
+
+   DenseMatrix Jpt(dim);
+   Vector Jptp(Jpt.GetData(), dim*dim);
+   for (int j = 0; j < ntrial_iter; j++)
    {
-      ad_type = i; // 0 - none, 1 - forward, 2 - reverse
-      TMOP_QualityMetric *metric = GetMetric(metric_id, ad_type);
-      MFEM_VERIFY(metric != nullptr, "Failed to create metric.");
-      using clock = std::chrono::steady_clock;
-      using dur_s = std::chrono::duration<double>;
-      double tot_s = 0.0;
-      for (int j = 0; j < ntrial_iter; j++)
+      Jptp.Randomize(1 + j);
+      while (Jpt.Det() <= 0.0)
       {
-         DenseMatrix Jpt(dim);
-         Vector Jptp(Jpt.GetData(), dim*dim);
-         Jptp.Randomize(i*ntrial_iter + j);
-         if ((metric_id == 342 || metric_id == 85) && ad_type == 0)
+         for (int d = 0; d < dim; d++)
          {
+            Jpt(d, d) += 0.01;
+         }
+      }
+      bool comp = false;
+      for (int i = 0; i < 3; i++)
+      {
+         if ((metric_id == 342 || metric_id == 85) && i == 0)
+         {
+            // Skip non-AD path for these metrics.
             continue;
          }
+
+         TMOP_QualityMetric *metric = (i == 0 ? metric0 :
+                                       (i == 1 ? metric1 : metric2));
+         MFEM_VERIFY(metric != nullptr, "Failed to create metric.");
+
+         elmat = 0.0;
          auto t0 = clock::now();
          metric->AssembleH(Jpt, DS, weight_m, elmat);
          auto t1 = clock::now();
-         tot_s += std::chrono::duration_cast<dur_s>(t1 - t0).count();
+         tot_s_arr[i] += std::chrono::duration_cast<dur_s>(t1 - t0).count();
+         if (!comp)
+         {
+            // Save Dual (type 1) result for this trial.
+            elmat_save = elmat;
+            comp = true;
+         }
+         else
+         {
+            // Compare Enzyme (type 2) result to Dual for this trial.
+            DenseMatrix diff(ndofs*dim);
+            diff = elmat;
+            diff -= elmat_save;
+            double max_diff = diff.MaxMaxNorm()/elmat.MaxMaxNorm();
+            MFEM_VERIFY(max_diff < 1e-8,
+                        "AssembleH results with Enzyme and Dual differ by "
+                        << max_diff);
+         }
       }
-      timings(i) = tot_s / ntrial_iter;
-      delete metric;
    }
+
+   for (int i = 0; i < 3; i++)
+   {
+      timings(i) = tot_s_arr[i] / ntrial_iter;
+   }
+
+   delete metric0;
+   delete metric1;
+   delete metric2;
 
    cout << "Average AssembleH time over " << ntrial_iter << " trials:" << endl;
    cout << "  ad_type 0 ( none ):    " << timings(0) << " s" << endl;
