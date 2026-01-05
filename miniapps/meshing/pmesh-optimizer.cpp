@@ -172,6 +172,7 @@ int main (int argc, char *argv[])
    int mesh_node_order   = 0;
    int barrier_type      = 0;
    int worst_case_type   = 0;
+   int diff_type         = 0;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -330,6 +331,10 @@ int main (int argc, char *argv[])
                   "0 - None,"
                   "1 - Beta,"
                   "2 - PMean.");
+   args.AddOption(&diff_type, "-ad", "--ad-type",
+                  "0 - None,"
+                  "1 - dual,"
+                  "2 - Enzyme.");
 
    args.Parse();
    if (!args.Good())
@@ -490,7 +495,7 @@ int main (int argc, char *argv[])
    {
       // T-metrics
       case 1: metric = new TMOP_Metric_001; break;
-      case 2: metric = new TMOP_Metric_002; break;
+      case 2: metric = new TMOP_Metric_002(diff_type); break;
       case 4: metric = new TMOP_Metric_004; break;
       case 7: metric = new TMOP_Metric_007; break;
       case 9: metric = new TMOP_Metric_009; break;
@@ -503,7 +508,7 @@ int main (int argc, char *argv[])
       case 66: metric = new TMOP_Metric_066(0.5); break;
       case 77: metric = new TMOP_Metric_077; break;
       case 80: metric = new TMOP_Metric_080(0.5); break;
-      case 85: metric = new TMOP_Metric_085; break;
+      case 85: metric = new TMOP_Metric_085(diff_type); break;
       case 90: metric = new TMOP_Metric_090; break;
       case 94: metric = new TMOP_Metric_094; break;
       case 98: metric = new TMOP_Metric_098; break;
@@ -525,6 +530,7 @@ int main (int argc, char *argv[])
       case 333: metric = new TMOP_Metric_333(0.5); break;
       case 334: metric = new TMOP_Metric_334(0.5); break;
       case 338: metric = new TMOP_Metric_338; break;
+      case 342: metric = new TMOP_Metric_342(diff_type); break;
       case 347: metric = new TMOP_Metric_347(0.5); break;
       // case 352: metric = new TMOP_Metric_352(min_detJ); break;
       case 360: metric = new TMOP_Metric_360; break;

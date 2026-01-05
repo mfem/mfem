@@ -15,6 +15,7 @@
 #include "tmop_tools.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/dual.hpp"
+#include "../general/enzyme.hpp"
 
 namespace mfem
 {
@@ -149,6 +150,15 @@ type mu4_ad(const std::vector<type> &T, const std::vector<type> &W)
    return fnorm2 - 2*det;
 };
 
+// W = 0.5 |J|^2 / det(J) - 1.
+template <typename type>
+type mu2_ad(const std::vector<type> &T, const std::vector<type> &W)
+{
+   auto fnorm2 = fnorm2_2D(T);
+   auto det = det_2D(T);
+   return 0.5 * fnorm2 / det - 1.0;
+};
+
 // W = ||T-I||^2.
 template <typename type>
 type mu14_ad(const std::vector<type> &T, const std::vector<type> &W)
@@ -180,6 +190,26 @@ type mu85_ad(const std::vector<type> &T, const std::vector<type> &W)
           (T[3] - fnorm/sqrt(2))*(T[3] - fnorm/sqrt(2));
 };
 
+// Wrapper for Enzyme
+void mu85_wrapper(const std::vector<double>& T, const std::vector<double>& W,
+                  double& res)
+{
+   res = mu85_ad(T, W);
+}
+
+// Wrapper for Enzyme Gradient
+void mu85_grad_wrapper(const std::vector<double>& T,
+                       const std::vector<double>& W, std::vector<double>& dW_dT)
+{
+   double res = 0.0;
+   double dres = 1.0;
+   std::fill(dW_dT.begin(), dW_dT.end(), 0.0);
+   __enzyme_autodiff<void>(mu85_wrapper,
+                           enzyme_dup, &T, &dW_dT,
+                           enzyme_const, &W,
+                           enzyme_dup, &res, &dres);
+}
+
 // W = 1/tau |T-I|^2.
 template <typename type>
 type mu98_ad(const std::vector<type> &T, const std::vector<type> &W)
@@ -191,7 +221,7 @@ type mu98_ad(const std::vector<type> &T, const std::vector<type> &W)
    add_2D(real_t{-1.0}, T, &Id, Mat);
 
    return fnorm2_2D(Mat)/det_2D(T);
-};
+}
 
 template <typename type>
 type make_one_type()
@@ -254,14 +284,71 @@ type wcuo_ad(type mu,
 template <typename type>
 type mu342_ad(const std::vector<type> &T, const std::vector<type> &W)
 {
-   DenseMatrix Id(3,3); Id = 0.0;
-   Id(0,0) = 1; Id(1,1) = 1; Id(2,2) = 1;
-
-   std::vector<type> Mat;
-   add_3D(real_t{-1.0}, T, &Id, Mat);
+   std::vector<type> Mat(9);
+   // T - I
+   Mat[0] = T[0] - 1.0;
+   Mat[1] = T[1];
+   Mat[2] = T[2];
+   Mat[3] = T[3];
+   Mat[4] = T[4] - 1.0;
+   Mat[5] = T[5];
+   Mat[6] = T[6];
+   Mat[7] = T[7];
+   Mat[8] = T[8] - 1.0;
 
    return fnorm2_3D(Mat)/sqrt(det_3D(T));
-};
+}
+
+// Wrapper for Enzyme
+void mu342_wrapper(const std::vector<double>& T, const std::vector<double>& W,
+                   double& res)
+{
+   res = mu342_ad(T, W);
+}
+
+// Wrapper for Enzyme Gradient
+void mu342_grad_wrapper(const std::vector<double>& T,
+                        const std::vector<double>& W, std::vector<double>& dW_dT)
+{
+   double res = 0.0;
+   double dres = 1.0;
+   std::fill(dW_dT.begin(), dW_dT.end(), 0.0);
+   __enzyme_autodiff<void>(mu342_wrapper,
+                           enzyme_dup, &T, &dW_dT,
+                           enzyme_const, &W,
+                           enzyme_dup, &res, &dres);
+}
+;
+
+// W = |J|^3 - 3 sqrt(3) ln(det(J)) - 3 sqrt(3).
+template <typename type>
+type mu323_ad(const std::vector<type> &T, const std::vector<type> &W)
+{
+   auto fnorm = sqrt(fnorm2_3D(T));
+   auto det = det_3D(T);
+   return pow(fnorm, 3.0) - 3.0 * sqrt(3.0) * (log(det) + 1.0);
+}
+
+// Wrapper for Enzyme
+void mu323_wrapper(const std::vector<double>& T, const std::vector<double>& W,
+                   double& res)
+{
+   res = mu323_ad(T, W);
+}
+
+// Wrapper for Enzyme Gradient
+void mu323_grad_wrapper(const std::vector<double>& T,
+                        const std::vector<double>& W, std::vector<double>& dW_dT)
+{
+   double res = 0.0;
+   double dres = 1.0;
+   std::fill(dW_dT.begin(), dW_dT.end(), 0.0);
+   __enzyme_autodiff<void>(mu323_wrapper,
+                           enzyme_dup, &T, &dW_dT,
+                           enzyme_const, &W,
+                           enzyme_dup, &res, &dres);
+}
+
 
 // (1/4 alpha) | A - (adj A)^t W^t W / omega |^2
 template <typename type>
@@ -975,14 +1062,73 @@ real_t TMOP_Metric_002::EvalWMatrixForm(const DenseMatrix &Jpt) const
 
 real_t TMOP_Metric_002::EvalW(const DenseMatrix &Jpt) const
 {
-   ie.SetJacobian(Jpt.GetData());
-   return 0.5 * ie.Get_I1b() - 1.0;
+   if (ad_type == 1)
+   {
+      int matsize = Jpt.TotalSize();
+      std::vector<AD1Type> T(matsize), W(matsize);
+      for (int i=0; i<matsize; i++) { T[i] = AD1Type{Jpt.GetData()[i], 0.0}; }
+      return mu2_ad(T, W).value;
+   }
+   else
+   {
+      ie.SetJacobian(Jpt.GetData());
+      return 0.5 * ie.Get_I1b() - 1.0;
+   }
+}
+
+// Wrapper for Enzyme
+void mu2_wrapper(const std::vector<double>& T, const std::vector<double>& W,
+                 double& res)
+{
+   res = mu2_ad(T, W);
+}
+
+// Wrapper for Enzyme Gradient
+void mu2_grad_wrapper(const std::vector<double>& T,
+                      const std::vector<double>& W, std::vector<double>& dW_dT)
+{
+   double res = 0.0;
+   double dres = 1.0;
+   std::fill(dW_dT.begin(), dW_dT.end(), 0.0);
+   __enzyme_autodiff<void>(mu2_wrapper,
+                           enzyme_dup, &T, &dW_dT,
+                           enzyme_const, &W,
+                           enzyme_dup, &res, &dres);
 }
 
 void TMOP_Metric_002::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
-   ie.SetJacobian(Jpt.GetData());
-   P.Set(0.5, ie.Get_dI1b());
+   if (ad_type == 1)
+   {
+      ADGrad(mu2_ad<AD1Type>, P, Jpt);
+   }
+   else if (ad_type == 2)
+   {
+#ifdef MFEM_USE_ENZYME
+      int matsize = Jpt.TotalSize();
+      std::vector<double> T(matsize), W(matsize); // W is dummy
+      std::vector<double> dT(matsize), dW(matsize); // dW is dummy
+      for (int i=0; i<matsize; i++) { T[i] = Jpt.GetData()[i]; dT[i] = 0.0; }
+
+      double res = 0.0;
+      double dres = 1.0; // Seed for gradient
+
+      __enzyme_autodiff<void>(mu2_wrapper,
+                              enzyme_dup, &T, &dT,
+                              enzyme_const, &W,
+                              enzyme_dup, &res, &dres);
+
+      P.SetSize(Jpt.Height(), Jpt.Width());
+      for (int i=0; i<matsize; i++) { P.GetData()[i] = dT[i]; }
+#else
+      MFEM_ABORT("Enzyme is not enabled");
+#endif
+   }
+   else
+   {
+      ie.SetJacobian(Jpt.GetData());
+      P.Set(0.5, ie.Get_dI1b());
+   }
 }
 
 void TMOP_Metric_002::AssembleH(const DenseMatrix &Jpt,
@@ -990,9 +1136,64 @@ void TMOP_Metric_002::AssembleH(const DenseMatrix &Jpt,
                                 const real_t weight,
                                 DenseMatrix &A) const
 {
-   ie.SetJacobian(Jpt.GetData());
-   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
-   ie.Assemble_ddI1b(0.5*weight, A.GetData());
+   if (ad_type == 1)
+   {
+      const int dim = Jpt.Height();
+      DenseTensor H(dim, dim, dim*dim); H = 0.0;
+      ADHessian(mu2_ad<AD2Type>, H, Jpt);
+      this->DefaultAssembleH(H,DS,weight,A);
+   }
+   else if (ad_type == 2)
+   {
+#ifdef MFEM_USE_ENZYME
+      const int dim = DS.Width();
+      const int matsize = Jpt.TotalSize();
+      DenseTensor H(dim, dim, matsize);
+
+      std::vector<double> T(matsize), W(matsize);
+      std::vector<double> dT(matsize); // Seed for T
+      std::vector<double> grad(matsize); // Output gradient (primal)
+      std::vector<double> hess_col(matsize); // Output hessian column (tangent)
+
+      // Initialize T
+      for (int i=0; i<matsize; i++) { T[i] = Jpt.GetData()[i]; }
+
+      for (int j=0; j<matsize; j++)
+      {
+         // Set seed for direction j
+         std::fill(dT.begin(), dT.end(), 0.0);
+         dT[j] = 1.0;
+
+         // Zero out outputs
+         std::fill(grad.begin(), grad.end(), 0.0);
+         std::fill(hess_col.begin(), hess_col.end(), 0.0);
+
+         __enzyme_fwddiff<void>(mu2_grad_wrapper,
+                                enzyme_dup, &T, &dT,
+                                enzyme_const, &W,
+                                enzyme_dup, &grad, &hess_col);
+
+         // Store hess_col into H
+         int rr = j % dim;
+         int cc = j / dim;
+
+         for (int k=0; k<matsize; k++)
+         {
+            H(k)(rr, cc) = hess_col[k];
+         }
+      }
+
+      this->DefaultAssembleH(H, DS, weight, A);
+#else
+      MFEM_ABORT("Enzyme is not enabled");
+#endif
+   }
+   else
+   {
+      ie.SetJacobian(Jpt.GetData());
+      ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
+      ie.Assemble_ddI1b(0.5*weight, A.GetData());
+   }
 }
 
 real_t TMOP_Metric_004::EvalW(const DenseMatrix &Jpt) const
@@ -1449,8 +1650,32 @@ real_t TMOP_Metric_085::EvalWMatrixForm(const DenseMatrix &Jpt) const
 
 void TMOP_Metric_085::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
-   ADGrad(mu85_ad<AD1Type>, P, Jpt);
-   return;
+   if (ad_type == 2)
+   {
+#ifdef MFEM_USE_ENZYME
+      int matsize = Jpt.TotalSize();
+      std::vector<double> T(matsize), W(matsize); // W is dummy
+      std::vector<double> dT(matsize), dW(matsize); // dW is dummy
+      for (int i=0; i<matsize; i++) { T[i] = Jpt.GetData()[i]; dT[i] = 0.0; }
+
+      double res = 0.0;
+      double dres = 1.0; // Seed for gradient
+
+      __enzyme_autodiff<void>(mu85_wrapper,
+                              enzyme_dup, &T, &dT,
+                              enzyme_const, &W,
+                              enzyme_dup, &res, &dres);
+
+      P.SetSize(Jpt.Height(), Jpt.Width());
+      for (int i=0; i<matsize; i++) { P.GetData()[i] = dT[i]; }
+#else
+      MFEM_ABORT("Enzyme is not enabled");
+#endif
+   }
+   else
+   {
+      ADGrad(mu85_ad<AD1Type>, P, Jpt);
+   }
 }
 
 void TMOP_Metric_085::AssembleH(const DenseMatrix &Jpt,
@@ -1458,10 +1683,58 @@ void TMOP_Metric_085::AssembleH(const DenseMatrix &Jpt,
                                 const real_t weight,
                                 DenseMatrix &A) const
 {
-   const int dim = Jpt.Height();
-   DenseTensor H(dim, dim, dim*dim); H = 0.0;
-   ADHessian(mu85_ad<AD2Type>, H, Jpt);
-   this->DefaultAssembleH(H,DS,weight,A);
+   if (ad_type == 1)
+   {
+#ifdef MFEM_USE_ENZYME
+      const int dim = DS.Width();
+      const int matsize = Jpt.TotalSize();
+      DenseTensor H(dim, dim, matsize);
+
+      std::vector<double> T(matsize), W(matsize);
+      std::vector<double> dT(matsize); // Seed for T
+      std::vector<double> grad(matsize); // Output gradient (primal)
+      std::vector<double> hess_col(matsize); // Output hessian column (tangent)
+
+      // Initialize T
+      for (int i=0; i<matsize; i++) { T[i] = Jpt.GetData()[i]; }
+
+      for (int j=0; j<matsize; j++)
+      {
+         // Set seed for direction j
+         std::fill(dT.begin(), dT.end(), 0.0);
+         dT[j] = 1.0;
+
+         // Zero out outputs
+         std::fill(grad.begin(), grad.end(), 0.0);
+         std::fill(hess_col.begin(), hess_col.end(), 0.0);
+
+         __enzyme_fwddiff<void>(mu85_grad_wrapper,
+                                enzyme_dup, &T, &dT,
+                                enzyme_const, &W,
+                                enzyme_dup, &grad, &hess_col);
+
+         // Store hess_col into H
+         int rr = j % dim;
+         int cc = j / dim;
+
+         for (int k=0; k<matsize; k++)
+         {
+            H(k)(rr, cc) = hess_col[k];
+         }
+      }
+
+      this->DefaultAssembleH(H, DS, weight, A);
+#else
+      MFEM_ABORT("Enzyme is not enabled");
+#endif
+   }
+   else
+   {
+      const int dim = Jpt.Height();
+      DenseTensor H(dim, dim, dim*dim); H = 0.0;
+      ADHessian(mu85_ad<AD2Type>, H, Jpt);
+      this->DefaultAssembleH(H,DS,weight,A);
+   }
 }
 
 // mu_98 = 1/(tau)|T-I|^2
@@ -2036,27 +2309,111 @@ real_t TMOP_Metric_323::EvalW(const DenseMatrix &Jpt) const
 
 void TMOP_Metric_323::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
-   // mu_323 = I1^3/2 - 3 sqrt(3) ln(I3b) - 3 sqrt(3).
-   // P      = 3/2 (I1^1/2) dI1 - 3 sqrt(3) (I3b^-1) dI3b.
-   ie.SetJacobian(Jpt.GetData());
-   P.Set(1.5 * sqrt(ie.Get_I1()), ie.Get_dI1());
-   P.Add(- 3.0 * sqrt(3.0) / ie.Get_I3b(), ie.Get_dI3b());
+   if (ad_type == 2)
+   {
+#ifdef MFEM_USE_ENZYME
+      int matsize = Jpt.TotalSize();
+      std::vector<double> T(matsize), W(matsize); // W is dummy
+      std::vector<double> dT(matsize), dW(matsize); // dW is dummy
+      for (int i=0; i<matsize; i++) { T[i] = Jpt.GetData()[i]; dT[i] = 0.0; }
+
+      double res = 0.0;
+      double dres = 1.0; // Seed for gradient
+
+      __enzyme_autodiff<void>(mu323_wrapper,
+                              enzyme_dup, &T, &dT,
+                              enzyme_const, &W,
+                              enzyme_dup, &res, &dres);
+
+      P.SetSize(Jpt.Height(), Jpt.Width());
+      for (int i=0; i<matsize; i++) { P.GetData()[i] = dT[i]; }
+#else
+      MFEM_ABORT("Enzyme is not enabled");
+#endif
+   }
+   else if (ad_type == 1)
+   {
+      ADGrad(mu323_ad<AD1Type>, P, Jpt);
+   }
+   else
+   {
+      // mu_323 = I1^3/2 - 3 sqrt(3) ln(I3b) - 3 sqrt(3).
+      // P      = 3/2 (I1^1/2) dI1 - 3 sqrt(3) (I3b^-1) dI3b.
+      ie.SetJacobian(Jpt.GetData());
+      P.Set(1.5 * sqrt(ie.Get_I1()), ie.Get_dI1());
+      P.Add(- 3.0 * sqrt(3.0) / ie.Get_I3b(), ie.Get_dI3b());
+   }
 }
 
 void TMOP_Metric_323::AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                                 const real_t weight, DenseMatrix &A) const
 {
-   // P  =   3/2 (I1^1/2) dI1 - 3 sqrt(3) (I3b^-1) dI3b
-   // dP =   3/2 (I1^1/2) ddI1 + 3/4 (I1^-1/2) (dI1 x dI1)
-   //      - 3 sqrt(3) (I3b^-1) ddI3b + 3 sqrt(3) (I3b^-2) (dI3b x dI3b)
-   ie.SetJacobian(Jpt.GetData());
-   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
-   ie.Assemble_ddI1(weight * 1.5 * sqrt(ie.Get_I1()), A.GetData());
-   ie.Assemble_TProd(weight * 0.75 / sqrt(ie.Get_I1()),
-                     ie.Get_dI1(), A.GetData());
-   ie.Assemble_ddI3b(- weight * 3.0 * sqrt(3.0) / ie.Get_I3b(), A.GetData());
-   ie.Assemble_TProd(weight * 3.0 * sqrt(3.0) / ie.Get_I3b() / ie.Get_I3b(),
-                     ie.Get_dI3b(), A.GetData());
+   if (ad_type == 2)
+   {
+#ifdef MFEM_USE_ENZYME
+      const int dim = DS.Width();
+      const int matsize = Jpt.TotalSize();
+      DenseTensor H(dim, dim, matsize);
+
+      std::vector<double> T(matsize), W(matsize);
+      std::vector<double> dT(matsize); // Seed for T
+      std::vector<double> grad(matsize); // Output gradient (primal)
+      std::vector<double> hess_col(matsize); // Output hessian column (tangent)
+
+      // Initialize T
+      for (int i=0; i<matsize; i++) { T[i] = Jpt.GetData()[i]; }
+
+      for (int j=0; j<matsize; j++)
+      {
+         // Set seed for direction j
+         std::fill(dT.begin(), dT.end(), 0.0);
+         dT[j] = 1.0;
+
+         // Zero out outputs
+         std::fill(grad.begin(), grad.end(), 0.0);
+         std::fill(hess_col.begin(), hess_col.end(), 0.0);
+
+         __enzyme_fwddiff<void>(mu323_grad_wrapper,
+                                enzyme_dup, &T, &dT,
+                                enzyme_const, &W,
+                                enzyme_dup, &grad, &hess_col);
+
+         // Store hess_col into H
+         int rr = j % dim;
+         int cc = j / dim;
+
+         for (int k=0; k<matsize; k++)
+         {
+            H(k)(rr, cc) = hess_col[k];
+         }
+      }
+
+      this->DefaultAssembleH(H, DS, weight, A);
+#else
+      MFEM_ABORT("Enzyme is not enabled");
+#endif
+   }
+   else if (ad_type == 1)
+   {
+      const int dim = Jpt.Height();
+      DenseTensor H(dim, dim, dim*dim); H = 0.0;
+      ADHessian(mu323_ad<AD2Type>, H, Jpt);
+      this->DefaultAssembleH(H,DS,weight,A);
+   }
+   else
+   {
+      // P  =   3/2 (I1^1/2) dI1 - 3 sqrt(3) (I3b^-1) dI3b
+      // dP =   3/2 (I1^1/2) ddI1 + 3/4 (I1^-1/2) (dI1 x dI1)
+      //      - 3 sqrt(3) (I3b^-1) ddI3b + 3 sqrt(3) (I3b^-2) (dI3b x dI3b)
+      ie.SetJacobian(Jpt.GetData());
+      ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
+      ie.Assemble_ddI1(weight * 1.5 * sqrt(ie.Get_I1()), A.GetData());
+      ie.Assemble_TProd(weight * 0.75 / sqrt(ie.Get_I1()),
+                        ie.Get_dI1(), A.GetData());
+      ie.Assemble_ddI3b(- weight * 3.0 * sqrt(3.0) / ie.Get_I3b(), A.GetData());
+      ie.Assemble_TProd(weight * 3.0 * sqrt(3.0) / ie.Get_I3b() / ie.Get_I3b(),
+                        ie.Get_dI3b(), A.GetData());
+   }
 }
 
 // mu_342 = 1/(tau^0.5)|T-I|^2
@@ -2070,8 +2427,36 @@ real_t TMOP_Metric_342::EvalWMatrixForm(const DenseMatrix &Jpt) const
 
 void TMOP_Metric_342::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
-   ADGrad(mu342_ad<AD1Type>, P, Jpt);
-   return;
+   if (ad_type == 2)
+   {
+#ifdef MFEM_USE_ENZYME
+      int matsize = Jpt.TotalSize();
+      std::vector<double> T(matsize), W(matsize); // W is dummy
+      std::vector<double> dT(matsize), dW(matsize); // dW is dummy
+      for (int i=0; i<matsize; i++) { T[i] = Jpt.GetData()[i]; dT[i] = 0.0; }
+
+      double res = 0.0;
+      double dres = 1.0; // Seed for gradient
+
+      __enzyme_autodiff<void>(mu342_wrapper,
+                              enzyme_dup, &T, &dT,
+                              enzyme_const, &W,
+                              enzyme_dup, &res, &dres);
+
+      P.SetSize(Jpt.Height(), Jpt.Width());
+      for (int i=0; i<matsize; i++) { P.GetData()[i] = dT[i]; }
+#else
+      MFEM_ABORT("Enzyme is not enabled");
+#endif
+   }
+   else if (ad_type == 1)
+   {
+      ADGrad(mu342_ad<AD1Type>, P, Jpt);
+   }
+   else if (ad_type == 0)
+   {
+      MFEM_ABORT("First order AD is required for gradient evaluation.");
+   }
 }
 
 void TMOP_Metric_342::AssembleH(const DenseMatrix &Jpt,
@@ -2079,10 +2464,62 @@ void TMOP_Metric_342::AssembleH(const DenseMatrix &Jpt,
                                 const real_t weight,
                                 DenseMatrix &A) const
 {
-   const int dim = Jpt.Height();
-   DenseTensor H(dim, dim, dim*dim); H = 0.0;
-   ADHessian(mu342_ad<AD2Type>, H, Jpt);
-   this->DefaultAssembleH(H,DS,weight,A);
+   if (ad_type == 2)
+   {
+#ifdef MFEM_USE_ENZYME
+      const int dim = DS.Width();
+      const int matsize = Jpt.TotalSize();
+      DenseTensor H(dim, dim, matsize);
+
+      std::vector<double> T(matsize), W(matsize);
+      std::vector<double> dT(matsize); // Seed for T
+      std::vector<double> grad(matsize); // Output gradient (primal)
+      std::vector<double> hess_col(matsize); // Output hessian column (tangent)
+
+      // Initialize T
+      for (int i=0; i<matsize; i++) { T[i] = Jpt.GetData()[i]; }
+
+      for (int j=0; j<matsize; j++)
+      {
+         // Set seed for direction j
+         std::fill(dT.begin(), dT.end(), 0.0);
+         dT[j] = 1.0;
+
+         // Zero out outputs
+         std::fill(grad.begin(), grad.end(), 0.0);
+         std::fill(hess_col.begin(), hess_col.end(), 0.0);
+
+         __enzyme_fwddiff<void>(mu342_grad_wrapper,
+                                enzyme_dup, &T, &dT,
+                                enzyme_const, &W,
+                                enzyme_dup, &grad, &hess_col);
+
+         // Store hess_col into H
+         int rr = j % dim;
+         int cc = j / dim;
+
+         for (int k=0; k<matsize; k++)
+         {
+            H(k)(rr, cc) = hess_col[k];
+         }
+      }
+
+      this->DefaultAssembleH(H, DS, weight, A);
+#else
+      MFEM_ABORT("Enzyme is not enabled");
+#endif
+   }
+   else if (ad_type == 1)
+   {
+      const int dim = Jpt.Height();
+      DenseTensor H(dim, dim, dim*dim); H = 0.0;
+      ADHessian(mu342_ad<AD2Type>, H, Jpt);
+      this->DefaultAssembleH(H,DS,weight,A);
+   }
+   else if (ad_type == 0)
+   {
+      MFEM_ABORT("Second order AD is required for Hessian assembly.");
+   }
 }
 
 real_t TMOP_Metric_352::EvalW(const DenseMatrix &Jpt) const

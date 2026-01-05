@@ -20,6 +20,11 @@ CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
+# Custom flags
+LLVM = /Users/mittal3/local/opt/llvm@21
+MFEM_FLAGS += -I$(LLVM)/include/c++/v1
+MFEM_LIBS += -L$(LLVM)/lib/c++ -L$(LLVM)/lib/unwind -Wl,-rpath,$(LLVM)/lib/c++ -Wl,-rpath,$(LLVM)/lib/unwind -lunwind
+
 SEQ_MINIAPPS = display-basis load-dc convert-dc get-values lor-transfer \
 	tmop-check-metric tmop-metric-magnitude
 

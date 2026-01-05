@@ -375,8 +375,12 @@ class TMOP_Metric_002 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<real_t> ie;
+   int ad_type = 0;
 
 public:
+   TMOP_Metric_002() = default;
+   TMOP_Metric_002(int ad_type_) : ad_type(ad_type_) {}
+
    // W = 0.5 |J|^2 / det(J) - 1.
    real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
 
@@ -673,7 +677,13 @@ public:
 /// 2D barrier Shape+Orientation (OS) metric (polyconvex).
 class TMOP_Metric_085 : public TMOP_QualityMetric
 {
+protected:
+   int ad_type = 0;
+
 public:
+   TMOP_Metric_085() = default;
+   TMOP_Metric_085(int ad_type_) : ad_type(ad_type_) {}
+
    // W = |T-T'|^2, where T'= |T|*I/sqrt(2).
    real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
    real_t EvalW(const DenseMatrix &Jpt) const override
@@ -1022,8 +1032,12 @@ class TMOP_Metric_323 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator3D<real_t> ie;
+   int ad_type = 0;
 
 public:
+   TMOP_Metric_323() = default;
+   TMOP_Metric_323(int ad_type_) : ad_type(ad_type_) {}
+
    // W = |J|^3 - 3 sqrt(3) ln(det(J)) - 3 sqrt(3).
    real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
 
@@ -1148,8 +1162,12 @@ class TMOP_Metric_342 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator3D<real_t> ie;
+   int ad_type = 0;
 
 public:
+   TMOP_Metric_342() = default;
+   TMOP_Metric_342(int ad_type_) : ad_type(ad_type_) {}
+
    // W = 1/(tau^0.5) |T-I|^2.
    real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
    real_t EvalW(const DenseMatrix &Jpt) const override
