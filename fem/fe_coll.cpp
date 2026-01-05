@@ -308,13 +308,25 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
                                           FiniteElement::INTEGRAL,
                                           BasisType::GetType(name[12]));
    }
-   else if (!strncmp(name, "RT_R1D",6))
+   else if (!strncmp(name, "RT_R1D_", 7))
    {
-      fec = new RT_R1D_FECollection(atoi(name+11),atoi(name + 7));
+      fec = new RT_R1D_FECollection(atoi(name + 11), atoi(name + 7));
    }
-   else if (!strncmp(name, "RT_R2D",6))
+   else if (!strncmp(name, "RT_R1D@", 7))
    {
-      fec = new RT_R2D_FECollection(atoi(name+11),atoi(name + 7));
+      fec = new RT_R1D_FECollection(atoi(name + 14), atoi(name + 10),
+                                    BasisType::GetType(name[7]),
+                                    BasisType::GetType(name[8]));
+   }
+   else if (!strncmp(name, "RT_R2D_", 7))
+   {
+      fec = new RT_R2D_FECollection(atoi(name + 11), atoi(name + 7));
+   }
+   else if (!strncmp(name, "RT_R2D@", 7))
+   {
+      fec = new RT_R2D_FECollection(atoi(name + 14), atoi(name + 10),
+                                    BasisType::GetType(name[7]),
+                                    BasisType::GetType(name[8]));
    }
    else if (!strncmp(name, "RT_", 3))
    {
@@ -336,13 +348,25 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
                                       BasisType::GetType(name[9]),
                                       BasisType::GetType(name[10]));
    }
-   else if (!strncmp(name, "ND_R1D",6))
+   else if (!strncmp(name, "ND_R1D_", 7))
    {
-      fec = new ND_R1D_FECollection(atoi(name+11),atoi(name + 7));
+      fec = new ND_R1D_FECollection(atoi(name + 11), atoi(name + 7));
    }
-   else if (!strncmp(name, "ND_R2D",6))
+   else if (!strncmp(name, "ND_R1D@", 7))
    {
-      fec = new ND_R2D_FECollection(atoi(name+11),atoi(name + 7));
+      fec = new ND_R1D_FECollection(atoi(name + 14), atoi(name + 10),
+                                    BasisType::GetType(name[7]),
+                                    BasisType::GetType(name[8]));
+   }
+   else if (!strncmp(name, "ND_R2D_", 7))
+   {
+      fec = new ND_R2D_FECollection(atoi(name + 11), atoi(name + 7));
+   }
+   else if (!strncmp(name, "ND_R2D@", 7))
+   {
+      fec = new ND_R2D_FECollection(atoi(name + 14), atoi(name + 10),
+                                    BasisType::GetType(name[7]),
+                                    BasisType::GetType(name[8]));
    }
    else if (!strncmp(name, "ND_", 3))
    {
@@ -485,7 +509,7 @@ GetFace(int &nv, v_t &v, int &ne, e_t &e, eo_t &eo,
       int v0 = v[f_consts::Edges[i][0]];
       int v1 = v[f_consts::Edges[i][1]];
       int eor = 0;
-      if (v0 > v1) { swap(v0, v1); eor = 1; }
+      if (v0 > v1) { std::swap(v0, v1); eor = 1; }
       for (int j = g_consts::VertToVert::I[v0]; true; j++)
       {
          MFEM_ASSERT(j < g_consts::VertToVert::I[v0+1],

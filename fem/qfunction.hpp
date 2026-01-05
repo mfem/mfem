@@ -27,6 +27,8 @@ protected:
    bool own_qspace; ///< Does this own the associated QuadratureSpaceBase?
    int vdim; ///< Vector dimension.
 
+   void ProjectGridFunctionFallback(const GridFunction &gf);
+
 public:
    /// Default constructor, results in an empty vector.
    QuadratureFunction() : qspace(nullptr), own_qspace(false), vdim(0)
@@ -41,12 +43,22 @@ public:
         qspace(&qspace_), own_qspace(false), vdim(vdim_)
    { UseDevice(true); }
 
+   /// Same as above but specify the device memory type
+   QuadratureFunction(QuadratureSpaceBase &qspace_,  MemoryType mt, int vdim_ = 1)
+      : Vector(vdim_*qspace_.GetSize(), mt),
+        qspace(&qspace_), own_qspace(false), vdim(vdim_)
+   { UseDevice(true); }
+
    /// Create a QuadratureFunction based on the given QuadratureSpaceBase.
    /** The QuadratureFunction does not assume ownership of the
        QuadratureSpaceBase.
        @warning @a qspace_ may not be NULL. */
    QuadratureFunction(QuadratureSpaceBase *qspace_, int vdim_ = 1)
       : QuadratureFunction(*qspace_, vdim_) { }
+
+   /// Same as above but specify the device memory type
+   QuadratureFunction(QuadratureSpaceBase *qspace_, MemoryType mt, int vdim_ = 1)
+      : QuadratureFunction(*qspace_, mt, vdim_) { }
 
    /** @brief Create a QuadratureFunction based on the given QuadratureSpaceBase,
        using the external (host) data, @a qf_data. */
