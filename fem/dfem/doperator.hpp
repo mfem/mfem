@@ -1242,6 +1242,14 @@ void DifferentiableOperator::AddIntegrator(
                if (input_is_dependent[s])
                {
                   trial_field = &fields[input_to_field[s]];
+                  MFEM_ASSERT(std::none_of(input_is_dependent.begin() + s + 1,
+                                           input_is_dependent.end(),
+                  [](const auto &x) { return x; }),
+                  "I assume we should only have a single dependent "
+                  "input given that we are iterating over "
+                  "derivative IDs and we only have a single "
+                  "pointer to a FieldDescriptor");
+                  break;
                }
             }
 
