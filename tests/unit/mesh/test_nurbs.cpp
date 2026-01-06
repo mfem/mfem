@@ -132,6 +132,14 @@ TEST_CASE("NURBS mesh reconstruction", "[NURBS]")
    for (auto *p : patches) { delete p; }
 }
 
+TEST_CASE("NURBS knotvector orientation", "[NURBS]")
+{
+   // This will fail to load without CorrectPatchTopoOrientations
+   auto mesh_fname = "../../miniapps/nurbs/meshes/3patch-nurbs-flipedge.mesh";
+   Mesh mesh(mesh_fname, 1, 1);
+   REQUIRE(mesh.NURBSext->CheckPatches());
+}
+
 TEST_CASE("NURBS NC-patch mesh loading", "[NURBS]")
 {
    auto mesh_fname = GENERATE("../../data/nc3-nurbs.mesh",
