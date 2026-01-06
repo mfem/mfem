@@ -723,6 +723,7 @@ set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX})
 
 # Declaring the library
 mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
+target_compile_features(mfem PUBLIC cxx_std_${CMAKE_CXX_STANDARD})
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES} ${TPL_TARGETS})
 if (TPL_TARGETS)
