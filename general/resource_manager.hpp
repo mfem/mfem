@@ -655,7 +655,8 @@ public:
 
    void Wrap(T *ptr, size_t size, bool own)
    {
-      *this = Memory(ptr, size, MemoryType::HOST);
+      auto &inst = MemoryManager::instance();
+      *this = Memory(ptr, size, inst.memory_types[0]);
       SetHostPtrOwner(own);
    }
 
