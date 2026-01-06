@@ -31,11 +31,6 @@ function(add_benchmark name)
        set_property(SOURCE ${${NAME}_BENCH_SRCS} PROPERTY LANGUAGE CUDA)
     endif(MFEM_USE_CUDA)
 
-    if (MFEM_USE_HIP)
-        set_property(SOURCE ${${NAME}_BENCH_SRCS} PROPERTY LANGUAGE 
-                     HIP_SOURCE_PROPERTY_FORMAT TRUE)
-    endif(MFEM_USE_HIP)
-
     add_executable(bench_${name} ${${NAME}_BENCH_SRCS})
     target_link_libraries(bench_${name} mfem pthread)
     add_dependencies(${MFEM_ALL_BENCHMARKS_TARGET_NAME} bench_${name})
@@ -61,3 +56,8 @@ add_benchmark(elasticity)
 add_benchmark(tmop)
 add_benchmark(vector)
 add_benchmark(virtuals)
+
+if (MFEM_USE_MPI)
+    mfem_add_executable(pbench_ceed pbench_ceed.cpp)
+    target_link_libraries(pbench_ceed mfem pthread)
+endif()
