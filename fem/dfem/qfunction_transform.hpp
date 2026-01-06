@@ -243,6 +243,35 @@ void process_qf_arg(
    }
 }
 
+template <typename T, int n>
+MFEM_HOST_DEVICE inline
+void process_qf_arg(
+   const DeviceTensor<1, T> &u,
+   const DeviceTensor<1, T> &v,
+   tensor<T, n> &arg)
+{
+   for (int i = 0; i < n; i++)
+   {
+      arg(i) = u(i);
+   }
+}
+
+template <typename T, int n, int m>
+MFEM_HOST_DEVICE inline
+void process_qf_arg(
+   const DeviceTensor<1, T> &u,
+   const DeviceTensor<1, T> &v,
+   tensor<T, n, m> &arg)
+{
+   for (int i = 0; i < m; i++)
+   {
+      for (int j = 0; j < n; j++)
+      {
+         arg(j, i) = u((i * n) + j);
+      }
+   }
+}
+
 template <typename arg_type>
 MFEM_HOST_DEVICE inline
 void process_qf_arg(const DeviceTensor<2> &u, arg_type &arg, int qp)
@@ -323,22 +352,6 @@ void process_qf_result(
       for (size_t j = 0; j < m; j++)
       {
          r(i + n * j) = x(i, j);
-      }
-   }
-}
-
-template <typename T, int n, int m>
-MFEM_HOST_DEVICE inline
-void process_qf_arg(
-   const DeviceTensor<1, T> &u,
-   const DeviceTensor<1, T> &v,
-   tensor<T, n, m> &arg)
-{
-   for (int i = 0; i < m; i++)
-   {
-      for (int j = 0; j < n; j++)
-      {
-         arg(j, i) = u((i * n) + j);
       }
    }
 }

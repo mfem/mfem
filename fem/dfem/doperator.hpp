@@ -1238,28 +1238,6 @@ void DifferentiableOperator::AddIntegrator(
          auto output_size_on_qp =
             get_input_size_on_qp(outputs, std::make_index_sequence<num_outputs> {});
 
-         // Trial operator dimension for each input.
-         // The trial operator dimension is set for each input that is
-         // dependent and if it is independent the dimension is 0.
-         Vector outputs_trial_op_dim(num_outputs);
-         {
-            auto itod = Reshape(outputs_trial_op_dim.HostReadWrite(), num_outputs);
-            int idx = 0;
-            for_constexpr<num_outputs>([&](auto s)
-            {
-               if (!input_is_dependent[s])
-               {
-                  itod(idx) = 0;
-               }
-               else
-               {
-                  // TODO: BUG! Make this a general function that works for all kinds of outputs.
-                  itod(idx) = output_size_on_qp[s] / get<s>(outputs).vdim;
-               }
-               idx++;
-            });
-         }
-
          const int residual_tr_size_on_qp = trial_vdim * total_trial_op_dim;
 
          auto shmem_tr_info =

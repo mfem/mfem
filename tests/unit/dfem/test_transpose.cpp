@@ -11,7 +11,8 @@
 
 #include "../unit_tests.hpp"
 #include "mfem.hpp"
-#include "fem/dfem/doperator.hpp"
+
+#include "fem/dfem/doperator.hpp" // TODO: remove before merge
 
 #ifdef MFEM_USE_MPI
 
@@ -254,9 +255,6 @@ void transpose(const char *filename, int p)
       Gblf.Finalize();
       auto Gmat = Gblf.ParallelAssemble();
 
-      // Gmat->PrintMatlab(std::cout, 0, 0);
-      // Gmat->PrintMatlabTranspose(std::cout, 0, 0);
-
       static constexpr int SCALAR = 0, COORDINATES = 1;
       const auto sol = std::vector{FieldDescriptor{SCALAR, &scalar_fes}};
       const auto par = std::vector
@@ -290,93 +288,17 @@ void transpose(const char *filename, int p)
                               *ir, all_domain_attr, derivatives);
       dop.SetParameters({nodes});
 
-      DifferentiableOperator dop_tr(sol, par, mesh);
-      const auto convection_transpose_qf =
-         [] MFEM_HOST_DEVICE(
-            const dscalar_t &u,
-            const tensor<real_t, DIM, DIM> &J,
-            const real_t &w)
-      {
-         tensor<dscalar_t, DIM> b{};
-         b(0) = 1.0;
-         b(1) = 1.0;
-         if constexpr (DIM == 3)
-         {
-            b(2) = 1.0;
-         }
-         return tuple{b * u * w * det(J) * transpose(inv(J))};
-      };
-      dop_tr.AddDomainIntegrator(convection_transpose_qf,
-                                 tuple{Value<SCALAR>{}, Gradient<COORDINATES>{}, Weight{}},
-                                 tuple{Gradient<SCALAR>{}},
-                                 *ir, all_domain_attr, derivatives);
-      dop_tr.SetParameters({nodes});
-
       Vector S, T, U;
       S.SetSize(scalar_fes.GetTrueVSize());
       T.SetSize(scalar_fes.GetTrueVSize());
       U.SetSize(scalar_fes.GetTrueVSize());
       U.Randomize(1);
 
-      // printf("Handcoded dFEM convection transpose\n");
-      // // Mmat->MultTranspose(U, S);
-      // Gmat->MultTranspose(U, S);
-      // dop_tr.Mult(U, T);
-      // printf("S: ");
-      // pretty_print(S);
-      // printf("T: ");
-      // pretty_print(T);
-
-      // S -= T;
-      // real_t norm_g, norm_l = S.Normlinf();
-      // MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, mesh.GetComm());
-      // REQUIRE(norm_g == MFEM_Approx(0.0));
-
-      // {
-      //    printf("\nHandcoded dFEM convection using qpdc\n");
-      //    Gmat->Mult(U, S);
-      //    auto ddop = dop.GetDerivative(SCALAR, {&sgf}, {nodes});
-      //    ddop->Mult(U, T);
-      //    printf("S: ");
-      //    pretty_print(S);
-      //    printf("T: ");
-      //    pretty_print(T);
-
-      //    S -= T;
-      //    real_t norm_g, norm_l = S.Normlinf();
-      //    MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, mesh.GetComm());
-      //    // REQUIRE(norm_g == MFEM_Approx(0.0));
-      // }
-
-      // {
-      //    Gmat->MultTranspose(U, S);
-      //    auto ddop_tr = dop_tr.GetDerivative(SCALAR, {&sgf}, {nodes});
-      //    ddop_tr->Mult(U, T);
-      //    printf("S: ");
-      //    pretty_print(S);
-      //    printf("T: ");
-      //    pretty_print(T);
-
-      //    S -= T;
-      //    real_t norm_g, norm_l = S.Normlinf();
-      //    MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, mesh.GetComm());
-      //    // REQUIRE(norm_g == MFEM_Approx(0.0));
-      // }
-
       {
          Gmat->MultTranspose(U, S);
 
          auto ddop = dop.GetDerivative(SCALAR, {&sgf}, {nodes});
-         // ddop->PrintMatlab(std::cout, 0);
          ddop->MultTranspose(U, T);
-
-         // ddop->PrintMatlabTranspose(std::cout, 0, 0);
-         // std::cout << std::flush;
-
-         // printf("S: ");
-         // pretty_print(S);
-         // printf("T: ");
-         // pretty_print(T);
 
          S -= T;
          real_t norm_g, norm_l = S.Normlinf();
@@ -391,12 +313,6 @@ void transpose(const char *filename, int p)
    {
       auto b_func = [](const Vector &x, Vector &b)
       {
-         // b(0) = x[0] * (1.0 - x[0]);
-         // b(1) = x[1] * (1.0 - x[1]);
-         // if constexpr (DIM == 3)
-         // {
-         //    b(2) = x[2] * (1.0 - x[2]);
-         // }
          b(0) = cos(x[0]) * sin(x[0]) * x[1];
          b(1) = cos(x[1]) * sin(x[1]) * x[0];
          if constexpr (DIM == 3)
@@ -451,13 +367,6 @@ void transpose(const char *filename, int p)
 
       Nmat.MultTranspose(U, S);
       ddop->MultTranspose(U, T);
-
-      // {
-      //    print_mpi_root("S: ");
-      //    pretty_print_mpi(S);
-      //    print_mpi_root("T: ");
-      //    pretty_print_mpi(T);
-      // }
 
       S -= T;
       real_t norm_g, norm_l = S.Normlinf();

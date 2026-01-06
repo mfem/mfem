@@ -425,25 +425,6 @@ void apply_qpdc(
          const int trial_op_dim = static_cast<int>(op_dims(s));
          if (trial_op_dim == 0) { continue; }
 
-         // ==== BEGIN DEBUG PRINT ====
-         // if (q == 0)
-         // {
-         //    printf("---- [DEBUG s=%zu, m_offset=%d] ----\n", s, m_offset);
-         //    printf("qpdc layout: test_vdim: %d, test_op_dim: %d, trial_vdim: %d, total_trial_op_dim: %d\n",
-         //           test_vdim, test_op_dim, trial_vdim, total_trial_op_dim);
-         //    printf("s=%zu trial_op_dim=%d\n", s, trial_op_dim);
-         //    for (int j = 0; j < trial_vdim; j++)
-         //       for (int m = 0; m < trial_op_dim; m++)
-         //       {
-         //          for (int i = 0; i < test_vdim; i++)
-         //             for (int k = 0; k < test_op_dim; k++)
-         //                printf("qpdc(%d,%d,%d,%d,%d) = %g, d_qp(%d,%d,%d) = %g\n",
-         //                       i, k, j, m + m_offset, q, qpdc(i, k, j, m + m_offset, q),
-         //                       i, k, q, d_qp(i, k, q));
-         //       }
-         // }
-         // ==== END DEBUG PRINT ====
-
          for (int j = 0; j < trial_vdim; j++)
          {
             for (int m = 0; m < trial_op_dim; m++)
@@ -455,23 +436,9 @@ void apply_qpdc(
                   {
                      const real_t contrib = qpdc(i, k, j, m + m_offset, q) * d_qp(i, k, q);
                      sum += contrib;
-
-                     // ==== BEGIN DEBUG PRINT ====
-                     // if (q == 0)
-                     //    printf("[s=%zu] Adding: qpdc(%d,%d,%d,%d,%d) * d_qp(%d,%d,%d) = %g * %g = %g, sum=%g\n",
-                     //           s, i, k, j, m + m_offset, q,
-                     //           i, k, q, qpdc(i, k, j, m + m_offset, q),
-                     //           d_qp(i, k, q), contrib, sum
-                     //          );
-                     // ==== END DEBUG PRINT ====
                   }
                }
                fhat(j, m + m_offset, q) += sum;
-               // ==== BEGIN DEBUG PRINT ====
-               // if (q == 0)
-               //    printf("  -> fhat(%d,%d,%d) incremented by sum=%g, total=%g\n",
-               //           j, m + m_offset, q, sum, fhat(j, m + m_offset, q));
-               // ==== END DEBUG PRINT ====
             }
          }
          m_offset += trial_op_dim;
