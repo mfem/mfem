@@ -677,8 +677,8 @@ public:
             seg.lowers[0] = inst.Alloc(size * sizeof(T), hloc, false);
             seg.mtypes[0] = hloc;
             SetHostPtrOwner(true);
-            // make initially valid on host and not device
-            inst.SetValidity(segment, true, false);
+            // make initially valid on device
+            inst.SetValidity(segment, false, true);
          }
          else
          {
