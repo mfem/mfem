@@ -3542,7 +3542,7 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
 
             // create a slave face record with a degenerate point matrix
             face_list.slaves.Append(
-               Slave(-1 - enode.edge_index,
+               Slave(FlipIndexSign(enode.edge_index),
                      eid[0].element, eid[0].local, Geometry::SQUARE));
             Slave &sl = face_list.slaves.Last();
 
