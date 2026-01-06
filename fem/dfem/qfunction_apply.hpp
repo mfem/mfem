@@ -382,6 +382,7 @@ namespace detail
 /// @param itod inputs trial operator dimension.
 /// If input is dependent the value corresponds to the spatial dimension, otherwise
 /// a zero indicates non-dependence on the variable.
+/// @param op_dims dimension of each operator.
 /// @param q the current quadrature point index.
 /// @param transpose switch to use transpose action.
 template <size_t N>
@@ -394,7 +395,7 @@ void apply_qpdc(
    const int &q,
    bool transpose)
 {
-   const size_t num_inputs = op_dims.GetShape()[0];
+   const size_t num_ops = op_dims.GetShape()[0];
 
    const int test_vdim = qpdc.GetShape()[0];
    const int test_op_dim = qpdc.GetShape()[1];
@@ -420,7 +421,7 @@ void apply_qpdc(
                           num_qp);
 
       int m_offset = 0;
-      for (size_t s = 0; s < num_inputs; s++)
+      for (size_t s = 0; s < num_ops; s++)
       {
          const int trial_op_dim = static_cast<int>(op_dims(s));
          if (trial_op_dim == 0) { continue; }
@@ -452,7 +453,7 @@ void apply_qpdc(
          {
             real_t sum = 0.0;
             int m_offset = 0;
-            for (size_t s = 0; s < num_inputs; s++)
+            for (size_t s = 0; s < num_ops; s++)
             {
                const int trial_op_dim = static_cast<int>(op_dims(s));
                if (trial_op_dim == 0) { continue; }
