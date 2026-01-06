@@ -447,3 +447,114 @@ private:
    mfem::ConstrainedOperator *Kc;
    std::unique_ptr<mfem::OperatorHandle> Kh;
 };
+
+
+// A dFEM-only version of the mtop IsoLinElasticSolver:
+// - removes partial assembly option
+// - removes full/classical assembly option
+// - always builds the operator using mfem::future::DifferentiableOperator
+
+class DFEMLinElasticSolver : public mfem::Operator
+{
+public:
+   DFEMLinElasticSolver(mfem::ParMesh *mesh, int vorder = 1);
+   ~DFEMLinElasticSolver();
+
+   void SetLinearSolver(mfem::real_t rtol = 1e-8,
+                        mfem::real_t atol = 1e-12,
+                        int miter = 200);
+
+
+   // Volumetric force
+   void SetVolForce(mfem::real_t fx, mfem::real_t fy, mfem::real_t fz = 0.0);
+   void SetVolForce(mfem::VectorCoefficient &ff);
+
+   // Displacement BCs
+   void AddDispBC(int bdr_attr, int dir, mfem::real_t val);
+   void AddDispBC(int bdr_attr, int dir, mfem::Coefficient &val);
+   void DelDispBC();
+
+   // Surface loads (same interface pattern as mtop)
+   void AddSurfLoad(int bdr_attr, mfem::real_t fx, mfem::real_t fy, mfem::real_t fz = 0.0);
+   void AddSurfLoad(int bdr_attr, mfem::VectorCoefficient &ff);
+
+   // Build operator/preconditioner (call after setting material and BCs).
+   void Assemble();
+
+   // Solve Ku = f (forward)
+   void FSolve();
+
+   // Operator interface: y = K^{-1} x (solve with x as RHS)
+   void Mult(const mfem::Vector &x, mfem::Vector &y) const override;
+   void MultTranspose(const mfem::Vector &x, mfem::Vector &y) const override;
+
+   mfem::ParGridFunction &GetDisplacements(){
+         fdisp.SetFromTrueDofs(sol); return fdisp;
+   }
+
+   mfem::Vector          &GetSolutionVector() { return sol; }
+
+private:
+   // Essential dofs helper
+   void SetEssTDofs(mfem::Vector &bsol, mfem::Array<int> &ess_dofs) const;
+  
+
+   mfem::ParMesh *pmesh = nullptr;
+   int dim = 0;
+   int spaceDim = 0;
+
+   std::unique_ptr<mfem::FiniteElementCollection> vfec;
+   std::unique_ptr<mfem::ParFiniteElementSpace>   vfes;
+
+   // State solutions
+   mfem::ParGridFunction fdisp;
+   mfem::Vector sol, rhs;
+
+   // Body force
+   mfem::Vector vol_force_vec;
+   std::unique_ptr<mfem::VectorCoefficient> volforce_owned;
+   mfem::VectorCoefficient *volforce = nullptr;
+
+
+   // Dirichlet BC storage (attr -> per-direction coeff)
+   struct DispBC
+   {
+      int dir = -1; // 0,1,2 or -1(all)
+      mfem::Coefficient *coeff = nullptr; // may be owned or external
+      bool owned = false;
+   };
+
+   std::multimap<int, DispBC> disp_bcs;
+
+   mfem::Array<int> ess_tdofv;
+
+   // dFEM operator objects (future::DifferentiableOperator path)
+   static constexpr int U = 0, Coords = 1, LCoeff = 2, MuCoeff = 3;
+
+   // quadrature / coefficient sampling
+   mfem::QuadratureSpace *qs = nullptr;
+   std::unique_ptr<mfem::CoefficientVector> Lambda_cv;
+   std::unique_ptr<mfem::CoefficientVector> Mu_cv;
+
+   // The differentiable operator itself
+   std::unique_ptr<mfem::future::DifferentiableOperator> dop;
+
+   // Constrained operator handle (for eliminate RHS)
+   std::unique_ptr<mfem::OperatorHandle> Kh;
+   mfem::ConstrainedOperator *Kc = nullptr;
+
+   // Linear solver + preconditioner
+   mfem::CGSolver *ls = nullptr;
+
+   // LOR preconditioner 
+   std::unique_ptr<mfem::ParLORDiscretization> lor_disc;
+   std::unique_ptr<mfem::ParFiniteElementSpace> lor_scalar_fespace;
+
+   std::unique_ptr<mfem::HypreParMatrix>  lor_mat;
+   std::unique_ptr<mfem::HypreBoomerAMG>  lor_amg;
+
+   // Solver params
+   mfem::real_t linear_rtol = 1e-8;
+   mfem::real_t linear_atol = 1e-12;
+   int linear_iter = 200;
+};

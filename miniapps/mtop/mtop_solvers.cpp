@@ -338,6 +338,7 @@ void IsoLinElasticSolver::SetEssTDofs(Vector &bsol, Array<int> &ess_dofs)
 
 void IsoLinElasticSolver::Mult(const Vector &x, Vector &y) const
 {
+
    // the rhs x is assumed to have the contribution of the BC set in advance
    // the BC values are not modified here
    ls->Mult(x, y);
@@ -890,7 +891,149 @@ void PDEFilter::Mult(const Vector &x, Vector &y) const
 void PDEFilter::MultTranspose(const Vector &x,
                                         Vector &y) const
 {
+}
 
+
+DFEMLinElasticSolver::DFEMLinElasticSolver(ParMesh *mesh, int vorder)
+   : Operator(0, 0),
+     pmesh(mesh),
+     dim(mesh->Dimension()),
+     spaceDim(mesh->SpaceDimension()),
+     vfec(std::make_unique<H1_FECollection>(vorder, dim)),
+     // dfem path in upstream forces Ordering::byNODES
+     vfes(std::make_unique<ParFiniteElementSpace>(pmesh, vfec.get(), dim,
+                                                  Ordering::byNODES)),
+     fdisp(vfes.get())
+{
+   height = width = vfes->GetTrueVSize();
+   sol.SetSize(width);
+   rhs.SetSize(width);
+   sol = 0.0;
+   rhs = 0.0;
+
+   // default body force = 0
+   vol_force_vec.SetSize(spaceDim);
+   vol_force_vec = 0.0;
+
+}
+
+DFEMLinElasticSolver::~DFEMLinElasticSolver()
+{
+   // clean any owned BC coefficients
+   for (auto &kv : disp_bcs)
+   {
+      if (kv.second.owned && kv.second.coeff) { delete kv.second.coeff; }
+   }
+   disp_bcs.clear();
+
+   delete ls;
+   ls = nullptr;
+}
+
+void DFEMLinElasticSolver::SetLinearSolver(real_t rtol, real_t atol, int miter)
+{
+   linear_rtol = rtol;
+   linear_atol = atol;
+   linear_iter = miter;
+}
+
+
+void DFEMLinElasticSolver::SetVolForce(real_t fx, real_t fy, real_t fz)
+{
+   vol_force_vec.SetSize(spaceDim);
+   vol_force_vec = 0.0;
+   vol_force_vec[0] = fx;
+   vol_force_vec[1] = fy;
+   if (spaceDim == 3) { vol_force_vec[2] = fz; }
+
+   volforce_owned = std::make_unique<VectorConstantCoefficient>(vol_force_vec);
+   volforce = volforce_owned.get();
+}
+
+void DFEMLinElasticSolver::SetVolForce(VectorCoefficient &ff)
+{
+   volforce_owned.reset();
+   volforce = &ff;
+}
+
+void DFEMLinElasticSolver::AddSurfLoad(int id, real_t fx, real_t fy, real_t fz)
+{
+ 
+}
+
+void DFEMLinElasticSolver::AddSurfLoad(int id, VectorCoefficient &ff)
+{
+
+}
+
+void DFEMLinElasticSolver::AddDispBC(int id, int dir, real_t val)
+{
+   auto *c = new ConstantCoefficient(val);
+   disp_bcs.emplace(id, DispBC{dir, c, true});
+}
+
+void DFEMLinElasticSolver::AddDispBC(int id, int dir, Coefficient &val)
+{
+   disp_bcs.emplace(id, DispBC{dir, &val, false});
+}
+
+void DFEMLinElasticSolver::DelDispBC()
+{
+   for (auto &kv : disp_bcs)
+   {
+      if (kv.second.owned && kv.second.coeff) { delete kv.second.coeff; }
+   }
+   disp_bcs.clear();
+}
+
+void DFEMLinElasticSolver::SetEssTDofs(Vector &bsol, Array<int> &ess_dofs) const
+{
+  
+}
+
+void DFEMLinElasticSolver::Assemble()
+{
+
+
+}
+
+void DFEMLinElasticSolver::FSolve()
+{
+   MFEM_VERIFY(ls != nullptr && Kc != nullptr, "Call Assemble() before FSolve().");
+
+   ls->SetAbsTol(linear_atol);
+   ls->SetRelTol(linear_rtol);
+   ls->SetMaxIter(linear_iter);
+
+   // Eliminate RHS using constrained operator (dfem path)
+   Kc->EliminateRHS(sol, rhs);
+
+   ls->Mult(rhs, sol);
+}
+
+void DFEMLinElasticSolver::Mult(const Vector &x, Vector &y) const
+{
+   MFEM_VERIFY(ls != nullptr, "Call Assemble() before Mult().");
+   ls->Mult(x, y);
+
+   int N = ess_tdofv.Size();
+   real_t *yp = y.ReadWrite();
+   const real_t *sp = sol.Read();
+   const int *ep = ess_tdofv.Read();
+   mfem::forall(N, [=] MFEM_HOST_DEVICE(int i) { yp[ep[i]] = sp[ep[i]]; });
+}
+
+void DFEMLinElasticSolver::MultTranspose(const Vector &x, Vector &y) const
+{
+   ls->Mult(x, y);
+
+   int N = ess_tdofv.Size();
+   ess_tdofv.Read();
+
+   auto yp = y.Write();
+   const auto ep = ess_tdofv.Read();
+
+   mfem::forall(N, [=] MFEM_HOST_DEVICE(int i) { yp[ep[i]] = 0.0; });
 }
 
 
