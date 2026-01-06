@@ -84,7 +84,7 @@ public:
    GridFunction(FiniteElementSpace *f) : Vector(f->GetVSize())
    { fes = f; fec_owned = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
 
-   /// Same as above but specify the device memory type
+   /// Same as above but specify the memory type
    GridFunction(FiniteElementSpace *f, MemoryType mt) : Vector(f->GetVSize(), mt)
    { fes = f; fec_owned = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
 
