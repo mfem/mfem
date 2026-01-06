@@ -652,24 +652,27 @@ public:
    void Wrap(T *ptr, size_t size, MemoryType loc, bool own)
    {
       *this = Memory(ptr, size, loc);
-      auto &inst = MemoryManager::instance();
-      auto &seg = inst.storage.get_segment(segment);
-      if (!seg.lowers[0])
+      if (ptr)
       {
-         if (own)
+         auto &inst = MemoryManager::instance();
+         auto &seg = inst.storage.get_segment(segment);
+         if (!seg.lowers[0])
          {
-            SetDevicePtrOwner(true);
+            if (own)
+            {
+               SetDevicePtrOwner(true);
+            }
+            // need to allocate the host part too
+            auto hloc = MemoryManager::GetDualMemoryType(seg.mtypes[1]);
+            seg.lowers[0] = inst.Alloc(size * sizeof(T), hloc, false);
+            SetHostPtrOwner(true);
+            // make initially valid on host and not device
+            inst.SetValidity(segment, true, false);
          }
-         // need to allocate the host part too
-         auto hloc = MemoryManager::GetDualMemoryType(seg.mtypes[1]);
-         seg.lowers[0] = inst.Alloc(size * sizeof(T), hloc, false);
-         SetHostPtrOwner(true);
-         // make initially valid on host and not device
-         inst.SetValidity(segment, true, false);
-      }
-      else
-      {
-         SetHostPtrOwner(own);
+         else
+         {
+            SetHostPtrOwner(own);
+         }
       }
    }
 
