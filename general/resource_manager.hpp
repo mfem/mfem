@@ -175,7 +175,20 @@ private:
       MemoryType::HOST, MemoryType::HOST, MemoryType::HOST, MemoryType::HOST
    };
 
-   static MemoryType dual_map[MemoryTypeSize];
+   std::array<MemoryType, MemoryTypeSize> dual_map =
+   {
+      /* HOST            */ MemoryType::DEVICE,
+      /* HOST_32         */ MemoryType::DEVICE,
+      /* HOST_64         */ MemoryType::DEVICE,
+      /* HOST_DEBUG      */ MemoryType::DEVICE_DEBUG,
+      /* HOST_UMPIRE     */ MemoryType::DEVICE_UMPIRE,
+      /* HOST_PINNED     */ MemoryType::HOST_PINNED,
+      /* MANAGED         */ MemoryType::MANAGED,
+      /* DEVICE          */ MemoryType::HOST,
+      /* DEVICE_DEBUG    */ MemoryType::HOST_DEBUG,
+      /* DEVICE_UMPIRE   */ MemoryType::HOST_UMPIRE,
+      /* DEVICE_UMPIRE_2 */ MemoryType::HOST_UMPIRE
+   };
 
    bool ZeroCopy(size_t segment);
 
@@ -315,10 +328,7 @@ public:
    MemoryType GetHostPinnedMemoryType() const { return memory_types[2]; }
    MemoryType GetManagedMemoryType() const { return memory_types[3]; }
 
-   static inline MemoryType GetDualMemoryType(MemoryType mt)
-   {
-      return dual_map[(int)mt];
-   }
+   static MemoryType GetDualMemoryType(MemoryType mt);
    static void SetDualMemoryType(MemoryType mt, MemoryType dual_mt);
 
    /// Forcibly deletes all device-type allocations (host-pinned, managed, and

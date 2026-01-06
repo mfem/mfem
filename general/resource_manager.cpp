@@ -2587,6 +2587,12 @@ void MemoryManager::SetDualMemoryType(MemoryType mt, MemoryType dual_mt)
    inst.UpdateDualMemoryType(mt, dual_mt);
 }
 
+MemoryType MemoryManager::GetDualMemoryType(MemoryType mt)
+{
+   auto &inst = instance();
+   return inst.dual_map[(int)mt];
+}
+
 void MemoryManager::UpdateDualMemoryType(MemoryType mt, MemoryType dual_mt)
 {
    MFEM_VERIFY((int)mt < MemoryTypeSize,
@@ -2610,22 +2616,6 @@ void MemoryManager::UpdateDualMemoryType(MemoryType mt, MemoryType dual_mt)
                   << MemoryTypeName[(int)dual_mt] << ')');
    }
 }
-
-MemoryType MemoryManager::dual_map[MemoryTypeSize] =
-{
-   /* HOST            */ MemoryType::DEVICE,
-   /* HOST_32         */ MemoryType::DEVICE,
-   /* HOST_64         */ MemoryType::DEVICE,
-   /* HOST_DEBUG      */ MemoryType::DEVICE_DEBUG,
-   /* HOST_UMPIRE     */ MemoryType::DEVICE_UMPIRE,
-   /* HOST_PINNED     */ MemoryType::HOST_PINNED,
-   /* MANAGED         */ MemoryType::MANAGED,
-   /* DEVICE          */ MemoryType::HOST,
-   /* DEVICE_DEBUG    */ MemoryType::HOST_DEBUG,
-   /* DEVICE_UMPIRE   */ MemoryType::HOST_UMPIRE,
-   /* DEVICE_UMPIRE_2 */ MemoryType::HOST_UMPIRE
-};
-
 } // namespace mfem
 
 #endif
