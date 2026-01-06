@@ -237,14 +237,12 @@ void transpose(const char *filename, int p)
    {
       auto b_func = [](const Vector &x, Vector &b)
       {
-         b(0) = 1.0;
-         b(1) = 1.0;
-         // b(0) = sqrt(2.0);
-         // b(1) = 1.0 + sqrt(2.0);
-         // if constexpr (DIM == 3)
-         // {
-         //    b(2) = 2.0 + sqrt(2.0);
-         // }
+         b(0) = cos(x[0] * 2.0 * M_PI);
+         b(1) = 1.0 + cos(x[1] * 2.0 * M_PI);
+         if constexpr (DIM == 3)
+         {
+            b(2) = 2.0 + cos(x[2] * 2.0 * M_PI);
+         }
       };
       VectorFunctionCoefficient b_coeff(DIM, b_func);
 
@@ -270,19 +268,24 @@ void transpose(const char *filename, int p)
       const auto convection_qf =
          [] MFEM_HOST_DEVICE(
             const tensor<dscalar_t, DIM> &dudxi,
+            const tensor<real_t, DIM> &x,
             const tensor<real_t, DIM, DIM> &J,
             const real_t &w)
       {
          const auto dudx = dudxi * inv(J);
          tensor<dscalar_t, DIM> b{};
-         b(0) = 1.0;
-         b(1) = 1.0;
+         b(0) = cos(x[0] * 2.0 * M_PI);
+         b(1) = 1.0 + cos(x[1] * 2.0 * M_PI);
+         if constexpr (DIM == 3)
+         {
+            b(2) = 2.0 + cos(x[2] * 2.0 * M_PI);
+         }
          return tuple{dot(b, dudx) * w * det(J)};
       };
 
       auto derivatives = std::integer_sequence<size_t, SCALAR> {};
       dop.AddDomainIntegrator(convection_qf,
-                              tuple{Gradient<SCALAR>{}, Gradient<COORDINATES>{}, Weight{}},
+                              tuple{Gradient<SCALAR>{}, Value<COORDINATES>{}, Gradient<COORDINATES>{}, Weight{}},
                               tuple{Value<SCALAR>{}},
                               *ir, all_domain_attr, derivatives);
       dop.SetParameters({nodes});
@@ -297,6 +300,10 @@ void transpose(const char *filename, int p)
          tensor<dscalar_t, DIM> b{};
          b(0) = 1.0;
          b(1) = 1.0;
+         if constexpr (DIM == 3)
+         {
+            b(2) = 1.0;
+         }
          return tuple{b * u * w * det(J) * transpose(inv(J))};
       };
       dop_tr.AddDomainIntegrator(convection_transpose_qf,
@@ -384,11 +391,17 @@ void transpose(const char *filename, int p)
    {
       auto b_func = [](const Vector &x, Vector &b)
       {
-         b(0) = x[0] * sqrt(2.0);
-         b(1) = 1.0 + x[1] * sqrt(2.0);
+         // b(0) = x[0] * (1.0 - x[0]);
+         // b(1) = x[1] * (1.0 - x[1]);
+         // if constexpr (DIM == 3)
+         // {
+         //    b(2) = x[2] * (1.0 - x[2]);
+         // }
+         b(0) = cos(x[0]) * sin(x[0]) * x[1];
+         b(1) = cos(x[1]) * sin(x[1]) * x[0];
          if constexpr (DIM == 3)
          {
-            b(2) = 2.0 + x[2] * sqrt(2.0);
+            b(2) = cos(x[2]) * sin(x[2]) * x[0];
          }
       };
       VectorFunctionCoefficient b_coeff(DIM, b_func);
@@ -422,7 +435,7 @@ void transpose(const char *filename, int p)
       {
          const auto invJ = inv(J);
          const auto dudx = dudxi * invJ;
-         return tuple{dot(u, dudx) * w * det(J)};
+         return tuple{dot(dudx, u) * w * det(J)};
       };
 
       auto derivatives = std::integer_sequence<size_t, VELOCITY> {};
@@ -434,14 +447,17 @@ void transpose(const char *filename, int p)
 
       auto ddop = dop.GetDerivative(VELOCITY, {&ugf}, {nodes});
 
-      Vector S(U.Size()), T(U.Size());
+      Vector S(U.Size()), T(U.Size()), Se(vector_fes.GetVSize());
 
       Nmat.MultTranspose(U, S);
       ddop->MultTranspose(U, T);
-      // printf("S: ");
-      // pretty_print(S);
-      // printf("T: ");
-      // pretty_print(T);
+
+      // {
+      //    print_mpi_root("S: ");
+      //    pretty_print_mpi(S);
+      //    print_mpi_root("T: ");
+      //    pretty_print_mpi(T);
+      // }
 
       S -= T;
       real_t norm_g, norm_l = S.Normlinf();
@@ -454,7 +470,7 @@ TEST_CASE("dFEM Transpose", "[Parallel][dFEM][XXX]")
 {
    const bool all_tests = launch_all_non_regression_tests;
 
-   const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
+   const auto p = !all_tests ? 2 : GENERATE(1, 2, 3);
 
    SECTION("2d")
    {
