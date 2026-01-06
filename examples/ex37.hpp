@@ -231,9 +231,11 @@ private:
    FiniteElementCollection * fec = nullptr;
    FiniteElementSpace * fes = nullptr;
    Array<int> ess_bdr;
+   Array<int> ess_tdof_list;
    Array<int> neumann_bdr;
    GridFunction * u = nullptr;
    LinearForm * b = nullptr;
+   BilinearForm * a = nullptr;
    bool parallel;
 #ifdef MFEM_USE_MPI
    ParMesh * pmesh = nullptr;
@@ -267,6 +269,8 @@ public:
    void ResetFEM();
    void SetupFEM();
 
+   void AssembleBoundary();
+   void AssembleDiffusionBilinear(bool update_bc);
    void Solve();
    GridFunction * GetFEMSolution();
    LinearForm * GetLinearForm() {return b;}
@@ -371,6 +375,130 @@ public:
 
 };
 
+/**
+ * @brief Bregman projection of ρ = sigmoid(ψ) onto the subspace
+ *        ∫_Ω ρ dx = θ vol(Ω) as follows:
+ *
+ *        1. Compute the root of the R → R function
+ *            f(c) = ∫_Ω sigmoid(ψ + c) dx - θ vol(Ω)
+ *           using the bisection method
+ *        2. Set ψ ← ψ + c.
+ *
+ * @param psi a GridFunction to be updated
+ * @param alpha_grad alpha multiplied by gradient
+ * @param c initial guess for root
+ * @param target_volume θ vol(Ω)
+ * @param tol Bisection iteration tolerance
+ * @param max_its Bisection maximum iteration number
+ * @return real_t Final volume, ∫_Ω sigmoid(ψ)
+ */
+std::pair<real_t, real_t> proj(GridFunction &psi, GridFunction &alpha_grad,
+                               real_t c, real_t target_volume,
+                               real_t tol = 1e-12, int max_its = 100)
+{
+#ifdef MFEM_USE_MPI
+   FiniteElementSpace *fes = psi.FESpace();
+   ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
+#endif
+   ConstantCoefficient zero_cf(0.0);
+   real_t a = -alpha_grad.ComputeMaxError(zero_cf);
+   real_t b = c;
+   real_t y;
+
+   MappedGridFunctionCoefficient sigmoid_psi(
+   &psi, [&y](const real_t x) { return sigmoid(x + y); });
+   std::unique_ptr<LinearForm> int_sigmoid_psi;
+#ifdef MFEM_USE_MPI
+   ParGridFunction *par_psi = dynamic_cast<ParGridFunction *>(&psi);
+   if (par_psi)
+   {
+      int_sigmoid_psi.reset(new ParLinearForm(par_psi->ParFESpace()));
+   }
+   else
+   {
+      int_sigmoid_psi.reset(new LinearForm(psi.FESpace()));
+   }
+#else
+   int_sigmoid_psi.reset(new LinearForm(psi.FESpace()));
+#endif
+   int_sigmoid_psi->AddDomainIntegrator(new DomainLFIntegrator(sigmoid_psi));
+
+   y = a;
+   int_sigmoid_psi->Assemble(); // Compute f(a)
+   real_t f_a = int_sigmoid_psi->Sum();
+
+   y = b;
+   int_sigmoid_psi->Assemble(); // Compute f(b)
+   real_t f_b = int_sigmoid_psi->Sum();
+#ifdef MFEM_USE_MPI
+   if (pfes)
+   {
+      MPI_Allreduce(MPI_IN_PLACE, &f_a, 1, MFEM_MPI_REAL_T,
+                    MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &f_b, 1, MFEM_MPI_REAL_T,
+                    MPI_SUM, MPI_COMM_WORLD);
+   }
+#endif
+   f_a -= target_volume;
+   f_b -= target_volume;
+   real_t f_c;
+   int side = 0;
+
+   bool done = false;
+   for (int k=0; k < max_its; k++)
+   {
+      c = (f_a * b - f_b * a) / (f_a - f_b);
+
+      if (abs(b - a) < tol * abs(b + a)) { done = true; y = 0; break; }
+
+      y = c;
+      int_sigmoid_psi->Assemble(); // Recompute f(c) with updated ψ
+      f_c = int_sigmoid_psi->Sum();
+#ifdef MFEM_USE_MPI
+      if (pfes)
+      {
+         MPI_Allreduce(MPI_IN_PLACE, &f_c, 1, MFEM_MPI_REAL_T,
+                       MPI_SUM, MPI_COMM_WORLD);
+      }
+#endif
+      f_c -= target_volume;
+
+      if (f_c * f_b > 0)
+      {
+         b = c;
+         f_b = f_c;
+         if (side == -1) { f_a /= 2.0; }
+         side = -1;
+      }
+      else if (f_c * f_a > 0)
+      {
+         a = c;
+         f_a = f_c;
+         if (side == 1) { f_b /= 2.0; }
+         side = 1;
+      }
+      else
+      {
+         done = true; y = 0; break;
+      }
+   }
+   if (!done)
+   {
+      mfem_warning("Projection reached maximum iteration without converging. "
+                   "Result may not be accurate.");
+   }
+   psi += c;
+   int_sigmoid_psi->Assemble();
+   real_t material_volume = int_sigmoid_psi->Sum();
+#ifdef MFEM_USE_MPI
+   if (pfes)
+   {
+      MPI_Allreduce(MPI_IN_PLACE, &material_volume, 1,
+                    MFEM_MPI_REAL_T, MPI_SUM, MPI_COMM_WORLD);
+   }
+#endif
+   return {material_volume,c};
+}
 
 // Poisson solver
 
@@ -422,12 +550,8 @@ void DiffusionSolver::SetupFEM()
    }
 }
 
-void DiffusionSolver::Solve()
+void DiffusionSolver::AssembleBoundary()
 {
-   OperatorPtr A;
-   Vector B, X;
-   Array<int> ess_tdof_list;
-
 #ifdef MFEM_USE_MPI
    if (parallel)
    {
@@ -440,7 +564,39 @@ void DiffusionSolver::Solve()
 #else
    fes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
 #endif
-   *u=0.0;
+}
+
+void DiffusionSolver::AssembleDiffusionBilinear(bool update_bc=true)
+{
+   if (update_bc)
+   {
+      AssembleBoundary();
+   }
+#ifdef MFEM_USE_MPI
+   if (parallel)
+   {
+      a = new ParBilinearForm(pfes);
+   }
+   else
+   {
+      a = new BilinearForm(fes);
+   }
+#else
+   a = new BilinearForm(fes);
+#endif
+   a->AddDomainIntegrator(new DiffusionIntegrator(*diffcf));
+   if (masscf)
+   {
+      a->AddDomainIntegrator(new MassIntegrator(*masscf));
+   }
+   a->Assemble();
+}
+
+void DiffusionSolver::Solve()
+{
+   OperatorPtr A;
+   Vector B, X;
+
    if (b)
    {
       delete b;
@@ -475,26 +631,7 @@ void DiffusionSolver::Solve()
 
    b->Assemble();
 
-   BilinearForm * a = nullptr;
-
-#ifdef MFEM_USE_MPI
-   if (parallel)
-   {
-      a = new ParBilinearForm(pfes);
-   }
-   else
-   {
-      a = new BilinearForm(fes);
-   }
-#else
-   a = new BilinearForm(fes);
-#endif
-   a->AddDomainIntegrator(new DiffusionIntegrator(*diffcf));
-   if (masscf)
-   {
-      a->AddDomainIntegrator(new MassIntegrator(*masscf));
-   }
-   a->Assemble();
+   *u=0.0;
    if (essbdr_cf)
    {
       u->ProjectBdrCoefficient(*essbdr_cf,ess_bdr);
@@ -528,7 +665,6 @@ void DiffusionSolver::Solve()
    delete M;
    delete cg;
    a->RecoverFEMSolution(X, *b, *u);
-   delete a;
 }
 
 GridFunction * DiffusionSolver::GetFEMSolution()
@@ -560,6 +696,7 @@ DiffusionSolver::~DiffusionSolver()
 #endif
    delete fec; fec = nullptr;
    delete b;
+   delete a;
 }
 
 
