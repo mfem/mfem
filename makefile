@@ -10,7 +10,7 @@
 # CONTRIBUTING.md for details.
 
 # The current MFEM version as an integer, see also `CMakeLists.txt`.
-MFEM_VERSION = 40801
+MFEM_VERSION = 40901
 MFEM_VERSION_STRING = $(shell printf "%06d" $(MFEM_VERSION) | \
   sed -e 's/^0*\(.*.\)\(..\)\(..\)$$/\1.\2.\3/' -e 's/\.0/./g' -e 's/\.0$$//')
 
@@ -123,13 +123,14 @@ EXAMPLE_SUBDIRS = amgx caliper ginkgo hiop petsc pumi sundials superlu moonolith
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
-MINIAPP_SUBDIRS = common electromagnetics meshing navier performance tools \
+MINIAPP_SUBDIRS = common electromagnetics meshing performance tools \
  toys nurbs gslib adjoint solvers shifted mtop parelag tribol autodiff dfem \
- hooke multidomain dpg hdiv-linear-solver spde diag-smoothers
+ hooke multidomain dpg hdiv-linear-solver spde diag-smoothers contact \
+ fluids/navier fluids/schrodinger-flow
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
 MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics meshing tools \
- toys shifted dpg diag-smoothers)
+ toys shifted dpg diag-smoothers fluids/navier)
 
 EM_DIRS = $(EXAMPLE_DIRS) $(MINIAPP_DIRS)
 
@@ -443,7 +444,8 @@ DIRS = general linalg linalg/batched linalg/simd mesh mesh/submesh fem \
        fem/ceed/integrators/mass fem/ceed/integrators/convection \
        fem/ceed/integrators/diffusion fem/ceed/integrators/nlconvection \
        fem/ceed/interface fem/ceed/solvers fem/eltrans fem/fe fem/gslib \
-       fem/integ fem/lor fem/moonolith fem/qinterp fem/tmop fem/dfem
+       fem/integ fem/lor fem/moonolith fem/qinterp fem/tmop fem/dfem \
+	   fem/tmop/assemble fem/tmop/metrics fem/tmop/mult fem/tmop/tools
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)

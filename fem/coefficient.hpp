@@ -1456,6 +1456,9 @@ public:
    /// Set the time for internally stored coefficients
    void SetTime(real_t t) override;
 
+   /// @copydoc Coefficient::Project(QuadratureFunction &)
+   void Project(QuadratureFunction &qf) override;
+
    /// Reset the first term in the linear combination as a constant
    void SetAConst(real_t A) { a = NULL; aConst = A; }
    /// Return the first term in the linear combination
@@ -1637,6 +1640,9 @@ public:
    /// Set the time for internally stored coefficients
    void SetTime(real_t t) override;
 
+   /// @copydoc Coefficient::Project(QuadratureFunction &)
+   void Project(QuadratureFunction &qf) override;
+
    /// Reset the first term in the product as a constant
    void SetAConst(real_t A) { a = NULL; aConst = A; }
    /// Return the first term in the product
@@ -1684,6 +1690,9 @@ public:
 
    /// Set the time for internally stored coefficients
    void SetTime(real_t t) override;
+
+   /// @copydoc Coefficient::Project(QuadratureFunction &)
+   void Project(QuadratureFunction &qf) override;
 
    /// Reset the numerator in the ratio as a constant
    void SetAConst(real_t A) { a = NULL; aConst = A; }
@@ -2511,7 +2520,7 @@ public:
    void SetConstant(const Vector &constant);
 
    /// Set this vector to the given constant matrix.
-   void SetConstant(const DenseMatrix &constant);
+   void SetConstant(const DenseMatrix &constant, bool transpose=false);
 
    /// Set this vector to the given constant symmetric matrix.
    void SetConstant(const DenseSymmetricMatrix &constant);

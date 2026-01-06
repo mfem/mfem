@@ -66,6 +66,8 @@ include $(MFEM_TEST_MK)
 
 # Testing: Specific execution options
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
+
+# Block solvers miniapp tests
 block-solvers-test-par: block-solvers-constant block-solvers-anisotropic
 block-solvers-constant: block-solvers
 	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-rs 1 -rp 1)
@@ -73,11 +75,15 @@ block-solvers-anisotropic: block-solvers
 	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-rs 1 -rp 1\
 	  -m $(SRC)anisotropic.mesh -c $(SRC)anisotropic.coeff\
 	  -eb $(SRC)anisotropic.bdr)
+
+# LOR solvers miniapp tests
 lor_solvers-test-seq: lor_solvers
 	@$(call mfem-test,$<,, LOR solvers miniapp,-fe n)
 plor_solvers-test-par: plor_solvers
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel LOR solvers miniapp,-fe n\
 	  -m ../../data/fichera.mesh)
+
+# LOR elasticity miniapp tests
 lor_elast-test-par: lor_elast-tri lor_elast-hex
 lor_elast-tri: lor_elast
 	@$(call mfem-test,$<, $(RUN_MPI), Elasticity LOR miniapp,-l 2 -ca -pa -ss\

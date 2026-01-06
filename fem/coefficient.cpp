@@ -1085,6 +1085,29 @@ void SumCoefficient::SetTime(real_t t)
    this->Coefficient::SetTime(t);
 }
 
+void SumCoefficient::Project(QuadratureFunction &qf)
+{
+   if (a == nullptr)
+   {
+      // qf = alpha*aConst + beta * b
+      const real_t d_alpha_a = aConst*alpha;
+      const real_t d_beta = beta;
+      b->Project(qf);
+      auto d_qf = qf.ReadWrite();
+      mfem::forall(qf.Size(), [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_qf[i] = d_alpha_a + d_beta*d_qf[i];
+      });
+   }
+   else
+   {
+      a->Project(qf);
+      QuadratureFunction qf_b(*qf.GetSpace());
+      b->Project(qf_b);
+      add(alpha, qf, beta, qf_b, qf);
+   }
+}
+
 void ProductCoefficient::SetTime(real_t t)
 {
    if (a) { a->SetTime(t); }
@@ -1092,11 +1115,60 @@ void ProductCoefficient::SetTime(real_t t)
    this->Coefficient::SetTime(t);
 }
 
+void ProductCoefficient::Project(QuadratureFunction &qf)
+{
+   if (a == nullptr)
+   {
+      // qf = aConst * b
+      b->Project(qf);
+      qf *= aConst;
+   }
+   else
+   {
+      a->Project(qf);
+      QuadratureFunction qf_b(qf.GetSpace());
+      b->Project(qf_b);
+      qf *= qf_b;
+   }
+}
+
 void RatioCoefficient::SetTime(real_t t)
 {
    if (a) { a->SetTime(t); }
    if (b) { b->SetTime(t); }
    this->Coefficient::SetTime(t);
+}
+
+void RatioCoefficient::Project(QuadratureFunction &qf)
+{
+   if (b == nullptr)
+   {
+      if (a == nullptr)
+      {
+         qf = aConst / bConst;
+      }
+      else
+      {
+         a->Project(qf);
+         qf *= 1.0/bConst;
+      }
+   }
+   else
+   {
+      if (a == nullptr)
+      {
+         b->Project(qf);
+         qf.Reciprocal();
+         qf *= aConst;
+      }
+      else
+      {
+         a->Project(qf);
+         QuadratureFunction qf_b(qf.GetSpace());
+         b->Project(qf_b);
+         qf /= qf_b;
+      }
+   }
 }
 
 void PowerCoefficient::SetTime(real_t t)
@@ -1955,7 +2027,7 @@ void CoefficientVector::Project(MatrixCoefficient &coeff, bool transpose)
 {
    if (auto *const_coeff = dynamic_cast<MatrixConstantCoefficient*>(&coeff))
    {
-      SetConstant(const_coeff->GetMatrix());
+      SetConstant(const_coeff->GetMatrix(), transpose);
    }
    else if (auto *const_sym_coeff =
                dynamic_cast<SymmetricMatrixConstantCoefficient*>(&coeff))
@@ -2016,7 +2088,7 @@ void CoefficientVector::SetConstant(const Vector &constant)
    }
 }
 
-void CoefficientVector::SetConstant(const DenseMatrix &constant)
+void CoefficientVector::SetConstant(const DenseMatrix &constant, bool transpose)
 {
    const int nq = (storage & CoefficientStorage::CONSTANTS) ? 1 : qs.GetSize();
    const int width = constant.Width();
@@ -2029,7 +2101,8 @@ void CoefficientVector::SetConstant(const DenseMatrix &constant)
       {
          for (int i = 0; i < height; ++i)
          {
-            (*this)[i + j*height + iq*vdim] = constant(i, j);
+            const real_t val = transpose ? constant(j,i) : constant(i,j);
+            (*this)[i + j*height + iq*vdim] = val;
          }
       }
    }
