@@ -1664,7 +1664,8 @@ char *MemoryManager::write(size_t segment, size_t offset, size_t nbytes,
             return nullptr;
          }
          // need to allocate
-         if (seg.mtypes[on_device] == MemoryType::DEFAULT)
+         if (seg.mtypes[on_device] == MemoryType::DEFAULT ||
+             seg.mtypes[on_device] == MemoryType::PRESERVE)
          {
             seg.mtypes[on_device] =
                on_device ? memory_types[1] : memory_types[0];
@@ -1942,7 +1943,8 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
             return nullptr;
          }
          // need to allocate
-         if (seg.mtypes[on_device] == MemoryType::DEFAULT)
+         if (seg.mtypes[on_device] == MemoryType::DEFAULT ||
+             seg.mtypes[on_device] == MemoryType::PRESERVE)
          {
             seg.mtypes[on_device] =
                on_device ? memory_types[1] : memory_types[0];
@@ -2033,7 +2035,8 @@ const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
             return nullptr;
          }
          // need to allocate
-         if (seg.mtypes[on_device] == MemoryType::DEFAULT)
+         if (seg.mtypes[on_device] == MemoryType::DEFAULT ||
+             seg.mtypes[on_device] == MemoryType::PRESERVE)
          {
             seg.mtypes[on_device] =
                on_device ? memory_types[1] : memory_types[0];

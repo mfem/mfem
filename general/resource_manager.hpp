@@ -665,6 +665,7 @@ public:
             // need to allocate the host part too
             auto hloc = MemoryManager::GetDualMemoryType(seg.mtypes[1]);
             seg.lowers[0] = inst.Alloc(size * sizeof(T), hloc, false);
+            seg.mtypes[0] = hloc;
             SetHostPtrOwner(true);
             // make initially valid on host and not device
             inst.SetValidity(segment, true, false);
