@@ -279,21 +279,11 @@ int main (int argc, char *argv[])
       for (int d = 0; d < vdim; d++)
       {
          cout << "Minimum bound for component " << d <<
-                 " without/with recursion is " <<
-                 bound_min(d) << " " << bound_rec_min(d) << endl;
+              " without/with recursion is " <<
+              bound_min(d) << " " << bound_rec_min(d) << endl;
          cout << "Maximum bound for component " << d <<
-                 " without/with recursion is " <<
-                bound_max(d) << " " << bound_rec_max(d) << endl;
-      }
-
-      cout << "\nBounds via recursive search with up to " << rec_depth <<
-           " recursions:" << endl;
-      for (int d = 0; d < vdim; d++)
-      {
-         cout << "Minimum bound for component " << d << " is " <<
-              bound_rec_min(d) << endl;
-         cout << "Maximum bound for component " << d << " is " <<
-              bound_rec_max(d) << endl;
+              " without/with recursion is " <<
+              bound_max(d) << " " << bound_rec_max(d) << endl;
       }
    }
 

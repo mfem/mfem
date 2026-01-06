@@ -1672,7 +1672,7 @@ public:
 
    /// Computes the \ref PLBound for the gridfunction with number of control
    /// points based on @a ref_factor, and returns the bounds for each element
-   /// ordered byVDim:
+   /// ordered byNodes:
    /// lower_{0,0}, lower_{1,0}, ..., lower_{ne-1,0},
    /// lower_{0,1}, ..., lower_{ne-1,vdim-1}. We also return the
    /// PLBound object used to compute the bounds.
@@ -1687,7 +1687,12 @@ public:
                                         Vector &lower, Vector &upper,
                                         const int vdim = -1) const;
 
-   /// pos_min_max = {xmin,ymin,zmin,xmax,ymax,zmax}
+   /** @brief Gets the bounds on given reference range inside an element.
+    *
+    *  @details @a ref_range is a vector of size 2*dim that specifies the
+    *  lower and upper limits in each dimension of the reference element.
+    *  For example, in 2D, ref_range = [rmin, smin, rmax, smax].
+    */
    void GetElementBoundsAtControlPoints(const int elem, const PLBound &plb,
                                         const Vector &ref_range,
                                         const int vdim,
@@ -1701,7 +1706,7 @@ public:
                          const int vdim = -1) const;
 
    /// Compute bounds on the grid function for all the elements. The bounds
-   /// are returned in @b lower and @b upper, ordered byVDim:
+   /// are returned in @b lower and @b upper, ordered byNodes:
    /// lower_{0,0}, lower_{1,0}, ..., lower_{ne-1,0},
    /// lower_{0,1}, ..., lower_{ne-1,vdim-1}
    void GetElementBounds(const PLBound &plb, Vector &lower, Vector &upper,
@@ -1716,7 +1721,7 @@ public:
                                                      const PLBound &plb,
                                                      const int vdim,
                                                      const int max_depth,
-                                                     const real_t tol = 0.0);
+                                                     const real_t tol);
 
    /** @brief Estimate the minimum value of the GridFunction in element @a elem.
     *
@@ -1727,23 +1732,22 @@ public:
                                                      const PLBound &plb,
                                                      const int vdim,
                                                      const int max_depth,
-                                                     const real_t tol = 0.0);
+                                                     const real_t tol);
 
    /** @brief Estimate the GridFunction minimum across all elements. */
    virtual std::pair<real_t, real_t> EstimateFunctionMinimum
    (const int vdim,
     const PLBound &plb,
     const int max_depth,
-    const real_t tol = 0.0);
+    const real_t tol);
 
    /** @brief Estimate the GridFunction maximum across all elements. */
    virtual std::pair<real_t, real_t> EstimateFunctionMaximum
    (const int vdim,
     const PLBound &plb,
     const int max_depth,
-    const real_t tol = 0.0);
+    const real_t tol);
    ///@}
-
 
    /// Destroys grid function.
    virtual ~GridFunction() { Destroy(); }

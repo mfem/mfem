@@ -4664,7 +4664,6 @@ void GridFunction::GetElementBoundsAtControlPoints(const int elem,
                                                    Vector &lower, Vector &upper,
                                                    Vector &control_pos) const
 {
-   const FiniteElementSpace *fes = FESpace();
    const FiniteElement *fe = fes->GetFE(elem);
    const IntegrationRule ir_in = fe->GetNodes();
    IntegrationRule ir_new(ir_in.GetNPoints());
@@ -4699,9 +4698,9 @@ void GridFunction::GetElementBoundsAtControlPoints(const int elem,
       ip_new.Set(ip_coord.GetData(), dim);
    }
    GetValues(elem, ir_new, loc_data, vdim);
-   // At this point, the loc_data contains function values ordered lexicographically,
-   // unless we are using Bernstein bases. For Bernstein, we need to project and
-   // get coefficients first
+   // At this point, the loc_data contains function values ordered
+   // lexicographically, unless we are using Bernstein bases.
+   // For Bernstein, we need to project and get coefficients first.
 
    // For bernstein, we get coefficients corresponding to these function values
    if (bern)
