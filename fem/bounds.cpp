@@ -142,7 +142,7 @@ void PLBound::Setup(const int nb_i, const int ncp_i,
             ubound(j,i) = vals.Max()+tol; // tolerance for good measure
             if (b_type == 2)
             {
-               lbound(j,i) = std::max(lbound(j,i),0.0);
+               lbound(j,i) = std::max(lbound(j,i),0_r);
             }
          }
       }
