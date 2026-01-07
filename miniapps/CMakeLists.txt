@@ -22,9 +22,6 @@ add_subdirectory(common)
 add_subdirectory(contact)
 add_subdirectory(dfem)
 add_subdirectory(diag-smoothers)
-<<<<<<< HEAD
-add_subdirectory(multiapp)
-=======
 add_subdirectory(dpg)
 add_subdirectory(electromagnetics)
 add_subdirectory(fluids/navier)
@@ -44,4 +41,3 @@ add_subdirectory(spde)
 add_subdirectory(tools)
 add_subdirectory(toys)
 add_subdirectory(tribol)
->>>>>>> master
