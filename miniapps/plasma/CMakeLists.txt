@@ -34,4 +34,9 @@ if (MFEM_USE_MPI)
     MAIN stix_r1d_eb.cpp
     ${PLASMA_COMMON_FILES}
     LIBRARIES mfem-common)
+
+  add_mfem_miniapp(stix_r2d_eb
+    MAIN stix_r2d_eb.cpp
+    ${PLASMA_COMMON_FILES}
+    LIBRARIES mfem-common)
 endif()

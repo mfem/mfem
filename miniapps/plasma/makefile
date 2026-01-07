@@ -22,7 +22,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS = 
-PAR_MINIAPPS = stix_r1d_eb
+PAR_MINIAPPS = stix_r1d_eb stix_r2d_eb
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -71,6 +71,8 @@ include $(MFEM_TEST_MK)
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 stix_r1d_eb-test-par:
 	@true
+stix_r2d_eb-test-par:
+	@true
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
@@ -85,5 +87,5 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf STIX-R1D-AMR-Parallel*
+	@rm -rf STIX-R1D-AMR-Parallel* STIX-R2D-AMR-Parallel*
 
