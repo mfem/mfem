@@ -483,6 +483,10 @@ int main(int argc, char *argv[])
       }
    }
 
+   // clean-up
+   delete trace_space;
+   delete trace_coll;
+
    return 0;
 }
 
