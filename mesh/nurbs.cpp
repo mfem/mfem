@@ -3236,47 +3236,14 @@ bool NURBSExtension::CheckPatches()
 
    if (dim == 1)
    {
-      // In 1D, we treat each patch as a single patch-topology "edge" whose
-      // index is the patch index. The signed edge_to_ukv entry encodes the
-      // per-patch orientation.
-      if (edge_to_ukv.Size() != patchTopo->GetNE())
-      {
-         return false;
-      }
-
-      Array<int> v(2);
-
       // If the patch topology has an explicit `edges` section, require it to be
       // consistent with the 1D element list so patch index == edge index.
-      if (patchTopo->GetNEdges() > 0)
-      {
-         if (patchTopo->GetNEdges() != patchTopo->GetNE())
-         {
-            return false;
-         }
+      // Otherwise, check for consistency with the number of elements
+      const int expected_size = patchTopo->GetNEdges() > 0
+                                ? patchTopo->GetNEdges()
+                                : patchTopo->GetNE();
 
-         Array<int> ev(2);
-         for (int p = 0; p < GetNP(); p++)
-         {
-            patchTopo->GetElementVertices(p, v);
-            patchTopo->GetEdgeVertices(p, ev);
-            if (!(v[0] == ev[0] && v[1] == ev[1]))
-            {
-               return false;
-            }
-         }
-      }
-
-      for (int p = 0; p < GetNP(); p++)
-      {
-         patchTopo->GetElementVertices(p, v);
-         const int expected_sign = (v[0] < v[1]) ? (1) : (-1);
-         if (KnotSign(p) != expected_sign)
-         {
-            return false;
-         }
-      }
-      return true;
+      return edge_to_ukv.Size() == expected_size;
    }
 
    Array<int> edges, oedge;
@@ -3305,10 +3272,10 @@ bool NURBSExtension::CheckPatches()
       // {0, 1}, {1, 2}, {3, 2}, {0, 3}, {4, 5}, {5, 6},
       // {7, 6}, {4, 7}, {0, 4}, {1, 5}, {2, 6}, {3, 7} for Geometry::CUBE in 3D
       // See fem/geom.cpp for these definitions.
-      if ((Dimension() == 2 &&
+      if ((dim == 2 &&
            (edges[0] != -1 - edges[2] || edges[1] != -1 - edges[3])) ||
 
-          (Dimension() == 3 &&
+          (dim == 3 &&
            (edges[0] != edges[2] || edges[0] != edges[4] ||
             edges[0] != edges[6] || edges[1] != edges[3] ||
             edges[1] != edges[5] || edges[1] != edges[7] ||
