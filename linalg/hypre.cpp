@@ -3634,10 +3634,23 @@ void HypreSmoother::SetType(HypreSmoother::Type type_, int relax_times_)
    relax_times = relax_times_;
 }
 
+void HypreSmoother::GetType(HypreSmoother::Type &type_, int &relax_times_) const
+{
+   type_ = static_cast<HypreSmoother::Type>(type);
+   relax_times_ = relax_times;
+}
+
 void HypreSmoother::SetSOROptions(real_t relax_weight_, real_t omega_)
 {
    relax_weight = relax_weight_;
    omega = omega_;
+}
+
+void HypreSmoother::GetSOROptions(real_t &relax_weight_, real_t &omega_) const
+{
+   // TODO: are these used for all smoother types?
+   relax_weight_ = relax_weight;
+   omega_ = omega;
 }
 
 void HypreSmoother::SetPolyOptions(int poly_order_, real_t poly_fraction_,
@@ -3648,12 +3661,29 @@ void HypreSmoother::SetPolyOptions(int poly_order_, real_t poly_fraction_,
    eig_est_cg_iter = eig_est_cg_iter_;
 }
 
+void HypreSmoother::GetPolyOptions(int &poly_order_, real_t &poly_fraction_,
+                                   int &eig_est_cg_iter_) const
+{
+   // TODO: are these used for all smoother types?
+   poly_order_ = poly_order;
+   poly_fraction_ = poly_fraction;
+   eig_est_cg_iter_ = eig_est_cg_iter;
+}
+
 void HypreSmoother::SetTaubinOptions(real_t lambda_, real_t mu_,
                                      int taubin_iter_)
 {
    lambda = lambda_;
    mu = mu_;
    taubin_iter = taubin_iter_;
+}
+
+void HypreSmoother::GetTaubinOptions(real_t &lambda_, real_t &mu_,
+                                     int &taubin_iter_) const
+{
+   lambda_ = lambda;
+   mu_ = mu;
+   taubin_iter_ = taubin_iter;
 }
 
 void HypreSmoother::SetWindowByName(const char* name)
@@ -3676,6 +3706,13 @@ void HypreSmoother::SetWindowParameters(real_t a, real_t b, real_t c)
    window_params[0] = a;
    window_params[1] = b;
    window_params[2] = c;
+}
+
+void HypreSmoother::GetWindowParameters(real_t &a, real_t &b, real_t &c) const
+{
+   a = window_params[0];
+   b = window_params[1];
+   c = window_params[2];
 }
 
 void HypreSmoother::SetOperator(const Operator &op)
@@ -4219,14 +4256,35 @@ void HyprePCG::SetTol(real_t tol)
    HYPRE_PCGSetTol(pcg_solver, tol);
 }
 
+real_t HyprePCG::GetTol() const
+{
+   HYPRE_Real tol;
+   HYPRE_PCGGetTol(pcg_solver, &tol);
+   return tol;
+}
+
 void HyprePCG::SetAbsTol(real_t atol)
 {
    HYPRE_PCGSetAbsoluteTol(pcg_solver, atol);
 }
 
+real_t HyprePCG::GetAbsTol() const
+{
+   HYPRE_Real atol;
+   hypre_PCGGetAbsoluteTol(pcg_solver, &atol);
+   return atol;
+}
+
 void HyprePCG::SetMaxIter(int max_iter)
 {
    HYPRE_PCGSetMaxIter(pcg_solver, max_iter);
+}
+
+int HyprePCG::GetMaxIter() const
+{
+   HYPRE_Int max_iter;
+   HYPRE_PCGGetMaxIter(pcg_solver, &max_iter);
+   return max_iter;
 }
 
 void HyprePCG::SetLogging(int logging)
@@ -4404,9 +4462,23 @@ void HypreGMRES::SetTol(real_t tol)
    HYPRE_GMRESSetTol(gmres_solver, tol);
 }
 
+real_t HypreGMRES::GetTol()const
+{
+   HYPRE_Real tol;
+   HYPRE_GMRESGetTol(gmres_solver, &tol);
+   return tol;
+}
+
 void HypreGMRES::SetAbsTol(real_t tol)
 {
    HYPRE_GMRESSetAbsoluteTol(gmres_solver, tol);
+}
+
+real_t HypreGMRES::GetAbsTol() const
+{
+   HYPRE_Real atol;
+   HYPRE_GMRESGetAbsoluteTol(gmres_solver, &atol);
+   return atol;
 }
 
 void HypreGMRES::SetMaxIter(int max_iter)
@@ -4414,9 +4486,23 @@ void HypreGMRES::SetMaxIter(int max_iter)
    HYPRE_GMRESSetMaxIter(gmres_solver, max_iter);
 }
 
+int HypreGMRES::GetMaxIter() const
+{
+   HYPRE_Int max_iter;
+   HYPRE_GMRESGetMaxIter(gmres_solver, &max_iter);
+   return max_iter;
+}
+
 void HypreGMRES::SetKDim(int k_dim)
 {
    HYPRE_GMRESSetKDim(gmres_solver, k_dim);
+}
+
+int HypreGMRES::GetKDim() const
+{
+   HYPRE_Int k_dim;
+   HYPRE_GMRESGetKDim(gmres_solver, &k_dim);
+   return k_dim;
 }
 
 void HypreGMRES::SetLogging(int logging)
@@ -4576,14 +4662,35 @@ void HypreFGMRES::SetTol(real_t tol)
    HYPRE_ParCSRFlexGMRESSetTol(fgmres_solver, tol);
 }
 
+real_t HypreFGMRES::GetTol() const
+{
+   HYPRE_Real tol;
+   HYPRE_FlexGMRESGetTol(fgmres_solver, &tol);
+   return tol;
+}
+
 void HypreFGMRES::SetMaxIter(int max_iter)
 {
    HYPRE_ParCSRFlexGMRESSetMaxIter(fgmres_solver, max_iter);
 }
 
+int HypreFGMRES::GetMaxIter() const
+{
+   HYPRE_Int max_iter;
+   HYPRE_FlexGMRESGetMaxIter(fgmres_solver, &max_iter);
+   return max_iter;
+}
+
 void HypreFGMRES::SetKDim(int k_dim)
 {
    HYPRE_ParCSRFlexGMRESSetKDim(fgmres_solver, k_dim);
+}
+
+int HypreFGMRES::GetKDim() const
+{
+   HYPRE_Int k_dim;
+   HYPRE_FlexGMRESGetKDim(fgmres_solver, &k_dim);
+   return k_dim;
 }
 
 void HypreFGMRES::SetLogging(int logging)
@@ -5168,6 +5275,13 @@ void HypreBoomerAMG::ResetAMGPrecond()
       RecomputeRBMs();
       HYPRE_BoomerAMGSetInterpVectors(amg_precond, rbms.Size(), rbms.GetData());
    }
+}
+
+int HypreBoomerAMG::GetMaxIter() const
+{
+   HYPRE_Int max_iter;
+   HYPRE_BoomerAMGGetMaxIter(amg_precond, &max_iter);
+   return max_iter;
 }
 
 void HypreBoomerAMG::SetOperator(const Operator &op)
