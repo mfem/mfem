@@ -29,8 +29,14 @@ std::string ODESolver::ImplicitTypes  =
    "        GA      : 40 -- 50  - Generalized-alpha,\n\t"
    "        AM      : 51 - AM1, 52 - AM2, 53 - AM3, 54 - AM4\n";
 
+std::string ODESolver::IMEXTypes =
+   "\n\tIMEX solver: \n\t"
+   "        (L-Stab): 61 - Forward Backward Euler, 62 - IMEXRK2(2,2,2),\n\t"
+   "                  63 - IMEXRK2(2,3,2), 64 - IMEX_DIRK_RK3\n";
+
 std::string ODESolver::Types = ODESolver::ExplicitTypes +
-                               ODESolver::ImplicitTypes;
+                               ODESolver::ImplicitTypes +
+                               ODESolver::IMEXTypes;
 
 std::unique_ptr<ODESolver> ODESolver::Select(int ode_solver_type)
 {
@@ -107,6 +113,20 @@ std::unique_ptr<ODESolver> ODESolver::SelectImplicit(int ode_solver_type)
    }
 }
 
+std::unique_ptr<ODESolver> ODESolver::SelectIMEX(const int ode_solver_type)
+{
+   using ode_ptr = std::unique_ptr<ODESolver>;
+   switch (ode_solver_type)
+   {
+      // L-stable IMEX methods
+      case 61: return ode_ptr(new IMEXExpImplEuler);
+      case 62: return ode_ptr(new IMEXRK2);
+      case 63: return ode_ptr(new IMEXRK2_3StageExplicit);
+      case 64: return ode_ptr(new IMEX_DIRK_RK3);
+
+      default: MFEM_ABORT("Unknown ODE solver type: " << ode_solver_type );
+   }
+}
 
 void ODEStateDataVector::SetSize( int vsize, MemoryType m_t)
 {
@@ -627,7 +647,7 @@ void AdamsMoultonSolver::Step(Vector &x, real_t &t, real_t &dt)
       }
       state.ShiftStages();
       f->ImplicitSolve(a[0]*dt, x, state[0]);
-      if (f->ImplicitVarIsState())
+      if (f->ImplicitVarTypeIsState())
       {
          ComputeSlopeFromState(a[0]*dt, x, state[0]);
       }
@@ -663,7 +683,7 @@ void BackwardEulerSolver::Step(Vector &x, real_t &t, real_t &dt)
 {
    f->SetTime(t + dt);
    f->ImplicitSolve(dt, x, k); // solve for k: k = f(x + dt*k, t + dt)
-   if (f->ImplicitVarIsState())
+   if (f->ImplicitVarTypeIsState())
    {
       x = k; // x = u_{i+1}
    }
@@ -686,7 +706,7 @@ void ImplicitMidpointSolver::Step(Vector &x, real_t &t, real_t &dt)
 {
    f->SetTime(t + dt/2);
    f->ImplicitSolve(dt/2, x, k);
-   if (f->ImplicitVarIsState())
+   if (f->ImplicitVarTypeIsState())
    {
       x.Neg();
       x.Add(2.0, k);
@@ -737,7 +757,7 @@ void SDIRK23Solver::Step(Vector &x, real_t &t, real_t &dt)
    // note: with gamma_opt=3, both solve are outside [t,t+dt] since a>1
    f->SetTime(t + gamma*dt);
    f->ImplicitSolve(gamma*dt, x, k);
-   if (f->ImplicitVarIsState())
+   if (f->ImplicitVarTypeIsState())
    {
       ComputeSlopeFromState(gamma*dt, x, k);
    }
@@ -746,7 +766,7 @@ void SDIRK23Solver::Step(Vector &x, real_t &t, real_t &dt)
 
    f->SetTime(t + (1.-gamma)*dt);
    f->ImplicitSolve(gamma*dt, y, k);
-   if (f->ImplicitVarIsState())
+   if (f->ImplicitVarTypeIsState())
    {
       ComputeSlopeFromState(gamma*dt, y, k);
    }
@@ -776,7 +796,7 @@ void SDIRK34Solver::Step(Vector &x, real_t &t, real_t &dt)
 
    f->SetTime(t + a*dt);
    f->ImplicitSolve(a*dt, x, k);
-   if (f->ImplicitVarIsState())
+   if (f->ImplicitVarTypeIsState())
    {
       ComputeSlopeFromState(a*dt, x, k);
    }
@@ -786,7 +806,7 @@ void SDIRK34Solver::Step(Vector &x, real_t &t, real_t &dt)
 
    f->SetTime(t + dt/2);
    f->ImplicitSolve(a*dt, y, k);
-   if (f->ImplicitVarIsState())
+   if (f->ImplicitVarTypeIsState())
    {
       ComputeSlopeFromState(a*dt, y, k);
    }
@@ -795,7 +815,7 @@ void SDIRK34Solver::Step(Vector &x, real_t &t, real_t &dt)
 
    f->SetTime(t + (1.-a)*dt);
    f->ImplicitSolve(a*dt, z, k);
-   if (f->ImplicitVarIsState())
+   if (f->ImplicitVarTypeIsState())
    {
       ComputeSlopeFromState(a*dt, z, k);
    }
@@ -824,7 +844,7 @@ void SDIRK33Solver::Step(Vector &x, real_t &t, real_t &dt)
 
    f->SetTime(t + a*dt);
    f->ImplicitSolve(a*dt, x, k);
-   if (f->ImplicitVarIsState())
+   if (f->ImplicitVarTypeIsState())
    {
       ComputeSlopeFromState(a*dt, x, k);
    }
@@ -833,7 +853,7 @@ void SDIRK33Solver::Step(Vector &x, real_t &t, real_t &dt)
 
    f->SetTime(t + c*dt);
    f->ImplicitSolve(a*dt, y, k);
-   if (f->ImplicitVarIsState())
+   if (f->ImplicitVarTypeIsState())
    {
       ComputeSlopeFromState(a*dt, y, k);
    }
@@ -841,7 +861,7 @@ void SDIRK33Solver::Step(Vector &x, real_t &t, real_t &dt)
 
    f->SetTime(t + dt);
    f->ImplicitSolve(a*dt, x, k);
-   if (f->ImplicitVarIsState())
+   if (f->ImplicitVarTypeIsState())
    {
       ComputeSlopeFromState(a*dt, x, k);
    }
@@ -869,7 +889,7 @@ void TrapezoidalRuleSolver::Step(Vector &x, real_t &t, real_t &dt)
 
    f->SetTime(t + dt);
    f->ImplicitSolve(dt/2.0, y, k);
-   if (f->ImplicitVarIsState())
+   if (f->ImplicitVarTypeIsState())
    {
       ComputeSlopeFromState(0.5*dt, y, k);
    }
@@ -903,7 +923,7 @@ void ESDIRK32Solver::Step(Vector &x, real_t &t, real_t &dt)
 
    f->SetTime(t + (2.0*a)*dt);
    f->ImplicitSolve(a*dt, y, k);
-   if (f->ImplicitVarIsState())
+   if (f->ImplicitVarTypeIsState())
    {
       ComputeSlopeFromState(a*dt, y, k);
    }
@@ -912,7 +932,7 @@ void ESDIRK32Solver::Step(Vector &x, real_t &t, real_t &dt)
 
    f->SetTime(t + dt);
    f->ImplicitSolve(a*dt, z, k);
-   if (f->ImplicitVarIsState())
+   if (f->ImplicitVarTypeIsState())
    {
       ComputeSlopeFromState(a*dt, z, k);
    }
@@ -948,7 +968,7 @@ void ESDIRK33Solver::Step(Vector &x, real_t &t, real_t &dt)
 
    f->SetTime(t + (2.0*a)*dt);
    f->ImplicitSolve(a*dt, y, k);
-   if (f->ImplicitVarIsState())
+   if (f->ImplicitVarTypeIsState())
    {
       ComputeSlopeFromState(a*dt, y, k);
    }
@@ -957,7 +977,7 @@ void ESDIRK33Solver::Step(Vector &x, real_t &t, real_t &dt)
 
    f->SetTime(t + dt);
    f->ImplicitSolve(a*dt, z, k);
-   if (f->ImplicitVarIsState())
+   if (f->ImplicitVarTypeIsState())
    {
       ComputeSlopeFromState(a*dt, z, k);
    }
@@ -1026,7 +1046,7 @@ void GeneralizedAlphaSolver::Step(Vector &x, real_t &t, real_t &dt)
    real_t dt_eff = (gamma*alpha_f/alpha_m)*dt;
    f->SetTime(t + alpha_f*dt);
    f->ImplicitSolve(dt_eff, y, k);
-   if (f->ImplicitVarIsState())
+   if (f->ImplicitVarTypeIsState())
    {
       ComputeSlopeFromState(dt_eff, y, k);
    }
@@ -1370,6 +1390,214 @@ void GeneralizedAlpha2Solver::Step(Vector &x, Vector &dxdt,
    state[0].Add (1.0/fac5, aa);
 
    t += dt;
+}
+
+void IMEXExpImplEuler::Init(TimeDependentOperator &f_)
+{
+   ODESolver::Init(f_);
+   int n = f->Width();
+   k1.SetSize(n, mem_type);
+   k2.SetSize(n, mem_type);
+}
+
+void IMEXExpImplEuler::Step(Vector &x, real_t &t, real_t &dt)
+{
+   f->SetTime(t);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(x, k1);
+
+   f->SetTime(t+dt);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   f->ImplicitSolve(dt, x, k2);
+
+   f->SetTime(t);
+   x.Add(dt, k1);
+   x.Add(dt, k2);
+   t += dt;
+}
+
+void IMEXRK2::Init(TimeDependentOperator &f_)
+{
+   ODESolver::Init(f_);
+   int n = f->Width();
+   k1_exp.SetSize(n, mem_type);
+   k2_exp.SetSize(n, mem_type);
+   k_imp.SetSize(n, mem_type);
+   y.SetSize(n, mem_type);
+}
+
+void IMEXRK2::Step(Vector &x, real_t &t, real_t &dt)
+{
+   double gamma = 1 - sqrt(2)/2;
+   double delta = 1 - 1/(2*gamma);
+
+   f->SetTime(t);
+
+   //K1 exp is just f_1(t, x)
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(x, k1_exp);
+
+   //K2 exp is f_1(t + gamma dt, x + dt gamma K1)
+   f->SetTime(t + gamma*dt);
+   add(x, dt*gamma, k1_exp, y);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(y, k2_exp);
+
+   //K2_imp = f_2(t + gamma dt, x + dt gamma K2_imp)
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   f->ImplicitSolve(dt*gamma, x, k_imp);
+   //reuse k_imp to avoid extra vector
+
+   //K3_imp = f_2(t+dt,x + dt(1-gamma)K2_imp + dt gamma K3_imp)
+   f -> SetTime(t + dt);
+   //add(x, dt*(1-gamma), k2_imp, z);
+   //optimization to avoid extra vector
+   x.Add(dt*(1-gamma), k_imp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   //f->ImplicitSolve(dt*gamma, z, k3_imp);
+   //reuse k_imp to avoid extra vector
+   f->ImplicitSolve(dt*gamma, x, k_imp);
+
+   //add it all up
+   x.Add(dt*delta, k1_exp);
+   x.Add(dt*(1-delta), k2_exp);
+   //x.Add(dt*(1-gamma), k2_imp); it is already added to x above
+   x.Add(dt*gamma, k_imp);
+   t += dt;
+}
+
+void IMEXRK2_3StageExplicit::Init(TimeDependentOperator &f_)
+{
+   ODESolver::Init(f_);
+   int n = f->Width();
+   k1_exp.SetSize(n, mem_type);
+   k2_exp.SetSize(n, mem_type);
+   k3_exp.SetSize(n, mem_type);
+   k_imp.SetSize(n, mem_type);
+   y.SetSize(n, mem_type);
+}
+
+void IMEXRK2_3StageExplicit::Step(Vector &x, real_t &t, real_t &dt)
+{
+   double gamma = 1 - sqrt(2)/2;
+   double delta = -2*sqrt(2)/3;
+
+   f->SetTime(t);
+
+   //K1 exp is just f_1(t, x)
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(x, k1_exp);
+
+   //K2 exp is f_1(t + gamma dt, x + dt gamma K1)
+   f->SetTime(t + gamma*dt);
+   add(x, dt*gamma, k1_exp, y);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(y, k2_exp);
+
+   //K3 Exp is f_1(t + dt, x + dt delta K1_exp + dt (1-delta) K2_exp)
+   f->SetTime(t + dt);
+   add(x, dt*delta, k1_exp, y);
+   //add(y, dt*(1-delta), k2_exp, w);
+   //optimization to avoid extra vector
+   y.Add(dt*(1-delta), k2_exp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(y, k3_exp);
+
+   //K2_imp = f_2(t + gamma dt, x + dt gamma K2_imp)
+   f->SetTime(t + gamma*dt);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   f->ImplicitSolve(dt*gamma, x, k_imp);
+
+   //K3_imp = f_2(t+dt,x + dt(1-gamma)K2_imp + dt gamma K3_imp)
+   f -> SetTime(t + dt);
+   //add(x, dt*(1-gamma), k2_imp, z);
+   x.Add(dt*(1-gamma), k_imp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   f->ImplicitSolve(dt*gamma, x, k_imp);
+
+   //add it all up
+   x.Add(dt*delta, k2_exp);
+   x.Add(dt*(1-delta), k3_exp);
+   //x.Add(dt*(1-gamma), k2_imp); // it is already added to x above
+   x.Add(dt*gamma, k_imp);
+   t += dt;
+}
+
+void IMEX_DIRK_RK3::Init(TimeDependentOperator &f_)
+{
+   ODESolver::Init(f_);
+   int n = f->Width();
+   k1_exp.SetSize(n, mem_type);
+   k2_exp.SetSize(n, mem_type);
+   k3_exp.SetSize(n, mem_type);
+   k4_exp.SetSize(n, mem_type);
+   k2_imp.SetSize(n, mem_type);
+   k3_imp.SetSize(n, mem_type);
+   y.SetSize(n, mem_type);
+}
+
+void IMEX_DIRK_RK3::Step(Vector &x, real_t &t, real_t &dt)
+{
+   double gamma = 0.4358665215;
+   double b1 = 1.208496649;
+   double b2 = -0.644363171;
+   double a_31 = 0.3212788860;
+   double a_32 = 0.3966543747;
+   double a_41 = -0.105858296;
+   double a_42 = 0.5529291479;
+   double a_43 = 0.5529291479;
+
+   //K1_exp
+   f->SetTime(t);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(x, k1_exp);
+
+   //K2_imp, K2_exp
+   f->SetTime(t + gamma*dt);
+   add(x, dt*gamma, k1_exp, y);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(y, k2_exp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   f->ImplicitSolve(dt*gamma, x, k2_imp);
+
+   //K3_imp, K3_exp
+   f->SetTime(t + (1+gamma)/2*dt);
+   add(x, dt*a_31, k1_exp, y);
+   //add(y, dt*a_32, k2_exp, w);
+   //optimization to avoid extra vector
+   y.Add(dt*a_32, k2_exp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(y, k3_exp);
+   add(x, dt*(1-gamma)/2, k2_imp, y);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   f->ImplicitSolve(dt*gamma, y, k3_imp);
+
+   //K4_imp, K4_exp
+   f->SetTime(t+dt);
+   add(x, dt*a_41, k1_exp, y);
+   //add(y, dt*a_42, k2_exp, v);
+   y.Add(dt*a_42, k2_exp);
+   //add(w, dt*a_43, k3_exp, v);
+   y.Add(dt*a_43, k3_exp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(y, k4_exp);
+   //add(x, dt*b1, k2_imp, z);
+   //add(z, dt*b2, k3_imp, u);
+   //optimization to avoid extra vector
+   x.Add(dt*b1, k2_imp);
+   x.Add(dt*b2, k3_imp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   f->ImplicitSolve(dt*gamma, x, k3_imp);
+
+   //add it all together
+   x.Add(dt*b1, k2_exp);
+   x.Add(dt*b2, k3_exp);
+   x.Add(dt*gamma, k4_exp);
+   //x.Add(dt*b1, k2_imp); //already added above
+   //x.Add(dt*b2, k3_imp); //already added above
+   x.Add(dt*gamma, k3_imp);
+   t += dt;
+
 }
 
 }

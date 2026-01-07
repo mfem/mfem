@@ -540,10 +540,11 @@ int main(int argc, char *argv[])
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
    FE_Evolution adv(*m, *k, *B, prec_type);
-   using ImplicitVariable = FE_Evolution::ImplicitVariable;
-   ImplicitVariable imp_var = solve_implicit_state ? ImplicitVariable::STATE
-                              : ImplicitVariable::SLOPE;
-   adv.SetImplicitVariable(imp_var);
+   using ImplicitVariableType = FE_Evolution::ImplicitVariableType;
+   ImplicitVariableType imp_var = solve_implicit_state ?
+                                  ImplicitVariableType::STATE
+                                  : ImplicitVariableType::SLOPE;
+   adv.SetImplicitVariableType(imp_var);
 
    real_t t = 0.0;
    adv.SetTime(t);
@@ -685,7 +686,7 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
 void FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
 {
    // Construct current right-hand side for stage state vs. slope solve
-   if (ImplicitVarIsState())
+   if (ImplicitVarTypeIsState())
    {
       // k, on return, is the stage value u
       M->Mult(x, z);

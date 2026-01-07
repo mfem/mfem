@@ -216,10 +216,11 @@ int main(int argc, char *argv[])
 
    // 9. Initialize the conduction operator and the VisIt visualization.
    ConductionOperator oper(fespace, alpha, kappa, u);
-   using ImplicitVariable = ConductionOperator::ImplicitVariable;
-   ImplicitVariable imp_var = solve_implicit_state ? ImplicitVariable::STATE
-                              : ImplicitVariable::SLOPE;
-   oper.SetImplicitVariable(imp_var);
+   using ImplicitVariableType = ConductionOperator::ImplicitVariableType;
+   ImplicitVariableType imp_var = solve_implicit_state ?
+                                  ImplicitVariableType::STATE
+                                  : ImplicitVariableType::SLOPE;
+   oper.SetImplicitVariableType(imp_var);
 
    u_gf.SetFromTrueDofs(u);
    {
@@ -432,7 +433,7 @@ void ConductionOperator::ImplicitSolve(const real_t dt,
    MFEM_VERIFY(dt == current_dt, ""); // SDIRK methods use the same dt
 
    // Construct current right-hand side for stage state vs. slope solve
-   if (ImplicitVarIsState())
+   if (ImplicitVarTypeIsState())
    {
       // k, on return, is the stage value u
       Mmat.Mult(u, z);
