@@ -388,95 +388,95 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
    static constexpr int NB = Q1D ? Q1D : 1; // block size
 
    mfem::forall_2D(NE, NB, NB, [=] MFEM_HOST_DEVICE (int e)
-                   {
-                      // Perform change of basis if needed
-                      if (CHANGE_BASIS)
-                      {
-                         // Transform RHS
-                         DGMassBasis<DIM,D1D>(e, NE, q2d_Bt, b_orig, b2, d1d);
-                         if (IT_MODE)
-                         {
-                            // Transform initial guess
-                            DGMassBasis<DIM,D1D>(e, NE, d2q_B, u, u, d1d);
-                         }
-                      }
+   {
+      // Perform change of basis if needed
+      if (CHANGE_BASIS)
+      {
+         // Transform RHS
+         DGMassBasis<DIM,D1D>(e, NE, q2d_Bt, b_orig, b2, d1d);
+         if (IT_MODE)
+         {
+            // Transform initial guess
+            DGMassBasis<DIM,D1D>(e, NE, d2q_B, u, u, d1d);
+         }
+      }
 
-                      const int tid = MFEM_THREAD_ID(x) + NB*MFEM_THREAD_ID(y);
+      const int tid = MFEM_THREAD_ID(x) + NB*MFEM_THREAD_ID(y);
 
-                      // Compute first residual
-                      if (IT_MODE)
-                      {
-                         DGMassApply<DIM,D1D,Q1D>(e, NE, B, Bt, pa_data, u, r, d1d, q1d);
-                         DGMassAxpy(e, NE, ND, 1.0, b, -1.0, r, r); // r = b - r
-                      }
-                      else
-                      {
-                         // if not in iterative mode, use zero initial guess
-                         const int BX = MFEM_THREAD_SIZE(x);
-                         const int BY = MFEM_THREAD_SIZE(y);
-                         const int bxy = BX*BY;
-                         const auto B = ConstDeviceMatrix(b, ND, NE);
-                         auto U = DeviceMatrix(u, ND, NE);
-                         auto R = DeviceMatrix(r, ND, NE);
-                         for (int i = tid; i < ND; i += bxy)
-                         {
-                            U(i, e) = 0.0;
-                            R(i, e) = B(i, e);
-                         }
-                         MFEM_SYNC_THREAD;
-                      }
+      // Compute first residual
+      if (IT_MODE)
+      {
+         DGMassApply<DIM,D1D,Q1D>(e, NE, B, Bt, pa_data, u, r, d1d, q1d);
+         DGMassAxpy(e, NE, ND, 1.0, b, -1.0, r, r); // r = b - r
+      }
+      else
+      {
+         // if not in iterative mode, use zero initial guess
+         const int BX = MFEM_THREAD_SIZE(x);
+         const int BY = MFEM_THREAD_SIZE(y);
+         const int bxy = BX*BY;
+         const auto B = ConstDeviceMatrix(b, ND, NE);
+         auto U = DeviceMatrix(u, ND, NE);
+         auto R = DeviceMatrix(r, ND, NE);
+         for (int i = tid; i < ND; i += bxy)
+         {
+            U(i, e) = 0.0;
+            R(i, e) = B(i, e);
+         }
+         MFEM_SYNC_THREAD;
+      }
 
-                      DGMassPreconditioner(e, NE, ND, dinv, r, z);
-                      DGMassAxpy(e, NE, ND, 1.0, z, 0.0, z, d); // d = z
+      DGMassPreconditioner(e, NE, ND, dinv, r, z);
+      DGMassAxpy(e, NE, ND, 1.0, z, 0.0, z, d); // d = z
 
-                      real_t nom = DGMassDot<NB>(e, NE, ND, d, r);
-                      if (nom < 0.0) { return; /* Not positive definite */ }
-                      real_t r0 = fmax(nom*RELTOL*RELTOL, ABSTOL*ABSTOL);
-                      if (nom <= r0) { return; /* Converged */ }
+      real_t nom = DGMassDot<NB>(e, NE, ND, d, r);
+      if (nom < 0.0) { return; /* Not positive definite */ }
+      real_t r0 = fmax(nom*RELTOL*RELTOL, ABSTOL*ABSTOL);
+      if (nom <= r0) { return; /* Converged */ }
 
-                      DGMassApply<DIM,D1D,Q1D>(e, NE, B, Bt, pa_data, d, z, d1d, q1d);
-                      real_t den = DGMassDot<NB>(e, NE, ND, z, d);
-                      if (den <= 0.0)
-                      {
-                         DGMassDot<NB>(e, NE, ND, d, d);
-                         // d2 > 0 => not positive definite
-                         if (den == 0.0) { return; }
-                      }
+      DGMassApply<DIM,D1D,Q1D>(e, NE, B, Bt, pa_data, d, z, d1d, q1d);
+      real_t den = DGMassDot<NB>(e, NE, ND, z, d);
+      if (den <= 0.0)
+      {
+         DGMassDot<NB>(e, NE, ND, d, d);
+         // d2 > 0 => not positive definite
+         if (den == 0.0) { return; }
+      }
 
-                      // start iteration
-                      int i = 1;
-                      while (true)
-                      {
-                         const real_t alpha = nom/den;
-                         DGMassAxpy(e, NE, ND, 1.0, u, alpha, d, u); // u = u + alpha*d
-                         DGMassAxpy(e, NE, ND, 1.0, r, -alpha, z, r); // r = r - alpha*A*d
+      // start iteration
+      int i = 1;
+      while (true)
+      {
+         const real_t alpha = nom/den;
+         DGMassAxpy(e, NE, ND, 1.0, u, alpha, d, u); // u = u + alpha*d
+         DGMassAxpy(e, NE, ND, 1.0, r, -alpha, z, r); // r = r - alpha*A*d
 
-                         DGMassPreconditioner(e, NE, ND, dinv, r, z);
+         DGMassPreconditioner(e, NE, ND, dinv, r, z);
 
-                         real_t betanom = DGMassDot<NB>(e, NE, ND, r, z);
-                         if (betanom < 0.0) { return; /* Not positive definite */ }
-                         if (betanom <= r0) { break; /* Converged */ }
+         real_t betanom = DGMassDot<NB>(e, NE, ND, r, z);
+         if (betanom < 0.0) { return; /* Not positive definite */ }
+         if (betanom <= r0) { break; /* Converged */ }
 
-                         if (++i > MAXIT) { break; }
+         if (++i > MAXIT) { break; }
 
-                         const real_t beta = betanom/nom;
-                         DGMassAxpy(e, NE, ND, 1.0, z, beta, d, d); // d = z + beta*d
-                         DGMassApply<DIM,D1D,Q1D>(e, NE, B, Bt, pa_data, d, z, d1d, q1d); // z = A d
-                         den = DGMassDot<NB>(e, NE, ND, d, z);
-                         if (den <= 0.0)
-                         {
-                            DGMassDot<NB>(e, NE, ND, d, d);
-                            // d2 > 0 => not positive definite
-                            if (den == 0.0) { break; }
-                         }
-                         nom = betanom;
-                      }
+         const real_t beta = betanom/nom;
+         DGMassAxpy(e, NE, ND, 1.0, z, beta, d, d); // d = z + beta*d
+         DGMassApply<DIM,D1D,Q1D>(e, NE, B, Bt, pa_data, d, z, d1d, q1d); // z = A d
+         den = DGMassDot<NB>(e, NE, ND, d, z);
+         if (den <= 0.0)
+         {
+            DGMassDot<NB>(e, NE, ND, d, d);
+            // d2 > 0 => not positive definite
+            if (den == 0.0) { break; }
+         }
+         nom = betanom;
+      }
 
-                      if (CHANGE_BASIS)
-                      {
-                         DGMassBasis<DIM,D1D>(e, NE, q2d_B, u, u, d1d);
-                      }
-                   });
+      if (CHANGE_BASIS)
+      {
+         DGMassBasis<DIM,D1D>(e, NE, q2d_B, u, u, d1d);
+      }
+   });
 }
 
 /// @cond Suppress_Doxygen_warnings
@@ -488,7 +488,7 @@ inline DGMassInverse::CGKernelType DGMassInverse::CGKernels::Kernel()
 }
 
 inline DGMassInverse::CGKernelType DGMassInverse::CGKernels::Fallback(
-    int dim, int, int)
+   int dim, int, int)
 {
    if (dim == 1) { return &DGMassInverse::DGMassCGIteration<1>; }
    else if (dim == 2) { return &DGMassInverse::DGMassCGIteration<2>; }
