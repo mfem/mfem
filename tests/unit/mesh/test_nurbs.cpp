@@ -274,124 +274,10 @@ TEST_CASE("NURBS 1D shared KnotVector in patches", "[Mesh]")
       }
    };
 
-   const char *mesh_same_orientation = R"(
-MFEM NURBS mesh v1.0
-
-dimension
-1
-
-elements
-2
-1 1 0 1
-1 1 1 2
-
-boundary
-2
-1 0 0
-1 0 2
-
-# Both edges map to the same unique KnotVector (index 0).
-edges
-2
-0 0 1
-0 1 2
-
-vertices
-3
-
-patches
-
-# Patch 0: quadratic, 4 control points, 1 interior knot at u=0.3
-knotvectors
-1
-2 4  0 0 0 0.3  1 1 1
-
-dimension
-2
-
-controlpoints
-0.0 0.0 1.0
-0.3 0.0 1.0
-0.7 0.0 1.0
-1.0 0.0 1.0
-
-# Patch 1: same KnotVector, different control points (translated)
-knotvectors
-1
-2 4  0 0 0 0.3  1 1 1
-
-dimension
-2
-
-controlpoints
-1.0 0.0 1.0
-1.3 0.0 1.0
-1.7 0.0 1.0
-2.0 0.0 1.0
-)";
-
-   const char *mesh_opposite_orientation = R"(
-MFEM NURBS mesh v1.0
-
-dimension
-1
-
-elements
-2
-1 1 0 1
-1 1 2 1
-
-boundary
-2
-1 0 0
-1 0 2
-
-# Both edges map to the same unique KnotVector (index 0), but the second edge
-# has opposite orientation (v0 > v1), so its mapping is signed.
-edges
-2
-0 0 1
-0 2 1
-
-vertices
-3
-
-patches
-
-# Patch 0: u increases from x=0 to x=1
-knotvectors
-1
-2 4  0 0 0 0.3  1 1 1
-
-dimension
-2
-
-controlpoints
-0.0 0.0 1.0
-0.3 0.0 1.0
-0.7 0.0 1.0
-1.0 0.0 1.0
-
-# Patch 1: same KnotVector, but control points are reversed to match the
-# element/edge orientation.
-knotvectors
-1
-2 4  0 0 0 0.3  1 1 1
-
-dimension
-2
-
-controlpoints
-2.0 0.0 1.0
-1.7 0.0 1.0
-1.3 0.0 1.0
-1.0 0.0 1.0
-)";
-
    SECTION("Same orientation")
    {
-      std::istringstream iss(mesh_same_orientation);
-      Mesh mesh(iss, 1, 0);
+      const auto mesh_fname = "./data/nurbs-segments-same-orientation.mesh";
+      Mesh mesh(mesh_fname, 1, 0);
 
       REQUIRE(mesh.NURBSext != nullptr);
       REQUIRE(mesh.Dimension() == 1);
@@ -415,8 +301,8 @@ controlpoints
 
    SECTION("Opposite orientation")
    {
-      std::istringstream iss(mesh_opposite_orientation);
-      Mesh mesh(iss, 1, 0);
+      const auto mesh_fname = "./data/nurbs-segments-opposite-orientation.mesh";
+      Mesh mesh(mesh_fname, 1, 0);
 
       REQUIRE(mesh.NURBSext != nullptr);
       REQUIRE(mesh.Dimension() == 1);
