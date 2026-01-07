@@ -313,11 +313,18 @@ HypreParMatrix *DarcyReduction::ConstructParMatrix(SparseMatrix *spmat,
                                                    ParFiniteElementSpace *pfes_tr, ParFiniteElementSpace *pfes_te)
 {
    HYPRE_BigInt num_rows = spmat->Height();
-   const int num_face_dofs = pfes_tr->GetVSize();
+   const int num_ldofs = pfes_tr->GetVSize();
    Array<HYPRE_BigInt> rows;
    if (pfes_te)
    {
-      rows.MakeRef(pfes_te->GetDofOffsets(), pfes_te->GetNRanks()+1);
+      if (HYPRE_AssumedPartitionCheck())
+      {
+         rows.MakeRef(pfes_te->GetDofOffsets(), 3);
+      }
+      else
+      {
+         rows.MakeRef(pfes_te->GetDofOffsets(), pfes_te->GetNRanks()+1);
+      }
    }
    else
    {
@@ -331,9 +338,9 @@ HypreParMatrix *DarcyReduction::ConstructParMatrix(SparseMatrix *spmat,
    int *J = spmat->GetJ();
    for (int i = 0; i < hJ.Size(); i++)
    {
-      hJ[i] = J[i] < num_face_dofs ?
+      hJ[i] = J[i] < num_ldofs ?
               J[i] + ldof_offset :
-              face_nbr_glob_ldof[J[i] - num_face_dofs];
+              face_nbr_glob_ldof[J[i] - num_ldofs];
    }
 
    return new HypreParMatrix(pfes_tr->GetComm(), spmat->Height(),
@@ -526,7 +533,7 @@ void DarcyFluxReduction::ComputeS()
    Mesh *mesh = fes_u.GetMesh();
    const int NE = mesh->GetNE();
 
-   const int num_face_dofs = fes_p.GetVSize();
+   const int num_ldofs = fes_p.GetVSize();
 #ifdef MFEM_USE_MPI
    const int num_nbr_face_dofs = (Parallel() && (Bf_face_data.Size() ||
                                                  D_face_data.Size()))?
@@ -537,11 +544,11 @@ void DarcyFluxReduction::ComputeS()
    if (Bf_face_data.Size())
    {
       sBt.reset(new SparseMatrix(fes_u.GetVSize(),
-                                 num_face_dofs + num_nbr_face_dofs));
+                                 num_ldofs + num_nbr_face_dofs));
       sAiBt.reset(new SparseMatrix(fes_u.GetVSize(),
-                                   num_face_dofs + num_nbr_face_dofs));
+                                   num_ldofs + num_nbr_face_dofs));
    }
-   if (!S) { S.reset(new SparseMatrix(num_face_dofs, num_face_dofs + num_nbr_face_dofs)); }
+   if (!S) { S.reset(new SparseMatrix(num_ldofs, num_ldofs + num_nbr_face_dofs)); }
 
    DenseMatrix AiBt;
    Array<int> p_dofs, p_dofs_1, p_dofs_2, u_vdofs, u_vdofs_1, u_vdofs_2;
