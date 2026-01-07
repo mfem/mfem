@@ -43,13 +43,30 @@ KnotVector::KnotVector(istream &input)
 
 KnotVector::KnotVector(int order, int NCP)
 {
+   if (NCP == -1)
+   {
+      NumOfControlPoints = order + 1;
+   }
+   else
+   {
+      NumOfControlPoints = NCP;
+   }
    Order = order;
-   NumOfControlPoints = NCP;
    knot.SetSize(NumOfControlPoints + Order + 1);
    NumOfElements = 0;
    coarse = false;
-
-   knot = -1.;
+   if (NCP == -1)
+   {
+      for (int i = 0 ; i < Order + 1; i++)
+      {
+         knot[i] = 0.0;
+         knot[i + Order + 1] = 1.0;
+      }
+   }
+   else
+   {
+      knot = -1.;
+   }
 }
 
 KnotVector::KnotVector(int order, const Vector &k)
