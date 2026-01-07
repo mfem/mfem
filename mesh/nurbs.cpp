@@ -5241,7 +5241,7 @@ void NURBSExtension::GetPatches(Array<NURBSPatch*> &patches_copy)
    }
 }
 
-int NURBSExtension::GetPatchDim() const
+int NURBSExtension::GetPatchSpaceDimension() const
 {
    MFEM_VERIFY(patches.Size() > 0, "NURBS extension has no patches.");
 

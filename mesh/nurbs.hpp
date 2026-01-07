@@ -829,7 +829,7 @@ public:
        The physical dimension is inferred from the first patch,
        i.e. number of coordinates per control point minus one (for the weight).
        This method requires patch data to be present, i.e. HavePatches() == true */
-   int GetPatchDim() const;
+   int GetPatchSpaceDimension() const;
 
    /// Return the number of patches.
    int GetNP()     const { return patchTopo->GetNE(); }
