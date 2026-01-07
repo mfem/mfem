@@ -93,7 +93,6 @@ int main(int argc, char *argv[])
    bool hybridization = false;
    bool trace_h1 = true;
    bool trace_ess_bc = true;
-   bool amg_elast = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -117,10 +116,6 @@ int main(int argc, char *argv[])
                   "--trace-DG", "Switch between H1 and DG trace spaces (default H1).");
    args.AddOption(&trace_ess_bc, "-trbc", "--trace-ess-bc", "-no-trbc",
                   "--no-trace-ess-bc", "Switch between essential and weak trace BC.");
-   args.AddOption(&amg_elast, "-elast", "--amg-for-elasticity", "-sys",
-                  "--amg-for-systems",
-                  "Use the special AMG elasticity solver (GM/LN approaches), "
-                  "or standard AMG for systems (unknown approach).");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -354,14 +349,7 @@ int main(int argc, char *argv[])
    {
       // 10. Construct the preconditioner
       HypreBoomerAMG amg(*A.As<HypreParMatrix>());
-      if (reduction && amg_elast)
-      {
-         amg.SetElasticityOptions(&W_space);
-      }
-      else
-      {
-         amg.SetSystemsOptions(dim, true);
-      }
+      amg.SetSystemsOptions(dim, true);
 
       // 11. Solve the linear system with GMRES.
       //     Check the norm of the unpreconditioned residual.
@@ -411,14 +399,7 @@ int main(int argc, char *argv[])
 
       invM = new HypreDiagScale(M);
       invS = new HypreBoomerAMG(*S);
-      if (amg_elast)
-      {
-         invS->SetElasticityOptions(&W_space);
-      }
-      else
-      {
-         invS->SetSystemsOptions(dim, true);
-      }
+      invS->SetSystemsOptions(dim, true);
 
       invM->iterative_mode = false;
       invS->iterative_mode = false;
