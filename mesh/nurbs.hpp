@@ -596,11 +596,8 @@ protected:
        if the KnotVector index associated with edge @a edge is negative. */
    inline const KnotVector *KnotVec(int edge, int oedge, int *okv) const;
 
-   /// Throw an error if any patch has an inconsistent edge_to_ukv mapping.
-   void CheckPatches();
-
    /// Throw an error if any boundary patch has invalid KnotVector orientation.
-   void CheckBdrPatches();
+   MFEM_DEPRECATED void CheckBdrPatches();
 
    /// Return the patch-topology edge indices that define the KnotVectors for
    /// patch @a p in each parametric direction.
@@ -797,6 +794,9 @@ public:
        @a num_pieces of Gridfunctions @a gf_array. */
    void MergeGridFunctions(GridFunction *gf_array[], int num_pieces,
                            GridFunction &merged);
+
+   /// Returns false if any patch has an inconsistent edge_to_ukv mapping.
+   bool CheckPatches();
 
    /// Destroy a NURBSExtension.
    virtual ~NURBSExtension();
