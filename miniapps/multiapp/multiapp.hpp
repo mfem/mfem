@@ -335,7 +335,7 @@ public:
     Field(ParGridFunction *gf_, bool is_src, bool is_tar) : 
           is_source(is_src), is_target(is_tar), gf(gf_)
     {
-        comm = gf->ParFESpace()->GetComm();
+        // if(gf) comm = gf->ParFESpace()->GetComm();
     }
 
     ///@brief Get the stored ParGridFunction
@@ -637,7 +637,7 @@ public:
     /// exist, a new LinkedFields is created and owned.
     void AddSourceField(const std::string &src_name, ParGridFunction *src_gf)
     {
-        fields.Register(src_name, src_gf, false);        
+        fields.Register(src_name, src_gf, false);
         LinkedFields *lf = linked_fields.Get(src_name);
         if(!lf)
         {
@@ -645,7 +645,7 @@ public:
             linked_fields.Register(src_name, lf, true);
             return;
         }
-        lf->SetSource(src_gf);        
+        lf->SetSource(src_gf);
     }
 
     /// @brief Add a target ParGridFunction (with an optional FieldTransfer) 
@@ -1571,7 +1571,7 @@ public:
        This is a non-const version that calls the const version by default.
      */
     virtual void Mult(const Vector &x, Vector &y) {
-        Mult(x,y);
+        std::as_const(*this).Mult(x,y);
     }
 
     /**

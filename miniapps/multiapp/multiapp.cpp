@@ -45,6 +45,8 @@ OperatorCoupler* OperatorCoupler::Select(CoupledOperator *op,
             return new AdditiveSchwarzCoupler(op);
         case Scheme::ALTERNATING_SCHWARZ:
             return new AlternatingSchwarzCoupler(op);
+        case Scheme::NONE:
+            return nullptr;
         default:
             MFEM_ABORT("Unknown coupling scheme: " << static_cast<int>(scheme));
     }
@@ -444,8 +446,7 @@ void AlternatingSchwarzCoupler::Mult(const Vector &x, Vector &y) const
         real_t t_ = t, dt = timestep; 
         Step(y,t_,dt);
         return;
-    }    
-
+    }
 
     int nops = coupled_op->Size();
     const Array<int> offsets = coupled_op->GetBlockOffsets();
