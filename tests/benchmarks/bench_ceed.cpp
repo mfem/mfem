@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "bench.hpp"
+#include <caliper/cali.h>
 
 #ifdef MFEM_USE_BENCHMARK
 
@@ -129,34 +130,40 @@ struct Problem : public BakeOff<VDIM, GLL>
       mdofs += this->MDofs() * cg.GetNumIterations();
    }
 };
+#define STRINGIZE_NX(x) #x
+#define STRINGIZE(x) STRINGIZE_NX(x)
+#define CONCAT(a, b) STRINGIZE(a) STRINGIZE(b)
 
 /// Bake-off Problems (BPs)
-#define BakeOff_Problem(i, Kernel, VDIM, p_eq_q)                     \
-   static void BP##i##Kernel(bm::State &state)                               \
-   {                                                                 \
-      Problem<Kernel##Integrator, VDIM, p_eq_q> ker(state.range(0)); \
-      while (state.KeepRunning()) { ker.benchmark(); }               \
-      state.counters["MDof/s"] =                                     \
-         bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);          \
-   }                                                                 \
-   BENCHMARK(BP##i##Kernel)->DenseRange(1, 8)->Unit(bm::kMillisecond);
+#define BakeOff_Problem(i, Kernel, VDIM, p_eq_q)                       \
+   static void BP##i##Kernel(bm::State &state)                         \
+   {                                                                   \
+      const auto& region_name = std::string(CONCAT(BP, i)STRINGIZE(Kernel)) + std::string("Order=") + std::to_string(state.range(0)); \
+      cali_begin_region(region_name.c_str());                          \
+      Problem<Kernel##Integrator, VDIM, p_eq_q> ker(state.range(0));   \
+      while (state.KeepRunning()) { ker.benchmark(); }                 \
+      state.counters["MDof/s"] =                                       \
+         bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);            \
+      cali_end_region(region_name.c_str());                            \
+   }                                                                   \
+   BENCHMARK(BP##i##Kernel)->DenseRange(1, 8)->Unit(bm::kMillisecond); \
 
 /// BP1: scalar PCG with mass matrix, q=p+2
 BakeOff_Problem(1, Mass, 1, false)
 
-/// BP2: vector PCG with mass matrix, q=p+2
+// /// BP2: vector PCG with mass matrix, q=p+2
 BakeOff_Problem(2, VectorMass, 3, false)
 
-/// BP3: scalar PCG with stiffness matrix, q=p+2
+// // BP3: scalar PCG with stiffness matrix, q=p+2
 BakeOff_Problem(3, Diffusion, 1, false)
 
-/// BP4: vector PCG with stiffness matrix, q=p+2
+// /// BP4: vector PCG with stiffness matrix, q=p+2
 BakeOff_Problem(4, VectorDiffusion, 3, false)
 
-/// BP5: scalar PCG with stiffness matrix, q=p+1
+// /// BP5: scalar PCG with stiffness matrix, q=p+1
 BakeOff_Problem(5, Diffusion, 1, true)
 
-/// BP6: vector PCG with stiffness matrix, q=p+1
+// /// BP6: vector PCG with stiffness matrix, q=p+1
 BakeOff_Problem(6, VectorDiffusion, 3, true)
 
 /// Bake-off Kernels (BKs)
@@ -190,32 +197,35 @@ struct Kernel : public BakeOff<VDIM, GLL>
 };
 
 /// Generic CEED BKi
-#define BakeOff_Kernel(i, KER, VDIM, GLL)                      \
+#define BakeOff_Kernel(i, KER, VDIM, GLL)                           \
    static void BK##i##KER(bm::State &state)                         \
-   {                                                           \
-      Kernel<KER##Integrator, VDIM, GLL> ker(state.range(0));  \
-      while (state.KeepRunning()) { ker.benchmark(); }         \
-      state.counters["MDof/s"] =                               \
-         bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);    \
-   }                                                           \
-   BENCHMARK(BK##i##KER)->DenseRange(1, 8)->Unit(bm::kMillisecond);
+   {                                                                \
+      const auto& region_name = std::string(CONCAT(BK, i)STRINGIZE(KER))+ std::string("Order=") + std::to_string(state.range(0)); \
+      cali_begin_region(region_name.c_str());                          \
+      Kernel<KER##Integrator, VDIM, GLL> ker(state.range(0));       \
+      while (state.KeepRunning()) { ker.benchmark(); }              \
+      state.counters["MDof/s"] =                                    \
+         bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);         \
+      cali_end_region(region_name.c_str());                            \
+   }                                                                \
+   BENCHMARK(BK##i##KER)->DenseRange(1, 8)->Unit(bm::kMillisecond); \
 
 /// BK1: scalar E-vector-to-E-vector evaluation of mass matrix, q=p+2
 BakeOff_Kernel(1, Mass, 1, false)
 
-/// BK2: vector E-vector-to-E-vector evaluation of mass matrix, q=p+2
+// /// BK2: vector E-vector-to-E-vector evaluation of mass matrix, q=p+2
 BakeOff_Kernel(2, VectorMass, 3, false)
 
-/// BK3: scalar E-vector-to-E-vector evaluation of stiffness matrix, q=p+2
+// /// BK3: scalar E-vector-to-E-vector evaluation of stiffness matrix, q=p+2
 BakeOff_Kernel(3, Diffusion, 1, false)
 
-/// BK4: vector E-vector-to-E-vector evaluation of stiffness matrix, q=p+2
+// /// BK4: vector E-vector-to-E-vector evaluation of stiffness matrix, q=p+2
 BakeOff_Kernel(4, VectorDiffusion, 3, false)
 
-/// BK5: scalar E-vector-to-E-vector evaluation of stiffness matrix, q=p+1
+// /// BK5: scalar E-vector-to-E-vector evaluation of stiffness matrix, q=p+1
 BakeOff_Kernel(5, Diffusion, 1, true)
 
-/// BK6: vector E-vector-to-E-vector evaluation of stiffness matrix, q=p+1
+// /// BK6: vector E-vector-to-E-vector evaluation of stiffness matrix, q=p+1
 BakeOff_Kernel(6, VectorDiffusion, 3, true)
 
 /**
