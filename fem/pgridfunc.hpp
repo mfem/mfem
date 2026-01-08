@@ -594,7 +594,7 @@ public:
    (const int vdim,
     const PLBound &plb,
     const int max_depth,
-    const real_t tol = 0.0)
+    const real_t tol)
    override;
 
    /** @brief Estimate the GridFunction maximum across all elements. */
@@ -602,7 +602,7 @@ public:
    (const int vdim,
     const PLBound &plb,
     const int max_depth,
-    const real_t tol = 0.0)
+    const real_t tol)
    override;
 
    /** Save the local portion of the ParGridFunction. This differs from the
