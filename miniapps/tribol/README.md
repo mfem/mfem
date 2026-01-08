@@ -27,8 +27,8 @@ accelerations, so the relationship between forces/contact pressures and
 deformations/contact gaps is linear and, therefore, the problem can be solved
 exactly with a single linear solve. The mortar implementation is based on [Puso
 and Laursen (2004)](https://doi.org/10.1016/j.cma.2003.10.010). A description of
-the Tribol implementation is available in [Serac
-documentation](https://serac.readthedocs.io/en/latest/sphinx/theory_reference/solid.html#contact-mechanics).
+the Tribol implementation is available in [smith
+documentation](https://llnlsmith.readthedocs.io/en/latest/sphinx/theory_reference/solid.html#contact-mechanics).
 Lagrange multipliers are used to solve for the pressure required to prevent
 violation of the contact constraints.
 
