@@ -761,6 +761,43 @@ SumIntegrator::~SumIntegrator()
    }
 }
 
+real_t mfem::VectorBlockDiagonalIntegrator::ComputeHDGFaceEnergy(
+   int side, const FiniteElement &trace_face_fe, const FiniteElement &fe,
+   FaceElementTransformations &Tr, const Vector &trfun, const Vector &elfun,
+   Vector *d_energy)
+{
+   if (integs.size() <= 0) { return 0.; }
+   real_t en = 0.;
+   const int dof_tr = trfun.Size() / numBlocks;
+   const int dof_el = elfun.Size() / numBlocks;
+
+   Vector tr_d, el_d;
+   tr_d.MakeRef(const_cast<Vector&>(trfun), 0, dof_tr);
+   el_d.MakeRef(const_cast<Vector&>(elfun), 0, dof_el);
+   en = integs[0]->ComputeHDGFaceEnergy(side, trace_face_fe, fe, Tr, tr_d, el_d,
+                                        d_energy);
+
+   if (numBlocks > (int)integs.size())
+   {
+      if (d_energy) { *d_energy *= numBlocks; }
+      return en * numBlocks;
+   }
+
+   Vector d_denergy;
+   for (int i = 1; i < (int)integs.size(); i++)
+   {
+      tr_d.MakeRef(const_cast<Vector&>(trfun), i*dof_tr);
+      el_d.MakeRef(const_cast<Vector&>(elfun), i*dof_el);
+
+      en += integs[i]->ComputeHDGFaceEnergy(side, trace_face_fe, fe, Tr, tr_d, el_d,
+                                            d_energy ? &d_denergy : NULL);
+
+      if (d_energy) { *d_energy += d_denergy; }
+   }
+
+   return en;
+}
+
 void MixedScalarIntegrator::AssembleElementMatrix2(
    const FiniteElement &trial_fe, const FiniteElement &test_fe,
    ElementTransformation &Trans, DenseMatrix &elmat)

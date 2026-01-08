@@ -839,6 +839,13 @@ public:
          AssembleFaceMat<>(fx, el1, trace_el, el1, trace_el,
                            elmat, trace_el, el1, el2, Trans);
    }
+
+   real_t ComputeHDGFaceEnergy(int side,
+                               const FiniteElement &trace_face_fe,
+                               const FiniteElement &fe,
+                               FaceElementTransformations &Tr,
+                               const Vector &trfun, const Vector &elfun,
+                               Vector *d_energy = NULL) override;
 };
 
 template<typename FType, int N, int M, typename... Args>
