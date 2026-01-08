@@ -167,7 +167,7 @@ int main(int argc, char *argv[])
    //    These b.c. are imposed weakly, by adding the appropriate boundary
    //    integrators over the marked 'dir_bdr' to the bilinear and linear forms.
    //    With this DG formulation, there are no essential boundary conditions.
-   Array<int> ess_flux_tdofs_list; // no essential b.c. (empty list)
+   Array<int> ess_stress_tdofs_list; // no essential b.c. (empty list)
    Array<int> dir_bdr(mesh.bdr_attributes.Max());
    dir_bdr = 0;
    dir_bdr[0] = 1; // boundary attribute 1 is Dirichlet
@@ -288,7 +288,7 @@ int main(int argc, char *argv[])
       trace_space = new FiniteElementSpace(&mesh, trace_coll, dim);
       darcy.EnableHybridization(trace_space,
                                 new NormalStressJumpIntegrator(-1.),
-                                ess_flux_tdofs_list);
+                                ess_stress_tdofs_list);
       // set essential BC
       if (trace_ess_bc)
       {
@@ -314,7 +314,7 @@ int main(int argc, char *argv[])
 
    OperatorPtr A;
    Vector B;
-   darcy.FormLinearSystem(ess_flux_tdofs_list, x, A, X, B, true);
+   darcy.FormLinearSystem(ess_stress_tdofs_list, x, A, X, B, true);
    cout << "done." << endl;
 
    cout << "Size of linear system: " << A->Height() << endl;
