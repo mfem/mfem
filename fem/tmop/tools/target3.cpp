@@ -112,8 +112,14 @@ bool TargetConstructor::ComputeAllElementTargets<3>(
    MFEM_VERIFY(!fes.IsVariableOrder(), "variable orders are not supported");
    const FiniteElement &fe = *fes.GetFE(0);
    MFEM_VERIFY(fe.GetGeomType() == Geometry::CUBE, "");
-   const DenseMatrix &w = Geometries.GetGeomToPerfGeomJac(Geometry::CUBE);
-   const real_t detW = w.Det();
+
+   if (current_W_type != Geometry::CUBE)
+   {
+      current_W_type = Geometry::CUBE;
+      current_W = Geometries.GetGeomToPerfGeomJac(current_W_type);
+   }
+   current_W.HostRead(); // Needed for det
+   const real_t detW = current_W.Det();
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    const DofToQuad &maps = fe.GetDofToQuad(ir, mode);
    const int d = maps.ndof, q = maps.nqpt;
@@ -121,7 +127,7 @@ bool TargetConstructor::ComputeAllElementTargets<3>(
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
-   const auto W = Reshape(w.Read(), 3, 3);
+   const auto W = Reshape(current_W.Read(), 3, 3);
    const auto *b = maps.B.Read(), *g = maps.G.Read();
    auto J = Reshape(Jtr.Write(), 3, 3, q, q, q, NE);
 
