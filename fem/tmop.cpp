@@ -4104,8 +4104,8 @@ void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &d_loc,
       // The pfes might be ordered byVDIM, while the loop goes consecutively.
       if (parallel)
       {
-        const int dof_i = pfes->DofToVDof(i, 0);
-        if (pfes->GetLocalTDofNumber(dof_i) < 0) { continue; }
+         const int dof_i = pfes->DofToVDof(i, 0);
+         if (pfes->GetLocalTDofNumber(dof_i) < 0) { continue; }
       }
 #endif
 
