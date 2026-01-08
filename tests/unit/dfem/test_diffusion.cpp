@@ -116,6 +116,10 @@ void diffusion(const char *filename, int p, bool include_mass)
 
    ParBilinearForm blf_fa(&pfes);
    blf_fa.AddDomainIntegrator(new DiffusionIntegrator(rho_coeff, ir));
+   if(include_mass)
+   {
+      blf_fa.AddDomainIntegrator(new MassIntegrator(ir));
+   }
    blf_fa.SetAssemblyLevel(AssemblyLevel::FULL);
    blf_fa.Assemble();
    blf_fa.Finalize();
@@ -130,6 +134,12 @@ void diffusion(const char *filename, int p, bool include_mass)
    static constexpr int U = 0, Coords = 1, Rho = 3;
    const auto sol = std::vector{ FieldDescriptor{ U, &pfes } };
 
+   // Define mass qfunction in case it's used.
+      const auto mf_mass_qf =
+         [] MFEM_HOST_DEVICE(const dscalar_t u, const real_t &rho /*Needed for some reason*/,
+                             const tensor<real_t, DIM, DIM> &J, const real_t &w)
+      { return tuple{u * w * det(J)}; };
+
    SECTION("action")
    {
       DOperator dop_mf(sol, {{Rho, &rho_ps}, {Coords, mfes}}, pmesh);
@@ -139,6 +149,14 @@ void diffusion(const char *filename, int p, bool include_mass)
                                         Gradient<Coords>{}, Weight{} },
                                  tuple{ Gradient<U>{} }, *ir,
                                  all_domain_attr);
+      if(include_mass)
+      {
+      dop_mf.AddDomainIntegrator(mf_mass_qf,
+                                 tuple{ Value<U>{}, Identity<Rho>{} /*need this along with dummy argument to q function for some reason*/,
+                                        Gradient<Coords>{}, Weight{} },
+                                 tuple{ Value<U>{} }, *ir,
+                                 all_domain_attr);
+      }
       dop_mf.SetParameters({ &rho_coeff_cv, nodes });
 
       pfes.GetRestrictionMatrix()->Mult(x, X);
@@ -208,6 +226,14 @@ void diffusion(const char *filename, int p, bool include_mass)
                                         Gradient<Coords>{}, Weight{} },
                                  tuple{ Gradient<U>{} }, *ir,
                                  all_domain_attr, derivatives);
+      if(include_mass)
+      {
+      dop_mf.AddDomainIntegrator(mf_mass_qf,
+                                 tuple{ Value<U>{}, Identity<Rho>{} /*need this along with dummy argument to q function for some reason*/,
+                                        Gradient<Coords>{}, Weight{} },
+                                 tuple{ Value<U>{} }, *ir,
+                                 all_domain_attr, derivatives);
+      }
       dop_mf.SetParameters({ &rho_coeff_cv, nodes });
       auto dRdU = dop_mf.GetDerivative(U, {&x}, {&rho_coeff_cv, nodes});
 
@@ -258,6 +284,10 @@ void diffusion(const char *filename, int p, bool include_mass)
          ConstantCoefficient one(1.0);
          ParBilinearForm vblf_fa(&vpfes);
          vblf_fa.AddDomainIntegrator(new VectorDiffusionIntegrator(one, ir));
+         // if(include_mass)
+         // {
+         //    vblf_fa.AddDomainIntegrator(new VectorMassIntegrator(one, ir));
+         // }
          vblf_fa.SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
          vblf_fa.Assemble();
          vblf_fa.Finalize();
