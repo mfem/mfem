@@ -894,7 +894,7 @@ int main(int argc, char *argv[])
          }
          CGSolver cg(MPI_COMM_WORLD);
          cg.SetRelTol(1e-10);
-         cg.SetMaxIter(2000);
+         cg.SetMaxIter(300);
          cg.SetPrintLevel(1);
          cg.SetPreconditioner(M);
          cg.SetOperator(*A);
@@ -918,7 +918,7 @@ int main(int argc, char *argv[])
 
          CGSolver cg(MPI_COMM_WORLD);
          cg.SetRelTol(1e-5);
-         cg.SetMaxIter(2000);
+         cg.SetMaxIter(300);
          cg.SetPrintLevel(1);
          cg.SetPreconditioner(Mc);
          cg.SetOperator(Ac);

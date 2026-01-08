@@ -10,32 +10,38 @@
 //                                               J₁  = 0,   on ∂Ω
 //                                               J₂  = 0,   on ∂Ω
 // First order system:
-//     i ω μ₀ H + ∇ × E                  = 0, in Ω
-// -i ω ϵ₀ ϵᵣ E + ∇ × H - ω ϵ₀ (J₁ + J₂) = 0, in Ω 
+//     i ω μ₀ H + ∇ × E                    = 0, in Ω
+// -i ω ϵ₀ ϵᵣ E + ∇ × H - α ω ϵ₀ (J₁ + J₂) = 0, in Ω 
 //            b ⋅ ∇Q₁ + c₁ J₁ - c₁ P B E = 0, in Ω
 //                          Q₁ + b ⋅ ∇J₁ = 0, in Ω 
 //            b ⋅ ∇Q₂ + c₂ J₂ + c₂ P B E = 0, in Ω  
 //                          Q₂ + b ⋅ ∇J₂ = 0, in Ω
-// where B = b ⊗ b. Note that in 2D H is scalar and ∇ × E = ∇ ⋅ (R E) where R = [0 1; -1 0]
-//
+// where B = b ⊗ b. Here α serves as a scaling factor. For α = 0 the system becomes 
+// lower trianular (Maxwell decouples from the diffusion equations).
+
+// Note that in 2D we have the following 2 definitions of the curl.
+// a) for a 2D vector E, ∇ × E:= ∇ ⋅ (R E) where R = [0 1; -1 0]
+// b) for a scalar H, ∇ × H:= R ∇ H
+
 // Define the group variables 
 // then the strong formulation reads:
 // (A u, v) = (i ω μ₀ H, F) + (∇ × E, F) 
-//          - (i ω ϵ₀ ϵᵣ E, W) + (∇ W, R H) - (ω ϵ₀ (J₁ + J₂), W)
+//          - (i ω ϵ₀ ϵᵣ E, W) + (∇ × H, W) - (α ω ϵ₀ (J₁ + J₂), W)
 //          + (b ⋅ ∇Q₁, K₁) + (c₁ J₁, K₁) - (c₁ P B E, K₁) + (Q₁, L₁) + (b ⋅ ∇J₁, L₁)
 //          + (b ⋅ ∇Q₂, K₂) + (c₂ J₂, K₂) + (c₂ P B E, K₂) + (Q₂, L₂) + (b ⋅ ∇J₂, L₂) 
 //
 // and the adjoint operator is defined by:
 // (u, A^⋆ v) = (E, ∇×F + i ω ϵ₀ ϵ⋆ᵣ W - c₁ P̄ B K₁ + c₂ P̄ B K₂)
-//           + (H, -i ω μ₀ F + ∇ × W)
-//           + (J₁, -ω ϵ₀ W + c₁ K₁ - b ⋅ ∇ L₁)
-//           + (Q₁, - b ⋅ ∇ K₁ + L₁)
-//           + (J₂, -ω ϵ₀ W + c₂ K₂ - b ⋅ ∇ L₂)
-//           + (Q₂, - b ⋅ ∇ K₂ + L₂)
+//            + (H, -i ω μ₀ F + ∇ × W)
+//            + (J₁, -α ω ϵ₀ W + c₁ K₁ - b ⋅ ∇ L₁)
+//            + (Q₁, - b ⋅ ∇ K₁ + L₁)
+//            + (J₂, -α ω ϵ₀ W + c₂ K₂ - b ⋅ ∇ L₂)
+//            + (Q₂, - b ⋅ ∇ K₂ + L₂)
 // 
 // Define the group trial field and trace variables 
 // u:=(E,H,J₁,Q₁,J₂,Q₂), û:=(Ê, Ĥ, Ĵ₁, Q̂₁, Ĵ₂, Q̂₂) and 
 // the test variable  v:=(F,W,K₁,L₁,K₂,L₂) 
+
 // The ultraweak variational formulation is then given by:
 // Find u ∈ U=((L²(Ω))² × L²(Ω) × (L²(Ω))² × (L²(Ω))² × (L²(Ω))² × (L²(Ω))²),
 // û ∈ Û=( H⁻¹/²(Γₕ) × H¹/²(Γₕ) × (H⁻¹/²(Γₕ))² × (H⁻¹/²(Γₕ))² × (H⁻¹/²(Γₕ))²× (H⁻¹/²(Γₕ))² )
@@ -44,7 +50,7 @@
 // or equivalently
 // 
 // (i ω μ₀ H, F) + (E, ∇×F) + < R Ê, F > = 0,      ∀ F ∈ H¹(Ω)
-// -i ω ϵ₀ ϵᵣ (E, W) + (H, ∇ ×  W) + < Ĥ, W × n > - ω ϵ₀ (J₁ + J₂, W) = 0,  ∀ W ∈ H(curl,Ω)
+// -i ω ϵ₀ ϵᵣ (E, W) + (H, ∇ ×  W) + < Ĥ, W × n > - α ω ϵ₀ (J₁ + J₂, W) = 0,  ∀ W ∈ H(curl,Ω)
 // -(Q, b ⋅ ∇ K₁) + <Q̂₁, K₁> + (c₁ J₁, K₁) - c₁(P B E, K₁) = 0,  ∀ K₁ ∈ (H¹(Ω))²
 //  (Q₁, L₁) - (J₁, b ⋅ ∇L₁) + <Ĵ₁, L₁> = 0,  ∀ L₁ ∈ (H¹(Ω))²
 // -(Q, b⋅ ∇ K₂) + <Q̂₂, K₂> + (c₂ J₂, K₂) + c₂(P B E, K₂) = 0,  ∀ K₂ ∈ (H¹(Ω))²
@@ -54,9 +60,9 @@
 // ‖v‖²_V = ‖A^⋆ v‖² + ‖v‖²
 //        = ‖∇×F + i ω ϵ₀ ϵ⋆ᵣ W - c₁ P̄ B K₁ + c₂ P̄ B K₂‖²
 //        + ‖-i ω μ₀ F + ∇ × W‖²
-//        + ‖-ω ϵ₀ W + c₁ K₁ - b ⋅ ∇ L₁‖²
+//        + ‖-α ω ϵ₀ W + c₁ K₁ - b ⋅ ∇ L₁‖²
 //        + ‖- b ⋅ ∇ K₁ + L₁‖²
-//        + ‖-ω ϵ₀ W + c₂ K₂ - b ⋅ ∇ L₂‖²
+//        + ‖-α ω ϵ₀ W + c₂ K₂ - b ⋅ ∇ L₂‖²
 //        + ‖- b ⋅ ∇ K₂ + L₂‖²
 //        + ‖F‖² + ‖W‖² + ‖K₁‖² + ‖L₁‖² + ‖K₂‖² + ‖L₂‖²
 //
@@ -136,6 +142,7 @@ int main(int argc, char *argv[])
    real_t rnum=1.5;
    real_t mu = 1.257;
    real_t eps0 = 8.8541878128;
+   real_t alpha = 1.0; // scaling factor for E, Js coupling
    bool static_cond = false;
    bool visualization = false;
    bool paraview = false;
@@ -160,6 +167,8 @@ int main(int argc, char *argv[])
                   "Permeability of free space (or 1/(spring constant)).");
    args.AddOption(&a0, "-a0", "--a0", "P(r) first parameter.");
    args.AddOption(&a1, "-a1", "--a1", "P(r) second parameter.");
+   args.AddOption(&alpha, "-alpha", "--alpha",
+                  "Scaling factor for E, Js coupling.");
    args.AddOption(&mumps_solver, "-mumps", "--mumps", "-no-mumps",
                   "--no-mumps",
                   "Enable or disable MUMPS solver.");
@@ -189,9 +198,16 @@ int main(int argc, char *argv[])
    }
 
    // number of diffusion equations
-   int ndiffusionequations = 2;    
+   int ndiffusionequations = 2; 
 
-   if (debug) { delta = 0.01; } 
+   if (!debug) 
+   {
+      delta = 0.0; // disable delta if electron Landau damping is enabled
+      if (Mpi::Root())
+      {
+         cout << "Electron Landau damping enabled, delta set to 0.0." << endl;
+      }
+   }    
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
@@ -229,7 +245,7 @@ int main(int argc, char *argv[])
 
    Vector cvals(ndiffusionequations);
    Vector csigns(ndiffusionequations);
-   real_t cfactor = 1.0;
+   real_t cfactor = 1e-6;
    cvals(0)  = 25e6;  cvals(1)  = 1e6;
    csigns(0) = -1.0;  csigns(1) = 1.0;
    cvals *= cfactor; // scale the coefficients
@@ -241,9 +257,13 @@ int main(int argc, char *argv[])
    R(1,0) = -1.0;  R(1,1) = 0.0;
    R.Transpose(Rt);
 
+   // VectorFunctionCoefficient no_scale_bvec_cf(dim,bfunc);// b
+   // real_t scaled_cfactor = std::sqrt(cfactor);
+   // ScalarVectorProductCoefficient bvec_cf(scaled_cfactor,no_scale_bvec_cf); // scaled b
    VectorFunctionCoefficient bvec_cf(dim,bfunc);// b
    ScalarVectorProductCoefficient neg_bvec_cf(-1.0,bvec_cf); // -b
    ScalarVectorProductCoefficient omega_eps0_bvec_cf(eps0*omega,bvec_cf); // ω ϵ₀ b
+
 
    MatrixFunctionCoefficient B_cf(dim, bcrossb);
    FunctionCoefficient p_r_cf(pfunc_r);
@@ -308,7 +328,7 @@ int main(int argc, char *argv[])
    // ω ϵ₀ ϵᵣᵢ R 
    MatrixProductCoefficient omega_eps0_eps_i_R_cf(omega_eps0_eps_i_cf, R_cf);
    // -ω ϵ₀ ϵᵣᵣ R
-   MatrixProductCoefficient neg_omega_eps0_eps_r_Rt_cf(neg_omega_eps0_eps_r_cf, R_cf); 
+   MatrixProductCoefficient neg_omega_eps0_eps_r_R_cf(neg_omega_eps0_eps_r_cf, R_cf); 
    // 
    // ω ϵ₀ Rᵀ ϵᵣᵢ
    MatrixProductCoefficient omega_eps0_Rt_eps_i_cf(Rt_cf, omega_eps0_eps_i_cf);
@@ -332,6 +352,8 @@ int main(int argc, char *argv[])
    ConstantCoefficient neg_one_cf(-1.0);
    // - ω ϵ₀
    ConstantCoefficient neg_omega_eps0_cf(neg_omega_eps0);
+   // - α ω ϵ₀
+   ConstantCoefficient neg_alpha_omega_eps0_cf(alpha * neg_omega_eps0); 
 
    // P B
    ScalarMatrixProductCoefficient PB_r_cf(p_r_cf, B_cf);
@@ -462,74 +484,55 @@ int main(int argc, char *argv[])
                          nullptr,
                          TrialSpace::H_space, TestSpace::W_space);
    
-   // - ω ϵ₀ (J₁,W)   
-   a->AddTrialIntegrator(new TransposeIntegrator(new VectorFEMassIntegrator(neg_omega_eps0_cf)),
-                         nullptr,
-                         TrialSpace::J1_space,TestSpace::W_space);
 
-   // - ω ϵ₀ (J₂,W)   
-   a->AddTrialIntegrator(new TransposeIntegrator(new VectorFEMassIntegrator(neg_omega_eps0_cf)),
-                         nullptr,
-                         TrialSpace::J2_space,TestSpace::W_space);    
-                         
-   // (Q₁, - b ⋅ ∇ K₁)   
+
    VectorFunctionCoefficient b_cf(dim, bfunc);
-   ScalarVectorProductCoefficient neg_b_cf(-1.0,b_cf);
-   a->AddTrialIntegrator(new TransposeIntegrator(new DirectionalVectorGradientIntegrator(neg_b_cf)),
-                         nullptr,
-                         TrialSpace::Q1_space,TestSpace::K1_space);
+   ScalarVectorProductCoefficient neg_b_cf(-1.0,b_cf);   
 
-   // (c₁ J₁, K₁)   
-   a->AddTrialIntegrator(new VectorMassIntegrator(*c_cf[0]),
+   for (int i = 0; i < ndiffusionequations; i++)
+   {
+      // - α ω ϵ₀ (Jᵢ,W)   
+      a->AddTrialIntegrator(new TransposeIntegrator(new VectorFEMassIntegrator(neg_alpha_omega_eps0_cf)),
+                            nullptr,
+                            TrialSpace::J1_space + 2*i,TestSpace::W_space);
+      // (Qᵢ, - b ⋅ ∇ Kᵢ)   
+      a->AddTrialIntegrator(new TransposeIntegrator(new DirectionalVectorGradientIntegrator(neg_b_cf)),
                          nullptr,
-                         TrialSpace::J1_space,TestSpace::K1_space);
+                         TrialSpace::Q1_space + 2*i,TestSpace::K1_space+ 2*i);
 
-   // - c₁(P B E, K₁) = (- c₁ Pᵣ B E, K₁) + i (-c₁ Pᵢ B E, K₁) 
-   ScalarMatrixProductCoefficient signed_c1_PB_r_cf((*signed_c_cf[0]), PB_r_cf);
-   ScalarMatrixProductCoefficient signed_c1_PB_i_cf((*signed_c_cf[0]), PB_i_cf);  
-   a->AddTrialIntegrator(new VectorMassIntegrator(signed_c1_PB_r_cf),
-                         new VectorMassIntegrator(signed_c1_PB_i_cf),
-                         TrialSpace::E_space,TestSpace::K1_space);
+      // (cᵢ Jᵢ, Kᵢ)
+      a->AddTrialIntegrator(new VectorMassIntegrator(*c_cf[i]),
+                            nullptr,
+                            TrialSpace::J1_space + 2*i,TestSpace::K1_space + 2*i);       
+                            
+      // (Qᵢ, Lᵢ)
+      a->AddTrialIntegrator(new VectorMassIntegrator(one_cf),
+                            nullptr,
+                            TrialSpace::Q1_space + 2*i,TestSpace::L1_space + 2*i);      
 
-   // (Q₁, L₁)   
-   a->AddTrialIntegrator(new VectorMassIntegrator(one_cf),
-                         nullptr,
-                         TrialSpace::Q1_space,TestSpace::L1_space);
+      // (Jᵢ, - b ⋅ ∇Lᵢ)
+      a->AddTrialIntegrator(new TransposeIntegrator(new DirectionalVectorGradientIntegrator(neg_b_cf)),
+                            nullptr,
+                            TrialSpace::J1_space + 2*i,TestSpace::L1_space + 2*i);
 
-   // (J₁, - b ⋅ ∇L₁)
-   a->AddTrialIntegrator(new TransposeIntegrator(new DirectionalVectorGradientIntegrator(neg_b_cf)),
-                         nullptr,
-                         TrialSpace::J1_space,TestSpace::L1_space);
+      // - c₁(P B E, K₁) = (- c₁ Pᵣ B E, K₁) + i (-c₁ Pᵢ B E, K₁) 
+      //   c₂(P B E, K₂) = (  c₂ Pᵣ B E, K₂) + i ( c₂ Pᵢ B E, K₂) 
+      a->AddTrialIntegrator(new VectorMassIntegrator(*signed_PB_r_cf[i]),
+                            new VectorMassIntegrator(*signed_PB_i_cf[i]),
+                            TrialSpace::E_space,TestSpace::K1_space + 2*i);
 
-   // (Q₂, - b⋅ ∇ K₂)
-   a->AddTrialIntegrator(new TransposeIntegrator(new DirectionalVectorGradientIntegrator(neg_b_cf)),
-                         nullptr,
-                         TrialSpace::Q2_space,TestSpace::K2_space);           
+      // Trace integrators 
+      // <Q̂ᵢ, Kᵢ>
+      a->AddTrialIntegrator(new VectorTraceIntegrator,nullptr,
+                            TrialSpace::hatQ1_space + 2*i,TestSpace::K1_space + 2*i);
+      // <Ĵᵢ, Lᵢ>
+      a->AddTrialIntegrator(new VectorTraceIntegrator,nullptr,
+                            TrialSpace::hatJ1_space + 2*i,TestSpace::L1_space + 2*i);                      
 
-   // (c₂ J₂, K₂)       
-   a->AddTrialIntegrator(new VectorMassIntegrator(*c_cf[1]),
-                         nullptr,
-                         TrialSpace::J2_space,TestSpace::K2_space);       
-
-   // c₂(P B E, K₂) = ( c₂ Pᵣ B E, K₂) + i (c₂ Pᵢ B E, K₂)      
-   ScalarMatrixProductCoefficient signed_c2_PB_r_cf((*signed_c_cf[1]), PB_r_cf);
-   ScalarMatrixProductCoefficient signed_c2_PB_i_cf((*signed_c_cf[1]), PB_i_cf);      
-   a->AddTrialIntegrator(new VectorMassIntegrator(signed_c2_PB_r_cf),
-                         new VectorMassIntegrator(signed_c2_PB_i_cf),
-                         TrialSpace::E_space,TestSpace::K2_space); 
-
-   // (Q₂, L₂)
-   a->AddTrialIntegrator(new VectorMassIntegrator(one_cf),
-                         nullptr,
-                         TrialSpace::Q2_space,TestSpace::L2_space); 
-   
-   // - (J₂, b ⋅ ∇L₂)
-   a->AddTrialIntegrator(new TransposeIntegrator(new DirectionalVectorGradientIntegrator(neg_b_cf)),
-                         nullptr,
-                         TrialSpace::J2_space,TestSpace::L2_space);
+   }
 
    // Trace integrators
-   // < R Ê, F > (we can include R in the variable)
+   // < R Ê, F > (we include R in the variable)
    a->AddTrialIntegrator(new TraceIntegrator,
                          nullptr,
                          TrialSpace::hatE_space,TestSpace::F_space);
@@ -537,20 +540,10 @@ int main(int argc, char *argv[])
    a->AddTrialIntegrator(new TangentTraceIntegrator,
                          nullptr,
                          TrialSpace::hatH_space,TestSpace::W_space);
-   // <Q̂₁, K₁>
-   a->AddTrialIntegrator(new VectorTraceIntegrator,nullptr,
-                         TrialSpace::hatQ1_space,TestSpace::K1_space);
-   // <Ĵ₁, L₁>
-   a->AddTrialIntegrator(new VectorTraceIntegrator,nullptr,
-                         TrialSpace::hatJ1_space,TestSpace::L1_space);
-   // <Q̂₂, K₂>
-   a->AddTrialIntegrator(new VectorTraceIntegrator,nullptr,
-                         TrialSpace::hatQ2_space,TestSpace::K2_space);
-   // <Ĵ₂, L₂>
-   a->AddTrialIntegrator(new VectorTraceIntegrator,nullptr,
-                         TrialSpace::hatJ2_space,TestSpace::L2_space);
 
-   // Test integrators 
+   // -------------------------------------------------------------------------------   
+   //                         Test integrators 
+   // -------------------------------------------------------------------------------   
    // (∇×F,∇×δF) = (R ∇ F, R ∇δF) = (Rᵀ R ∇F, ∇δF) = (∇F, ∇δF)
    a->AddTestIntegrator(new DiffusionIntegrator(one_cf),
                         nullptr,
@@ -559,18 +552,21 @@ int main(int argc, char *argv[])
    //                       = (ω ϵ₀ ϵᵣᵢ ∇ × F, δW) + i(-ω ϵ₀ ϵᵣᵣ ∇ × F, δW)
    //                       = (ω ϵ₀ ϵᵣᵢ R ∇ F, δW) + i(-ω ϵ₀ ϵᵣᵣ R ∇ F, δW)
    a->AddTestIntegrator(new MixedVectorGradientIntegrator(omega_eps0_eps_i_R_cf),
-                        new MixedVectorGradientIntegrator(neg_omega_eps0_eps_r_Rt_cf),
+                        new MixedVectorGradientIntegrator(neg_omega_eps0_eps_r_R_cf),
                         TestSpace::F_space, TestSpace::W_space);
 
+   for (int i = 0; i<ndiffusionequations; i++)
+   {
+      // (-c₁ P B ∇ × F, δK₁) = (-c₁ Pᵣ B ∇ × F, δK₁) + i (-c₁ Pᵢ B ∇ × F, δK₁)
+      // ( c₂ P B ∇ × F, δK₂) = ( c₂ Pᵣ B ∇ × F, δK₂) + i ( c₂ Pᵢ B ∇ × F, δK₂)
+      a->AddTestIntegrator(new MixedCurlIntegrator(*signed_PB_r_cf[i]),
+                        new MixedCurlIntegrator(*signed_PB_i_cf[i]),
+                        TestSpace::F_space, TestSpace::K1_space+ 2*i);
 
-   // (-c₁ P B ∇ × F, δK₁) = (-c₁ Pᵣ B ∇ × F, δK₁) + i (-c₁ Pᵢ B ∇ × F, δK₁)
-   a->AddTestIntegrator(new MixedCurlIntegrator(*signed_PB_r_cf[0]),
-                        new MixedCurlIntegrator(*signed_PB_i_cf[0]),
-                        TestSpace::F_space, TestSpace::K1_space);
-   // ( c₂ P B ∇ × F, δK₂)
-   a->AddTestIntegrator(new MixedCurlIntegrator(*signed_PB_r_cf[1]),
-                        new MixedCurlIntegrator(*signed_PB_i_cf[1]),
-                        TestSpace::F_space, TestSpace::K2_space);   
+
+
+
+   }                     
 
    // i(ω ϵ₀ ϵᵣ⋆ W, ∇×δF) = i(ω ϵ₀ (ϵᵣᵣ - i ϵᵣᵢ) W, ∇×δF) (ϵᵣᵣ & ϵᵣᵢ are symmetric)
    //                     = (ω ϵ₀ ϵᵣᵢ W, ∇×δF) + i(ω ϵ₀ ϵᵣᵣ W, ∇×δF) 
@@ -628,13 +624,13 @@ int main(int argc, char *argv[])
                            nullptr,
                            tspace, tspace);     
                            
-      // (-c₁ ω ϵ₀ W, δK₁) 
-      // (-c₂ ω ϵ₀ W, δK₂)
+//--->      // (-c₁ α ω ϵ₀ W, δK₁) 
+//--->      // (-c₂ α ω ϵ₀ W, δK₂)
       a->AddTestIntegrator(new VectorFEMassIntegrator(*neg_signed_c_omega_eps_cf[i]),
                            nullptr,
                            TestSpace::W_space, tspace);
-      // (-c₁ ω ϵ₀ K₁, δW) 
-      // (-c₂ ω ϵ₀ K₂, δW)                            
+// --->      // (-c₁ α  ω ϵ₀ K₁, δW) 
+// --->      // (-c₂ α  ω ϵ₀ K₂, δW)                            
       a->AddTestIntegrator(new TransposeIntegrator(new VectorFEMassIntegrator(*neg_signed_c_omega_eps_cf[i])),
                            nullptr,
                            tspace, TestSpace::W_space);
@@ -675,13 +671,13 @@ int main(int argc, char *argv[])
       a->AddTestIntegrator(new TransposeIntegrator(new DirectionalVectorGradientIntegrator(neg_b_cf)),
                            nullptr, Lspace, Kspace);
 
-      // (ω ϵ₀ b⋅ ∇L₁, δW) 
-      // (ω ϵ₀ b⋅ ∇L₂, δW)                            
+//---->      // (α ω ϵ₀ b⋅ ∇L₁, δW) 
+//---->      // (α ω ϵ₀ b⋅ ∇L₂, δW)                            
       a->AddTestIntegrator(new MixedDirectionalVectorGradientIntegrator(omega_eps0_bvec_cf),
                            nullptr,
                            Lspace, TestSpace::W_space);
-      // (W, ω ϵ₀ b ⋅ ∇δL₁)
-      // (W, ω ϵ₀ b ⋅ ∇δL₂)
+//---->      // (W, α ω ϵ₀ b ⋅ ∇δL₁)
+//---->      // (W, α ω ϵ₀ b ⋅ ∇δL₂)
       a->AddTestIntegrator(new TransposeIntegrator(new MixedDirectionalVectorGradientIntegrator(omega_eps0_bvec_cf)),
                            nullptr,
                            TestSpace::W_space, Lspace);
@@ -723,11 +719,7 @@ int main(int argc, char *argv[])
    a->AddTestIntegrator(new MassIntegrator(omega2mu2_cf),
                         nullptr,
                         TestSpace::F_space, TestSpace::F_space);
-   // (ω² ϵ₀² W, δW) 
-   a->AddTestIntegrator(new VectorFEMassIntegrator(omega2_eps02),
-                        nullptr,
-                        TestSpace::W_space,TestSpace::W_space);   
-   // (ω² ϵ₀² W, δW) 
+//--->   // (α² ω² ϵ₀² W, δW) 
    a->AddTestIntegrator(new VectorFEMassIntegrator(omega2_eps02),
                         nullptr,
                         TestSpace::W_space,TestSpace::W_space);   
@@ -925,8 +917,9 @@ int main(int argc, char *argv[])
       }
 
       CGSolver cg(MPI_COMM_WORLD);
+      // GMRESSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-5);
-      cg.SetMaxIter(2000);
+      cg.SetMaxIter(500);
       cg.SetPrintLevel(1);
       cg.SetPreconditioner(Mc);
       cg.SetOperator(Ac);

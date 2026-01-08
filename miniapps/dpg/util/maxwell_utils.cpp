@@ -358,10 +358,9 @@ void DirectionalVectorGradientIntegrator::AssembleElementMatrix(
    DenseMatrix &elmat)
 {
    int dof = el.GetDof();
-   int dim = el.GetDim();
-   int vdim = Trans.GetSpaceDim();
+   int sdim = Trans.GetSpaceDim();
 
-   elmat.SetSize(dof * vdim, dof * vdim);
+   elmat.SetSize(dof * sdim, dof * sdim);
    elmat = 0.0;
 
    const IntegrationRule *ir = IntRule;
@@ -372,10 +371,10 @@ void DirectionalVectorGradientIntegrator::AssembleElementMatrix(
    }
 
    // Get shape functions and their derivatives
-   DenseMatrix dshape(dof, dim);
+   DenseMatrix dshape(dof, sdim);
    Vector shape(dof);
-   Vector vec(dim);
-
+   Vector vec(sdim);
+   Vector vq_grad_phi(dof); 
    for (int k = 0; k < ir->GetNPoints(); k++)
    {
       const IntegrationPoint &ip = ir->IntPoint(k);
@@ -390,16 +389,16 @@ void DirectionalVectorGradientIntegrator::AssembleElementMatrix(
       el.CalcPhysShape(Trans, shape);
 
       // (vq·∇)φ_i on the trial side
-      Vector vq_grad_phi(dof); vq_grad_phi = 0.0;
+      vq_grad_phi = 0.0;
       for (int j = 0; j < dof; j++)
       {
-         for (int d = 0; d < dim; d++)
+         for (int d = 0; d < sdim; d++)
          {
             vq_grad_phi(j) += vec(d) * dshape(j, d);
          }
       }
 
-      for (int comp = 0; comp < vdim; comp++)
+      for (int comp = 0; comp < sdim; comp++)
       {
          int offset = comp * dof;
          for (int j = 0; j < dof; j++)
@@ -408,7 +407,7 @@ void DirectionalVectorGradientIntegrator::AssembleElementMatrix(
             for (int i = 0; i < dof; i++)
             {
                int ii = i + offset;
-               elmat(jj, ii) += w * shape(jj) * vq_grad_phi(i);
+               elmat(jj, ii) += w * shape(j) * vq_grad_phi(i);
             }
          }
       }
@@ -423,9 +422,9 @@ void DirectionalVectorGradientIntegrator::AssembleElementMatrix2(
    int trial_dof = trial_fe.GetDof();
    int test_dof = test_fe.GetDof();
    int dim = trial_fe.GetDim();
-   int vdim = Trans.GetSpaceDim();
+   int sdim = Trans.GetSpaceDim();
 
-   elmat.SetSize(test_dof * vdim, trial_dof * vdim);
+   elmat.SetSize(test_dof * sdim, trial_dof * sdim);
    elmat = 0.0;
 
    const IntegrationRule *ir = IntRule;
@@ -435,9 +434,10 @@ void DirectionalVectorGradientIntegrator::AssembleElementMatrix2(
       ir = &IntRules.Get(trial_fe.GetGeomType(), order);
    }
 
-   Vector vec(dim);
-   DenseMatrix trial_dshape(trial_dof, dim);
+   Vector vec(sdim);
+   DenseMatrix trial_dshape(trial_dof, sdim);
    Vector test_shape(test_dof);
+   Vector vq_grad_phi_trial(trial_dof);
 
    for (int k = 0; k < ir->GetNPoints(); k++)
    {
@@ -451,7 +451,6 @@ void DirectionalVectorGradientIntegrator::AssembleElementMatrix2(
       test_fe.CalcPhysShape(Trans, test_shape);
 
       // (vq·∇)φ_i on the trial side
-      Vector vq_grad_phi_trial(trial_dof);
       vq_grad_phi_trial = 0.0;
       for (int i = 0; i < trial_dof; i++)
       {
@@ -461,7 +460,7 @@ void DirectionalVectorGradientIntegrator::AssembleElementMatrix2(
          }
       }
 
-      for (int comp = 0; comp < vdim; comp++)
+      for (int comp = 0; comp < sdim; comp++)
       {
          int offset_trial = comp * trial_dof;
          int offset_test = comp * test_dof;
@@ -493,7 +492,6 @@ void MixedDirectionalVectorGradientIntegrator::AssembleElementMatrix2(
                "MixedDirectionalVectorGradientIntegrator requires "
                "H(curl) or H(div) test space.");
 
-   // Trial is treated as a vector field with sdim components
    const int vdim = sdim;
 
    // Test dofs already correspond to vector basis functions
@@ -528,7 +526,7 @@ void MixedDirectionalVectorGradientIntegrator::AssembleElementMatrix2(
       trial_fe.CalcPhysDShape(Trans, trial_dshape);
 
       // vector-valued test shape
-      test_fe.CalcPhysShape(Trans, test_vshape);
+      test_fe.CalcVShape(Trans, test_vshape);
 
       // (q · ∇) phi_i
       q_dot_grad_phi = 0.0;
