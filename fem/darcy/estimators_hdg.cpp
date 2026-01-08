@@ -123,6 +123,8 @@ void HDGErrorEstimator::ComputeEstimates()
          }
       }
    }
+
+   current_sequence = sol_tr.FESpace()->GetMesh()->GetSequence();
 }
 
 } // namespace mfem
