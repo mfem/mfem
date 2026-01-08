@@ -1347,12 +1347,16 @@ public:
 #endif
 
 /// PCG solver in hypre
+/// Defaults to tol=1e-6, atol=0, max_iter=1000
 class HyprePCG : public HypreSolver
 {
 private:
    HYPRE_Solver pcg_solver;
 
    HypreSolver * precond;
+
+   /// Default PCG options
+   void SetDefaultOptions();
 
 public:
    HyprePCG(MPI_Comm comm);
@@ -1423,7 +1427,7 @@ public:
 };
 
 /// GMRES solver in hypre
-/// Defaults to k=50, tol=1e-6, max_iter=100
+/// Defaults to k=50, tol=1e-6, atol=0, max_iter=100
 class HypreGMRES : public HypreSolver
 {
 private:

@@ -4210,12 +4210,20 @@ HypreSolver::~HypreSolver()
    auxX.Delete();
 }
 
+void HyprePCG::SetDefaultOptions()
+{
+   // Explicitly set just in case past/future versions of hypre change the
+   // defaults
+   SetTol(1e-6);
+   SetMaxIter(1000);
+}
 
 HyprePCG::HyprePCG(MPI_Comm comm) : precond(NULL)
 {
    iterative_mode = true;
 
    HYPRE_ParCSRPCGCreate(comm, &pcg_solver);
+   SetDefaultOptions();
 }
 
 HyprePCG::HyprePCG(const HypreParMatrix &A_) : HypreSolver(&A_), precond(NULL)
@@ -4227,6 +4235,7 @@ HyprePCG::HyprePCG(const HypreParMatrix &A_) : HypreSolver(&A_), precond(NULL)
    HYPRE_ParCSRMatrixGetComm(*A, &comm);
 
    HYPRE_ParCSRPCGCreate(comm, &pcg_solver);
+   SetDefaultOptions();
 }
 
 void HyprePCG::SetOperator(const Operator &op)
