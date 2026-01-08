@@ -208,6 +208,15 @@ int main(int argc, char *argv[])
          cout << "Electron Landau damping enabled, delta set to 0.0." << endl;
       }
    }    
+   else
+   {
+      if (Mpi::Root())
+      {
+         alpha = 0.0; 
+         cout << "Setting alpha = 0.0 to disable coupling between E and Js." << endl;
+         cout << "Debug mode enabled, delta = 0.01 and no coupling." << endl;
+      }
+   }
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
@@ -257,12 +266,12 @@ int main(int argc, char *argv[])
    R(1,0) = -1.0;  R(1,1) = 0.0;
    R.Transpose(Rt);
 
-   // VectorFunctionCoefficient no_scale_bvec_cf(dim,bfunc);// b
-   // real_t scaled_cfactor = std::sqrt(cfactor);
-   // ScalarVectorProductCoefficient bvec_cf(scaled_cfactor,no_scale_bvec_cf); // scaled b
-   VectorFunctionCoefficient bvec_cf(dim,bfunc);// b
+   VectorFunctionCoefficient no_scale_bvec_cf(dim,bfunc);// b
+   real_t scaled_cfactor = std::sqrt(cfactor);
+   ScalarVectorProductCoefficient bvec_cf(scaled_cfactor,no_scale_bvec_cf); // scaled b
+   // VectorFunctionCoefficient bvec_cf(dim,bfunc);// b
    ScalarVectorProductCoefficient neg_bvec_cf(-1.0,bvec_cf); // -b
-   ScalarVectorProductCoefficient omega_eps0_bvec_cf(eps0*omega,bvec_cf); // ω ϵ₀ b
+   ScalarVectorProductCoefficient alpha_omega_eps0_bvec_cf(eps0*omega*alpha,bvec_cf); // α ω ϵ₀ b
 
 
    MatrixFunctionCoefficient B_cf(dim, bcrossb);
@@ -285,7 +294,7 @@ int main(int argc, char *argv[])
 
    Array<Vector *> cf_arrays(ndiffusionequations);
    Array<PWConstCoefficient *> c_cf(ndiffusionequations);
-   Array<ProductCoefficient *> neg_c_omega_eps0_cf(ndiffusionequations);
+   Array<ProductCoefficient *> neg_c_alpha_omega_eps0_cf(ndiffusionequations);
    Array<ProductCoefficient *> c2_cf(ndiffusionequations);
    Array<ProductCoefficient *> signed_c_cf(ndiffusionequations);
    Array<MatrixCoefficient*> signed_PB_r_cf(ndiffusionequations);
@@ -342,7 +351,7 @@ int main(int argc, char *argv[])
 
    MatrixSumCoefficient abseps2_cf(eps_r_eps_r_cf, eps_i_eps_i_cf);
    // ω² ϵ₀² 
-   ConstantCoefficient omega2_eps02(omega * omega * eps0 * eps0);
+   ConstantCoefficient alpha2_omega2_eps02(alpha*alpha*omega * omega * eps0 * eps0);
    // ω² ϵ₀² |ϵᵣ|²   
    ScalarMatrixProductCoefficient omega2_eps02_abseps2_cf(omega*omega*eps0*eps0, abseps2_cf);
 
@@ -375,7 +384,7 @@ int main(int argc, char *argv[])
    {
       zerovec[nattr-1] = cvals(i);
       c_cf[i] = new PWConstCoefficient(zerovec);
-      neg_c_omega_eps0_cf[i] = new ProductCoefficient(-omega_eps0, *c_cf[i]);
+      neg_c_alpha_omega_eps0_cf[i] = new ProductCoefficient(-omega_eps0*alpha, *c_cf[i]);
       c2_cf[i] = new ProductCoefficient(*c_cf[i], *c_cf[i]);
       signed_c_cf[i] = new ProductCoefficient(csigns(i), *c_cf[i]);
       signed_PB_r_cf[i] = new ScalarMatrixProductCoefficient(*signed_c_cf[i], PB_r_cf);
@@ -560,8 +569,8 @@ int main(int argc, char *argv[])
       // (-c₁ P B ∇ × F, δK₁) = (-c₁ Pᵣ B ∇ × F, δK₁) + i (-c₁ Pᵢ B ∇ × F, δK₁)
       // ( c₂ P B ∇ × F, δK₂) = ( c₂ Pᵣ B ∇ × F, δK₂) + i ( c₂ Pᵢ B ∇ × F, δK₂)
       a->AddTestIntegrator(new MixedCurlIntegrator(*signed_PB_r_cf[i]),
-                        new MixedCurlIntegrator(*signed_PB_i_cf[i]),
-                        TestSpace::F_space, TestSpace::K1_space+ 2*i);
+                           new MixedCurlIntegrator(*signed_PB_i_cf[i]),
+                           TestSpace::F_space, TestSpace::K1_space+ 2*i);
 
 
 
@@ -624,14 +633,14 @@ int main(int argc, char *argv[])
                            nullptr,
                            tspace, tspace);     
                            
-//--->      // (-c₁ α ω ϵ₀ W, δK₁) 
-//--->      // (-c₂ α ω ϵ₀ W, δK₂)
-      a->AddTestIntegrator(new VectorFEMassIntegrator(*neg_signed_c_omega_eps_cf[i]),
+      // (-c₁ α ω ϵ₀ W, δK₁) 
+      // (-c₂ α ω ϵ₀ W, δK₂)
+      a->AddTestIntegrator(new VectorFEMassIntegrator(*neg_c_alpha_omega_eps0_cf[i]),
                            nullptr,
                            TestSpace::W_space, tspace);
-// --->      // (-c₁ α  ω ϵ₀ K₁, δW) 
-// --->      // (-c₂ α  ω ϵ₀ K₂, δW)                            
-      a->AddTestIntegrator(new TransposeIntegrator(new VectorFEMassIntegrator(*neg_signed_c_omega_eps_cf[i])),
+      // (-c₁ α  ω ϵ₀ K₁, δW) 
+      // (-c₂ α  ω ϵ₀ K₂, δW)                            
+      a->AddTestIntegrator(new TransposeIntegrator(new VectorFEMassIntegrator(*neg_c_alpha_omega_eps0_cf[i])),
                            nullptr,
                            tspace, TestSpace::W_space);
 
@@ -671,14 +680,14 @@ int main(int argc, char *argv[])
       a->AddTestIntegrator(new TransposeIntegrator(new DirectionalVectorGradientIntegrator(neg_b_cf)),
                            nullptr, Lspace, Kspace);
 
-//---->      // (α ω ϵ₀ b⋅ ∇L₁, δW) 
-//---->      // (α ω ϵ₀ b⋅ ∇L₂, δW)                            
-      a->AddTestIntegrator(new MixedDirectionalVectorGradientIntegrator(omega_eps0_bvec_cf),
+      // (α ω ϵ₀ b⋅ ∇L₁, δW) 
+      // (α ω ϵ₀ b⋅ ∇L₂, δW)                            
+      a->AddTestIntegrator(new MixedDirectionalVectorGradientIntegrator(alpha_omega_eps0_bvec_cf),
                            nullptr,
                            Lspace, TestSpace::W_space);
-//---->      // (W, α ω ϵ₀ b ⋅ ∇δL₁)
-//---->      // (W, α ω ϵ₀ b ⋅ ∇δL₂)
-      a->AddTestIntegrator(new TransposeIntegrator(new MixedDirectionalVectorGradientIntegrator(omega_eps0_bvec_cf)),
+      // (W, α ω ϵ₀ b ⋅ ∇δL₁)
+      // (W, α ω ϵ₀ b ⋅ ∇δL₂)
+      a->AddTestIntegrator(new TransposeIntegrator(new MixedDirectionalVectorGradientIntegrator(alpha_omega_eps0_bvec_cf)),
                            nullptr,
                            TestSpace::W_space, Lspace);
 
@@ -719,8 +728,8 @@ int main(int argc, char *argv[])
    a->AddTestIntegrator(new MassIntegrator(omega2mu2_cf),
                         nullptr,
                         TestSpace::F_space, TestSpace::F_space);
-//--->   // (α² ω² ϵ₀² W, δW) 
-   a->AddTestIntegrator(new VectorFEMassIntegrator(omega2_eps02),
+   // (α² ω² ϵ₀² W, δW) 
+   a->AddTestIntegrator(new VectorFEMassIntegrator(alpha2_omega2_eps02),
                         nullptr,
                         TestSpace::W_space,TestSpace::W_space);   
 

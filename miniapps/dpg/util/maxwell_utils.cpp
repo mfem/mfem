@@ -374,7 +374,7 @@ void DirectionalVectorGradientIntegrator::AssembleElementMatrix(
    DenseMatrix dshape(dof, sdim);
    Vector shape(dof);
    Vector vec(sdim);
-   Vector vq_grad_phi(dof); 
+   Vector vq_grad_phi(dof);
    for (int k = 0; k < ir->GetNPoints(); k++)
    {
       const IntegrationPoint &ip = ir->IntPoint(k);
