@@ -379,10 +379,9 @@ namespace detail
 /// @param shadow_shmem the shadow shared memory.
 /// @param qpdc the quadrature point data cache holding the resulting
 /// Jacobians on each quadrature point.
-/// @param itod inputs trial operator dimension.
-/// If input is dependent the value corresponds to the spatial dimension, otherwise
-/// a zero indicates non-dependence on the variable.
-/// @param op_dims dimension of each operator.
+/// @param op_dims operator dimensions.
+/// If an operator is dependent, the value corresponds to the spatial dimension.
+/// Otherwise a zero indicates indepence on the variable.
 /// @param q the current quadrature point index.
 /// @param transpose switch to use transpose action.
 template <size_t N>

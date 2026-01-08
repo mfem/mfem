@@ -1248,6 +1248,8 @@ void DifferentiableOperator::AddIntegrator(
 
          // print_shared_memory_info(shmem_tr_info);
 
+         // TODO: this is a hack to extend the shared memory with a known
+         // offset for a temp variable
          Vector shmem_tr_cache(shmem_tr_info.total_size + residual_tr_size_on_qp *
                                num_qp);
 
