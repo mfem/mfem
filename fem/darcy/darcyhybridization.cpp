@@ -874,19 +874,64 @@ void DarcyHybridization::AssembleNCSlaveFaceMatrix(int f,
       Io.Reset(I.GetData(), I.Height(), I.Width());
    }
 
-   if (fx_Ct)
+   if (c_fes.GetVDim() > 0)
    {
-      mfem::AddMult(*Ct, Io, Ct_m);
+      const int vdim = c_fes.GetVDim();
+      const int dofs_in =  Io.Height();
+      const int dofs_out = Io.Width();
+      if (fx_Ct)
+      {
+         const int dofs_el = Ct->Height();
+         DenseMatrix Ct_d(dofs_el, dofs_in);
+         DenseMatrix Ct_md(dofs_el, dofs_out);
+         for (int d = 0; d < vdim; d++)
+         {
+            Ct_d.CopyMN(*Ct, dofs_el, dofs_in, 0, d*dofs_in);
+            mfem::Mult(Ct_d, Io, Ct_md);
+            Ct_m.AddMatrix(Ct_md, 0, d*dofs_out);
+         }
+      }
+      if (fx_C)
+      {
+         const int dofs_el = C->Width();
+         DenseMatrix C_d(dofs_in, dofs_el);
+         DenseMatrix C_md(dofs_out, dofs_el);
+         for (int d = 0; d < vdim; d++)
+         {
+            C_d.CopyMN(*C, dofs_in, dofs_el, d*dofs_in, 0);
+            mfem::MultAtB(Io, C_d, C_md);
+            C_m.AddMatrix(C_md, d*dofs_out, 0);
+         }
+      }
+      if (fx_H)
+      {
+         DenseMatrix H_d(dofs_in);
+         DenseMatrix H_md(dofs_out);
+         for (int di = 0; di < vdim; di++)
+            for (int dj = 0; dj < vdim; dj++)
+            {
+               H_d.CopyMN(*H, dofs_in, dofs_in, di*dofs_in, dj*dofs_in);
+               RAP(H_d, Io, H_md);
+               H_m.AddMatrix(H_md, di*dofs_out, dj*dofs_out);
+            }
+      }
    }
-   if (fx_C)
+   else
    {
-      mfem::AddMultAtB(Io, *C, C_m);
-   }
-   if (fx_H)
-   {
-      DenseMatrix H_ma(H_m.Height(), H_m.Width());
-      RAP(*H, Io, H_ma);
-      H_m += H_ma;
+      if (fx_Ct)
+      {
+         mfem::AddMult(*Ct, Io, Ct_m);
+      }
+      if (fx_C)
+      {
+         mfem::AddMultAtB(Io, *C, C_m);
+      }
+      if (fx_H)
+      {
+         DenseMatrix H_ma(H_m.Height(), H_m.Width());
+         RAP(*H, Io, H_ma);
+         H_m += H_ma;
+      }
    }
 }
 
