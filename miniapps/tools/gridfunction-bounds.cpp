@@ -34,6 +34,7 @@
 #include <memory>
 #include <iostream>
 #include <fstream>
+#include <iomanip>
 
 using namespace mfem;
 using namespace std;
@@ -254,22 +255,31 @@ int main (int argc, char *argv[])
       {
          for (int d = 0; d < vdim; d++)
          {
-            cout << "Brute force and bounding comparison for component " <<
+            cout << "Compare function extremum for component " <<
                  d << endl;
-            cout << "Brute force/minimum bound/minimum bound+recursion:"
-                 << global_min(d) << " " <<  bound_min(d) << " " <<
-                 bound_rec_min(d) << endl;
-
-            cout << "Brute force/maximum bound/maximum bound+recursion:"
-                 << global_max(d) << " " <<  bound_max(d) << " " <<
-                 bound_rec_max(d) << endl;
-
-            cout << "Difference in brute force versus bounds without and with "
-                 "recursion is:\n";
-            cout << "Minimum: " << global_min(d)-bound_min(d) << " " <<
-                 global_min(d)-bound_rec_min(d) << "\n";
-            cout << "Maximum: " <<  bound_max(d)-global_max(d) << " " <<
-                 bound_rec_max(d)-global_max(d) << endl;
+            const int w = 20;
+            cout << left << setw(w) << " "
+                 << setw(w)  << "Brute force"
+                 << setw(w) << "PL Bound"
+                 << setw(w) << "PL Bound + recursion" << endl
+                 << left << setw(w) << "Minimum: "
+                 << setw(w) << global_min(d)
+                 << setw(w) << bound_min(d)
+                 << setw(w) << bound_rec_min(d) << endl
+                 << left << setw(w) << "Difference: "
+                 << setw(w) << "-"
+                 << setw(w) << global_min(d)-bound_min(d)
+                 << setw(w) << global_min(d)-bound_rec_min(d) << endl;
+            cout << endl
+                 << left << setw(w) << "Maximum: "
+                 << setw(w) << global_max(d)
+                 << setw(w) << bound_max(d)
+                 << setw(w) << bound_rec_max(d) << endl
+                 << left << setw(w) << "Difference: "
+                 << setw(w) << "-"
+                 << setw(w) << bound_max(d)-global_max(d)
+                 << setw(w) << bound_rec_max(d)-global_max(d) << endl;
+            cout << endl;
          }
       }
    }
@@ -278,12 +288,19 @@ int main (int argc, char *argv[])
    {
       for (int d = 0; d < vdim; d++)
       {
-         cout << "Minimum bound for component " << d <<
-              " without/with recursion is " <<
-              bound_min(d) << " " << bound_rec_min(d) << endl;
-         cout << "Maximum bound for component " << d <<
-              " without/with recursion is " <<
-              bound_max(d) << " " << bound_rec_max(d) << endl;
+         cout << "Compare function extremum for component " <<
+              d << endl;
+         const int w = 20;
+         cout << left << setw(w) << " "
+              << setw(w) << "PL Bound"
+              << setw(w) << "PL Bound + recursion" << endl
+              << left << setw(w) << "Minimum: "
+              << setw(w) << bound_min(d)
+              << setw(w) << bound_rec_min(d) << endl;
+         cout << endl
+              << left << setw(w) << "Maximum: "
+              << setw(w) << bound_max(d)
+              << setw(w) << bound_rec_max(d) << endl;
       }
    }
 
