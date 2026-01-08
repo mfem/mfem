@@ -4402,6 +4402,18 @@ HyprePCG::~HyprePCG()
    HYPRE_ParCSRPCGDestroy(pcg_solver);
 }
 
+HypreParVector HyprePCG::GetResiduals() const
+{
+   HYPRE_ParVector r;
+   HYPRE_ParCSRPCGGetResidual(pcg_solver, &r);
+   return HypreParVector(r);
+}
+void HyprePCG::FinalAbsResidualNorm(real_t &final_res_norm, real_t p) const
+{
+   auto r = GetResiduals();
+   ParNormlp(r, p, r.GetComm());
+}
+
 
 HypreGMRES::HypreGMRES(MPI_Comm comm) : precond(NULL)
 {
@@ -4455,6 +4467,18 @@ void HypreGMRES::SetOperator(const Operator &op)
    B = X = NULL;
    auxB.Delete(); auxB.Reset();
    auxX.Delete(); auxX.Reset();
+}
+
+HypreParVector HypreGMRES::GetResiduals() const
+{
+   HYPRE_ParVector r;
+   HYPRE_ParCSRGMRESGetResidual(gmres_solver, &r);
+   return HypreParVector(r);
+}
+void HypreGMRES::FinalAbsResidualNorm(real_t &final_res_norm, real_t p) const
+{
+   auto r = GetResiduals();
+   ParNormlp(r, p, r.GetComm());
 }
 
 void HypreGMRES::SetTol(real_t tol)
@@ -4789,6 +4813,17 @@ HypreFGMRES::~HypreFGMRES()
    HYPRE_ParCSRFlexGMRESDestroy(fgmres_solver);
 }
 
+HypreParVector HypreFGMRES::GetResiduals() const
+{
+   HYPRE_ParVector r;
+   HYPRE_ParCSRFlexGMRESGetResidual(fgmres_solver, &r);
+   return HypreParVector(r);
+}
+void HypreFGMRES::FinalAbsResidualNorm(real_t &final_res_norm, real_t p) const
+{
+   auto r = GetResiduals();
+   ParNormlp(r, p, r.GetComm());
+}
 
 void HypreDiagScale::SetOperator(const Operator &op)
 {

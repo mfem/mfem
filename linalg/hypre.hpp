@@ -1391,11 +1391,19 @@ public:
       num_iterations = internal::to_int(num_it);
    }
 
+   /// Gets the relative residual norm
    void GetFinalResidualNorm(real_t &final_res_norm) const
    {
       HYPRE_ParCSRPCGGetFinalRelativeResidualNorm(pcg_solver,
                                                   &final_res_norm);
    }
+
+   /// Gets the internal Hypre solver residual vector.
+   /// @sa HYPRE_ParCSRPCGGetResidual
+   HypreParVector GetResiduals() const;
+
+   /// Computes the absolute residual p-norm.
+   void FinalAbsResidualNorm(real_t &final_res_norm, real_t p) const;
 
    /// The typecast to HYPRE_Solver returns the internal pcg_solver
    operator HYPRE_Solver() const override { return pcg_solver; }
@@ -1460,11 +1468,19 @@ public:
       num_iterations = internal::to_int(num_it);
    }
 
+   /// Gets the relative residual norm
    void GetFinalResidualNorm(real_t &final_res_norm) const
    {
       HYPRE_ParCSRGMRESGetFinalRelativeResidualNorm(gmres_solver,
                                                     &final_res_norm);
    }
+
+   /// Gets the internal Hypre solver residual vector.
+   /// @sa HYPRE_ParCSRGMRESGetResidual
+   HypreParVector GetResiduals() const;
+
+   /// Computes the absolute residual p-norm.
+   void FinalAbsResidualNorm(real_t &final_res_norm, real_t p) const;
 
    /// The typecast to HYPRE_Solver returns the internal gmres_solver
    operator HYPRE_Solver() const override { return gmres_solver; }
@@ -1527,12 +1543,19 @@ public:
       num_iterations = internal::to_int(num_it);
    }
 
-   /// @return the relative residual norm
+   /// Gets the relative residual norm
    void GetFinalResidualNorm(real_t &final_res_norm) const
    {
       HYPRE_ParCSRFlexGMRESGetFinalRelativeResidualNorm(fgmres_solver,
                                                         &final_res_norm);
    }
+
+   /// Gets the internal Hypre solver residual vector.
+   /// @sa HYPRE_ParCSRFlexGMRESGetResidual
+   HypreParVector GetResiduals() const;
+
+   /// Computes the absolute residual p-norm.
+   void FinalAbsResidualNorm(real_t &final_res_norm, real_t p) const;
 
    /// The typecast to HYPRE_Solver returns the internal fgmres_solver
    operator HYPRE_Solver() const override { return fgmres_solver; }
