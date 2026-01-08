@@ -3234,16 +3234,20 @@ bool NURBSExtension::CheckPatches()
 {
    const int dim = Dimension();
 
+   // If the patch topology has an explicit `edges` section, require it to be
+   // consistent with edge_to_ukv, otherwise, check for consistency with the number of elements
+   const int expected_size = patchTopo->GetNEdges() > 0
+                             ? patchTopo->GetNEdges()
+                             : patchTopo->GetNE();
+   if ( edge_to_ukv.Size() != expected_size)
+   {
+      return false;
+   }
+
+   // Done w/ 1D checks; in 2D and 3D we need to check orientation consistency
    if (dim == 1)
    {
-      // If the patch topology has an explicit `edges` section, require it to be
-      // consistent with the 1D element list so patch index == edge index.
-      // Otherwise, check for consistency with the number of elements
-      const int expected_size = patchTopo->GetNEdges() > 0
-                                ? patchTopo->GetNEdges()
-                                : patchTopo->GetNE();
-
-      return edge_to_ukv.Size() == expected_size;
+      return true;
    }
 
    Array<int> edges, oedge;
