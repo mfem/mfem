@@ -376,24 +376,6 @@ void Boris::ParticleStep(Particle &part, real_t &dt, bool zeroth_step)
    // Compute half of the contribution from q E
    add(p, 0.5 * dt * q, e, pm_);
 
-   // --- Magnetic field contribution (q p x B) disabled ---
-   // const real_t B2 = b * b;
-
-   // const real_t a1 = 4.0 * dt * q * m;
-   // pm_.cross3D(b, pxB_);
-   // pp_.Set(a1, pxB_);
-
-   // const real_t a2 = 4.0 * m * m -
-   //                   dt * dt * q * q * B2;
-   // pp_.Add(a2, pm_);
-
-   // const real_t a3 = 2.0 * dt * dt * q * q * (b * p);
-   // pp_.Add(a3, b);
-
-   // const real_t a4 = 4.0 * m * m +
-   //                   dt * dt * q * q * B2;
-   // pp_ /= a4;
-
    // --- Simplified update: no magnetic field ---
    pp_ = pm_; // only include E contribution
 
