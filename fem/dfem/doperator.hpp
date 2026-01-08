@@ -968,12 +968,17 @@ void DifferentiableOperator::AddIntegrator(
          // Quadrature point local derivative cache for each element, with data
          // layout:
          // [test_vdim, test_op_dim, trial_vdim, trial_op_dim, qp, num_entities].
-         derivative_qp_caches[derivative_id] = Vector(test_vdim * test_op_dim *
-                                                      trial_vdim *
-                                                      total_trial_op_dim * num_qp * num_entities);
+         size_t derivative_qp_size = test_vdim * test_op_dim *
+                                     trial_vdim *
+                                     total_trial_op_dim * num_qp * num_entities;
+         if (derivative_qp_caches.count(derivative_qp_size) == 0)
+         {
+            derivative_qp_caches[derivative_qp_size] = Vector(derivative_qp_size);
+         }
+
          // Create local references for MSVC lambda capture compatibility
          auto& fields_ref = this->fields;
-         auto& derivative_qp_caches_ref = this->derivative_qp_caches[derivative_id];
+         auto& derivative_qp_caches_ref = this->derivative_qp_caches[derivative_qp_size];
 
          // In each of the callbacks we're saving the derivatives in the quadrature point
          // caches. This trades memory with computational effort but also minimizes
