@@ -69,9 +69,9 @@ template <int DIM> struct Diffusion
 };
 
 template <int DIM>
-void diffusion(const char *filename, int p)
+void diffusion(const char *filename, int p, bool include_mass)
 {
-   CAPTURE(filename, DIM, p);
+   CAPTURE(filename, DIM, p, include_mass);
 
    Mesh smesh(filename);
    ParMesh pmesh(MPI_COMM_WORLD, smesh);
@@ -306,6 +306,8 @@ TEST_CASE("dFEM Diffusion", "[Parallel][dFEM][GPU]")
 
    const auto p = !all_tests ? 2 : GENERATE(1, 2, 3);
 
+   const bool include_mass = GENERATE(false, true);
+
    SECTION("2d")
    {
       const auto filename2d =
@@ -316,7 +318,7 @@ TEST_CASE("dFEM Diffusion", "[Parallel][dFEM][GPU]")
             "../../data/inline-quad.mesh",
             "../../data/periodic-square.mesh"
          );
-      diffusion<2>(filename2d, p);
+      diffusion<2>(filename2d, p, include_mass);
    }
 
    SECTION("3d")
@@ -329,7 +331,7 @@ TEST_CASE("dFEM Diffusion", "[Parallel][dFEM][GPU]")
             "../../data/toroid-hex.mesh",
             "../../data/periodic-cube.mesh"
          );
-      diffusion<3>(filename3d, p);
+      diffusion<3>(filename3d, p, include_mass);
    }
 }
 
