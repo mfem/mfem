@@ -304,14 +304,6 @@ int main(int argc, char *argv[])
    real_t dt = ctx.dt;
    // Setup visualization
    char vishost[] = "localhost";
-   socketstream pre_redist_sock, post_redist_sock;
-   std::unique_ptr<ParticleTrajectories> traj_vis;
-   if (ctx.visualization)
-   {
-      traj_vis = std::make_unique<ParticleTrajectories>(boris.GetParticles(),
-                                                        ctx.vis_tail_size, vishost, ctx.visport, "Particle Trajectories", 0, 0, 800,
-                                                        800, "ba", 0.75 * ctx.L_x);
-   }
 
    // set up timer
    auto start_time = std::chrono::high_resolution_clock::now();
@@ -349,13 +341,6 @@ int main(int argc, char *argv[])
          }
          mfem::out << endl;
       }
-
-      // Visualize trajectories
-      // if (ctx.visualization && step % ctx.vis_freq == 0)
-      // {
-      //    traj_vis->Visualize();
-      // }
-
       // Remove lost particles
       if (step % ctx.rm_lost_freq == 0 || step == 1)
       {
