@@ -16,13 +16,9 @@ namespace mfem
 
 void HDGErrorEstimator::ComputeEstimates()
 {
-   const FiniteElementSpace *fes_tr = sol_tr.FESpace();
-   const FiniteElementSpace *fes_p = sol_p.FESpace();
-   Mesh *mesh = fes_tr->GetMesh();
+   Mesh *mesh = sol_tr.FESpace()->GetMesh();
    const int dim = mesh->Dimension();
    const int NE = mesh->GetNE();
-   Array<int> vdofs1, vdofs2, vdofs_tr;
-   Vector p1, p2, tr, btr1, btr2;
 
    error_estimates.SetSize(NE);
    error_estimates = 0.;
@@ -41,53 +37,16 @@ void HDGErrorEstimator::ComputeEstimates()
       FaceElementTransformations *ftr = mesh->GetInteriorFaceTransformations(f);
       if (!ftr) { continue; }
 
-      fes_p->GetElementVDofs(ftr->Elem1No, vdofs1);
-      fes_p->GetElementVDofs(ftr->Elem2No, vdofs2);
-      fes_tr->GetFaceVDofs(f, vdofs_tr);
+      ComputeFaceEstimate(*ftr, d_error_estimates);
+   }
 
-      sol_p.GetSubVector(vdofs1, p1);
-      sol_p.GetSubVector(vdofs2, p2);
-      sol_tr.GetSubVector(vdofs_tr, tr);
+   const int num_nbe = mesh->GetNBE();
+   for (int b = 0; b < num_nbe; b++)
+   {
+      const int bdr_face = mesh->GetBdrElementFaceIndex(b);
+      FaceElementTransformations *ftr = mesh->GetFaceElementTransformations(bdr_face);
 
-      const FiniteElement &fe_tr = *fes_tr->GetFaceElement(f);
-      const FiniteElement &fe1 = *fes_p->GetFE(ftr->Elem1No);
-      const FiniteElement &fe2 = *fes_p->GetFE(ftr->Elem2No);
-
-      switch (type)
-      {
-         case Type::Residual:
-         {
-            constexpr int type = NonlinearFormIntegrator::HDGFaceType::CONSTR
-                                 | NonlinearFormIntegrator::HDGFaceType::FACE;
-
-            bfi.AssembleHDGFaceVector(type, fe_tr, fe1, *ftr, tr, p1, btr1);
-            error_estimates(ftr->Elem1No) += fabs(btr1.Sum());
-
-            bfi.AssembleHDGFaceVector(type | 1, fe_tr, fe2, *ftr, tr, p2, btr2);
-            error_estimates(ftr->Elem2No) += fabs(btr2.Sum());
-         }
-         break;
-         case Type::Energy:
-         {
-            Vector d_en1, d_en2;
-
-            error_estimates(ftr->Elem1No) += bfi.ComputeHDGFaceEnergy(0, fe_tr, fe1, *ftr,
-                                                                      tr, p1, (anisotropic)?(&d_en1):(NULL));
-
-            error_estimates(ftr->Elem2No) += bfi.ComputeHDGFaceEnergy(1, fe_tr, fe2, *ftr,
-                                                                      tr, p2, (anisotropic)?(&d_en2):(NULL));
-
-            if (anisotropic)
-            {
-               for (int k = 0; k < dim; k++)
-               {
-                  d_error_estimates(ftr->Elem1No * dim + k) += d_en1(k);
-                  d_error_estimates(ftr->Elem2No * dim + k) += d_en2(k);
-               }
-            }
-         }
-         break;
-      }
+      ComputeFaceEstimate(*ftr, d_error_estimates);
    }
 
    total_error = error_estimates.Sum();
@@ -125,6 +84,84 @@ void HDGErrorEstimator::ComputeEstimates()
    }
 
    current_sequence = sol_tr.FESpace()->GetMesh()->GetSequence();
+}
+
+void HDGErrorEstimator::ComputeFaceEstimate(FaceElementTransformations &FTr,
+                                            Vector &d_error_estimates)
+{
+   const FiniteElementSpace *fes_tr = sol_tr.FESpace();
+   const FiniteElementSpace *fes_p = sol_p.FESpace();
+   Mesh *mesh = fes_tr->GetMesh();
+   const int dim = mesh->Dimension();
+   Array<int> vdofs1, vdofs2, vdofs_tr;
+   Vector p1, p2, tr, btr1, btr2;
+
+   fes_p->GetElementVDofs(FTr.Elem1No, vdofs1);
+   if (FTr.Elem2No >= 0)
+   {
+      fes_p->GetElementVDofs(FTr.Elem2No, vdofs2);
+   }
+   MFEM_ASSERT(FTr.ElementType == ElementTransformation::FACE,
+               "Not a face tranfsormation!");
+   const int faceno = FTr.ElementNo;
+   fes_tr->GetFaceVDofs(faceno, vdofs_tr);
+
+   sol_p.GetSubVector(vdofs1, p1);
+   sol_p.GetSubVector(vdofs2, p2);
+   sol_tr.GetSubVector(vdofs_tr, tr);
+
+   const FiniteElement &fe_tr = *fes_tr->GetFaceElement(faceno);
+   const FiniteElement &fe1 = *fes_p->GetFE(FTr.Elem1No);
+   const FiniteElement &fe2 = (FTr.Elem2No >= 0)?(*fes_p->GetFE(FTr.Elem2No)):
+                              (fe1);
+
+   switch (type)
+   {
+      case Type::Residual:
+      {
+         constexpr int type = NonlinearFormIntegrator::HDGFaceType::CONSTR
+                              | NonlinearFormIntegrator::HDGFaceType::FACE;
+
+         bfi.AssembleHDGFaceVector(type, fe_tr, fe1, FTr, tr, p1, btr1);
+         error_estimates(FTr.Elem1No) += fabs(btr1.Sum());
+
+         if (FTr.Elem2No >= 0)
+         {
+            bfi.AssembleHDGFaceVector(type | 1, fe_tr, fe2, FTr, tr, p2, btr2);
+            error_estimates(FTr.Elem2No) += fabs(btr2.Sum());
+         }
+      }
+      break;
+      case Type::Energy:
+      {
+         Vector d_en1, d_en2;
+
+         error_estimates(FTr.Elem1No) += bfi.ComputeHDGFaceEnergy(0, fe_tr, fe1, FTr,
+                                                                  tr, p1, (anisotropic)?(&d_en1):(NULL));
+
+         if (FTr.Elem2No >= 0)
+         {
+            error_estimates(FTr.Elem2No) += bfi.ComputeHDGFaceEnergy(1, fe_tr, fe2, FTr,
+                                                                     tr, p2, (anisotropic)?(&d_en2):(NULL));
+         }
+
+         if (anisotropic)
+         {
+            for (int k = 0; k < dim; k++)
+            {
+               d_error_estimates(FTr.Elem1No * dim + k) += d_en1(k);
+            }
+            if (FTr.Elem2No >= 0)
+            {
+               for (int k = 0; k < dim; k++)
+               {
+                  d_error_estimates(FTr.Elem2No * dim + k) += d_en2(k);
+               }
+            }
+         }
+      }
+      break;
+   }
 }
 
 } // namespace mfem

@@ -48,6 +48,10 @@ private:
    /// Compute the element error estimates.
    void ComputeEstimates();
 
+   /// Compute the face error estimate
+   void ComputeFaceEstimate(FaceElementTransformations &FTr,
+                            Vector &d_error_estimates);
+
 public:
    HDGErrorEstimator(BilinearFormIntegrator &integ, const GridFunction &solr,
                      const GridFunction &solp, Type type_ = Type::Energy)
