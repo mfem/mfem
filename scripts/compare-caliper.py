@@ -74,40 +74,24 @@ def normalize_jit_name(name):
 
 
 def load_and_process(csv_path, is_jit=False):
-    result = {}
-
-    raw_names = set()
-
-    lines = Path(csv_path).read_text().splitlines()[1:]
-    kernel_times = {}
-    
-    for line in lines:
-        data = re.split(r'\s\s+',line)
-
-        if len(data) < 4:
-            continue
-        program = data[0].strip()
-        if program not in kernel_times:
-            kernel_times[program] = {}
-        mangled_name = data[1].strip()
-        time_avg = float(data[2].split()[1])
-        if is_jit:
-            mangled_name = normalize_jit_name(mangled_name)
-        if mangled_name in kernel_times:
-            # print("DUPLICATE", mangled_name)
-            kernel_times[program][mangled_name] += time_avg
-        else:
-            kernel_times[program][mangled_name] = time_avg
-
-    for program in kernel_times.keys():
-        if is_jit:
-            jit_to_mangled = {name : normalize_jit_name(name) for name in kernel_times[program]}
-            demangled_names = demangle(jit_to_mangled.keys())
-            kernel_times[program] = {drop_return_types(normalize_lambdas(demangled_names[jit_to_mangled[name]])) : kernel_times[program][name] for name in kernel_times[program]}
-        else:
-            kernel_times[program] = {drop_return_types(normalize_lambdas(name)) : kernel_times[program][name] for name in kernel_times[program]}
+    type_dict = {
+        "region" : str,
+        "rocm.kernel.name" : str,
+        "time_min" : float,
+        "time_max" : float,
+        "time_avg" : float
+    }
+    df = pd.read_json(csv_path, dtype=type_dict)
+    # print( df["rocm.kernel.name"].dtype)
+    if is_jit:
+        df["rocm.kernel.name"] = df["rocm.kernel.name"].map(normalize_jit_name)
+        demangled_names = demangle(df["rocm.kernel.name"])
+        df["rocm.kernel.name"] = df["rocm.kernel.name"].map(demangled_names)
+        # print(df.iloc[:10])
+    df["rocm.kernel.name"] = df["rocm.kernel.name"].map(normalize_lambdas)
+    df["rocm.kernel.name"] = df["rocm.kernel.name"].map(drop_return_types)
             
-    return kernel_times
+    return df
 
 
 def main():
@@ -120,29 +104,24 @@ def main():
     args = parser.parse_args()
 
     print("Loading JIT...")
-    jit = load_and_process(args.jit_csv, is_jit=True)
-    # print(jit)
-    # exit()
+    jit_df = load_and_process(args.jit_csv, is_jit=True)
+
     print("Loading AOT...")
-    aot = load_and_process(args.aot_csv, is_jit=False)
+    aot_df = load_and_process(args.aot_csv, is_jit=False)
 
+    
+    jit = {}
+    aot = {}
+    renaming = {"rocm.kernel.name" : "KernelName",
+                "time_avg" : "Time",
+                "path" : "Program"}
+    for bench in jit_df["path"].unique():
+        jit[bench]=jit_df[jit_df["path"] == bench].rename(columns=renaming)
+        aot[bench]=aot_df[aot_df["path"] == bench].rename(columns=renaming)
 
-    jit_df = None
-    aot_df = None
-    for bench, data_dict in jit.items():
-        jit[bench]=pd.DataFrame({"KernelName":data_dict.keys(), "Time":data_dict.values()}).groupby("KernelName", as_index=False)["Time"].agg('sum')
-
-        # grouped = df.groupby("KernelName", as_index=False)["DurationNs"]
-        #       .agg(['mean', 'std'])
-        #       .rename(columns={"mean": "AvgDurationNs",
-        #                       "std": "StdDurationNs"})
-    for bench, data_dict in aot.items():
-        aot[bench]=pd.DataFrame({"KernelName":data_dict.keys(), "Time":data_dict.values()}).groupby("KernelName", as_index=False)["Time"].agg('sum')
-
-        
     # Merge on demangled kernel name
     merged_dfs={}
-    mega_df=pd.DataFrame(columns=["Program","KernelName","Speedup"])
+    # mega_df=pd.DataFrame(columns=["Program","KernelName","Speedup"])
     for key, aot_df in aot.items(): 
         merged_dfs[key] = pd.merge(
             aot_df, jit[key],
@@ -152,7 +131,7 @@ def main():
         )
         merged_dfs[key]["Speedup"] = merged_dfs[key]["Time_AOT"] / merged_dfs[key]["Time_JIT"]
         
-        # merged_dfs[key].to_csv(key+".csv")
+        merged_dfs[key][["Program_AOT", "KernelName", "Time_AOT", "Time_JIT", "Speedup"]].to_csv(key+".csv")
 
 
 
