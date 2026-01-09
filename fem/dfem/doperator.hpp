@@ -95,8 +95,8 @@ public:
       const std::function<void(Vector &, Vector &)> &tr_prolongation_transpose,
       const std::vector<assemble_derivative_sparsematrix_callback_t>
       &assemble_derivative_sparsematrix_callbacks,
-      const std::vector<assemble_derivative_hypreparmatrix_callback_t>
-      &assemble_derivative_hypreparmatrix_callbacks) :
+      const assemble_derivative_hypreparmatrix_callback_t
+      &assemble_derivative_hypreparmatrix_callback) :
       Operator(height, width),
       derivative_actions(derivative_actions),
       direction(direction),
@@ -109,8 +109,8 @@ public:
       tr_prolongation_transpose(tr_prolongation_transpose),
       assemble_derivative_sparsematrix_callbacks(
          assemble_derivative_sparsematrix_callbacks),
-      assemble_derivative_hypreparmatrix_callbacks(
-         assemble_derivative_hypreparmatrix_callbacks)
+      assemble_derivative_hypreparmatrix_callback(
+         assemble_derivative_hypreparmatrix_callback)
    {
       std::vector<Vector> s_l(solutions_l.size());
       for (size_t i = 0; i < s_l.size(); i++)
@@ -199,13 +199,7 @@ public:
    /// be an uninitialized object.
    void Assemble(HypreParMatrix *&A)
    {
-      MFEM_ASSERT(!assemble_derivative_hypreparmatrix_callbacks.empty(),
-                  "derivative can't be assembled into a HypreParMatrix");
-
-      for (const auto &f : assemble_derivative_hypreparmatrix_callbacks)
-      {
-         f(fields_e, A);
-      }
+      assemble_derivative_hypreparmatrix_callback(fields_e, A);
    }
 
 private:
@@ -242,8 +236,8 @@ private:
    assemble_derivative_sparsematrix_callbacks;
 
    /// Callbacks that assemble derivatives into a HypreParMatrix.
-   std::vector<assemble_derivative_hypreparmatrix_callback_t>
-   assemble_derivative_hypreparmatrix_callbacks;
+   assemble_derivative_hypreparmatrix_callback_t
+   assemble_derivative_hypreparmatrix_callback;
 };
 
 /// Class representing a differentiable operator which acts on solution and
@@ -490,7 +484,7 @@ public:
                 prolongation_transpose,
                 derivative_tr_prolongation_transpose[derivative_id],
                 assemble_derivative_sparsematrix_callbacks[derivative_id],
-                assemble_derivative_hypreparmatrix_callbacks[derivative_id]);
+                assemble_derivative_hypreparmatrix_callback[derivative_id]);
    }
 
 private:
@@ -510,9 +504,8 @@ private:
    std::map<size_t,
        std::vector<assemble_derivative_sparsematrix_callback_t>>
        assemble_derivative_sparsematrix_callbacks;
-   std::map<size_t,
-       std::vector<assemble_derivative_hypreparmatrix_callback_t>>
-       assemble_derivative_hypreparmatrix_callbacks;
+   std::map<size_t, assemble_derivative_hypreparmatrix_callback_t>
+   assemble_derivative_hypreparmatrix_callback;
 
    std::vector<FieldDescriptor> solutions;
    std::vector<FieldDescriptor> parameters;
@@ -1507,7 +1500,7 @@ void DifferentiableOperator::AddIntegrator(
          auto& assemble_derivative_sparsematrix_callbacks_ref =
             this->assemble_derivative_sparsematrix_callbacks[derivative_id];
 
-         assemble_derivative_hypreparmatrix_callbacks[derivative_id].push_back(
+         assemble_derivative_hypreparmatrix_callback[derivative_id] =
             [
                input_is_dependent,
                input_to_field,
@@ -1521,6 +1514,7 @@ void DifferentiableOperator::AddIntegrator(
             {
                f(f_e, spmat);
             }
+            spmat->Finalize();
 
             if (spmat == nullptr)
             {
@@ -1574,7 +1568,7 @@ void DifferentiableOperator::AddIntegrator(
                        trial_fes->Dof_TrueDof_Matrix());
             }
             delete spmat;
-         });
+         };
       }, derivative_ids);
    }
 }

@@ -127,7 +127,7 @@ void mult_integ(const char *filename, int p)
       MPI_Barrier(MPI_COMM_WORLD);
    }
 
-   SECTION("linearized assembled")
+   SECTION("linearized assembled SparseMatrix")
    {
       auto ddopdu = dop.GetDerivative(U, {&x}, {nodes});
 
@@ -143,6 +143,24 @@ void mult_integ(const char *filename, int p)
       REQUIRE(norm_g == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
    }
+
+   SECTION("linearized assembled HypreParMatrix")
+   {
+      auto ddopdu = dop.GetDerivative(U, {&x}, {nodes});
+
+      HypreParMatrix *A = nullptr;
+      ddopdu->Assemble(A);
+
+      fes.GetRestrictionMatrix()->Mult(x, X);
+      A->Mult(X, Z);
+
+      Y -= Z;
+      real_t norm_g, norm_l = Y.Normlinf();
+      MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+      REQUIRE(norm_g == MFEM_Approx(0.0));
+      MPI_Barrier(MPI_COMM_WORLD);
+   }
+
 }
 
 // no GPU tag to avoid failing 'hypre parallel mat' section
