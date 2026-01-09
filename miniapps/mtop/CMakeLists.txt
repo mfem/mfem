@@ -27,10 +27,15 @@ if(MFEM_USE_MPI AND MFEM_USE_DOUBLE)
 					 ${PAR_MTOP_COMMON_FILES}
 					 LIBRARIES mfem)
 
-	 add_mfem_miniapp(mtop_test_dfem_elast
+	add_mfem_miniapp(mtop_test_dfem_elast
 				MAIN	mtop_test_dfem_elast.cpp
 				${PAR_MTOP_COMMON_FILES}
                                  LIBRARIES mfem)
+
+	add_mfem_miniapp(mtop_test_filt
+				MAIN mtop_test_filt.cpp
+				${PAR_MTOP_COMMON_FILES}
+				LIBRARIES mfem)
 
 
 endif (MFEM_USE_MPI AND MFEM_USE_DOUBLE)

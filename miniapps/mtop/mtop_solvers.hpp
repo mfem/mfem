@@ -408,6 +408,7 @@ private:
 
    mutable mfem::ParGridFunction filtered_field;
    mutable mfem::ParGridFunction input_field;
+   mutable mfem::Vector rhs;
 
    // H1 gradient of the input field: for more info see the paper
    // "A Simple Introduciton to the SiMPL-method for density-based topology optimization"
@@ -431,6 +432,8 @@ private:
 
    // DFEM related definitions
    std::unique_ptr<mfem::future::DifferentiableOperator> dop;
+   // RHS of the PDE filter
+   std::unique_ptr<mfem::future::DifferentiableOperator> drh;
    const mfem::FiniteElement *fe;
    mfem::ParGridFunction *nodes;
    mfem::ParFiniteElementSpace *mfes;
@@ -446,6 +449,9 @@ private:
    mfem::HypreParMatrix *K;
    mfem::ConstrainedOperator *Kc;
    std::unique_ptr<mfem::OperatorHandle> Kh;
+   // RHS operators
+   mfem::ConstrainedOperator *Rc;
+   std::unique_ptr<mfem::OperatorHandle> Rh;
 };
 
 
