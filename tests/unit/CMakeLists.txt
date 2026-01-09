@@ -22,6 +22,7 @@ set(UNIT_TESTS_SRCS
   dfem/test_lvector_interface.cpp
   dfem/test_mass.cpp
   dfem/test_transpose.cpp
+  dfem/test_multiple_integrators.cpp
   general/test_array.cpp
   general/test_scan.cpp
   general/test_arrays_by_name.cpp

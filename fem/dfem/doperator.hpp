@@ -187,6 +187,10 @@ public:
       {
          f(fields_e, A);
       }
+
+      // SparseMatrix A is finalized after all callbacks have contributed to
+      // the sparsity pattern.
+      A->Finalize();
    }
 
    /// @brief Assemble the derivative operator into a HypreParMatrix.
@@ -465,7 +469,10 @@ public:
          dir_l = s_l[derivative_idx];
       }
 
-      derivative_setup_callbacks[derivative_id][0](fields_e, dir_l);
+      for (size_t i = 0; i < derivative_setup_callbacks[derivative_id].size(); i++)
+      {
+         derivative_setup_callbacks[derivative_id][i](fields_e, dir_l);
+      }
 
       return std::make_shared<DerivativeOperator>(
                 height,
@@ -523,7 +530,7 @@ private:
    std::function<void(Vector &, Vector &)> output_restriction_transpose;
    restriction_callback_t restriction_callback;
 
-   std::map<size_t, Vector> derivative_qp_caches;
+   std::map<size_t, std::vector<Vector>> derivative_qp_caches;
 
    std::map<size_t, size_t> assembled_vector_sizes;
 
@@ -983,9 +990,12 @@ void DifferentiableOperator::AddIntegrator(
          // Quadrature point local derivative cache for each element, with data
          // layout:
          // [test_vdim, test_op_dim, trial_vdim, trial_op_dim, qp, num_entities].
-         derivative_qp_caches[derivative_id] = Vector(test_vdim * test_op_dim *
-                                                      trial_vdim *
-                                                      total_trial_op_dim * num_qp * num_entities);
+         derivative_qp_caches[derivative_id].push_back(
+            Vector(test_vdim * test_op_dim * trial_vdim * total_trial_op_dim * num_qp *
+                   num_entities));
+
+         const int cache_index = this->derivative_qp_caches[derivative_id].size() - 1;
+
          // Create local references for MSVC lambda capture compatibility
          auto& fields_ref = this->fields;
          auto& derivative_qp_caches_ref = this->derivative_qp_caches[derivative_id];
@@ -1027,6 +1037,8 @@ void DifferentiableOperator::AddIntegrator(
                trial_vdim,
                inputs_trial_op_dim,
 
+               qpdc_idx = cache_index,
+
                // capture by ref:
                &qpdc_mem = derivative_qp_caches_ref
             ](std::vector<Vector> &f_e, const Vector &dir_l) mutable
@@ -1039,7 +1051,7 @@ void DifferentiableOperator::AddIntegrator(
                                                shmem_info.direction_size,
                                                num_entities);
 
-            auto qpdc = Reshape(qpdc_mem.ReadWrite(), test_vdim, test_op_dim,
+            auto qpdc = Reshape(qpdc_mem[qpdc_idx].ReadWrite(), test_vdim, test_op_dim,
                                 trial_vdim, total_trial_op_dim, num_qp, num_entities);
 
             auto itod = Reshape(inputs_trial_op_dim.Read(), num_inputs);
@@ -1110,6 +1122,7 @@ void DifferentiableOperator::AddIntegrator(
                inputs_trial_op_dim,
                total_trial_op_dim,
                trial_vdim,
+               qpdc_idx = cache_index,
                // capture by ref:
                &qpdc_mem = derivative_qp_caches_ref,
                &or_transpose
@@ -1127,7 +1140,7 @@ void DifferentiableOperator::AddIntegrator(
                                                shmem_info.direction_size,
                                                num_entities);
 
-            auto qpdc = Reshape(qpdc_mem.Read(), test_vdim, test_op_dim,
+            auto qpdc = Reshape(qpdc_mem[qpdc_idx].Read(), test_vdim, test_op_dim,
                                 trial_vdim, total_trial_op_dim, num_qp, num_entities);
 
             auto itod = Reshape(inputs_trial_op_dim.Read(), num_inputs);
@@ -1163,55 +1176,10 @@ void DifferentiableOperator::AddIntegrator(
                apply_qpdc(fhat, shadow_shmem, qpdce, itod, q1d, dimension,
                           use_sum_factorization);
 
-               // if (e == 0)
-               // {
-               //    mfem::out << ">>> QPDC\n";
-               //    mfem::out << " (test_vdim, test_op_dim, trial_vdim, total_trial_op_dim)="
-               //              << "(" << test_vdim << ", " << test_op_dim << ", "
-               //              << trial_vdim << ", " << total_trial_op_dim << ")\n";
-
-               //    // Show d_qp shape & first values
-               //    auto d_qp = Reshape(&(shadow_shmem[0])[0], trial_vdim, total_trial_op_dim,
-               //                        num_qp);
-               //    for (int i = 0; i < trial_vdim; i++)
-               //       for (int k = 0; k < total_trial_op_dim; k++)
-               //          mfem::out << "d_qp(" << i << "," << k << ",0) = "
-               //                    << d_qp(i,k,0) << "\n";
-
-               //    // Show qpdc shape & first values
-               //    for (int i = 0; i < test_vdim; i++)
-               //       for (int k = 0; k < test_op_dim; k++)
-               //          for (int j = 0; j < trial_vdim; j++)
-               //             for (int m = 0; m < total_trial_op_dim; m++)
-               //                mfem::out << "qpdc("<<i<<","<<k<<","<<j<<","<<m<<",0) = "
-               //                          << qpdce(i,k,j,m,0) << "\n";
-
-               //    for (int q = 0; q < num_qp; q++)
-               //       for (int j = 0; j < test_vdim; j++)
-               //          for (int m = 0; m < test_op_dim; m++)
-               //          {
-               //             mfem::out << "fhat("<<j<<","<<m<<","<<q<<") = " << fhat(j,m,q) << "\n";
-               //          }
-               // }
-
                auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
                map_quadrature_data_to_fields(
                   y, fhat, output_fop, output_dtq_shmem[0],
                   scratch_shmem, dimension, use_sum_factorization);
-
-               // if (e == 0)
-               // {
-               //    mfem::out << "map_quadrature_data_to_fields output: ";
-               //    mfem::out << " num_test_dof=" << num_test_dof << ", test_vdim=" << test_vdim
-               //              << "\n";
-               //    for (int i = 0; i < num_test_dof; i++)
-               //    {
-               //       for (int j = 0; j < test_vdim; j++)
-               //       {
-               //          mfem::out << "y(" << i << "," << j << ") = " << y(i, j) << "\n";
-               //       }
-               //    }
-               // }
             }, num_entities, thread_blocks, shmem_info.total_size,
             shmem_cache.ReadWrite());
             or_transpose(derivative_action_e, der_action_l);
@@ -1298,7 +1266,7 @@ void DifferentiableOperator::AddIntegrator(
                total_trial_op_dim,
                trial_vdim,
                input_restriction_transpose,
-
+               qpdc_idx = cache_index,
                // capture by ref:
                &qpdc_mem = derivative_qp_caches_ref
             ](
@@ -1315,7 +1283,7 @@ void DifferentiableOperator::AddIntegrator(
                                                shmem_tr_info.direction_size,
                                                num_entities);
 
-            auto qpdc = Reshape(qpdc_mem.Read(), test_vdim, test_op_dim,
+            auto qpdc = Reshape(qpdc_mem[qpdc_idx].Read(), test_vdim, test_op_dim,
                                 trial_vdim, total_trial_op_dim, num_qp, num_entities);
 
             auto itod = Reshape(inputs_trial_op_dim.Read(), num_inputs);
@@ -1353,57 +1321,13 @@ void DifferentiableOperator::AddIntegrator(
                apply_qpdc(fhat, shadow_shmem, qpdce, itod, q1d, dimension,
                           use_sum_factorization, transpose);
 
-               // if (e == 0)
-               // {
-               //    mfem::out << ">>> Transpose QPDC\n";
-               //    mfem::out << " (test_vdim, test_op_dim, trial_vdim, total_trial_op_dim)="
-               //              << "(" << test_vdim << ", " << test_op_dim << ", "
-               //              << trial_vdim << ", " << total_trial_op_dim << ")\n";
-
-               //    // Show d_qp shape & first values
-               //    auto d_qp = Reshape(&(shadow_shmem[0])[0], test_vdim, test_op_dim, num_qp);
-               //    for (int i = 0; i < test_vdim; i++)
-               //       for (int k = 0; k < test_op_dim; k++)
-               //          mfem::out << "d_qp(" << i << "," << k << ",0) = "
-               //                    << d_qp(i,k,0) << "\n";
-
-               //    // Show qpdc shape & first values
-               //    for (int i = 0; i < test_vdim; i++)
-               //       for (int k = 0; k < test_op_dim; k++)
-               //          for (int j = 0; j < trial_vdim; j++)
-               //             for (int m = 0; m < total_trial_op_dim; m++)
-               //                mfem::out << "qpdc("<<i<<","<<k<<","<<j<<","<<m<<",0) = "
-               //                          << qpdce(i,k,j,m,0) << "\n";
-
-               //    for (int q = 0; q < num_qp; q++)
-               //       for (int j = 0; j < trial_vdim; j++)
-               //          for (int m = 0; m < total_trial_op_dim; m++)
-               //          {
-               //             mfem::out << "fhat("<<j<<","<<m<<","<<q<<") = " << fhat(j,m,q) << "\n";
-               //          }
-               // }
-
                auto y = Reshape(&ye(0, 0, e), num_trial_dof, trial_vdim);
                auto fi_shmem = Reshape(shmem + shmem_tr_info.total_size, trial_vdim,
                                        total_trial_op_dim, num_qp);
 
-               // TODO: Needs to reflect that dependent sizeof(inputs) might be > 1.
                map_quadrature_data_to_fields_conditional(
                   y, fhat, inputs, itod, input_dtq_shmem, scratch_shmem, fi_shmem,
                   input_is_dependent, dimension, use_sum_factorization);
-               // if (e == 0)
-               // {
-               //    mfem::out << "map_quadrature_data_to_fields output: ";
-               //    mfem::out << " num_trial_dof=" << num_trial_dof << ", trial_vdim=" << trial_vdim
-               //              << "\n";
-               //    for (int i = 0; i < num_trial_dof; i++)
-               //    {
-               //       for (int j = 0; j < trial_vdim; j++)
-               //       {
-               //          mfem::out << "y(" << i << "," << j << ") = " << y(i, j) << "\n";
-               //       }
-               //    }
-               // }
             }, num_entities, thread_blocks, shmem_tr_info.total_size,
             shmem_tr_cache.ReadWrite());
             input_restriction_transpose(derivative_action_tr_e, derivative_action_tr_l);
@@ -1442,7 +1366,7 @@ void DifferentiableOperator::AddIntegrator(
                inputs_trial_op_dim,
                Ae_mem,
                output_to_field,
-
+               qpdc_idx = cache_index,
                // capture by ref:
                &qpdc_mem = derivative_qp_caches_ref,
                &fields = fields_ref
@@ -1454,7 +1378,7 @@ void DifferentiableOperator::AddIntegrator(
                                                shmem_info.direction_size,
                                                num_entities);
 
-            auto qpdc = Reshape(qpdc_mem.Read(), test_vdim, test_op_dim,
+            auto qpdc = Reshape(qpdc_mem[qpdc_idx].Read(), test_vdim, test_op_dim,
                                 trial_vdim, total_trial_op_dim, num_qp, num_entities);
 
             auto itod = Reshape(inputs_trial_op_dim.Read(), num_inputs);
@@ -1502,7 +1426,10 @@ void DifferentiableOperator::AddIntegrator(
             auto test_fes = *std::get_if<const ParFiniteElementSpace *>
                             (&fields[output_to_field[0]].data);
 
-            A = new SparseMatrix(test_fes->GetVSize(), trial_fes->GetVSize());
+            if (A == nullptr)
+            {
+               A = new SparseMatrix(test_fes->GetVSize(), trial_fes->GetVSize());
+            }
 
             auto tmp = Reshape(Ae_mem.HostReadWrite(), num_test_dof * test_vdim,
                                num_trial_dof * trial_vdim, num_entities);
@@ -1573,7 +1500,7 @@ void DifferentiableOperator::AddIntegrator(
                   A->AddSubMatrix(test_vdofs, trial_vdofs, Aee, 1);
                }
             }
-            A->Finalize();
+            // A->Finalize();
          });
 
          // Create local references for MSVC lambda capture compatibility
