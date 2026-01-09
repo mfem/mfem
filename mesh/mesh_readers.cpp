@@ -792,7 +792,7 @@ struct BufferReader : BufferReaderBase
             dest_ptr += dest_len;
             source_ptr += source_len;
          }
-         MFEM_VERIFY(size_t(sizeof(F)*n) == (dest_ptr - dest_start),
+         MFEM_VERIFY(size_t(sizeof(F)*n) == size_t(dest_ptr - dest_start),
                      "AppendedData: wrong data size");
          buf = uncompressed_data.data();
 #else

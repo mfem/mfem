@@ -2278,8 +2278,9 @@ void NURBSExtension::Load(std::istream &input, bool spacing)
 {
    own_topo = true;
 
-   CheckPatches();
-   // CheckBdrPatches();
+   MFEM_VERIFY(CheckPatches(),
+               "NURBSExtension::CheckPatch"
+               "\n  Inconsistent edge-to-knotvector mapping!");
 
    skip_comment_lines(input, '#');
 
@@ -2676,7 +2677,9 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
    patchTopo->GetEdgeToUniqueKnotvector(edge_to_ukv, ukv_to_rpkv);
    own_topo = true;
 
-   CheckPatches(); // This is checking the edge_to_ukv mapping
+   MFEM_VERIFY(CheckPatches(),
+               "NURBSExtension::CheckPatch"
+               "\n  Inconsistent edge-to-knotvector mapping!");
 
    // Set number of unique (not comprehensive) knot vectors
    NumOfKnotVectors = ukv_to_rpkv.Size();
@@ -3246,9 +3249,9 @@ void NURBSExtension::MergeGridFunctions(
    }
 }
 
-void NURBSExtension::CheckPatches()
+bool NURBSExtension::CheckPatches()
 {
-   if (Dimension() == 1 ) { return; }
+   if (Dimension() == 1 ) { return true; }
 
    Array<int> edges, oedge;
 
@@ -3256,6 +3259,7 @@ void NURBSExtension::CheckPatches()
    {
       patchTopo->GetElementEdges(p, edges, oedge);
 
+      // Convert to ukv and apply sign-flip
       for (int i = 0; i < edges.Size(); i++)
       {
          edges[i] = edge_to_ukv[edges[i]];
@@ -3265,6 +3269,16 @@ void NURBSExtension::CheckPatches()
          }
       }
 
+      // In 2d - opposite edges must be same knotvector with opposite sign.
+      // In 3d - opposite edges must be same knotvector with same sign.
+      // This logic is the result of Mesh::GetElementEdges setting orientation
+      // for edges based on ascending vertex indices, using reference vertex
+      // ordering
+      // {0, 1}, {1, 2}, {2, 3}, {3, 0} for Geometry::SQUARE in 2D
+      // and
+      // {0, 1}, {1, 2}, {3, 2}, {0, 3}, {4, 5}, {5, 6},
+      // {7, 6}, {4, 7}, {0, 4}, {1, 5}, {2, 6}, {3, 7} for Geometry::CUBE in 3D
+      // See fem/geom.cpp for these definitions.
       if ((Dimension() == 2 &&
            (edges[0] != -1 - edges[2] || edges[1] != -1 - edges[3])) ||
 
@@ -3275,11 +3289,10 @@ void NURBSExtension::CheckPatches()
             edges[8] != edges[9] || edges[8] != edges[10] ||
             edges[8] != edges[11])))
       {
-         mfem::err << "NURBSExtension::CheckPatch (patch = " << p
-                   << ")\n  Inconsistent edge-to-knotvector mapping!";
-         mfem_error();
+         return false;
       }
    }
+   return true;
 }
 
 void NURBSExtension::CheckBdrPatches()
@@ -3757,8 +3770,8 @@ void NURBSExtension::GetPatchOffsets(int &meshCounter, int &spaceCounter)
 
       if (dim == 1)
       {
-         meshCounter  += KnotVec(0)->GetNE() - 1;
-         spaceCounter += KnotVec(0)->GetNCP() - 2;
+         meshCounter  += KnotVec(p)->GetNE() - 1;
+         spaceCounter += KnotVec(p)->GetNCP() - 2;
       }
       else if (dim == 2)
       {

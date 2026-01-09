@@ -4,8 +4,7 @@
 //
 // Sample runs:
 //  mpirun -np 4 ex41p
-//  mpirun -np 4 ex41p -p 0 -dt 0.01 -tf 10
-//  mpirun -np 4 ex41p -p 0 -dt 0.01 -tf 10 -cg
+//  mpirun -np 4 ex41p -cg
 //  mpirun -np 4 ex41p -m ../data/periodic-hexagon.mesh -p 0 -dt 0.005 -tf 10
 //  mpirun -np 4 ex41p -m ../data/periodic-square.mesh -p 1 -dt 0.005 -tf 9
 //  mpirun -np 4 ex41p -m ../data/periodic-hexagon.mesh -p 1  -dt 0.005 -tf 9
@@ -289,7 +288,6 @@ public:
 
 int main(int argc, char *argv[])
 {
-
    // 1. Initialize MPI and HYPRE.
    Mpi::Init();
    int num_procs = Mpi::WorldSize();
@@ -302,12 +300,12 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
    int order = 3;
-   int ode_solver_type = 64; //61 - Forward Backward Euler
-   //62 - IMEXRK2(2,2,2)
-   //63 - IMEXRK2(2,3,2)
-   //64 - IMEXRK3(3,4,3)
+   int ode_solver_type = 64; // 61 - Forward Backward Euler
+   // 62 - IMEXRK2(2,2,2)
+   // 63 - IMEXRK2(2,3,2)
+   // 64 - IMEXRK3(3,4,3)
    real_t t_final = 10.0;
-   real_t dt = 0.001;
+   real_t dt = 0.01;
    bool paraview = false;
    bool cg = false;
    int vis_steps = 50;
@@ -316,7 +314,7 @@ int main(int argc, char *argv[])
    real_t diffusion_term = 0.01;
    real_t kappa = -1.0;
    real_t sigma = -1.0;
-   bool visualization = false;
+   bool visualization = true;
    bool visit = false;
    int precision = 16;
    cout.precision(precision);
@@ -462,7 +460,8 @@ int main(int argc, char *argv[])
 
    s->AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
 
-   //For the preconditioner - create billinear form corresponding to operator (M + dt S)
+   // For the preconditioner - create billinear form corresponding to
+   // operator (M + dt S)
    ParBilinearForm *a = new ParBilinearForm(fes);
    a->AddDomainIntegrator(new MassIntegrator);
    a->AddDomainIntegrator(new DiffusionIntegrator(dt_diff_coeff));
@@ -604,9 +603,9 @@ int main(int argc, char *argv[])
 #endif
 
 
-   // 10. Define the time-dependent evolution operator describing the ODE
-   //    right-hand side, and perform time-integration (looping over the time
-   //    iterations, ti, with a time-step dt).
+   // 10. Define the time-dependent evolution operator describing the
+   //     ODE right-hand side, and perform time-integration (looping
+   //     over the time iterations, ti, with a time-step dt).
    IMEX_Evolution adv(*m, *k, *s, b, *a);
 
    real_t t = 0.0;
@@ -658,7 +657,6 @@ int main(int argc, char *argv[])
    delete U;
    delete u;
    delete a;
-   //delete b;
    delete s;
    delete k;
    delete m;

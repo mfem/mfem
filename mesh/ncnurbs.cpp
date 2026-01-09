@@ -2827,6 +2827,8 @@ void NCNURBSExtension::PropagateFactorsForKV(int rf_default)
       }
    }
 
+   delete face2elem;
+
    // For any unset entries of kvf, set to default refinement factor rf_default.
    for (size_t i=0; i<kvf.size(); ++i)
    {
