@@ -1137,7 +1137,9 @@ inline void SmemPAMassApply3D(const int NE,
    auto d = d_.Read();
    auto x = x_.Read();
    auto y = y_.ReadWrite();
-   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+   // mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+   // mfem::forall_2D<0>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D<T_Q1D*T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       internal::SmemPAMassApply3D_Element<T_D1D,T_Q1D>(e, NE, b, d, x, y, d1d, q1d);
    });

@@ -680,13 +680,31 @@ void HipKernel2D(const int N, BODY body)
    body(k);
 }
 
+template <int MAX_THREADS_PER_BLOCK, typename BODY, int MIN_BLOCKS_PER_MULTIPROCESSOR = 1>
+__global__
+MFEM_LAUNCH_BOUNDS(MAX_THREADS_PER_BLOCK, MIN_BLOCKS_PER_MULTIPROCESSOR)
+static void HipKernel2DLaunchBounds(const int N, BODY body)
+{
+   const int k = hipBlockIdx_x*hipBlockDim_z + hipThreadIdx_z;
+   if (k >= N) { return; }
+   body(k);
+}
+
 template <typename BODY> __global__ static
 void HipKernel3D(const int N, BODY body)
 {
    for (int k = hipBlockIdx_x; k < N; k += hipGridDim_x) { body(k); }
 }
 
-template <const int BLCK = MFEM_HIP_BLOCKS, typename DBODY>
+template <int MAX_THREADS_PER_BLOCK, typename BODY, int MIN_BLOCKS_PER_MULTIPROCESSOR = 1>
+__global__
+MFEM_LAUNCH_BOUNDS(MAX_THREADS_PER_BLOCK, MIN_BLOCKS_PER_MULTIPROCESSOR)
+static void HipKernel3DLaunchBounds(const int N, BODY body)
+{
+   for (int k = hipBlockIdx_x; k < N; k += hipGridDim_x) { body(k); }
+}
+
+template <int BLCK, typename DBODY>
 void HipWrap1D(const int N, DBODY &&d_body)
 {
    if (N==0) { return; }
@@ -706,6 +724,19 @@ void HipWrap2D(const int N, DBODY &&d_body,
    MFEM_GPU_CHECK(hipGetLastError());
 }
 
+template <int MAX_THREADS_PER_BLOCK, typename DBODY>
+void HipWrap2DLaunchBounds(const int N, DBODY &&d_body,
+                           const int X, const int Y, const int BZ)
+{
+   if (N==0) { return; }
+   const int GRID = (N+BZ-1)/BZ;
+   const dim3 BLCK(X,Y,BZ);
+   static_assert(MAX_THREADS_PER_BLOCK > 0);
+   HipKernel2DLaunchBounds<MAX_THREADS_PER_BLOCK>
+   <<<dim3(GRID), dim3(BLCK), 0, 0>>>(N, d_body);
+   MFEM_GPU_CHECK(hipGetLastError());
+}
+
 template <typename DBODY>
 void HipWrap3D(const int N, DBODY &&d_body,
                const int X, const int Y, const int Z, const int G)
@@ -717,24 +748,51 @@ void HipWrap3D(const int N, DBODY &&d_body,
    MFEM_GPU_CHECK(hipGetLastError());
 }
 
-template <int Dim>
+template <int MAX_THREADS_PER_BLOCK, typename DBODY>
+void HipWrap3DLaunchBounds(const int N, DBODY &&d_body,
+                           const int X, const int Y, const int Z, const int G)
+{
+   if (N==0) { return; }
+   // keep full 'N', as if amdgpu-waves-per-eu warnings, wrong results may occur
+   // const int GRID = G == 0 ? N : G;
+   // if MIN_BLOCKS_PER_MULTIPROCESSOR is put at '1', we can do more work per thread
+   const int GRID = G == 0 ? (N >> 2) : G;
+   const dim3 BLCK(X,Y,Z);
+   static_assert(MAX_THREADS_PER_BLOCK > 0);
+   HipKernel3DLaunchBounds<MAX_THREADS_PER_BLOCK>
+   <<<dim3(GRID), dim3(BLCK), 0, 0>>>(N, d_body);
+   MFEM_GPU_CHECK(hipGetLastError());
+}
+
+template <int Dim, int MAX_THREADS_PER_BLOCK>
 struct HipWrap;
 
-template <>
-struct HipWrap<1>
+template <int MAX_THREADS_PER_BLOCK>
+struct HipWrap<1, MAX_THREADS_PER_BLOCK>
 {
-   template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
+   template <typename DBODY>
    static void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
-      HipWrap1D<BLCK>(N, d_body);
+      HipWrap1D<MFEM_HIP_BLOCKS>(N, d_body);
+   }
+};
+
+template <int MAX_THREADS_PER_BLOCK>
+struct HipWrap<2, MAX_THREADS_PER_BLOCK>
+{
+   template <typename DBODY>
+   static void run(const int N, DBODY &&d_body,
+                   const int X, const int Y, const int Z, const int G)
+   {
+      HipWrap2DLaunchBounds<MAX_THREADS_PER_BLOCK>(N, d_body, X, Y, Z);
    }
 };
 
 template <>
-struct HipWrap<2>
+struct HipWrap<2, 0>
 {
-   template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
+   template <typename DBODY>
    static void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
@@ -742,10 +800,21 @@ struct HipWrap<2>
    }
 };
 
-template <>
-struct HipWrap<3>
+template <int MAX_THREADS_PER_BLOCK>
+struct HipWrap<3, MAX_THREADS_PER_BLOCK>
 {
-   template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
+   template <typename DBODY>
+   static void run(const int N, DBODY &&d_body,
+                   const int X, const int Y, const int Z, const int G)
+   {
+      HipWrap3DLaunchBounds<MAX_THREADS_PER_BLOCK>(N, d_body, X, Y, Z, G);
+   }
+};
+
+template <>
+struct HipWrap<3, 0>
+{
+   template <typename DBODY>
    static void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
@@ -756,8 +825,10 @@ struct HipWrap<3>
 #endif // defined(MFEM_USE_HIP) && defined(__HIP__)
 
 
-/// The forall kernel body wrapper
-template <const int DIM, typename d_lambda, typename h_lambda>
+///////////////////////////////////////////////////////////////////////////////
+/// The forall kernel body DISPATCHER
+template <int DIM, int MAX_THREADS_PER_BLOCK = 0,
+          typename d_lambda, typename h_lambda>
 inline void ForallWrap(const bool use_dev, const int N,
                        d_lambda &&d_body, h_lambda &&h_body,
                        const int X=0, const int Y=0, const int Z=0,
@@ -798,7 +869,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    // If Backend::HIP is allowed, use it
    if (Device::Allows(Backend::HIP))
    {
-      return HipWrap<DIM>::run(N, d_body, X, Y, Z, G);
+      return HipWrap<DIM, MAX_THREADS_PER_BLOCK>::run(N, d_body, X, Y, Z, G);
    }
 #endif
 
@@ -827,7 +898,9 @@ backend_cpu:
    for (int k = 0; k < N; k++) { h_body(k); }
 }
 
-template <const int DIM, typename lambda>
+///////////////////////////////////////////////////////////////////////////////
+// WRAP
+template <int DIM, typename lambda>
 inline void ForallWrap(const bool use_dev, const int N, lambda &&body,
                        const int X=0, const int Y=0, const int Z=0,
                        const int G=0)
@@ -835,6 +908,18 @@ inline void ForallWrap(const bool use_dev, const int N, lambda &&body,
    ForallWrap<DIM>(use_dev, N, body, body, X, Y, Z, G);
 }
 
+template <int DIM, int MAX_THREADS_PER_BLOCK, typename lambda>
+inline void ForallWrap(const bool use_dev, const int N, lambda &&body,
+                       const int X=0, const int Y=0, const int Z=0,
+                       const int G=0)
+{
+   ForallWrap<DIM, MAX_THREADS_PER_BLOCK>(use_dev, N,
+                                          body, body,
+                                          X, Y, Z, G);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// forall interfaces
 template<typename lambda>
 inline void forall(int N, lambda &&body) { ForallWrap<1>(true, N, body); }
 
@@ -927,10 +1012,22 @@ inline void forall_2D(int N, int X, int Y, lambda &&body)
    ForallWrap<2>(true, N, body, X, Y, 1);
 }
 
+template<int MAX_THREADS_PER_BLOCK, typename lambda>
+inline void forall_2D(int N, int X, int Y, lambda &&body)
+{
+   ForallWrap<2, MAX_THREADS_PER_BLOCK>(true, N, body, X, Y, 1);
+}
+
 template<typename lambda>
 inline void forall_2D_batch(int N, int X, int Y, int BZ, lambda &&body)
 {
    ForallWrap<2>(true, N, body, X, Y, BZ);
+}
+
+template<int MAX_THREADS_PER_BLOCK, typename lambda>
+inline void forall_3D(int N, int X, int Y, int Z, lambda &&body)
+{
+   ForallWrap<3, MAX_THREADS_PER_BLOCK>(true, N, body, X, Y, Z, 0);
 }
 
 template<typename lambda>
