@@ -141,7 +141,7 @@ protected:
 public:
 
    Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_,
-         int num_particles, Ordering::Type pdata_ordering);
+         int nparticles, Ordering::Type pdata_ordering);
 
    /// Interpolate E and B field onto particles
    void InterpolateEB();
