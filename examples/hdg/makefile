@@ -20,7 +20,7 @@ CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = ex5 ex6 ex14 ex17
+SEQ_EXAMPLES = ex5 ex6 ex14 ex17 ex21
 PAR_EXAMPLES = ex5p ex6p ex14p ex17p
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
@@ -68,3 +68,4 @@ clean-exec:
 	@rm -rf Example5* ParaView
 	@rm -f sol.* sol_u.* sol_p.*
 	@rm -f ex5-p-*.bp
+	@rm -f ex21*.mesh ex21*.sol
