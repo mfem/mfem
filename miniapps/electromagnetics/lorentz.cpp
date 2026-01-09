@@ -431,7 +431,7 @@ void Boris::ParticleStep(Particle &part, real_t &dt)
 }
 
 Boris::Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_,
-             int num_particles, Ordering::Type pdata_ordering)
+             int nparticles, Ordering::Type pdata_ordering)
    : E_gf(E_gf_),
      B_gf(B_gf_),
      E_finder(comm),
@@ -469,7 +469,7 @@ Boris::Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_,
    Array<int> field_vdims({1, 1, dim, dim, dim});
 
    charged_particles = std::make_unique<ParticleSet>
-                       (comm, ctx.npt, dim, field_vdims, 0, pdata_ordering);
+                       (comm, nparticles, dim, field_vdims, 0, pdata_ordering);
 }
 
 void Boris::InterpolateEB()
