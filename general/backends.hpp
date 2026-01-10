@@ -44,6 +44,7 @@
 #endif
 
 #if !defined(MFEM_USE_CUDA_OR_HIP)
+constexpr bool mfem_use_gpu = false;
 #define MFEM_DEVICE
 #define MFEM_HOST
 #define MFEM_LAMBDA

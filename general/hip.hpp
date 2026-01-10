@@ -20,6 +20,7 @@
 
 #if defined(MFEM_USE_HIP) && defined(__HIP__)
 #define MFEM_USE_CUDA_OR_HIP
+constexpr bool mfem_use_gpu = true;
 #define MFEM_DEVICE __device__
 #define MFEM_HOST __host__
 #define MFEM_LAMBDA __host__ __device__

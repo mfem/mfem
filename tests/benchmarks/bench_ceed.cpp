@@ -8,46 +8,45 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
+//
+//
+//  This benchmark contains the implementation of the CEED's bake-off problems:
+//  high-order kernels/benchmarks designed to test and compare the performance
+//  of high-order codes.
+//
+//  See: ceed.exascaleproject.org/bps and github.com/CEED/benchmarks
 
 #include "bench.hpp" // IWYU pragma: keep
 
 #ifdef MFEM_USE_BENCHMARK
 
+#include <cassert>
+
+#include "general/backends.hpp" // IWYU pragma: keep
 #include "fem/qinterp/det.hpp" // IWYU pragma: keep
 #include "fem/qinterp/grad.hpp" // IWYU pragma: keep
 #include "fem/integ/lininteg_domain_kernels.hpp" // IWYU pragma: keep
 
-#if defined(__has_include) && __has_include("general/nvtx.hpp") && !defined(_WIN32)
-#undef NVTX_COLOR
-#define NVTX_COLOR ::nvtx::kNvidia
-#include "general/nvtx.hpp"
-#else
-#define dbg(...)
-#endif
+constexpr int MAX_ORDER = 6, INC_NDOFS = 25;
+constexpr int MAX_NDOFS = 16 * 1024 * (mfem_use_gpu ? 1024 : 16);
 
-/// Max number of DOFs ////////////////////////////////////////////////////////
-#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-constexpr int MAX_NDOFS = 128 * 1024;
-constexpr int NDOFS_INC = 25;
-#else
-constexpr int MAX_NDOFS = 20 * 1024 * 1024;
-constexpr int NDOFS_INC = 25;
-#endif
-
-/// GenerateArgs //////////////////////////////////////////////////////////////
-static void KerOrderSideArgs(bmi::Benchmark *b)
+static void CustomArguments(bmi::Benchmark *b)
 {
-   const auto est = [](int c) { return (c + 1) * (c + 1) * (c + 1); };
-   for (int p = 6; p >= 1; p -= 1)
+   constexpr auto estimate_dofs = [](int cells) constexpr -> int
    {
-      for (int c = NDOFS_INC; est(c) <= MAX_NDOFS; c += NDOFS_INC)
+      return (cells + 1) * (cells + 1) * (cells + 1);
+   };
+
+   for (int order = MAX_ORDER; order >= 1; --order)
+   {
+      for (int cells = INC_NDOFS; estimate_dofs(cells) <= MAX_NDOFS;
+           cells += INC_NDOFS)
       {
-         b->Args({ p, c });
+         b->Args({order, cells});
       }
    }
 }
 
-/// AddKernelSpecializations ///////////////////////////////////////////////////
 static void AddKernelSpecializations()
 {
    using DET = QuadratureInterpolator::DetKernels;
@@ -56,7 +55,7 @@ static void AddKernelSpecializations()
    DET::Specialization<3, 3, 2, 5>::Add();
    DET::Specialization<3, 3, 2, 6>::Add();
    DET::Specialization<3,3, 2,7>::Add();
-   // DET::Specialization<3,3, 2,8>::Add(); // exceeds memory limits on AMD
+   // DET::Specialization<3,3, 2,8>::Add(); // exceeds memory limits
 
    using GRAD = QuadratureInterpolator::GradKernels;
    GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 7>::Add();
@@ -66,13 +65,7 @@ static void AddKernelSpecializations()
    LIN::Specialization<3, 7, 7>::Add();
 }
 
-/*
-  This benchmark contains the implementation of the CEED's bake-off problems:
-  high-order kernels/benchmarks designed to test and compare the performance
-  of high-order codes.0
-
-  See: ceed.exascaleproject.org/bps and github.com/CEED/benchmarks
-*/
+/// Bake-off base class
 template <int VDIM, bool GLL>
 struct BakeOff
 {
@@ -128,7 +121,6 @@ struct BakeOff
 template <typename BFI, int VDIM, bool GLL>
 struct Problem : public BakeOff<VDIM, GLL>
 {
-   const double rtol = 0.0;
    const int max_it = 32, print_lvl = -1;
 
    Array<int> ess_tdof_list;
@@ -146,6 +138,7 @@ struct Problem : public BakeOff<VDIM, GLL>
    using BakeOff<VDIM, GLL>::x;
    using BakeOff<VDIM, GLL>::y;
    using BakeOff<VDIM, GLL>::mdofs;
+   using BakeOff<VDIM, GLL>::unit_vec;
 
    Problem(int order, int side):
       BakeOff<VDIM, GLL>(order, side),
@@ -154,13 +147,13 @@ struct Problem : public BakeOff<VDIM, GLL>
    {
       ess_bdr = 1;
       fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-      if (VDIM == 1)
+      if constexpr (VDIM == 1)
       {
-         b.AddDomainIntegrator(new DomainLFIntegrator(this->one));
+         b.AddDomainIntegrator(new DomainLFIntegrator(one));
       }
       else
       {
-         b.AddDomainIntegrator(new VectorDomainLFIntegrator(this->unit_vec));
+         b.AddDomainIntegrator(new VectorDomainLFIntegrator(unit_vec));
       }
       b.UseFastAssembly(true);
       b.Assemble();
@@ -172,20 +165,19 @@ struct Problem : public BakeOff<VDIM, GLL>
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
       cg.SetOperator(*A);
+      cg.SetAbsTol(0.0);
       cg.iterative_mode = false;
       {
          cg.SetPrintLevel(-1);
          cg.SetMaxIter(2000);
          cg.SetRelTol(1e-8);
-         cg.SetAbsTol(0.0);
          cg.Mult(B, X);
-         MFEM_VERIFY(cg.GetConverged(), "❌❌❌ CG solver did not converge.");
-         mfem::out << "✅" << std::endl;
+         MFEM_VERIFY(cg.GetConverged(), "CG solver did not converge!");
       }
-      cg.SetAbsTol(0.0);
-      cg.SetRelTol(rtol);
+      cg.SetRelTol(0.0);
       cg.SetMaxIter(max_it);
       cg.SetPrintLevel(print_lvl);
+
       benchmark();
       mdofs = 0.0;
    }
@@ -198,7 +190,7 @@ struct Problem : public BakeOff<VDIM, GLL>
    }
 };
 
-/// Bake-off Problems (BPs)
+/// Bake-off Problems benchmarks
 #define BakeOff_Problem(i, Kernel, VDIM, p_eq_q)                     \
    static void BP##i(bm::State &state)                               \
    {                                                                 \
@@ -207,39 +199,38 @@ struct Problem : public BakeOff<VDIM, GLL>
       Problem<Kernel##Integrator, VDIM, p_eq_q> ker(p, side);        \
       while (state.KeepRunning()) { ker.benchmark(); }               \
       bm::Counter::Flags flags = bm::Counter::kIsRate;               \
-      state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), flags); \
       state.counters["Dofs"] = bm::Counter(ker.dofs);                \
-      state.counters["p"] = bm::Counter(p);                          \
+      state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), flags); \
+      state.counters["Order"] = bm::Counter(p);                      \
    }                                                                 \
    BENCHMARK(BP##i)                                                  \
-      ->Apply(KerOrderSideArgs)                                      \
+      ->Apply(CustomArguments)                                       \
       ->Unit(bm::kMillisecond);
-// ->Iterations(10)
 
 /// BP1: scalar PCG with mass matrix, q=p+2
 BakeOff_Problem(1, Mass, 1, false);
 
 /// BP2: vector PCG with mass matrix, q=p+2
-// BakeOff_Problem(2, VectorMass, 3, false);
+BakeOff_Problem(2, VectorMass, 3, false);
 
 /// BP3: scalar PCG with stiffness matrix, q=p+2
 BakeOff_Problem(3, Diffusion, 1, false);
 
 /// BP4: vector PCG with stiffness matrix, q=p+2
-// BakeOff_Problem(4, VectorDiffusion, 3, false);
+BakeOff_Problem(4, VectorDiffusion, 3, false);
 
 /// BP5: scalar PCG with stiffness matrix, q=p+1
-// BakeOff_Problem(5, Diffusion, 1, true);
+BakeOff_Problem(5, Diffusion, 1, true);
 
 /// BP6: vector PCG with stiffness matrix, q=p+1
-// BakeOff_Problem(6, VectorDiffusion, 3, true);
+BakeOff_Problem(6, VectorDiffusion, 3, true);
 
-/// Bake-off Kernels (BKs) ////////////////////////////////////////////////////
+/// Bake-off Kernels (BKs)
 template <typename BFI, int VDIM, bool GLL>
 struct Kernel : public BakeOff<VDIM, GLL>
 {
    BilinearFormIntegrator *bfi;
-   Vector xe, ye; // input and output E-vectors
+   Vector xe, ye;
 
    using base = BakeOff<VDIM, GLL>;
    using base::ir;
@@ -256,8 +247,12 @@ struct Kernel : public BakeOff<VDIM, GLL>
       const int e_size = el2dof.Size_of_connections()*fes.GetVDim();
       const auto R = fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
       MFEM_VERIFY(e_size == R->Height(), "Input/Output E-vector size mismatch!");
-      xe.SetSize(R->Height()), ye.SetSize(R->Height());
-      xe.UseDevice(true), ye.UseDevice(true);
+
+      xe.SetSize(R->Height());
+      ye.SetSize(R->Height());
+      xe.UseDevice(true);
+      ye.UseDevice(true);
+
       xe.Randomize(1);
       xe.Read();
 
@@ -274,7 +269,7 @@ struct Kernel : public BakeOff<VDIM, GLL>
    }
 };
 
-/// Generic CEED BKi //////////////////////////////////////////////////////////
+/// Bake-off Kernels benchmarks
 #define BakeOff_Kernel(i, KER, VDIM, GLL)                            \
    static void BK##i(bm::State &state)                               \
    {                                                                 \
@@ -283,41 +278,37 @@ struct Kernel : public BakeOff<VDIM, GLL>
       Kernel<KER##Integrator, VDIM, GLL> ker(p, side);               \
       while (state.KeepRunning()) { ker.benchmark(); }               \
       bm::Counter::Flags flags = bm::Counter::kIsRate;               \
-      state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), flags); \
       state.counters["Dofs"] = bm::Counter(ker.dofs);                \
-      state.counters["p"] = bm::Counter(p);                          \
+      state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), flags); \
+      state.counters["Order"] = bm::Counter(p);                      \
    }                                                                 \
    BENCHMARK(BK##i)                                                  \
-      ->Apply(KerOrderSideArgs)                                      \
+      ->Apply(CustomArguments)                                       \
       ->Unit(bm::kMillisecond);
-// ->Iterations(10)
 
 /// BK1: scalar E-vector-to-E-vector evaluation of mass matrix, q=p+2
 BakeOff_Kernel(1, Mass, 1, false)
 
 /// BK2: vector E-vector-to-E-vector evaluation of mass matrix, q=p+2
-// BakeOff_Kernel(2, VectorMass, 3, false)
+BakeOff_Kernel(2, VectorMass, 3, false)
 
 /// BK3: scalar E-vector-to-E-vector evaluation of stiffness matrix, q=p+2
 BakeOff_Kernel(3, Diffusion, 1, false)
 
 /// BK4: vector E-vector-to-E-vector evaluation of stiffness matrix, q=p+2
-// BakeOff_Kernel(4, VectorDiffusion, 3, false)
+BakeOff_Kernel(4, VectorDiffusion, 3, false)
 
 /// BK5: scalar E-vector-to-E-vector evaluation of stiffness matrix, q=p+1
-// BakeOff_Kernel(5, Diffusion, 1, true)
+BakeOff_Kernel(5, Diffusion, 1, true)
 
 /// BK6: vector E-vector-to-E-vector evaluation of stiffness matrix, q=p+1
-// BakeOff_Kernel(6, VectorDiffusion, 3, true)
+BakeOff_Kernel(6, VectorDiffusion, 3, true)
 
 /**
  * @brief main entry point
- * --benchmark_filter=BP1/6
- * --benchmark_context=device=hip
- *
- * ./bench_ceed --benchmark_context=device=gpu --benchmark_filter=BP1/6/200
- *
- * ./bench_ceed --benchmark_context=device=gpu --benchmark_filter=BK1/6/200
+ * Command line examples:
+ *    --benchmark_context=device=gpu
+ *    --benchmark_filter=BP1/6
  */
 int main(int argc, char *argv[])
 {
@@ -343,6 +334,7 @@ int main(int argc, char *argv[])
 
    if (bm::ReportUnrecognizedArguments(argc, argv)) { return 1; }
    bm::RunSpecifiedBenchmarks(&CR);
+   bm::Shutdown();
    return 0;
 }
 
