@@ -65,7 +65,7 @@ struct PICContext
 
    int nt = 1000;
    int redist_freq = 1e6;
-   int rm_lost_freq = 1;
+   int output_csv_freq = 1;
 
    bool visualization = true;
    int visport = 19916;
@@ -197,8 +197,8 @@ int main(int argc, char *argv[])
                   "Ordering of particle data. 0 = byNODES, 1 = byVDIM.");
    args.AddOption(&ctx.redist_freq, "-rdf", "--redist-freq",
                   "Redistribution frequency.");
-   args.AddOption(&ctx.rm_lost_freq, "-rmf", "--remove-lost-freq",
-                  "Remove lost particles frequency.");
+   args.AddOption(&ctx.output_csv_freq, "-ocf", "--output-csv-freq",
+                  "Output CSV frequency.");
    args.AddOption(&ctx.visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -292,7 +292,7 @@ int main(int argc, char *argv[])
          mfem::out << endl;
       }
       // Remove lost particles
-      if (step % ctx.rm_lost_freq == 0 || step == 1)
+      if (step % ctx.output_csv_freq == 0 || step == 1)
       {
          pic.RemoveLostParticles();
          std::string csv_prefix = "PIC_Part_";
