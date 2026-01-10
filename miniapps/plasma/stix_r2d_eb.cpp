@@ -84,7 +84,8 @@
 //
 // Sample runs:
 //
-//
+//  ./stix_r2d_eb -w X -dbcs '1 2' -rs 4 -s 4 -vis -f 4e6 -m ../../data/periodic-annulus-sector.msh -bp 1 -bpp '0 1 0 1e-6'
+
 
 #include "cold_plasma_dielectric_coefs.hpp"
 #include "cold_plasma_dielectric_eb_solver.hpp"
@@ -376,10 +377,12 @@ int main(int argc, char *argv[])
                   "location of mid point, unit vector along gradient.");
    args.AddOption((int*)&bpt, "-bp", "--Bfield-profile",
                   "BField Profile Type: \n"
-                  "0 - Constant.");
+                  "0 - Constant, 1 - CONST_CYL, 2 - CYLINDRICAL.");
    args.AddOption(&bpp, "-bpp", "--Bfield-profile-params",
                   "BField Profile Parameters:\n"
-                  "  Bx, By, Bz.");
+                  "  CONSTANT: Bx, By, Bz\n"
+                  "  CONST_CYL: Brho, Bphi, Bz, minimum rho\n"
+                  "  CYLINDRICAL: rho0, Bphi, Bz.");
    args.AddOption(&tpt, "-tp", "--temperature-profile",
                   "Temperature Profile Type "
                   "(for each ion species and electrons): \n"
@@ -558,7 +561,7 @@ int main(int argc, char *argv[])
 
    Mesh mesh;
 
-   if (mesh_file != "")
+   if (strcmp(mesh_file, "") != 0)
      {
        mesh = Mesh(mesh_file, 1, 1);
      }
