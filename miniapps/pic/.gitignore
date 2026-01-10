@@ -1,0 +1,8 @@
+pic_*
+!pic_*.cpp
+!pic_*.hpp
+*.csv
+*.gif
+*.mp4
+*.png
+temp*
