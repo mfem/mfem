@@ -462,10 +462,41 @@ public:
              const IntegrationPoint &ip);
 };
 
+/**
+    Convenience class for implementing a variety of background
+    magnetic field profiles to be used with the plasma miniapps.
+
+    The BFieldProfile is designed to be initialized from the command
+    line with a pair of options; an integer index specifying the
+    BFieldProfile::Type and a variable length Vector of double
+    precision parameters specific to each profile type.
+
+    Available profile types include:
+
+    CONSTANT: 3 parameters
+       The constant magnetic field B = {Bx, By, Bz};
+
+    CONST_CYL: 4 parameters
+       The constant magnetic field B = {Brho, Bphi, Bz};
+       The minimum rho below which B = {0, 0, Bz};
+       
+    CYLINDRICAL: 3 parameters
+       Magnetic field surrounding a constant current density in the
+       z-direction confined to the disk x^2+y^2<rho0^2.
+       The three parameters are:
+       The radius rho0 of the non-zero current density region
+       The angular B field Bphi0 at the radius rho0
+       The axial B field Bz
+
+    DEFAULT: No parameters necessary
+       Constant magnetic field in the z-direction equal to 5.4 Tesla.
+*/
 class BFieldProfile : public VectorCoefficient
 {
 public:
-   enum Type {CONSTANT   = 0
+   enum Type {CONSTANT    = 0,
+              CONST_CYL   = 1,
+              CYLINDRICAL = 2
              };
 
 private:
@@ -473,7 +504,7 @@ private:
    Vector p_;
    bool unit_;
 
-   static constexpr int np_[1] = {3};
+   static constexpr int np_[3] = {3, 4, 3};
 
    mutable Vector x3_;
    mutable Vector x_;

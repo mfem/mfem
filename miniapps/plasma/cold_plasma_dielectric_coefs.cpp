@@ -1160,6 +1160,24 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
          V[1] = p_[1];
          V[2] = p_[2];
          break;
+      case CONST_CYL:
+         {
+            real_t rho = sqrt(x_[0] * x_[0] + x_[1] * x_[1]);
+            real_t rrr = (rho < p_[3]) ? 0.0 : 1.0 / rho;
+            V[0] = (p_[0] * x_[0] - p_[1] * x_[1]) * rrr;
+            V[1] = (p_[0] * x_[1] + p_[1] * x_[0]) * rrr;
+            V[2] =  p_[2];
+	}
+	break;
+      case CYLINDRICAL:
+         {
+            real_t rho = sqrt(x_[0] * x_[0] + x_[1] * x_[1]);
+            real_t rrr = (rho < p_[0]) ? 1.0 / p_[0] : p_[0] / (rho * rho);
+            V[0] = -p_[1] * x_[1] * rrr;
+            V[1] =  p_[1] * x_[0] * rrr;
+            V[2] =  p_[2];
+	 }
+	 break;
       default:
          V[0] = 0.0;
          V[1] = 0.0;
