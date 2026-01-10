@@ -10,20 +10,31 @@
 // CONTRIBUTING.md for details.
 //
 //           -----------------------------------------------------
-//           Electric Field Particle Mover
+//           2D2V Particle-In-Cell (PIC) Simulation
 //           -----------------------------------------------------
 //
-// This miniapp computes the trajectory of a single charged particle subject to
+// This miniapp performs a 2D2V (2 spatial dimensions, 2 velocity dimensions)
+// Particle-In-Cell simulation of multiple charged particles subject to
 // electric field forces.
 //
 //                           dp/dt = q E
 //
-// The method used is explicit time integration.
+// The method used is explicit time integration with a leap-frog scheme.
 //
-// The electric field is computed from particles using a Poisson solver.
-// The particle trajectory is computed within the domain of the mesh.
+// The electric field is computed from the particle charge distribution using
+// a Poisson solver. The particle trajectories are computed within a periodic
+// 2D domain.
 //
-// Compile with: make lorentz
+// Compile with: make pic_2d2v_test
+//
+// Sample runs:
+//
+//   Linear Landau damping test case (Ricketson & Hu, 2025):
+//      mpirun -n 4 ./pic_2d2v_test -rdf 1 -npt 102400 -k 0.2855993321 -a 0.05
+//                                   -nt 200 -nx 16 -ny 16 -O 1
+//                                   -q 0.1181640625 -m 0.1181640625
+//                                   -ocf 1000 -dt 0.1
+//
 
 #include "mfem.hpp"
 #include "../common/fem_extras.hpp"
@@ -196,7 +207,7 @@ int main(int argc, char *argv[])
    args.AddOption(&ctx.ordering, "-o", "--ordering",
                   "Ordering of particle data. 0 = byNODES, 1 = byVDIM.");
    args.AddOption(&ctx.redist_freq, "-rdf", "--redist-freq",
-                  "Redistribution frequency.");
+                  "Redistribution and update E_gf frequency.");
    args.AddOption(&ctx.output_csv_freq, "-ocf", "--output-csv-freq",
                   "Output CSV frequency.");
    args.AddOption(&ctx.visualization, "-vis", "--visualization", "-no-vis",
