@@ -3041,7 +3041,7 @@ void ParMesh::GetSharedFaceTransformationsByLocalIndex(
    // for ghost faces we need a special version of GetFaceTransformation
    if (is_ghost)
    {
-      GetGhostFaceTransformation(FElTr, face_type, face_geom);
+      GetGhostFaceTransformation(local_face, FElTr);
       mask |= FaceElementTransformations::HAVE_FACE;
    }
 
@@ -3064,19 +3064,26 @@ void ParMesh::GetSharedFaceTransformationsByLocalIndex(
 }
 
 void ParMesh::GetGhostFaceTransformation(
-   FaceElementTransformations &FElTr, Element::Type face_type,
-   Geometry::Type face_geom) const
+   int FaceNo, FaceElementTransformations &FElTr) const
 {
+   FElTr.ElementNo = FaceNo;
+   FElTr.Attribute = (Dim == 1) ? 1 : faces[FaceNo]->GetAttribute();
+   FElTr.ElementNo = FaceNo;
+   FElTr.ElementType = ElementTransformation::FACE;
+   FElTr.mesh = this;
+
    // calculate composition of FElTr.Loc1 and FElTr.Elem1
    DenseMatrix &face_pm = FElTr.GetPointMat();
    FElTr.Reset();
    if (Nodes == NULL)
    {
+      const Element::Type face_type = GetFaceElementType(FaceNo);
       FElTr.Elem1->Transform(FElTr.Loc1.Transf.GetPointMat(), face_pm);
       FElTr.SetFE(GetTransformationFEforElementType(face_type));
    }
    else
    {
+      const Geometry::Type face_geom = GetFaceGeometry(FaceNo);
       const FiniteElement* face_el =
          Nodes->FESpace()->GetTraceElement(FElTr.Elem1No, face_geom);
       MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(face_el),
