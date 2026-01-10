@@ -434,15 +434,15 @@ void PIC::Redistribute()
 // Print the PIC ascii logo to the given ostream
 void display_banner(ostream &os)
 {
-   os << "   ____  ___  ____ "
+   os << " ____   ___   ____ "
       << endl
-      << "  |  _ \\|_ _|/ ___|"
+      << "|  _ \\ |_ _| / ___|"
       << endl
-      << "  | |_) | | | |    "
+      << "| |_) | | | | |    "
       << endl
-      << "  |  __/ | | | |___ "
+      << "|  __/  | | | |___ "
       << endl
-      << "  |_|   |___|\\____|"
+      << "|_|    |___| \\____|"
       << endl << flush;
 }
 

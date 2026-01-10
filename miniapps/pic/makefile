@@ -46,7 +46,7 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 all: $(MINIAPPS)
 
 # Rules for building the miniapps
-ori: ori.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+pic_2d2v_test: pic_2d2v_test.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $<
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $(COMMON_LIB) $(MFEM_LIBS)
 
@@ -62,7 +62,7 @@ include $(MFEM_TEST_MK)
 
 # Testing: Specific execution options
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-pic-test-par: ori
+pic-test-par: pic_2d2v_test
 	@$(call mfem-test,$<, mpirun -n 4, PIC miniapp,\
 	-rdf 1 -vf 2 -npt 10240 -k 0.2855993321 -a 0.0 -vt 5 -nt 160000 -nx 30 -ny 30 -O 1 -q 0.001181640625 -m 0.001181640625 -rmf 1000 -dt 0.1)
 
@@ -77,4 +77,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf ori_* *.csv energy.csv
+	@rm -rf pic_2d2v_test_* *.csv energy.csv
