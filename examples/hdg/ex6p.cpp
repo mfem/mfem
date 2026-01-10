@@ -360,6 +360,7 @@ int main(int argc, char *argv[])
       darcy.RecoverFEMSolution(X, x);
       uhat_h.MakeTRef(trace_space, X, 0);
       uhat_h.SetFromTrueVector();
+      uhat_h.ExchangeFaceNbrData();
 
       // 22. Send the solution by socket to a GLVis server.
       if (visualization)
