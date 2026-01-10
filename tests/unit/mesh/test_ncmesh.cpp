@@ -121,7 +121,7 @@ TEST_CASE("NCMesh 3D Refined Volume", "[NCMesh]")
                               "../../data/ref-cube.mesh",
                               "../../data/ref-prism.mesh",
                               "../../data/ref-pyramid.mesh",
-                              "data/tinyzoo-3d.mesh"
+                              "../../data/tinyzoo-3d.mesh"
                              );
 
    auto ref_type = GENERATE(Refinement::X,
@@ -146,7 +146,6 @@ TEST_CASE("NCMesh 3D Refined Volume", "[NCMesh]")
    {
       original_volume += mesh.GetElementVolume(i);
    }
-   mesh.GetElementVolume(0);
    Array<Refinement> ref(1);
    ref[0].Set(0, ref_type, scale);
 
@@ -165,7 +164,7 @@ TEST_CASE("NCMesh 3D Derefined Volume", "[NCMesh]")
                               "../../data/ref-cube.mesh",
                               "../../data/ref-prism.mesh",
                               "../../data/ref-pyramid.mesh",
-                              "data/tinyzoo-3d.mesh"
+                              "../../data/tinyzoo-3d.mesh"
                              );
 
    auto ref_type = GENERATE(Refinement::XYZ);
@@ -2904,7 +2903,7 @@ TEST_CASE("InternalBoundaryProjectBdrCoefficient", "[NCMesh]")
 
 TEST_CASE("Test3DMixedMeshRefinement", "[NCMesh]")
 {
-   Mesh mesh("data/tinyzoo-3d.mesh");
+   Mesh mesh("../../data/tinyzoo-3d.mesh");
    mesh.EnsureNCMesh();
    Array<Refinement> R;
 

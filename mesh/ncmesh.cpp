@@ -602,14 +602,7 @@ void Refinement::SetType(char type, real_t scale)
 
 int Refinement::GetNumChildren(Geometry::Type geom_type, char ref_type)
 {
-   if (geom_type != Geometry::PYRAMID)
-   {
-      return ref_type_num_children[int(ref_type)];
-   }
-   else
-   {
-      return 10;
-   }
+   return geom_ref_type_num_children[geom_type][ref_type];
 }
 
 NCMesh::Element::Element(Geometry::Type geom, int attr)
@@ -968,8 +961,7 @@ void NCMesh::FindEdgeElements(int vn1, int vn2, int vn3, int vn4,
 void NCMesh::CheckAnisoPrism(int vn1, int vn2, int vn3, int vn4,
                              const Refinement *refs, int nref)
 {
-   MeshId buf[4];
-   Array<MeshId> eid(buf, 4);
+   Array<MeshId> eid(4);
    FindEdgeElements(vn1, vn2, vn3, vn4, eid);
 
    // see if there is an element that has not been force-refined yet
@@ -984,7 +976,7 @@ void NCMesh::CheckAnisoPrism(int vn1, int vn2, int vn3, int vn4,
       {
          // schedule prism refinement along Z axis
          MFEM_ASSERT(elements[elem].Geom() == Geometry::PRISM, "");
-         ref_stack.Append(Refinement(elem, 4));
+         ref_stack.Append(Refinement(elem, Refinement::Z));
       }
    }
 }
@@ -992,8 +984,7 @@ void NCMesh::CheckAnisoPrism(int vn1, int vn2, int vn3, int vn4,
 void NCMesh::CheckAnisoPyramid(int vn1, int vn2, int vn3, int vn4,
                                const Refinement *refs, int nref)
 {
-   MeshId buf[4];
-   Array<MeshId> eid(buf, 4);
+   Array<MeshId> eid(4);
    FindEdgeElements(vn1, vn2, vn3, vn4, eid);
 
    // see if there is an element that has not been force-refined yet
@@ -1006,9 +997,9 @@ void NCMesh::CheckAnisoPyramid(int vn1, int vn2, int vn3, int vn4,
       }
       if (j == nref) // elem not found in refs[]
       {
-         // schedule prism refinement along Z axis
+         // schedule full pyramid refinement
          MFEM_ASSERT(elements[elem].Geom() == Geometry::PYRAMID, "");
-         ref_stack.Append(Refinement(elem, 4));
+         ref_stack.Append(Refinement(elem, Refinement::XYZ));
       }
    }
 }
@@ -1089,10 +1080,13 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
             {
                CheckAnisoPrism(mid23, vn3, vn4, mid41,
                                &ref_stack[rs], ref_stack.Size() - rs);
+               CheckAnisoPrism(vn1, vn2, mid23, mid41,
+                               &ref_stack[rs], ref_stack.Size() - rs);
             }
             else
             {
                CheckAnisoPrism(mid23, vn3, vn4, mid41, NULL, 0);
+               CheckAnisoPrism(vn1, vn2, mid23, mid41, NULL, 0);
             }
          }
          if (HavePyramids() && nodes[midf].HasEdge())
@@ -6076,17 +6070,6 @@ void NCMesh::CountSplits(int elem, int splits[3]) const
       splits[1] = splits[0];
       splits[2] = splits[0];
    }
-   else if (el.Geom() == Geometry::PYRAMID)
-   {
-      splits[0] = max(flevel[0][0], flevel[1][0], 0,
-                      flevel[2][0], flevel[3][0], flevel[4][0],
-                      elevel[0], elevel[1], elevel[2],
-                      elevel[3], elevel[4], elevel[5],
-                      elevel[6], elevel[7]);
-
-      splits[1] = splits[0];
-      splits[2] = splits[0];
-   }
    else if (el.Geom() == Geometry::TETRAHEDRON)
    {
       splits[0] = max(flevel[0][0], flevel[1][0], flevel[2][0], flevel[3][0],
@@ -6638,7 +6621,6 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
          // if we have pyramids we will need tets after refinement
          if (geom == Geometry::PYRAMID)
          {
-            CheckSupportedGeom(Geometry::TETRAHEDRON);
             GI[Geometry::TETRAHEDRON].InitGeom(Geometry::TETRAHEDRON);
          }
 

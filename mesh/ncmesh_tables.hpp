@@ -15,7 +15,16 @@
 namespace mfem
 {
 
-static constexpr int ref_type_num_children[8] = { 0, 2, 2, 4, 2, 4, 4, 8 };
+static constexpr int geom_ref_type_num_children[7][8] =
+{
+   { 0, 0, 0, 0, 0, 0, 0, 0},
+   { 0, 2, 2, 2, 2, 2, 2, 2},
+   { 0, 4, 4, 4, 4, 4, 4, 4},
+   { 0, 2, 2, 4, 4, 4, 4, 4},
+   { 0, 8, 8, 8, 8, 8, 8, 8},
+   { 0, 2, 2, 4, 2, 4, 4, 8 },
+   { 0, 10, 10, 10, 10, 10, 10, 10}
+};
 
 // derefinement tables
 // The first n numbers in each line are the refined elements that contain
