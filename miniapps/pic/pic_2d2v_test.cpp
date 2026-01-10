@@ -388,14 +388,7 @@ void PIC::InterpolateE()
    ParticleVector &E = charged_particles->Field(EFIELD);
 
    // Interpolate E-field onto particles
-   if (E_gf)
-   {
-      GetValues(X, E_finder, *E_gf, E);
-   }
-   else
-   {
-      E = 0.0;
-   }
+   GetValues(X, E_finder, *E_gf, E);
 }
 
 void PIC::Step(real_t &t, real_t &dt, bool zeroth_step)
