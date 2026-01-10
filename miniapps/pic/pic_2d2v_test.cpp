@@ -56,7 +56,7 @@ struct PICContext
    int npt = 1000;
    real_t q = 1.0;
    real_t m = 1.0;
-   
+
    real_t k = 1.0;
    real_t alpha = 0.1;
 
@@ -97,7 +97,7 @@ protected:
 
 public:
    PIC(MPI_Comm comm, ParGridFunction *E_gf_,
-         int num_particles, Ordering::Type pdata_ordering);
+       int num_particles, Ordering::Type pdata_ordering);
    void InterpolateE();
    void Step(real_t &t, real_t &dt, bool zeroth_step = false);
    void RemoveLostParticles();
@@ -153,7 +153,7 @@ public:
 };
 
 // Prints the program's logo to the given output stream
-void display_banner(ostream & os);
+void display_banner(ostream &os);
 
 // Initialize particles from user input.
 void InitializeChargedParticles(ParticleSet &charged_particles,
@@ -170,7 +170,10 @@ int main(int argc, char *argv[])
    // Mesh parameters
    int dim = 2;
 
-   if ( Mpi::Root() ) { display_banner(cout); }
+   if (Mpi::Root())
+   {
+      display_banner(cout);
+   }
 
    OptionsParser args(argc, argv);
    args.AddOption(&ctx.order, "-O", "--order", "Finite element polynomial degree");
@@ -434,16 +437,16 @@ void PIC::Redistribute()
 // Print the PIC ascii logo to the given ostream
 void display_banner(ostream &os)
 {
-   os << " ____   ___   ____ "
+   os << R"(
+      ██████╗░██╗░█████╗░
+      ██╔══██╗██║██╔══██╗
+      ██████╔╝██║██║░░╚═╝
+      ██╔═══╝░██║██║░░██╗
+      ██║░░░░░██║╚█████╔╝
+      ╚═╝░░░░░╚═╝░╚════╝░
+         )"
       << endl
-      << "|  _ \\ |_ _| / ___|"
-      << endl
-      << "| |_) | | | | |    "
-      << endl
-      << "|  __/  | | | |___ "
-      << endl
-      << "|_|    |___| \\____|"
-      << endl << flush;
+      << flush;
 }
 
 void InitializeChargedParticles(ParticleSet &charged_particles,
@@ -508,7 +511,7 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
       const int dim = pmesh->Dimension();
 
       // Particle data
-      ParticleVector &X = particles.Coords();             // coordinates (vdim x npt)
+      ParticleVector &X = particles.Coords();           // coordinates (vdim x npt)
       ParticleVector &Q = particles.Field(PIC::CHARGE); // charges (1 x npt)
       Ordering::Type ordering_type = X.GetOrdering();
 
