@@ -1557,35 +1557,24 @@ real_t HDGDiffusionIntegrator::ComputeHDGFaceEnergy(
          un = 0.0;
       }
 
-      if (side != 0)
+      ElementTransformation *ElTr = (side)?(Trans.Elem2):(Trans.Elem1);
+      const IntegrationPoint &eip = (side)?(eip2):(eip1);
+
+      el.CalcPhysShape(*ElTr, el_shape);
+      real_t wn = ip.weight/ElTr->Weight();
+      if (!MQ)
       {
-         el.CalcPhysShape(*Trans.Elem2, el_shape);
+         if (Q)
+         {
+            wn *= Q->Eval(*ElTr, eip);
+         }
+         ni.Set(wn, nor);
       }
       else
       {
-         el.CalcPhysShape(*Trans.Elem1, el_shape);
-      }
-
-      {
-         real_t wn = ip.weight/Trans.Elem1->Weight();
-         if (Trans.Elem2No >= 0)
-         {
-            wn /= 2;
-         }
-         if (!MQ)
-         {
-            if (Q)
-            {
-               wn *= Q->Eval(*Trans.Elem1, eip1);
-            }
-            ni.Set(wn, nor);
-         }
-         else
-         {
-            nh.Set(wn, nor);
-            MQ->Eval(mq, *Trans.Elem1, eip1);
-            mq.MultTranspose(nh, ni);
-         }
+         nh.Set(wn, nor);
+         MQ->Eval(mq, *ElTr, eip);
+         mq.MultTranspose(nh, ni);
       }
       // Note: in the jump term, we use 1/h1 = |nor|/det(J1) which is
       // independent of Loc1 and always gives the size of element 1 in
@@ -1597,25 +1586,6 @@ real_t HDGDiffusionIntegrator::ComputeHDGFaceEnergy(
       // For example: meas(ref. tetrahedron)/meas(ref. triangle) = 1/3, and
       // for any tetrahedron vol(tet)=(1/3)*height*area(base).
       // For interior faces: q_e/h_e=(q1/h1+q2/h2)/2.
-
-      if (Trans.Elem2No >= 0)
-      {
-         real_t wn = ip.weight/2/Trans.Elem2->Weight();
-         if (!MQ)
-         {
-            if (Q)
-            {
-               wn *= Q->Eval(*Trans.Elem2, eip2);
-            }
-            ni.Add(wn, nor);
-         }
-         else
-         {
-            nh.Set(wn, nor);
-            MQ->Eval(mq, *Trans.Elem2, eip2);
-            mq.AddMultTranspose(nh, ni);
-         }
-      }
 
       real_t a, b;
       if (un != 0.)

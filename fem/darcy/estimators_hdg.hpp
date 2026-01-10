@@ -29,6 +29,9 @@ public:
 private:
    BilinearFormIntegrator &bfi;
    const GridFunction &sol_tr, &sol_p;
+#ifdef MFEM_USE_MPI
+   const ParGridFunction *psol_tr {};
+#endif
    Type type;
 
    long current_sequence{-1};
@@ -49,13 +52,18 @@ private:
    void ComputeEstimates();
 
    /// Compute the face error estimate
-   void ComputeFaceEstimate(FaceElementTransformations &FTr,
-                            Vector &d_error_estimates);
+   void ComputeFaceEstimate(int face, bool side2, Vector &d_error_estimates);
 
 public:
    HDGErrorEstimator(BilinearFormIntegrator &integ, const GridFunction &solr,
                      const GridFunction &solp, Type type_ = Type::Energy)
       : bfi(integ), sol_tr(solr), sol_p(solp), type(type_) { }
+
+#ifdef MFEM_USE_MPI
+   HDGErrorEstimator(BilinearFormIntegrator &integ, const ParGridFunction &solr,
+                     const GridFunction &solp, Type type_ = Type::Energy)
+      : bfi(integ), sol_tr(solr), sol_p(solp), psol_tr(&solr), type(type_) { }
+#endif
 
    /// Enable/disable anisotropic estimates.
    /** To enable this option, the BilinearFormIntegrator must support the
