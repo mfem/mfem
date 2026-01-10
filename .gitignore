@@ -348,6 +348,8 @@ miniapps/performance/sol.*
 
 miniapps/plasma/stix_r1d_eb
 miniapps/plasma/stix_r1d_eb_cmd.txt
+miniapps/plasma/stix_r2d_eb
+miniapps/plasma/stix_r2d_eb_cmd.txt
 
 miniapps/shifted/distance
 miniapps/shifted/ParaViewDistance
