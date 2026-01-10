@@ -67,7 +67,7 @@ void mult_integ(const char *filename, int p)
 
    const auto mass_qf =
       [] MFEM_HOST_DEVICE(
-         const real_t &u,
+         const dscalar_t &u,
          const tensor<real_t, DIM, DIM> &J,
          const real_t &w)
    {
@@ -76,7 +76,7 @@ void mult_integ(const char *filename, int p)
 
    const auto diffusion_qf =
       [] MFEM_HOST_DEVICE(
-         const tensor<real_t, DIM> &dudxi,
+         const tensor<dscalar_t, DIM> &dudxi,
          const tensor<real_t, DIM, DIM> &J,
          const real_t &w)
    {
