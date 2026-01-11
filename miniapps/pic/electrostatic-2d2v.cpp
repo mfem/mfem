@@ -25,6 +25,15 @@
 // a Poisson solver. The particle trajectories are computed within a periodic
 // 2D domain.
 //
+// Solution process (per timestep, repeating steps 1-6):
+//   (1) Deposit charge from particles to grid via Dirac delta function
+//       to form the RHS of the Poisson equation
+//   (2) Solve Poisson equation (Δφ = -ρ) to compute potential φ
+//   (3) Compute electric field E = -∇φ from the potential
+//   (4) Interpolate E-field to particle positions
+//   (5) Push particles using leap-frog scheme (update momentum and position)
+//   (6) Redistribute particles across processors
+//
 // Compile with: make pic_2d2v_test
 //
 // Sample runs:
