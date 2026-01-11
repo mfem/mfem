@@ -415,9 +415,6 @@ void PIC::Step(real_t &t, real_t &dt, bool zeroth_step)
    if (zeroth_step)
       return;
 
-   // Interpolate E field onto new locations of particles
-   InterpolateE();
-
    // Update time
    t += dt;
 }
@@ -437,6 +434,9 @@ void PIC::RemoveLostParticles()
 
 void PIC::Redistribute()
 {
+   Mesh &mesh = *E_gf->ParFESpace()->GetMesh();
+   const ParticleVector &coords = charged_particles->Coords();
+   E_finder.FindPoints(mesh, coords, coords.GetOrdering());
    charged_particles->Redistribute(E_finder.GetProc());
 }
 // Print the PIC ascii logo to the given ostream
@@ -461,7 +461,7 @@ void InitializeChargedParticles(ParticleSet &charged_particles,
    int rank;
    MPI_Comm_rank(charged_particles.GetComm(), &rank);
    // use time-based seed for randomness
-   std::mt19937 gen(rank + static_cast<unsigned int>(time(nullptr)));
+   std::mt19937 gen(rank);
    std::uniform_real_distribution<> real_dist(0.0, 1.0);
    std::normal_distribution<> norm_dist(0.0, 1.0);
 
