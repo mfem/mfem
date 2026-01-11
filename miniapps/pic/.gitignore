@@ -6,3 +6,4 @@ electrostatic-*
 *.mp4
 *.png
 temp*
+.clang-format

@@ -45,21 +45,22 @@
 //                                   -ocf 1000 -dt 0.1
 //
 
-#include "mfem.hpp"
-#include "../common/fem_extras.hpp"
-#include "../common/pfem_extras.hpp"
-#include "../common/particles_extras.hpp"
-#include "../../general/text.hpp"
+#include <chrono>
+#include <ctime>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
+#include <random>
 #include <string>
 #include <vector>
-#include <iomanip>
-#include <random>
-#include <ctime>
-#include <chrono>
 
-#define EPSILON 1 // ε_0
+#include "../../general/text.hpp"
+#include "../common/fem_extras.hpp"
+#include "../common/particles_extras.hpp"
+#include "../common/pfem_extras.hpp"
+#include "mfem.hpp"
+
+#define EPSILON 1  // ε_0
 
 using namespace std;
 using namespace mfem;
@@ -100,34 +101,31 @@ class PIC
 public:
    enum Fields
    {
-      MASS,   // vdim = 1
-      CHARGE, // vdim = 1
-      MOM,    // vdim = dim
-      EFIELD, // vdim = dim
+      MASS,    // vdim = 1
+      CHARGE,  // vdim = 1
+      MOM,     // vdim = dim
+      EFIELD,  // vdim = dim
       SIZE
    };
 
 protected:
-   ParGridFunction *E_gf;
+   ParGridFunction* E_gf;
    FindPointsGSLIB E_finder;
    std::unique_ptr<ParticleSet> charged_particles;
    mutable Vector pm_, pp_;
 
-   static void GetValues(const ParticleVector &coords, FindPointsGSLIB &finder,
-                         ParGridFunction &gf, ParticleVector &pv);
-   void ParticleStep(Particle &part, real_t &dt, bool zeroth_step = false);
+   static void GetValues(const ParticleVector& coords, FindPointsGSLIB& finder,
+                         ParGridFunction& gf, ParticleVector& pv);
+   void ParticleStep(Particle& part, real_t& dt, bool zeroth_step = false);
 
 public:
-   PIC(MPI_Comm comm, ParGridFunction *E_gf_,
-       int num_particles, Ordering::Type pdata_ordering);
+   PIC(MPI_Comm comm, ParGridFunction* E_gf_, int num_particles,
+       Ordering::Type pdata_ordering);
    void InterpolateE();
-   void Step(real_t &t, real_t &dt, bool zeroth_step = false);
+   void Step(real_t& t, real_t& dt, bool zeroth_step = false);
    void RemoveLostParticles();
    void Redistribute();
-   ParticleSet &GetParticles()
-   {
-      return *charged_particles;
-   }
+   ParticleSet& GetParticles() { return *charged_particles; }
 };
 
 class GridFunctionUpdates
@@ -135,46 +133,46 @@ class GridFunctionUpdates
 private:
    real_t domain_volume;
    real_t neutralizing_const;
-   ParLinearForm *precomputed_neutralizing_lf = nullptr;
+   ParLinearForm* precomputed_neutralizing_lf = nullptr;
    bool neutralizing_const_computed = false;
    bool use_precomputed_neutralizing_const = false;
    // Diffusion matrix
-   HypreParMatrix *DiffusionMatrix;
+   HypreParMatrix* DiffusionMatrix;
 
 public:
    // Update the phi_gf grid function from the particles.
-   void UpdatePhiGridFunction(ParticleSet &particles, ParGridFunction &phi_gf,
-                              ParGridFunction &E_gf);
-   void TotalEnergyValidation(const ParticleSet &particles,
-                              const ParGridFunction &E_gf);
+   void UpdatePhiGridFunction(ParticleSet& particles, ParGridFunction& phi_gf,
+                              ParGridFunction& E_gf);
+   void TotalEnergyValidation(const ParticleSet& particles,
+                              const ParGridFunction& E_gf);
    // constructor
-   GridFunctionUpdates(ParGridFunction &phi_gf,
+   GridFunctionUpdates(ParGridFunction& phi_gf,
                        bool use_precomputed_neutralizing_const_ = false)
       : use_precomputed_neutralizing_const(use_precomputed_neutralizing_const_)
    {
       // compute domain volume
-      ParMesh *pmesh = phi_gf.ParFESpace()->GetParMesh();
+      ParMesh* pmesh = phi_gf.ParFESpace()->GetParMesh();
       real_t local_domain_volume = 0.0;
       for (int i = 0; i < pmesh->GetNE(); i++)
       {
          local_domain_volume += pmesh->GetElementVolume(i);
       }
-      MPI_Allreduce(&local_domain_volume, &domain_volume, 1, MPI_DOUBLE, MPI_SUM,
-                    phi_gf.ParFESpace()->GetParMesh()->GetComm());
+      MPI_Allreduce(&local_domain_volume, &domain_volume, 1, MPI_DOUBLE,
+                    MPI_SUM, phi_gf.ParFESpace()->GetParMesh()->GetComm());
 
-      ParFiniteElementSpace *pfes = phi_gf.ParFESpace();
+      ParFiniteElementSpace* pfes = phi_gf.ParFESpace();
 
       {
          // Par bilinear form for the gradgrad matrix
          ParBilinearForm dm(pfes);
-         ConstantCoefficient epsilon(EPSILON);                     // ε_0
-         dm.AddDomainIntegrator(new DiffusionIntegrator(
-                                   epsilon)); // ∫ ∇φ_i · ∇φ_j
+         ConstantCoefficient epsilon(EPSILON);  // ε_0
+         dm.AddDomainIntegrator(
+            new DiffusionIntegrator(epsilon));  // ∫ ∇φ_i · ∇φ_j
 
          dm.Assemble();
          dm.Finalize();
 
-         DiffusionMatrix = dm.ParallelAssemble(); // global gradgrad matrix
+         DiffusionMatrix = dm.ParallelAssemble();  // global gradgrad matrix
       }
    }
    ~GridFunctionUpdates()
@@ -185,14 +183,14 @@ public:
 };
 
 // Prints the program's logo to the given output stream
-void display_banner(ostream &os);
+void display_banner(ostream& os);
 
 // Initialize particles from user input.
-void InitializeChargedParticles(ParticleSet &charged_particles,
-                                const real_t &k, const real_t &alpha,
-                                real_t m, real_t q, real_t L_x, bool reproduce);
+void InitializeChargedParticles(ParticleSet& charged_particles, const real_t& k,
+                                const real_t& alpha, real_t m, real_t q,
+                                real_t L_x, bool reproduce);
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
    Mpi::Init(argc, argv);
    int size = Mpi::WorldSize();
@@ -202,27 +200,20 @@ int main(int argc, char *argv[])
    // Mesh parameters
    int dim = 2;
 
-   if (Mpi::Root())
-   {
-      display_banner(cout);
-   }
+   if (Mpi::Root()) { display_banner(cout); }
 
    OptionsParser args(argc, argv);
-   args.AddOption(&ctx.order, "-O", "--order", "Finite element polynomial degree");
+   args.AddOption(&ctx.order, "-O", "--order",
+                  "Finite element polynomial degree");
    args.AddOption(&ctx.nx, "-nx", "--num-x",
                   "Number of elements in the x direction.");
    args.AddOption(&ctx.ny, "-ny", "--num-y",
                   "Number of elements in the y direction.");
-   args.AddOption(&ctx.q, "-q", "--charge",
-                  "Particle charge.");
-   args.AddOption(&ctx.m, "-m", "--mass",
-                  "Particle mass.");
-   args.AddOption(&ctx.dt, "-dt", "--time-step",
-                  "Time Step.");
-   args.AddOption(&ctx.t_init, "-ti", "--initial-time",
-                  "Initial Time.");
-   args.AddOption(&ctx.nt, "-nt", "--num-timesteps",
-                  "Number of timesteps.");
+   args.AddOption(&ctx.q, "-q", "--charge", "Particle charge.");
+   args.AddOption(&ctx.m, "-m", "--mass", "Particle mass.");
+   args.AddOption(&ctx.dt, "-dt", "--time-step", "Time Step.");
+   args.AddOption(&ctx.t_init, "-ti", "--initial-time", "Initial Time.");
+   args.AddOption(&ctx.nt, "-nt", "--num-timesteps", "Number of timesteps.");
    args.AddOption(&ctx.npt, "-npt", "--num-particles",
                   "Total number of particles.");
    args.AddOption(&ctx.k, "-k", "--k", "K parameter for initial distribution.");
@@ -244,31 +235,27 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (Mpi::Root())
-      {
-         args.PrintUsage(cout);
-      }
+      if (Mpi::Root()) { args.PrintUsage(cout); }
       return 1;
    }
-   if (Mpi::Root())
-   {
-      args.PrintOptions(cout);
-   }
+   if (Mpi::Root()) { args.PrintOptions(cout); }
    ctx.L_x = 2.0 * M_PI / ctx.k;
 
-   ParGridFunction *E_gf = nullptr;
+   ParGridFunction* E_gf = nullptr;
 
    // build up E_gf, B_gf can remain nullptr
    // 1. make a 2D Cartesian Mesh
-   Mesh serial_mesh(Mesh::MakeCartesian2D(ctx.nx, ctx.ny, Element::QUADRILATERAL,
-                                          false, ctx.L_x, ctx.L_x));
-   std::vector<Vector> translations = {Vector({ctx.L_x, 0.0}), Vector({0.0, ctx.L_x})};
-   Mesh periodic_mesh(Mesh::MakePeriodic(serial_mesh,
-                                         serial_mesh.CreatePeriodicVertexMapping(translations)));
+   Mesh serial_mesh(Mesh::MakeCartesian2D(
+                       ctx.nx, ctx.ny, Element::QUADRILATERAL, false, ctx.L_x, ctx.L_x));
+   std::vector<Vector> translations = {Vector({ctx.L_x, 0.0}),
+                                       Vector({0.0, ctx.L_x})
+                                      };
+   Mesh periodic_mesh(Mesh::MakePeriodic(
+                         serial_mesh, serial_mesh.CreatePeriodicVertexMapping(translations)));
    // 2. parallelize the mesh
    ParMesh mesh(MPI_COMM_WORLD, periodic_mesh);
-   serial_mesh.Clear();   // the serial mesh is no longer needed
-   periodic_mesh.Clear(); // the periodic mesh is no longer needed
+   serial_mesh.Clear();    // the serial mesh is no longer needed
+   periodic_mesh.Clear();  // the periodic mesh is no longer needed
    // 3. Define a finite element space on the parallel mesh
    H1_FECollection sca_fec(ctx.order, dim);
    ParFiniteElementSpace sca_fespace(&mesh, &sca_fec);
@@ -278,20 +265,20 @@ int main(int argc, char *argv[])
    // 4. Prepare an empty phi_gf and E_gf for later use
    ParGridFunction phi_gf(&sca_fespace);
    E_gf = new ParGridFunction(&vec_fespace);
-   phi_gf = 0.0; // Initialize phi_gf to zero
-   *E_gf = 0.0;  // Initialize E_gf to zero
+   phi_gf = 0.0;  // Initialize phi_gf to zero
+   *E_gf = 0.0;   // Initialize E_gf to zero
 
    // 7. Build the grid function updates
    GridFunctionUpdates gf_updates(phi_gf, true);
-   Ordering::Type ordering_type = ctx.ordering == 0 ? Ordering::byNODES :
-                                  Ordering::byVDIM;
+   Ordering::Type ordering_type =
+      ctx.ordering == 0 ? Ordering::byNODES : Ordering::byVDIM;
 
    // Initialize PIC
    int num_particles = ctx.npt / size + (rank < (ctx.npt % size) ? 1 : 0);
    PIC pic(MPI_COMM_WORLD, E_gf, num_particles, ordering_type);
-   InitializeChargedParticles(pic.GetParticles(),
-                              ctx.k, ctx.alpha, ctx.m, ctx.q, ctx.L_x, ctx.reproduce);
-   pic.InterpolateE(); // Interpolate E field onto particle positions
+   InitializeChargedParticles(pic.GetParticles(), ctx.k, ctx.alpha, ctx.m,
+                              ctx.q, ctx.L_x, ctx.reproduce);
+   pic.InterpolateE();  // Interpolate E field onto particle positions
 
    real_t t = ctx.t_init;
    real_t dt = ctx.dt;
@@ -339,7 +326,8 @@ int main(int argc, char *argv[])
          pic.RemoveLostParticles();
          std::string csv_prefix = "PIC_Part_";
          Array<int> field_idx{2}, tag_idx;
-         std::string file_name = csv_prefix + mfem::to_padded_string(step, 6) + ".csv";
+         std::string file_name =
+            csv_prefix + mfem::to_padded_string(step, 6) + ".csv";
          pic.GetParticles().PrintCSV(file_name.c_str(), field_idx, tag_idx);
       }
    }
@@ -348,10 +336,10 @@ int main(int argc, char *argv[])
    delete E_gf;
 }
 
-void PIC::GetValues(const ParticleVector &coords, FindPointsGSLIB &finder,
-                    ParGridFunction &gf, ParticleVector &pv)
+void PIC::GetValues(const ParticleVector& coords, FindPointsGSLIB& finder,
+                    ParGridFunction& gf, ParticleVector& pv)
 {
-   ParMesh &mesh = *gf.ParFESpace()->GetParMesh();
+   ParMesh& mesh = *gf.ParFESpace()->GetParMesh();
    mesh.EnsureNodes();
    finder.FindPoints(mesh, coords, coords.GetOrdering());
    finder.Interpolate(gf, pv);
@@ -359,51 +347,41 @@ void PIC::GetValues(const ParticleVector &coords, FindPointsGSLIB &finder,
                      pv.GetOrdering());
 }
 
-void PIC::ParticleStep(Particle &part, real_t &dt, bool zeroth_step)
+void PIC::ParticleStep(Particle& part, real_t& dt, bool zeroth_step)
 {
-   Vector &x = part.Coords();
+   Vector& x = part.Coords();
    real_t m = part.FieldValue(MASS);
    real_t q = part.FieldValue(CHARGE);
-   Vector &p = part.Field(MOM);
-   Vector &e = part.Field(EFIELD);
+   Vector& p = part.Field(MOM);
+   Vector& e = part.Field(EFIELD);
    // Compute half of the contribution from q E
    add(p, 0.5 * dt * q, e, pm_);
 
    // --- Simplified update: no magnetic field ---
-   pp_ = pm_; // only include E contribution
+   pp_ = pm_;  // only include E contribution
 
    // Update the momentum (full electric contribution)
    add(pp_, 0.5 * dt * q, e, p);
 
-   if (zeroth_step)
-   {
-      return;
-   }
+   if (zeroth_step) { return; }
 
    // Update the position
    x.Add(dt / m, p);
 
    // periodic boundary: wrap around using ctx mesh extents
    x(0) = fmod(x(0), ctx.L_x);
-   if (x(0) < 0.0)
-   {
-      x(0) += ctx.L_x;
-   }
+   if (x(0) < 0.0) { x(0) += ctx.L_x; }
    x(1) = fmod(x(1), ctx.L_x);
-   if (x(1) < 0.0)
-   {
-      x(1) += ctx.L_x;
-   }
+   if (x(1) < 0.0) { x(1) += ctx.L_x; }
 }
 
-PIC::PIC(MPI_Comm comm, ParGridFunction *E_gf_,
-         int num_particles, Ordering::Type pdata_ordering)
-   : E_gf(E_gf_),
-     E_finder(comm)
+PIC::PIC(MPI_Comm comm, ParGridFunction* E_gf_, int num_particles,
+         Ordering::Type pdata_ordering)
+   : E_gf(E_gf_), E_finder(comm)
 {
    MFEM_VERIFY(E_gf, "Must pass an E field to PIC.");
 
-   ParMesh *E_mesh = E_gf->ParFESpace()->GetParMesh();
+   ParMesh* E_mesh = E_gf->ParFESpace()->GetParMesh();
    int dim = E_mesh->SpaceDimension();
 
    E_mesh->EnsureNodes();
@@ -414,20 +392,20 @@ PIC::PIC(MPI_Comm comm, ParGridFunction *E_gf_,
 
    // Create particle set: 2 scalars of mass and charge, 3 vectors of size space dim for momentum, e field, and b field
    Array<int> field_vdims({1, 1, dim, dim, dim});
-   charged_particles = std::make_unique<ParticleSet>(comm, ctx.npt, dim,
-                                                     field_vdims, 1, pdata_ordering);
+   charged_particles = std::make_unique<ParticleSet>(
+                          comm, ctx.npt, dim, field_vdims, 1, pdata_ordering);
 }
 
 void PIC::InterpolateE()
 {
-   ParticleVector &X = charged_particles->Coords();
-   ParticleVector &E = charged_particles->Field(EFIELD);
+   ParticleVector& X = charged_particles->Coords();
+   ParticleVector& E = charged_particles->Field(EFIELD);
 
    // Interpolate E-field onto particles
    GetValues(X, E_finder, *E_gf, E);
 }
 
-void PIC::Step(real_t &t, real_t &dt, bool zeroth_step)
+void PIC::Step(real_t& t, real_t& dt, bool zeroth_step)
 {
    InterpolateE();
    // Individually step each particle:
@@ -448,10 +426,7 @@ void PIC::Step(real_t &t, real_t &dt, bool zeroth_step)
          charged_particles->SetParticle(i, p);
       }
    }
-   if (zeroth_step)
-   {
-      return;
-   }
+   if (zeroth_step) { return; }
 
    // Update time
    t += dt;
@@ -462,23 +437,20 @@ void PIC::RemoveLostParticles()
    Array<int> lost_idxs;
    const Array<int> E_lost = E_finder.GetPointsNotFoundIndices();
 
-   for (const int &elem : E_lost)
-   {
-      lost_idxs.Union(elem);
-   }
+   for (const int& elem : E_lost) { lost_idxs.Union(elem); }
 
    charged_particles->RemoveParticles(lost_idxs);
 }
 
 void PIC::Redistribute()
 {
-   Mesh &mesh = *E_gf->ParFESpace()->GetMesh();
-   const ParticleVector &coords = charged_particles->Coords();
+   Mesh& mesh = *E_gf->ParFESpace()->GetMesh();
+   const ParticleVector& coords = charged_particles->Coords();
    E_finder.FindPoints(mesh, coords, coords.GetOrdering());
    charged_particles->Redistribute(E_finder.GetProc());
 }
 // Print the PIC ascii logo to the given ostream
-void display_banner(ostream &os)
+void display_banner(ostream& os)
 {
    os << R"(
       ██████╗░██╗░█████╗░
@@ -492,40 +464,35 @@ void display_banner(ostream &os)
       << flush;
 }
 
-void InitializeChargedParticles(ParticleSet &charged_particles,
-                                const real_t &k, const real_t &alpha,
-                                real_t m, real_t q, real_t L_x, bool reproduce)
+void InitializeChargedParticles(ParticleSet& charged_particles, const real_t& k,
+                                const real_t& alpha, real_t m, real_t q,
+                                real_t L_x, bool reproduce)
 {
    int rank;
    MPI_Comm_rank(charged_particles.GetComm(), &rank);
    // use time-based seed for randomness
-   std::mt19937 gen(reproduce ? rank : (rank + static_cast<unsigned int>(time(
-                                                                            nullptr))));
+   std::mt19937 gen(
+      reproduce ? rank : (rank + static_cast<unsigned int>(time(nullptr))));
    std::uniform_real_distribution<> real_dist(0.0, 1.0);
    std::normal_distribution<> norm_dist(0.0, 1.0);
 
    int dim = charged_particles.Coords().GetVDim();
-   MFEM_VERIFY(alpha >= -1.0 && alpha < 1.0, "Alpha should be in range [-1, 1).");
+   MFEM_VERIFY(alpha >= -1.0 && alpha < 1.0,
+               "Alpha should be in range [-1, 1).");
    MFEM_VERIFY(k != 0.0, "k must be nonzero for displacement initialization.");
 
-   ParticleVector &X = charged_particles.Coords();
-   ParticleVector &P = charged_particles.Field(PIC::MOM);
-   ParticleVector &M = charged_particles.Field(PIC::MASS);
-   ParticleVector &Q = charged_particles.Field(PIC::CHARGE);
+   ParticleVector& X = charged_particles.Coords();
+   ParticleVector& P = charged_particles.Field(PIC::MOM);
+   ParticleVector& M = charged_particles.Field(PIC::MASS);
+   ParticleVector& Q = charged_particles.Field(PIC::CHARGE);
 
    for (int i = 0; i < charged_particles.GetNParticles(); i++)
    {
       // Initialize momentum
-      for (int d = 0; d < dim; d++)
-      {
-         P(i, d) = m * norm_dist(gen);
-      }
+      for (int d = 0; d < dim; d++) { P(i, d) = m * norm_dist(gen); }
 
       // Uniform positions (no accept-reject)
-      for (int d = 0; d < dim; d++)
-      {
-         X(i, d) = real_dist(gen) * L_x;
-      }
+      for (int d = 0; d < dim; d++) { X(i, d) = real_dist(gen) * L_x; }
 
       // Option 2: displacement along x for perturbation ~ cos(k x)
       for (int d = 0; d < dim; d++)
@@ -535,10 +502,7 @@ void InitializeChargedParticles(ParticleSet &charged_particles,
 
          // periodic wrap to [0, L_x)
          x = std::fmod(x, L_x);
-         if (x < 0)
-         {
-            x += L_x;
-         }
+         if (x < 0) { x += L_x; }
 
          X(i, d) = x;
       }
@@ -551,29 +515,30 @@ void InitializeChargedParticles(ParticleSet &charged_particles,
 
 // Solve periodic Poisson: DiffusionMatrix * phi = (rho - <rho>)
 // with zero-mean enforcement via OrthoSolver.
-void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
-                                                ParGridFunction &phi_gf,
-                                                ParGridFunction &E_gf)
+void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet& particles,
+                                                ParGridFunction& phi_gf,
+                                                ParGridFunction& E_gf)
 {
    {
       // FE space / mesh
-      ParFiniteElementSpace *pfes = phi_gf.ParFESpace();
-      ParMesh *pmesh = pfes->GetParMesh();
+      ParFiniteElementSpace* pfes = phi_gf.ParFESpace();
+      ParMesh* pmesh = pfes->GetParMesh();
       const int dim = pmesh->Dimension();
 
       // Particle data
-      ParticleVector &X = particles.Coords();           // coordinates (vdim x npt)
-      ParticleVector &Q = particles.Field(PIC::CHARGE); // charges (1 x npt)
+      ParticleVector& X = particles.Coords();  // coordinates (vdim x npt)
+      ParticleVector& Q = particles.Field(PIC::CHARGE);  // charges (1 x npt)
       Ordering::Type ordering_type = X.GetOrdering();
 
       const int npt = particles.GetNParticles();
       MFEM_VERIFY(X.GetVDim() == dim, "Unexpected particle coordinate layout.");
-      MFEM_VERIFY(Q.GetVDim() == 1, "Charge field must be scalar per particle.");
+      MFEM_VERIFY(Q.GetVDim() == 1,
+                  "Charge field must be scalar per particle.");
 
       // ------------------------------------------------------------------------
       // 1) Build positions in byVDIM ordering: (XYZ,XYZ,...)
       // ------------------------------------------------------------------------
-      Vector point_pos(X.GetData(), dim * npt); // alias underlying storage
+      Vector point_pos(X.GetData(), dim * npt);  // alias underlying storage
 
       // ------------------------------------------------------------------------
       // 2) Locate particles with FindPointsGSLIB
@@ -582,11 +547,11 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
       finder.Setup(*pmesh);
       finder.FindPoints(point_pos, ordering_type);
 
-      const Array<unsigned int> &code =
-         finder.GetCode(); // 0: inside, 1: boundary, 2: not found
-      const Array<unsigned int> &proc = finder.GetProc(); // owning MPI rank
-      const Array<unsigned int> &elem = finder.GetElem(); // local element id
-      const Vector &rref = finder.GetReferencePosition(); // (r,s,t) byVDIM
+      const Array<unsigned int>& code =
+         finder.GetCode();  // 0: inside, 1: boundary, 2: not found
+      const Array<unsigned int>& proc = finder.GetProc();  // owning MPI rank
+      const Array<unsigned int>& elem = finder.GetElem();  // local element id
+      const Vector& rref = finder.GetReferencePosition();  // (r,s,t) byVDIM
 
       // ------------------------------------------------------------------------
       // 3) Make RHS and pre-subtract averaged charge density => enforce zero-mean RHS
@@ -601,7 +566,7 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
          for (int p = 0; p < npt; ++p)
          {
             // Skip particles not successfully found
-            if (code[p] == 2) // not found
+            if (code[p] == 2)  // not found
             {
                continue;
             }
@@ -616,12 +581,14 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
          neutralizing_const_computed = true;
          if (Mpi::Root())
          {
-            cout << "Total charge: " << global_sum << ", Domain volume: " << domain_volume
+            cout << "Total charge: " << global_sum
+                 << ", Domain volume: " << domain_volume
                  << ", Neutralizing constant: " << neutralizing_const << endl;
             if (use_precomputed_neutralizing_const)
             {
-               cout << "Further updates will use this precomputed neutralizing constant." <<
-                    endl;
+               cout << "Further updates will use this precomputed neutralizing "
+                    "constant."
+                    << endl;
             }
          }
          neutralizing_const_computed = true;
@@ -629,12 +596,13 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
          precomputed_neutralizing_lf = new ParLinearForm(pfes);
          *precomputed_neutralizing_lf = 0.0;
          ConstantCoefficient neutralizing_coeff(neutralizing_const);
-         precomputed_neutralizing_lf->AddDomainIntegrator(new DomainLFIntegrator(
-                                                             neutralizing_coeff));
+         precomputed_neutralizing_lf->AddDomainIntegrator(
+            new DomainLFIntegrator(neutralizing_coeff));
          precomputed_neutralizing_lf->Assemble();
       }
       ParLinearForm b(pfes);
-      b = *precomputed_neutralizing_lf; // start with precomputed neutralizing contribution
+      b =
+         *precomputed_neutralizing_lf;  // start with precomputed neutralizing contribution
 
       // ------------------------------------------------------------------------
       // 4) Deposit q_p * phi_i(x_p) into a ParLinearForm (RHS b)
@@ -648,7 +616,7 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
       for (int p = 0; p < npt; ++p)
       {
          // Skip particles not successfully found
-         if (code[p] == 2) // not found
+         if (code[p] == 2)  // not found
          {
             continue;
          }
@@ -657,35 +625,31 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
          if ((int)proc[p] != myid)
          {
             // raise error
-            MFEM_ABORT("Particle " << p << " found in element owned by rank "
-                       << proc[p] << " but current rank is " << myid << "." << endl
-                       << "You must call redistribute everytime before updating the density grid function.");
+            MFEM_ABORT("Particle "
+                       << p << " found in element owned by rank " << proc[p]
+                       << " but current rank is " << myid << "." << endl
+                       << "You must call redistribute everytime before "
+                       "updating the density grid function.");
             continue;
          }
          const int e = elem[p];
 
          // Reference coordinates for this particle (r,s[,t]) with byVDIM layout
          IntegrationPoint ip;
-         if (dim == 1)
-         {
-            ip.x = rref(p);
-         }
-         else if (dim == 2)
-         {
-            ip.Set2(rref[2 * p + 0], rref[2 * p + 1]);
-         }
-         else // dim == 3
+         if (dim == 1) { ip.x = rref(p); }
+         else if (dim == 2) { ip.Set2(rref[2 * p + 0], rref[2 * p + 1]); }
+         else  // dim == 3
          {
             ip.Set3(rref[3 * p + 0], rref[3 * p + 1], rref[3 * p + 2]);
          }
 
-         const FiniteElement &fe = *pfes->GetFE(e);
+         const FiniteElement& fe = *pfes->GetFE(e);
          const int ldofs = fe.GetDof();
 
          Vector shape(ldofs);
-         fe.CalcShape(ip, shape); // φ_i(x_p) in this element
+         fe.CalcShape(ip, shape);  // φ_i(x_p) in this element
 
-         pfes->GetElementDofs(e, dofs); // local dof indices
+         pfes->GetElementDofs(e, dofs);  // local dof indices
 
          const real_t q_p = Q(p);
 
@@ -694,12 +658,13 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
       }
 
       // Assemble to a global true-dof RHS vector compatible with MassMatrix
-      HypreParVector *B = b.ParallelAssemble(); // owns new vector on heap
+      HypreParVector* B = b.ParallelAssemble();  // owns new vector on heap
 
       // ------------------------------------------------------------------
       // 5) Solve A * phi = B with zero-mean enforcement via OrthoSolver
       // ------------------------------------------------------------------
-      MFEM_VERIFY(DiffusionMatrix != nullptr, "DiffusionMatrix must be precomputed.");
+      MFEM_VERIFY(DiffusionMatrix != nullptr,
+                  "DiffusionMatrix must be precomputed.");
 
       phi_gf = 0.0;
       HypreParVector Phi_true(pfes);
@@ -736,7 +701,7 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
       b = 0.0;
       b_bi.Mult(phi_gf, b);
       // Convert to true-dof (parallel) vector
-      HypreParVector *B = b.ParallelAssemble();
+      HypreParVector* B = b.ParallelAssemble();
 
       // 2. make the bilinear form
       ParBilinearForm a(E_gf.ParFESpace());
@@ -745,7 +710,7 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
       a.Assemble();
       a.Finalize();
       // Parallel operator (HypreParMatrix)
-      HypreParMatrix *A = a.ParallelAssemble();
+      HypreParMatrix* A = a.ParallelAssemble();
 
       // 3. solve for E_gf
       CGSolver M_solver(E_gf.ParFESpace()->GetComm());
@@ -757,7 +722,8 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
       M_solver.SetOperator(*A);
 
       HypreParVector X(E_gf.ParFESpace()->GetComm(),
-                       E_gf.ParFESpace()->GlobalTrueVSize(), E_gf.ParFESpace()->GetTrueDofOffsets());
+                       E_gf.ParFESpace()->GlobalTrueVSize(),
+                       E_gf.ParFESpace()->GetTrueDofOffsets());
       X = 0.0;
       M_solver.Mult(*B, X);
       E_gf.SetFromTrueDofs(X);
@@ -769,7 +735,7 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
    {
       static socketstream sol_sock;
       static bool init = false;
-      static ParMesh *pmesh = E_gf.ParFESpace()->GetParMesh();
+      static ParMesh* pmesh = E_gf.ParFESpace()->GetParMesh();
 
       int num_procs = Mpi::WorldSize();
       int myid_vis = Mpi::WorldRank();
@@ -779,24 +745,20 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
       if (!init)
       {
          sol_sock.open(vishost, visport);
-         if (sol_sock)
-         {
-            init = true;
-         }
+         if (sol_sock) { init = true; }
       }
       if (init)
       {
          sol_sock << "parallel " << num_procs << " " << myid_vis << "\n";
          sol_sock.precision(8);
-         sol_sock << "solution\n"
-                  << *pmesh << E_gf << std::flush;
+         sol_sock << "solution\n" << *pmesh << E_gf << std::flush;
       }
    }
    if (ctx.visualization)
    {
       static socketstream sol_sock;
       static bool init = false;
-      static ParMesh *pmesh = phi_gf.ParFESpace()->GetParMesh();
+      static ParMesh* pmesh = phi_gf.ParFESpace()->GetParMesh();
 
       int num_procs = Mpi::WorldSize();
       int myid_vis = Mpi::WorldRank();
@@ -806,46 +768,39 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet &particles,
       if (!init)
       {
          sol_sock.open(vishost, visport);
-         if (sol_sock)
-         {
-            init = true;
-         }
+         if (sol_sock) { init = true; }
       }
       if (init)
       {
          sol_sock << "parallel " << num_procs << " " << myid_vis << "\n";
          sol_sock.precision(8);
-         sol_sock << "solution\n"
-                  << *pmesh << phi_gf << std::flush;
+         sol_sock << "solution\n" << *pmesh << phi_gf << std::flush;
       }
    }
 }
 
-void GridFunctionUpdates::TotalEnergyValidation(const ParticleSet &particles,
-                                                const ParGridFunction &E_gf)
+void GridFunctionUpdates::TotalEnergyValidation(const ParticleSet& particles,
+                                                const ParGridFunction& E_gf)
 {
-   const ParticleVector &P = particles.Field(PIC::MOM);
-   const ParticleVector &M = particles.Field(PIC::MASS);
+   const ParticleVector& P = particles.Field(PIC::MOM);
+   const ParticleVector& M = particles.Field(PIC::MASS);
 
    real_t kinetic_energy = 0.0;
    for (int p = 0; p < particles.GetNParticles(); ++p)
    {
       real_t p_square_p = 0.0;
-      for (int d = 0; d < P.GetVDim(); ++d)
-      {
-         p_square_p += P(p, d) * P(p, d);
-      }
+      for (int d = 0; d < P.GetVDim(); ++d) { p_square_p += P(p, d) * P(p, d); }
       kinetic_energy += 0.5 * p_square_p / M(p);
    }
 
    // ---- Field energy: 0.5 * ∫ ||E||^2 dx ----
-   const ParFiniteElementSpace *fes = E_gf.ParFESpace();
-   const ParMesh *pmesh = fes->GetParMesh();
+   const ParFiniteElementSpace* fes = E_gf.ParFESpace();
+   const ParMesh* pmesh = fes->GetParMesh();
 
    const int order = fes->GetMaxElementOrder();
    const int qorder = std::max(2, 2 * order + 1);
 
-   const IntegrationRule *irs[Geometry::NumGeom];
+   const IntegrationRule* irs[Geometry::NumGeom];
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
       irs[g] = &IntRules.Get(g, qorder);
@@ -872,20 +827,21 @@ void GridFunctionUpdates::TotalEnergyValidation(const ParticleSet &particles,
 
    // reduce kinetic energy and field energy
    real_t global_kinetic_energy = 0.0;
-   MPI_Allreduce(&kinetic_energy, &global_kinetic_energy, 1, MPI_DOUBLE, MPI_SUM,
-                 fes->GetComm());
+   MPI_Allreduce(&kinetic_energy, &global_kinetic_energy, 1, MPI_DOUBLE,
+                 MPI_SUM, fes->GetComm());
    if (Mpi::Root())
    {
       cout << "Kinetic energy: " << global_kinetic_energy << "\t";
       cout << "Field energy: " << global_field_energy << "\t";
-      cout << "Total energy: " << global_kinetic_energy + global_field_energy << endl;
+      cout << "Total energy: " << global_kinetic_energy + global_field_energy
+           << endl;
    }
    // write to a csv
    if (Mpi::Root())
    {
       std::ofstream energy_file("energy.csv", std::ios::app);
-      energy_file << setprecision(10) << global_kinetic_energy << "," <<
-                  global_field_energy << "," << global_kinetic_energy + global_field_energy <<
-                  "\n";
+      energy_file << setprecision(10) << global_kinetic_energy << ","
+                  << global_field_energy << ","
+                  << global_kinetic_energy + global_field_energy << "\n";
    }
 }
