@@ -87,7 +87,7 @@ static void AddKernelSpecializations()
 template <int BFI, int VDIM, bool GLL>
 struct BakeOff
 {
-   static constexpr int DIM = 3;
+   inline static constexpr int DIM = 3;
    const int p, c, q, n, nx, ny, nz;
    Mesh mesh;
    H1_FECollection fec;
@@ -143,7 +143,7 @@ struct BakeOff
       }
       else
       {
-         static_assert(false, "Unknown BilinearFormIntegrator type");
+         static_assert(BFI >= 1 && BFI <= 6, "Invalid BilinearFormIntegrator");
       }
       a.AddDomainIntegrator(bfi);
    }
@@ -327,6 +327,8 @@ REGISTER(BK, 6, 3, true);
  * Command line examples:
  *    --benchmark_context=device=gpu
  *    --benchmark_filter=BP1/6
+ *    --benchmark_out_format=csv
+ *    --benchmark_min_warmup_time=1 --benchmark_min_time=1000x
  */
 int main(int argc, char *argv[])
 {
