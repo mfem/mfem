@@ -584,8 +584,26 @@ void CuKernel2D(const int N, BODY body)
    body(k);
 }
 
+template <int MAX_THREADS_PER_BLOCK, typename BODY, int MIN_BLOCKS_PER_MULTIPROCESSOR = 1>
+__global__
+MFEM_LAUNCH_BOUNDS(MAX_THREADS_PER_BLOCK, MIN_BLOCKS_PER_MULTIPROCESSOR)
+static void CuKernel2DLaunchBounds(const int N, BODY body)
+{
+   const int k = blockIdx.x*blockDim.z + threadIdx.z;
+   if (k >= N) { return; }
+   body(k);
+}
+
 template <typename BODY> __global__ static
 void CuKernel3D(const int N, BODY body)
+{
+   for (int k = blockIdx.x; k < N; k += gridDim.x) { body(k); }
+}
+
+template <int MAX_THREADS_PER_BLOCK, typename BODY, int MIN_BLOCKS_PER_MULTIPROCESSOR = 1>
+__global__
+MFEM_LAUNCH_BOUNDS(MAX_THREADS_PER_BLOCK, MIN_BLOCKS_PER_MULTIPROCESSOR)
+static void CuKernel3D(const int N, BODY body)
 {
    for (int k = blockIdx.x; k < N; k += gridDim.x) { body(k); }
 }
@@ -611,6 +629,19 @@ void CuWrap2D(const int N, DBODY &&d_body,
    MFEM_GPU_CHECK(cudaGetLastError());
 }
 
+template <int MAX_THREADS_PER_BLOCK, typename DBODY>
+void CuWrap2DLaunchBounds(const int N, DBODY &&d_body,
+                          const int X, const int Y, const int BZ)
+{
+   if (N==0) { return; }
+   MFEM_VERIFY(BZ>0, "");
+   const int GRID = (N+BZ-1)/BZ;
+   const dim3 BLCK(X,Y,BZ);
+   static_assert(MAX_THREADS_PER_BLOCK > 0);
+   CuKernel2DLaunchBounds<MAX_THREADS_PER_BLOCK><<<GRID,BLCK>>>(N, d_body);
+   MFEM_GPU_CHECK(cudaGetLastError());
+}
+
 template <typename DBODY>
 void CuWrap3D(const int N, DBODY &&d_body,
               const int X, const int Y, const int Z, const int G)
@@ -622,11 +653,24 @@ void CuWrap3D(const int N, DBODY &&d_body,
    MFEM_GPU_CHECK(cudaGetLastError());
 }
 
-template <int Dim>
-struct CuWrap;
+template <int MAX_THREADS_PER_BLOCK, typename DBODY>
+void CuWrap3DLaunchBounds(const int N, DBODY &&d_body,
+                          const int X, const int Y, const int Z, const int G)
+{
+   if (N==0) { return; }
+   const int GRID = G == 0 ? (N >> 2) : G;
+   const dim3 BLCK(X,Y,Z);
+   static_assert(MAX_THREADS_PER_BLOCK > 0);
+   CuKernel3DLaunchBounds<MAX_THREADS_PER_BLOCK>
+   <<<GRID, BLCK>>>(N, d_body);
+   MFEM_GPU_CHECK(cudaGetLastError());
+}
 
-template <>
-struct CuWrap<1>
+
+template <int Dim, int MAX_THREADS_PER_BLOCK> struct CuWrap;
+
+template <int MAX_THREADS_PER_BLOCK>
+struct CuWrap<1, MAX_THREADS_PER_BLOCK>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
    static void run(const int N, DBODY &&d_body,
@@ -636,8 +680,19 @@ struct CuWrap<1>
    }
 };
 
+template <int MAX_THREADS_PER_BLOCK>
+struct CuWrap<2, MAX_THREADS_PER_BLOCK>
+{
+   template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
+   static void run(const int N, DBODY &&d_body,
+                   const int X, const int Y, const int Z, const int G)
+   {
+      CuWrap2DLaunchBounds<MAX_THREADS_PER_BLOCK>(N, d_body, X, Y, Z);
+   }
+};
+
 template <>
-struct CuWrap<2>
+struct CuWrap<2, 0>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
    static void run(const int N, DBODY &&d_body,
@@ -647,8 +702,19 @@ struct CuWrap<2>
    }
 };
 
+template <int MAX_THREADS_PER_BLOCK>
+struct CuWrap<3, MAX_THREADS_PER_BLOCK>
+{
+   template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
+   static void run(const int N, DBODY &&d_body,
+                   const int X, const int Y, const int Z, const int G)
+   {
+      CuWrap3DLaunchBounds<MAX_THREADS_PER_BLOCK>(N, d_body, X, Y, Z, G);
+   }
+};
+
 template <>
-struct CuWrap<3>
+struct CuWrap<3, 0>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
    static void run(const int N, DBODY &&d_body,
@@ -764,8 +830,7 @@ void HipWrap3DLaunchBounds(const int N, DBODY &&d_body,
    MFEM_GPU_CHECK(hipGetLastError());
 }
 
-template <int Dim, int MAX_THREADS_PER_BLOCK>
-struct HipWrap;
+template <int Dim, int MAX_THREADS_PER_BLOCK> struct HipWrap;
 
 template <int MAX_THREADS_PER_BLOCK>
 struct HipWrap<1, MAX_THREADS_PER_BLOCK>
@@ -826,7 +891,7 @@ struct HipWrap<3, 0>
 
 
 ///////////////////////////////////////////////////////////////////////////////
-/// The forall kernel body DISPATCHER
+/// Forall host & device kernel dispatch
 template <int DIM, int MAX_THREADS_PER_BLOCK = 0,
           typename d_lambda, typename h_lambda>
 inline void ForallWrap(const bool use_dev, const int N,
@@ -861,7 +926,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    // If Backend::CUDA is allowed, use it
    if (Device::Allows(Backend::CUDA))
    {
-      return CuWrap<DIM>::run(N, d_body, X, Y, Z, G);
+      return CuWrap<DIM, MAX_THREADS_PER_BLOCK>::run(N, d_body, X, Y, Z, G);
    }
 #endif
 
@@ -899,7 +964,7 @@ backend_cpu:
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// WRAP
+/// Forall host & device kernel wrappers
 template <int DIM, typename lambda>
 inline void ForallWrap(const bool use_dev, const int N, lambda &&body,
                        const int X=0, const int Y=0, const int Z=0,
@@ -913,9 +978,7 @@ inline void ForallWrap(const bool use_dev, const int N, lambda &&body,
                        const int X=0, const int Y=0, const int Z=0,
                        const int G=0)
 {
-   ForallWrap<DIM, MAX_THREADS_PER_BLOCK>(use_dev, N,
-                                          body, body,
-                                          X, Y, Z, G);
+   ForallWrap<DIM, MAX_THREADS_PER_BLOCK>(use_dev, N, body, body, X, Y, Z, G);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -928,7 +991,7 @@ inline void forall(int Nx, int Ny, lambda &&body)
 {
    if (Device::Allows(Backend::DEVICE_MASK))
    {
-      forall(Nx * Ny, [=] MFEM_HOST_DEVICE(int idx)
+      mfem::forall(Nx * Ny, [=] MFEM_HOST_DEVICE(int idx)
       {
          int j = idx / Nx;
          int i = idx % Nx;
@@ -964,7 +1027,7 @@ inline void forall(int Nx, int Ny, int Nz, lambda &&body)
 {
    if (Device::Allows(Backend::DEVICE_MASK))
    {
-      forall(Nx * Ny * Nz, [=] MFEM_HOST_DEVICE(int idx)
+      mfem::forall(Nx * Ny * Nz, [=] MFEM_HOST_DEVICE(int idx)
       {
          int i = idx % Nx;
          int j = idx / Nx;
