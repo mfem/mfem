@@ -81,6 +81,7 @@ struct PICContext
 
    bool visualization = true;
    int visport = 19916;
+   bool reproduce = true;
 } ctx;
 
 /// This class implements explicit time integration for charged particles
@@ -170,7 +171,7 @@ void display_banner(ostream &os);
 // Initialize particles from user input.
 void InitializeChargedParticles(ParticleSet &charged_particles,
                                 const real_t &k, const real_t &alpha,
-                                real_t m, real_t q, real_t L_x);
+                                real_t m, real_t q, real_t L_x, bool reproduce);
 
 int main(int argc, char *argv[])
 {
@@ -215,6 +216,9 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&ctx.visport, "-p", "--send-port", "Socket for GLVis.");
+   args.AddOption(&ctx.reproduce, "-rep", "--reproduce", "-no-rep",
+                  "--no-reproduce",
+                  "Enable or disable reproducible random seed.");
    args.Parse();
    if (!args.Good())
    {
@@ -261,7 +265,7 @@ int main(int argc, char *argv[])
    int num_particles = ctx.npt / size + (rank < (ctx.npt % size) ? 1 : 0);
    PIC pic(MPI_COMM_WORLD, E_gf, num_particles, ordering_type);
    InitializeChargedParticles(pic.GetParticles(),
-                              ctx.k, ctx.alpha, ctx.m, ctx.q, ctx.L_x);
+                              ctx.k, ctx.alpha, ctx.m, ctx.q, ctx.L_x, ctx.reproduce);
    pic.InterpolateE(); // Interpolate E field onto particle positions
 
    real_t t = ctx.t_init;
@@ -388,14 +392,7 @@ void PIC::InterpolateE()
    ParticleVector &E = charged_particles->Field(EFIELD);
 
    // Interpolate E-field onto particles
-   if (E_gf)
-   {
-      GetValues(X, E_finder, *E_gf, E);
-   }
-   else
-   {
-      E = 0.0;
-   }
+   GetValues(X, E_finder, *E_gf, E);
 }
 
 void PIC::Step(real_t &t, real_t &dt, bool zeroth_step)
@@ -422,9 +419,6 @@ void PIC::Step(real_t &t, real_t &dt, bool zeroth_step)
    if (zeroth_step)
       return;
 
-   // Interpolate E field onto new locations of particles
-   InterpolateE();
-
    // Update time
    t += dt;
 }
@@ -444,6 +438,9 @@ void PIC::RemoveLostParticles()
 
 void PIC::Redistribute()
 {
+   Mesh &mesh = *E_gf->ParFESpace()->GetMesh();
+   const ParticleVector &coords = charged_particles->Coords();
+   E_finder.FindPoints(mesh, coords, coords.GetOrdering());
    charged_particles->Redistribute(E_finder.GetProc());
 }
 // Print the PIC ascii logo to the given ostream
@@ -463,12 +460,12 @@ void display_banner(ostream &os)
 
 void InitializeChargedParticles(ParticleSet &charged_particles,
                                 const real_t &k, const real_t &alpha,
-                                real_t m, real_t q, real_t L_x)
+                                real_t m, real_t q, real_t L_x, bool reproduce)
 {
    int rank;
    MPI_Comm_rank(charged_particles.GetComm(), &rank);
    // use time-based seed for randomness
-   std::mt19937 gen(rank + static_cast<unsigned int>(time(nullptr)));
+   std::mt19937 gen(reproduce ? rank : (rank + static_cast<unsigned int>(time(nullptr))));
    std::uniform_real_distribution<> real_dist(0.0, 1.0);
    std::normal_distribution<> norm_dist(0.0, 1.0);
 
