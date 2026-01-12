@@ -192,10 +192,16 @@ public:
        node matches the data types needed for the MFEM API (ints for
        connectivity, doubles for field values, etc). If these constraints are
        not met, a mesh that owns the data is created and returned.
+
+       If the topology has an associated adjset then a ParMesh is returned.
    */
    static Mesh *BlueprintMeshToMesh(const conduit::Node &n_mesh,
-                                    const std::string &main_toplogy_name = "",
-                                    bool zero_copy = false);
+                                    const std::string &main_topology_name = "",
+                                    bool zero_copy = false
+#ifdef MFEM_USE_MPI
+                                    , MPI_Comm comm = MPI_COMM_WORLD
+#endif
+                                    );
 
    /// Constructs and MFEM Grid Function from a Conduit Blueprint Description
    /** If zero_copy == true, tries to construct a grid function that points to

@@ -40,6 +40,9 @@ class ParMesh : public Mesh
 #ifdef MFEM_USE_ADIOS2
    friend class adios2stream;
 #endif
+#ifdef MFEM_USE_CONDUIT
+   friend class ConduitParMeshBuilder;
+#endif
 
 protected:
    MPI_Comm MyComm;
