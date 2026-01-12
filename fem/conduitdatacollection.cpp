@@ -51,187 +51,189 @@ namespace
 /**
   @brief Make the MFEM mesh edges into a Blueprint mesh and make a field that
          labels them so we can visualize the edges in VisIt.
- 
+
   @param mesh The input MFEM mesh.
   @param[out] n_mesh A Conduit node that will contain a mesh that represents the MFEM mesh's edges.
  */
 void MeshEdges(const mfem::Mesh &mesh, conduit::Node &n_mesh)
 {
-    n_mesh.reset();  // Clear any existing data
+   n_mesh.reset();  // Clear any existing data
 
-    const int dim = mesh.Dimension();
-    const int nv = mesh.GetNV();
-    const int ne = mesh.GetNEdges();
+   const int dim = mesh.Dimension();
+   const int nv = mesh.GetNV();
+   const int ne = mesh.GetNEdges();
 
-    // -----------------------------
-    // 1) Coordinates (coordsets)
-    // -----------------------------
-    // Single explicit coordset "coords"
-    conduit::Node &n_coordset = n_mesh["coordsets/mfem_coords"];
-    n_coordset["type"] = "explicit";
+   // -----------------------------
+   // 1) Coordinates (coordsets)
+   // -----------------------------
+   // Single explicit coordset "coords"
+   conduit::Node &n_coordset = n_mesh["coordsets/mfem_coords"];
+   n_coordset["type"] = "explicit";
 
-    conduit::Node &vx = n_coordset["values/x"];
-    conduit::Node *vy = nullptr;
-    conduit::Node *vz = nullptr;
+   conduit::Node &vx = n_coordset["values/x"];
+   conduit::Node *vy = nullptr;
+   conduit::Node *vz = nullptr;
 
-    if(dim > 1) vy = &n_coordset["values/y"];
-    if(dim > 2) vz = &n_coordset["values/z"];
+   if (dim > 1) { vy = &n_coordset["values/y"]; }
+   if (dim > 2) { vz = &n_coordset["values/z"]; }
 
-    vx.set(conduit::DataType::float64(nv));
-    double *vx_ptr = vx.value();
+   vx.set(conduit::DataType::float64(nv));
+   double *vx_ptr = vx.value();
 
-    double *vy_ptr = nullptr;
-    double *vz_ptr = nullptr;
-    if(vy)
-    {
-        vy->set(conduit::DataType::float64(nv));
-        vy_ptr = vy->value();
-    }
-    if(vz)
-    {
-        vz->set(conduit::DataType::float64(nv));
-        vz_ptr = vz->value();
-    }
+   double *vy_ptr = nullptr;
+   double *vz_ptr = nullptr;
+   if (vy)
+   {
+      vy->set(conduit::DataType::float64(nv));
+      vy_ptr = vy->value();
+   }
+   if (vz)
+   {
+      vz->set(conduit::DataType::float64(nv));
+      vz_ptr = vz->value();
+   }
 
-    // Linear mesh, so vertex coordinates are the geometry
-    mfem::Vector vtx(dim);
-    for(int i = 0; i < nv; i++)
-    {
-        const auto v = mesh.GetVertex(i);
-        vx_ptr[i] = v[0];
-        if(dim > 1)
-        {
-            vy_ptr[i] = v[1];
-        }
-        if(dim > 2)
-        {
-            vz_ptr[i] = v[2];
-        }
-    }
+   // Linear mesh, so vertex coordinates are the geometry
+   mfem::Vector vtx(dim);
+   for (int i = 0; i < nv; i++)
+   {
+      const auto v = mesh.GetVertex(i);
+      vx_ptr[i] = v[0];
+      if (dim > 1)
+      {
+         vy_ptr[i] = v[1];
+      }
+      if (dim > 2)
+      {
+         vz_ptr[i] = v[2];
+      }
+   }
 
-    // -----------------------------
-    // 2) Topology of edges
-    // -----------------------------
-    conduit::Node &n_topo = n_mesh["topologies/mfem_edges"];
-    n_topo["type"] = "unstructured";
-    n_topo["coordset"] = "mfem_coords";
-    n_topo["elements/shape"] = "line";  // each edge is a 2-vertex line
+   // -----------------------------
+   // 2) Topology of edges
+   // -----------------------------
+   conduit::Node &n_topo = n_mesh["topologies/mfem_edges"];
+   n_topo["type"] = "unstructured";
+   n_topo["coordset"] = "mfem_coords";
+   n_topo["elements/shape"] = "line";  // each edge is a 2-vertex line
 
-    conduit::Node &n_conn = n_topo["elements/connectivity"];
-    n_conn.set(conduit::DataType::int32(2 * ne));
-    int *conn_ptr = n_conn.value();
+   conduit::Node &n_conn = n_topo["elements/connectivity"];
+   n_conn.set(conduit::DataType::int32(2 * ne));
+   int *conn_ptr = n_conn.value();
 
-    for(int e = 0; e < ne; e++)
-    {
-        mfem::Array<int> v;
-        mesh.GetEdgeVertices(e, v);
-        conn_ptr[2 * e + 0] = v[0];
-        conn_ptr[2 * e + 1] = v[1];
-    }
+   for (int e = 0; e < ne; e++)
+   {
+      mfem::Array<int> v;
+      mesh.GetEdgeVertices(e, v);
+      conn_ptr[2 * e + 0] = v[0];
+      conn_ptr[2 * e + 1] = v[1];
+   }
 
-    // -----------------------------
-    // 3) Edge ID field
-    // -----------------------------
-    conduit::Node &n_field = n_mesh["fields/mfem_edge_id"];
-    n_field["association"] = "element";
-    n_field["topology"] = "mfem_edges";
-    n_field["volume_dependent"] = "false";  // optional metadata
+   // -----------------------------
+   // 3) Edge ID field
+   // -----------------------------
+   conduit::Node &n_field = n_mesh["fields/mfem_edge_id"];
+   n_field["association"] = "element";
+   n_field["topology"] = "mfem_edges";
+   n_field["volume_dependent"] = "false";  // optional metadata
 
-    n_field["values"].set(conduit::DataType::int32(ne));
-    int *f_ptr = n_field["values"].value();
+   n_field["values"].set(conduit::DataType::int32(ne));
+   int *f_ptr = n_field["values"].value();
 
-    for(int e = 0; e < ne; e++)
-    {
-        f_ptr[e] = e;  // edge number
-    }
+   for (int e = 0; e < ne; e++)
+   {
+      f_ptr[e] = e;  // edge number
+   }
 
-    // -----------------------------
-    // 4) (Optional) Blueprint verify
-    // -----------------------------
-    conduit::Node info;
-    if(!conduit::blueprint::mesh::verify(n_mesh, info))
-    {
-        std::cerr << "Blueprint verify failed in MeshEdges:\n" << info.to_yaml() << std::endl;
-    }
+   // -----------------------------
+   // 4) (Optional) Blueprint verify
+   // -----------------------------
+   conduit::Node info;
+   if (!conduit::blueprint::mesh::verify(n_mesh, info))
+   {
+      mfem::err << "Blueprint verify failed in MeshEdges:\n" << info.to_yaml() <<
+                std::endl;
+   }
 }
 #endif
 
 /**
   @brief Computes a zone ordering array for the input topology that sorts the zones spatially.
- 
+
   @param n_topo A node that contains the blueprint topology to be ordered.
- 
+
   @return A vector containing zone numbers in their spatially-sorted order.
  */
 std::vector<conduit::index_t> spatial_ordering(const conduit::Node &n_topo)
 {
-    // Compute centroids on the new topology, to make a new point mesh topology.
-    conduit::Node n_centroids;
-    namespace topoutils = conduit::blueprint::mesh::utils::topology;
-    conduit::blueprint::mesh::topology::unstructured::generate_centroids(
-        n_topo,
-        n_centroids["topologies/centroid"],
-        n_centroids["coordsets/centroid_coords"],
-        n_centroids["s2dmap"],
-        n_centroids["d2smap"]);
+   // Compute centroids on the new topology, to make a new point mesh topology.
+   conduit::Node n_centroids;
+   namespace topoutils = conduit::blueprint::mesh::utils::topology;
+   conduit::blueprint::mesh::topology::unstructured::generate_centroids(
+      n_topo,
+      n_centroids["topologies/centroid"],
+      n_centroids["coordsets/centroid_coords"],
+      n_centroids["s2dmap"],
+      n_centroids["d2smap"]);
 
-    // Make mesh info for the centroids topology (for the extents).
-    topoutils::MeshInfo info;
-    topoutils::compute_mesh_info(n_centroids["topologies/centroid"], info);
-    // Make mesh info for the input topology since it will have edges.
-    topoutils::MeshInfo info2;
-    topoutils::compute_mesh_info(n_topo, info2);
-    // Put the edge lengths into the centroids mesh info.
-    info.minEdgeLength = info2.minEdgeLength / 4.;
-    info.maxEdgeLength = info2.maxEdgeLength / 4.;
-    info.minDiagonalLength = info2.minDiagonalLength / 4.;
-    info.maxDiagonalLength = info2.maxDiagonalLength / 4.;
-    // std::cout << info << std::endl;
+   // Make mesh info for the centroids topology (for the extents).
+   topoutils::MeshInfo info;
+   topoutils::compute_mesh_info(n_centroids["topologies/centroid"], info);
+   // Make mesh info for the input topology since it will have edges.
+   topoutils::MeshInfo info2;
+   topoutils::compute_mesh_info(n_topo, info2);
+   // Put the edge lengths into the centroids mesh info.
+   info.minEdgeLength = info2.minEdgeLength / 4.;
+   info.maxEdgeLength = info2.maxEdgeLength / 4.;
+   info.minDiagonalLength = info2.minDiagonalLength / 4.;
+   info.maxDiagonalLength = info2.maxDiagonalLength / 4.;
 
-    // Make a quantizer that will use the mesh info.
-    topoutils::MeshInfoCollection infoCollection;
-    infoCollection.begin();
-    infoCollection.add(0, info);
-    infoCollection.end();
-    topoutils::Quantizer Q(infoCollection.getMergedMeshInfo());
+   // Make a quantizer that will use the mesh info.
+   topoutils::MeshInfoCollection infoCollection;
+   infoCollection.begin();
+   infoCollection.add(0, info);
+   infoCollection.end();
+   topoutils::Quantizer Q(infoCollection.getMergedMeshInfo());
 
-    // Get some accessors for the centroid coordset.
-    const conduit::Node &n_centroid_coord_values = n_centroids["coordsets/centroid_coords/values"];
-    const auto dimension = n_centroid_coord_values.number_of_children();
-    const auto x = n_centroid_coord_values["x"].as_float64_accessor();
-    const auto y = n_centroid_coord_values["y"].as_float64_accessor();
-    const auto centroid_nzones = x.number_of_elements();
-    std::vector<typename topoutils::Quantizer::QuantizedIndex> keys(centroid_nzones);
-    std::vector<conduit::index_t> order(centroid_nzones);
+   // Get some accessors for the centroid coordset.
+   const conduit::Node &n_centroid_coord_values =
+      n_centroids["coordsets/centroid_coords/values"];
+   const auto dimension = n_centroid_coord_values.number_of_children();
+   const auto x = n_centroid_coord_values["x"].as_float64_accessor();
+   const auto y = n_centroid_coord_values["y"].as_float64_accessor();
+   const auto centroid_nzones = x.number_of_elements();
+   std::vector<typename topoutils::Quantizer::QuantizedIndex> keys(
+      centroid_nzones);
+   std::vector<conduit::index_t> order(centroid_nzones);
 
-    // Use the quantizer to make a key for each coordinate in the centroids coordset.
-    // This makes a spatially-ordered key.
-    typename topoutils::Quantizer::Coordinate coord(dimension);
-    if(dimension == 3)
-    {
-        const auto z = n_centroid_coord_values["z"].as_float64_accessor();
-        for(size_t i = 0; i < centroid_nzones; i++)
-        {
-            coord[0] = x[i];
-            coord[1] = y[i];
-            coord[2] = z[i];
-            keys[i] = Q.quantize(coord);
-            order[i] = i;
-        }
-    }
-    else
-    {
-        for(size_t i = 0; i < centroid_nzones; i++)
-        {
-            coord[0] = x[i];
-            coord[1] = y[i];
-            keys[i] = Q.quantize(coord);
-            order[i] = i;
-        }
-    }
-    // Sort the order according to the name.
-    std::sort(order.begin(), order.end(), [&](auto a, auto b) { return keys[a] < keys[b]; });
-    return order;
+   // Use the quantizer to make a key for each coordinate in the centroids coordset.
+   // This makes a spatially-ordered key.
+   typename topoutils::Quantizer::Coordinate coord(dimension);
+   if (dimension == 3)
+   {
+      const auto z = n_centroid_coord_values["z"].as_float64_accessor();
+      for (size_t i = 0; i < centroid_nzones; i++)
+      {
+         coord[0] = x[i];
+         coord[1] = y[i];
+         coord[2] = z[i];
+         keys[i] = Q.quantize(coord);
+         order[i] = i;
+      }
+   }
+   else
+   {
+      for (size_t i = 0; i < centroid_nzones; i++)
+      {
+         coord[0] = x[i];
+         coord[1] = y[i];
+         keys[i] = Q.quantize(coord);
+         order[i] = i;
+      }
+   }
+   // Sort the order according to the name.
+   std::sort(order.begin(), order.end(), [&](auto a, auto b) { return keys[a] < keys[b]; });
+   return order;
 }
 
 /**
@@ -239,9 +241,9 @@ std::vector<conduit::index_t> spatial_ordering(const conduit::Node &n_topo)
          of the face's nodes are selected in the @a n_selectedNodes array. For these
          selected faces, a function is invoked that lets the function append to the
          new topology being created in @a n_output.
- 
+
   @tparam FuncType A callable type that accepts various connectivity-related vectors.
- 
+
   @param n_topo A node that contains the source Blueprint topology.
   @param n_selectedNodes A node that contains indices for the selected nodes.
   @param[out] n_output A node that contains the new topology. It needs to be different
@@ -254,145 +256,146 @@ void extract_topology_with_selected_nodes(const conduit::Node &n_topo,
                                           conduit::Node &n_output,
                                           FuncType &&func)
 {
-    // Get the coordset to get the number of nodes.
-    const conduit::Node *n_coordset =
-        conduit::blueprint::mesh::utils::find_reference_node(n_topo, "coordset");
-    assert(n_coordset != nullptr);
-    const auto nnodes = conduit::blueprint::mesh::coordset::length(*n_coordset);
+   // Get the coordset to get the number of nodes.
+   const conduit::Node *n_coordset =
+      conduit::blueprint::mesh::utils::find_reference_node(n_topo, "coordset");
+   assert(n_coordset != nullptr);
+   const auto nnodes = conduit::blueprint::mesh::coordset::length(*n_coordset);
 
-    // Make a mask for the points in the coordset to indicate which are selected in n_selectedNodes.
-    std::vector<int> pointIsSelected(nnodes, 0);
-    const auto values = n_selectedNodes.as_int_accessor();
-    for(conduit::index_t i = 0; i < values.number_of_elements(); i++)
-    {
-        pointIsSelected[values[i]] = 1;
-    }
+   // Make a mask for the points in the coordset to indicate which are selected in n_selectedNodes.
+   std::vector<int> pointIsSelected(nnodes, 0);
+   const auto values = n_selectedNodes.as_int_accessor();
+   for (conduit::index_t i = 0; i < values.number_of_elements(); i++)
+   {
+      pointIsSelected[values[i]] = 1;
+   }
 
-    // Make a new topology from the selected faces if all points in a zone's face are selected.
-    std::vector<int> conn, sizes, offsets;
-    std::vector<conduit::index_t> originalElement;
-    int counts[] = {0, 0, 0 /*line*/, 0 /*tri*/, 0 /*quad*/, 0 /*polygon*/};
-    const auto nzones = conduit::blueprint::mesh::topology::length(n_topo);
-    conduit::blueprint::mesh::utils::topology::iterate_elements(
-        n_topo,
-        [&](conduit::blueprint::mesh::utils::topology::entity &e) {
-            if(e.subelement_ids.empty())
+   // Make a new topology from the selected faces if all points in a zone's face are selected.
+   std::vector<int> conn, sizes, offsets;
+   std::vector<conduit::index_t> originalElement;
+   int counts[] = {0, 0, 0 /*line*/, 0 /*tri*/, 0 /*quad*/, 0 /*polygon*/};
+   const auto nzones = conduit::blueprint::mesh::topology::length(n_topo);
+   conduit::blueprint::mesh::utils::topology::iterate_elements(
+      n_topo,
+      [&](conduit::blueprint::mesh::utils::topology::entity &e)
+   {
+      if (e.subelement_ids.empty())
+      {
+         // Iterate over the shapes in the face and determine whether the face gets made.
+         for (conduit::index_t fi = 0; fi < e.shape.num_faces(); fi++)
+         {
+            conduit::index_t nFaceIds = 0;
+            const auto *faceIds = e.shape.get_face(fi, nFaceIds);
+            bool allPointsSelected = true;
+            for (int i = 0; i < nFaceIds && allPointsSelected; i++)
             {
-                // Iterate over the shapes in the face and determine whether the face gets made.
-                for(conduit::index_t fi = 0; fi < e.shape.num_faces(); fi++)
-                {
-                    conduit::index_t nFaceIds = 0;
-                    const auto *faceIds = e.shape.get_face(fi, nFaceIds);
-                    bool allPointsSelected = true;
-                    for(int i = 0; i < nFaceIds && allPointsSelected; i++)
-                    {
-                        const auto id = e.element_ids[faceIds[i]];
-                        allPointsSelected &= pointIsSelected[id];
-                    }
-                    // Make a face
-                    if(allPointsSelected)
-                    {
-                        constexpr int MAX_NODES_PER_FACE = 4;
-                        conduit::index_t thisFaceIds[MAX_NODES_PER_FACE];
-                        for(int i = 0; i < nFaceIds; i++)
-                        {
-                            thisFaceIds[i] = e.element_ids[faceIds[i]];
-                        }
-                        const int index =
-                            func(e.entity_id, thisFaceIds, nFaceIds, conn, sizes, offsets, originalElement);
-
-                        counts[index]++;
-                    }
-                }
+               const auto id = e.element_ids[faceIds[i]];
+               allPointsSelected &= pointIsSelected[id];
             }
-            else
+            // Make a face
+            if (allPointsSelected)
             {
-                for(const auto &face : e.subelement_ids)
-                {
-                    bool allPointsSelected = true;
-                    for(const auto &id : face) allPointsSelected &= pointIsSelected[id];
+               constexpr int MAX_NODES_PER_FACE = 4;
+               conduit::index_t thisFaceIds[MAX_NODES_PER_FACE];
+               for (int i = 0; i < nFaceIds; i++)
+               {
+                  thisFaceIds[i] = e.element_ids[faceIds[i]];
+               }
+               const int index =
+                  func(e.entity_id, thisFaceIds, nFaceIds, conn, sizes, offsets, originalElement);
 
-                    // Make a face
-                    if(allPointsSelected)
-                    {
-                        const int index = func(e.entity_id,
-                                               face.data(),
-                                               face.size(),
-                                               conn,
-                                               sizes,
-                                               offsets,
-                                               originalElement);
-
-                        counts[index]++;
-                    }
-                }
+               counts[index]++;
             }
-        });
+         }
+      }
+      else
+      {
+         for (const auto &face : e.subelement_ids)
+         {
+            bool allPointsSelected = true;
+            for (const auto &id : face) { allPointsSelected &= pointIsSelected[id]; }
 
-    // Look in counts to determine the spatial dimension.
-    int shapeDimension = 0;
-    shapeDimension = std::max(shapeDimension, 1 * ((counts[2] > 0) ? 1 : 0));
-    shapeDimension = std::max(shapeDimension, 2 * ((counts[3] > 0) ? 1 : 0));
-    shapeDimension = std::max(shapeDimension, 2 * ((counts[4] > 0) ? 1 : 0));
-    shapeDimension = std::max(shapeDimension, 2 * ((counts[5] > 0) ? 1 : 0));
+            // Make a face
+            if (allPointsSelected)
+            {
+               const int index = func(e.entity_id,
+                                      face.data(),
+                                      face.size(),
+                                      conn,
+                                      sizes,
+                                      offsets,
+                                      originalElement);
 
-    // Make the output mesh.
-    n_output["coordsets/" + n_coordset->name()].set_external(*n_coordset);
-    conduit::Node &n_new_topo = n_output["topologies/" + n_topo.name()];
-    n_new_topo["coordset"] = n_coordset->name();
-    n_new_topo["type"] = "unstructured";
-    if(shapeDimension == 1)
-    {
-        n_new_topo["elements/shape"] = "line";
-    }
-    else if(shapeDimension == 2)
-    {
-        n_new_topo["elements/shape"] = "polygonal";
-    }
-    else
-    {
-        assert("Unhandled shape type.");
-    }
-    n_new_topo["elements/connectivity"].set(conn);
-    n_new_topo["elements/sizes"].set(sizes);
-    n_new_topo["elements/offsets"].set(offsets);
+               counts[index]++;
+            }
+         }
+      }
+   });
 
-    // Figure out a spatial ordering for the face topology. Save it as a field.
-    const auto order = spatial_ordering(n_new_topo);
+   // Look in counts to determine the spatial dimension.
+   int shapeDimension = 0;
+   shapeDimension = std::max(shapeDimension, 1 * ((counts[2] > 0) ? 1 : 0));
+   shapeDimension = std::max(shapeDimension, 2 * ((counts[3] > 0) ? 1 : 0));
+   shapeDimension = std::max(shapeDimension, 2 * ((counts[4] > 0) ? 1 : 0));
+   shapeDimension = std::max(shapeDimension, 2 * ((counts[5] > 0) ? 1 : 0));
 
-    // Reorder the connectivity so it is easier to think about.
-    std::vector<int> newconn, newsizes, newoffsets;
-    std::vector<conduit::index_t> newOriginalElement;
-    newconn.reserve(conn.size());
-    newsizes.reserve(sizes.size());
-    newoffsets.reserve(offsets.size());
-    newOriginalElement.reserve(newOriginalElement.size());
-    for(size_t i = 0; i < sizes.size(); i++)
-    {
-        const auto size = sizes[order[i]];
-        const auto offset = offsets[order[i]];
+   // Make the output mesh.
+   n_output["coordsets/" + n_coordset->name()].set_external(*n_coordset);
+   conduit::Node &n_new_topo = n_output["topologies/" + n_topo.name()];
+   n_new_topo["coordset"] = n_coordset->name();
+   n_new_topo["type"] = "unstructured";
+   if (shapeDimension == 1)
+   {
+      n_new_topo["elements/shape"] = "line";
+   }
+   else if (shapeDimension == 2)
+   {
+      n_new_topo["elements/shape"] = "polygonal";
+   }
+   else
+   {
+      assert("Unhandled shape type.");
+   }
+   n_new_topo["elements/connectivity"].set(conn);
+   n_new_topo["elements/sizes"].set(sizes);
+   n_new_topo["elements/offsets"].set(offsets);
 
-        newoffsets.push_back(newconn.size());
-        newsizes.push_back(size);
-        for(int j = 0; j < size; j++)
-        {
-            newconn.push_back(conn[offset + j]);
-        }
+   // Figure out a spatial ordering for the face topology. Save it as a field.
+   const auto order = spatial_ordering(n_new_topo);
 
-        // Make the original element be a different order
-        newOriginalElement.push_back(originalElement[order[i]]);
-    }
-    // Update the connectivity, sizes, offsets with reordered versions.
-    n_new_topo["elements/connectivity"].set(newconn);
-    n_new_topo["elements/sizes"].set(newsizes);
-    n_new_topo["elements/offsets"].set(newoffsets);
+   // Reorder the connectivity so it is easier to think about.
+   std::vector<int> newconn, newsizes, newoffsets;
+   std::vector<conduit::index_t> newOriginalElement;
+   newconn.reserve(conn.size());
+   newsizes.reserve(sizes.size());
+   newoffsets.reserve(offsets.size());
+   newOriginalElement.reserve(newOriginalElement.size());
+   for (size_t i = 0; i < sizes.size(); i++)
+   {
+      const auto size = sizes[order[i]];
+      const auto offset = offsets[order[i]];
 
-    newOriginalElement.swap(originalElement);
+      newoffsets.push_back(newconn.size());
+      newsizes.push_back(size);
+      for (int j = 0; j < size; j++)
+      {
+         newconn.push_back(conn[offset + j]);
+      }
 
-    // Save a field that relates the face topology to the original topology zone indices.
-    n_output["fields/originalElement/topology"] = n_topo.name();
-    n_output["fields/originalElement/association"] = "element";
-    n_output["fields/originalElement/values"].set(originalElement);
+      // Make the original element be a different order
+      newOriginalElement.push_back(originalElement[order[i]]);
+   }
+   // Update the connectivity, sizes, offsets with reordered versions.
+   n_new_topo["elements/connectivity"].set(newconn);
+   n_new_topo["elements/sizes"].set(newsizes);
+   n_new_topo["elements/offsets"].set(newoffsets);
+
+   newOriginalElement.swap(originalElement);
+
+   // Save a field that relates the face topology to the original topology zone indices.
+   n_output["fields/originalElement/topology"] = n_topo.name();
+   n_output["fields/originalElement/association"] = "element";
+   n_output["fields/originalElement/values"].set(originalElement);
 }
 }  // end namespace
 
@@ -406,565 +409,585 @@ void extract_topology_with_selected_nodes(const conduit::Node &n_topo,
 class ConduitParMeshBuilder
 {
 public:
-  /**
-    Builds a ParMesh from a Mesh, keeping all zones in Mesh on the current
-    processor, preserving its decomposition, and initializing ParMesh
-    communication data from the supplied adjset.
-   
-    @param comm The MPI communicator
-    @param mesh The mesh that represents the Blueprint domain on the current processor.
-    @param n_adjset The adjset for the domain.
+   /**
+     Builds a ParMesh from a Mesh, keeping all zones in Mesh on the current
+     processor, preserving its decomposition, and initializing ParMesh
+     communication data from the supplied adjset.
 
-    @return A new ParMesh instance initialized by the adjset. The caller must free it.
-   */
-  static ParMesh *Build(MPI_Comm comm, mfem::Mesh &mesh, const conduit::Node &n_adjset);
+     @param comm The MPI communicator
+     @param mesh The mesh that represents the Blueprint domain on the current processor.
+     @param n_adjset The adjset for the domain.
+
+     @return A new ParMesh instance initialized by the adjset. The caller must free it.
+    */
+   static ParMesh *Build(MPI_Comm comm, mfem::Mesh &mesh,
+                         const conduit::Node &n_adjset);
 
 private:
-    /**
-      @brief Initializes ParMesh's gtopo member from the adjacency set.
-     
-      @param n_adjset The node that contains the adjacency set.
-     */
-    static void InitGroupTopology(ParMesh *pmesh, const conduit::Node &n_adjset);
+   /**
+     @brief Initializes ParMesh's gtopo member from the adjacency set.
 
-    /**
-      @brief Initializes ParMesh's shared vertices members from the adjacency set.
-     
-      @param n_adjset The node that contains the adjacency set.
-     */
-    static void InitSharedVertices(ParMesh *pmesh, const conduit::Node &n_adjset);
+     @param n_adjset The node that contains the adjacency set.
+    */
+   static void InitGroupTopology(ParMesh *pmesh, const conduit::Node &n_adjset);
 
-    /**
-      @brief Initializes ParMesh's shared faces members from the adjacency set.
-     
-      @param n_adjset The node that contains the adjacency set.
-     */
-    static void InitSharedFaces(ParMesh *pmesh, const conduit::Node &n_adjset);
+   /**
+     @brief Initializes ParMesh's shared vertices members from the adjacency set.
 
-    /**
-      @brief Initializes the ParMesh's shared edges members from the adjacency set.
-     
-      @param n_adjset The node that contains the adjacency set.
-     */
-    static void InitSharedEdges(ParMesh *pmesh, const conduit::Node &n_adjset);
+     @param n_adjset The node that contains the adjacency set.
+    */
+   static void InitSharedVertices(ParMesh *pmesh, const conduit::Node &n_adjset);
 
-    /**
-      @brief Makes a new Blueprint topology containing faces based on the adjacency set group.
-     
-      @param n_adjset The node that contains the adjacency set.
-      @param group The index of the adjacency set group (starts at 0).
-      @param[out] n_output A new face topology for the adjset group.
-     */
-    static void GetSelectedFaceTopologyFromAdjset(const conduit::Node &n_adjset,
-                                                  int group,
-                                                  conduit::Node &n_output);
+   /**
+     @brief Initializes ParMesh's shared faces members from the adjacency set.
 
-    /**
-      @brief Makes a new Blueprint topology containing edges based on the adjacency set group.
-     
-      @param n_adjset The node that contains the adjacency set.
-      @param group The index of the adjacency set group (starts at 0).
-      @param[out] n_output A new edge topology for the adjset group.
-     */
-    static void GetSelectedEdgeTopologyFromAdjset(
-                                           const conduit::Node &n_adjset,
-                                           int group,
-                                           conduit::Node &n_output);
+     @param n_adjset The node that contains the adjacency set.
+    */
+   static void InitSharedFaces(ParMesh *pmesh, const conduit::Node &n_adjset);
 
-    /**
-      @brief Builds an mfem::Table using values stored in @a values.
-     
-      @param t The Table to build.
-      @param values A vector of vectors where each vector contains a row of table data.
-     */
-    static void BuildTable(mfem::Table &t, const std::vector<std::vector<int>> &values);
+   /**
+     @brief Initializes the ParMesh's shared edges members from the adjacency set.
 
-    /**
-      @brief Gets a vector of unique vertex numbers for a face. The face vertices are
-             returned in numerical order, which might not necessarily result in a good
-             polygonal face.
-     
-      @param faceID The faceID in the MFEM mesh.
-     
-      @return A vector of face vertices.
-     */
-    static std::vector<int> GetFaceVertices(ParMesh *pmesh, int faceID);
+     @param n_adjset The node that contains the adjacency set.
+    */
+   static void InitSharedEdges(ParMesh *pmesh, const conduit::Node &n_adjset);
+
+   /**
+     @brief Makes a new Blueprint topology containing faces based on the adjacency set group.
+
+     @param n_adjset The node that contains the adjacency set.
+     @param group The index of the adjacency set group (starts at 0).
+     @param[out] n_output A new face topology for the adjset group.
+    */
+   static void GetSelectedFaceTopologyFromAdjset(const conduit::Node &n_adjset,
+                                                 int group,
+                                                 conduit::Node &n_output);
+
+   /**
+     @brief Makes a new Blueprint topology containing edges based on the adjacency set group.
+
+     @param n_adjset The node that contains the adjacency set.
+     @param group The index of the adjacency set group (starts at 0).
+     @param[out] n_output A new edge topology for the adjset group.
+    */
+   static void GetSelectedEdgeTopologyFromAdjset(
+      const conduit::Node &n_adjset,
+      int group,
+      conduit::Node &n_output);
+
+   /**
+     @brief Builds an mfem::Table using values stored in @a values.
+
+     @param t The Table to build.
+     @param values A vector of vectors where each vector contains a row of table data.
+    */
+   static void BuildTable(mfem::Table &t,
+                          const std::vector<std::vector<int>> &values);
+
+   /**
+     @brief Gets a vector of unique vertex numbers for a face. The face vertices are
+            returned in numerical order, which might not necessarily result in a good
+            polygonal face.
+
+     @param faceID The faceID in the MFEM mesh.
+
+     @return A vector of face vertices.
+    */
+   static std::vector<int> GetFaceVertices(ParMesh *pmesh, int faceID);
 };
 
 //---------------------------------------------------------------------------//
 ParMesh *
-ConduitParMeshBuilder::Build(MPI_Comm comm, mfem::Mesh &mesh, const conduit::Node &n_adjset)
+ConduitParMeshBuilder::Build(MPI_Comm comm, mfem::Mesh &mesh,
+                             const conduit::Node &n_adjset)
 {
-    // Keep all zones on this rank.
-    ParMesh *pmesh = new ParMesh(comm, mesh, std::vector<int>(mesh.GetNE(), mfem::Mpi::WorldRank()).data());
+   // Keep all zones on this rank.
+   ParMesh *pmesh = new ParMesh(comm, mesh, std::vector<int>(mesh.GetNE(),
+                                                             mfem::Mpi::WorldRank()).data());
 
-    // Finish initializing the shared communication members that did not get set
-    // due to the partition keeping all zones on this rank (above).
-    InitGroupTopology(pmesh, n_adjset);
-    InitSharedVertices(pmesh, n_adjset);
-    InitSharedEdges(pmesh, n_adjset);
-    InitSharedFaces(pmesh, n_adjset);
+   // Finish initializing the shared communication members that did not get set
+   // due to the partition keeping all zones on this rank (above).
+   InitGroupTopology(pmesh, n_adjset);
+   InitSharedVertices(pmesh, n_adjset);
+   InitSharedEdges(pmesh, n_adjset);
+   InitSharedFaces(pmesh, n_adjset);
 
-    return pmesh;
+   return pmesh;
 }
 
 //---------------------------------------------------------------------------//
-void ConduitParMeshBuilder::InitGroupTopology(ParMesh *pmesh, const conduit::Node &n_adjset)
+void ConduitParMeshBuilder::InitGroupTopology(ParMesh *pmesh,
+                                              const conduit::Node &n_adjset)
 {
-    const conduit::Node &n_groups = n_adjset.fetch_existing("groups");
-    const int mpitag = 823;
-    mfem::ListOfIntegerSets groups;
-    // Add the first group.
-    mfem::IntegerSet local {mfem::Mpi::WorldRank()};
-    groups.Insert(local);
-    const auto numGroups = static_cast<int>(n_groups.number_of_children());
-    for(int group_id = 0; group_id < numGroups; ++group_id)
-    {
-        const conduit::Node &n_group = n_groups[group_id];
-        const auto neighbors = n_group["neighbors"].as_int_accessor();
-        const auto group_size = static_cast<int>(neighbors.number_of_elements());
+   const conduit::Node &n_groups = n_adjset.fetch_existing("groups");
+   const int mpitag = 823;
+   mfem::ListOfIntegerSets groups;
+   // Add the first group.
+   mfem::IntegerSet local {mfem::Mpi::WorldRank()};
+   groups.Insert(local);
+   const auto numGroups = static_cast<int>(n_groups.number_of_children());
+   for (int group_id = 0; group_id < numGroups; ++group_id)
+   {
+      const conduit::Node &n_group = n_groups[group_id];
+      const auto neighbors = n_group["neighbors"].as_int_accessor();
+      const auto group_size = static_cast<int>(neighbors.number_of_elements());
 
-        mfem::IntegerSet newGroup;
-        mfem::Array<int> &array = newGroup;
-        array.Reserve(group_size + 1);
-        array.Append(mfem::Mpi::WorldRank());
-        for(int index = 0; index < group_size; ++index)
-        {
-            array.Append(neighbors[index]);
-        }
-        groups.Insert(newGroup);
-    }
-    mfem::GroupTopology g;
-    g.SetComm(MPI_COMM_WORLD);
-    g.Create(groups, mpitag);
-    pmesh->gtopo = g;
+      mfem::IntegerSet newGroup;
+      mfem::Array<int> &array = newGroup;
+      array.Reserve(group_size + 1);
+      array.Append(mfem::Mpi::WorldRank());
+      for (int index = 0; index < group_size; ++index)
+      {
+         array.Append(neighbors[index]);
+      }
+      groups.Insert(newGroup);
+   }
+   mfem::GroupTopology g;
+   g.SetComm(MPI_COMM_WORLD);
+   g.Create(groups, mpitag);
+   pmesh->gtopo = g;
 }
 
 //---------------------------------------------------------------------------//
-void ConduitParMeshBuilder::InitSharedVertices(ParMesh *pmesh, const conduit::Node &n_adjset)
+void ConduitParMeshBuilder::InitSharedVertices(ParMesh *pmesh,
+                                               const conduit::Node &n_adjset)
 {
-    const conduit::Node &n_groups = n_adjset.fetch_existing("groups");
-    const auto numGroups = static_cast<int>(n_groups.number_of_children());
+   const conduit::Node &n_groups = n_adjset.fetch_existing("groups");
+   const auto numGroups = static_cast<int>(n_groups.number_of_children());
 
-    std::vector<std::vector<int>> groups;
-    groups.resize(numGroups);
-    int maxVertex = -1;
-    for(int g = 0; g < numGroups; ++g)
-    {
-        const conduit::Node &n_group = n_groups[g];
-        const auto values = n_group["values"].as_int_accessor();
-        const auto n = static_cast<int>(values.number_of_elements());
-        groups[g].reserve(n);
-        for(int c = 0; c < n; c++)
-        {
-            groups[g].push_back(values[c]);
-            maxVertex = std::max(maxVertex, values[c]);
-        }
-    }
-    BuildTable(pmesh->group_svert, groups);
-    if(mfem::Mpi::WorldRank() == 0)
-    {
-        pmesh->group_svert.Print(std::cout);
-    }
+   std::vector<std::vector<int>> groups;
+   groups.resize(numGroups);
+   int maxVertex = -1;
+   for (int g = 0; g < numGroups; ++g)
+   {
+      const conduit::Node &n_group = n_groups[g];
+      const auto values = n_group["values"].as_int_accessor();
+      const auto n = static_cast<int>(values.number_of_elements());
+      groups[g].reserve(n);
+      for (int c = 0; c < n; c++)
+      {
+         groups[g].push_back(values[c]);
+         maxVertex = std::max(maxVertex, values[c]);
+      }
+   }
+   BuildTable(pmesh->group_svert, groups);
+   if (mfem::Mpi::WorldRank() == 0)
+   {
+      pmesh->group_svert.Print(mfem::out);
+   }
 
-    // Build a map of shared vertices to local.
-    pmesh->svert_lvert = mfem::Array<int>(maxVertex + 1);
-    std::iota(pmesh->svert_lvert.GetData(), pmesh->svert_lvert.GetData() + maxVertex + 1, 0);
+   // Build a map of shared vertices to local.
+   pmesh->svert_lvert = mfem::Array<int>(maxVertex + 1);
+   std::iota(pmesh->svert_lvert.GetData(),
+             pmesh->svert_lvert.GetData() + maxVertex + 1, 0);
 }
 
 //---------------------------------------------------------------------------//
-void ConduitParMeshBuilder::GetSelectedFaceTopologyFromAdjset(const conduit::Node &n_adjset,
-                                                         int group,
-                                                         conduit::Node &n_output)
+void ConduitParMeshBuilder::GetSelectedFaceTopologyFromAdjset(
+   const conduit::Node &n_adjset,
+   int group,
+   conduit::Node &n_output)
 {
-    const conduit::Node *n_topo =
-        conduit::blueprint::mesh::utils::find_reference_node(n_adjset, "topology");
-    assert(n_topo != nullptr);
+   const conduit::Node *n_topo =
+      conduit::blueprint::mesh::utils::find_reference_node(n_adjset, "topology");
+   assert(n_topo != nullptr);
 
-    // Use the group to pull out faces that use the nodes selected in the adjset.
-    const conduit::Node &n_groups = n_adjset.fetch_existing("groups");
-    extract_topology_with_selected_nodes(
-        *n_topo,
-        n_groups[group]["values"],
-        n_output,
-        // Invoke this on each shape to make a new face in the output topo from the supplied face.
-        [](conduit::index_t elementNumber,
-           const conduit::index_t *faceIds,
-           conduit::index_t nFaceIds,
-           std::vector<int> &connectivity,
-           std::vector<int> &sizes,
-           std::vector<int> &offsets,
-           std::vector<conduit::index_t> &originalElement) {
+   // Use the group to pull out faces that use the nodes selected in the adjset.
+   const conduit::Node &n_groups = n_adjset.fetch_existing("groups");
+   extract_topology_with_selected_nodes(
+      *n_topo,
+      n_groups[group]["values"],
+      n_output,
+      // Invoke this on each shape to make a new face in the output topo from the supplied face.
+      [](conduit::index_t elementNumber,
+         const conduit::index_t *faceIds,
+         conduit::index_t nFaceIds,
+         std::vector<int> &connectivity,
+         std::vector<int> &sizes,
+         std::vector<int> &offsets,
+         std::vector<conduit::index_t> &originalElement)
+   {
+      offsets.push_back(connectivity.size());
+      sizes.push_back(nFaceIds);
+      for (conduit::index_t i = 0; i < nFaceIds; i++)
+      {
+         connectivity.push_back(faceIds[i]);
+      }
+      originalElement.push_back(elementNumber);
+      return std::max(nFaceIds, conduit::index_t {5});
+   });
+}
+
+//---------------------------------------------------------------------------//
+void ConduitParMeshBuilder::GetSelectedEdgeTopologyFromAdjset(
+   const conduit::Node &n_adjset,
+   int group,
+   conduit::Node &n_output)
+{
+   const conduit::Node *n_topo =
+      conduit::blueprint::mesh::utils::find_reference_node(n_adjset, "topology");
+   assert(n_topo != nullptr);
+
+   // Use the group to pull out edges that use the nodes selected in the adjset.
+   const conduit::Node &n_groups = n_adjset.fetch_existing("groups");
+
+   std::set<std::pair<conduit::index_t, conduit::index_t>> usedEdges;
+
+   extract_topology_with_selected_nodes(
+      *n_topo,
+      n_groups[group]["values"],
+      n_output,
+      // Invoke this on each shape to make new edges in the output topo.
+      [&usedEdges](conduit::index_t elementNumber,
+                   const conduit::index_t *faceIds,
+                   conduit::index_t nFaceIds,
+                   std::vector<int> &connectivity,
+                   std::vector<int> &sizes,
+                   std::vector<int> &offsets,
+                   std::vector<conduit::index_t> &originalElement)
+   {
+      for (conduit::index_t i = 0; i < nFaceIds; i++)
+      {
+         const auto p0 = faceIds[i];
+         const auto p1 = faceIds[(i + 1) % nFaceIds];
+         const auto key = std::make_pair(std::min(p0, p1), std::max(p0, p1));
+         if (usedEdges.find(key) == usedEdges.end())
+         {
+            usedEdges.insert(key);
+
             offsets.push_back(connectivity.size());
-            sizes.push_back(nFaceIds);
-            for(conduit::index_t i = 0; i < nFaceIds; i++)
-            {
-                connectivity.push_back(faceIds[i]);
-            }
+            sizes.push_back(2);
+            connectivity.push_back(p0);
+            connectivity.push_back(p1);
             originalElement.push_back(elementNumber);
-            return std::max(nFaceIds, conduit::index_t {5});
-        });
-}
-
-//---------------------------------------------------------------------------//
-void ConduitParMeshBuilder::GetSelectedEdgeTopologyFromAdjset(const conduit::Node &n_adjset,
-                                                         int group,
-                                                         conduit::Node &n_output)
-{
-    const conduit::Node *n_topo =
-        conduit::blueprint::mesh::utils::find_reference_node(n_adjset, "topology");
-    assert(n_topo != nullptr);
-
-    // Use the group to pull out edges that use the nodes selected in the adjset.
-    const conduit::Node &n_groups = n_adjset.fetch_existing("groups");
-
-    std::set<std::pair<conduit::index_t, conduit::index_t>> usedEdges;
-
-    extract_topology_with_selected_nodes(
-        *n_topo,
-        n_groups[group]["values"],
-        n_output,
-        // Invoke this on each shape to make new edges in the output topo.
-        [&usedEdges](conduit::index_t elementNumber,
-                     const conduit::index_t *faceIds,
-                     conduit::index_t nFaceIds,
-                     std::vector<int> &connectivity,
-                     std::vector<int> &sizes,
-                     std::vector<int> &offsets,
-                     std::vector<conduit::index_t> &originalElement) {
-            for(conduit::index_t i = 0; i < nFaceIds; i++)
-            {
-                const auto p0 = faceIds[i];
-                const auto p1 = faceIds[(i + 1) % nFaceIds];
-                const auto key = std::make_pair(std::min(p0, p1), std::max(p0, p1));
-                if(usedEdges.find(key) == usedEdges.end())
-                {
-                    usedEdges.insert(key);
-
-                    offsets.push_back(connectivity.size());
-                    sizes.push_back(2);
-                    connectivity.push_back(p0);
-                    connectivity.push_back(p1);
-                    originalElement.push_back(elementNumber);
-                }
-            }
-            return 2;
-        });
+         }
+      }
+      return 2;
+   });
 }
 
 //---------------------------------------------------------------------------//
 void
-ConduitParMeshBuilder::InitSharedFaces(ParMesh *pmesh, const conduit::Node &n_adjset)
+ConduitParMeshBuilder::InitSharedFaces(ParMesh *pmesh,
+                                       const conduit::Node &n_adjset)
 {
-    const conduit::Node &n_groups = n_adjset.fetch_existing("groups");
-    const auto numGroups = static_cast<int>(n_groups.number_of_children());
+   const conduit::Node &n_groups = n_adjset.fetch_existing("groups");
+   const auto numGroups = static_cast<int>(n_groups.number_of_children());
 
-    std::vector<std::vector<int>> triGroups, quadGroups;
-    std::vector<std::vector<int>> triGroupIDs, quadGroupIDs;
-    triGroups.resize(numGroups);
-    quadGroups.resize(numGroups);
-    triGroupIDs.resize(numGroups);
-    quadGroupIDs.resize(numGroups);
-    int triFaces = 0, quadFaces = 0;
-    for(conduit::index_t g = 0; g < numGroups; g++)
-    {
-        auto &triGroup = triGroups[g];
-        auto &quadGroup = quadGroups[g];
-        auto &triGroupID = triGroupIDs[g];
-        auto &quadGroupID = quadGroupIDs[g];
+   std::vector<std::vector<int>> triGroups, quadGroups;
+   std::vector<std::vector<int>> triGroupIDs, quadGroupIDs;
+   triGroups.resize(numGroups);
+   quadGroups.resize(numGroups);
+   triGroupIDs.resize(numGroups);
+   quadGroupIDs.resize(numGroups);
+   int triFaces = 0, quadFaces = 0;
+   for (conduit::index_t g = 0; g < numGroups; g++)
+   {
+      auto &triGroup = triGroups[g];
+      auto &quadGroup = quadGroups[g];
+      auto &triGroupID = triGroupIDs[g];
+      auto &quadGroupID = quadGroupIDs[g];
 
-        // Get the faces from this group's adjset
-        conduit::Node n_group_faces;
-        GetSelectedFaceTopologyFromAdjset(n_adjset, g, n_group_faces);
+      // Get the faces from this group's adjset
+      conduit::Node n_group_faces;
+      GetSelectedFaceTopologyFromAdjset(n_adjset, g, n_group_faces);
 
 #ifdef DEBUG_SHARED_FACES
-        std::stringstream ss;
-        ss << "group_faces_rank_" << mfem::Mpi::WorldRank() << "_group_" << g;
-        std::string filename(ss.str());
-        conduit::relay::io::blueprint::save_mesh(n_group_faces, filename, "hdf5");
-        conduit::relay::io::save(n_group_faces, filename + ".yaml", "yaml");
+      std::stringstream ss;
+      ss << "group_faces_rank_" << mfem::Mpi::WorldRank() << "_group_" << g;
+      std::string filename(ss.str());
+      conduit::relay::io::blueprint::save_mesh(n_group_faces, filename, "hdf5");
+      conduit::relay::io::save(n_group_faces, filename + ".yaml", "yaml");
 #endif
 
-        // Make accessors for the new topology and its fields.
-        conduit::Node &n_topo = n_group_faces["topologies"][0];
-        const auto shape = n_topo["elements/shape"].as_string();
-        const auto connectivity = n_topo["elements/connectivity"].as_int_ptr();
-        const auto sizes = n_topo["elements/sizes"].as_int_ptr();
-        const auto numFaces = n_topo["elements/sizes"].dtype().number_of_elements();
-        const auto offsets = n_topo["elements/offsets"].as_int_ptr();
-        const auto originalElement = n_group_faces["fields/originalElement/values"].as_index_t_ptr();
+      // Make accessors for the new topology and its fields.
+      conduit::Node &n_topo = n_group_faces["topologies"][0];
+      const auto shape = n_topo["elements/shape"].as_string();
+      const auto connectivity = n_topo["elements/connectivity"].as_int_ptr();
+      const auto sizes = n_topo["elements/sizes"].as_int_ptr();
+      const auto numFaces = n_topo["elements/sizes"].dtype().number_of_elements();
+      const auto offsets = n_topo["elements/offsets"].as_int_ptr();
+      const auto originalElement =
+         n_group_faces["fields/originalElement/values"].as_index_t_ptr();
 
-        // Go through the topology zones (faces) and figure out their matching
-        // MFEM face numbers. Put them in their correct group too.
-        for(int i = 0; i < numFaces; i++)
-        {
-            const auto zoneIndex = i;
-            const auto offset = offsets[zoneIndex];
-            const auto size = sizes[zoneIndex];
-            const auto origZone = originalElement[zoneIndex];
+      // Go through the topology zones (faces) and figure out their matching
+      // MFEM face numbers. Put them in their correct group too.
+      for (int i = 0; i < numFaces; i++)
+      {
+         const auto zoneIndex = i;
+         const auto offset = offsets[zoneIndex];
+         const auto size = sizes[zoneIndex];
+         const auto origZone = originalElement[zoneIndex];
 
-            // Sort the face's ids
-            const auto zoneConn = connectivity + offset;
-            std::vector<int> sortedZoneVerts(zoneConn, zoneConn + size);
-            std::sort(sortedZoneVerts.begin(), sortedZoneVerts.end());
+         // Sort the face's ids
+         const auto zoneConn = connectivity + offset;
+         std::vector<int> sortedZoneVerts(zoneConn, zoneConn + size);
+         std::sort(sortedZoneVerts.begin(), sortedZoneVerts.end());
 
-            // Get the MFEM mesh faces for the original zone. Get the vertices for
-            // each face and see if it equals the adjset-generated face. If so, save
-            // the MFEM face Id in a vector.
-            mfem::Array<int> elemFaces, elemOrientation;
-            pmesh->GetElementFaces(origZone, elemFaces, elemOrientation);
-            int mfemFace = -1;
-            for(int fi = 0; fi < elemFaces.Size(); fi++)
+         // Get the MFEM mesh faces for the original zone. Get the vertices for
+         // each face and see if it equals the adjset-generated face. If so, save
+         // the MFEM face Id in a vector.
+         mfem::Array<int> elemFaces, elemOrientation;
+         pmesh->GetElementFaces(origZone, elemFaces, elemOrientation);
+         int mfemFace = -1;
+         for (int fi = 0; fi < elemFaces.Size(); fi++)
+         {
+            const auto faceID = elemFaces[fi];
+            std::vector<int> ids = GetFaceVertices(pmesh, elemFaces[fi]);
+
+            if (ids == sortedZoneVerts)
             {
-                const auto faceID = elemFaces[fi];
-                std::vector<int> ids = GetFaceVertices(pmesh, elemFaces[fi]);
-
-                if(ids == sortedZoneVerts)
-                {
-                    if(ids.size() == 3)
-                    {
-                        mfemFace = faceID;
-                        triGroup.push_back(triFaces);
-                        triGroupID.push_back(faceID);
-                        triFaces++;
-                    }
-                    else if(ids.size() == 4)
-                    {
-                        mfemFace = faceID;
-                        quadGroup.push_back(quadFaces);
-                        quadGroupID.push_back(faceID);
-                        quadFaces++;
-                    }
-                    break;
-                }
+               if (ids.size() == 3)
+               {
+                  mfemFace = faceID;
+                  triGroup.push_back(triFaces);
+                  triGroupID.push_back(faceID);
+                  triFaces++;
+               }
+               else if (ids.size() == 4)
+               {
+                  mfemFace = faceID;
+                  quadGroup.push_back(quadFaces);
+                  quadGroupID.push_back(faceID);
+                  quadFaces++;
+               }
+               break;
             }
-            MFEM_ASSERT(mfemFace != -1, "Face not found");
-        }
-    }
+         }
+         MFEM_ASSERT(mfemFace != -1, "Face not found");
+      }
+   }
 
-    // Make the tables from the data.
-    if(triFaces > 0)
-    {
-        BuildTable(pmesh->group_stria, triGroups);
+   // Make the tables from the data.
+   if (triFaces > 0)
+   {
+      BuildTable(pmesh->group_stria, triGroups);
 
-        int stri_counter = 0;
-        pmesh->shared_trias.SetSize(triFaces);
-        for(int g = 0; g < numGroups; g++)
-        {
-            auto &triGroupID = triGroupIDs[g];
-            for(int i = 0; i < triGroupID.size(); i++)
-            {
-                const auto faceID = triGroupID[i];
-                const mfem::Element *face = pmesh->GetFace(faceID);
-                const int *fv = face->GetVertices();
-                pmesh->shared_trias[stri_counter++].Set(fv);
-            }
-        }
-    }
-    if(quadFaces > 0)
-    {
-        BuildTable(pmesh->group_squad, quadGroups);
+      int stri_counter = 0;
+      pmesh->shared_trias.SetSize(triFaces);
+      for (int g = 0; g < numGroups; g++)
+      {
+         auto &triGroupID = triGroupIDs[g];
+         for (int i = 0; i < triGroupID.size(); i++)
+         {
+            const auto faceID = triGroupID[i];
+            const mfem::Element *face = pmesh->GetFace(faceID);
+            const int *fv = face->GetVertices();
+            pmesh->shared_trias[stri_counter++].Set(fv);
+         }
+      }
+   }
+   if (quadFaces > 0)
+   {
+      BuildTable(pmesh->group_squad, quadGroups);
 
-        int squad_counter = 0;
-        pmesh->shared_quads.SetSize(quadFaces);
-        for(int g = 0; g < numGroups; g++)
-        {
-            auto &quadGroupID = quadGroupIDs[g];
-            for(int i = 0; i < quadGroupID.size(); i++)
-            {
-                const auto faceID = quadGroupID[i];
-                const mfem::Element *face = pmesh->GetFace(faceID);
-                const int *fv = face->GetVertices();
-                pmesh->shared_quads[squad_counter++].Set(fv);
-            }
-        }
-    }
+      int squad_counter = 0;
+      pmesh->shared_quads.SetSize(quadFaces);
+      for (int g = 0; g < numGroups; g++)
+      {
+         auto &quadGroupID = quadGroupIDs[g];
+         for (int i = 0; i < quadGroupID.size(); i++)
+         {
+            const auto faceID = quadGroupID[i];
+            const mfem::Element *face = pmesh->GetFace(faceID);
+            const int *fv = face->GetVertices();
+            pmesh->shared_quads[squad_counter++].Set(fv);
+         }
+      }
+   }
 
-    // Build a map of shared face indices to local face IDs.
-    const auto totalFaces = triFaces + quadFaces;
-    if(totalFaces > 0)
-    {
-        pmesh->sface_lface = mfem::Array<int>(totalFaces);
-        int pos = 0;
-        int stri_counter = 0;
-        int squad_counter = 0;
-        for(int g = 0; g < numGroups; g++)
-        {
-            auto &triGroupID = triGroupIDs[g];
-            for(int i = 0; i < triGroupID.size(); i++) pmesh->sface_lface[pos++] = triGroupID[i];
-        }
-        for(int g = 0; g < numGroups; g++)
-        {
-            auto &quadGroupID = quadGroupIDs[g];
-            for(int i = 0; i < quadGroupID.size(); i++) pmesh->sface_lface[pos++] = quadGroupID[i];
-        }
-    }
+   // Build a map of shared face indices to local face IDs.
+   const auto totalFaces = triFaces + quadFaces;
+   if (totalFaces > 0)
+   {
+      pmesh->sface_lface = mfem::Array<int>(totalFaces);
+      int pos = 0;
+      int stri_counter = 0;
+      int squad_counter = 0;
+      for (int g = 0; g < numGroups; g++)
+      {
+         auto &triGroupID = triGroupIDs[g];
+         for (int i = 0; i < triGroupID.size(); i++) { pmesh->sface_lface[pos++] = triGroupID[i]; }
+      }
+      for (int g = 0; g < numGroups; g++)
+      {
+         auto &quadGroupID = quadGroupIDs[g];
+         for (int i = 0; i < quadGroupID.size(); i++) { pmesh->sface_lface[pos++] = quadGroupID[i]; }
+      }
+   }
 }
 
 //---------------------------------------------------------------------------//
-void ConduitParMeshBuilder::InitSharedEdges(ParMesh *pmesh, const conduit::Node &n_adjset)
+void ConduitParMeshBuilder::InitSharedEdges(ParMesh *pmesh,
+                                            const conduit::Node &n_adjset)
 {
-    const conduit::Node &n_groups = n_adjset.fetch_existing("groups");
-    const auto numGroups = static_cast<int>(n_groups.number_of_children());
+   const conduit::Node &n_groups = n_adjset.fetch_existing("groups");
+   const auto numGroups = static_cast<int>(n_groups.number_of_children());
 
 #ifdef DEBUG_SHARED_EDGES
-    // Save the MFEM mesh edges to a Blueprint file.
-    conduit::Node n_mfem;
-    MeshEdges(*pmesh, n_mfem);
-    std::stringstream ss1;
-    ss1 << "mfem_edges_rank_" << mfem::Mpi::WorldRank();
-    std::string filename(ss1.str());
-    conduit::relay::io::blueprint::save_mesh(n_mfem, filename, "hdf5");
-    conduit::relay::io::save(n_mfem, filename + ".yaml", "yaml");
+   // Save the MFEM mesh edges to a Blueprint file.
+   conduit::Node n_mfem;
+   MeshEdges(*pmesh, n_mfem);
+   std::stringstream ss1;
+   ss1 << "mfem_edges_rank_" << mfem::Mpi::WorldRank();
+   std::string filename(ss1.str());
+   conduit::relay::io::blueprint::save_mesh(n_mfem, filename, "hdf5");
+   conduit::relay::io::save(n_mfem, filename + ".yaml", "yaml");
 #endif
 
-    std::vector<std::vector<int>> edgeGroups;
-    std::vector<std::vector<int>> edgeGroupIDs;
-    std::vector<int> elemIds;
-    edgeGroups.resize(numGroups);
-    edgeGroupIDs.resize(numGroups);
-    int edgeCount = 0;
-    for(conduit::index_t g = 0; g < numGroups; g++)
-    {
-        auto &edgeGroup = edgeGroups[g];
-        auto &edgeGroupID = edgeGroupIDs[g];
+   std::vector<std::vector<int>> edgeGroups;
+   std::vector<std::vector<int>> edgeGroupIDs;
+   std::vector<int> elemIds;
+   edgeGroups.resize(numGroups);
+   edgeGroupIDs.resize(numGroups);
+   int edgeCount = 0;
+   for (conduit::index_t g = 0; g < numGroups; g++)
+   {
+      auto &edgeGroup = edgeGroups[g];
+      auto &edgeGroupID = edgeGroupIDs[g];
 
-        // Get the edges from this group's adjset
-        conduit::Node n_group_edges;
-        GetSelectedEdgeTopologyFromAdjset(n_adjset, g, n_group_edges);
+      // Get the edges from this group's adjset
+      conduit::Node n_group_edges;
+      GetSelectedEdgeTopologyFromAdjset(n_adjset, g, n_group_edges);
 
 #ifdef DEBUG_SHARED_EDGES
-        std::stringstream ss;
-        ss << "group_edges_rank_" << mfem::Mpi::WorldRank() << "_group_" << g;
-        std::string filename(ss.str());
-        conduit::relay::io::blueprint::save_mesh(n_group_edges, filename, "hdf5");
-        conduit::relay::io::save(n_group_edges, filename + ".yaml", "yaml");
+      std::stringstream ss;
+      ss << "group_edges_rank_" << mfem::Mpi::WorldRank() << "_group_" << g;
+      std::string filename(ss.str());
+      conduit::relay::io::blueprint::save_mesh(n_group_edges, filename, "hdf5");
+      conduit::relay::io::save(n_group_edges, filename + ".yaml", "yaml");
 #endif
 
-        // Make accessors for the new topology and its fields.
-        conduit::Node &n_topo = n_group_edges["topologies"][0];
-        const auto shape = n_topo["elements/shape"].as_string();
-        const auto connectivity = n_topo["elements/connectivity"].as_int_ptr();
-        const auto sizes = n_topo["elements/sizes"].as_int_ptr();
-        const auto numFaces = n_topo["elements/sizes"].dtype().number_of_elements();
-        const auto offsets = n_topo["elements/offsets"].as_int_ptr();
+      // Make accessors for the new topology and its fields.
+      conduit::Node &n_topo = n_group_edges["topologies"][0];
+      const auto shape = n_topo["elements/shape"].as_string();
+      const auto connectivity = n_topo["elements/connectivity"].as_int_ptr();
+      const auto sizes = n_topo["elements/sizes"].as_int_ptr();
+      const auto numFaces = n_topo["elements/sizes"].dtype().number_of_elements();
+      const auto offsets = n_topo["elements/offsets"].as_int_ptr();
 
-        const auto originalElement = n_group_edges["fields/originalElement/values"].as_index_t_ptr();
+      const auto originalElement =
+         n_group_edges["fields/originalElement/values"].as_index_t_ptr();
 
-        // Go through the topology zones (edges) in order
-        for(int i = 0; i < numFaces; i++)
-        {
-            const auto offset = offsets[i];
-            const auto size = sizes[i];
-            const auto origZone = originalElement[i];
+      // Go through the topology zones (edges) in order
+      for (int i = 0; i < numFaces; i++)
+      {
+         const auto offset = offsets[i];
+         const auto size = sizes[i];
+         const auto origZone = originalElement[i];
 
-            // Sort the face's ids
-            const auto zoneConn = connectivity + offset;
-            std::vector<int> sortedZoneVerts(zoneConn, zoneConn + size);
-            std::sort(sortedZoneVerts.begin(), sortedZoneVerts.end());
+         // Sort the face's ids
+         const auto zoneConn = connectivity + offset;
+         std::vector<int> sortedZoneVerts(zoneConn, zoneConn + size);
+         std::sort(sortedZoneVerts.begin(), sortedZoneVerts.end());
 
-            // Get the MFEM mesh faces for the original zone. Get the vertices for
-            // each face and see if it equals the adjset-generated face. If so, save
-            // the MFEM face Id in a vector.
-            mfem::Array<int> elemEdges, elemOrientation;
-            pmesh->GetElementEdges(origZone, elemEdges, elemOrientation);
-            int mfemEdge = -1;
-            for(int ei = 0; ei < elemEdges.Size(); ei++)
+         // Get the MFEM mesh faces for the original zone. Get the vertices for
+         // each face and see if it equals the adjset-generated face. If so, save
+         // the MFEM face Id in a vector.
+         mfem::Array<int> elemEdges, elemOrientation;
+         pmesh->GetElementEdges(origZone, elemEdges, elemOrientation);
+         int mfemEdge = -1;
+         for (int ei = 0; ei < elemEdges.Size(); ei++)
+         {
+            mfem::Array<int> ids;
+            const auto edgeID = elemEdges[ei];
+            pmesh->GetEdgeVertices(edgeID, ids);
+            std::vector<int> sortedIds(ids.GetData(), ids.GetData() + ids.Size());
+            std::sort(sortedIds.begin(), sortedIds.end());
+            if (sortedZoneVerts == sortedIds)
             {
-                mfem::Array<int> ids;
-                const auto edgeID = elemEdges[ei];
-                pmesh->GetEdgeVertices(edgeID, ids);
-                std::vector<int> sortedIds(ids.GetData(), ids.GetData() + ids.Size());
-                std::sort(sortedIds.begin(), sortedIds.end());
-                if(sortedZoneVerts == sortedIds)
-                {
-                    mfemEdge = edgeID;
-                    edgeGroup.push_back(edgeCount);
-                    edgeGroupID.push_back(edgeID);
-                    edgeCount++;
-                    elemIds.push_back(origZone);
-                    break;
-                }
+               mfemEdge = edgeID;
+               edgeGroup.push_back(edgeCount);
+               edgeGroupID.push_back(edgeID);
+               edgeCount++;
+               elemIds.push_back(origZone);
+               break;
             }
-            MFEM_ASSERT(mfemEdge != -1, "Unable to match edge.");
-        }
-    }
+         }
+         MFEM_ASSERT(mfemEdge != -1, "Unable to match edge.");
+      }
+   }
 
-    // Make the tables from the data.
-    if(edgeCount > 0)
-    {
-        BuildTable(pmesh->group_sedge, edgeGroups);
+   // Make the tables from the data.
+   if (edgeCount > 0)
+   {
+      BuildTable(pmesh->group_sedge, edgeGroups);
 
-        int counter = 0;
-        pmesh->shared_edges.SetSize(edgeCount);
-        pmesh->sedge_ledge = mfem::Array<int>(edgeCount);
-        for(int g = 0; g < numGroups; g++)
-        {
-            auto &edgeGroupID = edgeGroupIDs[g];
-            for(int i = 0; i < edgeGroupID.size(); i++)
-            {
-                pmesh->shared_edges[counter] = pmesh->GetElement(elemIds[counter])->Duplicate(pmesh);
+      int counter = 0;
+      pmesh->shared_edges.SetSize(edgeCount);
+      pmesh->sedge_ledge = mfem::Array<int>(edgeCount);
+      for (int g = 0; g < numGroups; g++)
+      {
+         auto &edgeGroupID = edgeGroupIDs[g];
+         for (int i = 0; i < edgeGroupID.size(); i++)
+         {
+            pmesh->shared_edges[counter] = pmesh->GetElement(elemIds[counter])->Duplicate(
+                                              pmesh);
 
-                pmesh->sedge_ledge[counter] = edgeGroupID[i];
+            pmesh->sedge_ledge[counter] = edgeGroupID[i];
 
-                counter++;
-            }
-        }
-    }
+            counter++;
+         }
+      }
+   }
 }
 
 //---------------------------------------------------------------------------//
-void ConduitParMeshBuilder::BuildTable(mfem::Table &t, const std::vector<std::vector<int>> &values)
+void ConduitParMeshBuilder::BuildTable(mfem::Table &t,
+                                       const std::vector<std::vector<int>> &values)
 {
-    const auto numGroups = static_cast<int>(values.size());
+   const auto numGroups = static_cast<int>(values.size());
 
-    // Build I
-    int *I = new int[numGroups + 1];
-    I[0] = 0;
-    for(int g = 0; g < numGroups; ++g)
-    {
-        const auto n = static_cast<int>(values[g].size());
-        I[g + 1] = I[g] + n;
-    }
-    const int nnz = I[numGroups];
+   // Build I
+   int *I = new int[numGroups + 1];
+   I[0] = 0;
+   for (int g = 0; g < numGroups; ++g)
+   {
+      const auto n = static_cast<int>(values[g].size());
+      I[g + 1] = I[g] + n;
+   }
+   const int nnz = I[numGroups];
 
-    // Build J
-    int *J = new int[nnz];
-    int pos = 0;
-    for(int g = 0; g < numGroups; ++g)
-    {
-        const auto &row = values[g];
-        const auto n = static_cast<int>(row.size());
-        for(int c = 0; c < n; c++)
-        {
-            J[pos++] = row[c];
-        }
-    }
+   // Build J
+   int *J = new int[nnz];
+   int pos = 0;
+   for (int g = 0; g < numGroups; ++g)
+   {
+      const auto &row = values[g];
+      const auto n = static_cast<int>(row.size());
+      for (int c = 0; c < n; c++)
+      {
+         J[pos++] = row[c];
+      }
+   }
 
-    // Build the Table from I and J
-    t.SetIJ(I, J, numGroups);
+   // Build the Table from I and J
+   t.SetIJ(I, J, numGroups);
 }
 
 //---------------------------------------------------------------------------//
-std::vector<int> ConduitParMeshBuilder::GetFaceVertices(ParMesh *pmesh, int faceID)
+std::vector<int> ConduitParMeshBuilder::GetFaceVertices(ParMesh *pmesh,
+                                                        int faceID)
 {
-    mfem::Array<int> edges, orientation;
-    pmesh->GetFaceEdges(faceID, edges, orientation);
+   mfem::Array<int> edges, orientation;
+   pmesh->GetFaceEdges(faceID, edges, orientation);
 
-    // Go through the edges and make a unique list of sorted vertices.
-    std::vector<int> ids;
-    for(int ei = 0; ei < edges.Size(); ei++)
-    {
-        mfem::Array<int> edgeVerts;
-        pmesh->GetEdgeVertices(edges[ei], edgeVerts);
-        for(int vi = 0; vi < edgeVerts.Size(); vi++)
-        {
-            if(std::find(ids.begin(), ids.end(), edgeVerts[vi]) == ids.end())
-                ids.push_back(edgeVerts[vi]);
-        }
-    }
-    std::sort(ids.begin(), ids.end());
-    return ids;
+   // Go through the edges and make a unique list of sorted vertices.
+   std::vector<int> ids;
+   for (int ei = 0; ei < edges.Size(); ei++)
+   {
+      mfem::Array<int> edgeVerts;
+      pmesh->GetEdgeVertices(edges[ei], edgeVerts);
+      for (int vi = 0; vi < edgeVerts.Size(); vi++)
+      {
+         if (std::find(ids.begin(), ids.end(), edgeVerts[vi]) == ids.end())
+         {
+            ids.push_back(edgeVerts[vi]);
+         }
+      }
+   }
+   std::sort(ids.begin(), ids.end());
+   return ids;
 }
 #endif
 
@@ -1111,7 +1134,7 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
 #ifdef MFEM_USE_MPI
                                            , MPI_Comm comm
 #endif
-                                           )
+                                          )
 {
    // n_conv holds converted data (when necessary for mfem api)
    // if n_conv is used ( !n_conv.dtype().empty() ) we
@@ -1452,15 +1475,15 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
 #ifdef MFEM_USE_MPI
    // If an adjset is found for the topology then we will try to make a ParMesh
    // from the Mesh.
-   if(n_mesh.has_path("adjsets"))
+   if (n_mesh.has_path("adjsets"))
    {
       const conduit::Node &n_adjsets = n_mesh["adjsets"];
-      for(conduit::index_t i = 0; i < n_adjsets.number_of_children(); i++)
+      for (conduit::index_t i = 0; i < n_adjsets.number_of_children(); i++)
       {
-         if(n_adjsets[i]["topology"].as_string() == main_topology_name)
+         if (n_adjsets[i]["topology"].as_string() == main_topology_name)
          {
             auto *pmesh = ConduitParMeshBuilder::Build(comm, *res, n_adjsets[i]);
-            if(pmesh != nullptr)
+            if (pmesh != nullptr)
             {
                delete res;
                res = pmesh;
@@ -1576,7 +1599,7 @@ ConduitDataCollection::BlueprintFieldToGridFunction(Mesh *mesh,
 
    // we need basis name to create the proper mfem fec
    std::string fec_name;
-   if(n_field.has_path("basis"))
+   if (n_field.has_path("basis"))
    {
       fec_name = n_field["basis"].as_string();
    }
@@ -1588,13 +1611,13 @@ ConduitDataCollection::BlueprintFieldToGridFunction(Mesh *mesh,
       const auto association = n_field["association"].as_string();
       const conduit::Node *n_topo =
          bputils::find_reference_node(n_field, "topology");
-      if(n_topo != nullptr)
+      if (n_topo != nullptr)
       {
          bputils::ShapeType shape(*n_topo);
          dim = shape.dim;
       }
       std::stringstream ss;
-      if(association == "element")
+      if (association == "element")
       {
          ss << "L2_" << dim << "D_P0";
       }
@@ -1603,7 +1626,7 @@ ConduitDataCollection::BlueprintFieldToGridFunction(Mesh *mesh,
          ss << "H1_" << dim << "D_P1";
       }
       fec_name = ss.str();
-      std::cout << "Picked fec_name: " << fec_name << std::endl;
+      mfem::out << "Picked fec_name: " << fec_name << std::endl;
    }
 
    GridFunction *res = NULL;

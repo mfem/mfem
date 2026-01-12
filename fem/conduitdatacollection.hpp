@@ -199,9 +199,9 @@ public:
                                     const std::string &main_topology_name = "",
                                     bool zero_copy = false
 #ifdef MFEM_USE_MPI
-                                    , MPI_Comm comm = MPI_COMM_WORLD
+                                                     , MPI_Comm comm = MPI_COMM_WORLD
 #endif
-                                    );
+                                   );
 
    /// Constructs and MFEM Grid Function from a Conduit Blueprint Description
    /** If zero_copy == true, tries to construct a grid function that points to
