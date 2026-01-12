@@ -37,5 +37,10 @@ if(MFEM_USE_MPI AND MFEM_USE_DOUBLE)
 				${PAR_MTOP_COMMON_FILES}
 				LIBRARIES mfem)
 
+	add_mfem_miniapp(anderson_fp_test
+                                MAIN anderson_fp_test.cpp
+                                ${PAR_MTOP_COMMON_FILES}
+                                LIBRARIES mfem)
+
 
 endif (MFEM_USE_MPI AND MFEM_USE_DOUBLE)

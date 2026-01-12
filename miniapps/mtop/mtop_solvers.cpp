@@ -849,6 +849,11 @@ void PDEFilter::Assemble()
          mass_qfd.SetDensity(1.0);
          dopd->AddDomainIntegrator(mass_qfd, minputs, moutput, ir, 
                                     domain_attributes, derivatives);
+
+         //typename FilterQFunction<2,dual_t>::Diffusion diff_qfd;
+         //diff_qfd.SetDiffusion(filter_radius*filter_radius);
+         //dopd->AddDomainIntegrator(diff_qfd, dinputs, doutput, ir,
+         //                           domain_attributes, derivatives);
       }
       else if (3 == spaceDim)
       {
@@ -872,7 +877,9 @@ void PDEFilter::Assemble()
 
       // get the Jacobian
       dres_du->Assemble(K);
-      */
+      */      
+
+      
       ParBilinearForm bf_lor(&lor_space);
       ConstantCoefficient diff_coeff_lor(filter_radius*filter_radius);
       bf_lor.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff_lor));
@@ -880,6 +887,7 @@ void PDEFilter::Assemble()
       bf_lor.Assemble();
       bf_lor.Finalize();
       K=bf_lor.ParallelAssemble();
+      
 
       K->EliminateBC(ess_tdofv,Operator::DiagonalPolicy::DIAG_ONE);
    }
