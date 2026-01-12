@@ -571,10 +571,6 @@ void ConduitParMeshBuilder::InitSharedVertices(ParMesh *pmesh,
       }
    }
    BuildTable(pmesh->group_svert, groups);
-   if (mfem::Mpi::WorldRank() == 0)
-   {
-      pmesh->group_svert.Print(mfem::out);
-   }
 
    // Build a map of shared vertices to local.
    pmesh->svert_lvert = mfem::Array<int>(maxVertex + 1);
