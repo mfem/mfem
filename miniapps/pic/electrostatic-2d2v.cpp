@@ -217,7 +217,7 @@ int main(int argc, char* argv[])
    args.AddOption(&ctx.t_init, "-ti", "--initial-time", "Initial Time.");
    args.AddOption(&ctx.nt, "-nt", "--num-timesteps", "Number of timesteps.");
    args.AddOption(&ctx.npt, "-npt", "--num-particles",
-                  "Number of particles per processor.");
+                  "Number of particles per rank.");
    args.AddOption(&ctx.k, "-k", "--k", "K parameter for initial distribution.");
    args.AddOption(&ctx.alpha, "-a", "--alpha",
                   "Alpha parameter for initial distribution.");
