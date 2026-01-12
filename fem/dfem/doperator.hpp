@@ -189,7 +189,7 @@ public:
       }
 
       // SparseMatrix A is finalized after all callbacks have contributed to
-      // the sparsity pattern.
+      // it.
       A->Finalize();
    }
 
@@ -1493,7 +1493,8 @@ void DifferentiableOperator::AddIntegrator(
                   A->AddSubMatrix(test_vdofs, trial_vdofs, Aee, 1);
                }
             }
-            // A->Finalize();
+            // Don't finalize here since multiple callbacks might contribute to the same matrix
+            // A->Finalize() will be called after all callbacks have contributed
          });
 
          // Create local references for MSVC lambda capture compatibility
