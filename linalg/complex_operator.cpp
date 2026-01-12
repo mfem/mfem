@@ -78,9 +78,6 @@ void ComplexOperator::Mult(const Vector &x, Vector &y) const
    y_i_.MakeRef(y, height/2, height/2);
 
    this->Mult(x_r_, x_i_, y_r_, y_i_);
-
-   y_r_.SyncAliasMemory(y);
-   y_i_.SyncAliasMemory(y);
 }
 
 void ComplexOperator::Mult(const Vector &x_r, const Vector &x_i,
@@ -127,9 +124,6 @@ void ComplexOperator::MultTranspose(const Vector &x, Vector &y) const
    y_i_.MakeRef(y, width/2, width/2);
 
    this->MultTranspose(x_r_, x_i_, y_r_, y_i_);
-
-   y_r_.SyncAliasMemory(y);
-   y_i_.SyncAliasMemory(y);
 }
 
 void ComplexOperator::MultTranspose(const Vector &x_r, const Vector &x_i,
@@ -211,8 +205,8 @@ SparseMatrix * ComplexSparseMatrix::GetSystemMatrix() const
    const int    nnz_i = (I_i)?I_i[nrows]:0;
    const int    nnz   = 2 * (nnz_r + nnz_i);
 
-   int    *I = Memory<int>(this->Height()+1);
-   int    *J = Memory<int>(nnz);
+   int *I = Memory<int>(this->Height() + 1);
+   int *J = Memory<int>(nnz);
    real_t *D = Memory<real_t>(nnz);
 
    const real_t factor = (convention_ == HERMITIAN) ? 1.0 : -1.0;

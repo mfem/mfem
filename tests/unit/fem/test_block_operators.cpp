@@ -55,12 +55,10 @@ TEST_CASE("BlockOperators", "[BlockOperators], [GPU]")
    lf.AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
    lf.AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(fnatcoeff));
    lf.Assemble();
-   lf.SyncAliasMemory(rhs);
 
    lg.Update(&W_fes, rhs.GetBlock(1), 0);
    lg.AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
    lg.Assemble();
-   lg.SyncAliasMemory(rhs);
 
    BilinearForm vmass(&R_fes);
    ConstantCoefficient k(1.0);
