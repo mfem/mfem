@@ -281,7 +281,7 @@ int main(int argc, char *argv[])
       const int copy_interior = 1;
       darcy.FormLinearSystem(ess_stress_tdofs_list, x, A, X, B, copy_interior);
 
-#ifdef MFEM_USE_SUITESPARSE
+#ifndef MFEM_USE_SUITESPARSE
       // 16. Define a simple symmetric Gauss-Seidel preconditioner and use it to
       //     solve the linear system with GMRES.
       GSSmoother M(A);
