@@ -328,7 +328,7 @@ REGISTER(BK, 6, 3, true);
  *    --benchmark_context=device=gpu
  *    --benchmark_filter=BP1
  *    --benchmark_out_format=csv
- *    --benchmark_out=ceed_bp.csv
+ *    --benchmark_out=bp1.csv
  */
 int main(int argc, char *argv[])
 {
