@@ -324,6 +324,14 @@ void diffusion(const char *filename, int p, bool include_mass)
                                         Gradient<Coords>{}, Weight{} },
                                  tuple{ Gradient<U>{} }, *ir,
                                  all_domain_attr, derivatives);
+      if(include_mass)
+      {
+      dop_mf.AddDomainIntegrator(mf_mass_qf,
+                                 tuple{ Value<U>{}, Identity<Rho>{},
+                                        Gradient<Coords>{}, Weight{} },
+                                 tuple{ Value<U>{} }, *ir,
+                                 all_domain_attr, derivatives);
+      }
       dop_mf.SetParameters({ &rho_coeff_cv, nodes });
       auto dRdU = dop_mf.GetDerivative(U, {&x}, {&rho_coeff_cv, nodes});
 
