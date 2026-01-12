@@ -21,7 +21,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS =
-PAR_MINIAPPS = pic_2d2v_test
+PAR_MINIAPPS = electrostatic-2d2v
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -46,7 +46,7 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 all: $(MINIAPPS)
 
 # Rules for building the miniapps
-pic_2d2v_test: pic_2d2v_test.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+electrostatic-2d2v: electrostatic-2d2v.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $<
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $(COMMON_LIB) $(MFEM_LIBS)
 
@@ -62,7 +62,7 @@ include $(MFEM_TEST_MK)
 
 # Testing: Specific execution options
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-pic-test-par: pic_2d2v_test
+pic-test-par: electrostatic-2d2v
 	@$(call mfem-test,$<, mpirun -n 4, PIC miniapp,\
 		-rdf 1 -npt 10240 -k 0.2855993321 -a 0.05 -nt 200 -nx 16 -ny 16 -O 1 -q 0.01181640625 -m 0.01181640625 -ocf 1000 -dt 0.1)
 
@@ -77,4 +77,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf pic_2d2v_test_* *.csv energy.csv
+	@rm -rf electrostatic-2d2v_* *.csv energy.csv

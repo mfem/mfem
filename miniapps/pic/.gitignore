@@ -1,8 +1,9 @@
-pic_*
-!pic_*.cpp
-!pic_*.hpp
+electrostatic-*
+!electrostatic-*.cpp
+!electrostatic-*.hpp
 *.csv
 *.gif
 *.mp4
 *.png
 temp*
+.clang-format
