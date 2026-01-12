@@ -28,7 +28,9 @@
 // Solution process (per timestep, repeating steps 1-6):
 //   (1) Deposit charge from particles to grid via Dirac delta function
 //       to form the RHS of the Poisson equation
-//   (2) Solve Poisson equation (Δφ = -ρ) to compute potential φ
+//   (2) Solve Poisson equation (-Δφ = ρ - ρ_0) to compute potential φ, where
+//       ρ_0 is a constant neutralizing term that enforces global charge 
+//       neutrality.
 //   (3) Compute electric field E = -∇φ from the potential
 //   (4) Interpolate E-field to particle positions
 //   (5) Push particles using leap-frog scheme (update momentum and position)
