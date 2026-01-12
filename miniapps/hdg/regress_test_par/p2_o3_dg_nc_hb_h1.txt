@@ -39,15 +39,15 @@ Options used:
    --serial-format
 Device configuration: cpu
 Memory configuration: host-std
-Hybridization init took 0.00845637s.
+Hybridization init took 0.00874901s.
 ***********************************************************
 dim(V) = 1792
 dim(W) = 896
 dim(M) = 351
 dim(V+W+M) = 3039
 ***********************************************************
-Assembly took 0.0728869s.
-Preconditioner took 2.9917e-05s.
+Assembly took 0.0647293s.
+Preconditioner took 3.3503e-05s.
 
 
  Num MPI tasks = 2
@@ -79,10 +79,10 @@ Operator Matrix Information:
 lev    rows  entries sparse   min  max     avg      min         max
 ======================================================================
   0     585    11121  0.032     1   43    19.0  -2.801e+00   1.000e+00
-  1     198    12011  0.306    30   84    60.7  -1.868e+00   4.136e-02
-  2      76     4724  0.818    35   75    62.2  -2.068e+00   8.708e-05
-  3      23      529  1.000    23   23    23.0  -1.530e+00  -9.777e-02
-  4       6       36  1.000     6    6     6.0  -1.695e+00  -6.010e-01
+  1     198    12018  0.307    30   84    60.7  -1.867e+00   4.180e-02
+  2      76     4682  0.811    38   74    61.6  -1.449e+00   1.979e-04
+  3      28      784  1.000    28   28    28.0  -1.546e+00  -4.300e-02
+  4       8       64  1.000     8    8     8.0  -1.649e+00  -3.722e-01
 
 
 Interpolation Matrix Information:
@@ -91,13 +91,13 @@ lev  rows x cols  min  max  avgW     weight      weight       min         max
 ================================================================================
   0   585 x 198     0    1   0.7   1.000e+00   0.000e+00   0.000e+00   1.000e+00
   1   198 x 76      1    1   1.0   1.000e+00   0.000e+00   1.000e+00   1.000e+00
-  2    76 x 23      1    1   1.0   1.000e+00   0.000e+00   1.000e+00   1.000e+00
-  3    23 x 6       1    1   1.0   1.000e+00   0.000e+00   1.000e+00   1.000e+00
+  2    76 x 28      1    1   1.0   1.000e+00   0.000e+00   1.000e+00   1.000e+00
+  3    28 x 8       1    1   1.0   1.000e+00   0.000e+00   1.000e+00   1.000e+00
 
 
-     Complexity:    grid = 1.517949
-                operator = 2.555616
-                memory = 2.625573
+     Complexity:    grid = 1.529915
+                operator = 2.577916
+                memory = 2.648323
 
 
 
@@ -117,13 +117,13 @@ BoomerAMG SOLVER PARAMETERS:
                    Post-CG relaxation (up):  -1  -1   1
                              Coarsest grid:   0
 
-   Pass :  1   Iteration :   0  ||B r|| = 1.52866
-   Pass :  1   Iteration :   1  ||B r|| = 0.0154152
-   Pass :  1   Iteration :   2  ||B r|| = 0.000772369
-   Pass :  1   Iteration :   3  ||B r|| = 4.87292e-05
-   Pass :  1   Iteration :   4  ||B r|| = 3.53147e-06
-   Pass :  1   Iteration :   5  ||B r|| = 2.28862e-07
-GMRES+HypreAMG converged in 5 iterations with a residual norm of 2.28862e-07.
-solver took 0.00669521s.
-|| q_h - q_ex || / || q_ex || = 4.76791e-06
-|| t_h - t_ex || / || t_ex || = 8.32647e-07
+   Pass :  1   Iteration :   0  ||B r|| = 1.54909
+   Pass :  1   Iteration :   1  ||B r|| = 0.0156515
+   Pass :  1   Iteration :   2  ||B r|| = 0.00077622
+   Pass :  1   Iteration :   3  ||B r|| = 5.37691e-05
+   Pass :  1   Iteration :   4  ||B r|| = 3.71645e-06
+   Pass :  1   Iteration :   5  ||B r|| = 2.22639e-07
+GMRES+HypreAMG converged in 5 iterations with a residual norm of 2.22639e-07.
+solver took 0.00854051s.
+|| q_h - q_ex || / || q_ex || = 4.68718e-06
+|| t_h - t_ex || / || t_ex || = 8.32589e-07

@@ -40,15 +40,15 @@ Options used:
 Device configuration: cpu
 Memory configuration: host-std
 Mesh::GeneratePartitioning(...): edgecut = 10
-Hybridization init took 0.00968353s.
+Hybridization init took 0.00700209s.
 ***********************************************************
 dim(V) = 1600
 dim(W) = 800
 dim(M) = 296
 dim(V+W+M) = 2696
 ***********************************************************
-Assembly took 0.0591865s.
-Preconditioner took 6.2127e-05s.
+Assembly took 0.0588568s.
+Preconditioner took 3.6706e-05s.
 
 
  Num MPI tasks = 2
@@ -80,8 +80,8 @@ Operator Matrix Information:
 lev    rows  entries sparse   min  max     avg      min         max
 ======================================================================
   0     561     9897  0.031     1   33    17.6  -2.794e+00   1.000e+00
-  1     184    10325  0.305    23   84    56.1  -1.850e+00   4.098e-02
-  2      61     2895  0.778    31   61    47.5  -1.930e+00  -1.189e-03
+  1     184    10304  0.304    23   84    56.0  -1.850e+00   4.098e-02
+  2      61     2881  0.774    31   61    47.2  -1.930e+00  -1.188e-03
   3      17      289  1.000    17   17    17.0  -1.513e+00  -2.532e-01
   4       2        4  1.000     2    2     2.0  -1.778e+00  -1.341e+00
 
@@ -97,8 +97,8 @@ lev  rows x cols  min  max  avgW     weight      weight       min         max
 
 
      Complexity:    grid = 1.470588
-                operator = 2.365363
-                memory = 2.435587
+                operator = 2.361827
+                memory = 2.432050
 
 
 
@@ -118,13 +118,13 @@ BoomerAMG SOLVER PARAMETERS:
                    Post-CG relaxation (up):  -1  -1   1
                              Coarsest grid:   0
 
-   Pass :  1   Iteration :   0  ||B r|| = 1.17725
-   Pass :  1   Iteration :   1  ||B r|| = 0.0169356
-   Pass :  1   Iteration :   2  ||B r|| = 0.000804642
-   Pass :  1   Iteration :   3  ||B r|| = 4.59233e-05
-   Pass :  1   Iteration :   4  ||B r|| = 2.83443e-06
-   Pass :  1   Iteration :   5  ||B r|| = 2.41439e-07
-GMRES+HypreAMG converged in 5 iterations with a residual norm of 2.41439e-07.
-solver took 0.00839682s.
-|| q_h - q_ex || / || q_ex || = 2.40449e-06
-|| t_h - t_ex || / || t_ex || = 3.35431e-07
+   Pass :  1   Iteration :   0  ||B r|| = 1.17927
+   Pass :  1   Iteration :   1  ||B r|| = 0.0185878
+   Pass :  1   Iteration :   2  ||B r|| = 0.00082891
+   Pass :  1   Iteration :   3  ||B r|| = 4.57982e-05
+   Pass :  1   Iteration :   4  ||B r|| = 2.75931e-06
+   Pass :  1   Iteration :   5  ||B r|| = 2.32664e-07
+GMRES+HypreAMG converged in 5 iterations with a residual norm of 2.32664e-07.
+solver took 0.00627722s.
+|| q_h - q_ex || / || q_ex || = 2.38462e-06
+|| t_h - t_ex || / || t_ex || = 3.30317e-07

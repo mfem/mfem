@@ -1020,13 +1020,10 @@ void HDGDiffusionIntegrator::AssembleHDGFaceMatrix(
 {
    MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
 
-   int dim, tr_ndof, ndof1, ndof2, el_ndof;
-   real_t w, wq = 0.0;
-   real_t un, a, b;
-
-   dim = el1.GetDim();
-   tr_ndof = trace_el.GetDof();
-   ndof1 = el1.GetDof();
+   const int dim = el1.GetDim();
+   const int tr_ndof = trace_el.GetDof();
+   const int ndof1 = el1.GetDof();
+   const int ndof2 = (Trans.Elem2No >= 0)?(el2.GetDof()):(0.);
 
    vu.SetSize(dim);
    nor.SetSize(dim);
@@ -1039,16 +1036,11 @@ void HDGDiffusionIntegrator::AssembleHDGFaceMatrix(
 
    tr_shape.SetSize(tr_ndof);
    shape1.SetSize(ndof1);
-   if (Trans.Elem2No >= 0)
+   if (ndof2)
    {
-      ndof2 = el2.GetDof();
       shape2.SetSize(ndof2);
    }
-   else
-   {
-      ndof2 = 0;
-   }
-   el_ndof = ndof1 + ndof2;
+   const int el_ndof = ndof1 + ndof2;
 
    elmat.SetSize(el_ndof + tr_ndof);
    elmat = 0.0;
@@ -1093,6 +1085,8 @@ void HDGDiffusionIntegrator::AssembleHDGFaceMatrix(
 
       trace_el.CalcShape(ip, tr_shape);
 
+      // evaluate the normal velocity
+      real_t un;
       if (v)
       {
          v->Eval(vu, *Trans.Elem1, eip1);
@@ -1103,27 +1097,26 @@ void HDGDiffusionIntegrator::AssembleHDGFaceMatrix(
          un = 0.0;
       }
 
-      el1.CalcPhysShape(*Trans.Elem1, shape1);
-      w = ip.weight/Trans.Elem1->Weight();
-      if (ndof2)
+      // calculate the stabilization coefficient on side 1
       {
-         w /= 2;
-      }
-      if (!MQ)
-      {
-         if (Q)
+         el1.CalcPhysShape(*Trans.Elem1, shape1);
+         real_t wn = ip.weight/Trans.Elem1->Weight();
+         if (!MQ)
          {
-            w *= Q->Eval(*Trans.Elem1, eip1);
+            if (Q)
+            {
+               wn *= Q->Eval(*Trans.Elem1, eip1);
+            }
+            ni.Set(wn, nor);
          }
-         ni.Set(w, nor);
+         else
+         {
+            nh.Set(wn, nor);
+            MQ->Eval(mq, *Trans.Elem1, eip1);
+            mq.MultTranspose(nh, ni);
+         }
       }
-      else
-      {
-         nh.Set(w, nor);
-         MQ->Eval(mq, *Trans.Elem1, eip1);
-         mq.MultTranspose(nh, ni);
-      }
-      wq = ni * nor;
+      const real_t wq1 = ni * nor;
       // Note: in the jump term, we use 1/h1 = |nor|/det(J1) which is
       // independent of Loc1 and always gives the size of element 1 in
       // direction perpendicular to the face. Indeed, for linear transformation
@@ -1135,27 +1128,30 @@ void HDGDiffusionIntegrator::AssembleHDGFaceMatrix(
       // for any tetrahedron vol(tet)=(1/3)*height*area(base).
       // For interior faces: q_e/h_e=(q1/h1+q2/h2)/2.
 
+      // calculate the stabilization coefficient on side 2
+      real_t wq2;
       if (ndof2)
       {
          el2.CalcPhysShape(*Trans.Elem2, shape2);
-         w = ip.weight/2/Trans.Elem2->Weight();
+         real_t wn = ip.weight/Trans.Elem2->Weight();
          if (!MQ)
          {
             if (Q)
             {
-               w *= Q->Eval(*Trans.Elem2, eip2);
+               wn *= Q->Eval(*Trans.Elem2, eip2);
             }
-            ni.Set(w, nor);
+            ni.Set(wn, nor);
          }
          else
          {
-            nh.Set(w, nor);
+            nh.Set(wn, nor);
             MQ->Eval(mq, *Trans.Elem2, eip2);
             mq.MultTranspose(nh, ni);
          }
-         wq += ni * nor;
+         wq2 = ni * nor;
       }
 
+      real_t a, b;
       if (un != 0.)
       {
          un /= fabs(un);
@@ -1168,7 +1164,8 @@ void HDGDiffusionIntegrator::AssembleHDGFaceMatrix(
          b = beta;
       }
 
-      w = wq * (b+a);
+      // assemble side 1
+      real_t w = wq1 * (b+a);
       if (w != 0.0)
       {
          // assemble the element matrix
@@ -1193,32 +1190,37 @@ void HDGDiffusionIntegrator::AssembleHDGFaceMatrix(
          }
       }
 
-      w = wq * (b-a);
-      if (w != 0.0)
+      // assemble side 2
+      if (ndof2)
       {
-         // assemble the element matrix
-         // (only the lower triangular part)
-         for (int i = 0; i < ndof2; i++)
+         w = wq2 * (b-a);
+         if (w != 0.0)
          {
-            const real_t wsi = w*shape2(i);
-            for (int j = 0; j <= i; j++)
+            // assemble the element matrix
+            // (only the lower triangular part)
+            for (int i = 0; i < ndof2; i++)
             {
-               elmat(ndof1+i, ndof1+j) += wsi * shape2(j);
+               const real_t wsi = w*shape2(i);
+               for (int j = 0; j <= i; j++)
+               {
+                  elmat(ndof1+i, ndof1+j) += wsi * shape2(j);
+               }
             }
-         }
 
-         // assemble the constraint matrix
-         for (int i = 0; i < ndof2; i++)
-         {
-            const real_t wsi = w*shape2(i);
-            for (int j = 0; j < tr_ndof; j++)
+            // assemble the constraint matrix
+            for (int i = 0; i < ndof2; i++)
             {
-               elmat(i+ndof1, el_ndof+j) -= wsi * tr_shape(j);
+               const real_t wsi = w*shape2(i);
+               for (int j = 0; j < tr_ndof; j++)
+               {
+                  elmat(i+ndof1, el_ndof+j) -= wsi * tr_shape(j);
+               }
             }
          }
       }
 
-      w = wq * ((ndof2)?(2.*b):(b+a));//<-- single face integration
+      w = wq1 * (b+a);
+      if (ndof2) { w += wq2 * (b-a); } //<-- single face integration
       if (w != 0.0)
       {
          // assemble the trace matrix
@@ -1262,6 +1264,182 @@ void HDGDiffusionIntegrator::AssembleHDGFaceMatrix(
       }
 }
 
+void HDGDiffusionIntegrator::AssembleHDGFaceMatrix(
+   int side, const FiniteElement &trace_el, const FiniteElement &el,
+   FaceElementTransformations &Trans, DenseMatrix &elmat)
+{
+   MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
+
+   const int dim = el.GetDim();
+   const int tr_ndof = trace_el.GetDof();
+   const int el_ndof = el.GetDof();
+
+   vu.SetSize(dim);
+   nor.SetSize(dim);
+   nh.SetSize(dim);
+   ni.SetSize(dim);
+   if (MQ)
+   {
+      mq.SetSize(dim);
+   }
+
+   Vector &el_shape = shape1;
+   tr_shape.SetSize(tr_ndof);
+   el_shape.SetSize(el_ndof);
+
+   elmat.SetSize(el_ndof + tr_ndof);
+   elmat = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      // a simple choice for the integration order; is this OK?
+      int order = 2*el.GetOrder();
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
+   }
+
+   // assemble: alpha < {h^{-1} Q} [u],[v] >
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+
+      // Set the integration point in the face and the neighboring elements
+      Trans.SetAllIntPoints(&ip);
+
+      // Access the neighboring elements' integration points
+      // Note: eip2 will only contain valid data if Elem2 exists
+      const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
+      const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
+
+      if (dim == 1)
+      {
+         nor(0) = 2*eip1.x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Trans.Jacobian(), nor);
+      }
+
+      if (side != 0) { nor.Neg(); }
+
+      trace_el.CalcShape(ip, tr_shape);
+
+      // evaluate the normal velocity
+      real_t un;
+      if (v)
+      {
+         v->Eval(vu, *Trans.Elem1, eip1);
+         un = vu * nor;
+      }
+      else
+      {
+         un = 0.0;
+      }
+
+      // calculate the stabilization coefficient
+      ElementTransformation *ElTr = (side != 0)?(Trans.Elem2):(Trans.Elem1);
+      const IntegrationPoint &eip = (side != 0)?(eip2):(eip1);
+
+      el.CalcPhysShape(*ElTr, el_shape);
+      real_t wn = ip.weight/ElTr->Weight();
+      if (!MQ)
+      {
+         if (Q)
+         {
+            wn *= Q->Eval(*ElTr, eip);
+         }
+         ni.Set(wn, nor);
+      }
+      else
+      {
+         nh.Set(wn, nor);
+         MQ->Eval(mq, *ElTr, eip);
+         mq.MultTranspose(nh, ni);
+      }
+      const real_t wq = ni * nor;
+      // Note: in the jump term, we use 1/h1 = |nor|/det(J1) which is
+      // independent of Loc1 and always gives the size of element 1 in
+      // direction perpendicular to the face. Indeed, for linear transformation
+      //     |nor|=measure(face)/measure(ref. face),
+      //   det(J1)=measure(element)/measure(ref. element),
+      // and the ratios measure(ref. element)/measure(ref. face) are
+      // compatible for all element/face pairs.
+      // For example: meas(ref. tetrahedron)/meas(ref. triangle) = 1/3, and
+      // for any tetrahedron vol(tet)=(1/3)*height*area(base).
+      // For interior faces: q_e/h_e=(q1/h1+q2/h2)/2.
+
+      real_t a, b;
+      if (un != 0.)
+      {
+         un /= fabs(un);
+         a = 0.5 * alpha * un;
+         b = beta * fabs(un);
+      }
+      else
+      {
+         a = 0.0;
+         b = beta;
+      }
+
+      real_t w = wq * (b+a);
+      if (w != 0.0)
+      {
+         // assemble the element matrix
+         // (only the lower triangular part)
+         for (int i = 0; i < el_ndof; i++)
+         {
+            const real_t wsi = w*el_shape(i);
+            for (int j = 0; j <= i; j++)
+            {
+               elmat(i, j) += wsi * el_shape(j);
+            }
+         }
+
+         // assemble the constraint matrix
+         for (int i = 0; i < el_ndof; i++)
+         {
+            const real_t wsi = w*el_shape(i);
+            for (int j = 0; j < tr_ndof; j++)
+            {
+               elmat(i, el_ndof+j) -= wsi * tr_shape(j);
+            }
+         }
+
+         // assemble the trace matrix
+         for (int i = 0; i < tr_ndof; i++)
+         {
+            const real_t wsi = w*tr_shape(i);
+            for (int j = 0; j <= i; j++)
+            {
+               elmat(el_ndof+i, el_ndof+j) -= wsi * tr_shape(j);
+            }
+         }
+      }
+   }
+
+   // complete the element matrix
+   // (the upper triangular part)
+   for (int i = 0; i < el_ndof; i++)
+      for (int j = 0; j < i; j++)
+      {
+         elmat(j, i) = elmat(i, j);
+      }
+
+   // complete the constraint matrix
+   for (int i = 0; i < el_ndof; i++)
+      for (int j = 0; j < tr_ndof; j++)
+      {
+         elmat(el_ndof+j, i) = -elmat(i, el_ndof+j);
+      }
+
+   // complete the trace matrix
+   for (int i = 0; i < tr_ndof; i++)
+      for (int j = 0; j < i; j++)
+      {
+         elmat(el_ndof+j, el_ndof+i) = elmat(el_ndof+i, el_ndof+j);
+      }
+}
+
 void HDGDiffusionIntegrator::AssembleHDGFaceVector(
    int type, const FiniteElement &trace_el, const FiniteElement &el,
    FaceElementTransformations &Trans, const Vector &trfun, const Vector &elfun,
@@ -1271,11 +1449,9 @@ void HDGDiffusionIntegrator::AssembleHDGFaceVector(
 
    if (Trans.Elem2No < 0) { type &= ~1; }
 
-   int dim, tr_ndof, el_ndof;
-
-   dim = el.GetDim();
-   tr_ndof = trace_el.GetDof();
-   el_ndof = el.GetDof();
+   const int dim = el.GetDim();
+   const int tr_ndof = trace_el.GetDof();
+   const int el_ndof = el.GetDof();
    const int ioff = (type & (HDGFaceType::ELEM | HDGFaceType::TRACE))?
                     (el_ndof):(0);
 
@@ -1333,6 +1509,7 @@ void HDGDiffusionIntegrator::AssembleHDGFaceVector(
 
       trace_el.CalcShape(ip, tr_shape);
 
+      // evaluate the normal velocity
       real_t un;
       if (v)
       {
@@ -1344,37 +1521,27 @@ void HDGDiffusionIntegrator::AssembleHDGFaceVector(
          un = 0.0;
       }
 
-      if (type & 1)
+      // calculate the stabilization coefficient
+      ElementTransformation *ElTr = (type & 1)?(Trans.Elem2):(Trans.Elem1);
+      const IntegrationPoint &eip = (type & 1)?(eip2):(eip1);
+
+      el.CalcPhysShape(*ElTr, el_shape);
+      real_t wn = ip.weight/ElTr->Weight();
+      if (!MQ)
       {
-         el.CalcPhysShape(*Trans.Elem2, el_shape);
+         if (Q)
+         {
+            wn *= Q->Eval(*ElTr, eip);
+         }
+         ni.Set(wn, nor);
       }
       else
       {
-         el.CalcPhysShape(*Trans.Elem1, el_shape);
+         nh.Set(wn, nor);
+         MQ->Eval(mq, *ElTr, eip);
+         mq.MultTranspose(nh, ni);
       }
-
-      {
-         real_t wn = ip.weight/Trans.Elem1->Weight();
-         if (Trans.Elem2No >= 0)
-         {
-            wn /= 2;
-         }
-         if (!MQ)
-         {
-            if (Q)
-            {
-               wn *= Q->Eval(*Trans.Elem1, eip1);
-            }
-            ni.Set(wn, nor);
-         }
-         else
-         {
-            nh.Set(wn, nor);
-            MQ->Eval(mq, *Trans.Elem1, eip1);
-            mq.MultTranspose(nh, ni);
-         }
-      }
-      real_t wq = ni * nor;
+      const real_t wq = ni * nor;
       // Note: in the jump term, we use 1/h1 = |nor|/det(J1) which is
       // independent of Loc1 and always gives the size of element 1 in
       // direction perpendicular to the face. Indeed, for linear transformation
@@ -1385,26 +1552,6 @@ void HDGDiffusionIntegrator::AssembleHDGFaceVector(
       // For example: meas(ref. tetrahedron)/meas(ref. triangle) = 1/3, and
       // for any tetrahedron vol(tet)=(1/3)*height*area(base).
       // For interior faces: q_e/h_e=(q1/h1+q2/h2)/2.
-
-      if (Trans.Elem2No >= 0)
-      {
-         real_t wn = ip.weight/2/Trans.Elem2->Weight();
-         if (!MQ)
-         {
-            if (Q)
-            {
-               wn *= Q->Eval(*Trans.Elem2, eip2);
-            }
-            ni.Set(wn, nor);
-         }
-         else
-         {
-            nh.Set(wn, nor);
-            MQ->Eval(mq, *Trans.Elem2, eip2);
-            mq.MultTranspose(nh, ni);
-         }
-         wq += ni * nor;
-      }
 
       real_t a, b;
       if (un != 0.)
@@ -1546,6 +1693,7 @@ real_t HDGDiffusionIntegrator::ComputeHDGFaceEnergy(
 
       trace_el.CalcShape(ip, tr_shape);
 
+      // evaluate the normal velocity
       real_t un;
       if (v)
       {
@@ -1557,8 +1705,9 @@ real_t HDGDiffusionIntegrator::ComputeHDGFaceEnergy(
          un = 0.0;
       }
 
-      ElementTransformation *ElTr = (side)?(Trans.Elem2):(Trans.Elem1);
-      const IntegrationPoint &eip = (side)?(eip2):(eip1);
+      // calculate the stabilization coefficient
+      ElementTransformation *ElTr = (side != 0)?(Trans.Elem2):(Trans.Elem1);
+      const IntegrationPoint &eip = (side != 0)?(eip2):(eip1);
 
       el.CalcPhysShape(*ElTr, el_shape);
       real_t wn = ip.weight/ElTr->Weight();
