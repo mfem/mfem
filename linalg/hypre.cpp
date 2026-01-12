@@ -1681,6 +1681,13 @@ void HypreParMatrix::GetOffd(SparseMatrix &offd, HYPRE_BigInt* &cmap) const
    cmap = A->col_map_offd;
 }
 
+void HypreParMatrix::GetOffdColMap(HYPRE_BigInt* &cmap,
+                                   HYPRE_Int &num_cols) const
+{
+   cmap = A->col_map_offd;
+   num_cols = hypre_CSRMatrixNumCols(A->offd);
+}
+
 void HypreParMatrix::MergeDiagAndOffd(SparseMatrix &merged)
 {
    HostRead();
@@ -3151,7 +3158,8 @@ void GatherBlockOffsetData(MPI_Comm comm, const int rank, const int nprocs,
 {
    std::vector<std::vector<int>> all_block_num_loc(numBlocks);
 
-   MPI_Allgather(&num_loc, 1, MPI_INT, all_num_loc.data(), 1, MPI_INT, comm);
+   MPI_Allgather(const_cast<int*>(&num_loc), 1, MPI_INT, all_num_loc.data(), 1,
+                 MPI_INT, comm);
 
    for (int j = 0; j < numBlocks; ++j)
    {
@@ -3159,7 +3167,8 @@ void GatherBlockOffsetData(MPI_Comm comm, const int rank, const int nprocs,
       blockProcOffsets[j].resize(nprocs);
 
       const int blockNumRows = offsets[j + 1] - offsets[j];
-      MPI_Allgather(&blockNumRows, 1, MPI_INT, all_block_num_loc[j].data(), 1,
+      MPI_Allgather(const_cast<int*>(&blockNumRows), 1, MPI_INT,
+                    all_block_num_loc[j].data(), 1,
                     MPI_INT, comm);
       blockProcOffsets[j][0] = 0;
       for (int i = 0; i < nprocs - 1; ++i)

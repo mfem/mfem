@@ -72,6 +72,10 @@ public:
 
    ParGridFunction(ParFiniteElementSpace *pf) : GridFunction(pf), pfes(pf) { }
 
+   /// Same as above but specify the device memory type
+   ParGridFunction(ParFiniteElementSpace *pf, MemoryType mt) :
+      GridFunction(pf, mt), pfes(pf) { }
+
    /// Construct a ParGridFunction using previously allocated array @a data.
    /** The ParGridFunction does not assume ownership of @a data which is assumed
        to be of size at least `pf->GetVSize()`. Similar to the GridFunction and
@@ -587,7 +591,7 @@ public:
    /// PLBound object used to compute the bounds. Note: if vdim < 1, we compute
    /// the bounds for each vector dimension.
    PLBound GetBounds(Vector &lower, Vector &upper,
-                     const int ref_factor=1, const int vdim=-1) override;
+                     const int ref_factor=1, const int vdim=-1) const override;
 
    /** Save the local portion of the ParGridFunction. This differs from the
        serial GridFunction::Save in that it takes into account the signs of

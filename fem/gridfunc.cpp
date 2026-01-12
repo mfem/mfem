@@ -4610,7 +4610,7 @@ GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
 void GridFunction::GetElementBoundsAtControlPoints(const int elem,
                                                    const PLBound &plb,
                                                    Vector &lower, Vector &upper,
-                                                   const int vdim)
+                                                   const int vdim) const
 {
    const FiniteElement *fe = fes->GetFE(elem);
    int fes_dim  = fes->GetVDim();
@@ -4626,7 +4626,7 @@ void GridFunction::GetElementBoundsAtControlPoints(const int elem,
    fes->GetElementDofs(elem, dof_idx);
    int ndofs = dof_idx.Size();
 
-   int n_c_pts = std::pow(plb.GetNControlPoints(), rdim);
+   int n_c_pts = static_cast<int>(std::pow(plb.GetNControlPoints(), rdim));
    lower.SetSize(n_c_pts*(vdim > 0 ? 1 : fes_dim));
    upper.SetSize(n_c_pts*(vdim > 0 ? 1 : fes_dim));
 
@@ -4658,13 +4658,13 @@ void GridFunction::GetElementBoundsAtControlPoints(const int elem,
 
 void GridFunction::GetElementBounds(const int elem, const PLBound &plb,
                                     Vector &lower, Vector &upper,
-                                    const int vdim)
+                                    const int vdim) const
 {
    Vector lowerC, upperC;
    GetElementBoundsAtControlPoints(elem, plb, lowerC, upperC, vdim);
    const FiniteElement *fe = fes->GetFE(elem);
    int rdim  = fe->GetDim();
-   int n_c_pts = std::pow(plb.GetNControlPoints(), rdim);
+   int n_c_pts = static_cast<int>(std::pow(plb.GetNControlPoints(), rdim));
    int fes_dim  = fes->GetVDim();
    lower.SetSize((vdim > 0 ? 1 :fes_dim));
    upper.SetSize((vdim > 0 ? 1 :fes_dim));
@@ -4681,7 +4681,7 @@ void GridFunction::GetElementBounds(const int elem, const PLBound &plb,
 
 void GridFunction::GetElementBounds(const PLBound &plb,
                                     Vector &lower, Vector &upper,
-                                    const int vdim)
+                                    const int vdim) const
 {
    int nel  = fes->GetNE();
    int fes_dim  = fes->GetVDim();
@@ -4704,7 +4704,7 @@ void GridFunction::GetElementBounds(const PLBound &plb,
 PLBound GridFunction::GetElementBounds(Vector &lower,
                                        Vector &upper,
                                        const int ref_factor,
-                                       const int vdim)
+                                       const int vdim) const
 {
    int max_order = fes->GetMaxElementOrder();
    PLBound plb(fes, ref_factor*(max_order+1));
@@ -4713,7 +4713,7 @@ PLBound GridFunction::GetElementBounds(Vector &lower,
 }
 
 PLBound GridFunction::GetBounds(Vector &lower, Vector &upper,
-                                const int ref_factor, const int vdim)
+                                const int ref_factor, const int vdim) const
 {
    int max_order = fes->GetMaxElementOrder();
    PLBound plb(fes, ref_factor*(max_order+1));
