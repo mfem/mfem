@@ -9128,10 +9128,20 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
                                             options,
                                             &edgecut,
                                             mpartitioning);
-         if (errflag != 1)
+         if (errflag != METIS_OK)
          {
-            mfem_error("Mesh::GeneratePartitioning: "
-                       " error in METIS_PartGraphRecursive!");
+            switch (errflag)
+            {
+               case METIS_ERROR_INPUT:
+                  mfem_error("Mesh::GeneratePartitioning: "
+                             " error in METIS_PartGraphRecursive! METIS_ERROR_INPUT");
+               case METIS_ERROR_MEMORY:
+                  mfem_error("Mesh::GeneratePartitioning: "
+                             " error in METIS_PartGraphRecursive! METIS_ERROR_MEMORY");
+               default:
+                  mfem_error("Mesh::GeneratePartitioning: "
+                             " error in METIS_PartGraphRecursive! METIS_ERROR");
+            }
          }
 #endif
       }
@@ -9166,10 +9176,20 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
                                        options,
                                        &edgecut,
                                        mpartitioning);
-         if (errflag != 1)
+         if (errflag != METIS_OK)
          {
-            mfem_error("Mesh::GeneratePartitioning: "
-                       " error in METIS_PartGraphKway!");
+            switch (errflag)
+            {
+               case METIS_ERROR_INPUT:
+                  mfem_error("Mesh::GeneratePartitioning: "
+                             " error in METIS_PartGraphKway! METIS_ERROR_INPUT");
+               case METIS_ERROR_MEMORY:
+                  mfem_error("Mesh::GeneratePartitioning: "
+                             " error in METIS_PartGraphKway! METIS_ERROR_MEMORY");
+               default:
+                  mfem_error("Mesh::GeneratePartitioning: "
+                             " error in METIS_PartGraphKway! METIS_ERROR");
+            }
          }
 #endif
       }
