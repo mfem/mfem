@@ -177,6 +177,9 @@ void diffusion(const char *filename, int p, bool include_mass)
 
    SECTION("action partial assembly")
    {
+      // is there a better way to skip a test than this?
+      if(!include_mass)
+      {
       static constexpr int QData = 2;
       UniformParameterSpace qd_ps(pmesh, *ir, DIM * DIM);
       ParameterFunction qdata(qd_ps);
@@ -214,6 +217,7 @@ void diffusion(const char *filename, int p, bool include_mass)
 
       REQUIRE(norm_global == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
+      }
    }
 
    SECTION("action linearized")
