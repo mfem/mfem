@@ -324,11 +324,11 @@ REGISTER(BK, 6, 3, true);
 
 /**
  * @brief CEED Bake-off Problems main entry point
- * Command line examples:
+ * Command line options:
  *    --benchmark_context=device=gpu
- *    --benchmark_filter=BP1/6
+ *    --benchmark_filter=BP1
  *    --benchmark_out_format=csv
- *    --benchmark_min_warmup_time=1 --benchmark_min_time=1000x
+ *    --benchmark_out=ceed_bp.csv
  */
 int main(int argc, char *argv[])
 {
