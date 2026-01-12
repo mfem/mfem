@@ -33,7 +33,7 @@ static void CustomArguments(bmi::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 16 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
-   const auto orders = { 6, 5, 4, 3, 2, 1 };
+   const auto orders = { 7, 6, 5, 4, 3, 2, 1 };
 
    constexpr auto ndofs = [](int n) constexpr noexcept -> int
    {
