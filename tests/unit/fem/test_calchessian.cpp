@@ -298,3 +298,135 @@ TEST_CASE("CalcHessian",
       delete kv[2];
    }
 }
+
+
+#include <algorithm>
+
+void FillWithRandomNumbers(Vector &x, real_t a, real_t b)
+{
+   std::mt19937 gen(11); // Fixed seed
+   std::uniform_real_distribution<> dis(a, b);
+   for (int i = 0; i < x.Size(); i++)
+   {
+      x[i] = dis(gen);
+   }
+}
+
+TEST_CASE("Lapacian",
+          "[NURBS2DFiniteElement]"
+          "[NURBS3DFiniteElement]")
+{
+   int order = 2;
+   std::string meshName = GENERATE("square-nurbs.mesh",
+                                   "cube-nurbs.mesh");
+
+   bool deform = GENERATE(false,true);
+   Mesh mesh("../../data/" + meshName, 1, 1);
+   const int dim = mesh.Dimension();
+   real_t theta = M_PI/7;
+   {
+      Vector nodes;
+      mesh.GetNodes(nodes);
+      nodes.Print();
+
+      for (int i = 0; i < nodes.Size()/dim; i++)
+      {
+         Vector x(dim);
+         for (int j = 0; j < dim; j++)
+         {
+            x[j] = nodes[i*dim + j];
+         }
+
+         Vector nx(dim);
+         nx = x;
+         nx[0] = cos(theta)*x[0] - sin(theta)*x[1];
+         nx[1] = sin(theta)*x[0] + cos(theta)*x[1];
+
+         x = nx;
+
+         nx[0] = cos(theta)*x[0] - sin(theta)*x[dim-1];
+         nx[dim-1] = sin(theta)*x[0] + cos(theta)*x[dim-1];
+         for (int j = 0; j < dim; j++)
+         {
+            nodes[i*dim + j] = nx[j];
+         }
+      }
+      mesh.SetNodes(nodes);
+   }
+
+   mesh.DegreeElevate(1);
+   mesh.UniformRefinement();
+
+   real_t distort_scale = 0.05;
+   if (deform)
+   {
+      Vector nodes, dx;
+      mesh.GetNodes(nodes);
+      dx.SetSize(nodes.Size());
+      FillWithRandomNumbers(dx, -distort_scale, distort_scale);
+      nodes += dx;
+      mesh.SetNodes(nodes);
+   }
+
+   NURBSFECollection fe_coll(order);
+   FiniteElementSpace fes(&mesh, new NURBSExtension(mesh.NURBSext, order),
+                          &fe_coll);
+
+   SparseMatrix gmat(fes.GetNDofs());
+   Vector shape, lshape;
+   DenseMatrix dshape, elmat;
+
+   DofTransformation doftrans;
+   ElementTransformation *eltrans;
+   Array<int> vdofs;
+
+   for (int e = 0; e < fes.GetNE(); e++)
+   {
+      const int dof = fes.GetFE(e)->GetDof();
+      shape.SetSize(dof);
+      dshape.SetSize(dof,dim);
+      lshape.SetSize(dof);
+
+      elmat.SetSize(dof);
+      elmat = 0.0;
+      eltrans = fes.GetElementTransformation (e);
+
+      // Integrand involves non-polynomial mapping
+      const int intorder = 4*fes.GetFE(e)->GetOrder();
+      const IntegrationRule *ir = &IntRules.Get(fes.GetFE(e)->GetGeomType(),
+                                                intorder);
+
+      elmat = 0.0;
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+         eltrans->SetIntPoint(&ip);
+         const real_t w = ip.weight * eltrans->Weight();
+
+         fes.GetFE(e)->CalcShape(ip, shape);
+         fes.GetFE(e)->CalcPhysLaplacian(*eltrans, lshape);
+         fes.GetFE(e)->CalcPhysDShape(*eltrans, dshape);
+
+         // Check Laplacian
+         AddMult_a_AAt (w, dshape, elmat);
+         AddMult_a_VWt (w, shape, lshape, elmat);
+      }
+
+      // Add to global matrix
+      fes.GetElementVDofs (e, vdofs);
+      gmat.AddSubMatrix (vdofs, vdofs, elmat, 1);
+   }
+
+   // Apply boundary conditions
+   Array<int> ess_dofs;
+   fes.GetBoundaryTrueDofs(ess_dofs);
+   for (int i=0; i<ess_dofs.Size(); i++)
+   {
+      gmat.EliminateRowCol(ess_dofs[i], Operator::DiagonalPolicy::DIAG_ZERO);
+   }
+   gmat.Finalize (1);
+
+   // Tolerance can be tighter if intorder is increased
+   REQUIRE(gmat.MaxNorm() == MFEM_Approx(0.0, 1e-6));
+}
+
