@@ -134,8 +134,8 @@ void mult_integ(const char *filename, int p)
       SparseMatrix *A = nullptr;
       ddopdu->Assemble(A);
 
-      fes.GetRestrictionMatrix()->Mult(x, X);
-      A->Mult(X, Z);
+      A->Mult(x, z);
+      fes.GetProlongationMatrix()->MultTranspose(z, Z);
 
       Y -= Z;
       real_t norm_g, norm_l = Y.Normlinf();
