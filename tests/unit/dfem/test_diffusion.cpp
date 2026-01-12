@@ -139,6 +139,10 @@ void diffusion(const char *filename, int p, bool include_mass)
          [] MFEM_HOST_DEVICE(const dscalar_t u, const real_t &rho /*Needed for some reason*/,
                              const tensor<real_t, DIM, DIM> &J, const real_t &w)
       { return tuple{u * w * det(J)}; };
+      const auto desired_mass_qf =
+         [] MFEM_HOST_DEVICE(const dscalar_t u,
+                             const tensor<real_t, DIM, DIM> &J, const real_t &w)
+      { return tuple{u * w * det(J)}; };
 
    SECTION("action")
    {
@@ -151,11 +155,18 @@ void diffusion(const char *filename, int p, bool include_mass)
                                  all_domain_attr);
       if(include_mass)
       {
-      dop_mf.AddDomainIntegrator(mf_mass_qf,
-                                 tuple{ Value<U>{}, Identity<Rho>{} /*need this along with dummy argument to q function for some reason*/,
-                                        Gradient<Coords>{}, Weight{} },
-                                 tuple{ Value<U>{} }, *ir,
-                                 all_domain_attr);
+         // This version works, but had to include unused Rho parameter in qfunction.
+         dop_mf.AddDomainIntegrator(mf_mass_qf,
+                                    tuple{ Value<U>{}, Identity<Rho>{},
+                                           Gradient<Coords>{}, Weight{} },
+                                    tuple{ Value<U>{} }, *ir,
+                                    all_domain_attr);
+         // Below version does not work.
+         // dop_mf.AddDomainIntegrator(desired_mass_qf,
+         //                            tuple{ Value<U>{},
+         //                                   Gradient<Coords>{}, Weight{} },
+         //                            tuple{ Value<U>{} }, *ir,
+         //                            all_domain_attr);
       }
       dop_mf.SetParameters({ &rho_coeff_cv, nodes });
 
@@ -232,11 +243,11 @@ void diffusion(const char *filename, int p, bool include_mass)
                                  all_domain_attr, derivatives);
       if(include_mass)
       {
-      dop_mf.AddDomainIntegrator(mf_mass_qf,
-                                 tuple{ Value<U>{}, Identity<Rho>{} /*need this along with dummy argument to q function for some reason*/,
-                                        Gradient<Coords>{}, Weight{} },
-                                 tuple{ Value<U>{} }, *ir,
-                                 all_domain_attr, derivatives);
+         dop_mf.AddDomainIntegrator(mf_mass_qf,
+                                    tuple{ Value<U>{}, Identity<Rho>{} /*need this along with dummy argument to q function for some reason*/,
+                                           Gradient<Coords>{}, Weight{} },
+                                    tuple{ Value<U>{} }, *ir,
+                                    all_domain_attr, derivatives);
       }
       dop_mf.SetParameters({ &rho_coeff_cv, nodes });
       auto dRdU = dop_mf.GetDerivative(U, {&x}, {&rho_coeff_cv, nodes});
@@ -326,11 +337,11 @@ void diffusion(const char *filename, int p, bool include_mass)
                                  all_domain_attr, derivatives);
       if(include_mass)
       {
-      dop_mf.AddDomainIntegrator(mf_mass_qf,
-                                 tuple{ Value<U>{}, Identity<Rho>{},
-                                        Gradient<Coords>{}, Weight{} },
-                                 tuple{ Value<U>{} }, *ir,
-                                 all_domain_attr, derivatives);
+         dop_mf.AddDomainIntegrator(mf_mass_qf,
+                                    tuple{ Value<U>{}, Identity<Rho>{},
+                                           Gradient<Coords>{}, Weight{} },
+                                    tuple{ Value<U>{} }, *ir,
+                                    all_domain_attr, derivatives);
       }
       dop_mf.SetParameters({ &rho_coeff_cv, nodes });
       auto dRdU = dop_mf.GetDerivative(U, {&x}, {&rho_coeff_cv, nodes});
