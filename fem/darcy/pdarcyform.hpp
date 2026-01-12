@@ -138,6 +138,8 @@ public:
    /// Assembles the form on the true dofs, i.e. P^t A P.
    void ParallelAssembleInternal();
 
+   using DarcyForm::FormLinearSystem;
+
    /** @brief Form the linear system A X = B, corresponding to this bilinear
        form and the linear form @a b(.). */
    /** This method applies any necessary transformations to the linear system
