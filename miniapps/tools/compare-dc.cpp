@@ -43,8 +43,7 @@ int main(int argc, char *argv[])
    int cycle = 0;
    int pad_digits_cycle = 6;
    int pad_digits_rank = 6;
-   int visport = 19916;
-   bool visualization = true;
+   real_t tol = -1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&coll_name0, "-r0", "--root-file_0",
@@ -56,6 +55,8 @@ int main(int argc, char *argv[])
                   "Number of digits in cycle.");
    args.AddOption(&pad_digits_rank, "-pdr", "--pad-digits-rank",
                   "Number of digits in MPI rank.");
+   args.AddOption(&tol, "-tol", "--tolerance",
+                  "Tolerance for checking the results.");
    args.Parse();
    if (!args.Good())
    {
@@ -97,6 +98,7 @@ int main(int argc, char *argv[])
    typedef DataCollection::FieldMapType fields_t;
    const fields_t &fields0 = dc0.GetFieldMap();
    // Print the names of all fields.
+   bool error = false;
    for (fields_t::const_iterator it0 = fields0.begin();
         it0 != fields0.end() ; ++it0)
    {
@@ -127,7 +129,14 @@ int main(int argc, char *argv[])
 
       (*gf0) -= (*gf1);
       mfem::out <<it0->first<<":  l2 difference = "<<gf0->Norml2()<<std::endl;
+      if (gf0->Norml2() > tol) { error = true; }
    }
 
+   if (error)
+   {
+      mfem::out << "Data collections: " << coll_name0
+                << "& " << coll_name1 << "are outside of the tolerance!\n";
+      return -1;
+   }
    return 0;
 }
