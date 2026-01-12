@@ -602,7 +602,7 @@ void Refinement::SetType(char type, real_t scale)
 
 int Refinement::GetNumChildren(Geometry::Type geom_type, char ref_type)
 {
-   return geom_ref_type_num_children[geom_type][ref_type];
+   return geom_ref_type_num_children[geom_type][int(ref_type)];
 }
 
 NCMesh::Element::Element(Geometry::Type geom, int attr)
