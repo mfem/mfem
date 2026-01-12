@@ -3066,7 +3066,7 @@ void ParMesh::GetSharedFaceTransformationsByLocalIndex(
 void ParMesh::GetGhostFaceTransformation(
    int FaceNo, FaceElementTransformations &FElTr) const
 {
-   FElTr.ElementNo = FaceNo;
+   // use the local face data
    FElTr.Attribute = (Dim == 1) ? 1 : faces[FaceNo]->GetAttribute();
    FElTr.ElementNo = FaceNo;
    FElTr.ElementType = ElementTransformation::FACE;
