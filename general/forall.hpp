@@ -584,9 +584,10 @@ void CuKernel2D(const int N, BODY body)
    body(k);
 }
 
-template <int MAX_THREADS_PER_BLOCK, typename BODY, int MIN_BLOCKS_PER_MULTIPROCESSOR = 1>
+// __launch_bounds__ second argument is omitted to get the default behavior
+template <int MAX_THREADS_PER_BLOCK, typename BODY>
 __global__
-MFEM_LAUNCH_BOUNDS(MAX_THREADS_PER_BLOCK, MIN_BLOCKS_PER_MULTIPROCESSOR)
+MFEM_LAUNCH_BOUNDS(MAX_THREADS_PER_BLOCK)
 static void CuKernel2DLaunchBounds(const int N, BODY body)
 {
    const int k = blockIdx.x*blockDim.z + threadIdx.z;
@@ -600,10 +601,10 @@ void CuKernel3D(const int N, BODY body)
    for (int k = blockIdx.x; k < N; k += gridDim.x) { body(k); }
 }
 
-template <int MAX_THREADS_PER_BLOCK, typename BODY, int MIN_BLOCKS_PER_MULTIPROCESSOR = 1>
+template <int MAX_THREADS_PER_BLOCK, typename BODY>
 __global__
-MFEM_LAUNCH_BOUNDS(MAX_THREADS_PER_BLOCK, MIN_BLOCKS_PER_MULTIPROCESSOR)
-static void CuKernel3D(const int N, BODY body)
+MFEM_LAUNCH_BOUNDS(MAX_THREADS_PER_BLOCK)
+static void CuKernel3DLaunchBounds(const int N, BODY body)
 {
    for (int k = blockIdx.x; k < N; k += gridDim.x) { body(k); }
 }
@@ -658,11 +659,10 @@ void CuWrap3DLaunchBounds(const int N, DBODY &&d_body,
                           const int X, const int Y, const int Z, const int G)
 {
    if (N==0) { return; }
-   const int GRID = G == 0 ? (N >> 2) : G;
+   const int GRID = G == 0 ? N : G;
    const dim3 BLCK(X,Y,Z);
    static_assert(MAX_THREADS_PER_BLOCK > 0);
-   CuKernel3DLaunchBounds<MAX_THREADS_PER_BLOCK>
-   <<<GRID, BLCK>>>(N, d_body);
+   CuKernel3DLaunchBounds<MAX_THREADS_PER_BLOCK><<<GRID, BLCK>>>(N, d_body);
    MFEM_GPU_CHECK(cudaGetLastError());
 }
 
@@ -680,17 +680,6 @@ struct CuWrap<1, MAX_THREADS_PER_BLOCK>
    }
 };
 
-template <int MAX_THREADS_PER_BLOCK>
-struct CuWrap<2, MAX_THREADS_PER_BLOCK>
-{
-   template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
-   static void run(const int N, DBODY &&d_body,
-                   const int X, const int Y, const int Z, const int G)
-   {
-      CuWrap2DLaunchBounds<MAX_THREADS_PER_BLOCK>(N, d_body, X, Y, Z);
-   }
-};
-
 template <>
 struct CuWrap<2, 0>
 {
@@ -703,13 +692,14 @@ struct CuWrap<2, 0>
 };
 
 template <int MAX_THREADS_PER_BLOCK>
-struct CuWrap<3, MAX_THREADS_PER_BLOCK>
+struct CuWrap<2, MAX_THREADS_PER_BLOCK>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
    static void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
-      CuWrap3DLaunchBounds<MAX_THREADS_PER_BLOCK>(N, d_body, X, Y, Z, G);
+      static_assert(MAX_THREADS_PER_BLOCK > 0);
+      CuWrap2DLaunchBounds<MAX_THREADS_PER_BLOCK>(N, d_body, X, Y, Z);
    }
 };
 
@@ -721,6 +711,17 @@ struct CuWrap<3, 0>
                    const int X, const int Y, const int Z, const int G)
    {
       CuWrap3D(N, d_body, X, Y, Z, G);
+   }
+};
+
+template <int MAX_THREADS_PER_BLOCK>
+struct CuWrap<3, MAX_THREADS_PER_BLOCK>
+{
+   template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
+   static void run(const int N, DBODY &&d_body,
+                   const int X, const int Y, const int Z, const int G)
+   {
+      CuWrap3DLaunchBounds<MAX_THREADS_PER_BLOCK>(N, d_body, X, Y, Z, G);
    }
 };
 
@@ -746,9 +747,9 @@ void HipKernel2D(const int N, BODY body)
    body(k);
 }
 
-template <int MAX_THREADS_PER_BLOCK, typename BODY, int MIN_BLOCKS_PER_MULTIPROCESSOR = 1>
+template <int MAX_THREADS_PER_BLOCK, typename BODY>
 __global__
-MFEM_LAUNCH_BOUNDS(MAX_THREADS_PER_BLOCK, MIN_BLOCKS_PER_MULTIPROCESSOR)
+MFEM_LAUNCH_BOUNDS(MAX_THREADS_PER_BLOCK)
 static void HipKernel2DLaunchBounds(const int N, BODY body)
 {
    const int k = hipBlockIdx_x*hipBlockDim_z + hipThreadIdx_z;
@@ -762,9 +763,9 @@ void HipKernel3D(const int N, BODY body)
    for (int k = hipBlockIdx_x; k < N; k += hipGridDim_x) { body(k); }
 }
 
-template <int MAX_THREADS_PER_BLOCK, typename BODY, int MIN_BLOCKS_PER_MULTIPROCESSOR = 1>
+template <int MAX_THREADS_PER_BLOCK, typename BODY>
 __global__
-MFEM_LAUNCH_BOUNDS(MAX_THREADS_PER_BLOCK, MIN_BLOCKS_PER_MULTIPROCESSOR)
+MFEM_LAUNCH_BOUNDS(MAX_THREADS_PER_BLOCK)
 static void HipKernel3DLaunchBounds(const int N, BODY body)
 {
    for (int k = hipBlockIdx_x; k < N; k += hipGridDim_x) { body(k); }
@@ -798,8 +799,8 @@ void HipWrap2DLaunchBounds(const int N, DBODY &&d_body,
    const int GRID = (N+BZ-1)/BZ;
    const dim3 BLCK(X,Y,BZ);
    static_assert(MAX_THREADS_PER_BLOCK > 0);
-   HipKernel2DLaunchBounds<MAX_THREADS_PER_BLOCK>
-   <<<dim3(GRID), dim3(BLCK), 0, 0>>>(N, d_body);
+   HipKernel2DLaunchBounds<MAX_THREADS_PER_BLOCK><<<dim3(GRID), dim3(BLCK), 0, 0>>>
+   (N, d_body);
    MFEM_GPU_CHECK(hipGetLastError());
 }
 
@@ -819,14 +820,11 @@ void HipWrap3DLaunchBounds(const int N, DBODY &&d_body,
                            const int X, const int Y, const int Z, const int G)
 {
    if (N==0) { return; }
-   // keep full 'N', as if amdgpu-waves-per-eu warnings, wrong results may occur
-   // const int GRID = G == 0 ? N : G;
-   // if MIN_BLOCKS_PER_MULTIPROCESSOR is put at '1', we can do more work per thread
-   const int GRID = G == 0 ? (N >> 2) : G;
+   const int GRID = G == 0 ? N : G;
    const dim3 BLCK(X,Y,Z);
    static_assert(MAX_THREADS_PER_BLOCK > 0);
-   HipKernel3DLaunchBounds<MAX_THREADS_PER_BLOCK>
-   <<<dim3(GRID), dim3(BLCK), 0, 0>>>(N, d_body);
+   HipKernel3DLaunchBounds<MAX_THREADS_PER_BLOCK><<<dim3(GRID), dim3(BLCK), 0, 0>>>
+   (N, d_body);
    MFEM_GPU_CHECK(hipGetLastError());
 }
 
@@ -843,17 +841,6 @@ struct HipWrap<1, MAX_THREADS_PER_BLOCK>
    }
 };
 
-template <int MAX_THREADS_PER_BLOCK>
-struct HipWrap<2, MAX_THREADS_PER_BLOCK>
-{
-   template <typename DBODY>
-   static void run(const int N, DBODY &&d_body,
-                   const int X, const int Y, const int Z, const int G)
-   {
-      HipWrap2DLaunchBounds<MAX_THREADS_PER_BLOCK>(N, d_body, X, Y, Z);
-   }
-};
-
 template <>
 struct HipWrap<2, 0>
 {
@@ -866,13 +853,13 @@ struct HipWrap<2, 0>
 };
 
 template <int MAX_THREADS_PER_BLOCK>
-struct HipWrap<3, MAX_THREADS_PER_BLOCK>
+struct HipWrap<2, MAX_THREADS_PER_BLOCK>
 {
    template <typename DBODY>
    static void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
-      HipWrap3DLaunchBounds<MAX_THREADS_PER_BLOCK>(N, d_body, X, Y, Z, G);
+      HipWrap2DLaunchBounds<MAX_THREADS_PER_BLOCK>(N, d_body, X, Y, Z);
    }
 };
 
@@ -884,6 +871,17 @@ struct HipWrap<3, 0>
                    const int X, const int Y, const int Z, const int G)
    {
       HipWrap3D(N, d_body, X, Y, Z, G);
+   }
+};
+
+template <int MAX_THREADS_PER_BLOCK>
+struct HipWrap<3, MAX_THREADS_PER_BLOCK>
+{
+   template <typename DBODY>
+   static void run(const int N, DBODY &&d_body,
+                   const int X, const int Y, const int Z, const int G)
+   {
+      HipWrap3DLaunchBounds<MAX_THREADS_PER_BLOCK>(N, d_body, X, Y, Z, G);
    }
 };
 
@@ -926,6 +924,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    // If Backend::CUDA is allowed, use it
    if (Device::Allows(Backend::CUDA))
    {
+      // static_assert(MAX_THREADS_PER_BLOCK > 0);
       return CuWrap<DIM, MAX_THREADS_PER_BLOCK>::run(N, d_body, X, Y, Z, G);
    }
 #endif
@@ -1087,16 +1086,16 @@ inline void forall_2D_batch(int N, int X, int Y, int BZ, lambda &&body)
    ForallWrap<2>(true, N, body, X, Y, BZ);
 }
 
-template<int MAX_THREADS_PER_BLOCK, typename lambda>
-inline void forall_3D(int N, int X, int Y, int Z, lambda &&body)
-{
-   ForallWrap<3, MAX_THREADS_PER_BLOCK>(true, N, body, X, Y, Z, 0);
-}
-
 template<typename lambda>
 inline void forall_3D(int N, int X, int Y, int Z, lambda &&body)
 {
    ForallWrap<3>(true, N, body, X, Y, Z, 0);
+}
+
+template<int MAX_THREADS_PER_BLOCK, typename lambda>
+inline void forall_3D(int N, int X, int Y, int Z, lambda &&body)
+{
+   ForallWrap<3, MAX_THREADS_PER_BLOCK>(true, N, body, X, Y, Z, 0);
 }
 
 template<typename lambda>

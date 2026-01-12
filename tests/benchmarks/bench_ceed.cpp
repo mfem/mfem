@@ -62,7 +62,7 @@ static void AddKernelSpecializations()
    DET::Specialization<3, 3, 2, 3>::Add();
    DET::Specialization<3, 3, 2, 5>::Add();
    DET::Specialization<3, 3, 2, 6>::Add();
-   DET::Specialization<3, 3, 2, 7>::Add();
+   // DET::Specialization<3, 3, 2, 7>::Add(); // exceeds memory limits
    // DET::Specialization<3, 3, 2, 8>::Add(); // exceeds memory limits
    DET::Specialization<3, 3, 5, 5>::Add();
 
