@@ -842,9 +842,17 @@ public:
        Note: For vector-valued elements, the results pads up the range dimension
        to the spatial dimension. E.g., consider a stack of 5 vector-valued
        elements each representing 2D vectors, living in a 3 dimensional space.
-       Then this fucntion would give 15, not 10.
+       Then this function would give 15, not 10.
        */
    int GetVectorDim() const;
+
+   /// Return the total dimension of a vector on boundary
+   /** @see GetVectorDim() */
+   int GetBdrVectorDim() const;
+
+   /// Return the total dimension of a vector on a face
+   /** @see GetVectorDim() */
+   int GetFaceVectorDim() const;
 
    /// Return the dimension of the curl of a GridFunction defined on this space.
    /** Note: This assumes a space dimension of 2 or 3 only. */
@@ -1326,11 +1334,23 @@ public:
         associated with i'th boundary face in the mesh object. */
    const FiniteElement *GetBE(int i) const;
 
+   /// @brief Return a "typical" boundary element.
+   ///
+   /// This can be used in situations where the local mesh partition may be
+   /// empty.
+   const FiniteElement *GetTypicalBE() const;
+
    /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection
         associated with i'th face in the mesh object.  Faces in this case refer
         to the MESHDIM-1 primitive so in 2D they are segments and in 1D they are
         points.*/
    const FiniteElement *GetFaceElement(int i) const;
+
+   /// @brief Return a "typical" face element.
+   ///
+   /// This can be used in situations where the local mesh partition may be
+   /// empty.
+   const FiniteElement *GetTypicalFaceElement() const;
 
    /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection
         associated with i'th edge in the mesh object. */
