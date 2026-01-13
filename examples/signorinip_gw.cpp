@@ -43,16 +43,15 @@ real_t GapFunction(const Vector &x);
 void ForceFunction(const Vector &x, Vector &f);
 
 /**
- * @brief Implements the contact express boundary condition for the Signorini
- *        problem.
+ * @brief Computes the pressure coefficient α (σ(v)n · ñ)
  *
- * @param u_prev Previous displacement vector
- * @param n_tilde Vector field
+ * @param v Grid function representing the previous displacement
+ * @param n_tilde Unit vector field
  * @param lambda First Lamé parameter
  * @param mu Second Lamé parameter
  * @param alpha Step-size parameter
  */
-class TractionBoundary : public Coefficient
+class PressureCoefficient : public Coefficient
 {
 private:
    GridFunction *v;
@@ -62,12 +61,12 @@ private:
                       const real_t mu, DenseMatrix &sigma);
 
 public:
-   TractionBoundary(GridFunction &_v, real_t _lambda, real_t _mu, real_t _alpha)
+   PressureCoefficient(GridFunction &_v, real_t _lambda, real_t _mu, real_t _alpha)
       : Coefficient(), v(&_v), n_tilde(NULL), lambda(_lambda), mu(_mu),
         alpha(_alpha) {}
 
-   TractionBoundary(GridFunction &_v, Vector &_n_tilde,
-                    real_t _lambda, real_t _mu, real_t _alpha)
+   PressureCoefficient(GridFunction &_v, Vector &_n_tilde,
+                       real_t _lambda, real_t _mu, real_t _alpha)
       : Coefficient(), v(&_v), n_tilde(&_n_tilde), lambda(_lambda), mu(_mu),
         alpha(_alpha) {}
 
@@ -75,10 +74,51 @@ public:
                        const IntegrationPoint &ip) override;
 };
 
+/**
+ * @brief Computes the logarithm of the gap function adjusted by the
+ *        displacement in the direction of n_tilde, ln(φ₁ - v · ñ).
+ *
+ * @param v GridFunction
+ * @param n_tilde Unit vector field
+ */
+class LogarithmGridFunctionCoefficient : public Coefficient
+{
+protected:
+   GridFunction *v;
+   Vector *n_tilde;
+
+public:
+   LogarithmGridFunctionCoefficient(GridFunction &_v)
+      : v(&_v), n_tilde(NULL) { }
+
+   LogarithmGridFunctionCoefficient(GridFunction &_v, Vector &_n_tilde)
+      : v(&_v), n_tilde(&_n_tilde) { }
+
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
+};
+
+/**
+ * @brief Computes the exponential of a GridFunction adjusted by the gap
+ *        function, φ₁ - exp(v).
+ *
+ * @param v GridFunction
+ */
+class ExponentialGridFunctionCoefficient : public Coefficient
+{
+protected:
+   GridFunction *v;
+
+public:
+   ExponentialGridFunctionCoefficient(GridFunction &_v)
+      : v(&_v) { }
+
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
+};
+
 real_t lambda_g = 1.0;
 real_t mu_g = 1.0;
 
-const real_t plane_g = -0.0;
+const real_t plane_g = 0.0;
 
 int main(int argc, char *argv[])
 {
@@ -267,15 +307,25 @@ int main(int argc, char *argv[])
 
    // 8. Define the solution vector u as a parallel finite element grid
    //    function corresponding to fespace. Initialize u with initial guess of
-   //    u(x,y,z) = (0,0,-0.1z), which satisfies the boundary conditions.
+   //    u(x,y,z) = (0,0,0).
+   ParGridFunction init_u(fespace);
    ParGridFunction u_previous(fespace);
    ParGridFunction u_current(fespace);
-   VectorGridFunctionCoefficient u_previous_coeff(&u_previous);
 
-   // VectorFunctionCoefficient init_u(dim, InitDisplacement);
-   // u_previous.ProjectCoefficient(init_u);
-   u_previous = 0.0;
+   VectorFunctionCoefficient init_u_c(dim, InitDisplacement);
+   VectorGridFunctionCoefficient u_previous_c(&u_previous);
+
+   init_u.ProjectCoefficient(init_u_c);
+   u_previous = init_u;
    u_current = u_previous;
+
+   // Accumulated pressure grid function
+   H1_FECollection primal_fec(1, dim);
+   ParFiniteElementSpace primal_fespace(&pmesh, &primal_fec);
+   ParGridFunction accum_pressure(&primal_fespace);
+   LogarithmGridFunctionCoefficient init_psi(init_u, n_tilde);
+   accum_pressure = 0.0;
+   accum_pressure.ProjectBdrCoefficient(init_psi, weak_bdr);
 
    // 9. Set up the bilinear form a(⋅,⋅) on the finite element space
    //    corresponding to the linear elasticity integrator with coefficients
@@ -317,18 +367,23 @@ int main(int argc, char *argv[])
    for (int k = 1; k <= max_iterations; k++)
    {
       // Step 1: Assemble the linear form b(⋅).
-      TractionBoundary g_coeff(u_previous, n_tilde, lambda_g, mu_g, alpha);
 
-      H1_FECollection primal_col(1, dim);
-      ParFiniteElementSpace primal_space(&pmesh, &primal_col);
-      ParGridFunction g_gf(&primal_space);
-      g_gf = 0;
-      g_gf.ProjectBdrCoefficient(g_coeff,weak_bdr);
-      GridFunctionCoefficient g_H1coeff(&g_gf);
+      // Compute the pressure coefficient α (σ(u_previous)n · ñ)
+      PressureCoefficient u_pressure_c(u_previous, n_tilde, lambda_g, mu_g,
+                                       alpha);
+      ParGridFunction u_pressure_gf(&primal_fespace);
+      u_pressure_gf = 0.0;
+      u_pressure_gf.ProjectBdrCoefficient(u_pressure_c,weak_bdr);
+
+      accum_pressure += u_pressure_gf;
+
+      ExponentialGridFunctionCoefficient g_coeff(accum_pressure);
+      // ParGridFunction g_gf(&primal_fespace);
+      // g_gf = 0.0;
+      // g_gf.ProjectBdrCoefficient(g_coeff, weak_bdr);
+
       // if (visualization)
       // {
-      //    char vishost[] = "localhost";
-      //    int  visport   = 19916;
       //    socketstream sol_sock_(vishost, visport);
       //    sol_sock_ << "parallel " << num_procs << " " << myid << "\n";
       //    sol_sock_.precision(8);
@@ -341,7 +396,7 @@ int main(int argc, char *argv[])
       b->AddDomainIntegrator(new VectorDomainLFIntegrator(f_coeff));
       b->AddBdrFaceIntegrator(
          new SlidingElasticityDirichletLFIntegrator(
-            g_H1coeff, n_tilde_c, lambda_c, mu_c, beta, kappa), weak_bdr);
+            g_coeff, n_tilde_c, lambda_c, mu_c, beta, kappa), weak_bdr);
       b->Assemble();
 
       // Step 2: Form the linear system A X = B. This includes eliminating boundary
@@ -371,7 +426,7 @@ int main(int argc, char *argv[])
       delete b;
 
       // Step 5: Compute difference between current and previous solutions.
-      iter_error = u_current.ComputeL2Error(u_previous_coeff);
+      iter_error = u_current.ComputeL2Error(u_previous_c);
 
       if (iter_error < 1e-4)
       {
@@ -380,6 +435,16 @@ int main(int argc, char *argv[])
 
       if (iter_error < 1e-5)
       {
+         break;
+      }
+
+      // TEST: Divergence detection
+      if (iter_error > 1e10)
+      {
+         if (myid == 0)
+         {
+            mfem::out << "\nDivergence detected. Exiting." << std::endl;
+         }
          break;
       }
 
@@ -394,7 +459,7 @@ int main(int argc, char *argv[])
       {
          sol_sock << "parallel " << num_procs << " " << myid << "\n";
          sol_sock << "solution\n" << pmesh << u_current << std::flush;
-         //cin.get();
+         // cin.get();
       }
 
       // Step 7: Check for convergence.
@@ -431,11 +496,11 @@ int main(int argc, char *argv[])
 
 /**
  * @brief Initializes the displacement vector u with an initial guess of
- *        u(x,y,z) = (0,0,-0.1z), which satisfies the boundary conditions.
+ *        u(x,y,z) = (0,0,0).
  */
 void InitDisplacement(const Vector &x, Vector &u)
 {
-   // const real_t displacement = -0.0;
+   // const real_t displacement = -0.1;
    // const int dim = x.Size();
 
    u = 0.0;
@@ -480,9 +545,9 @@ void ForceFunction(const Vector &x, Vector &f)
  * @param mu     Second Lamé parameter
  * @param sigma  Computed stress tensor
  */
-void TractionBoundary::ComputeStress(const DenseMatrix &grad_u,
-                                     const real_t lambda,
-                                     const real_t mu, DenseMatrix &sigma)
+void PressureCoefficient::ComputeStress(const DenseMatrix &grad_u,
+                                        const real_t lambda,
+                                        const real_t mu, DenseMatrix &sigma)
 {
    const int dim = grad_u.Size();
 
@@ -497,18 +562,14 @@ void TractionBoundary::ComputeStress(const DenseMatrix &grad_u,
    DenseMatrix I;
    I.Diag(1.0, dim);
    sigma = 0.0;
-   Add(lambda * div_u, I, 2 * mu, epsilon, sigma);
+   Add(lambda * div_u, I, 2.0 * mu, epsilon, sigma);
 }
 
-real_t TractionBoundary::Eval(ElementTransformation &T,
-                              const IntegrationPoint &ip)
+real_t PressureCoefficient::Eval(ElementTransformation &T,
+                                 const IntegrationPoint &ip)
 {
    ParGridFunction *par_v = dynamic_cast<ParGridFunction*>(v);
    const int dim = T.GetSpaceDim();
-
-   // Get current point coordinates
-   Vector x(dim);
-   T.Transform(ip, x);
 
    // Get value and Jacobian of previous solution
    Vector v_val(dim);
@@ -523,6 +584,7 @@ real_t TractionBoundary::Eval(ElementTransformation &T,
       v->GetVectorValue(T, ip, v_val);
       v->GetVectorGradient(T, grad_v);
    }
+
    // Evaluate the stress tensor σ(v)
    DenseMatrix sigma(dim,dim);
    ComputeStress(grad_v, lambda, mu, sigma);
@@ -538,15 +600,68 @@ real_t TractionBoundary::Eval(ElementTransformation &T,
       n_tilde = &n;
    }
 
-   // Compute pressure σ(v)n · ñ
-   Vector sigma_n(dim);
-   sigma.Mult(n, sigma_n);
-   const real_t pressure = sigma_n * *n_tilde;
+   // Return α (σ(v)n · ñ)
+   return alpha * sigma.InnerProduct(n, *n_tilde);
+}
 
-   // Evaluate the gap function φ₁
-   const real_t phi_1 = GapFunction(x);
+real_t LogarithmGridFunctionCoefficient::Eval(ElementTransformation &T,
+                                              const IntegrationPoint &ip)
+{
+   MFEM_ASSERT(v != NULL, "grid function is not set");
 
-   // Return the "Dirichlet" boundary condition
-   // φ₁ + (v · ñ - φ₁) exp(αₖ (σ(v)n · ñ))
-   return phi_1 + (v_val * *n_tilde - phi_1) * exp(alpha * pressure);
+   ParGridFunction *par_v = dynamic_cast<ParGridFunction*>(v);
+   const int dim = T.GetSpaceDim();
+
+   // Get current point coordinates
+   Vector x(dim);
+   T.Transform(ip, x);
+
+   // Get value of previous solution
+   Vector v_val(dim);
+   if (par_v)
+   {
+      par_v->GetVectorValue(T, ip, v_val);
+   }
+   else
+   {
+      v->GetVectorValue(T, ip, v_val);
+   }
+
+   // Compute normal vector n
+   Vector n(dim);
+   T.SetIntPoint(&Geometries.GetCenter(T.GetGeometryType()));
+   CalcOrtho(T.Jacobian(), n);
+   n /= n.Norml2();
+
+   if (!n_tilde)
+   {
+      n_tilde = &n;
+   }
+
+   // Return ln(φ₁ - v · ñ)
+   return log(GapFunction(x) - v_val * *n_tilde);
+}
+
+real_t ExponentialGridFunctionCoefficient::Eval(ElementTransformation &T,
+                                                const IntegrationPoint &ip)
+{
+   ParGridFunction *par_v = dynamic_cast<ParGridFunction*>(v);
+   const int dim = T.GetSpaceDim();
+
+   // Get current point coordinates
+   Vector x(dim);
+   T.Transform(ip, x);
+
+   real_t v_val;
+   if (par_v)
+   {
+      v_val = par_v->GetValue(T, ip);
+   }
+   else
+   {
+      v_val = v->GetValue(T, ip);
+   }
+
+   // Return φ₁ - exp(v)
+   return GapFunction(x) - exp(v_val);
 }
