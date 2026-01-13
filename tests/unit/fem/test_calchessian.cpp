@@ -218,6 +218,7 @@ TEST_CASE("CalcHessian",
 
    SECTION("H1_HexahedronElement")
    {
+      std::cout<<"H1_HexahedronElement"<<std::endl;
       int order = GENERATE(1,2,3,4,5);
       mfem::out<<"H1_HexahedronElement = "<<order<<std::endl;
       H1_HexahedronElement fe(order);
@@ -299,19 +300,6 @@ TEST_CASE("CalcHessian",
    }
 }
 
-
-#include <algorithm>
-
-void FillWithRandomNumbers(Vector &x, real_t a, real_t b)
-{
-   std::mt19937 gen(11); // Fixed seed
-   std::uniform_real_distribution<> dis(a, b);
-   for (int i = 0; i < x.Size(); i++)
-   {
-      x[i] = dis(gen);
-   }
-}
-
 TEST_CASE("Lapacian",
           "[NURBS2DFiniteElement]"
           "[NURBS3DFiniteElement]")
@@ -319,59 +307,64 @@ TEST_CASE("Lapacian",
    int order = 2;
    std::string meshName = GENERATE("square-nurbs.mesh",
                                    "cube-nurbs.mesh");
-
-   bool deform = GENERATE(false,true);
+   mfem::out<<"Check laplacian for "<< meshName <<std::endl;
+   bool deformed = GENERATE(false,true);
+   if (deformed) { mfem::out<<"Mesh is deformed"<<std::endl; }
    Mesh mesh("../../data/" + meshName, 1, 1);
    const int dim = mesh.Dimension();
-   real_t theta = M_PI/7;
+
+   // Rotate mesh
+   DenseMatrix Rotate(dim);
+   if (dim == 2)
    {
-      Vector nodes;
-      mesh.GetNodes(nodes);
-      nodes.Print();
-
-      for (int i = 0; i < nodes.Size()/dim; i++)
-      {
-         Vector x(dim);
-         for (int j = 0; j < dim; j++)
-         {
-            x[j] = nodes[i*dim + j];
-         }
-
-         Vector nx(dim);
-         nx = x;
-         nx[0] = cos(theta)*x[0] - sin(theta)*x[1];
-         nx[1] = sin(theta)*x[0] + cos(theta)*x[1];
-
-         x = nx;
-
-         nx[0] = cos(theta)*x[0] - sin(theta)*x[dim-1];
-         nx[dim-1] = sin(theta)*x[0] + cos(theta)*x[dim-1];
-         for (int j = 0; j < dim; j++)
-         {
-            nodes[i*dim + j] = nx[j];
-         }
-      }
-      mesh.SetNodes(nodes);
+      NURBSPatch::Get2DRotationMatrix(M_PI/7, Rotate);
+   }
+   else if (dim == 3)
+   {
+      real_t n[] = {0.0,0.0,1.0};
+      NURBSPatch::Get3DRotationMatrix(n, M_PI/7,M_PI/7, Rotate);
    }
 
+   Vector x0(dim), x1(dim);
+   for (int i = 0; i <mesh.GetNodes()->Size()/dim; i++)
+   {
+      mesh.GetNode(i, x0.GetData());
+      Rotate.Mult(x0, x1);
+      mesh.SetNode(i, x1.GetData());
+   }
+
+   // Distort mesh
+   real_t distort_scale = 0.05;
+   if (deformed)
+   {
+      Vector dx(mesh.GetNodes()->Size());
+      dx.Randomize(1234);
+      dx *= 2.0; dx -= 1.0; dx *= distort_scale;
+      mesh.MoveNodes(dx);
+   }
+
+   // We need a C1 smooth mesh
    mesh.DegreeElevate(1);
+
+   // Refine mesh
    mesh.UniformRefinement();
 
-   real_t distort_scale = 0.05;
-   if (deform)
+   // Distort mesh
+   distort_scale = 0.01;
+   if (deformed)
    {
-      Vector nodes, dx;
-      mesh.GetNodes(nodes);
-      dx.SetSize(nodes.Size());
-      FillWithRandomNumbers(dx, -distort_scale, distort_scale);
-      nodes += dx;
-      mesh.SetNodes(nodes);
+      Vector dx(mesh.GetNodes()->Size());
+      dx.Randomize(1234);
+      dx *= 2.0; dx -= 1.0; dx *= distort_scale;
+      mesh.MoveNodes(dx);
    }
 
+   // Create Space
    NURBSFECollection fe_coll(order);
    FiniteElementSpace fes(&mesh, new NURBSExtension(mesh.NURBSext, order),
                           &fe_coll);
 
+   // Compute (grad w, grad phi) + (w, laplace phi) = 0
    SparseMatrix gmat(fes.GetNDofs());
    Vector shape, lshape;
    DenseMatrix dshape, elmat;
@@ -379,7 +372,6 @@ TEST_CASE("Lapacian",
    DofTransformation doftrans;
    ElementTransformation *eltrans;
    Array<int> vdofs;
-
    for (int e = 0; e < fes.GetNE(); e++)
    {
       const int dof = fes.GetFE(e)->GetDof();
@@ -417,7 +409,7 @@ TEST_CASE("Lapacian",
       gmat.AddSubMatrix (vdofs, vdofs, elmat, 1);
    }
 
-   // Apply boundary conditions
+   // Apply homogeneous essential boundary conditions on entire boundary
    Array<int> ess_dofs;
    fes.GetBoundaryTrueDofs(ess_dofs);
    for (int i=0; i<ess_dofs.Size(); i++)
@@ -425,8 +417,8 @@ TEST_CASE("Lapacian",
       gmat.EliminateRowCol(ess_dofs[i], Operator::DiagonalPolicy::DIAG_ZERO);
    }
    gmat.Finalize (1);
-
+   mfem::out<<"Difference between matrices = "<< gmat.MaxNorm()  <<std::endl;
    // Tolerance can be tighter if intorder is increased
-   REQUIRE(gmat.MaxNorm() == MFEM_Approx(0.0, 1e-6));
+   REQUIRE(gmat.MaxNorm() == MFEM_Approx(0.0, 1e-8));
 }
 
