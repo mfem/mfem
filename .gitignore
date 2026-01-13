@@ -169,6 +169,7 @@ examples/hdg/ex14p
 examples/hdg/ex17
 examples/hdg/ex17p
 examples/hdg/ex21
+examples/hdg/ex21p
 examples/hdg/sol.*
 examples/hdg/sol_p.*
 examples/hdg/sol_u.*
@@ -177,6 +178,7 @@ examples/hdg/Example5*
 examples/hdg/Paraview
 examples/hdg/ex21*.mesh
 examples/hdg/ex21*.sol
+examples/hdg/ex21p_*.*
 
 examples/hiop/ex9
 examples/hiop/ex9p
