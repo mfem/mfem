@@ -149,6 +149,12 @@ void mass_action(const char *filename, int p)
          norm_l = Y.Normlinf();
          MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
          REQUIRE(norm_g == MFEM_Approx(0.0));
+
+         // Test sparse matrix assembly.
+         SparseMatrix *spmat;
+         // Next line produces segfault
+         dRdU->Assemble(spmat);
+
          MPI_Barrier(MPI_COMM_WORLD);
       }
    }
