@@ -142,6 +142,7 @@ void mult_integ(const char *filename, int p)
       MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
       REQUIRE(norm_g == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
+      delete A;
    }
 
    SECTION("linearized assembled HypreParMatrix")
@@ -159,6 +160,7 @@ void mult_integ(const char *filename, int p)
       MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
       REQUIRE(norm_g == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
+      delete A;
    }
 
 }
