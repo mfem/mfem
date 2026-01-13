@@ -304,12 +304,15 @@ TEST_CASE("Lapacian",
           "[NURBS2DFiniteElement]"
           "[NURBS3DFiniteElement]")
 {
-   int order = 2;
+   int order = 4;
    std::string meshName = GENERATE("square-nurbs.mesh",
                                    "cube-nurbs.mesh");
-   mfem::out<<"Check laplacian for "<< meshName <<std::endl;
+   mfem::out<<"\nCheck laplacian for "<< meshName <<std::endl;
    bool deformed = GENERATE(false,true);
    if (deformed) { mfem::out<<"Mesh is deformed"<<std::endl; }
+   bool NURBS = GENERATE(false,true);
+   if (NURBS) { mfem::out<<"Using NURBS"<<std::endl; }
+
    Mesh mesh("../../data/" + meshName, 1, 1);
    const int dim = mesh.Dimension();
 
@@ -343,26 +346,37 @@ TEST_CASE("Lapacian",
       mesh.MoveNodes(dx);
    }
 
-   // We need a C1 smooth mesh
-   mesh.DegreeElevate(1);
-
-   // Refine mesh
-   mesh.UniformRefinement();
-
-   // Distort mesh
-   distort_scale = 0.01;
-   if (deformed)
+   if (NURBS)
    {
-      Vector dx(mesh.GetNodes()->Size());
-      dx.Randomize(1234);
-      dx *= 2.0; dx -= 1.0; dx *= distort_scale;
-      mesh.MoveNodes(dx);
+      // We need a C1 smooth mesh
+      mesh.DegreeElevate(1);
+
+      // Refine mesh
+      mesh.UniformRefinement();
+
+      // Distort mesh
+      distort_scale = 0.01;
+      if (deformed)
+      {
+         Vector dx(mesh.GetNodes()->Size());
+         dx.Randomize(1234);
+         dx *= 2.0; dx -= 1.0; dx *= distort_scale;
+         mesh.MoveNodes(dx);
+      }
    }
 
    // Create Space
-   NURBSFECollection fe_coll(order);
+   FiniteElementCollection *fe_coll;
+   if (NURBS)
+   {
+      fe_coll = new NURBSFECollection (order);
+   }
+   else
+   {
+      fe_coll = new H1_FECollection (order);
+   }
    FiniteElementSpace fes(&mesh, new NURBSExtension(mesh.NURBSext, order),
-                          &fe_coll);
+                          fe_coll);
 
    // Compute (grad w, grad phi) + (w, laplace phi) = 0
    SparseMatrix gmat(fes.GetNDofs());
@@ -384,7 +398,7 @@ TEST_CASE("Lapacian",
       eltrans = fes.GetElementTransformation (e);
 
       // Integrand involves non-polynomial mapping
-      const int intorder = 4*fes.GetFE(e)->GetOrder();
+      const int intorder = 3*fes.GetFE(e)->GetOrder();
       const IntegrationRule *ir = &IntRules.Get(fes.GetFE(e)->GetGeomType(),
                                                 intorder);
 
@@ -420,5 +434,7 @@ TEST_CASE("Lapacian",
    mfem::out<<"Difference between matrices = "<< gmat.MaxNorm()  <<std::endl;
    // Tolerance can be tighter if intorder is increased
    REQUIRE(gmat.MaxNorm() == MFEM_Approx(0.0, 1e-8));
+
+   delete fe_coll;
 }
 
