@@ -231,7 +231,7 @@ void FiniteElement::CalcPhysLaplacian(ElementTransformation &Trans,
    {
       for (int nd = 0; nd < dof; nd++)
       {
-         Laplacian[nd] = hess(nd,0) + hess(nd,4) + hess(nd,5);
+         Laplacian[nd] = hess(nd,0) + hess(nd,3) + hess(nd,5);
       }
    }
    else if (dim == 2)
@@ -268,11 +268,9 @@ void FiniteElement::CalcPhysLinLaplacian(ElementTransformation &Trans,
       scale[0] =   Gij(0,0);
       scale[1] = 2*Gij(0,1);
       scale[2] = 2*Gij(0,2);
-
-      scale[3] = 2*Gij(1,2);
-      scale[4] =   Gij(2,2);
-
-      scale[5] =   Gij(1,1);
+      scale[3] =   Gij(1,1);
+      scale[4] = 2*Gij(1,2);
+      scale[5] =   Gij(2,2);
    }
    else if (dim == 2)
    {
@@ -309,12 +307,12 @@ void  FiniteElement::CalcPhysHessian(ElementTransformation &Trans,
       map[2] = 2;
 
       map[3] = 1;
-      map[4] = 5;
-      map[5] = 3;
+      map[4] = 3;
+      map[5] = 4;
 
       map[6] = 2;
-      map[7] = 3;
-      map[8] = 4;
+      map[7] = 4;
+      map[8] = 5;
    }
    else if (dim == 2)
    {
