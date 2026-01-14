@@ -313,20 +313,11 @@ static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,
    return min_el;
 }
 
-/** Returns the index where a non-zero entry should be added and increment the
-    number of non-zeros for the row i_L. */
-static MFEM_HOST_DEVICE int GetAndIncrementNnzIndex(const int i_L, int* I)
-{
-   int ind = AtomicAdd(I[i_L],1);
-   return ind;
-}
-
 int ElementRestriction::FillI(SparseMatrix &mat) const
 {
    const int all_dofs = ndofs;
    const int vd = vdim;
    const int elt_dofs = dof;
-   auto I = mat.ReadWriteI();
    auto d_offsets = offsets.Read();
    auto d_indices = indices.Read();
    auto d_gather_map = gather_map.Read();
@@ -334,9 +325,13 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    Array<int> ij_elts(indices.Size() * 2);
    auto d_ij_elts = Reshape(ij_elts.Write(), indices.Size(), 2);
 
-   mfem::forall(vd*all_dofs+1, [=] MFEM_HOST_DEVICE (int i_L)
+   // Count the number of nonzeros per "scalar" row. We will incorporate the knowledge in our forall loop over scalar l_dof that for each scalar nonzero we should actually add vd nonzeroes
+   Array<int> rowcnt_scalar(all_dofs);
+   auto d_rowcnt = rowcnt_scalar.Write();
+
+   mfem::forall(all_dofs, [=] MFEM_HOST_DEVICE (int i_L)
    {
-      I[i_L] = 0;
+      d_rowcnt[i_L] = 0;
    });
    mfem::forall(ne*elt_dofs, [=] MFEM_HOST_DEVICE (int l_dof)
    {
@@ -347,6 +342,7 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
       const int i_L = d_gather_map[i_gm];
       const int i_offset = d_offsets[i_L];
       const int i_next_offset = d_offsets[i_L+1];
+      // The number of elements contributing to L-dof i_L
       const int i_nbElts = i_next_offset - i_offset;
 
       int *i_elts = &d_ij_elts(i_offset, 0);
@@ -361,10 +357,11 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
          const int j_L = d_gather_map[j_gm];
          const int j_offset = d_offsets[j_L];
          const int j_next_offset = d_offsets[j_L+1];
+         // The number of elements contributing to L-dof j_L
          const int j_nbElts = j_next_offset - j_offset;
          if (i_nbElts == 1 || j_nbElts == 1) // no assembly required
          {
-            GetAndIncrementNnzIndex(i_L, I);
+            AtomicAdd(d_rowcnt[i_L], vd);
          }
          else // assembly required
          {
@@ -378,19 +375,36 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
             int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
             if (e == min_e) // add the nnz only once
             {
-               GetAndIncrementNnzIndex(i_L, I);
+               AtomicAdd(d_rowcnt[i_L], vd);
             }
          }
       }
    });
    // We need to sum the entries of I, we do it on CPU as it is very sequential.
    auto h_I = mat.HostReadWriteI();
-   const int nTdofs = vd*all_dofs;
-   int sum = 0;
-   for (int i = 0; i < nTdofs; i++)
+   auto h_rowcnt = rowcnt_scalar.HostRead();
+   const int nTdofs = vd * all_dofs;
+   for (int row = 0; row < nTdofs; ++row)
    {
-      const int nnz = h_I[i];
-      h_I[i] = sum;
+      int i_L;
+      if (byvdim)
+      {
+         i_L = row / vd;
+      }
+      else
+      {
+         i_L = row % all_dofs;
+      }
+      h_I[row] = h_rowcnt[i_L];
+   }
+
+   int sum = 0;
+   for (int row = 0; row < nTdofs; ++row)
+   {
+      const int nnz = h_I[row];
+      mfem::out << "For index " << row << ", the number of nonzeroes is " << nnz <<
+                std::endl;
+      h_I[row] = sum;
       sum+=nnz;
    }
    h_I[nTdofs] = sum;
@@ -404,16 +418,38 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
    const int all_dofs = ndofs;
    const int vd = vdim;
    const int elt_dofs = dof;
-   auto I = mat.ReadWriteI();
+   const bool t = byvdim;
+   auto I = mat.ReadI();
    auto J = mat.WriteJ();
    auto Data = mat.WriteData();
    auto d_offsets = offsets.Read();
    auto d_indices = indices.Read();
    auto d_gather_map = gather_map.Read();
-   auto mat_ea = Reshape(ea_data.Read(), elt_dofs, elt_dofs, ne);
+   // We always vary by node index most quickly, then by vdim, and then by ne for our element
+   // assembly data
+   auto mat_ea = Reshape(ea_data.Read(), elt_dofs, vd, elt_dofs, vd, ne);
 
    Array<int> ij_B_el(indices.Size() * 4);
    auto d_ij_B_el = Reshape(ij_B_el.Write(), indices.Size(), 4);
+
+   // Per-row cursor for helping to keep track of where we are in our CSR storage
+   const auto nrows = vd * all_dofs;
+   Array<int> P(vd * all_dofs);
+   auto d_P = P.Write();
+   forall(nrows, [=] MFEM_HOST_DEVICE(const int r) { d_P[r] = 0; });
+
+   // Helper for getting nonzero slot without mutating I
+   auto GetNonzeroSlot = [=] MFEM_HOST_DEVICE(const int r) -> int
+   {
+      const auto offset = AtomicAdd(d_P[r], 1);
+      return I[r] + offset;
+   };
+
+   // Map scalar L-dof + comonent to V-dof
+   auto VDof = [=] MFEM_HOST_DEVICE(const int Ls, const int c) -> int
+   {
+      return t ? Ls * vd + c : c * all_dofs + Ls;
+   };
 
    mfem::forall(ne*elt_dofs, [=] MFEM_HOST_DEVICE (int l_dof)
    {
@@ -421,7 +457,7 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
       const int i = l_dof%elt_dofs;
 
       const int i_gm = e*elt_dofs + i;
-      const int i_L = d_gather_map[i_gm];
+      const int i_L = d_gather_map[i_gm]; // scalar L-dof
       const int i_offset = d_offsets[i_L];
       const int i_next_offset = d_offsets[i_L+1];
       const int i_nbElts = i_next_offset - i_offset;
@@ -441,11 +477,20 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
          const int j_offset = d_offsets[j_L];
          const int j_next_offset = d_offsets[j_L+1];
          const int j_nbElts = j_next_offset - j_offset;
+
          if (i_nbElts == 1 || j_nbElts == 1) // no assembly required
          {
-            const int nnz = GetAndIncrementNnzIndex(i_L, I);
-            J[nnz] = j_L;
-            Data[nnz] = mat_ea(j,i,e);
+            for (int ci = 0; ci < vd; ++ci)
+            {
+               const auto row = VDof(i_L, ci);
+               for (int cj = 0; cj < vd; ++cj)
+               {
+                  const auto col = VDof(j_L, cj);
+                  const int nonzero_slot = GetNonzeroSlot(row);
+                  J[nonzero_slot] = col;
+                  Data[nonzero_slot] = mat_ea(j, cj, i, ci, e);
+               }
+            }
          }
          else // assembly required
          {
@@ -461,37 +506,36 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
             int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
             if (e == min_e) // add the nnz only once
             {
-               real_t val = 0.0;
-               for (int k = 0; k < i_nbElts; k++)
+               for (int ci = 0; ci < vd; ++ci)
                {
-                  const int e_i = i_elts[k];
-                  const int i_Bloc = i_B[k];
-                  for (int l = 0; l < j_nbElts; l++)
+                  const auto row = VDof(i_L, ci);
+                  for (int cj = 0; cj < vd; ++cj)
                   {
-                     const int e_j = j_elts[l];
-                     const int j_Bloc = j_B[l];
-                     if (e_i == e_j)
+                     real_t val = 0.0;
+                     for (int k = 0; k < i_nbElts; k++)
                      {
-                        val += mat_ea(j_Bloc, i_Bloc, e_i);
+                        const int e_i = i_elts[k];
+                        const int i_Bloc = i_B[k];
+                        for (int l = 0; l < j_nbElts; l++)
+                        {
+                           const int e_j = j_elts[l];
+                           const int j_Bloc = j_B[l];
+                           if (e_i == e_j)
+                           {
+                              val += mat_ea(j_Bloc, cj, i_Bloc, ci, e_i);
+                           }
+                        }
                      }
+                     const auto col = VDof(j_L, cj);
+                     const int nonzero_slot = GetNonzeroSlot(row);
+                     J[nonzero_slot] = col;
+                     Data[nonzero_slot] = val;
                   }
                }
-               const int nnz = GetAndIncrementNnzIndex(i_L, I);
-               J[nnz] = j_L;
-               Data[nnz] = val;
             }
          }
       }
    });
-   // We need to shift again the entries of I, we do it on CPU as it is very
-   // sequential.
-   auto h_I = mat.HostReadWriteI();
-   const int size = vd*all_dofs;
-   for (int i = 0; i < size; i++)
-   {
-      h_I[size-i] = h_I[size-(i+1)];
-   }
-   h_I[0] = 0;
 }
 
 L2ElementRestriction::L2ElementRestriction(const FiniteElementSpace &fes)
