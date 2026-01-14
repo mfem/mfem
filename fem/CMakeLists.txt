@@ -24,6 +24,7 @@ set(SRCS
   integ/bilininteg_diffusion_mf.cpp
   integ/bilininteg_diffusion_pa.cpp
   integ/bilininteg_diffusion_ea.cpp
+  integ/bilininteg_vecdiffusion_ea.cpp
   integ/bilininteg_diffusion_patch.cpp
   integ/bilininteg_divdiv_pa.cpp
   integ/bilininteg_elasticity_ea.cpp
@@ -133,7 +134,7 @@ set(SRCS
   tmop/assemble/diag2.cpp
   tmop/assemble/grad2_limit.cpp
   tmop/assemble/grad2.cpp
-  tmop/assemble/diag3_limit.cpp  
+  tmop/assemble/diag3_limit.cpp
   tmop/assemble/diag3.cpp
   tmop/assemble/grad3_limit.cpp
   tmop/assemble/grad3.cpp
