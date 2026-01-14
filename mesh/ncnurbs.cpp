@@ -2385,15 +2385,8 @@ int NCNURBSExtension::AuxiliaryEdgeNE(int aux_edge)
    const int signedParentEdge = auxEdges[aux_edge].parent;
    const int ki0 = auxEdges[aux_edge].ksi[0];
    const int ki1raw = auxEdges[aux_edge].ksi[1];
-   int ki1 = ki1raw;
-   if (ki1raw == -1)
-   {
-      const bool rev = signedParentEdge < 0;
-      const int parentEdge = rev ? FlipIndexSign(signedParentEdge) :
-                             signedParentEdge;
-      ki1 = KnotVec(parentEdge)->GetNE();
-   }
-
+   const int ki1 = ki1raw == -1 ? KnotVec(UnsignIndex(signedParentEdge))->GetNE()
+                   : ki1raw;
    return ki1 - ki0;
 }
 
@@ -2767,8 +2760,7 @@ void NCNURBSExtension::PropagateFactorsForKV(int rf_default)
 
          const int dirSetSigned = SetPatchFactors(p);
          const bool partialChange = dirSetSigned < 0;
-         const int dirSet = partialChange ? FlipIndexSign(dirSetSigned) :
-                            dirSetSigned;
+         const int dirSet = UnsignIndex(dirSetSigned);
          const bool changed = (patchState[p] != dirSet) || partialChange;
          patchState[p] = dirSet;
 
