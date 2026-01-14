@@ -474,18 +474,18 @@ TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator][GPU]")
                               );
 
       // Using order > 1 to ensure curvature is used if supported by mesh
-      const int order = 3; 
+      const int order = 3;
 
       Mesh mesh = Mesh::LoadFromFile(mesh_fname);
       const int dim = mesh.Dimension();
       const int sdim = mesh.SpaceDimension();
-      
+
       REQUIRE(dim < sdim);
 
       // Ensure high-order curvature for non-trivial Jacobians where possible
       mesh.SetCurvature(order);
 
-      FiniteElementSpace *fes = mesh.GetNodalFESpace();
+      const FiniteElementSpace *fes = mesh.GetNodalFESpace();
       GridFunction *nodes = mesh.GetNodes();
 
       // Quadrature space
@@ -494,13 +494,10 @@ TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator][GPU]")
       qi->SetOutputLayout(QVectorLayout::byVDIM);
 
       // Prepare E-vector from nodes
-      // For 1D or some 2D meshes, LEXICOGRAPHIC might be default for tensor elements.
-      // But let's check what GetQuadratureInterpolator typically handles. 
-      // The test utilities often switch based on dimension/generator.
       const ElementDofOrdering ordering =
          (mesh.Dimension() == 1 || mesh.MeshGenerator() == 2) ?
          ElementDofOrdering::LEXICOGRAPHIC : ElementDofOrdering::NATIVE;
-      
+
       const Operator *R = fes->GetElementRestriction(ordering);
       Vector e_vec(R->Height());
       R->Mult(*nodes, e_vec);
@@ -531,7 +528,7 @@ TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator][GPU]")
       diff -= q_weights;
       const real_t norm_w = q_weights.Normlinf();
       const real_t norm_d = diff.Normlinf();
-      
+
       // If weights are effectively zero (e.g. degenerate), direct comparison might differ
       // but for these valid meshes, weight should be > 0.
       if (norm_w > 1e-12)
