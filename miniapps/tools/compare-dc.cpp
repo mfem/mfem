@@ -10,19 +10,20 @@
 // CONTRIBUTING.md for details.
 //
 //    -------------------------------------------------------------------
-//    Load DC Miniapp:  Visualize fields saved via DataCollection classes
+//    Compare DC Miniapp:  Compare fields saved via DataCollection classes
 //    -------------------------------------------------------------------
 //
-// This miniapp loads previously saved data and computes the l2 norm of the difference.
-// Currently, only the VisItDataCollection class is supported.
+// This miniapp loads previously saved data and computes the l2 norm of the
+// difference. Currently, only the VisItDataCollection class is supported.
 //
 // Compile with: make compare-dc
 //
 // Serial sample runs:
-//   > compare-dc -r0 ../../examples/Example5 -r1../../examples/Example5_alt
+//   > compare-dc -r0 ../../examples/Example5 -r1 ../../examples/alt/Example5
 //
 // Parallel sample runs:
-//   > mpirun -np 4 compare-dc -r0 ../../examples/Example5-Parallel -r1../../examples/Example5-Parallel_alt
+//   > mpirun -np 4 compare-dc -r0 ../../examples/Example5-Parallel
+//                             -r1 ../../examples/alt/Example5-Parallel
 
 #include "mfem.hpp"
 
@@ -135,7 +136,7 @@ int main(int argc, char *argv[])
    if (error)
    {
       mfem::out << "Data collections: " << coll_name0
-                << "& " << coll_name1 << "are outside of the tolerance!\n";
+                << " & " << coll_name1 << " are outside of the tolerance!\n";
       return -1;
    }
    return 0;
