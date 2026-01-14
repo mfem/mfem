@@ -13,17 +13,16 @@
 //    Compare DC Miniapp:  Compare fields saved via DataCollection classes
 //    -------------------------------------------------------------------
 //
-// This miniapp loads previously saved data and computes the l2 norm of the difference.
-// Currently, only the VisItDataCollection class is supported.
+// This miniapp loads previously saved data and computes the l2 norm of the
+// difference. Currently, only the VisItDataCollection class is supported.
 //
 // Compile with: make compare-dc
 //
 // Serial sample runs:
-//   > compare-dc -r0 ../../examples/Example5 \
-//                -r1 ../../examples/alt/Example5
+//   > compare-dc -r0 ../../examples/Example5 -r1 ../../examples/alt/Example5
 //
 // Parallel sample runs:
-//   > mpirun -np 4 compare-dc -r0 ../../examples/Example5-Parallel \
+//   > mpirun -np 4 compare-dc -r0 ../../examples/Example5-Parallel
 //                             -r1 ../../examples/alt/Example5-Parallel
 
 #include "mfem.hpp"
