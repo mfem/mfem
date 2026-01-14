@@ -245,7 +245,7 @@ int main(int argc, char* argv[])
 
    ParGridFunction* E_gf = nullptr;
 
-   // build up E_gf, B_gf can remain nullptr
+   // build up E_gf
    // 1. make a 2D Cartesian Mesh
    Mesh serial_mesh(Mesh::MakeCartesian2D(
                        ctx.nx, ctx.ny, Element::QUADRILATERAL, false, ctx.L_x, ctx.L_x));
