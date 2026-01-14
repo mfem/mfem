@@ -368,10 +368,11 @@ void PIC::ParticleStep(Particle& part, real_t& dt, bool zeroth_step)
    x.Add(dt / m, p);
 
    // periodic boundary: wrap around using ctx mesh extents
-   x(0) = fmod(x(0), ctx.L_x);
-   if (x(0) < 0.0) { x(0) += ctx.L_x; }
-   x(1) = fmod(x(1), ctx.L_x);
-   if (x(1) < 0.0) { x(1) += ctx.L_x; }
+   for (int d = 0; d < x.Size(); d++)
+   {
+      x(d) = std::fmod(x(d), ctx.L_x);
+      if (x(d) < 0.0) { x(d) += ctx.L_x; }
+   }
 }
 
 PIC::PIC(MPI_Comm comm, ParGridFunction* E_gf_, int num_particles,
