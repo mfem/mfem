@@ -19,14 +19,18 @@ namespace mfem
 {
 
 /** @name Piecewise linear bounds of bases
-    \brief Piecewise linear bounds of bases can be used to compute bounds on the grid function in each element. The bounds for the bases are constructed based on the following parameters:
+    \brief Piecewise linear bounds of bases can be used to compute bounds on
+    the grid function in each element. The bounds for the bases are constructed
+    based on the following parameters:
 
     (i) @b nb: number of bases/nodes in 1D (i.e. polynomial order+1),
 
-    (ii) @b b_type: bases type, 0 - Lagrange interpolants on Gauss-Legendre nodes, 1 - Lagrange interpolants on Gauss-Lobatto-Legendre nodes, and
+    (ii) @b b_type: bases type, 0 - Lagrange interpolants on Gauss-Legendre
+    nodes, 1 - Lagrange interpolants on Gauss-Lobatto-Legendre nodes, and
     2 - Positive/Bernstein bases on uniformly distributed nodes,
 
-    (iii) @b ncp: number of control points used to construct the piecewise linear bounds
+    (iii) @b ncp: number of control points used to construct the piecewise
+    linear bounds
 
     (iv) @b cp_type: control point distribution. 0 - GL + end-points,
                     1 - Chebyshev.
@@ -35,7 +39,9 @@ namespace mfem
 
     If the user does not specify @b ncp and @b cp_type, the minimum value of
     @b ncp is used that would bound the bases for the @b cp_type. We default
-    to @b cp_type = 0 as it requires fewer number of points to bound the bases. Typically, @b ncp = 2 @b nb is sufficient to get fairly compact bounds, and increasing @b ncp results in tighter bounds.
+    to @b cp_type = 0 as it requires fewer number of points to bound the bases.
+    Typically, @b ncp = 2 @b nb is sufficient to get fairly compact bounds, and
+    increasing @b ncp results in tighter bounds.
 
     Finally, only tensor-product elements are currently supported.
 
@@ -54,7 +60,7 @@ private:
    bool proj = true; // Use linear projection to compute bounds.
    real_t tol = 0.0; // offset bounds to avoid round-off errors
    Vector nodes, weights, control_points;
-   DenseMatrix lbound, ubound; // nb x ncp matrices with bounds of all bases
+   DenseMatrix lbound, ubound; // ncp x nb matrices with bounds of all bases
    // Some auxillary storage for computing the bounds with Bernstein
    DenseMatrix basisMatNodes; // Bernstein bases at equispaced nodes
    DenseMatrix basisMatInt;   // Bernstein bases at GLL nodes
@@ -79,6 +85,9 @@ private:
    static constexpr int min_ncp_pos_x[2][11]= {{3,5,7,8,8,9,10,10,11,12,13},
       {3,5,8,9,11,12,13,13,14,15,16}
    };
+
+   /// Helper function to extract lower or upper bounding matrix
+   DenseMatrix GetBoundingMatrix(int dim, bool is_lower) const;
 
 public:
    // Constructor
@@ -121,11 +130,13 @@ public:
    /** @name Get lower and upper bounding matrices
 
        @note These matrices do not account for the linear projection step that
-             is optionally done in GetnDBounds before bounding the function.
+             is optionally done in GetNDBounds before bounding the function.
+             Additionally, these matrices are setup such that the columns
+             correspond to the lexicographically-ordered coefficients.
     */
    ///@{
-   DenseMatrix GetLowerBoundMatrix(int dim = 1);
-   DenseMatrix GetUpperBoundMatrix(int dim = 1);
+   DenseMatrix GetLowerBoundMatrix(int dim = 1) const;
+   DenseMatrix GetUpperBoundMatrix(int dim = 1) const;
    ///@}
 
 private:

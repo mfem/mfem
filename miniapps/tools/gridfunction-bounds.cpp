@@ -23,6 +23,8 @@
 // (2) Dzanic et al., "A method for bounding high-order finite element
 //     functions: Applications to mesh validity and bounds-preserving limiters".
 //
+// We also use a recursive subdivision strategy to computer tighter estimate of
+// the function extremum.
 //
 // Compile with: make gridfunction-bounds
 //
@@ -31,10 +33,6 @@
 //  mpirun -np 4 gridfunction-bounds -nb 100 -ref 5 -bt 2 -l2
 
 #include "mfem.hpp"
-#include <memory>
-#include <iostream>
-#include <fstream>
-#include <iomanip>
 
 using namespace mfem;
 using namespace std;
@@ -58,6 +56,7 @@ int main (int argc, char *argv[])
    bool continuous       = true;
    int  nbrute           = 0;
    int  rec_depth        = 4;
+   real_t rel_tol        = 1e-4;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -86,7 +85,11 @@ int main (int argc, char *argv[])
                   "Brute force search for minimum in an array of nxnxn points "
                   "in each element.");
    args.AddOption(&rec_depth, "-rd", "--rec-depth",
-                  "Maximum recursion depth for recursive search.");
+                  "Maximum depth for recursive subdivision to compute function "
+                  "extremum.");
+   args.AddOption(&rel_tol, "-rt", "--rel-tol",
+                  "Relative tolerance for termination of recursive "
+                  "subdivision.");
    args.ParseCheck();
 
    Mesh mesh(mesh_file, 1, 1, false);
@@ -161,7 +164,6 @@ int main (int argc, char *argv[])
    Vector bound_rec_min(vdim), bound_rec_max(vdim);
    bound_rec_min = numeric_limits<real_t>::max();
    bound_rec_max = numeric_limits<real_t>::min();
-   real_t rel_tol = 1e-4;
    for (int d = 0; d < vdim; d++)
    {
       auto min_interval = pfunc_proj->EstimateFunctionMinimum(d, plb, rec_depth,
@@ -257,7 +259,7 @@ int main (int argc, char *argv[])
          {
             cout << "Compare function extremum for component " <<
                  d << endl;
-            const int w = 20;
+            constexpr int w = 20;
             cout << left << setw(w) << " "
                  << setw(w)  << "Brute force"
                  << setw(w) << "PL Bound"

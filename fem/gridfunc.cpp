@@ -4987,7 +4987,7 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMinimum(
 
    real_t min_upper_bound = upper.Min();
    real_t min_lower_bound = lower.Min();
-   int nverts = dim == 1 ? 2 : (dim == 2 ? 4 : 8);
+   const int nverts = dim == 1 ? 2 : (dim == 2 ? 4 : 8);
 
    while (!pq.empty())
    {
@@ -5157,7 +5157,7 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMaximum(
 
    real_t max_lower_bound = val_min;
    real_t max_upper_bound = val_max;
-   int nverts = dim == 1 ? 2 : (dim == 2 ? 4 : 8);
+   const int nverts = dim == 1 ? 2 : (dim == 2 ? 4 : 8);
 
    while (!pq.empty())
    {
@@ -5165,8 +5165,7 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMaximum(
       pq.pop();
       int curr_depth = current->depth;
 
-      // Pruning: if the current interval's max is less than the best guaranteed max (max_lower_bound),
-      // then this interval cannot contain the global maximum.
+      // Reached max depth or this interval cannot contain the global maximum.
       if (current->node->val_max <= max_threshold || curr_depth >= max_depth)
       {
          delete current;
