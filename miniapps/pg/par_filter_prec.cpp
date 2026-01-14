@@ -23,9 +23,11 @@ int main(int argc, char *argv[])
    int max_newt_it = 50;
    real_t newt_tol = 1e-08;
 
-   real_t alpha = 1;
+   real_t alpha = 1.0;
 
    bool visualization = true;
+
+   const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
@@ -42,35 +44,35 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.ParseCheck();
    MFEMInitializePetsc(nullptr, nullptr, "rc_bddc", nullptr);
 
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
+   MemoryType mt = device.GetMemoryType();
 
-   Mesh ser_mesh = Mesh::MakeCartesian2D(64, 64, Element::TRIANGLE, false,
-                                         2.0,
-                                         2.0);
-   ser_mesh.Transform([](const Vector &x, Vector &x_out) -> void { x_out = x; x_out -= 1.0; });
-   // Mesh ser_mesh("../../data/disc-nurbs.mesh", 1, 1);
+   Mesh ser_mesh("../../data/disc-nurbs.mesh", 1, 1);
    const int dim = ser_mesh.Dimension();
 
    FunctionCoefficient obstacle(obstacle_func);
    FunctionCoefficient u_exact(exact_solution);
    VectorFunctionCoefficient u_grad_exact(dim, exact_solution_gradient);
-   Shannon entropy;
-   // CoefficientScaledLegendreFunction entropy(new Shannon);
-   // entropy.SetShift(obstacle);
+   CoefficientScaledLegendreFunction entropy(new Shannon);
+   entropy.SetShift(obstacle);
 
    for (int l = 0; l < ref_levels; l++)
    {
       ser_mesh.UniformRefinement();
    }
-   // {
-   //    int curvature_order = max(order,2);
-   //    ser_mesh.SetCurvature(curvature_order);
-   //    GridFunction *nodes = ser_mesh.GetNodes();
-   //    real_t scale = 2*sqrt(2);
-   //    *nodes /= scale;
-   // }
+   {
+      int curvature_order = max(order,2);
+      ser_mesh.SetCurvature(curvature_order);
+      GridFunction *nodes = ser_mesh.GetNodes();
+      real_t scale = 2*sqrt(2);
+      *nodes /= scale;
+   }
    ParMesh mesh(MPI_COMM_WORLD, ser_mesh);
    ser_mesh.Clear();
 
@@ -93,14 +95,13 @@ int main(int argc, char *argv[])
 
    Array<int> ess_bdr(mesh.bdr_attributes.Size() ? mesh.bdr_attributes.Max() : 0);
    ess_bdr = 1;
-   ess_bdr.Print();
    Array<int> ess_tdof_list;
    primal_fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-   BlockVector x(offsets), rhs(offsets);
-   BlockVector tx(toffsets), trhs(toffsets);
-   Vector bdry(num_dofs_latent);
-   x = 0.0; rhs = 0.0;
+   BlockVector x(offsets, mt), rhs(offsets, mt);
+   BlockVector tx(toffsets, mt), trhs(toffsets, mt);
+   Vector bdry(num_dofs_latent, mt);
+   x = 0.0; rhs = 0.0; bdry = 0.0;
    tx = 0.0; trhs = 0.0;
 
    // unknowns
@@ -134,14 +135,12 @@ int main(int argc, char *argv[])
                        Ah, tx.GetBlock(0), trhs.GetBlock(0));
    PetscParMatrix &A = *Ah.As<PetscParMatrix>();
 
-   ParMixedBilinearForm b(&latent_fes, &primal_fes);
+   ParMixedBilinearForm b(&primal_fes, &latent_fes);
    b.AddDomainIntegrator(new MassIntegrator);
    b.Assemble();
    b.Finalize();
    b.ParallelAssemble(Bh);
    PetscParMatrix &B = *Bh.As<PetscParMatrix>();
-   B.MultTranspose(tx.GetBlock(0), bdry);
-   B.EliminateRows(ess_tdof_list);
 
    std::unique_ptr<PetscParMatrix> Bt(B.Transpose());
 
@@ -150,12 +149,11 @@ int main(int argc, char *argv[])
 
    ParLinearForm res_form(&latent_fes, rhs.GetBlock(1).GetData());
    res_form.AddDomainIntegrator(new DomainLFIntegrator(u_mapped));
-   res_form.AddDomainIntegrator(new DomainLFIntegrator(obstacle));
 
    BlockOperator pg_op(toffsets);
    pg_op.SetBlock(0, 0, &A);
-   pg_op.SetBlock(0, 1, &B);
-   pg_op.SetBlock(1, 0, Bt.get());
+   pg_op.SetBlock(1, 0, &B);
+   pg_op.SetBlock(0, 1, Bt.get());
    pg_op.owns_blocks = 0;
 
    char vishost[] = "localhost";
@@ -174,7 +172,9 @@ int main(int argc, char *argv[])
    for (int prox_it = 0; prox_it < max_prox_it; prox_it++)
    {
       psi_k_gf = psi_gf;
+      psi_k_gf.SyncAliasMemory(psi_k_gf);
       u_prox_prev_gf = u_gf;
+      u_prox_prev_gf.SyncAliasMemory(u_prox_prev_gf);
 
       bool newt_converged = false;
       for (int newt_it = 0; newt_it < max_newt_it; newt_it++)
@@ -182,6 +182,7 @@ int main(int argc, char *argv[])
          // Store previous, and update latent variable
          u_newt_prev_gf = u_gf;
          add(psi_k_gf, alpha, lambda_gf, psi_gf);
+         psi_gf.SyncAliasMemory(psi_gf);
 
          // Update LHS
          if (hessR.HasSpMat())
@@ -190,7 +191,7 @@ int main(int argc, char *argv[])
             hessR.Update();
          }
          hessR.Assemble();
-         hessR.Finalize();
+         hessR.Finalize(0);
          hessR.ParallelAssemble(Hh);
          PetscParMatrix &hess_mat = *Hh.As<PetscParMatrix>();
          hess_mat *= -alpha;
@@ -199,10 +200,12 @@ int main(int argc, char *argv[])
 
          // Update RHS
          res_form.Assemble();
-         trhs.GetBlock(1) = 0.0;
          res_form.ParallelAssemble(trhs.GetBlock(1));
-         trhs.GetBlock(1) -= bdry; // account for essential BCs on primal
+         trhs.GetBlock(1).SyncAliasMemory(trhs.GetBlock(1));
+         trhs.GetBlock(1) += bdry; // account for essential BCs on primal
+         trhs.GetBlock(1).SyncAliasMemory(trhs.GetBlock(1));
          hess_mat.AddMult(tx.GetBlock(1), trhs.GetBlock(1), 1.0);
+         trhs.GetBlock(1).SyncAliasMemory(trhs.GetBlock(1));
          // out << "Assembled rhs from proc " << myid << std::endl;
          // MPI_Barrier(MPI_COMM_WORLD);
 
@@ -214,8 +217,10 @@ int main(int argc, char *argv[])
          PetscBDDCSolver pg_prec(MPI_COMM_WORLD, pg_mat, opts, "prec_");
          PetscLinearSolver pg_solver(pg_mat, "solver_");
          pg_solver.SetPreconditioner(pg_prec);
+         pg_solver.SetAbsTol(1e-10);
+         pg_solver.SetRelTol(1e-07);
          pg_solver.SetMaxIter(5e03);
-         pg_solver.SetPrintLevel(1);
+         pg_solver.SetPrintLevel(0);
          pg_solver.Mult(trhs, tx);
          u_gf.SetFromTrueDofs(tx.GetBlock(0));
          lambda_gf.SetFromTrueDofs(tx.GetBlock(1));
@@ -255,7 +260,7 @@ int main(int argc, char *argv[])
              std::endl;
          out << "L2 Error = " << err << std::endl;
       }
-      alpha *= 1.2;
+      alpha *= 2.0;
       if (prox_cauchy < prox_tol)
       {
          break;

@@ -1,31 +1,36 @@
 # KSP options
 
-# -ksp_view
-# -ksp_converged_reason
+# -gmres_ksp_view
+-ksp_converged_reason
 -solver_ksp_type gmres
 # -solver_ksp_type gmres
 -solver_ksp_restart 50
-# -gmres_ksp_monitor_singular_value
+-solver_ksp_rtol 0.0
+-solver_ksp_atol 1e-08
+-solver_ksp_compute_singular_values
+-solver_ksp_view_singularvalues
 # Use LU factorization (common for non-symmetric matrices)
 -mumps_ksp_type preonly
 -mumps_pc_type lu
 -mumps_pc_factor_mat_solver_type mumps
 # Internal use (don't remove it)
-# It is duplicated because we support older versions of PETSc
 -mat_is_convert_local_nest
 
 # PCBDDC options
+-prec_pc_bddc_use_vertices 1
+-prec_pc_bddc_use_edges 1
+-prec_pc_bddc_use_faces 1
 
 # mandatory options
 
 # activate support for saddle point problems
--prec_pc_bddc_benign_trick
+# -prec_pc_bddc_benign_trick
 
 # primal space customization
--prec_pc_bddc_nonetflux
+# -prec_pc_bddc_nonetflux
 
 # dofs connectivity
--prec_pc_bddc_use_local_mat_graph 0
+-prec_pc_bddc_use_local_mat_graph 1
 -prec_pc_bddc_detect_disconnected
 
 # additional options
@@ -57,8 +62,8 @@
 
 # deluxe scaling (needs PETSc compiled with support for MUMPS)
 #-prec_pc_bddc_use_deluxe_scaling
--prec_pc_bddc_deluxe_zerorows
+#-prec_pc_bddc_deluxe_zerorows
 
 # adaptive generation of primal space (needs MUMPS)
--prec_pc_bddc_adaptive_threshold 5
+#-prec_pc_bddc_adaptive_threshold 5
 #-prec_pc_bddc_schur_exact

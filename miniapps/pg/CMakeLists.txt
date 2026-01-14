@@ -34,6 +34,7 @@ foreach(RC_FILE ${PETSC_RC_FILES})
   add_custom_command(OUTPUT ${RC_FILE}
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
     ${CMAKE_CURRENT_SOURCE_DIR}/${RC_FILE} ${CMAKE_CURRENT_BINARY_DIR}/${RC_FILE}
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${RC_FILE}
     COMMENT "copy ${RC_FILE}")
 endforeach()
 add_custom_target(copy_pg_petsc_rc_files DEPENDS ${PETSC_RC_FILES}
