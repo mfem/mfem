@@ -150,7 +150,7 @@ protected:
                     int elem, int start, int end, const int fverts[][N]);
 
    void GetGhostFaceTransformation(
-      int f, FaceElementTransformations &FElTr) const;
+      int FaceNo, FaceElementTransformations &FElTr) const;
 
    /// Update the groups after triangle refinement
    void RefineGroups(const DSTable &v_to_v, int *middle);
