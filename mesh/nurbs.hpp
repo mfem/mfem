@@ -1289,8 +1289,7 @@ inline const real_t &NURBSPatch::operator()(int i, int j, int k, int l) const
 
 inline int NURBSExtension::KnotInd(int edge) const
 {
-   const int kv = edge_to_ukv[edge];
-   return kv >= 0 ? kv : -1 - kv;
+   return UnsignIndex(edge_to_ukv[edge]);
 }
 
 inline int NURBSExtension::KnotSign(int edge) const
@@ -1320,7 +1319,7 @@ const
    else
    {
       *okv = -oedge;
-      return knotVectors[-1-kv];
+      return knotVectors[FlipIndexSign(kv)];
    }
 }
 

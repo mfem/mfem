@@ -3589,7 +3589,7 @@ void NCMesh::TraverseTetEdge(int vn0, int vn1, const Point &p0, const Point &p1,
          // non-slave edge is really a (face-)slave itself.
          const MeshId &eid = *eid_and_type.id;
          face_list.slaves.Append(
-            Slave(-1 - eid.index, eid.element, eid.local, Geometry::TRIANGLE));
+            Slave(FlipIndexSign(eid.index), eid.element, eid.local, Geometry::TRIANGLE));
 
          int v0index = nodes[vn0].vert_index;
          int v1index = nodes[vn1].vert_index;
