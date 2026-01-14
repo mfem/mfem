@@ -495,7 +495,7 @@ void InitializeChargedParticles(ParticleSet& charged_particles,
       // Uniform positions (no accept-reject)
       for (int d = 0; d < dim; d++) { X(i, d) = real_dist(gen) * L_x; }
 
-      // Option 2: displacement along x for perturbation ~ cos(k x)
+      // Displacement along x for perturbation ~ cos(k x)
       for (int d = 0; d < dim; d++)
       {
          real_t x = X(i, d);
