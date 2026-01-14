@@ -70,10 +70,12 @@ static void AddKernelSpecializations()
    GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 2>::Add();
    GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 7>::Add();
    GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 8>::Add();
+   GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 9>::Add();
 
    using LIN = DomainLFIntegrator::AssembleKernels;
    LIN::Specialization<3, 7, 7>::Add();
    LIN::Specialization<3, 6, 6>::Add();
+   LIN::Specialization<3, 8, 8>::Add();
 
    using VDIFF = VectorDiffusionIntegrator::ApplyPAKernels;
    VDIFF::Specialization<3, 3, 3, 3>::Add();
@@ -81,6 +83,7 @@ static void AddKernelSpecializations()
    VDIFF::Specialization<3, 3, 5, 5>::Add();
    VDIFF::Specialization<3, 3, 6, 6>::Add();
    VDIFF::Specialization<3, 3, 7, 7>::Add();
+   VDIFF::Specialization<3, 3, 8, 8>::Add();
 }
 
 // Bake-off base class
