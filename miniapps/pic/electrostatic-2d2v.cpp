@@ -28,7 +28,9 @@
 // Solution process (per timestep, repeating steps 1-6):
 //   (1) Deposit charge from particles to grid via Dirac delta function
 //       to form the RHS of the Poisson equation
-//   (2) Solve Poisson equation (Δφ = -ρ) to compute potential φ
+//   (2) Solve Poisson equation (-Δφ = ρ - ρ_0) to compute potential φ, where
+//       ρ_0 is a constant neutralizing term that enforces global charge
+//       neutrality.
 //   (3) Compute electric field E = -∇φ from the potential
 //   (4) Interpolate E-field to particle positions
 //   (5) Push particles using leap-frog scheme (update momentum and position)
@@ -39,11 +41,7 @@
 // Sample runs:
 //
 //   Linear Landau damping test case (Ricketson & Hu, 2025):
-//      mpirun -n 4 ./electrostatic-2d2v -rdf 1 -npt 102400 -k 0.2855993321 -a 0.05
-//                                   -nt 200 -nx 16 -ny 16 -O 1
-//                                   -q 0.001181640625 -m 0.001181640625
-//                                   -ocf 1000 -dt 0.1
-//
+//      mpirun -n 4 ./electrostatic-2d2v -rdf 1 -npt 102400 -k 0.2855993321 -a 0.05 -nt 200 -nx 16 -ny 16 -O 1 -q 0.001181640625 -m 0.001181640625 -ocf 1000 -dt 0.1
 
 #include <chrono>
 #include <ctime>
@@ -215,7 +213,7 @@ int main(int argc, char* argv[])
    args.AddOption(&ctx.t_init, "-ti", "--initial-time", "Initial Time.");
    args.AddOption(&ctx.nt, "-nt", "--num-timesteps", "Number of timesteps.");
    args.AddOption(&ctx.npt, "-npt", "--num-particles",
-                  "Total number of particles.");
+                  "Number of particles per rank.");
    args.AddOption(&ctx.k, "-k", "--k", "K parameter for initial distribution.");
    args.AddOption(&ctx.alpha, "-a", "--alpha",
                   "Alpha parameter for initial distribution.");
@@ -243,7 +241,7 @@ int main(int argc, char* argv[])
 
    ParGridFunction* E_gf = nullptr;
 
-   // build up E_gf, B_gf can remain nullptr
+   // build up E_gf
    // 1. make a 2D Cartesian Mesh
    Mesh serial_mesh(Mesh::MakeCartesian2D(
                        ctx.nx, ctx.ny, Element::QUADRILATERAL, false, ctx.L_x, ctx.L_x));
@@ -251,7 +249,8 @@ int main(int argc, char* argv[])
                                        Vector({0.0, ctx.L_x})
                                       };
    Mesh periodic_mesh(Mesh::MakePeriodic(
-                         serial_mesh, serial_mesh.CreatePeriodicVertexMapping(translations)));
+                         serial_mesh,
+                         serial_mesh.CreatePeriodicVertexMapping(translations)));
    // 2. parallelize the mesh
    ParMesh mesh(MPI_COMM_WORLD, periodic_mesh);
    serial_mesh.Clear();    // the serial mesh is no longer needed
@@ -369,10 +368,11 @@ void PIC::ParticleStep(Particle& part, real_t& dt, bool zeroth_step)
    x.Add(dt / m, p);
 
    // periodic boundary: wrap around using ctx mesh extents
-   x(0) = fmod(x(0), ctx.L_x);
-   if (x(0) < 0.0) { x(0) += ctx.L_x; }
-   x(1) = fmod(x(1), ctx.L_x);
-   if (x(1) < 0.0) { x(1) += ctx.L_x; }
+   for (int d = 0; d < x.Size(); d++)
+   {
+      x(d) = std::fmod(x(d), ctx.L_x);
+      if (x(d) < 0.0) { x(d) += ctx.L_x; }
+   }
 }
 
 PIC::PIC(MPI_Comm comm, ParGridFunction* E_gf_, int num_particles,
@@ -390,8 +390,9 @@ PIC::PIC(MPI_Comm comm, ParGridFunction* E_gf_, int num_particles,
    pm_.SetSize(dim);
    pp_.SetSize(dim);
 
-   // Create particle set: 2 scalars of mass and charge, 3 vectors of size space dim for momentum, e field, and b field
-   Array<int> field_vdims({1, 1, dim, dim, dim});
+   // Create particle set: 2 scalars of mass and charge,
+   // 2 vectors of size space dim for momentum and e field
+   Array<int> field_vdims({1, 1, dim, dim});
    charged_particles = std::make_unique<ParticleSet>(
                           comm, ctx.npt, dim, field_vdims, 1, pdata_ordering);
 }
@@ -464,8 +465,9 @@ void display_banner(ostream& os)
       << flush;
 }
 
-void InitializeChargedParticles(ParticleSet& charged_particles, const real_t& k,
-                                const real_t& alpha, real_t m, real_t q,
+void InitializeChargedParticles(ParticleSet& charged_particles,
+                                const real_t& k,const real_t& alpha,
+                                real_t m, real_t q,
                                 real_t L_x, bool reproduce)
 {
    int rank;
@@ -494,7 +496,7 @@ void InitializeChargedParticles(ParticleSet& charged_particles, const real_t& k,
       // Uniform positions (no accept-reject)
       for (int d = 0; d < dim; d++) { X(i, d) = real_dist(gen) * L_x; }
 
-      // Option 2: displacement along x for perturbation ~ cos(k x)
+      // Displacement along x for perturbation ~ cos(k x)
       for (int d = 0; d < dim; d++)
       {
          real_t x = X(i, d);
@@ -535,14 +537,14 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet& particles,
       MFEM_VERIFY(Q.GetVDim() == 1,
                   "Charge field must be scalar per particle.");
 
-      // ------------------------------------------------------------------------
+      // --------------------------------------------------------
       // 1) Build positions in byVDIM ordering: (XYZ,XYZ,...)
-      // ------------------------------------------------------------------------
+      // --------------------------------------------------------
       Vector point_pos(X.GetData(), dim * npt);  // alias underlying storage
 
-      // ------------------------------------------------------------------------
+      // --------------------------------------------------------
       // 2) Locate particles with FindPointsGSLIB
-      // ------------------------------------------------------------------------
+      // --------------------------------------------------------
       FindPointsGSLIB finder(pmesh->GetComm());
       finder.Setup(*pmesh);
       finder.FindPoints(point_pos, ordering_type);
@@ -553,9 +555,9 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet& particles,
       const Array<unsigned int>& elem = finder.GetElem();  // local element id
       const Vector& rref = finder.GetReferencePosition();  // (r,s,t) byVDIM
 
-      // ------------------------------------------------------------------------
-      // 3) Make RHS and pre-subtract averaged charge density => enforce zero-mean RHS
-      // ------------------------------------------------------------------------
+      // --------------------------------------------------------
+      // 3) Make RHS and pre-subtract averaged charge density for zero-mean RHS
+      // --------------------------------------------------------
 
       MPI_Comm comm = pfes->GetComm();
 
@@ -601,13 +603,13 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet& particles,
          precomputed_neutralizing_lf->Assemble();
       }
       ParLinearForm b(pfes);
-      b =
-         *precomputed_neutralizing_lf;  // start with precomputed neutralizing contribution
+      // start with precomputed neutralizing contribution
+      b = *precomputed_neutralizing_lf;
 
-      // ------------------------------------------------------------------------
+      // --------------------------------------------------------
       // 4) Deposit q_p * phi_i(x_p) into a ParLinearForm (RHS b)
       //      b_i = sum_p q_p * φ_i(x_p)
-      // ------------------------------------------------------------------------
+      // --------------------------------------------------------
       int myid;
       MPI_Comm_rank(pmesh->GetComm(), &myid);
 
