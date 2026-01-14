@@ -863,6 +863,7 @@ void EABilinearFormExtension::Assemble()
 
    ne = trial_fes->GetMesh()->GetNE();
    elemDofs = trial_fes->GetTypicalFE()->GetDof();
+   vdim = trial_fes->GetVDim();
 
    Vector ea_data_tmp;
 
@@ -895,7 +896,7 @@ void EABilinearFormExtension::Assemble()
    };
 
    {
-      ea_data.SetSize(ne*elemDofs*elemDofs);
+      ea_data.SetSize(ne*vdim*elemDofs*vdim*elemDofs);
       ea_data.UseDevice(true);
       Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
       Array<Array<int>*> &markers_array = *a->GetDBFI_Marker();
@@ -929,7 +930,7 @@ void EABilinearFormExtension::Assemble()
       if (n_bdr_integs > 0)
       {
          nf_bdr = trial_fes->GetNFbyType(FaceType::Boundary);
-         ea_data_bdr.SetSize(nf_bdr*faceDofs*faceDofs);
+         ea_data_bdr.SetSize(nf_bdr*vdim*faceDofs*vdim*faceDofs);
       }
       for (int i = 0; i < n_bdr_integs; ++i)
       {
@@ -955,8 +956,8 @@ void EABilinearFormExtension::Assemble()
       if (intFaceIntegratorCount>0)
       {
          nf_int = trial_fes->GetNFbyType(FaceType::Interior);
-         ea_data_int.SetSize(2*nf_int*faceDofs*faceDofs);
-         ea_data_ext.SetSize(2*nf_int*faceDofs*faceDofs);
+         ea_data_int.SetSize(2*nf_int*vdim*faceDofs*vdim*faceDofs);
+         ea_data_ext.SetSize(2*nf_int*vdim*faceDofs*vdim*faceDofs);
       }
       for (int i = 0; i < intFaceIntegratorCount; ++i)
       {
@@ -975,7 +976,7 @@ void EABilinearFormExtension::Assemble()
       if (n_bdr_face_integs > 0)
       {
          nf_bdr = trial_fes->GetNFbyType(FaceType::Boundary);
-         ea_data_bdr.SetSize(nf_bdr*faceDofs*faceDofs);
+         ea_data_bdr.SetSize(nf_bdr*vdim*faceDofs*vdim*faceDofs);
       }
       for (int i = 0; i < n_bdr_face_integs; ++i)
       {
