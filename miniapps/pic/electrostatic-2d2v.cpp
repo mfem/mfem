@@ -29,7 +29,7 @@
 //   (1) Deposit charge from particles to grid via Dirac delta function
 //       to form the RHS of the Poisson equation
 //   (2) Solve Poisson equation (-Δφ = ρ - ρ_0) to compute potential φ, where
-//       ρ_0 is a constant neutralizing term that enforces global charge 
+//       ρ_0 is a constant neutralizing term that enforces global charge
 //       neutrality.
 //   (3) Compute electric field E = -∇φ from the potential
 //   (4) Interpolate E-field to particle positions
@@ -388,8 +388,9 @@ PIC::PIC(MPI_Comm comm, ParGridFunction* E_gf_, int num_particles,
    pm_.SetSize(dim);
    pp_.SetSize(dim);
 
-   // Create particle set: 2 scalars of mass and charge, 3 vectors of size space dim for momentum, e field, and b field
-   Array<int> field_vdims({1, 1, dim, dim, dim});
+   // Create particle set: 2 scalars of mass and charge, 
+   // 2 vectors of size space dim for momentum and e field
+   Array<int> field_vdims({1, 1, dim, dim});
    charged_particles = std::make_unique<ParticleSet>(
                           comm, ctx.npt, dim, field_vdims, 1, pdata_ordering);
 }
