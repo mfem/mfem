@@ -20,7 +20,7 @@
 //
 // Serial sample runs:
 //   > compare-dc -r0 ../../examples/Example5 \
-                  -r1 ../../examples/alt/Example5
+//                -r1 ../../examples/alt/Example5
 //
 // Parallel sample runs:
 //   > mpirun -np 4 compare-dc -r0 ../../examples/Example5-Parallel \

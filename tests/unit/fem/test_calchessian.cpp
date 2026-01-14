@@ -84,6 +84,7 @@ real_t TaylorSeriesError(const FiniteElement* fe,
 * For linear and quadratic elements the taylor series is exact.
 * For other elements the convergence should be third order.
 */
+
 void CheckTaylorSeries(const FiniteElement* fe,
                        const IntegrationPoint &ip,
                        const Vector &dx)
@@ -365,17 +366,18 @@ TEST_CASE("Laplacian",
    }
 
    // Create Space
-   FiniteElementCollection *fe_coll;
+   FiniteElementCollection *fe_coll = nullptr;
+   NURBSExtension *ext  = nullptr;
    if (NURBS)
    {
       fe_coll = new NURBSFECollection (order);
+      ext = new NURBSExtension(mesh.NURBSext, order);
    }
    else
    {
       fe_coll = new H1_FECollection (order);
    }
-   FiniteElementSpace fes(&mesh, new NURBSExtension(mesh.NURBSext, order),
-                          fe_coll);
+   FiniteElementSpace fes(&mesh, ext, fe_coll);
 
    // Compute (grad w, grad phi) + (w, laplace phi) = 0
    SparseMatrix gmat(fes.GetNDofs());
