@@ -14,8 +14,6 @@ using namespace mfem;
 
 #include "unit_tests.hpp"
 
-#include <sstream>
-
 TEST_CASE("NURBS knot insertion and removal", "[NURBS]")
 {
    auto mesh_fname = "../../data/pipe-nurbs.mesh";
@@ -261,7 +259,7 @@ TEST_CASE("NURBS 1D variable-order mesh load", "[NURBS]")
    }
 }
 
-TEST_CASE("NURBS 1D shared KnotVector in patches", "[Mesh]")
+TEST_CASE("NURBS 1D shared KnotVector in patches", "[NURBS]")
 {
    auto RequireSameKnotVector = [](const KnotVector &a, const KnotVector &b)
    {

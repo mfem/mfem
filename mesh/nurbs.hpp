@@ -601,7 +601,7 @@ protected:
 
    /// Return the patch-topology edge indices that define the KnotVectors for
    /// patch @a p in each parametric direction.
-   void GetPatchKnotVectorEdges(int p, Array<int> &edges);
+   void GetPatchDirectionEdges(int p, Array<int> &edges);
 
    /** @brief Return the directions in @a kvdir of the KnotVectors in patch @a p
        based on the patch edge orientations. Each entry of @a kvdir is -1 if the

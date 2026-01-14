@@ -2387,7 +2387,7 @@ void NURBSExtension::Load(std::istream &input, bool spacing)
       Array<int> edges, kvdir;
       for (int p = 0; p < patches.Size(); p++)
       {
-         GetPatchKnotVectorEdges(p, edges);
+         GetPatchDirectionEdges(p, edges);
          CheckKVDirection(p, kvdir);
 
          for (int d = 0; d < dim; d++)
@@ -3320,7 +3320,7 @@ void NURBSExtension::CheckBdrPatches()
    }
 }
 
-void NURBSExtension::GetPatchKnotVectorEdges(int p, Array<int> &edges)
+void NURBSExtension::GetPatchDirectionEdges(int p, Array<int> &edges)
 {
    const int dim = Dimension();
    edges.SetSize(dim);
@@ -3351,7 +3351,7 @@ void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
    if (dim == 1)
    {
       Array<int> edges;
-      GetPatchKnotVectorEdges(p, edges);
+      GetPatchDirectionEdges(p, edges);
       // In 1D, the sign of edge_to_ukv encodes the per-patch orientation.
       kvdir[0] = KnotSign(edges[0]);
       return;
@@ -3427,7 +3427,7 @@ void NURBSExtension::CreateComprehensiveKV()
 
    for (int p = 0; p < GetNP(); p++)
    {
-      GetPatchKnotVectorEdges(p, edges);
+      GetPatchDirectionEdges(p, edges);
       CheckKVDirection(p, kvdir);
 
       for (int d = 0; d < dim; d++)
@@ -3449,7 +3449,7 @@ void NURBSExtension::UpdateUniqueKV()
    Array<int> edges, kvdir;
    for (int p = 0; p < GetNP(); p++)
    {
-      GetPatchKnotVectorEdges(p, edges);
+      GetPatchDirectionEdges(p, edges);
       CheckKVDirection(p, kvdir);
 
       for (int d = 0; d < dim; d++)
@@ -3508,7 +3508,7 @@ bool NURBSExtension::ConsistentKVSets()
 
    for (int p = 0; p < GetNP(); p++)
    {
-      GetPatchKnotVectorEdges(p, edges);
+      GetPatchDirectionEdges(p, edges);
       CheckKVDirection(p, kvdir);
 
       for (int d = 0; d < dim; d++)
@@ -4868,7 +4868,7 @@ void NURBSExtension::KnotInsert(Array<KnotVector *> &kv)
 
    for (int p = 0; p < patches.Size(); p++)
    {
-      GetPatchKnotVectorEdges(p, edges);
+      GetPatchDirectionEdges(p, edges);
       for (int d = 0; d < Dimension(); d++)
       {
          pkv[d] = kv[KnotInd(edges[d])];
@@ -4904,7 +4904,7 @@ void NURBSExtension::KnotInsert(Array<Vector *> &kv)
 
    for (int p = 0; p < patches.Size(); p++)
    {
-      GetPatchKnotVectorEdges(p, edges);
+      GetPatchDirectionEdges(p, edges);
       for (int d = 0; d < Dimension(); d++)
       {
          pkv[d] = kv[KnotInd(edges[d])];
@@ -4952,7 +4952,7 @@ void NURBSExtension::KnotRemove(Array<Vector *> &kv, real_t tol)
 
    for (int p = 0; p < patches.Size(); p++)
    {
-      GetPatchKnotVectorEdges(p, edges);
+      GetPatchDirectionEdges(p, edges);
       for (int d = 0; d < Dimension(); d++)
       {
          pkv[d] = kv[KnotInd(edges[d])];

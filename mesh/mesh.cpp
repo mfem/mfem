@@ -12420,12 +12420,6 @@ void Mesh::PrintTopoEdges(std::ostream &os, const Array<int> &e_to_k,
          const bool flip = (ki < 0); // desired output vertex order: descending
          if (flip) { ki = -1 - ki; } // print the unsigned knotvector index
 
-         if (vmap && ncmesh)
-         {
-            v0 = ncmesh->vertex_nodeId[v0];
-            v1 = ncmesh->vertex_nodeId[v1];
-         }
-
          // Encode the sign of e_to_k in the vertex ordering, consistent with
          // Mesh::LoadPatchTopo(): v0 > v1 => negative sign.
          if ((v0 > v1) != flip) { std::swap(v0, v1); }
