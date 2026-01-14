@@ -19,7 +19,7 @@
 //               nurbs_ex1 -m meshes/two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf meshes/two-cubes.ref
 //               nurbs_ex1 -m ../../data/segment-nurbs.mesh -r 2 -o 2 -lod 3
 //               nurbs_ex1 -m meshes/square-nurbs-deformed.mesh -o 2
-//               nurbs_ex1 -m meshes/square-nurbs-deformed.mesh-o 2 -no-ibp
+//               nurbs_ex1 -m meshes/square-nurbs-deformed.mesh -o 2 -no-ibp
 //               nurbs_ex1 -m meshes/cube-nurbs-deformed.mesh -o 2
 //               nurbs_ex1 -m meshes/cube-nurbs-deformed.mesh -o 2 -no-ibp
 //
