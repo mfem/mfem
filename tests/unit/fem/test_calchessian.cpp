@@ -218,7 +218,6 @@ TEST_CASE("CalcHessian",
 
    SECTION("H1_HexahedronElement")
    {
-      std::cout<<"H1_HexahedronElement"<<std::endl;
       int order = GENERATE(1,2,3,4,5);
       mfem::out<<"H1_HexahedronElement = "<<order<<std::endl;
       H1_HexahedronElement fe(order);
@@ -300,7 +299,7 @@ TEST_CASE("CalcHessian",
    }
 }
 
-TEST_CASE("Lapacian",
+TEST_CASE("Laplacian",
           "[NURBS2DFiniteElement]"
           "[NURBS3DFiniteElement]")
 {
