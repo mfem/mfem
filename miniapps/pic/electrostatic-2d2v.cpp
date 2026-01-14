@@ -249,7 +249,8 @@ int main(int argc, char* argv[])
                                        Vector({0.0, ctx.L_x})
                                       };
    Mesh periodic_mesh(Mesh::MakePeriodic(
-                         serial_mesh, serial_mesh.CreatePeriodicVertexMapping(translations)));
+                         serial_mesh,
+                         serial_mesh.CreatePeriodicVertexMapping(translations)));
    // 2. parallelize the mesh
    ParMesh mesh(MPI_COMM_WORLD, periodic_mesh);
    serial_mesh.Clear();    // the serial mesh is no longer needed
@@ -388,7 +389,7 @@ PIC::PIC(MPI_Comm comm, ParGridFunction* E_gf_, int num_particles,
    pm_.SetSize(dim);
    pp_.SetSize(dim);
 
-   // Create particle set: 2 scalars of mass and charge, 
+   // Create particle set: 2 scalars of mass and charge,
    // 2 vectors of size space dim for momentum and e field
    Array<int> field_vdims({1, 1, dim, dim});
    charged_particles = std::make_unique<ParticleSet>(
@@ -463,8 +464,9 @@ void display_banner(ostream& os)
       << flush;
 }
 
-void InitializeChargedParticles(ParticleSet& charged_particles, const real_t& k,
-                                const real_t& alpha, real_t m, real_t q,
+void InitializeChargedParticles(ParticleSet& charged_particles,
+                                const real_t& k,const real_t& alpha,
+                                real_t m, real_t q,
                                 real_t L_x, bool reproduce)
 {
    int rank;
@@ -534,14 +536,14 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet& particles,
       MFEM_VERIFY(Q.GetVDim() == 1,
                   "Charge field must be scalar per particle.");
 
-      // ------------------------------------------------------------------------
+      // --------------------------------------------------------
       // 1) Build positions in byVDIM ordering: (XYZ,XYZ,...)
-      // ------------------------------------------------------------------------
+      // --------------------------------------------------------
       Vector point_pos(X.GetData(), dim * npt);  // alias underlying storage
 
-      // ------------------------------------------------------------------------
+      // --------------------------------------------------------
       // 2) Locate particles with FindPointsGSLIB
-      // ------------------------------------------------------------------------
+      // --------------------------------------------------------
       FindPointsGSLIB finder(pmesh->GetComm());
       finder.Setup(*pmesh);
       finder.FindPoints(point_pos, ordering_type);
@@ -552,9 +554,9 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet& particles,
       const Array<unsigned int>& elem = finder.GetElem();  // local element id
       const Vector& rref = finder.GetReferencePosition();  // (r,s,t) byVDIM
 
-      // ------------------------------------------------------------------------
-      // 3) Make RHS and pre-subtract averaged charge density => enforce zero-mean RHS
-      // ------------------------------------------------------------------------
+      // --------------------------------------------------------
+      // 3) Make RHS and pre-subtract averaged charge density for zero-mean RHS
+      // --------------------------------------------------------
 
       MPI_Comm comm = pfes->GetComm();
 
@@ -600,13 +602,13 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet& particles,
          precomputed_neutralizing_lf->Assemble();
       }
       ParLinearForm b(pfes);
-      b =
-         *precomputed_neutralizing_lf;  // start with precomputed neutralizing contribution
+      // start with precomputed neutralizing contribution
+      b = *precomputed_neutralizing_lf;
 
-      // ------------------------------------------------------------------------
+      // --------------------------------------------------------
       // 4) Deposit q_p * phi_i(x_p) into a ParLinearForm (RHS b)
       //      b_i = sum_p q_p * φ_i(x_p)
-      // ------------------------------------------------------------------------
+      // --------------------------------------------------------
       int myid;
       MPI_Comm_rank(pmesh->GetComm(), &myid);
 
