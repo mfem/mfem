@@ -13,19 +13,23 @@
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
 MFEM_INSTALL_DIR ?= ../../mfem
-SRC = 
+SRC =
 CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
    $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS =
-PAR_MINIAPPS = electrostatic-2d2v
+PAR_MINIAPPS =
+
+ifeq ($(MFEM_USE_GSLIB),YES)
+   PAR_MINIAPPS += electrostatic-2d2v
+endif
+
 ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS = $(SEQ_MINIAPPS)
+   MINIAPPS =
 else
-   MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
+   MINIAPPS = $(PAR_MINIAPPS)
 endif
 
 .SUFFIXES:
