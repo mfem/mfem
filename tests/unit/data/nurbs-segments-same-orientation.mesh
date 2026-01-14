@@ -1,0 +1,53 @@
+MFEM NURBS mesh v1.0
+
+dimension
+1
+
+elements
+2
+1 1 0 1
+1 1 1 2
+
+boundary
+2
+1 0 0
+1 0 2
+
+# Both edges map to the same unique KnotVector (index 0).
+edges
+2
+0 0 1
+0 1 2
+
+vertices
+3
+
+patches
+
+# Patch 0: quadratic, 4 control points, 1 interior knot at u=0.3
+knotvectors
+1
+2 4  0 0 0 0.3  1 1 1
+
+dimension
+2
+
+controlpoints
+0.0 0.0 1.0
+0.3 0.0 1.0
+0.7 0.0 1.0
+1.0 0.0 1.0
+
+# Patch 1: same KnotVector, different control points (translated)
+knotvectors
+1
+2 4  0 0 0 0.3  1 1 1
+
+dimension
+2
+
+controlpoints
+1.0 0.0 1.0
+1.3 0.0 1.0
+1.7 0.0 1.0
+2.0 0.0 1.0
