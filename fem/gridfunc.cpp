@@ -4987,7 +4987,6 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMinimum(
 
    real_t min_upper_bound = upper.Min();
    real_t min_lower_bound = lower.Min();
-   const int nverts = dim == 1 ? 2 : (dim == 2 ? 4 : 8);
 
    while (!pq.empty())
    {
@@ -5013,8 +5012,6 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMinimum(
       GetElementBoundsAtControlPoints(elem, plb, current->ref_range,
                                       vdim, lower, upper, cp_ref_loc);
 
-      Vector lowerv(nverts), upperv(nverts);
-
       // process the bounds and create sub-intervals
       for (int k = 0; k < (dim == 3 ? ncp-1 : 1); k++)
       {
@@ -5022,45 +5019,40 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMinimum(
          {
             for (int i = 0; i < ncp-1; i++)
             {
+               real_t lv = 0.0, uv = 0.0;
                if (dim == 1)
                {
-                  lowerv(0) = lower(i);
-                  lowerv(1) = lower(i+1);
-                  upperv(0) = upper(i);
-                  upperv(1) = upper(i+1);
+                  lv = std::min(lower(i), lower(i+1));
+                  uv = std::min(upper(i), upper(i+1));
                }
                else if (dim == 2)
                {
-                  lowerv(0) = lower(i + j*ncp);
-                  lowerv(1) = lower((i+1) + j*ncp);
-                  lowerv(2) = lower(i + (j+1)*ncp);
-                  lowerv(3) = lower((i+1) + (j+1)*ncp);
-                  upperv(0) = upper(i + j*ncp);
-                  upperv(1) = upper((i+1) + j*ncp);
-                  upperv(2) = upper(i + (j+1)*ncp);
-                  upperv(3) = upper((i+1) + (j+1)*ncp);
+                  lv = std::min({lower(i + j*ncp), lower((i+1) + j*ncp),
+                                 lower(i + (j+1)*ncp),
+                                 lower((i+1) + (j+1)*ncp)});
+                  uv = std::min({upper(i + j*ncp), upper((i+1) + j*ncp),
+                                 upper(i + (j+1)*ncp),
+                                 upper((i+1) + (j+1)*ncp)});
                }
                else if (dim == 3)
                {
-                  lowerv(0) = lower(i + j*ncp + k*ncp*ncp);
-                  lowerv(1) = lower((i+1) + j*ncp + k*ncp*ncp);
-                  lowerv(2) = lower(i + (j+1)*ncp + k*ncp*ncp);
-                  lowerv(3) = lower((i+1) + (j+1)*ncp + k*ncp*ncp);
-                  lowerv(4) = lower(i + j*ncp + (k+1)*ncp*ncp);
-                  lowerv(5) = lower((i+1) + j*ncp + (k+1)*ncp*ncp);
-                  lowerv(6) = lower(i + (j+1)*ncp + (k+1)*ncp*ncp);
-                  lowerv(7) = lower((i+1) + (j+1)*ncp + (k+1)*ncp*ncp);
-                  upperv(0) = upper(i + j*ncp + k*ncp*ncp);
-                  upperv(1) = upper((i+1) + j*ncp + k*ncp*ncp);
-                  upperv(2) = upper(i + (j+1)*ncp + k*ncp*ncp);
-                  upperv(3) = upper((i+1) + (j+1)*ncp + k*ncp*ncp);
-                  upperv(4) = upper(i + j*ncp + (k+1)*ncp*ncp);
-                  upperv(5) = upper((i+1) + j*ncp + (k+1)*ncp*ncp);
-                  upperv(6) = upper(i + (j+1)*ncp + (k+1)*ncp*ncp);
-                  upperv(7) = upper((i+1) + (j+1)*ncp + (k+1)*ncp*ncp);
+                  lv = std::min({lower(i + j*ncp + k*ncp*ncp),
+                                 lower((i+1) + j*ncp + k*ncp*ncp),
+                                 lower(i + (j+1)*ncp + k*ncp*ncp),
+                                 lower((i+1) + (j+1)*ncp + k*ncp*ncp),
+                                 lower(i + j*ncp + (k+1)*ncp*ncp),
+                                 lower((i+1) + j*ncp + (k+1)*ncp*ncp),
+                                 lower(i + (j+1)*ncp + (k+1)*ncp*ncp),
+                                 lower((i+1) + (j+1)*ncp + (k+1)*ncp*ncp)});
+                  uv = std::min({upper(i + j*ncp + k*ncp*ncp),
+                                 upper((i+1) + j*ncp + k*ncp*ncp),
+                                 upper(i + (j+1)*ncp + k*ncp*ncp),
+                                 upper((i+1) + (j+1)*ncp + k*ncp*ncp),
+                                 upper(i + j*ncp + (k+1)*ncp*ncp),
+                                 upper((i+1) + j*ncp + (k+1)*ncp*ncp),
+                                 upper(i + (j+1)*ncp + (k+1)*ncp*ncp),
+                                 upper((i+1) + (j+1)*ncp + (k+1)*ncp*ncp)});
                }
-               real_t lv = lowerv.Min();
-               real_t uv = upperv.Min();
                IntervalNode *child_node = new IntervalNode(lv, uv);
                current->node->AddChild(child_node);
 
@@ -5083,7 +5075,8 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMinimum(
                         pos_range(2+dim) = cp_ref_loc(2*ncp + k+1);
                      }
                      SearchInterval *child_interval =
-                        new  SearchInterval(pos_range, curr_depth + 1, child_node);
+                        new  SearchInterval(pos_range, curr_depth + 1,
+                                            child_node);
                      pq.push(child_interval);
                   }
                }
@@ -5157,7 +5150,6 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMaximum(
 
    real_t max_lower_bound = val_min;
    real_t max_upper_bound = val_max;
-   const int nverts = dim == 1 ? 2 : (dim == 2 ? 4 : 8);
 
    while (!pq.empty())
    {
@@ -5183,8 +5175,6 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMaximum(
       GetElementBoundsAtControlPoints(elem, plb, current->ref_range,
                                       vdim, lower, upper, cp_ref_loc);
 
-      Vector lowerv(nverts), upperv(nverts);
-
       // process the bounds and create sub-intervals
       for (int k = 0; k < (dim == 3 ? ncp-1 : 1); k++)
       {
@@ -5192,45 +5182,40 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMaximum(
          {
             for (int i = 0; i < ncp-1; i++)
             {
+               real_t lv = 0.0, uv = 0.0;
                if (dim == 1)
                {
-                  lowerv(0) = lower(i);
-                  lowerv(1) = lower(i+1);
-                  upperv(0) = upper(i);
-                  upperv(1) = upper(i+1);
+                  lv = std::max(lower(i), lower(i+1));
+                  uv = std::max(upper(i), upper(i+1));
                }
                else if (dim == 2)
                {
-                  lowerv(0) = lower(i + j*ncp);
-                  lowerv(1) = lower((i+1) + j*ncp);
-                  lowerv(2) = lower(i + (j+1)*ncp);
-                  lowerv(3) = lower((i+1) + (j+1)*ncp);
-                  upperv(0) = upper(i + j*ncp);
-                  upperv(1) = upper((i+1) + j*ncp);
-                  upperv(2) = upper(i + (j+1)*ncp);
-                  upperv(3) = upper((i+1) + (j+1)*ncp);
+                  lv = std::max({lower(i + j*ncp), lower((i+1) + j*ncp),
+                                 lower(i + (j+1)*ncp),
+                                 lower((i+1) + (j+1)*ncp)});
+                  uv = std::max({upper(i + j*ncp), upper((i+1) + j*ncp),
+                                 upper(i + (j+1)*ncp),
+                                 upper((i+1) + (j+1)*ncp)});
                }
                else if (dim == 3)
                {
-                  lowerv(0) = lower(i + j*ncp + k*ncp*ncp);
-                  lowerv(1) = lower((i+1) + j*ncp + k*ncp*ncp);
-                  lowerv(2) = lower(i + (j+1)*ncp + k*ncp*ncp);
-                  lowerv(3) = lower((i+1) + (j+1)*ncp + k*ncp*ncp);
-                  lowerv(4) = lower(i + j*ncp + (k+1)*ncp*ncp);
-                  lowerv(5) = lower((i+1) + j*ncp + (k+1)*ncp*ncp);
-                  lowerv(6) = lower(i + (j+1)*ncp + (k+1)*ncp*ncp);
-                  lowerv(7) = lower((i+1) + (j+1)*ncp + (k+1)*ncp*ncp);
-                  upperv(0) = upper(i + j*ncp + k*ncp*ncp);
-                  upperv(1) = upper((i+1) + j*ncp + k*ncp*ncp);
-                  upperv(2) = upper(i + (j+1)*ncp + k*ncp*ncp);
-                  upperv(3) = upper((i+1) + (j+1)*ncp + k*ncp*ncp);
-                  upperv(4) = upper(i + j*ncp + (k+1)*ncp*ncp);
-                  upperv(5) = upper((i+1) + j*ncp + (k+1)*ncp*ncp);
-                  upperv(6) = upper(i + (j+1)*ncp + (k+1)*ncp*ncp);
-                  upperv(7) = upper((i+1) + (j+1)*ncp + (k+1)*ncp*ncp);
+                  lv = std::max({lower(i + j*ncp + k*ncp*ncp),
+                                 lower((i+1) + j*ncp + k*ncp*ncp),
+                                 lower(i + (j+1)*ncp + k*ncp*ncp),
+                                 lower((i+1) + (j+1)*ncp + k*ncp*ncp),
+                                 lower(i + j*ncp + (k+1)*ncp*ncp),
+                                 lower((i+1) + j*ncp + (k+1)*ncp*ncp),
+                                 lower(i + (j+1)*ncp + (k+1)*ncp*ncp),
+                                 lower((i+1) + (j+1)*ncp + (k+1)*ncp*ncp)});
+                  uv = std::max({upper(i + j*ncp + k*ncp*ncp),
+                                 upper((i+1) + j*ncp + k*ncp*ncp),
+                                 upper(i + (j+1)*ncp + k*ncp*ncp),
+                                 upper((i+1) + (j+1)*ncp + k*ncp*ncp),
+                                 upper(i + j*ncp + (k+1)*ncp*ncp),
+                                 upper((i+1) + j*ncp + (k+1)*ncp*ncp),
+                                 upper(i + (j+1)*ncp + (k+1)*ncp*ncp),
+                                 upper((i+1) + (j+1)*ncp + (k+1)*ncp*ncp)});
                }
-               real_t lv = lowerv.Max();
-               real_t uv = upperv.Max();
                IntervalNode *child_node = new IntervalNode(lv, uv);
                current->node->AddChild(child_node);
 
@@ -5253,7 +5238,8 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMaximum(
                         pos_range(2+dim) = cp_ref_loc(2*ncp + k+1);
                      }
                      SearchInterval *child_interval =
-                        new SearchInterval(pos_range, curr_depth + 1, child_node);
+                        new SearchInterval(pos_range, curr_depth + 1,
+                                           child_node);
                      pq.push(child_interval);
                   }
                }
