@@ -17,6 +17,11 @@ Discretization improvements
   Vector and VectorFE, also NURBS versions. Optionally different types of
   projections can be selected, default behaviour has not changed.
 
+Meshing improvements
+--------------------
+- Improved support for 1D NURBS meshes with variable order, including using
+  the patches construct for 1D NURBS meshes.
+
 
 Version 4.9, released on Dec 11, 2025
 =====================================
