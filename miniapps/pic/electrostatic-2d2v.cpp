@@ -729,26 +729,8 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet& particles,
 
    if (ctx.visualization)
    {
-      static socketstream sol_sock;
-      static bool init = false;
-      static ParMesh* pmesh = E_gf.ParFESpace()->GetParMesh();
-
-      int num_procs = Mpi::WorldSize();
-      int myid_vis = Mpi::WorldRank();
-      char vishost[] = "localhost";
-      int visport = ctx.visport;
-
-      if (!init)
-      {
-         sol_sock.open(vishost, visport);
-         if (sol_sock) { init = true; }
-      }
-      if (init)
-      {
-         sol_sock << "parallel " << num_procs << " " << myid_vis << "\n";
-         sol_sock.precision(8);
-         sol_sock << "solution\n" << *pmesh << E_gf << std::flush;
-      }
+      common::VisualizeField(vis_e, "localhost", 19916, E_gf, "E_field",
+                             0, 0, 500, 500);
    }
    if (ctx.visualization)
    {
