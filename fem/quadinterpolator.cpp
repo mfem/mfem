@@ -542,7 +542,8 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
    }
 
    MFEM_ASSERT(!(eval_flags & DETERMINANTS) || dim == vdim ||
-               (dim == 2 && vdim == 3), "Invalid dimensions for determinants.");
+               (dim == 2 && vdim == 3) || (dim == 1 && vdim == 2) ||
+               (dim == 1 && vdim == 3), "Invalid dimensions for determinants.");
    MFEM_ASSERT(fespace->GetMesh()->GetNumGeometries(
                   fespace->GetMesh()->Dimension()) == 1,
                "mixed meshes are not supported");
