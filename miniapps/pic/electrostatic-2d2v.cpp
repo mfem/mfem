@@ -638,12 +638,7 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet& particles,
 
          // Reference coordinates for this particle (r,s[,t]) with byVDIM layout
          IntegrationPoint ip;
-         if (dim == 1) { ip.x = rref(p); }
-         else if (dim == 2) { ip.Set2(rref[2 * p + 0], rref[2 * p + 1]); }
-         else  // dim == 3
-         {
-            ip.Set3(rref[3 * p + 0], rref[3 * p + 1], rref[3 * p + 2]);
-         }
+ip.Set(rref.GetData()+dim*p,dim);
 
          const FiniteElement& fe = *pfes->GetFE(e);
          const int ldofs = fe.GetDof();
