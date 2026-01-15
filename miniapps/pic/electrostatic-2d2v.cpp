@@ -136,6 +136,7 @@ private:
    bool use_precomputed_neutralizing_const = false;
    // Diffusion matrix
    HypreParMatrix* DiffusionMatrix;
+   FindPointsGSLIB finder;
 
 public:
    // Update the phi_gf grid function from the particles.
@@ -146,7 +147,9 @@ public:
    // constructor
    GridFunctionUpdates(ParGridFunction& phi_gf,
                        bool use_precomputed_neutralizing_const_ = false)
-      : use_precomputed_neutralizing_const(use_precomputed_neutralizing_const_)
+      : use_precomputed_neutralizing_const(
+           use_precomputed_neutralizing_const_),
+        finder(*phi_gf.ParFESpace()->GetParMesh())
    {
       // compute domain volume
       ParMesh* pmesh = phi_gf.ParFESpace()->GetParMesh();
@@ -249,8 +252,7 @@ int main(int argc, char* argv[])
                                        Vector({0.0, ctx.L_x})
                                       };
    Mesh periodic_mesh(Mesh::MakePeriodic(
-                         serial_mesh,
-                         serial_mesh.CreatePeriodicVertexMapping(translations)));
+                         serial_mesh, serial_mesh.CreatePeriodicVertexMapping(translations)));
    // 2. parallelize the mesh
    ParMesh mesh(MPI_COMM_WORLD, periodic_mesh);
    serial_mesh.Clear();    // the serial mesh is no longer needed
@@ -465,9 +467,8 @@ void display_banner(ostream& os)
       << flush;
 }
 
-void InitializeChargedParticles(ParticleSet& charged_particles,
-                                const real_t& k,const real_t& alpha,
-                                real_t m, real_t q,
+void InitializeChargedParticles(ParticleSet& charged_particles, const real_t& k,
+                                const real_t& alpha, real_t m, real_t q,
                                 real_t L_x, bool reproduce)
 {
    int rank;
@@ -545,8 +546,6 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet& particles,
       // --------------------------------------------------------
       // 2) Locate particles with FindPointsGSLIB
       // --------------------------------------------------------
-      FindPointsGSLIB finder(pmesh->GetComm());
-      finder.Setup(*pmesh);
       finder.FindPoints(point_pos, ordering_type);
 
       const Array<unsigned int>& code =
@@ -638,7 +637,7 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet& particles,
 
          // Reference coordinates for this particle (r,s[,t]) with byVDIM layout
          IntegrationPoint ip;
-ip.Set(rref.GetData()+dim*p,dim);
+         ip.Set(rref.GetData() + dim * p, dim);
 
          const FiniteElement& fe = *pfes->GetFE(e);
          const int ldofs = fe.GetDof();
