@@ -23,7 +23,7 @@
 // (2) Dzanic et al., "A method for bounding high-order finite element
 //     functions: Applications to mesh validity and bounds-preserving limiters".
 //
-// We also use a recursive subdivision strategy to computer tighter estimate of
+// We also use a recursive subdivision strategy to compute tighter estimate of
 // the function extremum.
 //
 // Compile with: make gridfunction-bounds
@@ -292,7 +292,7 @@ int main (int argc, char *argv[])
       {
          cout << "Compare function extremum for component " <<
               d << endl;
-         const int w = 20;
+         constexpr int w = 20;
          cout << left << setw(w) << " "
               << setw(w) << "PL Bound"
               << setw(w) << "PL Bound + recursion" << endl
