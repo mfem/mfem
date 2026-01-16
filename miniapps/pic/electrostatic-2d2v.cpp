@@ -41,7 +41,7 @@
 // Sample runs:
 //
 //   Linear Landau damping test case (Ricketson & Hu, 2025):
-//      mpirun -n 4 ./electrostatic-2d2v -rdf 1 -npt 102400 -k 0.2855993321 -a 0.05 -nt 200 -nx 16 -ny 16 -O 1 -q 0.001181640625 -m 0.001181640625 -ocf 1000 -dt 0.1
+//      mpirun -n 4 ./electrostatic-2d2v -rdf 1 -npt 102400 -k 0.2855993321 -a 0.05 -nt 200 -nx 32 -ny 32 -O 1 -q 0.001181640625 -m 0.001181640625 -ocf 1000 -dt 0.1
 
 #include <chrono>
 #include <ctime>
@@ -136,6 +136,9 @@ private:
    bool use_precomputed_neutralizing_const = false;
    // Diffusion matrix
    HypreParMatrix* DiffusionMatrix;
+   FindPointsGSLIB finder;
+   socketstream vis_e;
+   socketstream vis_phi;
 
 public:
    // Update the phi_gf grid function from the particles.
@@ -146,7 +149,10 @@ public:
    // constructor
    GridFunctionUpdates(ParGridFunction& phi_gf,
                        bool use_precomputed_neutralizing_const_ = false)
-      : use_precomputed_neutralizing_const(use_precomputed_neutralizing_const_)
+      : use_precomputed_neutralizing_const(use_precomputed_neutralizing_const_),
+        finder(*phi_gf.ParFESpace()->GetParMesh()),
+        vis_e("localhost", ctx.visport),
+        vis_phi("localhost", ctx.visport)
    {
       // compute domain volume
       ParMesh* pmesh = phi_gf.ParFESpace()->GetParMesh();
@@ -249,8 +255,7 @@ int main(int argc, char* argv[])
                                        Vector({0.0, ctx.L_x})
                                       };
    Mesh periodic_mesh(Mesh::MakePeriodic(
-                         serial_mesh,
-                         serial_mesh.CreatePeriodicVertexMapping(translations)));
+                         serial_mesh, serial_mesh.CreatePeriodicVertexMapping(translations)));
    // 2. parallelize the mesh
    ParMesh mesh(MPI_COMM_WORLD, periodic_mesh);
    serial_mesh.Clear();    // the serial mesh is no longer needed
@@ -465,9 +470,8 @@ void display_banner(ostream& os)
       << flush;
 }
 
-void InitializeChargedParticles(ParticleSet& charged_particles,
-                                const real_t& k,const real_t& alpha,
-                                real_t m, real_t q,
+void InitializeChargedParticles(ParticleSet& charged_particles, const real_t& k,
+                                const real_t& alpha, real_t m, real_t q,
                                 real_t L_x, bool reproduce)
 {
    int rank;
@@ -545,8 +549,6 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet& particles,
       // --------------------------------------------------------
       // 2) Locate particles with FindPointsGSLIB
       // --------------------------------------------------------
-      FindPointsGSLIB finder(pmesh->GetComm());
-      finder.Setup(*pmesh);
       finder.FindPoints(point_pos, ordering_type);
 
       const Array<unsigned int>& code =
@@ -632,18 +634,12 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet& particles,
                        << " but current rank is " << myid << "." << endl
                        << "You must call redistribute everytime before "
                        "updating the density grid function.");
-            continue;
          }
          const int e = elem[p];
 
          // Reference coordinates for this particle (r,s[,t]) with byVDIM layout
          IntegrationPoint ip;
-         if (dim == 1) { ip.x = rref(p); }
-         else if (dim == 2) { ip.Set2(rref[2 * p + 0], rref[2 * p + 1]); }
-         else  // dim == 3
-         {
-            ip.Set3(rref[3 * p + 0], rref[3 * p + 1], rref[3 * p + 2]);
-         }
+         ip.Set(rref.GetData() + dim * p, dim);
 
          const FiniteElement& fe = *pfes->GetFE(e);
          const int ldofs = fe.GetDof();
@@ -735,49 +731,10 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet& particles,
 
    if (ctx.visualization)
    {
-      static socketstream sol_sock;
-      static bool init = false;
-      static ParMesh* pmesh = E_gf.ParFESpace()->GetParMesh();
-
-      int num_procs = Mpi::WorldSize();
-      int myid_vis = Mpi::WorldRank();
-      char vishost[] = "localhost";
-      int visport = ctx.visport;
-
-      if (!init)
-      {
-         sol_sock.open(vishost, visport);
-         if (sol_sock) { init = true; }
-      }
-      if (init)
-      {
-         sol_sock << "parallel " << num_procs << " " << myid_vis << "\n";
-         sol_sock.precision(8);
-         sol_sock << "solution\n" << *pmesh << E_gf << std::flush;
-      }
-   }
-   if (ctx.visualization)
-   {
-      static socketstream sol_sock;
-      static bool init = false;
-      static ParMesh* pmesh = phi_gf.ParFESpace()->GetParMesh();
-
-      int num_procs = Mpi::WorldSize();
-      int myid_vis = Mpi::WorldRank();
-      char vishost[] = "localhost";
-      int visport = ctx.visport;
-
-      if (!init)
-      {
-         sol_sock.open(vishost, visport);
-         if (sol_sock) { init = true; }
-      }
-      if (init)
-      {
-         sol_sock << "parallel " << num_procs << " " << myid_vis << "\n";
-         sol_sock.precision(8);
-         sol_sock << "solution\n" << *pmesh << phi_gf << std::flush;
-      }
+      common::VisualizeField(vis_e, "localhost", 19916, E_gf, "E_field",
+                             0, 0, 500, 500);
+      common::VisualizeField(vis_phi, "localhost", 19916, phi_gf, "Potential",
+                             500, 0, 500, 500);
    }
 }
 
