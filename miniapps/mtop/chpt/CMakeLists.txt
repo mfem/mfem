@@ -39,9 +39,15 @@ add_mfem_miniapp(mtop_test_segmentio
 		 ${CHPT_COMMON_FILES}
                  LIBRARIES mfem)
 
-add_mfem_miniapp(mtop_test_fileio
+add_mfem_miniapp(mtop_test_file
 		 MAIN tst_fileio_scalar_vector_mfem.cpp
 		 ${CHPT_COMMON_FILES}
+                 LIBRARIES mfem)
+
+
+add_mfem_miniapp(mtop_test_revolve
+                 MAIN revolve.cpp
+                 ${CHPT_COMMON_FILES}
                  LIBRARIES mfem)
 
 
