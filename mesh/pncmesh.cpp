@@ -1195,8 +1195,17 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       }
    }
 
-   // If there are shared slaves, they will also need to be updated.
+   // If there are shared slaves, they will also need to be updated. First,
+   // check whether the update has already been done.
+   bool sharedUpdated = false;
    if (shared.slaves.Size())
+   {
+      int nfaces = NFaces, nghosts = NGhostFaces;
+      if (Dim <= 2) { nfaces = NEdges, nghosts = NGhostEdges; }
+      sharedUpdated = (pmesh.faces_info.Size() == nfaces + nghosts);
+   }
+
+   if (shared.slaves.Size() && !sharedUpdated)
    {
       int nfaces = NFaces, nghosts = NGhostFaces;
       if (Dim <= 2) { nfaces = NEdges, nghosts = NGhostEdges; }
@@ -1309,7 +1318,6 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
          }
       }
    }
-
 
    // In 3D some extra orientation data structures can be needed.
    if (Dim == 3)
