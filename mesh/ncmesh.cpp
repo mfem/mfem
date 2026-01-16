@@ -145,6 +145,7 @@ NCMesh::NCMesh(const Mesh *mesh)
       // if we have pyramids we will need tets after refinement
       if (geom == Geometry::PYRAMID)
       {
+         CheckSupportedGeom(Geometry::TETRAHEDRON);
          GI[Geometry::TETRAHEDRON].InitGeom(Geometry::TETRAHEDRON);
       }
 
@@ -599,6 +600,11 @@ void Refinement::SetType(char type, real_t scale)
    SetScale(ScaledType(type, scale));
 }
 
+int Refinement::GetNumChildren(Geometry::Type geom_type, char ref_type)
+{
+   return geom_ref_type_num_children[geom_type][int(ref_type)];
+}
+
 NCMesh::Element::Element(Geometry::Type geom, int attr)
    : geom(geom), ref_type(0), tet_type(0), flag(0), index(-1)
    , rank(0), attribute(attr), parent(-1)
@@ -955,8 +961,7 @@ void NCMesh::FindEdgeElements(int vn1, int vn2, int vn3, int vn4,
 void NCMesh::CheckAnisoPrism(int vn1, int vn2, int vn3, int vn4,
                              const Refinement *refs, int nref)
 {
-   MeshId buf[4];
-   Array<MeshId> eid(buf, 4);
+   Array<MeshId> eid(4);
    FindEdgeElements(vn1, vn2, vn3, vn4, eid);
 
    // see if there is an element that has not been force-refined yet
@@ -971,7 +976,30 @@ void NCMesh::CheckAnisoPrism(int vn1, int vn2, int vn3, int vn4,
       {
          // schedule prism refinement along Z axis
          MFEM_ASSERT(elements[elem].Geom() == Geometry::PRISM, "");
-         ref_stack.Append(Refinement(elem, 4));
+         ref_stack.Append(Refinement(elem, Refinement::Z));
+      }
+   }
+}
+
+void NCMesh::CheckAnisoPyramid(int vn1, int vn2, int vn3, int vn4,
+                               const Refinement *refs, int nref)
+{
+   Array<MeshId> eid(4);
+   FindEdgeElements(vn1, vn2, vn3, vn4, eid);
+
+   // see if there is an element that has not been force-refined yet
+   for (int i = 0, j; i < eid.Size(); i++)
+   {
+      int elem = eid[i].element;
+      for (j = 0; j < nref; j++)
+      {
+         if (refs[j].index == elem) { break; }
+      }
+      if (j == nref) // elem not found in refs[]
+      {
+         // schedule full pyramid refinement
+         MFEM_ASSERT(elements[elem].Geom() == Geometry::PYRAMID, "");
+         ref_stack.Append(Refinement(elem, Refinement::XYZ));
       }
    }
 }
@@ -1052,10 +1080,28 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
             {
                CheckAnisoPrism(mid23, vn3, vn4, mid41,
                                &ref_stack[rs], ref_stack.Size() - rs);
+               CheckAnisoPrism(vn1, vn2, mid23, mid41,
+                               &ref_stack[rs], ref_stack.Size() - rs);
             }
             else
             {
                CheckAnisoPrism(mid23, vn3, vn4, mid41, NULL, 0);
+               CheckAnisoPrism(vn1, vn2, mid23, mid41, NULL, 0);
+            }
+         }
+         if (HavePyramids() && nodes[midf].HasEdge())
+         {
+            // Check if there is a pyramid with edge (mid23, mid41) that we may
+            // have missed in 'CheckAnisoFace', and force-refine it if present.
+
+            if (ref_stack.Size() > rs)
+            {
+               CheckAnisoPyramid(mid23, vn3, vn4, mid41,
+                                 &ref_stack[rs], ref_stack.Size() - rs);
+            }
+            else
+            {
+               CheckAnisoPyramid(mid23, vn3, vn4, mid41, NULL, 0);
             }
          }
 
@@ -1783,33 +1829,24 @@ void NCMesh::RefineElement(const Refinement & ref)
 
       child[0] = NewPyramid(no[0], mid01, midf0, mid03, mid04,
                             attr, fa[0], fa[1], -1, -1, fa[4]);
-
-      child[1] = NewPyramid(mid01, no[1], mid12, midf0, mid14,
-                            attr, fa[0], fa[1], fa[2], -1, -1);
-
-      child[2] = NewPyramid(midf0, mid12, no[2], mid23, mid24,
-                            attr, fa[0], -1, fa[2], fa[3], -1);
-
-      child[3] = NewPyramid(mid03, midf0, mid23, no[3], mid34,
-                            attr, fa[0], -1, -1, fa[3], fa[4]);
-
-      child[4] = NewPyramid(mid24, mid14, mid04, mid34, midf0,
-                            attr, -1, -1, -1, -1, -1);
-
-      child[5] = NewPyramid(mid04, mid14, mid24, mid34, no[4],
-                            attr, -1, fa[1], fa[2], fa[3], fa[4]);
-
-      child[6] = NewTetrahedron(mid01, midf0, mid04, mid14,
+      child[1] = NewTetrahedron(mid01, midf0, mid04, mid14,
                                 attr, -1, -1, -1, fa[1]);
-
-      child[7] = NewTetrahedron(midf0, mid14, mid12, mid24,
+      child[2] = NewPyramid(mid01, no[1], mid12, midf0, mid14,
+                            attr, fa[0], fa[1], fa[2], -1, -1);
+      child[3] = NewTetrahedron(midf0, mid14, mid12, mid24,
                                 attr, -1, -1, fa[2], -1);
-
-      child[8] = NewTetrahedron(midf0, mid23, mid34, mid24,
+      child[4] = NewPyramid(midf0, mid12, no[2], mid23, mid24,
+                            attr, fa[0], -1, fa[2], fa[3], -1);
+      child[5] = NewTetrahedron(midf0, mid23, mid34, mid24,
                                 attr, -1, -1, fa[3], -1);
-
-      child[9] = NewTetrahedron(mid03, mid04, midf0, mid34,
+      child[6] = NewPyramid(mid03, midf0, mid23, no[3], mid34,
+                            attr, fa[0], -1, -1, fa[3], fa[4]);
+      child[7] = NewTetrahedron(mid03, mid04, midf0, mid34,
                                 attr, -1, fa[4], -1, -1);
+      child[8] = NewPyramid(mid24, mid14, mid04, mid34, midf0,
+                            attr, -1, -1, -1, -1, -1);
+      child[9] = NewPyramid(mid04, mid14, mid24, mid34, no[4],
+                            attr, -1, fa[1], fa[2], fa[3], fa[4]);
 
       CheckIsoFace(no[3], no[2], no[1], no[0], mid23, mid12, mid01, mid03, midf0);
    }
@@ -4927,45 +4964,45 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
          Point mid24(pm(2), pm(4)), mid34(pm(3), pm(4));
          Point midf0(mid23, mid12, mid01, mid03);
 
-         if (child == 0)        // Pyramid
+         if (child == 0)   //Pyramid
          {
             pm = PointMatrix(pm(0), mid01, midf0, mid03, mid04);
          }
-         else if (child == 1)   // Pyramid
-         {
-            pm = PointMatrix(mid01, pm(1), mid12, midf0, mid14);
-         }
-         else if (child == 2)   // Pyramid
-         {
-            pm = PointMatrix(midf0, mid12, pm(2), mid23, mid24);
-         }
-         else if (child == 3)   // Pyramid
-         {
-            pm = PointMatrix(mid03, midf0, mid23, pm(3), mid34);
-         }
-         else if (child == 4)   // Pyramid
-         {
-            pm = PointMatrix(mid24, mid14, mid04, mid34, midf0);
-         }
-         else if (child == 5)   // Pyramid
-         {
-            pm = PointMatrix(mid04, mid14, mid24, mid34, pm(4));
-         }
-         else if (child == 6)   // Tet
+         if (child == 1)   //Tet
          {
             pm = PointMatrix(mid01, midf0, mid04, mid14);
          }
-         else if (child == 7)   // Tet
+         if (child == 2)   //Pyramid
+         {
+            pm = PointMatrix(mid01, pm(1), mid12, midf0, mid14);
+         }
+         if (child == 3)   //Tet
          {
             pm = PointMatrix(midf0, mid14, mid12, mid24);
          }
-         else if (child == 8)   // Tet
+         if (child == 4)   //Pyramid
+         {
+            pm = PointMatrix(midf0, mid12, pm(2), mid23, mid24);
+         }
+         if (child == 5)   //Tet
          {
             pm = PointMatrix(midf0, mid23, mid34, mid24);
          }
-         else if (child == 9)   // Tet
+         if (child == 6)   //Pyramid
+         {
+            pm = PointMatrix(mid03, midf0, mid23, pm(3), mid34);
+         }
+         if (child == 7)   //Tet
          {
             pm = PointMatrix(mid03, mid04, midf0, mid34);
+         }
+         if (child == 8)   //Pyramid
+         {
+            pm = PointMatrix(mid24, mid14, mid04, mid34, midf0);
+         }
+         if (child == 9)   //Pyramid
+         {
+            pm = PointMatrix(mid04, mid14, mid24, mid34, pm(4));
          }
       }
       else if (geom == Geometry::TETRAHEDRON)
@@ -6393,9 +6430,19 @@ void NCMesh::Print(std::ostream &os, const std::string &comments,
       if (el.parent == -2) { os << "-1\n"; continue; } // unused element
 
       os << int(el.geom) << " " << int(el.ref_type);
-      for (int j = 0; j < MaxElemNodes && el.node[j] >= 0; j++)
+      if (int(el.ref_type))
       {
-         os << " " << el.node[j];
+         for (int j = 0; (j < MaxElemChildren) && (el.child[j] >= 0); j++)
+         {
+            os << " " << el.child[j];
+         }
+      }
+      else
+      {
+         for (int j = 0; (j < MaxElemNodes) && (el.node[j] >= 0); j++)
+         {
+            os << " " << el.node[j];
+         }
       }
       os << "\n";
    }
@@ -6571,13 +6618,19 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
          CheckSupportedGeom(type);
          GI[geom].InitGeom(type);
 
+         // if we have pyramids we will need tets after refinement
+         if (geom == Geometry::PYRAMID)
+         {
+            GI[Geometry::TETRAHEDRON].InitGeom(Geometry::TETRAHEDRON);
+         }
+
          input >> ref_type;
          MFEM_VERIFY(ref_type >= 0 && ref_type < 8, "");
          el.ref_type = ref_type;
 
          if (ref_type) // refined element
          {
-            for (int j = 0; j < ref_type_num_children[ref_type]; j++)
+            for (int j = 0; j < Refinement::GetNumChildren(type, ref_type); j++)
             {
                input >> el.child[j];
             }
@@ -6727,7 +6780,7 @@ void NCMesh::LoadCoarseElements(std::istream &input)
       if (Dim == 3 && ref_type != 7) { iso = false; }
 
       // load child IDs and make parent-child links
-      int nch = ref_type_num_children[ref_type];
+      int nch = Refinement::GetNumChildren((Geometry::Type)el.geom, ref_type);
       for (int i = 0, id; i < nch; i++)
       {
          input >> id;
