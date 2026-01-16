@@ -28,6 +28,11 @@ add_mfem_miniapp(mtop_test_vector_chpt
                       MAIN vector_field.cpp
                       ${CHPT_COMMON_FILES}
                       LIBRARIES mfem)
+	      
+add_mfem_miniapp(mtop_test_fixedslot
+		 MAIN tst_fixedslot_scalar_vector.cpp
+		 ${CHPT_COMMON_FILES}
+                 LIBRARIES mfem)
 
 
 
