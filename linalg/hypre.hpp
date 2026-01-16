@@ -1407,7 +1407,7 @@ public:
    HypreParVector GetResiduals() const;
 
    /// Computes the absolute residual p-norm.
-   void FinalAbsResidualNorm(real_t &final_res_norm, real_t p) const;
+   void FinalAbsResidualNorm(real_t &final_res_norm, real_t p = 2) const;
 
    /// The typecast to HYPRE_Solver returns the internal pcg_solver
    operator HYPRE_Solver() const override { return pcg_solver; }
@@ -1484,7 +1484,7 @@ public:
    HypreParVector GetResiduals() const;
 
    /// Computes the absolute residual p-norm.
-   void FinalAbsResidualNorm(real_t &final_res_norm, real_t p) const;
+   void FinalAbsResidualNorm(real_t &final_res_norm, real_t p = 2) const;
 
    /// The typecast to HYPRE_Solver returns the internal gmres_solver
    operator HYPRE_Solver() const override { return gmres_solver; }
@@ -1559,7 +1559,7 @@ public:
    HypreParVector GetResiduals() const;
 
    /// Computes the absolute residual p-norm.
-   void FinalAbsResidualNorm(real_t &final_res_norm, real_t p) const;
+   void FinalAbsResidualNorm(real_t &final_res_norm, real_t p = 2) const;
 
    /// The typecast to HYPRE_Solver returns the internal fgmres_solver
    operator HYPRE_Solver() const override { return fgmres_solver; }
