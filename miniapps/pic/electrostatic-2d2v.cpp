@@ -137,6 +137,8 @@ private:
    // Diffusion matrix
    HypreParMatrix* DiffusionMatrix;
    FindPointsGSLIB finder;
+   socketstream vis_e;
+   socketstream vis_phi;
 
 public:
    // Update the phi_gf grid function from the particles.
@@ -147,9 +149,10 @@ public:
    // constructor
    GridFunctionUpdates(ParGridFunction& phi_gf,
                        bool use_precomputed_neutralizing_const_ = false)
-      : use_precomputed_neutralizing_const(
-           use_precomputed_neutralizing_const_),
-        finder(*phi_gf.ParFESpace()->GetParMesh())
+      : use_precomputed_neutralizing_const(use_precomputed_neutralizing_const_),
+        finder(*phi_gf.ParFESpace()->GetParMesh()),
+        vis_e("localhost", ctx.visport),
+        vis_phi("localhost", ctx.visport)
    {
       // compute domain volume
       ParMesh* pmesh = phi_gf.ParFESpace()->GetParMesh();
@@ -730,29 +733,8 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet& particles,
    {
       common::VisualizeField(vis_e, "localhost", 19916, E_gf, "E_field",
                              0, 0, 500, 500);
-   }
-   if (ctx.visualization)
-   {
-      static socketstream sol_sock;
-      static bool init = false;
-      static ParMesh* pmesh = phi_gf.ParFESpace()->GetParMesh();
-
-      int num_procs = Mpi::WorldSize();
-      int myid_vis = Mpi::WorldRank();
-      char vishost[] = "localhost";
-      int visport = ctx.visport;
-
-      if (!init)
-      {
-         sol_sock.open(vishost, visport);
-         if (sol_sock) { init = true; }
-      }
-      if (init)
-      {
-         sol_sock << "parallel " << num_procs << " " << myid_vis << "\n";
-         sol_sock.precision(8);
-         sol_sock << "solution\n" << *pmesh << phi_gf << std::flush;
-      }
+      common::VisualizeField(vis_phi, "localhost", 19916, phi_gf, "Potential",
+                             500, 0, 500, 500);
    }
 }
 
