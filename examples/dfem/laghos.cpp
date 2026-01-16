@@ -12,10 +12,10 @@
 #include "petscmat.h"
 #include <petsc/private/pcimpl.h>
 
-// TODO: Do we want this to be included from mfem.hpp automatically now?
-#include "../fem/dfem/doperator.hpp"
+#include "../fem/dfem/parametricspace.hpp"
+#include "../fem/dfem/callbacks_der_assembly.hpp"
 #include "../linalg/tensor.hpp"
-#include "petscsnes.h"
+// #include "petscsnes.h"
 #include "petscsystypes.h"
 
 #include <limits>
@@ -23,7 +23,9 @@
 #include <string>
 
 using namespace mfem;
-using mfem::internal::tensor;
+
+using namespace mfem::future;
+using mfem::future::tensor;
 
 #if defined(__has_include) && __has_include("general/nvtx.hpp") && !defined(_WIN32)
 #undef NVTX_COLOR
@@ -109,28 +111,28 @@ struct TaylorSourceQFunction
       auto f = 3.0 / 8.0 * M_PI * ( cos(3.0*M_PI*x(0)) * cos(M_PI*x(1)) -
                                     cos(M_PI*x(0))     * cos(3.0*M_PI*x(1)) );
 
-      return mfem::tuple{f * det(J) * w};
+      return mfem::future::tuple{f * det(J) * w};
    }
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 template <bool compute_dtest = false>
 MFEM_HOST_DEVICE inline
-mfem::tuple<matd, real_t> qdata_setup(const matd &dvdxi,
-                                      const real_t &rho0,
-                                      const matd &J0,
-                                      const matd &J,
-                                      const real_t &gamma,
-                                      const real_t &E,
-                                      const real_t &w,
-                                      const real_t &h0,
-                                      const real_t &order_v,
-                                      const real_t &cfl,
-                                      const bool &use_viscosity)
+mfem::future::tuple<matd, real_t> qdata_setup(const matd &dvdxi,
+                                              const real_t &rho0,
+                                              const matd &J0,
+                                              const matd &J,
+                                              const real_t &gamma,
+                                              const real_t &E,
+                                              const real_t &w,
+                                              const real_t &h0,
+                                              const real_t &order_v,
+                                              const real_t &cfl,
+                                              const bool &use_viscosity)
 {
    // dbg();
-   constexpr real_t eps = 1e-12;
-   constexpr real_t vorticity_coeff = 1.0;
+   // constexpr real_t eps = 1e-12;
+   // constexpr real_t vorticity_coeff = 1.0;
    real_t p, cs;
    real_t detJ = det(J);
    matd invJ = inv(J);
@@ -206,7 +208,7 @@ mfem::tuple<matd, real_t> qdata_setup(const matd &dvdxi,
    }
 
    matd stressJiT = stress * transpose(invJ) * detJ * w;
-   return mfem::tuple{stressJiT, dt_est};
+   return mfem::future::tuple{stressJiT, dt_est};
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -229,14 +231,14 @@ struct TimeStepEstimateQFunction
       const real_t &w) const
    {
       // dbg();
-      real_t dt_est = mfem::get<1>(
+      real_t dt_est = mfem::future::get<1>(
                          qdata_setup<true>(
                             dvdxi, rho0, J0, J, gamma, E, w,
                             external_data[EXT_DATA_IDX::H0],
                             external_data[EXT_DATA_IDX::ORDER_VEL],
                             external_data[EXT_DATA_IDX::CFL],
                             static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG])));
-      return mfem::tuple{dt_est};
+      return mfem::future::tuple{dt_est};
    }
 
    const real_t *external_data;
@@ -261,14 +263,14 @@ struct UpdateQuadratureDataQFunction
       const real_t &E,
       const real_t &w) const
    {
-      auto stressJiT = mfem::get<0>(
+      auto stressJiT = mfem::future::get<0>(
                           qdata_setup(
                              dvdxi, rho0, J0, J, gamma, E, w,
                              external_data[EXT_DATA_IDX::H0],
                              external_data[EXT_DATA_IDX::ORDER_VEL],
                              external_data[EXT_DATA_IDX::CFL],
                              static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG])));
-      return mfem::tuple{stressJiT};
+      return mfem::future::tuple{stressJiT};
    }
 
    const real_t *external_data;
@@ -290,14 +292,14 @@ public:
                    const real_t &E,
                    const real_t &w) const
    {
-      auto stressJiT = mfem::get<0>(
+      auto stressJiT = mfem::future::get<0>(
                           qdata_setup(
                              dvdxi, rho0, J0, J, gamma, E, w,
                              external_data[EXT_DATA_IDX::H0],
                              external_data[EXT_DATA_IDX::ORDER_VEL],
                              external_data[EXT_DATA_IDX::CFL],
                              static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG])));
-      return mfem::tuple{stressJiT};
+      return mfem::future::tuple{stressJiT};
    }
 
    const real_t *external_data;
@@ -313,7 +315,7 @@ public:
    auto operator()(
       const matd &stressJiT) const
    {
-      return mfem::tuple{stressJiT};
+      return mfem::future::tuple{stressJiT};
    }
 };
 
@@ -335,14 +337,14 @@ public:
 
       const real_t &w) const
    {
-      auto stressJiT = mfem::get<0>(
+      auto stressJiT = mfem::future::get<0>(
                           qdata_setup(
                              dvdxi, rho0, J0, J, gamma, E, w,
                              external_data[EXT_DATA_IDX::H0],
                              external_data[EXT_DATA_IDX::ORDER_VEL],
                              external_data[EXT_DATA_IDX::CFL],
                              static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG])));
-      return mfem::tuple{ddot(stressJiT, dvdxi)};
+      return mfem::future::tuple{ddot(stressJiT, dvdxi)};
    }
 
    const real_t *external_data;
@@ -359,7 +361,7 @@ public:
       const matd &dvdxi,
       const matd &stressJiT) const
    {
-      return mfem::tuple{ddot(stressJiT, dvdxi)};
+      return mfem::future::tuple{ddot(stressJiT, dvdxi)};
    }
 };
 
@@ -375,7 +377,7 @@ public:
                     const matd &J0,
                     const real_t &w) const
    {
-      return mfem::tuple{rho0 * E * det(J0) * w};
+      return mfem::future::tuple{rho0 * E * det(J0) * w};
    }
 };
 
@@ -391,7 +393,7 @@ public:
                     const matd &J0,
                     const real_t &w) const
    {
-      return mfem::tuple{rho0 * 0.5 * v * v * det(J0) * w};
+      return mfem::future::tuple{rho0 * 0.5 * v * v * det(J0) * w};
    }
 };
 
@@ -406,7 +408,7 @@ public:
                     const matd &J0,
                     const real_t &w) const
    {
-      return mfem::tuple{rho0 * det(J0) * w};
+      return mfem::future::tuple{rho0 * det(J0) * w};
    }
 };
 
@@ -599,14 +601,14 @@ public:
 
       // dRvdx = h * dF/dx
       HypreParMatrix dRvdx_mat;
-      dRvdx->Assemble(dRvdx_mat);
+      dRvdx->Assemble(&dRvdx_mat);
       dRvdx_mat.EliminateRows(hydro.ess_tdof);
       PetscParMatrix dRvdx_petsc(&dRvdx_mat);
       dRvdx_petsc *= h;
 
       // dRvdv = (Mv + h dF/dv)
       HypreParMatrix dRvdv_mat;
-      dRvdv->Assemble(dRvdv_mat);
+      dRvdv->Assemble(&dRvdv_mat);
       PetscParMatrix dRvdv_petsc(&dRvdv_mat);
       PetscParMatrix Mv_petsc(&Mv_mat);
       PetscCall(MatAYPX(dRvdv_petsc, h, Mv_petsc,
@@ -617,7 +619,7 @@ public:
 
       // dRvde = h * dF/de
       HypreParMatrix dRvde_mat;
-      dRvde->Assemble(dRvde_mat);
+      dRvde->Assemble(&dRvde_mat);
       dRvde_mat.EliminateRows(hydro.ess_tdof);
       PetscParMatrix dRvde_petsc(&dRvde_mat);
       dRvde_petsc *= h;
@@ -970,7 +972,7 @@ public:
 
       if (fd_gradient)
       {
-         fd_jacobian = std::make_shared<FDJacobian>(*this, k, 1e-8);
+         fd_jacobian = std::make_shared<mfem::future::FDJacobian>(*this, k, 1e-8);
          // std::ofstream fd_out("fd_blockmat.dat");
          // fd_jacobian->PrintMatlab(fd_out);
          // fd_out.close();
@@ -1016,7 +1018,7 @@ public:
    const int L2vsize;
    const Vector &x;
    mutable Vector u, u_l, e_source_t;
-   mutable std::shared_ptr<FDJacobian> fd_jacobian;
+   mutable std::shared_ptr<mfem::future::FDJacobian> fd_jacobian;
    mutable std::shared_ptr<LagrangianHydroJacobianOperator> jacobian;
    bool fd_gradient;
 };
@@ -1269,7 +1271,7 @@ public:
                taylor_source_mf->GetDerivative(COORDINATES, {&ue_l}, {&ux_l});
             HypreParMatrix dTaylorSourcedx_mat;
             dbg("dTaylorSourcedx->Assemble");
-            dTaylorSourcedx->Assemble(dTaylorSourcedx_mat);
+            dTaylorSourcedx->Assemble(&dTaylorSourcedx_mat);
             dbg("dTaylorSourcedx->PrintMatlab");
             // dTaylorSourcedx->PrintMatlab(std::cout);
             dbg("dTaylorSourcedx_mat:{}", dTaylorSourcedx_mat.FNorm());
@@ -1558,9 +1560,9 @@ static auto CreateLagrangianHydroOperator(ParFiniteElementSpace &H1,
 
    std::shared_ptr<DifferentiableOperator> dt_est_mf;
    {
-      mfem::tuple dt_est_kernel_ao =
+      mfem::future::tuple dt_est_kernel_ao =
       {
-         Gradient<VELOCITY>{},
+         mfem::future::Gradient<VELOCITY>{},
          Value<DENSITY0>{},
          Gradient<COORDINATES0>{},
          Gradient<COORDINATES>{},
@@ -1569,7 +1571,7 @@ static auto CreateLagrangianHydroOperator(ParFiniteElementSpace &H1,
          Weight{}
       };
 
-      mfem::tuple dt_est_kernel_oo = {None<DT_EST>{}};
+      mfem::future::tuple dt_est_kernel_oo = {Identity<DT_EST>{}};
 
       std::vector dt_est_solutions =
       {
@@ -1597,7 +1599,7 @@ static auto CreateLagrangianHydroOperator(ParFiniteElementSpace &H1,
 
    std::shared_ptr<DifferentiableOperator> update_qdata;
    {
-      mfem::tuple update_qdata_kernel_ao =
+      mfem::future::tuple update_qdata_kernel_ao =
       {
          Gradient<VELOCITY>{},
          Value<DENSITY0>{},
@@ -1608,7 +1610,7 @@ static auto CreateLagrangianHydroOperator(ParFiniteElementSpace &H1,
          Weight{}
       };
 
-      mfem::tuple update_qdata_kernel_oo = {None<STRESS_TENSOR>{}};
+      mfem::future::tuple update_qdata_kernel_oo = {Identity<STRESS_TENSOR>{}};
 
       std::vector<FieldDescriptor> update_qdata_solutions =
       {
@@ -1637,7 +1639,7 @@ static auto CreateLagrangianHydroOperator(ParFiniteElementSpace &H1,
    // Create momentum operator
    std::shared_ptr<DifferentiableOperator> momentum_mf;
    {
-      mfem::tuple momentum_mf_kernel_ao =
+      mfem::future::tuple momentum_mf_kernel_ao =
       {
          Gradient<VELOCITY>{},
          Value<DENSITY0>{},
@@ -1648,7 +1650,7 @@ static auto CreateLagrangianHydroOperator(ParFiniteElementSpace &H1,
          Weight{}
       };
 
-      mfem::tuple momentum_mf_kernel_oo = {Gradient<VELOCITY>{}};
+      mfem::future::tuple momentum_mf_kernel_oo = {Gradient<VELOCITY>{}};
 
       // <sigma, grad(w) * J^-T> * det(J) * weights
       // <sigma(J^-T det(J) weights), grad(w)>
@@ -1680,8 +1682,8 @@ static auto CreateLagrangianHydroOperator(ParFiniteElementSpace &H1,
 
    std::shared_ptr<DifferentiableOperator> momentum_pa;
    {
-      mfem::tuple momentum_pa_kernel_ao = {None<STRESS_TENSOR>{}};
-      mfem::tuple momentum_pa_kernel_oo = {Gradient<VELOCITY>{}};
+      mfem::future::tuple momentum_pa_kernel_ao = {Identity<STRESS_TENSOR>{}};
+      mfem::future::tuple momentum_pa_kernel_oo = {Gradient<VELOCITY>{}};
 
       std::vector<FieldDescriptor> momentum_pa_solutions = {{VELOCITY, &H1}};
       std::vector<FieldDescriptor> momentum_pa_parameters = {{STRESS_TENSOR, &qdata->StressSpace}};
@@ -1697,7 +1699,7 @@ static auto CreateLagrangianHydroOperator(ParFiniteElementSpace &H1,
    // Create energy conservation operator
    std::shared_ptr<DifferentiableOperator> energy_conservation_mf;
    {
-      mfem::tuple energy_conservation_mf_kernel_ao =
+      mfem::future::tuple energy_conservation_mf_kernel_ao =
       {
          Gradient<VELOCITY>{},
          Value<DENSITY0>{},
@@ -1708,7 +1710,7 @@ static auto CreateLagrangianHydroOperator(ParFiniteElementSpace &H1,
          Weight{}
       };
 
-      mfem::tuple energy_conservation_mf_kernel_oo = {Value<SPECIFIC_INTERNAL_ENERGY>{}};
+      mfem::future::tuple energy_conservation_mf_kernel_oo = {Value<SPECIFIC_INTERNAL_ENERGY>{}};
 
       // <sigma, grad(v) * inv(J) * phi> * det(J) * w
       // <sigma(J^-T det(J) w), grad(v) * inv(J)>
@@ -1742,8 +1744,8 @@ static auto CreateLagrangianHydroOperator(ParFiniteElementSpace &H1,
 
    std::shared_ptr<DifferentiableOperator> energy_conservation_pa;
    {
-      mfem::tuple energy_conservation_pa_kernel_ao = {Gradient<VELOCITY>{}, None<STRESS_TENSOR>{}};
-      mfem::tuple energy_conservation_pa_kernel_oo = {Value<SPECIFIC_INTERNAL_ENERGY>{}};
+      mfem::future::tuple energy_conservation_pa_kernel_ao = {Gradient<VELOCITY>{}, Identity<STRESS_TENSOR>{}};
+      mfem::future::tuple energy_conservation_pa_kernel_oo = {Value<SPECIFIC_INTERNAL_ENERGY>{}};
 
       std::vector<FieldDescriptor> energy_conservation_pa_solutions =
       {
@@ -1769,7 +1771,7 @@ static auto CreateLagrangianHydroOperator(ParFiniteElementSpace &H1,
    // Create total internal energy operator
    std::shared_ptr<DifferentiableOperator> total_internal_energy_mf;
    {
-      mfem::tuple total_internal_energy_kernel_ao =
+      mfem::future::tuple total_internal_energy_kernel_ao =
       {
          Value<SPECIFIC_INTERNAL_ENERGY>{},
          Value<DENSITY0>{},
@@ -1777,7 +1779,7 @@ static auto CreateLagrangianHydroOperator(ParFiniteElementSpace &H1,
          Weight{}
       };
 
-      mfem::tuple total_internal_energy_kernel_oo = {Value<SPECIFIC_INTERNAL_ENERGY>{}};
+      mfem::future::tuple total_internal_energy_kernel_oo = {Value<SPECIFIC_INTERNAL_ENERGY>{}};
 
       std::vector total_internal_energy_solutions =
       {
@@ -1805,7 +1807,7 @@ static auto CreateLagrangianHydroOperator(ParFiniteElementSpace &H1,
    // Create total kinetic energy operator
    std::shared_ptr<DifferentiableOperator> total_kinetic_energy_mf;
    {
-      mfem::tuple total_kinetic_energy_kernel_ao =
+      mfem::future::tuple total_kinetic_energy_kernel_ao =
       {
          Value<VELOCITY>{},
          Value<DENSITY0>{},
@@ -1813,7 +1815,7 @@ static auto CreateLagrangianHydroOperator(ParFiniteElementSpace &H1,
          Weight{}
       };
 
-      mfem::tuple total_kinetic_energy_kernel_oo = {Value<DENSITY0>{}};
+      mfem::future::tuple total_kinetic_energy_kernel_oo = {Value<DENSITY0>{}};
 
       std::vector total_kinetic_energy_solutions =
       {
@@ -1839,14 +1841,14 @@ static auto CreateLagrangianHydroOperator(ParFiniteElementSpace &H1,
    // Create density operator
    std::shared_ptr<DifferentiableOperator> density_mf;
    {
-      mfem::tuple density_kernel_ao =
+      mfem::future::tuple density_kernel_ao =
       {
          Value<DENSITY0>{},
          Gradient<COORDINATES0>{},
          Weight{}
       };
 
-      mfem::tuple density_kernel_oo = {Value<DENSITY0>{}};
+      mfem::future::tuple density_kernel_oo = {Value<DENSITY0>{}};
 
       std::vector density_solutions =
       {
@@ -1869,14 +1871,14 @@ static auto CreateLagrangianHydroOperator(ParFiniteElementSpace &H1,
    // Create taylor source oeprator
    std::shared_ptr<DifferentiableOperator> taylor_source_mf;
    {
-      mfem::tuple taylor_source_kernel_ao =
+      mfem::future::tuple taylor_source_kernel_ao =
       {
          Value<COORDINATES>{},
          Gradient<COORDINATES>{},
          Weight{}
       };
 
-      mfem::tuple taylor_source_kernel_oo = {Value<SPECIFIC_INTERNAL_ENERGY>{}};
+      mfem::future::tuple taylor_source_kernel_oo = {Value<SPECIFIC_INTERNAL_ENERGY>{}};
 
       std::vector taylor_source_solutions =
       {

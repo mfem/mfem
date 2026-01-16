@@ -13,6 +13,8 @@
 #include "util.hpp"
 #include "../linalg/tensor.hpp"
 
+using namespace mfem::future;
+
 namespace mfem
 {
 
@@ -27,7 +29,7 @@ template <typename T0, typename T1>
 MFEM_HOST_DEVICE inline
 void process_kf_arg(const T0 &, T1 &)
 {
-   static_assert(always_false<T0, T1>,
+   static_assert(always_false<T0, T1>::value,
                  "process_kf_arg not implemented for arg type");
 }
 
@@ -44,7 +46,7 @@ template <typename T>
 MFEM_HOST_DEVICE inline
 void process_kf_arg(
    const DeviceTensor<1, T> &u,
-   internal::tensor<T> &arg)
+   future::tensor<T> &arg)
 {
    arg(0) = u(0);
 }
@@ -53,7 +55,7 @@ template <typename T, int n>
 MFEM_HOST_DEVICE inline
 void process_kf_arg(
    const DeviceTensor<1> &u,
-   internal::tensor<T, n> &arg)
+   future::tensor<T, n> &arg)
 {
    for (int i = 0; i < n; i++)
    {
@@ -65,7 +67,7 @@ template <typename T, int n, int m>
 MFEM_HOST_DEVICE inline
 void process_kf_arg(
    const DeviceTensor<1> &u,
-   internal::tensor<T, n, m> &arg)
+   future::tensor<T, n, m> &arg)
 {
    for (int i = 0; i < m; i++)
    {
@@ -91,9 +93,9 @@ void process_kf_args(
    kf_args &args,
    const int &qp)
 {
-   for_constexpr<mfem::tuple_size<kf_args>::value>([&](auto i)
+   future::for_constexpr<mfem::future::tuple_size<kf_args>::value>([&](auto i)
    {
-      process_kf_arg(u[i], mfem::get<i>(args), qp);
+      process_kf_arg(u[i], mfem::future::get<i>(args), qp);
       // out << mfem::get<i>(args) << ", ";
    });
 }
@@ -102,7 +104,7 @@ template <typename T0, typename T1>
 MFEM_HOST_DEVICE inline
 Vector process_kf_result(T0, T1)
 {
-   static_assert(always_false<T0, T1>,
+   static_assert(always_false<T0, T1>::value,
                  "process_kf_result not implemented for result type");
    return Vector{};
 }

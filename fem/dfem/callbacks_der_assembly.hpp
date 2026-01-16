@@ -20,6 +20,8 @@
 #include "qfunction.hpp"
 #include "util.hpp"
 
+using namespace mfem::future;
+
 namespace mfem
 {
 
