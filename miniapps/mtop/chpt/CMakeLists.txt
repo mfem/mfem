@@ -34,5 +34,16 @@ add_mfem_miniapp(mtop_test_fixedslot
 		 ${CHPT_COMMON_FILES}
                  LIBRARIES mfem)
 
+add_mfem_miniapp(mtop_test_segmentio
+	         MAIN tst_segmentio_scalar_vector_mfem.cpp
+		 ${CHPT_COMMON_FILES}
+                 LIBRARIES mfem)
+
+add_mfem_miniapp(mtop_test_fileio
+		 MAIN tst_fileio_scalar_vector_mfem.cpp
+		 ${CHPT_COMMON_FILES}
+                 LIBRARIES mfem)
+
+
 
 

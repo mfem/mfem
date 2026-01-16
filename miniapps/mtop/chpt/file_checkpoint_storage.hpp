@@ -1,7 +1,7 @@
 #ifndef MFEM_FILE_CHECKPOINT_STORAGE_HPP
 #define MFEM_FILE_CHECKPOINT_STORAGE_HPP
 
-#include "mfemr.hpp"
+#include "mfem.hpp"
 
 #include <cstdint>
 #include <cstdio>    // std::remove, std::rename

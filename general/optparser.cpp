@@ -200,6 +200,10 @@ void OptionsParser::Parse()
                   isValid = isValidAsInt(argv[i]);
                   *(int *)(options[j].var_ptr) = atoi(argv[i++]);
                   break;
+	       case LONG:
+		  isValid = isValidAsInt(argv[i]);
+                  *(long long *)(options[j].var_ptr) = atoi(argv[i++]);
+                  break;
                case DOUBLE:
                   isValid = isValidAsDouble(argv[i]);
                   *(real_t *)(options[j].var_ptr) = atof(argv[i++]);
@@ -278,6 +282,10 @@ void OptionsParser::WriteValue(const Option &opt, std::ostream &os)
       case INT:
          os << *(int *)(opt.var_ptr);
          break;
+      
+      case LONG:
+         os << *(long long *)(opt.var_ptr);
+         break;	 
 
       case DOUBLE:
          os << *(real_t *)(opt.var_ptr);

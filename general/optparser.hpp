@@ -31,7 +31,7 @@ class Vector;
 class OptionsParser
 {
 public:
-   enum OptionType { INT, DOUBLE, STRING, STD_STRING, ENABLE, DISABLE, ARRAY, VECTOR };
+   enum OptionType { INT, DOUBLE, STRING, STD_STRING, ENABLE, DISABLE, ARRAY, VECTOR , LONG };
 
 private:
    struct Option
@@ -95,6 +95,14 @@ public:
                   const char *description, bool required = false)
    {
       options.Append(Option(INT, var, short_name, long_name, description,
+                            required));
+   }
+
+   /// Add a long integer option and set 'var' to receive the value.
+   void AddOption(long long *var, const char *short_name, const char *long_name,
+                  const char *description, bool required = false)
+   {
+      options.Append(Option(LONG, var, short_name, long_name, description,
                             required));
    }
 
