@@ -201,7 +201,7 @@ struct LinearFormExtTest
    }
 };
 
-TEST_CASE("Linear Form Extension", "[LinearFormExtension], [CUDA]")
+TEST_CASE("Linear Form Extension", "[LinearFormExtension], [GPU]")
 {
    const bool all = launch_all_non_regression_tests;
 
@@ -328,7 +328,7 @@ TEST_CASE("Linear Form Extension", "[LinearFormExtension], [CUDA]")
    }
 }
 
-TEST_CASE("H(div) Linear Form Extension", "[LinearFormExtension], [CUDA]")
+TEST_CASE("H(div) Linear Form Extension", "[LinearFormExtension], [GPU]")
 {
    const bool all = launch_all_non_regression_tests;
 

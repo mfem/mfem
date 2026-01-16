@@ -117,6 +117,8 @@ namespace mfem {
  * - <a class="el" href="ex39p_8cpp_source.html">Example 39p</a>: parallel named mesh attributes
  * - <a class="el" href="ex40_8cpp_source.html">Example 40</a>: eikonal equation
  * - <a class="el" href="ex40p_8cpp_source.html">Example 40p</a>: parallel eikonal equation
+ * - <a class="el" href="ex41_8cpp_source.html">Example 41</a>: DG/CG IMEX time-dependent advection-diffusion
+ * - <a class="el" href="ex41p_8cpp_source.html">Example 41p</a>: parallel DG/CG IMEX time-dependent advection-diffusion
  *
  * <H4>AmgX Examples</H4>
  * - Variants of Examples
@@ -202,6 +204,7 @@ namespace mfem {
  * - <a class="el" href="tesla_8cpp_source.html">Tesla</a>: simple magnetostatics simulation code
  * - <a class="el" href="maxwell_8cpp_source.html">Maxwell</a>: simple transient full-wave electromagnetics simulation code
  * - <a class="el" href="joule_8cpp_source.html">Joule</a>: transient magnetics and Joule heating miniapp
+ * - <a class="el" href="lorentz_8cpp_source.html">Lorentz</a>: simple particle tracking code based on the Lorentz force
  * - <a class="el" href="classmfem_1_1navier_1_1NavierSolver.html">Navier</a>: solve the transient incompressible Navier-Stokes equations
  * - <a class="el" href="mobius-strip_8cpp_source.html">Mobius Strip</a>: generate various Mobius strip-like meshes
  * - <a class="el" href="klein-bottle_8cpp_source.html">Klein Bottle</a>: generate three types of Klein bottle surfaces
@@ -233,7 +236,8 @@ namespace mfem {
  * - <a class="el" href="miniapps_2performance_2ex1_8cpp_source.html">HPC Example 1</a>: high-performance nodal H1 FEM for the Poisson problem
  * - <a class="el" href="miniapps_2performance_2ex1p_8cpp_source.html">HPC Example 1p</a>: high-performance parallel nodal H1 FEM for the Poisson problem
  * - <a class="el" href="generate__random__field_8cpp_source.html">SPDE Solvers</a>: SPDE solver random field generation
- * - <a class="el" href="contact-patch-test_8cpp_source.html">Contact</a>: mortar contact patch test for elasticity
+ * - <a class="el" href="contact-patch-test_8cpp_source.html">Tribol</a>: mortar contact patch test for elasticity
+ * - <a class="el" href="contact_8cpp_source.html">Contact</a>: Frictionless contact examples using <a class="el" href="classmfem_1_1IPSolver.html#details">IP optimization</a> and the <a class="el" href="classmfem_1_1AMGFSolver.html#details">AMGF solver</a>
  * - <a class="el" href="multidomain_8cpp_source.html">Multidomain miniapp</a>: Multidomain and Submesh demonstration miniapp
  * - <a class="el" href="pdiffusion_8cpp_source.html">DPG Diffusion example</a>: DPG formulation for the diffusion problem
  * - <a class="el" href="pmaxwell_8cpp_source.html">DPG Maxwell example</a>: DPG formulation for the indefinite Maxwell problem

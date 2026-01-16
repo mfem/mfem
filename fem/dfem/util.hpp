@@ -11,6 +11,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <iostream>
 #include <unordered_map>
@@ -18,126 +19,144 @@
 #include <variant>
 #include <vector>
 #include <type_traits>
+#include <numeric>
+#include <iomanip>
 
+#include "../../general/communication.hpp"
+#include "../../general/forall.hpp"
+#ifdef MFEM_USE_MPI
 #include "../fe/fe_base.hpp"
 #include "../fespace.hpp"
+#include "../pfespace.hpp"
 #include "../../mesh/mesh.hpp"
-#include "../linalg/dtensor.hpp"
+#include "../../linalg/dtensor.hpp"
 
 #include "fieldoperator.hpp"
-#include "parametricspace.hpp"
+#include "parameterspace.hpp"
 #include "tuple.hpp"
 
-#if defined(__has_include) && __has_include("general/nvtx.hpp") && !defined(_WIN32)
-#undef NVTX_COLOR
-#define NVTX_COLOR ::nvtx::kCyan
-#include "general/nvtx.hpp"
-#else
-#define dbg(...)
-#endif
-
-using std::size_t;
-
-namespace mfem
+namespace mfem::future
 {
 
 template<typename... Ts>
 constexpr auto to_array(const std::tuple<Ts...>& tuple)
 {
-   constexpr auto get_array = [](const Ts&... x) { return std::array{ x... }; };
+   constexpr auto get_array = [](const Ts&... x) { return std::array<typename std::common_type<Ts...>::type, sizeof...(Ts)> { x... }; };
    return std::apply(get_array, tuple);
 }
 
 namespace detail
 {
 
-template <typename lambda, size_t... i>
+template <typename lambda, std::size_t... i>
 constexpr void for_constexpr(lambda&& f,
-                             std::integral_constant<size_t, i>... Is)
+                             std::integral_constant<std::size_t, i>... Is)
 {
    f(Is...);
 }
 
 
-template <size_t... n, typename lambda, typename... arg_types>
-constexpr void for_constexpr(lambda&& f, std::integer_sequence<size_t, n...>,
+template <std::size_t... n, typename lambda, typename... arg_types>
+constexpr void for_constexpr(lambda&& f,
+                             std::integer_sequence<std::size_t, n...>,
                              arg_types... args)
 {
-   (detail::for_constexpr(f, args..., std::integral_constant<size_t,n> {}), ...);
+   (detail::for_constexpr(f, args..., std::integral_constant<std::size_t,n> {}),
+    ...);
 }
 
 }  // namespace detail
 
-template <typename lambda, size_t... i>
-constexpr void for_constexpr(lambda&& f, std::integer_sequence<size_t, i ... >)
+template <typename lambda, std::size_t... i>
+constexpr void for_constexpr(lambda&& f,
+                             std::integer_sequence<std::size_t, i ... >)
 {
-   (f(std::integral_constant<size_t, i> {}), ...);
+   (f(std::integral_constant<std::size_t, i> {}), ...);
 }
 
 template <typename lambda>
-constexpr void for_constexpr(lambda&& f, std::integer_sequence<size_t>) {}
+constexpr void for_constexpr(lambda&& f, std::integer_sequence<std::size_t>) {}
 
 template <int... n, typename lambda>
 constexpr void for_constexpr(lambda&& f)
 {
-   detail::for_constexpr(f, std::make_integer_sequence<size_t, n> {}...);
+   detail::for_constexpr(f, std::make_integer_sequence<std::size_t, n> {}...);
 }
 
 template <typename lambda, typename arg_t>
 constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg,
-                                      std::integer_sequence<size_t>)
+                                      std::integer_sequence<std::size_t>)
 {
    // Base case - do nothing for empty sequence
 }
 
-template <typename lambda, typename arg_t, size_t i, size_t... Is>
+template <typename lambda, typename arg_t, std::size_t i, std::size_t... Is>
 constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg,
-                                      std::integer_sequence<size_t, i, Is...>)
+                                      std::integer_sequence<std::size_t, i, Is...>)
 {
-   f(std::integral_constant<size_t, i> {}, mfem::get<i>(arg));
+   f(std::integral_constant<std::size_t, i> {}, get<i>(arg));
    for_constexpr_with_arg(f, std::forward<arg_t>(arg),
-                          std::integer_sequence<size_t, Is...> {});
+                          std::integer_sequence<std::size_t, Is...> {});
 }
 
 template <typename lambda, typename arg_t>
 constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg)
 {
    using indices =
-      std::make_index_sequence<mfem::tuple_size<std::remove_cv_t<std::remove_reference_t<arg_t>>>::value>;
+      std::make_index_sequence<tuple_size<std::remove_reference_t<arg_t>>::value>;
    for_constexpr_with_arg(std::forward<lambda>(f), std::forward<arg_t>(arg),
                           indices{});
 }
 
-template <typename... input_ts, size_t... Is>
-constexpr auto make_dependency_map_impl(
-   mfem::tuple<input_ts...> inputs,
-   std::index_sequence<Is...>)
+template <std::size_t I, typename Tuple, std::size_t... Is>
+std::array<bool, sizeof...(Is)>
+make_dependency_array(const Tuple& inputs, std::index_sequence<Is...>)
 {
-   constexpr size_t N = sizeof...(input_ts);
-   auto make_dependency_array = [&](auto i)
-   {
-      return std::array<bool, N>
-      {
-         (mfem::get<i>(inputs).GetFieldId() == mfem::get<Is>(inputs).GetFieldId())...
-      };
-   };
+   return { (get<I>(inputs).GetFieldId() == get<Is>(inputs).GetFieldId())... };
+}
+
+template <typename... input_ts, std::size_t... Is>
+auto make_dependency_map_impl(tuple<input_ts...> inputs,
+                              std::index_sequence<Is...>)
+{
+   constexpr std::size_t N = sizeof...(input_ts);
+
+   if constexpr (N == 0)
+      return std::unordered_map<int, std::array<bool, 0>> {};
 
    std::unordered_map<int, std::array<bool, N>> map;
-   for_constexpr<N>([&](auto i)
+
+   (void)std::initializer_list<int>
    {
-      map[mfem::get<i>(inputs).GetFieldId()] =
-         make_dependency_array(std::integral_constant<size_t, i> {});
-   });
+      (
+         map[get<Is>(inputs).GetFieldId()] =
+      make_dependency_array<Is>(inputs, std::make_index_sequence<N>{}),
+      0
+      )...
+   };
 
    return map;
 }
 
+// @brief Create a dependency map from a tuple of inputs.
+//
+// @param inputs a tuple of objects derived from FieldOperator.
+// @returns an unordered_map where the keys are the field IDs and the values
+// are arrays of booleans indicating which inputs depend on each field ID.
 template <typename... input_ts>
-auto make_dependency_map(mfem::tuple<input_ts...> inputs)
+auto make_dependency_map(tuple<input_ts...> inputs)
 {
    return make_dependency_map_impl(inputs, std::index_sequence_for<input_ts...> {});
 }
 
+// @brief Get the type name of a template parameter T.
+//
+// Convenient helper function for debugging.
+// Usage example
+// ```c++
+// mfem::out << get_type_name<int>() << std::endl;
+// ```
+// prints "int".
 template <typename T>
 constexpr auto get_type_name() -> std::string_view
 {
@@ -164,38 +183,24 @@ constexpr auto get_type_name() -> std::string_view
    return function.substr(start, size);
 }
 
-// Helper function to print a single tuple
 template <typename Tuple, std::size_t... Is>
 void print_tuple_impl(const Tuple& t, std::index_sequence<Is...>)
 {
-   ((std::cout << (Is == 0 ? "" : ", ") << std::get<Is>(t)), ...);
+   ((out << (Is == 0 ? "" : ", ") << std::get<Is>(t)), ...);
 }
 
+// @brief Helper function to print a single tuple.
+//
+// @param t The tuple to print.
 template <typename... Args>
 void print_tuple(const std::tuple<Args...>& t)
 {
-   std::cout << "(";
+   out << "(";
    print_tuple_impl(t, std::index_sequence_for<Args...> {});
-   std::cout << ")";
+   out << ")";
 }
 
-// // Helper function to print a tuple of tuples
-// template <typename Tuple, std::size_t... Is>
-// void print_tuple_of_tuples_impl(const Tuple& t, std::index_sequence<Is...>)
-// {
-//    ((std::cout << (Is == 0 ? "" : ", "), print_tuple(std::get<Is>(t))), ...);
-// }
-
-// template <typename... Args>
-// void print_tuple_of_tuples(const std::tuple<Args...>& t)
-// {
-//    std::cout << "(";
-//    print_tuple_of_tuples_impl(t, std::index_sequence_for<Args...> {});
-//    std::cout << ")";
-// }
-
-
-/// @brief Pretty print an mfem::DenseMatrix to std::cout
+/// @brief Pretty print an mfem::DenseMatrix to out
 ///
 /// Formatted s.t. the output is
 /// [[v00, v01, ..., v0n],
@@ -203,131 +208,156 @@ void print_tuple(const std::tuple<Args...>& t)
 ///             ..., vmn]]
 /// which is compatible with numpy syntax.
 ///
-/// @param m mfem::DenseMatrix to print
-inline void pretty_print(const mfem::DenseMatrix& m)
+/// @param out ostream to print to
+/// @param A mfem::DenseMatrix to print
+inline
+void pretty_print(std::ostream &out, const mfem::DenseMatrix &A)
 {
-   std::cout << "[";
-   for (int i = 0; i < m.NumRows(); i++)
+   // Determine the max width of any entry in scientific notation
+   int max_width = 0;
+   for (int i = 0; i < A.NumRows(); ++i)
    {
-      for (int j = 0; j < m.NumCols(); j++)
+      for (int j = 0; j < A.NumCols(); ++j)
       {
-         std::cout << m(i, j);
-         if (j < m.NumCols() - 1)
-         {
-            std::cout << ", ";
-         }
-      }
-      if (i < m.NumRows() - 1)
-      {
-         std::cout << ", ";
+         std::ostringstream oss;
+         oss << std::scientific << std::setprecision(2) << A(i, j);
+         max_width = std::max(max_width, static_cast<int>(oss.str().length()));
       }
    }
-   std::cout << "]\n";
+
+   out << "[\n";
+   for (int i = 0; i < A.NumRows(); ++i)
+   {
+      out << "  [";
+      for (int j = 0; j < A.NumCols(); ++j)
+      {
+         out << std::setw(max_width) << std::scientific << std::setprecision(2) <<
+             A(i, j);
+
+         if (j < A.NumCols() - 1)
+         {
+            out << ", ";
+         }
+      }
+      out << "]";
+      if (i < A.NumRows() - 1)
+      {
+         out << ",\n";
+      }
+      else
+      {
+         out << "\n";
+      }
+   }
+   out << "]\n";
 }
 
-/// @brief Pretty print an mfem::Vector to std::cout
+/// @brief Pretty print an mfem::Vector to out
 ///
 /// Formatted s.t. the output is [v0, v1, ..., vn] which
 /// is compatible with numpy syntax.
 ///
-/// @param v Vector of vectors to print
-inline void pretty_print(const mfem::Vector& v)
+/// @param v vector of vectors to print
+inline
+void pretty_print(const mfem::Vector& v)
 {
-   std::cout << "[";
+   out << "[";
    for (int i = 0; i < v.Size(); i++)
    {
-      std::cout << v(i);
+      out << v(i);
       if (i < v.Size() - 1)
       {
-         std::cout << ", ";
+         out << ", ";
       }
    }
-   std::cout << "]\n";
+   out << "]\n";
 }
 
-/// @brief Pretty print an mfem::Array to std::cout
+/// @brief Pretty print an mfem::Array to out
 ///
 /// T has to have an overloaded operator<<
 ///
 /// Formatted s.t. the output is [v0, v1, ..., vn] which
 /// is compatible with numpy syntax.
 ///
-/// @param v Vector of vectors to print
+/// @param v vector of vectors to print
 template <typename T>
 void pretty_print(const mfem::Array<T>& v)
 {
-   std::cout << "[";
+   out << "[";
    for (int i = 0; i < v.Size(); i++)
    {
-      std::cout << v[i];
+      out << v[i];
       if (i < v.Size() - 1)
       {
-         std::cout << ", ";
+         out << ", ";
       }
    }
-   std::cout << "]\n";
+   out << "]\n";
 }
 
-/// @brief Pretty prints an unordered map of std::array to std::cout
+/// @brief Pretty prints an unordered map of std::array to out
 ///
 /// Useful for printing the output of make_dependency_map
 ///
-/// @tparam T Type of array elements
-/// @tparam N Size of array
 /// @param map unordered map to print
-template<typename K, typename T, size_t N>
+/// @tparam T type of array elements
+/// @tparam N size of array
+template<typename K, typename T, std::size_t N>
 void pretty_print(const std::unordered_map<K,std::array<T,N>>& map)
 {
-   std::cout << "{";
-   size_t count = 0;
+   out << "{";
+   std::size_t count = 0;
    for (const auto& [key, value] : map)
    {
-      std::cout << key << ": [";
-      for (size_t i = 0; i < N; i++)
+      out << key << ": [";
+      for (std::size_t i = 0; i < N; i++)
       {
-         std::cout << value[i];
-         if (i < N-1) { std::cout << ", "; }
+         out << value[i];
+         if (i < N-1) { out << ", "; }
       }
-      std::cout << "]";
+      out << "]";
       if (count < map.size() - 1)
       {
-         std::cout << ", ";
+         out << ", ";
       }
       count++;
    }
-   std::cout << "}\n";
+   out << "}\n";
 }
 
-inline void print_mpi_root(const std::string& msg)
+inline
+void print_mpi_root(const std::string& msg)
 {
    auto myrank = Mpi::WorldRank();
    if (myrank == 0)
    {
-      std::cout << msg << std::endl;
-      std::cout.flush(); // Ensure output is flushed
+      out << msg << std::endl;
+      out.flush(); // Ensure output is flushed
    }
 }
 
 /// @brief print with MPI rank synchronization
 ///
 /// @param msg Message to print
-inline void print_mpi_sync(const std::string& msg)
+inline
+void print_mpi_sync(const std::string& msg)
 {
-   auto myrank = Mpi::WorldRank();
-   auto nranks = Mpi::WorldSize();
+   auto myrank = static_cast<size_t>(Mpi::WorldRank());
+   auto nranks = static_cast<size_t>(Mpi::WorldSize());
 
    if (nranks == 1)
    {
       // Single process case - just print directly
-      std::cout << msg << std::endl;
+      out << msg << std::endl;
       return;
    }
 
    // First gather string lengths
-   int msg_len = msg.length();
-   std::vector<int> lengths(nranks);
-   MPI_Gather(&msg_len, 1, MPI_INT,
-              lengths.data(), 1, MPI_INT,
+   size_t msg_len = msg.length();
+   std::vector<size_t> lengths(nranks);
+   MPI_Gather(&msg_len, 1, MPITypeMap<size_t>::mpi_type,
+              lengths.data(), 1, MPITypeMap<size_t>::mpi_type,
               0, MPI_COMM_WORLD);
 
    if (myrank == 0)
@@ -337,25 +367,25 @@ inline void print_mpi_sync(const std::string& msg)
       messages[0] = msg; // Store rank 0's message
 
       // Receive messages from other ranks
-      for (int r = 1; r < nranks; r++)
+      for (size_t r = 1; r < nranks; r++)
       {
          std::vector<char> buffer(lengths[r] + 1);
-         MPI_Recv(buffer.data(), lengths[r], MPI_CHAR,
-                  r, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-         messages[r] = std::string(buffer.data(), lengths[r]);
+         MPI_Recv(buffer.data(), static_cast<int>(lengths[r]), MPI_CHAR,
+                  static_cast<int>(r), 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+         messages[r] = std::string(buffer.data(), static_cast<size_t>(lengths[r]));
       }
 
       // Print all messages in rank order
-      for (int r = 0; r < nranks; r++)
+      for (size_t r = 0; r < nranks; r++)
       {
-         std::cout << "[Rank " << r << "] " << messages[r] << std::endl;
+         out << "[Rank " << r << "] " << messages[r] << std::endl;
       }
-      std::cout.flush();
+      out.flush();
    }
    else
    {
       // Other ranks: Send message to rank 0
-      MPI_Send(msg.c_str(), msg_len, MPI_CHAR,
+      MPI_Send(const_cast<char*>(msg.c_str()), static_cast<int>(msg_len), MPI_CHAR,
                0, 0, MPI_COMM_WORLD);
    }
 
@@ -365,10 +395,9 @@ inline void print_mpi_sync(const std::string& msg)
 
 /// @brief Pretty print an mfem::Vector with MPI rank
 ///
-/// @param v Vector to print
-/// @param myrank MPI rank
-/// @param comm MPI communicator
-inline void pretty_print_mpi(const mfem::Vector& v)
+/// @param v vector to print
+inline
+void pretty_print_mpi(const mfem::Vector& v)
 {
    std::stringstream ss;
    ss << "[";
@@ -384,8 +413,8 @@ inline void pretty_print_mpi(const mfem::Vector& v)
 
 
 template <typename ... Ts>
-constexpr auto decay_types(mfem::tuple<Ts...> const &)
--> mfem::tuple<std::remove_cv_t<std::remove_reference_t<Ts>>...>;
+constexpr auto decay_types(tuple<Ts...> const &)
+-> tuple<std::remove_cv_t<std::remove_reference_t<Ts>>...>;
 
 template <typename T>
 using decay_tuple = decltype(decay_types(std::declval<T>()));
@@ -396,7 +425,7 @@ template <typename output_t, typename... input_ts>
 struct FunctionSignature<output_t(input_ts...)>
 {
    using return_t = output_t;
-   using parameter_ts = mfem::tuple<input_ts...>;
+   using parameter_ts = tuple<input_ts...>;
 };
 
 template <class T> struct create_function_signature;
@@ -430,13 +459,22 @@ constexpr auto extract_field_ids_impl(Tuple&& t, std::index_sequence<Is...>)
    };
 }
 
+/// @brief Extracts field IDs from a tuple of objects derived from FieldOperator.
+///
+/// @param t the tuple to extract field IDs from.
+/// @returns an array of field IDs.
 template <typename... Ts>
 constexpr auto extract_field_ids(const std::tuple<Ts...>& t)
 {
    return extract_field_ids_impl(t, std::index_sequence_for<Ts...> {});
 }
 
-// Helper function to check if an element is in the array
+/// @brief Helper function to check if an element is in the array.
+///
+/// @param arr the array to search in.
+/// @param size the size of the array.
+/// @param value the value to search for.
+/// @returns true if the value is found, false otherwise.
 constexpr bool contains(const int* arr, std::size_t size, int value)
 {
    for (std::size_t i = 0; i < size; ++i)
@@ -449,11 +487,14 @@ constexpr bool contains(const int* arr, std::size_t size, int value)
    return false;
 }
 
-// Function to count unique Field IDs in a tuple
+/// @brief Function to count unique field IDs in a tuple.
+///
+/// @param t the tuple to count unique field IDs from.
+/// @returns the number of unique field IDs.
 template <typename... Ts>
 constexpr std::size_t count_unique_field_ids(const std::tuple<Ts...>& t)
 {
-   constexpr auto ids = extract_field_ids(decltype(t) {});
+   auto ids = extract_field_ids(t);
    constexpr std::size_t size = sizeof...(Ts);
 
    std::array<int, size> unique_ids = {};
@@ -471,7 +512,12 @@ constexpr std::size_t count_unique_field_ids(const std::tuple<Ts...>& t)
    return unique_count;
 }
 
-template <typename T, size_t N>
+/// @brief Get marked entries from an std::array based on a marker array.
+///
+/// @param a the std::array to get entries from.
+/// @param marker the marker std::array indicating which entries to get.
+/// @returns a std::vector containing the marked entries.
+template <typename T, std::size_t N>
 auto get_marked_entries(
    const std::array<T, N> &a,
    const std::array<bool, N> &marker)
@@ -487,6 +533,10 @@ auto get_marked_entries(
    return r;
 }
 
+/// @brief Filter fields from a tuple based on their field IDs.
+///
+/// @param t the tuple to filter fields from.
+/// @returns a tuple containing only the fields with field IDs not equal to -1.
 template <typename... Ts>
 constexpr auto filter_fields(const std::tuple<Ts...>& t)
 {
@@ -494,29 +544,52 @@ constexpr auto filter_fields(const std::tuple<Ts...>& t)
              std::conditional_t<Ts::GetFieldId() != -1, std::tuple<Ts>, std::tuple<>> {}...);
 }
 
+/// @brief FieldDescriptor struct
+///
+/// This struct is used to store information about a field.
 struct FieldDescriptor
 {
-   size_t id;
-   std::variant<const FiniteElementSpace *,
-       const ParFiniteElementSpace *,
-       const ParametricSpace *> data;
+   using data_variant_t =
+      std::variant<const FiniteElementSpace *,
+      const ParFiniteElementSpace *,
+      const ParameterSpace *>;
+
+   /// Field ID
+   std::size_t id;
+
+   /// Field variant
+   data_variant_t data;
+
+   /// Default constructor
+   FieldDescriptor() :
+      id(SIZE_MAX), data(data_variant_t{}) {}
+
+   /// Constructor
+   template <typename T>
+   FieldDescriptor(std::size_t field_id, const T* v) :
+      id(field_id), data(v) {}
 };
 
-template <class... T> constexpr bool always_false = false;
-
-struct GeometricFactorMaps
+namespace dfem
 {
-   DeviceTensor<3, const double> normal;
-};
+template <class... T> constexpr bool always_false = false;
+}
 
+/// @brief Entity struct
+///
+/// This struct is used to store information about an entity type.
 namespace Entity
 {
 struct Element;
 struct BoundaryElement;
 struct Face;
 struct BoundaryFace;
-};
+}
 
+/// @brief ThreadBlocks struct
+///
+/// This struct is used to store information about thread blocks
+/// for GPU dispatch.
 struct ThreadBlocks
 {
    int x = 1;
@@ -524,12 +597,12 @@ struct ThreadBlocks
    int z = 1;
 };
 
-#if (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+#if defined(MFEM_USE_CUDA_OR_HIP)
 template <typename func_t>
 __global__ void forall_kernel_shmem(func_t f, int n)
 {
    int i = blockIdx.x;
-   extern __shared__ double shmem[];
+   extern __shared__ real_t shmem[];
    if (i < n)
    {
       f(i, shmem);
@@ -542,13 +615,12 @@ void forall(func_t f,
             const int &N,
             const ThreadBlocks &blocks,
             int num_shmem = 0,
-            double *shmem = nullptr)
+            real_t *shmem = nullptr)
 {
    if (Device::Allows(Backend::CUDA_MASK) ||
        Device::Allows(Backend::HIP_MASK))
    {
-#if (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-      dbg("\x1b[32m[GPU]");
+#if defined(MFEM_USE_CUDA_OR_HIP)
       // int gridsize = (N + Z - 1) / Z;
       int num_bytes = num_shmem * sizeof(decltype(shmem));
       dim3 block_size(blocks.x, blocks.y, blocks.z);
@@ -563,7 +635,6 @@ void forall(func_t f,
    }
    else if (Device::Allows(Backend::CPU_MASK))
    {
-      dbg("\x1b[31m[CPU]");
       MFEM_ASSERT(!((bool)num_shmem != (bool)shmem),
                   "Backend::CPU needs a pre-allocated shared memory block");
       for (int i = 0; i < N; i++)
@@ -577,6 +648,7 @@ void forall(func_t f,
    }
 }
 
+/// @todo To be removed.
 class FDJacobian : public Operator
 {
 public:
@@ -586,16 +658,21 @@ public:
       x(x),
       fixed_eps(fixed_eps)
    {
+      f.UseDevice(x.UseDevice());
       f.SetSize(Height());
+
+      xpev.UseDevice(x.UseDevice());
       xpev.SetSize(Width());
+
       op.Mult(x, f);
-      xnorm = x.Norml2();
+
+      const real_t xnorm_local = x.Norml2();
+      MPI_Allreduce(&xnorm_local, &xnorm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                    MPI_COMM_WORLD);
    }
 
    void Mult(const Vector &v, Vector &y) const override
    {
-      x.HostRead();
-
       // See [1] for choice of eps.
       //
       // [1] Woodward, C.S., Gardner, D.J. and Evans, K.J., 2015. On the use of
@@ -609,21 +686,35 @@ public:
       }
       else
       {
-         eps = lambda * (lambda + xnorm / v.Norml2());
+         const real_t vnorm_local = v.Norml2();
+         real_t vnorm;
+         MPI_Allreduce(&vnorm_local, &vnorm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                       MPI_COMM_WORLD);
+         eps = lambda * (lambda + xnorm / vnorm);
       }
 
-      for (int i = 0; i < x.Size(); i++)
+      // x + eps * v
       {
-         xpev(i) = x(i) + eps * v(i);
+         const auto d_v = v.Read();
+         const auto d_x = x.Read();
+         auto d_xpev = xpev.Write();
+         mfem::forall(x.Size(), [=] MFEM_HOST_DEVICE (int i)
+         {
+            d_xpev[i] = d_x[i] + eps * d_v[i];
+         });
       }
 
       // y = f(x + eps * v)
       op.Mult(xpev, y);
 
       // y = (f(x + eps * v) - f(x)) / eps
-      for (int i = 0; i < f.Size(); i++)
       {
-         y(i) = (y(i) - f(i)) / eps;
+         const auto d_f = f.Read();
+         auto d_y = y.ReadWrite();
+         mfem::forall(f.Size(), [=] MFEM_HOST_DEVICE (int i)
+         {
+            d_y[i] = (d_y[i] - d_f[i]) / eps;
+         });
       }
    }
 
@@ -641,11 +732,17 @@ private:
    real_t xnorm;
 };
 
-
+/// @brief Find the index of a field descriptor in a vector of field descriptors.
+///
+/// @param id the field ID to search for.
+/// @param fields the vector of field descriptors.
+/// @returns the index of the field descriptor with the given ID,
+/// or SIZE_MAX if not found.
 inline
-size_t FindIdx(const size_t& id, const std::vector<FieldDescriptor>& fields)
+std::size_t FindIdx(const std::size_t& id,
+                    const std::vector<FieldDescriptor>& fields)
 {
-   for (size_t i = 0; i < fields.size(); i++)
+   for (std::size_t i = 0; i < fields.size(); i++)
    {
       if (fields[i].id == id)
       {
@@ -655,30 +752,10 @@ size_t FindIdx(const size_t& id, const std::vector<FieldDescriptor>& fields)
    return SIZE_MAX;
 }
 
-template <typename entity_t>
-GeometricFactorMaps GetGeometricFactorMaps(Mesh &mesh,
-                                           const IntegrationRule &ir)
-{
-   if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
-   {
-      const FaceGeometricFactors *fg =
-         mesh.GetFaceGeometricFactors(
-            ir,
-            FaceGeometricFactors::FactorFlags::NORMALS,
-            FaceType::Boundary);
-
-      return GeometricFactorMaps
-      {
-         DeviceTensor<3, const double>(
-            fg->normal.Read(), ir.GetNPoints(), mesh.SpaceDimension(), mesh.GetNBE()
-         )
-      };
-   }
-
-   Vector zero;
-   return GeometricFactorMaps{DeviceTensor<3, const double>(zero.Read(), 0, 0, 0)};
-}
-
+/// @brief Get the vdof size of a field descriptor.
+///
+/// @param f the field descriptor.
+/// @returns the vdof size of the field descriptor.
 inline
 int GetVSize(const FieldDescriptor &f)
 {
@@ -695,18 +772,27 @@ int GetVSize(const FieldDescriptor &f)
       {
          return arg->GetVSize();
       }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
-         return arg->GetTotalSize();
+         return arg->GetVSize();
       }
       else
       {
-         static_assert(always_false<T>, "can't use GetVSize on type");
+         static_assert(dfem::always_false<T>, "can't use GetVSize on type");
       }
+      return 0; // Unreachable, but avoids compiler warning
    }, f.data);
 }
 
-inline void GetElementVDofs(const FieldDescriptor &f, int el, Array<int> &vdofs)
+/// @brief Get the element vdofs of a field descriptor.
+///
+/// @note Can't be used with ParameterSpace.
+///
+/// @param f the field descriptor.
+/// @param el the element index.
+/// @param vdofs the array to store the element vdofs.
+inline
+void GetElementVDofs(const FieldDescriptor &f, int el, Array<int> &vdofs)
 {
    return std::visit([&](auto arg)
    {
@@ -724,18 +810,23 @@ inline void GetElementVDofs(const FieldDescriptor &f, int el, Array<int> &vdofs)
       {
          arg->GetElementVDofs(el, vdofs);
       }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          MFEM_ABORT("internal error");
       }
       else
       {
-         static_assert(always_false<T>, "can't use GetElementVdofs on type");
+         static_assert(dfem::always_false<T>, "can't use GetElementVdofs on type");
       }
    }, f.data);
 }
 
-inline int GetTrueVSize(const FieldDescriptor &f)
+/// @brief Get the true dof size of a field descriptor.
+///
+/// @param f the field descriptor.
+/// @returns the true dof size of the field descriptor.
+inline
+int GetTrueVSize(const FieldDescriptor &f)
 {
    return std::visit([](auto arg)
    {
@@ -753,18 +844,24 @@ inline int GetTrueVSize(const FieldDescriptor &f)
       {
          return arg->GetTrueVSize();
       }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
-         return arg->GetTotalSize();
+         return arg->GetTrueVSize();
       }
       else
       {
-         static_assert(always_false<T>, "can't use GetTrueVSize on type");
+         static_assert(dfem::always_false<T>, "can't use GetTrueVSize on type");
       }
+      return 0; // Unreachable, but avoids compiler warning
    }, f.data);
 }
 
-inline int GetVDim(const FieldDescriptor &f)
+/// @brief Get the vdim of a field descriptor.
+///
+/// @param f the field descriptor.
+/// @returns the vdim of the field descriptor.
+inline
+int GetVDim(const FieldDescriptor &f)
 {
    return std::visit([](auto && arg)
    {
@@ -777,75 +874,23 @@ inline int GetVDim(const FieldDescriptor &f)
       {
          return arg->GetVDim();
       }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
-         return arg->GetLocalSize();
+         return arg->GetVDim();
       }
       else
       {
-         static_assert(always_false<T>, "can't use GetVDim on type");
+         static_assert(dfem::always_false<T>, "can't use GetVDim on type");
       }
+      return 0; // Unreachable, but avoids compiler warning
    }, f.data);
 }
 
-inline int GetVectorFEDim(const FieldDescriptor &f)
-{
-   return std::visit([](auto && arg)
-   {
-      using T = std::decay_t<decltype(arg)>;
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
-                    std::is_same_v<T, const ParFiniteElementSpace *>)
-      {
-         if (arg->GetFE(0)->GetMapType() == FiniteElement::MapType::H_CURL ||
-             arg->GetFE(0)->GetMapType() == FiniteElement::MapType::H_DIV)
-         {
-            return arg->GetFE(0)->GetDim();
-         }
-         else
-         {
-            return 1;
-         }
-      }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
-      {
-         return 1;
-      }
-      else
-      {
-         static_assert(always_false<T>, "can't use GetVectorFEDim on type");
-      }
-   }, f.data);
-}
-
-inline
-int GetVectorFECurlDim(const FieldDescriptor &f)
-{
-   return std::visit([](auto && arg)
-   {
-      using T = std::decay_t<decltype(arg)>;
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
-                    std::is_same_v<T, const ParFiniteElementSpace *>)
-      {
-         if (arg->GetFE(0)->GetMapType() == FiniteElement::MapType::H_CURL)
-         {
-            return arg->GetFE(0)->GetCurlDim();
-         }
-         else
-         {
-            return 1;
-         }
-      }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
-      {
-         return 1;
-      }
-      else
-      {
-         static_assert(always_false<T>, "can't use GetVectorFECurlDim on type");
-      }
-   }, f.data);
-}
-
+/// @brief Get the spatial dimension of a field descriptor.
+///
+/// @param f the field descriptor.
+/// @tparam entity_t the entity type (see Entity).
+/// @returns the spatial dimension of the field descriptor.
 template <typename entity_t>
 int GetDimension(const FieldDescriptor &f)
 {
@@ -864,20 +909,26 @@ int GetDimension(const FieldDescriptor &f)
             return arg->GetMesh()->Dimension() - 1;
          }
       }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          return arg->Dimension();
       }
       else
       {
-         static_assert(always_false<T>, "can't use GetDimension on type");
+         static_assert(dfem::always_false<T>, "can't use GetDimension on type");
       }
+      return 0; // Unreachable, but avoids compiler warning
    }, f.data);
 }
 
-inline const Operator *get_prolongation(const FieldDescriptor &f)
+
+/// @brief Get the prolongation operator for a field descriptor.
+///
+/// @param f the field descriptor.
+/// @returns the prolongation operator for the field descriptor.
+inline
+const Operator *get_prolongation(const FieldDescriptor &f)
 {
-   // dbg("\x1b[37m[get_prolongation]");
    return std::visit([](auto&& arg) -> const Operator*
    {
       using T = std::decay_t<decltype(arg)>;
@@ -886,19 +937,27 @@ inline const Operator *get_prolongation(const FieldDescriptor &f)
       {
          return arg->GetProlongationMatrix();
       }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
-         return arg->GetProlongation();
+         return arg->GetProlongationMatrix();
       }
       else
       {
-         static_assert(always_false<T>, "can't use GetProlongation on type");
+         static_assert(dfem::always_false<T>, "can't use GetProlongation on type");
       }
+      return nullptr; // Unreachable, but avoids compiler warning
    }, f.data);
 }
 
-inline const Operator *get_element_restriction(const FieldDescriptor &f,
-                                               ElementDofOrdering o)
+/// @brief Get the element restriction operator for a field descriptor.
+///
+/// @param f the field descriptor.
+/// @param o the element dof ordering.
+/// @returns the element restriction operator for the field descriptor in
+/// specified ordering.
+inline
+const Operator *get_element_restriction(const FieldDescriptor &f,
+                                        ElementDofOrdering o)
 {
    return std::visit([&o](auto&& arg) -> const Operator*
    {
@@ -908,17 +967,27 @@ inline const Operator *get_element_restriction(const FieldDescriptor &f,
       {
          return arg->GetElementRestriction(o);
       }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
-         return arg->GetRestriction();
+         return arg->GetElementRestriction(o);
       }
       else
       {
-         static_assert(always_false<T>, "can't use GetElementRestriction on type");
+         static_assert(dfem::always_false<T>,
+                       "can't use get_element_restriction on type");
       }
+      return nullptr; // Unreachable, but avoids compiler warning
    }, f.data);
 }
 
+/// @brief Get the face restriction operator for a field descriptor.
+///
+/// @param f the field descriptor.
+/// @param o the face dof ordering.
+/// @param ft the face type
+/// @param m indicator if single or double valued
+/// @returns the face restriction operator for the field descriptor in
+/// specified ordering.
 inline
 const Operator *get_face_restriction(const FieldDescriptor &f,
                                      ElementDofOrdering o,
@@ -933,23 +1002,31 @@ const Operator *get_face_restriction(const FieldDescriptor &f,
       {
          return arg->GetFaceRestriction(o, ft, m);
       }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
-         return arg->GetRestriction();
+         // ParameterSpace does not support face restrictions
+         MFEM_ABORT("internal error");
       }
       else
       {
-         static_assert(always_false<T>, "can't use get_face_restriction on type");
+         static_assert(dfem::always_false<T>,
+                       "can't use get_face_restriction on type");
       }
+      return nullptr; // Unreachable, but avoids compiler warning
    }, f.data);
 }
 
+/// @brief Get the restriction operator for a field descriptor.
+///
+/// @param f the field descriptor.
+/// @param o the element dof ordering.
+/// @returns the restriction operator for the field descriptor in
+/// specified ordering.
 template <typename entity_t>
 inline
 const Operator *get_restriction(const FieldDescriptor &f,
                                 const ElementDofOrdering &o)
 {
-   // dbg("\x1b[31m[get_restriction]");
    if constexpr (std::is_same_v<entity_t, Entity::Element>)
    {
       return get_element_restriction(f, o);
@@ -963,50 +1040,73 @@ const Operator *get_restriction(const FieldDescriptor &f,
    return nullptr;
 }
 
+/// @brief Get a transpose restriction callback for a field descriptor.
+///
+/// @param f the field descriptor.
+/// @param o the element dof ordering.
+/// @param fop the field operator.
+/// @returns a tuple containing a std::function with the transpose
+/// restriction callback and it's height.
 template <typename entity_t, typename fop_t>
-inline
-auto get_restriction_transpose(
+inline std::tuple<std::function<void(const Vector&, Vector&)>, int>
+get_restriction_transpose(
    const FieldDescriptor &f,
    const ElementDofOrdering &o,
    const fop_t &fop)
 {
-   // dbg("\x1b[31m[get_restriction_transpose]");
-   if constexpr (is_one_fop<fop_t>::value)
+   if constexpr (is_sum_fop<fop_t>::value)
    {
       auto RT = [=](const Vector &v_e, Vector &v_l)
       {
-         dbg("\x1b[31m[restriction][transpose] =");
-         v_l = v_e;
+         v_l += v_e;
       };
-      return std::tuple{RT, 1};
+      return std::make_tuple(RT, 1);
    }
    else
    {
       const Operator *R = get_restriction<entity_t>(f, o);
-      auto RT = [=](const Vector &x, Vector &y)
+      std::function<void(const Vector&, Vector&)> RT = [=](const Vector &x, Vector &y)
       {
-         dbg("\x1b[31m[restriction][transpose] R MultTranspose");
-         R->MultTranspose(x, y);
+         R->AddMultTranspose(x, y);
       };
-      return std::tuple{RT, R->Height()};
+      return std::make_tuple(RT, R->Height());
    }
+   return std::make_tuple(
+             std::function<void(const Vector&, Vector&)>([](const Vector&, Vector&)
+   {
+      /* no-op */
+   }), 0); // Never reached, but avoids compiler warning.
 }
 
-inline void prolongation(const FieldDescriptor field, const Vector &x,
-                         Vector &field_l)
+/// @brief Apply the prolongation operator to a field.
+///
+/// @param field the field descriptor.
+/// @param x the input vector in tdofs.
+/// @param field_l the output vector in vdofs.
+inline
+void prolongation(const FieldDescriptor field, const Vector &x, Vector &field_l)
 {
-   dbg("\x1b[37m[prolongation]");
    const auto P = get_prolongation(field);
    field_l.SetSize(P->Height());
    P->Mult(x, field_l);
 }
 
-template <size_t N, size_t M>
+/// @brief Apply the prolongation operator to a vector of fields.
+///
+/// x is a long vector containing the data for all fields on tdofs and
+/// fields contains the information about each individual field to retrieve
+/// it's corresponding prolongation.
+///
+/// @param fields the array of field descriptors.
+/// @param x the input vector in tdofs.
+/// @param fields_l the array of output vectors in vdofs.
+/// @tparam N the number of fields.
+/// @tparam M the number of output fields.
+template <std::size_t N, std::size_t M>
 void prolongation(const std::array<FieldDescriptor, N> fields,
                   const Vector &x,
                   std::array<Vector, M> &fields_l)
 {
-   dbg("\x1b[37m[prolongation]");
    int data_offset = 0;
    for (int i = 0; i < N; i++)
    {
@@ -1021,13 +1121,22 @@ void prolongation(const std::array<FieldDescriptor, N> fields,
    }
 }
 
-inline void prolongation(const std::vector<FieldDescriptor> fields,
-                         const Vector &x,
-                         std::vector<Vector> &fields_l)
+/// @brief Apply the prolongation operator to a vector of fields.
+///
+/// x is a long vector containing the data for all fields on tdofs and
+/// fields contains the information about each individual field to retrieve
+/// it's corresponding prolongation.
+///
+/// @param fields the array of field descriptors.
+/// @param x the input vector in tdofs.
+/// @param fields_l the array of output vectors in vdofs.
+inline
+void prolongation(const std::vector<FieldDescriptor> fields,
+                  const Vector &x,
+                  std::vector<Vector> &fields_l)
 {
-   dbg("\x1b[37m[prolongation]");
    int data_offset = 0;
-   for (size_t i = 0; i < fields.size(); i++)
+   for (std::size_t i = 0; i < fields.size(); i++)
    {
       const auto P = get_prolongation(fields[i]);
       const int width = P->Width();
@@ -1038,50 +1147,79 @@ inline void prolongation(const std::vector<FieldDescriptor> fields,
    }
 }
 
+inline
+void get_lvectors(const std::vector<FieldDescriptor> fields,
+                  const Vector &x,
+                  std::vector<Vector> &fields_l)
+{
+   int data_offset = 0;
+   for (std::size_t i = 0; i < fields.size(); i++)
+   {
+      const int sz = GetVSize(fields[i]);
+      fields_l[i].SetSize(sz);
+
+      const Vector x_i(const_cast<Vector&>(x), data_offset, sz);
+      fields_l[i] = x_i;
+
+      data_offset += sz;
+   }
+}
+
+/// @brief Get a transpose prolongation callback for a field descriptor.
+///
+/// In the special case of a one field operator, the transpose prolongation
+/// is a simple sum of the local vector that is reduced to the global vector.
+///
+/// @param f the field descriptor.
+/// @param fop the field operator.
+/// @param mpi_comm the MPI communicator.
+/// @tparam fop_t the field operator type.
 template <typename fop_t>
 inline
-auto get_prolongation_transpose(const FieldDescriptor &f, const fop_t &fop,
-                                MPI_Comm mpi_comm)
+std::function<void(const Vector&, Vector&)> get_prolongation_transpose(
+   const FieldDescriptor &f,
+   const fop_t &fop,
+   MPI_Comm mpi_comm)
 {
-   if constexpr (is_one_fop<fop_t>::value)
+   if constexpr (is_sum_fop<fop_t>::value)
    {
       auto PT = [=](const Vector &r_local, Vector &y)
       {
-         dbg("\x1b[37m[prolongation][transpose] ONE");
-         double local_sum = r_local.Sum();
-         MPI_Allreduce(&local_sum, y.GetData(), 1, MPI_DOUBLE, MPI_SUM, mpi_comm);
          MFEM_ASSERT(y.Size() == 1, "output size doesn't match kernel description");
+         real_t local_sum = r_local.Sum();
+         MPI_Allreduce(&local_sum, y.GetData(), 1, MPI_DOUBLE, MPI_SUM, mpi_comm);
       };
       return PT;
    }
-   else if constexpr (is_none_fop<fop_t>::value)
+   else if constexpr (is_identity_fop<fop_t>::value)
    {
-      auto PT = [](Vector &r_local, Vector &y)
+      auto PT = [=](const Vector &r_local, Vector &y)
       {
-         dbg("\x1b[37m[prolongation][transpose] NONE");
          y = r_local;
       };
       return PT;
    }
-   else
+   const Operator *P = get_prolongation(f);
+   auto PT = [=](const Vector &r_local, Vector &y)
    {
-      const Operator *P = get_prolongation(f);
-      auto PT = [=](const Vector &r_local, Vector &y)
-      {
-         dbg("\x1b[37m[prolongation][transpose] MultTranspose");
-         P->MultTranspose(r_local, y);
-      };
-      return PT;
-   }
+      P->MultTranspose(r_local, y);
+   };
+   return PT;
 }
 
+/// @brief Apply the restriction operator to a field.
+///
+/// @param u the field descriptor.
+/// @param u_l the input vector in vdofs.
+/// @param field_e the output vector in edofs.
+/// @param ordering the element dof ordering.
+/// @tparam entity_t the entity type (see Entity).
 template <typename entity_t>
 void restriction(const FieldDescriptor u,
                  const Vector &u_l,
                  Vector &field_e,
                  ElementDofOrdering ordering)
 {
-   dbg("\x1b[31m[restriction] L => E");
    const auto R = get_restriction<entity_t>(u, ordering);
    MFEM_ASSERT(R->Width() == u_l.Size(),
                "restriction not applicable to given data size");
@@ -1090,6 +1228,14 @@ void restriction(const FieldDescriptor u,
    R->Mult(u_l, field_e);
 }
 
+/// @brief Apply the restriction operator to a vector of fields.
+///
+/// @param u the vector of field descriptors.
+/// @param u_l the vector of input vectors in vdofs.
+/// @param fields_e the vector of output vectors in edofs.
+/// @param ordering the element dof ordering.
+/// @param offset the array index offset to start writing in fields_e.
+/// @tparam entity_t the entity type (see Entity).
 template <typename entity_t>
 void restriction(const std::vector<FieldDescriptor> u,
                  const std::vector<Vector> &u_l,
@@ -1097,8 +1243,7 @@ void restriction(const std::vector<FieldDescriptor> u,
                  ElementDofOrdering ordering,
                  const int offset = 0)
 {
-   dbg("\x1b[31m[restriction] L => E");
-   for (size_t i = 0; i < u.size(); i++)
+   for (std::size_t i = 0; i < u.size(); i++)
    {
       const auto R = get_restriction<entity_t>(u[i], ordering);
       MFEM_ASSERT(R->Width() == u_l[i].Size(),
@@ -1110,14 +1255,13 @@ void restriction(const std::vector<FieldDescriptor> u,
 }
 
 // TODO: keep this temporarily
-template <size_t N, size_t M>
+template <std::size_t N, std::size_t M>
 void element_restriction(const std::array<FieldDescriptor, N> u,
                          const std::array<Vector, N> &u_l,
                          std::array<Vector, M> &fields_e,
                          ElementDofOrdering ordering,
                          const int offset = 0)
 {
-   dbg("\x1b[31m[element][restriction]");
    for (int i = 0; i < N; i++)
    {
       const auto R = get_element_restriction(u[i], ordering);
@@ -1129,6 +1273,11 @@ void element_restriction(const std::array<FieldDescriptor, N> u,
    }
 }
 
+/// @brief Get the number of entities of a given type.
+///
+/// @param mesh the mesh.
+/// @tparam entity_t the entity type (see Entity).
+/// @returns the number of entities of the given type.
 template <typename entity_t>
 int GetNumEntities(const mfem::Mesh &mesh)
 {
@@ -1142,10 +1291,20 @@ int GetNumEntities(const mfem::Mesh &mesh)
    }
    else
    {
-      static_assert(always_false<entity_t>, "can't use GetNumEntites on type");
+      static_assert(dfem::always_false<entity_t>, "can't use GetNumEntites on type");
    }
+   return 0; // Unreachable, but avoids compiler warning
 }
 
+/// @brief Get the GetDofToQuad object for a given entity type.
+///
+/// This function retrieves the DofToQuad object for a given field descriptor
+/// and integration rule.
+///
+/// @param f the field descriptor.
+/// @param ir the integration rule.
+/// @param mode the mode of the DofToQuad object.
+/// @tparam entity_t the entity type (see Entity).
 template <typename entity_t>
 inline
 const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
@@ -1160,24 +1319,33 @@ const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
       {
          if constexpr (std::is_same_v<entity_t, Entity::Element>)
          {
-            return &arg->GetFE(0)->GetDofToQuad(ir, mode);
+            return &arg->GetTypicalFE()->GetDofToQuad(ir, mode);
          }
          else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
          {
-            return &arg->GetBE(0)->GetDofToQuad(ir, mode);
+            return &arg->GetTypicalTraceElement()->GetDofToQuad(ir, mode);
          }
       }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          return &arg->GetDofToQuad();
       }
       else
       {
-         static_assert(always_false<T>, "can't use GetDofToQuad on type");
+         static_assert(dfem::always_false<T>, "can't use GetDofToQuad on type");
       }
+      return nullptr; // Unreachable, but avoids compiler warning
    }, f.data);
 }
 
+/// @brief Check the compatibility of a field operator type with a
+/// FieldDescriptor.
+///
+/// This function checks if the field operator type is compatible with the
+/// FieldDescriptor type.
+///
+/// @param f the field descriptor.
+/// @tparam field_operator_t the field operator type.
 template <typename field_operator_t>
 void CheckCompatibility(const FieldDescriptor &f)
 {
@@ -1193,35 +1361,43 @@ void CheckCompatibility(const FieldDescriptor &f)
          }
          else if constexpr (std::is_same_v<field_operator_t, Gradient<>>)
          {
-            MFEM_ASSERT(arg->GetFE(0)->GetMapType() == FiniteElement::MapType::VALUE,
+            MFEM_ASSERT(arg->GetTypicalElement()->GetMapType() ==
+                        FiniteElement::MapType::VALUE,
                         "Gradient not compatible with FE");
          }
          else
          {
-            static_assert(always_false<T, field_operator_t>,
+            static_assert(dfem::always_false<T, field_operator_t>,
                           "FieldOperator not compatible with FiniteElementSpace");
          }
       }
-      else if constexpr (std::is_same_v<T, const ParametricSpace *>)
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
-         if constexpr (std::is_same_v<field_operator_t, None<>>)
+         if constexpr (std::is_same_v<field_operator_t, Identity<>>)
          {
-            // Only supported field operation for ParametricSpace
+            // Only supported field operation for ParameterSpace
          }
          else
          {
-            static_assert(always_false<T, field_operator_t>,
-                          "FieldOperator not compatible with ParametricSpace");
+            static_assert(dfem::always_false<T, field_operator_t>,
+                          "FieldOperator not compatible with ParameterSpace");
          }
       }
       else
       {
-         static_assert(always_false<T, field_operator_t>,
+         static_assert(dfem::always_false<T, field_operator_t>,
                        "Operator not compatible with FE");
       }
    }, f.data);
 }
 
+/// @brief Get the size on quadrature point for a field operator type
+/// and FieldDescriptor combination.
+///
+/// @tparam entity_t the entity type (see Entity).
+/// @tparam field_operator_t the field operator type.
+/// @param f the field descriptor.
+/// @returns the size on quadrature point.
 template <typename entity_t, typename field_operator_t>
 int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
 {
@@ -1229,17 +1405,17 @@ int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
 
    if constexpr (is_value_fop<field_operator_t>::value)
    {
-      return GetVDim(f) * GetVectorFEDim(f);
+      return GetVDim(f);
    }
    else if constexpr (is_gradient_fop<field_operator_t>::value)
    {
       return GetVDim(f) * GetDimension<entity_t>(f);
    }
-   else if constexpr (is_none_fop<field_operator_t>::value)
+   else if constexpr (is_identity_fop<field_operator_t>::value)
    {
       return GetVDim(f);
    }
-   else if constexpr (is_one_fop<field_operator_t>::value)
+   else if constexpr (is_sum_fop<field_operator_t>::value)
    {
       return 1;
    }
@@ -1247,17 +1423,24 @@ int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
    {
       MFEM_ABORT("can't get size on quadrature point for field descriptor");
    }
+   return 0; // Unreachable, but avoids compiler warning
 }
 
+/// @brief Create a map from field operator types to FieldDescriptor indices.
+///
+/// @param fields the vector of field descriptors.
+/// @param fops the field operator types.
+/// @tparam entity_t the entity type (see Entity).
+/// @returns an array mapping field operator types to field descriptor indices.
 template <typename entity_t, typename field_operator_ts>
-std::array<int, mfem::tuple_size<field_operator_ts>::value>
+std::array<size_t, tuple_size<field_operator_ts>::value>
 create_descriptors_to_fields_map(
    const std::vector<FieldDescriptor> &fields,
    field_operator_ts &fops)
 {
-   std::array<int, mfem::tuple_size<field_operator_ts>::value> map;
+   std::array<size_t, tuple_size<field_operator_ts>::value> map;
 
-   auto find_id = [](const std::vector<FieldDescriptor> &fields, size_t i)
+   auto find_id = [](const std::vector<FieldDescriptor> &fields, std::size_t i)
    {
       auto it = std::find_if(begin(fields), end(fields),
                              [&](const FieldDescriptor &field)
@@ -1267,52 +1450,56 @@ create_descriptors_to_fields_map(
 
       if (it == fields.end())
       {
-         return -1;
+         return SIZE_MAX;
       }
-      return static_cast<int>(it - fields.begin());
+      return static_cast<size_t>(it - fields.begin());
    };
 
    auto f = [&](auto &fop, auto &map)
    {
-      int i;
-
       if constexpr (std::is_same_v<std::decay_t<decltype(fop)>, Weight>)
       {
          // TODO-bug: stealing dimension from the first field
-         fop.dim = GetDimension<Entity::Element>(fields[0]);
+         fop.dim = GetDimension<entity_t>(fields[0]);
          fop.vdim = 1;
          fop.size_on_qp = 1;
-         map = -1;
-      }
-      else if ((i = find_id(fields, fop.GetFieldId())) != -1)
-      {
-         fop.dim = GetDimension<entity_t>(fields[i]);
-         fop.vdim = GetVDim(fields[i]);
-         fop.size_on_qp = GetSizeOnQP<entity_t>(fop, fields[i]);
-         map = i;
+         map = SIZE_MAX;
       }
       else
       {
-         MFEM_ABORT("can't find field for id: " << fop.GetFieldId());
+         int i = find_id(fields, fop.GetFieldId());
+         if (i != -1)
+         {
+            fop.dim = GetDimension<entity_t>(fields[i]);
+            fop.vdim = GetVDim(fields[i]);
+            fop.size_on_qp = GetSizeOnQP<entity_t>(fop, fields[i]);
+            map = i;
+         }
+         else
+         {
+            MFEM_ABORT("can't find field for id: " << fop.GetFieldId());
+         }
       }
    };
 
-   for_constexpr<mfem::tuple_size<field_operator_ts>::value>([&](auto idx)
+   for_constexpr<tuple_size<field_operator_ts>::value>([&](auto idx)
    {
-      f(mfem::get<idx>(fops), map[idx]);
+      f(get<idx>(fops), map[idx]);
    });
 
    return map;
 }
 
+/// @brief Wrap input memory for a given set of inputs.
 template <typename input_t, std::size_t... i>
 std::array<DeviceTensor<3>, sizeof...(i)> wrap_input_memory(
    std::array<Vector, sizeof...(i)> &input_qp_mem, int num_qp, int num_entities,
    const input_t &inputs, std::index_sequence<i...>)
 {
-   return {DeviceTensor<3>(input_qp_mem[i].Write(), mfem::get<i>(inputs).size_on_qp, num_qp, num_entities) ...};
+   return {DeviceTensor<3>(input_qp_mem[i].Write(), get<i>(inputs).size_on_qp, num_qp, num_entities) ...};
 }
 
+/// @brief Create input memory for a given set of inputs.
 template <typename input_t, std::size_t... i>
 std::array<Vector, sizeof...(i)> create_input_qp_memory(
    int num_qp,
@@ -1320,28 +1507,47 @@ std::array<Vector, sizeof...(i)> create_input_qp_memory(
    input_t &inputs,
    std::index_sequence<i...>)
 {
-   return {Vector(mfem::get<i>(inputs).size_on_qp * num_qp * num_entities)...};
+   return {Vector(get<i>(inputs).size_on_qp * num_qp * num_entities)...};
 }
 
+/// @brief DofToQuadMap struct
+///
+/// This struct is used to store the mapping from degrees of freedom to
+/// quadrature points for a given field operator type.
 struct DofToQuadMap
 {
+   /// Enumeration for the indices of the mappings B and G.
    enum Index
    {
       QP,
       DIM,
       DOF
    };
-   DeviceTensor<3, const double> B;
-   DeviceTensor<3, const double> G;
+
+   /// @brief Basis functions evaluated at quadrature points.
+   ///
+   /// This is a 3D tensor with dimensions (num_qp, dim, num_dofs).
+   DeviceTensor<3, const real_t> B;
+
+   /// @brief Gradient of the basis functions evaluated at quadrature points.
+   ///
+   /// This is a 3D tensor with dimensions (num_qp, dim, num_dofs).
+   DeviceTensor<3, const real_t> G;
+
+   /// Reverse mapping indicating which input this map belongs to.
    int which_input = -1;
 };
 
+/// @brief Get the size on quadrature point for a given set of inputs.
+///
+/// @param inputs the inputs tuple.
+/// @returns a vector containing the size on quadrature point for each input.
 template <typename input_t, std::size_t... i>
 std::vector<int> get_input_size_on_qp(
    const input_t &inputs,
    std::index_sequence<i...>)
 {
-   return {mfem::get<i>(inputs).size_on_qp...};
+   return {get<i>(inputs).size_on_qp...};
 }
 
 struct SharedMemory
@@ -1359,7 +1565,7 @@ struct SharedMemory
    };
 };
 
-template <size_t num_fields, size_t num_inputs, size_t num_outputs>
+template <std::size_t num_fields, std::size_t num_inputs, std::size_t num_outputs>
 struct SharedMemoryInfo
 {
    int total_size;
@@ -1374,11 +1580,11 @@ struct SharedMemoryInfo
    std::array<int, 6> temp_sizes;
 };
 
-template <typename entity_t, size_t num_fields, size_t num_inputs, size_t num_outputs, typename input_t>
+template <typename entity_t, std::size_t num_fields, std::size_t num_inputs, std::size_t num_outputs, typename input_t>
 SharedMemoryInfo<num_fields, num_inputs, num_outputs>
 get_shmem_info(
-   std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
-   std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
+   const std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
+   const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
    const std::vector<FieldDescriptor> &fields,
    const int &num_entities,
    const input_t &inputs,
@@ -1395,7 +1601,7 @@ get_shmem_info(
    std::array<std::array<int, 2>, num_inputs> input_dtq_sizes;
    int max_dtq_qps = 0;
    int max_dtq_dofs = 0;
-   for (size_t i = 0; i < num_inputs; i++)
+   for (std::size_t i = 0; i < num_inputs; i++)
    {
       auto a = input_dtq_maps[i].B.GetShape();
       input_dtq_sizes[i][0] = a[0] * a[1] * a[2];
@@ -1412,7 +1618,7 @@ get_shmem_info(
 
    offsets[SharedMemory::Index::OUTPUT_DTQ] = total_size;
    std::array<std::array<int, 2>, num_outputs> output_dtq_sizes;
-   for (size_t i = 0; i < num_outputs; i++)
+   for (std::size_t i = 0; i < num_outputs; i++)
    {
       auto a = output_dtq_maps[i].B.GetShape();
       output_dtq_sizes[i][0] = a[0] * a[1] * a[2];
@@ -1429,11 +1635,13 @@ get_shmem_info(
 
    offsets[SharedMemory::Index::FIELD] = total_size;
    std::array<int, num_fields> field_sizes;
-   for (size_t i = 0; i < num_fields; i++)
+   for (std::size_t i = 0; i < num_fields; i++)
    {
-      field_sizes[i] = get_restriction<entity_t>(
-                          fields[i],
-                          dof_ordering)->Height() / num_entities;
+      field_sizes[i] =
+         num_entities
+         ? (get_restriction<entity_t>(fields[i], dof_ordering)->Height()
+            / num_entities)
+         : 0;
    }
    total_size += std::accumulate(
                     std::begin(field_sizes), std::end(field_sizes), 0);
@@ -1442,15 +1650,18 @@ get_shmem_info(
    int direction_size = 0;
    if (derivative_action_field_idx != -1)
    {
-      direction_size = get_restriction<entity_t>(
-                          fields[derivative_action_field_idx],
-                          dof_ordering)->Height() / num_entities;
+      direction_size =
+         num_entities ? (get_restriction<entity_t>(
+                            fields[derivative_action_field_idx], dof_ordering)
+                         ->Height()
+                         / num_entities)
+         : 0;
       total_size += direction_size;
    }
 
    offsets[SharedMemory::Index::INPUT] = total_size;
    std::array<int, num_inputs> input_sizes;
-   for (size_t i = 0; i < num_inputs; i++)
+   for (std::size_t i = 0; i < num_inputs; i++)
    {
       input_sizes[i] = input_size_on_qp[i] * num_qp;
    }
@@ -1461,7 +1672,7 @@ get_shmem_info(
    std::array<int, num_inputs> shadow_sizes{0};
    if (derivative_action_field_idx != -1)
    {
-      for (size_t i = 0; i < num_inputs; i++)
+      for (std::size_t i = 0; i < num_inputs; i++)
       {
          shadow_sizes[i] = input_size_on_qp[i] * num_qp;
       }
@@ -1482,7 +1693,7 @@ get_shmem_info(
 
    // TODO-bug: this depends on the dimension
    constexpr int hardcoded_temp_num = 6;
-   for (size_t i = 0; i < hardcoded_temp_num; i++)
+   for (std::size_t i = 0; i < hardcoded_temp_num; i++)
    {
       // TODO-bug: over-allocates if q1d <= d1d
       temp_sizes[i] = q1d * q1d * q1d;
@@ -1510,7 +1721,7 @@ void print_shared_memory_info(shmem_info_t &shmem_info)
 {
    out << "Shared Memory Info\n"
        << "total size: " << shmem_info.total_size
-       << " " << "(" << shmem_info.total_size * double(sizeof(double))/1024.0 << "kb)";
+       << " " << "(" << shmem_info.total_size * real_t(sizeof(real_t))/1024.0 << "kb)";
    out << "\ninput dtq sizes (B G): ";
    for (auto &i : shmem_info.input_dtq_sizes)
    {
@@ -1569,7 +1780,7 @@ void print_shared_memory_info(shmem_info_t &shmem_info)
    out << "\n\n";
 }
 
-template <size_t N>
+template <std::size_t N>
 MFEM_HOST_DEVICE inline
 std::array<DofToQuadMap, N> load_dtq_mem(
    void *mem,
@@ -1578,14 +1789,15 @@ std::array<DofToQuadMap, N> load_dtq_mem(
    const std::array<DofToQuadMap, N> &dtq)
 {
    std::array<DofToQuadMap, N> f;
-   for (size_t i = 0; i < N; i++)
+   for (std::size_t i = 0; i < N; i++)
    {
-      const auto [nqp_b, dim_b, ndof_b] = dtq[i].B.GetShape();
-      const auto B = Reshape(&dtq[i].B[0], nqp_b, dim_b, ndof_b);
-      auto mem_Bi = Reshape(reinterpret_cast<real_t *>(mem) + offset, nqp_b, dim_b,
-                            ndof_b);
       if (dtq[i].which_input != -1)
       {
+         const auto [nqp_b, dim_b, ndof_b] = dtq[i].B.GetShape();
+         const auto B = Reshape(&dtq[i].B[0], nqp_b, dim_b, ndof_b);
+         auto mem_Bi = Reshape(reinterpret_cast<real_t *>(mem) + offset, nqp_b, dim_b,
+                               ndof_b);
+
          MFEM_FOREACH_THREAD(q, x, nqp_b)
          {
             MFEM_FOREACH_THREAD(d, y, ndof_b)
@@ -1597,15 +1809,14 @@ std::array<DofToQuadMap, N> load_dtq_mem(
                }
             }
          }
-      }
-      offset += sizes[i][0];
 
-      const auto [nqp_g, dim_g, ndof_g] = dtq[i].G.GetShape();
-      const auto G = Reshape(&dtq[i].G[0], nqp_g, dim_g, ndof_g);
-      auto mem_Gi = Reshape(reinterpret_cast<real_t *>(mem) + offset, nqp_g, dim_g,
-                            ndof_g);
-      if (dtq[i].which_input != -1)
-      {
+         offset += sizes[i][0];
+
+         const auto [nqp_g, dim_g, ndof_g] = dtq[i].G.GetShape();
+         const auto G = Reshape(&dtq[i].G[0], nqp_g, dim_g, ndof_g);
+         auto mem_Gi = Reshape(reinterpret_cast<real_t *>(mem) + offset, nqp_g, dim_g,
+                               ndof_g);
+
          MFEM_FOREACH_THREAD(q, x, nqp_g)
          {
             MFEM_FOREACH_THREAD(d, y, ndof_g)
@@ -1616,17 +1827,23 @@ std::array<DofToQuadMap, N> load_dtq_mem(
                }
             }
          }
-      }
-      offset += sizes[i][1];
 
-      f[i] = DofToQuadMap{DeviceTensor<3, const double>(&mem_Bi[0], nqp_b, dim_b, ndof_b),
-                          DeviceTensor<3, const double>(&mem_Gi[0], nqp_g, dim_g, ndof_g),
-                          dtq[i].which_input};
+         offset += sizes[i][1];
+
+         f[i] = DofToQuadMap{DeviceTensor<3, const real_t>(&mem_Bi[0], nqp_b, dim_b, ndof_b),
+                             DeviceTensor<3, const real_t>(&mem_Gi[0], nqp_g, dim_g, ndof_g),
+                             dtq[i].which_input};
+      }
+      else
+      {
+         // When which_input is -1, just copy the original DofToQuadMap with empty data.
+         f[i] = dtq[i];
+      }
    }
    return f;
 }
 
-template <size_t num_fields>
+template <std::size_t num_fields>
 MFEM_HOST_DEVICE inline
 std::array<DeviceTensor<1>, num_fields>
 load_field_mem(
@@ -1685,7 +1902,7 @@ DeviceTensor<1> load_direction_mem(
              &reinterpret_cast<real_t *>(mem)[offset], size);
 }
 
-template <size_t N>
+template <std::size_t N>
 MFEM_HOST_DEVICE inline
 std::array<DeviceTensor<2>, N> load_input_mem(
    void *mem,
@@ -1694,7 +1911,7 @@ std::array<DeviceTensor<2>, N> load_input_mem(
    const int &num_qp)
 {
    std::array<DeviceTensor<2>, N> f;
-   for (size_t i = 0; i < N; i++)
+   for (std::size_t i = 0; i < N; i++)
    {
       f[i] = DeviceTensor<2>(&reinterpret_cast<real_t *>(mem)[offset],
                              sizes[i] / num_qp,
@@ -1715,7 +1932,7 @@ DeviceTensor<2> load_residual_mem(
                           num_qp);
 }
 
-template <size_t N>
+template <std::size_t N>
 MFEM_HOST_DEVICE inline
 std::array<DeviceTensor<1>, 6> load_scratch_mem(
    void *mem,
@@ -1723,7 +1940,7 @@ std::array<DeviceTensor<1>, 6> load_scratch_mem(
    const std::array<int, N> &sizes)
 {
    std::array<DeviceTensor<1>, N> f;
-   for (size_t i = 0; i < N; i++)
+   for (std::size_t i = 0; i < N; i++)
    {
       f[i] = DeviceTensor<1>(&reinterpret_cast<real_t *>(mem)[offset], sizes[i]);
       offset += sizes[i];
@@ -1731,7 +1948,7 @@ std::array<DeviceTensor<1>, 6> load_scratch_mem(
    return f;
 }
 
-template <typename shared_mem_info_t, size_t num_inputs, size_t num_outputs, size_t num_fields>
+template <typename shared_mem_info_t, std::size_t num_inputs, std::size_t num_outputs, std::size_t num_fields>
 MFEM_HOST_DEVICE inline
 auto unpack_shmem(
    void *shmem,
@@ -1788,11 +2005,13 @@ auto unpack_shmem(
 
    MFEM_SYNC_THREAD;
 
-   return std::make_tuple(input_dtq_shmem, output_dtq_shmem, fields_shmem,
-                          input_shmem, residual_shmem, scratch_mem);
+   // nvcc needs make_tuple to be fully qualified
+   return mfem::future::make_tuple(
+             input_dtq_shmem, output_dtq_shmem, fields_shmem,
+             input_shmem, residual_shmem, scratch_mem);
 }
 
-template <typename shared_mem_info_t, size_t num_inputs, size_t num_outputs, size_t num_fields>
+template <typename shared_mem_info_t, std::size_t num_inputs, std::size_t num_outputs, std::size_t num_fields>
 MFEM_HOST_DEVICE inline
 auto unpack_shmem(
    void *shmem,
@@ -1865,9 +2084,11 @@ auto unpack_shmem(
 
    MFEM_SYNC_THREAD;
 
-   return std::make_tuple(input_dtq_shmem, output_dtq_shmem, fields_shmem,
-                          direction_shmem, input_shmem, shadow_shmem,
-                          residual_shmem, scratch_mem);
+   // nvcc needs make_tuple to be fully qualified
+   return mfem::future::make_tuple(
+             input_dtq_shmem, output_dtq_shmem, fields_shmem,
+             direction_shmem, input_shmem, shadow_shmem,
+             residual_shmem, scratch_mem);
 }
 
 template <std::size_t... i>
@@ -1885,11 +2106,11 @@ std::array<DeviceTensor<2>, sizeof...(i)> get_local_input_qp(
    };
 }
 
-template <size_t N>
+template <std::size_t N>
 MFEM_HOST_DEVICE inline
 void set_zero(std::array<DeviceTensor<2>, N> &v)
 {
-   for (size_t i = 0; i < N; i++)
+   for (std::size_t i = 0; i < N; i++)
    {
       int size = v[i].GetShape()[0] * v[i].GetShape()[1];
       auto vi = Reshape(&v[i][0], size);
@@ -1900,7 +2121,7 @@ void set_zero(std::array<DeviceTensor<2>, N> &v)
    }
 }
 
-template <size_t n>
+template <std::size_t n>
 MFEM_HOST_DEVICE inline
 void set_zero(DeviceTensor<n> &u)
 {
@@ -1916,7 +2137,11 @@ void set_zero(DeviceTensor<n> &u)
    }
 }
 
-
+/// @brief Copy data from DeviceTensor u to DeviceTensor v
+///
+/// @param u source DeviceTensor
+/// @param v destination DeviceTensor
+/// @tparam n DeviceTensor rank
 template <int n>
 MFEM_HOST_DEVICE inline
 void copy(DeviceTensor<n> &u, DeviceTensor<n> &v)
@@ -1934,13 +2159,13 @@ void copy(DeviceTensor<n> &u, DeviceTensor<n> &v)
    }
 }
 
-/// @brief Copy data from array of tensors x to array of tensors y
+/// @brief Copy data from array of DeviceTensor u to array of DeviceTensor v
 ///
-/// @tparam n tensor dimension
-/// @tparam m number of tensors
-/// @param x source tensor array
-/// @param y destination tensor array
-template <int n, size_t m>
+/// @param u source DeviceTensor array
+/// @param v destination DeviceTensor array
+/// @tparam n DeviceTensor rank
+/// @tparam m number of DeviceTensors
+template <int n, std::size_t m>
 MFEM_HOST_DEVICE inline
 void copy(std::array<DeviceTensor<n>, m> &u,
           std::array<DeviceTensor<n>, m> &v)
@@ -1953,11 +2178,12 @@ void copy(std::array<DeviceTensor<n>, m> &u,
 
 /// @brief Wraps plain data in DeviceTensors for fields
 ///
-/// @tparam num_fields number of fields
 /// @param fields array of field data
+/// @param field_sizes for each field, number of values stored for each entity
 /// @param num_entities number of entities (elements, faces, etc) in mesh
+/// @tparam num_fields number of fields
 /// @return array of field data wrapped in DeviceTensors
-template <size_t num_fields>
+template <std::size_t num_fields>
 std::array<DeviceTensor<2>, num_fields> wrap_fields(
    std::vector<Vector> &fields,
    std::array<int, num_fields> &field_sizes,
@@ -1973,7 +2199,8 @@ std::array<DeviceTensor<2>, num_fields> wrap_fields(
    return f;
 }
 
-/// @brief Accumulates the sizes of field operators on quadrature points for dependent inputs
+/// @brief Accumulates the sizes of field operators on quadrature points for
+/// dependent inputs
 ///
 /// @tparam input_t Type of input field operators tuple
 /// @tparam num_fields Number of fields
@@ -1988,18 +2215,19 @@ std::array<DeviceTensor<2>, num_fields> wrap_fields(
 /// @return Sum of sizes on quadrature points for all dependent inputs
 ///
 /// @details
-/// This function accumulates the sizes needed on quadrature points for all dependent input
-/// field operators. For each dependent input, it calculates the size required on quadrature
-/// points using GetSizeOnQP() and adds it to the total. Non-dependent inputs contribute
-/// zero to the total size.
-template <typename input_t, size_t num_fields, std::size_t... i>
+/// This function accumulates the sizes needed on quadrature points for all
+/// dependent input field operators. For each dependent input, it calculates the
+/// size required on quadrature points using GetSizeOnQP() and adds it to the
+/// total. Non-dependent inputs contribute zero to the total size.
+template <typename input_t, std::size_t num_fields, std::size_t... i>
 int accumulate_sizes_on_qp(
    const input_t &inputs,
    std::array<bool, sizeof...(i)> &kinput_is_dependent,
    const std::array<int, sizeof...(i)> &input_to_field,
    const std::array<FieldDescriptor, num_fields> &fields,
-   std::index_sequence<i...>)
+   std::index_sequence<i...> seq)
 {
+   MFEM_CONTRACT_VAR(seq); // 'seq' is needed for doxygen
    return (... + [](auto &input, auto is_dependent, auto field)
    {
       if (!is_dependent)
@@ -2008,25 +2236,25 @@ int accumulate_sizes_on_qp(
       }
       return GetSizeOnQP(input, field);
    }
-   (mfem::get<i>(inputs),
-    mfem::get<i>(kinput_is_dependent),
+   (get<i>(inputs),
+    get<i>(kinput_is_dependent),
     fields[input_to_field[i]]));
 }
 
 template <
    typename entity_t,
    typename field_operator_ts,
-   size_t N = mfem::tuple_size<field_operator_ts>::value,
-   size_t... Is>
+   std::size_t N = tuple_size<field_operator_ts>::value,
+   std::size_t... Is>
 std::array<DofToQuadMap, N> create_dtq_maps_impl(
    field_operator_ts &fops,
-   std::vector<const DofToQuad*> dtqs,
-   const std::array<int, N> &field_map,
+   std::vector<const DofToQuad*> &dtqs,
+   const std::array<size_t, N> &field_map,
    std::index_sequence<Is...>)
 {
-   auto f = [&](auto fop, size_t idx)
+   auto f = [&](auto fop, std::size_t idx)
    {
-      auto g = [&](int idx)
+      [[maybe_unused]] auto g = [&](int idx)
       {
          auto dtq = dtqs[field_map[idx]];
 
@@ -2034,7 +2262,7 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
          int grad_dim = 1;
 
          if ((dtq->mode != DofToQuad::Mode::TENSOR) &&
-             (!is_none_fop<decltype(fop)>::value))
+             (!is_identity_fop<decltype(fop)>::value))
          {
             value_dim = dtq->FE->GetRangeDim() ? dtq->FE->GetRangeDim() : 1;
             grad_dim = dtq->FE->GetDim();
@@ -2049,8 +2277,8 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
          auto [dtq, value_dim, grad_dim] = g(idx);
          return DofToQuadMap
          {
-            DeviceTensor<3, const double>(dtq->B.Read(), dtq->nqpt, value_dim, dtq->ndof),
-            DeviceTensor<3, const double>(dtq->G.Read(), dtq->nqpt, grad_dim, dtq->ndof),
+            DeviceTensor<3, const real_t>(dtq->B.Read(), dtq->nqpt, value_dim, dtq->ndof),
+            DeviceTensor<3, const real_t>(dtq->G.Read(), dtq->nqpt, grad_dim, dtq->ndof),
             static_cast<int>(idx)
          };
       }
@@ -2058,42 +2286,55 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
       {
          return DofToQuadMap
          {
-            DeviceTensor<3, const double>(nullptr, 1, 1, 1),
-            DeviceTensor<3, const double>(nullptr, 1, 1, 1),
+            DeviceTensor<3, const real_t>(nullptr, 1, 1, 1),
+            DeviceTensor<3, const real_t>(nullptr, 1, 1, 1),
             -1
          };
       }
-      else if constexpr (is_none_fop<decltype(fop)>::value ||
-                         is_one_fop<decltype(fop)>::value)
+      else if constexpr (is_identity_fop<decltype(fop)>::value ||
+                         is_sum_fop<decltype(fop)>::value)
       {
          auto [dtq, value_dim, grad_dim] = g(idx);
          return DofToQuadMap
          {
-            DeviceTensor<3, const double>(nullptr, dtq->nqpt, value_dim, dtq->ndof),
-            DeviceTensor<3, const double>(nullptr, dtq->nqpt, grad_dim, dtq->ndof),
+            DeviceTensor<3, const real_t>(nullptr, dtq->nqpt, value_dim, dtq->ndof),
+            DeviceTensor<3, const real_t>(nullptr, dtq->nqpt, grad_dim, dtq->ndof),
             -1
          };
       }
       else
       {
-         static_assert(always_false<decltype(fop)>,
+         static_assert(dfem::always_false<decltype(fop)>,
                        "field operator type is not implemented");
       }
+      return DofToQuadMap
+      {
+         DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
+         DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
+         -1
+      }; // Unreachable, but avoids compiler warning
    };
    return std::array<DofToQuadMap, N>
    {
-      f(mfem::get<Is>(fops), Is)...
+      f(get<Is>(fops), Is)...
    };
 }
 
+/// @brief Create DofToQuad maps for a given set of field operators.
+///
+/// @param fops field operators
+/// @param dtqmaps DofToQuad maps
+/// @param to_field_map mapping from input indices to field indices
+/// @tparam entity_t type of the entity
+/// @return array of DofToQuad maps
 template <
    typename entity_t,
    typename field_operator_ts,
-   size_t num_fields>
+   std::size_t num_fields>
 std::array<DofToQuadMap, num_fields> create_dtq_maps(
    field_operator_ts &fops,
-   std::vector<const DofToQuad*> dtqmaps,
-   const std::array<int, num_fields> &to_field_map)
+   std::vector<const DofToQuad*> &dtqmaps,
+   const std::array<size_t, num_fields> &to_field_map)
 {
    return create_dtq_maps_impl<entity_t>(
              fops, dtqmaps,
@@ -2101,147 +2342,5 @@ std::array<DofToQuadMap, num_fields> create_dtq_maps(
              std::make_index_sequence<num_fields> {});
 }
 
-template <
-   typename qf_param_ts,
-   typename qfunc_t,
-   size_t num_fields> MFEM_HOST_DEVICE inline
-void call_qfunction(
-   qfunc_t &qfunc,
-   const std::array<DeviceTensor<2>, num_fields> &input_shmem,
-   DeviceTensor<2> &residual_shmem,
-   const int &rs_qp,
-   const int &num_qp,
-   const int &q1d,
-   const int &dimension,
-   const bool &use_sum_factorization)
-{
-   if (use_sum_factorization)
-   {
-      if (dimension == 2)
-      {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
-         {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
-            {
-               const int q = qx + q1d * qy;
-               auto qf_args = decay_tuple<qf_param_ts> {};
-               auto r = Reshape(&residual_shmem(0, q), rs_qp);
-               apply_kernel(r, qfunc, qf_args, input_shmem, q);
-            }
-         }
-      }
-      else if (dimension == 3)
-      {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
-         {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
-            {
-               MFEM_FOREACH_THREAD(qz, z, q1d)
-               {
-                  const int q = qx + q1d * (qy + q1d * qz);
-                  auto qf_args = decay_tuple<qf_param_ts> {};
-                  auto r = Reshape(&residual_shmem(0, q), rs_qp);
-                  apply_kernel(r, qfunc, qf_args, input_shmem, q);
-               }
-            }
-         }
-      }
-      else
-      {
-#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-         MFEM_ABORT("unsupported dimension for sum factorization");
+} // namespace mfem::future
 #endif
-      }
-      MFEM_SYNC_THREAD;
-   }
-   else
-   {
-      MFEM_FOREACH_THREAD(q, x, num_qp)
-      {
-         auto qf_args = decay_tuple<qf_param_ts> {};
-         auto r = Reshape(&residual_shmem(0, q), rs_qp);
-         apply_kernel(r, qfunc, qf_args, input_shmem, q);
-      }
-   }
-}
-
-template <
-   typename qf_param_ts,
-   typename qfunc_t,
-   size_t num_fields>
-MFEM_HOST_DEVICE inline
-void call_qfunction_derivative_action(
-   qfunc_t &qfunc,
-   const std::array<DeviceTensor<2>, num_fields> &input_shmem,
-   const std::array<DeviceTensor<2>, num_fields> &shadow_shmem,
-   DeviceTensor<2> &residual_shmem,
-   const int &das_qp,
-   const int &num_qp,
-   const int &q1d,
-   const int &dimension,
-   const bool &use_sum_factorization)
-{
-   if (use_sum_factorization)
-   {
-      if (dimension == 2)
-      {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
-         {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
-            {
-               const int q = qx + q1d * qy;
-               auto r = Reshape(&residual_shmem(0, q), das_qp);
-               auto qf_args = decay_tuple<qf_param_ts> {};
-#ifdef MFEM_USE_ENZYME
-               auto qf_shadow_args = decay_tuple<qf_param_ts> {};
-               apply_kernel_fwddiff_enzyme(r, qfunc, qf_args, qf_shadow_args, input_shmem,
-                                           shadow_shmem, q);
-#else
-               apply_kernel_native_dual(r, qfunc, qf_args, input_shmem, shadow_shmem, q);
-#endif
-            }
-         }
-      }
-      else if (dimension == 3)
-      {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
-         {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
-            {
-               MFEM_FOREACH_THREAD(qz, z, q1d)
-               {
-                  const int q = qx + q1d * (qy + q1d * qz);
-                  auto r = Reshape(&residual_shmem(0, q), das_qp);
-                  auto qf_args = decay_tuple<qf_param_ts> {};
-#ifdef MFEM_USE_ENZYME
-                  auto qf_shadow_args = decay_tuple<qf_param_ts> {};
-                  apply_kernel_fwddiff_enzyme(r, qfunc, qf_args, qf_shadow_args, input_shmem,
-                                              shadow_shmem, q);
-#else
-                  apply_kernel_native_dual(r, qfunc, qf_args, input_shmem, shadow_shmem, q);
-#endif
-               }
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-   }
-   else
-   {
-      MFEM_FOREACH_THREAD(q, x, num_qp)
-      {
-         auto r = Reshape(&residual_shmem(0, q), das_qp);
-         auto qf_args = decay_tuple<qf_param_ts> {};
-#ifdef MFEM_USE_ENZYME
-         auto qf_shadow_args = decay_tuple<qf_param_ts> {};
-         apply_kernel_fwddiff_enzyme(r, qfunc, qf_args, qf_shadow_args, input_shmem,
-                                     shadow_shmem, q);
-#else
-         apply_kernel_native_dual(r, qfunc, qf_args, input_shmem, shadow_shmem, q);
-#endif
-      }
-      MFEM_SYNC_THREAD;
-   }
-}
-
-} // namespace mfem

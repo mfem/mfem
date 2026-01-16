@@ -21,7 +21,7 @@
 #define MFEM_PERF_FUNCTION CALI_CXX_MARK_FUNCTION
 #define MFEM_PERF_BEGIN(s) CALI_MARK_BEGIN(s)
 #define MFEM_PERF_END(s) CALI_MARK_END(s)
-#define MFEM_PERF_SCOPE(name) CALI_CXX_MARK_SCOPE(name)
+#define MFEM_PERF_SCOPE(name) CALI_CXX_MARK_SCOPE(std::string(name).c_str())
 
 #else
 

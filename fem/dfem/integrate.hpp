@@ -12,19 +12,20 @@
 
 #include "util.hpp"
 
-namespace mfem
+namespace mfem::future
 {
 
 template <typename output_t>
 MFEM_HOST_DEVICE
 void map_quadrature_data_to_fields_impl(
-   DeviceTensor<2, double> &y,
-   const DeviceTensor<3, double> &f,
+   DeviceTensor<2, real_t> &y,
+   const DeviceTensor<3, real_t> &f,
    const output_t &output,
    const DofToQuadMap &dtq)
 {
-   auto B = dtq.B;
-   auto G = dtq.G;
+   [[maybe_unused]] auto B = dtq.B;
+   [[maybe_unused]] auto G = dtq.G;
+
    // assuming the quadrature point residual has to "play nice with
    // the test function"
    if constexpr (is_value_fop<std::decay_t<output_t>>::value)
@@ -35,7 +36,7 @@ void map_quadrature_data_to_fields_impl(
       {
          for (int vd = 0; vd < vdim; vd++)
          {
-            double acc = 0.0;
+            real_t acc = 0.0;
             for (int qp = 0; qp < num_qp; qp++)
             {
                acc += B(qp, 0, dof) * f(vd, 0, qp);
@@ -53,7 +54,7 @@ void map_quadrature_data_to_fields_impl(
       {
          for (int vd = 0; vd < vdim; vd++)
          {
-            double acc = 0.0;
+            real_t acc = 0.0;
             for (int d = 0; d < dim; d++)
             {
                for (int qp = 0; qp < num_qp; qp++)
@@ -65,7 +66,7 @@ void map_quadrature_data_to_fields_impl(
          }
       }
    }
-   else if constexpr (is_one_fop<std::decay_t<output_t>>::value)
+   else if constexpr (is_sum_fop<std::decay_t<output_t>>::value)
    {
       // This is the "integral over all quadrature points type" applying
       // B = 1 s.t. B^T * C \in R^1.
@@ -76,7 +77,7 @@ void map_quadrature_data_to_fields_impl(
          y(0, 0) += cc(i);
       }
    }
-   else if constexpr (is_none_fop<std::decay_t<output_t>>::value)
+   else if constexpr (is_identity_fop<std::decay_t<output_t>>::value)
    {
       const auto [num_qp, unused, num_dof] = B.GetShape();
       const auto vdim = output.vdim;
@@ -96,15 +97,94 @@ void map_quadrature_data_to_fields_impl(
 
 template <typename output_t>
 MFEM_HOST_DEVICE
-void map_quadrature_data_to_fields_tensor_impl_2d(
-   DeviceTensor<2, double> &y,
-   const DeviceTensor<3, double> &f,
+void map_quadrature_data_to_fields_tensor_impl_1d(
+   DeviceTensor<2, real_t> &y,
+   const DeviceTensor<3, real_t> &f,
    const output_t &output,
    const DofToQuadMap &dtq,
    std::array<DeviceTensor<1>, 6> &scratch_mem)
 {
-   auto B = dtq.B;
-   auto G = dtq.G;
+   [[maybe_unused]] auto B = dtq.B;
+   [[maybe_unused]] auto G = dtq.G;
+
+   if constexpr (is_value_fop<std::decay_t<output_t>>::value)
+   {
+      const auto [q1d, unused, d1d] = B.GetShape();
+      const int vdim = output.vdim;
+      const int test_dim = output.size_on_qp / vdim;
+
+      auto fqp = Reshape(&f(0, 0, 0), vdim, test_dim, q1d);
+      auto yd = Reshape(&y(0, 0), d1d, vdim);
+
+      for (int vd = 0; vd < vdim; vd++)
+      {
+         MFEM_FOREACH_THREAD(dx, x, d1d)
+         {
+            real_t acc = 0.0;
+            for (int qx = 0; qx < q1d; qx++)
+            {
+               acc += fqp(vd, 0, qx) * B(qx, 0, dx);
+            }
+            yd(dx, vd) = acc;
+         }
+      }
+      MFEM_SYNC_THREAD;
+   }
+   else if constexpr (is_gradient_fop<std::decay_t<output_t>>::value)
+   {
+      const auto [q1d, unused, d1d] = G.GetShape();
+      const int vdim = output.vdim;
+      const int test_dim = output.size_on_qp / vdim;
+      auto fqp = Reshape(&f(0, 0, 0), vdim, test_dim, q1d);
+      auto yd = Reshape(&y(0, 0), d1d, vdim);
+
+      for (int vd = 0; vd < vdim; vd++)
+      {
+         MFEM_FOREACH_THREAD(dx, x, d1d)
+         {
+            real_t acc = 0.0;
+            for (int qx = 0; qx < q1d; qx++)
+            {
+               acc += fqp(vd, 0, qx) * G(qx, 0, dx);
+            }
+            yd(dx, vd) = acc;
+         }
+      }
+      MFEM_SYNC_THREAD;
+   }
+   else if constexpr (is_identity_fop<std::decay_t<output_t>>::value)
+   {
+      const auto [q1d, unused, d1d] = B.GetShape();
+      auto fqp = Reshape(&f(0, 0, 0), output.size_on_qp, q1d);
+      auto yqp = Reshape(&y(0, 0), output.size_on_qp, q1d);
+
+      for (int sq = 0; sq < output.size_on_qp; sq++)
+      {
+         MFEM_FOREACH_THREAD(qx, x, q1d)
+         {
+            yqp(sq, qx) = fqp(sq, qx);
+         }
+         MFEM_SYNC_THREAD;
+      }
+   }
+   else
+   {
+      MFEM_ABORT("quadrature data mapping to field is not implemented for"
+                 " this field descriptor with sum factorization on tensor product elements");
+   }
+}
+
+template <typename output_t>
+MFEM_HOST_DEVICE
+void map_quadrature_data_to_fields_tensor_impl_2d(
+   DeviceTensor<2, real_t> &y,
+   const DeviceTensor<3, real_t> &f,
+   const output_t &output,
+   const DofToQuadMap &dtq,
+   std::array<DeviceTensor<1>, 6> &scratch_mem)
+{
+   [[maybe_unused]] auto B = dtq.B;
+   [[maybe_unused]] auto G = dtq.G;
 
    if constexpr (is_value_fop<std::decay_t<output_t>>::value)
    {
@@ -123,7 +203,7 @@ void map_quadrature_data_to_fields_tensor_impl_2d(
          {
             MFEM_FOREACH_THREAD(dx, x, d1d)
             {
-               double acc = 0.0;
+               real_t acc = 0.0;
                for (int qx = 0; qx < q1d; qx++)
                {
                   acc += fqp(vd, 0, qx, qy) * B(qx, 0, dx);
@@ -137,7 +217,7 @@ void map_quadrature_data_to_fields_tensor_impl_2d(
          {
             MFEM_FOREACH_THREAD(dx, x, d1d)
             {
-               double acc = 0.0;
+               real_t acc = 0.0;
                for (int qy = 0; qy < q1d; qy++)
                {
                   acc += s0(qy, dx) * B(qy, 0, dy);
@@ -193,36 +273,36 @@ void map_quadrature_data_to_fields_tensor_impl_2d(
          MFEM_SYNC_THREAD;
       }
    }
-   else if constexpr (is_none_fop<std::decay_t<output_t>>::value)
+   else if constexpr (is_identity_fop<std::decay_t<output_t>>::value)
    {
       const auto [q1d, unused, d1d] = B.GetShape();
 
-      // TODO: Check if this is the right fix for all cases
-      auto fqp = Reshape(&f(0, 0, 0), output.size_on_qp, q1d);
-      auto yqp = Reshape(&y(0, 0), output.size_on_qp, q1d);
-      for (int sq = 0; sq < output.size_on_qp; sq++)
-      {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
-         {
-            yqp(sq, qx) = fqp(sq, qx);
-         }
-         MFEM_SYNC_THREAD;
-      }
-
-      // auto fqp = Reshape(&f(0, 0, 0), output.size_on_qp, q1d, q1d);
-      // auto yqp = Reshape(&y(0, 0), output.size_on_qp, q1d, q1d);
-
+      // // TODO: Check if this is the right fix for all cases
+      // auto fqp = Reshape(&f(0, 0, 0), output.size_on_qp, q1d);
+      // auto yqp = Reshape(&y(0, 0), output.size_on_qp, q1d);
       // for (int sq = 0; sq < output.size_on_qp; sq++)
       // {
       //    MFEM_FOREACH_THREAD(qx, x, q1d)
       //    {
-      //       MFEM_FOREACH_THREAD(qy, y, q1d)
-      //       {
-      //          yqp(sq, qx, qy) = fqp(sq, qx, qy);
-      //       }
+      //       yqp(sq, qx) = fqp(sq, qx);
       //    }
       //    MFEM_SYNC_THREAD;
       // }
+
+      auto fqp = Reshape(&f(0, 0, 0), output.size_on_qp, q1d, q1d);
+      auto yqp = Reshape(&y(0, 0), output.size_on_qp, q1d, q1d);
+
+      for (int sq = 0; sq < output.size_on_qp; sq++)
+      {
+         MFEM_FOREACH_THREAD(qx, x, q1d)
+         {
+            MFEM_FOREACH_THREAD(qy, y, q1d)
+            {
+               yqp(sq, qx, qy) = fqp(sq, qx, qy);
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
    }
    else
    {
@@ -234,14 +314,14 @@ void map_quadrature_data_to_fields_tensor_impl_2d(
 template <typename output_t>
 MFEM_HOST_DEVICE
 void map_quadrature_data_to_fields_tensor_impl_3d(
-   DeviceTensor<2, double> &y,
-   const DeviceTensor<3, double> &f,
+   DeviceTensor<2, real_t> &y,
+   const DeviceTensor<3, real_t> &f,
    const output_t &output,
    const DofToQuadMap &dtq,
    std::array<DeviceTensor<1>, 6> &scratch_mem)
 {
-   auto B = dtq.B;
-   auto G = dtq.G;
+   [[maybe_unused]] auto B = dtq.B;
+   [[maybe_unused]] auto G = dtq.G;
 
    if constexpr (is_value_fop<std::decay_t<output_t>>::value)
    {
@@ -263,7 +343,7 @@ void map_quadrature_data_to_fields_tensor_impl_3d(
             {
                MFEM_FOREACH_THREAD(qz, z, q1d)
                {
-                  double acc = 0.0;
+                  real_t acc = 0.0;
                   for (int qx = 0; qx < q1d; qx++)
                   {
                      acc += fqp(vd, 0, qx, qy, qz) * B(qx, 0, dx);
@@ -280,7 +360,7 @@ void map_quadrature_data_to_fields_tensor_impl_3d(
             {
                MFEM_FOREACH_THREAD(qz, z, q1d)
                {
-                  double acc = 0.0;
+                  real_t acc = 0.0;
                   for (int qy = 0; qy < q1d; qy++)
                   {
                      acc += s0(qz, qy, dx) * B(qy, 0, dy);
@@ -298,7 +378,7 @@ void map_quadrature_data_to_fields_tensor_impl_3d(
             {
                MFEM_FOREACH_THREAD(dz, z, d1d)
                {
-                  double acc = 0.0;
+                  real_t acc = 0.0;
                   for (int qz = 0; qz < q1d; qz++)
                   {
                      acc += s1(qz, dy, dx) * B(qz, 0, dz);
@@ -389,7 +469,7 @@ void map_quadrature_data_to_fields_tensor_impl_3d(
          MFEM_SYNC_THREAD;
       }
    }
-   else if constexpr (is_none_fop<std::decay_t<output_t>>::value)
+   else if constexpr (is_identity_fop<std::decay_t<output_t>>::value)
    {
       const auto [q1d, unused, d1d] = B.GetShape();
       auto fqp = Reshape(&f(0, 0, 0), output.size_on_qp, q1d, q1d, q1d);
@@ -420,8 +500,8 @@ void map_quadrature_data_to_fields_tensor_impl_3d(
 template <typename output_t>
 MFEM_HOST_DEVICE
 void map_quadrature_data_to_fields(
-   DeviceTensor<2, double> &y,
-   const DeviceTensor<3, double> &f,
+   DeviceTensor<2, real_t> &y,
+   const DeviceTensor<3, real_t> &f,
    const output_t &output,
    const DofToQuadMap &dtq,
    std::array<DeviceTensor<1>, 6> &scratch_mem,
@@ -430,7 +510,11 @@ void map_quadrature_data_to_fields(
 {
    if (use_sum_factorization)
    {
-      if (dimension == 2)
+      if (dimension == 1)
+      {
+         map_quadrature_data_to_fields_tensor_impl_1d(y, f, output, dtq, scratch_mem);
+      }
+      else if (dimension == 2)
       {
          map_quadrature_data_to_fields_tensor_impl_2d(y, f, output, dtq, scratch_mem);
       }
@@ -438,6 +522,7 @@ void map_quadrature_data_to_fields(
       {
          map_quadrature_data_to_fields_tensor_impl_3d(y, f, output, dtq, scratch_mem);
       }
+      else { MFEM_ABORT_KERNEL("dimension not supported"); }
    }
    else
    {
@@ -445,4 +530,4 @@ void map_quadrature_data_to_fields(
    }
 }
 
-}
+} // namespace mfem::future

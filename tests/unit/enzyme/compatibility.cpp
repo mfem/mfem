@@ -14,8 +14,6 @@
 
 #ifdef MFEM_USE_ENZYME
 
-#include "../../../general/enzyme.hpp"
-
 template<typename VectorT>
 void square(const VectorT& v, double& y)
 {

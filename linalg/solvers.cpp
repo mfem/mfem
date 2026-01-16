@@ -31,6 +31,7 @@ IterativeSolver::IterativeSolver()
 {
    oper = NULL;
    prec = NULL;
+   dot_oper = NULL;
    max_iter = 10;
    rel_tol = abs_tol = 0.0;
 #ifdef MFEM_USE_MPI
@@ -45,6 +46,7 @@ IterativeSolver::IterativeSolver(MPI_Comm comm_)
 {
    oper = NULL;
    prec = NULL;
+   dot_oper = NULL;
    max_iter = 10;
    rel_tol = abs_tol = 0.0;
    dot_prod_type = 1;
@@ -55,6 +57,8 @@ IterativeSolver::IterativeSolver(MPI_Comm comm_)
 
 real_t IterativeSolver::Dot(const Vector &x, const Vector &y) const
 {
+   if (dot_oper) { return dot_oper->Eval(x,y); } // Use custom inner product (if provided)
+
 #ifndef MFEM_USE_MPI
    return (x * y);
 #else
@@ -191,17 +195,130 @@ void IterativeSolver::SetOperator(const Operator &op)
 bool IterativeSolver::Monitor(int it, real_t norm, const Vector& r,
                               const Vector& x, bool final) const
 {
-   if (monitor != nullptr)
+   if (controller != nullptr)
    {
       if (it == 0 && !final)
       {
-         monitor->Reset();
+         controller->Reset();
       }
-      monitor->MonitorResidual(it, norm, r, final);
-      monitor->MonitorSolution(it, norm, x, final);
-      return monitor->HasConverged();
+      controller->MonitorResidual(it, norm, r, final);
+      controller->MonitorSolution(it, norm, x, final);
+      return controller->HasConverged();
    }
    return false;
+}
+
+void ConstrainedInnerProduct::SetIndices(const Array<int> &list)
+{
+   list.Read(); // TODO: just ensure 'list' is registered, no need to copy it
+   constraint_list.MakeRef(list);
+   const int csz = constraint_list.Size();
+   xr.SetSize(csz); xr.UseDevice(true);
+   yr.SetSize(csz); yr.UseDevice(true);
+}
+
+real_t ConstrainedInnerProduct::Eval(const Vector &x, const Vector &y)
+{
+   const int csz = constraint_list.Size();
+
+   auto idx = constraint_list.Read();
+   auto d_x = x.Read();
+   auto d_y = y.Read();
+   auto d_xr = xr.ReadWrite();
+   auto d_yr = yr.ReadWrite();
+
+   mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i)
+   {
+      d_xr[i] = d_x[idx[i]];
+      d_yr[i] = d_y[idx[i]];
+   });
+
+   return Dot(xr, yr);
+}
+
+void ConstrainedInnerProduct::Mult(const Vector &x, Vector &y) const
+{
+   const int csz = constraint_list.Size();
+   y.SetSize(csz);
+
+   auto idx = constraint_list.Read();
+   auto d_x = x.Read();
+   auto d_y = y.ReadWrite();
+
+   mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i)
+   {
+      d_y[i] = d_x[idx[i]];
+   });
+}
+
+void WeightedInnerProduct::SetOperator(Operator *X, Operator *Y)
+{
+   if (X && Y)
+   {
+      MFEM_VERIFY(X->Height() == Y->Height(),
+                  "Incompatible operator heights in WeightedInnerProduct");
+   }
+
+   operX = X;
+   operY = Y;
+   if (operX)
+   {
+      mem_class = operX->GetMemoryClass()*Device::GetMemoryClass();
+      MemoryType mem_type = GetMemoryType(mem_class);
+      const int ht = operX->Height();
+      wx.SetSize(ht, mem_type);
+      wx.UseDevice(true);
+   }
+
+   if (operY)
+   {
+      mem_class = operY->GetMemoryClass()*Device::GetMemoryClass();
+      MemoryType mem_type = GetMemoryType(mem_class);
+      const int ht = operY->Height();
+      wy.SetSize(ht, mem_type);
+      wy.UseDevice(true);
+   }
+}
+
+real_t WeightedInnerProduct::Eval(const Vector &x, const Vector &y)
+{
+   MFEM_VERIFY((operX || operY),
+               "Weighting operator not set; set using ::SetOperator")
+
+   if (operY && operX)
+   {
+      operX->Mult(x, wx);
+      operY->Mult(y, wy);
+      return Dot(wy,wx);
+   }
+   else if (operY)
+   {
+      operY->Mult(y, wy);
+      return Dot(wy,x);
+   }
+   // if(operX)
+   operX->Mult(x, wx);
+   return Dot(y,wx);
+}
+
+void WeightedInnerProduct::Mult(const Vector &x, Vector &y) const
+{
+   MFEM_VERIFY((operX || operY),
+               "Weighting operator not set; set using ::SetOperator")
+
+   if (operY && operX)
+   {
+      operX->Mult(x, wx);
+      operY->Mult(wx, y);
+      return;
+   }
+   else if (operY)
+   {
+      operY->Mult(x, y);
+      return;
+   }
+   // if(operX)
+   operX->Mult(x, y);
 }
 
 OperatorJacobiSmoother::OperatorJacobiSmoother(const real_t dmpng)
@@ -624,7 +741,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
    }
 
    r0 = std::max(nom*rel_tol, abs_tol);
-   if (nom <= r0)
+   if (Monitor(0, nom, r, x) || nom <= r0)
    {
       converged = true;
       final_iter = 0;
@@ -665,15 +782,10 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
       nomold = nom;
 
       bool done = false;
-      if (nom < r0)
+      if (Monitor(i, nom, r, x) || nom < r0)
       {
          converged = true;
          final_iter = i;
-         done = true;
-      }
-
-      if (++i > max_iter)
-      {
          done = true;
       }
 
@@ -682,6 +794,11 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
          mfem::out << "   Iteration : " << setw(3) << right << (i-1)
                    << "  ||Br|| = " << setw(11) << left << nom
                    << "\tConv. rate: " << cf << '\n';
+      }
+
+      if (++i > max_iter)
+      {
+         done = true;
       }
 
       if (done) { break; }
@@ -700,6 +817,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
    }
 
    final_norm = nom;
+   Monitor(final_iter, final_norm, r, x, true);
 }
 
 void SLI(const Operator &A, const Vector &b, Vector &x,
@@ -1022,13 +1140,23 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
 
    DenseMatrix H(m+1, m);
    Vector s(m+1), cs(m+1), sn(m+1);
-   Vector r(n), w(n);
+   Vector r(n), w(n), x_monitor;
    Array<Vector *> v;
 
    b.UseDevice(true);
    x.UseDevice(true);
    r.UseDevice(true);
    w.UseDevice(true);
+
+   if (ControllerRequiresUpdate())
+   {
+      x_monitor.SetSize(n);
+      x_monitor.UseDevice(true);
+   }
+   else
+   {
+      x_monitor.MakeRef(x, 0, n);
+   }
 
    int i, j, k;
 
@@ -1133,7 +1261,13 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
          const real_t resid = fabs(s(i+1));
          MFEM_VERIFY(IsFinite(resid), "resid = " << resid);
 
-         if (Monitor(j, resid, r, x) || resid <= final_norm)
+         if (ControllerRequiresUpdate())
+         {
+            x_monitor = x;
+            Update(x_monitor, i, H, s, v);
+         }
+
+         if (Monitor(j, resid, r, x_monitor) || resid <= final_norm)
          {
             Update(x, i, H, s, v);
             final_norm = resid;
@@ -1210,11 +1344,21 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
 {
    DenseMatrix H(m+1,m);
    Vector s(m+1), cs(m+1), sn(m+1);
-   Vector r(b.Size());
+   Vector r(b.Size()), x_monitor;
 
    b.UseDevice(true);
    x.UseDevice(true);
    r.UseDevice(true);
+
+   if (ControllerRequiresUpdate())
+   {
+      x_monitor.SetSize(x.Size());
+      x_monitor.UseDevice(true);
+   }
+   else
+   {
+      x_monitor.MakeRef(x, 0, x.Size());
+   }
 
    int i, j, k;
 
@@ -1328,7 +1472,13 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
                       << "  || r || = " << resid << endl;
          }
 
-         if (Monitor(j, resid, r, x, resid <= final_norm) || resid <= final_norm)
+         if (ControllerRequiresUpdate())
+         {
+            x_monitor = x;
+            Update(x_monitor, i, H, s, z);
+         }
+
+         if (Monitor(j, resid, r, x_monitor) || resid <= final_norm)
          {
             Update(x, i, H, s, z);
             final_norm = resid;

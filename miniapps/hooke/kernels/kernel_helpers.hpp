@@ -13,16 +13,15 @@
 #define MFEM_ELASTICITY_KERNEL_HELPERS_HPP
 
 #include "mfem.hpp"
-#include "general/forall.hpp"
 #include "linalg/tensor.hpp"
-
-using mfem::internal::tensor;
 
 namespace mfem
 {
 
 namespace KernelHelpers
 {
+
+using mfem::future::tensor;
 
 // MFEM_SHARED_3D_BLOCK_TENSOR definition
 // Should be moved in backends/cuda/hip header files.

@@ -9,19 +9,18 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "mfem.hpp"
-
-// must be included after mfem.hpp
-#include "general/forall.hpp"
-
-#include "unit_tests.hpp"
-
 #include <algorithm>
 #include <limits>
 
+#include "mfem.hpp"
+#include "unit_tests.hpp"
+
+// must be included after mfem.hpp
+#include "general/reducers.hpp"
+
 using namespace mfem;
 
-TEST_CASE("Reduce Sum", "[Reduction],[CUDA]")
+TEST_CASE("Reduce Sum", "[Reduction],[GPU]")
 {
    Array<int> workspace;
    Array<int> a(1000);
@@ -39,16 +38,16 @@ TEST_CASE("Reduce Sum", "[Reduction],[CUDA]")
       a.Size(), res, [=] MFEM_HOST_DEVICE(int i, int &r) { r += dptr[i]; },
       SumReducer<int> {}, use_dev, workspace);
       // correct for even-length summations
-      int expected = (a[0] + a[a.Size() - 1]) * a.Size() / 2;
+      int expected = (AsConst(a)[0] + AsConst(a)[a.Size() - 1]) * a.Size() / 2;
       CAPTURE(use_dev);
       REQUIRE(res == expected);
    }
 }
 
-TEST_CASE("Reduce Mult", "[Reduction],[CUDA]")
+TEST_CASE("Reduce Mult", "[Reduction],[GPU]")
 {
    Array<long long> workspace;
-   Array<long long> a(100);
+   Array<long long> a(64);
    a.HostReadWrite();
    for (int i = 0; i < a.Size(); ++i)
    {
@@ -78,14 +77,14 @@ TEST_CASE("Reduce Mult", "[Reduction],[CUDA]")
             a.Size(), res,
          [=] MFEM_HOST_DEVICE(int i, long long &r) { r *= dptr[i]; },
          MultReducer<long long> {}, use_dev, workspace);
-         long long expected = 5527454985320660992;
+         long long expected = 21936950640377856;
          CAPTURE(use_dev);
          REQUIRE(res == expected);
       }
    }
 }
 
-TEST_CASE("Reduce BAnd", "[Reduction],[CUDA]")
+TEST_CASE("Reduce BAnd", "[Reduction],[GPU]")
 {
    Array<unsigned> workspace;
    Array<unsigned> a(10);
@@ -140,7 +139,7 @@ TEST_CASE("Reduce BAnd", "[Reduction],[CUDA]")
    }
 }
 
-TEST_CASE("Reduce BOr", "[Reduction],[CUDA]")
+TEST_CASE("Reduce BOr", "[Reduction],[GPU]")
 {
    Array<unsigned> workspace;
    Array<unsigned> a(0x210);
@@ -164,7 +163,7 @@ TEST_CASE("Reduce BOr", "[Reduction],[CUDA]")
    }
 }
 
-TEST_CASE("Reduce Min", "[Reduction],[CUDA]")
+TEST_CASE("Reduce Min", "[Reduction],[GPU]")
 {
    Array<int> workspace;
    Array<int> a(1000);
@@ -197,7 +196,7 @@ TEST_CASE("Reduce Min", "[Reduction],[CUDA]")
    }
 }
 
-TEST_CASE("Reduce Max", "[Reduction],[CUDA]")
+TEST_CASE("Reduce Max", "[Reduction],[GPU]")
 {
    Array<int> workspace;
    Array<int> a(1000);
@@ -230,7 +229,7 @@ TEST_CASE("Reduce Max", "[Reduction],[CUDA]")
    }
 }
 
-TEST_CASE("Reduce MinMax", "[Reduction],[CUDA]")
+TEST_CASE("Reduce MinMax", "[Reduction],[GPU]")
 {
    Array<DevicePair<int, int>> workspace;
    Array<int> a(1000);
@@ -270,7 +269,7 @@ TEST_CASE("Reduce MinMax", "[Reduction],[CUDA]")
    }
 }
 
-TEST_CASE("Reduce ArgMin", "[Reduction],[CUDA]")
+TEST_CASE("Reduce ArgMin", "[Reduction],[GPU]")
 {
    Array<DevicePair<double, int>> workspace;
    Array<double> a(1000);
@@ -307,7 +306,7 @@ TEST_CASE("Reduce ArgMin", "[Reduction],[CUDA]")
    }
 }
 
-TEST_CASE("Reduce ArgMax", "[Reduction],[CUDA]")
+TEST_CASE("Reduce ArgMax", "[Reduction],[GPU]")
 {
    Array<DevicePair<double, int>> workspace;
    Array<double> a(1000);
@@ -343,11 +342,11 @@ TEST_CASE("Reduce ArgMax", "[Reduction],[CUDA]")
       REQUIRE(res.first == a.Size() - 11);
       REQUIRE(res.second >= 0);
       REQUIRE(res.second < a.Size());
-      REQUIRE(a[res.second] == res.first);
+      REQUIRE(AsConst(a)[res.second] == res.first);
    }
 }
 
-TEST_CASE("Reduce ArgMinMax", "[Reduction],[CUDA]")
+TEST_CASE("Reduce ArgMinMax", "[Reduction],[GPU]")
 {
    Array<MinMaxLocScalar<double, int>> workspace;
    Array<double> a(1000);
@@ -389,11 +388,11 @@ TEST_CASE("Reduce ArgMinMax", "[Reduction],[CUDA]")
       REQUIRE(res.min_val == -10);
       REQUIRE(res.min_loc >= 0);
       REQUIRE(res.min_loc < a.Size());
-      REQUIRE(a[res.min_loc] == res.min_val);
+      REQUIRE(AsConst(a)[res.min_loc] == res.min_val);
 
       REQUIRE(res.max_val == a.Size() - 11);
       REQUIRE(res.max_loc >= 0);
       REQUIRE(res.max_loc < a.Size());
-      REQUIRE(a[res.max_loc] == res.max_val);
+      REQUIRE(AsConst(a)[res.max_loc] == res.max_val);
    }
 }

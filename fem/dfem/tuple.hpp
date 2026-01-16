@@ -10,12 +10,31 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-// This is serac's tuple implementation
+// This is smith's tuple implementation
 
+#include <ostream>
+#include "../../config/config.hpp"
 #include <utility>
-#include <mfem.hpp>
 
-namespace mfem
+// Define a portable unreachable macro
+#if defined(__GNUC__) || defined(__clang__)
+#if defined(__CUDACC_VER_MAJOR__)
+#if __CUDACC_VER_MAJOR__ <= 11 && __CUDACC_VER_MINOR__ < 3
+// nvcc didn't add __builtin_unreachable() until cuda 11.3
+#define MFEM_UNREACHABLE()
+#else
+// nvcc >= 11.3
+#define MFEM_UNREACHABLE() __builtin_unreachable()
+#endif
+#else
+// host-only version
+#define MFEM_UNREACHABLE() __builtin_unreachable()
+#endif
+#elif defined(_MSC_VER)
+#define MFEM_UNREACHABLE() __assume(0)
+#endif
+
+namespace mfem::future
 {
 
 /**
@@ -213,8 +232,8 @@ struct tuple_size
 };
 
 template <class... Types>
-struct tuple_size<mfem::tuple<Types...>> :
-                                      std::integral_constant<std::size_t, sizeof...(Types)>
+struct tuple_size<tuple<Types...>> :
+                                std::integral_constant<std::size_t, sizeof...(Types)>
 {
 };
 
@@ -226,7 +245,7 @@ struct tuple_size<mfem::tuple<Types...>> :
 template <int i, typename... T>
 MFEM_HOST_DEVICE constexpr auto& get(tuple<T...>& values)
 {
-   static_assert(i < sizeof...(T), "");
+   static_assert(i < sizeof...(T));
    if constexpr (i == 0)
    {
       return values.v0;
@@ -263,6 +282,7 @@ MFEM_HOST_DEVICE constexpr auto& get(tuple<T...>& values)
    {
       return values.v8;
    }
+   MFEM_UNREACHABLE();
 }
 
 /**
@@ -273,7 +293,7 @@ MFEM_HOST_DEVICE constexpr auto& get(tuple<T...>& values)
 template <int i, typename... T>
 MFEM_HOST_DEVICE constexpr const auto& get(const tuple<T...>& values)
 {
-   static_assert(i < sizeof...(T), "");
+   static_assert(i < sizeof...(T));
    if constexpr (i == 0)
    {
       return values.v0;
@@ -310,6 +330,7 @@ MFEM_HOST_DEVICE constexpr const auto& get(const tuple<T...>& values)
    {
       return values.v8;
    }
+   MFEM_UNREACHABLE();
 }
 
 /**
@@ -325,7 +346,7 @@ MFEM_HOST_DEVICE constexpr const auto& get(const tuple<T...>& values)
 template <int i, typename... T>
 MFEM_HOST_DEVICE constexpr auto type(const tuple<T...>& values)
 {
-   static_assert(i < sizeof...(T), "");
+   static_assert(i < sizeof...(T));
    if constexpr (i == 0)
    {
       return values.v0;
@@ -433,7 +454,7 @@ MFEM_HOST_DEVICE constexpr auto operator+=(tuple<T...>& x,
  *
  * @tparam T the types stored in the tuples x and y
  * @tparam i integer sequence used to index the tuples
- * @param x tuple of values to be subracted from
+ * @param x tuple of values to be subtracted from
  * @param y tuple of values to subtract from x
  */
 template <typename... T, int... i>
@@ -563,7 +584,7 @@ MFEM_HOST_DEVICE constexpr auto operator/(const tuple<S...>& x,
  * @return the returned tuple ratio
  */
 template <typename... T, int... i>
-MFEM_HOST_DEVICE constexpr auto div_helper(const double a,
+MFEM_HOST_DEVICE constexpr auto div_helper(const real_t a,
                                            const tuple<T...>& x, std::integer_sequence<int, i...>)
 {
    return tuple{a / get<i>(x)...};
@@ -575,12 +596,12 @@ MFEM_HOST_DEVICE constexpr auto div_helper(const double a,
  * @tparam T the types stored in the tuple y
  * @tparam i The integer sequence to i
  * @param x tuple of values
- * @param a the constant denomenator
+ * @param a the constant denominator
  * @return the returned tuple ratio
  */
 template <typename... T, int... i>
 MFEM_HOST_DEVICE constexpr auto div_helper(const tuple<T...>& x,
-                                           const double a, std::integer_sequence<int, i...>)
+                                           const real_t a, std::integer_sequence<int, i...>)
 {
    return tuple{get<i>(x) / a...};
 }
@@ -592,7 +613,7 @@ MFEM_HOST_DEVICE constexpr auto div_helper(const tuple<T...>& x,
  * @brief return a tuple of values defined by division of a by the elements of x
  */
 template <typename... T>
-MFEM_HOST_DEVICE constexpr auto operator/(const double a, const tuple<T...>& x)
+MFEM_HOST_DEVICE constexpr auto operator/(const real_t a, const tuple<T...>& x)
 {
    return div_helper(a, x,
                      std::make_integer_sequence<int, static_cast<int>(sizeof...(T))>());
@@ -605,7 +626,7 @@ MFEM_HOST_DEVICE constexpr auto operator/(const double a, const tuple<T...>& x)
  * @brief return a tuple of values defined by elementwise division of x by a
  */
 template <typename... T>
-MFEM_HOST_DEVICE constexpr auto operator/(const tuple<T...>& x, const double a)
+MFEM_HOST_DEVICE constexpr auto operator/(const tuple<T...>& x, const real_t a)
 {
    return div_helper(x, a,
                      std::make_integer_sequence<int, static_cast<int>(sizeof...(T))>());
@@ -655,7 +676,7 @@ MFEM_HOST_DEVICE constexpr auto operator*(const tuple<S...>& x,
  * @return the returned tuple product
  */
 template <typename... T, int... i>
-MFEM_HOST_DEVICE constexpr auto mult_helper(const double a,
+MFEM_HOST_DEVICE constexpr auto mult_helper(const real_t a,
                                             const tuple<T...>& x, std::integer_sequence<int, i...>)
 {
    return tuple{a * get<i>(x)...};
@@ -672,7 +693,7 @@ MFEM_HOST_DEVICE constexpr auto mult_helper(const double a,
  */
 template <typename... T, int... i>
 MFEM_HOST_DEVICE constexpr auto mult_helper(const tuple<T...>& x,
-                                            const double a, std::integer_sequence<int, i...>)
+                                            const real_t a, std::integer_sequence<int, i...>)
 {
    return tuple{get<i>(x) * a...};
 }
@@ -684,7 +705,7 @@ MFEM_HOST_DEVICE constexpr auto mult_helper(const tuple<T...>& x,
  * @brief multiply each component of x by the value a on the left
  */
 template <typename... T>
-MFEM_HOST_DEVICE constexpr auto operator*(const double a, const tuple<T...>& x)
+MFEM_HOST_DEVICE constexpr auto operator*(const real_t a, const tuple<T...>& x)
 {
    return mult_helper(a, x,
                       std::make_integer_sequence<int, static_cast<int>(sizeof...(T))>());
@@ -697,7 +718,7 @@ MFEM_HOST_DEVICE constexpr auto operator*(const double a, const tuple<T...>& x)
  * @brief multiply each component of x by the value a on the right
  */
 template <typename... T>
-MFEM_HOST_DEVICE constexpr auto operator*(const tuple<T...>& x, const double a)
+MFEM_HOST_DEVICE constexpr auto operator*(const tuple<T...>& x, const real_t a)
 {
    return mult_helper(x, a,
                       std::make_integer_sequence<int, static_cast<int>(sizeof...(T))>());
@@ -705,17 +726,17 @@ MFEM_HOST_DEVICE constexpr auto operator*(const tuple<T...>& x, const double a)
 
 /**
  * @tparam T the types stored in the tuple
- * @tparam i a list of indices used to acces each element of the tuple
+ * @tparam i a list of indices used to access each element of the tuple
  * @param out the ostream to write the output to
  * @param A the tuple of values
  * @brief helper used to implement printing a tuple of values
  */
 template <typename... T, std::size_t... i>
-auto& print_helper(std::ostream& out, const mfem::tuple<T...>& A,
+auto& print_helper(std::ostream& out, const tuple<T...>& A,
                    std::integer_sequence<size_t, i...>)
 {
    out << "tuple{";
-   (..., (out << (i == 0 ? "" : ", ") << mfem::get<i>(A)));
+   (..., (out << (i == 0 ? "" : ", ") << get<i>(A)));
    out << "}";
    return out;
 }
@@ -727,7 +748,7 @@ auto& print_helper(std::ostream& out, const mfem::tuple<T...>& A,
  * @brief print a tuple of values
  */
 template <typename... T>
-auto& operator<<(std::ostream& out, const mfem::tuple<T...>& A)
+auto& operator<<(std::ostream& out, const tuple<T...>& A)
 {
    return print_helper(out, A, std::make_integer_sequence<size_t, sizeof...(T)>());
 }
@@ -828,7 +849,7 @@ struct is_tuple : std::false_type
 
 /// @overload
 template <typename... T>
-struct is_tuple<mfem::tuple<T...>> : std::true_type
+struct is_tuple<tuple<T...>> : std::true_type
 {
 };
 
@@ -844,10 +865,21 @@ struct is_tuple_of_tuples : std::false_type
  * @brief Trait for checking if a type if a @p mfem::tuple containing only @p mfem::tuple
  */
 template <typename... T>
-struct is_tuple_of_tuples<mfem::tuple<T...>>
+struct is_tuple_of_tuples<tuple<T...>>
 {
    static constexpr bool value = (is_tuple<T>::value &&
                                   ...);  ///< true/false result of type check
 };
 
-}  // namespace mfem
+/** @brief Auxiliary template function that merges (concatenates) two
+    mfem::future::tuple types into a single std::tuple that is empty, i.e. it is
+    value initialized. */
+template <typename... T1s, typename... T2s>
+constexpr auto merge_mfem_tuples_as_empty_std_tuple(
+   const mfem::future::tuple<T1s...> &,
+   const mfem::future::tuple<T2s...> &)
+{
+   return std::tuple<T1s..., T2s...> {};
+}
+
+}  // namespace mfem::future

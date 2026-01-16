@@ -128,7 +128,7 @@ void ElementRestriction::Mult(const Vector& x, Vector& y) const
    });
 }
 
-void ElementRestriction::MultUnsigned(const Vector& x, Vector& y) const
+void ElementRestriction::AbsMult(const Vector& x, Vector& y) const
 {
    // Assumes all elements have the same number of dofs
    const int nd = dof;
@@ -193,7 +193,7 @@ void ElementRestriction::AddMultTranspose(const Vector& x, Vector& y,
    TAddMultTranspose<ADD>(x, y);
 }
 
-void ElementRestriction::MultTransposeUnsigned(const Vector& x, Vector& y) const
+void ElementRestriction::AbsMultTranspose(const Vector& x, Vector& y) const
 {
    // Assumes all elements have the same number of dofs
    const int nd = dof;
@@ -653,7 +653,8 @@ ConformingFaceRestriction::ConformingFaceRestriction(
    : ConformingFaceRestriction(fes, f_ordering, type, true)
 { }
 
-void ConformingFaceRestriction::Mult(const Vector& x, Vector& y) const
+void ConformingFaceRestriction::MultInternal(const Vector& x, Vector& y,
+                                             const bool useAbs) const
 {
    if (nf==0) { return; }
    // Assumes all elements have the same number of dofs
@@ -666,7 +667,7 @@ void ConformingFaceRestriction::Mult(const Vector& x, Vector& y) const
    mfem::forall(nfdofs, [=] MFEM_HOST_DEVICE (int i)
    {
       const int s_idx = d_indices[i];
-      const int sgn = (s_idx >= 0) ? 1 : -1;
+      const int sgn = (useAbs || s_idx >= 0) ? 1 : -1;
       const int idx = (s_idx >= 0) ? s_idx : -1 - s_idx;
       const int dof = i % nface_dofs;
       const int face = i / nface_dofs;
@@ -724,7 +725,7 @@ void ConformingFaceRestriction::AddMultTranspose(
       true, a);
 }
 
-void ConformingFaceRestriction::AddMultTransposeUnsigned(
+void ConformingFaceRestriction::AddAbsMultTranspose(
    const Vector& x, Vector& y, const real_t a) const
 {
    ConformingFaceRestriction_AddMultTranspose(

@@ -11,8 +11,7 @@
 //
 // Compile with: make nurbs_naca_cmesh
 //
-// Sample run:   ./nurbs_naca_cmesh -ntail 80 -nbnd 80 -ntip 20 -nwake 40
-//                 -sw 2.0 -sbnd 2.5 -stip 1.1 -aoa 3
+// Sample run:   nurbs_naca_cmesh -ntail 80 -nbnd 80 -ntip 20 -nwake 40 -sw 2.0 -sbnd 2.5 -stip 1.1 -aoa 3
 //
 // Description:  This example code demonstrates the use of MFEM to create a
 //               C-mesh around a NACA-foil section. The foil section is defined

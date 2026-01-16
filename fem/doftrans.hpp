@@ -201,19 +201,19 @@ public:
    inline int NumRows() const { return dof_trans_->NumRows(); }
    inline int Width() const { return dof_trans_->Width(); }
    inline int NumCols() const { return dof_trans_->NumCols(); }
-   inline bool IsIdentity() const { return dof_trans_->IsIdentity(); }
+   inline bool IsIdentity() const { return !dof_trans_ || dof_trans_->IsIdentity(); }
 
    /** Transform local DoFs to align with the global DoFs. For example, this
        transformation can be used to map the local vector computed by
        FiniteElement::Project() to the transformed vector stored within a
        GridFunction object. */
    void TransformPrimal(real_t *v) const;
-   inline void TransformPrimal(Vector &v) const
-   { TransformPrimal(v.GetData()); }
+   inline void TransformPrimal(Vector &v) const { TransformPrimal(v.GetData()); }
 
    /// Transform groups of DoFs stored as dense matrices
    inline void TransformPrimalCols(DenseMatrix &V) const
    {
+      if (IsIdentity()) { return; }
       for (int c=0; c<V.Width(); c++)
       {
          TransformPrimal(V.GetColumn(c));
@@ -251,6 +251,7 @@ public:
    /// Transform rows of a dense matrix containing dual DoFs
    inline void TransformDualRows(DenseMatrix &V) const
    {
+      if (IsIdentity()) { return; }
       Vector row;
       for (int r=0; r<V.Height(); r++)
       {
@@ -263,6 +264,7 @@ public:
    /// Transform columns of a dense matrix containing dual DoFs
    inline void TransformDualCols(DenseMatrix &V) const
    {
+      if (IsIdentity()) { return; }
       for (int c=0; c<V.Width(); c++)
       {
          TransformDual(V.GetColumn(c));
@@ -274,16 +276,16 @@ public:
     computed by a DiscreteInterpolator before copying into a
     DiscreteLinearOperator.
 */
-void TransformPrimal(const DofTransformation *ran_dof_trans,
-                     const DofTransformation *dom_dof_trans,
+void TransformPrimal(const DofTransformation &ran_dof_trans,
+                     const DofTransformation &dom_dof_trans,
                      DenseMatrix &elmat);
 
 /** Transform a matrix of dual DoFs entries from different finite element spaces
     as computed by a BilinearFormIntegrator before summing into a
     MixedBilinearForm object.
 */
-void TransformDual(const DofTransformation *ran_dof_trans,
-                   const DofTransformation *dom_dof_trans,
+void TransformDual(const DofTransformation &ran_dof_trans,
+                   const DofTransformation &dom_dof_trans,
                    DenseMatrix &elmat);
 
 /** Abstract base class for high-order Nedelec spaces on elements with

@@ -255,9 +255,16 @@ void HybridizationExtension::FactorElementMatrices(Vector &AhatInvCt_mat)
          // Write out to global memory
          if (!GLOBAL)
          {
-            DeviceMatrix d_A_bi(&d_A_bi_all(0,e), nbfdofs, nidofs);
-            DeviceMatrix d_A_ib(&d_A_ib_all(0,e), nidofs, nbfdofs);
-            DeviceMatrix d_A_bb(&d_A_bb_all(0,e), nbfdofs, nbfdofs);
+            // Note: in the following constructors, avoid using index 0 in
+            //       d_A_{bi,ib,bb}_all when their size is 0.
+            DeviceMatrix d_A_bi((nbfdofs && nidofs) ?
+                                &d_A_bi_all(0,e) : nullptr,
+                                nbfdofs, nidofs);
+            DeviceMatrix d_A_ib((nbfdofs && nidofs) ?
+                                &d_A_ib_all(0,e) : nullptr,
+                                nidofs, nbfdofs);
+            DeviceMatrix d_A_bb((nbfdofs) ? &d_A_bb_all(0,e) : nullptr,
+                                nbfdofs, nbfdofs);
 
             for (int j = 0; j < nidofs; j++)
             {
@@ -299,16 +306,28 @@ void HybridizationExtension::ConstructH()
    Vector AhatInvCt_mat;
 
    {
+      // The dispatch below is based on the following sizes, sorted
+      // appropriately.
+      //
+      // RT(k) in 2D (quads): (interior,boundary) dofs:
+      // - arbitrary k: 2*(k+1)*(k+2)-4*(k+1), 4*(k+1)
+      // - k=0: (0,4)
+      // - k=1: (4,8)
+      // - k=2: (12,12)
+      // - k=3: (24,16)
+      // RT(k) in 3D (hexes): (interior,boundary) dofs:
+      // - arbitrary k: 3*(k+1)^2*(k+2)-6*(k+1)^2, 6*(k+1)^2
+      // - k=0: (0,6)
+      // - k=1: (12,24)
+      // - k=2: (54,54)
       const int NI = idofs.Size();
       const int NB = bdofs.Size();
-      // 2D
       if (NI == 0 && NB <= 4) { FactorElementMatrices<0,4>(AhatInvCt_mat); }
+      else if (NI == 0 && NB <= 6) { FactorElementMatrices<0,6>(AhatInvCt_mat); }
       else if (NI <= 4 && NB <= 8) { FactorElementMatrices<4,8>(AhatInvCt_mat); }
       else if (NI <= 12 && NB <= 12) { FactorElementMatrices<12,12>(AhatInvCt_mat); }
-      else if (NI <= 24 && NB <= 16) { FactorElementMatrices<12,16>(AhatInvCt_mat); }
-      // 3D
-      else if (NI <= 0 && NB <= 6) { FactorElementMatrices<0,6>(AhatInvCt_mat); }
       else if (NI <= 12 && NB <= 24) { FactorElementMatrices<12,24>(AhatInvCt_mat); }
+      else if (NI <= 24 && NB <= 16) { FactorElementMatrices<24,16>(AhatInvCt_mat); }
       else if (NI <= 54 && NB <= 54) { FactorElementMatrices<54,54>(AhatInvCt_mat); }
       // Fallback
       else { FactorElementMatrices<0,0>(AhatInvCt_mat); }

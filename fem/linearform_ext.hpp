@@ -25,7 +25,8 @@ class LinearForm;
 class LinearFormExtension
 {
    /// Attributes of all mesh elements.
-   Array<int> attributes, bdr_attributes;
+   const Array<int> *attributes; // Not owned
+   const Array<int> *bdr_face_attributes; // Not owned
 
    /// Temporary markers for device kernels.
    Array<int> markers, bdr_markers;

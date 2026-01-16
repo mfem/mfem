@@ -16,7 +16,7 @@ using namespace mfem;
 
 TEST_CASE("MemoryManager/Scopes",
           "[MemoryManager]"
-          "[CUDA]")
+          "[GPU]")
 {
    SECTION("WithNewMemoryAndSize")
    {

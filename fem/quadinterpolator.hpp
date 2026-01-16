@@ -135,6 +135,10 @@ public:
    /// Interpolate the values of the E-vector @a e_vec at quadrature points.
    void Values(const Vector &e_vec, Vector &q_val) const;
 
+   /// @brief Interpolate the physical values of the E-vector @a e_vec at
+   /// quadrature points.
+   void PhysValues(const Vector &e_vec, Vector &q_val) const;
+
    /** @brief Interpolate the derivatives (with respect to reference
        coordinates) of the E-vector @a e_vec at quadrature points. */
    void Derivatives(const Vector &e_vec, Vector &q_der) const;
@@ -151,6 +155,9 @@ public:
    void MultTranspose(unsigned eval_flags, const Vector &q_val,
                       const Vector &q_der, Vector &e_vec) const;
 
+   /// @brief Returns true if the given finite element space is supported by
+   /// QuadratureInterpolator.
+   static bool SupportsFESpace(const FiniteElementSpace &fespace);
 
    using TensorEvalKernelType = void(*)(const int, const real_t *, const real_t *,
                                         real_t *, const int, const int, const int);

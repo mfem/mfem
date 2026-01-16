@@ -56,7 +56,7 @@ vertices
 
 nodes
 FiniteElementSpace
-FiniteElementCollection: Quadratic
+FiniteElementCollection: H1_3D_P2
 VDim: 3
 Ordering: 0
 

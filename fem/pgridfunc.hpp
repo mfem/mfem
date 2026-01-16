@@ -72,6 +72,10 @@ public:
 
    ParGridFunction(ParFiniteElementSpace *pf) : GridFunction(pf), pfes(pf) { }
 
+   /// Same as above but specify the device memory type
+   ParGridFunction(ParFiniteElementSpace *pf, MemoryType mt) :
+      GridFunction(pf, mt), pfes(pf) { }
+
    /// Construct a ParGridFunction using previously allocated array @a data.
    /** The ParGridFunction does not assume ownership of @a data which is assumed
        to be of size at least `pf->GetVSize()`. Similar to the GridFunction and
@@ -300,12 +304,16 @@ public:
    real_t ComputeL1Error(Coefficient *exsol[],
                          const IntegrationRule *irs[] = NULL) const override
    {
+#ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
       real_t glb_err = GlobalLpNorm(1.0,
                                     GridFunction::ComputeL1Error(exsol, irs),
                                     pfes->GetComm());
+#ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
 #pragma GCC diagnostic pop
+#endif
       return glb_err;
    }
 
@@ -576,6 +584,14 @@ public:
    void ComputeFlux(BilinearFormIntegrator &blfi,
                     GridFunction &flux,
                     bool wcoef = true, int subdomain = -1) override;
+
+   /// Computes the PLBound for the gridfunction with number of control
+   /// points based on @a ref_factor, and returns the bounds for each
+   /// vdim across all elements in @b lower and @b upper. We also return the
+   /// PLBound object used to compute the bounds. Note: if vdim < 1, we compute
+   /// the bounds for each vector dimension.
+   PLBound GetBounds(Vector &lower, Vector &upper,
+                     const int ref_factor=1, const int vdim=-1) const override;
 
    /** Save the local portion of the ParGridFunction. This differs from the
        serial GridFunction::Save in that it takes into account the signs of

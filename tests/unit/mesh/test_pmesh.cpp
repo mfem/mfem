@@ -183,6 +183,10 @@ TEST_CASE("ParMeshMakeSimplicial", "[Parallel], [ParMesh]")
    // to solver tolerance.
 
    Mesh mesh = Mesh::MakeCartesian3D(3, 3, 3, Element::HEXAHEDRON);
+   if (GENERATE(false,true))
+   {
+      mesh.SetCurvature(2);
+   }
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    ParMesh pmesh_tet = ParMesh::MakeSimplicial(pmesh);
 

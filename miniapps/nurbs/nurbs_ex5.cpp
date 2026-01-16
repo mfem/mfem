@@ -36,11 +36,6 @@
 //
 //               We recommend viewing examples 1-4 before viewing this example.
 
-// Sample runs:  nurbs_ex3 -m ../../data/square-nurbs.mesh
-//               nurbs_ex3 -m ../../data/square-nurbs.mesh -o 2
-//               nurbs_ex3 -m ../../data/cube-nurbs.mesh
-
-
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>

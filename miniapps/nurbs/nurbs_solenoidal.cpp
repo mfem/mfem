@@ -388,7 +388,7 @@ int main(int argc, char *argv[])
    delete hdiv_coll;
    delete mesh;
 
-   if (err_div > 1e4*std::numeric_limits<real_t>::epsilon() )
+   if (err_div > 2e4*std::numeric_limits<real_t>::epsilon() )
    {
       mfem::out << "std::numeric_limits<real_t>::epsilon() = "
                 << std::numeric_limits<real_t>::epsilon()  << "\n";

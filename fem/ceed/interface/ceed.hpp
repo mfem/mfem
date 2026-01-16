@@ -18,8 +18,19 @@
 
 #include <ceed.h>
 
-#if !CEED_VERSION_GE(0,12,0)
+#if !CEED_VERSION_GE(0, 12, 0)
 #error MFEM requires a libCEED version >= 0.12.0
+#endif
+
+#if !CEED_VERSION_GE(0, 13, 0)
+#define CeedOperatorCreateComposite(ceed, op)                                  \
+    CeedCompositeOperatorCreate((ceed), (op))
+#define CeedOperatorCompositeAddSub(op, sub)                                   \
+    CeedCompositeOperatorAddSub((op), (sub))
+#define CeedOperatorCompositeGetNumSub(op, num)                                \
+    CeedCompositeOperatorGetNumSub((op), (num))
+#define CeedOperatorCompositeGetSubList(op, list)                              \
+    CeedCompositeOperatorGetSubList((op), (list))
 #endif
 
 namespace mfem

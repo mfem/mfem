@@ -8,10 +8,10 @@ This directory contains MFEM's suite of unit tests, using the
 MFEM's unit test suite includes a number of executables:
 
 * `unit_tests`
-* `cunit_tests` if MFEM is compiled with CUDA support
-* `sedov_tests_cpu`, `sedov_tests_debug` (and `sedov_tests_cuda` and
-  `sedov_tests_cuda_uvm` if CUDA is enabled), testing a Sedov hydrodynamics case
-* `tmop_pa_tests_cpu`, `tmop_pa_tests_debug` (and `tmop_pa_tests_cuda` if CUDA
+* `gpu_unit_tests` if MFEM is compiled with CUDA/HIP support
+* `sedov_tests_cpu`, `sedov_tests_debug` (and `sedov_tests_gpu` and
+  `sedov_tests_gpu_uvm` if GPU is enabled), testing a Sedov hydrodynamics case
+* `tmop_pa_tests_cpu`, `tmop_pa_tests_debug` (and `tmop_pa_tests_gpu` if GPU
   is enabled), testing TMOP with partial assembly
 
 There are also parallel versions of these executables (prefixed with `p`), which
@@ -67,11 +67,11 @@ and those are:
   serial test executables, and will only be tested with the parallel executable
   (e.g. `punit_tests`). `punit_tests` will only run tests marked with
   `[Parallel]`.
-* `[CUDA]`, which indicates that a test will be tested with the CUDA executables
-  (e.g. `cunit_tests`). These tests will still be run by the standard (CPU)
-  executables. `cunit_tests` will only run tests marked with `[CUDA]`, and its
-  parallel version `pcunit_tests` will only run tests marked with _both_
-  `[CUDA]` and `[Parallel]`.
+* `[GPU]`, which indicates that a test will be tested with the GPU executables
+  (e.g. `gpu_unit_tests`). These tests will still be run by the standard (CPU)
+  executables. `gpu_unit_tests` will only run tests marked with `[GPU]`, and its
+  parallel version `pgpu_unit_tests` will only run tests marked with _both_
+  `[GPU]` and `[Parallel]`.
 * `[MFEMData]`, which indicates that a test requires access to a clone of the
   MFEM data repository (see the `--data` flag below), in order to run tests on
   some larger mesh files. By default, tests tagged with this tag are skipped,

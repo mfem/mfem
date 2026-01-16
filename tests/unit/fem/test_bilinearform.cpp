@@ -69,7 +69,7 @@ TEST_CASE("Test order of boundary integrators",
 
 TEST_CASE("FormLinearSystem/SolutionScope",
           "[BilinearForm]"
-          "[CUDA]")
+          "[GPU]")
 {
    // Create a simple mesh and FE space
    int dim = 2, nx = 2, ny = 2, order = 2;
