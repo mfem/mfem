@@ -20,12 +20,12 @@ set(CHPT_COMMON_FILES
 	EXTRA_HEADERS ${CHPT_HEADERS})
 
 add_mfem_miniapp(mtop_test_scalar_chpt
-                      MAIN scalar_field.cpp
+                      MAIN tst_scalar_field.cpp
 		      ${CHPT_COMMON_FILES}
                       LIBRARIES mfem)
 
 add_mfem_miniapp(mtop_test_vector_chpt
-                      MAIN vector_field.cpp
+                      MAIN tst_vector_field.cpp
                       ${CHPT_COMMON_FILES}
                       LIBRARIES mfem)
 	      
