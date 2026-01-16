@@ -2,6 +2,7 @@ electrostatic-*
 !electrostatic-*.cpp
 !electrostatic-*.hpp
 *.csv
+!ref
 *.gif
 *.mp4
 *.png
