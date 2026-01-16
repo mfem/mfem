@@ -631,7 +631,6 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet& particles,
                        << " but current rank is " << myid << "." << endl
                        << "You must call redistribute everytime before "
                        "updating the density grid function.");
-            continue;
          }
          const int e = elem[p];
 
