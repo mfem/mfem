@@ -227,9 +227,9 @@ SubMesh::SubMesh(const Mesh &parent, From from,
 
    if (Dim > 1)
    {
-      delete el_to_edge;
-      el_to_edge = new Table;
-      NumOfEdges = GetElementToEdgeTable(*el_to_edge);
+      delete elem_to_edge;
+      elem_to_edge = new Table;
+      NumOfEdges = GetElementToEdgeTable(*elem_to_edge);
    }
    if (Dim > 2)
    {
