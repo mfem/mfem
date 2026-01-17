@@ -8,3 +8,4 @@ electrostatic-*
 *.png
 temp*
 .clang-format
+scaling_results
