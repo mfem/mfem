@@ -51,7 +51,7 @@ void SmemPAVectorMassApply2D(const int NE,
    const auto X = Reshape(x.Read(), D1D, D1D, VDIM, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, VDIM, NE);
 
-   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D<T_Q1D*T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       constexpr int MD1 = T_D1D > 0 ? SetMaxOf(T_D1D) : DofQuadLimits::MAX_T1D;
       constexpr int MQ1 = T_Q1D > 0 ? SetMaxOf(T_Q1D) : DofQuadLimits::MAX_T1D;
@@ -119,7 +119,7 @@ void SmemPAVectorMassApply3D(const int NE,
    const auto X = Reshape(x.Read(), D1D, D1D, D1D, VDIM, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
 
-   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D<T_Q1D*T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       constexpr int MD1 = T_D1D > 0 ? SetMaxOf(T_D1D) : DofQuadLimits::MAX_T1D;
       constexpr int MQ1 = T_Q1D > 0 ? SetMaxOf(T_Q1D) : DofQuadLimits::MAX_T1D;
