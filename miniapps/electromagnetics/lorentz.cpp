@@ -309,7 +309,7 @@ int main(int argc, char *argv[])
 
    // Initialize particles
    int num_particles = ctx.npt/num_ranks +
-                      (rank < (ctx.npt % num_ranks) ? 1 : 0);
+                       (rank < (ctx.npt % num_ranks) ? 1 : 0);
    Boris boris(MPI_COMM_WORLD, E_gf, B_gf, num_particles, ordering_type);
    InitializeChargedParticles(boris.GetParticles(), ctx.x_min, ctx.x_max,
                               ctx.p_min, ctx.p_max, ctx.m, ctx.q);
