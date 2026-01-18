@@ -107,11 +107,7 @@ public:
    /// Destructor
    ~ParticleTrajectories()
    {
-      if (mesh_bb)
-      {
-         delete mesh_bb;
-         mesh_bb = nullptr;
-      }
+      delete mesh_bb;
    }
 };
 
