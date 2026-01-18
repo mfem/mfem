@@ -39,7 +39,7 @@ if (MFEM_USE_MPI)
     MAIN lorentz.cpp
     EXTRA_HEADERS ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem-common)
-  endif()
+endif()
   
   # Add the corresponding tests to the "test" target
   if (MFEM_ENABLE_TESTING)

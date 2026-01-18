@@ -56,7 +56,6 @@
 
 #include "mfem.hpp"
 #include "../common/particles_extras.hpp"
-#include "../../general/text.hpp"
 
 #include "electromagnetics.hpp"
 #include <fstream>
@@ -106,8 +105,9 @@ struct LorentzContext
 class Boris
 {
 public:
-   /// Carrier of field indices. Allows for convenient access to corresponding
-   /// ParticleVector from ParticleSet.
+   /// Field indices
+   /** Allows for convenient access to corresponding ParticleVector from
+       ParticleSet. */
    enum Fields
    {
       MASS,   // vdim = 1
