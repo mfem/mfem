@@ -4792,11 +4792,12 @@ Mesh::Mesh(const NURBSExtension& ext)
    if (NURBSext->HavePatches())
    {
       NURBSFECollection  *fec = new NURBSFECollection(NURBSext->GetOrder());
-      FiniteElementSpace *fes = new FiniteElementSpace(this, fec, Dim,
+      const int vdim = NURBSext->GetPatchSpaceDimension();
+      FiniteElementSpace *fes = new FiniteElementSpace(this, fec, vdim,
                                                        Ordering::byVDIM);
       Nodes = new GridFunction(fes);
       Nodes->MakeOwner(fec);
-      NURBSext->SetCoordsFromPatches(*Nodes);
+      NURBSext->SetCoordsFromPatches(*Nodes, vdim);
       own_nodes = 1;
       spaceDim = Nodes->VectorDim();
       for (int i = 0; i < spaceDim; i++)
@@ -6410,7 +6411,7 @@ void Mesh::UpdateNURBS()
    NURBSext->SetKnotsFromPatches();
 
    Dim = NURBSext->Dimension();
-   spaceDim = Dim;
+   spaceDim = Nodes->FESpace()->GetVDim();
 
    if (NumOfElements != NURBSext->GetNE())
    {
@@ -6435,7 +6436,8 @@ void Mesh::UpdateNURBS()
    Nodes->FESpace()->Update();
    Nodes->Update();
    NodesUpdated();
-   NURBSext->SetCoordsFromPatches(*Nodes);
+   const int vdim = Nodes->FESpace()->GetVDim();
+   NURBSext->SetCoordsFromPatches(*Nodes, vdim);
 
    if (NumOfVertices != NURBSext->GetNV())
    {
@@ -7834,6 +7836,17 @@ bool Mesh::IsMixedMesh() const
 
 void Mesh::GetElementEdges(int i, Array<int> &edges, Array<int> &cor) const
 {
+   if (Dim == 1)
+   {
+      // In 1D, elements are segments and can be treated as edges.
+      edges.SetSize(1);
+      cor.SetSize(1);
+      edges[0] = i;
+      const int *v = elements[i]->GetVertices();
+      cor[0] = (v[0] < v[1]) ? (1) : (-1);
+      return;
+   }
+
    if (el_to_edge)
    {
       el_to_edge->GetRow(i, edges);
@@ -12388,6 +12401,38 @@ void Mesh::PrintTopoEdges(std::ostream &os, const Array<int> &e_to_k,
                           bool vmap) const
 {
    Array<int> vert;
+
+   // In 1D patch-topology NURBS meshes, knotvector orientation is stored in the
+   // file's `edges` section, but the topological 1D mesh has NumOfEdges == 0
+   // (its "faces" are vertices). When a valid edge->knotvector map is provided,
+   // print a pseudo-edge list derived from the 1D elements so external tools
+   // (e.g. VisIt) can consume the mapping.
+   if (Dim == 1 && NumOfEdges == 0 && e_to_k.Size() == NumOfElements)
+   {
+      const int ne = NumOfElements;
+      os << "\nedges\n" << ne << '\n';
+      for (int i = 0; i < ne; i++)
+      {
+         const int *v = elements[i]->GetVertices();
+         int v0 = v[0], v1 = v[1];
+
+         int ki = e_to_k[i];
+         const bool flip = (ki < 0); // desired output vertex order: descending
+         if (flip) { ki = -1 - ki; } // print the unsigned knotvector index
+
+         // Encode the sign of e_to_k in the vertex ordering, consistent with
+         // Mesh::LoadPatchTopo(): v0 > v1 => negative sign.
+         if ((v0 > v1) != flip) { std::swap(v0, v1); }
+
+         os << ki << ' ' << v0 << ' ' << v1 << '\n';
+      }
+
+      if (!vmap)
+      {
+         os << "\nvertices\n" << NumOfVertices << '\n';
+      }
+      return;
+   }
 
    os << "\nedges\n" << NumOfEdges << '\n';
    for (int i = 0; i < NumOfEdges; i++)
