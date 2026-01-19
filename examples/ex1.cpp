@@ -83,6 +83,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = true;
    bool algebraic_ceed = false;
+   bool cudss_solver = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -101,6 +102,10 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_CEED
    args.AddOption(&algebraic_ceed, "-a", "--algebraic", "-no-a", "--no-algebraic",
                   "Use algebraic Ceed solver");
+#endif
+#ifdef MFEM_USE_CUDSS
+   args.AddOption(&cudss_solver, "-cudss", "--cudss-solver", "-no-cudss",
+                  "--no-cudss-solver", "Use the cuDSS Solver.");
 #endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -225,9 +230,19 @@ int main(int argc, char *argv[])
    if (!pa)
    {
 #ifndef MFEM_USE_SUITESPARSE
-      // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-      GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
+      if (cudss_solver && strstr(device_config, "cuda"))
+      {
+         // Use cuDSS to solve the system.
+         CuDSSSolver cudss_solver;
+         cudss_solver.SetOperator(*A);
+         cudss_solver.Mult(B, X);
+      }
+      else
+      {
+         // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
+         GSSmoother M((SparseMatrix&)(*A));
+         PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
+      }
 #else
       // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
       UMFPackSolver umf_solver;
