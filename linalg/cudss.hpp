@@ -115,7 +115,7 @@ public:
    /**
     * @brief Set the HypreParMatrix object
     *
-    * @param A HypreParMatrix object
+    * @param op HypreParMatrix object
     *
     * @note This method is called inside SetOperator
     */
@@ -125,7 +125,7 @@ public:
    /**
     * @brief Set the SparseMatrix object
     *
-    * @param A SparseMatrix object
+    * @param op SparseMatrix object
     *
     * @note This method is called inside SetOperator
     */
