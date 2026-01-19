@@ -435,10 +435,10 @@ endif()
 
 # cuDSS can only be enabled in both CUDA and parallel
 if (MFEM_USE_CUDSS)
-  if (MFEM_USE_CUDA AND MFEM_USE_MPI)
+  if (MFEM_USE_CUDA)
     find_package(CUDSS REQUIRED)
   else()
-    message(FATAL_ERROR " *** cuDSS requires that CUDA and MPI be enabled.")
+    message(FATAL_ERROR " *** cuDSS requires that CUDA be enabled.")
   endif()
 endif()
 

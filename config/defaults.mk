@@ -370,8 +370,8 @@ STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(MPI_FORTRAN_LIB)\
 
 # CUDSS library configuration
 ifeq ($(MFEM_USE_CUDSS),YES)
-   ifneq ($(MFEM_USE_MPI)$(MFEM_USE_CUDA),YESYES)
-      $(error cuDSS requires that CUDA and MPI be enabled.)
+   ifneq ($(MFEM_USE_CUDA),YES)
+      $(error cuDSS requires that CUDA be enabled.)
    endif
 endif
 CUDSS_DIR = @MFEM_DIR@/../cudss

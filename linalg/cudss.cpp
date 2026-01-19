@@ -3,7 +3,6 @@
 #include <string>
 
 #ifdef MFEM_USE_CUDSS
-#ifdef MFEM_USE_MPI
 
 #ifdef MFEM_USE_SINGLE
 #define CUDA_REAL_T CUDA_R_32F
@@ -40,12 +39,29 @@ void mfem_cudss_error(cudssStatus_t status, const char *expr, const char *func,
    mfem_error();
 }
 
-CuDSSSolver::CuDSSSolver(MPI_Comm comm_) : mpi_comm(comm_)
+CuDSSSolver::CuDSSSolver()
 {
-   Init();
+   if (!handle)
+   {
+      // // Create the cuDSS handle
+      MFEM_CUDSS_CHECK(cudssCreate(&handle));
+
+#ifdef MFEM_USE_OPENMP
+      // NOTE: Set the threading layer library name to NULL so that cuDSS picks
+      // it from the environment variable "CUDSS_THREADING_LIB"
+      MFEM_CUDSS_CHECK(cudssSetThreadingLayer(handle, NULL));
+#endif // MFEM_USE_OPENMP
+   }
+
+   // Create the solver configuration and data objects
+   MFEM_CUDSS_CHECK(cudssConfigCreate(&solverConfig));
+   MFEM_CUDSS_CHECK(cudssDataCreate(handle, &solverData));
+
+   CuDSSSolverCount++;
 }
 
-void CuDSSSolver::Init()
+#ifdef MFEM_USE_MPI
+CuDSSSolver::CuDSSSolver(MPI_Comm comm_) : mpi_comm(comm_)
 {
    if (!handle)
    {
@@ -54,6 +70,12 @@ void CuDSSSolver::Init()
       // NOTE: Set the communication layer to NULL so that cuDSS picks it
       // from the environment variable "CUDSS_COMM_LIB"
       MFEM_CUDSS_CHECK(cudssSetCommLayer(handle, NULL));
+
+#ifdef MFEM_USE_OPENMP
+      // NOTE: Set the threading layer library name to NULL so that cuDSS picks
+      // it from the environment variable "CUDSS_THREADING_LIB"
+      MFEM_CUDSS_CHECK(cudssSetThreadingLayer(handle, NULL));
+#endif  // MFEM_USE_OPENMP
    }
 
    // Create the solver configuration and data objects
@@ -64,6 +86,7 @@ void CuDSSSolver::Init()
 
    CuDSSSolverCount++;
 }
+#endif // MFEM_USE_MPI
 
 CuDSSSolver::~CuDSSSolver()
 {
@@ -74,7 +97,6 @@ CuDSSSolver::~CuDSSSolver()
       MFEM_CUDSS_CHECK(cudssMatrixDestroy(xc));
       MFEM_CUDSS_CHECK(cudssMatrixDestroy(yc));
    }
-
 
    // Destroy the cuDSS handle, solver config and solver data
    MFEM_CUDSS_CHECK(cudssDataDestroy(handle, solverData));
@@ -156,21 +178,15 @@ void CuDSSSolver::SetMatrixSortRow(bool sort_row_)
    sort_row = sort_row_;
 }
 
-void CuDSSSolver::SetOperator(const Operator &op)
+#ifdef MFEM_USE_MPI
+void CuDSSSolver::SetMatrix(const HypreParMatrix &op)
 {
    bool cuDSSObjectInitialized = (Ac != nullptr);
-   MFEM_VERIFY(!cuDSSObjectInitialized ||
-               (height == op.Height() && width == op.Width()),
-               "Inconsistent new matrix size!");
-   height = op.Height();
-   width = op.Width();
 
    const HypreParMatrix *A = dynamic_cast<const HypreParMatrix *>(&op);
-   MFEM_VERIFY(A, "Not a compatible matrix type");
-
    hypre_ParCSRMatrix *parcsr_op = *A;
    hypre_CSRMatrix *csr_op = hypre_MergeDiagAndOffd(parcsr_op);
-   A->HypreRead();
+   op.HypreRead();
 #if MFEM_HYPRE_VERSION >= 21600
    hypre_CSRMatrixBigJtoJ(csr_op);
 #endif
@@ -253,6 +269,112 @@ void CuDSSSolver::SetOperator(const Operator &op)
 
    hypre_CSRMatrixDestroy(csr_op);
 }
+#endif // MFEM_USE_MPI
+
+void CuDSSSolver::SetMatrix(const SparseMatrix &op)
+{
+   bool cuDSSObjectInitialized = (Ac != nullptr);
+
+   // Parameters of the Operator
+   MFEM_VERIFY(!cuDSSObjectInitialized || !reorder_reuse ||
+               (reorder_reuse && (nnz == op.NumNonZeroElems())),
+               "Inconsistent new matrix pattern!");
+
+   SparseMatrix *A = const_cast<SparseMatrix *>(&op);
+
+   if (sort_row)
+   {
+      A->SortColumnIndices();
+   }
+
+   nnz = A->NumNonZeroElems();
+   n_global = height;  // Equal to the height in serial
+   n_loc = height;     // Equal to the height in serial
+
+   // In Parallel end: HypreParMatrix to CSRMatrix
+   int *csr_offsets = const_cast<int *>(A->ReadI());
+   int *csr_columns = const_cast<int *>(A->ReadJ());
+   real_t *csr_data = const_cast<real_t *>(A->ReadData());
+
+   // Initial the cudssMatrix objects
+   if (!cuDSSObjectInitialized)
+   {
+      // Set the cudssMatrix object of csr operator
+      Ac = std::make_unique<cudssMatrix_t>();
+      // Create empty RHS and solution vectors
+      SetNumRHS(1);
+   }
+
+   // New cuDSS CSR matrix object and analysis or reuse the one from a previous
+   // matrix
+   if (!cuDSSObjectInitialized || !reorder_reuse)
+   {
+      if (reorder_reuse)  // !cuDSSObjectInitialized && reorder_reuse
+      {
+         // NOTE: For CuDSS solver to reuse the reordering (skipping analysis
+         // phase), it needs to access the I and J arrays of the **initial**
+         // matrix. Therefore, we need to copy and keep I and J in device memory.
+         CuMemAlloc(&csr_offsets_d, (height + 1) * sizeof(int));
+         CuMemAlloc(&csr_columns_d, nnz * sizeof(int));
+
+         CuMemcpyDtoD(csr_offsets_d, csr_offsets, (height + 1) * sizeof(int));
+         CuMemcpyDtoD(csr_columns_d, csr_columns, nnz * sizeof(int));
+
+         MFEM_CUDSS_CHECK(cudssMatrixCreateCsr(
+                             Ac.get(), height, height, nnz, csr_offsets_d, NULL, csr_columns_d,
+                             csr_data, CUDA_R_32I, CUDA_REAL_T, mat_type, mview, CUDSS_BASE_ZERO));
+      }
+      else    // !reorder_reuse
+      {
+         if (cuDSSObjectInitialized)
+         {
+            MFEM_CUDSS_CHECK(cudssMatrixDestroy(*Ac));
+         }
+         MFEM_CUDSS_CHECK(cudssMatrixCreateCsr(
+                             Ac.get(), height, height, nnz, csr_offsets, NULL, csr_columns,
+                             csr_data, CUDA_R_32I, CUDA_REAL_T, mat_type, mview, CUDSS_BASE_ZERO));
+      }
+
+      // Analysis
+      MFEM_CUDSS_CHECK(cudssExecute(handle, CUDSS_PHASE_ANALYSIS, solverConfig,
+                                    solverData, *Ac, yc, xc));
+   }
+   else    // cuDSSObjectInitialized && reorder_reuse
+   {
+      // NOTE: When reusing analysis result, we only update the Data array,
+      // without changing the I and J arrays.
+      MFEM_CUDSS_CHECK(cudssMatrixSetValues(*Ac, csr_data));
+   }
+
+   // Factorization
+   MFEM_CUDSS_CHECK(cudssExecute(handle, CUDSS_PHASE_FACTORIZATION, solverConfig,
+                                 solverData, *Ac, yc, xc));
+}
+
+void CuDSSSolver::SetOperator(const Operator &op)
+{
+   bool cuDSSObjectInitialized = (Ac != nullptr);
+   MFEM_VERIFY(
+      !cuDSSObjectInitialized || (height == op.Height() && width == op.Width()),
+      "Inconsistent new matrix size!");
+   height = op.Height();
+   width = op.Width();
+   if (const SparseMatrix *A = dynamic_cast<const SparseMatrix *>(&op))
+   {
+      SetMatrix(*A);
+   }
+#ifdef MFEM_USE_MPI
+   else if (const HypreParMatrix *A =
+               dynamic_cast<const HypreParMatrix *>(&op))
+   {
+      SetMatrix(*A);
+   }
+#endif // MFEM_USE_MPI
+   else
+   {
+      mfem_error("Unsupported Operator Type \n");
+   }
+}
 
 void CuDSSSolver::SetNumRHS(int nrhs_) const
 {
@@ -265,15 +387,17 @@ void CuDSSSolver::SetNumRHS(int nrhs_) const
          MFEM_CUDSS_CHECK(cudssMatrixDestroy(yc));
       }
       // Create empty RHS and solution vectors
-      MFEM_CUDSS_CHECK(
-         cudssMatrixCreateDn(&xc, n_global, nrhs_, n_global, NULL,
-                             CUDA_REAL_T, CUDSS_LAYOUT_COL_MAJOR));
-      MFEM_CUDSS_CHECK(cudssMatrixSetDistributionRow1d(xc, row_start, row_end));
+      MFEM_CUDSS_CHECK(cudssMatrixCreateDn(&xc, n_global, nrhs_, n_global, NULL,
+                                           CUDA_REAL_T, CUDSS_LAYOUT_COL_MAJOR));
 
-      MFEM_CUDSS_CHECK(
-         cudssMatrixCreateDn(&yc, n_global, nrhs_, n_global, NULL,
-                             CUDA_REAL_T, CUDSS_LAYOUT_COL_MAJOR));
+      MFEM_CUDSS_CHECK(cudssMatrixCreateDn(&yc, n_global, nrhs_, n_global, NULL,
+                                           CUDA_REAL_T, CUDSS_LAYOUT_COL_MAJOR));
+
+#ifdef MFEM_USE_MPI
+      MFEM_CUDSS_CHECK(cudssMatrixSetDistributionRow1d(xc, row_start, row_end));
       MFEM_CUDSS_CHECK(cudssMatrixSetDistributionRow1d(yc, row_start, row_end));
+
+#endif // MFEM_USE_MPI
    }
    nrhs = nrhs_;
 }
@@ -337,5 +461,4 @@ void CuDSSSolver::ArrayMult(const Array<const Vector *> &X,
 }
 
 } // namespace mfem
-#endif // MFEM_USE_MPI
 #endif // MFEM_USE_CUDSS

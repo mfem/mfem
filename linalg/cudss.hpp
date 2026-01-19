@@ -4,12 +4,16 @@
 #include "../config/config.hpp"
 
 #ifdef MFEM_USE_CUDSS
-#ifdef MFEM_USE_MPI
 
-#include "operator.hpp"
 #include "cudss.h"
-#include "hypre.hpp"
+
+#ifdef MFEM_USE_MPI
 #include <mpi.h>
+#include "hypre.hpp"
+#else
+#include "operator.hpp"
+#include "sparsemat.hpp"
+#endif
 
 namespace mfem
 {
@@ -44,9 +48,16 @@ public:
    };
 
    /**
+    * @brief Constructor.
+    */
+   CuDSSSolver();
+
+#ifdef MFEM_USE_MPI
+   /**
     * @brief Constructor with MPI_Comm parameter.
     */
    CuDSSSolver(MPI_Comm comm);
+#endif
 
    // Note: CuDSSSolver disables the move copy constructor and move assignment
    // operator
@@ -57,7 +68,7 @@ public:
     * @brief Set the matrix type
     *
     * Supported matrix types:
-    *          CuDSSSolver::UNSYMMETRIC,
+    *          CuDSSSolver::NONSYMMETRIC,
     *          CuDSSSolver::SYMMETRIC_INDEFINITE,
     *      and CuDSSSolver::SYMMETRIC_INDEFINITE,
     *
@@ -100,7 +111,28 @@ public:
     */
    void SetMatrixSortRow(bool sort_row_);
 
+#ifdef MFEM_USE_MPI
+   /**
+    * @brief Set the HypreParMatrix object
+    *
+    * @param A HypreParMatrix object
+    *
+    * @note This method is called inside SetOperator
+    */
+   void SetMatrix(const HypreParMatrix &op);
+#endif
+
+   /**
+    * @brief Set the SparseMatrix object
+    *
+    * @param A SparseMatrix object
+    *
+    * @note This method is called inside SetOperator
+    */
+   void SetMatrix(const SparseMatrix &op);
+
    void SetOperator(const Operator &op) override;
+
    /**
     * @brief Solve $ y = Op^{-1} x $
     *
@@ -120,8 +152,13 @@ public:
    ~CuDSSSolver();
 
 private:
+#ifdef MFEM_USE_MPI
    // MPI_Comm
    MPI_Comm mpi_comm = MPI_COMM_NULL;
+
+   int row_start = 0;  // the first row index in CSR matrix operator
+   int row_end = 0;    // the end row index in CSR matrix operator
+#endif
 
    // Parameter controlling whether or not to reuse the symbolic factorization
    // for multiple calls to SetOperator
@@ -135,13 +172,11 @@ private:
    // Parameter controlling the matrix type
    cudssMatrixType_t mat_type = CUDSS_MTYPE_GENERAL;
 
-   mutable int nrhs = 0; // the number of the RHSs
-   int n_global = 0;     // global number of rows
+   int n_global = 0;      // global number of rows
+   int n_loc = 0;         // the number of the rows in CSR matrix operator
 
-   int nnz = 0; // the number of non zeros
-   int row_start = 0;  // the first row index in CSR matrix operator
-   int row_end = 0;   // the end row index in CSR matrix operator
-   int n_loc = 0;    // the number of the rows in CSR matrix operator
+   mutable int nrhs = 0;  // the number of the RHSs
+   int nnz = 0;        // the number of non zeros
 
    // copy and keep the I and J arrays in device memory when skipping analysis
    // phase
@@ -175,6 +210,5 @@ private:
 
 } // namespace mfem
 
-#endif // MFEM_USE_MPI
 #endif // MFEM_USE_CUDSS
 #endif // MFEM_CUDSS

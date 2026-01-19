@@ -398,8 +398,8 @@ MFEM_USE_STRUMPACK = YES/NO
 MFEM_USE_CUDSS = YES/NO
    Enable MFEM functionality based on the cuDSS library. Currently, this option
    adds the class CuDSSSolver (a parallel sparse direct solver). When using cuDSS,
-   both CUDA support and MPI must be also enabled in MFEM, i.e. MFEM_USE_CUDA=YES
-   and MFEM_USE_MPI=YES must be set. When enabled, this option uses the CUDSS_* 
+   CUDA support must be also enabled in MFEM, i.e. MFEM_USE_CUDA=YES must be set. 
+   When enabled, this option uses the CUDSS_* 
    library options, see below.
 
 MFEM_USE_GINKGO = YES/NO
@@ -727,7 +727,7 @@ The specific libraries and their options are:
   Versions: STRUMPACK >= 3.0.0.
 
 - CUDSS (optional), used when MFEM_USE_CUDSS = YES. Note that CUDSS needs CUDA 12.x 
-  toolkit, MPI, and the cuDSS libraries.
+  toolkit and the cuDSS libraries.
   URL: https://developer.nvidia.com/cudss
   Options: CUDSS_DIR.
   Versions: cuDSS >= 0.6.0.

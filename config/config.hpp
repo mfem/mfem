@@ -155,9 +155,6 @@ constexpr real_t operator""_r(unsigned long long v)
 #ifdef MFEM_USE_PUMI
 #error Building with PUMI (MFEM_USE_PUMI=YES) requires MPI (MFEM_USE_MPI=YES)
 #endif
-#ifdef MFEM_USE_CUDSS
-#error Building with cuDSS (MFEM_USE_CUDSS=YES) requires MPI (MFEM_USE_MPI=YES)
-#endif
 #endif // MFEM_USE_MPI not defined
 
 #ifndef MFEM_USE_CUDA

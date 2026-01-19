@@ -223,7 +223,7 @@ CXXFLAGS ?= $(OPTIM_FLAGS)
 # MPI configuration
 ifneq ($(MFEM_USE_MPI),YES)
    HOST_CXX = $(CXX)
-   PKGS_NEED_MPI = SUPERLU MUMPS STRUMPACK PETSC PUMI SLEPC MKL_CPARDISO CUDSS
+   PKGS_NEED_MPI = SUPERLU MUMPS STRUMPACK PETSC PUMI SLEPC MKL_CPARDISO
    $(foreach mpidep,$(PKGS_NEED_MPI),$(if $(MFEM_USE_$(mpidep):NO=),\
      $(warning *** [MPI is OFF] setting MFEM_USE_$(mpidep) = NO)\
      $(eval override MFEM_USE_$(mpidep)=NO),))
