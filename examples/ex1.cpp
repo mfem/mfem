@@ -83,7 +83,9 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = true;
    bool algebraic_ceed = false;
+#ifdef MFEM_USE_CUDSS
    bool cudss_solver = false;
+#endif
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -230,6 +232,7 @@ int main(int argc, char *argv[])
    if (!pa)
    {
 #ifndef MFEM_USE_SUITESPARSE
+#ifdef MFEM_USE_CUDSS
       if (cudss_solver && strstr(device_config, "cuda"))
       {
          // Use cuDSS to solve the system.
@@ -243,6 +246,11 @@ int main(int argc, char *argv[])
          GSSmoother M((SparseMatrix&)(*A));
          PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
       }
+#else
+      // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
+      GSSmoother M((SparseMatrix&)(*A));
+      PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
+#endif
 #else
       // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
       UMFPackSolver umf_solver;
