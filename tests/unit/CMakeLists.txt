@@ -165,7 +165,7 @@ set(UNIT_TESTS_SRCS
   # This list can be updated using (in bash):
   #    for d in miniapps ceed; do ls -1 $d/*.cpp; done
   # miniapps/test_debug_device.cpp
-  # miniapps/test_sedov.cpp
+  # miniapps/test_sedov_pa.cpp
   # miniapps/test_tmop_pa.cpp
   # ceed/test_ceed.cpp
   # ceed/test_ceed_main.cpp
@@ -239,7 +239,7 @@ endif()
 
 #-----------------------------------------------------------
 # SERIAL SEDOV + TMOP TESTS:
-#   sedov_tests_{cpu,debug,gpu,gpu_uvm}
+#   sedov_pa_tests_{cpu,debug,gpu,gpu_uvm}
 #   tmop_pa_tests_{cpu,debug,gpu}
 #-----------------------------------------------------------
 # Function to add one device serial test from the tests/unit/miniapp directory.
@@ -303,7 +303,7 @@ function(add_serial_miniapp_test name test_uvm)
     endif()
 endfunction(add_serial_miniapp_test)
 
-add_serial_miniapp_test(sedov ON)  # UVM ON
+add_serial_miniapp_test(sedov_pa ON)  # UVM ON
 add_serial_miniapp_test(tmop_pa OFF)  # UVM OFF
 # TMOP tests need meshes in ../../miniapps/meshing
 
@@ -389,7 +389,7 @@ endif(MFEM_USE_MPI)
 
 #-----------------------------------------------------------
 # PARALLEL SEDOV + TMOP TESTS:
-#   psedov_tests_{cpu,debug,gpu,gpu_uvm}
+#   psedov_pa_tests_{cpu,debug,gpu,gpu_uvm}
 #   ptmop_pa_tests_{cpu,gpu}
 #-----------------------------------------------------------
 # Function to add one MPI executable for a test.
@@ -424,17 +424,17 @@ function(add_parallel_miniapp_test name HYPRE_MM)
 
     set(backends cpu)
     if (HYPRE_MM)
-        # psedov_tests_debug_* will return MFEM_SKIP_RETURN_VALUE when all of
+        # psedov_pa_tests_debug_* will return MFEM_SKIP_RETURN_VALUE when all of
         # the following conditions are met:
-        # * MFEM_SEDOV_MPI is defined (true here)
+        # * MFEM_SEDOV_PA_MPI is defined (true here)
         # * MFEM_DEBUG is defined
-        # * MFEM_SEDOV_DEVICE is "debug" (the case added here)
+        # * MFEM_SEDOV_PA_DEVICE is "debug" (the case added here)
         # * HypreUsingGPU() is true; this is the same as: HYPRE_USING_GPU is
         #   defined and MFEM_HYPRE_VERSION < 23100 (if the version is >= 23100,
         #   the code will switch to HYPRE running on CPU).
         # We check these conditions here to skip the "debug" backend and avoid
         # the ctest failure.
-        if (NOT ((${name} STREQUAL "sedov") AND MFEM_DEBUG AND
+        if (NOT ((${name} STREQUAL "sedov_pa") AND MFEM_DEBUG AND
                  (HYPRE_USING_CUDA OR HYPRE_USING_HIP) AND
                  (${MFEM_HYPRE_VERSION} LESS "23100")))
             list(APPEND backends debug)
@@ -458,7 +458,8 @@ endfunction(add_parallel_miniapp_test)
 
 # Additional MPI unit tests
 if (MFEM_USE_MPI)
-    add_parallel_miniapp_test(sedov TRUE)
+    add_parallel_miniapp_test(sedov_pa TRUE)
+    add_parallel_miniapp_test(sedov_dfem FALSE)
     add_parallel_miniapp_test(tmop_pa FALSE)
 endif(MFEM_USE_MPI)
 
