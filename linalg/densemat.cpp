@@ -4350,6 +4350,34 @@ DenseTensor &DenseTensor::operator=(real_t c)
    return *this;
 }
 
+void DenseTensor::Print(std::ostream &os, int width_) const
+{
+   // save current output flags
+   ios::fmtflags old_flags = os.flags();
+   // output flags = scientific + show sign
+   os << setiosflags(ios::scientific | ios::showpos);
+   for (int i = 0; i < SizeI(); i++)
+   {
+      for (int j = 0; j <SizeJ(); j++)
+      {
+         for (int k = 0; k <SizeJ(); k++)
+         {
+            os << (*this)(i,j,k);
+         }
+         os << ',';
+      }
+      os << '\n';
+   }
+   // reset output flags to original values
+
+   for (int i = 0; i < TotalSize(); i++)
+   {
+      os << tdata[i];
+   }
+   os << '\n';
+   os.flags(old_flags);
+}
+
 void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const real_t TOL)
 {
    BatchedLinAlg::LUFactor(Mlu, P);

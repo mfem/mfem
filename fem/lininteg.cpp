@@ -203,8 +203,8 @@ void BoundaryLFIntegrator::AssembleRHSElementVect(
 void BoundaryNormalLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
-   int dim = el.GetDim()+1;
-   int dof = el.GetDof();
+   const int dim = el.GetDim()+1;
+   const int dof = el.GetDof();
    Vector nor(dim), Qvec;
 
    shape.SetSize(dof);
@@ -232,6 +232,46 @@ void BoundaryNormalLFIntegrator::AssembleRHSElementVect(
          nor[0] = 1.0;
       }
       Q.Eval(Qvec, Tr, ip);
+
+      el.CalcShape(ip, shape);
+
+      elvect.Add(ip.weight*(Qvec*nor), shape);
+   }
+}
+
+
+void BoundaryNormalLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+{
+   const int dim = el.GetDim();
+   const int dof = el.GetDof();
+   Vector nor(dim), Qvec;
+
+   shape.SetSize(dof);
+   elvect.SetSize(dof);
+   elvect = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int intorder = oa * el.GetOrder() + ob;
+      ir = &IntRules.Get(el.GetGeomType(), intorder);
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.SetAllIntPoints(&ip);
+      if (dim > 1)
+      {
+         CalcOrtho(Tr.Jacobian(), nor);
+      }
+      else
+      {
+         nor[0] = 1.0;
+      }
+      Q.Eval(Qvec, *Tr.Elem1, ip);
 
       el.CalcShape(ip, shape);
 
@@ -917,6 +957,103 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
       }
    }
 }
+
+
+void VectorFEDGDirichletLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   mfem_error("VectorFEDGDirichletLFIntegrator::AssembleRHSElementVect");
+}
+
+void VectorFEDGDirichletLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+{
+   int dim, ndof;
+   bool kappa_is_nonzero = (kappa != 0.);
+   real_t w;
+
+   dim = el.GetDim();
+   ndof = el.GetDof();
+
+   nor.SetSize(dim);
+   nh.SetSize(dim);
+   ni.SetSize(dim);
+
+   if (MQ)
+   {
+      mq.SetSize(dim);
+   }
+
+   elvect.SetSize(ndof);
+   elvect = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      // a simple choice for the integration order; is this OK?
+      int order = 2*el.GetOrder();
+      ir = &IntRules.Get(Tr.GetGeometryType(), order);
+   }
+
+   Vector val(dim);
+   vshape.SetSize(ndof, dim);
+   dvshape.SetSize(ndof, dim, dim);
+   dvshape_dn.SetSize(ndof, dim);
+   dvshape.GetDenseMatrix2(dvshape_flat);
+   dvshape_dn_flat.SetDataAndSize(dvshape_dn.GetData(),ndof*dim);
+   vshape_flat.SetDataAndSize(vshape.GetData(),ndof*dim);
+
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+
+      // Set the integration point in the face and the neighboring element
+      Tr.SetAllIntPoints(&ip);
+
+      // Access the neighboring element's integration point
+      const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+
+      if (dim == 1)
+      {
+         nor(0) = 2*eip.x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Tr.Jacobian(), nor);
+      }
+
+      el.CalcVShape(*Tr.Elem1, vshape);
+      el.CalcPhysDVShape(*Tr.Elem1, dvshape);
+
+      // compute vD through the face transformation
+      vD->Eval(val, Tr, ip);
+      w = ip.weight;
+
+      if (!MQ)
+      {
+         if (Q)
+         {
+            w *= Q->Eval(*Tr.Elem1, eip);
+         }
+         ni.Set(w, nor);
+      }
+      else
+      {
+         nh.Set(w, nor);
+         MQ->Eval(mq, *Tr.Elem1, eip);
+         mq.MultTranspose(nh, ni);
+      }
+      dvshape_flat.Mult(ni, dvshape_dn_flat);
+      dvshape_dn.AddMult(val, elvect, sigma);
+
+      if (kappa_is_nonzero)
+      {
+         real_t hn = Tr.Elem1->Weight()/Tr.Weight();
+         vshape.AddMult(val, elvect, kappa*(ni*nor)/(Tr.Weight()*hn));
+      }
+   }
+}
+
 
 void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)

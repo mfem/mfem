@@ -2626,19 +2626,21 @@ void FiniteElementSpace::UpdateNURBS()
 
    if (dynamic_cast<const NURBS_HDivFECollection *>(fec))
    {
+      bool H1 = dynamic_cast<const NURBS_HDivH1FECollection *>(fec);
       VNURBSext.SetSize(mesh->Dimension());
       for (int d = 0; d < mesh->Dimension(); d++)
       {
-         VNURBSext[d] = NURBSext->GetDivExtension(d);
+         VNURBSext[d] = NURBSext->GetDivExtension(d, H1);
       }
    }
 
    if (dynamic_cast<const NURBS_HCurlFECollection *>(fec))
    {
+      bool H1 = dynamic_cast<const NURBS_HCurlH1FECollection *>(fec);
       VNURBSext.SetSize(mesh->Dimension());
       for (int d = 0; d < mesh->Dimension(); d++)
       {
-         VNURBSext[d] = NURBSext->GetCurlExtension(d);
+         VNURBSext[d] = NURBSext->GetCurlExtension(d,H1);
       }
    }
 
@@ -2704,8 +2706,9 @@ void FiniteElementSpace::BuildNURBSFaceToDofTable() const
    {
       int b = face_to_be[f];
       if (b == -1) { continue; }
-      // FIXME: this assumes that the boundary element and the face element have
-      //        the same orientation.
+
+      // Check if the boundary element and the face element have
+      // the same vertices.
       if (dim > 1)
       {
          const Element *fe = mesh->GetFace(f);
@@ -2715,7 +2718,16 @@ void FiniteElementSpace::BuildNURBSFaceToDofTable() const
          const int *bv = be->GetVertices();
          for (int i = 0; i < nv; i++)
          {
-            MFEM_VERIFY(fv[i] == bv[i],
+            bool found = false;
+            for (int j = 0; j < nv; j++)
+            {
+               if (fv[i] == bv[j])
+               {
+                  found = true;
+                  break;
+               }
+            }
+            MFEM_VERIFY(found,
                         "non-matching face and boundary elements detected!");
          }
       }
