@@ -1402,12 +1402,22 @@ public:
                                                   &final_res_norm);
    }
 
+   /// @sa HYPRE_PCGSetTwoNorm
+   /// @a use = true uses (r, r) < max(r_tol^2 (b, b), a_tol^2) for
+   /// the convergence criteria
+   /// @a use = false uses (r, A r) < max(r_tol^2 (b, A b), a_tol^2) for
+   /// the convergence criteria
+   void SetUseTwoNorm(bool use);
+
+   /// @sa HYPRE_PCGGetTwoNorm
+   bool GetUseTwoNorm() const;
+
    /// Gets the internal Hypre solver residual vector.
    /// @sa HYPRE_ParCSRPCGGetResidual
    HypreParVector GetResiduals() const;
 
    /// Computes the absolute residual p-norm.
-   void FinalAbsResidualNorm(real_t &final_res_norm, real_t p = 2) const;
+   void GetFinalAbsResidualNorm(real_t &final_res_norm, real_t p = 2) const;
 
    /// The typecast to HYPRE_Solver returns the internal pcg_solver
    operator HYPRE_Solver() const override { return pcg_solver; }
@@ -1484,7 +1494,7 @@ public:
    HypreParVector GetResiduals() const;
 
    /// Computes the absolute residual p-norm.
-   void FinalAbsResidualNorm(real_t &final_res_norm, real_t p = 2) const;
+   void GetFinalAbsResidualNorm(real_t &final_res_norm, real_t p = 2) const;
 
    /// The typecast to HYPRE_Solver returns the internal gmres_solver
    operator HYPRE_Solver() const override { return gmres_solver; }
@@ -1559,7 +1569,7 @@ public:
    HypreParVector GetResiduals() const;
 
    /// Computes the absolute residual p-norm.
-   void FinalAbsResidualNorm(real_t &final_res_norm, real_t p = 2) const;
+   void GetFinalAbsResidualNorm(real_t &final_res_norm, real_t p = 2) const;
 
    /// The typecast to HYPRE_Solver returns the internal fgmres_solver
    operator HYPRE_Solver() const override { return fgmres_solver; }
