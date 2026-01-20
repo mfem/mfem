@@ -16,6 +16,11 @@ Meshing improvements
 - Improved support for 1D NURBS meshes with variable order, including using
   the patches construct for 1D NURBS meshes.
 
+Miscellaneous
+-------------
+- Added a dFEM Sedov parallel miniapp in the unit tests (`psedov_dfem_tests`)
+  and updated the PA version of the tests (`[p]sedov_pa_tests`).
+
 Version 4.9, released on Dec 11, 2025
 =====================================
 

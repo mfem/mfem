@@ -1035,15 +1035,15 @@ static inline void QKernel(const int nzones,
          real_t Jinv[DIM2];
          real_t stress[DIM2];
          real_t sgrad_v[DIM2];
-         real_t eig_val_data[3];
-         real_t eig_vec_data[9];
+         real_t eig_val_data[DIM];
+         real_t eig_vec_data[DIM2];
          real_t compr_dir[DIM];
          real_t Jpi[DIM2];
          real_t ph_dir[DIM];
          real_t stressJiT[DIM2];
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(qx,x,Q1D)
          {
-            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            MFEM_FOREACH_THREAD_DIRECT(qy,y,Q1D)
             {
                QBody<DIM>(nzones, z, nqp, qx + qy * Q1D,
                           gamma, use_viscosity, h0, h1order, cfl, infinity,
@@ -1065,17 +1065,17 @@ static inline void QKernel(const int nzones,
          real_t Jinv[DIM2];
          real_t stress[DIM2];
          real_t sgrad_v[DIM2];
-         real_t eig_val_data[3];
-         real_t eig_vec_data[9];
+         real_t eig_val_data[DIM];
+         real_t eig_vec_data[DIM2];
          real_t compr_dir[DIM];
          real_t Jpi[DIM2];
          real_t ph_dir[DIM];
          real_t stressJiT[DIM2];
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(qx,x,Q1D)
          {
-            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            MFEM_FOREACH_THREAD_DIRECT(qy,y,Q1D)
             {
-               MFEM_FOREACH_THREAD(qz,z,Q1D)
+               MFEM_FOREACH_THREAD_DIRECT(qz,z,Q1D)
                {
                   QBody<DIM>(nzones, z, nqp, qx + Q1D * (qy + qz * Q1D),
                              gamma, use_viscosity, h0, h1order, cfl, infinity,
