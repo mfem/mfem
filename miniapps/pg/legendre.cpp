@@ -161,5 +161,43 @@ void Gibbs::hessinv(const Vector &x, DenseMatrix &H) const
    AddMult_a_VVt(-1.0, y, H);
 }
 
+PointwiseGibbs::PointwiseGibbs(const Array<DenseMatrix*> &Vs_, real_t tol)
+   : Gibbs(tol), Vs(Vs_)
+{
+   int max_siz = 0;
+   for (auto &V : Vs) { max_siz = std::max(max_siz, V->Width()); }
+   y_buffer.SetSize(max_siz);
+   invgy_buffer.SetSize(max_siz);
+   H_buffer.SetSize(max_siz*max_siz);
+   VH_buffer.SetSize(max_siz*max_siz);
+}
+void PointwiseGibbs::gradinv(const Vector &x, int i, Vector &invg) const
+{
+   DenseMatrix &V = *Vs[i];
+   const int dim = V.Width();
+   y.MakeRef(y_buffer, dim);
+
+   V.MultTranspose(x, y);
+   invgy.MakeRef(invgy_buffer, dim);
+   Gibbs::gradinv(y, invgy);
+   invg.SetSize(x.Size());
+   V.Mult(invgy, invg);
+}
+void PointwiseGibbs::hessinv(const Vector &x, int i, DenseMatrix &H) const
+{
+   DenseMatrix &V = *Vs[i];
+   const int dim = V.Width();
+   y.MakeRef(y_buffer, dim);
+
+   V.MultTranspose(x, y);
+   invhessy.UseExternalData(H_buffer.GetData(), dim, dim);
+   Gibbs::hessinv(y, invhessy);
+   Vinvhessy.UseExternalData(VH_buffer.GetData(), V.Height(), dim);
+   // V * invhessy * V^T
+   Mult(V, invhessy, Vinvhessy);
+   H.SetSize(V.Height(), V.Height());
+   MultABt(Vinvhessy, V, H);
+}
+
 
 } // namespace mfem

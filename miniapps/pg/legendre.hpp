@@ -147,6 +147,13 @@ public:
    // @return The value of the inverse gradient at x
    virtual real_t gradinv(const real_t x) const
    { MFEM_ABORT("LegendreFunction::gradinv not implemented."); }
+   // @brief Evaluate the inverse gradient of the function at a point x
+   // with given index i. This typcailly used in finite-dimensional context,
+   // where the function varies per dimension.
+   // @param[in] x The point at which to evaluate the inverse gradient
+   // @return The value of the inverse gradient at x
+   virtual real_t gradinv(const real_t x, int i) const
+   { return this->gradinv(x); }
 
    // @brief Evaluate the inverse gradient of the function at a point x
    // @param[in] x The point at which to evaluate the inverse gradient
@@ -171,6 +178,8 @@ public:
    virtual void gradinv(const Vector &x, ElementTransformation &Tr,
                         Vector &invg) const
    { this->gradinv(x, invg); }
+   virtual void gradinv(const Vector &x, int i, Vector &invg) const
+   { this->gradinv(x, invg); }
 
    // @brief Evaluate the inverse Hessian of the function at a point x
    // @param[in] x The point at which to evaluate the inverse Hessian
@@ -184,6 +193,8 @@ public:
    // @return The value of the inverse Hessian at x
    // @note Unless overridden, this function ignores Tr and calls hessinv(x).
    virtual real_t hessinv(const real_t x, ElementTransformation &Tr) const
+   { return this->hessinv(x); }
+   virtual real_t hessinv(const real_t x, int i) const
    { return this->hessinv(x); }
 
    // @brief Evaluate the inverse Hessian of the function at a point x
@@ -202,6 +213,9 @@ public:
    // @param[out] H The matrix to store the inverse Hessian
    // @note Defaults to use diagonal Hessian with H(i, i) = hessinv(x[i])
    virtual void hessinv(const Vector &x, ElementTransformation &Tr,
+                        DenseMatrix &H) const
+   { this->hessinv(x, H); }
+   virtual void hessinv(const Vector &x, int i,
                         DenseMatrix &H) const
    { this->hessinv(x, H); }
 
@@ -642,6 +656,34 @@ public:
    }
 };
 
+class PointwiseFermiDirac : public FermiDirac
+{
+   const Vector &xmin;
+   const Vector &xmax;
+public:
+   PointwiseFermiDirac(const Vector &xmin_, const Vector &xmax_,
+                       real_t tol=1e-10)
+      : FermiDirac(tol)
+      , xmin(xmin_), xmax(xmax_)
+   {}
+   ~PointwiseFermiDirac() = default;
+   using FermiDirac::operator();
+   using FermiDirac::grad;
+   using FermiDirac::gradinv;
+   real_t gradinv(const real_t x, int i) const override
+   {
+      real_t val = FermiDirac::grad(x);
+      return xmin[i] + (xmax[i] - xmin[i]) * val;
+
+   }
+   using FermiDirac::hessinv;
+   real_t hessinv(const real_t x, int i) const override
+   {
+      real_t val = FermiDirac::hessinv(x);
+      return (xmax[i] - xmin[i]) * val;
+   }
+};
+
 class Hellinger : public LegendreFunction
 {
 public:
@@ -689,6 +731,28 @@ public:
    void gradinv(const Vector &x, Vector &invg) const override;
    using LegendreFunction::hessinv;
    void hessinv(const Vector &x, DenseMatrix &H) const override;
+};
+class PointwiseGibbs : public Gibbs
+{
+   const Array<DenseMatrix*> &Vs;
+   mutable Vector y_buffer;
+   mutable Vector invgy_buffer;
+   mutable Vector y;
+   mutable Vector invgy;
+   mutable Vector H_buffer;
+   mutable Vector VH_buffer;
+   mutable DenseMatrix invhessy;
+   mutable DenseMatrix Vinvhessy;
+public:
+   PointwiseGibbs(const Array<DenseMatrix*> &Vs_, real_t tol=1e-10);
+   ~PointwiseGibbs() = default;
+
+   using Gibbs::operator();
+   using Gibbs::grad;
+   using Gibbs::gradinv;
+   void gradinv(const Vector &x, int i, Vector &invg) const override;
+   using Gibbs::hessinv;
+   void hessinv(const Vector &x, int i, DenseMatrix &H) const override;
 };
 
 class PrimalCoefficient : public Coefficient
