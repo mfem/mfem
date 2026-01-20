@@ -478,7 +478,7 @@ class StressDivergenceIntegrator : public Base
 {
  protected:
    /// Set up the quadrature space
-   void SetUpQuadratureSpace(const FiniteElementSpace &fes);
+   void SetUpQuadratureSpace();
 
    using Base::IntRule;
 

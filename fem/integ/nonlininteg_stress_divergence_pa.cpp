@@ -16,13 +16,13 @@ namespace mfem
 {
 
 template <typename Base>
-void StressDivergenceIntegrator<Base>::SetUpQuadratureSpace(const FiniteElementSpace &fes)
+void StressDivergenceIntegrator<Base>::SetUpQuadratureSpace()
 {
    if (IntRule == nullptr)
    {
       // This is where it's assumed that all elements are the same.
-      const auto &T = *fes.GetMesh()->GetTypicalElementTransformation();
-      int quad_order = 2 * T.OrderGrad(fes.GetTypicalFE());
+      const auto &T = *fespace->GetMesh()->GetTypicalElementTransformation();
+      int quad_order = 2 * T.OrderGrad(fespace->GetTypicalFE());
       IntRule = &IntRules.Get(T.GetGeometryType(), quad_order);
    }
 
@@ -44,7 +44,7 @@ void StressDivergenceIntegrator<Base>::AssemblePA(const FiniteElementSpace &fes)
    vdim = fespace->GetVDim();
    ndofs = fespace->GetTypicalFE()->GetDof();
 
-   SetUpQuadratureSpace(fes);
+   SetUpQuadratureSpace();
 
    auto ordering = GetEVectorOrdering(*fespace);
    auto mode = ordering == ElementDofOrdering::NATIVE ? DofToQuad::FULL
