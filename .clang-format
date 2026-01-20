@@ -1,0 +1,35 @@
+BasedOnStyle: LLVM
+
+# Braces
+BreakBeforeBraces: Allman
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortBlocksOnASingleLine: Never
+AllowShortFunctionsOnASingleLine: None
+
+# Indentation
+IndentWidth: 3
+TabWidth: 3
+UseTab: Never
+IndentCaseLabels: true
+IndentCaseBlocks: true
+ColumnLimit: 80
+
+# Logical / continuation breaks
+BreakBeforeBinaryOperators: None
+ContinuationIndentWidth: 80
+PenaltyBreakBeforeFirstCallParameter: 0
+
+# Comments & spacing
+IndentPPDirectives: AfterHash
+ReflowComments: false
+SpaceBeforeParens: ControlStatements
+
+# Control statements
+InsertBraces: true
+
+# Line endings
+DeriveLineEnding: false
+LineEnding: LF
+
+# Misc
+KeepEmptyLinesAtTheStartOfBlocks: false
