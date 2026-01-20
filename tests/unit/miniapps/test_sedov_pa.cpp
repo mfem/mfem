@@ -1654,7 +1654,7 @@ int sedov(int myid, int argc, char *argv[])
    L2_FECollection mat_fec(0, pmesh.Dimension());
    ParFiniteElementSpace mat_fes(&pmesh, &mat_fec);
    ParGridFunction mat_gf(&mat_fes);
-   FunctionCoefficient mat_coeff(gamma);
+   FunctionCoefficient mat_coeff(mfem::gamma);
    mat_gf.ProjectCoefficient(mat_coeff);
    GridFunctionCoefficient mat_gf_coeff(&mat_gf);
 

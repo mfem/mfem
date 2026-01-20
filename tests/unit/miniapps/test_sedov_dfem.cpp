@@ -317,6 +317,23 @@ public:
 };
 
 template <int DIM>
+struct QMass
+{
+   const real_t rho;
+
+   QMass() = delete;
+
+   QMass(real_t rho): rho(rho) { }
+
+   MFEM_HOST_DEVICE inline auto operator()(const real_t &u,
+                                           const tensor<real_t, DIM, DIM> &J,
+                                           const real_t &w) const
+   {
+      return future::tuple{rho * u * w * det(J)};
+   };
+};
+
+template <int DIM>
 class MassOperator : public Operator
 {
    ParFiniteElementSpace &pfes;
@@ -344,14 +361,8 @@ public:
                 std::vector{ FieldDescriptor{U, &pfes}},
                 std::vector{ FieldDescriptor{X, nodes->ParFESpace()}},
                 *pmesh);
-      const real_t rho = dynamic_cast<ConstantCoefficient*>(&Q)->constant;
-      const auto mf_mass_qf =
-         [=] MFEM_HOST_DEVICE(const real_t &u,
-                              const tensor<real_t, DIM, DIM> &J,
-                              const real_t &w)
-      {
-         return tuple{rho * u * w * det(J)};
-      };
+
+      QMass<DIM> mf_mass_qf{dynamic_cast<ConstantCoefficient*>(&Q)->constant};
       mass->AddDomainIntegrator(mf_mass_qf,
                                 tuple{ Value<U>{}, Gradient<X>{}, Weight{} },
                                 tuple{ Value<U>{} },
