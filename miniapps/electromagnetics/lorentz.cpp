@@ -453,11 +453,11 @@ void Boris::FindParticles()
    // Find particles in E and B field meshes
    if (E_gf)
    {
-      E_finder.FindPoints(X, X.GetOrdering());
+      E_finder.FindPoints(X); // X.GetOrdering() used internally
    }
    if (B_gf)
    {
-      B_finder.FindPoints(X, X.GetOrdering());
+      B_finder.FindPoints(X); // X.GetOrdering() used internally
    }
 }
 
@@ -469,11 +469,7 @@ void Boris::EvaluateFieldsAtParticles()
    // Interpolate E-field + B-field onto particles
    if (E_gf)
    {
-      E_finder.Interpolate(*E_gf, E);
-      // Reorder from grid function ordering to particle field ordering.
-      // Ideally, user should set them to be the same for efficiency.
-      Ordering::Reorder(E, E.GetVDim(), E_gf->FESpace()->GetOrdering(),
-                        E.GetOrdering());
+      E_finder.Interpolate(*E_gf, E); // E.GetOrdering() used internally
    }
    else
    {
@@ -481,11 +477,7 @@ void Boris::EvaluateFieldsAtParticles()
    }
    if (B_gf)
    {
-      B_finder.Interpolate(*B_gf, B);
-      // Reorder from grid function ordering to particle field ordering.
-      // Ideally, user should set them to be the same for efficiency.
-      Ordering::Reorder(B, B.GetVDim(), B_gf->FESpace()->GetOrdering(),
-                        B.GetOrdering());
+      B_finder.Interpolate(*B_gf, B); // B.GetOrdering() used internally
    }
    else
    {
