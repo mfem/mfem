@@ -59,8 +59,9 @@ static real_t rho0_fn(const Vector&) { return 1.0; }
 static real_t gamma_fn(const Vector&) { return 1.4; }
 
 template <int DIM>
-class LagrangianHydro : public TimeDependentOperator
+class LagrangianHydroBase : public TimeDependentOperator
 {
+protected:
    typename T::FiniteElementSpace &H1, &L2;
    mutable typename T::FiniteElementSpace H1c;
    const int H1Vsize, H1TVSize, H1cTVSize, L2Vsize, L2TVSize;
@@ -75,40 +76,32 @@ class LagrangianHydro : public TimeDependentOperator
    const real_t ftz_tol;
    const Coefficient &material_pcf;
    const IntegrationRule &ir;
-   //    mutable QuadratureData quad_data;
    mutable bool quad_data_is_current;
-   //    PAForceOperator<typename T::FiniteElementSpace> force;
-   //    PAMassOperator<typename T::FiniteElementSpace, typename T::BilinearForm>
-   //    VMassPA, EMassPA;
    CGSolver CG_VMass, CG_EMass;
    const real_t gamma;
-   //    mutable QUpdate<DIM, typename T::FiniteElementSpace> Q;
    mutable Vector X, B, one, rhs, e_rhs;
    mutable typename T::GridFunction rhs_c_gf, dvc_gf;
    mutable Array<int> c_tdofs[3];
 
-   void UpdateQuadratureData(const Vector &S) const = 0;
-   //    {
-   //       return Q.UpdateQuadratureData(S, quad_data_is_current, quad_data);
-   //    }
+   virtual void UpdateQuadratureData(const Vector &S) const = 0;
 
 public:
-   LagrangianHydro(Coefficient &rho_coeff, const int size,
-                   typename T::FiniteElementSpace &h1,
-                   typename T::FiniteElementSpace &l2,
-                   typename T::Mesh &pmesh,
-                   const Array<int> &essential_tdofs,
-                   typename T::GridFunction &rho0,
-                   const int source_type,
-                   const real_t cfl_,
-                   const Coefficient &material,
-                   const bool visc,
-                   const real_t cgt,
-                   const int cgiter,
-                   real_t ftz,
-                   const int order_q,
-                   const real_t gm,
-                   int h1_basis_type):
+   LagrangianHydroBase(Coefficient &rho_coeff, const int size,
+                       typename T::FiniteElementSpace &h1,
+                       typename T::FiniteElementSpace &l2,
+                       typename T::Mesh &pmesh,
+                       const Array<int> &essential_tdofs,
+                       typename T::GridFunction &rho0,
+                       const int source_type,
+                       const real_t cfl_,
+                       const Coefficient &material,
+                       const bool visc,
+                       const real_t cgt,
+                       const int cgiter,
+                       real_t ftz,
+                       const int order_q,
+                       const real_t gm,
+                       int h1_basis_type):
       TimeDependentOperator(size),
       H1(h1), L2(l2),
       H1c(&pmesh, h1.FEColl(), 1),
@@ -130,15 +123,10 @@ public:
       ir(IntRules.Get(h1.GetMesh()->GetTypicalElementGeometry(),
                       (order_q > 0) ? order_q :
                       3*h1.GetElementOrder(0) + l2.GetElementOrder(0) - 1)),
-      //   quad_data(DIM, nzones, ir.GetNPoints()),
       quad_data_is_current(false),
-      //   force(quad_data, h1,l2, ir),
-      //   VMassPA(rho_coeff, H1c, ir),
-      //   EMassPA(rho_coeff, L2, ir),
       CG_VMass(GetCGSolver()),
       CG_EMass(GetCGSolver()),
       gamma(gm),
-      //   Q(DIM, nzones, use_viscosity, cfl, gamma, ir, H1, L2),
       X(H1c.GetTrueVSize()),
       B(H1c.GetTrueVSize()),
       one(L2Vsize),
@@ -166,30 +154,12 @@ public:
       B.UseDevice(true);
       rhs.UseDevice(true);
       e_rhs.UseDevice(true);
-      GridFunctionCoefficient rho_coeff_gf(&rho0);
-      //   real_t loc_area = 0.0, glob_area;
-      //   int loc_z_cnt = nzones, glob_z_cnt;
-      //   auto *pm = H1.GetMesh();
-      //   ComputeRho0DetJ0AndVolume<DIM>(nzones, ir,
-      //                                  H1.GetMesh(),
-      //                                  l2, rho0, quad_data, loc_area);
-      //   SumReduce(&loc_area, &glob_area);
-      //   SumReduce(&loc_z_cnt, &glob_z_cnt);
-      //   switch (pm->GetTypicalElementGeometry())
-      //   {
-      //      case Geometry::SQUARE: quad_data.h0 = sqrt(glob_area / glob_z_cnt); break;
-      //      case Geometry::CUBE: quad_data.h0 = pow(glob_area / glob_z_cnt, 1.0/3.0); break;
-      //      default: MFEM_ABORT("Unknown zone type!");
-      //   }
-      //   quad_data.h0 /= (real_t) H1.GetElementOrder(0);
 
-      //   CG_VMass.SetOperator(VMassPA);
       CG_VMass.SetRelTol(cg_rel_tol);
       CG_VMass.SetAbsTol(0.0);
       CG_VMass.SetMaxIter(cg_max_iter);
       CG_VMass.SetPrintLevel(0);
 
-      //   CG_EMass.SetOperator(EMassPA);
       CG_EMass.iterative_mode = false;
       CG_EMass.SetRelTol(1e-8);
       CG_EMass.SetAbsTol(1e-8 * std::numeric_limits<real_t>::epsilon());
@@ -258,19 +228,18 @@ public:
       H1.GetMesh()->NewNodes(x_gf, false);
    }
 
+   virtual real_t ReduceDtEstimate() const = 0;
+
    real_t GetTimeStepEstimate(const Vector &S) const
    {
       UpdateMesh(S);
       UpdateQuadratureData(S);
-      real_t glob_dt_est;
+      //   real_t glob_dt_est;
       //   MinReduce(&quad_data.dt_est, &glob_dt_est);
-      return glob_dt_est;
+      return ReduceDtEstimate();
    }
 
-   void ResetTimeStepEstimate() const
-   {
-      //   quad_data.dt_est = std::numeric_limits<real_t>::infinity();
-   }
+   virtual void ResetTimeStepEstimate() const = 0;
 
    void ResetQuadratureData() const { quad_data_is_current = false; }
 };

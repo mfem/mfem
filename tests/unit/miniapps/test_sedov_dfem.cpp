@@ -437,37 +437,19 @@ static void ComputeVolume(const int NE,
 }
 
 template<int DIM>
-class LagrangianHydroOperator : public TimeDependentOperator
+class LagrangianHydroOperator : public LagrangianHydroBase<DIM>
 {
-   typename T::FiniteElementSpace &H1, &L2;
-   mutable typename T::FiniteElementSpace H1c;
-   const int H1Vsize, H1TVSize, H1cTVSize, L2Vsize, L2TVSize;
-   Array<int> block_offsets;
-   mutable typename T::GridFunction x_gf;
-   const Array<int> &ess_tdofs;
-   const int nzones, l2dofs_cnt, h1dofs_cnt, source_type;
-   const real_t cfl;
-   const bool use_viscosity;
-   const real_t cg_rel_tol;
-   const int cg_max_iter;
-   const real_t ftz_tol;
-   const Coefficient &material_pcf;
-   const IntegrationRule &ir;
    real_t h0;
    mutable real_t dt_est;
-   mutable bool quad_data_is_current;
    std::unique_ptr<Force<DIM>> force;
-   Mass<DIM> VMassPA, EMassPA;
-   CGSolver CG_VMass, CG_EMass;
-   const real_t gamma;
-   mutable Vector X, B, rhs, e_rhs;
-   mutable typename T::GridFunction rhs_c_gf, dvc_gf;
-   mutable Array<int> c_tdofs[3];
+   Mass<DIM> VMass, EMass;
+
+   using B = LagrangianHydroBase<DIM>;
 
    void UpdateQuadratureData(const Vector &S) const
    {
       dt_est = force->EstimateDeltaT(S);
-      quad_data_is_current = true;
+      B::quad_data_is_current = true;
    }
 
 public:
@@ -487,62 +469,15 @@ public:
                            const int order_q,
                            const real_t gm,
                            int h1_basis_type):
-      TimeDependentOperator(size),
-      H1(h1), L2(l2),
-      H1c(&pmesh, h1.FEColl(), 1),
-      H1Vsize(H1.GetVSize()),
-      H1TVSize(H1.GetTrueVSize()),
-      H1cTVSize(H1c.GetTrueVSize()),
-      L2Vsize(L2.GetVSize()),
-      L2TVSize(L2.GetTrueVSize()),
-      block_offsets(4),
-      x_gf(&H1),
-      ess_tdofs(essential_tdofs),
-      nzones(h1.GetMesh()->GetNE()),
-      l2dofs_cnt(l2.GetTypicalFE()->GetDof()),
-      h1dofs_cnt(h1.GetTypicalFE()->GetDof()),
-      source_type(source_type), cfl(cfl_),
-      use_viscosity(visc),
-      cg_rel_tol(cgt), cg_max_iter(cgiter),ftz_tol(ftz),
-      material_pcf(material),
-      ir(IntRules.Get(h1.GetMesh()->GetTypicalElementGeometry(),
-                      (order_q > 0) ? order_q :
-                      3*h1.GetElementOrder(0) + l2.GetElementOrder(0) - 1)),
-      quad_data_is_current(false),
-      VMassPA(rho_coeff, H1c, pmesh, ir),
-      EMassPA(rho_coeff, L2, pmesh, ir),
-      CG_VMass(GetCGSolver()),
-      CG_EMass(GetCGSolver()),
-      gamma(gm),
-      X(H1c.GetTrueVSize()),
-      B(H1c.GetTrueVSize()),
-      rhs(H1Vsize),
-      e_rhs(L2Vsize),
-      rhs_c_gf(&H1c),
-      dvc_gf(&H1c)
+      B(rho_coeff, size, h1, l2, pmesh, essential_tdofs, rho0, source_type,
+        cfl_, material, visc, cgt, cgiter, ftz, order_q, gm, h1_basis_type),
+      VMass(rho_coeff, B::H1c, pmesh, B::ir),
+      EMass(rho_coeff, B::L2, pmesh, B::ir)
    {
-      block_offsets[0] = 0;
-      block_offsets[1] = block_offsets[0] + H1Vsize;
-      block_offsets[2] = block_offsets[1] + H1Vsize;
-      block_offsets[3] = block_offsets[2] + L2Vsize;
-      pmesh.GetNodes()->ReadWrite();
-      const int bdr_attr_max = pmesh.bdr_attributes.Max();
-      Array<int> ess_bdr(bdr_attr_max);
-      for (int c = 0; c < DIM; c++)
-      {
-         ess_bdr = 0; ess_bdr[c] = 1;
-         H1c.GetEssentialTrueDofs(ess_bdr, c_tdofs[c]);
-         c_tdofs[c].Read();
-      }
-      X.UseDevice(true);
-      B.UseDevice(true);
-      rhs.UseDevice(true);
-      e_rhs.UseDevice(true);
-      GridFunctionCoefficient rho_coeff_gf(&rho0);
       real_t loc_area = 0.0, glob_area;
-      int loc_z_cnt = nzones, glob_z_cnt;
-      auto *pm = H1.GetMesh();
-      ComputeVolume<DIM>(nzones, ir, H1.GetMesh(), loc_area);
+      int loc_z_cnt = B::nzones, glob_z_cnt;
+      auto *pm = B::H1.GetMesh();
+      ComputeVolume<DIM>(B::nzones, B::ir, B::H1.GetMesh(), loc_area);
       SumReduce(&loc_area, &glob_area);
       SumReduce(&loc_z_cnt, &glob_z_cnt);
       switch (pm->GetTypicalElementGeometry())
@@ -551,36 +486,26 @@ public:
          case Geometry::CUBE: h0 = pow(glob_area / glob_z_cnt, 1.0/3.0); break;
          default: MFEM_ABORT("Unknown zone type!");
       }
-      h0 /= (real_t) H1.GetElementOrder(0);
+      h0 /= (real_t) B::H1.GetElementOrder(0);
+      force = std::make_unique<Force<DIM>>(B::H1, B::L2, pmesh, B::ir, rho0, B::gamma,
+                                           B::cfl, h0);
 
-      force = std::make_unique<Force<DIM>>(h1, l2, pmesh, ir, rho0, gamma, cfl, h0);
-
-      CG_VMass.SetOperator(VMassPA);
-      CG_VMass.SetRelTol(cg_rel_tol);
-      CG_VMass.SetAbsTol(0.0);
-      CG_VMass.SetMaxIter(cg_max_iter);
-      CG_VMass.SetPrintLevel(0);
-
-      CG_EMass.SetOperator(EMassPA);
-      CG_EMass.iterative_mode = false;
-      CG_EMass.SetRelTol(1e-8);
-      CG_EMass.SetAbsTol(1e-8 * std::numeric_limits<real_t>::epsilon());
-      CG_EMass.SetMaxIter(200);
-      CG_EMass.SetPrintLevel(-1);
+      B::CG_VMass.SetOperator(VMass);
+      B::CG_EMass.SetOperator(EMass);
    }
 
    void Mult(const Vector &S, Vector &dS_dt) const override
    {
-      UpdateMesh(S);
+      B::UpdateMesh(S);
       auto *sptr = const_cast<Vector*>(&S);
       typename T::GridFunction v, dx;
-      const int VsizeH1 = H1.GetVSize();
-      v.MakeRef(&H1, *sptr, VsizeH1);
-      dx.MakeRef(&H1, dS_dt, 0);
+      const int VsizeH1 = B::H1.GetVSize();
+      v.MakeRef(&(B::H1), *sptr, VsizeH1);
+      dx.MakeRef(&(B::H1), dS_dt, 0);
       dx = v;
       SolveVelocity(S, dS_dt);
       SolveEnergy(S, v, dS_dt);
-      quad_data_is_current = false;
+      B::quad_data_is_current = false;
    }
 
    MemoryClass GetMemoryClass() const override  { return Device::GetDeviceMemoryClass(); }
@@ -588,51 +513,42 @@ public:
    void SolveVelocity(const Vector &S, Vector &dS_dt) const
    {
       UpdateQuadratureData(S);
-      typename T::GridFunction dv(&H1, dS_dt, H1Vsize);
+      typename T::GridFunction dv(&(B::H1), dS_dt, B::H1Vsize);
       dv = 0.0;
-      force->Mult(S, rhs);
-      rhs.Neg();
-      const int size = H1c.GetVSize();
-      const Operator *Pconf = H1c.GetProlongationMatrix();
-      const Operator *Rconf = H1c.GetRestrictionMatrix();
+      force->Mult(S, B::rhs);
+      B::rhs.Neg();
+      const int size = B::H1c.GetVSize();
+      const Operator *Pconf = B::H1c.GetProlongationMatrix();
+      const Operator *Rconf = B::H1c.GetRestrictionMatrix();
       for (int c = 0; c < DIM; c++)
       {
-         dvc_gf.MakeRef(&H1c, dS_dt, H1Vsize + c*size);
-         rhs_c_gf.MakeRef(&H1c, rhs, c*size);
-         if (Pconf) { Pconf->MultTranspose(rhs_c_gf, B); }
-         else { B = rhs_c_gf; }
-         if (Rconf) { Rconf->Mult(dvc_gf, X); }
-         else { X = dvc_gf; }
-         VMassPA.SetEssentialTrueDofs(c_tdofs[c]);
-         VMassPA.EliminateRHS(B);
-         CG_VMass.Mult(B, X);
-         if (Pconf) { Pconf->Mult(X, dvc_gf); }
-         else { dvc_gf = X; }
-         dvc_gf.GetMemory().SyncAlias(dS_dt.GetMemory(), dvc_gf.Size());
+         B::dvc_gf.MakeRef(&(B::H1c), dS_dt, B::H1Vsize + c*size);
+         B::rhs_c_gf.MakeRef(&(B::H1c), B::rhs, c*size);
+         if (Pconf) { Pconf->MultTranspose(B::rhs_c_gf, B::B); }
+         else { B::B = B::rhs_c_gf; }
+         if (Rconf) { Rconf->Mult(B::dvc_gf, B::X); }
+         else { B::X = B::dvc_gf; }
+         VMass.SetEssentialTrueDofs(B::c_tdofs[c]);
+         VMass.EliminateRHS(B::B);
+         B::CG_VMass.Mult(B::B, B::X);
+         if (Pconf) { Pconf->Mult(B::X, B::dvc_gf); }
+         else { B::dvc_gf = B::X; }
+         B::dvc_gf.GetMemory().SyncAlias(dS_dt.GetMemory(), B::dvc_gf.Size());
       }
    }
 
    void SolveEnergy(const Vector &S, const Vector &v, Vector &dS_dt) const
    {
       UpdateQuadratureData(S);
-      typename T::GridFunction de(&L2, dS_dt, H1Vsize*2);
+      typename T::GridFunction de(&(B::L2), dS_dt, B::H1Vsize*2);
       de = 0.0;
-      force->MultTranspose(S, e_rhs);
-      CG_EMass.Mult(e_rhs, de);
+      force->MultTranspose(S, B::e_rhs);
+      B::CG_EMass.Mult(B::e_rhs, de);
       de.GetMemory().SyncAlias(dS_dt.GetMemory(), de.Size());
    }
 
-   void UpdateMesh(const Vector &const_S) const
+   real_t ReduceDtEstimate() const final
    {
-      auto* S = const_cast<Vector*>(&const_S);
-      x_gf.MakeRef(&H1, *S, 0);
-      H1.GetMesh()->NewNodes(x_gf, false);
-   }
-
-   real_t GetTimeStepEstimate(const Vector &S) const
-   {
-      UpdateMesh(S);
-      UpdateQuadratureData(S);
       real_t glob_dt_est;
       MinReduce(&dt_est, &glob_dt_est);
       return glob_dt_est;
@@ -642,8 +558,6 @@ public:
    {
       dt_est = std::numeric_limits<real_t>::infinity();
    }
-
-   void ResetQuadratureData() const { quad_data_is_current = false; }
 };
 
 } // namespace mfem
