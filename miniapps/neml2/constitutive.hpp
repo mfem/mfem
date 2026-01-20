@@ -12,7 +12,7 @@
 #pragma once
 
 #include "mfem.hpp"
-#include "neml2/models/Model.h"
+#include "neml2/neml2.h"
 
 namespace mfem
 {
