@@ -51,7 +51,7 @@
 //   Magnetic mirror effect near a charged sphere and a bar magnet
 //      mpirun -np 4 volta -m ../../data/ball-nurbs.mesh -dbcs 1 -cs '0 0 0 0.1 2e-11' -rs 2 -maxit 4
 //      mpirun -np 4 tesla -m ../../data/fichera.mesh -maxit 4 -rs 3 -bm '-0.1 -0.1 -0.1 0.1 0.1 0.1 0.1 -1e10'
-//      mpirun -np 4 lorentz -er Volta-AMR-Parallel -ec 4 -br Tesla-AMR-Parallel -bc 4 -q -10 -dt 1e-3 -nt 1000 -npt 500 -vt 5 -rdf 500 -rdm 1 -vf 5 -pmin '-8 -4 4' -pmax '-8 -4 4' -xmin '-1 -1 -1' -xmax '1 1 1'
+//      mpirun -np 4 lorentz -er Volta-AMR-Parallel -ec 4 -br Tesla-AMR-Parallel -bc 4 -q -10 -dt 1e-4 -nt 2000 -npt 500 -vt 10 -rdf 500 -rdm 1 -vf 10 -pmin '-8 -4 4' -pmax '-8 -4 4' -xmin '-1 -1 -1' -xmax '1 1 1'
 //      mpirun -np 4 lorentz -er Volta-AMR-Parallel -ec 4 -br Tesla-AMR-Parallel -bc 4 -q -10 -dt 1e-3 -npt 1 -vt 650 -rdf 500 -rdm 1 -vf 2 -pmin '-8 -4 4' -pmax '-8 -4 4' -xmin '0.8 0 0' -xmax '0.8 0 0' -nt 1300
 
 #include "mfem.hpp"
