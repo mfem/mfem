@@ -91,7 +91,6 @@ struct LorentzContext
    int nt = 1000;                  // number of timesteps
    int redist_freq = 1e6;          // redistribution frequency
    int redist_mesh = 0;            // redistribution mesh: 0: E mesh, 1: B mesh
-   int rm_lost_freq = 1;           // remove lost particles frequency
 
    bool visualization = true;      // enable visualization
    int visport = 19916;
@@ -218,8 +217,6 @@ int main(int argc, char *argv[])
                   "Redistribution frequency.");
    args.AddOption(&ctx.redist_mesh, "-rdm", "--redistribution-mesh",
                   "Particle domain mesh for redistribution. 0 for E field mesh. 1 for B field mesh.");
-   args.AddOption(&ctx.rm_lost_freq, "-rmf", "--remove-lost-freq",
-                  "Remove lost particles frequency.");
    args.AddOption(&ctx.ordering, "-o", "--ordering",
                   "Ordering of particle data. 0 = byNODES, 1 = byVDIM.");
    args.AddOption(&ctx.npt, "-npt", "--num-particles",
