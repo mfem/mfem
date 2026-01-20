@@ -17,44 +17,24 @@
 namespace mfem
 {
 
-void ElasticityIntegrator::SetUpQuadratureSpaceAndCoefficients(
-   const FiniteElementSpace &fes)
+void ElasticityIntegrator::SetUpCoefficients()
 {
-   if (IntRule == nullptr)
-   {
-      // This is where it's assumed that all elements are the same.
-      const auto &T = *fes.GetMesh()->GetTypicalElementTransformation();
-      int quad_order = 2 * T.OrderGrad(fes.GetTypicalFE());
-      IntRule = &IntRules.Get(T.GetGeometryType(), quad_order);
-   }
-
-   Mesh &mesh = *fespace->GetMesh();
-
-   q_space.reset(new QuadratureSpace(mesh, *IntRule));
+   MFEM_ASSERT(q_space, "Quadrature space must be setup before projecting coefficients");
    lambda_quad.reset(new CoefficientVector(lambda, *q_space,
                                            CoefficientStorage::FULL));
    mu_quad.reset(new CoefficientVector(mu, *q_space, CoefficientStorage::FULL));
-   q_vec.reset(new QuadratureFunction(*q_space, vdim*vdim));
+}
+
+void ElasticityIntegrator::SetUpQuadratureSpaceAndCoefficients(const FiniteElementSpace &fes)
+{
+   SetUpQuadratureSpace(fes);
+   SetUpCoefficients();
 }
 
 void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   MFEM_VERIFY(fes.GetOrdering() == Ordering::byNODES,
-               "Elasticity PA only implemented for byNODES ordering.");
-
-   fespace = &fes;
-   Mesh &mesh = *fespace->GetMesh();
-   MFEM_VERIFY(fespace->GetVDim() == mesh.Dimension(), "");
-   vdim = fespace->GetVDim();
-   ndofs = fespace->GetTypicalFE()->GetDof();
-
-   SetUpQuadratureSpaceAndCoefficients(fes);
-
-   auto ordering = GetEVectorOrdering(*fespace);
-   auto mode = ordering == ElementDofOrdering::NATIVE ? DofToQuad::FULL :
-               DofToQuad::LEXICOGRAPHIC_FULL;
-   maps = &fespace->GetTypicalFE()->GetDofToQuad(*IntRule, mode);
-   geom = mesh.GetGeometricFactors(*IntRule, GeometricFactors::JACOBIANS);
+   StressDivergenceIntegrator<BilinearFormIntegrator>::AssemblePA(fes);
+   SetUpCoefficients();
 }
 
 void ElasticityIntegrator::AssembleDiagonalPA(Vector &diag)
