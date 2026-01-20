@@ -91,11 +91,6 @@ struct LorentzContext
    int nt = 1000;                  // number of timesteps
    int redist_freq = 1e6;          // redistribution frequency
    int redist_mesh = 0;            // redistribution mesh: 0: E mesh, 1: B mesh
-
-   bool visualization = true;      // enable visualization
-   int visport = 19916;
-   int vis_tail_size = 5;          // particle trajectory tail size
-   int vis_freq = 5;               // visualization frequency
 } ctx;
 
 /// This class implements the Boris algorithm as described in the article
@@ -185,6 +180,10 @@ int main(int argc, char *argv[])
 
    if ( Mpi::Root() ) { display_banner(cout); }
 
+   bool visualization = true;      // enable visualization
+   int vis_tail_size = 5;          // particle trajectory tail size
+   int vis_freq = 5;               // visualization frequency
+
    OptionsParser args(argc, argv);
    args.AddOption(&ctx.E.coll_name, "-er", "--e-root-file",
                   "Set the VisIt data collection E field root file prefix.");
@@ -226,13 +225,12 @@ int main(int argc, char *argv[])
                   "Maximum initial particle momentum.");
    args.AddOption(&ctx.dt, "-dt", "--time-step", "Time Step.");
    args.AddOption(&ctx.nt, "-nt", "--num-timesteps", "Number of timesteps.");
-   args.AddOption(&ctx.visualization, "-vis", "--visualization", "-no-vis",
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization", "Enable or disable GLVis visualization.");
-   args.AddOption(&ctx.vis_tail_size, "-vt", "--vis-tail-size",
+   args.AddOption(&vis_tail_size, "-vt", "--vis-tail-size",
                   "GLVis visualization trajectory truncation tail size.");
-   args.AddOption(&ctx.vis_freq, "-vf", "--vis-freq",
+   args.AddOption(&vis_freq, "-vf", "--vis-freq",
                   "GLVis visualization frequency.");
-   args.AddOption(&ctx.visport, "-p", "--send-port", "Socket for GLVis.");
 
    args.Parse();
    if (!args.Good())
@@ -313,12 +311,12 @@ int main(int argc, char *argv[])
    char vishost[] = "localhost";
    socketstream pre_redist_sock, post_redist_sock;
    std::unique_ptr<ParticleTrajectories> traj_vis;
-   if (ctx.visualization)
+   if (visualization)
    {
       const char *keys = "baaa";
       traj_vis = std::make_unique<ParticleTrajectories>(boris.GetParticles(),
-                                                        ctx.vis_tail_size,
-                                                        vishost, ctx.visport,
+                                                        vis_tail_size,
+                                                        vishost, 19916,
                                                         "Trajectories",
                                                         0, 0, 600, 600, keys);
       traj_vis->SetVisualizationBoundingBox(bb_xmin, bb_xmax);
@@ -334,7 +332,7 @@ int main(int argc, char *argv[])
       }
 
       // Visualize trajectories
-      if (ctx.visualization && step % ctx.vis_freq == 0)
+      if (visualization && step % vis_freq == 0)
       {
          traj_vis->Visualize();
       }
