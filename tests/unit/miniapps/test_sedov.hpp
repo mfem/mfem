@@ -18,6 +18,8 @@ using namespace mfem;
 namespace mfem
 {
 
+// Helper functions and type aliases for MPI and non-MPI builds
+
 template <class TMesh,
           class TGridFunction,
           class TBilinearForm,
@@ -54,9 +56,65 @@ template <typename T> void MinReduce(const T *src, T *dst) { Reduce(src, dst); }
 template <typename T> void MaxReduce(const T *src, T *dst) { Reduce(src, dst); }
 #endif
 
+// Setup initial condition functions
 static void v0_fn(const Vector&, Vector &v) { v = 0.0; }
 static real_t rho0_fn(const Vector&) { return 1.0; }
 static real_t gamma_fn(const Vector&) { return 1.4; }
+
+// Compute volume of the mesh
+template<int DIM, typename TMesh>
+static real_t ComputeVolume(TMesh &mesh, const IntegrationRule &ir)
+{
+   const int NE = mesh.GetNE(), NQ = ir.GetNPoints();
+   const int Q1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder()).GetNPoints();
+   const int flags = GeometricFactors::DETERMINANTS;
+   const GeometricFactors *geom = mesh.GetGeometricFactors(ir, flags);
+   Vector area(NE*NQ), one(NE*NQ);
+
+   if constexpr (DIM == 2)
+   {
+      const auto W = Reshape(ir.GetWeights().Read(), Q1D, Q1D);
+      const auto detJ = Reshape(geom->detJ.Read(), Q1D, Q1D, NE);
+      auto A = Reshape(area.Write(), Q1D, Q1D, NE);
+      auto O = Reshape(one.Write(), Q1D, Q1D, NE);
+      mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qx,x,Q1D)
+            {
+               const real_t det = detJ(qx, qy, e);
+               A(qx, qy, e) = W(qx, qy) * det;
+               O(qx, qy, e) = 1.0;
+            }
+         }
+      });
+   }
+
+   if constexpr (DIM == 3)
+   {
+      const auto W = Reshape(ir.GetWeights().Read(), Q1D, Q1D, Q1D);
+      const auto detJ = Reshape(geom->detJ.Read(), Q1D, Q1D, Q1D, NE);
+      auto A = Reshape(area.Write(), Q1D, Q1D, Q1D, NE);
+      auto O = Reshape(one.Write(), Q1D, Q1D, Q1D, NE);
+      mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qz,z,Q1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qy,y,Q1D)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(qx,x,Q1D)
+               {
+                  const real_t det = detJ(qx, qy, qz, e);
+                  A(qx, qy, qz, e) = W(qx, qy, qz) * det;
+                  O(qx, qy, qz, e) = 1.0;
+               }
+            }
+         }
+      });
+   }
+   return area * one;
+}
 
 template <int DIM>
 class LagrangianHydroBase : public TimeDependentOperator
@@ -68,7 +126,7 @@ protected:
    Array<int> block_offsets;
    mutable typename T::GridFunction x_gf;
    const Array<int> &ess_tdofs;
-   const int nzones, l2dofs_cnt, h1dofs_cnt, source_type;
+   const int ne, l2dofs_cnt, h1dofs_cnt, source_type;
    const real_t cfl;
    const bool use_viscosity;
    const real_t cg_rel_tol;
@@ -82,6 +140,8 @@ protected:
    mutable Vector X, B, one, rhs, e_rhs;
    mutable typename T::GridFunction rhs_c_gf, dvc_gf;
    mutable Array<int> c_tdofs[3];
+   mutable real_t dt_est;
+   real_t h0;
 
    virtual void UpdateQuadratureData(const Vector &S) const = 0;
 
@@ -113,7 +173,7 @@ public:
       block_offsets(4),
       x_gf(&H1),
       ess_tdofs(essential_tdofs),
-      nzones(h1.GetMesh()->GetNE()),
+      ne(h1.GetMesh()->GetNE()),
       l2dofs_cnt(l2.GetTypicalFE()->GetDof()),
       h1dofs_cnt(h1.GetTypicalFE()->GetDof()),
       source_type(source_type), cfl(cfl_),
@@ -135,6 +195,20 @@ public:
       rhs_c_gf(&H1c),
       dvc_gf(&H1c)
    {
+      real_t loc_area = ComputeVolume<DIM>(pmesh, ir);
+      real_t glob_area;
+      int loc_z_cnt = ne, glob_z_cnt;
+      auto *pm = H1.GetMesh();
+      SumReduce(&loc_area, &glob_area);
+      SumReduce(&loc_z_cnt, &glob_z_cnt);
+      switch (pm->GetTypicalElementGeometry())
+      {
+         case Geometry::SQUARE: h0 = sqrt(glob_area / glob_z_cnt); break;
+         case Geometry::CUBE: h0 = pow(glob_area / glob_z_cnt, 1.0/3.0); break;
+         default: MFEM_ABORT("Unknown zone type!");
+      }
+      h0 /= (real_t) H1.GetElementOrder(0);
+
       block_offsets[0] = 0;
       block_offsets[1] = block_offsets[0] + H1Vsize;
       block_offsets[2] = block_offsets[1] + H1Vsize;
@@ -167,7 +241,7 @@ public:
       CG_EMass.SetPrintLevel(-1);
    }
 
-   void Mult(const Vector &S, Vector &dS_dt) const override
+   void Mult(const Vector &S, Vector &dS_dt) const final
    {
       UpdateMesh(S);
       auto *sptr = const_cast<Vector*>(&S);
@@ -181,14 +255,18 @@ public:
       quad_data_is_current = false;
    }
 
-   MemoryClass GetMemoryClass() const override  { return Device::GetDeviceMemoryClass(); }
+   MemoryClass GetMemoryClass() const final  { return Device::GetDeviceMemoryClass(); }
+
+   virtual void ForceMult(const Vector &S) const = 0;
+
+   virtual void VMassSetup(const int c) const = 0;
 
    void SolveVelocity(const Vector &S, Vector &dS_dt) const
    {
       UpdateQuadratureData(S);
       typename T::GridFunction dv(&H1, dS_dt, H1Vsize);
       dv = 0.0;
-      //   force.Mult(one, rhs);
+      ForceMult(S);
       rhs.Neg();
       const int size = H1c.GetVSize();
       const Operator *Pconf = H1c.GetProlongationMatrix();
@@ -201,8 +279,7 @@ public:
          else { B = rhs_c_gf; }
          if (Rconf) { Rconf->Mult(dvc_gf, X); }
          else { X = dvc_gf; }
-         //  VMassPA.SetEssentialTrueDofs(c_tdofs[c]);
-         //  VMassPA.EliminateRHS(B);
+         VMassSetup(c);
          CG_VMass.Mult(B, X);
          if (Pconf) { Pconf->Mult(X, dvc_gf); }
          else { dvc_gf = X; }
@@ -210,13 +287,15 @@ public:
       }
    }
 
+   virtual void ForceMultTranspose(const Vector &S, const Vector &v) const = 0;
+
    void SolveEnergy(const Vector &S, const Vector &v, Vector &dS_dt) const
    {
       UpdateQuadratureData(S);
       typename T::GridFunction de;
       de.MakeRef(&L2, dS_dt, H1Vsize*2);
       de = 0.0;
-      //   force.MultTranspose(v, e_rhs);
+      ForceMultTranspose(S, v);
       CG_EMass.Mult(e_rhs, de);
       de.GetMemory().SyncAlias(dS_dt.GetMemory(), de.Size());
    }
@@ -228,18 +307,19 @@ public:
       H1.GetMesh()->NewNodes(x_gf, false);
    }
 
-   virtual real_t ReduceDtEstimate() const = 0;
-
    real_t GetTimeStepEstimate(const Vector &S) const
    {
       UpdateMesh(S);
       UpdateQuadratureData(S);
-      //   real_t glob_dt_est;
-      //   MinReduce(&quad_data.dt_est, &glob_dt_est);
-      return ReduceDtEstimate();
+      real_t glob_dt_est;
+      MinReduce(&dt_est, &glob_dt_est);
+      return glob_dt_est;
    }
 
-   virtual void ResetTimeStepEstimate() const = 0;
+   void ResetTimeStepEstimate() const
+   {
+      dt_est = std::numeric_limits<real_t>::infinity();
+   }
 
    void ResetQuadratureData() const { quad_data_is_current = false; }
 };
@@ -476,12 +556,14 @@ int sedov(int myid, int argc, char *argv[])
    return EXIT_SUCCESS;
 }
 
+// Helper function to count arguments
 static inline int argn(const char *argv[], int argc = 0)
 {
    while (argv[argc]) { argc+=1; }
    return argc;
 }
 
+// Run Sedov tests for a given LagrangianHydroOperator type
 template <template<int> typename T>
 static void sedov_tests(int rank)
 {
@@ -494,6 +576,59 @@ static void sedov_tests(int rank)
    const char *argv3D[]= { "sedov<3>", nullptr };
    REQUIRE(sedov<3, T>(rank, argn(argv3D), const_cast<char**>(argv3D)) == 0);
 
-   //    const char *argv3Drs1[]= { "sedov<3>", "-rs", "1", "-ms", "28", nullptr };
-   //    REQUIRE(sedov<3, T>(rank, argn(argv3Drs1), const_cast<char**>(argv3Drs1)) == 0);
+   const char *argv3Drs1[]= { "sedov<3>", "-rs", "1", "-ms", "28", nullptr };
+   REQUIRE(sedov<3, T>(rank, argn(argv3Drs1), const_cast<char**>(argv3Drs1)) == 0);
+}
+
+// Define MFEM_SEDOV_MPI if either of the MPI variants is defined
+#if defined(MFEM_SEDOV_PA_MPI) || defined (MFEM_SEDOV_DFEM_MPI)
+#define MFEM_SEDOV_MPI
+#endif
+
+// Define MFEM_SEDOV_DEVICE based on which device variant is defined
+#if defined(MFEM_SEDOV_PA_DEVICE)
+#undef MFEM_SEDOV_DEVICE
+#define MFEM_SEDOV_DEVICE MFEM_SEDOV_PA_DEVICE
+#endif
+
+#if defined(MFEM_SEDOV_DFEM_DEVICE)
+#undef MFEM_SEDOV_DEVICE
+#define MFEM_SEDOV_DEVICE MFEM_SEDOV_DFEM_DEVICE
+#endif
+
+int main(int argc, char *argv[])
+{
+#ifdef MFEM_USE_SINGLE
+   std::cout << "\nThe Sedov unit tests are not supported in single"
+             " precision.\n\n";
+   return MFEM_SKIP_RETURN_VALUE;
+#endif
+
+#ifdef MFEM_SEDOV_MPI
+   mfem::Mpi::Init();
+   mfem::Hypre::Init();
+#endif
+
+#ifdef MFEM_SEDOV_DEVICE
+   Device device(MFEM_SEDOV_DEVICE);
+#else
+   Device device("cpu"); // make sure hypre runs on CPU, if possible
+#endif
+   device.Print();
+
+#if defined(MFEM_SEDOV_MPI) && defined(MFEM_DEBUG) && defined(MFEM_SEDOV_DEVICE)
+   if (HypreUsingGPU() && !strcmp(MFEM_SEDOV_DEVICE, "debug"))
+   {
+      mfem::out << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
+                << "is NOT supported with the GPU version of hypre.\n\n";
+      return MFEM_SKIP_RETURN_VALUE;
+   }
+#endif
+
+#ifdef MFEM_SEDOV_MPI
+   return RunCatchSession(argc, argv, {"[Parallel]"}, Root());
+#else
+   // Exclude parallel tests.
+   return RunCatchSession(argc, argv, {"~[Parallel]"});
+#endif
 }

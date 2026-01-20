@@ -25,7 +25,7 @@ namespace mfem
 {
 
 template <int DIM, int DIM2 = DIM*DIM>
-struct QuadratureData
+struct QPoint
 {
    using vecd_t = tensor<real_t, DIM>;
    using matd_t = tensor<real_t, DIM, DIM>;
@@ -34,7 +34,7 @@ struct QuadratureData
    inline static constexpr real_t EPS = 1e-12_r;
    inline static constexpr bool use_viscosity = true;
 
-   QuadratureData(real_t gamma, real_t cfl, real_t h0):
+   QPoint(real_t gamma, real_t cfl, real_t h0):
       gamma(gamma), cfl(cfl), h0(h0) { }
 
    inline constexpr auto ComputeMaterialProperties(const real_t &rho,
@@ -91,9 +91,9 @@ struct QuadratureData
 };
 
 template <int DIM>
-struct QForce: public QuadratureData<DIM>
+struct QForce: public QPoint<DIM>
 {
-   using Q = QuadratureData<DIM>;
+   using Q = QPoint<DIM>;
    using matd_t = typename Q::matd_t;
 
    QForce(real_t gamma, real_t cfl, real_t h0): Q(gamma, cfl, h0) { }
@@ -111,12 +111,12 @@ struct QForce: public QuadratureData<DIM>
 };
 
 template <int DIM>
-struct QForceTranspose: public QuadratureData<DIM>
+struct QForceTranspose: public QPoint<DIM>
 {
-   using QD = QuadratureData<DIM>;
-   using matd_t = typename QD::matd_t;
+   using QP = QPoint<DIM>;
+   using matd_t = typename QP::matd_t;
 
-   QForceTranspose(real_t gamma, real_t cfl, real_t h0): QD(gamma, cfl, h0) { }
+   QForceTranspose(real_t gamma, real_t cfl, real_t h0): QP(gamma, cfl, h0) { }
 
    MFEM_HOST_DEVICE inline auto operator()(const real_t &E,
                                            const matd_t &dvdxi,
@@ -125,19 +125,19 @@ struct QForceTranspose: public QuadratureData<DIM>
                                            const matd_t &J,
                                            const real_t &w) const
    {
-      const auto [dvdx, stress, visc, ss] = QD::Update(dvdxi, rho0, J0, J, E, w);
+      const auto [dvdx, stress, visc, ss] = QP::Update(dvdxi, rho0, J0, J, E, w);
       return future::tuple{inner(dvdx, stress) * det(J) * w};
    }
 };
 
 template <int DIM>
-struct QDeltaTEstimator: public QuadratureData<DIM>
+struct QDeltaTEstimator: public QPoint<DIM>
 {
-   using QD = QuadratureData<DIM>;
-   using matd_t = typename QD::matd_t;
-   using QD::cfl;
+   using QP = QPoint<DIM>;
+   using matd_t = typename QP::matd_t;
+   using QP::cfl;
 
-   QDeltaTEstimator(real_t gamma, real_t cfl, real_t h0): QD(gamma, cfl, h0) { }
+   QDeltaTEstimator(real_t gamma, real_t cfl, real_t h0): QP(gamma, cfl, h0) { }
 
    MFEM_HOST_DEVICE inline auto operator()(const matd_t &dvdxi,
                                            const real_t &rho0,
@@ -148,7 +148,7 @@ struct QDeltaTEstimator: public QuadratureData<DIM>
    {
       const real_t detJ = det(J), detJ0 = det(J0);
       const real_t rho = rho0 * detJ0 / detJ;
-      const auto [dvdx, stress, visc, ss] = QD::Update(dvdxi, rho0, J0, J, E, w);
+      const auto [dvdx, stress, visc, ss] = QP::Update(dvdxi, rho0, J0, J, E, w);
 
       const real_t sv = kernels::CalcSingularvalue<DIM>(flatten(J).values, DIM-1);
       const real_t h_min = sv / 2.0_r;
@@ -168,7 +168,7 @@ class Force: public Operator
    typename T::Mesh &pmesh;
    const int H1vsize;
    UniformParameterSpace Q1;
-   Vector dt_est;
+   mutable Vector dt_est;
    Array<int> domain_attr;
    mutable typename T::GridFunction rho0, x0;
    std::unique_ptr<DifferentiableOperator> force, force_transpose, dt_estimator;
@@ -285,7 +285,7 @@ public:
       force_transpose->Mult(e, y);
    }
 
-   real_t EstimateDeltaT(const Vector &S)
+   real_t EstimateDeltaT(const Vector &S) const
    {
       auto [x, v, e] = GetGridFunctions(S);
       dt_estimator->SetParameters({&rho0, &x0, &x, &e, &dt_est});
@@ -379,76 +379,17 @@ public:
    }
 };
 
-template<int DIM, typename TMesh>
-static void ComputeVolume(const int NE,
-                          const IntegrationRule &ir,
-                          TMesh *mesh,
-                          real_t &loc_area)
-{
-   const int NQ = ir.GetNPoints();
-   const int Q1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder()).GetNPoints();
-   const int flags = GeometricFactors::JACOBIANS|GeometricFactors::DETERMINANTS;
-   const GeometricFactors *geom = mesh->GetGeometricFactors(ir, flags);
-   Vector area(NE*NQ), one(NE*NQ);
-
-   if constexpr (DIM == 2)
-   {
-      const auto W = Reshape(ir.GetWeights().Read(), Q1D, Q1D);
-      const auto detJ = Reshape(geom->detJ.Read(), Q1D, Q1D, NE);
-      auto A = Reshape(area.Write(), Q1D, Q1D, NE);
-      auto O = Reshape(one.Write(), Q1D, Q1D, NE);
-      mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
-      {
-         MFEM_FOREACH_THREAD_DIRECT(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD_DIRECT(qx,x,Q1D)
-            {
-               const real_t det = detJ(qx, qy, e);
-               A(qx, qy, e) = W(qx, qy) * det;
-               O(qx, qy, e) = 1.0;
-            }
-         }
-      });
-   }
-
-   if constexpr (DIM == 3)
-   {
-      const auto W = Reshape(ir.GetWeights().Read(), Q1D, Q1D, Q1D);
-      const auto detJ = Reshape(geom->detJ.Read(), Q1D, Q1D, Q1D, NE);
-      auto A = Reshape(area.Write(), Q1D, Q1D, Q1D, NE);
-      auto O = Reshape(one.Write(), Q1D, Q1D, Q1D, NE);
-      mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
-      {
-         MFEM_FOREACH_THREAD_DIRECT(qz,z,Q1D)
-         {
-            MFEM_FOREACH_THREAD_DIRECT(qy,y,Q1D)
-            {
-               MFEM_FOREACH_THREAD_DIRECT(qx,x,Q1D)
-               {
-                  const real_t det = detJ(qx, qy, qz, e);
-                  A(qx, qy, qz, e) = W(qx, qy, qz) * det;
-                  O(qx, qy, qz, e) = 1.0;
-               }
-            }
-         }
-      });
-   }
-   loc_area = area * one;
-}
-
 template<int DIM>
 class LagrangianHydroOperator : public LagrangianHydroBase<DIM>
 {
-   real_t h0;
-   mutable real_t dt_est;
-   std::unique_ptr<Force<DIM>> force;
-   Mass<DIM> VMass, EMass;
+   Force<DIM> force;
+   Mass<DIM> v_mass, e_mass;
 
    using B = LagrangianHydroBase<DIM>;
 
-   void UpdateQuadratureData(const Vector &S) const
+   void UpdateQuadratureData(const Vector &S) const final
    {
-      dt_est = force->EstimateDeltaT(S);
+      B::dt_est = force.EstimateDeltaT(S);
       B::quad_data_is_current = true;
    }
 
@@ -471,92 +412,28 @@ public:
                            int h1_basis_type):
       B(rho_coeff, size, h1, l2, pmesh, essential_tdofs, rho0, source_type,
         cfl_, material, visc, cgt, cgiter, ftz, order_q, gm, h1_basis_type),
-      VMass(rho_coeff, B::H1c, pmesh, B::ir),
-      EMass(rho_coeff, B::L2, pmesh, B::ir)
+      force(B::H1, B::L2, pmesh, B::ir, rho0, B::gamma, B::cfl, B::h0),
+      v_mass(rho_coeff, B::H1c, pmesh, B::ir),
+      e_mass(rho_coeff, B::L2, pmesh, B::ir)
    {
-      real_t loc_area = 0.0, glob_area;
-      int loc_z_cnt = B::nzones, glob_z_cnt;
-      auto *pm = B::H1.GetMesh();
-      ComputeVolume<DIM>(B::nzones, B::ir, B::H1.GetMesh(), loc_area);
-      SumReduce(&loc_area, &glob_area);
-      SumReduce(&loc_z_cnt, &glob_z_cnt);
-      switch (pm->GetTypicalElementGeometry())
-      {
-         case Geometry::SQUARE: h0 = sqrt(glob_area / glob_z_cnt); break;
-         case Geometry::CUBE: h0 = pow(glob_area / glob_z_cnt, 1.0/3.0); break;
-         default: MFEM_ABORT("Unknown zone type!");
-      }
-      h0 /= (real_t) B::H1.GetElementOrder(0);
-      force = std::make_unique<Force<DIM>>(B::H1, B::L2, pmesh, B::ir, rho0, B::gamma,
-                                           B::cfl, h0);
-
-      B::CG_VMass.SetOperator(VMass);
-      B::CG_EMass.SetOperator(EMass);
+      B::CG_VMass.SetOperator(v_mass);
+      B::CG_EMass.SetOperator(e_mass);
    }
 
-   void Mult(const Vector &S, Vector &dS_dt) const override
+   void ForceMult(const Vector &S) const final
    {
-      B::UpdateMesh(S);
-      auto *sptr = const_cast<Vector*>(&S);
-      typename T::GridFunction v, dx;
-      const int VsizeH1 = B::H1.GetVSize();
-      v.MakeRef(&(B::H1), *sptr, VsizeH1);
-      dx.MakeRef(&(B::H1), dS_dt, 0);
-      dx = v;
-      SolveVelocity(S, dS_dt);
-      SolveEnergy(S, v, dS_dt);
-      B::quad_data_is_current = false;
+      force.Mult(S, B::rhs);
    }
 
-   MemoryClass GetMemoryClass() const override  { return Device::GetDeviceMemoryClass(); }
-
-   void SolveVelocity(const Vector &S, Vector &dS_dt) const
+   void VMassSetup(const int c) const final
    {
-      UpdateQuadratureData(S);
-      typename T::GridFunction dv(&(B::H1), dS_dt, B::H1Vsize);
-      dv = 0.0;
-      force->Mult(S, B::rhs);
-      B::rhs.Neg();
-      const int size = B::H1c.GetVSize();
-      const Operator *Pconf = B::H1c.GetProlongationMatrix();
-      const Operator *Rconf = B::H1c.GetRestrictionMatrix();
-      for (int c = 0; c < DIM; c++)
-      {
-         B::dvc_gf.MakeRef(&(B::H1c), dS_dt, B::H1Vsize + c*size);
-         B::rhs_c_gf.MakeRef(&(B::H1c), B::rhs, c*size);
-         if (Pconf) { Pconf->MultTranspose(B::rhs_c_gf, B::B); }
-         else { B::B = B::rhs_c_gf; }
-         if (Rconf) { Rconf->Mult(B::dvc_gf, B::X); }
-         else { B::X = B::dvc_gf; }
-         VMass.SetEssentialTrueDofs(B::c_tdofs[c]);
-         VMass.EliminateRHS(B::B);
-         B::CG_VMass.Mult(B::B, B::X);
-         if (Pconf) { Pconf->Mult(B::X, B::dvc_gf); }
-         else { B::dvc_gf = B::X; }
-         B::dvc_gf.GetMemory().SyncAlias(dS_dt.GetMemory(), B::dvc_gf.Size());
-      }
+      v_mass.SetEssentialTrueDofs(B::c_tdofs[c]);
+      v_mass.EliminateRHS(B::B);
    }
 
-   void SolveEnergy(const Vector &S, const Vector &v, Vector &dS_dt) const
+   void ForceMultTranspose(const Vector &S, const Vector &v) const final
    {
-      UpdateQuadratureData(S);
-      typename T::GridFunction de(&(B::L2), dS_dt, B::H1Vsize*2);
-      de = 0.0;
-      force->MultTranspose(S, B::e_rhs);
-      B::CG_EMass.Mult(B::e_rhs, de);
-      de.GetMemory().SyncAlias(dS_dt.GetMemory(), de.Size());
-   }
-
-   real_t ReduceDtEstimate() const final
-   {
-      real_t glob_dt_est;
-      MinReduce(&dt_est, &glob_dt_est);
-      return glob_dt_est;
-   }
-
-   void ResetTimeStepEstimate() const
-   {
-      dt_est = std::numeric_limits<real_t>::infinity();
+      force.MultTranspose(S, B::e_rhs);
    }
 };
 
@@ -573,40 +450,3 @@ TEST_CASE("Sedov", "[Sedov]")
    sedov_tests<LagrangianHydroOperator>(0);
 }
 #endif
-
-int main(int argc, char *argv[])
-{
-#ifdef MFEM_USE_SINGLE
-   std::cout << "\nThe Sedov unit tests are not supported in single"
-             " precision.\n\n";
-   return MFEM_SKIP_RETURN_VALUE;
-#endif
-
-#ifdef MFEM_SEDOV_DFEM_MPI
-   mfem::Mpi::Init();
-   mfem::Hypre::Init();
-#endif
-
-#ifdef MFEM_SEDOV_DFEM_DEVICE
-   Device device(MFEM_SEDOV_DFEM_DEVICE);
-#else
-   Device device("cpu"); // make sure hypre runs on CPU, if possible
-#endif
-   device.Print();
-
-#if defined(MFEM_SEDOV_DFEM_MPI) && defined(MFEM_DEBUG) && defined(MFEM_SEDOV_DFEM_DEVICE)
-   if (HypreUsingGPU() && !strcmp(MFEM_SEDOV_DFEM_DEVICE, "debug"))
-   {
-      mfem::out << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
-                << "is NOT supported with the GPU version of hypre.\n\n";
-      return MFEM_SKIP_RETURN_VALUE;
-   }
-#endif
-
-#ifdef MFEM_SEDOV_DFEM_MPI
-   return RunCatchSession(argc, argv, {"[Parallel]"}, Root());
-#else
-   // Exclude parallel tests.
-   return RunCatchSession(argc, argv, {"~[Parallel]"});
-#endif
-}

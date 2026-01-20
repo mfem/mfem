@@ -24,15 +24,14 @@ using namespace mfem;
 namespace mfem
 {
 
-struct QuadratureData
+struct QData
 {
-   DenseTensor Jac0inv, stressJinvT;
    Vector rho0DetJ0w;
-   real_t h0, dt_est;
-   QuadratureData(int dim, int nzones, int quads_per_zone)
-      : Jac0inv(dim, dim, nzones * quads_per_zone),
-        stressJinvT(nzones * quads_per_zone, dim, dim),
-        rho0DetJ0w(nzones * quads_per_zone) { }
+   DenseTensor Jac0inv, stressJinvT;
+   QData(int dim, int ne, int nq):
+      rho0DetJ0w(ne * nq),
+      Jac0inv(dim, dim, ne * nq),
+      stressJinvT(ne * nq, dim, dim) { }
 };
 
 template<int DIM, int D1D, int Q1D, int L1D, int H1D, int NBZ =1> static
@@ -44,14 +43,17 @@ void kSmemForceMult2D(const int NE,
                       const Vector &e_,
                       Vector &v_)
 {
-   auto b = Reshape(B_.Read(), Q1D, L1D);
-   auto bt = Reshape(Bt_.Read(), H1D, Q1D);
-   auto gt = Reshape(Gt_.Read(), H1D, Q1D);
-   auto sJit = Reshape(Read(sJit_.GetMemory(), Q1D*Q1D*NE*2*2), Q1D,Q1D,NE,2,2);
-   auto energy = Reshape(e_.Read(), L1D, L1D, NE);
-   const real_t eps1 = std::numeric_limits<real_t>::epsilon();
-   const real_t eps2 = eps1*eps1;
+   constexpr real_t eps1 = std::numeric_limits<real_t>::epsilon();
+   constexpr real_t eps2 = eps1*eps1;
+
+   const auto b = Reshape(B_.Read(), Q1D, L1D);
+   const auto bt = Reshape(Bt_.Read(), H1D, Q1D);
+   const auto gt = Reshape(Gt_.Read(), H1D, Q1D);
+   const auto sJit = Reshape(sJit_.Read(), Q1D, Q1D, NE, 2, 2);
+   const auto energy = Reshape(e_.Read(), L1D, L1D, NE);
+
    auto velocity = Reshape(v_.Write(), D1D,D1D,2,NE);
+
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int z = MFEM_THREAD_ID(z);
@@ -186,15 +188,17 @@ void kSmemForceMult3D(const int NE,
                       const Vector &e_,
                       Vector &v_)
 {
-   auto b = Reshape(B_.Read(), Q1D, L1D);
-   auto bt = Reshape(Bt_.Read(), H1D, Q1D);
-   auto gt = Reshape(Gt_.Read(), H1D, Q1D);
-   auto sJit = Reshape(Read(sJit_.GetMemory(), Q1D*Q1D*Q1D*NE*3*3),
-                       Q1D,Q1D,Q1D,NE,3,3);
-   auto energy = Reshape(e_.Read(), L1D, L1D, L1D, NE);
-   const real_t eps1 = std::numeric_limits<real_t>::epsilon();
-   const real_t eps2 = eps1*eps1;
+   constexpr real_t eps1 = std::numeric_limits<real_t>::epsilon();
+   constexpr real_t eps2 = eps1*eps1;
+
+   const auto b = Reshape(B_.Read(), Q1D, L1D);
+   const auto bt = Reshape(Bt_.Read(), H1D, Q1D);
+   const auto gt = Reshape(Gt_.Read(), H1D, Q1D);
+   const auto sJit = Reshape(sJit_.Read(), Q1D, Q1D, Q1D, NE, 3, 3);
+   const auto energy = Reshape(e_.Read(), L1D, L1D, L1D, NE);
+
    auto velocity = Reshape(v_.Write(), D1D, D1D, D1D, 3, NE);
+
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int z = MFEM_THREAD_ID(z);
@@ -781,13 +785,12 @@ static void kForceMultTranspose(const int DIM,
    call[id](nzones, L2QuadToDof, H1DofToQuad, H1DofToQuadD, stressJinvT, v, e);
 }
 
-template<typename TFiniteElementSpace>
-class PAForceOperator : public Operator
+class Force : public Operator
 {
 private:
    const int dim, nzones;
-   const QuadratureData &quad_data;
-   const TFiniteElementSpace &h1fes, &l2fes;
+   const QData &quad_data;
+   const typename T::FiniteElementSpace &h1fes, &l2fes;
    const Operator *h1restrict, *l2restrict;
    const IntegrationRule &integ_rule, &ir1D;
    const int D1D, Q1D, L1D, H1D;
@@ -795,10 +798,10 @@ private:
    const DofToQuad *l2D2Q, *h1D2Q;
    mutable Vector gVecL2, gVecH1;
 public:
-   PAForceOperator(const QuadratureData &qd,
-                   const TFiniteElementSpace &h1f,
-                   const TFiniteElementSpace &l2f,
-                   const IntegrationRule &ir) :
+   Force(const QData &qd,
+         const typename T::FiniteElementSpace &h1f,
+         const typename T::FiniteElementSpace &l2f,
+         const IntegrationRule &ir) :
       dim(h1f.GetMesh()->Dimension()),
       nzones(h1f.GetMesh()->GetNE()),
       quad_data(qd),
@@ -844,35 +847,30 @@ public:
    }
 };
 
-template<typename TFiniteElementSpace,
-         typename TBilinearForm>
-class PAMassOperator : public Operator
+class Mass : public Operator
 {
-   const int ne;
-   TBilinearForm pabf;
+   typename T::BilinearForm bf;
    OperatorPtr massOperator;
    mutable int ess_tdofs_count;
    mutable Array<int> ess_tdofs;
 
 public:
-   PAMassOperator(Coefficient &Q,
-                  TFiniteElementSpace &pfes,
-                  const IntegrationRule &ir) :
-      Operator(pfes.GetTrueVSize()),
-      ne(pfes.GetMesh()->GetNE()),
-      pabf(&pfes),
+   Mass(Coefficient &Q,
+        typename T::FiniteElementSpace &pfes,
+        const IntegrationRule &ir) : Operator(pfes.GetTrueVSize()),
+      bf(&pfes),
       ess_tdofs_count(0)
    {
-      pabf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      pabf.AddDomainIntegrator(new mfem::MassIntegrator(Q, &ir));
-      pabf.Assemble();
-      pabf.FormSystemMatrix(Array<int> {}, massOperator);
+      bf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      bf.AddDomainIntegrator(new mfem::MassIntegrator(Q, &ir));
+      bf.Assemble();
+      bf.FormSystemMatrix(Array<int> {}, massOperator);
    }
 
-   void Mult(const Vector &x, Vector &y) const override
+   void Mult(const Vector &X, Vector &Y) const override
    {
-      massOperator->Mult(x, y);
-      if (ess_tdofs_count) { y.SetSubVector(ess_tdofs, 0.0); }
+      massOperator->Mult(X, Y);
+      if (ess_tdofs_count) { Y.SetSubVector(ess_tdofs, 0.0); }
    }
 
    void SetEssentialTrueDofs(Array<int> &dofs) const
@@ -889,9 +887,9 @@ public:
       ess_tdofs = dofs;
    }
 
-   void EliminateRHS(Vector &b) const
+   void EliminateRHS(Vector &B) const
    {
-      if (ess_tdofs_count > 0) { b.SetSubVector(ess_tdofs, 0.0); }
+      if (ess_tdofs_count > 0) { B.SetSubVector(ess_tdofs, 0.0); }
    }
 };
 
@@ -1094,14 +1092,14 @@ static inline void QKernel(const int nzones,
    }
 }
 
-template <int DIM, typename TFiniteElementSpace>
+template <int DIM>
 class QUpdate
 {
    const int dim, nq, ne;
    const bool use_viscosity;
    const real_t cfl, gamma;
    const IntegrationRule &ir;
-   TFiniteElementSpace &H1fes, &L2fes;
+   typename T::FiniteElementSpace &H1fes, &L2fes;
    const Operator *H1ER;
    const int vdim;
    Vector d_dt_est;
@@ -1111,7 +1109,7 @@ class QUpdate
 public:
    QUpdate(const int d, const int ne, const bool uv,
            const real_t c, const real_t g, const IntegrationRule &i,
-           TFiniteElementSpace &h1, TFiniteElementSpace &l2):
+           typename T::FiniteElementSpace &h1, typename T::FiniteElementSpace &l2):
       dim(d), nq(i.GetNPoints()), ne(ne), use_viscosity(uv), cfl(c), gamma(g),
       ir(i), H1fes(h1), L2fes(l2),
       H1ER(H1fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC)),
@@ -1125,65 +1123,57 @@ public:
       q2(L2fes.GetQuadratureInterpolator(ir)) { }
 
    void UpdateQuadratureData(const Vector &S,
-                             bool &quad_data_is_current,
-                             QuadratureData &quad_data)
+                             const real_t h0,
+                             QData &quad_data,
+                             real_t &dt_est)
    {
-      if (quad_data_is_current) { return; }
-      Vector* S_p = const_cast<Vector*>(&S);
-      const int H1_size = H1fes.GetVSize();
       constexpr int nqp1D = 4;
+      const int H1_size = H1fes.GetVSize();
       const real_t h1order = H1fes.GetElementOrder(0);
       const real_t infinity = std::numeric_limits<real_t>::infinity();
+
       GridFunction d_x, d_v, d_e;
+      auto * S_p = const_cast<Vector*>(&S);
+
       d_x.MakeRef(&H1fes,*S_p, 0);
       H1ER->Mult(d_x, d_h1_v_local_in);
       q1->SetOutputLayout(QVectorLayout::byVDIM);
       q1->Derivatives(d_h1_v_local_in, d_h1_grad_x_data);
+
       d_v.MakeRef(&H1fes,*S_p, H1_size);
       H1ER->Mult(d_v, d_h1_v_local_in);
       q1->Derivatives(d_h1_v_local_in, d_h1_grad_v_data);
+
       d_e.MakeRef(&L2fes, *S_p, 2*H1_size);
       q2->SetOutputLayout(QVectorLayout::byVDIM);
       q2->Values(d_e, d_l2_e_quads_data);
-      d_dt_est = quad_data.dt_est;
-      using fQKernel = void (*)(const int NE, const int NQ,
-                                const real_t gamma, const bool use_viscosity,
-                                const real_t h0, const real_t h1order,
-                                const real_t cfl, const real_t infinity,
-                                const Array<real_t> &weights,
-                                const Vector &Jacobians, const Vector &rho0DetJ0w,
-                                const Vector &e_quads, const Vector &grad_v_ext,
-                                const DenseTensor &Jac0inv,
-                                Vector &dt_est, DenseTensor &stressJinvT);
-      static std::unordered_map<int, fQKernel> qupdate =
-      {
-         {0x24,&QKernel<2,4>}, {0x34,&QKernel<3,4>}
-      };
+
+      d_dt_est = dt_est;
+      static std::unordered_map<int, decltype(&QKernel<2,4>)>
+      qupdate = { {0x24,&QKernel<2,4>}, {0x34,&QKernel<3,4>} };
+
       const int id = (dim<<4) | nqp1D;
-      qupdate[id](ne, nq, gamma, use_viscosity, quad_data.h0,
+      qupdate[id](ne, nq, gamma, use_viscosity, h0,
                   h1order, cfl, infinity, ir.GetWeights(), d_h1_grad_x_data,
                   quad_data.rho0DetJ0w, d_l2_e_quads_data, d_h1_grad_v_data,
                   quad_data.Jac0inv, d_dt_est, quad_data.stressJinvT);
-      quad_data.dt_est = d_dt_est.Min();
-      quad_data_is_current = true;
+
+      dt_est = d_dt_est.Min();
    }
 };
 
-template <int DIM,
-          typename TMesh,
-          typename TFiniteElementSpace,
-          typename TGridFunction>
-void ComputeRho0DetJ0AndVolume(const int ne,
-                               const IntegrationRule &ir, TMesh *mesh,
-                               TFiniteElementSpace &l2_fes,
-                               TGridFunction &rho0,
-                               QuadratureData &quad_data,
-                               real_t &loc_area)
+template <int DIM>
+void ComputeRho0DetJ0(typename T::Mesh &mesh,
+                      const IntegrationRule &ir,
+                      typename T::FiniteElementSpace &l2_fes,
+                      typename T::GridFunction &rho0,
+                      QData &qdata)
 {
+   const int ne = mesh.GetNE();
    const int nq = ir.GetNPoints();
    const int Q1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder()).GetNPoints();
-   const int flags = GeometricFactors::JACOBIANS|GeometricFactors::DETERMINANTS;
-   const GeometricFactors *geom = mesh->GetGeometricFactors(ir, flags);
+   const int flags = GeometricFactors::JACOBIANS | GeometricFactors::DETERMINANTS;
+   const GeometricFactors *geom = mesh.GetGeometricFactors(ir, flags);
    Vector rho0Q(nq*ne);
    rho0Q.UseDevice(true);
    const QuadratureInterpolator *qi = l2_fes.GetQuadratureInterpolator(ir);
@@ -1192,14 +1182,9 @@ void ComputeRho0DetJ0AndVolume(const int ne,
    const auto R = Reshape(rho0Q.Read(), nq, ne);
    const auto J = Reshape(geom->J.Read(), nq, DIM, DIM, ne);
    const auto detJ = Reshape(geom->detJ.Read(), nq, ne);
-   auto V = Reshape(quad_data.rho0DetJ0w.Write(), nq, ne);
-   Memory<real_t> &Jinv_m = quad_data.Jac0inv.GetMemory();
-   auto invJ = Reshape(Jinv_m.Write(Device::GetDeviceMemoryClass(),
-                                    quad_data.Jac0inv.TotalSize()),
-                       DIM, DIM, nq, ne);
-   Vector area(ne*nq), one(ne*nq);
-   auto A = Reshape(area.Write(), nq, ne);
-   auto O = Reshape(one.Write(), nq, ne);
+
+   auto D = Reshape(qdata.rho0DetJ0w.Write(), nq, ne);
+   auto invJ = Reshape(qdata.Jac0inv.Write(), DIM, DIM, nq, ne);
 
    if constexpr (DIM == 2)
    {
@@ -1215,14 +1200,12 @@ void ComputeRho0DetJ0AndVolume(const int ne,
                const real_t J21 = J(q,0,1,e);
                const real_t J22 = J(q,1,1,e);
                const real_t det = detJ(q,e);
-               V(q,e) =  W[q] * R(q,e) * det;
+               D(q,e) =  W[q] * R(q,e) * det;
                const real_t r_idetJ = 1.0 / det;
                invJ(0,0,q,e) =  J22 * r_idetJ;
                invJ(1,0,q,e) = -J12 * r_idetJ;
                invJ(0,1,q,e) = -J21 * r_idetJ;
                invJ(1,1,q,e) =  J11 * r_idetJ;
-               A(q,e) = W[q] * det;
-               O(q,e) = 1.0;
             }
          }
       });
@@ -1243,7 +1226,7 @@ void ComputeRho0DetJ0AndVolume(const int ne,
                   const real_t J21 = J(q,1,0,e), J22 = J(q,1,1,e), J23 = J(q,1,2,e);
                   const real_t J31 = J(q,2,0,e), J32 = J(q,2,1,e), J33 = J(q,2,2,e);
                   const real_t det = detJ(q,e);
-                  V(q,e) = W[q] * R(q,e) * det;
+                  D(q,e) = W[q] * R(q,e) * det;
                   const real_t r_idetJ = 1.0 / det;
                   invJ(0,0,q,e) = r_idetJ * ((J22 * J33)-(J23 * J32));
                   invJ(1,0,q,e) = r_idetJ * ((J32 * J13)-(J33 * J12));
@@ -1254,66 +1237,31 @@ void ComputeRho0DetJ0AndVolume(const int ne,
                   invJ(0,2,q,e) = r_idetJ * ((J21 * J32)-(J22 * J31));
                   invJ(1,2,q,e) = r_idetJ * ((J31 * J12)-(J32 * J11));
                   invJ(2,2,q,e) = r_idetJ * ((J11 * J22)-(J12 * J21));
-                  A(q,e) = W[q] * det;
-                  O(q,e) = 1.0;
                }
             }
          }
       });
    }
-   quad_data.rho0DetJ0w.HostRead();
-   loc_area = area * one;
+   qdata.rho0DetJ0w.HostRead();
 }
 
 template <int DIM>
 class LagrangianHydroOperator : public LagrangianHydroBase<DIM>
 {
-   mutable QuadratureData quad_data;
-   PAForceOperator<typename T::FiniteElementSpace> force;
-   PAMassOperator<typename T::FiniteElementSpace, typename T::BilinearForm>
-   VMassPA, EMassPA;
-   mutable QUpdate<DIM, typename T::FiniteElementSpace> Q;
+   Force force;
+   Mass v_mass, e_mass;
+
+   mutable QData qdata;
+   mutable QUpdate<DIM> qupdate;
 
    using B = LagrangianHydroBase<DIM>;
-   using B::H1;
-   using B::L2;
-   using B::H1c;
-   using B::H1Vsize;
-   using B::H1TVSize;
-   using B::H1cTVSize;
-   using B::L2Vsize;
-   using B::L2TVSize;
-   using B::block_offsets;
-   using B::x_gf;
-   using B::ess_tdofs;
-   using B::nzones;
-   using B::l2dofs_cnt;
-   using B::h1dofs_cnt;
-   using B::source_type;
-   using B::cfl;
-   using B::use_viscosity;
-   using B::cg_rel_tol;
-   using B::cg_max_iter;
-   using B::ftz_tol;
-   using B::material_pcf;
    using B::ir;
-   using B::quad_data_is_current;
 
-   using B::CG_VMass;
-   using B::CG_EMass;
-   using B::gamma;
-   using B::X;
-   using B::B;
-   using B::one;
-   using B::rhs;
-   using B::e_rhs;
-   using B::rhs_c_gf;
-   using B::dvc_gf;
-   using B::c_tdofs;
-
-   void UpdateQuadratureData(const Vector &S) const override
+   void UpdateQuadratureData(const Vector &S) const final
    {
-      return Q.UpdateQuadratureData(S, quad_data_is_current, quad_data);
+      if (B::quad_data_is_current) { return; }
+      qupdate.UpdateQuadratureData(S, B::h0, qdata, B::dt_est);
+      B::quad_data_is_current = true;
    }
 
 public:
@@ -1324,107 +1272,39 @@ public:
                            const Array<int> &essential_tdofs,
                            typename T::GridFunction &rho0,
                            const int source_type,
-                           const real_t cfl_,
+                           const real_t cfl,
                            const Coefficient &material,
-                           const bool visc,
+                           const bool use_viscosity,
                            const real_t cgt,
                            const int cgiter,
                            real_t ftz,
                            const int order_q,
-                           const real_t gm,
+                           const real_t gamma,
                            int h1_basis_type):
       B(rho_coeff, size, h1, l2, pmesh, essential_tdofs, rho0, source_type,
-        cfl_, material, visc, cgt, cgiter, ftz, order_q, gm, h1_basis_type),
-      quad_data(DIM, nzones, ir.GetNPoints()),
-      force(quad_data, h1,l2, ir),
-      VMassPA(rho_coeff, H1c, ir),
-      EMassPA(rho_coeff, L2, ir),
-      Q(DIM, nzones, use_viscosity, cfl, gamma, ir, H1, L2)
+        cfl, material, use_viscosity, cgt, cgiter, ftz, order_q, gamma, h1_basis_type),
+      force(qdata, h1, l2, ir),
+      v_mass(rho_coeff, B::H1c, ir),
+      e_mass(rho_coeff, l2, ir),
+      qdata(DIM, B::ne, ir.GetNPoints()),
+      qupdate(DIM, B::ne, use_viscosity, cfl, gamma, ir, h1, l2)
    {
-      real_t loc_area = 0.0, glob_area;
-      int loc_z_cnt = nzones, glob_z_cnt;
-      auto *pm = H1.GetMesh();
-      ComputeRho0DetJ0AndVolume<DIM>(nzones, ir,
-                                     H1.GetMesh(),
-                                     l2, rho0, quad_data, loc_area);
-      SumReduce(&loc_area, &glob_area);
-      SumReduce(&loc_z_cnt, &glob_z_cnt);
-      switch (pm->GetTypicalElementGeometry())
-      {
-         case Geometry::SQUARE: quad_data.h0 = sqrt(glob_area / glob_z_cnt); break;
-         case Geometry::CUBE: quad_data.h0 = pow(glob_area / glob_z_cnt, 1.0/3.0); break;
-         default: MFEM_ABORT("Unknown zone type!");
-      }
-      quad_data.h0 /= (real_t) H1.GetElementOrder(0);
-
-      B::CG_VMass.SetOperator(VMassPA);
-      B::CG_EMass.SetOperator(EMassPA);
+      ComputeRho0DetJ0<DIM>(pmesh, ir,l2, rho0, qdata);
+      B::CG_VMass.SetOperator(v_mass);
+      B::CG_EMass.SetOperator(e_mass);
    }
 
-   void Mult(const Vector &S, Vector &dS_dt) const override
+   void ForceMult(const Vector &S) const final { force.Mult(B::one, B::rhs); }
+
+   void VMassSetup(const int c) const final
    {
-      B::UpdateMesh(S);
-      auto *sptr = const_cast<Vector*>(&S);
-      typename T::GridFunction v, dx;
-      const int VsizeH1 = H1.GetVSize();
-      v.MakeRef(&H1, *sptr, VsizeH1);
-      dx.MakeRef(&H1, dS_dt, 0);
-      dx = v;
-      SolveVelocity(S, dS_dt);
-      SolveEnergy(S, v, dS_dt);
-      quad_data_is_current = false;
+      v_mass.SetEssentialTrueDofs(B::c_tdofs[c]);
+      v_mass.EliminateRHS(B::B);
    }
 
-   MemoryClass GetMemoryClass() const override  { return Device::GetDeviceMemoryClass(); }
-
-   void SolveVelocity(const Vector &S, Vector &dS_dt) const
+   void ForceMultTranspose(const Vector &S, const Vector &v) const final
    {
-      UpdateQuadratureData(S);
-      typename T::GridFunction dv(&H1, dS_dt, H1Vsize);
-      dv = 0.0;
-      force.Mult(one, rhs);
-      rhs.Neg();
-      const int size = H1c.GetVSize();
-      const Operator *Pconf = H1c.GetProlongationMatrix();
-      const Operator *Rconf = H1c.GetRestrictionMatrix();
-      for (int c = 0; c < DIM; c++)
-      {
-         dvc_gf.MakeRef(&H1c, dS_dt, H1Vsize + c*size);
-         rhs_c_gf.MakeRef(&H1c, rhs, c*size);
-         if (Pconf) { Pconf->MultTranspose(rhs_c_gf, B::B); }
-         else { B::B = rhs_c_gf; }
-         if (Rconf) { Rconf->Mult(dvc_gf, X); }
-         else { X = dvc_gf; }
-         VMassPA.SetEssentialTrueDofs(c_tdofs[c]);
-         VMassPA.EliminateRHS(B::B);
-         CG_VMass.Mult(B::B, X);
-         if (Pconf) { Pconf->Mult(X, dvc_gf); }
-         else { dvc_gf = X; }
-         dvc_gf.GetMemory().SyncAlias(dS_dt.GetMemory(), dvc_gf.Size());
-      }
-   }
-
-   void SolveEnergy(const Vector &S, const Vector &v, Vector &dS_dt) const
-   {
-      UpdateQuadratureData(S);
-      typename T::GridFunction de;
-      de.MakeRef(&L2, dS_dt, H1Vsize*2);
-      de = 0.0;
-      force.MultTranspose(v, e_rhs);
-      CG_EMass.Mult(e_rhs, de);
-      de.GetMemory().SyncAlias(dS_dt.GetMemory(), de.Size());
-   }
-
-   real_t ReduceDtEstimate() const final
-   {
-      real_t glob_dt_est;
-      MinReduce(&quad_data.dt_est, &glob_dt_est);
-      return glob_dt_est;
-   }
-
-   void ResetTimeStepEstimate() const override
-   {
-      quad_data.dt_est = std::numeric_limits<real_t>::infinity();
+      force.MultTranspose(v, B::e_rhs);
    }
 };
 
@@ -1441,40 +1321,3 @@ TEST_CASE("Sedov", "[Sedov]")
    sedov_tests<LagrangianHydroOperator>(0);
 }
 #endif
-
-int main(int argc, char *argv[])
-{
-#ifdef MFEM_USE_SINGLE
-   std::cout << "\nThe Sedov unit tests are not supported in single"
-             " precision.\n\n";
-   return MFEM_SKIP_RETURN_VALUE;
-#endif
-
-#ifdef MFEM_SEDOV_PA_MPI
-   mfem::Mpi::Init();
-   mfem::Hypre::Init();
-#endif
-
-#ifdef MFEM_SEDOV_PA_DEVICE
-   Device device(MFEM_SEDOV_PA_DEVICE);
-#else
-   Device device("cpu"); // make sure hypre runs on CPU, if possible
-#endif
-   device.Print();
-
-#if defined(MFEM_SEDOV_PA_MPI) && defined(MFEM_DEBUG) && defined(MFEM_SEDOV_PA_DEVICE)
-   if (HypreUsingGPU() && !strcmp(MFEM_SEDOV_PA_DEVICE, "debug"))
-   {
-      mfem::out << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
-                << "is NOT supported with the GPU version of hypre.\n\n";
-      return MFEM_SKIP_RETURN_VALUE;
-   }
-#endif
-
-#ifdef MFEM_SEDOV_PA_MPI
-   return RunCatchSession(argc, argv, {"[Parallel]"}, Root());
-#else
-   // Exclude parallel tests.
-   return RunCatchSession(argc, argv, {"~[Parallel]"});
-#endif
-}
