@@ -605,7 +605,7 @@ void InitializeChargedParticles(ParticleSet &charged_particles,
    std::vector<std::normal_distribution<real_t>> norm_dist_p;
    for (int d = 0; d < dim; d++)
    {
-      norm_dist_p.emplace_back(p_center[d], std::max(0_r, dp[d]));
+      norm_dist_p.emplace_back(p_center[d], dp[d]);
    }
 
    ParticleVector &X = charged_particles.Coords();
@@ -620,16 +620,20 @@ void InitializeChargedParticles(ParticleSet &charged_particles,
          if (x_min[d] >= x_max[d]) { X(i,d) = x_min[d]; }
          else
          {
-            X(i, d) = x_min[d] + real_dist_x(gen)*(x_max[d] - x_min[d]);
+            X(i,d) = x_min[d] + real_dist_x(gen)*(x_max[d] - x_min[d]);
          }
 
          // Initialize momentum
-         real_t p_val = norm_dist_p[d](gen);
-         while (p_val < p_min[d] || p_val > p_max[d])
+         if (p_min(d) >= p_max[d]) { P(i,d) = p_min[d]; }
+         else
          {
-            p_val = norm_dist_p[d](gen);
+            real_t p_val = norm_dist_p[d](gen);
+            while (p_val < p_min[d] || p_val > p_max[d])
+            {
+               p_val = norm_dist_p[d](gen);
+            }
+            P(i,d) = p_val;
          }
-         P(i, d) = p_val;
       }
       // Initialize mass + charge
       M(i) = m;
