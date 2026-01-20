@@ -201,6 +201,8 @@ std::map<int, std::shared_ptr<mfem::VectorCoefficient> > bdr_loads;
 std::map<int, std::shared_ptr<mfem::VectorCoefficient> > bdr_displ;
 std::map<int, std::shared_ptr<mfem::VectorCoefficient> > bdr_veloc;
 
+mfem::Vector time_mem;
+
 
 };
 

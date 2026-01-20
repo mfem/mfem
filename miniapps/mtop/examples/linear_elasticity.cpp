@@ -38,6 +38,9 @@ LinearElasticityTimeDependentOperator::LinearElasticityTimeDependentOperator(Par
 
     ups.reset(new future::UniformParameterSpace(
         mesh, *ir, 1, false /* used_in_tensor_product */));
+
+
+
     
     if (mesh.attributes.Size() > 0)
     {
@@ -105,20 +108,34 @@ template <int DI, typename scalar_t=real_t> struct QElasticityFunction
 
     struct DynamicForce
     {
-        real_t time=0.0;
-        real_t period=1.0;
+        //real_t time=0.0;
+        //real_t period=1.0;
+        mfem::Vector* time_mem; 
+
+        //mfem::Memory<int> alt_time; chekc the documention about Memory class for more details
+
+        DynamicForce(mfem::Vector& tm) // the Read method should be called on the vector passed as tm 
+                                       // before caling the Mult on the differentiable operator when 
+                                       // the time is chaning, i.e., the values between the host and device have
+                                       // to be synchronized.
+        {   
+            time_mem = tm -> Read(); //get the device pointer
+        }
 
         MFEM_HOST_DEVICE inline auto operator()(const vecd_t &u,
                                                 const matd_t &J,
-                                                const real_t &w) const
+                                                const real_t &w,
+                                            ) const
         {
+            const real_t time = (*time_mem)(0);
             const auto detJ = mfem::future::det(J);
             // time dependent force in x direction
             const real_t force_amplitude = (time > 0.0) ? sin(M_PI*time/period) : 0.0;
-            vecd_t force = vecd_t::Zero();
+            vecd_t force {0};//= vecd_t::Zero();
             force(0) = force_amplitude;
             return tuple{force * detJ * w};
         }
+
     };
 
 };
@@ -180,6 +197,9 @@ void LinearElasticityTimeDependentOperator::AssembleExplicit()
         {
             typename QElasticityFunction<2>::Mass mass_func;
             dfem_mass_op->AddDomainIntegrator(mass_func, minputs, moutputs, *ir, domain_attributes);
+
+            typename QElasticityFunction<2>::DynamicForce dynamic_force_func(time_mem);
+            dfem_mass_op->AddDomainIntegrator(dynamic_force_func, minputs, moutputs, *ir, domain_attributes);
         }
         else if (3 == space_dim)
         {
@@ -269,6 +289,8 @@ void LinearElasticityTimeDependentOperator::AssembleExplicit()
         cg->SetPrintLevel(1);
         cg->SetOperator(*dfem_mass_op);
         cg->SetPreconditioner(*amg);
+
+        
     }
     
 }
@@ -277,6 +299,8 @@ void LinearElasticityTimeDependentOperator::Mult(const Vector &x,
                                                  Vector &y) const
 {
     real_t time = this->GetTime();
+
+    
 
     BlockVector bx(const_cast<Vector&>(x), block_true_offsets);
     BlockVector by(y, block_true_offsets);
