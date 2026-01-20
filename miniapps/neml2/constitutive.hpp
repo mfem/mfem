@@ -14,33 +14,33 @@
 #include "mfem.hpp"
 #include "neml2/models/Model.h"
 
-namespace op {
-
-using namespace mfem;
-using namespace mfem::future;
+namespace mfem
+{
+using namespace future;
 
 /// @brief Constitutive model wrapper for NEML2 models
-class ConstitutiveModel {
-public:
-  ConstitutiveModel(std::shared_ptr<neml2::Model> cmodel);
+class ConstitutiveModel
+{
+ public:
+   ConstitutiveModel(std::shared_ptr<neml2::Model> cmodel);
 
-  /**
+   /**
    * @brief Perform stress update
    *
    * @param strain Input strain
    * @param stress Output stress
    */
-  void Mult(ParameterFunction &strain, ParameterFunction &stress) const;
+   void Mult(ParameterFunction &strain, ParameterFunction &stress) const;
 
-  /**
+   /**
    * @brief Compute material tangent
    *
    * @param strain Input strain
    * @param tangent Output tangent (dstress/dstrain) evaluated at strain
    */
-  void Tangent(ParameterFunction &strain, neml2::Tensor &tangent) const;
+   void Tangent(ParameterFunction &strain, neml2::Tensor &tangent) const;
 
-  /**
+   /**
    * @brief Apply material tangent to delta strain (or anything in the strain
    * space)
    *
@@ -48,18 +48,18 @@ public:
    * @param dstrain Input delta strain
    * @param dstress Output delta stress
    */
-  void ApplyTangent(const neml2::Tensor &tangent, ParameterFunction &dstrain,
-                    ParameterFunction &dstress) const;
+   void ApplyTangent(const neml2::Tensor &tangent, ParameterFunction &dstrain,
+                     ParameterFunction &dstress) const;
 
-private:
-  /// The NEML2 constitutive model being wrapped
-  std::shared_ptr<neml2::Model> _cmodel;
+ private:
+   /// The NEML2 constitutive model being wrapped
+   std::shared_ptr<neml2::Model> _cmodel;
 
-  /// Name of the strain variable in the NEML2 model
-  const neml2::VariableName _strain_name;
+   /// Name of the strain variable in the NEML2 model
+   const neml2::VariableName _strain_name;
 
-  /// Name of the stress variable in the NEML2 model
-  const neml2::VariableName _stress_name;
+   /// Name of the stress variable in the NEML2 model
+   const neml2::VariableName _stress_name;
 };
 
-} // namespace op
+} // namespace mfem
