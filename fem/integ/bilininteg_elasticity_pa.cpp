@@ -27,7 +27,7 @@ void ElasticityIntegrator::SetUpCoefficients()
 
 void ElasticityIntegrator::SetUpQuadratureSpaceAndCoefficients(const FiniteElementSpace &fes)
 {
-   SetUpQuadratureSpace(fes);
+   SetUpQuadratureSpace();
    SetUpCoefficients();
 }
 
