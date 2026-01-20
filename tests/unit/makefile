@@ -168,11 +168,12 @@ $$(PAR_SEDOV_$(VER)_$(DEV)_OBJ_FILES): %.p$(2).o: $$(SRC)%.cpp $$(HEADER_FILES) 
 	@mkdir -p $$(@D)
 	$$(CCC) $$(MFEM_FLAGS) $$(INCLUDES) -c $$(abspath $$(<)) -DMFEM_SEDOV_$(call toupper,$(1))_MPI -DMFEM_SEDOV_$(call toupper,$(1))_DEVICE='"$(subst _,:,$(2))"' -o $$(@)
 endef
-$(eval $(call psedov,dfem,cpu))
 $(eval $(call psedov,pa,cpu))
 $(eval $(call psedov,pa,debug))
 $(eval $(call psedov,pa,gpu))
 $(eval $(call psedov,pa,gpu_uvm))
+$(eval $(call psedov,dfem,cpu))
+$(eval $(call psedov,dfem,gpu))
 
 # For out-of-source builds, copy the meshes in ../../miniapps/multidomain from
 # the source location; these are used by 'punit_tests'.

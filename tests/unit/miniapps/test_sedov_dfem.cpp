@@ -43,9 +43,9 @@ using namespace mfem::future;
 namespace mfem
 {
 
-inline constexpr void v0(const Vector&, Vector &v) { v = 0.0; }
-inline constexpr real_t rho0(const Vector&) { return 1.0; }
-inline constexpr real_t gamma(const Vector&) { return 1.4; }
+static void v0(const Vector&, Vector &v) { v = 0.0; }
+static real_t rho0(const Vector&) { return 1.0; }
+static real_t gamma(const Vector&) { return 1.4; }
 
 template <int DIM, int DIM2 = DIM*DIM>
 struct QData
@@ -76,12 +76,12 @@ struct QData
       return (3.0_r - 2.0_r * y) * y * y;
    };
 
-   inline auto Update(const matd_t &dvdxi,
-                      const real_t &rho0,
-                      const matd_t &J0,
-                      const matd_t &J,
-                      const real_t &E,
-                      const real_t &w) const noexcept
+   MFEM_HOST_DEVICE inline auto Update(const matd_t &dvdxi,
+                                       const real_t &rho0,
+                                       const matd_t &J0,
+                                       const matd_t &J,
+                                       const real_t &E,
+                                       const real_t &w) const noexcept
    {
       const real_t detJ = det(J), detJ0 = det(J0);
       const matd_t invJ = inv(J);
@@ -323,7 +323,6 @@ class MassOperator : public Operator
    ParMesh *pmesh;
    Array<int> domain_attr;
    ParGridFunction *nodes;
-   const real_t rho_coeff;
    std::unique_ptr<DifferentiableOperator> mass;
    mutable int ess_tdofs_count;
    mutable Array<int> ess_tdofs;
@@ -336,7 +335,6 @@ public:
       pmesh(pfes.GetParMesh()),
       domain_attr(pmesh->attributes.Max()),
       nodes(static_cast<ParGridFunction *>(pmesh->GetNodes())),
-      rho_coeff(dynamic_cast<ConstantCoefficient*>(&Q)->constant),
       ess_tdofs_count(0)
    {
       domain_attr = 1;
@@ -346,12 +344,13 @@ public:
                 std::vector{ FieldDescriptor{U, &pfes}},
                 std::vector{ FieldDescriptor{X, nodes->ParFESpace()}},
                 *pmesh);
+      const real_t rho = dynamic_cast<ConstantCoefficient*>(&Q)->constant;
       const auto mf_mass_qf =
          [=] MFEM_HOST_DEVICE(const real_t &u,
                               const tensor<real_t, DIM, DIM> &J,
                               const real_t &w)
       {
-         return tuple{rho_coeff * u * w * det(J)};
+         return tuple{rho * u * w * det(J)};
       };
       mass->AddDomainIntegrator(mf_mass_qf,
                                 tuple{ Value<U>{}, Gradient<X>{}, Weight{} },
@@ -802,7 +801,7 @@ int sedov(int myid, int argc, char *argv[])
    L2_FECollection mat_fec(0, pmesh.Dimension());
    ParFiniteElementSpace mat_fes(&pmesh, &mat_fec);
    ParGridFunction mat_gf(&mat_fes);
-   FunctionCoefficient mat_coeff(gamma);
+   FunctionCoefficient mat_coeff(mfem::gamma);
    mat_gf.ProjectCoefficient(mat_coeff);
    GridFunctionCoefficient mat_gf_coeff(&mat_gf);
 

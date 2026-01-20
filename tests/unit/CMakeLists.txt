@@ -440,6 +440,7 @@ function(add_parallel_miniapp_test name HYPRE_MM)
             list(APPEND backends debug)
         endif()
     endif()
+
     if (MFEM_USE_CUDA OR MFEM_USE_HIP)
         list(APPEND backends gpu)
         if (HYPRE_MM)

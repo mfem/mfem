@@ -43,9 +43,9 @@ using namespace mfem;
 namespace mfem
 {
 
-inline constexpr void v0(const Vector&, Vector &v) { v = 0.0; }
-inline constexpr real_t rho0(const Vector&) { return 1.0; }
-inline constexpr real_t gamma(const Vector&) { return 1.4; }
+static void v0(const Vector&, Vector &v) { v = 0.0; }
+static real_t rho0(const Vector&) { return 1.0; }
+static real_t gamma(const Vector&) { return 1.4; }
 
 struct QuadratureData
 {
