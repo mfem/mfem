@@ -4792,11 +4792,12 @@ Mesh::Mesh(const NURBSExtension& ext)
    if (NURBSext->HavePatches())
    {
       NURBSFECollection  *fec = new NURBSFECollection(NURBSext->GetOrder());
-      FiniteElementSpace *fes = new FiniteElementSpace(this, fec, Dim,
+      const int vdim = NURBSext->GetPatchSpaceDimension();
+      FiniteElementSpace *fes = new FiniteElementSpace(this, fec, vdim,
                                                        Ordering::byVDIM);
       Nodes = new GridFunction(fes);
       Nodes->MakeOwner(fec);
-      NURBSext->SetCoordsFromPatches(*Nodes);
+      NURBSext->SetCoordsFromPatches(*Nodes, vdim);
       own_nodes = 1;
       spaceDim = Nodes->VectorDim();
       for (int i = 0; i < spaceDim; i++)
@@ -6410,7 +6411,7 @@ void Mesh::UpdateNURBS()
    NURBSext->SetKnotsFromPatches();
 
    Dim = NURBSext->Dimension();
-   spaceDim = Dim;
+   spaceDim = Nodes->FESpace()->GetVDim();
 
    if (NumOfElements != NURBSext->GetNE())
    {
@@ -6435,7 +6436,8 @@ void Mesh::UpdateNURBS()
    Nodes->FESpace()->Update();
    Nodes->Update();
    NodesUpdated();
-   NURBSext->SetCoordsFromPatches(*Nodes);
+   const int vdim = Nodes->FESpace()->GetVDim();
+   NURBSext->SetCoordsFromPatches(*Nodes, vdim);
 
    if (NumOfVertices != NURBSext->GetNV())
    {
@@ -7834,6 +7836,17 @@ bool Mesh::IsMixedMesh() const
 
 void Mesh::GetElementEdges(int i, Array<int> &edges, Array<int> &cor) const
 {
+   if (Dim == 1)
+   {
+      // In 1D, elements are segments and can be treated as edges.
+      edges.SetSize(1);
+      cor.SetSize(1);
+      edges[0] = i;
+      const int *v = elements[i]->GetVertices();
+      cor[0] = (v[0] < v[1]) ? (1) : (-1);
+      return;
+   }
+
    if (el_to_edge)
    {
       el_to_edge->GetRow(i, edges);
@@ -12409,6 +12422,38 @@ void Mesh::PrintTopoEdges(std::ostream &os, const Array<int> &e_to_k,
 {
    Array<int> vert;
 
+   // In 1D patch-topology NURBS meshes, knotvector orientation is stored in the
+   // file's `edges` section, but the topological 1D mesh has NumOfEdges == 0
+   // (its "faces" are vertices). When a valid edge->knotvector map is provided,
+   // print a pseudo-edge list derived from the 1D elements so external tools
+   // (e.g. VisIt) can consume the mapping.
+   if (Dim == 1 && NumOfEdges == 0 && e_to_k.Size() == NumOfElements)
+   {
+      const int ne = NumOfElements;
+      os << "\nedges\n" << ne << '\n';
+      for (int i = 0; i < ne; i++)
+      {
+         const int *v = elements[i]->GetVertices();
+         int v0 = v[0], v1 = v[1];
+
+         int ki = e_to_k[i];
+         const bool flip = (ki < 0); // desired output vertex order: descending
+         if (flip) { ki = -1 - ki; } // print the unsigned knotvector index
+
+         // Encode the sign of e_to_k in the vertex ordering, consistent with
+         // Mesh::LoadPatchTopo(): v0 > v1 => negative sign.
+         if ((v0 > v1) != flip) { std::swap(v0, v1); }
+
+         os << ki << ' ' << v0 << ' ' << v1 << '\n';
+      }
+
+      if (!vmap)
+      {
+         os << "\nvertices\n" << NumOfVertices << '\n';
+      }
+      return;
+   }
+
    os << "\nedges\n" << NumOfEdges << '\n';
    for (int i = 0; i < NumOfEdges; i++)
    {
@@ -15719,6 +15764,128 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const real_t sz)
       }
    }
    return mesh3d;
+}
+
+Mesh PartitionMPI(int dim, int mpi_cnt, int elem_per_mpi, bool print,
+                  int &par_ref, Array<int> &partitioning)
+{
+   MFEM_VERIFY(dim > 1, "Not implemented for 1D meshes.");
+
+   auto factor = [&](int N)
+   {
+      for (int i = static_cast<int>(sqrt(N)); i > 0; i--)
+      { if (N % i == 0) { return i; } }
+      return 1;
+   };
+
+   par_ref = 0;
+   const int ref_factor = (dim == 2) ? 4 : 8;
+
+   // Elements per task before performing parallel refinements.
+   // This will be used to form the serial mesh.
+   int el0 = elem_per_mpi;
+   while (el0 % ref_factor == 0)
+   {
+      el0 /= ref_factor;
+      par_ref++;
+   }
+
+   // In the serial mesh we have:
+   // The number of MPI blocks is mpi_cnt = mp_x.mpy_y.mpy_z.
+   // The size of each MPI block is el0 = el0_x.el0_y.el0_z.
+   int mpi_x, mpi_y, mpi_z;
+   int el0_x, el0_y, el0_z;
+   if (dim == 2)
+   {
+      mpi_x = factor(mpi_cnt);
+      mpi_y = mpi_cnt / mpi_x;
+
+      // Switch order for better balance.
+      el0_y = factor(el0);
+      el0_x = el0 / el0_y;
+   }
+   else
+   {
+      mpi_x = factor(mpi_cnt);
+      mpi_y = factor(mpi_cnt / mpi_x);
+      mpi_z = mpi_cnt / mpi_x / mpi_y;
+
+      // Switch order for better balance.
+      el0_z = factor(el0);
+      el0_y = factor(el0 / el0_z);
+      el0_x = el0 / el0_y / el0_z;
+   }
+
+   if (print && dim == 2)
+   {
+      int elem_par_x = mpi_x * el0_x * pow(2, par_ref),
+          elem_par_y = mpi_y * el0_y * pow(2, par_ref);
+
+      mfem::out << "--- Mesh generation: \n";
+      mfem::out << "Par mesh:    " << elem_par_x << " x " << elem_par_y
+                << " (" << elem_par_x * elem_par_y << " elements)\n"
+                << "Elem / task: "
+                << el0_x * pow(2, par_ref) << " x "
+                << el0_y * pow(2, par_ref)
+                << " (" << el0_x * pow(2, 2*par_ref) * el0_y << " elements)\n"
+                << "MPI blocks:  " << mpi_x << " x " << mpi_y
+                << " (" << mpi_x * mpi_y << " mpi tasks)\n" << "-\n"
+                << "Serial mesh: "
+                << mpi_x * el0_x << " x " << mpi_y * el0_y
+                << " (" << mpi_x * el0_x * mpi_y * el0_y << " elements)\n"
+                << "Elem / task: " << el0_x << " x " << el0_y << std::endl
+                << "Par refine:  " << par_ref << std::endl;
+      mfem::out << "--- \n";
+   }
+
+   if (print && dim == 3)
+   {
+      int elem_par_x = mpi_x * el0_x * pow(2, par_ref),
+          elem_par_y = mpi_y * el0_y * pow(2, par_ref),
+          elem_par_z = mpi_z * el0_z * pow(2, par_ref);
+
+      mfem::out << "--- Mesh generation: \n";
+      mfem::out << "Par mesh:    "
+                << elem_par_x << " x " << elem_par_y << " x " << elem_par_z
+                << " (" << elem_par_x*elem_par_y*elem_par_z << " elements)\n"
+                << "Elem / task: "
+                << el0_x * pow(2, par_ref) << " x "
+                << el0_y * pow(2, par_ref) << " x "
+                << el0_z * pow(2, par_ref)
+                << " (" << el0_x*pow(2, 3*par_ref)*el0_y*el0_z << " elements)\n"
+                << "MPI blocks:  " << mpi_x << " x " << mpi_y << " x " << mpi_z
+                << " (" << mpi_x * mpi_y * mpi_z << " mpi tasks)\n" << "-\n"
+                << "Serial mesh: "
+                << mpi_x*el0_x << " x " << mpi_y*el0_y << " x " << mpi_z*el0_z
+                << " (" << mpi_x*el0_x*mpi_y*el0_y*mpi_z*el0_z << " elements)\n"
+                << "Elem / task: "
+                << el0_x << " x " << el0_y << " x " << el0_z  << std::endl
+                << "Par refine:  " << par_ref << std::endl;
+      mfem::out << "--- \n";
+   }
+
+   Mesh mesh;
+   int nxyz[3];
+   if (dim == 2)
+   {
+      mesh = Mesh::MakeCartesian2D(mpi_x * el0_x,
+                                   mpi_y * el0_y, Element::QUADRILATERAL, true);
+      nxyz[0] = mpi_x; nxyz[1] = mpi_y;
+   }
+   else
+   {
+      mesh = Mesh::MakeCartesian3D(mpi_x * el0_x,
+                                   mpi_y * el0_y,
+                                   mpi_z * el0_z, Element::HEXAHEDRON, true);
+      nxyz[0] = mpi_x; nxyz[1] = mpi_y; nxyz[2] = mpi_z;
+   }
+
+   const int NE = mesh.GetNE();
+   partitioning.SetSize(NE);
+   std::unique_ptr<int[]> p_raw(mesh.CartesianPartitioning(nxyz));
+   std::copy(p_raw.get(), p_raw.get() + NE, partitioning.GetData());
+
+   return mesh;
 }
 
 bool Mesh::Conforming() const
