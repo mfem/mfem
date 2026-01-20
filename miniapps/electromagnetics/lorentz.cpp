@@ -131,19 +131,12 @@ protected:
    // Temporary vectors for particle computation
    mutable Vector pxB_, pm_, pp_;
 
-   /// FindPointsGSLIB based interpolation of grid function to particle vector
-   static void GetValues(const ParticleVector &coords, FindPointsGSLIB &finder,
-                         GridFunction &gf, ParticleVector &pv);
-
    /// Single particle Boris step
    void ParticleStep(Particle &part, real_t &dt);
 public:
 
    Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_,
          int nparticles, Ordering::Type pdata_ordering);
-
-   /// Interpolate E and B field onto particles
-   void InterpolateEB();
 
    /// Find Particles in mesh corresponding to E and B fields
    void FindParticles();
