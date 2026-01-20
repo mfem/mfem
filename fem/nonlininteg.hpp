@@ -473,6 +473,39 @@ public:
                             DenseMatrix &elmat) override;
 };
 
+template <typename Base>
+class StressDivergenceIntegrator : public Base
+{
+ protected:
+   /// Set up the quadrature space
+   void SetUpQuadratureSpace(const FiniteElementSpace &fes);
+
+   using Base::IntRule;
+
+#ifndef MFEM_THREAD_SAFE
+   Vector shape;
+   DenseMatrix dshape, gshape, pelmat;
+   Vector divshape;
+#endif
+
+   // PA extension
+   const FiniteElementSpace *fespace;   ///< Not owned.
+
+   const DofToQuad *maps;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
+   int vdim, ndofs;
+
+   std::unique_ptr<QuadratureSpace> q_space;
+   /// Workspace vector
+   std::unique_ptr<QuadratureFunction> q_vec;
+public:
+   StressDivergenceIntegrator() = default;
+
+   using Base::AssemblePA;
+   void AssemblePA(const FiniteElementSpace &fes) override;
+   void AddMultPA(const Vector &x, Vector &y) const override = 0;
+};
+
 }
 
 #endif

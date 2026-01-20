@@ -57,6 +57,8 @@ set(SRCS
   integ/lininteg_domain.cpp
   integ/lininteg_domain_grad.cpp
   integ/lininteg_domain_vectorfe.cpp
+  integ/nonlininteg_stress_divergence_ea.cpp
+  integ/nonlininteg_stress_divergence_pa.cpp
   integ/nonlininteg_vecconvection_pa.cpp
   integ/nonlininteg_vecconvection_mf.cpp
   coefficient.cpp
