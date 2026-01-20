@@ -605,8 +605,7 @@ void InitializeChargedParticles(ParticleSet &charged_particles,
    std::vector<std::normal_distribution<real_t>> norm_dist_p;
    for (int d = 0; d < dim; d++)
    {
-      if (dp[d] > 0_r) { norm_dist_p.emplace_back(p_center[d], dp[d]); }
-      else { norm_dist_p.emplace_back(p_center[d], 1_r); }
+      norm_dist_p.emplace_back(p_center[d], dp[d] > 0_r ? dp[d] : 1_r);
    }
 
    ParticleVector &X = charged_particles.Coords();
