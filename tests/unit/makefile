@@ -42,25 +42,13 @@ GPU_MAIN_OBJ = gpu_unit_test_main.o
 PGPU_MAIN_OBJ = pgpu_unit_test_main.o
 
 # Sedov numerical seq/par files and tests
-SEDOV_FILES = $(SRC)miniapps/test_sedov.cpp
-
 USE_CUDA := $(MFEM_USE_CUDA:NO=)
 USE_HIP := $(MFEM_USE_HIP:NO=)
 USE_GPU := $(or $(USE_CUDA),$(USE_HIP))
-SEQ_SEDOV_TESTS = sedov_tests_cpu sedov_tests_debug
-SEQ_SEDOV_TESTS += $(if $(USE_GPU),sedov_tests_gpu)
-SEQ_SEDOV_TESTS += $(if $(USE_GPU),sedov_tests_gpu_uvm)
-PAR_SEDOV_TESTS = $(SEQ_SEDOV_TESTS:%=p%)
-
-SEQ_SEDOV_CPU_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.cpu.o)
-SEQ_SEDOV_DEBUG_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.debug.o)
-SEQ_SEDOV_GPU_OBJ_FILES = $(if $(USE_GPU),$(SEDOV_FILES:$(SRC)%.cpp=%.gpu.o))
-SEQ_SEDOV_GPU_UVM_OBJ_FILES = $(if $(USE_GPU),$(SEDOV_FILES:$(SRC)%.cpp=%.gpu_uvm.o))
-
-PAR_SEDOV_CPU_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.pcpu.o)
-PAR_SEDOV_DEBUG_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.pdebug.o)
-PAR_SEDOV_GPU_OBJ_FILES = $(if $(USE_GPU),$(SEDOV_FILES:$(SRC)%.cpp=%.pgpu.o))
-PAR_SEDOV_GPU_UVM_OBJ_FILES = $(if $(USE_GPU),$(SEDOV_FILES:$(SRC)%.cpp=%.pgpu_uvm.o))
+SEQ_SEDOV_TESTS = sedov_pa_tests_cpu sedov_pa_tests_debug
+SEQ_SEDOV_TESTS += $(if $(USE_GPU),sedov_pa_tests_gpu)
+SEQ_SEDOV_TESTS += $(if $(USE_GPU),sedov_pa_tests_gpu_uvm)
+PAR_SEDOV_TESTS = $(SEQ_SEDOV_TESTS:%=p%) psedov_dfem_tests_cpu
 
 # TMOP numerical seq/par files and tests
 TMOP_FILES = $(SRC)miniapps/test_tmop_pa.cpp
@@ -143,43 +131,48 @@ $(CEED_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 	@mkdir -p $(@D)
 	$(CCC) $(MFEM_FLAGS) $(INCLUDES) -c $(abspath $(<)) -o $(@)
 
-# Template rule for devices
-# SEDOV Template rule for devices
-# 1: postfix of 'sedov_tests_', 2: prefix of '_OBJECT_FILES',
-# 3: configuration string for the MFEM device, separated with '$(comma)'
-comma=,
-define sedov_tests
-sedov_tests_$(1): SEDOV_TESTS_FLAGS=-DMFEM_SEDOV_DEVICE='"$(3)"'
-sedov_tests_$(1): $$(SEQ_SEDOV_$(2)_OBJ_FILES) \
- $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
-	$$(CCC) $$(SEQ_SEDOV_$(2)_OBJ_FILES) \
-	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
-$$(SEQ_SEDOV_$(2)_OBJ_FILES): %.$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
-	@mkdir -p $$(@D)
-	$$(CCC) $$(MFEM_FLAGS) $$(INCLUDES) -c $$(abspath $$(<)) \
-	   $$(SEDOV_TESTS_FLAGS) -o $$(@)
-endef
-$(eval $(call sedov_tests,cpu,CPU,cpu))
-$(eval $(call sedov_tests,debug,DEBUG,debug))
-$(eval $(call sedov_tests,gpu,GPU,gpu))
-$(eval $(call sedov_tests,gpu_uvm,GPU_UVM,gpu:uvm))
+# 'toupper': converts lower case letters to upper case
+_LOW2UP = a|A b|B c|C d|D e|E f|F g|G h|H i|I j|J k|K l|L m|M n|N o|O p|P q|Q r|R s|S t|T u|U v|V w|W x|X y|Y z|Z
+toupper = $(eval _=$1)$(strip $(foreach pair,$(_LOW2UP),$(eval _=$(subst $(word 1,$(subst |, ,$(pair))),$(word 2,$(subst |, ,$(pair))),$_)))$_)
 
-define psedov_tests
-psedov_tests_$(1): SEDOV_TESTS_FLAGS =-DMFEM_SEDOV_MPI
-psedov_tests_$(1): SEDOV_TESTS_FLAGS+=-DMFEM_SEDOV_DEVICE='"$(3)"'
-psedov_tests_$(1): $$(PAR_SEDOV_$(2)_OBJ_FILES) \
- $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
-	$$(CCC) $$(PAR_SEDOV_$(2)_OBJ_FILES) \
-	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
-$$(PAR_SEDOV_$(2)_OBJ_FILES): %.p$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
+upper:; @echo $(call toupper,gpu_uvm)
+
+# SEDOV template rule for devices:
+#  1. version of 'sedov_$(1)' (VER)
+#  2. postfix of 'sedov_$(1)_tests_$(2)' (DEV),
+#     also used as upper case prefix of '*_OBJ_FILES',
+#     and as device option with '_' substituted to ':'.
+# Note: the last calls/subst are required to be properly expanded
+define sedov
+VER := $(call toupper,$(1))
+DEV := $(call toupper,$(2))
+SEQ_SEDOV_$(VER)_$(DEV)_OBJ_FILES = $$(SRC)miniapps/test_sedov_$(1).$(2).o
+sedov_$(1)_tests_$(2): $$(SEQ_SEDOV_$(VER)_$(DEV)_OBJ_FILES) $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
+	$$(CCC) $$(SEQ_SEDOV_$(VER)_$(DEV)_OBJ_FILES) $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
+$$(SEQ_SEDOV_$(VER)_$(DEV)_OBJ_FILES): %.$(2).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
 	@mkdir -p $$(@D)
-	$$(CCC) $$(MFEM_FLAGS) $$(INCLUDES) -c $$(abspath $$(<)) \
-	   $$(SEDOV_TESTS_FLAGS) -o $$(@)
+	$$(CCC) $$(MFEM_FLAGS) $$(INCLUDES) -c $$(abspath $$(<)) -DMFEM_SEDOV_$(call toupper,$(1))_DEVICE='"$(subst _,:,$(2))"' -o $$(@)
 endef
-$(eval $(call psedov_tests,cpu,CPU,cpu))
-$(eval $(call psedov_tests,debug,DEBUG,debug))
-$(eval $(call psedov_tests,gpu,GPU,gpu))
-$(eval $(call psedov_tests,gpu_uvm,GPU_UVM,gpu:uvm))
+$(eval $(call sedov,pa,cpu))
+$(eval $(call sedov,pa,debug))
+$(eval $(call sedov,pa,gpu))
+$(eval $(call sedov,pa,gpu_uvm))
+
+define psedov
+VER := $(call toupper,$(1))
+DEV := $(call toupper,$(2))
+PAR_SEDOV_$(VER)_$(DEV)_OBJ_FILES = $$(SRC)miniapps/test_sedov_$(1).p$(2).o
+psedov_$(1)_tests_$(2): $$(PAR_SEDOV_$(VER)_$(DEV)_OBJ_FILES) $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
+	$$(CCC) $$(PAR_SEDOV_$(VER)_$(DEV)_OBJ_FILES) $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
+$$(PAR_SEDOV_$(VER)_$(DEV)_OBJ_FILES): %.p$(2).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
+	@mkdir -p $$(@D)
+	$$(CCC) $$(MFEM_FLAGS) $$(INCLUDES) -c $$(abspath $$(<)) -DMFEM_SEDOV_$(call toupper,$(1))_MPI -DMFEM_SEDOV_$(call toupper,$(1))_DEVICE='"$(subst _,:,$(2))"' -o $$(@)
+endef
+$(eval $(call psedov,dfem,cpu))
+$(eval $(call psedov,pa,cpu))
+$(eval $(call psedov,pa,debug))
+$(eval $(call psedov,pa,gpu))
+$(eval $(call psedov,pa,gpu_uvm))
 
 # For out-of-source builds, copy the meshes in ../../miniapps/multidomain from
 # the source location; these are used by 'punit_tests'.

@@ -439,8 +439,9 @@ tests/unit/unit_tests
 tests/unit/punit_tests
 tests/unit/gpu_unit_tests
 tests/unit/pgpu_unit_tests
-tests/unit/sedov_tests_*
-tests/unit/psedov_tests_*
+tests/unit/sedov_pa_tests_*
+tests/unit/psedov_pa_tests_*
+tests/unit/psedov_dfem_tests_*
 tests/unit/tmop_pa_tests_*
 tests/unit/ptmop_pa_tests_*
 tests/unit/ceed_tests
