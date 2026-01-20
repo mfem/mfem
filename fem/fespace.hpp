@@ -625,6 +625,10 @@ public:
    FiniteElementSpace(const FiniteElementSpace &orig, Mesh *mesh = NULL,
                       const FiniteElementCollection *fec = NULL);
 
+   /** Construct a FiniteElementSpace based on the given
+       FiniteElementCollection, @a fec.*/
+   /** @note If FiniteElementCollection, @a fec is a NURBS FE the required
+       NURBSExtension will be generated.*/
    FiniteElementSpace(Mesh *mesh,
                       const FiniteElementCollection *fec,
                       int vdim = 1, int ordering = Ordering::byNODES);
@@ -637,14 +641,29 @@ public:
                       const FiniteElementCollection *fec,
                       int vdim = 1, int ordering = Ordering::byNODES);
 
+   /** Factory for an Isoparametric FiniteElementSpace. The
+       FiniteElementCollection is equal to mesh.GetNodes()->OwnFEC(). */
+   static FiniteElementSpace
+   IsoparametricConstructor(Mesh* mesh, int vdim = 1,
+                            int ordering = Ordering::byNODES);
+
    /// Copy assignment not supported
    FiniteElementSpace& operator=(const FiniteElementSpace&) = delete;
 
    /// Returns the mesh
    inline Mesh *GetMesh() const { return mesh; }
 
+   /// Checks if the fespace is a NURBS fespace
+   bool IsNURBS() const { return NURBSext != NULL; }
+
+   /// Returns the NURBSExtension
    const NURBSExtension *GetNURBSext() const { return NURBSext; }
+
+   /// Returns the NURBSExtension
    NURBSExtension *GetNURBSext() { return NURBSext; }
+
+   /** Returns the owned NURBSExtension, and disowns NURBSExtension.
+       Throws an error if NURBSExtension is not owned.*/
    NURBSExtension *StealNURBSext();
 
    bool Conforming() const
@@ -1541,6 +1560,50 @@ public:
    FiniteElementCollection *Load(Mesh *m, std::istream &input);
 
    virtual ~FiniteElementSpace();
+};
+
+/** @brief NURBS spaces can have some atypical ownership semantics. This
+    class helps to dispatch for various cases.
+ */
+struct NURBSSpace
+{
+   /// Type of finite element to be used
+   enum class Type { H1, Hdiv, Hcurl};
+
+   /// FiniteElementSpace this NURBSSpace encapsulates
+   std::unique_ptr<FiniteElementSpace> fespace;
+   /// FiniteElementCollection generated - if required.
+   std::unique_ptr<NURBSFECollection> nurbs_fec;
+   /// FiniteElementCollection used for generating the FiniteElementSpace
+   const FiniteElementCollection* fec;
+
+   /** Primary constructor for NURBS FiniteElementSpace.
+       The FiniteElementCollection for the space is either:
+       - mesh->GetNodes()->FESpace()->FEColl() (when order[0] < 0)
+         this is the isoparametric/isogeometric case.
+       - a dedicated FiniteElementCollection generated based on type input.
+      Creates a NURBSExtension object that is owned by the returned
+      FiniteElementSpace. For this NURBSExtension object the orders of the
+      knotvectors are specified by @a orders, and the periodicity is pecified by @a
+      master_boundary and @a slave_boundary respectivly.*/
+   NURBSSpace(Mesh* mesh,
+              Array<int> orders,
+              int vdim = 1,
+              Type type = Type::H1,
+              int ordering = Ordering::byNODES,
+              Array<int>* master_boundaries = nullptr,
+              Array<int>* slave_boundaries = nullptr);
+
+   /** Fixed order NURBS constructor */
+   NURBSSpace(Mesh* mesh,
+              int order,
+              int vdim = 1,
+              Type type = Type::H1,
+              int ordering = Ordering::byNODES,
+              Array<int>* master_boundaries = nullptr,
+              Array<int>* slave_boundaries = nullptr)
+      : NURBSSpace(mesh, Array<int>({order}), vdim, type, ordering,master_boundaries,
+   slave_boundaries) {}
 };
 
 /// @brief Return true if the mesh contains only one topology and the elements

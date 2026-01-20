@@ -127,10 +127,9 @@ int main(int argc, char *argv[])
    //    Raviart-Thomas finite elements of the specified order.
    FiniteElementCollection *trial_fec = nullptr;
    FiniteElementCollection *test_fec = nullptr;
-   NURBSExtension *NURBSext = nullptr;
+
    if (mesh->NURBSext && NURBS)
    {
-      NURBSext  = new NURBSExtension(mesh->NURBSext, order);
       if (prob == 0)
       {
          trial_fec  = new NURBSFECollection(order);
@@ -167,8 +166,8 @@ int main(int argc, char *argv[])
       }
    }
 
-   FiniteElementSpace trial_fes(mesh, NURBSext, trial_fec);
-   FiniteElementSpace test_fes(mesh,trial_fes.StealNURBSext(), test_fec);
+   FiniteElementSpace trial_fes(mesh, trial_fec);
+   FiniteElementSpace test_fes(mesh, test_fec);
 
    int trial_size = trial_fes.GetTrueVSize();
    int test_size = test_fes.GetTrueVSize();

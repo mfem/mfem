@@ -4,7 +4,7 @@
 //
 // Sample runs:  nurbs_ex3 -m ../../data/square-nurbs.mesh
 //               nurbs_ex3 -m ../../data/square-nurbs.mesh -o 2
-//               nurbs_ex3 -m ../../data/cube-nurbs.mesh
+//               nurbs_ex3 -m ../../data/cube-nurbs.mesh -r 3
 //
 // Description:  This example code solves a simple electromagnetic diffusion
 //               problem corresponding to the second order definite Maxwell
@@ -42,7 +42,6 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/square-nurbs.mesh";
    int ref_levels = -1;
-   bool NURBS = true;
    int order = 1;
    bool static_cond = false;
    bool pa = false;
@@ -57,8 +56,6 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&NURBS, "-n", "--nurbs", "-nn","--no-nurbs",
-                  "NURBS.");
    args.AddOption(&freq, "-f", "--frequency", "Set the frequency for the exact"
                   " solution.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
@@ -88,9 +85,10 @@ int main(int argc, char *argv[])
    // 3. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   dim = mesh->Dimension();
-   int sdim = mesh->SpaceDimension();
+   Mesh mesh(mesh_file, 1, 1);
+   dim = mesh.Dimension();
+   int sdim = mesh.SpaceDimension();
+   MFEM_VERIFY(mesh.IsNURBS(), "Mesh must be nurbs");
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
@@ -100,33 +98,19 @@ int main(int argc, char *argv[])
       if (ref_levels < 0)
       {
          ref_levels =
-            (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+            (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
       }
       for (int l = 0; l < ref_levels; l++)
       {
-         mesh->UniformRefinement();
+         mesh.UniformRefinement();
       }
    }
 
    // 5. Define a finite element space on the mesh. Here we use the
    //    Raviart-Thomas finite elements of the specified order.
-   FiniteElementCollection *fec = nullptr;
-   NURBSExtension *NURBSext = nullptr;
+   NURBSSpace ns(&mesh, order, 1, NURBSSpace::Type::Hcurl);
+   FiniteElementSpace* fespace = ns.fespace.get();
 
-   if (mesh->NURBSext && NURBS)
-   {
-      fec = new NURBS_HCurlFECollection(order,dim);
-      NURBSext  = new NURBSExtension(mesh->NURBSext, order);
-      mfem::out<<"Create NURBS fec and ext"<<std::endl;
-   }
-   else
-   {
-      NURBS = false;
-      fec = new ND_FECollection(order, dim);
-      mfem::out<<"Create Normal fec"<<std::endl;
-   }
-
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, NURBSext, fec);
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
 
@@ -135,9 +119,9 @@ int main(int argc, char *argv[])
    //    the boundary attributes from the mesh as essential (Dirichlet) and
    //    converting them to a list of true dofs.
    Array<int> ess_tdof_list;
-   if (mesh->bdr_attributes.Size())
+   if (mesh.bdr_attributes.Size())
    {
-      Array<int> ess_bdr(mesh->bdr_attributes.Max());
+      Array<int> ess_bdr(mesh.bdr_attributes.Max());
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
@@ -149,9 +133,9 @@ int main(int argc, char *argv[])
    //    given by the function f_exact and phi_i are the basis functions in the
    //    finite element fespace.
    VectorFunctionCoefficient f(sdim, f_exact);
-   LinearForm *b = new LinearForm(fespace);
-   b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
-   b->Assemble();
+   LinearForm b(fespace);
+   b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
+   b.Assemble();
 
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x by projecting the exact
@@ -165,30 +149,30 @@ int main(int argc, char *argv[])
    // 9. Set up the bilinear form corresponding to the EM diffusion operator
    //    curl muinv curl + sigma I, by adding the curl-curl and the mass domain
    //    integrators.
-   Coefficient *muinv = new ConstantCoefficient(1.0);
-   Coefficient *sigma = new ConstantCoefficient(1.0);
-   BilinearForm *a = new BilinearForm(fespace);
-   if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   a->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
-   a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
+   ConstantCoefficient muinv(1.0);
+   ConstantCoefficient sigma(1.0);
+   BilinearForm a(fespace);
+   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   a.AddDomainIntegrator(new CurlCurlIntegrator(muinv));
+   a.AddDomainIntegrator(new VectorFEMassIntegrator(sigma));
 
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
    //     conditions, applying conforming constraints for non-conforming AMR,
    //     static condensation, etc.
-   if (static_cond) { a->EnableStaticCondensation(); }
-   a->Assemble();
+   if (static_cond) { a.EnableStaticCondensation(); }
+   a.Assemble();
 
    OperatorPtr A;
    Vector B, X;
-   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
    cout << "Size of linear system: " << A->Height() << endl;
 
    // 11. Solve the linear system A X = B.
    if (pa) // Jacobi preconditioning in partial assembly mode
    {
-      OperatorJacobiSmoother M(*a, ess_tdof_list);
+      OperatorJacobiSmoother M(a, ess_tdof_list);
       PCG(*A, M, B, X, 1, 1000, 1e-12, 0.0);
    }
    else
@@ -209,7 +193,7 @@ int main(int argc, char *argv[])
    }
 
    // 12. Recover the solution as a finite element grid function.
-   a->RecoverFEMSolution(X, *b, x);
+   a.RecoverFEMSolution(X, b, x);
 
    // 13. Compute and print the L^2 norm of the error.
    cout << "\n|| E_h - E ||_{L^2} = " << x.ComputeL2Error(E) << '\n' << endl;
@@ -219,7 +203,7 @@ int main(int argc, char *argv[])
    {
       ofstream mesh_ofs("refined.mesh");
       mesh_ofs.precision(8);
-      mesh->Print(mesh_ofs);
+      mesh.Print(mesh_ofs);
       ofstream sol_ofs("sol.gf");
       sol_ofs.precision(8);
       x.Save(sol_ofs);
@@ -231,22 +215,13 @@ int main(int argc, char *argv[])
       char vishost[] = "localhost";
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *mesh << x << flush;
+      sol_sock << "solution\n" << mesh << x << flush;
    }
 
    // 16. Create output in visit format
-   VisItDataCollection visit_dc("Example3", mesh);
+   VisItDataCollection visit_dc("Example3", &mesh);
    visit_dc.RegisterField("x", &x);
    visit_dc.Save();
-
-   // 17. Free the used memory.
-   delete a;
-   delete sigma;
-   delete muinv;
-   delete b;
-   delete fespace;
-   delete fec;
-   delete mesh;
 
    return 0;
 }
