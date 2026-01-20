@@ -55,9 +55,9 @@ all: $(MINIAPPS)
 	  $(MFEM_LIBS)
 
 ifeq ($(MFEM_USE_MPI),YES)
-	lorentz: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
-		$(MFEM_CXX) $(MFEM_FLAGS) -c $(<)
-		$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $(COMMON_LIB) $(MFEM_LIBS)
+lorentz: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $(COMMON_LIB) $(MFEM_LIBS)
 endif
 
 # Rules for compiling miniapp dependencies

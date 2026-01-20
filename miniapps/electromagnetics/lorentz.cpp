@@ -601,12 +601,24 @@ void InitializeChargedParticles(ParticleSet &charged_particles,
                                 const Vector &x_min, const Vector &x_max, const Vector &p_min,
                                 const Vector &p_max, real_t m, real_t q)
 {
+   int dim = charged_particles.Coords().GetVDim();
    int rank;
    MPI_Comm_rank(charged_particles.GetComm(), &rank);
    std::mt19937 gen(rank);
-   std::uniform_real_distribution<> real_dist(0.0,1.0);
 
-   int dim = charged_particles.Coords().GetVDim();
+   // Set up uniform distribution for position
+   std::uniform_real_distribution<real_t> real_dist_x(0_r,1_r);
+
+   // Set up guassian distribution for momentum. Centered between p_min and
+   // p_max with 3-sigma range covering the box.
+   Vector p_center(dim);
+   add(0.5, p_min, p_max, p_center);
+   Vector dp = p_max; dp -= p_min; dp *= 1.0/6.0; // 3-sigma range
+   std::vector<std::normal_distribution<real_t>> norm_dist_p;
+   for (int d = 0; d < dim; d++)
+   {
+      norm_dist_p.emplace_back(p_center[d], std::max(0_r, dp[d]));
+   }
 
    ParticleVector &X = charged_particles.Coords();
    ParticleVector &P = charged_particles.Field(Boris::MOM);
@@ -617,11 +629,19 @@ void InitializeChargedParticles(ParticleSet &charged_particles,
    {
       for (int d = 0; d < dim; d++)
       {
-         // Initialize coords
-         X(i, d) = x_min[d] + real_dist(gen)*(x_max[d] - x_min[d]);
+         if (x_min[d] >= x_max[d]) { X(i,d) = x_min[d]; }
+         else
+         {
+            X(i, d) = x_min[d] + real_dist_x(gen)*(x_max[d] - x_min[d]);
+         }
 
          // Initialize momentum
-         P(i, d) = p_min[d] + real_dist(gen)*(p_max[d] - p_min[d]);
+         real_t p_val = norm_dist_p[d](gen);
+         while (p_val < p_min[d] || p_val > p_max[d])
+         {
+            p_val = norm_dist_p[d](gen);
+         }
+         P(i, d) = p_val;
       }
       // Initialize mass + charge
       M(i) = m;
