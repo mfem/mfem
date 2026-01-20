@@ -601,11 +601,12 @@ void InitializeChargedParticles(ParticleSet &charged_particles,
    // p_max with 3-sigma range covering the box.
    Vector p_center(dim);
    add(0.5, p_min, p_max, p_center);
-   Vector dp = p_max; dp -= p_min; dp *= 1.0/6.0; // 3-sigma range
+   Vector dp = p_max; dp -= p_min; dp *= 1_r/6_r; // 3-sigma range
    std::vector<std::normal_distribution<real_t>> norm_dist_p;
    for (int d = 0; d < dim; d++)
    {
-      norm_dist_p.emplace_back(p_center[d], dp[d]);
+      if (dp[d] > 0_r) { norm_dist_p.emplace_back(p_center[d], dp[d]); }
+      else { norm_dist_p.emplace_back(p_center[d], 1_r); }
    }
 
    ParticleVector &X = charged_particles.Coords();
@@ -624,7 +625,7 @@ void InitializeChargedParticles(ParticleSet &charged_particles,
          }
 
          // Initialize momentum
-         if (p_min(d) >= p_max[d]) { P(i,d) = p_min[d]; }
+         if (p_min[d] >= p_max[d]) { P(i,d) = p_min[d]; }
          else
          {
             real_t p_val = norm_dist_p[d](gen);
