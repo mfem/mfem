@@ -1038,6 +1038,13 @@ public:
 
    /// Print control points for coarse patches.
    virtual void PrintCoarsePatches(std::ostream &os);
+
+protected:
+   /// Construct and return a table of DOFs for each global element.
+   virtual Table *GetGlobalElementDofTable();
+   virtual Table *Get1DGlobalElementDofTable();
+   virtual Table *Get2DGlobalElementDofTable();
+   virtual Table *Get3DGlobalElementDofTable();
 };
 
 
@@ -1049,18 +1056,14 @@ private:
    /// Partitioning of the global elements by MPI rank
    mfem::Array<int> partitioning;
 
-   /// Construct and return a table of DOFs for each global element.
-   Table *GetGlobalElementDofTable();
-   Table *Get1DGlobalElementDofTable();
-   Table *Get2DGlobalElementDofTable();
-   Table *Get3DGlobalElementDofTable();
-
    /** @brief Set active global elements and boundary elements based on MPI
        ranks in @a partition and the array @a active_bel. */
    void SetActive(const int *partitioning_, const Array<bool> &active_bel);
 
    /// Set up GroupTopology @a gtopo for MPI communication.
    void BuildGroups(const int *partitioning_, const Table &elem_dof);
+
+protected:
 
 public:
    GroupTopology gtopo;
@@ -1083,6 +1086,13 @@ public:
        @a par_parent; the @a parent object is destroyed.
        The @a parent can be either a local NURBSExtension or a global one. */
    ParNURBSExtension(NURBSExtension *parent,
+                     const ParNURBSExtension *par_parent);
+
+   /** @brief Create a parallel version of @a parent with partitioning as in
+       @a par_parent based on @a VNURBSExt in Hcurl space; the @a parent object is destroyed.
+       The @a parent can be either a local NURBSExtension or a global one. */
+   ParNURBSExtension(NURBSExtension *parent,
+                     Array<NURBSExtension *> VNURBSExt,
                      const ParNURBSExtension *par_parent);
 };
 #endif

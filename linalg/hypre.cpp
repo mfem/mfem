@@ -5600,6 +5600,7 @@ void HypreAMS::MakeGradientAndInterpolation(
 {
    const FiniteElementCollection *edge_fec = edge_fespace->FEColl();
    bool trace_space = dynamic_cast<const ND_Trace_FECollection *>(edge_fec);
+   bool nurbs_space = dynamic_cast<const NURBS_HCurlFECollection *>(edge_fec);
 
    ParMesh *pmesh = edge_fespace->GetParMesh();
    int dim = pmesh->Dimension();
@@ -5613,7 +5614,12 @@ void HypreAMS::MakeGradientAndInterpolation(
 
    // Define the nodal linear finite element space associated with edge_fespace
    FiniteElementCollection *vert_fec;
-   if (trace_space)
+   if (nurbs_space)
+   {
+      // For NURBS HCurl space, use NURBS H1 space for discrete gradient
+      vert_fec = new NURBSFECollection(p);
+   }
+   else if (trace_space)
    {
       vert_fec = new H1_Trace_FECollection(p, dim);
    }
@@ -5621,8 +5627,17 @@ void HypreAMS::MakeGradientAndInterpolation(
    {
       vert_fec = new H1_FECollection(p, dim);
    }
-   ParFiniteElementSpace *vert_fespace = new ParFiniteElementSpace(pmesh,
-                                                                   vert_fec);
+   ParFiniteElementSpace *vert_fespace;
+   if (nurbs_space)
+   {
+      // For NURBS, need to use the NURBSExtension from the mesh
+      NURBSExtension *NURBSext = new NURBSExtension(pmesh->NURBSext, p);
+      vert_fespace = new ParFiniteElementSpace(pmesh, NURBSext, vert_fec);
+   }
+   else
+   {
+      vert_fespace = new ParFiniteElementSpace(pmesh, vert_fec);
+   }
 
    // generate and set the discrete gradient
    ParDiscreteLinearOperator *grad;
@@ -5644,7 +5659,8 @@ void HypreAMS::MakeGradientAndInterpolation(
    // generate and set the vertex coordinates or Nedelec interpolation matrices
    x = y = z = NULL;
    Pi = Pix = Piy = Piz = NULL;
-   if (p == 1 && pmesh->GetNodes() == NULL && vdim <= sdim)
+   // For NURBS, always use interpolation matrices (not vertex coordinates)
+   if (p == 1 && pmesh->GetNodes() == NULL && vdim <= sdim && !nurbs_space)
    {
       ParGridFunction x_coord(vert_fespace);
       ParGridFunction y_coord(vert_fespace);
@@ -5680,9 +5696,21 @@ void HypreAMS::MakeGradientAndInterpolation(
    }
    else
    {
-      ParFiniteElementSpace *vert_fespace_d =
-         new ParFiniteElementSpace(pmesh, vert_fec, std::max(sdim, vdim),
-                                   Ordering::byVDIM);
+      ParFiniteElementSpace *vert_fespace_d;
+      if (nurbs_space)
+      {
+         // For NURBS, need to use the NURBSExtension with vector dimension
+         NURBSExtension *NURBSext_d = new NURBSExtension(pmesh->NURBSext, p);
+         vert_fespace_d = new ParFiniteElementSpace(pmesh, NURBSext_d, vert_fec,
+                                                    std::max(sdim, vdim),
+                                                    Ordering::byVDIM);
+      }
+      else
+      {
+         vert_fespace_d = new ParFiniteElementSpace(pmesh, vert_fec,
+                                                    std::max(sdim, vdim),
+                                                    Ordering::byVDIM);
+      }
 
       ParDiscreteLinearOperator *id_ND;
       id_ND = new ParDiscreteLinearOperator(vert_fespace_d, edge_fespace);
