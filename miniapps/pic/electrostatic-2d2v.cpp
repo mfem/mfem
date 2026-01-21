@@ -740,9 +740,9 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet& particles,
 
    if (ctx.visualization)
    {
-      common::VisualizeField(vis_e, "localhost", 19916, E_gf, "E_field",
+      common::VisualizeField(vis_e, "localhost", ctx.visport, E_gf, "E_field",
                              0, 0, 500, 500);
-      common::VisualizeField(vis_phi, "localhost", 19916, phi_gf, "Potential",
+      common::VisualizeField(vis_phi, "localhost", ctx.visport, phi_gf, "Potential",
                              500, 0, 500, 500);
    }
 }
