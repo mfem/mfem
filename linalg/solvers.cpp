@@ -851,6 +851,216 @@ void SLI(const Operator &A, Solver &B, const Vector &b, Vector &x,
    sli.Mult(b, x);
 }
 
+real_t FPIRelaxation::Dot(const Vector &x, const Vector &y) const
+{
+   if (dot_oper) { return dot_oper->Eval(x,y); } // Use custom inner product (if provided)
+#ifndef MFEM_USE_MPI
+   return (x * y);
+#else
+   return InnerProduct(comm, x, y);
+#endif
+}
+
+real_t FPIRelaxation::SquaredDistance(const Vector &x, const Vector &y) const
+{
+#ifndef MFEM_USE_MPI
+   return x.DistanceSquaredTo(y);
+#else
+   return DistanceSquared(comm, x, y);
+#endif
+}
+
+void AitkenRelaxation::Init()
+{
+   FPIRelaxation::Init();
+   MemoryType mt = GetMemoryType(oper->GetMemoryClass());
+   rold.SetSize(oper->Width(), mt);
+   rold.UseDevice(true);
+   rold = 0.0;
+   rold_nsq = 0.0;
+}
+
+real_t AitkenRelaxation::Eval(const Vector &state, const Vector &residual,
+                              real_t res_norm, real_t rfactor)
+{
+   real_t rdot  = Dot(rold, residual);
+   real_t rnsq  = res_norm * res_norm;
+   real_t denom = rnsq - 2.0*rdot + rold_nsq; // ||rold - residual||^2
+   real_t ratio = (rdot - rold_nsq) / denom;
+
+   rold_nsq = rnsq;
+   rold     = residual;
+   if (ratio == 0.0) { return rfactor; } // Avoid factor = 0.0 at first call
+   return Clamp(-rfactor * ratio);
+}
+
+void SteepestDescentRelaxation::Init()
+{
+   FPIRelaxation::Init();
+   MemoryType mt = GetMemoryType(oper->GetMemoryClass());
+   z.SetSize(oper->Width(), mt);
+   z.UseDevice(true);
+}
+
+real_t SteepestDescentRelaxation::Eval(const Vector &state,
+                                       const Vector &residual,
+                                       real_t res_norm, real_t rfactor)
+{
+   MFEM_VERIFY(oper,"Operator not set; set using SetOperator(Operator&)")
+
+   Operator *J = &oper->GetGradient(state);
+   real_t num = res_norm * res_norm;
+   J->Mult(residual, z); // rold = F'(x) * rnew;
+   real_t denom = Dot(z, residual);
+   return Clamp(num/denom);
+}
+
+/// Fixed point iteration solver: x <- f(x)
+void FPISolver::UpdateVectors()
+{
+   MemoryType mt = GetMemoryType(oper->GetMemoryClass());
+
+   r.SetSize(width, mt);
+   r.UseDevice(true);
+
+   z.SetSize(width, mt);
+   z.UseDevice(true);
+}
+
+void FPISolver::SetOperator(const Operator &op)
+{
+   IterativeSolver::SetOperator(op);
+   UpdateVectors();
+   if (!relax_method)
+   {
+      relax_method = new FPIRelaxation(); // Default relaxation strategy
+      relax_owned = true;
+   }
+   relax_method->SetOperator(*oper);
+}
+
+void FPISolver::SetRelaxation(real_t rfactor, FPIRelaxation *relaxation,
+                              bool own)
+{
+   relax_factor = rfactor;
+   if (relaxation)
+   {
+      if (relax_method && relax_owned) { delete relax_method; }
+      relax_method = relaxation;
+      relax_owned  = own;
+   }
+#ifdef MFEM_USE_MPI
+   if (relax_method) { relax_method->SetComm(this->GetComm()); }
+#endif
+}
+
+/// Iterative solution of the (non)linear system using Fixed Point Iteration
+void FPISolver::Mult(const Vector &b, Vector &x) const
+{
+   int i;
+   real_t factor = relax_factor;
+   real_t r0, nom, nom0, nomold = 1, cf, fac_old = factor;
+
+   if (iterative_mode)
+   {
+      oper->Mult(x, z);  // z = F(x)
+      subtract(z, x, r); // r = z - x
+   }
+   else
+   {
+      x = 0.0;
+      oper->Mult(x, r);  // r = F(x)
+   }
+
+   nom0 = nom = sqrt(Dot(r, r));
+   initial_norm = nom0;
+
+   if (print_options.iterations | print_options.first_and_last)
+   {
+      mfem::out << "   Iteration : " << setw(3) << right << 0 << "  ||Br|| = "
+                << nom << (print_options.first_and_last ? " ..." : "") << '\n';
+   }
+
+   r0 = std::max(nom*rel_tol, abs_tol);
+   if (nom <= r0)
+   {
+      converged = true;
+      final_iter = 0;
+      final_norm = nom;
+      return;
+   }
+
+   // start iteration
+   converged = false;
+   final_iter = max_iter;
+   relax_method->Init();
+   for (i = 1; true; )
+   {
+      factor = relax_method->Eval(x,r,nom,fac_old);
+      x.Add(factor, r); // x = x + factor * r
+
+      oper->Mult(x, z);  // z = F(x)
+      subtract(z, x, r); // r = z - x
+      nom = sqrt(Dot(r, r));
+
+      cf = nom/nomold;
+      nomold = nom;
+      fac_old = factor;
+
+      bool done = false;
+      if (nom < r0)
+      {
+         converged = true;
+         final_iter = i;
+         done = true;
+      }
+
+      if (++i > max_iter)
+      {
+         done = true;
+      }
+
+      if (print_options.iterations || (done && print_options.first_and_last))
+      {
+         mfem::out << "   Iteration : " << setw(3) << right << (i-1)
+                   << "  ||r|| = " << setw(11) << left << nom
+                   << "\trlx. fac.: " << fac_old << '\n';
+      }
+
+      if (done) { break; }
+   }
+
+   if (print_options.summary || (print_options.warnings && !converged))
+   {
+      const auto rf = pow (nom/nom0, 1.0/final_iter);
+      mfem::out << "FPI: Number of iterations: " << final_iter << '\n'
+                << "Conv. rate: " << cf << '\n'
+                << "Average reduction factor: "<< rf << '\n';
+   }
+   if (print_options.warnings && !converged)
+   {
+      mfem::out << "FPI: No convergence!" << '\n';
+   }
+
+   final_norm = nom;
+}
+
+void FPI(const Operator &A, const Vector &b, Vector &x,
+         int print_iter, int max_num_iter,
+         real_t RTOLERANCE, real_t ATOLERANCE,
+         real_t relax_factor, FPIRelaxation *relax_method)
+{
+   MFEM_PERF_FUNCTION;
+
+   FPISolver fpi;
+   fpi.SetPrintLevel(print_iter);
+   fpi.SetMaxIter(max_num_iter);
+   fpi.SetRelTol(sqrt(RTOLERANCE));
+   fpi.SetAbsTol(sqrt(ATOLERANCE));
+   fpi.SetOperator(A);
+   fpi.SetRelaxation(relax_factor,relax_method,false);
+   fpi.Mult(b, x);
+}
 
 void CGSolver::UpdateVectors()
 {
