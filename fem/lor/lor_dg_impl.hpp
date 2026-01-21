@@ -22,9 +22,13 @@ namespace mfem
 Array<int> BatchedLOR_DG::GetFaceInfo() const
 {
    Mesh &mesh = *fes_ho.GetMesh();
+   const Array<int> &bdr_face_attrs = mesh.GetBdrFaceAttributes();
    const int nf = mesh.GetNumFaces();
    Array<int> face_info(nf * 6); // (e0, f0, o0, e1, f1, o1)
    auto h_face_info = Reshape(face_info.HostWrite(), 6, nf);
+
+   int bdr_face_counter = 0;
+
    for (int f = 0; f < nf; ++f)
    {
       auto finfo = mesh.GetFaceInformation(f);
@@ -42,6 +46,19 @@ Array<int> BatchedLOR_DG::GetFaceInfo() const
          h_face_info(3, f) = -1;
          h_face_info(4, f) = -1;
          h_face_info(5, f) = -1;
+      }
+
+      if (finfo.IsBoundary())
+      {
+         // Check if Neumann boundary; skip these when adding boundary penalties
+         const int bdr_attr = bdr_face_attrs[bdr_face_counter];
+         if (!has_bdr_integ || (bdr_markers && !(*bdr_markers)[bdr_attr - 1]))
+         {
+            h_face_info(0, f) = -1;
+            h_face_info(1, f) = -1;
+            h_face_info(2, f) = -1;
+         }
+         bdr_face_counter += 1;
       }
    }
    return face_info;
@@ -144,6 +161,7 @@ void BatchedLOR_DG::AssembleFaceTerms()
    {
       const int f_0 = d_face_info(1, f);
       const int f_1 = d_face_info(4, f);
+      if (f_0 < 0) { return; } // Skip Neumann boundary faces
       const int nsides = (f_1 >= 0) ? 2 : 1;
       for (int el_i = 0; el_i < nsides; ++el_i)
       {
