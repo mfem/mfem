@@ -117,7 +117,8 @@ protected:
    void ParticleStep(Particle& part, real_t& dt, bool zeroth_step = false);
 
 public:
-   PIC(MPI_Comm comm, ParGridFunction* E_gf_, FindPointsGSLIB& E_finder_, int num_particles,
+   PIC(MPI_Comm comm, ParGridFunction* E_gf_, FindPointsGSLIB& E_finder_,
+       int num_particles,
        Ordering::Type pdata_ordering);
    void InterpolateE();
    void Step(real_t& t, real_t& dt, bool zeroth_step = false);
@@ -383,7 +384,8 @@ void PIC::ParticleStep(Particle& part, real_t& dt, bool zeroth_step)
    }
 }
 
-PIC::PIC(MPI_Comm comm, ParGridFunction* E_gf_, FindPointsGSLIB& E_finder_, int num_particles,
+PIC::PIC(MPI_Comm comm, ParGridFunction* E_gf_, FindPointsGSLIB& E_finder_,
+         int num_particles,
          Ordering::Type pdata_ordering)
    : E_gf(E_gf_), E_finder(E_finder_)
 {
