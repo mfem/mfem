@@ -234,7 +234,7 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
 }
 
 void FindPointsGSLIB::FindPoints(const Vector &point_pos,
-                                 int point_pos_ordering)
+                                 const int point_pos_ordering)
 {
    MFEM_VERIFY(setupflag, "Use FindPointsGSLIB::Setup before finding points.");
    bool dev_mode = (point_pos.UseDevice() && Device::IsEnabled());
@@ -482,7 +482,7 @@ void FindPointsGSLIB::SetupDevice()
 }
 
 void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
-                                         int point_pos_ordering)
+                                         const int point_pos_ordering)
 {
    if (!DEV.setup_device)
    {
@@ -505,13 +505,13 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
 
    if (dim == 2)
    {
-      FindPointsLocal2(point_pos, point_pos_ordering, gsl_code, gsl_elem, gsl_ref,
-                       gsl_dist, points_cnt);
+      FindPointsLocal2(point_pos, point_pos_ordering, gsl_code, gsl_elem,
+                       gsl_ref, gsl_dist, points_cnt);
    }
    else
    {
-      FindPointsLocal3(point_pos, point_pos_ordering, gsl_code, gsl_elem, gsl_ref,
-                       gsl_dist, points_cnt);
+      FindPointsLocal3(point_pos, point_pos_ordering, gsl_code, gsl_elem,
+                       gsl_ref, gsl_dist, points_cnt);
    }
 
    // Sync from device to host
@@ -1085,7 +1085,7 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
 #else
 void FindPointsGSLIB::SetupDevice() {};
 void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
-                                         int point_pos_ordering) {};
+                                         const int point_pos_ordering) {};
 void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
                                           Vector &field_out,
                                           const int nel, const int ncomp,
@@ -1094,7 +1094,8 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
 #endif
 
 void FindPointsGSLIB::FindPoints(Mesh &m, const Vector &point_pos,
-                                 int point_pos_ordering, const double bb_t,
+                                 const int point_pos_ordering,
+                                 const double bb_t,
                                  const double newt_tol, const int npt_max)
 {
    if (!setupflag || (mesh != &m) )
@@ -1105,16 +1106,28 @@ void FindPointsGSLIB::FindPoints(Mesh &m, const Vector &point_pos,
 }
 
 void FindPointsGSLIB::Interpolate(const Vector &point_pos,
-                                  const GridFunction &field_in, Vector &field_out,
-                                  int point_pos_ordering)
+                                  const GridFunction &field_in,
+                                  Vector &field_out,
+                                  const int point_pos_ordering)
 {
    FindPoints(point_pos, point_pos_ordering);
    Interpolate(field_in, field_out);
 }
 
+void FindPointsGSLIB::Interpolate(const Vector &point_pos,
+                                  const GridFunction &field_in,
+                                  Vector &field_out,
+                                  const int point_pos_ordering,
+                                  const int field_out_ordering)
+{
+   FindPoints(point_pos, point_pos_ordering);
+   Interpolate(field_in, field_out, field_out_ordering);
+}
+
 void FindPointsGSLIB::Interpolate(Mesh &m, const Vector &point_pos,
-                                  const GridFunction &field_in, Vector &field_out,
-                                  int point_pos_ordering)
+                                  const GridFunction &field_in,
+                                  Vector &field_out,
+                                  const int point_pos_ordering)
 {
    FindPoints(m, point_pos, point_pos_ordering);
    Interpolate(field_in, field_out);
@@ -1470,7 +1483,7 @@ void FindPointsGSLIB::SetupSplitMeshesAndIntegrationRules(const int order)
 }
 
 void FindPointsGSLIB::GetNodalValues(const GridFunction *gf_in,
-                                     Vector &node_vals)
+                                     Vector &node_vals) const
 {
    const GridFunction *nodes     = gf_in;
    const FiniteElementSpace *fes = nodes->FESpace();
@@ -1759,6 +1772,13 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
 void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
                                   Vector &field_out)
 {
+   Interpolate(field_in, field_out, field_in.FESpace()->GetOrdering());
+}
+
+void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
+                                  Vector &field_out,
+                                  const int field_out_ordering)
+{
    const int  gf_order   = field_in.FESpace()->GetMaxElementOrder(),
               mesh_order = mesh->GetNodalFESpace()->GetMaxElementOrder();
 
@@ -1800,7 +1820,7 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
       const int maxOrder = field_in.FESpace()->GetMaxElementOrder();
 
       InterpolateOnDevice(node_vals, field_out, NE_split_total, ncomp,
-                          maxOrder+1, field_in.FESpace()->GetOrdering());
+                          maxOrder+1, field_out_ordering);
       return;
 #endif
    }
@@ -1812,12 +1832,13 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
        field_in.FESpace()->IsVariableOrder() ==
        mesh->GetNodalFESpace()->IsVariableOrder())
    {
-      InterpolateH1(field_in, field_out);
+      InterpolateH1(field_in, field_out, field_out_ordering);
       return;
    }
    else
    {
-      InterpolateGeneral(field_in, field_out);
+      InterpolateGeneral(field_in, field_out,
+                         field_out_ordering);
       if (!fec_l2 || avgtype == AvgType::NONE) { return; }
    }
 
@@ -1861,11 +1882,11 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
 
       if (gf_order_h1 == mesh_order) // basis is GaussLobatto by default
       {
-         InterpolateH1(field_in_h1, field_out_l2);
+         InterpolateH1(field_in_h1, field_out_l2, field_out_ordering);
       }
       else
       {
-         InterpolateGeneral(field_in_h1, field_out_l2);
+         InterpolateGeneral(field_in_h1, field_out_l2, field_out_ordering);
       }
 
       // Copy interpolated values for the points on element border
@@ -1873,7 +1894,7 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
       {
          for (int i = 0; i < indl2.Size(); i++)
          {
-            int idx = field_in_h1.FESpace()->GetOrdering() == Ordering::byNODES?
+            int idx = field_out_ordering == Ordering::byNODES?
                       indl2[i] + j*points_cnt:
                       indl2[i]*ncomp + j;
             field_out(idx) = field_out_l2(idx);
@@ -1883,7 +1904,8 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
 }
 
 void FindPointsGSLIB::InterpolateH1(const GridFunction &field_in,
-                                    Vector &field_out)
+                                    Vector &field_out,
+                                    const int field_out_ordering)
 {
    FiniteElementSpace ind_fes(mesh, field_in.FESpace()->FEColl());
    if (field_in.FESpace()->IsVariableOrder())
@@ -1913,7 +1935,8 @@ void FindPointsGSLIB::InterpolateH1(const GridFunction &field_in,
                 dataptrout = i*points_cnt;
       if (field_in.FESpace()->GetOrdering() == Ordering::byNODES)
       {
-         field_in_scalar.NewDataAndSize(field_in.GetData()+dataptrin, points_fld);
+         field_in_scalar.NewDataAndSize(field_in.GetData()+dataptrin,
+                                        points_fld);
       }
       else
       {
@@ -1945,7 +1968,7 @@ void FindPointsGSLIB::InterpolateH1(const GridFunction &field_in,
                         (gslib::findpts_data_3 *)this->fdataD);
       }
    }
-   if (field_in.FESpace()->GetOrdering() == Ordering::byVDIM)
+   if (field_out_ordering == Ordering::byVDIM)
    {
       Vector field_out_temp = field_out;
       for (int i = 0; i < ncomp; i++)
@@ -1959,7 +1982,8 @@ void FindPointsGSLIB::InterpolateH1(const GridFunction &field_in,
 }
 
 void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
-                                         Vector &field_out)
+                                         Vector &field_out,
+                                         const int field_out_ordering)
 {
    int ncomp   = field_in.VectorDim(),
        nptorig = points_cnt,
@@ -1979,7 +2003,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
          if (dim == 3) { ip.z = gsl_mfem_ref(index*dim + 2); }
          Vector localval(ncomp);
          field_in.GetVectorValue(gsl_mfem_elem[index], ip, localval);
-         if (field_in.FESpace()->GetOrdering() == Ordering::byNODES)
+         if (field_out_ordering == Ordering::byNODES)
          {
             for (int i = 0; i < ncomp; i++)
             {
@@ -2014,7 +2038,10 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
       for (int index = 0; index < npt; index++)
       {
          if (gsl_code[index] == 2) { continue; }
-         for (int d = 0; d < dim; ++d) { pt->r[d]= gsl_mfem_ref(index*dim + d); }
+         for (int d = 0; d < dim; ++d)
+         {
+            pt->r[d]= gsl_mfem_ref(index*dim + d);
+         }
          pt->index = index;
          pt->proc  = gsl_proc[index];
          pt->el    = gsl_mfem_elem[index];
@@ -2104,7 +2131,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
             sdpt = (struct send_pt *)sendpt->ptr;
             for (int index = 0; index < static_cast<int>(sendpt->n); index++)
             {
-               int idx = field_in.FESpace()->GetOrdering() == Ordering::byNODES ?
+               int idx = field_out_ordering == Ordering::byNODES ?
                          sdpt->index + j*nptorig :
                          sdpt->index*ncomp + j;
                field_out(idx) = sdpt->ival;
@@ -2246,7 +2273,7 @@ void FindPointsGSLIB::DistributeInterpolatedValues(const Vector &int_vals,
    }
 }
 
-void FindPointsGSLIB::GetAxisAlignedBoundingBoxes(Vector &aabb)
+void FindPointsGSLIB::GetAxisAlignedBoundingBoxes(Vector &aabb) const
 {
    MFEM_VERIFY(setupflag, "Call FindPointsGSLIB::Setup method first");
    auto *findptsData3 = (gslib::findpts_data_3 *)this->fdataD;
@@ -2317,7 +2344,7 @@ void FindPointsGSLIB::GetAxisAlignedBoundingBoxes(Vector &aabb)
 }
 
 void FindPointsGSLIB::GetOrientedBoundingBoxes(DenseTensor &obbA, Vector &obbC,
-                                               Vector &obbV)
+                                               Vector &obbV) const
 {
    MFEM_VERIFY(setupflag, "Call FindPointsGSLIB::Setup method first");
    auto *findptsData3 = (gslib::findpts_data_3 *)this->fdataD;
@@ -2502,8 +2529,8 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
 }
 
 void OversetFindPointsGSLIB::FindPoints(const Vector &point_pos,
-                                        Array<unsigned int> &point_id,
-                                        int point_pos_ordering)
+                                        const Array<unsigned int> &point_id,
+                                        const int point_pos_ordering)
 {
    MFEM_VERIFY(setupflag, "Use OversetFindPointsGSLIB::Setup before "
                "finding points.");
@@ -2582,10 +2609,10 @@ void OversetFindPointsGSLIB::FindPoints(const Vector &point_pos,
 }
 
 void OversetFindPointsGSLIB::Interpolate(const Vector &point_pos,
-                                         Array<unsigned int> &point_id,
+                                         const Array<unsigned int> &point_id,
                                          const GridFunction &field_in,
                                          Vector &field_out,
-                                         int point_pos_ordering)
+                                         const int point_pos_ordering)
 {
    FindPoints(point_pos, point_id, point_pos_ordering);
    Interpolate(field_in, field_out);
