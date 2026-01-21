@@ -124,7 +124,8 @@ protected:
                          ParGridFunction& gf, ParticleVector& pv);
 
    /// Single particle Boris step
-   void ParticleStep(Particle& part, real_t& dt, bool zeroth_step = false);
+   void ParticleStep(Particle& part, real_t& dt,
+                     real_t L_x, bool zeroth_step = false);
 
 public:
    PIC(MPI_Comm comm, ParGridFunction* E_gf_, FindPointsGSLIB& E_finder_,
@@ -143,7 +144,7 @@ public:
    void FindParticles();
 
    /// Advance particles one time step using Boris algorithm
-   void Step(real_t& t, real_t& dt, bool zeroth_step = false);
+   void Step(real_t& t, real_t& dt, real_t L_x, bool zeroth_step = false);
 
    /// Redistribute particles across processors
    void Redistribute();
@@ -340,10 +341,10 @@ int main(int argc, char* argv[])
       {
          real_t neg_half_dt = -dt / 2.0;
          // Perform a "zeroth" step to move p half step backward
-         pic.Step(t, neg_half_dt, true);
+         pic.Step(t, neg_half_dt, ctx.L_x,true);
       }
       // Step the PIC algorithm
-      pic.Step(t, dt);
+      pic.Step(t, dt, ctx.L_x);
       if (Mpi::Root())
       {
          mfem::out << "Step: " << step << " | Time: " << t;
@@ -431,7 +432,7 @@ void PIC::GetValues(const ParticleVector& coords, FindPointsGSLIB& E_finder,
                      pv.GetOrdering());
 }
 
-void PIC::ParticleStep(Particle& part, real_t& dt, bool zeroth_step)
+void PIC::ParticleStep(Particle& part, real_t& dt, real_t L_x, bool zeroth_step)
 {
    Vector& x = part.Coords();
    real_t m = part.FieldValue(MASS);
@@ -455,8 +456,8 @@ void PIC::ParticleStep(Particle& part, real_t& dt, bool zeroth_step)
    // periodic boundary: wrap around using ctx mesh extents
    for (int d = 0; d < x.Size(); d++)
    {
-      x(d) = std::fmod(x(d), ctx.L_x);
-      if (x(d) < 0.0) { x(d) += ctx.L_x; }
+      x(d) = std::fmod(x(d), L_x);
+      if (x(d) < 0.0) { x(d) += L_x; }
    }
 }
 
@@ -494,7 +495,7 @@ void PIC::FindParticles()
    E_finder.FindPoints(X, X.GetOrdering());
 }
 
-void PIC::Step(real_t& t, real_t& dt, bool zeroth_step)
+void PIC::Step(real_t& t, real_t& dt, real_t L_x, bool zeroth_step)
 {
    InterpolateE();
    // Individually step each particle:
@@ -503,7 +504,7 @@ void PIC::Step(real_t& t, real_t& dt, bool zeroth_step)
       for (int i = 0; i < charged_particles->GetNParticles(); i++)
       {
          Particle p = charged_particles->GetParticleRef(i);
-         ParticleStep(p, dt, zeroth_step);
+         ParticleStep(p, dt, L_x, zeroth_step);
       }
    }
    else
@@ -511,7 +512,7 @@ void PIC::Step(real_t& t, real_t& dt, bool zeroth_step)
       for (int i = 0; i < charged_particles->GetNParticles(); i++)
       {
          Particle p = charged_particles->GetParticle(i);
-         ParticleStep(p, dt, zeroth_step);
+         ParticleStep(p, dt, L_x, zeroth_step);
          charged_particles->SetParticle(i, p);
       }
    }
