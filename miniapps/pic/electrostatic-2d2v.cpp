@@ -210,7 +210,10 @@ public:
       delete DiffusionMatrix;
       delete precomputed_neutralizing_lf;
    }
+   
    /// Update the phi_gf grid function from the particles.
+   /// Solve periodic Poisson: DiffusionMatrix * phi = (rho - <rho>)
+   /// with zero-mean enforcement via OrthoSolver.
    void UpdatePhiGridFunction(ParticleSet& particles, ParGridFunction& phi_gf,
                               ParGridFunction& E_gf);
 
@@ -546,8 +549,7 @@ void display_banner(ostream& os)
 }
 
 
-// Solve periodic Poisson: DiffusionMatrix * phi = (rho - <rho>)
-// with zero-mean enforcement via OrthoSolver.
+
 void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet& particles,
                                                 ParGridFunction& phi_gf,
                                                 ParGridFunction& E_gf)
