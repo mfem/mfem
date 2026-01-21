@@ -440,6 +440,9 @@ void PIC::Step(real_t& t, real_t& dt, bool zeroth_step)
          charged_particles->SetParticle(i, p);
       }
    }
+
+   FindParticles();
+
    if (zeroth_step) { return; }
 
    // Update time
@@ -462,7 +465,7 @@ void PIC::Redistribute()
    const ParticleVector& coords = charged_particles->Coords();
    E_finder.FindPoints(mesh, coords, coords.GetOrdering());
    charged_particles->Redistribute(E_finder.GetProc());
-   E_finder.FindPoints(mesh, coords, coords.GetOrdering());
+   FindParticles();
 }
 // Print the PIC ascii logo to the given ostream
 void display_banner(ostream& os)
