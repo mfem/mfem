@@ -41,7 +41,7 @@
 // Sample runs:
 //
 //   Linear Landau damping test case (Ricketson & Hu, 2025):
-//      mpirun -n 4 ./electrostatic-2d2v -rdf 1 -npt 102400 -k 0.2855993321 -a 0.05 -nt 200 -nx 32 -ny 32 -O 1 -q 0.001181640625 -m 0.001181640625 -ocf 1000 -dt 0.1
+//      mpirun -n 4 ./electrostatic-2d2v -rdf 1 -npt 409600 -k 0.2855993321 -a 0.05 -nt 200 -nx 32 -ny 32 -O 1 -q 0.001181640625 -m 0.001181640625 -ocf 1000 -dt 0.1
 
 #include <chrono>
 #include <ctime>
@@ -108,7 +108,7 @@ public:
 
 protected:
    ParGridFunction* E_gf;
-   FindPointsGSLIB E_finder;
+   FindPointsGSLIB& E_finder;
    std::unique_ptr<ParticleSet> charged_particles;
    mutable Vector pm_, pp_;
 
@@ -117,7 +117,8 @@ protected:
    void ParticleStep(Particle& part, real_t& dt, bool zeroth_step = false);
 
 public:
-   PIC(MPI_Comm comm, ParGridFunction* E_gf_, int num_particles,
+   PIC(MPI_Comm comm, ParGridFunction* E_gf_, FindPointsGSLIB& E_finder_,
+       int num_particles,
        Ordering::Type pdata_ordering);
    void InterpolateE();
    void Step(real_t& t, real_t& dt, bool zeroth_step = false);
@@ -136,7 +137,7 @@ private:
    bool use_precomputed_neutralizing_const = false;
    // Diffusion matrix
    HypreParMatrix* DiffusionMatrix;
-   FindPointsGSLIB finder;
+   FindPointsGSLIB& E_finder;
    socketstream vis_e;
    socketstream vis_phi;
 
@@ -147,10 +148,10 @@ public:
    void TotalEnergyValidation(const ParticleSet& particles,
                               const ParGridFunction& E_gf);
    // constructor
-   GridFunctionUpdates(ParGridFunction& phi_gf,
+   GridFunctionUpdates(ParGridFunction& phi_gf, FindPointsGSLIB& E_finder_,
                        bool use_precomputed_neutralizing_const_ = false)
       : use_precomputed_neutralizing_const(use_precomputed_neutralizing_const_),
-        finder(*phi_gf.ParFESpace()->GetParMesh()),
+        E_finder(E_finder_),
         vis_e("localhost", ctx.visport),
         vis_phi("localhost", ctx.visport)
    {
@@ -219,7 +220,7 @@ int main(int argc, char* argv[])
    args.AddOption(&ctx.t_init, "-ti", "--initial-time", "Initial Time.");
    args.AddOption(&ctx.nt, "-nt", "--num-timesteps", "Number of timesteps.");
    args.AddOption(&ctx.npt, "-npt", "--num-particles",
-                  "Number of particles per rank.");
+                  "Total number of particles.");
    args.AddOption(&ctx.k, "-k", "--k", "K parameter for initial distribution.");
    args.AddOption(&ctx.alpha, "-a", "--alpha",
                   "Alpha parameter for initial distribution.");
@@ -260,29 +261,33 @@ int main(int argc, char* argv[])
    ParMesh mesh(MPI_COMM_WORLD, periodic_mesh);
    serial_mesh.Clear();    // the serial mesh is no longer needed
    periodic_mesh.Clear();  // the periodic mesh is no longer needed
-   // 3. Define a finite element space on the parallel mesh
+
+   // 3. Build the E_finder
+   mesh.EnsureNodes();
+   FindPointsGSLIB E_finder(mesh);
+
+   // 4. Define a finite element space on the parallel mesh
    H1_FECollection sca_fec(ctx.order, dim);
    ParFiniteElementSpace sca_fespace(&mesh, &sca_fec);
    ND_FECollection vec_fec(ctx.order, dim);
    ParFiniteElementSpace vec_fespace(&mesh, &vec_fec);
 
-   // 4. Prepare an empty phi_gf and E_gf for later use
+   // 5. Prepare an empty phi_gf and E_gf for later use
    ParGridFunction phi_gf(&sca_fespace);
    E_gf = new ParGridFunction(&vec_fespace);
    phi_gf = 0.0;  // Initialize phi_gf to zero
    *E_gf = 0.0;   // Initialize E_gf to zero
 
-   // 7. Build the grid function updates
-   GridFunctionUpdates gf_updates(phi_gf, true);
+   // 6. Build the grid function updates
+   GridFunctionUpdates gf_updates(phi_gf, E_finder, true);
    Ordering::Type ordering_type =
       ctx.ordering == 0 ? Ordering::byNODES : Ordering::byVDIM;
 
-   // Initialize PIC
+   // 7. Initialize PIC
    int num_particles = ctx.npt / size + (rank < (ctx.npt % size) ? 1 : 0);
-   PIC pic(MPI_COMM_WORLD, E_gf, num_particles, ordering_type);
+   PIC pic(MPI_COMM_WORLD, E_gf, E_finder, num_particles, ordering_type);
    InitializeChargedParticles(pic.GetParticles(), ctx.k, ctx.alpha, ctx.m,
                               ctx.q, ctx.L_x, ctx.reproduce);
-   pic.InterpolateE();  // Interpolate E field onto particle positions
 
    real_t t = ctx.t_init;
    real_t dt = ctx.dt;
@@ -340,14 +345,13 @@ int main(int argc, char* argv[])
    delete E_gf;
 }
 
-void PIC::GetValues(const ParticleVector& coords, FindPointsGSLIB& finder,
+void PIC::GetValues(const ParticleVector& coords, FindPointsGSLIB& E_finder,
                     ParGridFunction& gf, ParticleVector& pv)
 {
-   ParMesh& mesh = *gf.ParFESpace()->GetParMesh();
-   mesh.EnsureNodes();
-   finder.FindPoints(mesh, coords, coords.GetOrdering());
-   finder.Interpolate(gf, pv);
-   Ordering::Reorder(pv, pv.GetVDim(), gf.ParFESpace()->GetOrdering(),
+   Mesh &mesh = *gf.FESpace()->GetMesh();
+   E_finder.FindPoints(mesh, coords, coords.GetOrdering());
+   E_finder.Interpolate(gf, pv);
+   Ordering::Reorder(pv, pv.GetVDim(), gf.FESpace()->GetOrdering(),
                      pv.GetOrdering());
 }
 
@@ -380,17 +384,14 @@ void PIC::ParticleStep(Particle& part, real_t& dt, bool zeroth_step)
    }
 }
 
-PIC::PIC(MPI_Comm comm, ParGridFunction* E_gf_, int num_particles,
+PIC::PIC(MPI_Comm comm, ParGridFunction* E_gf_, FindPointsGSLIB& E_finder_,
+         int num_particles,
          Ordering::Type pdata_ordering)
-   : E_gf(E_gf_), E_finder(comm)
+   : E_gf(E_gf_), E_finder(E_finder_)
 {
    MFEM_VERIFY(E_gf, "Must pass an E field to PIC.");
 
-   ParMesh* E_mesh = E_gf->ParFESpace()->GetParMesh();
-   int dim = E_mesh->SpaceDimension();
-
-   E_mesh->EnsureNodes();
-   E_finder.Setup(*E_mesh);
+   int dim = E_gf->ParFESpace()->GetMesh()->SpaceDimension();
 
    pm_.SetSize(dim);
    pp_.SetSize(dim);
@@ -399,7 +400,7 @@ PIC::PIC(MPI_Comm comm, ParGridFunction* E_gf_, int num_particles,
    // 2 vectors of size space dim for momentum and e field
    Array<int> field_vdims({1, 1, dim, dim});
    charged_particles = std::make_unique<ParticleSet>(
-                          comm, ctx.npt, dim, field_vdims, 1, pdata_ordering);
+                          comm, num_particles, dim, field_vdims, 1, pdata_ordering);
 }
 
 void PIC::InterpolateE()
@@ -454,6 +455,7 @@ void PIC::Redistribute()
    const ParticleVector& coords = charged_particles->Coords();
    E_finder.FindPoints(mesh, coords, coords.GetOrdering());
    charged_particles->Redistribute(E_finder.GetProc());
+   E_finder.FindPoints(mesh, coords, coords.GetOrdering());
 }
 // Print the PIC ascii logo to the given ostream
 void display_banner(ostream& os)
@@ -549,13 +551,11 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet& particles,
       // --------------------------------------------------------
       // 2) Locate particles with FindPointsGSLIB
       // --------------------------------------------------------
-      finder.FindPoints(point_pos, ordering_type);
-
       const Array<unsigned int>& code =
-         finder.GetCode();  // 0: inside, 1: boundary, 2: not found
-      const Array<unsigned int>& proc = finder.GetProc();  // owning MPI rank
-      const Array<unsigned int>& elem = finder.GetElem();  // local element id
-      const Vector& rref = finder.GetReferencePosition();  // (r,s,t) byVDIM
+         E_finder.GetCode();  // 0: inside, 1: boundary, 2: not found
+      const Array<unsigned int>& proc = E_finder.GetProc();  // owning MPI rank
+      const Array<unsigned int>& elem = E_finder.GetElem();  // local element id
+      const Vector& rref = E_finder.GetReferencePosition();  // (r,s,t) byVDIM
 
       // --------------------------------------------------------
       // 3) Make RHS and pre-subtract averaged charge density for zero-mean RHS
