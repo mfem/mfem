@@ -121,6 +121,7 @@ public:
        int num_particles,
        Ordering::Type pdata_ordering);
    void InterpolateE();
+   void FindParticles();
    void Step(real_t& t, real_t& dt, bool zeroth_step = false);
    void RemoveLostParticles();
    void Redistribute();
@@ -410,6 +411,12 @@ void PIC::InterpolateE()
 
    // Interpolate E-field onto particles
    GetValues(X, E_finder, *E_gf, E);
+}
+
+void PIC::FindParticles()
+{
+   ParticleVector &X = charged_particles->Coords();
+   E_finder.FindPoints(X, X.GetOrdering());
 }
 
 void PIC::Step(real_t& t, real_t& dt, bool zeroth_step)
