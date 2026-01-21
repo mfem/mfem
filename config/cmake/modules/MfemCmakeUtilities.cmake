@@ -701,7 +701,6 @@ endfunction(mfem_find_library)
 # Extract compile and link options needed by the given target.
 #
 function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
-
   if (NOT TARGET ${Target})
     return()
   endif()
@@ -775,11 +774,8 @@ function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
       list(APPEND LinkOpts
         "-L\"${Dir}\""
         "-l${LibName}")
-      if (shared_link_flag)
-        list(APPEND LinkOpts
-          "${shared_link_flag}\"${Dir}\"")
-      else()
-      endif()
+      list(APPEND LinkOpts
+        "${shared_link_flag}\"${Dir}\"")
     else()
       message(STATUS " *** Warning: [${tgt}] LOCATION not defined!")
     endif()
@@ -806,6 +802,8 @@ function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
             if(NOT ("${Lib}" STREQUAL "dl"))
               # strange extra thing CMake adds
               list(APPEND LinkOpts "${Lib}")
+            else()
+              list(APPEND LinkOpts "-ldl")
             endif()
           endif()
         else()
@@ -969,11 +967,7 @@ function(mfem_export_mk_files)
   # TPL link flags: set below
   set(MFEM_EXT_LIBS "")
   if (BUILD_SHARED_LIBS)
-    if(shared_link_flag)
-      set(MFEM_LIBS "${shared_link_flag}\$(MFEM_LIB_DIR) -L\$(MFEM_LIB_DIR)")
-    else()
-      set(MFEM_LIBS "-L\$(MFEM_LIB_DIR)")
-    endif()
+    set(MFEM_LIBS "${shared_link_flag}\$(MFEM_LIB_DIR) -L\$(MFEM_LIB_DIR)")
     set(MFEM_LIBS "${MFEM_LIBS} -lmfem \$(MFEM_EXT_LIBS)")
     if (APPLE)
       set(SO_VER ".${mfem_VERSION}${CMAKE_SHARED_LIBRARY_SUFFIX}")
@@ -1078,20 +1072,14 @@ function(mfem_export_mk_files)
       get_filename_component(dir ${lib} DIRECTORY)
       get_filename_component(fullLibName ${lib} NAME_WE)
       string(REGEX REPLACE "^lib" "" libname ${fullLibName})
-      if (shared_link_flag)
-        set(MFEM_EXT_LIBS
-          "${MFEM_EXT_LIBS} ${shared_link_flag}${dir} -L${dir} -l${libname}")
-      else()
-        set(MFEM_EXT_LIBS
-          "${MFEM_EXT_LIBS} -L${dir} -l${libname}")
-      endif()
+      set(MFEM_EXT_LIBS
+        "${MFEM_EXT_LIBS} ${shared_link_flag}${dir} -L${dir} -l${libname}")
     else()
       set(MFEM_EXT_LIBS "${MFEM_EXT_LIBS} ${lib}")
     endif()
   endforeach()
 
   # Create the build-tree version of 'config.mk'
-  set(MFEM_SOURCE_DIR_INSTALLED "${MFEM_SOURCE_DIR}")
   configure_file(
     "${PROJECT_SOURCE_DIR}/config/config.mk.in"
     "${PROJECT_BINARY_DIR}/config/config.mk" @ONLY)
@@ -1110,7 +1098,6 @@ function(mfem_export_mk_files)
   set(MFEM_CONFIG_EXTRA "")
 
   # Create the install-tree version of 'config.mk'
-  set(MFEM_SOURCE_DIR_INSTALLED "${MFEM_INSTALL_DIR}")
   configure_file(
     "${PROJECT_SOURCE_DIR}/config/config.mk.in"
     "${PROJECT_BINARY_DIR}/config/config-install.mk" @ONLY)
