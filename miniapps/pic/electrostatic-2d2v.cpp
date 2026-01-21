@@ -348,10 +348,10 @@ int main(int argc, char* argv[])
 void PIC::GetValues(const ParticleVector& coords, FindPointsGSLIB& E_finder,
                     ParGridFunction& gf, ParticleVector& pv)
 {
-   ParMesh& mesh = *gf.ParFESpace()->GetParMesh();
-   mesh.EnsureNodes();
+   Mesh &mesh = *gf.FESpace()->GetMesh();
+   E_finder.FindPoints(mesh, coords, coords.GetOrdering());
    E_finder.Interpolate(gf, pv);
-   Ordering::Reorder(pv, pv.GetVDim(), gf.ParFESpace()->GetOrdering(),
+   Ordering::Reorder(pv, pv.GetVDim(), gf.FESpace()->GetOrdering(),
                      pv.GetOrdering());
 }
 
