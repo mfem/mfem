@@ -287,8 +287,8 @@ int main(int argc, char* argv[])
    // 7. Initialize PIC
    int num_particles = ctx.npt / size + (rank < (ctx.npt % size) ? 1 : 0);
    PIC pic(MPI_COMM_WORLD, E_gf, E_finder, num_particles, ordering_type);
-   InitializeChargedParticles(pic.GetParticles(), ctx.k, ctx.alpha, ctx.m,
-                              ctx.q, ctx.L_x, ctx.reproduce);
+   pic.InitializeChargedParticles(ctx.k, ctx.alpha, ctx.m,
+                                  ctx.q, ctx.L_x, ctx.reproduce);
 
    real_t t = ctx.t_init;
    real_t dt = ctx.dt;
@@ -344,6 +344,56 @@ int main(int argc, char* argv[])
 
    // Clean up
    delete E_gf;
+}
+
+void PIC::InitializeChargedParticles(const real_t& k,
+                                     const real_t& alpha, real_t m, real_t q,
+                                     real_t L_x, bool reproduce)
+{
+   int rank;
+   MPI_Comm_rank(charged_particles->GetComm(), &rank);
+   // use time-based seed for randomness
+   std::mt19937 gen(
+      reproduce ? rank : (rank + static_cast<unsigned int>(time(nullptr))));
+   std::uniform_real_distribution<> real_dist(0.0, 1.0);
+   std::normal_distribution<> norm_dist(0.0, 1.0);
+
+   int dim = charged_particles->Coords().GetVDim();
+   MFEM_VERIFY(alpha >= -1.0 && alpha < 1.0,
+               "Alpha should be in range [-1, 1).");
+   MFEM_VERIFY(k != 0.0, "k must be nonzero for displacement initialization.");
+
+   ParticleVector& X = charged_particles->Coords();
+   ParticleVector& P = charged_particles->Field(PIC::MOM);
+   ParticleVector& M = charged_particles->Field(PIC::MASS);
+   ParticleVector& Q = charged_particles->Field(PIC::CHARGE);
+
+   for (int i = 0; i < charged_particles->GetNParticles(); i++)
+   {
+      // Initialize momentum
+      for (int d = 0; d < dim; d++) { P(i, d) = m * norm_dist(gen); }
+
+      // Uniform positions (no accept-reject)
+      for (int d = 0; d < dim; d++) { X(i, d) = real_dist(gen) * L_x; }
+
+      // Displacement along x for perturbation ~ cos(k x)
+      for (int d = 0; d < dim; d++)
+      {
+         real_t x = X(i, d);
+         x -= (alpha / k) * std::sin(k * x);
+
+         // periodic wrap to [0, L_x)
+         x = std::fmod(x, L_x);
+         if (x < 0) { x += L_x; }
+
+         X(i, d) = x;
+      }
+
+      // Initialize mass + charge
+      M(i) = m;
+      Q(i) = q;
+   }
+   FindParticles();
 }
 
 void PIC::GetValues(const ParticleVector& coords, FindPointsGSLIB& E_finder,
@@ -482,54 +532,6 @@ void display_banner(ostream& os)
       << flush;
 }
 
-void InitializeChargedParticles(ParticleSet& charged_particles, const real_t& k,
-                                const real_t& alpha, real_t m, real_t q,
-                                real_t L_x, bool reproduce)
-{
-   int rank;
-   MPI_Comm_rank(charged_particles.GetComm(), &rank);
-   // use time-based seed for randomness
-   std::mt19937 gen(
-      reproduce ? rank : (rank + static_cast<unsigned int>(time(nullptr))));
-   std::uniform_real_distribution<> real_dist(0.0, 1.0);
-   std::normal_distribution<> norm_dist(0.0, 1.0);
-
-   int dim = charged_particles.Coords().GetVDim();
-   MFEM_VERIFY(alpha >= -1.0 && alpha < 1.0,
-               "Alpha should be in range [-1, 1).");
-   MFEM_VERIFY(k != 0.0, "k must be nonzero for displacement initialization.");
-
-   ParticleVector& X = charged_particles.Coords();
-   ParticleVector& P = charged_particles.Field(PIC::MOM);
-   ParticleVector& M = charged_particles.Field(PIC::MASS);
-   ParticleVector& Q = charged_particles.Field(PIC::CHARGE);
-
-   for (int i = 0; i < charged_particles.GetNParticles(); i++)
-   {
-      // Initialize momentum
-      for (int d = 0; d < dim; d++) { P(i, d) = m * norm_dist(gen); }
-
-      // Uniform positions (no accept-reject)
-      for (int d = 0; d < dim; d++) { X(i, d) = real_dist(gen) * L_x; }
-
-      // Displacement along x for perturbation ~ cos(k x)
-      for (int d = 0; d < dim; d++)
-      {
-         real_t x = X(i, d);
-         x -= (alpha / k) * std::sin(k * x);
-
-         // periodic wrap to [0, L_x)
-         x = std::fmod(x, L_x);
-         if (x < 0) { x += L_x; }
-
-         X(i, d) = x;
-      }
-
-      // Initialize mass + charge
-      M(i) = m;
-      Q(i) = q;
-   }
-}
 
 // Solve periodic Poisson: DiffusionMatrix * phi = (rho - <rho>)
 // with zero-mean enforcement via OrthoSolver.
