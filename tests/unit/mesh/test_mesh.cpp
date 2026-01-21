@@ -350,3 +350,131 @@ TEST_CASE("MakeNurbs", "[Mesh]")
       Mesh::MakeCartesian3D(1, 1, 1, Element::Type::HEXAHEDRON);
    test_nurbs_extension(patch_topology_3d);
 }
+
+TEST_CASE("NURBS 1D curve in 2D from patches", "[Mesh]")
+{
+   // Build a 1D patch topology embedded in 2D physical space with
+   // three segments of varying orders (linear, quadratic and cubic)
+   constexpr int dim       = 1;
+   constexpr int space_dim = 2;
+   Mesh patch_topology(dim, 0, 0, 0, space_dim);
+
+   constexpr int nv_input = 6;
+   for (int i = 0; i < nv_input; i++)
+   {
+      patch_topology.AddVertex((real_t)i, 0.0, 0.0);
+   }
+
+   patch_topology.AddSegment(0, 1, 1);
+   patch_topology.AddSegment(2, 3, 2);
+   patch_topology.AddSegment(4, 5, 3);
+
+   // Three 1D NURBS patches with variable order, each with control points
+   // given in (x, y, w) format so that the physical dimension is 2 while the
+   // topological dimension is 1.
+
+   auto set_knots = [](KnotVector &kv, std::initializer_list<real_t> knots)
+   {
+      MFEM_VERIFY(kv.Size() == static_cast<int>(knots.size()),
+                  "KnotVector and knot list must have the same size.");
+      int i = 0;
+      for (const auto &k : knots)
+      {
+         kv[i++] = k;
+      }
+   };
+
+   auto set_cp = [](std::initializer_list<std::array<real_t, 3>> pts)
+   {
+      Array<real_t> cp(3 * static_cast<int>(pts.size()));
+      int i = 0;
+      for (const auto &[x, y, w] : pts)
+      {
+         cp[i++] = x;
+         cp[i++] = y;
+         cp[i++] = w;
+      }
+      return cp;
+   };
+
+   // Patch 0: order 1, 4 control points
+   KnotVector kv1(1, 4);
+   set_knots(kv1, {0.0, 0.0, 0.4, 0.6, 1.0, 1.0});
+   kv1.GetElements();
+   Array<real_t> cp1 = set_cp(
+   {
+      {0.0, 0.0, 1.0},
+      {0.4, 0.6, 1.0},
+      {0.6, 0.4, 1.0},
+      {1.0, 1.0, 1.0}});
+   Array<const KnotVector *> kvs1({&kv1});
+
+   // Patch 1: order 2, 3 control points
+   KnotVector kv2(2, 3);
+   set_knots(kv2, {0.0, 0.0, 0.0, 1.0, 1.0, 1.0});
+   kv2.GetElements();
+   Array<real_t> cp2 = set_cp(
+   {
+      {1.0, 0.0, 1.0},
+      {1.0, 1.0, 1.2},
+      {2.0, 1.0, 1.0}});
+   Array<const KnotVector *> kvs2({&kv2});
+
+   // Patch 2: order 3, 4 control points
+   KnotVector kv3(3, 4);
+   set_knots(kv3, {0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0});
+   kv3.GetElements();
+   Array<real_t> cp3 = set_cp(
+   {
+      {2.0, 0.0, 1.0},
+      {2.0, 0.9, 1.31},
+      {2.1, 1.0, 1.32},
+      {3.0, 1.0, 1.0}});
+   Array<const KnotVector *> kvs3({&kv3});
+
+   auto p1 = std::make_unique<NURBSPatch>(kvs1, 3, cp1.GetData());
+   auto p2 = std::make_unique<NURBSPatch>(kvs2, 3, cp2.GetData());
+   auto p3 = std::make_unique<NURBSPatch>(kvs3, 3, cp3.GetData());
+
+   Array<const NURBSPatch *> patches(3);
+   patches[0] = p1.get();
+   patches[1] = p2.get();
+   patches[2] = p3.get();
+
+   NURBSExtension ne(&patch_topology, patches);
+   Mesh mesh(ne);
+
+   // Check that we created a 1D NURBS mesh embedded in 2D physical space and
+   // that the associated finite element space uses the correct vector dimension.
+   REQUIRE(mesh.Dimension() == dim);
+   REQUIRE(mesh.SpaceDimension() == space_dim);
+   REQUIRE(mesh.GetNE() == 5);
+   REQUIRE(mesh.GetNV() == 8);
+
+   GridFunction *nodes = mesh.GetNodes();
+   REQUIRE(nodes != NULL);
+   REQUIRE(nodes->FESpace() != NULL);
+   REQUIRE(nodes->FESpace()->GetVDim() == space_dim);
+
+   REQUIRE(mesh.NURBSext != NULL);
+   REQUIRE(mesh.NURBSext->GetNP() == 3);
+
+   // Additionally, exercise degree elevation and ensure basic invariants hold
+   {
+      const Array<int> &orders = mesh.NURBSext->GetOrders();
+      const int max_order = orders.Max();
+      mesh.DegreeElevate(max_order, max_order);
+
+      REQUIRE(mesh.NURBSext != nullptr);
+      REQUIRE(mesh.Dimension() == dim);
+      REQUIRE(mesh.SpaceDimension() == space_dim);
+      REQUIRE(mesh.NURBSext->Dimension() == dim);
+
+      const Array<int> &new_orders = mesh.NURBSext->GetOrders();
+      REQUIRE(new_orders.Size() == orders.Size());
+      for (int i = 0; i < new_orders.Size(); ++i)
+      {
+         REQUIRE(new_orders[i] == max_order);
+      }
+   }
+}

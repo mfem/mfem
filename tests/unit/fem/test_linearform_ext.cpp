@@ -362,3 +362,38 @@ TEST_CASE("H(div) Linear Form Extension", "[LinearFormExtension], [GPU]")
    d1 -= d2;
    REQUIRE(d1.Norml2() == MFEM_Approx(0.0));
 }
+
+#ifdef MFEM_USE_MPI
+
+TEST_CASE("Parallel Fast LinearForm Assembly",
+          "[AssemblyLevel], [Parallel], [GPU]")
+{
+   auto order = GENERATE(1, 2);
+   auto mesh_fname = GENERATE(
+                        "../../data/amr-quad.mesh",
+                        "../../data/fichera-amr.mesh"
+                     );
+
+   Mesh serial_mesh(mesh_fname);
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   serial_mesh.Clear();
+
+   Array<int> ess_bdr(mesh.bdr_attributes.Max());
+   ess_bdr = 0;
+   mesh.MarkExternalBoundaries(ess_bdr);
+
+   H1_FECollection fec(order, mesh.Dimension());
+   ParFiniteElementSpace fespace(&mesh, &fec);
+
+   Array<int> ess_tdof_list;
+   fespace.GetBoundaryTrueDofs(ess_tdof_list);
+
+   ParLinearForm b(&fespace);
+   ConstantCoefficient one(1.0);
+   b.AddDomainIntegrator(new DomainLFIntegrator(one));
+   b.AddBoundaryIntegrator(new BoundaryLFIntegrator(one), ess_bdr);
+   b.UseFastAssembly(true);
+   b.Assemble();
+}
+
+#endif
