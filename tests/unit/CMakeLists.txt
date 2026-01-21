@@ -11,6 +11,24 @@
 
 project(mfem-unit-tests NONE)
 
+# Define a target that all examples and miniapps will depend on.
+set(MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME test_exec_prerequisites)
+add_custom_target(${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME})
+
+# Add a target to copy the mfem data directory to the build directory
+# Implementable as a single copy_directory_if_different command w/ CMake >= 3.26
+file(GLOB DATA_FILES CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/data/*)
+add_custom_target(copy_test_data
+  COMMAND ${CMAKE_COMMAND} -E make_directory data
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different ${DATA_FILES} data
+  COMMENT "Syncing the test data directory ...")
+# Add 'copy_test_data' as a prerequisite for test executables, if the source and the
+# build directories are not the same.
+if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
+  add_dependencies(${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME} copy_test_data)
+  add_dependencies(${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME} copy_data)
+endif()
+
 # Include the source directory for the unit tests - catch.hpp is there.
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -19,17 +37,19 @@ include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 set(UNIT_TESTS_SRCS
   dfem/test_diffusion.cpp
   dfem/test_divergence.cpp
-  dfem/test_mass.cpp
   dfem/test_lvector_interface.cpp
+  dfem/test_mass.cpp
   general/test_array.cpp
   general/test_scan.cpp
   general/test_arrays_by_name.cpp
   general/test_error.cpp
   general/test_mem.cpp
+  general/test_ordering.cpp
   general/test_reduction.cpp
   general/test_text.cpp
   general/test_umpire_mem.cpp
   general/test_zlib.cpp
+  linalg/test_amgfsolver.cpp
   linalg/test_cg_indefinite.cpp
   linalg/test_chebyshev.cpp
   linalg/test_complex_dense_matrix.cpp
@@ -50,6 +70,8 @@ set(UNIT_TESTS_SRCS
   linalg/test_ode.cpp
   linalg/test_ode2.cpp
   linalg/test_operator.cpp
+  linalg/test_particlevector.cpp
+  linalg/test_sparsesmoothers.cpp
   linalg/test_vector.cpp
   mesh/mesh_test_utils.cpp
   mesh/test_exodus_reader.cpp
@@ -65,13 +87,10 @@ set(UNIT_TESTS_SRCS
   mesh/test_psubmesh.cpp
   mesh/test_submesh.cpp
   mesh/test_vtu.cpp
-  mesh/test_nurbs.cpp
-  mesh/test_exodus_writer.cpp
   fem/make_permuted_mesh.cpp
   fem/test_1d_bilininteg.cpp
   fem/test_2d_bilininteg.cpp
   fem/test_3d_bilininteg.cpp
-  fem/test_assemblediagonalpa.cpp
   fem/test_assembly_levels.cpp
   fem/test_bilinearform.cpp
   fem/test_block_operators.cpp
@@ -120,9 +139,11 @@ set(UNIT_TESTS_SRCS
   fem/test_operatorjacobismoother.cpp
   fem/test_oscillation.cpp
   fem/test_pa_coeff.cpp
+  fem/test_pa_diagonal.cpp
   fem/test_pa_grad.cpp
   fem/test_pa_idinterp.cpp
   fem/test_pa_kernels.cpp
+  fem/test_particleset.cpp
   fem/test_pgridfunc_save_serial.cpp
   fem/test_poly1d.cpp
   fem/test_project_bdr_par.cpp
@@ -162,23 +183,20 @@ if (MFEM_USE_HIP)
                PROPERTY HIP_SOURCE_PROPERTY_FORMAT TRUE)
 endif()
 
+add_library(unit_tests_srcs OBJECT ${UNIT_TESTS_SRCS})
+target_link_libraries(unit_tests_srcs PUBLIC mfem)
+add_dependencies(unit_tests_srcs
+      ${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME})
+
 # All serial non-device unit tests are built into a single executable,
 # 'unit_tests'.
-mfem_add_executable(unit_tests unit_test_main.cpp ${UNIT_TESTS_SRCS})
-target_link_libraries(unit_tests mfem)
+mfem_add_executable(unit_tests unit_test_main.cpp)
+target_link_libraries(unit_tests unit_tests_srcs)
 add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} unit_tests)
-# Unit tests need the ../../data directory.
-add_dependencies(unit_tests copy_data)
 # ParSubMesh tests need meshes in ../../miniapps/multidomain
 add_dependencies(unit_tests copy_miniapps_multidomain_data)
 # NURBS tests need meshes in ../../miniapps/nurbs
 add_dependencies(unit_tests copy_miniapps_nurbs_data)
-
-# Copy data to the build directory.
-add_custom_command(TARGET unit_tests POST_BUILD
-COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_CURRENT_SOURCE_DIR}/data data
-        COMMENT "Copying the unit tests data directory ...")
 
 # Create a test called 'unit_tests' that runs the 'unit_tests' executable.
 # The unit tests can be built and run separately from the rest of the tests:
@@ -196,9 +214,8 @@ if (MFEM_USE_CUDA)
     # gpu_unit_tests
     set(GPU_UNIT_TESTS_SRCS gpu_unit_test_main.cpp)
     set_property(SOURCE ${GPU_UNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
-    mfem_add_executable(gpu_unit_tests ${GPU_UNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
-    target_link_libraries(gpu_unit_tests mfem)
-    add_dependencies(gpu_unit_tests copy_data)
+    mfem_add_executable(gpu_unit_tests ${GPU_UNIT_TESTS_SRCS})
+    target_link_libraries(gpu_unit_tests unit_tests_srcs)
     add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} gpu_unit_tests)
     if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
         add_test(NAME gpu_unit_tests COMMAND gpu_unit_tests)
@@ -212,9 +229,8 @@ endif()
 if (MFEM_USE_HIP)
     # gpu_unit_tests
     set(GPU_UNIT_TESTS_SRCS gpu_unit_test_main.cpp)
-    mfem_add_executable(gpu_unit_tests ${GPU_UNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
-    target_link_libraries(gpu_unit_tests mfem)
-    add_dependencies(gpu_unit_tests copy_data)
+    mfem_add_executable(gpu_unit_tests ${GPU_UNIT_TESTS_SRCS})
+    target_link_libraries(gpu_unit_tests unit_tests_srcs)
     add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} gpu_unit_tests)
     if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
         add_test(NAME gpu_unit_tests COMMAND gpu_unit_tests)
@@ -236,8 +252,13 @@ function(add_serial_miniapp_test name test_uvm)
     if (MFEM_USE_CUDA)
         set_property(SOURCE ${${NAME}_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
     endif(MFEM_USE_CUDA)
+    if (MFEM_USE_HIP)
+       set_property(SOURCE ${${NAME}_TESTS_SRCS} PROPERTY HIP_SOURCE_PROPERTY_FORMAT TRUE)
+    endif(MFEM_USE_HIP)
 
     mfem_add_executable(${name}_tests_cpu ${${NAME}_TESTS_SRCS})
+    add_dependencies(${name}_tests_cpu copy_miniapps_meshing_data)
+    add_dependencies(${name}_tests_cpu ${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME})
     target_compile_definitions(${name}_tests_cpu PUBLIC MFEM_${NAME}_DEVICE="cpu")
     target_link_libraries(${name}_tests_cpu mfem)
     add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ${name}_tests_cpu)
@@ -246,6 +267,8 @@ function(add_serial_miniapp_test name test_uvm)
     endif()
 
     mfem_add_executable(${name}_tests_debug ${${NAME}_TESTS_SRCS})
+    add_dependencies(${name}_tests_debug copy_miniapps_meshing_data)
+    add_dependencies(${name}_tests_debug ${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME})
     target_compile_definitions(${name}_tests_debug PUBLIC MFEM_${NAME}_DEVICE="debug")
     target_link_libraries(${name}_tests_debug mfem)
     add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ${name}_tests_debug)
@@ -255,6 +278,8 @@ function(add_serial_miniapp_test name test_uvm)
 
     if (MFEM_USE_CUDA OR MFEM_USE_HIP)
         mfem_add_executable(${name}_tests_gpu ${${NAME}_TESTS_SRCS})
+        add_dependencies(${name}_tests_gpu copy_miniapps_meshing_data)
+        add_dependencies(${name}_tests_gpu ${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME})
         target_compile_definitions(${name}_tests_gpu PUBLIC MFEM_${NAME}_DEVICE="gpu")
         target_link_libraries(${name}_tests_gpu mfem)
         add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ${name}_tests_gpu)
@@ -264,6 +289,8 @@ function(add_serial_miniapp_test name test_uvm)
 
         if (test_uvm)
             mfem_add_executable(${name}_tests_gpu_uvm ${${NAME}_TESTS_SRCS})
+            add_dependencies(${name}_tests_gpu_uvm copy_miniapps_meshing_data)
+            add_dependencies(${name}_tests_gpu_uvm ${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME})
             target_compile_definitions(${name}_tests_gpu_uvm PUBLIC
                MFEM_${NAME}_DEVICE="gpu:uvm")
             target_link_libraries(${name}_tests_gpu_uvm mfem)
@@ -279,7 +306,6 @@ endfunction(add_serial_miniapp_test)
 add_serial_miniapp_test(sedov ON)  # UVM ON
 add_serial_miniapp_test(tmop_pa OFF)  # UVM OFF
 # TMOP tests need meshes in ../../miniapps/meshing
-add_dependencies(tmop_pa_tests_cpu copy_miniapps_meshing_data)
 
 #-----------------------------------------------------------
 # SERIAL CEED TESTS:
@@ -317,8 +343,8 @@ if (MFEM_USE_MPI)
     if (MFEM_USE_CUDA)
         set_property(SOURCE punit_test_main.cpp PROPERTY LANGUAGE CUDA)
     endif()
-    mfem_add_executable(punit_tests punit_test_main.cpp ${UNIT_TESTS_SRCS})
-    target_link_libraries(punit_tests mfem)
+    mfem_add_executable(punit_tests punit_test_main.cpp)
+    target_link_libraries(punit_tests unit_tests_srcs)
     add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} punit_tests)
     foreach(np 1 ${MFEM_MPI_NP})
         if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
@@ -332,9 +358,8 @@ if (MFEM_USE_MPI)
         # pgpu_unit_tests
         set(PGPU_UNIT_TESTS_SRCS pgpu_unit_test_main.cpp)
         set_property(SOURCE ${PGPU_UNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
-        mfem_add_executable(pgpu_unit_tests ${PGPU_UNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
-        add_dependencies(pgpu_unit_tests copy_data)
-        target_link_libraries(pgpu_unit_tests mfem)
+        mfem_add_executable(pgpu_unit_tests ${PGPU_UNIT_TESTS_SRCS})
+        target_link_libraries(pgpu_unit_tests unit_tests_srcs)
         add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} pgpu_unit_tests)
         foreach(np 1 ${MFEM_MPI_NP})
             if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
@@ -348,9 +373,8 @@ if (MFEM_USE_MPI)
     if (MFEM_USE_HIP)
         # pgpu_unit_tests
         set(PGPU_UNIT_TESTS_SRCS pgpu_unit_test_main.cpp)
-        mfem_add_executable(pgpu_unit_tests ${PGPU_UNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
-        add_dependencies(pgpu_unit_tests copy_data)
-        target_link_libraries(pgpu_unit_tests mfem)
+        mfem_add_executable(pgpu_unit_tests ${PGPU_UNIT_TESTS_SRCS})
+        target_link_libraries(pgpu_unit_tests unit_tests_srcs)
         add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} pgpu_unit_tests)
         foreach(np 1 ${MFEM_MPI_NP})
             if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE

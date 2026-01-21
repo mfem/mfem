@@ -37,21 +37,21 @@ if (HYPRE_FOUND OR TARGET HYPRE)
   endif()
 endif()
 
-if (HYPRE_FETCH OR FETCH_TPLS)
-  # Collect all HYPRE_ENABLE variables and pass them to hypre, assuming they are BOOL.
+if (MFEM_FETCH_HYPRE OR MFEM_FETCH_TPLS)
+  set(HYPRE_FETCH_VERSION 2.33.0)
+  set(HYPRE_FETCH_TAG "v${HYPRE_FETCH_VERSION}" CACHE STRING "Tag, branch, or commit for HYPRE")
+  add_library(HYPRE STATIC IMPORTED)
+  # set options and associated dependencies
   set(HYPRE_CMAKE_OPTIONS "")
+  list(APPEND HYPRE_CMAKE_OPTIONS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE})
+  # collect all HYPRE_ENABLE variables and pass them to hypre, assuming they are BOOL.
   get_cmake_property(all_vars VARIABLES)
   foreach(var ${all_vars})
     if(var MATCHES "^HYPRE_ENABLE")
       list(APPEND HYPRE_CMAKE_OPTIONS "-D${var}:BOOL=${${var}}")
     endif()
   endforeach()
-
-  set(HYPRE_FETCH_VERSION 2.33.0)
-  set(HYPRE_FETCH_TAG "v${HYPRE_FETCH_VERSION}" CACHE STRING "Tag, branch, or commit for HYPRE")
-  add_library(HYPRE STATIC IMPORTED)
-  # set options and associated dependencies
-  list(APPEND HYPRE_CMAKE_OPTIONS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE})
+  # process all MFEM_USE variables that impact hypre
   if (MFEM_USE_CUDA)
     list(APPEND HYPRE_CMAKE_OPTIONS -DHYPRE_ENABLE_CUDA:BOOL=ON -DCMAKE_CUDA_ARCHITECTURES:STRING=${CMAKE_CUDA_ARCHITECTURES})
     find_package(CUDAToolkit REQUIRED)
@@ -195,16 +195,6 @@ if (HYPRE_FOUND AND HYPRE_USING_HIP)
   set(HYPRE_LIBRARIES ${HYPRE_LIBRARIES} CACHE STRING
       "HYPRE libraries + dependencies." FORCE)
   message(STATUS "Updated HYPRE_LIBRARIES: ${HYPRE_LIBRARIES}")
-endif()
-
-# Hypre+Umpire check
-if (HYPRE_FOUND AND (HYPRE_USING_CUDA OR HYPRE_USING_HIP) AND NOT MFEM_USE_UMPIRE)
-  message(WARNING
-"===============================================================
- Detected GPU-enabled HYPRE build without Umpire support.
- This is not recommended for performance reasons!
- Consider rebuilding HYPRE with Umpire support.
-===============================================================")
 endif()
 
 find_package_handle_standard_args(HYPRE
