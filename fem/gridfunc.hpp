@@ -84,6 +84,10 @@ public:
    GridFunction(FiniteElementSpace *f) : Vector(f->GetVSize())
    { fes = f; fec_owned = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
 
+   /// Same as above but specify the memory type
+   GridFunction(FiniteElementSpace *f, MemoryType mt) : Vector(f->GetVSize(), mt)
+   { fes = f; fec_owned = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
+
    /// Construct a GridFunction using previously allocated array @a data.
    /** The GridFunction does not assume ownership of @a data which is assumed to
        be of size at least `f->GetVSize()`. Similar to the Vector constructor
