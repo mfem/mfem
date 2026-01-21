@@ -89,7 +89,7 @@ struct LorentzContext
    Vector p_max{1.0,1.0,1.0};      // initial momentum max
    real_t dt = 1e-2;               // time step
    int nt = 1000;                  // number of timesteps
-   int redist_freq = 1e6;          // redistribution frequency
+   int redist_interval = 5;        // redistribution interval
    int redist_mesh = 0;            // redistribution mesh: 0: E mesh, 1: B mesh
 } ctx;
 
@@ -182,7 +182,7 @@ int main(int argc, char *argv[])
 
    bool visualization = true;      // enable visualization
    int vis_tail_size = 5;          // particle trajectory tail size
-   int vis_freq = 5;               // visualization frequency
+   int vis_interval = 5;           // visualization interval
 
    OptionsParser args(argc, argv);
    args.AddOption(&ctx.E.coll_name, "-er", "--e-root-file",
@@ -205,8 +205,8 @@ int main(int argc, char *argv[])
                   "Number of digits in B field cycle.");
    args.AddOption(&ctx.B.pad_digits_rank, "-bpdr", "--b-pad-digits-rank",
                   "Number of digits in B field MPI rank.");
-   args.AddOption(&ctx.redist_freq, "-rdf", "--redist-freq",
-                  "Redistribution frequency.");
+   args.AddOption(&ctx.redist_interval, "-rdf", "--redist-interval",
+                  "Redistribution after this many timesteps.");
    args.AddOption(&ctx.redist_mesh, "-rdm", "--redistribution-mesh",
                   "Particle domain mesh for redistribution. 0 for E field mesh. 1 for B field mesh.");
    args.AddOption(&ctx.ordering, "-o", "--ordering",
@@ -229,8 +229,8 @@ int main(int argc, char *argv[])
                   "--no-visualization", "Enable or disable GLVis visualization.");
    args.AddOption(&vis_tail_size, "-vt", "--vis-tail-size",
                   "GLVis visualization trajectory truncation tail size.");
-   args.AddOption(&vis_freq, "-vf", "--vis-freq",
-                  "GLVis visualization frequency.");
+   args.AddOption(&vis_interval, "-vf", "--vis-interval",
+                  "GLVis visualization update after this many timesteps.");
 
    args.Parse();
    if (!args.Good())
@@ -332,7 +332,7 @@ int main(int argc, char *argv[])
       }
 
       // Visualize trajectories
-      if (visualization && step % vis_freq == 0)
+      if (visualization && step % vis_interval == 0)
       {
          traj_vis->Visualize();
       }
@@ -341,7 +341,7 @@ int main(int argc, char *argv[])
       Array<int> removed_idxs = boris.RemoveLostParticles();
 
       // Redistribute
-      if (ctx.redist_freq > 0 && step % ctx.redist_freq == 0 &&
+      if (ctx.redist_interval > 0 && step % ctx.redist_interval == 0 &&
           boris.GetParticles().GetGlobalNParticles() > 0)
       {
          // Redistribute particles - prior to redistribution, removed any lost
