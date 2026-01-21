@@ -182,7 +182,7 @@ int main(int argc, char *argv[])
 
    bool visualization = true;      // enable visualization
    int vis_tail_size = 5;          // particle trajectory tail size
-   int vis_interval = 5;           // visualization interval
+   int vis_interval = 4;           // visualization interval
 
    OptionsParser args(argc, argv);
    args.AddOption(&ctx.E.coll_name, "-er", "--e-root-file",
@@ -206,9 +206,11 @@ int main(int argc, char *argv[])
    args.AddOption(&ctx.B.pad_digits_rank, "-bpdr", "--b-pad-digits-rank",
                   "Number of digits in B field MPI rank.");
    args.AddOption(&ctx.redist_interval, "-rdf", "--redist-interval",
-                  "Redistribution after this many timesteps.");
+                  "Redistribution after this many timesteps. 0 means "
+                  "no redistribution.");
    args.AddOption(&ctx.redist_mesh, "-rdm", "--redistribution-mesh",
-                  "Particle domain mesh for redistribution. 0 for E field mesh. 1 for B field mesh.");
+                  "Particle domain mesh for redistribution. 0 for E field mesh."
+                  " 1 for B field mesh.");
    args.AddOption(&ctx.ordering, "-o", "--ordering",
                   "Ordering of particle data. 0 = byNODES, 1 = byVDIM.");
    args.AddOption(&ctx.npt, "-npt", "--num-particles",
@@ -226,11 +228,13 @@ int main(int argc, char *argv[])
    args.AddOption(&ctx.dt, "-dt", "--time-step", "Time Step.");
    args.AddOption(&ctx.nt, "-nt", "--num-timesteps", "Number of timesteps.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-                  "--no-visualization", "Enable or disable GLVis visualization.");
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.AddOption(&vis_tail_size, "-vt", "--vis-tail-size",
                   "GLVis visualization trajectory truncation tail size.");
    args.AddOption(&vis_interval, "-vf", "--vis-interval",
-                  "GLVis visualization update after this many timesteps.");
+                  "GLVis visualization update after this many timesteps. "
+                  "0 means no visualization.");
 
    args.Parse();
    if (!args.Good())
