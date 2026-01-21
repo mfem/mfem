@@ -530,7 +530,7 @@ void PIC::Redistribute()
    charged_particles->Redistribute(E_finder.GetProc());
    FindParticles();
 }
-// Print the PIC ascii logo to the given ostream
+
 void display_banner(ostream& os)
 {
    os << R"(
