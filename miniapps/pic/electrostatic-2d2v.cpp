@@ -511,7 +511,6 @@ void PIC::Redistribute()
 {
    Mesh& mesh = *E_gf->ParFESpace()->GetMesh();
    const ParticleVector& coords = charged_particles->Coords();
-   E_finder.FindPoints(mesh, coords, coords.GetOrdering());
    charged_particles->Redistribute(E_finder.GetProc());
    FindParticles();
 }
