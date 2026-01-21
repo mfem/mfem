@@ -120,6 +120,9 @@ public:
    PIC(MPI_Comm comm, ParGridFunction* E_gf_, FindPointsGSLIB& E_finder_,
        int num_particles,
        Ordering::Type pdata_ordering);
+   void InitializeChargedParticles(const real_t& k, const real_t& alpha,
+                                   real_t m, real_t q, real_t L_x,
+                                   bool reproduce = false);
    void InterpolateE();
    void FindParticles();
    void Step(real_t& t, real_t& dt, bool zeroth_step = false);
