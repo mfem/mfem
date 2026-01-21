@@ -41,7 +41,7 @@
 // Sample runs:
 //
 //   Linear Landau damping test case (Ricketson & Hu, 2025):
-//      mpirun -n 4 ./electrostatic-2d2v -rdf 1 -npt 102400 -k 0.2855993321 -a 0.05 -nt 200 -nx 32 -ny 32 -O 1 -q 0.001181640625 -m 0.001181640625 -ocf 1000 -dt 0.1
+//      mpirun -n 4 ./electrostatic-2d2v -rdf 1 -npt 409600 -k 0.2855993321 -a 0.05 -nt 200 -nx 32 -ny 32 -O 1 -q 0.001181640625 -m 0.001181640625 -ocf 1000 -dt 0.1
 
 #include <chrono>
 #include <ctime>
@@ -219,7 +219,7 @@ int main(int argc, char* argv[])
    args.AddOption(&ctx.t_init, "-ti", "--initial-time", "Initial Time.");
    args.AddOption(&ctx.nt, "-nt", "--num-timesteps", "Number of timesteps.");
    args.AddOption(&ctx.npt, "-npt", "--num-particles",
-                  "Number of particles per rank.");
+                  "Total number of particles.");
    args.AddOption(&ctx.k, "-k", "--k", "K parameter for initial distribution.");
    args.AddOption(&ctx.alpha, "-a", "--alpha",
                   "Alpha parameter for initial distribution.");
@@ -400,7 +400,7 @@ PIC::PIC(MPI_Comm comm, ParGridFunction* E_gf_, FindPointsGSLIB& E_finder_, int 
    // 2 vectors of size space dim for momentum and e field
    Array<int> field_vdims({1, 1, dim, dim});
    charged_particles = std::make_unique<ParticleSet>(
-                          comm, ctx.npt, dim, field_vdims, 1, pdata_ordering);
+                          comm, num_particles, dim, field_vdims, 1, pdata_ordering);
 }
 
 void PIC::InterpolateE()
