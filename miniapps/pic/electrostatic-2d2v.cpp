@@ -194,11 +194,6 @@ public:
 // Prints the program's logo to the given output stream
 void display_banner(ostream& os);
 
-// Initialize particles from user input.
-void InitializeChargedParticles(ParticleSet& charged_particles, const real_t& k,
-                                const real_t& alpha, real_t m, real_t q,
-                                real_t L_x, bool reproduce);
-
 int main(int argc, char* argv[])
 {
    Mpi::Init(argc, argv);
