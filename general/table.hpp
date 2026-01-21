@@ -60,6 +60,7 @@ public:
    /// Creates an empty table
    Table() { size = -1; }
 
+   /// Merge constructor: combine two tables into one table.
    Table(const Table &table1,
          const Table &table2, int offset2);
 
@@ -145,7 +146,7 @@ public:
    int *ReadWriteJ(bool on_dev = true) { return J.ReadWrite(on_dev); }
    const int *HostReadJ() const { return J.HostRead(); }
    int *HostWriteJ() { return J.HostWrite(); }
-   int *ReadWriteJ() { return J.HostReadWrite(); }
+   int *HostReadWriteJ() { return J.HostReadWrite(); }
 
    /// Sort the column (TYPE II) indices in each row.
    void SortRows();

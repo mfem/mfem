@@ -48,7 +48,7 @@ PROJECT_NAME           = MFEM
 # could be handy for archiving the generated documentation or if some version
 # control system is used.
 
-PROJECT_NUMBER         = v4.8.1
+PROJECT_NUMBER         = v4.9.1
 
 # Using the PROJECT_BRIEF tag one can provide an optional one line description
 # for a project that appears at the top of each page and should give viewer a
@@ -973,10 +973,13 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/miniapps/adjoint \
                          @MFEM_SOURCE_DIR@/miniapps/autodiff \
                          @MFEM_SOURCE_DIR@/miniapps/common \
+                         @MFEM_SOURCE_DIR@/miniapps/contact \
                          @MFEM_SOURCE_DIR@/miniapps/dfem \
                          @MFEM_SOURCE_DIR@/miniapps/dpg \
                          @MFEM_SOURCE_DIR@/miniapps/dpg/util \
                          @MFEM_SOURCE_DIR@/miniapps/electromagnetics \
+                         @MFEM_SOURCE_DIR@/miniapps/fluids/navier \
+                         @MFEM_SOURCE_DIR@/miniapps/fluids/schrodinger-flow \
                          @MFEM_SOURCE_DIR@/miniapps/gslib \
                          @MFEM_SOURCE_DIR@/miniapps/hdiv-linear-solver \
                          @MFEM_SOURCE_DIR@/miniapps/hooke \
@@ -987,7 +990,6 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/miniapps/meshing \
                          @MFEM_SOURCE_DIR@/miniapps/mtop \
                          @MFEM_SOURCE_DIR@/miniapps/multidomain \
-                         @MFEM_SOURCE_DIR@/miniapps/navier \
                          @MFEM_SOURCE_DIR@/miniapps/nurbs \
                          @MFEM_SOURCE_DIR@/miniapps/parelag \
                          @MFEM_SOURCE_DIR@/miniapps/performance \

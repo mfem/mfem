@@ -92,6 +92,10 @@ examples/ex9.mesh
 examples/ex9-mesh.*
 examples/ex9-init.*
 examples/ex9-final.*
+examples/ex41.mesh
+examples/ex41-mesh.*
+examples/ex41-init.*
+examples/ex41-final.*
 examples/deformed.*
 examples/velocity.*
 examples/elastic_energy.*
@@ -223,6 +227,9 @@ miniapps/electromagnetics/Joule_[0-9]*
 miniapps/electromagnetics/Lorentz_[0-9]*
 miniapps/electromagnetics/Lorentz.dat
 
+miniapps/fluids/schrodinger-flow/schrodinger_flow
+miniapps/fluids/schrodinger-flow/pschrodinger_flow
+
 miniapps/gslib/field-diff
 miniapps/gslib/field-interp
 miniapps/gslib/findpts
@@ -230,6 +237,7 @@ miniapps/gslib/pfindpts
 miniapps/gslib/schwarz_ex1
 miniapps/gslib/schwarz_ex1p
 miniapps/gslib/interpolated.gf
+miniapps/gslib/particles_redist
 
 miniapps/meshing/mobius-strip
 miniapps/meshing/klein-bottle
@@ -287,16 +295,19 @@ miniapps/autodiff/seq_example
 miniapps/autodiff/seq_test
 miniapps/autodiff/Example/*
 
-miniapps/navier/navier_mms
-miniapps/navier/navier_kovasznay
-miniapps/navier/navier_kovasznay_vs
-miniapps/navier/navier_tgv
-miniapps/navier/navier_shear
-miniapps/navier/navier_3dfoc
-miniapps/navier/navier_turbchan
-miniapps/navier/navier_cht
-miniapps/navier/tgv_out*.txt
-miniapps/navier/*_output
+miniapps/fluids/navier/navier_mms
+miniapps/fluids/navier/navier_kovasznay
+miniapps/fluids/navier/navier_kovasznay_vs
+miniapps/fluids/navier/navier_tgv
+miniapps/fluids/navier/navier_shear
+miniapps/fluids/navier/navier_3dfoc
+miniapps/fluids/navier/navier_turbchan
+miniapps/fluids/navier/navier_cht
+miniapps/fluids/navier/navier_bifurcation
+miniapps/fluids/navier/Navier_Bifurcation_[0-9]*
+miniapps/fluids/navier/ParaView
+miniapps/fluids/navier/tgv_out*.txt
+miniapps/fluids/navier/*_output
 
 miniapps/nurbs/nurbs_ex1
 miniapps/nurbs/nurbs_ex1p
@@ -418,6 +429,9 @@ miniapps/tribol/contact-patch-test
 
 miniapps/diag-smoothers/abs-l1-jacobi
 miniapps/diag-smoothers/mg-abs-l1-jacobi
+
+miniapps/contact/contact
+miniapps/contact/ParaView
 
 # Unit test binary and outputs
 tests/unit/output_meshes

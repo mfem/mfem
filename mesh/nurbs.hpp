@@ -596,28 +596,29 @@ protected:
        if the KnotVector index associated with edge @a edge is negative. */
    inline const KnotVector *KnotVec(int edge, int oedge, int *okv) const;
 
-   /// Throw an error if any patch has an inconsistent edge_to_ukv mapping.
-   void CheckPatches();
-
    /// Throw an error if any boundary patch has invalid KnotVector orientation.
-   void CheckBdrPatches();
+   MFEM_DEPRECATED void CheckBdrPatches();
+
+   /// Return the patch-topology edge indices that define the KnotVectors for
+   /// patch @a p in each parametric direction.
+   void GetPatchDirectionEdges(int p, Array<int> &edges);
 
    /** @brief Return the directions in @a kvdir of the KnotVectors in patch @a p
        based on the patch edge orientations. Each entry of @a kvdir is -1 if the
        KnotVector direction is flipped, +1 otherwise. */
    void CheckKVDirection(int p, Array <int> &kvdir);
 
-   /**  @brief Create the comprehensive set of KnotVectors. In 1D, this set is
-    identical to the unique set of KnotVectors. */
+   /** @brief Create the comprehensive set of KnotVectors, one per patch and
+       parametric direction, accounting for the edge orientations. */
    void CreateComprehensiveKV();
 
-   /**  Update the unique set of KnotVectors. In 1D, this set is identical to
-    the comprehensive set of KnotVectors. */
+   /** @brief Update the unique set of KnotVectors from the comprehensive set
+       of KnotVectors. */
    void UpdateUniqueKV();
 
    /** @brief Check if the comprehensive array of KnotVectors agrees with the
        unique set of KnotVectors, on each patch. Return false if there is a
-       difference, true otherwise. This function throws an error in 1D. */
+       difference, true otherwise. */
    bool ConsistentKVSets();
 
    /// Return KnotVectors in @a kv in each dimension for patch @a p.
@@ -794,6 +795,9 @@ public:
    void MergeGridFunctions(GridFunction *gf_array[], int num_pieces,
                            GridFunction &merged);
 
+   /// Returns false if any patch has an inconsistent edge_to_ukv mapping.
+   bool CheckPatches();
+
    /// Destroy a NURBSExtension.
    virtual ~NURBSExtension();
 
@@ -819,6 +823,13 @@ public:
 
    /// Return the dimension of the reference space (not physical space).
    int Dimension() const { return patchTopo->Dimension(); }
+
+   /** @brief Return the physical dimension of the NURBS geometry
+
+       The physical dimension is inferred from the first patch,
+       i.e. number of coordinates per control point minus one (for the weight).
+       This method requires patch data to be present, i.e. HavePatches() == true */
+   int GetPatchSpaceDimension() const;
 
    /// Return the number of patches.
    int GetNP()     const { return patchTopo->GetNE(); }
@@ -933,9 +944,9 @@ public:
    void ConvertToPatches(const Vector &Nodes);
    /// Set KnotVectors from @a patches and construct mesh and space data.
    void SetKnotsFromPatches();
-   /** @brief Set FE coordinates in @a Nodes, using data from @a patches, and
-       erase @a patches. */
-   void SetCoordsFromPatches(Vector &Nodes);
+   /** @brief Set FE coordinates in @a Nodes, using data from @a patches,
+       with physical vector dimension @a vdim, and erase @a patches. */
+   void SetCoordsFromPatches(Vector &Nodes, int vdim);
 
    /** @brief Read a GridFunction @a sol from stream @a input, written
        patch-by-patch, e.g. with PrintSolution(). */
