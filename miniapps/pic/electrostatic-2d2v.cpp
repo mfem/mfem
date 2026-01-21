@@ -126,7 +126,6 @@ public:
    void InterpolateE();
    void FindParticles();
    void Step(real_t& t, real_t& dt, bool zeroth_step = false);
-   void RemoveLostParticles();
    void Redistribute();
    ParticleSet& GetParticles() { return *charged_particles; }
 };
@@ -334,10 +333,9 @@ int main(int argc, char* argv[])
          }
          mfem::out << endl;
       }
-      // Remove lost particles
+      // Output particle data to CSV
       if (step % ctx.output_csv_freq == 0 || step == 1)
       {
-         pic.RemoveLostParticles();
          std::string csv_prefix = "PIC_Part_";
          Array<int> field_idx{2}, tag_idx;
          std::string file_name =
@@ -501,16 +499,6 @@ void PIC::Step(real_t& t, real_t& dt, bool zeroth_step)
 
    // Update time
    t += dt;
-}
-
-void PIC::RemoveLostParticles()
-{
-   Array<int> lost_idxs;
-   const Array<int> E_lost = E_finder.GetPointsNotFoundIndices();
-
-   for (const int& elem : E_lost) { lost_idxs.Union(elem); }
-
-   charged_particles->RemoveParticles(lost_idxs);
 }
 
 void PIC::Redistribute()
