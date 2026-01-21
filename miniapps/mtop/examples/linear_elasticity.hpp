@@ -100,23 +100,31 @@ void SetDampingMaterialCoefficients(mfem::Coefficient& dl1_,
 mfem::ParGridFunction& GetDisplacement() { return displ; }
 mfem::ParGridFunction& GetVelocity() { return veloc; }
 
-
-void SetBdrDisplacement(int bdr_attr,
-                            std::shared_ptr<mfem::VectorCoefficient> bc)
+void SetZeroBdr(int bdr_attr)
 {
-    bdr_displ[bdr_attr] = bc;
+    zero_bdrs.insert(bdr_attr);
 }
 
-void SetBdrVelocity(int bdr_attr,
-                        std::shared_ptr<mfem::VectorCoefficient> bc)
+void SetBdrLoad(int attr)
 {
-    bdr_veloc[bdr_attr] = bc;
+    bdr_loads_markers.insert(attr);
 }
 
-void SetBdrLoad(int attr,
-                        std::shared_ptr<mfem::VectorCoefficient> load)
+void SetVolForce(mfem::real_t period, mfem::real_t amplitude, mfem::real_t rad,
+                     mfem::real_t xc=0.0, mfem::real_t yc=0.0, mfem::real_t zc=0.0)
 {
-    bdr_loads[attr] = load;
+    // copy data to the host 
+    mfem::real_t* pvol_force_mem = vol_force_mem.HostReadWrite();
+
+    pvol_force_mem[1] = period;
+    pvol_force_mem[2] = amplitude;
+    pvol_force_mem[3] = rad;
+    pvol_force_mem[4] = xc;
+    pvol_force_mem[5] = yc;
+    pvol_force_mem[6] = zc;
+
+    // copy data to the device
+    vol_force_mem.Read();
 }
 
 private:
@@ -190,18 +198,28 @@ static constexpr int Coords = 15; // coordinates grid function
 // DFEM forward related definitions
 std::unique_ptr<mfem::future::DifferentiableOperator> dfem_forward_op;
 std::unique_ptr<mfem::future::DifferentiableOperator> dfem_mass_op;
+std::unique_ptr<mfem::future::DifferentiableOperator> dfem_vol_force_op;
 
 std::unique_ptr<mfem::HypreParMatrix> M_lor;
 
 std::unique_ptr<mfem::CGSolver> cg;
 std::unique_ptr<mfem::HypreBoomerAMG> amg;
 
-// external load and bdr coefficients
-std::map<int, std::shared_ptr<mfem::VectorCoefficient> > bdr_loads;
-std::map<int, std::shared_ptr<mfem::VectorCoefficient> > bdr_displ;
-std::map<int, std::shared_ptr<mfem::VectorCoefficient> > bdr_veloc;
+// zero bdrs 
+std::set<int> zero_bdrs;
 
-mfem::Vector time_mem;
+// time dependent memory vector for dynamic force
+// the force is applied on all boundary attributes in bdr_loads_markers
+std::set<int> bdr_loads_markers;
+mutable mfem::Vector bdr_force_mem; // [0] - time, [1] - period, [2] - amplitude
+
+// volumetric force parameters
+// [0] - time, [1] - period, [2] - amplitude, [3] - radius
+// [4],[5],[6] - point coordinates of the center of the force application
+mutable mfem::Vector vol_force_mem; 
+
+// zero bdr dofs - constructed during the corrsponding Assemble calls
+mfem::Array<int> ess_tdof_list;
 
 
 };

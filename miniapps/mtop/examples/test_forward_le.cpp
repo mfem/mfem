@@ -3,8 +3,8 @@
 using namespace mfem;
 using namespace std;
 
-constexpr auto MESH_TRI = MFEM_SOURCE_DIR "/miniapps/mtop/sq_2D_9_tri.mesh";
-constexpr auto MESH_QUAD = MFEM_SOURCE_DIR "/miniapps/mtop/sq_2D_9_quad.mesh";
+constexpr auto MESH_TRI = MFEM_SOURCE_DIR "/miniapps/mtop/examples/dyn_hex2d_tri.msh";
+constexpr auto MESH_QUAD = MFEM_SOURCE_DIR "/miniapps/mtop/examples/dyn_hex2d_quad.msh";
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -173,6 +173,11 @@ int main(int argc, char *argv[])
                                                     cl2_coef, cmu2_coef);
 
    lin_elasticity_op.SetDensity(rho_coef);
+   
+   //set bottom bdr to zero (both the velocities and the displacements)
+   lin_elasticity_op.SetZeroBdr(1);
+
+   lin_elasticity_op.AssembleExplicit();
 
 
    
