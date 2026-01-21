@@ -380,11 +380,7 @@ const DofToQuad &FiniteElement::GetDofToQuad(const IntegrationRule &ir,
    #pragma omp critical (DofToQuad)
 #endif
    {
-      for (int i = 0; i < dof2quad_array.Size(); i++)
-      {
-         d2q = dof2quad_array[i];
-         if (d2q->IntRule != &ir || d2q->mode != mode) { d2q = nullptr; }
-      }
+      d2q = DofToQuad::SearchArray(dof2quad_array, ir, mode);
       if (!d2q)
       {
 #ifdef MFEM_THREAD_SAFE
@@ -659,14 +655,22 @@ void ScalarFiniteElement::ScalarLocalL2Restriction(
 void NodalFiniteElement::CreateLexicographicFullMap(const IntegrationRule &ir)
 const
 {
+   // Get the FULL version of the map. This call contains omp critical region,
+   // so it is done before the critical region below.
+   auto &d2q = GetDofToQuad(ir, DofToQuad::FULL);
 
 #if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
    #pragma omp critical (DofToQuad)
 #endif
    {
-      // Get the FULL version of the map.
-      auto &d2q = GetDofToQuad(ir, DofToQuad::FULL);
-      //Undo the native ordering which is what FiniteElement::GetDofToQuad returns.
+      // If the new Dof2Quad is already present, e.g. added in a previous call
+      // or added by another omp thread, return.
+      if (DofToQuad::SearchArray(dof2quad_array, ir,
+                                 DofToQuad::LEXICOGRAPHIC_FULL))
+      { return; }
+
+      // Undo the native ordering which is what FiniteElement::GetDofToQuad
+      // returns.
       auto *d2q_new = new DofToQuad(d2q);
       d2q_new->mode = DofToQuad::LEXICOGRAPHIC_FULL;
       const int nqpt = ir.GetNPoints();
@@ -722,13 +726,7 @@ const DofToQuad &NodalFiniteElement::GetDofToQuad(const IntegrationRule &ir,
    #pragma omp critical (DofToQuad)
 #endif
    {
-      //Should make this loop a function of FiniteElement
-      for (int i = 0; i < dof2quad_array.Size(); i++)
-      {
-         d2q = dof2quad_array[i];
-         if (d2q->IntRule == &ir && d2q->mode == mode) { break; }
-         d2q = nullptr;
-      }
+      d2q = DofToQuad::SearchArray(dof2quad_array, ir, mode);
    }
    if (d2q) { return *d2q; }
    if (mode != DofToQuad::LEXICOGRAPHIC_FULL)
@@ -2629,15 +2627,7 @@ const DofToQuad &TensorBasisElement::GetTensorDofToQuad(
    #pragma omp critical (DofToQuad)
 #endif
    {
-      for (int i = 0; i < dof2quad_array.Size(); i++)
-      {
-         auto* d2q_ = dof2quad_array[i];
-         if (d2q_->IntRule == &ir && d2q_->mode == mode)
-         {
-            d2q = d2q_;
-            break;
-         }
-      }
+      d2q = DofToQuad::SearchArray(dof2quad_array, ir, mode);
       if (!d2q)
       {
          d2q = new DofToQuad;
