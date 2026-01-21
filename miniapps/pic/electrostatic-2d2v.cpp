@@ -142,6 +142,8 @@ private:
    // Diffusion matrix
    HypreParMatrix* DiffusionMatrix;
    FindPointsGSLIB& E_finder;
+   int visport;
+   bool visualization;
    socketstream vis_e;
    socketstream vis_phi;
 
@@ -153,11 +155,14 @@ public:
                               const ParGridFunction& E_gf);
    // constructor
    GridFunctionUpdates(ParGridFunction& phi_gf, FindPointsGSLIB& E_finder_,
+                        int visport_, bool visualization_,
                        bool use_precomputed_neutralizing_const_ = false)
       : use_precomputed_neutralizing_const(use_precomputed_neutralizing_const_),
         E_finder(E_finder_),
-        vis_e("localhost", ctx.visport),
-        vis_phi("localhost", ctx.visport)
+        visport(visport_),
+        visualization(visualization_),
+        vis_e("localhost", visport_),
+        vis_phi("localhost", visport_)
    {
       // compute domain volume
       ParMesh* pmesh = phi_gf.ParFESpace()->GetParMesh();
@@ -278,7 +283,8 @@ int main(int argc, char* argv[])
    *E_gf = 0.0;   // Initialize E_gf to zero
 
    // 6. Build the grid function updates
-   GridFunctionUpdates gf_updates(phi_gf, E_finder, true);
+   GridFunctionUpdates gf_updates(phi_gf, E_finder, ctx.visport,
+                                  ctx.visualization, true);
    Ordering::Type ordering_type =
       ctx.ordering == 0 ? Ordering::byNODES : Ordering::byVDIM;
 
@@ -509,8 +515,6 @@ void PIC::RemoveLostParticles()
 
 void PIC::Redistribute()
 {
-   Mesh& mesh = *E_gf->ParFESpace()->GetMesh();
-   const ParticleVector& coords = charged_particles->Coords();
    charged_particles->Redistribute(E_finder.GetProc());
    FindParticles();
 }
@@ -545,7 +549,6 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet& particles,
       // Particle data
       ParticleVector& X = particles.Coords();  // coordinates (vdim x npt)
       ParticleVector& Q = particles.Field(PIC::CHARGE);  // charges (1 x npt)
-      Ordering::Type ordering_type = X.GetOrdering();
 
       const int npt = particles.GetNParticles();
       MFEM_VERIFY(X.GetVDim() == dim, "Unexpected particle coordinate layout.");
@@ -738,11 +741,11 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet& particles,
       delete B;
    }
 
-   if (ctx.visualization)
+   if (visualization)
    {
-      common::VisualizeField(vis_e, "localhost", ctx.visport, E_gf, "E_field",
+      common::VisualizeField(vis_e, "localhost", visport, E_gf, "E_field",
                              0, 0, 500, 500);
-      common::VisualizeField(vis_phi, "localhost", ctx.visport, phi_gf, "Potential",
+      common::VisualizeField(vis_phi, "localhost", visport, phi_gf, "Potential",
                              500, 0, 500, 500);
    }
 }
