@@ -242,14 +242,14 @@ def main() -> int:
                     ny += ny % 2
                 this_args = replace_arg(case_args, "-nx", str(nx))
                 this_args = replace_arg(this_args, "-ny", str(ny))
-                this_args = replace_arg(this_args, "-npt", str(npt_per_rank))
+                this_args = replace_arg(this_args, "-npt", str(npt_per_rank * r))
 
             else:  # strong
                 npt_per_rank = max(args.min_npt_per_rank, args.base_total_npt // r)
                 total_particles = npt_per_rank * r
                 # Keep grid fixed (typical strong scaling)
                 nx, ny = args.nx, args.ny
-                this_args = replace_arg(case_args, "-npt", str(npt_per_rank))
+                this_args = replace_arg(case_args, "-npt", str(npt_per_rank * r))
 
             # Compute particle-steps (very rough “work” proxy)
             particle_steps = int(total_particles) * int(args.nt)
