@@ -3205,6 +3205,8 @@ public:
    void AddMultPA(const Vector &x, Vector &y) const override;
    void AddMultMF(const Vector &x, Vector &y) const override;
    bool SupportsCeed() const override { return DeviceCanUseCeed(); }
+   void AssembleEA(const FiniteElementSpace &fes, Vector &ea_data,
+                   const bool add) override;
 
    /// arguments: ne, coeff_vdim, B, G, pa_data, x, y, d1d, q1d, vdim
    using ApplyKernelType = void (*)(const int, const int,
