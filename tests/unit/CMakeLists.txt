@@ -165,6 +165,7 @@ set(UNIT_TESTS_SRCS
   # This list can be updated using (in bash):
   #    for d in miniapps ceed; do ls -1 $d/*.cpp; done
   # miniapps/test_debug_device.cpp
+  # miniapps/test_sedov_dfem.cpp
   # miniapps/test_sedov_pa.cpp
   # miniapps/test_tmop_pa.cpp
   # ceed/test_ceed.cpp
