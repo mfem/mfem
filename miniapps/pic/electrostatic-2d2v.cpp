@@ -287,7 +287,6 @@ int main(int argc, char* argv[])
    PIC pic(MPI_COMM_WORLD, E_gf, E_finder, num_particles, ordering_type);
    InitializeChargedParticles(pic.GetParticles(), ctx.k, ctx.alpha, ctx.m,
                               ctx.q, ctx.L_x, ctx.reproduce);
-   pic.InterpolateE();  // Interpolate E field onto particle positions
 
    real_t t = ctx.t_init;
    real_t dt = ctx.dt;
@@ -350,7 +349,6 @@ void PIC::GetValues(const ParticleVector& coords, FindPointsGSLIB& E_finder,
 {
    ParMesh& mesh = *gf.ParFESpace()->GetParMesh();
    mesh.EnsureNodes();
-   E_finder.FindPoints(mesh, coords, coords.GetOrdering());
    E_finder.Interpolate(gf, pv);
    Ordering::Reorder(pv, pv.GetVDim(), gf.ParFESpace()->GetOrdering(),
                      pv.GetOrdering());
@@ -455,6 +453,7 @@ void PIC::Redistribute()
    const ParticleVector& coords = charged_particles->Coords();
    E_finder.FindPoints(mesh, coords, coords.GetOrdering());
    charged_particles->Redistribute(E_finder.GetProc());
+   E_finder.FindPoints(mesh, coords, coords.GetOrdering());
 }
 // Print the PIC ascii logo to the given ostream
 void display_banner(ostream& os)
@@ -550,8 +549,6 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet& particles,
       // --------------------------------------------------------
       // 2) Locate particles with FindPointsGSLIB
       // --------------------------------------------------------
-      E_finder.FindPoints(point_pos, ordering_type);
-
       const Array<unsigned int>& code =
          E_finder.GetCode();  // 0: inside, 1: boundary, 2: not found
       const Array<unsigned int>& proc = E_finder.GetProc();  // owning MPI rank
