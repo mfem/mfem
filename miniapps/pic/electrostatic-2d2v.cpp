@@ -107,26 +107,48 @@ public:
    };
 
 protected:
+   /// Pointers to E field GridFunctions
    ParGridFunction* E_gf;
+
+   /// FindPointsGSLIB object for E field mesh
    FindPointsGSLIB& E_finder;
+
+   /// ParticleSet of charged particles
    std::unique_ptr<ParticleSet> charged_particles;
+
+   /// Temporary vectors for particle computation
    mutable Vector pm_, pp_;
 
+   /// Get values of a ParGridFunction at given particle coordinates
    static void GetValues(const ParticleVector& coords, FindPointsGSLIB& finder,
                          ParGridFunction& gf, ParticleVector& pv);
+
+   /// Single particle Boris step
    void ParticleStep(Particle& part, real_t& dt, bool zeroth_step = false);
 
 public:
    PIC(MPI_Comm comm, ParGridFunction* E_gf_, FindPointsGSLIB& E_finder_,
        int num_particles,
        Ordering::Type pdata_ordering);
+
+   /// Initialize charged particles with given parameters
    void InitializeChargedParticles(const real_t& k, const real_t& alpha,
                                    real_t m, real_t q, real_t L_x,
                                    bool reproduce = false);
+
+   /// Interpolate E field to particles
    void InterpolateE();
+
+   /// Find Particles in mesh corresponding to E and field
    void FindParticles();
+
+   /// Advance particles one time step using Boris algorithm
    void Step(real_t& t, real_t& dt, bool zeroth_step = false);
+
+   /// Redistribute particles across processors
    void Redistribute();
+
+   /// Get reference to ParticleSet
    ParticleSet& GetParticles() { return *charged_particles; }
 };
 
@@ -147,14 +169,8 @@ private:
    socketstream vis_phi;
 
 public:
-   // Update the phi_gf grid function from the particles.
-   void UpdatePhiGridFunction(ParticleSet& particles, ParGridFunction& phi_gf,
-                              ParGridFunction& E_gf);
-   void TotalEnergyValidation(const ParticleSet& particles,
-                              const ParGridFunction& E_gf);
-   // constructor
    GridFunctionUpdates(ParGridFunction& phi_gf, FindPointsGSLIB& E_finder_,
-                        int visport_, bool visualization_,
+                       int visport_, bool visualization_,
                        bool use_precomputed_neutralizing_const_ = false)
       : use_precomputed_neutralizing_const(use_precomputed_neutralizing_const_),
         E_finder(E_finder_),
@@ -193,9 +209,16 @@ public:
       delete DiffusionMatrix;
       delete precomputed_neutralizing_lf;
    }
+   /// Update the phi_gf grid function from the particles.
+   void UpdatePhiGridFunction(ParticleSet& particles, ParGridFunction& phi_gf,
+                              ParGridFunction& E_gf);
+
+   /// Output energy (kinetic, field and total) with stdout and csv output
+   void TotalEnergyValidation(const ParticleSet& particles,
+                              const ParGridFunction& E_gf);
 };
 
-// Prints the program's logo to the given output stream
+/// Prints the program's logo to the given output stream
 void display_banner(ostream& os);
 
 int main(int argc, char* argv[])
