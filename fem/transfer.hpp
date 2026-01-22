@@ -569,6 +569,7 @@ private:
    const FiniteElementSpace& lFESpace;
    const FiniteElementSpace& hFESpace;
    bool isvar_order;
+   bool is_trace_space;
 
 public:
    /// @brief Constructs a transfer operator from \p lFESpace to \p hFESpace

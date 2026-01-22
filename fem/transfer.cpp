@@ -2082,6 +2082,16 @@ PRefinementTransferOperator::PRefinementTransferOperator(
      hFESpace(hFESpace_)
 {
    isvar_order = lFESpace_.IsVariableOrder() || hFESpace_.IsVariableOrder();
+
+   MFEM_VERIFY(lFESpace.FEColl()->GetContType() ==
+               hFESpace.FEColl()->GetContType(),
+               "Incompatible finite element space continuity types.");
+
+   is_trace_space =  
+            (dynamic_cast<const H1_Trace_FECollection*>(lFESpace.FEColl()) ||
+             dynamic_cast<const ND_Trace_FECollection*>(lFESpace.FEColl()) ||
+             dynamic_cast<const RT_Trace_FECollection*>(lFESpace.FEColl()));
+
 }
 
 void PRefinementTransferOperator::Mult(const Vector& x, Vector& y) const
@@ -2101,12 +2111,25 @@ void PRefinementTransferOperator::Mult(const Vector& x, Vector& y) const
    y = 0.0;
 
    DofTransformation doftrans_h, doftrans_l;
-   for (int i = 0; i < mesh->GetNE(); i++)
-   {
-      hFESpace.GetElementDofs(i, h_dofs, doftrans_h);
-      lFESpace.GetElementDofs(i, l_dofs, doftrans_l);
 
-      const Geometry::Type geom = mesh->GetElementBaseGeometry(i);
+   int iend = (is_trace_space) ? mesh->GetNumFaces() : mesh->GetNE();
+
+   for (int i = 0; i < iend; i++)
+   {
+      if (is_trace_space)
+      {
+         hFESpace.GetFaceDofs(i, h_dofs);
+         lFESpace.GetFaceDofs(i, l_dofs);
+      }
+      else
+      {  
+         hFESpace.GetElementDofs(i, h_dofs, doftrans_h);
+         lFESpace.GetElementDofs(i, l_dofs, doftrans_l);
+      }
+
+      const Geometry::Type geom = (is_trace_space) ? mesh->GetFaceGeometry(i) 
+                                                   : mesh->GetElementBaseGeometry(i);
+
       if (geom != cached_geom || isvar_order)
       {
          h_fe = hFESpace.GetFE(i);
@@ -2154,12 +2177,24 @@ void PRefinementTransferOperator::MultTranspose(const Vector& x,
 
    DofTransformation doftrans_h, doftrans_l;
 
-   for (int i = 0; i < mesh->GetNE(); i++)
-   {
-      hFESpace.GetElementDofs(i, h_dofs, doftrans_h);
-      lFESpace.GetElementDofs(i, l_dofs, doftrans_l);
+   int iend = (is_trace_space) ? mesh->GetNumFaces() : mesh->GetNE();
 
-      const Geometry::Type geom = mesh->GetElementBaseGeometry(i);
+   for (int i = 0; i < iend; i++)
+   {
+      if (is_trace_space)
+      {
+         hFESpace.GetFaceDofs(i, h_dofs);
+         lFESpace.GetFaceDofs(i, l_dofs);
+      }
+      else
+      {  
+         hFESpace.GetElementDofs(i, h_dofs, doftrans_h);
+         lFESpace.GetElementDofs(i, l_dofs, doftrans_l);
+      }
+
+      const Geometry::Type geom = (is_trace_space) ? mesh->GetFaceGeometry(i) 
+                                                   : mesh->GetElementBaseGeometry(i);
+                                                   
       if (geom != cached_geom || isvar_order)
       {
          h_fe = hFESpace.GetFE(i);
