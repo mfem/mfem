@@ -253,7 +253,7 @@ int main(int argc, char *argv[])
    // 13. Solve the linear system A X = B.
    //     * With full assembly, use the BoomerAMG preconditioner from hypre.
    //     * With partial assembly, use Jacobi smoothing, for now.
-   if (pa || !(cudss_solver && strstr(device_config, "cuda")))
+   if (pa || !(cudss_solver && Device::Allows(Backend::CUDA_MASK)))
    {
       Solver *prec = NULL;
       if (pa)
