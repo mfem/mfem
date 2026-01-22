@@ -27,11 +27,9 @@ set(SRC_MESH_FILES)
 foreach(MESH_FILE ${MESH_FILES})
   list(APPEND SRC_MESH_FILES ${CMAKE_CURRENT_SOURCE_DIR}/${MESH_FILE})
 endforeach()
-add_custom_command(OUTPUT data_is_copied
+add_custom_target(copy_miniapps_meshing_data
   COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SRC_MESH_FILES} .
-  COMMAND ${CMAKE_COMMAND} -E touch data_is_copied
-  COMMENT "Copying meshing miniapps data files ...")
-add_custom_target(copy_miniapps_meshing_data DEPENDS data_is_copied)
+  COMMENT "Syncing meshing miniapps data files ...")
 
 add_mfem_miniapp(klein-bottle
   MAIN klein-bottle.cpp
