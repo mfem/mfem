@@ -2261,6 +2261,30 @@ void GridFunction::AccumulateAndCountBdrTangentValues(
    }
 }
 
+void GridFunction::AccumulateAndCountFaceTangentValues(
+   VectorCoefficient &vcoeff, Array<int> &values_counter)
+{
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   Array<int> dofs;
+   Vector lvec;
+
+   values_counter.SetSize(Size());
+   values_counter = 0;
+
+   HostReadWrite();
+
+   for (int i = 0; i < fes->GetMesh()->GetNumFaces(); i++)
+   {
+      fe = fes->GetFaceElement(i);
+      T = fes->GetMesh()->GetFaceTransformation(i);
+      fes->GetFaceVDofs(i, dofs);
+      lvec.SetSize(fe->GetDof());
+      fe->Project(vcoeff, *T, lvec);
+      accumulate_dofs(dofs, lvec, *this, values_counter);
+   }
+}
+
 void GridFunction::ComputeMeans(AvgType type, Array<int> &zones_per_vdof)
 {
    switch (type)
@@ -2698,6 +2722,70 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff,
       }
    }
 }
+
+void GridFunction::ProjectFaceCoefficient(Coefficient &coeff)
+{
+   Array<int> vdofs;
+   Vector vals;
+   for (int i = 0; i < fes->GetMesh()->GetNumFaces(); i++)
+   {
+      fes->GetFaceVDofs(i, vdofs);
+      vals.SetSize(vdofs.Size());
+      fes->GetFaceElement(i)->Project(coeff, *fes->GetMesh()->GetFaceTransformation(i), vals);
+      SetSubVector(vdofs, vals);
+   }
+}
+
+
+void GridFunction::ProjectFaceCoefficient(VectorCoefficient &vcoeff)
+{
+   Array<int> vdofs;
+   Vector vals;
+   for (int i = 0; i < fes->GetMesh()->GetNumFaces(); i++)
+   {
+      fes->GetFaceVDofs(i, vdofs);
+      vals.SetSize(vdofs.Size());
+      fes->GetFaceElement(i)->Project(vcoeff, *fes->GetMesh()->GetFaceTransformation(i), vals);
+      SetSubVector(vdofs, vals);
+   }
+}
+
+
+void GridFunction::ProjectFaceCoefficientNormal(VectorCoefficient &vcoeff)
+{
+      const FiniteElement *fe;
+   ElementTransformation *T;
+   Array<int> dofs;
+   int dim = vcoeff.GetVDim();
+   Vector vc(dim), nor(dim), lvec;
+
+   for (int i = 0; i < fes->GetMesh()->GetNumFaces(); i++)
+   {
+      fe = fes->GetFaceElement(i);
+      T = fes->GetMesh()->GetFaceTransformation(i);
+      const IntegrationRule &ir = fe->GetNodes();
+      lvec.SetSize(fe->GetDof());
+      for (int j = 0; j < ir.GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(j);
+         T->SetIntPoint(&ip);
+         vcoeff.Eval(vc, *T, ip);
+         CalcOrtho(T->Jacobian(), nor);
+         lvec(j) = (vc * nor);
+      }
+      fes->GetFaceVDofs(i, dofs);
+      SetSubVector(dofs, lvec);
+   }
+
+}
+void GridFunction::ProjectFaceCoefficientTangent(VectorCoefficient &vcoeff)
+{
+   Array<int> values_counter;
+   AccumulateAndCountFaceTangentValues(vcoeff, values_counter);
+   ComputeMeans(ARITHMETIC, values_counter);
+}
+
+
 
 void GridFunction::ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
                                               real_t rtol, int iter)

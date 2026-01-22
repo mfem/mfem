@@ -557,6 +557,9 @@ protected:
                                            const Array<int> &bdr_attr,
                                            Array<int> &values_counter);
 
+   void AccumulateAndCountFaceTangentValues(VectorCoefficient &vcoeff,
+                                           Array<int> &values_counter);
+
    // Complete the computation of averages; called e.g. after
    // AccumulateAndCountZones().
    void ComputeMeans(AvgType type, Array<int> &zones_per_vdof);
@@ -577,6 +580,14 @@ public:
       Coefficient *coeff_p = &coeff;
       ProjectBdrCoefficient(&coeff_p, attr);
    }
+
+
+   void ProjectFaceCoefficient(VectorCoefficient &vcoeff);
+   void ProjectFaceCoefficient(Coefficient &coeff);
+
+   void ProjectFaceCoefficientNormal(VectorCoefficient &vcoeff);
+   void ProjectFaceCoefficientTangent(VectorCoefficient &vcoeff);
+
 
    /** @brief Project a VectorCoefficient on the GridFunction, modifying only
        DOFs on the boundary associated with the boundary attributes marked in
