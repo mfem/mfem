@@ -38,7 +38,6 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file);
    int dim = mesh.Dimension();
 
-
    H1_FECollection H1fec(order, mesh.Dimension());
    RT_FECollection RTfec(order, mesh.Dimension());
    ND_FECollection NDfec(order, mesh.Dimension());
@@ -154,6 +153,21 @@ int main(int argc, char *argv[])
    sol_ND_tr_sock.precision(8);
    sol_ND_tr_sock << "solution\n" << mesh << trace_x_ND_mapped
                   << "window_title 'ND Trace'" << flush;
+
+   trace_x_H1_mapped -= x_H1;
+   cout << "||x_H1_trace - x_H1||₂ : " << trace_x_H1_mapped.Norml2() << endl;
+
+   trace_x_vecH1_mapped -= x_vecH1;
+   cout << "||x_vecH1_trace - x_vecH1||₂ : " << trace_x_vecH1_mapped.Norml2() <<
+        endl;
+
+   trace_x_RT_mapped -= x_RT;
+   cout << "||x_RT_trace - x_RT||₂ : " << trace_x_RT_mapped.Norml2() << endl;
+
+
+   trace_x_ND_mapped -= x_ND;
+   cout << "||x_ND_trace - x_ND||₂ : " << trace_x_ND_mapped.Norml2() << endl;
+
 
    return 0;
 }
