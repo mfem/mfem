@@ -2184,7 +2184,8 @@ public:
                                    const Vector&, const Vector&,
                                    Vector&, const int, const int);
 
-   using ApplySimplexKernelType = void(*)(const int, const bool, const Array<int>&, const Array<int>&,
+   using ApplySimplexKernelType = void(*)(const int, const bool, const Array<int>&,
+                                          const Array<int>&,
                                           const Array<int>&, const Array<int>&, const Array<int>&,
                                           const Array<real_t>&, const Array<real_t>&,
                                           const Array<real_t>&, const Vector&, const Vector&,
@@ -2398,11 +2399,12 @@ public:
                                    const Array<real_t>&, const Vector&,
                                    const Vector&, Vector&, const int, const int);
 
-   using ApplySimplexKernelType = void(*)(const int, const Array<int>&, const Array<int>&,
+   using ApplySimplexKernelType = void(*)(const int, const Array<int>&,
+                                          const Array<int>&,
                                           const Array<int>&, const Array<int>&, const Array<int>&,
                                           const Array<real_t>&, const Array<real_t>&,
                                           const Array<real_t>&, const Array<real_t>&,
-                                          const Array<real_t>&, const Array<real_t>&, 
+                                          const Array<real_t>&, const Array<real_t>&,
                                           const Array<real_t>&, const Vector&,
                                           const Vector&, Vector&, const int, const int);
 

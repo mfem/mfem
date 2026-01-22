@@ -186,8 +186,9 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
          const Array<int> &inverse_map2d = maps->inverse_map2d_mass;
          const Array<int> &forward_map3d = maps->forward_map3d_mass;
          const Array<int> &inverse_map3d = maps->inverse_map3d_mass;
-         ApplySimplexPAKernels::Run(dim, D1D, Q1D, ne, lex_map, forward_map2d, inverse_map2d,
-                                    forward_map3d, inverse_map3d, Ba1, Ba2, Ba3, Ba1t, Ba2t, Ba3t, 
+         ApplySimplexPAKernels::Run(dim, D1D, Q1D, ne, lex_map, forward_map2d,
+                                    inverse_map2d,
+                                    forward_map3d, inverse_map3d, Ba1, Ba2, Ba3, Ba1t, Ba2t, Ba3t,
                                     T, D, x, y, D1D, Q1D);
       }
       else
@@ -195,18 +196,18 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
          const Array<real_t> &B = maps->B;
          const Array<real_t> &Bt = maps->Bt;
 #ifdef MFEM_USE_OCCA
-      if (DeviceCanUseOcca())
-      {
-         if (dim == 2)
+         if (DeviceCanUseOcca())
          {
-            return internal::OccaPAMassApply2D(D1D,Q1D,ne,B,Bt,D,x,y);
+            if (dim == 2)
+            {
+               return internal::OccaPAMassApply2D(D1D,Q1D,ne,B,Bt,D,x,y);
+            }
+            if (dim == 3)
+            {
+               return internal::OccaPAMassApply3D(D1D,Q1D,ne,B,Bt,D,x,y);
+            }
+            MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
          }
-         if (dim == 3)
-         {
-            return internal::OccaPAMassApply3D(D1D,Q1D,ne,B,Bt,D,x,y);
-         }
-         MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
-      }
 #endif // MFEM_USE_OCCA
          ApplyPAKernels::Run(dim, D1D, Q1D, ne, B, Bt, D, x, y, D1D, Q1D);
       }

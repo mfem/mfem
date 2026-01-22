@@ -240,7 +240,7 @@ public:
    /** @brief Arrays for holding the d one-dimensional quadrature nodes for Stroud conical
        conical quadrature. */
    Array<real_t> T;
-    
+
    /** @brief Gradients/divergences/curls of basis functions evaluated at
        quadrature points. */
    /** The storage layout is column-major with dimensions:

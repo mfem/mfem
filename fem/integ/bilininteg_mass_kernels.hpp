@@ -705,8 +705,8 @@ void PAMassApplyTriangle_Element(const int e,
    real_t *C2 = new real_t[Q1D * Q1D] {0};
    real_t *C1 = new real_t[D1D * Q1D] {0};
 
-   // quad to dofs operation (i.e. evaluating Bernstein polynomial at all quad nodes), 
-   // step 1: convert first quadrature index to first multiindex. 
+   // quad to dofs operation (i.e. evaluating Bernstein polynomial at all quad nodes),
+   // step 1: convert first quadrature index to first multiindex.
    for (int a1 = 0; a1 < D1D; a1++)
    {
       for (int iL = 0; iL < Q1D; iL++)
@@ -721,8 +721,8 @@ void PAMassApplyTriangle_Element(const int e,
    }
 
    // quad to dofs operation, step 2: convert second quadrature index to second
-   // multiindex. C2 contains the Bernstein polynomial on a triangle with 
-   // coefficients X evaluated at all of the Stroud quadrature nodes. E.g. if 
+   // multiindex. C2 contains the Bernstein polynomial on a triangle with
+   // coefficients X evaluated at all of the Stroud quadrature nodes. E.g. if
    // (t1,t2) is a Stroud node, then
    //    C2[i,j] = \sum_{\alpha} X_{\alpha} * B_{\alpha}^{p-1}(\Phi(t1,t2)),
    // where \Phi is the Duffy transform.
@@ -745,8 +745,8 @@ void PAMassApplyTriangle_Element(const int e,
       }
    }
 
-   // dofs to quad operation (i.e. evaluating all Bernstein moments of the form 
-   // \int_{K} B_{\alpha}^{p}(x) * C2(x) dx), step 1: convert first multiindex to 
+   // dofs to quad operation (i.e. evaluating all Bernstein moments of the form
+   // \int_{K} B_{\alpha}^{p}(x) * C2(x) dx), step 1: convert first multiindex to
    // first quadrature index. Note: here, C1 corresponds to F1 in the AAD
    // algorithm.
    for (int iL = 0; iL < Q1D; iL++)
@@ -791,15 +791,15 @@ void PAMassApplyTriangle_Element(const int e,
 template<int T_D1D, int T_Q1D, int T_NBZ, bool ACCUMULATE = true>
 MFEM_HOST_DEVICE inline
 void SmemPAMassApplyTriangle_Element(const int e,
-                                    const int NE,
-                                    const int *lex_map_,
-                                    const real_t *ba1_,
-                                    const real_t *ba2_,
-                                    const real_t *d_,
-                                    const real_t *x_,
-                                    real_t *y_,
-                                    const int d1d = 0,
-                                    const int q1d = 0)
+                                     const int NE,
+                                     const int *lex_map_,
+                                     const real_t *ba1_,
+                                     const real_t *ba2_,
+                                     const real_t *d_,
+                                     const real_t *x_,
+                                     real_t *y_,
+                                     const int d1d = 0,
+                                     const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -863,7 +863,7 @@ void SmemPAMassApplyTriangle_Element(const int e,
    }
    MFEM_SYNC_THREAD;
    // quad to dofs operation, step 1: convert first quadrature index to first
-   // multiindex. DQ corresponds to C1 in the AAD algorithm. 
+   // multiindex. DQ corresponds to C1 in the AAD algorithm.
    MFEM_FOREACH_THREAD(a1,y,D1D)
    {
       MFEM_FOREACH_THREAD(i2,x,Q1D)
@@ -879,12 +879,12 @@ void SmemPAMassApplyTriangle_Element(const int e,
    }
    MFEM_SYNC_THREAD;
    // quad to dofs operation, step 2: convert second quadrature index to second
-   // multiindex. QQ corresponds to C2 in the AAD algorithm, which contains the Bernstein 
+   // multiindex. QQ corresponds to C2 in the AAD algorithm, which contains the Bernstein
    // polynomial on a triangle with coefficients X evaluated at
    // all of the Stroud quadrature nodes. E.g. if (t1,t2) is a Stroud node, then
    //    C2[i,j] = \sum_{\alpha} X_{\alpha} * B_{\alpha}^{p-1}(\Phi(t1,t2)),
    // where \Phi is the Duffy transform.
-   MFEM_FOREACH_THREAD(i1,y,Q1D) 
+   MFEM_FOREACH_THREAD(i1,y,Q1D)
    {
       MFEM_FOREACH_THREAD(i2,x,Q1D)
       {
@@ -897,8 +897,8 @@ void SmemPAMassApplyTriangle_Element(const int e,
       }
    }
    MFEM_SYNC_THREAD;
-   // dofs to quad operation, step 1: convert first multiindex to first quadrature 
-   // index. DQ corresponds to F1 in the AAD algorithm, with F0 corresponding to 
+   // dofs to quad operation, step 1: convert first multiindex to first quadrature
+   // index. DQ corresponds to F1 in the AAD algorithm, with F0 corresponding to
    // C2 * D.
    MFEM_FOREACH_THREAD(i2,y,Q1D)
    {
@@ -1096,14 +1096,14 @@ void SmemPAMassApplyTetrahedron_Element(const int e,
                                         const int *forward_map2d_,
                                         const int *inverse_map2d_,
                                         const int *forward_map3d_,
-                                       //  const int *inverse_map3d_,
+                                        //  const int *inverse_map3d_,
                                         const real_t *ba1_,
                                         const real_t *ba2_,
                                         const real_t *ba3_,
                                         const real_t *t_,
-                                       //  const real_t *ba1t_,
-                                       //  const real_t *ba2t_,
-                                       //  const real_t *ba3t_,
+                                        //  const real_t *ba1t_,
+                                        //  const real_t *ba2t_,
+                                        //  const real_t *ba3t_,
                                         const real_t *d_,
                                         const real_t *x_,
                                         real_t *y_,
@@ -1124,9 +1124,12 @@ void SmemPAMassApplyTetrahedron_Element(const int e,
    const auto d = DeviceTensor<4,const real_t>(d_, Q1D, Q1D, Q1D, NE);
    const auto x = ConstDeviceMatrix(x_, BASIS_DIM, NE);
    auto y = DeviceMatrix(y_, BASIS_DIM, NE);
-   const auto forward_map3d__ = DeviceTensor<3,const int>(forward_map3d_, D1D, D1D, D1D);
-   const auto forward_map2d__ = DeviceTensor<2,const int>(forward_map2d_, D1D, D1D);
-   const auto inverse_map2d__ = DeviceTensor<2,const int>(inverse_map2d_, 2, BASIS_DIM2D);
+   const auto forward_map3d__ = DeviceTensor<3,const int>(forward_map3d_, D1D, D1D,
+                                                          D1D);
+   const auto forward_map2d__ = DeviceTensor<2,const int>(forward_map2d_, D1D,
+                                                          D1D);
+   const auto inverse_map2d__ = DeviceTensor<2,const int>(inverse_map2d_, 2,
+                                                          BASIS_DIM2D);
 
    MFEM_SHARED real_t sDQ[BASIS_DIM_*MQ1];
    // MFEM_SHARED real_t sDQ2[BASIS_DIM2D_*MQ1];
@@ -1139,7 +1142,7 @@ void SmemPAMassApplyTetrahedron_Element(const int e,
    // real_t (*Ba3t)[BASIS_DIM_] = (real_t (*)[BASIS_DIM_]) sDQ;
    MFEM_SHARED real_t sm0[MDQ*MDQ*MDQ];
    MFEM_SHARED real_t sm1[MDQ*MDQ*MDQ];
-   real_t (*X) = (real_t (*)) sm0; 
+   real_t (*X) = (real_t (*)) sm0;
    real_t (*C1)[MQ1] = (real_t (*)[MQ1]) sm1;
    real_t (*C2)[MQ1][MQ1] = (real_t (*)[MQ1][MQ1]) sm0;
    real_t (*C3)[MQ1][MQ1] = (real_t (*)[MQ1][MQ1]) sm1;
@@ -1160,7 +1163,7 @@ void SmemPAMassApplyTetrahedron_Element(const int e,
       const int a2 = inverse_map2d[a_2d][1];
       const int a_2d_ = forward_map2d__(a2, a1);
       forward_map2d[a1][a2] = a_2d_;
-      MFEM_FOREACH_THREAD(i3,x,Q1D) 
+      MFEM_FOREACH_THREAD(i3,x,Q1D)
       {
          MFEM_UNROLL(MD1)
          for (int a3 = 0; a3 < D1D-a1-a2; ++a3)
@@ -1181,7 +1184,7 @@ void SmemPAMassApplyTetrahedron_Element(const int e,
       {
          real_t u = 0.0;
          MFEM_UNROLL(MD1)
-         for (int a3 = 0; a3 < D1D-a1-a2; ++a3) 
+         for (int a3 = 0; a3 < D1D-a1-a2; ++a3)
          {
             const int a = forward_map3d[a1][a2][a3];
             u += X[a] * Ba3[i3][a];
@@ -1286,7 +1289,7 @@ void SmemPAMassApplyTetrahedron_Element(const int e,
          // MFEM_UNROLL(MD1)
          for (int a3 = 0; a3 < D1D-a1-a2; ++a3)
          {
-            const int a = forward_map3d[a1][a2][a3]; 
+            const int a = forward_map3d[a1][a2][a3];
             Ba3[i3][a] = ba3(i3,a);
          }
       }
@@ -1394,7 +1397,7 @@ void PAMassApplyTetrahedron_Element(const int e,
       }
    }
 
-   
+
    for (int a1 = 0; a1 < D1D; a1++)
    {
       real_t C2[max_Q1D][max_Q1D];
@@ -1403,9 +1406,9 @@ void PAMassApplyTetrahedron_Element(const int e,
          for (int i2 = 0; i2 < Q1D; i2++)
          {
             C2[i3][i2] = 0.0;
-         }  
+         }
       }
-      
+
       for (int a2 = 0; a2 < D1D-a1; a2++)
       {
          real_t C1[max_Q1D];
@@ -1413,17 +1416,17 @@ void PAMassApplyTetrahedron_Element(const int e,
          {
             C1[i3] = 0.0;
          }
-         
+
          for (int a3 = 0; a3 < D1D-a1-a2; a3++)
          {
-            const int a = forward_map3d[a3 + D1D*(a2 + D1D*a1)]; 
+            const int a = forward_map3d[a3 + D1D*(a2 + D1D*a1)];
             const real_t s = X(a,e);
             for (int i3 = 0; i3 < Q1D; i3++)
             {
                C1[i3] += s * Ba3(i3,a);
             }
          }
-         
+
          const int a_2d = forward_map2d[a2 + D1D*a1];
          for (int i3 = 0; i3 < Q1D; i3++)
          {
@@ -1455,7 +1458,7 @@ void PAMassApplyTetrahedron_Element(const int e,
       {
          for (int i1 = 0; i1 < Q1D; i1++)
          {
-            C3[i3][i2][i1] *= D(i1,i2,i3,e); 
+            C3[i3][i2][i1] *= D(i1,i2,i3,e);
          }
       }
    }
@@ -1467,7 +1470,7 @@ void PAMassApplyTetrahedron_Element(const int e,
       {
          F2[a] = 0.0;
       }
-      
+
       for (int i2 = 0; i2 < Q1D; i2++)
       {
          real_t F1[max_D1D];
@@ -1475,7 +1478,7 @@ void PAMassApplyTetrahedron_Element(const int e,
          {
             F1[a1] = 0.0;
          }
-         
+
          for (int i1 = 0; i1 < Q1D; i1++)
          {
             const real_t s = C3[i3][i2][i1];
@@ -1490,12 +1493,12 @@ void PAMassApplyTetrahedron_Element(const int e,
             const real_t s = F1[a1];
             for (int a2 = 0; a2 < D1D-a1; a2++)
             {
-               const int a_2d = forward_map2d[a2 + D1D*a1]; 
+               const int a_2d = forward_map2d[a2 + D1D*a1];
                F2[a_2d] += Ba2t(a_2d,i2) * s;
             }
          }
       }
-             
+
       for (int a1 = 0; a1 < D1D; a1++)
       {
          for (int a2 = 0; a2 < D1D-a1; a2++)
@@ -1875,8 +1878,9 @@ inline void SmemPAMassApplyTriangle(const int NE,
 
    mfem::forall_2D_batch(NE, D1D, D1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
-      internal::SmemPAMassApplyTriangle_Element<T_D1D,T_Q1D,T_NBZ>(e, NE, lex_map, Ba1, Ba2, D, X,
-                                            Y, d1d, q1d);
+      internal::SmemPAMassApplyTriangle_Element<T_D1D,T_Q1D,T_NBZ>(e, NE, lex_map,
+                                                                   Ba1, Ba2, D, X,
+                                                                   Y, d1d, q1d);
    });
 }
 
@@ -1949,7 +1953,8 @@ inline void PAMassApplyTetrahedron(const int NE,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      internal::PAMassApplyTetrahedron_Element(e, NE, BASIS_DIM, BASIS_DIM2D, forward_map2d,
+      internal::PAMassApplyTetrahedron_Element(e, NE, BASIS_DIM, BASIS_DIM2D,
+                                               forward_map2d,
                                                inverse_map2d, forward_map3d, inverse_map3d, Ba1, Ba2,
                                                Ba3, Ba1t, Ba2t, Ba3t, D, X, Y, d1d, q1d);
    });
@@ -2000,12 +2005,13 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
    const auto D = d_.Read();
    const auto X = x_.Read();
    auto Y = y_.ReadWrite();
-   
-   
+
+
    mfem::forall_2D(NE, Q1D, Q1D*Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
-      internal::SmemPAMassApplyTetrahedron_Element<T_D1D, T_Q1D>(e, NE, BASIS_DIM, BASIS_DIM2D, forward_map2d,
-                                                   inverse_map2d, forward_map3d, Ba1, Ba2, Ba3, T, D, X, Y, d1d, q1d);
+      internal::SmemPAMassApplyTetrahedron_Element<T_D1D, T_Q1D>(e, NE, BASIS_DIM,
+                                                                 BASIS_DIM2D, forward_map2d,
+                                                                 inverse_map2d, forward_map3d, Ba1, Ba2, Ba3, T, D, X, Y, d1d, q1d);
    });
 
    // mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)

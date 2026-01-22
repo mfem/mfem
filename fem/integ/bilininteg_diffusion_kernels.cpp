@@ -41,7 +41,7 @@ DiffusionIntegrator::Kernels::Kernels()
    // DiffusionIntegrator::AddSpecialization<2,9,10>();
    // others
    // 3D
-   // Q = P 
+   // Q = P
    DiffusionIntegrator::AddSpecialization<3,2,1>();
    DiffusionIntegrator::AddSpecialization<3,3,2>();
    DiffusionIntegrator::AddSpecialization<3,4,3>();

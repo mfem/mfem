@@ -1631,7 +1631,7 @@ inline void SmemPADiffusionApply3D(const int NE,
        of arbitrary order and optimal assembly procedures. SIAM Journal on Scientific Computing,
        33(6), 3087-3109.
    */
-  template<int T_D1D = 0, int T_Q1D = 0>
+template<int T_D1D = 0, int T_Q1D = 0>
 inline void PADiffusionApplyTetrahedron(const int NE,
                                         const bool symmetric,
                                         const Array<int> &lex_map_,
@@ -1706,7 +1706,7 @@ inline void PADiffusionApplyTetrahedron(const int NE,
                F1[2+q] = 0.0;
             }
          }
-         
+
          for (int a = 0; a < BASIS_DIM2D_DIFF; a++)
          {
             const int q = 3*(a + BASIS_DIM2D_DIFF*i3);
@@ -1726,7 +1726,7 @@ inline void PADiffusionApplyTetrahedron(const int NE,
          const int a1 = inverse_map3d[3*a];
          const int a2 = inverse_map3d[1 + 3*a];
          const int a3 = inverse_map3d[2 + 3*a];
-         const int a_2d = forward_map2d[a2 + (D1D-1)*a1];  
+         const int a_2d = forward_map2d[a2 + (D1D-1)*a1];
 
          // aggregate input vector
          real_t u = 0.0, v = 0.0, w = 0.0;
@@ -1830,7 +1830,7 @@ inline void PADiffusionApplyTetrahedron(const int NE,
                real_t gX = C3[i1i2i3];
                real_t gY = C3[1 + i1i2i3];
                real_t gZ = C3[2 + i1i2i3];
-   
+
                const real_t fin1 = O11 * gX + O12 * gY + O13 * gZ;
                const real_t fin2 = O21 * gX + O22 * gY + O23 * gZ;
                const real_t fin3 = O31 * gX + O32 * gY + O33 * gZ;
@@ -1870,7 +1870,7 @@ inline void PADiffusionApplyTetrahedron(const int NE,
          const int a1 = inverse_map3d[3*a];
          const int a2 = inverse_map3d[1 + 3*a];
          const int a3 = inverse_map3d[2 + 3*a];
-         const int a_2d = forward_map2d[a2 + (D1D-1)*a1];  
+         const int a_2d = forward_map2d[a2 + (D1D-1)*a1];
 
          real_t u = 0.0, v = 0.0, w = 0.0;
          // const int a1a2a3 = 3*(a3 + a1a2);
@@ -1881,13 +1881,13 @@ inline void PADiffusionApplyTetrahedron(const int NE,
             const int a1a2i3 = 3*(a_2d + BASIS_DIM2D_DIFF*i3);
             u += F2[a1a2i3] * Gai;
             v += F2[1 + a1a2i3] * Gai;
-            w += F2[2 + a1a2i3] * Gai; 
+            w += F2[2 + a1a2i3] * Gai;
          }
 
          // k=3
          int idx = lex_map[a3 + D1D*(a2 + D1D*a1)];
          Y(idx,e) -= p2 * (u + v + w);
-         
+
          // k=0
          idx = lex_map[a3 + D1D*(a2 + D1D*(a1+1))];
          Y(idx,e) += p2 * u;
@@ -1931,10 +1931,14 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
    const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D;
    MFEM_VERIFY(D1D <= max_d1d, "");
    MFEM_VERIFY(Q1D <= max_q1d, "");
-   const auto forward_map3d__ = DeviceTensor<3,const int>(forward_map3d_.Read(), D1D-1, D1D-1, D1D-1);
-   const auto forward_map2d__ = DeviceTensor<2,const int>(forward_map2d_.Read(), D1D-1, D1D-1);
-   const auto inverse_map2d__ = DeviceTensor<2,const int>(inverse_map2d_.Read(), 2, BASIS_DIM2D_DIFF);
-   const auto lex_map__ = DeviceTensor<3,const int>(lex_map_.Read(), D1D, D1D, D1D);
+   const auto forward_map3d__ = DeviceTensor<3,const int>(forward_map3d_.Read(),
+                                                          D1D-1, D1D-1, D1D-1);
+   const auto forward_map2d__ = DeviceTensor<2,const int>(forward_map2d_.Read(),
+                                                          D1D-1, D1D-1);
+   const auto inverse_map2d__ = DeviceTensor<2,const int>(inverse_map2d_.Read(), 2,
+                                                          BASIS_DIM2D_DIFF);
+   const auto lex_map__ = DeviceTensor<3,const int>(lex_map_.Read(), D1D, D1D,
+                                                    D1D);
    const auto ga1 = ConstDeviceMatrix(ga1_.Read(), Q1D, D1D-1);
    const auto ga2 = ConstDeviceMatrix(ga2_.Read(), Q1D, BASIS_DIM2D_DIFF);
    const auto ga3 = ConstDeviceMatrix(ga3_.Read(), Q1D, BASIS_DIM3D_DIFF);
@@ -2020,7 +2024,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(a_2d,y,BASIS_DIM2D_DIFF) 
+      MFEM_FOREACH_THREAD(a_2d,y,BASIS_DIM2D_DIFF)
       {
          const int a1 = inverse_map2d[a_2d][0];
          const int a2 = inverse_map2d[a_2d][1];
@@ -2060,8 +2064,8 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
       MFEM_SYNC_THREAD;
       MFEM_FOREACH_THREAD(a1i2,y,Q1D*(D1D-1))
       {
-      //    const int i2 = a1i2 % Q1D;
-      //    const int a1 = (int) a1i2 / Q1D;
+         //    const int i2 = a1i2 % Q1D;
+         //    const int a1 = (int) a1i2 / Q1D;
          const int a1 = (int) a1i2 / Q1D;
          const int i2 = a1i2 % Q1D;
          MFEM_FOREACH_THREAD(i3,x,Q1D)
@@ -2107,7 +2111,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
             const real_t gX = u;
             const real_t gY = v;
             const real_t gZ = w;
-            QQQ0[i1][i2][i3] = O11 * gX + O12 * gY + O13 * gZ; 
+            QQQ0[i1][i2][i3] = O11 * gX + O12 * gY + O13 * gZ;
             QQQ1[i1][i2][i3] = O21 * gX + O22 * gY + O23 * gZ;
             QQQ2[i1][i2][i3] = O31 * gX + O32 * gY + O33 * gZ;
          }
