@@ -92,7 +92,6 @@ int main(int argc, char *argv[])
          pmesh.UniformRefinement();
       }
    }
-
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
    //    order < 1, we instead use an isoparametric/isogeometric space.
@@ -190,7 +189,7 @@ int main(int argc, char *argv[])
    //     corresponding to the Laplacian operator -Delta, by adding the
    //     Diffusion domain integrator.
    ParBilinearForm a(&fespace);
-   a.SetAssemblyLevel(AssemblyLevel::FULL);
+   a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    if (bp_type == "bp3")
    {
       FunctionCoefficient diffcoeff(d_func);

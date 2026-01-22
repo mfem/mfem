@@ -2001,6 +2001,7 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
    const auto X = x_.Read();
    auto Y = y_.ReadWrite();
    
+   
    mfem::forall_2D(NE, Q1D, Q1D*Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       internal::SmemPAMassApplyTetrahedron_Element<T_D1D, T_Q1D>(e, NE, BASIS_DIM, BASIS_DIM2D, forward_map2d,

@@ -235,7 +235,6 @@ const IntegrationRule IntegrationRule::DuffyTrans(int dim) const
       {
          real_t L1 = IntPoint(i).x;
          real_t L2 = IntPoint(i).y * (1 - L1);
-         real_t L3 = 1 - L1 - L2;
 
          IntegrationPoint &ip_mapped = ir_mapped.IntPoint(i);
          ip_mapped.x = L1; // corresponds to x1 = (1,0) and x2 = (0,1)
@@ -252,7 +251,6 @@ const IntegrationRule IntegrationRule::DuffyTrans(int dim) const
          real_t L1 = IntPoint(i).x;
          real_t L2 = IntPoint(i).y * (1 - L1);
          real_t L3 = IntPoint(i).z * (1 - L1 - L2);
-         real_t L4 = 1 - L1 - L2 - L3;
 
          // need to verify this is correct!
          IntegrationPoint &ip_mapped = ir_mapped.IntPoint(i);
@@ -540,7 +538,7 @@ void QuadratureFunctions1D::GaussJacobi(const int np, const real_t alpha,
                                                             1.0/tan(0.5*v) - (0.25 - beta*beta) * tan(0.5*v));
       real_t z = cos(theta);
 
-      real_t pp, p1, p1e, dz, xi = 0.;
+      real_t pp, p1, dz, xi = 0.;
       bool done = false;
       while (1)
       {

@@ -836,8 +836,6 @@ inline void PADiffusionApplyTriangle(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       for (int idx = 0; idx < BASIS_DIM; idx++)
       {
@@ -1652,7 +1650,6 @@ inline void PADiffusionApplyTetrahedron(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   const int BASIS_DIM2D = D1D * (D1D+1) / 2;
    const int BASIS_DIM3D = D1D * (D1D+1) * (D1D+2) / 6;
    const int BASIS_DIM2D_DIFF = (D1D-1) * D1D / 2;
    const int BASIS_DIM3D_DIFF = (D1D-1) * D1D * (D1D+1) / 6;
@@ -1927,7 +1924,6 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   const int BASIS_DIM2D = D1D * (D1D+1) / 2;
    const int BASIS_DIM3D = D1D * (D1D+1) * (D1D+2) / 6;
    const int BASIS_DIM2D_DIFF = (D1D-1) * D1D / 2;
    const int BASIS_DIM3D_DIFF = (D1D-1) * D1D * (D1D+1) / 6;
@@ -1954,8 +1950,6 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
-      constexpr int BASIS_DIM2D = MD1 * (MD1 + 1) / 2;
-      constexpr int BASIS_DIM3D = MD1 * (MD1 + 1) * (MD1 + 2) / 6;
       constexpr int BASIS_DIM2D_DIFF = (MD1-1) * MD1 / 2;
       constexpr int BASIS_DIM3D_DIFF = (MD1-1) * MD1 * (MD1 + 1) / 6;
 
@@ -2142,7 +2136,6 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
       MFEM_FOREACH_THREAD(a_2d,y,BASIS_DIM2D_DIFF)
       {
          const int a1 = inverse_map2d[a_2d][0];
-         const int a2 = inverse_map2d[a_2d][1];
          MFEM_FOREACH_THREAD(i3,x,Q1D)
          {
             real_t u = 0.0, v = 0.0, w = 0.0;
