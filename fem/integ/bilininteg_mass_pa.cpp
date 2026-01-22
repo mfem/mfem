@@ -210,13 +210,15 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
          const Array<real_t> &Ba1t = maps->Ba1t;
          const Array<real_t> &Ba2t = maps->Ba2t;
          const Array<real_t> &Ba3t = maps->Ba3t;
+         const Array<real_t> &T = maps->T;
          const Array<int> &lex_map = maps->lex_map;
          const Array<int> &forward_map2d = maps->forward_map2d_mass;
          const Array<int> &inverse_map2d = maps->inverse_map2d_mass;
          const Array<int> &forward_map3d = maps->forward_map3d_mass;
          const Array<int> &inverse_map3d = maps->inverse_map3d_mass;
          ApplySimplexPAKernels::Run(dim, D1D, Q1D, ne, lex_map, forward_map2d, inverse_map2d,
-                                    forward_map3d, inverse_map3d, Ba1, Ba2, Ba3, Ba1t, Ba2t, Ba3t, D, x, y, D1D, Q1D);
+                                    forward_map3d, inverse_map3d, Ba1, Ba2, Ba3, Ba1t, Ba2t, Ba3t, 
+                                    T, D, x, y, D1D, Q1D);
       }
       else
       {

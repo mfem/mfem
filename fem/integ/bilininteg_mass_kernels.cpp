@@ -28,12 +28,17 @@ MassIntegrator::Kernels::Kernels()
    // 3D
    MassIntegrator::AddSpecialization<3,2,2>();
    MassIntegrator::AddSpecialization<3,2,3>();
+   MassIntegrator::AddSpecialization<3,3,3>();
    MassIntegrator::AddSpecialization<3,3,4>();
+   MassIntegrator::AddSpecialization<3,4,4>();
    MassIntegrator::AddSpecialization<3,4,5>();
    MassIntegrator::AddSpecialization<3,4,6>();
+   MassIntegrator::AddSpecialization<3,5,5>();
    MassIntegrator::AddSpecialization<3,5,6>();
    MassIntegrator::AddSpecialization<3,5,8>();
+   MassIntegrator::AddSpecialization<3,6,6>();
    MassIntegrator::AddSpecialization<3,6,7>();
+   MassIntegrator::AddSpecialization<3,7,7>();
    MassIntegrator::AddSpecialization<3,7,8>();
    MassIntegrator::AddSpecialization<3,8,9>();
 }

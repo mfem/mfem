@@ -501,8 +501,11 @@ void QuadratureFunctions1D::GaussJacobi(const int np, const real_t alpha,
       case 1:
          real_t x = (beta - alpha) / (alpha + beta + 2);
          real_t w = pow(2, alpha + beta + 1) * tgamma(alpha + 2) * tgamma(
-                       beta + 2) / tgamma(alpha + beta + 2);
-         ir->IntPoint(0).Set1w((beta - alpha) / (alpha + beta + 2),
+                       beta + 2) / (tgamma(alpha + beta + 2));
+         w = 0.5 * w / pow(2, alpha + beta);
+         // map weight to  to [0,1], with additional 1/(2^(alpha + beta)) factor coming from mapping
+         // the weight (1-x)^alpha * (1+x)^beta to [0,1] as well.
+         ir->IntPoint(0).Set1w(0.5 * x + 0.5,
                                4.0 * w / ((1.0 - x*x) * (alpha + beta + 2) * (alpha + beta + 2)));
          return;
    }
@@ -586,6 +589,7 @@ void QuadratureFunctions1D::GaussJacobi(const int np, const real_t alpha,
       ir->IntPoint(n-i).x = 0.5 * xi + 0.5;
       ir->IntPoint(n-i).weight = 0.5 * c0 * pow(2.0,
                                                 ab + 1) / ((1.0 - xi*xi)*pp*pp) / pow(2, ab);
+      // map nodes and weights to the interval [0,1]
    }
 
 #else // MFEM_USE_MPFR is defined

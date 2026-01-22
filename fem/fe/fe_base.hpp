@@ -228,12 +228,6 @@ public:
        dof index. */
    Array<int> lex_map;
 
-   /** @brief Special offset arrays that allow for contiguous memory access of ragged tensor
-       arrays. Access to C[a1][a2] is reduced to C[a2 + offset2d[a1]] and access to
-       C[a1][a2][a3] is reduced to C[a3 + offset3d[a1,a2]]. */
-   Array<int> offset2d;
-   Array<int> offset3d;
-
    Array<int> forward_map2d_diff;
    Array<int> forward_map3d_diff;
    Array<int> inverse_map2d_diff;
@@ -242,6 +236,10 @@ public:
    Array<int> forward_map3d_mass;
    Array<int> inverse_map2d_mass;
    Array<int> inverse_map3d_mass;
+
+   /** @brief Arrays for holding the d one-dimensional quadrature nodes for Stroud conical
+       conical quadrature. */
+   Array<real_t> T;
     
    /** @brief Gradients/divergences/curls of basis functions evaluated at
        quadrature points. */
