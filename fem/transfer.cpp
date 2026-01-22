@@ -2087,10 +2087,10 @@ PRefinementTransferOperator::PRefinementTransferOperator(
                hFESpace.FEColl()->GetContType(),
                "Incompatible finite element space continuity types.");
 
-   is_trace_space =  
-            (dynamic_cast<const H1_Trace_FECollection*>(lFESpace.FEColl()) ||
-             dynamic_cast<const ND_Trace_FECollection*>(lFESpace.FEColl()) ||
-             dynamic_cast<const RT_Trace_FECollection*>(lFESpace.FEColl()));
+   is_trace_space =
+      (dynamic_cast<const H1_Trace_FECollection*>(lFESpace.FEColl()) ||
+       dynamic_cast<const ND_Trace_FECollection*>(lFESpace.FEColl()) ||
+       dynamic_cast<const RT_Trace_FECollection*>(lFESpace.FEColl()));
 
 }
 
@@ -2122,13 +2122,13 @@ void PRefinementTransferOperator::Mult(const Vector& x, Vector& y) const
          lFESpace.GetFaceDofs(i, l_dofs);
       }
       else
-      {  
+      {
          hFESpace.GetElementDofs(i, h_dofs, doftrans_h);
          lFESpace.GetElementDofs(i, l_dofs, doftrans_l);
       }
 
-      const Geometry::Type geom = (is_trace_space) ? mesh->GetFaceGeometry(i) 
-                                                   : mesh->GetElementBaseGeometry(i);
+      const Geometry::Type geom = (is_trace_space) ? mesh->GetFaceGeometry(i)
+                                  : mesh->GetElementBaseGeometry(i);
 
       if (geom != cached_geom || isvar_order)
       {
@@ -2187,14 +2187,14 @@ void PRefinementTransferOperator::MultTranspose(const Vector& x,
          lFESpace.GetFaceDofs(i, l_dofs);
       }
       else
-      {  
+      {
          hFESpace.GetElementDofs(i, h_dofs, doftrans_h);
          lFESpace.GetElementDofs(i, l_dofs, doftrans_l);
       }
 
-      const Geometry::Type geom = (is_trace_space) ? mesh->GetFaceGeometry(i) 
-                                                   : mesh->GetElementBaseGeometry(i);
-                                                   
+      const Geometry::Type geom = (is_trace_space) ? mesh->GetFaceGeometry(i)
+                                  : mesh->GetElementBaseGeometry(i);
+
       if (geom != cached_geom || isvar_order)
       {
          h_fe = hFESpace.GetFE(i);

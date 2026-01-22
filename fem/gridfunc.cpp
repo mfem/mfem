@@ -2731,7 +2731,8 @@ void GridFunction::ProjectFaceCoefficient(Coefficient &coeff)
    {
       fes->GetFaceVDofs(i, vdofs);
       vals.SetSize(vdofs.Size());
-      fes->GetFaceElement(i)->Project(coeff, *fes->GetMesh()->GetFaceTransformation(i), vals);
+      fes->GetFaceElement(i)->Project(coeff,
+                                      *fes->GetMesh()->GetFaceTransformation(i), vals);
       SetSubVector(vdofs, vals);
    }
 }
@@ -2745,7 +2746,8 @@ void GridFunction::ProjectFaceCoefficient(VectorCoefficient &vcoeff)
    {
       fes->GetFaceVDofs(i, vdofs);
       vals.SetSize(vdofs.Size());
-      fes->GetFaceElement(i)->Project(vcoeff, *fes->GetMesh()->GetFaceTransformation(i), vals);
+      fes->GetFaceElement(i)->Project(vcoeff,
+                                      *fes->GetMesh()->GetFaceTransformation(i), vals);
       SetSubVector(vdofs, vals);
    }
 }
@@ -2753,7 +2755,7 @@ void GridFunction::ProjectFaceCoefficient(VectorCoefficient &vcoeff)
 
 void GridFunction::ProjectFaceCoefficientNormal(VectorCoefficient &vcoeff)
 {
-      const FiniteElement *fe;
+   const FiniteElement *fe;
    ElementTransformation *T;
    Array<int> dofs;
    int dim = vcoeff.GetVDim();

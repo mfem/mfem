@@ -65,8 +65,8 @@ int main(int argc, char *argv[])
    GridFunction x_vecH1(&H1vecfes); x_vecH1 = 0.0;
    GridFunction x_RT(&RTfes); x_RT = 0.0;
    GridFunction x_ND(&NDfes); x_ND = 0.0;
-   
-   x_H1.ProjectCoefficient(cf); 
+
+   x_H1.ProjectCoefficient(cf);
    x_vecH1.ProjectCoefficient(vec_cf);
    x_RT.ProjectCoefficient(vec_cf);
    x_ND.ProjectCoefficient(vec_cf);
@@ -91,25 +91,25 @@ int main(int argc, char *argv[])
    for (int i = 0; i<mesh.GetNE(); i++)
    {
       H1fes.GetElementInteriorVDofs(i, vdofs);
-      x_H1.SetSubVector(vdofs, 0.0); 
+      x_H1.SetSubVector(vdofs, 0.0);
       H1trace_fes.GetElementVDofs(i, trace_vdofs);
       trace_x_H1.GetSubVector(trace_vdofs, values);
-      trace_x_H1_mapped.SetSubVector(trace_vdofs,values); 
+      trace_x_H1_mapped.SetSubVector(trace_vdofs,values);
 
       H1vecfes.GetElementInteriorVDofs(i, vdofs);
-      x_vecH1.SetSubVector(vdofs, 0.0); 
+      x_vecH1.SetSubVector(vdofs, 0.0);
       H1trace_vecfes.GetElementVDofs(i, trace_vdofs);
       trace_x_vecH1.GetSubVector(trace_vdofs, values);
       trace_x_vecH1_mapped.SetSubVector(trace_vdofs,values);
 
       RTfes.GetElementInteriorVDofs(i, vdofs);
-      x_RT.SetSubVector(vdofs, 0.0); 
+      x_RT.SetSubVector(vdofs, 0.0);
       RTtrace_fes.GetElementVDofs(i, trace_vdofs);
       trace_x_RT.GetSubVector(trace_vdofs, values);
       trace_x_RT_mapped.SetSubVector(trace_vdofs,values);
 
       NDfes.GetElementInteriorVDofs(i, vdofs);
-      x_ND.SetSubVector(vdofs, 0.0); 
+      x_ND.SetSubVector(vdofs, 0.0);
       NDtrace_fes.GetElementVDofs(i, trace_vdofs);
       trace_x_ND.GetSubVector(trace_vdofs, values);
       trace_x_ND_mapped.SetSubVector(trace_vdofs,values);
@@ -117,43 +117,43 @@ int main(int argc, char *argv[])
 
    socketstream sol_H1_sock(vishost, visport);
    sol_H1_sock.precision(8);
-   sol_H1_sock << "solution\n" << mesh << x_H1 
-            << "window_title 'H1 Field'" << flush;
+   sol_H1_sock << "solution\n" << mesh << x_H1
+               << "window_title 'H1 Field'" << flush;
 
    socketstream sol_H1_tr_sock(vishost, visport);
    sol_H1_tr_sock.precision(8);
-   sol_H1_tr_sock << "solution\n" << mesh << trace_x_H1_mapped 
-              << "window_title 'H1 Trace'" << flush;
+   sol_H1_tr_sock << "solution\n" << mesh << trace_x_H1_mapped
+                  << "window_title 'H1 Trace'" << flush;
 
    socketstream sol_vecH1_sock(vishost, visport);
    sol_vecH1_sock.precision(8);
-   sol_vecH1_sock << "solution\n" << mesh << x_vecH1 
-            << "window_title 'Vector H1 Field'" << flush;
+   sol_vecH1_sock << "solution\n" << mesh << x_vecH1
+                  << "window_title 'Vector H1 Field'" << flush;
 
    socketstream sol_vecH1_tr_sock(vishost, visport);
-   sol_vecH1_tr_sock.precision(8);     
-   sol_vecH1_tr_sock << "solution\n" << mesh << trace_x_vecH1_mapped 
-              << "window_title 'Vector H1 Trace'" << flush;    
-              
+   sol_vecH1_tr_sock.precision(8);
+   sol_vecH1_tr_sock << "solution\n" << mesh << trace_x_vecH1_mapped
+                     << "window_title 'Vector H1 Trace'" << flush;
+
    socketstream sol_RT_sock(vishost, visport);
    sol_RT_sock.precision(8);
-   sol_RT_sock << "solution\n" << mesh << x_RT 
-            << "window_title 'RT Field'" << flush;
-            
+   sol_RT_sock << "solution\n" << mesh << x_RT
+               << "window_title 'RT Field'" << flush;
+
    socketstream sol_RT_tr_sock(vishost, visport);
    sol_RT_tr_sock.precision(8);
-   sol_RT_tr_sock << "solution\n" << mesh << trace_x_RT_mapped 
-              << "window_title 'RT Trace'" << flush;
-              
+   sol_RT_tr_sock << "solution\n" << mesh << trace_x_RT_mapped
+                  << "window_title 'RT Trace'" << flush;
+
    socketstream sol_ND_sock(vishost, visport);
    sol_ND_sock.precision(8);
-   sol_ND_sock << "solution\n" << mesh << x_ND 
-            << "window_title 'ND Field'" << flush;
-   
+   sol_ND_sock << "solution\n" << mesh << x_ND
+               << "window_title 'ND Field'" << flush;
+
    socketstream sol_ND_tr_sock(vishost, visport);
    sol_ND_tr_sock.precision(8);
-   sol_ND_tr_sock << "solution\n" << mesh << trace_x_ND_mapped 
-              << "window_title 'ND Trace'" << flush;
+   sol_ND_tr_sock << "solution\n" << mesh << trace_x_ND_mapped
+                  << "window_title 'ND Trace'" << flush;
 
    return 0;
 }

@@ -558,7 +558,7 @@ protected:
                                            Array<int> &values_counter);
 
    void AccumulateAndCountFaceTangentValues(VectorCoefficient &vcoeff,
-                                           Array<int> &values_counter);
+                                            Array<int> &values_counter);
 
    // Complete the computation of averages; called e.g. after
    // AccumulateAndCountZones().
