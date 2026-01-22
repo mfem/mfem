@@ -5,6 +5,7 @@
 // Sample runs:  ex43 -m ../data/ball-nurbs.mesh -r 2
 //               ex43 -m ../data/ref-cube.mesh -r 2
 //               ex43 -m ../data/fichera.mesh
+//               ex43 -m ../data/star.mesh
 //
 // Description:  This example code solves a linear elasticity problem using
 //               Nitsche's method to enforce sliding boundary conditions. In
