@@ -288,7 +288,7 @@ int main(int argc, char *argv[])
    }
    // 13a. Solve using a direct solver with cuDSS
 #ifdef MFEM_USE_CUDSS
-   if (!pa && (cudss_solver && strstr(device_config, "cuda")))
+   if (!pa && (cudss_solver && Device::Allows(Backend::CUDA_MASK)))
    {
       CuDSSSolver cudss_solver(MPI_COMM_WORLD);
       cudss_solver.SetMatrixSymType(
