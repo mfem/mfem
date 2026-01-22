@@ -233,7 +233,7 @@ int main(int argc, char *argv[])
    {
 #ifndef MFEM_USE_SUITESPARSE
 #ifdef MFEM_USE_CUDSS
-      if (cudss_solver && strstr(device_config, "cuda"))
+      if (cudss_solver && Device::Allows(Backend::CUDA_MASK))
       {
          // Use cuDSS to solve the system.
          CuDSSSolver cudss_solver;
