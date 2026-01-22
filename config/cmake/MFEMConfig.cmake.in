@@ -110,6 +110,10 @@ if (MFEM_USE_RAJA)
    find_dependency(RAJA)
 endif()
 
+if (MFEM_USE_CUDSS)
+  find_dependency(cudss)
+endif (MFEM_USE_CUDSS)
+
 if (NOT TARGET mfem)
   include(${CMAKE_CURRENT_LIST_DIR}/MFEMTargets.cmake)
 endif (NOT TARGET mfem)
