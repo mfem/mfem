@@ -6,6 +6,7 @@
 #ifdef MFEM_USE_CUDSS
 
 #include "cudss.h"
+#include <memory>
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
