@@ -2196,7 +2196,7 @@ void PRefinementTransferOperator::MultTranspose(const Vector& x,
 
       if (geom != cached_geom || isvar_order)
       {
-            h_fe = (is_trace_space) ? hFESpace.GetFaceElement(i) : hFESpace.GetFE(i);
+         h_fe = (is_trace_space) ? hFESpace.GetFaceElement(i) : hFESpace.GetFE(i);
          l_fe = (is_trace_space) ? lFESpace.GetFaceElement(i) : lFESpace.GetFE(i);
          T.SetIdentityTransformation(h_fe->GetGeomType());
          h_fe->GetTransferMatrix(*l_fe, T, loc_prol);
