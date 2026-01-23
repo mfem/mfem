@@ -344,7 +344,6 @@ void PIC::GetValues(const ParticleVector& coords, FindPointsGSLIB& E_finder,
                     ParGridFunction& gf, ParticleVector& pv)
 {
    Mesh &mesh = *gf.FESpace()->GetMesh();
-   E_finder.FindPoints(mesh, coords, coords.GetOrdering());
    E_finder.Interpolate(gf, pv);
    Ordering::Reorder(pv, pv.GetVDim(), gf.FESpace()->GetOrdering(),
                      pv.GetOrdering());
