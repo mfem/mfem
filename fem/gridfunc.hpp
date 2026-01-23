@@ -557,8 +557,12 @@ protected:
                                            const Array<int> &bdr_attr,
                                            Array<int> &values_counter);
 
-   void AccumulateAndCountFaceTangentValues(VectorCoefficient &vcoeff,
-                                            Array<int> &values_counter);
+   void AccumulateAndCountTraceValues(Coefficient *coeff[],
+                                      VectorCoefficient *vcoeff,
+                                      Array<int> &values_counter);
+
+   void AccumulateAndCountTraceTangentValues(VectorCoefficient &vcoeff,
+                                             Array<int> &values_counter);
 
    // Complete the computation of averages; called e.g. after
    // AccumulateAndCountZones().
@@ -581,12 +585,19 @@ public:
       ProjectBdrCoefficient(&coeff_p, attr);
    }
 
-
-   void ProjectFaceCoefficient(VectorCoefficient &vcoeff);
-   void ProjectFaceCoefficient(Coefficient &coeff);
-
-   void ProjectFaceCoefficientNormal(VectorCoefficient &vcoeff);
-   void ProjectFaceCoefficientTangent(VectorCoefficient &vcoeff);
+   /// Project a Coefficient on a GridFunction defined on H1 trace space
+   void ProjectTraceCoefficient(Coefficient *coeff[]);
+   void ProjectTraceCoefficient(Coefficient &coeff)
+   {
+      Coefficient *coeff_p = &coeff;
+      ProjectTraceCoefficient(&coeff_p);
+   }
+   /// Project a VectorCoefficient on a GridFunction defined on a Vector H1 trace space
+   void ProjectTraceCoefficient(VectorCoefficient &vcoeff);
+   /// Project a VectorCoefficient on a GridFunction defined on a RT trace space
+   void ProjectTraceCoefficientNormal(VectorCoefficient &vcoeff);
+   /// Project a VectorCoefficient on a GridFunction defined on a ND trace space
+   void ProjectTraceCoefficientTangent(VectorCoefficient &vcoeff);
 
 
    /** @brief Project a VectorCoefficient on the GridFunction, modifying only
