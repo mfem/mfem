@@ -9,6 +9,7 @@ real_t sin_func(const Vector &x)
 {
    real_t val = sin(M_PI * x.Sum());
    return val;
+   // return 1;
 }
 
 void sin_vfunc(const Vector &x, Vector &y)
@@ -17,6 +18,7 @@ void sin_vfunc(const Vector &x, Vector &y)
    for (int i = 0; i < y.Size(); i++)
    {
       y(i) = sin(M_PI * x[i]);
+      // y(i) = i;
    }
 }
 
@@ -26,6 +28,7 @@ int main(int argc, char *argv[])
    string mesh_file = "../data/star.mesh";
    int order = 1;
 
+   bool visualization = false;
 
    char vishost[] = "localhost";
    int  visport   = 19916;
@@ -33,141 +36,255 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&order, "-o", "--order", "Finite element polynomial degree");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
+
    args.ParseCheck();
 
    Mesh mesh(mesh_file);
    int dim = mesh.Dimension();
+   int sdim = mesh.SpaceDimension();
 
-   H1_FECollection H1fec(order, mesh.Dimension());
-   RT_FECollection RTfec(order, mesh.Dimension());
-   ND_FECollection NDfec(order, mesh.Dimension());
+   Array<FiniteElementCollection*> fecs, trace_fecs;
+   Array<FiniteElementCollection*> preffecs, preftrace_fecs;
+   Array<FiniteElementSpace*> fespaces, trace_fespaces;
+   Array<FiniteElementSpace*> preffespaces, preftrace_fespaces;
+   Array<GridFunction*> gf, trace_gf, trace_gf_mapped;
+   Array<GridFunction*> prefgf, preftrace_gf, preftrace_gf_mapped;
+   Array<socketstream *> sockets, prefsockets;
+   Array<socketstream *> tracesockets, preftracesockets;
+   Array<PRefinementTransferOperator*> Ptransfers;
+   Array<PRefinementTransferOperator*> trace_Ptransfers;
 
-   FiniteElementSpace H1fes(&mesh, &H1fec);
-   FiniteElementSpace H1vecfes(&mesh, &H1fec, dim, Ordering::byVDIM);
-   FiniteElementSpace RTfes(&mesh, &RTfec);
-   FiniteElementSpace NDfes(&mesh, &NDfec);
+   fecs.Append(new H1_FECollection(order, dim));
+   fecs.Append(new RT_FECollection(order, dim));
+   fecs.Append(new ND_FECollection(order, dim));
+
+   preffecs.Append(new H1_FECollection(order+1, dim));
+   preffecs.Append(new RT_FECollection(order+1, dim));
+   preffecs.Append(new ND_FECollection(order+1, dim));
+   
+
+   fespaces.Append(new FiniteElementSpace(&mesh, fecs[0]));
+   fespaces.Append(new FiniteElementSpace(&mesh, fecs[0], dim,
+                                         Ordering::byNODES));
+   fespaces.Append(new FiniteElementSpace(&mesh, fecs[0], dim,
+                                         Ordering::byVDIM));
+   fespaces.Append(new FiniteElementSpace(&mesh, fecs[1]));
+   fespaces.Append(new FiniteElementSpace(&mesh, fecs[2]));      
+
+   preffespaces.Append(new FiniteElementSpace(&mesh, preffecs[0]));
+   preffespaces.Append(new FiniteElementSpace(&mesh, preffecs[0], dim,
+                                            Ordering::byNODES));
+   preffespaces.Append(new FiniteElementSpace(&mesh, preffecs[0], dim,
+                                            Ordering::byVDIM));
+   preffespaces.Append(new FiniteElementSpace(&mesh, preffecs[1]));
+   preffespaces.Append(new FiniteElementSpace(&mesh, preffecs[2]));   
 
 
-   H1_Trace_FECollection H1trace_fec(order, mesh.Dimension());
-   RT_Trace_FECollection RTtrace_fec(order, mesh.Dimension());
-   ND_Trace_FECollection NDtrace_fec(order, mesh.Dimension());
+   trace_fecs.Append(new H1_Trace_FECollection(order, dim));
+   trace_fecs.Append(new RT_Trace_FECollection(order, dim));
+   trace_fecs.Append(new ND_Trace_FECollection(order, dim));
 
-   FiniteElementSpace H1trace_fes(&mesh, &H1trace_fec);
-   FiniteElementSpace H1trace_vecfes(&mesh, &H1trace_fec, dim, Ordering::byVDIM);
-   FiniteElementSpace RTtrace_fes(&mesh, &RTtrace_fec);
-   FiniteElementSpace NDtrace_fes(&mesh, &NDtrace_fec);
+   preftrace_fecs.Append(new H1_Trace_FECollection(order+1, dim));
+   preftrace_fecs.Append(new RT_Trace_FECollection(order+1, dim));
+   preftrace_fecs.Append(new ND_Trace_FECollection(order+1, dim));   
+
+   trace_fespaces.Append(new FiniteElementSpace(&mesh, trace_fecs[0]));
+   trace_fespaces.Append(new FiniteElementSpace(&mesh, trace_fecs[0], dim,
+                                                Ordering::byNODES));
+   trace_fespaces.Append(new FiniteElementSpace(&mesh, trace_fecs[0], dim,
+                                                Ordering::byVDIM));
+   trace_fespaces.Append(new FiniteElementSpace(&mesh, trace_fecs[1]));
+   trace_fespaces.Append(new FiniteElementSpace(&mesh, trace_fecs[2]));                                                
+
+   preftrace_fespaces.Append(new FiniteElementSpace(&mesh, preftrace_fecs[0]));
+   preftrace_fespaces.Append(new FiniteElementSpace(&mesh, preftrace_fecs[0],
+                                                   dim, Ordering::byNODES));
+   preftrace_fespaces.Append(new FiniteElementSpace(&mesh, preftrace_fecs[0],
+                                                   dim, Ordering::byVDIM));
+   preftrace_fespaces.Append(new FiniteElementSpace(&mesh, preftrace_fecs[1]));
+   preftrace_fespaces.Append(new FiniteElementSpace(&mesh, preftrace_fecs[2]));   
+
 
    FunctionCoefficient cf(sin_func);
-   VectorFunctionCoefficient vec_cf(dim, sin_vfunc);
+   VectorFunctionCoefficient vec_cf(sdim, sin_vfunc);
 
-   GridFunction x_H1(&H1fes); x_H1 = 0.0;
-   GridFunction x_vecH1(&H1vecfes); x_vecH1 = 0.0;
-   GridFunction x_RT(&RTfes); x_RT = 0.0;
-   GridFunction x_ND(&NDfes); x_ND = 0.0;
+   for (int i = 0; i < fespaces.Size(); i++)
+   {
+      gf.Append(new GridFunction(fespaces[i])); 
+      *gf[i] = 0.0;
+      trace_gf.Append(new GridFunction(trace_fespaces[i]));
+      *trace_gf[i] = 0.0;
+      trace_gf_mapped.Append(new GridFunction(fespaces[i]));
+      *trace_gf_mapped[i] = 0.0;
+      sockets.Append(new socketstream(vishost, visport));
+      tracesockets.Append(new socketstream(vishost, visport));
 
-   x_H1.ProjectCoefficient(cf);
-   x_vecH1.ProjectCoefficient(vec_cf);
-   x_RT.ProjectCoefficient(vec_cf);
-   x_ND.ProjectCoefficient(vec_cf);
+      prefgf.Append(new GridFunction(preffespaces[i])); 
+      *prefgf[i] = 0.0;
+      preftrace_gf.Append(new GridFunction(preftrace_fespaces[i]));
+      *preftrace_gf[i] = 0.0;
+      preftrace_gf_mapped.Append(new GridFunction(preffespaces[i]));
+      *preftrace_gf_mapped[i] = 0.0;
+      prefsockets.Append(new socketstream(vishost, visport));
+      preftracesockets.Append(new socketstream(vishost, visport));
 
-   GridFunction trace_x_H1(&H1trace_fes); trace_x_H1 = 0.0;
-   GridFunction trace_x_vecH1(&H1trace_vecfes); trace_x_vecH1 = 0.0;
-   GridFunction trace_x_RT(&RTtrace_fes); trace_x_RT = 0.0;
-   GridFunction trace_x_ND(&NDtrace_fes); trace_x_ND = 0.0;
+      Ptransfers.Append(new PRefinementTransferOperator(
+                         *(fespaces[i]), *(preffespaces[i])));
+      trace_Ptransfers.Append(new PRefinementTransferOperator(
+                         *(trace_fespaces[i]), *(preftrace_fespaces[i])));
+   }   
 
-   trace_x_H1.ProjectFaceCoefficient(cf);
-   trace_x_vecH1.ProjectFaceCoefficient(vec_cf);
-   trace_x_RT.ProjectFaceCoefficientNormal(vec_cf);
-   trace_x_ND.ProjectFaceCoefficientTangent(vec_cf);
+   gf[0]->ProjectCoefficient(cf);
+   for (int i = 1; i < gf.Size(); i++)
+   {
+      gf[i]->ProjectCoefficient(vec_cf);
+   }   
 
+   trace_gf[0]->ProjectTraceCoefficient(cf);
+   trace_gf[1]->ProjectTraceCoefficient(vec_cf);
+   trace_gf[2]->ProjectTraceCoefficient(vec_cf);
+   trace_gf[3]->ProjectTraceCoefficientNormal(vec_cf);
+   trace_gf[4]->ProjectTraceCoefficientTangent(vec_cf);
 
    Array<int> vdofs, trace_vdofs;
-   GridFunction trace_x_H1_mapped(&H1fes); trace_x_H1_mapped = 0.0;
-   GridFunction trace_x_vecH1_mapped(&H1vecfes); trace_x_vecH1_mapped = 0.0;
-   GridFunction trace_x_RT_mapped(&RTfes); trace_x_RT_mapped = 0.0;
-   GridFunction trace_x_ND_mapped(&NDfes); trace_x_ND_mapped = 0.0;
    Vector values;
-   for (int i = 0; i<mesh.GetNE(); i++)
+   // // zero out bubble dofs to compare with trace
+   // for (int i = 0; i<mesh.GetNE(); i++)
+   // {
+   //    for (int j = 0; j < fespaces.Size(); j++)
+   //    {
+   //       fespaces[j]->GetElementInteriorVDofs(i, vdofs);
+   //       gf[j]->SetSubVector(vdofs, 0.0);
+   //    }
+   // }
+
+   // prolongate to higher order spaces
+   for (int i = 0; i < fespaces.Size(); i++)
    {
-      H1fes.GetElementInteriorVDofs(i, vdofs);
-      x_H1.SetSubVector(vdofs, 0.0);
-      H1trace_fes.GetElementVDofs(i, trace_vdofs);
-      trace_x_H1.GetSubVector(trace_vdofs, values);
-      trace_x_H1_mapped.SetSubVector(trace_vdofs,values);
-
-      H1vecfes.GetElementInteriorVDofs(i, vdofs);
-      x_vecH1.SetSubVector(vdofs, 0.0);
-      H1trace_vecfes.GetElementVDofs(i, trace_vdofs);
-      trace_x_vecH1.GetSubVector(trace_vdofs, values);
-      trace_x_vecH1_mapped.SetSubVector(trace_vdofs,values);
-
-      RTfes.GetElementInteriorVDofs(i, vdofs);
-      x_RT.SetSubVector(vdofs, 0.0);
-      RTtrace_fes.GetElementVDofs(i, trace_vdofs);
-      trace_x_RT.GetSubVector(trace_vdofs, values);
-      trace_x_RT_mapped.SetSubVector(trace_vdofs,values);
-
-      NDfes.GetElementInteriorVDofs(i, vdofs);
-      x_ND.SetSubVector(vdofs, 0.0);
-      NDtrace_fes.GetElementVDofs(i, trace_vdofs);
-      trace_x_ND.GetSubVector(trace_vdofs, values);
-      trace_x_ND_mapped.SetSubVector(trace_vdofs,values);
+      Ptransfers[i]->Mult(*gf[i], *prefgf[i]);
+      trace_Ptransfers[i]->Mult(*trace_gf[i], *preftrace_gf[i]);
    }
 
-   socketstream sol_H1_sock(vishost, visport);
-   sol_H1_sock.precision(8);
-   sol_H1_sock << "solution\n" << mesh << x_H1
-               << "window_title 'H1 Field'" << flush;
-
-   socketstream sol_H1_tr_sock(vishost, visport);
-   sol_H1_tr_sock.precision(8);
-   sol_H1_tr_sock << "solution\n" << mesh << trace_x_H1_mapped
-                  << "window_title 'H1 Trace'" << flush;
-
-   socketstream sol_vecH1_sock(vishost, visport);
-   sol_vecH1_sock.precision(8);
-   sol_vecH1_sock << "solution\n" << mesh << x_vecH1
-                  << "window_title 'Vector H1 Field'" << flush;
-
-   socketstream sol_vecH1_tr_sock(vishost, visport);
-   sol_vecH1_tr_sock.precision(8);
-   sol_vecH1_tr_sock << "solution\n" << mesh << trace_x_vecH1_mapped
-                     << "window_title 'Vector H1 Trace'" << flush;
-
-   socketstream sol_RT_sock(vishost, visport);
-   sol_RT_sock.precision(8);
-   sol_RT_sock << "solution\n" << mesh << x_RT
-               << "window_title 'RT Field'" << flush;
-
-   socketstream sol_RT_tr_sock(vishost, visport);
-   sol_RT_tr_sock.precision(8);
-   sol_RT_tr_sock << "solution\n" << mesh << trace_x_RT_mapped
-                  << "window_title 'RT Trace'" << flush;
-
-   socketstream sol_ND_sock(vishost, visport);
-   sol_ND_sock.precision(8);
-   sol_ND_sock << "solution\n" << mesh << x_ND
-               << "window_title 'ND Field'" << flush;
-
-   socketstream sol_ND_tr_sock(vishost, visport);
-   sol_ND_tr_sock.precision(8);
-   sol_ND_tr_sock << "solution\n" << mesh << trace_x_ND_mapped
-                  << "window_title 'ND Trace'" << flush;
-
-   trace_x_H1_mapped -= x_H1;
-   cout << "||x_H1_trace - x_H1||₂ : " << trace_x_H1_mapped.Norml2() << endl;
-
-   trace_x_vecH1_mapped -= x_vecH1;
-   cout << "||x_vecH1_trace - x_vecH1||₂ : " << trace_x_vecH1_mapped.Norml2() <<
-        endl;
-
-   trace_x_RT_mapped -= x_RT;
-   cout << "||x_RT_trace - x_RT||₂ : " << trace_x_RT_mapped.Norml2() << endl;
+   // zero out bubble dofs before and after p-ref to compare with trace
+   for (int i = 0; i<mesh.GetNE(); i++)
+   {
+      for (int j = 0; j < fespaces.Size(); j++)
+      {
+         fespaces[j]->GetElementInteriorVDofs(i, vdofs);
+         gf[j]->SetSubVector(vdofs, 0.0);
+         preffespaces[j]->GetElementInteriorVDofs(i, vdofs);
+         prefgf[j]->SetSubVector(vdofs, 0.0);
+      }
+   }
 
 
-   trace_x_ND_mapped -= x_ND;
-   cout << "||x_ND_trace - x_ND||₂ : " << trace_x_ND_mapped.Norml2() << endl;
+   // embed the trace dofs to a volume GridFunction for comparison
+   Array<int> face_vdofs;
+   for (int i = 0; i<mesh.GetNumFaces(); i++)
+   {
+      for (int j = 0; j < fespaces.Size(); j++)
+      {
+         values.SetSize(0);
+         trace_vdofs.SetSize(0);
+         face_vdofs.SetSize(0);
+         trace_fespaces[j]->GetFaceVDofs(i, trace_vdofs);
+         trace_gf[j]->GetSubVector(trace_vdofs, values);
+         fespaces[j]->GetFaceVDofs(i, face_vdofs);
+         trace_gf_mapped[j]->SetSubVector(face_vdofs,values);
 
+
+         values.SetSize(0);
+         trace_vdofs.SetSize(0);
+         face_vdofs.SetSize(0);
+         preftrace_fespaces[j]->GetFaceVDofs(i, trace_vdofs);
+         preftrace_gf[j]->GetSubVector(trace_vdofs, values);
+         preffespaces[j]->GetFaceVDofs(i, face_vdofs);
+         preftrace_gf_mapped[j]->SetSubVector(face_vdofs,values);
+      }
+   }
+
+
+
+   std::vector<std::string> titles = {
+   "H1 Field",
+   "Vec H1 Field (byNODES)",
+   "Vec H1 Field (byVDIM)",
+   "RT Field",
+   "ND Field"
+   };
+
+   std::vector<std::string> trace_titles = {
+   "H1 Trace",
+   "Vec H1 Trace (byNODES)",
+   "Vec H1 Trace (byVDIM)",
+   "RT Trace (normal)",
+   "ND Trace (tangent)"
+   };
+
+      std::vector<std::string> preftitles = {
+   "Pref H1 Field",
+   "Pref Vec H1 Field (byNODES)",
+   "Pref Vec H1 Field (byVDIM)",
+   "Pref RT Field",
+   "Pref ND Field"
+   };
+
+   std::vector<std::string> preftrace_titles = {
+   "Pref H1 Trace",
+   "Pref Vec H1 Trace (byNODES)",
+   "Pref Vec H1 Trace (byVDIM)",
+   "Pref RT Trace (normal)",
+   "Pref ND Trace (tangent)"
+   };
+
+   if (visualization)
+   {
+      for (int i = 0; i < fespaces.Size(); i++)
+      {
+         sockets[i]->precision(8);
+         *(sockets[i]) << "solution\n" << mesh << *(gf[i])
+                        << "window_title '" << titles[i] << "'" << flush;
+
+         tracesockets[i]->precision(8);
+         *(tracesockets[i]) << "solution\n" << mesh << *(trace_gf_mapped[i])
+                            << "window_title '" << trace_titles[i] << "'"
+                            << flush;
+
+         prefsockets[i]->precision(8);
+         *(prefsockets[i]) << "solution\n" << mesh << *(prefgf[i])
+                           << "window_title '" << preftitles[i] << "'" << flush; 
+         preftracesockets[i]->precision(8);
+         *(preftracesockets[i]) << "solution\n" << mesh << *(preftrace_gf_mapped[i])
+                                << "window_title '" << preftrace_titles[i] << "'"
+                                << flush;
+      }
+   }
+
+
+
+   // Compute Error norms between trace and volume
+   for (int i = 0; i < fespaces.Size(); i++)
+   {
+      // mfem::out << "gf = "; gf[i]->Print(mfem::out, gf[i]->Size());  
+      // mfem::out << "trace_gf = "; trace_gf[i]->Print(mfem::out, trace_gf[i]->Size());
+      // mfem::out << "trace_gf_mapped = "; trace_gf_mapped[i]->Print(mfem::out, trace_gf_mapped[i]->Size());  
+      *trace_gf_mapped[i] -= *gf[i];
+      cout << "||" << titles[i] << " - " << trace_titles[i]
+           << "||₂ : " << trace_gf_mapped[i]->Norml2() << endl;
+
+
+      // mfem::out << "prefgf = "; prefgf[i]->Print(mfem::out, prefgf[i]->Size());  
+      // mfem::out << "preftrace_gf = "; preftrace_gf[i]->Print(mfem::out, preftrace_gf[i]->Size());
+      // mfem::out << "preftrace_gf_mapped = "; preftrace_gf_mapped[i]->Print(mfem::out, preftrace_gf_mapped[i]->Size());
+
+      *preftrace_gf_mapped[i] -= *prefgf[i];
+      cout << "||" << preftitles[i] << " - " << preftrace_titles[i]
+           << "||₂ : " << preftrace_gf_mapped[i]->Norml2() << endl;
+      // cin.get();     
+   }
 
    return 0;
 }
