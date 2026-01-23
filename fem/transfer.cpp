@@ -2091,7 +2091,6 @@ PRefinementTransferOperator::PRefinementTransferOperator(
       (dynamic_cast<const H1_Trace_FECollection*>(lFESpace.FEColl()) ||
        dynamic_cast<const ND_Trace_FECollection*>(lFESpace.FEColl()) ||
        dynamic_cast<const RT_Trace_FECollection*>(lFESpace.FEColl()));
-
 }
 
 void PRefinementTransferOperator::Mult(const Vector& x, Vector& y) const
@@ -2132,8 +2131,8 @@ void PRefinementTransferOperator::Mult(const Vector& x, Vector& y) const
 
       if (geom != cached_geom || isvar_order)
       {
-         h_fe = hFESpace.GetFE(i);
-         l_fe = lFESpace.GetFE(i);
+         h_fe = (is_trace_space) ? hFESpace.GetFaceElement(i) : hFESpace.GetFE(i);
+         l_fe = (is_trace_space) ? lFESpace.GetFaceElement(i) : lFESpace.GetFE(i);
          T.SetIdentityTransformation(h_fe->GetGeomType());
          h_fe->GetTransferMatrix(*l_fe, T, loc_prol);
          subY.SetSize(loc_prol.Height());
@@ -2197,8 +2196,8 @@ void PRefinementTransferOperator::MultTranspose(const Vector& x,
 
       if (geom != cached_geom || isvar_order)
       {
-         h_fe = hFESpace.GetFE(i);
-         l_fe = lFESpace.GetFE(i);
+            h_fe = (is_trace_space) ? hFESpace.GetFaceElement(i) : hFESpace.GetFE(i);
+         l_fe = (is_trace_space) ? lFESpace.GetFaceElement(i) : lFESpace.GetFE(i);
          T.SetIdentityTransformation(h_fe->GetGeomType());
          h_fe->GetTransferMatrix(*l_fe, T, loc_prol);
          loc_prol.Transpose();
