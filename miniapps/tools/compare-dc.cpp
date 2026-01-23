@@ -20,10 +20,15 @@
 //
 // Serial sample runs:
 //   > compare-dc -r0 ../../examples/Example5 -r1 ../../examples/alt/Example5
+//   > compare-dc -r0 Example5 -r1 alt/Example5 -tol 1e-6
 //
 // Parallel sample runs:
 //   > mpirun -np 4 compare-dc -r0 ../../examples/Example5-Parallel
 //                             -r1 ../../examples/alt/Example5-Parallel
+//
+//  NB: when no tolerance is provided the difference is simple reported.
+//  If a tolerance is provided this is compared with the symmetric
+//  relative difference. An error is given if difference exceeds the tolerance.
 
 #include "mfem.hpp"
 
@@ -128,12 +133,30 @@ int main(int argc, char *argv[])
          return 1;
       }
 
+      // Norm of vectors
+      real_t nrm0 = gf0->Norml2();
+      real_t nrm1 = gf1->Norml2();
+
+      // Difference
       (*gf0) -= (*gf1);
-      mfem::out <<it0->first<<":  l2 difference = "<<gf0->Norml2()<<std::endl;
-      if (gf0->Norml2() > tol) { error = true; }
+      real_t nrmd = gf0->Norml2();
+      real_t rel_sym = 2*nrmd/(nrm0 + nrm1);
+      if (gf0->Norml2() > rel_sym) { error = true; }
+
+      // Report
+      mfem::out <<"==========================================="<<std::endl;
+      mfem::out <<"|"<<it0->first<<"_0|  = "<<nrm0<<std::endl;
+      mfem::out <<"|"<<it0->first<<"_1|  = "<<nrm1<<std::endl;
+      mfem::out <<"\n|"<<it0->first<<"_0 - "<<it0->first<<"_1| = "<<nrmd <<std::endl;
+
+      mfem::out <<"\n2|"<<it0->first<<"_0 - "<<it0->first<<"_1|"<<std::endl;
+      mfem::out << std::setfill('-') << std::setw(15 + 2*it0->first.length())
+                <<" = "<<rel_sym<<std::endl;
+      mfem::out <<"(|"<<it0->first<<"_0| + |"<<it0->first<<"_1|)\n"<<std::endl;
+
    }
 
-   if (error)
+   if (error && tol > 0.0)
    {
       mfem::out << "Data collections: " << coll_name0
                 << " & " << coll_name1 << " are outside of the tolerance!\n";
