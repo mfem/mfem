@@ -471,7 +471,7 @@ template<class B, class R> struct reduction_kernel
 #elif defined(__GNUC__) || defined(__clang__)
       return N ? (sizeof(unsigned) * 8 - __builtin_clz(N)) : 0;
 #elif defined(_MSC_VER)
-      if (N == 0) return 0;
+      if (N == 0) { return 0; }
       unsigned long index;
       _BitScanReverse(&index, (unsigned long)N);
       return (int)(index + 1);
