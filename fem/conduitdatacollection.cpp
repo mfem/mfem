@@ -28,8 +28,8 @@
 #include <sstream>
 
 // These macros control output of Blueprint debugging files.
-#define DEBUG_SHARED_EDGES
-#define DEBUG_SHARED_FACES
+//#define DEBUG_SHARED_EDGES
+//#define DEBUG_SHARED_FACES
 
 #if defined(DEBUG_SHARED_EDGES) || defined(DEBUG_SHARED_FACES)
 #include <conduit_relay.hpp>
@@ -259,7 +259,7 @@ void extract_topology_with_selected_nodes(const conduit::Node &n_topo,
    // Get the coordset to get the number of nodes.
    const conduit::Node *n_coordset =
       conduit::blueprint::mesh::utils::find_reference_node(n_topo, "coordset");
-   assert(n_coordset != nullptr);
+   MFEM_ASSERT(n_coordset != nullptr, "Coordset not found.");
    const auto nnodes = conduit::blueprint::mesh::coordset::length(*n_coordset);
 
    // Make a mask for the points in the coordset to indicate which are selected in n_selectedNodes.
@@ -427,9 +427,10 @@ private:
    /**
      @brief Initializes ParMesh's gtopo member from the adjacency set.
 
+     @param comm The MPI communicator to use.
      @param n_adjset The node that contains the adjacency set.
     */
-   static void InitGroupTopology(ParMesh *pmesh, const conduit::Node &n_adjset);
+   static void InitGroupTopology(MPI_Comm comm, ParMesh *pmesh, const conduit::Node &n_adjset);
 
    /**
      @brief Initializes ParMesh's shared vertices members from the adjacency set.
@@ -441,16 +442,18 @@ private:
    /**
      @brief Initializes ParMesh's shared faces members from the adjacency set.
 
+     @param comm The MPI communicator to use.
      @param n_adjset The node that contains the adjacency set.
     */
-   static void InitSharedFaces(ParMesh *pmesh, const conduit::Node &n_adjset);
+   static void InitSharedFaces([[maybe_unused]] MPI_Comm comm, ParMesh *pmesh, const conduit::Node &n_adjset);
 
    /**
      @brief Initializes the ParMesh's shared edges members from the adjacency set.
 
+     @param comm The MPI communicator to use.
      @param n_adjset The node that contains the adjacency set.
     */
-   static void InitSharedEdges(ParMesh *pmesh, const conduit::Node &n_adjset);
+   static void InitSharedEdges([[maybe_unused]] MPI_Comm comm, ParMesh *pmesh, const conduit::Node &n_adjset);
 
    /**
      @brief Makes a new Blueprint topology containing faces based on the adjacency set group.
@@ -502,28 +505,33 @@ ConduitParMeshBuilder::Build(MPI_Comm comm, mfem::Mesh &mesh,
                              const conduit::Node &n_adjset)
 {
    // Keep all zones on this rank.
+   int rank = 0;
+   MPI_Comm_rank(comm, &rank);
    ParMesh *pmesh = new ParMesh(comm, mesh, std::vector<int>(mesh.GetNE(),
-                                                             mfem::Mpi::WorldRank()).data());
+                                                             rank).data());
 
    // Finish initializing the shared communication members that did not get set
    // due to the partition keeping all zones on this rank (above).
-   InitGroupTopology(pmesh, n_adjset);
+   InitGroupTopology(comm, pmesh, n_adjset);
    InitSharedVertices(pmesh, n_adjset);
-   InitSharedEdges(pmesh, n_adjset);
-   InitSharedFaces(pmesh, n_adjset);
+   InitSharedEdges(comm, pmesh, n_adjset);
+   InitSharedFaces(comm, pmesh, n_adjset);
 
    return pmesh;
 }
 
 //---------------------------------------------------------------------------//
-void ConduitParMeshBuilder::InitGroupTopology(ParMesh *pmesh,
+void ConduitParMeshBuilder::InitGroupTopology(MPI_Comm comm,
+                                              ParMesh *pmesh,
                                               const conduit::Node &n_adjset)
 {
+   int rank = 0;
+   MPI_Comm_rank(comm, &rank);
    const conduit::Node &n_groups = n_adjset.fetch_existing("groups");
    const int mpitag = 823;
    mfem::ListOfIntegerSets groups;
    // Add the first group.
-   mfem::IntegerSet local {mfem::Mpi::WorldRank()};
+   mfem::IntegerSet local {rank};
    groups.Insert(local);
    const auto numGroups = static_cast<int>(n_groups.number_of_children());
    for (int group_id = 0; group_id < numGroups; ++group_id)
@@ -535,7 +543,7 @@ void ConduitParMeshBuilder::InitGroupTopology(ParMesh *pmesh,
       mfem::IntegerSet newGroup;
       mfem::Array<int> &array = newGroup;
       array.Reserve(group_size + 1);
-      array.Append(mfem::Mpi::WorldRank());
+      array.Append(rank);
       for (int index = 0; index < group_size; ++index)
       {
          array.Append(neighbors[index]);
@@ -543,7 +551,7 @@ void ConduitParMeshBuilder::InitGroupTopology(ParMesh *pmesh,
       groups.Insert(newGroup);
    }
    mfem::GroupTopology g;
-   g.SetComm(MPI_COMM_WORLD);
+   g.SetComm(comm);
    g.Create(groups, mpitag);
    pmesh->gtopo = g;
 }
@@ -586,7 +594,7 @@ void ConduitParMeshBuilder::GetSelectedFaceTopologyFromAdjset(
 {
    const conduit::Node *n_topo =
       conduit::blueprint::mesh::utils::find_reference_node(n_adjset, "topology");
-   assert(n_topo != nullptr);
+   MFEM_ASSERT(n_topo != nullptr, "Topology not found");
 
    // Use the group to pull out faces that use the nodes selected in the adjset.
    const conduit::Node &n_groups = n_adjset.fetch_existing("groups");
@@ -622,7 +630,7 @@ void ConduitParMeshBuilder::GetSelectedEdgeTopologyFromAdjset(
 {
    const conduit::Node *n_topo =
       conduit::blueprint::mesh::utils::find_reference_node(n_adjset, "topology");
-   assert(n_topo != nullptr);
+   MFEM_ASSERT(n_topo != nullptr, "Topology not found");
 
    // Use the group to pull out edges that use the nodes selected in the adjset.
    const conduit::Node &n_groups = n_adjset.fetch_existing("groups");
@@ -664,7 +672,8 @@ void ConduitParMeshBuilder::GetSelectedEdgeTopologyFromAdjset(
 
 //---------------------------------------------------------------------------//
 void
-ConduitParMeshBuilder::InitSharedFaces(ParMesh *pmesh,
+ConduitParMeshBuilder::InitSharedFaces(MPI_Comm comm,
+                                       ParMesh *pmesh,
                                        const conduit::Node &n_adjset)
 {
    const conduit::Node &n_groups = n_adjset.fetch_existing("groups");
@@ -689,8 +698,10 @@ ConduitParMeshBuilder::InitSharedFaces(ParMesh *pmesh,
       GetSelectedFaceTopologyFromAdjset(n_adjset, g, n_group_faces);
 
 #ifdef DEBUG_SHARED_FACES
+      int rank = 0;
+      MPI_Comm_rank(comm, &rank);
       std::stringstream ss;
-      ss << "group_faces_rank_" << mfem::Mpi::WorldRank() << "_group_" << g;
+      ss << "group_faces_rank_" << rank << "_group_" << g;
       std::string filename(ss.str());
       conduit::relay::io::blueprint::save_mesh(n_group_faces, filename, "hdf5");
       conduit::relay::io::save(n_group_faces, filename + ".yaml", "yaml");
@@ -814,18 +825,21 @@ ConduitParMeshBuilder::InitSharedFaces(ParMesh *pmesh,
 }
 
 //---------------------------------------------------------------------------//
-void ConduitParMeshBuilder::InitSharedEdges(ParMesh *pmesh,
+void ConduitParMeshBuilder::InitSharedEdges(MPI_Comm comm,
+                                            ParMesh *pmesh,
                                             const conduit::Node &n_adjset)
 {
    const conduit::Node &n_groups = n_adjset.fetch_existing("groups");
    const auto numGroups = static_cast<int>(n_groups.number_of_children());
 
 #ifdef DEBUG_SHARED_EDGES
+   int rank = 0;
+   MPI_Comm_rank(comm, &rank);
    // Save the MFEM mesh edges to a Blueprint file.
    conduit::Node n_mfem;
    MeshEdges(*pmesh, n_mfem);
    std::stringstream ss1;
-   ss1 << "mfem_edges_rank_" << mfem::Mpi::WorldRank();
+   ss1 << "mfem_edges_rank_" << rank;
    std::string filename(ss1.str());
    conduit::relay::io::blueprint::save_mesh(n_mfem, filename, "hdf5");
    conduit::relay::io::save(n_mfem, filename + ".yaml", "yaml");
@@ -848,7 +862,7 @@ void ConduitParMeshBuilder::InitSharedEdges(ParMesh *pmesh,
 
 #ifdef DEBUG_SHARED_EDGES
       std::stringstream ss;
-      ss << "group_edges_rank_" << mfem::Mpi::WorldRank() << "_group_" << g;
+      ss << "group_edges_rank_" << rank << "_group_" << g;
       std::string filename(ss.str());
       conduit::relay::io::blueprint::save_mesh(n_group_edges, filename, "hdf5");
       conduit::relay::io::save(n_group_edges, filename + ".yaml", "yaml");
@@ -1343,86 +1357,88 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
    // name containing "_attribute", that doesn't contain "boundary"
    std::string main_att_name = "";
 
-   const Node &n_fields = n_mesh["fields"];
-   NodeConstIterator itr = n_fields.children();
-
-   while ( itr.has_next() && main_att_name == "" )
+   if(n_mesh.has_path("fields"))
    {
-      itr.next();
-      std::string fld_name = itr.name();
-      if ( fld_name.find("boundary")   == std::string::npos &&
-           fld_name.find("_attribute") != std::string::npos )
-      {
-         main_att_name = fld_name;
-      }
-   }
+      const Node &n_fields = n_mesh["fields"];
+      NodeConstIterator itr = n_fields.children();
 
-   if ( main_att_name != "" )
-   {
-      const Node &n_mesh_atts_vals = n_fields[main_att_name]["values"];
-
-      // mfem requires ints, we could have int64s, etc convert if necessary
-      if (n_mesh_atts_vals.dtype().is_int() &&
-          n_mesh_atts_vals.is_compact() )
+      while ( itr.has_next() && main_att_name == "" )
       {
-         mesh_atts = n_mesh_atts_vals.value();
-      }
-      else
-      {
-         Node &n_mesh_atts_vals_conv = n_conv["fields"][main_att_name]["values"];
-         n_mesh_atts_vals.to_int_array(n_mesh_atts_vals_conv);
-         mesh_atts = n_mesh_atts_vals_conv.value();
+         itr.next();
+         std::string fld_name = itr.name();
+         if ( fld_name.find("boundary")   == std::string::npos &&
+              fld_name.find("_attribute") != std::string::npos )
+         {
+            main_att_name = fld_name;
+         }
       }
 
-      // num_mesh_atts_entires = n_mesh_atts_vals.dtype().number_of_elements();
-   }
-   else
-   {
-      // Skipping Mesh Attribute Data
-   }
-
-   // for the boundary attributes check for first occurrence of field with
-   // name containing "_attribute", that also contains "boundary"
-   std::string bnd_att_name = "";
-   itr = n_fields.children();
-
-   while ( itr.has_next() && bnd_att_name == "" )
-   {
-      itr.next();
-      std::string fld_name = itr.name();
-      if ( fld_name.find("boundary")   != std::string::npos &&
-           fld_name.find("_attribute") != std::string::npos )
+      if ( main_att_name != "" )
       {
-         bnd_att_name = fld_name;
-      }
-   }
+         const Node &n_mesh_atts_vals = n_fields[main_att_name]["values"];
 
-   if ( bnd_att_name != "" )
-   {
-      // Info: "Getting Boundary Attribute Data"
-      const Node &n_bndry_atts_vals =n_fields[bnd_att_name]["values"];
+         // mfem requires ints, we could have int64s, etc convert if necessary
+         if (n_mesh_atts_vals.dtype().is_int() &&
+             n_mesh_atts_vals.is_compact() )
+         {
+            mesh_atts = n_mesh_atts_vals.value();
+         }
+         else
+         {
+            Node &n_mesh_atts_vals_conv = n_conv["fields"][main_att_name]["values"];
+            n_mesh_atts_vals.to_int_array(n_mesh_atts_vals_conv);
+            mesh_atts = n_mesh_atts_vals_conv.value();
+         }
 
-      // mfem requires ints, we could have int64s, etc convert if necessary
-      if ( n_bndry_atts_vals.dtype().is_int() &&
-           n_bndry_atts_vals.is_compact())
-      {
-         bndry_atts = n_bndry_atts_vals.value();
+         // num_mesh_atts_entires = n_mesh_atts_vals.dtype().number_of_elements();
       }
       else
       {
-         Node &n_bndry_atts_vals_conv = n_conv["fields"][bnd_att_name]["values"];
-         n_bndry_atts_vals.to_int_array(n_bndry_atts_vals_conv);
-         bndry_atts = n_bndry_atts_vals_conv.value();
+         // Skipping Mesh Attribute Data
       }
 
-      // num_bndry_atts_entires = n_bndry_atts_vals.dtype().number_of_elements();
+      // for the boundary attributes check for first occurrence of field with
+      // name containing "_attribute", that also contains "boundary"
+      std::string bnd_att_name = "";
+      itr = n_fields.children();
 
-   }
-   else
-   {
-      // Skipping Boundary Attribute Data
-   }
+      while ( itr.has_next() && bnd_att_name == "" )
+      {
+         itr.next();
+         std::string fld_name = itr.name();
+         if ( fld_name.find("boundary")   != std::string::npos &&
+              fld_name.find("_attribute") != std::string::npos )
+         {
+            bnd_att_name = fld_name;
+         }
+      }
 
+      if ( bnd_att_name != "" )
+      {
+         // Info: "Getting Boundary Attribute Data"
+         const Node &n_bndry_atts_vals =n_fields[bnd_att_name]["values"];
+
+         // mfem requires ints, we could have int64s, etc convert if necessary
+         if ( n_bndry_atts_vals.dtype().is_int() &&
+              n_bndry_atts_vals.is_compact())
+         {
+            bndry_atts = n_bndry_atts_vals.value();
+         }
+         else
+         {
+            Node &n_bndry_atts_vals_conv = n_conv["fields"][bnd_att_name]["values"];
+            n_bndry_atts_vals.to_int_array(n_bndry_atts_vals_conv);
+            bndry_atts = n_bndry_atts_vals_conv.value();
+         }
+
+         // num_bndry_atts_entires = n_bndry_atts_vals.dtype().number_of_elements();
+
+      }
+      else
+      {
+         // Skipping Boundary Attribute Data
+      }
+   }
    // Info: "Number of Vertices: " << num_verts  << endl
    //         << "Number of Mesh Elements: "    << num_mesh_ele   << endl
    //         << "Number of Boundary Elements: " << num_bndry_ele  << endl
