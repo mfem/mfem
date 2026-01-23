@@ -467,14 +467,14 @@ template<class B, class R> struct reduction_kernel
    static int block_log2(unsigned N)
    {
 #if defined(__CUDA_ARCH__)
-       return N ? (int)(sizeof(unsigned) * 8 - __clz(N)) : 0;
+      return N ? (int)(sizeof(unsigned) * 8 - __clz(N)) : 0;
 #elif defined(__GNUC__) || defined(__clang__)
       return N ? (sizeof(unsigned) * 8 - __builtin_clz(N)) : 0;
 #elif defined(_MSC_VER)
-       if (N == 0) return 0;
-       unsigned long index;
-       _BitScanReverse(&index, (unsigned long)N);
-       return (int)(index + 1);
+      if (N == 0) return 0;
+      unsigned long index;
+      _BitScanReverse(&index, (unsigned long)N);
+      return (int)(index + 1);
 #else
       int res = 0;
       while (N)
