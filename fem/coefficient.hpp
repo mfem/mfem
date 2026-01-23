@@ -114,11 +114,10 @@ public:
    /// Construct the constant coefficient using a vector of constants.
    /** @a c should be a vector defined by attributes, so for region with
        attribute @a i @a c[i-1] is the coefficient in that region */
-   PWConstCoefficient(Vector &c)
-   { constants.SetSize(c.Size()); constants=c; }
+   PWConstCoefficient(const Vector &c) { UpdateConstants(c); }
 
    /// Update the constants with vector @a c.
-   void UpdateConstants(Vector &c) { constants.SetSize(c.Size()); constants=c; }
+   void UpdateConstants(const Vector &c) { constants = c; }
 
    /// Return a reference to the i-th constant
    real_t &operator()(int i) { return constants(i-1); }
@@ -1332,8 +1331,8 @@ public:
    /// Get the coefficient located at (i,j) in the matrix.
    Coefficient* GetCoeff (int i, int j) { return Coeff[i*width+j]; }
 
-   /** @brief Set the coefficient located at (i,j) in the matrix.  By default by
-       default this will take ownership of the Coefficient passed in, but this
+   /** @brief Set the coefficient located at (i,j) in the matrix.  By default
+       this will take ownership of the Coefficient passed in, but this
        can be overridden with the @a own parameter. */
    void Set(int i, int j, Coefficient * c, bool own=true);
 
@@ -1867,6 +1866,85 @@ public:
    void SetACoef(MatrixCoefficient &A) { a = &A; }
    /// Return the matrix coefficient
    MatrixCoefficient * GetACoef() const { return a; }
+
+   /// Evaluate the trace coefficient at @a ip.
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override;
+};
+
+/// Scalar coefficient defined as component of a vector coefficient
+class VectorComponentCoefficient : public Coefficient
+{
+private:
+   VectorCoefficient *a = nullptr;
+
+   mutable Vector va;
+   int component;
+
+public:
+   /// Construct with a vector coefficient.
+   VectorComponentCoefficient(VectorCoefficient &A)
+      : a(&A), va(A.GetVDim()), component(0) {};
+
+   VectorComponentCoefficient(VectorCoefficient &A, int c);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(real_t t) override;
+
+   /// Reset the vector coefficient
+   void SetACoef(VectorCoefficient &A) { a = &A; }
+
+   /// Return the vector coefficient
+   VectorCoefficient * GetACoef() const { return a; }
+
+   /// Set the component
+   void SetComponent(int c);
+
+   /// Return the component
+   int GetComponent() const { return component; }
+
+   /// Evaluate the trace coefficient at @a ip.
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override;
+};
+
+/// Scalar coefficient defined as component of a matrix coefficient
+class MatrixComponentCoefficient : public Coefficient
+{
+private:
+   MatrixCoefficient *a = nullptr;
+
+   mutable DenseMatrix ma;
+   int row_idx,col_idx;
+
+public:
+   MatrixComponentCoefficient(MatrixCoefficient &A)
+      : a(&A), ma(A.GetHeight(), A.GetWidth()), row_idx(0), col_idx(0) {};
+
+   /// Construct with the matrix coefficient.
+   MatrixComponentCoefficient(MatrixCoefficient &A, int ri, int ci);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(real_t t) override;
+
+   /// Reset the matrix coefficient
+   void SetACoef(MatrixCoefficient &A) { a = &A; }
+
+   /// Return the matrix coefficient
+   MatrixCoefficient * GetACoef() const { return a; }
+
+   /// Reset the index
+   void SetRowIndex(int ri);
+
+   /// Return the index
+   int GetRowIndex() const { return row_idx; }
+
+   /// Reset the index
+   void SetColumnIndex(int ci);
+
+   /// Return the index
+   int GetColumnIndex() const { return col_idx; }
+
 
    /// Evaluate the trace coefficient at @a ip.
    real_t Eval(ElementTransformation &T,

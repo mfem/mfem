@@ -51,6 +51,21 @@ protected:
    /// Number of elements, defined by distinct knots.
    int NumOfElements;
 
+   // Stores the demko points
+   mutable Vector demko;
+
+   /// Compute all the Demko points
+   void ComputeDemko() const;
+
+#ifdef MFEM_USE_LAPACK
+   // Data for reusing banded matrix factorization in FindInterpolant().
+   mutable DenseMatrix fact_AB; /// Banded matrix factorization
+   mutable Array<int> fact_ipiv; /// Row pivot indices
+#else
+   mutable DenseMatrix A_coll_inv; /// Collocation matrix inverse
+#endif
+
+
 public:
    /// Create an empty KnotVector.
    KnotVector() = default;
@@ -66,6 +81,14 @@ public:
        When @a NCP is given number of control points is @a NCP and
        the knots are initialized to -1) */
    KnotVector(int order, int NCP = -1);
+
+   /** @brief Create a KnotVector with order @a order and knots @a knot.
+       If @a k has the correct number of repeated knots at the begin and end,
+       then this constructor will copy the knots as provided.
+       Otherwise, the knot vector will be extended by repeating the end knots
+       (order + 1) times. Internal knots will retain the multiplicity as given
+       in the input. */
+   KnotVector(int order, const Vector &k);
 
    /** @brief Create a KnotVector by passing in a degree, a Vector of interval
        lengths of length n, and a list of continuity of length n + 1.
@@ -105,13 +128,69 @@ public:
        with @a isElement for non-empty knot spans (elements). */
    int GetNKS() const { return NumOfControlPoints - Order; }
 
-   /** @brief Return the parameter for element reference coordinate @a xi
-       in [0,1], for the element beginning at knot @a ni. */
-   real_t getKnotLocation(real_t xi, int ni) const
-   { return (xi*knot(ni+1) + (1. - xi)*knot(ni)); }
+   /// Return whether knot location @a u is in a given span @a ni.
+   bool inSpan(real_t u, int ni) const
+   {
+      if ((u < knot(ni)) || (u > knot(ni+1))) { return false; }
+      return true;
+   }
 
    /// Return the index of the knot span containing parameter @a u.
-   int findKnotSpan(real_t u) const;
+   int GetSpan(real_t u) const;
+
+   /** @brief Return the reference coordinate in [0,1] for parameter @a u
+       in the element beginning at knot @a ni. */
+   real_t GetRefPoint(real_t u, int ni) const
+   { return (u-knot(ni))/(knot(ni+1)-knot(ni)); };
+
+   /** @brief Return the knot location for element reference coordinate @a xi
+       in [0,1], for the element beginning at knot @a ni. */
+   real_t GetKnotLocation(real_t xi, int ni) const
+   { return (xi*knot(ni+1) + (1. - xi)*knot(ni)); }
+
+   /** @brief Return the parameter for element reference coordinate @a xi
+       in [0,1], for the element beginning at knot @a ni. */
+   MFEM_DEPRECATED real_t getKnotLocation(real_t xi, int ni) const
+   { return (xi*knot(ni+1) + (1. - xi)*knot(ni)); } // Use GetKnotLocation instead
+
+   /// Return the index of the knot span containing parameter @a u.
+   MFEM_DEPRECATED int findKnotSpan(real_t u) const;  // Use GetSpan instead
+
+   /** Gives the @a i average knot location. Average is taken over @a Order
+       number of knots.*/
+   real_t GetGreville(int i) const;
+
+   void GetGreville(Vector &xi) const;
+
+   /** Gives the knot location where the @a i shape function is maximum.
+       Reverts to the Greville point if knot is repeated @a Order +1 times.
+       For background see:
+
+       Olivier Botella and Karim Shariff.
+       "B-spline methods in fluid dynamics."
+       International Journal of Computational Fluid Dynamics 17.2 (2003): 133-149.
+
+       Points are found using Newton iteration, with the Greville point as the
+       starting value. */
+   real_t GetBotella(int i) const;
+
+   void GetBotella(Vector &xi) const;
+
+   /** Gives the knot location of the @a i extremum of the Chebyshev spline.
+       For background see:
+
+       Stephen Demko
+       "On the existence of interpolating projections onto spline spaces."
+       Journal of approximation theory 43.2 (1985): 151-156.
+
+       Points are found using Remez iteration:
+        - Find interpolant, given by a, through given points, given by Demko
+        - Find extrema of this polynomial and update Demko points
+        - Repeat until converged
+        - Use the Greville point as starting point */
+   real_t GetDemko(int i) const;
+
+   void GetDemko(Vector &xi) const;
 
    // The following functions evaluate shape functions, which are B-spline basis
    // functions.
@@ -138,19 +217,32 @@ public:
    /** @brief Gives the locations of the maxima of the KnotVector in reference
        space. The function gives the knot span @a ks, the coordinate in the
        knot span @a xi, and the coordinate of the maximum in parameter space
-       @a u. */
-   void FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const;
+       @a u.
+       The main purpose of this function is its use in FindInterpolant.
+       Use GetBotella instead for each shape function separately, perhaps in
+       conjuction with GetSpan and GetRefPoint.*/
+   MFEM_DEPRECATED void FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const;
 
    /** @brief Global curve interpolation through the points @a x (overwritten).
        @a x is an array with the length of the spatial dimension containing
        vectors with spatial coordinates. The control points of the interpolated
        curve are returned in @a x in the same form.
+       Use GetInterpolant instead. For the knot location one can use either
+       GetBotella, GetDemko or GetGreville. FindInterpolant uses the Botella
+       points, however, the Demko points might be more appropriate. */
+   MFEM_DEPRECATED void FindInterpolant(Array<Vector*> &x, bool reuse_inverse);
 
-       The inverse of the collocation matrix, used in the interpolation, is
-       stored for repeated calls and used if @a reuse_inverse is true. Reuse is
-       valid only if this KnotVector has not changed since the initial call with
-       @a reuse_inverse false. */
-   void FindInterpolant(Array<Vector*> &x, bool reuse_inverse = false);
+   /** @brief Global curve interpolation through the points @a x (overwritten)
+       at the knot location @a u. The control points of the
+       interpolated curve are returned in @a x in the same form.
+       For the knot location one can use  for instance GetBotella, GetDemko or
+       GetGreville. The Demko points might be most appropriate.*/
+   void GetInterpolant(Array<Vector*> &x, const Vector &u,
+                       bool reuse_inverse = false) const;
+
+   /// Different interface to same routine
+   void GetInterpolant(const Vector &x, const Vector &u,
+                       Vector &a, bool reuse_inverse = false) const;
 
    /** Set @a diff, comprised of knots in @a kv not contained in this KnotVector.
        @a kv must be of the same order as this KnotVector. The current
@@ -193,6 +285,18 @@ public:
        number of samples of the shape functions per element.*/
    void PrintFunctions(std::ostream &os, int samples=11) const;
 
+   /** Prints the function with basis function coefficient @a a, and its first
+       and second derivatives associated with the KnotVector per element.
+       Use GetElements() to count the elements before using this function.
+       @a samples is the number of samples of the shape functions per element.*/
+   void PrintFunction(std::ostream &os, const Vector &a, int samples=11) const;
+
+   /** Prints the @a i-th function and its first and second
+       derivatives associated with the KnotVector per element. Use GetElements()
+       to count the elements before using this function. @a samples is the
+       number of samples of the shape functions per element.*/
+   void PrintFunction(std::ostream &os, int i, int samples=11) const;
+
    /// Destroys KnotVector
    ~KnotVector() { }
 
@@ -211,14 +315,6 @@ public:
    /** @brief Flag to indicate whether the KnotVector has been coarsened, which
        means it is ready for non-nested refinement. */
    bool coarse;
-
-#ifdef MFEM_USE_LAPACK
-   // Data for reusing banded matrix factorization in FindInterpolant().
-   DenseMatrix fact_AB; /// Banded matrix factorization
-   Array<int> fact_ipiv; /// Row pivot indices
-#else
-   DenseMatrix A_coll_inv; /// Collocation matrix inverse
-#endif
 };
 
 
@@ -601,22 +697,26 @@ protected:
    /// Throw an error if any boundary patch has invalid KnotVector orientation.
    MFEM_DEPRECATED void CheckBdrPatches();
 
+   /// Return the patch-topology edge indices that define the KnotVectors for
+   /// patch @a p in each parametric direction.
+   void GetPatchDirectionEdges(int p, Array<int> &edges);
+
    /** @brief Return the directions in @a kvdir of the KnotVectors in patch @a p
        based on the patch edge orientations. Each entry of @a kvdir is -1 if the
        KnotVector direction is flipped, +1 otherwise. */
    void CheckKVDirection(int p, Array <int> &kvdir);
 
-   /**  @brief Create the comprehensive set of KnotVectors. In 1D, this set is
-    identical to the unique set of KnotVectors. */
+   /** @brief Create the comprehensive set of KnotVectors, one per patch and
+       parametric direction, accounting for the edge orientations. */
    void CreateComprehensiveKV();
 
-   /**  Update the unique set of KnotVectors. In 1D, this set is identical to
-    the comprehensive set of KnotVectors. */
+   /** @brief Update the unique set of KnotVectors from the comprehensive set
+       of KnotVectors. */
    void UpdateUniqueKV();
 
    /** @brief Check if the comprehensive array of KnotVectors agrees with the
        unique set of KnotVectors, on each patch. Return false if there is a
-       difference, true otherwise. This function throws an error in 1D. */
+       difference, true otherwise. */
    bool ConsistentKVSets();
 
    /// Return KnotVectors in @a kv in each dimension for patch @a p.
@@ -822,6 +922,13 @@ public:
    /// Return the dimension of the reference space (not physical space).
    int Dimension() const { return patchTopo->Dimension(); }
 
+   /** @brief Return the physical dimension of the NURBS geometry
+
+       The physical dimension is inferred from the first patch,
+       i.e. number of coordinates per control point minus one (for the weight).
+       This method requires patch data to be present, i.e. HavePatches() == true */
+   int GetPatchSpaceDimension() const;
+
    /// Return the number of patches.
    int GetNP()     const { return patchTopo->GetNE(); }
 
@@ -935,9 +1042,9 @@ public:
    void ConvertToPatches(const Vector &Nodes);
    /// Set KnotVectors from @a patches and construct mesh and space data.
    void SetKnotsFromPatches();
-   /** @brief Set FE coordinates in @a Nodes, using data from @a patches, and
-       erase @a patches. */
-   void SetCoordsFromPatches(Vector &Nodes);
+   /** @brief Set FE coordinates in @a Nodes, using data from @a patches,
+       with physical vector dimension @a vdim, and erase @a patches. */
+   void SetCoordsFromPatches(Vector &Nodes, int vdim);
 
    /** @brief Read a GridFunction @a sol from stream @a input, written
        patch-by-patch, e.g. with PrintSolution(). */
