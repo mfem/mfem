@@ -20,10 +20,15 @@
 //
 // Serial sample runs:
 //   > compare-dc -r0 ../../examples/Example5 -r1 ../../examples/alt/Example5
+//   > compare-dc -r0 Example5 -r1 alt/Example5 -tol 1e-6
 //
 // Parallel sample runs:
 //   > mpirun -np 4 compare-dc -r0 ../../examples/Example5-Parallel
 //                             -r1 ../../examples/alt/Example5-Parallel
+//
+//  NB: when no tolerance is provided the difference is simple reported.
+//  If a tolerance is provided this is compared with the symmetric
+//  relative difference. An error is given if difference exceeds the tolerance.
 
 #include "mfem.hpp"
 
