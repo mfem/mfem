@@ -2144,25 +2144,11 @@ void PRefinementTransferOperator::AssembleMatrix()
          cached_geom = geom;
       }
 
-
-      // TODO: Figure out how to efficiently handle the dof transformations on the matrix
-      const int nh = loc_prol.Height();
-      const int nl = loc_prol.Width();
-
-      DenseMatrix Tl_inv(nl), Th(nh);
-      BuildTransformMatrix(nl, doftrans_l, /*inverse_primal=*/true,  Tl_inv);
-      BuildTransformMatrix(nh, doftrans_h, /*inverse_primal=*/false, Th);
-
-      DenseMatrix tmp(nh, nl), Aeff(nh, nl);
-
-      // tmp = Th * loc_prol
-      mfem::Mult(Th, loc_prol, tmp);
-      // Aeff = tmp * Tl_inv
-      mfem::Mult(tmp, Tl_inv, Aeff);
+      DenseMatrix Aeff(loc_prol);
+      TransformPrimal(doftrans_h, doftrans_l, Aeff);
 
       for (int vd = 0; vd < vdim; vd++)
       {
-         // Aeff = loc_prol;
          l_dofs.Copy(l_vdofs);
          lFESpace.DofsToVDofs(vd, l_vdofs);
 
@@ -2170,7 +2156,6 @@ void PRefinementTransferOperator::AssembleMatrix()
          hFESpace.DofsToVDofs(vd, h_vdofs);
 
          Aeff.AdjustForSignedDofs(h_vdofs, l_vdofs);
-
 
          P->AddSubMatrix(h_vdofs, l_vdofs, Aeff);
 
