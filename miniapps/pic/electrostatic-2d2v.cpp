@@ -389,8 +389,8 @@ void ParticleMover::ParticleStep(Particle& part, real_t& dt, real_t L_x, bool ze
    // periodic boundary: wrap around using ctx mesh extents
    for (int d = 0; d < x.Size(); d++)
    {
-      x(d) = std::fmod(x(d), L_x);
-      if (x(d) < 0.0) { x(d) += L_x; }
+      while (x(d) > L_x) { x(d) -= L_x; }
+      while (x(d) < 0.0) { x(d) += L_x; }
    }
 }
 
