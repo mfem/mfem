@@ -102,8 +102,7 @@ public:
       MASS,    // vdim = 1
       CHARGE,  // vdim = 1
       MOM,     // vdim = dim
-      EFIELD,  // vdim = dim
-      SIZE
+      EFIELD  // vdim = dim
    };
 
 protected:
