@@ -43,7 +43,6 @@
 //   Linear Landau damping test case (Ricketson & Hu, 2025):
 //      mpirun -n 4 ./electrostatic-2d2v -rdf 1 -npt 409600 -k 0.2855993321 -a 0.05 -nt 200 -nx 32 -ny 32 -O 1 -q 0.001181640625 -m 0.001181640625 -ocf 1000 -dt 0.1
 
-#include <chrono>
 #include <ctime>
 #include <fstream>
 #include <iomanip>
@@ -305,7 +304,8 @@ int main(int argc, char* argv[])
    real_t dt = ctx.dt;
 
    // set up timer
-   auto start_time = std::chrono::high_resolution_clock::now();
+   mfem::StopWatch sw;
+   sw.Start();
    for (int step = 1; step <= ctx.nt; step++)
    {
       // Redistribute
@@ -332,12 +332,10 @@ int main(int argc, char* argv[])
       if (Mpi::Root())
       {
          mfem::out << "Step: " << step << " | Time: " << t;
-         // Print timing information every 100 steps
+         // Print timing information every 10 steps
          if (step % 10 == 0)
          {
-            std::chrono::duration<double> elapsed =
-               std::chrono::high_resolution_clock::now() - start_time;
-            mfem::out << " | Time per step: " << elapsed.count() / step;
+            mfem::out << " | Time per step: " << sw.RealTime() / step;
          }
          mfem::out << endl;
       }
