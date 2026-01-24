@@ -3212,6 +3212,28 @@ Mesh *Extrude1D(Mesh *mesh, const int ny, const real_t sy,
 /// Extrude a 2D mesh
 Mesh *Extrude2D(Mesh *mesh, const int nz, const real_t sz);
 
+/** @brief Constructs the smallest possible [0,1]^dim serial mesh that can be
+    used later to obtain a ParMesh with @a elem_per_mpi elements, with the same
+    topology, for each of the @a mpi_cnt MPI tasks. For quads and hexes.
+
+    The serial mesh has the smallest possible number of elements. The parallel
+    mesh will be obtained by parallel refinements. Each MPI task will have
+    elements with the same topology (same number, same connectivity).
+
+    @param[in]  dim          dimension (2 or 3).
+    @param[in]  mpi_cnt      number of MPI tasks.
+    @param[in]  elem_per_mpi number of elements per MPI task.
+    @param[in]  print        shows meshing info in the terminal.
+    @param[out] par_ref      number of parallel refinement needed afterwards.
+    @param[out] partitioning partitioning to create the desired ParMesh.
+
+    Usual use case:
+    Mesh mesh = PartitionMPI(dim, mpi_cnt, elem_per_mpi, print, par_ref, par);
+    ParMesh pmesh(MPI_COMM_WORLD, mesh, par.GetData());
+    for (int lev = 0; lev < par_ref; lev++) { pmesh.UniformRefinement(); }   */
+Mesh PartitionMPI(int dim, int mpi_cnt, int elem_per_mpi, bool print,
+                  int &par_ref, Array<int> &partitioning);
+
 // shift cyclically 3 integers left-to-right
 inline void ShiftRight(int &a, int &b, int &c)
 {
