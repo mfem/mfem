@@ -32,10 +32,13 @@ int main(int argc, char *argv[])
 
    char vishost[] = "localhost";
    int  visport   = 19916;
+   bool assembleP = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&order, "-o", "--order", "Finite element polynomial degree");
+   args.AddOption(&assembleP, "-ap", "--assemble-P", "-no-ap", "--no-assemble-P",
+                  "Assemble the P-refinement transfer operator as a matrix or not.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -132,9 +135,9 @@ int main(int argc, char *argv[])
       preftracesockets.Append(new socketstream(vishost, visport));
 
       Ptransfers.Append(new PRefinementTransferOperator(
-                           *(fespaces[i]), *(preffespaces[i])));
+                           *(fespaces[i]), *(preffespaces[i]),assembleP));
       trace_Ptransfers.Append(new PRefinementTransferOperator(
-                                 *(trace_fespaces[i]), *(preftrace_fespaces[i])));
+                                 *(trace_fespaces[i]), *(preftrace_fespaces[i]),assembleP));
    }
 
    gf[0]->ProjectCoefficient(cf);
@@ -151,7 +154,7 @@ int main(int argc, char *argv[])
 
    Array<int> vdofs, trace_vdofs;
    Vector values;
-   // // zero out bubble dofs to compare with trace
+   // zero out bubble dofs to compare with trace
    // for (int i = 0; i<mesh.GetNE(); i++)
    // {
    //    for (int j = 0; j < fespaces.Size(); j++)

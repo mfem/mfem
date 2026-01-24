@@ -2077,7 +2077,8 @@ void TransferOperator::MultTranspose(const Vector& x, Vector& y) const
 
 
 PRefinementTransferOperator::PRefinementTransferOperator(
-   const FiniteElementSpace& lFESpace_, const FiniteElementSpace& hFESpace_)
+   const FiniteElementSpace& lFESpace_, const FiniteElementSpace& hFESpace_,
+   bool assemble_matrix)
    : Operator(hFESpace_.GetVSize(), lFESpace_.GetVSize()), lFESpace(lFESpace_),
      hFESpace(hFESpace_)
 {
@@ -2091,10 +2092,116 @@ PRefinementTransferOperator::PRefinementTransferOperator(
       (dynamic_cast<const H1_Trace_FECollection*>(lFESpace.FEColl()) ||
        dynamic_cast<const ND_Trace_FECollection*>(lFESpace.FEColl()) ||
        dynamic_cast<const RT_Trace_FECollection*>(lFESpace.FEColl()));
+
+   if (assemble_matrix) { AssembleMatrix(); }
+
+}
+
+void PRefinementTransferOperator::AssembleMatrix()
+{
+   Mesh* mesh = hFESpace.GetMesh();
+   const int nL = lFESpace.GetVSize();
+   const int nH = hFESpace.GetVSize();
+
+
+   P.reset(new SparseMatrix(nH, nL));
+   Array<int> l_dofs, h_dofs, l_vdofs, h_vdofs;
+   DenseMatrix loc_prol;
+
+   Geometry::Type cached_geom = Geometry::INVALID;
+   const FiniteElement* h_fe = nullptr;
+   const FiniteElement* l_fe = nullptr;
+   IsoparametricTransformation T;
+
+   int vdim = lFESpace.GetVDim();
+
+   const int iend = (is_trace_space) ? mesh->GetNumFaces() : mesh->GetNE();
+   DofTransformation doftrans_h, doftrans_l;
+   Vector w(nH); w = 0.0;
+
+   for (int i = 0; i < iend; i++)
+   {
+      if (is_trace_space)
+      {
+         hFESpace.GetFaceDofs(i, h_dofs);
+         lFESpace.GetFaceDofs(i, l_dofs);
+      }
+      else
+      {
+         hFESpace.GetElementDofs(i, h_dofs, doftrans_h);
+         lFESpace.GetElementDofs(i, l_dofs, doftrans_l);
+      }
+
+      const Geometry::Type geom = (is_trace_space) ? mesh->GetFaceGeometry(i)
+                                  : mesh->GetElementBaseGeometry(i);
+
+      if (geom != cached_geom || isvar_order)
+      {
+         h_fe = (is_trace_space) ? hFESpace.GetFaceElement(i) : hFESpace.GetFE(i);
+         l_fe = (is_trace_space) ? lFESpace.GetFaceElement(i) : lFESpace.GetFE(i);
+         T.SetIdentityTransformation(h_fe->GetGeomType());
+         h_fe->GetTransferMatrix(*l_fe, T, loc_prol);
+         cached_geom = geom;
+      }
+
+
+      // TODO: Figure out how to efficiently handle the dof transformations on the matrix
+      const int nh = loc_prol.Height();
+      const int nl = loc_prol.Width();
+
+      DenseMatrix Tl_inv(nl), Th(nh);
+      BuildTransformMatrix(nl, doftrans_l, /*inverse_primal=*/true,  Tl_inv);
+      BuildTransformMatrix(nh, doftrans_h, /*inverse_primal=*/false, Th);
+
+      DenseMatrix tmp(nh, nl), Aeff(nh, nl);
+
+      // tmp = Th * loc_prol
+      mfem::Mult(Th, loc_prol, tmp);
+      // Aeff = tmp * Tl_inv
+      mfem::Mult(tmp, Tl_inv, Aeff);
+
+      for (int vd = 0; vd < vdim; vd++)
+      {
+         // Aeff = loc_prol;
+         l_dofs.Copy(l_vdofs);
+         lFESpace.DofsToVDofs(vd, l_vdofs);
+
+         h_dofs.Copy(h_vdofs);
+         hFESpace.DofsToVDofs(vd, h_vdofs);
+
+         Aeff.AdjustForSignedDofs(h_vdofs, l_vdofs);
+
+
+         P->AddSubMatrix(h_vdofs, l_vdofs, Aeff);
+
+         for (int rr = 0; rr < h_vdofs.Size(); rr++)
+         {
+            w(h_vdofs[rr]) += 1.0;
+         }
+
+      }
+   }
+
+   P->Finalize();
+
+   Vector inv_w(nH);
+   for (int i = 0; i < nH; i++)
+   {
+      inv_w(i) = (w(i) > 0.0) ? (1.0 / w(i)) : 1.0;
+   }
+
+   P->ScaleRows(inv_w);
+
+   assembled = true;
+
 }
 
 void PRefinementTransferOperator::Mult(const Vector& x, Vector& y) const
 {
+   y = 0.0;
+
+   if (assembled) { P->Mult(x, y); return; }
+
    Mesh* mesh = hFESpace.GetMesh();
    Array<int> l_dofs, h_dofs, l_vdofs, h_vdofs;
    DenseMatrix loc_prol;
@@ -2107,7 +2214,6 @@ void PRefinementTransferOperator::Mult(const Vector& x, Vector& y) const
 
    int vdim = lFESpace.GetVDim();
 
-   y = 0.0;
 
    DofTransformation doftrans_h, doftrans_l;
 
@@ -2147,6 +2253,7 @@ void PRefinementTransferOperator::Mult(const Vector& x, Vector& y) const
          hFESpace.DofsToVDofs(vd, h_vdofs);
          x.GetSubVector(l_vdofs, subX);
          doftrans_l.InvTransformPrimal(subX);
+
          loc_prol.Mult(subX, subY);
          doftrans_h.TransformPrimal(subY);
          y.SetSubVector(h_vdofs, subY);
@@ -2158,6 +2265,12 @@ void PRefinementTransferOperator::MultTranspose(const Vector& x,
                                                 Vector& y) const
 {
    y = 0.0;
+
+   if (assembled)
+   {
+      P->MultTranspose(x, y);
+      return;
+   }
 
    Mesh* mesh = hFESpace.GetMesh();
    Array<int> l_dofs, h_dofs, l_vdofs, h_vdofs;

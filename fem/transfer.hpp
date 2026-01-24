@@ -562,6 +562,31 @@ public:
    void MultTranspose(const Vector& x, Vector& y) const override;
 };
 
+
+static inline void BuildTransformMatrix(
+   int n,
+   const DofTransformation &dt,
+   bool inverse_primal,            // true -> InvTransformPrimal, false -> TransformPrimal
+   DenseMatrix &T)
+{
+   T.SetSize(n, n);
+   Vector e(n), v(n);
+
+   for (int j = 0; j < n; j++)
+   {
+      e = 0.0;
+      e(j) = 1.0;
+      v = e;
+
+      if (inverse_primal) { dt.InvTransformPrimal(v); }
+      else                { dt.TransformPrimal(v); }
+
+      // set column j
+      for (int i = 0; i < n; i++) { T(i,j) = v(i); }
+   }
+}
+
+
 /// Matrix-free transfer operator between finite element spaces on the same mesh
 class PRefinementTransferOperator : public Operator
 {
@@ -570,6 +595,8 @@ private:
    const FiniteElementSpace& hFESpace;
    bool isvar_order;
    bool is_trace_space;
+   bool assembled = false;
+   std::unique_ptr<SparseMatrix> P;
 
 public:
    /// @brief Constructs a transfer operator from \p lFESpace to \p hFESpace
@@ -578,10 +605,13 @@ public:
        The underlying finite elements need to implement the GetTransferMatrix
        methods. */
    PRefinementTransferOperator(const FiniteElementSpace& lFESpace_,
-                               const FiniteElementSpace& hFESpace_);
+                               const FiniteElementSpace& hFESpace_, bool assemble_matrix = false);
 
    /// Destructor
    virtual ~PRefinementTransferOperator() { }
+
+
+   void AssembleMatrix();
 
    /// @brief Interpolation or prolongation of a vector \p x corresponding to
    /// the coarse space to the vector \p y corresponding to the fine space.
