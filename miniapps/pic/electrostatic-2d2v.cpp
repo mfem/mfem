@@ -66,29 +66,46 @@ using namespace mfem::common;
 
 struct PICContext
 {
-   // mesh related parameters
+   // Finite element order for the spatial discretization
    int order = 1;
+   // Number of grid cells in x-direction
    int nx = 100;
+   // Number of grid cells in y-direction
    int ny = 100;
+   // Domain length in x-direction
    real_t L_x = 1.0;
 
+   // Ordering scheme for particles/mesh
    int ordering = 1;
+   // Number of particles
    int npt = 1000;
+   // Particle charge
    real_t q = 1.0;
+   // Particle mass
    real_t m = 1.0;
 
+   // Wave number (for Landau damping test case)
    real_t k = 1.0;
+   // Perturbation amplitude (for Landau damping test case)
    real_t alpha = 0.1;
 
+   // Time step size
    real_t dt = 1e-2;
+   // Initial simulation time
    real_t t_init = 0.0;
 
+   // Number of time steps to run
    int nt = 1000;
+   // Frequency for redistributing particles across processors
    int redist_freq = 1e6;
+   // Frequency for outputting CSV data files
    int output_csv_freq = 1;
 
+   // Enable visualization
    bool visualization = true;
+   // Port number for visualization server
    int visport = 19916;
+   // Enable reproducible results (fixed random seed)
    bool reproduce = true;
 } ctx;
 
@@ -215,9 +232,9 @@ int main(int argc, char* argv[])
    args.AddOption(&ctx.nt, "-nt", "--num-timesteps", "Number of timesteps.");
    args.AddOption(&ctx.npt, "-npt", "--num-particles",
                   "Total number of particles.");
-   args.AddOption(&ctx.k, "-k", "--k", "K parameter for initial distribution.");
+   args.AddOption(&ctx.k, "-k", "--k", "Wave number for initial distribution.");
    args.AddOption(&ctx.alpha, "-a", "--alpha",
-                  "Alpha parameter for initial distribution.");
+                  "Perturbation amplitude for initial distribution.");
    args.AddOption(&ctx.ordering, "-o", "--ordering",
                   "Ordering of particle data. 0 = byNODES, 1 = byVDIM.");
    args.AddOption(&ctx.redist_freq, "-rdf", "--redist-freq",
