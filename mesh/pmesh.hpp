@@ -826,6 +826,54 @@ public:
                             std::set<int> &conflicts) const;
 
    virtual ~ParMesh();
+
+   /// Calls @sa Mesh::MakeCartesian1D on rank 0 then partitions and distributes
+   /// the mesh to all ranks in @a comm. This uses less memory than creating a
+   /// serial mesh on all ranks first.
+   ///
+   /// If @a nxyz is non-null, uses @sa
+   /// Mesh::CartesianPartitioning Otherwise uses @sa Mesh::GeneratePartitioning
+   /// with @a part_method
+   static ParMesh MakeParCartesian1D(MPI_Comm comm, int n, real_t sx = 1.0,
+                                     int part_method = 1,
+                                     int *nxyz = nullptr);
+
+   /// Calls @sa Mesh::MakeCartesian2D on rank 0 then partitions and distributes
+   /// the mesh to all ranks in @a comm. This uses less memory than creating a
+   /// serial mesh on all ranks first.
+   ///
+   /// If @a nxyz is non-null, uses @sa Mesh::CartesianPartitioning
+   /// Otherwise uses @sa Mesh::GeneratePartitioning with @a part_method
+   static ParMesh
+   MakeParCartesian2D(MPI_Comm comm, int nx, int ny, Element::Type type,
+                      bool generate_edges = false, real_t sx = 1_r,
+                      real_t sy = 1_r, bool sfc_ordering = true,
+                      int part_method = 1, int *nxyz = nullptr);
+
+   /// Calls @sa Mesh::MakeCartesian3D on rank 0 then partitions and distributes
+   /// the mesh to all ranks in @a comm. This uses less memory than creating a
+   /// serial mesh on all ranks first.
+   ///
+   /// If @a nxyz is non-null, uses @sa Mesh::CartesianPartitioning
+   /// Otherwise uses @sa Mesh::GeneratePartitioning with @a part_method
+   static ParMesh MakeParCartesian3D(MPI_Comm comm, int nx, int ny, int nz,
+                                     Element::Type type, real_t sx = 1_r,
+                                     real_t sy = 1_r, real_t sz = 1_r,
+                                     bool sfc_ordering = true,
+                                     int part_method = 1,
+                                     int *nxyz = nullptr);
+
+   /// Calls @sa Mesh::Mesh(input, generate_edges, refine, fix_orientation,
+   /// part_method) on rank 0 then partitions and distributes
+   /// the mesh to all ranks in @a comm. This uses less memory than creating a
+   /// serial mesh on all ranks first.
+   ///
+   /// If @a nxyz is non-null, uses @sa Mesh::CartesianPartitioning
+   /// Otherwise uses @sa Mesh::GeneratePartitioning with @a part_method
+   static ParMesh MakeFromSerial(MPI_Comm comm, std::istream &input,
+                                 int generate_edges = 0, int refine = 1,
+                                 bool fix_orientation = true,
+                                 int part_method = 1, int *nxyz = nullptr);
 };
 
 }
