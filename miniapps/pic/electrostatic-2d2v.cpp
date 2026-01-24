@@ -94,7 +94,7 @@ struct PICContext
 
 /// This class implements explicit time integration for charged particles
 /// in an electric field using ParticleSet.
-class PIC
+class ParticleMover
 {
 public:
    enum Fields
@@ -127,7 +127,7 @@ protected:
                      real_t L_x, bool zeroth_step = false);
 
 public:
-   PIC(MPI_Comm comm, ParGridFunction* E_gf_, FindPointsGSLIB& E_finder_,
+   ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_, FindPointsGSLIB& E_finder_,
        int num_particles,
        Ordering::Type pdata_ordering);
 
@@ -152,7 +152,7 @@ public:
    ParticleSet& GetParticles() { return *charged_particles; }
 };
 
-class GridFunctionUpdates
+class FieldSolver
 {
 private:
    real_t domain_volume;
@@ -169,11 +169,11 @@ private:
    socketstream vis_phi;
 
 public:
-   GridFunctionUpdates(ParGridFunction& phi_gf, FindPointsGSLIB& E_finder_,
+   FieldSolver(ParGridFunction& phi_gf, FindPointsGSLIB& E_finder_,
                        int visport_, bool visualization_,
                        bool precompute_neutralizing_const_ = false);
 
-   ~GridFunctionUpdates();
+   ~FieldSolver();
 
    /// Update the phi_gf grid function from the particles.
    /// Solve periodic Poisson: DiffusionMatrix * phi = (rho - <rho>)
@@ -273,15 +273,15 @@ int main(int argc, char* argv[])
    *E_gf = 0.0;   // Initialize E_gf to zero
 
    // 6. Build the grid function updates
-   GridFunctionUpdates gf_updates(phi_gf, E_finder, ctx.visport,
+   FieldSolver field_solver(phi_gf, E_finder, ctx.visport,
                                   ctx.visualization, true);
    Ordering::Type ordering_type =
       ctx.ordering == 0 ? Ordering::byNODES : Ordering::byVDIM;
 
-   // 7. Initialize PIC
+   // 7. Initialize ParticleMover
    int num_particles = ctx.npt / size + (rank < (ctx.npt % size) ? 1 : 0);
-   PIC pic(MPI_COMM_WORLD, E_gf, E_finder, num_particles, ordering_type);
-   pic.InitializeChargedParticles(ctx.k, ctx.alpha, ctx.m,
+   ParticleMover particle_mover(MPI_COMM_WORLD, E_gf, E_finder, num_particles, ordering_type);
+   particle_mover.InitializeChargedParticles(ctx.k, ctx.alpha, ctx.m,
                                   ctx.q, ctx.L_x, ctx.reproduce);
 
    real_t t = ctx.t_init;
@@ -293,25 +293,25 @@ int main(int argc, char* argv[])
    {
       // Redistribute
       if (ctx.redist_freq > 0 && (step % ctx.redist_freq == 0 || step == 1) &&
-          pic.GetParticles().GetGlobalNParticles() > 0)
+          particle_mover.GetParticles().GetGlobalNParticles() > 0)
       {
          // Redistribute
-         pic.Redistribute();
+         particle_mover.Redistribute();
 
          // Update phi_gf from particles
-         gf_updates.UpdatePhiGridFunction(pic.GetParticles(), phi_gf, *E_gf);
+         field_solver.UpdatePhiGridFunction(particle_mover.GetParticles(), phi_gf, *E_gf);
 
-         gf_updates.TotalEnergyValidation(pic.GetParticles(), *E_gf);
+         field_solver.TotalEnergyValidation(particle_mover.GetParticles(), *E_gf);
       }
 
       if (step == 1)
       {
          real_t neg_half_dt = -dt / 2.0;
          // Perform a "zeroth" step to move p half step backward
-         pic.Step(t, neg_half_dt, ctx.L_x,true);
+         particle_mover.Step(t, neg_half_dt, ctx.L_x,true);
       }
-      // Step the PIC algorithm
-      pic.Step(t, dt, ctx.L_x);
+      // Step the ParticleMover
+      particle_mover.Step(t, dt, ctx.L_x);
       if (Mpi::Root())
       {
          mfem::out << "Step: " << step << " | Time: " << t;
@@ -331,7 +331,7 @@ int main(int argc, char* argv[])
          Array<int> field_idx{2}, tag_idx;
          std::string file_name =
             csv_prefix + mfem::to_padded_string(step, 6) + ".csv";
-         pic.GetParticles().PrintCSV(file_name.c_str(), field_idx, tag_idx);
+         particle_mover.GetParticles().PrintCSV(file_name.c_str(), field_idx, tag_idx);
       }
    }
 
@@ -339,7 +339,7 @@ int main(int argc, char* argv[])
    delete E_gf;
 }
 
-void PIC::GetValues(const ParticleVector& coords, FindPointsGSLIB& E_finder,
+void ParticleMover::GetValues(const ParticleVector& coords, FindPointsGSLIB& E_finder,
                     ParGridFunction& gf, ParticleVector& pv)
 {
    Mesh &mesh = *gf.FESpace()->GetMesh();
@@ -348,7 +348,7 @@ void PIC::GetValues(const ParticleVector& coords, FindPointsGSLIB& E_finder,
                      pv.GetOrdering());
 }
 
-void PIC::ParticleStep(Particle& part, real_t& dt, real_t L_x, bool zeroth_step)
+void ParticleMover::ParticleStep(Particle& part, real_t& dt, real_t L_x, bool zeroth_step)
 {
    Vector& x = part.Coords();
    real_t m = part.FieldValue(MASS);
@@ -377,12 +377,12 @@ void PIC::ParticleStep(Particle& part, real_t& dt, real_t L_x, bool zeroth_step)
    }
 }
 
-PIC::PIC(MPI_Comm comm, ParGridFunction* E_gf_, FindPointsGSLIB& E_finder_,
+ParticleMover::ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_, FindPointsGSLIB& E_finder_,
          int num_particles,
          Ordering::Type pdata_ordering)
    : E_gf(E_gf_), E_finder(E_finder_)
 {
-   MFEM_VERIFY(E_gf, "Must pass an E field to PIC.");
+   MFEM_VERIFY(E_gf, "Must pass an E field to ParticleMover.");
 
    int dim = E_gf->ParFESpace()->GetMesh()->SpaceDimension();
 
@@ -396,7 +396,7 @@ PIC::PIC(MPI_Comm comm, ParGridFunction* E_gf_, FindPointsGSLIB& E_finder_,
                           comm, num_particles, dim, field_vdims, 1, pdata_ordering);
 }
 
-void PIC::InitializeChargedParticles(const real_t& k,
+void ParticleMover::InitializeChargedParticles(const real_t& k,
                                      const real_t& alpha, real_t m, real_t q,
                                      real_t L_x, bool reproduce)
 {
@@ -414,9 +414,9 @@ void PIC::InitializeChargedParticles(const real_t& k,
    MFEM_VERIFY(k != 0.0, "k must be nonzero for displacement initialization.");
 
    ParticleVector& X = charged_particles->Coords();
-   ParticleVector& P = charged_particles->Field(PIC::MOM);
-   ParticleVector& M = charged_particles->Field(PIC::MASS);
-   ParticleVector& Q = charged_particles->Field(PIC::CHARGE);
+   ParticleVector& P = charged_particles->Field(ParticleMover::MOM);
+   ParticleVector& M = charged_particles->Field(ParticleMover::MASS);
+   ParticleVector& Q = charged_particles->Field(ParticleMover::CHARGE);
 
    for (int i = 0; i < charged_particles->GetNParticles(); i++)
    {
@@ -446,7 +446,7 @@ void PIC::InitializeChargedParticles(const real_t& k,
    FindParticles();
 }
 
-void PIC::InterpolateE()
+void ParticleMover::InterpolateE()
 {
    ParticleVector& X = charged_particles->Coords();
    ParticleVector& E = charged_particles->Field(EFIELD);
@@ -455,13 +455,13 @@ void PIC::InterpolateE()
    GetValues(X, E_finder, *E_gf, E);
 }
 
-void PIC::FindParticles()
+void ParticleMover::FindParticles()
 {
    ParticleVector &X = charged_particles->Coords();
    E_finder.FindPoints(X, X.GetOrdering());
 }
 
-void PIC::Step(real_t& t, real_t& dt, real_t L_x, bool zeroth_step)
+void ParticleMover::Step(real_t& t, real_t& dt, real_t L_x, bool zeroth_step)
 {
    InterpolateE();
    // Individually step each particle:
@@ -491,13 +491,13 @@ void PIC::Step(real_t& t, real_t& dt, real_t L_x, bool zeroth_step)
    t += dt;
 }
 
-void PIC::Redistribute()
+void ParticleMover::Redistribute()
 {
    charged_particles->Redistribute(E_finder.GetProc());
    FindParticles();
 }
 
-GridFunctionUpdates::GridFunctionUpdates(ParGridFunction& phi_gf,
+FieldSolver::FieldSolver(ParGridFunction& phi_gf,
                                          FindPointsGSLIB& E_finder_,
                                          int visport_, bool visualization_,
                                          bool precompute_neutralizing_const_)
@@ -534,13 +534,13 @@ GridFunctionUpdates::GridFunctionUpdates(ParGridFunction& phi_gf,
    }
 }
 
-GridFunctionUpdates::~GridFunctionUpdates()
+FieldSolver::~FieldSolver()
 {
    delete DiffusionMatrix;
    delete precomputed_neutralizing_lf;
 }
 
-void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet& particles,
+void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
                                                 ParGridFunction& phi_gf,
                                                 ParGridFunction& E_gf)
 {
@@ -552,7 +552,7 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet& particles,
 
       // Particle data
       ParticleVector& X = particles.Coords();  // coordinates (vdim x npt)
-      ParticleVector& Q = particles.Field(PIC::CHARGE);  // charges (1 x npt)
+      ParticleVector& Q = particles.Field(ParticleMover::CHARGE);  // charges (1 x npt)
 
       const int npt = particles.GetNParticles();
       MFEM_VERIFY(X.GetVDim() == dim, "Unexpected particle coordinate layout.");
@@ -754,11 +754,11 @@ void GridFunctionUpdates::UpdatePhiGridFunction(ParticleSet& particles,
    }
 }
 
-void GridFunctionUpdates::TotalEnergyValidation(const ParticleSet& particles,
+void FieldSolver::TotalEnergyValidation(const ParticleSet& particles,
                                                 const ParGridFunction& E_gf)
 {
-   const ParticleVector& P = particles.Field(PIC::MOM);
-   const ParticleVector& M = particles.Field(PIC::MASS);
+   const ParticleVector& P = particles.Field(ParticleMover::MOM);
+   const ParticleVector& M = particles.Field(ParticleMover::MASS);
 
    real_t kinetic_energy = 0.0;
    for (int p = 0; p < particles.GetNParticles(); ++p)
