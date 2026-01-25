@@ -597,7 +597,7 @@ private:
    bool is_trace_space;
    bool assembled = false;
    std::unique_ptr<SparseMatrix> P;
-
+   mutable std::unique_ptr<HypreParMatrix> tP;
 public:
    /// @brief Constructs a transfer operator from \p lFESpace to \p hFESpace
    /// which have different FE collections.
@@ -606,6 +606,14 @@ public:
        methods. */
    PRefinementTransferOperator(const FiniteElementSpace& lFESpace_,
                                const FiniteElementSpace& hFESpace_, bool assemble_matrix = false);
+
+
+   HypreParMatrix * GetParallelPrefinementTransferOperator();
+   const HypreParMatrix *GetParallelPrefinementTransferOperator() const
+   {
+      return const_cast<PRefinementTransferOperator*>(this)
+             ->GetParallelPrefinementTransferOperator();
+   }
 
    /// Destructor
    virtual ~PRefinementTransferOperator() { }
