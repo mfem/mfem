@@ -2038,6 +2038,10 @@ TransferOperator::TransferOperator(const FiniteElementSpace& lFESpace_,
    : Operator(hFESpace_.GetVSize(), lFESpace_.GetVSize())
 {
    bool isvar_order = lFESpace_.IsVariableOrder() || hFESpace_.IsVariableOrder();
+   bool is_trace_space =
+      (dynamic_cast<const H1_Trace_FECollection*>(lFESpace_.FEColl()) ||
+       dynamic_cast<const ND_Trace_FECollection*>(lFESpace_.FEColl()) ||
+       dynamic_cast<const RT_Trace_FECollection*>(lFESpace_.FEColl()));
    if (lFESpace_.FEColl() == hFESpace_.FEColl() && !isvar_order)
    {
       OperatorPtr P(Operator::ANY_TYPE);
@@ -2047,6 +2051,7 @@ TransferOperator::TransferOperator(const FiniteElementSpace& lFESpace_,
    }
    else if (lFESpace_.GetVDim() == 1
             && hFESpace_.GetVDim() == 1
+            && !is_trace_space
             && dynamic_cast<const TensorBasisElement*>(lFESpace_.GetTypicalFE())
             && dynamic_cast<const TensorBasisElement*>(hFESpace_.GetTypicalFE())
             && !isvar_order
@@ -2180,6 +2185,44 @@ void PRefinementTransferOperator::AssembleMatrix()
    assembled = true;
 
 }
+
+HypreParMatrix *
+PRefinementTransferOperator::GetParallelPrefinementTransferOperator()
+{
+   MFEM_VERIFY(assembled,
+               "The PRefinement transfer operator matrix must be assembled.");
+
+   if (tP) { return tP.get(); }
+
+   const ParFiniteElementSpace* lpfes = dynamic_cast<const ParFiniteElementSpace*>
+                                        (&lFESpace);
+   const ParFiniteElementSpace* hpfes = dynamic_cast<const ParFiniteElementSpace*>
+                                        (&hFESpace);
+
+   HypreParMatrix * Pl = lpfes->Dof_TrueDof_Matrix();
+   const SparseMatrix * Rh = hpfes->GetRestrictionMatrix();
+
+   MFEM_VERIFY(Pl != nullptr, "Pl is nullptr");
+   MFEM_VERIFY(Rh != nullptr, "Rh is nullptr");
+
+   // Rh * P
+   SparseMatrix * RhP = mfem::Mult(*Rh, *P);
+
+   HypreParMatrix * RhPh = new HypreParMatrix(hpfes->GetComm(),
+                                              hpfes->GlobalTrueVSize(), lpfes->GlobalVSize(),
+                                              hpfes->GetTrueDofOffsets(), lpfes->GetDofOffsets(), RhP);
+
+   HypreStealOwnership(*RhPh, *RhP);
+   delete RhP;
+
+   HypreParMatrix * tmp = ParMult(RhPh, Pl, true);
+   delete RhPh;
+
+
+   tP.reset(tmp);
+   return tP.get();
+}
+
 
 void PRefinementTransferOperator::Mult(const Vector& x, Vector& y) const
 {
