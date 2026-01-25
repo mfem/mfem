@@ -719,45 +719,13 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
    }
 
    {
-      // 1.a make the RHS bilinear form
-      ParMixedBilinearForm b_bi(phi_gf.ParFESpace(), E_gf.ParFESpace());
-      ConstantCoefficient neg_one_coef(-1.0);
-      b_bi.AddDomainIntegrator(new MixedVectorGradientIntegrator(neg_one_coef));
-      b_bi.Assemble();
-      b_bi.Finalize();
-      // 1.b form linear form from bilinear form
-      ParLinearForm b(E_gf.ParFESpace());
-      b = 0.0;
-      b_bi.Mult(phi_gf, b);
-      // Convert to true-dof (parallel) vector
-      HypreParVector* B = b.ParallelAssemble();
-
-      // 2. make the bilinear form
-      ParBilinearForm a(E_gf.ParFESpace());
-      ConstantCoefficient one_coef(1.0);
-      a.AddDomainIntegrator(new VectorFEMassIntegrator(one_coef));
-      a.Assemble();
-      a.Finalize();
-      // Parallel operator (HypreParMatrix)
-      HypreParMatrix* A = a.ParallelAssemble();
-
-      // 3. solve for E_gf
-      CGSolver M_solver(E_gf.ParFESpace()->GetComm());
-      M_solver.iterative_mode = false;
-      M_solver.SetRelTol(1e-12);
-      M_solver.SetAbsTol(0.0);
-      M_solver.SetMaxIter(1e5);
-      M_solver.SetPrintLevel(0);
-      M_solver.SetOperator(*A);
-
-      HypreParVector X(E_gf.ParFESpace()->GetComm(),
-                       E_gf.ParFESpace()->GlobalTrueVSize(),
-                       E_gf.ParFESpace()->GetTrueDofOffsets());
-      X = 0.0;
-      M_solver.Mult(*B, X);
-      E_gf.SetFromTrueDofs(X);
-      delete A;
-      delete B;
+      // Compute E = -∇φ using DiscreteLinearOperator (from ex24p)
+      ParDiscreteLinearOperator grad(phi_gf.ParFESpace(), E_gf.ParFESpace());
+      grad.AddDomainInterpolator(new GradientInterpolator);
+      grad.Assemble();
+      grad.Mult(phi_gf, E_gf);
+      // Scale by -1 to get E = -∇φ
+      E_gf *= -1.0;
    }
 
    if (visualization)
