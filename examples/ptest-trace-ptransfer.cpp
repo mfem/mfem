@@ -186,14 +186,14 @@ int main(int argc, char *argv[])
    {
       gf[i]->GetTrueDofs(trueX);
       truepX.SetSize(preffespaces[i]->GetTrueVSize());
-      Ptransfers_assembled[i]->GetParallelPrefinementTransferOperator()->Mult(trueX,
-                                                                              truepX);
+      Ptransfers_assembled[i]->GetPrefinementTrueTransferOperator()->Mult(trueX,
+                                                                          truepX);
       // Ptransfers[i]->Mult(trueX, truepX);
       prefgf[i]->SetFromTrueDofs(truepX);
 
       trace_gf[i]->GetTrueDofs(trueX);
       truepX.SetSize(preftrace_fespaces[i]->GetTrueVSize());
-      trace_Ptransfers_assembled[i]->GetParallelPrefinementTransferOperator()->Mult(
+      trace_Ptransfers_assembled[i]->GetPrefinementTrueTransferOperator()->Mult(
          trueX, truepX);
       // trace_Ptransfers[i]->Mult(trueX, truepX);
       preftrace_gf[i]->SetFromTrueDofs(truepX);

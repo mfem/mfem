@@ -2098,6 +2098,8 @@ PRefinementTransferOperator::PRefinementTransferOperator(
        dynamic_cast<const ND_Trace_FECollection*>(lFESpace.FEColl()) ||
        dynamic_cast<const RT_Trace_FECollection*>(lFESpace.FEColl()));
 
+
+
    if (assemble_matrix) { AssembleMatrix(); }
 
 }
@@ -2186,40 +2188,73 @@ void PRefinementTransferOperator::AssembleMatrix()
 
 }
 
-HypreParMatrix *
-PRefinementTransferOperator::GetParallelPrefinementTransferOperator()
+SparseMatrix *
+PRefinementTransferOperator::GetConformingPrefinmentTransferMatrix()
+{
+   const SparseMatrix * Pl = lFESpace.GetConformingProlongation();
+   const SparseMatrix * Rh = hFESpace.GetRestrictionMatrix();
+   if (Pl && Rh)
+   {
+      SparseMatrix * RhP = mfem::Mult(*Rh, *P);
+      SparseMatrix * RhPPl = mfem::Mult(*RhP, *Pl);
+      delete RhP;
+      return RhPPl;
+   }
+   else if (Pl)
+   {
+      SparseMatrix * PPl = mfem::Mult(*P, *Pl);
+      return PPl;
+   }
+   else if (Rh)
+   {
+      SparseMatrix * RhP = mfem::Mult(*Rh, *P);
+      return RhP;
+   }
+   else
+   {
+      return new SparseMatrix(*P);
+   }
+}
+
+
+Operator *
+PRefinementTransferOperator::GetPrefinementTrueTransferOperator()
 {
    MFEM_VERIFY(assembled,
                "The PRefinement transfer operator matrix must be assembled.");
 
    if (tP) { return tP.get(); }
-
+#ifdef MFEM_USE_MPI
    const ParFiniteElementSpace* lpfes = dynamic_cast<const ParFiniteElementSpace*>
                                         (&lFESpace);
    const ParFiniteElementSpace* hpfes = dynamic_cast<const ParFiniteElementSpace*>
                                         (&hFESpace);
+   bool parallel = (lpfes) && (hpfes);
 
-   HypreParMatrix * Pl = lpfes->Dof_TrueDof_Matrix();
-   const SparseMatrix * Rh = hpfes->GetRestrictionMatrix();
-
-   MFEM_VERIFY(Pl != nullptr, "Pl is nullptr");
-   MFEM_VERIFY(Rh != nullptr, "Rh is nullptr");
-
-   // Rh * P
-   SparseMatrix * RhP = mfem::Mult(*Rh, *P);
-
-   HypreParMatrix * RhPh = new HypreParMatrix(hpfes->GetComm(),
-                                              hpfes->GlobalTrueVSize(), lpfes->GlobalVSize(),
-                                              hpfes->GetTrueDofOffsets(), lpfes->GetDofOffsets(), RhP);
-
-   HypreStealOwnership(*RhPh, *RhP);
-   delete RhP;
-
-   HypreParMatrix * tmp = ParMult(RhPh, Pl, true);
-   delete RhPh;
-
-
-   tP.reset(tmp);
+   if (parallel)
+   {
+      HypreParMatrix * Pl = lpfes->Dof_TrueDof_Matrix();
+      const SparseMatrix * Rh = hpfes->GetRestrictionMatrix();
+      // Rh * P
+      SparseMatrix * RhP = mfem::Mult(*Rh, *P);
+      HypreParMatrix * RhPh = new HypreParMatrix(hpfes->GetComm(),
+                                                 hpfes->GlobalTrueVSize(), lpfes->GlobalVSize(),
+                                                 hpfes->GetTrueDofOffsets(), lpfes->GetDofOffsets(), RhP);
+      HypreStealOwnership(*RhPh, *RhP);
+      delete RhP;
+      HypreParMatrix * tmp = ParMult(RhPh, Pl, true);
+      delete RhPh;
+      tP.reset(tmp);
+   }
+   else
+   {
+      tP.reset(GetConformingPrefinmentTransferMatrix());
+   }
+#else
+   {
+      tP.reset(GetConformingPrefinmentTransferMatrix());
+   }
+#endif
    return tP.get();
 }
 
