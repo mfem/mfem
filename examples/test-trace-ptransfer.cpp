@@ -296,7 +296,7 @@ int main(int argc, char *argv[])
       // mfem::out << "trace_gf = "; trace_gf[i]->Print(mfem::out, trace_gf[i]->Size());
       // mfem::out << "trace_gf_mapped = "; trace_gf_mapped[i]->Print(mfem::out, trace_gf_mapped[i]->Size());
       *trace_gf_mapped[i] -= *gf[i];
-      cout << "||" << titles[i] << " - " << trace_titles[i]
+      cout << "\n||" << titles[i] << " - " << trace_titles[i]
            << "||₂ : " << trace_gf_mapped[i]->Norml2() << endl;
 
 

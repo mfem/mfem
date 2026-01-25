@@ -320,8 +320,8 @@ int main(int argc, char *argv[])
 
       if (Mpi::Root())
       {
-         cout << "||" << titles[i] << " - " << trace_titles[i]
-              << "||₂ = " << err << endl;
+         cout << "\n||" << titles[i] << " - " << trace_titles[i]
+              << "||₂" << std::string(10, ' ') << " = "  << err << endl;
       }
 
       *preftrace_gf_mapped[i] -= *prefgf[i];
