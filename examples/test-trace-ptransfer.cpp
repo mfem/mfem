@@ -5,6 +5,23 @@
 using namespace std;
 using namespace mfem;
 
+class PrefinementMultigrid : public MultigridBase
+{
+private:
+   Array<BlockOperator *> prolongations;
+   Array<BlockDiagonalPreconditioner *> smoothers;
+public:
+   PrefinementMultigrid(const Array<FiniteElementSpace *> & fes,
+                        const Operator & Op)
+      : MultigridBase()
+   {
+   }
+}
+
+
+
+
+
 real_t sin_func(const Vector &x)
 {
    real_t val = sin(M_PI * x.Sum());
