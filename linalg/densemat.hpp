@@ -346,8 +346,12 @@ public:
    /// Returns the diagonal of the matrix
    void GetDiag(Vector &d) const;
    /// Returns the l1 norm of the rows of the matrix v_i = sum_j |a_ij|
-   void Getl1Diag(Vector &l) const;
-   /// Compute the row sums of the DenseMatrix
+   MFEM_DEPRECATED void Getl1Diag(Vector &l) const;
+   /// Returns the l1 norm of the rows of the matrix v_i = sum_j |a_ij|
+   void GetRowl1(Vector &l) const;
+   /// Returns the l2norm of the rows of the DenseMatrix
+   void GetRowl2(Vector &l) const;
+   /// Returns the row sums of the DenseMatrix
    void GetRowSums(Vector &l) const;
 
    /// Creates n x n diagonal matrix with diagonal elements c
@@ -1236,7 +1240,7 @@ public:
    void Clear()
    { UseExternalData(NULL, 0, 0, 0); }
 
-   std::size_t MemoryUsage() const { return tdata.Capacity(); }
+   std::size_t MemoryUsage() const { return tdata.MemoryUsage(); }
 
    /// Shortcut for mfem::Read( GetMemory(), TotalSize(), on_dev).
    const real_t *Read(bool on_dev = true) const { return tdata.Read(on_dev); }

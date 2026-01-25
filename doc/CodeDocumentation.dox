@@ -117,6 +117,8 @@ namespace mfem {
  * - <a class="el" href="ex39p_8cpp_source.html">Example 39p</a>: parallel named mesh attributes
  * - <a class="el" href="ex40_8cpp_source.html">Example 40</a>: eikonal equation
  * - <a class="el" href="ex40p_8cpp_source.html">Example 40p</a>: parallel eikonal equation
+ * - <a class="el" href="ex41_8cpp_source.html">Example 41</a>: DG/CG IMEX time-dependent advection-diffusion
+ * - <a class="el" href="ex41p_8cpp_source.html">Example 41p</a>: parallel DG/CG IMEX time-dependent advection-diffusion
  *
  * <H4>AmgX Examples</H4>
  * - Variants of Examples
@@ -188,6 +190,8 @@ namespace mfem {
  *  <a class="el" href="nurbs__ex1p_8cpp_source.html">1p</a>,
  *  <a class="el" href="nurbs__ex3_8cpp_source.html">3</a>,
  *  <a class="el" href="nurbs__ex5_8cpp_source.html">5</a>,
+ *  <a class="el" href="nurbs__ex10_8cpp_source.html">10</a>,
+ *  <a class="el" href="nurbs__ex10p_8cpp_source.html">10p</a>,
  *  <a class="el" href="nurbs__ex11p_8cpp_source.html">11p</a>, and
  *  <a class="el" href="nurbs__ex24_8cpp_source.html">24</a>,
  *   demonstrating howto perform NURBS-based Isogeometric Analysis.
@@ -196,6 +200,7 @@ namespace mfem {
  * - <a class="el" href="nurbs__curveint_8cpp_source.html">NURBS Interpolation</a>: NURBS interpolation of given geometry
  * - <a class="el" href="nurbs__naca__cmesh_8cpp_source.html">NURBS NACA Mesher</a>: generate NURBS based mesh around a NACA foil
  * - <a class="el" href="nurbs__printfunc_8cpp_source.html">NURBS Printer</a>: print the NURBS-basis
+ * - <a class="el" href="nurbs__mesh_info_8cpp_source.html">NURBS Mesh info</a>: print the info of a NURBS mesh
  *
  * <H3>Miniapps</H3>
  * - <a class="el" href="volta_8cpp_source.html">Volta</a>: simple electrostatics simulation code
@@ -234,7 +239,8 @@ namespace mfem {
  * - <a class="el" href="miniapps_2performance_2ex1_8cpp_source.html">HPC Example 1</a>: high-performance nodal H1 FEM for the Poisson problem
  * - <a class="el" href="miniapps_2performance_2ex1p_8cpp_source.html">HPC Example 1p</a>: high-performance parallel nodal H1 FEM for the Poisson problem
  * - <a class="el" href="generate__random__field_8cpp_source.html">SPDE Solvers</a>: SPDE solver random field generation
- * - <a class="el" href="contact-patch-test_8cpp_source.html">Contact</a>: mortar contact patch test for elasticity
+ * - <a class="el" href="contact-patch-test_8cpp_source.html">Tribol</a>: mortar contact patch test for elasticity
+ * - <a class="el" href="contact_8cpp_source.html">Contact</a>: Frictionless contact examples using <a class="el" href="classmfem_1_1IPSolver.html#details">IP optimization</a> and the <a class="el" href="classmfem_1_1AMGFSolver.html#details">AMGF solver</a>
  * - <a class="el" href="multidomain_8cpp_source.html">Multidomain miniapp</a>: Multidomain and Submesh demonstration miniapp
  * - <a class="el" href="pdiffusion_8cpp_source.html">DPG Diffusion example</a>: DPG formulation for the diffusion problem
  * - <a class="el" href="pmaxwell_8cpp_source.html">DPG Maxwell example</a>: DPG formulation for the indefinite Maxwell problem
