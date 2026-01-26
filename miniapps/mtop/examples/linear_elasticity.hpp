@@ -8,12 +8,14 @@ public:
 
 LinearElasticityTimeDependentOperator(mfem::ParMesh &mesh_, int vorder =1);
 
-virtual ~LinearElasticityTimeDependentOperator()
+virtual ~LinearElasticityTimeDependentOperator() override
 {
 }
 
 
 virtual void Mult(const mfem::Vector &x, mfem::Vector &y) const override;
+
+virtual void MultTranspose(const mfem::Vector &x,mfem::Vector &y) const override;
 
 virtual void ImplicitSolve(const mfem::real_t dt,
                              const mfem::Vector &x,
@@ -99,6 +101,11 @@ void SetDampingMaterialCoefficients(mfem::Coefficient& dl1_,
 
 mfem::ParGridFunction& GetDisplacement() { return displ; }
 mfem::ParGridFunction& GetVelocity() { return veloc; }
+mfem::Array<int>& GetTrueBlockOffsets(){ return block_true_offsets;}
+
+mfem::Vector& GetState(){return sol;}
+
+const mfem::ParFiniteElementSpace* GetFESpace(){ return fespace.get();}
 
 void SetZeroBdr(int bdr_attr)
 {
@@ -111,7 +118,8 @@ void SetBdrLoad(int attr)
 }
 
 void SetVolForce(mfem::real_t period, mfem::real_t amplitude, mfem::real_t rad,
-                     mfem::real_t xc=0.0, mfem::real_t yc=0.0, mfem::real_t zc=0.0)
+                     mfem::real_t xc=0.0, mfem::real_t yc=0.0, mfem::real_t zc=0.0,
+                     mfem::real_t L=5.0, mfem::real_t t0=0.0, mfem::real_t n=2.0)
 {
     // copy data to the host 
     mfem::real_t* pvol_force_mem = vol_force_mem.HostReadWrite();
@@ -122,6 +130,10 @@ void SetVolForce(mfem::real_t period, mfem::real_t amplitude, mfem::real_t rad,
     pvol_force_mem[4] = xc;
     pvol_force_mem[5] = yc;
     pvol_force_mem[6] = zc;
+
+    pvol_force_mem[7] = L;
+    pvol_force_mem[8] = t0;
+    pvol_force_mem[9] = n;
 
     // copy data to the device
     vol_force_mem.Read();
@@ -198,6 +210,7 @@ static constexpr int Coords = 15; // coordinates grid function
 // DFEM forward related definitions
 std::unique_ptr<mfem::future::DifferentiableOperator> dfem_forward_op;
 std::unique_ptr<mfem::future::DifferentiableOperator> dfem_mass_op;
+std::unique_ptr<mfem::future::DifferentiableOperator> dfem_damp_op;
 std::unique_ptr<mfem::future::DifferentiableOperator> dfem_vol_force_op;
 
 std::unique_ptr<mfem::HypreParMatrix> M_lor;
@@ -214,8 +227,12 @@ std::set<int> bdr_loads_markers;
 mutable mfem::Vector bdr_force_mem; // [0] - time, [1] - period, [2] - amplitude
 
 // volumetric force parameters
+// A*sin(2*pi*t/T)*cos^n (pi (t-t_0)/L)
 // [0] - time, [1] - period, [2] - amplitude, [3] - radius
 // [4],[5],[6] - point coordinates of the center of the force application
+// [7] - L total train length - could be proportional to the period [1]
+// [8] - t_0  center of the train
+// [9] - n the envelope power
 mutable mfem::Vector vol_force_mem; 
 
 // zero bdr dofs - constructed during the corrsponding Assemble calls

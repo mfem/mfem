@@ -28,7 +28,16 @@ public:
       {
          id = free_.back();
          free_.pop_back();
-         slots_[id].reset(new Snapshot(std::move(snap)));
+
+         if (slots_[id])
+         {
+            // reuse existing allocation
+            *slots_[id] = std::move(snap);
+         }
+         else
+         {
+            slots_[id].reset(new Snapshot(std::move(snap)));
+         }
       }
       else
       {
@@ -37,6 +46,7 @@ public:
       }
       return id;
    }
+
 
    template <typename Func>
    void Read(const Handle &h, Func &&f) const
@@ -176,6 +186,7 @@ public:
       // remove placeholder at i+1
       const Step ph = i + 1;
       auto it_ph = cps_.find(ph);
+
       MFEM_VERIFY(it_ph != cps_.end(),
                   "DynamicCheckpointing: expected checkpoint at i+1 before BackwardStep.");
       storage_->Erase(it_ph->second.h);

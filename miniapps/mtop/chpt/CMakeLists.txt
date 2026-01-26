@@ -50,6 +50,16 @@ add_mfem_miniapp(mtop_test_revolve
                  ${CHPT_COMMON_FILES}
                  LIBRARIES mfem)
 
+add_mfem_miniapp(mtop_test_dyn
+                 MAIN tst_dynamic_chpt.cpp
+                 ${CHPT_COMMON_FILES}
+                 LIBRARIES mfem)
+
+add_mfem_miniapp(mtop_test_rev_fixedslot
+                 MAIN tst_revolve_chpt_fixedslot.cpp
+                 ${CHPT_COMMON_FILES}
+                 LIBRARIES mfem)
+
 
 
 

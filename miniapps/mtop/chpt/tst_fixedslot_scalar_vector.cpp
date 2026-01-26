@@ -174,6 +174,7 @@ static void RunVectorFixedSlot(int s,
 
    auto adjoint_step = [&](mfem::Vector &lambda, const mfem::Vector &u_i, Step i)
    {
+
       const double dt = dt_func(i);
       MFEM_ASSERT(lambda.Size() == u_i.Size(), "lambda and u_i size mismatch.");
       for (int j = 0; j < lambda.Size(); ++j)

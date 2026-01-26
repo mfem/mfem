@@ -52,18 +52,31 @@ LinearElasticityTimeDependentOperator::LinearElasticityTimeDependentOperator(Par
     block_true_offsets.SetSize(3);
     block_true_offsets[0] = 0;
     block_true_offsets[1] = fespace->TrueVSize();
-    block_true_offsets[2] = 2*fespace->TrueVSize();
+    block_true_offsets[2] = fespace->TrueVSize();
 
-    sol.Update(block_true_offsets); sol=0.0;
-    rhs.Update(block_true_offsets); rhs=0.0;
-    tmp.Update(block_true_offsets); tmp=0.0;        
+    block_true_offsets.PartialSum();
+
+    sol.Update(block_true_offsets); sol=0.0; sol.UseDevice(true);
+    rhs.Update(block_true_offsets); rhs=0.0; rhs.UseDevice(true);
+    tmp.Update(block_true_offsets); tmp=0.0; tmp.UseDevice(true);   
+    
+    res.SetSize(fespace->GetTrueVSize()); res=0.0; res.UseDevice(true);
+
+    displ.SetSpace(fespace.get()); displ=0.0; 
+    displ.SetTrueVector(); 
+    displ.GetTrueVector().UseDevice(true);
+    
+    veloc.SetSpace(fespace.get()); veloc=0.0; 
+    veloc.SetTrueVector(); 
+    veloc.GetTrueVector().UseDevice(true);
+
 
     this->width = 2*fespace->TrueVSize();
     this->height = 2*fespace->TrueVSize();
 
     MPI_Comm_rank(mesh.GetComm(),&myrank);
 
-    vol_force_mem.SetSize(7);
+    vol_force_mem.SetSize(10);
     vol_force_mem.UseDevice(true);
     vol_force_mem(0) = 0.0; // time
     vol_force_mem(1) = 1.0; // period
@@ -72,6 +85,9 @@ LinearElasticityTimeDependentOperator::LinearElasticityTimeDependentOperator(Par
     vol_force_mem(4) = 0.0; // x coordinate of the center
     vol_force_mem(5) = 0.0; // y coordinate of the center
     vol_force_mem(6) = 0.0; // z coordinate of the center   
+    vol_force_mem(7) = 5*vol_force_mem(1); // total train length 
+    vol_force_mem(8) = vol_force_mem(7)/2.0;
+    vol_force_mem(9) = 2.0;
 
     bdr_force_mem.SetSize(3);
     bdr_force_mem.UseDevice(true);
@@ -83,8 +99,10 @@ LinearElasticityTimeDependentOperator::LinearElasticityTimeDependentOperator(Par
 
 template <int DI, typename scalar_t=real_t> struct QElasticityFunction
 {
-    using matd_t = tensor<real_t, DI, DI>;
+    using matd_t = tensor<scalar_t, DI, DI>;
     using vecd_t = tensor<scalar_t, DI>;
+    using vec_t = tensor<real_t, DI>;
+    using mat_t = tensor<real_t, DI, DI>;
 
     struct Mass
     {
@@ -178,14 +196,20 @@ template <int DI, typename scalar_t=real_t> struct QElasticityFunction
             const real_t amplitude = *(time_mem+2);
             const real_t radius = *(time_mem+3);
 
-            const real_t force_amplitude = (time > 0.0) ? amplitude*sin(M_PI*time/period) : 0.0;
+            const real_t L=*(time_mem+7);
+            const real_t t0=*(time_mem+8);
+            const real_t n=*(time_mem+9);
+
+            const real_t envelope_ampl= (time< L) ?pow(cos(M_PI*(time-t0)/L),n) : 0.0;
+            const real_t force_amplitude = (time > 0.0) ? amplitude*sin(2.0*M_PI*time/period) : 0.0;
+
             vecd_t force {0};
 
             // time dependent force in x direction
-            force(0) = force_amplitude;
+            force(0) = force_amplitude*envelope_ampl;
 
             //compute the distance from the center of the force application
-            scalar_t dist_sq = 0.0;
+            real_t dist_sq = 0.0;
             for (int i = 0; i < DI; i++)
             {
                 const real_t diff = x(i) - *(time_mem+4+i);
@@ -201,6 +225,98 @@ template <int DI, typename scalar_t=real_t> struct QElasticityFunction
             const auto detJ = mfem::future::det(J);
             return tuple{force * detJ * w};
         }
+
+        struct  Objective
+        {
+            /* data */
+            const real_t* obj_mem;
+            Objective(mfem::Vector& tm)
+            {
+                obj_mem = tm.Read(); //get the device pointer
+            }
+
+            // takes velocity and returns squared velocity 
+            MFEM_HOST_DEVICE inline auto operator()(const vecd_t &u,
+                                                const vec_t &x,
+                                                const mat_t &J,
+                                                const real_t &w
+                                                ) const
+            
+            {
+                const real_t time = *(obj_mem+0);
+                const real_t radius = *(obj_mem+1);
+                //compute the distance from the center of the objective circle/sphere
+                real_t dist_sq = 0.0;
+                
+                scalar_t obj = 0.0;
+
+                for (int i = 0; i < DI; i++)
+                {
+                    const real_t diff = x(i) - *(time_mem+2+i);
+                    dist_sq += diff * diff;
+
+                    obj  +=  u(i) * u(i);
+                }
+                
+                // apply the obj only within the specified radius
+                if(dist_sq > radius*radius)
+                {
+                    obj = 0.0;
+                }
+                
+                const auto detJ = mfem::future::det(J);
+                return tuple{obj * detJ * w};
+
+            }
+
+        };
+
+        struct  ObjectiveGrad
+        {
+            /* data */
+            const real_t* obj_mem;
+
+            ObjectiveGrad(mfem::Vector& tm)
+            {
+                obj_mem = tm.Read(); //get the device pointer
+            }
+
+            // takes velocity and returns squared velocity 
+            MFEM_HOST_DEVICE inline auto operator()(const vecd_t &u,
+                                                const vecd_t &x,
+                                                const matd_t &J,
+                                                const real_t &w
+                                                ) const
+            
+            {
+                const real_t time = *(obj_mem+0);
+                const real_t radius = *(obj_mem+1);
+                //compute the distance from the center of the objective circle/sphere
+                scalar_t dist_sq = 0.0;
+                vecd_t obj_grad;
+                real_t objc = 1.0;
+
+                for (int i = 0; i < DI; i++)
+                {
+                    const real_t diff = x(i) - *(time_mem+2+i);
+                    dist_sq += diff * diff;
+
+                    obj_grad(i) = 2.0 * u(i);
+                }
+                
+                // apply the obj only within the specified radius
+                if(dist_sq > radius*radius)
+                {
+                    objc = 0.0;
+                }
+                
+                const auto detJ = mfem::future::det(J);
+                return tuple{objc* obj_grad * detJ * w};
+
+            }
+
+        };
+        
     };
 
     
@@ -271,6 +387,49 @@ void LinearElasticityTimeDependentOperator::AssembleExplicit()
             dfem_mass_op->AddDomainIntegrator(mass_func, minputs, moutputs, *ir, domain_attributes); 
         }
     }
+    
+    // define the damp differentiable operator
+    {
+        dfem_damp_op = std::make_unique<mfem::future::DifferentiableOperator>(
+            std::vector<mfem::future::FieldDescriptor>{ {FVeloc, fespace.get()} },
+            std::vector<mfem::future::FieldDescriptor>{ 
+                {CMass1, ups.get()},
+                {CMass2, ups.get()},
+                {Density, ups.get()},
+                {Coords, mfes}
+            },
+            mesh);
+
+        dfem_damp_op->SetParameters({ cm1.get(), cm2.get(), density.get(), nodes });
+
+        const auto dinputs =
+            mfem::future::tuple{
+                mfem::future::Value<FVeloc>{},
+                mfem::future::Identity<CMass1>{},
+                mfem::future::Identity<CMass2>{},
+                mfem::future::Identity<Density>{},
+                mfem::future::Gradient<Coords>{},
+                mfem::future::Weight{}
+            };
+
+        const auto doutputs =
+            mfem::future::tuple{
+                mfem::future::Value<FVeloc>{} 
+            };
+
+        if (2 == space_dim)
+        {
+            typename QElasticityFunction<2>::Mass damp_func;
+            dfem_damp_op->AddDomainIntegrator(damp_func, dinputs, doutputs, *ir, domain_attributes);
+        }
+        else if (3 == space_dim)
+        {
+            typename QElasticityFunction<3>::Mass damp_func;
+            dfem_damp_op->AddDomainIntegrator(damp_func, dinputs, doutputs, *ir, domain_attributes); 
+        }
+    }
+
+
 
     //define the volumetric force differentiable operator
     {
@@ -309,28 +468,27 @@ void LinearElasticityTimeDependentOperator::AssembleExplicit()
     }   
 
     // define the linear elasticity differentiable operator
-    /*
     {
         dfem_forward_op = std::make_unique<mfem::future::DifferentiableOperator>(
-            std::vector<FieldDescriptor>{ {FDispl, fespace.get()} },
-            std::vector<FieldDescriptor>{ 
-                {Lame1, ups.get()},
+            std::vector<mfem::future::FieldDescriptor>{ {FDispl, fespace.get()} },
+            std::vector<mfem::future::FieldDescriptor>{ 
+                {Lambda1, ups.get()},
                 {Mu1, ups.get()},
-                {Lame2, ups.get()},
+                {Lambda2, ups.get()},
                 {Mu2, ups.get()},
                 {Density, ups.get()},
                 {Coords, mfes}
             },
             mesh);
 
-        dfem_forward_op->SetParameters({ &l1, &m1, &l2, &m2, &density, nodes });
+        dfem_forward_op->SetParameters({ l1.get(), m1.get(), l2.get(), m2.get(), density.get(), nodes });
 
         const auto finputs =
-            mfem::future::tupel{
-                mfem::future::Value<FDispl>{},
-                mfem::future::Identity<Lame1>{},
+            mfem::future::tuple{
+                mfem::future::Gradient<FDispl>{},
+                mfem::future::Identity<Lambda1>{},
                 mfem::future::Identity<Mu1>{},
-                mfem::future::Identity<Lame2>{},
+                mfem::future::Identity<Lambda2>{},
                 mfem::future::Identity<Mu2>{},
                 mfem::future::Identity<Density>{},
                 mfem::future::Gradient<Coords>{},
@@ -338,21 +496,21 @@ void LinearElasticityTimeDependentOperator::AssembleExplicit()
             };
 
         const auto foutputs =
-            mfem::future::tupel{
-                mfem::future::Value<FDispl>{} 
+            mfem::future::tuple{
+                mfem::future::Gradient<FDispl>{} 
             };
 
         if (2 == space_dim)
         {
             typename QElasticityFunction<2>::Elasticity elasticity_func;
-            dfem_forward_op->SetFunction(elasticity_func, finputs, foutputs, ir, domain_attributes);
+            dfem_forward_op->AddDomainIntegrator(elasticity_func, finputs, foutputs, *ir, domain_attributes);
         }
         else if (3 == space_dim)
         {
             typename QElasticityFunction<3>::Elasticity elasticity_func;
-            dfem_forward_op->SetFunction(elasticity_func, finputs, foutputs, ir, domain_attributes); 
+            dfem_forward_op->AddDomainIntegrator(elasticity_func, finputs, foutputs, *ir, domain_attributes); 
         }
-    }*/
+    }
 
     //LOR mass matrix
     {
@@ -372,7 +530,8 @@ void LinearElasticityTimeDependentOperator::AssembleExplicit()
 
         ParBilinearForm bf_lor(&lor_space);
         //ParBilinearForm bf_lor(fespace.get());
-        bf_lor.AddDomainIntegrator(new VectorMassIntegrator(interp_dens1));
+        //bf_lor.AddDomainIntegrator(new VectorMassIntegrator(interp_dens1));
+        bf_lor.AddDomainIntegrator(new LumpedIntegrator(new VectorMassIntegrator(interp_dens1)));
         //bf_lor.AddDomainIntegrator(new VectorMassIntegrator());
         bf_lor.Assemble();
         bf_lor.Finalize();
@@ -387,12 +546,14 @@ void LinearElasticityTimeDependentOperator::AssembleExplicit()
         amg->SetOperator(*M_lor);
 
         cg = std::make_unique<CGSolver>(mesh.GetComm());
-        cg->SetRelTol(1e-12);
-        cg->SetAbsTol(0.0);
+        cg->SetRelTol(1e-7);
+        cg->SetAbsTol(1e-12);
         cg->SetMaxIter(500);
-        cg->SetPrintLevel(1);
+        cg->SetPrintLevel(0);
         cg->SetOperator(*dfem_mass_op);
+        //cg->SetOperator(*M_lor);
         cg->SetPreconditioner(*amg);
+        cg->iterative_mode=false;
     }
 
     //set the zero bdr conditions
@@ -429,34 +590,51 @@ void LinearElasticityTimeDependentOperator::Mult(const Vector &x,
                         vp[ep[i]] = 0.0;
                      });
     }
-    displ.SetFromTrueVector();
-    veloc.SetFromTrueVector();
+    //displ.SetFromTrueVector();
+    //veloc.SetFromTrueVector();
 
 
     by.GetBlock(0).Set(1.0, veloc.GetTrueVector()); // dx/dt = velocity
 
     // compute the residual
-    res.SetSize(bx.GetBlock(1).Size());
-
+    
     // 1) add external volumetric forces 
     real_t* pvol_force_mem=vol_force_mem.HostReadWrite(); //get the host pointer
     pvol_force_mem[0]=time; //set the current time to be pass to the integrator
-    vol_force_mem.Read(); //copy host to device
+    vol_force_mem.Read(); //copy force_mem from host to device
     // call the kernel computing f_ext
-    dfem_vol_force_op->SetParameters({nodes});
+    // dfem_vol_force_op->SetParameters({nodes}); // it is already set
     dfem_vol_force_op->Mult(veloc.GetTrueVector(),res);
 
     // 2) compute the mass proportional viscous damping term
-    dfem_mass_op->SetParameters({ cm1.get(), cm2.get(), density.get(), nodes });
-    dfem_mass_op->Mult(veloc.GetTrueVector(), tmp.GetBlock(1)); 
+    // dfem_damp_op->SetParameters({ cm1.get(), cm2.get(), density.get(), nodes });
+    dfem_damp_op->Mult(veloc.GetTrueVector(), tmp.GetBlock(1)); 
     res -= tmp.GetBlock(1);
 
-    // add the stiffness proportional viscous damping term
+    // 3) add the stiffness proportional viscous damping term
 
-    // add the elastic force term
+    // 4) add the elastic force term
+    dfem_forward_op->Mult(displ.GetTrueVector(),tmp.GetBlock(0));
+    res-= tmp.GetBlock(0);
 
+
+    //dfem_mass_op->SetParameters({dens1.get(), dens2.get(), density.get(), nodes});
     cg->Mult(res, by.GetBlock(1)); // solve for acceleration
 }
+
+// implements the adjoint reverse time integration 
+// i.e. x=[l_q,l_v, L_\rho]^T y=x' - i.e. the derivative with respect to \tau=T-t 
+// before calling MultTranspose one should set the sol vector with the
+// solution for the forward problem at time t
+void LinearElasticityTimeDependentOperator::MultTranspose(const Vector &x,
+                                                            Vector &y) const
+{
+    BlockVector bx(const_cast<Vector&>(x), block_true_offsets);
+    BlockVector by(y, block_true_offsets);
+
+    y=0.0;
+}
+
 
 void LinearElasticityTimeDependentOperator::ImplicitSolve(
     const real_t dt,
