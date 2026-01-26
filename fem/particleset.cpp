@@ -266,30 +266,61 @@ void ParticleSet::TransferParticlesImpl(ParticleSet &pset,
    array_init(parr_t, &gsl_arr, send_idxs.Size());
    pdata_arr = (parr_t*) gsl_arr.ptr;
 
+   // Pre-synchronize all data to host
+   std::vector<const real_t*> send_ptrs;
+   send_ptrs.reserve(pset.GetNFields() + 1);
+
+   auto add_send_ptr = [&](const ParticleVector& pv)
+   {
+      send_ptrs.push_back(pv.HostRead());
+   };
+
+   add_send_ptr(pset.Coords());
+   for (int f = 0; f < pset.GetNFields(); f++)
+   {
+      add_send_ptr(pset.Field(f));
+   }
+
+   std::vector<const int*> send_tags;
+   send_tags.reserve(pset.GetNTags());
+   for (int t = 0; t < pset.GetNTags(); t++)
+   {
+      send_tags.push_back(pset.Tag(t).HostRead());
+   }
+
    gsl_arr.n = send_idxs.Size();
    for (int i = 0; i < send_idxs.Size(); i++)
    {
       parr_t &pdata = pdata_arr[i];
+
       pdata.id = pset.GetIDs()[send_idxs[i]];
 
-      // Copy particle data directly into pdata
       size_t counter = 0;
+      int field_idx = 0;
+
+      // Handle Coords and fields
       for (int f = -1; f < pset.GetNFields(); f++)
       {
-         ParticleVector &pv = (f == -1 ? pset.Coords() : pset.Field(f));
-         for (int c = 0; c < pv.GetVDim(); c++)
+         const ParticleVector &pv = f == -1 ? pset.Coords() :pset.Field(f);
+         const real_t* data = send_ptrs[field_idx++];
+         int vdim = pv.GetVDim();
+         int offset = (pv.GetOrdering() == Ordering::byVDIM) ?
+                      send_idxs[i] * vdim :
+                      send_idxs[i];
+         int stride = (pv.GetOrdering() == Ordering::byVDIM) ? 1 :
+                      pv.GetNumParticles();
+
+         for (int c = 0; c < vdim; c++)
          {
-            std::memcpy(pdata.data.data() + counter, &pv(send_idxs[i], c),
+            std::memcpy(pdata.data.data() + counter, data + offset + c * stride,
                         sizeof(real_t));
             counter += sizeof(real_t);
          }
       }
 
-      // Copy tags
-      for (int t = 0; t < pset.GetNTags(); t++)
+      for (const int* tag_ptr : send_tags)
       {
-         Array<int> &tag_arr = pset.Tag(t);
-         std::memcpy(pdata.data.data() + counter, &tag_arr[send_idxs[i]],
+         std::memcpy(pdata.data.data() + counter, &tag_ptr[send_idxs[i]],
                      sizeof(int));
          counter += sizeof(int);
       }
@@ -319,47 +350,102 @@ void ParticleSet::TransferParticlesImpl(ParticleSet &pset,
 
    pdata_arr = (parr_t*) gsl_arr.ptr;
 
-   // Add newly-recvd data directly to active state
+   // Make a list of new IDs to add
+   int num_new = nrecv > nsend ? nrecv - nsend : 0;
+   Array<IDType> new_ids(num_new);
+   for (int i = 0; i < num_new; i++)
+   {
+      new_ids[i] = pdata_arr[nsend + i].id;
+   }
+
+   // Add particles in batch (triggers one resize/shift)
+   Array<int> new_indices;
+   if (num_new > 0)
+   {
+      pset.AddParticles(new_ids, &new_indices);
+   }
+
+   // Pre-synchronize all data to host for writing
+   std::vector<real_t*> recv_ptrs;
+   recv_ptrs.reserve(pset.GetNFields() + 1);
+
+   auto add_recv_ptr = [&](ParticleVector& pv)
+   {
+      recv_ptrs.push_back(pv.HostReadWrite());
+   };
+
+   add_recv_ptr(pset.Coords());
+   for (int f = 0; f < pset.GetNFields(); f++)
+   {
+      add_recv_ptr(pset.Field(f));
+   }
+
+   std::vector<int*> recv_tags;
+   recv_tags.reserve(pset.GetNTags());
+   for (int t = 0; t < pset.GetNTags(); t++)
+   {
+      recv_tags.push_back(pset.Tag(t).HostReadWrite());
+   }
+
+   // Unpack data
    for (int i = 0; i < nrecv; i++)
    {
       parr_t &pdata = pdata_arr[i];
-      IDType id = pdata.id;
 
       int new_loc_idx;
       if (i < nsend) // update existing particle
       {
          new_loc_idx = send_idxs[i];
-         pset.UpdateID(new_loc_idx, id);
+         pset.UpdateID(new_loc_idx, pdata.id);
       }
       else
       {
-         // add new particle
-         Array<int> idx_temp;
-         pset.AddParticles(Array<IDType>({id}), &idx_temp);
-         new_loc_idx = idx_temp[0]; // Get index of newly-added particle
+         new_loc_idx = new_indices[i - nsend];
       }
 
       size_t counter = 0;
+      int field_idx = 0;
+
+      // Handle Coords and fields
       for (int f = -1; f < pset.GetNFields(); f++)
       {
          ParticleVector &pv = (f == -1 ? pset.Coords() : pset.Field(f));
-         for (int c = 0; c < pv.GetVDim(); c++)
+         real_t* data = recv_ptrs[field_idx++];
+         int vdim = pv.GetVDim();
+         int offset = (pv.GetOrdering() == Ordering::byVDIM) ?
+                      new_loc_idx * vdim :
+                      new_loc_idx;
+         int stride = (pv.GetOrdering() == Ordering::byVDIM) ? 1 :
+                      pv.GetNumParticles();
+
+         for (int c = 0; c < vdim; c++)
          {
-            real_t& val = pv(new_loc_idx, c);
-            std::memcpy(&val, pdata.data.data() + counter, sizeof(real_t));
+            std::memcpy(data + offset + c * stride, pdata.data.data() + counter,
+                        sizeof(real_t));
             counter += sizeof(real_t);
          }
       }
 
-      for (int t = 0; t < pset.GetNTags(); t++)
+      for (int* tag_ptr : recv_tags)
       {
-         Array<int> &tag_arr = pset.Tag(t);
-         std::memcpy(&tag_arr[new_loc_idx],
+         std::memcpy(&tag_ptr[new_loc_idx],
                      pdata.data.data() + counter, sizeof(int));
          counter += sizeof(int);
       }
    }
    array_free(&gsl_arr);
+
+   // Restore Device validity if needed
+   for (int f = -1; f < pset.GetNFields(); f++)
+   {
+      ParticleVector &pv = (f == -1 ? pset.Coords() : pset.Field(f));
+      pv.ReadWrite(pv.UseDevice());
+   }
+   for (int t = 0; t < pset.GetNTags(); t++)
+   {
+      Array<int> &tag_arr = pset.Tag(t);
+      if (tag_arr.UseDevice()) { tag_arr.ReadWrite(true); }
+   }
 }
 
 template<size_t NBytes>
@@ -526,15 +612,18 @@ ParticleSet::ParticleSet(int id_stride_, IDType id_counter_, int num_particles,
                          int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims,
                          const Array<Ordering::Type> &field_orderings,
                          const Array<const char*> &field_names_, int num_tags,
-                         const Array<const char*> &tag_names_)
+                         const Array<const char*> &tag_names_,
+                         bool use_device)
    : id_stride(id_stride_),
      id_counter(id_counter_),
      coords(dim, coords_ordering)
 {
+   if (use_device) { coords.UseDevice(true); }
+
    // Initialize fields
    for (int f = 0; f < field_vdims.Size(); f++)
    {
-      AddField(field_vdims[f], field_orderings[f], field_names_[f]);
+      AddField(field_vdims[f], field_orderings[f], field_names_[f], use_device);
    }
 
    // Initialize tags
@@ -580,21 +669,22 @@ bool ParticleSet::IsValidParticle(const Particle &p) const
 }
 
 ParticleSet::ParticleSet(int num_particles, int dim,
-                         Ordering::Type coords_ordering)
+                         Ordering::Type coords_ordering,
+                         bool use_device)
    : ParticleSet(1, 0, num_particles, dim, coords_ordering, Array<int>(),
                  Array<Ordering::Type>(), Array<const char*>(), 0,
-                 Array<const char*>())
+                 Array<const char*>(), use_device)
 {
 
 }
 
 ParticleSet::ParticleSet(int num_particles, int dim,
                          const Array<int> &field_vdims, int num_tags,
-                         Ordering::Type all_ordering)
+                         Ordering::Type all_ordering, bool use_device)
    : ParticleSet(1, 0, num_particles, dim, all_ordering, field_vdims,
                  GetOrderingArray(all_ordering, field_vdims.Size()),
                  GetEmptyNameArray(field_vdims.Size()), num_tags,
-                 GetEmptyNameArray(num_tags))
+                 GetEmptyNameArray(num_tags), use_device)
 {
 }
 
@@ -602,11 +692,11 @@ ParticleSet::ParticleSet(int num_particles, int dim,
                          const Array<int> &field_vdims, const Array<const
                          char*> &field_names_, int num_tags,
                          const Array<const char*> &tag_names_,
-                         Ordering::Type all_ordering)
+                         Ordering::Type all_ordering, bool use_device)
    : ParticleSet(1, 0, num_particles, dim, all_ordering, field_vdims,
                  GetOrderingArray(all_ordering, field_vdims.Size()),
                  field_names_, num_tags,
-                 tag_names_)
+                 tag_names_, use_device)
 {
 
 }
@@ -616,9 +706,9 @@ ParticleSet::ParticleSet(int num_particles, int dim,
                          const Array<int> &field_vdims,
                          const Array<Ordering::Type> &field_orderings,
                          const Array<const char*> &field_names_, int num_tags,
-                         const Array<const char*> &tag_names_)
+                         const Array<const char*> &tag_names_, bool use_device)
    : ParticleSet(1, 0, num_particles, dim, coords_ordering, field_vdims,
-                 field_orderings, field_names_, num_tags, tag_names_)
+                 field_orderings, field_names_, num_tags, tag_names_, use_device)
 {
 
 }
@@ -627,21 +717,21 @@ ParticleSet::ParticleSet(int num_particles, int dim,
 
 #ifdef MFEM_USE_MPI
 ParticleSet::ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
-                         Ordering::Type coords_ordering)
+                         Ordering::Type coords_ordering, bool use_device)
    : ParticleSet(comm_, rank_num_particles, dim, coords_ordering, Array<int>(),
                  Array<Ordering::Type>(), Array<const char*>(), 0,
-                 Array<const char*>())
+                 Array<const char*>(), use_device)
 {
 
 };
 
 ParticleSet::ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
                          const Array<int> &field_vdims, int num_tags,
-                         Ordering::Type all_ordering)
+                         Ordering::Type all_ordering, bool use_device)
    : ParticleSet(comm_, rank_num_particles, dim, all_ordering, field_vdims,
                  GetOrderingArray(all_ordering, field_vdims.Size()),
                  GetEmptyNameArray(field_vdims.Size()), num_tags,
-                 GetEmptyNameArray(num_tags))
+                 GetEmptyNameArray(num_tags), use_device)
 {
 
 }
@@ -650,11 +740,11 @@ ParticleSet::ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
                          const Array<int> &field_vdims, const Array<const
                          char*> &field_names_,
                          int num_tags, const Array<const char*> &tag_names_,
-                         Ordering::Type all_ordering)
+                         Ordering::Type all_ordering, bool use_device)
    : ParticleSet(comm_, rank_num_particles, dim, all_ordering, field_vdims,
                  GetOrderingArray(all_ordering, field_vdims.Size()),
                  field_names_, num_tags,
-                 tag_names_)
+                 tag_names_, use_device)
 {
 
 }
@@ -664,7 +754,7 @@ ParticleSet::ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
                          const Array<int> &field_vdims,
                          const Array<Ordering::Type> &field_orderings,
                          const Array<const char*> &field_names_, int num_tags,
-                         const Array<const char*> &tag_names_)
+                         const Array<const char*> &tag_names_, bool use_device)
    : ParticleSet(GetSize(comm_), (IDType)GetRank(comm_),
                  rank_num_particles,
                  dim,
@@ -673,7 +763,7 @@ ParticleSet::ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
                  field_orderings,
                  field_names_,
                  num_tags,
-                 tag_names_)
+                 tag_names_, use_device)
 {
    comm = comm_;
 #ifdef MFEM_USE_GSLIB
@@ -696,7 +786,7 @@ ParticleSet::IDType ParticleSet::GetGlobalNParticles() const
 }
 
 int ParticleSet::AddField(int vdim, Ordering::Type field_ordering,
-                          const char* field_name)
+                          const char* field_name, bool use_device)
 {
    std::string field_name_str(field_name ? field_name : "");
    if (!field_name)
@@ -705,6 +795,7 @@ int ParticleSet::AddField(int vdim, Ordering::Type field_ordering,
    }
    fields.emplace_back(std::make_unique<ParticleVector>(vdim, field_ordering,
                                                         GetNParticles()));
+   if (use_device) { fields.back()->UseDevice(true); }
    field_names.emplace_back(field_name_str);
 
    return GetNFields() - 1;
