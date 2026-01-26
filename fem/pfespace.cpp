@@ -5220,10 +5220,10 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    for (int i = 0; i < m; i++)
    {
       const int end = external_ldofs[i];
-      std::copy(xdata+j-i, xdata+end-i, ydata+j);
+      if (end > j) { std::copy(xdata+j-i, xdata+end-i, ydata+j); }
       j = end+1;
    }
-   std::copy(xdata+j-m, xdata+Width(), ydata+j);
+   if (Width() > (j-m)) { std::copy(xdata+j-m, xdata+Width(), ydata+j); }
 
    const int out_layout = 0; // 0 - output is ldofs array
    if (!local)
@@ -5251,10 +5251,10 @@ void ConformingProlongationOperator::MultTranspose(
    for (int i = 0; i < m; i++)
    {
       const int end = external_ldofs[i];
-      std::copy(xdata+j, xdata+end, ydata+j-i);
+      if (end > j) { std::copy(xdata+j, xdata+end, ydata+j-i); }
       j = end+1;
    }
-   std::copy(xdata+j, xdata+Height(), ydata+j-m);
+   if (Height() > j) { std::copy(xdata+j, xdata+Height(), ydata+j-m); }
 
    const int out_layout = 2; // 2 - output is an array on all ltdofs
    if (!local)
@@ -5271,7 +5271,8 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
    MFEM_ASSERT(R->Finalized(), "");
    const int tdofs = R->Height();
    MFEM_ASSERT(tdofs == R->HostReadI()[tdofs], "");
-   ltdof_ldof = Array<int>(const_cast<int*>(R->HostReadJ()), tdofs);
+   ltdof_ldof.SetSize(tdofs);
+   ltdof_ldof.CopyFrom(R->HostReadJ());
    {
       Table nbr_ltdof;
       gc.GetNeighborLTDofTable(nbr_ltdof);
@@ -5294,9 +5295,13 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
          }
          Table unique_shr;
          Transpose(shared_ltdof, unique_shr, unique_ltdof.Size());
-         unq_ltdof = Array<int>(unique_ltdof, unique_ltdof.Size());
-         unq_shr_i = Array<int>(unique_shr.GetI(), unique_shr.Size()+1);
-         unq_shr_j = Array<int>(unique_shr.GetJ(), unique_shr.Size_of_connections());
+         unq_ltdof = unique_ltdof;
+         // Steal I and J arrays from the unique_shr table.
+         unq_shr_i.GetMemory() = unique_shr.GetIMemory();
+         unq_shr_i.SetSize(unique_shr.Size()+1);
+         unq_shr_j.GetMemory() = unique_shr.GetJMemory();
+         unq_shr_j.SetSize(unique_shr.Size_of_connections());
+         unique_shr.LoseData();
       }
       nbr_ltdof.GetJMemory().Delete();
       nbr_ltdof.LoseData();

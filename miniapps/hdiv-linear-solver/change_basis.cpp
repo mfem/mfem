@@ -10,8 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "change_basis.hpp"
-#include "../../general/forall.hpp"
-#include "../../linalg/dtensor.hpp"
 
 namespace mfem
 {
@@ -24,7 +22,7 @@ void ComputeInverse(const Array<real_t> &A, Array<real_t> &Ainv)
 {
    Array<real_t> A2 = A;
    const int n2 = A.Size();
-   const int n = sqrt(n2);
+   const int n = static_cast<const int>(sqrt(n2));
    Array<int> ipiv(n);
    LUFactors lu(A2.GetData(), ipiv.GetData());
    lu.Factor(n);
@@ -60,7 +58,7 @@ void SubcellIntegrals(int n, const Poly_1D::Basis &basis, Array<real_t> &B)
 
 void Transpose(const Array<real_t> &B, Array<real_t> &Bt)
 {
-   const int n = sqrt(B.Size());
+   const int n = static_cast<const int>(sqrt(B.Size()));
    Bt.SetSize(n*n);
    for (int i=0; i<n; ++i) for (int j=0; j<n; ++j) { Bt[i+j*n] = B[j+i*n]; }
 }

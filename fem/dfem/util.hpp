@@ -20,6 +20,7 @@
 #include <vector>
 #include <type_traits>
 #include <numeric>
+#include <iomanip>
 
 #include "../../general/communication.hpp"
 #include "../../general/forall.hpp"
@@ -107,25 +108,32 @@ constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg)
                           indices{});
 }
 
-template <typename... input_ts, std::size_t... Is>
-auto make_dependency_map_impl(
-   tuple<input_ts...> inputs,
-   std::index_sequence<Is...>)
+template <std::size_t I, typename Tuple, std::size_t... Is>
+std::array<bool, sizeof...(Is)>
+make_dependency_array(const Tuple& inputs, std::index_sequence<Is...>)
 {
-   auto make_dependency_array = [&](auto i)
-   {
-      return std::array<bool, sizeof...(input_ts)>
-      {
-         (get<i>(inputs).GetFieldId() == get<Is>(inputs).GetFieldId())...
-      };
-   };
+   return { (get<I>(inputs).GetFieldId() == get<Is>(inputs).GetFieldId())... };
+}
 
-   std::unordered_map<int, std::array<bool, sizeof...(input_ts)>> map;
-   for_constexpr<sizeof...(input_ts)>([&](auto i)
+template <typename... input_ts, std::size_t... Is>
+auto make_dependency_map_impl(tuple<input_ts...> inputs,
+                              std::index_sequence<Is...>)
+{
+   constexpr std::size_t N = sizeof...(input_ts);
+
+   if constexpr (N == 0)
+      return std::unordered_map<int, std::array<bool, 0>> {};
+
+   std::unordered_map<int, std::array<bool, N>> map;
+
+   (void)std::initializer_list<int>
    {
-      map[get<i>(inputs).GetFieldId()] =
-         make_dependency_array(std::integral_constant<std::size_t, i> {});
-   });
+      (
+         map[get<Is>(inputs).GetFieldId()] =
+      make_dependency_array<Is>(inputs, std::make_index_sequence<N>{}),
+      0
+      )...
+   };
 
    return map;
 }
@@ -200,24 +208,45 @@ void print_tuple(const std::tuple<Args...>& t)
 ///             ..., vmn]]
 /// which is compatible with numpy syntax.
 ///
-/// @param m mfem::DenseMatrix to print
+/// @param out ostream to print to
+/// @param A mfem::DenseMatrix to print
 inline
-void pretty_print(const mfem::DenseMatrix& m)
+void pretty_print(std::ostream &out, const mfem::DenseMatrix &A)
 {
-   out << "[";
-   for (int i = 0; i < m.NumRows(); i++)
+   // Determine the max width of any entry in scientific notation
+   int max_width = 0;
+   for (int i = 0; i < A.NumRows(); ++i)
    {
-      for (int j = 0; j < m.NumCols(); j++)
+      for (int j = 0; j < A.NumCols(); ++j)
       {
-         out << m(i, j);
-         if (j < m.NumCols() - 1)
+         std::ostringstream oss;
+         oss << std::scientific << std::setprecision(2) << A(i, j);
+         max_width = std::max(max_width, static_cast<int>(oss.str().length()));
+      }
+   }
+
+   out << "[\n";
+   for (int i = 0; i < A.NumRows(); ++i)
+   {
+      out << "  [";
+      for (int j = 0; j < A.NumCols(); ++j)
+      {
+         out << std::setw(max_width) << std::scientific << std::setprecision(2) <<
+             A(i, j);
+
+         if (j < A.NumCols() - 1)
          {
             out << ", ";
          }
       }
-      if (i < m.NumRows() - 1)
+      out << "]";
+      if (i < A.NumRows() - 1)
       {
-         out << ", ";
+         out << ",\n";
+      }
+      else
+      {
+         out << "\n";
       }
    }
    out << "]\n";
@@ -327,8 +356,8 @@ void print_mpi_sync(const std::string& msg)
    // First gather string lengths
    size_t msg_len = msg.length();
    std::vector<size_t> lengths(nranks);
-   MPI_Gather(&msg_len, 1, MPI_INT,
-              lengths.data(), 1, MPI_INT,
+   MPI_Gather(&msg_len, 1, MPITypeMap<size_t>::mpi_type,
+              lengths.data(), 1, MPITypeMap<size_t>::mpi_type,
               0, MPI_COMM_WORLD);
 
    if (myrank == 0)
@@ -356,7 +385,7 @@ void print_mpi_sync(const std::string& msg)
    else
    {
       // Other ranks: Send message to rank 0
-      MPI_Send(msg.c_str(), static_cast<int>(msg_len), MPI_CHAR,
+      MPI_Send(const_cast<char*>(msg.c_str()), static_cast<int>(msg_len), MPI_CHAR,
                0, 0, MPI_COMM_WORLD);
    }
 
@@ -568,7 +597,7 @@ struct ThreadBlocks
    int z = 1;
 };
 
-#if (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+#if defined(MFEM_USE_CUDA_OR_HIP)
 template <typename func_t>
 __global__ void forall_kernel_shmem(func_t f, int n)
 {
@@ -591,7 +620,7 @@ void forall(func_t f,
    if (Device::Allows(Backend::CUDA_MASK) ||
        Device::Allows(Backend::HIP_MASK))
    {
-#if (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+#if defined(MFEM_USE_CUDA_OR_HIP)
       // int gridsize = (N + Z - 1) / Z;
       int num_bytes = num_shmem * sizeof(decltype(shmem));
       dim3 block_size(blocks.x, blocks.y, blocks.z);
@@ -944,7 +973,44 @@ const Operator *get_element_restriction(const FieldDescriptor &f,
       }
       else
       {
-         static_assert(dfem::always_false<T>, "can't use GetElementRestriction on type");
+         static_assert(dfem::always_false<T>,
+                       "can't use get_element_restriction on type");
+      }
+      return nullptr; // Unreachable, but avoids compiler warning
+   }, f.data);
+}
+
+/// @brief Get the face restriction operator for a field descriptor.
+///
+/// @param f the field descriptor.
+/// @param o the face dof ordering.
+/// @param ft the face type
+/// @param m indicator if single or double valued
+/// @returns the face restriction operator for the field descriptor in
+/// specified ordering.
+inline
+const Operator *get_face_restriction(const FieldDescriptor &f,
+                                     ElementDofOrdering o,
+                                     FaceType ft,
+                                     L2FaceValues m)
+{
+   return std::visit([&o, &ft, &m](auto&& arg) -> const Operator*
+   {
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
+                    std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         return arg->GetFaceRestriction(o, ft, m);
+      }
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
+      {
+         // ParameterSpace does not support face restrictions
+         MFEM_ABORT("internal error");
+      }
+      else
+      {
+         static_assert(dfem::always_false<T>,
+                       "can't use get_face_restriction on type");
       }
       return nullptr; // Unreachable, but avoids compiler warning
    }, f.data);
@@ -965,6 +1031,11 @@ const Operator *get_restriction(const FieldDescriptor &f,
    {
       return get_element_restriction(f, o);
    }
+   else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
+   {
+      return get_face_restriction(f, o, FaceType::Boundary,
+                                  L2FaceValues::SingleValued);
+   }
    MFEM_ABORT("restriction not implemented for Entity");
    return nullptr;
 }
@@ -974,7 +1045,7 @@ const Operator *get_restriction(const FieldDescriptor &f,
 /// @param f the field descriptor.
 /// @param o the element dof ordering.
 /// @param fop the field operator.
-/// @returns a tuple containting a std::function with the transpose
+/// @returns a tuple containing a std::function with the transpose
 /// restriction callback and it's height.
 template <typename entity_t, typename fop_t>
 inline std::tuple<std::function<void(const Vector&, Vector&)>, int>
@@ -1073,6 +1144,24 @@ void prolongation(const std::vector<FieldDescriptor> fields,
       fields_l[i].SetSize(P->Height());
       P->Mult(x_i, fields_l[i]);
       data_offset += width;
+   }
+}
+
+inline
+void get_lvectors(const std::vector<FieldDescriptor> fields,
+                  const Vector &x,
+                  std::vector<Vector> &fields_l)
+{
+   int data_offset = 0;
+   for (std::size_t i = 0; i < fields.size(); i++)
+   {
+      const int sz = GetVSize(fields[i]);
+      fields_l[i].SetSize(sz);
+
+      const Vector x_i(const_cast<Vector&>(x), data_offset, sz);
+      fields_l[i] = x_i;
+
+      data_offset += sz;
    }
 }
 
@@ -1344,12 +1433,12 @@ int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
 /// @tparam entity_t the entity type (see Entity).
 /// @returns an array mapping field operator types to field descriptor indices.
 template <typename entity_t, typename field_operator_ts>
-std::array<int, tuple_size<field_operator_ts>::value>
+std::array<size_t, tuple_size<field_operator_ts>::value>
 create_descriptors_to_fields_map(
    const std::vector<FieldDescriptor> &fields,
    field_operator_ts &fops)
 {
-   std::array<int, tuple_size<field_operator_ts>::value> map;
+   std::array<size_t, tuple_size<field_operator_ts>::value> map;
 
    auto find_id = [](const std::vector<FieldDescriptor> &fields, std::size_t i)
    {
@@ -1361,9 +1450,9 @@ create_descriptors_to_fields_map(
 
       if (it == fields.end())
       {
-         return -1;
+         return SIZE_MAX;
       }
-      return static_cast<int>(it - fields.begin());
+      return static_cast<size_t>(it - fields.begin());
    };
 
    auto f = [&](auto &fop, auto &map)
@@ -1371,10 +1460,10 @@ create_descriptors_to_fields_map(
       if constexpr (std::is_same_v<std::decay_t<decltype(fop)>, Weight>)
       {
          // TODO-bug: stealing dimension from the first field
-         fop.dim = GetDimension<Entity::Element>(fields[0]);
+         fop.dim = GetDimension<entity_t>(fields[0]);
          fop.vdim = 1;
          fop.size_on_qp = 1;
-         map = -1;
+         map = SIZE_MAX;
       }
       else
       {
@@ -2160,7 +2249,7 @@ template <
 std::array<DofToQuadMap, N> create_dtq_maps_impl(
    field_operator_ts &fops,
    std::vector<const DofToQuad*> &dtqs,
-   const std::array<int, N> &field_map,
+   const std::array<size_t, N> &field_map,
    std::index_sequence<Is...>)
 {
    auto f = [&](auto fop, std::size_t idx)
@@ -2245,7 +2334,7 @@ template <
 std::array<DofToQuadMap, num_fields> create_dtq_maps(
    field_operator_ts &fops,
    std::vector<const DofToQuad*> &dtqmaps,
-   const std::array<int, num_fields> &to_field_map)
+   const std::array<size_t, num_fields> &to_field_map)
 {
    return create_dtq_maps_impl<entity_t>(
              fops, dtqmaps,

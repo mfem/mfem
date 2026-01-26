@@ -240,4 +240,54 @@ TEST_CASE("SparseMatrix printing", "[SparseMatrix]")
    }
 }
 
+TEST_CASE("SparseMatrix cuSPARSE Bug", "[SparseMatrix][GPU]")
+{
+   // This test case ensures that we have a functioning workaround for the bug
+   // CUSPARSE-1897. In versions of cuSPARSE before 12.8, the internal buffer
+   // used for cusparseSpMV must be the same when it is called with the same
+   // matrix.
+   //
+   // By default, MFEM uses one buffer, that is shared by all sparse matrices.
+   // In the code below, a buffer is created for A, then modified for B, then
+   // used again for A. Without the workaround, this fails with cuSPARSE version
+   // earlier than 12.8 (confirmed to fail with 12.4).
+
+   const int n = 100;
+   SparseMatrix A(n, n);
+   Vector d(n);
+   d.Randomize(1);
+   for (int i = 0; i < n; ++i)
+   {
+      A.Set(i, i, d[i]);
+   }
+   A.Finalize();
+
+   Vector x(n);
+   x = 1.0;
+
+   Vector y(n);
+   A.Mult(x, y);
+
+   {
+      SparseMatrix B(20, 20);
+      for (int i = 0; i < 20; ++i)
+      {
+         for (int j = 0; j < 20; ++j)
+         {
+            B.Set(i, j, 1.0);
+         }
+      }
+      B.Finalize();
+      Vector u(20);
+      u = 1.0;
+      Vector v(20);
+      B.Mult(u, v);
+   }
+
+   A.Mult(x, y);
+
+   y -= d;
+   REQUIRE(y.Normlinf() == MFEM_Approx(0.0));
+}
+
 } // namespace mfem

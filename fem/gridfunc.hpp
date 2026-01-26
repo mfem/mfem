@@ -27,6 +27,24 @@
 namespace mfem
 {
 
+/** This enumerated type describes the three main projection types:
+    - ELEMENT, assigns the degree of freedom per element, as specified in the
+      specific element
+    - GLOBAL_L2, solves a global L2 projection
+    - ELEMENT_L2, solves a element level L2 projection. Inter element
+      connectivity is dealt with similar as in:
+      Bezier-Projection : A unified approach for local projection and
+      quadrature-free refinement and coarsening of NURBS and T-splines with
+      particular application to isogeometric design and analysis
+      [CMAME (284) 2015 pg 55-105]
+    - DEFAULT, for NURBS spaces this is ELEMENT_L2, while for all other spaces
+      this ELEMENT.
+   Note 1: ELEMENT_L2 also works for non NURBS elements
+   Note 2: For NURBS elements the ELEMENT projection gives results without
+   over and undershoots. However, the gradient near the boundary does not
+   converge.*/
+enum class ProjectType { DEFAULT, ELEMENT, GLOBAL_L2, ELEMENT_L2 };
+
 /// Class for grid function - Vector with associated FE space.
 class GridFunction : public Vector
 {
@@ -65,6 +83,11 @@ protected:
        degree of freedom. */
    void ProjectDiscCoefficient(VectorCoefficient &coeff, Array<int> &dof_attr);
 
+   /** Helper function for ProjectCoefficientElementL2 */
+   void ProjectCoefficientElementL2_(Coefficient &coeff, Vector &sol, Vector &Va);
+   void ProjectCoefficientElementL2_(VectorCoefficient &vcoeff, Vector &sol,
+                                     Vector &Va);
+
    /// Loading helper.
    void LegacyNCReorder();
 
@@ -86,6 +109,10 @@ public:
    GridFunction(FiniteElementSpace *f)
       : Vector(f->GetVSize()), fes(f), fes_sequence(f->GetSequence())
    { UseDevice(true); }
+
+   /// Same as above but specify the memory type
+   GridFunction(FiniteElementSpace *f, MemoryType mt) : Vector(f->GetVSize(), mt)
+   { fes = f; fec_owned = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
 
    /// Construct a GridFunction using previously allocated array @a data.
    /** The GridFunction does not assume ownership of @a data which is assumed to
@@ -161,7 +188,8 @@ public:
    /// Shortcut for calling SetFromTrueDofs() with GetTrueVector() as argument.
    void SetFromTrueVector() { SetFromTrueDofs(GetTrueVector()); }
 
-   /// Returns the values in the vertices of i'th element for dimension vdim.
+   /** @brief Returns the values at the vertices of element @a i for the 1-based
+       dimension vdim. */
    void GetNodalValues(int i, Array<real_t> &nval, int vdim = 1) const;
 
    /** @name Element index Get Value Methods
@@ -316,7 +344,8 @@ public:
    /// For a vector grid function, makes sure that the ordering is byNODES.
    void ReorderByNodes();
 
-   /// Return the values as a vector on mesh vertices for dimension vdim.
+   /** @brief Returns the values as a vector at mesh vertices, for the 1-based
+       dimension vdim. */
    void GetNodalValues(Vector &nval, int vdim = 1) const;
 
    void GetVectorFieldNodalValues(Vector &val, int comp) const;
@@ -367,6 +396,33 @@ public:
        variable. */
    void GetVectorGradientHat(ElementTransformation &T, DenseMatrix &gh) const;
 
+   /** @brief Evaluate the gradients of the GridFunction at the given quadrature
+       points, @a ir, in all mesh elements. */
+   /** This method assumes that all mesh elements are the same type and that the
+       IntegrationRule @a ir is consistent with that type of element.
+
+       @param[in] ir     Quadrature points at which the gradients are to be
+                         evaluated.
+       @param[out] grad  Output vector of size `SDIM*VDIM*NQ*NE` where `SDIM` is
+                         the spatial dimention of the mesh, `VDIM` is the vector
+                         dimension of the GridFunction, `NQ` is the number of
+                         quadrature points in @a ir, and `NE` is the number of
+                         elements in the mesh. The layout of @a grad is
+                         determined by the parameter @a ql: when @a ql is
+                         QVectorLayout::byNODES, the layout is
+                         `NQ x VDIM x SDIM x NE`; when @a ql is
+                         QVectorLayout::byVDIM, the layout is
+                         `VDIM x SDIM x NQ x NE`.
+       @param[in] ql     Determines the layout of the output vector @a grad; see
+                         the description of @a grad for details.
+       @param[in] d_mt   MemoryType to use for allocating the output vector
+                         @a grad, as well the GeometricFactors and temporary
+                         vector used by the method. By default, the current
+                         device memory type is used. */
+   void GetGradients(const IntegrationRule &ir, Vector &grad,
+                     QVectorLayout ql = QVectorLayout::byNODES,
+                     MemoryType d_mt = MemoryType::DEFAULT) const;
+
    /** Compute $ (\int_{\Omega} (*this) \psi_i)/(\int_{\Omega} \psi_i) $,
        where $ \psi_i $ are the basis functions for the FE space of avgs.
        Both FE spaces should be scalar and on the same mesh. */
@@ -399,9 +455,30 @@ public:
    /** @brief Project @a coeff Coefficient to @a this GridFunction. The
        projection computation depends on the choice of the FiniteElementSpace
        #fes. Note that this is usually interpolation at the degrees of freedom
-       in each element (not L2 projection). For NURBS spaces these degrees of
-       freedom are not available and L2 projection is resorted to as fallback. */
-   virtual void ProjectCoefficient(Coefficient &coeff);
+       in each element (not L2 projection). For elements without a projection
+       member function one could use ProjectCoefficientGlobalL2 instead.
+       NOTE: For parallel simulations with NURBS elements some dofs might
+       not be defined, if the evaluation point does not reside on this rank.
+       If that is the case it is defined on another rank, and the issue is
+       rectified with the appropriate communication, see in ParGridFunction.
+       */
+   virtual void ProjectCoefficient(Coefficient &coeff,
+                                   ProjectType type = ProjectType::DEFAULT);
+
+   /** @brief Project @a coeff Coefficient to @a this GridFunction. The
+       projection is a global L2 projection. This routine can be used a
+       fallback for elements without a projection member function.*/
+   virtual void ProjectCoefficientGlobalL2(Coefficient &coeff,
+                                           real_t rtol = 1e-12,
+                                           int iter = 1000);
+
+   /** @brief Project @a coeff Coefficient to @a this GridFunction. The
+       projection is an element local L2 projection, with an appropriate
+       weighting for Dofs that are shared between elements. Inspired on
+       Bezier-Projection [CMAME (284) 2015 pg 55-105]
+       This routine can be used a fallback for elements without a projection
+       member function.*/
+   virtual void ProjectCoefficientElementL2(Coefficient &coeff);
 
    /** @brief Project @a coeff Coefficient to @a this GridFunction, using one
        element for each degree of freedom in @a dofs and nodal interpolation on
@@ -411,9 +488,26 @@ public:
    /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction. The
        projection computation depends on the choice of the FiniteElementSpace
        #fes. Note that this is usually interpolation at the degrees of freedom
-       in each element (not L2 projection). For NURBS spaces these degrees of
-       freedom are not available and L2 projection is resorted to as fallback. */
-   void ProjectCoefficient(VectorCoefficient &vcoeff);
+       in each element (not L2 projection). For elements without a projection
+       member function one could use ProjectCoefficientGlobalL2 instead.
+       NOTE: For parallel simulations with NURBS elements some dofs might
+       not be defined, if the evaluation point does not reside on this rank.
+       If that is the case it is defined on another rank, and the issue is
+       rectified with the appropriate communication, see in ParGridFunction.*/
+   virtual void ProjectCoefficient(VectorCoefficient &vcoeff,
+                                   ProjectType type = ProjectType::DEFAULT);
+
+   /** @brief Project @a coeff Coefficient to @a this GridFunction. The
+       projection is a global L2 projection. This routine can be used a
+       fallback for elements without a projection member function.*/
+   virtual void ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
+                                           real_t rtol = 1e-12,
+                                           int iter = 1000);
+
+   /** @brief Project @a coeff Coefficient to @a this GridFunction. The
+       projection is a global L2 projection. This routine can be used a
+       fallback for elements without a projection member function.*/
+   virtual void ProjectCoefficientElementL2(VectorCoefficient &vcoeff);
 
    /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction, using
        one element for each degree of freedom in @a dofs and nodal interpolation
@@ -1583,7 +1677,7 @@ public:
    /// We compute the bounds for each vdim if @a vdim < 1.
    /// Note: For most cases, this method/interface will be sufficient.
    virtual PLBound GetBounds(Vector &lower, Vector &upper,
-                             const int ref_factor=1, const int vdim=-1);
+                             const int ref_factor=1, const int vdim=-1) const;
 
    /// Computes the \ref PLBound for the gridfunction with number of control
    /// points based on @a ref_factor, and returns the bounds for each element
@@ -1593,27 +1687,27 @@ public:
    /// PLBound object used to compute the bounds.
    /// We compute the bounds for each vdim if @a vdim < 1.
    PLBound GetElementBounds(Vector &lower, Vector &upper,
-                            const int ref_factor=1, const int vdim=-1);
+                            const int ref_factor=1, const int vdim=-1) const;
 
    /// Compute piecewise linear bounds on the given element at the grid of
    /// [plb.ncp x plb.ncp x plb.ncp] control points for each of the vdim
    /// components of the gridfunction.
    void GetElementBoundsAtControlPoints(const int elem, const PLBound &plb,
                                         Vector &lower, Vector &upper,
-                                        const int vdim = -1);
+                                        const int vdim = -1) const;
 
    /// Compute bounds on the grid function for the given element.
    /// The bounds are stored in @b lower and @b upper.
    void GetElementBounds(const int elem, const PLBound &plb,
                          Vector &lower, Vector &upper,
-                         const int vdim = -1);
+                         const int vdim = -1) const;
 
    /// Compute bounds on the grid function for all the elements. The bounds
    /// are returned in @b lower and @b upper, ordered byVDim:
    /// lower_{0,0}, lower_{1,0}, ..., lower_{ne-1,0},
    /// lower_{0,1}, ..., lower_{ne-1,vdim-1}
    void GetElementBounds(const PLBound &plb, Vector &lower, Vector &upper,
-                         const int vdim=-1);
+                         const int vdim=-1) const;
    ///@}
 
    /// Destroys grid function.
