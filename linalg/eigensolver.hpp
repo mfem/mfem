@@ -178,6 +178,7 @@ public:
    void SetPreconditioner([[maybe_unused]] Solver& precond) {};
    void GetEigenvalues(Array<real_t>& eigen_vals) override
    {
+      eigen_vals.SetSize(numModes);
       for (int ik = 0; ik < numModes; ik++)
       {
          eigenSolver_->GetEigenvalue(static_cast<unsigned int>(ik), eigen_vals[ik]);
