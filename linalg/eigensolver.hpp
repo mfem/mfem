@@ -49,7 +49,10 @@ public:
    virtual void Solve() = 0;
 
    /// Set the required number of modes
-   virtual void SetNumModes(int num_eigs) = 0;
+   virtual void SetNumModes(int num_eigs) 
+   {
+      numModes=num_eigs;
+   }
 
    /// @brief  Set the operator to the eigenvalue problem
    /// @param A - operator
