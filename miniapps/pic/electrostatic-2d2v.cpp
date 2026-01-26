@@ -166,6 +166,9 @@ public:
 
    /// Get reference to ParticleSet
    ParticleSet& GetParticles() { return *charged_particles; }
+
+   /// Compute (local) kinetic energy from particles
+   real_t ComputeKineticEnergy() const;
 };
 
 class FieldSolver
@@ -197,9 +200,8 @@ public:
    void UpdatePhiGridFunction(ParticleSet& particles, ParGridFunction& phi_gf,
                               ParGridFunction& E_gf);
 
-   /// Output energy (kinetic, field and total) with stdout and csv output
-   void TotalEnergyValidation(const ParticleSet& particles,
-                              const ParGridFunction& E_gf);
+   /// Compute (global) field energy: 0.5 * ∫ ||E||^2 dx
+   real_t ComputeGlobalFieldEnergy(const ParGridFunction& E_gf) const;
 };
 
 /// Prints the program's logo to the given output stream
@@ -318,7 +320,31 @@ int main(int argc, char* argv[])
          // Update phi_gf from particles
          field_solver.UpdatePhiGridFunction(particle_mover.GetParticles(), phi_gf, *E_gf);
 
-         field_solver.TotalEnergyValidation(particle_mover.GetParticles(), *E_gf);
+         // Compute energies
+         real_t kinetic_energy = particle_mover.ComputeKineticEnergy();
+         real_t global_field_energy = field_solver.ComputeGlobalFieldEnergy(*E_gf);
+
+         // Reduce kinetic energy across processors
+         real_t global_kinetic_energy = 0.0;
+         MPI_Allreduce(&kinetic_energy, &global_kinetic_energy, 1, MPI_DOUBLE,
+                       MPI_SUM, MPI_COMM_WORLD);
+
+         // Output energies
+         if (Mpi::Root())
+         {
+            cout << "Kinetic energy: " << global_kinetic_energy << "\t";
+            cout << "Field energy: " << global_field_energy << "\t";
+            cout << "Total energy: " << global_kinetic_energy + global_field_energy
+                 << endl;
+         }
+         // write to a csv
+         if (Mpi::Root())
+         {
+            std::ofstream energy_file("energy.csv", std::ios::app);
+            energy_file << setprecision(10) << global_kinetic_energy << ","
+                        << global_field_energy << ","
+                        << global_kinetic_energy + global_field_energy << "\n";
+         }
       }
 
       if (step == 1)
@@ -510,6 +536,22 @@ void ParticleMover::Redistribute()
 {
    charged_particles->Redistribute(E_finder.GetProc());
    FindParticles();
+}
+
+real_t ParticleMover::ComputeKineticEnergy() const
+{
+   const ParticleVector& P = charged_particles->Field(MOM);
+   const ParticleVector& M = charged_particles->Field(MASS);
+
+   real_t kinetic_energy = 0.0;
+   for (int p = 0; p < charged_particles->GetNParticles(); ++p)
+   {
+      real_t p_square_p = 0.0;
+      for (int d = 0; d < P.GetVDim(); ++d) { p_square_p += P(p, d) * P(p, d); }
+      kinetic_energy += 0.5 * p_square_p / M(p);
+   }
+
+   return kinetic_energy;
 }
 
 FieldSolver::FieldSolver(ParGridFunction& phi_gf,
@@ -737,20 +779,8 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
    }
 }
 
-void FieldSolver::TotalEnergyValidation(const ParticleSet& particles,
-                                                const ParGridFunction& E_gf)
+real_t FieldSolver::ComputeGlobalFieldEnergy(const ParGridFunction& E_gf) const
 {
-   const ParticleVector& P = particles.Field(ParticleMover::MOM);
-   const ParticleVector& M = particles.Field(ParticleMover::MASS);
-
-   real_t kinetic_energy = 0.0;
-   for (int p = 0; p < particles.GetNParticles(); ++p)
-   {
-      real_t p_square_p = 0.0;
-      for (int d = 0; d < P.GetVDim(); ++d) { p_square_p += P(p, d) * P(p, d); }
-      kinetic_energy += 0.5 * p_square_p / M(p);
-   }
-
    // ---- Field energy: 0.5 * ∫ ||E||^2 dx ----
    const ParFiniteElementSpace* fes = E_gf.ParFESpace();
    const ParMesh* pmesh = fes->GetParMesh();
@@ -783,25 +813,7 @@ void FieldSolver::TotalEnergyValidation(const ParticleSet& particles,
       global_field_energy = 0.5 * EPSILON * E_l2 * E_l2;
    }
 
-   // reduce kinetic energy and field energy
-   real_t global_kinetic_energy = 0.0;
-   MPI_Allreduce(&kinetic_energy, &global_kinetic_energy, 1, MPI_DOUBLE,
-                 MPI_SUM, fes->GetComm());
-   if (Mpi::Root())
-   {
-      cout << "Kinetic energy: " << global_kinetic_energy << "\t";
-      cout << "Field energy: " << global_field_energy << "\t";
-      cout << "Total energy: " << global_kinetic_energy + global_field_energy
-           << endl;
-   }
-   // write to a csv
-   if (Mpi::Root())
-   {
-      std::ofstream energy_file("energy.csv", std::ios::app);
-      energy_file << setprecision(10) << global_kinetic_energy << ","
-                  << global_field_energy << ","
-                  << global_kinetic_energy + global_field_energy << "\n";
-   }
+   return global_field_energy;
 }
 
 void display_banner(ostream& os)
