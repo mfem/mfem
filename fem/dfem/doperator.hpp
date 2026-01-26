@@ -591,12 +591,6 @@ void DifferentiableOperator::AddIntegrator(
    using qf_output_t = typename qf_signature::return_t;
 
    // Consistency checks
-   if constexpr (num_outputs > 1)
-   {
-      static_assert(dfem::always_false<qfunc_t>,
-                    "more than one output per quadrature functions is not supported right now");
-   }
-
    if constexpr (std::is_same_v<qf_output_t, void>)
    {
       static_assert(dfem::always_false<qfunc_t>,
