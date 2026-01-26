@@ -34,11 +34,13 @@ if (MFEM_USE_MPI)
    EXTRA_HEADERS maxwell_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
    LIBRARIES mfem-common)
 
- add_mfem_miniapp(lorentz
-   MAIN lorentz.cpp
-   EXTRA_HEADERS ${MFEM_MINIAPPS_COMMON_HEADERS}
-   LIBRARIES mfem-common)
-
+ if (MFEM_USE_GSLIB)
+  add_mfem_miniapp(lorentz
+    MAIN lorentz.cpp
+    EXTRA_HEADERS ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem-common)
+endif()
+  
   # Add the corresponding tests to the "test" target
   if (MFEM_ENABLE_TESTING)
     add_test(NAME tesla_np=4
