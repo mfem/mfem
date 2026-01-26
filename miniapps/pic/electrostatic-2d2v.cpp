@@ -138,10 +138,6 @@ protected:
    static void GetValues(const ParticleVector& coords, FindPointsGSLIB& finder,
                          ParGridFunction& gf, ParticleVector& pv);
 
-   /// Single particle Boris step
-   void ParticleStep(Particle& part, real_t& dt,
-                     real_t L_x, bool zeroth_step = false);
-
 public:
    ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_, FindPointsGSLIB& E_finder_,
        int num_particles,
@@ -389,29 +385,6 @@ void ParticleMover::GetValues(const ParticleVector& coords, FindPointsGSLIB& E_f
                      pv.GetOrdering());
 }
 
-void ParticleMover::ParticleStep(Particle& part, real_t& dt, real_t L_x, bool zeroth_step)
-{
-   Vector& x = part.Coords();
-   real_t m = part.FieldValue(MASS);
-   real_t q = part.FieldValue(CHARGE);
-   Vector& p = part.Field(MOM);
-   Vector& e = part.Field(EFIELD);
-
-   p.Add(dt * q, e);
-
-   if (zeroth_step) { return; }
-
-   // Update the position
-   x.Add(dt / m, p);
-
-   // periodic boundary: wrap around using ctx mesh extents
-   for (int d = 0; d < x.Size(); d++)
-   {
-      while (x(d) > L_x) { x(d) -= L_x; }
-      while (x(d) < 0.0) { x(d) += L_x; }
-   }
-}
-
 ParticleMover::ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_, FindPointsGSLIB& E_finder_,
          int num_particles,
          Ordering::Type pdata_ordering)
@@ -500,27 +473,37 @@ void ParticleMover::Step(real_t& t, real_t& dt, real_t L_x, bool zeroth_step)
 {
    InterpolateE();
    // Individually step each particle:
-   if (charged_particles->IsParticleRefValid())
+   ParticleVector& X = charged_particles->Coords();
+   ParticleVector& P = charged_particles->Field(MOM);
+   ParticleVector& E = charged_particles->Field(EFIELD);
+   ParticleVector& M = charged_particles->Field(MASS);
+   ParticleVector& Q = charged_particles->Field(CHARGE);
+   
+   // Periodic boundary: wrap coordinates to [0, L_x)
+   const int npt = charged_particles->GetNParticles();
+   const int dim = X.GetVDim();
+
+   for (int particle = 0; particle < npt; ++particle)
    {
-      for (int i = 0; i < charged_particles->GetNParticles(); i++)
+      for (int d = 0; d < dim; ++d)
       {
-         Particle p = charged_particles->GetParticleRef(i);
-         ParticleStep(p, dt, L_x, zeroth_step);
+         P(particle, d) += dt * Q(particle) * E(particle, d);
       }
    }
-   else
+
+   if (zeroth_step) { return; }
+
+   for (int particle = 0; particle < npt; ++particle)
    {
-      for (int i = 0; i < charged_particles->GetNParticles(); i++)
+      for (int d = 0; d < dim; ++d)
       {
-         Particle p = charged_particles->GetParticle(i);
-         ParticleStep(p, dt, L_x, zeroth_step);
-         charged_particles->SetParticle(i, p);
+         X(particle, d) += dt / M(particle) * P(particle, d);
+         while (X(particle, d) > L_x) { X(particle, d) -= L_x; }
+         while (X(particle, d) < 0.0) { X(particle, d) += L_x; }
       }
    }
 
    FindParticles();
-
-   if (zeroth_step) { return; }
 
    // Update time
    t += dt;
