@@ -188,7 +188,7 @@ private:
    socketstream vis_phi;
 
 public:
-   FieldSolver(ParGridFunction& phi_gf, FindPointsGSLIB& E_finder_,
+   FieldSolver(ParFiniteElementSpace* pfes, FindPointsGSLIB& E_finder_,
                        int visport_, bool visualization_,
                        bool precompute_neutralizing_const_ = false);
 
@@ -291,7 +291,7 @@ int main(int argc, char* argv[])
    *E_gf = 0.0;   // Initialize E_gf to zero
 
    // 6. Build the grid function updates
-   FieldSolver field_solver(phi_gf, E_finder, ctx.visport,
+   FieldSolver field_solver(&sca_fespace, E_finder, ctx.visport,
                                   ctx.visualization, true);
    Ordering::Type ordering_type =
       ctx.ordering == 0 ? Ordering::byNODES : Ordering::byVDIM;
@@ -554,7 +554,7 @@ real_t ParticleMover::ComputeKineticEnergy() const
    return kinetic_energy;
 }
 
-FieldSolver::FieldSolver(ParGridFunction& phi_gf,
+FieldSolver::FieldSolver(ParFiniteElementSpace* pfes,
                                          FindPointsGSLIB& E_finder_,
                                          int visport_, bool visualization_,
                                          bool precompute_neutralizing_const_)
@@ -566,16 +566,14 @@ FieldSolver::FieldSolver(ParGridFunction& phi_gf,
      vis_phi("localhost", visport_)
 {
    // compute domain volume
-   ParMesh* pmesh = phi_gf.ParFESpace()->GetParMesh();
+   ParMesh* pmesh = pfes->GetParMesh();
    real_t local_domain_volume = 0.0;
    for (int i = 0; i < pmesh->GetNE(); i++)
    {
       local_domain_volume += pmesh->GetElementVolume(i);
    }
    MPI_Allreduce(&local_domain_volume, &domain_volume, 1, MPI_DOUBLE,
-                 MPI_SUM, phi_gf.ParFESpace()->GetParMesh()->GetComm());
-
-   ParFiniteElementSpace* pfes = phi_gf.ParFESpace();
+                 MPI_SUM, pfes->GetParMesh()->GetComm());
 
    {
       // Par bilinear form for the gradgrad matrix
