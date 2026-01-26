@@ -396,14 +396,8 @@ void ParticleMover::ParticleStep(Particle& part, real_t& dt, real_t L_x, bool ze
    real_t q = part.FieldValue(CHARGE);
    Vector& p = part.Field(MOM);
    Vector& e = part.Field(EFIELD);
-   // Compute half of the contribution from q E
-   add(p, 0.5 * dt * q, e, pm_);
 
-   // --- Simplified update: no magnetic field ---
-   pp_ = pm_;  // only include E contribution
-
-   // Update the momentum (full electric contribution)
-   add(pp_, 0.5 * dt * q, e, p);
+   p.Add(dt * q, e);
 
    if (zeroth_step) { return; }
 
