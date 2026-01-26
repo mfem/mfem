@@ -839,6 +839,50 @@ public:
    */
 };
 
+class CylRotMat: public MatrixCoefficient
+{
+public:
+   CylRotMat(bool cart2cyl);
+
+   virtual void Eval(DenseMatrix &rotMat, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
+private:
+   mutable Vector xyz_; // 3D coordinate in computational mesh
+   mutable bool cart2cyl_; // 3D coordinate in computational mesh
+
+};
+
+class lambdaPML: public MatrixCoefficient
+{
+public:
+   lambdaPML(bool realPart, bool cyl);
+
+   virtual void Eval(DenseMatrix &lambdaPML, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
+private:
+   mutable Vector xyz_; // 3D coordinate in computational mesh
+   mutable bool realPart_; // real part
+   mutable bool cyl_; // cartesian coordinates
+
+};
+
+class invsigmaPML: public MatrixCoefficient
+{
+public:
+   invsigmaPML(bool realPart, bool cyl);
+
+   virtual void Eval(DenseMatrix &invsigmaPML, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
+private:
+   mutable Vector xyz_; // 3D coordinate in computational mesh
+   mutable bool realPart_; // real part
+   mutable bool cyl_; // cartesian coordinates
+
+};
+
 /*
    The different types of plasma profiles (i.e. temp, density) require
    different sets of parameters, for example.

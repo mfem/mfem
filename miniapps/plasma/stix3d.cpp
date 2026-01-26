@@ -605,6 +605,7 @@ int main(int argc, char *argv[])
    bool vis_u = false;
    bool visualization = false;
    bool visit = true;
+   bool pml = false;
 
    double freq = 1.0e6;
    const char * wave_type = " ";
@@ -1021,6 +1022,8 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&visit, "-visit", "--visit", "-no-visit", "--no-visit",
                   "Enable or disable VisIt visualization.");
+   args.AddOption(&pml, "-pml", "--pml", "-no-pml", "--no-pml",
+                  "Enable or disable Cartesian PML");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -1865,6 +1868,38 @@ if (dpp_def.Size() == 0)
                                            omega, charges, masses, nuprof,
                                            res_lim, false, 3);
    }
+
+   CylRotMat epsilon_cyl(true); // rotation matrix to cylindrical coords
+   CylRotMat epsilon_cart(false); // rotation matrix to cartesian coords
+
+   lambdaPML lambdaPML_real(true,false);
+   lambdaPML lambdaPML_imag(false,false);
+
+   invsigmaPML invSigma_real(true,false);
+   invsigmaPML invSigma_imag(false,false);
+
+   // Lambda * Epsilon
+
+   MatrixProductCoefficient lambEpsilon_real1(lambdaPML_real,epsilon_real);
+   MatrixProductCoefficient lambEpsilon_real2(lambdaPML_imag,epsilon_imag);
+
+   MatrixProductCoefficient lambEpsilon_imag1(lambdaPML_real,epsilon_imag);
+   MatrixProductCoefficient lambEpsilon_imag2(lambdaPML_imag,epsilon_real);
+
+   MatrixSumCoefficient lambEpsilon_real(lambEpsilon_real1,lambEpsilon_real2,1.0,-1.0);
+   MatrixSumCoefficient lambEpsilon_imag(lambEpsilon_imag1,lambEpsilon_imag2);
+
+   // Epsilon_PML = Lambda * Epsilon * Sigma^-1
+
+   MatrixProductCoefficient lambEpsilonSigma_real1(lambEpsilon_real,invSigma_real);
+   MatrixProductCoefficient lambEpsilonSigma_real2(lambEpsilon_imag,invSigma_imag);
+
+   MatrixProductCoefficient lambEpsilonSigma_imag1(lambEpsilon_real,invSigma_imag);
+   MatrixProductCoefficient lambEpsilonSigma_imag2(lambEpsilon_imag,invSigma_real);
+
+   MatrixSumCoefficient epsilonPML_real(lambEpsilonSigma_real1,lambEpsilonSigma_real2,1.0,-1.0);
+   MatrixSumCoefficient epsilonPML_imag(lambEpsilonSigma_imag1,lambEpsilonSigma_imag2);
+
    SheathImpedance z_r(BField, density, temperature,
                        L2FESpace, H1FESpace,
                        omega, charges, masses, true);
@@ -2172,8 +2207,9 @@ if (dpp_def.Size() == 0)
                  (CPDSolver::SolverType)sol, solOpts,
                  (CPDSolver::PrecondType)prec,
                  conv, BUnitCoef,
-                 epsilon_real, epsilon_imag, epsilon_abs,
-                 suscept_real, suscept_imag,
+                 (pml) ? (MatrixCoefficient&) epsilonPML_real : (MatrixCoefficient&) epsilon_real,
+                 (pml) ? (MatrixCoefficient&) epsilonPML_imag : (MatrixCoefficient&) epsilon_imag,
+                 epsilon_abs, suscept_real, suscept_imag,
                  suscept_real_electrons, suscept_imag_electrons,
                  suscept_real_ion1, suscept_imag_ion1,
                  (numbers.Size() > 2) ? suscept_real_ion2 : NULL,
@@ -2606,23 +2642,26 @@ void slab_current_source_r(const Vector &x, Vector &j)
    j.SetSize(x.Size());
    j = 0.0;
 
-   bool cmplx = slab_params_.Size() == 10;
+   bool cmplx = slab_params_.Size() == 12;
 
-   int o = 3 + (cmplx ? 3 : 0);
+   int o = 3 + (cmplx ? 4 : 0);
 
    double x0 = slab_params_(o+0);
    double y0 = slab_params_(o+1);
-   double dx = slab_params_(o+2);
-   double dy = slab_params_(o+3);
+   double z0 = slab_params_(o+2);
+   double dx = slab_params_(o+3);
+   double dy = slab_params_(o+4);
+   double dz = slab_params_(o+5);
 
-   if (x[0] >= x0-0.5*dx && x[0] <= x0+0.5*dx &&
-       x[1] >= y0-0.5*dy && x[1] <= y0+0.5*dy)
+   if (x[0] >= x0 && x[0] <= x0+dx &&
+       x[1] >= y0 && x[1] <= y0+dy &&
+       x[2] >= z0 && x[2] <= z0+dz ) 
    {
       j(0) = slab_params_(0);
       j(1) = slab_params_(1);
       j(2) = slab_params_(2);
-      if (slab_profile_ == 1)
-      {j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5)));}
+      //if (slab_profile_ == 1)
+      //{j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5)));}
    }
 }
 
@@ -2633,25 +2672,28 @@ void slab_current_source_i(const Vector &x, Vector &j)
    j.SetSize(x.Size());
    j = 0.0;
 
-   bool cmplx = slab_params_.Size() == 10;
+   bool cmplx = slab_params_.Size() == 12;
 
-   int o = 3 + (cmplx ? 3 : 0);
+   int o = 3 + (cmplx ? 4 : 0);
 
    double x0 = slab_params_(o+0);
    double y0 = slab_params_(o+1);
-   double dx = slab_params_(o+2);
-   double dy = slab_params_(o+3);
+   double z0 = slab_params_(o+2);
+   double dx = slab_params_(o+3);
+   double dy = slab_params_(o+4);
+   double dz = slab_params_(o+5);
 
-   if (x[0] >= x0-0.5*dx && x[0] <= x0+0.5*dx &&
-       x[1] >= y0-0.5*dy && x[1] <= y0+0.5*dy)
+   if (x[0] >= x0 && x[0] <= x0+dx &&
+       x[1] >= y0 && x[1] <= y0+dy && 
+       x[2] >= z0 && x[2] <= z0+dz )
    {
       if (cmplx)
       {
          j(0) = slab_params_(3);
          j(1) = slab_params_(4);
          j(2) = slab_params_(5);
-         if (slab_profile_ == 1)
-         {j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5)));}
+         //if (slab_profile_ == 1)
+         //{j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5)));}
       }
    }
 }

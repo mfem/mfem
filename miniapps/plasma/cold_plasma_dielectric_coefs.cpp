@@ -1665,6 +1665,7 @@ void StixTensorBase::addPerpSkewComp(double D, DenseMatrix & eps)
 
    eps(0,1) -= D * BVec_[2];
    eps(1,0) += D * BVec_[2];
+   
 }
 
 DielectricTensor::DielectricTensor(const ParGridFunction & B,
@@ -1724,6 +1725,7 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    this->addParallelComp(realPart_ ?  P.real() : P.imag(), epsilon);
    this->addPerpDiagComp(realPart_ ?  S.real() : S.imag(), epsilon);
    this->addPerpSkewComp(realPart_ ? -D.imag() : D.real(), epsilon);
+
    /*
    if (realPart_)
    {
@@ -1920,17 +1922,6 @@ void SusceptibilityTensor::Eval(DenseMatrix &suscept, ElementTransformation &T,
    this->addPerpDiagComp(realPart_ ?  S.imag() : 1.0 - S.real(), suscept);
    this->addPerpSkewComp(realPart_ ?  D.real() : D.imag(), suscept);
 
-   /*
-   this->addParallelComp(realPart_ ?  17.0 : 1.0 - 5.0, suscept);
-   this->addPerpDiagComp(realPart_ ?  7.0 : 1.0 - 3.0, suscept);
-   this->addPerpSkewComp(realPart_ ?  11.0 : 13.0, suscept);
-   */
-
-   //old code:
-   //this->addParallelComp(realPart_ ?  P.real() - 1.0: P.imag(), suscept);
-   //this->addPerpDiagComp(realPart_ ?  S.real() - 1.0: S.imag(), suscept);
-   //this->addPerpSkewComp(realPart_ ? -D.imag()      : D.real(), suscept);
-
    suscept *= omega_*epsilon0_;
 }
 
@@ -2121,6 +2112,249 @@ void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
 
    epsilon *= epsilon0_;
 }
+
+CylRotMat::CylRotMat(bool cart2cyl): MatrixCoefficient(3), xyz_(3), cart2cyl_(cart2cyl)
+{
+   xyz_ = 0.0;
+}
+
+void CylRotMat::Eval(DenseMatrix &rotMat, ElementTransformation &T,
+                               const IntegrationPoint &ip)
+   {
+      rotMat.SetSize(3);
+      T.Transform(ip, xyz_);
+
+      double th = atan2(xyz_[2], xyz_[0]);
+
+      rotMat(0,0) = cos(th);
+      rotMat(1,1) = cos(th);
+      rotMat(2,2) = 1.0;   
+
+      rotMat(0,2) = 0.0;
+      rotMat(1,2) = 0.0;
+      rotMat(2,1) = 0.0;
+      rotMat(0,2) = 0.0;
+
+      rotMat(0,1) = -sin(th);
+      rotMat(1,0) = sin(th);
+
+      if (cart2cyl_)
+      {
+         rotMat(0,1) = sin(th);
+         rotMat(1,0) = -sin(th);
+      }
+
+   }
+
+lambdaPML::lambdaPML(bool realPart,
+                     bool cyl): 
+                     MatrixCoefficient(3), xyz_(3), realPart_(realPart), cyl_(cyl)
+{
+   xyz_ = 0.0;
+}
+
+void lambdaPML::Eval(DenseMatrix &lambdaPML, ElementTransformation &T,
+                               const IntegrationPoint &ip)
+   {
+      lambdaPML.SetSize(3);
+      T.Transform(ip, xyz_);
+
+      // need to figure out the starting location of PML to be compatible 
+      complex<double> val(0.0,1.0);
+      complex<double> constant(1.0,0.0);
+
+      // Cartesian coordinates: (PML in x, y, and z)
+      complex<double> sig_u = constant;
+      complex<double> sig_v = constant;
+      complex<double> sig_w = constant;
+
+      /*
+      double x0 = 2.234;
+      double delta_x = 0.1;
+
+      if (xyz_[0] <= x0)
+      {
+         sig_u = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[0]-x0)/delta_x),2.0); // x
+      }
+      
+      double y0 = 0.86;
+      double y1 = -0.86;
+      double delta_y = 0.2;
+      if (xyz_[1] >= y0)
+      {
+         sig_v = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[1]-y0)/delta_y),2.0); // y
+      }
+      if (xyz_[1] <= y1)
+      {
+         sig_v = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[1]-y1)/delta_y),2.0); // y
+      }
+
+      double z0 = 0.6159;
+      double z1 = -0.007;
+      double delta_z = 0.13;
+      if (xyz_[2] >= z0)
+      {
+         sig_w = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[2]-z0)/delta_z),2.0); // z
+      }
+      if (xyz_[2] <= z1)
+      {
+         sig_w = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[2]-z1)/delta_z),2.0); // z
+      }
+      */
+      
+      double x0 = 0.2;
+      double x1 = 0.7;
+      double delta_x = x0;
+      if (xyz_[0] <= x0)
+      {
+         sig_u = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[0]-x0)/delta_x),2.0); // x
+      }
+      if (xyz_[0] >= x1)
+      {
+         sig_u = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[0]-x1)/delta_x),2.0); // x
+      }
+      
+      if (cyl_)
+      {
+         // Cylindrical coordinates: (PML in theta)
+         double th = atan2(xyz_[2], xyz_[0]);
+         double delta_th = 10.0*(M_PI/180.0);
+
+         sig_u = constant; // R
+         sig_v = 1.0 - (1.0 - 2.0*val)*pow((th/delta_th),2.0); // Theta
+         sig_w = constant; // Z
+      }
+
+      lambdaPML(0,0) = sig_v.real()*sig_w.imag() + sig_v.imag()*sig_w.real(); 
+      lambdaPML(1,1) = sig_u.real()*sig_w.imag() + sig_u.imag()*sig_w.real();
+      lambdaPML(2,2) = sig_v.real()*sig_u.imag() + sig_v.imag()*sig_u.real();
+
+      if (realPart_)
+      {
+         lambdaPML(0,0) = (sig_v.real()*sig_w.real() - sig_v.imag()*sig_w.imag()); 
+         lambdaPML(1,1) = (sig_u.real()*sig_w.real() - sig_u.imag()*sig_w.imag());
+         lambdaPML(2,2) = (sig_v.real()*sig_u.real() - sig_v.imag()*sig_u.imag());
+      }
+
+      lambdaPML(0,2) = 0.0;
+      lambdaPML(1,2) = 0.0;
+      lambdaPML(2,1) = 0.0;
+      lambdaPML(0,2) = 0.0;
+      lambdaPML(0,1) = 0.0;
+      lambdaPML(1,0) = 0.0;
+   }
+
+invsigmaPML::invsigmaPML(bool realPart,
+                         bool cyl): 
+                         MatrixCoefficient(3), xyz_(3), realPart_(realPart), cyl_(cyl)
+{
+   xyz_ = 0.0;
+}
+
+void invsigmaPML::Eval(DenseMatrix &invsigmaPML, ElementTransformation &T,
+                               const IntegrationPoint &ip)
+   {
+      invsigmaPML.SetSize(3);
+      T.Transform(ip, xyz_);
+
+      // need to figure out the starting location of PML to be compatible 
+      complex<double> val(0.0,1.0);
+      complex<double> constant(1.0,0.0);
+
+      // Cartesian coordinates: (PML in x, y, and z)
+      complex<double> sig_u = constant;
+      complex<double> sig_v = constant;
+      complex<double> sig_w = constant;
+
+      /*
+      double x0 = 2.234;
+      double delta_x = 0.1;
+
+      if (xyz_[0] <= x0)
+      {
+         sig_u = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[0]-x0)/delta_x),2.0); // x
+      }
+
+      
+      double y0 = 0.86;
+      double y1 = -0.86;
+      double delta_y = 0.2;
+      if (xyz_[1] >= y0)
+      {
+         sig_v = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[1]-y0)/delta_y),2.0); // y
+      }
+      if (xyz_[1] <= y1)
+      {
+         sig_v = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[1]-y1)/delta_y),2.0); // y
+      }
+
+      double z0 = 0.6159;
+      double z1 = -0.007;
+      double delta_z = 0.13;
+      if (xyz_[2] >= z0)
+      {
+         sig_w = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[2]-z0)/delta_z),2.0); // z
+      }
+      if (xyz_[2] <= z1)
+      {
+         sig_w
+          = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[2]-z1)/delta_z),2.0); // z
+      }
+      */
+      
+      double x0 = 0.2;
+      double x1 = 0.7;
+      double delta_x = x0;
+      if (xyz_[0] <= x0)
+      {
+         sig_u = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[0]-x0)/delta_x),2.0); // x
+      }
+      if (xyz_[0] >= x1)
+      {
+         sig_u = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[0]-x1)/delta_x),2.0); // x
+      }
+      
+      if (cyl_)
+      {
+         // Cylindrical coordinates: (PML in theta)
+         double th = atan2(xyz_[2], xyz_[0]);
+         double delta_th = 10.0*(M_PI/180.0);
+
+         sig_u = constant; // R
+         sig_v = 1.0 - (1.0 - 2.0*val)*pow((th/delta_th),2.0); // Theta
+         sig_w = constant; // Z
+      }
+
+      invsigmaPML(0,0) = 0.0; 
+      invsigmaPML(1,1) = 0.0;
+      invsigmaPML(2,2) = 0.0;
+
+      if (realPart_)
+      {
+         invsigmaPML(0,0) = 1.0/sig_u.real(); 
+         invsigmaPML(1,1) = 1.0/sig_v.real();
+         invsigmaPML(2,2) = 1.0/sig_w.real();
+      }
+      if (realPart_ == false && sig_u.imag() != 0.0)
+      {
+         invsigmaPML(0,0) = 1.0/sig_u.imag(); 
+      }
+      if (realPart_ == false && sig_v.imag() != 0.0)
+      {
+         invsigmaPML(1,1) = 1.0/sig_v.imag(); 
+      }
+      if (realPart_ == false && sig_w.imag() != 0.0)
+      {
+         invsigmaPML(2,2) = 1.0/sig_w.imag(); 
+      }
+
+      invsigmaPML(0,2) = 0.0;
+      invsigmaPML(1,2) = 0.0;
+      invsigmaPML(2,1) = 0.0;
+      invsigmaPML(0,2) = 0.0;
+      invsigmaPML(0,1) = 0.0;
+      invsigmaPML(1,0) = 0.0;
+   }
 
 PlasmaProfile::PlasmaProfile(Type type, const Vector & params,
                              bool dim, CoordSystem sys,

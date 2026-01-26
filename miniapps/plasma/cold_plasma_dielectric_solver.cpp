@@ -2300,8 +2300,8 @@ CPDSolver::Solve()
       cout << "Global Total Dissipation: " << global_diss << " W" << endl;
       cout << "Percent lost on Electrons: " << (global_electron_diss/global_diss)*100.0 << endl; 
       cout << "Percent lost on Ion 1: " << (global_ion1_diss/global_diss)*100.0 << endl; 
-      cout << "Percent lost on Ion 2: " << (global_ion2_diss/global_diss)*100.0 << endl; 
-      cout << "Percent lost on Ion 3: " << (global_ion3_diss/global_diss)*100.0 << endl; 
+      if (global_ion2_diss != 0){cout << "Percent lost on Ion 2: " << (global_ion2_diss/global_diss)*100.0 << endl;}
+      if (global_ion3_diss != 0){cout << "Percent lost on Ion 3: " << (global_ion3_diss/global_diss)*100.0 << endl; }
 
       //cout << "Core Dissipation: " << core_diss << " W" << endl; 
       //cout << "SOL Dissipation: " << sol_diss << " W" << endl; 
