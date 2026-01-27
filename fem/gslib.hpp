@@ -278,12 +278,6 @@ public:
    /// Interpolation of field values, with output ordering specification.
    virtual void Interpolate(const GridFunction &field_in, Vector &field_out,
                             const int field_out_ordering);
-   /// Interpolation of field values, with output ordering from ParticleVector
-   virtual void Interpolate(const GridFunction &field_in,
-                            ParticleVector &field_out)
-   {
-      Interpolate(field_in, field_out, field_out.GetOrdering());
-   }
    /** Search positions and interpolate. The ordering (byNODES or byVDIM) of
        the output values in \p field_out corresponds to the ordering used
        in the input GridFunction \p field_in. */
