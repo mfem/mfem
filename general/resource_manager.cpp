@@ -21,6 +21,10 @@
 #endif
 #endif // MFEM_USE_UMPIRE
 
+#ifdef _MSC_VER
+#include <intrin.h>
+#endif
+
 #include <algorithm>
 #include <cstdlib>
 #include <tuple>
@@ -679,7 +683,7 @@ void MemoryManager::Dealloc(char *ptr, MemoryType type, bool temporary)
    {
       case MemoryType::PRESERVE:
       case MemoryType::DEFAULT:
-         throw std::runtime_error("Invalid MemoryType");
+         MFEM_ABORT("Invalid MemoryType");
       default:
          allocs[offset + static_cast<int>(type)]->Dealloc(ptr);
    }
@@ -711,7 +715,7 @@ std::array<size_t, 4> MemoryManager::Usage() const
                }
                else
                {
-                  throw std::runtime_error("Invalid location");
+                  MFEM_ABORT("Invalid location");
                }
             }
          }
@@ -818,17 +822,45 @@ size_t MemoryManager::RBase::insert(size_t segment, size_t node,
    return insert(get_segment(segment).roots[on_device], node, nn);
 }
 
+/// index of first unset bit + 1 starting from the LSB, or 0 if all bits are set
+static int lowest_unset(unsigned long long val)
+{
+#if defined(__GNUC__) || defined(__clang__)
+   return __builtin_ffsll(~val);
+#elif defined(_MSC_VER)
+   unsigned long res;
+   if (_BitScanForward64(&res, ~val))
+   {
+      return res + 1;
+   }
+   else
+   {
+      return 0;
+   }
+#else
+   for (int i = 0; i < sizeof(val) * 8; ++i)
+   {
+      if (val & (1ull << i))
+      {
+         return i + 1;
+      }
+   }
+   return 0;
+#endif
+}
+
 void MemoryManager::RBase::create_next_node(size_t &nn)
 {
-#if 1
-   while (nn <= nodes.size())
+   size_t idx = (nn - 1) >> 6;
+   while (idx < nodes_status.size())
    {
-      if (!(nodes[nn - 1].flag & Node::Flags::USED))
+      size_t tmp = lowest_unset(nodes_status[idx]);
+      if (tmp)
       {
-         // found a node we can reuse
+         nn = (idx << 6) + tmp;
          break;
       }
-      ++nn;
+      ++idx;
    }
    if (nn > nodes.size())
    {
@@ -839,24 +871,29 @@ void MemoryManager::RBase::create_next_node(size_t &nn)
    {
       nodes[nn - 1] = Node{};
    }
-#else
-   nodes.emplace_back();
-   nn = nodes.size();
-#endif
+   size_t tidx = (nn - 1) >> 6;
+   if (tidx >= nodes_status.size())
+   {
+      nodes_status.push_back(0);
+   }
+   nodes_status[tidx] |= 1ull << ((nn - 1) & 0x3f);
 }
 
 void MemoryManager::RBase::insert_duplicate(size_t a, size_t b)
 {
-   get_node(b).flag = static_cast<RBase::Node::Flags>(0);
-   instance().next_node = std::min(instance().next_node, b);
+   invalidate_node(b);
    cleanup_nodes();
 }
 
+
+
 void MemoryManager::RBase::cleanup_nodes()
 {
+   size_t idx = nodes.size();
    while (nodes.size())
    {
-      if (nodes.back().flag & Node::Flags::USED)
+      --idx;
+      if (nodes_status[idx >> 6] & (1ull << (idx & 0x3f)))
       {
          break;
       }
@@ -876,10 +913,17 @@ void MemoryManager::RBase::cleanup_segments()
    }
 }
 
+void MemoryManager::RBase::invalidate_node(size_t idx)
+{
+   instance().next_node = std::min(instance().next_node, idx);
+   --idx;
+   nodes_status[idx >> 6] &= ~(1ull << (idx & 0x3f));
+}
+
 void MemoryManager::erase_node(size_t &root, size_t idx)
 {
-   next_node = std::min(next_node, idx);
    storage.erase(root, idx);
+   storage.invalidate_node(idx);
 }
 
 template <class F>
@@ -910,8 +954,6 @@ void MemoryManager::mark_valid(size_t segment, bool on_device, ptrdiff_t start,
                if (pos == n.offset)
                {
                   // entire span is validated
-                  n.set_unused();
-                  pn.set_unused();
                   erase_node(seg.roots[on_device], curr);
                   curr = storage.successor(next);
                   erase_node(seg.roots[on_device], next);
@@ -959,7 +1001,6 @@ void MemoryManager::mark_valid(size_t segment, bool on_device, ptrdiff_t start,
                }
                else
                {
-                  n.set_unused();
                   erase_node(seg.roots[on_device], curr);
                   storage.cleanup_nodes();
                }
@@ -1066,8 +1107,6 @@ void MemoryManager::mark_invalid(size_t segment, bool on_device,
                if (pos == n.offset)
                {
                   // entire span is invalidated
-                  n.set_unused();
-                  pn.set_unused();
                   erase_node(seg.roots[on_device], curr);
                   curr = storage.successor(next);
                   erase_node(seg.roots[on_device], next);
@@ -1116,7 +1155,6 @@ void MemoryManager::mark_invalid(size_t segment, bool on_device,
                }
                else
                {
-                  n.set_unused();
                   erase_node(seg.roots[on_device], curr);
                   storage.cleanup_nodes();
                }
@@ -1272,8 +1310,7 @@ void MemoryManager::clear_segment(RBase::Segment &seg)
       storage.visit(seg.roots[i], [](size_t) { return true; },
       [](size_t) { return true; }, [&](size_t idx)
       {
-         next_node = std::min(next_node, idx);
-         storage.get_node(idx).flag = static_cast<RBase::Node::Flags>(0);
+         storage.invalidate_node(idx);
          return false;
       });
    }
@@ -1292,8 +1329,7 @@ void MemoryManager::clear_segment(RBase::Segment &seg, bool on_device)
    storage.visit(seg.roots[on_device], [](size_t) { return true; },
    [](size_t) { return true; }, [&](size_t idx)
    {
-      next_node = std::min(next_node, idx);
-      storage.get_node(idx).flag = static_cast<RBase::Node::Flags>(0);
+      storage.invalidate_node(idx);
       return false;
    });
    storage.cleanup_nodes();
@@ -1547,7 +1583,7 @@ void MemoryManager::check_valid(size_t curr, ptrdiff_t start, ptrdiff_t stop,
       }
       else
       {
-         throw std::runtime_error("shouldn't be here");
+         MFEM_ABORT("shouldn't be here");
       }
       curr = next;
    }
@@ -1976,10 +2012,7 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
       }
       if (copy_segs.size())
       {
-         if (!seg.lowers[!on_device])
-         {
-            throw std::runtime_error("no other to read from");
-         }
+         MFEM_VERIFY(seg.lowers[!on_device], "no other to read from");
          BatchMemCopy(seg.lowers[on_device], seg.lowers[!on_device],
                       seg.mtypes[on_device], seg.mtypes[!on_device], copy_segs);
       }
@@ -2069,10 +2102,7 @@ const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
       }
       if (copy_segs.size())
       {
-         if (!seg.lowers[!on_device])
-         {
-            throw std::runtime_error("no other to read from");
-         }
+         MFEM_VERIFY(seg.lowers[!on_device], "no other to read from");
          BatchMemCopy(seg.lowers[on_device], seg.lowers[!on_device],
                       seg.mtypes[on_device], seg.mtypes[!on_device], copy_segs);
       }
@@ -2159,11 +2189,11 @@ int MemoryManager::compare_host_device(size_t segment, size_t offset,
    return 0;
 }
 
-void MemoryManager::CopyImpl(char *dst, MemoryType dloc, size_t dst_offset,
-                             size_t marker, size_t nbytes, const char *src0,
-                             const char *src1, MemoryType sloc0,
-                             MemoryType sloc1, size_t src_offset,
-                             size_t marker0, size_t marker1)
+size_t MemoryManager::CopyImpl(char *dst, MemoryType dloc, size_t dst_offset,
+                               size_t marker, size_t nbytes, const char *src0,
+                               const char *src1, MemoryType sloc0,
+                               MemoryType sloc1, size_t src_offset,
+                               size_t marker0, size_t marker1)
 {
    if (!src0)
    {
@@ -2362,8 +2392,7 @@ void MemoryManager::CopyImpl(char *dst, MemoryType dloc, size_t dst_offset,
                                         << " stop = " << stop << std::endl;
                               mfem::err << "pos0 = " << pos0
                                         << " pos1 = " << pos1 << std::endl;
-                              throw std::runtime_error(
-                                 "no src0 or src1 to copy from");
+                              MFEM_ABORT("no src0 or src1 to copy from");
                            }
                         }
                      }
@@ -2390,8 +2419,13 @@ void MemoryManager::CopyImpl(char *dst, MemoryType dloc, size_t dst_offset,
       return false;
    });
    // dispatch copies
+   if (copy0.size() && copy1.size())
+   {
+      mfem::out << "WARNING: Copy from host and device" << std::endl;
+   }
    BatchMemCopy2(dst, src0, dloc, sloc0, copy0);
    BatchMemCopy2(dst, src1, dloc, sloc1, copy1);
+   return copy0.size() + copy1.size();
 }
 
 void MemoryManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
@@ -2424,15 +2458,20 @@ void MemoryManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
       else
       {
          // distinct host and device buffers, copy to each as needed
+         size_t ncopies = 0;
          for (int i = 0; i < 2; ++i)
          {
             if (dseg.lowers[i])
             {
                size_t curr = find_marker(dst_seg, dst_offset, i);
-               CopyImpl(dseg.lowers[i], dseg.mtypes[i], dst_offset, curr,
-                        nbytes, sseg.lowers[i], sseg.lowers[1 - i],
-                        sseg.mtypes[i], sseg.mtypes[1 - i], src_offset,
-                        currs[i], currs[1 - i]);
+               size_t tmp = CopyImpl(
+                               dseg.lowers[i], dseg.mtypes[i], dst_offset, curr, nbytes,
+                               sseg.lowers[i], sseg.lowers[1 - i], sseg.mtypes[i],
+                               sseg.mtypes[1 - i], src_offset, currs[i], currs[1 - i]);
+               if (ncopies && tmp)
+               {
+                  mfem::out << "WARNING: Copy to host and device" << std::endl;
+               }
             }
          }
       }

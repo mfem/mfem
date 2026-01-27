@@ -43,17 +43,16 @@ private:
          {
             // used for red-black tree balancing, internal
             RED_COLOR = 1 << 0,
-            USED = 1 << 1,
-            VALID = 1 << 2,
+            VALID = 1 << 1,
+            NONE = 0,
          };
          // 0 is null, i>0 refers to nodes[i-1]
          size_t parent = 0;
          size_t child[2] = {0, 0};
          ptrdiff_t offset;
-         Flags flag = static_cast<Flags>(Flags::USED);
+         Flags flag = Flags::NONE;
 
          bool is_valid() const { return flag & VALID; }
-         void set_unused() { flag = static_cast<Flags>(flag & ~USED); }
          void set_valid() { flag = static_cast<Flags>(flag | VALID); }
          void set_invalid() { flag = static_cast<Flags>(flag & ~VALID); }
          void set_black() { flag = static_cast<Flags>(flag & ~RED_COLOR); }
@@ -110,6 +109,8 @@ private:
       };
       std::vector<Node> nodes;
       std::vector<Segment> segments;
+      std::vector<uint64_t> nodes_status;
+      std::vector<uint64_t> segments_status;
 
       using RBTree<RBase>::insert;
       using RBTree<RBase>::erase;
@@ -153,6 +154,8 @@ private:
       /// Insert a validity transition marker for a given @a segment
       size_t insert(size_t segment, size_t node, ptrdiff_t offset,
                     bool on_device, bool valid, size_t &nn);
+
+      void invalidate_node(size_t node);
    };
 
    void print_segment(size_t segment);
@@ -253,10 +256,10 @@ private:
                                                 size_t nbytes, MemoryClass mc);
 
    /// src0 is the preferred copy-from location
-   void CopyImpl(char *dst, MemoryType dloc, size_t dst_offset, size_t marker,
-                 size_t nbytes, const char *src0, const char *src1,
-                 MemoryType sloc0, MemoryType sloc1, size_t src_offset,
-                 size_t marker0, size_t marker1);
+   size_t CopyImpl(char *dst, MemoryType dloc, size_t dst_offset, size_t marker,
+                   size_t nbytes, const char *src0, const char *src1,
+                   MemoryType sloc0, MemoryType sloc1, size_t src_offset,
+                   size_t marker0, size_t marker1);
 
    /// copies to the part of dst_seg which is valid
    void Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
