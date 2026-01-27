@@ -452,7 +452,7 @@ void ParticleMover::Step(real_t& t, real_t& dt, real_t L_x, bool zeroth_step)
    ParticleVector& E = charged_particles->Field(EFIELD);
    E_finder.Interpolate(*E_gf, E);
 
-   // Individually step each particle:
+   // Extract particle data
    ParticleVector& X = charged_particles->Coords();
    ParticleVector& P = charged_particles->Field(MOM);
    ParticleVector& M = charged_particles->Field(MASS);
