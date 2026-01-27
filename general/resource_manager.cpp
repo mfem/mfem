@@ -823,9 +823,10 @@ size_t MemoryManager::RBase::insert(size_t segment, size_t node,
 }
 
 /// index of first unset bit + 1 starting from the LSB, or 0 if all bits are set
-static int lowest_unset(unsigned long long val)
+static int lowest_unset(uint64_t val)
 {
 #if defined(__GNUC__) || defined(__clang__)
+   static_assert(sizeof(long long) == 8, "long long expected to be 64-bits");
    return __builtin_ffsll(~val);
 #elif defined(_MSC_VER)
    unsigned long res;
