@@ -16,18 +16,18 @@
 namespace mfem
 {
 
-FieldTransfer* FieldTransfer::Select(ParFiniteElementSpace *src,
-                                     ParFiniteElementSpace *tar, 
-                                     Type type)
+GridFunctionTransfer* GridFunctionTransfer::Select(Type type,
+                                                   ParFiniteElementSpace *src,
+                                                   ParFiniteElementSpace *tar)
 {
     switch (type)
     {
-        case Type::NATIVE:
-            return new NativeTransfer(src, tar);
-        case Type::GSLIB:
-            return new GSLibTransfer(src, tar);
+        case Type::SUBMESH:
+            return new SubMeshTransfer(src, tar);
+        // case Type::GSLIB:
+        //     return new GSLibTransfer(src, tar);
         default:
-            MFEM_ABORT("Unknown FieldTransfer scheme: " << static_cast<int>(type));
+            MFEM_ABORT("Unknown GridFunctionTransfer scheme: " << static_cast<int>(type));
     }
 }
 

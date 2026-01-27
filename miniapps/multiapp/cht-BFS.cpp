@@ -62,7 +62,7 @@
 
 #include "mfem.hpp"
 #include "multiapp.hpp"
-#include "../navier/navier_solver.hpp"
+#include "../fluids/navier/navier_solver.hpp"
 
 
 using namespace mfem;
@@ -653,10 +653,11 @@ int main(int argc, char *argv[])
    std::unique_ptr<ODESolver> Tf_odesolver = ODESolver::Select(ode_solver);
    Tf_odesolver->Init(fluid_ht);
 
-   ParGridFunction &Tf_gf = *fluid_ht.Fields().GetField("Temperature");
-   ParGridFunction &Qf_gf = *fluid_ht.Fields().GetField("Flux");
-   ParGridFunction &Tf_gf_bc = *fluid_ht.Fields().GetField("Temperature_BC");
-   ParGridFunction &Qf_gf_bc = *fluid_ht.Fields().GetField("Flux_BC");
+   ParGridFunction &Tf_gf = (ParGridFunction&)(*fluid_ht.Fields()["Temperature"]);
+   ParGridFunction &Qf_gf = (ParGridFunction&)(*fluid_ht.Fields()["Flux"]);
+   ParGridFunction &Tf_gf_bc = (ParGridFunction&)(*fluid_ht.Fields()["Temperature_BC"]);
+   ParGridFunction &Qf_gf_bc = (ParGridFunction&)(*fluid_ht.Fields()["Flux_BC"]);
+
 
    // Set initial conditions in fluid
    Tf_gf.ProjectCoefficient(*zero_coeff);
@@ -669,10 +670,10 @@ int main(int argc, char *argv[])
    std::unique_ptr<ODESolver> Ts_odesolver = ODESolver::Select(ode_solver);
    Ts_odesolver->Init(solid_ht);
 
-   ParGridFunction &Ts_gf = *solid_ht.Fields().GetField("Temperature");
-   ParGridFunction &Qs_gf = *solid_ht.Fields().GetField("Flux");
-   ParGridFunction &Ts_gf_bc = *solid_ht.Fields().GetField("Temperature_BC");
-   ParGridFunction &Qs_gf_bc = *solid_ht.Fields().GetField("Flux_BC");
+   ParGridFunction &Ts_gf = (ParGridFunction&)(*solid_ht.Fields()["Temperature"]);
+   ParGridFunction &Qs_gf = (ParGridFunction&)(*solid_ht.Fields()["Flux"]);
+   ParGridFunction &Ts_gf_bc = (ParGridFunction&)(*solid_ht.Fields()["Temperature_BC"]);
+   ParGridFunction &Qs_gf_bc = (ParGridFunction&)(*solid_ht.Fields()["Flux_BC"]);
 
    // Set initial conditions in solid
    FunctionCoefficient temp_coeff(temp_profile);
@@ -707,7 +708,7 @@ int main(int argc, char *argv[])
 
 
    // Set up field transfers
-   NativeTransfer Tf_Ts_map(Tf_fes, Ts_fes); // default map if none provided
+   SubMeshTransfer Tf_Ts_map(&Tf_fes, &Ts_fes); // default map if none provided
    // GSLibTransfer Tf_Ts_map(Tf_fes, Ts_fes);
 
    /// Create link between fields in different apps
@@ -907,7 +908,7 @@ int main(int argc, char *argv[])
       ParGridFunction sl_int_gf(&int_fes);
 
       /// Maps and linked fields to transfer domain grid functions to the interface
-      NativeTransfer fl_to_int_submesh(Tf_fes, int_fes);
+      SubMeshTransfer fl_to_int_submesh(&Tf_fes, &int_fes);
       LinkedFields TQf_to_Tint_lf(&Tf_gf, &fl_int_gf, &fl_to_int_submesh);
       LinkedFields TQs_to_Tint_lf(&Tf_gf_bc, &sl_int_gf, &fl_to_int_submesh);
 
