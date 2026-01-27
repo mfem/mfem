@@ -281,10 +281,13 @@ public:
       }
 
       for (auto &lvl : T_level)
-         for (int b = 0; b < lvl.size(); b++)
+      {
+         const int nb = static_cast<int>(lvl.size());
+         for (int b = 0; b < nb; b++)
          {
             delete lvl[b];
          }
+      }
 
       for (int i = 0; i < smoothers.Size(); i++)
       {
