@@ -863,6 +863,11 @@ void MemoryManager::RBase::create_next_node(size_t &nn)
       }
       ++idx;
    }
+   if (idx >= nodes_status.size())
+   {
+      nodes_status.push_back(0);
+      nn = (idx << 6) + 1;
+   }
    if (nn > nodes.size())
    {
       nodes.emplace_back();
@@ -870,14 +875,41 @@ void MemoryManager::RBase::create_next_node(size_t &nn)
    }
    else
    {
+      MFEM_ASSERT(nn <= nodes.size(), "nn too large");
       nodes[nn - 1] = Node{};
    }
-   size_t tidx = (nn - 1) >> 6;
-   if (tidx >= nodes_status.size())
+   nodes_status[idx] |= 1ull << ((nn - 1) & 0x3f);
+}
+
+void MemoryManager::RBase::create_next_segment(size_t &ns)
+{
+   size_t idx = (ns - 1) >> 6;
+   while (idx < segments_status.size())
    {
-      nodes_status.push_back(0);
+      size_t tmp = lowest_unset(segments_status.at(idx));
+      if (tmp)
+      {
+         ns = (idx << 6) + tmp;
+         break;
+      }
+      ++idx;
    }
-   nodes_status[tidx] |= 1ull << ((nn - 1) & 0x3f);
+   if (idx >= segments_status.size())
+   {
+      segments_status.push_back(0);
+      ns = (idx << 6) + 1;
+   }
+   if (ns > segments.size())
+   {
+      segments.emplace_back();
+      MFEM_ASSERT(ns <= segments.size(), "ns too large");
+   }
+   else
+   {
+      MFEM_ASSERT(ns <= segments.size(), "ns too large");
+      segments[ns - 1] = Segment{};
+   }
+   segments_status[idx] |= 1ull << ((ns - 1) & 0x3f);
 }
 
 void MemoryManager::RBase::insert_duplicate(size_t a, size_t b)
@@ -1246,18 +1278,8 @@ size_t MemoryManager::insert(char *hptr, char *dptr, size_t nbytes,
 {
    MFEM_ASSERT(hloc != MemoryType::PRESERVE, "hloc cannot be PRESERVE");
    MFEM_ASSERT(dloc != MemoryType::PRESERVE, "dloc cannot be PRESERVE");
-   while (next_segment <= storage.segments.size() &&
-          storage.get_segment(next_segment).ref_count != 0)
-   {
-      ++next_segment;
-   }
-   if (next_segment > storage.segments.size())
-   {
-      storage.segments.emplace_back();
-      next_segment = storage.segments.size();
-   }
+   storage.create_next_segment(next_segment);
    auto &seg = storage.get_segment(next_segment);
-   seg = RBase::Segment{};
    MFEM_ASSERT(seg.roots[0] == 0, "unexpected host root");
    MFEM_ASSERT(seg.roots[1] == 0, "unexpected device root");
    seg.lowers[0] = hptr;
@@ -1392,10 +1414,9 @@ void MemoryManager::erase(size_t segment)
             seg.flag = RBase::Segment::Flags::NONE;
             clear_segment(segment);
             storage.cleanup_segments();
-            if (next_segment >= segment)
-            {
-               next_segment = segment;
-            }
+            size_t idx = segment - 1;
+            storage.segments_status[idx >> 6] &= ~(1ull << (idx & 0x3f));
+            next_segment = std::min<size_t>(next_segment, segment);
          }
       }
    }

@@ -147,6 +147,8 @@ private:
 
       void create_next_node(size_t &nn);
 
+      void create_next_segment(size_t &ns);
+
       /// Insert a validity transition marker for a given @a segment
       size_t insert(size_t segment, ptrdiff_t offset, bool on_device,
                     bool valid, size_t &nn);
