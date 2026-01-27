@@ -134,10 +134,6 @@ protected:
    /// Temporary vectors for particle computation
    mutable Vector pm_, pp_;
 
-   /// Get values of a ParGridFunction at given particle coordinates
-   static void GetValues(const ParticleVector& coords, FindPointsGSLIB& finder,
-                         ParGridFunction& gf, ParticleVector& pv);
-
 public:
    ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_, FindPointsGSLIB& E_finder_,
        int num_particles,
@@ -147,9 +143,6 @@ public:
    void InitializeChargedParticles(const real_t& k, const real_t& alpha,
                                    real_t m, real_t q, real_t L_x,
                                    bool reproduce = false);
-
-   /// Interpolate E field to particles
-   void InterpolateE();
 
    /// Find Particles in mesh corresponding to E and field
    void FindParticles();
@@ -376,15 +369,6 @@ int main(int argc, char* argv[])
    delete E_gf;
 }
 
-void ParticleMover::GetValues(const ParticleVector& coords, FindPointsGSLIB& E_finder,
-                    ParGridFunction& gf, ParticleVector& pv)
-{
-   Mesh &mesh = *gf.FESpace()->GetMesh();
-   E_finder.Interpolate(gf, pv);
-   Ordering::Reorder(pv, pv.GetVDim(), gf.FESpace()->GetOrdering(),
-                     pv.GetOrdering());
-}
-
 ParticleMover::ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_, FindPointsGSLIB& E_finder_,
          int num_particles,
          Ordering::Type pdata_ordering)
@@ -454,31 +438,23 @@ void ParticleMover::InitializeChargedParticles(const real_t& k,
    FindParticles();
 }
 
-void ParticleMover::InterpolateE()
-{
-   ParticleVector& X = charged_particles->Coords();
-   ParticleVector& E = charged_particles->Field(EFIELD);
-
-   // Interpolate E-field onto particles
-   GetValues(X, E_finder, *E_gf, E);
-}
-
 void ParticleMover::FindParticles()
 {
-   ParticleVector &X = charged_particles->Coords();
-   E_finder.FindPoints(X, X.GetOrdering());
+   E_finder.FindPoints(charged_particles->Coords());
 }
 
 void ParticleMover::Step(real_t& t, real_t& dt, real_t L_x, bool zeroth_step)
 {
-   InterpolateE();
+   // Update E field at particles
+   ParticleVector& E = charged_particles->Field(EFIELD);
+   E_finder.Interpolate(*E_gf, E);
+
    // Individually step each particle:
    ParticleVector& X = charged_particles->Coords();
    ParticleVector& P = charged_particles->Field(MOM);
-   ParticleVector& E = charged_particles->Field(EFIELD);
    ParticleVector& M = charged_particles->Field(MASS);
    ParticleVector& Q = charged_particles->Field(CHARGE);
-   
+
    // Periodic boundary: wrap coordinates to [0, L_x)
    const int npt = charged_particles->GetNParticles();
    const int dim = X.GetVDim();
