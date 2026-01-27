@@ -423,9 +423,9 @@ void NavierParticles::InterpolateUW(const ParGridFunction &u_gf,
 {
    finder.FindPoints(X());
 
-   finder.Interpolate(u_gf, U());
+   finder.Interpolate(u_gf, U(), U().GetOrdering());
 
-   finder.Interpolate(w_gf, W());
+   finder.Interpolate(w_gf, W(), W().GetOrdering());
 }
 
 void NavierParticles::DeactivateLostParticles(bool findpts)

@@ -447,7 +447,7 @@ void ParticleMover::Step(real_t& t, real_t& dt, real_t L_x, bool zeroth_step)
 {
    // Update E field at particles
    ParticleVector& E = charged_particles->Field(EFIELD);
-   E_finder.Interpolate(*E_gf, E);
+   E_finder.Interpolate(*E_gf, E, E.GetOrdering());
 
    // Individually step each particle:
    ParticleVector& X = charged_particles->Coords();
