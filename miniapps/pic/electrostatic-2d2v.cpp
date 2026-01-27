@@ -169,7 +169,9 @@ private:
    bool neutralizing_const_computed = false;
    bool precompute_neutralizing_const = false;
    // Diffusion matrix
-   HypreParMatrix* DiffusionMatrix;
+   HypreParMatrix* diffusion_matrix;
+   // Gradient operator for computing E = -∇φ
+   ParDiscreteLinearOperator* grad_interpolator;
    FindPointsGSLIB& E_finder;
    int visport;
    bool visualization;
@@ -177,14 +179,15 @@ private:
    socketstream vis_phi;
 
 public:
-   FieldSolver(ParFiniteElementSpace* pfes, FindPointsGSLIB& E_finder_,
+   FieldSolver(ParFiniteElementSpace* sca_fes, ParFiniteElementSpace* vec_fes,
+                       FindPointsGSLIB& E_finder_,
                        int visport_, bool visualization_,
                        bool precompute_neutralizing_const_ = false);
 
    ~FieldSolver();
 
    /// Update the phi_gf grid function from the particles.
-   /// Solve periodic Poisson: DiffusionMatrix * phi = (rho - <rho>)
+   /// Solve periodic Poisson: diffusion_matrix * phi = (rho - <rho>)
    /// with zero-mean enforcement via OrthoSolver.
    void UpdatePhiGridFunction(ParticleSet& particles, ParGridFunction& phi_gf,
                               ParGridFunction& E_gf);
@@ -280,7 +283,7 @@ int main(int argc, char* argv[])
    *E_gf = 0.0;   // Initialize E_gf to zero
 
    // 6. Build the grid function updates
-   FieldSolver field_solver(&sca_fespace, E_finder, ctx.visport,
+   FieldSolver field_solver(&sca_fespace, &vec_fespace, E_finder, ctx.visport,
                                   ctx.visualization, true);
    Ordering::Type ordering_type =
       ctx.ordering == 0 ? Ordering::byNODES : Ordering::byVDIM;
@@ -449,7 +452,7 @@ void ParticleMover::Step(real_t& t, real_t& dt, real_t L_x, bool zeroth_step)
    ParticleVector& E = charged_particles->Field(EFIELD);
    E_finder.Interpolate(*E_gf, E, E.GetOrdering());
 
-   // Individually step each particle:
+   // Extract particle data
    ParticleVector& X = charged_particles->Coords();
    ParticleVector& P = charged_particles->Field(MOM);
    ParticleVector& M = charged_particles->Field(MASS);
@@ -507,7 +510,7 @@ real_t ParticleMover::ComputeKineticEnergy() const
    return kinetic_energy;
 }
 
-FieldSolver::FieldSolver(ParFiniteElementSpace* pfes,
+FieldSolver::FieldSolver(ParFiniteElementSpace* sca_fes, ParFiniteElementSpace* vec_fes,
                                          FindPointsGSLIB& E_finder_,
                                          int visport_, bool visualization_,
                                          bool precompute_neutralizing_const_)
@@ -517,18 +520,18 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* pfes,
      visualization(visualization_)
 {
    // compute domain volume
-   ParMesh* pmesh = pfes->GetParMesh();
+   ParMesh* pmesh = sca_fes->GetParMesh();
    real_t local_domain_volume = 0.0;
    for (int i = 0; i < pmesh->GetNE(); i++)
    {
       local_domain_volume += pmesh->GetElementVolume(i);
    }
    MPI_Allreduce(&local_domain_volume, &domain_volume, 1, MPI_DOUBLE,
-                 MPI_SUM, pfes->GetParMesh()->GetComm());
+                 MPI_SUM, sca_fes->GetParMesh()->GetComm());
 
    {
       // Par bilinear form for the gradgrad matrix
-      ParBilinearForm dm(pfes);
+      ParBilinearForm dm(sca_fes);
       ConstantCoefficient epsilon(EPSILON);  // ε_0
       dm.AddDomainIntegrator(
          new DiffusionIntegrator(epsilon));  // ∫ ∇φ_i · ∇φ_j
@@ -536,14 +539,22 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* pfes,
       dm.Assemble();
       dm.Finalize();
 
-      DiffusionMatrix = dm.ParallelAssemble();  // global gradgrad matrix
+      diffusion_matrix = dm.ParallelAssemble();  // global gradgrad matrix
+   }
+
+   {
+      // Compute E = -∇φ using DiscreteLinearOperator
+      grad_interpolator = new ParDiscreteLinearOperator(sca_fes, vec_fes);
+      grad_interpolator->AddDomainInterpolator(new GradientInterpolator);
+      grad_interpolator->Assemble();
    }
 }
 
 FieldSolver::~FieldSolver()
 {
-   delete DiffusionMatrix;
+   delete diffusion_matrix;
    delete precomputed_neutralizing_lf;
+   delete grad_interpolator;
 }
 
 void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
@@ -683,20 +694,20 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
       // ------------------------------------------------------------------
       // 5) Solve A * phi = B with zero-mean enforcement via OrthoSolver
       // ------------------------------------------------------------------
-      MFEM_VERIFY(DiffusionMatrix != nullptr,
-                  "DiffusionMatrix must be precomputed.");
+      MFEM_VERIFY(diffusion_matrix != nullptr,
+                  "diffusion_matrix must be precomputed.");
 
       phi_gf = 0.0;
       HypreParVector Phi_true(pfes);
       Phi_true = 0.0;
 
-      HyprePCG solver(DiffusionMatrix->GetComm());
-      solver.SetOperator(*DiffusionMatrix);
+      HyprePCG solver(diffusion_matrix->GetComm());
+      solver.SetOperator(*diffusion_matrix);
       solver.SetTol(1e-12);
       solver.SetMaxIter(200);
       solver.SetPrintLevel(0);
 
-      HypreBoomerAMG prec(*DiffusionMatrix);
+      HypreBoomerAMG prec(*diffusion_matrix);
       prec.SetPrintLevel(0);
       solver.SetPreconditioner(prec);
 
@@ -710,11 +721,8 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
    }
 
    {
-      // Compute E = -∇φ using DiscreteLinearOperator (from ex24p)
-      ParDiscreteLinearOperator grad(phi_gf.ParFESpace(), E_gf.ParFESpace());
-      grad.AddDomainInterpolator(new GradientInterpolator);
-      grad.Assemble();
-      grad.Mult(phi_gf, E_gf);
+      // Compute E = -∇φ using precomputed gradient operator
+      grad_interpolator->Mult(phi_gf, E_gf);
       // Scale by -1 to get E = -∇φ
       E_gf *= -1.0;
    }
