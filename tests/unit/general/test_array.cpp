@@ -125,6 +125,83 @@ TEST_CASE("Array stl-interactions", "[Array]")
    }
 }
 
+
+TEST_CASE("Array move assignment to view (MakeRef)", "[Array]")
+{
+   constexpr int n = 5;
+
+   // Helper function that returns an Array by value (rvalue)
+   auto make_sequence_array = [](int n)
+   {
+      Array<int> arr(n);
+      for (int i = 0; i < n; i++)
+      {
+         arr[i] = i + 1;  // 1, 2, 3, ...
+      }
+      return arr;
+   };
+
+   SECTION("Move assignment from rvalue to Array view")
+   {
+      // Create backing storage
+      Array<int> backing(n);
+      backing = 0.0;
+
+      // Create a view into the backing storage
+      Array<int> view;
+      view.MakeRef(backing);
+
+      // Assign from rvalue - this triggers move assignment
+      view = make_sequence_array(n);
+
+      // The backing storage should now contain [1, 2, 3, 4, 5]
+      // Without falling back to copy assignment, this would error.
+      for (int i = 0; i < n; i++)
+      {
+         CHECK(backing[i] == i + 1);
+      }
+   }
+
+   SECTION("Copy assignment from lvalue to Array view - workaround")
+   {
+      // Create backing storage
+      Array<int> backing(n);
+      backing = 0.0;
+
+      // Create a view into the backing storage
+      Array<int> view;
+      view.MakeRef(backing);
+
+      // Workaround: Store in local variable first (forces copy assignment)
+      Array<int> temp = make_sequence_array(n);
+      view = temp;
+
+      for (int i = 0; i < n; i++)
+      {
+         CHECK(backing[i] == i + 1);
+      }
+   }
+
+   SECTION("MakeRef with raw pointer")
+   {
+      // Create backing storage as raw array
+      int backing[n] = {0, 0, 0, 0, 0};
+
+      // Create a view into the backing storage
+      Array<int> view;
+      view.MakeRef(backing, n);
+
+      // Assign from rvalue
+      view = make_sequence_array(n);
+
+      // The backing storage should now contain [1, 2, 3, 4, 5]
+      for (int i = 0; i < n; i++)
+      {
+         CHECK(backing[i] == i + 1);
+      }
+   }
+}
+
 TEST_CASE("Array delete at indices", "[Array],[GPU]")
 {
    for (int use_dev = 0; use_dev < 2; use_dev++)

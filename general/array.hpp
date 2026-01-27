@@ -114,11 +114,25 @@ public:
    Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }
 
    /// Move assignment operator
+   /** If this Array is a non-owning view (e.g., from MakeRef), the data is
+       copied instead of moved to preserve the view semantics. */
    Array<T> &operator=(Array<T> &&src)
    {
       if (this == &src) { return *this; }
-      Swap(src);  // Swap does not use move assignment!
-      src.DeleteAll();
+      // If this is a view (non-owning), we must copy data into the external
+      // storage rather than replacing the data pointer via move semantics.
+      if (!OwnsData())
+      {
+         // Convert rvalue to lvalue to force invoke copy assignment
+         *this = static_cast<Array<T>&>(src);
+         src.DeleteAll();  // Leave src in valid moved-from state
+      }
+      else
+      {
+         // Default move semantics for owning arrays
+         Swap(src);
+         src.DeleteAll();
+      }
       return *this;
    }
 
