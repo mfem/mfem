@@ -172,6 +172,7 @@ int main (int argc, char *argv[])
    int mesh_node_order   = 0;
    int barrier_type      = 0;
    int worst_case_type   = 0;
+   bool detj_bound       = false;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -330,7 +331,9 @@ int main (int argc, char *argv[])
                   "0 - None,"
                   "1 - Beta,"
                   "2 - PMean.");
-
+   args.AddOption(&detj_bound, "-db", "--detj-bound",
+                  "-no-db", "--no-detj-bound",
+                  "Enable or disable determinant of Jacobian bounds.");
    args.Parse();
    if (!args.Good())
    {
@@ -384,6 +387,9 @@ int main (int argc, char *argv[])
    // shapes of the mesh elements.
    ParGridFunction x(pfespace);
    pmesh->SetNodalGridFunction(&x);
+
+   auto detgf = pmesh->GetJacobianDeterminantGF();
+
 
    // We create an H1 space for the mesh displacement. The displacement is
    // always in a continuous space, even if the mesh is periodic.
@@ -468,6 +474,7 @@ int main (int argc, char *argv[])
          common::VisualizeMesh(vis1, "localhost", 19916, *pmesh, "Perturbed",
                                300, 600, 300, 300);
       }
+      pmesh->UpdateJacobianDeterminantGF(detgf.get());
    }
 
    // Save the starting (prior to the optimization) mesh to a file. This
@@ -597,8 +604,8 @@ int main (int argc, char *argv[])
       }
       untangler_metric = new TMOP_WorstCaseUntangleOptimizer_Metric(*metric,
                                                                     2,
-                                                                    1.5,
-                                                                    0.001,//0.01 for pseudo barrier
+                                                                    detj_bound ? 1.0 : 1.5,
+                                                                    detj_bound ? 1e-2 : 1e-4,//0.01 for pseudo barrier
                                                                     0.001,
                                                                     btype,
                                                                     wctype);
@@ -939,6 +946,9 @@ int main (int argc, char *argv[])
       }
    }
 
+   // Enable determinant bounding if requested
+   if (detj_bound) { tmop_integ->EnableDeterminantPLBounds(detgf.get(), 4, 4); }
+
    //
    // Setup the ParNonlinearForm which defines the integral of interest, its
    // first and second derivatives.
@@ -1184,6 +1194,7 @@ int main (int argc, char *argv[])
    const IntegrationRule &ir =
       irules->Get(pmesh->GetTypicalElementGeometry(), quad_order);
    TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
+   if (detj_bound) { solver.EnsurePositiveDeterminantBound(); }
    // Provide all integration rules in case of a mixed mesh.
    solver.SetIntegrationRules(*irules, quad_order);
    // Specify linear solver when we use a Newton-based solver.
