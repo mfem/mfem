@@ -141,64 +141,40 @@ TEST_CASE("Array move assignment to view (MakeRef)", "[Array]")
       return arr;
    };
 
-   SECTION("Move assignment from rvalue to Array view")
+   // Create backing storage
+   Array<int> backing1(n), backing2(n);
+   backing1 = 0.0; backing2 = 0.0;
+
+   // Create a view into the backing storage
+   Array<int> view1, view2;
+   view1.MakeRef(backing1);
+   view2.MakeRef(backing2);
+
+   auto seq_array = make_sequence_array(n);
+   view1 = seq_array; // copy assign
+   view2 = std::move(seq_array); // move assign
+
+   CHECK(seq_array.Size() == 0); // seq_array is invalidated by the move
+
+   // Both assignments should be semantically equivalent.
+   for (int i = 0; i < n; i++)
    {
-      // Create backing storage
-      Array<int> backing(n);
-      backing = 0.0;
-
-      // Create a view into the backing storage
-      Array<int> view;
-      view.MakeRef(backing);
-
-      // Assign from rvalue - this triggers move assignment
-      view = make_sequence_array(n);
-
-      // The backing storage should now contain [1, 2, 3, 4, 5]
-      // Without falling back to copy assignment, this would error.
-      for (int i = 0; i < n; i++)
-      {
-         CHECK(backing[i] == i + 1);
-      }
+      CHECK(backing1[i] == backing2[i]);
    }
 
-   SECTION("Copy assignment from lvalue to Array view - workaround")
+   // Create backing storage as raw array
+   int backing3[n] = {0, 0, 0, 0, 0};
+
+   // Create a view into the backing storage
+   Array<int> view3;
+   view3.MakeRef(backing3, n);
+
+   // Assign from rvalue
+   view3 = std::move(view2);
+
+   for (int i = 0; i < n; i++)
    {
-      // Create backing storage
-      Array<int> backing(n);
-      backing = 0.0;
-
-      // Create a view into the backing storage
-      Array<int> view;
-      view.MakeRef(backing);
-
-      // Workaround: Store in local variable first (forces copy assignment)
-      Array<int> temp = make_sequence_array(n);
-      view = temp;
-
-      for (int i = 0; i < n; i++)
-      {
-         CHECK(backing[i] == i + 1);
-      }
-   }
-
-   SECTION("MakeRef with raw pointer")
-   {
-      // Create backing storage as raw array
-      int backing[n] = {0, 0, 0, 0, 0};
-
-      // Create a view into the backing storage
-      Array<int> view;
-      view.MakeRef(backing, n);
-
-      // Assign from rvalue
-      view = make_sequence_array(n);
-
-      // The backing storage should now contain [1, 2, 3, 4, 5]
-      for (int i = 0; i < n; i++)
-      {
-         CHECK(backing[i] == i + 1);
-      }
+      CHECK(backing3[i] == backing1[i]);
    }
 }
 

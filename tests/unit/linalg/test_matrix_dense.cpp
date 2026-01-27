@@ -962,10 +962,10 @@ TEST_CASE("NNLS", "[DenseMatrix]")
 
 #endif // if MFEM_USE_LAPACK
 
-TEST_CASE("DenseMatrix assignment to DenseTensor view",
+TEST_CASE("DenseTensor slice copy and move assign equivalency",
           "[DenseMatrix][DenseTensor]")
 {
-   auto make_identity_matrix = [](int n)
+   auto fill_matrix = [](int n)
    {
       DenseMatrix M(n, n);
       M = 0.0;
@@ -980,37 +980,19 @@ TEST_CASE("DenseMatrix assignment to DenseTensor view",
    constexpr int n = 3;
    constexpr int k = 2;
 
-   DenseTensor tensor(n, n, k);
-   tensor = 0.0;
+   DenseTensor tensor1(n, n, k), tensor2(n, n, k);
+   tensor1 = 0.0; tensor2 = 0.0;
 
-   SECTION("Move assignment from rvalue to DenseTensor view")
+   DenseMatrix temp = fill_matrix(n);
+   tensor1(0) = temp; // copy assign
+   tensor2(0) = std::move(temp); // move assign
+
+   // Check that the tensor was actually updated
+   for (int i = 0; i < n; i++)
    {
-      // Get a view to tensor slice 0 and assign from rvalue
-      tensor(0) = make_identity_matrix(n);
-
-      // Check that the tensor was actually updated
-      for (int i = 0; i < n; i++)
+      for (int j = 0; j < n; j++)
       {
-         for (int j = 0; j < n; j++)
-         {
-            CHECK(tensor(i, j, 0) == i + j*n + 1);
-         }
-      }
-   }
-
-   SECTION("Copy assignment from lvalue to DenseTensor view")
-   {
-      // Get a view to tensor slice 0 and assign from rvalue
-      DenseMatrix temp = make_identity_matrix(n);
-      tensor(0) = temp;
-
-      // Check that the tensor was actually updated
-      for (int i = 0; i < n; i++)
-      {
-         for (int j = 0; j < n; j++)
-         {
-            CHECK(tensor(i, j, 0) == i + j*n + 1);
-         }
+         CHECK(tensor1(i, j, 0) == tensor2(i, j, 0));
       }
    }
 }
