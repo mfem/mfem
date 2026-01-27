@@ -5,32 +5,6 @@
 using namespace std;
 using namespace mfem;
 
-class PrefinementMultigrid : public MultigridBase
-{
-private:
-   Array<BlockOperator *> prolongations;
-   Array<Solver *> smoothers;
-   Array<int> orders;
-   Array<FiniteElementSpace *> & pfes;
-   int npfes;
-   const BlockOperator & Op;
-   int nblocks;
-public:
-   PrefinementMultigrid(const Array<FiniteElementSpace *> & pfes_,
-                        const BlockOperator & Op_)
-      : MultigridBase(), pfes(pfes_), npfes(pfes.Size()), Op(Op_)
-   {
-      nblocks = Op.NumRowBlocks();
-      orders.SetSize(npfes);
-      for (int i = 0; i < npfes; i++)
-      {
-         orders[i] = pfes[i]->FEColl()->GetOrder();
-      }
-   }
-};
-
-
-
 real_t sin_func(const Vector &x)
 {
    real_t val = sin(M_PI * x.Sum());
