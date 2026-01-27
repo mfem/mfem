@@ -538,9 +538,7 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* pfes,
    : precompute_neutralizing_const(precompute_neutralizing_const_),
      E_finder(E_finder_),
      visport(visport_),
-     visualization(visualization_),
-     vis_e("localhost", visport_),
-     vis_phi("localhost", visport_)
+     visualization(visualization_)
 {
    // compute domain volume
    ParMesh* pmesh = pfes->GetParMesh();
