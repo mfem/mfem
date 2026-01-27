@@ -273,7 +273,8 @@ public:
                               \p field_in is in H1 and in the same space as the
                               mesh that was given to Setup().
        @param[out] field_out  Interpolated values. For points that are not found
-                              the value is set to #default_interp_value. */
+                              the value is set to #default_interp_value.
+                              The output ordering is determined from field_in.*/
    virtual void Interpolate(const GridFunction &field_in, Vector &field_out);
    /// Interpolation of field values, with output ordering specification.
    virtual void Interpolate(const GridFunction &field_in, Vector &field_out,
