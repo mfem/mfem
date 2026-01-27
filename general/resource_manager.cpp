@@ -829,15 +829,13 @@ static int lowest_unset(uint64_t val)
    static_assert(sizeof(long long) == 8, "long long expected to be 64-bits");
    return __builtin_ffsll(~val);
 #elif defined(_MSC_VER)
-   unsigned long res;
-   if (_BitScanForward64(&res, ~val))
-   {
-      return res + 1;
-   }
-   else
+   if (val == ~0ull)
    {
       return 0;
    }
+   unsigned long res;
+   _BitScanForward64(&res, ~val);
+   return res + 1;
 #else
    for (int i = 0; i < sizeof(val) * 8; ++i)
    {
@@ -2351,6 +2349,18 @@ size_t MemoryManager::CopyImpl(char *dst, MemoryType dloc, size_t dst_offset,
                   }
                   else
                   {
+                     // can copy up to the min of stop, start of next src0 valid
+                     // section, or end of current src1 valid section
+                     auto stop1 = stop;
+                     if (next_m0)
+                     {
+                        // next_m0 is guaranteed to be valid
+                        MFEM_ASSERT(storage.get_node(next_m0).is_valid(),
+                                    "expected next_m0 to be valid");
+                        auto npos0 = storage.get_node(next_m0).offset - src_offset;
+
+                        stop1 = std::min<decltype(stop1)>(stop1, npos0);
+                     }
                      if (marker1)
                      {
                         advance_marker(marker1, next_m1);
@@ -2363,11 +2373,15 @@ size_t MemoryManager::CopyImpl(char *dst, MemoryType dloc, size_t dst_offset,
                               "marker1 should always be invalid at this point");
                            copy1.emplace_back(src_offset + start);
                            copy1.emplace_back(dst_offset + start);
-                           if (stop <= pos1)
+                           if (stop1 <= pos1)
                            {
-                              // copy up to stop
-                              copy1.emplace_back(stop - start);
-                              return false;
+                              // copy up to stop1
+                              copy1.emplace_back(stop1 - start);
+                              if (stop == stop1)
+                              {
+                                 return false;
+                              }
+                              start = stop1;
                            }
                            else
                            {
@@ -2388,11 +2402,15 @@ size_t MemoryManager::CopyImpl(char *dst, MemoryType dloc, size_t dst_offset,
                                  auto npos1 = storage.get_node(next_m1).offset -
                                               src_offset;
                                  MFEM_ASSERT(npos1 > pos1, "invalid segment 1");
-                                 if (stop <= npos1)
+                                 if (stop1 <= npos1)
                                  {
-                                    // copy up to stop
-                                    copy1.emplace_back(stop - start);
-                                    return false;
+                                    // copy up to stop1
+                                    copy1.emplace_back(stop1 - start);
+                                    if (stop == stop1)
+                                    {
+                                       return false;
+                                    }
+                                    start = stop1;
                                  }
                                  else
                                  {
@@ -2403,9 +2421,13 @@ size_t MemoryManager::CopyImpl(char *dst, MemoryType dloc, size_t dst_offset,
                               }
                               else
                               {
-                                 // copy up to stop
-                                 copy1.emplace_back(stop - start);
-                                 return false;
+                                 // copy up to stop1
+                                 copy1.emplace_back(stop1 - start);
+                                 if (stop1 == stop)
+                                 {
+                                    return false;
+                                 }
+                                 start = stop1;
                               }
                            }
                            else
@@ -2420,11 +2442,15 @@ size_t MemoryManager::CopyImpl(char *dst, MemoryType dloc, size_t dst_offset,
                      }
                      else
                      {
-                        // no marker1, copy from src1 up to stop
+                        // no marker1, copy from src1 up to stop1
                         copy1.emplace_back(src_offset + start);
                         copy1.emplace_back(dst_offset + start);
-                        copy1.emplace_back(stop - start);
-                        return false;
+                        copy1.emplace_back(stop1 - start);
+                        if (stop1 == stop)
+                        {
+                           return false;
+                        }
+                        start = stop1;
                      }
                   }
                }
