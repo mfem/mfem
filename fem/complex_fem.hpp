@@ -259,7 +259,7 @@ public:
 
    /// Update the alias memory location of the real and imaginary LinearForm @a
    /// lfr and @a lfi to match the ComplexLinearForm.
-   void SyncAlias() {lfr->SyncAliasMemory(*this); lfi->SyncAliasMemory(*this); }
+   void SyncAlias() { lfr->SyncAliasMemory(*this); lfi->SyncAliasMemory(*this); }
 
    void Update();
    void Update(FiniteElementSpace *f);

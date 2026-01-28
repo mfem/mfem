@@ -1839,7 +1839,8 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::AllocR()
    real_t* data = Memory<real_t>(dof_dofI[ndof_lor]);
 
    std::unique_ptr<SparseMatrix> R_local(new SparseMatrix(
-                                            dof_dofI, dof_dofJ, data, ndof_lor, ndof_ho, true, true, true));
+                                            dof_dofI, dof_dofJ, data, ndof_lor,
+                                            ndof_ho, true, true, true));
    (*R_local) = 0.0;
 
    dof_lor_dof_ho.LoseData();
