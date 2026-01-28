@@ -1119,9 +1119,11 @@ void ParFiniteElementSpace::Synchronize(Array<int> &ldof_marker) const
 
 void ParFiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
                                               Array<int> &ess_dofs,
-                                              int component) const
+                                              int component,
+                                              bool overwrite) const
 {
-   FiniteElementSpace::GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, component);
+   FiniteElementSpace::GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, component,
+                                         overwrite);
 
    // Make sure that processors without boundary elements mark
    // their boundary dofs (if they have any).
@@ -1176,6 +1178,39 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
       MFEM_VERIFY(counter == 0, "internal MFEM error: counter = " << counter
                   << ", rank = " << MyRank << ", " << error_msg);
    }
+#endif
+
+   MarkerToList(true_ess_dofs, ess_tdof_list);
+}
+
+void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
+                                                 &bdr_attr_is_ess,
+                                                 Array<int> &ess_tdof_list,
+                                                 const Array2D<bool> &component)
+{
+   MFEM_VERIFY(!IsVariableOrderH1(),
+               "Variable order H1 spaces are currently not supported with this feature");
+
+   Array<int> ess_dofs, true_ess_dofs;
+
+   GetEssentialVDofsFromComponent(bdr_attr_is_ess, component, ess_dofs);
+   GetRestrictionMatrix()->BooleanMult(ess_dofs, true_ess_dofs);
+
+#ifdef MFEM_DEBUG
+   // Verify that in boolean arithmetic: P^T ess_dofs = R ess_dofs.
+   Array<int> true_ess_dofs2(true_ess_dofs.Size());
+   HypreParMatrix *Pt = Dof_TrueDof_Matrix()->Transpose();
+   const int *ess_dofs_data = ess_dofs.HostRead();
+   Pt->BooleanMult(1, ess_dofs_data, 0, true_ess_dofs2);
+   delete Pt;
+   int counter = 0;
+   const int *ted = true_ess_dofs.HostRead();
+   for (int i = 0; i < true_ess_dofs.Size(); i++)
+   {
+      if (bool(ted[i]) != bool(true_ess_dofs2[i])) { counter++; }
+   }
+   MFEM_VERIFY(counter == 0, "internal MFEM error: counter = " << counter
+               << ", rank = " << MyRank);
 #endif
 
    MarkerToList(true_ess_dofs, ess_tdof_list);
