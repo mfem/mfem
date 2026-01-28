@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
    real_t kappa_0 = 1.0;
    int ncoarse = 4; 
    int num_levels = 2;
-   int smoother = 1; // 0 - Block GS, 1 - Block L1 Jacobi, 2 - Block ILU
+   int smoother = 0; // 0 - Block GS, 1 - Block L1 Jacobi, 2 - Block ILU
    bool paraview_vis = false;
 
    OptionsParser args(argc, argv);

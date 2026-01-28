@@ -1,3 +1,4 @@
+
 // Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
@@ -64,7 +65,6 @@ std::vector<std::vector<int>> Agglomerate(Mesh &mesh, int ncoarse)
       if(j >= num_partitions){E.resize(E.size()+1);}
 
       // macro_elements is a data structure which, for each macro element idx i, gives the indices of all the fine mesh elements which belong to it
-      // populate macro-elements (this is done twice on first run)
       std::vector<std::vector<int>> macro_elements(E[j-1].size());
       for (int i = 0; i < p.Size(); ++i)
       {
@@ -105,119 +105,191 @@ std::vector<std::vector<int>> Agglomerate(Mesh &mesh, int ncoarse)
    return E;
 }
 
+void GetMeshSubsetBoundingBox(const mfem::Mesh &mesh, const std::vector<int> &E2l, int c, mfem::Vector &min_coords, mfem::Vector &max_coords) {
+   int dim = mesh.SpaceDimension();
+   min_coords.SetSize(dim);
+   max_coords.SetSize(dim);
+
+   // Initialize min/max with extreme values
+   for (int i = 0; i < dim; ++i) {
+       min_coords(i) = infinity();
+       max_coords(i) = -infinity();
+   }
+
+   for (int i = 0; i < E2l.size(); ++i) {
+       if (E2l[i] == c) {
+           mfem::Array<int> vert_indices;
+           mesh.GetElementVertices(i, vert_indices);
+           for (int j = 0; j < vert_indices.Size(); ++j) {
+               const double* coords = mesh.GetVertex(vert_indices[j]);
+               for (int k = 0; k < dim; ++k) {
+                   if (coords[k] < min_coords(k)) {min_coords(k) = coords[k];};
+                   if (coords[k] > max_coords(k)) {max_coords(k) = coords[k];};
+               }
+           }
+       }
+   }
+}
+
 SparseMatrix *CreateNodalProlongation(
-   const std::vector<std::vector<int>> &E, FiniteElementSpace &fes)
+   const std::vector<std::vector<int>> &E, const std::vector<std::vector<int>> &E2, FiniteElementSpace &fes)
+{
+   Mesh &mesh = *fes.GetMesh();
+   int ne = mesh.GetNE();
+   int dim = mesh.Dimension();
+   int d = (dim == 2) ? 4 : 8;
+   FiniteElementSpace nodal_fes(&mesh, fes.FEColl(), dim);
+   GridFunction nodes(&nodal_fes);
+   mesh.GetNodes(nodes);
+   int nnodes = nodes.Size()/dim;
+   int nnodes_per_el = nnodes/ne; // Assumes same number of nodes per element on fine mesh
+   const int n = E.size();
+   int nc = d*E[n-2].size();
+   int nr = nnodes_per_el*E[n-1].size();
+   std::cout << "inclusion prolongation rows: " << nr << std::endl;
+   std::cout << "inclusion prolongation columns: " << nc << std::endl;
+   SparseMatrix *P = new SparseMatrix(nr, nc);
+   for (int e = 0; e < E[n-1].size(); ++e)
+   {
+      int c = E[n-1][e];
+      Vector bb_min_coarse; Vector bb_max_coarse;
+      GetMeshSubsetBoundingBox(mesh, E2[n-1], c, bb_min_coarse, bb_max_coarse);
+      if (dim == 2)
+      {
+         Mesh ref_mesh("../../data/ref-square.mesh");
+         L2_FECollection ref_fec(1, 2);
+         FiniteElementSpace ref_fes(&ref_mesh, &ref_fec); 
+         const FiniteElement* rfe = ref_fes.GetFE(0); 
+         for (int i = 0; i < nnodes_per_el; ++i)
+         {
+            double x_phys = nodes(e*nnodes_per_el + i); double y_phys = nodes(nnodes + e*nnodes_per_el + i);
+            double x_ref = (x_phys - bb_min_coarse(0)) / (bb_max_coarse(0) - bb_min_coarse(0));
+            double y_ref = (y_phys - bb_min_coarse(1)) / (bb_max_coarse(1) - bb_min_coarse(1));
+            IntegrationPoint ip;
+            ip.Set2w(x_ref, y_ref, 1);
+            Vector shape_vec(d);
+            rfe->CalcShape(ip, shape_vec);
+            for (int k = 0; k < d; k++)
+            {
+               P -> Set(nnodes_per_el*e + i, d*c + k, shape_vec(k));
+            }
+         }
+      }
+      else
+      {
+         Mesh ref_mesh("../../data/ref-cube.mesh");
+         L2_FECollection ref_fec(1, 3);
+         FiniteElementSpace ref_fes(&ref_mesh, &ref_fec); 
+         const FiniteElement* rfe = ref_fes.GetFE(0); 
+         for (int i = 0; i < nnodes_per_el; ++i)
+         {
+            double x_phys = nodes(e*nnodes_per_el + i); double y_phys = nodes(nnodes + e*nnodes_per_el + i);
+            double z_phys = nodes(2*nnodes + e*nnodes_per_el + i);
+            double x_ref = (x_phys - bb_min_coarse(0)) / (bb_max_coarse(0) - bb_min_coarse(0));
+            double y_ref = (y_phys - bb_min_coarse(1)) / (bb_max_coarse(1) - bb_min_coarse(1));
+            double z_ref = (z_phys - bb_min_coarse(2)) / (bb_max_coarse(2) - bb_min_coarse(2));
+            IntegrationPoint ip;
+            ip.Set(x_ref, y_ref, z_ref, 1);
+            Vector shape_vec(d);
+            rfe->CalcShape(ip, shape_vec);
+            for (int k = 0; k < d; k++)
+            {
+               P -> Set(nnodes_per_el*e + i, d*c + k, shape_vec(k));
+            }
+         }
+      }
+   }
+   P -> Finalize();
+   return P;
+}
+
+SparseMatrix *CreateInclusionProlongation(
+   int l, const std::vector<std::vector<int>> &E, const std::vector<std::vector<int>> &E2, FiniteElementSpace &fes)
 {
    Mesh &mesh = *fes.GetMesh();
    int dim = mesh.Dimension();
    FiniteElementSpace nodal_fes(&mesh, fes.FEColl(), dim);
+   int d = (dim == 2) ? 4 : 8;
    GridFunction nodes(&nodal_fes);
-   mesh.GetNodes(nodes);
-   mfem::Geometry::Type geo_type = mesh.GetElementBaseGeometry(0); // Assumes that all elements are of the same geom type
-   int nnodes = nodes.Size()/dim;
-   const int n = E.size();
-   if (geo_type == mfem::Geometry::SQUARE) 
+   if (l == 0)
    {
-      int d =  4;
-      int nr = d*E[n-1].size();
-      int nc = (n == 1) ? d:d*E[n-2].size();
+      int nc = d;
+      int nr = d*E[l].size();
+      std::cout << "inclusion prolongation rows: " << nr << std::endl;
+      std::cout << "inclusion prolongation columns: " << nc << std::endl;
       SparseMatrix *P = new SparseMatrix(nr, nc);
-
-      std::cout << "nodal prolongation rows: " << nr << std::endl;
-      std::cout << "nodal prolongation columns: " << nc << std::endl;
-
-      for (int r = 0; r < E[n-1].size(); ++r)
+      Vector bb_min_coarse; Vector bb_max_coarse;
+      mesh.GetBoundingBox(bb_min_coarse, bb_max_coarse, 1);
+      for (int e = 0; e < E[l].size(); ++e)
       {
-         int c = E[n-1][r];
-
-         for (int i = 0; i<d; ++i)
+         Vector bb_min_fine; Vector bb_max_fine;
+         GetMeshSubsetBoundingBox(mesh, E2[l+1], e, bb_min_fine, bb_max_fine);
+         Vector ref_v_0(3);
+         ref_v_0(0) = (bb_min_fine(0) - bb_min_coarse(0))/(bb_max_coarse(0) - bb_min_coarse(0));
+         ref_v_0(1) = (bb_min_fine(1) - bb_min_coarse(1))/(bb_max_coarse(1) - bb_min_coarse(1));
+         Vector ref_v_1(3); 
+         ref_v_1 (0) = (bb_max_fine(0) - bb_min_coarse(0))/(bb_max_coarse(0) - bb_min_coarse(0));
+         ref_v_1 (1) = (bb_max_fine(1) - bb_min_coarse(1))/(bb_max_coarse(1) - bb_min_coarse(1));
+         if (dim == 2)
          {
-            double x = nodes(r*d+i); double y = nodes(nnodes + r*d + i);
-            P->Set(d*r+i, d*c, 1);
-            P->Set(d*r+i, d*c+1, x);
-            P->Set(d*r+i, d*c+2, y);
-            P->Set(d*r+i, d*c+3, x*y);
+            Mesh ref_mesh("../../data/ref-square.mesh");
+            L2_FECollection ref_fec(1, 2);
+            FiniteElementSpace ref_fes(&ref_mesh, &ref_fec); 
+            const FiniteElement* rfe = ref_fes.GetFE(0); 
+            double placeholder = ref_v_0(1);
+            ref_v_0(1) = ref_v_1(0);
+            ref_v_1(0) = placeholder;
+            for (int i = 0; i <= 1; i++)
+            {
+               for (int j = 0; j <= 1; j++)
+               {
+                  IntegrationPoint ip;
+                  int P_idx = 2*i + j;
+                  const real_t x = ref_v_0(i);
+                  const real_t y = ref_v_1(j);
+                  ip.Set2w(x, y, 1);
+                  Vector shape_vec(4);
+                  rfe->CalcShape(ip, shape_vec);
+                  for (int k = 0; k < d; k++)
+                  {
+                     P -> Set(d*e + P_idx, k, shape_vec(k));
+                  }
+               }
+            }
          }
-      }
-      P->Finalize();
-      return P;
-   }
-   else if (geo_type == mfem::Geometry::CUBE)
-   {
-      int d =  8;
-      int nr = d*E[n-1].size();
-      int nc = (n == 1) ? d:d*E[n-2].size();
-      SparseMatrix *P = new SparseMatrix(nr, nc);
-
-      std::cout << "nodal prolongation rows: " << nr << std::endl;
-      std::cout << "nodal prolongation columns: " << nc << std::endl;
-
-      for (int r = 0; r < E[n-1].size(); ++r)
-      {
-         int c = E[n-1][r];
-
-         for (int i = 0; i<d; ++i)
+         else
          {
-            double x = nodes(r*d+i); double y = nodes(nnodes + r*d + i); double z = nodes(2*nnodes + r*d + i);
-            P->Set(d*r+i, d*c, 1);
-            P->Set(d*r+i, d*c+1, x);
-            P->Set(d*r+i, d*c+2, y);
-            P->Set(d*r+i, d*c+3, z);
-            P->Set(d*r+i, d*c+4, x*y);
-            P->Set(d*r+i, d*c+5, x*z);
-            P->Set(d*r+i, d*c+6, y*z);
-            P->Set(d*r+i, d*c+7, x*y*z);
-         }
-      }
-      P->Finalize();
-      return P;
-   }
-   else if (geo_type == mfem::Geometry::TRIANGLE)
-   {
-      int d = 3;
-      int nr = d*E[n-1].size();
-      int nc = (n == 1) ? d:d*E[n-2].size();
-      SparseMatrix *P = new SparseMatrix(nr, nc);
-
-      std::cout << "nodal prolongation rows: " << nr << std::endl;
-      std::cout << "nodal prolongation columns: " << nc << std::endl;
-
-      for (int r = 0; r < E[n-1].size(); ++r)
-      {
-         int c = E[n-1][r];
-
-         for (int i = 0; i<d; ++i)
-         {
-            double x = nodes(r*d+i); double y = nodes(nnodes + r*d + i);
-            P->Set(d*r+i, d*c, x);
-            P->Set(d*r+i, d*c+1, y);
-            P->Set(d*r+i, d*c+2, 1-x-y);
-         }
-      }
-      P->Finalize();
-      return P;
-   }
-   else if (geo_type == mfem::Geometry::TETRAHEDRON)
-   {
-      int d = 4;
-      int nr = d*E[n-1].size();
-      int nc = (n == 1) ? d:d*E[n-2].size();
-      SparseMatrix *P = new SparseMatrix(nr, nc);
-
-      std::cout << "nodal prolongation rows: " << nr << std::endl;
-      std::cout << "nodal prolongation columns: " << nc << std::endl;
-
-      for (int r = 0; r < E[n-1].size(); ++r)
-      {
-         int c = E[n-1][r];
-
-         for (int i = 0; i<d; ++i)
-         {
-            double x = nodes(r*d+i); double y = nodes(nnodes + r*d + i); double z = nodes(2*nnodes + r*d + i);
-            P->Set(d*r+i, d*c, x);
-            P->Set(d*r+i, d*c+1, y);
-            P->Set(d*r+i, d*c+2, z);
-            P->Set(d*r+i, d*c+3, 1-x-y-z);
+            Mesh ref_mesh("../../data/ref-cube.mesh");
+            L2_FECollection ref_fec(1, 3);
+            FiniteElementSpace ref_fes(&ref_mesh, &ref_fec); 
+            const FiniteElement* rfe = ref_fes.GetFE(0); 
+            ref_v_0(2) = (bb_min_fine(2) - bb_min_coarse(2))/(bb_max_coarse(2) - bb_min_coarse(2));
+            ref_v_1(2) = (bb_max_fine(2) - bb_min_coarse(2))/(bb_max_coarse(2) - bb_min_coarse(2));
+            Vector tr_v_0(2); Vector tr_v_1(2); Vector tr_v_2(2);
+            tr_v_0(0) = ref_v_0(0); tr_v_0(1) = ref_v_1(0);
+            tr_v_1(0) = ref_v_0(1); tr_v_1(1) = ref_v_1(1);
+            tr_v_2(0) = ref_v_0(2); tr_v_2(1) = ref_v_1(2);
+            for (int i = 0; i<= 1; i++)
+            {
+               for (int j = 0; j <= 1; j++)
+               {
+                  for (int k = 0; k<=1; k++)
+                  {
+                     IntegrationPoint ip;
+                     int P_idx = 4*i + 2*j + k;
+                     const real_t x = tr_v_0(i);
+                     const real_t y = tr_v_1(j);
+                     const real_t z = tr_v_2(k);
+                     ip.Set(x, y, z, 1);
+                     Vector shape_vec(d);
+                     rfe->CalcShape(ip, shape_vec);
+                     for (int k = 0; k < d; k++)
+                     {
+                        P -> Set(d*e + P_idx, k, shape_vec(k));
+                     }
+                  }
+               }
+            }
          }
       }
       P->Finalize();
@@ -225,28 +297,90 @@ SparseMatrix *CreateNodalProlongation(
    }
    else
    {
-      MFEM_ABORT("Unsupported element type for agglomeration.");
-   }
-}
-
-SparseMatrix *CreateInclusionProlongation(
-   int l, const std::vector<std::vector<int>> &E, int d)
-{
-   int nc = (l != 0) ? d*E[l-1].size() : d;
-   int nr = d*E[l].size();
-   std::cout << "inclusion prolongation rows: " << nr << std::endl;
-   std::cout << "inclusion prolongation columns: " << nc << std::endl;
-   SparseMatrix *P = new SparseMatrix(nr, nc);
-   for (int e = 0; e < E[l].size(); ++e)
-   {
-      int c = E[l][e];
-      for (int i = 0; i < d; ++i)
+      int nc = d*E[l-1].size();
+      int nr = d*E[l].size();
+      std::cout << "inclusion prolongation rows: " << nr << std::endl;
+      std::cout << "inclusion prolongation columns: " << nc << std::endl;
+      std::cout << "l = " << l << std::endl;
+      SparseMatrix *P = new SparseMatrix(nr, nc);
+      for (int e = 0; e < E[l].size(); ++e)
       {
-         P->Set(d*e + i, d*c + i, 1);
+         int c = E[l][e];
+         Vector bb_min_coarse; Vector bb_max_coarse;
+         GetMeshSubsetBoundingBox(mesh, E2[l], c, bb_min_coarse, bb_max_coarse);
+         Vector bb_min_fine; Vector bb_max_fine;
+         GetMeshSubsetBoundingBox(mesh, E2[l+1], e, bb_min_fine, bb_max_fine);
+         Vector ref_v_0(3);
+         ref_v_0(0) = (bb_min_fine(0) - bb_min_coarse(0))/(bb_max_coarse(0) - bb_min_coarse(0));
+         ref_v_0(1) = (bb_min_fine(1) - bb_min_coarse(1))/(bb_max_coarse(1) - bb_min_coarse(1));
+         Vector ref_v_1(3); 
+         ref_v_1 (0) = (bb_max_fine(0) - bb_min_coarse(0))/(bb_max_coarse(0) - bb_min_coarse(0));
+         ref_v_1 (1) = (bb_max_fine(1) - bb_min_coarse(1))/(bb_max_coarse(1) - bb_min_coarse(1));
+         if (dim == 2)
+         {
+            Mesh ref_mesh("../../data/ref-square.mesh");
+            L2_FECollection ref_fec(1, 2);
+            FiniteElementSpace ref_fes(&ref_mesh, &ref_fec); 
+            const FiniteElement* rfe = ref_fes.GetFE(0); 
+            double placeholder = ref_v_0(1);
+            ref_v_0(1) = ref_v_1(0);
+            ref_v_1(0) = placeholder;
+            for (int i = 0; i <= 1; i++)
+            {
+               for (int j = 0; j <= 1; j++)
+               {
+                  IntegrationPoint ip;
+                  int P_idx = 2*i + j;
+                  const real_t x = ref_v_0(i);
+                  const real_t y = ref_v_1(j);
+                  ip.Set2w(x, y, 1);
+                  Vector shape_vec(d);
+                  rfe->CalcShape(ip, shape_vec);
+                  for (int k = 0; k < d; k++)
+                  {
+                     P -> Set(d*e + P_idx, d*c + k, shape_vec(k));
+                  }
+               }
+            }
+         }
+         else
+         {
+            Mesh ref_mesh("../../data/ref-cube.mesh");
+            L2_FECollection ref_fec(1, 3);
+            FiniteElementSpace ref_fes(&ref_mesh, &ref_fec); 
+            const FiniteElement* rfe = ref_fes.GetFE(0); 
+            ref_v_0(2) = (bb_min_fine(2) - bb_min_coarse(2))/(bb_max_coarse(2) - bb_min_coarse(2));
+            ref_v_1(2) = (bb_max_fine(2) - bb_min_coarse(2))/(bb_max_coarse(2) - bb_min_coarse(2));
+            Vector tr_v_0(2); Vector tr_v_1(2); Vector tr_v_2(2);
+            tr_v_0(0) = ref_v_0(0); tr_v_0(1) = ref_v_1(0);
+            tr_v_1(0) = ref_v_0(1); tr_v_1(1) = ref_v_1(1);
+            tr_v_2(0) = ref_v_0(2); tr_v_2(1) = ref_v_1(2);
+            for (int i = 0; i<= 1; i++)
+            {
+               for (int j = 0; j <= 1; j++)
+               {
+                  for (int k = 0; k<=1; k++)
+                  {
+                     IntegrationPoint ip;
+                     int P_idx = 4*i + 2*j + k;
+                     const real_t x = tr_v_0(i);
+                     const real_t y = tr_v_1(j);
+                     const real_t z = tr_v_2(k);
+                     ip.Set(x, y, z, 1);
+                     Vector shape_vec(d);
+                     rfe->CalcShape(ip, shape_vec);
+                     for (int k = 0; k < d; k++)
+                     {
+                        P -> Set(d*e + P_idx, d*c + k, shape_vec(k));
+                     }
+                  }
+               }
+            }
+         }
       }
+      P->Finalize();
+      return P;
    }
-   P->Finalize();
-   return P;
 }
 
 AgglomerationMultigrid::AgglomerationMultigrid(
@@ -257,24 +391,24 @@ AgglomerationMultigrid::AgglomerationMultigrid(
    auto E = Agglomerate(*fes.GetMesh(), ncoarse);
    int num_levels_s = E.size() + 1;
    Mesh &mesh = *fes.GetMesh();
-   mfem::Geometry::Type geo_type = mesh.GetElementBaseGeometry(0);
-   int d = 4;
-   if (geo_type == mfem::Geometry::SQUARE || geo_type == mfem::Geometry::TETRAHEDRON)
+   const int ne = mesh.GetNE();
+   vector<vector<int>> E2(E.size());
+   E2.back() = E.back();
+   for (int i = E.size() - 2; i >= 0; --i)
    {
-      d = 4;
+      E2[i].resize(ne);
+      for (int e = 0; e < ne; ++e)
+      {
+         const int m_e = E2[i+1][e];
+         E2[i][e] = E[i][m_e];
+      }
    }
-   else if (geo_type == mfem::Geometry::CUBE) 
+   vector<int> E2_finest_level(ne);
+   for (int i = 0; i < ne; ++i) 
    {
-      d = 8;
+      E2_finest_level[i] = i; 
    }
-   else if (geo_type == mfem::Geometry::TRIANGLE)
-   {
-      d = 3;
-   }
-   else
-   {
-      MFEM_ABORT("Unsupported element type for agglomeration.");
-   }
+   E2.push_back(E2_finest_level);
    int dim = mesh.Dimension();
    if (paraview_vis)
    {
@@ -284,18 +418,6 @@ AgglomerationMultigrid::AgglomerationMultigrid(
       ParaViewDataCollection pv("Agglomeration", &mesh);
       pv.SetPrefixPath("ParaView");
       pv.RegisterField("p", &p_gf);
-      const int ne = mesh.GetNE();
-      vector<vector<int>> E2(E.size());
-      E2.back() = E.back();
-      for (int i = E.size() - 2; i >= 0; --i)
-      {
-         E2[i].resize(ne);
-         for (int e = 0; e < ne; ++e)
-         {
-            const int m_e = E2[i+1][e];
-            E2[i][e] = E[i][m_e];
-         }
-      }
       for (int i = 0; i < E.size(); ++i)
       {
          for (int e = 0; e < ne; ++e)
@@ -354,11 +476,12 @@ AgglomerationMultigrid::AgglomerationMultigrid(
       SparseMatrix *P;
       if (l < num_levels - 2)
       {
-         P = CreateInclusionProlongation(k, E, d);
+         P = CreateInclusionProlongation(k, E, E2, fes);
       }
       else
       {
-         P = CreateNodalProlongation(E, fes);
+         P = CreateNodalProlongation(E, E2, fes);
+         //P = CreateInclusionProlongation(k, E, E2, fes);
       }
 
       SparseMatrix &A_prev = static_cast<SparseMatrix&>(*operators[l + 1]);
@@ -374,6 +497,9 @@ AgglomerationMultigrid::AgglomerationMultigrid(
    // Create the smoothers remember block size is num degrees of freedom per element
    
    SparseMatrix &Ac = static_cast<SparseMatrix&>(*operators[0]);
+   // mfem::out << "Sparse Matrix A:\n";
+   // Ac.Print(mfem::out);
+   std::cout << "test"  << std::endl;
    smoothers[0] = new UMFPackSolver(Ac);
    for (int l=1; l < num_levels; l++)
    {
@@ -398,4 +524,6 @@ AgglomerationMultigrid::AgglomerationMultigrid(
 
 
 } // namespace mfem
+
+
 
