@@ -55,9 +55,10 @@ void BilinearForm::AllocMat()
    dof_dof.SortRows();
 
    int *I = dof_dof.GetI();
+   int *J = dof_dof.GetJ();
+   real_t *data = Memory<real_t>(I[height]);
 
-   mat = new SparseMatrix(dof_dof.GetIMemory(), dof_dof.GetJMemory(),
-                          Memory<real_t>(I[height]), height, height, true);
+   mat = new SparseMatrix(I, J, data, height, height, true, true, true);
    *mat = 0.0;
 
    dof_dof.LoseData();

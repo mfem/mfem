@@ -30,6 +30,8 @@ TEST_CASE("MemoryManager/Scopes",
          X.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
          // from Vector::SetSubVectorComplement
          X.Read();
+         // from Operator::RecoverFEMSolution
+         x.SyncMemory(X);
       }
       // Accessible Memory<double> to get the flags
       struct MemoryDouble
@@ -63,6 +65,8 @@ TEST_CASE("MemoryManager/Scopes",
          X.MakeRef(x, 0, x.Size());
          // from Vector::SetSubVectorComplement
          X.Read();
+         // from Operator::RecoverFEMSolution
+         x.SyncMemory(X);
       }
       REQUIRE((x_data == x.HostRead()));
    }

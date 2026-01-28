@@ -685,6 +685,7 @@ void SuperLUSolver::ArrayMult(const Array<const Vector *> &X,
    // solution is written directly into output Vector)
    if (nrhs_ == 1)
    {
+      sol_.SyncAliasMemory(*Y[0]);
    }
    else
    {

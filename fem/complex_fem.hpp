@@ -111,15 +111,11 @@ public:
 
    /// Update the memory location of the real and imaginary GridFunction @a gfr
    /// and @a gfi to match the ComplexGridFunction.
-   [[deprecated]]
-   void Sync()
-   {}
+   void Sync() { gfr->SyncMemory(*this); gfi->SyncMemory(*this); }
 
    /// Update the alias memory location of the real and imaginary GridFunction
    /// @a gfr and @a gfi to match the ComplexGridFunction.
-   [[deprecated]]
-   void SyncAlias()
-   {}
+   void SyncAlias() { gfr->SyncAliasMemory(*this); gfi->SyncAliasMemory(*this); }
 
    /// @brief Returns ||u_ex - u_h||_L2 for complex-valued scalar fields
    ///
@@ -259,15 +255,11 @@ public:
 
    /// Update the memory location of the real and imaginary LinearForm @a lfr
    /// and @a lfi to match the ComplexLinearForm.
-   [[deprecated]]
-   void Sync()
-   {}
+   void Sync() { lfr->SyncMemory(*this); lfi->SyncMemory(*this); }
 
    /// Update the alias memory location of the real and imaginary LinearForm @a
    /// lfr and @a lfi to match the ComplexLinearForm.
-   [[deprecated]]
-   void SyncAlias()
-   {}
+   void SyncAlias() {lfr->SyncAliasMemory(*this); lfi->SyncAliasMemory(*this); }
 
    void Update();
    void Update(FiniteElementSpace *f);
@@ -521,15 +513,12 @@ public:
 
    /// Update the memory location of the real and imaginary ParGridFunction @a
    /// pgfr and @a pgfi to match the ParComplexGridFunction.
-   [[deprecated]]
-   void Sync()
-   {}
+   void Sync() { pgfr->SyncMemory(*this); pgfi->SyncMemory(*this); }
 
    /// Update the alias memory location of the real and imaginary
    /// ParGridFunction @a pgfr and @a pgfi to match the ParComplexGridFunction.
-   [[deprecated]]
    void SyncAlias()
-   {}
+   { pgfr->SyncAliasMemory(*this); pgfi->SyncAliasMemory(*this); }
 
    /// @brief Returns ||u_ex - u_h||_L2 in parallel for complex-valued
    ///        scalar fields
@@ -680,15 +669,11 @@ public:
 
    /// Update the memory location of the real and imaginary ParLinearForm @a lfr
    /// and @a lfi to match the ParComplexLinearForm.
-   [[deprecated]]
-   void Sync()
-   {}
+   void Sync() { plfr->SyncMemory(*this); plfi->SyncMemory(*this); }
 
    /// Update the alias memory location of the real and imaginary ParLinearForm
    /// @a plfr and @a plfi to match the ParComplexLinearForm.
-   [[deprecated]]
-   void SyncAlias()
-   {}
+   void SyncAlias() { plfr->SyncAliasMemory(*this); plfi->SyncAliasMemory(*this); }
 
    void Update(ParFiniteElementSpace *pf = NULL);
 

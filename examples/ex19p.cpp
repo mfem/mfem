@@ -471,6 +471,9 @@ void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
    subtract(disp_in, temp, temp2);
 
    stiff_pcg->Mult(temp2, disp_out);
+
+   disp_out.SyncAliasMemory(y);
+   pres_out.SyncAliasMemory(y);
 }
 
 void JacobianPreconditioner::SetOperator(const Operator &op)

@@ -32,7 +32,6 @@ void GetRowColumnsRef(const SparseMatrix& A, int row, Array<int>& cols)
 
 SparseMatrix ElemToDof(const ParFiniteElementSpace& fes)
 {
-
    int *I = Memory<int>(fes.GetNE() + 1);
    copy_n(fes.GetElementToDofTable().GetI(), fes.GetNE()+1, I);
    int *tmpJ = Memory<int>(I[fes.GetNE()]);

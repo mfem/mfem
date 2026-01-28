@@ -97,6 +97,7 @@ static void Aliases(const int N = 0x1234)
    V.NewMemoryAndSize(Memory<real_t>(S.GetMemory(), Xsz, Vsz), Vsz, true);
    E.NewMemoryAndSize(Memory<real_t>(S.GetMemory(), Xsz + Vsz, Esz), Esz, true);
    X = 1.0;
+   X.SyncAliasMemory(S);
    S.HostWrite();
    S = -1.0;
    X.Write();
@@ -104,8 +105,10 @@ static void Aliases(const int N = 0x1234)
    S.HostRead();
    REQUIRE(S*S == MFEM_Approx(7.0*N));
    V = 2.0;
+   V.SyncAliasMemory(S);
    REQUIRE(S*S == MFEM_Approx(16.0*N));
    E = 3.0;
+   E.SyncAliasMemory(S);
    REQUIRE(S*S == MFEM_Approx(24.0*N));
 }
 

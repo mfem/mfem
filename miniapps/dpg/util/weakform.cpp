@@ -600,6 +600,7 @@ void DPGWeakForm::RecoverFEMSolution(const Vector &X,
    }
    else if (!P)
    {
+      x.SyncMemory(X);
    }
    else
    {

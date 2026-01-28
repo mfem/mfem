@@ -1815,7 +1815,11 @@ void PAMixedBilinearFormExtension::SetupMultInputs(
    }
    else
    {
-      if (c != 1.0)
+      if (c == 1.0)
+      {
+         localX.SyncAliasMemory(x);
+      }
+      else
       {
          localX.Set(c, x);
       }
@@ -1827,6 +1831,7 @@ void PAMixedBilinearFormExtension::SetupMultInputs(
    else
    {
       y.UseDevice(true);
+      localY.SyncAliasMemory(y);
    }
 }
 

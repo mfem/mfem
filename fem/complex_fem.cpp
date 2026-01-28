@@ -134,6 +134,8 @@ ComplexGridFunction::Update()
       // Copy the updated GridFunctions into the new data array
       gf_r = *gfr;
       gf_i = *gfi;
+      gf_r.SyncAliasMemory(*this);
+      gf_i.SyncAliasMemory(*this);
 
       // Replace the individual data arrays with pointers into the new data
       // array
@@ -174,16 +176,24 @@ void
 ComplexGridFunction::ProjectCoefficient(Coefficient &real_coeff,
                                         Coefficient &imag_coeff)
 {
+   gfr->SyncMemory(*this);
+   gfi->SyncMemory(*this);
    gfr->ProjectCoefficient(real_coeff);
    gfi->ProjectCoefficient(imag_coeff);
+   gfr->SyncAliasMemory(*this);
+   gfi->SyncAliasMemory(*this);
 }
 
 void
 ComplexGridFunction::ProjectCoefficient(VectorCoefficient &real_vcoeff,
                                         VectorCoefficient &imag_vcoeff)
 {
+   gfr->SyncMemory(*this);
+   gfi->SyncMemory(*this);
    gfr->ProjectCoefficient(real_vcoeff);
    gfi->ProjectCoefficient(imag_vcoeff);
+   gfr->SyncAliasMemory(*this);
+   gfi->SyncAliasMemory(*this);
 }
 
 void

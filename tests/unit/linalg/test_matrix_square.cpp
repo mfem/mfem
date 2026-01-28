@@ -254,8 +254,10 @@ TEST_CASE("HypreParMatrixBlocksSquare",
       yH = 0.0;
 
       MR->GetDiag(yBR);
+      yBR.SyncAliasMemory(yB);
       MW->GetDiag(yBW);
       yBW *= 3.14;
+      yBW.SyncAliasMemory(yB);
       H->GetDiag(yH);
 
       yH -= yB;

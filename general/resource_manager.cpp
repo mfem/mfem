@@ -2520,6 +2520,7 @@ void MemoryManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
                {
                   mfem::out << "WARNING: Copy to host and device" << std::endl;
                }
+               ncopies += tmp;
             }
          }
       }

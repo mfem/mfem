@@ -172,12 +172,15 @@ void ElasticityOperator::AssembleGradientDiagonal(Vector &Ke_diag,
       vin_local.MakeRef(Ke_diag, i * sce_sz, sce_sz);
       vout_local.MakeRef(K_diag_local, i * scl_sz, scl_sz);
       h1_element_restriction_->MultTranspose(vin_local, vout_local);
+      vout_local.GetMemory().SyncAlias(K_diag_local.GetMemory(),
+                                       vout_local.Size());
 
       // Scalar component T-size
       int sct_sz = h1_prolongation_->Width();
       Vector vout;
       vout.MakeRef(K_diag, i * sct_sz, sct_sz);
       h1_prolongation_->MultTranspose(vout_local, vout);
+      vout.GetMemory().SyncAlias(K_diag.GetMemory(), vout.Size());
    }
 
    // Each essential dof row and column are set to zero with it's diagonal entry

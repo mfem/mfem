@@ -752,11 +752,11 @@ public:
    }
 
    /// @deprecated This is a no-op
-   [[deprecated]] void Sync(const Memory &other) const {}
+   void Sync(const Memory &other) const {}
    /// @deprecated This is a no-op
-   [[deprecated]] void SyncAlias(const Memory &other) const {}
+   void SyncAlias(const Memory &other) const {}
    /// @deprecated This is a no-op
-   [[deprecated]] void SyncAlias(const Memory &other, int alias_size) const {}
+   void SyncAlias(const Memory &other, int alias_size) const {}
 
    MemoryType GetMemoryType() const
    {

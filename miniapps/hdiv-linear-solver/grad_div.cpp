@@ -135,6 +135,7 @@ int main(int argc, char *argv[])
       B_block.GetBlock(0) = 0.0;
       b.ParallelAssemble(B_block.GetBlock(1));
       B_block.GetBlock(1) *= -1.0;
+      B_block.SyncFromBlocks();
 
       x.ParallelProject(X_block.GetBlock(1));
       saddle_point_solver.SetBC(X_block.GetBlock(1));
@@ -149,6 +150,7 @@ int main(int argc, char *argv[])
               << "\nElapsed: " << tic_toc.RealTime() << endl;
       }
 
+      X_block.SyncToBlocks();
       x.SetFromTrueDofs(X_block.GetBlock(1));
       const real_t error = x.ComputeL2Error(u_vec_coeff);
       if (Mpi::Root()) { cout << "L2 error: " << error << endl; }

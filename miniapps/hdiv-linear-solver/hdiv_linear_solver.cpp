@@ -321,6 +321,10 @@ void HdivSaddlePointSolver::EliminateBC(Vector &b) const
       const int j = d_I[i];
       d_bF[j] = -d_w[j];
    });
+
+   // Make sure the monolithic RHS is updated
+   bE.SyncAliasMemory(b);
+   bF.SyncAliasMemory(b);
 }
 
 void HdivSaddlePointSolver::Mult(const Vector &b, Vector &x) const
@@ -342,6 +346,10 @@ void HdivSaddlePointSolver::Mult(const Vector &b, Vector &x) const
    // Transform by the inverse of the L2 mass matrix
    L_inv->Mult(z, bE_prime);
 
+   // Update the monolithic transformed RHS
+   bE_prime.SyncAliasMemory(b_prime);
+   bF_prime.SyncAliasMemory(b_prime);
+
    // Eliminate the RT essential BCs
    EliminateBC(b_prime);
 
@@ -360,6 +368,10 @@ void HdivSaddlePointSolver::Mult(const Vector &b, Vector &x) const
 
    basis_l2.Mult(z, xE);
    basis_rt.Mult(xF_prime, xF);
+
+   // Update the monolithic solution vector
+   xE.SyncAliasMemory(x);
+   xF.SyncAliasMemory(x);
 }
 
 } // namespace mfem

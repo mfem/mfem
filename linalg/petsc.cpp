@@ -356,6 +356,7 @@ void PetscParVector::SetFlagsFromMask_() const
       }
    }
 #endif
+   data.Sync(pdata);
 }
 
 void PetscParVector::UpdateVecFromFlags()

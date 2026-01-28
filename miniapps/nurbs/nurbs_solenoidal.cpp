@@ -209,6 +209,7 @@ int main(int argc, char *argv[])
    fform->Update(R_space, rhs.GetBlock(0), 0);
    fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(ucoeff));
    fform->Assemble();
+   fform->SyncAliasMemory(rhs);
 
    // 9. Assemble the finite element matrices for the Darcy operator
    //

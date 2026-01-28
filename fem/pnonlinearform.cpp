@@ -439,6 +439,9 @@ void ParBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
 
       ys_true.GetBlock(s).SetSubVector(*ess_tdofs[s], 0.0);
    }
+
+   ys_true.SyncFromBlocks();
+   y.SyncMemory(ys_true);
 }
 
 /// Return the local gradient matrix for the given true-dof vector x

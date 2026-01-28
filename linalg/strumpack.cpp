@@ -397,6 +397,7 @@ ArrayMult(const Array<const Vector *> &X, Array<Vector *> &Y) const
                   "STRUMPACK: Missing or invalid sized RHS Vector in solve!");
       Vector s(rhs_, i * ldx, ldx);
       s = *X[i];
+      rhs_.SyncMemory(s);  // Update flags for rhs_ if updated on device
    }
    const double *xPtr = rhs_.HostRead();
    double *yPtr       = sol_.HostReadWrite();
