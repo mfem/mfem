@@ -100,6 +100,272 @@ real_t exact_hatu(const Vector & X);
 void exact_hatsigma(const Vector & X, Vector & hatsigma);
 real_t f_exact(const Vector & X);
 
+class PrefinementMultigrid : public Multigrid
+{
+private:
+   // P_level : (level -> level+1), block-diagonal (one transfer per pfes block)
+   Array<int> orders;
+   const Array<ParFiniteElementSpace *> & pfes;
+   ParMesh * pmesh=nullptr;
+   int npfes;
+   const BlockOperator & Op;
+   int nblocks;
+   int maxlevels = 1;
+
+   // hierarchy of spaces
+   // Owned levels: 0..maxlevels-2
+   std::vector< std::vector<std::unique_ptr<FiniteElementCollection>> > fec_owned;
+   std::vector< std::vector<std::unique_ptr<ParFiniteElementSpace>> >   fes_owned;
+   std::vector< std::vector<PRefinementTransferOperator*> > T_level;
+   // prolongation matrices per level and block (owned here)
+   std::vector< std::vector<HypreParMatrix*> >  Pmat_level;
+
+   const ParFiniteElementSpace* GetParFESpace(int lev, int b) const
+   {
+      if (lev == maxlevels-1) { return pfes[b]; }
+      return fes_owned[lev][b].get();
+   }
+
+   const FiniteElementCollection* GetFEColl(int lev, int b) const
+   {
+      if (lev == maxlevels-1) { return pfes[b]->FEColl(); }
+      return fec_owned[lev][b].get();
+   }
+
+   static std::unique_ptr<FiniteElementCollection>
+   MakeSameTypeFECAtOrder(const FiniteElementCollection &fec_ref, int p, int dim)
+   {
+      if (dynamic_cast<const H1_Trace_FECollection*>(&fec_ref))
+      {
+         return std::make_unique<H1_Trace_FECollection>(p, dim);
+      }
+
+      if (dynamic_cast<const ND_Trace_FECollection*>(&fec_ref))
+      {
+         return std::make_unique<ND_Trace_FECollection>(p, dim);
+      }
+
+      if (dynamic_cast<const RT_Trace_FECollection*>(&fec_ref))
+      {
+         return std::make_unique<RT_Trace_FECollection>(p-1, dim);
+      }
+
+      if (dynamic_cast<const H1_FECollection*>(&fec_ref))
+      {
+         return std::make_unique<H1_FECollection>(p, dim);
+      }
+
+      if (dynamic_cast<const ND_FECollection*>(&fec_ref))
+      {
+         return std::make_unique<ND_FECollection>(p, dim);
+      }
+
+      if (dynamic_cast<const RT_FECollection*>(&fec_ref))
+      {
+         return std::make_unique<RT_FECollection>(p-1, dim);
+      }
+
+      if (dynamic_cast<const L2_FECollection*>(&fec_ref))
+      {
+         return std::make_unique<L2_FECollection>(p, dim);
+      }
+
+      MFEM_ABORT("Unsupported FiniteElementCollection type for p-hierarchy.");
+      return nullptr;
+   }
+
+
+public:
+   PrefinementMultigrid(const Array<ParFiniteElementSpace *> & pfes_,
+                        const BlockOperator & Op_)
+      : Multigrid(), pfes(pfes_), npfes(pfes.Size()), Op(Op_)
+   {
+      nblocks = Op.NumRowBlocks();
+      MFEM_VERIFY(npfes == nblocks, "pfes size must match Op.NumRowBlocks()");
+      orders.SetSize(npfes);
+      pmesh = pfes[0]->GetParMesh();
+      const int dim = pmesh->Dimension();
+      for (int i = 0; i < npfes; i++)
+      {
+         orders[i] = pfes[i]->FEColl()->GetOrder();
+      }
+      maxlevels = orders.Min()+1;
+      // initialize the space hierarchy
+      fec_owned.resize(maxlevels-1);
+      fes_owned.resize(maxlevels-1);
+      T_level.resize(maxlevels-1);
+      for (int lev = 0; lev < maxlevels-1; lev++)
+      {
+         fec_owned[lev].resize(npfes);
+         fes_owned[lev].resize(npfes);
+         for (int b = 0; b < npfes; b++)
+         {
+            fec_owned[lev][b] = nullptr;
+            fes_owned[lev][b] = nullptr;
+         }
+      }
+      operators.SetSize(maxlevels);
+      ownedOperators.SetSize(maxlevels);
+      smoothers.SetSize(maxlevels);
+      ownedSmoothers.SetSize(maxlevels);
+
+
+      operators[maxlevels-1] = const_cast<BlockOperator*>(&Op);
+      ownedOperators[maxlevels-1] = false;
+      // build owned coarse levels
+      // build ParFES hierarchy for each block
+      for (int b = 0; b < npfes; b++)
+      {
+         const FiniteElementCollection *fec_ref = pfes[b]->FEColl();
+         const int vdim = pfes[b]->GetVDim();
+         const Ordering::Type ordering = pfes[b]->GetOrdering();
+
+         for (int lev = 1; lev <= maxlevels-1; lev++)
+         {
+            const int p = orders[b] - lev;
+            fec_owned[maxlevels-lev-1][b] = MakeSameTypeFECAtOrder(*fec_ref, p, dim);
+            fes_owned[maxlevels-lev-1][b] = std::make_unique<ParFiniteElementSpace>(pmesh,
+                                                                                    fec_owned[maxlevels-lev-1][b].get(),
+                                                                                    vdim, ordering);
+         }
+      }
+
+      // 2) build prolongations: block-diagonal, one BlockOperator per level
+      const int nP = std::max(0, maxlevels - 1);
+      prolongations.SetSize(nP);
+      ownedProlongations.SetSize(nP);
+
+
+
+      for (int lev = nP-1; lev >=0; lev--)
+      {
+         T_level[lev].resize(nblocks);
+
+         Array<int> coarse_offsets(nblocks + 1); coarse_offsets[0] = 0;
+         Array<int> fine_offsets(nblocks + 1);   fine_offsets[0]   = 0;
+
+         for (int b = 0; b < nblocks; b++)
+         {
+            coarse_offsets[b+1] = coarse_offsets[b] + GetParFESpace(lev,b)->GetTrueVSize();
+            fine_offsets[b+1]   = fine_offsets[b]   + GetParFESpace(lev+1,
+                                                                    b)->GetTrueVSize();
+         }
+
+         BlockOperator *Pblk = new BlockOperator(fine_offsets, coarse_offsets);
+         Pblk->owns_blocks = 0;
+
+         for (int b = 0; b < nblocks; b++)
+         {
+            T_level[lev][b] = new PRefinementTransferOperator(*GetParFESpace(lev,b),
+                                                              *GetParFESpace(lev+1,b), true);
+
+            HypreParMatrix *P = dynamic_cast<HypreParMatrix *>
+                                (T_level[lev][b]->GetPrefinementTrueTransferOperator());
+            MFEM_VERIFY(P, "Prefinement transfer returned null.");
+            Pblk->SetBlock(b, b, P);
+         }
+         prolongations[lev] = Pblk;
+         ownedProlongations[lev] = false;
+         // Build BlockOperator at each level
+         BlockOperator * OpLevel = new BlockOperator(Pblk->ColOffsets());
+         for (int i = 0; i < nblocks; i++)
+         {
+            BlockOperator * blkp = dynamic_cast<BlockOperator*>(prolongations[lev]);
+            HypreParMatrix * Pi = dynamic_cast<HypreParMatrix *>(&blkp->GetBlock(i, i));
+            MFEM_VERIFY(Pi, "Expected HypreParMatrix prolongation block.");
+            HypreParMatrix * Pit = Pi->Transpose();
+            for (int j = 0; j < nblocks; j++)
+            {
+               if (Op.IsZeroBlock(i, j)) { continue; }
+               BlockOperator * blkop = dynamic_cast<BlockOperator*>(operators[lev+1]);
+               const HypreParMatrix * A_fine = dynamic_cast<const HypreParMatrix *>
+                                               (&blkop->GetBlock(i, j));
+               MFEM_VERIFY(A_fine, "Expected HypreParMatrix block.");
+
+               if (i == j)
+               {
+                  HypreParMatrix * tmp = RAP(A_fine, Pi);
+                  OpLevel->SetBlock(i, i, tmp);
+               }
+               else
+               {
+                  HypreParMatrix * Pj = dynamic_cast<HypreParMatrix *>(&blkp->GetBlock(j, j));
+                  MFEM_VERIFY(Pj, "Expected HypreParMatrix prolongation block.");
+                  HypreParMatrix * APj = ParMult(A_fine, Pj,true);
+                  HypreParMatrix * PtAP = ParMult(Pit, APj,true);
+                  delete APj;
+                  OpLevel->SetBlock(i, j, PtAP);
+               }
+            }
+         }
+         operators[lev] = OpLevel;
+         ownedOperators[lev] = false;
+      }
+
+      for (int i = 0; i < operators.Size(); i++)
+      {
+         BlockDiagonalPreconditioner *prec =
+            new BlockDiagonalPreconditioner(dynamic_cast<BlockOperator*>
+                                            (operators[i])->RowOffsets());
+         for (int b = 0; b < nblocks; b++)
+         {
+            const HypreParMatrix * Ab = dynamic_cast<const HypreParMatrix *>
+                                        (&dynamic_cast<BlockOperator*>(operators[i])->GetBlock(b, b));
+            MFEM_VERIFY(Ab, "Expected HypreParMatrix block.");
+
+            if (b<nblocks-1)
+            {
+               HypreBoomerAMG * amg = new HypreBoomerAMG(*Ab);
+               amg->SetPrintLevel(0);
+               prec->SetDiagonalBlock(b, amg);
+            }
+            else
+            {
+               ParFiniteElementSpace * fes = const_cast<ParFiniteElementSpace *>(GetParFESpace(
+                                                                                    i,b));
+               HypreAMS * ams = new HypreAMS(*Ab, fes);
+               ams->SetPrintLevel(0);
+               prec->SetDiagonalBlock(b, ams);
+            }
+         }
+         smoothers[i] = prec;
+         ownedSmoothers[i] = false;
+      }
+   }
+
+   virtual const Operator* GetProlongationAtLevel(int level) const override
+   {
+      MFEM_VERIFY(level >=0 && level < prolongations.Size(),
+                  "Requested prolongation level out of range.");
+      return prolongations[level];
+   }
+
+
+   ~PrefinementMultigrid() override
+   {
+      for (int i = 0; i < prolongations.Size(); i++)
+      {
+         delete prolongations[i];
+      }
+
+      for (auto &lvl : T_level)
+      {
+         const int nb = static_cast<int>(lvl.size());
+         for (int b = 0; b < nb; b++)
+         {
+            delete lvl[b];
+         }
+      }
+
+      for (int i = 0; i < smoothers.Size(); i++)
+      {
+         delete smoothers[i];
+      }
+   }
+};
+
+
+
 int main(int argc, char *argv[])
 {
    // 0. Initialize MPI and HYPRE.
@@ -408,12 +674,15 @@ int main(int argc, char *argv[])
       }
       M.SetDiagonalBlock(skip+1,prec);
 
+      PrefinementMultigrid pmg(trial_fes,*A);
+
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(2000);
       cg.SetPrintLevel(0);
-      cg.SetPreconditioner(M);
+      // cg.SetPreconditioner(M);
       cg.SetOperator(*A);
+      cg.SetPreconditioner(pmg);
       cg.Mult(B, X);
 
       a->RecoverFEMSolution(X,x);
