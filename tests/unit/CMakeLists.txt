@@ -40,6 +40,8 @@ set(UNIT_TESTS_SRCS
   dfem/test_lvector_interface.cpp
   dfem/test_mass.cpp
   general/test_array.cpp
+  general/test_reduction.cpp
+  general/test_resource_manager.cpp
   general/test_scan.cpp
   general/test_arrays_by_name.cpp
   general/test_error.cpp
