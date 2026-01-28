@@ -22,6 +22,11 @@ Meshing improvements
 - Improved support for 1D NURBS meshes with variable order, including using
   the patches construct for 1D NURBS meshes.
 
+New and updated examples and miniapps
+-------------------------------------
+- Electromagnetics/lorentz miniapp has been updated to leverage the ParticleSet
+  capability.
+
 
 Version 4.9, released on Dec 11, 2025
 =====================================
