@@ -12605,6 +12605,7 @@ void Mesh::PrintVTK(std::ostream &os)
          else if (order == 2)
          {
             const int *vtk_mfem;
+	    int vtk_mfem_len = dofs.Size();
             switch (elements[i]->GetGeometryType())
             {
                case Geometry::SEGMENT:
@@ -12615,11 +12616,14 @@ void Mesh::PrintVTK(std::ostream &os)
                   vtk_mfem = vtk_quadratic_tet; break;
                case Geometry::PRISM:
                   vtk_mfem = vtk_quadratic_wedge; break;
+               case Geometry::PYRAMID:
+ 		  vtk_mfem_len = 13;
+                  vtk_mfem = vtk_quadratic_pyramid; break;
                case Geometry::CUBE:
                default:
                   vtk_mfem = vtk_quadratic_hex; break;
             }
-            for (int j = 0; j < dofs.Size(); j++)
+            for (int j = 0; j < vtk_mfem_len; j++)
             {
                os << ' ' << dofs[vtk_mfem[j]];
             }
