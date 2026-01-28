@@ -4072,8 +4072,11 @@ void FiniteElementSpace::GetTransferOperator(
    const FiniteElementSpace &coarse_fes, OperatorHandle &T) const
 {
    // Assumptions: see the declaration of the method.
-
-   if (T.Type() == Operator::MFEM_SPARSEMAT)
+   if (coarse_fes.FEColl()->Name() != fec->Name())
+   {
+      T.Reset(new GenericTransferOperator(coarse_fes, *this));
+   }
+   else if (T.Type() == Operator::MFEM_SPARSEMAT)
    {
       if (!IsVariableOrder())
       {
