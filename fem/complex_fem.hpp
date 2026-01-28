@@ -92,7 +92,7 @@ public:
    { return operator=((const Vector &)rhs); }
 
    /// Copy the data from @a v.
-   /** The size of @a v must be equal to the size of the associated
+   /** The size of @a v must be equal to double of the size of the associated
        FiniteElementSpace #fes. */
    ComplexGridFunction &operator=(const Vector &v)
    {
