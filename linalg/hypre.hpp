@@ -1438,8 +1438,8 @@ public:
    virtual ~HyprePCG();
 };
 
-/// GMRES solver in hypre
-/// Defaults to k=50, (relative) tol=1e-6, atol=0, max_iter=100
+/// GMRES solver in hypre.
+/// Defaults to k=50, (relative) tol=1e-6, atol=0, max_iter=100.
 class HypreGMRES : public HypreSolver
 {
 private:
@@ -1517,8 +1517,8 @@ public:
    virtual ~HypreGMRES();
 };
 
-/// Flexible GMRES solver in hypre
-/// Defaults to k=50, (relative) tol=1e-6, max_iter=100
+/// Flexible GMRES solver in hypre.
+/// Defaults to k=50, (relative) tol=1e-6, max_iter=100.
 class HypreFGMRES : public HypreSolver
 {
 private:
