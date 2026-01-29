@@ -1929,7 +1929,7 @@ public:
    /// Expert option - consult hypre documentation/team
    void SetRelaxType(int relax_type)
    { HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type); }
-   int SetRelaxType() const;
+   // int GetRelaxType() const;
 
    /// Expert option - consult hypre documentation/team
    void SetCycleType(int cycle_type)
