@@ -1,0 +1,6 @@
+-snes_monitor
+-ksp_monitor
+-ksp_max_it 30
+-ksp_type gmres
+-pc_type hypre
+-ksp_rtol 1e-8
