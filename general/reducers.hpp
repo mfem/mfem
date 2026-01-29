@@ -19,6 +19,10 @@
 #include <limits>
 #include <type_traits>
 
+#ifdef _MSC_VER
+#include <intrin.h> // Required for _BitScanReverse
+#endif
+
 namespace mfem
 {
 
