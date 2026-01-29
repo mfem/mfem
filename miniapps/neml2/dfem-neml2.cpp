@@ -42,7 +42,9 @@ int main(int argc, char *argv[])
    // Parse command-line options
    const char *device_config = "cpu";
    bool enable_pcamg = false;
-   const char *petscrc_file = "petscopts";
+   constexpr auto petscrc_file = MFEM_SOURCE_DIR "/miniapps/neml2/"
+                                                 "petscopts";
+   int n = 5;
 
    OptionsParser args(argc, argv);
    args.AddOption(&device_config, "-d", "--device",
@@ -50,8 +52,9 @@ int main(int argc, char *argv[])
    args.AddOption(&enable_pcamg, "-pcamg", "--pcamg", "-no-pcamg", "--no-pcamg",
                   "Enable AMG as a preconditioner when using automatic "
                   "differentiation.");
-   args.AddOption(&petscrc_file, "-petscopts", "--petscopts",
-                  "PetscOptions file to use.");
+   args.AddOption(&n, "-n", "--n",
+                  "The number of elements in one dimension. The total number "
+                  "will be a tensor product of this");
    args.ParseCheck();
 
    // Enable hardware devices such as GPUs, and programming models such as CUDA
@@ -65,7 +68,7 @@ int main(int argc, char *argv[])
 
    // Create a 3D mesh on the square domain [0,1]^3
    constexpr int dim = 3;
-   Mesh mesh = Mesh::MakeCartesian3D(2, 1, 1, Element::HEXAHEDRON);
+   Mesh mesh = Mesh::MakeCartesian3D(n, n, n, Element::HEXAHEDRON);
 
    // Define a parallel mesh
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
