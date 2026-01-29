@@ -4423,6 +4423,7 @@ HyprePCG::~HyprePCG()
    HYPRE_ParCSRPCGDestroy(pcg_solver);
 }
 
+#if MFEM_HYPRE_VERSION >= 21500
 HypreParVector HyprePCG::GetResiduals() const
 {
    HYPRE_ParVector r;
@@ -4434,7 +4435,7 @@ void HyprePCG::GetFinalAbsResidualNorm(real_t &final_res_norm, real_t p) const
    auto r = GetResiduals();
    ParNormlp(r, p, r.GetComm());
 }
-
+#endif
 
 HypreGMRES::HypreGMRES(MPI_Comm comm) : precond(NULL)
 {
@@ -4490,6 +4491,7 @@ void HypreGMRES::SetOperator(const Operator &op)
    auxX.Delete(); auxX.Reset();
 }
 
+#if MFEM_HYPRE_VERSION >= 21500
 HypreParVector HypreGMRES::GetResiduals() const
 {
    HYPRE_ParVector r;
@@ -4501,6 +4503,7 @@ void HypreGMRES::GetFinalAbsResidualNorm(real_t &final_res_norm, real_t p) const
    auto r = GetResiduals();
    ParNormlp(r, p, r.GetComm());
 }
+#endif
 
 void HypreGMRES::SetTol(real_t tol)
 {
@@ -4834,6 +4837,7 @@ HypreFGMRES::~HypreFGMRES()
    HYPRE_ParCSRFlexGMRESDestroy(fgmres_solver);
 }
 
+#if MFEM_HYPRE_VERSION >= 21500
 HypreParVector HypreFGMRES::GetResiduals() const
 {
    HYPRE_ParVector r;
@@ -4846,6 +4850,7 @@ void HypreFGMRES::GetFinalAbsResidualNorm(real_t &final_res_norm,
    auto r = GetResiduals();
    ParNormlp(r, p, r.GetComm());
 }
+#endif
 
 void HypreDiagScale::SetOperator(const Operator &op)
 {
