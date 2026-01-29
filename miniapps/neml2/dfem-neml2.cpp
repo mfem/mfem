@@ -115,6 +115,9 @@ int main(int argc, char *argv[])
    essential_bnd = 0;
    essential_bnd[2] = 1;
    Vector uz(3);
+   uz(0) = 0.;
+   uz(1) = 0.;
+   uz(2) = 0.;
    VectorConstantCoefficient zero_disp(uz);
 
    // Essential boundary condition (displaced)
