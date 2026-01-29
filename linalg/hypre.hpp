@@ -1412,12 +1412,14 @@ public:
    /// @sa HYPRE_PCGGetTwoNorm
    bool GetUseTwoNorm() const;
 
+#if MFEM_HYPRE_VERSION >= 21500
    /// Gets the internal Hypre solver residual vector.
    /// @sa HYPRE_ParCSRPCGGetResidual
    HypreParVector GetResiduals() const;
 
    /// Computes the absolute residual p-norm.
    void GetFinalAbsResidualNorm(real_t &final_res_norm, real_t p = 2) const;
+#endif
 
    /// The typecast to HYPRE_Solver returns the internal pcg_solver
    operator HYPRE_Solver() const override { return pcg_solver; }
@@ -1489,12 +1491,14 @@ public:
                                                     &final_res_norm);
    }
 
+#if MFEM_HYPRE_VERSION >= 21500
    /// Gets the internal Hypre solver residual vector.
    /// @sa HYPRE_ParCSRGMRESGetResidual
    HypreParVector GetResiduals() const;
 
    /// Computes the absolute residual p-norm.
    void GetFinalAbsResidualNorm(real_t &final_res_norm, real_t p = 2) const;
+#endif
 
    /// The typecast to HYPRE_Solver returns the internal gmres_solver
    operator HYPRE_Solver() const override { return gmres_solver; }
@@ -1564,12 +1568,14 @@ public:
                                                         &final_res_norm);
    }
 
+#if MFEM_HYPRE_VERSION >= 21500
    /// Gets the internal Hypre solver residual vector.
    /// @sa HYPRE_ParCSRFlexGMRESGetResidual
    HypreParVector GetResiduals() const;
 
    /// Computes the absolute residual p-norm.
    void GetFinalAbsResidualNorm(real_t &final_res_norm, real_t p = 2) const;
+#endif
 
    /// The typecast to HYPRE_Solver returns the internal fgmres_solver
    operator HYPRE_Solver() const override { return fgmres_solver; }
@@ -1929,7 +1935,7 @@ public:
    /// Expert option - consult hypre documentation/team
    void SetRelaxType(int relax_type)
    { HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type); }
-   int SetRelaxType() const;
+   // int GetRelaxType() const;
 
    /// Expert option - consult hypre documentation/team
    void SetCycleType(int cycle_type)
