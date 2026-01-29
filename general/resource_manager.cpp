@@ -1528,7 +1528,10 @@ void MemoryManager::check_valid(size_t curr, ptrdiff_t start, ptrdiff_t stop,
    if (pos < storage.get_node(curr).offset)
    {
       pos = storage.get_node(curr).offset;
-      func(start, std::min(pos, stop), true);
+      if (func(start, std::min(pos, stop), true))
+      {
+         return;
+      }
    }
    while (pos < stop)
    {
@@ -1710,6 +1713,7 @@ const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
 char *MemoryManager::write(size_t segment, size_t offset, size_t nbytes,
                            bool on_device)
 {
+   MFEM_MEM_OP_DEBUG("** write " << nbytes << std::endl);
    if (valid_segment(segment))
    {
       auto &seg = storage.get_segment(segment);
@@ -1737,7 +1741,7 @@ char *MemoryManager::write(size_t segment, size_t offset, size_t nbytes,
             seg.set_owns_host(true);
          }
          // initially all invalid
-         mark_invalid(segment, on_device, 0, seg.nbytes, [&](auto, auto) {});
+         mark_invalid(segment, on_device, 0, seg.nbytes, [](auto, auto) {});
       }
       mark_valid(segment, on_device, offset, offset + nbytes,
       [](auto, auto) {});
@@ -1789,6 +1793,15 @@ void MemoryManager::BatchMemCopy(
    AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
    &copy_segs)
 {
+#ifdef MFEM_ENABLE_MEM_OP_DEBUG
+   // for debugging
+   for (size_t i = 0; i < copy_segs.size(); ++i)
+   {
+      MFEM_MEM_OP_DEBUG("  BatchMemCopy "
+                        << copy_segs[i].second - copy_segs[i].first
+                        << std::endl);
+   }
+#endif
    // copy_segs is assumed to be allocated in either HOSTPINNED or MANAGED
    switch (copy_segs.size())
    {
@@ -1876,27 +1889,12 @@ void MemoryManager::BatchMemCopy2(
    char *dst, const char *src, MemoryType dst_loc, MemoryType src_loc,
    const std::vector<ptrdiff_t, AllocatorAdaptor<ptrdiff_t>> &copy_segs)
 {
-#if 0
+#ifdef MFEM_ENABLE_MEM_OP_DEBUG
    // for debugging
    for (size_t i = 0; i < copy_segs.size(); i += 3)
    {
-      mfem::out << "copy " << copy_segs[i] << ", "
-                << copy_segs[i] + copy_segs[i + 2] << " to " << copy_segs[i + 1]
-                << ", " << copy_segs[i + 1] + copy_segs[i + 2] << std::endl;
-      if (dst + copy_segs[i + 1] <= src + copy_segs[i])
-      {
-         MFEM_ASSERT(dst + copy_segs[i + 1] + copy_segs[i + 2] <=
-                     src + copy_segs[i],
-                     "BatchMemCopy2 overlap in src and dst");
-      }
-      else
-      {
-         MFEM_ASSERT(src + copy_segs[i] + copy_segs[i + 2] <=
-                     dst + copy_segs[i + 1],
-                     "BatchMemCopy2 overlap in src and dst");
-      }
+      MFEM_MEM_OP_DEBUG("  BatchMemCopy2 " << copy_segs[i + 2] << std::endl);
    }
-   mfem::out << std::endl;
 #endif
    // copy_segs is assumed to be allocated in either HOSTPINNED or MANAGED
    switch (copy_segs.size())
@@ -1984,6 +1982,7 @@ void MemoryManager::BatchMemCopy2(
 char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
                                 bool on_device)
 {
+   MFEM_MEM_OP_DEBUG("** read_write " << nbytes << std::endl);
    if (valid_segment(segment))
    {
       std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
@@ -2016,7 +2015,7 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
             seg.set_owns_host(true);
          }
          // initially all invalid
-         mark_invalid(segment, on_device, 0, seg.nbytes, [&](auto, auto) {});
+         mark_invalid(segment, on_device, 0, seg.nbytes, [](auto, auto) {});
       }
       bool need_sync = false;
       if (seg.lowers[0] == seg.lowers[1])
@@ -2073,6 +2072,7 @@ const char *MemoryManager::fast_read(size_t segment, size_t offset,
 const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
                                 bool on_device)
 {
+   MFEM_MEM_OP_DEBUG("** read " << nbytes << std::endl);
    if (valid_segment(segment))
    {
       std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
@@ -2105,7 +2105,7 @@ const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
             seg.set_owns_host(true);
          }
          // initially all invalid
-         mark_invalid(segment, on_device, 0, seg.nbytes, [&](auto, auto) {});
+         mark_invalid(segment, on_device, 0, seg.nbytes, [](auto, auto) {});
       }
 
       bool need_sync = false;
@@ -2483,7 +2483,8 @@ void MemoryManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
    {
       return;
    }
-   if (dst_seg != src_seg)
+   MFEM_MEM_OP_DEBUG("** Copy " << nbytes << std::endl);
+   if (dst_seg != src_seg || dst_offset != src_offset)
    {
       size_t currs[2] = {0, 0};
       auto &dseg = storage.get_segment(dst_seg);
@@ -2530,6 +2531,7 @@ void MemoryManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
 void MemoryManager::CopyFromHost(size_t segment, size_t offset, const char *src,
                                  size_t nbytes)
 {
+   MFEM_MEM_OP_DEBUG("** CopyFromHost " << nbytes << std::endl);
    if (nbytes == 0)
    {
       return;
@@ -2576,6 +2578,7 @@ void MemoryManager::CopyFromHost(size_t segment, size_t offset, const char *src,
 void MemoryManager::CopyToHost(size_t segment, size_t offset, char *dst,
                                size_t nbytes)
 {
+   MFEM_MEM_OP_DEBUG("** CopyToHost " << nbytes << std::endl);
    if (nbytes == 0)
    {
       return;
@@ -2703,6 +2706,13 @@ void MemoryManager::UpdateDualMemoryType(MemoryType mt, MemoryType dual_mt)
                   << MemoryTypeName[(int)mt] << ", "
                   << MemoryTypeName[(int)dual_mt] << ')');
    }
+}
+
+void MemoryManager::sync_alias(size_t alias_segment, size_t alias_offset,
+                               size_t alias_nbytes, char &alias_flags,
+                               size_t base_segment, size_t base_offset,
+                               size_t base_nbytes, char &base_flags)
+{
 }
 } // namespace mfem
 

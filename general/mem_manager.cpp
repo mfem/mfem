@@ -57,6 +57,12 @@
 namespace mfem
 {
 
+std::ostream &mem_op_debug()
+{
+   static size_t op_idx = 0;
+   return mfem::out << "[DEBUG] " << op_idx << ": ";
+}
+
 MemoryType GetMemoryType(MemoryClass mc)
 {
    auto &inst = MemoryManager::instance();
@@ -1244,6 +1250,7 @@ void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
             MFEM_ASSERT((const char*)dst_h_ptr + bytes <= src_h_ptr ||
                         (const char*)src_h_ptr + bytes <= dst_h_ptr,
                         "data overlaps!");
+            MFEM_MEM_OP_DEBUG("  BatchMemCopy2 " << bytes << std::endl);
             std::memcpy(dst_h_ptr, src_h_ptr, bytes);
          }
       }
@@ -1254,6 +1261,7 @@ void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
             MemoryType src_d_mt = (src_flags & Mem::ALIAS) ?
                                   maps->aliases.at(src_h_ptr).mem->d_mt :
                                   maps->memories.at(src_h_ptr).d_mt;
+            MFEM_MEM_OP_DEBUG("  BatchMemCopy2 " << bytes << std::endl);
             ctrl->Device(src_d_mt)->DtoH(dst_h_ptr, src_d_ptr, bytes);
          }
       }
@@ -1271,6 +1279,7 @@ void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
          const MemoryType d_mt = known ?
                                  maps->memories.at(dst_h_ptr).d_mt :
                                  maps->aliases.at(dst_h_ptr).mem->d_mt;
+         MFEM_MEM_OP_DEBUG("  BatchMemCopy2 " << bytes << std::endl);
          ctrl->Device(d_mt)->HtoD(dest_d_ptr, src_h_ptr, bytes);
       }
       else
@@ -1283,6 +1292,7 @@ void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
             const MemoryType d_mt = known ?
                                     maps->memories.at(dst_h_ptr).d_mt :
                                     maps->aliases.at(dst_h_ptr).mem->d_mt;
+            MFEM_MEM_OP_DEBUG("  BatchMemCopy2 " << bytes << std::endl);
             ctrl->Device(d_mt)->DtoD(dest_d_ptr, src_d_ptr, bytes);
          }
       }
@@ -1304,6 +1314,7 @@ void MemoryManager::CopyToHost_(void *dest_h_ptr, const void *src_h_ptr,
          MFEM_ASSERT((char*)dest_h_ptr + bytes <= src_h_ptr ||
                      (const char*)src_h_ptr + bytes <= dest_h_ptr,
                      "data overlaps!");
+         MFEM_MEM_OP_DEBUG("  BatchMemCopy  " << bytes << std::endl);
          std::memcpy(dest_h_ptr, src_h_ptr, bytes);
       }
    }
@@ -1316,6 +1327,7 @@ void MemoryManager::CopyToHost_(void *dest_h_ptr, const void *src_h_ptr,
       MemoryType src_d_mt = (src_flags & Mem::ALIAS) ?
                             maps->aliases.at(src_h_ptr).mem->d_mt :
                             maps->memories.at(src_h_ptr).d_mt;
+      MFEM_MEM_OP_DEBUG("  BatchMemCopy  " << bytes << std::endl);
       ctrl->Device(src_d_mt)->DtoH(dest_h_ptr, src_d_ptr, bytes);
    }
 }
@@ -1335,6 +1347,7 @@ void MemoryManager::CopyFromHost_(void *dest_h_ptr, const void *src_h_ptr,
          MFEM_ASSERT((char*)dest_h_ptr + bytes <= src_h_ptr ||
                      (const char*)src_h_ptr + bytes <= dest_h_ptr,
                      "data overlaps!");
+         MFEM_MEM_OP_DEBUG("  BatchMemCopy  " << bytes << std::endl);
          std::memcpy(dest_h_ptr, src_h_ptr, bytes);
       }
    }
@@ -1346,6 +1359,7 @@ void MemoryManager::CopyFromHost_(void *dest_h_ptr, const void *src_h_ptr,
       MemoryType dest_d_mt = (dest_flags & Mem::ALIAS) ?
                              maps->aliases.at(dest_h_ptr).mem->d_mt :
                              maps->memories.at(dest_h_ptr).d_mt;
+      MFEM_MEM_OP_DEBUG("  BatchMemCopy  " << bytes << std::endl);
       ctrl->Device(dest_d_mt)->HtoD(dest_d_ptr, src_h_ptr, bytes);
    }
    dest_flags = dest_flags &
@@ -1512,7 +1526,11 @@ void *MemoryManager::GetDevicePtr(const void *h_ptr, size_t bytes,
    if (copy_data)
    {
       MFEM_ASSERT(bytes <= mem.bytes, "invalid copy size");
-      if (bytes) { ctrl->Device(d_mt)->HtoD(mem.d_ptr, h_ptr, bytes); }
+      if (bytes)
+      {
+         MFEM_MEM_OP_DEBUG("  BatchMemCopy " << bytes << std::endl);
+         ctrl->Device(d_mt)->HtoD(mem.d_ptr, h_ptr, bytes);
+      }
    }
    ctrl->Host(h_mt)->Protect(mem, bytes);
    return mem.d_ptr;
@@ -1548,7 +1566,10 @@ void *MemoryManager::GetAliasDevicePtr(const void *alias_ptr, size_t bytes,
    if (mem.d_ptr) { ctrl->Device(d_mt)->AliasUnprotect(alias_d_ptr, bytes); }
    ctrl->Host(h_mt)->AliasUnprotect(alias_ptr, bytes);
    if (copy && mem.d_ptr)
-   { ctrl->Device(d_mt)->HtoD(alias_d_ptr, alias_h_ptr, bytes); }
+   {
+      MFEM_MEM_OP_DEBUG("  BatchMemCopy " << bytes << std::endl);
+      ctrl->Device(d_mt)->HtoD(alias_d_ptr, alias_h_ptr, bytes);
+   }
    ctrl->Host(h_mt)->AliasProtect(alias_ptr, bytes);
    return alias_d_ptr;
 }
@@ -1564,7 +1585,11 @@ void *MemoryManager::GetHostPtr(const void *ptr, size_t bytes, bool copy)
    // Aliases might have done some protections
    ctrl->Host(h_mt)->Unprotect(mem, bytes);
    if (mem.d_ptr) { ctrl->Device(d_mt)->Unprotect(mem); }
-   if (copy && mem.d_ptr) { ctrl->Device(d_mt)->DtoH(mem.h_ptr, mem.d_ptr, bytes); }
+   if (copy && mem.d_ptr)
+   {
+      MFEM_MEM_OP_DEBUG("  BatchMemCopy " << bytes << std::endl);
+      ctrl->Device(d_mt)->DtoH(mem.h_ptr, mem.d_ptr, bytes);
+   }
    if (mem.d_ptr) { ctrl->Device(d_mt)->Protect(mem); }
    return mem.h_ptr;
 }
@@ -1584,7 +1609,10 @@ void *MemoryManager::GetAliasHostPtr(const void *ptr, size_t bytes,
    ctrl->Host(h_mt)->AliasUnprotect(alias_h_ptr, bytes);
    if (mem->d_ptr) { ctrl->Device(d_mt)->AliasUnprotect(alias_d_ptr, bytes); }
    if (copy_data && mem->d_ptr)
-   { ctrl->Device(d_mt)->DtoH(const_cast<void*>(ptr), alias_d_ptr, bytes); }
+   {
+      MFEM_MEM_OP_DEBUG("  BatchMemCopy " << bytes << std::endl);
+      ctrl->Device(d_mt)->DtoH(const_cast<void *>(ptr), alias_d_ptr, bytes);
+   }
    if (mem->d_ptr) { ctrl->Device(d_mt)->AliasProtect(alias_d_ptr, bytes); }
    return alias_h_ptr;
 }

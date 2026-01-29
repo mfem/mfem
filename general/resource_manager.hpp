@@ -208,6 +208,8 @@ private:
 
    size_t find_marker(size_t segment, ptrdiff_t offset, bool on_device);
 
+   /// calls func(begin, end, valid) for each section between [start, stop)
+   /// returns early if func returns true
    template <class F>
    void check_valid(size_t segment, bool on_device, ptrdiff_t start,
                     ptrdiff_t stop, F &&func);
@@ -302,6 +304,10 @@ private:
    void BatchMemCopy2(
       char *dst, const char *src, MemoryType dst_loc, MemoryType src_loc,
       const std::vector<ptrdiff_t, AllocatorAdaptor<ptrdiff_t>> &copy_segs);
+
+   void sync_alias(size_t alias_segment, size_t alias_offset,
+                   size_t alias_nbytes, char &alias_flags, size_t base_segment,
+                   size_t base_offset, size_t base_nbytes, char &base_flags);
 
    void SetDeviceMemoryType(size_t segment, MemoryType loc);
 
@@ -455,7 +461,7 @@ template <class T> class Memory
    size_t offset_ = 0;
    size_t size_ = 0;
    size_t segment = 0;
-   enum Flags
+   enum Flags : char
    {
       NONE = 0,
       USE_DEVICE = 1,
@@ -584,11 +590,7 @@ public:
    void New(size_t size, bool temporary = false)
    {
       auto &inst = MemoryManager::instance();
-      auto old_flags = flags;
-      if (inst.valid_segment(segment) && size_)
-      {
-         throw std::runtime_error("warning: leaking memory");
-      }
+      auto old_flags = flags & USE_DEVICE;
       *this = Memory(size, inst.memory_types[0], temporary);
       flags = static_cast<Flags>(flags | old_flags);
    }
@@ -607,7 +609,7 @@ public:
             loc = inst.GetHostMemoryType();
          }
       }
-      auto old_flags = flags;
+      auto old_flags = flags & USE_DEVICE;
       *this = Memory(size, loc, temporary);
       flags = static_cast<Flags>(flags | old_flags);
    }
@@ -639,7 +641,7 @@ public:
             dloc = inst.GetDeviceMemoryType();
          }
       }
-      auto old_flags = flags;
+      auto old_flags = flags & USE_DEVICE;
       *this = Memory(size, hloc, dloc, temporary);
       flags = static_cast<Flags>(flags | old_flags);
    }
@@ -752,11 +754,14 @@ public:
    }
 
    /// @deprecated This is a no-op
-   void Sync(const Memory &other) const {}
-   /// @deprecated This is a no-op
-   void SyncAlias(const Memory &other) const {}
-   /// @deprecated This is a no-op
-   void SyncAlias(const Memory &other, int alias_size) const {}
+   void Sync(const Memory &other) const
+   {
+   }
+   /// Make *this valid everywhere other is valid, possibly involves copies.
+   /// Should be @deprecated, but some code relies on the copy behavior?
+   void SyncAlias(const Memory &other, int alias_size) const
+   {
+   }
 
    MemoryType GetMemoryType() const
    {

@@ -29,6 +29,13 @@
 #endif
 
 #define USE_NEW_MEM_MANAGER 1
+// #define MFEM_ENABLE_MEM_OP_DEBUG
+
+#ifdef MFEM_ENABLE_MEM_OP_DEBUG
+#define MFEM_MEM_OP_DEBUG(ARG) mfem::mem_op_debug() << ARG
+#else
+#define MFEM_MEM_OP_DEBUG(ARG)
+#endif
 
 namespace mfem
 {
@@ -64,6 +71,8 @@ enum class MemoryType
                         parameters to request the use of the default host or
                         device MemoryType. */
 };
+
+std::ostream &mem_op_debug();
 
 /// Static casts to 'int' and sizes of some useful memory types.
 constexpr int MemoryTypeSize = static_cast<int>(MemoryType::SIZE);
@@ -1197,6 +1206,7 @@ template <typename T>
 inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
 {
    const size_t bytes = size * sizeof(T);
+   MFEM_MEM_OP_DEBUG("** read_write " << bytes << std::endl);
    if (!(flags & Registered))
    {
       if (mc == MemoryClass::HOST) { return h_ptr; }
@@ -1210,6 +1220,7 @@ template <typename T>
 inline const T *Memory<T>::Read(MemoryClass mc, int size) const
 {
    const size_t bytes = size * sizeof(T);
+   MFEM_MEM_OP_DEBUG("** read " << bytes << std::endl);
    if (!(flags & Registered))
    {
       if (mc == MemoryClass::HOST) { return h_ptr; }
@@ -1223,6 +1234,7 @@ template <typename T>
 inline T *Memory<T>::Write(MemoryClass mc, int size)
 {
    const size_t bytes = size * sizeof(T);
+   MFEM_MEM_OP_DEBUG("** write " << bytes << std::endl);
    if (!(flags & Registered))
    {
       if (mc == MemoryClass::HOST) { return h_ptr; }
@@ -1288,12 +1300,15 @@ inline void Memory<T>::CopyFrom(const Memory &src, int size)
 {
    MFEM_VERIFY(src.capacity>=size && capacity>=size, "Incorrect size");
    if (size <= 0) { return; }
+   MFEM_MEM_OP_DEBUG("** Copy " << size * sizeof(T) << std::endl);
    if (!(flags & Registered) && !(src.flags & Registered))
    {
       if (h_ptr != src.h_ptr)
       {
          MFEM_ASSERT(h_ptr + size <= src.h_ptr || src.h_ptr + size <= h_ptr,
                      "data overlaps!");
+         MFEM_MEM_OP_DEBUG("  BatchMemCopy2 " << size * sizeof(T) << std::endl);
+
          std::memcpy(h_ptr, src, size*sizeof(T));
       }
       // *this is not registered, so (flags & VALID_HOST) must be true
@@ -1309,12 +1324,14 @@ inline void Memory<T>::CopyFromHost(const T *src, int size)
 {
    MFEM_VERIFY(capacity>=size, "Incorrect size");
    if (size <= 0) { return; }
+   MFEM_MEM_OP_DEBUG("** CopyFromHost " << size * sizeof(T) << std::endl);
    if (!(flags & Registered))
    {
       if (h_ptr != src)
       {
          MFEM_ASSERT(h_ptr + size <= src || src + size <= h_ptr,
                      "data overlaps!");
+         MFEM_MEM_OP_DEBUG("  BatchMemCopy " << size * sizeof(T) << std::endl);
          std::memcpy(h_ptr, src, size*sizeof(T));
       }
       // *this is not registered, so (flags & VALID_HOST) must be true
@@ -1336,12 +1353,14 @@ inline void Memory<T>::CopyToHost(T *dest, int size) const
 {
    MFEM_VERIFY(capacity>=size, "Incorrect size");
    if (size <= 0) { return; }
+   MFEM_MEM_OP_DEBUG("** CopyToHost " << size * sizeof(T) << std::endl);
    if (!(flags & Registered))
    {
       if (h_ptr != dest)
       {
          MFEM_ASSERT(h_ptr + size <= dest || dest + size <= h_ptr,
                      "data overlaps!");
+         MFEM_MEM_OP_DEBUG("  BatchMemCopy  " << size * sizeof(T) << std::endl);
          std::memcpy(dest, h_ptr, size*sizeof(T));
       }
    }
