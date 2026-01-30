@@ -773,9 +773,8 @@ function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
       string(REGEX REPLACE "^lib" "" LibName ${NameWE})
       list(APPEND LinkOpts
         "-L\"${Dir}\""
+        "${shared_link_flag}\"${Dir}\""
         "-l${LibName}")
-      list(APPEND LinkOpts
-        "${shared_link_flag}\"${Dir}\"")
     else()
       message(STATUS " *** Warning: [${tgt}] LOCATION not defined!")
     endif()
@@ -800,9 +799,9 @@ function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
           # Filter-out generator expressions
           if (NOT ("${Lib}" MATCHES "^\\$"))
             if(NOT ("${Lib}" STREQUAL "dl"))
-              # strange extra thing CMake adds
               list(APPEND LinkOpts "${Lib}")
             else()
+              # for some reason libdl doesn't include the "-l"
               list(APPEND LinkOpts "-ldl")
             endif()
           endif()
