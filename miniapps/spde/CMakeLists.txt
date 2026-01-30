@@ -16,6 +16,19 @@ if (MFEM_USE_MPI)
                   transformation.cpp
     LIBRARIES mfem)
 
+   add_mfem_miniapp(tst_rnd	
+     MAIN tst_rnd.cpp
+     EXTRA_SOURCES frac_noise.cpp spde_solver.cpp
+     LIBRARIES mfem
+   )
+
+   add_mfem_miniapp(tst_frac_inv
+     MAIN tst_frac_inv.cpp
+     EXTRA_SOURCES polylib.cpp
+     LIBRARIES mfem
+   )
+
+
   # Copy files to the build folder.
   file(COPY ${PROJECT_SOURCE_DIR}/miniapps/spde/README.md
        DESTINATION ${PROJECT_BINARY_DIR}/miniapps/spde)
