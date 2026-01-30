@@ -69,11 +69,9 @@ examples/ex3[0-9]
 examples/ex3[0-9]p
 examples/ex4[0-9]
 examples/ex4[0-9]p
-examples/signorini
-examples/signorinip
-examples/signorinip_mms
-examples/signorinip_wbc
-examples/signorinip_gw
+examples/signorini/signorini*
+!examples/signorini/signorini*.cpp
+!examples/signorini/signorini*.h
 
 examples/refined.mesh
 examples/displaced.mesh
