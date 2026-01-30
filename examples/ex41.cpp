@@ -4,8 +4,7 @@
 //
 // Sample runs:
 //  ex41
-//  ex41 -p 0 -r 2 -dt 0.01 -tf 10
-//  ex41 -p 0 -r 2 -dt 0.01 -tf 10 -cg
+//  ex41 -cg
 //  ex41 -m ../data/periodic-hexagon.mesh -p 0 -r 2 -dt 0.005 -tf 10
 //  ex41 -m ../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //  ex41 -m ../data/periodic-hexagon.mesh -p 1 -r 2 -dt 0.005 -tf 9
@@ -270,7 +269,7 @@ int main(int argc, char *argv[])
    int order = 3;
    int ode_solver_type = 64; //IMEXRK3(3,4,3)
    real_t t_final = 10.0;
-   real_t dt = 0.001;
+   real_t dt = 0.01;
    bool paraview = false;
    bool cg = false;
    int vis_steps = 50;

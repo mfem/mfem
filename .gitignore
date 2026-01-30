@@ -316,6 +316,8 @@ miniapps/nurbs/nurbs_ex1
 miniapps/nurbs/nurbs_ex1p
 miniapps/nurbs/nurbs_ex3
 miniapps/nurbs/nurbs_ex5
+miniapps/nurbs/nurbs_ex10
+miniapps/nurbs/nurbs_ex10p
 miniapps/nurbs/nurbs_ex11p
 miniapps/nurbs/nurbs_ex24
 miniapps/nurbs/nurbs_solenoidal
@@ -341,7 +343,14 @@ miniapps/nurbs/nurbs_naca_cmesh
 miniapps/nurbs/naca-cmesh.mesh
 miniapps/nurbs/glvis_naca-cmesh.mesh
 miniapps/nurbs/Naca_cmesh
+miniapps/nurbs/nurbs_mesh_info
+miniapps/nurbs/k*_*.dat
 miniapps/nurbs/*-Surface.mesh
+miniapps/nurbs/*.mesh
+miniapps/nurbs/*.sol
+miniapps/nurbs/deformed.*
+miniapps/nurbs/elastic_energy.*
+miniapps/nurbs/velocity.*
 
 miniapps/performance/ex1
 miniapps/performance/ex1p
@@ -363,6 +372,7 @@ miniapps/shifted/lsf_integral
 miniapps/tools/display-basis
 miniapps/tools/load-dc
 miniapps/tools/convert-dc
+miniapps/tools/compare-dc
 miniapps/tools/gridfunction-bounds
 miniapps/tools/lor-transfer
 miniapps/tools/plor-transfer
