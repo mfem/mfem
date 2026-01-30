@@ -178,9 +178,9 @@ def main() -> int:
     ap.add_argument("--make-target", default=DEFAULT_MAKE_TARGET)
     ap.add_argument("--no-build", action="store_true")
 
-    ap.add_argument("--base-npt-per-rank", type=int, default=10240,
+    ap.add_argument("--base-npt-per-rank", type=int, default=40960,
                     help="Base -npt per rank (used in weak scaling; also used to define default total for strong)")
-    ap.add_argument("--base-total-npt", type=int, default=10240 * 256,
+    ap.add_argument("--base-total-npt", type=int, default=2621440,
                     help="Total particles to hold fixed for strong scaling (default matches your 256-rank run)")
     ap.add_argument("--min-npt-per-rank", type=int, default=256,
                     help="For strong scaling, lower bound to avoid too tiny per-rank particle counts")
