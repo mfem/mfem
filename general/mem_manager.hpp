@@ -1275,7 +1275,7 @@ inline void Memory<T>::SyncAlias(const Memory &base, int alias_size) const
    // Assuming that if *this is registered then base is also registered.
    MFEM_ASSERT(!(flags & Registered) || (base.flags & Registered),
                "invalid base state");
-   MFEM_MEM_OP_DEBUG("** SyncAlias " << alias_size * sizeof(T));
+   MFEM_MEM_OP_DEBUG("** SyncAlias " << alias_size * sizeof(T) << std::endl);
    if (!(base.flags & Registered)) { return; }
    MemoryManager::SyncAlias_(base.h_ptr, h_ptr, alias_size*sizeof(T),
                              base.flags, flags);

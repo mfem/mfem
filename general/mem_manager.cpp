@@ -62,7 +62,7 @@ namespace mfem
 std::ostream &mem_op_debug()
 {
    static size_t op_idx = 0;
-   return mfem::out << "[DEBUG] " << op_idx << ": ";
+   return mfem::out << "[DEBUG] " << op_idx++ << ": ";
 }
 
 std::string mem_op_debug_copy_type(MemoryType src_loc, MemoryType dst_loc)
@@ -85,6 +85,8 @@ std::string mem_op_debug_copy_type(MemoryType src_loc, MemoryType dst_loc)
       case MemoryType::DEVICE_UMPIRE_2:
          res << 'D';
          break;
+      default:
+         break;
    }
    res << "to";
    switch (dst_loc)
@@ -103,6 +105,8 @@ std::string mem_op_debug_copy_type(MemoryType src_loc, MemoryType dst_loc)
       case MemoryType::DEVICE_UMPIRE:
       case MemoryType::DEVICE_UMPIRE_2:
          res << 'D';
+         break;
+      default:
          break;
    }
    return res.str();
