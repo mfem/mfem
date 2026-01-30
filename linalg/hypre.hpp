@@ -1347,7 +1347,7 @@ public:
 #endif
 
 /// PCG solver in hypre
-/// Defaults to tol=1e-6, atol=0, max_iter=1000
+/// Defaults to (relative) tol=1e-6, atol=0, max_iter=1000
 class HyprePCG : public HypreSolver
 {
 private:
@@ -1402,11 +1402,11 @@ public:
                                                   &final_res_norm);
    }
 
+   /// @param[in] use
+   ///   Convergence criterion:
+   ///   - when true: (r, r) < max(r_tol^2 (b, b), a_tol^2)
+   ///   - when false: (r, A r) < max(r_tol^2 (b, A b), a_tol^2)
    /// @sa HYPRE_PCGSetTwoNorm
-   /// @a use = true uses (r, r) < max(r_tol^2 (b, b), a_tol^2) for
-   /// the convergence criteria
-   /// @a use = false uses (r, A r) < max(r_tol^2 (b, A b), a_tol^2) for
-   /// the convergence criteria
    void SetUseTwoNorm(bool use);
 
    /// @sa HYPRE_PCGGetTwoNorm
@@ -1438,8 +1438,8 @@ public:
    virtual ~HyprePCG();
 };
 
-/// GMRES solver in hypre
-/// Defaults to k=50, tol=1e-6, atol=0, max_iter=100
+/// GMRES solver in hypre.
+/// Defaults to k=50, (relative) tol=1e-6, atol=0, max_iter=100.
 class HypreGMRES : public HypreSolver
 {
 private:
@@ -1517,8 +1517,8 @@ public:
    virtual ~HypreGMRES();
 };
 
-/// Flexible GMRES solver in hypre
-/// Defaults to k=50, tol=1e-6, max_iter=100
+/// Flexible GMRES solver in hypre.
+/// Defaults to k=50, (relative) tol=1e-6, max_iter=100.
 class HypreFGMRES : public HypreSolver
 {
 private:
@@ -1632,8 +1632,8 @@ public:
    virtual ~HypreDiagScale() { }
 };
 
-/// The ParaSails preconditioner in hypre
-/// See @sa SetDefaultOptions for default solver options
+/// The ParaSails preconditioner in hypre.
+/// See SetDefaultOptions() for default solver options.
 class HypreParaSails : public HypreSolver
 {
 private:
@@ -1935,6 +1935,7 @@ public:
    /// Expert option - consult hypre documentation/team
    void SetRelaxType(int relax_type)
    { HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type); }
+   // not implemented in hypre
    // int GetRelaxType() const;
 
    /// Expert option - consult hypre documentation/team
