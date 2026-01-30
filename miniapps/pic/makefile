@@ -13,19 +13,23 @@
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
 MFEM_INSTALL_DIR ?= ../../mfem
-SRC = 
+SRC =
 CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
    $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS =
-PAR_MINIAPPS = electrostatic-2d2v
+PAR_MINIAPPS =
+
+ifeq ($(MFEM_USE_GSLIB),YES)
+   PAR_MINIAPPS += electrostatic-2d2v
+endif
+
 ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS = $(SEQ_MINIAPPS)
+   MINIAPPS =
 else
-   MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
+   MINIAPPS = $(PAR_MINIAPPS)
 endif
 
 .SUFFIXES:
@@ -64,7 +68,7 @@ include $(MFEM_TEST_MK)
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 pic-test-par: electrostatic-2d2v
 	@$(call mfem-test,$<, mpirun -n 4, PIC miniapp,\
-		-rdf 1 -npt 10240 -k 0.2855993321 -a 0.05 -nt 200 -nx 16 -ny 16 -O 1 -q 0.01181640625 -m 0.01181640625 -ocf 1000 -dt 0.1)
+		-rdf 2 -npt 40960 -k 0.2855993321 -a 0.05 -nt 200 -nx 16 -ny 16 -O 1 -q 0.01181640625 -m 0.01181640625 -ocf 1000 -dt 0.1)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
