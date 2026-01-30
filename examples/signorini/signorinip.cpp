@@ -3,8 +3,8 @@
 // Compile with: make signorinip
 //
 // Sample runs:  mpirun -np 4 signorinip
-//               mpirun -np 4 signorinip -m ../data/true-tetrahedron.mesh
-//               mpirun -np 4 signorinip -m ../data/ball-nurbs.mesh -a 3 -o 3 -i 50
+//               mpirun -np 4 signorinip -m ../../data/true-tetrahedron.mesh
+//               mpirun -np 4 signorinip -m ../../data/ball-nurbs.mesh -a 3 -o 3 -i 50
 //
 // Description:  This program solves the Signorini problem using MFEM.
 //               The problem is defined on a solid with a Dirichlet
@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    // 1. Parse command-line options.
-   const char* mesh_file = "../data/ref-cube.mesh";
+   const char* mesh_file = "../../data/ref-cube.mesh";
    int order = 1;
    real_t alpha = 1.0;
    real_t lambda = 1.0;

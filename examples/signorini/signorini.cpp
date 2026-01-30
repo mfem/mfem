@@ -3,7 +3,7 @@
 // Compile with: make signorini
 //
 // Sample runs:  signorini
-//               signorini -m ../data/true-tetrahedron.mesh
+//               signorini -m ../../data/true-tetrahedron.mesh
 //
 // Description:  This program solves the Signorini problem using MFEM.
 //               The problem is defined on a solid with a Dirichlet
@@ -31,7 +31,7 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char* mesh_file = "../data/ref-cube.mesh";
+   const char* mesh_file = "../../data/ref-cube.mesh";
    int order = 2;
    real_t alpha = 1;
    real_t lambda = 1.0;

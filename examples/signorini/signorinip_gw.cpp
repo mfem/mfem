@@ -129,7 +129,7 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/wheel.msh";
+   const char *mesh_file = "../../data/wheel.msh";
    int order = 1;
    real_t alpha = 0.1;
    real_t beta = -1.0;
