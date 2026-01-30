@@ -761,6 +761,7 @@ public:
    /// Should be @deprecated, but some code relies on the copy behavior?
    void SyncAlias(const Memory &other, int alias_size) const
    {
+      MFEM_MEM_OP_DEBUG("** SyncAlias " << alias_size * sizeof(T));
    }
 
    MemoryType GetMemoryType() const

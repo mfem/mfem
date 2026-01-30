@@ -1797,9 +1797,8 @@ void MemoryManager::BatchMemCopy(
    // for debugging
    for (size_t i = 0; i < copy_segs.size(); ++i)
    {
-      MFEM_MEM_OP_DEBUG("  BatchMemCopy "
-                        << copy_segs[i].second - copy_segs[i].first
-                        << std::endl);
+      MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(copy_segs[i].second - copy_segs[i].first,
+                                       src_loc, dst_loc);
    }
 #endif
    // copy_segs is assumed to be allocated in either HOSTPINNED or MANAGED
@@ -1893,7 +1892,7 @@ void MemoryManager::BatchMemCopy2(
    // for debugging
    for (size_t i = 0; i < copy_segs.size(); i += 3)
    {
-      MFEM_MEM_OP_DEBUG("  BatchMemCopy2 " << copy_segs[i + 2] << std::endl);
+      MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY2(copy_segs[i + 2], src_loc, dst_loc);
    }
 #endif
    // copy_segs is assumed to be allocated in either HOSTPINNED or MANAGED
