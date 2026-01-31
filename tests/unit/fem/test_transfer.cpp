@@ -556,20 +556,16 @@ TEST_CASE("Trace PRefinement Serial TrueTransfer", "[Transfer]")
    Ordering::Type ordering = (vectorspace == VecSpace::VectorH1vdim)
                              ? Ordering::byVDIM : Ordering::byNODES;
 
-   FiniteElementSpace *c_fes =
-      new FiniteElementSpace(&mesh, c_fec, vdim, ordering);
-   FiniteElementSpace *f_fes =
-      new FiniteElementSpace(&mesh, f_fec, vdim, ordering);
+   FiniteElementSpace c_fes(&mesh, c_fec, vdim, ordering);
+   FiniteElementSpace f_fes(&mesh, f_fec, vdim, ordering);
 
-   FiniteElementSpace *c_trace_fes =
-      new FiniteElementSpace(&mesh, c_trace_fec, vdim, ordering);
-   FiniteElementSpace *f_trace_fes =
-      new FiniteElementSpace(&mesh, f_trace_fec, vdim, ordering);
+   FiniteElementSpace c_trace_fes(&mesh, c_trace_fec, vdim, ordering);
+   FiniteElementSpace f_trace_fes(&mesh, f_trace_fec, vdim, ordering);
 
-   GridFunction x_c(c_fes); x_c = 0.0;
-   GridFunction x_f(f_fes); x_f = 0.0;
-   GridFunction x_trace_c(c_trace_fes); x_trace_c = 0.0;
-   GridFunction x_trace_f(f_trace_fes); x_trace_f = 0.0;
+   GridFunction x_c(&c_fes); x_c = 0.0;
+   GridFunction x_f(&f_fes); x_f = 0.0;
+   GridFunction x_trace_c(&c_trace_fes); x_trace_c = 0.0;
+   GridFunction x_trace_f(&f_trace_fes); x_trace_f = 0.0;
 
    if (vectorspace == VecSpace::H1)
    {
@@ -599,18 +595,17 @@ TEST_CASE("Trace PRefinement Serial TrueTransfer", "[Transfer]")
    }
 
    // Generate transfer operators for field and trace spaces
-   auto P = new PRefinementTransferOperator(*c_fes, *f_fes, assembleP);
-   auto P_trace = new PRefinementTransferOperator(*c_trace_fes, *f_trace_fes,
-                                                  assembleP);
+   PRefinementTransferOperator P(c_fes, f_fes, assembleP);
+   PRefinementTransferOperator P_trace(c_trace_fes, f_trace_fes, assembleP);
 
-   Vector x_c_true(c_fes->GetTrueVSize());
-   Vector x_f_true(f_fes->GetTrueVSize());
-   Vector x_trace_c_true(c_trace_fes->GetTrueVSize());
-   Vector x_trace_f_true(f_trace_fes->GetTrueVSize());
+   Vector x_c_true(c_fes.GetTrueVSize());
+   Vector x_f_true(f_fes.GetTrueVSize());
+   Vector x_trace_c_true(c_trace_fes.GetTrueVSize());
+   Vector x_trace_f_true(f_trace_fes.GetTrueVSize());
    x_c.GetTrueDofs(x_c_true);
    x_trace_c.GetTrueDofs(x_trace_c_true);
-   P->GetTrueTransferOperator()->Mult(x_c_true, x_f_true);
-   P_trace->GetTrueTransferOperator()->Mult(x_trace_c_true, x_trace_f_true);
+   P.GetTrueTransferOperator()->Mult(x_c_true, x_f_true);
+   P_trace.GetTrueTransferOperator()->Mult(x_trace_c_true, x_trace_f_true);
 
    x_f.SetFromTrueDofs(x_f_true);
    x_trace_f.SetFromTrueDofs(x_trace_f_true);
@@ -619,36 +614,39 @@ TEST_CASE("Trace PRefinement Serial TrueTransfer", "[Transfer]")
    Array<int> vdofs;
    for (int i = 0; i<mesh.GetNE(); i++)
    {
-      c_fes->GetElementInteriorVDofs(i, vdofs);
+      c_fes.GetElementInteriorVDofs(i, vdofs);
       x_c.SetSubVector(vdofs, 0.0);
-      f_fes->GetElementInteriorVDofs(i, vdofs);
+      f_fes.GetElementInteriorVDofs(i, vdofs);
       x_f.SetSubVector(vdofs, 0.0);
    }
 
    // Embed the trace dofs to a field GridFunction for comparison
    Array<int> face_vdofs, trace_vdofs;
    Vector values;
-   GridFunction x_embedded_trace_c(c_fes); x_embedded_trace_c = 0.0;
-   GridFunction x_embedded_trace_f(f_fes); x_embedded_trace_f = 0.0;
+   GridFunction x_embedded_trace_c(&c_fes); x_embedded_trace_c = 0.0;
+   GridFunction x_embedded_trace_f(&f_fes); x_embedded_trace_f = 0.0;
    for (int i = 0; i<mesh.GetNumFaces(); i++)
    {
-      c_trace_fes->GetFaceVDofs(i, trace_vdofs);
+      c_trace_fes.GetFaceVDofs(i, trace_vdofs);
       x_trace_c.GetSubVector(trace_vdofs, values);
-      c_fes->GetFaceVDofs(i, face_vdofs);
+      c_fes.GetFaceVDofs(i, face_vdofs);
       x_embedded_trace_c.SetSubVector(face_vdofs, values);
 
-      f_trace_fes->GetFaceVDofs(i, trace_vdofs);
+      f_trace_fes.GetFaceVDofs(i, trace_vdofs);
       x_trace_f.GetSubVector(trace_vdofs, values);
-      f_fes->GetFaceVDofs(i, face_vdofs);
+      f_fes.GetFaceVDofs(i, face_vdofs);
       x_embedded_trace_f.SetSubVector(face_vdofs, values);
    }
-
 
    x_embedded_trace_c -= x_c;
    REQUIRE(x_embedded_trace_c.Norml2() == MFEM_Approx(0.0));
    x_embedded_trace_f -= x_f;
    REQUIRE(x_embedded_trace_f.Norml2() == MFEM_Approx(0.0));
 
+   delete f_trace_fec;
+   delete c_trace_fec;
+   delete f_fec;
+   delete c_fec;
 }
 
 
@@ -847,20 +845,16 @@ TEST_CASE("Trace PRefinement Parallel TrueTransfer", "[Transfer][Parallel]")
    Ordering::Type ordering = (vectorspace == VecSpace::VectorH1vdim)
                              ? Ordering::byVDIM : Ordering::byNODES;
 
-   ParFiniteElementSpace *c_fes =
-      new ParFiniteElementSpace(&pmesh, c_fec, vdim, ordering);
-   ParFiniteElementSpace *f_fes =
-      new ParFiniteElementSpace(&pmesh, f_fec, vdim, ordering);
+   ParFiniteElementSpace c_fes(&pmesh, c_fec, vdim, ordering);
+   ParFiniteElementSpace f_fes(&pmesh, f_fec, vdim, ordering);
 
-   ParFiniteElementSpace *c_trace_fes =
-      new ParFiniteElementSpace(&pmesh, c_trace_fec, vdim, ordering);
-   ParFiniteElementSpace *f_trace_fes =
-      new ParFiniteElementSpace(&pmesh, f_trace_fec, vdim, ordering);
+   ParFiniteElementSpace c_trace_fes(&pmesh, c_trace_fec, vdim, ordering);
+   ParFiniteElementSpace f_trace_fes(&pmesh, f_trace_fec, vdim, ordering);
 
-   ParGridFunction x_c(c_fes); x_c = 0.0;
-   ParGridFunction x_f(f_fes); x_f = 0.0;
-   ParGridFunction x_trace_c(c_trace_fes); x_trace_c = 0.0;
-   ParGridFunction x_trace_f(f_trace_fes); x_trace_f = 0.0;
+   ParGridFunction x_c(&c_fes); x_c = 0.0;
+   ParGridFunction x_f(&f_fes); x_f = 0.0;
+   ParGridFunction x_trace_c(&c_trace_fes); x_trace_c = 0.0;
+   ParGridFunction x_trace_f(&f_trace_fes); x_trace_f = 0.0;
 
    if (vectorspace == VecSpace::H1)
    {
@@ -890,19 +884,18 @@ TEST_CASE("Trace PRefinement Parallel TrueTransfer", "[Transfer][Parallel]")
    }
 
    // Generate transfer operators for field and trace spaces
-   auto P = new PRefinementTransferOperator(*c_fes, *f_fes, assembleP);
-   auto P_trace = new PRefinementTransferOperator(*c_trace_fes, *f_trace_fes,
-                                                  assembleP);
+   PRefinementTransferOperator P(c_fes, f_fes, assembleP);
+   PRefinementTransferOperator P_trace(c_trace_fes, f_trace_fes, assembleP);
 
    // Apply transfer operators
-   Vector x_c_true(c_fes->GetTrueVSize());
-   Vector x_f_true(f_fes->GetTrueVSize());
-   Vector x_trace_c_true(c_trace_fes->GetTrueVSize());
-   Vector x_trace_f_true(f_trace_fes->GetTrueVSize());
+   Vector x_c_true(c_fes.GetTrueVSize());
+   Vector x_f_true(f_fes.GetTrueVSize());
+   Vector x_trace_c_true(c_trace_fes.GetTrueVSize());
+   Vector x_trace_f_true(f_trace_fes.GetTrueVSize());
    x_c.GetTrueDofs(x_c_true);
    x_trace_c.GetTrueDofs(x_trace_c_true);
-   P->GetTrueTransferOperator()->Mult(x_c_true, x_f_true);
-   P_trace->GetTrueTransferOperator()->Mult(x_trace_c_true, x_trace_f_true);
+   P.GetTrueTransferOperator()->Mult(x_c_true, x_f_true);
+   P_trace.GetTrueTransferOperator()->Mult(x_trace_c_true, x_trace_f_true);
 
    x_f.SetFromTrueDofs(x_f_true);
    x_trace_f.SetFromTrueDofs(x_trace_f_true);
@@ -911,27 +904,27 @@ TEST_CASE("Trace PRefinement Parallel TrueTransfer", "[Transfer][Parallel]")
    Array<int> vdofs;
    for (int i = 0; i<pmesh.GetNE(); i++)
    {
-      c_fes->GetElementInteriorVDofs(i, vdofs);
+      c_fes.GetElementInteriorVDofs(i, vdofs);
       x_c.SetSubVector(vdofs, 0.0);
-      f_fes->GetElementInteriorVDofs(i, vdofs);
+      f_fes.GetElementInteriorVDofs(i, vdofs);
       x_f.SetSubVector(vdofs, 0.0);
    }
 
    // Embed the trace dofs to a field GridFunction for comparison
    Array<int> face_vdofs, trace_vdofs;
    Vector values;
-   ParGridFunction x_embedded_trace_c(c_fes); x_embedded_trace_c = 0.0;
-   ParGridFunction x_embedded_trace_f(f_fes); x_embedded_trace_f = 0.0;
+   ParGridFunction x_embedded_trace_c(&c_fes); x_embedded_trace_c = 0.0;
+   ParGridFunction x_embedded_trace_f(&f_fes); x_embedded_trace_f = 0.0;
    for (int i = 0; i<pmesh.GetNumFaces(); i++)
    {
-      c_trace_fes->GetFaceVDofs(i, trace_vdofs);
+      c_trace_fes.GetFaceVDofs(i, trace_vdofs);
       x_trace_c.GetSubVector(trace_vdofs, values);
-      c_fes->GetFaceVDofs(i, face_vdofs);
+      c_fes.GetFaceVDofs(i, face_vdofs);
       x_embedded_trace_c.SetSubVector(face_vdofs, values);
 
-      f_trace_fes->GetFaceVDofs(i, trace_vdofs);
+      f_trace_fes.GetFaceVDofs(i, trace_vdofs);
       x_trace_f.GetSubVector(trace_vdofs, values);
-      f_fes->GetFaceVDofs(i, face_vdofs);
+      f_fes.GetFaceVDofs(i, face_vdofs);
       x_embedded_trace_f.SetSubVector(face_vdofs, values);
    }
 
@@ -940,6 +933,10 @@ TEST_CASE("Trace PRefinement Parallel TrueTransfer", "[Transfer][Parallel]")
    x_embedded_trace_f -= x_f;
    REQUIRE(x_embedded_trace_f.Norml2() == MFEM_Approx(0.0));
 
+   delete f_trace_fec;
+   delete c_trace_fec;
+   delete f_fec;
+   delete c_fec;
 }
 
 
