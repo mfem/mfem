@@ -2258,10 +2258,10 @@ PRefinementTransferOperator::GetTrueTransferOperator()
 
    if (parallel)
    {
-      HypreParMatrix * Pl = lpfes->Dof_TrueDof_Matrix();
-      const SparseMatrix * Rh = hpfes->GetRestrictionMatrix();
       if (assembled)
       {
+         HypreParMatrix * Pl = lpfes->Dof_TrueDof_Matrix();
+         const SparseMatrix * Rh = hpfes->GetRestrictionMatrix();
          // Rh * P
          SparseMatrix * RhP = mfem::Mult(*Rh, *P);
          HypreParMatrix * RhPh = new HypreParMatrix(hpfes->GetComm(),
