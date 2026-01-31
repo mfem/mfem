@@ -599,7 +599,8 @@ private:
    std::unique_ptr<SparseMatrix> P;
    mutable std::unique_ptr<Operator> tP;
 
-   SparseMatrix * GetConformingPrefinmentTransferMatrix();
+   std::unique_ptr<SparseMatrix> BuildConformingTransferMatrix() const;
+   std::unique_ptr<Operator> BuildConformingTransferOperator() const;
 
 public:
    /// @brief Constructs a transfer operator from \p lFESpace to \p hFESpace
@@ -612,11 +613,11 @@ public:
                                bool assemble_matrix = false);
 
 
-   Operator * GetPrefinementTrueTransferOperator();
-   const Operator * GetPrefinementTrueTransferOperator() const
+   Operator * GetTrueTransferOperator();
+   const Operator * GetTrueTransferOperator() const
    {
       return const_cast<PRefinementTransferOperator*>(this)
-             ->GetPrefinementTrueTransferOperator();
+             ->GetTrueTransferOperator();
    }
 
    /// Destructor

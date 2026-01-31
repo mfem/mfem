@@ -2098,8 +2098,6 @@ PRefinementTransferOperator::PRefinementTransferOperator(
        dynamic_cast<const ND_Trace_FECollection*>(lFESpace.FEColl()) ||
        dynamic_cast<const RT_Trace_FECollection*>(lFESpace.FEColl()));
 
-
-
    if (assemble_matrix) { AssembleMatrix(); }
 
 }
@@ -2109,7 +2107,6 @@ void PRefinementTransferOperator::AssembleMatrix()
    Mesh* mesh = hFESpace.GetMesh();
    const int nL = lFESpace.GetVSize();
    const int nH = hFESpace.GetVSize();
-
 
    P.reset(new SparseMatrix(nH, nL));
    Array<int> l_dofs, h_dofs, l_vdofs, h_vdofs;
@@ -2188,41 +2185,69 @@ void PRefinementTransferOperator::AssembleMatrix()
 
 }
 
-SparseMatrix *
-PRefinementTransferOperator::GetConformingPrefinmentTransferMatrix()
+std::unique_ptr<SparseMatrix>
+PRefinementTransferOperator::BuildConformingTransferMatrix() const
 {
-   const SparseMatrix * Pl = lFESpace.GetConformingProlongation();
-   const SparseMatrix * Rh = hFESpace.GetRestrictionMatrix();
+   MFEM_VERIFY(assembled && P, "Matrix path requires assembled P.");
+
+   const SparseMatrix *Pl = lFESpace.GetConformingProlongation();
+   const SparseMatrix *Rh = hFESpace.GetRestrictionMatrix();
+
    if (Pl && Rh)
    {
-      SparseMatrix * RhP = mfem::Mult(*Rh, *P);
-      SparseMatrix * RhPPl = mfem::Mult(*RhP, *Pl);
+      SparseMatrix *RhP   = mfem::Mult(*Rh, *P);
+      SparseMatrix *RhPPl = mfem::Mult(*RhP, *Pl);
       delete RhP;
-      return RhPPl;
+      return std::unique_ptr<SparseMatrix>(RhPPl);
    }
    else if (Pl)
    {
-      SparseMatrix * PPl = mfem::Mult(*P, *Pl);
-      return PPl;
+      return std::unique_ptr<SparseMatrix>(mfem::Mult(*P, *Pl));
    }
    else if (Rh)
    {
-      SparseMatrix * RhP = mfem::Mult(*Rh, *P);
-      return RhP;
+      return std::unique_ptr<SparseMatrix>(mfem::Mult(*Rh, *P));
    }
    else
    {
-      return new SparseMatrix(*P);
+      return std::make_unique<SparseMatrix>(*P);
    }
 }
 
+std::unique_ptr<Operator>
+PRefinementTransferOperator::BuildConformingTransferOperator() const
+{
+   const Operator *Pl = lFESpace.GetProlongationMatrix();
+   const Operator *Rh = hFESpace.GetRestrictionOperator();
+
+   if (Pl && Rh)
+   {
+      return std::make_unique<TripleProductOperator>(Rh,
+                                                     const_cast<PRefinementTransferOperator*>(this), Pl,
+                                                     false, false, false);
+   }
+   else if (Pl)
+   {
+      return std::make_unique<ProductOperator>
+             (const_cast<PRefinementTransferOperator*>(this), Pl,
+              false, false);
+   }
+   else if (Rh)
+   {
+      return std::make_unique<ProductOperator>(Rh,
+                                               const_cast<PRefinementTransferOperator*>(this),
+                                               false, false);
+   }
+   else
+   {
+      // return nullptr to mean "identity/no-op wrapper", i.e. use `this`
+      return nullptr;
+   }
+}
 
 Operator *
-PRefinementTransferOperator::GetPrefinementTrueTransferOperator()
+PRefinementTransferOperator::GetTrueTransferOperator()
 {
-   MFEM_VERIFY(assembled,
-               "The PRefinement transfer operator matrix must be assembled.");
-
    if (tP) { return tP.get(); }
 #ifdef MFEM_USE_MPI
    const ParFiniteElementSpace* lpfes = dynamic_cast<const ParFiniteElementSpace*>
@@ -2235,27 +2260,57 @@ PRefinementTransferOperator::GetPrefinementTrueTransferOperator()
    {
       HypreParMatrix * Pl = lpfes->Dof_TrueDof_Matrix();
       const SparseMatrix * Rh = hpfes->GetRestrictionMatrix();
-      // Rh * P
-      SparseMatrix * RhP = mfem::Mult(*Rh, *P);
-      HypreParMatrix * RhPh = new HypreParMatrix(hpfes->GetComm(),
-                                                 hpfes->GlobalTrueVSize(), lpfes->GlobalVSize(),
-                                                 hpfes->GetTrueDofOffsets(), lpfes->GetDofOffsets(), RhP);
-      HypreStealOwnership(*RhPh, *RhP);
-      delete RhP;
-      HypreParMatrix * tmp = ParMult(RhPh, Pl, true);
-      delete RhPh;
-      tP.reset(tmp);
+      if (assembled)
+      {
+         // Rh * P
+         SparseMatrix * RhP = mfem::Mult(*Rh, *P);
+         HypreParMatrix * RhPh = new HypreParMatrix(hpfes->GetComm(),
+                                                    hpfes->GlobalTrueVSize(), lpfes->GlobalVSize(),
+                                                    hpfes->GetTrueDofOffsets(), lpfes->GetDofOffsets(), RhP);
+         HypreStealOwnership(*RhPh, *RhP);
+         delete RhP;
+         HypreParMatrix * tmp = ParMult(RhPh, Pl, true);
+         delete RhPh;
+         tP.reset(tmp);
+         return tP.get();
+      }
+      else
+      {
+         auto Pl = lpfes->GetProlongationMatrix();
+         auto Rh = hpfes->GetRestrictionOperator();
+         tP = std::make_unique<TripleProductOperator>(Rh, this, Pl, false, false, false);
+         return tP.get();
+      }
    }
    else
    {
-      tP.reset(GetConformingPrefinmentTransferMatrix());
+      if (assembled)
+      {
+         auto M = BuildConformingTransferMatrix();
+         tP.reset(M.release());
+         return tP.get();
+      }
+      else
+      {
+         tP = BuildConformingTransferOperator();
+         return tP ? tP.get() : this;
+      }
    }
 #else
    {
-      tP.reset(GetConformingPrefinmentTransferMatrix());
+      if (assembled)
+      {
+         auto M = BuildConformingTransferMatrix();
+         tP.reset(M.release());
+         return tP.get();
+      }
+      else
+      {
+         tP = BuildConformingTransferOperator();
+         return tP ? tP.get() : this;
+      }
    }
 #endif
-   return tP.get();
 }
 
 
