@@ -10,12 +10,12 @@
 // CONTRIBUTING.md for details.
 //
 //           -----------------------------------------------------
-//           2D2V Particle-In-Cell (PIC) Simulation
+//           Particle-In-Cell (PIC) Simulation (2D/3D)
 //           -----------------------------------------------------
 //
-// This miniapp performs a 2D2V (2 spatial dimensions, 2 velocity dimensions)
-// Particle-In-Cell simulation of multiple charged particles subject to
-// electric field forces.
+// This miniapp performs a Particle-In-Cell simulation (supports 2D or 3D
+// spatial dimensions) of multiple charged particles subject to electric
+// field forces.
 //
 //                           dp/dt = q E
 //
@@ -23,7 +23,7 @@
 //
 // The electric field is computed from the particle charge distribution using
 // a Poisson solver. The particle trajectories are computed within a periodic
-// 2D domain.
+// domain (2D or 3D).
 //
 // Solution process (per timestep, repeating steps 1-6):
 //   (1) Deposit charge from particles to grid via Dirac delta function
@@ -65,12 +65,16 @@ using namespace mfem::common;
 
 struct PICContext
 {
+   // Spatial dimension
+   int dim = 2;
    // Finite element order for the spatial discretization
    int order = 1;
    // Number of grid cells in x-direction
    int nx = 100;
    // Number of grid cells in y-direction
    int ny = 100;
+   // Number of grid cells in z-direction
+   int nz = 100;
    // Domain length in x-direction
    real_t L_x = 1.0;
 
@@ -206,18 +210,19 @@ int main(int argc, char* argv[])
    int rank = Mpi::WorldRank();
    Hypre::Init();
 
-   // Mesh parameters
-   int dim = 2;
-
    if (Mpi::Root()) { display_banner(cout); }
 
    OptionsParser args(argc, argv);
+   args.AddOption(&ctx.dim, "-dim", "--dimension",
+                  "Spatial dimension (2 or 3)");
    args.AddOption(&ctx.order, "-O", "--order",
                   "Finite element polynomial degree");
    args.AddOption(&ctx.nx, "-nx", "--num-x",
                   "Number of elements in the x direction.");
    args.AddOption(&ctx.ny, "-ny", "--num-y",
                   "Number of elements in the y direction.");
+   args.AddOption(&ctx.nz, "-nz", "--num-z",
+                  "Number of elements in the z direction.");
    args.AddOption(&ctx.q, "-q", "--charge", "Particle charge.");
    args.AddOption(&ctx.m, "-m", "--mass", "Particle mass.");
    args.AddOption(&ctx.dt, "-dt", "--time-step", "Time Step.");
@@ -248,17 +253,39 @@ int main(int argc, char* argv[])
       return 1;
    }
    if (Mpi::Root()) { args.PrintOptions(cout); }
+
+   // Assert that dimension is 2 or 3
+   MFEM_VERIFY(ctx.dim == 2 || ctx.dim == 3,
+               "Dimension must be 2 or 3, got " << ctx.dim);
+
    ctx.L_x = 2.0 * M_PI / ctx.k;
 
    ParGridFunction* E_gf = nullptr;
 
    // build up E_gf
-   // 1. make a 2D Cartesian Mesh
-   Mesh serial_mesh(Mesh::MakeCartesian2D(
-                       ctx.nx, ctx.ny, Element::QUADRILATERAL, false, ctx.L_x, ctx.L_x));
-   std::vector<Vector> translations = {Vector({ctx.L_x, 0.0}),
-                                       Vector({0.0, ctx.L_x})
-                                      };
+   // 1. make a Cartesian Mesh (2D or 3D)
+   Mesh serial_mesh;
+   std::vector<Vector> translations;
+
+   if (ctx.dim == 2)
+   {
+      serial_mesh = Mesh(Mesh::MakeCartesian2D(
+                            ctx.nx, ctx.ny, Element::QUADRILATERAL, false, ctx.L_x, ctx.L_x));
+      translations = {Vector({ctx.L_x, 0.0}),
+                      Vector({0.0, ctx.L_x})
+                     };
+   }
+   else // ctx.dim == 3
+   {
+      serial_mesh = Mesh(Mesh::MakeCartesian3D(
+                            ctx.nx, ctx.ny, ctx.nz, Element::HEXAHEDRON,
+                            ctx.L_x, ctx.L_x, ctx.L_x));
+      translations = {Vector({ctx.L_x, 0.0, 0.0}),
+                      Vector({0.0, ctx.L_x, 0.0}),
+                      Vector({0.0, 0.0, ctx.L_x})
+                     };
+   }
+
    Mesh periodic_mesh(Mesh::MakePeriodic(
                          serial_mesh, serial_mesh.CreatePeriodicVertexMapping(translations)));
    // 2. parallelize the mesh
@@ -271,9 +298,9 @@ int main(int argc, char* argv[])
    FindPointsGSLIB E_finder(mesh);
 
    // 4. Define a finite element space on the parallel mesh
-   H1_FECollection sca_fec(ctx.order, dim);
+   H1_FECollection sca_fec(ctx.order, ctx.dim);
    ParFiniteElementSpace sca_fespace(&mesh, &sca_fec);
-   ND_FECollection vec_fec(ctx.order, dim);
+   ND_FECollection vec_fec(ctx.order, ctx.dim);
    ParFiniteElementSpace vec_fespace(&mesh, &vec_fec);
 
    // 5. Prepare an empty phi_gf and E_gf for later use
