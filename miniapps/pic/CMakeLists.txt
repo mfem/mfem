@@ -10,17 +10,17 @@
 # CONTRIBUTING.md for details.
 
 if (MFEM_USE_MPI AND MFEM_USE_GSLIB)
-  add_mfem_miniapp(electrostatic-2d2v
-    MAIN electrostatic-2d2v.cpp
+  add_mfem_miniapp(electrostatic-pic
+    MAIN electrostatic-pic.cpp
     EXTRA_HEADERS ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem-common)
 
   # Add the corresponding tests to the "test" target
   if (MFEM_ENABLE_TESTING)
-    add_test(NAME electrostatic-2d2v_np=${MFEM_MPI_NP}
+    add_test(NAME electrostatic-pic_np=${MFEM_MPI_NP}
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS}
-      $<TARGET_FILE:electrostatic-2d2v> -rdf 1 -npt 102400 -k 0.2855993321 -a 0.05 -nt 20 -nx 16 -ny 16 -O 1 -q 0.001181640625 -m 0.001181640625 -ocf 1000 -dt 0.1
+      $<TARGET_FILE:electrostatic-pic> -rdf 1 -npt 102400 -k 0.2855993321 -a 0.05 -nt 20 -nx 16 -ny 16 -O 1 -q 0.001181640625 -m 0.001181640625 -ocf 1000 -dt 0.1
       ${MPIEXEC_POSTFLAGS})
   endif()
 endif()

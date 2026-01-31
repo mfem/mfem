@@ -36,12 +36,12 @@
 //   (5) Push particles using leap-frog scheme (update momentum and position)
 //   (6) Redistribute particles across processors
 //
-// Compile with: make electrostatic-2d2v
+// Compile with: make electrostatic-pic
 //
 // Sample runs:
 //
 //   Linear Landau damping test case (Ricketson & Hu, 2025):
-//      mpirun -n 4 ./electrostatic-2d2v -rdf 1 -npt 409600 -k 0.2855993321 -a 0.05 -nt 200 -nx 32 -ny 32 -O 1 -q 0.001181640625 -m 0.001181640625 -ocf 1000 -dt 0.1
+//      mpirun -n 4 ./electrostatic-pic -rdf 1 -npt 409600 -k 0.2855993321 -a 0.05 -nt 200 -nx 32 -ny 32 -O 1 -q 0.001181640625 -m 0.001181640625 -ocf 1000 -dt 0.1
 
 #include <ctime>
 #include <fstream>
