@@ -136,8 +136,8 @@ protected:
 
 public:
    ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_, FindPointsGSLIB& E_finder_,
-       int num_particles,
-       Ordering::Type pdata_ordering);
+                 int num_particles,
+                 Ordering::Type pdata_ordering);
 
    /// Initialize charged particles with given parameters
    void InitializeChargedParticles(const real_t& k, const real_t& alpha,
@@ -180,9 +180,9 @@ private:
 
 public:
    FieldSolver(ParFiniteElementSpace* sca_fes, ParFiniteElementSpace* vec_fes,
-                       FindPointsGSLIB& E_finder_,
-                       int visport_, bool visualization_,
-                       bool precompute_neutralizing_const_ = false);
+               FindPointsGSLIB& E_finder_,
+               int visport_, bool visualization_,
+               bool precompute_neutralizing_const_ = false);
 
    ~FieldSolver();
 
@@ -284,15 +284,16 @@ int main(int argc, char* argv[])
 
    // 6. Build the grid function updates
    FieldSolver field_solver(&sca_fespace, &vec_fespace, E_finder, ctx.visport,
-                                  ctx.visualization, true);
+                            ctx.visualization, true);
    Ordering::Type ordering_type =
       ctx.ordering == 0 ? Ordering::byNODES : Ordering::byVDIM;
 
    // 7. Initialize ParticleMover
    int num_particles = ctx.npt / size + (rank < (ctx.npt % size) ? 1 : 0);
-   ParticleMover particle_mover(MPI_COMM_WORLD, E_gf, E_finder, num_particles, ordering_type);
+   ParticleMover particle_mover(MPI_COMM_WORLD, E_gf, E_finder, num_particles,
+                                ordering_type);
    particle_mover.InitializeChargedParticles(ctx.k, ctx.alpha, ctx.m,
-                                  ctx.q, ctx.L_x, ctx.reproduce);
+                                             ctx.q, ctx.L_x, ctx.reproduce);
 
    real_t t = ctx.t_init;
    real_t dt = ctx.dt;
@@ -310,7 +311,8 @@ int main(int argc, char* argv[])
          particle_mover.Redistribute();
 
          // Update phi_gf from particles
-         field_solver.UpdatePhiGridFunction(particle_mover.GetParticles(), phi_gf, *E_gf);
+         field_solver.UpdatePhiGridFunction(particle_mover.GetParticles(), phi_gf,
+                                            *E_gf);
 
          // Compute energies
          real_t kinetic_energy = particle_mover.ComputeKineticEnergy();
@@ -372,9 +374,10 @@ int main(int argc, char* argv[])
    delete E_gf;
 }
 
-ParticleMover::ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_, FindPointsGSLIB& E_finder_,
-         int num_particles,
-         Ordering::Type pdata_ordering)
+ParticleMover::ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_,
+                             FindPointsGSLIB& E_finder_,
+                             int num_particles,
+                             Ordering::Type pdata_ordering)
    : E_gf(E_gf_), E_finder(E_finder_)
 {
    MFEM_VERIFY(E_gf, "Must pass an E field to ParticleMover.");
@@ -392,8 +395,8 @@ ParticleMover::ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_, FindPointsGS
 }
 
 void ParticleMover::InitializeChargedParticles(const real_t& k,
-                                     const real_t& alpha, real_t m, real_t q,
-                                     real_t L_x, bool reproduce)
+                                               const real_t& alpha, real_t m, real_t q,
+                                               real_t L_x, bool reproduce)
 {
    int rank;
    MPI_Comm_rank(charged_particles->GetComm(), &rank);
@@ -510,10 +513,11 @@ real_t ParticleMover::ComputeKineticEnergy() const
    return kinetic_energy;
 }
 
-FieldSolver::FieldSolver(ParFiniteElementSpace* sca_fes, ParFiniteElementSpace* vec_fes,
-                                         FindPointsGSLIB& E_finder_,
-                                         int visport_, bool visualization_,
-                                         bool precompute_neutralizing_const_)
+FieldSolver::FieldSolver(ParFiniteElementSpace* sca_fes,
+                         ParFiniteElementSpace* vec_fes,
+                         FindPointsGSLIB& E_finder_,
+                         int visport_, bool visualization_,
+                         bool precompute_neutralizing_const_)
    : precompute_neutralizing_const(precompute_neutralizing_const_),
      E_finder(E_finder_),
      visport(visport_),
@@ -558,8 +562,8 @@ FieldSolver::~FieldSolver()
 }
 
 void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
-                                                ParGridFunction& phi_gf,
-                                                ParGridFunction& E_gf)
+                                        ParGridFunction& phi_gf,
+                                        ParGridFunction& E_gf)
 {
    {
       // FE space / mesh
@@ -569,7 +573,8 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
 
       // Particle data
       ParticleVector& X = particles.Coords();  // coordinates (vdim x npt)
-      ParticleVector& Q = particles.Field(ParticleMover::CHARGE);  // charges (1 x npt)
+      ParticleVector& Q = particles.Field(
+                             ParticleMover::CHARGE);  // charges (1 x npt)
 
       const int npt = particles.GetNParticles();
       MFEM_VERIFY(X.GetVDim() == dim, "Unexpected particle coordinate layout.");
