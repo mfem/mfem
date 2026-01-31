@@ -10,12 +10,12 @@
 // CONTRIBUTING.md for details.
 //
 //           -----------------------------------------------------
-//           2D2V Particle-In-Cell (PIC) Simulation
+//           Particle-In-Cell (PIC) Simulation (2D/3D)
 //           -----------------------------------------------------
 //
-// This miniapp performs a 2D2V (2 spatial dimensions, 2 velocity dimensions)
-// Particle-In-Cell simulation of multiple charged particles subject to
-// electric field forces.
+// This miniapp performs a Particle-In-Cell simulation (supports 2D or 3D
+// spatial dimensions) of multiple charged particles subject to electric
+// field forces.
 //
 //                           dp/dt = q E
 //
@@ -23,7 +23,7 @@
 //
 // The electric field is computed from the particle charge distribution using
 // a Poisson solver. The particle trajectories are computed within a periodic
-// 2D domain.
+// domain (2D or 3D).
 //
 // Solution process (per timestep, repeating steps 1-6):
 //   (1) Deposit charge from particles to grid via Dirac delta function
@@ -36,12 +36,14 @@
 //   (5) Push particles using leap-frog scheme (update momentum and position)
 //   (6) Redistribute particles across processors
 //
-// Compile with: make electrostatic-2d2v
+// Compile with: make electrostatic-pic
 //
 // Sample runs:
 //
-//   Linear Landau damping test case (Ricketson & Hu, 2025):
-//      mpirun -n 4 ./electrostatic-2d2v -rdf 1 -npt 409600 -k 0.2855993321 -a 0.05 -nt 200 -nx 32 -ny 32 -O 1 -q 0.001181640625 -m 0.001181640625 -ocf 1000 -dt 0.1
+//   2D2V Linear Landau damping test case (Ricketson & Hu, 2025):
+//      mpirun -n 4 ./electrostatic-pic -rdf 1 -npt 409600 -k 0.2855993321 -a 0.05 -nt 200 -nx 32 -ny 32 -O 1 -q 0.001181640625 -m 0.001181640625 -ocf 1000 -dt 0.1
+//   3D3V Linear Landau damping test case (Zheng et al., 2025):
+//      mpirun -n 4 ./electrostatic-pic -dim 3 -rdf 1 -npt 409600 -k 0.5 -a 0.01 -nt 100 -nx 32 -ny 32 -nz 32 -O 1 -q 0.004844730731 -m 0.004844730731 -ocf 1000 -dt 0.1
 
 #include <ctime>
 #include <fstream>
@@ -65,12 +67,16 @@ using namespace mfem::common;
 
 struct PICContext
 {
+   // Spatial dimension
+   int dim = 2;
    // Finite element order for the spatial discretization
    int order = 1;
    // Number of grid cells in x-direction
    int nx = 100;
    // Number of grid cells in y-direction
    int ny = 100;
+   // Number of grid cells in z-direction
+   int nz = 100;
    // Domain length in x-direction
    real_t L_x = 1.0;
 
@@ -136,8 +142,8 @@ protected:
 
 public:
    ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_, FindPointsGSLIB& E_finder_,
-       int num_particles,
-       Ordering::Type pdata_ordering);
+                 int num_particles,
+                 Ordering::Type pdata_ordering);
 
    /// Initialize charged particles with given parameters
    void InitializeChargedParticles(const real_t& k, const real_t& alpha,
@@ -180,9 +186,9 @@ private:
 
 public:
    FieldSolver(ParFiniteElementSpace* sca_fes, ParFiniteElementSpace* vec_fes,
-                       FindPointsGSLIB& E_finder_,
-                       int visport_, bool visualization_,
-                       bool precompute_neutralizing_const_ = false);
+               FindPointsGSLIB& E_finder_,
+               int visport_, bool visualization_,
+               bool precompute_neutralizing_const_ = false);
 
    ~FieldSolver();
 
@@ -206,18 +212,19 @@ int main(int argc, char* argv[])
    int rank = Mpi::WorldRank();
    Hypre::Init();
 
-   // Mesh parameters
-   int dim = 2;
-
    if (Mpi::Root()) { display_banner(cout); }
 
    OptionsParser args(argc, argv);
+   args.AddOption(&ctx.dim, "-dim", "--dimension",
+                  "Spatial dimension (2 or 3)");
    args.AddOption(&ctx.order, "-O", "--order",
                   "Finite element polynomial degree");
    args.AddOption(&ctx.nx, "-nx", "--num-x",
                   "Number of elements in the x direction.");
    args.AddOption(&ctx.ny, "-ny", "--num-y",
                   "Number of elements in the y direction.");
+   args.AddOption(&ctx.nz, "-nz", "--num-z",
+                  "Number of elements in the z direction.");
    args.AddOption(&ctx.q, "-q", "--charge", "Particle charge.");
    args.AddOption(&ctx.m, "-m", "--mass", "Particle mass.");
    args.AddOption(&ctx.dt, "-dt", "--time-step", "Time Step.");
@@ -248,17 +255,39 @@ int main(int argc, char* argv[])
       return 1;
    }
    if (Mpi::Root()) { args.PrintOptions(cout); }
+
+   // Assert that dimension is 2 or 3
+   MFEM_VERIFY(ctx.dim == 2 || ctx.dim == 3,
+               "Dimension must be 2 or 3, got " << ctx.dim);
+
    ctx.L_x = 2.0 * M_PI / ctx.k;
 
    ParGridFunction* E_gf = nullptr;
 
    // build up E_gf
-   // 1. make a 2D Cartesian Mesh
-   Mesh serial_mesh(Mesh::MakeCartesian2D(
-                       ctx.nx, ctx.ny, Element::QUADRILATERAL, false, ctx.L_x, ctx.L_x));
-   std::vector<Vector> translations = {Vector({ctx.L_x, 0.0}),
-                                       Vector({0.0, ctx.L_x})
-                                      };
+   // 1. make a Cartesian Mesh (2D or 3D)
+   Mesh serial_mesh;
+   std::vector<Vector> translations;
+
+   if (ctx.dim == 2)
+   {
+      serial_mesh = Mesh(Mesh::MakeCartesian2D(
+                            ctx.nx, ctx.ny, Element::QUADRILATERAL, false, ctx.L_x, ctx.L_x));
+      translations = {Vector({ctx.L_x, 0.0}),
+                      Vector({0.0, ctx.L_x})
+                     };
+   }
+   else // ctx.dim == 3
+   {
+      serial_mesh = Mesh(Mesh::MakeCartesian3D(
+                            ctx.nx, ctx.ny, ctx.nz, Element::HEXAHEDRON,
+                            ctx.L_x, ctx.L_x, ctx.L_x));
+      translations = {Vector({ctx.L_x, 0.0, 0.0}),
+                      Vector({0.0, ctx.L_x, 0.0}),
+                      Vector({0.0, 0.0, ctx.L_x})
+                     };
+   }
+
    Mesh periodic_mesh(Mesh::MakePeriodic(
                          serial_mesh, serial_mesh.CreatePeriodicVertexMapping(translations)));
    // 2. parallelize the mesh
@@ -271,9 +300,9 @@ int main(int argc, char* argv[])
    FindPointsGSLIB E_finder(mesh);
 
    // 4. Define a finite element space on the parallel mesh
-   H1_FECollection sca_fec(ctx.order, dim);
+   H1_FECollection sca_fec(ctx.order, ctx.dim);
    ParFiniteElementSpace sca_fespace(&mesh, &sca_fec);
-   ND_FECollection vec_fec(ctx.order, dim);
+   ND_FECollection vec_fec(ctx.order, ctx.dim);
    ParFiniteElementSpace vec_fespace(&mesh, &vec_fec);
 
    // 5. Prepare an empty phi_gf and E_gf for later use
@@ -284,15 +313,16 @@ int main(int argc, char* argv[])
 
    // 6. Build the grid function updates
    FieldSolver field_solver(&sca_fespace, &vec_fespace, E_finder, ctx.visport,
-                                  ctx.visualization, true);
+                            ctx.visualization, true);
    Ordering::Type ordering_type =
       ctx.ordering == 0 ? Ordering::byNODES : Ordering::byVDIM;
 
    // 7. Initialize ParticleMover
    int num_particles = ctx.npt / size + (rank < (ctx.npt % size) ? 1 : 0);
-   ParticleMover particle_mover(MPI_COMM_WORLD, E_gf, E_finder, num_particles, ordering_type);
+   ParticleMover particle_mover(MPI_COMM_WORLD, E_gf, E_finder, num_particles,
+                                ordering_type);
    particle_mover.InitializeChargedParticles(ctx.k, ctx.alpha, ctx.m,
-                                  ctx.q, ctx.L_x, ctx.reproduce);
+                                             ctx.q, ctx.L_x, ctx.reproduce);
 
    real_t t = ctx.t_init;
    real_t dt = ctx.dt;
@@ -310,7 +340,8 @@ int main(int argc, char* argv[])
          particle_mover.Redistribute();
 
          // Update phi_gf from particles
-         field_solver.UpdatePhiGridFunction(particle_mover.GetParticles(), phi_gf, *E_gf);
+         field_solver.UpdatePhiGridFunction(particle_mover.GetParticles(), phi_gf,
+                                            *E_gf);
 
          // Compute energies
          real_t kinetic_energy = particle_mover.ComputeKineticEnergy();
@@ -372,9 +403,10 @@ int main(int argc, char* argv[])
    delete E_gf;
 }
 
-ParticleMover::ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_, FindPointsGSLIB& E_finder_,
-         int num_particles,
-         Ordering::Type pdata_ordering)
+ParticleMover::ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_,
+                             FindPointsGSLIB& E_finder_,
+                             int num_particles,
+                             Ordering::Type pdata_ordering)
    : E_gf(E_gf_), E_finder(E_finder_)
 {
    MFEM_VERIFY(E_gf, "Must pass an E field to ParticleMover.");
@@ -392,8 +424,8 @@ ParticleMover::ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_, FindPointsGS
 }
 
 void ParticleMover::InitializeChargedParticles(const real_t& k,
-                                     const real_t& alpha, real_t m, real_t q,
-                                     real_t L_x, bool reproduce)
+                                               const real_t& alpha, real_t m, real_t q,
+                                               real_t L_x, bool reproduce)
 {
    int rank;
    MPI_Comm_rank(charged_particles->GetComm(), &rank);
@@ -450,7 +482,7 @@ void ParticleMover::Step(real_t& t, real_t& dt, real_t L_x, bool zeroth_step)
 {
    // Update E field at particles
    ParticleVector& E = charged_particles->Field(EFIELD);
-   E_finder.Interpolate(*E_gf, E);
+   E_finder.Interpolate(*E_gf, E, E.GetOrdering());
 
    // Extract particle data
    ParticleVector& X = charged_particles->Coords();
@@ -510,10 +542,11 @@ real_t ParticleMover::ComputeKineticEnergy() const
    return kinetic_energy;
 }
 
-FieldSolver::FieldSolver(ParFiniteElementSpace* sca_fes, ParFiniteElementSpace* vec_fes,
-                                         FindPointsGSLIB& E_finder_,
-                                         int visport_, bool visualization_,
-                                         bool precompute_neutralizing_const_)
+FieldSolver::FieldSolver(ParFiniteElementSpace* sca_fes,
+                         ParFiniteElementSpace* vec_fes,
+                         FindPointsGSLIB& E_finder_,
+                         int visport_, bool visualization_,
+                         bool precompute_neutralizing_const_)
    : precompute_neutralizing_const(precompute_neutralizing_const_),
      E_finder(E_finder_),
      visport(visport_),
@@ -558,8 +591,8 @@ FieldSolver::~FieldSolver()
 }
 
 void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
-                                                ParGridFunction& phi_gf,
-                                                ParGridFunction& E_gf)
+                                        ParGridFunction& phi_gf,
+                                        ParGridFunction& E_gf)
 {
    {
       // FE space / mesh
@@ -569,7 +602,8 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
 
       // Particle data
       ParticleVector& X = particles.Coords();  // coordinates (vdim x npt)
-      ParticleVector& Q = particles.Field(ParticleMover::CHARGE);  // charges (1 x npt)
+      ParticleVector& Q = particles.Field(
+                             ParticleMover::CHARGE);  // charges (1 x npt)
 
       const int npt = particles.GetNParticles();
       MFEM_VERIFY(X.GetVDim() == dim, "Unexpected particle coordinate layout.");
