@@ -235,8 +235,6 @@ public:
       prolongations.SetSize(nP);
       ownedProlongations.SetSize(nP);
 
-
-
       for (int lev = nP-1; lev >=0; lev--)
       {
          T_level[lev].resize(nblocks);
@@ -260,7 +258,7 @@ public:
                                                               *GetParFESpace(lev+1,b), true);
 
             HypreParMatrix *P = dynamic_cast<HypreParMatrix *>
-                                (T_level[lev][b]->GetPrefinementTrueTransferOperator());
+                                (T_level[lev][b]->GetTrueTransferOperator());
             MFEM_VERIFY(P, "Prefinement transfer returned null.");
             Pblk->SetBlock(b, b, P);
          }
@@ -321,11 +319,19 @@ public:
             }
             else
             {
-               ParFiniteElementSpace * fes = const_cast<ParFiniteElementSpace *>(GetParFESpace(
-                                                                                    i,b));
-               HypreAMS * ams = new HypreAMS(*Ab, fes);
-               ams->SetPrintLevel(0);
-               prec->SetDiagonalBlock(b, ams);
+               auto * fes = const_cast<ParFiniteElementSpace *>(GetParFESpace(i,b));
+               if (dim == 2)
+               {
+                  HypreAMS * ams = new HypreAMS(*Ab, fes);
+                  ams->SetPrintLevel(0);
+                  prec->SetDiagonalBlock(b, ams);
+               }
+               else if (dim == 3)
+               {
+                  HypreADS * ads = new HypreADS(*Ab, fes);
+                  ads->SetPrintLevel(0);
+                  prec->SetDiagonalBlock(b, ads);
+               }
             }
          }
          smoothers[i] = prec;
