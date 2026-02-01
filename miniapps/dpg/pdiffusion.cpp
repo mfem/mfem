@@ -110,7 +110,7 @@ public:
    void MultTranspose (const Vector & x, Vector & y) const override
    {
       this->Mult(x,y);
-   }   
+   }
 };
 
 class PrefinementMultigrid : public Multigrid
@@ -317,7 +317,7 @@ public:
       {
          SymmetricBlockDiagonalPreconditioner *prec =
             new SymmetricBlockDiagonalPreconditioner(dynamic_cast<BlockOperator*>
-                                            (operators[i])->RowOffsets());
+                                                     (operators[i])->RowOffsets());
          for (int b = 0; b < nblocks; b++)
          {
             const HypreParMatrix * Ab = dynamic_cast<const HypreParMatrix *>
