@@ -2159,7 +2159,7 @@ void PRefinementTransferOperator::AssembleMatrix()
          h_dofs.Copy(h_vdofs);
          hFESpace.DofsToVDofs(vd, h_vdofs);
 
-         Aeff.AdjustForSignedDofs(h_vdofs, l_vdofs);
+         Aeff.AdjustDofDirection(h_vdofs, l_vdofs);
 
          P->AddSubMatrix(h_vdofs, l_vdofs, Aeff);
 

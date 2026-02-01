@@ -562,31 +562,6 @@ public:
    void MultTranspose(const Vector& x, Vector& y) const override;
 };
 
-
-static inline void BuildTransformMatrix(
-   int n,
-   const DofTransformation &dt,
-   bool inverse_primal,            // true -> InvTransformPrimal, false -> TransformPrimal
-   DenseMatrix &T)
-{
-   T.SetSize(n, n);
-   Vector e(n), v(n);
-
-   for (int j = 0; j < n; j++)
-   {
-      e = 0.0;
-      e(j) = 1.0;
-      v = e;
-
-      if (inverse_primal) { dt.InvTransformPrimal(v); }
-      else                { dt.TransformPrimal(v); }
-
-      // set column j
-      for (int i = 0; i < n; i++) { T(i,j) = v(i); }
-   }
-}
-
-
 /// Matrix-free transfer operator between finite element spaces on the same mesh
 class PRefinementTransferOperator : public Operator
 {

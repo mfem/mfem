@@ -2185,14 +2185,14 @@ void DenseMatrix::AdjustDofDirection(Array<int> &dofs)
    }
 }
 
-void DenseMatrix::AdjustForSignedDofs(Array<int> &row_dofs,
-                                      Array<int> &col_dofs)
+void DenseMatrix::AdjustDofDirection(Array<int> &row_dofs,
+                                     Array<int> &col_dofs)
 {
    const int nr = row_dofs.Size();
    const int nc = col_dofs.Size();
 
    MFEM_VERIFY(Height() == nr && Width() == nc,
-               "DenseMatrix::AdjustForSignedDofs: size mismatch.");
+               "DenseMatrix::AdjustDofDirection: size mismatch.");
 
    // Extract signs and convert to unsigned indices
    Vector rsign(nr), csign(nc);
