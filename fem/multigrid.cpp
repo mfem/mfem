@@ -227,8 +227,7 @@ void MultigridBase::Cycle(int level) const
    // Post-smooth
    for (int i = 0; i < postSmoothingSteps; ++i)
    {
-      // SmoothingStep(level, false, true);
-      SmoothingStep(level, false, false);
+      SmoothingStep(level, false, true);
    }
 }
 

@@ -100,6 +100,19 @@ real_t exact_hatu(const Vector & X);
 void exact_hatsigma(const Vector & X, Vector & hatsigma);
 real_t f_exact(const Vector & X);
 
+// A BlockDiagonalPreconditioner which assumes that all the blocks are symmetric
+// Convinient to use with Multigrid Class in which a MultTranspose is needed
+class SymmetricBlockDiagonalPreconditioner : public BlockDiagonalPreconditioner
+{
+public:
+   SymmetricBlockDiagonalPreconditioner(const Array<int> & offsets)
+      : BlockDiagonalPreconditioner(offsets) { }
+   void MultTranspose (const Vector & x, Vector & y) const override
+   {
+      this->Mult(x,y);
+   }   
+};
+
 class PrefinementMultigrid : public Multigrid
 {
 private:
@@ -302,8 +315,8 @@ public:
 
       for (int i = 0; i < operators.Size(); i++)
       {
-         BlockDiagonalPreconditioner *prec =
-            new BlockDiagonalPreconditioner(dynamic_cast<BlockOperator*>
+         SymmetricBlockDiagonalPreconditioner *prec =
+            new SymmetricBlockDiagonalPreconditioner(dynamic_cast<BlockOperator*>
                                             (operators[i])->RowOffsets());
          for (int b = 0; b < nblocks; b++)
          {
