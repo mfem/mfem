@@ -11,6 +11,7 @@
 
 #include "unit_tests.hpp"
 #include "mfem.hpp"
+#include <cmath>
 
 using namespace mfem;
 
