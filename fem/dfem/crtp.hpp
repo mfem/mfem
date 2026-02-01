@@ -1,0 +1,196 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+#pragma once
+
+#include "../../config/config.hpp"
+
+#ifdef MFEM_USE_MPI
+
+#include <iostream>
+#include <string>
+#include <utility>
+
+#include "doperator.hpp"
+
+#if defined(__has_include) && __has_include("/Users/camierjs/home/mfem/stash/debug/nvtx.hpp") && !defined(_WIN32)
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kCyan
+#include "/Users/camierjs/home/mfem/stash/debug/nvtx.hpp"
+#else
+#define dbg(...)
+#endif
+
+namespace mfem::future
+{
+
+// ────────────────────────────────────────────────
+// CRTP base — provides interface:
+//   - SetName
+//   - SetBlocks
+//   - Print
+//   - Initialize
+//   - Interpolate
+//   - Qfunction
+//   - Integrate
+// ────────────────────────────────────────────────
+template <typename Backend>
+class BackendOperator : public DifferentiableOperator
+{
+   using nullseq = std::make_index_sequence<0>;
+
+   std::string name;
+   int blocks = 0;
+
+protected:
+   BackendOperator(const std::vector<FieldDescriptor> &solutions,
+                   const std::vector<FieldDescriptor> &parameters,
+                   const ParMesh &mesh):
+      DifferentiableOperator((dbg(),solutions), parameters, mesh)
+   {
+   }
+
+   // Allow derived to call our protected downcast helper
+   friend Backend;
+
+   // Safe downcast helper
+   constexpr Backend&       self()       noexcept { return static_cast<Backend&>(*this);       }
+   constexpr Backend const& self() const noexcept { return static_cast<Backend const&>(*this); }
+
+public:
+   Backend& SetName(std::string n)
+   {
+      self().impl_SetName(std::move(n));
+      return self();
+   }
+
+   Backend& SetBlocks(int x)
+   {
+      self().impl_SetBlocks(x);
+      return self();
+   }
+
+   void Print() const { self().impl_Print(); }
+
+   // Specific interface methods to be implemented by Backend for the AddDomainIntegrator
+   void Initialize(Vector &residual_e) { self().impl_Initialize(residual_e); }
+
+   void Interpolate() { self().impl_Interpolate(); }
+
+   void Qfunction() { self().impl_Qfunction(); }
+
+   void Integrate() { self().impl_Integrate(); }
+
+   // minimalistic version of DifferentiableOperator::AddDomainIntegrator
+   template <typename qfunc_t,
+             typename input_t,
+             typename output_t,
+             typename derivative_ids_t = nullseq>
+   void AddDomainIntegrator(qfunc_t &qfunc,
+                            input_t inputs,
+                            output_t outputs,
+                            const IntegrationRule &integration_rule,
+                            const Array<int> &attributes,
+                            derivative_ids_t derivative_ids = nullseq{})
+   {
+      dbg("Adding domain integrator to Backend {}", name);
+      // really add the integrator to the base DifferentiableOperator
+      // so that the tests works
+      DifferentiableOperator::AddDomainIntegrator(qfunc,
+                                                  inputs, outputs,
+                                                  integration_rule,
+                                                  attributes,
+                                                  derivative_ids);
+
+      // add another CRTP integrator to our backend action_callbacks
+      const int num_entities = 4;
+      ThreadBlocks thread_blocks;
+      const Array<int> *elem_attributes = &mesh.GetElementAttributes();
+
+      action_callbacks.push_back(
+         [
+            // capture by copy:
+            num_entities,          // int
+            thread_blocks,         // ThreadBlocks
+            attributes,            // Array<int>
+            elem_attributes,       // Array<int>
+            // capture by ref:
+            &restriction_cb = this->restriction_callback,
+            &fields_e = this->fields_e,
+            &residual_e = this->residual_e,
+            &output_restriction_transpose = this->output_restriction_transpose,
+            this  // needed to access [Interpolate / Qfunction / Integrate]
+         ]
+         (std::vector<Vector> &sol, const std::vector<Vector> &par, Vector &res)
+      {
+         restriction_cb(sol, par, fields_e);
+
+         Initialize(residual_e);
+
+         const bool has_attr = attributes.Size() > 0;
+         const auto d_attr = attributes.Read();
+         const auto d_elem_attr = elem_attributes->Read();
+
+         forall([=] MFEM_HOST_DEVICE (int e, void *shmem)
+         {
+            if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
+            dbg("Element {}", e);
+            Interpolate();
+            Qfunction();
+            Integrate();
+         }, num_entities, thread_blocks, 0, nullptr);
+         output_restriction_transpose(residual_e, res);
+      });
+   }
+};
+
+// ------------------------------------------------------
+//   Default Backend implementation
+// ------------------------------------------------------
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kYellow
+class DefaultDifferentiableOperator final :
+   public BackendOperator<DefaultDifferentiableOperator>
+{
+public:
+   DefaultDifferentiableOperator(
+      const std::vector<FieldDescriptor> &solutions,
+      const std::vector<FieldDescriptor> &parameters,
+      const ParMesh &mesh):
+      BackendOperator<DefaultDifferentiableOperator>
+      ((dbg("\n"),solutions), parameters, mesh)
+   {
+   }
+
+   void impl_SetName(std::string n) { name = std::move(n); }
+
+   void impl_SetBlocks(int a) { blocks = a; }
+
+   void impl_Print() const
+   {
+      std::cout << "Backend { name=\"" << name << "\", blocks=" << blocks << " }\n";
+   }
+
+   void impl_Initialize(Vector &residual_e)
+   {
+      dbg();
+      residual_e = 0.0;
+   }
+   void impl_Interpolate() { dbg();  /* map_fields_to_quadrature_data */ }
+
+   void impl_Qfunction() { dbg();  /* call_qfunction */ }
+
+   void impl_Integrate() { dbg();  /* map_quadrature_data_to_fields */ }
+
+};
+
+} // namespace mfem::future
+
+#endif // MFEM_USE_MPI
