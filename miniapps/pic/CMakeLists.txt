@@ -20,7 +20,7 @@ if (MFEM_USE_MPI AND MFEM_USE_GSLIB)
     add_test(NAME electrostatic-pic_np=${MFEM_MPI_NP}
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS}
-      $<TARGET_FILE:electrostatic-pic> -rdf 1 -npt 102400 -k 0.2855993321 -a 0.05 -nt 20 -nx 16 -ny 16 -O 1 -q 0.001181640625 -m 0.001181640625 -ocf 1000 -dt 0.1
+      $<TARGET_FILE:electrostatic-pic> -rdf 2 -npt 40960 -k 0.2855993321 -a 0.05 -nt 200 -nx 16 -ny 16 -O 1 -q 0.01181640625 -m 0.01181640625 -ocf 1000 -dt 0.1
       ${MPIEXEC_POSTFLAGS})
   endif()
 endif()
