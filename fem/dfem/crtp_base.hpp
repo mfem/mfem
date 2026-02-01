@@ -14,16 +14,15 @@
 
 #ifdef MFEM_USE_MPI
 
-#include <iostream>
 #include <string>
 #include <utility>
 
 #include "doperator.hpp"
 
-#if defined(__has_include) && __has_include("/Users/camierjs/home/mfem/stash/debug/nvtx.hpp") && !defined(_WIN32)
+#ifdef NVTX_DEBUG_HPP
 #undef NVTX_COLOR
 #define NVTX_COLOR ::nvtx::kCyan
-#include "/Users/camierjs/home/mfem/stash/debug/nvtx.hpp"
+#include NVTX_DEBUG_HPP
 #else
 #define dbg(...)
 #endif
@@ -45,6 +44,7 @@ template <typename Backend>
 class BackendOperator : public DifferentiableOperator
 {
    using nullseq = std::make_index_sequence<0>;
+   using backend = BackendOperator;
 
    std::string name;
    int blocks = 0;
@@ -53,9 +53,7 @@ protected:
    BackendOperator(const std::vector<FieldDescriptor> &solutions,
                    const std::vector<FieldDescriptor> &parameters,
                    const ParMesh &mesh):
-      DifferentiableOperator((dbg(),solutions), parameters, mesh)
-   {
-   }
+      DifferentiableOperator((dbg(),solutions), parameters, mesh) { }
 
    // Allow derived to call our protected downcast helper
    friend Backend;
@@ -101,8 +99,7 @@ public:
                             derivative_ids_t derivative_ids = nullseq{})
    {
       dbg("Adding domain integrator to Backend {}", name);
-      // really add the integrator to the base DifferentiableOperator
-      // so that the tests works
+      // really add the integrator to the base DifferentiableOperator for testing
       DifferentiableOperator::AddDomainIntegrator(qfunc,
                                                   inputs, outputs,
                                                   integration_rule,
@@ -111,14 +108,12 @@ public:
 
       // add another CRTP integrator to our backend action_callbacks
       const int num_entities = 4;
-      ThreadBlocks thread_blocks;
       const Array<int> *elem_attributes = &mesh.GetElementAttributes();
 
       action_callbacks.push_back(
          [
             // capture by copy:
             num_entities,          // int
-            thread_blocks,         // ThreadBlocks
             attributes,            // Array<int>
             elem_attributes,       // Array<int>
             // capture by ref:
@@ -132,7 +127,7 @@ public:
       {
          restriction_cb(sol, par, fields_e);
 
-         Initialize(residual_e);
+         backend::Initialize(residual_e);
 
          const bool has_attr = attributes.Size() > 0;
          const auto d_attr = attributes.Read();
@@ -142,53 +137,15 @@ public:
          {
             if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
             dbg("Element {}", e);
-            Interpolate();
-            Qfunction();
-            Integrate();
-         }, num_entities, thread_blocks, 0, nullptr);
+
+            backend::Interpolate();
+            backend::Qfunction();
+            backend::Integrate();
+
+         }, num_entities, ThreadBlocks{}, 0, nullptr);
          output_restriction_transpose(residual_e, res);
       });
    }
-};
-
-// ------------------------------------------------------
-//   Default Backend implementation
-// ------------------------------------------------------
-#undef NVTX_COLOR
-#define NVTX_COLOR ::nvtx::kYellow
-class DefaultDifferentiableOperator final :
-   public BackendOperator<DefaultDifferentiableOperator>
-{
-public:
-   DefaultDifferentiableOperator(
-      const std::vector<FieldDescriptor> &solutions,
-      const std::vector<FieldDescriptor> &parameters,
-      const ParMesh &mesh):
-      BackendOperator<DefaultDifferentiableOperator>
-      ((dbg("\n"),solutions), parameters, mesh)
-   {
-   }
-
-   void impl_SetName(std::string n) { name = std::move(n); }
-
-   void impl_SetBlocks(int a) { blocks = a; }
-
-   void impl_Print() const
-   {
-      std::cout << "Backend { name=\"" << name << "\", blocks=" << blocks << " }\n";
-   }
-
-   void impl_Initialize(Vector &residual_e)
-   {
-      dbg();
-      residual_e = 0.0;
-   }
-   void impl_Interpolate() { dbg();  /* map_fields_to_quadrature_data */ }
-
-   void impl_Qfunction() { dbg();  /* call_qfunction */ }
-
-   void impl_Integrate() { dbg();  /* map_quadrature_data_to_fields */ }
-
 };
 
 } // namespace mfem::future

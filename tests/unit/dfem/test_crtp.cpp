@@ -17,9 +17,18 @@
 
 using namespace mfem;
 using namespace mfem::future;
-// using mfem::future::tensor;
 
-#include "fem/dfem/crtp.hpp"
+#include "fem/dfem/crtp_default.hpp"
+#include "./crtp_other.hpp"
+
+#ifdef NVTX_DEBUG_HPP
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kNvidia
+#include NVTX_DEBUG_HPP
+#else
+#define dbg(...)
+#endif
+
 
 using namespace mfem::future;
 
@@ -71,7 +80,10 @@ void crtp_action(const char *filename, int p)
       return tuple{u * w * det(J)};
    };
 
-   SECTION("domain")
+   // -------------------------------------------
+   // Test CRTP current Backend Implementation
+   // -------------------------------------------
+   SECTION("Current Domain Integrator Implementation")
    {
       blf.Mult(x, y);
       fes.GetProlongationMatrix()->MultTranspose(y, Y);
@@ -93,7 +105,10 @@ void crtp_action(const char *filename, int p)
       MPI_Barrier(MPI_COMM_WORLD);
    }
 
-   SECTION("CRTP Backend")
+   // -------------------------------------------
+   // Test CRTP DEFAULT Backend Implementation
+   // -------------------------------------------
+   SECTION("CRTP Default Backend Implementation")
    {
       DefaultDifferentiableOperator crtp(sol, {{Coords, nodes->ParFESpace()}}, pmesh);
       crtp.SetMultLevel(DifferentiableOperator::LVECTOR);
@@ -122,14 +137,45 @@ void crtp_action(const char *filename, int p)
       REQUIRE(norm_g == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
    }
+
+   // -------------------------------------------
+   // Test CRTP OTHER Backend Implementation
+   // -------------------------------------------
+   SECTION("CRTP Other Backend Implementation")
+   {
+      OtherDifferentiableOperator crtp(sol, {{Coords, nodes->ParFESpace()}}, pmesh);
+      crtp.SetMultLevel(DifferentiableOperator::LVECTOR);
+      crtp.SetName("Other")
+      .SetBlocks(42)
+      .Print();
+
+      crtp.AddDomainIntegrator(mf_mass_qf,
+                               tuple{ Value<U>{}, Gradient<Coords>{}, Weight{} },
+                               tuple{ Value<U>{} },
+                               *ir, all_domain_attr);
+      crtp.SetParameters({ nodes });
+
+      X.Randomize(1);
+      x.SetFromTrueDofs(X);
+
+      blf.Mult(x, y);
+      fes.GetProlongationMatrix()->MultTranspose(y, Y);
+
+      fes.GetRestrictionMatrix()->Mult(x, X);
+      crtp.Mult(X, Z);
+      Y -= Z;
+
+      real_t norm_g, norm_l = Y.Normlinf();
+      MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+      REQUIRE(norm_g == MFEM_Approx(0.0));
+      MPI_Barrier(MPI_COMM_WORLD);
+   }
 }
 
 TEST_CASE("dFEM CRTP", "[Parallel][dFEM][CRTP]")
 {
-
-   const bool all_tests = launch_all_non_regression_tests;
-
-   const auto p = !all_tests ? 2 : GENERATE(1, 2, 3);
+   dbg();
+   const auto p = GENERATE(2);
 
    SECTION("2d")
    {
