@@ -476,7 +476,8 @@ public:
                 assemble_derivative_hypreparmatrix_callbacks[derivative_id]);
    }
 
-private:
+   // private:
+public: // make public for testing
    const ParMesh &mesh;
 
    MultLevel mult_level = TVECTOR;
