@@ -11,8 +11,9 @@
 
 if(MFEM_USE_MPI)
 
-list(APPEND AN_SOURCES linear_anisotropic_elasticity.hpp)
-list(APPEND AN_HEADERS linear_anisotropic_elasticity.cpp)
+list(APPEND AN_SOURCES solvers.cpp)
+list(APPEND AN_HEADERS linear_anisotropic_elasticity.hpp
+			solvers.hpp)
 
 convert_filenames_to_full_paths(AN_SOURCES)
 convert_filenames_to_full_paths(AN_HEADERS)
