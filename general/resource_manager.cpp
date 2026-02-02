@@ -25,7 +25,7 @@
 #include <intrin.h>
 #endif
 
-#if defined(__INTEL_LLVM_COMPILER) or defined(__INTEL_COMPILER)
+#if defined(__INTEL_LLVM_COMPILER) || defined(__INTEL_COMPILER)
 #include <immintrin.h>
 #endif
 
@@ -826,26 +826,32 @@ size_t MemoryManager::RBase::insert(size_t segment, size_t node,
    return insert(get_segment(segment).roots[on_device], node, nn);
 }
 
+#if defined(_MSC_VER) || defined(__INTEL_LLVM_COMPILER) || defined(__INTEL_COMPILER)
+namespace {
+template <class T> struct IdxTypeHelper;
+
+template <class R, class T0, class T1> struct IdxTypeHelper<R (*)(T0, T1)> {
+  using type = std::remove_pointer_t<T0>;
+};
+
+/// Identifies the base index type for _BitScanForward64
+template <class T> struct IdxType : IdxTypeHelper<std::add_pointer_t<T>> {};
+} // namespace
+#endif
+
 /// index of first unset bit + 1 starting from the LSB, or 0 if all bits are set
 static int lowest_unset(uint64_t val)
 {
 #if defined(__GNUC__) || defined(__clang__)
    static_assert(sizeof(long long) == 8, "long long expected to be 64-bits");
    return __builtin_ffsll(~val);
-#elif defined(__INTEL_LLVM_COMPILER) or defined(__INTEL_COMPILER)
+#elif defined(_MSC_VER) || defined(__INTEL_LLVM_COMPILER) || defined(__INTEL_COMPILER)
    if (val == ~0ull)
    {
       return 0;
    }
-   uint32_t res;
-   _BitScanForward64(&res, ~val);
-   return res + 1;
-#elif defined(_MSC_VER)
-   if (val == ~0ull)
-   {
-      return 0;
-   }
-   unsigned long res;
+   // argument 0 has a (potentially) different type between MSVC and Intel compilers
+   typename IdxType<decltype(_BitScanForward64)>::type res;
    _BitScanForward64(&res, ~val);
    return res + 1;
 #else
