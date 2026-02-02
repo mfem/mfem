@@ -279,6 +279,7 @@ public:
          ownedProlongations[lev] = false;
          // Build BlockOperator at each level
          BlockOperator * OpLevel = new BlockOperator(Pblk->ColOffsets());
+         OpLevel->owns_blocks = 1;
          for (int i = 0; i < nblocks; i++)
          {
             BlockOperator * blkp = dynamic_cast<BlockOperator*>(prolongations[lev]);
@@ -308,9 +309,10 @@ public:
                   OpLevel->SetBlock(i, j, PtAP);
                }
             }
+            delete Pit;
          }
          operators[lev] = OpLevel;
-         ownedOperators[lev] = false;
+         ownedOperators[lev] = true;
       }
 
       for (int i = 0; i < operators.Size(); i++)
@@ -318,6 +320,7 @@ public:
          SymmetricBlockDiagonalPreconditioner *prec =
             new SymmetricBlockDiagonalPreconditioner(dynamic_cast<BlockOperator*>
                                                      (operators[i])->RowOffsets());
+         prec->owns_blocks = 1;
          for (int b = 0; b < nblocks; b++)
          {
             const HypreParMatrix * Ab = dynamic_cast<const HypreParMatrix *>
