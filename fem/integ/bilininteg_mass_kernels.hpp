@@ -1143,7 +1143,8 @@ inline void SmemPAMassApply3D(const int NE,
    });
 }
 
-template<int T_D1D = 0, int T_Q1D = 0>
+// forcing internal linkage to avoid ODR issues with gcc + nvcc
+template<int T_D1D = 0, int T_Q1D = 0> static
 inline void EAMassAssemble1D(const int NE,
                              const Array<real_t> &basis,
                              const Vector &padata,
@@ -1191,7 +1192,8 @@ inline void EAMassAssemble1D(const int NE,
    });
 }
 
-template<int T_D1D = 0, int T_Q1D = 0>
+// forcing internal linkage to avoid ODR issues with gcc + nvcc
+template<int T_D1D = 0, int T_Q1D = 0> static
 inline void EAMassAssemble2D(const int NE,
                              const Array<real_t> &basis,
                              const Vector &padata,
