@@ -202,13 +202,17 @@ protected:
                             const int dof1dsol, const int ordering);
 
 public:
+   /// Serial constructor
    FindPointsGSLIB();
+   /// Serial constructor + setup with given Mesh (see \ref Setup)
    FindPointsGSLIB(Mesh &mesh_in, const double bb_t = 0.1,
                    const double newt_tol = 1.0e-12,
                    const int npt_max = 256);
 
 #ifdef MFEM_USE_MPI
+   /// Constructor for ParMesh
    FindPointsGSLIB(MPI_Comm comm_);
+   /// Constructor + setup with given ParMesh (see \ref Setup)
    FindPointsGSLIB(ParMesh &mesh_in, const double bb_t = 0.1,
                    const double newt_tol = 1.0e-12,
                    const int npt_max = 256);
