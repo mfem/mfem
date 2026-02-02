@@ -67,51 +67,31 @@ using namespace mfem::common;
 
 struct PICContext
 {
-   // Spatial dimension
-   int dim = 2;
-   // Finite element order for the spatial discretization
-   int order = 1;
-   // Number of grid cells in x-direction
-   int nx = 100;
-   // Number of grid cells in y-direction
-   int ny = 100;
-   // Number of grid cells in z-direction
-   int nz = 100;
-   // Domain length in x-direction
-   real_t L_x = 1.0;
+   int dim = 2;                  ///< Spatial dimension.
+   int order = 1;                ///< Finite element order for the spatial discretization.
+   int nx = 100;                 ///< Number of grid cells in x-direction.
+   int ny = 100;                 ///< Number of grid cells in y-direction.
+   int nz = 100;                 ///< Number of grid cells in z-direction.
+   real_t L_x = 1.0;             ///< Domain length in x-direction.
 
-   // Ordering scheme for particles/mesh
-   int ordering = 1;
-   // Number of particles
-   int npt = 1000;
-   // Particle charge
-   real_t q = 1.0;
-   // Particle mass
-   real_t m = 1.0;
+   int ordering = 1;             ///< Ordering scheme for particles/mesh.
+   int npt = 1000;               ///< Number of particles.
+   real_t q = 1.0;               ///< Particle charge.
+   real_t m = 1.0;               ///< Particle mass.
 
-   // Wave number (for Landau damping test case)
-   real_t k = 1.0;
-   // Perturbation amplitude (for Landau damping test case)
-   real_t alpha = 0.1;
+   real_t k = 1.0;               ///< Wave number (Landau damping test case).
+   real_t alpha = 0.1;           ///< Perturbation amplitude (Landau damping test case).
 
-   // Time step size
-   real_t dt = 1e-2;
-   // Initial simulation time
-   real_t t_init = 0.0;
+   real_t dt = 1e-2;             ///< Time step size.
+   real_t t_init = 0.0;          ///< Initial simulation time.
 
-   // Number of time steps to run
-   int nt = 1000;
-   // Frequency for redistributing particles across processors
-   int redist_freq = 1e6;
-   // Frequency for outputting CSV data files
-   int output_csv_freq = 1;
+   int nt = 1000;                ///< Number of time steps to run.
+   int redist_freq = 1e6;        ///< Frequency for redistributing particles across processors.
+   int output_csv_freq = 1;      ///< Frequency for outputting CSV data files.
 
-   // Enable visualization
-   bool visualization = true;
-   // Port number for visualization server
-   int visport = 19916;
-   // Enable reproducible results (fixed random seed)
-   bool reproduce = true;
+   bool visualization = true;    ///< Enable visualization.
+   int visport = 19916;          ///< Port number for visualization server.
+   bool reproduce = true;        ///< Enable reproducible results (fixed random seed).
 } ctx;
 
 /// This class implements explicit time integration for charged particles
