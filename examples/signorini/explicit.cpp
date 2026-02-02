@@ -1,9 +1,9 @@
 //                                MFEM Signorini
 //
-// Compile with: make signorini
+// Compile with: make explicit
 //
-// Sample runs:  signorini
-//               signorini -m ../../data/true-tetrahedron.mesh
+// Sample runs:  explicit
+//               explicit -m ../../data/true-tetrahedron.mesh
 //
 // Description:  This program solves the Signorini problem using MFEM.
 //               The problem is defined on a solid with a Dirichlet

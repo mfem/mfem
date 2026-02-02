@@ -69,9 +69,11 @@ examples/ex3[0-9]
 examples/ex3[0-9]p
 examples/ex4[0-9]
 examples/ex4[0-9]p
-examples/signorini/signorini*
-!examples/signorini/signorini*.cpp
-!examples/signorini/signorini*.h
+examples/signorini/explicit
+examples/signorini/explicitp
+examples/signorini/groschwheelp
+examples/signorini/mmsp
+examples/signorini/weakexplicitp
 
 examples/refined.mesh
 examples/displaced.mesh

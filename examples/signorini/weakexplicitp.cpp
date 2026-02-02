@@ -1,8 +1,8 @@
 //                          MFEM Signorini MMS WBC
 //
-// Compile with: make signorinip_wbc
+// Compile with: make weakexplicitp
 //
-// Sample runs:  mpirun -np 4 signorinip_wbc
+// Sample runs:  mpirun -np 4 weakexplicitp
 //
 // Description:  This program solves the Signorini problem using MFEM.
 //               The problem is defined on a cube with a Dirichlet

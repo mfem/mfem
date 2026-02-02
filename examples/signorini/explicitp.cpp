@@ -1,17 +1,19 @@
-//                             MFEM Signorini MMS
+//                                MFEM Signorini
 //
-// Compile with: make signorinip_mms
+// Compile with: make explicitp
 //
-// Sample runs:  mpirun -np 4 signorinip_mms
+// Sample runs:  mpirun -np 4 explicitp
+//               mpirun -np 4 explicitp -m ../../data/true-tetrahedron.mesh
+//               mpirun -np 4 explicitp -m ../../data/ball-nurbs.mesh -a 3 -o 3 -i 50
 //
 // Description:  This program solves the Signorini problem using MFEM.
-//               The problem is defined on a cube with a Dirichlet
+//               The problem is defined on a solid with a Dirichlet
 //               boundary condition on the bottom face and a traction
 //               boundary (Γₜ) condition on the top face. The traction
 //               boundary condition is defined through a unit vector field
 //               ñ. We aim to (iteratively) find uᵏ ∈ V such that
 //
-//               (σ(uᵏ), ε(v)) = (f, v)                      for all v ∈ V
+//               (σ(u), ε(v)) = (f, v)                       for all v ∈ V
 //               uᵏ · ñ = φ₁ + (uᵏ⁻¹ · ñ - φ₁) exp(αₖ (σ(uᵏ⁻¹)n · ñ)) on Γₜ
 //
 //               where σ is the stress tensor, ε is the strain tensor,
@@ -21,96 +23,11 @@
 //               boundary.
 
 #include "mfem.hpp"
+#include "signorini.hpp"
 #include <iostream>
 
 using namespace std;
 using namespace mfem;
-
-void ManufacturedSolution(const Vector &x, Vector &u);
-void InitDisplacement(const Vector &x, Vector &u);
-real_t GapFunction(const Vector &x);
-void ForceFunction(const Vector &x, Vector &f);
-void ComputeStress(const DenseMatrix &grad_u, const real_t lambda,
-                   const real_t mu, DenseMatrix &sigma);
-
-/**
- * @brief Implements the contact express boundary condition for the Signorini
- *        problem. The vector n_tilde representing ñ is assumed to be equal to
- *        (0,...,0,-1).
- *
- * @param dim Spatial dimension
- * @param u_prev Previous displacement vector
- * @param n_tilde Vector field
- * @param lambda First Lamé parameter
- * @param mu Second Lamé parameter
- * @param alpha Step-size parameter
- */
-class TractionBoundary : public VectorCoefficient
-{
-private:
-   GridFunction *u_prev;
-   Vector n_tilde;
-   real_t lambda, mu, alpha;
-
-public:
-   TractionBoundary(int _dim, GridFunction *_u_prev, Vector _n_tilde,
-                    real_t _lambda, real_t _mu, real_t _alpha)
-      : VectorCoefficient(_dim), u_prev(_u_prev), n_tilde(_n_tilde), lambda(_lambda),
-        mu(_mu), alpha(_alpha) {}
-
-   virtual void Eval(Vector &u, ElementTransformation &T,
-                     const IntegrationPoint &ip) override
-   {
-      ParGridFunction *par_u_prev = dynamic_cast<ParGridFunction*>(u_prev);
-      const int dim = T.GetSpaceDim();
-
-      // Get current point coordinates
-      Vector x(dim);
-      T.Transform(ip, x);
-
-      // Get value and Jacobian of previous solution
-      Vector u_prev_val(dim);
-      DenseMatrix grad_u_prev(dim,dim);
-      if (par_u_prev)
-      {
-         par_u_prev->GetVectorValue(T, ip, u_prev_val);
-         par_u_prev->GetVectorGradient(T, grad_u_prev);
-      }
-      else
-      {
-         u_prev->GetVectorValue(T, ip, u_prev_val);
-         u_prev->GetVectorGradient(T, grad_u_prev);
-      }
-      // Evaluate the stress tensor σ(uᵏ⁻¹)
-      DenseMatrix sigma(dim,dim);
-      ComputeStress(grad_u_prev, lambda, mu, sigma);
-
-      // Compute normal vector n
-      Vector n(dim);
-      CalcOrtho(T.Jacobian(), n);
-      n /= n.Norml2();
-
-      // Compute pressure σ(uᵏ⁻¹)n · ñ
-      Vector sigma_n(dim);
-      sigma.Mult(n, sigma_n);
-      const real_t pressure = sigma_n * n_tilde;
-
-      // Evaluate the gap function φ₁
-      const real_t phi_1 = GapFunction(x);
-
-      // Set the boundary condition
-      // uᵏ · ñ = φ₁ + (uᵏ⁻¹ · ñ - φ₁) exp(αₖ (σ(uᵏ⁻¹)n · ñ))
-      u.SetSize(dim);
-      u = u_prev_val;
-      u(dim-1) = phi_1 + (u_prev_val * n_tilde - phi_1) * exp(alpha * pressure);
-      u(dim-1) /= n_tilde(dim-1);
-   }
-};
-
-real_t lambda_g = 1.0;
-real_t mu_g = 1.0;
-
-const real_t plane_g = -0.5;
 
 int main(int argc, char *argv[])
 {
@@ -124,13 +41,14 @@ int main(int argc, char *argv[])
    const char* mesh_file = "../../data/ref-cube.mesh";
    int order = 1;
    real_t alpha = 1.0;
+   real_t lambda = 1.0;
+   real_t mu = 1.0;
    int ref_levels = 0;
-   int max_iterations = 7;
+   int max_iterations = 9;
    real_t itol = 1e-6;
    bool reorder_space = false;
-   bool visualization = false;
+   bool visualization = true;
    bool paraview_output = false;
-   bool logger = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -138,9 +56,9 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&alpha, "-a", "--alpha",
                   "Alpha parameter for boundary condition.");
-   args.AddOption(&lambda_g, "-lambda", "--lambda",
+   args.AddOption(&lambda, "-lambda", "--lambda",
                   "Lamé's first parameter.");
-   args.AddOption(&mu_g, "-mu", "--mu",
+   args.AddOption(&mu, "-mu", "--mu",
                   "Lamé's second parameter.");
    args.AddOption(&ref_levels, "-r", "--ref_levels",
                   "Number of uniform mesh refinements.");
@@ -156,8 +74,6 @@ int main(int argc, char *argv[])
    args.AddOption(&paraview_output, "-pv", "--paraview", "-no-pv",
                   "--no-paraview",
                   "Enable or disable ParaView output.");
-   args.AddOption(&logger, "-l", "--logger", "-no-log", "--no-logger",
-                  "Enable or disable logging.");
    args.Parse();
    if (!args.Good())
    {
@@ -167,7 +83,7 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
-   if (mu_g <= 0.0 || lambda_g + 2.0/3.0 * mu_g <= 0.0)
+   if (mu <= 0.0 || lambda + 2.0/3.0 * mu <= 0.0)
    {
       std::cerr << "Invalid Lamé parameters." << std::endl;
       return 3;
@@ -195,12 +111,62 @@ int main(int argc, char *argv[])
    int curvature_order = max(order, 2);
    mesh.SetCurvature(curvature_order);
 
+   // 3C. Select the order of the finite element discretization space. For NURBS
+   //     meshes, we increase the order by degree elevation.
+   if (mesh.NURBSext)
+   {
+      mesh.DegreeElevate(order, order);
+   }
+
+   // 3D. If the mesh is a ball, we shift the nodes by 1.
+   if (strcmp(mesh_file, "data/ball-nurbs.mesh") == 0)
+   {
+      GridFunction *nodes = mesh.GetNodes();
+      *nodes += 1.0;
+   }
+
    // 4. Define a parallel mesh by a partitioning of the serial mesh. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh pmesh = ParMesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
-   // 5. Define a finite element space on the mesh. Here we use vector finite
+   // 5. Mark the bottom boundary of the solid as attribute 1, the rest as 2
+   for (int i = 0; i < pmesh.GetNBE(); i++)
+   {
+      Element *facet = pmesh.GetBdrElement(i);
+      Array<int> vertices;
+      facet->GetVertices(vertices);
+
+      // Compute the centroid of the facet
+      real_t z_centroid = 0.0;
+      for (int j = 0; j < vertices.Size(); j++)
+      {
+         z_centroid += pmesh.GetVertex(vertices[j])[dim-1];
+      }
+      z_centroid /= vertices.Size();
+
+      bool is_bottom;
+      if (strcmp(mesh_file, "data/ball-nurbs.mesh") == 0)
+      {
+         is_bottom = (z_centroid < 1.0);
+      }
+      else
+      {
+         is_bottom = (abs(z_centroid) < 1e-8);
+      }
+
+      if (is_bottom)
+      {
+         facet->SetAttribute(1);
+      }
+      else
+      {
+         facet->SetAttribute(2);
+      }
+   }
+   pmesh.SetAttributes();
+
+   // 6. Define a finite element space on the mesh. Here we use vector finite
    //    elements, i.e. dim copies of a scalar finite element space. The vector
    //    dimension is specified by the last argument of the FiniteElementSpace
    //    constructor. For NURBS meshes, we use the (degree elevated) NURBS space
@@ -230,27 +196,14 @@ int main(int argc, char *argv[])
       cout << "Number of finite element unknowns: " << size << endl;
    }
 
-   // 6. Determine the list of true (i.e. parallel conforming) essential
+   // 7. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs.
-   Array<int> ess_bdr_x(pmesh.bdr_attributes.Max());
-   Array<int> ess_bdr_y(pmesh.bdr_attributes.Max());
-   Array<int> ess_bdr_z(pmesh.bdr_attributes.Max());
-   ess_bdr_x = 0; ess_bdr_x[2] = 1; ess_bdr_x[4] = 1;
-   ess_bdr_y = 0; ess_bdr_y[1] = 1; ess_bdr_y[3] = 1;
-   ess_bdr_z = 0; ess_bdr_z[0] = 1;
-
-   Array<int> ess_tdof_list_x, ess_tdof_list_y, ess_tdof_list_z;
-   fespace->GetEssentialTrueDofs(ess_bdr_x, ess_tdof_list_x, 0);
-   fespace->GetEssentialTrueDofs(ess_bdr_y, ess_tdof_list_y, 1);
-   fespace->GetEssentialTrueDofs(ess_bdr_z, ess_tdof_list_z, 2);
-
+   Array<int> ess_bdr(pmesh.bdr_attributes.Max());
    Array<int> ess_tdof_list;
-   ess_tdof_list.Append(ess_tdof_list_x);
-   ess_tdof_list.Append(ess_tdof_list_y);
-   ess_tdof_list.Append(ess_tdof_list_z);
+   ess_bdr = 0; ess_bdr[0] = 1;
+   fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-   // 7. Define coefficients for later.
-   VectorFunctionCoefficient u_exact_coeff(dim, ManufacturedSolution);
+   // 8. Define coefficients for later.
    VectorFunctionCoefficient f_coeff(dim, ForceFunction);
    Vector n_tilde(dim);
    n_tilde = 0.0;
@@ -267,7 +220,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 8. Set up the parallel linear form b(⋅) which corresponds to the
+   // 9. Set up the parallel linear form b(⋅) which corresponds to the
    //    right-hand side of the FEM linear system.
    ParLinearForm *b = new ParLinearForm(fespace);
    b->AddDomainIntegrator(new VectorDomainLFIntegrator(f_coeff));
@@ -277,9 +230,9 @@ int main(int argc, char *argv[])
    }
    b->Assemble();
 
-   // 9. Define the solution vector u as a parallel finite element grid
-   //    function corresponding to fespace. Initialize u with initial guess of
-   //    u(x,y,z) = (0,0,-0.1z), which satisfies the boundary conditions.
+   // 10. Define the solution vector u as a parallel finite element grid
+   //     function corresponding to fespace. Initialize u with initial guess of
+   //     u(x,y,z) = (0,0,-0.1z), which satisfies the boundary conditions.
    ParGridFunction u_previous(fespace);
    ParGridFunction u_current(fespace);
    VectorGridFunctionCoefficient u_previous_coeff(&u_previous);
@@ -288,26 +241,26 @@ int main(int argc, char *argv[])
    u_previous.ProjectCoefficient(init_u);
    u_current = u_previous;
 
-   // 10. Set up the bilinear form a(⋅,⋅) on the finite element space
+   // 11. Set up the bilinear form a(⋅,⋅) on the finite element space
    //     corresponding to the linear elasticity integrator with coefficients
    //     lambda and mu.
    ConstantCoefficient one(1.0);
    ParBilinearForm *a = new ParBilinearForm(fespace);
-   a->AddDomainIntegrator(new ElasticityIntegrator(one,lambda_g,mu_g));
+   a->AddDomainIntegrator(new ElasticityIntegrator(one,lambda,mu));
    if (myid == 0)
    {
       cout << "matrix ... " << flush;
    }
    a->Assemble();
 
-   // 11. Set up GLVis visualization.
+   // 12. Set up GLVis visualization.
    char vishost[] = "localhost";
    int  visport   = 19916;
    socketstream sol_sock(vishost, visport);
    sol_sock.precision(8);
 
-   // 12. Initialize ParaView output.
-   ParaViewDataCollection paraview_dc("signorini_mms", &pmesh);
+   // 13. Initialize ParaView output.
+   ParaViewDataCollection paraview_dc("signorini", &pmesh);
    if (paraview_output)
    {
       paraview_dc.SetPrefixPath("ParaView");
@@ -321,24 +274,22 @@ int main(int argc, char *argv[])
    }
 
    real_t iter_error;
-   real_t l2_error;
 
    if (myid == 0)
    {
-      mfem::out << "\nk" << setw(14) << "iter_error" << setw(14) << "l2_error"
-                << std::endl;
-      mfem::out << "-----------------------------" << std::endl;
+      mfem::out << "\nk" << setw(14) << "iter_error" << std::endl;
+      mfem::out << "---------------" << std::endl;
    }
 
-   // 13. Iterate:
+   // 14. Iterate:
    for (int k = 1; k <= max_iterations; k++)
    {
       // Step 1: Reassemble the linear form b(⋅).
       b->Assemble();
 
       // Step 2: Create the boundary condition coefficient using previous solution.
-      TractionBoundary trac_coeff(dim, &u_previous, n_tilde, lambda_g, mu_g, alpha);
-      u_current.ProjectBdrCoefficient(trac_coeff, ess_bdr_z);
+      TractionBoundary trac_coeff(dim, &u_previous, n_tilde, lambda, mu, alpha);
+      u_current.ProjectBdrCoefficient(trac_coeff, ess_bdr);
 
       // Step 3: Form the linear system A X = B. This includes eliminating boundary
       // conditions, applying AMR constraints, and other transformations.
@@ -367,12 +318,10 @@ int main(int argc, char *argv[])
 
       // Step 6: Compute difference between current and previous solutions.
       iter_error = u_current.ComputeL2Error(u_previous_coeff);
-      l2_error = u_current.ComputeL2Error(u_exact_coeff);
 
       if (myid == 0)
       {
-         mfem::out << k << setw(14) << iter_error << setw(14) << l2_error
-                   << std::endl;
+         mfem::out << k << setw(14) << iter_error << std::endl;
       }
 
       // Step 7: Send the above data by socket to a GLVis server. Use the "n"
@@ -384,27 +333,24 @@ int main(int argc, char *argv[])
       }
 
       // Step 8: Check for convergence.
-      if (!logger)
+      if (iter_error < itol)
       {
-         if (iter_error < itol)
+         if (myid == 0)
          {
-            if (myid == 0)
-            {
-               mfem::out << "\nConverged after " << k << " iterations." << std::endl;
-            }
-            if (visualization)
-            {
-               sol_sock << "keys cFFF\n";
-            }
-            break;
+            mfem::out << "\nConverged after " << k << " iterations." << std::endl;
          }
+         if (visualization)
+         {
+            sol_sock << "keys cFFF\n";
+         }
+         break;
       }
 
       // Step 9: Update previous solution for next iteration.
       u_previous = u_current;
    }
 
-   // 14. Save the final solution in ParaView format.
+   // 15. Save the final solution in ParaView format.
    if (paraview_output)
    {
       paraview_dc.SetCycle(1);
@@ -412,7 +358,7 @@ int main(int argc, char *argv[])
       paraview_dc.Save();
    }
 
-   // 15. Free used memory.
+   // 16. Free used memory.
    delete a;
    delete b;
    if (fec)
@@ -423,88 +369,3 @@ int main(int argc, char *argv[])
 
    return 0;
 }
-
-void ManufacturedSolution(const Vector &x, Vector &u)
-{
-   const int dim = x.Size();
-   const real_t z = x(dim-1);
-
-   Vector f(dim);
-   ForceFunction(x, f);
-   real_t fz = f(dim-1);
-
-   u = 0.0;
-   u(dim-1) = -fz / (2 * (lambda_g + 2*mu_g)) * (z - 2.0) * z;
-   u(dim-1) += plane_g;
-}
-
-/**
- * @brief Initializes the displacement vector u with an initial guess of
- *        u(x,y,z) = (0,0,-0.1z), which satisfies the boundary conditions.
- */
-void InitDisplacement(const Vector &x, Vector &u)
-{
-   const real_t displacement = -0.1;
-   const int dim = x.Size();
-
-   u = 0.0;
-   u(dim-1) = displacement*x(dim-1);
-}
-
-/**
- * @brief Computes the gap function φ₁ based on the input vector x; represents
- *        the distance between a point x and a plane.
- *
- * @param x Input vector
- * @return real_t Computed gap function value, φ₁(x)
- */
-real_t GapFunction(const Vector &x)
-{
-   const int dim = x.Size();
-
-   return x(dim-1) - plane_g;
-}
-
-/**
- * @brief Computes the force function based on the input vector x.
- *
- * @param x Input vector
- * @param f Output vector representing the downward force
- */
-void ForceFunction(const Vector &x, Vector &f)
-{
-   const int dim = x.Size();
-   const real_t force = -2.0;
-
-   f = 0.0;
-   f(dim-1) = force;
-}
-
-/**
- * @brief Computes the stress tensor σ(u) based on the gradient of the
- *        displacement field u and the Lamé parameters.
- *
- * @param grad_u Gradient of the displacement field
- * @param lambda First Lamé parameter
- * @param mu     Second Lamé parameter
- * @param sigma  Computed stress tensor
- */
-void ComputeStress(const DenseMatrix &grad_u, const real_t lambda,
-                   const real_t mu, DenseMatrix &sigma)
-{
-   const int dim = grad_u.Size();
-
-   // Compute div(u): trace of Jacobian ∇u
-   const real_t div_u = grad_u.Trace();
-
-   // Compute strain: ε(u) = (∇u + ∇uᵀ)/2
-   DenseMatrix epsilon = grad_u;
-   epsilon.Symmetrize();
-
-   // Compute stress: σ(u) = λ div(u) I + 2μ ε(u)
-   DenseMatrix I;
-   I.Diag(1.0, dim);
-   sigma = 0.0;
-   Add(lambda * div_u, I, 2 * mu, epsilon, sigma);
-}
-

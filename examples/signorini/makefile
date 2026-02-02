@@ -9,8 +9,8 @@ CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = signorini
-PAR_EXAMPLES = signorinip signorinip_gw signorinip_mms signorinip_wbc signorinip_gw
+SEQ_EXAMPLES = explicit
+PAR_EXAMPLES = explicitp mmsp weakexplicitp groschwheelp
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else

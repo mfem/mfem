@@ -1,8 +1,8 @@
-//                          MFEM Signorini WBC Test
+//                          MFEM Signorini Grosch Wheel Problem
 //
-// Compile with: make signorinip_gw
+// Compile with: make groschwheelp
 //
-// Sample runs:  mpirun -np 4 signorinip_gw
+// Sample runs:  mpirun -np 4 groschwheelp
 //
 // Description:  This program solves the Signorini problem using MFEM.
 //               The problem is defined on a Wheel with a Dirichlet
