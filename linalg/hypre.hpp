@@ -1160,6 +1160,15 @@ public:
       return HypreUsingGPU() ? l1Jacobi : l1GS;
    }
 
+   /// Default solver settings:
+   /// type = DefaultType()
+   /// relax_times = 1
+   /// omega = 1.0
+   /// poly_order = 2
+   /// poly_fraction = 0.3
+   /// lambda = 0.5
+   /// mu = -0.5
+   /// taubin_iter = 40
    HypreSmoother();
 
    HypreSmoother(const HypreParMatrix &A_, int type = DefaultType(),
@@ -1169,20 +1178,28 @@ public:
 
    /// Set the relaxation type and number of sweeps
    void SetType(HypreSmoother::Type type, int relax_times = 1);
+   using Operator::GetType;
+   void GetType(HypreSmoother::Type &type, int &relax_times) const;
    /// Set SOR-related parameters
    void SetSOROptions(real_t relax_weight, real_t omega);
+   void GetSOROptions(real_t &relax_weight, real_t &omega) const;
+
    /// Set parameters for polynomial smoothing
    /** By default, 10 iterations of CG are used to estimate the eigenvalues.
        Setting eig_est_cg_iter = 0 uses hypre's hypre_ParCSRMaxEigEstimate() instead. */
    void SetPolyOptions(int poly_order, real_t poly_fraction,
                        int eig_est_cg_iter = 10);
+   void GetPolyOptions(int &poly_order, real_t &poly_fraction,
+                       int &eig_est_cg_iter) const;
    /// Set parameters for Taubin's lambda-mu method
    void SetTaubinOptions(real_t lambda, real_t mu, int iter);
+   void GetTaubinOptions(real_t &lambda, real_t &mu, int &iter) const;
 
    /// Convenience function for setting canonical windowing parameters
    void SetWindowByName(const char* window_name);
    /// Set parameters for windowing function for FIR smoother.
    void SetWindowParameters(real_t a, real_t b, real_t c);
+   void GetWindowParameters(real_t &a, real_t &b, real_t &c) const;
    /// Compute window and Chebyshev coefficients for given polynomial order.
    void SetFIRCoefficients(real_t max_eig);
 
@@ -1190,12 +1207,15 @@ public:
    /** By default, the l1-norms take their sign from the corresponding diagonal
        entries in the associated matrix. */
    void SetPositiveDiagonal(bool pos = true) { pos_l1_norms = pos; }
+   bool IsPositiveDiagonal() const { return pos_l1_norms; };
 
    /** Explicitly indicate whether the linear system matrix A is symmetric. If A
        is symmetric, the smoother will also be symmetric. In this case, calling
        MultTranspose will be redirected to Mult. (This is also done if the
        smoother is diagonal.) By default, A is assumed to be nonsymmetric. */
    void SetOperatorSymmetry(bool is_sym) { A_is_symmetric = is_sym; }
+   /// @return true if the smoother assumes A is symmetric, false otherwise
+   bool IsOperatorSymmetric() const { return A_is_symmetric; }
 
    /** Set/update the associated operator. Must be called after setting the
        HypreSmoother type and options. */
@@ -1327,12 +1347,16 @@ public:
 #endif
 
 /// PCG solver in hypre
+/// Defaults to (relative) tol=1e-6, atol=0, max_iter=1000
 class HyprePCG : public HypreSolver
 {
 private:
    HYPRE_Solver pcg_solver;
 
    HypreSolver * precond;
+
+   /// Default PCG options
+   void SetDefaultOptions();
 
 public:
    HyprePCG(MPI_Comm comm);
@@ -1342,8 +1366,11 @@ public:
    void SetOperator(const Operator &op) override;
 
    void SetTol(real_t tol);
+   real_t GetTol() const;
    void SetAbsTol(real_t atol);
+   real_t GetAbsTol() const;
    void SetMaxIter(int max_iter);
+   int GetMaxIter() const;
    void SetLogging(int logging);
    void SetPrintLevel(int print_lvl);
 
@@ -1368,11 +1395,31 @@ public:
       num_iterations = internal::to_int(num_it);
    }
 
+   /// Gets the relative residual norm
    void GetFinalResidualNorm(real_t &final_res_norm) const
    {
       HYPRE_ParCSRPCGGetFinalRelativeResidualNorm(pcg_solver,
                                                   &final_res_norm);
    }
+
+   /// @param[in] use
+   ///   Convergence criterion:
+   ///   - when true: (r, r) < max(r_tol^2 (b, b), a_tol^2)
+   ///   - when false: (r, A r) < max(r_tol^2 (b, A b), a_tol^2)
+   /// @sa HYPRE_PCGSetTwoNorm
+   void SetUseTwoNorm(bool use);
+
+   /// @sa HYPRE_PCGGetTwoNorm
+   bool GetUseTwoNorm() const;
+
+#if MFEM_HYPRE_VERSION >= 21500
+   /// Gets the internal Hypre solver residual vector.
+   /// @sa HYPRE_ParCSRPCGGetResidual
+   HypreParVector GetResiduals() const;
+
+   /// Computes the absolute residual p-norm.
+   void GetFinalAbsResidualNorm(real_t &final_res_norm, real_t p = 2) const;
+#endif
 
    /// The typecast to HYPRE_Solver returns the internal pcg_solver
    operator HYPRE_Solver() const override { return pcg_solver; }
@@ -1391,7 +1438,8 @@ public:
    virtual ~HyprePCG();
 };
 
-/// GMRES solver in hypre
+/// GMRES solver in hypre.
+/// Defaults to k=50, (relative) tol=1e-6, atol=0, max_iter=100.
 class HypreGMRES : public HypreSolver
 {
 private:
@@ -1410,9 +1458,13 @@ public:
    void SetOperator(const Operator &op) override;
 
    void SetTol(real_t tol);
+   real_t GetTol() const;
    void SetAbsTol(real_t tol);
+   real_t GetAbsTol() const;
    void SetMaxIter(int max_iter);
+   int GetMaxIter() const;
    void SetKDim(int dim);
+   int GetKDim() const;
    void SetLogging(int logging);
    void SetPrintLevel(int print_lvl);
 
@@ -1432,11 +1484,21 @@ public:
       num_iterations = internal::to_int(num_it);
    }
 
+   /// Gets the relative residual norm
    void GetFinalResidualNorm(real_t &final_res_norm) const
    {
       HYPRE_ParCSRGMRESGetFinalRelativeResidualNorm(gmres_solver,
                                                     &final_res_norm);
    }
+
+#if MFEM_HYPRE_VERSION >= 21500
+   /// Gets the internal Hypre solver residual vector.
+   /// @sa HYPRE_ParCSRGMRESGetResidual
+   HypreParVector GetResiduals() const;
+
+   /// Computes the absolute residual p-norm.
+   void GetFinalAbsResidualNorm(real_t &final_res_norm, real_t p = 2) const;
+#endif
 
    /// The typecast to HYPRE_Solver returns the internal gmres_solver
    operator HYPRE_Solver() const override { return gmres_solver; }
@@ -1455,7 +1517,8 @@ public:
    virtual ~HypreGMRES();
 };
 
-/// Flexible GMRES solver in hypre
+/// Flexible GMRES solver in hypre.
+/// Defaults to k=50, (relative) tol=1e-6, max_iter=100.
 class HypreFGMRES : public HypreSolver
 {
 private:
@@ -1474,8 +1537,11 @@ public:
    void SetOperator(const Operator &op) override;
 
    void SetTol(real_t tol);
+   real_t GetTol() const;
    void SetMaxIter(int max_iter);
+   int GetMaxIter() const;
    void SetKDim(int dim);
+   int GetKDim() const;
    void SetLogging(int logging);
    void SetPrintLevel(int print_lvl);
 
@@ -1495,11 +1561,21 @@ public:
       num_iterations = internal::to_int(num_it);
    }
 
+   /// Gets the relative residual norm
    void GetFinalResidualNorm(real_t &final_res_norm) const
    {
       HYPRE_ParCSRFlexGMRESGetFinalRelativeResidualNorm(fgmres_solver,
                                                         &final_res_norm);
    }
+
+#if MFEM_HYPRE_VERSION >= 21500
+   /// Gets the internal Hypre solver residual vector.
+   /// @sa HYPRE_ParCSRFlexGMRESGetResidual
+   HypreParVector GetResiduals() const;
+
+   /// Computes the absolute residual p-norm.
+   void GetFinalAbsResidualNorm(real_t &final_res_norm, real_t p = 2) const;
+#endif
 
    /// The typecast to HYPRE_Solver returns the internal fgmres_solver
    operator HYPRE_Solver() const override { return fgmres_solver; }
@@ -1556,7 +1632,8 @@ public:
    virtual ~HypreDiagScale() { }
 };
 
-/// The ParaSails preconditioner in hypre
+/// The ParaSails preconditioner in hypre.
+/// See SetDefaultOptions() for default solver options.
 class HypreParaSails : public HypreSolver
 {
 private:
@@ -1685,10 +1762,14 @@ public:
 /**
 @brief Wrapper for Hypre's native parallel ILU preconditioner.
 
-The default ILU factorization type is ILU(k).  If you need to change this, or
-any other option, you can use the HYPRE_Solver method to cast the object for use
-with Hypre's native functions. For example, if want to use natural ordering
-rather than RCM reordering, you can use the following approach:
+Default parameters: ILU(k) factorization type, tol=0.0 (for use as a
+preconditioner), fill level = 1 (for ILU(k)), reverse Cuthill-McKee (RCM)
+re-ordering.
+
+If you need to change this, or any other option, you can use the HYPRE_Solver
+method to cast the object for use with Hypre's native functions. For example, if
+want to use natural ordering rather than RCM reordering, you can use the
+following approach:
 
 @code
 mfem::HypreILU ilu();
@@ -1829,6 +1910,7 @@ public:
 
    void SetMaxIter(int max_iter)
    { HYPRE_BoomerAMGSetMaxIter(amg_precond, max_iter); }
+   int GetMaxIter() const;
 
    /// Expert option - consult hypre documentation/team
    void SetMaxLevels(int max_levels)
@@ -1853,6 +1935,8 @@ public:
    /// Expert option - consult hypre documentation/team
    void SetRelaxType(int relax_type)
    { HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type); }
+   // not implemented in hypre
+   // int GetRelaxType() const;
 
    /// Expert option - consult hypre documentation/team
    void SetCycleType(int cycle_type)
@@ -2153,8 +2237,14 @@ public:
    ~HypreLOBPCG();
 
    void SetTol(real_t tol);
+   // not implemented in HYPRE
+   // real_t GetTol() const;
    void SetRelTol(real_t rel_tol);
+   // not implemented in HYPRE
+   // real_t GetRelTol() const;
    void SetMaxIter(int max_iter);
+   // not implemented in HYPRE
+   // int GetMaxIter() const;
    void SetPrintLevel(int logging);
    void SetNumModes(int num_eigs) { nev = num_eigs; }
    void SetPrecondUsageMode(int pcg_mode);
