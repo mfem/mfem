@@ -134,7 +134,7 @@ public:
    void FindParticles();
 
    /// Advance particles one time step using Boris algorithm
-   void Step(real_t& t, real_t& dt, real_t L_x, bool zeroth_step = false);
+   void Step(real_t& t, real_t dt, real_t L_x, bool first_step = false);
 
    /// Redistribute particles across processors
    void Redistribute();
@@ -350,14 +350,8 @@ int main(int argc, char* argv[])
          }
       }
 
-      if (step == 1)
-      {
-         real_t neg_half_dt = -dt / 2.0;
-         // Perform a "zeroth" step to move p half step backward
-         particle_mover.Step(t, neg_half_dt, ctx.L_x,true);
-      }
       // Step the ParticleMover
-      particle_mover.Step(t, dt, ctx.L_x);
+      particle_mover.Step(t, dt, ctx.L_x, step == 1);
       if (Mpi::Root())
       {
          mfem::out << "Step: " << step << " | Time: " << t;
@@ -458,7 +452,7 @@ void ParticleMover::FindParticles()
    E_finder.FindPoints(charged_particles->Coords());
 }
 
-void ParticleMover::Step(real_t& t, real_t& dt, real_t L_x, bool zeroth_step)
+void ParticleMover::Step(real_t& t, real_t dt, real_t L_x, bool first_step)
 {
    // Update E field at particles
    ParticleVector& E = charged_particles->Field(EFIELD);
@@ -478,11 +472,9 @@ void ParticleMover::Step(real_t& t, real_t& dt, real_t L_x, bool zeroth_step)
    {
       for (int d = 0; d < dim; ++d)
       {
-         P(particle, d) += dt * Q(particle) * E(particle, d);
+         P(particle, d) += (first_step ? dt / 2.0 : dt) * Q(particle) * E(particle, d);
       }
    }
-
-   if (zeroth_step) { return; }
 
    for (int particle = 0; particle < npt; ++particle)
    {
