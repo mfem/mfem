@@ -251,6 +251,9 @@ public:
    /// Make this Array a reference to 'master'.
    inline void MakeRef(const Array &master);
 
+   /// Make this Array a reference to the given sub-Memory of @a base.
+   inline void MakeRef(Memory<T> &base, int offset, int size_);
+
    /// Reset the Array to use the given external Memory @a mem and size @a s.
    /** If @a own_mem is false, the Array will not own any of the pointers of
        @a mem.
@@ -1071,6 +1074,14 @@ inline void Array<T>::MakeRef(const Array &master)
    data.Delete();
    size = master.size;
    data.MakeAlias(master.GetMemory(), 0, size);
+}
+
+template <class T>
+inline void Array<T>::MakeRef(Memory<T> &base, int offset, int size_)
+{
+   data.Delete();
+   size = size_;
+   data.MakeAlias(base, offset, size_);
 }
 
 template <class T>
