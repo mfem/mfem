@@ -25,6 +25,10 @@
 #include <intrin.h>
 #endif
 
+#if defined(__INTEL_LLVM_COMPILER) or defined(__INTEL_COMPILER)
+#include <immintrin.h>
+#endif
+
 #include <algorithm>
 #include <cstdlib>
 #include <tuple>
@@ -828,6 +832,14 @@ static int lowest_unset(uint64_t val)
 #if defined(__GNUC__) || defined(__clang__)
    static_assert(sizeof(long long) == 8, "long long expected to be 64-bits");
    return __builtin_ffsll(~val);
+#elif defined(__INTEL_LLVM_COMPILER) or defined(__INTEL_COMPILER)
+   if (val == ~0ull)
+   {
+      return 0;
+   }
+   uint32_t res;
+   _BitScanForward64(&res, ~val);
+   return res + 1;
 #elif defined(_MSC_VER)
    if (val == ~0ull)
    {
