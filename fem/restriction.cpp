@@ -402,8 +402,6 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    for (int row = 0; row < nTdofs; ++row)
    {
       const int nnz = h_I[row];
-      mfem::out << "For index " << row << ", the number of nonzeroes is " << nnz <<
-                std::endl;
       h_I[row] = sum;
       sum+=nnz;
    }
@@ -445,7 +443,7 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
       return I[r] + offset;
    };
 
-   // Map scalar L-dof + comonent to V-dof
+   // Map scalar L-dof + component to V-dof
    auto VDof = [=] MFEM_HOST_DEVICE(const int Ls, const int c) -> int
    {
       return t ? Ls * vd + c : c * all_dofs + Ls;

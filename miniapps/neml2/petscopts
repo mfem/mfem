@@ -4,3 +4,6 @@
 -ksp_type gmres
 -pc_type hypre
 -ksp_rtol 1e-8
+-snes_converged_reason
+-ksp_converged_reason
+-snes_max_it 1

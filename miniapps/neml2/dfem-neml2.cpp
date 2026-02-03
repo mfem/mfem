@@ -86,7 +86,7 @@ int main(int argc, char *argv[])
    }
 
    // Set up the integration rule
-   const auto &ir = IntRules.Get(pmesh.GetTypicalElementGeometry(), 3);
+   const auto &ir = IntRules.Get(pmesh.GetTypicalElementGeometry(), 2);
 
    // The NEML2 constitutive model
    neml2::set_default_dtype(neml2::kFloat64);
@@ -142,8 +142,8 @@ int main(int argc, char *argv[])
 
    // Setup the parallel nonlinear form
    ParNonlinearForm f(&fe_space);
-   f.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   f.AddDomainIntegrator(new NEML2StressDivergenceIntegrator(cmodel));
+   f.SetAssemblyLevel(AssemblyLevel::FULL);
+   f.AddDomainIntegrator(new NEML2StressDivergenceIntegrator(cmodel, &ir));
    Array<int> ess_tdof_list;
    fe_space.GetEssentialTrueDofs(essential_bnd, ess_tdof_list);
    f.SetEssentialTrueDofs(ess_tdof_list);
