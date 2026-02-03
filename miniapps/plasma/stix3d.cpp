@@ -342,25 +342,24 @@ class PortBCEfield : public VectorCoefficient
 private:
    Vector params_;
    Vector x_;
-   double Vo_;
+   double V0_;
    double b_;
    double a_;
    double x0_;
    double y0_;
    double z0_;
+   double nhatx_;
+   double nhaty_;
+   double nhatz_;
    int index_;
-   Vector unit_rad_;
 
 public:
    PortBCEfield(const Vector &params, int index)
-      : VectorCoefficient(3), params_(params), index_(index), x_(3), unit_rad_(3)
+      : VectorCoefficient(3), params_(params), index_(index), x_(3)
    {  
-      /*
-      MFEM_ASSERT(params.Size() == index
-      ,
+      MFEM_ASSERT(params.Size() % 9 == 0,
                   "Incorrect number of parameters provided to "
                   "PortBCEfield");
-      */
    }
 
    void Eval(Vector &V, ElementTransformation &T,
@@ -369,25 +368,33 @@ public:
       V.SetSize(3); V = 0.0;
       T.Transform(ip, x_);
 
-      Vo_ = params_[0+index_];
+      V0_ = params_[0+index_];
       b_ = params_[1+index_];
       a_ = params_[2+index_];
       x0_ = params_[3+index_];
       y0_ = params_[4+index_];
       z0_ = params_[5+index_];
+      nhatx_ = params_[6+index_];
+      nhaty_ = params_[7+index_];
+      nhatz_ = params_[8+index_];
 
-      //cout << "READING PORT" << endl;
-      double r = sqrt(pow(x_[0]-x0_,2.0)+pow(x_[1]-y0_,2.0)+pow(x_[2]-z0_,2.0));
+      Vector r(3);
+      r[0] = x_[0]-x0_;
+      r[1] = x_[1]-y0_;
+      r[2] = x_[2]-z0_;
 
-      unit_rad_[0] = (x_[0]-x0_)/r;
-      unit_rad_[1] = (x_[1]-y0_)/r;
-      unit_rad_[2] = (x_[2]-z0_)/r;
+      Vector rdisk(3);
+      rdisk[0] = r[0] - (r[0]*nhatx_+r[1]*nhaty_+r[2]*nhatz_)*nhatx_;
+      rdisk[1] = r[1] - (r[0]*nhatx_+r[1]*nhaty_+r[2]*nhatz_)*nhaty_;
+      rdisk[2] = r[2] - (r[0]*nhatx_+r[1]*nhaty_+r[2]*nhatz_)*nhatz_;
 
-      double Efield = (Vo_/log(b_/a_))*(1.0/r);
+      double rdisknorm = rdisk.Norml2();
 
-      V[0] = Efield*unit_rad_[0];
-      V[1] = Efield*unit_rad_[1];
-      V[2] = Efield*unit_rad_[2];
+      double Efield = (V0_/log(b_/a_))*(1.0/r.Norml2());
+
+      V[0] = Efield*(rdisk[0]/rdisknorm);
+      V[1] = Efield*(rdisk[1]/rdisknorm);
+      V[2] = Efield*(rdisk[2]/rdisknorm);
    }
 };
 
@@ -704,6 +711,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    const char *eqdsk_file = "";
+   const char *portbc_file = "";
 
    OptionsParser args(argc, argv);
    args.AddOption(&logo, "-logo", "--print-logo", "-no-logo",
@@ -1030,6 +1038,8 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&eqdsk_file, "-eqdsk", "--eqdsk-file",
                   "G EQDSK input file.");
+   args.AddOption(&portbc_file, "-portbc", "--portbc-file",
+                  "Port BC input file.");
    args.Parse();
    if (!args.Good())
    {
@@ -2008,6 +2018,48 @@ if (dpp_def.Size() == 0)
       cout << "Setup boundary conditions." << endl;
    }
 
+   if (portbc_file[0] != '\0' && !portbcv)
+   {
+      std::ifstream infile(portbc_file);
+      if (!infile) 
+      {
+        std::cerr << "Error: could not open file.\n";
+        return 1;
+      }
+
+      Array<double> arr;
+      double val;
+
+      while (infile >> val)
+      {
+        arr.Append(val);
+      }
+
+      if (Mpi::Root())
+      {
+         cout << "Reading in " << arr.Size()/9 << " Port BC Input(s)" << endl;
+      }
+
+      infile.close();
+
+      if (arr.Size() % 9 != 0)
+      {
+         if (Mpi::Root())
+         {
+            cout << "Incorrect number of port BC inputs! Need 9 for each port." << endl;
+         }
+         return 1;
+      }
+
+      Vector vec(arr.Size());
+      for (int i = 0; i < arr.Size(); i++)
+      {
+         vec(i) = arr[i];
+      }
+
+      portbcv = vec;
+   }
+
    // Setup coefficients for Dirichlet BC
    int dbcsSize = (peca.Size() > 0) + (dbca1.Size() > 0) + (dbca2.Size() > 0);
    if (portbca.Size() > 0){dbcsSize = (peca.Size() > 0) + (dbca1.Size() > 0) + (dbca2.Size() > 0) + portbca.Size();}
@@ -2097,7 +2149,7 @@ if (dpp_def.Size() == 0)
       {
          for (int i=0; i<portbca.Size(); i++)
          {
-            int index = i*6;
+            int index = i*9;
             temp_attribute = portbca[i];
             PortBC = new PortBCEfield(portbcv,index);
             dbcs[c] = new ComplexVectorCoefficientByAttr;
