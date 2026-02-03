@@ -697,11 +697,11 @@ public:
       }
    }
 
-   void Wrap(T *h_ptr, T *d_ptr, size_t size, MemoryType hloc, MemoryType dloc,
+   void Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc, MemoryType dloc,
              bool own, bool valid_host = false, bool valid_device = true)
    {
       auto &inst = MemoryManager::instance();
-      *this = Memory(h_ptr, size, hloc);
+      *this = Memory(h_ptr_, size, hloc);
       SetHostPtrOwner(own);
       auto &seg = inst.storage.get_segment(segment);
       seg.lowers[1] = reinterpret_cast<char *>(d_ptr);
