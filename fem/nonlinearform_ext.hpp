@@ -94,9 +94,10 @@ protected:
    const Array<NonlinearFormIntegrator*> &dnfi;
    const Operator *elemR; // not owned
    mutable Gradient Grad;
+   const ElementDofOrdering edf;
 
 public:
-   PANonlinearFormExtension(const NonlinearForm *nlf);
+   PANonlinearFormExtension(const NonlinearForm *nlf, ElementDofOrdering edf = ElementDofOrdering::LEXICOGRAPHIC);
 
    /// Prepare the PANonlinearFormExtension for evaluation with Mult().
    /** This method must be called before the first call to Mult(), when the mesh
@@ -123,6 +124,121 @@ public:
 
    /// Called by NonlinearForm::Update() to reflect changes in the FE space.
    void Update() override;
+};
+
+/// Data and methods for element-assembled bilinear forms
+class EANonlinearFormExtension : public PANonlinearFormExtension
+{
+ private:
+   class EAGradient : public Operator
+   {
+    protected:
+      const EANonlinearFormExtension &ext;
+
+    public:
+      /// Assumes that @a g is a ldof Vector.
+      EAGradient(const EANonlinearFormExtension &ext);
+
+      /// Assumes that @a x and @a y are ldof Vector%s.
+      virtual void Mult(const Vector &x, Vector &y) const;
+
+      /// Assumes that @a g is an ldof Vector.
+      void AssembleGrad(const Vector &g);
+
+      /// Assemble the diagonal of the gradient into the ldof Vector @a diag.
+      virtual void AssembleDiagonal(Vector &diag) const;
+
+      /** @brief Define the prolongation Operator for use with methods like
+          FormSystemOperator. */
+      virtual const Operator *GetProlongation() const
+      {
+         return ext.fes.GetProlongationMatrix();
+      }
+
+      /** @brief Called by PANonlinearFormExtension::Update to reflect changes
+          in the FiniteElementSpace. */
+      void Update();
+   };
+
+ protected:
+   mutable int ne;
+   /// The number of vdofs per element
+   mutable int elem_vdofs;
+   // The element matrices are stored row major
+   mutable Vector ea_data;
+   mutable EAGradient eaGrad;
+
+ public:
+   EANonlinearFormExtension(const NonlinearForm *nlf,
+                            const ElementDofOrdering edf = ElementDofOrdering::LEXICOGRAPHIC);
+
+   using PANonlinearFormExtension::Assemble;
+   using PANonlinearFormExtension::GetGridFunctionEnergy;
+   using PANonlinearFormExtension::Mult;
+
+   /** @brief Return the gradient as an L-to-L Operator. The input @a x must be
+       an L-vector (i.e. GridFunction-size vector). */
+   /** Essential boundary conditions are NOT applied to the returned operator.
+
+       The returned gradient Operator defines the virtual method GetProlongation
+       which enables support for the method FormSystemOperator to define the
+       matrix-free global true-dof gradient with imposed boundary conditions. */
+   virtual Operator &GetGradient(const Vector &x) const override;
+   virtual ~EANonlinearFormExtension() = default;
+};
+
+/// Data and methods for fully-assembled bilinear forms
+class FANonlinearFormExtension : public EANonlinearFormExtension
+{
+ private:
+   class FAGradient : public Operator
+   {
+    protected:
+      const FANonlinearFormExtension &ext;
+
+    public:
+      /// Assumes that @a g is a ldof Vector.
+      FAGradient(const FANonlinearFormExtension &ext);
+
+      /// Assumes that @a x and @a y are ldof Vector%s.
+      virtual void Mult(const Vector &x, Vector &y) const;
+
+      /// Assumes that @a g is an ldof Vector.
+      void AssembleGrad(const Vector &g);
+
+      /// Assemble the diagonal of the gradient into the ldof Vector @a diag.
+      virtual void AssembleDiagonal(Vector &diag) const;
+
+      /** @brief Define the prolongation Operator for use with methods like
+          FormSystemOperator. */
+      virtual const Operator *GetProlongation() const
+      {
+         return ext.fes.GetProlongationMatrix();
+      }
+
+      void Update();
+   };
+
+ protected:
+   mutable SparseMatrix *mat;
+   mutable FAGradient faGrad;
+
+ public:
+   FANonlinearFormExtension(const NonlinearForm *nlf,
+                            const ElementDofOrdering edf = ElementDofOrdering::LEXICOGRAPHIC);
+
+   using EANonlinearFormExtension::Assemble;
+   using EANonlinearFormExtension::GetGridFunctionEnergy;
+   using EANonlinearFormExtension::Mult;
+
+   /** @brief Return the gradient as an L-to-L Operator. The input @a x must be
+       an L-vector (i.e. GridFunction-size vector). */
+   /** Essential boundary conditions are NOT applied to the returned operator.
+
+       The returned gradient Operator defines the virtual method GetProlongation
+       which enables support for the method FormSystemOperator to define the
+       matrix-free global true-dof gradient with imposed boundary conditions. */
+   virtual Operator &GetGradient(const Vector &x) const override;
 };
 
 /// Data and methods for unassembled nonlinear forms
@@ -160,5 +276,13 @@ public:
    void Update() override;
 };
 
-}
+// #ifdef MFEM_USE_PETSC
+// #   ifdef MFEM_USE_MPI
+
+// class PetscFANonlinearFormExtension : public FANonlinearFormExtension
+// {
+// };
+// #   endif
+// #endif
+} // namespace mfem
 #endif // NONLINEARFORM_EXT_HPP
