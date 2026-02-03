@@ -27,7 +27,8 @@ class NEML2StressDivergenceIntegrator
    * @param ir Integration rule for the quadrature
    * @param cmodel NEML2 constitutive model for the material
    */
-   NEML2StressDivergenceIntegrator(std::shared_ptr<neml2::Model> cmodel);
+   NEML2StressDivergenceIntegrator(std::shared_ptr<neml2::Model> cmodel,
+                                   const IntegrationRule *ir = nullptr);
 
    using StressDivergenceIntegrator<NonlinearFormIntegrator>::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fes) override;
@@ -41,6 +42,10 @@ class NEML2StressDivergenceIntegrator
    void AddMultPA(const Vector &X, Vector &R) const override;
 
    void AssembleGradPA(const Vector &x, const FiniteElementSpace &fes) override;
+
+   template <int vdim> void AssembleGradEAImpl(Vector &emat);
+   void AssembleGradEA(const Vector &x, const FiniteElementSpace &fes,
+                       Vector &emat) override;
 
    /**
     * Perform action of gradient (Jacobian) upon input vector \p x and put into \p y
