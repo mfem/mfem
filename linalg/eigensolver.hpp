@@ -12,7 +12,7 @@
 /**
  * @file eigensolver.hpp
  *
- * @brief This file contains a comman interface for all eigensolver classes
+ * @brief This file contains a common interface for all eigensolver classes
  */
 
 #ifndef MFEM_EIGENSOLVER
@@ -29,9 +29,9 @@
 namespace mfem
 {
 
-enum EigenSolverType
+enum class EigenSolverType
 {
-   HYPRE = 0,
+   HYPRE,
    SLEPC,
    ENDENUM
 };
@@ -49,9 +49,9 @@ public:
    virtual void Solve() = 0;
 
    /// Set the required number of modes
-   virtual void SetNumModes(int num_eigs) 
+   virtual void SetNumModes(int num_Modes) 
    {
-      numModes=num_eigs;
+      numModes=num_Modes;
    }
 
    /// @brief  Set the operator to the eigenvalue problem
@@ -77,69 +77,60 @@ public:
    virtual void GetEigenvalues(Array<real_t>& eigen_vals) = 0;
 
    /// Returns the vec_index eigenvector.
-   virtual void GetEigenvector(unsigned int vec_index, Vector& vector) = 0;
+   virtual void GetEigenvector(int vec_index, Vector& vector) = 0;
 
    /// Returns the eigensolver type.
    EigenSolverType GetSolverType() { return eigSolverType; };
 
 protected:
    int numModes = 0;
-   EigenSolverType eigSolverType = ENDENUM;
+   EigenSolverType eigSolverType = EigenSolverType::ENDENUM;
 };
-
-//------------------------------------------------------------------------------------------
 
 class EigenSolverHypreLOBPCG : public EigenSolverBase
 {
 public:
    EigenSolverHypreLOBPCG(MPI_Comm comm)
    {
-      eigenSolver_ = std::make_unique<HypreLOBPCG>(comm);
-      eigSolverType = HYPRE;
+      eigenSolver = std::make_unique<HypreLOBPCG>(comm);
+      eigSolverType = EigenSolverType::HYPRE;
    }
 
    ~EigenSolverHypreLOBPCG() {}
 
-   void Solve() override { eigenSolver_->Solve(); };
-   void SetNumModes(int num_eigs) override
+   void Solve() override { eigenSolver->Solve(); };
+   void SetNumModes(int num_Modes) override
    {
-      eigenSolver_->SetNumModes(num_eigs);
-      numModes = num_eigs;
+      eigenSolver->SetNumModes(num_Modes);
+      numModes = num_Modes;
    };
 
-   void SetOperator(Operator& A) override { eigenSolver_->SetOperator(A); };
+   void SetOperator(Operator& A) override { eigenSolver->SetOperator(A); };
 
    void SetOperator(Operator& A, Operator& M) override
    {
-      eigenSolver_->SetOperator(A);
-      eigenSolver_->SetMassMatrix(M);
+      eigenSolver->SetOperator(A);
+      eigenSolver->SetMassMatrix(M);
    };
 
-   void SetPreconditioner(Solver& precond) override { eigenSolver_->SetPreconditioner(precond); };
-   void GetEigenvalues(Array<real_t>& eigen_vals) override { eigenSolver_->GetEigenvalues(eigen_vals); };
-   void GetEigenvector(unsigned int vec_index, Vector& vector) override
+   void SetPreconditioner(Solver& precond) override { eigenSolver->SetPreconditioner(precond); };
+   void GetEigenvalues(Array<real_t>& eigen_vals) override { eigenSolver->GetEigenvalues(eigen_vals); };
+   void GetEigenvector(int vec_index, Vector& vector) override
    {
-      const HypreParVector& eigenvec = eigenSolver_->GetEigenvector(vec_index);
+      const HypreParVector& eigenvec = eigenSolver->GetEigenvector(vec_index);
       vector = eigenvec;
    };
 
-   void SetTol(real_t tol) { eigenSolver_->SetTol(tol); };
-   void SetRelTol(real_t rel_tol) { eigenSolver_->SetRelTol(rel_tol); };
-   void SetMaxIter(int max_iter) { eigenSolver_->SetMaxIter(max_iter); };
-   void SetPrintLevel(int logging) { eigenSolver_->SetPrintLevel(logging); };
-   void SetRandomSeed(int seed) { eigenSolver_->SetRandomSeed(seed); };
-   void SetPrecondUsageMode(int usage_mode) { eigenSolver_->SetPrecondUsageMode(usage_mode); };
-
-   // void   SetInitialVectors (int num_vecs, HypreParVector **vecs);
-   // void   SetSubSpaceProjector (Operator &proj);
-   // HypreParVector **  StealEigenvectors ()
+   void SetTol(real_t tol) { eigenSolver->SetTol(tol); };
+   void SetRelTol(real_t rel_tol) { eigenSolver->SetRelTol(rel_tol); };
+   void SetMaxIter(int max_iter) { eigenSolver->SetMaxIter(max_iter); };
+   void SetPrintLevel(int logging) { eigenSolver->SetPrintLevel(logging); };
+   void SetRandomSeed(int seed) { eigenSolver->SetRandomSeed(seed); };
+   void SetPrecondUsageMode(int usage_mode) { eigenSolver->SetPrecondUsageMode(usage_mode); };
 
 private:
-   std::unique_ptr<HypreLOBPCG> eigenSolver_ = nullptr;
+   std::unique_ptr<HypreLOBPCG> eigenSolver = nullptr;
 };
-
-
-//------------------------------------------------------------------------------------------
 
 #ifdef MFEM_SLEPC
 class EigenSolverSlepc : public EigenSolverBase
@@ -147,27 +138,27 @@ class EigenSolverSlepc : public EigenSolverBase
 public:
    EigenSolverSlepc(MPI_Comm comm)
    {
-      eigSolverType = SLEPC;
-      eigenSolver_ = std::make_unique<SlepcEigenSolver>(comm);
+      eigSolverType = EigenSolverType::SLEPC;
+      eigenSolver = std::make_unique<SlepcEigenSolver>(comm);
 
-      eigenSolver_->SetWhichEigenpairs(SlepcEigenSolver::TARGET_REAL);
-      eigenSolver_->SetTarget(0.0);
-      eigenSolver_->SetSpectralTransformation(SlepcEigenSolver::SHIFT_INVERT);
+      eigenSolver->SetWhichEigenpairs(SlepcEigenSolver::TARGET_REAL);
+      eigenSolver->SetTarget(0.0);
+      eigenSolver->SetSpectralTransformation(SlepcEigenSolver::SHIFT_INVERT);
    }
 
    ~EigenSolverSlepc() {}
 
-   void Solve() override { eigenSolver_->Solve(); };
-   void SetNumModes(int num_eigs) override
+   void Solve() override { eigenSolver->Solve(); };
+   void SetNumModes(int num_Modes) override
    {
-      eigenSolver_->SetNumModes(num_eigs);
-      numModes = num_eigs;
+      eigenSolver->SetNumModes(num_Modes);
+      numModes = num_Modes;
    };
    void SetOperator(Operator& A) override
    {
       petscMatA = std::make_unique<PetscParMatrix>
                   (dynamic_cast<HypreParMatrix*>(&A));
-      eigenSolver_->SetOperator(*petscMatA);
+      eigenSolver->SetOperator(*petscMatA);
    };
    void SetOperator(Operator& A, Operator& M) override
    {
@@ -176,7 +167,7 @@ public:
       petscMatM = std::make_unique<PetscParMatrix>
                   (dynamic_cast<const HypreParMatrix*>(&M));
 
-      eigenSolver_->SetOperators(*petscMatA, *petscMatM);
+      eigenSolver->SetOperators(*petscMatA, *petscMatM);
    };
    void SetPreconditioner([[maybe_unused]] Solver& precond) {};
    void GetEigenvalues(Array<real_t>& eigen_vals) override
@@ -184,21 +175,17 @@ public:
       eigen_vals.SetSize(numModes);
       for (int ik = 0; ik < numModes; ik++)
       {
-         eigenSolver_->GetEigenvalue(static_cast<unsigned int>(ik), eigen_vals[ik]);
+         eigenSolver->GetEigenvalue(static_cast<unsigned int>(ik), eigen_vals[ik]);
       }
    };
-   void GetEigenvector(unsigned int vec_index, Vector& vector) override
-   { eigenSolver_->GetEigenvector(vec_index, vector); };
+   void GetEigenvector( int vec_index, Vector& vector) override
+   { eigenSolver->GetEigenvector(vec_index, vector); };
 
-   void SetTol(real_t tol) { eigenSolver_->SetTol(tol); };
-   void SetMaxIter(int max_iter) { eigenSolver_->SetMaxIter(max_iter); };
-
-   // void   Customize (bool customize=true) const
-   // int    GetNumConverged ()
-   // void   SetWhichEigenpairs (Which which)
+   void SetTol(real_t tol) { eigenSolver->SetTol(tol); };
+   void SetMaxIter(int max_iter) { eigenSolver->SetMaxIter(max_iter); };
 
 private:
-   std::unique_ptr<SlepcEigenSolver> eigenSolver_ = nullptr;
+   std::unique_ptr<SlepcEigenSolver> eigenSolver = nullptr;
    std::unique_ptr<PetscParMatrix> petscMatA = nullptr;
    std::unique_ptr<PetscParMatrix> petscMatM = nullptr;
 };
