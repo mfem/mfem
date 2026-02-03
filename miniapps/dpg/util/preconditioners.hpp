@@ -1,0 +1,91 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
+#include "mfem.hpp"
+
+namespace mfem
+{
+
+// A BlockDiagonalPreconditioner which assumes that all the blocks are symmetric
+// Convinient to use with Multigrid Class in which a MultTranspose is needed
+class SymmetricBlockDiagonalPreconditioner : public BlockDiagonalPreconditioner
+{
+public:
+   SymmetricBlockDiagonalPreconditioner(const Array<int> & offsets)
+      : BlockDiagonalPreconditioner(offsets) { }
+   void MultTranspose (const Vector & x, Vector & y) const override
+   {
+      this->Mult(x,y);
+   }
+};
+
+#ifdef MFEM_USE_MPI
+
+Solver * MakeFESpaceDefaultSolver(
+   const ParFiniteElementSpace * pfespace, int print_level);
+
+
+class PRefinementMultigrid : public Multigrid
+{
+private:
+   // P_level : (level -> level+1), block-diagonal (one transfer per pfes block)
+   Array<int> orders;
+   const Array<ParFiniteElementSpace *> & pfes;
+   ParMesh * pmesh=nullptr;
+   int npfes;
+   const BlockOperator & Op;
+   int nblocks;
+   int maxlevels = 1;
+
+   // hierarchy of spaces
+   // Owned levels: 0..maxlevels-2
+   std::vector< std::vector<std::unique_ptr<FiniteElementCollection>> > fec_owned;
+   std::vector< std::vector<std::unique_ptr<ParFiniteElementSpace>> >   fes_owned;
+   std::vector< std::vector<PRefinementTransferOperator*> > T_level;
+   // prolongation matrices per level and block (owned here)
+   std::vector< std::vector<HypreParMatrix*> >  Pmat_level;
+
+   const ParFiniteElementSpace* GetParFESpace(int lev, int b) const
+   {
+      if (lev == maxlevels-1) { return pfes[b]; }
+      return fes_owned[lev][b].get();
+   }
+
+   const FiniteElementCollection* GetFEColl(int lev, int b) const
+   {
+      if (lev == maxlevels-1) { return pfes[b]->FEColl(); }
+      return fec_owned[lev][b].get();
+   }
+
+   int GetMinimumOrder(const ParFiniteElementSpace * pfespace) const
+   {
+      return (dynamic_cast<const L2_FECollection*>(pfespace->FEColl()) ||
+              dynamic_cast<const RT_FECollection*>(pfespace->FEColl())) ? 0 : 1;
+   }
+
+public:
+   PRefinementMultigrid(const Array<ParFiniteElementSpace *> & pfes_,
+                        const BlockOperator & Op_);
+
+   virtual const Operator* GetProlongationAtLevel(int level) const override
+   {
+      MFEM_VERIFY(level >=0 && level < prolongations.Size(),
+                  "Requested prolongation level out of range.");
+      return prolongations[level];
+   }
+
+   ~PRefinementMultigrid();
+};
+
+#endif
+
+
+} // namespace mfem
