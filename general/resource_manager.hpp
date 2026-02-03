@@ -457,6 +457,7 @@ public:
 /// parallel read/write, similar to raw pointer access.
 template <class T> class Memory
 {
+   T *h_ptr = nullptr;
    /// offset and size are in terms of number of entries of size T
    size_t offset_ = 0;
    size_t size_ = 0;
@@ -654,6 +655,7 @@ public:
          inst.Dealloc(segment);
       }
       inst.erase(segment);
+      h_ptr = nullptr;
       offset_ = 0;
       size_ = 0;
       segment = 0;
@@ -842,9 +844,9 @@ template <class T> Memory<T>::Memory(int count)
    auto &inst = MemoryManager::instance();
    offset_ = 0;
    size_ = count;
-   segment =
-      inst.insert(inst.Alloc(count * sizeof(T), inst.memory_types[0], false),
-                  count * sizeof(T), inst.memory_types[0], true, false);
+   h_ptr = inst.Alloc(count * sizeof(T), inst.memory_types[0], false);
+   segment = inst.insert(reinterpret_cast<char *>(h_ptr), count * sizeof(T),
+                         inst.memory_types[0], true, false);
    flags = OWNS_CONTROL;
 }
 
@@ -873,6 +875,7 @@ template <class T> Memory<T>::Memory(T *ptr, size_t count, MemoryType loc)
    auto &inst = MemoryManager::instance();
    segment = inst.insert(reinterpret_cast<char *>(ptr), count * sizeof(T), loc,
                          false, false);
+   h_ptr = ptr;
    offset_ = 0;
    size_ = count;
    flags = OWNS_CONTROL;
@@ -883,6 +886,7 @@ template <class T> Memory<T>::Memory(T *ptr, size_t count, bool own)
    auto &inst = MemoryManager::instance();
    segment = inst.insert(reinterpret_cast<char *>(ptr), count * sizeof(T),
                          inst.memory_types[0], own, false);
+   h_ptr = ptr;
    offset_ = 0;
    size_ = count;
    flags = OWNS_CONTROL;
@@ -895,6 +899,7 @@ Memory<T>::Memory(T *ptr, size_t count, MemoryType loc, bool own)
    auto &inst = MemoryManager::instance();
    segment = inst.insert(reinterpret_cast<char *>(ptr), count * sizeof(T), loc,
                          own, false);
+   h_ptr = ptr;
    offset_ = 0;
    size_ = count;
    flags = OWNS_CONTROL;
@@ -910,8 +915,8 @@ Memory<T>::Memory(size_t count, MemoryType loc, bool temporary)
                ? loc
                : MemoryManager::GetDualMemoryType(loc);
    // ensure host is also allocated if loc is a device type
-   segment = inst.insert(inst.Alloc(count * sizeof(T), h_mt, temporary),
-                         count * sizeof(T), h_mt, true, temporary);
+   h_ptr = inst.Alloc(count * sizeof(T), h_mt, temporary);
+   segment = inst.insert(h_ptr, count * sizeof(T), h_mt, true, temporary);
    if (IsDeviceMemory(loc))
    {
       // lazy device memory allocation
@@ -927,24 +932,24 @@ Memory<T>::Memory(size_t count, MemoryType hloc, MemoryType dloc,
    auto &inst = MemoryManager::instance();
    offset_ = 0;
    size_ = count;
+   h_ptr = inst.Alloc(count * sizeof(T), hloc, temporary);
    if (hloc == dloc && static_cast<int>(hloc) < MemoryTypeSize)
    {
-      segment = inst.insert(inst.Alloc(count * sizeof(T), hloc, temporary),
-                            count * sizeof(T), hloc, true, temporary);
+      segment = inst.insert(h_ptr, count * sizeof(T), hloc, true, temporary);
    }
    else
    {
       // lazy device memory allocation
-      segment =
-         inst.insert(inst.Alloc(count * sizeof(T), hloc, temporary), nullptr,
-                     count * sizeof(T), hloc, dloc, true, true, temporary);
+      segment = inst.insert(h_ptr, nullptr, count * sizeof(T), hloc, dloc, true,
+                            true, temporary);
    }
    flags = OWNS_CONTROL;
 }
 
 template <class T>
 Memory<T>::Memory(const Memory &r)
-   : offset_(r.offset_), size_(r.size_), segment(r.segment), flags(r.flags)
+   : h_ptr(r.h_ptr), offset_(r.offset_), size_(r.size_), segment(r.segment),
+     flags(r.flags)
 {
    auto &inst = MemoryManager::instance();
    if (inst.valid_segment(segment))
@@ -956,8 +961,10 @@ Memory<T>::Memory(const Memory &r)
 
 template <class T>
 Memory<T>::Memory(Memory &&r)
-   : offset_(r.offset_), size_(r.size_), segment(r.segment), flags(r.flags)
+   : h_ptr(r.h_ptr), offset_(r.offset_), size_(r.size_), segment(r.segment),
+     flags(r.flags)
 {
+   r.h_ptr = nullptr;
    r.offset_ = 0;
    r.size_ = 0;
    r.segment = 0;
@@ -973,6 +980,7 @@ template <class T> Memory<T> &Memory<T>::operator=(const Memory &r)
       {
          inst.erase(segment);
       }
+      h_ptr = r.h_ptr;
       offset_ = r.offset_;
       size_ = r.size_;
       segment = r.segment;
@@ -995,6 +1003,7 @@ template <class T> Memory<T> &Memory<T>::operator=(Memory &&r) noexcept
       {
          inst.erase(segment);
       }
+      h_ptr = r.h_ptr;
       offset_ = r.offset_;
       size_ = r.size_;
       segment = r.segment;
@@ -1014,6 +1023,7 @@ Memory<T> Memory<T>::CreateAlias(size_t offset, size_t count) const
    Memory<T> res = *this;
    if (inst.valid_segment(segment))
    {
+      res.h_ptr += offset;
       res.offset_ += offset;
       res.size_ = count;
    }
@@ -1027,6 +1037,7 @@ template <class T> Memory<T> Memory<T>::CreateAlias(size_t offset) const
    Memory<T> res = *this;
    if (inst.valid_segment(segment))
    {
+      res.h_ptr += offset;
       res.offset_ += offset;
       res.size_ -= offset;
    }
@@ -1078,16 +1089,18 @@ template <class T> const T *Memory<T>::Read(MemoryClass mc, int size) const
 
 template <class T> T &Memory<T>::operator[](size_t idx)
 {
-   auto &inst = MemoryManager::instance();
-   return *reinterpret_cast<T *>(inst.fast_read_write(
-                                    segment, (offset_ + idx) * sizeof(T), sizeof(T), false));
+   return h_ptr[idx];
+   // auto &inst = MemoryManager::instance();
+   // return *reinterpret_cast<T *>(inst.fast_read_write(
+   //                                  segment, (offset_ + idx) * sizeof(T), sizeof(T), false));
 }
 
 template <class T> const T &Memory<T>::operator[](size_t idx) const
 {
-   auto &inst = MemoryManager::instance();
-   return *reinterpret_cast<const T *>(
-             inst.fast_read(segment, (offset_ + idx) * sizeof(T), sizeof(T), false));
+   return h_ptr[idx];
+   // auto &inst = MemoryManager::instance();
+   // return *reinterpret_cast<const T *>(
+   //           inst.fast_read(segment, (offset_ + idx) * sizeof(T), sizeof(T), false));
 }
 
 template <class T> Memory<T>::~Memory()
@@ -1096,6 +1109,11 @@ template <class T> Memory<T>::~Memory()
    if (inst.valid_segment(segment))
    {
       inst.erase(segment);
+      segment = 0;
+      h_ptr = nullptr;
+      offset_ = 0;
+      size_ = 0;
+      flags = NONE;
    }
 }
 
@@ -1133,23 +1151,26 @@ template <class T> Memory<T>::operator T *()
 
 template <class T> Memory<T>::operator const T *() const
 {
-   auto &inst = MemoryManager::instance();
-   return reinterpret_cast<const T *>(
-             inst.fast_read(segment, offset_ * sizeof(T), size_ * sizeof(T), false));
+   return h_ptr;
+   // auto &inst = MemoryManager::instance();
+   // return reinterpret_cast<const T *>(
+   //           inst.fast_read(segment, offset_ * sizeof(T), size_ * sizeof(T), false));
 }
 
 template <class T> template <class U> Memory<T>::operator U *()
 {
-   auto &inst = MemoryManager::instance();
-   return reinterpret_cast<U *>(inst.fast_read_write(
-                                   segment, offset_ * sizeof(T), size_ * sizeof(T), false));
+   return reinterpret_cast<U *>(h_ptr);
+   // auto &inst = MemoryManager::instance();
+   // return reinterpret_cast<U *>(inst.fast_read_write(
+   //                                 segment, offset_ * sizeof(T), size_ * sizeof(T), false));
 }
 
 template <class T> template <class U> Memory<T>::operator const U *() const
 {
-   auto &inst = MemoryManager::instance();
-   return reinterpret_cast<const U *>(
-             inst.fast_read(segment, offset_ * sizeof(T), size_ * sizeof(T), false));
+   return reinterpret_cast<const U *>(h_ptr);
+   // auto &inst = MemoryManager::instance();
+   // return reinterpret_cast<const U *>(
+   //           inst.fast_read(segment, offset_ * sizeof(T), size_ * sizeof(T), false));
 }
 
 } // namespace mfem
