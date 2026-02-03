@@ -844,7 +844,8 @@ template <class T> Memory<T>::Memory(int count)
    auto &inst = MemoryManager::instance();
    offset_ = 0;
    size_ = count;
-   h_ptr = inst.Alloc(count * sizeof(T), inst.memory_types[0], false);
+   h_ptr = reinterpret_cast<T *>(
+              inst.Alloc(count * sizeof(T), inst.memory_types[0], false));
    segment = inst.insert(reinterpret_cast<char *>(h_ptr), count * sizeof(T),
                          inst.memory_types[0], true, false);
    flags = OWNS_CONTROL;
@@ -915,8 +916,10 @@ Memory<T>::Memory(size_t count, MemoryType loc, bool temporary)
                ? loc
                : MemoryManager::GetDualMemoryType(loc);
    // ensure host is also allocated if loc is a device type
-   h_ptr = inst.Alloc(count * sizeof(T), h_mt, temporary);
-   segment = inst.insert(h_ptr, count * sizeof(T), h_mt, true, temporary);
+   h_ptr =
+      reinterpret_cast<T *>(inst.Alloc(count * sizeof(T), h_mt, temporary));
+   segment = inst.insert(reinterpret_cast<char *>(h_ptr), count * sizeof(T),
+                         h_mt, true, temporary);
    if (IsDeviceMemory(loc))
    {
       // lazy device memory allocation
@@ -932,16 +935,19 @@ Memory<T>::Memory(size_t count, MemoryType hloc, MemoryType dloc,
    auto &inst = MemoryManager::instance();
    offset_ = 0;
    size_ = count;
-   h_ptr = inst.Alloc(count * sizeof(T), hloc, temporary);
+   h_ptr =
+      reinterpret_cast<T *>(inst.Alloc(count * sizeof(T), hloc, temporary));
    if (hloc == dloc && static_cast<int>(hloc) < MemoryTypeSize)
    {
-      segment = inst.insert(h_ptr, count * sizeof(T), hloc, true, temporary);
+      segment = inst.insert(reinterpret_cast<char *>(h_ptr), count * sizeof(T),
+                            hloc, true, temporary);
    }
    else
    {
       // lazy device memory allocation
-      segment = inst.insert(h_ptr, nullptr, count * sizeof(T), hloc, dloc, true,
-                            true, temporary);
+      segment =
+         inst.insert(reinterpret_cast<char *>(h_ptr), nullptr,
+                     count * sizeof(T), hloc, dloc, true, true, temporary);
    }
    flags = OWNS_CONTROL;
 }
