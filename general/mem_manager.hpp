@@ -28,8 +28,12 @@
 #endif
 #endif
 
+#include <chrono>
+
 #define USE_NEW_MEM_MANAGER 1
 // #define MFEM_ENABLE_MEM_OP_DEBUG
+// #define MFEM_MEM_OP_BENCH(ARG) ScopeBench sbench(ARG)
+#define MFEM_MEM_OP_BENCH(ARG)
 
 #ifdef MFEM_ENABLE_MEM_OP_DEBUG
 #define MFEM_MEM_OP_DEBUG(ARG) mfem::mem_op_debug() << ARG
@@ -49,6 +53,25 @@
 
 namespace mfem
 {
+
+struct BenchTimer
+{
+   std::chrono::high_resolution_clock timer;
+   std::vector<std::chrono::high_resolution_clock::time_point> start_points;
+   std::vector<std::chrono::high_resolution_clock::duration> durations;
+
+   static BenchTimer& Instance();
+
+   BenchTimer();
+   ~BenchTimer();
+};
+
+struct ScopeBench
+{
+   size_t idx;
+   ScopeBench(size_t i);
+   ~ScopeBench();
+};
 
 // Implementation of MFEM's lightweight device/host memory manager designed to
 // work seamlessly with the OCCA, RAJA, and other kernels supported by MFEM.
@@ -1216,8 +1239,9 @@ inline Memory<T>::operator const U*() const
 template <typename T>
 inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
 {
-   const size_t bytes = size * sizeof(T);
+   MFEM_MEM_OP_BENCH(0);
    MFEM_MEM_OP_DEBUG("** read_write " << bytes << std::endl);
+   const size_t bytes = size * sizeof(T);
    if (!(flags & Registered))
    {
       if (mc == MemoryClass::HOST) { return h_ptr; }
@@ -1230,8 +1254,9 @@ inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
 template <typename T>
 inline const T *Memory<T>::Read(MemoryClass mc, int size) const
 {
-   const size_t bytes = size * sizeof(T);
+   MFEM_MEM_OP_BENCH(1);
    MFEM_MEM_OP_DEBUG("** read " << bytes << std::endl);
+   const size_t bytes = size * sizeof(T);
    if (!(flags & Registered))
    {
       if (mc == MemoryClass::HOST) { return h_ptr; }
@@ -1244,8 +1269,9 @@ inline const T *Memory<T>::Read(MemoryClass mc, int size) const
 template <typename T>
 inline T *Memory<T>::Write(MemoryClass mc, int size)
 {
-   const size_t bytes = size * sizeof(T);
+   MFEM_MEM_OP_BENCH(2);
    MFEM_MEM_OP_DEBUG("** write " << bytes << std::endl);
+   const size_t bytes = size * sizeof(T);
    if (!(flags & Registered))
    {
       if (mc == MemoryClass::HOST) { return h_ptr; }
@@ -1272,10 +1298,11 @@ inline void Memory<T>::Sync(const Memory &other) const
 template <typename T>
 inline void Memory<T>::SyncAlias(const Memory &base, int alias_size) const
 {
+   MFEM_MEM_OP_BENCH(3);
+   MFEM_MEM_OP_DEBUG("** SyncAlias " << alias_size * sizeof(T) << std::endl);
    // Assuming that if *this is registered then base is also registered.
    MFEM_ASSERT(!(flags & Registered) || (base.flags & Registered),
                "invalid base state");
-   MFEM_MEM_OP_DEBUG("** SyncAlias " << alias_size * sizeof(T) << std::endl);
    if (!(base.flags & Registered)) { return; }
    MemoryManager::SyncAlias_(base.h_ptr, h_ptr, alias_size*sizeof(T),
                              base.flags, flags);
@@ -1310,9 +1337,10 @@ inline bool Memory<T>::DeviceIsValid() const
 template <typename T>
 inline void Memory<T>::CopyFrom(const Memory &src, int size)
 {
+   MFEM_MEM_OP_BENCH(4);
+   MFEM_MEM_OP_DEBUG("** Copy " << size * sizeof(T) << std::endl);
    MFEM_VERIFY(src.capacity>=size && capacity>=size, "Incorrect size");
    if (size <= 0) { return; }
-   MFEM_MEM_OP_DEBUG("** Copy " << size * sizeof(T) << std::endl);
    if (!(flags & Registered) && !(src.flags & Registered))
    {
       if (h_ptr != src.h_ptr)
@@ -1335,9 +1363,10 @@ inline void Memory<T>::CopyFrom(const Memory &src, int size)
 template <typename T>
 inline void Memory<T>::CopyFromHost(const T *src, int size)
 {
+   ScopeBench sbench(5);
+   MFEM_MEM_OP_DEBUG("** CopyFromHost " << size * sizeof(T) << std::endl);
    MFEM_VERIFY(capacity>=size, "Incorrect size");
    if (size <= 0) { return; }
-   MFEM_MEM_OP_DEBUG("** CopyFromHost " << size * sizeof(T) << std::endl);
    if (!(flags & Registered))
    {
       if (h_ptr != src)
@@ -1365,9 +1394,10 @@ inline void Memory<T>::CopyTo(Memory &dest, int size) const
 template <typename T>
 inline void Memory<T>::CopyToHost(T *dest, int size) const
 {
+   ScopeBench sbench(6);
+   MFEM_MEM_OP_DEBUG("** CopyToHost " << size * sizeof(T) << std::endl);
    MFEM_VERIFY(capacity>=size, "Incorrect size");
    if (size <= 0) { return; }
-   MFEM_MEM_OP_DEBUG("** CopyToHost " << size * sizeof(T) << std::endl);
    if (!(flags & Registered))
    {
       if (h_ptr != dest)

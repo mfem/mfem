@@ -1733,6 +1733,7 @@ const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
 char *MemoryManager::write(size_t segment, size_t offset, size_t nbytes,
                            bool on_device)
 {
+   MFEM_MEM_OP_BENCH(2);
    MFEM_MEM_OP_DEBUG("** write " << nbytes << std::endl);
    if (valid_segment(segment))
    {
@@ -1822,6 +1823,7 @@ void MemoryManager::BatchMemCopy(
    }
 #endif
    // copy_segs is assumed to be allocated in either HOSTPINNED or MANAGED
+#ifdef MFEM_USE_BLIT_KERNEL
    switch (copy_segs.size())
    {
       case 0:
@@ -1902,6 +1904,13 @@ void MemoryManager::BatchMemCopy(
          }
          return;
    }
+#else
+   for (auto &seg : copy_segs)
+   {
+      MemCopy(dst + seg.first, src + seg.first, seg.second - seg.first, dst_loc,
+              src_loc);
+   }
+#endif
 }
 
 void MemoryManager::BatchMemCopy2(
@@ -1916,6 +1925,7 @@ void MemoryManager::BatchMemCopy2(
    }
 #endif
    // copy_segs is assumed to be allocated in either HOSTPINNED or MANAGED
+#ifdef MFEM_USE_BLIT_KERNEL
    switch (copy_segs.size())
    {
       case 0:
@@ -1996,11 +2006,19 @@ void MemoryManager::BatchMemCopy2(
          }
          return;
    }
+#else
+   for (size_t i = 0; i < copy_segs.size(); i += 3)
+   {
+      MemCopy(dst + copy_segs[i + 1], src + copy_segs[i], copy_segs[i + 2],
+              dst_loc, src_loc);
+   }
+#endif
 }
 
 char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
                                 bool on_device)
 {
+   MFEM_MEM_OP_BENCH(0);
    MFEM_MEM_OP_DEBUG("** read_write " << nbytes << std::endl);
    if (valid_segment(segment))
    {
@@ -2073,6 +2091,7 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
 const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
                                 bool on_device)
 {
+   MFEM_MEM_OP_BENCH(1);
    MFEM_MEM_OP_DEBUG("** read " << nbytes << std::endl);
    if (valid_segment(segment))
    {
@@ -2480,6 +2499,7 @@ size_t MemoryManager::CopyImpl(char *dst, MemoryType dloc, size_t dst_offset,
 void MemoryManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
                          size_t src_offset, size_t nbytes)
 {
+   MFEM_MEM_OP_BENCH(4);
    if (nbytes == 0)
    {
       return;
@@ -2532,6 +2552,7 @@ void MemoryManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
 void MemoryManager::CopyFromHost(size_t segment, size_t offset, const char *src,
                                  size_t nbytes)
 {
+   MFEM_MEM_OP_BENCH(5);
    MFEM_MEM_OP_DEBUG("** CopyFromHost " << nbytes << std::endl);
    if (nbytes == 0)
    {
@@ -2579,6 +2600,7 @@ void MemoryManager::CopyFromHost(size_t segment, size_t offset, const char *src,
 void MemoryManager::CopyToHost(size_t segment, size_t offset, char *dst,
                                size_t nbytes)
 {
+   MFEM_MEM_OP_BENCH(6);
    MFEM_MEM_OP_DEBUG("** CopyToHost " << nbytes << std::endl);
    if (nbytes == 0)
    {

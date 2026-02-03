@@ -59,6 +59,50 @@
 namespace mfem
 {
 
+BenchTimer &BenchTimer::Instance()
+{
+   static BenchTimer v;
+   return v;
+}
+
+BenchTimer::BenchTimer()
+{
+   start_points.resize(7);
+   durations.resize(start_points.size());
+}
+
+BenchTimer::~BenchTimer()
+{
+   std::vector<double> sums;
+   for (auto &v : durations)
+   {
+      sums.emplace_back(
+         std::chrono::duration_cast<std::chrono::duration<double>>(durations[0])
+         .count());
+   }
+   mfem::out << "ReadWrite: " << sums[0] << " s" << std::endl;
+   mfem::out << "Read: " << sums[1] << " s" << std::endl;
+   mfem::out << "Write: " << sums[2] << " s" << std::endl;
+   mfem::out << "SyncAlias: " << sums[3] << " s" << std::endl;
+   mfem::out << "Copy: " << sums[4] << " s" << std::endl;
+   mfem::out << "CopyFromHost: " << sums[5] << " s" << std::endl;
+   mfem::out << "CopyToHost: " << sums[6] << " s" << std::endl;
+}
+
+ScopeBench::ScopeBench(size_t i) : idx(i)
+{
+   MFEM_DEVICE_SYNC;
+   BenchTimer::Instance().start_points[i] = BenchTimer::Instance().timer.now();
+}
+
+ScopeBench::~ScopeBench()
+{
+   MFEM_DEVICE_SYNC;
+   BenchTimer::Instance().durations[idx] +=
+      BenchTimer::Instance().timer.now() -
+      BenchTimer::Instance().start_points[idx];
+}
+
 std::ostream &mem_op_debug()
 {
    static size_t op_idx = 0;
