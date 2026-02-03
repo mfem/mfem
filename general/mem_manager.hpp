@@ -29,6 +29,7 @@
 #endif
 
 #include <chrono>
+#include <vector>
 
 #define USE_NEW_MEM_MANAGER 1
 // #define MFEM_ENABLE_MEM_OP_DEBUG
