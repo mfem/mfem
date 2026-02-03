@@ -785,13 +785,13 @@ PRefinementMultigrid::PRefinementMultigrid(const Array<ParFiniteElementSpace *>
    MFEM_VERIFY(npfes == nblocks, "pfes size must match Op.NumRowBlocks()");
    orders.SetSize(npfes);
    pmesh = pfes[0]->GetParMesh();
-   Array<int> tmp(npfes);
+   Array<int> levels(npfes);
    for (int i = 0; i < npfes; i++)
    {
       orders[i] = pfes[i]->FEColl()->GetConstructorOrder();
-      tmp[i] = orders[i] - GetMinimumOrder(pfes[i]);
+      levels[i] = orders[i] - GetMinimumOrder(pfes[i]);
    }
-   maxlevels = tmp.Min()+1;
+   maxlevels = levels.Min()+1;
    // initialize the space hierarchy
    fec_owned.resize(maxlevels-1);
    fes_owned.resize(maxlevels-1);
