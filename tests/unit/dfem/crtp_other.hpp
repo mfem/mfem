@@ -60,6 +60,19 @@ public:
    void impl_Integrate() { dbg("map_quadrature_data_to_fields"); }
 };
 
+struct StoredOp
+{
+   std::shared_ptr<OtherDifferentiableOperator> op;
+
+   StoredOp(const std::vector<FieldDescriptor> &solutions,
+            const std::vector<FieldDescriptor> &parameters,
+            const ParMesh &mesh):
+      op(std::make_shared<OtherDifferentiableOperator>((dbg("\n"),solutions),
+                                                       parameters, mesh))
+   {
+   }
+};
+
 } // namespace mfem::future
 
 #endif // MFEM_USE_MPI

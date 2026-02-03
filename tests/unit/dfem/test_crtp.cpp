@@ -81,7 +81,7 @@ void crtp_action(const char *filename, int p)
    };
 
    // -------------------------------------------
-   // Test CRTP current Backend Implementation
+   // Test current Backend Implementation
    // -------------------------------------------
    SECTION("Current Domain Integrator Implementation")
    {
@@ -105,22 +105,18 @@ void crtp_action(const char *filename, int p)
       MPI_Barrier(MPI_COMM_WORLD);
    }
 
-   // -------------------------------------------
-   // Test CRTP DEFAULT Backend Implementation
-   // -------------------------------------------
-   SECTION("CRTP Default Backend Implementation")
+   const auto verity_against_blf = [&](auto &op)
    {
-      DefaultDifferentiableOperator crtp(sol, {{Coords, nodes->ParFESpace()}}, pmesh);
-      crtp.SetMultLevel(DifferentiableOperator::LVECTOR);
-      crtp.SetName("Default")
+      op.SetMultLevel(DifferentiableOperator::LVECTOR);
+      op.SetName("Default")
       .SetBlocks(42)
       .Print();
 
-      crtp.AddDomainIntegrator(mf_mass_qf,
-                               tuple{ Value<U>{}, Gradient<Coords>{}, Weight{} },
-                               tuple{ Value<U>{} },
-                               *ir, all_domain_attr);
-      crtp.SetParameters({ nodes });
+      op.AddDomainIntegrator(mf_mass_qf,
+                             tuple{ Value<U>{}, Gradient<Coords>{}, Weight{} },
+                             tuple{ Value<U>{} },
+                             *ir, all_domain_attr);
+      op.SetParameters({ nodes });
 
       X.Randomize(1);
       x.SetFromTrueDofs(X);
@@ -129,13 +125,22 @@ void crtp_action(const char *filename, int p)
       fes.GetProlongationMatrix()->MultTranspose(y, Y);
 
       fes.GetRestrictionMatrix()->Mult(x, X);
-      crtp.Mult(X, Z);
+      op.Mult(X, Z);
       Y -= Z;
 
       real_t norm_g, norm_l = Y.Normlinf();
       MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
       REQUIRE(norm_g == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
+   };
+
+   // -------------------------------------------
+   // Test CRTP DEFAULT Backend Implementation
+   // -------------------------------------------
+   SECTION("CRTP Default Backend Implementation")
+   {
+      DefaultDifferentiableOperator crtp(sol, {{Coords, nodes->ParFESpace()}}, pmesh);
+      verity_against_blf(crtp);
    }
 
    // -------------------------------------------
@@ -144,31 +149,16 @@ void crtp_action(const char *filename, int p)
    SECTION("CRTP Other Backend Implementation")
    {
       OtherDifferentiableOperator crtp(sol, {{Coords, nodes->ParFESpace()}}, pmesh);
-      crtp.SetMultLevel(DifferentiableOperator::LVECTOR);
-      crtp.SetName("Other")
-      .SetBlocks(42)
-      .Print();
+      verity_against_blf(crtp);
+   }
 
-      crtp.AddDomainIntegrator(mf_mass_qf,
-                               tuple{ Value<U>{}, Gradient<Coords>{}, Weight{} },
-                               tuple{ Value<U>{} },
-                               *ir, all_domain_attr);
-      crtp.SetParameters({ nodes });
-
-      X.Randomize(1);
-      x.SetFromTrueDofs(X);
-
-      blf.Mult(x, y);
-      fes.GetProlongationMatrix()->MultTranspose(y, Y);
-
-      fes.GetRestrictionMatrix()->Mult(x, X);
-      crtp.Mult(X, Z);
-      Y -= Z;
-
-      real_t norm_g, norm_l = Y.Normlinf();
-      MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
-      REQUIRE(norm_g == MFEM_Approx(0.0));
-      MPI_Barrier(MPI_COMM_WORLD);
+   // -------------------------------------------
+   // Test CRTP STORED Backend Implementation
+   // -------------------------------------------
+   SECTION("Stored Operator Backend Implementation")
+   {
+      StoredOp mop(sol, {{Coords, nodes->ParFESpace()}}, pmesh);
+      verity_against_blf(*mop.op);
    }
 }
 
