@@ -2070,24 +2070,6 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
    return nullptr;
 }
 
-char *MemoryManager::fast_read_write(size_t segment, size_t offset,
-                                     size_t nbytes, bool on_device)
-{
-   // TODO: validate in debug builds?
-   return valid_segment(segment)
-          ? (storage.get_segment(segment).lowers[on_device] + offset)
-          : nullptr;
-}
-
-const char *MemoryManager::fast_read(size_t segment, size_t offset,
-                                     size_t nbytes, bool on_device)
-{
-   // TODO: validate in debug builds?
-   return valid_segment(segment)
-          ? (storage.get_segment(segment).lowers[on_device] + offset)
-          : nullptr;
-}
-
 const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
                                 bool on_device)
 {
@@ -2725,13 +2707,6 @@ void MemoryManager::UpdateDualMemoryType(MemoryType mt, MemoryType dual_mt)
                   << MemoryTypeName[(int)mt] << ", "
                   << MemoryTypeName[(int)dual_mt] << ')');
    }
-}
-
-void MemoryManager::sync_alias(size_t alias_segment, size_t alias_offset,
-                               size_t alias_nbytes, char &alias_flags,
-                               size_t base_segment, size_t base_offset,
-                               size_t base_nbytes, char &base_flags)
-{
 }
 } // namespace mfem
 

@@ -274,14 +274,6 @@ private:
 
    void CopyToHost(size_t segment, size_t offset, char *dst, size_t nbytes);
 
-   /// Does no checking/updating of validity flags
-   MFEM_ENZYME_FN_LIKE_DYNCAST const char *
-   fast_read(size_t segment, size_t offset, size_t nbytes, bool on_device);
-   MFEM_ENZYME_FN_LIKE_DYNCAST char *fast_read_write(size_t segment,
-                                                     size_t offset,
-                                                     size_t nbytes,
-                                                     bool on_device);
-
    bool owns_host_ptr(size_t segment);
    void set_owns_host_ptr(size_t segment, bool own);
 
@@ -304,10 +296,6 @@ private:
    void BatchMemCopy2(
       char *dst, const char *src, MemoryType dst_loc, MemoryType src_loc,
       const std::vector<ptrdiff_t, AllocatorAdaptor<ptrdiff_t>> &copy_segs);
-
-   void sync_alias(size_t alias_segment, size_t alias_offset,
-                   size_t alias_nbytes, char &alias_flags, size_t base_segment,
-                   size_t base_offset, size_t base_nbytes, char &base_flags);
 
    void SetDeviceMemoryType(size_t segment, MemoryType loc);
 
@@ -1093,20 +1081,11 @@ template <class T> const T *Memory<T>::Read(MemoryClass mc, int size) const
              inst.read(segment, offset_ * sizeof(T), size * sizeof(T), mc));
 }
 
-template <class T> T &Memory<T>::operator[](size_t idx)
-{
-   return h_ptr[idx];
-   // auto &inst = MemoryManager::instance();
-   // return *reinterpret_cast<T *>(inst.fast_read_write(
-   //                                  segment, (offset_ + idx) * sizeof(T), sizeof(T), false));
-}
+template <class T> T &Memory<T>::operator[](size_t idx) { return h_ptr[idx]; }
 
 template <class T> const T &Memory<T>::operator[](size_t idx) const
 {
    return h_ptr[idx];
-   // auto &inst = MemoryManager::instance();
-   // return *reinterpret_cast<const T *>(
-   //           inst.fast_read(segment, (offset_ + idx) * sizeof(T), sizeof(T), false));
 }
 
 template <class T> Memory<T>::~Memory()
@@ -1148,35 +1127,18 @@ template <class T> void Memory<T>::CopyToHost(T *dst, int size) const
    inst.CopyToHost(segment, offset_ * sizeof(T), dst, size * sizeof(T));
 }
 
-template <class T> Memory<T>::operator T *()
-{
-   auto &inst = MemoryManager::instance();
-   return reinterpret_cast<T *>(inst.fast_read_write(
-                                   segment, offset_ * sizeof(T), size_ * sizeof(T), false));
-}
+template <class T> Memory<T>::operator T *() { return h_ptr; }
 
-template <class T> Memory<T>::operator const T *() const
-{
-   return h_ptr;
-   // auto &inst = MemoryManager::instance();
-   // return reinterpret_cast<const T *>(
-   //           inst.fast_read(segment, offset_ * sizeof(T), size_ * sizeof(T), false));
-}
+template <class T> Memory<T>::operator const T *() const { return h_ptr; }
 
 template <class T> template <class U> Memory<T>::operator U *()
 {
    return reinterpret_cast<U *>(h_ptr);
-   // auto &inst = MemoryManager::instance();
-   // return reinterpret_cast<U *>(inst.fast_read_write(
-   //                                 segment, offset_ * sizeof(T), size_ * sizeof(T), false));
 }
 
 template <class T> template <class U> Memory<T>::operator const U *() const
 {
    return reinterpret_cast<const U *>(h_ptr);
-   // auto &inst = MemoryManager::instance();
-   // return reinterpret_cast<const U *>(
-   //           inst.fast_read(segment, offset_ * sizeof(T), size_ * sizeof(T), false));
 }
 
 } // namespace mfem
