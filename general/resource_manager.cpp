@@ -827,11 +827,13 @@ size_t MemoryManager::RBase::insert(size_t segment, size_t node,
 }
 
 #if defined(_MSC_VER) || defined(__INTEL_LLVM_COMPILER) || defined(__INTEL_COMPILER)
-namespace {
+namespace
+{
 template <class T> struct IdxTypeHelper;
 
-template <class R, class T0, class T1> struct IdxTypeHelper<R (*)(T0, T1)> {
-  using type = std::remove_pointer_t<T0>;
+template <class R, class T0, class T1> struct IdxTypeHelper<R (*)(T0, T1)>
+{
+   using type = std::remove_pointer_t<T0>;
 };
 
 /// Identifies the base index type for _BitScanForward64
