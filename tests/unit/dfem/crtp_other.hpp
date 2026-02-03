@@ -58,6 +58,21 @@ public:
    void impl_Qfunction() { dbg("call_qfunction"); }
 
    void impl_Integrate() { dbg("map_quadrature_data_to_fields"); }
+
+   action_t impl_MakeAction(const IntegratorContext &ctx)
+   {
+      struct Action
+      {
+         // IntegratorContext ctx;
+         void operator()(std::vector<Vector> &in, const std::vector<Vector> &,
+                         Vector &) const
+         {
+            dbg();
+         }
+      };
+
+      return action_t{Action{/*ctx*/}};
+   }
 };
 
 struct StoredOp

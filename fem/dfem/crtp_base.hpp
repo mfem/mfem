@@ -30,6 +30,14 @@
 namespace mfem::future
 {
 
+struct IntegratorContext
+{
+   const Array<int> *elem_attributes;
+   Array<int> attributes;
+   int num_entities;
+   ThreadBlocks thread_blocks;
+};
+
 // ────────────────────────────────────────────────
 // CRTP base — provides interface:
 //   - SetName
@@ -86,6 +94,8 @@ public:
 
    void Integrate() { self().impl_Integrate(); }
 
+   action_t MakeAction(const IntegratorContext &ctx) { return self().impl_MakeAction(ctx); }
+
    // minimalistic version of DifferentiableOperator::AddDomainIntegrator
    template <typename qfunc_t,
              typename input_t,
@@ -109,6 +119,14 @@ public:
       // add another CRTP integrator to our backend action_callbacks
       const int num_entities = 4;
       const Array<int> *elem_attributes = &mesh.GetElementAttributes();
+
+      IntegratorContext ctx;
+      ctx.elem_attributes = elem_attributes;
+      ctx.attributes = attributes;
+      ctx.num_entities = num_entities;
+      ctx.thread_blocks = ThreadBlocks{num_entities};
+
+      action_callbacks.push_back(backend::MakeAction(ctx));
 
       action_callbacks.push_back(
          [
