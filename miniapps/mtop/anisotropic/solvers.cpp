@@ -23,7 +23,7 @@ template <int DIM, typename scalar_t=real_t> struct QFunction
    struct Elasticity
    {
 
-      real_t* aniso_tensor;
+      const real_t* aniso_tensor;
 
       Elasticity(mfem::Vector& tm)
       {
@@ -78,8 +78,7 @@ AnisoLinElasticSolver::AnisoLinElasticSolver(ParMesh *mesh, int vorder):
           static_cast<ParGridFunction *>(pmesh->GetNodes()))),
     mfes(nodes->ParFESpace()),
     ir(IntRules.Get(fe->GetGeomType(),
-                   fe->GetOrder() + fe->GetOrder() + fe->GetDim() - 1)),
-    qs(*pmesh, ir)
+                   fe->GetOrder() + fe->GetOrder() + fe->GetDim() - 1))
 {
    sol = 0.0;
    rhs = 0.0;
@@ -114,6 +113,10 @@ AnisoLinElasticSolver::AnisoLinElasticSolver(ParMesh *mesh, int vorder):
    }
    aniso_tensor=0.0;
    aniso_tensor.UseDevice(true);
+
+   qs.reset(new QuadratureSpace(*pmesh,ir));
+   ups.reset(new future::UniformParameterSpace(
+        *pmesh, ir, 1, false /* used_in_tensor_product */));
 }
 
 AnisoLinElasticSolver::~AnisoLinElasticSolver()
@@ -339,8 +342,52 @@ void AnisoLinElasticSolver::MultTranspose(const Vector &x,
 
 void AnisoLinElasticSolver::Assemble()
 {
+   // define the differentiable operator
+   drhs = std::make_unique<mfem::future::DifferentiableOperator>(
+            std::vector<mfem::future::FieldDescriptor> {{ FDispl, vfes }},
+            std::vector<mfem::future::FieldDescriptor>
+            {
+               { Density, ups.get()},
+               { DensA, ups.get()},
+               { DensB, ups.get()},
+               { Lambda1, ups.get()},
+               { Mu1, ups.get()},
+               { Lambda2, ups.get()},
+               { Mu2, ups.get()},
+               { Coords, mfes }
+            },
+            *pmesh);
 
+   //dfem_mass_op->SetParameters({ dens1.get(), dens2.get(), density.get(), nodes });       
+   //drhs->SetParameters({});         
+
+   const auto finputs =
+            mfem::future::tuple{
+                mfem::future::Gradient<FDispl>{},
+                mfem::future::Identity<Density>{},
+                mfem::future::Identity<DensA>{},
+                mfem::future::Identity<DensB>{},
+                mfem::future::Identity<Lambda1>{},
+                mfem::future::Identity<Mu1>{},
+                mfem::future::Identity<Lambda2>{},
+                mfem::future::Identity<Mu2>{},
+                mfem::future::Gradient<Coords>{},
+                mfem::future::Weight{}
+            };
+
+
+   const auto foutputs =
+            mfem::future::tuple{
+                mfem::future::Gradient<FDispl>{}
+            };
+
+   if (2 == spaceDim)
+   {
+      typename QFunction<2>::Elasticity elasticity_func(aniso_tensor);
+      drhs->AddDomainIntegrator(elasticity_func, finputs, foutputs, ir, domain_attributes);
+   }
 }
+
 
 void AnisoLinElasticSolver::FSolve()
 {

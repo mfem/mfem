@@ -174,6 +174,16 @@ public:
 
         E1.reset(); E2.reset();
         nu1.reset(); nu2.reset();
+
+        l1.reset(new mfem::CoefficientVector(*qs, mfem::CoefficientStorage::FULL));
+        l2.reset(new mfem::CoefficientVector(*qs, mfem::CoefficientStorage::FULL));
+        m1.reset(new mfem::CoefficientVector(*qs, mfem::CoefficientStorage::FULL));
+        m2.reset(new mfem::CoefficientVector(*qs, mfem::CoefficientStorage::FULL));
+        l1->Project(*lambda1);
+        l2->Project(*lambda2);
+        m1->Project(*mu1);
+        m2->Project(*mu2);
+
     }
 
     /// Set materials - transfer the ounership
@@ -258,7 +268,35 @@ private:
     mfem::ParFiniteElementSpace *mfes;
     mfem::Array<int> domain_attributes;
     const mfem::IntegrationRule &ir;
-    mfem::QuadratureSpace qs;
+    std::unique_ptr<mfem::QuadratureSpace> qs;
+    std::unique_ptr<mfem::future::UniformParameterSpace> ups;
+
+    static constexpr int FDispl = 0; //grid function displacement
+    // elasticity Coefficient Vectors
+    static constexpr int Lambda1 = 2, Lambda2 = 3, Mu1 = 4, Mu2 = 5;
+    // rotation parametrization
+    static constexpr int DensA = 6, DensB = 7;
+    // density for topology optimization
+    static constexpr int Density = 14; // coefficient vector
+    static constexpr int Coords = 15; // coordinates grid function
+
+    // DFEM operators definitions
+    //evaluates only the contribution to the residual
+    std::unique_ptr<mfem::future::DifferentiableOperator> drhs; 
+    //used to differentiate the residual
+    std::unique_ptr<mfem::future::DifferentiableOperator> ddop; 
+
+    // density coefficients in dFEM form for material 1 and 2
+    std::unique_ptr<mfem::CoefficientVector> denss, densa, densb;
+    // linear elasticty coefficients in dFEM form
+    // l1, m1 - material 1
+    // l2, m2 - material 2
+    std::unique_ptr<mfem::CoefficientVector> l1, l2;
+    std::unique_ptr<mfem::CoefficientVector> m1, m2;
+
+
+
+
 
     std::unique_ptr<mfem::HypreBoomerAMG> prec; // preconditioner
     std::unique_ptr<mfem::CGSolver> ls;         // linear solver
