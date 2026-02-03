@@ -87,5 +87,45 @@ public:
 
 #endif
 
+// Applies a given real preconditioner to the real and imaginary parts of a complex vector
+class ComplexPreconditioner : public Solver
+{
+private:
+   const Operator *op;
+   const Solver * prec = nullptr;
+   bool own_prec = false;
+
+public:
+   ComplexPreconditioner(const Solver * real_prec, bool own = false)
+      : Solver(2*real_prec->Height()), prec(real_prec), own_prec(own) { }
+
+   virtual void Mult(const Vector &x, Vector &y) const override
+   {
+      int n = x.Size()/2;
+      MFEM_VERIFY(x.Size() == 2*n, "Invalid x vector size");
+      MFEM_VERIFY(y.Size() == 2*n, "Invalid y vector size");
+
+      Vector x_r(const_cast<Vector&>(x), 0, n);
+      Vector x_i(const_cast<Vector&>(x), n, n);
+      Vector y_r(y, 0, n);
+      Vector y_i(y, n, n);
+
+      // Apply the preconditioner to the real and imaginary parts separately
+      prec->Mult(x_r, y_r);
+      prec->Mult(x_i, y_i);
+   }
+
+   void SetOperator(const Operator &op) override
+   {
+      MFEM_VERIFY(dynamic_cast<const ComplexOperator*>(&op),
+                  "ComplexPreconditioner::SetOperator only accepts ComplexOperator");
+      this->op = &op;
+   }
+
+   ~ComplexPreconditioner()
+   {
+      if (own_prec) { delete prec; }
+   }
+};
 
 } // namespace mfem

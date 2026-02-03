@@ -138,6 +138,7 @@
 #include "mfem.hpp"
 #include "util/pcomplexweakform.hpp"
 #include "util/pml.hpp"
+#include "util/preconditioners.hpp"
 #include "../common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
@@ -145,6 +146,7 @@
 using namespace std;
 using namespace mfem;
 using namespace mfem::common;
+
 
 void E_exact_r(const Vector &x, Vector & E_r);
 void E_exact_i(const Vector &x, Vector & E_i);
@@ -821,89 +823,35 @@ int main(int argc, char *argv[])
       a->FormLinearSystem(ess_tdof_list,x,Ah, X,B);
 
       ComplexOperator * Ahc = Ah.As<ComplexOperator>();
-
       BlockOperator * BlockA_r = dynamic_cast<BlockOperator *>(&Ahc->real());
-      BlockOperator * BlockA_i = dynamic_cast<BlockOperator *>(&Ahc->imag());
 
-      int num_blocks = BlockA_r->NumRowBlocks();
-      Array<int> tdof_offsets(2*num_blocks+1);
-
-      tdof_offsets[0] = 0;
-      int skip = (static_cond) ? 0 : 2;
-      int k = (static_cond) ? 2 : 0;
-      for (int i=0; i<num_blocks; i++)
+      Array<ParFiniteElementSpace *> prec_fes;
+      if (static_cond)
       {
-         tdof_offsets[i+1] = trial_fes[i+k]->GetTrueVSize();
-         tdof_offsets[num_blocks+i+1] = trial_fes[i+k]->GetTrueVSize();
-      }
-      tdof_offsets.PartialSum();
-
-      BlockOperator blockA(tdof_offsets);
-      for (int i = 0; i<num_blocks; i++)
-      {
-         for (int j = 0; j<num_blocks; j++)
-         {
-            blockA.SetBlock(i,j,&BlockA_r->GetBlock(i,j));
-            blockA.SetBlock(i,j+num_blocks,&BlockA_i->GetBlock(i,j), -1.0);
-            blockA.SetBlock(i+num_blocks,j+num_blocks,&BlockA_r->GetBlock(i,j));
-            blockA.SetBlock(i+num_blocks,j,&BlockA_i->GetBlock(i,j));
-         }
-      }
-
-      X = 0.;
-      BlockDiagonalPreconditioner M(tdof_offsets);
-
-      if (!static_cond)
-      {
-         HypreBoomerAMG * solver_E = new HypreBoomerAMG((HypreParMatrix &)
-                                                        BlockA_r->GetBlock(0,0));
-         solver_E->SetPrintLevel(0);
-         solver_E->SetSystemsOptions(dim);
-         HypreBoomerAMG * solver_H = new HypreBoomerAMG((HypreParMatrix &)
-                                                        BlockA_r->GetBlock(1,1));
-         solver_H->SetPrintLevel(0);
-         solver_H->SetSystemsOptions(dim);
-         M.SetDiagonalBlock(0,solver_E);
-         M.SetDiagonalBlock(1,solver_H);
-         M.SetDiagonalBlock(num_blocks,solver_E);
-         M.SetDiagonalBlock(num_blocks+1,solver_H);
-      }
-
-      HypreSolver * solver_hatH = nullptr;
-      HypreAMS * solver_hatE = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(skip,
-                                                                                 skip),
-                                            hatE_fes);
-      solver_hatE->SetPrintLevel(0);
-      if (dim == 2)
-      {
-         solver_hatH = new HypreBoomerAMG((HypreParMatrix &)BlockA_r->GetBlock(skip+1,
-                                                                               skip+1));
-         dynamic_cast<HypreBoomerAMG*>(solver_hatH)->SetPrintLevel(0);
+         a->GetTraceFESpaces(prec_fes);
       }
       else
       {
-         solver_hatH = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(skip+1,skip+1),
-                                    hatH_fes);
-         dynamic_cast<HypreAMS*>(solver_hatH)->SetPrintLevel(0);
+         prec_fes = trial_fes;
+      }
+      BlockDiagonalPreconditioner * real_prec = new BlockDiagonalPreconditioner(
+         BlockA_r->RowOffsets());
+      for (int i = 0; i<BlockA_r->NumRowBlocks(); i++)
+      {
+         auto prec = MakeFESpaceDefaultSolver(prec_fes[i],0);
+         prec->SetOperator(BlockA_r->GetBlock(i,i));
+         real_prec->SetDiagonalBlock(i,prec);
       }
 
-      M.SetDiagonalBlock(skip,solver_hatE);
-      M.SetDiagonalBlock(skip+1,solver_hatH);
-      M.SetDiagonalBlock(skip+num_blocks,solver_hatE);
-      M.SetDiagonalBlock(skip+num_blocks+1,solver_hatH);
+      ComplexPreconditioner cprec(real_prec, true);
 
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-6);
       cg.SetMaxIter(10000);
       cg.SetPrintLevel(0);
-      cg.SetPreconditioner(M);
-      cg.SetOperator(blockA);
+      cg.SetPreconditioner(cprec);
+      cg.SetOperator(*Ahc);
       cg.Mult(B, X);
-
-      for (int i = 0; i<num_blocks; i++)
-      {
-         delete &M.GetDiagonalBlock(i);
-      }
 
       int num_iter = cg.GetNumIterations();
 
