@@ -16,6 +16,7 @@
 #include "../general/table.hpp"
 #include "../general/sort_pairs.hpp"
 #include "../general/backends.hpp"
+#include "../fem/pfespace.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -4352,4 +4353,46 @@ SparseMatrix::~SparseMatrix()
 #endif // MFEM_USE_CUDA_OR_HIP
 }
 
+void ConformingAssemble(const FiniteElementSpace & fes, std::vector<SparseMatrix *> & mats)
+{
+   const SparseMatrix *P = fes.GetConformingProlongation();
+   if (!P) { return; } // conforming mesh
+
+   SparseMatrix *R = Transpose(*P);
+   for (auto * mat : mats)
+   {
+      MFEM_ASSERT(mat, "null mat passed in");
+      SparseMatrix *RA = mfem::Mult(*R, *mat);
+      delete mat;
+      mat = mfem::Mult(*RA, *P);
+      delete RA;
+   }
+   delete R;
+}
+
+void ParallelRAP(const ParFiniteElementSpace &pfespace, SparseMatrix &loc_A,
+                 OperatorHandle &A, bool steal_loc_A /*=false*/)
+{
+   // Create a block diagonal parallel matrix
+   OperatorHandle A_diag(Operator::Hypre_ParCSR);
+   A_diag.MakeSquareBlockDiag(pfespace.GetComm(), pfespace.GlobalVSize(),
+                              pfespace.GetDofOffsets(), &loc_A);
+
+   // Parallel matrix assembly using P^t A P (if needed)
+   if (IsIdentityProlongation(pfespace.GetProlongationMatrix()))
+   {
+      A_diag.SetOperatorOwner(false);
+      A.Reset(A_diag.As<HypreParMatrix>());
+      if (steal_loc_A)
+      {
+         HypreStealOwnership(*A.As<HypreParMatrix>(), loc_A);
+      }
+   }
+   else
+   {
+      OperatorHandle P(Operator::Hypre_ParCSR);
+      P.ConvertFrom(pfespace.Dof_TrueDof_Matrix());
+      A.MakePtAP(A_diag, P);
+   }
+}
 }

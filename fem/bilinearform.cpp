@@ -765,27 +765,18 @@ void BilinearForm::ConformingAssemble()
    // correctly.
    Finalize(0);
    MFEM_ASSERT(mat, "the BilinearForm is not assembled");
-
-   const SparseMatrix *P = fes->GetConformingProlongation();
-   if (!P) { return; } // conforming mesh
-
-   SparseMatrix *R = Transpose(*P);
-   SparseMatrix *RA = mfem::Mult(*R, *mat);
-   delete mat;
+   std::vector<SparseMatrix *> mats_to_assemble;
+   mats_to_assemble.reserve(2);
+   mats_to_assemble.push_back(mat);
    if (mat_e)
    {
-      SparseMatrix *RAe = mfem::Mult(*R, *mat_e);
-      delete mat_e;
-      mat_e = RAe;
+      mats_to_assemble.push_back(mat_e);
    }
-   delete R;
-   mat = mfem::Mult(*RA, *P);
-   delete RA;
+   mfem::ConformingAssemble(*fes, mats_to_assemble);
+   mat = mats_to_assemble.front();
    if (mat_e)
    {
-      SparseMatrix *RAeP = mfem::Mult(*mat_e, *P);
-      delete mat_e;
-      mat_e = RAeP;
+      mat_e = mats_to_assemble.back();
    }
 
    height = mat->Height();
