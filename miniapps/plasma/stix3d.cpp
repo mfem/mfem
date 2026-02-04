@@ -352,10 +352,11 @@ private:
    double nhaty_;
    double nhatz_;
    int index_;
+   Vector unit_rad_;
 
 public:
    PortBCEfield(const Vector &params, int index)
-      : VectorCoefficient(3), params_(params), index_(index), x_(3)
+      : VectorCoefficient(3), params_(params), index_(index), x_(3),unit_rad_(3)
    {  
       MFEM_ASSERT(params.Size() % 9 == 0,
                   "Incorrect number of parameters provided to "
@@ -388,6 +389,7 @@ public:
       rdisk[1] = r[1] - (r[0]*nhatx_+r[1]*nhaty_+r[2]*nhatz_)*nhaty_;
       rdisk[2] = r[2] - (r[0]*nhatx_+r[1]*nhaty_+r[2]*nhatz_)*nhatz_;
 
+     
       double rdisknorm = rdisk.Norml2();
 
       double Efield = (V0_/log(b_/a_))*(1.0/r.Norml2());
@@ -395,6 +397,20 @@ public:
       V[0] = Efield*(rdisk[0]/rdisknorm);
       V[1] = Efield*(rdisk[1]/rdisknorm);
       V[2] = Efield*(rdisk[2]/rdisknorm);
+      
+      /*
+      double r = sqrt(pow(x_[0]-x0_,2.0)+pow(x_[1]-y0_,2.0)+pow(x_[2]-z0_,2.0));
+
+      unit_rad_[0] = (x_[0]-x0_)/r;
+      unit_rad_[1] = (x_[1]-y0_)/r;
+      unit_rad_[2] = (x_[2]-z0_)/r;
+
+      double Efield = (V0_/log(b_/a_))*(1.0/r);
+
+      V[0] = Efield*unit_rad_[0];
+      V[1] = Efield*unit_rad_[1];
+      V[2] = Efield*unit_rad_[2];
+      */
    }
 };
 
@@ -1016,6 +1032,8 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
                   "Port Boundary Condition Surfaces");
    args.AddOption(&portbcv, "-portbcv", "--port-bc-surf",
                   "Port Boundary Condition Values");
+   args.AddOption(&portbc_file, "-portbc", "--portbc-file",
+                  "Port BC input file.");
    args.AddOption(&num_elements, "-nume", "--num-elements",
                 "The number of mesh elements in x");
    args.AddOption(&maxit, "-maxit", "--max-amr-iterations",
@@ -1038,8 +1056,6 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&eqdsk_file, "-eqdsk", "--eqdsk-file",
                   "G EQDSK input file.");
-   args.AddOption(&portbc_file, "-portbc", "--portbc-file",
-                  "Port BC input file.");
    args.Parse();
    if (!args.Good())
    {
@@ -1213,38 +1229,39 @@ if (dpp_def.Size() == 0)
          {
             case PlasmaProfile::CONSTANT:
                numbers[0] = dpp_def[0];
-               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp_def[0];
-               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
-                            *dpp_def[0];
+               numbers[1] = 0.5*(1.0-minority[0]*minority[2])*dpp_def[0];
+               numbers[2] = 0.5*(1.0-minority[0]*minority[2])*dpp_def[0];
+               numbers[3] = minority[2]*dpp_def[0];
                break;
             case PlasmaProfile::GRADIENT:
                numbers[0] = dpp_def[0];
-               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp_def[0];
-               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
-                            *dpp_def[0];
+               numbers[1] = 0.5*(1.0-minority[0]*minority[2])*dpp_def[0];
+               numbers[2] = 0.5*(1.0-minority[0]*minority[2])*dpp_def[0];
+               numbers[3] = minority[2]*dpp_def[0];
                break;
             case PlasmaProfile::TANH:
                numbers[0] = dpp_def[1];
-               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
-               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
-                            *dpp_def[1];
+               numbers[1] = 0.5*(1.0-minority[0]*minority[2])*dpp_def[1];
+               numbers[2] = 0.5*(1.0-minority[0]*minority[2])*dpp_def[1];
+               numbers[3] = minority[2]*dpp_def[1];
                break;
             case PlasmaProfile::ELLIPTIC_COS:
                numbers[0] = dpp_def[1];
-               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
-               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
-                            *dpp_def[1];
+               numbers[1] = 0.5*(1.0-minority[0]*minority[2])*dpp_def[1];
+               numbers[2] = 0.5*(1.0-minority[0]*minority[2])*dpp_def[1];
+               numbers[3] = minority[2]*dpp_def[1];
                break;
             case PlasmaProfile::PARABOLIC:
                numbers[0] = dpp_def[1];
-               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
-               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
-                            *dpp_def[1];
+               numbers[1] = 0.5*(1.0-minority[0]*minority[2])*dpp_def[1];
+               numbers[2] = 0.5*(1.0-minority[0]*minority[2])*dpp_def[1];
+               numbers[3] = minority[2]*dpp_def[1];
                break;
             default:
                numbers[0] = 1.0e19;
-               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*1.0e19;
-               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*1.0e19;
+               numbers[1] = 0.5*(1.0-minority[0]*minority[2])*1.0e19;
+               numbers[2] = 0.5*(1.0-minority[0]*minority[2])*1.0e19;
+               numbers[3] = minority[2]*1.0e19;
                break;
          }
       }
@@ -2023,7 +2040,7 @@ if (dpp_def.Size() == 0)
       std::ifstream infile(portbc_file);
       if (!infile) 
       {
-        std::cerr << "Error: could not open file.\n";
+        if (Mpi::Root()){std::cerr << "Error: could not open file.\n";}
         return 1;
       }
 
@@ -2259,6 +2276,7 @@ if (dpp_def.Size() == 0)
                  (CPDSolver::SolverType)sol, solOpts,
                  (CPDSolver::PrecondType)prec,
                  conv, BUnitCoef,
+                 //epsilon_real, epsilon_imag,
                  (pml) ? (MatrixCoefficient&) epsilonPML_real : (MatrixCoefficient&) epsilon_real,
                  (pml) ? (MatrixCoefficient&) epsilonPML_imag : (MatrixCoefficient&) epsilon_imag,
                  epsilon_abs, suscept_real, suscept_imag,

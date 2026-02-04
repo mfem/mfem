@@ -382,20 +382,29 @@ private:
    complex<double> P_;
 };
 
-class PortBCEfield : public VectorCoefficient
+class PortBCHfield : public VectorCoefficient
 {
 private:
+   Vector params_;
+   Vector x_;
+   double V0_;
    double b_;
    double a_;
-   Vector x_;
+   double x0_;
+   double y0_;
+   double z0_;
+   double nhatx_;
+   double nhaty_;
+   double nhatz_;
+   int index_;
 
 public:
-   PortBCEfield(double Vo, double b, double a)
-      : VectorCoefficient(3), b_(b), a_(a), x_(3)
-   {
-      MFEM_ASSERT(b == NULL || a == NULL,
-                  "Must provide coaxial cable radii dimensions to "
-                  "PortBCEfield");
+   PortBCHfield(const Vector &params, int index)
+      : VectorCoefficient(3), params_(params), index_(index), x_(3)
+   {  
+      MFEM_ASSERT(params.Size() % 9 == 0,
+                  "Incorrect number of parameters provided to "
+                  "PortBCHfield");
    }
 
    void Eval(Vector &V, ElementTransformation &T,
@@ -403,6 +412,39 @@ public:
    {
       V.SetSize(3); V = 0.0;
       T.Transform(ip, x_);
+
+      V0_ = params_[0+index_];
+      b_ = params_[1+index_];
+      a_ = params_[2+index_];
+      x0_ = params_[3+index_];
+      y0_ = params_[4+index_];
+      z0_ = params_[5+index_];
+      nhatx_ = params_[6+index_];
+      nhaty_ = params_[7+index_];
+      nhatz_ = params_[8+index_];
+
+      Vector r(3);
+      r[0] = x_[0]-x0_;
+      r[1] = x_[1]-y0_;
+      r[2] = x_[2]-z0_;
+
+      Vector rdisk(3);
+      rdisk[0] = r[0] - (r[0]*nhatx_+r[1]*nhaty_+r[2]*nhatz_)*nhatx_;
+      rdisk[1] = r[1] - (r[0]*nhatx_+r[1]*nhaty_+r[2]*nhatz_)*nhaty_;
+      rdisk[2] = r[2] - (r[0]*nhatx_+r[1]*nhaty_+r[2]*nhatz_)*nhatz_;
+
+      double rdisknorm = rdisk.Norml2();
+
+      double Hfield = (V0_/376.7303)/(2*M_PI*r.Norml2());
+
+      Vector thetadisk(3);
+      thetadisk[0] = nhaty_*(rdisk[2]/rdisknorm) - nhatz_*(rdisk[1]/rdisknorm);
+      thetadisk[1] = nhatz_*(rdisk[0]/rdisknorm) - nhatx_*(rdisk[2]/rdisknorm);
+      thetadisk[2] = nhatx_*(rdisk[1]/rdisknorm) - nhaty_*(rdisk[0]/rdisknorm);
+
+      V[0] = Hfield*thetadisk[0];
+      V[1] = Hfield*thetadisk[1];
+      V[2] = Hfield*thetadisk[2];
    }
 };
 
@@ -566,10 +608,12 @@ int main(int argc, char *argv[])
    Array<int> nbca1; // Neumann BC attributes
    Array<int> nbca2; // Neumann BC attributes
    Array<int> nbcaw; // Neumann BC attributes for plane wave source
+   Array<int> portbca; // Port BC attributes
    Vector dbcv1; // Dirichlet BC values
    Vector dbcv2; // Dirichlet BC values
    Vector nbcv1; // Neumann BC values
    Vector nbcv2; // Neumann BC values
+   Vector portbcv; // Port BC values
 
    int msa_n = 0;
    Vector msa_p(0);
@@ -593,6 +637,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    const char *eqdsk_file = "";
+   const char *portbc_file = "";
 
    OptionsParser args(argc, argv);
    args.AddOption(&logo, "-logo", "--print-logo", "-no-logo",
@@ -895,6 +940,12 @@ int main(int argc, char *argv[])
                   "Neumann Boundary Condition (surface current) "
                   "Value 2 (v_x v_y v_z) or "
                   "(Re(v_x) Re(v_y) Re(v_z) Im(v_x) Im(v_y) Im(v_z))");
+   args.AddOption(&portbca, "-portbca", "--port-bc-surf",
+                  "Port Boundary Condition Surfaces");
+   args.AddOption(&portbcv, "-portbcv", "--port-bc-surf",
+                  "Port Boundary Condition Values");
+   args.AddOption(&portbc_file, "-portbc", "--portbc-file",
+                  "Port BC input file.");
    args.AddOption(&num_elements, "-nume", "--num-elements",
                 "The number of mesh elements in extruded direction");
    args.AddOption(&maxit, "-maxit", "--max-amr-iterations",
@@ -1633,10 +1684,14 @@ int main(int argc, char *argv[])
       Vector kr(3), ki(3);
       HReCoef.GetWaveVector(kr, ki);
 
-      mfem::out << "Plane wave propagation vector: ("
+      if (Mpi::Root())
+      {
+         mfem::out << "Plane wave propagation vector: ("
                 << complex<double>(kr(0),ki(0)) << ","
                 << complex<double>(kr(1),ki(1)) << ","
                 << complex<double>(kr(2),ki(2)) << ")" << endl;
+
+      }
 
       if (!phase_shift)
       {
@@ -1972,9 +2027,53 @@ int main(int argc, char *argv[])
       cout << "Setup boundary conditions." << endl;
    }
 
+   if (portbc_file[0] != '\0' && !portbcv)
+   {
+      std::ifstream infile(portbc_file);
+      if (!infile) 
+      {
+        if (Mpi::Root()){std::cerr << "Error: could not open file.\n";}
+        return 1;
+      }
+
+      Array<double> arr;
+      double val;
+
+      while (infile >> val)
+      {
+        arr.Append(val);
+      }
+
+      if (Mpi::Root())
+      {
+         cout << "Reading in " << arr.Size()/9 << " Port BC Input(s)" << endl;
+      }
+
+      infile.close();
+
+      if (arr.Size() % 9 != 0)
+      {
+         if (Mpi::Root())
+         {
+            cout << "Incorrect number of port BC inputs! Need 9 for each port." << endl;
+         }
+         return 1;
+      }
+
+      Vector vec(arr.Size());
+      for (int i = 0; i < arr.Size(); i++)
+      {
+         vec(i) = arr[i];
+      }
+
+      portbcv = vec;
+   }
+
    // Setup coefficients for Dirichlet BC
    int dbcsSize = (peca.Size() > 0) + (dbca1.Size() > 0) + (dbca2.Size() > 0) +
                   (dbcas.Size() > 0) + (dbcaw.Size() > 0);
+   if (portbca.Size() > 0){dbcsSize = (peca.Size() > 0) + (dbca1.Size() > 0) + (dbca2.Size() > 0) +
+                  (dbcas.Size() > 0) + (dbcaw.Size() > 0) + portbca.Size();}
 
    Array<ComplexVectorCoefficientByAttr*> dbcs(dbcsSize);
 
@@ -2023,6 +2122,8 @@ int main(int argc, char *argv[])
    VectorConstantCoefficient dbc2ReCoef(dbc2ReVec);
    VectorConstantCoefficient dbc2ImCoef(dbc2ImVec);
 
+   PortBCHfield * PortBC = NULL;
+
    if (dbcsSize > 0)
    {
       int c = 0;
@@ -2066,6 +2167,25 @@ int main(int argc, char *argv[])
          dbcs[c]->real = &zeroCoef; //&HReCoef;
          dbcs[c]->imag = &zeroCoef; //&HImCoef;
          c++;
+      }
+
+      Array<int> temp_attribute(1);
+      if (portbca.Size() > 0)
+      {
+         for (int i=0; i<portbca.Size(); i++)
+         {
+            int index = i*9;
+            temp_attribute = portbca[i];
+            PortBC = new PortBCHfield(portbcv,index);
+            dbcs[c] = new ComplexVectorCoefficientByAttr;
+            dbcs[c]->attr = temp_attribute;
+            dbcs[c]->real = PortBC;
+            dbcs[c]->imag = &zeroCoef;
+            if (Mpi::Root()){
+            mfem::out << "Port Surfaces: "; dbcs[c]->attr.Print(mfem::out); 
+            }
+            c++;
+         }
       }
    }
 
