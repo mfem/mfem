@@ -223,6 +223,7 @@ int main(int argc, char *argv[])
    int delta_order = 1;
    real_t rnum=1.0;
    real_t theta = 0.0;
+   bool pmg = false;
    bool static_cond = false;
    int iprob = 0;
    int sr = 0;
@@ -257,6 +258,8 @@ int main(int argc, char *argv[])
                   "Number of parallel refinements.");
    args.AddOption(&pr, "-pref", "--parallel-ref",
                   "Number of parallel refinements.");
+   args.AddOption(&pmg, "-pmg", "--p-refinement-multigrid", "-no-pmg",
+                  "--no-p-refinement-multigrid", "Enable P-Refinement Multigrid.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -834,24 +837,34 @@ int main(int argc, char *argv[])
       {
          prec_fes = trial_fes;
       }
-      BlockDiagonalPreconditioner * real_prec = new BlockDiagonalPreconditioner(
-         BlockA_r->RowOffsets());
-      for (int i = 0; i<BlockA_r->NumRowBlocks(); i++)
+      Solver * cprec = nullptr;
+      if (pmg)
       {
-         auto prec = MakeFESpaceDefaultSolver(prec_fes[i],0);
-         prec->SetOperator(BlockA_r->GetBlock(i,i));
-         real_prec->SetDiagonalBlock(i,prec);
+         cprec = new ComplexPRefinementMultigrid(prec_fes, *Ahc);
       }
-
-      ComplexPreconditioner cprec(real_prec, true);
+      else
+      {
+         BlockDiagonalPreconditioner * real_prec = new BlockDiagonalPreconditioner(
+            BlockA_r->RowOffsets());
+         real_prec->owns_blocks = 1;
+         for (int i = 0; i<BlockA_r->NumRowBlocks(); i++)
+         {
+            auto prec = MakeFESpaceDefaultSolver(prec_fes[i],0);
+            prec->SetOperator(BlockA_r->GetBlock(i,i));
+            real_prec->SetDiagonalBlock(i,prec);
+         }
+         cprec = new ComplexPreconditioner(real_prec, true);
+      }
 
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-6);
       cg.SetMaxIter(10000);
       cg.SetPrintLevel(0);
-      cg.SetPreconditioner(cprec);
       cg.SetOperator(*Ahc);
+      cg.SetPreconditioner(*cprec);
       cg.Mult(B, X);
+
+      delete cprec;
 
       int num_iter = cg.GetNumIterations();
 

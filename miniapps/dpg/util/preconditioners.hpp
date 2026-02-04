@@ -75,15 +75,54 @@ public:
    PRefinementMultigrid(const Array<ParFiniteElementSpace *> & pfes_,
                         const BlockOperator & Op_);
 
-   virtual const Operator* GetProlongationAtLevel(int level) const override
-   {
-      MFEM_VERIFY(level >=0 && level < prolongations.Size(),
-                  "Requested prolongation level out of range.");
-      return prolongations[level];
-   }
-
    ~PRefinementMultigrid();
 };
+
+class ComplexPRefinementMultigrid : public Multigrid
+{
+private:
+   // P_level : (level -> level+1), block-diagonal (one transfer per pfes block)
+   Array<int> orders;
+   const Array<ParFiniteElementSpace *> & pfes;
+   ParMesh * pmesh=nullptr;
+   int npfes;
+   const ComplexOperator & Op;
+   int nblocks;
+   int maxlevels = 1;
+
+   // hierarchy of spaces
+   // Owned levels: 0..maxlevels-2
+   std::vector< std::vector<std::unique_ptr<FiniteElementCollection>> > fec_owned;
+   std::vector< std::vector<std::unique_ptr<ParFiniteElementSpace>> >   fes_owned;
+   std::vector< std::vector<PRefinementTransferOperator*> > T_level;
+   // prolongation matrices per level and block (owned here)
+   std::vector< std::vector<HypreParMatrix*> >  Pmat_level;
+
+   const ParFiniteElementSpace* GetParFESpace(int lev, int b) const
+   {
+      if (lev == maxlevels-1) { return pfes[b]; }
+      return fes_owned[lev][b].get();
+   }
+
+   const FiniteElementCollection* GetFEColl(int lev, int b) const
+   {
+      if (lev == maxlevels-1) { return pfes[b]->FEColl(); }
+      return fec_owned[lev][b].get();
+   }
+
+   int GetMinimumOrder(const ParFiniteElementSpace * pfespace) const
+   {
+      return (dynamic_cast<const L2_FECollection*>(pfespace->FEColl()) ||
+              dynamic_cast<const RT_FECollection*>(pfespace->FEColl())) ? 0 : 1;
+   }
+
+public:
+   ComplexPRefinementMultigrid(const Array<ParFiniteElementSpace *> & pfes_,
+                               const ComplexOperator & Op_);
+
+   ~ComplexPRefinementMultigrid();
+};
+
 
 #endif
 
@@ -113,6 +152,22 @@ public:
       // Apply the preconditioner to the real and imaginary parts separately
       prec->Mult(x_r, y_r);
       prec->Mult(x_i, y_i);
+   }
+
+   virtual void MultTranspose(const Vector &x, Vector &y) const override
+   {
+      int n = x.Size()/2;
+      MFEM_VERIFY(x.Size() == 2*n, "Invalid x vector size");
+      MFEM_VERIFY(y.Size() == 2*n, "Invalid y vector size");
+
+      Vector x_r(const_cast<Vector&>(x), 0, n);
+      Vector x_i(const_cast<Vector&>(x), n, n);
+      Vector y_r(y, 0, n);
+      Vector y_i(y, n, n);
+
+      // Apply the preconditioner to the real and imaginary parts separately
+      prec->MultTranspose(x_r, y_r);
+      prec->MultTranspose(x_i, y_i);
    }
 
    void SetOperator(const Operator &op) override
