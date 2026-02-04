@@ -58,6 +58,7 @@ namespace mfem
 struct BenchTimer
 {
    std::chrono::high_resolution_clock timer;
+   std::vector<size_t> call_counts;
    std::vector<std::chrono::high_resolution_clock::time_point> start_points;
    std::vector<std::chrono::high_resolution_clock::duration> durations;
 

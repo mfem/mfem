@@ -2487,10 +2487,10 @@ size_t MemoryManager::CopyImpl(char *dst, MemoryType dloc, size_t dst_offset,
       return false;
    });
    // dispatch copies
-   if (copy0.size() && copy1.size())
-   {
-      mfem::out << "WARNING: Copy from host and device" << std::endl;
-   }
+   // if (copy0.size() && copy1.size())
+   // {
+   //    mfem::out << "WARNING: Copy from host and device" << std::endl;
+   // }
    BatchMemCopy2(dst, src0, dloc, sloc0, copy0);
    BatchMemCopy2(dst, src1, dloc, sloc1, copy1);
    return copy0.size() + copy1.size();
@@ -2538,10 +2538,10 @@ void MemoryManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
                                dseg.lowers[i], dseg.mtypes[i], dst_offset, curr, nbytes,
                                sseg.lowers[i], sseg.lowers[1 - i], sseg.mtypes[i],
                                sseg.mtypes[1 - i], src_offset, currs[i], currs[1 - i]);
-               if (ncopies && tmp)
-               {
-                  mfem::out << "WARNING: Copy to host and device" << std::endl;
-               }
+               // if (ncopies && tmp)
+               // {
+               //    mfem::out << "WARNING: Copy to host and device" << std::endl;
+               // }
                ncopies += tmp;
             }
          }

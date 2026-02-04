@@ -69,6 +69,7 @@ BenchTimer::BenchTimer()
 {
    start_points.resize(7);
    durations.resize(start_points.size());
+   call_counts.resize(start_points.size());
 }
 
 BenchTimer::~BenchTimer()
@@ -79,17 +80,25 @@ BenchTimer::~BenchTimer()
       sums.emplace_back(
          std::chrono::duration_cast<std::chrono::duration<double>>(v).count());
    }
-   mfem::out << "ReadWrite: " << sums[0] << " s" << std::endl;
-   mfem::out << "Read: " << sums[1] << " s" << std::endl;
-   mfem::out << "Write: " << sums[2] << " s" << std::endl;
-   mfem::out << "SyncAlias: " << sums[3] << " s" << std::endl;
-   mfem::out << "Copy: " << sums[4] << " s" << std::endl;
-   mfem::out << "CopyFromHost: " << sums[5] << " s" << std::endl;
-   mfem::out << "CopyToHost: " << sums[6] << " s" << std::endl;
+   mfem::out << "ReadWrite [" << call_counts[0] << "]: " << sums[0] << " s"
+             << std::endl;
+   mfem::out << "Read [" << call_counts[1] << "]: " << sums[1] << " s"
+             << std::endl;
+   mfem::out << "Write [" << call_counts[2] << "]: " << sums[2] << " s"
+             << std::endl;
+   mfem::out << "SyncAlias [" << call_counts[3] << "]: " << sums[3] << " s"
+             << std::endl;
+   mfem::out << "Copy [" << call_counts[4] << "]: " << sums[4] << " s"
+             << std::endl;
+   mfem::out << "CopyFromHost [" << call_counts[5] << "]: " << sums[5] << " s"
+             << std::endl;
+   mfem::out << "CopyToHost [" << call_counts[6] << "]: " << sums[6] << " s"
+             << std::endl;
 }
 
 ScopeBench::ScopeBench(size_t i) : idx(i)
 {
+   ++BenchTimer::Instance().call_counts[i];
    MFEM_DEVICE_SYNC;
    BenchTimer::Instance().start_points[i] = BenchTimer::Instance().timer.now();
 }
