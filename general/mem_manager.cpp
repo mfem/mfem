@@ -67,6 +67,7 @@ BenchTimer &BenchTimer::Instance()
 
 BenchTimer::BenchTimer()
 {
+   glob_start = timer.now();
    start_points.resize(7);
    durations.resize(start_points.size());
    call_counts.resize(start_points.size());
@@ -74,12 +75,18 @@ BenchTimer::BenchTimer()
 
 BenchTimer::~BenchTimer()
 {
+   auto tot_time = timer.now() - glob_start;
    std::vector<double> sums;
    for (auto &v : durations)
    {
       sums.emplace_back(
          std::chrono::duration_cast<std::chrono::duration<double>>(v).count());
    }
+   mfem::out << "Total time: "
+             << std::chrono::duration_cast<std::chrono::duration<double>>(
+                tot_time)
+             .count()
+             << std::endl;
    mfem::out << "ReadWrite [" << call_counts[0] << "]: " << sums[0] << " s"
              << std::endl;
    mfem::out << "Read [" << call_counts[1] << "]: " << sums[1] << " s"

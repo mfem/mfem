@@ -2528,7 +2528,7 @@ void MemoryManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
       else
       {
          // distinct host and device buffers, copy to each as needed
-         size_t ncopies = 0;
+         // size_t ncopies = 0;
          for (int i = 0; i < 2; ++i)
          {
             if (dseg.lowers[i])
@@ -2542,7 +2542,7 @@ void MemoryManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
                // {
                //    mfem::out << "WARNING: Copy to host and device" << std::endl;
                // }
-               ncopies += tmp;
+               // ncopies += tmp;
             }
          }
       }

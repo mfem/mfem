@@ -61,6 +61,7 @@ struct BenchTimer
    std::vector<size_t> call_counts;
    std::vector<std::chrono::high_resolution_clock::time_point> start_points;
    std::vector<std::chrono::high_resolution_clock::duration> durations;
+   std::chrono::high_resolution_clock::time_point glob_start;
 
    static BenchTimer& Instance();
 
