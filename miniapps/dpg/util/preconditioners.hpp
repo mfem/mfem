@@ -170,9 +170,9 @@ public:
       prec->MultTranspose(x_i, y_i);
    }
 
-   void SetOperator(const Operator &op) override
+   void SetOperator(const Operator &op_) override
    {
-      MFEM_VERIFY(dynamic_cast<const ComplexOperator*>(&op),
+      MFEM_VERIFY(dynamic_cast<const ComplexOperator*>(&op_),
                   "ComplexPreconditioner::SetOperator only accepts ComplexOperator");
       this->op = &op;
    }
