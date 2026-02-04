@@ -30,7 +30,7 @@ protected:
    /// see FormSystemOperator()
    /** @note Uses DiagonalPolicy::DIAG_ONE. */
    void FormConstrainedSystemOperator(
-      const Array<int> &ess_tdof_list, ConstrainedOperator* &Aout);
+      const Array<int> &ess_tdof_list, ConstrainedOperator* &Aout) const;
 
    /// see FormRectangularSystemOperator()
    void FormRectangularConstrainedSystemOperator(
@@ -40,7 +40,7 @@ protected:
 
    /** @brief Returns RAP Operator of this, using input/output Prolongation matrices
        @a Pi corresponds to "P", @a Po corresponds to "Rt" */
-   Operator *SetupRAP(const Operator *Pi, const Operator *Po);
+   const Operator *SetupRAP(const Operator *Pi, const Operator *Po) const ;
 
 public:
    /// Defines operator diagonal policy upon elimination of rows and/or columns.
@@ -256,8 +256,8 @@ public:
 
        This returns the same operator as FormLinearSystem(), but does without
        the transformations of the right-hand side and initial guess. */
-   void FormSystemOperator(const Array<int> &ess_tdof_list,
-                           Operator* &A);
+   virtual void FormSystemOperator(const Array<int> &ess_tdof_list,
+                                   Operator* &A) const;
 
    /** @brief Return in @a A a parallel (on truedofs) version of this
        rectangular operator (including constraints).
@@ -1016,7 +1016,7 @@ class ConstrainedOperator : public Operator
 {
 protected:
    Array<int> constraint_list;  ///< List of constrained indices/dofs.
-   Operator *A;                 ///< The unconstrained Operator.
+   const Operator *A;                 ///< The unconstrained Operator.
    bool own_A;                  ///< Ownership flag for A.
    mutable Vector z, w;         ///< Auxiliary vectors.
    MemoryClass mem_class;
@@ -1031,7 +1031,7 @@ public:
        ownership flag @a own_A is true, the operator @a *A will be destroyed
        when this object is destroyed. The @a diag_policy determines how the
        operator sets entries corresponding to essential dofs. */
-   ConstrainedOperator(Operator *A, const Array<int> &list, bool own_A = false,
+   ConstrainedOperator(const Operator *A, const Array<int> &list, bool own_A = false,
                        DiagonalPolicy diag_policy = DIAG_ONE);
 
    /// Returns the type of memory in which the solution and temporaries are stored.
@@ -1099,7 +1099,7 @@ class RectangularConstrainedOperator : public Operator
 {
 protected:
    Array<int> trial_constraints, test_constraints;
-   Operator *A;
+   const Operator *A;
    bool own_A;
    mutable Vector z, w;
    MemoryClass mem_class;
@@ -1112,7 +1112,7 @@ public:
        constrain, i.e. each entry @a trial_list[i] represents an essential trial
        dof. If the ownership flag @a own_A is true, the operator @a *A will be
        destroyed when this object is destroyed. */
-   RectangularConstrainedOperator(Operator *A, const Array<int> &trial_list,
+   RectangularConstrainedOperator(const Operator *A, const Array<int> &trial_list,
                                   const Array<int> &test_list, bool own_A = false);
    /// Returns the type of memory in which the solution and temporaries are stored.
    MemoryClass GetMemoryClass() const override { return mem_class; }
