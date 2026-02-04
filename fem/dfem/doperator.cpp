@@ -16,39 +16,23 @@
 using namespace mfem;
 using namespace mfem::future;
 
-void DifferentiableOperator::SetParameters(std::vector<Vector *> p) const
-{
-   MFEM_ASSERT(parameters.size() == p.size(),
-               "number of parameters doesn't match descriptors");
-   for (size_t i = 0; i < parameters.size(); i++)
-   {
-      p[i]->Read();
-      parameters_l[i] = *p[i];
-   }
-}
-
 DifferentiableOperator::DifferentiableOperator(
-   const std::vector<FieldDescriptor> &solutions,
-   const std::vector<FieldDescriptor> &parameters,
+   const std::vector<FieldDescriptor> &infds,
+   const std::vector<FieldDescriptor> &outfds,
    const ParMesh &mesh) :
    mesh(mesh),
-   solutions(solutions),
-   parameters(parameters)
+   infds(infds),
+   outfds(outfds)
 {
-   fields.resize(solutions.size() + parameters.size());
-   fields_e.resize(fields.size());
-   solutions_l.resize(solutions.size());
-   parameters_l.resize(parameters.size());
+   unionfds.clear();
+   unionfds.insert(unionfds.end(), infds.begin(), infds.end());
+   unionfds.insert(unionfds.end(), outfds.begin(), outfds.end());
+   std::sort(unionfds.begin(), unionfds.end());
+   auto last = std::unique(unionfds.begin(), unionfds.end());
+   unionfds.erase(last, unionfds.end());
 
-   for (size_t i = 0; i < solutions.size(); i++)
-   {
-      fields[i] = solutions[i];
-   }
-
-   for (size_t i = 0; i < parameters.size(); i++)
-   {
-      fields[i + solutions.size()] = parameters[i];
-   }
+   fields_e.resize(infds.size());
+   fields_l.resize(infds.size());
 }
 
 #endif // MFEM_USE_MPI

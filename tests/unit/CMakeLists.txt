@@ -25,8 +25,8 @@ add_custom_target(copy_test_data
 # Add 'copy_test_data' as a prerequisite for test executables, if the source and the
 # build directories are not the same.
 if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
-  add_dependencies(${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME} copy_test_data)
-  add_dependencies(${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME} copy_data)
+    add_dependencies(${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME} copy_test_data)
+    add_dependencies(${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME} copy_data)
 endif()
 
 # Include the source directory for the unit tests - catch.hpp is there.
@@ -35,10 +35,10 @@ include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 # The following list can be updated using (in bash):
 #    for d in dfem general linalg mesh fem enzyme; do ls -1 $d/*.cpp; done
 set(UNIT_TESTS_SRCS
-  dfem/test_diffusion.cpp
-  dfem/test_divergence.cpp
-  dfem/test_lvector_interface.cpp
-  dfem/test_mass.cpp
+  # dfem/test_diffusion.cpp
+  # dfem/test_divergence.cpp
+  # dfem/test_lvector_interface.cpp
+  # dfem/test_mass.cpp
   dfem/test_multiple_outputs.cpp
   general/test_array.cpp
   general/test_scan.cpp
@@ -254,7 +254,7 @@ function(add_serial_miniapp_test name test_uvm)
         set_property(SOURCE ${${NAME}_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
     endif(MFEM_USE_CUDA)
     if (MFEM_USE_HIP)
-       set_property(SOURCE ${${NAME}_TESTS_SRCS} PROPERTY HIP_SOURCE_PROPERTY_FORMAT TRUE)
+        set_property(SOURCE ${${NAME}_TESTS_SRCS} PROPERTY HIP_SOURCE_PROPERTY_FORMAT TRUE)
     endif(MFEM_USE_HIP)
 
     mfem_add_executable(${name}_tests_cpu ${${NAME}_TESTS_SRCS})

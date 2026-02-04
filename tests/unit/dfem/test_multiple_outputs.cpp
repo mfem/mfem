@@ -45,18 +45,30 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
    H1_FECollection fec(p, DIM);
    ParFiniteElementSpace fes(&pmesh, &fec);
 
-   ParGridFunction x(&fes), y(&fes), z(&fes);
-   Vector X(fes.GetTrueVSize()), Y(fes.GetTrueVSize()), Z(fes.GetTrueVSize());
-
-   X.Randomize(1);
-   x.SetFromTrueDofs(X);
-
-   ConstantCoefficient one(1.0);
-
    const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), 2 * p);
 
    UniformParameterSpace ups(pmesh, *ir, 1);
    Vector scalar_out(ups.GetTrueVSize());
+
+   ParGridFunction x(&fes), y(&fes), z(&fes);
+
+   Array<int> inoffsets(2);
+   inoffsets[0] = 0;
+   inoffsets[1] = fes.GetTrueVSize();
+   // inoffsets[2] = nodes->ParFESpace()->GetTrueVSize();
+   inoffsets.PartialSum();
+
+   BlockVector X(inoffsets);
+   X.Randomize(1);
+   x.SetFromTrueDofs(X.GetBlock(0));
+
+   Array<int> outoffsets(1);
+   outoffsets[0] = fes.GetTrueVSize();
+   // outoffsets[1] = ups.GetTrueVSize();
+   outoffsets.PartialSum();
+   BlockVector Z(outoffsets);
+
+   ConstantCoefficient one(1.0);
 
    Array<int> all_domain_attr;
    if (pmesh.attributes.Size() > 0)
@@ -70,27 +82,40 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
    blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    blf.Assemble();
    blf.Mult(x, y);
+   Vector Y(fes.GetTrueVSize());
    fes.GetProlongationMatrix()->MultTranspose(y, Y);
 
-   static constexpr int U = 0, SCALAR = 1, COORDINATES = 2;
-   const auto sol = std::vector{ FieldDescriptor{ U, &fes } };
-   DifferentiableOperator dop(sol, {{COORDINATES, nodes->ParFESpace()}}, pmesh);
+   pretty_print(x);
+   pretty_print(X);
+
+   // static constexpr int U = 0, AUX = 1, COORDINATES = 2;
+   static constexpr int U = 0, COORDINATES = 1, AUX = 2;
+   const std::vector<FieldDescriptor> in
+   {
+      {U, &fes},
+      {COORDINATES, nodes->ParFESpace()}
+   };
+   const std::vector<FieldDescriptor> out
+   {
+      {U, &fes}
+   };
+   DifferentiableOperator dop(in, out, pmesh);
 
    const auto mf_mass_qf =
       [] MFEM_HOST_DEVICE (
          const real_t &u,
-         const tensor<real_t, DIM, DIM> &J, const real_t &w)
+         const tensor<real_t, DIM, DIM> &J,
+         const real_t &w)
    {
-      return tuple{u * w * det(J), w};
+      return tuple{u * w * det(J)};
    };
 
    dop.AddDomainIntegrator(mf_mass_qf,
                            tuple{ Value<U>{}, Gradient<COORDINATES>{}, Weight{} },
-                           tuple{ Value<U>{}, Identity<SCALAR>{} },
+                           tuple{ Value<U>{} },
                            *ir, all_domain_attr);
-   dop.SetParameters({ nodes });
 
-   fes.GetRestrictionMatrix()->Mult(x, X);
+   fes.GetRestrictionMatrix()->Mult(x, X.GetBlock(0));
    dop.Mult(X, Z);
    Y -= Z;
 

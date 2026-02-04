@@ -568,6 +568,24 @@ struct FieldDescriptor
    template <typename T>
    FieldDescriptor(std::size_t field_id, const T* v) :
       id(field_id), data(v) {}
+
+
+   bool operator==(const FieldDescriptor& other) const
+   {
+      return id == other.id;
+   }
+
+   bool operator<(const FieldDescriptor& other) const
+   {
+      return id < other.id;
+   }
+
+   friend void swap(FieldDescriptor& a, FieldDescriptor& b)
+   {
+      using std::swap;
+      swap(a.id, b.id);
+      swap(a.data, b.data);
+   }
 };
 
 namespace dfem
@@ -921,6 +939,31 @@ int GetDimension(const FieldDescriptor &f)
    }, f.data);
 }
 
+inline
+const QuadratureInterpolator *get_qinterp(
+   const FieldDescriptor &f,
+   const IntegrationRule &ir)
+{
+   return std::visit([=](auto && arg) -> const QuadratureInterpolator*
+   {
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
+                    std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         return arg->GetQuadratureInterpolator(ir);
+      }
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
+      {
+         MFEM_ASSERT(false, "ParameterSpace doesn't have QuadratureInterpolator yet");
+         return nullptr;
+      }
+      else
+      {
+         static_assert(dfem::always_false<T>, "internal error");
+      }
+      return nullptr; // Unreachable, but avoids compiler warning
+   }, f.data);
+}
 
 /// @brief Get the prolongation operator for a field descriptor.
 ///
@@ -1130,20 +1173,34 @@ void prolongation(const std::array<FieldDescriptor, N> fields,
 /// @param fields the array of field descriptors.
 /// @param x the input vector in tdofs.
 /// @param fields_l the array of output vectors in vdofs.
+// inline
+// void prolongation(const std::vector<FieldDescriptor> fields,
+//                   const Vector &x,
+//                   std::vector<Vector> &fields_l)
+// {
+//    int data_offset = 0;
+//    for (std::size_t i = 0; i < fields.size(); i++)
+//    {
+//       const auto P = get_prolongation(fields[i]);
+//       const int width = P->Width();
+//       const Vector x_i(const_cast<Vector&>(x), data_offset, width);
+//       fields_l[i].SetSize(P->Height());
+//       P->Mult(x_i, fields_l[i]);
+//       data_offset += width;
+//    }
+// }
+
 inline
 void prolongation(const std::vector<FieldDescriptor> fields,
-                  const Vector &x,
+                  const BlockVector &x,
                   std::vector<Vector> &fields_l)
 {
-   int data_offset = 0;
-   for (std::size_t i = 0; i < fields.size(); i++)
+   for (int i = 0; i < x.NumBlocks(); i++)
    {
       const auto P = get_prolongation(fields[i]);
       const int width = P->Width();
-      const Vector x_i(const_cast<Vector&>(x), data_offset, width);
       fields_l[i].SetSize(P->Height());
-      P->Mult(x_i, fields_l[i]);
-      data_offset += width;
+      P->Mult(x.GetBlock(i), fields_l[i]);
    }
 }
 
