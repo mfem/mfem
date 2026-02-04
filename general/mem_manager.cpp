@@ -77,8 +77,7 @@ BenchTimer::~BenchTimer()
    for (auto &v : durations)
    {
       sums.emplace_back(
-         std::chrono::duration_cast<std::chrono::duration<double>>(durations[0])
-         .count());
+         std::chrono::duration_cast<std::chrono::duration<double>>(v).count());
    }
    mfem::out << "ReadWrite: " << sums[0] << " s" << std::endl;
    mfem::out << "Read: " << sums[1] << " s" << std::endl;
