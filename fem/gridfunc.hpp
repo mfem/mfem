@@ -597,7 +597,7 @@ public:
 
    /** @brief Project the normal component of the given VectorCoefficient on
        the boundary. */
-   /** Only boundary attributes that are marked in 'bdr_attr' are
+   /** Only boundary attributes that are marked in @a bdr_attr are
        projected. Assumes RT-type vector finite element GridFunction. */
    void ProjectBdrCoefficientNormal(VectorCoefficient &vcoeff,
                                     const Array<int> &bdr_attr)
@@ -605,15 +605,16 @@ public:
 
    /** @brief Project the given Coefficient in the normal direction on the
        boundary. */
-   /** Only boundary attributes that are marked in 'bdr_attr' are projected.
+   /** Only boundary attributes that are marked in @a bdr_attr are projected.
        Assumes RT-type vector finite element GridFunction. */
    void ProjectBdrCoefficientNormal(Coefficient &coeff,
                                     const Array<int> &bdr_attr)
    { ProjectBdrCoefficientNormal(&coeff, NULL, bdr_attr); }
 
    /** @brief Project the tangential components of the given VectorCoefficient
-       on the boundary. Only boundary attributes that are marked in @a bdr_attr
-       are projected. Assumes ND-type VectorFE GridFunction. */
+       on the boundary. */
+   /** Only boundary attributes that are marked in @a bdr_attr
+       are projected. Assumes ND-type vector finite element GridFunction. */
    virtual void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
                                              const Array<int> &bdr_attr);
 
