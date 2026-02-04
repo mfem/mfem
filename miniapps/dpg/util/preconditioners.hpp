@@ -130,7 +130,7 @@ public:
 class ComplexPreconditioner : public Solver
 {
 private:
-   const Operator *op;
+   const Operator *op = nullptr;
    const Solver * prec = nullptr;
    bool own_prec = false;
 
@@ -174,7 +174,7 @@ public:
    {
       MFEM_VERIFY(dynamic_cast<const ComplexOperator*>(&op_),
                   "ComplexPreconditioner::SetOperator only accepts ComplexOperator");
-      this->op = &op;
+      this->op = &op_;
    }
 
    ~ComplexPreconditioner()
