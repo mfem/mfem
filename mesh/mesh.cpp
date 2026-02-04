@@ -2507,7 +2507,7 @@ void Mesh::FinalizeTriMesh(int generate_edges, int refine, bool fix_orientation)
 
    if (refine)
    {
-      MarkTriMeshForRefinement();
+      MarkForRefinement();
    }
 
    if (generate_edges)
@@ -2962,82 +2962,117 @@ void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
 }
 
 
-void Mesh::MarkForRefinement()
+void Mesh::GetEdgeLengths2(const DSTable &v_to_v, Array<real_t> &lengths) const
 {
-   if (meshgen & 1)
+   if (Nodes)
    {
-      if (Dim == 2)
-      {
-         MarkTriMeshForRefinement();
-      }
-      else if (Dim == 3)
-      {
-         DSTable v_to_v(NumOfVertices);
-         GetVertexToVertexTable(v_to_v);
-         MarkTetMeshForRefinement(v_to_v);
-      }
+      Nodes->HostRead();
    }
-}
-
-void Mesh::MarkTriMeshForRefinement()
-{
-   // Mark the longest triangle edge by rotating the indices so that
-   // vertex 0 - vertex 1 is the longest edge in the triangle.
-   DenseMatrix pmat;
-   for (int i = 0; i < NumOfElements; i++)
+   auto GetLength2 = [this](int i, int j)
    {
-      if (elements[i]->GetType() == Element::TRIANGLE)
+      real_t l = 0.;
+      if (Nodes == NULL)
       {
-         GetPointMatrix(i, pmat);
-         static_cast<Triangle*>(elements[i])->MarkEdge(pmat);
+         const real_t *vi = vertices[i]();
+         const real_t *vj = vertices[j]();
+         for (int k = 0; k < spaceDim; k++)
+         {
+            l += (vi[k]-vj[k])*(vi[k]-vj[k]);
+         }
       }
-   }
-}
-
-void Mesh::GetEdgeOrdering(const DSTable &v_to_v, Array<int> &order)
-{
-   NumOfEdges = v_to_v.NumberOfEntries();
-   order.SetSize(NumOfEdges);
-   Array<Pair<real_t, int> > length_idx(NumOfEdges);
-
+      else
+      {
+         Array<int> ivdofs, jvdofs;
+         Nodes->FESpace()->GetVertexVDofs(i, ivdofs);
+         Nodes->FESpace()->GetVertexVDofs(j, jvdofs);
+         for (int k = 0; k < ivdofs.Size(); k++)
+         {
+            l += (AsConst(*Nodes)(ivdofs[k])-AsConst(*Nodes)(jvdofs[k]))*
+                 (AsConst(*Nodes)(ivdofs[k])-AsConst(*Nodes)(jvdofs[k]));
+         }
+      }
+      return l;
+   };
+   lengths.SetSize(NumOfEdges);
    for (int i = 0; i < NumOfVertices; i++)
    {
       for (DSTable::RowIterator it(v_to_v, i); !it; ++it)
       {
          int j = it.Index();
-         length_idx[j].one = GetLength(i, it.Column());
-         length_idx[j].two = j;
+         lengths[j] = GetLength2(i, it.Column());
       }
    }
+};
 
-   // Sort by increasing edge-length.
-   length_idx.Sort();
-
-   for (int i = 0; i < NumOfEdges; i++)
+void Mesh::MarkForRefinement()
+{
+   if (meshgen & 1)
    {
-      order[length_idx[i].two] = i;
+      DSTable v_to_v(NumOfVertices);
+      GetVertexToVertexTable(v_to_v);
+      NumOfEdges = v_to_v.NumberOfEntries();
+      if (Dim == 2)
+      {
+         MarkTriMeshForRefinement(v_to_v);
+      }
+      else if (Dim == 3)
+      {
+         MarkTetMeshForRefinement(v_to_v);
+      }
+   }
+}
+
+void Mesh::MarkTriMeshForRefinement(const DSTable &v_to_v)
+{
+   // Mark the longest triangle edge by rotating the indices so that
+   // vertex 0 - vertex 1 is the longest edge in the triangle. In the case of
+   // ties in the edge length, the edge index is used for a consistent ordering
+   // between elements.
+   Array<real_t> lengths;
+   GetEdgeLengths2(v_to_v, lengths);
+
+   Array<int> idx(NumOfEdges);
+   for (int i = 0; i < NumOfEdges; i++) { idx[i] = i; }
+
+   for (int i = 0; i < NumOfElements; i++)
+   {
+      if (elements[i]->GetType() == Element::TRIANGLE)
+      {
+         MFEM_ASSERT(dynamic_cast<Triangle *>(elements[i]),
+                     "Unexpected non-Triangle element type");
+         static_cast<Triangle *>(elements[i])->MarkEdge(v_to_v, lengths, idx);
+      }
    }
 }
 
 void Mesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
 {
    // Mark the longest tetrahedral edge by rotating the indices so that
-   // vertex 0 - vertex 1 is the longest edge in the element.
-   Array<int> order;
-   GetEdgeOrdering(v_to_v, order);
+   // vertex 0 - vertex 1 is the longest edge in the element. In the case of
+   // ties in the edge length, the edge index is used for a consistent ordering
+   // between elements.
+   Array<real_t> lengths;
+   GetEdgeLengths2(v_to_v, lengths);
+
+   Array<int> idx(NumOfEdges);
+   for (int i = 0; i < NumOfEdges; i++) { idx[i] = i; }
 
    for (int i = 0; i < NumOfElements; i++)
    {
       if (elements[i]->GetType() == Element::TETRAHEDRON)
       {
-         elements[i]->MarkEdge(v_to_v, order);
+         MFEM_ASSERT(dynamic_cast<Tetrahedron *>(elements[i]),
+                     "Unexpected non-Tetrahedron element type");
+         static_cast<Tetrahedron *>(elements[i])->MarkEdge(v_to_v, lengths, idx);
       }
    }
    for (int i = 0; i < NumOfBdrElements; i++)
    {
       if (boundary[i]->GetType() == Element::TRIANGLE)
       {
-         boundary[i]->MarkEdge(v_to_v, order);
+         MFEM_ASSERT(dynamic_cast<Triangle *>(boundary[i]),
+                     "Unexpected non-Triangle element type");
+         static_cast<Triangle *>(boundary[i])->MarkEdge(v_to_v, lengths, idx);
       }
    }
 }
@@ -3402,9 +3437,7 @@ void Mesh::FinalizeTetMesh(int generate_edges, int refine, bool fix_orientation)
 
    if (refine)
    {
-      DSTable v_to_v(NumOfVertices);
-      GetVertexToVertexTable(v_to_v);
-      MarkTetMeshForRefinement(v_to_v);
+      MarkForRefinement();
    }
 
    GetElementToFaceTable();
@@ -3670,8 +3703,7 @@ void Mesh::Finalize(bool refine, bool fix_orientation)
    // only perform it when Dim == spaceDim.
    if (Dim >= 2 && Dim == spaceDim)
    {
-      const int num_faces = GetNumFaces();
-      for (int i = 0; i < num_faces; i++)
+      for (int i = 0; i < GetNumFaces(); i++)
       {
          MFEM_VERIFY(faces_info[i].Elem2No < 0 ||
                      faces_info[i].Elem2Inf%2 != 0, "Invalid mesh topology."
@@ -4374,8 +4406,6 @@ void Mesh::Make2D(int nx, int ny, Element::Type type,
          boundary[2*nx+j] = new Segment((j+1)*m, j*m, 4);
          boundary[2*nx+ny+j] = new Segment(j*m+nx, (j+1)*m+nx, 2);
       }
-
-      // MarkTriMeshForRefinement(); // done in Finalize(...)
    }
    else
    {
@@ -7138,37 +7168,21 @@ static const char *fixed_or_not[] = { "fixed", "NOT FIXED" };
 
 int Mesh::CheckElementOrientation(bool fix_it)
 {
-   int i, j, k, wo = 0, fo = 0;
-   real_t *v[4];
+   int wo = 0, fo = 0;
 
    if (Dim == 2 && spaceDim == 2)
    {
       DenseMatrix J(2, 2);
 
-      for (i = 0; i < NumOfElements; i++)
+      for (int i = 0; i < NumOfElements; i++)
       {
-         int *vi = elements[i]->GetVertices();
-         if (Nodes == NULL)
-         {
-            for (j = 0; j < 3; j++)
-            {
-               v[j] = vertices[vi[j]]();
-            }
-            for (j = 0; j < 2; j++)
-               for (k = 0; k < 2; k++)
-               {
-                  J(j, k) = v[j+1][k] - v[0][k];
-               }
-         }
-         else
-         {
-            // only check the Jacobian at the center of the element
-            GetElementJacobian(i, J);
-         }
+         // only check the Jacobian at the center of the element
+         GetElementJacobian(i, J);
          if (J.Det() < 0.0)
          {
             if (fix_it)
             {
+               int *vi = elements[i]->GetVertices();
                switch (GetElementType(i))
                {
                   case Element::TRIANGLE:
@@ -7188,89 +7202,42 @@ int Mesh::CheckElementOrientation(bool fix_it)
          }
       }
    }
-
-   if (Dim == 3)
+   else if (Dim == 3)
    {
       DenseMatrix J(3, 3);
 
-      for (i = 0; i < NumOfElements; i++)
+      for (int i = 0; i < NumOfElements; i++)
       {
-         int *vi = elements[i]->GetVertices();
-         switch (GetElementType(i))
+         // only check the Jacobian at the center of the element
+         GetElementJacobian(i, J);
+         if (J.Det() < 0.0)
          {
-            case Element::TETRAHEDRON:
-               if (Nodes == NULL)
+            if (fix_it)
+            {
+               int *vi = elements[i]->GetVertices();
+               switch (GetElementType(i))
                {
-                  for (j = 0; j < 4; j++)
-                  {
-                     v[j] = vertices[vi[j]]();
-                  }
-                  for (j = 0; j < 3; j++)
-                     for (k = 0; k < 3; k++)
-                     {
-                        J(j, k) = v[j+1][k] - v[0][k];
-                     }
-               }
-               else
-               {
-                  // only check the Jacobian at the center of the element
-                  GetElementJacobian(i, J);
-               }
-               if (J.Det() < 0.0)
-               {
-                  wo++;
-                  if (fix_it)
-                  {
+                  case Element::TETRAHEDRON:
                      mfem::Swap(vi[0], vi[1]);
                      fo++;
-                  }
-               }
-               break;
-
-            case Element::WEDGE:
-               // only check the Jacobian at the center of the element
-               GetElementJacobian(i, J);
-               if (J.Det() < 0.0)
-               {
-                  wo++;
-                  if (fix_it)
-                  {
+                     break;
+                  case Element::WEDGE:
                      // how?
-                  }
-               }
-               break;
-
-            case Element::PYRAMID:
-               // only check the Jacobian at the center of the element
-               GetElementJacobian(i, J);
-               if (J.Det() < 0.0)
-               {
-                  wo++;
-                  if (fix_it)
-                  {
+                     break;
+                  case Element::PYRAMID:
                      mfem::Swap(vi[1], vi[3]);
                      fo++;
-                  }
-               }
-               break;
-
-            case Element::HEXAHEDRON:
-               // only check the Jacobian at the center of the element
-               GetElementJacobian(i, J);
-               if (J.Det() < 0.0)
-               {
-                  wo++;
-                  if (fix_it)
-                  {
+                     break;
+                  case Element::HEXAHEDRON:
                      // how?
-                  }
+                     break;
+                  default:
+                     MFEM_ABORT("Invalid 3D element type \""
+                                << GetElementType(i) << "\"");
+                     break;
                }
-               break;
-
-            default:
-               MFEM_ABORT("Invalid 3D element type \""
-                          << GetElementType(i) << "\"");
-               break;
+            }
+            wo++;
          }
       }
    }
@@ -8257,24 +8224,12 @@ void Mesh::GetBdrPointMatrix(int i,DenseMatrix &pointmat) const
 
    pointmat.SetSize(spaceDim, nv);
    for (k = 0; k < spaceDim; k++)
+   {
       for (j = 0; j < nv; j++)
       {
          pointmat(k, j) = vertices[v[j]](k);
       }
-}
-
-real_t Mesh::GetLength(int i, int j) const
-{
-   const real_t *vi = vertices[i]();
-   const real_t *vj = vertices[j]();
-   real_t length = 0.;
-
-   for (int k = 0; k < spaceDim; k++)
-   {
-      length += (vi[k]-vj[k])*(vi[k]-vj[k]);
    }
-
-   return sqrt(length);
 }
 
 // static method
