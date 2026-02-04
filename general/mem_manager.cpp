@@ -51,20 +51,135 @@
 #define MAP_ANONYMOUS MAP_ANON
 #endif
 
+#include <sstream>
+
 // Internal debug option, useful for tracking some memory manager operations.
 // #define MFEM_TRACK_MEM_MANAGER
 
 namespace mfem
 {
 
+BenchTimer &BenchTimer::Instance()
+{
+   static BenchTimer v;
+   return v;
+}
+
+BenchTimer::BenchTimer()
+{
+   glob_start = timer.now();
+   start_points.resize(7);
+   durations.resize(start_points.size());
+   call_counts.resize(start_points.size());
+}
+
+BenchTimer::~BenchTimer()
+{
+   auto tot_time = timer.now() - glob_start;
+   std::vector<double> sums;
+   for (auto &v : durations)
+   {
+      sums.emplace_back(
+         std::chrono::duration_cast<std::chrono::duration<double>>(v).count());
+   }
+   mfem::out << "Total time: "
+             << std::chrono::duration_cast<std::chrono::duration<double>>(
+                tot_time)
+             .count()
+             << std::endl;
+   mfem::out << "ReadWrite [" << call_counts[0] << "]: " << sums[0] << " s"
+             << std::endl;
+   mfem::out << "Read [" << call_counts[1] << "]: " << sums[1] << " s"
+             << std::endl;
+   mfem::out << "Write [" << call_counts[2] << "]: " << sums[2] << " s"
+             << std::endl;
+   mfem::out << "SyncAlias [" << call_counts[3] << "]: " << sums[3] << " s"
+             << std::endl;
+   mfem::out << "Copy [" << call_counts[4] << "]: " << sums[4] << " s"
+             << std::endl;
+   mfem::out << "CopyFromHost [" << call_counts[5] << "]: " << sums[5] << " s"
+             << std::endl;
+   mfem::out << "CopyToHost [" << call_counts[6] << "]: " << sums[6] << " s"
+             << std::endl;
+}
+
+ScopeBench::ScopeBench(size_t i) : idx(i)
+{
+   ++BenchTimer::Instance().call_counts[i];
+   MFEM_DEVICE_SYNC;
+   BenchTimer::Instance().start_points[i] = BenchTimer::Instance().timer.now();
+}
+
+ScopeBench::~ScopeBench()
+{
+   MFEM_DEVICE_SYNC;
+   BenchTimer::Instance().durations[idx] +=
+      BenchTimer::Instance().timer.now() -
+      BenchTimer::Instance().start_points[idx];
+}
+
+std::ostream &mem_op_debug()
+{
+   static size_t op_idx = 0;
+   return mfem::out << "[DEBUG] " << op_idx++ << ": ";
+}
+
+std::string mem_op_debug_copy_type(MemoryType src_loc, MemoryType dst_loc)
+{
+   std::stringstream res;
+   switch (src_loc)
+   {
+      case MemoryType::HOST:
+      case MemoryType::HOST_32:
+      case MemoryType::HOST_64:
+      case MemoryType::HOST_DEBUG:
+      case MemoryType::HOST_UMPIRE:
+      case MemoryType::HOST_PINNED:
+         res << 'H';
+         break;
+      case MemoryType::MANAGED:
+      case MemoryType::DEVICE:
+      case MemoryType::DEVICE_DEBUG:
+      case MemoryType::DEVICE_UMPIRE:
+      case MemoryType::DEVICE_UMPIRE_2:
+         res << 'D';
+         break;
+      default:
+         break;
+   }
+   res << "to";
+   switch (dst_loc)
+   {
+      case MemoryType::HOST:
+      case MemoryType::HOST_32:
+      case MemoryType::HOST_64:
+      case MemoryType::HOST_DEBUG:
+      case MemoryType::HOST_UMPIRE:
+      case MemoryType::HOST_PINNED:
+         res << 'H';
+         break;
+      case MemoryType::MANAGED:
+      case MemoryType::DEVICE:
+      case MemoryType::DEVICE_DEBUG:
+      case MemoryType::DEVICE_UMPIRE:
+      case MemoryType::DEVICE_UMPIRE_2:
+         res << 'D';
+         break;
+      default:
+         break;
+   }
+   return res.str();
+}
+
 MemoryType GetMemoryType(MemoryClass mc)
 {
+   auto &inst = MemoryManager::instance();
    switch (mc)
    {
-      case MemoryClass::HOST:    return mm.GetHostMemoryType();
+      case MemoryClass::HOST:    return inst.GetHostMemoryType();
       case MemoryClass::HOST_32: return MemoryType::HOST_32;
       case MemoryClass::HOST_64: return MemoryType::HOST_64;
-      case MemoryClass::DEVICE:  return mm.GetDeviceMemoryType();
+      case MemoryClass::DEVICE:  return inst.GetDeviceMemoryType();
       case MemoryClass::MANAGED: return MemoryType::MANAGED;
    }
    MFEM_VERIFY(false,"");
@@ -93,6 +208,24 @@ bool MemoryClassContainsType(MemoryClass mc, MemoryType mt)
 }
 
 
+MemoryClass operator*(MemoryClass mc1, MemoryClass mc2)
+{
+   //          | HOST     HOST_32  HOST_64  DEVICE   MANAGED
+   // ---------+---------------------------------------------
+   //  HOST    | HOST     HOST_32  HOST_64  DEVICE   MANAGED
+   //  HOST_32 | HOST_32  HOST_32  HOST_64  DEVICE   MANAGED
+   //  HOST_64 | HOST_64  HOST_64  HOST_64  DEVICE   MANAGED
+   //  DEVICE  | DEVICE   DEVICE   DEVICE   DEVICE   MANAGED
+   //  MANAGED | MANAGED  MANAGED  MANAGED  MANAGED  MANAGED
+
+   // Using the enumeration ordering:
+   //    HOST < HOST_32 < HOST_64 < DEVICE < MANAGED,
+   // the above table is simply: a*b = max(a,b).
+
+   return std::max(mc1, mc2);
+}
+
+#if !USE_NEW_MEM_MANAGER
 static void MFEM_VERIFY_TYPES(const MemoryType h_mt, const MemoryType d_mt)
 {
    MFEM_VERIFY(IsHostMemory(h_mt), "h_mt = " << (int)h_mt);
@@ -127,24 +260,6 @@ static void MFEM_VERIFY_TYPES(const MemoryType h_mt, const MemoryType d_mt)
 #endif
 }
 
-MemoryClass operator*(MemoryClass mc1, MemoryClass mc2)
-{
-   //          | HOST     HOST_32  HOST_64  DEVICE   MANAGED
-   // ---------+---------------------------------------------
-   //  HOST    | HOST     HOST_32  HOST_64  DEVICE   MANAGED
-   //  HOST_32 | HOST_32  HOST_32  HOST_64  DEVICE   MANAGED
-   //  HOST_64 | HOST_64  HOST_64  HOST_64  DEVICE   MANAGED
-   //  DEVICE  | DEVICE   DEVICE   DEVICE   DEVICE   MANAGED
-   //  MANAGED | MANAGED  MANAGED  MANAGED  MANAGED  MANAGED
-
-   // Using the enumeration ordering:
-   //    HOST < HOST_32 < HOST_64 < DEVICE < MANAGED,
-   // the above table is simply: a*b = max(a,b).
-
-   return std::max(mc1, mc2);
-}
-
-
 // Instantiate Memory<T>::PrintFlags for T = int and T = real_t.
 template void Memory<int>::PrintFlags() const;
 template void Memory<real_t>::PrintFlags() const;
@@ -152,7 +267,6 @@ template void Memory<real_t>::PrintFlags() const;
 // Instantiate Memory<T>::CompareHostAndDevice for T = int and T = real_t.
 template int Memory<int>::CompareHostAndDevice(int size) const;
 template int Memory<real_t>::CompareHostAndDevice(int size) const;
-
 
 namespace internal
 {
@@ -1244,6 +1358,8 @@ void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
             MFEM_ASSERT((const char*)dst_h_ptr + bytes <= src_h_ptr ||
                         (const char*)src_h_ptr + bytes <= dst_h_ptr,
                         "data overlaps!");
+            MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY2(bytes, MemoryType::HOST,
+                                              MemoryType::HOST);
             std::memcpy(dst_h_ptr, src_h_ptr, bytes);
          }
       }
@@ -1254,6 +1370,8 @@ void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
             MemoryType src_d_mt = (src_flags & Mem::ALIAS) ?
                                   maps->aliases.at(src_h_ptr).mem->d_mt :
                                   maps->memories.at(src_h_ptr).d_mt;
+            MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY2(bytes, MemoryType::HOST,
+                                              MemoryType::DEVICE);
             ctrl->Device(src_d_mt)->DtoH(dst_h_ptr, src_d_ptr, bytes);
          }
       }
@@ -1271,6 +1389,8 @@ void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
          const MemoryType d_mt = known ?
                                  maps->memories.at(dst_h_ptr).d_mt :
                                  maps->aliases.at(dst_h_ptr).mem->d_mt;
+         MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY2(bytes, MemoryType::HOST,
+                                           MemoryType::DEVICE);
          ctrl->Device(d_mt)->HtoD(dest_d_ptr, src_h_ptr, bytes);
       }
       else
@@ -1283,6 +1403,8 @@ void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
             const MemoryType d_mt = known ?
                                     maps->memories.at(dst_h_ptr).d_mt :
                                     maps->aliases.at(dst_h_ptr).mem->d_mt;
+            MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY2(bytes, MemoryType::DEVICE,
+                                              MemoryType::DEVICE);
             ctrl->Device(d_mt)->DtoD(dest_d_ptr, src_d_ptr, bytes);
          }
       }
@@ -1304,6 +1426,8 @@ void MemoryManager::CopyToHost_(void *dest_h_ptr, const void *src_h_ptr,
          MFEM_ASSERT((char*)dest_h_ptr + bytes <= src_h_ptr ||
                      (const char*)src_h_ptr + bytes <= dest_h_ptr,
                      "data overlaps!");
+         MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(bytes, MemoryType::HOST,
+                                          MemoryType::HOST);
          std::memcpy(dest_h_ptr, src_h_ptr, bytes);
       }
    }
@@ -1316,6 +1440,8 @@ void MemoryManager::CopyToHost_(void *dest_h_ptr, const void *src_h_ptr,
       MemoryType src_d_mt = (src_flags & Mem::ALIAS) ?
                             maps->aliases.at(src_h_ptr).mem->d_mt :
                             maps->memories.at(src_h_ptr).d_mt;
+      MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(bytes, MemoryType::DEVICE,
+                                       MemoryType::HOST);
       ctrl->Device(src_d_mt)->DtoH(dest_h_ptr, src_d_ptr, bytes);
    }
 }
@@ -1335,6 +1461,8 @@ void MemoryManager::CopyFromHost_(void *dest_h_ptr, const void *src_h_ptr,
          MFEM_ASSERT((char*)dest_h_ptr + bytes <= src_h_ptr ||
                      (const char*)src_h_ptr + bytes <= dest_h_ptr,
                      "data overlaps!");
+         MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(bytes, MemoryType::HOST,
+                                          MemoryType::HOST);
          std::memcpy(dest_h_ptr, src_h_ptr, bytes);
       }
    }
@@ -1346,6 +1474,8 @@ void MemoryManager::CopyFromHost_(void *dest_h_ptr, const void *src_h_ptr,
       MemoryType dest_d_mt = (dest_flags & Mem::ALIAS) ?
                              maps->aliases.at(dest_h_ptr).mem->d_mt :
                              maps->memories.at(dest_h_ptr).d_mt;
+      MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(bytes, MemoryType::HOST,
+                                       MemoryType::DEVICE);
       ctrl->Device(dest_d_mt)->HtoD(dest_d_ptr, src_h_ptr, bytes);
    }
    dest_flags = dest_flags &
@@ -1512,7 +1642,12 @@ void *MemoryManager::GetDevicePtr(const void *h_ptr, size_t bytes,
    if (copy_data)
    {
       MFEM_ASSERT(bytes <= mem.bytes, "invalid copy size");
-      if (bytes) { ctrl->Device(d_mt)->HtoD(mem.d_ptr, h_ptr, bytes); }
+      if (bytes)
+      {
+         MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(bytes, MemoryType::HOST,
+                                          MemoryType::DEVICE);
+         ctrl->Device(d_mt)->HtoD(mem.d_ptr, h_ptr, bytes);
+      }
    }
    ctrl->Host(h_mt)->Protect(mem, bytes);
    return mem.d_ptr;
@@ -1548,7 +1683,11 @@ void *MemoryManager::GetAliasDevicePtr(const void *alias_ptr, size_t bytes,
    if (mem.d_ptr) { ctrl->Device(d_mt)->AliasUnprotect(alias_d_ptr, bytes); }
    ctrl->Host(h_mt)->AliasUnprotect(alias_ptr, bytes);
    if (copy && mem.d_ptr)
-   { ctrl->Device(d_mt)->HtoD(alias_d_ptr, alias_h_ptr, bytes); }
+   {
+      MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(bytes, MemoryType::HOST,
+                                       MemoryType::DEVICE);
+      ctrl->Device(d_mt)->HtoD(alias_d_ptr, alias_h_ptr, bytes);
+   }
    ctrl->Host(h_mt)->AliasProtect(alias_ptr, bytes);
    return alias_d_ptr;
 }
@@ -1564,7 +1703,12 @@ void *MemoryManager::GetHostPtr(const void *ptr, size_t bytes, bool copy)
    // Aliases might have done some protections
    ctrl->Host(h_mt)->Unprotect(mem, bytes);
    if (mem.d_ptr) { ctrl->Device(d_mt)->Unprotect(mem); }
-   if (copy && mem.d_ptr) { ctrl->Device(d_mt)->DtoH(mem.h_ptr, mem.d_ptr, bytes); }
+   if (copy && mem.d_ptr)
+   {
+      MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(bytes, MemoryType::DEVICE,
+                                       MemoryType::HOST);
+      ctrl->Device(d_mt)->DtoH(mem.h_ptr, mem.d_ptr, bytes);
+   }
    if (mem.d_ptr) { ctrl->Device(d_mt)->Protect(mem); }
    return mem.h_ptr;
 }
@@ -1584,7 +1728,11 @@ void *MemoryManager::GetAliasHostPtr(const void *ptr, size_t bytes,
    ctrl->Host(h_mt)->AliasUnprotect(alias_h_ptr, bytes);
    if (mem->d_ptr) { ctrl->Device(d_mt)->AliasUnprotect(alias_d_ptr, bytes); }
    if (copy_data && mem->d_ptr)
-   { ctrl->Device(d_mt)->DtoH(const_cast<void*>(ptr), alias_d_ptr, bytes); }
+   {
+      MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(bytes, MemoryType::DEVICE,
+                                       MemoryType::HOST);
+      ctrl->Device(d_mt)->DtoH(const_cast<void *>(ptr), alias_d_ptr, bytes);
+   }
    if (mem->d_ptr) { ctrl->Device(d_mt)->AliasProtect(alias_d_ptr, bytes); }
    return alias_h_ptr;
 }
@@ -1748,7 +1896,6 @@ int MemoryManager::CompareHostAndDevice_(void *h_ptr, size_t size,
    return res;
 }
 
-
 void MemoryPrintFlags(unsigned flags)
 {
    typedef Memory<int> Mem;
@@ -1786,6 +1933,11 @@ void MemoryManager::CheckHostMemoryType_(MemoryType h_mt, void *h_ptr,
 
 MemoryManager mm;
 
+MemoryManager& MemoryManager::instance()
+{
+   return mm;
+}
+
 bool MemoryManager::exists = false;
 bool MemoryManager::configured = false;
 
@@ -1812,7 +1964,7 @@ const char * MemoryManager::h_umpire_name = "MFEM_HOST";
 const char * MemoryManager::d_umpire_name = "MFEM_DEVICE";
 const char * MemoryManager::d_umpire_2_name = "MFEM_DEVICE_2";
 #endif
-
+#endif
 
 const char *MemoryTypeName[MemoryTypeSize] =
 {

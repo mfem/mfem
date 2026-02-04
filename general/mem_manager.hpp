@@ -28,8 +28,53 @@
 #endif
 #endif
 
+#include <chrono>
+#include <vector>
+
+#define USE_NEW_MEM_MANAGER 1
+// #define MFEM_ENABLE_MEM_OP_DEBUG
+// #define MFEM_MEM_OP_BENCH(ARG) ScopeBench sbench(ARG)
+#define MFEM_MEM_OP_BENCH(ARG)
+
+#ifdef MFEM_ENABLE_MEM_OP_DEBUG
+#define MFEM_MEM_OP_DEBUG(ARG) mfem::mem_op_debug() << ARG
+#define MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(ARG, src_loc, dst_loc)                \
+   mfem::mem_op_debug() << "  BatchMemCopy "                                   \
+                        << mfem::mem_op_debug_copy_type(src_loc, dst_loc)      \
+                        << " " << ARG << std::endl
+#define MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY2(ARG, src_loc, dst_loc)               \
+   mfem::mem_op_debug() << "  BatchMemCopy2 "                                  \
+                        << mfem::mem_op_debug_copy_type(src_loc, dst_loc)      \
+                        << " " << ARG << std::endl
+#else
+#define MFEM_MEM_OP_DEBUG(ARG)
+#define MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(ARG, src_loc, dst_loc)
+#define MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY2(ARG, src_loc, dst_loc)
+#endif
+
 namespace mfem
 {
+
+struct BenchTimer
+{
+   std::chrono::high_resolution_clock timer;
+   std::vector<size_t> call_counts;
+   std::vector<std::chrono::high_resolution_clock::time_point> start_points;
+   std::vector<std::chrono::high_resolution_clock::duration> durations;
+   std::chrono::high_resolution_clock::time_point glob_start;
+
+   static BenchTimer& Instance();
+
+   BenchTimer();
+   ~BenchTimer();
+};
+
+struct ScopeBench
+{
+   size_t idx;
+   ScopeBench(size_t i);
+   ~ScopeBench();
+};
 
 // Implementation of MFEM's lightweight device/host memory manager designed to
 // work seamlessly with the OCCA, RAJA, and other kernels supported by MFEM.
@@ -62,6 +107,9 @@ enum class MemoryType
                         parameters to request the use of the default host or
                         device MemoryType. */
 };
+
+std::ostream &mem_op_debug();
+std::string mem_op_debug_copy_type(MemoryType src_loc, MemoryType dst_loc);
 
 /// Static casts to 'int' and sizes of some useful memory types.
 constexpr int MemoryTypeSize = static_cast<int>(MemoryType::SIZE);
@@ -112,7 +160,7 @@ bool MemoryClassContainsType(MemoryClass mc, MemoryType mt);
 
     HOST < HOST_32 < HOST_64 < DEVICE < MANAGED. */
 MemoryClass operator*(MemoryClass mc1, MemoryClass mc2);
-
+#if !USE_NEW_MEM_MANAGER
 /// Class used by MFEM to store pointers to host and/or device memory.
 /** The template class parameter, T, must be a plain-old-data (POD) type.
 
@@ -505,6 +553,7 @@ public:
        validated by a previous call to Read() or ReadWrite() with
        the same MemoryClass. */
    inline T *Write(MemoryClass mc, int size);
+   T *HostWrite() { return Write(MemoryClass::HOST, Capacity()); }
 
    /// Copy the host/device pointer validity flags from @a other to @a *this.
    /** This method synchronizes the pointer validity flags of two Memory objects
@@ -797,6 +846,8 @@ public:
    MemoryManager();
    ~MemoryManager();
 
+   static MemoryManager& instance();
+
    /// Initialize the memory manager.
    void Init();
 
@@ -893,7 +944,7 @@ public:
                                                       };
 #endif
 };
-
+#endif
 
 #ifdef MFEM_USE_MPI
 
@@ -934,7 +985,7 @@ inline bool HypreUsingGPU()
 
 #endif // MFEM_USE_MPI
 
-
+#if !USE_NEW_MEM_MANAGER
 // Inline methods
 
 template <typename T>
@@ -1191,6 +1242,8 @@ inline Memory<T>::operator const U*() const
 template <typename T>
 inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
 {
+   MFEM_MEM_OP_BENCH(0);
+   MFEM_MEM_OP_DEBUG("** read_write " << bytes << std::endl);
    const size_t bytes = size * sizeof(T);
    if (!(flags & Registered))
    {
@@ -1204,6 +1257,8 @@ inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
 template <typename T>
 inline const T *Memory<T>::Read(MemoryClass mc, int size) const
 {
+   MFEM_MEM_OP_BENCH(1);
+   MFEM_MEM_OP_DEBUG("** read " << bytes << std::endl);
    const size_t bytes = size * sizeof(T);
    if (!(flags & Registered))
    {
@@ -1217,6 +1272,8 @@ inline const T *Memory<T>::Read(MemoryClass mc, int size) const
 template <typename T>
 inline T *Memory<T>::Write(MemoryClass mc, int size)
 {
+   MFEM_MEM_OP_BENCH(2);
+   MFEM_MEM_OP_DEBUG("** write " << bytes << std::endl);
    const size_t bytes = size * sizeof(T);
    if (!(flags & Registered))
    {
@@ -1244,6 +1301,8 @@ inline void Memory<T>::Sync(const Memory &other) const
 template <typename T>
 inline void Memory<T>::SyncAlias(const Memory &base, int alias_size) const
 {
+   MFEM_MEM_OP_BENCH(3);
+   MFEM_MEM_OP_DEBUG("** SyncAlias " << alias_size * sizeof(T) << std::endl);
    // Assuming that if *this is registered then base is also registered.
    MFEM_ASSERT(!(flags & Registered) || (base.flags & Registered),
                "invalid base state");
@@ -1281,6 +1340,8 @@ inline bool Memory<T>::DeviceIsValid() const
 template <typename T>
 inline void Memory<T>::CopyFrom(const Memory &src, int size)
 {
+   MFEM_MEM_OP_BENCH(4);
+   MFEM_MEM_OP_DEBUG("** Copy " << size * sizeof(T) << std::endl);
    MFEM_VERIFY(src.capacity>=size && capacity>=size, "Incorrect size");
    if (size <= 0) { return; }
    if (!(flags & Registered) && !(src.flags & Registered))
@@ -1289,6 +1350,9 @@ inline void Memory<T>::CopyFrom(const Memory &src, int size)
       {
          MFEM_ASSERT(h_ptr + size <= src.h_ptr || src.h_ptr + size <= h_ptr,
                      "data overlaps!");
+         MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY2(size * sizeof(T), MemoryType::HOST,
+                                           MemoryType::HOST);
+
          std::memcpy(h_ptr, src, size*sizeof(T));
       }
       // *this is not registered, so (flags & VALID_HOST) must be true
@@ -1302,6 +1366,8 @@ inline void Memory<T>::CopyFrom(const Memory &src, int size)
 template <typename T>
 inline void Memory<T>::CopyFromHost(const T *src, int size)
 {
+   ScopeBench sbench(5);
+   MFEM_MEM_OP_DEBUG("** CopyFromHost " << size * sizeof(T) << std::endl);
    MFEM_VERIFY(capacity>=size, "Incorrect size");
    if (size <= 0) { return; }
    if (!(flags & Registered))
@@ -1310,6 +1376,8 @@ inline void Memory<T>::CopyFromHost(const T *src, int size)
       {
          MFEM_ASSERT(h_ptr + size <= src || src + size <= h_ptr,
                      "data overlaps!");
+         MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(size * sizeof(T), MemoryType::HOST,
+                                          MemoryType::HOST);
          std::memcpy(h_ptr, src, size*sizeof(T));
       }
       // *this is not registered, so (flags & VALID_HOST) must be true
@@ -1329,6 +1397,8 @@ inline void Memory<T>::CopyTo(Memory &dest, int size) const
 template <typename T>
 inline void Memory<T>::CopyToHost(T *dest, int size) const
 {
+   ScopeBench sbench(6);
+   MFEM_MEM_OP_DEBUG("** CopyToHost " << size * sizeof(T) << std::endl);
    MFEM_VERIFY(capacity>=size, "Incorrect size");
    if (size <= 0) { return; }
    if (!(flags & Registered))
@@ -1337,6 +1407,8 @@ inline void Memory<T>::CopyToHost(T *dest, int size) const
       {
          MFEM_ASSERT(h_ptr + size <= dest || dest + size <= h_ptr,
                      "data overlaps!");
+         MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(size * sizeof(T), MemoryType::HOST,
+                                          MemoryType::HOST);
          std::memcpy(dest, h_ptr, size*sizeof(T));
       }
    }
@@ -1368,7 +1440,9 @@ inline int Memory<T>::CompareHostAndDevice(int size) const
 
 /// The (single) global memory manager object
 extern MFEM_EXPORT MemoryManager mm;
-
+#endif
 } // namespace mfem
+
+#include "resource_manager.hpp"
 
 #endif // MFEM_MEM_MANAGER_HPP

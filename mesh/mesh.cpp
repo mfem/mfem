@@ -9028,7 +9028,7 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
 
    ElementToElementTable();
 
-   partitioning = new int[NumOfElements];
+   partitioning = Memory<int>(NumOfElements, MemoryType::HOST);
 
    if (nparts == 1)
    {
