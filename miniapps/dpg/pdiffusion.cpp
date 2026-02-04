@@ -416,6 +416,8 @@ int main(int argc, char *argv[])
       cg.SetPreconditioner(*preconditioner);
       cg.Mult(B, X);
 
+      delete preconditioner;
+
       a->RecoverFEMSolution(X,x);
 
       Vector & residuals = a->ComputeResidual(x);
