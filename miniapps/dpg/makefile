@@ -20,12 +20,12 @@ CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-DPG_REAL_SEQ_SRC = util/weakform.cpp util/blockstaticcond.cpp
-DPG_REAL_PAR_SRC = $(DPG_REAL_SEQ_SRC) util/pweakform.cpp util/preconditioners.cpp
+DPG_REAL_SEQ_SRC = util/weakform.cpp util/blockstaticcond.cpp util/preconditioners.cpp
+DPG_REAL_PAR_SRC = $(DPG_REAL_SEQ_SRC) util/pweakform.cpp 
 DPG_REAL_OBJ = $(DPG_REAL_PAR_SRC:.cpp=.o)
 
-DPG_COMPLEX_SEQ_SRC = util/complexweakform.cpp util/complexstaticcond.cpp util/pml.cpp
-DPG_COMPLEX_PAR_SRC = $(DPG_COMPLEX_SEQ_SRC) util/pcomplexweakform.cpp  util/preconditioners.cpp
+DPG_COMPLEX_SEQ_SRC = util/complexweakform.cpp util/complexstaticcond.cpp util/pml.cpp util/preconditioners.cpp
+DPG_COMPLEX_PAR_SRC = $(DPG_COMPLEX_SEQ_SRC) util/pcomplexweakform.cpp  
 DPG_COMPLEX_OBJ = $(DPG_COMPLEX_PAR_SRC:.cpp=.o)
 
 DIFFUSION_SRC = diffusion.cpp $(DPG_REAL_SEQ_SRC)
