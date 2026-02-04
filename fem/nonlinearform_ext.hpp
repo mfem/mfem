@@ -201,26 +201,29 @@ class FANonlinearFormExtension : public EANonlinearFormExtension
       FAGradient(const FANonlinearFormExtension &ext);
 
       /// Assumes that @a x and @a y are ldof Vector%s.
-      virtual void Mult(const Vector &x, Vector &y) const;
+      void Mult(const Vector &x, Vector &y) const override;
 
       /// Assumes that @a g is an ldof Vector.
       void AssembleGrad(const Vector &g);
 
       /// Assemble the diagonal of the gradient into the ldof Vector @a diag.
-      virtual void AssembleDiagonal(Vector &diag) const;
+      void AssembleDiagonal(Vector &diag) const override;
 
       /** @brief Define the prolongation Operator for use with methods like
           FormSystemOperator. */
-      virtual const Operator *GetProlongation() const
+      const Operator *GetProlongation() const override
       {
          return ext.fes.GetProlongationMatrix();
       }
+
+      void FormSystemOperator(const Array<int> &ess_tdof_list,
+                                   Operator* &A) const override;
 
       void Update();
    };
 
  protected:
-   mutable SparseMatrix *mat;
+   mutable SparseMatrix *mat = nullptr;
    mutable FAGradient faGrad;
 
  public:
@@ -239,6 +242,11 @@ class FANonlinearFormExtension : public EANonlinearFormExtension
        which enables support for the method FormSystemOperator to define the
        matrix-free global true-dof gradient with imposed boundary conditions. */
    virtual Operator &GetGradient(const Vector &x) const override;
+
+   void RAP(OperatorHandle &A) const;
+   /** @note Always does `DIAG_ONE` policy to be consistent with
+       `Operator::FormConstrainedSystemOperator`. */
+   void EliminateBC(const Array<int> &ess_dofs, OperatorHandle &A) const;
 };
 
 /// Data and methods for unassembled nonlinear forms

@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-// Implementations of classes FABilinearFormExtension, EABilinearFormExtension,
-// PABilinearFormExtension and MFBilinearFormExtension.
+// Implementations of classes FANonlinearFormExtension, EANonlinearFormExtension,
+// PANonlinearFormExtension and MFNonlinearFormExtension.
 
 #include "pnonlinearform.hpp"
 #include "../general/forall.hpp"
@@ -266,6 +266,54 @@ void FANonlinearFormExtension::FAGradient::AssembleDiagonal(Vector &diag) const
 void FANonlinearFormExtension::FAGradient::Update()
 {
    height = width = ext.Height();
+}
+
+void FANonlinearFormExtension::RAP(OperatorHandle &A) const
+{
+   MFEM_ASSERT(this->mat, "We should have at least allocated our mat by now");
+
+#ifdef MFEM_USE_MPI
+   if ( auto pnlf = dynamic_cast<const ParNonlinearForm*>(nlf) )
+   {
+      const auto *const pfespace = pnlf->ParFESpace();
+      MFEM_ASSERT(pfespace, "Need the parallel nonlinar form to have its parallel finite element space populated");
+      mfem::ParallelRAP(*pfespace, *this->mat, A);
+   }
+   else
+#endif
+   {
+      std::vector<SparseMatrix *> mats_to_assemble = {this->mat};
+      mfem::ConformingAssemble(this->fes, mats_to_assemble);
+      this->mat = mats_to_assemble.front();
+      A.Reset(this->mat, false);
+   }
+}
+
+void FANonlinearFormExtension::EliminateBC(const Array<int> &ess_dofs,
+                                          OperatorHandle &A) const
+{
+#ifdef MFEM_USE_MPI
+   if ( dynamic_cast<const ParNonlinearForm*>(nlf) )
+   {
+      A.As<HypreParMatrix>()->EliminateBC(ess_dofs,
+                                          DiagonalPolicy::DIAG_ONE);
+   }
+   else
+#endif
+   {
+      A.As<SparseMatrix>()->EliminateBC(ess_dofs,
+                                        DiagonalPolicy::DIAG_ONE);
+   }
+}
+
+void FANonlinearFormExtension::FAGradient::FormSystemOperator(const Array<int> &ess_tdof_list,
+                                                              Operator *&A) const
+{
+   OperatorHandle handleA;
+   ext.RAP(handleA);
+   ext.EliminateBC(ess_tdof_list, handleA);
+   handleA.SetOperatorOwner(false); // Don't delete the operator when this function goes out of scope
+   A = handleA.Ptr();
 }
 
 Operator &FANonlinearFormExtension::GetGradient(const Vector &x) const
