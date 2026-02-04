@@ -2534,15 +2534,22 @@ void MemoryManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
             if (dseg.lowers[i])
             {
                size_t curr = find_marker(dst_seg, dst_offset, i);
+#if 0
                size_t tmp = CopyImpl(
                                dseg.lowers[i], dseg.mtypes[i], dst_offset, curr, nbytes,
                                sseg.lowers[i], sseg.lowers[1 - i], sseg.mtypes[i],
                                sseg.mtypes[1 - i], src_offset, currs[i], currs[1 - i]);
-               // if (ncopies && tmp)
-               // {
-               //    mfem::out << "WARNING: Copy to host and device" << std::endl;
-               // }
-               // ncopies += tmp;
+               if (ncopies && tmp)
+               {
+                  mfem::out << "WARNING: Copy to host and device" << std::endl;
+               }
+               ncopies += tmp;
+#else
+               CopyImpl(dseg.lowers[i], dseg.mtypes[i], dst_offset, curr,
+                        nbytes, sseg.lowers[i], sseg.lowers[1 - i],
+                        sseg.mtypes[i], sseg.mtypes[1 - i], src_offset,
+                        currs[i], currs[1 - i]);
+#endif
             }
          }
       }
