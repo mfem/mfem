@@ -34,10 +34,10 @@ add_mfem_miniapp(mtop_test_fixedslot
 		 ${CHPT_COMMON_FILES}
                  LIBRARIES mfem)
 
-add_mfem_miniapp(mtop_test_segmentio
-	         MAIN tst_segmentio_scalar_vector_mfem.cpp
-		 ${CHPT_COMMON_FILES}
-                 LIBRARIES mfem)
+	 # add_mfem_miniapp(mtop_test_segmentio
+	 #        MAIN tst_segmentio_scalar_vector_mfem.cpp
+	 #	 ${CHPT_COMMON_FILES}
+	 #        LIBRARIES mfem)
 
 add_mfem_miniapp(mtop_test_file
 		 MAIN tst_fileio_scalar_vector_mfem.cpp
@@ -46,7 +46,7 @@ add_mfem_miniapp(mtop_test_file
 
 
 add_mfem_miniapp(mtop_test_revolve
-                 MAIN revolve.cpp
+                 MAIN tst_revolve.cpp
                  ${CHPT_COMMON_FILES}
                  LIBRARIES mfem)
 

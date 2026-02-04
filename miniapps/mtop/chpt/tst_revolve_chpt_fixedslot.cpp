@@ -1,6 +1,5 @@
 #include "mfem.hpp"
 
-#include "revolve_checkpointing.hpp"
 
 #include <cmath>
 #include <iomanip>

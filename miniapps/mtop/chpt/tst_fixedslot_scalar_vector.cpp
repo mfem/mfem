@@ -1,7 +1,5 @@
 #include "mfem.hpp"
 
-#include "dynamic_checkpointing.hpp"
-#include "fixed_slot_checkpoint_storage.hpp"
 
 #include <cmath>
 #include <iomanip>

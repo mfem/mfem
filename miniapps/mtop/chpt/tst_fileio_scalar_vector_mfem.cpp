@@ -1,6 +1,4 @@
 #include "mfem.hpp"
-#include "dynamic_checkpointing.hpp"
-#include "file_checkpoint_storage.hpp"
 
 #include <cmath>
 #include <iomanip>
