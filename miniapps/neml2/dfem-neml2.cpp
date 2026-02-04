@@ -79,10 +79,11 @@ int main(int argc, char *argv[])
    H1_FECollection fec(1, /*dim=*/dim);
    ParFiniteElementSpace fe_space(&pmesh, &fec, /*vdim=*/dim,
                                   Ordering::byNODES);
+   const auto num_dofs = fe_space.GlobalTrueVSize();
    if (myid == 0)
    {
-      std::cout << "Number of finite element unknowns: "
-                << fe_space.GlobalTrueVSize() << std::endl;
+      std::cout << "Number of finite element unknowns: " << num_dofs
+                << std::endl;
    }
 
    // Set up the integration rule
