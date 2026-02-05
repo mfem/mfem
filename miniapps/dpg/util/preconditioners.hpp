@@ -33,98 +33,77 @@ Solver * MakeFESpaceDefaultSolver(
    const ParFiniteElementSpace * pfespace, int print_level);
 
 
+/// Shared helper class (real/complex) p-refinement multigrid:
+/// - builds FE hierarchy
+/// - builds transfer operators
+///
+class PRefinementHierarchy
+{
+public:
+   Array<int> orders;
+   const Array<ParFiniteElementSpace*> &pfes;
+
+   ParMesh *pmesh = nullptr;
+   int npfes = 0;
+   int nblocks = 0;
+   int maxlevels = 1;
+
+   // Owned levels: 0..maxlevels-2
+   std::vector<std::vector<std::unique_ptr<FiniteElementCollection>>> fec_owned;
+   std::vector<std::vector<std::unique_ptr<ParFiniteElementSpace>>>   fes_owned;
+
+   // Transfer operators per level and block (owned here)
+   std::vector<std::vector<std::unique_ptr<PRefinementTransferOperator>>> T_level;
+
+   PRefinementHierarchy(const Array<ParFiniteElementSpace*> &pfes_, int nblocks_);
+
+   const ParFiniteElementSpace* GetParFESpace(int lev, int b) const;
+
+   int GetMinimumOrder(const ParFiniteElementSpace *pfespace) const;
+
+   /// Computes orders/maxlevels and constructs fec/fes hierarchy and T_level storage.
+   void BuildSpaceHierarchy();
+
+   /// Builds block-diagonal prolongation for level lev (coarse=lev, fine=lev+1).
+   /// Its diagonal blocks are HypreParMatrix*
+   /// returned by the transfer operators stored in T_level[lev][b].
+   BlockOperator *BuildProlongation(int lev);
+};
+
 class PRefinementMultigrid : public Multigrid
 {
 private:
-   // P_level : (level -> level+1), block-diagonal (one transfer per pfes block)
-   Array<int> orders;
-   const Array<ParFiniteElementSpace *> & pfes;
-   ParMesh * pmesh=nullptr;
-   int npfes;
-   const BlockOperator & Op;
-   int nblocks;
-   int maxlevels = 1;
-   Solver * coarse_prec = nullptr;
+   PRefinementHierarchy hierarchy;
+   const BlockOperator &Op;
 
-   // hierarchy of spaces
-   // Owned levels: 0..maxlevels-2
-   std::vector< std::vector<std::unique_ptr<FiniteElementCollection>> > fec_owned;
-   std::vector< std::vector<std::unique_ptr<ParFiniteElementSpace>> >   fes_owned;
-   std::vector< std::vector<PRefinementTransferOperator*> > T_level;
-   // prolongation matrices per level and block (owned here)
-   std::vector< std::vector<HypreParMatrix*> >  Pmat_level;
-
-   const ParFiniteElementSpace* GetParFESpace(int lev, int b) const
-   {
-      if (lev == maxlevels-1) { return pfes[b]; }
-      return fes_owned[lev][b].get();
-   }
-
-   const FiniteElementCollection* GetFEColl(int lev, int b) const
-   {
-      if (lev == maxlevels-1) { return pfes[b]->FEColl(); }
-      return fec_owned[lev][b].get();
-   }
-
-   int GetMinimumOrder(const ParFiniteElementSpace * pfespace) const
-   {
-      return (dynamic_cast<const L2_FECollection*>(pfespace->FEColl()) ||
-              dynamic_cast<const RT_FECollection*>(pfespace->FEColl())) ? 0 : 1;
-   }
+   std::unique_ptr<Solver> coarse_prec;
 
 public:
-   PRefinementMultigrid(const Array<ParFiniteElementSpace *> & pfes_,
-                        const BlockOperator & Op_, bool mumps_coarse_solver = false);
+   PRefinementMultigrid(const Array<ParFiniteElementSpace*> &pfes_,
+                        const BlockOperator &Op_,
+                        bool mumps_coarse_solver = false);
 
-   ~PRefinementMultigrid();
+   ~PRefinementMultigrid() override = default;
 };
+
 
 class ComplexPRefinementMultigrid : public Multigrid
 {
 private:
-   // P_level : (level -> level+1), block-diagonal (one transfer per pfes block)
-   Array<int> orders;
-   const Array<ParFiniteElementSpace *> & pfes;
-   ParMesh * pmesh=nullptr;
-   int npfes;
-   const ComplexOperator & Op;
-   int nblocks;
-   int maxlevels = 1;
-   Solver * coarse_prec = nullptr;
+   // NOTE: nblocks for the hierarchy is derived from Op.real() at construction time,
+   // so we store hierarchy behind a pointer to avoid a "dummy nblocks" constructor.
+   std::unique_ptr<PRefinementHierarchy> hierarchy;
 
-   // hierarchy of spaces
-   // Owned levels: 0..maxlevels-2
-   std::vector< std::vector<std::unique_ptr<FiniteElementCollection>> > fec_owned;
-   std::vector< std::vector<std::unique_ptr<ParFiniteElementSpace>> >   fes_owned;
-   std::vector< std::vector<PRefinementTransferOperator*> > T_level;
-   // prolongation matrices per level and block (owned here)
-   std::vector< std::vector<HypreParMatrix*> >  Pmat_level;
-
-   const ParFiniteElementSpace* GetParFESpace(int lev, int b) const
-   {
-      if (lev == maxlevels-1) { return pfes[b]; }
-      return fes_owned[lev][b].get();
-   }
-
-   const FiniteElementCollection* GetFEColl(int lev, int b) const
-   {
-      if (lev == maxlevels-1) { return pfes[b]->FEColl(); }
-      return fec_owned[lev][b].get();
-   }
-
-   int GetMinimumOrder(const ParFiniteElementSpace * pfespace) const
-   {
-      return (dynamic_cast<const L2_FECollection*>(pfespace->FEColl()) ||
-              dynamic_cast<const RT_FECollection*>(pfespace->FEColl())) ? 0 : 1;
-   }
+   const ComplexOperator &Op;
+   std::unique_ptr<Solver> coarse_prec;
 
 public:
-   ComplexPRefinementMultigrid(const Array<ParFiniteElementSpace *> & pfes_,
-                               const ComplexOperator & Op_, bool mumps_coarse_solver = false);
+   ComplexPRefinementMultigrid(const Array<ParFiniteElementSpace*> &pfes_,
+                               const ComplexOperator &Op_,
+                               bool mumps_coarse_solver = false);
 
-   ~ComplexPRefinementMultigrid();
+   ~ComplexPRefinementMultigrid() override = default;
 };
-
 
 #endif
 
