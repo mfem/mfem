@@ -296,7 +296,6 @@ private:
 };
 
 #ifdef MFEM_USE_MUMPS
-
 class ComplexMUMPSSolver : public mfem::Solver
 {
 public:
@@ -336,6 +335,7 @@ private:
 }; // mfem::MUMPSSolver class
 
 #endif // MFEM_USE_MUMPS
+
 #endif // MFEM_USE_MPI
 
 }

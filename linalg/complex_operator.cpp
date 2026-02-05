@@ -880,6 +880,14 @@ ComplexHypreParMatrix::getColStartStop(const HypreParMatrix * A_r,
 
 #ifdef MFEM_USE_MUMPS
 
+// Macro s.t. indices match MUMPS documentation
+#define MUMPS_ICNTL(I) icntl[(I) -1]
+#define MUMPS_CNTL(I) cntl[(I) -1]
+#define MUMPS_INFO(I) info[(I) -1]
+#define MUMPS_INFOG(I) infog[(I) -1]
+
+
+
 void ComplexMUMPSSolver::SetOperator(const Operator &op)
 {
    auto APtr = dynamic_cast<const ComplexHypreParMatrix *>(&op);
@@ -901,37 +909,63 @@ void ComplexMUMPSSolver::SetOperator(const Operator &op)
    hypre_CSRMatrix *csr_op_r = hypre_MergeDiagAndOffd(parcsr_op_r);
    hypre_CSRMatrix *csr_op_i = hypre_MergeDiagAndOffd(parcsr_op_i);
 #if MFEM_HYPRE_VERSION >= 21600
-   hypre_CSRMatrixBigJtoJ(csr_op);
+   hypre_CSRMatrixBigJtoJ(csr_op_r);
+   hypre_CSRMatrixBigJtoJ(csr_op_i);
 #endif
-   MFEM_VERIFY(csr_op_r->num_nonzeros == csr_op_i->num_nonzeros,
-               "Incompatible sparsity partters");
 
-   int *Iptr = csr_op_r->i;
-   int *Jptr = csr_op_r->j;
-   int n_loc = csr_op_r->num_rows;
-   row_start = parcsr_op_i->first_row_index;
-   int nnz = csr_op_r->num_nonzeros;
+   // Row metadata & pointers
+   int *Ir = csr_op_r->i;  int *Jr = csr_op_r->j;  double *Vr = csr_op_r->data;
+   int *Ii = csr_op_i->i;  int *Ji = csr_op_i->j;  double *Vi = csr_op_i->data;
 
-   int * I = new int[nnz];
-   int * J = new int[nnz];
+   const int n_loc = csr_op_r->num_rows;
 
-   // Fill in I and J arrays for
-   // COO format in 1-based indexing
-   int k = 0;
-   double * data_r = csr_op_r->data;
-   double * data_i = csr_op_i->data;
-   mumps_double_complex *zdata = new mumps_double_complex[nnz];
-   for (int i = 0; i < n_loc; i++)
+   // Use the same row base (global start) from the real part
+   row_start = parcsr_op_r->first_row_index;
+
+   // Build union COO (I,J,Z) with 1-based indices for MUMPS
+   std::vector<int> Icoo;
+   std::vector<int> Jcoo;
+   std::vector<mumps_double_complex> Zcoo;
+   Icoo.reserve(csr_op_r->num_nonzeros + csr_op_i->num_nonzeros);
+   Jcoo.reserve(Icoo.capacity());
+   Zcoo.reserve(Icoo.capacity());
+
+   // Iterate over each row
+   for (int r = 0; r < n_loc; ++r)
    {
-      for (int j = Iptr[i]; j < Iptr[i + 1]; j++)
+      // col -> (real, imag)
+      std::unordered_map<int, std::pair<double,double>> row;
+      row.reserve((Ir[r+1]-Ir[r]) + (Ii[r+1]-Ii[r]));
+
+      // insert real part entries
+      for (int p = Ir[r]; p < Ir[r+1]; ++p) { row[Jr[p]].first  = Vr[p]; }
+      // insert imag part entries
+      for (int p = Ii[r]; p < Ii[r+1]; ++p) { row[Ji[p]].second = Vi[p]; }
+
+      // Emit COO for this row (1-based for MUMPS).
+      // NOTE: unordered_map is unsorted; MUMPS accepts unsorted triplets.
+      for (const auto &kv : row)
       {
-         I[k] = row_start + i + 1;
-         J[k] = Jptr[k] + 1;
-         zdata[k].r = data_r[k];
-         zdata[k].i = data_i[k];
-         k++;
+         const int c = kv.first;
+         const double vr = kv.second.first;
+         const double vi = kv.second.second;
+
+         Icoo.push_back(row_start + r + 1);
+         Jcoo.push_back(c + 1);
+         Zcoo.push_back(mumps_double_complex{vr, vi});
       }
    }
+
+   // Now we know the final nnz
+   const int nnz = (int)Icoo.size();
+
+   int *I = new int[nnz];
+   int *J = new int[nnz];
+   mumps_double_complex *zdata = new mumps_double_complex[nnz];
+   std::copy(Icoo.begin(), Icoo.end(), I);
+   std::copy(Jcoo.begin(), Jcoo.end(), J);
+   std::copy(Zcoo.begin(), Zcoo.end(), zdata);
+
 
    // new MUMPS object
    if (id)
@@ -972,7 +1006,39 @@ void ComplexMUMPSSolver::SetOperator(const Operator &op)
 
    // MUMPS Factorization
    id->job = 2;
-   zmumps_c(id);
+   {
+      const int mem_relax_lim = 200;
+      while (true)
+      {
+#ifdef MFEM_USE_SINGLE
+         cmumps_c(id);
+#else
+         zmumps_c(id);
+#endif
+         if (id->MUMPS_INFOG(1) < 0)
+         {
+            if (id->MUMPS_INFOG(1) == -8 || id->MUMPS_INFOG(1) == -9)
+            {
+               id->MUMPS_ICNTL(14) += 20;
+               MFEM_VERIFY(id->MUMPS_ICNTL(14) <= mem_relax_lim,
+                           "Memory relaxation limit reached for MUMPS factorization");
+               if (myid == 0 && print_level > 0)
+               {
+                  mfem::out << "Re-running MUMPS factorization with memory relaxation "
+                            << id->MUMPS_ICNTL(14) << '\n';
+               }
+            }
+            else
+            {
+               MFEM_ABORT("Error during MUMPS numerical factorization");
+            }
+         }
+         else { break; }
+      }
+   }
+
+
+
 
    hypre_CSRMatrixDestroy(csr_op_r);
    hypre_CSRMatrixDestroy(csr_op_i);
@@ -1290,6 +1356,7 @@ void ComplexMUMPSSolver::RedistributeSol(const int * row_map,
    delete [] recv_count;
    delete [] send_count;
 }
+
 #endif // MUMPS VERSION
 #endif // MFEM_USE_MUMPS
 #endif // MFEM_USE_MPI
