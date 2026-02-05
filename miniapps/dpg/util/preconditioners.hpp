@@ -59,7 +59,7 @@ public:
 
    const ParFiniteElementSpace* GetParFESpace(int lev, int b) const;
 
-   int GetMinimumOrder(const ParFiniteElementSpace *pfespace) const;
+   int GetFESpaceMinimumOrder(const ParFiniteElementSpace *pfespace) const;
 
    /// Computes orders/maxlevels and constructs fec/fes hierarchy and T_level storage.
    void BuildSpaceHierarchy();

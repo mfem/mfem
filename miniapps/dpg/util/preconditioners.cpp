@@ -73,7 +73,7 @@ const ParFiniteElementSpace* PRefinementHierarchy::GetParFESpace(int lev,
    return fes_owned[lev][b].get();
 }
 
-int PRefinementHierarchy::GetMinimumOrder(const ParFiniteElementSpace *pfespace)
+int PRefinementHierarchy::GetFESpaceMinimumOrder(const ParFiniteElementSpace *pfespace)
 const
 {
    return (dynamic_cast<const L2_FECollection*>(pfespace->FEColl()) ||
@@ -87,7 +87,7 @@ void PRefinementHierarchy::BuildSpaceHierarchy()
    for (int i = 0; i < npfes; i++)
    {
       orders[i] = pfes[i]->FEColl()->GetConstructorOrder();
-      levels[i] = orders[i] - GetMinimumOrder(pfes[i]);
+      levels[i] = orders[i] - GetFESpaceMinimumOrder(pfes[i]);
    }
 
    maxlevels = levels.Min() + 1;

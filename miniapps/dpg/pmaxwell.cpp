@@ -44,7 +44,7 @@
 // The DPG UW deals with the First Order System
 //  i ω μ H + ∇ × E = 0,   in Ω
 // -i ω ϵ E + ∇ × H = J,   in Ω
-//            E × n = E_0, on ∂Ω
+//            E × n = E₀, on ∂Ω
 // Note: Ĵ = -iωJ
 
 // The ultraweak-DPG formulation is obtained by integration by parts of both
@@ -71,7 +71,7 @@
 
 // in 3D
 // E,H ∈ (L^2(Ω))³
-// Ê ∈ H_0^1/2(Ω)(curl, Γₕ), Ĥ ∈ H^-1/2(curl, Γₕ)
+// Ê ∈ H\_0^1/2(Ω)(curl, Γₕ), Ĥ ∈ H^-1/2(curl, Γₕ)
 //  i ω μ (H,F) + (E,∇ × F) + < Ê, F × n > = 0,      ∀ F ∈ H(curl,Ω)
 // -i ω ϵ (E,G) + (H,∇ × G) + < Ĥ, G × n > = (J,G)   ∀ G ∈ H(curl,Ω)
 //                                   Ê × n = E₀      on ∂Ω
@@ -106,7 +106,7 @@
 // in 2D
 // E ∈ (L²(Ω))² , H ∈ L²(Ω)
 // Ê ∈ H^-1/2(Ω)(Γₕ), Ĥ ∈ H^1/2(Γₕ)
-//  i ω μ (α⁻¹ H,F) + (E, ∇ × F) + < AÊ, F > = 0,          ∀ F ∈ H¹
+//  i ω μ (α⁻¹ H,F) + (E, ∇ × F) + < AÊ, F > = 0,         ∀ F ∈ H¹
 // -i ω ϵ (β E,G)   + (H,∇ × G)  + < Ĥ, G × n > = (J,G)   ∀ G ∈ H(curl,Ω)
 //                                            Ê = E₀     on ∂Ω
 // ---------------------------------------------------------------------------------
@@ -121,10 +121,10 @@
 //
 // in 3D
 // E,H ∈ (L^2(Ω))³
-// Ê ∈ H_0^1/2(Ω)(curl, Γ_h), Ĥ ∈ H^-1/2(curl, Γₕ)
+// Ê ∈ H_0^1/2(Ω)(curl, Γₕ), Ĥ ∈ H^-1/2(curl, Γₕ)
 //  i ω μ (α⁻¹ H,F) + (E,∇ × F) + < Ê, F × n > = 0,      ∀ F ∈ H(curl,Ω)
-// -i ω ϵ (β E,G)    + (H,∇ × G) + < Ĥ, G × n > = (J,G)   ∀ G ∈ H(curl,Ω)
-//                                        Ê × n = E_0     on ∂Ω
+// -i ω ϵ (β E,G)   + (H,∇ × G) + < Ĥ, G × n > = (J,G)   ∀ G ∈ H(curl,Ω)
+//                                       Ê × n = E₀      on ∂Ω
 // -------------------------------------------------------------------------------
 // |   |       E      |      H           |      Ê       |       Ĥ      |  RHS    |
 // -------------------------------------------------------------------------------
@@ -153,7 +153,6 @@ void E_exact_i(const Vector &x, Vector & E_i);
 
 void H_exact_r(const Vector &x, Vector & H_r);
 void H_exact_i(const Vector &x, Vector & H_i);
-
 
 void  rhs_func_r(const Vector &x, Vector & J_r);
 void  rhs_func_i(const Vector &x, Vector & J_i);
