@@ -2224,9 +2224,11 @@ void DarcyHybridization::EliminateTraceTrueDofs(const Array<int> &tdofs,
    }
    else
    {
+#ifdef MFEM_USE_MPI
       MFEM_ASSERT(pH.Type() == Operator::Hypre_ParCSR,
                   "Implemented for HypreParMatrix only!");
       pHe.Reset(pH.As<HypreParMatrix>()->EliminateRowsCols(tdofs));
+#endif //MFEM_USE_MPI
    }
 }
 
