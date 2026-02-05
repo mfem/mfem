@@ -2248,9 +2248,11 @@ void DarcyHybridization::EliminateTraceTrueDofsInRHS(const Array<int> &tdofs_,
    }
    else
    {
+#ifdef MFEM_USE_MPI
       MFEM_VERIFY(pH.Ptr() && pHe.Ptr(),
                   "The hybridization matrix is not assembled!");
       pH.As<HypreParMatrix>()->EliminateBC(*pHe.As<HypreParMatrix>(), tdofs_, x, b);
+#endif //MFEM_USE_MPI
    }
 }
 
