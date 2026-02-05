@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,6 +15,13 @@
 namespace mfem
 {
 
+real_t NonlinearFormIntegrator::GetLocalStateEnergyPA(const Vector &x) const
+{
+   mfem_error ("NonlinearFormIntegrator::GetLocalStateEnergyPA(...)\n"
+               "   is not implemented for this class.");
+   return 0.0;
+}
+
 void NonlinearFormIntegrator::AssemblePA(const FiniteElementSpace&)
 {
    mfem_error ("NonlinearFormIntegrator::AssemblePA(...)\n"
@@ -28,9 +35,40 @@ void NonlinearFormIntegrator::AssemblePA(const FiniteElementSpace &,
                "   is not implemented for this class.");
 }
 
+void NonlinearFormIntegrator::AssembleGradPA(const Vector &x,
+                                             const FiniteElementSpace &fes)
+{
+   mfem_error ("NonlinearFormIntegrator::AssembleGradPA(...)\n"
+               "   is not implemented for this class.");
+}
+
 void NonlinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
 {
    mfem_error ("NonlinearFormIntegrator::AddMultPA(...)\n"
+               "   is not implemented for this class.");
+}
+
+void NonlinearFormIntegrator::AddMultGradPA(const Vector&, Vector&) const
+{
+   mfem_error ("NonlinearFormIntegrator::AddMultGradPA(...)\n"
+               "   is not implemented for this class.");
+}
+
+void NonlinearFormIntegrator::AssembleGradDiagonalPA(Vector &diag) const
+{
+   mfem_error ("NonlinearFormIntegrator::AssembleGradDiagonalPA(...)\n"
+               "   is not implemented for this class.");
+}
+
+void NonlinearFormIntegrator::AssembleMF(const FiniteElementSpace &fes)
+{
+   mfem_error ("NonlinearFormIntegrator::AssembleMF(...)\n"
+               "   is not implemented for this class.");
+}
+
+void NonlinearFormIntegrator::AddMultMF(const Vector &, Vector &) const
+{
+   mfem_error ("NonlinearFormIntegrator::AddMultMF(...)\n"
                "   is not implemented for this class.");
 }
 
@@ -67,7 +105,7 @@ void NonlinearFormIntegrator::AssembleFaceGrad(
               " is not overloaded!");
 }
 
-double NonlinearFormIntegrator::GetElementEnergy(
+real_t NonlinearFormIntegrator::GetElementEnergy(
    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun)
 {
    mfem_error("NonlinearFormIntegrator::GetElementEnergy"
@@ -118,7 +156,7 @@ void BlockNonlinearFormIntegrator::AssembleFaceGrad(
               " is not overloaded!");
 }
 
-double BlockNonlinearFormIntegrator::GetElementEnergy(
+real_t BlockNonlinearFormIntegrator::GetElementEnergy(
    const Array<const FiniteElement *>&el,
    ElementTransformation &Tr,
    const Array<const Vector *>&elfun)
@@ -129,7 +167,7 @@ double BlockNonlinearFormIntegrator::GetElementEnergy(
 }
 
 
-double InverseHarmonicModel::EvalW(const DenseMatrix &J) const
+real_t InverseHarmonicModel::EvalW(const DenseMatrix &J) const
 {
    Z.SetSize(J.Width());
    CalcAdjugateTranspose(J, Z);
@@ -139,7 +177,7 @@ double InverseHarmonicModel::EvalW(const DenseMatrix &J) const
 void InverseHarmonicModel::EvalP(const DenseMatrix &J, DenseMatrix &P) const
 {
    int dim = J.Width();
-   double t;
+   real_t t;
 
    Z.SetSize(dim);
    S.SetSize(dim);
@@ -156,11 +194,11 @@ void InverseHarmonicModel::EvalP(const DenseMatrix &J, DenseMatrix &P) const
 }
 
 void InverseHarmonicModel::AssembleH(
-   const DenseMatrix &J, const DenseMatrix &DS, const double weight,
+   const DenseMatrix &J, const DenseMatrix &DS, const real_t weight,
    DenseMatrix &A) const
 {
    int dof = DS.Height(), dim = DS.Width();
-   double t;
+   real_t t;
 
    Z.SetSize(dim);
    S.SetSize(dim);
@@ -182,7 +220,7 @@ void InverseHarmonicModel::AssembleH(
    for (int i = 0; i < dof; i++)
       for (int j = 0; j <= i; j++)
       {
-         double a = 0.0;
+         real_t a = 0.0;
          for (int d = 0; d < dim; d++)
          {
             a += G(i,d)*G(j,d);
@@ -191,7 +229,7 @@ void InverseHarmonicModel::AssembleH(
          for (int k = 0; k < dim; k++)
             for (int l = 0; l <= k; l++)
             {
-               double b = a*S(k,l);
+               real_t b = a*S(k,l);
                A(i+k*dof,j+l*dof) += b;
                if (i != j)
                {
@@ -215,7 +253,7 @@ void InverseHarmonicModel::AssembleH(
          for (int k = 1; k < dim; k++)
             for (int l = 0; l < k; l++)
             {
-               double a =
+               real_t a =
                   weight*(C(i,l)*G(j,k) - C(i,k)*G(j,l) +
                           C(j,k)*G(i,l) - C(j,l)*G(i,k) +
                           t*(G(i,k)*G(j,l) - G(i,l)*G(j,k)));
@@ -240,7 +278,7 @@ inline void NeoHookeanModel::EvalCoeffs() const
    }
 }
 
-double NeoHookeanModel::EvalW(const DenseMatrix &J) const
+real_t NeoHookeanModel::EvalW(const DenseMatrix &J) const
 {
    int dim = J.Width();
 
@@ -249,9 +287,9 @@ double NeoHookeanModel::EvalW(const DenseMatrix &J) const
       EvalCoeffs();
    }
 
-   double dJ = J.Det();
-   double sJ = dJ/g;
-   double bI1 = pow(dJ, -2.0/dim)*(J*J); // \bar{I}_1
+   real_t dJ = J.Det();
+   real_t sJ = dJ/g;
+   real_t bI1 = pow(dJ, -2.0/dim)*(J*J); // \bar{I}_1
 
    return 0.5*(mu*(bI1 - dim) + K*(sJ - 1.0)*(sJ - 1.0));
 }
@@ -268,9 +306,9 @@ void NeoHookeanModel::EvalP(const DenseMatrix &J, DenseMatrix &P) const
    Z.SetSize(dim);
    CalcAdjugateTranspose(J, Z);
 
-   double dJ = J.Det();
-   double a  = mu*pow(dJ, -2.0/dim);
-   double b  = K*(dJ/g - 1.0)/g - a*(J*J)/(dim*dJ);
+   real_t dJ = J.Det();
+   real_t a  = mu*pow(dJ, -2.0/dim);
+   real_t b  = K*(dJ/g - 1.0)/g - a*(J*J)/(dim*dJ);
 
    P = 0.0;
    P.Add(a, J);
@@ -278,7 +316,7 @@ void NeoHookeanModel::EvalP(const DenseMatrix &J, DenseMatrix &P) const
 }
 
 void NeoHookeanModel::AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
-                                const double weight, DenseMatrix &A) const
+                                const real_t weight, DenseMatrix &A) const
 {
    int dof = DS.Height(), dim = DS.Width();
 
@@ -291,12 +329,12 @@ void NeoHookeanModel::AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
    G.SetSize(dof, dim);
    C.SetSize(dof, dim);
 
-   double dJ = J.Det();
-   double sJ = dJ/g;
-   double a  = mu*pow(dJ, -2.0/dim);
-   double bc = a*(J*J)/dim;
-   double b  = bc - K*sJ*(sJ - 1.0);
-   double c  = 2.0*bc/dim + K*sJ*(2.0*sJ - 1.0);
+   real_t dJ = J.Det();
+   real_t sJ = dJ/g;
+   real_t a  = mu*pow(dJ, -2.0/dim);
+   real_t bc = a*(J*J)/dim;
+   real_t b  = bc - K*sJ*(sJ - 1.0);
+   real_t c  = 2.0*bc/dim + K*sJ*(2.0*sJ - 1.0);
 
    CalcAdjugateTranspose(J, Z);
    Z *= (1.0/dJ); // Z = J^{-t}
@@ -312,7 +350,7 @@ void NeoHookeanModel::AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
    for (int i = 0; i < dof; i++)
       for (int k = 0; k <= i; k++)
       {
-         double s = 0.0;
+         real_t s = 0.0;
          for (int d = 0; d < dim; d++)
          {
             s += DS(i,d)*DS(k,d);
@@ -345,13 +383,19 @@ void NeoHookeanModel::AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
             }
 }
 
+const IntegrationRule* HyperelasticNLFIntegrator::GetDefaultIntegrationRule(
+   const FiniteElement& trial_fe, const FiniteElement& test_fe,
+   const ElementTransformation& trans) const
+{
+   return &(IntRules.Get(test_fe.GetGeomType(), 2*test_fe.GetOrder() + 3));
+}
 
-double HyperelasticNLFIntegrator::GetElementEnergy(const FiniteElement &el,
+real_t HyperelasticNLFIntegrator::GetElementEnergy(const FiniteElement &el,
                                                    ElementTransformation &Ttr,
                                                    const Vector &elfun)
 {
    int dof = el.GetDof(), dim = el.GetDim();
-   double energy;
+   real_t energy;
 
    DSh.SetSize(dof, dim);
    Jrt.SetSize(dim);
@@ -359,11 +403,7 @@ double HyperelasticNLFIntegrator::GetElementEnergy(const FiniteElement &el,
    Jpt.SetSize(dim);
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
 
-   const IntegrationRule *ir = IntRule;
-   if (!ir)
-   {
-      ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
-   }
+   const IntegrationRule *ir = GetIntegrationRule(el, Ttr);
 
    energy = 0.0;
    model->SetTransformation(Ttr);
@@ -398,7 +438,7 @@ void HyperelasticNLFIntegrator::AssembleElementVector(
    elvect.SetSize(dof*dim);
    PMatO.UseExternalData(elvect.GetData(), dof, dim);
 
-   const IntegrationRule *ir = IntRule;
+   const IntegrationRule *ir = GetIntegrationRule(el, Ttr);
    if (!ir)
    {
       ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
@@ -437,7 +477,7 @@ void HyperelasticNLFIntegrator::AssembleElementGrad(const FiniteElement &el,
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
    elmat.SetSize(dof*dim);
 
-   const IntegrationRule *ir = IntRule;
+   const IntegrationRule *ir = GetIntegrationRule(el, Ttr);
    if (!ir)
    {
       ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
@@ -459,7 +499,7 @@ void HyperelasticNLFIntegrator::AssembleElementGrad(const FiniteElement &el,
    }
 }
 
-double IncompressibleNeoHookeanIntegrator::GetElementEnergy(
+real_t IncompressibleNeoHookeanIntegrator::GetElementEnergy(
    const Array<const FiniteElement *>&el,
    ElementTransformation &Tr,
    const Array<const Vector *>&elfun)
@@ -482,8 +522,8 @@ double IncompressibleNeoHookeanIntegrator::GetElementEnergy(
    int intorder = 2*el[0]->GetOrder() + 3; // <---
    const IntegrationRule &ir = IntRules.Get(el[0]->GetGeomType(), intorder);
 
-   double energy = 0.0;
-   double mu = 0.0;
+   real_t energy = 0.0;
+   real_t mu = 0.0;
 
    for (int i = 0; i < ir.GetNPoints(); ++i)
    {
@@ -559,9 +599,9 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementVector(
 
       el[1]->CalcShape(ip, Sh_p);
 
-      double pres = Sh_p * *elfun[1];
-      double mu = c_mu->Eval(Tr, ip);
-      double dJ = F.Det();
+      real_t pres = Sh_p * *elfun[1];
+      real_t mu = c_mu->Eval(Tr, ip);
+      real_t dJ = F.Det();
 
       CalcInverseTranspose(F, FinvT);
 
@@ -622,10 +662,10 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementGrad(
       MultAtB(PMatI_u, DS_u, F);
 
       el[1]->CalcShape(ip, Sh_p);
-      double pres = Sh_p * *elfun[1];
-      double mu = c_mu->Eval(Tr, ip);
-      double dJ = F.Det();
-      double dJ_FinvT_DS;
+      real_t pres = Sh_p * *elfun[1];
+      real_t mu = c_mu->Eval(Tr, ip);
+      real_t dJ = F.Det();
+      real_t dJ_FinvT_DS;
 
       CalcInverseTranspose(F, FinvT);
 
@@ -695,7 +735,7 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementGrad(
 
 const IntegrationRule&
 VectorConvectionNLFIntegrator::GetRule(const FiniteElement &fe,
-                                       ElementTransformation &T)
+                                       const ElementTransformation &T)
 {
    const int order = 2 * fe.GetOrder() + T.OrderGrad(&fe);
    return IntRules.Get(fe.GetGeomType(), order);
@@ -708,7 +748,7 @@ void VectorConvectionNLFIntegrator::AssembleElementVector(
    Vector &elvect)
 {
    const int nd = el.GetDof();
-   const int dim = el.GetDim();
+   dim = el.GetDim();
 
    shape.SetSize(nd);
    dshape.SetSize(nd, dim);
@@ -719,7 +759,7 @@ void VectorConvectionNLFIntegrator::AssembleElementVector(
    ELV.UseExternalData(elvect.GetData(), nd, dim);
 
    Vector vec1(dim), vec2(dim);
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
+   const IntegrationRule *ir = GetIntegrationRule(el, T);
    ELV = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -727,8 +767,9 @@ void VectorConvectionNLFIntegrator::AssembleElementVector(
       T.SetIntPoint(&ip);
       el.CalcShape(ip, shape);
       el.CalcPhysDShape(T, dshape);
-      double w = ip.weight * T.Weight();
+      real_t w = ip.weight * T.Weight();
       if (Q) { w *= Q->Eval(T, ip); }
+
       MultAtB(EF, dshape, gradEF);
       EF.MultTranspose(shape, vec1);
       gradEF.Mult(vec1, vec2);
@@ -743,8 +784,8 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
    const Vector &elfun,
    DenseMatrix &elmat)
 {
-   int nd = el.GetDof();
-   int dim = el.GetDim();
+   const int nd = el.GetDof();
+   dim = el.GetDim();
 
    shape.SetSize(nd);
    dshape.SetSize(nd, dim);
@@ -755,15 +796,10 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
 
    EF.UseExternalData(elfun.GetData(), nd, dim);
 
-   double w;
+   real_t w;
    Vector vec1(dim), vec2(dim), vec3(nd);
 
-   const IntegrationRule *ir = IntRule;
-   if (ir == nullptr)
-   {
-      int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
-      ir = &IntRules.Get(el.GetGeomType(), order);
-   }
+   const IntegrationRule *ir = GetIntegrationRule(el, trans);
 
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -792,9 +828,9 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
       dshape.Mult(vec2, vec3);
       MultVWt(shape, vec3, elmat_comp);
 
-      for (int i = 0; i < dim; i++)
+      for (int ii = 0; ii < dim; ii++)
       {
-         elmat.AddMatrix(elmat_comp, i * nd, i * nd);
+         elmat.AddMatrix(elmat_comp, ii * nd, ii * nd);
       }
 
       MultVVt(shape, elmat_comp);
@@ -803,12 +839,117 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
       {
          w *= Q->Eval(trans, ip);
       }
-      for (int i = 0; i < dim; i++)
+      for (int ii = 0; ii < dim; ii++)
       {
-         for (int j = 0; j < dim; j++)
+         for (int jj = 0; jj < dim; jj++)
          {
-            elmat.AddMatrix(w * gradEF(i, j), elmat_comp, i * nd, j * nd);
+            elmat.AddMatrix(w * gradEF(ii, jj), elmat_comp, ii * nd, jj * nd);
          }
+      }
+   }
+}
+
+
+void ConvectiveVectorConvectionNLFIntegrator::AssembleElementGrad(
+   const FiniteElement &el,
+   ElementTransformation &trans,
+   const Vector &elfun,
+   DenseMatrix &elmat)
+{
+   const int nd = el.GetDof();
+   const int dim = el.GetDim();
+
+   shape.SetSize(nd);
+   dshape.SetSize(nd, dim);
+   dshapex.SetSize(nd, dim);
+   elmat.SetSize(nd * dim);
+   elmat_comp.SetSize(nd);
+   gradEF.SetSize(dim);
+
+   EF.UseExternalData(elfun.GetData(), nd, dim);
+
+   Vector vec1(dim), vec2(dim), vec3(nd);
+
+   const IntegrationRule *ir = GetIntegrationRule(el, trans);
+
+   elmat = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      trans.SetIntPoint(&ip);
+
+      el.CalcShape(ip, shape);
+      el.CalcDShape(ip, dshape);
+
+      const real_t w = Q ? Q->Eval(trans, ip) * ip.weight : ip.weight;
+
+      EF.MultTranspose(shape, vec1); // u^n
+
+      trans.AdjugateJacobian().Mult(vec1, vec2);
+
+      vec2 *= w;
+      dshape.Mult(vec2, vec3); // (u^n \cdot grad u^{n+1})
+      MultVWt(shape, vec3, elmat_comp); // (u^n \cdot grad u^{n+1},v)
+
+      for (int ii = 0; ii < dim; ii++)
+      {
+         elmat.AddMatrix(elmat_comp, ii * nd, ii * nd);
+      }
+   }
+}
+
+
+void SkewSymmetricVectorConvectionNLFIntegrator::AssembleElementGrad(
+   const FiniteElement &el,
+   ElementTransformation &trans,
+   const Vector &elfun,
+   DenseMatrix &elmat)
+{
+   const int nd = el.GetDof();
+   const int dim = el.GetDim();
+
+   shape.SetSize(nd);
+   dshape.SetSize(nd, dim);
+   dshapex.SetSize(nd, dim);
+   elmat.SetSize(nd * dim);
+   elmat_comp.SetSize(nd);
+   gradEF.SetSize(dim);
+
+   DenseMatrix elmat_comp_T(nd);
+
+   EF.UseExternalData(elfun.GetData(), nd, dim);
+
+   Vector vec1(dim), vec2(dim), vec3(nd), vec4(dim), vec5(nd);
+
+   const IntegrationRule *ir = GetIntegrationRule(el, trans);
+
+   elmat = 0.0;
+   elmat_comp_T = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      trans.SetIntPoint(&ip);
+
+      el.CalcShape(ip, shape);
+      el.CalcDShape(ip, dshape);
+
+      Mult(dshape, trans.InverseJacobian(), dshapex);
+
+      const real_t w = Q ? Q->Eval(trans, ip) * ip.weight : ip.weight;
+
+      EF.MultTranspose(shape, vec1); // u^n
+
+      trans.AdjugateJacobian().Mult(vec1, vec2);
+
+      vec2 *= w;
+      dshape.Mult(vec2, vec3); // (u^n \cdot grad u^{n+1})
+      MultVWt(shape, vec3, elmat_comp); // (u^n \cdot grad u^{n+1},v)
+      elmat_comp_T.Transpose(elmat_comp);
+
+      for (int ii = 0; ii < dim; ii++)
+      {
+         elmat.AddMatrix(.5, elmat_comp, ii * nd, ii * nd);
+         elmat.AddMatrix(-.5, elmat_comp_T, ii * nd, ii * nd);
       }
    }
 }

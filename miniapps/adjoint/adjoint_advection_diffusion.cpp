@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -142,19 +142,19 @@ public:
 
    }
 
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
-   virtual void AdjointRateMult(const Vector &y, Vector &yB,
-                                Vector &yBdot) const;
+   void AdjointRateMult(const Vector &y, Vector &yB,
+                        Vector &yBdot) const override;
 
-   virtual int SUNImplicitSetup(const Vector &y,
-                                const Vector &fy, int jok, int *jcur,
-                                double gamma);
+   int SUNImplicitSetup(const Vector &y,
+                        const Vector &fy, int jok, int *jcur,
+                        real_t gamma) override;
 
-   virtual int SUNImplicitSolve(const Vector &b, Vector &x, double tol);
+   int SUNImplicitSolve(const Vector &b, Vector &x, real_t tol) override;
 
-   virtual void QuadratureSensitivityMult(const Vector &y, const Vector &yB,
-                                          Vector &qbdot) const;
+   void QuadratureSensitivityMult(const Vector &y, const Vector &yB,
+                                  Vector &qbdot) const override;
 
    ~AdvDiffSUNDIALS()
    {
@@ -194,24 +194,23 @@ protected:
 };
 
 // Initial conditions for the problem
-double u_init(const Vector &x)
+real_t u_init(const Vector &x)
 {
    return x[0]*(2. - x[0])*exp(2.*x[0]);
 }
 
 int main(int argc, char *argv[])
 {
-   // Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // Parse command-line options.
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
-   double t_final = 2.5;
-   double dt = 0.01;
+   real_t t_final = 2.5;
+   real_t dt = 0.01;
    int mx = 20;
    bool step_mode = true;
 
@@ -233,14 +232,20 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      args.PrintUsage(cout);
+      if (myid == 0)
+      {
+         args.PrintUsage(cout);
+      }
       return 1;
    }
-   args.PrintOptions(cout);
+   if (myid == 0)
+   {
+      args.PrintOptions(cout);
+   }
 
    // Create a small 1D mesh with a length of 2. This mesh corresponds with the
    // cvsAdvDiff_ASA_p_non_p example.
-   Mesh *mesh = new Mesh(mx+1, 2.);
+   Mesh mesh = Mesh::MakeCartesian1D(mx+1, 2.);
 
    // Refine the mesh to increase the resolution. In this example we do
    // 'ref_levels' of uniform refinement, where 'ref_levels' is a
@@ -248,11 +253,11 @@ int main(int argc, char *argv[])
    // a (piecewise-polynomial) high-order mesh.
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
-      mesh->UniformRefinement();
+      mesh.UniformRefinement();
    }
 
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
+   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+   mesh.Clear();
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
       pmesh->UniformRefinement();
@@ -262,7 +267,7 @@ int main(int argc, char *argv[])
    H1_FECollection fec(1, pmesh->SpaceDimension());
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
 
-   HYPRE_Int global_vSize = fes->GlobalTrueVSize();
+   HYPRE_BigInt global_vSize = fes->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of unknowns: " << global_vSize << endl;
@@ -297,7 +302,7 @@ int main(int argc, char *argv[])
    AdvDiffSUNDIALS adv(U->Size(), U->Size(), p, fes, ess_tdof_list);
 
    // Set the initial time to the TimeDependentAdjointOperator
-   double t = 0.0;
+   real_t t = 0.0;
    adv.SetTime(t);
 
    // Create the CVODES solver corresponding to the selected step method
@@ -305,9 +310,10 @@ int main(int argc, char *argv[])
                                            step_mode ? CV_ADAMS : CV_BDF);
    cvodes->Init(adv);
    cvodes->UseSundialsLinearSolver();
+   cvodes->SetMaxNSteps(5000);
 
    // Relative and absolute tolerances for CVODES
-   double reltol = 1e-8, abstol = 1e-6;
+   real_t reltol = 1e-8, abstol = 1e-6;
    cvodes->SetSStolerances(reltol, abstol);
 
    // Initialize adjoint problem settings
@@ -317,11 +323,10 @@ int main(int argc, char *argv[])
    // Perform time-integration for the problem (looping over the time
    // iterations, ti, with a time-step dt).
    bool done = false;
-   for (int ti = 0; !done; )
+   for ( ; !done; )
    {
-      double dt_real = max(dt, t_final - t);
+      real_t dt_real = max(dt, t_final - t);
       cvodes->Step(*U, t, dt_real);
-      ti++;
 
       done = (t >= t_final - 1e-8*dt);
 
@@ -349,7 +354,7 @@ int main(int argc, char *argv[])
    obj.AddDomainIntegrator(new DomainLFIntegrator(one));
    obj.Assemble();
 
-   double g = obj(u);
+   real_t g = obj(u);
    if (myid == 0)
    {
       cout << "g: " << g << endl;
@@ -372,7 +377,7 @@ int main(int argc, char *argv[])
    cvodes->SetSStolerancesB(reltol, abstol);
 
    // Results at time TBout1
-   double dt_real = max(dt, t);
+   real_t dt_real = max(dt, t);
    cvodes->StepB(*V, t, dt_real);
    if (myid == 0)
    {
@@ -401,7 +406,6 @@ int main(int argc, char *argv[])
    delete V;
    delete cvodes;
 
-   MPI_Finalize();
    return 0;
 }
 
@@ -423,7 +427,7 @@ void AdvDiffSUNDIALS::Mult(const Vector &x, Vector &y) const
 // AdvDiff Rate equation setup
 int AdvDiffSUNDIALS::SUNImplicitSetup(const Vector &y,
                                       const Vector &fy,
-                                      int jok, int *jcur, double gamma)
+                                      int jok, int *jcur, real_t gamma)
 {
    // Mf = M(I - gamma J) = M - gamma * M * J
    // J = df/dy => K
@@ -437,7 +441,7 @@ int AdvDiffSUNDIALS::SUNImplicitSetup(const Vector &y,
 }
 
 // AdvDiff Rate equation solve
-int AdvDiffSUNDIALS::SUNImplicitSolve(const Vector &b, Vector &x, double tol)
+int AdvDiffSUNDIALS::SUNImplicitSolve(const Vector &b, Vector &x, real_t tol)
 {
    Vector z(b.Size());
    M->Mult(b,z);
@@ -509,8 +513,8 @@ void AdvDiffSUNDIALS::QuadratureSensitivityMult(const Vector &y,
    dP2->Mult(y, b2);
    delete dP2;
 
-   double dp1_result = InnerProduct(pfes->GetComm(), yB, b1);
-   double dp2_result = InnerProduct(pfes->GetComm(), yB, b2);
+   real_t dp1_result = InnerProduct(pfes->GetComm(), yB, b1);
+   real_t dp2_result = InnerProduct(pfes->GetComm(), yB, b2);
 
    qBdot[0] = -dp1_result;
    qBdot[1] = -dp2_result;

@@ -1,0 +1,91 @@
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+---
+name: 'MFEM Compilation'
+description: 'MFEM Compilation'
+
+inputs:
+  par:
+    description: 'Whether to build for parallel (true/false)'
+    default: false
+  sanitizer:
+    description: 'Sanitizer to use (asan, msan, ubsan)'
+    default: asan
+
+runs:
+  using: 'composite'
+  steps:
+    - uses: ./.github/actions/sanitize/config
+
+    - uses: actions/cache@v4
+      if: ${{env.DEBUG == 'true'}}
+      id: debug
+      with:
+        path: mfem/build
+        key: build-${{inputs.par}}-${{inputs.sanitizer}}
+
+    - uses: ./.github/actions/sanitize/setup
+      if: ${{steps.debug.outputs.cache-hit != 'true'}}
+      with:
+        par: ${{inputs.par}}
+        sanitizer: ${{inputs.sanitizer}}
+
+    - name: Build with ASAN
+      if: inputs.sanitizer == 'asan'
+      run: echo CXXFLAGS=${{env.CXXFLAGS}} ${{env.ASAN_CXXFLAGS}} >> $GITHUB_ENV
+      shell: bash
+
+    - name: Build with MSAN
+      if: inputs.sanitizer == 'msan'
+      run: echo CXXFLAGS=${{env.CXXFLAGS}} ${{env.MSAN_CXXFLAGS}} >> $GITHUB_ENV
+      shell: bash
+
+    - name: Build with UBSAN
+      if: inputs.sanitizer == 'ubsan'
+      run: echo CXXFLAGS=${{env.CXXFLAGS}} ${{env.UBSAN_CXXFLAGS}} >> $GITHUB_ENV
+      shell: bash
+
+    - uses: mfem/github-actions/build-mfem@v2.5
+      if: ${{steps.debug.outputs.cache-hit != 'true'}}
+      env:
+        CXXFLAGS: ${{env.CXXFLAGS}}
+        LDFLAGS: ${{env.LDFLAGS}}
+      with:
+        mpi: ${{inputs.par == 'false' && 'seq' || 'par'}}
+        mfem-dir: mfem
+        os: ${{runner.os}}
+        library-only: true
+        build-system: cmake
+        hypre-dir: ${{env.HYPRE_DIR}}
+        metis-dir: ${{env.METIS_DIR}}
+        config-options: >-
+          -GNinja
+          -DMPICXX=${{env.CXX}}
+          -DCMAKE_CXX_STANDARD=17
+          -DMFEM_USE_MEMALLOC=OFF
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_VERBOSE_MAKEFILE=ON
+          -DCMAKE_CXX_COMPILER=${{env.CXX}}
+          -DCMAKE_CXX_FLAGS_RELEASE='-g -O1 -fno-omit-frame-pointer'
+
+    - name: Delete object files
+      if: ${{steps.debug.outputs.cache-hit != 'true'}}
+      working-directory: mfem/build
+      run: find . -type f -name '*.o' -delete
+      shell: bash
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: build-${{inputs.par}}-${{inputs.sanitizer}}
+        path: mfem/build
+        if-no-files-found: error
+        retention-days: 1
+        overwrite: false

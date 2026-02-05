@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,14 +11,15 @@
 
 #include "complex_fem.hpp"
 #include "../general/forall.hpp"
+#include "../general/text.hpp"
 
 using namespace std;
 
 namespace mfem
 {
 
-ComplexGridFunction::ComplexGridFunction(FiniteElementSpace *fes)
-   : Vector(2*(fes->GetVSize()))
+ComplexGridFunction::ComplexGridFunction(FiniteElementSpace *f)
+   : Vector(2*(f->GetVSize())), fes(f), fec_owned(NULL)
 {
    UseDevice(true);
    this->Vector::operator=(0.0);
@@ -28,12 +29,88 @@ ComplexGridFunction::ComplexGridFunction(FiniteElementSpace *fes)
 
    gfi = new GridFunction();
    gfi->MakeRef(fes, *this, fes->GetVSize());
+
+   fes_sequence = fes->GetSequence();
+}
+
+ComplexGridFunction::ComplexGridFunction(Mesh *m, std::istream &input)
+   : Vector(), fes(NULL), fec_owned(NULL)
+{
+   string buff;
+
+   // Grid functions are stored on the device
+   UseDevice(true);
+
+   input >> std::ws;
+   getline(input, buff);  // 'ComplexGridFunction'
+   filter_dos(buff);
+   if (buff != "ComplexGridFunction")
+   {
+      MFEM_ABORT("unrecognized file header: " << buff);
+   }
+
+   fes = new FiniteElementSpace;
+   fec_owned = fes->Load(m, input);
+
+   skip_comment_lines(input, '#');
+   istream::int_type next_char = input.peek();
+   if (next_char == 'N') // First letter of "NURBS_patches"
+   {
+      getline(input, buff);
+      filter_dos(buff);
+      if (buff == "NURBS_patches")
+      {
+         MFEM_ABORT("NURBS not yet supported with ComplexGridFunction objects");
+      }
+      else
+      {
+         MFEM_ABORT("unknown section: " << buff);
+      }
+   }
+   else
+   {
+      Vector::Load(input, 2*fes->GetVSize());
+
+      // if the mesh is a legacy (v1.1) NC mesh, it has old vertex ordering
+      if (fes->Nonconforming() &&
+          fes->GetMesh()->ncmesh->IsLegacyLoaded())
+      {
+         // LegacyNCReorder();
+         MFEM_ABORT("LegacyNCReorder not supported for "
+                    "ComplexGridFunction objects");
+      }
+   }
+
+   gfr = new GridFunction();
+   gfr->MakeRef(fes, *this, 0);
+
+   gfi = new GridFunction();
+   gfi->MakeRef(fes, *this, fes->GetVSize());
+
+   fes_sequence = fes->GetSequence();
+}
+
+void ComplexGridFunction::Destroy()
+{
+   delete gfr; delete gfi;
+
+   if (fec_owned)
+   {
+      delete fes;
+      delete fec_owned;
+      fec_owned = NULL;
+   }
 }
 
 void
 ComplexGridFunction::Update()
 {
-   FiniteElementSpace *fes = gfr->FESpace();
+   if (fes->GetSequence() == fes_sequence)
+   {
+      return; // space and grid function are in sync, no-op
+   }
+   fes_sequence = fes->GetSequence();
+
    const int vsize = fes->GetVSize();
 
    const Operator *T = fes->GetUpdateOperator();
@@ -82,6 +159,17 @@ ComplexGridFunction::Update()
       gfr->Update();
       gfi->Update();
    }
+}
+
+int ComplexGridFunction::VectorDim() const
+{
+   const FiniteElement *fe = fes->GetTypicalFE();
+   if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
+   {
+      return fes->GetVDim();
+   }
+   return fes->GetVDim()*std::max(fes->GetMesh()->SpaceDimension(),
+                                  fe->GetRangeDim());
 }
 
 void
@@ -149,6 +237,35 @@ ComplexGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient
    gfi->SyncAliasMemory(*this);
 }
 
+void ComplexGridFunction::Save(std::ostream &os) const
+{
+   os << "ComplexGridFunction\n";
+   fes->Save(os);
+   os << '\n';
+   if (fes->GetOrdering() == Ordering::byNODES)
+   {
+      Vector::Print(os, 1);
+   }
+   else
+   {
+      Vector::Print(os, fes->GetVDim());
+   }
+   os.flush();
+}
+
+void ComplexGridFunction::Save(const char *fname, int precision) const
+{
+   ofstream ofs(fname);
+   ofs.precision(precision);
+   Save(ofs);
+}
+
+std::ostream &operator<<(std::ostream &os, const ComplexGridFunction &sol)
+{
+   sol.Save(os);
+   return os;
+}
+
 
 ComplexLinearForm::ComplexLinearForm(FiniteElementSpace *fes,
                                      ComplexOperator::Convention convention)
@@ -193,6 +310,15 @@ ComplexLinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi_real,
 {
    if ( lfi_real ) { lfr->AddDomainIntegrator(lfi_real); }
    if ( lfi_imag ) { lfi->AddDomainIntegrator(lfi_imag); }
+}
+
+void
+ComplexLinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi_real,
+                                       LinearFormIntegrator *lfi_imag,
+                                       Array<int> &elem_attr_marker)
+{
+   if ( lfi_real ) { lfr->AddDomainIntegrator(lfi_real, elem_attr_marker); }
+   if ( lfi_imag ) { lfi->AddDomainIntegrator(lfi_imag, elem_attr_marker); }
 }
 
 void
@@ -259,13 +385,13 @@ ComplexLinearForm::Assemble()
    lfi->SyncAliasMemory(*this);
 }
 
-complex<double>
+complex<real_t>
 ComplexLinearForm::operator()(const ComplexGridFunction &gf) const
 {
-   double s = (conv == ComplexOperator::HERMITIAN) ? 1.0 : -1.0;
+   real_t s = (conv == ComplexOperator::HERMITIAN) ? 1.0 : -1.0;
    lfr->SyncMemory(*this);
    lfi->SyncMemory(*this);
-   return complex<double>((*lfr)(gf.real()) - s * (*lfi)(gf.imag()),
+   return complex<real_t>((*lfr)(gf.real()) - s * (*lfi)(gf.imag()),
                           (*lfr)(gf.imag()) + s * (*lfi)(gf.real()));
 }
 
@@ -315,6 +441,14 @@ void SesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
 {
    if (bfi_real) { blfr->AddDomainIntegrator(bfi_real); }
    if (bfi_imag) { blfi->AddDomainIntegrator(bfi_imag); }
+}
+
+void SesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
+                                           BilinearFormIntegrator *bfi_imag,
+                                           Array<int> & elem_marker)
+{
+   if (bfi_real) { blfr->AddDomainIntegrator(bfi_real, elem_marker); }
+   if (bfi_imag) { blfi->AddDomainIntegrator(bfi_imag, elem_marker); }
 }
 
 void
@@ -470,7 +604,7 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
 
    if (RealInteg() && ImagInteg())
    {
-      // Modify RHS and offdiagonal blocks (imaginary parts of the matrix) to
+      // Modify RHS and off-diagonal blocks (imaginary parts of the matrix) to
       // conform with standard essential BC treatment
       if (A_i.Is<ConstrainedOperator>())
       {
@@ -480,7 +614,7 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
          auto d_X_r = X_r.Read();
          auto d_X_i = X_i.Read();
          auto d_idx = ess_tdof_list.Read();
-         MFEM_FORALL(i, n,
+         mfem::forall(n, [=] MFEM_HOST_DEVICE (int i)
          {
             const int j = d_idx[i];
             d_B_r[j] = d_X_r[j];
@@ -559,7 +693,7 @@ SesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
 
    if (RealInteg() && ImagInteg())
    {
-      // Modify offdiagonal blocks (imaginary parts of the matrix) to conform
+      // Modify off-diagonal blocks (imaginary parts of the matrix) to conform
       // with standard essential BC treatment
       if (A_i.Is<ConstrainedOperator>())
       {
@@ -637,8 +771,8 @@ SesquilinearForm::Update(FiniteElementSpace *nfes)
 
 #ifdef MFEM_USE_MPI
 
-ParComplexGridFunction::ParComplexGridFunction(ParFiniteElementSpace *pfes)
-   : Vector(2*(pfes->GetVSize()))
+ParComplexGridFunction::ParComplexGridFunction(ParFiniteElementSpace *pf)
+   : Vector(2*(pf->GetVSize())), pfes(pf), fec_owned(NULL)
 {
    UseDevice(true);
    this->Vector::operator=(0.0);
@@ -648,12 +782,105 @@ ParComplexGridFunction::ParComplexGridFunction(ParFiniteElementSpace *pfes)
 
    pgfi = new ParGridFunction();
    pgfi->MakeRef(pfes, *this, pfes->GetVSize());
+
+   fes_sequence = pfes->GetSequence();
+}
+
+ParComplexGridFunction::ParComplexGridFunction(ParMesh *m, std::istream &input)
+   : Vector(), pfes(NULL), fec_owned(NULL)
+{
+   string buff;
+
+   // Grid functions are stored on the device
+   UseDevice(true);
+
+   input >> std::ws;
+   getline(input, buff);  // 'ParComplexGridFunction'
+   filter_dos(buff);
+   if (buff != "ParComplexGridFunction")
+   {
+      MFEM_ABORT("unrecognized file header: " << buff);
+   }
+
+   FiniteElementSpace *fes = new FiniteElementSpace;
+   fec_owned = fes->Load(m, input);
+
+   pfes = new ParFiniteElementSpace(m, fec_owned, fes->GetVDim(),
+                                    fes->GetOrdering());
+
+   delete fes;
+
+   skip_comment_lines(input, '#');
+   istream::int_type next_char = input.peek();
+   if (next_char == 'N') // First letter of "NURBS_patches"
+   {
+      getline(input, buff);
+      filter_dos(buff);
+      if (buff == "NURBS_patches")
+      {
+         MFEM_ABORT("NURBS not yet supported with ComplexGridFunction objects");
+      }
+      else
+      {
+         MFEM_ABORT("unknown section: " << buff);
+      }
+   }
+   else
+   {
+      int vsize = pfes->GetVSize();
+      Vector::Load(input, 2*vsize);
+
+      real_t *data_  = const_cast<real_t*>(HostRead());
+      for (int i = 0; i < vsize; i++)
+      {
+         if (pfes->GetDofSign(i) < 0)
+         {
+            data_[i] = -data_[i];
+            data_[i+vsize] = -data_[i+vsize];
+         }
+      }
+
+
+      // if the mesh is a legacy (v1.1) NC mesh, it has old vertex ordering
+      if (pfes->Nonconforming() &&
+          pfes->GetMesh()->ncmesh->IsLegacyLoaded())
+      {
+         // LegacyNCReorder();
+         MFEM_ABORT("LegacyNCReorder not supported for "
+                    "ComplexGridFunction objects");
+      }
+   }
+
+   pgfr = new ParGridFunction();
+   pgfr->MakeRef(pfes, *this, 0);
+
+   pgfi = new ParGridFunction();
+   pgfi->MakeRef(pfes, *this, pfes->GetVSize());
+
+   fes_sequence = pfes->GetSequence();
+}
+
+void ParComplexGridFunction::Destroy()
+{
+   delete pgfr; delete pgfi;
+
+   if (fec_owned)
+   {
+      delete pfes;
+      delete fec_owned;
+      fec_owned = NULL;
+   }
 }
 
 void
 ParComplexGridFunction::Update()
 {
-   ParFiniteElementSpace *pfes = pgfr->ParFESpace();
+   if (pfes->GetSequence() == fes_sequence)
+   {
+      return; // space and grid function are in sync, no-op
+   }
+   fes_sequence = pfes->GetSequence();
+
    const int vsize = pfes->GetVSize();
 
    const Operator *T = pfes->GetUpdateOperator();
@@ -700,6 +927,17 @@ ParComplexGridFunction::Update()
       pgfr->Update();
       pgfi->Update();
    }
+}
+
+int ParComplexGridFunction::VectorDim() const
+{
+   const FiniteElement *fe = pfes->GetTypicalFE();
+   if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
+   {
+      return pfes->GetVDim();
+   }
+   return pfes->GetVDim()*std::max(pfes->GetMesh()->SpaceDimension(),
+                                   fe->GetRangeDim());
 }
 
 void
@@ -772,7 +1010,6 @@ ParComplexGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient
 void
 ParComplexGridFunction::Distribute(const Vector *tv)
 {
-   ParFiniteElementSpace *pfes = pgfr->ParFESpace();
    const int tvsize = pfes->GetTrueVSize();
 
    tv->Read();
@@ -790,7 +1027,6 @@ ParComplexGridFunction::Distribute(const Vector *tv)
 void
 ParComplexGridFunction::ParallelProject(Vector &tv) const
 {
-   ParFiniteElementSpace *pfes = pgfr->ParFESpace();
    const int tvsize = pfes->GetTrueVSize();
 
    tv.Write();
@@ -806,6 +1042,60 @@ ParComplexGridFunction::ParallelProject(Vector &tv) const
 
    tvr.SyncAliasMemory(tv);
    tvi.SyncAliasMemory(tv);
+}
+
+void ParComplexGridFunction::Save(std::ostream &os) const
+{
+   os << "ParComplexGridFunction\n";
+   pfes->Save(os);
+   os << '\n';
+
+   int vsize = pfes->GetVSize();
+   real_t *data_  = const_cast<real_t*>(HostRead());
+   for (int i = 0; i < vsize; i++)
+   {
+      if (pfes->GetDofSign(i) < 0)
+      {
+         data_[i] = -data_[i];
+         data_[i+vsize] = -data_[i+vsize];
+      }
+   }
+
+   if (pfes->GetOrdering() == Ordering::byNODES)
+   {
+      Vector::Print(os, 1);
+   }
+   else
+   {
+      Vector::Print(os, pfes->GetVDim());
+   }
+
+   for (int i = 0; i < vsize; i++)
+   {
+      if (pfes->GetDofSign(i) < 0)
+      {
+         data_[i] = -data_[i];
+         data_[i+vsize] = -data_[i+vsize];
+      }
+   }
+
+   os.flush();
+}
+
+void ParComplexGridFunction::Save(const char *fname, int precision) const
+{
+   int rank = pfes->GetMyRank();
+   ostringstream fname_with_suffix;
+   fname_with_suffix << fname << "." << setfill('0') << setw(6) << rank;
+   ofstream ofs(fname_with_suffix.str().c_str());
+   ofs.precision(precision);
+   Save(ofs);
+}
+
+std::ostream &operator<<(std::ostream &os, const ParComplexGridFunction &sol)
+{
+   sol.Save(os);
+   return os;
 }
 
 
@@ -824,10 +1114,10 @@ ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pfes,
    plfi = new ParLinearForm();
    plfi->MakeRef(pfes, *this, pfes->GetVSize());
 
-   HYPRE_Int *tdof_offsets_fes = pfes->GetTrueDofOffsets();
+   HYPRE_BigInt *tdof_offsets_fes = pfes->GetTrueDofOffsets();
 
    int n = (HYPRE_AssumedPartitionCheck()) ? 2 : pfes->GetNRanks();
-   tdof_offsets = new HYPRE_Int[n+1];
+   tdof_offsets = new HYPRE_BigInt[n+1];
 
    for (int i = 0; i <= n; i++)
    {
@@ -853,10 +1143,10 @@ ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pfes,
    plfr->MakeRef(pfes, *this, 0);
    plfi->MakeRef(pfes, *this, pfes->GetVSize());
 
-   HYPRE_Int *tdof_offsets_fes = pfes->GetTrueDofOffsets();
+   HYPRE_BigInt *tdof_offsets_fes = pfes->GetTrueDofOffsets();
 
    int n = (HYPRE_AssumedPartitionCheck()) ? 2 : pfes->GetNRanks();
-   tdof_offsets = new HYPRE_Int[n+1];
+   tdof_offsets = new HYPRE_BigInt[n+1];
 
    for (int i = 0; i <= n; i++)
    {
@@ -877,6 +1167,15 @@ ParComplexLinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi_real,
 {
    if ( lfi_real ) { plfr->AddDomainIntegrator(lfi_real); }
    if ( lfi_imag ) { plfi->AddDomainIntegrator(lfi_imag); }
+}
+
+void
+ParComplexLinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi_real,
+                                          LinearFormIntegrator *lfi_imag,
+                                          Array<int> &elem_attr_marker)
+{
+   if ( lfi_real ) { plfr->AddDomainIntegrator(lfi_real, elem_attr_marker); }
+   if ( lfi_imag ) { plfi->AddDomainIntegrator(lfi_imag, elem_attr_marker); }
 }
 
 void
@@ -985,13 +1284,13 @@ ParComplexLinearForm::ParallelAssemble()
    return tv;
 }
 
-complex<double>
+complex<real_t>
 ParComplexLinearForm::operator()(const ParComplexGridFunction &gf) const
 {
    plfr->SyncMemory(*this);
    plfi->SyncMemory(*this);
-   double s = (conv == ComplexOperator::HERMITIAN) ? 1.0 : -1.0;
-   return complex<double>((*plfr)(gf.real()) - s * (*plfi)(gf.imag()),
+   real_t s = (conv == ComplexOperator::HERMITIAN) ? 1.0 : -1.0;
+   return complex<real_t>((*plfr)(gf.real()) - s * (*plfi)(gf.imag()),
                           (*plfr)(gf.imag()) + s * (*plfi)(gf.real()));
 }
 
@@ -1038,6 +1337,14 @@ void ParSesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
 {
    if (bfi_real) { pblfr->AddDomainIntegrator(bfi_real); }
    if (bfi_imag) { pblfi->AddDomainIntegrator(bfi_imag); }
+}
+
+void ParSesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
+                                              BilinearFormIntegrator *bfi_imag,
+                                              Array<int> & elem_marker)
+{
+   if (bfi_real) { pblfr->AddDomainIntegrator(bfi_real, elem_marker); }
+   if (bfi_imag) { pblfi->AddDomainIntegrator(bfi_imag, elem_marker); }
 }
 
 void
@@ -1196,24 +1503,29 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       auto d_X_r = X_r.Read();
       auto d_X_i = X_i.Read();
       auto d_idx = ess_tdof_list.Read();
-      MFEM_FORALL(i, n,
+      mfem::forall(n, [=] MFEM_HOST_DEVICE (int i)
       {
          const int j = d_idx[i];
          d_B_r[j] = d_X_r[j];
          d_B_i[j] = d_X_i[j];
       });
-      // Modify offdiagonal blocks (imaginary parts of the matrix) to conform
+      // Modify off-diagonal blocks (imaginary parts of the matrix) to conform
       // with standard essential BC treatment
       if (A_i.Type() == Operator::Hypre_ParCSR)
       {
          HypreParMatrix * Ah;
          A_i.Get(Ah);
          hypre_ParCSRMatrix *Aih = *Ah;
-         for (int k = 0; k < n; k++)
+         Ah->HypreReadWrite();
+         const int *d_ess_tdof_list =
+            ess_tdof_list.GetMemory().Read(GetHypreForallMemoryClass(), n);
+         HYPRE_Int *d_diag_i = Aih->diag->i;
+         real_t *d_diag_data = Aih->diag->data;
+         mfem::hypre_forall(n, [=] MFEM_HOST_DEVICE (int k)
          {
-            const int j = ess_tdof_list[k];
-            Aih->diag->data[Aih->diag->i[j]] = 0.0;
-         }
+            const int j = d_ess_tdof_list[k];
+            d_diag_data[d_diag_i[j]] = 0.0;
+         });
       }
       else
       {
@@ -1285,7 +1597,7 @@ ParSesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
 
    if (RealInteg() && ImagInteg())
    {
-      // Modify offdiagonal blocks (imaginary parts of the matrix) to conform
+      // Modify off-diagonal blocks (imaginary parts of the matrix) to conform
       // with standard essential BC treatment
       if ( A_i.Type() == Operator::Hypre_ParCSR )
       {
@@ -1366,7 +1678,6 @@ ParSesquilinearForm::Update(FiniteElementSpace *nfes)
    if ( pblfr ) { pblfr->Update(nfes); }
    if ( pblfi ) { pblfi->Update(nfes); }
 }
-
 
 #endif // MFEM_USE_MPI
 

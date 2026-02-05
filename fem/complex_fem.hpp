@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -35,17 +35,55 @@ private:
    GridFunction * gfi;
 
 protected:
-   void Destroy() { delete gfr; delete gfi; }
+   /// FE space on which the grid function lives. Owned if #fec_owned
+   /// is not NULL.
+   FiniteElementSpace *fes;
+
+   /** @brief Used when the grid function is read from a file. It can also be
+       set explicitly, see MakeOwner().
+
+       If not NULL, this pointer is owned by the ComplexGridFunction. */
+   FiniteElementCollection *fec_owned;
+
+   long fes_sequence; // see FiniteElementSpace::sequence, Mesh::sequence
+
+   void Destroy();
 
 public:
    /** @brief Construct a ComplexGridFunction associated with the
        FiniteElementSpace @a *f. */
    ComplexGridFunction(FiniteElementSpace *f);
 
+   /** @brief Construct a ComplexGridFunction on the given Mesh, using the data
+       from @a input.
+
+       The content of @a input should be in the format created by the method
+       Save(). The reconstructed FiniteElementSpace and FiniteElementCollection
+       are owned by the ComplexGridFunction. */
+   ComplexGridFunction(Mesh *m, std::istream &input);
+
    void Update();
 
+   /** Return update counter, similar to Mesh::GetSequence(). Used to
+       check if it is up to date with the space. */
+   long GetSequence() const { return fes_sequence; }
+
+   /// Make the ComplexGridFunction the owner of #fec_owned and #fes.
+   /** If the new FiniteElementCollection, @a fec_, is NULL, ownership
+       of #fec_owned and #fes is taken away. */
+   void MakeOwner(FiniteElementCollection *fec_) { fec_owned = fec_; }
+
+   /// Returns a pointer to the FiniteElementCollection used to
+   /// construct this ComplexGridFunction if this class owns that
+   /// object. Otherwise this function will return NULL.
+   FiniteElementCollection *OwnFEC() { return fec_owned; }
+
+   /// Shortcut for calling FiniteElementSpace::GetVectorDim() on the
+   /// underlying #fes
+   int VectorDim() const;
+
    /// Assign constant values to the ComplexGridFunction data.
-   ComplexGridFunction &operator=(const std::complex<double> & value)
+   ComplexGridFunction &operator=(const std::complex<real_t> & value)
    { *gfr = value.real(); *gfi = value.imag(); return *this; }
 
    virtual void ProjectCoefficient(Coefficient &real_coeff,
@@ -63,8 +101,8 @@ public:
                                              VectorCoefficient &imag_coeff,
                                              Array<int> &attr);
 
-   FiniteElementSpace *FESpace() { return gfr->FESpace(); }
-   const FiniteElementSpace *FESpace() const { return gfr->FESpace(); }
+   FiniteElementSpace *FESpace() { return fes; }
+   const FiniteElementSpace *FESpace() const { return fes; }
 
    GridFunction & real() { return *gfr; }
    GridFunction & imag() { return *gfi; }
@@ -79,10 +117,51 @@ public:
    /// @a gfr and @a gfi to match the ComplexGridFunction.
    void SyncAlias() { gfr->SyncAliasMemory(*this); gfi->SyncAliasMemory(*this); }
 
+   /// @brief Returns ||u_ex - u_h||_L2 for complex-valued scalar fields
+   ///
+   /// @see GridFunction::ComputeL2Error(Coefficient &exsol,
+   ///                                   const IntegrationRule *irs[],
+   ///                                   const Array<int> *elems) const
+   ///      for more detailed documentation.
+   virtual real_t ComputeL2Error(Coefficient &exsolr, Coefficient &exsoli,
+                                 const IntegrationRule *irs[] = NULL) const
+   {
+      real_t err_r = gfr->ComputeL2Error(exsolr, irs);
+      real_t err_i = gfi->ComputeL2Error(exsoli, irs);
+      return sqrt(err_r * err_r + err_i * err_i);
+   }
+
+   /// @brief Returns ||u_ex - u_h||_L2 for complex-valued vector fields
+   ///
+   /// @see GridFunction::ComputeL2Error(VectorCoefficient &exsol,
+   ///                                   const IntegrationRule *irs[],
+   ///                                   const Array<int> *elems) const
+   ///      for more detailed documentation.
+   virtual real_t ComputeL2Error(VectorCoefficient &exsolr,
+                                 VectorCoefficient &exsoli,
+                                 const IntegrationRule *irs[] = NULL,
+                                 Array<int> *elems = NULL) const
+   {
+      real_t err_r = gfr->ComputeL2Error(exsolr, irs, elems);
+      real_t err_i = gfi->ComputeL2Error(exsoli, irs, elems);
+      return sqrt(err_r * err_r + err_i * err_i);
+   }
+
+   /// Save the ComplexGridFunction to an output stream.
+   virtual void Save(std::ostream &out) const;
+
+   /// Save the ComplexGridFunction to a file
+   /** The given @a precision will be used for ASCII output. */
+   virtual void Save(const char *fname, int precision=16) const;
+
    /// Destroys the grid function.
    virtual ~ComplexGridFunction() { Destroy(); }
 
 };
+
+/** Overload operator<< for std::ostream and ComplexGridFunction; not valid
+    for the class ParComplexGridFunction */
+std::ostream &operator<<(std::ostream &out, const ComplexGridFunction &sol);
 
 /** Class for a complex-valued linear form
 
@@ -120,6 +199,10 @@ public:
 
    virtual ~ComplexLinearForm();
 
+   /// Assign constant values to the ComplexLinearForm data.
+   ComplexLinearForm &operator=(const std::complex<real_t> & value)
+   { *lfr = value.real(); *lfi = value.imag(); return *this; }
+
    ComplexOperator::Convention GetConvention() const { return conv; }
    void SetConvention(const ComplexOperator::Convention &
                       convention) { conv = convention; }
@@ -127,6 +210,11 @@ public:
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
                             LinearFormIntegrator *lfi_imag);
+
+   /// Adds new Domain Integrator, restricted to the given attributes.
+   void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
+                            LinearFormIntegrator *lfi_imag,
+                            Array<int> &elem_attr_marker);
 
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
@@ -179,7 +267,7 @@ public:
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
    void Assemble();
 
-   std::complex<double> operator()(const ComplexGridFunction &gf) const;
+   std::complex<real_t> operator()(const ComplexGridFunction &gf) const;
 };
 
 
@@ -238,7 +326,7 @@ public:
    /// Set the desired assembly level.
    /** Valid choices are:
 
-       - AssemblyLevel::LEGACYFULL (default)
+       - AssemblyLevel::LEGACY (default)
        - AssemblyLevel::FULL
        - AssemblyLevel::PARTIAL
        - AssemblyLevel::ELEMENT
@@ -259,6 +347,11 @@ public:
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
                             BilinearFormIntegrator *bfi_imag);
+
+   /// Adds new Domain Integrator, restricted to the given attributes.
+   void AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
+                            BilinearFormIntegrator *bfi_imag,
+                            Array<int> &elem_marker);
 
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
@@ -331,12 +424,23 @@ public:
 class ParComplexGridFunction : public Vector
 {
 private:
-
    ParGridFunction * pgfr;
    ParGridFunction * pgfi;
 
 protected:
-   void Destroy() { delete pgfr; delete pgfi; }
+   /// FE space on which the grid function lives. Owned if #fec_owned
+   /// is not NULL.
+   ParFiniteElementSpace *pfes;
+
+   /** @brief Used when the grid function is read from a file. It can also be
+       set explicitly, see MakeOwner().
+
+       If not NULL, this pointer is owned by the ParComplexGridFunction. */
+   FiniteElementCollection *fec_owned;
+
+   long fes_sequence; // see FiniteElementSpace::sequence, Mesh::sequence
+
+   void Destroy();
 
 public:
 
@@ -344,10 +448,35 @@ public:
        ParFiniteElementSpace @a *pf. */
    ParComplexGridFunction(ParFiniteElementSpace *pf);
 
+   /** @brief Construct a ParComplexGridFunction on a given ParMesh,
+       @a pmesh, reading from an std::istream.
+
+       In the process, a ParFiniteElementSpace and a FiniteElementCollection are
+       constructed. The new ParComplexGridFunction assumes ownership of both. */
+   ParComplexGridFunction(ParMesh *pmesh, std::istream &input);
+
    void Update();
 
+   /** Return update counter, similar to Mesh::GetSequence(). Used to
+       check if it is up to date with the space. */
+   long GetSequence() const { return fes_sequence; }
+
+   /// Make the ParComplexGridFunction the owner of #fec_owned and #pfes.
+   /** If the new FiniteElementCollection, @a fec_, is NULL, ownership
+       of #fec_owned and #pfes is taken away. */
+   void MakeOwner(FiniteElementCollection *fec_) { fec_owned = fec_; }
+
+   /// Returns a pointer to the FiniteElementCollection used to
+   /// construct this ParComplexGridFunction if this class owns that
+   /// object. Otherwise this function will return NULL.
+   FiniteElementCollection *OwnFEC() { return fec_owned; }
+
+   /// Shortcut for calling FiniteElementSpace::GetVectorDim() on the
+   /// underlying #pfes
+   int VectorDim() const;
+
    /// Assign constant values to the ParComplexGridFunction data.
-   ParComplexGridFunction &operator=(const std::complex<double> & value)
+   ParComplexGridFunction &operator=(const std::complex<real_t> & value)
    { *pgfr = value.real(); *pgfi = value.imag(); return *this; }
 
    virtual void ProjectCoefficient(Coefficient &real_coeff,
@@ -371,11 +500,11 @@ public:
    /// Returns the vector restricted to the true dofs.
    void ParallelProject(Vector &tv) const;
 
-   FiniteElementSpace *FESpace() { return pgfr->FESpace(); }
-   const FiniteElementSpace *FESpace() const { return pgfr->FESpace(); }
+   FiniteElementSpace *FESpace() { return pfes; }
+   const FiniteElementSpace *FESpace() const { return pfes; }
 
-   ParFiniteElementSpace *ParFESpace() { return pgfr->ParFESpace(); }
-   const ParFiniteElementSpace *ParFESpace() const { return pgfr->ParFESpace(); }
+   ParFiniteElementSpace *ParFESpace() { return pfes; }
+   const ParFiniteElementSpace *ParFESpace() const { return pfes; }
 
    ParGridFunction & real() { return *pgfr; }
    ParGridFunction & imag() { return *pgfi; }
@@ -388,32 +517,60 @@ public:
 
    /// Update the alias memory location of the real and imaginary
    /// ParGridFunction @a pgfr and @a pgfi to match the ParComplexGridFunction.
-   void SyncAlias() { pgfr->SyncAliasMemory(*this); pgfi->SyncAliasMemory(*this); }
+   void SyncAlias()
+   { pgfr->SyncAliasMemory(*this); pgfi->SyncAliasMemory(*this); }
 
-
-   virtual double ComputeL2Error(Coefficient &exsolr, Coefficient &exsoli,
-                                 const IntegrationRule *irs[] = NULL) const
+   /// @brief Returns ||u_ex - u_h||_L2 in parallel for complex-valued
+   ///        scalar fields
+   ///
+   /// @see GridFunction::ComputeL2Error(Coefficient &exsol,
+   ///                                   const IntegrationRule *irs[],
+   ///                                   const Array<int> *elems) const
+   ///      for more detailed documentation.
+   virtual real_t ComputeL2Error(Coefficient &exsolr, Coefficient &exsoli,
+                                 const IntegrationRule *irs[] = NULL,
+                                 Array<int> *elems = NULL) const
    {
-      double err_r = pgfr->ComputeL2Error(exsolr, irs);
-      double err_i = pgfi->ComputeL2Error(exsoli, irs);
-      return sqrt(err_r * err_r + err_i * err_i);
+      real_t err_r = pgfr->ComputeL2Error(exsolr, irs, elems);
+      real_t err_i = pgfi->ComputeL2Error(exsoli, irs, elems);
+      return hypot(err_r, err_i);
    }
 
-   virtual double ComputeL2Error(VectorCoefficient &exsolr,
+   /// @brief Returns ||u_ex - u_h||_L2 in parallel for complex-valued
+   ///        vector fields
+   ///
+   /// @see GridFunction::ComputeL2Error(VectorCoefficient &exsol,
+   ///                                   const IntegrationRule *irs[],
+   ///                                   const Array<int> *elems) const
+   ///      for more detailed documentation.
+   virtual real_t ComputeL2Error(VectorCoefficient &exsolr,
                                  VectorCoefficient &exsoli,
                                  const IntegrationRule *irs[] = NULL,
                                  Array<int> *elems = NULL) const
    {
-      double err_r = pgfr->ComputeL2Error(exsolr, irs, elems);
-      double err_i = pgfi->ComputeL2Error(exsoli, irs, elems);
-      return sqrt(err_r * err_r + err_i * err_i);
+      real_t err_r = pgfr->ComputeL2Error(exsolr, irs, elems);
+      real_t err_i = pgfi->ComputeL2Error(exsoli, irs, elems);
+      return hypot(err_r, err_i);
    }
 
+   /// Save the local portion of the ParComplexGridFunction
+   /** This differs from the serial ComplexGridFunction::Save in that it
+       takes into account the signs of the local dofs. */
+   void Save(std::ostream &out) const;
+
+   /// Save the ParComplexGridFunction to files
+   /** Saves one file for each MPI rank. The files will be given suffixes
+       according to the MPI rank. The given @a precision will be used for ASCII
+       output. */
+   void Save(const char *fname, int precision=16) const;
 
    /// Destroys grid function.
    virtual ~ParComplexGridFunction() { Destroy(); }
 
 };
+
+/** Overload operator<< for std::ostream and ParComplexGridFunction */
+std::ostream &operator<<(std::ostream &out, const ParComplexGridFunction &sol);
 
 /** Class for a complex-valued, parallel linear form
 
@@ -433,7 +590,7 @@ protected:
    ParLinearForm * plfr;
    ParLinearForm * plfi;
 
-   HYPRE_Int * tdof_offsets;
+   HYPRE_BigInt * tdof_offsets;
 
 public:
 
@@ -456,6 +613,10 @@ public:
 
    virtual ~ParComplexLinearForm();
 
+   /// Assign constant values to the ParComplexLinearForm data.
+   ParComplexLinearForm &operator=(const std::complex<real_t> & value)
+   { *plfr = value.real(); *plfi = value.imag(); return *this; }
+
    ComplexOperator::Convention GetConvention() const { return conv; }
    void SetConvention(const ComplexOperator::Convention &
                       convention) { conv = convention; }
@@ -463,6 +624,11 @@ public:
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
                             LinearFormIntegrator *lfi_imag);
+
+   /// Adds new Domain Integrator, restricted to specific attributes.
+   void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
+                            LinearFormIntegrator *lfi_imag,
+                            Array<int> &elem_attr_marker);
 
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
@@ -520,7 +686,7 @@ public:
    /// Returns the vector assembled on the true dofs, i.e. P^t v.
    HypreParVector *ParallelAssemble();
 
-   std::complex<double> operator()(const ParComplexGridFunction &gf) const;
+   std::complex<real_t> operator()(const ParComplexGridFunction &gf) const;
 
 };
 
@@ -576,7 +742,7 @@ public:
    /// Set the desired assembly level.
    /** Valid choices are:
 
-       - AssemblyLevel::LEGACYFULL (default)
+       - AssemblyLevel::LEGACY (default)
        - AssemblyLevel::FULL
        - AssemblyLevel::PARTIAL
        - AssemblyLevel::ELEMENT
@@ -597,6 +763,11 @@ public:
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
                             BilinearFormIntegrator *bfi_imag);
+
+   /// Adds new Domain Integrator, restricted to specific attributes.
+   void AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
+                            BilinearFormIntegrator *bfi_imag,
+                            Array<int> &elem_marker);
 
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,

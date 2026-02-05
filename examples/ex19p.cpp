@@ -62,18 +62,18 @@ public:
 #endif
    }
 
-   virtual void MonitorResidual(int it, double norm, const Vector &r, bool final);
+   void MonitorResidual(int it, real_t norm, const Vector &r, bool final) override;
 
 private:
    const std::string prefix;
    int print_level;
-   mutable double norm0;
+   mutable real_t norm0;
 };
 
-void GeneralResidualMonitor::MonitorResidual(int it, double norm,
+void GeneralResidualMonitor::MonitorResidual(int it, real_t norm,
                                              const Vector &r, bool final)
 {
-   if (print_level == 1 || (print_level == 3 && (final || it == 0)))
+   if ((print_level == 1 && !final) || (print_level == 3 && (final || it == 0)))
    {
       mfem::out << prefix << " iteration " << setw(2) << it
                 << " : ||r|| = " << norm;
@@ -117,7 +117,7 @@ protected:
    BlockOperator *jacobian;
 
    // Scaling factor for the pressure mass matrix in the block preconditioner
-   double gamma;
+   real_t gamma;
 
    // Objects for the block preconditioner application
    Operator *pressure_mass;
@@ -130,10 +130,10 @@ public:
    JacobianPreconditioner(Array<ParFiniteElementSpace *> &fes,
                           Operator &mass, Array<int> &offsets);
 
-   virtual void Mult(const Vector &k, Vector &y) const;
-   virtual void SetOperator(const Operator &op);
+   void Mult(const Vector &k, Vector &y) const override;
+   void SetOperator(const Operator &op) override;
 
-   virtual ~JacobianPreconditioner();
+   ~JacobianPreconditioner() override;
 };
 
 // After spatial discretization, the rubber model can be written as:
@@ -171,21 +171,22 @@ protected:
 
 public:
    RubberOperator(Array<ParFiniteElementSpace *> &fes, Array<Array<int> *>&ess_bdr,
-                  Array<int> &block_trueOffsets, double rel_tol, double abs_tol,
+                  Array<int> &block_trueOffsets, real_t rel_tol, real_t abs_tol,
                   int iter, Coefficient &mu);
 
    // Required to use the native newton solver
-   virtual Operator &GetGradient(const Vector &xp) const;
-   virtual void Mult(const Vector &k, Vector &y) const;
+   Operator &GetGradient(const Vector &xp) const override;
+   void Mult(const Vector &k, Vector &y) const override;
 
    // Driver for the newton solver
    void Solve(Vector &xp) const;
 
-   virtual ~RubberOperator();
+   ~RubberOperator() override;
 };
 
 // Visualization driver
-void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
+void visualize(ostream &os, ParMesh *mesh,
+               ParGridFunction *deformed_nodes,
                ParGridFunction *field, const char *field_name = NULL,
                bool init_vis = false);
 
@@ -196,9 +197,16 @@ void InitialDeformation(const Vector &x, Vector &y);
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI
-   MPI_Session mpi;
-   const int myid = mpi.WorldRank();
+#ifdef HYPRE_USING_GPU
+   cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this example\n"
+        << "is NOT supported with the GPU version of hypre.\n\n";
+   return MFEM_SKIP_RETURN_VALUE;
+#endif
+
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init();
+   const int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options
    const char *mesh_file = "../data/beam-tet.mesh";
@@ -206,10 +214,10 @@ int main(int argc, char *argv[])
    int par_ref_levels = 0;
    int order = 2;
    bool visualization = true;
-   double newton_rel_tol = 1e-4;
-   double newton_abs_tol = 1e-6;
+   real_t newton_rel_tol = 1e-4;
+   real_t newton_abs_tol = 1e-6;
    int newton_iter = 500;
-   double mu = 1.0;
+   real_t mu = 1.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -285,8 +293,8 @@ int main(int argc, char *argv[])
    spaces[0] = &R_space;
    spaces[1] = &W_space;
 
-   HYPRE_Int glob_R_size = R_space.GlobalTrueVSize();
-   HYPRE_Int glob_W_size = W_space.GlobalTrueVSize();
+   HYPRE_BigInt glob_R_size = R_space.GlobalTrueVSize();
+   HYPRE_BigInt glob_W_size = W_space.GlobalTrueVSize();
 
    // 8. Define the Dirichlet conditions (set to boundary attribute 1 and 2)
    Array<Array<int> *> ess_bdr(2);
@@ -438,15 +446,19 @@ JacobianPreconditioner::JacobianPreconditioner(Array<ParFiniteElementSpace *>
 void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
 {
    // Extract the blocks from the input and output vectors
-   Vector disp_in(k.GetData() + block_trueOffsets[0],
-                  block_trueOffsets[1]-block_trueOffsets[0]);
-   Vector pres_in(k.GetData() + block_trueOffsets[1],
-                  block_trueOffsets[2]-block_trueOffsets[1]);
-
-   Vector disp_out(y.GetData() + block_trueOffsets[0],
+   Vector disp_in;
+   disp_in.MakeRef(const_cast<Vector&>(k), block_trueOffsets[0],
                    block_trueOffsets[1]-block_trueOffsets[0]);
-   Vector pres_out(y.GetData() + block_trueOffsets[1],
+   Vector pres_in;
+   pres_in.MakeRef(const_cast<Vector&>(k), block_trueOffsets[1],
                    block_trueOffsets[2]-block_trueOffsets[1]);
+
+   Vector disp_out;
+   disp_out.MakeRef(y, block_trueOffsets[0],
+                    block_trueOffsets[1]-block_trueOffsets[0]);
+   Vector pres_out;
+   pres_out.MakeRef(y, block_trueOffsets[1],
+                    block_trueOffsets[2]-block_trueOffsets[1]);
 
    Vector temp(block_trueOffsets[1]-block_trueOffsets[0]);
    Vector temp2(block_trueOffsets[1]-block_trueOffsets[0]);
@@ -459,6 +471,9 @@ void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
    subtract(disp_in, temp, temp2);
 
    stiff_pcg->Mult(temp2, disp_out);
+
+   disp_out.SyncAliasMemory(y);
+   pres_out.SyncAliasMemory(y);
 }
 
 void JacobianPreconditioner::SetOperator(const Operator &op)
@@ -473,7 +488,10 @@ void JacobianPreconditioner::SetOperator(const Operator &op)
 
       if (!spaces[0]->GetParMesh()->Nonconforming())
       {
+#if !defined(HYPRE_USING_GPU)
+         // Not available yet when hypre is built with GPU support
          stiff_prec_amg->SetElasticityOptions(spaces[0]);
+#endif
       }
 
       stiff_prec = stiff_prec_amg;
@@ -506,8 +524,8 @@ JacobianPreconditioner::~JacobianPreconditioner()
 RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
                                Array<Array<int> *> &ess_bdr,
                                Array<int> &trueOffsets,
-                               double rel_tol,
-                               double abs_tol,
+                               real_t rel_tol,
+                               real_t abs_tol,
                                int iter,
                                Coefficient &c_mu)
    : Operator(fes[0]->TrueVSize() + fes[1]->TrueVSize()),
@@ -601,10 +619,11 @@ RubberOperator::~RubberOperator()
 
 
 // Inline visualization
-void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
+void visualize(ostream &os, ParMesh *mesh,
+               ParGridFunction *deformed_nodes,
                ParGridFunction *field, const char *field_name, bool init_vis)
 {
-   if (!out)
+   if (!os)
    {
       return;
    }
@@ -614,24 +633,27 @@ void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
 
    mesh->SwapNodes(nodes, owns_nodes);
 
-   out << "parallel " << mesh->GetNRanks() << " " << mesh->GetMyRank() << "\n";
-   out << "solution\n" << *mesh << *field;
+   os << "parallel " << mesh->GetNRanks() << " " << mesh->GetMyRank() <<
+      "\n";
+   os << "solution\n" << *mesh << *field;
 
    mesh->SwapNodes(nodes, owns_nodes);
 
    if (init_vis)
    {
-      out << "window_size 800 800\n";
-      out << "window_title '" << field_name << "'\n";
+      os << "window_size 800 800\n";
+      os << "window_title '" << field_name << "'\n";
       if (mesh->SpaceDimension() == 2)
       {
-         out << "view 0 0\n"; // view from top
-         out << "keys jlA\n"; // turn off perspective and light, +anti-aliasing
+         os << "view 0 0\n"; // view from top
+         // turn off perspective and light, +anti-aliasing
+         os << "keys jlA\n";
       }
-      out << "keys cmA\n";        // show colorbar and mesh, +anti-aliasing
-      out << "autoscale value\n"; // update value-range; keep mesh-extents fixed
+      os << "keys cmA\n"; // show colorbar and mesh, +anti-aliasing
+      // update value-range; keep mesh-extents fixed
+      os << "autoscale value\n";
    }
-   out << flush;
+   os << flush;
 }
 
 void ReferenceConfiguration(const Vector &x, Vector &y)

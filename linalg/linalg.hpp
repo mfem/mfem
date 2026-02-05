@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,15 +19,31 @@
 #include "matrix.hpp"
 #include "sparsemat.hpp"
 #include "complex_operator.hpp"
+#include "complex_densemat.hpp"
 #include "blockvector.hpp"
 #include "blockmatrix.hpp"
 #include "blockoperator.hpp"
 #include "sparsesmoothers.hpp"
 #include "densemat.hpp"
+#include "symmat.hpp"
 #include "ode.hpp"
 #include "solvers.hpp"
 #include "handle.hpp"
 #include "invariants.hpp"
+#include "constraints.hpp"
+#include "auxiliary.hpp"
+#include "mma.hpp"
+#include "batched/batched.hpp"
+#include "batched/gpu_blas.hpp"
+#include "batched/solver.hpp"
+#include "tensor.hpp"
+#include "filteredsolver.hpp"
+#include "ordering.hpp"
+#include "particlevector.hpp"
+
+#ifdef MFEM_USE_AMGX
+#include "amgxsolver.hpp"
+#endif
 
 #ifdef MFEM_USE_SUNDIALS
 #include "sundials.hpp"
@@ -39,6 +55,10 @@
 
 #ifdef MFEM_USE_GINKGO
 #include "ginkgo.hpp"
+#endif
+
+#ifdef MFEM_USE_MKL_PARDISO
+#include "pardiso.hpp"
 #endif
 
 #ifdef MFEM_USE_MPI

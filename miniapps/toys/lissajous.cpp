@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -33,20 +33,21 @@
 using namespace std;
 using namespace mfem;
 
-double u_function(const Vector &x);
+real_t u_function(const Vector &x);
 void lissajous_trans_v(const Vector &x, Vector &p);
 void lissajous_trans_h(const Vector &x, Vector &p);
 
 // Default Lissajous curve parameters
-double a = 3.0;
-double b = 2.0;
-double delta = 90;
+real_t a = 3.0;
+real_t b = 2.0;
+real_t delta = 90;
 
 int main(int argc, char *argv[])
 {
    int nx = 32;
    int ny = 3;
    int order = 2;
+   int visport = 19916;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -65,6 +66,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -76,11 +78,11 @@ int main(int argc, char *argv[])
    delta *= M_PI / 180.0; // convert to radians
 
    char vishost[] = "localhost";
-   int  visport   = 19916;
    socketstream soutv, south;
 
    {
-      Mesh mesh(nx, ny, Element::QUADRILATERAL, 1, 2*M_PI, 2*M_PI);
+      Mesh mesh = Mesh::MakeCartesian2D(
+                     nx, ny, Element::QUADRILATERAL, 1, 2*M_PI, 2*M_PI);
       mesh.SetCurvature(order, true, 3, Ordering::byVDIM);
       mesh.Transform(lissajous_trans_v);
 
@@ -102,7 +104,8 @@ int main(int argc, char *argv[])
    }
 
    {
-      Mesh mesh(nx, ny, Element::QUADRILATERAL, 1, 2*M_PI, 2*M_PI);
+      Mesh mesh = Mesh::MakeCartesian2D(
+                     nx, ny, Element::QUADRILATERAL, 1, 2*M_PI, 2*M_PI);
       mesh.SetCurvature(order, true, 3, Ordering::byVDIM);
       mesh.Transform(lissajous_trans_h);
 
@@ -130,8 +133,11 @@ int main(int argc, char *argv[])
       u.Save(sol_ofs);
    }
 
-   soutv << "keys '.0" << std::string(b, '0') << "'\n" << flush;
-   south << "keys '.0" << std::string(a, '0') << "'\n" << flush;
+   if (visualization)
+   {
+      soutv << "keys '.0" << std::string((int)b, '0') << "'\n" << flush;
+      south << "keys '.0" << std::string((int)a, '0') << "'\n" << flush;
+   }
 
    cout << "Which direction(s) are the two curves spinning in?\n";
 
@@ -139,43 +145,50 @@ int main(int argc, char *argv[])
 }
 
 // Simple function to project to help identify the spinning
-double u_function(const Vector &x)
+real_t u_function(const Vector &x)
 {
    return x[2];
 }
 
 // Tubular Lissajous curve with the given parameters (a, b, theta)
 void lissajous_trans(const Vector &x, Vector &p,
-                     double a, double b, double delta)
+                     real_t a_, real_t b_, real_t delta_)
 {
    p.SetSize(3);
 
-   double phi = x[0];
-   double theta = x[1];
-   double t = phi;
+   real_t phi = x[0];
+   real_t theta = x[1];
+   real_t t = phi;
 
-   double A = b; // Scaling of the curve along the x-axis
-   double B = a; // Scaling of the curve along the y-axis
+   real_t A = b_; // Scaling of the curve along the x-axis
+   real_t B = a_; // Scaling of the curve along the y-axis
 
    // Lissajous curve on a 3D cylinder
-   p[0] = B*cos(b*t);
-   p[1] = B*sin(b*t); // Y
-   p[2] = A*sin(a*t + delta); // X
+   p[0] = B*cos(b_*t);
+   p[1] = B*sin(b_*t); // Y
+   p[2] = A*sin(a_*t + delta_); // X
 
    // Turn the curve into a tubular surface
    {
       // tubular radius
-      double R = 0.02*(A+B);
+      real_t R = 0.02*(A+B);
 
       // normal to the cylinder at p(t)
-      double normal[3] = { cos(b*t), sin(b*t), 0 };
+      real_t normal[3] = { cos(b_*t), sin(b_*t), 0 };
 
       // tangent to the curve, dp/dt(t)
-      // double tangent[3] = { -b*B*sin(b*t), b*B*cos(b*t), A*a*cos(a*t+delta) };
+      // real_t tangent[3] = { -b_*B*sin(b_*t), b_*B*cos(b_*t), A*a_*cos(a_*t+delta_) };
 
       // normalized cross product of tangent and normal at p(t)
-      double cn = 1e-128;
-      double cross[3] = { A*a*sin(b*t)*cos(a*t+delta), -A*a*cos(b*t)*cos(a*t+delta), b*B };
+#ifdef MFEM_USE_SINGLE
+      real_t cn = 1e-32;
+#elif defined MFEM_USE_DOUBLE
+      real_t cn = 1e-128;
+#else
+      real_t cn = 0;
+      MFEM_ABORT("Floating point type undefined");
+#endif
+      real_t cross[3] = { A*a_*sin(b_*t)*cos(a_*t+delta_), -A*a_*cos(b_*t)*cos(a_*t+delta_), b_*B };
       for (int i = 0; i < 3; i++) { cn += cross[i]*cross[i]; }
       for (int i = 0; i < 3; i++) { cross[i] /= sqrt(cn); }
 

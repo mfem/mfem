@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -24,18 +24,22 @@
 #include "handle.hpp"
 #include "hypre.hpp"
 #include "ode.hpp"
+#include "../general/mem_manager.hpp"
 
 #include "petscconf.h"
-#if !defined(PETSC_USE_REAL_DOUBLE)
-#error "MFEM does not work with PETSc compiled without double precision"
+#if defined(MFEM_USE_DOUBLE) && !defined(PETSC_USE_REAL_DOUBLE)
+#error "Mismatch between MFEM and PETSc real types"
+#endif
+#if defined(MFEM_USE_SINGLE) && !defined(PETSC_USE_REAL_SINGLE)
+#error "Mismatch between MFEM and PETSc real types"
 #endif
 #if defined(PETSC_USE_COMPLEX)
 #error "MFEM does not work with PETSc compiled with complex numbers support"
 #endif
-#if defined(PETSC_USE_64BIT_INDICES) && !defined(HYPRE_BIGINT)
+#if defined(PETSC_USE_64BIT_INDICES) && !defined(HYPRE_BIGINT) && !defined(HYPRE_MIXEDINT)
 #error "Mismatch between HYPRE (32bit) and PETSc (64bit) integer types"
 #endif
-#if !defined(PETSC_USE_64BIT_INDICES) && defined(HYPRE_BIGINT)
+#if !defined(PETSC_USE_64BIT_INDICES) && (defined(HYPRE_BIGINT) || defined(HYPRE_MIXEDINT))
 #error "Mismatch between HYPRE (64bit) and PETSc (32bit) integer types"
 #endif
 
@@ -44,23 +48,34 @@
 #include "petscsystypes.h"
 #else
 typedef HYPRE_Int PetscInt;
-typedef double PetscScalar;
-typedef double PetscReal;
+typedef real_t PetscScalar;
+typedef real_t PetscReal;
 typedef int PetscClassId;
 typedef struct _p_PetscObject *PetscObject;
 #endif
 
-// forward declarations of PETSc objects
-typedef struct _p_Vec *Vec;
-typedef struct _p_Mat *Mat;
-typedef struct _p_KSP *KSP;
-typedef struct _p_PC *PC;
-typedef struct _p_SNES *SNES;
-typedef struct _p_TS *TS;
+// forward declarations of PETSc internal structs
+struct _p_Vec;
+struct _p_Mat;
+struct _p_KSP;
+struct _p_PC;
+struct _p_SNES;
+struct _p_TS;
 
 
 namespace mfem
 {
+
+// Declare aliases of PETSc's types inside the namespace mfem::petsc:
+namespace petsc
+{
+typedef struct ::_p_Vec  *Vec;
+typedef struct ::_p_Mat  *Mat;
+typedef struct ::_p_KSP  *KSP;
+typedef struct ::_p_PC   *PC;
+typedef struct ::_p_SNES *SNES;
+typedef struct ::_p_TS   *TS;
+}
 
 /// Convenience functions to initialize/finalize PETSc
 void MFEMInitializePetsc();
@@ -68,15 +83,83 @@ void MFEMInitializePetsc(int*,char***);
 void MFEMInitializePetsc(int*,char***,const char[],const char[]);
 void MFEMFinalizePetsc();
 
+/// Wrapper for syncing PETSc's vector memory
+class PetscMemory : public Memory<real_t>
+{
+private:
+   Memory<real_t> *base;
+   bool read;
+   bool write;
+   bool usedev;
+public:
+   PetscMemory()                      { Reset(); base = nullptr; }
+   void SetHostValid() const          { flags |= VALID_HOST; }
+   void SetDeviceValid() const        { flags |= VALID_DEVICE; }
+   void SetHostInvalid() const        { flags &= ~VALID_HOST; }
+   void SetDeviceInvalid() const      { flags &= ~VALID_DEVICE; }
+   inline bool IsAliasForSync() const { return base && (flags & ALIAS); }
+
+   inline void MakeAliasForSync(const Memory<real_t> &base_, int offset_,
+                                int size_, bool usedev_)
+   {
+      MFEM_VERIFY(!IsAliasForSync(),"Already alias");
+      base = (Memory<real_t>*)&base_;
+      read = true;
+      write = false;
+      usedev = usedev_;
+      MakeAlias(base_,offset_,size_);
+   }
+   inline void MakeAliasForSync(Memory<real_t> &base_, int offset_, int size_,
+                                bool read_, bool write_, bool usedev_)
+   {
+      MFEM_VERIFY(!IsAliasForSync(),"Already alias");
+      base = (Memory<real_t>*)&base_;
+      read = read_;
+      write = write_;
+      usedev = usedev_;
+      MakeAlias(base_,offset_,size_);
+   }
+   inline void SyncBase()
+   {
+      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSynch not called");
+      base->Sync(*this);
+   }
+   inline void SyncBaseAndReset()
+   {
+      SyncBase();
+      base = nullptr;
+      Reset();
+   }
+   inline bool ReadRequested() const
+   {
+      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSynch not called");
+      return read;
+   }
+   inline bool WriteRequested() const
+   {
+      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSynch not called");
+      return write;
+   }
+   inline bool DeviceRequested() const
+   {
+      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSynch not called");
+      return usedev;
+   }
+   const real_t *GetHostPointer() const;
+   const real_t *GetDevicePointer() const;
+};
+
+/// Wrapper for PETSc's vector class
 class ParFiniteElementSpace;
 class PetscParMatrix;
 
-/// Wrapper for PETSc's vector class
 class PetscParVector : public Vector
 {
 protected:
    /// The actual PETSc object
-   Vec x;
+   petsc::Vec x;
+
+   mutable PetscMemory pdata;
 
    friend class PetscParMatrix;
    friend class PetscODESolver;
@@ -86,7 +169,13 @@ protected:
    friend class PetscBDDCSolver;
 
    // Set Vector::data and Vector::size from x
-   void _SetDataAndSize_();
+   void SetDataAndSize_();
+
+   // Set Vec type from Device type
+   void SetVecType_();
+
+   // Update Memory flags from PETSc offloadmask
+   void SetFlagsFromMask_() const;
 
 public:
    /// Creates vector with given global size and partitioning of the columns.
@@ -97,9 +186,9 @@ public:
    /** @brief Creates vector with given global size, partitioning of the
        columns, and data.
 
-       The data must be allocated and destroyed outside. If @a _data is NULL, a
+       The data must be allocated and destroyed outside. If @a data_ is NULL, a
        dummy vector without a valid data array will be created. */
-   PetscParVector(MPI_Comm comm, PetscInt glob_size, PetscScalar *_data,
+   PetscParVector(MPI_Comm comm, PetscInt glob_size, PetscScalar *data_,
                   PetscInt *col);
 
    /// Creates vector compatible with @a y
@@ -107,9 +196,9 @@ public:
 
    /** @brief Creates a PetscParVector from a Vector
        @param[in] comm  MPI communicator on which the new object lives
-       @param[in] _x    The mfem Vector (data is not shared)
-       @param[in] copy  Whether to copy the data in _x or not */
-   PetscParVector(MPI_Comm comm, const Vector &_x, bool copy = false);
+       @param[in] x_    The mfem Vector (data is not shared)
+       @param[in] copy  Whether to copy the data in x_ or not */
+   PetscParVector(MPI_Comm comm, const Vector &x_, bool copy = false);
 
    /** @brief Creates vector compatible with the Operator (i.e. in the domain
        of) @a op or its adjoint. */
@@ -127,7 +216,7 @@ public:
    /// Creates PetscParVector out of PETSc Vec object.
    /** @param[in] y    The PETSc Vec object.
        @param[in] ref  If true, we increase the reference count of @a y. */
-   explicit PetscParVector(Vec y, bool ref=false);
+   explicit PetscParVector(petsc::Vec y, bool ref=false);
 
    /// Create a true dof parallel vector on a given ParFiniteElementSpace
    explicit PetscParVector(ParFiniteElementSpace *pfes);
@@ -142,7 +231,7 @@ public:
    PetscInt GlobalSize() const;
 
    /// Typecasting to PETSc's Vec type
-   operator Vec() const { return x; }
+   operator petsc::Vec() const { return x; }
 
    /// Typecasting to PETSc object
    operator PetscObject() const { return (PetscObject)x; }
@@ -153,16 +242,24 @@ public:
    /// Set constant values
    PetscParVector& operator= (PetscScalar d);
 
+   /** @brief Set block size of a vector.
+
+       @note This will error if the local size of the vector is not a multiple
+       of the block size @a bs.
+       @note This is a logically collective operation, so all processes need
+       to call it. */
+   void SetBlockSize(PetscInt bs);
+
    /** @brief Set values in a vector.
 
-       @note any process can insert in any location
-       @note This is a collective operation, so all process needs to call it  */
+       @note Any process can insert in any location.
+       @note This is a collective operation, so all processes need to call it.  */
    PetscParVector& SetValues(const Array<PetscInt>&, const Array<PetscScalar>&);
 
    /** @brief Add values in a vector.
 
-       @note any process can add to any location
-       @note This is a collective operation, so all process needs to call it  */
+       @note Any process can add to any location.
+       @note This is a collective operation, so all processes need to call it.  */
    PetscParVector& AddValues(const Array<PetscInt>&, const Array<PetscScalar>&);
 
    /// Define operators for PETSc vectors.
@@ -185,11 +282,35 @@ public:
        @note This method calls PETSc's VecResetArray() function. */
    void ResetArray();
 
+   /** @brief This requests write access from where the memory is valid
+       and temporarily replaces the corresponding array used by the PETSc Vec
+       The bool parameter indicates read/write request */
+   void PlaceMemory(Memory<real_t>&,bool=false);
+
+   /** @brief This requests read access from where the memory is valid
+       and temporarily replaces the corresponding array used by the PETSc Vec */
+   void PlaceMemory(const Memory<real_t>&);
+
+   /** @brief Completes the operation started with PlaceMemory */
+   void ResetMemory();
+
+   /** @brief Update PETSc's Vec after having accessed its data via GetMemory() */
+   void UpdateVecFromFlags();
+
    /// Set random values
    void Randomize(PetscInt seed = 0);
 
    /// Prints the vector (to stdout if @a fname is NULL)
    void Print(const char *fname = NULL, bool binary = false) const;
+
+   const real_t *Read(bool=true) const override;
+   const real_t *HostRead() const override;
+   real_t *Write(bool=true) override;
+   real_t *HostWrite() override;
+   real_t *ReadWrite(bool=true) override;
+   real_t *HostReadWrite() override;
+   bool UseDevice() const override;
+   void UseDevice(bool) const override;
 };
 
 
@@ -198,7 +319,7 @@ class PetscParMatrix : public Operator
 {
 protected:
    /// The actual PETSc object
-   Mat A;
+   petsc::Mat A;
 
    /// Auxiliary vectors for typecasting
    mutable PetscParVector *X, *Y;
@@ -214,13 +335,13 @@ protected:
 
        This does not take any reference to @a op, that should not be destroyed
        until @a B is needed. */
-   void MakeWrapper(MPI_Comm comm, const Operator* op, Mat *B);
+   void MakeWrapper(MPI_Comm comm, const Operator* op, petsc::Mat *B);
 
    /// Convert an mfem::Operator into a Mat @a B; @a op can be destroyed unless
    /// tid == PETSC_MATSHELL or tid == PETSC_MATHYPRE
    /// if op is a BlockOperator, the operator type is relevant to the individual
    /// blocks
-   void ConvertOperator(MPI_Comm comm, const Operator& op, Mat *B,
+   void ConvertOperator(MPI_Comm comm, const Operator& op, petsc::Mat *B,
                         Operator::Type tid);
 
    friend class PetscLinearSolver;
@@ -230,7 +351,9 @@ private:
    /// Constructs a block-diagonal Mat object
    void BlockDiagonalConstructor(MPI_Comm comm, PetscInt *row_starts,
                                  PetscInt *col_starts, SparseMatrix *diag,
-                                 bool assembled, Mat *A);
+                                 bool assembled, petsc::Mat *A);
+
+   void SetUpForDevice();
 
 public:
    /// Create an empty matrix to be used as a reference to an existing matrix.
@@ -239,7 +362,7 @@ public:
    /// Creates PetscParMatrix out of PETSc's Mat.
    /** @param[in]  a    The PETSc Mat object.
        @param[in]  ref  If true, we increase the reference count of @a a. */
-   PetscParMatrix(Mat a, bool ref=false);
+   PetscParMatrix(petsc::Mat a, bool ref=false);
 
    /** @brief Convert a PetscParMatrix @a pa with a new PETSc format @a tid.
        Note that if @a pa is already a PetscParMatrix of the same type as
@@ -248,8 +371,8 @@ public:
 
    /** @brief Creates a PetscParMatrix extracting the submatrix of @a A with
        @a rows row indices and @a cols column indices */
-   PetscParMatrix(const PetscParMatrix& A, const mfem::Array<PetscInt>& rows,
-                  const mfem::Array<PetscInt>& cols);
+   PetscParMatrix(const PetscParMatrix& A, const Array<PetscInt>& rows,
+                  const Array<PetscInt>& cols);
 
    /** @brief Convert a HypreParMatrix @a ha to a PetscParMatrix in the given
        PETSc format @a tid. */
@@ -305,7 +428,7 @@ public:
    virtual ~PetscParMatrix() { Destroy(); }
 
    /// Replace the inner Mat Object. The reference count of newA is increased
-   void SetMat(Mat newA);
+   void SetMat(petsc::Mat newA);
 
    /// @name Assignment operators
    ///@{
@@ -316,22 +439,30 @@ public:
    ///@}
 
    /// Matvec: @a y = @a a A @a x + @a b @a y.
-   void Mult(double a, const Vector &x, double b, Vector &y) const;
+   void Mult(real_t a, const Vector &x, real_t b, Vector &y) const;
 
    /// Matvec transpose: @a y = @a a A^T @a x + @a b @a y.
-   void MultTranspose(double a, const Vector &x, double b, Vector &y) const;
+   void MultTranspose(real_t a, const Vector &x, real_t b, Vector &y) const;
 
-   virtual void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    { Mult(1.0, x, 0.0, y); }
 
-   virtual void MultTranspose(const Vector &x, Vector &y) const
+   void MultTranspose(const Vector &x, Vector &y) const override
    { MultTranspose(1.0, x, 0.0, y); }
+
+   void AddMult(const Vector &x, Vector &y,
+                const real_t a = 1.0) const override
+   { Mult(a, x, 1.0, y); }
+
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const real_t a = 1.0) const override
+   { MultTranspose(a, x, 1.0, y); }
 
    /// Get the associated MPI communicator
    MPI_Comm GetComm() const;
 
    /// Typecasting to PETSc's Mat type
-   operator Mat() const { return A; }
+   operator petsc::Mat() const { return A; }
 
    /// Typecasting to PETSc object
    operator PetscObject() const { return (PetscObject)A; }
@@ -382,15 +513,15 @@ public:
    void Print(const char *fname = NULL, bool binary = false) const;
 
    /// Scale all entries by s: A_scaled = s*A.
-   void operator*=(double s);
+   void operator*=(real_t s);
 
    /** @brief Eliminate rows and columns from the matrix, and rows from the
        vector @a B. Modify @a B with the BC values in @a X. Put @a diag
        on the diagonal corresponding to eliminated entries */
    void EliminateRowsCols(const Array<int> &rows_cols, const PetscParVector &X,
-                          PetscParVector &B, double diag = 1.);
+                          PetscParVector &B, real_t diag = 1.);
    void EliminateRowsCols(const Array<int> &rows_cols, const HypreParVector &X,
-                          HypreParVector &B, double diag = 1.);
+                          HypreParVector &B, real_t diag = 1.);
 
    /** @brief Eliminate rows and columns from the matrix and store the
        eliminated elements in a new matrix Ae (returned).
@@ -406,7 +537,7 @@ public:
    void ScaleCols(const Vector & s);
 
    /// Shift diagonal by a constant
-   void Shift(double s);
+   void Shift(real_t s);
 
    /// Shift diagonal by a vector
    void Shift(const Vector & s);
@@ -414,12 +545,20 @@ public:
    /** @brief Eliminate only the rows from the matrix */
    void EliminateRows(const Array<int> &rows);
 
+   /** @brief Set row and column block sizes of a matrix.
+
+       @note This will error if the local sizes of the matrix are not a
+       multiple of the block sizes.
+       @note This is a logically collective operation, so all processes need
+       to call it.  */
+   void SetBlockSize(PetscInt rbs,PetscInt cbs=-1);
+
    /// Makes this object a reference to another PetscParMatrix
    void MakeRef(const PetscParMatrix &master);
 
    /** @brief Release the PETSc Mat object. If @a dereference is true, decrement
        the refcount of the Mat object. */
-   Mat ReleaseMat(bool dereference);
+   petsc::Mat ReleaseMat(bool dereference);
 
    Type GetType() const;
 };
@@ -459,10 +598,10 @@ public:
       TIME_DEPENDENT
    };
 
-   PetscBCHandler(Type _type = ZERO) :
-      bctype(_type), setup(false), eval_t(0.0),
-      eval_t_cached(std::numeric_limits<double>::min()) {}
-   PetscBCHandler(Array<int>& ess_tdof_list, Type _type = ZERO);
+   PetscBCHandler(Type type_ = ZERO) :
+      bctype(type_), setup(false), eval_t(0.0),
+      eval_t_cached(std::numeric_limits<real_t>::min()) {}
+   PetscBCHandler(Array<int>& ess_tdof_list, Type type_ = ZERO);
 
    virtual ~PetscBCHandler() {}
 
@@ -470,12 +609,12 @@ public:
    Type GetType() const { return bctype; }
 
    /// Sets the type of boundary conditions
-   void SetType(enum Type _type) { bctype = _type; setup = false; }
+   void SetType(enum Type type_) { bctype = type_; setup = false; }
 
    /// Boundary conditions evaluation
    /** In the result vector, @a g, only values at the essential dofs need to be
        set. */
-   virtual void Eval(double t, Vector &g)
+   virtual void Eval(real_t t, Vector &g)
    { mfem_error("PetscBCHandler::Eval method not overloaded"); }
 
    /// Sets essential dofs (local, per-process numbering)
@@ -485,7 +624,7 @@ public:
    Array<int>& GetTDofs() { return ess_tdof_list; }
 
    /// Sets the current time
-   void SetTime(double t) { eval_t = t; }
+   void SetTime(real_t t) { eval_t = t; }
 
    /// SetUp the helper object, where @a n is the size of the solution vector
    void SetUp(PetscInt n);
@@ -509,8 +648,8 @@ private:
    enum Type bctype;
    bool setup;
 
-   double eval_t;
-   double eval_t_cached;
+   real_t eval_t;
+   real_t eval_t_cached;
    Vector eval_g;
 
    Array<int> ess_tdof_list;    //Essential true dofs
@@ -522,8 +661,8 @@ class PetscPreconditionerFactory
 private:
    std::string name;
 public:
-   PetscPreconditionerFactory(const std::string &_name = "MFEM Factory")
-      : name(_name) { }
+   PetscPreconditionerFactory(const std::string &name_ = "MFEM Factory")
+      : name(name_) { }
    const char* GetName() { return name.c_str(); }
    virtual Solver *NewPreconditioner(const OperatorHandle& oh) = 0;
    virtual ~PetscPreconditionerFactory() {}
@@ -569,9 +708,9 @@ public:
        options.
        @note They will be overwritten by the options in the input PETSc file. */
    ///@{
-   void SetTol(double tol);
-   void SetRelTol(double tol);
-   void SetAbsTol(double tol);
+   void SetTol(real_t tol);
+   void SetRelTol(real_t tol);
+   void SetAbsTol(real_t tol);
    void SetMaxIter(int max_iter);
    void SetPrintLevel(int plev);
    ///@}
@@ -581,7 +720,7 @@ public:
    void Customize(bool customize = true) const;
    int GetConverged();
    int GetNumIterations();
-   double GetFinalNorm();
+   real_t GetFinalNorm();
 
    /// Sets user-defined monitoring routine.
    void SetMonitor(PetscSolverMonitor *ctx);
@@ -616,21 +755,21 @@ private:
 
 public:
    PetscLinearSolver(MPI_Comm comm, const std::string &prefix = std::string(),
-                     bool wrap = true);
+                     bool wrap = true, bool iter_mode = false);
    PetscLinearSolver(const PetscParMatrix &A,
-                     const std::string &prefix = std::string());
+                     const std::string &prefix = std::string(), bool iter_mode = false);
    /// Constructs a solver using a HypreParMatrix.
    /** If @a wrap is true, then the MatMult ops of HypreParMatrix are wrapped.
        No preconditioner can be automatically constructed from PETSc. If
        @a wrap is false, the HypreParMatrix is converted into a the AIJ
        PETSc format, which is suitable for most preconditioning methods. */
    PetscLinearSolver(const HypreParMatrix &A, bool wrap = true,
-                     const std::string &prefix = std::string());
+                     const std::string &prefix = std::string(), bool iter_mode = false);
    virtual ~PetscLinearSolver();
 
    /// Sets the operator to be used for mat-vec operations and
    /// for the construction of the preconditioner
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    /// Allows to prescribe a different operator (@a pop) to construct
    /// the preconditioner
@@ -641,21 +780,23 @@ public:
    void SetPreconditioner(Solver &precond);
 
    /// Application of the solver.
-   virtual void Mult(const Vector &b, Vector &x) const;
-   virtual void MultTranspose(const Vector &b, Vector &x) const;
+   void Mult(const Vector &b, Vector &x) const override;
+   void MultTranspose(const Vector &b, Vector &x) const override;
 
    /// Conversion function to PETSc's KSP type.
-   operator KSP() const { return (KSP)obj; }
+   operator petsc::KSP() const { return (petsc::KSP)obj; }
 };
 
 
 class PetscPCGSolver : public PetscLinearSolver
 {
 public:
-   PetscPCGSolver(MPI_Comm comm, const std::string &prefix = std::string());
-   PetscPCGSolver(PetscParMatrix &A, const std::string &prefix = std::string());
-   PetscPCGSolver(HypreParMatrix &A,bool wrap=true,
-                  const std::string &prefix = std::string());
+   PetscPCGSolver(MPI_Comm comm, const std::string &prefix = std::string(),
+                  bool iter_mode = false);
+   PetscPCGSolver(PetscParMatrix &A, const std::string &prefix = std::string(),
+                  bool iter_mode = false);
+   PetscPCGSolver(HypreParMatrix &A, bool wrap = true,
+                  const std::string &prefix = std::string(), bool iter_mode = false);
 };
 
 
@@ -674,14 +815,14 @@ public:
                        const std::string &prefix = std::string());
    virtual ~PetscPreconditioner();
 
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    /// Application of the preconditioner.
-   virtual void Mult(const Vector &b, Vector &x) const;
-   virtual void MultTranspose(const Vector &b, Vector &x) const;
+   void Mult(const Vector &b, Vector &x) const override;
+   void MultTranspose(const Vector &b, Vector &x) const override;
 
    /// Conversion function to PETSc's PC type.
-   operator PC() const { return (PC)obj; }
+   operator petsc::PC() const { return (petsc::PC)obj; }
 };
 
 
@@ -749,6 +890,17 @@ public:
                          const std::string &prefix = std::string());
 };
 
+class PetscH2Solver : public PetscPreconditioner
+{
+private:
+   void H2SolverConstructor(ParFiniteElementSpace *fes);
+
+public:
+   PetscH2Solver(Operator &op,
+                 ParFiniteElementSpace *fes,
+                 const std::string &prefix = std::string());
+
+};
 
 /// Abstract class for PETSc's nonlinear solvers.
 class PetscNonlinearSolver : public PetscSolver, public Solver
@@ -761,17 +913,17 @@ public:
    virtual ~PetscNonlinearSolver();
 
    /// Specification of the nonlinear operator.
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    /// Specifies the desired format of the Jacobian in case a PetscParMatrix
    /// is not returned by the GetGradient method.
    void SetJacobianType(Operator::Type type);
 
    /// Application of the solver.
-   virtual void Mult(const Vector &b, Vector &x) const;
+   void Mult(const Vector &b, Vector &x) const override;
 
    /// Specification of an objective function to be used for line search.
-   void SetObjective(void (*obj)(Operator* op, const Vector &x, double *f));
+   void SetObjective(void (*obj)(Operator* op, const Vector &x, real_t *f));
 
    /// User-defined routine to be applied after a successful line search step.
    /// The user can change the current direction Y and/or the updated solution W
@@ -785,11 +937,11 @@ public:
    /// F is the current function value, X the current solution
    /// D the previous step taken, and P the previous solution
    void SetUpdate(void (*update)(Operator *op, int it,
-                                 const mfem::Vector& F, const mfem::Vector& X,
-                                 const mfem::Vector& D, const mfem::Vector& P));
+                                 const Vector& F, const Vector& X,
+                                 const Vector& D, const Vector& P));
 
    /// Conversion function to PETSc's SNES type.
-   operator SNES() const { return (SNES)obj; }
+   operator petsc::SNES() const { return (petsc::SNES)obj; }
 };
 
 
@@ -797,7 +949,7 @@ public:
 class PetscODESolver : public PetscSolver, public ODESolver
 {
 public:
-   /// The type of the ODE. Use ODE_SOLVER_LINEAR if the jacobians
+   /// The type of the ODE. Use ODE_SOLVER_LINEAR if the Jacobians
    /// are linear and independent of time.
    enum Type
    {
@@ -820,11 +972,11 @@ public:
    /// is not returned by the GetGradient methods
    void SetJacobianType(Operator::Type type);
 
-   virtual void Step(Vector &x, double &t, double &dt);
-   virtual void Run(Vector &x, double &t, double &dt, double t_final);
+   virtual void Step(Vector &x, real_t &t, real_t &dt);
+   virtual void Run(Vector &x, real_t &t, real_t &dt, real_t t_final);
 
    /// Conversion function to PETSc's TS type.
-   operator TS() const { return (TS)obj; }
+   operator petsc::TS() const { return (petsc::TS)obj; }
 };
 
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -9,21 +9,70 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
+set(MESH_GF_FILES
+    triple-pt-1.mesh
+    triple-pt-2.mesh
+    triple-pt-1.gf
+    triple-pt-2.gf
+)
+# add target which keeps required mesh files in sync
+set(SRC_MESH_GF_FILES)
+foreach(MESH_GF_FILE ${MESH_GF_FILES})
+  list(APPEND SRC_MESH_GF_FILES ${CMAKE_CURRENT_SOURCE_DIR}/${MESH_GF_FILE})
+endforeach()
+add_custom_target(copy_miniapps_gslib_data
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SRC_MESH_GF_FILES} .
+  COMMENT "Syncing gslib miniapps data files ...")
+
 if (MFEM_USE_GSLIB)
+  add_mfem_miniapp(schwarz_ex1
+    MAIN schwarz_ex1.cpp
+    LIBRARIES mfem)
 
   add_mfem_miniapp(field-diff
     MAIN field-diff.cpp
     LIBRARIES mfem)
+  add_dependencies(field-diff copy_miniapps_gslib_data)
 
   add_mfem_miniapp(findpts
     MAIN findpts.cpp
+    LIBRARIES mfem-common)
+
+  add_mfem_miniapp(field-interp
+    MAIN field-interp.cpp
     LIBRARIES mfem)
+  add_dependencies(field-interp
+    copy_miniapps_gslib_data copy_miniapps_meshing_data)
+
+  if (MFEM_ENABLE_TESTING)
+    foreach (test "schwarz_ex1" "field-diff" "findpts" "field-interp")
+      add_test(NAME ${test}
+        COMMAND $<TARGET_FILE:${test}> -no-vis)
+    endforeach()
+  endif()
 
   # Parallel apps.
   if (MFEM_USE_MPI)
+    add_mfem_miniapp(schwarz_ex1p
+      MAIN schwarz_ex1p.cpp
+      LIBRARIES mfem)
+
     add_mfem_miniapp(pfindpts
       MAIN pfindpts.cpp
       LIBRARIES mfem)
-  endif()
 
+  add_mfem_miniapp(particles_redist
+    MAIN particles_redist.cpp
+    LIBRARIES mfem-common)
+
+    if (MFEM_ENABLE_TESTING)
+      foreach (test "schwarz_ex1p" "pfindpts" "particles_redist")
+        add_test(NAME ${test}_np${MFEM_MPI_NP}
+          COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+          ${MPIEXEC_PREFLAGS}
+          $<TARGET_FILE:${test}> -no-vis
+          ${MPIEXEC_POSTFLAGS})
+      endforeach()
+    endif()
+  endif()
 endif()

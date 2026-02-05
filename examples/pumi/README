@@ -5,7 +5,7 @@
                       | | | | | ||  _||  __/| | | | | |
                       |_| |_| |_||_|   \___||_| |_| |_|
 
-                               http://mfem.org
+                               https://mfem.org
 
 This directory contains modifications of the example codes that illustrate the
 use of MFEM features based on the Parallel Unstructured Mesh Infrastructure,

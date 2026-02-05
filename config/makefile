@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -38,14 +38,14 @@ all: header config-mk
 MPI = $(MFEM_USE_MPI:NO=)
 GHV_CXX ?= $(MFEM_CXX)
 GHV = get_hypre_version
-GHV_FLAGS = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(HYPRE_OPT))
+GHV_FLAGS = $(MFEM_CXXFLAGS) $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(HYPRE_OPT))
 SMX = $(if $(MFEM_USE_PUMI:NO=),MFEM_USE_SIMMETRIX)
 SMX_PATH = $(PUMI_DIR)/include/gmi_sim.h
 SMX_FILE = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(SMX_PATH))
 MUMPS = $(MFEM_USE_MUMPS:NO=)
 GMV_CXX ?= $(MFEM_CXX)
 GMV = get_mumps_version
-GMV_FLAGS = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(MUMPS_OPT))
+GMV_FLAGS = $(MFEM_CXXFLAGS) $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(MUMPS_OPT))
 
 $(GHV): $(SRC)$(GHV).cpp
 	$(call mfem-info, Determining HYPRE version ...)
@@ -79,10 +79,12 @@ get-mumps-version: $(GMV).out
 	$(info MUMPS version: $(MFEM_MUMPS_VERSION)),\
 	$(error Unable to determine MUMPS version))
 
-header: $(if $(MPI),get-hypre-version,) $(if $(SMX),check-smx,) $(if $(MUMPS),get-mumps-version,)
+header: $(if $(MPI),get-hypre-version,) $(if $(SMX),check-smx,) \
+ $(if $(MUMPS),get-mumps-version,)
 	$(call mfem-info, Writing $(CONFIG_HPP) ...)
 	@set -- && \
-	for def in $${MFEM_DEFINES} $(if $(MPI),MFEM_HYPRE_VERSION) $(SMX) $(if $(MUMPS),MFEM_MUMPS_VERSION); do \
+	for def in $${MFEM_DEFINES} $(if $(MPI),MFEM_HYPRE_VERSION) $(SMX) \
+	           $(if $(MUMPS),MFEM_MUMPS_VERSION); do \
 	   eval var=\$$$$def && \
 	   if [ "NO" != "$${var}" ]; then \
 	      set -- "$$@" -e "s|// \(#define $${def} \)|\1|" && \
@@ -108,3 +110,5 @@ config-mk:
 
 clean:
 	rm -f $(CONFIG_HPP) $(CONFIG_MK) sample-runs-build.log
+	rm -f $(GHV) $(GHV).out $(GMV) $(GMV).out
+	rm -rf *.dSYM

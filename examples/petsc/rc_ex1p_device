@@ -1,0 +1,6 @@
+# Options for the Krylov solver
+-ksp_view
+-ksp_converged_reason
+
+# Dump log to check that no data is communicated host<->device when using PETSc
+-log_view

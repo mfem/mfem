@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -33,6 +33,7 @@ protected:
 
    const FiniteElementSpace *fespace;  ///< Not owned
    const IntegrationRule *IntRule;     ///< Not owned
+   mutable QVectorLayout q_layout;     ///< Output Q-vector layout
 
    mutable bool use_tensor_products;
 
@@ -63,12 +64,26 @@ public:
    FaceQuadratureInterpolator(const FiniteElementSpace &fes,
                               const IntegrationRule &ir, FaceType type);
 
+   /// @brief Returns true if the given finite element space is supported by
+   /// FaceQuadratureInterpolator.
+   static bool SupportsFESpace(const FiniteElementSpace &fes);
+
    /** @brief Disable the use of tensor product evaluations, for tensor-product
        elements, e.g. quads and hexes. */
    /** Currently, tensor product evaluations are not implemented and this method
        has no effect. */
    void DisableTensorProducts(bool disable = true) const
    { use_tensor_products = !disable; }
+
+   /** @brief Query the current output Q-vector layout. The default value is
+       QVectorLayout::byNODES. */
+   /** @sa SetOutputLayout(). */
+   QVectorLayout GetOutputLayout() const { return q_layout; }
+
+   /** @brief Set the desired output Q-vector layout. The default value is
+       QVectorLayout::byNODES. */
+   /** @sa GetOutputLayout(). */
+   void SetOutputLayout(QVectorLayout layout) const { q_layout = layout; }
 
    /// Interpolate the E-vector @a e_vec to quadrature points.
    /** The @a eval_flags are a bitwise mask of constants from the FaceEvalFlags
@@ -91,6 +106,7 @@ public:
    template<const int T_VDIM = 0, const int T_ND = 0, const int T_NQ = 0>
    static void Eval2D(const int NF,
                       const int vdim,
+                      const QVectorLayout q_layout,
                       const DofToQuad &maps,
                       const Array<bool> &signs,
                       const Vector &e_vec,
@@ -104,6 +120,7 @@ public:
    template<const int T_VDIM = 0, const int T_ND = 0, const int T_NQ = 0>
    static void Eval3D(const int NF,
                       const int vdim,
+                      const QVectorLayout q_layout,
                       const DofToQuad &maps,
                       const Array<bool> &signs,
                       const Vector &e_vec,
@@ -112,6 +129,19 @@ public:
                       Vector &q_det,
                       Vector &q_nor,
                       const int eval_flags);
+
+   template<const int T_VDIM = 0, const int T_ND = 0, const int T_NQ = 0>
+   static void SmemEval3D(const int NF,
+                          const int vdim,
+                          const QVectorLayout q_layout,
+                          const DofToQuad &maps,
+                          const Array<bool> &signs,
+                          const Vector &e_vec,
+                          Vector &q_val,
+                          Vector &q_der,
+                          Vector &q_det,
+                          Vector &q_nor,
+                          const int eval_flags);
 };
 
 } // mfem namespace
