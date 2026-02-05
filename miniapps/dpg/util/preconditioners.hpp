@@ -44,6 +44,7 @@ private:
    const BlockOperator & Op;
    int nblocks;
    int maxlevels = 1;
+   Solver * coarse_prec = nullptr;
 
    // hierarchy of spaces
    // Owned levels: 0..maxlevels-2
@@ -73,7 +74,7 @@ private:
 
 public:
    PRefinementMultigrid(const Array<ParFiniteElementSpace *> & pfes_,
-                        const BlockOperator & Op_);
+                        const BlockOperator & Op_, bool mumps_coarse_solver = false);
 
    ~PRefinementMultigrid();
 };
@@ -89,6 +90,7 @@ private:
    const ComplexOperator & Op;
    int nblocks;
    int maxlevels = 1;
+   Solver * coarse_prec = nullptr;
 
    // hierarchy of spaces
    // Owned levels: 0..maxlevels-2
@@ -118,7 +120,7 @@ private:
 
 public:
    ComplexPRefinementMultigrid(const Array<ParFiniteElementSpace *> & pfes_,
-                               const ComplexOperator & Op_);
+                               const ComplexOperator & Op_, bool mumps_coarse_solver = false);
 
    ~ComplexPRefinementMultigrid();
 };

@@ -55,9 +55,17 @@ Solver * MakeFESpaceDefaultSolver(
 }
 
 PRefinementMultigrid::PRefinementMultigrid(const Array<ParFiniteElementSpace *>
-                                           & pfes_, const BlockOperator & Op_)
+                                           & pfes_, const BlockOperator & Op_,
+                                           bool mumps_coarse_solver)
    : Multigrid(), pfes(pfes_), npfes(pfes.Size()), Op(Op_)
 {
+#ifndef MFEM_USE_MUMPS
+   if (mumps_coarse_solver)
+   {
+      MFEM_WARNING("MUMPS coarse solver requires MFEM built with MPI. Switching to default coarse solver.");
+   }
+   mumps_coarse_solver = false;
+#endif
    nblocks = Op.NumRowBlocks();
    MFEM_VERIFY(npfes == nblocks, "pfes size must match Op.NumRowBlocks()");
    orders.SetSize(npfes);
@@ -182,22 +190,65 @@ PRefinementMultigrid::PRefinementMultigrid(const Array<ParFiniteElementSpace *>
 
    for (int i = 0; i < operators.Size(); i++)
    {
-      SymmetricBlockDiagonalPreconditioner *prec =
-         new SymmetricBlockDiagonalPreconditioner(dynamic_cast<BlockOperator*>
-                                                  (operators[i])->RowOffsets());
-      prec->owns_blocks = 1;
-      for (int b = 0; b < nblocks; b++)
+      auto cOp = dynamic_cast<BlockOperator*>(operators[i]);
+      if (i == 0) // coarse level
       {
-         const HypreParMatrix * Ab = dynamic_cast<const HypreParMatrix *>
-                                     (&dynamic_cast<BlockOperator*>(operators[i])->GetBlock(b, b));
-         MFEM_VERIFY(Ab, "Expected HypreParMatrix block.");
+#ifdef MFEM_USE_MUMPS
+         if (mumps_coarse_solver)
+         {
+            HypreParMatrix * Acoarse = cOp->GetMonolithicHypreParMatrix();
+            auto mumps_solver = new MUMPSSolver(MPI_COMM_WORLD);
+            mumps_solver->SetPrintLevel(0);
+            mumps_solver->SetOperator(*Acoarse);
+            delete Acoarse;
+            smoothers[i] = mumps_solver;
+            ownedSmoothers[i] = true;
+         }
+         else
+#endif
+         {
+            coarse_prec = new BlockDiagonalPreconditioner(cOp->RowOffsets());
+            BlockDiagonalPreconditioner * blog_diag =
+               dynamic_cast<BlockDiagonalPreconditioner*>(coarse_prec);
+            blog_diag->owns_blocks = 1;
+            for (int b = 0; b < nblocks; b++)
+            {
+               const HypreParMatrix * Ab = dynamic_cast<const HypreParMatrix *>
+                                           (&cOp->GetBlock(b, b));
+               MFEM_VERIFY(Ab, "Expected HypreParMatrix block.");
+               auto solver = MakeFESpaceDefaultSolver(GetParFESpace(i,b), 0);
+               solver->SetOperator(*Ab);
+               blog_diag->SetDiagonalBlock(b, solver);
+            }
 
-         auto solver = MakeFESpaceDefaultSolver(GetParFESpace(i,b), 0);
-         solver->SetOperator(*Ab);
-         prec->SetDiagonalBlock(b, solver);
+            CGSolver * cg_solver = new CGSolver(MPI_COMM_WORLD);
+            cg_solver->SetPrintLevel(-1);
+            cg_solver->SetRelTol(1e-3);
+            cg_solver->SetMaxIter(10);
+            cg_solver->SetOperator(*cOp);
+            cg_solver->SetPreconditioner(*blog_diag);
+            smoothers[i] = cg_solver;
+            ownedSmoothers[i] = true;
+         }
       }
-      smoothers[i] = prec;
-      ownedSmoothers[i] = true;
+      else
+      {
+         SymmetricBlockDiagonalPreconditioner *prec =
+            new SymmetricBlockDiagonalPreconditioner(cOp->RowOffsets());
+         prec->owns_blocks = 1;
+         for (int b = 0; b < nblocks; b++)
+         {
+            const HypreParMatrix * Ab = dynamic_cast<const HypreParMatrix *>
+                                        (&cOp->GetBlock(b, b));
+            MFEM_VERIFY(Ab, "Expected HypreParMatrix block.");
+
+            auto solver = MakeFESpaceDefaultSolver(GetParFESpace(i,b), 0);
+            solver->SetOperator(*Ab);
+            prec->SetDiagonalBlock(b, solver);
+         }
+         smoothers[i] = prec;
+         ownedSmoothers[i] = true;
+      }
    }
 }
 
@@ -211,14 +262,25 @@ PRefinementMultigrid::~PRefinementMultigrid()
          delete lvl[b];
       }
    }
+   if (coarse_prec)
+   {
+      delete coarse_prec;
+   }
 }
-
 
 ComplexPRefinementMultigrid::ComplexPRefinementMultigrid(
    const Array<ParFiniteElementSpace *>
-   & pfes_, const ComplexOperator & Op_)
+   & pfes_, const ComplexOperator & Op_, bool mumps_coarse_solver)
    : Multigrid(), pfes(pfes_), npfes(pfes.Size()), Op(Op_)
 {
+#ifndef MFEM_USE_MUMPS
+   if (mumps_coarse_solver)
+   {
+      MFEM_WARNING("MUMPS coarse solver requires MFEM built with MPI. Switching to default coarse solver.");
+   }
+   mumps_coarse_solver = false;
+#endif
+
    const BlockOperator * Op_r = dynamic_cast<const BlockOperator *>(&Op.real());
    const BlockOperator * Op_i = dynamic_cast<const BlockOperator *>(&Op.imag());
    MFEM_VERIFY(Op_r, "Expected BlockOperator from ComplexOperator real part.");
@@ -383,33 +445,49 @@ ComplexPRefinementMultigrid::ComplexPRefinementMultigrid(
    for (int i = 0; i < operators.Size(); i++)
    {
       auto cOp = dynamic_cast<ComplexOperator*>(operators[i]);
-      // if (i == 0)
-      // {
-      //    BlockOperator * Op_r = dynamic_cast<BlockOperator *>(&cOp->real());
-      //    BlockOperator * Op_i = dynamic_cast<BlockOperator *>(&cOp->imag());
-      //    int nblocks = Op_r->NumRowBlocks();
-      //    Array2D<const HypreParMatrix*> A_r(nblocks, nblocks);
-      //    Array2D<const HypreParMatrix*> A_i(nblocks, nblocks);
-      //    for (int i = 0; i < nblocks; i++)
-      //    {
-      //       for (int j = 0; j < nblocks; j++)
-      //       {
-      //          A_r(i,j) = dynamic_cast<HypreParMatrix*>(&Op_r->GetBlock(i,j));
-      //          A_i(i,j) = dynamic_cast<HypreParMatrix*>(&Op_i->GetBlock(i,j));
-      //       }
-      //    }
-      //    HypreParMatrix * Ahr = HypreParMatrixFromBlocks(A_r);
-      //    HypreParMatrix * Ahi = HypreParMatrixFromBlocks(A_i);
-      //    ComplexHypreParMatrix * Ahc_hypre =
-      //       new ComplexHypreParMatrix(Ahr, Ahi,true, true);
-      //    HypreParMatrix * A = Ahc_hypre->GetSystemMatrix();
-      //    auto mumps_solver = new MUMPSSolver(MPI_COMM_WORLD);
-      //    mumps_solver->SetOperator(*A);
-      //    mumps_solver->SetPrintLevel(0);
-      //    smoothers[i] = mumps_solver;
-      //    ownedSmoothers[i] = true;
-      // }
-      // else
+      if (i == 0) // coarse level
+      {
+#ifdef MFEM_USE_MUMPS
+         if (mumps_coarse_solver)
+         {
+            ComplexHypreParMatrix * Ahc = cOp->AsComplexHypreParMatrix();
+            HypreParMatrix * A = Ahc->GetSystemMatrix();
+            delete Ahc;
+            auto mumps_solver = new MUMPSSolver(MPI_COMM_WORLD);
+            mumps_solver->SetOperator(*A);
+            mumps_solver->SetPrintLevel(0);
+            delete A;
+            smoothers[i] = mumps_solver;
+            ownedSmoothers[i] = true;
+         }
+         else
+#endif
+         {
+            BlockDiagonalPreconditioner * prec =
+               new BlockDiagonalPreconditioner(dynamic_cast<BlockOperator*>
+                                               (&cOp->real())->RowOffsets());
+            prec->owns_blocks = 1;
+            for (int b = 0; b < nblocks; b++)
+            {
+               const HypreParMatrix * Ab = dynamic_cast<const HypreParMatrix *>
+                                           (&dynamic_cast<BlockOperator*>(&cOp->real())->GetBlock(b, b));
+               MFEM_VERIFY(Ab, "Expected HypreParMatrix block.");
+               auto solver = MakeFESpaceDefaultSolver(GetParFESpace(i,b), 0);
+               solver->SetOperator(*Ab);
+               prec->SetDiagonalBlock(b, solver);
+            }
+            coarse_prec = new ComplexPreconditioner(prec, true);
+            CGSolver * cg_solver = new CGSolver(MPI_COMM_WORLD);
+            cg_solver->SetPrintLevel(-1);
+            cg_solver->SetRelTol(1e-3);
+            cg_solver->SetMaxIter(10);
+            cg_solver->SetOperator(*cOp);
+            cg_solver->SetPreconditioner(*coarse_prec);
+            smoothers[i] = cg_solver;
+            ownedSmoothers[i] = true;
+         }
+      }
+      else
       {
          SymmetricBlockDiagonalPreconditioner *prec =
             new SymmetricBlockDiagonalPreconditioner(dynamic_cast<BlockOperator*>
@@ -440,6 +518,10 @@ ComplexPRefinementMultigrid::~ComplexPRefinementMultigrid()
       {
          delete lvl[b];
       }
+   }
+   if (coarse_prec)
+   {
+      delete coarse_prec;
    }
 }
 
