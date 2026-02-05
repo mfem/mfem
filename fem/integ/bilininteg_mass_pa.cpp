@@ -56,8 +56,6 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS, mt);
    maps = &el.GetDofToQuad(*ir,
                            StroudFlag ? DofToQuad::RAGGED_TENSOR : DofToQuad::TENSOR);
-   maps = &el.GetDofToQuad(*ir,
-                           StroudFlag ? DofToQuad::RAGGED_TENSOR : DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(ne*nq, mt);

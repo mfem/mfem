@@ -719,7 +719,6 @@ void PAMassApplyTriangle_Element(const int e,
          }
       }
    }
-
    // quad to dofs operation, step 2: convert second quadrature index to second
    // multiindex. C2 contains the Bernstein polynomial on a triangle with
    // coefficients X evaluated at all of the Stroud quadrature nodes. E.g. if
@@ -744,7 +743,6 @@ void PAMassApplyTriangle_Element(const int e,
          C2[qx + Q1D*qy] *= D(qy, qx, e);
       }
    }
-
    // dofs to quad operation (i.e. evaluating all Bernstein moments of the form
    // \int_{K} B_{\alpha}^{p}(x) * C2(x) dx), step 1: convert first multiindex to
    // first quadrature index. Note: here, C1 corresponds to F1 in the AAD
@@ -767,7 +765,6 @@ void PAMassApplyTriangle_Element(const int e,
          }
       }
    }
-
    // dofs to quad operation, step 2: convert second multiindex to second
    // quadrature index. The contribution to the local RHS is
    //       Y_{\alpha} = F2_{\alpha}.
@@ -820,22 +817,14 @@ void SmemPAMassApplyTriangle_Element(const int e,
    MFEM_SHARED real_t B[2][MQ1*MD1*MD1];
    real_t (*Ba1)[MD1] = (real_t (*)[MD1]) (B+0);
    real_t (*Ba2)[MD1][MD1] = (real_t (*)[MD1][MD1]) (B+1);
-   MFEM_SHARED real_t Xz[NBZ][BASIS_DIM];
-   MFEM_SHARED real_t sm0[NBZ][MDQ*MDQ];
-   MFEM_SHARED real_t sm1[NBZ][MDQ*MDQ];
-   real_t (*X) = (real_t (*)) (Xz + tidz);
-   real_t (*DQ)[MQ1] = (real_t (*)[MQ1]) (sm1 + tidz);
-   real_t (*QQ)[MQ1] = (real_t (*)[MQ1]) (sm0 + tidz);
+   MFEM_SHARED real_t Xz[BASIS_DIM];
+   MFEM_SHARED real_t sm0[MDQ*MDQ];
+   MFEM_SHARED real_t sm1[MDQ*MDQ];
+   real_t (*X) = (real_t (*)) (Xz);
+   real_t (*DQ)[MQ1] = (real_t (*)[MQ1]) (sm1);
+   real_t (*QQ)[MQ1] = (real_t (*)[MQ1]) (sm0);
    MFEM_SHARED int s_lex[MD1*MD1];
-   real_t (*lex_map)[MD1] = (real_t (*)[MD1])(s_lex);
-
-   // if (!ACCUMULATE)
-   // {
-   //    for (int idx = 0; idx < BASIS_DIM; idx++)
-   //    {
-   //       Y(idx, e) = 0.0;
-   //    }
-   // }
+   int (*lex_map)[MD1] = (int (*)[MD1])(s_lex);
 
    // load in input vector and basis data
    MFEM_FOREACH_THREAD(a1,y,D1D)
@@ -847,17 +836,15 @@ void SmemPAMassApplyTriangle_Element(const int e,
          X[idx] = x(idx,e);
       }
    }
-   if (tidz == 0)
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(a1,y,D1D)
    {
-      MFEM_FOREACH_THREAD(a1,y,D1D)
+      MFEM_FOREACH_THREAD(i1,x,Q1D)
       {
-         MFEM_FOREACH_THREAD(i1,x,Q1D)
+         Ba1[i1][a1] = ba1(i1,a1);
+         for (int a2 = 0; a2 < D1D-a1; ++a2)
          {
-            Ba1[i1][a1] = ba1(i1,a1);
-            for (int a2 = 0; a2 < D1D-a1; a2++)
-            {
-               Ba2[i1][a1][a2] = ba2(a2,i1,a1);
-            }
+            Ba2[i1][a1][a2] = ba2(a2,i1,a1);
          }
       }
    }
@@ -889,7 +876,7 @@ void SmemPAMassApplyTriangle_Element(const int e,
       MFEM_FOREACH_THREAD(i2,x,Q1D)
       {
          real_t u = 0.0;
-         for (int a1 = 0; a1 < D1D; a1++)
+         for (int a1 = 0; a1 < D1D; ++a1)
          {
             u += DQ[a1][i2] * Ba1[i1][a1];
          }
@@ -905,7 +892,7 @@ void SmemPAMassApplyTriangle_Element(const int e,
       MFEM_FOREACH_THREAD(a1,x,D1D)
       {
          real_t u = 0.0;
-         for (int i1 = 0; i1 < Q1D; i1++)
+         for (int i1 = 0; i1 < Q1D; ++i1)
          {
             u += QQ[i1][i2] * Ba1[i1][a1];
          }
@@ -913,7 +900,6 @@ void SmemPAMassApplyTriangle_Element(const int e,
       }
    }
    MFEM_SYNC_THREAD;
-
    // dofs to quad operation, step 2: convert second multiindex to second
    // quadrature index. u corresponds to F2 in the AAD algorithm. The contribution
    // to the local RHS is
@@ -923,12 +909,19 @@ void SmemPAMassApplyTriangle_Element(const int e,
       MFEM_FOREACH_THREAD(a2,x,D1D-a1)
       {
          real_t u = 0.0;
-         for (int i2 = 0; i2 < Q1D; i2++)
+         for (int i2 = 0; i2 < Q1D; ++i2)
          {
             u += DQ[a1][i2] * Ba2[i2][a1][a2];
          }
          int idx = lex_map[a1][a2];
-         Y(idx,e) += u;
+         if (ACCUMULATE)
+         {
+            Y(idx,e) += u;
+         }
+         else
+         {
+            Y(idx,e) = u;
+         }
       }
    }
 }
@@ -1876,7 +1869,7 @@ inline void SmemPAMassApplyTriangle(const int NE,
    const auto X = x_.Read();
    auto Y = y_.ReadWrite();
 
-   mfem::forall_2D_batch(NE, D1D, D1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
    {
       internal::SmemPAMassApplyTriangle_Element<T_D1D,T_Q1D,T_NBZ>(e, NE, lex_map,
                                                                    Ba1, Ba2, D, X,

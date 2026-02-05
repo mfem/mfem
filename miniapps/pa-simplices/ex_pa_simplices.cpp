@@ -139,7 +139,7 @@ int main(int argc, char *argv[])
    ParLinearForm b(&fespace);
    ConstantCoefficient one(1.0);
    const FiniteElement *el = fespace.GetFE(0);
-   const IntegrationRule ir_b = IntRules.Get(el->GetGeomType(), 10*order);
+   const IntegrationRule ir_b = IntRules.Get(el->GetGeomType(), 2*order);
    // FunctionCoefficient fcoeff(f_func);
    FunctionCoefficient fcoeff([dim, bp_type](const Vector &x) {
       if (dim == 2)

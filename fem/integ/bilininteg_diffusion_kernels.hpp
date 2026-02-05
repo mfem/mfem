@@ -1042,7 +1042,7 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
    auto Y = Reshape(y_.ReadWrite(), BASIS_DIM, NE);
    int p2 = (D1D-1) * (D1D-1);
 
-   mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -1055,16 +1055,16 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
       MFEM_SHARED real_t sBG[2][MQ1*MD1*MD1];
       real_t (*Ga1)[MD1] = (real_t (*)[MD1]) (sBG+0);
       real_t (*Ga2)[MD1][MD1] = (real_t (*)[MD1][MD1]) (sBG+1);
-      MFEM_SHARED real_t Xz[NBZ][BASIS_DIM];
-      MFEM_SHARED real_t GD[2][NBZ][MDQ][MDQ];
-      MFEM_SHARED real_t GQ[2][NBZ][MDQ][MDQ];
+      MFEM_SHARED real_t Xz[BASIS_DIM];
+      MFEM_SHARED real_t GD[2][MDQ][MDQ];
+      MFEM_SHARED real_t GQ[2][MDQ][MDQ];
       real_t (*X) = (real_t (*))(Xz + tidz);
-      real_t (*DQ0)[MD1] = (real_t (*)[MD1])(GD[0] + tidz);
-      real_t (*DQ1)[MD1] = (real_t (*)[MD1])(GD[1] + tidz);
-      real_t (*QQ0)[MD1] = (real_t (*)[MD1])(GQ[0] + tidz);
-      real_t (*QQ1)[MD1] = (real_t (*)[MD1])(GQ[1] + tidz);
+      real_t (*DQ0)[MQ1] = (real_t (*)[MQ1])(GD[0]);
+      real_t (*DQ1)[MQ1] = (real_t (*)[MQ1])(GD[1]);
+      real_t (*QQ0)[MQ1] = (real_t (*)[MQ1])(GQ[0]);
+      real_t (*QQ1)[MQ1] = (real_t (*)[MQ1])(GQ[1]);
       MFEM_SHARED int s_lex[MD1*MD1];
-      real_t (*lex_map)[MD1] = (real_t (*)[MD1])(s_lex);
+      int (*lex_map)[MD1] = (int (*)[MD1])(s_lex);
 
       // load in input vector and basis data
       MFEM_FOREACH_THREAD(a1,y,D1D)
@@ -1076,17 +1076,15 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
             X[idx] = x(idx,e);
          }
       }
-      if (tidz == 0)
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(a1,y,D1D-1)
       {
-         MFEM_FOREACH_THREAD(a1,y,D1D-1)
+         MFEM_FOREACH_THREAD(i1,x,Q1D)
          {
-            MFEM_FOREACH_THREAD(i1,x,Q1D)
+            Ga1[i1][a1] = ga1(i1,a1);
+            for (int a2 = 0; a2 < D1D-a1-1; a2++)
             {
-               Ga1[i1][a1] = ga1(i1,a1);
-               for (int a2 = 0; a2 < D1D-a1-1; a2++)
-               {
-                  Ga2[i1][a1][a2] = ga2(i1,a1,a2);
-               }
+               Ga2[i1][a1][a2] = ga2(i1,a1,a2);
             }
          }
       }
@@ -2031,7 +2029,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
          MFEM_FOREACH_THREAD(i3,x,Q1D)
          {
             real_t uu = 0.0, vv = 0.0, ww = 0.0;
-            MFEM_UNROLL(MD1)
+            MFEM_UNROLL(MD1-1)
             for (int a3 = 0; a3 < D1D-a1-a2-1; a3++)
             {
                const int a = forward_map3d[a1][a2][a3];
@@ -2064,14 +2062,14 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
       MFEM_SYNC_THREAD;
       MFEM_FOREACH_THREAD(a1i2,y,Q1D*(D1D-1))
       {
-         //    const int i2 = a1i2 % Q1D;
-         //    const int a1 = (int) a1i2 / Q1D;
+         // const int i2 = (int) a1i2 / (D1D-1);
+         // const int a1 = a1i2 % (D1D-1);
          const int a1 = (int) a1i2 / Q1D;
          const int i2 = a1i2 % Q1D;
          MFEM_FOREACH_THREAD(i3,x,Q1D)
          {
             real_t u = 0.0, v = 0.0, w = 0.0;
-            MFEM_UNROLL(MD1)
+            MFEM_UNROLL(MD1-1)
             for (int a2 = 0; a2 < D1D-a1-1; a2++)
             {
                const int a_2d = forward_map2d[a1][a2];
@@ -2092,7 +2090,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
          MFEM_FOREACH_THREAD(i3,x,Q1D)
          {
             real_t u = 0.0, v = 0.0, w = 0.0;
-            MFEM_UNROLL(MD1)
+            MFEM_UNROLL(MD1-1)
             for (int a1 = 0; a1 < D1D-1; a1++)
             {
                u += DQQ0[a1][i2][i3] * Ga1[i1][a1];
