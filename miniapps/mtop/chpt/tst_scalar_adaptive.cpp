@@ -36,7 +36,7 @@ int main(int argc, char *argv[])
    args.AddOption(&u0,     "-u0",  "--u0",          "Initial scalar state u0.");
    args.AddOption(&target, "-ut",  "--target",      "Target value in J=0.5*(u_m-target)^2.");
    args.AddOption(&eps,    "-eps", "--fd-eps",      "Finite-difference epsilon.");
-   args.AddOption(&err,    "-err", "-time_err",     "Allowed time integration error per time step.");
+   args.AddOption(&err,    "-err", "--time_err",     "Allowed time integration error per time step.");
    args.Parse();
    if (!args.Good())
    {
