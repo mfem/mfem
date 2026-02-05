@@ -1,15 +1,15 @@
-//                                MFEM Example 0
+//                     ----------------------------------------
+//                     Partial Assembly with Simplices Miniapp
+//                     ----------------------------------------
 //
-// Compile with: make ex_pa_tetrahedron
+// Compile with: make ex_pa_simplices
 //
-// Sample runs:  ex_pa_tetrahedron
-//               mpirun -np 2 ex_pa_tetrahedron
+// Sample runs:  ex_pa_simplices
+//               mpirun -np 2 ex_pa_tetrahedron --mesh "../../data/inline-tet.mesh" --bp_type bp1
+//               mpirun -np 2 ex_pa_tetrahedron --mesh "../../data/inline-tet.mesh" --bp_type bp3
 //
-// Description: This example code demonstrates the most basic usage of MFEM to
-//              define a simple finite element discretization of the Poisson
-//              problem -Delta u = 1 with zero Dirichlet boundary conditions.
-//              General 2D/3D mesh files and finite element polynomial degrees
-//              can be specified by command line options.
+// Description: This miniapp illustrates the performance of partial assembly routines
+// on simplices for the mass and diffusion integrators.
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>

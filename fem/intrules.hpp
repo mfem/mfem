@@ -270,10 +270,10 @@ public:
    /// applying this rule on each knot interval.
    IntegrationRule* ApplyToKnotIntervals(KnotVector const& kv) const;
 
-   /// Duffy Transformation of 2D and 3D tensor product rule
+   /// Duffy Transformation of 2D and 3D tensor product rule.
    void DuffyTrans(int dim);
 
-   /// Inverse Duffy Transformation for 2D and 3D tensor product rules
+   /// Inverse Duffy Transformation for 2D and 3D tensor product rules.
    const IntegrationRule InverseDuffyTrans(int dim) const;
 
    /// Destroys an IntegrationRule object
