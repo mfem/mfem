@@ -408,7 +408,7 @@ template <typename DBODY>
 void RajaHipWrap2D(const int N, DBODY &&d_body,
                    const int X, const int Y, const int BZ)
 {
-   MFEM_ASSERT(BZ>0, "");
+   MFEM_VERIFY(BZ>0, "");
    const int G = (N+BZ-1)/BZ;
 
    using namespace RAJA;
@@ -625,7 +625,9 @@ void CuWrap2D(const int N, DBODY &&d_body,
               const int X, const int Y, const int BZ)
 {
    if (N==0) { return; }
-   MFEM_ASSERT(BZ>0, "");
+   // required for optimized GCC/NVCC builds to prevent runtime
+   // ODR/linkage violations of inlined templated kernel helpers
+   MFEM_VERIFY(BZ>0, "");
    const int GRID = (N+BZ-1)/BZ;
    const dim3 BLCK(X,Y,BZ);
    CuKernel2D<<<GRID,BLCK>>>(N,d_body);
@@ -637,7 +639,7 @@ void CuWrap2DLaunchBounds(const int N, DBODY &&d_body,
                           const int X, const int Y, const int BZ)
 {
    if (N==0) { return; }
-   MFEM_ASSERT(BZ>0, "");
+   MFEM_VERIFY(BZ>0, "");
    const int GRID = (N+BZ-1)/BZ;
    const dim3 BLCK(X,Y,BZ);
    static_assert(MAX_THREADS_PER_BLOCK > 0);
@@ -786,7 +788,7 @@ void HipWrap2D(const int N, DBODY &&d_body,
                const int X, const int Y, const int BZ)
 {
    if (N==0) { return; }
-   MFEM_ASSERT(BZ>0, "");
+   MFEM_VERIFY(BZ>0, "");
    const int GRID = (N+BZ-1)/BZ;
    const dim3 BLCK(X,Y,BZ);
    hipLaunchKernelGGL(HipKernel2D,GRID,BLCK,0,nullptr,N,d_body);
@@ -798,7 +800,7 @@ void HipWrap2DLaunchBounds(const int N, DBODY &&d_body,
                            const int X, const int Y, const int BZ)
 {
    if (N==0) { return; }
-   MFEM_ASSERT(BZ>0, "");
+   MFEM_VERIFY(BZ>0, "");
    const int GRID = (N+BZ-1)/BZ;
    const dim3 BLCK(X,Y,BZ);
    static_assert(MAX_THREADS_PER_BLOCK > 0);
