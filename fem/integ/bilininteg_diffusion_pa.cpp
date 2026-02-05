@@ -136,19 +136,19 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
    ne = fes.GetNE();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
+   const IntegrationRule ir_cube = StroudFlag ? (ir->InverseDuffyTrans(dim)) : *ir;
+   geom = mesh->GetGeometricFactors(ir_cube, GeometricFactors::JACOBIANS, mt);
    const int sdim = mesh->SpaceDimension();
-   maps = &el.GetDofToQuad(*ir,
+   maps = &el.GetDofToQuad(ir_cube,
                            StroudFlag ? DofToQuad::RAGGED_TENSOR : DofToQuad::TENSOR);
+   // DofToQuad expects ir pulled back to reference cube, so we apply InverseDuffyTrans
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
 
-   // if using triangular mesh and Bernstein basis, the quadrature rule in the
-   // Stroud conical quadrature rule defined in the unit square (contained in ir object)
-   // mapped to the reference triangle using the Duffy transformation
-   const IntegrationRule ir_in = StroudFlag ? (ir->DuffyTrans(dim)) : *ir;
-   QuadratureSpace qs(*mesh, ir_in);
+   QuadratureSpace qs(*mesh, *ir);
    CoefficientVector coeff(qs, CoefficientStorage::COMPRESSED);
+   // QuadratureSpace expects ir defined in reference simplex for Bernstein
+   // elements with partial assembly
 
    if (MQ) { coeff.ProjectTranspose(*MQ); }
    else if (VQ) { coeff.Project(*VQ); }

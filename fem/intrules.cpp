@@ -224,7 +224,7 @@ IntegrationRule::ApplyToKnotIntervals(KnotVector const& kv) const
    return kvir;
 }
 
-const IntegrationRule IntegrationRule::DuffyTrans(int dim) const
+void IntegrationRule::DuffyTrans(int dim)
 {
    // todo: add dimension argument, currently implement for triangle
    IntegrationRule ir_mapped(GetNPoints());
@@ -233,13 +233,51 @@ const IntegrationRule IntegrationRule::DuffyTrans(int dim) const
    {
       for (int i = 0; i < GetNPoints(); i++)
       {
-         real_t L1 = IntPoint(i).x;
-         real_t L2 = IntPoint(i).y * (1 - L1);
+         const real_t L1 = IntPoint(i).x;
+         const real_t L2 = IntPoint(i).y * (1 - L1);
+         IntegrationPoint &ip = const_cast<IntegrationPoint &>((*this)[i]);
+         ip.x = L1;
+         ip.y = L2;
+         // corresponds to x1 = (1,0) and x2 = (0,1)
+      }
+      return;
+   }
 
+   if (dim == 3)
+   {
+      for (int i = 0; i < GetNPoints(); i++)
+      {
+         const real_t L1 = IntPoint(i).x;
+         const real_t L2 = IntPoint(i).y * (1 - L1);
+         const real_t L3 = IntPoint(i).z * (1 - L1 - L2);
+         IntegrationPoint &ip = const_cast<IntegrationPoint &>((*this)[i]);
+         ip.x = L1;
+         ip.y = L2;
+         ip.z = L3;
+         // corresponds to x1 = (1,0,0) and x2 = (0,1,0) and x3 = (0,0,0)
+         // and x4 = (0,0,1)
+      }
+      return;
+   }
+
+   MFEM_ABORT("Duffy transformation not implemented for this dimension!");
+}
+
+const IntegrationRule IntegrationRule::InverseDuffyTrans(int dim) const
+{
+   IntegrationRule ir_mapped(GetNPoints());
+
+   if (dim == 2)
+   {
+      for (int i = 0; i < GetNPoints(); i++)
+      {
+         const real_t L1 = IntPoint(i).x;
+         const real_t L2 = IntPoint(i).y;
          IntegrationPoint &ip_mapped = ir_mapped.IntPoint(i);
-         ip_mapped.x = L1; // corresponds to x1 = (1,0) and x2 = (0,1)
-         ip_mapped.y = L2;
+         ip_mapped.x = L1;
+         ip_mapped.y = L2 / (1 - L1);
          ip_mapped.weight = IntPoint(i).weight;
+         // might be good to safeguard against Lobatto case here
       }
       return ir_mapped;
    }
@@ -248,22 +286,20 @@ const IntegrationRule IntegrationRule::DuffyTrans(int dim) const
    {
       for (int i = 0; i < GetNPoints(); i++)
       {
-         real_t L1 = IntPoint(i).x;
-         real_t L2 = IntPoint(i).y * (1 - L1);
-         real_t L3 = IntPoint(i).z * (1 - L1 - L2);
-
-         // need to verify this is correct!
+         const real_t L1 = IntPoint(i).x;
+         const real_t L2 = IntPoint(i).y;
+         const real_t L3 = IntPoint(i).z;
          IntegrationPoint &ip_mapped = ir_mapped.IntPoint(i);
-         ip_mapped.x =
-            L1; // corresponds to x1 = (1,0,0) and x2 = (0,1,0) and x3 = (0,0,0)
-         ip_mapped.y = L2; // and x4 = (0,0,1)
-         ip_mapped.z = L3;
+         ip_mapped.x = L1;
+         ip_mapped.y = L2 / (1 - L1);
+         ip_mapped.z = L3 / (1 - L1 - L2);
          ip_mapped.weight = IntPoint(i).weight;
+         // might be good to safeguard against Lobatto case here
       }
       return ir_mapped;
    }
 
-   MFEM_ABORT("Duffy transformation not implemented for this dimension!");
+   MFEM_ABORT("Inverse Duffy transformation not implemented for this dimension!");
 }
 
 #ifdef MFEM_USE_MPFR
@@ -2003,7 +2039,9 @@ IntegrationRule *IntegrationRules::TriangleStroudIntegrationRule(int Order)
       TriangleStroudIntRules[RealOrder] =
          new IntegrationRule(*SegmentStroud2IntRules[RealOrder],
                              *SegmentStroud1IntRules[RealOrder]);
-   // TriangleStroudIntRules[Order]->DuffyTrans(); // don't apply Duffy here since we need the untransformed rule first
+   // create rule in unit square
+   TriangleStroudIntRules[RealOrder-1]->DuffyTrans(2);
+   // map rule to reference triangle
    return TriangleStroudIntRules[Order];
 }
 
@@ -2171,6 +2209,9 @@ IntegrationRule *IntegrationRules::TetrahedronStroudIntegrationRule(int Order)
          new IntegrationRule(*SegmentStroud3IntRules[RealOrder],
                              *SegmentStroud2IntRules[RealOrder],
                              *SegmentStroud1IntRules[RealOrder]);
+   // create rule in unit cube
+   TetrahedronStroudIntRules[RealOrder-1]->DuffyTrans(3);
+   // map rule to reference tetrahedron
    return TetrahedronStroudIntRules[Order];
 }
 

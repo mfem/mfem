@@ -29,6 +29,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    // Assuming the same element type
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
+   dim = mesh->Dimension();
    const FiniteElement &el = *fes.GetTypicalFE();
    ElementTransformation *T0 = mesh->GetTypicalElementTransformation();
    int StroudFlag = fes.IsBernsteinSimplexSpace() ? 1 : 0;
@@ -50,22 +51,21 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       return;
    }
    int map_type = el.GetMapType();
-   dim = mesh->Dimension();
    ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS, mt);
-   maps = &el.GetDofToQuad(*ir,
+   const IntegrationRule ir_cube = StroudFlag ? (ir->InverseDuffyTrans(dim)) : *ir;
+   geom = mesh->GetGeometricFactors(ir_cube, GeometricFactors::DETERMINANTS, mt);
+   maps = &el.GetDofToQuad(ir_cube,
                            StroudFlag ? DofToQuad::RAGGED_TENSOR : DofToQuad::TENSOR);
+   // DofToQuad expects ir pulled back to reference cube, so we apply InverseDuffyTrans
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(ne*nq, mt);
 
-   // if using triangular mesh and Bernstein basis, the quadrature rule in the
-   // Stroud conical quadrature rule defined in the unit square (contained in ir object)
-   // mapped to the reference triangle using the Duffy transformation
-   const IntegrationRule ir_in = StroudFlag ? (ir->DuffyTrans(dim)) : *ir;
-   QuadratureSpace qs(*mesh, ir_in);
+   QuadratureSpace qs(*mesh, *ir);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
+   // QuadratureSpace expects ir defined in reference simplex for Bernstein
+   // elements with partial assembly
    {
       const int NE = ne;
       const int NQ = nq;
