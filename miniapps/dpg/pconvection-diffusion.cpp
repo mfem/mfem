@@ -66,6 +66,7 @@
 
 #include "mfem.hpp"
 #include "util/pweakform.hpp"
+#include "util/preconditioners.hpp"
 #include "../common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
@@ -121,6 +122,7 @@ int main(int argc, char *argv[])
    real_t theta = 0.7;
    bool static_cond = false;
    epsilon = 1e0;
+   bool pmg = false;
 
    bool visualization = true;
    int visport = 19916;
@@ -145,6 +147,8 @@ int main(int argc, char *argv[])
                   "Vector Coefficient beta");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
+   args.AddOption(&pmg, "-pmg", "--p-refinement-multigrid", "-no-pmg",
+                  "--no-p-refinement-multigrid", "Enable P-Refinement Multigrid.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -453,44 +457,47 @@ int main(int argc, char *argv[])
 
       BlockOperator * A = Ah.As<BlockOperator>();
 
-      BlockDiagonalPreconditioner M(A->RowOffsets());
-      M.owns_blocks = 1;
-      int skip = 0;
-      if (!static_cond)
+      Solver * preconditioner = nullptr;
+      Array<ParFiniteElementSpace *> prec_fes;
+      if (static_cond)
       {
-         HypreBoomerAMG * amg0 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(0,0));
-         HypreBoomerAMG * amg1 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(1,1));
-         amg0->SetPrintLevel(0);
-         amg1->SetPrintLevel(0);
-         M.SetDiagonalBlock(0,amg0);
-         M.SetDiagonalBlock(1,amg1);
-         skip = 2;
-      }
-      HypreBoomerAMG * amg2 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(skip,
-                                                                               skip));
-      amg2->SetPrintLevel(0);
-      M.SetDiagonalBlock(skip,amg2);
-
-      HypreSolver * prec;
-      if (dim == 2)
-      {
-         // AMS preconditioner for 2D H(div) (trace) space
-         prec = new HypreAMS((HypreParMatrix &)A->GetBlock(skip+1,skip+1), hatf_fes);
+         a->GetTraceFESpaces(prec_fes);
       }
       else
       {
-         // ADS preconditioner for 3D H(div) (trace) space
-         prec = new HypreADS((HypreParMatrix &)A->GetBlock(skip+1,skip+1), hatf_fes);
+         prec_fes = trial_fes;
       }
-      M.SetDiagonalBlock(skip+1,prec);
+      if (pmg)
+      {
+#ifdef MFEM_USE_MUMPS
+         bool mumps_coarse_solver = true;
+#else
+         bool mumps_coarse_solver = false;
+#endif
+         preconditioner = new PRefinementMultigrid(prec_fes,*A, mumps_coarse_solver);
+      }
+      else
+      {
+         preconditioner = new BlockDiagonalPreconditioner(A->RowOffsets());
+         auto block_diag = dynamic_cast<BlockDiagonalPreconditioner*>(preconditioner);
+         block_diag->owns_blocks = 1;
+         for (int i = 0; i<A->NumRowBlocks(); i++)
+         {
+            auto prec = MakeFESpaceDefaultSolver(prec_fes[i],0);
+            prec->SetOperator(A->GetBlock(i,i));
+            block_diag->SetDiagonalBlock(i,prec);
+         }
+      }
 
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(2000);
       cg.SetPrintLevel(0);
-      cg.SetPreconditioner(M);
       cg.SetOperator(*A);
+      cg.SetPreconditioner(*preconditioner);
       cg.Mult(B, X);
+      delete preconditioner;
+
       int num_iter = cg.GetNumIterations();
 
       a->RecoverFEMSolution(X,x);

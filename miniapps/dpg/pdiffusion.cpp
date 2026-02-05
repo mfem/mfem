@@ -393,7 +393,12 @@ int main(int argc, char *argv[])
       }
       if (pmg)
       {
-         preconditioner = new PRefinementMultigrid(prec_fes,*A);
+#ifdef MFEM_USE_MUMPS
+         bool mumps_coarse_solver = true;
+#else
+         bool mumps_coarse_solver = false;
+#endif
+         preconditioner = new PRefinementMultigrid(prec_fes,*A, mumps_coarse_solver);
       }
       else
       {

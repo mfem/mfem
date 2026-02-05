@@ -840,7 +840,12 @@ int main(int argc, char *argv[])
       Solver * cprec = nullptr;
       if (pmg)
       {
-         cprec = new ComplexPRefinementMultigrid(prec_fes, *Ahc);
+#ifdef MFEM_USE_MUMPS
+         bool mumps_coarse_solver = true;
+#else
+         bool mumps_coarse_solver = false;
+#endif
+         cprec = new ComplexPRefinementMultigrid(prec_fes, *Ahc, mumps_coarse_solver);
       }
       else
       {
