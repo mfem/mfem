@@ -20,6 +20,7 @@ DifferentiableOperator::DifferentiableOperator(
    const std::vector<FieldDescriptor> &infds,
    const std::vector<FieldDescriptor> &outfds,
    const ParMesh &mesh) :
+   Operator(),
    mesh(mesh),
    infds(infds),
    outfds(outfds)
@@ -31,8 +32,21 @@ DifferentiableOperator::DifferentiableOperator(
    auto last = std::unique(unionfds.begin(), unionfds.end());
    unionfds.erase(last, unionfds.end());
 
-   fields_e.resize(infds.size());
-   fields_l.resize(infds.size());
+   infields_l_offsets.SetSize(infds.size());
+   for (size_t i = 0; i < infds.size(); i++)
+   {
+      infields_l_offsets[i] = GetVSize(infds[i]);
+   }
+   infields_l_offsets.PartialSum();
+   infields_l.Update(infields_l_offsets);
+
+   infields_e_offsets.SetSize(infds.size());
+   for (size_t i = 0; i < infds.size(); i++)
+   {
+      infields_e_offsets[i] = GetVSize(infds[i]);
+   }
+   infields_e_offsets.PartialSum();
+   infields_e.Update(infields_e_offsets);
 }
 
 #endif // MFEM_USE_MPI

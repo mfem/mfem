@@ -108,6 +108,16 @@ constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg)
                           indices{});
 }
 
+template <auto start, auto end, auto inc, typename F>
+constexpr void constexpr_for(F&& f)
+{
+   if constexpr (start < end)
+   {
+      f(std::integral_constant<decltype(start), start>());
+      constexpr_for<start + inc, end, inc>(f);
+   }
+}
+
 template <std::size_t I, typename Tuple, std::size_t... Is>
 std::array<bool, sizeof...(Is)>
 make_dependency_array(const Tuple& inputs, std::index_sequence<Is...>)
@@ -1193,14 +1203,12 @@ void prolongation(const std::array<FieldDescriptor, N> fields,
 inline
 void prolongation(const std::vector<FieldDescriptor> fields,
                   const BlockVector &x,
-                  std::vector<Vector> &fields_l)
+                  BlockVector &x_l)
 {
    for (int i = 0; i < x.NumBlocks(); i++)
    {
       const auto P = get_prolongation(fields[i]);
-      const int width = P->Width();
-      fields_l[i].SetSize(P->Height());
-      P->Mult(x.GetBlock(i), fields_l[i]);
+      P->Mult(x.GetBlock(i), x_l.GetBlock(i));
    }
 }
 
@@ -1514,7 +1522,7 @@ create_descriptors_to_fields_map(
 
    auto f = [&](auto &fop, auto &map)
    {
-      if constexpr (std::is_same_v<std::decay_t<decltype(fop)>, Weight>)
+      if constexpr (is_weight_fop<std::decay_t<decltype(fop)>>::value)
       {
          // TODO-bug: stealing dimension from the first field
          fop.dim = GetDimension<entity_t>(fields[0]);

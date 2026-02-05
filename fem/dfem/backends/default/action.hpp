@@ -23,24 +23,31 @@ struct Action
       inputs(inputs),
       outputs(outputs)
    {
-      for (const auto &f : ctx.infds)
+      for (const auto &f : ctx.unionfds)
       {
          auto qi = get_qinterp(f, ctx.ir);
          MFEM_ASSERT(qi != nullptr, "internal error");
-         qis.push_back(qi);
+         qis[f.id] = qi;
       }
+
+      constexpr int ninputs = tuple_size<inputs_t>::value;
+      xq_offsets.SetSize(ninputs);
+      constexpr_for<0, ninputs, 1>([&](auto i)
+      {
+         const auto input = get<i>(inputs);
+         const int nqp = ctx.ir.GetNPoints();
+         xq_offsets[i] = nqp * input.size_on_qp * ctx.nentities;
+      });
+      xq_offsets.PartialSum();
+      xq.Update(xq_offsets);
    }
 
-   void operator()(std::vector<Vector> &ue, Vector &ve) const
+   void operator()(BlockVector &xe, BlockVector &ye) const
    {
-      if (ctx.attributes.Size() == 0) { return; }
-
-      std::vector<Vector> uq;
+      if (ctx.attr.Size() == 0) { return; }
 
       // E -> Q
-      // for each entry in `ue` apply interpolation
-      interpolate(inputs, qis, ue, uq,
-                  std::make_index_sequence<tuple_size<inputs_t>::value> {});
+      interpolate(inputs, qis, xe, xq);
    }
 
    IntegratorContext ctx;
@@ -48,7 +55,10 @@ struct Action
    inputs_t inputs;
    outputs_t outputs;
 
-   std::vector<const QuadratureInterpolator *> qis;
+   std::unordered_map<int, const QuadratureInterpolator *> qis;
+
+   Array<int> xq_offsets;
+   mutable BlockVector xq;
 };
 
 }

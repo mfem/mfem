@@ -7,11 +7,12 @@ namespace mfem::future
 
 struct IntegratorContext
 {
-   const Array<int> *elem_attributes;
-   Array<int> attributes;
-   int num_entities;
+   const ParMesh &mesh;
+   const Array<int> *elem_attr;
+   Array<int> attr;
+   int nentities;
    ThreadBlocks thread_blocks;
-   const std::vector<FieldDescriptor> &infds;
+   const std::vector<FieldDescriptor> &unionfds;
    const IntegrationRule &ir;
 };
 

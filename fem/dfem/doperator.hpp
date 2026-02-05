@@ -10,19 +10,12 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include <type_traits>
-#include <utility>
-
 #include "../../config/config.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "../fespace.hpp"
 
 #include "util.hpp"
-#include "interpolate.hpp"
-#include "integrate.hpp"
-#include "qfunction_apply.hpp"
-#include "assemble.hpp"
 #include "integrator_ctx.hpp"
 
 #include "backends/default/default.hpp"
@@ -32,7 +25,7 @@ namespace mfem::future
 
 /// @brief Type alias for a function that computes the action of an operator
 using action_t =
-   std::function<void(std::vector<Vector> &, Vector &)>;
+   std::function<void(BlockVector &, BlockVector &)>;
 
 /// @brief Type alias for a function that computes the cache for the action of a derivative
 using derivative_setup_t =
@@ -289,19 +282,19 @@ public:
    /// @param result_in Result vector of the action of the operator on
    /// solutions. The result is a T-dof vector or L-dof vector depending on
    /// the MultLevel.
-   void Mult(const Vector &in, Vector &out) const override
+   void Mult(const Vector &x, Vector &y) const override
    {
       MFEM_ASSERT(!action_callbacks.empty(),
                   "no integrators have been set");
 
-      MFEM_ASSERT(dynamic_cast<const BlockVector*>(&in),
-                  "in needs to be a BlockVector");
+      MFEM_ASSERT(dynamic_cast<const BlockVector*>(&x),
+                  "x needs to be a BlockVector");
 
-      MFEM_ASSERT(dynamic_cast<const BlockVector*>(&out),
-                  "out needs to be a BlockVector");
+      MFEM_ASSERT(dynamic_cast<const BlockVector*>(&y),
+                  "y needs to be a BlockVector");
 
-      const auto bin = static_cast<const BlockVector &>(in);
-      auto bout = static_cast<BlockVector &>(out);
+      const auto bx = static_cast<const BlockVector &>(x);
+      auto by = static_cast<BlockVector &>(y);
 
       // if (mult_level == MultLevel::LVECTOR)
       // {
@@ -314,13 +307,13 @@ public:
       // }
       // else
       // {
-      prolongation(infds, bin, fields_l);
+      prolongation(infds, bx, infields_l);
       residual_l = 0.0;
       for (auto &action : action_callbacks)
       {
-         action(fields_l, residual_l);
+         action(infields_l, residual_l);
       }
-      prolongation_transpose(residual_l, bout);
+      prolongation_transpose(residual_l, by);
       // }
    }
 
@@ -502,11 +495,14 @@ private:
    std::vector<FieldDescriptor> outfds;
    std::vector<FieldDescriptor> unionfds;
 
-   mutable std::vector<Vector> fields_l;
-   mutable std::vector<Vector> fields_e;
+   Array<int> infields_l_offsets;
+   mutable BlockVector infields_l;
 
-   mutable Vector residual_l;
-   mutable Vector residual_e;
+   Array<int> infields_e_offsets;
+   mutable BlockVector infields_e;
+
+   mutable BlockVector residual_l;
+   mutable BlockVector residual_e;
 
    std::function<void(Vector &, Vector &)> prolongation_transpose;
    std::function<void(Vector &, Vector &)> output_restriction_transpose;
@@ -740,7 +736,7 @@ void DifferentiableOperator::AddIntegrator(
 
    IntegratorContext ctx
    {
-      elem_attributes, attributes, num_entities, thread_blocks, infds, integration_rule
+      mesh, elem_attributes, attributes, num_entities, thread_blocks, unionfds, integration_rule
    };
 
    // Here we can use structs
