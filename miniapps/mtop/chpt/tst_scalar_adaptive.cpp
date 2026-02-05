@@ -20,22 +20,23 @@ int main(int argc, char *argv[])
 {
    int s = 3;
    double alpha = 2.0;
-   double dt0 = 0.02;
+   double dt0 = 0.001;
    double omega = 0.2;
    double Tfinal = 1.0;
    double u0 = 0.2;
    double target = 0.7;
    double eps = 1e-7;
+   double err = 1e-4;
 
    OptionsParser args(argc, argv);
    args.AddOption(&s,      "-s",   "--checkpoints", "Checkpoint budget s (real checkpoints).");
    args.AddOption(&alpha,  "-a",   "--alpha",       "Logistic growth alpha.");
-   args.AddOption(&dt0,    "-dt0", "--dt0",         "Base dt for dt(i)=dt0*(1+0.5*sin(omega*i)).");
-   args.AddOption(&omega,  "-om",  "--omega",       "Omega in dt(i)=dt0*(1+0.5*sin(omega*i)).");
+   args.AddOption(&dt0,    "-dt0", "--dt0",         "Base for the time step dt.");
    args.AddOption(&Tfinal, "-T",   "--tfinal",      "Terminate when accumulated time reaches Tfinal.");
    args.AddOption(&u0,     "-u0",  "--u0",          "Initial scalar state u0.");
    args.AddOption(&target, "-ut",  "--target",      "Target value in J=0.5*(u_m-target)^2.");
    args.AddOption(&eps,    "-eps", "--fd-eps",      "Finite-difference epsilon.");
+   args.AddOption(&err,    "-err", "-time_err",     "Allowed time integration error per time step.");
    args.Parse();
    if (!args.Good())
    {
@@ -52,46 +53,109 @@ int main(int argc, char *argv[])
 
    auto dt_func = [&](Step i)
    {
-      const double dt = dt0 ; //* (1.0 + 0.5 * std::sin(omega * double(i)));
+      const double dt = dt0 * (1.0 + 0.5 * std::sin(omega * double(i)));
       MFEM_VERIFY(dt > 0.0, "dt_func produced non-positive dt.");
       return dt;
    };
 
+   struct my_state
+   {
+      my_state(double a, double b, double c, double d=0.0, double tp_=0.0){
+         t=a; dt=b; u=c; up=d; tp=tp_;
+      }
+
+      //t,dt,u
+      double t;
+      double dt;
+      double u;
+      double tp;
+      double up;
+   }; 
+
    // Checkpoint manager:
    //   State   = double
    //   Snapshot= double
-   mfem::DynamicCheckpointing<double> ckpt(s);
+   mfem::DynamicCheckpointing<my_state> ckpt(s);
 
-   auto make_snapshot = [](const double &u) -> double { return u; };
-   auto restore_snapshot = [](const double &snap, double &out) { out = snap; };
+   auto make_snapshot = [](const my_state &u) -> my_state { return u; };
+   auto restore_snapshot = [](const my_state &snap, my_state &out) { out = snap; };
 
-   auto primal_step = [&](double &u, Step i)
+   double tmax=Tfinal;
+
+   auto primal_step = [&](my_state &su, Step i)
    {
-      const double dt = dt_func(i);
-      u = u + dt * alpha * u * (1.0 - u);
+      su.up=su.u;
+      su.tp=su.t;
+
+      double t=su.t;
+      double dt = su.dt;
+      bool flag=true;
+
+      if((tmax-t)<su.dt)
+      {
+         dt=tmax-t;
+         flag=false;
+      }
+
+      double u=su.u;
+
+      double s0=alpha * u * (1.0 - u);
+      double ue=u+dt*s0;
+      double s1=alpha * ue * (1.0 - ue);
+      double uh=u + 0.5 * dt * (s0 + s1);
+      double ee = std::abs(uh-ue);
+
+      if((ee < 0.5*err) && (flag))
+      {
+         dt=1.25*dt;
+         ue=u+dt*s0;
+         s1=alpha * ue * (1.0 - ue);
+         uh=u + 0.5 * dt * (s0 + s1);
+         ee = std::abs(uh-ue);
+      } 
+
+      while(ee > err)
+      {
+         dt=0.5*dt;
+         ue=u+dt*s0;
+         s1=alpha * ue * (1.0 - ue);
+         uh=u + 0.5 * dt * (s0 + s1);
+         ee = std::abs(uh-ue);
+      } 
+
+      //std::cout<<" t="<<t+dt<<" dt="<<dt<<" err="<<ee<<std::endl;
+
+      su.t = t+dt;
+      su.dt = dt;
+      su.u = uh;
    };
 
-   auto adjoint_step = [&](double &lambda, const double &u_i, Step i)
+   auto adjoint_step = [&](double &lambda, const my_state &u_i, Step i)
    {
-      const double dt = dt_func(i);
-      const double dF_du = 1.0 + dt * alpha * (1.0 - 2.0 * u_i);
-      lambda = dF_du * lambda;
+      const double dt = u_i.dt;
+      // const double dF_du = 1.0 + dt * alpha * (1.0 - 2.0 * u_i.u);
+      // lambda = dF_du * lambda;
+
+      const double s0=alpha * (1.0 -2.0 * u_i.u) *lambda;
+      const double le= lambda+dt*s0;
+      const double s1= alpha * (1.0 -2.0 * u_i.up) * le;
+      lambda = lambda + 0.5 *dt *(s0+s1);
    };
 
    // ---------------- Forward sweep (unknown m) ----------------
-   double u = u0;
+   my_state u(0.0, dt0, u0);
    double t_phys = 0.0;
 
    Step i = 0;
    while (t_phys < Tfinal)
    {
       ckpt.ForwardStep(i, u, primal_step, make_snapshot);
-      t_phys += dt_func(i);
+      t_phys = u.t;
       ++i;
    }
 
    const Step m = i;
-   const double u_m = u;
+   const double u_m = u.u;
    const double J = 0.5 * (u_m - target) * (u_m - target);
 
    mfem::out << std::setprecision(15);
@@ -116,7 +180,7 @@ int main(int argc, char *argv[])
 
    // ---------------- Backward sweep (adjoint) ----------------
    double lambda = (u_m - target); // terminal adjoint = dJ/du_m
-   double u_work = 0.0;            // scratch primal state u_i
+   my_state u_work (0.0,0.0,0.0);            // scratch primal state u_i
 
    for (Step j = m - 1; j >= 0; --j)
    {
@@ -128,32 +192,21 @@ int main(int argc, char *argv[])
 
    const double dJ_du0_adjoint = lambda;
 
-   // ---------------- Finite-difference gradient check ----------------
-   auto forward_only_J = [&](double u_init)
-   {
-      double uu = u_init;
-      double tt = 0.0;
-      Step k = 0;
-      while (tt < Tfinal)
-      {
-         primal_step(uu, k);
-         tt += dt_func(k);
-         ++k;
-      }
-      const double r = (uu - target);
-      return 0.5 * r * r;
-   };
+   // analytic solution
+   const double sol=u0*exp(alpha*Tfinal)/(1.0-u0+u0*exp(alpha*Tfinal));
+   const double grd=exp(alpha*Tfinal)/std::pow(1.0-u0+u0*exp(alpha*Tfinal),2.0);
 
-   const double Jp = forward_only_J(u0 + eps);
-   const double Jm = forward_only_J(u0 - eps);
-   const double dJ_du0_fd = (Jp - Jm) / (2.0 * eps);
+   mfem::out << "true sol = "<<sol<<" \n";
+
+
+   const double dJ_du0_fd = (sol - target) * grd;
 
    const double abs_err = std::abs(dJ_du0_adjoint - dJ_du0_fd);
    const double rel_err = abs_err / (std::abs(dJ_du0_fd) + 1e-30);
 
    mfem::out << "[Scalar] Gradient check (dJ/du0):\n";
    mfem::out << "  adjoint = " << dJ_du0_adjoint << "\n";
-   mfem::out << "  FD      = " << dJ_du0_fd << "\n";
+   mfem::out << "  true grad = " << dJ_du0_fd << "\n";
    mfem::out << "  abs err = " << abs_err << "\n";
    mfem::out << "  rel err = " << rel_err << "\n\n";
 

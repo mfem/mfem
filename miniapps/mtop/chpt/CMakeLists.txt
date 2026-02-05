@@ -24,6 +24,12 @@ add_mfem_miniapp(mtop_test_scalar_chpt
 		      ${CHPT_COMMON_FILES}
                       LIBRARIES mfem)
 
+add_mfem_miniapp(mtop_test_adapt_chpt
+                      MAIN tst_scalar_adaptive.cpp
+                      ${CHPT_COMMON_FILES}
+                      LIBRARIES mfem)
+
+
 add_mfem_miniapp(mtop_test_vector_chpt
                       MAIN tst_vector_field.cpp
                       ${CHPT_COMMON_FILES}
