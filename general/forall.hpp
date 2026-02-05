@@ -408,7 +408,7 @@ template <typename DBODY>
 void RajaHipWrap2D(const int N, DBODY &&d_body,
                    const int X, const int Y, const int BZ)
 {
-   MFEM_ASSERT(BZ>0, "");
+   MFEM_VERIFY(BZ>0, "");
    const int G = (N+BZ-1)/BZ;
 
    using namespace RAJA;
