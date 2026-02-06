@@ -25,7 +25,7 @@ namespace mfem::future
 
 /// @brief Type alias for a function that computes the action of an operator
 using action_t =
-   std::function<void(BlockVector &, BlockVector &)>;
+   std::function<void(const std::vector<Vector *> &, std::vector<Vector *> &)>;
 
 /// @brief Type alias for a function that computes the cache for the action of a derivative
 using derivative_setup_t =
@@ -293,8 +293,8 @@ public:
       MFEM_ASSERT(dynamic_cast<const BlockVector*>(&y),
                   "y needs to be a BlockVector");
 
-      const auto bx = static_cast<const BlockVector &>(x);
-      auto by = static_cast<BlockVector &>(y);
+      const auto &bx = static_cast<const BlockVector &>(x);
+      auto &by = static_cast<BlockVector &>(y);
 
       // if (mult_level == MultLevel::LVECTOR)
       // {
@@ -306,15 +306,17 @@ public:
       //    }
       // }
       // else
-      // {
-      prolongation(infds, bx, infields_l);
-      residual_l = 0.0;
-      for (auto &action : action_callbacks)
       {
-         action(infields_l, residual_l);
+         prolongation(infds, bx, infields_l);
+         restriction<Entity::Element>(infds, infields_l, infields_e);
+         prepare_residual<Entity::Element>(outfds, residual_e);
+         for (size_t i = 0; i < action_callbacks.size(); i++)
+         {
+            action_callbacks[i](infields_e, residual_e);
+         }
+         restriction_transpose<Entity::Element>(outfds, residual_e, residual_l);
+         prolongation_transpose(infds, residual_l, by);
       }
-      prolongation_transpose(residual_l, by);
-      // }
    }
 
    /// @brief Add an integrator to the operator.
@@ -495,16 +497,13 @@ private:
    std::vector<FieldDescriptor> outfds;
    std::vector<FieldDescriptor> unionfds;
 
-   Array<int> infields_l_offsets;
-   mutable BlockVector infields_l;
+   mutable std::vector<Vector *> infields_l;
+   mutable std::vector<Vector *> infields_e;
 
-   Array<int> infields_e_offsets;
-   mutable BlockVector infields_e;
+   mutable std::vector<Vector *> residual_l;
+   mutable std::vector<Vector *> residual_e;
 
-   mutable BlockVector residual_l;
-   mutable BlockVector residual_e;
-
-   std::function<void(Vector &, Vector &)> prolongation_transpose;
+   // std::function<void(Vector &, Vector &)> prolongation_transpose;
    std::function<void(Vector &, Vector &)> output_restriction_transpose;
    restriction_callback_t restriction_callback;
 
@@ -695,17 +694,20 @@ void DifferentiableOperator::AddIntegrator(
    const int num_entities = GetNumEntities<entity_t>(mesh);
    const int num_qp = integration_rule.GetNPoints();
 
-   if constexpr (is_sum_fop<decltype(output_fop)>::value)
-   {
-      residual_l.SetSize(1);
-      height = 1;
-   }
-   else
-   {
-      const int residual_lsize = GetVSize(outfds[test_space_field_idx]);
-      residual_l.SetSize(residual_lsize);
-      height = GetTrueVSize(outfds[test_space_field_idx]);
-   }
+   residual_e.resize(outfds.size());
+   residual_l.resize(outfds.size());
+
+   // if constexpr (is_sum_fop<decltype(output_fop)>::value)
+   // {
+   //    residual_l.SetSize(1);
+   //    height = 1;
+   // }
+   // else
+   // {
+   //    const int residual_lsize = GetVSize(outfds[test_space_field_idx]);
+   //    residual_l.SetSize(residual_lsize);
+   //    height = GetTrueVSize(outfds[test_space_field_idx]);
+   // }
 
    // TODO: Is this a hack?
    width = GetTrueVSize(infds[0]);

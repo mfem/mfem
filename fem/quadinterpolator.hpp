@@ -178,6 +178,13 @@ public:
    using TensorEvalHDivKernelType =
       void(*)(const int, const real_t *, const real_t *, const real_t *,
               const real_t *, real_t *, const int, const int);
+   using TensorEvalTransposeKernelType = void(*)(const int, const real_t *,
+                                                 const real_t *,
+                                                 real_t *, const int, const int, const int);
+   using GradTransposeKernelType = void(*)(const int, const real_t *,
+                                           const real_t *, const real_t *,
+                                           const real_t *, real_t *,
+                                           const int, const int, const int, const int);
 
    MFEM_REGISTER_KERNELS(TensorEvalKernels, TensorEvalKernelType,
                          (int, QVectorLayout, int, int, int), (int));
@@ -189,6 +196,10 @@ public:
                          (int, QVectorLayout, bool, int, int), (int));
    MFEM_REGISTER_KERNELS(TensorEvalHDivKernels, TensorEvalHDivKernelType,
                          (int, QVectorLayout, unsigned, int, int));
+   MFEM_REGISTER_KERNELS(TensorEvalTransposeKernels, TensorEvalTransposeKernelType,
+                         (int, QVectorLayout, int, int, int), (int));
+   // MFEM_REGISTER_KERNELS(GradTransposeKernels, GradTransposeKernelType,
+   //                       (int, QVectorLayout, bool, int, int, int), (int));
 };
 
 }

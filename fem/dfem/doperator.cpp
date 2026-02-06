@@ -32,21 +32,13 @@ DifferentiableOperator::DifferentiableOperator(
    auto last = std::unique(unionfds.begin(), unionfds.end());
    unionfds.erase(last, unionfds.end());
 
-   infields_l_offsets.SetSize(infds.size());
+   infields_l.resize(infds.size());
    for (size_t i = 0; i < infds.size(); i++)
    {
-      infields_l_offsets[i] = GetVSize(infds[i]);
+      infields_l[i] = new Vector(GetVSize(infds[i]));
    }
-   infields_l_offsets.PartialSum();
-   infields_l.Update(infields_l_offsets);
 
-   infields_e_offsets.SetSize(infds.size());
-   for (size_t i = 0; i < infds.size(); i++)
-   {
-      infields_e_offsets[i] = GetVSize(infds[i]);
-   }
-   infields_e_offsets.PartialSum();
-   infields_e.Update(infields_e_offsets);
+   infields_e.resize(infds.size());
 }
 
 #endif // MFEM_USE_MPI

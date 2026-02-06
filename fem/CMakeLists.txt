@@ -121,6 +121,8 @@ set(SRCS
   qinterp/eval_hdiv.cpp
   qinterp/grad_by_nodes.cpp
   qinterp/grad_by_vdim.cpp
+  qinterp/eval_transpose.cpp
+  qinterp/eval_transpose_by_vdim.cpp
   qspace.cpp
   quadinterpolator.cpp
   quadinterpolator_face.cpp
@@ -133,7 +135,7 @@ set(SRCS
   tmop/assemble/diag2.cpp
   tmop/assemble/grad2_limit.cpp
   tmop/assemble/grad2.cpp
-  tmop/assemble/diag3_limit.cpp  
+  tmop/assemble/diag3_limit.cpp
   tmop/assemble/diag3.cpp
   tmop/assemble/grad3_limit.cpp
   tmop/assemble/grad3.cpp
@@ -313,36 +315,36 @@ set(HDRS
   )
 
 if (MFEM_USE_SIDRE)
-  list(APPEND SRCS sidredatacollection.cpp)
-  list(APPEND HDRS sidredatacollection.hpp)
+    list(APPEND SRCS sidredatacollection.cpp)
+    list(APPEND HDRS sidredatacollection.hpp)
 endif()
 
 if (MFEM_USE_CONDUIT)
-  list(APPEND SRCS conduitdatacollection.cpp)
-  list(APPEND HDRS conduitdatacollection.hpp)
+    list(APPEND SRCS conduitdatacollection.cpp)
+    list(APPEND HDRS conduitdatacollection.hpp)
 endif()
 
 if (MFEM_USE_ADIOS2)
-  list(APPEND SRCS adios2datacollection.cpp)
-  list(APPEND HDRS adios2datacollection.hpp)
+    list(APPEND SRCS adios2datacollection.cpp)
+    list(APPEND HDRS adios2datacollection.hpp)
 endif()
 
 if (MFEM_USE_FMS)
-  list(APPEND SRCS fmsdatacollection.cpp fmsconvert.cpp)
-  list(APPEND HDRS fmsdatacollection.hpp fmsconvert.hpp)
+    list(APPEND SRCS fmsdatacollection.cpp fmsconvert.cpp)
+    list(APPEND HDRS fmsdatacollection.hpp fmsconvert.hpp)
 endif()
 
 if (MFEM_USE_MPI)
-  list(APPEND SRCS
+    list(APPEND SRCS
     pbilinearform.cpp
     pfespace.cpp
     pgridfunc.cpp
     plinearform.cpp
     pnonlinearform.cpp
     prestriction.cpp)
-  # If this list (HDRS -> HEADERS) is used for install, we probably want the
-  # headers added all the time.
-  list(APPEND HDRS
+    # If this list (HDRS -> HEADERS) is used for install, we probably want the
+    # headers added all the time.
+    list(APPEND HDRS
     pbilinearform.hpp
     pfespace.hpp
     pgridfunc.hpp

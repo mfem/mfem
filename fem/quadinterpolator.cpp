@@ -31,6 +31,7 @@ void InitDetKernels();
 template <bool P> void InitGradByNodesKernels();
 template <bool P> void InitGradByVDimKernels();
 void InitTensorEvalHDivKernels();
+void InitEvalTransposeByVDimKernels();
 struct Kernels
 {
    Kernels()
@@ -51,6 +52,7 @@ struct Kernels
       InitEvalKernels();
       // Tensor (quad,hex) H(div)
       InitTensorEvalHDivKernels();
+      InitEvalTransposeByVDimKernels();
    }
 };
 }
@@ -650,11 +652,56 @@ void QuadratureInterpolator::MultTranspose(unsigned eval_flags,
                                            const Vector &q_der,
                                            Vector &e_vec) const
 {
-   MFEM_CONTRACT_VAR(eval_flags);
-   MFEM_CONTRACT_VAR(q_val);
-   MFEM_CONTRACT_VAR(q_der);
-   MFEM_CONTRACT_VAR(e_vec);
-   MFEM_ABORT("this method is not implemented yet");
+   const int ne = fespace->GetNE();
+   if (ne == 0) { return; }
+   const FiniteElement *fe = fespace->GetFE(0);
+   const int vdim = fespace->GetVDim();
+   const int sdim = fespace->GetMesh()->SpaceDimension();
+
+   const bool use_tensor_eval =
+      use_tensor_products &&
+      dynamic_cast<const TensorBasisElement*>(fe) != nullptr;
+   const IntegrationRule *ir =
+      IntRule ? IntRule : &qspace->GetElementIntRule(0);
+   const DofToQuad::Mode mode =
+      use_tensor_eval ? DofToQuad::TENSOR : DofToQuad::FULL;
+   const DofToQuad &maps = fe->GetDofToQuad(*ir, mode);
+   const int dim = maps.FE->GetDim();
+   const int nd = maps.ndof;
+   const int nq = maps.nqpt;
+
+   const GeometricFactors *geom = nullptr;
+   if (eval_flags & PHYSICAL_DERIVATIVES)
+   {
+      const int jacobians = GeometricFactors::JACOBIANS;
+      geom = fespace->GetMesh()->GetGeometricFactors(*ir, jacobians);
+   }
+
+   e_vec = 0.0; // Initialize to zero for accumulation
+
+   if (use_tensor_eval)
+   {
+      if (eval_flags & (VALUES | PHYSICAL_VALUES))
+      {
+         TensorEvalTransposeKernels::Run(dim, q_layout, vdim, nd, nq, ne,
+                                         maps.B.Read(), q_val.Read(),
+                                         e_vec.ReadWrite(), vdim, nd, nq);
+      }
+      if (eval_flags & (DERIVATIVES | PHYSICAL_DERIVATIVES))
+      {
+         // const bool phys = (eval_flags & PHYSICAL_DERIVATIVES);
+         // const real_t *J = phys ? geom->J.Read() : nullptr;
+         // const int s_dim = phys ? sdim : dim;
+         // GradTransposeKernels::Run(dim, q_layout, phys, vdim, nd, nq, ne,
+         //                           maps.B.Read(), maps.G.Read(), J,
+         //                           q_der.Read(), e_vec.ReadWrite(),
+         //                           s_dim, vdim, nd, nq);
+      }
+   }
+   else
+   {
+      MFEM_ABORT("Non-tensor MultTranspose not yet implemented");
+   }
 }
 
 void QuadratureInterpolator::Values(const Vector &e_vec,

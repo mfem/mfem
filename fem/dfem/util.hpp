@@ -30,6 +30,7 @@
 #include "../pfespace.hpp"
 #include "../../mesh/mesh.hpp"
 #include "../../linalg/dtensor.hpp"
+#include "../quadinterpolator.hpp"
 
 #include "fieldoperator.hpp"
 #include "parameterspace.hpp"
@@ -108,7 +109,7 @@ constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg)
                           indices{});
 }
 
-template <auto start, auto end, auto inc, typename F>
+template <auto start, auto end, auto inc = 1, typename F>
 constexpr void constexpr_for(F&& f)
 {
    if constexpr (start < end)
@@ -954,7 +955,7 @@ const QuadratureInterpolator *get_qinterp(
    const FieldDescriptor &f,
    const IntegrationRule &ir)
 {
-   return std::visit([=](auto && arg) -> const QuadratureInterpolator*
+   return std::visit([&ir](auto && arg) -> const QuadratureInterpolator*
    {
       using T = std::decay_t<decltype(arg)>;
       if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
@@ -971,6 +972,7 @@ const QuadratureInterpolator *get_qinterp(
       {
          static_assert(dfem::always_false<T>, "internal error");
       }
+
       return nullptr; // Unreachable, but avoids compiler warning
    }, f.data);
 }
@@ -1201,14 +1203,110 @@ void prolongation(const std::array<FieldDescriptor, N> fields,
 // }
 
 inline
-void prolongation(const std::vector<FieldDescriptor> fields,
-                  const BlockVector &x,
-                  BlockVector &x_l)
+void prolongation(
+   const std::vector<FieldDescriptor> fields,
+   const BlockVector &x,
+   std::vector<Vector *> &x_l)
 {
+   MFEM_ASSERT(x.NumBlocks() == static_cast<int>(x_l.size()),
+               "internal error " << x.NumBlocks() << " vs " << x_l.size());
    for (int i = 0; i < x.NumBlocks(); i++)
    {
       const auto P = get_prolongation(fields[i]);
-      P->Mult(x.GetBlock(i), x_l.GetBlock(i));
+      MFEM_ASSERT(P->Width() == x.GetBlock(i).Size(),
+                  "prolongation not applicable to given input data size " <<
+                  P->Width() << " vs " << x.GetBlock(i).Size());
+      MFEM_ASSERT(P->Height() == x_l[i]->Size(),
+                  "prolongation not applicable to given output data size " <<
+                  P->Height() << " vs " << x_l[i]->Size());
+      P->Mult(x.GetBlock(i), *x_l[i]);
+   }
+}
+
+inline
+void prolongation_transpose(
+   const std::vector<FieldDescriptor> fields,
+   const std::vector<Vector *> &x_l,
+   BlockVector &x)
+{
+   MFEM_ASSERT(static_cast<int>(x_l.size()) == x.NumBlocks(),
+               "internal error " << x_l.size() << " vs " << x.NumBlocks());
+   for (size_t i = 0; i < x_l.size(); i++)
+   {
+      const auto P = get_prolongation(fields[i]);
+      MFEM_ASSERT(P->Height() == x_l[i]->Size(),
+                  "prolongation not applicable to given input data size " <<
+                  P->Height() << " vs " << x_l[i]->Size());
+      MFEM_ASSERT(P->Width() == x.GetBlock(i).Size(),
+                  "prolongation not applicable to given output data size " <<
+                  P->Width() << " vs " << x.GetBlock(i).Size());
+      P->MultTranspose(*x_l[i], x.GetBlock(i));
+   }
+}
+
+template <typename entity_t>
+void restriction(
+   const std::vector<FieldDescriptor> fields,
+   const std::vector<Vector *> &x_l,
+   std::vector<Vector *> &x_e)
+{
+   MFEM_ASSERT(x_l.size() == x_e.size(),
+               "internal error " << x_l.size() << " vs " << x_e.size());
+   for (size_t i = 0; i < fields.size(); i++)
+   {
+      const auto R = get_restriction<entity_t>(
+                        fields[i], ElementDofOrdering::LEXICOGRAPHIC);
+      MFEM_ASSERT(R->Width() == x_l[i]->Size(),
+                  "restriction not applicable to given input data size " <<
+                  R->Width() << " vs " << x_l[i]->Size());
+
+      // TODO
+      if (x_e[i] == nullptr)
+      {
+         x_e[i] = new Vector(R->Height());
+      }
+      x_e[i]->SetSize(R->Height());
+      R->Mult(*x_l[i], *x_e[i]);
+   }
+}
+
+template <typename entity_t>
+void prepare_residual(
+   const std::vector<FieldDescriptor> fields,
+   std::vector<Vector *> &r_e)
+{
+   for (size_t i = 0; i < fields.size(); i++)
+   {
+      const auto R = get_restriction<entity_t>(
+                        fields[i], ElementDofOrdering::LEXICOGRAPHIC);
+      // TODO
+      if (r_e[i] == nullptr)
+      {
+         r_e[i] = new Vector(R->Width());
+      }
+      r_e[i]->SetSize(R->Width());
+   }
+}
+
+template <typename entity_t>
+void restriction_transpose(
+   const std::vector<FieldDescriptor> fields,
+   const std::vector<Vector *> &x_e,
+   std::vector<Vector *> &x_l)
+{
+   for (size_t i = 0; i < fields.size(); i++)
+   {
+      const auto R = get_restriction<entity_t>(
+                        fields[i], ElementDofOrdering::LEXICOGRAPHIC);
+
+      // TODO
+      if (x_l[i] == nullptr)
+      {
+         x_l[i] = new Vector(R->Width());
+      }
+      x_l[i]->SetSize(R->Width());
+
+      R->MultTranspose(*x_e[i], *x_l[i]);
    }
 }
 
