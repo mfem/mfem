@@ -826,10 +826,9 @@ void VectorFEBoundaryTangentLFIntegrator::AssembleRHSElementVect(
          {
             const DenseMatrix & J = Tr.Jacobian();
             f_hat(0) = J(0,0) * f_loc(0) + J(1,0) * f_loc(1);
-            f_hat(1) = 0.0;
-            f_hat(2) = f_loc(2);
+            f_hat(1) = f_loc(2);
 
-            Swap<real_t>(f_hat(0), f_hat(2));
+            Swap<real_t>(f_hat(0), f_hat(1));
             f_hat(0) = -f_hat(0);
          }
          else
@@ -842,8 +841,7 @@ void VectorFEBoundaryTangentLFIntegrator::AssembleRHSElementVect(
             z_hat /= z_hat.Norml2();
 
             f_hat[0] = -(z_hat * f_loc);
-            f_hat[1] = 0.0;
-            f_hat[2] = J(0,0) * f_loc[0] + J(1, 0) * f_loc[1] +
+            f_hat[1] = J(0,0) * f_loc[0] + J(1, 0) * f_loc[1] +
                        J(2, 0) * f_loc[2];
          }
       }
