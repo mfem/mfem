@@ -904,8 +904,6 @@ int main(int argc, char *argv[])
                   "'O' - Ordinary, 'X' - Extraordinary, "
                   "'J' - Current Slab (in conjunction with -slab), "
                   "'Z' - Zero");
-   // args.AddOption(&BVec, "-B", "--magnetic-flux",
-   //                "Background magnetic flux vector");
    args.AddOption(&kVec, "-k-vec", "--phase-vector",
                   "Phase shift vector across periodic directions."
                   " For complex phase shifts input 3 real phase shifts "
@@ -1005,8 +1003,6 @@ int main(int argc, char *argv[])
                   "Neumann Boundary Condition (surface current) "
                   "Value 2 (v_x v_y v_z) or "
                   "(Re(v_x) Re(v_y) Re(v_z) Im(v_x) Im(v_y) Im(v_z))");
-   // args.AddOption(&num_elements, "-ne", "--num-elements",
-   //             "The number of mesh elements in x");
    args.AddOption(&maxit, "-maxit", "--max-amr-iterations",
                   "Max number of iterations in the main AMR loop.");
    args.AddOption(&herm_conv, "-herm", "--hermitian", "-no-herm",
@@ -1066,7 +1062,6 @@ int main(int argc, char *argv[])
       tipp.SetSize(1);
       tipp[0] = 0;
    }
-
    if (bpp.Size() == 0)
    {
       bpt = BFieldProfile::CONSTANT;
@@ -1414,7 +1409,7 @@ int main(int argc, char *argv[])
    }
 
    // Ensure that quad and hex meshes are treated as non-conforming.
-   mesh->EnsureNCMesh();
+   //mesh->EnsureNCMesh();
 
    // Define a parallel mesh by a partitioning of the serial mesh. Refine
    // this mesh further in parallel to increase the resolution. Once the
@@ -1428,16 +1423,7 @@ int main(int argc, char *argv[])
    {
       cout << "Starting initialization." << endl;
    }
-   /*
-   double Bmag = BVec.Norml2();
-   Vector BUnitVec(3);
-   BUnitVec(0) = BVec(0)/Bmag;
-   BUnitVec(1) = BVec(1)/Bmag;
-   BUnitVec(2) = BVec(2)/Bmag;
 
-   VectorConstantCoefficient BCoef(BVec);
-   VectorConstantCoefficient BUnitCoef(BUnitVec);
-   */
    H1_ParFESpace H1FESpace(&pmesh, order, pmesh.Dimension());
    H1_ParFESpace H1VFESpace(&pmesh, order, pmesh.Dimension(),
                             BasisType::GaussLobatto, 3);
@@ -1471,6 +1457,8 @@ int main(int argc, char *argv[])
 
    Interp_Data *interp_DENdata = NULL;
    Interp_Data *interp_TEMPdata = NULL;
+   Interp_Data *interp_placeholder = NULL;
+
    {
       named_ifgzstream idendata(mdpt_data);
       named_ifgzstream itempdata(mtpt_data);
@@ -1497,9 +1485,9 @@ int main(int argc, char *argv[])
 
    PlasmaProfile::CoordSystem coord_sys =
       cyl ? PlasmaProfile::POLOIDAL : PlasmaProfile::CARTESIAN_3D;
-   PlasmaProfile nueCoef(nept, nepp, dim3, coord_sys, eqdsk);
+   PlasmaProfile nueCoef(nept, nepp, dim3, coord_sys, eqdsk, interp_placeholder);
    nue_gf.ProjectCoefficient(nueCoef);
-   PlasmaProfile TiCoef(tipt, tipp, dim3, coord_sys, eqdsk);
+   PlasmaProfile TiCoef(tipt, tipp, dim3, coord_sys, eqdsk, interp_placeholder);
    iontemp_gf.ProjectCoefficient(TiCoef);
 
    int size_h1 = H1FESpace.GetVSize();
@@ -1526,14 +1514,6 @@ int main(int argc, char *argv[])
       cout << "Creating plasma profile." << endl;
    }
 
-   //PWCoefficient PWTeCoef;
-
-   //GridFunctionCoefficient TeCoef_Interp;
-   //ifstream inputFile(mtpt_data);
-   //GridFunction outside_temp(&pmesh, inputFile);
-   //TeCoef_Interp.SetGridFunction(&outside_temp);
-   //inputFile.close();
-
    PlasmaProfile TeCoef(tpt_def, tpp_def, dim3, coord_sys, eqdsk, interp_TEMPdata);
    if (tpa_vac.Size() > 0)
    {
@@ -1543,13 +1523,11 @@ int main(int argc, char *argv[])
    {
       TeCoef.SetParams(tpa_sol, tpt_sol, tpp_sol);
    }
-   
    if (tpa_cor.Size() > 0)
    {
       TeCoef.SetParams(tpa_cor, tpt_cor, tpp_cor); 
    }
    
-
    PlasmaProfile rhoCoef(dpt_def, dpp_def, dim3, coord_sys, eqdsk, interp_DENdata);
    if (dpa_vac.Size() > 0)
    {
@@ -1563,7 +1541,8 @@ int main(int argc, char *argv[])
    {
       rhoCoef.SetParams(dpa_cor, dpt_cor, dpp_cor);
    }
-   PlasmaProfile nuiCoef(nipt, nipp, dim3, coord_sys, eqdsk);
+
+   PlasmaProfile nuiCoef(nipt, nipp, dim3, coord_sys, eqdsk, interp_placeholder);
    if (nipa_vac.Size() > 0)
    {
       nuiCoef.SetParams(nipa_vac, nipt_vac, nipp_vac);
@@ -1691,8 +1670,7 @@ int main(int argc, char *argv[])
                                  L2FESpace, H1FESpace,
                                  omega, charges, masses, nuprof,
                                  res_lim, false);
-   SPDDielectricTensor epsilon_abs(BField, k_gf, nue_gf, nui_gf, density,
-                                   temperature,
+   SPDDielectricTensor epsilon_abs(BField, k_gf, nue_gf, nui_gf, density, temperature,
                                    iontemp_gf, L2FESpace, H1FESpace,
                                    omega, charges, masses, nuprof, res_lim);
    SusceptibilityTensor suscept_real(BField, k_gf, nue_gf, nui_gf, density,
@@ -1742,9 +1720,6 @@ int main(int argc, char *argv[])
                                            omega, charges, masses, nuprof,
                                            res_lim, false, 2);     
    }
-
-   //cout << "Test A " << endl;
-   //if (suscept_real_ion2){cout << "Test B " << endl;}
 
    SusceptibilityTensorbySpecies *suscept_real_ion3 = NULL;
    SusceptibilityTensorbySpecies *suscept_imag_ion3 = NULL;
@@ -2131,7 +2106,7 @@ int main(int argc, char *argv[])
       visit_dc.RegisterField("Electron_Density", &density_gf);
 
       //nue_gf *= 1/omega;
-      visit_dc.RegisterField("Collisional_Profile", &nue_gf);
+      visit_dc.RegisterField("Electron_Collisional_Profile", &nue_gf);
       visit_dc.RegisterField("Ion_Collisional_Profile", &nui_gf);
 
       visit_dc.RegisterField("B_background", &BField);

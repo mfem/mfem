@@ -91,6 +91,7 @@
 
 #include "cold_plasma_dielectric_coefs.hpp"
 #include "cold_plasma_dielectric_solver.hpp"
+#include "interp_data.hpp"
 #include "../common/mesh_extras.hpp"
 #include <fstream>
 #include <iostream>
@@ -664,6 +665,9 @@ int main(int argc, char *argv[])
    PlasmaProfile::Type tpt_cor = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type nept = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type nipt = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type nipt_vac = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type nipt_sol = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type nipt_cor = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type tipt = PlasmaProfile::CONSTANT;
    BFieldProfile::Type bpt = BFieldProfile::CONSTANT;
    Array<int> dpa_vac;
@@ -672,6 +676,9 @@ int main(int argc, char *argv[])
    Array<int> tpa_vac;
    Array<int> tpa_sol;
    Array<int> tpa_cor;
+   Array<int> nipa_vac;
+   Array<int> nipa_sol;
+   Array<int> nipa_cor;
    Vector dpp_def;
    Vector dpp_vac;
    Vector dpp_sol;
@@ -683,10 +690,12 @@ int main(int argc, char *argv[])
    Vector bpp;
    Vector nepp;
    Vector nipp;
+   Vector nipp_vac;
+   Vector nipp_sol;
+   Vector nipp_cor;
    Vector tipp;
    int nuprof = 0;
    double res_lim = 0.01;
-
 
    Array<int> abcs; // Absorbing BC attributes
    Array<int> sbca; // Sheath BC attributes
@@ -904,6 +913,48 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
                   "location of 0 point, unit vector along gradient, "
                   "   ELLIPTIC_COS: value at -1, value at 1, "
                   "radius in x, radius in y, location of center.");
+   args.AddOption(&nipa_vac, "-nipa-vac", "-vac-ni-profile-attr",
+                  "Ion Collisions Profile (for ions) in Vacuum");
+   args.AddOption((int*)&nipt_vac, "-nip-vac", "--vac-ni-profile",
+                  "Ion Collisions Profile Type (for ions) in Vacuum: \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
+   args.AddOption(&nipp_vac, "-nipp-vac", "--vac-ni-profile-params",
+                  "Ion Collisions Profile Parameters in Vacuum:\n"
+                  "   CONSTANT: density value\n"
+                  "   GRADIENT: value, location, gradient (7 params)\n"
+                  "   TANH:     value at 0, value at 1, skin depth, "
+                  "location of 0 point, unit vector along gradient, "
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
+   args.AddOption(&nipa_sol, "-nipa-sol", "-sol-ni-profile-attr",
+                  "Ion Collisions Profile Scrape-off Layer Attributes");
+   args.AddOption((int*)&nipt_sol, "-nip-sol", "--sol-ni-profile",
+                  "Ion Collisions Profile Type (for ions) in Scrape-off Layer: \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
+   args.AddOption(&nipp_sol, "-nipp-sol", "--sol-ni-profile-params",
+                  "Ion Collisions Profile Parameters in Scrape-off Layer:\n"
+                  "   CONSTANT: density value\n"
+                  "   GRADIENT: value, location, gradient (7 params)\n"
+                  "   TANH:     value at 0, value at 1, skin depth, "
+                  "location of 0 point, unit vector along gradient, "
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
+   args.AddOption(&nipa_cor, "-nipa-core", "-core-ni-profile-attr",
+                  "Ion Collisions Profile Core Attributes");
+   args.AddOption((int*)&nipt_cor, "-nip-core", "--core-ni-profile",
+                  "Ion Collisions Profile Type (for ions) in Core region: \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
+   args.AddOption(&nipp_cor, "-nipp-core", "--core-ni-profile-params",
+                  "Ion Collisions Profile Parameters in Core region:\n"
+                  "   CONSTANT: density value\n"
+                  "   GRADIENT: value, location, gradient (7 params)\n"
+                  "   TANH:     value at 0, value at 1, skin depth, "
+                  "location of 0 point, unit vector along gradient, "
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
    args.AddOption((int*)&tipt, "-tip", "--min-ion-temp-profile",
                   "Minority Ion Temperature Profile Type: \n"
                   "0 - Constant, 1 - Constant Gradient, "
@@ -927,8 +978,6 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
                   "'O' - Ordinary, 'X' - Extraordinary, "
                   "'J' - Current Slab (in conjunction with -slab), "
                   "'Z' - Zero");
-   // args.AddOption(&BVec, "-B", "--magnetic-flux",
-   //                "Background magnetic flux vector");
    args.AddOption(&kVec, "-k-vec", "--phase-vector",
                   "Phase shift vector across periodic directions."
                   " For complex phase shifts input 3 real phase shifts "
@@ -1034,8 +1083,6 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
                   "Port Boundary Condition Values");
    args.AddOption(&portbc_file, "-portbc", "--portbc-file",
                   "Port BC input file.");
-   args.AddOption(&num_elements, "-nume", "--num-elements",
-                "The number of mesh elements in x");
    args.AddOption(&maxit, "-maxit", "--max-amr-iterations",
                   "Max number of iterations in the main AMR loop.");
    args.AddOption(&herm_conv, "-herm", "--hermitian", "-no-herm",
@@ -1186,7 +1233,7 @@ if (dpp_def.Size() == 0)
    }
    if (minority.Size() > 0)
    {
-      // Single bulk ion species (set to D )+ minority species 
+      // Single bulk ion species (set to D) + minority species 
       if (charges.Size() == 2)
       {
          temp_charges.SetSize(3);
@@ -1403,43 +1450,16 @@ if (dpp_def.Size() == 0)
    // Read the (serial) mesh from the given mesh file on all processors.  We
    // can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    // and volume meshes with the same code.
-   if ( Mpi::Root() && logging > 0 ) { cout << "Building Mesh ..." << endl; }
+   if ( Mpi::Root() && logging > 0 ) 
+   { 
+      cout << "Building Mesh ..." << endl; 
+   }
 
    tic_toc.Clear();
    tic_toc.Start();
 
-   // Mesh * mesh = new Mesh(num_elements, 3, 3, Element::HEXAHEDRON, 1,
-   //                      mesh_dim_(0), mesh_dim_(1), mesh_dim_(2));
-   /*
-   Mesh * mesh2d = new Mesh(mesh_file, 1, 1);
-   for (int lev = 0; lev < ser_ref_levels; lev++)
-   {
-      mesh2d->UniformRefinement();
-   }
-   Mesh * mesh = Extrude2D(mesh2d, num_elements, hz);
-   delete mesh2d;
-   */
    Mesh * mesh = new Mesh(mesh_file, 1, 1);
-   /*
-   if (cyl)
-   {
-      mesh->SetCurvature(mesh_order);
 
-      MeshTransformCoefficient mtc(hphi);
-      mesh->Transform(mtc);
-   }
-   */
-   /*
-   {
-      Array<int> v2v(mesh->GetNV());
-      for (int i=0; i<v2v.Size(); i++) { v2v[i] = i; }
-      for (int i=0; i<mesh->GetNV() / 4; i++) { v2v[4 * i + 3] = 4 * i; }
-
-      Mesh * per_mesh = miniapps::MakePeriodicMesh(mesh, v2v);
-      delete mesh;
-      mesh = per_mesh;
-   }
-   */
    tic_toc.Stop();
 
    if (Mpi::Root() && logging > 0 )
@@ -1462,16 +1482,7 @@ if (dpp_def.Size() == 0)
    {
       cout << "Starting initialization." << endl;
    }
-   /*
-   double Bmag = BVec.Norml2();
-   Vector BUnitVec(3);
-   BUnitVec(0) = BVec(0)/Bmag;
-   BUnitVec(1) = BVec(1)/Bmag;
-   BUnitVec(2) = BVec(2)/Bmag;
 
-   VectorConstantCoefficient BCoef(BVec);
-   VectorConstantCoefficient BUnitCoef(BUnitVec);
-   */
    H1_ParFESpace H1FESpace(&pmesh, order, pmesh.Dimension());
    H1_ParFESpace H1VFESpace(&pmesh, order, pmesh.Dimension(),
                             BasisType::GaussLobatto, 3);
@@ -1502,6 +1513,8 @@ if (dpp_def.Size() == 0)
           }
        }
     }
+
+   Interp_Data *interp_placeholder = NULL;
     
    BFieldProfile::CoordSystem b_coord_sys =
       cyl ? BFieldProfile::POLOIDAL : BFieldProfile::CARTESIAN_3D;
@@ -1512,11 +1525,9 @@ if (dpp_def.Size() == 0)
 
    PlasmaProfile::CoordSystem coord_sys =
       cyl ? PlasmaProfile::POLOIDAL : PlasmaProfile::CARTESIAN_3D;
-   PlasmaProfile nueCoef(nept, nepp, dim3, coord_sys, eqdsk);
+   PlasmaProfile nueCoef(nept, nepp, dim3, coord_sys, eqdsk, interp_placeholder);
    nue_gf.ProjectCoefficient(nueCoef);
-   PlasmaProfile nuiCoef(nipt, nipp, dim3, coord_sys, eqdsk);
-   nui_gf.ProjectCoefficient(nuiCoef);
-   PlasmaProfile TiCoef(tipt, tipp, dim3, coord_sys, eqdsk);
+   PlasmaProfile TiCoef(tipt, tipp, dim3, coord_sys, eqdsk, interp_placeholder);
    iontemp_gf.ProjectCoefficient(TiCoef);
 
    int size_h1 = H1FESpace.GetVSize();
@@ -1542,110 +1553,57 @@ if (dpp_def.Size() == 0)
    {
       cout << "Creating plasma profile." << endl;
    }
-   /*
-   if (Mpi::Root())
-   {
-      cout << "   Setting default temperature profile type " << tpt_def
-           << " with parameters \"";
-      tpp_def.Print(cout);
-   }
-   */
-   PlasmaProfile TeCoef(tpt_def, tpp_def, dim3, coord_sys, eqdsk);
+
+   PlasmaProfile TeCoef(tpt_def, tpp_def, dim3, coord_sys, eqdsk, interp_placeholder);
    if (tpa_vac.Size() > 0)
    {
-      /*
-      if (Mpi::Root())
-      {
-
-         cout << "   Setting vacuum layer temperature profile type " << tpt_sol
-              << " with parameters \"";
-         tpp_vac.Print(cout);
-         cout << "\" on attributes \"" << tpa_vac << "\".";
-      }
-      */
       TeCoef.SetParams(tpa_vac, tpt_vac, tpp_vac);
    }
    if (tpa_sol.Size() > 0)
    {
-      /*
-      if (Mpi::Root())
-      {
-
-         cout << "   Setting scrape-off layer temperature profile type " << tpt_sol
-              << " with parameters \"";
-         tpp_sol.Print(cout);
-         cout << "\" on attributes \"" << tpa_sol << "\".";
-      }
-      */
       TeCoef.SetParams(tpa_sol, tpt_sol, tpp_sol);
    }
    if (tpa_cor.Size() > 0)
    {
-      /*
-      if (Mpi::Root())
-      {
-         cout << "   Setting core temperature profile type " << tpt_cor
-              << " with parameters \"";
-         tpp_cor.Print(cout);
-         cout << "\" on attributes \"" << tpa_cor << "\".";
-      }
-      */
       TeCoef.SetParams(tpa_cor, tpt_cor, tpp_cor);
    }
-   /*
-   if (Mpi::Root())
-   {
-      cout << "   Setting default density profile type " << dpt_def
-           << " with parameters \"";
-      dpp_def.Print(cout);
-   }
-   */
-   PlasmaProfile rhoCoef(dpt_def, dpp_def, dim3, coord_sys, eqdsk);
+   
+   PlasmaProfile rhoCoef(dpt_def, dpp_def, dim3, coord_sys, eqdsk, interp_placeholder);
    if (dpa_vac.Size() > 0)
    {
-      /*
-      if (Mpi::Root())
-      {
-         cout << "   Setting vacuum density profile type " << dpt_vac
-              << " with parameters \"";
-         dpp_vac.Print(cout);
-         cout << "\" on attributes \"" << dpa_vac << "\".";
-      }
-      */
       rhoCoef.SetParams(dpa_vac, dpt_vac, dpp_vac);
    }
    if (dpa_sol.Size() > 0)
    {
-      /*
-      if (Mpi::Root())
-      {
-         cout << "   Setting scrape-off layer density profile type " << dpt_sol
-              << " with parameters \"";
-         dpp_sol.Print(cout);
-         cout << "\" on attributes \"" << dpa_sol << "\".";
-      }
-      */
       rhoCoef.SetParams(dpa_sol, dpt_sol, dpp_sol);
    }
    if (dpa_cor.Size() > 0)
    {
-      /*
-      if (Mpi::Root())
-      {
-         cout << "   Setting core density profile type " << dpt_cor
-              << " with parameters \"";
-         dpp_cor.Print(cout);
-         cout << "\" on attributes \"" << dpa_cor << "\".";
-      }
-      */
       rhoCoef.SetParams(dpa_cor, dpt_cor, dpp_cor);
    }
+
+   PlasmaProfile nuiCoef(nipt, nipp, dim3, coord_sys, eqdsk, interp_placeholder);
+   if (nipa_vac.Size() > 0)
+   {
+      nuiCoef.SetParams(nipa_vac, nipt_vac, nipp_vac);
+   }
+   if (nipa_sol.Size() > 0)
+   {
+      nuiCoef.SetParams(nipa_sol, nipt_sol, nipp_sol);
+   }
+   if (nipa_cor.Size() > 0)
+   {
+      nuiCoef.SetParams(nipa_cor, nipt_cor, nipp_cor);
+   }
+
+   nui_gf.ProjectCoefficient(nuiCoef);
 
    for (int i=0; i<=numbers.Size(); i++)
    {
       temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i).GetMemory());
       temperature_gf.ProjectCoefficient(TeCoef);
    }
+
    for (int i=0; i<charges.Size(); i++)
    {
       density_gf.MakeRef(&L2FESpace, density.GetBlock(i).GetMemory());
@@ -2200,7 +2158,6 @@ if (dpp_def.Size() == 0)
                  (CPDSolver::SolverType)sol, solOpts,
                  (CPDSolver::PrecondType)prec,
                  conv, BUnitCoef,
-                 //epsilon_real, epsilon_imag,
                  (pml) ? (MatrixCoefficient&) epsilonPML_real : (MatrixCoefficient&) epsilon_real,
                  (pml) ? (MatrixCoefficient&) epsilonPML_imag : (MatrixCoefficient&) epsilon_imag,
                  epsilon_abs, suscept_real, suscept_imag,
@@ -2240,23 +2197,21 @@ if (dpp_def.Size() == 0)
       auxFields[0] = new ParComplexGridFunction(&HCurlFESpace);
 
       auxFields[0]->ProjectCoefficient(EReCoef, EImCoef);
-
-      visit_dc.RegisterField("Re_E_Exact", &auxFields[0]->real());
-      visit_dc.RegisterField("Im_E_Exact", &auxFields[0]->imag());
        
-       temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(0));
-       visit_dc.RegisterField("Electron_Temp", &temperature_gf);
+      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(0));
+      visit_dc.RegisterField("Electron_Temp", &temperature_gf);
 
-       density_gf.MakeRef(&L2FESpace, density.GetBlock(0));
-       visit_dc.RegisterField("Electron_Density", &density_gf);
+      density_gf.MakeRef(&L2FESpace, density.GetBlock(0));
+      visit_dc.RegisterField("Electron_Density", &density_gf);
 
-       //nue_gf *= 1/omega;
-       visit_dc.RegisterField("Collisional_Profile", &nue_gf);
+      //nue_gf *= 1/omega;
+      visit_dc.RegisterField("Electron_Collisional_Profile", &nue_gf);
+      visit_dc.RegisterField("Ion_Collisional_Profile", &nui_gf);
 
-       visit_dc.RegisterField("B_background", &BField);
+      visit_dc.RegisterField("B_background", &BField);
 
-       visit_dc.SetCycle(0);
-       visit_dc.Save();
+      visit_dc.SetCycle(0);
+      visit_dc.Save();
    }
    if (Mpi::Root()) { cout << "Initialization done." << endl; }
 
