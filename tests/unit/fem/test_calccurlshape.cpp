@@ -83,17 +83,18 @@ void TestCalcCurlShape(FiniteElement* fe, ElementTransformation * T, int res,
    CAPTURE(plane_);
    CAPTURE(mask);
 
-   int  dof = fe->GetDof();
-   int  dim = fe->GetDim();
-   int rdim = fe->GetRangeDim();
-   int cdim = fe->GetCurlDim();
+   int   dof = fe->GetDof();
+   int   dim = fe->GetDim();
+   int  rdim = fe->GetRangeDim();
+   int  sdim = T->GetSpaceDim();
+   int pcdim = fe->GetPhysCurlDim(sdim);
 
    Vector dofs(dof);
-   Vector v(cdim);
-   DenseMatrix weights( dof, cdim );
+   Vector v(pcdim);
+   DenseMatrix weights( dof, pcdim );
 
    VectorFunctionCoefficient vCoef(dim, test_curl_func);
-   VectorFunctionCoefficient vR2DCoef(dim, test_r2d_curl_func);
+   VectorFunctionCoefficient vR2DCoef(3, test_r2d_curl_func);
 
    if (rdim == dim)
    {
@@ -138,6 +139,7 @@ void TestCalcCurlShape(FiniteElement* fe, ElementTransformation * T, int res,
          fe->CalcPhysCurlShape(*T, weights);
 
          weights.MultTranspose(dofs, v);
+
          if (mask & X_DIR)
          {
             REQUIRE( v[0] == Approx(1.) );
@@ -389,21 +391,22 @@ TEST_CASE("CalcCurlShape ND",
  * approximate derivatives computed using the secant method.
  */
 void TestFDCalcCurlShape(FiniteElement* fe, ElementTransformation * T,
-                         int order, int mask = 7)
+                         int order)
 {
-   int  dof = fe->GetDof();
-   int  dim = fe->GetDim();
-   int rdim = fe->GetRangeDim();
-   int cdim = fe->GetCurlDim();
+   int   dof = fe->GetDof();
+   int   dim = fe->GetDim();
+   int  sdim = T->GetSpaceDim();
+   int prdim = fe->GetPhysRangeDim(sdim);
+   int pcdim = fe->GetPhysCurlDim(sdim);
 
-   DenseMatrix pshape(dof, rdim);
-   DenseMatrix mshape(dof, rdim);
+   DenseMatrix pshape(dof, prdim);
+   DenseMatrix mshape(dof, prdim);
    Vector pcomp;
    Vector mcomp;
    Vector fdcomp(dof);
    Vector fdshapecol;
-   DenseMatrix dshape(dof, cdim);
-   DenseMatrix fdshape(dof, cdim);
+   DenseMatrix dshape(dof, pcdim);
+   DenseMatrix fdshape(dof, pcdim);
 
    // Optimal step size for central difference
    real_t h = std::cbrt(std::numeric_limits<real_t>::epsilon());
@@ -429,12 +432,15 @@ void TestFDCalcCurlShape(FiniteElement* fe, ElementTransformation * T,
    {
       // Get the current integration point from the integration rule
       IntegrationPoint pt = ir->IntPoint(i);
-      fe->CalcCurlShape(pt, dshape);
+
+      T->SetIntPoint(&pt);
+
+      fe->CalcPhysCurlShape(*T, dshape);
 
       CAPTURE(pt.x, pt.y, dim == 3 ? pt.z : 0_r);
 
       fdshape = 0.0;
-      for (int d=0; d<rdim; d++)
+      for (int d=0; d<dim; d++)
       {
          const int d1 = (d + 1) % 3;
          const int d2 = (d + 2) % 3;
@@ -460,10 +466,13 @@ void TestFDCalcCurlShape(FiniteElement* fe, ElementTransformation * T,
          }
 
          // Compute shape functions at the shifted points
-         fe->CalcVShape(ptm, mshape);
-         fe->CalcVShape(ptp, pshape);
+         T->SetIntPoint(&ptm);
+         fe->CalcVShape(*T, mshape);
 
-         if (rdim == 2 && d1 < 2)
+         T->SetIntPoint(&ptp);
+         fe->CalcVShape(*T, pshape);
+
+         if (prdim == 2 && d1 < 2)
          {
             // Extract the component to be differentiated
             mshape.GetColumnReference(d1, mcomp);
@@ -475,7 +484,7 @@ void TestFDCalcCurlShape(FiniteElement* fe, ElementTransformation * T,
             fdshape.GetColumnReference(0, fdshapecol);
             fdshapecol += fdcomp;
          }
-         if (rdim == 2 && d2 < 2)
+         if (prdim == 2 && d2 < 2)
          {
             // Extract the component to be differentiated
             mshape.GetColumnReference(d2, mcomp);
@@ -487,7 +496,7 @@ void TestFDCalcCurlShape(FiniteElement* fe, ElementTransformation * T,
             fdshape.GetColumnReference(0, fdshapecol);
             fdshapecol -= fdcomp;
          }
-         if (rdim == 3)
+         if (prdim == 3 && dim == 3)
          {
             // Extract the component to be differentiated
             mshape.GetColumnReference(d1, mcomp);
@@ -508,6 +517,50 @@ void TestFDCalcCurlShape(FiniteElement* fe, ElementTransformation * T,
 
             fdshape.GetColumnReference(d1, fdshapecol);
             fdshapecol -= fdcomp;
+         }
+         if (prdim == 3 && dim < 3)
+         {
+            const DenseMatrix &InvJ = T->InverseJacobian();
+
+            // R2D Elements
+            // Extract the x component to be differentiated
+            mshape.GetColumnReference(0, mcomp);
+            pshape.GetColumnReference(0, pcomp);
+
+            // Compute approximate derivatives using the secant method
+            add(inv2h, pcomp, -inv2h, mcomp, fdcomp);
+
+            fdshape.GetColumnReference(1, fdshapecol);
+            fdshapecol.Add(InvJ.Width() == 3 ? InvJ(d, 2) : 0.0, fdcomp);
+
+            fdshape.GetColumnReference(2, fdshapecol);
+            fdshapecol.Add(-InvJ(d, 1), fdcomp);
+
+            // Extract the y component to be differentiated
+            mshape.GetColumnReference(1, mcomp);
+            pshape.GetColumnReference(1, pcomp);
+
+            // Compute approximate derivatives using the secant method
+            add(inv2h, pcomp, -inv2h, mcomp, fdcomp);
+
+            fdshape.GetColumnReference(2, fdshapecol);
+            fdshapecol.Add(InvJ(d, 0), fdcomp);
+
+            fdshape.GetColumnReference(0, fdshapecol);
+            fdshapecol.Add(InvJ.Width() == 3 ? -InvJ(d, 2) : 0.0, fdcomp);
+
+            // Extract the z component to be differentiated
+            mshape.GetColumnReference(2, mcomp);
+            pshape.GetColumnReference(2, pcomp);
+
+            // Compute approximate derivatives using the secant method
+            add(inv2h, pcomp, -inv2h, mcomp, fdcomp);
+
+            fdshape.GetColumnReference(0, fdshapecol);
+            fdshapecol.Add(InvJ(d, 1), fdcomp);
+
+            fdshape.GetColumnReference(1, fdshapecol);
+            fdshapecol.Add(-InvJ(d, 0), fdcomp);
          }
       }
 
@@ -620,7 +673,7 @@ TEST_CASE("CalcCurlShape vs FD ND",
       {
          FaceElementTransformations * TS =
             mesh.GetFaceElementTransformations(f);
-         TestFDCalcCurlShape(&fe, TS, order, ((f % 2) ? Y_DIR : X_DIR) | Z_DIR);
+         TestFDCalcCurlShape(&fe, TS, order);
       }
 
       // yz-plane
@@ -640,7 +693,7 @@ TEST_CASE("CalcCurlShape vs FD ND",
       {
          FaceElementTransformations * TS =
             mesh.GetFaceElementTransformations(f);
-         TestFDCalcCurlShape(&fe, TS, order, ((f % 2) ? Z_DIR : Y_DIR) | X_DIR);
+         TestFDCalcCurlShape(&fe, TS, order);
       }
 
       // zx-plane
@@ -658,7 +711,7 @@ TEST_CASE("CalcCurlShape vs FD ND",
       {
          FaceElementTransformations * TS =
             mesh.GetFaceElementTransformations(f);
-         TestFDCalcCurlShape(&fe, TS, order, ((f % 2) ? X_DIR : Z_DIR) | Y_DIR);
+         TestFDCalcCurlShape(&fe, TS, order);
       }
    }
 

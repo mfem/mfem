@@ -173,28 +173,29 @@ enum TraceDir {X_DIR = 1, Y_DIR = 2, Z_DIR = 4};
 void TestCalcVShape(FiniteElement* fe, ElementTransformation * T, int res,
                     int mask = X_DIR | Y_DIR | Z_DIR)
 {
-   int dim = fe->GetDim();
-   int dof = fe->GetDof();
-   int rdim = fe->GetRangeDim();
+   int  dim = fe->GetDim();
+   int  dof = fe->GetDof();
+   int  sdim = T->GetSpaceDim();
+   int prdim = fe->GetPhysRangeDim(sdim);
 
    Vector dofsx(dof);
    Vector dofsy(dof);
    Vector dofsz(dof);
-   Vector v(rdim);
-   Vector vx(rdim); vx = 0.0; vx[0] = 1.0;
-   Vector vy(rdim); vy = 0.0;
-   if (rdim > 1) { vy[1] = 1.0; }
-   Vector vz(rdim); vz = 0.0;
-   if (rdim > 2) { vz[2] = 1.0; }
-   DenseMatrix weights( dof, rdim );
+   Vector v(prdim);
+   Vector vx(prdim); vx = 0.0; vx[0] = 1.0;
+   Vector vy(prdim); vy = 0.0;
+   if (prdim > 1) { vy[1] = 1.0; }
+   Vector vz(prdim); vz = 0.0;
+   if (prdim > 2) { vz[2] = 1.0; }
+   DenseMatrix weights( dof, prdim );
 
    VectorConstantCoefficient vxCoef(vx);
    VectorConstantCoefficient vyCoef(vy);
    VectorConstantCoefficient vzCoef(vz);
 
    fe->Project(vxCoef, *T, dofsx);
-   if (rdim> 1) { fe->Project(vyCoef, *T, dofsy); }
-   if (rdim> 2) { fe->Project(vzCoef, *T, dofsz); }
+   if (prdim> 1) { fe->Project(vyCoef, *T, dofsy); }
+   if (prdim> 2) { fe->Project(vzCoef, *T, dofsz); }
 
    // Get a uniform grid or integration points
    RefinedGeometry* ref = GlobGeometryRefiner.Refine( fe->GetGeomType(), res);
@@ -220,7 +221,8 @@ void TestCalcVShape(FiniteElement* fe, ElementTransformation * T, int res,
          // Pyramid basis functions are poorly behaved outside the
          // reference pyramid
          if (fe->GetGeomType() == Geometry::PYRAMID &&
-             (ip.z >= 1.0 || ip.y > 1.0 - ip.z || ip.x > 1.0 - ip.z)) { continue; }
+             (ip.z >= 1.0 || ip.y > 1.0 - ip.z || ip.x > 1.0 - ip.z))
+         { continue; }
 
          CAPTURE(ip.x, ip.y, ip.z);
 
@@ -235,12 +237,12 @@ void TestCalcVShape(FiniteElement* fe, ElementTransformation * T, int res,
             weights.MultTranspose(dofsx, v);
             REQUIRE( v[0] == Approx(1.) );
          }
-         if (rdim > 1 && mask & Y_DIR)
+         if (prdim > 1 && mask & Y_DIR)
          {
             weights.MultTranspose(dofsy, v);
             REQUIRE( v[1] == Approx(1.) );
          }
-         if (rdim > 2 && mask & Z_DIR)
+         if (prdim > 2 && mask & Z_DIR)
          {
             weights.MultTranspose(dofsz, v);
             REQUIRE( v[2] == Approx(1.) );
