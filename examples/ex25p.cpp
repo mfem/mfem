@@ -200,7 +200,7 @@ int main(int argc, char *argv[])
    args.AddOption(&slu_solver, "-slu", "--superlu", "-no-slu",
                   "--no-superlu", "Use the SuperLU Solver.");
 #endif
-#ifdef MFEM_USE_MUMPS
+#if defined(MFEM_USE_MUMPS) || defined(MFEM_USE_COMPLEX_MUMPS)
    args.AddOption(&mumps_solver, "-mumps", "--mumps-solver", "-no-mumps",
                   "--no-mumps-solver", "Use the MUMPS Solver.");
 #endif
@@ -502,16 +502,24 @@ int main(int argc, char *argv[])
       delete A;
    }
 #endif
-#ifdef MFEM_USE_MUMPS
+#if defined(MFEM_USE_MUMPS) || defined(MFEM_USE_COMPLEX_MUMPS)
    if (!pa && mumps_solver)
    {
-      HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
+      ComplexHypreParMatrix *Ahc = Ah.As<ComplexHypreParMatrix>();
+#ifdef MFEM_USE_COMPLEX_MUMPS
+      ComplexMUMPSSolver mumps;
+      mumps.SetPrintLevel(0);
+      mumps.SetOperator(*Ahc);
+      mumps.Mult(B, X);
+#else
+      HypreParMatrix *A = Ahc->GetSystemMatrix();
       MUMPSSolver mumps(A->GetComm());
       mumps.SetPrintLevel(0);
       mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
       mumps.SetOperator(*A);
       mumps.Mult(B, X);
       delete A;
+#endif
    }
 #endif
    // 16a. Set up the parallel Bilinear form a(.,.) for the preconditioner

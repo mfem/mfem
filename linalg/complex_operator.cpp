@@ -878,7 +878,7 @@ ComplexHypreParMatrix::getColStartStop(const HypreParMatrix * A_r,
 }
 
 
-#ifdef MFEM_USE_MUMPS
+#ifdef MFEM_USE_COMPLEX_MUMPS
 
 // Macro s.t. indices match MUMPS documentation
 #define MUMPS_ICNTL(I) icntl[(I) -1]
@@ -1358,7 +1358,7 @@ void ComplexMUMPSSolver::RedistributeSol(const int * row_map,
 }
 
 #endif // MUMPS VERSION
-#endif // MFEM_USE_MUMPS
+#endif // MFEM_USE_COMPLEX_MUMPS
 #endif // MFEM_USE_MPI
 
 }

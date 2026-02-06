@@ -22,7 +22,7 @@
 #include <umfpack.h>
 #endif
 
-#ifdef MFEM_USE_MUMPS
+#ifdef MFEM_USE_COMPLEX_MUMPS
 #include "zmumps_c.h"
 #include <vector>
 #endif
@@ -295,7 +295,7 @@ private:
    int nranks_;
 };
 
-#ifdef MFEM_USE_MUMPS
+#ifdef MFEM_USE_COMPLEX_MUMPS
 class ComplexMUMPSSolver : public mfem::Solver
 {
 public:
@@ -334,7 +334,7 @@ private:
 
 }; // mfem::MUMPSSolver class
 
-#endif // MFEM_USE_MUMPS
+#endif // MFEM_USE_COMPLEX_MUMPS
 
 #endif // MFEM_USE_MPI
 
