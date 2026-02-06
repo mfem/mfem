@@ -23,7 +23,11 @@
 #endif
 
 #ifdef MFEM_USE_COMPLEX_MUMPS
+#ifdef MFEM_USE_SINGLE
+#include "cmumps_c.h"
+#else
 #include "zmumps_c.h"
+#endif
 #include <vector>
 #endif
 
@@ -296,43 +300,98 @@ private:
 };
 
 #ifdef MFEM_USE_COMPLEX_MUMPS
-class ComplexMUMPSSolver : public mfem::Solver
+/**
+ * @brief Complex MUMPS: Parallel sparse direct solver for ComplexHypreParMatrix
+ *
+ * Notes:
+ *  - Expects Operator to be a ComplexHypreParMatrix.
+ *  - MFEM complex vectors are assumed packed as [Re; Im] in a real Vector.
+ *  - Implements MFEM-style setup:
+ *      SetOperator() = analysis + factorization
+ *      Mult()        = solve (cached buffers via InitRhsSol)
+ */
+class ComplexMUMPSSolver : public Solver
 {
 public:
-   ComplexMUMPSSolver() {}
-   void SetOperator(const Operator &op);
-   void Mult(const Vector &x, Vector &y) const;
+   ComplexMUMPSSolver() = default;
+   explicit ComplexMUMPSSolver(MPI_Comm comm_);
+   explicit ComplexMUMPSSolver(const Operator &op);
+
+   void SetOperator(const Operator &op) override;
+   void Mult(const Vector &x, Vector &y) const override;
+
    void SetPrintLevel(int print_lvl);
-   ~ComplexMUMPSSolver();
+
+   ~ComplexMUMPSSolver() override;
+
 private:
-   MPI_Comm comm;
-   int numProcs;
-   int myid;
-   int print_level = 0;
-   int row_start;
-#define ICNTL(I) icntl[(I) -1]
-#define INFO(I) info[(I) -1]
-   ZMUMPS_STRUC_C *id=nullptr;
+   void Init(MPI_Comm comm_);
    void SetParameters();
+   void InitRhsSol(int nrhs) const;
+
+   inline void mumps_call() const
+   {
+#ifdef MFEM_USE_SINGLE
+      cmumps_c(id);
+#else
+      zmumps_c(id);
+#endif
+   }
+
+   MPI_Comm comm = MPI_COMM_NULL;
+   int numProcs = 1;
+   int myid = 0;
+
+   int print_level = 0;
+   int row_start = 0;
+
+#ifdef MFEM_USE_SINGLE
+   CMUMPS_STRUC_C *id = nullptr;
+   using mumps_complex_t = mumps_complex;
+#else
+   ZMUMPS_STRUC_C *id = nullptr;
+   using mumps_complex_t = mumps_double_complex;
+#endif
 
 #if MFEM_MUMPS_VERSION >= 530
-
+   // Row offsets on all procs (needed by RedistributeSol)
    Array<int> row_starts;
-   int * irhs_loc = nullptr;
+
+   // Local RHS row indices (owned here)
+   int *irhs_loc = nullptr;
+
+   // Local solution row map returned by MUMPS (owned here)
+   int *isol_loc = nullptr;
+
+   // Cached buffers (owned here)
+   mutable mumps_complex_t *rhs_loc = nullptr; // allocated only for nrhs>1
+   mutable mumps_complex_t *sol_loc = nullptr;
+
+   // Per-call pack buffers to avoid heap churn (owned here)
+   mutable std::vector<mumps_complex_t> rhs1_buf;
 
    int GetRowRank(int i, const Array<int> &row_starts_) const;
 
-   void RedistributeSol(const int * row_map,
-                        const double * x,
-                        double * y) const;
-#else
-   int global_num_rows;
-   int * recv_counts = nullptr;
-   int * displs = nullptr;
-   mumps_double_complex * rhs_glob = nullptr;
-#endif
+   void RedistributeSol(const int *row_map,
+                        const mumps_complex_t *x,
+                        real_t *y_ri,
+                        int n_loc,
+                        int lsol_loc) const;
 
-}; // mfem::MUMPSSolver class
+#else
+   // Root-gather path
+   int global_num_rows = 0;
+   int *recv_counts = nullptr;
+   int *displs = nullptr;
+
+   // Complex RHS/solution on root (owned here)
+   mutable mumps_complex_t *rhs_glob = nullptr;
+
+   // Cached real/imag staging on root (owned here)
+   mutable real_t *rhs_glob_r = nullptr;
+   mutable real_t *rhs_glob_i = nullptr;
+#endif
+};
 
 #endif // MFEM_USE_COMPLEX_MUMPS
 
