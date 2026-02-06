@@ -250,6 +250,135 @@ void NEML2StressDivergenceIntegrator::AssembleGradPA(const Vector &X,
 }
 
 template <int vdim>
+void NEML2StressDivergenceIntegrator::AssembleGradDiagonalPAImpl(Vector &diag) const
+{
+   using future::det;
+   using future::inv;
+   using future::make_tensor;
+   using future::tensor;
+
+   // Assuming all elements are the same
+   static constexpr int d = vdim;
+   const auto numPoints = this->IntRule->GetNPoints();
+   const auto numEls = this->fespace->GetNE();
+   const auto nDofs = this->ndofs;
+   const auto vDofs = d * nDofs;
+   const auto J = Reshape(this->geom->J.Read(), numPoints, d, d, numEls);
+   const auto G = Reshape(this->maps->G.Read(), numPoints, d, nDofs);
+   auto diagDev = Reshape(diag.Write(), vDofs, numEls);
+   const real_t *ipWeights = this->IntRule->GetWeights().Read();
+   const bool constant_tangent = _tangent.value().batch_dim() == 0;
+   const int tangent_qp_size = constant_tangent ? 1 : numPoints;
+   const int tangent_elem_size = constant_tangent ? 1 : numEls;
+   neml2::R4 full_tangent(neml2::SSR4(_tangent.value()));
+   const auto C = Reshape(full_tangent.data_ptr<real_t>(), 3, 3, 3, 3,
+                          tangent_qp_size, tangent_elem_size);
+
+   // Index dictionary
+   // m: Directional derivatives
+   // a, b, c, d: Vector components for strain, stress
+   // c, d: Vector/tensor components for stress -> tangent C_abcd
+   // IVec: element-wise vector test function
+   //
+
+   // clang-format off
+   mfem::forall_2D(numEls, numPoints, vDofs,
+                   [=] MFEM_HOST_DEVICE(int e)
+                   {
+                      const int tangent_e_index = constant_tangent ? 0 : e;
+                      MFEM_FOREACH_THREAD(IVec, vector_trials, vDofs)
+                      {
+                         // We can't just pick an ordering because upstream code always varies by
+                         // node index most quickly, then by vdim, and then by ne for our element
+                         // assembly data
+                         const int ic = IVec / nDofs;
+                         const int IScalar = IVec % nDofs;
+                         real_t sum = 0;
+                         MFEM_FOREACH_THREAD(p, quadrature_points, numPoints)
+                         {
+                               const int tangent_p_index = constant_tangent ? 0
+                                                                            : p;
+                               const auto invJ = inv(make_tensor<d, d>([&](int i,int j){
+                                 return J(p,i,j,e);}));
+
+                               const real_t w = ipWeights[p] / det(invJ);
+
+                               // Compute shape function gradients
+                               real_t dphiI[d] = {0};
+                               for (int alpha = 0; alpha < d;
+                                    ++alpha) // reference coord
+                               {
+                                  const auto gI = G(p, alpha, IScalar);
+                                  for (int m = 0; m < d; ++m) // physical coord
+                                  {
+                                     const auto jac_map = invJ(alpha, m);
+                                     dphiI[m] += gI * jac_map;
+                                  }
+                               }
+
+                               // Build strain tensor for vector basis functions
+                               // Recall that we are doing the diagonal here so normally
+                               // I'd write this as epsJ but here we write as epsI
+                               real_t epsI[d][d];
+                               for (int a = 0; a < d; ++a)
+                               {
+                                  for (int m = 0; m < d; ++m)
+                                  {
+                                     epsI[a][m] = 0.;
+                                  }
+                               }
+
+                               for (int m = 0; m < d; ++m)
+                               {
+                                  // Leverage symmetry for the strain
+                                  const auto dphiI_dm = dphiI[m];
+                                  epsI[ic][m] += 0.5 * dphiI_dm;
+                                  epsI[m][ic] += 0.5 * dphiI_dm;
+                               }
+
+                               // Contract strain tensors with tangent
+                               // gradI_ab * C_abcd * epsJ_cd
+                               real_t val = 0.;
+                               for (int a = 0; a < d; ++a)
+                               {
+                                  for (int c = 0; c < d; ++c)
+                                  {
+                                     for (int dd = 0; dd < d; ++dd)
+                                     {
+                                        // NEML2 is row major with rows corresponding to stress
+                                        // components and columns corresponding to strain
+                                        // components. Recall that MFEM tensors have the leftmost
+                                        // index as contiguous
+                                        const auto Cval = C(c, dd, a, ic,
+                                                            tangent_p_index,
+                                                            tangent_e_index);
+                                        const auto g = dphiI[a];
+                                        const auto e = epsI[c][dd];
+                                        val += g * Cval * e;
+                                     }
+                                  }
+                               }
+                               sum += w * val;
+                            }
+                            diagDev(IVec, e) = sum;
+                         }
+                      });
+   // clang-format on
+}
+
+void NEML2StressDivergenceIntegrator::AssembleGradDiagonalPA(Vector &diag) const
+{
+   if (this->vdim == 2)
+   {
+      this->AssembleGradDiagonalPAImpl<2>(diag);
+   }
+   else
+   {
+      this->AssembleGradDiagonalPAImpl<3>(diag);
+   }
+}
+
+template <int vdim>
 void NEML2StressDivergenceIntegrator::AssembleGradEAImpl(Vector &emat)
 {
    using future::det;
@@ -348,10 +477,6 @@ void NEML2StressDivergenceIntegrator::AssembleGradEAImpl(Vector &emat)
                                real_t val = 0.;
                                for (int a = 0; a < d; ++a)
                                {
-                                  const auto r2_tensor = make_tensor<d, d>([&](int i, int j)
-                                                         {
-                                                            return C(i, j, a, ic, tangent_p_index, tangent_e_index);
-                                                         });
                                   for (int c = 0; c < d; ++c)
                                   {
                                      for (int dd = 0; dd < d; ++dd)
@@ -424,5 +549,10 @@ template void
 NEML2StressDivergenceIntegrator::AssembleGradEAImpl<2>(Vector &emat);
 template void
 NEML2StressDivergenceIntegrator::AssembleGradEAImpl<3>(Vector &emat);
+
+template void
+NEML2StressDivergenceIntegrator::AssembleGradDiagonalPAImpl<2>(Vector &diag) const;
+template void
+NEML2StressDivergenceIntegrator::AssembleGradDiagonalPAImpl<3>(Vector &diag) const;
 
 } // namespace mfem
