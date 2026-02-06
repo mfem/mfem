@@ -42,6 +42,8 @@ class NEML2StressDivergenceIntegrator
    void AddMultPA(const Vector &X, Vector &R) const override;
 
    void AssembleGradPA(const Vector &x, const FiniteElementSpace &fes) override;
+   template <int vdim> void AssembleGradDiagonalPAImpl(Vector &emat) const;
+   void AssembleGradDiagonalPA(Vector &diag) const override;
 
    template <int vdim> void AssembleGradEAImpl(Vector &emat);
    void AssembleGradEA(const Vector &x, const FiniteElementSpace &fes,

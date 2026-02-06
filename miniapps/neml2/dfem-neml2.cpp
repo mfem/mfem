@@ -199,6 +199,8 @@ int main(int argc, char *argv[])
    bool enable_pcamg = false;
    constexpr auto petscrc_file = MFEM_SOURCE_DIR "/miniapps/neml2/"
                                                  "petscopts";
+   int geometric_refinements = 0;
+   int order_refinements = 1;
    int n = 5;
 
    OptionsParser args(argc, argv);
@@ -210,6 +212,12 @@ int main(int argc, char *argv[])
    args.AddOption(&n, "-n", "--n",
                   "The number of elements in one dimension. The total number "
                   "will be a tensor product of this");
+   args.AddOption(&geometric_refinements, "-gr", "--geometric-refinements",
+                  "Number of geometric refinements done prior to order "
+                  "refinements.");
+   args.AddOption(&order_refinements, "-or", "--order-refinements",
+                  "Number of order refinements. Finest level in the hierarchy "
+                  "has order 2^{or}.");
    args.ParseCheck();
 
    // Enable hardware devices such as GPUs, and programming models such as CUDA
@@ -231,20 +239,29 @@ int main(int argc, char *argv[])
    pmesh.SetCurvature(1);
 
    // Define a parallel finite element space on the parallel mesh
-   H1_FECollection fec(1, /*dim=*/dim);
-   ParFiniteElementSpace fe_space(&pmesh, &fec, /*vdim=*/dim,
-                                  Ordering::byNODES);
+   auto *const fec = new H1_FECollection(1, /*dim=*/dim);
+   auto *const coarse_fe_space = new ParFiniteElementSpace(&pmesh, fec,
+                                                           /*vdim=*/dim,
+                                                           Ordering::byNODES);
    Array<FiniteElementCollection *> collections;
-   collections.Append(&fec);
-   auto fespaces = std::make_unique<ParFiniteElementSpaceHierarchy>(&pmesh,
-                                                                    &fe_space,
-                                                                    false,
-                                                                    false);
-   const auto num_dofs = fe_space.GlobalTrueVSize();
+   collections.Append(fec);
+   ParFiniteElementSpaceHierarchy fespaces(&pmesh, coarse_fe_space, false,
+                                           true);
+   for (int level = 0; level < geometric_refinements; ++level)
+   {
+      fespaces.AddUniformlyRefinedLevel(dim, Ordering::byNODES);
+   }
+   for (int level = 0; level < order_refinements; ++level)
+   {
+      collections.Append(new H1_FECollection((int)std::pow(2, level + 1), dim));
+      fespaces.AddOrderRefinedLevel(collections.Last(), dim, Ordering::byNODES);
+   }
+   auto &finest_fe_space = fespaces.GetFinestFESpace();
+
+   HYPRE_BigInt size = finest_fe_space.GlobalTrueVSize();
    if (myid == 0)
    {
-      std::cout << "Number of finite element unknowns: " << num_dofs
-                << std::endl;
+      std::cout << "Number of finite element unknowns: " << size << std::endl;
    }
 
    // Set up the integration rule
@@ -297,17 +314,17 @@ int main(int argc, char *argv[])
    VectorConstantCoefficient prescribed_disp(ug);
 
    // Initial condition (also make it satisfy the EBCs)
-   ParGridFunction u(&fe_space);
+   ParGridFunction u(&finest_fe_space);
    u = 0;
    u.ProjectBdrCoefficient(zero_disp, fixed_bnd);
    u.ProjectBdrCoefficient(prescribed_disp, displaced_bnd);
 
    // Setup the parallel nonlinear form
-   ParNonlinearForm f(&fe_space);
+   ParNonlinearForm f(&finest_fe_space);
    f.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    f.AddDomainIntegrator(new NEML2StressDivergenceIntegrator(cmodel));
    Array<int> ess_tdof_list;
-   fe_space.GetEssentialTrueDofs(essential_bnd, ess_tdof_list);
+   finest_fe_space.GetEssentialTrueDofs(essential_bnd, ess_tdof_list);
    f.SetEssentialTrueDofs(ess_tdof_list);
    f.Setup();
 
@@ -320,7 +337,7 @@ int main(int argc, char *argv[])
    // Use the current state of u as the initial guess
    newton.iterative_mode = true;
    // Set multigrid preconditioner factory. MFEM PETSc wrapper code will try to destroy this during the nonlinear solver destruction so allow them to do so
-   auto *const pre_factory = new NEML2MultigridPreconditionerFactory(*fespaces,
+   auto *const pre_factory = new NEML2MultigridPreconditionerFactory(fespaces,
                                                                      essential_bnd,
                                                                      cmodel, u);
    newton.SetPreconditionerFactory(pre_factory);
@@ -335,5 +352,9 @@ int main(int argc, char *argv[])
    dc.SetCycle(0);
    dc.Save();
 
+   for (int level = 0; level < collections.Size(); ++level)
+   {
+      delete collections[level];
+   }
    return 0;
 }
