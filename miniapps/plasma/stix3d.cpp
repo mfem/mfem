@@ -2035,7 +2035,7 @@ if (dpp_def.Size() == 0)
       cout << "Setup boundary conditions." << endl;
    }
 
-   if (portbc_file[0] != '\0' && !portbcv)
+   if (portbc_file[0] != '\0' && portbcv.Size() == 0)
    {
       std::ifstream infile(portbc_file);
       if (!infile) 
@@ -2068,13 +2068,13 @@ if (dpp_def.Size() == 0)
          return 1;
       }
 
-      Vector vec(arr.Size());
+      portbcv.SetSize(arr.Size());
+
       for (int i = 0; i < arr.Size(); i++)
       {
-         vec(i) = arr[i];
+         portbcv(i) = arr[i];
       }
 
-      portbcv = vec;
    }
 
    // Setup coefficients for Dirichlet BC

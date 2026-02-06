@@ -1434,6 +1434,7 @@ int main(int argc, char *argv[])
    }
 
    mesh->EnsureNCMesh();
+   
    // Ensure that quad and hex meshes are treated as non-conforming.
    /*
    if (maxit > 1 || amr_stix)
@@ -2027,7 +2028,7 @@ int main(int argc, char *argv[])
       cout << "Setup boundary conditions." << endl;
    }
 
-   if (portbc_file[0] != '\0' && !portbcv)
+   if (portbc_file[0] != '\0' && portbcv.Size() == 0)
    {
       std::ifstream infile(portbc_file);
       if (!infile) 
@@ -2060,13 +2061,13 @@ int main(int argc, char *argv[])
          return 1;
       }
 
-      Vector vec(arr.Size());
+      portbcv.SetSize(arr.Size());
+
       for (int i = 0; i < arr.Size(); i++)
       {
-         vec(i) = arr[i];
+         portbcv(i) = arr[i];
       }
 
-      portbcv = vec;
    }
 
    // Setup coefficients for Dirichlet BC
@@ -2336,8 +2337,8 @@ int main(int argc, char *argv[])
       visit_dc.RegisterField("Electron_Density", &density_gf);
 
       //nue_gf *= 1/omega;
-      visit_dc.RegisterField("Electron_Collisional_Profile", &nue_gf);
-      visit_dc.RegisterField("Ion_Collisional_Profile", &nui_gf);
+      //visit_dc.RegisterField("Electron_Collisional_Profile", &nue_gf);
+      //visit_dc.RegisterField("Ion_Collisional_Profile", &nui_gf);
 
       //visit_dc.RegisterField("Min_Ion_Temp", &iontemp_gf);
 
