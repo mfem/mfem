@@ -579,6 +579,9 @@ public:
                          const int cb_type = BasisType::GaussLobatto,
                          const int ob_type = BasisType::GaussLegendre);
 
+   int GetPhysRangeDim(int space_dim) const override { return 3; }
+   int GetPhysCurlDim(int space_dim) const override { return 3; }
+
    using FiniteElement::CalcVShape;
    using FiniteElement::CalcPhysCurlShape;
 
@@ -642,7 +645,7 @@ public:
 */
 class ND_R2D_SegmentElement : public VectorFiniteElement
 {
-   static const real_t tk[4];
+   static const real_t tk[6];
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox;
    mutable Vector dshape_cx;
@@ -663,6 +666,9 @@ public:
                          const int cb_type = BasisType::GaussLobatto,
                          const int ob_type = BasisType::GaussLegendre);
 
+   int GetPhysRangeDim(int space_dim) const override { return 3; }
+   int GetPhysCurlDim(int space_dim) const override { return 3; }
+
    void CalcVShape(const IntegrationPoint &ip,
                    DenseMatrix &shape) const override;
 
@@ -671,6 +677,9 @@ public:
 
    void CalcCurlShape(const IntegrationPoint &ip,
                       DenseMatrix &curl_shape) const override;
+
+   void CalcPhysCurlShape(ElementTransformation &Trans,
+                          DenseMatrix &curl_shape) const override;
 
    void GetLocalInterpolation(ElementTransformation &Trans,
                               DenseMatrix &I) const override
@@ -705,6 +714,9 @@ private:
                            DenseMatrix &I) const;
 
 public:
+   int GetPhysRangeDim(int space_dim) const override { return 3; }
+   int GetPhysCurlDim(int space_dim) const override { return 3; }
+
    using FiniteElement::CalcVShape;
    using FiniteElement::CalcPhysCurlShape;
 
