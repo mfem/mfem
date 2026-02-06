@@ -2059,6 +2059,9 @@ RT_R1D_SegmentElement::RT_R1D_SegmentElement(const int p,
 void RT_R1D_SegmentElement::CalcVShape(const IntegrationPoint &ip,
                                        DenseMatrix &shape) const
 {
+   MFEM_ASSERT(shape.Height() >= dof, "Incorrect height of DenseMatrix");
+   MFEM_ASSERT(shape.Width() >= 3, "Incorrect width of DenseMatrix");
+
    const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
@@ -2276,7 +2279,7 @@ void RT_R1D_SegmentElement::ProjectCurl(const FiniteElement &fe,
    }
 }
 
-const real_t RT_R2D_SegmentElement::nk[2] = { 0.,1.};
+const real_t RT_R2D_SegmentElement::nk[3] = { 0.,1.,0.};
 
 RT_R2D_SegmentElement::RT_R2D_SegmentElement(const int p,
                                              const int ob_type)
@@ -2408,7 +2411,7 @@ void RT_R2D_SegmentElement::LocalInterpolation(const VectorFiniteElement &cfe,
    const DenseMatrix &adjJ = Trans.AdjugateJacobian();
    for (int k = 0; k < dof; k++)
    {
-      Vector n2(&nk_ptr[dof2nk[k] * 2], 2);
+      Vector n2(&nk_ptr[dof2nk[k] * 3], 2);
 
       Trans.Transform(Nodes.IntPoint(k), xk);
       ip.Set3(vk);

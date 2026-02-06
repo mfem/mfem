@@ -343,7 +343,7 @@ public:
        vector-valued finite elements, which is also the width of the
        DenseMatrix argument in
        CalcPhysVShape(ElementTransformation &Trans, DenseMatrix &shape). */
-   int GetPhysRangeDim(int /* space_dim */) const { return vdim; }
+   virtual int GetPhysRangeDim(int /* space_dim */) const { return vdim; }
 
    /** Returns the dimension of the curl for vector-valued finite elements,
        which is also the width of the DenseMatrix argument in
@@ -354,7 +354,7 @@ public:
        finite elements, which is also the width of the DenseMatrix argument in
        CalcPhysCurlShape(ElementTransformation &Trans, DenseMatrix &curl_shape).
    */
-   int GetPhysCurlDim(int /* space_dim */) const { return cdim; }
+   virtual int GetPhysCurlDim(int /* space_dim */) const { return cdim; }
 
    /// Returns the Geometry::Type of the reference element.
    Geometry::Type GetGeomType() const { return geom_type; }
@@ -1010,7 +1010,7 @@ public:
    VectorFiniteElement(int D, Geometry::Type G, int Do, int O, int M,
                        int F = FunctionSpace::Pk);
 
-   int GetPhysRangeDim(int space_dim) const { return space_dim; }
+   int GetPhysRangeDim(int space_dim) const override { return space_dim; }
 };
 
 /// @brief Class for computing 1D special polynomials and their associated basis

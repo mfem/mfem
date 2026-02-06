@@ -2625,6 +2625,9 @@ ND_R1D_SegmentElement::ND_R1D_SegmentElement(const int p,
 void ND_R1D_SegmentElement::CalcVShape(const IntegrationPoint &ip,
                                        DenseMatrix &shape) const
 {
+   MFEM_ASSERT(shape.Height() >= dof, "Incorrect height of DenseMatrix");
+   MFEM_ASSERT(shape.Width() >= 3, "Incorrect width of DenseMatrix");
+
    const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
@@ -2833,7 +2836,7 @@ void ND_R1D_SegmentElement::Project(const FiniteElement &fe,
    }
 }
 
-const real_t ND_R2D_SegmentElement::tk[4] = { 1.,0., 0.,1. };
+const real_t ND_R2D_SegmentElement::tk[6] = { 1.,0.,0., 0.,0.,1. };
 
 ND_R2D_SegmentElement::ND_R2D_SegmentElement(const int p,
                                              const int cb_type,
@@ -2845,8 +2848,8 @@ ND_R2D_SegmentElement::ND_R2D_SegmentElement(const int p,
      obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(ob_type)))
 {
    // Override default dimensions for VectorFiniteElements
-   vdim = 3;
-   cdim = 3;
+   vdim = 2;
+   cdim = 1;
 
    const real_t *cp = poly1d.ClosedPoints(p, cb_type);
    const real_t *op = poly1d.OpenPoints(p - 1, ob_type);
@@ -2855,6 +2858,7 @@ ND_R2D_SegmentElement::ND_R2D_SegmentElement(const int p,
    shape_cx.SetSize(p + 1);
    shape_ox.SetSize(p);
    dshape_cx.SetSize(p + 1);
+   vshape.SetSize(dof, vdim);
 #endif
 
    dof_map.SetSize(dof);
@@ -2903,15 +2907,13 @@ void ND_R2D_SegmentElement::CalcVShape(const IntegrationPoint &ip,
       int idx = dof_map[o++];
       shape(idx,0) = shape_ox(i);
       shape(idx,1) = 0.;
-      shape(idx,2) = 0.;
    }
    // z-components
    for (int i = 0; i <= p; i++)
    {
       int idx = dof_map[o++];
       shape(idx,0) = 0.;
-      shape(idx,1) = 0.;
-      shape(idx,2) = shape_cx(i);
+      shape(idx,1) = shape_cx(i);
    }
 }
 
@@ -2927,7 +2929,6 @@ void ND_R2D_SegmentElement::CalcVShape(ElementTransformation &Trans,
    MFEM_ASSERT(TF->GetConfigurationMask() & 1, "Neighboring element 1 must "
                "be configured");
 
-   CalcVShape(Trans.GetIntPoint(), shape);
    const DenseMatrix & JI = Trans.InverseJacobian();
 
    MFEM_ASSERT(JI.Height() == 1,
@@ -2936,6 +2937,12 @@ void ND_R2D_SegmentElement::CalcVShape(ElementTransformation &Trans,
                "ND_R2D_SegmentElement must be embedded in a "
                "2 or 3 dimensional space");
 
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape(dof, vdim);
+#endif
+
+   CalcVShape(Trans.GetIntPoint(), vshape);
+
    real_t zhat_data[3];
    Vector zhat(zhat_data, 3);
 
@@ -2943,16 +2950,17 @@ void ND_R2D_SegmentElement::CalcVShape(ElementTransformation &Trans,
    {
       if (JI.Width() == 2)
       {
-         shape(i, 1) = shape(i, 0) * JI(0,1);
-         shape(i, 0) *= JI(0,0);
+         shape(i, 0) = vshape(i, 0) * JI(0,0);
+         shape(i, 1) = vshape(i, 0) * JI(0,1);
+         shape(i, 2) = vshape(i, 1);
       }
       else
       {
          CalcOrtho(TF->Elem1->Jacobian(), zhat);
          zhat /= zhat.Norml2();
 
-         real_t st = shape(i, 0);
-         real_t sn = shape(i, 2);
+         real_t st = vshape(i, 0);
+         real_t sn = vshape(i, 1);
 
          for (int j=0; j<3; j++)
          {
@@ -2981,16 +2989,12 @@ void ND_R2D_SegmentElement::CalcCurlShape(const IntegrationPoint &ip,
    {
       int idx = dof_map[o++];
       curl_shape(idx,0) = 0.;
-      curl_shape(idx,1) = 0.;
-      curl_shape(idx,2) = 0.;
    }
    // z-components
    for (int i = 0; i <= p; i++)
    {
       int idx = dof_map[o++];
-      curl_shape(idx,0) = 0.;
-      curl_shape(idx,1) = -dshape_cx(i);
-      curl_shape(idx,2) = 0.;
+      curl_shape(idx,0) = -dshape_cx(i);
    }
 }
 
@@ -3026,7 +3030,7 @@ void ND_R2D_SegmentElement::CalcPhysCurlShape(ElementTransformation &Trans,
 
    for (int i=0; i<dof; i++)
    {
-      real_t sy = curl_shape(i, 1);
+      real_t sy = curl_shape(i, 0);
 
       if (J.Height() == 2)
       {
@@ -3054,37 +3058,49 @@ void ND_R2D_SegmentElement::LocalInterpolation(const VectorFiniteElement &cfe,
                                                ElementTransformation &Trans,
                                                DenseMatrix &I) const
 {
-   real_t vk[Geometry::MaxDim]; vk[1] = 0.0; vk[2] = 0.0;
-   Vector xk(vk, dim);
-   IntegrationPoint ip;
-   DenseMatrix vshape(cfe.GetDof(), vdim);
-
-   real_t * tk_ptr = const_cast<real_t*>(tk);
-
-   I.SetSize(dof, vshape.Height());
+   MFEM_ASSERT(cfe.GetRangeDim() == vdim,
+               "ND_R2D_SegmentElement::LocalInterpolation given "
+               "VectorFiniteElement with incompatible range dimension.");
 
    // assuming Trans is linear; this should be ok for all refinement types
    Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
    const DenseMatrix &J = Trans.Jacobian();
+
+   MFEM_ASSERT(J.Width() == 1,
+               "ND_R2D_SegmentElement is only defined on 1D elements");
+   MFEM_ASSERT(J.Height() == 1,
+               "ND_R2D_SegmentElement::LocalInterpolation must be used in a "
+               "1 dimensional space");
+
+   real_t vk[Geometry::MaxDim]; vk[1] = 0.0; vk[2] = 0.0;
+   Vector xk(vk, dim);
+   IntegrationPoint ip;
+
+   DenseMatrix cfe_vshape(cfe.GetDof(), vdim);
+
+   real_t * tk_ptr = const_cast<real_t*>(tk);
+
+   I.SetSize(dof, cfe_vshape.Height());
+
    for (int k = 0; k < dof; k++)
    {
-      Vector t1(&tk_ptr[dof2tk[k] * 2], 1);
-      Vector t2(&tk_ptr[dof2tk[k] * 2], 2);
+      Vector t1(&tk_ptr[dof2tk[k] * 3], 1);
+      Vector t3(&tk_ptr[dof2tk[k] * 3], 3);
 
       Trans.Transform(Nodes.IntPoint(k), xk);
       ip.Set3(vk);
-      cfe.CalcVShape(ip, vshape);
+      cfe.CalcVShape(ip, cfe_vshape);
       // xk = J t_k
       J.Mult(t1, vk);
-      // I_k = vshape_k.J.t_k, k=1,...,Dof
-      for (int j = 0; j < vshape.Height(); j++)
+      // I_k = cfe_vshape_k.J.t_k, k=1,...,Dof
+      for (int j = 0; j < cfe_vshape.Height(); j++)
       {
          real_t Ikj = 0.;
          for (int i = 0; i < dim; i++)
          {
-            Ikj += vshape(j, i) * vk[i];
+            Ikj += cfe_vshape(j, i) * vk[i];
          }
-         Ikj += vshape(j, 1) * t2(1);
+         Ikj += cfe_vshape(j, 1) * t3(2);
          I(k, j) = (fabs(Ikj) < 1e-12) ? 0.0 : Ikj;
       }
    }
@@ -3131,16 +3147,16 @@ void ND_R2D_SegmentElement::Project(VectorCoefficient &vc,
 
       vc.Eval(vk3, Trans, Nodes.IntPoint(k));
       // dof_k = vk^t J tk
-      Vector t1(&tk_ptr[dof2tk[k] * 2], 1);
-      Vector t2(&tk_ptr[dof2tk[k] * 2], 2);
+      Vector t1(&tk_ptr[dof2tk[k] * 3], 1);
+      Vector t3(&tk_ptr[dof2tk[k] * 3], 3);
 
       if (TF->Elem1->Jacobian().Height() == 2)
       {
-         dofs(k) = Trans.Jacobian().InnerProduct(t1, vk2) + t2(1) * vk3(2);
+         dofs(k) = Trans.Jacobian().InnerProduct(t1, vk2) + t3(2) * vk3(2);
       }
       else
       {
-         dofs(k) = Trans.Jacobian().InnerProduct(t1, vk3) + t2(1) * (zhat * vk3);
+         dofs(k) = Trans.Jacobian().InnerProduct(t1, vk3) + t3(2) * (zhat * vk3);
       }
    }
 
