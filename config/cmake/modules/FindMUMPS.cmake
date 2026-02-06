@@ -21,9 +21,13 @@ include(MfemCmakeUtilities)
 if (MFEM_USE_DOUBLE)
   set(_mumps_header dmumps_c.h)
   set(_mumps_lib dmumps)
+  set(_cmumps_header zmumps_c.h)
+  set(_cmumps_lib zmumps)
 elseif(MFEM_USE_SINGLE)
   set(_mumps_header smumps_c.h)
   set(_mumps_lib smumps)
+  set(_cmumps_header cmumps_c.h)
+  set(_cmumps_lib cmumps)
 endif()
 
 mfem_find_package(MUMPS MUMPS MUMPS_DIR
@@ -32,6 +36,23 @@ mfem_find_package(MUMPS MUMPS MUMPS_DIR
   "Libraries required by MUMPS."
   ADD_COMPONENT mumps_common "include" ${_mumps_header} "lib" mumps_common
   ADD_COMPONENT pord "include" ${_mumps_header} "lib" pord)
+
+if (MFEM_USE_COMPLEX_MUMPS)
+  mfem_find_package(COMPLEX_MUMPS MUMPS MUMPS_DIR
+    "include" ${_cmumps_header} "lib" ${_cmumps_lib}
+    "Paths to headers required by complex MUMPS."
+    "Libraries required by complex MUMPS."
+    ADD_COMPONENT mumps_common "include" ${_cmumps_header} "lib" mumps_common
+    ADD_COMPONENT pord "include" ${_cmumps_header} "lib" pord)
+
+  if (COMPLEX_MUMPS_FOUND)
+    # If only complex MUMPS is requested/enabled, make sure MUMPS is considered found.
+    set(MUMPS_FOUND TRUE)
+    # Append complex include dirs and libs (no deduplication).
+    list(APPEND MUMPS_INCLUDE_DIRS ${COMPLEX_MUMPS_INCLUDE_DIRS})
+    list(APPEND MUMPS_LIBRARIES    ${COMPLEX_MUMPS_LIBRARIES})
+  endif()
+endif()
 
 if (MUMPS_FOUND AND (NOT MUMPS_VERSION))
   try_run(MUMPS_VERSION_RUN_RESULT MUMPS_VERSION_COMPILE_RESULT
