@@ -1105,6 +1105,7 @@ int main(int argc, char *argv[])
    }
    if (minority.Size() == 0)
    {
+      // Single ion species (set to D)
       if (charges.Size() == 2)
       {
          numbers.SetSize(2);
@@ -1121,24 +1122,13 @@ int main(int argc, char *argv[])
                numbers[0] = dpp_def[0];
                numbers[1] = dpp_def[0];
                break;
-            case PlasmaProfile::TANH:
-               numbers[0] = dpp_def[1];
-               numbers[1] = dpp_def[1];
-               break;
-            case PlasmaProfile::ELLIPTIC_COS:
-               numbers[0] = dpp_def[1];
-               numbers[1] = dpp_def[1];
-               break;
-            case PlasmaProfile::PARABOLIC:
-               numbers[0] = dpp_def[1];
-               numbers[1] = dpp_def[1];
-               break;
             default:
                numbers[0] = 1.0e19;
                numbers[1] = 1.0e19;
                break;
          }
       }
+      // Two ion species (set to D and T)
       else
       {
          numbers.SetSize(3);
@@ -1158,21 +1148,6 @@ int main(int argc, char *argv[])
                numbers[1] = 0.5*dpp_def[0];
                numbers[2] = 0.5*dpp_def[0];
                break;
-            case PlasmaProfile::TANH:
-               numbers[0] = dpp_def[1];
-               numbers[1] = 0.5*dpp_def[1];
-               numbers[2] = 0.5*dpp_def[1];
-               break;
-            case PlasmaProfile::ELLIPTIC_COS:
-               numbers[0] = dpp_def[1];
-               numbers[1] = 0.5*dpp_def[1];
-               numbers[2] = 0.5*dpp_def[1];
-               break;
-            case PlasmaProfile::PARABOLIC:
-               numbers[0] = dpp_def[1];
-               numbers[1] = 0.5*dpp_def[1];
-               numbers[2] = 0.5*dpp_def[1];
-               break;
             default:
                numbers[0] = 1.0e19;
                numbers[1] = 0.5*1.0e19;
@@ -1183,6 +1158,7 @@ int main(int argc, char *argv[])
    }
    if (minority.Size() > 0)
    {
+      // Single bulk ion species (set to D) + minority species 
       if (charges.Size() == 2)
       {
          temp_charges.SetSize(3);
@@ -1201,41 +1177,22 @@ int main(int argc, char *argv[])
          {
             case PlasmaProfile::CONSTANT:
                numbers[0] = dpp_def[0];
-               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp_def[0];
-               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
-                            *dpp_def[0];
+               numbers[1] = (1.0-minority[0]*minority[2])*dpp_def[0];
+               numbers[2] = minority[2]*dpp_def[0];
                break;
             case PlasmaProfile::GRADIENT:
                numbers[0] = dpp_def[0];
-               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp_def[0];
-               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
-                            *dpp_def[0];
-               break;
-            case PlasmaProfile::TANH:
-               numbers[0] = dpp_def[1];
-               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
-               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
-                            *dpp_def[1];
-               break;
-            case PlasmaProfile::ELLIPTIC_COS:
-               numbers[0] = dpp_def[1];
-               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
-               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
-                            *dpp_def[1];
-               break;
-            case PlasmaProfile::PARABOLIC:
-               numbers[0] = dpp_def[1];
-               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
-               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
-                            *dpp_def[1];
+               numbers[1] = (1.0-minority[0]*minority[2])*dpp_def[0];
+               numbers[2] = minority[2]*dpp_def[0];
                break;
             default:
                numbers[0] = 1.0e19;
-               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*1.0e19;
-               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*1.0e19;
+               numbers[1] = (1.0-minority[0]*minority[2])*1.0e19;
+               numbers[2] = minority[2]*1.0e19;
                break;
          }
       }
+      // Two bulk ion species (set to D and T) + minority species 
       else
       {
          temp_charges.SetSize(4);
@@ -1256,44 +1213,21 @@ int main(int argc, char *argv[])
          {
             case PlasmaProfile::CONSTANT:
                numbers[0] = dpp_def[0];
-               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[0];
-               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[0];
-               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
-                            *dpp_def[0];
+               numbers[1] = 0.5*(1.0-minority[0]*minority[2])*dpp_def[0];
+               numbers[2] = 0.5*(1.0-minority[0]*minority[2])*dpp_def[0];
+               numbers[3] = minority[2]*dpp_def[0];
                break;
             case PlasmaProfile::GRADIENT:
                numbers[0] = dpp_def[0];
-               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[0];
-               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[0];
-               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
-                            *dpp_def[0];
-               break;
-            case PlasmaProfile::TANH:
-               numbers[0] = dpp_def[1];
-               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
-               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
-               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
-                            *dpp_def[1];
-               break;
-            case PlasmaProfile::ELLIPTIC_COS:
-               numbers[0] = dpp_def[1];
-               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
-               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
-               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
-                            *dpp_def[1];
-               break;
-            case PlasmaProfile::PARABOLIC:
-               numbers[0] = dpp_def[1];
-               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
-               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
-               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
-                            *dpp_def[1];
+               numbers[1] = 0.5*(1.0-minority[0]*minority[2])*dpp_def[0];
+               numbers[2] = 0.5*(1.0-minority[0]*minority[2])*dpp_def[0];
+               numbers[3] = minority[2]*dpp_def[0];
                break;
             default:
                numbers[0] = 1.0e19;
-               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*1.0e19;
-               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*1.0e19;
-               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*1.0e19;
+               numbers[1] = 0.5*(1.0-minority[0]*minority[2])*1.0e19;
+               numbers[2] = 0.5*(1.0-minority[0]*minority[2])*1.0e19;
+               numbers[3] = minority[2]*1.0e19;
                break;
          }
       }
@@ -1316,15 +1250,6 @@ int main(int argc, char *argv[])
                break;
             case PlasmaProfile::GRADIENT:
                for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp_def[0];}
-               break;
-            case PlasmaProfile::TANH:
-               for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp_def[1];}
-               break;
-            case PlasmaProfile::ELLIPTIC_COS:
-               for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp_def[1];}
-               break;
-            case PlasmaProfile::PARABOLIC:
-               for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp_def[1];}
                break;
             default:
                for (int i=0; i<numbers.Size(); i++) {temps[i] = 1e3;}
