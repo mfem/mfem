@@ -24,6 +24,14 @@ NEML2StressDivergenceIntegrator::NEML2StressDivergenceIntegrator(std::shared_ptr
 
 void NEML2StressDivergenceIntegrator::AssemblePA(const FiniteElementSpace &fe_space)
 {
+   if (fespace)
+   {
+      MFEM_ASSERT(fespace == &fe_space,
+                  "We're assembling with a different finite element space?");
+      // We're already partially assembled
+      return;
+   }
+
    StressDivergenceIntegrator<NonlinearFormIntegrator>::AssemblePA(fe_space);
    if (this->vdim < 2)
    {
@@ -228,6 +236,9 @@ void NEML2StressDivergenceIntegrator::AddMultPA(const Vector &X,
 void NEML2StressDivergenceIntegrator::AssembleGradPA(const Vector &X,
                                                      const FiniteElementSpace &fes)
 {
+   // Make sure our basis functions, geometric factors, and other data is already initialized
+   this->AssemblePA(fes);
+
    // Evaluate the tangent at the current state
    // displacement -> strain
    this->ComputeStrain(X, *_strain);

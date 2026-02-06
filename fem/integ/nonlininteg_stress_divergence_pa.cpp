@@ -38,6 +38,13 @@ void StressDivergenceIntegrator<Base>::AssemblePA(const FiniteElementSpace &fes)
    MFEM_VERIFY(fes.GetOrdering() == Ordering::byNODES,
                "Elasticity PA only implemented for byNODES ordering.");
 
+   if (fespace)
+   {
+      MFEM_ASSERT(fespace == &fes,
+                  "We're assembling with a different finite element space?");
+      return;
+   }
+
    fespace = &fes;
    Mesh &mesh = *fespace->GetMesh();
    MFEM_VERIFY(fespace->GetVDim() == mesh.Dimension(), "");
