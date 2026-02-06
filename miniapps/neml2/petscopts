@@ -1,9 +1,9 @@
 -snes_monitor
 -ksp_monitor
 -ksp_max_it 30
--ksp_type gmres
--pc_type hypre
+-ksp_type cg
 -ksp_rtol 1e-8
 -snes_converged_reason
 -ksp_converged_reason
 -snes_max_it 1
+-snes_view

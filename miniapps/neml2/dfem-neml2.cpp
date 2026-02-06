@@ -32,6 +32,161 @@
 using namespace mfem;
 using namespace mfem::future;
 
+// I think we're going to have duplicate nonlinear forms on the fine level but maybe that's fine?
+class NEML2Multigrid : public GeometricMultigrid
+{
+ private:
+   std::shared_ptr<neml2::Model> cmodel;
+   const Vector &current_solution;
+   HypreBoomerAMG *amg;
+   std::vector<ParNonlinearForm> pnlfs;
+   std::vector<Vector> coarser_solutions;
+
+ public:
+   // Constructs a diffusion multigrid for the ParFiniteElementSpaceHierarchy
+   // and the array of essential boundaries
+   NEML2Multigrid(ParFiniteElementSpaceHierarchy &fespaces, Array<int> &ess_bdr,
+                  std::shared_ptr<neml2::Model> cmodel_,
+                  const Vector &current_solution_)
+       : GeometricMultigrid(fespaces, ess_bdr), cmodel(cmodel_),
+         current_solution(current_solution_)
+   {
+      const auto num_levels = fespaces.GetNumLevels();
+      const auto num_coarser_levels = num_levels - 1;
+
+      // Build all the nonlinear forms first
+      pnlfs.reserve(num_levels);
+      for (int level = 0; level < fespaces.GetNumLevels(); ++level)
+      {
+         ConstructNonlinearForm(fespaces.GetFESpaceAtLevel(level),
+                                static_cast<bool>(level));
+      }
+      MFEM_ASSERT(pnlfs.back().Height() == current_solution.Size(),
+                  "The size of the fine level nonlinear form should match the "
+                  "size of our current solution");
+
+      // Now we must construct the solution at the different levels
+      coarser_solutions.resize(num_coarser_levels);
+      auto create_coarse_solution = [this](const int level,
+                                           const Vector &fine_solution)
+      {
+         auto &coarse_solution = coarser_solutions[level];
+         coarse_solution.SetSize(pnlfs[level].Height());
+         prolongations[level]->MultTranspose(fine_solution, coarse_solution);
+      };
+      if (num_coarser_levels)
+      {
+         create_coarse_solution(num_coarser_levels - 1, current_solution);
+         for (int level = num_coarser_levels - 2; level >= 0; --level)
+         {
+            create_coarse_solution(level, coarser_solutions[level + 1]);
+         }
+      }
+
+      ConstructCoarseOperatorAndSolver(fespaces.GetFESpaceAtLevel(0));
+
+      for (int level = 1; level < fespaces.GetNumLevels(); ++level)
+      {
+         ConstructOperatorAndSmoother(fespaces.GetFESpaceAtLevel(level), level);
+      }
+   }
+
+   ~NEML2Multigrid() override
+   {
+      delete amg;
+   }
+
+ private:
+   void ConstructNonlinearForm(ParFiniteElementSpace &fespace,
+                               bool partial_assembly)
+   {
+      auto &form = pnlfs.emplace_back(&fespace);
+      if (partial_assembly)
+      {
+         form.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      }
+      else
+      {
+         form.SetAssemblyLevel(AssemblyLevel::FULL);
+      }
+      form.AddDomainIntegrator(new NEML2StressDivergenceIntegrator(cmodel));
+      form.SetEssentialTrueDofs(*essentialTrueDofs[pnlfs.size() - 1]);
+      form.Setup();
+   }
+
+   void ConstructCoarseOperatorAndSolver(ParFiniteElementSpace &coarse_fespace)
+   {
+      const auto *const coarse_pnlf = &pnlfs[0];
+      const auto &coarse_solution = coarser_solutions.size() ? coarser_solutions[0]
+                                                             : current_solution;
+      auto &coarse_operator = coarse_pnlf->GetGradient(coarse_solution);
+      auto *const hypreCoarseMat = dynamic_cast<HypreParMatrix *>(&coarse_operator);
+      MFEM_ASSERT(hypreCoarseMat,
+                  "We should have created a parallel hypre csr matrix");
+
+      amg = new HypreBoomerAMG(*hypreCoarseMat);
+      amg->SetPrintLevel(-1);
+
+      CGSolver *pcg = new CGSolver(MPI_COMM_WORLD);
+      pcg->SetPrintLevel(-1);
+      pcg->SetMaxIter(10);
+      pcg->SetRelTol(sqrt(1e-4));
+      pcg->SetAbsTol(0.0);
+      pcg->SetOperator(*hypreCoarseMat);
+      pcg->SetPreconditioner(*amg);
+
+      AddLevel(hypreCoarseMat, pcg, false, true);
+   }
+
+   void ConstructOperatorAndSmoother(ParFiniteElementSpace &fespace, int level)
+   {
+      const auto *const pnlf = &pnlfs[level];
+      const auto &level_soln = level == coarser_solutions.size() ? current_solution
+                                                                 : coarser_solutions[level];
+      auto &opr = pnlf->GetGradient(level_soln);
+      Vector diag(fespace.GetTrueVSize());
+      opr.AssembleDiagonal(diag);
+
+      Solver *smoother = new OperatorChebyshevSmoother(opr, diag,
+                                                       *essentialTrueDofs[level],
+                                                       2,
+                                                       fespace.GetParMesh()->GetComm());
+
+      AddLevel(&opr, smoother, false, true);
+   }
+};
+
+class NEML2MultigridPreconditionerFactory : public PetscPreconditionerFactory
+{
+ private:
+ public:
+   NEML2MultigridPreconditionerFactory(ParFiniteElementSpaceHierarchy &fespaces_,
+                                       Array<int> &ess_bdr_,
+                                       std::shared_ptr<neml2::Model> cmodel_,
+                                       const Vector &fine_solution_)
+       : PetscPreconditionerFactory(), fespaces(fespaces_), ess_bdr(ess_bdr_),
+         cmodel(cmodel_), fine_solution(fine_solution_)
+   {
+   }
+
+   // Since all the operator construction currently happens in the constructor, let's just rebuild this every time for the moment. That definitely won't be optimal but for a liner constitutive model we only plan to construct this once anyway
+   mfem::Solver *NewPreconditioner(const mfem::OperatorHandle &) override
+   {
+      multigrid = std::make_unique<NEML2Multigrid>(fespaces, ess_bdr, cmodel,
+                                                   fine_solution);
+      return multigrid.get();
+   }
+
+   virtual ~NEML2MultigridPreconditionerFactory() = default;
+
+ private:
+   ParFiniteElementSpaceHierarchy &fespaces;
+   Array<int> &ess_bdr;
+   std::shared_ptr<neml2::Model> cmodel;
+   const Vector &fine_solution;
+   std::unique_ptr<NEML2Multigrid> multigrid;
+};
+
 int main(int argc, char *argv[])
 {
    // Initialize MPI and HYPRE
@@ -79,6 +234,12 @@ int main(int argc, char *argv[])
    H1_FECollection fec(1, /*dim=*/dim);
    ParFiniteElementSpace fe_space(&pmesh, &fec, /*vdim=*/dim,
                                   Ordering::byNODES);
+   Array<FiniteElementCollection *> collections;
+   collections.Append(&fec);
+   auto fespaces = std::make_unique<ParFiniteElementSpaceHierarchy>(&pmesh,
+                                                                    &fe_space,
+                                                                    false,
+                                                                    false);
    const auto num_dofs = fe_space.GlobalTrueVSize();
    if (myid == 0)
    {
@@ -143,12 +304,11 @@ int main(int argc, char *argv[])
 
    // Setup the parallel nonlinear form
    ParNonlinearForm f(&fe_space);
-   f.SetAssemblyLevel(AssemblyLevel::FULL);
-   f.AddDomainIntegrator(new NEML2StressDivergenceIntegrator(cmodel, &ir));
+   f.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   f.AddDomainIntegrator(new NEML2StressDivergenceIntegrator(cmodel));
    Array<int> ess_tdof_list;
    fe_space.GetEssentialTrueDofs(essential_bnd, ess_tdof_list);
    f.SetEssentialTrueDofs(ess_tdof_list);
-
    f.Setup();
 
    // Nonlinear solver
@@ -157,11 +317,16 @@ int main(int argc, char *argv[])
    newton.SetRelTol(1e-6);
    newton.SetMaxIter(10);
    newton.SetPrintLevel(1);
+   // Use the current state of u as the initial guess
+   newton.iterative_mode = true;
+   // Set multigrid preconditioner factory. MFEM PETSc wrapper code will try to destroy this during the nonlinear solver destruction so allow them to do so
+   auto *const pre_factory = new NEML2MultigridPreconditionerFactory(*fespaces,
+                                                                     essential_bnd,
+                                                                     cmodel, u);
+   newton.SetPreconditionerFactory(pre_factory);
 
    // Solve
    Vector R;
-   // Use the current state of u as the initial guess
-   newton.iterative_mode = true;
    newton.Mult(R, u);
 
    // Save the solution in parallel using ParaView format

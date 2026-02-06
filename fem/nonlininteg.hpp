@@ -498,7 +498,7 @@ class StressDivergenceIntegrator : public Base
 #endif
 
    // PA extension
-   const FiniteElementSpace *fespace;   ///< Not owned.
+   const FiniteElementSpace *fespace = nullptr;   ///< Not owned.
 
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
