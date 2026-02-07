@@ -887,7 +887,10 @@ ComplexHypreParMatrix::getColStartStop(const HypreParMatrix * A_r,
 #define MUMPS_INFO(I)  info[(I) - 1]
 #define MUMPS_INFOG(I) infog[(I) - 1]
 
-ComplexMUMPSSolver::ComplexMUMPSSolver(MPI_Comm comm_) { Init(comm_); }
+ComplexMUMPSSolver::ComplexMUMPSSolver(MPI_Comm comm_)
+{
+   Init(comm_);
+}
 
 ComplexMUMPSSolver::ComplexMUMPSSolver(const Operator &op)
 {
@@ -948,56 +951,6 @@ ComplexMUMPSSolver::~ComplexMUMPSSolver()
    }
 }
 
-void ComplexMUMPSSolver::SetPrintLevel(int print_lvl) { print_level = print_lvl; }
-
-void ComplexMUMPSSolver::SetParameters()
-{
-   // Output stream for error messages
-   id->MUMPS_ICNTL(1) = 6;
-   // Output stream for diagnostic printing local to each proc
-   id->MUMPS_ICNTL(2) = 0;
-   // Output stream for global info
-   id->MUMPS_ICNTL(3) = 6;
-   // Level of error printing
-   id->MUMPS_ICNTL(4) = print_level;
-
-   // Input matrix format (assembled)
-   id->MUMPS_ICNTL(5) = 0;
-   // Use A or A^T
-   id->MUMPS_ICNTL(9) = 1;
-   // Iterative refinement (disabled)
-   id->MUMPS_ICNTL(10) = 0;
-   // Error analysis-statistics (disabled)
-   id->MUMPS_ICNTL(11) = 0;
-   // Use of ScaLAPACK (disabled)
-   id->MUMPS_ICNTL(13) = 0;
-   // Workspace relaxation (% increase)
-   id->MUMPS_ICNTL(14) = 20;
-   // OpenMP threads (default)
-   id->MUMPS_ICNTL(16) = 0;
-   // Matrix input format (distributed)
-   id->MUMPS_ICNTL(18) = 3;
-   // Schur complement (none)
-   id->MUMPS_ICNTL(19) = 0;
-
-#if MFEM_MUMPS_VERSION >= 530
-   // Distributed RHS
-   id->MUMPS_ICNTL(20) = 10;
-   // Distributed Sol
-   id->MUMPS_ICNTL(21) = 1;
-#else
-   // Centralized RHS
-   id->MUMPS_ICNTL(20) = 0;
-   // Centralized Sol
-   id->MUMPS_ICNTL(21) = 0;
-#endif
-
-   // Out-of-core (disabled)
-   id->MUMPS_ICNTL(22) = 0;
-   // Max size of working memory (default)
-   id->MUMPS_ICNTL(23) = 0;
-}
-
 void ComplexMUMPSSolver::SetOperator(const Operator &op)
 {
    auto APtr = dynamic_cast<const ComplexHypreParMatrix *>(&op);
@@ -1011,9 +964,17 @@ void ComplexMUMPSSolver::SetOperator(const Operator &op)
    APtr->imag().HostRead();
 
    // (Re)initialize comm metadata (safe even if already set)
-   comm = APtr->real().GetComm();
-   MPI_Comm_size(comm, &numProcs);
-   MPI_Comm_rank(comm, &myid);
+   MPI_Comm op_comm = APtr->real().GetComm();
+   if (comm == MPI_COMM_NULL)
+   {
+      Init(op_comm); // safe only if you guarantee Init() not called before
+   }
+   else
+   {
+      int cmp = MPI_UNEQUAL;
+      MPI_Comm_compare(comm, op_comm, &cmp);
+      MFEM_VERIFY(cmp != MPI_UNEQUAL, "MPI Comm mismatch");
+   }
 
    auto parcsr_op_r = (hypre_ParCSRMatrix*) const_cast<HypreParMatrix&>
                       (APtr->real());
@@ -1028,9 +989,8 @@ void ComplexMUMPSSolver::SetOperator(const Operator &op)
    hypre_CSRMatrixBigJtoJ(csr_op_i);
 #endif
 
-   // Pointers (note: HYPRE typically uses double; we only cast into MUMPS scalars)
-   int   *Ir = csr_op_r->i;  int   *Jr = csr_op_r->j;  double *Vr = csr_op_r->data;
-   int   *Ii = csr_op_i->i;  int   *Ji = csr_op_i->j;  double *Vi = csr_op_i->data;
+   int   *Ir = csr_op_r->i;  int   *Jr = csr_op_r->j;  real_t *Vr = csr_op_r->data;
+   int   *Ii = csr_op_i->i;  int   *Ji = csr_op_i->j;  real_t *Vi = csr_op_i->data;
 
    const int n_loc = internal::to_int(csr_op_r->num_rows);
    row_start = internal::to_int(parcsr_op_r->first_row_index);
@@ -1045,7 +1005,7 @@ void ComplexMUMPSSolver::SetOperator(const Operator &op)
 
    for (int r = 0; r < n_loc; ++r)
    {
-      std::unordered_map<int, std::pair<double,double>> row;
+      std::unordered_map<int, std::pair<real_t,real_t>> row;
       row.reserve((Ir[r+1] - Ir[r]) + (Ii[r+1] - Ii[r]));
 
       for (int p = Ir[r]; p < Ir[r+1]; ++p) { row[Jr[p]].first  = Vr[p]; }
@@ -1054,8 +1014,8 @@ void ComplexMUMPSSolver::SetOperator(const Operator &op)
       for (const auto &kv : row)
       {
          const int c = kv.first;
-         const double vr = kv.second.first;
-         const double vi = kv.second.second;
+         const real_t vr = kv.second.first;
+         const real_t vi = kv.second.second;
 
          Icoo.push_back(row_start + r + 1);
          Jcoo.push_back(c + 1);
@@ -1073,42 +1033,61 @@ void ComplexMUMPSSolver::SetOperator(const Operator &op)
    std::copy(Jcoo.begin(), Jcoo.end(), J);
    std::copy(Zcoo.begin(), Zcoo.end(), A);
 
-   // Destroy previous handle (no symbolic reuse in this minimal version)
-   if (id)
+   const int global_n = internal::to_int(parcsr_op_r->global_num_rows);
+
+   // New MUMPS object or reuse an existing one (symbolic reuse)
+   if (!id || !reorder_reuse)
    {
-      id->job = -2;
-      mumps_call();
-      delete id;
-      id = nullptr;
-   }
+      if (id)
+      {
+         id->job = -2;
+         mumps_call();
+         delete id;
+         id = nullptr;
+      }
 
 #ifdef MFEM_USE_SINGLE
-   id = new CMUMPS_STRUC_C();
+      id = new CMUMPS_STRUC_C();
 #else
-   id = new ZMUMPS_STRUC_C();
+      id = new ZMUMPS_STRUC_C();
 #endif
 
-   id->sym = 0; // general complex
-   id->par = 1;
-   id->comm_fortran = (MUMPS_INT)MPI_Comm_c2f(comm);
+      id->sym = 0; // general complex
+      id->par = 1;
+      id->comm_fortran = (MUMPS_INT)MPI_Comm_c2f(comm);
 
-   // Init
-   id->job = -1;
-   mumps_call();
+      // Init
+      id->job = -1;
+      mumps_call();
 
-   SetParameters();
+      // Set parameters (must be done after init, before analysis/factorization)
+      SetParameters();
 
-   id->n = internal::to_int(parcsr_op_r->global_num_rows);
-   id->nnz_loc = nnz;
-   id->irn_loc = I;
-   id->jcn_loc = J;
-   id->a_loc   = A;
+      // Attach matrix
+      id->n       = global_n;
+      id->nnz_loc = nnz;
+      id->irn_loc = I;
+      id->jcn_loc = J;
+      id->a_loc   = A;
 
-   // Analysis
-   id->job = 1;
-   mumps_call();
+      // Analysis (ordering + symbolic)
+      id->job = 1;
+      mumps_call();
+   }
+   else
+   {
+      // Reuse symbolic factorization / ordering
+      MFEM_VERIFY(id->n == global_n,
+                  "ReorderingReuse requires same global size (id->n mismatch)");
 
-   // Factorization (with memory relaxation loop like MFEM)
+      // Update matrix pointers (pattern is assumed compatible)
+      id->nnz_loc = nnz;
+      id->irn_loc = I;
+      id->jcn_loc = J;
+      id->a_loc   = A;
+   }
+
+   // Factorization
    id->job = 2;
    {
       const int mem_relax_lim = 200;
@@ -1217,114 +1196,308 @@ void ComplexMUMPSSolver::InitRhsSol(int nrhs) const
       delete [] rhs_loc;
       delete [] sol_loc;
 
-      rhs_loc = (nrhs > 1) ? new mumps_complex_t[nrhs * id->lrhs_loc] : nullptr;
-      sol_loc = new mumps_complex_t[nrhs * id->lsol_loc];
+      rhs_loc = new mumps_complex_t[(size_t)nrhs * (size_t)id->lrhs_loc];
+      sol_loc = new mumps_complex_t[(size_t)nrhs * (size_t)id->lsol_loc];
 
-      id->rhs_loc = rhs_loc; // may be overridden for nrhs==1
+      id->rhs_loc = rhs_loc;
       id->sol_loc = sol_loc;
    }
    id->nrhs = nrhs;
 
 #else
    MFEM_VERIFY(id, "InitRhsSol called before SetOperator");
+   MFEM_VERIFY(nrhs >= 1, "InitRhsSol: nrhs must be >= 1");
+
+   // MUMPS wants these set
+   id->nrhs = nrhs;
+   // Leading dimension on root in centralized RHS mode
+   id->lrhs = id->n;
+
    if (myid == 0)
    {
-      // allocate for nrhs==1 only in this minimal version
-      MFEM_VERIFY(nrhs == 1, "Array RHS not implemented in <530 path yet");
+      const size_t N = (size_t)nrhs * (size_t)global_num_rows;
+
       delete [] rhs_glob;
       delete [] rhs_glob_r;
       delete [] rhs_glob_i;
-      rhs_glob   = new mumps_complex_t[global_num_rows];
-      rhs_glob_r = new real_t[global_num_rows];
-      rhs_glob_i = new real_t[global_num_rows];
+
+      rhs_glob   = new mumps_complex_t[N];
+      rhs_glob_r = new real_t[N];
+      rhs_glob_i = new real_t[N];
+
+      // id->rhs points to the centralized RHS buffer (in-place overwritten by solution)
       id->rhs = rhs_glob;
    }
-   id->nrhs = nrhs;
 #endif
 }
 
 void ComplexMUMPSSolver::Mult(const Vector &x, Vector &y) const
 {
+   Array<const Vector *> X(1);
+   Array<Vector *> Y(1);
+   X[0] = &x;
+   Y[0] = &y;
+   ArrayMult(X, Y);
+}
+
+void ComplexMUMPSSolver::ArrayMult(const Array<const Vector *> &X,
+                                   Array<Vector *> &Y) const
+{
+   MFEM_ASSERT(X.Size() == Y.Size(),
+               "Number of columns mismatch in ComplexMUMPSSolver::Mult!");
+   MFEM_VERIFY(id, "ComplexMUMPSSolver::ArrayMult called before SetOperator");
+
+   InitRhsSol(X.Size());
+
 #if MFEM_MUMPS_VERSION >= 530
-   x.HostRead();
-   y.HostWrite();
+   MFEM_VERIFY(irhs_loc && isol_loc, "RHS/SOL maps not initialized");
+   MFEM_VERIFY(rhs_loc && sol_loc, "RHS/SOL buffers not initialized");
+   const int n_loc = id->lrhs_loc;
+   const int nrhs  = id->nrhs;
 
-   MFEM_VERIFY(id, "ComplexMUMPSSolver::Mult called before SetOperator");
-   MFEM_VERIFY(irhs_loc &&
-               isol_loc, "SetOperator did not initialize RHS/SOL maps");
-
-   const int n = x.Size()/2;
-   MFEM_VERIFY(n == id->lrhs_loc, "RHS size mismatch in ComplexMUMPSSolver::Mult");
-   MFEM_VERIFY(y.Size() == x.Size(),
-               "x/y size mismatch in ComplexMUMPSSolver::Mult");
-
-   InitRhsSol(1);
-
-   // Pack RHS into a reusable buffer (no heap churn)
-   rhs1_buf.resize(n);
-   for (int i = 0; i < n; i++)
+   // Pack all RHS (works for nrhs==1 too)
+   for (int i = 0; i < nrhs; i++)
    {
-      rhs1_buf[i].r = (decltype(rhs1_buf[i].r)) x[i];
-      rhs1_buf[i].i = (decltype(rhs1_buf[i].i)) x[n+i];
+      MFEM_ASSERT(X[i], "Missing Vector in ComplexMUMPSSolver::Mult!");
+      X[i]->HostRead();
+      MFEM_VERIFY(X[i]->Size() == 2*n_loc, "RHS size mismatch");
+
+      const real_t *xdata = X[i]->GetData();
+      const real_t *xr = xdata;
+      const real_t *xi = xdata + n_loc;
+
+      mumps_complex_t *dst = rhs_loc + i * n_loc;
+      for (int j = 0; j < n_loc; j++)
+      {
+         dst[j].r = xr[j];
+         dst[j].i = xi[j];
+      }
    }
 
-   id->rhs_loc  = rhs1_buf.data();
+   id->rhs_loc  = rhs_loc;
+   id->sol_loc  = sol_loc;
    id->irhs_loc = irhs_loc;
+   id->isol_loc = isol_loc;
 
+   // MUMPS solve
    id->job = 3;
    mumps_call();
 
-   RedistributeSol(isol_loc, sol_loc, y.GetData(), n, id->lsol_loc);
+   const int lsol = id->lsol_loc;
 
-#else
-   x.HostRead();
-   y.HostWrite();
-
-   MFEM_VERIFY(id, "ComplexMUMPSSolver::Mult called before SetOperator");
-
-   const int n = x.Size()/2;
-   MFEM_VERIFY(y.Size() == x.Size(),
-               "x/y size mismatch in ComplexMUMPSSolver::Mult");
-
-   InitRhsSol(1);
-
-   // Gather real and imag parts to root
-   const real_t *xdata = x.GetData();
-   MPI_Gatherv(xdata, n, MPITypeMap<real_t>::mpi_type,
-               rhs_glob_r, recv_counts, displs, MPITypeMap<real_t>::mpi_type,
-               0, comm);
-   MPI_Gatherv(xdata + n, n, MPITypeMap<real_t>::mpi_type,
-               rhs_glob_i, recv_counts, displs, MPITypeMap<real_t>::mpi_type,
-               0, comm);
-
-   if (myid == 0)
+   // Redistribute each solution column into Y
+   for (int i = 0; i < nrhs; i++)
    {
-      for (int i = 0; i < global_num_rows; i++)
-      {
-         rhs_glob[i].r = (decltype(rhs_glob[i].r)) rhs_glob_r[i];
-         rhs_glob[i].i = (decltype(rhs_glob[i].i)) rhs_glob_i[i];
-      }
+      MFEM_ASSERT(Y[i], "Missing output Vector in ComplexMUMPSSolver::Mult!");
+      Y[i]->HostWrite();
+      MFEM_VERIFY(Y[i]->Size() == 2*n_loc, "Output size mismatch");
+
+      const mumps_complex_t *xcol = sol_loc + i * lsol;
+      RedistributeSol(isol_loc, xcol, Y[i]->GetData(), n_loc, lsol);
    }
 
+#else // MFEM_MUMPS_VERSION < 530
+
+   const int nrhs = id->nrhs;
+
+   MFEM_VERIFY(X.Size() > 0 && X[0], "Missing RHS");
+   const int n_loc = X[0]->Size()/2;
+
+   for (int i = 0; i < nrhs; i++)
+   {
+      MFEM_ASSERT(X[i], "Missing Vector in ComplexMUMPSSolver::Mult!");
+      X[i]->HostRead();
+      MFEM_VERIFY(X[i]->Size() == 2*n_loc, "RHS size mismatch");
+   }
+
+   // Gather each RHS column (real+imag separately) into root staging
+   for (int i = 0; i < nrhs; i++)
+   {
+      const real_t *xdata = X[i]->GetData();
+
+      MPI_Gatherv(xdata, n_loc, MPITypeMap<real_t>::mpi_type,
+                  rhs_glob_r + i * global_num_rows,
+                  recv_counts, displs, MPITypeMap<real_t>::mpi_type,
+                  0, comm);
+
+      MPI_Gatherv(xdata + n_loc, n_loc, MPITypeMap<real_t>::mpi_type,
+                  rhs_glob_i + i * global_num_rows,
+                  recv_counts, displs, MPITypeMap<real_t>::mpi_type,
+                  0, comm);
+   }
+
+   // Pack into MUMPS complex RHS on root: id->rhs is in-place
+   if (myid == 0)
+   {
+      for (int i = 0; i < nrhs; i++)
+      {
+         mumps_complex_t *dst = rhs_glob + i * global_num_rows;
+         const real_t *rr = rhs_glob_r + i * global_num_rows;
+         const real_t *ri = rhs_glob_i + i * global_num_rows;
+
+         for (int j = 0; j < global_num_rows; j++)
+         {
+            dst[j].r = rr[j];
+            dst[j].i = ri[j];
+         }
+      }
+      id->rhs = rhs_glob;
+   }
+
+   // MUMPS solve
    id->job = 3;
    mumps_call();
 
+   // Unpack to real/imag staging on root
    if (myid == 0)
    {
-      for (int i = 0; i < global_num_rows; i++)
+      for (int i = 0; i < nrhs; i++)
       {
-         rhs_glob_r[i] = (real_t) rhs_glob[i].r;
-         rhs_glob_i[i] = (real_t) rhs_glob[i].i;
+         const mumps_complex_t *src = rhs_glob + i * global_num_rows;
+         real_t *rr = rhs_glob_r + i * global_num_rows;
+         real_t *ri = rhs_glob_i + i * global_num_rows;
+
+         for (int j = 0; j < global_num_rows; j++)
+         {
+            rr[j] = src[j].r;
+            ri[j] = src[j].i;
+         }
       }
    }
 
-   real_t *ydata = y.GetData();
-   MPI_Scatterv(rhs_glob_r, recv_counts, displs, MPITypeMap<real_t>::mpi_type,
-                ydata, n, MPITypeMap<real_t>::mpi_type, 0, comm);
-   MPI_Scatterv(rhs_glob_i, recv_counts, displs, MPITypeMap<real_t>::mpi_type,
-                ydata + n, n, MPITypeMap<real_t>::mpi_type, 0, comm);
+   // Scatter each RHS solution
+   for (int i = 0; i < nrhs; i++)
+   {
+      MFEM_ASSERT(Y[i], "Missing Vector in ComplexMUMPSSolver::Mult!");
+      Y[i]->HostWrite();
+      MFEM_VERIFY(Y[i]->Size() == 2*n_loc, "Output size mismatch");
+
+      real_t *ydata = Y[i]->GetData();
+
+      MPI_Scatterv(rhs_glob_r + i * global_num_rows,
+                   recv_counts, displs, MPITypeMap<real_t>::mpi_type,
+                   ydata, n_loc, MPITypeMap<real_t>::mpi_type,
+                   0, comm);
+
+      MPI_Scatterv(rhs_glob_i + i * global_num_rows,
+                   recv_counts, displs, MPITypeMap<real_t>::mpi_type,
+                   ydata + n_loc, n_loc, MPITypeMap<real_t>::mpi_type,
+                   0, comm);
+   }
+
 #endif
 }
+
+void ComplexMUMPSSolver::MultTranspose(const Vector &x, Vector &y) const
+{
+   MFEM_VERIFY(id, "ComplexMUMPSSolver::MultTranspose called before SetOperator");
+
+   // Transpose solve
+   id->MUMPS_ICNTL(9) = 0;
+   Mult(x, y);
+   id->MUMPS_ICNTL(9) = 1;
+}
+
+void ComplexMUMPSSolver::ArrayMultTranspose(const Array<const Vector *> &X,
+                                            Array<Vector *> &Y) const
+{
+   MFEM_VERIFY(id,
+               "ComplexMUMPSSolver::ArrayMultTranspose called before SetOperator");
+
+   // Transpose solve
+   id->MUMPS_ICNTL(9) = 0;
+   ArrayMult(X, Y);
+   id->MUMPS_ICNTL(9) = 1;
+}
+
+void ComplexMUMPSSolver::SetParameters()
+{
+   // Output stream for error messages
+   id->MUMPS_ICNTL(1) = 6;
+   // Output stream for diagnostic printing local to each proc
+   id->MUMPS_ICNTL(2) = 0;
+   // Output stream for global info
+   id->MUMPS_ICNTL(3) = 6;
+   // Level of error printing
+   id->MUMPS_ICNTL(4) = print_level;
+
+   // Input matrix format (assembled)
+   id->MUMPS_ICNTL(5) = 0;
+   // Use A or A^T
+   id->MUMPS_ICNTL(9) = 1;
+   // Iterative refinement (disabled)
+   id->MUMPS_ICNTL(10) = 0;
+   // Error analysis-statistics (disabled)
+   id->MUMPS_ICNTL(11) = 0;
+   // Use of ScaLAPACK (disabled)
+   id->MUMPS_ICNTL(13) = 0;
+   // Workspace relaxation (% increase)
+   id->MUMPS_ICNTL(14) = 20;
+   // OpenMP threads (default)
+   id->MUMPS_ICNTL(16) = 0;
+   // Matrix input format (distributed)
+   id->MUMPS_ICNTL(18) = 3;
+   // Schur complement (none)
+   id->MUMPS_ICNTL(19) = 0;
+
+#if MFEM_MUMPS_VERSION >= 530
+   // Distributed RHS
+   id->MUMPS_ICNTL(20) = 10;
+   // Distributed Sol
+   id->MUMPS_ICNTL(21) = 1;
+#else
+   // Centralized RHS
+   id->MUMPS_ICNTL(20) = 0;
+   // Centralized Sol
+   id->MUMPS_ICNTL(21) = 0;
+#endif
+
+   // Out-of-core (disabled)
+   id->MUMPS_ICNTL(22) = 0;
+   // Max size of working memory (default)
+   id->MUMPS_ICNTL(23) = 0;
+
+   switch (reorder_method)
+   {
+      case ReorderingStrategy::AUTOMATIC:
+         id->MUMPS_ICNTL(28) = 0;
+         id->MUMPS_ICNTL(7) = 7;
+         id->MUMPS_ICNTL(29) = 0;
+         break;
+      case ReorderingStrategy::AMD:
+         id->MUMPS_ICNTL(28) = 1;
+         id->MUMPS_ICNTL(7) = 0;
+         break;
+      case ReorderingStrategy::AMF:
+         id->MUMPS_ICNTL(28) = 1;
+         id->MUMPS_ICNTL(7) = 2;
+         break;
+      case ReorderingStrategy::PORD:
+         id->MUMPS_ICNTL(28) = 1;
+         id->MUMPS_ICNTL(7) = 4;
+         break;
+      case ReorderingStrategy::METIS:
+         id->MUMPS_ICNTL(28) = 1;
+         id->MUMPS_ICNTL(7) = 5;
+         break;
+      case ReorderingStrategy::PARMETIS:
+         id->MUMPS_ICNTL(28) = 2;
+         id->MUMPS_ICNTL(29) = 2;
+         break;
+      case ReorderingStrategy::SCOTCH:
+         id->MUMPS_ICNTL(28) = 1;
+         id->MUMPS_ICNTL(7) = 3;
+         break;
+      case ReorderingStrategy::PTSCOTCH:
+         id->MUMPS_ICNTL(28) = 2;
+         id->MUMPS_ICNTL(29) = 1;
+         break;
+      default:
+         break; // This should be unreachable
+   }
+
+}
+
 
 #if MFEM_MUMPS_VERSION >= 530
 int ComplexMUMPSSolver::GetRowRank(int i, const Array<int> &row_starts_) const
@@ -1427,12 +1600,6 @@ void ComplexMUMPSSolver::RedistributeSol(const int *row_map,
    delete [] send_count;
 }
 #endif // MFEM_MUMPS_VERSION >= 530
-
-#undef MUMPS_ICNTL
-#undef MUMPS_CNTL
-#undef MUMPS_INFO
-#undef MUMPS_INFOG
-
 #endif // MFEM_USE_COMPLEX_MUMPS
 #endif // MFEM_USE_MPI
 

@@ -305,26 +305,136 @@ private:
  *
  * Notes:
  *  - Expects Operator to be a ComplexHypreParMatrix.
- *  - MFEM complex vectors are assumed packed as [Re; Im] in a real Vector.
- *  - Implements MFEM-style setup:
- *      SetOperator() = analysis + factorization
- *      Mult()        = solve (cached buffers via InitRhsSol)
+ *  - Complex vectors are assumed packed as [Re; Im] in a real Vector.
+ *  - SetOperator() = analysis + factorization
+ *  - Mult()        = solve (cached buffers via InitRhsSol)
  */
 class ComplexMUMPSSolver : public Solver
 {
 public:
-   ComplexMUMPSSolver() = default;
-   explicit ComplexMUMPSSolver(MPI_Comm comm_);
-   explicit ComplexMUMPSSolver(const Operator &op);
+   /// Specify the reordering strategy for the MUMPS solver
+   enum ReorderingStrategy
+   {
+      /// Let MUMPS automatically decide the reording strategy
+      AUTOMATIC = 0,
+      /// Approximate Minimum Degree with auto quasi-dense row detection is used
+      AMD,
+      /// Approximate Minimum Fill method will be used
+      AMF,
+      /// The PORD library will be used
+      PORD,
+      /// The METIS library will be used
+      METIS,
+      /// The ParMETIS library will be used
+      PARMETIS,
+      /// The Scotch library will be used
+      SCOTCH,
+      /// The PTScotch library will be used
+      PTSCOTCH
+   };
 
-   void SetOperator(const Operator &op) override;
-   void Mult(const Vector &x, Vector &y) const override;
+   /**
+    * @brief Constructor with MPI_Comm parameter.
+    */
+   ComplexMUMPSSolver(MPI_Comm comm_);
+   /**
+    * @brief Constructor with a HypreParMatrix Operator.
+    */
+   ComplexMUMPSSolver(const Operator &op);
 
-   void SetPrintLevel(int print_lvl);
+   /**
+    * @brief Set the Operator and perform factorization
+    *
+    * @a op needs to be of type HypreParMatrix.
+    *
+    * @param op Operator used in factorization and solve
+    */
+   void SetOperator(const Operator &op);
 
-   ~ComplexMUMPSSolver() override;
+   /**
+    * @brief Solve $ y = Op^{-1} x $
+    *
+    * @param x RHS vector
+    * @param y Solution vector
+    */
+   void Mult(const Vector &x, Vector &y) const;
+   /**
+    * @brief Solve $ Y_i = Op^{-1} X_i $
+    *
+    * @param X Array of RHS vectors
+    * @param Y Array of Solution vectors
+    */
+   void ArrayMult(const Array<const Vector *> &X, Array<Vector *> &Y) const;
+   /**
+    * @brief Transpose Solve $ y = Op^{-T} x $
+    * @note This is not a Hermitian/conjugate-transpose solve.
+    *
+    * @param x RHS vector
+    * @param y Solution vector
+    */
+   void MultTranspose(const Vector &x, Vector &y) const;
+
+   /**
+    * @brief Transpose Solve $ Y_i = Op^{-T} X_i $
+    * @note This is not a Hermitian/conjugate-transpose solve.
+    *
+    * @param X Array of RHS vectors
+    * @param Y Array of Solution vectors
+    */
+   void ArrayMultTranspose(const Array<const Vector *> &X,
+                           Array<Vector *> &Y) const;
+
+   /**
+    * @brief Set the error print level for MUMPS
+    *
+    * Supported values are:
+    * - 0:  No output printed
+    * - 1:  Only errors printed
+    * - 2:  Errors, warnings, and main stats printed
+    * - 3:  Errors, warning, main stats, and terse diagnostics printed
+    * - 4:  Errors, warning, main stats, diagnostics, and input/output printed
+    *
+    * @param print_lvl Print level, default is 2
+    *
+    * @note This method has to be called before SetOperator
+    */
+   void SetPrintLevel(int print_lvl) { print_level = print_lvl;}
+
+   /**
+    * @brief Set the reordering strategy
+    *
+    * Supported reorderings are: MUMPSSolver::AUTOMATIC,
+    * MUMPSSolver::AMD, MUMPSSolver::AMF, MUMPSSolver::PORD,
+    * MUMPSSolver::METIS, MUMPSSolver::PARMETIS,
+    * MUMPSSolver::SCOTCH, and MUMPSSolver::PTSCOTCH
+    *
+    * @param method Reordering method
+    *
+    * @note This method has to be called before SetOperator
+    */
+   void SetReorderingStrategy(ReorderingStrategy method) { reorder_method = method; }
+
+   /**
+    * @brief Set the flag controlling reuse of the symbolic factorization
+    * for multiple operators
+    *
+    * @param reuse Flag to reuse symbolic factorization
+    *
+    * @note This method has to be called before repeated calls to SetOperator
+    */
+   void SetReorderingReuse(bool reuse) { reorder_reuse = reuse; }
+
+   ~ComplexMUMPSSolver();
 
 private:
+   // Parameter controlling the reordering strategy
+   ReorderingStrategy reorder_method = ReorderingStrategy::AUTOMATIC;
+   // Parameter controlling whether or not to reuse the symbolic factorization
+   // for multiple calls to SetOperator
+   bool reorder_reuse = false;
+
+   // Parameter controlling the printing level
+   int print_level = 0;
    void Init(MPI_Comm comm_);
    void SetParameters();
    void InitRhsSol(int nrhs) const;
@@ -342,7 +452,6 @@ private:
    int numProcs = 1;
    int myid = 0;
 
-   int print_level = 0;
    int row_start = 0;
 
 #ifdef MFEM_USE_SINGLE

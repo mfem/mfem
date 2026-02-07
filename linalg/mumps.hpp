@@ -98,7 +98,7 @@ public:
    void Mult(const Vector &x, Vector &y) const;
 
    /**
-    * @brief Solve $ Y_i = Op^{-T} X_i $
+    * @brief Solve $ Y_i = Op^{-1} X_i $
     *
     * @param X Array of RHS vectors
     * @param Y Array of Solution vectors

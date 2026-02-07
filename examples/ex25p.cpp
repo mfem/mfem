@@ -507,7 +507,7 @@ int main(int argc, char *argv[])
    {
       ComplexHypreParMatrix *Ahc = Ah.As<ComplexHypreParMatrix>();
 #ifdef MFEM_USE_COMPLEX_MUMPS
-      ComplexMUMPSSolver mumps;
+      ComplexMUMPSSolver mumps(MPI_COMM_WORLD);
       mumps.SetPrintLevel(0);
       mumps.SetOperator(*Ahc);
       mumps.Mult(B, X);
