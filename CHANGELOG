@@ -111,6 +111,23 @@ Linear and nonlinear solvers
   Filtering (AMGF), providing robust preconditioning for linear systems arising
   in constrained optimization problems such as frictionless contact.
 
+  Added 'GetResiduals' and 'GetFinalAbsResidualNorm' to 'HyprePCG',
+  'HypreGMRES', and 'HypreFGMRES' to get 'r' and '|r|_p'. Note that the latter
+  computes '|r|_p' from 'r' instead of returning a cached value like the
+  relative 'GetFinalResidualNorm'. These require Hypre >= 2.15.0.
+
+  Changed the default solver parameters for 'HyprePCG' to 'tol=1e-6' and
+  'max_iter=1000'. This matches the default parameters in Hypre 3.0.
+
+  Added various helper functions for querying/modifying Hypre solvers:
+  'HypreSmoother::GetType', 'HypreSmoother::GetSOROptions',
+  'HypreSmoother::GetPolyOptions', 'HypreSmoother::GetWindowParameters',
+  'HypreSmoother::IsOperatorSymmetric', 'HyprePCG::GetTol',
+  'HyprePCG::GetAbsTol', 'HyprePCG::GetMaxIter', 'HyprePCG::SetUseTwoNorm',
+  'HypreGMRES::GetTol', 'HypreGMRES::GetAbsTol', 'HypreGMRES::GetMaxIter',
+  'HypreGMRES::GetKDim', 'HypreFGMRES::GetTol', 'HypreFGMRES::GetMaxIter',
+  'HypreFGMRES::GetKDim', and 'HypreBoomerAMG::GetMaxIter'.
+
 GPU computing
 -------------
 - Added the 'gpu', 'raja-gpu', and 'ceed-gpu' backend aliases/shortcuts which
