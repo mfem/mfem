@@ -23,7 +23,18 @@ void interpolate(
 
       if constexpr (is_weight_fop<input_t>::value)
       {
-         xq.GetBlock(i) = ir.GetWeights();
+         Vector &w = xq.GetBlock(i);
+
+         const int nqp = ir.GetNPoints();
+         MFEM_ASSERT(w.Size() % nqp == 0, "weight block has unexpected size");
+
+         const int ne = w.Size() / nqp;
+         const real_t *wref = ir.GetWeights().Read();
+
+         for (int e = 0; e < ne; e++)
+         {
+            std::memcpy(w.GetData() + e*nqp, wref, nqp*sizeof(real_t));
+         }
          return;
       }
 

@@ -1282,9 +1282,9 @@ void prepare_residual(
       // TODO
       if (r_e[i] == nullptr)
       {
-         r_e[i] = new Vector(R->Width());
+         r_e[i] = new Vector(R->Height());
       }
-      r_e[i]->SetSize(R->Width());
+      r_e[i]->SetSize(R->Height());
    }
 }
 
