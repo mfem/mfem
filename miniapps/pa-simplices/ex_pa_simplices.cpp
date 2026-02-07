@@ -13,7 +13,6 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-// #include <cmath>
 #include <chrono>
 
 using namespace std;
@@ -30,31 +29,33 @@ int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
    Mpi::Init();
-   // int num_procs = Mpi::WorldSize();
+   int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
    Hypre::Init();
 
    // 2. Parse command line options.
    string mesh_file = "../../data/inline-tet.mesh";
-   string mesh_type;
-   string filename;
+   string filename = "pa_simplices_results";
    int order = 4;
    int nrefs = 1;
    int max_iters = 2000;
    const char *device_config = "cpu";
    string bp_type = "bp1";
+   bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&order, "-o", "--order", "Finite element polynomial degree");
    args.AddOption(&nrefs, "-nr", "--nrefs", "Number of mesh refinements");
-   args.AddOption(&mesh_type, "-t", "--type", "Type of mesh");
    args.AddOption(&max_iters, "-it", "--maxiters", "Maximum CG iterations");
    args.AddOption(&filename, "-f", "--filename", "Name of save file");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&bp_type, "-bp", "--bp_type",
                   "Type of BP, only bp1 or bp3 supported");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.ParseCheck();
 
    // 3. Enable hardware devices such as GPUs, and programming models such as
@@ -301,9 +302,20 @@ int main(int argc, char *argv[])
 
       fstream file;
       file.open(filename + ".txt", std::ios::app);
+      // file << bp_type << " ";
       file << "p=" << order << ", time=" << diff.count() << ", iters=" << num_iters <<
            ", dofs=" << size << ", dofs/s=" << size / (diff.count() / num_iters);
       file << endl;
+   }
+
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << pmesh << x << flush;
    }
 
    // 17. Free the used memory.
