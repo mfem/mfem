@@ -896,7 +896,6 @@ ComplexMUMPSSolver::ComplexMUMPSSolver(const Operator &op)
 {
    auto APtr = dynamic_cast<const ComplexHypreParMatrix *>(&op);
    MFEM_VERIFY(APtr, "Not a compatible matrix type for ComplexMUMPSSolver");
-   Init(APtr->real().GetComm());
    SetOperator(op);
 }
 
@@ -906,7 +905,7 @@ void ComplexMUMPSSolver::Init(MPI_Comm comm_)
    MPI_Comm_size(comm, &numProcs);
    MPI_Comm_rank(comm, &myid);
 
-   print_level = 0;
+   print_level = 2;
    row_start = 0;
 
    // Start with no MUMPS object
@@ -959,16 +958,16 @@ void ComplexMUMPSSolver::SetOperator(const Operator &op)
    height = op.Height();
    width  = op.Width();
 
-   // Ensure host views are valid
-   APtr->real().HostRead();
-   APtr->imag().HostRead();
+   const HypreParMatrix *Ar = (APtr->hasRealPart()) ? &APtr->real() : nullptr;
+   const HypreParMatrix *Ai = (APtr->hasImagPart()) ? &APtr->imag() : nullptr;
 
-   // (Re)initialize comm metadata (safe even if already set)
-   MPI_Comm op_comm = APtr->real().GetComm();
-   if (comm == MPI_COMM_NULL)
-   {
-      Init(op_comm); // safe only if you guarantee Init() not called before
-   }
+   MFEM_VERIFY(Ar || Ai, "ComplexMUMPSSolver: both real and imag parts are null.");
+
+   // Pick communicator from the non-null part
+   MPI_Comm op_comm = (Ar ? Ar->GetComm() : Ai->GetComm());
+
+   // Comm setup/check (same logic you already have)
+   if (comm == MPI_COMM_NULL) { Init(op_comm); }
    else
    {
       int cmp = MPI_UNEQUAL;
@@ -976,53 +975,62 @@ void ComplexMUMPSSolver::SetOperator(const Operator &op)
       MFEM_VERIFY(cmp != MPI_UNEQUAL, "MPI Comm mismatch");
    }
 
-   auto parcsr_op_r = (hypre_ParCSRMatrix*) const_cast<HypreParMatrix&>
-                      (APtr->real());
-   auto parcsr_op_i = (hypre_ParCSRMatrix*) const_cast<HypreParMatrix&>
-                      (APtr->imag());
+   // HostRead only if non-null
+   if (Ar) { Ar->HostRead(); }
+   if (Ai) { Ai->HostRead(); }
 
-   hypre_CSRMatrix *csr_op_r = hypre_MergeDiagAndOffd(parcsr_op_r);
-   hypre_CSRMatrix *csr_op_i = hypre_MergeDiagAndOffd(parcsr_op_i);
+   // hypre parcsr pointers
+   hypre_ParCSRMatrix *parcsr_op_r = nullptr;
+   hypre_ParCSRMatrix *parcsr_op_i = nullptr;
+
+   if (Ar) { parcsr_op_r = (hypre_ParCSRMatrix*) const_cast<HypreParMatrix&>(*Ar); }
+   if (Ai) { parcsr_op_i = (hypre_ParCSRMatrix*) const_cast<HypreParMatrix&>(*Ai); }
+
+   // Merge diag+offd for whichever exists
+   hypre_CSRMatrix *csr_op_r = nullptr;
+   hypre_CSRMatrix *csr_op_i = nullptr;
+
+   if (parcsr_op_r) { csr_op_r = hypre_MergeDiagAndOffd(parcsr_op_r); }
+   if (parcsr_op_i) { csr_op_i = hypre_MergeDiagAndOffd(parcsr_op_i); }
 
 #if MFEM_HYPRE_VERSION >= 21600
-   hypre_CSRMatrixBigJtoJ(csr_op_r);
-   hypre_CSRMatrixBigJtoJ(csr_op_i);
+   if (csr_op_r) { hypre_CSRMatrixBigJtoJ(csr_op_r); }
+   if (csr_op_i) { hypre_CSRMatrixBigJtoJ(csr_op_i); }
 #endif
 
-   int   *Ir = csr_op_r->i;  int   *Jr = csr_op_r->j;  real_t *Vr = csr_op_r->data;
-   int   *Ii = csr_op_i->i;  int   *Ji = csr_op_i->j;  real_t *Vi = csr_op_i->data;
+   // Determine local/global sizes and row_start from an existing part
+   const int n_loc = internal::to_int((csr_op_r ? csr_op_r->num_rows :
+                                       csr_op_i->num_rows));
+   row_start = internal::to_int((parcsr_op_r ? parcsr_op_r->first_row_index
+                                 : parcsr_op_i->first_row_index));
+   const int global_n = internal::to_int((parcsr_op_r ?
+                                          parcsr_op_r->global_num_rows
+                                          : parcsr_op_i->global_num_rows));
 
-   const int n_loc = internal::to_int(csr_op_r->num_rows);
-   row_start = internal::to_int(parcsr_op_r->first_row_index);
+   // CSR row pointers; if part missing, use empty rows
+   static const int zero = 0;
+   // We will use nullptr checks rather than fake arrays for J/V.
 
-   // Build union COO (1-based) using your current per-row hash merge
+   const int *Ir = csr_op_r ? csr_op_r->i : nullptr;
+   const int *Jr = csr_op_r ? csr_op_r->j : nullptr;
+   const real_t *Vr = csr_op_r ? (const real_t*)csr_op_r->data : nullptr;
+
+   const int *Ii = csr_op_i ? csr_op_i->i : nullptr;
+   const int *Ji = csr_op_i ? csr_op_i->j : nullptr;
+   const real_t *Vi = csr_op_i ? (const real_t*)csr_op_i->data : nullptr;
+
+   // Build union COO via map helper, but make it handle nullptr parts:
    std::vector<int> Icoo, Jcoo;
    std::vector<mumps_complex_t> Zcoo;
 
-   Icoo.reserve((size_t)csr_op_r->num_nonzeros + (size_t)csr_op_i->num_nonzeros);
-   Jcoo.reserve(Icoo.capacity());
-   Zcoo.reserve(Icoo.capacity());
+   // Reserve roughly (works even if one part null)
+   size_t nnz_r = csr_op_r ? (size_t)csr_op_r->num_nonzeros : 0;
+   size_t nnz_i = csr_op_i ? (size_t)csr_op_i->num_nonzeros : 0;
+   Icoo.reserve(nnz_r + nnz_i);
+   Jcoo.reserve(nnz_r + nnz_i);
+   Zcoo.reserve(nnz_r + nnz_i);
 
-   for (int r = 0; r < n_loc; ++r)
-   {
-      std::unordered_map<int, std::pair<real_t,real_t>> row;
-      row.reserve((Ir[r+1] - Ir[r]) + (Ii[r+1] - Ii[r]));
-
-      for (int p = Ir[r]; p < Ir[r+1]; ++p) { row[Jr[p]].first  = Vr[p]; }
-      for (int p = Ii[r]; p < Ii[r+1]; ++p) { row[Ji[p]].second = Vi[p]; }
-
-      for (const auto &kv : row)
-      {
-         const int c = kv.first;
-         const real_t vr = kv.second.first;
-         const real_t vi = kv.second.second;
-
-         Icoo.push_back(row_start + r + 1);
-         Jcoo.push_back(c + 1);
-         Zcoo.push_back(mumps_complex_t{(decltype(Zcoo.back().r))vr,
-                                        (decltype(Zcoo.back().i))vi});
-      }
-   }
+   BuildUnionCOO(n_loc, row_start, Ir, Jr, Vr, Ii, Ji, Vi, Icoo, Jcoo, Zcoo);
 
    const int nnz = (int)Icoo.size();
    int *I = new int[nnz];
@@ -1032,8 +1040,6 @@ void ComplexMUMPSSolver::SetOperator(const Operator &op)
    std::copy(Icoo.begin(), Icoo.end(), I);
    std::copy(Jcoo.begin(), Jcoo.end(), J);
    std::copy(Zcoo.begin(), Zcoo.end(), A);
-
-   const int global_n = internal::to_int(parcsr_op_r->global_num_rows);
 
    // New MUMPS object or reuse an existing one (symbolic reuse)
    if (!id || !reorder_reuse)
@@ -1117,8 +1123,8 @@ void ComplexMUMPSSolver::SetOperator(const Operator &op)
    }
 
    // Done with input storage
-   hypre_CSRMatrixDestroy(csr_op_r);
-   hypre_CSRMatrixDestroy(csr_op_i);
+   if (csr_op_r) { hypre_CSRMatrixDestroy(csr_op_r);}
+   if (csr_op_i) { hypre_CSRMatrixDestroy(csr_op_i);}
    delete [] I;
    delete [] J;
    delete [] A;
@@ -1188,8 +1194,8 @@ void ComplexMUMPSSolver::SetOperator(const Operator &op)
 void ComplexMUMPSSolver::InitRhsSol(int nrhs) const
 {
 #if MFEM_MUMPS_VERSION >= 530
+
    MFEM_VERIFY(id, "InitRhsSol called before SetOperator");
-   MFEM_VERIFY(id->lsol_loc > 0, "SetOperator did not configure lsol_loc");
 
    if (id->nrhs != nrhs)
    {
@@ -1206,7 +1212,6 @@ void ComplexMUMPSSolver::InitRhsSol(int nrhs) const
 
 #else
    MFEM_VERIFY(id, "InitRhsSol called before SetOperator");
-   MFEM_VERIFY(nrhs >= 1, "InitRhsSol: nrhs must be >= 1");
 
    // MUMPS wants these set
    id->nrhs = nrhs;
@@ -1258,7 +1263,7 @@ void ComplexMUMPSSolver::ArrayMult(const Array<const Vector *> &X,
    // Pack all RHS (works for nrhs==1 too)
    for (int i = 0; i < nrhs; i++)
    {
-      MFEM_ASSERT(X[i], "Missing Vector in ComplexMUMPSSolver::Mult!");
+      MFEM_ASSERT(X[i], "Missing Vector in Mult!");
       X[i]->HostRead();
       MFEM_VERIFY(X[i]->Size() == 2*n_loc, "RHS size mismatch");
 
@@ -1498,6 +1503,48 @@ void ComplexMUMPSSolver::SetParameters()
 
 }
 
+void ComplexMUMPSSolver::BuildUnionCOO(const int n_loc,
+                                       const int row_start_,
+                                       const int *Ir, const int *Jr, const real_t *Vr,
+                                       const int *Ii, const int *Ji, const real_t *Vi,
+                                       std::vector<int> &Icoo,
+                                       std::vector<int> &Jcoo,
+                                       std::vector<mumps_complex_t> &Zcoo) const
+{
+   for (int r = 0; r < n_loc; ++r)
+   {
+      std::unordered_map<int, std::pair<real_t, real_t>> row;
+
+      const int rr0 = Ir ? Ir[r]   : 0;
+      const int rr1 = Ir ? Ir[r+1] : 0;
+      const int ii0 = Ii ? Ii[r]   : 0;
+      const int ii1 = Ii ? Ii[r+1] : 0;
+
+      row.reserve((rr1 - rr0) + (ii1 - ii0));
+
+      if (Ir)
+      {
+         for (int p = rr0; p < rr1; ++p)
+         {
+            row[Jr[p]].first += Vr[p];
+         }
+      }
+      if (Ii)
+      {
+         for (int p = ii0; p < ii1; ++p)
+         {
+            row[Ji[p]].second += Vi[p];
+         }
+      }
+
+      for (const auto &kv : row)
+      {
+         Icoo.push_back(row_start_ + r + 1);
+         Jcoo.push_back(kv.first + 1);
+         Zcoo.push_back(mumps_complex_t{kv.second.first, kv.second.second});
+      }
+   }
+}
 
 #if MFEM_MUMPS_VERSION >= 530
 int ComplexMUMPSSolver::GetRowRank(int i, const Array<int> &row_starts_) const

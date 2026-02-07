@@ -312,7 +312,7 @@ private:
 class ComplexMUMPSSolver : public Solver
 {
 public:
-   /// Specify the reordering strategy for the MUMPS solver
+   /// Specify the reordering strategy
    enum ReorderingStrategy
    {
       /// Let MUMPS automatically decide the reording strategy
@@ -427,6 +427,12 @@ public:
    ~ComplexMUMPSSolver();
 
 private:
+   MPI_Comm comm = MPI_COMM_NULL;
+   int numProcs = 1;
+   int myid = 0;
+
+   int row_start = 0;
+
    // Parameter controlling the reordering strategy
    ReorderingStrategy reorder_method = ReorderingStrategy::AUTOMATIC;
    // Parameter controlling whether or not to reuse the symbolic factorization
@@ -448,12 +454,6 @@ private:
 #endif
    }
 
-   MPI_Comm comm = MPI_COMM_NULL;
-   int numProcs = 1;
-   int myid = 0;
-
-   int row_start = 0;
-
 #ifdef MFEM_USE_SINGLE
    CMUMPS_STRUC_C *id = nullptr;
    using mumps_complex_t = mumps_complex;
@@ -461,6 +461,14 @@ private:
    ZMUMPS_STRUC_C *id = nullptr;
    using mumps_complex_t = mumps_double_complex;
 #endif
+
+   void BuildUnionCOO(const int n_loc,
+                      const int row_start,
+                      const int *Ir, const int *Jr, const real_t *Vr,
+                      const int *Ii, const int *Ji, const real_t *Vi,
+                      std::vector<int> &Icoo,
+                      std::vector<int> &Jcoo,
+                      std::vector<mumps_complex_t> &Zcoo) const;
 
 #if MFEM_MUMPS_VERSION >= 530
    // Row offsets on all procs (needed by RedistributeSol)
