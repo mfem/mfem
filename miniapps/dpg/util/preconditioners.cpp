@@ -73,7 +73,8 @@ const ParFiniteElementSpace* PRefinementHierarchy::GetParFESpace(int lev,
    return fes_owned[lev][b].get();
 }
 
-int PRefinementHierarchy::GetFESpaceMinimumOrder(const ParFiniteElementSpace *pfespace)
+int PRefinementHierarchy::GetFESpaceMinimumOrder(const ParFiniteElementSpace
+                                                 *pfespace)
 const
 {
    return (dynamic_cast<const L2_FECollection*>(pfespace->FEColl()) ||
