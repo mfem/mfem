@@ -585,13 +585,14 @@ const DofToQuad &H1Pos_TriangleElement::GetRaggedTensorDofToQuad(
          d2q->ndof = ndof;
          d2q->nqpt = nqpt;
          d2q->Ba1.SetSize(nqpt*ndof);
-         // d2q->Ba2.SetSize((int) nqpt*ndof*(ndof-1)/2); // second component of ragged tensor basis, technically dof*(dof-1)/2 entries
-         d2q->Ba2.SetSize((int)
-                          nqpt*ndof*ndof); // second component of ragged tensor basis, technically dof*(dof-1)/2 entries
-         d2q->Ga1.SetSize(nqpt*(ndof
-                                -1)); // stores first component of ragged tensor basis with order p-1, for gradients only
-         d2q->Ga2.SetSize(nqpt*(ndof-1)*(ndof
-                                         -1)); // stores second component of ragged tensor basis with order p-1
+         // second component of ragged tensor basis, technically dof*(dof-1)/2 entries
+         // d2q->Ba2.SetSize((int) nqpt*ndof*(ndof-1)/2);
+         // second component of ragged tensor basis, technically dof*(dof-1)/2 entries
+         d2q->Ba2.SetSize((int)nqpt*ndof*ndof);
+         // stores first component of ragged tensor basis with order p-1, for gradients only
+         d2q->Ga1.SetSize(nqpt*(ndof -1));
+         // stores second component of ragged tensor basis with order p-1
+         d2q->Ga2.SetSize(nqpt*(ndof-1)*(ndof -1));
          d2q->lex_map.SetSize(ndof * ndof);
          Vector shape_a1(ndof), shape_a2(ndof * ndof);
          Vector shape_Ga1(ndof-1), shape_Ga2((ndof-1) * (ndof-1));
@@ -861,21 +862,21 @@ const DofToQuad &H1Pos_TetrahedronElement::GetRaggedTensorDofToQuad(
          d2q->ndof = ndof;
          d2q->nqpt = nqpt;
          d2q->Ba1.SetSize(nqpt*ndof);
-         d2q->Ba2.SetSize(nqpt * (int) ( ndof*(ndof+1) /
-                                         2 )); // second component of ragged tensor basis, technically dof*(dof-1)/2 entries
-         d2q->Ba3.SetSize(nqpt * (int) ( ndof*(ndof+1)*(ndof+2) /
-                                         6 )); // third component of ragged tensor basis, technically dof*(dof-1)/2 entries
+         // second component of ragged tensor basis, technically dof*(dof-1)/2 entries
+         d2q->Ba2.SetSize(nqpt * (int) ( ndof*(ndof+1) / 2 ));
+         // third component of ragged tensor basis, technically dof*(dof-1)/2 entries
+         d2q->Ba3.SetSize(nqpt * (int) ( ndof*(ndof+1)*(ndof+2) / 6 ));
          d2q->Ba1t.SetSize(nqpt*ndof);
-         d2q->Ba2t.SetSize(nqpt * (int) ( ndof*(ndof+1) /
-                                          2 )); // second component of ragged tensor basis, technically dof*(dof-1)/2 entries
-         d2q->Ba3t.SetSize(nqpt * (int) ( ndof*(ndof+1)*(ndof+2) /
-                                          6 )); // third component of ragged tensor basis, technically dof*(dof-1)/2 entries
-         d2q->Ga1.SetSize(nqpt*(ndof
-                                -1)); // stores first component of ragged tensor basis with order p-1, for gradients only
-         d2q->Ga2.SetSize(nqpt * (int) ( (ndof-1)*(ndof) /
-                                         2 )); // stores second component of ragged tensor basis with order p-1
-         d2q->Ga3.SetSize(nqpt * (int) ( (ndof-1)*(ndof)*(ndof+1) /
-                                         6 )); // stores third component of ragged tensor basis with order p-1
+         // second component of ragged tensor basis, technically dof*(dof-1)/2 entries
+         d2q->Ba2t.SetSize(nqpt * (int) ( ndof*(ndof+1) / 2 ));
+         // third component of ragged tensor basis, technically dof*(dof-1)/2 entries
+         d2q->Ba3t.SetSize(nqpt * (int) ( ndof*(ndof+1)*(ndof+2) / 6 ));
+         // stores first component of ragged tensor basis with order p-1, for gradients only
+         d2q->Ga1.SetSize(nqpt*(ndof -1));
+         // stores second component of ragged tensor basis with order p-1
+         d2q->Ga2.SetSize(nqpt * (int) ( (ndof-1)*(ndof) / 2 ));
+         // stores third component of ragged tensor basis with order p-1
+         d2q->Ga3.SetSize(nqpt * (int) ( (ndof-1)*(ndof)*(ndof+1) / 6 ));
          d2q->lex_map.SetSize(ndof * ndof * ndof);
 
          d2q->forward_map2d_diff.SetSize((ndof-1) * (ndof-1));
@@ -1021,8 +1022,8 @@ const DofToQuad &H1Pos_TetrahedronElement::GetRaggedTensorDofToQuad(
                   int dof = (p+1)*(p+2)*(p+3) / 6;
                   int tet = (p-k)*(p-k+1)*(p-k+2) / 6;
                   int tri = (p+1-k-j)*(p+2-k-j)/2;
-                  int idx = dof - tet - tri + i;
-                  d2q->lex_map[k + ndof*(j + ndof*i)] = idx;
+                  int multi_idx = dof - tet - tri + i;
+                  d2q->lex_map[k + ndof*(j + ndof*i)] = multi_idx;
                }
             }
          }

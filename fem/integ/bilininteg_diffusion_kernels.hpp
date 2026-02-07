@@ -1027,8 +1027,6 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
                                          const int d1d = 0,
                                          const int q1d = 0)
 {
-   static constexpr int T_NBZ = diffusion::NBZApply(T_D1D);
-   static constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    const int BASIS_DIM = D1D * (D1D+1) / 2;
@@ -1053,18 +1051,18 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
       constexpr int BASIS_DIM = MD1 * (MD1+1) / 2;
 
       MFEM_SHARED real_t sBG[2][MQ1*MD1*MD1];
-      real_t (*Ga1)[MD1] = (real_t (*)[MD1]) (sBG+0);
-      real_t (*Ga2)[MD1][MD1] = (real_t (*)[MD1][MD1]) (sBG+1);
+      auto Ga1 = (real_t (*)[MD1]) (sBG+0);
+      auto Ga2 = (real_t (*)[MD1][MD1]) (sBG+1);
       MFEM_SHARED real_t Xz[BASIS_DIM];
       MFEM_SHARED real_t GD[2][MDQ][MDQ];
       MFEM_SHARED real_t GQ[2][MDQ][MDQ];
-      real_t (*X) = (real_t (*))(Xz + tidz);
-      real_t (*DQ0)[MQ1] = (real_t (*)[MQ1])(GD[0]);
-      real_t (*DQ1)[MQ1] = (real_t (*)[MQ1])(GD[1]);
-      real_t (*QQ0)[MQ1] = (real_t (*)[MQ1])(GQ[0]);
-      real_t (*QQ1)[MQ1] = (real_t (*)[MQ1])(GQ[1]);
+      auto X = (real_t (*))(Xz + tidz);
+      auto DQ0 = (real_t (*)[MQ1])(GD[0]);
+      auto DQ1 = (real_t (*)[MQ1])(GD[1]);
+      auto QQ0 = (real_t (*)[MQ1])(GQ[0]);
+      auto QQ1 = (real_t (*)[MQ1])(GQ[1]);
       MFEM_SHARED int s_lex[MD1*MD1];
-      int (*lex_map)[MD1] = (int (*)[MD1])(s_lex);
+      auto lex_map = (int (*)[MD1])(s_lex);
 
       // load in input vector and basis data
       MFEM_FOREACH_THREAD(a1,y,D1D)

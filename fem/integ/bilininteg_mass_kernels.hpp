@@ -800,7 +800,6 @@ void SmemPAMassApplyTriangle_Element(const int e,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
    constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
    constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
@@ -813,18 +812,17 @@ void SmemPAMassApplyTriangle_Element(const int e,
    auto x = ConstDeviceMatrix(x_, BASIS_DIM, NE);
    auto Y = DeviceMatrix(y_, BASIS_DIM, NE);
 
-   const int tidz = MFEM_THREAD_ID(z);
    MFEM_SHARED real_t B[2][MQ1*MD1*MD1];
-   real_t (*Ba1)[MD1] = (real_t (*)[MD1]) (B+0);
-   real_t (*Ba2)[MD1][MD1] = (real_t (*)[MD1][MD1]) (B+1);
+   auto Ba1 = (real_t (*)[MD1]) (B+0);
+   auto Ba2 = (real_t (*)[MD1][MD1]) (B+1);
    MFEM_SHARED real_t Xz[BASIS_DIM];
    MFEM_SHARED real_t sm0[MDQ*MDQ];
    MFEM_SHARED real_t sm1[MDQ*MDQ];
-   real_t (*X) = (real_t (*)) (Xz);
-   real_t (*DQ)[MQ1] = (real_t (*)[MQ1]) (sm1);
-   real_t (*QQ)[MQ1] = (real_t (*)[MQ1]) (sm0);
+   auto X = (real_t (*)) (Xz);
+   auto DQ = (real_t (*)[MQ1]) (sm1);
+   auto QQ = (real_t (*)[MQ1]) (sm0);
    MFEM_SHARED int s_lex[MD1*MD1];
-   int (*lex_map)[MD1] = (int (*)[MD1])(s_lex);
+   auto lex_map = (int (*)[MD1])(s_lex);
 
    // load in input vector and basis data
    MFEM_FOREACH_THREAD(a1,y,D1D)
@@ -1854,7 +1852,6 @@ inline void SmemPAMassApplyTriangle(const int NE,
                                     const int q1d = 0)
 {
    static constexpr int T_NBZ = mass::NBZ(T_D1D);
-   static constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    const int max_q1d = T_Q1D ? T_Q1D : DeviceDofQuadLimits::Get().MAX_Q1D;

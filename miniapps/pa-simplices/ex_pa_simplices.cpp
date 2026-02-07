@@ -13,7 +13,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include <cmath>
+// #include <cmath>
 #include <chrono>
 
 using namespace std;
@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
    Mpi::Init();
-   int num_procs = Mpi::WorldSize();
+   // int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
    Hypre::Init();
 
@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
    int order = 4;
    int nrefs = 1;
    int max_iters = 2000;
-   const char *device_config = "hip";
+   const char *device_config = "cpu";
    string bp_type = "bp1";
 
    OptionsParser args(argc, argv);
@@ -53,7 +53,8 @@ int main(int argc, char *argv[])
    args.AddOption(&filename, "-f", "--filename", "Name of save file");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
-   args.AddOption(&bp_type, "-bp", "--bp_type", "Type of BP, only bp1 or bp3 supported");
+   args.AddOption(&bp_type, "-bp", "--bp_type",
+                  "Type of BP, only bp1 or bp3 supported");
    args.ParseCheck();
 
    // 3. Enable hardware devices such as GPUs, and programming models such as
@@ -141,7 +142,8 @@ int main(int argc, char *argv[])
    const FiniteElement *el = fespace.GetFE(0);
    const IntegrationRule ir_b = IntRules.Get(el->GetGeomType(), 2*order);
    // FunctionCoefficient fcoeff(f_func);
-   FunctionCoefficient fcoeff([dim, bp_type](const Vector &x) {
+   FunctionCoefficient fcoeff([dim, bp_type](const Vector &x)
+   {
       if (dim == 2)
       {
          real_t xi(x(0));
@@ -149,29 +151,36 @@ int main(int argc, char *argv[])
          if (bp_type == "bp1")
          {
             return xi * (1.0 - xi) * yi * (1.0 - yi);
-         } else if (bp_type == "bp3") 
+         }
+         else if (bp_type == "bp3")
          {
             return 2.0 * (xi * (1.0-xi) +  yi * (1.0 - yi));
-         } else
+         }
+         else
          {
             MFEM_ABORT("BP not implemented!")
          }
-      } else if (dim == 3)
+      }
+      else if (dim == 3)
       {
-      real_t xi(x(0));
+         real_t xi(x(0));
          real_t yi(x(1));
          real_t zi(x(2));
          if (bp_type == "bp1")
          {
             return xi * (1.0 - xi) * yi * (1.0 - yi) * zi * (1.0 - zi);
-         } else if (bp_type == "bp3") 
+         }
+         else if (bp_type == "bp3")
          {
-            return 2.0 * (xi * (1.0-xi) * yi * (1.0 - yi) + xi * (1.0 - xi) * zi * (1.0 - zi) + yi * (1.0 - yi) * zi * (1.0 - zi));
-         } else
+            return 2.0 * (xi * (1.0-xi) * yi * (1.0 - yi) + xi * (1.0 - xi) * zi *
+                          (1.0 - zi) + yi * (1.0 - yi) * zi * (1.0 - zi));
+         }
+         else
          {
             MFEM_ABORT("BP not implemented!")
          }
-      } else 
+      }
+      else
       {
          MFEM_ABORT("Problem not implemented for this dimension!")
       }
@@ -192,13 +201,15 @@ int main(int argc, char *argv[])
    a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    if (bp_type == "bp3")
    {
-      FunctionCoefficient diffcoeff(d_func);
+      static FunctionCoefficient diffcoeff(d_func);
       a.AddDomainIntegrator(new DiffusionIntegrator(diffcoeff));
-   } else if (bp_type == "bp1")
+   }
+   else if (bp_type == "bp1")
    {
-      FunctionCoefficient masscoeff(m_func);
+      static FunctionCoefficient masscoeff(m_func);
       a.AddDomainIntegrator(new MassIntegrator(masscoeff));
-   } else
+   }
+   else
    {
       MFEM_ABORT("Specified BP is not implemented!!");
    }
@@ -235,24 +246,28 @@ int main(int argc, char *argv[])
    a.RecoverFEMSolution(X, b, x);
 
    // 15. Compute error.
-   FunctionCoefficient uexact([dim](const Vector &x) {
+   FunctionCoefficient uexact([dim](const Vector &x)
+   {
       if (dim == 2)
       {
          real_t xi(x(0));
          real_t yi(x(1));
          return xi * (1.0 - xi) * yi * (1.0 - yi);
-      } else if (dim == 3)
+      }
+      else if (dim == 3)
       {
          real_t xi(x(0));
          real_t yi(x(1));
          real_t zi(x(2));
          return xi * (1.0 - xi) * yi * (1.0 - yi) * zi * (1.0 - zi);
-      } else 
+      }
+      else
       {
          MFEM_ABORT("Problem not implemented for this dimension!")
       }
    });
-   VectorFunctionCoefficient upexact(dim, [dim](const Vector &x, Vector &up) {
+   VectorFunctionCoefficient upexact(dim, [dim](const Vector &x, Vector &up)
+   {
       if (dim == 2)
       {
          real_t xi(x(0));
@@ -260,7 +275,8 @@ int main(int argc, char *argv[])
 
          up(0) = (1.0 - 2.0 * xi) * yi * (1.0 - yi);
          up(1) = (1.0 - 2.0 * yi) * xi * (1.0 - xi);
-      } else if (dim == 3)
+      }
+      else if (dim == 3)
       {
          real_t xi(x(0));
          real_t yi(x(1));
@@ -269,7 +285,8 @@ int main(int argc, char *argv[])
          up(0) = (1.0 - 2.0 * xi) * yi * (1.0 - yi) * zi * (1.0 - zi);
          up(1) = (1.0 - 2.0 * yi) * xi * (1.0 - xi) * zi * (1.0 - zi);
          up(2) = (1.0 - 2.0 * zi) * xi * (1.0 - xi) * yi * (1.0 - yi);
-      } else 
+      }
+      else
       {
          MFEM_ABORT("Problem not implemented for this dimension!")
       }
@@ -279,12 +296,13 @@ int main(int argc, char *argv[])
    if (myid == 0)
    {
       cout << "L2 error: " << L2errSol << ", H1semi error: " << H1errSol <<
-             ", time: " << diff.count() << ", iters: " << num_iters << ", DOFS/s: " <<
-             size / (diff.count() / num_iters) << endl;
+           ", time: " << diff.count() << ", iters: " << num_iters << ", DOFS/s: " <<
+           size / (diff.count() / num_iters) << endl;
 
       fstream file;
       file.open(filename + ".txt", std::ios::app);
-      file << "p=" << order << ", time=" << diff.count() << ", iters=" << num_iters << ", dofs=" << size << ", dofs/s=" << size / (diff.count() / num_iters);
+      file << "p=" << order << ", time=" << diff.count() << ", iters=" << num_iters <<
+           ", dofs=" << size << ", dofs/s=" << size / (diff.count() / num_iters);
       file << endl;
    }
 

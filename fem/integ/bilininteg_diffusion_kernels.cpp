@@ -28,7 +28,8 @@ DiffusionIntegrator::Kernels::Kernels()
    DiffusionIntegrator::AddSpecialization<2,7,6>();
 
    // Q = P+1
-   // DiffusionIntegrator::AddSpecialization<2,1,1>(); // causes some variables to be 0 in simplex diffusion kernels...
+   // causes some variables to be 0 in simplex diffusion kernels...
+   // DiffusionIntegrator::AddSpecialization<2,1,1>();
    DiffusionIntegrator::AddSpecialization<2,2,2>();
    DiffusionIntegrator::AddSpecialization<2,3,3>();
    DiffusionIntegrator::AddSpecialization<2,4,4>();
@@ -46,7 +47,8 @@ DiffusionIntegrator::Kernels::Kernels()
    DiffusionIntegrator::AddSpecialization<2,6,7>();
    DiffusionIntegrator::AddSpecialization<2,7,8>();
    DiffusionIntegrator::AddSpecialization<2,8,9>();
-   // DiffusionIntegrator::AddSpecialization<2,9,10>(); // causes shared memory issues with simplex diffusion kernel
+   // causes shared memory issues with simplex diffusion kernel
+   // DiffusionIntegrator::AddSpecialization<2,9,10>();
    // others
    // 3D
    // Q = P
@@ -59,7 +61,8 @@ DiffusionIntegrator::Kernels::Kernels()
    DiffusionIntegrator::AddSpecialization<3,8,7>();
 
    // Q = P+1
-   // DiffusionIntegrator::AddSpecialization<3,1,1>(); // causes issues with 0, may need to guard against p = 0 case
+   // causes issues with 0, may need to guard against p = 0 case
+   // DiffusionIntegrator::AddSpecialization<3,1,1>();
    DiffusionIntegrator::AddSpecialization<3,2,2>();
    DiffusionIntegrator::AddSpecialization<3,3,3>();
    DiffusionIntegrator::AddSpecialization<3,4,4>();
