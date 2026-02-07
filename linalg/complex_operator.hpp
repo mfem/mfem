@@ -22,6 +22,15 @@
 #include <umfpack.h>
 #endif
 
+#ifdef MFEM_USE_COMPLEX_MUMPS
+#ifdef MFEM_USE_SINGLE
+#include "cmumps_c.h"
+#else
+#include "zmumps_c.h"
+#endif
+#include <vector>
+#endif
+
 namespace mfem
 {
 
@@ -242,6 +251,7 @@ public:
 
 #endif
 
+
 #ifdef MFEM_USE_MPI
 
 /** @brief Specialization of the ComplexOperator built from a pair of
@@ -288,6 +298,219 @@ private:
    int myid_;
    int nranks_;
 };
+
+#ifdef MFEM_USE_COMPLEX_MUMPS
+/**
+ * @brief Complex MUMPS: Parallel sparse direct solver for ComplexHypreParMatrix
+ *
+ * Notes:
+ *  - Expects Operator to be a ComplexHypreParMatrix.
+ *  - Complex vectors are assumed packed as [Re; Im] in a real Vector.
+ *  - SetOperator() = analysis + factorization
+ *  - Mult()        = solve (cached buffers via InitRhsSol)
+ */
+class ComplexMUMPSSolver : public Solver
+{
+public:
+   /// Specify the reordering strategy
+   enum ReorderingStrategy
+   {
+      /// Let MUMPS automatically decide the reording strategy
+      AUTOMATIC = 0,
+      /// Approximate Minimum Degree with auto quasi-dense row detection is used
+      AMD,
+      /// Approximate Minimum Fill method will be used
+      AMF,
+      /// The PORD library will be used
+      PORD,
+      /// The METIS library will be used
+      METIS,
+      /// The ParMETIS library will be used
+      PARMETIS,
+      /// The Scotch library will be used
+      SCOTCH,
+      /// The PTScotch library will be used
+      PTSCOTCH
+   };
+
+   /**
+    * @brief Constructor with MPI_Comm parameter.
+    */
+   ComplexMUMPSSolver(MPI_Comm comm_);
+   /**
+    * @brief Constructor with a HypreParMatrix Operator.
+    */
+   ComplexMUMPSSolver(const Operator &op);
+
+   /**
+    * @brief Set the Operator and perform factorization
+    *
+    * @a op needs to be of type HypreParMatrix.
+    *
+    * @param op Operator used in factorization and solve
+    */
+   void SetOperator(const Operator &op);
+
+   /**
+    * @brief Solve $ y = Op^{-1} x $
+    *
+    * @param x RHS vector
+    * @param y Solution vector
+    */
+   void Mult(const Vector &x, Vector &y) const;
+   /**
+    * @brief Solve $ Y_i = Op^{-1} X_i $
+    *
+    * @param X Array of RHS vectors
+    * @param Y Array of Solution vectors
+    */
+   void ArrayMult(const Array<const Vector *> &X, Array<Vector *> &Y) const;
+   /**
+    * @brief Transpose Solve $ y = Op^{-T} x $
+    * @note This is not a Hermitian/conjugate-transpose solve.
+    *
+    * @param x RHS vector
+    * @param y Solution vector
+    */
+   void MultTranspose(const Vector &x, Vector &y) const;
+
+   /**
+    * @brief Transpose Solve $ Y_i = Op^{-T} X_i $
+    * @note This is not a Hermitian/conjugate-transpose solve.
+    *
+    * @param X Array of RHS vectors
+    * @param Y Array of Solution vectors
+    */
+   void ArrayMultTranspose(const Array<const Vector *> &X,
+                           Array<Vector *> &Y) const;
+
+   /**
+    * @brief Set the error print level for MUMPS
+    *
+    * Supported values are:
+    * - 0:  No output printed
+    * - 1:  Only errors printed
+    * - 2:  Errors, warnings, and main stats printed
+    * - 3:  Errors, warning, main stats, and terse diagnostics printed
+    * - 4:  Errors, warning, main stats, diagnostics, and input/output printed
+    *
+    * @param print_lvl Print level, default is 2
+    *
+    * @note This method has to be called before SetOperator
+    */
+   void SetPrintLevel(int print_lvl) { print_level = print_lvl;}
+
+   /**
+    * @brief Set the reordering strategy
+    *
+    * Supported reorderings are: MUMPSSolver::AUTOMATIC,
+    * MUMPSSolver::AMD, MUMPSSolver::AMF, MUMPSSolver::PORD,
+    * MUMPSSolver::METIS, MUMPSSolver::PARMETIS,
+    * MUMPSSolver::SCOTCH, and MUMPSSolver::PTSCOTCH
+    *
+    * @param method Reordering method
+    *
+    * @note This method has to be called before SetOperator
+    */
+   void SetReorderingStrategy(ReorderingStrategy method) { reorder_method = method; }
+
+   /**
+    * @brief Set the flag controlling reuse of the symbolic factorization
+    * for multiple operators
+    *
+    * @param reuse Flag to reuse symbolic factorization
+    *
+    * @note This method has to be called before repeated calls to SetOperator
+    */
+   void SetReorderingReuse(bool reuse) { reorder_reuse = reuse; }
+
+   ~ComplexMUMPSSolver();
+
+private:
+   MPI_Comm comm = MPI_COMM_NULL;
+   int numProcs = 1;
+   int myid = 0;
+
+   int row_start = 0;
+
+   // Parameter controlling the reordering strategy
+   ReorderingStrategy reorder_method = ReorderingStrategy::AUTOMATIC;
+   // Parameter controlling whether or not to reuse the symbolic factorization
+   // for multiple calls to SetOperator
+   bool reorder_reuse = false;
+
+   // Parameter controlling the printing level
+   int print_level = 0;
+   void Init(MPI_Comm comm_);
+   void SetParameters();
+   void InitRhsSol(int nrhs) const;
+
+   inline void mumps_call() const
+   {
+#ifdef MFEM_USE_SINGLE
+      cmumps_c(id);
+#else
+      zmumps_c(id);
+#endif
+   }
+
+#ifdef MFEM_USE_SINGLE
+   CMUMPS_STRUC_C *id = nullptr;
+   using mumps_complex_t = mumps_complex;
+#else
+   ZMUMPS_STRUC_C *id = nullptr;
+   using mumps_complex_t = mumps_double_complex;
+#endif
+
+   void BuildUnionCOO(const int n_loc,
+                      const int row_start,
+                      const int *Ir, const int *Jr, const real_t *Vr,
+                      const int *Ii, const int *Ji, const real_t *Vi,
+                      std::vector<int> &Icoo,
+                      std::vector<int> &Jcoo,
+                      std::vector<mumps_complex_t> &Zcoo) const;
+
+#if MFEM_MUMPS_VERSION >= 530
+   // Row offsets on all procs (needed by RedistributeSol)
+   Array<int> row_starts;
+
+   // Local RHS row indices (owned here)
+   int *irhs_loc = nullptr;
+
+   // Local solution row map returned by MUMPS (owned here)
+   int *isol_loc = nullptr;
+
+   // Cached buffers (owned here)
+   mutable mumps_complex_t *rhs_loc = nullptr; // allocated only for nrhs>1
+   mutable mumps_complex_t *sol_loc = nullptr;
+
+   // Per-call pack buffers to avoid heap churn (owned here)
+   mutable std::vector<mumps_complex_t> rhs1_buf;
+
+   int GetRowRank(int i, const Array<int> &row_starts_) const;
+
+   void RedistributeSol(const int *row_map,
+                        const mumps_complex_t *x,
+                        real_t *y_ri,
+                        int n_loc,
+                        int lsol_loc) const;
+
+#else
+   // Root-gather path
+   int global_num_rows = 0;
+   int *recv_counts = nullptr;
+   int *displs = nullptr;
+
+   // Complex RHS/solution on root (owned here)
+   mutable mumps_complex_t *rhs_glob = nullptr;
+
+   // Cached real/imag staging on root (owned here)
+   mutable real_t *rhs_glob_r = nullptr;
+   mutable real_t *rhs_glob_i = nullptr;
+#endif
+};
+
+#endif // MFEM_USE_COMPLEX_MUMPS
 
 #endif // MFEM_USE_MPI
 
