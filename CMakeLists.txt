@@ -1015,5 +1015,11 @@ install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data
 # Create 'config.mk' from 'config.mk.in' for the build and install locations and
 # define install rules for 'config.mk' and 'test.mk'
 #-------------------------------------------------------------------------------
-
-mfem_export_mk_files()
+if (MFEM_USE_CUDA OR MFEM_USE_HIP)
+  option(MFEM_EXPORT_GPU_CONFIG "Export config.mk for GPU-enabled" ON)
+  if (MFEM_EXPORT_GPU_CONFIG)
+    mfem_export_mk_files()
+  endif()
+else()
+  mfem_export_mk_files()
+endif()
