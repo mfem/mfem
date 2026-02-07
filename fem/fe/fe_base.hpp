@@ -222,6 +222,12 @@ public:
 
    /// Returns absolute value of the maps
    DofToQuad Abs() const;
+
+   /// Auxiliary function for searching DofToQuad arrays.
+   static inline DofToQuad *SearchArray(
+      const Array<DofToQuad*> &dof2quad_array,
+      const IntegrationRule &ir,
+      DofToQuad::Mode mode);
 };
 
 /// Describes the function space on each element
@@ -407,6 +413,7 @@ public:
    /** Each row of the result DenseMatrix @a Hessian contains upper triangular
        part of the Hessian of one shape function.
        The order in 2D is {u_xx, u_xy, u_yy}.
+       The order in 3D is {u_xx, u_xy, u_xz, u_yy, u_yz, u_zz}.
        The size (#dof x (#dim (#dim+1)/2) of @a Hessian must be set in advance.*/
    virtual void CalcHessian(const IntegrationPoint &ip,
                             DenseMatrix &Hessian) const;
@@ -1375,6 +1382,21 @@ public:
 
 void InvertLinearTrans(ElementTransformation &trans,
                        const IntegrationPoint &pt, Vector &x);
+
+
+// static inline method
+inline DofToQuad *DofToQuad::SearchArray(
+   const Array<DofToQuad*> &dof2quad_array,
+   const IntegrationRule &ir,
+   DofToQuad::Mode mode)
+{
+   for (int i = 0; i < dof2quad_array.Size(); i++)
+   {
+      DofToQuad *d2q = dof2quad_array[i];
+      if (d2q->IntRule == &ir && d2q->mode == mode) { return d2q; }
+   }
+   return nullptr;
+}
 
 } // namespace mfem
 
