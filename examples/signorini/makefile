@@ -35,10 +35,10 @@ regularp: $(SRC)regularp.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< sfem/bilininteg.cpp sfem/lininteg.cpp sfem/coefficient.cpp -o $@ $(MFEM_LIBS)
 
 # Additional dependencies
-signorini: $(SRC)signorini.hpp
+explicit: $(SRC)signorini.hpp
 
 ifeq ($(MFEM_USE_MPI),YES)
-signorinip: $(SRC)signorini.hpp
+explicitp: $(SRC)signorini.hpp
 regularp: $(SRC)sfem/lininteg.hpp $(SRC)sfem/lininteg.cpp \
 	$(SRC)sfem/bilininteg.hpp $(SRC)sfem/bilininteg.cpp \
 	$(SRC)sfem/coefficient.hpp $(SRC)sfem/coefficient.cpp
