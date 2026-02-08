@@ -26,6 +26,11 @@ add_mfem_miniapp(mtop_test_forward_le
 		      ${EX_COMMON_FILES}
                       LIBRARIES mfem)
 
+add_mfem_miniapp(mtop_test_adjoint_le
+                      MAIN test_adjoint_le.cpp
+                      ${EX_COMMON_FILES}
+                      LIBRARIES mfem)
+
 
 endif (MFEM_USE_MPI)
 
