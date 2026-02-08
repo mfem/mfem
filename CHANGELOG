@@ -8,6 +8,20 @@
                                https://mfem.org
 
 
+Version 4.10 (development)
+==========================
+
+Discretization improvements
+---------------------------
+- Added Witherden-Vincent symmetric quadrature rules for triangles and
+  tetrahedra (orders 0-20). These rules guarantee all-positive weights and
+  interior quadrature points, improving numerical stability over the previous
+  Grundmann-Moller rules. Selected via SimplexQuadrature::WitherdenVincent
+  (now the default). The previous rules remain available as
+  SimplexQuadrature::Legacy. Reference: Witherden & Vincent, Comput. Math.
+  Appl. 69(10):1232-1241, 2015.
+
+
 Version 4.9.1 (development)
 ===========================
 

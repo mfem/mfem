@@ -455,7 +455,7 @@ enum class SimplexQuadrature
 {
    Legacy           = 0,  ///< Original MFEM rules (may have negative weights)
    WitherdenVincent = 1,  ///< Witherden-Vincent rules (positive weights, interior points)
-   Default          = Legacy
+   Default          = WitherdenVincent
 };
 
 /// Container class for integration rules
