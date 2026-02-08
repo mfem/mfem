@@ -271,3 +271,164 @@ TEST_CASE("Simplex integration rules", "[SimplexRules]")
       }
    }
 }
+
+
+// WV monomial exactness is tested by [SimplexRules] above, which now uses
+// WV rules by default. The tests below verify WV-specific properties:
+// weight positivity, stability, and interior point placement.
+
+TEST_CASE("Witherden-Vincent weight positivity", "[WVRules]")
+{
+   IntegrationRules wv_rules(0, Quadrature1D::GaussLegendre,
+                             SimplexQuadrature::WitherdenVincent);
+
+   SECTION("WV triangle rules have all positive weights for orders 0-20")
+   {
+      for (int order = 0; order <= 20; order++)
+      {
+         const IntegrationRule &ir = wv_rules.Get(Geometry::TRIANGLE, order);
+         for (int i = 0; i < ir.GetNPoints(); i++)
+         {
+            INFO("order=" << order << ", point=" << i);
+            REQUIRE(ir.IntPoint(i).weight > 0.0);
+         }
+      }
+   }
+
+   SECTION("WV tet rules have all positive weights for orders 0-11")
+   {
+      for (int order = 0; order <= 11; order++)
+      {
+         const IntegrationRule &ir =
+            wv_rules.Get(Geometry::TETRAHEDRON, order);
+         for (int i = 0; i < ir.GetNPoints(); i++)
+         {
+            INFO("order=" << order << ", point=" << i);
+            REQUIRE(ir.IntPoint(i).weight > 0.0);
+         }
+      }
+   }
+}
+
+
+TEST_CASE("Witherden-Vincent rules advantage over legacy", "[WVRules]")
+{
+   IntegrationRules wv_rules(0, Quadrature1D::GaussLegendre,
+                             SimplexQuadrature::WitherdenVincent);
+   IntegrationRules legacy_rules(0, Quadrature1D::GaussLegendre,
+                                 SimplexQuadrature::Legacy);
+
+   // Weight stability metric: sum(|w|) / sum(w).
+   // For rules with all positive weights this equals 1.0 exactly.
+   // For rules with negative weights this exceeds 1.0, indicating
+   // cancellation that amplifies floating-point error.
+   auto weight_stability = [](const IntegrationRule &ir)
+   {
+      double sum_w = 0.0, sum_abs_w = 0.0;
+      for (int i = 0; i < ir.GetNPoints(); i++)
+      {
+         sum_w += ir.IntPoint(i).weight;
+         sum_abs_w += fabs(ir.IntPoint(i).weight);
+      }
+      return sum_abs_w / sum_w;
+   };
+
+   SECTION("WV triangle weight stability is 1.0 for all orders 0-20")
+   {
+      for (int order = 0; order <= 20; order++)
+      {
+         const IntegrationRule &ir = wv_rules.Get(Geometry::TRIANGLE, order);
+         double ratio = weight_stability(ir);
+         INFO("order=" << order << ", stability=" << ratio);
+         REQUIRE(ratio == MFEM_Approx(1.0));
+      }
+   }
+
+   SECTION("WV tet weight stability is 1.0 for orders 0-11")
+   {
+      for (int order = 0; order <= 11; order++)
+      {
+         const IntegrationRule &ir =
+            wv_rules.Get(Geometry::TETRAHEDRON, order);
+         double ratio = weight_stability(ir);
+         INFO("order=" << order << ", stability=" << ratio);
+         REQUIRE(ratio == MFEM_Approx(1.0));
+      }
+   }
+
+   SECTION("legacy rules have worse weight stability at some orders")
+   {
+      // At least one legacy triangle or tet rule should have stability > 1.0
+      // (negative weights), demonstrating the advantage of WV rules.
+      int legacy_unstable_count = 0;
+      for (int order = 0; order <= 25; order++)
+      {
+         double ratio = weight_stability(
+                           legacy_rules.Get(Geometry::TRIANGLE, order));
+         if (ratio > 1.0 + 1e-14) { legacy_unstable_count++; }
+      }
+      for (int order = 0; order <= 21; order++)
+      {
+         double ratio = weight_stability(
+                           legacy_rules.Get(Geometry::TETRAHEDRON, order));
+         if (ratio > 1.0 + 1e-14) { legacy_unstable_count++; }
+      }
+      INFO("legacy_unstable_count=" << legacy_unstable_count);
+      REQUIRE(legacy_unstable_count > 0);
+   }
+
+   SECTION("WV triangle points are strictly interior for orders 0-20")
+   {
+      for (int order = 0; order <= 20; order++)
+      {
+         const IntegrationRule &ir = wv_rules.Get(Geometry::TRIANGLE, order);
+         for (int i = 0; i < ir.GetNPoints(); i++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(i);
+            INFO("order=" << order << ", pt=" << i
+                 << ", x=" << ip.x << ", y=" << ip.y);
+            REQUIRE(ip.x > -1e-15);
+            REQUIRE(ip.y > -1e-15);
+            REQUIRE(ip.x + ip.y < 1.0 + 1e-15);
+         }
+      }
+   }
+
+   SECTION("WV tet points are strictly interior for orders 0-20")
+   {
+      for (int order = 0; order <= 20; order++)
+      {
+         const IntegrationRule &ir =
+            wv_rules.Get(Geometry::TETRAHEDRON, order);
+         for (int i = 0; i < ir.GetNPoints(); i++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(i);
+            INFO("order=" << order << ", pt=" << i
+                 << ", x=" << ip.x << ", y=" << ip.y << ", z=" << ip.z);
+            REQUIRE(ip.x > -1e-15);
+            REQUIRE(ip.y > -1e-15);
+            REQUIRE(ip.z > -1e-15);
+            REQUIRE(ip.x + ip.y + ip.z < 1.0 + 1e-15);
+         }
+      }
+   }
+
+   SECTION("WV rules use no more total quadrature points than legacy")
+   {
+      int wv_total_tri = 0, leg_total_tri = 0;
+      int wv_total_tet = 0, leg_total_tet = 0;
+      for (int order = 0; order <= 20; order++)
+      {
+         wv_total_tri += wv_rules.Get(Geometry::TRIANGLE, order).GetNPoints();
+         leg_total_tri += legacy_rules.Get(Geometry::TRIANGLE, order).GetNPoints();
+         wv_total_tet +=
+            wv_rules.Get(Geometry::TETRAHEDRON, order).GetNPoints();
+         leg_total_tet +=
+            legacy_rules.Get(Geometry::TETRAHEDRON, order).GetNPoints();
+      }
+      INFO("triangle total: WV=" << wv_total_tri << " legacy=" << leg_total_tri);
+      INFO("tet total: WV=" << wv_total_tet << " legacy=" << leg_total_tet);
+      REQUIRE(wv_total_tri <= leg_total_tri);
+      REQUIRE(wv_total_tet <= leg_total_tet);
+   }
+}
