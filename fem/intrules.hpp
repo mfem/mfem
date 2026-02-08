@@ -219,6 +219,39 @@ private:
       AddTetPoints6(off + 6, a, b, c, weight);
    }
 
+   // add all 24 permutations of (a,b,c,d) where a+b+c+d = 1, all distinct
+   void AddTetPoints24(const int off, const real_t a, const real_t b,
+                       const real_t c, const real_t weight)
+   {
+      const real_t d = 1. - a - b - c;
+      // all 24 permutations of 4 distinct barycentric coordinates
+      // permuting which coordinate goes to x, y, z (4th is 1-x-y-z)
+      IntPoint(off +  0).Set(a, b, c, weight);
+      IntPoint(off +  1).Set(a, b, d, weight);
+      IntPoint(off +  2).Set(a, c, b, weight);
+      IntPoint(off +  3).Set(a, c, d, weight);
+      IntPoint(off +  4).Set(a, d, b, weight);
+      IntPoint(off +  5).Set(a, d, c, weight);
+      IntPoint(off +  6).Set(b, a, c, weight);
+      IntPoint(off +  7).Set(b, a, d, weight);
+      IntPoint(off +  8).Set(b, c, a, weight);
+      IntPoint(off +  9).Set(b, c, d, weight);
+      IntPoint(off + 10).Set(b, d, a, weight);
+      IntPoint(off + 11).Set(b, d, c, weight);
+      IntPoint(off + 12).Set(c, a, b, weight);
+      IntPoint(off + 13).Set(c, a, d, weight);
+      IntPoint(off + 14).Set(c, b, a, weight);
+      IntPoint(off + 15).Set(c, b, d, weight);
+      IntPoint(off + 16).Set(c, d, a, weight);
+      IntPoint(off + 17).Set(c, d, b, weight);
+      IntPoint(off + 18).Set(d, a, b, weight);
+      IntPoint(off + 19).Set(d, a, c, weight);
+      IntPoint(off + 20).Set(d, b, a, weight);
+      IntPoint(off + 21).Set(d, b, c, weight);
+      IntPoint(off + 22).Set(d, c, a, weight);
+      IntPoint(off + 23).Set(d, c, b, weight);
+   }
+
 public:
    IntegrationRule() :
       Array<IntegrationPoint>() { }
@@ -417,6 +450,14 @@ public:
    static int CheckOpen(int type);
 };
 
+/// Simplex (triangle/tetrahedron) quadrature rule selection.
+enum class SimplexQuadrature
+{
+   Legacy           = 0,  ///< Original MFEM rules (may have negative weights)
+   WitherdenVincent = 1,  ///< Witherden-Vincent rules (positive weights, interior points)
+   Default          = Legacy
+};
+
 /// Container class for integration rules
 class IntegrationRules
 {
@@ -425,6 +466,9 @@ private:
    /// Determines the type of numerical quadrature used for
    /// segment, square, and cube geometries
    const int quad_type;
+
+   /// Determines which simplex (triangle/tetrahedron) quadrature rules to use
+   const SimplexQuadrature simplex_type;
 
    int own_rules, refined;
 
@@ -471,11 +515,17 @@ private:
    IntegrationRule *PrismIntegrationRule(int Order);
    IntegrationRule *CubeIntegrationRule(int Order);
 
+   /// Witherden-Vincent triangle quadrature rules (all-positive weights)
+   IntegrationRule *WVTriangleIntegrationRule(int Order);
+   /// Witherden-Vincent tetrahedron quadrature rules
+   IntegrationRule *WVTetrahedronIntegrationRule(int Order);
+
 public:
    /// Sets initial sizes for the integration rule arrays, but rules
    /// are defined the first time they are requested with the Get method.
    explicit IntegrationRules(int ref = 0,
-                             int type = Quadrature1D::GaussLegendre);
+                             int type = Quadrature1D::GaussLegendre,
+                             SimplexQuadrature stype = SimplexQuadrature::Default);
 
    /// Returns an integration rule for given GeomType and Order.
    const IntegrationRule &Get(int GeomType, int Order);

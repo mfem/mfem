@@ -14,6 +14,12 @@
 // Acknowledgment: Some of the high-precision triangular and tetrahedral
 // quadrature rules below were obtained from the Encyclopaedia of Cubature
 // Formulas at http://nines.cs.kuleuven.be/research/ecf/ecf.html
+//
+// Witherden-Vincent quadrature rules:
+//   F.D. Witherden, P.E. Vincent, "On the identification of symmetric
+//   quadrature rules for finite element methods", Computers & Mathematics
+//   with Applications, 69(10):1232-1241, 2015.
+//   Data from PyFR (https://pyfr.org), CC-BY licensed.
 
 #include "fem.hpp"
 #include "../mesh/nurbs.hpp"
@@ -959,8 +965,8 @@ IntegrationRules IntRules(0, Quadrature1D::GaussLegendre);
 
 IntegrationRules RefinedIntRules(1, Quadrature1D::GaussLegendre);
 
-IntegrationRules::IntegrationRules(int ref, int type)
-   : quad_type(type)
+IntegrationRules::IntegrationRules(int ref, int type, SimplexQuadrature stype)
+   : quad_type(type), simplex_type(stype)
 {
    refined = ref;
 
@@ -1253,6 +1259,11 @@ IntegrationRule *IntegrationRules::SegmentIntegrationRule(int Order)
 // Integration rules for reference triangle {[0,0],[1,0],[0,1]}
 IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
 {
+   if (simplex_type == SimplexQuadrature::WitherdenVincent)
+   {
+      return WVTriangleIntegrationRule(Order);
+   }
+
    IntegrationRule *ir = NULL;
    // Note: Set TriangleIntRules[*] to ir only *after* ir is fully constructed.
    // This is needed in multithreaded environment.
@@ -1675,6 +1686,11 @@ IntegrationRule *IntegrationRules::SquareIntegrationRule(int Order)
     {[0,0,0],[1,0,0],[0,1,0],[0,0,1]}          */
 IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
 {
+   if (simplex_type == SimplexQuadrature::WitherdenVincent)
+   {
+      return WVTetrahedronIntegrationRule(Order);
+   }
+
    IntegrationRule *ir;
    // Note: Set TetrahedronIntRules[*] to ir only *after* ir is fully
    // constructed. This is needed in multithreaded environment.
