@@ -542,7 +542,7 @@ void LinearElasticityTimeDependentOperator::AssembleExplicit()
         cg->SetRelTol(1e-7);
         cg->SetAbsTol(1e-12);
         cg->SetMaxIter(500);
-        cg->SetPrintLevel(1);
+        cg->SetPrintLevel(0);
         cg->SetOperator(*dfem_mass_op);
         //cg->SetOperator(*M_lor);
         cg->SetPreconditioner(*amg);

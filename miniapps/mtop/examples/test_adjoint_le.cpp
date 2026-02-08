@@ -16,6 +16,7 @@ constexpr auto MESH_QUAD = MFEM_SOURCE_DIR "/miniapps/mtop/examples/dyn_hex2d_qu
 struct State
 {
    mfem::real_t time = 0.0; //time of the state
+   mfem::real_t dt=0.0;
    mfem::real_t obj  = 0.0; //accumulated objective 
    mfem::Vector v; //state of the system
 };
@@ -24,6 +25,7 @@ struct State
 struct StateSnapshotView
 {
    mfem::real_t time = 0.0;
+   mfem::real_t dt=0.0;
    mfem::real_t obj  = 0.0;
 
    // Points to n*sizeof(real_t) bytes:
@@ -42,7 +44,7 @@ public:
 
    std::size_t SlotBytes() const
    {
-      return (std::size_t)(2 + n_) * sizeof(mfem::real_t);
+      return (std::size_t)(3 + n_) * sizeof(mfem::real_t);
    }
 
    void Pack(const StateSnapshotView &s, void *dst) const
@@ -52,10 +54,11 @@ public:
 
       unsigned char *b = static_cast<unsigned char*>(dst);
 
-      std::memcpy(b, &s.time, sizeof(mfem::real_t));
-      std::memcpy(b + sizeof(mfem::real_t), &s.obj, sizeof(mfem::real_t));
+      std::memcpy(b + 0*sizeof(mfem::real_t), &s.time, sizeof(mfem::real_t));
+      std::memcpy(b + 1*sizeof(mfem::real_t), &s.dt,   sizeof(mfem::real_t));
+      std::memcpy(b + 2*sizeof(mfem::real_t), &s.obj,  sizeof(mfem::real_t));
 
-      std::memcpy(b + 2*sizeof(mfem::real_t),
+      std::memcpy(b + 3*sizeof(mfem::real_t),
                   s.v_bytes,
                   (std::size_t)n_ * sizeof(mfem::real_t));
    }
@@ -67,13 +70,14 @@ public:
 
       const unsigned char *b = static_cast<const unsigned char*>(src);
 
-      std::memcpy(&out.time, b, sizeof(mfem::real_t));
-      std::memcpy(&out.obj,  b + sizeof(mfem::real_t), sizeof(mfem::real_t));
+      std::memcpy(&out.time, b + 0*sizeof(mfem::real_t), sizeof(mfem::real_t));
+      std::memcpy(&out.dt,   b + 1*sizeof(mfem::real_t), sizeof(mfem::real_t));
+      std::memcpy(&out.obj,  b + 2*sizeof(mfem::real_t), sizeof(mfem::real_t));
 
-      out.v_bytes = b + 2*sizeof(mfem::real_t);
+      out.v_bytes = b + 3*sizeof(mfem::real_t);
    }
 
-   int Size() const { return n_; }
+   int VectorSize() const { return n_; }
 
 private:
    int n_ = 0;
@@ -162,6 +166,8 @@ int main(int argc, char *argv[])
    bool paraview = true;
    bool visualization = true;
    int ode_solver_type = 4;
+   real_t Tfinal = 1.0;
+   real_t dt = 0.005;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -180,8 +186,12 @@ int main(int argc, char *argv[])
                   "--no-paraview", "Enable or not Paraview output.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization", "Enable or not visualization.");
-    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
+   args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   ODESolver::Types.c_str());
+
+   args.AddOption(&Tfinal, "-T",   
+                    "--tfinal",   "Terminate when accumulated time reaches Tfinal.");
+   args.AddOption(&dt,    "-dt", "--dt",  "Time step.");   
 
    args.ParseCheck();
 
@@ -287,6 +297,14 @@ int main(int argc, char *argv[])
    paraview_dc.RegisterField("disp", &(lin_elasticity_op.GetDisplacement()));
    paraview_dc.RegisterField("velo", &(lin_elasticity_op.GetVelocity()));
 
+   // 4. Define the ODE solver used for time integration. Several explicit
+   //    Runge-Kutta methods are available.
+   unique_ptr<ODESolver> ode_solver = ODESolver::Select(ode_solver_type);
+
+   lin_elasticity_op.SetTime(0.0);
+   ode_solver->Init(lin_elasticity_op);
+
+
    //Forward computations
    {
       int s=10; //number of snapshots to be stored by the checkpointing process
@@ -299,6 +317,11 @@ int main(int argc, char *argv[])
       using Storage=mfem::FixedSlotMemoryCheckpointStorage<StateSnapshotView, StateSnapshotViewPacker>;
       Storage storage(s, packer);
 
+      // Snapshot type is StateSnapshotView
+      using Checkpointing = mfem::DynamicCheckpointing<StateSnapshotView, Storage>;
+      Checkpointing ckpt(s, storage);
+
+      // Returns view of the State and avoids data transfer
       auto make_snapshot = [&](const State &u) -> StateSnapshotView
       {
          MFEM_VERIFY(u.v.Size() == n, "make_snapshot: State.v size changed!");
@@ -313,6 +336,7 @@ int main(int argc, char *argv[])
          return snap;
       };
 
+       //Transfers data from the snaphot view to the State u_out.
       auto restore_snapshot = [&](const StateSnapshotView &snap, State &u_out)
       {
          u_out.time = snap.time;
@@ -330,132 +354,57 @@ int main(int argc, char *argv[])
       };
 
       using Step = mfem::DynamicCheckpointing<StateSnapshotView, Storage>::Step;
+
+
+      //execute one integration step
+      auto primal_step = [&](State &u_st, Step i)
+      {
+         //begin with curent state u_st
+         real_t t=u_st.time;
+         real_t ldt=dt;
+         real_t obj=u_st.obj;
+
+         //make sure the integration does not overjump Tfinal
+         if((t+ldt)>Tfinal){
+            ldt=Tfinal-t;
+         }
+
+         //advance u_st
+         ode_solver->Step(u_st.v,t,ldt);
+         //TO-DO update objective 
+
+         //return updated u_st
+         u_st.dt=t-u_st.time;
+         u_st.time=t;
+         u_st.obj=obj;
+
+         if (Mpi::Root())
+         {
+            mfem::out<<"t: "<<u_st.time<<" dt="<<u_st.dt<<"\n";
+         }
+      };
+
       State u;
       u.v.SetSize(lin_elasticity_op.GetState().Size());
       u.obj=0.0;
       u.time=0.0;
+      u.dt=0.0;
 
       //set initial state to 0
       u.v=0.0;
 
-   }
+      // Forward sweep (unknown number of steps) 
+      real_t t = 0.0;
+      Step i = 0;
 
-
-   /*
-   {
-      int s=10;
-
-      StateSnapshotViewPacker packer(lin_elasticity_op.GetState().Size());
-
-      // storage stores StateSnapshotView snapshots using fixed-size slots
-      using Storage=mfem::FixedSlotMemoryCheckpointStorage<StateSnapshotView, StateSnapshotViewPacker>;
-      Storage storage(s, packer);
-
-      auto make_snapshot = [&](const State &u) -> StateSnapshotView
+      while(t<Tfinal)
       {
-         MFEM_VERIFY(u.v.Size() == n, "make_snapshot: State.v size changed!");
-
-         // Ensure host access if MFEM device is in use:
-         const mfem::real_t *vh = u.v.HostRead();
-
-         StateSnapshotView snap;
-         snap.time = u.time;
-         snap.obj  = u.obj;
-         snap.v_bytes = reinterpret_cast<const unsigned char*>(vh);
-         return snap;
-      };
-
-      auto restore_snapshot = [&](const StateSnapshotView &snap, State &u_out)
-      {
-         u_out.time = snap.time;
-         u_out.obj  = snap.obj;
-
-         if (u_out.v.Size() != n) { u_out.v.SetSize(n); }
-
-         mfem::real_t *vh = u_out.v.HostWrite();
-         std::memcpy(vh,
-                     snap.v_bytes,
-                     (std::size_t)n * sizeof(mfem::real_t));
-      };
-
-
-      using Step = mfem::DynamicCheckpointing<StateSnapshotView, Storage>::Step;
-      State u;
-      u.v.SetSize(lin_elasticity_op.GetState().Size());
-
-
-
-
-      auto primal_step = [&](StateCheckPoint &u, Step i)
-      {
-         if (Mpi::Root()){
-            std::cout<<"Primal step:  time= "<<u.time<<" obj= "<<u.obj;
-         }
-         const double dt = 0.01;
-         u.obj=dt*i;
-         u.time=dt*i;
-         u.v=(mfem::real_t)i;
-
-         if (Mpi::Root()){
-            std::cout<<" out Step: "<<i<<" time="<<u.time<<" obj="<<u.obj<<std::endl;
-         }
-      };
-
-      auto adjoint_step = [&](AdjState &lambda, const StateCheckPoint &u_i, Step i)
-      {
-         const double dt = 0.01;
-         MFEM_ASSERT(lambda.adj.Size() == u_i.state.Size(), "lambda and u_i size mismatch.");
-         if (Mpi::Root()){
-            std::cout<<"Adj step: time= "<<u_i.time<<" obj= "<<u_i.obj;
-            std::cout<<" adj time= "<<lambda.time<<" adj obj="<<lambda.obj<<std::endl;
-         }
-
-         lambda.obj=-u_i.obj;
-         lambda.time=lambda.time-dt;
-
-      };
-
-
-      // Initial condition 
-      StateCheckPoint spt; spt.obj=-1.0; spt.time=-1.0; spt.state=(lin_elasticity_op.GetState());
-
-      Step i=0;
-      mfem::real_t t=0.0;
-      mfem::real_t dt=0.01;
-      while(t<0.2)
-      {
-         ckpt.ForwardStep(i, spt, primal_step, make_snapshot);
-         t=t+dt;
+         ckpt.ForwardStep(i,u, primal_step, make_snapshot);
+         t=u.time;
          ++i;
       }
 
-      const Step m = i;
-      if (Mpi::Root()){
-         std::cout<<" Total number of steps="<<m<<std::endl;
-      }
-
-      AdjState ast; ast.obj=1.0; ast.time=spt.time; 
-      ast.adj=(lin_elasticity_op.GetState());
-      ast.grd=(lin_elasticity_op.GetState());
-
-      for (Step j = m - 1; j >= 0; --j)
-      {
-         if (Mpi::Root()){
-            std::cout<<" Outer steps="<<j<<std::endl;
-         }
-
-         ckpt.BackwardStep(j, ast, spt, primal_step, adjoint_step, make_snapshot, restore_snapshot);
-         
-         if (j == 0) { break; }
-      }
-      
-
-
    }
-      */
-
-
-
 
 
 
