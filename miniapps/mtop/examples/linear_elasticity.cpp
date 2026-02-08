@@ -512,27 +512,20 @@ void LinearElasticityTimeDependentOperator::AssembleExplicit()
         }
     }
 
-    //LOR mass matrix
+    //Spectral mass-matrix
     {
-        std::unique_ptr<mfem::ParLORDiscretization> lor_disc;
-        lor_disc = std::make_unique<mfem::ParLORDiscretization>(*fespace);
-        ParFiniteElementSpace &lor_space = lor_disc->GetParFESpace();
-        
-        /*
-        ParMesh &lor_mesh = *lor_space.GetParMesh();
-        lor_mesh.EnsureNodes();
-        ParGridFunction* lor_nodes=static_cast<ParGridFunction *>(lor_mesh.GetNodes());
-        ParFiniteElementSpace* lor_nodes_fes = lor_nodes->ParFESpace();
-        */
-        
-
         InterpolatedCoefficient interp_dens1(*cdens1, *cdens2, *cdensity);
 
-        ParBilinearForm bf_lor(&lor_space);
-        //ParBilinearForm bf_lor(fespace.get());
-        //bf_lor.AddDomainIntegrator(new VectorMassIntegrator(interp_dens1));
-        bf_lor.AddDomainIntegrator(new LumpedIntegrator(new VectorMassIntegrator(interp_dens1)));
-        //bf_lor.AddDomainIntegrator(new VectorMassIntegrator());
+        IntegrationRules gll_rules(0, Quadrature1D::GaussLobatto);
+
+        const IntegrationRule &ir_ni = gll_rules.Get(mesh.GetTypicalElementGeometry(),
+                                                        2 * order - 1);
+
+        ParBilinearForm bf_lor(fespace.get());
+        auto *mv_blfi = new VectorMassIntegrator(interp_dens1);
+        mv_blfi->SetIntRule(&ir_ni);
+        //bf_lor.AddDomainIntegrator(new LumpedIntegrator(mv_blfi));
+        bf_lor.AddDomainIntegrator(mv_blfi);
         bf_lor.Assemble();
         bf_lor.Finalize();
         M_lor.reset(bf_lor.ParallelAssemble());
@@ -549,7 +542,7 @@ void LinearElasticityTimeDependentOperator::AssembleExplicit()
         cg->SetRelTol(1e-7);
         cg->SetAbsTol(1e-12);
         cg->SetMaxIter(500);
-        cg->SetPrintLevel(0);
+        cg->SetPrintLevel(1);
         cg->SetOperator(*dfem_mass_op);
         //cg->SetOperator(*M_lor);
         cg->SetPreconditioner(*amg);

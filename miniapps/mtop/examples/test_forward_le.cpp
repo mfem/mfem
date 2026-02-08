@@ -405,7 +405,6 @@ int main(int argc, char *argv[])
 
 
    //test time integration
-   /*
    {
       real_t t = 0.0;
 
@@ -427,7 +426,7 @@ int main(int argc, char *argv[])
       paraview_dc.Save();
 
       real_t dt_real = 0.005;
-      ode_solver->Run(tsol, t, dt_real, 1.0);
+      //ode_solver->Run(tsol, t, dt_real, 1.0);
 
       for(int i=0;i<6000; i++){
          ode_solver->Step(tsol, t, dt_real);
@@ -447,7 +446,6 @@ int main(int argc, char *argv[])
       }
 
    }
-   */
 
    /*
    if (paraview)
