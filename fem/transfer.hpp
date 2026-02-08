@@ -569,6 +569,13 @@ private:
    const FiniteElementSpace& lFESpace;
    const FiniteElementSpace& hFESpace;
    bool isvar_order;
+   bool is_trace_space;
+   bool assembled = false;
+   std::unique_ptr<SparseMatrix> P;
+   mutable std::unique_ptr<Operator> tP;
+
+   std::unique_ptr<SparseMatrix> BuildConformingTransferMatrix() const;
+   std::unique_ptr<Operator> BuildConformingTransferOperator() const;
 
 public:
    /// @brief Constructs a transfer operator from \p lFESpace to \p hFESpace
@@ -577,10 +584,22 @@ public:
        The underlying finite elements need to implement the GetTransferMatrix
        methods. */
    PRefinementTransferOperator(const FiniteElementSpace& lFESpace_,
-                               const FiniteElementSpace& hFESpace_);
+                               const FiniteElementSpace& hFESpace_,
+                               bool assemble_matrix = false);
+
+
+   Operator * GetTrueTransferOperator();
+   const Operator * GetTrueTransferOperator() const
+   {
+      return const_cast<PRefinementTransferOperator*>(this)
+             ->GetTrueTransferOperator();
+   }
 
    /// Destructor
    virtual ~PRefinementTransferOperator() { }
+
+
+   void AssembleMatrix();
 
    /// @brief Interpolation or prolongation of a vector \p x corresponding to
    /// the coarse space to the vector \p y corresponding to the fine space.
