@@ -95,7 +95,49 @@ LinearElasticityTimeDependentOperator::LinearElasticityTimeDependentOperator(Par
     bdr_force_mem(1) = 1.0; // period
     bdr_force_mem(2) = 0.0; // amplitude
 
+    obj.reset();
+
 } 
+
+void LinearElasticityTimeDependentOperator::SetObjective(std::shared_ptr<Operator> op_)
+{
+    if(op_.get()!=nullptr)
+    {
+        obj=op_;
+        //set the new objective and readjust the size of the operator and the state
+        block_true_offsets.SetSize(4);
+        block_true_offsets[0] = 0;
+        block_true_offsets[1] = fespace->TrueVSize();
+        block_true_offsets[2] = fespace->TrueVSize();
+        block_true_offsets[3] = op_->Height();
+
+        block_true_offsets.PartialSum();
+
+        sol.Update(block_true_offsets); sol=0.0; sol.UseDevice(true);
+        rhs.Update(block_true_offsets); rhs=0.0; rhs.UseDevice(true);
+        tmp.Update(block_true_offsets); tmp=0.0; tmp.UseDevice(true);   
+
+        this->width = block_true_offsets[3];
+        this->height = block_true_offsets[3];        
+    }else{
+
+        obj.reset();
+
+        block_true_offsets.SetSize(3);
+        block_true_offsets[0] = 0;
+        block_true_offsets[1] = fespace->TrueVSize();
+        block_true_offsets[2] = fespace->TrueVSize();
+
+        block_true_offsets.PartialSum();
+
+        sol.Update(block_true_offsets); sol=0.0; sol.UseDevice(true);
+        rhs.Update(block_true_offsets); rhs=0.0; rhs.UseDevice(true);
+        tmp.Update(block_true_offsets); tmp=0.0; tmp.UseDevice(true);   
+
+        this->width = 2*fespace->TrueVSize();
+        this->height = 2*fespace->TrueVSize();
+    }
+}
 
 template <int DI, typename scalar_t=real_t> struct QElasticityFunction
 {
@@ -185,7 +227,7 @@ template <int DI, typename scalar_t=real_t> struct QElasticityFunction
 
         
         MFEM_HOST_DEVICE inline auto operator()(const vecd_t &u,
-                                                const vecd_t &x,
+                                                const vec_t &x,
                                                 const matd_t &J,
                                                 const real_t &w
                                                 ) const
@@ -613,6 +655,13 @@ void LinearElasticityTimeDependentOperator::Mult(const Vector &x,
 
     //dfem_mass_op->SetParameters({dens1.get(), dens2.get(), density.get(), nodes});
     cg->Mult(res, by.GetBlock(1)); // solve for acceleration
+
+    //check if objective is valid
+    if(obj.get()!=nullptr)
+    {
+        //evaluate the objective contribution
+        obj->Mult(x,by.GetBlock(2));
+    }
 }
 
 // implements the adjoint reverse time integration 
@@ -636,3 +685,205 @@ void LinearElasticityTimeDependentOperator::ImplicitSolve(
 {
 }
 
+
+
+template <int DI, typename scalar_t=real_t> struct QObjectiveFunction
+{
+    using matd_t = tensor<scalar_t, DI, DI>;
+    using vecd_t = tensor<scalar_t, DI>;
+    using vec_t = tensor<real_t, DI>;
+    using mat_t = tensor<real_t, DI, DI>;
+
+    struct Objective1
+    {
+        MFEM_HOST_DEVICE inline auto operator()(const vecd_t &u,
+                                                const real_t &co,
+                                                const matd_t &J,
+                                                const real_t &w) const
+        {
+            scalar_t rez; 
+            rez=0.0;
+            for(int i=0;i<DI;i++)
+            {
+                rez=rez+u(i)*u(i);
+            }
+            rez=rez*co;
+            const auto detJ = mfem::future::det(J);
+            return tuple{rez * detJ * w};
+        }
+    };
+
+    struct Objective2
+    {
+        const real_t s1;
+        const real_t s2;
+
+        Objective2(real_t s1_ = real_t(1.0), real_t s2_ = real_t(1.0)):s1(s1_),s2(s2_)
+        {
+
+        }
+
+        MFEM_HOST_DEVICE inline auto operator()(const vecd_t &u,
+                                                const vecd_t &v,
+                                                const real_t &co,
+                                                const matd_t &J,
+                                                const real_t &w) const
+        {
+            scalar_t rez=0.0;
+            for(int i=0;i<DI;i++)
+            {
+                rez=rez+u(i)*u(i)*s1+v(i)*v(i)*s2;
+            }
+            const auto detJ = mfem::future::det(J);
+            return tuple{rez * detJ * w};
+        }
+    };
+
+};
+
+
+ExampleObjectiveIntegrand::ExampleObjectiveIntegrand(ParFiniteElementSpace* fes_, 
+                                std::shared_ptr<mfem::Coefficient> objc_) 
+{
+    fes=fes_;
+
+    fes->GetParMesh()->EnsureNodes();
+
+    disp.SetSpace(fes); disp=0.0;
+    velo.SetSpace(fes); velo=0.0;
+
+    this->width=2*fes->GetTrueVSize(); //disp.Size() + veloc.Size()
+    this->height=1; //returns 3 objectives     
+
+    grad=nullptr;
+
+     //set the block sizes for the solution, rhs and tmp vectors
+    block_true_offsets.SetSize(3);
+    block_true_offsets[0] = 0;
+    block_true_offsets[1] = fes->TrueVSize();
+    block_true_offsets[2] = fes->TrueVSize();
+
+    block_true_offsets.PartialSum();
+
+    const mfem::FiniteElement *fe= fes->GetFE(0);
+    ir = &(IntRules.Get(fe->GetGeomType(),
+                      fe->GetOrder() + fe->GetOrder() + fe->GetDim() - 1));
+
+    qs.reset(new QuadratureSpace(*(fes->GetParMesh()), *ir));
+
+    ups.reset(new future::UniformParameterSpace(
+        *(fes->GetParMesh()), *ir, 1, false /* used_in_tensor_product */));
+    
+    if (fes->GetParMesh()->attributes.Size() > 0)
+    {
+      domain_attributes.SetSize(fes->GetParMesh()->attributes.Max());
+      domain_attributes = 1;
+    }
+
+    nodes = static_cast<ParGridFunction *>(fes->GetParMesh()->GetNodes());
+    mfes = nodes->ParFESpace();
+
+    SetCoefficients(objc_);
+
+}
+
+void ExampleObjectiveIntegrand::SetCoefficients( std::shared_ptr<mfem::Coefficient> objc)
+{
+    co=objc;
+    if(co.get()!=nullptr)
+    {
+        //project the coefficient
+        density.reset(new mfem::CoefficientVector(*qs, mfem::CoefficientStorage::FULL)); 
+        density->Project(*co);
+    }else{
+        density.reset(new mfem::CoefficientVector(*qs, mfem::CoefficientStorage::FULL));
+        density->SetConstant(1.0);
+    }
+
+    res.SetSize(density->Size());
+
+    //allocate the differentiable operator
+    {
+        obj = std::make_unique<mfem::future::DifferentiableOperator>(
+            std::vector<mfem::future::FieldDescriptor>{ {FDispl, fes} },
+            std::vector<mfem::future::FieldDescriptor>{
+                {Density, ups.get()},
+                {Coords, mfes}
+            },
+            *(fes->GetParMesh())
+        );
+
+        obj->SetParameters( {density.get(), nodes} );
+
+        const auto finputs =
+            mfem::future::tuple{
+                mfem::future::Value<FDispl>{},
+                mfem::future::Identity<Density>{}, 
+                mfem::future::Gradient<Coords>{},
+                mfem::future::Weight{}
+            };
+        
+        const auto foutputs =
+            mfem::future::tuple{
+                mfem::future::Identity<Density>{} 
+            };
+        
+        int space_dim=fes->GetParMesh()->SpaceDimension();
+
+        if(2 == space_dim)
+        {
+            using mfem::future::dual;
+            using dual_t = dual<real_t, real_t>;
+            typename QObjectiveFunction<2,dual_t>::Objective1 obj_func;
+            auto derivatives = std::integer_sequence<size_t, FDispl, Coords> {};
+            obj->AddDomainIntegrator(obj_func, finputs, foutputs, *ir, domain_attributes, derivatives);
+        }
+        else if( 3 == space_dim)
+        {
+            using mfem::future::dual;
+            using dual_t = dual<real_t, real_t>;
+            typename QObjectiveFunction<3,dual_t>::Objective1 obj_func;
+            auto derivatives = std::integer_sequence<size_t, FDispl, Coords> {};
+            obj->AddDomainIntegrator(obj_func, finputs, foutputs, *ir, domain_attributes, derivatives);
+        }
+
+    }
+}
+
+void ExampleObjectiveIntegrand::Mult(const Vector &x, Vector &y) const
+{
+
+    mfem::Array<int> lblock_true_offsets;
+    lblock_true_offsets.SetSize(4);
+    lblock_true_offsets[0] = 0;
+    lblock_true_offsets[1] = fes->TrueVSize();
+    lblock_true_offsets[2] = fes->TrueVSize();
+    lblock_true_offsets[3] = x.Size()-2*fes->TrueVSize();
+    lblock_true_offsets.PartialSum();
+
+    BlockVector bx(const_cast<Vector&>(x), lblock_true_offsets);
+
+    obj->Mult(bx.GetBlock(0),res);
+    //sum up the weighted values
+    real_t lp=mfem::InnerProduct(fes->GetComm(), res, *density);
+    y[0]=lp;
+}
+
+void ExampleObjectiveIntegrand::EvalGradient(const Vector &x, Vector &grad) const
+{
+    mfem::Array<int> lblock_true_offsets;
+    lblock_true_offsets.SetSize(4);
+    lblock_true_offsets[0] = 0;
+    lblock_true_offsets[1] = fes->TrueVSize();
+    lblock_true_offsets[2] = fes->TrueVSize();
+    lblock_true_offsets[3] = x.Size()-2*fes->TrueVSize();
+    lblock_true_offsets.PartialSum();
+
+    BlockVector bx(const_cast<Vector&>(x), lblock_true_offsets);
+    disp.SetFromTrueDofs(bx.GetBlock(0));
+
+    std::shared_ptr<mfem::future::DerivativeOperator> dobj_du;
+    dobj_du=obj->GetDerivative(FDispl, {&disp},{density.get(), nodes});
+
+    dobj_du->MultTranspose(*density,grad);
+}

@@ -289,6 +289,13 @@ int main(int argc, char *argv[])
       lin_elasticity_op.GetVelocity().SetFromTrueDofs(grd.GetBlock(1));
    }   
 
+   std::shared_ptr<ExampleObjectiveIntegrand> obj=
+      std::make_shared<ExampleObjectiveIntegrand>(lin_elasticity_op.GetDisplacement().ParFESpace(),
+                                                   std::shared_ptr<Coefficient>() );
+   //set the objective for the integration process                                                   
+
+   lin_elasticity_op.SetObjective(obj);
+
    ParaViewDataCollection paraview_dc("isoel", &pmesh);
    paraview_dc.SetPrefixPath("ParaView");
    paraview_dc.SetLevelsOfDetail(order);
@@ -372,6 +379,8 @@ int main(int argc, char *argv[])
          //advance u_st
          ode_solver->Step(u_st.v,t,ldt);
          //TO-DO update objective 
+         obj=u_st.v[u_st.v.Size()-1];
+
 
          //return updated u_st
          u_st.dt=t-u_st.time;
@@ -380,7 +389,7 @@ int main(int argc, char *argv[])
 
          if (Mpi::Root())
          {
-            mfem::out<<"t: "<<u_st.time<<" dt="<<u_st.dt<<"\n";
+            mfem::out<<"t: "<<u_st.time<<" dt="<<u_st.dt<<" obj:"<<obj<<"\n";
          }
       };
 
@@ -406,6 +415,18 @@ int main(int argc, char *argv[])
 
    }
 
+   //test objective gradients
+   {
+      Vector state; state.SetSize(lin_elasticity_op.GetState().Size());
+      state.Randomize();
+
+      Vector dx(state); dx.Randomize();
+      Vector tmp(state);
+      Vector grd(state);
+
+      real_t ro=obj->EvalScalar(state);
+      obj->EvalGradient(state,grd);
+   }
 
 
    return EXIT_SUCCESS;

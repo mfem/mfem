@@ -2,6 +2,7 @@
 #define LINEAR_ELASTICITY_HPP
 #include "mfem.hpp"
 
+
 class LinearElasticityTimeDependentOperator : public mfem::TimeDependentOperator
 {
 public:
@@ -20,6 +21,9 @@ virtual void MultTranspose(const mfem::Vector &x,mfem::Vector &y) const override
 virtual void ImplicitSolve(const mfem::real_t dt,
                              const mfem::Vector &x,
                              mfem::Vector &k) override;
+
+// sets the objective integraand which will be integrated with the state of the system
+void SetObjective(std::shared_ptr<mfem::Operator> op_);
 
 
 // Assemble the explicit operators
@@ -238,6 +242,74 @@ mutable mfem::Vector vol_force_mem;
 // zero bdr dofs - constructed during the corrsponding Assemble calls
 mfem::Array<int> ess_tdof_list;
 
+//objective/constraints integrand 
+//obj->Mult(x,y)
+//takes state vector s  and returns y which consists of multiple objectives/constraints 
+std::shared_ptr<mfem::Operator> obj;
+
+
+};
+
+
+
+
+class ExampleObjectiveIntegrand: public mfem::Operator
+{
+public:
+
+    ExampleObjectiveIntegrand(mfem::ParFiniteElementSpace* fes_, 
+                                std::shared_ptr<mfem::Coefficient> objc);
+
+
+    void SetCoefficients( std::shared_ptr<mfem::Coefficient> objc);
+
+    //evaluates the QoIs y[1] for a given state x[2 x fes_->GetTrueVSize()]
+    virtual void Mult(const mfem::Vector &x, mfem::Vector &y) const override;
+
+    mfem::real_t EvalScalar(const mfem::Vector &x) const
+    {
+        mfem::Vector y(1);
+        Mult(x, y);
+        return y[0];
+    }
+
+    void EvalGradient(const mfem::Vector &x, mfem::Vector &grad) const;
+    
+
+private:
+    std::shared_ptr<mfem::Coefficient> co;
+    mfem::ParFiniteElementSpace* fes;
+    mutable mfem::ParGridFunction disp;
+    mutable mfem::ParGridFunction velo;
+
+    mfem::Operator* grad;
+
+    static constexpr int FDispl = 0; //grid function displacement
+    static constexpr int FVeloc = 1; //grid function velocity
+    static constexpr int Density = 14; // coefficient vector
+    static constexpr int Coords = 15; // coordinates grid function
+
+    // DFEM related definitions (3 objectives)
+    std::unique_ptr<mfem::future::DifferentiableOperator> obj;
+
+    std::shared_ptr<mfem::future::DerivativeOperator> dobj_du;
+
+    // density coefficient for computing the objective function
+    std::shared_ptr<mfem::CoefficientVector> density;
+
+    mfem::Array<int> block_true_offsets;
+
+    //uniform parameter space
+    std::unique_ptr<mfem::future::UniformParameterSpace> ups;
+    //quadrature space for the coefficient
+    std::unique_ptr<mfem::QuadratureSpace> qs;
+
+    mfem::ParGridFunction *nodes;
+    mfem::ParFiniteElementSpace *mfes;
+    mfem::Array<int> domain_attributes;
+    const mfem::IntegrationRule *ir;
+
+    mutable mfem::Vector res; 
 
 };
 
