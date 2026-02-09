@@ -185,11 +185,12 @@ void NEML2StressDivergenceIntegrator::ComputeRImpl(const ParameterFunction &stre
    // Reduce quadrature function to an E-Vector
    const auto QRead = Reshape(this->q_vec->Read(), numPoints, d, d, numEls);
    const auto G = Reshape(this->maps->G.Read(), numPoints, d, this->ndofs);
+   const auto nDofs = this->ndofs;
    auto rDev = Reshape(R.ReadWrite(), this->ndofs, d, numEls);
-   mfem::forall_2D(numEls, d, this->ndofs,
+   mfem::forall_2D(numEls, d, nDofs,
                    [=] MFEM_HOST_DEVICE(int e)
                    {
-                      MFEM_FOREACH_THREAD(i, y, this->ndofs)
+                      MFEM_FOREACH_THREAD(i, y, nDofs)
                       {
                          MFEM_FOREACH_THREAD(q, x, d)
                          {
