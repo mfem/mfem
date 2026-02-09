@@ -530,4 +530,65 @@ void map_quadrature_data_to_fields(
    }
 }
 
+template <size_t N, typename field_operator_ts>
+MFEM_HOST_DEVICE
+void map_quadrature_data_to_fields_conditional(
+   DeviceTensor<2, real_t> &y,
+   const DeviceTensor<3, real_t> &f,
+   const field_operator_ts &fops,
+   const DeviceTensor<1, const real_t> &op_dims,
+   const std::array<DofToQuadMap, N> &dtqmaps,
+   std::array<DeviceTensor<1>, 6> &scratch_mem,
+   const DeviceTensor<3> &fi_shmem,
+   const std::array<bool, N> &conditions,
+   const int &dimension,
+   const bool &use_sum_factorization)
+{
+   int offset = 0;
+   for_constexpr<N>([&](auto i)
+   {
+      if (conditions[i])
+      {
+         [[maybe_unused]] const auto [K, unused, M] = f.GetShape();
+         const int L = static_cast<int>(op_dims(static_cast<size_t>(i)));
+         auto fi = Reshape(&fi_shmem(0, 0, 0), K, L, M);
+         for (int k = 0; k < K; k++)
+         {
+            for (int l = 0; l < L; l++)
+            {
+               for (int m = 0; m < M; m++)
+               {
+                  fi(k, l, m) = f(k, l + offset, m);
+               }
+            }
+         }
+
+         if (use_sum_factorization)
+         {
+            if (dimension == 1)
+            {
+               map_quadrature_data_to_fields_tensor_impl_1d(
+                  y, fi, get<i>(fops), dtqmaps[i], scratch_mem);
+            }
+            else if (dimension == 2)
+            {
+               map_quadrature_data_to_fields_tensor_impl_2d(
+                  y, fi, get<i>(fops), dtqmaps[i], scratch_mem);
+            }
+            else if (dimension == 3)
+            {
+               map_quadrature_data_to_fields_tensor_impl_3d(
+                  y, fi, get<i>(fops), dtqmaps[i], scratch_mem);
+            }
+            else { MFEM_ABORT_KERNEL("dimension not supported"); }
+         }
+         else
+         {
+            map_quadrature_data_to_fields_impl(y, fi, get<i>(fops), dtqmaps[i]);
+         }
+         offset += L;
+      }
+   });
+}
+
 } // namespace mfem::future

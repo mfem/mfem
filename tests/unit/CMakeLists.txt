@@ -39,6 +39,8 @@ set(UNIT_TESTS_SRCS
   dfem/test_divergence.cpp
   dfem/test_lvector_interface.cpp
   dfem/test_mass.cpp
+  dfem/test_transpose.cpp
+  dfem/test_multiple_integrators.cpp
   general/test_array.cpp
   general/test_scan.cpp
   general/test_arrays_by_name.cpp
@@ -101,6 +103,7 @@ set(UNIT_TESTS_SRCS
   fem/test_calcdshape.cpp
   fem/test_calcshape.cpp
   fem/test_calcvshape.cpp
+  fem/test_calchessian.cpp
   fem/test_coefficient.cpp
   fem/test_col_lag_der.cpp
   fem/test_datacollection.cpp
