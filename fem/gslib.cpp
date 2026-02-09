@@ -949,7 +949,8 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
             pt->el = h_el[index];
             ++pt;
          }
-         else if (h_code[index] != CODE_NOT_FOUND && h_proc[index] == gsl_comm->id)
+         else if (h_code[index] != CODE_NOT_FOUND &&
+                  h_proc[index] == gsl_comm->id)
          {
             gsl_elem_temp[ctr] = h_el[index];
             for (int d = 0; d < dim; ++d)
@@ -1021,7 +1022,7 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
       return;
    }
 
-   // evaluate points locally
+   // evaluate points received from other ranks
    {
       int n = src.n;
       const evalSrcPt_t *spt;
