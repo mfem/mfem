@@ -145,10 +145,12 @@ void NEML2StressDivergenceIntegrator::ComputeRImpl(const ParameterFunction &stre
    const auto J = Reshape(this->geom->J.Read(), numPoints, d, d, numEls);
 
    const real_t *ipWeights = this->IntRule->GetWeights().Read();
-   for (int e = 0; e < numEls; ++e)
-   {
-      for (int p = 0; p < numPoints; ++p)
-      {
+   mfem::forall_2D(numEls, numPoints, 1,
+                   [=] MFEM_HOST_DEVICE(int e)
+                   {
+                      // for(int p = 0; p < numPoints, )
+                      MFEM_FOREACH_THREAD(p, x, numPoints)
+                      {
                          // clang-format off
                            const auto invJ = inv(make_tensor<d, d>([&](int i, int j)
                                                                   { return J(p, i, j, e); }));
@@ -178,18 +180,19 @@ void NEML2StressDivergenceIntegrator::ComputeRImpl(const ParameterFunction &stre
                             }
                          }
                       }
-                   }
+                   });
 
    // Reduce quadrature function to an E-Vector
    const auto QRead = Reshape(this->q_vec->Read(), numPoints, d, d, numEls);
    const auto G = Reshape(this->maps->G.Read(), numPoints, d, this->ndofs);
    auto rDev = Reshape(R.ReadWrite(), this->ndofs, d, numEls);
-   for (int e = 0; e < numEls; ++e)
-   {
-      for (int i = 0; i < this->ndofs; ++i)
-      {
-         for (int q = 0; q < d; ++q)
-         {
+   mfem::forall_2D(numEls, d, this->ndofs,
+                   [=] MFEM_HOST_DEVICE(int e)
+                   {
+                      MFEM_FOREACH_THREAD(i, y, this->ndofs)
+                      {
+                         MFEM_FOREACH_THREAD(q, x, d)
+                         {
                             real_t sum = 0.;
                             for (int m = 0; m < d; m++)
                             {
@@ -201,7 +204,7 @@ void NEML2StressDivergenceIntegrator::ComputeRImpl(const ParameterFunction &stre
                             rDev(i, q, e) += sum;
                          }
                       }
-                   }
+                   });
 }
 
 void NEML2StressDivergenceIntegrator::ComputeR(const ParameterFunction &stress,
