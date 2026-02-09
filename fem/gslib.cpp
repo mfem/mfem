@@ -531,13 +531,13 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
    // obtained reference-space coordinates.
    double rbtol = 1e-12; // must match MapRefPosAndElemIndices for consistency
 
-   auto d_gsl_code = gsl_code.Write(); // no-op because already on device
-   auto d_gsl_ref = gsl_ref.Write(); // no-op because already on device
-   auto d_gsl_dist = gsl_dist.Write(); // no-op because already on device
-   auto d_gsl_mfem_ref = gsl_mfem_ref.Write();
-
    if (np == 1)
    {
+      auto d_gsl_code = gsl_code.Write(); // no-op because already on device
+      auto d_gsl_ref = gsl_ref.Read(); // no-op because already on device
+      auto d_gsl_dist = gsl_dist.Write(); // no-op because already on device
+      auto d_gsl_mfem_ref = gsl_mfem_ref.Write();
+
       const int pts_cnt = points_cnt;
       const double bdr_t = bdr_tol;
 
@@ -571,10 +571,6 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
       return;
    }
 
-   // Sync from device to host to send points to other ranks
-   auto h_gsl_code = gsl_code.HostRead();
-   auto h_pp = point_pos.HostRead();
-
 #ifdef MFEM_USE_MPI
    MPI_Barrier(gsl_comm->c);
 #endif
@@ -594,6 +590,10 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
    };
 
    {
+      // Sync from device to host to send points to other ranks
+      auto h_gsl_code = gsl_code.HostRead();
+      auto h_pp = point_pos.HostRead();
+
       int index;
       struct srcPt_t *pt;
 
@@ -789,96 +789,63 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
    MPI_Barrier(gsl_comm->c);
 #endif
 
-   d_gsl_code = gsl_code.ReadWrite(); // is this needed?
+   auto h_gsl_code = gsl_code.HostReadWrite();
+   auto h_gsl_dist = gsl_dist.HostReadWrite();
+   auto h_gsl_ref = gsl_ref.HostReadWrite();
+   auto h_gsl_mfem_ref = gsl_mfem_ref.HostReadWrite();
+   auto h_gsl_elem = gsl_elem.HostReadWrite();
+   auto h_gsl_mfem_elem = gsl_mfem_elem.HostReadWrite();
+   auto h_gsl_proc = gsl_proc.HostReadWrite();
 
    /* merge remote results with user data */
    // For points found on other procs, we set gsl_mfem_elem, gsl_mfem_ref,
    // and gsl_code now.
    {
       int n = out_pt.n;
-      Vector gsl_merge_ref(n*dim), gsl_merge_dist(n);
-      gsl_merge_ref.UseDevice(true);
-      gsl_merge_dist.UseDevice(true);
-      Array<unsigned int> gsl_merge_index(n), gsl_merge_proc(n),
-            gsl_merge_elem(n), gsl_merge_code(n);
-
-      auto p_merge_ref = gsl_merge_ref.HostWrite();
-      auto p_merge_dist = gsl_merge_dist.HostWrite();
-      auto p_merge_index = gsl_merge_index.HostWrite();
-      auto p_merge_proc = gsl_merge_proc.HostWrite();
-      auto p_merge_elem = gsl_merge_elem.HostWrite();
-      auto p_merge_code = gsl_merge_code.HostWrite();
-
       struct outPt_t *opt = (struct outPt_t *)out_pt.ptr;
       for (int i = 0; i < n; i++)
       {
-         p_merge_index[i] = opt[i].index;
-         p_merge_code[i] = opt[i].code;
-         p_merge_dist[i] = opt[i].dist2;
-         p_merge_proc[i] = opt[i].proc;
-         p_merge_elem[i] = opt[i].el;
-         for (int d = 0; d < dim; d++)
+         const int index = opt[i].index;
+         if (h_gsl_code[index] == CODE_INTERNAL)
          {
-            p_merge_ref[i*dim + d] = opt[i].r[d];
+            continue;
+         }
+         if (h_gsl_code[index] == CODE_NOT_FOUND ||
+             opt[i].code == CODE_INTERNAL ||
+             opt[i].dist2 < h_gsl_dist[index])
+         {
+            for (int d = 0; d < dim; ++d)
+            {
+               real_t rv = opt[i].r[d];
+               h_gsl_ref[dim * index + d] = rv;
+               h_gsl_mfem_ref[dim*index + d] = 0.5*(rv + 1.);
+            }
+            h_gsl_dist[index] = opt[i].dist2;
+            h_gsl_proc[index] = opt[i].proc;
+            h_gsl_elem[index] = opt[i].el;
+            h_gsl_mfem_elem[index]   = opt[i].el;
+            h_gsl_code[index] = opt[i].code;
          }
       }
-
-
-      auto d_merge_ref   = gsl_merge_ref.Read();
-      auto d_merge_dist  = gsl_merge_dist.Read();
-      auto d_merge_index = gsl_merge_index.Read();
-      auto d_merge_proc  = gsl_merge_proc.Read();
-      auto d_merge_elem  = gsl_merge_elem.Read();
-      auto d_merge_code  = gsl_merge_code.Read();
-
-      MFEM_FORALL(i, n,
-      {
-         const unsigned int index = d_merge_index[i];
-         const unsigned int merge_code = d_merge_code[i];
-         if (d_gsl_code[index] == CODE_INTERNAL)
-         {
-            return;
-         }
-         if (d_gsl_code[index] == CODE_NOT_FOUND ||
-             merge_code == CODE_INTERNAL ||
-             d_merge_dist[i] < d_gsl_dist[index])
-         {
-            for (int k = 0; k < ddim; ++k)
-            {
-               double r_val = d_merge_ref[ddim * i + k];
-               d_gsl_ref[ddim * index + k] = r_val;
-               d_gsl_mfem_ref[ddim*index + k] = 0.5*(r_val + 1.);
-            }
-            d_gsl_dist[index] = d_merge_dist[i];
-            d_gsl_proc[index] = d_merge_proc[i];
-            d_gsl_elem[index] = d_merge_elem[i];
-            d_gsl_mfem_elem[index]   = d_merge_elem[i];
-            d_gsl_code[index] = merge_code;
-         }
-      });
       array_free(&out_pt);
    }
 
-   const int pts_cnt = points_cnt;
-   const double bdr_t = bdr_tol;
-
    // For points found locally, we set gsl_mfem_elem, gsl_mfem_ref, and
    // gsl_code since it was not set until now.
-   MFEM_FORALL(index, pts_cnt,
+   for (int index = 0; index < points_cnt; index++)
    {
-      if (d_gsl_code[index] == CODE_NOT_FOUND || d_gsl_proc[index] != id)
+      if (h_gsl_code[index] == CODE_NOT_FOUND || h_gsl_proc[index] != id)
       {
-         return;
+         continue;
       }
-      d_gsl_mfem_elem[index] = d_gsl_elem[index];
+      h_gsl_mfem_elem[index] = h_gsl_elem[index];
 
       bool internal = true;
-      for (int k = 0; k < ddim; k++)
+      for (int k = 0; k < dim; k++)
       {
-         double r_val = d_gsl_ref[index * ddim + k];
+         double r_val = h_gsl_ref[index * dim + k];
          double val = 0.5 * (r_val + 1.0);
-         d_gsl_mfem_ref[index * ddim + k] = val;
-
+         h_gsl_mfem_ref[index * dim + k] = val;
          if (val < rbtol || val > 1.0 - rbtol)
          {
             internal = false;
@@ -886,10 +853,11 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
       }
 
       int setcode = internal ? CODE_INTERNAL : CODE_BORDER;
-      d_gsl_code[index] = (setcode == CODE_BORDER && d_gsl_dist[index] > bdr_t)
+      h_gsl_code[index] = (setcode == CODE_BORDER &&
+                           h_gsl_dist[index] > bdr_tol)
                           ? CODE_NOT_FOUND
                           : setcode;
-   });
+   }
 }
 
 struct evalSrcPt_t
@@ -2096,8 +2064,10 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
       for (int index = 0; index < npt; index++)
       {
          if (h_gsl_code[index] == 2) { continue; }
-         for (int d = 0; d < dim; ++d) {
-            pt->r[d]= h_gsl_mfem_ref[index*dim + d]; }
+         for (int d = 0; d < dim; ++d)
+         {
+            pt->r[d]= h_gsl_mfem_ref[index*dim + d];
+         }
          pt->index = index;
          pt->proc  = h_gsl_proc[index];
          pt->el    = h_gsl_mfem_elem[index];
