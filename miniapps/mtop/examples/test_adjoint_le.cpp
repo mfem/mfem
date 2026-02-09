@@ -426,6 +426,23 @@ int main(int argc, char *argv[])
 
       real_t ro=obj->EvalScalar(state);
       obj->EvalGradient(state,grd);
+
+      real_t dp=InnerProduct(MPI_COMM_WORLD,grd,dx);
+      real_t np=InnerProduct(MPI_COMM_WORLD,dx,dx);
+
+      real_t sca=10.0;
+      for(int i=0;i<10;i++){
+         sca=sca/10;
+         tmp.Set(sca,dx);
+         tmp.Add(1.0,state);
+         real_t rc=obj->EvalScalar(tmp);
+         if(Mpi::Root())
+         {
+            std::cout<<" obj="<<ro<<" true drv="<<dp<<" fd drv="<<(rc-ro)/(sca)<<std::endl;
+         }
+      }
+      
+
    }
 
 

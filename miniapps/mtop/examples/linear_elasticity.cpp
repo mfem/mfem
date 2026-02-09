@@ -880,10 +880,19 @@ void ExampleObjectiveIntegrand::EvalGradient(const Vector &x, Vector &grad) cons
     lblock_true_offsets.PartialSum();
 
     BlockVector bx(const_cast<Vector&>(x), lblock_true_offsets);
+    BlockVector by(grad, lblock_true_offsets); by=0.0;
     disp.SetFromTrueDofs(bx.GetBlock(0));
 
     std::shared_ptr<mfem::future::DerivativeOperator> dobj_du;
     dobj_du=obj->GetDerivative(FDispl, {&disp},{density.get(), nodes});
 
-    dobj_du->MultTranspose(*density,grad);
+
+    if (Mpi::Root())
+    {
+       std::cout << "Op size: " << dobj_du->Height()<<" "<<dobj_du->Width()<< std::endl;
+       std::cout << " disp size:"<< bx.GetBlock(0).Size()<<std::endl;
+       std::cout << " dens size:"<< density->Size()<<std::endl;
+    }
+
+    dobj_du->MultTranspose(*density,by.GetBlock(0));
 }
