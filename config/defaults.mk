@@ -356,7 +356,7 @@ MUMPS_OPT = -I$(MUMPS_DIR)/include
 MUMPS_OPT = -I$(MUMPS_DIR)/include
 COMPLEX_MUMPS_OPT = $(MUMPS_OPT)
 
-MUMPS_COMMON_PATH = $(XLINKER),-no_compact_unwind,-rpath,$(MUMPS_DIR)/lib -L$(MUMPS_DIR)/lib
+MUMPS_COMMON_PATH = $(XLINKER)-rpath,$(MUMPS_DIR)/lib -L$(MUMPS_DIR)/lib
 MUMPS_COMMON_LIB = -lmumps_common -lpord $(SCALAPACK_LIB) $(LAPACK_LIB) $(MPI_FORTRAN_LIB)
 ifeq ($(MFEM_USE_SINGLE),YES)
   MUMPS_SOLVER_LIB         = -lsmumps
