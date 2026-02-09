@@ -270,15 +270,11 @@ void ParticleSet::TransferParticlesImpl(ParticleSet &pset,
    std::vector<const real_t*> send_ptrs;
    send_ptrs.reserve(pset.GetNFields() + 1);
 
-   auto add_send_ptr = [&](const ParticleVector& pv)
-   {
-      send_ptrs.push_back(pv.HostRead());
-   };
-
-   add_send_ptr(pset.Coords());
+   send_ptrs.push_back(pset.Coords().HostRead());
    for (int f = 0; f < pset.GetNFields(); f++)
    {
-      add_send_ptr(pset.Field(f));
+
+      send_ptrs.push_back(pset.Field(f).HostRead());
    }
 
    std::vector<const int*> send_tags;
@@ -292,7 +288,6 @@ void ParticleSet::TransferParticlesImpl(ParticleSet &pset,
    for (int i = 0; i < send_idxs.Size(); i++)
    {
       parr_t &pdata = pdata_arr[i];
-
       pdata.id = pset.GetIDs()[send_idxs[i]];
 
       size_t counter = 0;
@@ -301,7 +296,7 @@ void ParticleSet::TransferParticlesImpl(ParticleSet &pset,
       // Handle Coords and fields
       for (int f = -1; f < pset.GetNFields(); f++)
       {
-         const ParticleVector &pv = f == -1 ? pset.Coords() :pset.Field(f);
+         const ParticleVector &pv = f == -1 ? pset.Coords() : pset.Field(f);
          const real_t* data = send_ptrs[field_idx++];
          int vdim = pv.GetVDim();
          int offset = (pv.GetOrdering() == Ordering::byVDIM) ?
@@ -358,26 +353,21 @@ void ParticleSet::TransferParticlesImpl(ParticleSet &pset,
       new_ids[i] = pdata_arr[nsend + i].id;
    }
 
-   // Add particles in batch (triggers one resize/shift)
+   // Add particles in batch
    Array<int> new_indices;
    if (num_new > 0)
    {
       pset.AddParticles(new_ids, &new_indices);
    }
 
-   // Pre-synchronize all data to host for writing
+   // Get host pointers for writing
    std::vector<real_t*> recv_ptrs;
    recv_ptrs.reserve(pset.GetNFields() + 1);
 
-   auto add_recv_ptr = [&](ParticleVector& pv)
-   {
-      recv_ptrs.push_back(pv.HostReadWrite());
-   };
-
-   add_recv_ptr(pset.Coords());
+   recv_ptrs.push_back(pset.Coords().HostReadWrite());
    for (int f = 0; f < pset.GetNFields(); f++)
    {
-      add_recv_ptr(pset.Field(f));
+      recv_ptrs.push_back(pset.Field(f).HostReadWrite());
    }
 
    std::vector<int*> recv_tags;
@@ -391,7 +381,6 @@ void ParticleSet::TransferParticlesImpl(ParticleSet &pset,
    for (int i = 0; i < nrecv; i++)
    {
       parr_t &pdata = pdata_arr[i];
-
       int new_loc_idx;
       if (i < nsend) // update existing particle
       {

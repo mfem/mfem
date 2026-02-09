@@ -269,9 +269,37 @@ void ParticleVector::SetVDim(int vdim_, bool keep_data)
 
 void ParticleVector::SetOrdering(Ordering::Type ordering_, bool keep_data)
 {
-   if (keep_data)
+   if (keep_data && ordering != ordering_)
    {
-      Ordering::Reorder(*this, vdim, ordering, ordering_);
+      int num_particles = GetNumParticles();
+      // create deep copy of old data that will be copied
+      Vector old_data(*this);
+
+      const bool use_dev = UseDevice();
+      const auto d_src = old_data.Read(use_dev);
+      auto d_dest = Write(use_dev);
+
+      const int vdim_ = vdim;
+      const int size_ = size;
+
+      if (ordering_ == Ordering::byNODES) // byVDIM -> byNODES
+      {
+         MFEM_FORALL(k, size_,
+         {
+            int i = k / vdim_; // src particle index
+            int d = k % vdim_; // src component index
+            d_dest[i + d * num_particles] = d_src[k];
+         });
+      }
+      else // byNODES -> byVDIM
+      {
+         MFEM_FORALL(k, size_,
+         {
+            int d = k / num_particles; // src component index
+            int i = k % num_particles; // src particle index
+            d_dest[d + i * vdim_] = d_src[k];
+         });
+      }
    }
    ordering = ordering_;
 }
