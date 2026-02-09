@@ -90,9 +90,11 @@
 //
 
 #include "cold_plasma_dielectric_coefs.hpp"
-#include "cold_plasma_dielectric_solver.hpp"
-#include "interp_data.hpp"
+#include "cold_plasma_dielectric_dh_solver.hpp"
 #include "../common/mesh_extras.hpp"
+#include "plasma.hpp"
+#include "interp_data.hpp"
+#include "g_eqdsk_data.hpp"
 #include <fstream>
 #include <iostream>
 #include <cmath>
@@ -245,99 +247,6 @@ void j_src_i(const Vector &x, Vector &j)
 void e_bc_r(const Vector &x, Vector &E);
 void e_bc_i(const Vector &x, Vector &E);
 
-/**
-   The different types of density profiles require different sets of
-   paramters, for example.
-
-   CONSTANT: 1 parameter
-      The constant value of the density
-
-   GRADIENT: 7 parameters
-      The value of the density at one point
-      The location of this point (3 parameters)
-      The gradient of the density at this point (3 parameters)
-
-   TANH: 9 parameters
-      The value of the density when tanh equals zero
-      The value of the density when tanh equals one
-      The skin depth, defined as the distance, in the direction of the
-         steepest gradient, between locations where tanh equals zero and
-         where tanh equals one-half.
-      The location of a point where tanh equals zero (3 parameters)
-      The unit vector in the direction of the steepest gradient away from
-         the location described by the previous parameter (3 parameters)
-*/
-/*
-class DensityProfile : public Coefficient
-{
-public:
-   enum Type {CONSTANT, GRADIENT, TANH};
-
-private:
-   Type type_;
-   Vector p_;
-
-   const int np_[3] = {1, 7, 9};
-
-   mutable Vector x_;
-
-public:
-
-   DensityProfile(Type type, const Vector & params)
-      : type_(type), p_(params), x_(3)
-   {
-      MFEM_ASSERT(params.Size() >= np_[type],
-                  "Insufficient number of parameters, " << params.Size()
-                  << ", for profile of type: " << type << ".");
-   }
-
-   double Eval(ElementTransformation &T,
-               const IntegrationPoint &ip)
-   {
-      if (type_ != CONSTANT)
-      {
-         T.Transform(ip, x_);
-      }
-
-      switch (type_)
-      {
-         case CONSTANT:
-            return p_[0];
-            break;
-         case GRADIENT:
-         {
-            Vector x0(&p_[1], 3);
-            Vector drho(&p_[4], 3);
-
-            x_ -= x0;
-
-            return p_[0] + (drho * x_);
-         }
-         break;
-         case TANH:
-         {
-            Vector x0(&p_[3], 3);
-            Vector drho(&p_[6], 3);
-
-            x_ -= x0;
-            double a = 0.5 * log(3.0) * (drho * x_) / p_[2];
-
-            if (fabs(a) < 10.0)
-            {
-               return p_[0] + (p_[1] - p_[0]) * tanh(a);
-            }
-            else
-            {
-               return p_[1];
-            }
-         }
-         break;
-      }
-      return 0.0;
-   }
-};
-*/
-
 class PortBCEfield : public VectorCoefficient
 {
 private:
@@ -353,11 +262,10 @@ private:
    double nhaty_;
    double nhatz_;
    int index_;
-   Vector unit_rad_;
 
 public:
    PortBCEfield(const Vector &params, int index)
-      : VectorCoefficient(3), params_(params), index_(index), x_(3),unit_rad_(3)
+      : VectorCoefficient(3), params_(params), index_(index), x_(3)
    {  
       MFEM_ASSERT(params.Size() % 9 == 0,
                   "Incorrect number of parameters provided to "
@@ -389,7 +297,6 @@ public:
       rdisk[0] = r[0] - (r[0]*nhatx_+r[1]*nhaty_+r[2]*nhatz_)*nhatx_;
       rdisk[1] = r[1] - (r[0]*nhatx_+r[1]*nhaty_+r[2]*nhatz_)*nhaty_;
       rdisk[2] = r[2] - (r[0]*nhatx_+r[1]*nhaty_+r[2]*nhatz_)*nhatz_;
-
      
       double rdisknorm = rdisk.Norml2();
 
@@ -397,21 +304,7 @@ public:
 
       V[0] = Efield*(rdisk[0]/rdisknorm);
       V[1] = Efield*(rdisk[1]/rdisknorm);
-      V[2] = Efield*(rdisk[2]/rdisknorm);
-      
-      /*
-      double r = sqrt(pow(x_[0]-x0_,2.0)+pow(x_[1]-y0_,2.0)+pow(x_[2]-z0_,2.0));
-
-      unit_rad_[0] = (x_[0]-x0_)/r;
-      unit_rad_[1] = (x_[1]-y0_)/r;
-      unit_rad_[2] = (x_[2]-z0_)/r;
-
-      double Efield = (V0_/log(b_/a_))*(1.0/r);
-
-      V[0] = Efield*unit_rad_[0];
-      V[1] = Efield*unit_rad_[1];
-      V[2] = Efield*unit_rad_[2];
-      */
+      V[2] = Efield*(rdisk[2]/rdisknorm);   
    }
 };
 
@@ -595,11 +488,6 @@ void Update(ParFiniteElementSpace & H1FESpace,
             ParGridFunction & nue_gf,
             ParGridFunction & nui_gf);
 
-//static double freq_ = 1.0e9;
-
-// Mesh Size
-//static Vector mesh_dim_(0); // x, y, z dimensions of mesh
-
 // Prints the program's logo to the given output stream
 void display_banner(ostream & os);
 
@@ -608,7 +496,7 @@ int main(int argc, char *argv[])
    Mpi::Init(argc, argv);
    if (!Mpi::Root()) { mfem::out.Disable(); mfem::err.Disable(); }
 
-   display_banner(mfem::out);
+   if (Mpi::Root()){display_banner(cout);}
 
    int logging = 1;
 
@@ -621,10 +509,9 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 0;
    int order = 1;
    int maxit = 100;
-   int sol = 2;
+   int sol = 7;
    int prec = 1;
-   // int nspecies = 2;
-   bool amr_s = true;
+   bool amr_s = false;
    bool herm_conv = false;
    bool vis_u = false;
    bool visualization = false;
@@ -642,7 +529,7 @@ int main(int argc, char *argv[])
    Vector kReVec;
    Vector kImVec;
 
-   double hz = -1.0;
+   double hz = -1.0; // Extruded mesh thickness in meters
    double hphi = -1.0; // Cylindrically extruded mesh thickness in degrees
 
    Vector numbers;
@@ -713,8 +600,6 @@ int main(int argc, char *argv[])
    Vector nbcv1; // Neumann BC values
    Vector nbcv2; // Neumann BC values
    Vector portbcv; // Port BC values
-
-   int num_elements = 10;
     
    int msa_n = 0;
    Vector msa_p(0);
@@ -994,7 +879,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
    //               "Masses of the various species (in amu)");
    args.AddOption(&minority, "-min", "--minority",
                   "Minority Ion Species: charge, mass (amu), concentration."
-                  " Concentration being: n_min/n_i");
+                  " Concentration being: n_min/n_e");
    args.AddOption(&prec, "-pc", "--precond",
                   "Preconditioner: 1 - Diagonal Scaling, 2 - ParaSails, "
                   "3 - Euclid, 4 - AMS");
@@ -1113,15 +998,16 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
       return 1;
    }
    Device device(device_config);
-   if (logo)
-   {
-      return 1;
-   }
    if (Mpi::Root())
    {
       device.Print();
    }
-if (dpp_def.Size() == 0)
+   if (logo)
+   {
+      return 1;
+   }
+
+   if (dpp_def.Size() == 0)
    {
       dpp_def.SetSize(1);
       dpp_def[0] = 1.0e19;
@@ -1332,28 +1218,7 @@ if (dpp_def.Size() == 0)
          }
       }
    }
-   if (num_elements <= 0)
-   {
-      num_elements = 10;
-   }
-   if (hz < 0.0 && !cyl)
-   {
-      hz = 0.1;
-   }
-   if (cyl)
-   {
-      if (mesh_order <= 0)
-      {
-         mesh_order = 1;
-      }
-      if (hphi < 0.0)
-      {
-         hphi = 3;
-      }
-      hz = 1.0;
 
-      j_cyl_ = cyl;
-   }
    double omega = 2.0 * M_PI * freq;
    if (kVec.Size() != 0)
    {
@@ -1819,7 +1684,7 @@ if (dpp_def.Size() == 0)
    MultiStrapAntennaH HReStrapCoef(msa_n, msa_p, msa_c, true);
    MultiStrapAntennaH HImStrapCoef(msa_n, msa_p, msa_c, false);
 
-
+   /*
    if (visualization && wave_type[0] != ' ')
    {
       if (Mpi::Root())
@@ -1834,13 +1699,11 @@ if (dpp_def.Size() == 0)
       double max_Er = EField.real().ComputeMaxError(zeroCoef);
       double max_Ei = EField.imag().ComputeMaxError(zeroCoef);
 
-      /*
       ParComplexGridFunction ZCoef(&H1FESpace);
       // Array<int> ess_bdr(mesh->bdr_attributes.Size());
       // ess_bdr = 1;
       // ZCoef.ProjectBdrCoefficient(z_r, z_i, ess_bdr);
       ZCoef.ProjectCoefficient(z_r, z_i);
-       */
 
       char vishost[] = "localhost";
       int  visport   = 19916;
@@ -1876,7 +1739,6 @@ if (dpp_def.Size() == 0)
                      BField, "Background Magnetic Field",
                      Wx, Wy, Ww, Wh);
 
-      /*
       VisualizeField(sock_zr, vishost, visport,
                     ZCoef.real(), "Real Sheath Impedance",
                     Wx, Wy, Ww, Wh);
@@ -1884,8 +1746,6 @@ if (dpp_def.Size() == 0)
       VisualizeField(sock_zi, vishost, visport,
                     ZCoef.imag(), "Imaginary Sheath Impedance",
                     Wx, Wy, Ww, Wh);
-      */
-      /*
       for (int i=0; i<charges.Size(); i++)
       {
          Wx += offx;
@@ -1895,7 +1755,7 @@ if (dpp_def.Size() == 0)
 
          stringstream oss;
          oss << "Density Species " << i;
-         density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
+         density_gf.MakeRef(&L2FESpace, density.GetBlock(i).GetMemory());
          VisualizeField(sock, vishost, visport,
                         density_gf, oss.str().c_str(),
                         Wx, Wy, Ww, Wh);
@@ -1905,12 +1765,12 @@ if (dpp_def.Size() == 0)
         socketstream sock;
         sock.precision(8);
 
-        temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(0));
+        temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(0).GetMemory());
         VisualizeField(sock, vishost, visport,
                          temperature_gf, "Temp",
                          Wx, Wy, Ww, Wh);
-       */
    }
+   */
 
    if (Mpi::Root())
    {
@@ -2187,16 +2047,9 @@ if (dpp_def.Size() == 0)
    // Initialize VisIt visualization
    VisItDataCollection visit_dc("STIX3D-AMR-Parallel", &pmesh);
 
-   Array<ParComplexGridFunction*> auxFields;
-
    if ( visit )
    {
       CPD.RegisterVisItFields(visit_dc);
-      
-      auxFields.SetSize(1);
-      auxFields[0] = new ParComplexGridFunction(&HCurlFESpace);
-
-      auxFields[0]->ProjectCoefficient(EReCoef, EImCoef);
        
       temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(0).GetMemory());
       visit_dc.RegisterField("Electron_Temp", &temperature_gf);
@@ -2346,11 +2199,6 @@ if (dpp_def.Size() == 0)
    if (visualization)
    {
       CPD.DisplayAnimationToGLVis();
-   }
-
-   for (int i=0; i<auxFields.Size(); i++)
-   {
-      delete auxFields[i];
    }
 
    return 0;
@@ -2602,9 +2450,9 @@ void slab_current_source_r(const Vector &x, Vector &j)
    double dy = slab_params_(o+4);
    double dz = slab_params_(o+5);
 
-   if (x[0] >= x0 && x[0] <= x0+dx &&
-       x[1] >= y0 && x[1] <= y0+dy &&
-       x[2] >= z0 && x[2] <= z0+dz ) 
+   if (x[0] >= x0-0.5*dx && x[0] <= x0+0.5*dx &&
+       x[1] >= y0-0.5*dy && x[1] <= y0+0.5*dy &&
+       x[2] >= z0-0.5*dz && x[2] <= z0+0.5*dz) 
    {
       j(0) = slab_params_(0);
       j(1) = slab_params_(1);

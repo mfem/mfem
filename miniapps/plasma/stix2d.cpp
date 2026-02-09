@@ -90,9 +90,11 @@
 //
 
 #include "cold_plasma_dielectric_coefs.hpp"
-#include "cold_plasma_dielectric_solver.hpp"
-#include "interp_data.hpp"
+#include "cold_plasma_dielectric_dh_solver.hpp"
 #include "../common/mesh_extras.hpp"
+#include "plasma.hpp"
+#include "interp_data.hpp"
+#include "g_eqdsk_data.hpp"
 #include <fstream>
 #include <iostream>
 #include <cmath>
@@ -245,98 +247,6 @@ void j_src_i(const Vector &x, Vector &j)
 void e_bc_r(const Vector &x, Vector &E);
 void e_bc_i(const Vector &x, Vector &E);
 
-/**
-   The different types of density profiles require different sets of
-   paramters, for example.
-
-   CONSTANT: 1 parameter
-      The constant value of the density
-
-   GRADIENT: 7 parameters
-      The value of the density at one point
-      The location of this point (3 parameters)
-      The gradient of the density at this point (3 parameters)
-
-   TANH: 9 parameters
-      The value of the density when tanh equals zero
-      The value of the density when tanh equals one
-      The skin depth, defined as the distance, in the direction of the
-         steepest gradient, between locations where tanh equals zero and
-         where tanh equals one-half.
-      The location of a point where tanh equals zero (3 parameters)
-      The unit vector in the direction of the steepest gradient away from
-         the location described by the previous parameter (3 parameters)
-*/
-/*
-class DensityProfile : public Coefficient
-{
-public:
-   enum Type {CONSTANT, GRADIENT, TANH};
-
-private:
-   Type type_;
-   Vector p_;
-
-   const int np_[3] = {1, 7, 9};
-
-   mutable Vector x_;
-
-public:
-
-   DensityProfile(Type type, const Vector & params)
-      : type_(type), p_(params), x_(3)
-   {
-      MFEM_ASSERT(params.Size() >= np_[type],
-                  "Insufficient number of parameters, " << params.Size()
-                  << ", for profile of type: " << type << ".");
-   }
-
-   double Eval(ElementTransformation &T,
-               const IntegrationPoint &ip)
-   {
-      if (type_ != CONSTANT)
-      {
-         T.Transform(ip, x_);
-      }
-
-      switch (type_)
-      {
-         case CONSTANT:
-            return p_[0];
-            break;
-         case GRADIENT:
-         {
-            Vector x0(&p_[1], 3);
-            Vector drho(&p_[4], 3);
-
-            x_ -= x0;
-
-            return p_[0] + (drho * x_);
-         }
-         break;
-         case TANH:
-         {
-            Vector x0(&p_[3], 3);
-            Vector drho(&p_[6], 3);
-
-            x_ -= x0;
-            double a = 0.5 * log(3.0) * (drho * x_) / p_[2];
-
-            if (fabs(a) < 10.0)
-            {
-               return p_[0] + (p_[1] - p_[0]) * tanh(a);
-            }
-            else
-            {
-               return p_[1];
-            }
-         }
-         break;
-      }
-      return 0.0;
-   }
-};
-*/
 class MultiStrapAntennaH : public VectorCoefficient
 {
 private:
@@ -517,11 +427,6 @@ void Update(ParFiniteElementSpace & H1FESpace,
             ParGridFunction & nue_gf,
             ParGridFunction & nui_gf);
 
-//static double freq_ = 1.0e9;
-
-// Mesh Size
-//static Vector mesh_dim_(0); // x, y, z dimensions of mesh
-
 // Prints the program's logo to the given output stream
 void display_banner(ostream & os);
 
@@ -530,7 +435,7 @@ int main(int argc, char *argv[])
    Mpi::Init(argc, argv);
    if (!Mpi::Root()) { mfem::out.Disable(); mfem::err.Disable(); }
 
-   display_banner(mfem::out);
+   if (Mpi::Root()){display_banner(cout);}
 
    int logging = 1;
 
@@ -543,9 +448,8 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 0;
    int order = 1;
    int maxit = 100;
-   int sol = 2;
+   int sol = 7;
    int prec = 1;
-   // int nspecies = 2;
    bool amr_s = true;
    bool herm_conv = false;
    bool vis_u = false;
@@ -564,7 +468,7 @@ int main(int argc, char *argv[])
    Vector kReVec;
    Vector kImVec;
 
-   double hz = -1.0;
+   double hz = -1.0; // Extruded mesh thickness in meters
    double hphi = -1.0; // Cylindrically extruded mesh thickness in degrees
 
    Vector numbers;
@@ -636,8 +540,6 @@ int main(int argc, char *argv[])
    Vector dbcv2; // Dirichlet BC values
    Vector nbcv1; // Neumann BC values
    Vector nbcv2; // Neumann BC values
-
-   int num_elements = 10;
 
    int msa_n = 0;
    Vector msa_p(0);
@@ -920,7 +822,7 @@ int main(int argc, char *argv[])
    //               "Masses of the various species (in amu)");
    args.AddOption(&minority, "-min", "--minority",
                   "Minority Ion Species: charge, mass (amu), concentration."
-                  " Concentration being: n_min/n_i");
+                  " Concentration being: n_min/n_e");
    args.AddOption(&prec, "-pc", "--precond",
                   "Preconditioner: 1 - Diagonal Scaling, 2 - ParaSails, "
                   "3 - Euclid, 4 - AMS");
@@ -1033,14 +935,15 @@ int main(int argc, char *argv[])
       return 1;
    }
    Device device(device_config);
-   if (logo)
-   {
-      return 1;
-   }
    if (Mpi::Root())
    {
       device.Print();
    }
+   if (logo)
+   {
+      return 1;
+   }
+   
    if (dpp_def.Size() == 0)
    {
       dpp_def.SetSize(1);
@@ -1252,10 +1155,7 @@ int main(int argc, char *argv[])
          }
       }
    }
-   if (num_elements <= 0)
-   {
-      num_elements = 10;
-   }
+
    if (hz < 0.0 && !cyl)
    {
       hz = 0.1;
@@ -1779,7 +1679,7 @@ int main(int argc, char *argv[])
    MultiStrapAntennaH HReStrapCoef(msa_n, msa_p, msa_c, true);
    MultiStrapAntennaH HImStrapCoef(msa_n, msa_p, msa_c, false);
 
-
+   /*
    if (visualization && wave_type[0] != ' ')
    {
       if (Mpi::Root())
@@ -1794,13 +1694,11 @@ int main(int argc, char *argv[])
       double max_Er = EField.real().ComputeMaxError(zeroCoef);
       double max_Ei = EField.imag().ComputeMaxError(zeroCoef);
 
-      /*
       ParComplexGridFunction ZCoef(&H1FESpace);
       // Array<int> ess_bdr(mesh->bdr_attributes.Size());
       // ess_bdr = 1;
       // ZCoef.ProjectBdrCoefficient(z_r, z_i, ess_bdr);
       ZCoef.ProjectCoefficient(z_r, z_i);
-       */
 
       char vishost[] = "localhost";
       int  visport   = 19916;
@@ -1835,8 +1733,7 @@ int main(int argc, char *argv[])
       VisualizeField(sock_B, vishost, visport,
                      BField, "Background Magnetic Field",
                      Wx, Wy, Ww, Wh);
-
-      /*
+                     
       VisualizeField(sock_zr, vishost, visport,
                     ZCoef.real(), "Real Sheath Impedance",
                     Wx, Wy, Ww, Wh);
@@ -1844,8 +1741,6 @@ int main(int argc, char *argv[])
       VisualizeField(sock_zi, vishost, visport,
                     ZCoef.imag(), "Imaginary Sheath Impedance",
                     Wx, Wy, Ww, Wh);
-      */
-      /*
       for (int i=0; i<charges.Size(); i++)
       {
          Wx += offx;
@@ -1869,8 +1764,8 @@ int main(int argc, char *argv[])
         VisualizeField(sock, vishost, visport,
                          temperature_gf, "Temp",
                          Wx, Wy, Ww, Wh);
-       */
    }
+   */
 
    if (Mpi::Root())
    {
