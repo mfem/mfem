@@ -16,7 +16,7 @@ virtual ~LinearElasticityTimeDependentOperator() override
 
 virtual void Mult(const mfem::Vector &x, mfem::Vector &y) const override;
 
-virtual void MultTranspose(const mfem::Vector &x,mfem::Vector &y) const override;
+virtual void AdjointMult(const mfem::Vector &x, mfem::Vector &y) const;
 
 virtual void ImplicitSolve(const mfem::real_t dt,
                              const mfem::Vector &x,
@@ -143,6 +143,14 @@ void SetVolForce(mfem::real_t period, mfem::real_t amplitude, mfem::real_t rad,
     vol_force_mem.Read();
 }
 
+void AddState(mfem::real_t t, mfem::Vector& state)
+{
+    int cind=adjoint_data.ind % adjoint_data.max_states;
+    adjoint_data.states[cind]=state;
+    adjoint_data.times[cind]=t;
+    adjoint_data.ind++;
+}
+
 private:
 mfem::ParMesh &mesh;
 int order;
@@ -248,6 +256,15 @@ mfem::Array<int> ess_tdof_list;
 std::shared_ptr<mfem::Operator> obj;
 
 
+struct{
+    mfem::real_t Tfinal;
+    mfem::Vector states[2];
+    mfem::real_t times[2];
+    int ind=0;
+    int max_states=2;
+
+} adjoint_data;
+
 };
 
 
@@ -291,8 +308,6 @@ private:
 
     // DFEM related definitions (3 objectives)
     std::unique_ptr<mfem::future::DifferentiableOperator> obj;
-
-    std::shared_ptr<mfem::future::DerivativeOperator> dobj_du;
 
     // density coefficient for computing the objective function
     std::shared_ptr<mfem::CoefficientVector> density;

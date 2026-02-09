@@ -668,7 +668,7 @@ void LinearElasticityTimeDependentOperator::Mult(const Vector &x,
 // i.e. x=[l_q,l_v, L_\rho]^T y=x' - i.e. the derivative with respect to \tau=T-t 
 // before calling MultTranspose one should set the sol vector with the
 // solution for the forward problem at time t
-void LinearElasticityTimeDependentOperator::MultTranspose(const Vector &x,
+void LinearElasticityTimeDependentOperator::AdjointMult(const Vector &x,
                                                             Vector &y) const
 {
     BlockVector bx(const_cast<Vector&>(x), block_true_offsets);
