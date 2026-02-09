@@ -201,7 +201,6 @@ int main(int argc, char *argv[])
 
    // Parse command-line options
    const char *device_config = "cpu";
-   bool enable_pcamg = false;
    constexpr auto petscrc_file = MFEM_SOURCE_DIR "/miniapps/neml2/"
                                                  "petscopts";
    int geometric_refinements = 0;
@@ -211,9 +210,6 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
-   args.AddOption(&enable_pcamg, "-pcamg", "--pcamg", "-no-pcamg", "--no-pcamg",
-                  "Enable AMG as a preconditioner when using automatic "
-                  "differentiation.");
    args.AddOption(&n, "-n", "--n",
                   "The number of elements in one dimension. The total number "
                   "will be a tensor product of this");
@@ -326,7 +322,10 @@ int main(int argc, char *argv[])
 
    // Setup the parallel nonlinear form
    ParNonlinearForm f(&finest_fe_space);
-   f.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   const bool fully_assemble_jacobian = (geometric_refinements == 0) &&
+                                        (order_refinements == 0);
+   f.SetAssemblyLevel(fully_assemble_jacobian ? AssemblyLevel::FULL
+                                              : AssemblyLevel::PARTIAL);
    f.AddDomainIntegrator(new NEML2StressDivergenceIntegrator(cmodel));
    Array<int> ess_tdof_list;
    finest_fe_space.GetEssentialTrueDofs(essential_bnd, ess_tdof_list);
@@ -339,8 +338,14 @@ int main(int argc, char *argv[])
    newton.SetRelTol(1e-6);
    newton.SetMaxIter(10);
    newton.SetPrintLevel(1);
+   if (!fully_assemble_jacobian)
+   {
+      newton.SetJacobianType(Operator::PETSC_MATSHELL);
+   }
    // Use the current state of u as the initial guess
    newton.iterative_mode = true;
+   // Indicate that the Jacobian is a shell matrix
+   //
    // Set multigrid preconditioner factory. MFEM PETSc wrapper code will try to destroy this during the nonlinear solver destruction so allow them to do so
    auto *const pre_factory = new NEML2MultigridPreconditionerFactory(fespaces,
                                                                      essential_bnd,
