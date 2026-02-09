@@ -35,6 +35,7 @@ list(APPEND SRCS
   sparsemat.cpp
   sparsesmoothers.cpp
   symmat.cpp
+  univarsolvers.cpp
   vector.cpp
   )
 
@@ -75,6 +76,7 @@ list(APPEND HDRS
   tmatrix.hpp
   ttensor.hpp
   tensor.hpp
+  univarsolvers.hpp
   vector.hpp
   )
 
