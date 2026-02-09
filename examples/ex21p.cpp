@@ -140,7 +140,7 @@ int main(int argc, char *argv[])
    }
 
    ParLinearForm b(&fespace);
-   b.AddDomainIntegrator(new VectorBoundaryLFIntegrator(f));
+   b.AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(f));
 
    // 6. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the linear elasticity integrator with piece-wise
