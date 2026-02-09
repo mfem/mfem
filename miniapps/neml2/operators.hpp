@@ -54,10 +54,16 @@ class NEML2StressDivergenceIntegrator
     */
    void AddMultGradPA(const Vector &x, Vector &y) const override;
 
+   template <int vdim>
+   void ComputeStrainImpl(const Vector &X, ParameterFunction &strain) const;
+
+   template <int vdim>
+   void ComputeRImpl(const ParameterFunction &stress, Vector &R) const;
+
+ private:
    /// The quadrature space for symmetric 2nd order tensors
    std::unique_ptr<UniformParameterSpace> _q_space_symr2;
 
- private:
    /// The strain storage
    mutable std::unique_ptr<ParameterFunction> _strain;
    /// The stress storage
@@ -72,11 +78,7 @@ class NEML2StressDivergenceIntegrator
    /// The NEML2 constitutive model wrapped with MFEM APIs
    const ConstitutiveModel _constit_op;
 
-   template <int vdim>
-   void ComputeStrainImpl(const Vector &X, ParameterFunction &strain) const;
    void ComputeStrain(const Vector &X, ParameterFunction &strain) const;
-   template <int vdim>
-   void ComputeRImpl(const ParameterFunction &stress, Vector &R) const;
    void ComputeR(const ParameterFunction &stress, Vector &R) const;
 };
 

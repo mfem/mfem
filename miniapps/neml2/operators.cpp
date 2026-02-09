@@ -78,7 +78,6 @@ void NEML2StressDivergenceIntegrator::ComputeStrainImpl(const Vector &x,
    mfem::forall_2D(numEls, numPoints, 1,
                    [=] MFEM_HOST_DEVICE(int e)
                    {
-                      // for(int p = 0; p < numPoints, )
                       MFEM_FOREACH_THREAD(p, x, numPoints)
                       {
                          tensor<real_t, d, d> dudx;
@@ -97,7 +96,7 @@ void NEML2StressDivergenceIntegrator::ComputeStrainImpl(const Vector &x,
                          dStrain(0, p, e) = epsilon(0, 0);
                          dStrain(1, p, e) = epsilon(1, 1);
                          dStrain(5, p, e) = sqrt2 * epsilon(0, 1);
-                         if constexpr (d == 2) // NEML2 always expects 3D
+                         if (d == 2) // NEML2 always expects 3D
                          {
                             dStrain(2, p, e) = 0;
                             dStrain(3, p, e) = 0;
@@ -161,7 +160,7 @@ void NEML2StressDivergenceIntegrator::ComputeRImpl(const ParameterFunction &stre
                          stress_tensor(1, 1) = dStress(1, p, e);
                          stress_tensor(0, 1) = dStress(5, p, e) / sqrt2;
                          stress_tensor(1, 0) = stress_tensor(0, 1);
-                         if constexpr (d == 3)
+                         if (d == 3)
                          {
                             stress_tensor(2, 2) = dStress(2, p, e);
                             stress_tensor(1, 2) = dStress(3, p, e) / sqrt2;
@@ -263,10 +262,9 @@ void NEML2StressDivergenceIntegrator::AssembleGradDiagonalPAImpl(Vector &diag) c
    const auto numPoints = this->IntRule->GetNPoints();
    const auto numEls = this->fespace->GetNE();
    const auto nDofs = this->ndofs;
-   const auto vDofs = d * nDofs;
    const auto J = Reshape(this->geom->J.Read(), numPoints, d, d, numEls);
    const auto G = Reshape(this->maps->G.Read(), numPoints, d, nDofs);
-   auto diagDev = Reshape(diag.Write(), vDofs, numEls);
+   auto diagDev = Reshape(diag.Write(), nDofs, d, numEls);
    const real_t *ipWeights = this->IntRule->GetWeights().Read();
    const bool constant_tangent = _tangent.value().batch_dim() == 0;
    const int tangent_qp_size = constant_tangent ? 1 : numPoints;
@@ -283,20 +281,17 @@ void NEML2StressDivergenceIntegrator::AssembleGradDiagonalPAImpl(Vector &diag) c
    //
 
    // clang-format off
-   mfem::forall_2D(numEls, numPoints, vDofs,
+   mfem::forall_2D(numEls, nDofs, d,
                    [=] MFEM_HOST_DEVICE(int e)
                    {
                       const int tangent_e_index = constant_tangent ? 0 : e;
-                      MFEM_FOREACH_THREAD(IVec, vector_trials, vDofs)
+                      MFEM_FOREACH_THREAD(ic, y, d)
                       {
-                         // We can't just pick an ordering because upstream code always varies by
-                         // node index most quickly, then by vdim, and then by ne for our element
-                         // assembly data
-                         const int ic = IVec / nDofs;
-                         const int IScalar = IVec % nDofs;
-                         real_t sum = 0;
-                         MFEM_FOREACH_THREAD(p, quadrature_points, numPoints)
-                         {
+                        MFEM_FOREACH_THREAD(IScalar, x, nDofs)
+                        {
+                           real_t sum = 0;
+                           for (int p = 0; p < numPoints; ++p)
+                           {
                                const int tangent_p_index = constant_tangent ? 0
                                                                             : p;
                                const auto invJ = inv(make_tensor<d, d>([&](int i,int j){
@@ -361,8 +356,9 @@ void NEML2StressDivergenceIntegrator::AssembleGradDiagonalPAImpl(Vector &diag) c
                                }
                                sum += w * val;
                             }
-                            diagDev(IVec, e) = sum;
+                            diagDev(IScalar, ic, e) = sum;
                          }
+                        }
                       });
    // clang-format on
 }
@@ -417,9 +413,9 @@ void NEML2StressDivergenceIntegrator::AssembleGradEAImpl(Vector &emat)
                    [=] MFEM_HOST_DEVICE(int e)
                    {
                       const int tangent_e_index = constant_tangent ? 0 : e;
-                      MFEM_FOREACH_THREAD(JVec, vector_trials, vDofs)
+                      MFEM_FOREACH_THREAD(JVec, y, vDofs)
                       {
-                         MFEM_FOREACH_THREAD(IVec, vector_tests, vDofs)
+                         MFEM_FOREACH_THREAD(IVec, x, vDofs)
                          {
                             // We can't just pick an ordering because upstream code always varies by
                             // node index most quickly, then by vdim, and then by ne for our element

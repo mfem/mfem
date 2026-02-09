@@ -129,7 +129,7 @@ public:
 /// Data and methods for element-assembled bilinear forms
 class EANonlinearFormExtension : public PANonlinearFormExtension
 {
- private:
+ public:
    class EAGradient : public Operator
    {
     protected:
@@ -160,15 +160,6 @@ class EANonlinearFormExtension : public PANonlinearFormExtension
       void Update();
    };
 
- protected:
-   mutable int ne;
-   /// The number of vdofs per element
-   mutable int elem_vdofs;
-   // The element matrices are stored row major
-   mutable Vector ea_data;
-   mutable EAGradient eaGrad;
-
- public:
    EANonlinearFormExtension(const NonlinearForm *nlf,
                             const ElementDofOrdering edf = ElementDofOrdering::LEXICOGRAPHIC);
 
@@ -185,6 +176,14 @@ class EANonlinearFormExtension : public PANonlinearFormExtension
        matrix-free global true-dof gradient with imposed boundary conditions. */
    virtual Operator &GetGradient(const Vector &x) const override;
    virtual ~EANonlinearFormExtension() = default;
+
+protected:
+   mutable int ne;
+   /// The number of vdofs per element
+   mutable int elem_vdofs;
+   // The element matrices are stored row major
+   mutable Vector ea_data;
+   mutable EAGradient eaGrad;
 };
 
 /// Data and methods for fully-assembled bilinear forms
