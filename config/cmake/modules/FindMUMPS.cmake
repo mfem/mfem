@@ -44,7 +44,6 @@ else()
   set(_mumps_lib    ${_rmumps_lib})
 endif()
 
-# Standard MFEM discovery: MUMPS + components
 mfem_find_package(MUMPS MUMPS MUMPS_DIR
   "include" ${_mumps_header} "lib" ${_mumps_lib}
   "Paths to headers required by MUMPS."
@@ -56,7 +55,7 @@ mfem_find_package(MUMPS MUMPS MUMPS_DIR
 if (MUMPS_FOUND AND MFEM_USE_MUMPS AND MFEM_USE_COMPLEX_MUMPS)
   # Find the "other" solver library and append it.
   find_library(_mfem_other_mumps_solver
-    NAMES ${_cmumps_lib}   # zmumps/cmumps
+    NAMES ${_cmumps_lib}   
     HINTS ${MUMPS_DIR}
     PATH_SUFFIXES lib lib64
     NO_DEFAULT_PATH)
@@ -73,12 +72,12 @@ if (MUMPS_FOUND AND MFEM_USE_MUMPS AND MFEM_USE_COMPLEX_MUMPS)
   endif()
 
   # Put solver libs first (important for static link order)
-  # MUMPS_LIBRARIES likely contains the primary solver already + common + pord.
+  # MUMPS_LIBRARIES contains the primary solver already + common + pord.
   # We prepend the other solver.
   list(INSERT MUMPS_LIBRARIES 0 ${_mfem_other_mumps_solver})
 endif()
 
-# Version detection (unchanged)
+# Version detection 
 if (MUMPS_FOUND AND (NOT MUMPS_VERSION))
   try_run(MUMPS_VERSION_RUN_RESULT MUMPS_VERSION_COMPILE_RESULT
           ${CMAKE_CURRENT_BINARY_DIR}/config
@@ -93,4 +92,3 @@ if (MUMPS_FOUND AND (NOT MUMPS_VERSION))
     message(FATAL_ERROR "Unable to determine MUMPS version.")
   endif()
 endif()
-

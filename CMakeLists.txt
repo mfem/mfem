@@ -76,7 +76,9 @@ set(XSDK_ENABLE_Fortran OFF)
 # Check if we need to enable C or Fortran.
 if (MFEM_USE_CONDUIT OR
     MFEM_USE_SIDRE OR
-    MFEM_USE_PETSC)
+    MFEM_USE_PETSC OR
+    MFEM_USE_MUMPS OR
+    MFEM_USE_COMPLEX_MUMPS)
    # This seems to be needed by:
    #  * find_package(BLAS REQUIRED) and
    #  * find_package(HDF5 REQUIRED) needed, in turn, by:
@@ -87,7 +89,6 @@ endif()
 if (MFEM_USE_STRUMPACK OR MFEM_USE_MUMPS OR MFEM_USE_COMPLEX_MUMPS)
   # Just needed to find the MPI_Fortran libraries to link with
   set(XSDK_ENABLE_Fortran ON)
-  set(XSDK_ENABLE_C ON)
 endif()
 # Ginkgo requires C++17:
 if ((MFEM_USE_GINKGO) AND ("${CMAKE_CXX_STANDARD}" LESS "17"))

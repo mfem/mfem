@@ -353,7 +353,6 @@ MPI_FORTRAN_LIB = -lmpifort
 # MUMPS library configuration
 MUMPS_DIR = @MFEM_DIR@/../MUMPS_5.5.0
 MUMPS_OPT = -I$(MUMPS_DIR)/include
-MUMPS_OPT = -I$(MUMPS_DIR)/include
 COMPLEX_MUMPS_OPT = $(MUMPS_OPT)
 
 MUMPS_COMMON_PATH = $(XLINKER)-rpath,$(MUMPS_DIR)/lib -L$(MUMPS_DIR)/lib
@@ -367,7 +366,7 @@ else
 endif
 MUMPS_LIB         = $(MUMPS_COMMON_PATH) $(MUMPS_SOLVER_LIB) $(MUMPS_COMMON_LIB)
 COMPLEX_MUMPS_LIB = $(MUMPS_COMMON_PATH) $(COMPLEX_MUMPS_SOLVER_LIB) $(MUMPS_COMMON_LIB)
-# If BOTH are enabled, avoid duplicating BASE and TAIL in COMPLEX_MUMPS_LIB
+# If BOTH are enabled, avoid duplicating common libs
 ifeq ($(MFEM_USE_MUMPS)$(MFEM_USE_COMPLEX_MUMPS),YESYES)
   COMPLEX_MUMPS_LIB := $(COMPLEX_MUMPS_SOLVER_LIB)
 endif
