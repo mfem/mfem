@@ -40,15 +40,15 @@ class NEML2Multigrid : public GeometricMultigrid
    HypreBoomerAMG *amg;
    std::vector<ParNonlinearForm> pnlfs;
    std::vector<Vector> coarser_solutions;
-   const Vector *fine_solution;
+   const Vector & fine_solution;
 
  public:
    // Constructs a diffusion multigrid for the ParFiniteElementSpaceHierarchy
    // and the array of essential boundaries
    NEML2Multigrid(ParFiniteElementSpaceHierarchy &fespaces, Array<int> &ess_bdr,
                   std::shared_ptr<neml2::Model> cmodel_,
-                  const ParGridFunction &fine_solution_gf)
-       : GeometricMultigrid(fespaces, ess_bdr), cmodel(cmodel_)
+                  const Vector &fine_solution_)
+       : GeometricMultigrid(fespaces, ess_bdr), cmodel(cmodel_), fine_solution(fine_solution_)
    {
       const auto num_levels = fespaces.GetNumLevels();
       const auto num_coarser_levels = num_levels - 1;
@@ -60,9 +60,7 @@ class NEML2Multigrid : public GeometricMultigrid
          ConstructNonlinearForm(fespaces.GetFESpaceAtLevel(level),
                                 static_cast<bool>(level));
       }
-      // We need a parallel presentation of the grid function
-      fine_solution = fine_solution_gf.GetTrueDofs();
-      MFEM_ASSERT(pnlfs.back().Height() == fine_solution->Size(),
+      MFEM_ASSERT(pnlfs.back().Height() == fine_solution.Size(),
                   "The size of the fine level nonlinear form should match the "
                   "size of our current solution");
 
@@ -71,13 +69,13 @@ class NEML2Multigrid : public GeometricMultigrid
       if (num_coarser_levels)
       {
          auto create_coarser_solution = [this](const int level,
-                                               const Vector &fine_solution)
+                                               const Vector &finer_solution)
          {
             auto &coarse_solution = coarser_solutions[level];
             coarse_solution.SetSize(pnlfs[level].Height());
-            prolongations[level]->MultTranspose(fine_solution, coarse_solution);
+            prolongations[level]->MultTranspose(finer_solution, coarse_solution);
          };
-         create_coarser_solution(num_coarser_levels - 1, *fine_solution);
+         create_coarser_solution(num_coarser_levels - 1, fine_solution);
          for (int level = num_coarser_levels - 2; level >= 0; --level)
          {
             create_coarser_solution(level, coarser_solutions[level + 1]);
@@ -92,7 +90,6 @@ class NEML2Multigrid : public GeometricMultigrid
       }
 
       // No longer need the gradient evaluation points
-      delete fine_solution;
       coarser_solutions.clear();
    }
 
@@ -123,7 +120,7 @@ class NEML2Multigrid : public GeometricMultigrid
    {
       const auto *const coarse_pnlf = &pnlfs[0];
       const auto &coarse_solution = coarser_solutions.size() ? coarser_solutions[0]
-                                                             : *fine_solution;
+                                                             : fine_solution;
       auto &coarse_operator = coarse_pnlf->GetGradient(coarse_solution);
       auto *const hypreCoarseMat = dynamic_cast<HypreParMatrix *>(&coarse_operator);
       MFEM_ASSERT(hypreCoarseMat,
@@ -146,7 +143,7 @@ class NEML2Multigrid : public GeometricMultigrid
    void ConstructOperatorAndSmoother(ParFiniteElementSpace &fespace, int level)
    {
       const auto *const pnlf = &pnlfs[level];
-      const auto &level_soln = level == coarser_solutions.size() ? *fine_solution
+      const auto &level_soln = level == coarser_solutions.size() ? fine_solution
                                                                  : coarser_solutions[level];
       auto &opr = pnlf->GetGradient(level_soln);
       Vector diag(fespace.GetTrueVSize());
@@ -168,7 +165,7 @@ class NEML2MultigridPreconditionerFactory : public PetscPreconditionerFactory
    NEML2MultigridPreconditionerFactory(ParFiniteElementSpaceHierarchy &fespaces_,
                                        Array<int> &ess_bdr_,
                                        std::shared_ptr<neml2::Model> cmodel_,
-                                       const ParGridFunction &fine_solution_)
+                                       const Vector &fine_solution_)
        : PetscPreconditionerFactory(), fespaces(fespaces_), ess_bdr(ess_bdr_),
          cmodel(cmodel_), fine_solution(fine_solution_)
    {
@@ -188,7 +185,7 @@ class NEML2MultigridPreconditionerFactory : public PetscPreconditionerFactory
    ParFiniteElementSpaceHierarchy &fespaces;
    Array<int> &ess_bdr;
    std::shared_ptr<neml2::Model> cmodel;
-   const ParGridFunction &fine_solution;
+   const Vector &fine_solution;
    std::unique_ptr<NEML2Multigrid> multigrid;
 };
 
@@ -332,6 +329,9 @@ int main(int argc, char *argv[])
    f.SetEssentialTrueDofs(ess_tdof_list);
    f.Setup();
 
+   // Setup vector to solve for
+   Vector & X = u.GetTrueVector();
+
    // Nonlinear solver
    PetscNonlinearSolver newton(MPI_COMM_WORLD, f);
    newton.SetAbsTol(1e-8);
@@ -349,12 +349,13 @@ int main(int argc, char *argv[])
    // Set multigrid preconditioner factory. MFEM PETSc wrapper code will try to destroy this during the nonlinear solver destruction so allow them to do so
    auto *const pre_factory = new NEML2MultigridPreconditionerFactory(fespaces,
                                                                      essential_bnd,
-                                                                     cmodel, u);
+                                                                     cmodel, X);
    newton.SetPreconditionerFactory(pre_factory);
 
    // Solve
    Vector R;
-   newton.Mult(R, u);
+   newton.Mult(R, X);
+   u.SetFromTrueVector();
 
    // Save the solution in parallel using ParaView format
    ParaViewDataCollection dc("dfem-neml2-output", &pmesh);
