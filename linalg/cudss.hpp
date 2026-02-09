@@ -112,26 +112,6 @@ public:
     */
    void SetMatrixSortRow(bool sort_row_);
 
-#ifdef MFEM_USE_MPI
-   /**
-    * @brief Set the HypreParMatrix object
-    *
-    * @param op HypreParMatrix object
-    *
-    * @note This method is called inside SetOperator
-    */
-   void SetMatrix(const HypreParMatrix &op);
-#endif
-
-   /**
-    * @brief Set the SparseMatrix object
-    *
-    * @param op SparseMatrix object
-    *
-    * @note This method is called inside SetOperator
-    */
-   void SetMatrix(const SparseMatrix &op);
-
    void SetOperator(const Operator &op) override;
 
    /**
@@ -201,12 +181,29 @@ private:
    // cuDSS object holds internal data
    mutable cudssData_t solverData;
 
-   /// Method for the initialization of cuDSS solver
-   void Init();
-
    /// Method for configuring storage for distributed/centralized RHS and
    /// solution
    void SetNumRHS(int nrhs_) const;
+
+#ifdef MFEM_USE_MPI
+   /**
+    * @brief Set the HypreParMatrix object
+    *
+    * @param op HypreParMatrix object
+    *
+    * @note This method is called inside SetOperator
+    */
+   void SetMatrix(const HypreParMatrix &op);
+#endif
+
+   /**
+    * @brief Set the SparseMatrix object
+    *
+    * @param op SparseMatrix object
+    *
+    * @note This method is called inside SetOperator
+    */
+   void SetMatrix(const SparseMatrix &op);
 };
 
 } // namespace mfem

@@ -314,15 +314,17 @@ void CuDSSSolver::SetMatrix(const SparseMatrix &op)
          // NOTE: For CuDSS solver to reuse the reordering (skipping analysis
          // phase), it needs to access the I and J arrays of the **initial**
          // matrix. Therefore, we need to copy and keep I and J in device memory.
-         CuMemAlloc(&csr_offsets_d, (height + 1) * sizeof(int));
+         CuMemAlloc(&csr_offsets_d, (n_loc + 1) * sizeof(int));
          CuMemAlloc(&csr_columns_d, nnz * sizeof(int));
 
-         CuMemcpyDtoD(csr_offsets_d, csr_offsets, (height + 1) * sizeof(int));
+         CuMemcpyDtoD(csr_offsets_d, csr_offsets, (n_loc + 1) * sizeof(int));
          CuMemcpyDtoD(csr_columns_d, csr_columns, nnz * sizeof(int));
 
-         MFEM_CUDSS_CHECK(cudssMatrixCreateCsr(
-                             Ac.get(), height, height, nnz, csr_offsets_d, NULL, csr_columns_d,
-                             csr_data, CUDA_R_32I, CUDA_REAL_T, mat_type, mview, CUDSS_BASE_ZERO));
+         MFEM_CUDSS_CHECK(
+            cudssMatrixCreateCsr(
+               Ac.get(), n_global, n_global, nnz, csr_offsets_d, NULL,
+               csr_columns_d, csr_data, CUDA_R_32I, CUDA_REAL_T, mat_type, mview,
+               CUDSS_BASE_ZERO));
       }
       else    // !reorder_reuse
       {
@@ -330,9 +332,11 @@ void CuDSSSolver::SetMatrix(const SparseMatrix &op)
          {
             MFEM_CUDSS_CHECK(cudssMatrixDestroy(*Ac));
          }
-         MFEM_CUDSS_CHECK(cudssMatrixCreateCsr(
-                             Ac.get(), height, height, nnz, csr_offsets, NULL, csr_columns,
-                             csr_data, CUDA_R_32I, CUDA_REAL_T, mat_type, mview, CUDSS_BASE_ZERO));
+         MFEM_CUDSS_CHECK(
+            cudssMatrixCreateCsr(
+               Ac.get(), n_global, n_global, nnz, csr_offsets, NULL, csr_columns,
+               csr_data, CUDA_R_32I, CUDA_REAL_T, mat_type, mview,
+               CUDSS_BASE_ZERO));
       }
 
       // Analysis
