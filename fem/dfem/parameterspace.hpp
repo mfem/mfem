@@ -82,7 +82,7 @@ protected:
 };
 
 /// @brief Uniform parameter space
-class UniformParameterSpace : public ParameterSpace
+class UniformParameterSpace final : public ParameterSpace
 {
 public:
    /// @brief Constructor for a uniform parameter space
