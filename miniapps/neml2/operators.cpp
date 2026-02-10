@@ -16,8 +16,9 @@ namespace mfem
 {
 
 NEML2StressDivergenceIntegrator::NEML2StressDivergenceIntegrator(std::shared_ptr<neml2::Model> cmodel,
+                                                                 real_t time,
                                                                  const IntegrationRule *ir)
-    : StressDivergenceIntegrator<NonlinearFormIntegrator>(ir),
+    : StressDivergenceIntegrator<NonlinearFormIntegrator>(ir), _t(time),
       _constit_op(cmodel)
 {
 }
@@ -227,7 +228,7 @@ void NEML2StressDivergenceIntegrator::AddMultPA(const Vector &X,
    this->ComputeStrain(X, *_strain);
 
    // strain -> stress via NEML2
-   _constit_op.Mult(*_strain, *_stress);
+   _constit_op.Mult(*_strain, *_stress, _t);
 
    // stress -> residuals
    this->ComputeR(*_stress, R);
@@ -246,7 +247,7 @@ void NEML2StressDivergenceIntegrator::AssembleGradPA(const Vector &X,
    {
       _tangent.emplace();
    }
-   _constit_op.Tangent(*_strain, _tangent.value());
+   _constit_op.Tangent(*_strain, _tangent.value(), _t);
 }
 
 template <int vdim>
@@ -522,7 +523,7 @@ void NEML2StressDivergenceIntegrator::AddMultGradPA(const Vector &dX,
    this->ComputeStrain(dX, *_strain);
 
    // dσ = C(ε) : dε
-   _constit_op.ApplyTangent(_tangent.value(), *_strain, *_stress);
+   _constit_op.ApplyTangent(_tangent.value(), *_strain, *_stress, _t);
 
    // dR = stressdiv_op(dσ)
    this->ComputeR(*_stress, dR);

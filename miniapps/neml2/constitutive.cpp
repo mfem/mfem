@@ -45,37 +45,49 @@ static void neml2_to_mfem_tensor(const neml2::Tensor &neml2_tensor,
 }
 
 ConstitutiveModel::ConstitutiveModel(std::shared_ptr<neml2::Model> cmodel)
-    : _cmodel(cmodel), _strain_name(neml2::VariableName("state", "strain")),
+    : _cmodel(cmodel), _time_name(neml2::VariableName("forces", "t")),
+      _strain_name(neml2::VariableName("forces", "strain")),
       _stress_name(neml2::VariableName("state", "stress"))
 {
 }
 
-void ConstitutiveModel::Mult(ParameterFunction &strain,
-                             ParameterFunction &stress) const
+neml2::ValueMap ConstitutiveModel::MakeInputs(ParameterFunction &strain,
+                                              real_t time) const
 {
    auto strain_tensor = mfem_to_neml2_tensor(_cmodel->variable_options(),
                                              strain);
-   auto outputs = _cmodel->value({{_strain_name, strain_tensor}});
+   neml2::ValueMap inputs = {{_strain_name, strain_tensor}};
+   if (_cmodel->input_variables().count(_time_name))
+   {
+      inputs[_time_name] = neml2::Scalar(time, _cmodel->variable_options());
+   }
+   return inputs;
+}
+
+void ConstitutiveModel::Mult(ParameterFunction &strain,
+                             ParameterFunction &stress, real_t time) const
+{
+   const auto inputs = MakeInputs(strain, time);
+   auto outputs = _cmodel->value(inputs);
    auto &stress_tensor = outputs.at(_stress_name);
    neml2_to_mfem_tensor(stress_tensor, stress);
 }
 
 void ConstitutiveModel::Tangent(ParameterFunction &strain,
-                                neml2::Tensor &tangent) const
+                                neml2::Tensor &tangent, real_t time) const
 {
-   auto strain_tensor = mfem_to_neml2_tensor(_cmodel->variable_options(),
-                                             strain);
-   auto outputs = _cmodel->dvalue({{_strain_name, strain_tensor}});
+   const auto inputs = MakeInputs(strain, time);
+   auto outputs = _cmodel->dvalue(inputs);
    tangent = outputs.at(_stress_name).at(_strain_name);
 }
 
 void ConstitutiveModel::ApplyTangent(const neml2::Tensor &tangent,
                                      ParameterFunction &dstrain,
-                                     ParameterFunction &dstress) const
+                                     ParameterFunction &dstress,
+                                     real_t time) const
 {
-   auto dstrain_tensor = mfem_to_neml2_tensor(_cmodel->variable_options(),
-                                              dstrain);
-   auto dstress_tensor = neml2::mv(tangent, dstrain_tensor);
+   const auto inputs = MakeInputs(dstrain, time);
+   auto dstress_tensor = neml2::mv(tangent, inputs.at(_strain_name));
    neml2_to_mfem_tensor(dstress_tensor, dstress);
 }
 

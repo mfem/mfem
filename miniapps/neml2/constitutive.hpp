@@ -29,16 +29,20 @@ class ConstitutiveModel
    *
    * @param strain Input strain
    * @param stress Output stress
+   * @param time current time
    */
-   void Mult(ParameterFunction &strain, ParameterFunction &stress) const;
+   void Mult(ParameterFunction &strain, ParameterFunction &stress,
+             real_t time) const;
 
    /**
    * @brief Compute material tangent
    *
    * @param strain Input strain
    * @param tangent Output tangent (dstress/dstrain) evaluated at strain
+   * @param time current time
    */
-   void Tangent(ParameterFunction &strain, neml2::Tensor &tangent) const;
+   void Tangent(ParameterFunction &strain, neml2::Tensor &tangent,
+                real_t time) const;
 
    /**
    * @brief Apply material tangent to delta strain (or anything in the strain
@@ -47,13 +51,19 @@ class ConstitutiveModel
    * @param tangent Material tangent (dstress/dstrain)
    * @param dstrain Input delta strain
    * @param dstress Output delta stress
+   * @param time current time
    */
    void ApplyTangent(const neml2::Tensor &tangent, ParameterFunction &dstrain,
-                     ParameterFunction &dstress) const;
+                     ParameterFunction &dstress, real_t time) const;
 
  private:
+   neml2::ValueMap MakeInputs(ParameterFunction &strain, real_t time) const;
+
    /// The NEML2 constitutive model being wrapped
    std::shared_ptr<neml2::Model> _cmodel;
+
+   /// Name of the time variable in the NEML2 model
+   const neml2::VariableName _time_name;
 
    /// Name of the strain variable in the NEML2 model
    const neml2::VariableName _strain_name;
