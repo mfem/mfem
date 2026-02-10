@@ -153,7 +153,7 @@ set(SuperLUDist_REQUIRED_PACKAGES "MPI" "ParMETIS" "METIS"
 set(MUMPS_DIR "${MFEM_DIR}/../MUMPS_5.5.0" CACHE PATH
     "Path to the MUMPS library.")
 # MUMPS may also depend on "OpenMP", depending on how it was compiled.
-set(MUMPS_REQUIRED_PACKAGES "MPI" "MPI_Fortran" "ParMETIS" "METIS"
+set(MUMPS_REQUIRED_PACKAGES "MPI" "MPI_Fortran" "METIS"
     "ScaLAPACK" "LAPACK" "BLAS" CACHE STRING
     "Additional packages required by MUMPS.")
 # If the MPI package does not find all required Fortran libraries:
