@@ -15,7 +15,7 @@ namespace mfem
 {
 
 // A BlockDiagonalPreconditioner which assumes that all the blocks are symmetric
-// Convinient to use with Multigrid Class in which a MultTranspose is needed
+// Convenient to use with Multigrid Class in which a MultTranspose is needed
 class SymmetricBlockDiagonalPreconditioner : public BlockDiagonalPreconditioner
 {
 public:

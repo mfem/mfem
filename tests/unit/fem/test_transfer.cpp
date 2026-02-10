@@ -575,7 +575,7 @@ TEST_CASE("Trace PRefinement Serial TrueTransfer", "[Transfer]")
    }
    else
    {
-      VectorFunctionCoefficient vec_cf(dimension, &vectorcoeff);
+      VectorFunctionCoefficient vec_cf(dimension, &sin_vfunc);
       x_c.ProjectCoefficient(vec_cf);
       switch (vectorspace)
       {
