@@ -502,19 +502,10 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
    gsl_ref.UseDevice(true);
    gsl_dist.UseDevice(true);
 
-   // Initialize arrays for all points
-   // (gsl_code and gsl_dist are initialized inside kernels)
-   gsl_ref = -1.0;
-   gsl_mfem_ref = 0.0;
-   auto d_gsl_elem = gsl_elem.Write();
-   auto d_gsl_mfem_elem = gsl_mfem_elem.Write();
-   auto d_gsl_proc = gsl_proc.Write();
-   MFEM_FORALL(i, points_cnt,
-   {
-      d_gsl_elem[i] = 0;
-      d_gsl_mfem_elem[i] = 0;
-      d_gsl_proc[i] = id;
-   });
+   // Initialize proc to id for all points. Code and dist will be done
+   // inside kernels.
+   gsl_proc.HostWrite();
+   gsl_proc = id;
 
    if (dim == 2)
    {
@@ -533,10 +524,11 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
 
    if (np == 1)
    {
-      auto d_gsl_code = gsl_code.Write(); // no-op because already on device
+      auto d_gsl_code = gsl_code.ReadWrite(); // no-op because already on device
       auto d_gsl_ref = gsl_ref.Read(); // no-op because already on device
-      auto d_gsl_dist = gsl_dist.Write(); // no-op because already on device
+      auto d_gsl_dist = gsl_dist.Read(); // no-op because already on device
       auto d_gsl_mfem_ref = gsl_mfem_ref.Write();
+      auto d_gsl_mfem_elem = gsl_mfem_elem.Write();
 
       const int pts_cnt = points_cnt;
       const double bdr_t = bdr_tol;
@@ -591,7 +583,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
 
    {
       // Sync from device to host to send points to other ranks
-      auto h_gsl_code = gsl_code.HostRead();
+      auto h_gsl_code = gsl_code.HostReadWrite(); // read now, write later
       auto h_pp = point_pos.HostRead();
 
       int index;
@@ -798,8 +790,6 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
    auto h_gsl_proc = gsl_proc.HostReadWrite();
 
    /* merge remote results with user data */
-   // For points found on other procs, we set gsl_mfem_elem, gsl_mfem_ref,
-   // and gsl_code now.
    {
       int n = out_pt.n;
       struct outPt_t *opt = (struct outPt_t *)out_pt.ptr;
