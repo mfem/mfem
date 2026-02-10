@@ -604,6 +604,7 @@ int main(int argc, char *argv[])
    bool vis_u = false;
    bool visualization = true;
    bool visit = true;
+   bool pml = false;
 
    double freq = 1.0e6;
    const char * wave_type = " ";
@@ -1022,6 +1023,8 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&visit, "-visit", "--visit", "-no-visit", "--no-visit",
                   "Enable or disable VisIt visualization.");
+   args.AddOption(&pml, "-pml", "--pml", "-no-pml", "--no-pml",
+                  "Enable or disable Cartesian PML");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -1897,6 +1900,34 @@ int main(int argc, char *argv[])
    MultiStrapAntennaH HReStrapCoef(msa_n, msa_p, msa_c, true);
    MultiStrapAntennaH HImStrapCoef(msa_n, msa_p, msa_c, false);
 
+   lambdaPML invlambdaPML_real(true,false,true);
+   lambdaPML invlambdaPML_imag(false,false,true);
+
+   sigmaPML sigma_real(true,false,false);
+   sigmaPML sigma_imag(false,false,false);
+
+   // Lambda * Epsilon
+
+   MatrixProductCoefficient sigEpsilon_real1(sigma_real,epsilonInv_real);
+   MatrixProductCoefficient sigEpsilon_real2(sigma_imag,epsilonInv_imag);
+
+   MatrixProductCoefficient sigEpsilon_imag1(sigma_real,epsilonInv_imag);
+   MatrixProductCoefficient sigEpsilon_imag2(sigma_imag,epsilonInv_real);
+
+   MatrixSumCoefficient sigEpsilon_real(sigEpsilon_real1,sigEpsilon_real2,1.0,-1.0);
+   MatrixSumCoefficient sigEpsilon_imag(sigEpsilon_imag1,sigEpsilon_imag2);
+
+   // Epsilon_PML^-1 = Sigma * Epsilon^-1 * Lambda^-1
+
+   MatrixProductCoefficient sigEpsilonlambdainv_real1(sigEpsilon_real,invlambdaPML_real);
+   MatrixProductCoefficient sigEpsilonlambdainv_real2(sigEpsilon_imag,invlambdaPML_imag);
+
+   MatrixProductCoefficient sigEpsilonlambdainv_imag1(sigEpsilon_real,invlambdaPML_imag);
+   MatrixProductCoefficient sigEpsilonlambdainv_imag2(sigEpsilon_imag,invlambdaPML_real);
+
+   MatrixSumCoefficient epsilonInvPML_real(sigEpsilonlambdainv_real1,sigEpsilonlambdainv_real2,1.0,-1.0);
+   MatrixSumCoefficient epsilonInvPML_imag(sigEpsilonlambdainv_imag1,sigEpsilonlambdainv_imag2);
+
    if (check_eps_inv)
    {
       DielectricTensor epsilon_real(BField, k_gf, nue_gf, nui_gf,
@@ -2247,7 +2278,8 @@ int main(int argc, char *argv[])
                    (CPDSolverDH::SolverType)sol, solOpts,
                    (CPDSolverDH::PrecondType)prec,
                    conv, BUnitCoef,
-                   epsilonInv_real, epsilonInv_imag, 
+                   (pml) ? (MatrixCoefficient&) epsilonInvPML_real : (MatrixCoefficient&) epsilonInv_real,
+                   (pml) ? (MatrixCoefficient&) epsilonInvPML_imag : (MatrixCoefficient&) epsilonInv_imag,
                    epsilon_abs,
                    suscept_real, suscept_imag,
                    muCoef, etaCoef,

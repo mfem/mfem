@@ -856,7 +856,7 @@ private:
 class lambdaPML: public MatrixCoefficient
 {
 public:
-   lambdaPML(bool realPart, bool cyl);
+   lambdaPML(bool realPart, bool cyl, bool inverse);
 
    virtual void Eval(DenseMatrix &lambdaPML, ElementTransformation &T,
                      const IntegrationPoint &ip);
@@ -865,21 +865,23 @@ private:
    mutable Vector xyz_; // 3D coordinate in computational mesh
    mutable bool realPart_; // real part
    mutable bool cyl_; // cartesian coordinates
+   mutable bool inverse_; // inverse of matrix
 
 };
 
-class invsigmaPML: public MatrixCoefficient
+class sigmaPML: public MatrixCoefficient
 {
 public:
-   invsigmaPML(bool realPart, bool cyl);
+   sigmaPML(bool realPart, bool cyl, bool inverse);
 
-   virtual void Eval(DenseMatrix &invsigmaPML, ElementTransformation &T,
+   virtual void Eval(DenseMatrix &sigmaPML, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
 private:
    mutable Vector xyz_; // 3D coordinate in computational mesh
    mutable bool realPart_; // real part
    mutable bool cyl_; // cartesian coordinates
+   mutable bool inverse_; // inverse of matrix
 
 };
 

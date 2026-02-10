@@ -943,7 +943,7 @@ int main(int argc, char *argv[])
    {
       return 1;
    }
-   
+
    if (dpp_def.Size() == 0)
    {
       dpp_def.SetSize(1);
@@ -1641,11 +1641,11 @@ int main(int argc, char *argv[])
    CylRotMat epsilon_cyl(true); // rotation matrix to cylindrical coords
    CylRotMat epsilon_cart(false); // rotation matrix to cartesian coords
 
-   lambdaPML lambdaPML_real(true,false);
-   lambdaPML lambdaPML_imag(false,false);
+   lambdaPML lambdaPML_real(true,false,false);
+   lambdaPML lambdaPML_imag(false,false,false);
 
-   invsigmaPML invSigma_real(true,false);
-   invsigmaPML invSigma_imag(false,false);
+   sigmaPML invSigma_real(true,false,true);
+   sigmaPML invSigma_imag(false,false,true);
 
    // Lambda * Epsilon
 

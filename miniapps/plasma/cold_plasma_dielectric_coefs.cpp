@@ -2147,8 +2147,10 @@ void CylRotMat::Eval(DenseMatrix &rotMat, ElementTransformation &T,
    }
 
 lambdaPML::lambdaPML(bool realPart,
-                     bool cyl): 
-                     MatrixCoefficient(3), xyz_(3), realPart_(realPart), cyl_(cyl)
+                     bool cyl,
+                     bool inverse): 
+                     MatrixCoefficient(3), xyz_(3), realPart_(realPart), 
+                     cyl_(cyl), inverse_(inverse)
 {
    xyz_ = 0.0;
 }
@@ -2225,15 +2227,37 @@ void lambdaPML::Eval(DenseMatrix &lambdaPML, ElementTransformation &T,
          sig_w = constant; // Z
       }
 
-      lambdaPML(0,0) = sig_v.real()*sig_w.imag() + sig_v.imag()*sig_w.real(); 
-      lambdaPML(1,1) = sig_u.real()*sig_w.imag() + sig_u.imag()*sig_w.real();
-      lambdaPML(2,2) = sig_v.real()*sig_u.imag() + sig_v.imag()*sig_u.real();
+      complex<double> lam_xx = sig_v*sig_w;
+      complex<double> lam_yy = sig_u*sig_w;
+      complex<double> lam_zz = sig_u*sig_v;
 
-      if (realPart_)
+      lambdaPML(0,0) = lam_xx.real(); 
+      lambdaPML(1,1) = lam_yy.real();
+      lambdaPML(2,2) = lam_zz.real();
+
+      if (!realPart_)
       {
-         lambdaPML(0,0) = (sig_v.real()*sig_w.real() - sig_v.imag()*sig_w.imag()); 
-         lambdaPML(1,1) = (sig_u.real()*sig_w.real() - sig_u.imag()*sig_w.imag());
-         lambdaPML(2,2) = (sig_v.real()*sig_u.real() - sig_v.imag()*sig_u.imag());
+         lambdaPML(0,0) = lam_xx.imag(); 
+         lambdaPML(1,1) = lam_yy.imag();
+         lambdaPML(2,2) = lam_zz.imag();
+      }
+
+      if (inverse_)
+      {
+         double denom_u = pow(lam_xx.real(),2.0) + pow(lam_xx.imag(),2.0);
+         double denom_v = pow(lam_yy.real(),2.0) + pow(lam_yy.imag(),2.0);
+         double denom_w = pow(lam_zz.real(),2.0) + pow(lam_zz.imag(),2.0);
+
+         lambdaPML(0,0) = lam_xx.real()/denom_u; 
+         lambdaPML(1,1) = lam_yy.real()/denom_v;
+         lambdaPML(2,2) = lam_zz.real()/denom_w;
+
+         if (!realPart_)
+         {
+            lambdaPML(0,0) = -1.0*(lam_xx.imag()/denom_u); 
+            lambdaPML(1,1) = -1.0*(lam_yy.imag()/denom_v);
+            lambdaPML(2,2) = -1.0*(lam_zz.imag()/denom_w);
+         }
       }
 
       lambdaPML(0,2) = 0.0;
@@ -2244,17 +2268,19 @@ void lambdaPML::Eval(DenseMatrix &lambdaPML, ElementTransformation &T,
       lambdaPML(1,0) = 0.0;
    }
 
-invsigmaPML::invsigmaPML(bool realPart,
-                         bool cyl): 
-                         MatrixCoefficient(3), xyz_(3), realPart_(realPart), cyl_(cyl)
+sigmaPML::sigmaPML(bool realPart,
+                   bool cyl,
+                   bool inverse): 
+                         MatrixCoefficient(3), xyz_(3), realPart_(realPart), 
+                         cyl_(cyl), inverse_(inverse)
 {
    xyz_ = 0.0;
 }
 
-void invsigmaPML::Eval(DenseMatrix &invsigmaPML, ElementTransformation &T,
+void sigmaPML::Eval(DenseMatrix &sigmaPML, ElementTransformation &T,
                                const IntegrationPoint &ip)
    {
-      invsigmaPML.SetSize(3);
+      sigmaPML.SetSize(3);
       T.Transform(ip, xyz_);
 
       // need to figure out the starting location of PML to be compatible 
@@ -2325,35 +2351,41 @@ void invsigmaPML::Eval(DenseMatrix &invsigmaPML, ElementTransformation &T,
          sig_w = constant; // Z
       }
 
-      invsigmaPML(0,0) = 0.0; 
-      invsigmaPML(1,1) = 0.0;
-      invsigmaPML(2,2) = 0.0;
+      sigmaPML(0,0) = sig_u.imag(); 
+      sigmaPML(1,1) = sig_v.imag(); 
+      sigmaPML(2,2) = sig_w.imag(); 
 
       if (realPart_)
       {
-         invsigmaPML(0,0) = 1.0/sig_u.real(); 
-         invsigmaPML(1,1) = 1.0/sig_v.real();
-         invsigmaPML(2,2) = 1.0/sig_w.real();
-      }
-      if (realPart_ == false && sig_u.imag() != 0.0)
-      {
-         invsigmaPML(0,0) = 1.0/sig_u.imag(); 
-      }
-      if (realPart_ == false && sig_v.imag() != 0.0)
-      {
-         invsigmaPML(1,1) = 1.0/sig_v.imag(); 
-      }
-      if (realPart_ == false && sig_w.imag() != 0.0)
-      {
-         invsigmaPML(2,2) = 1.0/sig_w.imag(); 
+         sigmaPML(0,0) = sig_u.real(); 
+         sigmaPML(1,1) = sig_v.real();
+         sigmaPML(2,2) = sig_w.real();
       }
 
-      invsigmaPML(0,2) = 0.0;
-      invsigmaPML(1,2) = 0.0;
-      invsigmaPML(2,1) = 0.0;
-      invsigmaPML(0,2) = 0.0;
-      invsigmaPML(0,1) = 0.0;
-      invsigmaPML(1,0) = 0.0;
+      if (inverse_)
+      {
+         double denom_u = pow(sig_u.real(),2.0) + pow(sig_u.imag(),2.0);
+         double denom_v = pow(sig_v.real(),2.0) + pow(sig_v.imag(),2.0);
+         double denom_w = pow(sig_w.real(),2.0) + pow(sig_w.imag(),2.0);
+
+         sigmaPML(0,0) = sig_u.real()/denom_u; 
+         sigmaPML(1,1) = sig_v.real()/denom_v;
+         sigmaPML(2,2) = sig_w.real()/denom_w;
+
+         if (!realPart_)
+         {
+            sigmaPML(0,0) = -1.0*(sig_u.imag()/denom_u); 
+            sigmaPML(1,1) = -1.0*(sig_v.imag()/denom_v);
+            sigmaPML(2,2) = -1.0*(sig_w.imag()/denom_w);
+         }
+      }
+
+      sigmaPML(0,2) = 0.0;
+      sigmaPML(1,2) = 0.0;
+      sigmaPML(2,1) = 0.0;
+      sigmaPML(0,2) = 0.0;
+      sigmaPML(0,1) = 0.0;
+      sigmaPML(1,0) = 0.0;
    }
 
 PlasmaProfile::PlasmaProfile(Type type, const Vector & params,
