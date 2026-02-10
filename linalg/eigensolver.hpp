@@ -156,12 +156,17 @@ public:
       eigenSolver->SetNumModes(num_Modes);
       numModes = num_Modes;
    }
+   /// @brief  Set the operator to the slepc eigenvalue problem. This method deep copies data to create a PetscParMatrix
+   /// @param A - operator, must be of type HypreParMatrix.
    void SetOperator(Operator& A) override
    {
       petscMatA = std::make_unique<PetscParMatrix>
                   (dynamic_cast<HypreParMatrix*>(&A));
       eigenSolver->SetOperator(*petscMatA);
    }
+   /// @brief  Set the operators to the slepc eigenvalue problem. This method deep copies data to create a PetscParMatrix
+   /// @param A - operator, must be of type HypreParMatrix.
+   /// @param M - operator, must be of type HypreParMatrix.
    void SetOperator(Operator& A, Operator& M) override
    {
       petscMatA = std::make_unique<PetscParMatrix>
