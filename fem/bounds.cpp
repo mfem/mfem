@@ -142,7 +142,7 @@ void PLBound::Setup(const int nb_i, const int ncp_i,
             ubound(j,i) = vals.Max()+tol; // tolerance for good measure
             if (b_type == 2)
             {
-               lbound(j,i) = std::max(lbound(j,i),0.0);
+               lbound(j,i) = std::max(lbound(j,i),0_r);
             }
          }
       }
@@ -658,7 +658,8 @@ void PLBound::SetupBernsteinBasisMat(DenseMatrix &basisMat,
                                      Vector &nodesBern) const
 {
    const int nbern = nodesBern.Size();
-   L2_SegmentElement el(nbern-1, 2); // we use L2 to leverage lexicographic order
+   L2_SegmentElement el(nbern-1, 2);
+   // we use L2 to leverage lexicographic order
    Array<int> ordering = el.GetLexicographicOrdering();
    basisMat.SetSize(nbern, nbern);
    Vector shape(nbern);
@@ -671,48 +672,37 @@ void PLBound::SetupBernsteinBasisMat(DenseMatrix &basisMat,
    }
 }
 
-DenseMatrix PLBound::GetLowerBoundMatrix(int dim)
+DenseMatrix PLBound::GetBoundingMatrix(int dim, bool is_lower) const
 {
    if (dim > 1)
    {
-      int ncpd = static_cast<int>(std::pow(ncp, dim));
-      int nbd = static_cast<int>(std::pow(nb, dim));
-      DenseMatrix lboundND(ncpd, nbd);
-      Vector phimin, phimax;
+      const int ncpd = static_cast<int>(std::pow(ncp, dim));
+      const int nbd = static_cast<int>(std::pow(nb, dim));
+      DenseMatrix boundND(ncpd, nbd);
+      Vector phimin, phimax, col;
       Vector coeffs(nbd);
       coeffs = 0.0;
       for (int j = 0; j < nbd; j++)
       {
          coeffs(j) = 1.0;
-         lboundND.GetColumnReference(j, phimin);
+         boundND.GetColumnReference(j, col);
          GetNDBounds(dim, coeffs, phimin, phimax);
+         col = is_lower ? phimin : phimax;
          coeffs(j) = 0.0;
       }
-      return lboundND;
+      return boundND;
    }
-   return lbound;
+   return is_lower ? lbound : ubound;
 }
 
-DenseMatrix PLBound::GetUpperBoundMatrix(int dim)
+DenseMatrix PLBound::GetLowerBoundMatrix(int dim) const
 {
-   if (dim > 1)
-   {
-      int ncpd = static_cast<int>(std::pow(ncp, dim));
-      int nbd = static_cast<int>(std::pow(nb, dim));
-      DenseMatrix uboundND(ncpd, nbd);
-      Vector phimin, phimax;
-      Vector coeffs(nbd);
-      coeffs = 0.0;
-      for (int j = 0; j < nbd; j++)
-      {
-         coeffs(j) = 1.0;
-         uboundND.GetColumnReference(j, phimax);
-         GetNDBounds(dim, coeffs, phimin, phimax);
-         coeffs(j) = 0.0;
-      }
-      return uboundND;
-   }
-   return ubound;
+   return GetBoundingMatrix(dim, true);
+}
+
+DenseMatrix PLBound::GetUpperBoundMatrix(int dim) const
+{
+   return GetBoundingMatrix(dim, false);
 }
 
 constexpr int PLBound::min_ncp_gl_x[2][11];

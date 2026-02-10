@@ -5125,7 +5125,6 @@ void GridFunction::GetElementBoundsAtControlPoints(const int elem,
                                                    Vector &lower, Vector &upper,
                                                    Vector &control_pos) const
 {
-   const FiniteElementSpace *fes = FESpace();
    const FiniteElement *fe = fes->GetFE(elem);
    const IntegrationRule ir_in = fe->GetNodes();
    IntegrationRule ir_new(ir_in.GetNPoints());
@@ -5160,9 +5159,9 @@ void GridFunction::GetElementBoundsAtControlPoints(const int elem,
       ip_new.Set(ip_coord.GetData(), dim);
    }
    GetValues(elem, ir_new, loc_data, vdim);
-   // At this point, the loc_data contains function values ordered lexicographically,
-   // unless we are using Bernstein bases. For Bernstein, we need to project and
-   // get coefficients first
+   // At this point, the loc_data contains function values ordered
+   // lexicographically, unless we are using Bernstein bases.
+   // For Bernstein, we need to project and get coefficients first.
 
    // For bernstein, we get coefficients corresponding to these function values
    if (bern)
@@ -5409,7 +5408,7 @@ struct IntervalCompareMax
 
 std::pair<real_t, real_t> GridFunction::EstimateFunctionMinimum(
    const int elem, const PLBound &plb, const int vdim,
-   const int max_depth, const real_t tol)
+   const int max_depth, const real_t tol) const
 {
    real_t min_threshold = std::numeric_limits<real_t>::max();
    return EstimateFunctionMinimum(elem, plb, vdim, max_depth, tol,
@@ -5418,7 +5417,7 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMinimum(
 
 std::pair<real_t, real_t> GridFunction::EstimateFunctionMinimum(
    const int elem, const PLBound &plb, const int vdim,
-   const int max_depth, const real_t tol, real_t &min_threshold)
+   const int max_depth, const real_t tol, real_t &min_threshold) const
 {
    const int dim = this->FESpace()->GetMesh()->Dimension();
    const int ncp = plb.GetNControlPoints();
@@ -5456,7 +5455,6 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMinimum(
 
    real_t min_upper_bound = upper.Min();
    real_t min_lower_bound = lower.Min();
-   int nverts = dim == 1 ? 2 : (dim == 2 ? 4 : 8);
 
    while (!pq.empty())
    {
@@ -5482,8 +5480,6 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMinimum(
       GetElementBoundsAtControlPoints(elem, plb, current->ref_range,
                                       vdim, lower, upper, cp_ref_loc);
 
-      Vector lowerv(nverts), upperv(nverts);
-
       // process the bounds and create sub-intervals
       for (int k = 0; k < (dim == 3 ? ncp-1 : 1); k++)
       {
@@ -5491,45 +5487,40 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMinimum(
          {
             for (int i = 0; i < ncp-1; i++)
             {
+               real_t lv = 0.0, uv = 0.0;
                if (dim == 1)
                {
-                  lowerv(0) = lower(i);
-                  lowerv(1) = lower(i+1);
-                  upperv(0) = upper(i);
-                  upperv(1) = upper(i+1);
+                  lv = std::min(lower(i), lower(i+1));
+                  uv = std::min(upper(i), upper(i+1));
                }
                else if (dim == 2)
                {
-                  lowerv(0) = lower(i + j*ncp);
-                  lowerv(1) = lower((i+1) + j*ncp);
-                  lowerv(2) = lower(i + (j+1)*ncp);
-                  lowerv(3) = lower((i+1) + (j+1)*ncp);
-                  upperv(0) = upper(i + j*ncp);
-                  upperv(1) = upper((i+1) + j*ncp);
-                  upperv(2) = upper(i + (j+1)*ncp);
-                  upperv(3) = upper((i+1) + (j+1)*ncp);
+                  lv = std::min({lower(i + j*ncp), lower((i+1) + j*ncp),
+                                 lower(i + (j+1)*ncp),
+                                 lower((i+1) + (j+1)*ncp)});
+                  uv = std::min({upper(i + j*ncp), upper((i+1) + j*ncp),
+                                 upper(i + (j+1)*ncp),
+                                 upper((i+1) + (j+1)*ncp)});
                }
                else if (dim == 3)
                {
-                  lowerv(0) = lower(i + j*ncp + k*ncp*ncp);
-                  lowerv(1) = lower((i+1) + j*ncp + k*ncp*ncp);
-                  lowerv(2) = lower(i + (j+1)*ncp + k*ncp*ncp);
-                  lowerv(3) = lower((i+1) + (j+1)*ncp + k*ncp*ncp);
-                  lowerv(4) = lower(i + j*ncp + (k+1)*ncp*ncp);
-                  lowerv(5) = lower((i+1) + j*ncp + (k+1)*ncp*ncp);
-                  lowerv(6) = lower(i + (j+1)*ncp + (k+1)*ncp*ncp);
-                  lowerv(7) = lower((i+1) + (j+1)*ncp + (k+1)*ncp*ncp);
-                  upperv(0) = upper(i + j*ncp + k*ncp*ncp);
-                  upperv(1) = upper((i+1) + j*ncp + k*ncp*ncp);
-                  upperv(2) = upper(i + (j+1)*ncp + k*ncp*ncp);
-                  upperv(3) = upper((i+1) + (j+1)*ncp + k*ncp*ncp);
-                  upperv(4) = upper(i + j*ncp + (k+1)*ncp*ncp);
-                  upperv(5) = upper((i+1) + j*ncp + (k+1)*ncp*ncp);
-                  upperv(6) = upper(i + (j+1)*ncp + (k+1)*ncp*ncp);
-                  upperv(7) = upper((i+1) + (j+1)*ncp + (k+1)*ncp*ncp);
+                  lv = std::min({lower(i + j*ncp + k*ncp*ncp),
+                                 lower((i+1) + j*ncp + k*ncp*ncp),
+                                 lower(i + (j+1)*ncp + k*ncp*ncp),
+                                 lower((i+1) + (j+1)*ncp + k*ncp*ncp),
+                                 lower(i + j*ncp + (k+1)*ncp*ncp),
+                                 lower((i+1) + j*ncp + (k+1)*ncp*ncp),
+                                 lower(i + (j+1)*ncp + (k+1)*ncp*ncp),
+                                 lower((i+1) + (j+1)*ncp + (k+1)*ncp*ncp)});
+                  uv = std::min({upper(i + j*ncp + k*ncp*ncp),
+                                 upper((i+1) + j*ncp + k*ncp*ncp),
+                                 upper(i + (j+1)*ncp + k*ncp*ncp),
+                                 upper((i+1) + (j+1)*ncp + k*ncp*ncp),
+                                 upper(i + j*ncp + (k+1)*ncp*ncp),
+                                 upper((i+1) + j*ncp + (k+1)*ncp*ncp),
+                                 upper(i + (j+1)*ncp + (k+1)*ncp*ncp),
+                                 upper((i+1) + (j+1)*ncp + (k+1)*ncp*ncp)});
                }
-               real_t lv = lowerv.Min();
-               real_t uv = upperv.Min();
                IntervalNode *child_node = new IntervalNode(lv, uv);
                current->node->AddChild(child_node);
 
@@ -5552,7 +5543,8 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMinimum(
                         pos_range(2+dim) = cp_ref_loc(2*ncp + k+1);
                      }
                      SearchInterval *child_interval =
-                        new  SearchInterval(pos_range, curr_depth + 1, child_node);
+                        new  SearchInterval(pos_range, curr_depth + 1,
+                                            child_node);
                      pq.push(child_interval);
                   }
                }
@@ -5579,7 +5571,7 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMinimum(
 
 std::pair<real_t, real_t> GridFunction::EstimateFunctionMaximum(
    const int elem, const PLBound &plb, const int vdim,
-   const int max_depth, const real_t tol)
+   const int max_depth, const real_t tol) const
 {
    real_t max_threshold = std::numeric_limits<real_t>::lowest();
    return EstimateFunctionMaximum(elem, plb, vdim, max_depth, tol,
@@ -5588,7 +5580,7 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMaximum(
 
 std::pair<real_t, real_t> GridFunction::EstimateFunctionMaximum(
    const int elem, const PLBound &plb, const int vdim,
-   const int max_depth, const real_t tol, real_t &max_threshold)
+   const int max_depth, const real_t tol, real_t &max_threshold) const
 {
    const int dim = this->FESpace()->GetMesh()->Dimension();
    const int ncp = plb.GetNControlPoints();
@@ -5626,7 +5618,6 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMaximum(
 
    real_t max_lower_bound = val_min;
    real_t max_upper_bound = val_max;
-   int nverts = dim == 1 ? 2 : (dim == 2 ? 4 : 8);
 
    while (!pq.empty())
    {
@@ -5634,8 +5625,7 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMaximum(
       pq.pop();
       int curr_depth = current->depth;
 
-      // Pruning: if the current interval's max is less than the best guaranteed max (max_lower_bound),
-      // then this interval cannot contain the global maximum.
+      // Reached max depth or this interval cannot contain the global maximum.
       if (current->node->val_max <= max_threshold || curr_depth >= max_depth)
       {
          delete current;
@@ -5653,8 +5643,6 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMaximum(
       GetElementBoundsAtControlPoints(elem, plb, current->ref_range,
                                       vdim, lower, upper, cp_ref_loc);
 
-      Vector lowerv(nverts), upperv(nverts);
-
       // process the bounds and create sub-intervals
       for (int k = 0; k < (dim == 3 ? ncp-1 : 1); k++)
       {
@@ -5662,45 +5650,40 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMaximum(
          {
             for (int i = 0; i < ncp-1; i++)
             {
+               real_t lv = 0.0, uv = 0.0;
                if (dim == 1)
                {
-                  lowerv(0) = lower(i);
-                  lowerv(1) = lower(i+1);
-                  upperv(0) = upper(i);
-                  upperv(1) = upper(i+1);
+                  lv = std::max(lower(i), lower(i+1));
+                  uv = std::max(upper(i), upper(i+1));
                }
                else if (dim == 2)
                {
-                  lowerv(0) = lower(i + j*ncp);
-                  lowerv(1) = lower((i+1) + j*ncp);
-                  lowerv(2) = lower(i + (j+1)*ncp);
-                  lowerv(3) = lower((i+1) + (j+1)*ncp);
-                  upperv(0) = upper(i + j*ncp);
-                  upperv(1) = upper((i+1) + j*ncp);
-                  upperv(2) = upper(i + (j+1)*ncp);
-                  upperv(3) = upper((i+1) + (j+1)*ncp);
+                  lv = std::max({lower(i + j*ncp), lower((i+1) + j*ncp),
+                                 lower(i + (j+1)*ncp),
+                                 lower((i+1) + (j+1)*ncp)});
+                  uv = std::max({upper(i + j*ncp), upper((i+1) + j*ncp),
+                                 upper(i + (j+1)*ncp),
+                                 upper((i+1) + (j+1)*ncp)});
                }
                else if (dim == 3)
                {
-                  lowerv(0) = lower(i + j*ncp + k*ncp*ncp);
-                  lowerv(1) = lower((i+1) + j*ncp + k*ncp*ncp);
-                  lowerv(2) = lower(i + (j+1)*ncp + k*ncp*ncp);
-                  lowerv(3) = lower((i+1) + (j+1)*ncp + k*ncp*ncp);
-                  lowerv(4) = lower(i + j*ncp + (k+1)*ncp*ncp);
-                  lowerv(5) = lower((i+1) + j*ncp + (k+1)*ncp*ncp);
-                  lowerv(6) = lower(i + (j+1)*ncp + (k+1)*ncp*ncp);
-                  lowerv(7) = lower((i+1) + (j+1)*ncp + (k+1)*ncp*ncp);
-                  upperv(0) = upper(i + j*ncp + k*ncp*ncp);
-                  upperv(1) = upper((i+1) + j*ncp + k*ncp*ncp);
-                  upperv(2) = upper(i + (j+1)*ncp + k*ncp*ncp);
-                  upperv(3) = upper((i+1) + (j+1)*ncp + k*ncp*ncp);
-                  upperv(4) = upper(i + j*ncp + (k+1)*ncp*ncp);
-                  upperv(5) = upper((i+1) + j*ncp + (k+1)*ncp*ncp);
-                  upperv(6) = upper(i + (j+1)*ncp + (k+1)*ncp*ncp);
-                  upperv(7) = upper((i+1) + (j+1)*ncp + (k+1)*ncp*ncp);
+                  lv = std::max({lower(i + j*ncp + k*ncp*ncp),
+                                 lower((i+1) + j*ncp + k*ncp*ncp),
+                                 lower(i + (j+1)*ncp + k*ncp*ncp),
+                                 lower((i+1) + (j+1)*ncp + k*ncp*ncp),
+                                 lower(i + j*ncp + (k+1)*ncp*ncp),
+                                 lower((i+1) + j*ncp + (k+1)*ncp*ncp),
+                                 lower(i + (j+1)*ncp + (k+1)*ncp*ncp),
+                                 lower((i+1) + (j+1)*ncp + (k+1)*ncp*ncp)});
+                  uv = std::max({upper(i + j*ncp + k*ncp*ncp),
+                                 upper((i+1) + j*ncp + k*ncp*ncp),
+                                 upper(i + (j+1)*ncp + k*ncp*ncp),
+                                 upper((i+1) + (j+1)*ncp + k*ncp*ncp),
+                                 upper(i + j*ncp + (k+1)*ncp*ncp),
+                                 upper((i+1) + j*ncp + (k+1)*ncp*ncp),
+                                 upper(i + (j+1)*ncp + (k+1)*ncp*ncp),
+                                 upper((i+1) + (j+1)*ncp + (k+1)*ncp*ncp)});
                }
-               real_t lv = lowerv.Max();
-               real_t uv = upperv.Max();
                IntervalNode *child_node = new IntervalNode(lv, uv);
                current->node->AddChild(child_node);
 
@@ -5723,7 +5706,8 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMaximum(
                         pos_range(2+dim) = cp_ref_loc(2*ncp + k+1);
                      }
                      SearchInterval *child_interval =
-                        new SearchInterval(pos_range, curr_depth + 1, child_node);
+                        new SearchInterval(pos_range, curr_depth + 1,
+                                           child_node);
                      pq.push(child_interval);
                   }
                }
@@ -5748,7 +5732,8 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMaximum(
 }
 
 std::pair<real_t, real_t> GridFunction::EstimateFunctionMinimum(
-   const int vdim, const PLBound &plb, const int max_depth, const real_t tol)
+   const int vdim, const PLBound &plb, const int max_depth,
+   const real_t tol) const
 {
    real_t global_min_lower = std::numeric_limits<real_t>::max();
    real_t global_min_upper = std::numeric_limits<real_t>::max();
@@ -5756,14 +5741,16 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMinimum(
    for (int i = 0; i < fes->GetNE(); i++)
    {
       std::pair<real_t, real_t> min_pair =
-         EstimateFunctionMinimum(i, plb, vdim, max_depth, tol, global_min_lower);
+         EstimateFunctionMinimum(i, plb, vdim, max_depth, tol,
+                                 global_min_lower);
       global_min_upper = std::min(global_min_upper, min_pair.second);
    }
    return std::make_pair(global_min_lower, global_min_upper);
 }
 
 std::pair<real_t, real_t> GridFunction::EstimateFunctionMaximum(
-   const int vdim, const PLBound &plb, const int max_depth, const real_t tol)
+   const int vdim, const PLBound &plb, const int max_depth,
+   const real_t tol) const
 {
    real_t global_max_lower = std::numeric_limits<real_t>::lowest();
    real_t global_max_upper = std::numeric_limits<real_t>::lowest();
@@ -5771,7 +5758,8 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMaximum(
    for (int i = 0; i < fes->GetNE(); i++)
    {
       std::pair<real_t, real_t> max_pair =
-         EstimateFunctionMaximum(i, plb, vdim, max_depth, tol, global_max_upper);
+         EstimateFunctionMaximum(i, plb, vdim, max_depth, tol,
+                                 global_max_upper);
       global_max_lower = std::max(global_max_lower, max_pair.first);
    }
    return std::make_pair(global_max_lower, global_max_upper);

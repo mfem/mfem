@@ -1580,7 +1580,8 @@ void ParGridFunction::GetBounds(Vector &lower, Vector &upper,
 }
 
 std::pair<real_t, real_t> ParGridFunction::EstimateFunctionMinimum(
-   const int vdim, const PLBound &plb, const int max_depth, const real_t tol)
+   const int vdim, const PLBound &plb, const int max_depth,
+   const real_t tol) const
 {
    std::pair<real_t, real_t> minmax =
       GridFunction::EstimateFunctionMinimum(vdim, plb, max_depth, tol);
@@ -1596,7 +1597,8 @@ std::pair<real_t, real_t> ParGridFunction::EstimateFunctionMinimum(
 }
 
 std::pair<real_t, real_t> ParGridFunction::EstimateFunctionMaximum(
-   const int vdim, const PLBound &plb, const int max_depth, const real_t tol)
+   const int vdim, const PLBound &plb, const int max_depth,
+   const real_t tol) const
 {
    std::pair<real_t, real_t> minmax =
       GridFunction::EstimateFunctionMaximum(vdim, plb, max_depth, tol);
