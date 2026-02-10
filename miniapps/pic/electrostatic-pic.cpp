@@ -252,7 +252,8 @@ int main(int argc, char* argv[])
    if (ctx.dim == 2)
    {
       serial_mesh = Mesh(Mesh::MakeCartesian2D(
-                            ctx.nx, ctx.ny, Element::QUADRILATERAL, false, ctx.L_x, ctx.L_x));
+                            ctx.nx, ctx.ny, Element::QUADRILATERAL, false,
+                            ctx.L_x, ctx.L_x));
       translations = {Vector({ctx.L_x, 0.0}),
                       Vector({0.0, ctx.L_x})
                      };
@@ -572,10 +573,9 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
       ParMesh* pmesh = pfes->GetParMesh();
       const int dim = pmesh->Dimension();
 
-      // Particle data
-      ParticleVector& X = particles.Coords();  // coordinates (vdim x npt)
-      ParticleVector& Q = particles.Field(
-                             ParticleMover::CHARGE);  // charges (1 x npt)
+      // Particle data: X - coordinates (dim x npt), Q - charges (1 x npt)
+      ParticleVector& X = particles.Coords();
+      ParticleVector& Q = particles.Field(ParticleMover::CHARGE);
 
       const int npt = particles.GetNParticles();
       MFEM_VERIFY(X.GetVDim() == dim, "Unexpected particle coordinate layout.");
@@ -634,7 +634,6 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
                     << endl;
             }
          }
-         neutralizing_const_computed = true;
          delete precomputed_neutralizing_lf;
          precomputed_neutralizing_lf = new ParLinearForm(pfes);
          *precomputed_neutralizing_lf = 0.0;
