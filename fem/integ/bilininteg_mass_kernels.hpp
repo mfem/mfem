@@ -1133,11 +1133,11 @@ inline void SmemPAMassApply3D(const int NE,
    const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D;
    MFEM_VERIFY(D1D <= max_d1d, "");
    MFEM_VERIFY(Q1D <= max_q1d, "");
-   auto b = b_.Read();
-   auto d = d_.Read();
-   auto x = x_.Read();
+   const auto b = b_.Read();
+   const auto d = d_.Read();
+   const auto x = x_.Read();
    auto y = y_.ReadWrite();
-   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D<T_Q1D*T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       internal::SmemPAMassApply3D_Element<T_D1D,T_Q1D>(e, NE, b, d, x, y, d1d, q1d);
    });
@@ -1156,8 +1156,8 @@ inline void EAMassAssemble1D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
-   auto B = Reshape(basis.Read(), Q1D, D1D);
-   auto D = Reshape(padata.Read(), Q1D, NE);
+   const auto B = Reshape(basis.Read(), Q1D, D1D);
+   const auto D = Reshape(padata.Read(), Q1D, NE);
    auto M = Reshape(add ? eadata.ReadWrite() : eadata.Write(), D1D, D1D, NE);
    mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
    {
