@@ -49,7 +49,7 @@ public:
    virtual void Solve() = 0;
 
    /// Set the required number of modes
-   virtual void SetNumModes(int num_Modes) 
+   virtual void SetNumModes(int num_Modes)
    {
       numModes=num_Modes;
    }
