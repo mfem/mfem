@@ -461,7 +461,7 @@ void Boris::EvaluateFieldsAtParticles()
    // Interpolate E-field + B-field onto particles
    if (E_gf)
    {
-      E_finder.Interpolate(*E_gf, E); // E.GetOrdering() used internally
+      E_finder.Interpolate(*E_gf, E, E.GetOrdering());
    }
    else
    {
@@ -469,7 +469,7 @@ void Boris::EvaluateFieldsAtParticles()
    }
    if (B_gf)
    {
-      B_finder.Interpolate(*B_gf, B); // B.GetOrdering() used internally
+      B_finder.Interpolate(*B_gf, B, B.GetOrdering());
    }
    else
    {
