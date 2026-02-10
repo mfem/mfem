@@ -35,7 +35,7 @@ struct Bounds {
 struct SolverSettings {
   real_t residual_abs_tol = 1e-10; ///< Tolerance for convergence check on absolute value of residual
   real_t residual_rel_tol = 0.0;   ///< Tolerance for convergence check on absolute value of current residual relative to absolute value of residual at initial guess
-  real_t bounds{.lower = -std::numeric_limits<real_t>::infinity(), .upper = std::numeric_limits<real_t>::infinity()}; ///< 
+  Bounds bounds{.lower = -std::numeric_limits<real_t>::infinity(), .upper = std::numeric_limits<real_t>::infinity()}; ///< Bounds on root
 };
 
 template <auto f, typename T>
@@ -69,8 +69,8 @@ MFEM_HOST_DEVICE void NewtonBisection_impl(const real_t* x0_ptr, const T* p_ptr,
     return;
   }
 
-  SLIC_ERROR_IF(fl * fh > 0.0, "Root is not bracketed, solve cannot continue.");
-  SLIC_ERROR_IF(x0 < left_bracket || x0 > right_bracket, "Initial guess is not within brackets, solve cannot continue.");
+  MFEM_ASSERT(fl * fh > 0.0, "Root is not bracketed, solve cannot continue.");
+  MFEM_ASSERT(x0 <= left_bracket && x0 >= right_bracket, "Initial guess must be bounds.");
 
   // Orient search so that f(xl) < 0
   real_t xl = left_bracket;
@@ -125,16 +125,16 @@ MFEM_HOST_DEVICE void NewtonBisection_impl(const real_t* x0_ptr, const T* p_ptr,
       fh = r;
     }
   }
-  SLIC_WARNING("Newton solve did note converge.");
+  mfem_error("Newton solve did note converge.");
 }
 
 template <auto f, typename T>
-void newton_bisection_impl_fwddiff(const real_t* x0, const real_t* /* unused shadow */,
+void NewtonBisection_impl_fwddiff(const real_t* x0, const real_t* /* unused shadow */,
                                    const T* p, const T* dp,
                                    const SolverSettings* settings, const SolverSettings* /* unused shadow */,
                                    real_t* x, real_t* dx)
 {
-  newton_bisection_impl<f>(x0, p, settings, x);
+  NewtonBisection_impl<f>(x0, p, settings, x);
   real_t dfdx = __enzyme_fwddiff<real_t>((void*)+f, enzyme_dup, *x, 1.0, enzyme_const, *p);
   real_t dfdp = __enzyme_fwddiff<real_t>((void*)+f, enzyme_const, *x, enzyme_dup, *p, *dp);
   *dx = -dfdp/dfdx;

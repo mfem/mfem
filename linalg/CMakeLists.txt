@@ -35,7 +35,6 @@ list(APPEND SRCS
   sparsemat.cpp
   sparsesmoothers.cpp
   symmat.cpp
-  univarsolvers.cpp
   vector.cpp
   )
 
