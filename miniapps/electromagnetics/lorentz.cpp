@@ -91,7 +91,19 @@ struct LorentzContext
    int nt = 1000;                  // number of timesteps
    int redist_interval = 5;        // redistribution interval
    int redist_mesh = 0;            // redistribution mesh: 0: E mesh, 1: B mesh
+   std::string device_config = "cpu";
 } ctx;
+
+struct LocTimers
+{
+   StopWatch FindPointsE;
+   StopWatch FindPointsB;
+   StopWatch InterpolateE;
+   StopWatch InterpolateB;
+   StopWatch Push;
+   StopWatch Redistribute;
+   StopWatch TotalStep;
+} loc_timers;
 
 /// This class implements the Boris algorithm as described in the article
 /// `Why is Boris algorithm so good?` by H. Qin et al in Physics of Plasmas,
@@ -130,7 +142,7 @@ protected:
 public:
 
    Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_,
-         int nparticles, Ordering::Type pdata_ordering);
+         int nparticles, Ordering::Type pdata_ordering, bool use_device);
 
    /// Find Particles in mesh corresponding to E and B fields
    void FindParticles();
@@ -141,6 +153,7 @@ public:
 
    /// Advance particles one time step using Boris algorithm
    void Step(real_t &t, real_t &dt);
+   void StepDevice(real_t &t, real_t &dt);
 
    /// Remove lost particles and return their indices
    Array<int> RemoveLostParticles();
@@ -235,6 +248,8 @@ int main(int argc, char *argv[])
    args.AddOption(&vis_interval, "-vf", "--vis-interval",
                   "GLVis visualization update after this many timesteps. "
                   "0 means no visualization.");
+   args.AddOption(&ctx.device_config, "-d", "--device",
+                  "Device configuration definition string.");
 
    args.Parse();
    if (!args.Good())
@@ -251,6 +266,10 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+   bool use_dev = ctx.device_config != "cpu";
+   Device device(ctx.device_config);
+   if (Mpi::Root()) { device.Print(); }
+
    std::unique_ptr<VisItDataCollection> E_dc, B_dc;
    ParGridFunction *E_gf = nullptr, *B_gf = nullptr;
    Vector bb_xmin, bb_xmax;
@@ -266,6 +285,7 @@ int main(int argc, char *argv[])
          return 1;
       }
       E_gf->ParFESpace()->GetParMesh()->GetBoundingBox(bb_xmin, bb_xmax, 2);
+      E_gf->UseDevice(use_dev);
    }
 
    // Read B field if provided
@@ -280,6 +300,7 @@ int main(int argc, char *argv[])
       }
       Vector bb_xmint, bb_xmaxt;
       B_gf->ParFESpace()->GetParMesh()->GetBoundingBox(bb_xmint, bb_xmaxt, 2);
+      B_gf->UseDevice(use_dev);
       if (ctx.E.coll_name != "")
       {
          // compute intersection of bounding boxes
@@ -302,10 +323,14 @@ int main(int argc, char *argv[])
    // Initialize particles
    int num_particles = ctx.npt/num_ranks +
                        (rank < (ctx.npt % num_ranks) ? 1 : 0);
-   Boris boris(MPI_COMM_WORLD, E_gf, B_gf, num_particles, ordering_type);
+   Boris boris(MPI_COMM_WORLD, E_gf, B_gf, num_particles, ordering_type,
+               use_dev);
    InitializeChargedParticles(boris.GetParticles(), ctx.x_min, ctx.x_max,
                               ctx.p_min, ctx.p_max, ctx.m, ctx.q);
+
+   Array<int> removed_idxs_dummy;
    boris.FindParticles();
+   boris.Redistribute(ctx.redist_mesh, removed_idxs_dummy);
    boris.EvaluateFieldsAtParticles();
 
    real_t t = 0.0;
@@ -329,7 +354,14 @@ int main(int argc, char *argv[])
    for (int step = 1; step <= ctx.nt; step++)
    {
       // Step the Boris algorithm
-      boris.Step(t, dt);
+      if (Device::IsEnabled())
+      {
+         boris.StepDevice(t, dt);
+      }
+      else
+      {
+         boris.Step(t, dt);
+      }
       if (Mpi::Root())
       {
          mfem::out << "Step: " << step << " | Time: " << t << endl;
@@ -352,6 +384,18 @@ int main(int argc, char *argv[])
          // particles that were just removed from the set.
          boris.Redistribute(ctx.redist_mesh, removed_idxs);
       }
+   }
+
+   if (Mpi::Root())
+   {
+      cout << "\nTiming Results:" << endl;
+      cout << "FindPointsE:   " << loc_timers.FindPointsE.RealTime() << "s" << endl;
+      cout << "FindPointsB:   " << loc_timers.FindPointsB.RealTime() << "s" << endl;
+      cout << "InterpE:      " << loc_timers.InterpolateE.RealTime() << "s" << endl;
+      cout << "InterpB:      " << loc_timers.InterpolateB.RealTime() << "s" << endl;
+      cout << "Push:         " << loc_timers.Push.RealTime() << "s" << endl;
+      cout << "Redistribute: " << loc_timers.Redistribute.RealTime() << "s" << endl;
+      cout << "Total Step:   " << loc_timers.TotalStep.RealTime() << "s" << endl;
    }
 }
 
@@ -397,7 +441,7 @@ void Boris::ParticleStep(Particle &part, real_t &dt)
 }
 
 Boris::Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_,
-             int nparticles, Ordering::Type pdata_ordering)
+             int nparticles, Ordering::Type pdata_ordering, bool use_device)
    : E_gf(E_gf_),
      B_gf(B_gf_),
      E_finder(comm),
@@ -435,7 +479,8 @@ Boris::Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_,
    Array<int> field_vdims({1, 1, dim, dim, dim});
 
    charged_particles = std::make_unique<ParticleSet>
-                       (comm, nparticles, dim, field_vdims, 0, pdata_ordering);
+                       (comm, nparticles, dim, field_vdims, 0, pdata_ordering,
+                        use_device);
 }
 
 void Boris::FindParticles()
@@ -445,11 +490,15 @@ void Boris::FindParticles()
    // Find particles in E and B field meshes
    if (E_gf)
    {
+      loc_timers.FindPointsE.Start();
       E_finder.FindPoints(X); // X.GetOrdering() used internally
+      loc_timers.FindPointsE.Stop();
    }
    if (B_gf)
    {
+      loc_timers.FindPointsB.Start();
       B_finder.FindPoints(X); // X.GetOrdering() used internally
+      loc_timers.FindPointsB.Stop();
    }
 }
 
@@ -461,7 +510,9 @@ void Boris::EvaluateFieldsAtParticles()
    // Interpolate E-field + B-field onto particles
    if (E_gf)
    {
+      loc_timers.InterpolateE.Start();
       E_finder.Interpolate(*E_gf, E, E.GetOrdering());
+      loc_timers.InterpolateE.Stop();
    }
    else
    {
@@ -469,9 +520,11 @@ void Boris::EvaluateFieldsAtParticles()
    }
    if (B_gf)
    {
+      loc_timers.InterpolateB.Start();
       B_finder.Interpolate(*B_gf, B, B.GetOrdering());
+      loc_timers.InterpolateB.Stop();
    }
-   else
+    else
    {
       B = 0.0;
    }
@@ -479,9 +532,11 @@ void Boris::EvaluateFieldsAtParticles()
 
 void Boris::Step(real_t &t, real_t &dt)
 {
+   loc_timers.TotalStep.Start();
    // Interpolate E and B fields onto particles
    EvaluateFieldsAtParticles();
 
+   loc_timers.Push.Start();
    // Individually step each particle. If all ParticleSet fields are ordered
    // byVDIM, we can use GetParticleRef for better performance.
    if (charged_particles->IsParticleRefValid())
@@ -501,12 +556,133 @@ void Boris::Step(real_t &t, real_t &dt)
          charged_particles->SetParticle(i, p);
       }
    }
+   loc_timers.Push.Stop();
 
    // Find updated particle locations in E and B field meshes
    FindParticles();
 
    // Update time
    t += dt;
+   loc_timers.TotalStep.Stop();
+}
+
+void Boris::StepDevice(real_t &t, real_t &dt)
+{
+   loc_timers.TotalStep.Start();
+   // Interpolate E and B fields onto particles
+   EvaluateFieldsAtParticles();
+
+   loc_timers.Push.Start();
+   const int N = charged_particles->GetNParticles();
+   auto &X = charged_particles->Coords();
+   auto &M = charged_particles->Field(MASS);
+   auto &Q = charged_particles->Field(CHARGE);
+   auto &P = charged_particles->Field(MOM);
+   auto &E = charged_particles->Field(EFIELD);
+   auto &B = charged_particles->Field(BFIELD);
+
+   const int dim = X.GetVDim();
+
+   // Capture orderings for each field to ensure correct access
+   const bool byVDIM_X = (X.GetOrdering() == Ordering::byVDIM);
+   const bool byVDIM_P = (P.GetOrdering() == Ordering::byVDIM);
+   const bool byVDIM_E = (E.GetOrdering() == Ordering::byVDIM);
+   const bool byVDIM_B = (B.GetOrdering() == Ordering::byVDIM);
+
+   auto d_x = X.ReadWrite();
+   auto d_m = M.Read();
+   auto d_q = Q.Read();
+   auto d_p = P.ReadWrite();
+   auto d_e = E.Read();
+   auto d_b = B.Read();
+
+   MFEM_FORALL(i, N,
+   {
+      const real_t m = d_m[i];
+      const real_t q = d_q[i];
+
+      real_t x[3], p[3], e[3], b[3];
+      // Load data
+      for (int d = 0; d < dim; d++)
+      {
+         x[d] = d_x[byVDIM_X ? i * dim + d : i + d * N];
+         p[d] = d_p[byVDIM_P ? i * dim + d : i + d * N];
+         e[d] = d_e[byVDIM_E ? i * dim + d : i + d * N];
+         b[d] = d_b[byVDIM_B ? i * dim + d : i + d * N];
+      }
+
+      // Boris algorithm implementation
+      real_t pm[3], pxB[3], pp[3];
+
+      // Compute half of the contribution from q E
+      // pm = p + 0.5 * dt * q * e
+      for (int d = 0; d < dim; d++)
+      {
+         pm[d] = p[d] + (0.5 * dt * q) * e[d];
+      }
+
+      // Compute the contribution from q p x B
+      real_t B2 = 0.0;
+      for (int d = 0; d < dim; d++) { B2 += b[d] * b[d]; }
+
+      // ... along pm x B
+      // pxB = pm x b
+      if (dim == 3)
+      {
+         pxB[0] = pm[1] * b[2] - pm[2] * b[1];
+         pxB[1] = pm[2] * b[0] - pm[0] * b[2];
+         pxB[2] = pm[0] * b[1] - pm[1] * b[0];
+      }
+      else
+      {
+         pxB[0] = 0.0; pxB[1] = 0.0; pxB[2] = 0.0;
+      }
+
+      const real_t a1 = 4.0 * dt * q * m;
+      // pp = a1 * pxB
+      for (int d = 0; d < dim; d++) { pp[d] = a1 * pxB[d]; }
+
+      // ... along pm
+      const real_t a2 = 4.0 * m * m - dt * dt * q * q * B2;
+      // pp += a2 * pm
+      for (int d = 0; d < dim; d++) { pp[d] += a2 * pm[d]; }
+
+      // ... along B
+      real_t b_dot_pm = 0.0;
+      for (int d = 0; d < dim; d++) { b_dot_pm += b[d] * pm[d]; }
+
+      const real_t a3 = 2.0 * dt * dt * q * q * b_dot_pm;
+      // pp += a3 * b
+      for (int d = 0; d < dim; d++) { pp[d] += a3 * b[d]; }
+
+      // scale by common denominator
+      const real_t a4 = 4.0 * m * m + dt * dt * q * q * B2;
+      for (int d = 0; d < dim; d++) { pp[d] /= a4; }
+
+      // Update the momentum
+      // p = pp + 0.5 * dt * q * e
+      for (int d = 0; d < dim; d++)
+      {
+         p[d] = pp[d] + (0.5 * dt * q) * e[d];
+      }
+
+      // Update the position
+      // x += (dt / m) * p
+      // Store back to global arrays
+      for (int d = 0; d < dim; d++)
+      {
+         d_p[byVDIM_P ? i * dim + d : i + d * N] = p[d];
+         d_x[byVDIM_X ? i * dim + d : i + d * N] = x[d] + (dt / m) * p[d];
+      }
+   });
+   loc_timers.Push.Stop();
+
+   // Find updated particle locations in E and B field meshes
+   FindParticles();
+
+   // Update time
+   t += dt;
+   loc_timers.TotalStep.Stop();
 }
 
 Array<int> Boris::RemoveLostParticles()
@@ -531,6 +707,7 @@ Array<int> Boris::RemoveLostParticles()
 
 void Boris::Redistribute(int redist_mesh, Array<int> &removed_idxs)
 {
+   loc_timers.Redistribute.Start();
    if (redist_mesh == 0 && E_gf)
    {
       Array<int> proc_list = E_finder.GetProc();
@@ -547,6 +724,7 @@ void Boris::Redistribute(int redist_mesh, Array<int> &removed_idxs)
    // Find particles again since ParticleSet is not yet synced with
    // FindPointsGSLIB objects.
    FindParticles();
+   loc_timers.Redistribute.Stop();
 }
 
 void display_banner(ostream & os)
@@ -617,6 +795,11 @@ void InitializeChargedParticles(ParticleSet &charged_particles,
    ParticleVector &M = charged_particles.Field(Boris::MASS);
    ParticleVector &Q = charged_particles.Field(Boris::CHARGE);
 
+   X.HostWrite();
+   P.HostWrite();
+   M.HostWrite();
+   Q.HostWrite();
+
    for (int i = 0; i < charged_particles.GetNParticles(); i++)
    {
       for (int d = 0; d < dim; d++)
@@ -643,4 +826,9 @@ void InitializeChargedParticles(ParticleSet &charged_particles,
       M(i) = m;
       Q(i) = q;
    }
+
+   X.Read();
+   P.Read();
+   M.Read();
+   Q.Read();
 }
