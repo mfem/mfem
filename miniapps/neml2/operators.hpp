@@ -24,10 +24,12 @@ class NEML2StressDivergenceIntegrator
    * @brief Construct a new Linear Momentum Balance object
    *
    * @param fe_space Finite element space for the displacements
+  *  @param time Current simulation time
    * @param ir Integration rule for the quadrature
    * @param cmodel NEML2 constitutive model for the material
    */
    NEML2StressDivergenceIntegrator(std::shared_ptr<neml2::Model> cmodel,
+                                   real_t time,
                                    const IntegrationRule *ir = nullptr);
 
    using StressDivergenceIntegrator<NonlinearFormIntegrator>::AssemblePA;
@@ -61,6 +63,8 @@ class NEML2StressDivergenceIntegrator
    void ComputeRImpl(const ParameterFunction &stress, Vector &R) const;
 
  private:
+   const real_t _t;
+
    /// The quadrature space for symmetric 2nd order tensors
    std::unique_ptr<UniformParameterSpace> _q_space_symr2;
 

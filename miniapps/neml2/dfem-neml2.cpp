@@ -28,6 +28,7 @@
 //               provided by NEML2.
 
 #include "operators.hpp"
+#include <string>
 
 using namespace mfem;
 using namespace mfem::future;
@@ -40,7 +41,7 @@ class NEML2Multigrid : public GeometricMultigrid
    HypreBoomerAMG *amg;
    std::vector<ParNonlinearForm> pnlfs;
    std::vector<Vector> coarser_solutions;
-   const Vector & fine_solution;
+   const Vector &fine_solution;
 
  public:
    // Constructs a diffusion multigrid for the ParFiniteElementSpaceHierarchy
@@ -48,7 +49,8 @@ class NEML2Multigrid : public GeometricMultigrid
    NEML2Multigrid(ParFiniteElementSpaceHierarchy &fespaces, Array<int> &ess_bdr,
                   std::shared_ptr<neml2::Model> cmodel_,
                   const Vector &fine_solution_)
-       : GeometricMultigrid(fespaces, ess_bdr), cmodel(cmodel_), fine_solution(fine_solution_)
+       : GeometricMultigrid(fespaces, ess_bdr), cmodel(cmodel_),
+         fine_solution(fine_solution_)
    {
       const auto num_levels = fespaces.GetNumLevels();
       const auto num_coarser_levels = num_levels - 1;
@@ -73,7 +75,8 @@ class NEML2Multigrid : public GeometricMultigrid
          {
             auto &coarse_solution = coarser_solutions[level];
             coarse_solution.SetSize(pnlfs[level].Height());
-            prolongations[level]->MultTranspose(finer_solution, coarse_solution);
+            prolongations[level]->MultTranspose(finer_solution,
+                                                coarse_solution);
          };
          create_coarser_solution(num_coarser_levels - 1, fine_solution);
          for (int level = num_coarser_levels - 2; level >= 0; --level)
@@ -111,7 +114,8 @@ class NEML2Multigrid : public GeometricMultigrid
       {
          form.SetAssemblyLevel(AssemblyLevel::FULL);
       }
-      form.AddDomainIntegrator(new NEML2StressDivergenceIntegrator(cmodel));
+      form.AddDomainIntegrator(new NEML2StressDivergenceIntegrator(cmodel,
+                                                                   0.01)); // hardcoded time
       form.SetEssentialTrueDofs(*essentialTrueDofs[pnlfs.size() - 1]);
       form.Setup();
    }
@@ -203,6 +207,8 @@ int main(int argc, char *argv[])
    int geometric_refinements = 0;
    int order_refinements = 1;
    int n = 5;
+   std::string neml2_input = "elasticity.i";
+   std::string neml2_model = "model";
 
    OptionsParser args(argc, argv);
    args.AddOption(&device_config, "-d", "--device",
@@ -216,6 +222,10 @@ int main(int argc, char *argv[])
    args.AddOption(&order_refinements, "-or", "--order-refinements",
                   "Number of order refinements. Finest level in the hierarchy "
                   "has order 2^{or}.");
+   args.AddOption(&neml2_input, "-i", "--input",
+                  "Path to the NEML2 input file.");
+   args.AddOption(&neml2_model, "-m", "--model",
+                  "Name of the NEML2 model to use.");
    args.ParseCheck();
 
    // Enable hardware devices such as GPUs, and programming models such as CUDA
@@ -267,9 +277,9 @@ int main(int argc, char *argv[])
 
    // The NEML2 constitutive model
    neml2::set_default_dtype(neml2::kFloat64);
-   constexpr auto constitutive_model_path = MFEM_SOURCE_DIR "/miniapps/neml2/"
-                                                            "neml2_model.i";
-   auto cmodel = neml2::load_model(constitutive_model_path, "elasticity");
+   const auto constitutive_model_path = std::string(MFEM_SOURCE_DIR) +
+                                        "/miniapps/neml2/" + neml2_input;
+   auto cmodel = neml2::load_model(constitutive_model_path, neml2_model);
 
    // Send the constitutive model to the appropriate device
    auto options = neml2::TensorOptions().dtype(neml2::kFloat64);
@@ -323,14 +333,15 @@ int main(int argc, char *argv[])
                                         (order_refinements == 0);
    f.SetAssemblyLevel(fully_assemble_jacobian ? AssemblyLevel::FULL
                                               : AssemblyLevel::PARTIAL);
-   f.AddDomainIntegrator(new NEML2StressDivergenceIntegrator(cmodel));
+   f.AddDomainIntegrator(new NEML2StressDivergenceIntegrator(cmodel,
+                                                             0.01)); // hard-coded time
    Array<int> ess_tdof_list;
    finest_fe_space.GetEssentialTrueDofs(essential_bnd, ess_tdof_list);
    f.SetEssentialTrueDofs(ess_tdof_list);
    f.Setup();
 
    // Setup vector to solve for
-   Vector & X = u.GetTrueVector();
+   Vector &X = u.GetTrueVector();
 
    // Nonlinear solver
    PetscNonlinearSolver newton(MPI_COMM_WORLD, f);
