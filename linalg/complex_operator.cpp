@@ -908,7 +908,6 @@ void ComplexMUMPSSolver::Init(MPI_Comm comm_)
    print_level = 2;
    row_start = 0;
 
-   // Start with no MUMPS object
    id = nullptr;
 
 #if MFEM_MUMPS_VERSION >= 530
@@ -966,7 +965,7 @@ void ComplexMUMPSSolver::SetOperator(const Operator &op)
    // Pick communicator from the non-null part
    MPI_Comm op_comm = (Ar ? Ar->GetComm() : Ai->GetComm());
 
-   // Comm setup/check (same logic you already have)
+   // Comm setup/check
    if (comm == MPI_COMM_NULL) { Init(op_comm); }
    else
    {
@@ -1009,8 +1008,8 @@ void ComplexMUMPSSolver::SetOperator(const Operator &op)
 
    // CSR row pointers; if part missing, use empty rows
    static const int zero = 0;
-   // We will use nullptr checks rather than fake arrays for J/V.
 
+   // Use nullptr checks
    const int *Ir = csr_op_r ? csr_op_r->i : nullptr;
    const int *Jr = csr_op_r ? csr_op_r->j : nullptr;
    const real_t *Vr = csr_op_r ? (const real_t*)csr_op_r->data : nullptr;
@@ -1019,11 +1018,10 @@ void ComplexMUMPSSolver::SetOperator(const Operator &op)
    const int *Ji = csr_op_i ? csr_op_i->j : nullptr;
    const real_t *Vi = csr_op_i ? (const real_t*)csr_op_i->data : nullptr;
 
-   // Build union COO via map helper, but make it handle nullptr parts:
+   // Build union COO
    std::vector<int> Icoo, Jcoo;
    std::vector<mumps_complex_t> Zcoo;
 
-   // Reserve roughly (works even if one part null)
    size_t nnz_r = csr_op_r ? (size_t)csr_op_r->num_nonzeros : 0;
    size_t nnz_i = csr_op_i ? (size_t)csr_op_i->num_nonzeros : 0;
    Icoo.reserve(nnz_r + nnz_i);
@@ -1041,7 +1039,7 @@ void ComplexMUMPSSolver::SetOperator(const Operator &op)
    std::copy(Jcoo.begin(), Jcoo.end(), J);
    std::copy(Zcoo.begin(), Zcoo.end(), A);
 
-   // New MUMPS object or reuse an existing one (symbolic reuse)
+   // New ComplexMUMPS object or reuse an existing one
    if (!id || !reorder_reuse)
    {
       if (id)
@@ -1066,7 +1064,7 @@ void ComplexMUMPSSolver::SetOperator(const Operator &op)
       id->job = -1;
       mumps_call();
 
-      // Set parameters (must be done after init, before analysis/factorization)
+      // Set parameters
       SetParameters();
 
       // Attach matrix
@@ -1129,7 +1127,7 @@ void ComplexMUMPSSolver::SetOperator(const Operator &op)
    delete [] J;
    delete [] A;
 
-   // Post-factorization RHS/SOL setup (this is where (3) happens)
+   // Post-factorization RHS/SOL setup
    id->nrhs = -1;
 
 #if MFEM_MUMPS_VERSION >= 530
@@ -1153,7 +1151,7 @@ void ComplexMUMPSSolver::SetOperator(const Operator &op)
    row_starts.SetSize(numProcs);
    MPI_Allgather(&row_start, 1, MPI_INT, row_starts, 1, MPI_INT, comm);
 
-   // Reset cached buffers (this is where (4) ties in)
+   // Reset cached buffers
    delete [] rhs_loc; rhs_loc = nullptr;
    delete [] sol_loc; sol_loc = nullptr;
    rhs1_buf.clear();
@@ -1213,9 +1211,7 @@ void ComplexMUMPSSolver::InitRhsSol(int nrhs) const
 #else
    MFEM_VERIFY(id, "InitRhsSol called before SetOperator");
 
-   // MUMPS wants these set
    id->nrhs = nrhs;
-   // Leading dimension on root in centralized RHS mode
    id->lrhs = id->n;
 
    if (myid == 0)
@@ -1230,7 +1226,6 @@ void ComplexMUMPSSolver::InitRhsSol(int nrhs) const
       rhs_glob_r = new real_t[N];
       rhs_glob_i = new real_t[N];
 
-      // id->rhs points to the centralized RHS buffer (in-place overwritten by solution)
       id->rhs = rhs_glob;
    }
 #endif
@@ -1260,7 +1255,7 @@ void ComplexMUMPSSolver::ArrayMult(const Array<const Vector *> &X,
    const int n_loc = id->lrhs_loc;
    const int nrhs  = id->nrhs;
 
-   // Pack all RHS (works for nrhs==1 too)
+   // Pack all RHS
    for (int i = 0; i < nrhs; i++)
    {
       MFEM_ASSERT(X[i], "Missing Vector in Mult!");
@@ -1293,7 +1288,7 @@ void ComplexMUMPSSolver::ArrayMult(const Array<const Vector *> &X,
    // Redistribute each solution column into Y
    for (int i = 0; i < nrhs; i++)
    {
-      MFEM_ASSERT(Y[i], "Missing output Vector in ComplexMUMPSSolver::Mult!");
+      MFEM_ASSERT(Y[i], "Missing output Vector in Mult!");
       Y[i]->HostWrite();
       MFEM_VERIFY(Y[i]->Size() == 2*n_loc, "Output size mismatch");
 
@@ -1310,7 +1305,7 @@ void ComplexMUMPSSolver::ArrayMult(const Array<const Vector *> &X,
 
    for (int i = 0; i < nrhs; i++)
    {
-      MFEM_ASSERT(X[i], "Missing Vector in ComplexMUMPSSolver::Mult!");
+      MFEM_ASSERT(X[i], "Missing Vector in Mult!");
       X[i]->HostRead();
       MFEM_VERIFY(X[i]->Size() == 2*n_loc, "RHS size mismatch");
    }
@@ -1349,11 +1344,11 @@ void ComplexMUMPSSolver::ArrayMult(const Array<const Vector *> &X,
       id->rhs = rhs_glob;
    }
 
-   // MUMPS solve
+   // Solve
    id->job = 3;
    mumps_call();
 
-   // Unpack to real/imag staging on root
+   // Unpack to real/imag
    if (myid == 0)
    {
       for (int i = 0; i < nrhs; i++)
@@ -1373,7 +1368,7 @@ void ComplexMUMPSSolver::ArrayMult(const Array<const Vector *> &X,
    // Scatter each RHS solution
    for (int i = 0; i < nrhs; i++)
    {
-      MFEM_ASSERT(Y[i], "Missing Vector in ComplexMUMPSSolver::Mult!");
+      MFEM_ASSERT(Y[i], "Missing Vector in Mult!");
       Y[i]->HostWrite();
       MFEM_VERIFY(Y[i]->Size() == 2*n_loc, "Output size mismatch");
 
@@ -1395,7 +1390,7 @@ void ComplexMUMPSSolver::ArrayMult(const Array<const Vector *> &X,
 
 void ComplexMUMPSSolver::MultTranspose(const Vector &x, Vector &y) const
 {
-   MFEM_VERIFY(id, "ComplexMUMPSSolver::MultTranspose called before SetOperator");
+   MFEM_VERIFY(id, "MultTranspose called before SetOperator");
 
    // Transpose solve
    id->MUMPS_ICNTL(9) = 0;
@@ -1406,8 +1401,7 @@ void ComplexMUMPSSolver::MultTranspose(const Vector &x, Vector &y) const
 void ComplexMUMPSSolver::ArrayMultTranspose(const Array<const Vector *> &X,
                                             Array<Vector *> &Y) const
 {
-   MFEM_VERIFY(id,
-               "ComplexMUMPSSolver::ArrayMultTranspose called before SetOperator");
+   MFEM_VERIFY(id, "ArrayMultTranspose called before SetOperator");
 
    // Transpose solve
    id->MUMPS_ICNTL(9) = 0;
@@ -1524,17 +1518,11 @@ void ComplexMUMPSSolver::BuildUnionCOO(const int n_loc,
 
       if (Ir)
       {
-         for (int p = rr0; p < rr1; ++p)
-         {
-            row[Jr[p]].first += Vr[p];
-         }
+         for (int p = rr0; p < rr1; ++p) { row[Jr[p]].first += Vr[p]; }
       }
       if (Ii)
       {
-         for (int p = ii0; p < ii1; ++p)
-         {
-            row[Ji[p]].second += Vi[p];
-         }
+         for (int p = ii0; p < ii1; ++p) { row[Ji[p]].second += Vi[p]; }
       }
 
       for (const auto &kv : row)
