@@ -334,16 +334,16 @@ template<int DIM, int SDIM, int D1D, int Q1D>
 QuadratureInterpolator::DetKernelType
 QuadratureInterpolator::DetKernels::Kernel()
 {
-   if (DIM == 1)
+   if constexpr (DIM == 1)
    {
-      if (SDIM == 1) { return internal::quadrature_interpolator::Det1D; }
-      else if (SDIM == 2) { return internal::quadrature_interpolator::Det1DSurface<D1D, Q1D, 2>; }
-      else if (SDIM == 3) { return internal::quadrature_interpolator::Det1DSurface<D1D, Q1D, 3>; }
+      if constexpr (SDIM == 1) { return internal::quadrature_interpolator::Det1D; }
+      else if constexpr (SDIM == 2) { return internal::quadrature_interpolator::Det1DSurface<D1D, Q1D, 2>; }
+      else if constexpr (SDIM == 3) { return internal::quadrature_interpolator::Det1DSurface<D1D, Q1D, 3>; }
       else { MFEM_ABORT(""); }
    }
-   else if (DIM == 2 && SDIM == 2) { return internal::quadrature_interpolator::Det2D<D1D, Q1D>; }
-   else if (DIM == 2 && SDIM == 3) { return internal::quadrature_interpolator::Det2DSurface<D1D, Q1D>; }
-   else if (DIM == 3) { return internal::quadrature_interpolator::Det3D<D1D, Q1D>; }
+   else if constexpr (DIM == 2 && SDIM == 2) { return internal::quadrature_interpolator::Det2D<D1D, Q1D>; }
+   else if constexpr (DIM == 2 && SDIM == 3) { return internal::quadrature_interpolator::Det2DSurface<D1D, Q1D>; }
+   else if constexpr (DIM == 3) { return internal::quadrature_interpolator::Det3D<D1D, Q1D>; }
    else { MFEM_ABORT(""); }
 }
 
