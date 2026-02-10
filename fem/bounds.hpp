@@ -116,7 +116,20 @@ public:
    void SetProjectionFlagForBounding(bool proj_) { proj = proj_; }
 
    /** @brief Compute piecewise linear bounds for the lexicographically-ordered
-    *  coefficients in @a coeff in 1D/2D/3D.
+    *  nodal coefficients in @a coeff in 1D/2D/3D.
+    *
+    *  @param[in] rdim    The spatial dimension of the element (1, 2, or 3).
+    *  @param[in] coeff   The vector of lexicographically-ordered coefficients.
+    *                     Should be of size nb^rdim, where nb is the number of
+    *                     bases/nodes in 1D. These coefficients must correspond
+    *                     to the bases type and number of bases, used in the
+    *                     constructor of PLBound.
+    *
+    *  @param[out] intmin The vector of minimum bound for all control points.
+    *  @param[out] intmax The vector of maximum bound for all control points.
+    *                     Both intmin and intmax are of size ncp^rdim, where
+    *                     ncp is the number of control points in 1D, and are
+    *                     ordered lexicographically.
     */
    void GetNDBounds(const int rdim, const Vector &coeff,
                     Vector &intmin, Vector &intmax) const;
@@ -124,15 +137,18 @@ public:
    /// Get number of control points used to compute the bounds.
    int GetNControlPoints() const { return ncp; }
 
-   /// Get control point locations in [0,1].
-   Vector GetControlPoints() const { return control_points; }
+   /// Get 1D control point locations (lexicographic order) in [0,1].
+   const Vector &GetControlPoints() const { return control_points; }
 
-   /** @name Get lower and upper bounding matrices
-
-       @note These matrices do not account for the linear projection step that
-             is optionally done in GetNDBounds before bounding the function.
-             Additionally, these matrices are setup such that the columns
-             correspond to the lexicographically-ordered coefficients.
+   /** @brief Get lower and upper bounding matrix (ncp^dim x nb^dim)
+    *
+    *  @details The matrices can be used to compute the bounds at control points
+    *           by a simple matrix-vector product with the
+    *           lexicographically-ordered nodal coefficients.
+    *           The resulting output is also lexicographically-ordered.
+    *
+    *  @note These matrices do not account for the linear projection step that
+    *        is optionally done in GetNDBounds before bounding the function.
     */
    ///@{
    DenseMatrix GetLowerBoundMatrix(int dim = 1) const;
@@ -141,17 +157,20 @@ public:
 
 private:
    /** @brief Compute piecewise linear bounds for the lexicographically-ordered
-    *  coefficients in @a coeff in 1D.
+    *  nodal coefficients in @a coeff in 1D.
+    *  See GetNDBounds for details of the input and output parameters.
     */
    void Get1DBounds(const Vector &coeff, Vector &intmin, Vector &intmax) const;
 
    /** @brief Compute piecewise linear bounds for the lexicographically-ordered
-    *  coefficients in @a coeff in 2D.
+    *  nodal coefficients in @a coeff in 2D.
+    *  See GetNDBounds for details of the input and output parameters.
     */
    void Get2DBounds(const Vector &coeff, Vector &intmin, Vector &intmax) const;
 
    /** @brief Compute piecewise linear bounds for the lexicographically-ordered
-    *  coefficients in @a coeff in 3D.
+    *  nodal coefficients in @a coeff in 3D.
+    *  See GetNDBounds for details of the input and output parameters.
     */
    void Get3DBounds(const Vector &coeff, Vector &intmin, Vector &intmax) const;
 

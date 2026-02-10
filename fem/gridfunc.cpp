@@ -4940,7 +4940,7 @@ struct IntervalCompareMax
 
 std::pair<real_t, real_t> GridFunction::EstimateFunctionMinimum(
    const int elem, const PLBound &plb, const int vdim,
-   const int max_depth, const real_t tol)
+   const int max_depth, const real_t tol) const
 {
    real_t min_threshold = std::numeric_limits<real_t>::max();
    return EstimateFunctionMinimum(elem, plb, vdim, max_depth, tol,
@@ -4949,7 +4949,7 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMinimum(
 
 std::pair<real_t, real_t> GridFunction::EstimateFunctionMinimum(
    const int elem, const PLBound &plb, const int vdim,
-   const int max_depth, const real_t tol, real_t &min_threshold)
+   const int max_depth, const real_t tol, real_t &min_threshold) const
 {
    const int dim = this->FESpace()->GetMesh()->Dimension();
    const int ncp = plb.GetNControlPoints();
@@ -5103,7 +5103,7 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMinimum(
 
 std::pair<real_t, real_t> GridFunction::EstimateFunctionMaximum(
    const int elem, const PLBound &plb, const int vdim,
-   const int max_depth, const real_t tol)
+   const int max_depth, const real_t tol) const
 {
    real_t max_threshold = std::numeric_limits<real_t>::lowest();
    return EstimateFunctionMaximum(elem, plb, vdim, max_depth, tol,
@@ -5112,7 +5112,7 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMaximum(
 
 std::pair<real_t, real_t> GridFunction::EstimateFunctionMaximum(
    const int elem, const PLBound &plb, const int vdim,
-   const int max_depth, const real_t tol, real_t &max_threshold)
+   const int max_depth, const real_t tol, real_t &max_threshold) const
 {
    const int dim = this->FESpace()->GetMesh()->Dimension();
    const int ncp = plb.GetNControlPoints();
@@ -5264,7 +5264,8 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMaximum(
 }
 
 std::pair<real_t, real_t> GridFunction::EstimateFunctionMinimum(
-   const int vdim, const PLBound &plb, const int max_depth, const real_t tol)
+   const int vdim, const PLBound &plb, const int max_depth,
+   const real_t tol) const
 {
    real_t global_min_lower = std::numeric_limits<real_t>::max();
    real_t global_min_upper = std::numeric_limits<real_t>::max();
@@ -5272,14 +5273,16 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMinimum(
    for (int i = 0; i < fes->GetNE(); i++)
    {
       std::pair<real_t, real_t> min_pair =
-         EstimateFunctionMinimum(i, plb, vdim, max_depth, tol, global_min_lower);
+         EstimateFunctionMinimum(i, plb, vdim, max_depth, tol,
+                                 global_min_lower);
       global_min_upper = std::min(global_min_upper, min_pair.second);
    }
    return std::make_pair(global_min_lower, global_min_upper);
 }
 
 std::pair<real_t, real_t> GridFunction::EstimateFunctionMaximum(
-   const int vdim, const PLBound &plb, const int max_depth, const real_t tol)
+   const int vdim, const PLBound &plb, const int max_depth,
+   const real_t tol) const
 {
    real_t global_max_lower = std::numeric_limits<real_t>::lowest();
    real_t global_max_upper = std::numeric_limits<real_t>::lowest();
@@ -5287,7 +5290,8 @@ std::pair<real_t, real_t> GridFunction::EstimateFunctionMaximum(
    for (int i = 0; i < fes->GetNE(); i++)
    {
       std::pair<real_t, real_t> max_pair =
-         EstimateFunctionMaximum(i, plb, vdim, max_depth, tol, global_max_upper);
+         EstimateFunctionMaximum(i, plb, vdim, max_depth, tol,
+                                 global_max_upper);
       global_max_lower = std::max(global_max_lower, max_pair.first);
    }
    return std::make_pair(global_max_lower, global_max_upper);

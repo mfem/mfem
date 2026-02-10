@@ -529,12 +529,12 @@ protected:
     *  We return a pair of values that bracket the actual minimum, i.e.
     *  [min_lower_bound, min_upper_bound].
     */
-   std::pair<real_t, real_t> EstimateFunctionMinimum(const int elem,
-                                                     const PLBound &plb,
-                                                     const int vdim,
-                                                     const int max_depth,
-                                                     const real_t tol,
-                                                     real_t &min_threshold);
+   std::pair<real_t,real_t> EstimateFunctionMinimum(const int elem,
+                                                    const PLBound &plb,
+                                                    const int vdim,
+                                                    const int max_depth,
+                                                    const real_t tol,
+                                                    real_t &min_threshold)const;
 
    /** @brief Estimate the maximum value of the GridFunction in element @a elem
     *  if it is below a certain @a max_threshold.
@@ -561,12 +561,12 @@ protected:
     *  We return a pair of values that bracket the actual maximum, i.e.
     *  [max_lower_bound, max_upper_bound].
     */
-   std::pair<real_t, real_t> EstimateFunctionMaximum(const int elem,
-                                                     const PLBound &plb,
-                                                     const int vdim,
-                                                     const int max_depth,
-                                                     const real_t tol,
-                                                     real_t &max_threshold);
+   std::pair<real_t,real_t> EstimateFunctionMaximum(const int elem,
+                                                    const PLBound &plb,
+                                                    const int vdim,
+                                                    const int max_depth,
+                                                    const real_t tol,
+                                                    real_t &max_threshold)const;
 
 public:
    /** @brief For each vdof, counts how many elements contain the vdof,
@@ -1725,7 +1725,7 @@ public:
                                                      const PLBound &plb,
                                                      const int vdim,
                                                      const int max_depth,
-                                                     const real_t tol);
+                                                     const real_t tol) const;
 
    /** @brief Estimate the minimum value of the GridFunction in element @a elem.
     *
@@ -1736,21 +1736,19 @@ public:
                                                      const PLBound &plb,
                                                      const int vdim,
                                                      const int max_depth,
-                                                     const real_t tol);
+                                                     const real_t tol) const;
 
    /** @brief Estimate the GridFunction minimum across all elements. */
-   virtual std::pair<real_t, real_t> EstimateFunctionMinimum
-   (const int vdim,
-    const PLBound &plb,
-    const int max_depth,
-    const real_t tol);
+   virtual std::pair<real_t,real_t> EstimateFunctionMinimum(const int vdim,
+                                                            const PLBound &plb,
+                                                            const int max_depth,
+                                                            const real_t tol) const;
 
    /** @brief Estimate the GridFunction maximum across all elements. */
-   virtual std::pair<real_t, real_t> EstimateFunctionMaximum
-   (const int vdim,
-    const PLBound &plb,
-    const int max_depth,
-    const real_t tol);
+   virtual std::pair<real_t,real_t> EstimateFunctionMaximum(const int vdim,
+                                                            const PLBound &plb,
+                                                            const int max_depth,
+                                                            const real_t tol) const;
    ///@}
 
    /// Destroys grid function.

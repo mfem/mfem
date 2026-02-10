@@ -162,16 +162,14 @@ int main (int argc, char *argv[])
 
    // Compute minimum and maximum bounds via recursion
    Vector bound_rec_min(vdim), bound_rec_max(vdim);
-   bound_rec_min = numeric_limits<real_t>::max();
-   bound_rec_max = numeric_limits<real_t>::min();
    for (int d = 0; d < vdim; d++)
    {
       auto min_interval = pfunc_proj->EstimateFunctionMinimum(d, plb, rec_depth,
                                                               rel_tol);
       auto max_interval = pfunc_proj->EstimateFunctionMaximum(d, plb, rec_depth,
                                                               rel_tol);
-      bound_rec_min(d) = min(bound_rec_min(d), min_interval.first);
-      bound_rec_max(d) = max(bound_rec_max(d), max_interval.second);
+      bound_rec_min(d) = min_interval.first;
+      bound_rec_max(d) = max_interval.second;
    }
 
    Vector bound_min(vdim), bound_max(vdim);
