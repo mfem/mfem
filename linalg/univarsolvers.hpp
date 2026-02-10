@@ -69,8 +69,8 @@ MFEM_HOST_DEVICE void NewtonBisection_impl(const real_t* x0_ptr, const T* p_ptr,
     return;
   }
 
-  MFEM_ASSERT(fl * fh > 0.0, "Root is not bracketed, solve cannot continue.");
-  MFEM_ASSERT(x0 <= left_bracket && x0 >= right_bracket, "Initial guess must be bounds.");
+  MFEM_ASSERT(fl * fh < 0.0, "Root is not bracketed, solve cannot continue.");
+  MFEM_ASSERT(x0 >= left_bracket && x0 <= right_bracket, "Initial guess must be within bounds.");
 
   // Orient search so that f(xl) < 0
   real_t xl = left_bracket;
