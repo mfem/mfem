@@ -590,12 +590,7 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
                   "Charge field must be scalar per particle.");
 
       // --------------------------------------------------------
-      // 1) Build positions in byVDIM ordering: (XYZ,XYZ,...)
-      // --------------------------------------------------------
-      Vector point_pos(X.GetData(), dim * npt);  // alias underlying storage
-
-      // --------------------------------------------------------
-      // 2) Locate particles with FindPointsGSLIB
+      // 1) Locate particles with FindPointsGSLIB
       // --------------------------------------------------------
       const Array<unsigned int>& code =
          E_finder.GetCode();  // 0: inside, 1: boundary, 2: not found
@@ -604,7 +599,7 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
       const Vector& rref = E_finder.GetReferencePosition();  // (r,s,t) byVDIM
 
       // --------------------------------------------------------
-      // 3) Make RHS and pre-subtract averaged charge density for zero-mean RHS
+      // 2) Make RHS and pre-subtract averaged charge density for zero-mean RHS
       // --------------------------------------------------------
 
       MPI_Comm comm = pfes->GetComm();
@@ -654,7 +649,7 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
       b = *precomputed_neutralizing_lf;
 
       // --------------------------------------------------------
-      // 4) Deposit q_p * phi_i(x_p) into a ParLinearForm (RHS b)
+      // 3) Deposit q_p * phi_i(x_p) into a ParLinearForm (RHS b)
       //      b_i = sum_p q_p * φ_i(x_p)
       // --------------------------------------------------------
       int myid;
@@ -704,7 +699,7 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
       HypreParVector* B = b.ParallelAssemble();  // owns new vector on heap
 
       // ------------------------------------------------------------------
-      // 5) Solve A * phi = B with zero-mean enforcement via OrthoSolver
+      // 4) Solve A * phi = B with zero-mean enforcement via OrthoSolver
       // ------------------------------------------------------------------
       MFEM_VERIFY(diffusion_matrix != nullptr,
                   "diffusion_matrix must be precomputed.");
