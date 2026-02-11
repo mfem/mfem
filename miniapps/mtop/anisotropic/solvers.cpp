@@ -19,6 +19,7 @@ using mfem::future::Identity;
 template <int DIM=2, typename scalar_t=real_t> struct QFunction
 {
    using matd_t = tensor<scalar_t, DIM, DIM>;
+   using vecd_t = tensor<scalar_t, DIM>;
 
 
    struct Elasticity
@@ -32,8 +33,7 @@ template <int DIM=2, typename scalar_t=real_t> struct QFunction
       }
 
       MFEM_HOST_DEVICE inline auto operator()(const matd_t &dudxi,
-                                              const scalar_t s,
-                                              const scalar_t a, const  scalar_t b,
+                                              const vecd_t &eta,
                                               const real_t &L1, const real_t &M1,
                                               const real_t &L2, const real_t &M2,
                                               const matd_t &J,
@@ -41,7 +41,7 @@ template <int DIM=2, typename scalar_t=real_t> struct QFunction
       {
          const matd_t JxW = mfem::future::adjugateT(J) * w;
          constexpr auto I = mfem::future::IsotropicIdentity<DIM>();
-         const auto eps = mfem::future::sym(dudxi * mfem::future::inv(J));
+         const auto eps = dudxi * mfem::future::inv(J);
 
 
          mfem::future::tensor<real_t, 3,3> C;
@@ -53,8 +53,8 @@ template <int DIM=2, typename scalar_t=real_t> struct QFunction
          C(2,2)=aniso_tensor[5];
 
          matd_t R;
-         R(0,0)=a; R(0,1)=b;
-         R(1,0)=-b; R(1,1)=a;
+         R(0,0)=eta[1]; R(0,1)=eta[2];
+         R(1,0)=-eta[2]; R(1,1)=eta[1];
 
          const auto resp=mfem::future::transpose(R)*eps*R;
          const auto espv=mfem::voigt::StrainTensorToEngVoigt(resp);
@@ -62,7 +62,7 @@ template <int DIM=2, typename scalar_t=real_t> struct QFunction
          const auto asig=mfem::voigt::VoigtToStressTensor(sigv);
          //compute the anisotropic contribution
          auto stress=R*asig*mfem::future::transpose(R);
-         const scalar_t s_p = pow(s,3);
+         const scalar_t s_p = pow(eta[0],3);
          const scalar_t L = L1*(1.0-s_p)+L2*s_p;
          const scalar_t M = M1*(1.0-s_p)+M2*s_p;
 
@@ -359,9 +359,7 @@ void AnisoLinElasticSolver::Assemble()
    std::vector<mfem::future::FieldDescriptor> {{ FDispl, vfes }},
    std::vector<mfem::future::FieldDescriptor>
    {
-      { Density, ups.get()},
-      { DensA, ups.get()},
-      { DensB, ups.get()},
+      { Indicator, ups.get()},
       { Lambda1, ups.get()},
       { Mu1, ups.get()},
       { Lambda2, ups.get()},
@@ -377,9 +375,7 @@ void AnisoLinElasticSolver::Assemble()
       mfem::future::tuple
    {
       mfem::future::Gradient<FDispl>{},
-      mfem::future::Identity<Density>{},
-      mfem::future::Identity<DensA>{},
-      mfem::future::Identity<DensB>{},
+      mfem::future::Identity<Indicator>{},
       mfem::future::Identity<Lambda1>{},
       mfem::future::Identity<Mu1>{},
       mfem::future::Identity<Lambda2>{},
@@ -408,7 +404,7 @@ void AnisoLinElasticSolver::Assemble()
    }
 
    /*
-   drhs->SetParameters({denss.get(),densa.get(),densb.get(),
+   drhs->SetParameters({eta.get(),
                         lambda1.get(),mu1.get(),
                         lambda2.get(),mu2.get(),
                         nodes});
@@ -418,7 +414,7 @@ void AnisoLinElasticSolver::Assemble()
 
    /*
    dr_du=drhs->GetDerivative(FDispl,{&fdisp},
-                        {denss.get(),densa.get(),densb.get(),
+                        {eta.get(),
                         lambda1.get(),mu1.get(),
                         lambda2.get(),mu2.get(),
                         nodes});
