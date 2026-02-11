@@ -13,6 +13,7 @@
 #include <memory>
 
 #include "mfem.hpp"
+#include "linear_anisotropic_elasticity.hpp"
 
 using real_t = mfem::real_t;
 
@@ -236,6 +237,32 @@ public:
     void SetEssTDofs(const int j, mfem::ParFiniteElementSpace& scalar_space,
                         mfem::Array<int> &ess_dofs);
 
+    void SetAnisotropicTensor2D(real_t E, real_t nu, real_t Ex,bool lower_bound=true)
+    {
+        if(lower_bound){
+            //lower bound of the stiffness tensor
+            auto iC=mfem::voigt::IsotropicCompliance2D_PlaneStress(E,nu);
+            iC(0,0)=iC(0,0)+1.0/Ex;
+            auto C=mfem::future::inv(iC);
+            aniso_tensor[0]=C(0,0);
+            aniso_tensor[1]=C(0,1);
+            aniso_tensor[2]=C(0,2);
+            aniso_tensor[3]=C(1,1);
+            aniso_tensor[4]=C(1,2);
+            aniso_tensor[5]=C(2,2);
+        }else{
+            //uper bound of the stiffness tensor
+            auto C=mfem::voigt::IsotropicStiffness2D_PlaneStress(E,nu);
+            C(0,0)=C(0,0)+Ex;
+            aniso_tensor[0]=C(0,0);
+            aniso_tensor[1]=C(0,1);
+            aniso_tensor[2]=C(0,2);
+            aniso_tensor[3]=C(1,1);
+            aniso_tensor[4]=C(1,2);
+            aniso_tensor[5]=C(2,2);
+        }
+    }
+
 private:
     mfem::ParMesh *pmesh;
     const int dim, spaceDim;
@@ -281,10 +308,12 @@ private:
     static constexpr int Coords = 15; // coordinates grid function
 
     // DFEM operators definitions
-    //evaluates only the contribution to the residual
+    //evaluates the contribution to the residual
     std::unique_ptr<mfem::future::DifferentiableOperator> drhs; 
-    //used to differentiate the residual
-    std::unique_ptr<mfem::future::DifferentiableOperator> ddop; 
+    //tangent matrix
+    std::shared_ptr<mfem::future::DerivativeOperator> dr_du;
+
+    mfem::HypreParMatrix* K;
 
     // density coefficients in dFEM form for material 1 and 2
     std::unique_ptr<mfem::CoefficientVector> denss, densa, densb;

@@ -1,6 +1,7 @@
 
 #include <memory>
 #include "solvers.hpp"
+#include "linear_anisotropic_elasticity.hpp"
 
 using namespace mfem;
 
@@ -15,7 +16,7 @@ using mfem::future::Identity;
 ///////////////////////////////////////////////////////////////////////////////
 /// \brief The QFunction struct defining the linear elasticity operator at
 /// integration points which is valid in 2D and 3D
-template <int DIM, typename scalar_t=real_t> struct QFunction
+template <int DIM=2, typename scalar_t=real_t> struct QFunction
 {
    using matd_t = tensor<scalar_t, DIM, DIM>;
 
@@ -38,23 +39,35 @@ template <int DIM, typename scalar_t=real_t> struct QFunction
                                               const matd_t &J,
                                               const real_t &w) const
       {
-         const matd_t JxW = transpose(inv(J)) * det(J) * w;
+         const matd_t JxW = 
+            mfem::future::transpose(mfem::future::inv(J)) * 
+                                                mfem::future::det(J) * w;
          constexpr auto I = mfem::future::IsotropicIdentity<DIM>();
          const auto eps = mfem::future::sym(dudxi * mfem::future::inv(J));
 
-         //compute the anisotropic contribution
-         scalar_t r2=a*a+b*b;
-         //rotation tensor 
-         //rotate strain
-         //compute stress
-         auto stress=0.0*eps;
-         //rotate back stress
-         //add to isotropic
 
+         mfem::future::tensor<real_t, 3,3> C;
+         C(0,0)=aniso_tensor[0];
+         C(0,1)=aniso_tensor[1]; C(1,0)=aniso_tensor[1];
+         C(0,2)=aniso_tensor[2]; C(2,0)=aniso_tensor[2];
+         C(1,1)=aniso_tensor[3];
+         C(1,2)=aniso_tensor[4]; C(2,1)=aniso_tensor[4];
+         C(2,2)=aniso_tensor[5];
+
+         matd_t R;
+         R(0,0)=a; R(0,1)=b;
+         R(1,0)=-b; R(1,1)=a;
+
+         const auto resp=mfem::future::transpose(R)*eps*R;
+         const auto espv=mfem::voigt::StrainTensorToEngVoigt(resp);
+         const auto sigv=C*espv;
+         const auto asig=mfem::voigt::VoigtToStressTensor(sigv);
+         //compute the anisotropic contribution
+         auto stress=R*asig*mfem::future::transpose(R);
 
          //compute stress for the isotropic case
-         stress=stress+(L1 * tr(eps) * I + 2.0 * M1 * eps)*(1.0-s)+
-                        (L2 * tr(eps) * I + 2.0 * M2 * eps)*s;
+         stress=stress+(L1 * mfem::future::tr(eps) * I + 2.0 * M1 * eps)*(1.0-pow(s,3))+
+                        (L2 * mfem::future::tr(eps) * I + 2.0 * M2 * eps)*pow(s,3);
 
 
          return tuple{stress * JxW};
@@ -380,12 +393,40 @@ void AnisoLinElasticSolver::Assemble()
             mfem::future::tuple{
                 mfem::future::Gradient<FDispl>{}
             };
+   
+   auto derivatives = std::integer_sequence<size_t, FDispl> {};
 
    if (2 == spaceDim)
    {
-      typename QFunction<2>::Elasticity elasticity_func(aniso_tensor);
-      drhs->AddDomainIntegrator(elasticity_func, finputs, foutputs, ir, domain_attributes);
+      using mfem::future::dual;
+      using dual_t = dual<real_t, real_t>;
+
+      typename QFunction<2, dual_t>::Elasticity elasticity_func(aniso_tensor);
+      drhs->AddDomainIntegrator(elasticity_func, finputs, foutputs, ir,
+                                  domain_attributes, derivatives);
    }
+
+   /*
+   drhs->SetParameters({denss.get(),densa.get(),densb.get(),
+                        lambda1.get(),mu1.get(),
+                        lambda2.get(),mu2.get(),
+                        nodes});
+   */
+ 
+   fdisp=0.0;                        
+
+   /*
+   dr_du=drhs->GetDerivative(FDispl,{&fdisp},
+                        {denss.get(),densa.get(),densb.get(),
+                        lambda1.get(),mu1.get(),
+                        lambda2.get(),mu2.get(),
+                        nodes});
+   */
+   
+   //dr_du->Assemble(K);
+   
+   //set BC to the matrix
+   
 }
 
 

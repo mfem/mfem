@@ -725,7 +725,7 @@ namespace mfem {
         const T n2 = w*w + x*x + y*y + z*z;
         tensor<T,3,3> R;
 
-        if (n2 < esp_t )
+        if (n2 < eps_t )
         {
             R(0,0)=one; R(0,1)=T(0); R(0,2)=T(0);
             R(1,0)=T(0); R(1,1)=one; R(1,2)=T(0);
