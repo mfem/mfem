@@ -735,7 +735,7 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
    }
 
    {
-      // Compute E = -∇φ using precomputed gradient operator
+      // Compute ∇φ using precomputed gradient operator
       grad_interpolator->Mult(phi_gf, E_gf);
       // Scale by -1 to get E = -∇φ
       E_gf *= -1.0;
