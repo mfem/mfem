@@ -81,6 +81,8 @@
 //
 //   Blade shape:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
+//   Blade shape + bounded Jacobian determinant:
+//     * mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -db
 //   Blade shape (AD):
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 11 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
 //     (requires CUDA):
@@ -389,7 +391,6 @@ int main (int argc, char *argv[])
    pmesh->SetNodalGridFunction(&x);
 
    auto detgf = pmesh->GetJacobianDeterminantGF();
-
 
    // We create an H1 space for the mesh displacement. The displacement is
    // always in a continuous space, even if the mesh is periodic.
