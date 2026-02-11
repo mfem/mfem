@@ -68,6 +68,27 @@ StrainTensorToEngVoigt(const tensor<T,3,3> &eps)
 
    return v;
 }
+//------------------------------------------------------------------------------
+// Strain: tensor -> *engineering* Voigt (ordering 11,22,33,23,13,12)
+// Engineering shear strains: gamma_ij = 2 * epsilon_ij (i != j)
+// It does not assume symmetricity of eps (it can be just gradient)
+//------------------------------------------------------------------------------
+template <typename T>
+MFEM_HOST_DEVICE inline tensor<T,6>
+StrainTensorToEngVoigt_safe(const tensor<T,3,3> &eps)
+{
+   tensor<T,6> v;
+   const T two = T(2);
+
+   v(0) = eps(0,0);       // 11
+   v(1) = eps(1,1);       // 22
+   v(2) = eps(2,2);       // 33
+   v(3) = eps(2,1) + eps(1,2); // gamma_23
+   v(4) = eps(2,0) + eps(0,2); // gamma_13
+   v(5) = eps(1,0) + eps(0,1); // gamma_12
+
+   return v;
+}
 
 //------------------------------------------------------------------------------
 // Strain: *engineering* Voigt -> tensor (ordering 11,22,33,23,13,12)
@@ -138,6 +159,23 @@ StrainTensorToEngVoigt(const tensor<T,2,2> &eps)
    v(0) = eps(0,0);       // 11
    v(1) = eps(1,1);       // 22
    v(2) = two * eps(0,1); // gamma_12
+   return v;
+}
+//------------------------------------------------------------------------------
+// Strain (2D): tensor -> engineering Voigt3 (ordering 11,22,12)
+// gamma_12 = 2 * eps_12
+// It does not assume symmetricity of eps (it can be just gradient)
+//------------------------------------------------------------------------------
+template <typename T>
+MFEM_HOST_DEVICE inline tensor<T,3>
+StrainTensorToEngVoigt_safe(const tensor<T,2,2> &eps)
+{
+   tensor<T,3> v;
+   const T two = T(2);
+
+   v(0) = eps(0,0);       // 11
+   v(1) = eps(1,1);       // 22
+   v(2) = eps(1,0) + eps(0,1); // gamma_12
    return v;
 }
 
