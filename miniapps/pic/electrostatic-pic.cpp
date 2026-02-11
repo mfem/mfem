@@ -85,7 +85,6 @@ struct PICContext
       0.1;           ///< Perturbation amplitude (Landau damping test case).
 
    real_t dt = 1e-2;             ///< Time step size.
-   real_t t_init = 0.0;          ///< Initial simulation time.
 
    int nt = 1000;                ///< Number of time steps to run.
    int redist_interval =
@@ -213,7 +212,6 @@ int main(int argc, char* argv[])
    args.AddOption(&ctx.q, "-q", "--charge", "Particle charge.");
    args.AddOption(&ctx.m, "-m", "--mass", "Particle mass.");
    args.AddOption(&ctx.dt, "-dt", "--time-step", "Time Step.");
-   args.AddOption(&ctx.t_init, "-ti", "--initial-time", "Initial Time.");
    args.AddOption(&ctx.nt, "-nt", "--num-timesteps", "Number of timesteps.");
    args.AddOption(&ctx.npt, "-npt", "--num-particles",
                   "Total number of particles.");
@@ -308,7 +306,7 @@ int main(int argc, char* argv[])
    particle_mover.InitializeChargedParticles(ctx.k, ctx.alpha, ctx.m,
                                              ctx.q, ctx.L_x, ctx.reproduce);
 
-   real_t t = ctx.t_init;
+   real_t t = 0;
    real_t dt = ctx.dt;
 
    // set up timer
