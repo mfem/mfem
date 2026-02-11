@@ -98,8 +98,8 @@ struct PICContext
       true;        ///< Enable reproducible results (fixed random seed).
 } ctx;
 
-/// This class implements explicit time integration for charged particles
-/// in an electric field using ParticleSet.
+/** This class implements explicit time integration for charged particles
+    in an electric field using ParticleSet. */
 class ParticleMover
 {
 public:
@@ -150,11 +150,11 @@ public:
    real_t ComputeKineticEnergy() const;
 };
 
-/// Field solver responsible for updating the electrostatic potential and field
-/// from the particle charge density. Assembles and solves the periodic Poisson
-/// problem, computes the electric field via a discrete gradient operator, and
-/// provides utilities for field diagnostics (e.g. global field energy) and
-/// optional visualization output.
+/** Field solver responsible for updating the electrostatic potential and field
+    from the particle charge density. Assembles and solves the periodic Poisson
+    problem, computes the electric field via a discrete gradient operator, and
+    provides utilities for field diagnostics (e.g. global field energy) and
+    optional visualization output. */
 class FieldSolver
 {
 private:
@@ -176,9 +176,9 @@ public:
 
    ~FieldSolver();
 
-   /// Update the phi_gf grid function from the particles.
-   /// Solve periodic Poisson: diffusion_matrix * phi = (rho - <rho>)
-   /// with zero-mean enforcement via OrthoSolver.
+   /** Update the phi_gf grid function from the particles.
+       Solve periodic Poisson: diffusion_matrix * phi = (rho - <rho>)
+       with zero-mean enforcement via OrthoSolver. */
    void UpdatePhiGridFunction(ParticleSet& particles, ParGridFunction& phi_gf,
                               ParGridFunction& E_gf);
 
