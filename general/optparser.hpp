@@ -31,7 +31,7 @@ class Vector;
 class OptionsParser
 {
 public:
-   enum OptionType { INT, DOUBLE, STRING, STD_STRING, ENABLE, DISABLE, ARRAY, VECTOR , LONG };
+   enum OptionType { INT, DOUBLE, STRING, STD_STRING, ENABLE, DISABLE, ARRAY, VECTOR, LONG };
 
 private:
    struct Option
