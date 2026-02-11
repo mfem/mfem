@@ -204,8 +204,8 @@ protected:
 public:
    /// Serial constructor
    FindPointsGSLIB();
-   /// Serial constructor + setup with given Mesh (see \ref Setup)
 
+   /// Serial constructor + setup with given Mesh (see \ref Setup)
    FindPointsGSLIB(Mesh &mesh_in, const double bb_t = 0.1,
                    const double newt_tol = 1.0e-12,
                    const int npt_max = 256);

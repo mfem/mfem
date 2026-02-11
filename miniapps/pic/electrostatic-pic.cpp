@@ -84,7 +84,7 @@ struct PICContext
    real_t dt = 1e-2; ///< Time step size.
 
    int nt = 1000;               ///< Number of time steps to run.
-   int redist_interval = 1e6;   ///< Redistribution and update E_gf interval.
+   int redist_interval = 5;     ///< Redistribution and update E_gf interval.
    int output_csv_interval = 1; ///< Interval for outputting CSV data files.
 
    bool visualization = true; ///< Enable visualization.
