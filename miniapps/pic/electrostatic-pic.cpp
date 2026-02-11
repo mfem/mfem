@@ -637,8 +637,8 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet &particles,
 
       MPI_Comm comm = pfes->GetComm();
 
-      if (!precompute_neutralizing_const || 
-         precomputed_neutralizing_lf == nullptr)
+      if (!precompute_neutralizing_const ||
+          precomputed_neutralizing_lf == nullptr)
       {
          // compute neutralizing constant
          real_t local_sum = 0.0;
