@@ -665,7 +665,8 @@ const
    {
       // If the new Dof2Quad is already present, e.g. added in a previous call
       // or added by another omp thread, return.
-      if (DofToQuad::SearchArray(dof2quad_array, ir, DofToQuad::LEXICOGRAPHIC_FULL) == nullptr)
+      if (DofToQuad::SearchArray(dof2quad_array, ir,
+                                 DofToQuad::LEXICOGRAPHIC_FULL) == nullptr)
       {
          // Undo the native ordering which is what FiniteElement::GetDofToQuad
          // returns.
