@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -19,11 +19,9 @@ set(SRC_MESH_FILES)
 foreach(MESH_FILE ${MESH_FILES})
   list(APPEND SRC_MESH_FILES ${CMAKE_CURRENT_SOURCE_DIR}/${MESH_FILE})
 endforeach()
-add_custom_command(OUTPUT data_is_copied
+add_custom_target(copy_miniapps_multidomain_data
   COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SRC_MESH_FILES} .
-  COMMAND ${CMAKE_COMMAND} -E touch data_is_copied
-  COMMENT "Copying multidomain miniapps data files ...")
-add_custom_target(copy_miniapps_multidomain_data DEPENDS data_is_copied)
+  COMMENT "Syncing multidomain miniapps data files ...")
 
 # Parallel apps.
 if (MFEM_USE_MPI)
@@ -38,13 +36,13 @@ if (MFEM_USE_MPI)
     ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem mfem-common)
   add_dependencies(multidomain_nd copy_miniapps_multidomain_data)
-  
+
   add_mfem_miniapp(multidomain_rt
     MAIN multidomain_rt.cpp
     ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem mfem-common)
   add_dependencies(multidomain_rt copy_miniapps_multidomain_data)
-  
+
 # Add parallel tests.
   if (MFEM_ENABLE_TESTING)
     add_test(NAME multidomain_np${MFEM_MPI_NP}

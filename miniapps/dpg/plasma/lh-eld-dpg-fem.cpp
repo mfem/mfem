@@ -81,7 +81,6 @@ using namespace mfem::common;
 int main(int argc, char *argv[])
 {
    Mpi::Init();
-   int myid = Mpi::WorldRank();
    Hypre::Init();
 
    const char *mesh_file = "data/LH_hot.msh";
@@ -819,19 +818,17 @@ int main(int argc, char *argv[])
    {
       mfem::out << "Getting ready for solve." << endl;
    }
-   HypreParMatrix *Ah = Ahc_hypre->GetSystemMatrix();
    
 
-#ifdef MFEM_USE_MUMPS
+#ifdef MFEM_USE_COMPLEX_MUMPS
    if (mumps_solver)
    {
-      auto solver = new MUMPSSolver(MPI_COMM_WORLD);
-      solver->SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+      auto solver = new ComplexMUMPSSolver(MPI_COMM_WORLD);
       solver->SetPrintLevel(1);
-      solver->SetOperator(*Ah);
+      solver->SetOperator(*Ahc_hypre);
       solver->Mult(B,X);
-      delete Ah;
       delete solver;
+      delete Ahc_hypre;
    }
 #else
    if (mumps_solver)
@@ -840,7 +837,6 @@ int main(int argc, char *argv[])
    }
    mumps_solver = false;
 #endif
-   int num_iter = -1;
 
    Array<int> tdof_offsets(nblocks*2+1);
    tdof_offsets[0] = 0;
@@ -856,38 +852,29 @@ int main(int argc, char *argv[])
 
       BlockDiagonalPreconditioner M(tdof_offsets);
 
-      // HypreBoomerAMG * solver_E = new HypreBoomerAMG((HypreParMatrix &)
-                                                   // BlockA_r->GetBlock(0,0));
-      // solver_E->SetPrintLevel(0);
-      // solver_E->SetSystemsOptions(dim);
-      MUMPSSolver * solver_E = new MUMPSSolver(MPI_COMM_WORLD);
-      solver_E->SetOperator((HypreParMatrix &)BlockA_r->GetBlock(0,0));
+      HypreBoomerAMG * solver_E = new HypreBoomerAMG((HypreParMatrix &)
+                                                   BlockA_r->GetBlock(0,0));
+      solver_E->SetPrintLevel(0);
+      solver_E->SetSystemsOptions(dim);
 
-      // HypreBoomerAMG * solver_H = new HypreBoomerAMG((HypreParMatrix &)
-                                                // BlockA_r->GetBlock(1,1));
-      // solver_H->SetPrintLevel(0);
-      MUMPSSolver * solver_H = new MUMPSSolver(MPI_COMM_WORLD);
-      solver_H->SetOperator((HypreParMatrix &)BlockA_r->GetBlock(1,1));
+      HypreBoomerAMG * solver_H = new HypreBoomerAMG((HypreParMatrix &)
+                                                BlockA_r->GetBlock(1,1));
+      solver_H->SetPrintLevel(0);
 
       M.SetDiagonalBlock(0,solver_E);
       M.SetDiagonalBlock(1,solver_H);
       M.SetDiagonalBlock(nblocks,solver_E);
       M.SetDiagonalBlock(nblocks+1,solver_H);
 
-      // HypreAMS * solver_hatE = 
-      // new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(2,2), dpg_pfes[2]);
+      HypreAMS * solver_hatE = 
+      new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(2,2), dpg_pfes[2]);
 
-      MUMPSSolver * solver_hatE = new MUMPSSolver(MPI_COMM_WORLD);
-      solver_hatE->SetOperator((HypreParMatrix &)BlockA_r->GetBlock(2,2));
 
-      // HypreBoomerAMG * solver_hatH = new HypreBoomerAMG((HypreParMatrix &)
-               //   BlockA_r->GetBlock(3,3));
-      // solver_hatE->SetPrintLevel(0);
-      // solver_hatH->SetPrintLevel(0);
-      // solver_hatH->SetRelaxType(88);
-
-      MUMPSSolver * solver_hatH = new MUMPSSolver(MPI_COMM_WORLD);
-      solver_hatH->SetOperator((HypreParMatrix &)BlockA_r->GetBlock(3,3));
+      HypreBoomerAMG * solver_hatH = new HypreBoomerAMG((HypreParMatrix &)
+                 BlockA_r->GetBlock(3,3));
+      solver_hatE->SetPrintLevel(0);
+      solver_hatH->SetPrintLevel(0);
+      solver_hatH->SetRelaxType(88);
 
 
       M.SetDiagonalBlock(2,solver_hatE);
@@ -896,22 +883,17 @@ int main(int argc, char *argv[])
       M.SetDiagonalBlock(3+nblocks,solver_hatH);
 
 
-      // HypreBoomerAMG * solver_J1 = new HypreBoomerAMG((HypreParMatrix &)
-                                                // BlockA_r->GetBlock(4,4));
-      // solver_J1->SetPrintLevel(0);
-      // solver_J1->SetSystemsOptions(dim);
-      // solver_J1->SetRelaxType(88);
-      MUMPSSolver * solver_J1 = new MUMPSSolver(MPI_COMM_WORLD);
-      solver_J1->SetOperator((HypreParMatrix &)BlockA_r->GetBlock(4,4));
+      HypreBoomerAMG * solver_J1 = new HypreBoomerAMG((HypreParMatrix &)
+                                                BlockA_r->GetBlock(4,4));
+      solver_J1->SetPrintLevel(0);
+      solver_J1->SetSystemsOptions(dim);
+      solver_J1->SetRelaxType(88);
 
-      // HypreBoomerAMG * solver_J2 = new HypreBoomerAMG((HypreParMatrix &)
-                                                // BlockA_r->GetBlock(5,5));
-      // solver_J2->SetPrintLevel(0);
-      // solver_J2->SetSystemsOptions(dim);
-      // solver_J2->SetRelaxType(88);
-
-      MUMPSSolver * solver_J2 = new MUMPSSolver(MPI_COMM_WORLD);
-      solver_J2->SetOperator((HypreParMatrix &)BlockA_r->GetBlock(5,5));
+      HypreBoomerAMG * solver_J2 = new HypreBoomerAMG((HypreParMatrix &)
+                                                BlockA_r->GetBlock(5,5));
+      solver_J2->SetPrintLevel(0);
+      solver_J2->SetSystemsOptions(dim);
+      solver_J2->SetRelaxType(88);
 
 
       M.SetDiagonalBlock(4,solver_J1);

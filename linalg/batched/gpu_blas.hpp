@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -41,7 +41,7 @@ class GPUBlas
    HandleType handle = nullptr; ///< The internal handle.
    GPUBlas(); ///< Create the handle.
    ~GPUBlas(); ///< Destroy the handle.
-   static GPUBlas &Instance(); ///< Get the unique instnce.
+   static GPUBlas &Instance(); ///< Get the unique instance.
 public:
    /// Return the handle, creating it if needed.
    static HandleType Handle();

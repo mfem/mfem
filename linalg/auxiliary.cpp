@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -433,7 +433,7 @@ MatrixFreeAMS::MatrixFreeAMS(
    int inner_pi_iterations, int inner_g_iterations, Solver * nd_smoother) :
    Solver(oper.Height())
 {
-   int order = nd_fespace.GetFE(0)->GetOrder();
+   int order = nd_fespace.GetTypicalFE()->GetOrder();
    ParMesh *mesh = nd_fespace.GetParMesh();
    int dim = mesh->Dimension();
 

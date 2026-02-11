@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -850,7 +850,7 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
       int id1, id2;
       id1 = apf::getNumber(v_num_loc, verts[0], 0, 0);
       id2 = apf::getNumber(v_num_loc, verts[1], 0, 0);
-      if (id1 > id2) { swap(id1,id2); }
+      if (id1 > id2) { std::swap(id1,id2); }
 
       shared_edges[i] = new Segment(id1, id2, 1);
    }
@@ -903,7 +903,7 @@ GridFunctionPumi::GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM,
    apf::MeshIterator* itr;
 
    // Assume all element type are the same i.e. tetrahedral
-   const FiniteElement* H1_elem = fes->GetFE(0);
+   const FiniteElement* H1_elem = fes->GetTypicalFE();
    const IntegrationRule &All_nodes = H1_elem->GetNodes();
    int nnodes = All_nodes.Size();
 

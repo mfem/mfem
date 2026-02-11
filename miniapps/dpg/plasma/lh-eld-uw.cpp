@@ -130,7 +130,6 @@ inline const char * ToString(TrialSpace ts)
 int main(int argc, char *argv[])
 {
    Mpi::Init();
-   int myid = Mpi::WorldRank();
    Hypre::Init();
 
    const char *mesh_file = "data/LH_hot.msh";
@@ -907,7 +906,6 @@ int main(int argc, char *argv[])
 
 
    BlockOperator * BlockA_r = dynamic_cast<BlockOperator *>(&Ahc->real());
-   BlockOperator * BlockA_i = dynamic_cast<BlockOperator *>(&Ahc->imag());
    int nblocks = BlockA_r->NumRowBlocks();
 
    {
@@ -919,14 +917,13 @@ int main(int argc, char *argv[])
       BlockDiagonalPreconditioner Mc(Ac.RowOffsets());
       for (int i = 0; i < nblocks; ++i)
       {
-         auto solver = new ComplexMUMPSSolver;
+         auto solver = new ComplexMUMPSSolver(MPI_COMM_WORLD);
          solver->SetPrintLevel(0);
          solver->SetOperator(Ac.GetBlock(i,i));
          Mc.SetDiagonalBlock(i, solver);
       }
 
       CGSolver cg(MPI_COMM_WORLD);
-      // GMRESSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-5);
       cg.SetMaxIter(500);
       cg.SetPrintLevel(1);

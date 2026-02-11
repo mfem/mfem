@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -64,7 +64,7 @@ class KernelReporter
    std::set<std::string> reported_fallbacks;
    KernelReporter()
    {
-      const char *env = getenv("MFEM_REPORT_KERNELS");
+      const char *env = GetEnv("MFEM_REPORT_KERNELS");
       if (env)
       {
          if (std::string(env) != "NO") { enabled = true; }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -39,6 +39,7 @@ namespace mfem
 class GeometricFactors;
 class FaceGeometricFactors;
 class KnotVector;
+class NURBSPatch;
 class NURBSExtension;
 class FiniteElementSpace;
 class GridFunction;
@@ -64,6 +65,7 @@ class Mesh
 {
    friend class NCMesh;
    friend class NURBSExtension;
+   friend class NCNURBSExtension;
 #ifdef MFEM_USE_MPI
    friend class ParMesh;
    friend class ParNCMesh;
@@ -105,6 +107,11 @@ protected:
    Array<Vertex> vertices;
    Array<Element *> boundary;
    Array<Element *> faces;
+
+   /// internal cache for element attributes
+   mutable Array<int> elem_attrs_cache;
+   /// internal cache for boundary element attributes
+   mutable Array<int> bdr_face_attrs_cache;
 
    /** @brief This structure stores the low level information necessary to
        interpret the configuration of elements on a specific face. This
@@ -272,6 +279,13 @@ protected:
 
    // used during NC mesh initialization only
    Array<Triple<int, int, int> > tmp_vertex_parents;
+   /// cache for FaceIndices(ftype)
+   mutable Array<int> face_indices[2];
+   /// cache for FaceIndices(ftype)
+   mutable std::unordered_map<int, int> inv_face_indices[2];
+
+   /// compute face_indices[ftype] and inv_face_indices[type]
+   void ComputeFaceInfo(FaceType ftype) const;
 
 public:
    typedef Geometry::Constants<Geometry::SEGMENT>     seg_t;
@@ -305,6 +319,11 @@ public:
    // vertices performed when reading a mesh in MFEM format. The default value
    // (true) is set in mesh_readers.cpp.
    static bool remove_unused_vertices;
+
+   /// Map from boundary or interior face indices to mesh face indices.
+   const Array<int>& GetFaceIndices(FaceType ftype) const;
+   /// Inverse of the map FaceIndices(ftype)
+   const std::unordered_map<int, int>& GetInvFaceIndices(FaceType ftype) const;
 
 protected:
    Operation last_operation;
@@ -341,7 +360,7 @@ protected:
    void ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
                         bool &finalize_topo, const std::string &xml_prefix="");
    void ReadNURBSMesh(std::istream &input, int &curved, int &read_gf,
-                      bool spacing=false);
+                      bool spacing=false, bool nc=false);
    void ReadInlineMesh(std::istream &input, bool generate_edges = false);
    void ReadGmshMesh(std::istream &input, int &curved, int &read_gf);
 
@@ -472,9 +491,25 @@ protected:
                          const int *fine, int nfine, int op);
 
    /// Read NURBS patch/macro-element mesh
-   void LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot);
+   void LoadPatchTopo(std::istream &input, Array<int> &edge_to_ukv);
 
+   /// Read NURBS patch/macro-element mesh (MFEM NURBS NC-patch mesh format)
+   void LoadNonconformingPatchTopo(std::istream &input,
+                                   Array<int> &edge_to_ukv);
+
+   /// Update this NURBS Mesh and its NURBS data structures after a change, such
+   /// as refinement, derefinement, or degree change.
    void UpdateNURBS();
+
+   /** @brief Refine the NURBS mesh with default refinement factors in @a rf for
+       each dimension.
+
+       Optionally, if @a usingKVF is true, use refinement factors specified for
+       particular KnotVectors, from the file with name in @a kvf. When
+       coarsening by knot removal is necessary for non-nested spacing formulas,
+       tolerance @a tol is used (see NURBSPatch::KnotRemove()). */
+   void RefineNURBS(bool usingKVF, real_t tol, const Array<int> &rf,
+                    const std::string &kvf);
 
    /** @brief Write the beginning of a NURBS mesh to @a os, specifying the NURBS
        patch topology. Optional file comments can be provided in @a comments.
@@ -487,6 +522,13 @@ protected:
    void PrintTopo(std::ostream &os, const Array<int> &e_to_k,
                   const int version,
                   const std::string &comment = "") const;
+
+   /// Write the patch topology edges of a NURBS mesh (see PrintTopo()).
+   void PrintTopoEdges(std::ostream &out, const Array<int> &e_to_k,
+                       bool vmap = false) const;
+
+   /// Set signs to ensure knotvectors are pointed in the same direction.
+   void CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const;
 
    /// Used in GetFaceElementTransformations (...)
    void GetLocalPtToSegTransformation(IsoparametricTransformation &,
@@ -587,9 +629,10 @@ protected:
    void Loader(std::istream &input, int generate_edges = 0,
                std::string parse_tag = "");
 
-   /** If NURBS mesh, write NURBS format. If NCMesh, write mfem v1.1 format.
-       If section_delimiter is empty, write mfem v1.0 format. Otherwise, write
-       mfem v1.2 format with the given section_delimiter at the end.
+   /** @brief If NURBS mesh, write NURBS format. If NCMesh, write mfem v1.1
+       format. If section_delimiter is empty, write mfem v1.0 format. Otherwise,
+       write mfem v1.2 format with the given section_delimiter at the end.
+
        If @a comments is non-empty, it will be printed after the first line of
        the file, and each line should begin with '#'. */
    void Printer(std::ostream &os = mfem::out,
@@ -662,8 +705,34 @@ protected:
                        Array<int> &elem_vtx, Array<int> &attr) const;
 
    // Internal helper used in MakeSimplicial (and ParMesh::MakeSimplicial).
-   void MakeSimplicial_(const Mesh &orig_mesh, int *vglobal);
 
+   /**
+    * @brief Internal helper user in MakeSimplicial (and
+    * ParMesh::MakeSimplicial). Optional return is used in assembling a higher
+    * order mesh.
+    * @details The construction of the higher order nodes must be separated out
+    * because the
+    *
+    * @param orig_mesh The mesh from to create the simplices
+    * @param vglobal An optional global ordering of vertices. Necessary for
+    * parallel splitting.
+    * @return Array<int> parent elements from the orig_mesh for each split
+    * element
+    */
+   Array<int> MakeSimplicial_(const Mesh &orig_mesh, int *vglobal);
+
+   /**
+    * @brief Helper function for constructing higher order nodes from a mesh
+    *   transformed into simplices. Only to be called as part of MakeSimplicial
+    *   or ParMesh::MakeSimplicial.
+    *
+    * @param orig_mesh The mesh that was used to transform this mesh into
+    * simplices.
+    * @param parent_elements parent_elements[i] gives the element in orig_mesh
+    *   split to give element i.
+    */
+   void MakeHigherOrderSimplicial_(const Mesh &orig_mesh,
+                                   const Array<int> &parent_elements);
 public:
 
    /// @anchor mfem_Mesh_ctors
@@ -762,6 +831,29 @@ public:
 
    /// Destroys Mesh.
    virtual ~Mesh() { DestroyPointers(); }
+
+   /** Get the edge to unique knotvector map used by NURBS patch topology meshes
+       Various index maps are defined using the following indices:
+
+       edge:   Edge index in the patch topology mesh
+       pkv:    Patch knotvector index, equivalent to (p * dim + d) where
+               p is the patch index, dim is the topological dimension of
+               the patch, and d is the local dimension
+       rpkv:   Root patch knotvector index; the lowest index pkv for all
+               equivalent pkv.
+       ukv:    (signed) Unique knotvector index. Equivalent to rpkv reordered
+               from 0 to N-1, where N is the number of unique knotvectors +
+               sign, which indicates the orientation of the edge.
+       @param[in,out] edge_to_ukv Array<int> Map from edge index to (signed)
+                                  unique knotvector index. Will be resized
+                                  to the number of edges.
+       @param[in,out] ukv_to_rpkv Array<int> Map from (unsigned) unique
+                                  knotvector index to the (unsigned) root
+                                  patch knotvector index. Will be resized
+                                  to the number of unique knotvectors.
+   */
+   void GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
+                                  Array<int> &ukv_to_rpkv) const;
 
    /// @}
 
@@ -895,8 +987,8 @@ public:
 
    ///@}
 
-   /// Construct a Mesh from a NURBSExtension
-   explicit Mesh( const NURBSExtension& ext );
+   /// Construct a Mesh from a NURBSExtension, which is deep-copied.
+   explicit Mesh(const NURBSExtension& ext);
 
    /** @anchor mfem_Mesh_construction
        @name Methods for piecewise Mesh construction.
@@ -1071,13 +1163,14 @@ public:
        Mesh vertices or nodes are set. */
    virtual void Finalize(bool refine = false, bool fix_orientation = false);
 
-   /// @brief Determine the sets of unique attribute values in domain and
-   /// boundary elements.
+   /// @brief Determine the sets of unique attribute values in domain if @a
+   /// elem_attrs_changed and boundary elements if @a bdr_face_attrs_changed.
    ///
    /// Separately scan the domain and boundary elements to generate unique,
    /// sorted sets of the element attribute values present in the mesh and
    /// store these in the Mesh::attributes and Mesh::bdr_attributes arrays.
-   virtual void SetAttributes();
+   virtual void SetAttributes(bool elem_attrs_changed = true,
+                              bool bdr_face_attrs_changed = true);
 
    /// Check (and optionally attempt to fix) the orientation of the elements
    /** @param[in] fix_it  If `true`, attempt to fix the orientations of some
@@ -1233,7 +1326,7 @@ public:
        present.
 
        @return A bitmask:
-       - bit 0 - simplices are present in the mesh (triangles, tets),
+       - bit 0 - simplices are present in the mesh (segments, triangles, tets),
        - bit 1 - tensor product elements are present in the mesh (quads, hexes),
        - bit 2 - the mesh has wedge elements.
        - bit 3 - the mesh has pyramid elements.
@@ -1260,6 +1353,11 @@ public:
 
        The returned geometries are sorted. */
    void GetGeometries(int dim, Array<Geometry::Type> &el_geoms) const;
+
+   /// @brief Returns true if the mesh is a mixed mesh, false otherwise.
+   ///
+   /// A mixed mesh is one where there are multiple types of element geometries.
+   bool IsMixedMesh() const;
 
    /// Returns the minimum and maximum corners of the mesh bounding box.
    /** For high-order meshes, the geometry is first refined @a ref times. */
@@ -1409,6 +1507,12 @@ public:
    /// Set the attribute of patch boundary element i, for a NURBS mesh.
    void SetPatchBdrAttribute(int i, int attr);
 
+   /** Returns a deep copy of all patches. This method is not const
+       as it first sets the patches in NURBSext using control points
+       defined by Nodes. Caller gets ownership of the returned object,
+       and is responsible for deletion.*/
+   void GetNURBSPatches(Array<NURBSPatch*> &patches);
+
    /// Returns the type of element i.
    Element::Type GetElementType(int i) const;
 
@@ -1424,10 +1528,24 @@ public:
    /// Return the Geometry::Type associated with face @a i.
    Geometry::Type GetFaceGeometry(int i) const;
 
+   /// @brief If the local mesh is not empty, return GetFaceGeometry(0);
+   /// otherwise return a typical face geometry present in the global mesh.
+   ///
+   /// Note that in mixed meshes or meshes with prism or pyramid elements, there
+   /// will be more than one face geometry.
+   Geometry::Type GetTypicalFaceGeometry() const;
+
    Geometry::Type GetElementGeometry(int i) const
    {
       return elements[i]->GetGeometryType();
    }
+
+   /** @brief If the local mesh is not empty, return GetElementGeometry(0);
+       otherwise, return a typical Geometry present in the global mesh.
+
+       This method can be used to replace calls like GetElementGeometry(0) in
+       order to handle empty local meshes better. */
+   Geometry::Type GetTypicalElementGeometry() const;
 
    Geometry::Type GetBdrElementGeometry(int i) const
    {
@@ -1665,8 +1783,21 @@ public:
    ///
    /// @note The returned object is owned by the class and is shared, i.e.,
    /// calling this function resets pointers obtained from previous calls.
-   /// Also, this pointer should NOT be deleted by the caller.
+   /// Also, this pointer should @b not be deleted by the caller.
    ElementTransformation *GetElementTransformation(int i);
+
+   /// @brief If the local mesh is not empty return GetElementTransformation(0);
+   /// otherwise, return the identity transformation for a typical geometry in
+   /// the mesh and a typical finite element in the nodal finite element space
+   /// (if present).
+   ///
+   /// This method can be used to replace calls like GetElementTransformation(0)
+   /// in order to handle empty local meshes better.
+   ///
+   /// @note The returned object is owned by the class and is shared, i.e.,
+   /// calling this function resets pointers obtained from previous calls. Also,
+   /// this pointer should @b not be deleted by the caller.
+   ElementTransformation *GetTypicalElementTransformation();
 
    /// @brief Builds the transformation defining the i-th element in @a ElTr
    /// assuming position of the vertices/nodes are given by @a nodes.
@@ -1947,12 +2078,13 @@ public:
        contrary to the ones obtained through Mesh::GetFacesElements and can
        directly be used, e.g., Elem1 and Elem2 indices.
        Likewise the orientations for Elem1 and Elem2 already take into account
-       special cases and can be used as is.
-   */
+       special cases and can be used as is. */
    struct FaceInformation
    {
+      /// The face topology (boundary, conforming, or nonconforming).
       FaceTopology topology;
 
+      /// Information about the adjacent elements.
       struct
       {
          ElementLocation location;
@@ -1962,8 +2094,13 @@ public:
          int orientation;
       } element[2];
 
+      /// Detailed face information (see FaceInfoTag).
       FaceInfoTag tag;
+
+      /// If the face is nonconforming, the index of the NC face. -1 otherwise.
       int ncface;
+
+      /// The point matrix for nonconforming faces.
       const DenseMatrix* point_matrix;
 
       /** @brief Return true if the face is a local interior face which is NOT
@@ -1982,21 +2119,20 @@ public:
 
       /** @brief return true if the face is an interior face to the computation
           domain, either a local or shared interior face (not a boundary face)
-          which is NOT a master nonconforming face.
-       */
+          which is NOT a master nonconforming face. */
       bool IsInterior() const
       {
          return topology == FaceTopology::Conforming ||
                 topology == FaceTopology::Nonconforming;
       }
 
-      /** @brief Return true if the face is a boundary face. */
+      /// Return true if the face is a boundary face.
       bool IsBoundary() const
       {
          return topology == FaceTopology::Boundary;
       }
 
-      /// @brief Return true if the face is of the same type as @a type.
+      /// Return true if the face is of the same type as @a type.
       bool IsOfFaceType(FaceType type) const
       {
          switch (type)
@@ -2010,13 +2146,13 @@ public:
          }
       }
 
-      /// @brief Return true if the face is a conforming face.
+      /// Return true if the face is a conforming face.
       bool IsConforming() const
       {
          return topology == FaceTopology::Conforming;
       }
 
-      /// @brief Return true if the face is a nonconforming fine face.
+      /// Return true if the face is a nonconforming fine face.
       bool IsNonconformingFine() const
       {
          return topology == FaceTopology::Nonconforming &&
@@ -2024,7 +2160,7 @@ public:
                  element[1].conformity == ElementConformity::Superset);
       }
 
-      /// @brief Return true if the face is a nonconforming coarse face.
+      /// Return true if the face is a nonconforming coarse face.
       /** Note that ghost nonconforming master faces cannot be clearly
           identified as such with the currently available information, so this
           method will return false for such faces. */
@@ -2034,7 +2170,7 @@ public:
                 element[1].conformity == ElementConformity::Subset;
       }
 
-      /// @brief cast operator from FaceInformation to FaceInfo.
+      /// cast operator from FaceInformation to FaceInfo.
       operator Mesh::FaceInfo() const;
    };
 
@@ -2068,6 +2204,56 @@ public:
    void GetFaceElements (int Face, int *Elem1, int *Elem2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2, int *NCFace) const;
+
+   /// @brief Populate a marker array identifying exterior faces
+   ///
+   /// @param[in,out] face_marker Resized if necessary to the number of
+   ///                            local faces. The array entries will be
+   ///                            zero for interior faces and 1 for exterior
+   ///                            faces.
+   virtual void GetExteriorFaceMarker(Array<int> &face_marker) const;
+
+   /// @brief Unmark boundary attributes of internal boundaries
+   ///
+   /// @param[in,out] bdr_marker Array of length bdr_attributes.Max().
+   ///                           Entries associated with internal boundaries
+   ///                           will be set to zero. Other entries will remain
+   ///                           unchanged.
+   /// @param[in]     excl       Only unmark entries which exclusively contain
+   ///                           internal faces [default: true].
+   virtual void UnmarkInternalBoundaries(Array<int> &bdr_marker,
+                                         bool excl = true) const;
+
+   /// @brief Unmark boundary attributes in the named set
+   ///
+   /// @param[in]     set_name   Name of a named boundary attribute set.
+   /// @param[in,out] bdr_marker Array of length bdr_attributes.Max().
+   ///                           Entries associated with the named set will be
+   ///                           set to zero. Other entries will remain
+   ///                           unchanged.
+   virtual void UnmarkNamedBoundaries(const std::string &set_name,
+                                      Array<int> &bdr_marker) const;
+
+   /// @brief Mark boundary attributes of external boundaries
+   ///
+   /// @param[in,out] bdr_marker Array of length bdr_attributes.Max().
+   ///                           Entries associated with external boundaries
+   ///                           will be set to one. Other entries will remain
+   ///                           unchanged.
+   /// @param[in]     excl       Only mark entries which exclusively contain
+   ///                           external faces [default: true].
+   virtual void MarkExternalBoundaries(Array<int> &bdr_marker,
+                                       bool excl = true) const;
+
+   /// @brief Mark boundary attributes in the named set
+   ///
+   /// @param[in]     set_name   Name of a named boundary attribute set.
+   /// @param[in,out] bdr_marker Array of length bdr_attributes.Max().
+   ///                           Entries associated with the named set will be
+   ///                           set to one. Other entries will remain
+   ///                           unchanged.
+   virtual void MarkNamedBoundaries(const std::string &set_name,
+                                    Array<int> &bdr_marker) const;
 
    /// @}
 
@@ -2120,7 +2306,7 @@ public:
    void ScaleSubdomains (real_t sf);
    void ScaleElements (real_t sf);
 
-   void Transform(void (*f)(const Vector&, Vector&));
+   void Transform(std::function<void(const Vector &, Vector&)> f);
    void Transform(VectorCoefficient &deformation);
 
    /** @brief This function should be called after the mesh node coordinates
@@ -2132,6 +2318,35 @@ public:
        @note Unlike the similarly named protected method UpdateNodes() this
        method does not modify the nodes. */
    void NodesUpdated() { DeleteGeometricFactors(); }
+
+   /// @brief Returns the attributes for all elements in this mesh. The i'th
+   /// entry of the array is the attribute of the i'th element of the mesh.
+   ///
+   /// The returned array points to an internal object that may be invalidated
+   /// by mesh operations such as refinement or any element attributes are
+   /// modified. Since not all such modifications can be tracked by the Mesh
+   /// class (e.g. if a user calls GetElement() then changes the element
+   /// attribute directly), one needs to account for such changes by calling the
+   /// method SetAttributes().
+   const Array<int>& GetElementAttributes() const;
+
+   /// @brief Returns the attributes for all boundary elements in this mesh.
+   ///
+   /// The face restriction will give "face E-vectors" on the boundary that
+   /// are numbered in the order of the faces of mesh. This numbering will be
+   /// different than the numbering of the boundary elements. We compute
+   /// mappings so that the array `bdr_attributes[i]` gives the boundary
+   /// attribute of the `i`th boundary face in the mesh face order.
+   /// Attributes <= 0 indicate there is no boundary element and should be
+   /// skipped.
+   ///
+   /// The returned array points to an internal object that may be invalidated
+   /// by mesh operations such as refinement or any element attributes are
+   /// modified. Since not all such modifications can be tracked by the Mesh
+   /// class (e.g. if a user calls GetElement() then changes the element
+   /// attribute directly), one needs to account for such changes by calling the
+   /// method SetAttributes().
+   const Array<int>& GetBdrFaceAttributes() const;
 
    /// @}
 
@@ -2229,6 +2444,10 @@ public:
    virtual void NURBSUniformRefinement(int rf = 2, real_t tol = 1.0e-12);
    virtual void NURBSUniformRefinement(const Array<int> &rf, real_t tol=1.e-12);
 
+   /** @a brief Use knotvector refinement factors loaded from the file with name
+       in @a kvf. Everywhere else, use the default refinement factor @a rf. */
+   virtual void RefineNURBSWithKVFactors(int rf, const std::string &kvf);
+
    /// Coarsening for a NURBS mesh, with an optional coarsening factor @a cf > 1
    /// which divides the number of elements in each dimension.
    void NURBSCoarsening(int cf = 2, real_t tol = 1.0e-12);
@@ -2284,10 +2503,8 @@ public:
        (default) or nonconforming. */
    void EnsureNCMesh(bool simplices_nonconforming = false);
 
-   /// Return a bool indicating whether this mesh is conforming.
-   bool Conforming() const { return ncmesh == NULL; }
-   /// Return a bool indicating whether this mesh is nonconforming.
-   bool Nonconforming() const { return ncmesh != NULL; }
+   bool Conforming() const;
+   bool Nonconforming() const { return !Conforming(); }
 
    /** Designate this mesh for output as "NC mesh v1.1", meaning it is
        nonconforming with nonuniform refinement spacings. */
@@ -2329,13 +2546,16 @@ public:
        changing the mesh file itself. Examples in miniapps/nurbs/meshes. */
    void RefineNURBSFromFile(std::string ref_file);
 
-   /// For NURBS meshes, insert the new knots in @a kv, for each direction.
+   /// For NURBS meshes, insert the new knots in @a kv, for each KnotVector.
+   /// The size of @a kv should be the number of KnotVectors in NURBSExtension.
    void KnotInsert(Array<KnotVector*> &kv);
 
-   /// For NURBS meshes, insert the knots in @a kv, for each direction.
+   /// For NURBS meshes, insert the knots in @a kv, for each KnotVector.
+   /// The size of @a kv should be the number of KnotVectors in NURBSExtension.
    void KnotInsert(Array<Vector*> &kv);
 
-   /// For NURBS meshes, remove the knots in @a kv, for each direction.
+   /// For NURBS meshes, remove the knots in @a kv, for each KnotVector.
+   /// The size of @a kv should be the number of KnotVectors in NURBSExtension.
    void KnotRemove(Array<Vector*> &kv);
 
    /* For each knot vector:
@@ -2349,10 +2569,12 @@ public:
    /// Print the mesh to the given stream using Netgen/Truegrid format.
    virtual void PrintXG(std::ostream &os = mfem::out) const;
 
-   /// Print the mesh to the given stream using the default MFEM mesh format.
-   /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs. If
-   /// @a comments is non-empty, it will be printed after the first line of the
-   /// file, and each line should begin with '#'.
+   /** @brief Print the mesh to the given stream using the default MFEM mesh
+       format.
+
+       \see mfem::ofgzstream() for on-the-fly compression of ascii outputs. If
+       @a comments is non-empty, it will be printed after the first line of the
+       file, and each line should begin with '#'. */
    virtual void Print(std::ostream &os = mfem::out,
                       const std::string &comments = "") const
    { Printer(os, "", comments); }
@@ -2389,7 +2611,7 @@ public:
                          VTKFormat format=VTKFormat::ASCII,
                          bool high_order_output=false,
                          int compression_level=0,
-                         bool bdr=false);
+                         bool bdr_elements=false);
    /** Print the boundary elements of the mesh in VTU format, and output the
        boundary attributes as a data array (useful for boundary conditions). */
    void PrintBdrVTU(std::string fname,
@@ -2397,9 +2619,14 @@ public:
                     bool high_order_output=false,
                     int compression_level=0);
 
+#ifdef MFEM_USE_HDF5
+   /// @brief Save the Mesh in %VTKHDF format.
+   void SaveVTKHDF(const std::string &fname, bool high_order=true);
+#endif
+
 #ifdef MFEM_USE_NETCDF
    /// @brief Export a mesh to an Exodus II file.
-   void PrintExodusII(const std::string fpath);
+   void PrintExodusII(const std::string &fpath);
 #endif
 
    /** @brief Prints the mesh with boundary elements given by the boundary of
@@ -2938,8 +3165,8 @@ public:
    Vector X;
 
    /// Jacobians of the element transformations at all quadrature points.
-   /** This array uses a column-major layout with dimensions (NQ x SDIM x DIM x
-       NF) where
+   /** This array uses a column-major layout with dimensions (NQ x SDIM x
+       (DIM-1) x NF) where
        - NQ = number of quadrature points per face,
        - SDIM = space dimension of the mesh = mesh.SpaceDimension(),
        - DIM = dimension of the mesh = mesh.Dimension(), and
@@ -2984,6 +3211,28 @@ Mesh *Extrude1D(Mesh *mesh, const int ny, const real_t sy,
 
 /// Extrude a 2D mesh
 Mesh *Extrude2D(Mesh *mesh, const int nz, const real_t sz);
+
+/** @brief Constructs the smallest possible [0,1]^dim serial mesh that can be
+    used later to obtain a ParMesh with @a elem_per_mpi elements, with the same
+    topology, for each of the @a mpi_cnt MPI tasks. For quads and hexes.
+
+    The serial mesh has the smallest possible number of elements. The parallel
+    mesh will be obtained by parallel refinements. Each MPI task will have
+    elements with the same topology (same number, same connectivity).
+
+    @param[in]  dim          dimension (2 or 3).
+    @param[in]  mpi_cnt      number of MPI tasks.
+    @param[in]  elem_per_mpi number of elements per MPI task.
+    @param[in]  print        shows meshing info in the terminal.
+    @param[out] par_ref      number of parallel refinement needed afterwards.
+    @param[out] partitioning partitioning to create the desired ParMesh.
+
+    Usual use case:
+    Mesh mesh = PartitionMPI(dim, mpi_cnt, elem_per_mpi, print, par_ref, par);
+    ParMesh pmesh(MPI_COMM_WORLD, mesh, par.GetData());
+    for (int lev = 0; lev < par_ref; lev++) { pmesh.UniformRefinement(); }   */
+Mesh PartitionMPI(int dim, int mpi_cnt, int elem_per_mpi, bool print,
+                  int &par_ref, Array<int> &partitioning);
 
 // shift cyclically 3 integers left-to-right
 inline void ShiftRight(int &a, int &b, int &c)

@@ -247,7 +247,7 @@ void ComplexBlockForm::Assemble(int skip_zeros)
    ElementTransformation *eltrans;
    Array<int> faces, ori;
 
-   DofTransformation * doftrans_i, *doftrans_j;
+   DofTransformation doftrans_i, doftrans_j;
    if (mat_r == NULL)
    {
       AllocMat();
@@ -315,21 +315,20 @@ void ComplexBlockForm::Assemble(int skip_zeros)
       for (int i = 0; i<fes.Size(); i++)
       {
          Array<int> vdofs_i;
-         doftrans_i = fes[i]->GetElementVDofs(iel, vdofs_i);
+         doftrans_i.SetDofTransformation(nullptr);
+         fes[i]->GetElementVDofs(iel, vdofs_i,doftrans_i);
          for (int j = 0; j < fes.Size(); j++)
          {
             Array<int> vdofs_j;
-            doftrans_j = fes[j]->GetElementVDofs(iel, vdofs_j);
+            doftrans_j.SetDofTransformation(nullptr);
+            fes[j]->GetElementVDofs(iel, vdofs_j,doftrans_j);
 
             A.real().GetSubMatrix(offs[i],offs[i+1],
                                   offs[j],offs[j+1], Ae_r);
             A.imag().GetSubMatrix(offs[i],offs[i+1],
                                   offs[j],offs[j+1], Ae_i);
-            if (doftrans_i || doftrans_j)
-            {
-               TransformDual(doftrans_i, doftrans_j, Ae_r);
-               TransformDual(doftrans_i, doftrans_j, Ae_i);
-            }
+            TransformDual(doftrans_i, doftrans_j, Ae_r);
+            TransformDual(doftrans_i, doftrans_j, Ae_i);
             mat_r->GetBlock(i,j).AddSubMatrix(vdofs_i,vdofs_j, Ae_r);
             mat_i->GetBlock(i,j).AddSubMatrix(vdofs_i,vdofs_j, Ae_i);
          }

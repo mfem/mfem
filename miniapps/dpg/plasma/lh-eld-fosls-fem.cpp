@@ -93,7 +93,6 @@ using namespace mfem::common;
 int main(int argc, char *argv[])
 {
    Mpi::Init();
-   int myid = Mpi::WorldRank();
    Hypre::Init();
 
    const char *mesh_file = "data/LH_hot.msh";
@@ -772,17 +771,9 @@ int main(int argc, char *argv[])
       ComplexHypreParMatrix * Ahc_hypre =
          new ComplexHypreParMatrix(Ahr, Ahi,true, true);
 
-
-      HypreParMatrix * Anew = Ahc_hypre->GetSystemMatrix();
-
-      MUMPSSolver cmumps(MPI_COMM_WORLD);
-      // ComplexMUMPSSolver cmumps;
-      // GMRESSolver cmumps(MPI_COMM_WORLD);
+      ComplexMUMPSSolver cmumps(MPI_COMM_WORLD);
       cmumps.SetPrintLevel(1);
-      // cmumps.SetRelTol(1e-12);
-      // cmumps.SetMaxIter(500);   
-      cmumps.SetOperator(*Anew);
-      // cmumps.SetOperator(*Ahc_hypre);
+      cmumps.SetOperator(*Ahc_hypre);
 
       if (Mpi::Root())
       {

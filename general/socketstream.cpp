@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -966,7 +966,7 @@ GnuTLS_session_params &socketstream::add_socket()
    {
       state = new GnuTLS_global_state;
       // state->set_log_level(1000);
-      std::string home_dir(getenv("HOME"));
+      std::string home_dir(GetEnv("HOME"));
       std::string client_dir = home_dir + "/.config/glvis/client/";
 #ifndef MFEM_USE_GNUTLS_X509
       std::string pubkey  = client_dir + "pubring.gpg";

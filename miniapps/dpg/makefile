@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -14,10 +14,6 @@ MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/dpg,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
-
-# Include defaults.mk to get XLINKER
-DEFAULTS_MK = $(MFEM_DIR)/config/defaults.mk
-include $(DEFAULTS_MK)
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
@@ -35,9 +31,6 @@ DIFFUSION_OBJ = $(DIFFUSION_SRC:.cpp=.o)
 
 PDIFFUSION_SRC = pdiffusion.cpp $(DPG_REAL_PAR_SRC)
 PDIFFUSION_OBJ = $(PDIFFUSION_SRC:.cpp=.o)
-
-AMGF_SRC = amgf.cpp $(DPG_REAL_PAR_SRC)
-AMGF_OBJ = $(AMGF_SRC:.cpp=.o)
 
 PDIFFUSIONPRIMAL_SRC = pdiffusion-primal.cpp $(DPG_REAL_PAR_SRC)
 PDIFFUSIONPRIMAL_OBJ = $(PDIFFUSIONPRIMAL_SRC:.cpp=.o)
@@ -78,7 +71,7 @@ PMAXWELL_FEM_COUPLED_OBJ = $(PMAXWELL_FEM_COUPLED_SRC:.cpp=.o)
 SEQ_MINIAPPS = diffusion convection-diffusion acoustics maxwell
 PAR_MINIAPPS = pdiffusion pconvection-diffusion pacoustics pmaxwell  \
  pacoustics-primal pmaxwell-primal pdiffusion-primal pvectordiffusion-primal \
- pmaxwell-coupled pmaxwell-coupled-fem amgf
+ pmaxwell-coupled pmaxwell-coupled-fem 
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -90,8 +83,7 @@ COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
 
 # If MFEM_SHARED is set, add the ../common rpath
 COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
-   $(if $(MFEM_USE_CUDA:YES=),$(CXX_XLINKER),$(CUDA_XLINKER))-rpath,$(abspath\
-   $(MFEM_BUILD_DIR)/miniapps/common))
+   $(MFEM_XLINKER)-rpath,$(abspath $(MFEM_BUILD_DIR)/miniapps/common))
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
@@ -115,9 +107,6 @@ convection-diffusion: $(CONVECTIONDIFFUSION_OBJ)
 
 pdiffusion: $(PDIFFUSION_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PDIFFUSION_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
-
-amgf: $(AMGF_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(AMGF_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
 pdiffusion-primal: $(PDIFFUSIONPRIMAL_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PDIFFUSIONPRIMAL_OBJ) $(COMMON_LIB) $(MFEM_LIBS)

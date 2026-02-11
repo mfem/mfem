@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -91,7 +91,7 @@ static const char *enum_str[] =
 };
 
 prob_type prob;
-Vector beta;
+Vector beta_;
 real_t epsilon;
 
 real_t exact_u(const Vector & X);
@@ -141,7 +141,7 @@ int main(int argc, char *argv[])
                   "Theta parameter for AMR");
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
                   " 0: lshape, 1: General");
-   args.AddOption(&beta, "-beta", "--beta",
+   args.AddOption(&beta_, "-beta", "--beta",
                   "Vector Coefficient beta");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
@@ -181,19 +181,19 @@ int main(int argc, char *argv[])
       case sinusoidal:
       case EJ:
       {
-         if (beta.Size() == 0)
+         if (beta_.Size() == 0)
          {
-            beta.SetSize(dim);
-            beta = 0.0;
-            beta[0] = 1.;
+            beta_.SetSize(dim);
+            beta_ = 0.0;
+            beta_[0] = 1.;
          }
          break;
       }
       case bdr_layer:
       {
-         beta.SetSize(dim);
-         beta[0] = 1.;
-         beta[1] = 2.;
+         beta_.SetSize(dim);
+         beta_[0] = 1.;
+         beta_[1] = 2.;
          exact_known = false;
       }
       break;
@@ -846,7 +846,7 @@ void beta_function(const Vector & X, Vector & beta_val)
    }
    else
    {
-      beta_val = beta;
+      beta_val = beta_;
    }
 }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -111,6 +111,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       SetAttributes();
    }
 
+   ReduceMeshGen();
    DSTable v2v(parent_.GetNV());
    parent_.GetVertexToVertexTable(v2v);
    for (int i = 0; i < NumOfEdges; i++)

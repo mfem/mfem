@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -28,14 +28,16 @@ class NCSubMesh;
  * subset of the parents Mesh and reuses the parallel distribution.
  *
  * The attributes are taken from the parent. That means if a volume is extracted
- * from a volume, it has the same domain attribute as the parent. Its boundary
- * attributes are generated (there will be one boundary attribute 1 for all of
- * the boundaries).
+ * from a volume, it has the same domain attribute as the parent. Its new
+ * boundary attributes are, for any boundary common to the parent and the new
+ * submesh, the boundary attribute of the parent; and, for all new boundaries,
+ * a single, generated, common attribute equal to one plus the largest boundary
+ * attribute of the parent.
  *
  * If a surface is extracted from a volume, the boundary attribute from the
- * parent is assigned to be the new domain attribute. Its boundary attributes
- * are generated (there will be one boundary attribute 1 for all of the
- * boundaries).
+ * parent is assigned to be the new domain attribute. Its new boundary attribute
+ * is a single, generated, common attribute equal to one plus the largest
+ * boundary attribute of the parent.
  *
  * For more customized boundary attributes, the resulting SubMesh has to be
  * postprocessed.

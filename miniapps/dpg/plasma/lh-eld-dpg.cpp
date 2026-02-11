@@ -78,7 +78,6 @@ using namespace mfem::common;
 int main(int argc, char *argv[])
 {
    Mpi::Init();
-   int myid = Mpi::WorldRank();
    Hypre::Init();
 
    const char *mesh_file = "data/LH_hot.msh";
@@ -845,9 +844,6 @@ int main(int argc, char *argv[])
    }
    HypreParMatrix *A = Ahc_hypre->GetSystemMatrix();
 
-
-   int num_iter = -1;
-
    Array<int> tdof_offsets(2*nblocks+1);
    int trace_idx_offset;
    if (eld)
@@ -868,63 +864,31 @@ int main(int argc, char *argv[])
    tdof_offsets.PartialSum();
 
 
-#ifdef MFEM_USE_MUMPS
+#ifdef MFEM_USE_COMPLEX_MUMPS
    if (mumps_solver)
    {
-      bool complexmumps = true;
-      
-      // auto solver = new MUMPSSolver(MPI_COMM_WORLD);
-      // solver->SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
-      // solver->SetPrintLevel(1);
-      // solver->SetOperator(*A);
-      // solver->Mult(B,X);
-      // delete A;
-      // delete solver;
-      if (!complexmumps)
+      ComplexBlockOperator Ac(*Ahc);
+      Vector Xc(X.Size()); Xc = 0.0;
+      Vector Bc(B.Size());
+      Ac.BlockComplexToComplexBlock(B, Bc);
+   
+      BlockDiagonalPreconditioner Mc(Ac.RowOffsets());
+      for (int i = 0; i < nblocks; ++i)
       {
-         BlockDiagonalPreconditioner M(tdof_offsets);
-         for (int i = 0; i < nblocks; ++i)
-         {
-            auto solver = new MUMPSSolver(MPI_COMM_WORLD);
-            solver->SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
-            solver->SetPrintLevel(1);
-            solver->SetOperator((HypreParMatrix &)BlockA_r->GetBlock(i,i));
-            M.SetDiagonalBlock(i, solver);
-            M.SetDiagonalBlock(i + nblocks, solver);
-         }
-         CGSolver cg(MPI_COMM_WORLD);
-         cg.SetRelTol(1e-10);
-         cg.SetMaxIter(300);
-         cg.SetPrintLevel(1);
-         cg.SetPreconditioner(M);
-         cg.SetOperator(*A);
-         cg.Mult(B, X);
+         auto solver = new ComplexMUMPSSolver(MPI_COMM_WORLD);
+         solver->SetPrintLevel(0);
+         solver->SetOperator(Ac.GetBlock(i,i));
+         Mc.SetDiagonalBlock(i, solver);
       }
-      else
-      {
-         ComplexBlockOperator Ac(*Ahc);
-         Vector Xc(X.Size()); Xc = 0.0;
-         Vector Bc(B.Size());
-         Ac.BlockComplexToComplexBlock(B, Bc);
-      
-         BlockDiagonalPreconditioner Mc(Ac.RowOffsets());
-         for (int i = 0; i < nblocks; ++i)
-         {
-            auto solver = new ComplexMUMPSSolver;
-            solver->SetPrintLevel(0);
-            solver->SetOperator(Ac.GetBlock(i,i));
-            Mc.SetDiagonalBlock(i, solver);
-         }
 
-         CGSolver cg(MPI_COMM_WORLD);
-         cg.SetRelTol(1e-5);
-         cg.SetMaxIter(300);
-         cg.SetPrintLevel(1);
-         cg.SetPreconditioner(Mc);
-         cg.SetOperator(Ac);
-         cg.Mult(Bc, Xc);
-         Ac.ComplexBlockToBlockComplex(Xc, X);
-      }
+      CGSolver cg(MPI_COMM_WORLD);
+      cg.SetRelTol(1e-5);
+      cg.SetMaxIter(300);
+      cg.SetPrintLevel(1);
+      cg.SetPreconditioner(Mc);
+      cg.SetOperator(Ac);
+      cg.Mult(Bc, Xc);
+      Ac.ComplexBlockToBlockComplex(Xc, X);
    }
 #else
    if (mumps_solver)

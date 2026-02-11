@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -23,11 +23,14 @@
 #include "_config.hpp"
 #endif
 
+#include <cstdint>
+#include <climits>
+
 namespace mfem
 {
 
 #if (defined(MFEM_USE_CUDA) && defined(__CUDACC__)) || \
-    (defined(MFEM_USE_HIP) && defined(__HIPCC__))
+    (defined(MFEM_USE_HIP) && defined(__HIP__))
 #define MFEM_HOST_DEVICE __host__ __device__
 #else
 #define MFEM_HOST_DEVICE
@@ -136,6 +139,9 @@ constexpr real_t operator""_r(unsigned long long v)
 #endif
 #ifdef MFEM_USE_MUMPS
 #error Building with MUMPS (MFEM_USE_MUMPS=YES) requires MPI (MFEM_USE_MPI=YES)
+#endif
+#ifdef MFEM_USE_COMPLEX_MUMPS
+#error Building with COMPLEX_MUMPS (MFEM_USE_COMPLEX_MUMPS=YES) requires MPI (MFEM_USE_MPI=YES)
 #endif
 #ifdef MFEM_USE_STRUMPACK
 #error Building with STRUMPACK (MFEM_USE_STRUMPACK=YES) requires MPI (MFEM_USE_MPI=YES)

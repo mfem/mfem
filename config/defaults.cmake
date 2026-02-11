@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -37,12 +37,14 @@ option(MFEM_USE_SUITESPARSE "Enable SuiteSparse usage" OFF)
 option(MFEM_USE_SUPERLU "Enable SuperLU_DIST usage" OFF)
 option(MFEM_USE_SUPERLU5 "Use the old SuperLU_DIST 5.1 version" OFF)
 option(MFEM_USE_MUMPS "Enable MUMPS usage" OFF)
+option(MFEM_USE_COMPLEX_MUMPS "Enable COMPLEX_MUMPS usage" OFF)
 option(MFEM_USE_STRUMPACK "Enable STRUMPACK usage" OFF)
 option(MFEM_USE_GINKGO "Enable Ginkgo usage" OFF)
 option(MFEM_USE_AMGX "Enable AmgX usage" OFF)
 option(MFEM_USE_MAGMA "Enable MAGMA usage" OFF)
 option(MFEM_USE_GNUTLS "Enable GNUTLS usage" OFF)
 option(MFEM_USE_GSLIB "Enable GSLIB usage" OFF)
+option(MFEM_USE_HDF5 "Enable HDF5 usage" OFF)
 option(MFEM_USE_NETCDF "Enable NETCDF usage" OFF)
 option(MFEM_USE_PETSC "Enable PETSc support." OFF)
 option(MFEM_USE_SLEPC "Enable SLEPc support." OFF)
@@ -86,7 +88,14 @@ set(MFEM_MPI_NP 4 CACHE STRING "Number of processes used for MPI tests")
 option(MFEM_ENABLE_TESTING "Enable the ctest framework for testing" ON)
 option(MFEM_ENABLE_EXAMPLES "Build all of the examples" OFF)
 option(MFEM_ENABLE_MINIAPPS "Build all of the miniapps" OFF)
-option(MFEM_ENABLE_GOOGLE_BENCHMARKS "Build all of the Google benchmarks" OFF)
+option(MFEM_ENABLE_BENCHMARKS "Build all of the benchmarks" OFF)
+
+# Allow a user to specify fetching of certain third-party libraries instead of
+# searching for existing installations.
+option(MFEM_FETCH_TPLS "Enable fetching of all supported third-party libraries" OFF)
+option(MFEM_FETCH_GSLIB "Enable fetching of GSLIB" OFF)
+option(MFEM_FETCH_HYPRE "Enable fetching of hypre" OFF)
+option(MFEM_FETCH_METIS "Enable fetching of METIS" OFF)
 
 # Setting CXX/MPICXX on the command line or in user.cmake will overwrite the
 # autodetected C++ compiler.
@@ -144,7 +153,7 @@ set(SuperLUDist_REQUIRED_PACKAGES "MPI" "ParMETIS" "METIS"
 set(MUMPS_DIR "${MFEM_DIR}/../MUMPS_5.5.0" CACHE PATH
     "Path to the MUMPS library.")
 # MUMPS may also depend on "OpenMP", depending on how it was compiled.
-set(MUMPS_REQUIRED_PACKAGES "MPI" "MPI_Fortran" "ParMETIS" "METIS"
+set(MUMPS_REQUIRED_PACKAGES "MPI" "MPI_Fortran" "METIS"
     "ScaLAPACK" "LAPACK" "BLAS" CACHE STRING
     "Additional packages required by MUMPS.")
 # If the MPI package does not find all required Fortran libraries:
@@ -266,6 +275,8 @@ set(PARELAG_LIBRARIES "${PARELAG_DIR}/build/src/libParELAG.a" CACHE STRING
 set(TRIBOL_DIR "${MFEM_DIR}/../tribol" CACHE PATH "Path to Tribol")
 set(Tribol_REQUIRED_PACKAGES "Axom/core/mint/slam/slic" CACHE STRING
     "Additional packages required by Tribol")
+
+set(ENZYME_DIR "${MFEM_DIR}/../enzyme" CACHE PATH "Path to Enzyme")
 
 set(BLAS_INCLUDE_DIRS "" CACHE STRING "Path to BLAS headers.")
 set(BLAS_LIBRARIES "" CACHE STRING "The BLAS library.")

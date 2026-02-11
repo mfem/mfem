@@ -698,8 +698,8 @@ int main(int argc, char *argv[])
    ScalarVectorProductCoefficient scaled_b_cf(sqrt(cfactor),b_cf);
    // ( (b⋅∇)J₁,(b⋅∇)δJ₁ )
    {
-      DirectionalDiffusionIntegrator * integ_r =
-         new DirectionalDiffusionIntegrator(scaled_b_cf);
+      DirectionalVectorDiffusionIntegrator * integ_r =
+         new DirectionalVectorDiffusionIntegrator(scaled_b_cf);
       integ_r->SetIntRule(&ir);
 
       a->AddTrialIntegrator(integ_r,nullptr,
@@ -708,8 +708,8 @@ int main(int argc, char *argv[])
 
    // ( (b⋅∇)J₂,(b⋅∇)δJ₂ )
    {
-      DirectionalDiffusionIntegrator * integ_r =
-         new DirectionalDiffusionIntegrator(scaled_b_cf);
+      DirectionalVectorDiffusionIntegrator * integ_r =
+         new DirectionalVectorDiffusionIntegrator(scaled_b_cf);
       integ_r->SetIntRule(&ir);
 
       a->AddTrialIntegrator(integ_r,nullptr,
@@ -952,8 +952,10 @@ int main(int argc, char *argv[])
       {
          for (int j = 0; j < num_blocks; j++)
          {
-            A_r_matrices(i,j) = dynamic_cast<HypreParMatrix*>(&BlockA_r->GetBlock(i,j));
-            A_i_matrices(i,j) = dynamic_cast<HypreParMatrix*>(&BlockA_i->GetBlock(i,j));
+            A_r_matrices(i,j) = dynamic_cast<const HypreParMatrix*>(&BlockA_r->GetBlock(i,
+                                                                                        j));
+            A_i_matrices(i,j) = dynamic_cast<const HypreParMatrix*>(&BlockA_i->GetBlock(i,
+                                                                                        j));
          }
       }
 
@@ -1319,7 +1321,6 @@ void maxwell_solution_curlcurl(const Vector & X,
 
 void J1_solution(const Vector &x,std::vector<complex<double>> &J)
 {
-   complex<double> zi = complex<double>(0., 1.);
    J.resize(dim);
    for (int i = 0; i < dim; ++i)
    {
@@ -1364,7 +1365,6 @@ void J1_solution_directional_laplace(const Vector &x, const Vector &b,
 
 void J2_solution(const Vector &x,std::vector<complex<double>> &J)
 {
-   complex<double> zi = complex<double>(0., 1.);
    J.resize(dim);
    for (int i = 0; i < dim; ++i)
    {

@@ -85,7 +85,6 @@ using namespace mfem::common;
 int main(int argc, char *argv[])
 {
    Mpi::Init();
-   int myid = Mpi::WorldRank();
    Hypre::Init();
 
    const char *mesh_file = "data/LH_hot.msh";

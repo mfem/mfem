@@ -287,14 +287,16 @@ int main(int argc, char *argv[])
    BlockOperator * BlockA_i = dynamic_cast<BlockOperator *>(&Ahc->imag());
 
    int nblocks = BlockA_r->NumRowBlocks();
-   Array2D<HypreParMatrix*> A_r_matrices(nblocks, nblocks);
-   Array2D<HypreParMatrix*> A_i_matrices(nblocks, nblocks);
+   Array2D<const HypreParMatrix*> A_r_matrices(nblocks, nblocks);
+   Array2D<const HypreParMatrix*> A_i_matrices(nblocks, nblocks);
    for (int i = 0; i < nblocks; i++)
    {
       for (int j = 0; j < nblocks; j++)
       {
-         A_r_matrices(i,j) = dynamic_cast<HypreParMatrix*>(&BlockA_r->GetBlock(i,j));
-         A_i_matrices(i,j) = dynamic_cast<HypreParMatrix*>(&BlockA_i->GetBlock(i,j));
+         A_r_matrices(i,j) = dynamic_cast<const HypreParMatrix*>(&BlockA_r->GetBlock(i,
+                                                                                     j));
+         A_i_matrices(i,j) = dynamic_cast<const HypreParMatrix*>(&BlockA_i->GetBlock(i,
+                                                                                     j));
       }
    }
    HypreParMatrix * Ahr = HypreParMatrixFromBlocks(A_r_matrices);
@@ -308,16 +310,13 @@ int main(int argc, char *argv[])
       mfem::out << "Assembly finished successfully." << endl;
    }
 
-#ifdef MFEM_USE_MUMPS
-   HypreParMatrix *A = Ahc_hypre->GetSystemMatrix();
-   // auto cpardiso = new CPardisoSolver(A->GetComm());
-   auto solver = new MUMPSSolver(MPI_COMM_WORLD);
-   solver->SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+#ifdef MFEM_USE_COMPLEX_MUMPS
+   auto solver = new ComplexMUMPSSolver(MPI_COMM_WORLD);
    solver->SetPrintLevel(1);
-   solver->SetOperator(*A);
+   solver->SetOperator(*Ahc_hypre);
    solver->Mult(B,X);
-   delete A;
    delete solver;
+   delete Ahc_hypre;
 #else
    MFEM_ABORT("MFEM compiled without mumps");
 #endif
@@ -408,7 +407,6 @@ void maxwell_solution_curlcurl(const Vector & X,
 
 void J_solution(const Vector &x,std::vector<complex<double>> &J)
 {
-   complex<double> zi = complex<double>(0., 1.);
    J.resize(dim);
    for (int i = 0; i < dim; ++i)
    {

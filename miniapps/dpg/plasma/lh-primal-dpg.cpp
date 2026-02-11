@@ -34,7 +34,6 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    Mpi::Init();
-   int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
    Hypre::Init();
 
@@ -395,7 +394,6 @@ int main(int argc, char *argv[])
    }
    mumps_solver = false;
 #endif
-   int num_iter = -1;
    if (!mumps_solver)
    {
       BlockDiagonalPreconditioner M(tdof_offsets);
@@ -437,7 +435,7 @@ int main(int argc, char *argv[])
          delete &M.GetDiagonalBlock(i);
       }
 
-      num_iter = cg.GetNumIterations();
+      //int num_iter = cg.GetNumIterations();
 
    }
    a->RecoverFEMSolution(X,x);

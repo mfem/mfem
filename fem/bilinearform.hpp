@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -83,7 +83,7 @@ protected:
    /** @brief Extension for supporting Full Assembly (FA),
        Element Assembly (EA),Partial Assembly (PA),
        or Matrix Free assembly (MF). */
-   BilinearFormExtension *ext;
+   std::unique_ptr<BilinearFormExtension> ext;
 
    /** Indicates if the sparse matrix is sorted after assembly when using
        Full Assembly (FA). */
@@ -122,10 +122,10 @@ protected:
    mutable DenseMatrix elemmat;
    mutable Array<int>  vdofs;
 
-   DenseTensor *element_matrices; ///< Owned.
+   std::unique_ptr<DenseTensor> element_matrices;
 
-   StaticCondensation *static_cond; ///< Owned.
-   Hybridization *hybridization; ///< Owned.
+   std::unique_ptr<StaticCondensation> static_cond;
+   std::unique_ptr<Hybridization> hybridization;
 
    /** @brief This data member allows one to specify what should be done to the
        diagonal matrix entries and corresponding RHS values upon elimination of
@@ -148,13 +148,11 @@ protected:
    BilinearForm() : Matrix (0)
    {
       fes = NULL; sequence = -1;
-      mat = mat_e = NULL; extern_bfs = 0; element_matrices = NULL;
-      static_cond = NULL; hybridization = NULL;
+      mat = mat_e = NULL; extern_bfs = 0;
       precompute_sparsity = 0;
       diag_policy = DIAG_KEEP;
       assembly = AssemblyLevel::LEGACY;
       batch = 1;
-      ext = NULL;
    }
 
 private:
@@ -214,7 +212,7 @@ public:
    /// Returns the assembly level
    AssemblyLevel GetAssemblyLevel() const { return assembly; }
 
-   Hybridization *GetHybridization() const { return hybridization; }
+   Hybridization *GetHybridization() const { return hybridization.get(); }
 
    /** @brief Enable the use of static condensation. For details see the
        description for class StaticCondensation in fem/staticcond.hpp This
@@ -224,7 +222,7 @@ public:
 
    /** @brief Check if static condensation was actually enabled by a previous
        call to EnableStaticCondensation(). */
-   bool StaticCondensationIsEnabled() const { return static_cond; }
+   bool StaticCondensationIsEnabled() const { return static_cond != nullptr; }
 
    /// Return the trace FE space associated with static condensation.
    FiniteElementSpace *SCFESpace() const
@@ -569,12 +567,20 @@ public:
    void RecoverFEMSolution(const Vector &X, const Vector &b,
                            Vector &x) override;
 
-   /// Compute and store internally all element matrices.
+   /// @brief Compute and store internally all element matrices.
+   ///
+   /// If AssemblyLevel::ELEMENT is selected with SetAssemblyLevel(), this will
+   /// use efficient (device-accelerated) assembly of the element matrices.
    void ComputeElementMatrices();
 
    /// Free the memory used by the element matrices.
-   void FreeElementMatrices()
-   { delete element_matrices; element_matrices = NULL; }
+   void FreeElementMatrices() { element_matrices.reset(); }
+
+   /// @brief Return a DenseTensor containing the assembled element matrices.
+   ///
+   /// If AssemblyLevel::ELEMENT is selected with SetAssemblyLevel(), this will
+   /// use efficient (device-accelerated) assembly of the element matrices.
+   const DenseTensor &GetElementMatrices();
 
    /// Compute the element matrix of the given element
    /** The element matrix is computed by calling the domain integrators
@@ -705,6 +711,13 @@ public:
    /// Read-only access to the associated FiniteElementSpace.
    const FiniteElementSpace *FESpace() const { return fes; }
 
+   /// Prints operator to stream os.
+   void Print(std::ostream & os = mfem::out, int width_ = 4) const override
+   {
+      MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
+      mat->Print(os, width_);
+   }
+
    /** @brief Sets Operator::DiagonalPolicy used upon construction of the
        linear system.
        Policies include:
@@ -753,7 +766,7 @@ protected:
 
    /** Extension for supporting Full Assembly (FA), Element Assembly (EA),
        Partial Assembly (PA), or Matrix Free assembly (MF). */
-   MixedBilinearFormExtension *ext;
+   std::unique_ptr<MixedBilinearFormExtension> ext;
 
    /** @brief Indicates the BilinearFormIntegrator%s stored in
        MixedBilinearForm#domain_integs, MixedBilinearForm#boundary_integs,
@@ -1193,6 +1206,13 @@ public:
 
    /// Read-only access to the associated test FiniteElementSpace.
    const FiniteElementSpace *TestFESpace() const { return test_fes; }
+
+   /// Prints operator to stream os.
+   void Print(std::ostream & os = mfem::out, int width_ = 4) const override
+   {
+      MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
+      mat->Print(os, width_);
+   }
 
    /** @brief Deletes internal matrices, bilinear integrators, and the
        BilinearFormExtension */

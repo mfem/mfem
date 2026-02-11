@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -105,7 +105,7 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_MPI
       bool all_succeeded;
       MPI_Allreduce(&succeeded, &all_succeeded, 1,
-                    MPI_C_BOOL, MPI_LAND, MPI_COMM_WORLD);
+                    MFEM_MPI_CXX_BOOL, MPI_LAND, MPI_COMM_WORLD);
       succeeded = all_succeeded;
 #endif
       if (!succeeded)

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,6 +15,10 @@
 #include "../config/config.hpp"
 #include "../linalg/densemat.hpp"
 #include "intrules.hpp"
+#include "../general/hash.hpp"
+
+#include <memory>
+#include <unordered_map>
 
 namespace mfem
 {
@@ -327,7 +331,13 @@ class GeometryRefiner
 {
 private:
    int Type; // Quadrature1D type (ClosedUniform is default)
+   /// Cache of RefinedGeometry for Refine
    Array<RefinedGeometry *> RGeom[Geometry::NumGeom];
+   /// Cache of integration rules for EdgeScan
+   /// key: (type, geom, times)
+   std::unordered_map<std::array<int, 3>, std::unique_ptr<IntegrationRule>,
+       ArrayHasher>
+       SGeom;
    Array<IntegrationRule *> IntPts[Geometry::NumGeom];
 
    RefinedGeometry *FindInRGeom(Geometry::Type Geom, int Times,
@@ -343,6 +353,9 @@ public:
    int GetType() const { return Type; }
 
    RefinedGeometry *Refine(Geometry::Type Geom, int Times, int ETimes = 1);
+
+   /// Get an integration rule which scans along the r/s/t=0 edges of the element.
+   const IntegrationRule *EdgeScan(Geometry::Type Geom, int NPts1d);
 
    /// @note This method always uses Quadrature1D::OpenUniform points.
    const IntegrationRule *RefineInterior(Geometry::Type Geom, int Times);

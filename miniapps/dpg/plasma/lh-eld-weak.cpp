@@ -59,7 +59,6 @@ using namespace mfem::common;
 int main(int argc, char *argv[])
 {
    Mpi::Init();
-   int myid = Mpi::WorldRank();
    Hypre::Init();
 
    const char *mesh_file = "data/LH_hot.msh";
@@ -75,7 +74,6 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    bool visualization = false;
    bool paraview = false;
-   bool mumps_solver = false;
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -493,11 +491,10 @@ int main(int argc, char *argv[])
       a_nd.FormLinearSystem(ess_tdof_list,nd_x,nd_b,nd_Ah, nd_X,nd_B);
 
 
-      HypreParMatrix *nd_A = nd_Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
+      ComplexHypreParMatrix *nd_A = nd_Ah.As<ComplexHypreParMatrix>();
 
-      MUMPSSolver nd_mumps(MPI_COMM_WORLD);
+      ComplexMUMPSSolver nd_mumps(MPI_COMM_WORLD);
       nd_mumps.SetPrintLevel(0);
-      nd_mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
       nd_mumps.SetOperator(*nd_A);
       nd_mumps.Mult(nd_B, nd_X);
 

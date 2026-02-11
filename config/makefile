@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -42,7 +42,7 @@ GHV_FLAGS = $(MFEM_CXXFLAGS) $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..)
 SMX = $(if $(MFEM_USE_PUMI:NO=),MFEM_USE_SIMMETRIX)
 SMX_PATH = $(PUMI_DIR)/include/gmi_sim.h
 SMX_FILE = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(SMX_PATH))
-MUMPS = $(MFEM_USE_MUMPS:NO=)
+MUMPS = $(if $(filter YES,$(MFEM_USE_MUMPS) $(MFEM_USE_COMPLEX_MUMPS)),YES,)
 GMV_CXX ?= $(MFEM_CXX)
 GMV = get_mumps_version
 GMV_FLAGS = $(MFEM_CXXFLAGS) $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(MUMPS_OPT))
@@ -110,4 +110,5 @@ config-mk:
 
 clean:
 	rm -f $(CONFIG_HPP) $(CONFIG_MK) sample-runs-build.log
-	rm -f $(GHV) $(GHV).out $(GMV) $(GMV).out *.dSYM
+	rm -f $(GHV) $(GHV).out $(GMV) $(GMV).out
+	rm -rf *.dSYM

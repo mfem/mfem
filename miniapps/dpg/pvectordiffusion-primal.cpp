@@ -199,12 +199,18 @@ int main(int argc, char *argv[])
 
       // HypreBoomerAMG * amg0 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(0,0));
       // amg0->SetSystemsOptions(dim);
+#ifdef MFEM_USE_MUMPS
       MUMPSSolver * amg0 = new MUMPSSolver(MPI_COMM_WORLD);
       amg0->SetOperator((HypreParMatrix &)A->GetBlock(0,0));
-
-
       MUMPSSolver * prec = new MUMPSSolver(MPI_COMM_WORLD);
       prec->SetOperator((HypreParMatrix&)A->GetBlock(1,1));
+#else
+      HypreBoomerAMG * amg0 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(0,0));
+      amg0->SetSystemsOptions(dim);
+      HypreBoomerAMG * prec = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(1,1));
+      prec->SetSystemsOptions(dim);
+#endif
+      M.SetDiagonalBlock(0,amg0);
       M.SetDiagonalBlock(1,prec);
 
       // Array<int> toffsets(4);
@@ -349,7 +355,6 @@ int main(int argc, char *argv[])
 
 void exact_u(const Vector & X, Vector & u)
 {
-   double alpha = M_PI * (X.Sum());
    int size = X.Size();
    for (int i = 0; i<size; i++)
    {

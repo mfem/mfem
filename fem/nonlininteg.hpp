@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,6 +17,7 @@
 #include "coefficient.hpp"
 #include "fespace.hpp"
 #include "ceed/interface/operator.hpp"
+#include "integrator.hpp"
 
 namespace mfem
 {
@@ -24,7 +25,7 @@ namespace mfem
 /** @brief This class is used to express the local action of a general nonlinear
     finite element operator. In addition it may provide the capability to
     assemble the local gradient operator and to compute the local energy. */
-class NonlinearFormIntegrator
+class NonlinearFormIntegrator : public Integrator
 {
 public:
    enum Mode
@@ -36,12 +37,7 @@ public:
    };
 
 protected:
-   const IntegrationRule *IntRule;
-
    Mode integrationMode = Mode::ELEMENTWISE;
-
-   // Prescribed integration rules (not reduced approximate rules).
-   NURBSMeshRules *patchRules = nullptr;
 
    // CEED extension
    ceed::Operator* ceedOp;
@@ -49,30 +45,19 @@ protected:
    MemoryType pa_mt = MemoryType::DEFAULT;
 
    NonlinearFormIntegrator(const IntegrationRule *ir = NULL)
-      : IntRule(ir), ceedOp(NULL) { }
+      : Integrator(ir), ceedOp(NULL) { }
 
 public:
-   /** @brief Prescribe a fixed IntegrationRule to use (when @a ir != NULL) or
-       let the integrator choose (when @a ir == NULL). */
-   virtual void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
 
    void SetIntegrationMode(Mode m) { integrationMode = m; }
 
-   /// For patchwise integration, SetNURBSPatchIntRule must be called.
-   void SetNURBSPatchIntRule(NURBSMeshRules *pr) { patchRules = pr; }
-   bool HasNURBSPatchIntRule() const { return patchRules != nullptr; }
 
    bool Patchwise() const { return integrationMode != Mode::ELEMENTWISE; }
-
-   /// Prescribe a fixed IntegrationRule to use.
-   void SetIntegrationRule(const IntegrationRule &ir) { SetIntRule(&ir); }
 
    /// Set the memory type used for GeometricFactors and other large allocations
    /// in PA extensions.
    void SetPAMemoryType(MemoryType mt) { pa_mt = mt; }
 
-   /// Get the integration rule of the integrator (possibly NULL).
-   const IntegrationRule *GetIntegrationRule() const { return IntRule; }
 
    /// Perform the local action of the NonlinearFormIntegrator
    virtual void AssembleElementVector(const FiniteElement &el,
@@ -353,6 +338,11 @@ public:
    void AssembleElementGrad(const FiniteElement &el,
                             ElementTransformation &Ttr,
                             const Vector &elfun, DenseMatrix &elmat) override;
+protected:
+   const IntegrationRule* GetDefaultIntegrationRule(
+      const FiniteElement& trial_fe,
+      const FiniteElement& test_fe,
+      const ElementTransformation& trans) const override;
 };
 
 /** Hyperelastic incompressible Neo-Hookean integrator with the PK1 stress
@@ -405,7 +395,7 @@ public:
    VectorConvectionNLFIntegrator() = default;
 
    static const IntegrationRule &GetRule(const FiniteElement &fe,
-                                         ElementTransformation &T);
+                                         const ElementTransformation &T);
 
    void AssembleElementVector(const FiniteElement &el,
                               ElementTransformation &trans,
@@ -426,6 +416,16 @@ public:
    void AddMultPA(const Vector &x, Vector &y) const override;
 
    void AddMultMF(const Vector &x, Vector &y) const override;
+
+
+protected:
+   const IntegrationRule* GetDefaultIntegrationRule(
+      const FiniteElement& trial_fe,
+      const FiniteElement& test_fe,
+      const ElementTransformation& trans) const override
+   {
+      return &GetRule(test_fe, trans);
+   }
 };
 
 

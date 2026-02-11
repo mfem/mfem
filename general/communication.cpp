@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -347,11 +347,23 @@ void GroupTopology::Swap(GroupTopology &other)
    mfem::Swap(group_mgroup, other.group_mgroup);
 }
 
+/// \cond DO_NOT_DOCUMENT
 // Initialize the static mpi_type for the specializations of MPITypeMap:
+const MPI_Datatype MPITypeMap<bool>::mpi_type = MFEM_MPI_CXX_BOOL;
+const MPI_Datatype MPITypeMap<char>::mpi_type = MPI_CHAR;
+const MPI_Datatype MPITypeMap<unsigned char>::mpi_type = MPI_UNSIGNED_CHAR;
+const MPI_Datatype MPITypeMap<short>::mpi_type = MPI_SHORT;
+const MPI_Datatype MPITypeMap<unsigned short>::mpi_type = MPI_UNSIGNED_SHORT;
 const MPI_Datatype MPITypeMap<int>::mpi_type = MPI_INT;
+const MPI_Datatype MPITypeMap<unsigned int>::mpi_type = MPI_UNSIGNED;
+const MPI_Datatype MPITypeMap<long>::mpi_type = MPI_LONG;
+const MPI_Datatype MPITypeMap<unsigned long>::mpi_type = MPI_UNSIGNED_LONG;
+const MPI_Datatype MPITypeMap<long long>::mpi_type = MPI_LONG_LONG;
+const MPI_Datatype MPITypeMap<unsigned long long>::mpi_type =
+   MPI_UNSIGNED_LONG_LONG;
 const MPI_Datatype MPITypeMap<float>::mpi_type = MPI_FLOAT;
 const MPI_Datatype MPITypeMap<double>::mpi_type = MPI_DOUBLE;
-
+/// \endcond DO_NOT_DOCUMENT
 
 GroupCommunicator::GroupCommunicator(const GroupTopology &gt, Mode m)
    : gtopo(gt), mode(m)

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -286,11 +286,11 @@ int main (int argc, char *argv[])
       pmesh->PrintAsSerial(mesh_ofs);
    }
 
-   // 11. Store the starting (prior to the optimization) positions.
+   // Store the starting (prior to the optimization) positions.
    ParGridFunction x0(pfespace);
    x0 = x;
 
-   // 12. Form the integrator that uses the chosen metric and target.
+   // Form the integrator that uses the chosen metric and target.
    TMOP_QualityMetric *metric = NULL;
    switch (metric_id)
    {
@@ -484,7 +484,7 @@ int main (int argc, char *argv[])
          }
       }
 
-      // Set material gridfunction
+      // Set material grid function
       for (int i = 0; i < pmesh->GetNE(); i++)
       {
          if (material)
@@ -782,7 +782,7 @@ int main (int argc, char *argv[])
 
    // Perform the nonlinear optimization.
    const IntegrationRule &ir =
-      irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
+      irules->Get(pmesh->GetTypicalElementGeometry(), quad_order);
    TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
    if (surface_fit_adapt > 0.0)
    {

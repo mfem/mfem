@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -88,10 +88,22 @@ public:
    /// Operator application: `y=A(x)`.
    virtual void Mult(const Vector &x, Vector &y) const = 0;
 
+   /** @brief Action of the absolute-value operator: `y=|A|(x)`. The default
+     behavior in class Operator is to generate an error. If the Operator is a
+     composition of several operators, the composition unfold into a product
+     of absolute-value operators too. */
+   virtual void AbsMult(const Vector &x, Vector &y) const
+   { MFEM_ABORT("Operator::AbsMult() is not overridden!"); }
+
    /** @brief Action of the transpose operator: `y=A^t(x)`. The default behavior
        in class Operator is to generate an error. */
    virtual void MultTranspose(const Vector &x, Vector &y) const
-   { mfem_error("Operator::MultTranspose() is not overridden!"); }
+   { MFEM_ABORT("Operator::MultTranspose() is not overridden!"); }
+
+   /** @brief Action of the transpose absolute-value operator: `y=|A|^t(x)`.
+      The default behavior in class Operator is to generate an error. */
+   virtual void AbsMultTranspose(const Vector &x, Vector &y) const
+   { MFEM_ABORT("Operator::AbsMultTranspose() is not overridden!"); }
 
    /// Operator application: `y+=A(x)` (default) or `y+=a*A(x)`.
    virtual void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const;
@@ -121,7 +133,7 @@ public:
        behavior in class Operator is to generate an error. */
    virtual Operator &GetGradient(const Vector &x) const
    {
-      mfem_error("Operator::GetGradient() is not overridden!");
+      MFEM_ABORT("Operator::GetGradient() is not overridden!");
       return const_cast<Operator &>(*this);
    }
 
@@ -369,11 +381,24 @@ public:
       ADDITIVE_TERM_2
    };
 
+   /** Used to specify the variable being returned by ImplicitSolve(). This can
+    * be queried by ODESolver to identify the variable being solved for.
+    * @warning Not all ODESolver may support all options. See ODESolver::SupportsImplicitVariableType() */
+   enum ImplicitVariableType
+   {
+      SLOPE, ///< stage slope, $k = \frac{du}{dt}$.
+      STATE  ///< stage state, $k = u$.
+   };
+
 protected:
    real_t t;  ///< Current time.
    Type type; /**< @brief Describes the form of the TimeDependentOperator, see
                    the documentation of #Type. */
    EvalMode eval_mode; ///< Current evaluation mode.
+   ImplicitVariableType implicit_variable_type =
+      ImplicitVariableType::SLOPE; /**< @brief
+                                                        Return variable for
+                                                        ImplicitSolve()*/
 
 public:
    /** @brief Construct a "square" TimeDependentOperator (u,t) -> k(u,t), where
@@ -417,6 +442,24 @@ public:
    virtual void SetEvalMode(const EvalMode new_eval_mode)
    { eval_mode = new_eval_mode; }
 
+   /** @brief Sets the #ImplicitVariableType for ImplicitSolve()*/
+   virtual void SetImplicitVariableType(const ImplicitVariableType variable_type)
+   { implicit_variable_type = variable_type; }
+
+   /** @brief Returns the #ImplicitVariableType for ImplicitSolve(). */
+   virtual ImplicitVariableType GetImplicitVariableType() const
+   { return implicit_variable_type; }
+
+   /** @brief Returns @a true if implicit variable is #STATE and @a false otherwise.
+    * Used by ODESolver to identify the stage variable returned by ImplicitSolve() */
+   virtual bool ImplicitVarTypeIsState() const
+   { return (implicit_variable_type == ImplicitVariableType::STATE); }
+
+   /** @brief Returns @a true if implicit variable is #SLOPE and @a false otherwise.
+    * Used by ODESolver to identify the stage variable returned by ImplicitSolve() */
+   virtual bool ImplicitVarTypeIsSlope() const
+   { return (implicit_variable_type == ImplicitVariableType::SLOPE); }
+
    /** @brief Perform the action of the explicit part of the operator, G:
        @a v = G(@a u, t) where t is the current time.
 
@@ -450,7 +493,8 @@ public:
 
    /** @brief Solve for the unknown @a k, at the current time t, the following
        equation:
-       F(@a u + @a gamma @a k, @a k, t) = G(@a u + @a gamma @a k, t).
+        1. $F( u + \gamma k, k, t) = G( u +  \gamma k, t)$, if solving for stage-slope (default)
+        2. $F( u , \frac{k-u}{\gamma}, t) = G(k, t)$, if solving for stage-state
 
        For solving an ordinary differential equation of the form
        $ M \frac{dy}{dt} = g(y,t) $, recall that F and G can be defined in
@@ -460,8 +504,9 @@ public:
          2. F(u,k,t) = M k and G(u,t) = g(u,t)
          3. F(u,k,t) = M k - g(u,t) and G(u,t) = 0
 
-       Regardless of the choice of F and G, this function should solve for @a k
-       in M @a k = g(@a u + @a gamma @a k, t).
+        Regardless of the choice of F and G, this function should solve for @a k:
+        - $~Mk = g( u + \gamma k, t)~$, if solving for stage-slope.
+        - $~Mk  = \gamma g(k, t) + Mu~$, if solving for stage-state
 
        To see how @a k can be useful, consider the backward Euler method defined
        by $ y(t + \Delta t) = y(t) + \Delta t k_0 $ where
@@ -479,6 +524,7 @@ public:
        $ y(t) + \Delta t \sum_{j=1}^{i-1} a_{ij} k_j $ and @a gamma set to
        $ a_{ii} \Delta t $, for $ k_i $. For example, see class SDIRK33Solver.
 
+       See SetImplicitVariableType() to switch between different variable modes.
        If not re-implemented, this method simply generates an error. */
    virtual void ImplicitSolve(const real_t gamma, const Vector &u, Vector &k);
 
@@ -691,7 +737,7 @@ public:
                                  const Vector &xB, const Vector &fxB,
                                  int jokB, int *jcurB, real_t gammaB)
    {
-      mfem_error("TimeDependentAdjointOperator::SUNImplicitSetupB() is not "
+      MFEM_ABORT("TimeDependentAdjointOperator::SUNImplicitSetupB() is not "
                  "overridden!");
       return (-1);
    }
@@ -709,7 +755,7 @@ public:
        see the SUNDIALS User Guides. */
    virtual int SUNImplicitSolveB(Vector &x, const Vector &b, real_t tol)
    {
-      mfem_error("TimeDependentAdjointOperator::SUNImplicitSolveB() is not "
+      MFEM_ABORT("TimeDependentAdjointOperator::SUNImplicitSolveB() is not "
                  "overridden!");
       return (-1);
    }
@@ -930,6 +976,10 @@ public:
    void Mult(const Vector & x, Vector & y) const override
    { P.Mult(x, Px); A.Mult(Px, APx); Rt.MultTranspose(APx, y); }
 
+   /// Operator-wise absolute-value application.
+   void AbsMult(const Vector & x, Vector & y) const override
+   { P.AbsMult(x, Px); A.AbsMult(Px, APx); Rt.AbsMultTranspose(APx, y); }
+
    /// Approximate diagonal of the RAP Operator.
    /** Returns the diagonal of A, as returned by its AssembleDiagonal method,
        multiplied be P^T.
@@ -950,6 +1000,14 @@ public:
    /// Application of the transpose.
    void MultTranspose(const Vector & x, Vector & y) const override
    { Rt.Mult(x, APx); A.MultTranspose(APx, Px); P.MultTranspose(Px, y); }
+
+   /// Operator-wise absolute-value application of the transpose
+   void AbsMultTranspose(const Vector & x, Vector & y) const override
+   {
+      Rt.AbsMult(x, APx);
+      A.AbsMultTranspose(APx, Px);
+      P.AbsMultTranspose(Px, y);
+   }
 };
 
 
@@ -959,8 +1017,8 @@ class TripleProductOperator : public Operator
    const Operator *A;
    const Operator *B;
    const Operator *C;
-   const real_t alpha;
    bool ownA, ownB, ownC;
+   const real_t alpha;
    mutable Vector t1, t2;
    MemoryClass mem_class;
 
@@ -1046,12 +1104,20 @@ public:
 
    void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const override;
 
+   void AbsMult(const Vector &x, Vector &y) const override;
+
    void MultTranspose(const Vector &x, Vector &y) const override;
 
+   void AbsMultTranspose(const Vector &x, Vector &y) const override;
+
    /** @brief Implementation of Mult or MultTranspose.
-    *  TODO - Generalize to allow constraining rows and columns differently.
-   */
+       TODO - Generalize to allow constraining rows and columns differently. */
    void ConstrainedMult(const Vector &x, Vector &y, const bool transpose) const;
+
+   /** @brief Implementation of AbsMult or AbsMultTranspose.
+       TODO - Generalize to allow constraining rows and columns differently. */
+   void ConstrainedAbsMult(const Vector &x, Vector &y,
+                           const bool transpose) const;
 
    /// Destructor: destroys the unconstrained Operator, if owned.
    ~ConstrainedOperator() override { if (own_A) { delete A; } }
@@ -1108,6 +1174,47 @@ public:
    void Mult(const Vector &x, Vector &y) const override;
    void MultTranspose(const Vector &x, Vector &y) const override;
    virtual ~RectangularConstrainedOperator() { if (own_A) { delete A; } }
+};
+
+/** @brief Abstract class for defining inner products. The method Eval()
+    must be implemented in derived classes to compute the inner product
+    of two vectors according to a specific inner product definition.
+*/
+class InnerProductOperator : public Operator
+{
+#ifdef MFEM_USE_MPI
+private:
+   MPI_Comm comm = MPI_COMM_NULL;
+   int dot_prod_type = 0; // 0: local, 1: global
+
+public:
+   InnerProductOperator(MPI_Comm comm_) : Operator(1)
+   { comm = comm_; dot_prod_type = 1; }
+#endif
+protected:
+   /// @brief Standard global/local $\ell_2$ inner product.
+   virtual real_t Dot(const Vector &x, const Vector &y) const;
+
+public:
+   /// Create an operator of size 1 (scalar).
+   InnerProductOperator() : Operator(1)
+   {
+#ifdef MFEM_USE_MPI
+      dot_prod_type = 0;
+#endif
+   }
+
+   /// Operator application - not always needed/used but added
+   /// to satisfy the abstract base class interface.
+   virtual void Mult(const Vector &x, Vector &y) const override
+   {
+      MFEM_ABORT("Mult is not implemented.");
+   }
+
+   /** @brief Compute the inner product (x,y) of vectors x and y.
+              This is an abstract method that must be
+              implemented in derived classes. */
+   virtual real_t Eval(const Vector &x, const Vector &y) = 0;
 };
 
 /** @brief PowerMethod helper class to estimate the largest eigenvalue of an

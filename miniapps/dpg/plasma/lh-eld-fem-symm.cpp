@@ -470,11 +470,9 @@ int main(int argc, char *argv[])
       new ComplexHypreParMatrix(hr, hi,false, false);
 
 
-   HypreParMatrix *A = hc_hypre->GetSystemMatrix();
-   auto P = new MUMPSSolver(MPI_COMM_WORLD);
-   P->SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+   auto P = new ComplexMUMPSSolver(MPI_COMM_WORLD);
    P->SetPrintLevel(1);
-   P->SetOperator(*A);
+   P->SetOperator(*hc_hypre);
    P->Mult(B, X);
 
    a->RecoverFEMSolution(X, x);

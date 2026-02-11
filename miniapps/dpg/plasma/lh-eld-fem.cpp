@@ -31,8 +31,8 @@
 #include <filesystem>
 
 
-#ifndef MFEM_USE_MUMPS
-MFEM_ABORT("This example requires MFEM to be built with MUMPS.");
+#ifndef MFEM_USE_COMPLEX_MUMPS
+MFEM_ABORT("This example requires MFEM to be built with ComplexMUMPS.");
 #endif
 
 
@@ -437,7 +437,7 @@ int main(int argc, char *argv[])
       ComplexHypreParMatrix * Ahc_hypre =
          new ComplexHypreParMatrix(Ahr, Ahi,true, true);
 
-      ComplexMUMPSSolver cmumps;
+      ComplexMUMPSSolver cmumps(MPI_COMM_WORLD);
       cmumps.SetPrintLevel(0);
       cmumps.SetOperator(*Ahc_hypre);
       cmumps.Mult(B,X);
@@ -499,7 +499,7 @@ int main(int argc, char *argv[])
          ComplexHypreParMatrix * Prechc_hypre =
             new ComplexHypreParMatrix(Prechr, Prechi,true, true);
 
-         ComplexMUMPSSolver cmumps;
+         ComplexMUMPSSolver cmumps(MPI_COMM_WORLD);
          cmumps.SetPrintLevel(0);
          cmumps.SetOperator(*Prechc_hypre);
 
@@ -521,7 +521,7 @@ int main(int argc, char *argv[])
          int nblocks = Ac.NumRowBlocks();
 
          Array<Solver *> diag_solvers(nblocks);
-         diag_solvers[0] = new ComplexMUMPSSolver;
+         diag_solvers[0] = new ComplexMUMPSSolver(MPI_COMM_WORLD);
          dynamic_cast<ComplexMUMPSSolver*>(diag_solvers[0])->SetPrintLevel(0);
          diag_solvers[0]->SetOperator(Acprec.GetBlock(0,0));
 
@@ -549,7 +549,7 @@ int main(int argc, char *argv[])
             }
             else
             {
-               diag_solvers[i] = new ComplexMUMPSSolver;
+               diag_solvers[i] = new ComplexMUMPSSolver(MPI_COMM_WORLD);
                dynamic_cast<ComplexMUMPSSolver*>(diag_solvers[i])->SetPrintLevel(0);
                diag_solvers[i]->SetOperator(Acprec.GetBlock(i,i));
             }  
@@ -673,12 +673,11 @@ int main(int argc, char *argv[])
    Vector maxwell_X,maxwell_B;
    a_maxwell.FormLinearSystem(ess_tdof_list,maxwell_pgf,b_maxwell,maxwell_Ah, maxwell_X,maxwell_B);
 
-   HypreParMatrix *Maxwell_A = maxwell_Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
-   MUMPSSolver mumps(Maxwell_A->GetComm());
-   mumps.SetPrintLevel(0);
-   mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
-   mumps.SetOperator(*Maxwell_A);
-   mumps.Mult(maxwell_B, maxwell_X);
+   ComplexHypreParMatrix *Maxwell_A = maxwell_Ah.As<ComplexHypreParMatrix>();
+   ComplexMUMPSSolver cmumps(MPI_COMM_WORLD);
+   cmumps.SetPrintLevel(0);
+   cmumps.SetOperator(*Maxwell_A);
+   cmumps.Mult(maxwell_B, maxwell_X);
 
    a_maxwell.RecoverFEMSolution(maxwell_X, maxwell_B, maxwell_pgf);
 

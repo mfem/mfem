@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -136,7 +136,7 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
                face_info);
 
             const FiniteElement *face_el =
-               parentfes.GetTraceElement(parent_element_ids[i], face_geom);
+               parentfes.GetTraceElement(parent_volel_id, face_geom);
             MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(face_el),
                         "Nodal Finite Element is required");
 
@@ -257,15 +257,7 @@ template <typename SubMeshT>
 void AddBoundaryElements(SubMeshT &mesh,
                          const std::unordered_map<int,int> &lface_to_boundary_attribute)
 {
-   mesh.Dimension();
-   const int num_codim_1 = [&mesh]()
-   {
-      auto Dim = mesh.Dimension();
-      if (Dim == 1) { return mesh.GetNV(); }
-      else if (Dim == 2) { return mesh.GetNEdges(); }
-      else if (Dim == 3) { return mesh.GetNFaces(); }
-      else { MFEM_ABORT("Invalid dimension."); return -1; }
-   }();
+   const int num_codim_1 = mesh.GetNumFaces();
 
    if (mesh.Dimension() == 3)
    {
@@ -367,7 +359,9 @@ void AddBoundaryElements(SubMeshT &mesh,
          {
             const int parentFaceIdx = parent.GetBdrElementFaceIndex(i);
             const int submeshFaceIdx =
-               mesh.GetSubMeshFaceFromParent(parentFaceIdx);
+               mesh.Dimension() == 3 ?
+               mesh.GetSubMeshFaceFromParent(parentFaceIdx) :
+               mesh.GetSubMeshEdgeFromParent(parentFaceIdx);
 
             if (submeshFaceIdx == -1) { continue; }
             if (mesh.GetFaceInformation(submeshFaceIdx).IsBoundary())
