@@ -353,7 +353,7 @@ public:
    //! (non-NULL); the default value is zero.
    int owns_blocks;
 
-private:
+   private:
    //! Number of block rows/columns
    int nBlocks;
    //! Offsets for the starting position of each block
@@ -371,8 +371,8 @@ private:
    mutable Vector r;
    void ForwardPass(const Vector & x, Vector & y) const;
    void BackwardPass(const Vector & x, Vector & y) const;
-};
+   };
 
-}
+   }
 
-#endif /* MFEM_BLOCKOPERATOR */
+   #endif /* MFEM_BLOCKOPERATOR */
