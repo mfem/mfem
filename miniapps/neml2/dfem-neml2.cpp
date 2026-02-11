@@ -178,9 +178,7 @@ class NEML2MultigridPreconditionerFactory : public PetscPreconditionerFactory
    // Since all the operator construction currently happens in the constructor, let's just rebuild this every time for the moment. That definitely won't be optimal but for a liner constitutive model we only plan to construct this once anyway
    mfem::Solver *NewPreconditioner(const mfem::OperatorHandle &) override
    {
-      multigrid = std::make_unique<NEML2Multigrid>(fespaces, ess_bdr, cmodel,
-                                                   fine_solution);
-      return multigrid.get();
+      return new NEML2Multigrid(fespaces, ess_bdr, cmodel, fine_solution);
    }
 
    virtual ~NEML2MultigridPreconditionerFactory() = default;
