@@ -260,19 +260,39 @@ MFEM_HOST_DEVICE inline tensor<T,3,3> Invert3x3(const tensor<T,3,3> &A)
       a00*(a11*a22 - a12*a21)
       - a01*(a10*a22 - a12*a20)
       + a02*(a10*a21 - a11*a20);
+   const T inv_det = T(1.0) / det;
 
    tensor<T,3,3> inv;
-   inv(0,0) =  (a11*a22 - a12*a21) / det;
-   inv(0,1) =  (a02*a21 - a01*a22) / det;
-   inv(0,2) =  (a01*a12 - a02*a11) / det;
+   inv(0,0) =  (a11*a22 - a12*a21) * inv_det;
+   inv(0,1) =  (a02*a21 - a01*a22) * inv_det;
+   inv(0,2) =  (a01*a12 - a02*a11) * inv_det;
 
-   inv(1,0) =  (a12*a20 - a10*a22) / det;
-   inv(1,1) =  (a00*a22 - a02*a20) / det;
-   inv(1,2) =  (a02*a10 - a00*a12) / det;
+   inv(1,0) =  (a12*a20 - a10*a22) * inv_det;
+   inv(1,1) =  (a00*a22 - a02*a20) * inv_det;
+   inv(1,2) =  (a02*a10 - a00*a12) * inv_det;
 
-   inv(2,0) =  (a10*a21 - a11*a20) / det;
-   inv(2,1) =  (a01*a20 - a00*a21) / det;
-   inv(2,2) =  (a00*a11 - a01*a10) / det;
+   inv(2,0) =  (a10*a21 - a11*a20) * inv_det;
+   inv(2,1) =  (a01*a20 - a00*a21) * inv_det;
+   inv(2,2) =  (a00*a11 - a01*a10) * inv_det;
+
+   return inv;
+}
+
+template <typename T>
+MFEM_HOST_DEVICE inline tensor<T,2,2> Invert2x2(const tensor<T,2,2> &A)
+{
+   const T a00 = A(0,0), a01 = A(0,1);
+   const T a10 = A(1,0), a11 = A(1,1);
+
+   const T det = a00*a11 - a01*a10;
+   const T det_inv = T(1.0) / det;
+
+   tensor<T,2,2> inv;
+
+   inv(0,0) =  a11 * det_inv;
+   inv(0,1) = -a01 * det_inv;
+   inv(1,0) = -a10 * det_inv;
+   inv(1,1) =  a00 * det_inv;
 
    return inv;
 }
