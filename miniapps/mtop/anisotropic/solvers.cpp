@@ -33,15 +33,13 @@ template <int DIM=2, typename scalar_t=real_t> struct QFunction
 
       MFEM_HOST_DEVICE inline auto operator()(const matd_t &dudxi,
                                               const scalar_t s,
-                                              const scalar_t a, const  scalar_t b, 
+                                              const scalar_t a, const  scalar_t b,
                                               const real_t &L1, const real_t &M1,
                                               const real_t &L2, const real_t &M2,
                                               const matd_t &J,
                                               const real_t &w) const
       {
-         const matd_t JxW = 
-            mfem::future::transpose(mfem::future::inv(J)) * 
-                                                mfem::future::det(J) * w;
+         const matd_t JxW = mfem::future::adjugateT(J) * w;
          constexpr auto I = mfem::future::IsotropicIdentity<DIM>();
          const auto eps = mfem::future::sym(dudxi * mfem::future::inv(J));
 
@@ -64,11 +62,11 @@ template <int DIM=2, typename scalar_t=real_t> struct QFunction
          const auto asig=mfem::voigt::VoigtToStressTensor(sigv);
          //compute the anisotropic contribution
          auto stress=R*asig*mfem::future::transpose(R);
+         const auto L = L1*(1.0-pow(s,3))+L2*pow(s,3);
+         const auto M = M1*(1.0-pow(s,3))+M2*pow(s,3);
 
          //compute stress for the isotropic case
-         stress=stress+(L1 * mfem::future::tr(eps) * I + 2.0 * M1 * eps)*(1.0-pow(s,3))+
-                        (L2 * mfem::future::tr(eps) * I + 2.0 * M2 * eps)*pow(s,3);
-
+         stress=stress+(L * mfem::future::tr(eps) * I + 2.0 * M * eps);
 
          return tuple{stress * JxW};
       }
@@ -76,21 +74,21 @@ template <int DIM=2, typename scalar_t=real_t> struct QFunction
 };
 
 AnisoLinElasticSolver::AnisoLinElasticSolver(ParMesh *mesh, int vorder):
-    pmesh(mesh),
-    dim(mesh->Dimension()),
-    spaceDim(mesh->SpaceDimension()),
-    vfec(new H1_FECollection(vorder, dim)),
-    vfes(new ParFiniteElementSpace(pmesh, vfec, dim, Ordering::byNODES)),
-    sol(vfes->GetTrueVSize()),
-    adj(vfes->GetTrueVSize()),
-    rhs(vfes->GetTrueVSize()),
-    fdisp(vfes),
-    adisp(vfes),
-    fe(vfes->GetFE(0)),
-    nodes((pmesh->EnsureNodes(),
+   pmesh(mesh),
+   dim(mesh->Dimension()),
+   spaceDim(mesh->SpaceDimension()),
+   vfec(new H1_FECollection(vorder, dim)),
+   vfes(new ParFiniteElementSpace(pmesh, vfec, dim, Ordering::byNODES)),
+   sol(vfes->GetTrueVSize()),
+   adj(vfes->GetTrueVSize()),
+   rhs(vfes->GetTrueVSize()),
+   fdisp(vfes),
+   adisp(vfes),
+   fe(vfes->GetFE(0)),
+   nodes((pmesh->EnsureNodes(),
           static_cast<ParGridFunction *>(pmesh->GetNodes()))),
-    mfes(nodes->ParFESpace()),
-    ir(IntRules.Get(fe->GetGeomType(),
+   mfes(nodes->ParFESpace()),
+   ir(IntRules.Get(fe->GetGeomType(),
                    fe->GetOrder() + fe->GetOrder() + fe->GetDim() - 1))
 {
    sol = 0.0;
@@ -100,7 +98,7 @@ AnisoLinElasticSolver::AnisoLinElasticSolver(ParMesh *mesh, int vorder):
    fdisp = 0.0;
    adisp = 0.0;
 
-   SetLinearSolver();   
+   SetLinearSolver();
 
    Operator::width = vfes->GetTrueVSize();
    Operator::height = vfes->GetTrueVSize();
@@ -114,13 +112,12 @@ AnisoLinElasticSolver::AnisoLinElasticSolver(ParMesh *mesh, int vorder):
       domain_attributes = 1;
    }
 
-   //set the anisotrpic tensor 
-   if(2==dim)
+   //set the anisotrpic tensor
+   if (2==dim)
    {
       aniso_tensor.SetSize(6); //store upper diagonal
    }
-   else
-   if(3==dim)
+   else if (3==dim)
    {
       aniso_tensor.SetSize(21); //store upper diagonal
    }
@@ -129,16 +126,17 @@ AnisoLinElasticSolver::AnisoLinElasticSolver(ParMesh *mesh, int vorder):
 
    qs.reset(new QuadratureSpace(*pmesh,ir));
    ups.reset(new future::UniformParameterSpace(
-        *pmesh, ir, 1, false /* used_in_tensor_product */));
+                *pmesh, ir, 1, false /* used_in_tensor_product */));
 }
 
 AnisoLinElasticSolver::~AnisoLinElasticSolver()
 {
    delete vfes;
-   delete vfec;  
+   delete vfec;
 }
 
-void  AnisoLinElasticSolver::SetLinearSolver(real_t rtol, real_t atol, int miter)
+void  AnisoLinElasticSolver::SetLinearSolver(real_t rtol, real_t atol,
+                                             int miter)
 {
    linear_rtol = rtol;
    linear_atol = atol;
@@ -228,8 +226,8 @@ void AnisoLinElasticSolver::SetVolForce(VectorCoefficient &fv)
 
 
 void AnisoLinElasticSolver::SetEssTDofs(int j,
-                                      ParFiniteElementSpace& scalar_space,
-                                      Array<int> &ess_dofs)
+                                        ParFiniteElementSpace& scalar_space,
+                                        Array<int> &ess_dofs)
 {
    // Set the BC
    ess_dofs.DeleteAll();
@@ -348,7 +346,7 @@ void AnisoLinElasticSolver::Mult(const Vector &x, Vector &y) const
 }
 
 void AnisoLinElasticSolver::MultTranspose(const Vector &x,
-                                        Vector &y) const
+                                          Vector &y) const
 {
 
 }
@@ -357,43 +355,45 @@ void AnisoLinElasticSolver::Assemble()
 {
    // define the differentiable operator
    drhs = std::make_unique<mfem::future::DifferentiableOperator>(
-            std::vector<mfem::future::FieldDescriptor> {{ FDispl, vfes }},
-            std::vector<mfem::future::FieldDescriptor>
-            {
-               { Density, ups.get()},
-               { DensA, ups.get()},
-               { DensB, ups.get()},
-               { Lambda1, ups.get()},
-               { Mu1, ups.get()},
-               { Lambda2, ups.get()},
-               { Mu2, ups.get()},
-               { Coords, mfes }
-            },
-            *pmesh);
+   std::vector<mfem::future::FieldDescriptor> {{ FDispl, vfes }},
+   std::vector<mfem::future::FieldDescriptor>
+   {
+      { Density, ups.get()},
+      { DensA, ups.get()},
+      { DensB, ups.get()},
+      { Lambda1, ups.get()},
+      { Mu1, ups.get()},
+      { Lambda2, ups.get()},
+      { Mu2, ups.get()},
+      { Coords, mfes }
+   },
+   *pmesh);
 
-   //dfem_mass_op->SetParameters({ dens1.get(), dens2.get(), density.get(), nodes });       
-   //drhs->SetParameters({});         
+   //dfem_mass_op->SetParameters({ dens1.get(), dens2.get(), density.get(), nodes });
+   //drhs->SetParameters({});
 
    const auto finputs =
-            mfem::future::tuple{
-                mfem::future::Gradient<FDispl>{},
-                mfem::future::Identity<Density>{},
-                mfem::future::Identity<DensA>{},
-                mfem::future::Identity<DensB>{},
-                mfem::future::Identity<Lambda1>{},
-                mfem::future::Identity<Mu1>{},
-                mfem::future::Identity<Lambda2>{},
-                mfem::future::Identity<Mu2>{},
-                mfem::future::Gradient<Coords>{},
-                mfem::future::Weight{}
-            };
+      mfem::future::tuple
+   {
+      mfem::future::Gradient<FDispl>{},
+      mfem::future::Identity<Density>{},
+      mfem::future::Identity<DensA>{},
+      mfem::future::Identity<DensB>{},
+      mfem::future::Identity<Lambda1>{},
+      mfem::future::Identity<Mu1>{},
+      mfem::future::Identity<Lambda2>{},
+      mfem::future::Identity<Mu2>{},
+      mfem::future::Gradient<Coords>{},
+      mfem::future::Weight{}
+   };
 
 
    const auto foutputs =
-            mfem::future::tuple{
-                mfem::future::Gradient<FDispl>{}
-            };
-   
+      mfem::future::tuple
+   {
+      mfem::future::Gradient<FDispl>{}
+   };
+
    auto derivatives = std::integer_sequence<size_t, FDispl> {};
 
    if (2 == spaceDim)
@@ -403,7 +403,7 @@ void AnisoLinElasticSolver::Assemble()
 
       typename QFunction<2, dual_t>::Elasticity elasticity_func(aniso_tensor);
       drhs->AddDomainIntegrator(elasticity_func, finputs, foutputs, ir,
-                                  domain_attributes, derivatives);
+                                domain_attributes, derivatives);
    }
 
    /*
@@ -412,8 +412,8 @@ void AnisoLinElasticSolver::Assemble()
                         lambda2.get(),mu2.get(),
                         nodes});
    */
- 
-   fdisp=0.0;                        
+
+   fdisp=0.0;
 
    /*
    dr_du=drhs->GetDerivative(FDispl,{&fdisp},
@@ -422,11 +422,11 @@ void AnisoLinElasticSolver::Assemble()
                         lambda2.get(),mu2.get(),
                         nodes});
    */
-   
+
    //dr_du->Assemble(K);
-   
+
    //set BC to the matrix
-   
+
 }
 
 

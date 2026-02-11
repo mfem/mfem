@@ -1843,6 +1843,123 @@ dual<value_type, gradient_type> inv(
    });
 }
 
+// -----------------------------------------------------------------------------
+// 1x1 Adjugate
+// -----------------------------------------------------------------------------
+/**
+ * @brief Computes the adjugate of a 1x1 matrix (Identity)
+ */
+template <typename T>
+inline MFEM_HOST_DEVICE tensor<T, 1, 1> adjugate(const tensor<T, 1, 1>& A)
+{
+   // The cofactor of a 1x1 scalar is 1.0
+   return tensor<T, 1, 1> {{{T{1.0}}}};
+}
+
+/**
+ * @brief Computes the transpose of the adjugate of a 1x1 matrix
+ */
+template <typename T>
+inline MFEM_HOST_DEVICE tensor<T, 1, 1> adjugateT(const tensor<T, 1, 1>& A)
+{
+   return tensor<T, 1, 1> {{{T{1.0}}}};
+}
+
+// -----------------------------------------------------------------------------
+// 2x2 Adjugate
+// -----------------------------------------------------------------------------
+/**
+ * @brief Computes the adjugate of a 2x2 matrix
+ * @return [ d  -b ]
+ * [ -c  a ]
+ */
+template <typename T>
+inline MFEM_HOST_DEVICE tensor<T, 2, 2> adjugate(const tensor<T, 2, 2>& A)
+{
+   tensor<T, 2, 2> adjA{};
+
+   adjA[0][0] =  A[1][1];
+   adjA[0][1] = -A[0][1];
+   adjA[1][0] = -A[1][0];
+   adjA[1][1] =  A[0][0];
+
+   return adjA;
+}
+
+/**
+ * @brief Computes the transpose of the adjugate of a 2x2 matrix
+ * @return [ d  -c ]
+ * [ -b  a ]
+ */
+template <typename T>
+inline MFEM_HOST_DEVICE tensor<T, 2, 2> adjugateT(const tensor<T, 2, 2>& A)
+{
+   tensor<T, 2, 2> adjT{};
+
+   adjT[0][0] =  A[1][1];
+   adjT[0][1] = -A[1][0]; // Swapped index relative to adjugate
+   adjT[1][0] = -A[0][1]; // Swapped index relative to adjugate
+   adjT[1][1] =  A[0][0];
+
+   return adjT;
+}
+
+// -----------------------------------------------------------------------------
+// 3x3 Adjugate
+// -----------------------------------------------------------------------------
+/**
+ * @brief Computes the adjugate of a 3x3 matrix
+ */
+template <typename T>
+inline MFEM_HOST_DEVICE tensor<T, 3, 3> adjugate(const tensor<T, 3, 3>& A)
+{
+   tensor<T, 3, 3> adjA{};
+
+   // Same logic as inv() but without multiplying by inv_detA
+   adjA[0][0] = (A[1][1] * A[2][2] - A[1][2] * A[2][1]);
+   adjA[0][1] = (A[0][2] * A[2][1] - A[0][1] * A[2][2]);
+   adjA[0][2] = (A[0][1] * A[1][2] - A[0][2] * A[1][1]);
+
+   adjA[1][0] = (A[1][2] * A[2][0] - A[1][0] * A[2][2]);
+   adjA[1][1] = (A[0][0] * A[2][2] - A[0][2] * A[2][0]);
+   adjA[1][2] = (A[0][2] * A[1][0] - A[0][0] * A[1][2]);
+
+   adjA[2][0] = (A[1][0] * A[2][1] - A[1][1] * A[2][0]);
+   adjA[2][1] = (A[0][1] * A[2][0] - A[0][0] * A[2][1]);
+   adjA[2][2] = (A[0][0] * A[1][1] - A[0][1] * A[1][0]);
+
+   return adjA;
+}
+
+/**
+ * @brief Computes the transpose of the adjugate of a 3x3 matrix (Cofactor Matrix)
+ * @note Equivalent to det(A) * transpose(inv(A))
+ */
+template <typename T>
+inline MFEM_HOST_DEVICE tensor<T, 3, 3> adjugateT(const tensor<T, 3, 3>& A)
+{
+   tensor<T, 3, 3> adjT{};
+
+   // Transpose of the adjugate (swapping [i][j] assignments from above)
+
+   // Row 0 of output (Column 0 of adjugate)
+   adjT[0][0] = (A[1][1] * A[2][2] - A[1][2] * A[2][1]);
+   adjT[0][1] = (A[1][2] * A[2][0] - A[1][0] * A[2][2]);
+   adjT[0][2] = (A[1][0] * A[2][1] - A[1][1] * A[2][0]);
+
+   // Row 1 of output (Column 1 of adjugate)
+   adjT[1][0] = (A[0][2] * A[2][1] - A[0][1] * A[2][2]);
+   adjT[1][1] = (A[0][0] * A[2][2] - A[0][2] * A[2][0]);
+   adjT[1][2] = (A[0][1] * A[2][0] - A[0][0] * A[2][1]);
+
+   // Row 2 of output (Column 2 of adjugate)
+   adjT[2][0] = (A[0][1] * A[1][2] - A[0][2] * A[1][1]);
+   adjT[2][1] = (A[0][2] * A[1][0] - A[0][0] * A[1][2]);
+   adjT[2][2] = (A[0][0] * A[1][1] - A[0][1] * A[1][0]);
+
+   return adjT;
+}
+
 /**
  * @brief recursively serialize the entries in a tensor to an output stream.
  * Output format uses braces and comma separators to mimic C syntax for multidimensional array
