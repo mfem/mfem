@@ -60,8 +60,14 @@ MAXWELL_OBJ = $(MAXWELL_SRC:.cpp=.o)
 PMAXWELL_SRC = pmaxwell.cpp $(DPG_COMPLEX_PAR_SRC)
 PMAXWELL_OBJ = $(PMAXWELL_SRC:.cpp=.o)
 
+PMAXWELL_V_SRC = pmaxwell-verify.cpp $(DPG_COMPLEX_PAR_SRC)
+PMAXWELL_V_OBJ = $(PMAXWELL_V_SRC:.cpp=.o)
+
 PMAXWELL_PRIMAL_SRC = pmaxwell-primal.cpp $(DPG_COMPLEX_PAR_SRC)
 PMAXWELL_PRIMAL_OBJ = $(PMAXWELL_PRIMAL_SRC:.cpp=.o)
+
+PMAXWELL_FEM_SRC = pmaxwell-fem.cpp $(DPG_COMPLEX_PAR_SRC)
+PMAXWELL_FEM_OBJ = $(PMAXWELL_FEM_SRC:.cpp=.o)
 
 PMAXWELL_UW_COUPLED_SRC = pmaxwell-coupled.cpp $(DPG_COMPLEX_PAR_SRC)
 PMAXWELL_UW_COUPLED_OBJ = $(PMAXWELL_UW_COUPLED_SRC:.cpp=.o)
@@ -70,9 +76,9 @@ PMAXWELL_FEM_COUPLED_SRC = pmaxwell-coupled-fem.cpp $(DPG_COMPLEX_PAR_SRC)
 PMAXWELL_FEM_COUPLED_OBJ = $(PMAXWELL_FEM_COUPLED_SRC:.cpp=.o)
 
 SEQ_MINIAPPS = diffusion convection-diffusion acoustics maxwell
-PAR_MINIAPPS = pdiffusion pconvection-diffusion pacoustics pmaxwell  \
+PAR_MINIAPPS = pdiffusion pconvection-diffusion pacoustics pmaxwell pmaxwell-verify  \
  pacoustics-primal pmaxwell-primal pdiffusion-primal pvectordiffusion-primal \
- pmaxwell-coupled pmaxwell-coupled-fem 
+ pmaxwell-coupled pmaxwell-coupled-fem pmaxwell-fem
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -132,6 +138,13 @@ pacoustics-primal: $(PACOUSTICS_PRIMAL_OBJ)
 
 pmaxwell: $(PMAXWELL_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PMAXWELL_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
+pmaxwell-fem: $(PMAXWELL_FEM_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PMAXWELL_FEM_OBJ) $(COMMON_LIB) $(MFEM_LIBS)	
+
+pmaxwell-verify: $(PMAXWELL_V_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PMAXWELL_V_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
 
 pmaxwell-primal: $(PMAXWELL_PRIMAL_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PMAXWELL_PRIMAL_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
