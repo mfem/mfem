@@ -412,7 +412,7 @@ void AnisoLinElasticSolver::Assemble()
       using mfem::future::dual;
       using dual_t = dual<real_t, real_t>;
 
-      typename QFunction<2, dual_t>::Elasticity elasticity_func(aniso_tensor);
+      QFunction<2, dual_t>::Elasticity elasticity_func(aniso_tensor, 4);
       drhs->AddDomainIntegrator(elasticity_func, finputs, foutputs, ir,
                                 domain_attributes, derivatives);
    }
