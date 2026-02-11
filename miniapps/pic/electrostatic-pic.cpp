@@ -170,7 +170,7 @@ private:
    socketstream vis_phi;
 
 public:
-   FieldSolver(ParFiniteElementSpace* sca_fes, ParFiniteElementSpace* vec_fes,
+   FieldSolver(ParFiniteElementSpace* phi_fes, ParFiniteElementSpace* E_fes,
                FindPointsGSLIB& E_finder_,
                int visport_, bool visualization_,
                bool precompute_neutralizing_const_ = false);
@@ -520,8 +520,8 @@ real_t ParticleMover::ComputeKineticEnergy() const
    return kinetic_energy;
 }
 
-FieldSolver::FieldSolver(ParFiniteElementSpace* sca_fes,
-                         ParFiniteElementSpace* vec_fes,
+FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
+                         ParFiniteElementSpace* E_fes,
                          FindPointsGSLIB& E_finder_,
                          int visport_, bool visualization_,
                          bool precompute_neutralizing_const_)
@@ -531,18 +531,18 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* sca_fes,
      visualization(visualization_)
 {
    // compute domain volume
-   ParMesh* pmesh = sca_fes->GetParMesh();
+   ParMesh* pmesh = phi_fes->GetParMesh();
    real_t local_domain_volume = 0.0;
    for (int i = 0; i < pmesh->GetNE(); i++)
    {
       local_domain_volume += pmesh->GetElementVolume(i);
    }
    MPI_Allreduce(&local_domain_volume, &domain_volume, 1, MPI_DOUBLE,
-                 MPI_SUM, sca_fes->GetParMesh()->GetComm());
+                 MPI_SUM, phi_fes->GetParMesh()->GetComm());
 
    {
       // Par bilinear form for the gradgrad matrix
-      ParBilinearForm dm(sca_fes);
+      ParBilinearForm dm(phi_fes);
       ConstantCoefficient epsilon(EPSILON);  // ε_0
       dm.AddDomainIntegrator(
          new DiffusionIntegrator(epsilon));  // ∫ ∇φ_i · ∇φ_j
@@ -555,7 +555,7 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* sca_fes,
 
    {
       // Compute E = -∇φ using DiscreteLinearOperator
-      grad_interpolator = new ParDiscreteLinearOperator(sca_fes, vec_fes);
+      grad_interpolator = new ParDiscreteLinearOperator(phi_fes, E_fes);
       grad_interpolator->AddDomainInterpolator(new GradientInterpolator);
       grad_interpolator->Assemble();
    }
