@@ -775,7 +775,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
                                          *muCoef_);
 
    // Impedance of free space
-   /*
+
    if ( abcs.Size() > 0 )
    {
       if ( myid_ == 0 && logging_ > 0 )
@@ -806,7 +806,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
       abcCoef_ = new TransformedCoefficient(negOmegaCoef_, etaCoef_,
                                             prodFunc);
    }
-   */
+
    // Volume Current Density
    if ( j_r_src_ != NULL )
    {
