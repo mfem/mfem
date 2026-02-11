@@ -4854,10 +4854,12 @@ void TMOP_Integrator::AssembleElemVecAdaptLim(const FiniteElement &el,
    {
       const IntegrationPoint &ip = ir.IntPoint(q);
       el.CalcShape(ip, shape);
+
       adapt_lim_gf_grad_e.MultTranspose(shape, adapt_lim_gf_grad_q);
       adapt_lim_gf_grad_q *= 2.0 * (adapt_lim_gf_q(q) - adapt_lim_gf0_q(q)) /
                              adapt_lim_delta_max / adapt_lim_delta_max;
       adapt_lim_gf_grad_q *= weights(q) * lim_normal * adapt_lim_coeff->Eval(Tpr, ip);
+
       AddMultVWt(shape, adapt_lim_gf_grad_q, mat);
    }
 }

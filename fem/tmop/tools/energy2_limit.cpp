@@ -190,7 +190,7 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_AdaptLim_2D(const Vector &x) const
 {
    const real_t ln = lim_normal;
    const real_t delta_max = PA.al_delta;
-   const int NE = PA.ne, d = PA.maps_alim->ndof, q = PA.maps_alim->nqpt;
+   const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
 
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
@@ -200,14 +200,16 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_AdaptLim_2D(const Vector &x) const
                     ? Reshape(PA.ALC.Read(), 1, 1, 1)
                     : Reshape(PA.ALC.Read(), q, q, NE);
    const auto J = Reshape(PA.Jtr.Read(), 2, 2, q, q, NE);
-   const auto *b = PA.maps_alim->B.Read();
+   const auto *b = PA.maps->B.Read();
    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q);
    const auto ALF = Reshape(PA.ALF.Read(), d, d, NE);
    const auto ALF0 = Reshape(PA.ALF0.Read(), d, d, NE);
    auto E = Reshape(PA.E.Write(), q, q, NE);
 
+
    TMOPEnergyAdaptLim2D::Run(d, q, ln, delta_max, const_coeff, ALC, NE, J, W, b,
                              ALF, ALF0, E, d, q);
+
    return PA.E * PA.O;
 }
 

@@ -46,12 +46,14 @@ void TMOP_Integrator::AssembleGradPA(const Vector &de,
    {
       AssembleGradPA_2D(xe);
       if (lim_coeff) { AssembleGradPA_C0_2D(xe); }
+      if (adapt_lim_gf) { AssembleGradPA_AdaptLim_2D(xe); }
    }
 
    if (PA.dim == 3)
    {
       AssembleGradPA_3D(xe);
       if (lim_coeff) { AssembleGradPA_C0_3D(xe); }
+      // if (adapt_lim_gf) { AssembleGradPA_AdaptLim_3D(xe); }
    }
 }
 
@@ -329,6 +331,12 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 
 void TMOP_Integrator::AssemblePA_AdaptLim()
 {
+   const FiniteElementSpace *alfes = adapt_lim_gf->FESpace();
+
+   MFEM_VERIFY(strcmp(alfes->FEColl()->Name(), PA.fes->FEColl()->Name()) == 0 &&
+               alfes->FEColl()->GetOrder() == PA.fes->FEColl()->GetOrder(),
+               "The PA code assumes the same FE spaces for mesh and limiting.");
+
    // adapt_lim_coeff -> PA.ALC (Q-vector).
    PA.ALC.UseDevice(true);
    if (auto *cQ = dynamic_cast<ConstantCoefficient *>(adapt_lim_coeff))
@@ -353,27 +361,34 @@ void TMOP_Integrator::AssemblePA_AdaptLim()
 
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
 
-   const FiniteElementSpace *alfes = adapt_lim_gf->FESpace();
-   const IntegrationRule *ir = &alfes->GetTypicalFE()->GetNodes();
-   // We get the maps at the nodes - needed for the gradient projection.
-   PA.maps_alim = &alfes->GetTypicalFE()->GetDofToQuad(*ir, DofToQuad::TENSOR);
+   const FiniteElement *fe_n = PA.fes->GetTypicalFE();
+   PA.maps_nodes = &fe_n->GetDofToQuad(fe_n->GetNodes(), DofToQuad::TENSOR);
 
    // adapt_lim_gf -> PA.ALF (E-vector, same pattern as LD)
-   const FiniteElement &alf_fe = *alfes->GetTypicalFE();
-   PA.ALF.SetSize(PA.ne * alf_fe.GetDof(), Device::GetMemoryType());
+   const FiniteElement &fe = *alfes->GetTypicalFE();
+   PA.ALF.SetSize(PA.ne * fe.GetDof(), Device::GetMemoryType());
    PA.ALF.UseDevice(true);
    const Operator *alf_R = alfes->GetElementRestriction(ordering);
    alf_R->Mult(*adapt_lim_gf, PA.ALF);
 
    // adapt_lim_gf0 -> PA.ALF0 (E-vector, same pattern as LD)
    const FiniteElementSpace *alf0es = adapt_lim_gf0->FESpace();
-   PA.ALF0.SetSize(PA.ne * alf_fe.GetDof(), Device::GetMemoryType());
+   PA.ALF0.SetSize(PA.ne * fe.GetDof(), Device::GetMemoryType());
    PA.ALF0.UseDevice(true);
    const Operator *alf0_R = alf0es->GetElementRestriction(ordering);
    alf0_R->Mult(*adapt_lim_gf0, PA.ALF0);
 
    // adapt_lim_delta_max -> PA.al_delta.
    PA.al_delta = adapt_lim_delta_max;
+
+   // Allocate storage for gradient and Hessian of ALF at quadrature points
+   // These will be filled during AssembleGradPA
+   const int dim = PA.dim;
+   PA.ALFG.UseDevice(true);
+   PA.ALFG.SetSize(dim * PA.nq * PA.ne, Device::GetMemoryType());
+   PA.ALFH.UseDevice(true);
+   PA.ALFH.SetSize(dim * dim * PA.nq * PA.ne, Device::GetMemoryType());
+
 }
 
 void TMOP_Integrator::AssembleGradDiagonalPA(Vector &de) const
@@ -453,6 +468,7 @@ void TMOP_Integrator::AddMultGradPA(const Vector &re, Vector &ce) const
    {
       AddMultGradPA_2D(re, ce);
       if (lim_coeff) { AddMultGradPA_C0_2D(re, ce); }
+      if (adapt_lim_gf) { AddMultGradPA_AdaptLim_2D(re, ce); }
    }
 
    if (PA.dim == 3)

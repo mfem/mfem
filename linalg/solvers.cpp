@@ -2106,8 +2106,6 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          mfem::out << '\n';
       }
 
-      MFEM_ABORT("tmop");
-
       if (Monitor(it, norm, r, x) || norm <= norm_goal)
       {
          converged = true;

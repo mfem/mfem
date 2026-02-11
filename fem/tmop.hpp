@@ -2117,6 +2117,10 @@ protected:
    //       Remapped when the mesh nodes change.
    // ALF0: E-Vector constructed using the initial adaptive limiting GF.
    //       Does not change during the TMOP iteration.
+   // ALFG: Q-Vector for gradient of ALF at quadrature points.
+   //       Updated by every call to PANonlinearFormExtension::GetGradient().
+   // ALFH: Q-Vector for Hessian of ALF at quadrature points.
+   //       Updated by every call to PANonlinearFormExtension::GetGradient().
    //
    // maps:      Dof2Quad map for fes associated with the nodal coordinates.
    // maps_lim:  Dof2Quad map for fes associated with the limiting dist GF.
@@ -2139,11 +2143,12 @@ protected:
       mutable DenseTensor Jtr;
       mutable bool Jtr_needs_update;
       mutable bool Jtr_debug_grad;
-      mutable Vector E, O, X0, XL, H, C0, LD, H0, MC, ALC, ALF, ALF0;
+      mutable Vector E, O, X0, XL, H, C0, LD, H0, MC, ALC,
+                     ALF, ALF0, ALFG, ALFH;
       real_t al_delta;
       const DofToQuad *maps;
       const DofToQuad *maps_lim = nullptr;
-      const DofToQuad *maps_alim = nullptr;
+      const DofToQuad *maps_nodes = nullptr;
       const GeometricFactors *geom;
       const FiniteElementSpace *fes;
       const IntegrationRule *ir;
@@ -2231,7 +2236,7 @@ protected:
    void AssembleGradPA_3D(const Vector&) const;
    void AssembleGradPA_C0_2D(const Vector&) const;
    void AssembleGradPA_C0_3D(const Vector&) const;
-   // void AssembleGradPA_AdaptLim_2D(const Vector&) const;
+   void AssembleGradPA_AdaptLim_2D(const Vector&) const;
    // void AssembleGradPA_AdaptLim_3D(const Vector&) const;
 
    void GetLocalStateEnergyPA_2D(const Vector &x, real_t &energy) const;
@@ -2258,7 +2263,7 @@ protected:
    void AddMultGradPA_3D(const Vector&, Vector&) const;
    void AddMultGradPA_C0_2D(const Vector&, Vector&) const;
    void AddMultGradPA_C0_3D(const Vector&, Vector&) const;
-   // void AddMultGradPA_AdaptLim_2D(const Vector&, Vector&) const;
+   void AddMultGradPA_AdaptLim_2D(const Vector&, Vector&) const;
    // void AddMultGradPA_AdaptLim_3D(const Vector&, Vector&) const;
 
    void AssembleDiagonalPA_2D(Vector&) const;
