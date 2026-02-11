@@ -182,11 +182,11 @@ template<int DIM, int T_D1D, int T_Q1D>
 VectorMassIntegrator::VectorMassAddMultPAType
 VectorMassIntegrator::VectorMassAddMultPA::Kernel()
 {
-   if (DIM == 2)
+   if constexpr (DIM == 2)
    {
       return internal::SmemPAVectorMassApply2D<T_D1D,T_Q1D>;
    }
-   else if (DIM == 3)
+   else if constexpr (DIM == 3)
    {
       return internal::SmemPAVectorMassApply3D<T_D1D, T_Q1D>;
    }
