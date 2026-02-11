@@ -752,7 +752,6 @@ real_t FieldSolver::ComputeFieldEnergy(const ParGridFunction& E_gf) const
 
    real_t field_energy = 0.0;
 
-   // IMPORTANT: ND/RT use VectorFiniteElement even if fes->GetVDim() == 1
    if (fes->GetFE(0)->GetRangeType() == FiniteElement::VECTOR)
    {
       Vector zero(pmesh->Dimension());
