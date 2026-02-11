@@ -637,7 +637,8 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet &particles,
 
       MPI_Comm comm = pfes->GetComm();
 
-      if (!precompute_neutralizing_const || precomputed_neutralizing_lf == nullptr)
+      if (!precompute_neutralizing_const || 
+         precomputed_neutralizing_lf == nullptr)
       {
          // compute neutralizing constant
          real_t local_sum = 0.0;
@@ -684,8 +685,8 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet &particles,
       // 3) Deposit q_p * phi_i(x_p) into a ParLinearForm (RHS b)
       //      b_i = sum_p q_p * φ_i(x_p)
       // --------------------------------------------------------
-      int myid;
-      MPI_Comm_rank(pmesh->GetComm(), &myid);
+      int curr_rank;
+      MPI_Comm_rank(pmesh->GetComm(), &curr_rank);
 
       Array<int> dofs;
 
@@ -698,12 +699,12 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet &particles,
          }
 
          // Raise error if particle is not on the current rank
-         if ((int)proc[p] != myid)
+         if ((int)proc[p] != curr_rank)
          {
             // raise error
             MFEM_ABORT("Particle "
                        << p << " found in element owned by rank " << proc[p]
-                       << " but current rank is " << myid << "." << endl
+                       << " but current rank is " << curr_rank << "." << endl
                        << "You must call redistribute everytime before "
                           "updating the density grid function.");
          }
