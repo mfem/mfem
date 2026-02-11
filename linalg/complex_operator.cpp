@@ -1006,9 +1006,6 @@ void ComplexMUMPSSolver::SetOperator(const Operator &op)
                                           parcsr_op_r->global_num_rows
                                           : parcsr_op_i->global_num_rows));
 
-   // CSR row pointers; if part missing, use empty rows
-   static const int zero = 0;
-
    // Use nullptr checks
    const int *Ir = csr_op_r ? csr_op_r->i : nullptr;
    const int *Jr = csr_op_r ? csr_op_r->j : nullptr;

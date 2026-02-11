@@ -25,7 +25,7 @@ Meshing improvements
 Linear and nonlinear solvers
 ----------------------------
 - Added interface to MUMPS direct solver for complex-valued problems.
-  Its usage is demonstrated in ex25p.See http://mumps.enseeiht.fr/ for more details.
+  Its usage is demonstrated in ex25p. See http://mumps.enseeiht.fr/ for more details.
   Supported versions >= 5.1.1.
 
 New and updated examples and miniapps

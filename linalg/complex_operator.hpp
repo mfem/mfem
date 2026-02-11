@@ -315,7 +315,7 @@ public:
    /// Specify the reordering strategy
    enum ReorderingStrategy
    {
-      /// Let MUMPS automatically decide the reording strategy
+      /// Let MUMPS automatically decide the reordering strategy
       AUTOMATIC = 0,
       /// Approximate Minimum Degree with auto quasi-dense row detection is used
       AMD,
@@ -391,8 +391,8 @@ public:
     * - 0:  No output printed
     * - 1:  Only errors printed
     * - 2:  Errors, warnings, and main stats printed
-    * - 3:  Errors, warning, main stats, and terse diagnostics printed
-    * - 4:  Errors, warning, main stats, diagnostics, and input/output printed
+    * - 3:  Errors, warnings, main stats, and terse diagnostics printed
+    * - 4:  Errors, warnings, main stats, diagnostics, and input/output printed
     *
     * @param print_lvl Print level, default is 2
     *
@@ -480,7 +480,7 @@ private:
    }
 
    /// Method for building the COO format of the combined complex operator
-   /// from the real and imaginary parts. This is particularly usefull when
+   /// from the real and imaginary parts. This is particularly useful when
    /// real and imaginary parts have different sparsity patterns.
    void BuildUnionCOO(const int n_loc,
                       const int row_start,
