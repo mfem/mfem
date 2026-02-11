@@ -730,7 +730,8 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet &particles,
       }
 
       // Assemble to a global true-dof RHS vector compatible with MassMatrix
-      HypreParVector *B = b.ParallelAssemble(); // owns new vector on heap
+      HypreParVector B(pfes);
+      b.ParallelAssemble(B);
 
       // ------------------------------------------------------------------
       // 4) Solve A * phi = B with zero-mean enforcement via OrthoSolver
@@ -751,11 +752,10 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet &particles,
 
       OrthoSolver ortho(comm);
       ortho.SetSolver(solver);
-      ortho.Mult(*B, Phi_true);
+      ortho.Mult(B, Phi_true);
 
       // Map true-dof solution back to the ParGridFunction
       phi_gf.Distribute(Phi_true);
-      delete B;
    }
 
    {
