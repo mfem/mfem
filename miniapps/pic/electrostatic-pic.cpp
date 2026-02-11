@@ -163,6 +163,22 @@ private:
    ParDiscreteLinearOperator *grad_interpolator;
    FindPointsGSLIB &E_finder;
 
+protected:
+   /** Compute neutralizing constant and initialize RHS with neutralizing contribution.
+       Returns a reference to the precomputed neutralizing ParLinearForm. */
+   const ParLinearForm &ComputeNeutralizingRHS(ParFiniteElementSpace *pfes,
+                                               const ParticleVector &Q,
+                                               int npt,
+                                               MPI_Comm comm);
+
+   /** Deposit charge from particles into a ParLinearForm (RHS b).
+       b_i = sum_p q_p * φ_i(x_p) */
+   void DepositCharge(ParFiniteElementSpace *pfes,
+                      const ParticleVector &Q,
+                      int npt,
+                      int dim,
+                      ParLinearForm &b);
+
 public:
    FieldSolver(ParFiniteElementSpace *phi_fes, ParFiniteElementSpace *E_fes,
                FindPointsGSLIB &E_finder_,
@@ -601,6 +617,114 @@ FieldSolver::~FieldSolver()
    delete grad_interpolator;
 }
 
+const ParLinearForm &FieldSolver::ComputeNeutralizingRHS(ParFiniteElementSpace *pfes,
+                                                         const ParticleVector &Q,
+                                                         int npt,
+                                                         MPI_Comm comm)
+{
+   // Get E_finder references
+   const Array<unsigned int> &code = E_finder.GetCode();
+
+   if (!precompute_neutralizing_const ||
+       precomputed_neutralizing_lf == nullptr)
+   {
+      // compute neutralizing constant
+      real_t local_sum = 0.0;
+      for (int p = 0; p < npt; ++p)
+      {
+         // Skip particles not successfully found
+         if (code[p] == 2) // not found
+         {
+            MFEM_ABORT("Particle " << p << " not found.");
+         }
+         local_sum += Q(p);
+      }
+
+      real_t global_sum = 0.0;
+      MPI_Allreduce(&local_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, comm);
+
+      neutralizing_const = -global_sum / domain_volume;
+      if (Mpi::Root())
+      {
+         cout << "Total charge: " << global_sum
+              << ", Domain volume: " << domain_volume
+              << ", Neutralizing constant: " << neutralizing_const << endl;
+         if (precompute_neutralizing_const)
+         {
+            cout << "Further updates will use this precomputed neutralizing "
+                    "constant."
+                 << endl;
+         }
+      }
+      delete precomputed_neutralizing_lf;
+      precomputed_neutralizing_lf = new ParLinearForm(pfes);
+      *precomputed_neutralizing_lf = 0.0;
+      ConstantCoefficient neutralizing_coeff(neutralizing_const);
+      precomputed_neutralizing_lf->AddDomainIntegrator(
+          new DomainLFIntegrator(neutralizing_coeff));
+      precomputed_neutralizing_lf->Assemble();
+   }
+   return *precomputed_neutralizing_lf;
+}
+
+void FieldSolver::DepositCharge(ParFiniteElementSpace *pfes,
+                                const ParticleVector &Q,
+                                int npt,
+                                int dim,
+                                ParLinearForm &b)
+{
+   // Get E_finder references
+   // 0: inside, 1: boundary, 2: not found
+   const Array<unsigned int> &code = E_finder.GetCode();
+   const Array<unsigned int> &proc = E_finder.GetProc(); // owning MPI rank
+   const Array<unsigned int> &elem = E_finder.GetElem(); // local element id
+   const Vector &rref = E_finder.GetReferencePosition(); // (r,s,t) byVDIM
+
+   ParMesh *pmesh = pfes->GetParMesh();
+   int curr_rank;
+   MPI_Comm_rank(pmesh->GetComm(), &curr_rank);
+
+   Array<int> dofs;
+
+   for (int p = 0; p < npt; ++p)
+   {
+      // Skip particles not successfully found
+      if (code[p] == 2) // not found
+      {
+         MFEM_ABORT("Particle " << p << " not found.");
+      }
+
+      // Raise error if particle is not on the current rank
+      if ((int)proc[p] != curr_rank)
+      {
+         // raise error
+         MFEM_ABORT("Particle "
+                    << p << " found in element owned by rank " << proc[p]
+                    << " but current rank is " << curr_rank << "." << endl
+                    << "You must call redistribute everytime before "
+                       "updating the density grid function.");
+      }
+      const int e = elem[p];
+
+      // Reference coordinates for this particle (r,s[,t]) with byVDIM layout
+      IntegrationPoint ip;
+      ip.Set(rref.GetData() + dim * p, dim);
+
+      const FiniteElement &fe = *pfes->GetFE(e);
+      const int ldofs = fe.GetDof();
+
+      Vector shape(ldofs);
+      fe.CalcShape(ip, shape); // φ_i(x_p) in this element
+
+      pfes->GetElementDofs(e, dofs); // local dof indices
+
+      const real_t q_p = Q(p);
+
+      // Add q_p * φ_i(x_p) to b_i
+      b.AddElementVector(dofs, q_p, shape);
+   }
+}
+
 void FieldSolver::UpdatePhiGridFunction(ParticleSet &particles,
                                         ParGridFunction &phi_gf,
                                         ParGridFunction &E_gf)
@@ -611,122 +735,23 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet &particles,
       ParMesh *pmesh = pfes->GetParMesh();
       const int dim = pmesh->Dimension();
 
-      // Particle data: X - coordinates (dim x npt), Q - charges (1 x npt)
-      ParticleVector &X = particles.Coords();
+      // Particle data: Q - charges (npt x 1)
       ParticleVector &Q = particles.Field(ParticleMover::CHARGE);
 
       const int npt = particles.GetNParticles();
-      MFEM_VERIFY(X.GetVDim() == dim,
-                  "Unexpected particle coordinate layout.");
-
-      MFEM_VERIFY(Q.GetVDim() == 1,
-                  "Charge field must be scalar per particle.");
-      // --------------------------------------------------------
-      // 1) Locate particles with FindPointsGSLIB
-      // --------------------------------------------------------
-      // 0: inside, 1: boundary, 2: not found
-      const Array<unsigned int> &code =
-          E_finder.GetCode();
-      const Array<unsigned int> &proc = E_finder.GetProc(); // owning MPI rank
-      const Array<unsigned int> &elem = E_finder.GetElem(); // local element id
-      const Vector &rref = E_finder.GetReferencePosition(); // (r,s,t) byVDIM
 
       // --------------------------------------------------------
-      // 2) Make RHS and pre-subtract averaged charge density for zero-mean RHS
+      // 1) Make RHS and pre-subtract averaged charge density for zero-mean RHS
       // --------------------------------------------------------
-
       MPI_Comm comm = pfes->GetComm();
-
-      if (!precompute_neutralizing_const ||
-          precomputed_neutralizing_lf == nullptr)
-      {
-         // compute neutralizing constant
-         real_t local_sum = 0.0;
-         for (int p = 0; p < npt; ++p)
-         {
-            // Skip particles not successfully found
-            if (code[p] == 2) // not found
-            {
-               MFEM_ABORT("Particle " << p << " not found.");
-            }
-
-            local_sum += Q(p);
-         }
-
-         real_t global_sum = 0.0;
-         MPI_Allreduce(&local_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, comm);
-
-         neutralizing_const = -global_sum / domain_volume;
-         if (Mpi::Root())
-         {
-            cout << "Total charge: " << global_sum
-                 << ", Domain volume: " << domain_volume
-                 << ", Neutralizing constant: " << neutralizing_const << endl;
-            if (precompute_neutralizing_const)
-            {
-               cout << "Further updates will use this precomputed neutralizing "
-                       "constant."
-                    << endl;
-            }
-         }
-         delete precomputed_neutralizing_lf;
-         precomputed_neutralizing_lf = new ParLinearForm(pfes);
-         *precomputed_neutralizing_lf = 0.0;
-         ConstantCoefficient neutralizing_coeff(neutralizing_const);
-         precomputed_neutralizing_lf->AddDomainIntegrator(
-             new DomainLFIntegrator(neutralizing_coeff));
-         precomputed_neutralizing_lf->Assemble();
-      }
       ParLinearForm b(pfes);
-      // start with precomputed neutralizing contribution
-      b = *precomputed_neutralizing_lf;
+      b = ComputeNeutralizingRHS(pfes, Q, npt, comm);
 
       // --------------------------------------------------------
       // 3) Deposit q_p * phi_i(x_p) into a ParLinearForm (RHS b)
       //      b_i = sum_p q_p * φ_i(x_p)
       // --------------------------------------------------------
-      int curr_rank;
-      MPI_Comm_rank(pmesh->GetComm(), &curr_rank);
-
-      Array<int> dofs;
-
-      for (int p = 0; p < npt; ++p)
-      {
-         // Skip particles not successfully found
-         if (code[p] == 2) // not found
-         {
-            continue;
-         }
-
-         // Raise error if particle is not on the current rank
-         if ((int)proc[p] != curr_rank)
-         {
-            // raise error
-            MFEM_ABORT("Particle "
-                       << p << " found in element owned by rank " << proc[p]
-                       << " but current rank is " << curr_rank << "." << endl
-                       << "You must call redistribute everytime before "
-                          "updating the density grid function.");
-         }
-         const int e = elem[p];
-
-         // Reference coordinates for this particle (r,s[,t]) with byVDIM layout
-         IntegrationPoint ip;
-         ip.Set(rref.GetData() + dim * p, dim);
-
-         const FiniteElement &fe = *pfes->GetFE(e);
-         const int ldofs = fe.GetDof();
-
-         Vector shape(ldofs);
-         fe.CalcShape(ip, shape); // φ_i(x_p) in this element
-
-         pfes->GetElementDofs(e, dofs); // local dof indices
-
-         const real_t q_p = Q(p);
-
-         // Add q_p * φ_i(x_p) to b_i
-         b.AddElementVector(dofs, q_p, shape);
-      }
+      DepositCharge(pfes, Q, npt, dim, b);
 
       // Assemble to a global true-dof RHS vector compatible with MassMatrix
       HypreParVector B(pfes);
