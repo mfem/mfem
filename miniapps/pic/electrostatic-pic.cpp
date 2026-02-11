@@ -192,7 +192,7 @@ void display_banner(ostream& os);
 int main(int argc, char* argv[])
 {
    Mpi::Init(argc, argv);
-   int size = Mpi::WorldSize();
+   int num_ranks = Mpi::WorldSize();
    int rank = Mpi::WorldRank();
    Hypre::Init();
 
@@ -302,7 +302,7 @@ int main(int argc, char* argv[])
       ctx.ordering == 0 ? Ordering::byNODES : Ordering::byVDIM;
 
    // 7. Initialize ParticleMover
-   int num_particles = ctx.npt / size + (rank < (ctx.npt % size) ? 1 : 0);
+   int num_particles = ctx.npt / num_ranks + (rank < (ctx.npt % num_ranks) ? 1 : 0);
    ParticleMover particle_mover(MPI_COMM_WORLD, E_gf, E_finder, num_particles,
                                 ordering_type);
    particle_mover.InitializeChargedParticles(ctx.k, ctx.alpha, ctx.m,
