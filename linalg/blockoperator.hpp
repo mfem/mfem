@@ -318,13 +318,14 @@ public:
    /**
     * @param iblock  The block will be inserted in location (iblock, iblock).
     * @param op      The Operator to be inserted.
+    * @param c       The coefficient to be applied to the block.
     */
    void SetDiagonalBlock(int iblock, Operator *op, real_t c = 1.0);
    //! Add a block opt in the block-entry (iblock, jblock).
    /**
     * @param iRow, iCol  The block will be inserted in location (iRow, iCol).
     * @param op          The Operator to be inserted.
-    */
+    * @param c           The coefficient to be applied to the block.
    void SetBlock(int iRow, int iCol, Operator *op, real_t c = 1.0);
    //! This method is present since required by the abstract base class Solver
    virtual void SetOperator(const Operator &op) {Op = &op;}
