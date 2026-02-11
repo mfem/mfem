@@ -156,7 +156,6 @@ private:
    real_t domain_volume;
    real_t neutralizing_const;
    ParLinearForm *precomputed_neutralizing_lf = nullptr;
-   bool neutralizing_const_computed = false;
    bool precompute_neutralizing_const = false;
    // Diffusion matrix
    HypreParMatrix *diffusion_matrix;
@@ -638,7 +637,7 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet &particles,
 
       MPI_Comm comm = pfes->GetComm();
 
-      if (!precompute_neutralizing_const || !neutralizing_const_computed)
+      if (!precompute_neutralizing_const || precomputed_neutralizing_lf == nullptr)
       {
          // compute neutralizing constant
          real_t local_sum = 0.0;
@@ -657,7 +656,6 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet &particles,
          MPI_Allreduce(&local_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, comm);
 
          neutralizing_const = -global_sum / domain_volume;
-         neutralizing_const_computed = true;
          if (Mpi::Root())
          {
             cout << "Total charge: " << global_sum
