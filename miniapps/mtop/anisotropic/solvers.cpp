@@ -26,10 +26,19 @@ template <int DIM=2, typename scalar_t=real_t> struct QFunction
    {
 
       const real_t* aniso_tensor;
+      int simp_exp;
 
-      Elasticity(mfem::Vector& tm)
+      Elasticity(mfem::Vector& tm, int simp_exp_): simp_exp(simp_exp_)
       {
          aniso_tensor=tm.Read();
+         MFEM_VERIFY(simp_exp_>=4 &&
+                     simp_exp/2 == 0, "SIMP exponent should be an even integer >= 4");
+      }
+      void SetSIMPExponent(int simp_exp_)
+      {
+         MFEM_VERIFY(simp_exp_>=4 &&
+                     simp_exp/2 == 0, "SIMP exponent should be an even integer >= 4");
+         simp_exp=simp_exp_;
       }
 
       MFEM_HOST_DEVICE inline auto operator()(const matd_t &dudxi,
@@ -59,10 +68,15 @@ template <int DIM=2, typename scalar_t=real_t> struct QFunction
          const auto resp=mfem::future::transpose(R)*eps*R;
          const auto espv=mfem::voigt::StrainTensorToEngVoigt(resp);
          const auto sigv=C*espv;
+         if (simp_exp>4)
+         {
+            const scalar_t r2 = eta[1]*eta[1] + eta[2]*eta[2];
+            sigv *= pow(r2, (simp_exp-4)/2);
+         }
          const auto asig=mfem::voigt::VoigtToStressTensor(sigv);
          //compute the anisotropic contribution
          auto stress=R*asig*mfem::future::transpose(R);
-         const scalar_t s_p = pow(eta[0],3);
+         const scalar_t s_p = pow(eta[0],simp_exp);
          const scalar_t L = L1*(1.0-s_p)+L2*s_p;
          const scalar_t M = M1*(1.0-s_p)+M2*s_p;
 
