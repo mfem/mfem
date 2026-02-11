@@ -987,7 +987,7 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
 
       auto d_interp_vals = interp_vals.Read();
       auto d_index_temp  = index_temp.Read();
-      auto d_field_out   = field_out.Write();
+      auto d_field_out   = field_out.ReadWrite(); // no-op, already on device.
 
       const int interp_Offset = interp_vals.Size()/ncomp;
       const int pts_cnt = points_cnt;
@@ -1841,8 +1841,12 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
 #endif
    }
    field_in.HostRead();
-   field_out.HostWrite();
+   // the remaining operations will be done on host, so we ensure field_out
+   // is on host. If field_in is on device, we will move field_out to
+   // device at the end of this function.
+   field_out.UseDevice(false);
 
+   // Read GSLIB data to host in case it was done on device.
    auto h_gsl_code = gsl_code.HostRead();
    gsl_elem.HostRead();
    gsl_mfem_elem.HostRead();
@@ -1963,7 +1967,6 @@ void FindPointsGSLIB::InterpolateH1(const GridFunction &field_in,
 
    field_out.SetSize(points_cnt*ncomp);
    field_out = default_interp_value;
-   field_out.HostReadWrite();
 
    for (int i = 0; i < ncomp; i++)
    {
@@ -2027,7 +2030,6 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
 
    field_out.SetSize(points_cnt*ncomp);
    field_out = default_interp_value;
-   field_out.HostReadWrite();
 
    // Get host read pointers in case FindPoints was done on device.
    auto h_gsl_code = gsl_code.HostRead();
@@ -2190,10 +2192,10 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
 Array<unsigned int> FindPointsGSLIB::GetPointsNotFoundIndices() const
 {
    Array<unsigned int> nf_idxs;
-   auto gsl_code_host = gsl_code.HostRead();
+   auto h_gsl_code = gsl_code.HostRead();
    for (int i = 0; i < gsl_code.Size(); i++)
    {
-      if (gsl_code_host[i] == 2)
+      if (h_gsl_code[i] == 2)
       {
          nf_idxs.Append(i);
       }
