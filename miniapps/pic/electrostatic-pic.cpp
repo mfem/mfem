@@ -247,8 +247,6 @@ int main(int argc, char* argv[])
 
    ctx.L_x = 2.0 * M_PI / ctx.k;
 
-   ParGridFunction* E_gf = nullptr;
-
    // build up E_gf
    // 1. make a Cartesian Mesh (2D or 3D)
    Mesh serial_mesh;
@@ -293,9 +291,9 @@ int main(int argc, char* argv[])
 
    // 5. Prepare an empty phi_gf and E_gf for later use
    ParGridFunction phi_gf(&phi_fespace);
-   E_gf = new ParGridFunction(&E_fespace);
+   ParGridFunction E_gf(&E_fespace);
    phi_gf = 0.0;  // Initialize phi_gf to zero
-   *E_gf = 0.0;   // Initialize E_gf to zero
+   E_gf = 0.0;    // Initialize E_gf to zero
 
    // 6. Build the grid function updates
    FieldSolver field_solver(&phi_fespace, &E_fespace, E_finder, true);
@@ -305,7 +303,7 @@ int main(int argc, char* argv[])
    // 7. Initialize ParticleMover
    int num_particles = ctx.npt / num_ranks + (rank < (ctx.npt % num_ranks) ? 1 :
                                               0);
-   ParticleMover particle_mover(MPI_COMM_WORLD, E_gf, E_finder, num_particles,
+   ParticleMover particle_mover(MPI_COMM_WORLD, &E_gf, E_finder, num_particles,
                                 ordering_type);
    particle_mover.InitializeChargedParticles(ctx.k, ctx.alpha, ctx.m,
                                              ctx.q, ctx.L_x, ctx.reproduce);
@@ -327,14 +325,14 @@ int main(int argc, char* argv[])
 
          // Update phi_gf from particles
          field_solver.UpdatePhiGridFunction(particle_mover.GetParticles(), phi_gf,
-                                            *E_gf);
+                                            E_gf);
 
 
          // Visualize fields if requested
          if (ctx.visualization)
          {
             static socketstream vis_e, vis_phi;
-            common::VisualizeField(vis_e, "localhost", ctx.visport, *E_gf, "E_field",
+            common::VisualizeField(vis_e, "localhost", ctx.visport, E_gf, "E_field",
                                    0, 0, 500, 500);
             common::VisualizeField(vis_phi, "localhost", ctx.visport, phi_gf, "Potential",
                                    500, 0, 500, 500);
@@ -342,7 +340,7 @@ int main(int argc, char* argv[])
 
          // Compute energies
          real_t kinetic_energy = particle_mover.ComputeKineticEnergy();
-         real_t global_field_energy = field_solver.ComputeGlobalFieldEnergy(*E_gf);
+         real_t global_field_energy = field_solver.ComputeGlobalFieldEnergy(E_gf);
 
          // Reduce kinetic energy across processors
          real_t global_kinetic_energy = 0.0;
@@ -392,8 +390,6 @@ int main(int argc, char* argv[])
       }
    }
 
-   // Clean up
-   delete E_gf;
 }
 
 ParticleMover::ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_,
