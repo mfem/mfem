@@ -146,7 +146,7 @@ public:
    /// Get reference to ParticleSet
    ParticleSet& GetParticles() { return *charged_particles; }
 
-   /// Compute (local) kinetic energy from particles
+   /// Compute (global) kinetic energy from particles (MPI-reduced over all ranks)
    real_t ComputeKineticEnergy() const;
 };
 
@@ -183,7 +183,7 @@ public:
                               ParGridFunction& E_gf);
 
    /// Compute (global) field energy: 0.5 * ∫ ||E||^2 dx
-   real_t ComputeGlobalFieldEnergy(const ParGridFunction& E_gf) const;
+   real_t ComputeFieldEnergy(const ParGridFunction& E_gf) const;
 };
 
 /// Prints the program's logo to the given output stream
@@ -338,28 +338,23 @@ int main(int argc, char* argv[])
 
          // Compute energies
          real_t kinetic_energy = particle_mover.ComputeKineticEnergy();
-         real_t global_field_energy = field_solver.ComputeGlobalFieldEnergy(E_gf);
-
-         // Reduce kinetic energy across processors
-         real_t global_kinetic_energy = 0.0;
-         MPI_Allreduce(&kinetic_energy, &global_kinetic_energy, 1, MPI_DOUBLE,
-                       MPI_SUM, MPI_COMM_WORLD);
+         real_t field_energy = field_solver.ComputeFieldEnergy(E_gf);
 
          // Output energies
          if (Mpi::Root())
          {
-            cout << "Kinetic energy: " << global_kinetic_energy << "\t";
-            cout << "Field energy: " << global_field_energy << "\t";
-            cout << "Total energy: " << global_kinetic_energy + global_field_energy
+            cout << "Kinetic energy: " << kinetic_energy << "\t";
+            cout << "Field energy: " << field_energy << "\t";
+            cout << "Total energy: " << kinetic_energy + field_energy
                  << endl;
          }
          // write to a csv
          if (Mpi::Root())
          {
             std::ofstream energy_file("energy.csv", std::ios::app);
-            energy_file << setprecision(10) << global_kinetic_energy << ","
-                        << global_field_energy << ","
-                        << global_kinetic_energy + global_field_energy << "\n";
+            energy_file << setprecision(10) << kinetic_energy << ","
+                        << field_energy << ","
+                        << kinetic_energy + field_energy << "\n";
          }
       }
 
@@ -524,7 +519,10 @@ real_t ParticleMover::ComputeKineticEnergy() const
       kinetic_energy += 0.5 * p_square_p / M(p);
    }
 
-   return kinetic_energy;
+   real_t global_kinetic_energy = 0.0;
+   MPI_Allreduce(&kinetic_energy, &global_kinetic_energy, 1, MPI_DOUBLE,
+                 MPI_SUM, charged_particles->GetComm());
+   return global_kinetic_energy;
 }
 
 FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
@@ -742,7 +740,7 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
    }
 }
 
-real_t FieldSolver::ComputeGlobalFieldEnergy(const ParGridFunction& E_gf) const
+real_t FieldSolver::ComputeFieldEnergy(const ParGridFunction& E_gf) const
 {
    // ---- Field energy: 0.5 * ∫ ||E||^2 dx ----
    const ParFiniteElementSpace* fes = E_gf.ParFESpace();
@@ -757,7 +755,7 @@ real_t FieldSolver::ComputeGlobalFieldEnergy(const ParGridFunction& E_gf) const
       irs[g] = &IntRules.Get(g, qorder);
    }
 
-   real_t global_field_energy = 0.0;
+   real_t field_energy = 0.0;
 
    // IMPORTANT: ND/RT use VectorFiniteElement even if fes->GetVDim() == 1
    if (fes->GetFE(0)->GetRangeType() == FiniteElement::VECTOR)
@@ -767,16 +765,16 @@ real_t FieldSolver::ComputeGlobalFieldEnergy(const ParGridFunction& E_gf) const
       VectorConstantCoefficient zero_vec(zero);
 
       const real_t E_l2 = E_gf.ComputeL2Error(zero_vec, irs);
-      global_field_energy = 0.5 * EPSILON * E_l2 * E_l2;
+      field_energy = 0.5 * EPSILON * E_l2 * E_l2;
    }
    else
    {
       ConstantCoefficient zero_s(0.0);
       const real_t E_l2 = E_gf.ComputeL2Error(zero_s, irs);
-      global_field_energy = 0.5 * EPSILON * E_l2 * E_l2;
+      field_energy = 0.5 * EPSILON * E_l2 * E_l2;
    }
 
-   return global_field_energy;
+   return field_energy;
 }
 
 void display_banner(ostream& os)
