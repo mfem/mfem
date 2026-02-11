@@ -115,7 +115,7 @@
   [newton]
     type = Newton
     linear_solver = 'lu'
-    verbose = true
+    verbose = false
   []
   [lu]
     type = DenseLU
