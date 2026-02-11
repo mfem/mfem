@@ -735,9 +735,6 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet &particles,
       // ------------------------------------------------------------------
       // 4) Solve A * phi = B with zero-mean enforcement via OrthoSolver
       // ------------------------------------------------------------------
-      MFEM_VERIFY(diffusion_matrix != nullptr,
-                  "diffusion_matrix must be precomputed.");
-
       phi_gf = 0.0;
       HypreParVector Phi_true(pfes);
       Phi_true = 0.0;
