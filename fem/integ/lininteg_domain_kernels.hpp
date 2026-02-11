@@ -14,7 +14,7 @@
 
 #include "../../fem/kernels.hpp"
 #include "../../general/forall.hpp"
-#include "../fem/lininteg.hpp"
+#include "../fem.hpp"
 
 /// \cond DO_NOT_DOCUMENT
 
