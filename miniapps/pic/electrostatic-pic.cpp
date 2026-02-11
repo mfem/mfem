@@ -88,7 +88,7 @@ struct PICContext
 
    int nt = 1000;                ///< Number of time steps to run.
    int redist_interval =
-      1e6;        ///< Interval for redistributing particles across processors.
+      1e6;        ///< Redistribution and update E_gf interval.
    int output_csv_interval =
       1;      ///< Interval for outputting CSV data files.
 
