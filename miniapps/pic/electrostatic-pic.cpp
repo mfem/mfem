@@ -41,9 +41,9 @@
 // Sample runs:
 //
 //   2D2V Linear Landau damping test case (Ricketson & Hu, 2025):
-//      mpirun -n 4 ./electrostatic-pic -rdf 1 -npt 409600 -k 0.2855993321 -a 0.05 -nt 200 -nx 32 -ny 32 -O 1 -q 0.001181640625 -m 0.001181640625 -ocf 1000 -dt 0.1
+//      mpirun -n 4 ./electrostatic-pic -rdi 1 -npt 409600 -k 0.2855993321 -a 0.05 -nt 200 -nx 32 -ny 32 -O 1 -q 0.001181640625 -m 0.001181640625 -oci 1000 -dt 0.1
 //   3D3V Linear Landau damping test case (Zheng et al., 2025):
-//      mpirun -n 128 ./electrostatic-pic -dim 3 -rdf 1 -npt 40960000 -k 0.5 -a 0.01 -nt 100 -nx 32 -ny 32 -nz 32 -O 1 -q 0.00004844730731 -m 0.00004844730731 -ocf 1000 -dt 0.1 -no-vis
+//      mpirun -n 128 ./electrostatic-pic -dim 3 -rdi 1 -npt 40960000 -k 0.5 -a 0.01 -nt 100 -nx 32 -ny 32 -nz 32 -O 1 -q 0.00004844730731 -m 0.00004844730731 -oci 1000 -dt 0.1 -no-vis
 
 #include <ctime>
 #include <fstream>
@@ -87,10 +87,10 @@ struct PICContext
    real_t dt = 1e-2;             ///< Time step size.
    real_t t_init = 0.0;          ///< Initial simulation time.
 
-   int nt = 1000;                ///< Number of time steps to run.
-   int redist_freq =
-      1e6;        ///< Frequency for redistributing particles across processors.
-   int output_csv_freq = 1;      ///< Frequency for outputting CSV data files.
+  int nt = 1000;                ///< Number of time steps to run.
+  int redist_interval =
+     1e6;        ///< Interval for redistributing particles across processors.
+  int output_csv_interval = 1;      ///< Interval for outputting CSV data files.
 
    bool visualization = true;    ///< Enable visualization.
    int visport = 19916;          ///< Port number for visualization server.
@@ -221,10 +221,10 @@ int main(int argc, char* argv[])
                   "Perturbation amplitude for initial distribution.");
    args.AddOption(&ctx.ordering, "-o", "--ordering",
                   "Ordering of particle data. 0 = byNODES, 1 = byVDIM.");
-   args.AddOption(&ctx.redist_freq, "-rdf", "--redist-freq",
-                  "Redistribution and update E_gf frequency.");
-   args.AddOption(&ctx.output_csv_freq, "-ocf", "--output-csv-freq",
-                  "Output CSV frequency.");
+   args.AddOption(&ctx.redist_interval, "-rdi", "--redist-interval",
+                  "Redistribution and update E_gf interval.");
+   args.AddOption(&ctx.output_csv_interval, "-oci", "--output-csv-interval",
+                  "Output CSV interval.");
    args.AddOption(&ctx.visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -302,7 +302,7 @@ int main(int argc, char* argv[])
       ctx.ordering == 0 ? Ordering::byNODES : Ordering::byVDIM;
 
    // 7. Initialize ParticleMover
-   int num_particles = ctx.npt / num_ranks + (rank < (ctx.npt % num_ranks) ? 1 : 0);
+     int num_particles = ctx.npt / num_ranks + (rank < (ctx.npt % num_ranks) ? 1 : 0);
    ParticleMover particle_mover(MPI_COMM_WORLD, E_gf, E_finder, num_particles,
                                 ordering_type);
    particle_mover.InitializeChargedParticles(ctx.k, ctx.alpha, ctx.m,
@@ -314,10 +314,10 @@ int main(int argc, char* argv[])
    // set up timer
    mfem::StopWatch sw;
    sw.Start();
-   for (int step = 1; step <= ctx.nt; step++)
+     for (int step = 1; step <= ctx.nt; step++)
    {
       // Redistribute
-      if (ctx.redist_freq > 0 && (step % ctx.redist_freq == 0 || step == 1) &&
+      if (ctx.redist_interval > 0 && (step % ctx.redist_interval == 0 || step == 1) &&
           particle_mover.GetParticles().GetGlobalNParticles() > 0)
       {
          // Redistribute
@@ -379,7 +379,7 @@ int main(int argc, char* argv[])
          mfem::out << endl;
       }
       // Output particle data to CSV
-      if (step % ctx.output_csv_freq == 0 || step == 1)
+      if (step % ctx.output_csv_interval == 0 || step == 1)
       {
          std::string csv_prefix = "PIC_Part_";
          Array<int> field_idx{2}, tag_idx;
