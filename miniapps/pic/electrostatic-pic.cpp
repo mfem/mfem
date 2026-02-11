@@ -314,7 +314,7 @@ int main(int argc, char* argv[])
    sw.Start();
    for (int step = 1; step <= ctx.nt; step++)
    {
-      // Redistribute
+      // Step the FieldSolver
       if (ctx.redist_interval > 0 && (step % ctx.redist_interval == 0 || step == 1) &&
           particle_mover.GetParticles().GetGlobalNParticles() > 0)
       {
