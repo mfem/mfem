@@ -146,6 +146,11 @@ public:
    real_t ComputeKineticEnergy() const;
 };
 
+/// Field solver responsible for updating the electrostatic potential and field
+/// from the particle charge density. Assembles and solves the periodic Poisson
+/// problem, computes the electric field via a discrete gradient operator, and
+/// provides utilities for field diagnostics (e.g. global field energy) and
+/// optional visualization output.
 class FieldSolver
 {
 private:
@@ -156,6 +161,7 @@ private:
    bool precompute_neutralizing_const = false;
    // Diffusion matrix
    HypreParMatrix* diffusion_matrix;
+
    // Gradient operator for computing E = -∇φ
    ParDiscreteLinearOperator* grad_interpolator;
    FindPointsGSLIB& E_finder;
@@ -174,6 +180,7 @@ public:
 
    /// Update the phi_gf grid function from the particles.
    /// Solve periodic Poisson: diffusion_matrix * phi = (rho - <rho>)
+
    /// with zero-mean enforcement via OrthoSolver.
    void UpdatePhiGridFunction(ParticleSet& particles, ParGridFunction& phi_gf,
                               ParGridFunction& E_gf);
