@@ -752,21 +752,12 @@ real_t FieldSolver::ComputeFieldEnergy(const ParGridFunction& E_gf) const
 
    real_t field_energy = 0.0;
 
-   if (fes->GetFE(0)->GetRangeType() == FiniteElement::VECTOR)
-   {
-      Vector zero(pmesh->Dimension());
-      zero = 0.0;
-      VectorConstantCoefficient zero_vec(zero);
+   Vector zero(pmesh->Dimension());
+   zero = 0.0;
+   VectorConstantCoefficient zero_vec(zero);
 
-      const real_t E_l2 = E_gf.ComputeL2Error(zero_vec, irs);
-      field_energy = 0.5 * EPSILON * E_l2 * E_l2;
-   }
-   else
-   {
-      ConstantCoefficient zero_s(0.0);
-      const real_t E_l2 = E_gf.ComputeL2Error(zero_s, irs);
-      field_energy = 0.5 * EPSILON * E_l2 * E_l2;
-   }
+   const real_t E_l2 = E_gf.ComputeL2Error(zero_vec, irs);
+   field_energy = 0.5 * EPSILON * E_l2 * E_l2;
 
    return field_energy;
 }
