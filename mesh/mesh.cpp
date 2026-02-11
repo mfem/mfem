@@ -7095,7 +7095,6 @@ void Mesh::SetVerticesFromNodes(const GridFunction *nodes)
 void Mesh::UpdateJacobianDeterminantGF(GridFunction *detgf)
 {
    const FiniteElementSpace *fespace_det = detgf->FESpace();
-   int det_order = fespace_det->GetMaxElementOrder();
    Array<int> dofs;
    for (int e = 0; e < GetNE(); e++)
    {
