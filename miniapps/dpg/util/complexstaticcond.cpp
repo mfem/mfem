@@ -71,12 +71,14 @@ void ComplexBlockStaticCondensation::SetSpaces(Array<FiniteElementSpace*> &
    nblocks = fes.Size();
    rblocks = 0;
    tr_fes.SetSize(nblocks);
+   tr_fec.SetSize(nblocks);
    mesh = fes[0]->GetMesh();
 
    IsTraceSpace.SetSize(nblocks);
    const FiniteElementCollection * fec;
    for (int i = 0; i < nblocks; i++)
    {
+      tr_fec[i] = nullptr;
       fec = fes[i]->FEColl();
       IsTraceSpace[i] =
          (dynamic_cast<const H1_Trace_FECollection*>(fec) ||
@@ -88,21 +90,24 @@ void ComplexBlockStaticCondensation::SetSpaces(Array<FiniteElementSpace*> &
          pmesh = dynamic_cast<ParMesh *>(mesh);
          tr_fes[i] = (fec->GetContType() == FiniteElementCollection::DISCONTINUOUS) ?
                      nullptr : (IsTraceSpace[i]) ? fes[i] :
-                     new ParFiniteElementSpace(pmesh, fec->GetTraceCollection(), fes[i]->GetVDim(),
+                     new ParFiniteElementSpace(pmesh, tr_fec[i] = fec->GetTraceCollection(),
+                                               fes[i]->GetVDim(),
                                                fes[i]->GetOrdering());
       }
       else
       {
          tr_fes[i] = (fec->GetContType() == FiniteElementCollection::DISCONTINUOUS) ?
                      nullptr : (IsTraceSpace[i]) ? fes[i] :
-                     new FiniteElementSpace(mesh, fec->GetTraceCollection(), fes[i]->GetVDim(),
+                     new FiniteElementSpace(mesh, tr_fec[i] = fec->GetTraceCollection(),
+                                            fes[i]->GetVDim(),
                                             fes[i]->GetOrdering());
       }
 #else
       // skip if it's an L2 space (no trace space to construct)
       tr_fes[i] = (fec->GetContType() == FiniteElementCollection::DISCONTINUOUS) ?
                   nullptr : (IsTraceSpace[i]) ? fes[i] :
-                  new FiniteElementSpace(mesh, fec->GetTraceCollection(), fes[i]->GetVDim(),
+                  new FiniteElementSpace(mesh, tr_fec[i] = fec->GetTraceCollection(),
+                                         fes[i]->GetVDim(),
                                          fes[i]->GetOrdering());
 #endif
       if (tr_fes[i]) { rblocks++; }
@@ -1160,6 +1165,16 @@ ComplexBlockStaticCondensation::~ComplexBlockStaticCondensation()
       delete lmat[i]; lmat[i] = nullptr;
       delete lvec[i]; lvec[i] = nullptr;
    }
+
+   for (int i = 0; i<tr_fes.Size(); i++)
+   {
+      if (tr_fec[i])
+      {
+         delete tr_fes[i];
+         delete tr_fec[i];
+      }
+   }
+
 }
 
 }
