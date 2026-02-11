@@ -888,8 +888,6 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
       DEV.lagcoeff_sol = DEV.lagcoeff.HostRead();
    }
 
-   // field_out.HostReadWrite(); //Reads in default value from device
-
    struct gslib::array src, outpt;
    int nlocal = 0;
    /* weed out unfound points, send out */
