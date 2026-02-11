@@ -12,9 +12,7 @@
 #ifndef MFEM_TMOP_HPP
 #define MFEM_TMOP_HPP
 
-#include <memory>
 #include "../linalg/invariants.hpp"
-#include "nonlininteg.hpp"
 #include "gridfunc.hpp"
 #include "../linalg/dual.hpp"
 
