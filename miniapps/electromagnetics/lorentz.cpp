@@ -94,17 +94,6 @@ struct LorentzContext
    std::string device_config = "cpu";
 } ctx;
 
-struct LocTimers
-{
-   StopWatch FindPointsE;
-   StopWatch FindPointsB;
-   StopWatch InterpolateE;
-   StopWatch InterpolateB;
-   StopWatch Push;
-   StopWatch Redistribute;
-   StopWatch TotalStep;
-} loc_timers;
-
 /// This class implements the Boris algorithm as described in the article
 /// `Why is Boris algorithm so good?` by H. Qin et al in Physics of Plasmas,
 /// Volume 20 Issue 8, August 2013, https://doi.org/10.1063/1.4818428.
@@ -385,18 +374,6 @@ int main(int argc, char *argv[])
          boris.Redistribute(ctx.redist_mesh, removed_idxs);
       }
    }
-
-   if (Mpi::Root())
-   {
-      cout << "\nTiming Results:" << endl;
-      cout << "FindPointsE:   " << loc_timers.FindPointsE.RealTime() << "s" << endl;
-      cout << "FindPointsB:   " << loc_timers.FindPointsB.RealTime() << "s" << endl;
-      cout << "InterpE:      " << loc_timers.InterpolateE.RealTime() << "s" << endl;
-      cout << "InterpB:      " << loc_timers.InterpolateB.RealTime() << "s" << endl;
-      cout << "Push:         " << loc_timers.Push.RealTime() << "s" << endl;
-      cout << "Redistribute: " << loc_timers.Redistribute.RealTime() << "s" << endl;
-      cout << "Total Step:   " << loc_timers.TotalStep.RealTime() << "s" << endl;
-   }
 }
 
 void Boris::ParticleStep(Particle &part, real_t &dt)
@@ -490,15 +467,11 @@ void Boris::FindParticles()
    // Find particles in E and B field meshes
    if (E_gf)
    {
-      loc_timers.FindPointsE.Start();
       E_finder.FindPoints(X); // X.GetOrdering() used internally
-      loc_timers.FindPointsE.Stop();
    }
    if (B_gf)
    {
-      loc_timers.FindPointsB.Start();
       B_finder.FindPoints(X); // X.GetOrdering() used internally
-      loc_timers.FindPointsB.Stop();
    }
 }
 
@@ -510,9 +483,7 @@ void Boris::EvaluateFieldsAtParticles()
    // Interpolate E-field + B-field onto particles
    if (E_gf)
    {
-      loc_timers.InterpolateE.Start();
       E_finder.Interpolate(*E_gf, E, E.GetOrdering());
-      loc_timers.InterpolateE.Stop();
    }
    else
    {
@@ -520,9 +491,7 @@ void Boris::EvaluateFieldsAtParticles()
    }
    if (B_gf)
    {
-      loc_timers.InterpolateB.Start();
       B_finder.Interpolate(*B_gf, B, B.GetOrdering());
-      loc_timers.InterpolateB.Stop();
    }
     else
    {
@@ -532,11 +501,8 @@ void Boris::EvaluateFieldsAtParticles()
 
 void Boris::Step(real_t &t, real_t &dt)
 {
-   loc_timers.TotalStep.Start();
    // Interpolate E and B fields onto particles
    EvaluateFieldsAtParticles();
-
-   loc_timers.Push.Start();
    // Individually step each particle. If all ParticleSet fields are ordered
    // byVDIM, we can use GetParticleRef for better performance.
    if (charged_particles->IsParticleRefValid())
@@ -556,23 +522,18 @@ void Boris::Step(real_t &t, real_t &dt)
          charged_particles->SetParticle(i, p);
       }
    }
-   loc_timers.Push.Stop();
 
    // Find updated particle locations in E and B field meshes
    FindParticles();
 
    // Update time
    t += dt;
-   loc_timers.TotalStep.Stop();
 }
 
 void Boris::StepDevice(real_t &t, real_t &dt)
 {
-   loc_timers.TotalStep.Start();
    // Interpolate E and B fields onto particles
    EvaluateFieldsAtParticles();
-
-   loc_timers.Push.Start();
    const int N = charged_particles->GetNParticles();
    auto &X = charged_particles->Coords();
    auto &M = charged_particles->Field(MASS);
@@ -675,14 +636,12 @@ void Boris::StepDevice(real_t &t, real_t &dt)
          d_x[byVDIM_X ? i * dim + d : i + d * N] = x[d] + (dt / m) * p[d];
       }
    });
-   loc_timers.Push.Stop();
 
    // Find updated particle locations in E and B field meshes
    FindParticles();
 
    // Update time
    t += dt;
-   loc_timers.TotalStep.Stop();
 }
 
 Array<int> Boris::RemoveLostParticles()
@@ -707,7 +666,6 @@ Array<int> Boris::RemoveLostParticles()
 
 void Boris::Redistribute(int redist_mesh, Array<int> &removed_idxs)
 {
-   loc_timers.Redistribute.Start();
    if (redist_mesh == 0 && E_gf)
    {
       Array<int> proc_list = E_finder.GetProc();
@@ -724,7 +682,6 @@ void Boris::Redistribute(int redist_mesh, Array<int> &removed_idxs)
    // Find particles again since ParticleSet is not yet synced with
    // FindPointsGSLIB objects.
    FindParticles();
-   loc_timers.Redistribute.Stop();
 }
 
 void display_banner(ostream & os)
