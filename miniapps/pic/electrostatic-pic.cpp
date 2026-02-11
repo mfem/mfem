@@ -75,7 +75,7 @@ struct PICContext
    int nz = 100;                 ///< Number of grid cells in z-direction.
    real_t L_x = 1.0;             ///< Domain length in x-direction.
 
-   int ordering = 1;             ///< Ordering scheme for particles/mesh.
+   int ordering = 1;             ///< Ordering of particles.
    int npt = 1000;               ///< Number of particles.
    real_t q = 1.0;               ///< Particle charge.
    real_t m = 1.0;               ///< Particle mass.
