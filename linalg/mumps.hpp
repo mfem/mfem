@@ -52,7 +52,7 @@ public:
    /// Specify the reordering strategy for the MUMPS solver
    enum ReorderingStrategy
    {
-      /// Let MUMPS automatically decide the reording strategy
+      /// Let MUMPS automatically decide the reordering strategy
       AUTOMATIC = 0,
       /// Approximate Minimum Degree with auto quasi-dense row detection is used
       AMD,
@@ -129,8 +129,8 @@ public:
     * - 0:  No output printed
     * - 1:  Only errors printed
     * - 2:  Errors, warnings, and main stats printed
-    * - 3:  Errors, warning, main stats, and terse diagnostics printed
-    * - 4:  Errors, warning, main stats, diagnostics, and input/output printed
+    * - 3:  Errors, warnings, main stats, and terse diagnostics printed
+    * - 4:  Errors, warnings, main stats, diagnostics, and input/output printed
     *
     * @param print_lvl Print level, default is 2
     *
