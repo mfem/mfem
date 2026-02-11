@@ -68,7 +68,8 @@ using namespace mfem::common;
 struct PICContext
 {
    int dim = 2;                  ///< Spatial dimension.
-   int order = 1;                ///< Finite element order for the spatial discretization.
+   int order =
+      1;                ///< Finite element order for the spatial discretization.
    int nx = 100;                 ///< Number of grid cells in x-direction.
    int ny = 100;                 ///< Number of grid cells in y-direction.
    int nz = 100;                 ///< Number of grid cells in z-direction.
@@ -80,18 +81,21 @@ struct PICContext
    real_t m = 1.0;               ///< Particle mass.
 
    real_t k = 1.0;               ///< Wave number (Landau damping test case).
-   real_t alpha = 0.1;           ///< Perturbation amplitude (Landau damping test case).
+   real_t alpha =
+      0.1;           ///< Perturbation amplitude (Landau damping test case).
 
    real_t dt = 1e-2;             ///< Time step size.
    real_t t_init = 0.0;          ///< Initial simulation time.
 
    int nt = 1000;                ///< Number of time steps to run.
-   int redist_freq = 1e6;        ///< Frequency for redistributing particles across processors.
+   int redist_freq =
+      1e6;        ///< Frequency for redistributing particles across processors.
    int output_csv_freq = 1;      ///< Frequency for outputting CSV data files.
 
    bool visualization = true;    ///< Enable visualization.
    int visport = 19916;          ///< Port number for visualization server.
-   bool reproduce = true;        ///< Enable reproducible results (fixed random seed).
+   bool reproduce =
+      true;        ///< Enable reproducible results (fixed random seed).
 } ctx;
 
 /// This class implements explicit time integration for charged particles
@@ -164,15 +168,10 @@ private:
    // Gradient operator for computing E = -∇φ
    ParDiscreteLinearOperator* grad_interpolator;
    FindPointsGSLIB& E_finder;
-   int visport;
-   bool visualization;
-   socketstream vis_e;
-   socketstream vis_phi;
 
 public:
    FieldSolver(ParFiniteElementSpace* phi_fes, ParFiniteElementSpace* E_fes,
                FindPointsGSLIB& E_finder_,
-               int visport_, bool visualization_,
                bool precompute_neutralizing_const_ = false);
 
    ~FieldSolver();
@@ -298,8 +297,7 @@ int main(int argc, char* argv[])
    *E_gf = 0.0;   // Initialize E_gf to zero
 
    // 6. Build the grid function updates
-   FieldSolver field_solver(&sca_fespace, &vec_fespace, E_finder, ctx.visport,
-                            ctx.visualization, true);
+   FieldSolver field_solver(&sca_fespace, &vec_fespace, E_finder, true);
    Ordering::Type ordering_type =
       ctx.ordering == 0 ? Ordering::byNODES : Ordering::byVDIM;
 
@@ -329,6 +327,17 @@ int main(int argc, char* argv[])
          field_solver.UpdatePhiGridFunction(particle_mover.GetParticles(), phi_gf,
                                             *E_gf);
 
+
+         // Visualize fields if requested
+         if (ctx.visualization)
+         {
+            static socketstream vis_e, vis_phi;
+            common::VisualizeField(vis_e, "localhost", ctx.visport, *E_gf, "E_field",
+                                   0, 0, 500, 500);
+            common::VisualizeField(vis_phi, "localhost", ctx.visport, phi_gf, "Potential",
+                                   500, 0, 500, 500);
+         }
+
          // Compute energies
          real_t kinetic_energy = particle_mover.ComputeKineticEnergy();
          real_t global_field_energy = field_solver.ComputeGlobalFieldEnergy(*E_gf);
@@ -355,6 +364,7 @@ int main(int argc, char* argv[])
                         << global_kinetic_energy + global_field_energy << "\n";
          }
       }
+
 
       // Step the ParticleMover
       particle_mover.Step(t, dt, ctx.L_x, step == 1);
@@ -523,12 +533,9 @@ real_t ParticleMover::ComputeKineticEnergy() const
 FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
                          ParFiniteElementSpace* E_fes,
                          FindPointsGSLIB& E_finder_,
-                         int visport_, bool visualization_,
                          bool precompute_neutralizing_const_)
    : precompute_neutralizing_const(precompute_neutralizing_const_),
-     E_finder(E_finder_),
-     visport(visport_),
-     visualization(visualization_)
+     E_finder(E_finder_)
 {
    // compute domain volume
    ParMesh* pmesh = phi_fes->GetParMesh();
@@ -735,14 +742,6 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
       grad_interpolator->Mult(phi_gf, E_gf);
       // Scale by -1 to get E = -∇φ
       E_gf *= -1.0;
-   }
-
-   if (visualization)
-   {
-      common::VisualizeField(vis_e, "localhost", visport, E_gf, "E_field",
-                             0, 0, 500, 500);
-      common::VisualizeField(vis_phi, "localhost", visport, phi_gf, "Potential",
-                             500, 0, 500, 500);
    }
 }
 
