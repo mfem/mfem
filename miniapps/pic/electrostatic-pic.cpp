@@ -87,10 +87,11 @@ struct PICContext
    real_t dt = 1e-2;             ///< Time step size.
    real_t t_init = 0.0;          ///< Initial simulation time.
 
-  int nt = 1000;                ///< Number of time steps to run.
-  int redist_interval =
-     1e6;        ///< Interval for redistributing particles across processors.
-  int output_csv_interval = 1;      ///< Interval for outputting CSV data files.
+   int nt = 1000;                ///< Number of time steps to run.
+   int redist_interval =
+      1e6;        ///< Interval for redistributing particles across processors.
+   int output_csv_interval =
+      1;      ///< Interval for outputting CSV data files.
 
    bool visualization = true;    ///< Enable visualization.
    int visport = 19916;          ///< Port number for visualization server.
@@ -222,9 +223,9 @@ int main(int argc, char* argv[])
    args.AddOption(&ctx.ordering, "-o", "--ordering",
                   "Ordering of particle data. 0 = byNODES, 1 = byVDIM.");
    args.AddOption(&ctx.redist_interval, "-rdi", "--redist-interval",
-                  "Redistribution and update E_gf interval.");
+                  "Redistribution and update E_gf interval. If < 0, no redistribution.");
    args.AddOption(&ctx.output_csv_interval, "-oci", "--output-csv-interval",
-                  "Output CSV interval.");
+                  "Output CSV interval. If < 0, no CSV output.");
    args.AddOption(&ctx.visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -302,7 +303,8 @@ int main(int argc, char* argv[])
       ctx.ordering == 0 ? Ordering::byNODES : Ordering::byVDIM;
 
    // 7. Initialize ParticleMover
-     int num_particles = ctx.npt / num_ranks + (rank < (ctx.npt % num_ranks) ? 1 : 0);
+   int num_particles = ctx.npt / num_ranks + (rank < (ctx.npt % num_ranks) ? 1 :
+                                              0);
    ParticleMover particle_mover(MPI_COMM_WORLD, E_gf, E_finder, num_particles,
                                 ordering_type);
    particle_mover.InitializeChargedParticles(ctx.k, ctx.alpha, ctx.m,
@@ -314,7 +316,7 @@ int main(int argc, char* argv[])
    // set up timer
    mfem::StopWatch sw;
    sw.Start();
-     for (int step = 1; step <= ctx.nt; step++)
+   for (int step = 1; step <= ctx.nt; step++)
    {
       // Redistribute
       if (ctx.redist_interval > 0 && (step % ctx.redist_interval == 0 || step == 1) &&
@@ -379,7 +381,8 @@ int main(int argc, char* argv[])
          mfem::out << endl;
       }
       // Output particle data to CSV
-      if (step % ctx.output_csv_interval == 0 || step == 1)
+      if (ctx.output_csv_interval > 0 && (step % ctx.output_csv_interval == 0 ||
+                                          step == 1))
       {
          std::string csv_prefix = "PIC_Part_";
          Array<int> field_idx{2}, tag_idx;
