@@ -2036,7 +2036,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
    {
       h_field_out[i] = default_interp_value;
    }
-\
+
    // Get host read pointers in case FindPoints was done on device.
    auto h_gsl_code = gsl_code.HostRead();
    auto h_gsl_mfem_ref = gsl_mfem_ref.HostRead();
