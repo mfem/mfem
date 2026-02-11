@@ -62,8 +62,9 @@ template <int DIM=2, typename scalar_t=real_t> struct QFunction
          const auto asig=mfem::voigt::VoigtToStressTensor(sigv);
          //compute the anisotropic contribution
          auto stress=R*asig*mfem::future::transpose(R);
-         const auto L = L1*(1.0-pow(s,3))+L2*pow(s,3);
-         const auto M = M1*(1.0-pow(s,3))+M2*pow(s,3);
+         const scalar_t s_p = pow(s,3);
+         const scalar_t L = L1*(1.0-s_p)+L2*s_p;
+         const scalar_t M = M1*(1.0-s_p)+M2*s_p;
 
          //compute stress for the isotropic case
          stress=stress+(L * mfem::future::tr(eps) * I + 2.0 * M * eps);
