@@ -285,19 +285,19 @@ int main(int argc, char* argv[])
    FindPointsGSLIB E_finder(mesh);
 
    // 4. Define a finite element space on the parallel mesh
-   H1_FECollection sca_fec(ctx.order, ctx.dim);
-   ParFiniteElementSpace sca_fespace(&mesh, &sca_fec);
-   ND_FECollection vec_fec(ctx.order, ctx.dim);
-   ParFiniteElementSpace vec_fespace(&mesh, &vec_fec);
+   H1_FECollection phi_fec(ctx.order, ctx.dim);
+   ParFiniteElementSpace phi_fespace(&mesh, &phi_fec);
+   ND_FECollection E_fec(ctx.order, ctx.dim);
+   ParFiniteElementSpace E_fespace(&mesh, &E_fec);
 
    // 5. Prepare an empty phi_gf and E_gf for later use
-   ParGridFunction phi_gf(&sca_fespace);
-   E_gf = new ParGridFunction(&vec_fespace);
+   ParGridFunction phi_gf(&phi_fespace);
+   E_gf = new ParGridFunction(&E_fespace);
    phi_gf = 0.0;  // Initialize phi_gf to zero
    *E_gf = 0.0;   // Initialize E_gf to zero
 
    // 6. Build the grid function updates
-   FieldSolver field_solver(&sca_fespace, &vec_fespace, E_finder, true);
+   FieldSolver field_solver(&phi_fespace, &E_fespace, E_finder, true);
    Ordering::Type ordering_type =
       ctx.ordering == 0 ? Ordering::byNODES : Ordering::byVDIM;
 
