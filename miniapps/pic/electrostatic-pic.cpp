@@ -613,7 +613,7 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
             // Skip particles not successfully found
             if (code[p] == 2)  // not found
             {
-               continue;
+               MFEM_ABORT("Particle " << p << " not found.");
             }
 
             local_sum += Q(p);
