@@ -64,6 +64,7 @@ int main(int argc, char *argv[])
    bool reduction = false;
    bool hybridization = false;
    bool trace_h1 = false;
+   bool trace_ess_bc = false;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = 1;
@@ -85,6 +86,8 @@ int main(int argc, char *argv[])
                   "--no-hybridization", "Enable hybridization.");
    args.AddOption(&trace_h1, "-trh1", "--trace-H1", "-trdg",
                   "--trace-DG", "Switch between H1 and DG trace spaces (default DG).");
+   args.AddOption(&trace_ess_bc, "-trbc", "--trace-ess-bc", "-no-trbc",
+                  "--no-trace-ess-bc", "Switch between essential and weak trace BC.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -99,6 +102,12 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+
+   if (trace_ess_bc && !dg && !brt)
+   {
+      cerr << "Essential trace BC does not work with continuous elements" << endl;
+      return 1;
+   }
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -185,15 +194,24 @@ int main(int argc, char *argv[])
    BlockVector x(block_offsets, mt);
 
    LinearForm *fform = darcy->GetFluxRHS();
+   // domain rhs
    if (dg)
    {
       fform->AddDomainIntegrator(new VectorDomainLFIntegrator(fcoeff));
-      fform->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(fnatcoeff));
    }
    else
    {
       fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
-      if (brt)
+   }
+
+   // natural BC
+   if (!hybridization || !trace_ess_bc)
+   {
+      if (dg)
+      {
+         fform->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(fnatcoeff));
+      }
+      else if (brt)
       {
          fform->AddBdrFaceIntegrator(new VectorFEBoundaryFluxLFIntegrator(fnatcoeff));
       }
@@ -225,6 +243,12 @@ int main(int argc, char *argv[])
       bVarf->AddInteriorFaceIntegrator(new TransposeIntegrator(
                                           new DGNormalTraceIntegrator(-1.)));
       mpVarf->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(ikcoeff, td));
+      if (hybridization && trace_ess_bc)
+      {
+         bVarf->AddBdrFaceIntegrator(new TransposeIntegrator(
+                                        new DGNormalTraceIntegrator(-2.)));
+         mpVarf->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(ikcoeff, td));
+      }
    }
    else
    {
@@ -234,6 +258,11 @@ int main(int argc, char *argv[])
       {
          bVarf->AddInteriorFaceIntegrator(new TransposeIntegrator(
                                              new DGNormalTraceIntegrator(-1.)));
+         if (hybridization && trace_ess_bc)
+         {
+            bVarf->AddBdrFaceIntegrator(new TransposeIntegrator(
+                                           new DGNormalTraceIntegrator(-2.)));
+         }
       }
    }
 
@@ -243,6 +272,7 @@ int main(int argc, char *argv[])
 
    FiniteElementCollection *trace_coll = NULL;
    FiniteElementSpace *trace_space = NULL;
+   Vector X;
 
    chrono.Clear();
    chrono.Start();
@@ -261,6 +291,21 @@ int main(int argc, char *argv[])
       darcy->EnableHybridization(trace_space,
                                  new NormalTraceJumpIntegrator(),
                                  ess_flux_tdofs_list);
+      // set essential BC
+      if (trace_ess_bc && mesh->bdr_attributes.Size() > 0)
+      {
+         X.SetSize(trace_space->GetTrueVSize());
+         // project essential BC
+         Array<int> bdr_is_ess(mesh->bdr_attributes.Max());
+         bdr_is_ess = 1;
+         GridFunction phat;
+         phat.MakeTRef(trace_space, X, 0);
+         phat = 0.;
+         phat.ProjectBdrCoefficient(pcoeff, bdr_is_ess);
+         phat.SetTrueVector();
+
+         darcy->GetHybridization()->SetEssentialBC(bdr_is_ess);
+      }
    }
    else if (reduction && (dg || brt))
    {
@@ -272,9 +317,9 @@ int main(int argc, char *argv[])
    darcy->Assemble();
 
    OperatorPtr A;
-   Vector X, B;
+   Vector B;
    x = 0.;
-   darcy->FormLinearSystem(ess_flux_tdofs_list, x, A, X, B);
+   darcy->FormLinearSystem(ess_flux_tdofs_list, x, A, X, B, true);
 
    chrono.Stop();
    std::cout << "Assembly took " << chrono.RealTime() << "s.\n";
