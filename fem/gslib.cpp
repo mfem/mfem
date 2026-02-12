@@ -1074,7 +1074,6 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
    gsl_elem.SetSize(points_cnt);
    gsl_ref.SetSize(points_cnt*dim);  // stores best guess ref pos. for each point
    gsl_dist.SetSize(points_cnt);
-   gsl_newton.SetSize(points_cnt);
 
    FindPointsSurfBase(point_pos, point_pos_ordering);
 
@@ -1904,7 +1903,6 @@ void FindPointsGSLIB::FindPointsSurfBase(const Vector &point_pos,
                            gsl_elem,
                            gsl_ref,
                            gsl_dist,
-                           gsl_newton,
                            points_cnt);
    }
    else
@@ -1917,7 +1915,6 @@ void FindPointsGSLIB::FindPointsSurfBase(const Vector &point_pos,
                               gsl_elem,
                               gsl_ref,
                               gsl_dist,
-                              gsl_newton,
                               points_cnt);
       }
       else if (dim == 2)
@@ -1928,7 +1925,6 @@ void FindPointsGSLIB::FindPointsSurfBase(const Vector &point_pos,
                               gsl_elem,
                               gsl_ref,
                               gsl_dist,
-                              gsl_newton,
                               points_cnt);
 
       }
@@ -1940,7 +1936,6 @@ void FindPointsGSLIB::FindPointsSurfBase(const Vector &point_pos,
    point_pos.HostRead();
 
    gsl_proc.HostWrite();
-   gsl_newton.HostReadWrite();
 
    // tolerance for point to be marked as on element edge/face
    const int id = gsl_comm->id,
@@ -2003,7 +1998,6 @@ void FindPointsGSLIB::FindPointsSurfBase(const Vector &point_pos,
    {
       double r[2], dist2;
       unsigned int index, code, el, proc;
-      int newton;
    };
 
    {
@@ -2121,8 +2115,6 @@ void FindPointsGSLIB::FindPointsSurfBase(const Vector &point_pos,
 
       Array<unsigned int> gsl_code_l(n), gsl_elem_l(n);
 
-      Array<int> gsl_newton_l(n);
-
       for (int point=0; point<n; ++point)
       {
          for (int d=0; d<spacedim; d++)
@@ -2141,7 +2133,6 @@ void FindPointsGSLIB::FindPointsSurfBase(const Vector &point_pos,
                               gsl_elem_l,
                               gsl_ref_l,
                               gsl_dist_l,
-                              gsl_newton_l,
                               n);
       }
       else
@@ -2154,7 +2145,6 @@ void FindPointsGSLIB::FindPointsSurfBase(const Vector &point_pos,
                                  gsl_elem_l,
                                  gsl_ref_l,
                                  gsl_dist_l,
-                                 gsl_newton_l,
                                  n);
 
          }
@@ -2166,7 +2156,6 @@ void FindPointsGSLIB::FindPointsSurfBase(const Vector &point_pos,
                                  gsl_elem_l,
                                  gsl_ref_l,
                                  gsl_dist_l,
-                                 gsl_newton_l,
                                  n);
          }
       }
@@ -2175,7 +2164,6 @@ void FindPointsGSLIB::FindPointsSurfBase(const Vector &point_pos,
       gsl_dist_l.HostRead();
       gsl_code_l.HostRead();
       gsl_elem_l.HostRead();
-      gsl_newton_l.HostRead();
 
       // unpack arrays into opt
       for (int point=0; point<n; ++point)
@@ -2213,7 +2201,6 @@ void FindPointsGSLIB::FindPointsSurfBase(const Vector &point_pos,
                opt[point].code = CODE_BORDER;
             }
          }
-         opt[point].newton = gsl_newton_l[point];
       }
       array_free(&src_pt);
 

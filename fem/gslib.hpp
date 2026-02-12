@@ -86,10 +86,8 @@ protected:
    void *fdataD;
    struct gslib::crystal *cr;             // gslib's internal data
    struct gslib::comm *gsl_comm;          // gslib's internal data
-   int dim, spacedim,
-       points_cnt;                   // mesh dimension and number of points
+   int dim, spacedim, points_cnt;         // mesh dimension and number of points
    Array<unsigned int> gsl_code, gsl_proc, gsl_elem, gsl_mfem_elem;
-   Array<int> gsl_newton, gsl_newton_dev;
    Vector gsl_mesh, gsl_ref, gsl_dist, gsl_mfem_ref;
    Array<unsigned int> recv_proc, recv_index; // data for custom interpolation
    bool setupflag;              // flag to indicate if gslib data has been setup
@@ -172,7 +170,6 @@ protected:
                              Array<unsigned int> &gsl_elem_dev_l,
                              Vector &gsl_ref_l,
                              Vector &gsl_dist_l,
-                             Array<int> &gsl_newton_dev_l,
                              int npt);
 
    /// FindPoints locally on device for 3D edge elements.
@@ -182,7 +179,6 @@ protected:
                              Array<unsigned int> &gsl_elem_dev_l,
                              Vector &gsl_ref_l,
                              Vector &gsl_dist_l,
-                             Array<int> &gsl_newton_dev_l,
                              int npt);
 
    /// FindPoints locally on device for 2D edge elements.
@@ -192,7 +188,6 @@ protected:
                              Array<unsigned int> &gsl_elem_dev_l,
                              Vector &gsl_ref_l,
                              Vector &gsl_dist_l,
-                             Array<int> &gsl_newton_dev_l,
                              int npt);
 
    /// Interpolate on device for 3D.

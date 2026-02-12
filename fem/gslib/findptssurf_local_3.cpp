@@ -1190,7 +1190,6 @@ void FindPointsGSLIB::FindPointsSurfLocal3(const Vector &point_pos,
                                            Array<unsigned int> &elem,
                                            Vector &ref,
                                            Vector &dist,
-                                           Array<int> &newton,
                                            int npt)
 {
    if (npt == 0)
@@ -1251,7 +1250,6 @@ void FindPointsGSLIB::FindPointsSurfLocal3( const Vector &point_pos,
                                             Array<unsigned int> &elem,
                                             Vector &ref,
                                             Vector &dist,
-                                            Array<int> &newton,
                                             int npt ) {} ;
 #endif
 } // namespace mfem
