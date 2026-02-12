@@ -69,9 +69,7 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
 
    d_buffer.UseDevice(true);
    if (fespace->GetNE() == 0) { return; }
-   const FiniteElement *fe = fespace->GetTypicalFE();
-   MFEM_VERIFY(fe->GetMapType() == FiniteElement::MapType::VALUE ||
-               fe->GetMapType() == FiniteElement::MapType::H_DIV,
+   MFEM_VERIFY(SupportsFESpace(fes),
                "Only elements with MapType VALUE and H_DIV are supported!");
 }
 
@@ -86,10 +84,18 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
 {
    d_buffer.UseDevice(true);
    if (fespace->GetNE() == 0) { return; }
-   const FiniteElement *fe = fespace->GetTypicalFE();
-   MFEM_VERIFY(fe->GetMapType() == FiniteElement::MapType::VALUE ||
-               fe->GetMapType() == FiniteElement::MapType::H_DIV,
+   MFEM_VERIFY(SupportsFESpace(fes),
                "Only elements with MapType VALUE and H_DIV are supported!");
+}
+
+bool QuadratureInterpolator::SupportsFESpace(const FiniteElementSpace &fespace)
+{
+   const FiniteElement *fe = fespace.GetTypicalFE();
+   const Mesh &mesh = *fespace.GetMesh();
+   return (fe->GetMapType() == FiniteElement::MapType::VALUE ||
+           fe->GetMapType() == FiniteElement::MapType::H_DIV)
+          && (!fespace.IsVariableOrder())
+          && (!mesh.IsMixedMesh());
 }
 
 namespace internal
@@ -536,7 +542,8 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
    }
 
    MFEM_ASSERT(!(eval_flags & DETERMINANTS) || dim == vdim ||
-               (dim == 2 && vdim == 3), "Invalid dimensions for determinants.");
+               (dim == 2 && vdim == 3) || (dim == 1 && vdim == 2) ||
+               (dim == 1 && vdim == 3), "Invalid dimensions for determinants.");
    MFEM_ASSERT(fespace->GetMesh()->GetNumGeometries(
                   fespace->GetMesh()->Dimension()) == 1,
                "mixed meshes are not supported");

@@ -55,7 +55,6 @@
 //    mpirun -np 4 pfindpts -m ../../data/fichera-q2.mesh -o 3 -mo 3 -vis -random 1 -surf
 
 #include "mfem.hpp"
-#include "general/forall.hpp"
 #include "../common/mfem-common.hpp"
 
 using namespace mfem;

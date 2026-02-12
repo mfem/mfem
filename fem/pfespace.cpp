@@ -646,39 +646,38 @@ const FaceRestriction *ParFiniteElementSpace::GetFaceRestriction(
    auto itr = L2F.find(key);
    if (itr != L2F.end())
    {
-      return itr->second;
+      return itr->second.get();
    }
    else
    {
-      FaceRestriction *res;
+      std::unique_ptr<FaceRestriction> res;
       if (is_dg_space)
       {
          if (Conforming())
          {
-            res = new ParL2FaceRestriction(*this, f_ordering, type, m);
+            res.reset(new ParL2FaceRestriction(*this, f_ordering, type, m));
          }
          else
          {
-            res = new ParNCL2FaceRestriction(*this, f_ordering, type, m);
+            res.reset(new ParNCL2FaceRestriction(*this, f_ordering, type, m));
          }
       }
       else if (dynamic_cast<const DG_Interface_FECollection*>(fec))
       {
-         res = new L2InterfaceFaceRestriction(*this, f_ordering, type);
+         res.reset(new L2InterfaceFaceRestriction(*this, f_ordering, type));
       }
       else
       {
          if (Conforming())
          {
-            res = new ConformingFaceRestriction(*this, f_ordering, type);
+            res.reset(new ConformingFaceRestriction(*this, f_ordering, type));
          }
          else
          {
-            res = new ParNCH1FaceRestriction(*this, f_ordering, type);
+            res.reset(new ParNCH1FaceRestriction(*this, f_ordering, type));
          }
       }
-      L2F[key] = res;
-      return res;
+      return L2F.emplace(key, std::move(res)).first->second.get();
    }
 }
 
@@ -5271,7 +5270,8 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
    MFEM_ASSERT(R->Finalized(), "");
    const int tdofs = R->Height();
    MFEM_ASSERT(tdofs == R->HostReadI()[tdofs], "");
-   ltdof_ldof = Array<int>(const_cast<int*>(R->HostReadJ()), tdofs);
+   ltdof_ldof.SetSize(tdofs);
+   ltdof_ldof.CopyFrom(R->HostReadJ());
    {
       Table nbr_ltdof;
       gc.GetNeighborLTDofTable(nbr_ltdof);
@@ -5294,9 +5294,13 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
          }
          Table unique_shr;
          Transpose(shared_ltdof, unique_shr, unique_ltdof.Size());
-         unq_ltdof = Array<int>(unique_ltdof, unique_ltdof.Size());
-         unq_shr_i = Array<int>(unique_shr.GetI(), unique_shr.Size()+1);
-         unq_shr_j = Array<int>(unique_shr.GetJ(), unique_shr.Size_of_connections());
+         unq_ltdof = unique_ltdof;
+         // Steal I and J arrays from the unique_shr table.
+         unq_shr_i.GetMemory() = unique_shr.GetIMemory();
+         unq_shr_i.SetSize(unique_shr.Size()+1);
+         unq_shr_j.GetMemory() = unique_shr.GetJMemory();
+         unq_shr_j.SetSize(unique_shr.Size_of_connections());
+         unique_shr.LoseData();
       }
       nbr_ltdof.GetJMemory().Delete();
       nbr_ltdof.LoseData();
