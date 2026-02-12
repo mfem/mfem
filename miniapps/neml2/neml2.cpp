@@ -13,14 +13,14 @@
 //      Solid mechanics problem using NEML2 to handle constitutive updates
 //     --------------------------------------------------------------------
 //
-// Compile with: make dfem-neml2
+// Compile with: make neml2
 //
-// Sample runs:  dfem-neml2
-//               dfem-neml2 -d cpu
-//               dfem-neml2 -d cuda
-//               mpirun -np 4 dfem-neml2
-//               mpirun -np 4 dfem-neml2 -d cpu
-//               mpirun -np 4 dfem-neml2 -d cuda
+// Sample runs:  neml2
+//               neml2 -d cpu
+//               neml2 -d cuda
+//               mpirun -np 4 neml2
+//               mpirun -np 4 neml2 -d cpu
+//               mpirun -np 4 neml2 -d cuda
 //
 // Description:  This example code demonstrates the use of MFEM to solve the
 //               balance of linear momentum equation in 2D under plane strain,
@@ -367,7 +367,7 @@ int main(int argc, char *argv[])
    u.SetFromTrueVector();
 
    // Save the solution in parallel using ParaView format
-   ParaViewDataCollection dc("dfem-neml2-output", &pmesh);
+   ParaViewDataCollection dc("neml2-output", &pmesh);
    dc.RegisterField("disp", &u);
    dc.SetCycle(0);
    dc.Save();
