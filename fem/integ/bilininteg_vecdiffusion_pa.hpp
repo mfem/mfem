@@ -171,11 +171,11 @@ template<int DIM, int T_SDIM, int T_D1D, int T_Q1D>
 VectorDiffusionIntegrator::ApplyKernelType
 VectorDiffusionIntegrator::ApplyPAKernels::Kernel()
 {
-   if (DIM == 2)
+   if constexpr (DIM == 2)
    {
       return internal::SmemPAVectorDiffusionApply2D<T_SDIM, T_D1D, T_Q1D>;
    }
-   else if (DIM == 3)
+   else if constexpr (DIM == 3)
    {
       return internal::SmemPAVectorDiffusionApply3D<T_SDIM, T_D1D, T_Q1D>;
    }
