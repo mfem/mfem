@@ -729,7 +729,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
       // 3D1D for seed, 10D1D+6 for area, 3D1D+9 for edge
       constexpr int size1 = 10*MD1 + 6;
       constexpr int size2 = MD1*4;            // edge constraints
-      constexpr int size3 = MD1*MD1*MD1*DIM;  // local element coordinates
+      constexpr int size3 = MD1*MD1*DIM;  // local element coordinates
 
       MFEM_SHARED double r_workspace[size1];
       MFEM_SHARED findptsElementPoint_t el_pts[2];
@@ -1162,9 +1162,9 @@ void FindPointsGSLIB::FindPointsLocal2(const Vector &point_pos,
    auto pgslm = gsl_mesh.Read();
    auto pwt = DEV.wtend.Read();
    auto pbb = DEV.bb.Read();
-   auto plhm = DEV.loc_hash_min.Read();
-   auto plhf = DEV.loc_hash_fac.Read();
-   auto plho = DEV.loc_hash_offset.ReadWrite();
+   auto plhm = DEV.lh_min.Read();
+   auto plhf = DEV.lh_fac.Read();
+   auto plho = DEV.lh_offset.ReadWrite();
    auto pcode = code.Write();
    auto pelem = elem.Write();
    auto pref = ref.Write();
@@ -1177,26 +1177,26 @@ void FindPointsGSLIB::FindPointsLocal2(const Vector &point_pos,
       case 2:
          return FindPointsLocal2D_Kernel<2>(
                    npt, DEV.newt_tol, pp, point_pos_ordering, pgslm, NE_split_total, pwt,
-                   pbb, DEV.h_nx, plhm, plhf, plho, pcode, pelem, pref, pdist,
+                   pbb, DEV.lh_nx, plhm, plhf, plho, pcode, pelem, pref, pdist,
                    pgll1d, plc);
       case 3:
          return FindPointsLocal2D_Kernel<3>(
                    npt, DEV.newt_tol, pp, point_pos_ordering, pgslm, NE_split_total, pwt,
-                   pbb, DEV.h_nx, plhm, plhf, plho, pcode, pelem, pref, pdist,
+                   pbb, DEV.lh_nx, plhm, plhf, plho, pcode, pelem, pref, pdist,
                    pgll1d, plc);
       case 4:
          return FindPointsLocal2D_Kernel<4>(
                    npt, DEV.newt_tol, pp, point_pos_ordering, pgslm, NE_split_total, pwt,
-                   pbb, DEV.h_nx, plhm, plhf, plho, pcode, pelem, pref, pdist,
+                   pbb, DEV.lh_nx, plhm, plhf, plho, pcode, pelem, pref, pdist,
                    pgll1d, plc);
       case 5:
          return FindPointsLocal2D_Kernel<5>(
                    npt, DEV.newt_tol, pp, point_pos_ordering, pgslm, NE_split_total, pwt,
-                   pbb, DEV.h_nx, plhm, plhf, plho, pcode, pelem, pref, pdist,
+                   pbb, DEV.lh_nx, plhm, plhf, plho, pcode, pelem, pref, pdist,
                    pgll1d, plc);
       default:
          return FindPointsLocal2D_Kernel(npt, DEV.newt_tol, pp, point_pos_ordering,
-                                         pgslm, NE_split_total, pwt, pbb, DEV.h_nx,
+                                         pgslm, NE_split_total, pwt, pbb, DEV.lh_nx,
                                          plhm, plhf, plho, pcode, pelem,
                                          pref, pdist, pgll1d, plc, DEV.dof1d);
    }

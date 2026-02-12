@@ -1252,7 +1252,6 @@ static void FindPointsLocal3DKernel(const int npt,
                      case 0: // findpt_vol
                      {
                         double *wtr = r_workspace_ptr;
-
                         double *resid = wtr+6*D1D;
                         double *jac = resid+3;
                         double *resid_temp = jac+9;
@@ -1503,7 +1502,7 @@ static void FindPointsLocal3DKernel(const int npt,
                               // Hes_T is transposed version (i.e. in col major)
                               // n1*[2, 1, 1, 0, 0]
                               // j==1 => wt_j = wt+n1
-                              double *wt_j = wt+D1D*(2-(row+1) / 2);
+                              double *wt_j = wt+D1D*(2 - (row+1)/2);
                               const double *x = e_x[row+1][d];
                               hes_T[j] = 0.0;
                               for (int k = 0; k < D1D; ++k)
@@ -1522,7 +1521,6 @@ static void FindPointsLocal3DKernel(const int npt,
                               hes[j] += resid[d]*hes_T[j*3+d];
                            }
                         }
-
                         MFEM_SYNC_THREAD;
 
                         MFEM_FOREACH_THREAD(l,x,1)
@@ -1796,9 +1794,9 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
    auto pgslm = gsl_mesh.Read();
    auto pwt = DEV.wtend.Read();
    auto pbb = DEV.bb.Read();
-   auto plhm = DEV.loc_hash_min.Read();
-   auto plhf = DEV.loc_hash_fac.Read();
-   auto plho = DEV.loc_hash_offset.ReadWrite();
+   auto plhm = DEV.lh_min.Read();
+   auto plhf = DEV.lh_fac.Read();
+   auto plho = DEV.lh_offset.ReadWrite();
    auto pcode = code.Write();
    auto pelem = elem.Write();
    auto pref = ref.Write();
@@ -1809,31 +1807,31 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
    {
       case 2:
          FindPointsLocal3DKernel<2>(npt, DEV.newt_tol, pp, point_pos_ordering,
-                                    pgslm, NE_split_total, pwt, pbb, DEV.h_nx, plhm,
+                                    pgslm, NE_split_total, pwt, pbb, DEV.lh_nx, plhm,
                                     plhf, plho, pcode, pelem, pref, pdist, pgll1d,
                                     plc);
          break;
       case 3:
          FindPointsLocal3DKernel<3>(npt, DEV.newt_tol, pp, point_pos_ordering,
-                                    pgslm, NE_split_total, pwt, pbb, DEV.h_nx, plhm,
+                                    pgslm, NE_split_total, pwt, pbb, DEV.lh_nx, plhm,
                                     plhf, plho, pcode, pelem, pref, pdist, pgll1d,
                                     plc);
          break;
       case 4:
          FindPointsLocal3DKernel<4>(npt, DEV.newt_tol, pp, point_pos_ordering,
-                                    pgslm, NE_split_total, pwt, pbb, DEV.h_nx, plhm,
+                                    pgslm, NE_split_total, pwt, pbb, DEV.lh_nx, plhm,
                                     plhf, plho, pcode, pelem, pref, pdist, pgll1d,
                                     plc);
          break;
       case 5:
          FindPointsLocal3DKernel<5>(npt, DEV.newt_tol, pp, point_pos_ordering,
-                                    pgslm, NE_split_total, pwt, pbb, DEV.h_nx, plhm,
+                                    pgslm, NE_split_total, pwt, pbb, DEV.lh_nx, plhm,
                                     plhf, plho, pcode, pelem, pref, pdist, pgll1d,
                                     plc);
          break;
       default:
          FindPointsLocal3DKernel(npt, DEV.newt_tol, pp, point_pos_ordering, pgslm,
-                                 NE_split_total, pwt, pbb, DEV.h_nx, plhm, plhf,
+                                 NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
                                  plho, pcode, pelem, pref, pdist, pgll1d, plc,
                                  DEV.dof1d);
    }

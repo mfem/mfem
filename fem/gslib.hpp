@@ -86,7 +86,7 @@ protected:
    void *fdataD;
    struct gslib::crystal *cr;             // gslib's internal data
    struct gslib::comm *gsl_comm;          // gslib's internal data
-   int dim, points_cnt;                   // mesh dimension and number of points
+   int dim, spacedim, points_cnt;         // mesh dimension and number of points
    Array<unsigned int> gsl_code, gsl_proc, gsl_elem, gsl_mfem_elem;
    Vector gsl_mesh, gsl_ref, gsl_dist, gsl_mfem_ref;
    Array<unsigned int> recv_proc, recv_index; // data for custom interpolation
@@ -104,18 +104,20 @@ protected:
    bool       gpu_to_cpu_fallback = false;
 
    // Device specific data used for FindPoints
-   struct
+   struct DEV_STRUCT
    {
       bool setup_device = false;
       bool find_device  = false;
-      int local_hash_size, dof1d, dof1d_sol, h_o_size, h_nx;
+      int local_hash_size, dof1d, dof1d_sol, lh_nx, gh_nx;
       double newt_tol; // Tolerance specified during setup for Newton solve
       struct gslib::crystal *cr;
       struct gslib::hash_data_3 *hash3;
       struct gslib::hash_data_2 *hash2;
       mutable Vector bb, wtend, gll1d, lagcoeff, gll1d_sol, lagcoeff_sol;
-      mutable Array<unsigned int> loc_hash_offset;
-      mutable Vector loc_hash_min, loc_hash_fac;
+      mutable Array<unsigned int> lh_offset, gh_offset;
+      mutable Vector lh_min, lh_fac, gh_min, gh_fac;
+      double tol;
+      mutable double surf_dist_tol;
    } DEV;
 
    /// Use GSLIB for communication and interpolation
@@ -127,49 +129,76 @@ protected:
                                    Vector &field_out,
                                    const int field_out_ordering);
 
-   /// Since GSLIB is designed to work with quads/hexes, we split every
-   /// triangle/tet/prism/pyramid element into quads/hexes.
+   /** @brief Since GSLIB is designed to work with quads/hexes, we split every
+    *  triangle/tet/prism/pyramid element into quads/hexes. */
    virtual void SetupSplitMeshes();
 
-   /// Setup integration points that will be used to interpolate the nodal
-   /// location at points expected by GSLIB.
+   /** @brief Setup integration points that will be used to interpolate the
+    *  nodal location at points expected by GSLIB. */
    virtual void SetupIntegrationRuleForSplitMesh(Mesh *mesh,
                                                  IntegrationRule *irule,
                                                  int order);
 
-   /// Helper function that calls \ref SetupSplitMeshes and
-   /// \ref SetupIntegrationRuleForSplitMesh.
+   /** @brief Helper function that calls \ref SetupSplitMeshes and
+    * \ref SetupIntegrationRuleForSplitMesh. */
    virtual void SetupSplitMeshesAndIntegrationRules(const int order);
 
    /// Get GridFunction value at the points expected by GSLIB.
    virtual void GetNodalValues(const GridFunction *gf_in, Vector &node_vals) const;
 
-   /// Map {r,s,t} coordinates from [-1,1] to [0,1] for MFEM. For simplices,
-   /// find the original element number (that was split into micro quads/hexes)
-   /// during the setup phase.
+   /** @brief Map {r,s,t} coordinates from [-1,1] to [0,1] for MFEM. For
+    *  simplices, find the original element number (that was split into
+    *  micro quads/hexes) during the setup phase. */
    virtual void MapRefPosAndElemIndices();
 
-   // Device functions
-   // FindPoints locally on device for 3D.
+   /// FindPoints locally on device for 3D.
    void FindPointsLocal3(const Vector &point_pos, int point_pos_ordering,
                          Array<unsigned int> &gsl_code_dev_l,
                          Array<unsigned int> &gsl_elem_dev_l, Vector &gsl_ref_l,
                          Vector &gsl_dist_l, int npt);
 
-   // FindPoints locally on device for 2D.
+   /// FindPoints locally on device for 2D.
    void FindPointsLocal2(const Vector &point_pos, int point_pos_ordering,
                          Array<unsigned int> &gsl_code_dev_l,
                          Array<unsigned int> &gsl_elem_dev_l, Vector &gsl_ref_l,
                          Vector &gsl_dist_l, int npt);
 
-   // Interpolate on device for 3D.
+   /// FindPoints locally on device for 3D surface elements.
+   void FindPointsSurfLocal3(const Vector &point_pos,
+                             int point_pos_ordering,
+                             Array<unsigned int> &gsl_code_dev_l,
+                             Array<unsigned int> &gsl_elem_dev_l,
+                             Vector &gsl_ref_l,
+                             Vector &gsl_dist_l,
+                             int npt);
+
+   /// FindPoints locally on device for 3D edge elements.
+   void FindPointsEdgeLocal3(const Vector &point_pos,
+                             int point_pos_ordering,
+                             Array<unsigned int> &gsl_code_dev_l,
+                             Array<unsigned int> &gsl_elem_dev_l,
+                             Vector &gsl_ref_l,
+                             Vector &gsl_dist_l,
+                             int npt);
+
+   /// FindPoints locally on device for 2D edge elements.
+   void FindPointsEdgeLocal2(const Vector &point_pos,
+                             int point_pos_ordering,
+                             Array<unsigned int> &gsl_code_dev_l,
+                             Array<unsigned int> &gsl_elem_dev_l,
+                             Vector &gsl_ref_l,
+                             Vector &gsl_dist_l,
+                             int npt);
+
+   /// Interpolate on device for 3D.
    void InterpolateLocal3(const Vector &field_in,
                           Array<int> &gsl_elem_dev_l,
                           Vector &gsl_ref_l,
                           Vector &field_out,
                           int npt, int ncomp,
                           int nel, int dof1dsol);
-   // Interpolate on device for 2D.
+
+   /// Interpolate on device for 2D.
    void InterpolateLocal2(const Vector &field_in,
                           Array<int> &gsl_elem_dev_l,
                           Vector &gsl_ref_l,
@@ -177,29 +206,65 @@ protected:
                           int npt, int ncomp,
                           int nel, int dof1dsol);
 
-   // Prepare data for device functions.
+   /// Interpolate on device for 1D.
+   void InterpolateLocal1(const Vector &field_in,
+                          Array<int> &gsl_elem_dev_l,
+                          Vector &gsl_ref_l,
+                          Vector &field_out,
+                          int npt, int ncomp, int nel, int dof1dsol);
+
+   /// Prepare data for device execution for volume meshes.
    void SetupDevice();
 
-   /** Searches positions given in physical space by @a point_pos.
+   /** @brief Searches positions given in physical space by @a point_pos.
        These positions can be ordered byNodes: (XXX...,YYY...,ZZZ) or
        byVDim: (XYZ,XYZ,....XYZ) specified by @a point_pos_ordering. */
    void FindPointsOnDevice(const Vector &point_pos,
                            const int point_pos_ordering = Ordering::byNODES);
 
-   /** Interpolation of field values at prescribed reference space positions.
-       @param[in] field_in_evec E-vector of grid function to be interpolated.
-                                Assumed ordering is NDOFSxVDIMxNEL
-       @param[in] nel           Number of elements in the mesh.
-       @param[in] ncomp         Number of components in the field.
-       @param[in] dof1dsol      Number of degrees of freedom in each reference
-                                space direction.
-       @param[in] ordering      Ordering of the out field values: byNodes/byVDIM
-
-       @param[out] field_out  Interpolated values. For points that are not found
-                              the value is set to #default_interp_value. */
+   /** @brief Interpolation of field values at prescribed reference space
+    *         positions.
+    *  @param[in] field_in_evec E-vector of grid function to be interpolated.
+    *                           Assumed ordering is NDOFSxVDIMxNEL
+    *  @param[in] nel           Number of elements in the mesh.
+    *  @param[in] ncomp         Number of components in the field.
+    *  @param[in] dof1dsol      Number of degrees of freedom in each reference
+    *                           space direction.
+    *  @param[in] ordering      Ordering of the out field values: byNodes/byVDIM
+    *
+    *  @param[out] field_out    Interpolated values. For points that are not
+    *                           found the value is set to
+    *                           #default_interp_value. */
    void InterpolateOnDevice(const Vector &field_in_evec, Vector &field_out,
                             const int nel, const int ncomp,
                             const int dof1dsol, const int ordering);
+
+   /** @brief Interpolation of field values at prescribed reference space
+    *         positions for surface meshes. */
+   void InterpolateSurfBase(const Vector &field_in, Vector &field_out,
+                            const int nel, const int ncomp,
+                            const int dof1dsol, const int field_out_ordering);
+
+   /// Preprocess 2D surface mesh needed for FindPoints.
+   void findptsedge_setup_2(DEV_STRUCT &devs,
+                            const double *const elx[2],
+                            const unsigned n,
+                            const uint nel,
+                            const unsigned m,
+                            const double bbox_tol,
+                            const uint local_hash_size,
+                            const uint global_hash_size);
+
+   /// Preprocess 3D surface mesh needed for FindPoints.
+   void findptssurf_setup_3(DEV_STRUCT &devs,
+                            const double *const elx[3],
+                            const unsigned n,
+                            const uint nel,
+                            const unsigned m,
+                            const double bbox_tol,
+                            const uint local_hash_size,
+                            const uint global_hash_size,
+                            const int rD);
 
 public:
    FindPointsGSLIB();
@@ -218,8 +283,10 @@ public:
    FindPointsGSLIB(const FindPointsGSLIB&) = delete;
    FindPointsGSLIB& operator=(const FindPointsGSLIB&) = delete;
 
-   /** Initializes the internal mesh in gslib, by sending the positions of the
-       Gauss-Lobatto nodes of the input Mesh object \p m.
+   /** @brief Preprocess the internal mesh in gslib.
+
+       @details Initializes the internal mesh in gslib, by sending the
+       positions of the Gauss-Lobatto nodes of the input Mesh object \p m.
        Note: not tested with periodic (L2).
        Note: the input mesh \p m must have Nodes set.
 
@@ -230,13 +297,22 @@ public:
                             search methods.
        @param[in] npt_max   (Optional) Number of points for simultaneous
                             iteration. This alters performance and
-                            memory footprint.*/
-
+                            memory footprint.
+   */
    void Setup(Mesh &m, const double bb_t = 0.1, const double newt_tol = 1.0e-12,
               const int npt_max = 256);
-   /** Searches positions given in physical space by \p point_pos.
-       These positions can be ordered byNodes: (XXX...,YYY...,ZZZ) or
+
+   /// Preprocess the surface mesh to compute data for FindPoints.
+   void SetupSurf(Mesh &m,
+                  const double bb_t = 0.1,
+                  const double newt_tol = 1.0e-12,
+                  const int npt_max = 256);
+
+   /** @brief Searches positions given in physical space by \p point_pos.
+
+       @details These positions can be ordered byNodes: (XXX...,YYY...,ZZZ) or
        byVDim: (XYZ,XYZ,....XYZ) specified by \p point_pos_ordering.
+
        This function populates the following member variables:
        #gsl_code        Return codes for each point: inside element (0),
                         element boundary (1), not found (2).
@@ -255,19 +331,34 @@ public:
        #gsl_dist        Distance between the sought and the found point
                         in physical space. */
    void FindPoints(const Vector &point_pos,
-                   const int point_pos_ordering = Ordering::byNODES);
+                   int point_pos_ordering = Ordering::byNODES);
+
    /// Convenience function when point positions are in a ParticleVector
    void FindPoints(const ParticleVector &point_pos)
    {
       FindPoints(point_pos, point_pos.GetOrdering());
    }
+
+   /** @brief Searches positions given in physical space by \p point_pos on
+    *  surface mesh. */
+   void FindPointsSurf(const Vector &point_pos,
+                       int point_pos_ordering = Ordering::byNODES);
+
+   /// Convenience function when point positions are in a ParticleVector
+   void FindPointsSurf(const ParticleVector &point_pos)
+   {
+      FindPointsSurf(point_pos, point_pos.GetOrdering());
+   }
+
    /// Setup FindPoints and search positions
    void FindPoints(Mesh &m, const Vector &point_pos,
                    const int point_pos_ordering = Ordering::byNODES,
                    const double bb_t = 0.1, const double newt_tol = 1.0e-12,
                    const int npt_max = 256);
 
-   /** Interpolation of field values at prescribed reference space positions.
+   /** @brief Interpolation of field values at prescribed reference space
+    *  positions.
+
        @param[in] field_in    Function values that will be interpolated on the
                               reference positions. Note: it is assumed that
                               \p field_in is in H1 and in the same space as the
@@ -276,19 +367,36 @@ public:
                               the value is set to #default_interp_value.
                               The output ordering is determined from field_in.*/
    virtual void Interpolate(const GridFunction &field_in, Vector &field_out);
+
    /// Interpolation of field values, with output ordering specification.
    virtual void Interpolate(const GridFunction &field_in, Vector &field_out,
                             const int field_out_ordering);
-   /** Search positions and interpolate. The ordering (byNODES or byVDIM) of
-       the output values in \p field_out corresponds to the ordering used
-       in the input GridFunction \p field_in. */
+
+   /** @brief Same as Interpolate but for surface meshes */
+   virtual void InterpolateSurf(const GridFunction &field_in,
+                                Vector &field_out);
+
+   /** @brief Same as Interpolate but for surface meshes with specified output
+       ordering */
+   virtual void InterpolateSurf(const GridFunction &field_in,
+                                Vector &field_out,
+                                const int field_out_ordering);
+
+   /** @brief Search positions and interpolate.
+    *
+    *  @details The ordering (byNODES or byVDIM) of the output values in
+    *  \p field_out corresponds to the ordering used in the input
+    *  GridFunction \p field_in.
+    */
    void Interpolate(const Vector &point_pos, const GridFunction &field_in,
                     Vector &field_out,
-                    const int point_pos_ordering = Ordering::byNODES);
+                    int point_pos_ordering = Ordering::byNODES);
+
    /// Search positions and interpolate with given point and output ordering.
    void Interpolate(const Vector &point_pos, const GridFunction &field_in,
                     Vector &field_out, const int point_pos_ordering,
                     const int field_out_ordering);
+
    /** Setup FindPoints, search positions and interpolate. The ordering (byNODES
        or byVDIM) of the output values in \p field_out corresponds to the
        ordering used in the input GridFunction \p field_in. */
@@ -296,32 +404,36 @@ public:
                     const GridFunction &field_in, Vector &field_out,
                     const int point_pos_ordering = Ordering::byNODES);
 
-   /// Average type to be used for L2 functions in-case a point is located at
-   /// an element boundary where the function might be multi-valued.
+   /** @brief Average type to be used for L2 functions in-case a point is
+    *  located at an element boundary where the function might be multi-valued.
+    */
    virtual void SetL2AvgType(AvgType avgtype_) { avgtype = avgtype_; }
 
-   /// Set the default interpolation value for points that are not found in the
-   /// mesh.
+   /** @brief Set the default interpolation value for points that are not found in the mesh. */
    virtual void SetDefaultInterpolationValue(double interp_value_)
    {
       default_interp_value = interp_value_;
    }
 
-   /// Set the tolerance for detecting points outside the 'curvilinear' boundary
-   /// that gslib may return as found on the boundary. Points found on boundary
-   /// with distance greater than @ bdr_tol are marked as not found.
+   /** @brief Tolerance for detecting points outside the 'curvilinear' boundary.
+    *
+    *  @details When using FindPoints, gslib may return points as found on the
+    *  boundary even when they are slightly outside the domain. This tolerance
+    *  is used to filter such points based on the distance value and mark them
+    *  as not found.*/
    virtual void SetDistanceToleranceForPointsFoundOnBoundary(double bdr_tol_)
    {
       bdr_tol = bdr_tol_;
    }
 
-   /// Enable/Disable use of CPU functions for GPU data if the gslib version
-   /// is older.
+   /** @brief Enable/Disable use of CPU functions for GPU data if the gslib
+    *  version is older. */
    virtual void SetGPUtoCPUFallback(bool mode) { gpu_to_cpu_fallback = mode; }
 
-   /** Cleans up memory allocated internally by gslib.
-       Note that in parallel, this must be called before MPI_Finalize(), as it
-       calls MPI_Comm_free() for internal gslib communicators. FreeData is
+   /** @brief Cleans up memory allocated internally by gslib.
+
+       @details Note that in parallel, this must be called before MPI_Finalize,
+       as it calls MPI_Comm_free() for internal gslib communicators. FreeData is
        also called by the class destructor and there are no memory leaks if the
        destructor is called before MPI_Finalize(). If the destructor is called
        after MPI_Finalize(), there will be an error because gslib will try to
@@ -329,8 +441,8 @@ public:
    */
    virtual void FreeData();
 
-   /// Return code for each point searched by FindPoints: inside element (0), on
-   /// element boundary (1), or not found (2).
+   /** @brief Return code for each point searched by FindPoints:
+    *  inside element (0), element boundary (1), or not found (2). */
    virtual const Array<unsigned int> &GetCode() const { return gsl_code; }
    /// Return element number for each point found by FindPoints.
    virtual const Array<unsigned int> &GetElem() const { return gsl_mfem_elem; }
@@ -338,15 +450,15 @@ public:
    virtual const Array<unsigned int> &GetProc() const { return gsl_proc; }
    /// Return reference coordinates for each point found by FindPoints.
    virtual const Vector &GetReferencePosition() const { return gsl_mfem_ref;  }
-   /// Return distance between the sought and the found point in physical space,
-   /// for each point found by FindPoints.
+   /// Return distance between the sought and the found point in physical space.
    virtual const Vector &GetDist()              const { return gsl_dist; }
 
-   /// Return element number for each point found by FindPoints corresponding to
-   /// GSLIB mesh. gsl_mfem_elem != gsl_elem for mesh with simplices.
+   /** @brief Return element number for each point found by FindPoints
+    *  corresponding to GSLIB mesh. gsl_mfem_elem != gsl_elem for mesh with
+    *  simplices. */
    virtual const Array<unsigned int> &GetGSLIBElem() const { return gsl_elem; }
-   /// Return reference coordinates in [-1,1] (internal range in GSLIB) for each
-   /// point found by FindPoints.
+   /** @brief Return reference coordinates in [-1,1] (internal range in GSLIB)
+    *  for each point found by FindPoints. */
    virtual const Vector &GetGSLIBReferencePosition() const { return gsl_ref; }
 
    /// Get array of indices of not-found points.
@@ -403,6 +515,12 @@ public:
    /// \p obbV, a vector of size (nel x nverts x dim) .
    void GetOrientedBoundingBoxes(DenseTensor &obbA, Vector &obbC,
                                  Vector &obbV) const;
+
+   /// Return the bounding boxes as a mesh on rank 0.
+   /// Type: 0 - AABB, 1 - OBB
+   Mesh *GetBoundingBoxMesh(int type);
+
+   virtual const Vector &GetGLLMesh()           const { return gsl_mesh; }
 };
 
 /** \brief OversetFindPointsGSLIB enables use of findpts for arbitrary number of
@@ -529,6 +647,84 @@ public:
    /// identifiers used in the constructor. See class description.
    void GS(Vector &senddata, GSOp op);
 };
+
+#if defined(MFEM_USE_MPI)
+/** \brief Class to map a point in physical space to candidate ranks.
+ *
+ *  This class builds a Cartesian-aligned tensor grid that covers the entire
+ *  domain and precomputes which ranks have elements intersecting each
+ *  grid cell. Given a point in physical space, the grid cell containing
+ *  the point is determined, and the list of candidate ranks whose
+ *  elements intersect that cell is returned. This yields a fast, conservative
+ *  point-to-rank candidate query. This is used internally by FindPointsGSLIB
+ *  to speed up point searches in parallel.
+ *
+ *  See Mittal et al., "General Field Evaluation in High-Order Meshes on GPUs".
+ *  (2025). Computers & Fluids. for technical details.
+ *
+ */
+class GlobalBBoxTensorGridMap
+{
+private:
+   struct gslib::crystal *cr = nullptr;               // gslib's internal data
+   struct gslib::comm *gsl_comm = nullptr;            // gslib's internal data
+   int dim, n_local_cells, num_procs;
+   Array<int> gmap_n;
+   Vector gmap_bnd_min, gmap_bnd_max;
+   Vector gmap_fac;
+   Array<int> ggrid_map;
+
+   void SetupCrystal(const MPI_Comm &comm);
+public:
+   /// Constructor for a given mesh and number of tensor grid divisions
+   GlobalBBoxTensorGridMap(ParMesh &pmesh, int nx);
+
+   /// Constructor for given element bounds and number of tensor grid divisions
+   GlobalBBoxTensorGridMap(const MPI_Comm &comm, Vector &elmin,
+                           Vector &elmax, int n, int nel,
+                           bool by_max_size);
+
+   /** @brief Constructor for given element bounds and number of tensor grid
+    *  divisions in each direction. */
+   GlobalBBoxTensorGridMap(const MPI_Comm &comm, Vector &elmin,
+                           Vector &elmax, Array<int> &nx, int nel);
+
+   ~GlobalBBoxTensorGridMap();
+
+   /** @brief Get list of procs corresponding to the list of points.
+    *
+    *  @details This mesh should be called by all ranks at the same time as
+    *  it involves mpi communication to return the proc indices.
+    */
+   void MapPointsToProcs(Vector &xyz, int ordering,
+                         std::map<int, std::vector<int>> &pt_to_procs) const;
+
+   // Some getters
+   const Array<int> &GetGridMap() const { return ggrid_map; }
+   const Vector &GetGridFac() const { return gmap_fac; }
+   const Vector &GetGridMin() const { return gmap_bnd_min; }
+   const Vector &GetGridMax() const { return gmap_bnd_max; }
+   const Array<int> &GetGridN() const { return gmap_n; }
+
+private:
+   /// Setup the map given element bounds and number of tensor grid divisions.
+   void Setup(const MPI_Comm &comm, Vector &elmin, Vector &elmax,
+              Array<int> &nx, int nel);
+
+   /// Get global hash cell index for a given point.
+   int GetGlobalGridCellFromPoint(Vector &xyz) const;
+
+   /** @brief Get owning proc and local index on that proc for given global
+    *  grid cell index. */
+   void GlobalGridCellToProcAndLocalIndex(int i, int &proc, int &idx) const;
+
+   /// Map a point to proc and local index of the corresponding grid cell
+   void GetProcAndLocalIndexFromPoint(Vector &xyz, int &proc, int &idx) const;
+
+   /// Given local cell index, return list of procs saved in the map
+   Array<int> MapCellToProcs(int l_idx) const;
+};
+#endif // MFEM_USE_MPI
 
 } // namespace mfem
 
