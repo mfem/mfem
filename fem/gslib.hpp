@@ -216,20 +216,11 @@ protected:
    /// Prepare data for device execution for volume meshes.
    void SetupDevice();
 
-   /// Prepare data for surface meshes.
-   void SetupSurfDevice();
-
    /** @brief Searches positions given in physical space by @a point_pos.
        These positions can be ordered byNodes: (XXX...,YYY...,ZZZ) or
        byVDim: (XYZ,XYZ,....XYZ) specified by @a point_pos_ordering. */
    void FindPointsOnDevice(const Vector &point_pos,
                            const int point_pos_ordering = Ordering::byNODES);
-
-   /** @brief Searches positions given in physical space by @a point_pos.
-       These positions can be ordered byNodes: (XXX...,YYY...,ZZZ) or
-       byVDim: (XYZ,XYZ,....XYZ) specified by @a point_pos_ordering. */
-   void FindPointsSurfBase(const Vector &point_pos,
-                           int point_pos_ordering = Ordering::byNODES);
 
    /** @brief Interpolation of field values at prescribed reference space
     *         positions.
@@ -709,11 +700,11 @@ public:
                          std::map<int, std::vector<int>> &pt_to_procs) const;
 
    // Some getters
-   Array<int> GetGridMap() const { return ggrid_map; }
-   Vector GetGridFac() const { return gmap_fac; }
-   Vector GetGridMin() const { return gmap_bnd_min; }
-   Vector GetGridMax() const { return gmap_bnd_max; }
-   Array<int> GetGridN() const { return gmap_n; }
+   const Array<int> &GetGridMap() const { return ggrid_map; }
+   const Vector &GetGridFac() const { return gmap_fac; }
+   const Vector &GetGridMin() const { return gmap_bnd_min; }
+   const Vector &GetGridMax() const { return gmap_bnd_max; }
+   const Array<int> &GetGridN() const { return gmap_n; }
 
 private:
    /// Setup the map given element bounds and number of tensor grid divisions.

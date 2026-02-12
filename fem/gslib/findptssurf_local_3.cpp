@@ -1197,19 +1197,20 @@ void FindPointsGSLIB::FindPointsSurfLocal3(const Vector &point_pos,
       return;
    }
    MFEM_VERIFY(dim == 2 && spacedim==3,"Function for 3D surfaces only");
-   auto pp = point_pos.Read();
-   auto pgslm = gsl_mesh.Read();
-   auto pwt = DEV.wtend.Read();
-   auto pbb = DEV.bb.Read();
-   auto plhm = DEV.lh_min.Read();
-   auto plhf = DEV.lh_fac.Read();
-   auto plho = DEV.lh_offset.ReadWrite();
-   auto pcode = code.Write();
-   auto pelem = elem.Write();
-   auto pref = ref.Write();
-   auto pdist = dist.Write();
-   auto pgll1d = DEV.gll1d.ReadWrite();
-   auto plc = DEV.lagcoeff.Read();
+   bool use_dev = point_pos.UseDevice();
+   auto pp = point_pos.Read(use_dev);
+   auto pgslm = gsl_mesh.Read(use_dev);
+   auto pwt = DEV.wtend.Read(use_dev);
+   auto pbb = DEV.bb.Read(use_dev);
+   auto plhm = DEV.lh_min.Read(use_dev);
+   auto plhf = DEV.lh_fac.Read(use_dev);
+   auto plho = DEV.lh_offset.ReadWrite(use_dev);
+   auto pcode = code.Write(use_dev);
+   auto pelem = elem.Write(use_dev);
+   auto pref = ref.Write(use_dev);
+   auto pdist = dist.Write(use_dev);
+   auto pgll1d = DEV.gll1d.ReadWrite(use_dev);
+   auto plc = DEV.lagcoeff.Read(use_dev);
    double dist2tol = DEV.surf_dist_tol;
 
    switch (DEV.dof1d)

@@ -106,11 +106,11 @@ public:
    Array<int> GridCellToElements(int i) const;
 
    // Some getters
-   Array<int> GetGridMap() const { return lgrid_map; }
-   Vector GetGridFac() const { return lmap_fac; }
-   Vector GetGridMin() const { return lmap_bnd_min; }
-   Vector GetGridMax() const { return lmap_bnd_max; }
-   Array<int> GetGridN() const { return lmap_nx; }
+   const Array<unsigned int> &GetGridMap() const { return lgrid_map; }
+   const Vector &GetGridFac() const { return lmap_fac; }
+   const Vector &GetGridMin() const { return lmap_bnd_min; }
+   const Vector &GetGridMax() const { return lmap_bnd_max; }
+   const Array<int> &GetGridN() const { return lmap_nx; }
 private:
    /** @brief Setup using the element-wise bounding boxes.
     *

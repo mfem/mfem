@@ -52,7 +52,7 @@
 //    Surface mesh runs:
 //    mpirun -np 4 pfindpts -m ../../data/square-disc-p2.mesh -o 4 -mo 2 -vis -random 1 -surf
 //    mpirun -np 4 pfindpts -m ../../data/star-q3.mesh -o 6 -mo 3 -vis -random 1 -surf
-//    mpirun -np 4 pfindpts -m ../../data/fichera-q2.mesh -o 3 -mo 3 -vis -random 1 -surf
+//    mpirun -np 4 pfindpts -m ../../data/fichera-q2.mesh -o 6 -mo 3 -vis -random 1 -surf
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -317,7 +317,7 @@ int main (int argc, char *argv[])
    int pts_cnt = npt;
    Vector vxyz;
    vxyz.UseDevice(!cpu_mode);
-   int npt_face_per_elem = 4; // number of pts on el faces for randomization != 0
+   int npt_face_per_elem = 4; // number of pts on faces when randomization != 0
    int npt_total_face = 0;
    if (randomization == 0)
    {
@@ -414,7 +414,10 @@ int main (int argc, char *argv[])
    Array<unsigned int> code_out    = finder.GetCode();
    Array<unsigned int> task_id_out = finder.GetProc();
    Vector dist_p_out = finder.GetDist();
-   Vector rst = finder.GetReferencePosition();
+
+   auto h_code_out = code_out.HostRead();
+   auto h_task_id_out = task_id_out.HostRead();
+   auto h_dist_p_out = dist_p_out.HostRead();
 
    int face_pts = 0, not_found = 0, found_loc = 0, found_away = 0;
    double error = 0.0, max_error = 0.0, max_dist = 0.0;
@@ -426,10 +429,10 @@ int main (int argc, char *argv[])
       {
          if (j == 0)
          {
-            (task_id_out[i] == (unsigned)myid) ? found_loc++ : found_away++;
+            (h_task_id_out[i] == (unsigned)myid) ? found_loc++ : found_away++;
          }
 
-         if (code_out[i] < 2)
+         if (h_code_out[i] < 2)
          {
             for (int d = 0; d < sdim; d++)
             {
@@ -443,8 +446,8 @@ int main (int argc, char *argv[])
                     fabs(exact_val(j) - interp_vals[i + j*pts_cnt]) :
                     fabs(exact_val(j) - interp_vals[i*vec_dim + j]);
             max_error  = std::max(max_error, error);
-            max_dist = std::max(max_dist, dist_p_out(i));
-            if (code_out[i] == 1 && j == 0) { face_pts++; }
+            max_dist = std::max(max_dist, h_dist_p_out[i]);
+            if (h_code_out[i] == 1 && j == 0) { face_pts++; }
          }
          else { if (j == 0) { not_found++; } }
       }

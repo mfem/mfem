@@ -121,12 +121,13 @@ void FindPointsGSLIB::InterpolateLocal1( const Vector &field_in,
    MFEM_VERIFY(dim == 1, "Kernel for edges only.");
    if (npt == 0) { return; }
    const int gf_offset = field_in.Size()/ncomp;
-   auto pfin = field_in.Read();
-   auto pgsl = gsl_elem_dev_l.ReadWrite();
-   auto pgslr = gsl_ref_l.ReadWrite();
-   auto pfout = field_out.Write();
-   auto pgll = DEV.gll1d_sol.ReadWrite();
-   auto plcf = DEV.lagcoeff_sol.ReadWrite();
+   bool use_dev = field_in.UseDevice();
+   auto pfin = field_in.Read(use_dev);
+   auto pgsl = gsl_elem_dev_l.ReadWrite(use_dev);
+   auto pgslr = gsl_ref_l.ReadWrite(use_dev);
+   auto pfout = field_out.Write(use_dev);
+   auto pgll = DEV.gll1d_sol.ReadWrite(use_dev);
+   auto plcf = DEV.lagcoeff_sol.ReadWrite(use_dev);
    switch (dof1Dsol)
    {
       case 2: return InterpolateLocal1DKernel<2>(pfin, pgsl, pgslr, pfout,
