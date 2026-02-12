@@ -137,6 +137,7 @@ protected:
 
    // these are not thread-safe!
    Vector tr_shape, shape1, shape2, vu, nor, nh, ni;
+   Vector nor_Jt, nor_Ji, ni_Jt, ni_Ji;
    DenseMatrix mq;
 
 public:

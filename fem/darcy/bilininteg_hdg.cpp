@@ -1655,6 +1655,14 @@ real_t HDGDiffusionIntegrator::ComputeHDGFaceEnergy(
    {
       d_energy->SetSize(dim);
       *d_energy = 0.;
+
+      ni_Ji.SetSize(dim);
+      nor_Jt.SetSize(dim);
+      if (MQ)
+      {
+         nor_Ji.SetSize(dim);
+         ni_Jt.SetSize(dim);
+      }
    }
    real_t energy = 0.;
 
@@ -1756,11 +1764,32 @@ real_t HDGDiffusionIntegrator::ComputeHDGFaceEnergy(
       const real_t w = d_q*d_q * fabs(b+a);
       if (w == 0.) { continue; }
 
-      for (int d = 0; d < dim; d++)
+      energy += w * (ni * nor);
+
+      if (d_energy)
       {
-         const real_t energy_d = w * ni(d) * nor(d);
-         if (d_energy) { (*d_energy)(d) += energy_d; }
-         energy += energy_d;
+         ElTr->InverseJacobian().Mult(ni, ni_Ji);
+         ElTr->Jacobian().MultTranspose(nor, nor_Jt);
+         if (!MQ)
+         {
+            for (int d = 0; d < dim; d++)
+            {
+               (*d_energy)(d) += w * ni_Ji(d) * nor_Jt(d);
+            }
+         }
+         else
+         {
+            // symmetrize the product as:
+            // 1/2 * (n J J^-1 MQ J^-T J^T n + n J^-T J^T MQ J^-1 J n) =
+            // 1/2 * (J^T n . J^-1 MQ n + J^-1 n . J^T MQ n)
+            ElTr->Jacobian().MultTranspose(ni, ni_Jt);
+            ElTr->InverseJacobian().Mult(nor, nor_Ji);
+
+            for (int d = 0; d < dim; d++)
+            {
+               (*d_energy)(d) += 0.5 * w * wn * (ni_Jt(d) * nor_Ji(d) + ni_Ji(d) * nor_Jt(d));
+            }
+         }
       }
    }
 
