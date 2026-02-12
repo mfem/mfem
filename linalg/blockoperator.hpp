@@ -327,7 +327,7 @@ public:
     * @param op          The Operator to be inserted.
     * @param c           The coefficient to be applied to the block.
    */
-    void SetBlock(int iRow, int iCol, Operator *op, real_t c = 1.0);
+   void SetBlock(int iRow, int iCol, Operator *op, real_t c = 1.0);
    //! This method is present since required by the abstract base class Solver
    virtual void SetOperator(const Operator &op) {Op = &op;}
 
@@ -354,7 +354,7 @@ public:
    //! (non-NULL); the default value is zero.
    int owns_blocks;
 
-   private:
+private:
    //! Number of block rows/columns
    int nBlocks;
    //! Offsets for the starting position of each block
@@ -372,7 +372,7 @@ public:
    mutable Vector r;
    void ForwardPass(const Vector & x, Vector & y) const;
    void BackwardPass(const Vector & x, Vector & y) const;
-   };
+};
 
 }
 

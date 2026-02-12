@@ -506,7 +506,8 @@ void ComplexDPGWeakForm::Assemble(int skip_zeros)
 
       ComplexCholeskyFactors chol(G_r.GetData(), G_i.GetData());
       int h = G_r.Height();
-      chol.Factor(h);
+      bool info = chol.Factor(h);
+      MFEM_VERIFY(info, "Complex Cholesky factorization of G failed");
 
       int w = B_r.Width();
       chol.LSolve(h,w,B_r.GetData(), B_i.GetData());

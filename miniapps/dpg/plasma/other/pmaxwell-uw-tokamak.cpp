@@ -1,5 +1,6 @@
 
-// srun -n 256 ./pmaxwell-verify -o 3 -sc -rnum 5.0
+// srun -n 512 ./pmaxwell-uw-tokamak -o 4 -sc -prob 2 -paraview
+// srun -n 512 ./pmaxwell-uw-tokamak -o 4 -sc -prob 4 -paraview
 
 // Description:
 // This example code demonstrates the use of MFEM to define and solve
@@ -39,6 +40,7 @@
 
 #include "mfem.hpp"
 #include "../../util/pcomplexweakform.hpp"
+#include "../../util/preconditioners.hpp"
 #include "../../../common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
@@ -58,7 +60,7 @@ private:
    int dim;
 public:
    EpsilonMatrixCoefficient(const char * filename, Mesh * mesh_, ParMesh * pmesh_,
-                            double scale = 1.0)
+                            real_t scale = 1.0)
       : MatrixArrayCoefficient(mesh_->Dimension()), mesh(mesh_), pmesh(pmesh_),
         dim(mesh_->Dimension())
    {
@@ -73,7 +75,7 @@ public:
       FiniteElementSpace * fes = new FiniteElementSpace(mesh, fec);
       int num_procs = Mpi::WorldSize();
       int * partitioning = mesh->GeneratePartitioning(num_procs);
-      double *data = vgf->GetData();
+      real_t *data = vgf->GetData();
       GridFunction gf;
       pfes = new ParFiniteElementSpace(pmesh, fec);
       pgfs.SetSize(vdim);
@@ -124,16 +126,16 @@ int main(int argc, char *argv[])
    int order = 1;
    int delta_order = 1;
    bool visualization = false;
-   double rnum=5.0;
+   real_t rnum=5.0;
    bool static_cond = false;
    int pr = 0;
    bool paraview = false;
-   double mu = 1.0;
-   double epsilon = 1.0;
-   double sigma = 0.1;
+   real_t mu = 1.0;
+   real_t epsilon = 1.0;
+   real_t sigma = 0.1;
    bool graph_norm = true;
-   bool mumps_solver = false;
    int prob = 0;
+   bool pmg = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
@@ -151,15 +153,14 @@ int main(int argc, char *argv[])
    args.AddOption(&pr, "-pref", "--parallel_ref",
                   "Number of parallel refinements.");
    args.AddOption(&prob, "-prob", "--problem",
-                  "Choice of problem: 0: tet mesh eps = 1, 1: hex mesh eps = 1 ,  2: tet-mesh eps from file, 3: hex-mesh eps from file.");
+                  "Choice of problem: 0: tet mesh eps = 1, 1: hex mesh eps = 1 ,  2: tet-mesh eps from file,", 
+                  "3: hex-mesh eps from file, 4: 400k-tet-mesh eps from file");
+   args.AddOption(&pmg, "-pmg", "--p-refinement-multigrid", "-no-pmg",
+                  "--no-p-refinement-multigrid", "Enable P-Refinement Multigrid.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&graph_norm, "-graph", "--graph-norm", "-no-gn",
                   "--no-graph-norm", "Enable adjoint graph norm.");
-#ifdef MFEM_USE_MUMPS
-   args.AddOption(&mumps_solver, "-mumps", "--mumps-solver", "-no-mumps",
-                  "--no-mumps-solver", "Use the MUMPS Solver.");
-#endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -192,7 +193,7 @@ int main(int argc, char *argv[])
          sigma = 0.0;
       }
    }
-   else
+   else if (prob == 1 || prob == 3)
    {
       mesh_file = "meshes/tokamak-hex.mesh";
       if (prob == 3)
@@ -202,8 +203,20 @@ int main(int argc, char *argv[])
          sigma = 0.0;
       }
    }
+   else if (prob == 4)
+   {
+      mesh_file = "meshes/tokamak-400K-tet.mesh";
+      rnum = 54.0e6;
+      mu = 1.257e-6;
+      sigma = 0.0;
+   }
+   else
+   {
+      MFEM_ABORT("No valid problem choice given");
+   }
 
-   double omega = 2.*M_PI*rnum;
+
+   real_t omega = 2.*M_PI*rnum;
 
 
    Mesh mesh(mesh_file, 1, 1);
@@ -240,12 +253,17 @@ int main(int argc, char *argv[])
          eps_r_file = "data/tet-eps_r.gf";
          eps_i_file = "data/tet-eps_i.gf";
       }
-      else
+      else if (prob == 3)
       {
          eps_r_file = "data/hex-eps_r.gf";
          eps_i_file = "data/hex-eps_i.gf";
       }
-      double epsilon_scale = 8.8541878128e-12;
+      else if (prob == 4)
+      {
+         eps_r_file = "data/tet-400k-eps_r.gf";
+         eps_i_file = "data/tet-400k-eps_i.gf";
+      }
+      real_t epsilon_scale = 8.8541878128e-12;
       eps_r_cf = new EpsilonMatrixCoefficient(eps_r_file,&mesh,&pmesh, epsilon_scale);
       eps_i_cf = new EpsilonMatrixCoefficient(eps_i_file,&mesh,&pmesh, epsilon_scale);
    }
@@ -507,8 +525,16 @@ int main(int argc, char *argv[])
       hatE_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       one_bdr = 0;
       negone_bdr = 0;
-      one_bdr[1] = 1;
-      negone_bdr[2] = 1;
+      if (prob == 4)
+      {
+         one_bdr[1] = 1;
+         negone_bdr[2] = 1;
+      }
+      else
+      {
+         one_bdr[232-1] = 1;
+         negone_bdr[231-1] = 1;
+      }
    }
 
    if (myid == 0)
@@ -533,7 +559,7 @@ int main(int argc, char *argv[])
 
    Vector x(2*offsets.Last());
    x = 0.;
-   double * xdata = x.GetData();
+   real_t * xdata = x.GetData();
 
    ParComplexGridFunction hatE_gf(hatE_fes);
    hatE_gf.real().MakeRef(hatE_fes,&xdata[offsets[2]]);
@@ -562,63 +588,39 @@ int main(int argc, char *argv[])
    ComplexOperator * Ahc = Ah.As<ComplexOperator>();
 
    BlockOperator * BlockA_r = dynamic_cast<BlockOperator *>(&Ahc->real());
-   BlockOperator * BlockA_i = dynamic_cast<BlockOperator *>(&Ahc->imag());
 
-   int num_blocks = BlockA_r->NumRowBlocks();
-   Array<int> tdof_offsets(2*num_blocks+1);
-
-   tdof_offsets[0] = 0;
-   int skip = (static_cond) ? 0 : 2;
-   int k = (static_cond) ? 2 : 0;
-   for (int i=0; i<num_blocks; i++)
-   {
-      tdof_offsets[i+1] = trial_fes[i+k]->GetTrueVSize();
-      tdof_offsets[num_blocks+i+1] = trial_fes[i+k]->GetTrueVSize();
-   }
-   tdof_offsets.PartialSum();
-
-   BlockOperator blockA(tdof_offsets);
-   for (int i = 0; i<num_blocks; i++)
-   {
-      for (int j = 0; j<num_blocks; j++)
+Array<ParFiniteElementSpace *> prec_fes;
+      if (static_cond)
       {
-         blockA.SetBlock(i,j,&BlockA_r->GetBlock(i,j));
-         blockA.SetBlock(i,j+num_blocks,&BlockA_i->GetBlock(i,j), -1.0);
-         blockA.SetBlock(i+num_blocks,j+num_blocks,&BlockA_r->GetBlock(i,j));
-         blockA.SetBlock(i+num_blocks,j,&BlockA_i->GetBlock(i,j));
+         a->GetTraceFESpaces(prec_fes);
       }
-   }
-
-   X = 0.;
-
-   BlockDiagonalPreconditioner M(tdof_offsets);
-
-   if (!static_cond)
-   {
-      HypreBoomerAMG * solver_E = new HypreBoomerAMG((HypreParMatrix &)
-                                                     BlockA_r->GetBlock(0,0));
-      solver_E->SetPrintLevel(0);
-      solver_E->SetSystemsOptions(dim);
-      HypreBoomerAMG * solver_H = new HypreBoomerAMG((HypreParMatrix &)
-                                                     BlockA_r->GetBlock(1,1));
-      solver_H->SetPrintLevel(0);
-      solver_H->SetSystemsOptions(dim);
-      M.SetDiagonalBlock(0,solver_E);
-      M.SetDiagonalBlock(1,solver_H);
-      M.SetDiagonalBlock(num_blocks,solver_E);
-      M.SetDiagonalBlock(num_blocks+1,solver_H);
-   }
-   HypreAMS * solver_hatE = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(skip,
-                                                                              skip), hatE_fes);
-   HypreAMS * solver_hatH = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(
-                                            skip+1,skip+1), hatH_fes);
-   solver_hatE->SetPrintLevel(0);
-   solver_hatH->SetPrintLevel(0);
-
-   M.SetDiagonalBlock(skip,solver_hatE);
-   M.SetDiagonalBlock(skip+1,solver_hatH);
-   M.SetDiagonalBlock(skip+num_blocks,solver_hatE);
-   M.SetDiagonalBlock(skip+num_blocks+1,solver_hatH);
+      else
+      {
+         prec_fes = trial_fes;
+      }
+      Solver * cprec = nullptr;
+      if (pmg)
+      {
+#ifdef MFEM_USE_COMPLEX_MUMPS
+         bool mumps_coarse_solver = false;
+#else
+         bool mumps_coarse_solver = false;
+#endif
+         cprec = new ComplexPRefinementMultigrid(prec_fes, *Ahc, mumps_coarse_solver);
+      }
+      else
+      {
+         BlockDiagonalPreconditioner * real_prec = new BlockDiagonalPreconditioner(
+            BlockA_r->RowOffsets());
+         real_prec->owns_blocks = 1;
+         for (int i = 0; i<BlockA_r->NumRowBlocks(); i++)
+         {
+            auto prec = MakeFESpaceDefaultSolver(prec_fes[i],0);
+            prec->SetOperator(BlockA_r->GetBlock(i,i));
+            real_prec->SetDiagonalBlock(i,prec);
+         }
+         cprec = new ComplexPreconditioner(real_prec, true);
+      }
 
    if (myid == 0)
    {
@@ -629,14 +631,12 @@ int main(int argc, char *argv[])
    cg.SetRelTol(1e-6);
    cg.SetMaxIter(2000);
    cg.SetPrintLevel(1);
-   cg.SetPreconditioner(M);
-   cg.SetOperator(blockA);
+   cg.SetOperator(*Ahc);
+   cg.SetPreconditioner(*cprec);
    cg.Mult(B, X);
 
-   for (int i = 0; i<num_blocks; i++)
-   {
-      delete &M.GetDiagonalBlock(i);
-   }
+   delete cprec;
+
 
    a->RecoverFEMSolution(X,x);
 
@@ -667,10 +667,10 @@ int main(int argc, char *argv[])
       int num_frames = 32;
       for (int it = 0; it<num_frames; it++)
       {
-         double t = (double)(it % num_frames) / num_frames;
+         real_t t = (real_t)(it % num_frames) / num_frames;
          add(cos(2.0*M_PI*t), E.real(), sin(2.0*M_PI*t), E.imag(), Et);
          paraview_dct->SetCycle(it);
-         paraview_dct->SetTime((double)it);
+         paraview_dct->SetTime((real_t)it);
          paraview_dct->Save();
       }
 
