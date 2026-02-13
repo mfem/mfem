@@ -3103,7 +3103,7 @@ bool NCMesh::TriFaceSplit(int v1, int v2, int v3, int mid[3]) const
 bool contains_node(const std::array<int, 4> &nodes, int n)
 {
    return std::find(nodes.begin(), nodes.end(), n) != nodes.end();
-};
+}
 
 int NCMesh::ParentFaceNodes(std::array<int, 4> &face_nodes) const
 {

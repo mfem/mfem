@@ -116,8 +116,8 @@ void TMOP_AddMultPA_C0_3D(const real_t lim_normal,
    });
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPMultCoefKernels3D, TMOP_AddMultPA_C0_3D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPMultCoefKernels3D);
+MFEM_TMOP_MDQ_REGISTER(TMOPMultCoefKernels3D, TMOP_AddMultPA_C0_3D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPMultCoefKernels3D)
 
 void TMOP_Integrator::AddMultPA_C0_3D(const Vector &x, Vector &y) const
 {

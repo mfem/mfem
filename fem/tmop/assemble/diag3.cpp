@@ -208,8 +208,8 @@ void TMOP_AssembleDiagPA_3D(const int NE,
    });
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPAssembleDiag3D, TMOP_AssembleDiagPA_3D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleDiag3D);
+MFEM_TMOP_MDQ_REGISTER(TMOPAssembleDiag3D, TMOP_AssembleDiagPA_3D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleDiag3D)
 
 void TMOP_Integrator::AssembleDiagonalPA_3D(Vector &diagonal) const
 {

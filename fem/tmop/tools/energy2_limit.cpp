@@ -92,8 +92,8 @@ void TMOP_EnergyPA_C0_2D(const real_t lim_normal,
    });
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPEnergyCoef2D, TMOP_EnergyPA_C0_2D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPEnergyCoef2D);
+MFEM_TMOP_MDQ_REGISTER(TMOPEnergyCoef2D, TMOP_EnergyPA_C0_2D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPEnergyCoef2D)
 
 real_t TMOP_Integrator::GetLocalStateEnergyPA_C0_2D(const Vector &x) const
 {

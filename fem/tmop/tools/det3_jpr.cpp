@@ -61,8 +61,8 @@ void TMOP_MinDetJpr_3D(const int NE,
    });
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPMinDetJpr3D, TMOP_MinDetJpr_3D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPMinDetJpr3D);
+MFEM_TMOP_MDQ_REGISTER(TMOPMinDetJpr3D, TMOP_MinDetJpr_3D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPMinDetJpr3D)
 
 real_t TMOPNewtonSolver::MinDetJpr_3D(const FiniteElementSpace *fes,
                                       const Vector &D) const

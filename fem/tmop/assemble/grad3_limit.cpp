@@ -135,8 +135,8 @@ void TMOP_AssembleGradPA_C0_3D(const real_t lim_normal,
    });
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPAssembleGradCoef3D, TMOP_AssembleGradPA_C0_3D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleGradCoef3D);
+MFEM_TMOP_MDQ_REGISTER(TMOPAssembleGradCoef3D, TMOP_AssembleGradPA_C0_3D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleGradCoef3D)
 
 void TMOP_Integrator::AssembleGradPA_C0_3D(const Vector &x) const
 {

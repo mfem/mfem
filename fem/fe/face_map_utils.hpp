@@ -281,7 +281,7 @@ inline int FaceIdxToVolIdx(int dim, int i, int size1d, int face0, int face1,
       MFEM_ABORT_KERNEL("Invalid dimension");
       return -1;
    }
-};
+}
 
 } // namespace internal
 

@@ -115,6 +115,6 @@ using assemble = TMOPAssembleGradPA3D;
 using energy = TMOPEnergyPA3D;
 using mult = TMOPAddMultPA3D;
 
-MFEM_TMOP_REGISTER_METRIC(metric, assemble, energy, mult, 321);
+MFEM_TMOP_REGISTER_METRIC(metric, assemble, energy, mult, 321)
 
 } // namespace mfem

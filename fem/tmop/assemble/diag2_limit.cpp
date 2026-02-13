@@ -64,8 +64,8 @@ void TMOP_AssembleDiagPA_C0_2D(const int NE,
    });
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPAssembleDiagCoef2D, TMOP_AssembleDiagPA_C0_2D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleDiagCoef2D);
+MFEM_TMOP_MDQ_REGISTER(TMOPAssembleDiagCoef2D, TMOP_AssembleDiagPA_C0_2D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleDiagCoef2D)
 
 void TMOP_Integrator::AssembleDiagonalPA_C0_2D(Vector &diagonal) const
 {

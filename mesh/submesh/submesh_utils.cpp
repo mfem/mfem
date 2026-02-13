@@ -420,7 +420,7 @@ Geometry::Type FaceGeomFromNodes(const std::array<int, NCMesh::MaxFaceNodes>
    if (nodes[3] == -1) { return Geometry::Type::TRIANGLE; }
    if (nodes[0] == nodes[1] && nodes[2] == nodes[3]) { return Geometry::Type::SEGMENT; }
    return Geometry::Type::SQUARE;
-};
+}
 
 } // namespace
 

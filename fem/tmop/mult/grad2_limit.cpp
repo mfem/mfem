@@ -67,8 +67,8 @@ void TMOP_AddMultGradPA_C0_2D(const int NE,
    });
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPMultGradCoefKernels, TMOP_AddMultGradPA_C0_2D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPMultGradCoefKernels);
+MFEM_TMOP_MDQ_REGISTER(TMOPMultGradCoefKernels, TMOP_AddMultGradPA_C0_2D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPMultGradCoefKernels)
 
 void TMOP_Integrator::AddMultGradPA_C0_2D(const Vector &R, Vector &C) const
 {

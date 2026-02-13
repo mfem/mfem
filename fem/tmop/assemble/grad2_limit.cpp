@@ -113,8 +113,8 @@ void TMOP_AssembleGradPA_C0_2D(const real_t lim_normal,
    });
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPAssembleGradCoef2D, TMOP_AssembleGradPA_C0_2D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleGradCoef2D);
+MFEM_TMOP_MDQ_REGISTER(TMOPAssembleGradCoef2D, TMOP_AssembleGradPA_C0_2D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleGradCoef2D)
 
 void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &x) const
 {

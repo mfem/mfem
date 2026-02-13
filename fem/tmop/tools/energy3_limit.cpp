@@ -107,8 +107,8 @@ void TMOP_EnergyPA_C0_3D(const real_t lim_normal,
    });
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPEnergyPAC03D, TMOP_EnergyPA_C0_3D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPEnergyPAC03D);
+MFEM_TMOP_MDQ_REGISTER(TMOPEnergyPAC03D, TMOP_EnergyPA_C0_3D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPEnergyPAC03D)
 
 real_t TMOP_Integrator::GetLocalStateEnergyPA_C0_3D(const Vector &x) const
 {

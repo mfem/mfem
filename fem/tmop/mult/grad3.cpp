@@ -100,8 +100,8 @@ void TMOP_AddMultGradPA_3D(const int NE,
    });
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPMultGradKernels3D, TMOP_AddMultGradPA_3D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPMultGradKernels3D);
+MFEM_TMOP_MDQ_REGISTER(TMOPMultGradKernels3D, TMOP_AddMultGradPA_3D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPMultGradKernels3D)
 
 void TMOP_Integrator::AddMultGradPA_3D(const Vector &R, Vector &C) const
 {

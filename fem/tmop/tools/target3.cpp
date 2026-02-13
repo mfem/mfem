@@ -42,8 +42,8 @@ void TMOP_TcIdealShapeUnitSize_3D(const int NE, const ConstDeviceMatrix &W,
 }
 
 MFEM_TMOP_REGISTER_KERNELS_1(TMOPTcIdealShapeUnitSize3D,
-                             TMOP_TcIdealShapeUnitSize_3D);
-MFEM_TMOP_ADD_SPECIALIZED_KERNELS_1(TMOPTcIdealShapeUnitSize3D);
+                             TMOP_TcIdealShapeUnitSize_3D)
+MFEM_TMOP_ADD_SPECIALIZED_KERNELS_1(TMOPTcIdealShapeUnitSize3D)
 
 template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_TcIdealShapeGivenSize_3D(const int NE,
@@ -93,8 +93,8 @@ void TMOP_TcIdealShapeGivenSize_3D(const int NE,
 }
 
 MFEM_TMOP_MDQ_REGISTER(TMOPTcIdealShapeGivenSize3D,
-                       TMOP_TcIdealShapeGivenSize_3D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPTcIdealShapeGivenSize3D);
+                       TMOP_TcIdealShapeGivenSize_3D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPTcIdealShapeGivenSize3D)
 
 template <>
 bool TargetConstructor::ComputeAllElementTargets<3>(
