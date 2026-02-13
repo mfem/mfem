@@ -16,7 +16,7 @@ using mfem::future::Identity;
 ///////////////////////////////////////////////////////////////////////////////
 /// \brief The QFunction struct defining the linear elasticity operator at
 /// integration points which is valid in 2D and 3D
-template <int DIM=2, int DESIGN_DIM=3, typename scalar_t=real_t> struct
+template <int DIM=2, int DESIGN_DIM=4, typename scalar_t=real_t> struct
    QFunction
 {
    using matd_t = tensor<scalar_t, DIM, DIM>;
@@ -54,6 +54,11 @@ template <int DIM=2, int DESIGN_DIM=3, typename scalar_t=real_t> struct
          constexpr auto I = mfem::future::IsotropicIdentity<DIM>();
          const auto eps = dudxi * mfem::future::inv(J);
 
+         const scalar_t void_val = eta[0];
+         const scalar_t solid_val = eta[1];
+         const scalar_t rcos = eta[2];
+         const scalar_t rsin = eta[3];
+
 
          mfem::future::tensor<real_t, 3,3> C;
          C(0,0)=aniso_tensor[0];
@@ -64,21 +69,21 @@ template <int DIM=2, int DESIGN_DIM=3, typename scalar_t=real_t> struct
          C(2,2)=aniso_tensor[5];
 
          matd_t R;
-         R(0,0)=eta[1]; R(0,1)=eta[2];
-         R(1,0)=-eta[2]; R(1,1)=eta[1];
+         R(0,0)=rcos; R(0,1)=rsin;
+         R(1,0)=-rsin; R(1,1)=rcos;
 
          const auto resp=mfem::future::transpose(R)*eps*R;
          const auto espv=mfem::voigt::StrainTensorToEngVoigt(resp);
 
-         const scalar_t r2 = eta[1]*eta[1] + eta[2]*eta[2];
+         const scalar_t r2 = rcos*rcos+rsin*rsin;
          const auto sigv=simp_exp > 4 ? C*espv*pow(r2, (simp_exp-4)/2) : C*espv;
 
          const auto asig=mfem::voigt::VoigtToStressTensor(sigv);
          //compute the anisotropic contribution
          auto stress=R*asig*mfem::future::transpose(R);
-         const scalar_t s_p = pow(eta[0],simp_exp);
-         const scalar_t L = L1*(1.0-s_p)+L2*s_p;
-         const scalar_t M = M1*(1.0-s_p)+M2*s_p;
+         const scalar_t s_p = pow(solid_val,simp_exp);
+         const scalar_t L = L1*void_val+L2*s_p;
+         const scalar_t M = M1*void_val+M2*s_p;
 
          //compute stress for the isotropic case
          stress=stress+(L * mfem::future::tr(eps) * I + 2.0 * M * eps);
@@ -407,7 +412,7 @@ void AnisoLinElasticSolver::Assemble()
       using mfem::future::dual;
       using dual_t = dual<real_t, real_t>;
 
-      QFunction<2, 3, dual_t>::Elasticity elasticity_func(aniso_tensor, 4);
+      QFunction<2, 4, dual_t>::Elasticity elasticity_func(aniso_tensor, 4);
       drhs->AddDomainIntegrator(elasticity_func, finputs, foutputs, ir,
                                 domain_attributes, derivatives);
    }
