@@ -19,8 +19,14 @@ CMakeFiles/
 # Clangd server cache
 *.cache*
 
+#vscode settings
+/.vscode/
+
 # Backup files
 *~
+
+# clangd index
+/.cache/
 
 # Default install location
 /mfem/
@@ -79,12 +85,17 @@ examples/sol_u.*
 examples/sol_p.*
 examples/sol_r.*
 examples/sol_i.*
+examples/sol_z.*
 examples/ex6p-checkpoint.*
 examples/order.*
 examples/ex9.mesh
 examples/ex9-mesh.*
 examples/ex9-init.*
 examples/ex9-final.*
+examples/ex41.mesh
+examples/ex41-mesh.*
+examples/ex41-init.*
+examples/ex41-final.*
 examples/deformed.*
 examples/velocity.*
 examples/elastic_energy.*
@@ -216,6 +227,9 @@ miniapps/electromagnetics/Joule_[0-9]*
 miniapps/electromagnetics/Lorentz_[0-9]*
 miniapps/electromagnetics/Lorentz.dat
 
+miniapps/fluids/schrodinger-flow/schrodinger_flow
+miniapps/fluids/schrodinger-flow/pschrodinger_flow
+
 miniapps/gslib/field-diff
 miniapps/gslib/field-interp
 miniapps/gslib/findpts
@@ -223,6 +237,7 @@ miniapps/gslib/pfindpts
 miniapps/gslib/schwarz_ex1
 miniapps/gslib/schwarz_ex1p
 miniapps/gslib/interpolated.gf
+miniapps/gslib/particles_redist
 
 miniapps/meshing/mobius-strip
 miniapps/meshing/klein-bottle
@@ -269,10 +284,8 @@ miniapps/meshing/refined.mesh
 miniapps/meshing/bounding-box*
 miniapps/meshing/jacobian-determinant*
 
-miniapps/mtop/parheat
-miniapps/mtop/ParHeat/*
-miniapps/mtop/seqheat
-miniapps/mtop/SeqHeat/*
+miniapps/mtop/ParaView/
+miniapps/mtop/mtop_test_iso_elasticity
 
 miniapps/autodiff/paradiff
 miniapps/autodiff/seqadiff
@@ -282,21 +295,26 @@ miniapps/autodiff/seq_example
 miniapps/autodiff/seq_test
 miniapps/autodiff/Example/*
 
-miniapps/navier/navier_mms
-miniapps/navier/navier_kovasznay
-miniapps/navier/navier_kovasznay_vs
-miniapps/navier/navier_tgv
-miniapps/navier/navier_shear
-miniapps/navier/navier_3dfoc
-miniapps/navier/navier_turbchan
-miniapps/navier/navier_cht
-miniapps/navier/tgv_out*.txt
-miniapps/navier/*_output
+miniapps/fluids/navier/navier_mms
+miniapps/fluids/navier/navier_kovasznay
+miniapps/fluids/navier/navier_kovasznay_vs
+miniapps/fluids/navier/navier_tgv
+miniapps/fluids/navier/navier_shear
+miniapps/fluids/navier/navier_3dfoc
+miniapps/fluids/navier/navier_turbchan
+miniapps/fluids/navier/navier_cht
+miniapps/fluids/navier/navier_bifurcation
+miniapps/fluids/navier/Navier_Bifurcation_[0-9]*
+miniapps/fluids/navier/ParaView
+miniapps/fluids/navier/tgv_out*.txt
+miniapps/fluids/navier/*_output
 
 miniapps/nurbs/nurbs_ex1
 miniapps/nurbs/nurbs_ex1p
 miniapps/nurbs/nurbs_ex3
 miniapps/nurbs/nurbs_ex5
+miniapps/nurbs/nurbs_ex10
+miniapps/nurbs/nurbs_ex10p
 miniapps/nurbs/nurbs_ex11p
 miniapps/nurbs/nurbs_ex24
 miniapps/nurbs/nurbs_solenoidal
@@ -322,7 +340,14 @@ miniapps/nurbs/nurbs_naca_cmesh
 miniapps/nurbs/naca-cmesh.mesh
 miniapps/nurbs/glvis_naca-cmesh.mesh
 miniapps/nurbs/Naca_cmesh
+miniapps/nurbs/nurbs_mesh_info
+miniapps/nurbs/k*_*.dat
 miniapps/nurbs/*-Surface.mesh
+miniapps/nurbs/*.mesh
+miniapps/nurbs/*.sol
+miniapps/nurbs/deformed.*
+miniapps/nurbs/elastic_energy.*
+miniapps/nurbs/velocity.*
 
 miniapps/performance/ex1
 miniapps/performance/ex1p
@@ -344,6 +369,7 @@ miniapps/shifted/lsf_integral
 miniapps/tools/display-basis
 miniapps/tools/load-dc
 miniapps/tools/convert-dc
+miniapps/tools/compare-dc
 miniapps/tools/gridfunction-bounds
 miniapps/tools/lor-transfer
 miniapps/tools/plor-transfer
@@ -413,6 +439,9 @@ miniapps/tribol/contact-patch-test
 
 miniapps/diag-smoothers/abs-l1-jacobi
 miniapps/diag-smoothers/mg-abs-l1-jacobi
+
+miniapps/contact/contact
+miniapps/contact/ParaView
 
 # Unit test binary and outputs
 tests/unit/output_meshes

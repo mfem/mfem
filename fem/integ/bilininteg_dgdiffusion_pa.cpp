@@ -25,9 +25,9 @@ static void PADGDiffusionSetup2D(const int Q1D, const int NE, const int NF,
                                  const GeometricFactors &el_geom,
                                  const FaceGeometricFactors &face_geom,
                                  const FaceNeighborGeometricFactors *nbr_geom,
-                                 const Vector &q, const real_t sigma,
-                                 const real_t kappa, Vector &pa_data,
-                                 const Array<int> &face_info_)
+                                 const Vector &q, const int coeff_dim,
+                                 const real_t sigma, const real_t kappa,
+                                 Vector &pa_data, const Array<int> &face_info_)
 {
    const auto J_loc = Reshape(el_geom.J.Read(), Q1D, Q1D, 2, 2, NE);
    const auto detJe_loc = Reshape(el_geom.detJ.Read(), Q1D, Q1D, NE);
@@ -41,20 +41,25 @@ static void PADGDiffusionSetup2D(const int Q1D, const int NE, const int NF,
    const auto detJf = Reshape(face_geom.detJ.Read(), Q1D, NF);
    const auto n = Reshape(face_geom.normal.Read(), Q1D, 2, NF);
 
-   const bool const_q = (q.Size() == 1);
-   const auto Q =
-      const_q ? Reshape(q.Read(), 1, 1) : Reshape(q.Read(), Q1D, NF);
+   const bool const_q = (q.Size() == coeff_dim);
+   const auto Q = const_q ? Reshape(q.Read(), coeff_dim, 1, 1, 1)
+                  : Reshape(q.Read(), coeff_dim, Q1D, 2, NF);
 
    const auto W = w.Read();
 
    // (normal0, normal1, e0, e1, fid0, fid1)
    const auto face_info = Reshape(face_info_.Read(), 6, NF);
 
-   // (q, 1/h, J0_0, J0_1, J1_0, J1_1)
-   auto pa = Reshape(pa_data.Write(), 6, Q1D, NF);
+   // (J0_0, J0_1, J1_0, J1_1, {Q/h})
+   auto pa = Reshape(pa_data.Write(), 5, Q1D, NF);
 
    mfem::forall(NF, [=] MFEM_HOST_DEVICE(int f) -> void
    {
+      auto get_coeff = [&] (int i, int qx, int side, int e)
+      {
+         return const_q ? Q(i, 0, 0, 0) : Q(i, qx, side, e);
+      };
+
       const int normal_dir[] = {face_info(0, f), face_info(1, f)};
       const int fid[] = {face_info(4, f), face_info(5, f)};
 
@@ -71,12 +76,28 @@ static void PADGDiffusionSetup2D(const int Q1D, const int NE, const int NF,
 
       for (int p = 0; p < Q1D; ++p)
       {
-         const real_t Qp = const_q ? Q(0, 0) : Q(p, f);
-         pa(0, p, f) = kappa * Qp * W[p] * detJf(p, f);
+         const real_t nvec[2] = {n(p, 0, f), n(p, 1, f)};
+         const real_t dJf = detJf(p, f);
 
-         real_t hi = 0.0;
+         real_t qhi = 0.0;
+
          for (int side = 0; side < nsides; ++side)
          {
+            real_t Qtn[2];
+            real_t nqn = 0.0;
+            if (coeff_dim > 1)
+            {
+               Qtn[0] = get_coeff(0, p, side, f) * nvec[0] + get_coeff(1, p, side, f) * nvec[1];
+               Qtn[1] = get_coeff(2, p, side, f) * nvec[0] + get_coeff(3, p, side, f) * nvec[1];
+               nqn = Qtn[0] * nvec[0] + Qtn[1] * nvec[1];
+            }
+            else
+            {
+               nqn = get_coeff(0, p, side, f);
+               Qtn[0] = nqn * nvec[0];
+               Qtn[1] = nqn * nvec[1];
+            }
+
             int i, j;
             internal::FaceIdxToVolIdx2D(p, Q1D, fid[0], fid[1], side, i, j);
 
@@ -89,34 +110,31 @@ static void PADGDiffusionSetup2D(const int Q1D, const int NE, const int NF,
             const auto &detJ = (side == 1 && shared) ? detJ_shared : detJe_loc;
 
             real_t nJi[2];
-            nJi[0] =
-               n(p, 0, f) * J(i, j, 1, 1, e) - n(p, 1, f) * J(i, j, 0, 1, e);
-            nJi[1] =
-               -n(p, 0, f) * J(i, j, 1, 0, e) + n(p, 1, f) * J(i, j, 0, 0, e);
+            nJi[0] = Qtn[0]*J(i, j, 1, 1, e) - Qtn[1]*J(i, j, 0, 1, e);
+            nJi[1] = -Qtn[0]*J(i, j, 1, 0, e) + Qtn[1]*J(i, j, 0, 0, e);
 
             const real_t dJe = detJ(i, j, e);
-            const real_t dJf = detJf(p, f);
 
-            const real_t w = factor * Qp * W[p] * dJf / dJe;
+            const real_t w = factor * W[p] * dJf / dJe;
 
             const int ni = normal_dir[side];
             const int ti = 1 - ni;
 
             // Normal
-            pa(2 + 2 * side + 0, p, f) = w * nJi[ni];
+            pa(2 * side + 0, p, f) = w * nJi[ni];
             // Tangential
-            pa(2 + 2 * side + 1, p, f) = sgn * w * nJi[ti];
+            pa(2 * side + 1, p, f) = sgn * w * nJi[ti];
 
-            hi += factor * dJf / dJe;
+            qhi += kappa * nqn * w * dJf;
          }
 
          if (nsides == 1)
          {
-            pa(4, p, f) = 0.0;
-            pa(5, p, f) = 0.0;
+            pa(2, p, f) = 0.0;
+            pa(3, p, f) = 0.0;
          }
 
-         pa(1, p, f) = hi;
+         pa(4, p, f) = qhi; // {Q/h}
       }
    });
 }
@@ -126,9 +144,9 @@ static void PADGDiffusionSetup3D(const int Q1D, const int NE, const int NF,
                                  const GeometricFactors &el_geom,
                                  const FaceGeometricFactors &face_geom,
                                  const FaceNeighborGeometricFactors *nbr_geom,
-                                 const Vector &q, const real_t sigma,
-                                 const real_t kappa, Vector &pa_data,
-                                 const Array<int> &face_info_)
+                                 const Vector &q, const int coeff_dim,
+                                 const real_t sigma, const real_t kappa,
+                                 Vector &pa_data, const Array<int> &face_info_)
 {
    const auto J_loc = Reshape(el_geom.J.Read(), Q1D, Q1D, Q1D, 3, 3, NE);
    const auto detJe_loc = Reshape(el_geom.detJ.Read(), Q1D, Q1D, Q1D, NE);
@@ -142,9 +160,9 @@ static void PADGDiffusionSetup3D(const int Q1D, const int NE, const int NF,
    const auto detJf = Reshape(face_geom.detJ.Read(), Q1D, Q1D, NF);
    const auto n = Reshape(face_geom.normal.Read(), Q1D, Q1D, 3, NF);
 
-   const bool const_q = (q.Size() == 1);
-   const auto Q =
-      const_q ? Reshape(q.Read(), 1, 1, 1) : Reshape(q.Read(), Q1D, Q1D, NF);
+   const bool const_q = (q.Size() == coeff_dim);
+   const auto Q = const_q ? Reshape(q.Read(), coeff_dim, 1, 1, 1, 1)
+                  : Reshape(q.Read(), coeff_dim, Q1D, Q1D, 2, NF);
 
    const auto W = Reshape(w.Read(), Q1D, Q1D);
 
@@ -154,11 +172,16 @@ static void PADGDiffusionSetup3D(const int Q1D, const int NE, const int NF,
    constexpr int _fid_ = 4; // offset in face_info for local face id
    constexpr int _or_ = 5;  // offset in face_info for orientation
 
-   // (nJ[0], nJ[1], nJ[2], kappa * {Q}/h)
+   // (J00, J01, J02, J10, J11, J12, {Q/h})
    const auto pa = Reshape(pa_data.Write(), 4, Q1D, Q1D, 2, NF);
 
    mfem::forall_2D(NF, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int f) -> void
    {
+      auto get_coeff = [&] (int i, int qx, int qy, int side, int e)
+      {
+         return const_q ? Q(i, 0, 0, 0, 0) : Q(i, qx, qy, side, e);
+      };
+
       MFEM_SHARED int perm[2][3];
       MFEM_SHARED int el[2];
       MFEM_SHARED bool shared[2];
@@ -192,13 +215,35 @@ static void PADGDiffusionSetup3D(const int Q1D, const int NE, const int NF,
       {
          MFEM_FOREACH_THREAD(p2, y, Q1D)
          {
-            const real_t Qp = const_q ? Q(0, 0, 0) : Q(p1, p2, f);
             const real_t dJf = detJf(p1, p2, f);
+            const real_t nvec[3] = {n(p1, p2, 0, f), n(p1, p2, 1, f), n(p1, p2, 2, f)};
 
-            real_t hi = 0.0;
+            real_t qhi = 0.0;
 
             for (int side = 0; side < nsides; ++side)
             {
+               real_t Qtn[3]; // n' * Q
+               real_t nqn = 0.0; // n' * Q * n
+
+               if (coeff_dim > 1)
+               {
+                  // matrix coefficient
+                  for (int d = 0; d < 3; ++d)
+                  {
+                     Qtn[d] = get_coeff(0+3*d, p1, p2, side, f) * nvec[0]
+                              + get_coeff(1+3*d, p1, p2, side, f) * nvec[1]
+                              + get_coeff(2+3*d, p1, p2, side, f) * nvec[2];
+                     nqn += Qtn[d] * nvec[d];
+                  }
+               }
+               else
+               {
+                  nqn = get_coeff(0, p1, p2, side, f);
+                  for (int d = 0; d < 3; ++d)
+                     Qtn[d] = nqn * nvec[d];
+               }
+
+
                int i, j, k;
                internal::FaceIdxToVolIdx3D(p1 + Q1D * p2, Q1D, fid[0], fid[1],
                                            side, ortn[1], i, j, k);
@@ -210,47 +255,38 @@ static void PADGDiffusionSetup3D(const int Q1D, const int NE, const int NF,
                // *INDENT-OFF*
                real_t nJi[3];
                nJi[0] = (-J(i, j, k, 1, 2, e) * J(i, j, k, 2, 1, e) +
-                         J(i, j, k, 1, 1, e) * J(i, j, k, 2, 2, e)) *
-                           n(p1, p2, 0, f) +
-                        (J(i, j, k, 0, 2, e) * J(i, j, k, 2, 1, e) -
-                         J(i, j, k, 0, 1, e) * J(i, j, k, 2, 2, e)) *
-                           n(p1, p2, 1, f) +
-                        (-J(i, j, k, 0, 2, e) * J(i, j, k, 1, 1, e) +
-                         J(i, j, k, 0, 1, e) * J(i, j, k, 1, 2, e)) *
-                           n(p1, p2, 2, f);
+                         J(i, j, k, 1, 1, e) * J(i, j, k, 2, 2, e)) * Qtn[0] +
+                         (J(i, j, k, 0, 2, e) * J(i, j, k, 2, 1, e) -
+                         J(i, j, k, 0, 1, e) * J(i, j, k, 2, 2, e)) * Qtn[1] +
+                         (-J(i, j, k, 0, 2, e) * J(i, j, k, 1, 1, e) +
+                         J(i, j, k, 0, 1, e) * J(i, j, k, 1, 2, e)) * Qtn[2];
 
                nJi[1] = (J(i, j, k, 1, 2, e) * J(i, j, k, 2, 0, e) -
-                         J(i, j, k, 1, 0, e) * J(i, j, k, 2, 2, e)) *
-                           n(p1, p2, 0, f) +
-                        (-J(i, j, k, 0, 2, e) * J(i, j, k, 2, 0, e) +
-                         J(i, j, k, 0, 0, e) * J(i, j, k, 2, 2, e)) *
-                           n(p1, p2, 1, f) +
-                        (J(i, j, k, 0, 2, e) * J(i, j, k, 1, 0, e) -
-                         J(i, j, k, 0, 0, e) * J(i, j, k, 1, 2, e)) *
-                           n(p1, p2, 2, f);
+                         J(i, j, k, 1, 0, e) * J(i, j, k, 2, 2, e)) * Qtn[0] +
+                         (-J(i, j, k, 0, 2, e) * J(i, j, k, 2, 0, e) +
+                         J(i, j, k, 0, 0, e) * J(i, j, k, 2, 2, e)) * Qtn[1] +
+                         (J(i, j, k, 0, 2, e) * J(i, j, k, 1, 0, e) -
+                         J(i, j, k, 0, 0, e) * J(i, j, k, 1, 2, e)) * Qtn[2];
 
                nJi[2] = (-J(i, j, k, 1, 1, e) * J(i, j, k, 2, 0, e) +
-                         J(i, j, k, 1, 0, e) * J(i, j, k, 2, 1, e)) *
-                           n(p1, p2, 0, f) +
-                        (J(i, j, k, 0, 1, e) * J(i, j, k, 2, 0, e) -
-                         J(i, j, k, 0, 0, e) * J(i, j, k, 2, 1, e)) *
-                           n(p1, p2, 1, f) +
-                        (-J(i, j, k, 0, 1, e) * J(i, j, k, 1, 0, e) +
-                         J(i, j, k, 0, 0, e) * J(i, j, k, 1, 1, e)) *
-                           n(p1, p2, 2, f);
+                         J(i, j, k, 1, 0, e) * J(i, j, k, 2, 1, e)) * Qtn[0] +
+                         (J(i, j, k, 0, 1, e) * J(i, j, k, 2, 0, e) -
+                         J(i, j, k, 0, 0, e) * J(i, j, k, 2, 1, e)) * Qtn[1] +
+                         (-J(i, j, k, 0, 1, e) * J(i, j, k, 1, 0, e) +
+                         J(i, j, k, 0, 0, e) * J(i, j, k, 1, 1, e)) * Qtn[2];
                // *INDENT-ON*
 
                const real_t dJe = detJe(i, j, k, e);
-               const real_t val = factor * Qp * W(p1, p2) * dJf / dJe;
+               const real_t w = factor * W(p1, p2) * dJf / dJe;
 
                for (int d = 0; d < 3; ++d)
                {
                   const int idx = std::abs(perm[side][d]) - 1;
                   const int sgn = (perm[side][d] < 0) ? -1 : 1;
-                  pa(d, p1, p2, side, f) = sgn * val * nJi[idx];
+                  pa(d, p1, p2, side, f) = sgn * w * nJi[idx];
                }
 
-               hi += factor * dJf / dJe;
+               qhi += kappa * nqn * w * dJf;
             }
 
             if (nsides == 1)
@@ -259,9 +295,8 @@ static void PADGDiffusionSetup3D(const int Q1D, const int NE, const int NF,
                   pa(d, p1, p2, 1, f) = 0.0;
             }
 
-            real_t kappa_Qh = kappa * hi * Qp * W(p1, p2) * dJf;
-            pa(3, p1, p2, 0, f) = kappa_Qh;
-            pa(3, p1, p2, 1, f) = kappa_Qh; // duplicate for better access in kernel
+            pa(4, p1, p2, 0, f) = qhi; // {Q/h}
+            pa(4, p1, p2, 1, f) = qhi; // {Q/h}
          }
       }
    });
@@ -498,24 +533,88 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
 
-   const int pa_size = (dim == 2) ? (6 * q1d * nf) : (8 * q1d * q1d * nf);
+   const int pa_size = (dim == 2) ? (5 * q1d * nf) : (8 * q1d * q1d * nf);
    pa_data.SetSize(pa_size, Device::GetMemoryType());
 
    // Evaluate the coefficient at the face quadrature points.
    FaceQuadratureSpace fqs(mesh, ir, type);
-   CoefficientVector q(fqs, CoefficientStorage::COMPRESSED);
-   if (Q)
-   {
-      q.Project(*Q);
-   }
-   else if (MQ)
-   {
-      MFEM_ABORT("Not yet implemented"); /* q.Project(*MQ); */
-   }
-   else
+   CoefficientVector q(fqs, CoefficientStorage::CONSTANTS);
+
+   if (Q == nullptr && MQ == nullptr)
    {
       q.SetConstant(1.0);
    }
+   else if (auto *const_q = dynamic_cast<ConstantCoefficient*>(Q))
+   {
+      q.SetConstant(const_q->constant);
+   }
+   else if (auto *const_mq = dynamic_cast<MatrixConstantCoefficient*>(MQ))
+   {
+      q.SetConstant(const_mq->GetMatrix());
+   }
+   else
+   {
+      const int q_dim = MQ ? dim*dim : 1;
+      nq = ir.GetNPoints();
+      q.SetSize(2 * nq * nf * q_dim);
+      q.SetVDim(q_dim);
+      auto C = Reshape(q.HostWrite(), q_dim, nq, 2, nf);
+
+      int f_ind = 0;
+      for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
+      {
+         Mesh::FaceInformation face = mesh.GetFaceInformation(f);
+         if (face.IsNonconformingCoarse() || !face.IsOfFaceType(type))
+         {
+            // We skip nonconforming coarse faces as they are treated
+            // by the corresponding nonconforming fine faces.
+            continue;
+         }
+         FaceElementTransformations &T =
+            *fes.GetMesh()->GetFaceElementTransformations(f);
+         for (int q = 0; q < nq; ++q)
+         {
+            // Convert to lexicographic ordering
+            int iq =
+               ToLexOrdering(dim, face.element[0].local_face_id, quad1D, q);
+
+            T.SetAllIntPoints(&ir.IntPoint(q));
+            const IntegrationPoint &eip1 = T.GetElement1IntPoint();
+            const IntegrationPoint &eip2 = T.GetElement2IntPoint();
+
+            if (Q)
+            {
+               real_t q_val = Q->Eval(*T.Elem1, eip1);
+               C(0, iq, 0, f_ind) = q_val;
+               C(0, iq, 1, f_ind) = (face.IsInterior()) ? Q->Eval(*T.Elem2, eip2) : q_val;
+            }
+            else if (MQ)
+            {
+               DenseMatrix mq_val(dim, dim);
+               MQ->Eval(mq_val, *T.Elem1, eip1);
+
+               DenseMatrix mq_val_2(dim, dim);
+               if (face.IsInterior())
+                  MQ->Eval(mq_val_2, *T.Elem2, eip2);
+               else
+                  mq_val_2 = mq_val;
+
+               for (int j = 0; j < dim; ++j)
+               {
+                  for (int i = 0; i < dim; ++i)
+                  {
+                     C(i + dim*j, iq, 0, f_ind) = mq_val(i, j);
+                     C(i + dim*j, iq, 1, f_ind) = mq_val_2(i, j);
+                  }
+               }
+            }
+         }
+         f_ind++;
+      }
+      MFEM_VERIFY(f_ind == nf, "Incorrect number of faces.");
+   }
+
+   const int coeff_dim = q.GetVDim();
 
    Array<int> face_info;
    if (dim == 1)
@@ -526,15 +625,15 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
    {
       PADGDiffusionSetupFaceInfo2D(nf, mesh, type, face_info);
       PADGDiffusionSetup2D(quad1D, ne, nf, ir.GetWeights(), *el_geom,
-                           *face_geom, nbr_geom.get(), q, sigma, kappa, pa_data,
-                           face_info);
+                           *face_geom, nbr_geom.get(), q, coeff_dim, sigma,
+                           kappa, pa_data, face_info);
    }
    else if (dim == 3)
    {
       PADGDiffusionSetupFaceInfo3D(nf, mesh, type, face_info);
       PADGDiffusionSetup3D(quad1D, ne, nf, ir.GetWeights(), *el_geom,
-                           *face_geom, nbr_geom.get(), q, sigma, kappa, pa_data,
-                           face_info);
+                           *face_geom, nbr_geom.get(), q, coeff_dim, sigma,
+                           kappa, pa_data, face_info);
    }
 }
 

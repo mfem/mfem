@@ -1302,6 +1302,73 @@ real_t TraceCoefficient::Eval(ElementTransformation &T,
    return ma.Trace();
 }
 
+VectorComponentCoefficient::VectorComponentCoefficient(VectorCoefficient &A,
+                                                       int c)
+   : a(&A), va(A.GetVDim())
+{
+   SetComponent(c);
+}
+
+void VectorComponentCoefficient::SetComponent(int c)
+{
+   MFEM_ASSERT(c < a->GetVDim() && c >= 0,
+               "VectorComponentCoefficient:  "
+               "Index not in range.");
+
+   component = c;
+}
+
+void VectorComponentCoefficient::SetTime(real_t t)
+{
+   if (a) { a->SetTime(t); }
+   this->Coefficient::SetTime(t);
+}
+
+real_t VectorComponentCoefficient::Eval(ElementTransformation &T,
+                                        const IntegrationPoint &ip)
+{
+   a->Eval(va, T, ip);
+   return va[component];
+}
+
+MatrixComponentCoefficient::MatrixComponentCoefficient(MatrixCoefficient &A,
+                                                       int ri, int ci)
+   : a(&A), ma(A.GetHeight(), A.GetWidth())
+{
+   SetRowIndex(ri);
+   SetColumnIndex(ci);
+}
+
+void MatrixComponentCoefficient::SetRowIndex(int ri)
+{
+   MFEM_ASSERT(ri < a->GetHeight() && ri >= 0,
+               "MatrixComponentCoefficient:  "
+               "Row index not in range.");
+
+   row_idx = ri;
+}
+
+void MatrixComponentCoefficient::SetColumnIndex(int ci)
+{
+   MFEM_ASSERT(ci < a->GetWidth() && ci >= 0,
+               "MatrixComponentCoefficient:  "
+               "Column index not in range.");
+   col_idx = ci;
+}
+
+void MatrixComponentCoefficient::SetTime(real_t t)
+{
+   if (a) { a->SetTime(t); }
+   this->Coefficient::SetTime(t);
+}
+
+real_t MatrixComponentCoefficient::Eval(ElementTransformation &T,
+                                        const IntegrationPoint &ip)
+{
+   a->Eval(ma, T, ip);
+   return ma(row_idx,col_idx);
+}
+
 VectorSumCoefficient::VectorSumCoefficient(int dim)
    : VectorCoefficient(dim),
      ACoef(NULL), BCoef(NULL),
@@ -2027,7 +2094,7 @@ void CoefficientVector::Project(MatrixCoefficient &coeff, bool transpose)
 {
    if (auto *const_coeff = dynamic_cast<MatrixConstantCoefficient*>(&coeff))
    {
-      SetConstant(const_coeff->GetMatrix());
+      SetConstant(const_coeff->GetMatrix(), transpose);
    }
    else if (auto *const_sym_coeff =
                dynamic_cast<SymmetricMatrixConstantCoefficient*>(&coeff))
@@ -2088,7 +2155,7 @@ void CoefficientVector::SetConstant(const Vector &constant)
    }
 }
 
-void CoefficientVector::SetConstant(const DenseMatrix &constant)
+void CoefficientVector::SetConstant(const DenseMatrix &constant, bool transpose)
 {
    const int nq = (storage & CoefficientStorage::CONSTANTS) ? 1 : qs.GetSize();
    const int width = constant.Width();
@@ -2101,7 +2168,8 @@ void CoefficientVector::SetConstant(const DenseMatrix &constant)
       {
          for (int i = 0; i < height; ++i)
          {
-            (*this)[i + j*height + iq*vdim] = constant(i, j);
+            const real_t val = transpose ? constant(j,i) : constant(i,j);
+            (*this)[i + j*height + iq*vdim] = val;
          }
       }
    }
@@ -2126,6 +2194,8 @@ void CoefficientVector::SetConstant(const DenseSymmetricMatrix &constant)
 }
 
 int CoefficientVector::GetVDim() const { return vdim; }
+
+void CoefficientVector::SetVDim(int vdim_) { vdim = vdim_; }
 
 CoefficientVector::~CoefficientVector()
 {

@@ -40,8 +40,7 @@ public:
       ProjectLORCoefficient<MassIntegrator>(a, c1);
       ProjectLORCoefficient<DiffusionIntegrator>(a, c2);
 
-      auto *integ = GetInteriorFaceIntegrator<DGDiffusionIntegrator>(a);
-      if (integ)
+      if (auto *integ = GetInteriorFaceIntegrator<DGDiffusionIntegrator>(a))
       {
          kappa = integ->GetPenaltyParameter();
       }

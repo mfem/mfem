@@ -1,4 +1,4 @@
-//                                MFEM Example 24 -- modified for NURBS FE
+//               MFEM Example 24 -- modified for NURBS FE
 //
 // Compile with: make nurbs_ex24
 //
@@ -43,6 +43,8 @@ void gradp_exact(const Vector &, Vector &);
 real_t div_gradp_exact(const Vector &x);
 void v_exact(const Vector &x, Vector &v);
 void curlv_exact(const Vector &x, Vector &cv);
+template <typename CoefficientType>
+void Project(GridFunction &gf, CoefficientType &coef, int proj_type);
 
 int dim;
 real_t freq = 1.0, kappa;
@@ -57,6 +59,7 @@ int main(int argc, char *argv[])
    int prob = 0;
    bool static_cond = false;
    bool pa = false;
+   int proj_type_int = 0;
    const char *device_config = "cpu";
    int visport = 19916;
    bool visualization = 1;
@@ -68,14 +71,20 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&NURBS, "-n", "--nurbs", "-nn","--no-nurbs",
-                  "NURBS.");
+   args.AddOption(&NURBS, "-n", "--nurbs", "-nn", "--no-nurbs",
+                  "Use NURBS spaces if the mesh is a NURBS mesh.");
    args.AddOption(&prob, "-p", "--problem-type",
                   "Choose between 0: grad, 1: curl, 2: div");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&proj_type_int, "-proj", "--projection",
+                  "Projection type:\n."
+                  " 0 = DEFAULT: ELEMENTL2 for NURBS elements, ELEMENT else.\n"
+                  " 1 = ELEMENT: As defined in the respective element.\n"
+                  " 2 = GLOBALL2: Global L2 projection.\n"
+                  " 3 = ELEMENTL2: Element L2 projection.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -86,10 +95,11 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      args.PrintUsage(cout);
+      args.PrintUsage(mfem::out);
       return 1;
    }
-   args.PrintOptions(cout);
+   args.PrintOptions(mfem::out);
+   ProjectType proj_type = static_cast<ProjectType>(proj_type_int);
    kappa = freq * M_PI;
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
@@ -102,7 +112,7 @@ int main(int argc, char *argv[])
    //    the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    dim = mesh->Dimension();
-   if ((prob == 1) &&(dim != 3))
+   if ((prob == 1) && (dim != 3))
    {
       MFEM_ABORT("The curl problem is only defined in 3D.");
    }
@@ -123,17 +133,17 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 5. Define a finite element space on the mesh. Here we use Nedelec or
-   //    Raviart-Thomas finite elements of the specified order.
+   // 5. Define a finite element space on the mesh. Here we use H^1, H(Div) or
+   //    H(Curl) finite elements of the specified order.
    FiniteElementCollection *trial_fec = nullptr;
    FiniteElementCollection *test_fec = nullptr;
    NURBSExtension *NURBSext = nullptr;
    if (mesh->NURBSext && NURBS)
    {
-      NURBSext  = new NURBSExtension(mesh->NURBSext, order);
+      NURBSext = new NURBSExtension(mesh->NURBSext, order);
       if (prob == 0)
       {
-         trial_fec  = new NURBSFECollection(order);
+         trial_fec = new NURBSFECollection(order);
          test_fec = new NURBS_HCurlFECollection(order, dim);
       }
       else if (prob == 1)
@@ -146,7 +156,7 @@ int main(int argc, char *argv[])
          trial_fec = new NURBS_HDivFECollection(order, dim);
          test_fec  = new NURBSFECollection(order);
       }
-      mfem::out<<"Create NURBS fec and ext"<<std::endl;
+      mfem::out << "Create NURBS finite element" << endl;
    }
    else
    {
@@ -165,6 +175,7 @@ int main(int argc, char *argv[])
          trial_fec = new RT_FECollection(order-1, dim);
          test_fec = new L2_FECollection(order-1, dim);
       }
+      mfem::out << "Create standard finite elements" << endl;
    }
 
    FiniteElementSpace trial_fes(mesh, NURBSext, trial_fec);
@@ -175,20 +186,20 @@ int main(int argc, char *argv[])
 
    if (prob == 0)
    {
-      cout << "Number of Nedelec finite element unknowns: " << test_size << endl;
-      cout << "Number of H1 finite element unknowns: " << trial_size << endl;
+      mfem::out << "Number of HCurl finite element unknowns: " << test_size << endl;
+      mfem::out << "Number of H1 finite element unknowns: " << trial_size << endl;
    }
    else if (prob == 1)
    {
-      cout << "Number of Nedelec finite element unknowns: " << trial_size << endl;
-      cout << "Number of Raviart-Thomas finite element unknowns: " << test_size <<
-           endl;
+      mfem::out << "Number of HCurl finite element unknowns: " << trial_size << endl;
+      mfem::out << "Number of HDiv finite element unknowns: " << test_size
+                << endl;
    }
    else
    {
-      cout << "Number of Raviart-Thomas finite element unknowns: "
-           << trial_size << endl;
-      cout << "Number of L2 finite element unknowns: " << test_size << endl;
+      mfem::out << "Number of HDiv finite element unknowns: "
+                << trial_size << endl;
+      mfem::out << "Number of L2 finite element unknowns: " << test_size << endl;
    }
 
    // 6. Define the solution vector as a finite element grid function
@@ -204,17 +215,16 @@ int main(int argc, char *argv[])
 
    if (prob == 0)
    {
-      gftrial.ProjectCoefficient(p_coef);
+      gftrial.ProjectCoefficient(p_coef, proj_type);
    }
    else if (prob == 1)
    {
-      gftrial.ProjectCoefficient(v_coef);
+      gftrial.ProjectCoefficient(v_coef, proj_type);
    }
    else
    {
-      gftrial.ProjectCoefficient(gradp_coef);
+      gftrial.ProjectCoefficient(gradp_coef, proj_type);
    }
-
    gftrial.SetTrueVector();
    gftrial.SetFromTrueVector();
 
@@ -293,6 +303,7 @@ int main(int argc, char *argv[])
          cg.SetOperator(Amat);
          cg.SetPreconditioner(Jacobi);
          cg.Mult(rhs, x);
+
       }
    }
 
@@ -300,17 +311,16 @@ int main(int argc, char *argv[])
    GridFunction exact_proj(&test_fes);
    if (prob == 0)
    {
-      exact_proj.ProjectCoefficient(gradp_coef);
+      exact_proj.ProjectCoefficient(gradp_coef, proj_type);
    }
    else if (prob == 1)
    {
-      exact_proj.ProjectCoefficient(curlv_coef);
+      exact_proj.ProjectCoefficient(curlv_coef, proj_type);
    }
    else
    {
-      exact_proj.ProjectCoefficient(divgradp_coef);
+      exact_proj.ProjectCoefficient(divgradp_coef, proj_type);
    }
-
    exact_proj.SetTrueVector();
    exact_proj.SetFromTrueVector();
 
@@ -320,20 +330,20 @@ int main(int argc, char *argv[])
       real_t errSol = x.ComputeL2Error(gradp_coef);
       real_t errProj = exact_proj.ComputeL2Error(gradp_coef);
 
-      cout << "\n Solution of (E_h,v) = (grad p_h,v) for E_h and v in H(curl): "
-           "|| E_h - grad p ||_{L_2} = " << errSol << '\n' << endl;
-      cout << " Projection E_h of exact grad p in H(curl): || E_h - grad p "
-           "||_{L_2} = " << errProj << '\n' << endl;
+      mfem::out << "\n Solution of (E_h,v) = (grad p_h,v) for E_h and v in H(curl): "
+                "|| E_h - grad p ||_{L_2} = " << errSol << '\n' << endl;
+      mfem::out << " Projection E_h of exact grad p in H(curl): || E_h - grad p "
+                "||_{L_2} = " << errProj << '\n' << endl;
    }
    else if (prob == 1)
    {
       real_t errSol = x.ComputeL2Error(curlv_coef);
       real_t errProj = exact_proj.ComputeL2Error(curlv_coef);
 
-      cout << "\n Solution of (E_h,w) = (curl v_h,w) for E_h and w in H(div): "
-           "|| E_h - curl v ||_{L_2} = " << errSol << '\n' << endl;
-      cout << " Projection E_h of exact curl v in H(div): || E_h - curl v "
-           "||_{L_2} = " << errProj << '\n' << endl;
+      mfem::out << "\n Solution of (E_h,w) = (curl v_h,w) for E_h and w in H(div): "
+                "|| E_h - curl v ||_{L_2} = " << errSol << '\n' << endl;
+      mfem::out << " Projection E_h of exact curl v in H(div): || E_h - curl v "
+                "||_{L_2} = " << errProj << '\n' << endl;
    }
    else
    {
@@ -347,11 +357,11 @@ int main(int argc, char *argv[])
       real_t errSol = x.ComputeL2Error(divgradp_coef, irs);
       real_t errProj = exact_proj.ComputeL2Error(divgradp_coef, irs);
 
-      cout << "\n Solution of (f_h,q) = (div v_h,q) for f_h and q in L_2: "
-           "|| f_h - div v ||_{L_2} = " << errSol << '\n' << endl;
+      mfem::out << "\n Solution of (f_h,q) = (div v_h,q) for f_h and q in L_2: "
+                "|| f_h - div v ||_{L_2} = " << errSol << '\n' << endl;
 
-      cout << " Projection f_h of exact div v in L_2: || f_h - div v "
-           "||_{L_2} = " << errProj << '\n' << endl;
+      mfem::out << " Projection f_h of exact div v in L_2: || f_h - div v "
+                "||_{L_2} = " << errProj << '\n' << endl;
    }
 
    // 12. Save the refined mesh and the solution. This output can be viewed
