@@ -136,8 +136,7 @@ public:
    AnisoLinElasticSolver(mfem::ParMesh *mesh, int vorder = 1);
 
    /// Destructor of the solver.
-   virtual
-   ~AnisoLinElasticSolver();
+   virtual ~AnisoLinElasticSolver() = default;
 
    /// Sets the linear solver relative tolerance (rtol),
    /// absolute tolerance (atol) and maximum number of
@@ -187,14 +186,14 @@ public:
    /// Returns the displacements.
    void GetSol(mfem::ParGridFunction &sgf)
    {
-      sgf.SetSpace(vfes);
+      sgf.SetSpace(vfes.get());
       sgf.SetFromTrueDofs(sol);
    }
 
    /// Returns the adjoint displacements.
    void GetAdj(mfem::ParGridFunction &agf)
    {
-      agf.SetSpace(vfes);
+      agf.SetSpace(vfes.get());
       agf.SetFromTrueDofs(adj);
    }
 
@@ -214,6 +213,35 @@ public:
       eta = std::make_unique<mfem::CoefficientVector>(*qs);
       p_eta = &design_field;
       eta->Project(design_field);
+   }
+
+   void SetIsoMaterials(mfem::real_t E1_, mfem::real_t nu1_,
+                        mfem::real_t E2_, mfem::real_t nu2_)
+   {
+      E1 = std::make_shared<mfem::ConstantCoefficient>(E1_);
+      nu1 = std::make_shared<mfem::ConstantCoefficient>(nu1_);
+      E2 = std::make_shared<mfem::ConstantCoefficient>(E2_);
+      nu2 = std::make_shared<mfem::ConstantCoefficient>(nu2_);
+
+      p_E1 = E1.get();
+      p_nu1 = nu1.get();
+      p_E2 = E2.get();
+      p_nu2 = nu2.get();
+
+
+      lambda1.reset(new IsoElasticyLambdaCoeff(p_E1, p_nu1));
+      mu1.reset(new IsoElasticyShearCoeff(p_E1, p_nu1));
+      lambda2.reset(new IsoElasticyLambdaCoeff(p_E2, p_nu2));
+      mu2.reset(new IsoElasticyShearCoeff(p_E2, p_nu2));
+
+      l1.reset(new mfem::CoefficientVector(*qs, mfem::CoefficientStorage::FULL));
+      l2.reset(new mfem::CoefficientVector(*qs, mfem::CoefficientStorage::FULL));
+      m1.reset(new mfem::CoefficientVector(*qs, mfem::CoefficientStorage::FULL));
+      m2.reset(new mfem::CoefficientVector(*qs, mfem::CoefficientStorage::FULL));
+      l1->Project(*lambda1);
+      l2->Project(*lambda2);
+      m1->Project(*mu1);
+      m2->Project(*mu2);
    }
 
    /// Set materials
@@ -330,10 +358,10 @@ private:
    const int dim, spaceDim;
 
    // finite element collection for linear elasticity
-   mfem::FiniteElementCollection *vfec;
+   std::unique_ptr<mfem::FiniteElementCollection> vfec;
 
    // finite element space for linear elasticity
-   mfem::ParFiniteElementSpace *vfes;
+   std::unique_ptr<mfem::ParFiniteElementSpace> vfes;
 
    // solution true vector
    mutable mfem::Vector sol;

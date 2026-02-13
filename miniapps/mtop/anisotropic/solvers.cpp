@@ -93,12 +93,12 @@ AnisoLinElasticSolver::AnisoLinElasticSolver(ParMesh *mesh, int vorder):
    dim(mesh->Dimension()),
    spaceDim(mesh->SpaceDimension()),
    vfec(new H1_FECollection(vorder, dim)),
-   vfes(new ParFiniteElementSpace(pmesh, vfec, dim, Ordering::byNODES)),
+   vfes(new ParFiniteElementSpace(pmesh, vfec.get(), dim, Ordering::byNODES)),
    sol(vfes->GetTrueVSize()),
    adj(vfes->GetTrueVSize()),
    rhs(vfes->GetTrueVSize()),
-   fdisp(vfes),
-   adisp(vfes),
+   fdisp(vfes.get()),
+   adisp(vfes.get()),
    fe(vfes->GetFE(0)),
    nodes((pmesh->EnsureNodes(),
           static_cast<ParGridFunction *>(pmesh->GetNodes()))),
@@ -144,11 +144,6 @@ AnisoLinElasticSolver::AnisoLinElasticSolver(ParMesh *mesh, int vorder):
                 *pmesh, ir, 1, false /* used_in_tensor_product */));
 }
 
-AnisoLinElasticSolver::~AnisoLinElasticSolver()
-{
-   delete vfes;
-   delete vfec;
-}
 
 void  AnisoLinElasticSolver::SetLinearSolver(real_t rtol, real_t atol,
                                              int miter)
@@ -370,7 +365,7 @@ void AnisoLinElasticSolver::Assemble()
 {
    // define the differentiable operator
    drhs = std::make_unique<mfem::future::DifferentiableOperator>(
-   std::vector<mfem::future::FieldDescriptor> {{ FDispl, vfes }},
+   std::vector<mfem::future::FieldDescriptor> {{ FDispl, vfes.get() }},
    std::vector<mfem::future::FieldDescriptor>
    {
       { Indicator, ups.get()},

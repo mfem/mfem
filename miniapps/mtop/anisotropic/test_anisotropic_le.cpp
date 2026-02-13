@@ -94,9 +94,9 @@ int main(int argc, char *argv[])
    VectorQuadratureFunctionCoefficient design_qf_cf(design_qf);
    PolytopeMirrorCF eta_cf(V, design_qf_cf);
 
-   ConstantCoefficient E(1.0), nu(0.3);
-   ConstantCoefficient E_void(1e-06), nu_void(0.3);
-   real_t aniso_E = 0.5, aniso_Ex = 1.0, aniso_nu = 0.3;
+   real_t E_void(1e-06), nu_void(0.3);
+   real_t E(1.0), nu(0.3);
+   real_t aniso_E(0.5), aniso_Ex(1.0), aniso_nu(0.3);
 
 
    // Create the solver
