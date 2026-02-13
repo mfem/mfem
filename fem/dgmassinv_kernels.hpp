@@ -147,6 +147,13 @@ real_t DGMassDot(const int e,
    for (int i = tid; i < ND; i += bxy) { s_dot[tid] += X(i,e)*Y(i,e); }
    MFEM_SYNC_THREAD;
 
+#ifdef __INTEL_COMPILER // warns about 'subscript out of range'
+   for (int s = bxy >> 1; s > 0; s >>= 1)
+   {
+      if (tid < s) { s_dot[tid] += s_dot[tid + s]; }
+      MFEM_SYNC_THREAD;
+   }
+#else
    if (bxy > 512 && tid + 512 < bxy) { s_dot[tid] += s_dot[tid + 512]; }
    MFEM_SYNC_THREAD;
 
@@ -176,6 +183,7 @@ real_t DGMassDot(const int e,
 
    if (bxy > 1 && tid < 1 && tid + 1 < bxy) { s_dot[tid] += s_dot[tid + 1]; }
    MFEM_SYNC_THREAD;
+#endif
 
    return s_dot[0];
 }
