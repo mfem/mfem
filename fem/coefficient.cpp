@@ -1974,7 +1974,7 @@ void VectorQuadratureFunctionCoefficient::Eval(Vector &V,
 
 void VectorQuadratureFunctionCoefficient::Project(QuadratureFunction &qf)
 {
-   qf = QuadF;
+   qf.Vector::operator=(QuadF);
 }
 
 QuadratureFunctionCoefficient::QuadratureFunctionCoefficient(
@@ -1999,7 +1999,7 @@ real_t QuadratureFunctionCoefficient::Eval(ElementTransformation &T,
 
 void QuadratureFunctionCoefficient::Project(QuadratureFunction &qf)
 {
-   qf = QuadF;
+   qf.Vector::operator=(QuadF);
 }
 
 

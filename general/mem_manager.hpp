@@ -172,6 +172,7 @@ protected:
 
    enum FlagMask: unsigned
    {
+      NONE          = 0,      ///< No flags set
       // Workaround for use with headers that define REGISTERED as a macro,
       // e.g. nb30.h (which is included by Windows.h):
 #ifndef REGISTERED
@@ -993,7 +994,7 @@ inline void Memory<T>::Wrap(T *ptr, int size, bool own)
 {
    h_ptr = ptr;
    capacity = size;
-   flags = (own ? OWNS_HOST : 0) | VALID_HOST;
+   flags = (own ? OWNS_HOST : NONE) | VALID_HOST;
    h_mt = MemoryManager::GetHostMemoryType();
 #ifdef MFEM_DEBUG
    if (own && MemoryManager::Exists())
@@ -1021,7 +1022,7 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
       if (mt == MemoryType::HOST || !own)
       {
          // Skip registration
-         flags = (own ? OWNS_HOST : 0) | VALID_HOST;
+         flags = (own ? OWNS_HOST : NONE) | VALID_HOST;
          return;
       }
    }
