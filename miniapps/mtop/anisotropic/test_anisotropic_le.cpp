@@ -14,6 +14,10 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    // Parse command-line options.
+   const int design_dim = 4; // void, solid, and aniso material (2)
+   int num_angles = 9;
+   real_t iso_vol_frac = 0.25;
+   real_t aniso_vol_frac = 0.25;
    const char *mesh_file = MESH_QUAD;
    const char *device_config = "cpu";
    int order = 2;
@@ -30,6 +34,12 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&num_angles, "-ang", "--angle",
+                  "Number of angles for the anisotropy");
+   args.AddOption(&iso_vol_frac, "-ivol", "--iso-vol-frac",
+                  "Volume fraction for isotropic material.");
+   args.AddOption(&iso_vol_frac, "-avol", "--aniso-vol-frac",
+                  "Volume fraction for anisotropic material.");
    args.AddOption(&mesh_tri, "-tri", "--triangular", "-no-tri",
                   "--no-triangular", "Enable or not triangular mesh.");
    args.AddOption(&mesh_quad, "-quad", "--quadrilateral", "-no-quad",
@@ -42,6 +52,13 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.ParseCheck();
+   MFEM_VERIFY(iso_vol_frac + aniso_vol_frac <= 1.0,
+               "The sum of isotropic and anisotropic volume fractions should be less than or equal to 1.");
+   MFEM_VERIFY(iso_vol_frac >= 0.0,
+               "Isotropic volume fraction should be in the range [0, 1].");
+   MFEM_VERIFY(aniso_vol_frac >= 0.0,
+               "Anisotropic volume fraction should be in the range [0, 1].");
+   const real_t void_vol_frac = 1.0 - iso_vol_frac - aniso_vol_frac;
 
    // Enable hardware devices such as GPUs, and programming models such as
    // CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -75,18 +92,29 @@ int main(int argc, char *argv[])
    mesh.Clear();
    for (int l = 0; l < par_ref_levels; l++) { pmesh.UniformRefinement(); }
 
-   const int design_dim = 3;
-   const int num_angles = 9;
    DenseMatrix V(design_dim, num_angles+1);
    V = 0.0;
    V(0, 0) = 1.0;
+   V(1, 1) = 1.0;
    const real_t angle_step = M_PI*2 / (num_angles + 1);
    for (int i=0; i<num_angles; i++)
    {
       const real_t angle = (i+1)*angle_step;
-      V(1, i+1) = std::cos(angle);
-      V(2, i+1) = std::sin(angle);
+      V(2, i+1) = std::cos(angle);
+      V(3, i+1) = std::sin(angle);
    }
+   // Global volume weight matrix
+   DenseMatrix W(2, design_dim);
+   W = 0.0;
+   // Global volume fraction vector
+   Vector b(2);
+
+   // void material constraint
+   W(0,0) = 1.0; b(0) = void_vol_frac;
+   // isotropic material constraint
+   W(1,1) = 1.0; b(1) = iso_vol_frac;
+   // anisotropic material constraint: To be implemented
+   // Currently, we cannot handle non-linear constraint int sqrt(a^2 + b^2) <= c
 
    QuadratureSpace design_space(&pmesh, 0);
    QuadratureFunction design_qf(&design_space, design_dim);
