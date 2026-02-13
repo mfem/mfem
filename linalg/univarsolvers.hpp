@@ -42,9 +42,7 @@ struct SolverSettings {
   Bounds bounds{.lower = -std::numeric_limits<real_t>::infinity(), .upper = std::numeric_limits<real_t>::infinity()}; ///< Bounds on root
 };
 
-/**
- * @brief Implementation detail
- */
+/// @cond DO_NOT_DOCUMENT
 template <auto f, typename T>
 __attribute__((noinline))
 MFEM_HOST_DEVICE void SolveNewtonBisection_impl(const real_t* x0_ptr, const T* p_ptr, const SolverSettings* settings_ptr, real_t* x_ptr)
@@ -148,6 +146,7 @@ void SolveNewtonBisection_impl_fwddiff(const real_t* x0, const real_t* /* unused
   real_t dfdp = __enzyme_fwddiff<real_t>((void*)+f, enzyme_const, *x, enzyme_dup, *p, *dp);
   *dx = -dfdp/dfdx;
 }
+/// @endcond
 
 /**
  * @brief Find the root of a univariate funtion
