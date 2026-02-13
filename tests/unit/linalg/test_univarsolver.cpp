@@ -22,7 +22,7 @@ MFEM_HOST_DEVICE inline real_t FlowResistance(real_t eqps, real_t sigma_y, real_
     return sigma_y*(1.0 + std::pow(eqps/ep_0, n));
 }
 
-using J2PlasticityParameters = mfem::future::tuple<real_t, real_t, real_t, real_t, real_t, real_t>;
+using J2PlasticityParameters = tuple<real_t, real_t, real_t, real_t, real_t, real_t>;
 
 real_t J2PlasticityResidual(real_t delta_eqps, J2PlasticityParameters p)
 {
@@ -72,7 +72,7 @@ struct J2Plasticity {
   }
 
   MFEM_HOST_DEVICE inline tuple<tensor<real_t, dim, dim>, PackedInternalState>
-  operator()(tensor<real_t, dim, dim> dudxi,
+  update(tensor<real_t, dim, dim> dudxi,
              PackedInternalState internal_state,
              tensor<real_t, dim, dim> J,
              real_t w) const
@@ -103,32 +103,91 @@ struct J2Plasticity {
         plastic_strain += delta_eqps * Np;
         s -= 2.0 * G * delta_eqps * Np;
     }
-    internal_state = pack_internal_state(plastic_strain, accumulated_plastic_strain);
+    auto Q_new = pack_internal_state(plastic_strain, accumulated_plastic_strain);
     auto stress = s + p * I;
     const real_t dV = det(J)*w;
-    return make_tuple(stress*transpose(invJ)*dV, internal_state);
+    // Question: if I make_tuple as in this comment, I get a segfault in
+    // derivatives of this function. Is this expected?
+    // return make_tuple(stress*transpose(invJ)*dV, Q_new);
+    return {stress*transpose(invJ)*dV, Q_new};
+  }
+  
+  MFEM_HOST_DEVICE inline tensor<real_t, dim, dim>
+  stress(tensor<real_t, dim, dim> dudxi,
+         PackedInternalState internal_state,
+         tensor<real_t, dim, dim> J,
+         real_t w) const
+  {
+    auto [stress, internal_state_new] = update(dudxi, internal_state, J, w);
+    return stress;
+  }
+
+  MFEM_HOST_DEVICE inline PackedInternalState
+  internal_state_new(tensor<real_t, dim, dim> dudxi,
+                     PackedInternalState internal_state,
+                     tensor<real_t, dim, dim> J,
+                     real_t w) const
+  {
+    auto [stress, internal_state_new] = update(dudxi, internal_state, J, w);
+    return internal_state_new;
   }
 };
 
+
+// Register the custom derivative for the solver.
+// This needs to be done for every residual function that the solver is applied on,
+// since the SolveNewtonBisection_impl is a function template, and we need a real
+// function with an address to specify the custom derivative.
 __attribute__((used))
 void *  __enzyme_register_derivative_newton_bisection_on_j2[2] = {
   (void*) SolveNewtonBisection_impl<J2PlasticityResidual, J2PlasticityParameters>,
   (void*) SolveNewtonBisection_impl_fwddiff<J2PlasticityResidual, J2PlasticityParameters>
 };
 
+tensor<real_t, 3, 3> ComputeStress(
+    J2Plasticity* material, tensor<real_t, 3, 3> dudxi, 
+    J2Plasticity::PackedInternalState Q, tensor<real_t, 3, 3> J, real_t w)
+{
+    return material->stress(dudxi, Q, J, w);
+}
+
 TEST_CASE("Univariate function solver on qfunction", "[univar]")
 {
+    J2Plasticity material{.E = 70.0e3, .nu = 0.34, .sigma_y = 240.0, .n = 0.15, .ep_0 = 1e-3};
     tensor<real_t, 3, 3> H{{{0.947667  , 0.9785799 , 0.33229148},
                             {0.46866846, 0.5698887 , 0.16550303},
                             {0.3101946 , 0.68948054, 0.74676657}}};
     J2Plasticity::PackedInternalState Q{};
-    J2Plasticity material{.E = 70.0e3, .nu = 0.34, .sigma_y = 240.0, .n = 0.15, .ep_0 = 1e-3};
-    auto [stress, Q_new] = material(H, Q, IdentityMatrix<3>(), 1.0);
-    INFO("stress = " << stress << "\ninternal vars =" << Q_new << "\n");
-    real_t mises = std::sqrt(1.5)*norm(dev(stress));
-    real_t eqps = Q_new[9];
-    real_t Y = FlowResistance(eqps, material.sigma_y, material.n, material.ep_0);
-    REQUIRE(mises == MFEM_Approx(Y, 0.0, 1e-8));
+    const tensor<real_t, 3, 3> J = IdentityMatrix<3>();
+    const double w = 1.0;
+
+    SECTION("Solver works")
+    {
+        auto [stress, Q_new] = material.update(H, Q, IdentityMatrix<3>(), 1.0);
+        INFO("stress = " << stress << "\ninternal vars =" << Q_new << "\n");
+        real_t mises = std::sqrt(1.5)*norm(dev(stress));
+        real_t eqps = Q_new[9];
+        real_t Y = FlowResistance(eqps, material.sigma_y, material.n, material.ep_0);
+        REQUIRE(mises == MFEM_Approx(Y, 0.0, 1e-8));
+    }
+
+    SECTION("JVP")
+    {
+        tensor<real_t, 3, 3> H_dot{{{1.0, 0.0 , 0.0},
+                                    {0.0, 0.0 , 0.0},
+                                    {0.0, 0.0 , 0.0}}};
+
+        auto sigma_dot = __enzyme_fwddiff<tensor<real_t, 3, 3>>((void*)ComputeStress, 
+                                                                enzyme_const, &material,
+                                                                enzyme_dup, H, H_dot,
+                                                                enzyme_const, Q,
+                                                                enzyme_const, J,
+                                                                enzyme_const, w);
+        INFO("sigma dot = " << sigma_dot << "\n");
+        REQUIRE(sigma_dot[0][0] > 0.0);
+    }
+
+
 }
 
 
