@@ -412,7 +412,7 @@ ParticleMover::ParticleMover(MPI_Comm comm, ParGridFunction *E_gf_,
                              Ordering::Type pdata_ordering)
     : E_gf(E_gf_), E_finder(E_finder_)
 {
-   MFEM_VERIFY(E_gf, "Must pass an E field to ParticleMover.");
+   MFEM_ASSERT(E_gf, "Must pass an E field to ParticleMover.");
 
    int dim = E_gf->ParFESpace()->GetMesh()->SpaceDimension();
 
@@ -630,7 +630,7 @@ const ParLinearForm &FieldSolver::ComputeNeutralizingRHS(ParFiniteElementSpace *
       for (int p = 0; p < npt; ++p)
       {
          // Skip particles not successfully found
-         MFEM_VERIFY(code[p] != 2, "Particle " << p << " not found.");
+         MFEM_ASSERT(code[p] != 2, "Particle " << p << " not found.");
          local_sum += Q(p);
       }
 
@@ -683,10 +683,10 @@ void FieldSolver::DepositCharge(ParFiniteElementSpace *pfes,
    for (int p = 0; p < npt; ++p)
    {
       // Skip particles not successfully found
-      MFEM_VERIFY(code[p] != 2, "Particle " << p << " not found.");
+      MFEM_ASSERT(code[p] != 2, "Particle " << p << " not found.");
 
       // Assert particle is on the current rank
-      MFEM_VERIFY((int)proc[p] == curr_rank,
+      MFEM_ASSERT((int)proc[p] == curr_rank,
                   "Particle "
                       << p << " found in element owned by rank " << proc[p]
                       << " but current rank is " << curr_rank << "." << endl
