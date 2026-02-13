@@ -92,23 +92,28 @@ int main(int argc, char *argv[])
    mesh.Clear();
    for (int l = 0; l < par_ref_levels; l++) { pmesh.UniformRefinement(); }
 
+   // Material properties
+   real_t E_void(1e-06), nu_void(0.3);
+   real_t E(1.0), nu(0.3);
+   real_t aniso_E(0.5), aniso_Ex(1.0), aniso_nu(0.3);
+
+   // Design vertices
    DenseMatrix V(design_dim, num_angles+1);
    V = 0.0;
-   V(0, 0) = 1.0;
-   V(1, 1) = 1.0;
+   V(0, 0) = 1.0; // void
+   V(1, 1) = 1.0; // solid
    const real_t angle_step = M_PI*2 / (num_angles + 1);
+   // aniso
    for (int i=0; i<num_angles; i++)
    {
       const real_t angle = (i+1)*angle_step;
       V(2, i+1) = std::cos(angle);
       V(3, i+1) = std::sin(angle);
    }
-   // Global volume weight matrix
-   DenseMatrix W(2, design_dim);
-   W = 0.0;
-   // Global volume fraction vector
-   Vector b(2);
 
+   // Global Constraints
+   DenseMatrix W(2, design_dim); Vector b(2);
+   W = 0.0;
    // void material constraint
    W(0,0) = 1.0; b(0) = void_vol_frac;
    // isotropic material constraint
@@ -116,15 +121,12 @@ int main(int argc, char *argv[])
    // anisotropic material constraint: To be implemented
    // Currently, we cannot handle non-linear constraint int sqrt(a^2 + b^2) <= c
 
+   // Design variables
    QuadratureSpace design_space(&pmesh, 0);
    QuadratureFunction design_qf(&design_space, design_dim);
    design_qf = 0.0;
    VectorQuadratureFunctionCoefficient design_qf_cf(design_qf);
    PolytopeMirrorCF eta_cf(V, design_qf_cf);
-
-   real_t E_void(1e-06), nu_void(0.3);
-   real_t E(1.0), nu(0.3);
-   real_t aniso_E(0.5), aniso_Ex(1.0), aniso_nu(0.3);
 
 
    // Create the solver
