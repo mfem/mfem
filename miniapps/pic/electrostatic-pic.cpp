@@ -168,15 +168,12 @@ protected:
        Returns a reference to the precomputed neutralizing ParLinearForm. */
    const ParLinearForm &ComputeNeutralizingRHS(ParFiniteElementSpace *pfes,
                                                const ParticleVector &Q,
-                                               int npt,
                                                MPI_Comm comm);
 
    /** Deposit charge from particles into a ParLinearForm (RHS b).
        b_i = sum_p q_p * φ_i(x_p) */
    void DepositCharge(ParFiniteElementSpace *pfes,
                       const ParticleVector &Q,
-                      int npt,
-                      int dim,
                       ParLinearForm &b);
 
 public:
@@ -619,9 +616,9 @@ FieldSolver::~FieldSolver()
 
 const ParLinearForm &FieldSolver::ComputeNeutralizingRHS(ParFiniteElementSpace *pfes,
                                                          const ParticleVector &Q,
-                                                         int npt,
                                                          MPI_Comm comm)
 {
+   int npt = Q.Size();
    // Get E_finder references
    const Array<unsigned int> &code = E_finder.GetCode();
 
@@ -669,10 +666,14 @@ const ParLinearForm &FieldSolver::ComputeNeutralizingRHS(ParFiniteElementSpace *
 
 void FieldSolver::DepositCharge(ParFiniteElementSpace *pfes,
                                 const ParticleVector &Q,
-                                int npt,
-                                int dim,
                                 ParLinearForm &b)
 {
+   int npt = Q.Size();
+   ParMesh *pmesh = pfes->GetParMesh();
+   int dim = pmesh->SpaceDimension();
+   int curr_rank;
+   MPI_Comm_rank(pmesh->GetComm(), &curr_rank);
+
    // Get E_finder references
    // 0: inside, 1: boundary, 2: not found
    const Array<unsigned int> &code = E_finder.GetCode();
@@ -680,9 +681,6 @@ void FieldSolver::DepositCharge(ParFiniteElementSpace *pfes,
    const Array<unsigned int> &elem = E_finder.GetElem(); // local element id
    const Vector &rref = E_finder.GetReferencePosition(); // (r,s,t) byVDIM
 
-   ParMesh *pmesh = pfes->GetParMesh();
-   int curr_rank;
-   MPI_Comm_rank(pmesh->GetComm(), &curr_rank);
 
    Array<int> dofs;
 
@@ -733,25 +731,22 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet &particles,
       // FE space / mesh
       ParFiniteElementSpace *pfes = phi_gf.ParFESpace();
       ParMesh *pmesh = pfes->GetParMesh();
-      const int dim = pmesh->Dimension();
 
       // Particle data: Q - charges (npt x 1)
       ParticleVector &Q = particles.Field(ParticleMover::CHARGE);
-
-      const int npt = particles.GetNParticles();
 
       // --------------------------------------------------------
       // 1) Make RHS and pre-subtract averaged charge density for zero-mean RHS
       // --------------------------------------------------------
       MPI_Comm comm = pfes->GetComm();
       ParLinearForm b(pfes);
-      b = ComputeNeutralizingRHS(pfes, Q, npt, comm);
+      b = ComputeNeutralizingRHS(pfes, Q, comm);
 
       // --------------------------------------------------------
       // 3) Deposit q_p * phi_i(x_p) into a ParLinearForm (RHS b)
       //      b_i = sum_p q_p * φ_i(x_p)
       // --------------------------------------------------------
-      DepositCharge(pfes, Q, npt, dim, b);
+      DepositCharge(pfes, Q, b);
 
       // Assemble to a global true-dof RHS vector compatible with MassMatrix
       HypreParVector B(pfes);
