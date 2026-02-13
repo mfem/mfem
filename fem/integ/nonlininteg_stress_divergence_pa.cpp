@@ -55,7 +55,7 @@ void StressDivergenceIntegrator<Base>::AssemblePA(const FiniteElementSpace &fes)
 
    auto ordering = GetEVectorOrdering(*fespace);
    auto mode = ordering == ElementDofOrdering::NATIVE ? DofToQuad::FULL
-                                                      : DofToQuad::LEXICOGRAPHIC_FULL;
+               : DofToQuad::LEXICOGRAPHIC_FULL;
    maps = &fespace->GetTypicalFE()->GetDofToQuad(*IntRule, mode);
    geom = mesh.GetGeometricFactors(*IntRule, GeometricFactors::JACOBIANS);
 }

@@ -19,13 +19,15 @@ namespace mfem
 
 void ElasticityIntegrator::SetUpCoefficients()
 {
-   MFEM_ASSERT(q_space, "Quadrature space must be setup before projecting coefficients");
+   MFEM_ASSERT(q_space,
+               "Quadrature space must be setup before projecting coefficients");
    lambda_quad.reset(new CoefficientVector(lambda, *q_space,
                                            CoefficientStorage::FULL));
    mu_quad.reset(new CoefficientVector(mu, *q_space, CoefficientStorage::FULL));
 }
 
-void ElasticityIntegrator::SetUpQuadratureSpaceAndCoefficients(const FiniteElementSpace &fes)
+void ElasticityIntegrator::SetUpQuadratureSpaceAndCoefficients(
+   const FiniteElementSpace &fes)
 {
    SetUpQuadratureSpace();
    SetUpCoefficients();

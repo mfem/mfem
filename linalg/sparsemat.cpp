@@ -4353,7 +4353,8 @@ SparseMatrix::~SparseMatrix()
 #endif // MFEM_USE_CUDA_OR_HIP
 }
 
-void ConformingAssemble(const FiniteElementSpace & fes, std::vector<SparseMatrix *> & mats)
+void ConformingAssemble(const FiniteElementSpace & fes,
+                        std::vector<SparseMatrix *> & mats)
 {
    const SparseMatrix *P = fes.GetConformingProlongation();
    if (!P) { return; } // conforming mesh

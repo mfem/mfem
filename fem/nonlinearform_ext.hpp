@@ -97,7 +97,8 @@ protected:
    const ElementDofOrdering edf;
 
 public:
-   PANonlinearFormExtension(const NonlinearForm *nlf, ElementDofOrdering edf = ElementDofOrdering::LEXICOGRAPHIC);
+   PANonlinearFormExtension(const NonlinearForm *nlf,
+                            ElementDofOrdering edf = ElementDofOrdering::LEXICOGRAPHIC);
 
    /// Prepare the PANonlinearFormExtension for evaluation with Mult().
    /** This method must be called before the first call to Mult(), when the mesh
@@ -129,13 +130,13 @@ public:
 /// Data and methods for element-assembled bilinear forms
 class EANonlinearFormExtension : public PANonlinearFormExtension
 {
- public:
+public:
    class EAGradient : public Operator
    {
-    protected:
+   protected:
       const EANonlinearFormExtension &ext;
 
-    public:
+   public:
       /// Assumes that @a g is a ldof Vector.
       EAGradient(const EANonlinearFormExtension &ext);
 
@@ -189,13 +190,13 @@ protected:
 /// Data and methods for fully-assembled bilinear forms
 class FANonlinearFormExtension : public EANonlinearFormExtension
 {
- private:
+private:
    class FAGradient : public Operator
    {
-    protected:
+   protected:
       const FANonlinearFormExtension &ext;
 
-    public:
+   public:
       /// Assumes that @a g is a ldof Vector.
       FAGradient(const FANonlinearFormExtension &ext);
 
@@ -216,16 +217,16 @@ class FANonlinearFormExtension : public EANonlinearFormExtension
       }
 
       void FormSystemOperator(const Array<int> &ess_tdof_list,
-                                   Operator* &A) const override;
+                              Operator* &A) const override;
 
       void Update();
    };
 
- protected:
+protected:
    mutable SparseMatrix *mat = nullptr;
    mutable FAGradient faGrad;
 
- public:
+public:
    FANonlinearFormExtension(const NonlinearForm *nlf,
                             const ElementDofOrdering edf = ElementDofOrdering::LEXICOGRAPHIC);
 

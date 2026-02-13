@@ -165,7 +165,8 @@ void Operator::RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
    }
 }
 
-const Operator * Operator::SetupRAP(const Operator *Pi, const Operator *Po) const
+const Operator * Operator::SetupRAP(const Operator *Pi,
+                                    const Operator *Po) const
 {
    const Operator *rap;
    if (!IsIdentityProlongation(Pi))
@@ -508,7 +509,8 @@ TripleProductOperator::~TripleProductOperator()
 }
 
 
-ConstrainedOperator::ConstrainedOperator(const Operator *A, const Array<int> &list,
+ConstrainedOperator::ConstrainedOperator(const Operator *A,
+                                         const Array<int> &list,
                                          bool own_A_,
                                          DiagonalPolicy diag_policy_)
    : Operator(A->Height(), A->Width()), A(A), own_A(own_A_),
