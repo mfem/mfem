@@ -605,8 +605,8 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
                          index*dim + d;
                x[d] = h_pp[idx];
             }
-            const auto hi = dim == 2 ? hash_index_2(DEV.hash2, x) :
-                            hash_index_3(DEV.hash3, x);
+            const auto hi = dim == 2 ? hash_index_2(DEV.hash2, x.GetData()) :
+                            hash_index_3(DEV.hash3, x.GetData());
             for (int d = 0; d < dim; ++d)
             {
                pt->x[d] = x[d];
@@ -992,7 +992,8 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
          int pt_index = d_index_temp[j];
          for (int i = 0; i < ncomp; i++)
          {
-            int idx = (ordering == Ordering::byNODES) ? pt_index + i*pts_cnt :
+            int idx = (ordering == Ordering::byNODES) ?
+            pt_index + i*points_cnt :
             pt_index*ncomp + i;
             d_field_out[idx] = d_interp_vals[j + interp_Offset*i];
          }
