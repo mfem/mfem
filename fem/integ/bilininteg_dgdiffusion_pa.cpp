@@ -42,8 +42,8 @@ static void PADGDiffusionSetup2D(const int Q1D, const int NE, const int NF,
    const auto n = Reshape(face_geom.normal.Read(), Q1D, 2, NF);
 
    const bool const_q = (q.Size() == coeff_dim);
-   const auto Q = const_q ? Reshape(q.Read(), 2, coeff_dim, 1, 1)
-                  : Reshape(q.Read(), 2, coeff_dim, Q1D, NF);
+   const auto Q = const_q ? Reshape(q.Read(), coeff_dim, 1, 1, 1)
+                  : Reshape(q.Read(), coeff_dim, Q1D, 2, NF);
 
    const auto W = w.Read();
 
@@ -161,8 +161,8 @@ static void PADGDiffusionSetup3D(const int Q1D, const int NE, const int NF,
    const auto n = Reshape(face_geom.normal.Read(), Q1D, Q1D, 3, NF);
 
    const bool const_q = (q.Size() == coeff_dim);
-   const auto Q = const_q ? Reshape(q.Read(), coeff_dim, 1, 1, 1)
-                  : Reshape(q.Read(), coeff_dim, Q1D, Q1D, NF);
+   const auto Q = const_q ? Reshape(q.Read(), coeff_dim, 1, 1, 1, 1)
+                  : Reshape(q.Read(), coeff_dim, Q1D, Q1D, 2, NF);
 
    const auto W = Reshape(w.Read(), Q1D, Q1D);
 
@@ -179,7 +179,7 @@ static void PADGDiffusionSetup3D(const int Q1D, const int NE, const int NF,
    {
       auto get_coeff = [&] (int i, int qx, int qy, int side, int e)
       {
-         return const_q ? Q(i, 0, 0, 0) : Q(i, qx, qy, e);
+         return const_q ? Q(i, 0, 0, 0, 0) : Q(i, qx, qy, side, e);
       };
 
       MFEM_SHARED int perm[2][3];
