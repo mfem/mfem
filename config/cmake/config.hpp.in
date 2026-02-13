@@ -108,6 +108,9 @@
 // Enable MFEM functionality based on the STRUMPACK library.
 #cmakedefine MFEM_USE_STRUMPACK
 
+// Enable MFEM functionality based on the cuDSS library.
+#cmakedefine MFEM_USE_CUDSS
+
 // Enable functionality based on the Ginkgo library.
 #cmakedefine MFEM_USE_GINKGO
 

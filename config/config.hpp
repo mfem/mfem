@@ -157,4 +157,10 @@ constexpr real_t operator""_r(unsigned long long v)
 #endif
 #endif // MFEM_USE_MPI not defined
 
+#ifndef MFEM_USE_CUDA
+#ifdef MFEM_USE_CUDSS
+#error Building with cuDSS (MFEM_USE_CUDSS=YES) requires CUDA (MFEM_USE_CUDA=YES)
+#endif
+#endif // MFEM_USE_CUDSS not defined
+
 #endif // MFEM_CONFIG_HPP
