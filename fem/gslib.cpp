@@ -1972,7 +1972,7 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
    }
    // Tolerance for point to be marked as on element edge/face based on the
    // obtained reference-space coordinates.
-   double rbtol = 1e-12; // must match MapRefPosAndElemIndices for consistency
+   const double rbtol = 1e-12; // must match MapRefPosAndElemIndices
 
    auto d_gsl_code = gsl_code.ReadWrite(use_dev); // no-op
    auto d_gsl_ref = gsl_ref.Read(use_dev); // no-op
@@ -1980,6 +1980,8 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
    auto d_gsl_mfem_ref = gsl_mfem_ref.Write(use_dev);
    auto d_gsl_mfem_elem = gsl_mfem_elem.Write(use_dev);
    auto d_gsl_dist = gsl_dist.Read(use_dev); // no-op
+   const int ddim = dim; // capture dim for lambda
+   const double dbdr_tol = bdr_tol; // capture bdr_tol for lambda
 
    MFEM_FORALL(index, points_cnt,
    {
@@ -1988,15 +1990,15 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
          return;
       }
       d_gsl_mfem_elem[index] = d_gsl_elem[index];
-      for (int d = 0; d < dim; d++)
+      for (int d = 0; d < ddim; d++)
       {
-         d_gsl_mfem_ref[index * dim + d] = 0.5*(d_gsl_ref[index*dim+d] + 1.0);
+         d_gsl_mfem_ref[index * ddim + d] = 0.5*(d_gsl_ref[index*ddim+d] + 1.0);
       }
       // Note: we check if the point is on element border and mark it as
       // such. We do not mark points as CODE_INTERNAL because the found
       // solution could be interior to the element even when the point
       // is not on the edge/surface. This case is handled in the kernels.
-      if (dim == 1)
+      if (ddim == 1)
       {
          real_t ipx = d_gsl_mfem_ref[index];
          if (ipx < rbtol || ipx > 1.0 - rbtol)
@@ -2004,17 +2006,17 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
             d_gsl_code[index] = CODE_BORDER;
          }
       }
-      else if (dim == 2)
+      else if (ddim == 2)
       {
-         real_t ipx = d_gsl_mfem_ref[index * dim + 0];
-         real_t ipy = d_gsl_mfem_ref[index * dim + 1];
+         real_t ipx = d_gsl_mfem_ref[index * ddim + 0];
+         real_t ipy = d_gsl_mfem_ref[index * ddim + 1];
          if (ipx < rbtol || ipx > 1.0 - rbtol ||
              ipy < rbtol || ipy > 1.0 - rbtol)
          {
             d_gsl_code[index] = CODE_BORDER;
          }
       }
-      if (d_gsl_code[index] == CODE_BORDER && d_gsl_dist[index] > bdr_tol)
+      if (d_gsl_code[index] == CODE_BORDER && d_gsl_dist[index] > dbdr_tol)
       {
          d_gsl_code[index] = CODE_NOT_FOUND;
       }
@@ -2409,13 +2411,14 @@ void FindPointsGSLIB::InterpolateSurfBase(const Vector &field_in,
       auto d_index_temp  = index_temp.Read(use_dev);
       auto d_field_out   = field_out.ReadWrite(use_dev); // no-op
       const int interp_Offset = interp_vals.Size()/ncomp;
+      const int d_pts_cnt = points_cnt; // capture for lambda
       MFEM_FORALL(j, nlocal,
       {
          int pt_index = d_index_temp[j];
          for (int i = 0; i < ncomp; i++)
          {
             int idx = (field_out_ordering == Ordering::byNODES) ?
-            pt_index + i*points_cnt :
+            pt_index + i*d_pts_cnt :
             pt_index*ncomp + i;
             d_field_out[idx] = d_interp_vals[j + interp_Offset*i];
          }
