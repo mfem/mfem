@@ -295,8 +295,8 @@ static void PADGDiffusionSetup3D(const int Q1D, const int NE, const int NF,
                   pa(d, p1, p2, 1, f) = 0.0;
             }
 
-            pa(4, p1, p2, 0, f) = qhi; // {Q/h}
-            pa(4, p1, p2, 1, f) = qhi; // {Q/h}
+            pa(3, p1, p2, 0, f) = qhi; // {Q/h}
+            pa(3, p1, p2, 1, f) = qhi; // {Q/h}
          }
       }
    });
