@@ -2529,7 +2529,6 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
    MFEM_ABORT("FindPointsGSLIB::FindPoints only supports surface meshes "
               "with GSLIB v1.0.9 or later.");
 };
-void FindPointsGSLIB::SetupSurfDevice() {};
 void FindPointsGSLIB::InterpolateSurfBase(const Vector &field_in_evec,
                                           Vector &field_out,
                                           const int nel, const int ncomp,
