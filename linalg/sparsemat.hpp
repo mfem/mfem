@@ -966,9 +966,10 @@ template<> inline void Swap<SparseMatrix>(SparseMatrix &a, SparseMatrix &b)
 
 void ConformingAssemble(const FiniteElementSpace &fes,
                         std::vector<SparseMatrix *> &mats);
+#ifdef MFEM_USE_MPI
 void ParallelRAP(const ParFiniteElementSpace &pfespace, SparseMatrix &loc_A,
                  OperatorHandle &A, bool steal_loc_A = false);
-
+#endif
 } // namespace mfem
 
 #endif
