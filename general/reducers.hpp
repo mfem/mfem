@@ -123,7 +123,7 @@ template <> struct MinReducer<float>
    using value_type = float;
    static MFEM_HOST_DEVICE void Join(value_type &a, value_type b)
    {
-      a = fmin(a, b);
+      a = fminf(a, b);
    }
 
    static MFEM_HOST_DEVICE void SetInitialValue(value_type &a) { a = HUGE_VALF; }
@@ -169,7 +169,7 @@ template <> struct MaxReducer<float>
    using value_type = float;
    static MFEM_HOST_DEVICE void Join(value_type &a, value_type b)
    {
-      a = fmax(a, b);
+      a = fmaxf(a, b);
    }
 
    static MFEM_HOST_DEVICE void SetInitialValue(value_type &a)
@@ -223,8 +223,8 @@ template <> struct MinMaxReducer<float>
    using value_type = DevicePair<float, float>;
    static MFEM_HOST_DEVICE void Join(value_type &a, value_type b)
    {
-      a.first = fmin(a.first, b.first);
-      a.second = fmax(a.second, b.second);
+      a.first = fminf(a.first, b.first);
+      a.second = fmaxf(a.second, b.second);
    }
 
    static MFEM_HOST_DEVICE void SetInitialValue(value_type &a)
