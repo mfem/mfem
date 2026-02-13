@@ -339,12 +339,11 @@ QuadratureInterpolator::DetKernels::Kernel()
       if constexpr (SDIM == 1) { return internal::quadrature_interpolator::Det1D; }
       else if constexpr (SDIM == 2) { return internal::quadrature_interpolator::Det1DSurface<D1D, Q1D, 2>; }
       else if constexpr (SDIM == 3) { return internal::quadrature_interpolator::Det1DSurface<D1D, Q1D, 3>; }
-      else { MFEM_ABORT(""); }
    }
    else if constexpr (DIM == 2 && SDIM == 2) { return internal::quadrature_interpolator::Det2D<D1D, Q1D>; }
    else if constexpr (DIM == 2 && SDIM == 3) { return internal::quadrature_interpolator::Det2DSurface<D1D, Q1D>; }
    else if constexpr (DIM == 3) { return internal::quadrature_interpolator::Det3D<D1D, Q1D>; }
-   else { MFEM_ABORT(""); }
+   MFEM_ABORT("");
 }
 
 /// @endcond
