@@ -2209,6 +2209,8 @@ void DarcyHybridization::EliminateTrueDofsInRHS(
 void DarcyHybridization::EliminateTraceTrueDofs(const Array<int> &tdofs,
                                                 DiagonalPolicy dpolicy)
 {
+   if (IsNonlinear()) { return; } // not implemented
+
    if (!ParallelC())
    {
       He.reset(new SparseMatrix(H->Height()));
@@ -2240,6 +2242,8 @@ void DarcyHybridization::EliminateTraceTrueDofs(DiagonalPolicy dpolicy)
 void DarcyHybridization::EliminateTraceTrueDofsInRHS(const Array<int> &tdofs_,
                                                      const Vector &x, Vector &b)
 {
+   if (IsNonlinear()) { return; } // not implemented
+
    if (!ParallelC())
    {
       MFEM_VERIFY(H && He, "The hybridization matrix is not assembled!");
