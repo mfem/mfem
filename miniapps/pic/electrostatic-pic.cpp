@@ -630,10 +630,7 @@ const ParLinearForm &FieldSolver::ComputeNeutralizingRHS(ParFiniteElementSpace *
       for (int p = 0; p < npt; ++p)
       {
          // Skip particles not successfully found
-         if (code[p] == 2) // not found
-         {
-            MFEM_ABORT("Particle " << p << " not found.");
-         }
+         MFEM_VERIFY(code[p] != 2, "Particle " << p << " not found.");
          local_sum += Q(p);
       }
 
@@ -681,27 +678,20 @@ void FieldSolver::DepositCharge(ParFiniteElementSpace *pfes,
    const Array<unsigned int> &elem = E_finder.GetElem(); // local element id
    const Vector &rref = E_finder.GetReferencePosition(); // (r,s,t) byVDIM
 
-
    Array<int> dofs;
 
    for (int p = 0; p < npt; ++p)
    {
       // Skip particles not successfully found
-      if (code[p] == 2) // not found
-      {
-         MFEM_ABORT("Particle " << p << " not found.");
-      }
+      MFEM_VERIFY(code[p] != 2, "Particle " << p << " not found.");
 
-      // Raise error if particle is not on the current rank
-      if ((int)proc[p] != curr_rank)
-      {
-         // raise error
-         MFEM_ABORT("Particle "
-                    << p << " found in element owned by rank " << proc[p]
-                    << " but current rank is " << curr_rank << "." << endl
-                    << "You must call redistribute everytime before "
-                       "updating the density grid function.");
-      }
+      // Assert particle is on the current rank
+      MFEM_VERIFY((int)proc[p] == curr_rank,
+                  "Particle "
+                      << p << " found in element owned by rank " << proc[p]
+                      << " but current rank is " << curr_rank << "." << endl
+                      << "You must call redistribute everytime before "
+                         "updating the density grid function.");
       const int e = elem[p];
 
       // Reference coordinates for this particle (r,s[,t]) with byVDIM layout
