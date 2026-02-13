@@ -1122,10 +1122,11 @@ HypreParMatrix::HypreParMatrix(
       diagOwner = HypreCsrToMem(A->diag, host_mt, false, mem_diag);
       offdOwner = HypreCsrToMem(A->offd, host_mt, false, mem_offd);
    }
-   HypreRead();
 
    hypre_CSRMatrixSetRownnz(A->diag);
    hypre_CSRMatrixSetRownnz(A->offd);
+
+   HypreRead();
 }
 
 // Constructor from a CSR matrix on rank 0 (4 arguments, v2)
