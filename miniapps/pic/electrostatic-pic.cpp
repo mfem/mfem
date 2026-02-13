@@ -743,7 +743,7 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet &particles,
       b = ComputeNeutralizingRHS(pfes, Q, comm);
 
       // --------------------------------------------------------
-      // 3) Deposit q_p * phi_i(x_p) into a ParLinearForm (RHS b)
+      // 2) Deposit q_p * phi_i(x_p) into a ParLinearForm (RHS b)
       //      b_i = sum_p q_p * φ_i(x_p)
       // --------------------------------------------------------
       DepositCharge(pfes, Q, b);
