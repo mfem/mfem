@@ -531,12 +531,11 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
       auto d_gsl_mfem_ref = gsl_mfem_ref.Write();
       auto d_gsl_mfem_elem = gsl_mfem_elem.Write();
 
-      const int pts_cnt = points_cnt;
       const double bdr_t = bdr_tol;
 
       // Set gsl_mfem_elem using gsl_elem, gsl_mfem_ref using gsl_ref,
       // and gsl_code using element type, gsl_mfem_ref, and gsl_dist.
-      MFEM_FORALL(index, pts_cnt,
+      MFEM_FORALL(index, points_cnt,
       {
          if (d_gsl_code[index] == CODE_NOT_FOUND)
          {
@@ -593,7 +592,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
       array_init(struct srcPt_t, &hash_pt, points_cnt);
       pt = (struct srcPt_t *)hash_pt.ptr;
 
-      auto x = new double[dim];
+      Vector x(dim);
       for (index = 0; index < points_cnt; ++index)
       {
          const int code_i = h_gsl_code[index];
@@ -617,7 +616,6 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
             ++pt;
          }
       }
-      delete[] x;
       hash_pt.n = pt - (struct srcPt_t *)hash_pt.ptr;
       sarray_transfer(struct srcPt_t, &hash_pt, proc, 1, DEV.cr);
    }
@@ -988,7 +986,6 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
       auto d_field_out   = field_out.ReadWrite(); // no-op, already on device.
 
       const int interp_Offset = interp_vals.Size()/ncomp;
-      const int pts_cnt = points_cnt;
 
       MFEM_FORALL(j, nlocal,
       {
