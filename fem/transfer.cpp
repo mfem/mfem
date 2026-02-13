@@ -2496,7 +2496,7 @@ void Restriction3D(const int NE, const int D1D, const int Q1D, const int vdim,
                }
             }
          }
-   
+
          for (int qz = 0; qz < Q1D; ++qz)
          {
             real_t sol_xy[DofQuadLimits::MAX_D1D][DofQuadLimits::MAX_D1D];

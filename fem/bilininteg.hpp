@@ -3233,7 +3233,8 @@ public:
     where $\varepsilon(v) = \frac{1}{2} (\mathrm{grad}(v) + \mathrm{grad}(v)^{\mathrm{T}})$.
     This is a 'Vector' integrator, i.e. defined for FE spaces
     using multiple copies of a scalar FE space. */
-class ElasticityIntegrator : public StressDivergenceIntegrator<BilinearFormIntegrator>
+class ElasticityIntegrator : public
+   StressDivergenceIntegrator<BilinearFormIntegrator>
 {
    friend class ElasticityComponentIntegrator;
 
@@ -3248,7 +3249,7 @@ private:
    std::unique_ptr<CoefficientVector> lambda_quad, mu_quad;
 
    using StressDivergenceIntegrator<BilinearFormIntegrator>::SetUpQuadratureSpace;
-   
+
    /// Project lambda and mu coefficients
    void SetUpCoefficients();
 

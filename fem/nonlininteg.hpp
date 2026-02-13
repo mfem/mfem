@@ -110,7 +110,7 @@ public:
        evaluations on the given FE space @a fes at the state @a x. */
    /** The result of the element assembly is stored internally so that it can be
        used later in the methods AddMultGradPA() and AssembleGradDiagonalEA().
-       The state Vector @a x is an E-vector. 
+       The state Vector @a x is an E-vector.
        The resulting element matrix data is stored in EA data*/
    virtual void AssembleGradEA(const Vector &x, const FiniteElementSpace &fes,
                                Vector &ea_data);
@@ -485,7 +485,7 @@ public:
 template <typename Base>
 class StressDivergenceIntegrator : public Base
 {
- protected:
+protected:
    /// Set up the quadrature space
    void SetUpQuadratureSpace();
 

@@ -26,9 +26,9 @@ NonlinearFormExtension::NonlinearFormExtension(const NonlinearForm *nlf)
 
 PANonlinearFormExtension::PANonlinearFormExtension(const NonlinearForm *nlf,
                                                    const ElementDofOrdering edf_)
-    : NonlinearFormExtension(nlf), fes(*nlf->FESpace()), dnfi(*nlf->GetDNFI()),
-      elemR(nullptr), Grad(*this),
-      edf(edf_)
+   : NonlinearFormExtension(nlf), fes(*nlf->FESpace()), dnfi(*nlf->GetDNFI()),
+     elemR(nullptr), Grad(*this),
+     edf(edf_)
 {
    if (!DeviceCanUseCeed())
    {
@@ -91,7 +91,9 @@ void PANonlinearFormExtension::Update()
 {
    height = width = fes.GetVSize();
    if (!elemR)
+   {
       elemR = fes.GetElementRestriction(edf);
+   }
    xe.SetSize(elemR->Height());
    ye.SetSize(elemR->Height());
    Grad.Update();
@@ -138,8 +140,9 @@ void PANonlinearFormExtension::Gradient::Update()
    height = width = ext.Height();
 }
 
-EANonlinearFormExtension::EANonlinearFormExtension(const NonlinearForm *nlf, const ElementDofOrdering edf_):
-  PANonlinearFormExtension(nlf, edf_), eaGrad(*this)
+EANonlinearFormExtension::EANonlinearFormExtension(const NonlinearForm *nlf,
+                                                   const ElementDofOrdering edf_):
+   PANonlinearFormExtension(nlf, edf_), eaGrad(*this)
 {
    ne = fes.GetMesh()->GetNE();
    elem_vdofs = fes.GetFE(0)->GetDof() * fes.GetFE(0)->GetDim();
@@ -147,7 +150,8 @@ EANonlinearFormExtension::EANonlinearFormExtension(const NonlinearForm *nlf, con
    ea_data.UseDevice(true);
 }
 
-EANonlinearFormExtension::EAGradient::EAGradient(const EANonlinearFormExtension &e):
+EANonlinearFormExtension::EAGradient::EAGradient(const EANonlinearFormExtension
+                                                 &e):
    Operator(e.Height()), ext(e)
 { }
 
@@ -171,16 +175,16 @@ void EANonlinearFormExtension::EAGradient::Mult(const Vector &x,
    auto A = Reshape(ext.ea_data.Read(), elem_vdofs, elem_vdofs, ext.ne);
    mfem::forall(ext.ne * elem_vdofs,
                 [=] MFEM_HOST_DEVICE(int glob_j)
-                {
-                   const int e = glob_j / elem_vdofs;
-                   const int j = glob_j % elem_vdofs;
-                   double res = 0.0;
-                   for (int i = 0; i < elem_vdofs; i++)
-                   {
-                      res += A(i, j, e) * X(i, e);
-                   }
-                   Y(j, e) += res;
-                });
+   {
+      const int e = glob_j / elem_vdofs;
+      const int j = glob_j % elem_vdofs;
+      double res = 0.0;
+      for (int i = 0; i < elem_vdofs; i++)
+      {
+         res += A(i, j, e) * X(i, e);
+      }
+      Y(j, e) += res;
+   });
    ext.elemR->MultTranspose(ext.ye, y);
 }
 
@@ -196,11 +200,11 @@ void EANonlinearFormExtension::EAGradient::AssembleDiagonal(Vector &diag) const
    auto A = Reshape(ext.ea_data.Read(), elem_vdofs, elem_vdofs, ext.ne);
    mfem::forall(ext.ne * elem_vdofs,
                 [=] MFEM_HOST_DEVICE(int glob_j)
-                {
-                   const int e = glob_j / elem_vdofs;
-                   const int j = glob_j % elem_vdofs;
-                   Y(j, e) += A(j, j, e);
-                });
+   {
+      const int e = glob_j / elem_vdofs;
+      const int j = glob_j % elem_vdofs;
+      Y(j, e) += A(j, j, e);
+   });
 
    ext.elemR->MultTranspose(ext.ye, diag);
 }
@@ -219,12 +223,13 @@ Operator &EANonlinearFormExtension::GetGradient(const Vector &x) const
 
 FANonlinearFormExtension::FANonlinearFormExtension(const NonlinearForm *nlf,
                                                    const ElementDofOrdering edf_)
-    : EANonlinearFormExtension(nlf, edf_), faGrad(*this)
+   : EANonlinearFormExtension(nlf, edf_), faGrad(*this)
 {
 }
 
-FANonlinearFormExtension::FAGradient::FAGradient(const FANonlinearFormExtension &e)
-    : Operator(e.Height()), ext(e)
+FANonlinearFormExtension::FAGradient::FAGradient(const FANonlinearFormExtension
+                                                 &e)
+   : Operator(e.Height()), ext(e)
 {
 }
 
@@ -235,13 +240,15 @@ void FANonlinearFormExtension::FAGradient::AssembleGrad(const Vector &g)
    int height = ext.fes.GetVSize();
    if (ext.mat) // We reuse the sparse matrix memory
    {
-      const ElementRestriction &rest = static_cast<const ElementRestriction &>(*ext.elemR);
+      const ElementRestriction &rest = static_cast<const ElementRestriction &>
+                                       (*ext.elemR);
       rest.FillJAndData(ext.ea_data, *ext.mat);
    }
    else // We create, compute the sparsity, and fill the sparse matrix
    {
       ext.mat = new SparseMatrix(height, width, 0);
-      const ElementRestriction &rest = static_cast<const ElementRestriction &>(*ext.elemR);
+      const ElementRestriction &rest = static_cast<const ElementRestriction &>
+                                       (*ext.elemR);
       rest.FillSparseMatrix(ext.ea_data, *ext.mat);
    }
 }
@@ -276,7 +283,8 @@ void FANonlinearFormExtension::RAP(OperatorHandle &A) const
    if ( auto pnlf = dynamic_cast<const ParNonlinearForm*>(nlf) )
    {
       const auto *const pfespace = pnlf->ParFESpace();
-      MFEM_ASSERT(pfespace, "Need the parallel nonlinar form to have its parallel finite element space populated");
+      MFEM_ASSERT(pfespace,
+                  "Need the parallel nonlinar form to have its parallel finite element space populated");
       mfem::ParallelRAP(*pfespace, *this->mat, A);
    }
    else
@@ -290,7 +298,7 @@ void FANonlinearFormExtension::RAP(OperatorHandle &A) const
 }
 
 void FANonlinearFormExtension::EliminateBC(const Array<int> &ess_dofs,
-                                          OperatorHandle &A) const
+                                           OperatorHandle &A) const
 {
 #ifdef MFEM_USE_MPI
    if ( dynamic_cast<const ParNonlinearForm*>(nlf) )
@@ -306,13 +314,15 @@ void FANonlinearFormExtension::EliminateBC(const Array<int> &ess_dofs,
    }
 }
 
-void FANonlinearFormExtension::FAGradient::FormSystemOperator(const Array<int> &ess_tdof_list,
-                                                              Operator *&A) const
+void FANonlinearFormExtension::FAGradient::FormSystemOperator(
+   const Array<int> &ess_tdof_list,
+   Operator *&A) const
 {
    OperatorHandle handleA;
    ext.RAP(handleA);
    ext.EliminateBC(ess_tdof_list, handleA);
-   handleA.SetOperatorOwner(false); // Don't delete the operator when this function goes out of scope
+   handleA.SetOperatorOwner(
+      false); // Don't delete the operator when this function goes out of scope
    A = handleA.Ptr();
 }
 

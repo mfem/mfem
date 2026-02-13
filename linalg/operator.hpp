@@ -1065,7 +1065,8 @@ public:
        ownership flag @a own_A is true, the operator @a *A will be destroyed
        when this object is destroyed. The @a diag_policy determines how the
        operator sets entries corresponding to essential dofs. */
-   ConstrainedOperator(const Operator *A, const Array<int> &list, bool own_A = false,
+   ConstrainedOperator(const Operator *A, const Array<int> &list,
+                       bool own_A = false,
                        DiagonalPolicy diag_policy = DIAG_ONE);
 
    /// Returns the type of memory in which the solution and temporaries are stored.

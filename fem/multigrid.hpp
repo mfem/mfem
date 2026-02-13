@@ -147,7 +147,8 @@ public:
        operators that go from coarser to finer levels, and ownership of the
        given operators, smoothers, and prolongations */
    Multigrid(const Array<Operator*>& operators_, const Array<Solver*>& smoothers_,
-             const Array<const Operator*>& prolongations_, const Array<bool>& ownedOperators_,
+             const Array<const Operator*>& prolongations_,
+             const Array<bool>& ownedOperators_,
              const Array<bool>& ownedSmoothers_, const Array<bool>& ownedProlongations_);
 
    /// Destructor
