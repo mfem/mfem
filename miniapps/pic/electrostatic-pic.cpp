@@ -259,6 +259,10 @@ int main(int argc, char *argv[])
    // Assert that dimension is 2 or 3
    MFEM_VERIFY(ctx.dim == 2 || ctx.dim == 3,
                "Dimension must be 2 or 3, got " << ctx.dim);
+   MFEM_VERIFY(ctx.alpha >= -1.0 && ctx.alpha < 1.0,
+               "Alpha should be in range [-1, 1).");
+   MFEM_VERIFY(ctx.k > 0.0,
+               "k must be nonzero for displacement initialization.");
 
    ctx.L_x = 2.0 * M_PI / ctx.k;
 
@@ -441,10 +445,6 @@ void ParticleMover::InitializeChargedParticles(const real_t &k,
    std::normal_distribution<> norm_dist(0.0, 1.0);
 
    int dim = charged_particles->Coords().GetVDim();
-   MFEM_VERIFY(alpha >= -1.0 && alpha < 1.0,
-               "Alpha should be in range [-1, 1).");
-   MFEM_VERIFY(k != 0.0,
-               "k must be nonzero for displacement initialization.");
 
    ParticleVector &X = charged_particles->Coords();
    ParticleVector &P = charged_particles->Field(ParticleMover::MOM);
