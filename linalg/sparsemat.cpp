@@ -17,6 +17,7 @@
 #include "../general/sort_pairs.hpp"
 #include "../general/backends.hpp"
 #include "../fem/pfespace.hpp"
+#include "../fem/fespace.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -4371,6 +4372,7 @@ void ConformingAssemble(const FiniteElementSpace & fes,
    delete R;
 }
 
+#ifdef MFEM_USE_MPI
 void ParallelRAP(const ParFiniteElementSpace &pfespace, SparseMatrix &loc_A,
                  OperatorHandle &A, bool steal_loc_A /*=false*/)
 {
@@ -4396,4 +4398,5 @@ void ParallelRAP(const ParFiniteElementSpace &pfespace, SparseMatrix &loc_A,
       A.MakePtAP(A_diag, P);
    }
 }
+#endif
 }
