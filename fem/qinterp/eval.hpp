@@ -206,7 +206,7 @@ QuadratureInterpolator::TensorEvalKernels::Kernel()
    if constexpr (DIM == 1) { return internal::quadrature_interpolator::Values1D<Q_LAYOUT>; }
    else if constexpr (DIM == 2) { return internal::quadrature_interpolator::Values2D<Q_LAYOUT, VDIM, D1D, Q1D, NBZ>; }
    else if constexpr (DIM == 3) { return internal::quadrature_interpolator::Values3D<Q_LAYOUT, VDIM, D1D, Q1D>; }
-   else { MFEM_ABORT(""); }
+   MFEM_ABORT("");
 }
 
 /// @endcond

@@ -461,10 +461,7 @@ QuadratureInterpolator::TensorEvalHDivKernels::Kernel()
    {
       return EvalHDiv3D<Q_LAYOUT, FLAGS, D1D, Q1D>;
    }
-   else
-   {
-      MFEM_ABORT("only DIM=2 and DIM=3 are implemented!");
-   }
+   MFEM_ABORT("only DIM=2 and DIM=3 are implemented!");
 }
 
 /// @endcond

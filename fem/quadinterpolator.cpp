@@ -755,7 +755,7 @@ EvalKernel QuadratureInterpolator::EvalKernels::Kernel()
    if constexpr (DIM == 1) { return Eval1D; }
    else if constexpr (DIM == 2) { return Eval2D<VDIM,ND,NQ>; }
    else if constexpr (DIM == 3) { return Eval3D<VDIM,ND,NQ>; }
-   else { MFEM_ABORT(""); }
+   MFEM_ABORT("");
 }
 
 template <int DIM>

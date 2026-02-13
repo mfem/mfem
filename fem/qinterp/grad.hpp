@@ -595,7 +595,7 @@ QuadratureInterpolator::GradKernels::Kernel()
    if constexpr (DIM == 1) { return internal::quadrature_interpolator::Derivatives1D<Q_LAYOUT, GRAD_PHYS>; }
    else if constexpr (DIM == 2) { return internal::quadrature_interpolator::Derivatives2D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D, Q1D, NBZ>; }
    else if constexpr (DIM == 3) { return internal::quadrature_interpolator::Derivatives3D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D, Q1D>; }
-   else { MFEM_ABORT(""); }
+   MFEM_ABORT("");
 }
 
 template<int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int VDIM, int D1D,
@@ -606,7 +606,7 @@ QuadratureInterpolator::CollocatedGradKernels::Kernel()
    if constexpr (DIM == 1) { return internal::quadrature_interpolator::CollocatedDerivatives1D<Q_LAYOUT, GRAD_PHYS>; }
    else if constexpr (DIM == 2) { return internal::quadrature_interpolator::CollocatedDerivatives2D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D, NBZ>; }
    else if constexpr (DIM == 3) { return internal::quadrature_interpolator::CollocatedDerivatives3D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D>; }
-   else { MFEM_ABORT(""); }
+   MFEM_ABORT("");
 }
 
 /// @endcond

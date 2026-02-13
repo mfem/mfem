@@ -190,7 +190,7 @@ VectorMassIntegrator::VectorMassAddMultPA::Kernel()
    {
       return internal::SmemPAVectorMassApply3D<T_D1D, T_Q1D>;
    }
-   else { MFEM_ABORT("Unsupported kernel"); }
+   MFEM_ABORT("Unsupported kernel");
 }
 
 inline VectorMassIntegrator::VectorMassAddMultPAType

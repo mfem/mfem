@@ -179,7 +179,7 @@ VectorDiffusionIntegrator::ApplyPAKernels::Kernel()
    {
       return internal::SmemPAVectorDiffusionApply3D<T_SDIM, T_D1D, T_Q1D>;
    }
-   else { MFEM_ABORT("Unsupported kernel"); }
+   MFEM_ABORT("Unsupported kernel");
 }
 
 inline VectorDiffusionIntegrator::ApplyKernelType
