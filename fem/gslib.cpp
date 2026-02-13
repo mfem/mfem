@@ -531,7 +531,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
       auto d_gsl_mfem_ref = gsl_mfem_ref.Write();
       auto d_gsl_mfem_elem = gsl_mfem_elem.Write();
 
-      const double bdr_t = bdr_tol;
+      const double d_bdr_t = bdr_tol;
 
       // Set gsl_mfem_elem using gsl_elem, gsl_mfem_ref using gsl_ref,
       // and gsl_code using element type, gsl_mfem_ref, and gsl_dist.
@@ -557,7 +557,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
 
          int setcode = internal ? CODE_INTERNAL : CODE_BORDER;
          d_gsl_code[index] = (setcode == CODE_BORDER &&
-                              d_gsl_dist[index] > bdr_t)
+                              d_gsl_dist[index] > d_bdr_t)
                              ? CODE_NOT_FOUND : setcode;
       });
       return;
