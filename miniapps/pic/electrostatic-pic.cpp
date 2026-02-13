@@ -743,7 +743,7 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet &particles,
       b.ParallelAssemble(B);
 
       // ------------------------------------------------------------------
-      // 4) Solve A * phi = B with zero-mean enforcement via OrthoSolver
+      // 3) Solve A * phi = B with zero-mean enforcement via OrthoSolver
       // ------------------------------------------------------------------
       phi_gf = 0.0;
       HypreParVector Phi_true(pfes);
