@@ -4413,7 +4413,7 @@ void NURBSExtension::Get1DBdrElementTopo(Array<Element *> &boundary) const
    int g_be, l_be;
    int ind[2], okv[1];
    NURBSPatchMap p2g(this);
-   const KnotVector *kv[1];
+   const KnotVector *kv[/*1*/2];
 
    g_be = l_be = 0;
    for (int b = 0; b < GetNBP(); b++)

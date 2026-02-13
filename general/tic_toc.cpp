@@ -23,6 +23,7 @@
 #error "CLOCK_MONOTONIC and CLOCK_PROCESS_CPUTIME_ID not defined in <time.h>"
 #endif
 #elif (MFEM_TIMER_TYPE == 3)
+#undef NOMINMAX
 #define NOMINMAX
 #include <windows.h>
 #undef NOMINMAX
