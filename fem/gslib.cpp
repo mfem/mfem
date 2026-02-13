@@ -986,6 +986,7 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
       auto d_field_out   = field_out.ReadWrite(); // no-op, already on device.
 
       const int interp_Offset = interp_vals.Size()/ncomp;
+      const int d_p_cnt = points_cnt;
 
       MFEM_FORALL(j, nlocal,
       {
@@ -993,7 +994,7 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
          for (int i = 0; i < ncomp; i++)
          {
             int idx = (ordering == Ordering::byNODES) ?
-            pt_index + i*points_cnt :
+            pt_index + i*d_p_cnt :
             pt_index*ncomp + i;
             d_field_out[idx] = d_interp_vals[j + interp_Offset*i];
          }
