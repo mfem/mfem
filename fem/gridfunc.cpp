@@ -5276,6 +5276,13 @@ PLBound GridFunction::GetBounds(Vector &lower, Vector &upper,
 {
    int max_order = fes->GetMaxElementOrder();
    PLBound plb(fes, ref_factor*(max_order+1));
+   GetBounds(lower, upper, plb, vdim);
+   return plb;
+}
+
+void GridFunction::GetBounds(Vector &lower, Vector &upper,
+                             PLBound &plb, int vdim) const
+{
    Vector lel, uel;
    GetElementBounds(plb, lel, uel, vdim);
 
@@ -5292,7 +5299,6 @@ PLBound GridFunction::GetBounds(Vector &lower, Vector &upper,
       lower(d_off) = lelt.Min();
       upper(d_off) = uelt.Max();
    }
-   return plb;
 }
 
 struct IntervalNode
