@@ -16,10 +16,12 @@ using mfem::future::Identity;
 ///////////////////////////////////////////////////////////////////////////////
 /// \brief The QFunction struct defining the linear elasticity operator at
 /// integration points which is valid in 2D and 3D
-template <int DIM=2, typename scalar_t=real_t> struct QFunction
+template <int DIM=2, int DESIGN_DIM=3, typename scalar_t=real_t> struct
+   QFunction
 {
    using matd_t = tensor<scalar_t, DIM, DIM>;
    using vecd_t = tensor<scalar_t, DIM>;
+   using vecdsgn_t = tensor<scalar_t, DESIGN_DIM>;
 
 
    struct Elasticity
@@ -32,7 +34,7 @@ template <int DIM=2, typename scalar_t=real_t> struct QFunction
       {
          aniso_tensor=tm.Read();
          MFEM_VERIFY(simp_exp_>=4 &&
-                     simp_exp/2 == 0, "SIMP exponent should be an even integer >= 4");
+                     simp_exp%2 == 0, "SIMP exponent should be an even integer >= 4");
       }
       void SetSIMPExponent(int simp_exp_)
       {
@@ -42,7 +44,7 @@ template <int DIM=2, typename scalar_t=real_t> struct QFunction
       }
 
       MFEM_HOST_DEVICE inline auto operator()(const matd_t &dudxi,
-                                              const vecd_t &eta,
+                                              const vecdsgn_t &eta,
                                               const real_t &L1, const real_t &M1,
                                               const real_t &L2, const real_t &M2,
                                               const matd_t &J,
@@ -67,12 +69,10 @@ template <int DIM=2, typename scalar_t=real_t> struct QFunction
 
          const auto resp=mfem::future::transpose(R)*eps*R;
          const auto espv=mfem::voigt::StrainTensorToEngVoigt(resp);
-         const auto sigv=C*espv;
-         if (simp_exp>4)
-         {
-            const scalar_t r2 = eta[1]*eta[1] + eta[2]*eta[2];
-            sigv *= pow(r2, (simp_exp-4)/2);
-         }
+
+         const scalar_t r2 = eta[1]*eta[1] + eta[2]*eta[2];
+         const auto sigv=simp_exp > 4 ? C*espv*pow(r2, (simp_exp-4)/2) : C*espv;
+
          const auto asig=mfem::voigt::VoigtToStressTensor(sigv);
          //compute the anisotropic contribution
          auto stress=R*asig*mfem::future::transpose(R);
@@ -412,7 +412,7 @@ void AnisoLinElasticSolver::Assemble()
       using mfem::future::dual;
       using dual_t = dual<real_t, real_t>;
 
-      QFunction<2, dual_t>::Elasticity elasticity_func(aniso_tensor, 4);
+      QFunction<2, 3, dual_t>::Elasticity elasticity_func(aniso_tensor, 4);
       drhs->AddDomainIntegrator(elasticity_func, finputs, foutputs, ir,
                                 domain_attributes, derivatives);
    }
@@ -426,15 +426,10 @@ void AnisoLinElasticSolver::Assemble()
 
    fdisp=0.0;
 
-   /*
-   dr_du=drhs->GetDerivative(FDispl,{&fdisp},
-                        {eta.get(),
-                        lambda1.get(),mu1.get(),
-                        lambda2.get(),mu2.get(),
-                        nodes});
-   */
+   dr_du=drhs->GetDerivative(FDispl, {&fdisp},
+   { eta.get(), l1.get(), m1.get(), l2.get(), m2.get(), nodes });
 
-   //dr_du->Assemble(K);
+   dr_du->Assemble(K);
 
    //set BC to the matrix
 
@@ -442,6 +437,4 @@ void AnisoLinElasticSolver::Assemble()
 
 
 void AnisoLinElasticSolver::FSolve()
-{
-
-}
+{}

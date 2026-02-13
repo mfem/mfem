@@ -17,6 +17,57 @@
 
 using real_t = mfem::real_t;
 
+// gibbs function y <- exp(x) / sum(exp(x))
+inline void gibbs(const mfem::Vector &x, mfem::Vector &y)
+{
+   y = x;
+   const real_t maxx = x.Max();
+   real_t sum = 0.0;
+   for (int i=0; i<x.Size(); i++)
+   {
+      y[i] = exp(x[i] - maxx);
+      sum += y[i];
+   }
+   y /= sum;
+}
+// in-place gibbs function x <- exp(x) / sum(exp(x))
+inline void gibbs(mfem::Vector &x)
+{
+   const real_t maxx = x.Max();
+   real_t sum = 0.0;
+   for (int i=0; i<x.Size(); i++)
+   {
+      x[i] = exp(x[i] - maxx);
+      sum += x[i];
+   }
+   x /= sum;
+}
+class PolytopeMirrorCF : public mfem::VectorCoefficient
+{
+   const mfem::DenseMatrix &V;
+   VectorCoefficient &psi_cf;
+   mutable mfem::Vector psi;
+   mutable mfem::Vector Vtpsi; // V^T * psi
+   mutable mfem::Vector lambda; // intermediate varicentric coordinates
+public:
+   PolytopeMirrorCF(const mfem::DenseMatrix &V_, mfem::VectorCoefficient &psi_)
+      : VectorCoefficient(V_.Height())
+      , V(V_), psi_cf(psi_)
+      , psi(V_.Height()), Vtpsi(V_.Width()), lambda(V_.Width())
+   {
+      MFEM_VERIFY(V.Height() == psi_cf.GetVDim(),
+                  "V and psi_cf should have the same height");
+   }
+   void Eval(mfem::Vector &p, mfem::ElementTransformation &T,
+             const mfem::IntegrationPoint &ip) override
+   {
+      psi_cf.Eval(psi, T, ip);
+      V.MultTranspose(psi, lambda);
+      gibbs(lambda);
+      V.Mult(lambda, p);
+   }
+};
+
 
 ///////////////////////////////////////////////////////////////////////////////
 /// \brief The IsoElasticyLambdaCoeff class converts E modulus of elasticity
@@ -157,6 +208,13 @@ public:
    /// Adjoint solve with given RHS. x is the RHS vector.
    /// The essential BCs are set to zero.
    void MultTranspose(const mfem::Vector &x, mfem::Vector &y) const override;
+
+   void SetDesignField(mfem::VectorCoefficient &design_field)
+   {
+      eta = std::make_unique<mfem::CoefficientVector>(*qs);
+      p_eta = &design_field;
+      eta->Project(design_field);
+   }
 
    /// Set materials
    void SetIsoMaterials(mfem::Coefficient &E1_, mfem::Coefficient &nu1_,
@@ -364,6 +422,7 @@ private:
    //isotropic materials
    mfem::Coefficient *p_E1, *p_nu1;
    mfem::Coefficient *p_E2, *p_nu2;
+   mfem::VectorCoefficient *p_eta;
 
    std::shared_ptr<mfem::Coefficient> E1, E2;
    std::shared_ptr<mfem::Coefficient> nu1, nu2;

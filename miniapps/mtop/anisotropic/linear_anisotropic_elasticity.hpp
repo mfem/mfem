@@ -57,7 +57,7 @@ MFEM_HOST_DEVICE inline tensor<T,6>
 StrainTensorToEngVoigt(const tensor<T,3,3> &eps)
 {
    tensor<T,6> v;
-   const T two = T(2);
+   const T two = T{2.0};
 
    v(0) = eps(0,0);       // 11
    v(1) = eps(1,1);       // 22
@@ -78,7 +78,7 @@ MFEM_HOST_DEVICE inline tensor<T,6>
 StrainTensorToEngVoigt_safe(const tensor<T,3,3> &eps)
 {
    tensor<T,6> v;
-   const T two = T(2);
+   const T two = T{2.0};
 
    v(0) = eps(0,0);       // 11
    v(1) = eps(1,1);       // 22
@@ -99,7 +99,7 @@ MFEM_HOST_DEVICE inline tensor<T,3,3>
 EngVoigtToStrainTensor(const tensor<T,6> &v)
 {
    tensor<T,3,3> eps;
-   const T half = T(0.5); // assumes floating/scalar type
+   const T half = T{0.5}; // assumes floating/scalar type
 
    eps(0,0) = v(0);
    eps(1,1) = v(1);
@@ -154,11 +154,11 @@ MFEM_HOST_DEVICE inline tensor<T,3>
 StrainTensorToEngVoigt(const tensor<T,2,2> &eps)
 {
    tensor<T,3> v;
-   const T two = T(2);
+   const T two = T{2.0};
 
    v(0) = eps(0,0);       // 11
    v(1) = eps(1,1);       // 22
-   v(2) = two * eps(0,1); // gamma_12
+   v(2) = two*eps(0,1); // gamma_12
    return v;
 }
 //------------------------------------------------------------------------------
@@ -171,7 +171,6 @@ MFEM_HOST_DEVICE inline tensor<T,3>
 StrainTensorToEngVoigt_safe(const tensor<T,2,2> &eps)
 {
    tensor<T,3> v;
-   const T two = T(2);
 
    v(0) = eps(0,0);       // 11
    v(1) = eps(1,1);       // 22
@@ -188,7 +187,7 @@ MFEM_HOST_DEVICE inline tensor<T,2,2>
 EngVoigtToStrainTensor(const tensor<T,3> &v)
 {
    tensor<T,2,2> eps;
-   const T half = T(1) / T(2);
+   const T half = T{1.0} / T{2.0};
 
    eps(0,0) = v(0);
    eps(1,1) = v(1);
@@ -211,14 +210,14 @@ EngVoigtToStrainTensor(const tensor<T,3> &v)
 //------------------------------------------------------------------------------
 template <typename T>
 MFEM_HOST_DEVICE inline tensor<T,6>
-StressTensor2DToVoigt6(const tensor<T,2,2> &sigma, const T sigma33 = T(0))
+StressTensor2DToVoigt6(const tensor<T,2,2> &sigma, const T sigma33 = T{0.0})
 {
    tensor<T,6> v;
    v(0) = sigma(0,0); // 11
    v(1) = sigma(1,1); // 22
    v(2) = sigma33;    // 33
-   v(3) = T(0);       // 23
-   v(4) = T(0);       // 13
+   v(3) = T{0.0};       // 23
+   v(4) = T{0.0};       // 13
    v(5) = sigma(0,1); // 12
    return v;
 }
@@ -244,16 +243,16 @@ Voigt6ToStressTensor2D(const tensor<T,6> &v6)
 //------------------------------------------------------------------------------
 template <typename T>
 MFEM_HOST_DEVICE inline tensor<T,6>
-StrainTensor2DToEngVoigt6(const tensor<T,2,2> &eps, const T eps33 = T(0))
+StrainTensor2DToEngVoigt6(const tensor<T,2,2> &eps, const T eps33 = T{0.0})
 {
    tensor<T,6> v;
-   const T two = T(2);
+   const T two = T{2.0};
 
    v(0) = eps(0,0);       // 11
    v(1) = eps(1,1);       // 22
    v(2) = eps33;          // 33
-   v(3) = T(0);           // gamma_23
-   v(4) = T(0);           // gamma_13
+   v(3) = T{0.0};           // gamma_23
+   v(4) = T{0.0};           // gamma_13
    v(5) = two * eps(0,1); // gamma_12
    return v;
 }
@@ -266,7 +265,7 @@ MFEM_HOST_DEVICE inline tensor<T,2,2>
 EngVoigt6ToStrainTensor2D(const tensor<T,6> &v6)
 {
    tensor<T,2,2> eps;
-   const T half = T(1) / T(2);
+   const T half = T{1.0} / T{2.0};
 
    eps(0,0) = v6(0);
    eps(1,1) = v6(1);
@@ -283,7 +282,7 @@ MFEM_HOST_DEVICE inline void SetZero(tensor<T,N,M> &A)
    for (int i = 0; i < N; i++)
       for (int j = 0; j < M; j++)
       {
-         A(i,j) = T(0);
+         A(i,j) = T{0.0};
       }
 }
 
@@ -298,7 +297,7 @@ MFEM_HOST_DEVICE inline tensor<T,3,3> Invert3x3(const tensor<T,3,3> &A)
       a00*(a11*a22 - a12*a21)
       - a01*(a10*a22 - a12*a20)
       + a02*(a10*a21 - a11*a20);
-   const T inv_det = T(1.0) / det;
+   const T inv_det = T{1.0} / det;
 
    tensor<T,3,3> inv;
    inv(0,0) =  (a11*a22 - a12*a21) * inv_det;
@@ -323,7 +322,7 @@ MFEM_HOST_DEVICE inline tensor<T,2,2> Invert2x2(const tensor<T,2,2> &A)
    const T a10 = A(1,0), a11 = A(1,1);
 
    const T det = a00*a11 - a01*a10;
-   const T det_inv = T(1.0) / det;
+   const T det_inv = 1.0 / det;
 
    tensor<T,2,2> inv;
 
@@ -344,8 +343,8 @@ template <typename T>
 MFEM_HOST_DEVICE inline tensor<T,6,6> IsotropicStiffness3D(const T E,
                                                            const T nu)
 {
-   const T one = T(1);
-   const T two = T(2);
+   const T one = T{1.0};
+   const T two = T{2.0};
 
    const T mu     = E / (two * (one + nu));                 // shear modulus G
    const T lambda = (E * nu) / ((one + nu) * (one - two*nu));
@@ -379,8 +378,8 @@ MFEM_HOST_DEVICE inline tensor<T,3,3> IsotropicStiffness2D_PlaneStress(
    const T E,
    const T nu)
 {
-   const T one = T(1);
-   const T two = T(2);
+   const T one = T{1.0};
+   const T two = T{2.0};
 
    const T fac = E / (one - nu*nu);
 
@@ -403,8 +402,8 @@ MFEM_HOST_DEVICE inline tensor<T,3,3> IsotropicStiffness2D_PlaneStrain(
    const T E,
    const T nu)
 {
-   const T one = T(1);
-   const T two = T(2);
+   const T one = T{1.0};
+   const T two = T{2.0};
 
    const T mu     = E / (two * (one + nu));
    const T lambda = (E * nu) / ((one + nu) * (one - two*nu));
@@ -453,9 +452,9 @@ MFEM_HOST_DEVICE inline tensor<T,6,6> OrthotropicStiffness3D(
 
    // Normal compliance block Sn (3x3)
    tensor<T,3,3> Sn;
-   Sn(0,0) = T(1)/p.E1;      Sn(0,1) = -nu21/p.E2;    Sn(0,2) = -nu31/p.E3;
-   Sn(1,0) = -p.nu12/p.E1;   Sn(1,1) = T(1)/p.E2;     Sn(1,2) = -nu32/p.E3;
-   Sn(2,0) = -p.nu13/p.E1;   Sn(2,1) = -p.nu23/p.E2;  Sn(2,2) = T(1)/p.E3;
+   Sn(0,0) = T{1.0}/p.E1;      Sn(0,1) = -nu21/p.E2;      Sn(0,2) = -nu31/p.E3;
+   Sn(1,0) = -p.nu12/p.E1;     Sn(1,1) = T{1.0}/p.E2;     Sn(1,2) = -nu32/p.E3;
+   Sn(2,0) = -p.nu13/p.E1;     Sn(2,1) = -p.nu23/p.E2;    Sn(2,2) = T{1.0}/p.E3;
 
    const tensor<T,3,3> Cn = Invert3x3(Sn);
 
@@ -494,7 +493,7 @@ OrthotropicStiffness2D_PlaneStress(const T E1, const T E2,
                                    const T nu12, const T G12)
 {
    const T nu21  = nu12 * E2 / E1;
-   const T denom = T(1) - nu12*nu21;
+   const T denom = T{1.0} - nu12*nu21;
 
    tensor<T,3,3> C;
    SetZero(C);
@@ -576,8 +575,8 @@ template <typename T>
 MFEM_HOST_DEVICE inline tensor<T,6,6> IsotropicCompliance3D(const T E,
                                                             const T nu)
 {
-   const T one = T(1);
-   const T two = T(2);
+   const T one = T{1.0};
+   const T two = T{2.0};
 
    const T invE = one / E;
    const T G    = E / (two * (one + nu)); // shear modulus
@@ -611,8 +610,8 @@ MFEM_HOST_DEVICE inline tensor<T,3,3> IsotropicCompliance2D_PlaneStress(
    const T E,
    const T nu)
 {
-   const T one = T(1);
-   const T two = T(2);
+   const T one = T{1.0};
+   const T two = T{2.0};
 
    const T invE = one / E;
    const T G    = E / (two * (one + nu));
@@ -638,8 +637,8 @@ MFEM_HOST_DEVICE inline tensor<T,3,3> IsotropicCompliance2D_PlaneStrain(
    const T E,
    const T nu)
 {
-   const T one = T(1);
-   const T two = T(2);
+   const T one = T{1.0};
+   const T two = T{2.0};
 
    const T invE = one / E;
    const T G    = E / (two * (one + nu));
@@ -677,7 +676,7 @@ template <typename T>
 MFEM_HOST_DEVICE inline tensor<T,6,6> OrthotropicCompliance3D(
    const Orthotropic3D<T> &p)
 {
-   const T one = T(1);
+   const T one = T{1.0};
 
    const T nu21 = p.nu12 * p.E2 / p.E1;
    const T nu31 = p.nu13 * p.E3 / p.E1;
@@ -713,7 +712,7 @@ MFEM_HOST_DEVICE inline tensor<T,3,3>
 OrthotropicCompliance2D_PlaneStress(const T E1, const T E2,
                                     const T nu12, const T G12)
 {
-   const T one = T(1);
+   const T one = T{1.0};
 
    const T nu21 = nu12 * E2 / E1;
 
@@ -752,7 +751,7 @@ template <typename T>
 MFEM_HOST_DEVICE inline tensor<T,3,3>
 OrthotropicCompliance2D_PlaneStrain_From3D(const Orthotropic3D<T> &p)
 {
-   const T one = T(1);
+   const T one = T{1.0};
 
    const T invE1 = one / p.E1;
    const T invE2 = one / p.E2;
@@ -791,23 +790,24 @@ OrthotropicCompliance2D_PlaneStrain_From3D(const Orthotropic3D<T> &p)
 template <typename T>
 MFEM_HOST_DEVICE inline tensor<T,3,3>
 RotationMatrixFromQuaternion(const T w, const T x, const T y, const T z,
-                             const T eps_t=T(1e-13))
+                             const T eps_t=T{1e-13})
 {
-   const T one = T(1);
+   const T one = T{1.0};
+   const T zero = T{0.0};
 
    const T n2 = w*w + x*x + y*y + z*z;
    tensor<T,3,3> R;
 
    if (n2 < eps_t )
    {
-      R(0,0)=one; R(0,1)=T(0); R(0,2)=T(0);
-      R(1,0)=T(0); R(1,1)=one; R(1,2)=T(0);
-      R(2,0)=T(0); R(2,1)=T(0); R(2,2)=one;
+      R(0,0)=one;  R(0,1)=zero;  R(0,2)=zero;
+      R(1,0)=zero; R(1,1)=one;   R(1,2)=zero;
+      R(2,0)=zero; R(2,1)=zero;  R(2,2)=one;
       return R;
    }
 
    // s = 2 / ||q||^2 (equals 2 for unit quaternion)
-   const T s  = T(2) / n2;
+   const T s  = T{2.0} / n2;
 
    const T xx = x*x, yy = y*y, zz = z*z;
    const T xy = x*y, xz = x*z, yz = y*z;
@@ -850,7 +850,7 @@ RotateStressTensor(const tensor<T,3,3> &sigma, const tensor<T,3,3> &R)
    {
       for (int j = 0; j < 3; j++)
       {
-         T s = T(0);
+         T s = T{0.0};
          for (int k = 0; k < 3; k++) { s += R(i,k) * sigma(k,j); }
          tmp(i,j) = s;
       }
@@ -861,7 +861,7 @@ RotateStressTensor(const tensor<T,3,3> &sigma, const tensor<T,3,3> &R)
    {
       for (int j = 0; j < 3; j++)
       {
-         T s = T(0);
+         T s = T{0.0};
          for (int k = 0; k < 3; k++) { s += tmp(i,k) * R(j,k); }
          out(i,j) = s;
       }
@@ -884,7 +884,7 @@ StressVoigtRotationMatrix(const tensor<T,3,3> &R)
    const T r21 = R(1,0), r22 = R(1,1), r23 = R(1,2);
    const T r31 = R(2,0), r32 = R(2,1), r33 = R(2,2);
 
-   const T two = T(2);
+   const T two = T{2.0};
 
    tensor<T,6,6> Tm;
 
@@ -962,7 +962,7 @@ RotateStrainTensor(const tensor<T,3,3> &eps, const tensor<T,3,3> &R)
    {
       for (int j = 0; j < 3; j++)
       {
-         T s = T(0);
+         T s = T{0.0};
          for (int k = 0; k < 3; k++) { s += R(i,k) * eps(k,j); }
          tmp(i,j) = s;
       }
@@ -973,7 +973,7 @@ RotateStrainTensor(const tensor<T,3,3> &eps, const tensor<T,3,3> &R)
    {
       for (int j = 0; j < 3; j++)
       {
-         T s = T(0);
+         T s = T{0.0};
          for (int k = 0; k < 3; k++) { s += tmp(i,k) * R(j,k); }
          out(i,j) = s;
       }
@@ -997,7 +997,7 @@ StrainEngVoigtRotationMatrix(const tensor<T,3,3> &R)
    const T r21 = R(1,0), r22 = R(1,1), r23 = R(1,2);
    const T r31 = R(2,0), r32 = R(2,1), r33 = R(2,2);
 
-   const T two = T(2);
+   const T two = T{2.0};
 
    tensor<T,6,6> Tm;
 
@@ -1083,7 +1083,7 @@ MFEM_HOST_DEVICE inline tensor<T,N,N> MatMul(const tensor<T,N,N> &A,
    {
       for (int j = 0; j < N; j++)
       {
-         T s = T(0);
+         T s = T{0.0};
          for (int k = 0; k < N; k++) { s += A(i,k) * B(k,j); }
          C(i,j) = s;
       }
@@ -1125,7 +1125,7 @@ StressVoigtRotationMatrix2D(const tensor<T,2,2> &R)
 {
    const T r11 = R(0,0), r12 = R(0,1);
    const T r21 = R(1,0), r22 = R(1,1);
-   const T two = T(2);
+   const T two = T{2.0};
 
    // For a proper 2D rotation, you typically have r11=c, r12=-s, r21=s, r22=c,
    // but this formula works for any orthogonal 2x2 R.
@@ -1155,7 +1155,7 @@ StrainEngVoigtRotationMatrix2D(const tensor<T,2,2> &R)
 {
    const T r11 = R(0,0), r12 = R(0,1);
    const T r21 = R(1,0), r22 = R(1,1);
-   const T two = T(2);
+   const T two = T{2.0};
 
    tensor<T,3,3> Te;
 

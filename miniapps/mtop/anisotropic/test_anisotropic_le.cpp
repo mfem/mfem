@@ -75,6 +75,30 @@ int main(int argc, char *argv[])
    mesh.Clear();
    for (int l = 0; l < par_ref_levels; l++) { pmesh.UniformRefinement(); }
 
+   const int design_dim = 3;
+   const int num_angles = 9;
+   DenseMatrix V(design_dim, num_angles+1);
+   V = 0.0;
+   V(0, 0) = 1.0;
+   const real_t angle_step = M_PI*2 / (num_angles + 1);
+   for (int i=0; i<num_angles; i++)
+   {
+      const real_t angle = (i+1)*angle_step;
+      V(1, i+1) = std::cos(angle);
+      V(2, i+1) = std::sin(angle);
+   }
+
+   QuadratureSpace design_space(&pmesh, 0);
+   QuadratureFunction design_qf(&design_space, design_dim);
+   design_qf = 0.0;
+   VectorQuadratureFunctionCoefficient design_qf_cf(design_qf);
+   PolytopeMirrorCF eta_cf(V, design_qf_cf);
+
+   ConstantCoefficient E(1.0), nu(0.3);
+   ConstantCoefficient E_void(1e-06), nu_void(0.3);
+   real_t aniso_E = 0.5, aniso_Ex = 1.0, aniso_nu = 0.3;
+
+
    // Create the solver
    AnisoLinElasticSolver elsolver(&pmesh, order);
    if (Mpi::Root())
@@ -82,6 +106,10 @@ int main(int argc, char *argv[])
       std::cout << "Number of unknowns: "
                 << elsolver.GetSolutionVector().Size() << std::endl;
    }
+   elsolver.SetDesignField(eta_cf);
+   elsolver.SetIsoMaterials(E_void, nu_void, E, nu);
+   elsolver.SetAnisotropicTensor2D(aniso_E, aniso_nu, aniso_Ex);
+   elsolver.Assemble();
 
 
    return EXIT_SUCCESS;

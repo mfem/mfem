@@ -1814,34 +1814,34 @@ typename std::enable_if<(n > 3), tensor<T, n, n>>::type
    return B;
 }
 
-/**
- * @overload
- * @note when inverting a tensor of dual numbers,
- * hardcode the analytic derivative of the
- * inverse of a square matrix, rather than
- * apply Gauss elimination directly on the dual number types
- *
- * TODO: compare performance of this hardcoded implementation to just using inv() directly
- */
-template <typename value_type, typename gradient_type, int n> MFEM_HOST_DEVICE
-dual<value_type, gradient_type> inv(
-   tensor<dual<value_type, gradient_type>, n, n> A)
-{
-   auto invA = inv(get_value(A));
-   return make_tensor<n, n>([&](int i, int j)
-   {
-      auto          value = invA[i][j];
-      gradient_type gradient{};
-      for (int k = 0; k < n; k++)
-      {
-         for (int l = 0; l < n; l++)
-         {
-            gradient -= invA[i][k] * A[k][l].gradient * invA[l][j];
-         }
-      }
-      return dual<value_type, gradient_type> {value, gradient};
-   });
-}
+// /**
+//  * @overload
+//  * @note when inverting a tensor of dual numbers,
+//  * hardcode the analytic derivative of the
+//  * inverse of a square matrix, rather than
+//  * apply Gauss elimination directly on the dual number types
+//  *
+//  * TODO: compare performance of this hardcoded implementation to just using inv() directly
+//  */
+// template <typename value_type, typename gradient_type, int n> MFEM_HOST_DEVICE
+// dual<value_type, gradient_type> inv(
+//    tensor<dual<value_type, gradient_type>, n, n> A)
+// {
+//    auto invA = inv(get_value(A));
+//    return make_tensor<n, n>([&](int i, int j)
+//    {
+//       auto          value = invA[i][j];
+//       gradient_type gradient{};
+//       for (int k = 0; k < n; k++)
+//       {
+//          for (int l = 0; l < n; l++)
+//          {
+//             gradient -= invA[i][k] * A[k][l].gradient * invA[l][j];
+//          }
+//       }
+//       return dual<value_type, gradient_type> {value, gradient};
+//    });
+// }
 
 // -----------------------------------------------------------------------------
 // 1x1 Adjugate

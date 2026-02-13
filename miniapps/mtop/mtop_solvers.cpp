@@ -526,8 +526,10 @@ void IsoLinElasticSolver::FSolve()
       {
          lf->AddDomainIntegrator(new VectorDomainLFIntegrator(*volforce));
       }
-      // add surface loads
-      lf->AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(*lcsurf_load));
+      if (lcsurf_load != nullptr)
+      {
+         lf->AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(*lcsurf_load));
+      }
    }
 
    (*lf) = real_t(0.0);
