@@ -1042,7 +1042,6 @@ real_t TMOPNewtonSolver::GetDeterminantLowerBound(const Vector &d_loc,
    const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
    TMOP_Integrator *ti  = NULL;
    TMOPComboIntegrator *co = NULL;
-   DiscreteAdaptTC *dtc = NULL;
    ti = dynamic_cast<TMOP_Integrator *>(integs[0]);
    if (ti)
    {

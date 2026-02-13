@@ -5918,7 +5918,7 @@ void TMOP_Integrator::UpdateDeterminantGridFunction(const Vector &x_loc,
    Mesh *mesh = fes.GetMesh();
    FiniteElementSpace *det_fes = det_gf->FESpace();
    Array<int> dofs;
-   DenseMatrix PMatI, dshape;
+   DenseMatrix PMat, dshape;
    Array<int> xdofs;
 
    for (int e = 0; e < mesh->GetNE(); e++)
@@ -5928,7 +5928,7 @@ void TMOP_Integrator::UpdateDeterminantGridFunction(const Vector &x_loc,
       DenseMatrix Jac(dim);
       dshape.SetSize(dof, dim);
       Vector posV(dof * dim);
-      PMatI.UseExternalData(posV.GetData(), dof, dim);
+      PMat.UseExternalData(posV.GetData(), dof, dim);
 
       fes.GetElementVDofs(e, xdofs);
       x_loc.GetSubVector(xdofs, posV);
@@ -5940,7 +5940,7 @@ void TMOP_Integrator::UpdateDeterminantGridFunction(const Vector &x_loc,
       for (int q = 0; q < nsp; q++)
       {
          fes.GetFE(e)->CalcDShape(irule.IntPoint(q), dshape);
-         MultAtB(PMatI, dshape, Jpr);
+         MultAtB(PMat, dshape, Jpr);
          detvals(q) = Jpr.Det();
       }
       det_gf->SetSubVector(xdofs, detvals);
