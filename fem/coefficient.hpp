@@ -2606,6 +2606,9 @@ public:
    /// Return the number of values per quadrature point.
    int GetVDim() const;
 
+   /// Override the vector dimension (number of values per quadrature point).
+   void SetVDim(int vdim_);
+
    ~CoefficientVector();
 };
 

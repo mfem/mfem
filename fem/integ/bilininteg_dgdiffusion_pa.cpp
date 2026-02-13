@@ -541,9 +541,90 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
    // Evaluate the coefficient at the face quadrature points.
    FaceQuadratureSpace fqs(mesh, ir, type);
    CoefficientVector q(fqs, CoefficientStorage::CONSTANTS);
-   if (Q) { q.Project(*Q); }
-   else if (MQ) { q.Project(*MQ); }
-   else { q.SetConstant(1.0); }
+
+   if (Q == nullptr && MQ == nullptr)
+   {
+      q.SetConstant(1.0);
+   }
+   else if (auto *const_q = dynamic_cast<ConstantCoefficient*>(Q))
+   {
+      q.SetConstant(const_q->constant);
+   }
+   else if (auto *const_mq = dynamic_cast<MatrixConstantCoefficient*>(MQ))
+   {
+      q.SetConstant(const_mq->GetMatrix());
+   }
+   else
+   {
+      const int q_dim = MQ ? dim*dim : 1;
+      nq = ir.GetNPoints();
+      q.SetSize(nq * nf * q_dim);
+      q.SetVDim(q_dim);
+      auto C = Reshape(q.HostWrite(), q_dim, nq, nf);
+
+      int f_ind = 0;
+      for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
+      {
+         Mesh::FaceInformation face = mesh.GetFaceInformation(f);
+         if (face.IsNonconformingCoarse() || !face.IsOfFaceType(type))
+         {
+            // We skip nonconforming coarse faces as they are treated
+            // by the corresponding nonconforming fine faces.
+            continue;
+         }
+         FaceElementTransformations &T =
+            *fes.GetMesh()->GetFaceElementTransformations(f);
+         for (int q = 0; q < nq; ++q)
+         {
+            // Convert to lexicographic ordering
+            int iq =
+               ToLexOrdering(dim, face.element[0].local_face_id, quad1D, q);
+
+            T.SetAllIntPoints(&ir.IntPoint(q));
+            const IntegrationPoint &eip1 = T.GetElement1IntPoint();
+            const IntegrationPoint &eip2 = T.GetElement2IntPoint();
+
+            DenseMatrix mq_val(dim, dim);
+            real_t q_val;
+
+            if (face.IsBoundary())
+            {
+               if (Q) { q_val = Q->Eval(*T.Elem1, eip1); }
+               else if (MQ) { MQ->Eval(mq_val, *T.Elem1, eip1); }
+            }
+            else
+            {
+               if (Q)
+               {
+                  q_val = 0.5*(Q->Eval(*T.Elem1, eip1) + Q->Eval(*T.Elem2, eip2));
+               }
+               else if (MQ)
+               {
+                  MQ->Eval(mq_val, *T.Elem1, eip1);
+                  DenseMatrix mq_val_2(dim, dim);
+                  MQ->Eval(mq_val_2, *T.Elem2, eip2);
+                  mq_val *= 0.5;
+                  mq_val_2 *= 0.5;
+                  mq_val += mq_val_2;
+               }
+            }
+
+            if (Q) { C(0, iq, f_ind) = q_val; }
+            else if (MQ)
+            {
+               for (int j = 0; j < dim; ++j)
+               {
+                  for (int i = 0; i < dim; ++i)
+                  {
+                     C(i + dim*j, iq, f_ind) = mq_val(i, j);
+                  }
+               }
+            }
+         }
+         f_ind++;
+      }
+      MFEM_VERIFY(f_ind == nf, "Incorrect number of faces.");
+   }
 
    const int coeff_dim = q.GetVDim();
 
