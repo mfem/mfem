@@ -220,7 +220,7 @@ public:
        @a u.
        The main purpose of this function is its use in FindInterpolant.
        Use GetBotella instead for each shape function separately, perhaps in
-       conjuction with GetSpan and GetRefPoint.*/
+       conjunction with GetSpan and GetRefPoint.*/
    MFEM_DEPRECATED void FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const;
 
    /** @brief Global curve interpolation through the points @a x (overwritten).
