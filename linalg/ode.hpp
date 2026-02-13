@@ -193,6 +193,9 @@ public:
    /// Returns how many State vectors the ODE requires
    virtual int GetStateSize() { return 0; };
 
+   /// Returns the associated TimeDependentOperator
+   TimeDependentOperator* GetTimeDependentOperator() { return f; }
+
    ///@brief Returns @a true if the ODESolver supports the given
    /// #ImplicitVariableType, @a var, and returns @a false otherwise.
    ///@note Should be overriden in ODESolver that calls TimeDependentOperator::ImplicitSolve().

@@ -1,0 +1,58 @@
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+set(MESH_FILES
+  backward-facing-step.msh
+  channel-cylinder.msh
+)
+
+# Add a target to copy the mesh files from the source directory; used by sample
+# runs.
+set(SRC_MESH_FILES)
+foreach(MESH_FILE ${MESH_FILES})
+  list(APPEND SRC_MESH_FILES ${CMAKE_CURRENT_SOURCE_DIR}/${MESH_FILE})
+endforeach()
+add_custom_command(OUTPUT data_is_copied
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SRC_MESH_FILES} .
+  COMMAND ${CMAKE_COMMAND} -E touch data_is_copied
+  COMMENT "Copying multiapp miniapps data files ...")
+add_custom_target(copy_miniapps_multiapp_data DEPENDS data_is_copied)
+
+
+list(APPEND MULTIAPP_COMMON_SOURCES
+	multiapp.cpp)
+
+list(APPEND MULTIAPP_COMMON_HEADERS
+	multiapp.hpp)
+
+set(MULTIAPP_COMMON_FILES
+	EXTRA_SOURCES ${MULTIAPP_COMMON_SOURCES}
+	EXTRA_HEADERS ${MULTIAPP_COMMON_HEADERS})
+
+
+# Parallel apps.
+if (MFEM_USE_MPI)
+  add_mfem_miniapp(cht-BFS
+    MAIN cht-BFS.cpp
+    ${MFEM_MINIAPPS_COMMON_HEADERS} ${MULTIAPP_COMMON_FILES} ../navier/navier_solver.hpp ../navier/navier_solver.cpp
+    LIBRARIES mfem-common)
+  add_dependencies(cht-BFS copy_miniapps_multiapp_data)
+
+  add_mfem_miniapp(fsi
+    MAIN fsi.cpp
+    ${MFEM_MINIAPPS_COMMON_HEADERS} ${MULTIAPP_COMMON_FILES}
+    LIBRARIES mfem-common)
+  add_dependencies(fsi copy_miniapps_multiapp_data)
+
+# Add parallel tests.
+  # if (MFEM_ENABLE_TESTING)
+  # endif()
+endif()
