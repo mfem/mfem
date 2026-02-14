@@ -890,7 +890,7 @@ int main(int argc, char *argv[])
    //Neumann
    if (!hybridization)
    {
-      if (dg)
+      if (dg || brt)
       {
          if (upwinded)
             fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qtcoeff, +1.),
