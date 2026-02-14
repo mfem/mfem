@@ -663,8 +663,8 @@ const
    #pragma omp critical (DofToQuad)
 #endif
    {
-      // Do not run if the new Dof2Quad is already present, e.g. added in a previous call
-      // or added by another omp thread.
+      // Do not run if the new Dof2Quad is already present, e.g. added in a
+      // previous call or added by another omp thread.
       if (DofToQuad::SearchArray(dof2quad_array, ir,
                                  DofToQuad::LEXICOGRAPHIC_FULL) == nullptr)
       {
