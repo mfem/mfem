@@ -73,9 +73,9 @@ struct J2Plasticity {
 
   MFEM_HOST_DEVICE inline tuple<tensor<real_t, dim, dim>, PackedInternalState>
   update(tensor<real_t, dim, dim> dudxi,
-             PackedInternalState internal_state,
-             tensor<real_t, dim, dim> J,
-             real_t w) const
+         PackedInternalState internal_state,
+         tensor<real_t, dim, dim> J,
+         real_t w) const
   {
     auto invJ = inv(J);
     const auto dudX = dudxi * invJ;
@@ -151,6 +151,17 @@ tensor<real_t, 3, 3> ComputeStress(
     return material->stress(dudxi, Q, J, w);
 }
 
+template <int dim>
+real_t norm_inf(tensor<real_t, dim, dim> A) {
+  real_t maxval = 0;
+  for (int i = 0; i < dim; i++) {
+    for (int j = 0; j < dim; j++) {
+      maxval = std::max(std::abs(A[i][j]), maxval);
+    }
+  }
+  return maxval;
+}
+
 TEST_CASE("Univariate function solver on qfunction", "[univar]")
 {
     J2Plasticity material{.E = 70.0e3, .nu = 0.34, .sigma_y = 240.0, .n = 0.15, .ep_0 = 1e-3};
@@ -177,6 +188,7 @@ TEST_CASE("Univariate function solver on qfunction", "[univar]")
                                     {0.0, 0.0 , 0.0},
                                     {0.0, 0.0 , 0.0}}};
 
+        // Enzyme directional derivative (uses custom derivative of solver)
         auto sigma_dot = __enzyme_fwddiff<tensor<real_t, 3, 3>>((void*)ComputeStress, 
                                                                 enzyme_const, &material,
                                                                 enzyme_dup, H, H_dot,
@@ -185,6 +197,24 @@ TEST_CASE("Univariate function solver on qfunction", "[univar]")
                                                                 enzyme_const, w);
         INFO("sigma dot = " << sigma_dot << "\n");
         REQUIRE(sigma_dot[0][0] > 0.0);
+
+        // Finite difference derivative
+        constexpr int dim = 3;
+        real_t eps = 1e-5;
+        tensor<real_t, 3, 3> sigma = ComputeStress(&material, H, Q, J, w);
+        tensor<real_t, 3, 3> sigma_p = ComputeStress(&material, H + eps*H_dot, Q, J, w);
+        tensor<real_t, 3, 3> sigma_dot_h = (1.0/eps)*(sigma_p - sigma);
+        INFO("sigma dot_h = " << sigma_dot_h << "\n");
+
+        tensor<real_t, 3, 3> rel_error = sigma_dot - sigma_dot_h;
+        for (int i = 0; i < dim; i++) {
+          for (int j = 0; j < dim; j++) {
+            real_t denom = sigma[i][j] != 0? sigma[i][j] : 1.0;
+            rel_error[i][j] /= denom;
+          }
+        }
+        INFO("real errors = " << rel_error);
+        REQUIRE(norm_inf(rel_error) < 1e-5);
     }
 
 
@@ -235,6 +265,4 @@ TEST_CASE("Univariate function solver robustness", "[univar]")
         REQUIRE(x == MFEM_Approx(1.25));
     }
 }
-
-
 
