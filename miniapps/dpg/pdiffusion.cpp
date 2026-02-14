@@ -398,7 +398,21 @@ int main(int argc, char *argv[])
 #else
          bool mumps_coarse_solver = false;
 #endif
-         preconditioner = new PRefinementMultigrid(prec_fes,*A, mumps_coarse_solver);
+         std::vector<Array<int>> ess_bdr_marker(prec_fes.Size());
+         for (int b = 0; b<prec_fes.Size(); b++)
+         {
+            ess_bdr_marker[b].SetSize(pmesh.bdr_attributes.Max());
+            if (b == 2)
+            {
+               ess_bdr_marker[b] = ess_bdr;
+            }
+            else
+            {
+               ess_bdr_marker[b] = 0;
+            }
+         }
+         preconditioner = new PRefinementMultigrid(prec_fes, ess_bdr_marker, *A,
+                                                   mumps_coarse_solver);
       }
       else
       {
