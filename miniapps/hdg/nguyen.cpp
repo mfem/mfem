@@ -115,6 +115,7 @@ int main(int argc, char *argv[])
    bool reduction = false;
    bool hybridization = false;
    bool trace_h1 = false;
+   bool trace_ess_bc = false;
    bool nonlinear = false;
    bool nonlinear_flux = false;
    bool nonlinear_pot = false;
@@ -185,6 +186,8 @@ int main(int argc, char *argv[])
                   "--no-hybridization", "Enable hybridization.");
    args.AddOption(&trace_h1, "-trh1", "--trace-H1", "-trdg",
                   "--trace-DG", "Switch between H1 and DG trace spaces (default DG).");
+   args.AddOption(&trace_ess_bc, "-trbc", "--trace-ess-bc", "-no-trbc",
+                  "--no-trace-ess-bc", "Switch between essential and weak trace BC.");
    args.AddOption(&nonlinear, "-nl", "--nonlinear", "-no-nl",
                   "--no-nonlinear", "Enable non-linear regime.");
    args.AddOption(&nonlinear_flux, "-nlu", "--nonlinear-flux", "-no-nlu",
@@ -263,6 +266,18 @@ int main(int argc, char *argv[])
    if (nonlinear)
    {
       nonlinear_flux = nonlinear_pot = true;
+   }
+
+   if (trace_ess_bc && !dg && !brt)
+   {
+      cerr << "Essential trace BC does not work with continuous elements" << endl;
+      return 1;
+   }
+
+   if (trace_ess_bc && (nonlinear_flux || nonlinear_pot))
+   {
+      cerr << "Essential trace BC is not implemented for non-linear forms" << endl;
+      return 1;
    }
 
    if (bnldiff && reduction)
@@ -507,20 +522,25 @@ int main(int argc, char *argv[])
    }
 
    //diffusion stabilization
-   if (dg && (!Mnl || hybridization))
+   if (dg && (!Mnl || hybridization) && td > 0.)
    {
       if (bnldiff)
       {
          cerr << "Warning: Using linear stabilization for non-linear diffusion" << endl;
       }
 
-      if (upwinded && td > 0. && hybridization)
+      if (upwinded && hybridization)
       {
          if (Mt)
          {
             Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td));
             Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td),
                                      bdr_is_neumann);
+            if (trace_ess_bc)
+            {
+               Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td),
+                                        bdr_is_dirichlet);
+            }
          }
          if (Mtnl)
          {
@@ -529,13 +549,18 @@ int main(int argc, char *argv[])
                                        bdr_is_neumann);
          }
       }
-      else if (!upwinded && td > 0.)
+      else if (!upwinded)
       {
          if (Mt)
          {
             Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
             Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
                                      bdr_is_neumann);
+            if (trace_ess_bc)
+            {
+               Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
+                                        bdr_is_dirichlet);
+            }
          }
          if (Mtnl)
          {
@@ -565,6 +590,11 @@ int main(int argc, char *argv[])
                                          new DGNormalTraceIntegrator(ccoeff, -1., +0.5)));
          B->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
                                                             ccoeff, -1., +0.5)), bdr_is_neumann);
+         if (hybridization && trace_ess_bc)
+         {
+            B->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
+                                                               ccoeff, -1., +0.5)), bdr_is_dirichlet);
+         }
       }
       else
       {
@@ -572,6 +602,11 @@ int main(int argc, char *argv[])
                                          new DGNormalTraceIntegrator(-1.)));
          B->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
                                                             -1.)), bdr_is_neumann);
+         if (hybridization && trace_ess_bc)
+         {
+            B->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
+                                                               -2.)), bdr_is_dirichlet);
+         }
       }
    }
 
@@ -583,7 +618,15 @@ int main(int argc, char *argv[])
       if (upwinded)
       {
          Mt->AddInteriorFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff));
-         Mt->AddBdrFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff));
+         if (hybridization && trace_ess_bc)
+         {
+            Mt->AddBdrFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff),
+                                     bdr_is_neumann);
+         }
+         else
+         {
+            Mt->AddBdrFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff));
+         }
       }
       else
       {
@@ -679,7 +722,11 @@ int main(int argc, char *argv[])
       darcy->EnableHybridization(trace_space,
                                  new NormalTraceJumpIntegrator(),
                                  ess_flux_tdofs_list);
-
+      // set essential BC
+      if (trace_ess_bc)
+      {
+         darcy->GetHybridization()->SetEssentialBC(bdr_is_dirichlet);
+      }
       chrono.Stop();
       std::cout << "Hybridization init took " << chrono.RealTime() << "s.\n";
    }
@@ -745,9 +792,13 @@ int main(int argc, char *argv[])
    BlockVector x(block_offsets, mt), rhs(block_offsets, mt);
 
    x = 0.;
-   GridFunction q_h, t_h, qt_h, q_hs, t_hs, tr_hs;
+   GridFunction q_h, t_h, tr_h, qt_h, q_hs, t_hs, tr_hs;
    q_h.MakeRef(V_space, x.GetBlock(0), 0);
    t_h.MakeRef(W_space, x.GetBlock(1), 0);
+   if (hybridization)
+   {
+      tr_h.MakeRef(trace_space, x.GetBlock(2), 0);
+   }
 
    if (btime)
    {
@@ -760,33 +811,47 @@ int main(int argc, char *argv[])
                                       bdr_is_neumann);   //essential Neumann BC
    }
 
-   LinearForm *gform(new LinearForm);
-   gform->Update(V_space, rhs.GetBlock(0), 0);
-   if (dg)
+   if (hybridization && trace_ess_bc)
    {
-      gform->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(gcoeff),
-                                  bdr_is_dirichlet);
-      if (!hybridization)
-      {
-         if (bconv && upwinded)
-            gform->AddBdrFaceIntegrator(new BoundaryNormalFlowIntegrator(
-                                           gcoeff, nccoeff, +1., -0.5), bdr_is_neumann);
-         else
-            gform->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(
-                                           gcoeff, 0.5), bdr_is_neumann);
-      }
-   }
-   else if (brt)
-   {
-      gform->AddBdrFaceIntegrator(new VectorFEBoundaryFluxLFIntegrator(gcoeff),
-                                  bdr_is_dirichlet);
-   }
-   else
-   {
-      gform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(gcoeff),
-                                   bdr_is_dirichlet);
+      tr_h.ProjectBdrCoefficient(tcoeff, bdr_is_dirichlet); // essential Dirichlet BC
    }
 
+   // flux rhs
+   LinearForm *gform(new LinearForm);
+   gform->Update(V_space, rhs.GetBlock(0), 0);
+
+   // Neumann
+   if (!hybridization && dg)
+   {
+      if (bconv && upwinded)
+         gform->AddBdrFaceIntegrator(new BoundaryNormalFlowIntegrator(
+                                        gcoeff, nccoeff, +1., -0.5), bdr_is_neumann);
+      else
+         gform->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(
+                                        gcoeff, 0.5), bdr_is_neumann);
+   }
+
+   // Dirichlet
+   if (!hybridization || !trace_ess_bc)
+   {
+      if (dg)
+      {
+         gform->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(gcoeff),
+                                     bdr_is_dirichlet);
+      }
+      else if (brt)
+      {
+         gform->AddBdrFaceIntegrator(new VectorFEBoundaryFluxLFIntegrator(gcoeff),
+                                     bdr_is_dirichlet);
+      }
+      else
+      {
+         gform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(gcoeff),
+                                      bdr_is_dirichlet);
+      }
+   }
+
+   // potential rhs
    LinearForm *fform(new LinearForm);
    fform->Update(W_space, rhs.GetBlock(1), 0);
    fform->AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
