@@ -63,7 +63,7 @@ PRefinementHierarchy::PRefinementHierarchy(const Array<ParFiniteElementSpace*>
    MFEM_VERIFY(nblocks > 0, "Empty pfes.");
    pmesh = pfes[0]->GetParMesh();
    MFEM_VERIFY(pmesh, "pfes[0] has null ParMesh.");
-   MFEM_VERIFY(ess_bdr_marker.size() == nblocks,
+   MFEM_VERIFY(ess_bdr_marker.size() == static_cast<size_t>(nblocks),
                "ess_bdr_marker size must match nblocks.");
    int bdr_size = (pmesh->bdr_attributes.Size() > 0) ? pmesh->bdr_attributes.Max()
                   : 0;
