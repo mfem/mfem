@@ -342,29 +342,31 @@ int main(int argc, char *argv[])
    Vector &X = u.GetTrueVector();
 
    // Nonlinear solver
-   PetscNonlinearSolver newton(MPI_COMM_WORLD, f);
-   newton.SetAbsTol(1e-8);
-   newton.SetRelTol(1e-6);
-   newton.SetMaxIter(10);
-   newton.SetPrintLevel(1);
+   auto * const newton = new PetscNonlinearSolver(MPI_COMM_WORLD, f);
+   newton->SetAbsTol(1e-8);
+   newton->SetRelTol(1e-6);
+   newton->SetMaxIter(10);
+   newton->SetPrintLevel(1);
    if (!fully_assemble_jacobian)
    {
-      newton.SetJacobianType(Operator::PETSC_MATSHELL);
+      newton->SetJacobianType(Operator::PETSC_MATSHELL);
    }
    // Use the current state of u as the initial guess
-   newton.iterative_mode = true;
+   newton->iterative_mode = true;
    // Indicate that the Jacobian is a shell matrix
    //
    // Set multigrid preconditioner factory. MFEM PETSc wrapper code will try to destroy this during the nonlinear solver destruction so allow them to do so
    auto *const pre_factory = new NEML2MultigridPreconditionerFactory(fespaces,
                                                                      essential_bnd,
                                                                      cmodel, X);
-   newton.SetPreconditionerFactory(pre_factory);
+   newton->SetPreconditionerFactory(pre_factory);
 
    // Solve
    Vector R;
-   newton.Mult(R, X);
+   newton->Mult(R, X);
    u.SetFromTrueVector();
+   delete pre_factory;
+   delete newton;
 
    // Save the solution in parallel using ParaView format
    ParaViewDataCollection dc("neml2-output", &pmesh);
@@ -376,5 +378,8 @@ int main(int argc, char *argv[])
    {
       delete collections[level];
    }
+
+   MFEMFinalizePetsc();
+
    return 0;
 }
