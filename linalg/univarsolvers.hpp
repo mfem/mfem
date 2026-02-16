@@ -155,12 +155,13 @@ void SolveNewtonBisection_impl_aug(const real_t* x0, real_t* x0_bar,
                                    real_t* x, real_t* x_bar)
 {
     SolveNewtonBisection_impl<f>(x0, p, settings, x);
+    // No tape (checkpoints) are needed from this function, so no return here.
 }
 
 template<auto f, typename T>
-void wrapper(real_t x, T p, real_t& y)
+void wrapper(real_t* x, T* p, real_t* y)
 {
-    y = f(x, p);
+    *y = f(*x, *p);
 }
 
 template<auto f, typename T>
@@ -172,8 +173,10 @@ void SolveNewtonBisection_impl_rev(const real_t* x0, real_t* x0_bar,
     real_t drdx = __enzyme_fwddiff<real_t>((void*)+f, enzyme_dup, *x, 1.0, enzyme_const, *p);
     real_t lambda = -(*x_bar / drdx);
     real_t r;
-    *p_bar = __enzyme_autodiff<T>((void*)wrapper<+f, T>, enzyme_const, x, enzyme_out, *p, enzyme_dupnoneed, &r, &lambda);
+    __enzyme_autodiff<void>((void*)wrapper<f, T>, enzyme_const, x, enzyme_dup, p, p_bar, enzyme_dupnoneed, &r, &lambda);
 
+    // TODO: Make enzyme treat these as enzyme_const
+    // The solution has no sensitivity to these parameters.
     *x0_bar = 0.0;
     *settings_bar = SolverSettings{};
 }
