@@ -169,17 +169,17 @@ void EANonlinearFormExtension::EAGradient::Mult(const Vector &x,
 {
    ext.ye = 0.0;
    ext.elemR->Mult(x, ext.xe);
-   const int elem_vdofs = ext.elem_vdofs;
-   auto X = Reshape(ext.xe.Read(), elem_vdofs, ext.ne);
-   auto Y = Reshape(ext.ye.ReadWrite(), elem_vdofs, ext.ne);
-   auto A = Reshape(ext.ea_data.Read(), elem_vdofs, elem_vdofs, ext.ne);
-   mfem::forall(ext.ne * elem_vdofs,
+   const int elem_vdofs_ = ext.elem_vdofs;
+   auto X = Reshape(ext.xe.Read(), elem_vdofs_, ext.ne);
+   auto Y = Reshape(ext.ye.ReadWrite(), elem_vdofs_, ext.ne);
+   auto A = Reshape(ext.ea_data.Read(), elem_vdofs_, elem_vdofs_, ext.ne);
+   mfem::forall(ext.ne * elem_vdofs_,
                 [=] MFEM_HOST_DEVICE(int glob_j)
    {
-      const int e = glob_j / elem_vdofs;
-      const int j = glob_j % elem_vdofs;
+      const int e = glob_j / elem_vdofs_;
+      const int j = glob_j % elem_vdofs_;
       double res = 0.0;
-      for (int i = 0; i < elem_vdofs; i++)
+      for (int i = 0; i < elem_vdofs_; i++)
       {
          res += A(i, j, e) * X(i, e);
       }
@@ -195,14 +195,14 @@ void EANonlinearFormExtension::EAGradient::AssembleDiagonal(Vector &diag) const
    ext.ye = 0.0;
 
    // Apply the Element Matrices
-   const int elem_vdofs = ext.elem_vdofs;
-   auto Y = Reshape(ext.ye.ReadWrite(), elem_vdofs, ext.ne);
-   auto A = Reshape(ext.ea_data.Read(), elem_vdofs, elem_vdofs, ext.ne);
-   mfem::forall(ext.ne * elem_vdofs,
+   const int elem_vdofs_ = ext.elem_vdofs;
+   auto Y = Reshape(ext.ye.ReadWrite(), elem_vdofs_, ext.ne);
+   auto A = Reshape(ext.ea_data.Read(), elem_vdofs_, elem_vdofs_, ext.ne);
+   mfem::forall(ext.ne * elem_vdofs_,
                 [=] MFEM_HOST_DEVICE(int glob_j)
    {
-      const int e = glob_j / elem_vdofs;
-      const int j = glob_j % elem_vdofs;
+      const int e = glob_j / elem_vdofs_;
+      const int j = glob_j % elem_vdofs_;
       Y(j, e) += A(j, j, e);
    });
 
