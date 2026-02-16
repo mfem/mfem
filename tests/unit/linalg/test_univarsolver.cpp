@@ -162,6 +162,14 @@ real_t norm_inf(tensor<real_t, dim, dim> A) {
   return maxval;
 }
 
+void ComputeStressRef(J2Plasticity* material, tensor<real_t, 3, 3> dudxi, 
+                      J2Plasticity::PackedInternalState Q, 
+                      tensor<real_t, 3, 3> J, real_t w,
+                      tensor<real_t, 3, 3>& sigma)
+{
+  sigma = material->stress(dudxi, Q, J, w);
+}
+
 TEST_CASE("Univariate function solver on qfunction", "[univar]")
 {
     J2Plasticity material{.E = 70.0e3, .nu = 0.34, .sigma_y = 240.0, .n = 0.15, .ep_0 = 1e-3};
@@ -172,7 +180,7 @@ TEST_CASE("Univariate function solver on qfunction", "[univar]")
     const tensor<real_t, 3, 3> J = IdentityMatrix<3>();
     const double w = 1.0;
 
-    SECTION("Solver works")
+    SECTION("Correctness")
     {
         auto [stress, Q_new] = material.update(H, Q, IdentityMatrix<3>(), 1.0);
         INFO("stress = " << stress << "\ninternal vars =" << Q_new << "\n");
@@ -217,7 +225,19 @@ TEST_CASE("Univariate function solver on qfunction", "[univar]")
         REQUIRE(norm_inf(rel_error) < 1e-5);
     }
 
-
+    // SECTION("VJP")
+    // {
+    //   tensor<real_t, 3, 3> sigma_bar{{{1.0, 0.0 , 0.0},
+    //                                   {0.0, 0.0 , 0.0},
+    //                                   {0.0, 0.0 , 0.0}}};
+    //   tensor<real_t, 3, 3> sigma;
+    //   auto H_bar = __enzyme_autodiff<tensor<real_t, 3, 3>>(
+    //     (void*)ComputeStressRef, enzyme_const, &material, enzyme_out, H,
+    //     enzyme_const, Q, enzyme_const, J, enzyme_const, w,
+    //     enzyme_dup, &sigma, &sigma_bar);
+    //   INFO("H_bar = " << H_bar);
+    //   REQUIRE(norm(H_bar) > 0);
+    // }
 }
 
 
@@ -227,6 +247,35 @@ real_t nthroot_res(real_t x, tuple<real_t, real_t> p)
     return std::pow(x, index) - radicand;
 }
 
+real_t sqrt_res(real_t x, real_t p)
+{
+  return x*x - p;
+}
+
+__attribute__((used))
+void* __enzyme_register_gradient_solver[3] = {
+  (void*)SolveNewtonBisection_impl<sqrt_res, real_t>,
+  (void*)SolveNewtonBisection_impl_aug<sqrt_res, real_t>,
+  (void*)SolveNewtonBisection_impl_rev<sqrt_res, real_t>
+};
+
+real_t mysqrt(real_t x)
+{
+  real_t x0 = x;
+  SolverSettings settings{.bounds = {.lower = 0, .upper = 10.0}};
+  return SolveNewtonBisection<sqrt_res, real_t>(x0, x, settings);
+}
+
+TEST_CASE("Univariate solver reverse mode", "[univar]")
+{
+  real_t x = 2.0;
+  real_t y = mysqrt(x);
+  std::cout << "x = " << x << " sqrt(x) = " << y << "\n";
+  REQUIRE(y == MFEM_Approx(M_SQRT2, 0.0, 1e-8));
+
+  real_t dydx = __enzyme_autodiff<real_t>((void*)mysqrt, enzyme_out, x);
+  REQUIRE(dydx == MFEM_Approx(0.5/std::sqrt(2.0)));
+}
 
 TEST_CASE("Univariate function solver robustness", "[univar]")
 {
