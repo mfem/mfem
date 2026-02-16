@@ -34,6 +34,7 @@ protected:
 
 public:
    NonlinearFormExtension(const NonlinearForm*);
+   virtual ~NonlinearFormExtension() = default;
 
    /// Assemble at the AssemblyLevel of the subclass.
    virtual void Assemble() = 0;
@@ -229,6 +230,7 @@ protected:
 public:
    FANonlinearFormExtension(const NonlinearForm *nlf,
                             const ElementDofOrdering edf = ElementDofOrdering::LEXICOGRAPHIC);
+   ~FANonlinearFormExtension();
 
    using EANonlinearFormExtension::Assemble;
    using EANonlinearFormExtension::GetGridFunctionEnergy;

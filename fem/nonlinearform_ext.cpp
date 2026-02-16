@@ -227,6 +227,11 @@ FANonlinearFormExtension::FANonlinearFormExtension(const NonlinearForm *nlf,
 {
 }
 
+FANonlinearFormExtension::~FANonlinearFormExtension()
+{
+   delete mat;
+}
+
 FANonlinearFormExtension::FAGradient::FAGradient(const FANonlinearFormExtension
                                                  &e)
    : Operator(e.Height()), ext(e)
@@ -246,7 +251,7 @@ void FANonlinearFormExtension::FAGradient::AssembleGrad(const Vector &g)
    }
    else // We create, compute the sparsity, and fill the sparse matrix
    {
-      ext.mat = new SparseMatrix(height, width, 0);
+      ext.mat = new SparseMatrix(height, width);
       const ElementRestriction &rest = static_cast<const ElementRestriction &>
                                        (*ext.elemR);
       rest.FillSparseMatrix(ext.ea_data, *ext.mat);
