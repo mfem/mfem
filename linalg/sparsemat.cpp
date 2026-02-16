@@ -4361,7 +4361,7 @@ void ConformingAssemble(const FiniteElementSpace & fes,
    if (!P) { return; } // conforming mesh
 
    SparseMatrix *R = Transpose(*P);
-   for (auto * mat : mats)
+   for (auto * & mat : mats)
    {
       MFEM_ASSERT(mat, "null mat passed in");
       SparseMatrix *RA = mfem::Mult(*R, *mat);
