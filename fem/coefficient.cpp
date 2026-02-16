@@ -13,6 +13,7 @@
 
 #include "fem.hpp"
 #include "../general/forall.hpp"
+#include "../mesh/mesh_headers.hpp"
 
 #include <cmath>
 #include <limits>
@@ -235,7 +236,14 @@ real_t GridFunctionCoefficient::Eval (ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
    Mesh *gf_mesh = GridF->FESpace()->GetMesh();
-   if (T.mesh->GetNE() == gf_mesh->GetNE())
+   if (T.mesh->GetNE() == gf_mesh->GetNE()
+       || (SubMesh::IsSubMesh(T.mesh) && gf_mesh ==
+           SubMeshUtils::GetRootParent(static_cast<const SubMesh &>(*T.mesh)))
+#ifdef MFEM_USE_MPI
+       || (ParSubMesh::IsParSubMesh(T.mesh) && gf_mesh ==
+           SubMeshUtils::GetRootParent(static_cast<const ParSubMesh &>(*T.mesh)))
+#endif
+      )
    {
       return GridF->GetValue(T, ip, Component);
    }
