@@ -876,8 +876,6 @@ int main(int argc, char *argv[])
    AdaptivityEvaluator *adapt_lim_eval = NULL;
    if (adapt_lim_const > 0.0)
    {
-      MFEM_VERIFY(pa == false, "PA is not implemented for adaptive limiting");
-
       FunctionCoefficient adapt_lim_gf0_coeff(adapt_lim_fun);
       adapt_lim_gf0.ProjectCoefficient(adapt_lim_gf0_coeff);
 
@@ -893,7 +891,7 @@ int main(int argc, char *argv[])
       else { MFEM_ABORT("Bad interpolation option."); }
 
       tmop_integ->EnableAdaptiveLimiting(adapt_lim_gf0, adapt_lim_coeff,
-                                         *adapt_lim_eval);
+                                         *adapt_lim_eval, 1.0);
       if (visualization)
       {
          socketstream vis1;
