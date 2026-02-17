@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../../data/star.mesh";
    int order_ho = 3;
    int order_im = 3;
-   int lref = order_im+1; // 4
+   int lref = order_im+1;
    int order_lo = 0;
    bool vis = true;
    bool useH1 = false;
@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
    int dim = mesh_im.Dimension();
 
    // low-order refined mesh
-   Mesh mesh_lo = Mesh::MakeRefined(mesh_im, lref, BasisType::ClosedUniform);
+   Mesh mesh_lo = Mesh::MakeRefined(mesh_im, lref, BasisType::ClosedUniform); // GaussLobatto, ClosedUniform
 
    // ======================================================
    // Create spaces
@@ -118,10 +118,12 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec_lo;
    FiniteElementCollection *fec_im;
    FiniteElementCollection *fec_hi;
-   space = "L2";
+
+   std::cout<<"SK: order_im = "<<order_im<<", order_ho = "<<order_ho<<std::endl;
+
    fec_lo = new L2_FECollection(order_lo, dim);
-   fec_im = new L2_FECollection(order_im, dim);
-   // fec_im = new H1_FECollection(order_im, dim);
+   // fec_im = new L2_FECollection(order_im, dim);
+   fec_im = new H1_FECollection(order_im, dim);
    fec_hi = new L2_FECollection(order_ho, dim);
 
    FiniteElementSpace fespace_lo(&mesh_lo, fec_lo);
@@ -162,6 +164,17 @@ int main(int argc, char *argv[])
    M_hi.Assemble();
    M_hi.Finalize();
 
+   // Set up the right-hand side vector for the exact solution
+   FunctionCoefficient RHO(RHO_exact);
+   LinearForm b_lo(&fespace_lo);
+   // b_lo.AddDomainIntegrator(new DomainLFIntegrator(RHO));
+   DomainLFIntegrator *lf_integ = new DomainLFIntegrator(RHO);
+   const IntegrationRule &ir_rhs = IntRules.Get(fespace_lo.GetFE(0)->GetGeomType(), 
+                                                2*order_lo + 2);
+   lf_integ->SetIntRule(&ir_rhs);
+   b_lo.AddDomainIntegrator(lf_integ);   
+   b_lo.Assemble();
+
    // ======================================================
    // Defind GridTransfers
    // ======================================================
@@ -198,9 +211,18 @@ int main(int argc, char *argv[])
    std::cout<<"Compute GridFunctions"<<std::endl;
 
    // STEP1: LO & EX projections
+   
+   // L2 projection of RHO onto rho_lo
 
-   FunctionCoefficient RHO(RHO_exact);
-   rho_lo.ProjectCoefficient(RHO);
+   // rho_lo.ProjectCoefficient(RHO); // This is not an L2 projection.   
+   SparseMatrix &M_mat_lo = M_lo.SpMat();
+   CGSolver cg;
+   cg.SetOperator(M_mat_lo);
+   cg.SetRelTol(1e-16);
+   cg.SetMaxIter(1000);
+   cg.SetPrintLevel(0);
+   rho_lo = 0.0;
+   cg.Mult(b_lo, rho_lo); // Solve: M * rho_lo = b_lo
    rho_lo.SetTrueVector();
    rho_lo.SetFromTrueVector();
 
