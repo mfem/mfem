@@ -493,7 +493,7 @@ void Boris::EvaluateFieldsAtParticles()
    {
       B_finder.Interpolate(*B_gf, B, B.GetOrdering());
    }
-    else
+   else
    {
       B = 0.0;
    }
