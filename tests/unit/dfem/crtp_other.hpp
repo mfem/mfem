@@ -64,7 +64,8 @@ public:
       struct Action
       {
          // IntegratorContext ctx;
-         void operator()(std::vector<Vector> &in, const std::vector<Vector> &,
+         void operator()(std::vector<Vector> &in,
+                         const std::vector<Vector> &,
                          Vector &) const
          {
             dbg();
