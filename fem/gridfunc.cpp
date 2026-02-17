@@ -43,8 +43,9 @@ GridFunction::GridFunction(Mesh *m, std::istream &input)
    // Grid functions are stored on the device
    UseDevice(true);
 
-   fes = new FiniteElementSpace;
-   fec_owned = fes->Load(m, input);
+   owned_fes = std::make_shared<FiniteElementSpace>();
+   fes = owned_fes.get();
+   fec.reset(fes->Load(m, input));
 
    skip_comment_lines(input, '#');
    istream::int_type next_char = input.peek();
@@ -86,10 +87,11 @@ GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)
    int vdim, ordering;
 
    fes = gf_array[0]->FESpace();
-   fec_owned = FiniteElementCollection::New(fes->FEColl()->Name());
+   fec.reset(FiniteElementCollection::New(fes->FEColl()->Name()));
    vdim = fes->GetVDim();
    ordering = fes->GetOrdering();
-   fes = new FiniteElementSpace(m, fec_owned, vdim, ordering);
+   owned_fes =
+      std::make_shared<FiniteElementSpace>(m, fec.get(), vdim, ordering);
    SetSize(fes->GetVSize());
 
    if (m->NURBSext)
@@ -156,13 +158,61 @@ GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)
    fes_sequence = fes->GetSequence();
 }
 
+GridFunction &GridFunction::operator=(const GridFunction &rhs)
+{
+   if (&rhs != this)
+   {
+      Vector::operator=(rhs);
+      if (fes != rhs.fes)
+      {
+         fes = rhs.fes;
+         owned_fes = rhs.owned_fes;
+         fec = rhs.fec;
+      }
+      else
+      {
+         // ensure we don't accidentally delete if rhs doesn't have shared
+         // ownership
+         if (!owned_fes)
+         {
+            owned_fes = rhs.owned_fes;
+         }
+         if (!fec)
+         {
+            fec = rhs.fec;
+         }
+      }
+      fes_sequence = rhs.fes_sequence;
+   }
+   return *this;
+}
+
 void GridFunction::Destroy()
 {
-   if (fec_owned)
+   owned_fes.reset();
+   fec.reset();
+}
+
+void GridFunction::MakeOwner()
+{
+   if (fec.get() != fes->FEColl())
    {
-      delete fes;
-      delete fec_owned;
-      fec_owned = NULL;
+      fec.reset(const_cast<FiniteElementCollection *>(fes->FEColl()));
+   }
+   if (owned_fes.get() != fes)
+   {
+      owned_fes.reset(fes);
+   }
+}
+
+void GridFunction::MakeOwner(FiniteElementCollection* fec_)
+{
+   if (fec_)
+   {
+      MFEM_VERIFY(fec_ == fes->FEColl(),
+                  "fec_ not associated with fes. If you intended to release "
+                  "ownership, see GridFunction::ShareOwner");
+      MakeOwner();
    }
 }
 
@@ -4487,7 +4537,7 @@ std::unique_ptr<GridFunction> GridFunction::ProlongateToMaxOrder() const
    PRefinementTransferOperator P(*fes, *fesMax);
    P.Mult(*this, *xMax);
 
-   xMax->MakeOwner(fecMax);
+   xMax->MakeOwner();
    return std::unique_ptr<GridFunction>(xMax);
 }
 
@@ -5060,7 +5110,7 @@ GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
    // assuming sol is scalar
    solfes2d = new FiniteElementSpace(mesh2d, solfec2d);
    sol2d = new GridFunction(solfes2d);
-   sol2d->MakeOwner(solfec2d);
+   sol2d->MakeOwner();
    {
       GridFunctionCoefficient csol(sol);
       ExtrudeCoefficient c2d(mesh, csol, ny);
