@@ -1860,8 +1860,11 @@ public:
        geometric rigid body modes and could perform better on some problems, see
        "Improving algebraic multigrid interpolation operators for linear
        elasticity problems", Baker, Kolev, Yang, NLAA 2009, DOI:10.1002/nla.688.
-       The optional argument @ interp_refine is used to enable/disable pre-processing
-       of the interpolation matrix through iterative weight refinement */
+       The optional argument @a interp_refine is used to enable/disable internal
+       pre-processing of the interpolation matrix through iterative weight
+       refinement, which could perform better but is more expensive.
+       @warning This solver assumes Ordering::byVDIM in the FiniteElementSpace
+       used to construct A.*/
    void SetElasticityOptions(ParFiniteElementSpace *fespace,
                              bool interp_refine = true);
 

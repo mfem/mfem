@@ -5508,9 +5508,12 @@ void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace_,
    // Save the finite element space to support multiple calls to SetOperator()
    this->fespace = fespace_;
 
+   MFEM_VERIFY(fespace->GetOrdering() == Ordering::byVDIM,
+               "The elasticity version of BoomerAMG requires Ordering::byVDIM");
+
    // Make sure the systems AMG options are set
    int dim = fespace_->GetParMesh()->Dimension();
-   SetSystemsOptions(dim, fespace->GetOrdering() == Ordering::byNODES);
+   SetSystemsOptions(dim); // elasticity solver only works for Ordering::byVDIM
 
    // Nodal coarsening options (nodal coarsening is required for this solver)
    // See hypre's new_ij driver and the paper for descriptions.
