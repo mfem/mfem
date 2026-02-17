@@ -3137,52 +3137,31 @@ void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[],
 }
 
 void GridFunction::ProjectBdrCoefficientNormal(
-   VectorCoefficient &vcoeff, const Array<int> &bdr_attr)
+   Coefficient *coeff, VectorCoefficient *vcoeff, const Array<int> &bdr_attr)
 {
-#if 0
-   // implementation for the case when the face dofs are integrals of the
-   // normal component.
-   const FiniteElement *fe;
-   ElementTransformation *T;
-   Array<int> dofs;
-   int dim = vcoeff.GetVDim();
-   Vector vc(dim), nor(dim), lvec, shape;
-
-   for (int i = 0; i < fes->GetNBE(); i++)
+#ifdef MFEM_DEBUG
+   if (fes->GetNBE() > 0)
    {
-      if (bdr_attr[fes->GetBdrAttribute(i)-1] == 0)
-      {
-         continue;
-      }
-      fe = fes->GetBE(i);
-      T = fes->GetBdrElementTransformation(i);
-      int intorder = 2*fe->GetOrder(); // !!!
-      const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(), intorder);
-      int nd = fe->GetDof();
-      lvec.SetSize(nd);
-      shape.SetSize(nd);
-      lvec = 0.0;
-      for (int j = 0; j < ir.GetNPoints(); j++)
-      {
-         const IntegrationPoint &ip = ir.IntPoint(j);
-         T->SetIntPoint(&ip);
-         vcoeff.Eval(vc, *T, ip);
-         CalcOrtho(T->Jacobian(), nor);
-         fe->CalcShape(ip, shape);
-         lvec.Add(ip.weight * (vc * nor), shape);
-      }
-      fes->GetBdrElementDofs(i, dofs);
-      SetSubVector(dofs, lvec);
+      // TODO: Replace this by GetTypicalBdrElement() once implemented
+      const FiniteElement *be = fes->GetBE(0);
+      MFEM_ASSERT(be->GetRangeType() == FiniteElement::SCALAR &&
+                  be->GetMapType() == FiniteElement::INTEGRAL, "Not an RT FE space!");
    }
-#else
+#endif
+
    // implementation for the case when the face dofs are scaled point
    // values of the normal component.
    const FiniteElement *fe;
    ElementTransformation *T;
    Array<int> dofs;
-   int dim = vcoeff.GetVDim();
-   Vector vc(dim), nor(dim), lvec;
+   Vector vc, nor, lvec;
    DofTransformation doftrans;
+   if (vcoeff)
+   {
+      const int dim = vcoeff->GetVDim();
+      vc.SetSize(dim);
+      nor.SetSize(dim);
+   }
 
    for (int i = 0; i < fes->GetNBE(); i++)
    {
@@ -3198,15 +3177,22 @@ void GridFunction::ProjectBdrCoefficientNormal(
       {
          const IntegrationPoint &ip = ir.IntPoint(j);
          T->SetIntPoint(&ip);
-         vcoeff.Eval(vc, *T, ip);
-         CalcOrtho(T->Jacobian(), nor);
-         lvec(j) = (vc * nor);
+         if (coeff)
+         {
+            const real_t c = coeff->Eval(*T, ip);
+            lvec(j) = c * T->Weight();
+         }
+         else if (vcoeff)
+         {
+            vcoeff->Eval(vc, *T, ip);
+            CalcOrtho(T->Jacobian(), nor);
+            lvec(j) = (vc * nor);
+         }
       }
       fes->GetBdrElementDofs(i, dofs, doftrans);
       doftrans.TransformPrimal(lvec);
       SetSubVector(dofs, lvec);
    }
-#endif
 }
 
 void GridFunction::ProjectBdrCoefficientTangent(
