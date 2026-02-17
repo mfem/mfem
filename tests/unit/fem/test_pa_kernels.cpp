@@ -946,6 +946,11 @@ TEST_CASE("Parallel PA DG Diffusion", "[PartialAssembly][Parallel][GPU]")
    CAPTURE(order, mesh_fname);
 
    Mesh serial_mesh = Mesh::LoadFromFile(mesh_fname.c_str());
+   for (int i = 0; i < serial_mesh.GetNE(); ++i)
+   {
+      serial_mesh.SetAttribute(i, 1 + (i % 2));
+   }
+
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
    serial_mesh.Clear();
 
@@ -956,6 +961,8 @@ TEST_CASE("Parallel PA DG Diffusion", "[PartialAssembly][Parallel][GPU]")
 
    test_dg_diffusion<ConstantCoefficient>(fes);
    test_dg_diffusion<MatrixConstantCoefficient>(fes);
+   test_dg_diffusion<SymmetricMatrixConstantCoefficient>(fes);
+   test_dg_diffusion<PWConstCoefficient>(fes);
 }
 
 #endif
