@@ -54,7 +54,7 @@ void SmemPAVectorDiffusionApply2D(const int NE,
    const auto XE = Reshape(x.Read(), D1D, D1D, SDIM, NE);
    auto YE = Reshape(y.ReadWrite(), D1D, D1D, SDIM, NE);
 
-   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D<T_Q1D*T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       constexpr int MD1 = T_D1D > 0 ? SetMaxOf(T_D1D) : DofQuadLimits::MAX_T1D;
       constexpr int MQ1 = T_Q1D > 0 ? SetMaxOf(T_Q1D) : DofQuadLimits::MAX_T1D;
@@ -120,7 +120,7 @@ void SmemPAVectorDiffusionApply3D(const int NE,
    const auto XE = Reshape(x.Read(), D1D, D1D, D1D, SDIM, NE);
    auto YE = Reshape(y.ReadWrite(), D1D, D1D, D1D, SDIM, NE);
 
-   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D<T_Q1D*T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       constexpr int MD1 = T_D1D > 0 ? SetMaxOf(T_D1D) : DofQuadLimits::MAX_T1D;
       constexpr int MQ1 = T_Q1D > 0 ? SetMaxOf(T_Q1D) : DofQuadLimits::MAX_T1D;
@@ -171,15 +171,15 @@ template<int DIM, int T_SDIM, int T_D1D, int T_Q1D>
 VectorDiffusionIntegrator::ApplyKernelType
 VectorDiffusionIntegrator::ApplyPAKernels::Kernel()
 {
-   if (DIM == 2)
+   if constexpr (DIM == 2)
    {
       return internal::SmemPAVectorDiffusionApply2D<T_SDIM, T_D1D, T_Q1D>;
    }
-   else if (DIM == 3)
+   else if constexpr (DIM == 3)
    {
       return internal::SmemPAVectorDiffusionApply3D<T_SDIM, T_D1D, T_Q1D>;
    }
-   else { MFEM_ABORT("Unsupported kernel"); }
+   MFEM_ABORT("Unsupported kernel");
 }
 
 inline VectorDiffusionIntegrator::ApplyKernelType
