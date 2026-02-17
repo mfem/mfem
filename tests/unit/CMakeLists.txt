@@ -75,6 +75,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_vector.cpp
   mesh/mesh_test_utils.cpp
   mesh/test_exodus_reader.cpp
+  mesh/test_mfem_mesh_reader.cpp
   mesh/test_exodus_writer.cpp
   mesh/test_face_orientations.cpp
   mesh/test_fms.cpp

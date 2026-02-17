@@ -257,12 +257,15 @@ void ArraysByName<T>::Load(std::istream &in)
 {
    int NumArrays;
    in >> NumArrays;
+   in >> std::ws;
 
-   std::string ArrayLine, ArrayName;
+
    for (int i=0; i < NumArrays; i++)
    {
-      in >> std::ws;
-      getline(in, ArrayLine);
+      std::string ArrayLine, ArrayName, AttributeLine;
+
+      std::getline(in, ArrayLine);
+
 
       std::size_t q0 = ArrayLine.find('"');
       std::size_t q1 = ArrayLine.rfind('"');
@@ -276,11 +279,74 @@ void ArraysByName<T>::Load(std::istream &in)
       {
          // If no double quotes found locate set name using white space
          q1 = ArrayLine.find(' ');
-         ArrayName = ArrayLine.substr(0,q1-1);
+         ArrayName = ArrayLine.substr(0,q1);
       }
 
-      // Ignore the remainder of the line which may contain explanatory comments
-      data[ArrayName].Load(in, 0);
+      if (q1 < ArrayLine.size()-1)
+      {
+
+         AttributeLine = ArrayLine.substr(q1+1);
+      }
+
+
+      // As seek might not be available in all streams, we need to track the number
+      // of attributes read so far to determine when parsing is done.
+      int expected_number_attributes = -1;
+      int read_attributes = 0;
+
+      if (!AttributeLine.empty())
+      {
+         std::istringstream iss(AttributeLine);
+         iss >> expected_number_attributes;
+
+         int x;
+         while (iss >> x)
+         {
+            read_attributes++;
+         }
+      }
+
+      while (true)
+      {
+
+         if (read_attributes == expected_number_attributes)
+         {
+            break;
+         }
+
+
+
+         if (!std::getline(in, ArrayLine))
+         {
+            break;
+         }
+
+         std::istringstream iss(ArrayLine);
+
+         int x;
+
+         if (expected_number_attributes == -1)
+         {
+            iss >> expected_number_attributes;
+         }
+
+
+         while (iss >> x)
+         {
+            read_attributes++;
+         }
+
+         if (!iss.eof() && iss.fail())
+         {
+
+            break;
+         }
+
+         AttributeLine += " " + ArrayLine;
+      }
+
+      std::istringstream iss(AttributeLine);
+      data[ArrayName].Load(iss, 0);
    }
 
 }
