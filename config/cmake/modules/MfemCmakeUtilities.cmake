@@ -701,7 +701,6 @@ endfunction(mfem_find_library)
 # Extract compile and link options needed by the given target.
 #
 function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
-
   if (NOT TARGET ${Target})
     return()
   endif()
@@ -799,7 +798,12 @@ function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
           # message(STATUS "Lib = ${Lib}")
           # Filter-out generator expressions
           if (NOT ("${Lib}" MATCHES "^\\$"))
-            list(APPEND LinkOpts "${Lib}")
+            if(NOT ("${Lib}" STREQUAL "dl"))
+              list(APPEND LinkOpts "${Lib}")
+            else()
+              # for some reason libdl doesn't include the "-l"
+              list(APPEND LinkOpts "-ldl")
+            endif()
           endif()
         else()
           mfem_get_target_options(${Lib} COpts LOpts)
@@ -888,9 +892,18 @@ function(mfem_export_mk_files)
       set(${var} NO)
     endif()
   endforeach()
-  # TODO: Add support for MFEM_USE_CUDA=YES
-  set(MFEM_CXX ${CMAKE_CXX_COMPILER})
-  set(MFEM_HOST_CXX ${MFEM_CXX})
+  if (MFEM_USE_CUDA)
+    set(MFEM_CXX ${CMAKE_CUDA_COMPILER})
+    if(MFEM_CUDA_COMPILER_IS_NVCC)
+      set(MFEM_HOST_CXX ${CMAKE_CUDA_HOST_COMPILER})
+    else()
+      set(MFEM_HOST_CXX ${CMAKE_CXX_COMPILER})
+    endif()
+  else()
+    # mfem doesn't use enable_language(HIP)
+    set(MFEM_CXX ${CMAKE_CXX_COMPILER})
+    set(MFEM_HOST_CXX ${CMAKE_CXX_COMPILER})
+  endif()
   set(MFEM_CPPFLAGS "")
   get_target_property(cxx_std mfem CXX_STANDARD)
   # For now, we ignore the setting of the CXX_EXTENSIONS property. If this
@@ -900,6 +913,45 @@ function(mfem_export_mk_files)
   string(STRIP
          "${cxx_std_flag} ${CMAKE_CXX_FLAGS_${BUILD_TYPE}} ${CMAKE_CXX_FLAGS}"
          MFEM_CXXFLAGS)
+  if (MFEM_USE_CUDA)
+    set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} ${CMAKE_CUDA_FLAGS}")
+    if (MFEM_CUDA_COMPILER_IS_NVCC)
+      set(MFEM_CXXFLAGS "-x=cu ${MFEM_CXXFLAGS} -ccbin ${CMAKE_CXX_COMPILER} --forward-unknown-to-host-compiler")
+      set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} -isystem ${CUDAToolkit_LIBRARY_ROOT}")
+      if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.18.0)
+        # architecture flags not part of CMAKE_CUDA_FLAGS
+        if ("all" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}"
+            OR "native" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}"
+            OR "all-major" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}")
+          set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} -arch=${CMAKE_CUDA_ARCHITECTURES}")
+        else()
+          foreach (ENTRY IN LISTS CMAKE_CUDA_ARCHITECTURES)
+            set(MFEM_CXXFLAGS
+              "${MFEM_CXXFLAGS} -gencode arch=compute_${ENTRY},code=sm_${ENTRY}")
+          endforeach()
+        endif()
+      endif()
+    else()
+      set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} -xcuda --cuda-path=${CUDAToolkit_LIBRARY_ROOT}")
+      if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.18.0)
+        # architecture flags not part of CMAKE_CUDA_FLAGS
+        if ("all" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}"
+            OR "native" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}"
+            OR "all-major" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}")
+          # TODO: not supported
+        else()
+          foreach(ENTRY IN LISTS CMAKE_CUDA_ARCHITECTURES)
+            set(MFEM_CXXFLAGS "-cuda-gpu-arch=sm_${ENTRY} ${MFEM_CXXFLAGS}")
+          endforeach()
+        endif()
+      endif()
+    endif()
+  elseif (MFEM_USE_HIP)
+    set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} -xhip")
+    foreach(ENTRY IN LISTS CMAKE_HIP_ARCHITECTURES)
+      set(MFEM_CXXFLAGS "--offload-arch=${ENTRY} ${MFEM_CXXFLAGS}")
+    endforeach()
+  endif()
   set(MFEM_TPLFLAGS "")
   foreach(dir ${TPL_INCLUDE_DIRS})
     set(MFEM_TPLFLAGS "${MFEM_TPLFLAGS} -I${dir}")
@@ -930,6 +982,9 @@ function(mfem_export_mk_files)
     set(MFEM_SHARED NO)
     set(MFEM_STATIC YES)
   endif()
+  if (MFEM_USE_CUDA)
+    set(MFEM_LIBS "${MFEM_LIBS} -lcudart")
+  endif()
   set(MFEM_BUILD_TAG "${CMAKE_SYSTEM}")
   set(MFEM_PREFIX "${CMAKE_INSTALL_PREFIX}")
   # For the next 4 variables, these are the values for the build-tree version of
@@ -939,7 +994,15 @@ function(mfem_export_mk_files)
   set(MFEM_TEST_MK "${PROJECT_SOURCE_DIR}/config/test.mk")
   set(MFEM_CONFIG_EXTRA "MFEM_BUILD_DIR ?= ${PROJECT_BINARY_DIR}")
   # TODO: CUDA/HIP support:
-  set(MFEM_XLINKER "${CMAKE_CXX_LINKER_WRAPPER_FLAG}")
+  if (MFEM_USE_CUDA)
+    if (MFEM_CUDA_COMPILER_IS_NVCC)
+      set(MFEM_XLINKER "-Xlinker=")
+    else()
+      set(MFEM_XLINKER "${CMAKE_CUDA_LINKER_WRAPPER_FLAG}")
+    endif()
+  else()
+    set(MFEM_XLINKER "${CMAKE_CXX_LINKER_WRAPPER_FLAG}")
+  endif()
   set(MFEM_MPIEXEC ${MPIEXEC})
   if (NOT MFEM_MPIEXEC)
     set(MFEM_MPIEXEC "mpirun")
@@ -987,16 +1050,21 @@ function(mfem_export_mk_files)
     # handle interfaces (e.g., SCOREC::apf)
     if ("${lib}" MATCHES "SCOREC::.*" OR "${lib}" MATCHES "Ginkgo::.*" OR "${lib}" MATCHES "ParMoonolith::.*")
     elseif (TARGET "${lib}")
-      mfem_get_target_options(${lib} CompileOpts LinkOpts)
+      mfem_get_target_options(${lib} CompileOpts2 LinkOpts2)
+      # remove generator expressions
+      string(GENEX_STRIP "${CompileOpts2}" CompileOpts)
+      string(GENEX_STRIP "${LinkOpts2}" LinkOpts)
       # Removing duplicates may lead to issues:
       # list(REMOVE_DUPLICATES CompileOpts)
       # list(REMOVE_DUPLICATES LinkOpts)
-      string(REPLACE ";" " " COpts "${CompileOpts}")
-      string(REPLACE ";" " " LOpts "${LinkOpts}")
-      # message(STATUS "${lib}[COpts]: '${COpts}'")
-      # message(STATUS "${lib}[LOpts]: '${LOpts}'")
-      set(MFEM_TPLFLAGS "${MFEM_TPLFLAGS} ${COpts}")
-      set(MFEM_EXT_LIBS "${MFEM_EXT_LIBS} ${LOpts}")
+      # message(WARNING "${lib}[LinkOpts]: ${LinkOpts}")      
+      # message(WARNING "${lib}[CompileOpts]: ${CompileOpts}")
+      foreach(LOpt IN LISTS LinkOpts)
+        set(MFEM_EXT_LIBS "${MFEM_EXT_LIBS} ${LOpt}")
+      endforeach()
+      foreach(COpt IN LISTS CompileOpts)
+        set(MFEM_TPLFLAGS "${MFEM_TPLFLAGS} ${COpt}")
+      endforeach()
       # message(FATAL_ERROR "***** interface lib found ... exiting *****")
       # handle static and shared libs
     elseif ("${suffix}" STREQUAL "${CMAKE_SHARED_LIBRARY_SUFFIX}")
@@ -1004,7 +1072,7 @@ function(mfem_export_mk_files)
       get_filename_component(fullLibName ${lib} NAME_WE)
       string(REGEX REPLACE "^lib" "" libname ${fullLibName})
       set(MFEM_EXT_LIBS
-          "${MFEM_EXT_LIBS} ${shared_link_flag}${dir} -L${dir} -l${libname}")
+        "${MFEM_EXT_LIBS} ${shared_link_flag}${dir} -L${dir} -l${libname}")
     else()
       set(MFEM_EXT_LIBS "${MFEM_EXT_LIBS} ${lib}")
     endif()
@@ -1013,7 +1081,7 @@ function(mfem_export_mk_files)
   # Create the build-tree version of 'config.mk'
   configure_file(
     "${PROJECT_SOURCE_DIR}/config/config.mk.in"
-    "${PROJECT_BINARY_DIR}/config/config.mk")
+    "${PROJECT_BINARY_DIR}/config/config.mk" @ONLY)
   # Copy 'test.mk' from the source-tree to the build-tree
   configure_file(
     "${PROJECT_SOURCE_DIR}/config/test.mk"
@@ -1031,7 +1099,7 @@ function(mfem_export_mk_files)
   # Create the install-tree version of 'config.mk'
   configure_file(
     "${PROJECT_SOURCE_DIR}/config/config.mk.in"
-    "${PROJECT_BINARY_DIR}/config/config-install.mk")
+    "${PROJECT_BINARY_DIR}/config/config-install.mk" @ONLY)
 
   # Install rules for 'config.mk' and 'test.mk'
   install(FILES ${PROJECT_SOURCE_DIR}/config/test.mk
