@@ -43,6 +43,8 @@ struct tensor<T>
    MFEM_HOST_DEVICE const T& operator[](int /*unused*/) const { return values; }
    MFEM_HOST_DEVICE T& operator()(int /*unused*/) { return values; }
    MFEM_HOST_DEVICE const T& operator()(int /*unused*/) const { return values; }
+   MFEM_HOST_DEVICE T& operator()() { return values; }
+   MFEM_HOST_DEVICE const T& operator()() const { return values; }
    MFEM_HOST_DEVICE operator T() const { return values; }
    T values;
 };
