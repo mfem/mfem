@@ -17,6 +17,8 @@
 
 #include "bilininteg_dgdiffusion_kernels.hpp"
 
+#include "../../mesh/pmesh.hpp"
+
 namespace mfem
 {
 
@@ -560,6 +562,8 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
       q.SetVDim(q_dim);
       auto C = Reshape(q.HostWrite(), q_dim, nq, 2, nf);
 
+      auto *pmesh = dynamic_cast<ParMesh*>(&mesh);
+
       int f_ind = 0;
       for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
       {
@@ -570,8 +574,14 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
             // by the corresponding nonconforming fine faces.
             continue;
          }
-         FaceElementTransformations &T =
-            *fes.GetMesh()->GetFaceElementTransformations(f);
+
+         FaceElementTransformations &T = [&] () -> FaceElementTransformations&
+         {
+            if (face.IsShared() && pmesh)
+               return *pmesh->GetSharedFaceTransformationsByLocalIndex(f, true);
+            return *mesh.GetFaceElementTransformations(f);
+         }();
+
          for (int q = 0; q < nq; ++q)
          {
             // Convert to lexicographic ordering
