@@ -82,6 +82,15 @@ public:
       }
    }
 
+   /// Make the DenseMatrix to reference the given sub-Memory of @a base.
+   /** The DenseMatrix does not assume ownership of the data array, i.e. it will
+       not delete the @a base Memory. */
+   void MakeRef(Memory<real_t> &base, int offset, int h, int w)
+   {
+      data.MakeRef(base, offset, h*w);
+      height = h; width = w;
+   }
+
    /// Change the data array and the size of the DenseMatrix.
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will
        not delete the data array @a d. */
