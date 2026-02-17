@@ -841,6 +841,13 @@ MakeCoeff<SymmetricMatrixConstantCoefficient>(int dim)
    return std::make_unique<SymmetricMatrixConstantCoefficient>(A);
 }
 
+template <> std::unique_ptr<PWConstCoefficient>
+MakeCoeff<PWConstCoefficient>(int)
+{
+   Vector c({1.0, 2.0});
+   return std::make_unique<PWConstCoefficient>(c);
+}
+
 template <typename CoeffType = ConstantCoefficient,
           typename FES = FiniteElementSpace>
 void test_dg_diffusion(FES &fes)
@@ -916,12 +923,18 @@ TEST_CASE("PA DG Diffusion", "[PartialAssembly], [GPU]")
    Mesh mesh = Mesh::LoadFromFile(mesh_fname.c_str());
    const int dim = mesh.Dimension();
 
+   for (int i = 0; i < mesh.GetNE(); ++i)
+   {
+      mesh.SetAttribute(i, 1 + (i % 2));
+   }
+
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    FiniteElementSpace fes(&mesh, &fec);
 
    test_dg_diffusion<ConstantCoefficient>(fes);
    test_dg_diffusion<MatrixConstantCoefficient>(fes);
    test_dg_diffusion<SymmetricMatrixConstantCoefficient>(fes);
+   test_dg_diffusion<PWConstCoefficient>(fes);
 }
 
 #ifdef MFEM_USE_MPI
@@ -933,6 +946,11 @@ TEST_CASE("Parallel PA DG Diffusion", "[PartialAssembly][Parallel][GPU]")
    CAPTURE(order, mesh_fname);
 
    Mesh serial_mesh = Mesh::LoadFromFile(mesh_fname.c_str());
+   for (int i = 0; i < serial_mesh.GetNE(); ++i)
+   {
+      serial_mesh.SetAttribute(i, 1 + (i % 2));
+   }
+
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
    serial_mesh.Clear();
 
@@ -943,6 +961,8 @@ TEST_CASE("Parallel PA DG Diffusion", "[PartialAssembly][Parallel][GPU]")
 
    test_dg_diffusion<ConstantCoefficient>(fes);
    test_dg_diffusion<MatrixConstantCoefficient>(fes);
+   test_dg_diffusion<SymmetricMatrixConstantCoefficient>(fes);
+   test_dg_diffusion<PWConstCoefficient>(fes);
 }
 
 #endif
