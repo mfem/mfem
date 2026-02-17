@@ -34,6 +34,8 @@ if(MFEM_USE_MPI AND neml2_FOUND)
 
   # Link neml2
   target_link_libraries(neml2 PRIVATE neml2::neml2)
+  # MUMPS static archive needs openmp
+  target_link_options(neml2 PRIVATE -Wl,--no-as-needed)
 
   # Add parallel tests.
   if(MFEM_ENABLE_TESTING)
