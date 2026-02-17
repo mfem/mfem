@@ -120,6 +120,7 @@ set(UNIT_TESTS_SRCS
   fem/test_fe_pos.cpp
   fem/test_fe_symmetry.cpp
   fem/test_fe.cpp
+  fem/test_fespace_get_ess_true_dofs.cpp
   fem/test_get_value.cpp
   fem/test_getderivative.cpp
   fem/test_getgradient.cpp
