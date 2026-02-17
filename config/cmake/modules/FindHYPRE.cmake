@@ -44,6 +44,9 @@ if (MFEM_FETCH_HYPRE OR MFEM_FETCH_TPLS)
   # set options and associated dependencies
   set(HYPRE_CMAKE_OPTIONS "")
   list(APPEND HYPRE_CMAKE_OPTIONS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE})
+  if (BUILD_SHARED_LIBS)
+    list(APPEND HYPRE_CMAKE_OPTIONS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON)
+  endif()
   # collect all HYPRE_ENABLE variables and pass them to hypre, assuming they are BOOL.
   get_cmake_property(all_vars VARIABLES)
   foreach(var ${all_vars})
