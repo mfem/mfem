@@ -4165,7 +4165,7 @@ void PetscNonlinearSolver::Mult(const Vector &b, Vector &x) const
    SNES snes = (SNES)obj;
 
    bool b_nonempty = b.Size();
-   if (!B) { B = new PetscParVector(PetscObjectComm(obj), *this, true); }
+   if (!B) { B = new PetscParVector(PetscObjectComm(obj), *this, true, b_nonempty ? false : true); }
    if (!X) { X = new PetscParVector(PetscObjectComm(obj), *this, false, false); }
    X->PlaceMemory(x.GetMemory(),iterative_mode);
    if (b_nonempty) { B->PlaceMemory(b.GetMemory()); }

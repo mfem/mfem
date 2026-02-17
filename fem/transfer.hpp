@@ -603,6 +603,7 @@ private:
    int NE;
    int D1D;
    int Q1D;
+   int vdim;
    Array<real_t> B;
    Array<real_t> Bt;
    const Operator* elem_restrict_lex_l;

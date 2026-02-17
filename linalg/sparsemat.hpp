@@ -22,6 +22,8 @@
 #include "../general/globals.hpp"
 #include "densemat.hpp"
 
+#include <vector>
+
 #if defined(MFEM_USE_HIP)
 #if (HIP_VERSION_MAJOR * 100 + HIP_VERSION_MINOR) < 502
 #include <hipsparse.h>
@@ -33,6 +35,9 @@
 
 namespace mfem
 {
+class FiniteElementSpace;
+class ParFiniteElementSpace;
+class OperatorHandle;
 
 class
 #if defined(__alignas_is_defined)
@@ -959,6 +964,12 @@ template<> inline void Swap<SparseMatrix>(SparseMatrix &a, SparseMatrix &b)
    a.Swap(b);
 }
 
+void ConformingAssemble(const FiniteElementSpace &fes,
+                        std::vector<SparseMatrix *> &mats);
+#ifdef MFEM_USE_MPI
+void ParallelRAP(const ParFiniteElementSpace &pfespace, SparseMatrix &loc_A,
+                 OperatorHandle &A, bool steal_loc_A = false);
+#endif
 } // namespace mfem
 
 #endif
