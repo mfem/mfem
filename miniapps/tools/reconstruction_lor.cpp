@@ -133,7 +133,6 @@ int main(int argc, char *argv[])
    GridFunction rho_lo(&fespace_lo);
    GridFunction rho_im(&fespace_im);
    GridFunction rho_hi(&fespace_hi);
-   GridFunction rho_hi_exact(&fespace_hi);
 
    // Data collections for vis/analysis
    VisItDataCollection dc_lo("LO", &mesh_lo);
@@ -142,8 +141,6 @@ int main(int argc, char *argv[])
    dc_im.RegisterField("density", &rho_im);
    VisItDataCollection dc_hi("HO", &mesh_lo);
    dc_hi.RegisterField("density", &rho_hi);
-   VisItDataCollection dc_ex("EX", &mesh_lo);
-   dc_ex.RegisterField("density", &rho_hi_exact);
 
    // ======================================================
    // Create BilinearForms
@@ -225,10 +222,6 @@ int main(int argc, char *argv[])
    cg.Mult(b_lo, rho_lo); // Solve: M * rho_lo = b_lo
    rho_lo.SetTrueVector();
    rho_lo.SetFromTrueVector();
-
-   rho_hi_exact.ProjectCoefficient(RHO);
-   rho_hi_exact.SetTrueVector();
-   rho_hi_exact.SetFromTrueVector();
 
    real_t mass_ex = compute_mass(&fespace_hi, -1.0, dc_ex, "EX");
    if (vis) { visualize(dc_ex, "EX", Wx, Wy, visport); Wx += offx; }
