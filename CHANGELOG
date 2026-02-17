@@ -21,6 +21,9 @@ Discretization improvements
   ragged tensor algorithms in (https://doi.org/10.1137/11082539X) for mass and
   diffusion integrators.
 
+- Added methods to estimate function extremum using piecewise linear bounds +
+  recursive subdivision.
+
 Meshing improvements
 --------------------
 - Improved support for 1D NURBS meshes with variable order, including using
