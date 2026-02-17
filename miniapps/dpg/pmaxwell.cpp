@@ -844,7 +844,24 @@ int main(int argc, char *argv[])
 #else
          bool mumps_coarse_solver = false;
 #endif
-         cprec = new ComplexPRefinementMultigrid(prec_fes, *Ahc, mumps_coarse_solver);
+         std::vector<Array<int>> ess_bdr_marker(prec_fes.Size());
+         for (int b = 0; b<prec_fes.Size(); b++)
+         {
+            if (pmesh.bdr_attributes.Size())
+            {
+               ess_bdr_marker[b].SetSize(pmesh.bdr_attributes.Max());
+               if (b == 2) // hatE
+               {
+                  ess_bdr_marker[b] = ess_bdr;
+               }
+               else
+               {
+                  ess_bdr_marker[b] = 0;
+               }
+            }
+         }
+         cprec = new ComplexPRefinementMultigrid(prec_fes, ess_bdr_marker, *Ahc,
+                                                 mumps_coarse_solver);
       }
       else
       {

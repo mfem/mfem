@@ -57,13 +57,21 @@ Solver * MakeFESpaceDefaultSolver(
 
 PRefinementHierarchy::PRefinementHierarchy(const Array<ParFiniteElementSpace*>
                                            &pfes_,
-                                           int nblocks_)
-   : pfes(pfes_), npfes(pfes.Size()), nblocks(nblocks_)
+                                           const std::vector<Array<int>> & ess_bdr_marker_)
+   : pfes(pfes_), ess_bdr_marker(ess_bdr_marker_), nblocks(pfes.Size())
 {
-   MFEM_VERIFY(npfes > 0, "Empty pfes.");
-   MFEM_VERIFY(nblocks > 0, "Invalid nblocks.");
+   MFEM_VERIFY(nblocks > 0, "Empty pfes.");
    pmesh = pfes[0]->GetParMesh();
    MFEM_VERIFY(pmesh, "pfes[0] has null ParMesh.");
+   MFEM_VERIFY(ess_bdr_marker.size() == static_cast<size_t>(nblocks),
+               "ess_bdr_marker size must match nblocks.");
+   int bdr_size = (pmesh->bdr_attributes.Size() > 0) ? pmesh->bdr_attributes.Max()
+                  : 0;
+   for (int i = 0; i<nblocks; i++)
+   {
+      MFEM_VERIFY(ess_bdr_marker[i].Size() == bdr_size,
+                  "ess_bdr_marker[" << i << "] size must match max bdr_attribute in mesh.");
+   }
 }
 
 const ParFiniteElementSpace* PRefinementHierarchy::GetParFESpace(int lev,
@@ -83,9 +91,9 @@ const
 
 void PRefinementHierarchy::BuildSpaceHierarchy()
 {
-   orders.SetSize(npfes);
-   Array<int> levels(npfes);
-   for (int i = 0; i < npfes; i++)
+   orders.SetSize(nblocks);
+   Array<int> levels(nblocks);
+   for (int i = 0; i < nblocks; i++)
    {
       orders[i] = pfes[i]->FEColl()->GetConstructorOrder();
       levels[i] = orders[i] - GetFESpaceMinimumOrder(pfes[i]);
@@ -100,13 +108,13 @@ void PRefinementHierarchy::BuildSpaceHierarchy()
 
    for (int lev = 0; lev < maxlevels-1; lev++)
    {
-      fec_owned[lev].resize(npfes);
-      fes_owned[lev].resize(npfes);
+      fec_owned[lev].resize(nblocks);
+      fes_owned[lev].resize(nblocks);
       T_level[lev].resize(nblocks);
    }
 
    // Build ParFES hierarchy for each block
-   for (int b = 0; b < npfes; b++)
+   for (int b = 0; b < nblocks; b++)
    {
       const FiniteElementCollection *fec_ref = pfes[b]->FEColl();
       const int vdim = pfes[b]->GetVDim();
@@ -123,6 +131,32 @@ void PRefinementHierarchy::BuildSpaceHierarchy()
          fes_ptr = std::make_unique<ParFiniteElementSpace>(pmesh, fec_ptr.get(),
                                                            vdim, ordering);
       }
+   }
+
+   // build true dof lists for all levels
+   ess_tdof_list.resize(maxlevels);
+   Array<int> tdof_offsets(nblocks+1);
+   for (int i = 0; i< maxlevels; i++)
+   {
+      tdof_offsets[0] = 0;
+      for (int b = 0; b < nblocks; b++)
+      {
+         tdof_offsets[b+1] = GetParFESpace(i,b)->GetTrueVSize();
+      }
+      tdof_offsets.PartialSum();
+      Array<int> tdof_list;
+      Array<int> block_tdof_list;
+      for (int b = 0; b < nblocks; b++)
+      {
+         block_tdof_list.SetSize(0);
+         GetParFESpace(i,b)->GetEssentialTrueDofs(ess_bdr_marker[b], block_tdof_list);
+         for (int j = 0; j < block_tdof_list.Size(); j++)
+         {
+            block_tdof_list[j] += tdof_offsets[b];
+         }
+         tdof_list.Append(block_tdof_list);
+      }
+      ess_tdof_list[i] = tdof_list;
    }
 }
 
@@ -161,10 +195,11 @@ BlockOperator *PRefinementHierarchy::BuildProlongation(int lev)
 
 PRefinementMultigrid::PRefinementMultigrid(const Array<ParFiniteElementSpace*>
                                            &pfes_,
+                                           const std::vector<Array<int>> & ess_bdr_marker_,
                                            const BlockOperator &Op_,
                                            bool mumps_coarse_solver)
    : Multigrid()
-   , hierarchy(pfes_, Op_.NumRowBlocks())
+   , hierarchy(pfes_, ess_bdr_marker_)
    , Op(Op_)
 {
 #ifndef MFEM_USE_MUMPS
@@ -174,9 +209,6 @@ PRefinementMultigrid::PRefinementMultigrid(const Array<ParFiniteElementSpace*>
    }
    mumps_coarse_solver = false;
 #endif
-
-   MFEM_VERIFY(hierarchy.npfes == hierarchy.nblocks,
-               "pfes size must match Op.NumRowBlocks().");
 
    hierarchy.BuildSpaceHierarchy();
 
@@ -199,7 +231,8 @@ PRefinementMultigrid::PRefinementMultigrid(const Array<ParFiniteElementSpace*>
    for (int lev = nP - 1; lev >= 0; lev--)
    {
       BlockOperator *Pblk = hierarchy.BuildProlongation(lev);
-      prolongations[lev] = Pblk;
+      prolongations[lev] = new RectangularConstrainedOperator(Pblk,
+                                                              hierarchy.ess_tdof_list[lev], hierarchy.ess_tdof_list[lev+1], true);
       ownedProlongations[lev] = true;
 
       BlockOperator *OpLevel = new BlockOperator(Pblk->ColOffsets());
@@ -317,6 +350,7 @@ PRefinementMultigrid::PRefinementMultigrid(const Array<ParFiniteElementSpace*>
 
 ComplexPRefinementMultigrid::ComplexPRefinementMultigrid(
    const Array<ParFiniteElementSpace*> &pfes_,
+   const std::vector<Array<int>> & ess_bdr_marker,
    const ComplexOperator &Op_, bool mumps_coarse_solver)
    : Multigrid(), Op(Op_)
 {
@@ -335,10 +369,7 @@ ComplexPRefinementMultigrid::ComplexPRefinementMultigrid(
 
    const int nblocks = Op_r->NumRowBlocks();
    MFEM_VERIFY(nblocks == Op_i->NumRowBlocks(), "Real/imag block counts differ.");
-
-   hierarchy = std::make_unique<PRefinementHierarchy>(pfes_, nblocks);
-   MFEM_VERIFY(hierarchy->npfes == hierarchy->nblocks,
-               "pfes size must match Op.NumRowBlocks().");
+   hierarchy = std::make_unique<PRefinementHierarchy>(pfes_, ess_bdr_marker);
 
    hierarchy->BuildSpaceHierarchy();
 
@@ -360,9 +391,12 @@ ComplexPRefinementMultigrid::ComplexPRefinementMultigrid(
    {
       BlockOperator *Pblk = hierarchy->BuildProlongation(lev);
 
+      auto ConstrOp = new RectangularConstrainedOperator(Pblk,
+                                                         hierarchy->ess_tdof_list[lev],
+                                                         hierarchy->ess_tdof_list[lev+1], true);
+
       // prolongation as complex (real=Pblk, imag=nullptr)
-      auto *CPblk = new ComplexOperator(Pblk, nullptr, true, true);
-      prolongations[lev] = CPblk;
+      prolongations[lev] = new ComplexOperator(ConstrOp, nullptr, true, true);
       ownedProlongations[lev] = true;
 
       auto *OpLevel_r = new BlockOperator(Pblk->ColOffsets());

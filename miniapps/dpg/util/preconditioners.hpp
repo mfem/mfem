@@ -42,10 +42,10 @@ class PRefinementHierarchy
 public:
    Array<int> orders;
    const Array<ParFiniteElementSpace*> &pfes;
-
+   std::vector<Array<int>> ess_bdr_marker;
+   std::vector<Array<int>> ess_tdof_list;
    ParMesh *pmesh = nullptr;
-   int npfes = 0;
-   int nblocks = 0;
+   int nblocks;
    int maxlevels = 1;
 
    // Owned levels: 0..maxlevels-2
@@ -55,7 +55,8 @@ public:
    // Transfer operators per level and block (owned here)
    std::vector<std::vector<std::unique_ptr<PRefinementTransferOperator>>> T_level;
 
-   PRefinementHierarchy(const Array<ParFiniteElementSpace*> &pfes_, int nblocks_);
+   PRefinementHierarchy(const Array<ParFiniteElementSpace*> &pfes_,
+                        const std::vector<Array<int>> & ess_bdr_marker_);
 
    const ParFiniteElementSpace* GetParFESpace(int lev, int b) const;
 
@@ -80,6 +81,7 @@ private:
 
 public:
    PRefinementMultigrid(const Array<ParFiniteElementSpace*> &pfes_,
+                        const std::vector<Array<int>> & ess_bdr_marker_,
                         const BlockOperator &Op_,
                         bool mumps_coarse_solver = false);
 
@@ -99,6 +101,7 @@ private:
 
 public:
    ComplexPRefinementMultigrid(const Array<ParFiniteElementSpace*> &pfes_,
+                               const std::vector<Array<int>> & ess_bdr_marker,
                                const ComplexOperator &Op_,
                                bool mumps_coarse_solver = false);
 
