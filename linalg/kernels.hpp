@@ -409,13 +409,13 @@ void AddMult(const int Aheight, const int Awidth, const int Bwidth,
    }
    else if (beta != 1.0)
    {
-      for (int i = 0; i < ah_x_aw; i++) { Adata[i] *= beta; }
+      for (int i = 0; i < ah_x_aw; i++) { Adata[i] = Adata[i]*beta; }
    }
    for (int j = 0; j < Awidth; j++)
    {
       for (int k = 0; k < Bwidth; k++)
       {
-         const real_t val = alpha * Cdata[k+j*Bwidth];
+         const TA val = alpha * Cdata[k+j*Bwidth];
          for (int i = 0; i < Aheight; i++)
          {
             Adata[i+j*Aheight] += val * Bdata[i+k*Aheight];
@@ -432,7 +432,7 @@ MFEM_HOST_DEVICE inline
 void Mult(const int Aheight, const int Awidth, const int Bwidth,
           const TB *Bdata, const TC *Cdata, TA *Adata)
 {
-   AddMult(Aheight, Awidth, Bwidth, Bdata, Cdata, Adata, TB(1.0), TA(0.0));
+   AddMult(Aheight, Awidth, Bwidth, Bdata, Cdata, Adata, TB{1.0}, TA{0.0});
 }
 
 /** @brief Multiply a matrix of size @a Aheight x @a Awidth and data @a Adata
@@ -450,7 +450,7 @@ void MultABt(const int Aheight, const int Awidth, const int Bheight,
       TC *c = ABtdata;
       for (int j = 0; j < Bheight; j++)
       {
-         const real_t bjk = Bdata[j];
+         const TB bjk = Bdata[j];
          for (int i = 0; i < Aheight; i++)
          {
             c[i] += Adata[i] * bjk;
@@ -507,7 +507,7 @@ MFEM_HOST_DEVICE inline
 void MultAtB(const int Aheight, const int Awidth, const int Bwidth,
              const TA *Adata, const TB *Bdata, TC *AtBdata)
 {
-   AddMultAtB(Aheight, Awidth, Bwidth, Adata, Bdata, AtBdata, TB(1.0), TA(0.0));
+   AddMultAtB(Aheight, Awidth, Bwidth, Adata, Bdata, AtBdata, TB{1.0}, TA{});
 }
 
 /** @brief Multiply the transpose of a matrix of size @a Aheight x @a Awidth

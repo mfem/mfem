@@ -233,6 +233,7 @@ constexpr auto operator/(dual<value_type_a, gradient_type_a> a,
 mfem_binary_comparator_overload(<)   ///< implement operator<  for dual numbers
 mfem_binary_comparator_overload(<=)  ///< implement operator<= for dual numbers
 mfem_binary_comparator_overload(==)  ///< implement operator== for dual numbers
+mfem_binary_comparator_overload(!=)  ///< implement operator!= for dual numbers
 mfem_binary_comparator_overload(>=)  ///< implement operator>= for dual numbers
 mfem_binary_comparator_overload(>)   ///< implement operator>  for dual numbers
 

@@ -148,6 +148,16 @@ public:
          data = nullptr;
       }
    }
+   /// Creates rectangular matrix of size m x n.
+   TAutoDiffDenseMatrix(dtype* data_, int m, int n)
+   {
+      MFEM_ASSERT(m >= 0 && n >= 0,
+                  "invalid DenseMatrix size: " << m << " x " << n);
+      height = m;
+      width = n;
+      capacity = 0;
+      data = data_;
+   }
 
    TAutoDiffDenseMatrix(const TAutoDiffDenseMatrix<dtype> &mat, char ch)
    {
