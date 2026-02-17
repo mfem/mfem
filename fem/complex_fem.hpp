@@ -62,12 +62,6 @@ public:
        are owned by the ComplexGridFunction. */
    ComplexGridFunction(Mesh *m, std::istream &input);
 
-   void Update();
-
-   /** Return update counter, similar to Mesh::GetSequence(). Used to
-       check if it is up to date with the space. */
-   long GetSequence() const { return fes_sequence; }
-
    /// Make the ComplexGridFunction the owner of #fec_owned and #fes.
    /** If the new FiniteElementCollection, @a fec_, is NULL, ownership
        of #fec_owned and #fes is taken away. */
@@ -101,8 +95,19 @@ public:
                                              VectorCoefficient &imag_coeff,
                                              Array<int> &attr);
 
+   /// Transform by the Space UpdateMatrix (e.g., on Mesh change).
+   void Update();
+
+   /** Return update counter, similar to Mesh::GetSequence(). Used to
+       check if it is up to date with the space. */
+   long GetSequence() const { return fes_sequence; }
+
    FiniteElementSpace *FESpace() { return fes; }
    const FiniteElementSpace *FESpace() const { return fes; }
+
+   /// Associate a new FiniteElementSpace with the ComplexGridFunction.
+   /** The ComplexGridFunction is resized using the SetSize() method. */
+   virtual void SetSpace(FiniteElementSpace *f);
 
    GridFunction & real() { return *gfr; }
    GridFunction & imag() { return *gfi; }
@@ -456,6 +461,14 @@ public:
    ParComplexGridFunction(ParMesh *pmesh, std::istream &input);
 
    void Update();
+
+   /// Associate a new FiniteElementSpace with the ParComplexGridFunction.
+   /** The ParComplexGridFunction is resized using the SetSize() method. The
+       new space @a f is expected to be a ParFiniteElementSpace. */
+   void SetSpace(FiniteElementSpace *f);
+
+   /// Associate a new parallel space with the ParComplexGridFunction.
+   void SetSpace(ParFiniteElementSpace *f);
 
    /** Return update counter, similar to Mesh::GetSequence(). Used to
        check if it is up to date with the space. */
@@ -834,6 +847,201 @@ public:
 };
 
 #endif // MFEM_USE_MPI
+
+/** @brief A real-valued coefficient computed from a complex-valued coefficient
+    and a space-dependent phase.
+
+    The returned value can be the real or imaginary part of
+       exp(+/- i k.x) * v
+    where k is a complex-valued vector and v is a complex-valued
+    scalar.
+ */
+class ComplexPhaseCoefficient : public Coefficient
+{
+private:
+   VectorCoefficient * kReCoef_;
+   VectorCoefficient * kImCoef_;
+   Coefficient * vReCoef_;
+   Coefficient * vImCoef_;
+
+   bool realPart_;
+   bool neg_k_;
+   int kdim_;
+
+   mutable Vector xk_;
+   mutable Vector kRe_;
+   mutable Vector kIm_;
+
+public:
+   /// Constructs a ComplexPhaseCoefficient
+   /** \param kRe - Real part of phase vector k
+       \param kIm - Imaginary part of phase vector k
+       \param vRe - Real part of scalar field v
+       \param vIm - Imaginary part of scalar field v
+       \param realPart - Return the real part if true and the
+                         imaginary part if false
+       \param neg_k - Flip the sign of the phase vector, k, if true
+
+       \note If kRe, kIm, vRe, or vIm are NULL they are assumed to be zero.
+   */
+   ComplexPhaseCoefficient(VectorCoefficient *kRe,
+                           VectorCoefficient *kIm,
+                           Coefficient *vRe,
+                           Coefficient *vIm,
+                           bool realPart, bool neg_k);
+
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip);
+
+};
+
+/** @brief A real-valued vector coefficient computed from a
+    complex-valued vector coefficient and a space-dependent phase.
+
+    The returned value can be the real or imaginary part of
+       exp(+/- i k.x) * v
+    where k is a complex-valued vector and v is a complex-valued
+    vector.
+ */
+class ComplexPhaseVectorCoefficient : public VectorCoefficient
+{
+private:
+   VectorCoefficient * kReCoef_;
+   VectorCoefficient * kImCoef_;
+   VectorCoefficient * vReCoef_;
+   VectorCoefficient * vImCoef_;
+
+   bool realPart_;
+   bool neg_k_;
+   int kdim_;
+
+   mutable Vector xk_;
+   mutable Vector xs_;
+   mutable Vector kRe_;
+   mutable Vector kIm_;
+   mutable Vector vRe_;
+   mutable Vector vIm_;
+
+public:
+   /// Constructs a ComplexPhaseVectorCoefficient
+   /** \param kRe - Real part of phase vector k
+       \param kIm - Imaginary part of phase vector k
+       \param vRe - Real part of vector field v
+       \param vIm - Imaginary part of vector field v
+       \param realPart - Return the real part if true and the
+                         imaginary part if false
+       \param neg_k - Flip the sign of the phase vector, k, if true
+
+       \note If kRe, kIm, vRe, or vIm are NULL they are assumed to be zero.
+   */
+   ComplexPhaseVectorCoefficient(VectorCoefficient *kRe,
+                                 VectorCoefficient *kIm,
+                                 VectorCoefficient *vRe,
+                                 VectorCoefficient *vIm,
+                                 bool realPart, bool neg_k);
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip);
+
+};
+
+/** Abstract base class used by VectorCoefficient classes which
+    compute the real and imaginary parts of matrix-vector products of
+    complex-valued coefficients
+   */
+class ComplexMatrixVectorProductCoef : public VectorCoefficient
+{
+protected:
+
+   const GridFunction * vRe_gf_;
+   const GridFunction * vIm_gf_;
+
+   MatrixCoefficient * mReCoef_;
+   MatrixCoefficient * mImCoef_;
+
+   mutable Vector vRe_;
+   mutable Vector vIm_;
+   mutable DenseMatrix mRe_;
+   mutable DenseMatrix mIm_;
+
+   ComplexMatrixVectorProductCoef(MatrixCoefficient *MRe,
+                                  MatrixCoefficient *MIm,
+                                  const GridFunction *vRe,
+                                  const GridFunction *vIm);
+
+   void evaluateCoefs(ElementTransformation &T,
+                      const IntegrationPoint &ip);
+};
+
+/** @brief Return the real part of a matrix-vector product of complex
+    coefficients.
+
+    See also ComplexMatrixVectorProductImagCoef.
+*/
+class ComplexMatrixVectorProductRealCoef : public ComplexMatrixVectorProductCoef
+{
+public:
+   /** Constructs ComplexMatrixVectorProductRealCoef which returns the
+       real part of
+
+       (MRe + i MIm) * (vRe + i vIm)
+
+       Which is
+
+       MRe vRe - MIm vIm
+
+       \note If MRe, MIm, vRe, or vIm are NULL they are assumed to be zero.
+   */
+   ComplexMatrixVectorProductRealCoef(MatrixCoefficient *MRe,
+                                      MatrixCoefficient *MIm,
+                                      const GridFunction *vRe,
+                                      const GridFunction *vIm)
+      : ComplexMatrixVectorProductCoef(MRe, MIm, vRe, vIm)
+   {}
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip)
+   {
+      this->evaluateCoefs(T, ip);
+      mRe_.Mult(vRe_, V);
+      mIm_.AddMult_a(-1.0, vIm_, V);
+   }
+};
+
+/** @brief Return the imaginary part of a matrix-vector product of complex
+    coefficients.
+
+    See also ComplexMatrixVectorProductRealCoef.
+*/
+class ComplexMatrixVectorProductImagCoef : public ComplexMatrixVectorProductCoef
+{
+public:
+   /** Constructs ComplexMatrixVectorProductImagCoef which returns the
+       imaginary part of
+
+       (MRe + i MIm) * (vRe + i vIm)
+
+       Which is
+
+       MRe vIm + MIm vRe
+
+       \note If MRe, MIm, vRe, or vIm are NULL they are assumed to be zero.
+   */
+   ComplexMatrixVectorProductImagCoef(MatrixCoefficient *MRe,
+                                      MatrixCoefficient *MIm,
+                                      const GridFunction *vRe,
+                                      const GridFunction *vIm)
+      : ComplexMatrixVectorProductCoef(MRe, MIm, vRe, vIm)
+   {}
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip)
+   {
+      this->evaluateCoefs(T, ip);
+      mRe_.Mult(vIm_, V);
+      mIm_.AddMult(vRe_, V);
+   }
+};
 
 }
 
