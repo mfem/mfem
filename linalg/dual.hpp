@@ -309,15 +309,6 @@ dual<value_type, gradient_type> sin(dual<value_type, gradient_type> a)
    return {sin(a.value), a.gradient * cos(a.value)};
 }
 
-/** @brief implementation of sinh for dual numbers */
-template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
-dual<value_type, gradient_type> sinh(dual<value_type, gradient_type> a)
-{
-   using std::sinh;
-   using std::cosh;
-   return {sinh(a.value), a.gradient * cosh(a.value)};
-}
-
 /** @brief implementation of acos for dual numbers */
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> acos(dual<value_type, gradient_type> a)
@@ -361,6 +352,34 @@ dual<value_type, gradient_type> exp(dual<value_type, gradient_type> a)
    return {exp(a.value), exp(a.value) * a.gradient};
 }
 
+/** @brief implementation of hyperbolic tangent function for dual numbers */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> tanh(dual<value_type, gradient_type> a)
+{
+   using std::tanh;
+   auto th = tanh(a.value);
+   return {th, (1.0 - th * th) * a.gradient};
+}
+
+/** @brief implementation of hyperbolic sine function for dual numbers */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> sinh(dual<value_type, gradient_type> a)
+{
+   using std::sinh;
+   using std::cosh;
+   return { sinh(a.value), cosh(a.value) * a.gradient};
+}
+
+/** @brief implementation of hyperbolic cosine function for dual numbers */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> cosh(dual<value_type, gradient_type> a)
+{
+   using std::sinh;
+   using std::cosh;
+   return { cosh(a.value), sinh(a.value) * a.gradient};
+}
+
+
 /** @brief implementation of the natural logarithm function for dual numbers */
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> log(dual<value_type, gradient_type> a)
@@ -376,8 +395,10 @@ dual<value_type, gradient_type> pow(dual<value_type, gradient_type> a,
 {
    using std::log;
    using std::pow;
-   value_type value = pow(a.value, b.value);
-   return {value, value * (a.gradient * (b.value / a.value) + b.gradient * log(a.value))};
+   value_type val = pow(a.value, b.value);
+   value_type da = b.value * pow(a.value, b.value - 1.0);
+   value_type db = val * log(a.value);
+   return {val, da * a.gradient + db * b.gradient};
 }
 
 /** @brief implementation of `a` (non-dual) raised to the `b` (dual) power */
@@ -403,8 +424,97 @@ template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> pow(dual<value_type, gradient_type> a, real_t b)
 {
    using std::pow;
-   value_type value = pow(a.value, b);
-   return {value, value * a.gradient * b / a.value};
+   return {pow(a.value, b), b*pow(a.value, b-1) * a.gradient };
+}
+
+/** @brief implementation of max of two dual numbers */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> max(dual<value_type, gradient_type> a,
+                                    dual<value_type, gradient_type> b)
+{
+   if (a.value > b.value)
+   {
+      return a;
+   }
+   else
+   {
+      return b;
+   }
+}
+
+/** @brief implementation of max of a dual number and a non-dual number */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> max(real_t a, dual<value_type, gradient_type> b)
+{
+   if (a > b.value)
+   {
+      return {a, {}};
+   }
+   else
+   {
+      return b;
+   }
+}
+
+/** @brief implementation of max of two non-dual numbers */
+template <typename value_type > MFEM_HOST_DEVICE
+value_type max(value_type a, value_type b)
+{
+   using std::max;
+   return max(a, b);
+}
+
+/** @brief implementation of max of a dual number and a non-dual number */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> max(dual<value_type, gradient_type> a, real_t b)
+{
+   using std::max;
+   return max(b, a);
+}
+
+/** @brief implementation of min of two dual numbers */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> min(dual<value_type, gradient_type> a,
+                                    dual<value_type, gradient_type> b)
+{
+   if (a.value < b.value)
+   {
+      return a;
+   }
+   else
+   {
+      return b;
+   }
+}
+
+/** @brief implementation of min of a dual number and a non-dual number */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> min(real_t a, dual<value_type, gradient_type> b)
+{
+   if (a < b.value)
+   {
+      return {a, {}};
+   }
+   else
+   {
+      return b;
+   }
+}
+
+/** @brief implementation of min of two non-dual numbers */
+template <typename value_type > MFEM_HOST_DEVICE
+value_type min(value_type a, value_type b)
+{
+   using std::min;
+   return min(a, b);
+}
+
+/** @brief implementation of min of a dual number and a non-dual number */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> min(dual<value_type, gradient_type> a, real_t b)
+{
+   using std::min;
+   return min(b, a);
 }
 
 /** @brief overload of operator<< for `dual` to work with work with standard output streams */
