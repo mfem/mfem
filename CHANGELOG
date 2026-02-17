@@ -25,6 +25,12 @@ Meshing improvements
 - Improved support for 1D NURBS meshes with variable order, including using
   the patches construct for 1D NURBS meshes.
 
+Linear and nonlinear solvers
+----------------------------
+- Added interface to MUMPS direct solver for complex-valued problems.
+  Its usage is demonstrated in ex25p. See http://mumps.enseeiht.fr/ for more details.
+  Supported versions >= 5.1.1.
+
 New and updated examples and miniapps
 -------------------------------------
 - Electromagnetics/lorentz miniapp has been updated to leverage the ParticleSet

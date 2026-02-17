@@ -37,6 +37,7 @@ option(MFEM_USE_SUITESPARSE "Enable SuiteSparse usage" OFF)
 option(MFEM_USE_SUPERLU "Enable SuperLU_DIST usage" OFF)
 option(MFEM_USE_SUPERLU5 "Use the old SuperLU_DIST 5.1 version" OFF)
 option(MFEM_USE_MUMPS "Enable MUMPS usage" OFF)
+option(MFEM_USE_COMPLEX_MUMPS "Enable COMPLEX_MUMPS usage" OFF)
 option(MFEM_USE_STRUMPACK "Enable STRUMPACK usage" OFF)
 option(MFEM_USE_GINKGO "Enable Ginkgo usage" OFF)
 option(MFEM_USE_AMGX "Enable AmgX usage" OFF)
@@ -152,7 +153,7 @@ set(SuperLUDist_REQUIRED_PACKAGES "MPI" "ParMETIS" "METIS"
 set(MUMPS_DIR "${MFEM_DIR}/../MUMPS_5.5.0" CACHE PATH
     "Path to the MUMPS library.")
 # MUMPS may also depend on "OpenMP", depending on how it was compiled.
-set(MUMPS_REQUIRED_PACKAGES "MPI" "MPI_Fortran" "ParMETIS" "METIS"
+set(MUMPS_REQUIRED_PACKAGES "MPI" "MPI_Fortran" "METIS"
     "ScaLAPACK" "LAPACK" "BLAS" CACHE STRING
     "Additional packages required by MUMPS.")
 # If the MPI package does not find all required Fortran libraries:
