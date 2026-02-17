@@ -90,7 +90,7 @@ inline constexpr decltype(auto) apply(Fn&& f, Tuple&& t)
     parameters.
 
     This class provides flexible global data layout where the dynamic (array)
-    dimnsions and the tensor dimnsions are stored in memory using a runtime
+    dimensions and the tensor dimensions are stored in memory using a runtime
     defined strided layout. */
 template <typename scalar_t, int ndims, int... tensor_sizes>
 class tensor_ndarray
