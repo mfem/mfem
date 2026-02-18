@@ -4,8 +4,11 @@ Options used:
    --ncells-y 10
    --size-x 1
    --size-y 1
+   --ref-levels -1
+   --delta-random 0
    --order 3
    --discontinuous
+   --no-broken-RT
    --upwinded
    --problem 2
    --time-final 1
@@ -17,13 +20,18 @@ Options used:
    --bc-neumann
    --reduction
    --no-hybridization
+   --trace-DG
+   --no-trace-ess-bc
    --no-nonlinear
+   --no-nonlinear-flux
+   --no-nonlinear-pot
    --no-nonlinear-convection
    --no-nonlinear-diffusion
    --hdg_scheme 1
    --nonlinear-solver 0
    --no-partial-assembly
    --device cpu
+   --no-reconstruct
    --no-mfem
    --no-visit
    --no-paraview
@@ -31,87 +39,121 @@ Options used:
    --no-analytic
 Device configuration: cpu
 Memory configuration: host-std
-Reduction init took 0.000255944s.
+Reduction init took 0.00131711s.
 ***********************************************************
 dim(W) = 1600
 ***********************************************************
-Assembly took 0.18697s.
-Preconditioner took 3.3748e-05s.
-   Pass :  1   Iteration :   0  ||B r|| = 0.0163145
-   Pass :  1   Iteration :   1  ||B r|| = 0.0115162
-   Pass :  1   Iteration :   2  ||B r|| = 0.011444
-   Pass :  1   Iteration :   3  ||B r|| = 0.0110753
-   Pass :  1   Iteration :   4  ||B r|| = 0.00920566
-   Pass :  1   Iteration :   5  ||B r|| = 0.00798584
-   Pass :  1   Iteration :   6  ||B r|| = 0.0076343
-   Pass :  1   Iteration :   7  ||B r|| = 0.00634399
-   Pass :  1   Iteration :   8  ||B r|| = 0.00546584
-   Pass :  1   Iteration :   9  ||B r|| = 0.00477185
-   Pass :  1   Iteration :  10  ||B r|| = 0.00392019
-   Pass :  1   Iteration :  11  ||B r|| = 0.00306299
-   Pass :  1   Iteration :  12  ||B r|| = 0.00251514
-   Pass :  1   Iteration :  13  ||B r|| = 0.00185507
-   Pass :  1   Iteration :  14  ||B r|| = 0.00128691
-   Pass :  1   Iteration :  15  ||B r|| = 0.000894552
-   Pass :  1   Iteration :  16  ||B r|| = 0.00060419
-   Pass :  1   Iteration :  17  ||B r|| = 0.000448256
-   Pass :  1   Iteration :  18  ||B r|| = 0.000363642
-   Pass :  1   Iteration :  19  ||B r|| = 0.000331316
-   Pass :  1   Iteration :  20  ||B r|| = 0.000300179
-   Pass :  1   Iteration :  21  ||B r|| = 0.000251711
-   Pass :  1   Iteration :  22  ||B r|| = 0.000208637
-   Pass :  1   Iteration :  23  ||B r|| = 0.000171813
-   Pass :  1   Iteration :  24  ||B r|| = 0.000137592
-   Pass :  1   Iteration :  25  ||B r|| = 0.000118575
-   Pass :  1   Iteration :  26  ||B r|| = 0.000101079
-   Pass :  1   Iteration :  27  ||B r|| = 7.50298e-05
-   Pass :  1   Iteration :  28  ||B r|| = 5.65782e-05
-   Pass :  1   Iteration :  29  ||B r|| = 4.52079e-05
-   Pass :  1   Iteration :  30  ||B r|| = 3.85472e-05
-   Pass :  1   Iteration :  31  ||B r|| = 3.40993e-05
-   Pass :  1   Iteration :  32  ||B r|| = 3.11535e-05
-   Pass :  1   Iteration :  33  ||B r|| = 2.79471e-05
-   Pass :  1   Iteration :  34  ||B r|| = 2.30983e-05
-   Pass :  1   Iteration :  35  ||B r|| = 1.89589e-05
-   Pass :  1   Iteration :  36  ||B r|| = 1.51807e-05
-   Pass :  1   Iteration :  37  ||B r|| = 1.21585e-05
-   Pass :  1   Iteration :  38  ||B r|| = 1.00168e-05
-   Pass :  1   Iteration :  39  ||B r|| = 8.25159e-06
-   Pass :  1   Iteration :  40  ||B r|| = 6.72897e-06
-   Pass :  1   Iteration :  41  ||B r|| = 5.40202e-06
-   Pass :  1   Iteration :  42  ||B r|| = 3.96943e-06
-   Pass :  1   Iteration :  43  ||B r|| = 2.86564e-06
-   Pass :  1   Iteration :  44  ||B r|| = 2.23434e-06
-   Pass :  1   Iteration :  45  ||B r|| = 1.77712e-06
-   Pass :  1   Iteration :  46  ||B r|| = 1.44875e-06
-   Pass :  1   Iteration :  47  ||B r|| = 1.18606e-06
-   Pass :  1   Iteration :  48  ||B r|| = 1.00443e-06
-   Pass :  1   Iteration :  49  ||B r|| = 8.29641e-07
-   Pass :  1   Iteration :  50  ||B r|| = 6.84113e-07
+Assembly took 0.239998s.
+Preconditioner took 2.1733e-05s.
+   Pass :  1   Iteration :   0  ||B r|| = 0.0168785
+   Pass :  1   Iteration :   1  ||B r|| = 0.0122499
+   Pass :  1   Iteration :   2  ||B r|| = 0.0121226
+   Pass :  1   Iteration :   3  ||B r|| = 0.012063
+   Pass :  1   Iteration :   4  ||B r|| = 0.0112986
+   Pass :  1   Iteration :   5  ||B r|| = 0.010146
+   Pass :  1   Iteration :   6  ||B r|| = 0.0101046
+   Pass :  1   Iteration :   7  ||B r|| = 0.00975071
+   Pass :  1   Iteration :   8  ||B r|| = 0.00930275
+   Pass :  1   Iteration :   9  ||B r|| = 0.00886828
+   Pass :  1   Iteration :  10  ||B r|| = 0.00848629
+   Pass :  1   Iteration :  11  ||B r|| = 0.00816372
+   Pass :  1   Iteration :  12  ||B r|| = 0.00783214
+   Pass :  1   Iteration :  13  ||B r|| = 0.00726114
+   Pass :  1   Iteration :  14  ||B r|| = 0.00710852
+   Pass :  1   Iteration :  15  ||B r|| = 0.00660584
+   Pass :  1   Iteration :  16  ||B r|| = 0.00609678
+   Pass :  1   Iteration :  17  ||B r|| = 0.00568639
+   Pass :  1   Iteration :  18  ||B r|| = 0.00490875
+   Pass :  1   Iteration :  19  ||B r|| = 0.00422096
+   Pass :  1   Iteration :  20  ||B r|| = 0.00371038
+   Pass :  1   Iteration :  21  ||B r|| = 0.00324565
+   Pass :  1   Iteration :  22  ||B r|| = 0.00278912
+   Pass :  1   Iteration :  23  ||B r|| = 0.00239888
+   Pass :  1   Iteration :  24  ||B r|| = 0.00204442
+   Pass :  1   Iteration :  25  ||B r|| = 0.00167351
+   Pass :  1   Iteration :  26  ||B r|| = 0.00141192
+   Pass :  1   Iteration :  27  ||B r|| = 0.00111154
+   Pass :  1   Iteration :  28  ||B r|| = 0.000857849
+   Pass :  1   Iteration :  29  ||B r|| = 0.000672992
+   Pass :  1   Iteration :  30  ||B r|| = 0.00050532
+   Pass :  1   Iteration :  31  ||B r|| = 0.000382714
+   Pass :  1   Iteration :  32  ||B r|| = 0.000315535
+   Pass :  1   Iteration :  33  ||B r|| = 0.000267801
+   Pass :  1   Iteration :  34  ||B r|| = 0.000236953
+   Pass :  1   Iteration :  35  ||B r|| = 0.000203116
+   Pass :  1   Iteration :  36  ||B r|| = 0.000161797
+   Pass :  1   Iteration :  37  ||B r|| = 0.000116002
+   Pass :  1   Iteration :  38  ||B r|| = 8.86256e-05
+   Pass :  1   Iteration :  39  ||B r|| = 7.44045e-05
+   Pass :  1   Iteration :  40  ||B r|| = 6.38801e-05
+   Pass :  1   Iteration :  41  ||B r|| = 5.31793e-05
+   Pass :  1   Iteration :  42  ||B r|| = 4.42306e-05
+   Pass :  1   Iteration :  43  ||B r|| = 3.73486e-05
+   Pass :  1   Iteration :  44  ||B r|| = 3.1687e-05
+   Pass :  1   Iteration :  45  ||B r|| = 2.69693e-05
+   Pass :  1   Iteration :  46  ||B r|| = 2.35385e-05
+   Pass :  1   Iteration :  47  ||B r|| = 2.02991e-05
+   Pass :  1   Iteration :  48  ||B r|| = 1.73229e-05
+   Pass :  1   Iteration :  49  ||B r|| = 1.50522e-05
+   Pass :  1   Iteration :  50  ||B r|| = 1.31617e-05
 Restarting...
-   Pass :  2   Iteration :  51  ||B r|| = 6.19789e-07
-   Pass :  2   Iteration :  52  ||B r|| = 5.63716e-07
-   Pass :  2   Iteration :  53  ||B r|| = 4.96542e-07
-   Pass :  2   Iteration :  54  ||B r|| = 4.25511e-07
-   Pass :  2   Iteration :  55  ||B r|| = 3.72932e-07
-   Pass :  2   Iteration :  56  ||B r|| = 3.10999e-07
-   Pass :  2   Iteration :  57  ||B r|| = 2.57558e-07
-   Pass :  2   Iteration :  58  ||B r|| = 2.14783e-07
-   Pass :  2   Iteration :  59  ||B r|| = 1.77656e-07
-   Pass :  2   Iteration :  60  ||B r|| = 1.47442e-07
-   Pass :  2   Iteration :  61  ||B r|| = 1.22601e-07
-   Pass :  2   Iteration :  62  ||B r|| = 1.05055e-07
-   Pass :  2   Iteration :  63  ||B r|| = 9.00512e-08
-   Pass :  2   Iteration :  64  ||B r|| = 7.16741e-08
-   Pass :  2   Iteration :  65  ||B r|| = 6.05675e-08
-   Pass :  2   Iteration :  66  ||B r|| = 5.17163e-08
-   Pass :  2   Iteration :  67  ||B r|| = 4.18108e-08
-   Pass :  2   Iteration :  68  ||B r|| = 3.36946e-08
-   Pass :  2   Iteration :  69  ||B r|| = 2.87918e-08
-   Pass :  2   Iteration :  70  ||B r|| = 2.46221e-08
-   Pass :  2   Iteration :  71  ||B r|| = 1.95865e-08
-   Pass :  2   Iteration :  72  ||B r|| = 1.54337e-08
-GMRES+GS converged in 72 iterations with a residual norm of 1.54337e-08.
-solver took 0.0483163s.
-|| q_h - q_ex || / || q_ex || = 5.8937e-07
-|| t_h - t_ex || / || t_ex || = 6.87392e-07
+   Pass :  2   Iteration :  51  ||B r|| = 1.22534e-05
+   Pass :  2   Iteration :  52  ||B r|| = 1.16736e-05
+   Pass :  2   Iteration :  53  ||B r|| = 1.07067e-05
+   Pass :  2   Iteration :  54  ||B r|| = 9.35978e-06
+   Pass :  2   Iteration :  55  ||B r|| = 7.806e-06
+   Pass :  2   Iteration :  56  ||B r|| = 6.76767e-06
+   Pass :  2   Iteration :  57  ||B r|| = 5.81356e-06
+   Pass :  2   Iteration :  58  ||B r|| = 4.98746e-06
+   Pass :  2   Iteration :  59  ||B r|| = 4.39238e-06
+   Pass :  2   Iteration :  60  ||B r|| = 3.49688e-06
+   Pass :  2   Iteration :  61  ||B r|| = 2.83804e-06
+   Pass :  2   Iteration :  62  ||B r|| = 2.3728e-06
+   Pass :  2   Iteration :  63  ||B r|| = 1.95626e-06
+   Pass :  2   Iteration :  64  ||B r|| = 1.55219e-06
+   Pass :  2   Iteration :  65  ||B r|| = 1.39487e-06
+   Pass :  2   Iteration :  66  ||B r|| = 1.18439e-06
+   Pass :  2   Iteration :  67  ||B r|| = 1.01787e-06
+   Pass :  2   Iteration :  68  ||B r|| = 8.80631e-07
+   Pass :  2   Iteration :  69  ||B r|| = 7.47572e-07
+   Pass :  2   Iteration :  70  ||B r|| = 6.28741e-07
+   Pass :  2   Iteration :  71  ||B r|| = 5.61643e-07
+   Pass :  2   Iteration :  72  ||B r|| = 4.9193e-07
+   Pass :  2   Iteration :  73  ||B r|| = 4.32517e-07
+   Pass :  2   Iteration :  74  ||B r|| = 3.90539e-07
+   Pass :  2   Iteration :  75  ||B r|| = 3.54684e-07
+   Pass :  2   Iteration :  76  ||B r|| = 3.24019e-07
+   Pass :  2   Iteration :  77  ||B r|| = 3.04061e-07
+   Pass :  2   Iteration :  78  ||B r|| = 2.88728e-07
+   Pass :  2   Iteration :  79  ||B r|| = 2.77497e-07
+   Pass :  2   Iteration :  80  ||B r|| = 2.70679e-07
+   Pass :  2   Iteration :  81  ||B r|| = 2.65578e-07
+   Pass :  2   Iteration :  82  ||B r|| = 2.57224e-07
+   Pass :  2   Iteration :  83  ||B r|| = 2.48433e-07
+   Pass :  2   Iteration :  84  ||B r|| = 2.34994e-07
+   Pass :  2   Iteration :  85  ||B r|| = 2.17812e-07
+   Pass :  2   Iteration :  86  ||B r|| = 1.89858e-07
+   Pass :  2   Iteration :  87  ||B r|| = 1.76645e-07
+   Pass :  2   Iteration :  88  ||B r|| = 1.54229e-07
+   Pass :  2   Iteration :  89  ||B r|| = 1.40732e-07
+   Pass :  2   Iteration :  90  ||B r|| = 1.27445e-07
+   Pass :  2   Iteration :  91  ||B r|| = 1.1624e-07
+   Pass :  2   Iteration :  92  ||B r|| = 9.96916e-08
+   Pass :  2   Iteration :  93  ||B r|| = 8.52523e-08
+   Pass :  2   Iteration :  94  ||B r|| = 7.29626e-08
+   Pass :  2   Iteration :  95  ||B r|| = 6.06007e-08
+   Pass :  2   Iteration :  96  ||B r|| = 4.9281e-08
+   Pass :  2   Iteration :  97  ||B r|| = 4.08885e-08
+   Pass :  2   Iteration :  98  ||B r|| = 3.71436e-08
+   Pass :  2   Iteration :  99  ||B r|| = 3.23896e-08
+   Pass :  2   Iteration : 100  ||B r|| = 2.71801e-08
+Restarting...
+   Pass :  3   Iteration : 101  ||B r|| = 2.51435e-08
+   Pass :  3   Iteration : 102  ||B r|| = 2.31395e-08
+   Pass :  3   Iteration : 103  ||B r|| = 2.07788e-08
+   Pass :  3   Iteration : 104  ||B r|| = 1.8492e-08
+   Pass :  3   Iteration : 105  ||B r|| = 1.61054e-08
+GMRES+GS converged in 105 iterations with a residual norm of 1.61054e-08.
+solver took 0.0652203s.
+|| q_h - q_ex || / || q_ex || = 1.26738
+|| t_h - t_ex || / || t_ex || = 2.12045

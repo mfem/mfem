@@ -334,8 +334,10 @@ int main(int argc, char *argv[])
    int dim = mesh->Dimension();
 
    // Mark boundary conditions
-   Array<int> bdr_is_dirichlet(mesh->bdr_attributes.Max());
-   Array<int> bdr_is_neumann(mesh->bdr_attributes.Max());
+   const int bdr_attrs = mesh->bdr_attributes.Size() > 0 ?
+                         mesh->bdr_attributes.Max() : 1;
+   Array<int> bdr_is_dirichlet(bdr_attrs);
+   Array<int> bdr_is_neumann(bdr_attrs);
    bdr_is_dirichlet = 0;
    bdr_is_neumann = 0;
 
@@ -367,6 +369,12 @@ int main(int argc, char *argv[])
          bdr_is_neumann = -1;//outflow
          bdr_is_neumann[3] = 0;
          break;
+   }
+
+   Array<int> bdr_is_free(bdr_attrs);
+   for (int a = 0; a < bdr_attrs; a++)
+   {
+      bdr_is_free[a] = !bdr_is_dirichlet[a] && !bdr_is_neumann[a];
    }
 
    // 4. Refine the mesh to increase the resolution. In this example we do
@@ -588,8 +596,10 @@ int main(int argc, char *argv[])
       {
          B->AddInteriorFaceIntegrator(new TransposeIntegrator(
                                          new DGNormalTraceIntegrator(ccoeff, -1., +0.5)));
+         // we must follow the upwinding of the convective term at the boundary
+         // to form Neumann BC for the total flux
          B->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
-                                                            ccoeff, -1., +0.5)), bdr_is_neumann);
+                                                            ccoeff, -1., -0.5)), bdr_is_neumann);
          if (hybridization && trace_ess_bc)
          {
             B->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
@@ -601,7 +611,7 @@ int main(int argc, char *argv[])
          B->AddInteriorFaceIntegrator(new TransposeIntegrator(
                                          new DGNormalTraceIntegrator(-1.)));
          B->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
-                                                            -1.)), bdr_is_neumann);
+                                                            -2.)), bdr_is_neumann);
          if (hybridization && trace_ess_bc)
          {
             B->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
@@ -640,7 +650,10 @@ int main(int argc, char *argv[])
          }
          else
          {
-            Mt->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff));
+            Mt->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff),
+                                     bdr_is_dirichlet);
+            Mt->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff),
+                                     bdr_is_free);
          }
       }
    }
@@ -667,7 +680,10 @@ int main(int argc, char *argv[])
          }
          else
          {
-            Mtnl->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff));
+            Mtnl->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff),
+                                       bdr_is_dirichlet);
+            Mtnl->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff),
+                                       bdr_is_free);
          }
       }
    }
@@ -820,17 +836,6 @@ int main(int argc, char *argv[])
    LinearForm *gform(new LinearForm);
    gform->Update(V_space, rhs.GetBlock(0), 0);
 
-   // Neumann
-   if (!hybridization && dg)
-   {
-      if (bconv && upwinded)
-         gform->AddBdrFaceIntegrator(new BoundaryNormalFlowIntegrator(
-                                        gcoeff, nccoeff, +1., -0.5), bdr_is_neumann);
-      else
-         gform->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(
-                                        gcoeff, 0.5), bdr_is_neumann);
-   }
-
    // Dirichlet
    if (!hybridization || !trace_ess_bc)
    {
@@ -865,7 +870,7 @@ int main(int argc, char *argv[])
             fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qtcoeff, +1.),
                                         bdr_is_neumann);
          else
-            fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qtcoeff, +1., 0.),
+            fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, qtcoeff, +2., 0.),
                                         bdr_is_neumann);
       }
       else if (bconv)
@@ -874,7 +879,7 @@ int main(int argc, char *argv[])
             fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(tcoeff, ccoeff, +1.),
                                         bdr_is_neumann);
          else
-            fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(tcoeff, ccoeff, +1., 0.),
+            fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(tcoeff, ccoeff, +2., 0.),
                                         bdr_is_neumann);
       }
    }

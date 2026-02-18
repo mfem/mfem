@@ -4,8 +4,11 @@ Options used:
    --ncells-y 10
    --size-x 1
    --size-y 1
+   --ref-levels -1
+   --delta-random 0
    --order 3
    --discontinuous
+   --no-broken-RT
    --centered
    --problem 2
    --time-final 1
@@ -17,13 +20,18 @@ Options used:
    --bc-neumann
    --reduction
    --no-hybridization
+   --trace-DG
+   --no-trace-ess-bc
    --no-nonlinear
+   --no-nonlinear-flux
+   --no-nonlinear-pot
    --no-nonlinear-convection
    --no-nonlinear-diffusion
    --hdg_scheme 1
    --nonlinear-solver 1
    --no-partial-assembly
    --device cpu
+   --no-reconstruct
    --no-mfem
    --no-visit
    --no-paraview
@@ -31,15 +39,15 @@ Options used:
    --no-analytic
 Device configuration: cpu
 Memory configuration: host-std
-Reduction init took 0.000224403s.
+Reduction init took 0.00182567s.
 ***********************************************************
 dim(W) = 1600
 ***********************************************************
-Assembly took 0.229536s.
-Preconditioner took 0.0132696s.
-   Pass :  1   Iteration :   0  ||B r|| = 2.10385
-   Pass :  1   Iteration :   1  ||B r|| = 4.68916e-15
-GMRES+UMFPack converged in 1 iterations with a residual norm of 4.68916e-15.
-solver took 0.00531221s.
-|| q_h - q_ex || / || q_ex || = 1.16263e-05
-|| t_h - t_ex || / || t_ex || = 4.01918e-06
+Assembly took 0.233696s.
+Preconditioner took 0.0152844s.
+   Pass :  1   Iteration :   0  ||B r|| = 2.10384
+   Pass :  1   Iteration :   1  ||B r|| = 3.62093e-15
+GMRES+UMFPack converged in 1 iterations with a residual norm of 3.62093e-15.
+solver took 0.00276271s.
+|| q_h - q_ex || / || q_ex || = 1.71518e-05
+|| t_h - t_ex || / || t_ex || = 1.5516e-06

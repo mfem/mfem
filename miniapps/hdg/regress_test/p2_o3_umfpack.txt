@@ -4,8 +4,11 @@ Options used:
    --ncells-y 10
    --size-x 1
    --size-y 1
+   --ref-levels -1
+   --delta-random 0
    --order 3
    --no-discontinuous
+   --no-broken-RT
    --centered
    --problem 2
    --time-final 1
@@ -17,13 +20,18 @@ Options used:
    --bc-neumann
    --no-reduction
    --no-hybridization
+   --trace-DG
+   --no-trace-ess-bc
    --no-nonlinear
+   --no-nonlinear-flux
+   --no-nonlinear-pot
    --no-nonlinear-convection
    --no-nonlinear-diffusion
    --hdg_scheme 1
    --nonlinear-solver 0
    --no-partial-assembly
    --device cpu
+   --no-reconstruct
    --no-mfem
    --no-visit
    --no-paraview
@@ -36,27 +44,29 @@ dim(V) = 3280
 dim(W) = 1600
 dim(V+W) = 4880
 ***********************************************************
-Assembly took 0.255527s.
-Preconditioner took 0.0359602s.
-   Pass :  1   Iteration :   0  ||B r|| = 1.82811
-   Pass :  1   Iteration :   1  ||B r|| = 1.74851
-   Pass :  1   Iteration :   2  ||B r|| = 0.26157
-   Pass :  1   Iteration :   3  ||B r|| = 0.260109
-   Pass :  1   Iteration :   4  ||B r|| = 0.0414097
-   Pass :  1   Iteration :   5  ||B r|| = 0.0225871
-   Pass :  1   Iteration :   6  ||B r|| = 0.00541294
-   Pass :  1   Iteration :   7  ||B r|| = 0.00246937
-   Pass :  1   Iteration :   8  ||B r|| = 0.000801299
-   Pass :  1   Iteration :   9  ||B r|| = 0.000242776
-   Pass :  1   Iteration :  10  ||B r|| = 0.000185039
-   Pass :  1   Iteration :  11  ||B r|| = 4.57219e-05
-   Pass :  1   Iteration :  12  ||B r|| = 4.53027e-05
-   Pass :  1   Iteration :  13  ||B r|| = 1.82442e-05
-   Pass :  1   Iteration :  14  ||B r|| = 6.44667e-06
-   Pass :  1   Iteration :  15  ||B r|| = 6.07208e-06
-   Pass :  1   Iteration :  16  ||B r|| = 2.0149e-06
-   Pass :  1   Iteration :  17  ||B r|| = 1.32354e-06
-GMRES+UMFPack converged in 17 iterations with a residual norm of 1.32354e-06.
-solver took 0.065152s.
-|| q_h - q_ex || / || q_ex || = 2.40858e-06
-|| t_h - t_ex || / || t_ex || = 6.44073e-07
+Assembly took 0.257344s.
+Preconditioner took 0.036452s.
+   Pass :  1   Iteration :   0  ||B r|| = 1.79724
+   Pass :  1   Iteration :   1  ||B r|| = 1.66629
+   Pass :  1   Iteration :   2  ||B r|| = 0.425348
+   Pass :  1   Iteration :   3  ||B r|| = 0.221747
+   Pass :  1   Iteration :   4  ||B r|| = 0.122733
+   Pass :  1   Iteration :   5  ||B r|| = 0.0578071
+   Pass :  1   Iteration :   6  ||B r|| = 0.026624
+   Pass :  1   Iteration :   7  ||B r|| = 0.00794319
+   Pass :  1   Iteration :   8  ||B r|| = 0.00338077
+   Pass :  1   Iteration :   9  ||B r|| = 0.00115157
+   Pass :  1   Iteration :  10  ||B r|| = 0.00074372
+   Pass :  1   Iteration :  11  ||B r|| = 0.000160809
+   Pass :  1   Iteration :  12  ||B r|| = 0.000160373
+   Pass :  1   Iteration :  13  ||B r|| = 4.48751e-05
+   Pass :  1   Iteration :  14  ||B r|| = 2.96788e-05
+   Pass :  1   Iteration :  15  ||B r|| = 2.11742e-05
+   Pass :  1   Iteration :  16  ||B r|| = 6.14406e-06
+   Pass :  1   Iteration :  17  ||B r|| = 5.3289e-06
+   Pass :  1   Iteration :  18  ||B r|| = 2.68028e-06
+   Pass :  1   Iteration :  19  ||B r|| = 1.01687e-06
+GMRES+UMFPack converged in 19 iterations with a residual norm of 1.01687e-06.
+solver took 0.0549303s.
+|| q_h - q_ex || / || q_ex || = 1.36656e-06
+|| t_h - t_ex || / || t_ex || = 3.86729e-07
