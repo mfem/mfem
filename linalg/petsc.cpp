@@ -1356,6 +1356,7 @@ void PetscParMatrix::MakeWrapper(MPI_Comm comm, const Operator* op, Mat *A)
                       PETSC_DECIDE,PETSC_DECIDE); PCHKERRQ(A,ierr);
    ierr = MatSetType(*A,MATSHELL); PCHKERRQ(A,ierr);
    ierr = MatShellSetContext(*A,(void *)op); PCHKERRQ(A,ierr);
+#if PETSC_VERSION_LT(3,24,0)
    ierr = MatShellSetOperation(*A,MATOP_MULT,
                                (void (*)())__mfem_mat_shell_apply);
    PCHKERRQ(A,ierr);
@@ -1367,6 +1368,19 @@ void PetscParMatrix::MakeWrapper(MPI_Comm comm, const Operator* op, Mat *A)
    PCHKERRQ(A,ierr);
    ierr = MatShellSetOperation(*A,MATOP_DESTROY,
                                (void (*)())__mfem_mat_shell_destroy);
+#else
+   ierr = MatShellSetOperation(*A,MATOP_MULT,
+                               (PetscErrorCodeFn*)__mfem_mat_shell_apply);
+   PCHKERRQ(A,ierr);
+   ierr = MatShellSetOperation(*A,MATOP_MULT_TRANSPOSE,
+                               (PetscErrorCodeFn*)__mfem_mat_shell_apply_transpose);
+   PCHKERRQ(A,ierr);
+   ierr = MatShellSetOperation(*A,MATOP_COPY,
+                               (PetscErrorCodeFn*)__mfem_mat_shell_copy);
+   PCHKERRQ(A,ierr);
+   ierr = MatShellSetOperation(*A,MATOP_DESTROY,
+                               (PetscErrorCodeFn*)__mfem_mat_shell_destroy);
+#endif
 #if defined(_USE_DEVICE)
    MemoryType mt = GetMemoryType(op->GetMemoryClass());
    if (mt == MemoryType::DEVICE || mt == MemoryType::MANAGED)
@@ -3625,12 +3639,20 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
       // make sure ess/nat_dof have been collectively set
       PetscBool lpr = PETSC_FALSE,pr;
       if (opts.ess_dof) { lpr = PETSC_TRUE; }
+#if PETSC_VERSION_LT(3,24,0)
       mpiierr = MPI_Allreduce(&lpr,&pr,1,MPIU_BOOL,MPI_LOR,comm);
+#else
+      mpiierr = MPI_Allreduce(&lpr,&pr,1,MPI_C_BOOL,MPI_LOR,comm);
+#endif
       CCHKERRQ(comm,mpiierr);
       MFEM_VERIFY(lpr == pr,"ess_dof should be collectively set");
       lpr = PETSC_FALSE;
       if (opts.nat_dof) { lpr = PETSC_TRUE; }
+#if PETSC_VERSION_LT(3,24,0)
       mpiierr = MPI_Allreduce(&lpr,&pr,1,MPIU_BOOL,MPI_LOR,comm);
+#else
+      mpiierr = MPI_Allreduce(&lpr,&pr,1,MPI_C_BOOL,MPI_LOR,comm);
+#endif
       CCHKERRQ(comm,mpiierr);
       MFEM_VERIFY(lpr == pr,"nat_dof should be collectively set");
       // make sure fields have been collectively set
@@ -4044,8 +4066,13 @@ void PetscNonlinearSolver::SetOperator(const Operator &op)
       ls = (PetscBool)(height == op.Height() && width  == op.Width() &&
                        (void*)&op == fctx &&
                        (void*)&op == jctx);
+#if PETSC_VERSION_LT(3,24,0)
       mpiierr = MPI_Allreduce(&ls,&gs,1,MPIU_BOOL,MPI_LAND,
                               PetscObjectComm((PetscObject)snes));
+#else
+      mpiierr = MPI_Allreduce(&ls,&gs,1,MPI_C_BOOL,MPI_LAND,
+                              PetscObjectComm((PetscObject)snes));
+#endif
       CCHKERRQ(PetscObjectComm((PetscObject)snes),mpiierr);
       if (!gs)
       {

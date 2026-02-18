@@ -30,6 +30,7 @@
 #include <cmath>
 #include <iostream>
 #include <algorithm>
+#include <queue>
 
 namespace mfem
 {
@@ -2352,52 +2353,83 @@ void GridFunction::ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
    }
 }
 
-void GridFunction::ProjectCoefficient(Coefficient &coeff)
+void GridFunction::ProjectCoefficient(Coefficient &coeff, ProjectType type)
 {
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
    DofTransformation doftrans;
+   Array<int> vdofs;
+   Vector vals;
 
    if (delta_c == NULL)
    {
       if (fes->GetNURBSext() == NULL)
       {
-         Array<int> vdofs;
-         Vector vals;
-
-         for (int i = 0; i < fes->GetNE(); i++)
+         switch (type)
          {
-            fes->GetElementVDofs(i, vdofs, doftrans);
-            vals.SetSize(vdofs.Size());
-            fes->GetFE(i)->Project(coeff, *fes->GetElementTransformation(i), vals);
-            doftrans.TransformPrimal(vals);
-            SetSubVector(vdofs, vals);
+            case ProjectType::ELEMENT_L2:
+               ProjectCoefficientElementL2(coeff);
+               return;
+            case ProjectType::GLOBAL_L2:
+               ProjectCoefficientGlobalL2(coeff);
+               return;
+            default:
+               for (int i = 0; i < fes->GetNE(); i++)
+               {
+                  fes->GetElementVDofs(i, vdofs, doftrans);
+                  vals.SetSize(vdofs.Size());
+                  fes->GetFE(i)->Project(coeff, *fes->GetElementTransformation(i), vals);
+                  doftrans.TransformPrimal(vals);
+                  SetSubVector(vdofs, vals);
+               }
          }
       }
       else
       {
-         // Define and assemble linear form
-         LinearForm b(fes);
-         b.AddDomainIntegrator(new DomainLFIntegrator(coeff));
-         b.Assemble();
+         switch (type)
+         {
+            case ProjectType::DEFAULT:
+            case ProjectType::ELEMENT_L2:
+               ProjectCoefficientElementL2(coeff);
+               return;
+            case ProjectType::GLOBAL_L2:
+               ProjectCoefficientGlobalL2(coeff);
+               return;
+            case ProjectType::ELEMENT:
+               constexpr real_t signal = std::numeric_limits<real_t>::min();
 
-         // Define and assemble bilinear form
-         BilinearForm a(fes);
-         a.AddDomainIntegrator(new MassIntegrator());
-         a.Assemble();
+               for (int i = 0; i < fes->GetNE(); i++)
+               {
+                  fes->GetElementVDofs(i, vdofs, doftrans);
+                  vals.SetSize(vdofs.Size());
+                  vals = signal;
 
-         // Set solver and preconditioner
-         SparseMatrix A(a.SpMat());
-         GSSmoother  prec(A);
-         CGSolver cg;
-         cg.SetOperator(A);
-         cg.SetPreconditioner(prec);
-         cg.SetRelTol(1e-12);
-         cg.SetMaxIter(1000);
-         cg.SetPrintLevel(0);
+                  fes->GetFE(i)->Project(coeff,
+                                         *fes->GetElementTransformation(i),
+                                         vals);
+                  doftrans.TransformPrimal(vals);
 
-         // Solve and get solution
-         *this = 0.0;
-         cg.Mult(b,*this);
+                  // Remove undefined dofs
+                  // The knot location (either Botella, Demko or Greville point)
+                  // where the NURBS dof are evaluated might fall outside of the
+                  // domain of the element. In that case the value is not set, and
+                  // the value remains the signal value.
+                  int s = 0;
+                  for (int ii = 0; ii < vals.Size(); ii++)
+                  {
+                     if (vals[ii] != signal)
+                     {
+                        vdofs[s] = vdofs[ii];
+                        vals(s) = vals(ii);
+                        s++;
+                     }
+                  }
+                  vdofs.SetSize(s);
+                  vals.SetSize(s);
+
+                  // Add reduced dofs to global vector
+                  SetSubVector(vdofs, vals);
+               }
+         }
       }
    }
    else
@@ -2407,6 +2439,167 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff)
       ProjectDeltaCoefficient(*delta_c, integral);
 
       (*this) *= (delta_c->Scale() / integral);
+   }
+}
+
+void GridFunction::ProjectCoefficientGlobalL2(Coefficient &coeff, real_t rtol,
+                                              int iter)
+{
+   // Define and assemble linear form
+   LinearForm b(fes);
+   b.AddDomainIntegrator(new DomainLFIntegrator(coeff));
+   b.Assemble();
+
+   // Define and assemble bilinear form
+   BilinearForm a(fes);
+   a.AddDomainIntegrator(new MassIntegrator());
+   a.Assemble();
+
+   // Set solver and preconditioner
+   SparseMatrix A(a.SpMat());
+   GSSmoother  prec(A);
+   CGSolver cg;
+   cg.SetOperator(A);
+   cg.SetPreconditioner(prec);
+   cg.SetRelTol(rtol);
+   cg.SetMaxIter(iter);
+   cg.SetPrintLevel(0);
+
+   // Solve and get solution
+   *this = 0.0;
+   cg.Mult(b,*this);
+}
+
+void GridFunction::ProjectCoefficientElementL2(Coefficient &coeff)
+{
+   Vector Va;
+   ProjectCoefficientElementL2_(coeff, *this, Va);
+   (*this) /= Va;
+}
+
+void GridFunction::ProjectCoefficientElementL2_(Coefficient &coeff,
+                                                Vector &x, Vector &Va)
+{
+   DofTransformation doftrans;
+   Array<int> vdofs;
+   Vector shape,shape2, elvect, elwght;
+   DenseMatrix elmat;
+   Va.SetSize(fes->GetNDofs() );
+   x.SetSize(fes->GetNDofs() );
+   Va = 0.0;
+   x = 0.0;
+
+   if (fes->GetNURBSext() == NULL)
+   {
+      for (int e = 0; e < fes->GetNE(); e++)
+      {
+         fes->GetElementDofs (e, vdofs, doftrans);
+         ElementTransformation &tr = *fes -> GetElementTransformation (e);
+         const FiniteElement &el = *fes->GetFE(e);
+         int dof = el.GetDof();
+         shape.SetSize(dof);
+         elvect.SetSize(dof);
+         elwght.SetSize(dof);
+         elmat.SetSize(dof,dof);
+         elvect = 0.0;
+         elwght = 0.0;
+         elmat = 0.0;
+
+         const IntegrationRule &ir = IntRules.Get(el.GetGeomType(),
+                                                  2 * el.GetOrder() + 1);
+
+         // Element vector & weight
+         for (int i = 0; i < ir.GetNPoints(); i++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(i);
+
+            tr.SetIntPoint (&ip);
+            real_t wght = ip.weight*tr.Weight();
+            real_t val = coeff.Eval(tr, ip);
+
+            el.CalcPhysShape(tr, shape);
+
+            elvect.Add(wght * val, shape);
+            elwght.Add(wght, shape);
+            AddMult_a_VVt(wght, shape, elmat);
+         }
+
+         // Solve
+         if (!LinearSolve(elmat, elvect.GetData(),1e-12))
+         {
+            MFEM_WARNING("Error in inverting element local matrix");
+         }
+
+         // Scale
+         elvect *= elwght;
+
+         // Add reduced dofs to global vector
+         x.AddElementVector(vdofs, elvect);
+         Va.AddElementVector(vdofs, elwght);
+      }
+   }
+   else
+   {
+      for (int e = 0; e < fes->GetNE(); e++)
+      {
+         fes->GetElementDofs (e, vdofs, doftrans);
+         ElementTransformation &tr = *fes -> GetElementTransformation (e);
+         const FiniteElement &el = *fes->GetFE(e);
+         int dof = el.GetDof();
+         int dim = el.GetDim();
+         int p = el.GetOrder();
+         L2_FECollection fe_coll(p,  dim);
+         //H1_FECollection fe_coll(p,  dim, BasisType::Positive);
+         const FiniteElement &el2 = *fe_coll.FiniteElementForGeometry(el.GetGeomType());
+         MFEM_ASSERT(el2.GetDof() == dof, "Element dofs do not match.");
+
+         shape.SetSize(dof);
+         shape2.SetSize(dof);
+         elvect.SetSize(dof);
+         elwght.SetSize(dof);
+         elmat.SetSize(dof,dof);
+         elvect = 0.0;
+         elwght = 0.0;
+         elmat = 0.0;
+
+         const IntegrationRule &ir = IntRules.Get(el.GetGeomType(),
+                                                  2 * el.GetOrder() + 1);
+
+         // Element vector & weight
+         for (int i = 0; i < ir.GetNPoints(); i++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(i);
+
+            tr.SetIntPoint (&ip);
+            real_t wght = ip.weight*tr.Weight();
+            real_t val = coeff.Eval(tr, ip);
+            el.CalcPhysShape(tr, shape);
+            el2.CalcPhysShape(tr, shape2);
+
+            elvect.Add(wght * val, shape2);
+            elwght.Add(wght, shape);
+            AddMult_a_VVt(wght, shape2, elmat);
+         }
+         // Solve
+         if (!LinearSolve(elmat, elvect.GetData(),1e-12))
+         {
+            MFEM_WARNING("Error in inverting element local matrix 2");
+         }
+         // Map to NURBS
+         DenseMatrix I;
+         el2.Project(el,tr,I);
+         if (!LinearSolve(I, elvect.GetData(),1e-32))
+         {
+            MFEM_WARNING("Error in inverting element local matrix 3");
+         }
+
+         // Scale
+         elvect *= elwght;
+
+         // Add reduced dofs to global vector
+         x.AddElementVector(vdofs, elvect);
+         Va.AddElementVector(vdofs, elwght);
+      }
    }
 }
 
@@ -2434,49 +2627,318 @@ void GridFunction::ProjectCoefficient(
    }
 }
 
-void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
+void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff,
+                                      ProjectType type)
 {
+   Array<int> vdofs;
+   Vector vals;
    DofTransformation doftrans;
+
    if (fes->GetNURBSext() == NULL)
    {
-      int i;
-      Array<int> vdofs;
-      Vector vals;
-
-      for (i = 0; i < fes->GetNE(); i++)
+      switch (type)
       {
-         fes->GetElementVDofs(i, vdofs, doftrans);
-         vals.SetSize(vdofs.Size());
-         fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
-         doftrans.TransformPrimal(vals);
-         SetSubVector(vdofs, vals);
+         case ProjectType::ELEMENT_L2:
+            ProjectCoefficientElementL2(vcoeff);
+            return;
+         case ProjectType::GLOBAL_L2:
+            ProjectCoefficientGlobalL2(vcoeff);
+            return;
+         default:
+            for (int i = 0; i < fes->GetNE(); i++)
+            {
+               fes->GetElementVDofs(i, vdofs, doftrans);
+               vals.SetSize(vdofs.Size());
+               fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
+               doftrans.TransformPrimal(vals);
+               SetSubVector(vdofs, vals);
+            }
       }
    }
    else
    {
-      // Define and assemble linear form
-      LinearForm b(fes);
+      switch (type)
+      {
+         case ProjectType::DEFAULT:
+         case ProjectType::ELEMENT_L2:
+            ProjectCoefficientElementL2(vcoeff);
+            return;
+         case ProjectType::GLOBAL_L2:
+            ProjectCoefficientGlobalL2(vcoeff);
+            return;
+         case ProjectType::ELEMENT:
+            constexpr real_t signal = std::numeric_limits<real_t>::min();
+            for (int i = 0; i < fes->GetNE(); i++)
+            {
+               fes->GetElementVDofs(i, vdofs, doftrans);
+               vals.SetSize(vdofs.Size());
+               vals = signal;
+               fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
+               doftrans.TransformPrimal(vals);
+               // Remove undefined dofs
+               // The knot location (either Botella, Demko or Greville point)
+               // where the NURBS dof are evaluated might fall outside of the
+               // domain of the element. In that case the value is not set, and
+               // the value remains the signal value.
+               int s = 0;
+               for (int ii = 0; ii < vals.Size(); ii++)
+               {
+                  if (vals[ii] != signal)
+                  {
+                     vdofs[s] = vdofs[ii];
+                     vals(s) = vals(ii);
+                     s++;
+                  }
+               }
+               vdofs.SetSize(s);
+               vals.SetSize(s);
+
+               // Add reduced dofs to global vector
+               SetSubVector(vdofs, vals);
+            }
+      }
+   }
+}
+
+void GridFunction::ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
+                                              real_t rtol, int iter)
+{
+   // Define and assemble linear form
+   LinearForm b(fes);
+   BilinearForm a(fes);
+
+   if (fes->GetTypicalFE()->GetRangeType() == mfem::FiniteElement::VECTOR)
+   {
       b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vcoeff));
-      b.Assemble();
-
-      // Define and assemble bilinear form
-      BilinearForm a(fes);
       a.AddDomainIntegrator(new VectorFEMassIntegrator());
-      a.Assemble();
+   }
+   else
+   {
+      b.AddDomainIntegrator(new VectorDomainLFIntegrator(vcoeff));
+      a.AddDomainIntegrator(new VectorMassIntegrator());
+   }
+   a.Assemble();
+   b.Assemble();
 
-      // Set solver and preconditioner
-      SparseMatrix A(a.SpMat());
-      GSSmoother  prec(A);
-      CGSolver cg;
-      cg.SetOperator(A);
-      cg.SetPreconditioner(prec);
-      cg.SetRelTol(1e-12);
-      cg.SetMaxIter(1000);
-      cg.SetPrintLevel(0);
+   // Set solver and preconditioner
+   SparseMatrix A(a.SpMat());
+   GSSmoother  prec(A);
+   CGSolver cg;
+   cg.SetOperator(A);
+   cg.SetPreconditioner(prec);
+   cg.SetRelTol(rtol);
+   cg.SetMaxIter(iter);
+   cg.SetPrintLevel(0);
 
-      // Solve and get solution
-      *this = 0.0;
-      cg.Mult(b,*this);
+   // Solve and get solution
+   *this = 0.0;
+   cg.Mult(b,*this);
+}
+
+void GridFunction::ProjectCoefficientElementL2_(VectorCoefficient &vcoeff,
+                                                Vector &x, Vector &Va)
+{
+   DofTransformation doftrans;
+   Array<int> vdofs;
+   Vector shapel2, elvect, elwght, val;
+   DenseMatrix  shape, elmat;
+   Va.SetSize(Size());
+   x.SetSize(Size());
+   Va = 0.0;
+   x = 0.0;
+
+   if (fes->GetNURBSext() == NULL)
+   {
+      for (int e = 0; e < fes->GetNE(); e++)
+      {
+         fes->GetElementVDofs (e, vdofs, doftrans);
+         ElementTransformation &tr = *fes -> GetElementTransformation (e);
+         const FiniteElement &el = *fes->GetFE(e);
+         int dof = el.GetDof();
+         int dim = el.GetRangeDim();
+         shape.SetSize(dof,dim);
+         shapel2.SetSize(dof);
+         elvect.SetSize(dof);
+         elwght.SetSize(dof);
+         elmat.SetSize(dof,dof);
+         elvect = 0.0;
+         elwght = 0.0;
+         elmat = 0.0;
+
+         const IntegrationRule &ir = IntRules.Get(el.GetGeomType(),
+                                                  2 * el.GetOrder() + 1);
+
+         // Element vector & weight
+         for (int i = 0; i < ir.GetNPoints(); i++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(i);
+
+            tr.SetIntPoint (&ip);
+            real_t wght = ip.weight*tr.Weight();
+            vcoeff.Eval(val, tr, ip);
+            val *= wght;
+
+            el.CalcPhysVShape(tr, shape);
+
+            shape.AddMult (val, elvect);
+            AddMult_a_AAt(wght, shape, elmat);
+
+            shape.GetRowl2(shapel2);
+            elwght.Add(wght, shapel2);
+         }
+
+         // Solve
+         if (!LinearSolve(elmat, elvect.GetData(),1e-12))
+         {
+            MFEM_WARNING("Error in inverting element local matrix");
+         }
+
+         // Scale
+         elvect *= elwght;
+
+         // Add to global vector
+         x.AddElementVector(vdofs, elvect);
+
+         // Add to weight vector -- no need for an orientation
+         for (int i = 0; i < vdofs.Size(); i++)
+         {
+            vdofs[i] = FiniteElementSpace::DecodeDof(vdofs[i]);
+         }
+         Va.AddElementVector(vdofs, elwght);
+      }
+   }
+   else
+   {
+      DenseMatrix partelmat;
+      Vector shape2;
+
+      if (fes->GetTypicalFE()->GetOrder() >= 6 )
+      {
+         MFEM_WARNING("This project is not stable for"
+                      "NURBS VectorFE with order >= 5");
+      }
+      for (int e = 0; e < fes->GetNE(); e++)
+      {
+         fes->GetElementVDofs (e, vdofs, doftrans);
+         ElementTransformation &tr = *fes -> GetElementTransformation (e);
+         const FiniteElement &el = *fes->GetFE(e);
+         int dof = el.GetDof();
+         int dim = el.GetRangeDim();
+         int p = el.GetOrder();
+         L2_FECollection fe_coll(p,  dim);
+         const FiniteElement &el2 = *fe_coll.FiniteElementForGeometry(el.GetGeomType());
+         int dof2 = el2.GetDof();
+         MFEM_ASSERT(dof2*dim >= dof, "Element dofs do not match.");
+         shape2.SetSize(dof2);
+         shape.SetSize(dof,dim);
+         shapel2.SetSize(dof);
+         elvect.SetSize(dof2*dim);
+         elwght.SetSize(dof);
+         elmat.SetSize(dof2*dim,dof2*dim);
+         partelmat.SetSize(dof2,dof2);
+         elvect = 0.0;
+         elwght = 0.0;
+         elmat = 0.0;
+
+         const IntegrationRule &ir = IntRules.Get(el.GetGeomType(),
+                                                  2 * el.GetOrder() + 1);
+
+         // Element vector & weight
+         for (int i = 0; i < ir.GetNPoints(); i++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(i);
+
+            tr.SetIntPoint (&ip);
+            real_t wght = ip.weight*tr.Weight();
+            vcoeff.Eval(val, tr, ip);
+            val *= wght;
+
+            el2.CalcPhysShape(tr, shape2);
+            el.CalcPhysVShape(tr, shape);
+
+            for (int k = 0; k < dim; k++)
+            {
+               for (int s = 0; s < dof2; s++)
+               {
+                  elvect(dof2*k+s) += val(k) * shape2(s);
+               }
+            }
+
+            MultVVt(shape2, partelmat);
+            partelmat *= wght;
+            for (int k = 0; k < dim; k++)
+            {
+               elmat.AddMatrix(partelmat, dof2*k, dof2*k);
+            }
+
+            shape.GetRowl2(shapel2);
+            elwght.Add(wght, shapel2);
+         }
+
+         // Solve
+         if (!LinearSolve(elmat, elvect.GetData()))
+         {
+            MFEM_WARNING("Error in inverting element local matrix");
+         }
+
+         // Map to NURBS
+         DenseMatrix I;
+         el2.Project(el,tr,I);
+
+         // LSQ solve
+         // For higher order NURBS solving this non-square matrix causes issues.
+         // For Order <=4 the routine seems to work fine.
+         Vector vec(dof);
+         DenseMatrix mat(dof, dof);
+         I.Transpose();
+         I.Mult(elvect, vec);
+         MultAAt(I, mat);
+         if (!LinearSolve(mat, vec.GetData(), 1e-24))
+         {
+            mat.TestInversion();
+            MFEM_WARNING("Error in inverting element local matrix");
+         }
+         elvect = vec;
+
+         // Scale
+         elvect *= elwght;
+
+         // Add to global vector
+         x.AddElementVector(vdofs, elvect);
+
+         // Add to weight vector -- no need for an orientation
+         for (int i = 0; i < vdofs.Size(); i++)
+         {
+            vdofs[i] = FiniteElementSpace::DecodeDof(vdofs[i]);
+         }
+         Va.AddElementVector(vdofs, elwght);
+      }
+   }
+}
+
+void GridFunction::ProjectCoefficientElementL2(VectorCoefficient &vcoeff)
+{
+   if (fes->GetTypicalFE()->GetRangeType() == mfem::FiniteElement::VECTOR)
+   {
+      Vector Va;
+      ProjectCoefficientElementL2_(vcoeff, *this, Va);
+      (*this) /= Va;
+   }
+   else
+   {
+      Array<int> vdofs(fes->GetNDofs());
+      Vector x, Va;
+      VectorComponentCoefficient coeff(vcoeff,
+                                       0);  // 0  to ensure we have a valid object
+
+      for (int v = 0; v < VectorDim(); v++)
+      {
+         coeff.SetComponent(v);
+         ProjectCoefficientElementL2_(coeff, x, Va);
+         x /= Va;
+         fes->GetVDofs(v, vdofs);
+         SetSubVector(vdofs, x);
+      }
    }
 }
 
@@ -4610,7 +5072,7 @@ GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
 void GridFunction::GetElementBoundsAtControlPoints(const int elem,
                                                    const PLBound &plb,
                                                    Vector &lower, Vector &upper,
-                                                   const int vdim)
+                                                   const int vdim) const
 {
    const FiniteElement *fe = fes->GetFE(elem);
    int fes_dim  = fes->GetVDim();
@@ -4626,7 +5088,7 @@ void GridFunction::GetElementBoundsAtControlPoints(const int elem,
    fes->GetElementDofs(elem, dof_idx);
    int ndofs = dof_idx.Size();
 
-   int n_c_pts = std::pow(plb.GetNControlPoints(), rdim);
+   int n_c_pts = static_cast<int>(std::pow(plb.GetNControlPoints(), rdim));
    lower.SetSize(n_c_pts*(vdim > 0 ? 1 : fes_dim));
    upper.SetSize(n_c_pts*(vdim > 0 ? 1 : fes_dim));
 
@@ -4656,15 +5118,112 @@ void GridFunction::GetElementBoundsAtControlPoints(const int elem,
    }
 }
 
+void GridFunction::GetElementBoundsAtControlPoints(const int elem,
+                                                   const PLBound &plb,
+                                                   const Vector &ref_range,
+                                                   const int vdim,
+                                                   Vector &lower, Vector &upper,
+                                                   Vector &control_pos) const
+{
+   const FiniteElement *fe = fes->GetFE(elem);
+   const IntegrationRule ir_in = fe->GetNodes();
+   IntegrationRule ir_new(ir_in.GetNPoints());
+   const int dim = fes->GetMesh()->Dimension();
+   const L2_FECollection *l2fec = dynamic_cast<const L2_FECollection *>
+                                  (fes->FEColl());
+
+   const TensorBasisElement *tbe =
+      dynamic_cast<const TensorBasisElement *>(fe);
+   MFEM_VERIFY(tbe != NULL, "TensorBasis FiniteElement expected.");
+
+   const Array<int> &dof_map = tbe->GetDofMap();
+   bool lexico = (dof_map.Size() == 0);
+   bool bern = (tbe->GetBasisType() == BasisType::Positive);
+   bool h1   = (l2fec == nullptr);
+
+   Vector loc_data; // gridfunction values
+   // Construct an integration rule to evaluate the gridfunction in
+   // subinterval.
+   for (int i = 0; i < ir_in.GetNPoints(); i++)
+   {
+      IntegrationPoint &ip_new = ir_new.IntPoint(i);
+      const IntegrationPoint &ip_old =
+         ir_in.IntPoint((lexico || bern) ? i : dof_map[i]);
+      Vector ip_coord(dim);
+      ip_old.Get(ip_coord.GetData(), dim);
+      for (int d = 0; d < dim; d++)
+      {
+         ip_coord(d) = ref_range(d) +
+                       (ref_range(dim+d) - ref_range(d)) * ip_coord(d);
+      }
+      ip_new.Set(ip_coord.GetData(), dim);
+   }
+   GetValues(elem, ir_new, loc_data, vdim);
+   // At this point, the loc_data contains function values ordered
+   // lexicographically, unless we are using Bernstein bases.
+   // For Bernstein, we need to project and get coefficients first.
+
+   // For bernstein, we get coefficients corresponding to these function values
+   if (bern)
+   {
+      int bt = 4; // BasisType::ClosedUniform
+      int o = fe->GetOrder();
+      DenseMatrix projmat;
+      NodalTensorFiniteElement *ntfe = nullptr;
+      if (dim == 1)
+      {
+         if (h1) { ntfe = new H1_SegmentElement(o, bt); }
+         else    { ntfe = new L2_SegmentElement(o, bt); }
+      }
+      else if (dim == 2)
+      {
+         if (h1) { ntfe = new H1_QuadrilateralElement(o, bt); }
+         else    { ntfe = new L2_QuadrilateralElement(o, bt); }
+      }
+      else if (dim == 3)
+      {
+         if (h1) { ntfe = new H1_HexahedronElement(o, bt); }
+         else    { ntfe = new L2_HexahedronElement(o, bt); }
+      }
+      // projection matrix from H1 to Positive
+      ElementTransformation *eltran = fes->GetElementTransformation(elem);
+      fe->Project(*ntfe, *eltran, projmat);
+      Vector loc_data_temp(loc_data.Size());
+      projmat.Mult(loc_data, loc_data_temp);
+      for (int i = 0; i < dof_map.Size(); i++)
+      {
+         loc_data(i) = loc_data_temp(dof_map[i]);
+      }
+      if (dof_map.Size() == 0) { loc_data = loc_data_temp; }
+      delete ntfe;
+   }
+
+   // Get bounds at control points
+   plb.GetNDBounds(dim, loc_data, lower, upper);
+
+   // Save control point positions
+   int ncp = plb.GetNControlPoints();
+   control_pos.SetSize(dim * ncp);
+   const Vector control_pos_1D = plb.GetControlPoints();
+   for (int i = 0; i < ncp; i++)
+   {
+      for (int d = 0; d < dim; d++)
+      {
+         control_pos(i + d*ncp) =
+            ref_range(d) + (ref_range(dim+d)-ref_range(d))*control_pos_1D(i);
+      }
+   }
+}
+
 void GridFunction::GetElementBounds(const int elem, const PLBound &plb,
                                     Vector &lower, Vector &upper,
-                                    const int vdim)
+                                    const int vdim) const
 {
    Vector lowerC, upperC;
    GetElementBoundsAtControlPoints(elem, plb, lowerC, upperC, vdim);
    const FiniteElement *fe = fes->GetFE(elem);
    int rdim  = fe->GetDim();
-   int n_c_pts = std::pow(plb.GetNControlPoints(), rdim);
+   int n_c_pts = static_cast<int>(std::pow(plb.GetNControlPoints(), rdim));
    int fes_dim  = fes->GetVDim();
    lower.SetSize((vdim > 0 ? 1 :fes_dim));
    upper.SetSize((vdim > 0 ? 1 :fes_dim));
@@ -4681,7 +5240,7 @@ void GridFunction::GetElementBounds(const int elem, const PLBound &plb,
 
 void GridFunction::GetElementBounds(const PLBound &plb,
                                     Vector &lower, Vector &upper,
-                                    const int vdim)
+                                    const int vdim) const
 {
    int nel  = fes->GetNE();
    int fes_dim  = fes->GetVDim();
@@ -4704,7 +5263,7 @@ void GridFunction::GetElementBounds(const PLBound &plb,
 PLBound GridFunction::GetElementBounds(Vector &lower,
                                        Vector &upper,
                                        const int ref_factor,
-                                       const int vdim)
+                                       const int vdim) const
 {
    int max_order = fes->GetMaxElementOrder();
    PLBound plb(fes, ref_factor*(max_order+1));
@@ -4713,7 +5272,7 @@ PLBound GridFunction::GetElementBounds(Vector &lower,
 }
 
 PLBound GridFunction::GetBounds(Vector &lower, Vector &upper,
-                                const int ref_factor, const int vdim)
+                                const int ref_factor, const int vdim) const
 {
    int max_order = fes->GetMaxElementOrder();
    PLBound plb(fes, ref_factor*(max_order+1));
@@ -4736,6 +5295,467 @@ PLBound GridFunction::GetBounds(Vector &lower, Vector &upper,
    return plb;
 }
 
+struct IntervalNode
+{
+   real_t val_min;
+   real_t val_max;
+   Array<IntervalNode *> child;
+   IntervalNode(real_t vmin, real_t vmax)
+      : val_min(vmin), val_max(vmax)
+   {
+      child.SetSize(0);
+   }
+   void AddChild(IntervalNode *ch) { child.Append(ch); }
+   real_t GetChildMinLower()
+   {
+      if (child.Size() == 0)
+      {
+         return val_min;
+      }
+      real_t valmin = numeric_limits<real_t>::max();
+      for (int i = 0; i < child.Size(); i++)
+      {
+         real_t candidate = child[i]->GetChildMinLower();
+         valmin = std::min(valmin, candidate);
+      }
+      return valmin;
+   }
+   real_t GetChildMinUpper()
+   {
+      if (child.Size() == 0)
+      {
+         return val_max;
+      }
+      real_t valmax = numeric_limits<real_t>::max();
+      for (int i = 0; i < child.Size(); i++)
+      {
+         real_t candidate = child[i]->GetChildMinUpper();
+         valmax = std::min(valmax, candidate);
+      }
+      return valmax;
+   }
+   real_t GetChildMaxLower()
+   {
+      if (child.Size() == 0)
+      {
+         return val_min;
+      }
+      real_t valmin = numeric_limits<real_t>::lowest();
+      for (int i = 0; i < child.Size(); i++)
+      {
+         real_t candidate = child[i]->GetChildMaxLower();
+         valmin = std::max(valmin, candidate);
+      }
+      return valmin;
+   }
+   real_t GetChildMaxUpper()
+   {
+      if (child.Size() == 0)
+      {
+         return val_max;
+      }
+      real_t valmax = numeric_limits<real_t>::lowest();
+      for (int i = 0; i < child.Size(); i++)
+      {
+         real_t candidate = child[i]->GetChildMaxUpper();
+         valmax = std::max(valmax, candidate);
+      }
+      return valmax;
+   }
+   void DeleteChildren()
+   {
+      for (int i = 0; i < child.Size(); i++)
+      {
+         child[i]->DeleteChildren();
+         delete child[i];
+      }
+      child.SetSize(0);
+   }
+};
+
+struct SearchInterval
+{
+   Vector ref_range;
+   int depth;
+   IntervalNode *node;
+   SearchInterval(const Vector &ref_range_in, int d, IntervalNode *n)
+      : ref_range(ref_range_in), depth(d), node(n)
+   { }
+};
+
+struct IntervalCompareMin
+{
+   bool operator()(const SearchInterval *a, const SearchInterval *b) const
+   {
+      return a->node->val_min > b->node->val_min;
+   }
+};
+
+struct IntervalCompareMax
+{
+   bool operator()(const SearchInterval *a, const SearchInterval *b) const
+   {
+      return a->node->val_max < b->node->val_max;
+   }
+};
+
+std::pair<real_t, real_t> GridFunction::EstimateFunctionMinimum(
+   const int elem, const PLBound &plb, const int vdim,
+   const int max_depth, const real_t tol) const
+{
+   real_t min_threshold = std::numeric_limits<real_t>::max();
+   return EstimateFunctionMinimum(elem, plb, vdim, max_depth, tol,
+                                  min_threshold);
 }
 
+std::pair<real_t, real_t> GridFunction::EstimateFunctionMinimum(
+   const int elem, const PLBound &plb, const int vdim,
+   const int max_depth, const real_t tol, real_t &min_threshold) const
+{
+   const int dim = this->FESpace()->GetMesh()->Dimension();
+   const int ncp = plb.GetNControlPoints();
+   Vector pos_range(2*dim); pos_range = 0.0;
+   for (int d = 0; d < dim; d++) { pos_range(d+dim) = 1.0; }
+   Vector lower, upper, cp_ref_loc;
 
+   GetElementBoundsAtControlPoints(elem, plb, lower, upper, vdim);
+   real_t val_min = lower.Min();
+   real_t val_max = upper.Min();
+
+   min_threshold = std::min(min_threshold, val_max);
+
+   // Pruning: if the element's lower bound is greater than the current global
+   // upper bound, this element cannot contain the global minimum.
+   if (val_min >= min_threshold)
+   {
+      return std::make_pair(val_min, val_max);
+   }
+
+   if (val_min == val_max || max_depth == 0)
+   {
+      min_threshold = std::min(min_threshold, val_min);
+      return std::make_pair(val_min, val_max);
+   }
+   real_t abs_tol = tol*(val_max-val_min);
+
+   IntervalNode *initial_node = new IntervalNode(val_min, val_max);
+   SearchInterval *initial_interval = new SearchInterval(pos_range, 0,
+                                                         initial_node);
+
+   std::priority_queue<SearchInterval*,
+       std::vector<SearchInterval*>, IntervalCompareMin> pq;
+   pq.push(initial_interval);
+
+   real_t min_upper_bound = upper.Min();
+   real_t min_lower_bound = lower.Min();
+
+   while (!pq.empty())
+   {
+      SearchInterval *current = pq.top();
+      pq.pop();
+      int curr_depth = current->depth;
+
+      // Reached max depth or this interval cannot contain the global minimum
+      if (current->node->val_min >= min_threshold || curr_depth >= max_depth)
+      {
+         delete current;
+         continue;
+      }
+
+      min_lower_bound = initial_node->GetChildMinLower();
+      if (min_upper_bound - min_lower_bound < abs_tol)
+      {
+         delete current;
+         break;
+      }
+
+      // Subdivide the interval and get bounds on it
+      GetElementBoundsAtControlPoints(elem, plb, current->ref_range,
+                                      vdim, lower, upper, cp_ref_loc);
+
+      // process the bounds and create sub-intervals
+      for (int k = 0; k < (dim == 3 ? ncp-1 : 1); k++)
+      {
+         for (int j = 0; j < (dim >= 2 ? ncp-1 : 1); j++)
+         {
+            for (int i = 0; i < ncp-1; i++)
+            {
+               real_t lv = 0.0, uv = 0.0;
+               if (dim == 1)
+               {
+                  lv = std::min(lower(i), lower(i+1));
+                  uv = std::min(upper(i), upper(i+1));
+               }
+               else if (dim == 2)
+               {
+                  lv = std::min({lower(i + j*ncp), lower((i+1) + j*ncp),
+                                 lower(i + (j+1)*ncp),
+                                 lower((i+1) + (j+1)*ncp)});
+                  uv = std::min({upper(i + j*ncp), upper((i+1) + j*ncp),
+                                 upper(i + (j+1)*ncp),
+                                 upper((i+1) + (j+1)*ncp)});
+               }
+               else if (dim == 3)
+               {
+                  lv = std::min({lower(i + j*ncp + k*ncp*ncp),
+                                 lower((i+1) + j*ncp + k*ncp*ncp),
+                                 lower(i + (j+1)*ncp + k*ncp*ncp),
+                                 lower((i+1) + (j+1)*ncp + k*ncp*ncp),
+                                 lower(i + j*ncp + (k+1)*ncp*ncp),
+                                 lower((i+1) + j*ncp + (k+1)*ncp*ncp),
+                                 lower(i + (j+1)*ncp + (k+1)*ncp*ncp),
+                                 lower((i+1) + (j+1)*ncp + (k+1)*ncp*ncp)});
+                  uv = std::min({upper(i + j*ncp + k*ncp*ncp),
+                                 upper((i+1) + j*ncp + k*ncp*ncp),
+                                 upper(i + (j+1)*ncp + k*ncp*ncp),
+                                 upper((i+1) + (j+1)*ncp + k*ncp*ncp),
+                                 upper(i + j*ncp + (k+1)*ncp*ncp),
+                                 upper((i+1) + j*ncp + (k+1)*ncp*ncp),
+                                 upper(i + (j+1)*ncp + (k+1)*ncp*ncp),
+                                 upper((i+1) + (j+1)*ncp + (k+1)*ncp*ncp)});
+               }
+               IntervalNode *child_node = new IntervalNode(lv, uv);
+               current->node->AddChild(child_node);
+
+               if (lv < min_threshold)
+               {
+                  min_upper_bound = std::min(min_upper_bound, uv);
+                  min_threshold = std::min(min_threshold, uv);
+                  if (curr_depth < max_depth)
+                  {
+                     pos_range(0) = cp_ref_loc(i);
+                     pos_range(0+dim) = cp_ref_loc(i+1);
+                     if (dim >= 2)
+                     {
+                        pos_range(1) = cp_ref_loc(ncp + j);
+                        pos_range(1+dim) = cp_ref_loc(ncp + j+1);
+                     }
+                     if (dim == 3)
+                     {
+                        pos_range(2) = cp_ref_loc(2*ncp + k);
+                        pos_range(2+dim) = cp_ref_loc(2*ncp + k+1);
+                     }
+                     SearchInterval *child_interval =
+                        new  SearchInterval(pos_range, curr_depth + 1,
+                                            child_node);
+                     pq.push(child_interval);
+                  }
+               }
+            }
+         }
+      }
+      delete current;
+   }
+
+   // clean up remaining intervals in queue
+   while (!pq.empty())
+   {
+      delete pq.top();
+      pq.pop();
+   }
+
+   min_lower_bound = initial_node->GetChildMinLower();
+   initial_node->DeleteChildren();
+   delete initial_node;
+
+   min_threshold = std::min(min_threshold, min_lower_bound);
+   return std::make_pair(min_lower_bound, min_upper_bound);
+}
+
+std::pair<real_t, real_t> GridFunction::EstimateFunctionMaximum(
+   const int elem, const PLBound &plb, const int vdim,
+   const int max_depth, const real_t tol) const
+{
+   real_t max_threshold = std::numeric_limits<real_t>::lowest();
+   return EstimateFunctionMaximum(elem, plb, vdim, max_depth, tol,
+                                  max_threshold);
+}
+
+std::pair<real_t, real_t> GridFunction::EstimateFunctionMaximum(
+   const int elem, const PLBound &plb, const int vdim,
+   const int max_depth, const real_t tol, real_t &max_threshold) const
+{
+   const int dim = this->FESpace()->GetMesh()->Dimension();
+   const int ncp = plb.GetNControlPoints();
+   Vector pos_range(2*dim); pos_range = 0.0;
+   for (int d = 0; d < dim; d++) { pos_range(d+dim) = 1.0; }
+   Vector lower, upper, cp_ref_loc;
+
+   GetElementBoundsAtControlPoints(elem, plb, lower, upper, vdim);
+   real_t val_min = lower.Max();
+   real_t val_max = upper.Max();
+
+   max_threshold = std::max(max_threshold, val_min);
+
+   // Pruning: if the element's upper bound is less than the current global
+   // lower bound, this element cannot contain the global maximum.
+   if (val_max <= max_threshold)
+   {
+      return std::make_pair(val_min, val_max);
+   }
+
+   if (val_min == val_max || max_depth == 0)
+   {
+      max_threshold = std::max(max_threshold, val_max);
+      return std::make_pair(val_min, val_max);
+   }
+   real_t abs_tol = tol*(val_max-val_min);
+
+   IntervalNode *initial_node = new IntervalNode(val_min, val_max);
+   SearchInterval *initial_interval = new SearchInterval(pos_range, 0,
+                                                         initial_node);
+
+   std::priority_queue<SearchInterval*,
+       std::vector<SearchInterval*>, IntervalCompareMax> pq;
+   pq.push(initial_interval);
+
+   real_t max_lower_bound = val_min;
+   real_t max_upper_bound = val_max;
+
+   while (!pq.empty())
+   {
+      SearchInterval *current = pq.top();
+      pq.pop();
+      int curr_depth = current->depth;
+
+      // Reached max depth or this interval cannot contain the global maximum.
+      if (current->node->val_max <= max_threshold || curr_depth >= max_depth)
+      {
+         delete current;
+         continue;
+      }
+
+      max_upper_bound = initial_node->GetChildMaxUpper();
+      if (max_upper_bound - max_lower_bound < abs_tol)
+      {
+         delete current;
+         break;
+      }
+
+      // Subdivide the interval and get bounds on it
+      GetElementBoundsAtControlPoints(elem, plb, current->ref_range,
+                                      vdim, lower, upper, cp_ref_loc);
+
+      // process the bounds and create sub-intervals
+      for (int k = 0; k < (dim == 3 ? ncp-1 : 1); k++)
+      {
+         for (int j = 0; j < (dim >= 2 ? ncp-1 : 1); j++)
+         {
+            for (int i = 0; i < ncp-1; i++)
+            {
+               real_t lv = 0.0, uv = 0.0;
+               if (dim == 1)
+               {
+                  lv = std::max(lower(i), lower(i+1));
+                  uv = std::max(upper(i), upper(i+1));
+               }
+               else if (dim == 2)
+               {
+                  lv = std::max({lower(i + j*ncp), lower((i+1) + j*ncp),
+                                 lower(i + (j+1)*ncp),
+                                 lower((i+1) + (j+1)*ncp)});
+                  uv = std::max({upper(i + j*ncp), upper((i+1) + j*ncp),
+                                 upper(i + (j+1)*ncp),
+                                 upper((i+1) + (j+1)*ncp)});
+               }
+               else if (dim == 3)
+               {
+                  lv = std::max({lower(i + j*ncp + k*ncp*ncp),
+                                 lower((i+1) + j*ncp + k*ncp*ncp),
+                                 lower(i + (j+1)*ncp + k*ncp*ncp),
+                                 lower((i+1) + (j+1)*ncp + k*ncp*ncp),
+                                 lower(i + j*ncp + (k+1)*ncp*ncp),
+                                 lower((i+1) + j*ncp + (k+1)*ncp*ncp),
+                                 lower(i + (j+1)*ncp + (k+1)*ncp*ncp),
+                                 lower((i+1) + (j+1)*ncp + (k+1)*ncp*ncp)});
+                  uv = std::max({upper(i + j*ncp + k*ncp*ncp),
+                                 upper((i+1) + j*ncp + k*ncp*ncp),
+                                 upper(i + (j+1)*ncp + k*ncp*ncp),
+                                 upper((i+1) + (j+1)*ncp + k*ncp*ncp),
+                                 upper(i + j*ncp + (k+1)*ncp*ncp),
+                                 upper((i+1) + j*ncp + (k+1)*ncp*ncp),
+                                 upper(i + (j+1)*ncp + (k+1)*ncp*ncp),
+                                 upper((i+1) + (j+1)*ncp + (k+1)*ncp*ncp)});
+               }
+               IntervalNode *child_node = new IntervalNode(lv, uv);
+               current->node->AddChild(child_node);
+
+               if (uv > max_threshold)
+               {
+                  max_lower_bound = std::max(max_lower_bound, lv);
+                  max_threshold = std::max(max_threshold, lv);
+                  if (curr_depth < max_depth)
+                  {
+                     pos_range(0) = cp_ref_loc(i);
+                     pos_range(0+dim) = cp_ref_loc(i+1);
+                     if (dim >= 2)
+                     {
+                        pos_range(1) = cp_ref_loc(ncp + j);
+                        pos_range(1+dim) = cp_ref_loc(ncp + j+1);
+                     }
+                     if (dim == 3)
+                     {
+                        pos_range(2) = cp_ref_loc(2*ncp + k);
+                        pos_range(2+dim) = cp_ref_loc(2*ncp + k+1);
+                     }
+                     SearchInterval *child_interval =
+                        new SearchInterval(pos_range, curr_depth + 1,
+                                           child_node);
+                     pq.push(child_interval);
+                  }
+               }
+            }
+         }
+      }
+      delete current;
+   }
+   // clean up remaining intervals in queue
+   while (!pq.empty())
+   {
+      delete pq.top();
+      pq.pop();
+   }
+
+   max_upper_bound = initial_node->GetChildMaxUpper();
+   initial_node->DeleteChildren();
+   delete initial_node;
+   max_threshold = std::max(max_threshold, max_upper_bound);
+
+   return std::make_pair(max_lower_bound, max_upper_bound);
+}
+
+std::pair<real_t, real_t> GridFunction::EstimateFunctionMinimum(
+   const int vdim, const PLBound &plb, const int max_depth,
+   const real_t tol) const
+{
+   real_t global_min_lower = std::numeric_limits<real_t>::max();
+   real_t global_min_upper = std::numeric_limits<real_t>::max();
+
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      std::pair<real_t, real_t> min_pair =
+         EstimateFunctionMinimum(i, plb, vdim, max_depth, tol,
+                                 global_min_lower);
+      global_min_upper = std::min(global_min_upper, min_pair.second);
+   }
+   return std::make_pair(global_min_lower, global_min_upper);
+}
+
+std::pair<real_t, real_t> GridFunction::EstimateFunctionMaximum(
+   const int vdim, const PLBound &plb, const int max_depth,
+   const real_t tol) const
+{
+   real_t global_max_lower = std::numeric_limits<real_t>::lowest();
+   real_t global_max_upper = std::numeric_limits<real_t>::lowest();
+
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      std::pair<real_t, real_t> max_pair =
+         EstimateFunctionMaximum(i, plb, vdim, max_depth, tol,
+                                 global_max_upper);
+      global_max_lower = std::max(global_max_lower, max_pair.first);
+   }
+   return std::make_pair(global_max_lower, global_max_upper);
+}
+
+}

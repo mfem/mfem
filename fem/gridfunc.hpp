@@ -27,6 +27,24 @@
 namespace mfem
 {
 
+/** This enumerated type describes the three main projection types:
+    - ELEMENT, assigns the degree of freedom per element, as specified in the
+      specific element
+    - GLOBAL_L2, solves a global L2 projection
+    - ELEMENT_L2, solves a element level L2 projection. Inter element
+      connectivity is dealt with similar as in:
+      Bezier-Projection : A unified approach for local projection and
+      quadrature-free refinement and coarsening of NURBS and T-splines with
+      particular application to isogeometric design and analysis
+      [CMAME (284) 2015 pg 55-105]
+    - DEFAULT, for NURBS spaces this is ELEMENT_L2, while for all other spaces
+      this ELEMENT.
+   Note 1: ELEMENT_L2 also works for non NURBS elements
+   Note 2: For NURBS elements the ELEMENT projection gives results without
+   over and undershoots. However, the gradient near the boundary does not
+   converge.*/
+enum class ProjectType { DEFAULT, ELEMENT, GLOBAL_L2, ELEMENT_L2 };
+
 /// Class for grid function - Vector with associated FE space.
 class GridFunction : public Vector
 {
@@ -66,13 +84,17 @@ protected:
        degree of freedom. */
    void ProjectDiscCoefficient(VectorCoefficient &coeff, Array<int> &dof_attr);
 
+   /** Helper function for ProjectCoefficientElementL2 */
+   void ProjectCoefficientElementL2_(Coefficient &coeff, Vector &sol, Vector &Va);
+   void ProjectCoefficientElementL2_(VectorCoefficient &vcoeff, Vector &sol,
+                                     Vector &Va);
+
    /// Loading helper.
    void LegacyNCReorder();
 
    void Destroy();
 
 public:
-
    GridFunction() { fes = NULL; fec_owned = NULL; fes_sequence = 0; UseDevice(true); }
 
    /// Copy constructor. The internal true-dof vector #t_vec is not copied.
@@ -82,6 +104,10 @@ public:
 
    /// Construct a GridFunction associated with the FiniteElementSpace @a *f.
    GridFunction(FiniteElementSpace *f) : Vector(f->GetVSize())
+   { fes = f; fec_owned = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
+
+   /// Same as above but specify the memory type
+   GridFunction(FiniteElementSpace *f, MemoryType mt) : Vector(f->GetVSize(), mt)
    { fes = f; fec_owned = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
 
    /// Construct a GridFunction using previously allocated array @a data.
@@ -420,9 +446,30 @@ public:
    /** @brief Project @a coeff Coefficient to @a this GridFunction. The
        projection computation depends on the choice of the FiniteElementSpace
        #fes. Note that this is usually interpolation at the degrees of freedom
-       in each element (not L2 projection). For NURBS spaces these degrees of
-       freedom are not available and L2 projection is resorted to as fallback. */
-   virtual void ProjectCoefficient(Coefficient &coeff);
+       in each element (not L2 projection). For elements without a projection
+       member function one could use ProjectCoefficientGlobalL2 instead.
+       NOTE: For parallel simulations with NURBS elements some dofs might
+       not be defined, if the evaluation point does not reside on this rank.
+       If that is the case it is defined on another rank, and the issue is
+       rectified with the appropriate communication, see in ParGridFunction.
+       */
+   virtual void ProjectCoefficient(Coefficient &coeff,
+                                   ProjectType type = ProjectType::DEFAULT);
+
+   /** @brief Project @a coeff Coefficient to @a this GridFunction. The
+       projection is a global L2 projection. This routine can be used a
+       fallback for elements without a projection member function.*/
+   virtual void ProjectCoefficientGlobalL2(Coefficient &coeff,
+                                           real_t rtol = 1e-12,
+                                           int iter = 1000);
+
+   /** @brief Project @a coeff Coefficient to @a this GridFunction. The
+       projection is an element local L2 projection, with an appropriate
+       weighting for Dofs that are shared between elements. Inspired on
+       Bezier-Projection [CMAME (284) 2015 pg 55-105]
+       This routine can be used a fallback for elements without a projection
+       member function.*/
+   virtual void ProjectCoefficientElementL2(Coefficient &coeff);
 
    /** @brief Project @a coeff Coefficient to @a this GridFunction, using one
        element for each degree of freedom in @a dofs and nodal interpolation on
@@ -432,9 +479,26 @@ public:
    /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction. The
        projection computation depends on the choice of the FiniteElementSpace
        #fes. Note that this is usually interpolation at the degrees of freedom
-       in each element (not L2 projection). For NURBS spaces these degrees of
-       freedom are not available and L2 projection is resorted to as fallback. */
-   void ProjectCoefficient(VectorCoefficient &vcoeff);
+       in each element (not L2 projection). For elements without a projection
+       member function one could use ProjectCoefficientGlobalL2 instead.
+       NOTE: For parallel simulations with NURBS elements some dofs might
+       not be defined, if the evaluation point does not reside on this rank.
+       If that is the case it is defined on another rank, and the issue is
+       rectified with the appropriate communication, see in ParGridFunction.*/
+   virtual void ProjectCoefficient(VectorCoefficient &vcoeff,
+                                   ProjectType type = ProjectType::DEFAULT);
+
+   /** @brief Project @a coeff Coefficient to @a this GridFunction. The
+       projection is a global L2 projection. This routine can be used a
+       fallback for elements without a projection member function.*/
+   virtual void ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
+                                           real_t rtol = 1e-12,
+                                           int iter = 1000);
+
+   /** @brief Project @a coeff Coefficient to @a this GridFunction. The
+       projection is a global L2 projection. This routine can be used a
+       fallback for elements without a projection member function.*/
+   virtual void ProjectCoefficientElementL2(VectorCoefficient &vcoeff);
 
    /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction, using
        one element for each degree of freedom in @a dofs and nodal interpolation
@@ -499,6 +563,70 @@ protected:
 
    /// P-refinement version of Update().
    void UpdatePRef();
+
+   /** @brief Estimate the minimum value of the GridFunction in element @a elem
+    *  if it is below a certain @a min_threshold.
+    *
+    *  @details For a given element \p elem and grid function component \p vdim
+    *  an estimate of the function minimum is the minimum of the piecewise
+    *  linear lower bound obtained using the given PLBound object. The actual
+    *  minimum is between [minimum lower bound, minimum upper bound]. We
+    *  improve the estimate of the function minimum by recursively
+    *  subdividing the interval with the lowest lower bound, and computing
+    *  bounds on the sub-intervals.
+    *  This process continues until (i) the maximum recursion depth is reached
+    *  or (ii) the difference between the minimum upper bound and minimum lower
+    *  bound is less than a certain tolerance (\p tol * [initial maximum
+    *  upper bound - initial minimum lower bound]).
+    *  The function also terminates if the lowest minima estimate is found
+    *  to be above the given threshold \p min_threshold. This is useful when
+    *  we are interested in computing the global minimum of the function
+    *  over all elements. In this case we can reject elements where the lowest
+    *  bound is above the current global minimum. In case the function
+    *  minimum on the element is below the global minimum, we update
+    *  \p min_threshold.
+    *
+    *  We return a pair of values that bracket the actual minimum, i.e.
+    *  [min_lower_bound, min_upper_bound].
+    */
+   std::pair<real_t,real_t> EstimateFunctionMinimum(const int elem,
+                                                    const PLBound &plb,
+                                                    const int vdim,
+                                                    const int max_depth,
+                                                    const real_t tol,
+                                                    real_t &min_threshold)const;
+
+   /** @brief Estimate the maximum value of the GridFunction in element @a elem
+    *  if it is below a certain @a max_threshold.
+    *
+    *  @details For a given element \p elem and grid function component \p vdim
+    *  an estimate of the function maximum is the maximum of the piecewise
+    *  linear upper bound obtained using the given PLBound object. The actual
+    *  maximum is between [maximum lower bound, maximum upper bound]. We
+    *  improve the estimate of the function maximum by recursively
+    *  subdividing the interval with the highest upper bound, and computing
+    *  bounds on the sub-intervals.
+    *  This process continues until (i) the maximum recursion depth is reached
+    *  or (ii) the difference between the maximum upper bound and maximum lower
+    *  bound is less than a certain tolerance (\p tol * [initial maximum
+    *  upper bound - initial maximum lower bound]).
+    *  The function also terminates if the highest maxima estimate is found
+    *  to be below the given threshold \p max_threshold. This is useful when
+    *  we are interested in computing the global maximum of the function
+    *  over all elements. In this case we can reject elements where the upper
+    *  bound is below the current global maximum. In case the function
+    *  maximum on the element is above the global maximum, we update
+    *  \p max_threshold.
+    *
+    *  We return a pair of values that bracket the actual maximum, i.e.
+    *  [max_lower_bound, max_upper_bound].
+    */
+   std::pair<real_t,real_t> EstimateFunctionMaximum(const int elem,
+                                                    const PLBound &plb,
+                                                    const int vdim,
+                                                    const int max_depth,
+                                                    const real_t tol,
+                                                    real_t &max_threshold)const;
 
 public:
    /** @brief For each vdof, counts how many elements contain the vdof,
@@ -1598,43 +1726,89 @@ public:
     */
    ///@{
    /// Computes the \ref PLBound for the gridfunction with number of control
-   /// points based on @a ref_factor, and returns the overall bounds for each
-   /// vdim (across all elements) in @b lower and @b upper. We also return the
+   /// points based on \p ref_factor, and returns the overall bounds for each
+   /// vdim (across all elements) in \p lower and \p upper. We also return the
    /// PLBound object used to compute the bounds.
-   /// We compute the bounds for each vdim if @a vdim < 1.
+   /// We compute the bounds for each vdim if \p vdim < 1.
    /// Note: For most cases, this method/interface will be sufficient.
    virtual PLBound GetBounds(Vector &lower, Vector &upper,
-                             const int ref_factor=1, const int vdim=-1);
+                             const int ref_factor=1, const int vdim=-1) const;
 
    /// Computes the \ref PLBound for the gridfunction with number of control
-   /// points based on @a ref_factor, and returns the bounds for each element
-   /// ordered byVDim:
+   /// points based on \p ref_factor, and returns the bounds for each element
+   /// ordered byNodes:
    /// lower_{0,0}, lower_{1,0}, ..., lower_{ne-1,0},
    /// lower_{0,1}, ..., lower_{ne-1,vdim-1}. We also return the
    /// PLBound object used to compute the bounds.
-   /// We compute the bounds for each vdim if @a vdim < 1.
+   /// We compute the bounds for each vdim if \p vdim < 1.
    PLBound GetElementBounds(Vector &lower, Vector &upper,
-                            const int ref_factor=1, const int vdim=-1);
+                            const int ref_factor=1, const int vdim=-1) const;
 
    /// Compute piecewise linear bounds on the given element at the grid of
    /// [plb.ncp x plb.ncp x plb.ncp] control points for each of the vdim
    /// components of the gridfunction.
    void GetElementBoundsAtControlPoints(const int elem, const PLBound &plb,
                                         Vector &lower, Vector &upper,
-                                        const int vdim = -1);
+                                        const int vdim = -1) const;
+
+   /** @brief Gets the bounds on given reference range inside an element.
+    *
+    *  @details @a ref_range is a vector of size 2*dim that specifies the
+    *  lower and upper limits in each dimension of the reference element.
+    *  For example, in 2D, ref_range = [rmin, smin, rmax, smax].
+    */
+   void GetElementBoundsAtControlPoints(const int elem, const PLBound &plb,
+                                        const Vector &ref_range,
+                                        const int vdim,
+                                        Vector &lower, Vector &upper,
+                                        Vector &control_pos) const;
 
    /// Compute bounds on the grid function for the given element.
    /// The bounds are stored in @b lower and @b upper.
    void GetElementBounds(const int elem, const PLBound &plb,
                          Vector &lower, Vector &upper,
-                         const int vdim = -1);
+                         const int vdim = -1) const;
 
    /// Compute bounds on the grid function for all the elements. The bounds
-   /// are returned in @b lower and @b upper, ordered byVDim:
+   /// are returned in @b lower and @b upper, ordered byNodes:
    /// lower_{0,0}, lower_{1,0}, ..., lower_{ne-1,0},
    /// lower_{0,1}, ..., lower_{ne-1,vdim-1}
    void GetElementBounds(const PLBound &plb, Vector &lower, Vector &upper,
-                         const int vdim=-1);
+                         const int vdim=-1) const;
+
+   /** @brief Estimate the minimum value of the GridFunction in element @a elem.
+    *
+    *  @details See the protected version of EstimateFunctionMinimum for
+    *  details.
+    */
+   std::pair<real_t, real_t> EstimateFunctionMinimum(const int elem,
+                                                     const PLBound &plb,
+                                                     const int vdim,
+                                                     const int max_depth,
+                                                     const real_t tol) const;
+
+   /** @brief Estimate the minimum value of the GridFunction in element @a elem.
+    *
+    *  @details See the protected version of EstimateFunctionMaximum for
+    *  details.
+    */
+   std::pair<real_t, real_t> EstimateFunctionMaximum(const int elem,
+                                                     const PLBound &plb,
+                                                     const int vdim,
+                                                     const int max_depth,
+                                                     const real_t tol) const;
+
+   /** @brief Estimate the GridFunction minimum across all elements. */
+   virtual std::pair<real_t,real_t> EstimateFunctionMinimum(const int vdim,
+                                                            const PLBound &plb,
+                                                            const int max_depth,
+                                                            const real_t tol) const;
+
+   /** @brief Estimate the GridFunction maximum across all elements. */
+   virtual std::pair<real_t,real_t> EstimateFunctionMaximum(const int vdim,
+                                                            const PLBound &plb,
+                                                            const int max_depth,
+                                                            const real_t tol) const;
    ///@}
 
    /// Destroys grid function.

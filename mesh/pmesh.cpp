@@ -1618,7 +1618,7 @@ bool ParMesh::HasBoundaryElements() const
 {
    // maximum number of boundary elements over all ranks
    int maxNumOfBdrElements;
-   MPI_Allreduce(&NumOfBdrElements, &maxNumOfBdrElements, 1,
+   MPI_Allreduce(const_cast<int*>(&NumOfBdrElements), &maxNumOfBdrElements, 1,
                  MPI_INT, MPI_MAX, MyComm);
    return (maxNumOfBdrElements > 0);
 }
@@ -3041,7 +3041,7 @@ void ParMesh::GetSharedFaceTransformationsByLocalIndex(
    // for ghost faces we need a special version of GetFaceTransformation
    if (is_ghost)
    {
-      GetGhostFaceTransformation(FElTr, face_type, face_geom);
+      GetGhostFaceTransformation(FaceNo, FElTr);
       mask |= FaceElementTransformations::HAVE_FACE;
    }
 
@@ -3064,19 +3064,29 @@ void ParMesh::GetSharedFaceTransformationsByLocalIndex(
 }
 
 void ParMesh::GetGhostFaceTransformation(
-   FaceElementTransformations &FElTr, Element::Type face_type,
-   Geometry::Type face_geom) const
+   int FaceNo, FaceElementTransformations &FElTr) const
 {
+   MFEM_ASSERT(FaceNo >= GetNumFaces(), "Not a ghost face.");
+
+   // use the local face data
+   const int LocFaceNo = nc_faces_info[faces_info[FaceNo].NCFace].MasterFace;
+   FElTr.Attribute = (Dim == 1) ? 1 : faces[LocFaceNo]->GetAttribute();
+   FElTr.ElementNo = FaceNo;
+   FElTr.ElementType = ElementTransformation::FACE;
+   FElTr.mesh = this;
+
    // calculate composition of FElTr.Loc1 and FElTr.Elem1
    DenseMatrix &face_pm = FElTr.GetPointMat();
    FElTr.Reset();
    if (Nodes == NULL)
    {
+      const Element::Type face_type = GetFaceElementType(LocFaceNo);
       FElTr.Elem1->Transform(FElTr.Loc1.Transf.GetPointMat(), face_pm);
       FElTr.SetFE(GetTransformationFEforElementType(face_type));
    }
    else
    {
+      const Geometry::Type face_geom = GetFaceGeometry(LocFaceNo);
       const FiniteElement* face_el =
          Nodes->FESpace()->GetTraceElement(FElTr.Elem1No, face_geom);
       MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(face_el),
@@ -5217,7 +5227,8 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
    }
 
    // vertices / nodes
-   MPI_Reduce(&NumOfVertices, &nv, 1, MPI_INT, MPI_SUM, 0, MyComm);
+   MPI_Reduce(const_cast<int*>(&NumOfVertices), &nv, 1, MPI_INT, MPI_SUM, 0,
+              MyComm);
    if (MyRank == 0)
    {
       os << "\nvertices\n" << nv << '\n';
@@ -5259,7 +5270,7 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
       }
       else
       {
-         MPI_Send(&NumOfVertices, 1, MPI_INT, 0, 448, MyComm);
+         MPI_Send(const_cast<int*>(&NumOfVertices), 1, MPI_INT, 0, 448, MyComm);
          vert.SetSize(NumOfVertices*spaceDim);
          for (i = 0; i < NumOfVertices; i++)
          {
@@ -6425,7 +6436,7 @@ void ParMesh::PrintVTU(std::string pathname,
                        VTKFormat format,
                        bool high_order_output,
                        int compression_level,
-                       bool bdr)
+                       bool bdr_elements)
 {
    int pad_digits_rank = 6;
    DataCollection::create_directory(pathname, this, MyRank);
@@ -6485,7 +6496,8 @@ void ParMesh::PrintVTU(std::string pathname,
 
    std::string vtu_fname = pathname + "/" + fname + ".proc"
                            + to_padded_string(MyRank, pad_digits_rank);
-   Mesh::PrintVTU(vtu_fname, format, high_order_output, compression_level, bdr);
+   Mesh::PrintVTU(vtu_fname, format, high_order_output, compression_level,
+                  bdr_elements);
 }
 
 int ParMesh::FindPoints(DenseMatrix& point_mat, Array<int>& elem_id,
