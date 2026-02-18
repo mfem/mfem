@@ -11,15 +11,22 @@
 //
 // 3point:
 // explicit:
-//   time mpirun -np 8 laghos -p 3 -glvis -tf 5.0 -av -av-type 2 -ov 4 -oe 3 -rs 2 -cfl 0.5 -s 2 -vis-steps 100
+//   time mpirun -np 8 laghos -p 3 -glvis -tf 5.0 -av -av-type 2 -ov 4 -oe 3 -rs 2 -cfl 0.5 -s 2 -vs 100
 // implicit:
-//   time mpirun -np 8 laghos -p 3 -glvis -tf 5.0 -nmi 50 -pt 1 -dump-jacobians 0 -nretry 50000 -kmi 20 -av -av-type 7 -ov 3 -oe 2 -rs 2 -cfl 32 -s 12 -vis-steps 10
+//   time mpirun -np 8 laghos -p 3 -glvis -tf 5.0 -nmi 50 -pt 1 -dump-jacobians 0 -nretry 50000 -kmi 20 -av -av-type 7 -ov 3 -oe 2 -rs 2 -cfl 32 -s 12 -vs 10
 //
 // Sedov:
 // explicit:
-//   time mpirun -np 8 laghos -p 1 -glvis -tf 0.8 -av -av-type 2 -ov 4 -oe 3 -rs 2 -cfl 0.5 -s 2 -vis-steps 100
+//   time mpirun -np 8 laghos -p 1 -glvis -tf 0.8 -av -av-type 2 -ov 4 -oe 3 -rs 2 -cfl 0.5 -s 2 -vs 100
 // implicit:
-//   time mpirun -np 8 laghos -p 1 -glvis -tf 0.8 -nmi 50 -pt 1 -dump-jacobians 0 -nretry 50000 -kmi 20 -av -av-type 7 -ov 3 -oe 2 -rs 2 -cfl 32 -s 12 -vis-steps 10
+//   time mpirun -np 8 laghos -p 1 -glvis -tf 0.8 -nmi 50 -pt 1 -dump-jacobians 0 -nretry 50000 -kmi 20 -av -av-type 7 -ov 3 -oe 2 -rs 2 -cfl 32 -s 12 -vs 10
+//
+// TG:
+// explicit:
+//   time mpirun -np 8 laghos -p 0 -glvis -tf 0.75 -ov 3 -oe 2 -rs 2 -cfl 0.5 -s 7 -vs 100
+// implicit:
+//   time mpirun -np 8 laghos -p 0 -glvis -tf 0.5 -nmi 50 -pt 1 -dump-jacobians 0 -nretry 50000 -kmi 20 -ov 3 -oe 2 -rs 3 -cfl 32 -s 12 -vs 50
+//
 
 
 #include <mfem.hpp>
@@ -892,7 +899,7 @@ public:
          MFEM_VERIFY(ze.CheckFinite() == 0, "err");
          if (problem == 0)
          {
-            // dTaylorSourcedx->AddMult(wx, ze);
+            dTaylorSourcedx->AddMult(wx, ze);
             MFEM_VERIFY(ze.CheckFinite() == 0, "err");
          }
          ze *= -h;
@@ -1498,7 +1505,6 @@ public:
          RHSv.Neg();
          H1.GetRestrictionMatrix()->MultTranspose(RHSv, rhsv);
 
-         // out << ">>> rhsv\n";
          // pretty_print(rhsv);
 
          // solve for each velocity component
@@ -1557,12 +1563,15 @@ public:
          if (problem == 0)
          {
             LinearForm e_source(&L2);
+            e_source = 0.0;
             L2.GetMesh()->DeleteGeometricFactors();
+
             FunctionCoefficient coeff(taylor_source);
             DomainLFIntegrator *d = new DomainLFIntegrator(coeff, &ir);
             e_source.AddDomainIntegrator(d);
             e_source.UseFastAssembly(true);
             e_source.Assemble();
+
             rhse += e_source;
          }
 
@@ -2397,7 +2406,7 @@ int main(int argc, char *argv[])
                   "Number of nonlinear solves to wait before updating the preconditioner.");
    args.AddOption(&preconditioner_type, "-pt", "--pt",
                   "Preconditioner type: 0 - SuperLU_DIST, 1 - Block Diagonal AMG");
-   args.AddOption(&vis_steps, "-vis-steps", "--vis-steps",
+   args.AddOption(&vis_steps, "-vs", "--vis-steps",
                   "Number of visualization steps.");
    args.AddOption(&glvis, "-glvis", "--glvis", "-no-glvis", "--no-glvis", "");
    args.AddOption(&viscosity_type, "-av-type", "--av-type", "");
