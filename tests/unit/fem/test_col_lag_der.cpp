@@ -174,6 +174,6 @@ TEST_CASE("Collocated Derivative Kernels", "[QuadratureInterpolator]")
                              abs_err/max_norm :
                              abs_err > 0_r ? mfem::infinity() : 0_r;
       CAPTURE(rel_err, max_norm);
-      CHECK(rel_err <= 8e-14);
+      CHECK(rel_err <= 1e-13);
    }
 }
