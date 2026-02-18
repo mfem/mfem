@@ -517,6 +517,7 @@ int main(int argc, char *argv[])
    bool visualization = false;
    bool visit = true;
    bool pml = false;
+   bool pml_cyl = false;
 
    double freq = 1.0e6;
    const char * wave_type = " ";
@@ -982,6 +983,8 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
                   "Enable or disable VisIt visualization.");
    args.AddOption(&pml, "-pml", "--pml", "-no-pml", "--no-pml",
                   "Enable or disable Cartesian PML");
+   args.AddOption(&pml_cyl, "-pml-cyl", "--pml-cyl", "-pml-cart", "--pml-cart",
+                  "Enable or disable Cylindrical PML");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -1362,6 +1365,10 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
    ParGridFunction nui_gf(&H1FESpace);
    ParGridFunction iontemp_gf(&H1FESpace);
 
+   ParGridFunction exx_r_gf(&L2FESpace);
+   ParGridFunction eyy_r_gf(&L2FESpace);
+   ParGridFunction ezz_r_gf(&L2FESpace);
+
     G_EQDSK_Data *eqdsk = NULL;
     {
        named_ifgzstream ieqdsk(eqdsk_file);
@@ -1654,11 +1661,11 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
 
    // Lambda * Epsilon
 
-   MatrixProductCoefficient lambEpsilon_real1(lambdaPML_real,epsilon_real);
-   MatrixProductCoefficient lambEpsilon_real2(lambdaPML_imag,epsilon_imag);
+   MatrixProductCoefficient lambEpsilon_real1(lambdaPML_real, epsilon_real);
+   MatrixProductCoefficient lambEpsilon_real2(lambdaPML_imag, epsilon_imag);
 
-   MatrixProductCoefficient lambEpsilon_imag1(lambdaPML_real,epsilon_imag);
-   MatrixProductCoefficient lambEpsilon_imag2(lambdaPML_imag,epsilon_real);
+   MatrixProductCoefficient lambEpsilon_imag1(lambdaPML_real, epsilon_imag);
+   MatrixProductCoefficient lambEpsilon_imag2(lambdaPML_imag, epsilon_real);
 
    MatrixSumCoefficient lambEpsilon_real(lambEpsilon_real1,lambEpsilon_real2,1.0,-1.0);
    MatrixSumCoefficient lambEpsilon_imag(lambEpsilon_imag1,lambEpsilon_imag2);
@@ -1672,7 +1679,14 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
    MatrixProductCoefficient lambEpsilonSigma_imag2(lambEpsilon_imag,invSigma_real);
 
    MatrixSumCoefficient epsilonPML_real(lambEpsilonSigma_real1,lambEpsilonSigma_real2,1.0,-1.0);
-   MatrixSumCoefficient epsilonPML_imag(lambEpsilonSigma_imag1,lambEpsilonSigma_imag2);
+   MatrixSumCoefficient epsilonPML_imag(lambEpsilonSigma_imag1,lambEpsilonSigma_imag2);   
+
+   MatrixComponentCoefficient exx_r(epsilonPML_real,0,0);
+   MatrixComponentCoefficient eyy_r(epsilonPML_real,1,1);
+   MatrixComponentCoefficient ezz_r(epsilonPML_real,2,2);
+   exx_r_gf.ProjectCoefficient(exx_r);
+   eyy_r_gf.ProjectCoefficient(eyy_r);
+   ezz_r_gf.ProjectCoefficient(ezz_r);
 
    SheathImpedance z_r(BField, density, temperature,
                        L2FESpace, H1FESpace,
@@ -2060,6 +2074,9 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
       //nue_gf *= 1/omega;
       visit_dc.RegisterField("Electron_Collisional_Profile", &nue_gf);
       visit_dc.RegisterField("Ion_Collisional_Profile", &nui_gf);
+      visit_dc.RegisterField("ep_xx", &exx_r_gf);
+      visit_dc.RegisterField("ep_yy", &eyy_r_gf);
+      visit_dc.RegisterField("ep_zz", &ezz_r_gf);
 
       visit_dc.RegisterField("B_background", &BField);
 
