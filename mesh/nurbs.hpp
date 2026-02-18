@@ -51,7 +51,7 @@ protected:
    /// Number of elements, defined by distinct knots.
    int NumOfElements;
 
-   /// Stores the values of unique knots. 
+   /// Stores the values of unique knots.
    Vector uknot;
 
    /// Stores the unique knot multiplicities.
