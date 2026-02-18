@@ -327,6 +327,10 @@ void ParL2FaceRestriction::DoubleValuedConformingMult(
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
    const int ne_shared = nsdofs / elem_dofs;
    const int nedof = elem_dofs;
+   // Note: the shape of face_nbr_data, as determined by
+   // ParFiniteElementSpace::ExchangeFaceNbrData, is (elem_dofs, vdim,
+   // ne_shared), independent of the ordering (byNODES or byVDIM) of the finite
+   // element space.
    auto d_x_shared = Reshape(face_nbr_data.Read(), elem_dofs, vd, ne_shared);
    auto d_y = Reshape(y.Write(), nface_dofs, vd, 2, nf);
    mfem::forall(nfdofs, [=] MFEM_HOST_DEVICE (int i)
