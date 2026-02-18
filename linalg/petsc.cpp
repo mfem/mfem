@@ -42,6 +42,9 @@
 #define PetscContainerSetCtxDestroy(A,B) PetscContainerSetUserDestroy(A,B)
 typedef PetscErrorCode (PetscCtxDestroyFn)(void**);
 #endif
+#if PETSC_VERSION_LT(3,24,0)
+typedef PetscErrorCode KSPMonitorFn(KSP,PetscInt,PetscReal,void*);
+#endif
 
 #include <fstream>
 #include <iomanip>
@@ -2485,7 +2488,6 @@ void PetscSolver::SetPrintLevel(int plev)
    {
       // there are many other options, see the function KSPSetFromOptions() in
       // src/ksp/ksp/interface/itcl.c
-      typedef PetscErrorCode (*myMonitor)(KSP,PetscInt,PetscReal,void*);
       KSP ksp = (KSP)obj;
       if (plev >= 0)
       {
@@ -2494,9 +2496,9 @@ void PetscSolver::SetPrintLevel(int plev)
       if (plev == 1)
       {
 #if PETSC_VERSION_LT(3,15,0)
-         ierr = KSPMonitorSet(ksp,(myMonitor)KSPMonitorDefault,vf,
+         ierr = KSPMonitorSet(ksp,(KSPMonitorFn *)KSPMonitorDefault,vf,
 #else
-         ierr = KSPMonitorSet(ksp,(myMonitor)KSPMonitorResidual,vf,
+         ierr = KSPMonitorSet(ksp,(KSPMonitorFn *)KSPMonitorResidual,vf,
 #endif
                               (PetscCtxDestroyFn *)PetscViewerAndFormatDestroy);
          PCHKERRQ(ksp,ierr);
@@ -2504,7 +2506,7 @@ void PetscSolver::SetPrintLevel(int plev)
       else if (plev > 1)
       {
          ierr = KSPSetComputeSingularValues(ksp,PETSC_TRUE); PCHKERRQ(ksp,ierr);
-         ierr = KSPMonitorSet(ksp,(myMonitor)KSPMonitorSingularValue,vf,
+         ierr = KSPMonitorSet(ksp,(KSPMonitorFn *)KSPMonitorSingularValue,vf,
                               (PetscCtxDestroyFn *)PetscViewerAndFormatDestroy);
          PCHKERRQ(ksp,ierr);
          if (plev > 2)
@@ -2512,9 +2514,9 @@ void PetscSolver::SetPrintLevel(int plev)
             ierr = PetscViewerAndFormatCreate(viewer,PETSC_VIEWER_DEFAULT,&vf);
             PCHKERRQ(viewer,ierr);
 #if PETSC_VERSION_LT(3,15,0)
-            ierr = KSPMonitorSet(ksp,(myMonitor)KSPMonitorTrueResidualNorm,vf,
+            ierr = KSPMonitorSet(ksp,(KSPMonitorFn *)KSPMonitorTrueResidualNorm,vf,
 #else
-            ierr = KSPMonitorSet(ksp,(myMonitor)KSPMonitorTrueResidual,vf,
+            ierr = KSPMonitorSet(ksp,(KSPMonitorFn *)KSPMonitorTrueResidual,vf,
 #endif
                                  (PetscCtxDestroyFn *)PetscViewerAndFormatDestroy);
             PCHKERRQ(ksp,ierr);
