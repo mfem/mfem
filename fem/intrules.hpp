@@ -329,7 +329,7 @@ public:
 
    /// @brief Construct a rule for each patch, using a fixed 1D rule for each
    /// individual knotvector.
-   NURBSMeshRules(const Mesh &mesh, const SplineIntegrationRule splineRule);
+   NURBSMeshRules(const Mesh &mesh, const SplineIntegrationRule &splineRule);
 
    /// Returns a rule for the element.
    IntegrationRule &GetElementRule(const int elem, const int patch,

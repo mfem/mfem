@@ -1957,7 +1957,7 @@ IntegrationRule *IntegrationRules::CubeIntegrationRule(int Order)
 }
 
 NURBSMeshRules::NURBSMeshRules(const Mesh &mesh,
-                               const SplineIntegrationRule splineRule)
+                               const SplineIntegrationRule &splineRule)
    : npatches(mesh.NURBSext->GetNP()), dim(mesh.Dimension())
 {
    patchRules1D.SetSize(npatches, dim);

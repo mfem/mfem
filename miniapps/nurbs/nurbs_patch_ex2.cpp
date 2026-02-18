@@ -108,8 +108,7 @@ int main(int argc, char *argv[])
    FiniteElementCollection * fec = mesh.GetNodes()->OwnFEC();
    cout << "fec order = " << fec->GetOrder() << endl;
 
-   FiniteElementSpace fespace = FiniteElementSpace(&mesh, fec,
-                                                   dim, Ordering::byVDIM);
+   FiniteElementSpace fespace(&mesh, fec, dim, Ordering::byVDIM);
    cout << "Finite Element Collection: " << fec->Name() << endl;
    const int ndof = fespace.GetTrueVSize();
    cout << "Number of finite element unknowns: " << ndof << endl;

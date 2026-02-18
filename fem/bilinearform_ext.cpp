@@ -414,8 +414,6 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
    {
       if (patchwise)
       {
-         MFEM_VERIFY(a->FESpace()->GetNURBSext(),
-                     "Requires a NURBS FE space");
          integ.AssembleDiagonalNURBSPA(d);
       }
       else
