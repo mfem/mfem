@@ -155,14 +155,14 @@ void SolveNewtonBisection_impl_aug(const real_t* x0, real_t* x0_bar,
                                    real_t* x, real_t* x_bar)
 {
     SolveNewtonBisection_impl<f>(x0, p, settings, x);
-    // No tape (checkpoints) are needed from this function, so no return here.
+    std::cout << "augmented forward, x = " << *x << std::endl;
 }
 
 // Change the residual function to return-by-reference so that there is a
 // slot to provide the downstream cotangent (ie the shadow for y)
 // in the reverse mode call.
 template<auto f, typename T>
-void wrapper(real_t x, T p, real_t& y)
+void wrapper(real_t x, T& p, real_t& y)
 {
     y = f(x, p);
 }
@@ -174,9 +174,16 @@ void SolveNewtonBisection_impl_rev(const real_t* x0, real_t* x0_bar,
                                    real_t* x, real_t* x_bar)
 {
     real_t drdx = __enzyme_fwddiff<real_t>((void*)+f, enzyme_dup, *x, 1.0, enzyme_const, *p);
+    std::cout << "reverse pass" << std::endl;
+    std::cout << "x = " << *x << std::endl;
+    std::cout << "x from tape = " << *x << std::endl;
+    std::cout << "drdx = " << drdx << std::endl;
     real_t lambda = -(*x_bar / drdx);
+    std::cout << "lambda = " << lambda << std::endl;
     real_t r;
-    *p_bar = __enzyme_autodiff<T>((void*)wrapper<f, T>, enzyme_const, *x, enzyme_out, *p, enzyme_dupnoneed, &r, &lambda);
+    __enzyme_autodiff<void>((void*)wrapper<f, T>, enzyme_const, *x, enzyme_dup, p, p_bar, enzyme_dupnoneed, &r, &lambda);
+
+    std::cout << "p_bar = " << *p_bar << std::endl;
 
     // TODO: Make enzyme treat these as enzyme_const
     // The solution has no sensitivity to these parameters.

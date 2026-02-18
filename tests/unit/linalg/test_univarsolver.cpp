@@ -162,7 +162,7 @@ real_t norm_inf(tensor<real_t, dim, dim> A) {
   return maxval;
 }
 
-void ComputeStressRef(J2Plasticity* material, tensor<real_t, 3, 3> dudxi, 
+void ComputeStressRef(const J2Plasticity* material, tensor<real_t, 3, 3> dudxi, 
                       J2Plasticity::PackedInternalState Q, 
                       tensor<real_t, 3, 3> J, real_t w,
                       tensor<real_t, 3, 3>& sigma)
@@ -254,25 +254,27 @@ real_t sqrt_res(real_t x, real_t p)
 
 __attribute__((used))
 void* __enzyme_register_gradient_solver[3] = {
-  (void*)SolveNewtonBisection_impl<sqrt_res, real_t>,
-  (void*)SolveNewtonBisection_impl_aug<sqrt_res, real_t>,
-  (void*)SolveNewtonBisection_impl_rev<sqrt_res, real_t>
+  (void*)SolveNewtonBisection_impl<nthroot_res, tuple<real_t, real_t>>,
+  (void*)SolveNewtonBisection_impl_aug<nthroot_res, tuple<real_t, real_t>>,
+  (void*)SolveNewtonBisection_impl_rev<nthroot_res, tuple<real_t, real_t>>
 };
 
 real_t mysqrt(real_t x)
 {
   real_t x0 = x;
+  real_t index = 2.0;
   SolverSettings settings{.bounds = {.lower = 0, .upper = 10.0}};
-  return SolveNewtonBisection<sqrt_res, real_t>(x0, x, settings);
+  return SolveNewtonBisection<nthroot_res>(x0, make_tuple(index, x), settings);
 }
 
 TEST_CASE("Univariate solver reverse mode", "[univar]")
 {
   real_t x = 2.0;
   real_t y = mysqrt(x);
-  std::cout << "x = " << x << " sqrt(x) = " << y << "\n";
+  std::cout << "x = " << x << " sqrt(x) = " << y << std::endl;
   REQUIRE(y == MFEM_Approx(M_SQRT2, 0.0, 1e-8));
 
+  std::cout << "Computing derivative" << std::endl;
   real_t dydx = __enzyme_autodiff<real_t>((void*)mysqrt, enzyme_out, x);
   REQUIRE(dydx == MFEM_Approx(0.5/std::sqrt(2.0)));
 }
