@@ -513,7 +513,7 @@ int main(int argc, char *argv[])
 
    if (myid == 0)
    {
-      std::cout << "Attributes" << endl;
+      std::cout << "Setting up boundary attributes" << endl;
    }
 
    if (pmesh.bdr_attributes.Size())
@@ -527,21 +527,21 @@ int main(int argc, char *argv[])
       negone_bdr = 0;
       if (prob == 4)
       {
-         one_bdr[1] = 1;
-         negone_bdr[2] = 1;
-      }
-      else
-      {
          one_bdr[232-1] = 1;
          negone_bdr[231-1] = 1;
       }
+      else
+      {
+         one_bdr[1] = 1;
+         negone_bdr[2] = 1;      
+      }
    }
+
 
    if (myid == 0)
    {
-      std::cout << "Attributes 2" << endl;
+      std::cout << "Setting up boundary conditions" << endl;
    }
-
    // Set up bdr conditions
    // shift the ess_tdofs
    for (int j = 0; j < ess_tdof_list.Size(); j++)
@@ -576,51 +576,66 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
+   OperatorPtr Ah;
+   Vector X,B;
+   a->FormLinearSystem(ess_tdof_list,x,Ah, X,B);
+
    if (myid == 0)
    {
       std::cout << "Assembly finished" << endl;
    }
 
-   OperatorPtr Ah;
-   Vector X,B;
-   a->FormLinearSystem(ess_tdof_list,x,Ah, X,B);
-
    ComplexOperator * Ahc = Ah.As<ComplexOperator>();
 
    BlockOperator * BlockA_r = dynamic_cast<BlockOperator *>(&Ahc->real());
 
-Array<ParFiniteElementSpace *> prec_fes;
-      if (static_cond)
-      {
-         a->GetTraceFESpaces(prec_fes);
-      }
-      else
-      {
-         prec_fes = trial_fes;
-      }
-      Solver * cprec = nullptr;
-      if (pmg)
-      {
+   Array<ParFiniteElementSpace *> prec_fes;
+   if (static_cond)
+   {
+      a->GetTraceFESpaces(prec_fes);
+   }
+   else
+   {
+      prec_fes = trial_fes;
+   }
+   Solver * cprec = nullptr;
+   if (pmg)
+   {
 #ifdef MFEM_USE_COMPLEX_MUMPS
-         bool mumps_coarse_solver = false;
+      bool mumps_coarse_solver = true;
 #else
-         bool mumps_coarse_solver = false;
+      bool mumps_coarse_solver = false;
 #endif
-         cprec = new ComplexPRefinementMultigrid(prec_fes, *Ahc, mumps_coarse_solver);
-      }
-      else
+      std::vector<Array<int>> ess_bdr_marker(prec_fes.Size());
+      for (int b = 0; b<prec_fes.Size(); b++)
       {
-         BlockDiagonalPreconditioner * real_prec = new BlockDiagonalPreconditioner(
-            BlockA_r->RowOffsets());
-         real_prec->owns_blocks = 1;
-         for (int i = 0; i<BlockA_r->NumRowBlocks(); i++)
+         if (pmesh.bdr_attributes.Size())
          {
-            auto prec = MakeFESpaceDefaultSolver(prec_fes[i],0);
-            prec->SetOperator(BlockA_r->GetBlock(i,i));
-            real_prec->SetDiagonalBlock(i,prec);
+            ess_bdr_marker[b].SetSize(pmesh.bdr_attributes.Max());
+            if (b == 2) // hatE
+            {
+               ess_bdr_marker[b] = ess_bdr;
+            }
+            else
+            {
+               ess_bdr_marker[b] = 0;
+            }
          }
-         cprec = new ComplexPreconditioner(real_prec, true);
       }
+      cprec = new ComplexPRefinementMultigrid(prec_fes, ess_bdr_marker, *Ahc, mumps_coarse_solver);
+   }
+   else
+   {
+      BlockDiagonalPreconditioner * real_prec = new BlockDiagonalPreconditioner(BlockA_r->RowOffsets());
+      real_prec->owns_blocks = 1;
+      for (int i = 0; i<BlockA_r->NumRowBlocks(); i++)
+      {
+         auto prec = MakeFESpaceDefaultSolver(prec_fes[i],0);
+         prec->SetOperator(BlockA_r->GetBlock(i,i));
+         real_prec->SetDiagonalBlock(i,prec);
+      }
+      cprec = new ComplexPreconditioner(real_prec, true);
+   }
 
    if (myid == 0)
    {
