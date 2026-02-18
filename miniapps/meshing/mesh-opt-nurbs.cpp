@@ -10,19 +10,18 @@
 // CONTRIBUTING.md for details.
 //
 //    ------------------------------------------------------------------
-//     Optimizing nurbs meshes in parallel
+//      Fitting of Selected Mesh Nodes to Specified Physical Positions
 //    ------------------------------------------------------------------
 //
+// This example fits a selected set of the mesh nodes to given physical
+// positions while maintaining a valid mesh with good quality.
 //
-// Simple mesh optimization
-//   make pmesh-opt-nurbs -j4 && mpirun -np 10 pmesh-opt-nurbs -m nurbs-square-disc.mesh -rs 1
+//   Simple mesh optimization
+//   make mesh-opt-nurbs -j4 && mesh-opt-nurbs -m bricks2D.mesh  -mod-bndr-attr
+//   make mesh-opt-nurbs -j4 && mesh-opt-nurbs -m schwarz2D.mesh -mod-bndr-attr
 
-// make pmesh-opt-nurbs -j4 && mpirun -np 10 pmesh-opt-nurbs -m nurbs-aniso.mesh -rs 0
-
-// glvis -np 10 -m optimized
-
-// mesh untangling
-// make pmesh-opt-nurbs -j4 && mpirun -np 4 pmesh-opt-nurbs -m invalid.mesh -mod-bndr-attr  -mid 4 -btype 1
+//   Untangling
+//   make mesh-opt-nurbs -j4 && mesh-opt-nurbs -m invalid.mesh -mod-bndr-attr -mid 4 -btype 1
 
 
 #include "mfem.hpp"
@@ -34,13 +33,15 @@ using namespace std;
 char vishost[] = "localhost";
 int  wsize     = 350;
 
-void ModifyBoundaryAttributesForNodeMovement(ParMesh *pmesh, ParGridFunction &x)
+void ModifyBoundaryAttributesForNodeMovement(Mesh *mesh, GridFunction &x)
 {
-   const int dim = pmesh->Dimension();
-   for (int i = 0; i < pmesh->GetNBE(); i++)
+   const int dim = mesh->Dimension();
+   const FiniteElementSpace *nodal_fes = mesh->GetNodalFESpace();
+   MFEM_VERIFY(nodal_fes != nullptr, "Mesh has no nodal finite element space.");
+   for (int i = 0; i < mesh->GetNBE(); i++)
    {
       mfem::Array<int> dofs;
-      pmesh->GetNodalFESpace()->GetBdrElementDofs(i, dofs);
+      nodal_fes->GetBdrElementDofs(i, dofs);
       mfem::Vector bdr_xy_data;
       mfem::Vector dof_xyz(dim);
       mfem::Vector dof_xyz_compare;
@@ -49,7 +50,7 @@ void ModifyBoundaryAttributesForNodeMovement(ParMesh *pmesh, ParGridFunction &x)
       {
          for (int d = 0; d < dim; d++)
          {
-            dof_xyz(d) = x(pmesh->GetNodalFESpace()->DofToVDof(dofs[j], d));
+            dof_xyz(d) = x(nodal_fes->DofToVDof(dofs[j], d));
          }
          if (j == 0)
          {
@@ -71,34 +72,34 @@ void ModifyBoundaryAttributesForNodeMovement(ParMesh *pmesh, ParGridFunction &x)
       {
          if (xyz_check[0] == dofs.Size())
          {
-            pmesh->GetNodalFESpace()->GetMesh()->SetBdrAttribute(i, 1);
+            mesh->SetBdrAttribute(i, 1);
          }
          else if (xyz_check[1] == dofs.Size())
          {
-            pmesh->GetNodalFESpace()->GetMesh()->SetBdrAttribute(i, 2);
+            mesh->SetBdrAttribute(i, 2);
          }
          else
          {
-            pmesh->GetNodalFESpace()->GetMesh()->SetBdrAttribute(i, 4);
+            mesh->SetBdrAttribute(i, 4);
          }
       }
       else if (dim == 3)
       {
          if (xyz_check[0] == dofs.Size())
          {
-            pmesh->GetNodalFESpace()->GetMesh()->SetBdrAttribute(i, 1);
+            mesh->SetBdrAttribute(i, 1);
          }
          else if (xyz_check[1] == dofs.Size())
          {
-            pmesh->GetNodalFESpace()->GetMesh()->SetBdrAttribute(i, 2);
+            mesh->SetBdrAttribute(i, 2);
          }
          else if (xyz_check[2] == dofs.Size())
          {
-            pmesh->GetNodalFESpace()->GetMesh()->SetBdrAttribute(i, 3);
+            mesh->SetBdrAttribute(i, 3);
          }
          else
          {
-            pmesh->GetNodalFESpace()->GetMesh()->SetBdrAttribute(i, 4);
+            mesh->SetBdrAttribute(i, 4);
          }
       }
    }
@@ -108,10 +109,6 @@ IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
 
 int main (int argc, char *argv[])
 {
-   // Initialize MPI.
-   Mpi::Init();
-   int myid = Mpi::WorldRank();
-
    const char *mesh_file = "square01.mesh";
    int rs_levels     = 0;
    int mesh_poly_deg = 2;
@@ -163,66 +160,61 @@ int main (int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (myid == 0) { args.PrintUsage(cout); }
+      args.PrintUsage(cout);
       return 1;
    }
-   if (myid == 0) { args.PrintOptions(cout); }
+   args.PrintOptions(cout);
 
    if (use_wcu_metric && barrier_type == 0 && worst_case_type == 0)
    {
       worst_case_type = 1; // Beta
-      if (myid == 0)
-      {
-         cout << "-wcu enabled with -btype 0 and -wctype 0; defaulting to -wctype 1 (Beta)."
-              << endl;
-      }
+      cout << "-wcu enabled with -btype 0 and -wctype 0; defaulting to -wctype 1 (Beta)."
+           << endl;
    }
 
    // Read and refine the mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
-   ParMesh pmesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
-   const int dim = pmesh.Dimension();
+   const int dim = mesh->Dimension();
 
    {
       ostringstream mesh_name, sol_name;
-      mesh_name << "perturbed." << setfill('0') << setw(6) << myid;
+      mesh_name << "perturbed.mesh";
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh.Print(mesh_ofs);
+      mesh->Print(mesh_ofs);
    }
 
-   ParGridFunction *coord = dynamic_cast<ParGridFunction*>(pmesh.GetNodes());
-   const ParFiniteElementSpace *pfes_mesh = coord->ParFESpace();
-   ParGridFunction x0(*coord);
-   ParFiniteElementSpace *pfes = const_cast<ParFiniteElementSpace*>(pfes_mesh);
+   GridFunction *coord = dynamic_cast<GridFunction*>(mesh->GetNodes());
+   MFEM_VERIFY(coord != nullptr, "Mesh has no nodes (expected a NURBS/high-order mesh).");
+   const FiniteElementSpace *fes_mesh = coord->FESpace();
+   MFEM_VERIFY(fes_mesh != nullptr, "Mesh nodes have no finite element space.");
+   GridFunction x0(*coord);
+   FiniteElementSpace *fes = const_cast<FiniteElementSpace*>(fes_mesh);
 
    if (mod_bndr_attr)
    {
-      ModifyBoundaryAttributesForNodeMovement(&pmesh, *coord);
-      pmesh.SetAttributes();
+      ModifyBoundaryAttributesForNodeMovement(mesh, *coord);
+      mesh->SetAttributes();
    }
 
-
-   NURBSExtension *nurbs = pmesh.NURBSext;
    Array<int> vdofs;
    int n = 0;
-   for (int i = 0; i < pmesh.GetNBE(); i++)
+   for (int i = 0; i < mesh->GetNBE(); i++)
    {
-      const int nd = pfes_mesh->GetBE(i)->GetDof();
-      const int attr = pmesh.GetBdrElement(i)->GetAttribute();
+      const int nd = fes_mesh->GetBE(i)->GetDof();
+      const int attr = mesh->GetBdrElement(i)->GetAttribute();
       if (attr == 1 || attr == 2 || attr == dim) { n += nd; }
       if (attr >= dim+1) { n += nd * dim; }
    }
    Array<int> ess_vdofs(n);
    n = 0;
-   for (int i = 0; i < pmesh.GetNBE(); i++)
+   for (int i = 0; i < mesh->GetNBE(); i++)
    {
-      const int nd = pfes_mesh->GetBE(i)->GetDof();
-      const int attr = pmesh.GetBdrElement(i)->GetAttribute();
-      pfes_mesh->GetBdrElementVDofs(i, vdofs);
+      const int nd = fes_mesh->GetBE(i)->GetDof();
+      const int attr = mesh->GetBdrElement(i)->GetAttribute();
+      fes_mesh->GetBdrElementVDofs(i, vdofs);
       if (attr == 1) // Fix x components.
       {
          for (int j = 0; j < nd; j++)
@@ -247,24 +239,19 @@ int main (int argc, char *argv[])
 
    IntegrationRules *irules = &IntRulesLo;
    real_t min_detJ = infinity();
-   const int NE = pmesh.GetNE();
+   const int NE = mesh->GetNE();
    for (int i = 0; i < NE; i++)
    {
       const IntegrationRule &ir =
-         irules->Get(pfes_mesh->GetFE(i)->GetGeomType(), quad_order);
-      ElementTransformation *transf = pmesh.GetElementTransformation(i);
+         irules->Get(fes_mesh->GetFE(i)->GetGeomType(), quad_order);
+      ElementTransformation *transf = mesh->GetElementTransformation(i);
       for (int j = 0; j < ir.GetNPoints(); j++)
       {
          transf->SetIntPoint(&ir.IntPoint(j));
          min_detJ = min(min_detJ, transf->Jacobian().Det());
       }
    }
-   real_t minJ0;
-   MPI_Allreduce(&min_detJ, &minJ0, 1, MPITypeMap<real_t>::mpi_type,
-                 MPI_MIN, MPI_COMM_WORLD);
-   min_detJ = minJ0;
-   if (myid == 0)
-   { cout << "Minimum det(J) of the original mesh is " << min_detJ << endl; }
+   cout << "Minimum det(J) of the original mesh is " << min_detJ << endl;
 
 
    // TMOP setup.
@@ -295,7 +282,7 @@ int main (int argc, char *argv[])
          // case 211: metric = new TMOP_Metric_211; break;
          // case 252: metric = new TMOP_Metric_252(min_detJ); break;
          default:
-            if (myid == 0) { cout << "Unknown metric_id: " << metric_id << endl; }
+            cout << "Unknown metric_id: " << metric_id << endl;
             return 3;
       }
    }
@@ -353,30 +340,30 @@ int main (int argc, char *argv[])
                                        : metric;
 
    TargetConstructor target(TargetConstructor::IDEAL_SHAPE_UNIT_SIZE,
-                            pfes_mesh->GetComm());
+                            MPI_COMM_WORLD);
    auto integ = new TMOP_Integrator(metric_to_use, &target, nullptr);
 
    if (use_wcu_metric || barrier_type > 0 || worst_case_type > 0)
    {
-      integ->ComputeUntangleMetricQuantiles(*coord, *pfes_mesh);
+      integ->ComputeUntangleMetricQuantiles(*coord, *fes_mesh);
    }
 
    ConstantCoefficient lim_coeff(lim_const);
    if (lim_const != 0.0) { integ->EnableLimiting(x0, lim_coeff); }
 
    // Linear solver.
-   MINRESSolver minres(pfes_mesh->GetComm());
+   MINRESSolver minres;
    minres.SetMaxIter(100);
    minres.SetRelTol(1e-12);
    minres.SetAbsTol(0.0);
 
    // Nonlinear solver.
-   ParNonlinearForm a(pfes);
+   NonlinearForm a(fes);
    a.SetEssentialVDofs(ess_vdofs);
    a.AddDomainIntegrator(integ);
    const IntegrationRule &ir =
-      IntRules.Get(pmesh.GetTypicalElementGeometry(), quad_order);
-   TMOPNewtonSolver solver(pfes_mesh->GetComm(), ir, 0);
+      IntRules.Get(mesh->GetTypicalElementGeometry(), quad_order);
+   TMOPNewtonSolver solver(ir, 0);
    solver.SetOperator(a);
    solver.SetPreconditioner(minres);
    solver.SetPrintLevel(1);
@@ -385,32 +372,31 @@ int main (int argc, char *argv[])
    solver.SetAbsTol(0.0);
    solver.SetMinDetPtr(&min_detJ);
 
-   real_t init_energy = a.GetParGridFunctionEnergy(*coord);
+   real_t init_energy = a.GetGridFunctionEnergy(*coord);
    std::cout << "Initial energy: " << init_energy << std::endl;
 
    // Solve.
    Vector b(0);
-   coord->SetTrueVector();
-   solver.Mult(b, coord->GetTrueVector());
-   coord->SetFromTrueVector();
+   solver.Mult(b, *coord);
 
    {
       ostringstream mesh_name, sol_name;
-      mesh_name << "optimized." << setfill('0') << setw(6) << myid;
+      mesh_name << "optimized.mesh";
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh.Print(mesh_ofs);
+      mesh->Print(mesh_ofs);
    }
 
    if (glvis)
    {
       socketstream vis2;
-      common::VisualizeMesh(vis2, "localhost", 19916, pmesh, "Final mesh",
+      common::VisualizeMesh(vis2, "localhost", 19916, *mesh, "Final mesh",
                             400, 0, 400, 400);
    }
 
    delete metric;
    delete untangler_metric;
+   delete mesh;
    return 0;
 }
