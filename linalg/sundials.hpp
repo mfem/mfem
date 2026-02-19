@@ -716,9 +716,130 @@ public:
 // Interface to ARKode's ARKStep module -- Additive Runge-Kutta methods
 // ---------------------------------------------------------------------------
 
+// Interface for defining ODE systems to be evolved using ARKStepSolver:
+//
+//  1)   du/dt = inv(M) f(u,t) ("MFEM" form)
+//  2) M dy/dt = f(u,t)        ("mass" form)
+//
+// where f(u,t) might be additively split, i.e., f(u,t) = f1(u,t) + f2(u,t)
+class ARKStepODE
+{
+
+public:
+
+   // the size of the ODE system
+   virtual int ARKSize() const = 0;
+
+   // return if the ODE system is of the form M du/dt = f(u,t), note the MFEM
+   // default is to use the form du/dt = int(M) f(u,t)
+   virtual bool ARKInMassForm() const { return false; };
+
+   // these flags are used by ARKStepSolver for switching between RK and ARK methods
+   enum ARKEvalMode
+   {  NORMAL,          // evaluate f(u,t)
+      ADDITIVE_TERM_1, // evaluate f1(u,t)
+      ADDITIVE_TERM_2  // evaluate f2(u,t)
+   };
+   virtual void ARKSetEvalMode(const ARKEvalMode new_eval_mode) {}
+
+   // evaluate either f(u,t) (mass form) or inv(M(t)) f(u,t) (MFEM form),
+   // which is necessary for solving ODEs with ERK or IMEX
+   virtual void ARKEvaluateRHS(const Vector &u, const real_t t, Vector &result) const
+   {
+      mfem_error("This function must be specified for ERK or IMEX methods.");
+   }
+
+  /** setup linear system for solving [M(t) - gamma Jf(u)] dk = f(u) - M(t) k,
+      which is necessary for solving ODEs with DIRK or IMEX methods
+      @param[in]  u     The state at which A(@a u,t) should be evaluated.
+      @param[in]  t     The time at which A(u,@a t) should be evaluated.
+      @param[in]  v     The value of inv(M) f(u,t) or f(u,t) for depending on form.
+      @param[in]  jok   Flag indicating if the Jacobian should be updated.
+      @param[out] jcur  Flag to signal if the Jacobian was updated.
+      @param[in]  gamma The scaled time step value.    */
+   virtual int ARKImplicitSetup(const Vector &u, const real_t t, const Vector &v,
+                                int jok, int *jcur, real_t gamma)
+   {
+      mfem_error("This function must be specified for DIRK or IMEX methods.");
+   }
+
+  /** solve for dk in [M - gamma Jf(u)] dk = r, where r is either
+        inv(M) f(u,t) - k       (MFEM form)
+        f(u,t) - M k f(u) - M k (mass form)
+      when using DIRK or IMEX methods
+      @param[in]      r   inv(M) f(u,t) - k or f(u,t) - M k, depending on form.
+      @param[in,out]  dk  On input, the initial guess. On output, the solution.
+      @param[in]      tol Linear solve tolerance. */
+   virtual int ARKImplicitSolve(const Vector &r, Vector &dk, real_t tol)
+   {
+      mfem_error("This function must be specified for DIRK or IMEX methods.");
+   }
+
+  /** for mass form ODEs using an MFEM mass solver, setup the mass linear
+      system M(t) x = b
+      @param[in]  t  The time at which M(@a t) should be evaluated. */
+   virtual int ARKMassSetup(const real_t t)
+   {
+      mfem_error("This function must be specified to use MFEM mass solvers for mass form ODEs.");
+   }
+
+  /** for mass form ODEs using an MFEM mass solver, solve for x in M(t) x = b
+      @param[in]      b   The linear system right-hand side.
+      @param[in,out]  x   On input, the initial guess. On output, the solution.
+      @param[in]      tol Linear solve tolerance. */
+   virtual int ARKMassSolve(const Vector &b, Vector &x, real_t tol)
+   {
+      mfem_error("This function must be specified to use MFEM mass solver for mass form ODEs.");
+   }
+
+  /**  for mass form ODEs using an MFEM mass solver, evaluate M(t) x
+       @param[in]   x The vector to multiply.
+       @param[out]  v The result of the matrix-vector product. */
+   virtual int ARKMassMult(const Vector &x, Vector &v)
+   {
+      mfem_error("This function must be specified to use MFEM mass solver for mass form ODEs.");
+   }
+
+  /**  for mass form ODEs using a SUNDIALS mass solver, evaluate M(t) x
+       @param[in]   x The vector to multiply.
+       @param[in]   t The time at which M(@a t) should be evaluated.
+       @param[out]  v The result of the matrix-vector product. */
+   virtual int ARKMassMult(const Vector &x, const real_t t, Vector &v)
+   {
+      mfem_error("This function must be specified to use SUNDIALS mass solver for mass form ODEs.");
+   }
+
+};
+
 /// Interface to ARKode's ARKStep module -- additive Runge-Kutta methods.
 class ARKStepSolver : public ODESolver, public SundialsSolver
 {
+
+   // Wrapper class to provide backwards compatability with user code that
+   // derives from TimeDependentOperator instead of ARKStepODE
+   class TimeDependentOperatorWrapper : public ARKStepODE
+   {
+      TimeDependentOperator *tdo;
+
+   public:
+
+      TimeDependentOperatorWrapper(TimeDependentOperator *f);
+
+      int ARKSize() const override;
+      bool ARKInMassForm() const override;
+      void ARKSetEvalMode(const ARKEvalMode new_eval_mode) override;
+      void ARKEvaluateRHS(const Vector &u, const real_t t, Vector &result) const override;
+      int ARKImplicitSetup(const Vector &u, const real_t t, const Vector &v,
+         int jok, int *jcur, real_t gamma) override;
+      int ARKImplicitSolve(const Vector &r, Vector &dk, real_t tol) override;
+      int ARKMassSetup(const real_t t) override;
+      int ARKMassSolve(const Vector &b, Vector &x, real_t tol) override;
+      int ARKMassMult(const Vector &x, Vector &v) override;
+      int ARKMassMult(const Vector &x, const real_t t, Vector &v) override;
+
+   };
+
+
 public:
    /// Types of ARKODE solvers.
    enum Type
@@ -732,6 +853,8 @@ protected:
    Type rk_type;      ///< Runge-Kutta type.
    int step_mode;     ///< ARKStep step mode (ARK_NORMAL or ARK_ONE_STEP).
    bool use_implicit; ///< True for implicit or imex integration.
+   ARKStepODE* f_arkstep;
+   std::unique_ptr<TimeDependentOperatorWrapper> f_tdo; // for backwards compatibility
 
    /** @name Wrappers to compute the ODE RHS functions.
        RHS1 is explicit RHS and RHS2 the implicit RHS for IMEX integration. When
@@ -794,14 +917,19 @@ public:
        then ARKStepReInit() will be called in the next call to Step(). If the
        problem size has changed, the ARKStep memory is freed and realloced
        for the new problem size. */
-   /** @param[in] f_ The TimeDependentOperator that defines the ODE system
+   /** @param[in] f_ The ARKStepODE that defines the ODE system
 
        @note All other methods must be called after Init().
 
        @note If this method is called a second time with a different problem
        size, then any non-default user-set options will be lost and will need
        to be set again. */
-   void Init(TimeDependentOperator &f_) override;
+   void Init(ARKStepODE *f_ark_);
+
+   // This method is provided for backwards compatibility with classes that
+   // derive TimeDependentOperator instead of ARKStepODE; however, those classes
+   // should be migrated.
+   MFEM_DEPRECATED void Init(TimeDependentOperator &f_) override;
 
    /// Integrate the ODE with ARKode using the specified step mode.
    /**
