@@ -163,7 +163,7 @@ private:
    FindPointsGSLIB &E_finder;
 
 protected:
-   /** Compute neutralizing constant and initialize RHS with neutralizing contribution.
+   /** Compute neutralizing constant and initialize with the constant.
        Returns a reference to the precomputed neutralizing ParLinearForm. */
    const ParLinearForm &ComputeNeutralizingRHS(ParFiniteElementSpace *pfes,
                                                const ParticleVector &Q,
