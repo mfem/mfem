@@ -389,11 +389,7 @@ int main(int argc, char *argv[])
       if (Mpi::Root())
       {
          mfem::out << "Step: " << step << " | Time: " << t;
-         // Print timing information every 10 steps
-         if (step % 10 == 0)
-         {
             mfem::out << " | Time per step: " << sw.RealTime() / step;
-         }
          mfem::out << endl;
       }
       // Output particle data to CSV
