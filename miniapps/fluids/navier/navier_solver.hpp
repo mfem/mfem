@@ -182,6 +182,8 @@ public:
     */
    void Step(real_t &time, real_t dt, int cur_step, bool provisional = false);
 
+   void Step(Vector &up, real_t &t, real_t &dt);
+
    /// Return a pointer to the provisional velocity ParGridFunction.
    ParGridFunction *GetProvisionalVelocity() { return &un_next_gf; }
 
