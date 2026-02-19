@@ -106,7 +106,7 @@ struct J2Plasticity {
     auto Q_new = pack_internal_state(plastic_strain, accumulated_plastic_strain);
     auto stress = s + p * I;
     const real_t dV = det(J)*w;
-    // Question: if I make_tuple as in this comment, I get a segfault in
+    // Question: if I use make_tuple as in this comment, I get a segfault in
     // derivatives of this function. Is this expected?
     // return make_tuple(stress*transpose(invJ)*dV, Q_new);
     return {stress*transpose(invJ)*dV, Q_new};
@@ -140,8 +140,8 @@ struct J2Plasticity {
 // function with an address to specify the custom derivative.
 __attribute__((used))
 void *  __enzyme_register_derivative_newton_bisection_on_j2[2] = {
-  (void*) SolveNewtonBisection_impl<J2PlasticityResidual, J2PlasticityParameters>,
-  (void*) SolveNewtonBisection_impl_fwddiff<J2PlasticityResidual, J2PlasticityParameters>
+  (void*) mfem::internal::SolveNewtonBisection_impl<J2PlasticityResidual, J2PlasticityParameters>,
+  (void*) mfem::internal::SolveNewtonBisection_impl_fwddiff<J2PlasticityResidual, J2PlasticityParameters>
 };
 
 tensor<real_t, 3, 3> ComputeStress(
@@ -169,6 +169,21 @@ void ComputeStressRef(const J2Plasticity* material, tensor<real_t, 3, 3> dudxi,
 {
   sigma = material->stress(dudxi, Q, J, w);
 }
+
+struct StressArgs
+{
+  tensor<real_t, 3, 3> dudxi;
+  J2Plasticity::PackedInternalState Q;
+  tensor<real_t, 3, 3> J;
+  real_t w;
+};
+
+__attribute__((used))
+void* __enzyme_register_gradient_SolveNewtonBisectionJ2[3] = {
+  (void*)mfem::internal::SolveNewtonBisection_impl<J2PlasticityResidual, J2PlasticityParameters>,
+  (void*)mfem::internal::SolveNewtonBisection_impl_aug<J2PlasticityResidual, J2PlasticityParameters>,
+  (void*)mfem::internal::SolveNewtonBisection_impl_rev<J2PlasticityResidual, J2PlasticityParameters>
+};
 
 TEST_CASE("Univariate function solver on qfunction", "[univar]")
 {
@@ -231,12 +246,13 @@ TEST_CASE("Univariate function solver on qfunction", "[univar]")
     //                                   {0.0, 0.0 , 0.0},
     //                                   {0.0, 0.0 , 0.0}}};
     //   tensor<real_t, 3, 3> sigma;
-    //   auto H_bar = __enzyme_autodiff<tensor<real_t, 3, 3>>(
+    //   J2Plasticity material_bar;
+    //   auto input_bar = __enzyme_autodiff<StressArgs>(
     //     (void*)ComputeStressRef, enzyme_const, &material, enzyme_out, H,
-    //     enzyme_const, Q, enzyme_const, J, enzyme_const, w,
+    //     enzyme_out, Q, enzyme_out, J, enzyme_out, w,
     //     enzyme_dup, &sigma, &sigma_bar);
-    //   INFO("H_bar = " << H_bar);
-    //   REQUIRE(norm(H_bar) > 0);
+    //   INFO("H_bar = " << input_bar.dudxi);
+    //   REQUIRE(norm(input_bar.dudxi) > 0);
     // }
 }
 
@@ -254,9 +270,9 @@ real_t sqrt_res(real_t x, real_t p)
 
 __attribute__((used))
 void* __enzyme_register_gradient_solver[3] = {
-  (void*)SolveNewtonBisection_impl<nthroot_res, tuple<real_t, real_t>>,
-  (void*)SolveNewtonBisection_impl_aug<nthroot_res, tuple<real_t, real_t>>,
-  (void*)SolveNewtonBisection_impl_rev<nthroot_res, tuple<real_t, real_t>>
+  (void*)mfem::internal::SolveNewtonBisection_impl<nthroot_res, tuple<real_t, real_t>>,
+  (void*)mfem::internal::SolveNewtonBisection_impl_aug<nthroot_res, tuple<real_t, real_t>>,
+  (void*)mfem::internal::SolveNewtonBisection_impl_rev<nthroot_res, tuple<real_t, real_t>>
 };
 
 real_t mysqrt(real_t x)
