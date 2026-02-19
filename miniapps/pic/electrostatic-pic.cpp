@@ -314,7 +314,7 @@ int main(int argc, char *argv[])
    phi_gf = 0.0; // Initialize phi_gf to zero
    E_gf = 0.0;   // Initialize E_gf to zero
 
-   // 6. Build the grid function updates
+   // 6. Construct the field solver
    FieldSolver field_solver(&phi_fespace, &E_fespace, E_finder, true);
    Ordering::Type ordering_type =
        ctx.ordering == 0 ? Ordering::byNODES : Ordering::byVDIM;
