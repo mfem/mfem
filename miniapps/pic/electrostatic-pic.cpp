@@ -720,7 +720,6 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet &particles,
    {
       // FE space / mesh
       ParFiniteElementSpace *pfes = phi_gf.ParFESpace();
-      ParMesh *pmesh = pfes->GetParMesh();
 
       // Particle data: Q - charges (npt x 1)
       ParticleVector &Q = particles.Field(ParticleMover::CHARGE);
