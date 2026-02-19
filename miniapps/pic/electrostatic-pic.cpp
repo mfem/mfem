@@ -85,7 +85,7 @@ struct PICContext
 
    int nt = 1000;               ///< Number of time steps to run.
    int redist_interval = 5;     ///< Redistribution and update E_gf interval.
-   int output_csv_interval = 1; ///< Interval for outputting CSV data files.
+   int output_csv_interval = 1000; ///< Interval for outputting CSV data files.
 
    bool visualization = true; ///< Enable visualization.
    int visport = 19916;       ///< Port number for visualization server.
