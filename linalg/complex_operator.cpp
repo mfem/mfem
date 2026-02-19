@@ -211,8 +211,8 @@ SparseMatrix * ComplexSparseMatrix::GetSystemMatrix() const
    const int    nnz_i = (I_i)?I_i[nrows]:0;
    const int    nnz   = 2 * (nnz_r + nnz_i);
 
-   int    *I = Memory<int>(this->Height()+1);
-   int    *J = Memory<int>(nnz);
+   int *I = Memory<int>(this->Height() + 1);
+   int *J = Memory<int>(nnz);
    real_t *D = Memory<real_t>(nnz);
 
    const real_t factor = (convention_ == HERMITIAN) ? 1.0 : -1.0;

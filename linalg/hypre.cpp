@@ -127,8 +127,8 @@ template<typename TargetT, typename SourceT>
 static TargetT *DuplicateAs(const SourceT *array, int size,
                             bool cplusplus = true)
 {
-   TargetT *target_array = cplusplus ? (TargetT*) Memory<TargetT>(size)
-                           /*     */ : mfem_hypre_TAlloc_host(TargetT, size);
+   TargetT *target_array = cplusplus ? (TargetT *)Memory<TargetT>(size)
+                           : mfem_hypre_TAlloc_host(TargetT, size);
    for (int i = 0; i < size; i++)
    {
       target_array[i] = array[i];
@@ -817,7 +817,7 @@ static void SyncBackBoolCSR(Table *bool_csr, MemoryIJData &mem_csr)
 #ifndef HYPRE_BIGINT
       bool_csr->GetJMemory().Sync(mem_csr.J);
 #else
-      // No need to sync the J array back to the Table
+      // no need to sync the J array back to the Table
 #endif
    }
 }

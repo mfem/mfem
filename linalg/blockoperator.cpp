@@ -90,7 +90,7 @@ void BlockOperator::Mult(const Vector &x, Vector &y) const
       }
    }
 
-   for (int iRow=0; iRow < nRowBlocks; ++iRow)
+   for (int iRow = 0; iRow < nRowBlocks; ++iRow)
    {
       yblock.GetBlock(iRow).SyncAliasMemory(y);
    }
@@ -123,7 +123,7 @@ void BlockOperator::MultTranspose(const Vector &x, Vector &y) const
       }
    }
 
-   for (int iRow=0; iRow < nColBlocks; ++iRow)
+   for (int iRow = 0; iRow < nColBlocks; ++iRow)
    {
       yblock.GetBlock(iRow).SyncAliasMemory(y);
    }

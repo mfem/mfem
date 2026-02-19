@@ -862,15 +862,15 @@ HypreParMatrix *ParAlgebraicCoarseSpace::GetProlongationHypreParMatrix()
       delete [] requests;
    }
 
-   HYPRE_Int *i_diag = Memory<HYPRE_Int>(lsize+1);
+   HYPRE_Int *i_diag = Memory<HYPRE_Int>(lsize + 1);
    HYPRE_Int *j_diag = Memory<HYPRE_Int>(ltsize);
    int diag_counter;
 
-   HYPRE_Int *i_offd = Memory<HYPRE_Int>(lsize+1);
-   HYPRE_Int *j_offd = Memory<HYPRE_Int>(lsize-ltsize);
+   HYPRE_Int *i_offd = Memory<HYPRE_Int>(lsize + 1);
+   HYPRE_Int *j_offd = Memory<HYPRE_Int>(lsize - ltsize);
    int offd_counter;
 
-   HYPRE_BigInt *cmap   = Memory<HYPRE_BigInt>(lsize-ltsize);
+   HYPRE_BigInt *cmap = Memory<HYPRE_BigInt>(lsize - ltsize);
 
    HYPRE_BigInt *col_starts = tdof_offsets;
    HYPRE_BigInt *row_starts = dof_offsets;

@@ -21,8 +21,8 @@ TEST_CASE("OperatorChebyshevSmoother", "[Chebyshev symmetry]")
       const int cheb_order = 2;
 
       Mesh mesh = Mesh::MakeCartesian3D(4, 4, 4, Element::HEXAHEDRON);
-      FiniteElementCollection *fec = new H1_FECollection(order, 3);
-      FiniteElementSpace fespace(&mesh, fec);
+      std::unique_ptr<FiniteElementCollection> fec(new H1_FECollection(order, 3));
+      FiniteElementSpace fespace(&mesh, fec.get());
       Array<int> ess_bdr(mesh.bdr_attributes.Max());
       ess_bdr = 1;
       Array<int> ess_tdof_list;
@@ -38,9 +38,8 @@ TEST_CASE("OperatorChebyshevSmoother", "[Chebyshev symmetry]")
       Vector diag(fespace.GetTrueVSize());
       aform.AssembleDiagonal(diag);
 
-      Solver* smoother = new OperatorChebyshevSmoother(*opr, diag, ess_tdof_list,
-                                                       cheb_order);
-
+      std::unique_ptr<Solver> smoother(
+         new OperatorChebyshevSmoother(*opr, diag, ess_tdof_list, cheb_order));
       int n = smoother->Width();
       Vector left(n);
       Vector right(n);
@@ -59,8 +58,5 @@ TEST_CASE("OperatorChebyshevSmoother", "[Chebyshev symmetry]")
       double error = fabs(forward_val - transpose_val) / fabs(forward_val);
       CAPTURE(order, error);
       REQUIRE(error < 1.e-13);
-
-      delete smoother;
-      delete fec;
    }
 }

@@ -500,7 +500,7 @@ template<class B, class R> struct reduction_kernel
          }
       }
       // binary tree reduction
-      for (int i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
+      for (auto i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
       {
          MFEM_SYNC_THREAD;
          if (MFEM_THREAD_ID(x) < i)

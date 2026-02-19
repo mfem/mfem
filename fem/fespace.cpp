@@ -1286,7 +1286,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // create the conforming restriction matrix cR
    int *cR_J;
    {
-      int *cR_I = Memory<int>(n_true_dofs+1);
+      int *cR_I = Memory<int>(n_true_dofs + 1);
       real_t *cR_A = Memory<real_t>(n_true_dofs);
       cR_J = Memory<int>(n_true_dofs);
       for (int i = 0; i < n_true_dofs; i++)
