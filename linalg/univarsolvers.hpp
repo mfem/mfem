@@ -28,12 +28,13 @@
 #ifdef MFEM_USE_ENZYME
 
 namespace mfem {
-namespace future {
 
+namespace future {
 /// Representation of bound constraints
 struct Bounds {
   real_t lower, upper;
 };
+
 
 /// Settings for univariate solver
 struct SolverSettings {
@@ -41,8 +42,13 @@ struct SolverSettings {
   real_t residual_rel_tol = 0.0;   ///< Tolerance for convergence check on absolute value of current residual relative to absolute value of residual at initial guess
   Bounds bounds{.lower = -std::numeric_limits<real_t>::infinity(), .upper = std::numeric_limits<real_t>::infinity()}; ///< Bounds on root
 };
+} // namespace future
 
+namespace internal {
 /// @cond DO_NOT_DOCUMENT
+
+using future::SolverSettings;
+
 template <auto f, typename T>
 __attribute__((noinline))
 MFEM_HOST_DEVICE void SolveNewtonBisection_impl(const real_t* x0_ptr, const T* p_ptr, const SolverSettings* settings_ptr, real_t* x_ptr)
@@ -192,6 +198,10 @@ void SolveNewtonBisection_impl_rev(const real_t* x0, real_t* x0_bar,
 }
 
 /// @endcond
+} // namespace internal
+
+
+namespace future {
 
 /**
  * @brief Find the root of a univariate funtion
@@ -199,7 +209,7 @@ void SolveNewtonBisection_impl_rev(const real_t* x0, real_t* x0_bar,
 template<auto f, typename T>
 MFEM_HOST_DEVICE real_t SolveNewtonBisection(real_t x0, T p, SolverSettings settings) {
   real_t x;
-  SolveNewtonBisection_impl<f>(&x0, &p, &settings, &x);
+  internal::SolveNewtonBisection_impl<f>(&x0, &p, &settings, &x);
   return x;
 }
 
