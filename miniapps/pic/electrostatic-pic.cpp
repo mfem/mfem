@@ -329,6 +329,7 @@ int main(int argc, char *argv[])
                                              ctx.m, ctx.q,
                                              ctx.L, ctx.reproduce);
 
+   // 8. Start the main loop
    real_t t = 0;
    real_t dt = ctx.dt;
 
