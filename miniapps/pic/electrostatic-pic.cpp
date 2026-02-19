@@ -333,7 +333,6 @@ int main(int argc, char *argv[])
    real_t t = 0;
    real_t dt = ctx.dt;
 
-   // set up timer
    mfem::StopWatch sw;
    sw.Start();
    for (int step = 1; step <= ctx.nt; step++)
