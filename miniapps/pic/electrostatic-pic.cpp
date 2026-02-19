@@ -43,7 +43,7 @@
 //   2D2V Linear Landau damping test case (Ricketson & Hu, 2025):
 //      mpirun -n 4 ./electrostatic-pic -rdi 1 -npt 409600 -k 0.2855993321 -a 0.05 -nt 200 -nx 32 -ny 32 -O 1 -q 0.001181640625 -m 0.001181640625 -oci 1000 -dt 0.1
 //   3D3V Linear Landau damping test case (Zheng et al., 2025):
-//      mpirun -n 128 ./electrostatic-pic -dim 3 -rdi 1 -npt 40960000 -k 0.5 -a 0.01 -nt 100 -nx 32 -ny 32 -nz 32 -O 1 -q 0.00004844730731 -m 0.00004844730731 -oci 1000 -dt 0.1 -no-vis
+//      mpirun -n 128 ./electrostatic-pic -dim 3 -rdi 1 -npt 40960000 -k 0.5 -a 0.01 -nt 100 -nx 32 -ny 32 -nz 32 -O 1 -q 0.00004844730731 -m 0.00004844730731 -oci 1000 -dt 0.02 -no-vis
 #include <ctime>
 #include <fstream>
 #include <iomanip>
@@ -389,7 +389,7 @@ int main(int argc, char *argv[])
       if (Mpi::Root())
       {
          mfem::out << "Step: " << step << " | Time: " << t;
-            mfem::out << " | Time per step: " << sw.RealTime() / step;
+         mfem::out << " | Time per step: " << sw.RealTime() / step;
          mfem::out << endl;
       }
       // Output particle data to CSV
