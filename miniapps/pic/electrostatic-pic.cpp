@@ -71,7 +71,7 @@ struct PICContext
    int nx = 100;     ///< Number of grid cells in x-direction.
    int ny = 100;     ///< Number of grid cells in y-direction.
    int nz = 100;     ///< Number of grid cells in z-direction.
-   real_t L_x = 1.0; ///< Domain length in x-direction.
+   real_t L = 1.0; ///< Domain length.
 
    int ordering = 1; ///< Ordering of particles.
    int npt = 1000;   ///< Number of particles.
@@ -126,14 +126,14 @@ public:
 
    /// Initialize charged particles with given parameters
    void InitializeChargedParticles(const real_t &k, const real_t &alpha,
-                                   real_t m, real_t q, real_t L_x,
+                                   real_t m, real_t q, real_t L,
                                    bool reproduce = false);
 
    /// Find Particles in mesh corresponding to E and field
    void FindParticles();
 
    /// Advance particles one time step using Boris algorithm
-   void Step(real_t &t, real_t dt, real_t L_x, bool first_step = false);
+   void Step(real_t &t, real_t dt, real_t L, bool first_step = false);
 
    /// Redistribute particles across processors
    void Redistribute();
@@ -264,7 +264,7 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(ctx.k > 0.0,
                "k must be nonzero for displacement initialization.");
 
-   ctx.L_x = 2.0 * M_PI / ctx.k;
+   ctx.L = 2.0 * M_PI / ctx.k;
 
    // build up E_gf
    // 1. make a Cartesian Mesh (2D or 3D)
@@ -275,18 +275,18 @@ int main(int argc, char *argv[])
    {
       serial_mesh = Mesh(Mesh::MakeCartesian2D(
           ctx.nx, ctx.ny, Element::QUADRILATERAL, false,
-          ctx.L_x, ctx.L_x));
-      translations = {Vector({ctx.L_x, 0.0}),
-                      Vector({0.0, ctx.L_x})};
+          ctx.L, ctx.L));
+      translations = {Vector({ctx.L, 0.0}),
+                      Vector({0.0, ctx.L})};
    }
    else // ctx.dim == 3
    {
       serial_mesh = Mesh(Mesh::MakeCartesian3D(
           ctx.nx, ctx.ny, ctx.nz, Element::HEXAHEDRON,
-          ctx.L_x, ctx.L_x, ctx.L_x));
-      translations = {Vector({ctx.L_x, 0.0, 0.0}),
-                      Vector({0.0, ctx.L_x, 0.0}),
-                      Vector({0.0, 0.0, ctx.L_x})};
+          ctx.L, ctx.L, ctx.L));
+      translations = {Vector({ctx.L, 0.0, 0.0}),
+                      Vector({0.0, ctx.L, 0.0}),
+                      Vector({0.0, 0.0, ctx.L})};
    }
 
    Mesh periodic_mesh(Mesh::MakePeriodic(
@@ -327,7 +327,7 @@ int main(int argc, char *argv[])
                                 num_particles, ordering_type);
    particle_mover.InitializeChargedParticles(ctx.k, ctx.alpha,
                                              ctx.m, ctx.q,
-                                             ctx.L_x, ctx.reproduce);
+                                             ctx.L, ctx.reproduce);
 
    real_t t = 0;
    real_t dt = ctx.dt;
@@ -385,7 +385,7 @@ int main(int argc, char *argv[])
       }
 
       // Step the ParticleMover
-      particle_mover.Step(t, dt, ctx.L_x, step == 1);
+      particle_mover.Step(t, dt, ctx.L, step == 1);
       if (Mpi::Root())
       {
          mfem::out << "Step: " << step << " | Time: " << t;
@@ -430,7 +430,7 @@ ParticleMover::ParticleMover(MPI_Comm comm, ParGridFunction *E_gf_,
 void ParticleMover::InitializeChargedParticles(const real_t &k,
                                                const real_t &alpha,
                                                real_t m, real_t q,
-                                               real_t L_x, bool reproduce)
+                                               real_t L, bool reproduce)
 {
    int rank;
    MPI_Comm_rank(charged_particles->GetComm(), &rank);
@@ -458,7 +458,7 @@ void ParticleMover::InitializeChargedParticles(const real_t &k,
       // Uniform positions (no accept-reject)
       for (int d = 0; d < dim; d++)
       {
-         X(i, d) = real_dist(gen) * L_x;
+         X(i, d) = real_dist(gen) * L;
       }
 
       // Displacement along x for perturbation ~ cos(k x)
@@ -467,11 +467,11 @@ void ParticleMover::InitializeChargedParticles(const real_t &k,
          real_t x = X(i, d);
          x -= (alpha / k) * std::sin(k * x);
 
-         // periodic wrap to [0, L_x)
-         x = std::fmod(x, L_x);
+         // periodic wrap to [0, L)
+         x = std::fmod(x, L);
          if (x < 0)
          {
-            x += L_x;
+            x += L;
          }
 
          X(i, d) = x;
@@ -489,7 +489,7 @@ void ParticleMover::FindParticles()
    E_finder.FindPoints(charged_particles->Coords());
 }
 
-void ParticleMover::Step(real_t &t, real_t dt, real_t L_x, bool first_step)
+void ParticleMover::Step(real_t &t, real_t dt, real_t L, bool first_step)
 {
    // Update E field at particles
    ParticleVector &E = charged_particles->Field(EFIELD);
@@ -501,7 +501,7 @@ void ParticleMover::Step(real_t &t, real_t dt, real_t L_x, bool first_step)
    ParticleVector &M = charged_particles->Field(MASS);
    ParticleVector &Q = charged_particles->Field(CHARGE);
 
-   // Periodic boundary: wrap coordinates to [0, L_x)
+   // Periodic boundary: wrap coordinates to [0, L)
    const int npt = charged_particles->GetNParticles();
    const int dim = X.GetVDim();
 
@@ -520,13 +520,13 @@ void ParticleMover::Step(real_t &t, real_t dt, real_t L_x, bool first_step)
       for (int d = 0; d < dim; ++d)
       {
          X(particle, d) += dt / M(particle) * P(particle, d);
-         while (X(particle, d) > L_x)
+         while (X(particle, d) > L)
          {
-            X(particle, d) -= L_x;
+            X(particle, d) -= L;
          }
          while (X(particle, d) < 0.0)
          {
-            X(particle, d) += L_x;
+            X(particle, d) += L;
          }
       }
    }
