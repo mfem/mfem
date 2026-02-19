@@ -374,7 +374,7 @@ int main(int argc, char *argv[])
             cout << "Total energy: " << kinetic_energy + field_energy
                  << endl;
          }
-         // write to a csv
+         // Write energies to a CSV file
          if (Mpi::Root())
          {
             std::ofstream energy_file("energy.csv", std::ios::app);
