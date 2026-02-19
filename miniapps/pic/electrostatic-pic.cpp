@@ -141,7 +141,7 @@ public:
    /// Get reference to ParticleSet
    ParticleSet &GetParticles() { return *charged_particles; }
 
-   /// Compute kinetic energy from particles (MPI-reduced).
+   /// Compute (global) kinetic energy from particles
    real_t ComputeKineticEnergy() const;
 };
 
