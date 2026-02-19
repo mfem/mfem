@@ -501,7 +501,7 @@ void ParticleMover::Step(real_t &t, real_t dt, real_t L, bool first_step)
    ParticleVector &M = charged_particles->Field(MASS);
    ParticleVector &Q = charged_particles->Field(CHARGE);
 
-   // Periodic boundary: wrap coordinates to [0, L)
+   // Accelerate the particles by the electric field
    const int npt = charged_particles->GetNParticles();
    const int dim = X.GetVDim();
 
