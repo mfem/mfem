@@ -148,8 +148,7 @@ public:
 /** Field solver responsible for updating the electrostatic potential and field
     from the particle charge density. Assembles and solves the periodic Poisson
     problem, computes the electric field via a discrete gradient operator, and
-    provides utilities for field diagnostics (e.g. global field energy) and
-    optional visualization output. */
+    provides utilities for field diagnostics (e.g. global field energy). */
 class FieldSolver
 {
 private:
