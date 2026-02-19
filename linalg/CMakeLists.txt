@@ -75,7 +75,6 @@ list(APPEND HDRS
   tmatrix.hpp
   ttensor.hpp
   tensor.hpp
-  univarsolvers.hpp
   vector.hpp
   )
 
