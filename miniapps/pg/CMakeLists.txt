@@ -1,0 +1,31 @@
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+
+list(APPEND PG_SOURCES legendre.cpp)
+list(APPEND PG_HEADERS legendre.hpp)
+
+convert_filenames_to_full_paths(PG_SOURCES)
+convert_filenames_to_full_paths(PG_HEADERS)
+
+set(PG_COMMON_FILES
+  EXTRA_SOURCES ${PG_SOURCES}
+  EXTRA_HEADERS ${PG_HEADERS})
+
+add_mfem_miniapp(pg_projection
+         MAIN pg_projection.cpp
+         ${PG_COMMON_FILES}
+         LIBRARIES mfem)
+add_mfem_miniapp(pg_projection_pos
+         MAIN pg_projection_pos.cpp
+         ${PG_COMMON_FILES}
+         LIBRARIES mfem)
+
