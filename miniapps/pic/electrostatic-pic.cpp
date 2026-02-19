@@ -265,7 +265,6 @@ int main(int argc, char *argv[])
 
    ctx.L = 2.0 * M_PI / ctx.k;
 
-   // build up E_gf
    // 1. make a Cartesian Mesh (2D or 3D)
    Mesh serial_mesh;
    std::vector<Vector> translations;
@@ -292,16 +291,16 @@ int main(int argc, char *argv[])
        serial_mesh,
        serial_mesh.CreatePeriodicVertexMapping(
            translations)));
-   // 2. parallelize the mesh
+   // 2. Partition and distribute the mesh
    ParMesh mesh(MPI_COMM_WORLD, periodic_mesh);
    serial_mesh.Clear();   // the serial mesh is no longer needed
    periodic_mesh.Clear(); // the periodic mesh is no longer needed
 
-   // 3. Build the E_finder
+   // 3. Build the interpolator of E field
    mesh.EnsureNodes();
    FindPointsGSLIB E_finder(mesh);
 
-   // 4. Define a finite element space on the parallel mesh
+   // 4. Define finite element spaces on the parallel mesh
    H1_FECollection phi_fec(ctx.order, ctx.dim);
    ParFiniteElementSpace phi_fespace(&mesh, &phi_fec);
    ND_FECollection E_fec(ctx.order, ctx.dim);
