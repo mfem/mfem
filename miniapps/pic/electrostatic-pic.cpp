@@ -308,7 +308,7 @@ int main(int argc, char *argv[])
    ND_FECollection E_fec(ctx.order, ctx.dim);
    ParFiniteElementSpace E_fespace(&mesh, &E_fec);
 
-   // 5. Prepare an empty phi_gf and E_gf for later use
+   // 5. Initialize the grid functions for the electric field and potential
    ParGridFunction phi_gf(&phi_fespace);
    ParGridFunction E_gf(&E_fespace);
    phi_gf = 0.0; // Initialize phi_gf to zero
