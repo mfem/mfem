@@ -515,6 +515,7 @@ void ParticleMover::Step(real_t &t, real_t dt, real_t L, bool first_step)
       }
    }
 
+   // Periodic boundary: wrap coordinates to [0, L)
    for (int particle = 0; particle < npt; ++particle)
    {
       for (int d = 0; d < dim; ++d)
