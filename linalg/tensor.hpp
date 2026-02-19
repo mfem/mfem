@@ -39,10 +39,14 @@ struct tensor<T>
    using type = T;
    static constexpr int ndim      = 1;
    static constexpr int first_dim = 0;
+   MFEM_HOST_DEVICE tensor() = default;
+   MFEM_HOST_DEVICE tensor(T v) : values(v) {}
    MFEM_HOST_DEVICE T& operator[](int /*unused*/) { return values; }
    MFEM_HOST_DEVICE const T& operator[](int /*unused*/) const { return values; }
    MFEM_HOST_DEVICE T& operator()(int /*unused*/) { return values; }
    MFEM_HOST_DEVICE const T& operator()(int /*unused*/) const { return values; }
+   MFEM_HOST_DEVICE T& operator()() { return values; }
+   MFEM_HOST_DEVICE const T& operator()() const { return values; }
    MFEM_HOST_DEVICE operator T() const { return values; }
    T values;
 };
@@ -541,12 +545,20 @@ MFEM_HOST_DEVICE auto operator*(S scale, const tensor<T, n...>& A) ->
 tensor<decltype(S {} * T{}), n...>
 {
    tensor<decltype(S{} * T{}), n...> C{};
-   for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+   if constexpr (sizeof...(n) == 0)
    {
-      C[i] = scale * A[i];
+      C.values = scale * A.values;
+   }
+   else
+   {
+      for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+      {
+         C[i] = scale * A[i];
+      }
    }
    return C;
 }
+
 
 /**
  * @brief multiply a tensor by a scalar value
@@ -563,9 +575,16 @@ MFEM_HOST_DEVICE auto operator*(const tensor<T, n...>& A, S scale) ->
 tensor<decltype(T {} * S{}), n...>
 {
    tensor<decltype(T{} * S{}), n...> C{};
-   for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+   if constexpr (sizeof...(n) == 0)
    {
-      C[i] = A[i] * scale;
+      C.values = A.values * scale;
+   }
+   else
+   {
+      for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+      {
+         C[i] = A[i] * scale;
+      }
    }
    return C;
 }

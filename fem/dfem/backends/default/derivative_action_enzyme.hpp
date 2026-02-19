@@ -9,18 +9,21 @@ namespace mfem::future
 {
 
 template<
+   int derivative_id,
    typename qfunc_t,
    typename inputs_t,
    typename outputs_t>
-struct Action
+struct DerivativeActionEnzyme
 {
-   Action(
+   DerivativeActionEnzyme(
       IntegratorContext ctx,
-      qfunc_t qfunc,
+      qfunc_t &qfunc,
       inputs_t inputs,
-      outputs_t outputs) :
+      outputs_t outputs,
+      std::unordered_map<int, std::array<bool, tuple_size<inputs_t>::value>>
+      dependency_map) :
       ctx(ctx),
-      qfunc(std::move(qfunc)),
+      qfunc(qfunc),
       inputs(inputs),
       outputs(outputs)
    {
@@ -55,45 +58,71 @@ struct Action
       });
       yq_offsets.PartialSum();
       yq.Update(yq_offsets);
+
+      // For each dependent input in the dependency map we create a shadow
+      // memory variable at the quadrature point level.
+      shadow_xq_offsets.SetSize(ninputs + 1);
+      shadow_xq_offsets = 0;
+      constexpr_for<0, ninputs>([&](auto i)
+      {
+         if (dependency_map.count(i))
+         {
+            shadow_xq_offsets[i] = xq_offsets[i];
+         }
+      });
+      shadow_xq_offsets.PartialSum();
+      shadow_xq.Update(shadow_xq_offsets);
+
+      idep = std::vector<bool>(dependency_map[derivative_id].begin(),
+                               dependency_map[derivative_id].end());
    }
 
    void operator()(
       const std::vector<Vector *> &xe,
+      const Vector *de,
       std::vector<Vector *> &ye) const
    {
       if (ctx.attr.Size() == 0) { return; }
       // E -> Q
       interpolate(inputs, qis, ctx.ir, xe, xq);
+      interpolate(inputs, qis, ctx.ir, xe, shadow_xq, idep);
+
       // Q -> Q
       if constexpr (
          detail::supports_tensor_array_qfunc<qfunc_t, inputs_t, outputs_t>::value)
       {
          constexpr int ninputs = tuple_size<inputs_t>::value;
          constexpr int noutputs = tuple_size<outputs_t>::value;
-         detail::call_qfunc(
-            qfunc, xq, yq, gnqp,
+         detail::enzyme_fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>
+         (
+            qfunc, xq, shadow_xq, yq, gnqp,
             std::make_index_sequence<ninputs> {},
-            std::make_index_sequence<noutputs> {});
+            std::make_index_sequence<noutputs> {}
+         );
       }
       else
       {
          static_assert(dfem::always_false<qfunc_t>,
                        "qfunc signature not supported by default backend Action");
       }
+
       // Q -> E
       integrate(outputs, qis, yq, ye);
    }
 
    IntegratorContext ctx;
-   qfunc_t qfunc;
+   qfunc_t &qfunc;
    inputs_t inputs;
    outputs_t outputs;
 
    std::unordered_map<int, const QuadratureInterpolator *> qis;
 
    int gnqp = 0;
-   Array<int> xq_offsets, yq_offsets;
-   mutable BlockVector xq, yq;
+   Array<int> xq_offsets, shadow_xq_offsets, yq_offsets;
+   mutable BlockVector xq, shadow_xq, yq;
+
+   // Input dependency array
+   std::vector<bool> idep;
 };
 
 }

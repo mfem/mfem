@@ -455,6 +455,21 @@ struct create_function_signature<output_t (*)(input_ts...)>
    using type = FunctionSignature<output_t(input_ts...)>;
 };
 
+template <typename...>
+using void_t = void;
+
+template <typename T, typename = void>
+struct get_function_signature
+{
+   using type = typename create_function_signature<T>::type;
+};
+
+template <typename T>
+struct get_function_signature<T, void_t<decltype(&T::operator())>>
+{
+   using type = typename create_function_signature<decltype(&T::operator())>::type;
+};
+
 template <typename T>
 constexpr int GetFieldId()
 {
@@ -1146,6 +1161,15 @@ void prolongation(const FieldDescriptor field, const Vector &x, Vector &field_l)
    P->Mult(x, field_l);
 }
 
+inline
+void prolongation_transpose(
+   const FieldDescriptor &field, const Vector &field_l, Vector &x)
+{
+   const auto P = get_prolongation(field);
+   x.SetSize(P->Width());
+   P->MultTranspose(field_l, x);
+}
+
 /// @brief Apply the prolongation operator to a vector of fields.
 ///
 /// x is a long vector containing the data for all fields on tdofs and
@@ -1209,7 +1233,7 @@ void prolongation(
    std::vector<Vector *> &x_l)
 {
    MFEM_ASSERT(x.NumBlocks() == static_cast<int>(x_l.size()),
-               "internal error " << x.NumBlocks() << " vs " << x_l.size());
+               "error " << x.NumBlocks() << " vs " << x_l.size());
    for (int i = 0; i < x.NumBlocks(); i++)
    {
       const auto P = get_prolongation(fields[i]);
@@ -1230,7 +1254,7 @@ void prolongation_transpose(
    BlockVector &x)
 {
    MFEM_ASSERT(static_cast<int>(x_l.size()) == x.NumBlocks(),
-               "internal error " << x_l.size() << " vs " << x.NumBlocks());
+               "error " << x_l.size() << " vs " << x.NumBlocks());
    for (size_t i = 0; i < x_l.size(); i++)
    {
       const auto P = get_prolongation(fields[i]);
@@ -1272,7 +1296,7 @@ void restriction(
 
 template <typename entity_t>
 void prepare_residual(
-   const std::vector<FieldDescriptor> fields,
+   const std::vector<FieldDescriptor> &fields,
    std::vector<Vector *> &r_e)
 {
    for (size_t i = 0; i < fields.size(); i++)
@@ -1290,7 +1314,7 @@ void prepare_residual(
 
 template <typename entity_t>
 void restriction_transpose(
-   const std::vector<FieldDescriptor> fields,
+   const std::vector<FieldDescriptor> &fields,
    const std::vector<Vector *> &x_e,
    std::vector<Vector *> &x_l)
 {
