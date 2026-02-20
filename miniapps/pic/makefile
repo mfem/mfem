@@ -68,7 +68,7 @@ include $(MFEM_TEST_MK)
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 pic-test-par: electrostatic-pic
 	@$(call mfem-test,$<, mpirun -n 4, PIC miniapp,\
-		-rdf 2 -npt 40960 -k 0.2855993321 -a 0.05 -nt 200 -nx 16 -ny 16 -O 1 -q 0.01181640625 -m 0.01181640625 -ocf 1000 -dt 0.1)
+		-rdi 2 -npt 40960 -k 0.2855993321 -a 0.05 -nt 200 -nx 16 -ny 16 -O 1 -q 0.01181640625 -m 0.01181640625 -oci 1000 -dt 0.1)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
