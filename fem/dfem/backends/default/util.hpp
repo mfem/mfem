@@ -2,23 +2,32 @@
 
 #include "../fem/quadinterpolator.hpp"
 #include "../../util.hpp"
-#include "../../qfunction_apply.hpp"
 #include "general/enzyme.hpp"
 
 namespace mfem::future
 {
 
-template <typename fops_t>
+template <size_t N, size_t... Is>
+constexpr std::array<bool, N> all_true_impl(std::index_sequence<Is...>)
+{
+   return {{((void)Is, true)...}};
+}
+
+template <size_t N>
+constexpr std::array<bool, N> all_true()
+{
+   return all_true_impl<N>(std::make_index_sequence<N> {});
+}
+
+template <typename fops_t, size_t ninputs = tuple_size<fops_t>::value>
 void interpolate(
    const fops_t &fops,
    const std::unordered_map<int, const QuadratureInterpolator *> &qis,
    const IntegrationRule &ir,
    const std::vector<Vector *> &xe,
    BlockVector &xq,
-   const std::vector<bool> &conditional = {})
+   const std::array<bool, ninputs> &conditional = all_true<ninputs>())
 {
-   constexpr int ninputs = tuple_size<fops_t>::value;
-
    constexpr_for<0, ninputs>([&](auto i)
    {
       if (!conditional.empty() && !conditional[i]) { return; }
@@ -65,28 +74,64 @@ void interpolate(
    });
 }
 
-template <typename fops_t>
+// Create quadrature function output to output fields map
+template <typename fops_t, size_t nfops>
+void create_output_to_outfd(const fops_t &fops,
+                            const std::vector<FieldDescriptor> &fields,
+                            std::array<size_t, nfops> &output_to_outfd)
+{
+   constexpr_for<0, nfops>([&](auto i)
+   {
+      const auto output = get<i>(fops);
+      output_to_outfd[i] = std::numeric_limits<size_t>::max();
+      for (size_t j = 0; j < fields.size(); j++)
+      {
+         // TODO: output.GetFieldId() should probably store/return size_t
+         if (static_cast<int>(fields[j].id) == output.GetFieldId())
+         {
+            output_to_outfd[i] = j;
+         }
+      }
+      if (output_to_outfd[i] == std::numeric_limits<size_t>::max())
+      {
+         MFEM_ABORT("can't find field referenced in quadrature function output");
+      }
+   });
+}
+
+template <typename fops_t, size_t noutputs>
 void integrate(
    const fops_t &fops,
+   const std::array<size_t, noutputs> &output_to_outfd,
    const std::unordered_map<int, const QuadratureInterpolator *> &qis,
-   const BlockVector &xq,
+   const BlockVector &yq,
    std::vector<Vector *> &ye)
 {
-   constexpr int noutputs = tuple_size<fops_t>::value;
+   std::cout << "integrate\n";
+   for (auto v : ye) { *v = 0.0; }
    constexpr_for<0, noutputs>([&](auto i)
    {
+      for (size_t l = 0; l < ye.size(); l++)
+      {
+         std::cout << "ye[" << l << "] = ";
+         pretty_print(*ye[l]);
+      }
+
       const auto output = get<i>(fops);
       using output_t = std::decay_t<decltype(output)>;
 
       // Weights are not outputs - they're only inputs
       if constexpr (is_weight_fop<output_t>::value)
       {
-         MFEM_ABORT("Weight cannot be an output field");
+         MFEM_ABORT("Weight cannot be an output");
          return;
       }
 
+      const size_t j = output_to_outfd[i];
       // Check that output vector is allocated
-      MFEM_ASSERT(ye[i] != nullptr, "output vector ye[" << i << "] is null");
+      MFEM_ASSERT(ye[j] != nullptr, "output vector ye[" << j << "] is null");
+
+      std::cout << "filling ye[" << j << "]\n";
 
       auto search = qis.find(output.GetFieldId());
       MFEM_ASSERT(search != qis.end(),
@@ -94,16 +139,14 @@ void integrate(
       auto qi = search->second;
       qi->SetOutputLayout(QVectorLayout::byVDIM);
 
-      // Initialize output vector to zero (MultTranspose accumulates)
-      *ye[i] = 0.0;
-
-      Vector empty; // For unused arguments
+      // For unused arguments
+      Vector empty;
 
       if constexpr (is_value_fop<output_t>::value)
       {
          // Integrate values: Q -> E
-         qi->MultTranspose(QuadratureInterpolator::VALUES,
-                           xq.GetBlock(i), empty, *ye[i]);
+         qi->AddMultTranspose(QuadratureInterpolator::VALUES,
+                              yq.GetBlock(i), empty, *ye[j]);
       }
       else if constexpr (is_gradient_fop<output_t>::value)
       {
@@ -115,6 +158,13 @@ void integrate(
       else
       {
          MFEM_ABORT("default backend doesn't support " << get_type_name<output_t>());
+      }
+
+      std::cout << "after AddMultTranspose\n";
+      for (size_t l = 0; l < ye.size(); l++)
+      {
+         std::cout << "ye[" << l << "] = ";
+         pretty_print(*ye[l]);
       }
    });
 }
@@ -239,20 +289,6 @@ inline void call_qfunc(
          yq.GetBlock(Os).ReadWrite(), gnqp)...);
 }
 
-// Wrapper types for enzyme annotations
-template <typename T>
-struct EnzymeActive
-{
-   T *primal;
-   T *shadow;
-};
-
-template <typename T>
-struct EnzymeConst
-{
-   T *primal;
-};
-
 template <typename func_t, typename... arg_ts>
 MFEM_HOST_DEVICE inline
 auto qfunction_wrapper(const func_t &f, arg_ts...args)
@@ -268,7 +304,7 @@ make_activity_array(std::index_sequence<Is...>)
 }
 
 template <std::size_t derivative_id, typename inputs_t, std::size_t... Is>
-constexpr auto make_activity_map_ct(std::index_sequence<Is...>)
+constexpr auto make_activity_map_impl(std::index_sequence<Is...>)
 {
    constexpr std::size_t N = sizeof...(Is);
 
@@ -282,7 +318,7 @@ constexpr auto make_activity_map_ct(std::index_sequence<Is...>)
 template <std::size_t derivative_id, typename inputs_t>
 constexpr auto make_activity_map(inputs_t)
 {
-   return make_activity_map_ct<derivative_id, inputs_t>(
+   return make_activity_map_impl<derivative_id, inputs_t>(
              std::make_index_sequence<tuple_size<inputs_t>::value> {});
 }
 

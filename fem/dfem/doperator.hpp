@@ -631,7 +631,8 @@ void DifferentiableOperator::AddIntegrator(
 
    IntegratorContext ctx
    {
-      mesh, elem_attributes, attributes, num_entities, thread_blocks, unionfds, integration_rule
+      mesh, elem_attributes, attributes, num_entities,
+      thread_blocks, unionfds, outfds, integration_rule
    };
 
    action_callbacks.push_back(backend_t::MakeAction(ctx, qfunc, inputs, outputs));
@@ -640,8 +641,7 @@ void DifferentiableOperator::AddIntegrator(
    {
 #ifdef MFEM_USE_ENZYME
       derivative_action_callbacks[i].push_back(
-         backend_t::template MakeDerivativeActionEnzyme<i>(ctx, qfunc, inputs,
-                                                           outputs, dependency_map));
+         backend_t::template MakeDerivativeActionEnzyme<i>(ctx, qfunc, inputs, outputs));
 #else
       MFEM_ABORT("DifferentiableOperator requested Enzyme derivative action, "
                  "but MFEM_USE_ENZYME is not defined.");

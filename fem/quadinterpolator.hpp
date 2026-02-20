@@ -152,8 +152,8 @@ public:
    void Determinants(const Vector &e_vec, Vector &q_det) const;
 
    /// Perform the transpose operation of Mult(). (TODO)
-   void MultTranspose(unsigned eval_flags, const Vector &q_val,
-                      const Vector &q_der, Vector &e_vec) const;
+   void AddMultTranspose(unsigned eval_flags, const Vector &q_val,
+                         const Vector &q_der, Vector &e_vec) const;
 
    /// @brief Returns true if the given finite element space is supported by
    /// QuadratureInterpolator.

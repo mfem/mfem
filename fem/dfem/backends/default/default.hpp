@@ -30,13 +30,11 @@ struct DefaultBackend
       const IntegratorContext &ctx,
       qfunc_t qfunc,
       inputs_t inputs,
-      outputs_t outputs,
-      std::unordered_map<int, std::array<bool, tuple_size<inputs_t>::value>>
-      dependency_map)
+      outputs_t outputs)
    {
       return DerivativeActionEnzyme<
              derivative_id, qfunc_t, inputs_t, outputs_t>(
-                ctx, qfunc, inputs, outputs, dependency_map);
+                ctx, qfunc, inputs, outputs);
    }
 
 };

@@ -647,10 +647,10 @@ void QuadratureInterpolator::MultHDiv(const Vector &e_vec,
    MFEM_CONTRACT_VAR(q_div);
 }
 
-void QuadratureInterpolator::MultTranspose(unsigned eval_flags,
-                                           const Vector &q_val,
-                                           const Vector &q_der,
-                                           Vector &e_vec) const
+void QuadratureInterpolator::AddMultTranspose(unsigned eval_flags,
+                                              const Vector &q_val,
+                                              const Vector &q_der,
+                                              Vector &e_vec) const
 {
    const int ne = fespace->GetNE();
    if (ne == 0) { return; }
@@ -676,8 +676,6 @@ void QuadratureInterpolator::MultTranspose(unsigned eval_flags,
       const int jacobians = GeometricFactors::JACOBIANS;
       geom = fespace->GetMesh()->GetGeometricFactors(*ir, jacobians);
    }
-
-   e_vec = 0.0; // Initialize to zero for accumulation
 
    if (use_tensor_eval)
    {

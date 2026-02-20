@@ -52,7 +52,7 @@ static void ValuesTranspose1D(const int NE,
                                    qd(c, q, el) : qd(q, c, el);
                u += b(q, d) * qval;
             }
-            e(d, c, el) = u;
+            e(d, c, el) += u;
          }
       }
    });
@@ -149,7 +149,7 @@ static void ValuesTranspose2D(const int NE,
          {
             MFEM_FOREACH_THREAD(dx,x,D1D)
             {
-               e(dx,dy,c,el) = DD(dx,dy);
+               e(dx,dy,c,el) += DD(dx,dy);
             }
          }
          MFEM_SYNC_THREAD;
@@ -274,7 +274,7 @@ static void ValuesTranspose3D(const int NE,
             {
                MFEM_FOREACH_THREAD(dx,x,D1D)
                {
-                  e(dx,dy,dz,c,el) = DDD(dx,dy,dz);
+                  e(dx,dy,dz,c,el) += DDD(dx,dy,dz);
                }
             }
          }

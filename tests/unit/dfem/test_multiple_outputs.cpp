@@ -83,10 +83,9 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
    X.GetBlock(1) = *nodes;
    x.SetFromTrueDofs(X.GetBlock(0));
 
-   Array<int> outoffsets(3);
+   Array<int> outoffsets(2);
    outoffsets[0] = 0;
    outoffsets[1] = fes.GetTrueVSize();
-   outoffsets[2] = fes.GetTrueVSize();
    outoffsets.PartialSum();
    BlockVector Z(outoffsets);
 
@@ -107,41 +106,34 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
    Vector Y(fes.GetTrueVSize());
    fes.GetProlongationMatrix()->MultTranspose(y, Y);
 
-   // static constexpr int U = 0, AUX = 1, COORDINATES = 2;
-   static constexpr int U = 0, COORDINATES = 1, AUX = 2;
+   static constexpr int U = 0, COORDINATES = 1, V = 2;
    const std::vector<FieldDescriptor> in
    {
       {U, &fes},
       {COORDINATES, nodes->ParFESpace()}
    };
-   const std::vector<FieldDescriptor> out
+
+   const std::vector<FieldDescriptor> out // test spaces?
    {
-      {U, &fes},
-      {U, &fes}
+      {V, &fes},
    };
    DifferentiableOperator dop(in, out, pmesh);
 
    auto derivatives = std::integer_sequence<size_t, U> {};
-
    auto mass_qfunc = massqf {};
    dop.AddDomainIntegrator(mass_qfunc,
                            tuple{ Value<U>{}, Gradient<COORDINATES>{}, Weight{} },
-                           tuple{ Value<U>{}, Value<U>{} },
+                           tuple{ Value<V>{}, Value<V>{} },
                            *ir, all_domain_attr, derivatives);
 
    fes.GetRestrictionMatrix()->Mult(x, X.GetBlock(0));
    dop.Mult(X, Z);
 
-   Vector Y0(Y), Y1(Y);
+   Vector Y0(Y);
+   Y0 *= 2.0;
    Y0 -= Z.GetBlock(0);
-   Y1 -= Z.GetBlock(1);
 
    real_t norm_g, norm_l = Y0.Normlinf();
-   MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
-   REQUIRE(norm_g == MFEM_Approx(0.0));
-   MPI_Barrier(MPI_COMM_WORLD);
-
-   norm_l = Y1.Normlinf();
    MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
    REQUIRE(norm_g == MFEM_Approx(0.0));
    MPI_Barrier(MPI_COMM_WORLD);
@@ -150,9 +142,8 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
 
    ddop->Mult(X.GetBlock(0), Z);
    Y0 = Y;
-   Y1 = Y;
+   Y0 *= 2.0;
    Y0 -= Z.GetBlock(0);
-   Y1 -= Z.GetBlock(1);
 
    norm_l = Y0.Normlinf();
    MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());

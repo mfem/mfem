@@ -11,7 +11,9 @@ namespace mfem::future
 template<
    typename qfunc_t,
    typename inputs_t,
-   typename outputs_t>
+   typename outputs_t,
+   size_t ninputs = tuple_size<inputs_t>::value,
+   size_t noutputs = tuple_size<outputs_t>::value>
 struct Action
 {
    Action(
@@ -34,7 +36,6 @@ struct Action
       const int nqp = ctx.ir.GetNPoints();
       gnqp = nqp * ctx.nentities;
 
-      constexpr int ninputs = tuple_size<inputs_t>::value;
       xq_offsets.SetSize(ninputs + 1);
       xq_offsets[0] = 0;
       constexpr_for<0, ninputs>([&](auto i)
@@ -45,7 +46,6 @@ struct Action
       xq_offsets.PartialSum();
       xq.Update(xq_offsets);
 
-      constexpr int noutputs = tuple_size<outputs_t>::value;
       yq_offsets.SetSize(noutputs + 1);
       yq_offsets[0] = 0;
       constexpr_for<0, noutputs>([&](auto i)
@@ -55,6 +55,8 @@ struct Action
       });
       yq_offsets.PartialSum();
       yq.Update(yq_offsets);
+
+      create_output_to_outfd(outputs, ctx.outfds, output_to_outfd);
    }
 
    void operator()(
@@ -68,8 +70,6 @@ struct Action
       if constexpr (
          detail::supports_tensor_array_qfunc<qfunc_t, inputs_t, outputs_t>::value)
       {
-         constexpr int ninputs = tuple_size<inputs_t>::value;
-         constexpr int noutputs = tuple_size<outputs_t>::value;
          detail::call_qfunc(
             qfunc, xq, yq, gnqp,
             std::make_index_sequence<ninputs> {},
@@ -81,7 +81,7 @@ struct Action
                        "qfunc signature not supported by default backend Action");
       }
       // Q -> E
-      integrate(outputs, qis, yq, ye);
+      integrate(outputs, output_to_outfd, qis, yq, ye);
    }
 
    IntegratorContext ctx;
@@ -90,6 +90,7 @@ struct Action
    outputs_t outputs;
 
    std::unordered_map<int, const QuadratureInterpolator *> qis;
+   std::array<size_t, noutputs> output_to_outfd;
 
    int gnqp = 0;
    Array<int> xq_offsets, yq_offsets;
