@@ -725,6 +725,7 @@ void FieldSolver::UpdateEGridFunction(ParGridFunction& phi_gf,
    // Scale by -1 to get E = -∇φ
    E_gf.Neg();
 }
+
 real_t FieldSolver::ComputeFieldEnergy(const ParGridFunction& E_gf) const
 {
    // ---- Field energy: 0.5 * ∫ ||E||^2 dx ----
