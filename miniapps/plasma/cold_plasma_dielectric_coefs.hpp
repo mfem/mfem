@@ -90,6 +90,10 @@ inline double nu_art(double x)
    return (1e14*exp(-x/0.1));
 }
 
+std::complex<double> zero_harm_kinetic_S(std::complex<double> w_c, std::complex<double> w_p, 
+                                           std::complex<double> vth, double omega,
+                                                   double kparallel, double nu, double kperp);
+
 std::complex<double> first_harm_kinetic_S(std::complex<double> w_c, std::complex<double> w_p, 
                                           std::complex<double> vth, double omega,
                                                    double kparallel, double nu);
@@ -134,29 +138,6 @@ std::complex<double> L_cold_plasma(double omega, double Bmag,
                                    double iontemp,
                                    int nuprof);
 
-std::complex<double> P_cold_plasma(double omega,
-                                   double kparallel, double nue,
-                                   const Vector & number,
-                                   const Vector & charge,
-                                   const Vector & mass,
-                                   const Vector & temp,
-                                   double iontemp,
-                                   int nuprof);
-
-std::complex<double> P_cold_plasma_by_species(double omega,
-                                        double kparallel,
-                                        double Bmag,
-                                        double nue,
-                                        double number,
-                                        double charge,
-                                        double mass,
-                                        double ne,
-                                        double te,
-                                        double me,
-                                        double qe,
-                                        int nuprof,
-                                        int i);
-
 std::complex<double> S_cold_plasma(double omega,
                                    double kparallel, double Bmag,
                                    double nue, double nui,
@@ -169,7 +150,19 @@ std::complex<double> S_cold_plasma(double omega,
                                    double Rval,
                                    double Lval);
 
-std::complex<double> S_cold_plasma_by_species(double omega,
+std::complex<double> epxx_warm_plasma(double omega,
+                                   double kparallel, double Bmag,
+                                   double nue, double nui,
+                                   const Vector & number,
+                                   const Vector & charge,
+                                   const Vector & mass,
+                                   const Vector & temp,
+                                   double iontemp,
+                                   int nuprof,
+                                   double Rval,
+                                   double Lval);
+
+std::complex<double> epxx_warm_plasma_by_species(double omega,
                                         double kparallel,
                                         double Bmag,
                                         double nue,
@@ -186,6 +179,18 @@ std::complex<double> S_cold_plasma_by_species(double omega,
                                         double Rval,
                                         double Lval,
                                         int i);
+
+std::complex<double> epyy_warm_plasma(double omega,
+                                   double kparallel, double Bmag,
+                                   double nue, double nui,
+                                   const Vector & number,
+                                   const Vector & charge,
+                                   const Vector & mass,
+                                   const Vector & temp,
+                                   double iontemp,
+                                   int nuprof,
+                                   double Rval,
+                                   double Lval);
 
 std::complex<double> D_cold_plasma(double omega,
                                    double kparallel, double Bmag,
@@ -199,7 +204,19 @@ std::complex<double> D_cold_plasma(double omega,
                                    double Rval,
                                    double Lval);
 
-std::complex<double> D_cold_plasma_by_species(double omega,
+std::complex<double> epxy_warm_plasma(double omega,
+                                   double kparallel, double Bmag,
+                                   double nue, double nui,
+                                   const Vector & number,
+                                   const Vector & charge,
+                                   const Vector & mass,
+                                   const Vector & temp,
+                                   double iontemp,
+                                   int nuprof,
+                                   double Rval,
+                                   double Lval);
+
+std::complex<double> epxy_warm_plasma_by_species(double omega,
                                         double kparallel,
                                         double Bmag,
                                         double nue,
@@ -215,6 +232,38 @@ std::complex<double> D_cold_plasma_by_species(double omega,
                                         int nuprof,
                                         double Rval,
                                         double Lval,
+                                        int i);
+
+std::complex<double> P_cold_plasma(double omega,
+                                   double kparallel, double nue,
+                                   const Vector & number,
+                                   const Vector & charge,
+                                   const Vector & mass,
+                                   const Vector & temp,
+                                   double iontemp,
+                                   int nuprof);
+
+std::complex<double> epzz_warm_plasma(double omega,
+                                   double kparallel, double nue,
+                                   const Vector & number,
+                                   const Vector & charge,
+                                   const Vector & mass,
+                                   const Vector & temp,
+                                   double iontemp,
+                                   int nuprof);
+
+std::complex<double> epzz_warm_plasma_by_species(double omega,
+                                        double kparallel,
+                                        double Bmag,
+                                        double nue,
+                                        double number,
+                                        double charge,
+                                        double mass,
+                                        double ne,
+                                        double te,
+                                        double me,
+                                        double qe,
+                                        int nuprof,
                                         int i);
 
 // """""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -454,7 +503,8 @@ public:
                 const Vector & masses,
                 int nuprof,
                 double res_lim,
-                bool realPart);
+                bool realPart,
+                bool thermal);
 
    // Copy constructor
    StixCoefBase(StixCoefBase & s);
@@ -462,6 +512,7 @@ public:
    void SetRealPart() { realPart_ = true; }
    void SetImaginaryPart() { realPart_ = false; }
    bool GetRealPartFlag() const { return realPart_; }
+   bool GetthermalFlag() const { return thermal_; }
 
    void SetOmega(double omega) { omega_ = omega; }
    double GetOmega() const { return omega_; }
@@ -506,6 +557,7 @@ protected:
 
    double omega_;
    bool realPart_;
+   bool thermal_;
    int nuprof_;
    double res_lim_;
 
@@ -540,7 +592,8 @@ public:
              const Vector & masses,
              int nuprof,
              double res_lim,
-             bool realPart);
+             bool realPart,
+             bool thermal);
 
    StixLCoef(StixCoefBase &s) : StixCoefBase(s) {}
 
@@ -566,7 +619,8 @@ public:
              const Vector & masses,
              int nuprof,
              double res_lim,
-             bool realPart);
+             bool realPart,
+             bool thermal);
 
    StixRCoef(StixCoefBase &s) : StixCoefBase(s) {}
 
@@ -592,7 +646,8 @@ public:
              const Vector & masses,
              int nuprof,
              double res_lim,
-             bool realPart);
+             bool realPart,
+             bool thermal);
 
    StixSCoef(StixCoefBase &s) : StixCoefBase(s) {}
 
@@ -618,7 +673,8 @@ public:
              const Vector & masses,
              int nuprof,
              double res_lim,
-             bool realPart);
+             bool realPart,
+             bool thermal);
 
    StixDCoef(StixCoefBase &s) : StixCoefBase(s) {}
 
@@ -644,7 +700,8 @@ public:
              const Vector & masses,
              int nuprof,
              double res_lim,
-             bool realPart);
+             bool realPart,
+             bool thermal);
 
    StixPCoef(StixCoefBase &s) : StixCoefBase(s) {}
 
@@ -670,7 +727,8 @@ public:
                   const Vector & masses,
                   int nuprof,
                   double res_lim,
-                  bool realPart);
+                  bool realPart,
+                  bool thermal);
 
    StixTensorBase(StixCoefBase &s) : StixCoefBase(s) {}
 
@@ -699,7 +757,8 @@ public:
                     const Vector & masses,
                     int nuprof,
                     double res_lim,
-                    bool realPart);
+                    bool realPart,
+                    bool thermal);
 
    DielectricTensor(StixCoefBase &s)
       : MatrixCoefficient(3), StixTensorBase(s) {}
@@ -727,7 +786,8 @@ public:
                            const Vector & masses,
                            int nuprof,
                            double res_lim,
-                           bool realPart);
+                           bool realPart,
+                           bool thermal);
 
    InverseDielectricTensor(StixCoefBase &s)
       : MatrixCoefficient(3), StixTensorBase(s) {}
@@ -755,7 +815,8 @@ public:
                     const Vector & masses,
                     int nuprof,
                     double res_lim,
-                    bool realPart);
+                    bool realPart,
+                    bool thermal);
 
    SusceptibilityTensor(StixCoefBase &s)
       : MatrixCoefficient(3), StixTensorBase(s) {}
@@ -784,6 +845,7 @@ public:
                     int nuprof,
                     double res_lim,
                     bool realPart,
+                    bool thermal,
                     int species_);
 
    SusceptibilityTensorbySpecies(StixCoefBase &s)

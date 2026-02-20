@@ -25,6 +25,19 @@ complex<double> Zfunction(complex<double> xi)
    return complex<double>(0,1)*sqrt(M_PI)*Faddeeva::w(xi);
 }
 
+complex<double> zero_harm_kinetic_S(complex<double> w_c, complex<double> w_p, 
+                                     complex<double> vth, double omega,
+                                     double kparallel, double nu, double kperp)
+{
+   complex<double> comp_val(0.0,1.0);
+   complex<double> lambda = pow(kperp*vth,2.0)/(2.0*pow(w_c,2.0));
+
+   // n =0 0:
+   complex<double> Z0 = Zfunction((omega*(1.0+comp_val*nu))/(kparallel*vth));
+
+   return (2.0*lambda)*(pow(w_p,2.0)/omega)*(Z0/(kparallel*vth));
+}
+
 complex<double> first_harm_kinetic_S(complex<double> w_c, complex<double> w_p, 
                                      complex<double> vth, double omega,
                                      double kparallel, double nu)
@@ -236,7 +249,7 @@ complex<double> L_cold_plasma(double omega,
    return val;
 }
 
-/*
+
 complex<double> S_cold_plasma(double omega,
                               double kparallel,
                               double Bmag,
@@ -288,9 +301,8 @@ complex<double> S_cold_plasma(double omega,
    }
    return val;
 }
-*/
 
-complex<double> S_cold_plasma(double omega,
+complex<double> epxx_warm_plasma(double omega,
                               double kparallel,
                               double Bmag,
                               double nue,
@@ -367,7 +379,7 @@ complex<double> S_cold_plasma(double omega,
    return val;
 }
 
-complex<double> S_cold_plasma_by_species(double omega,
+complex<double> epxx_warm_plasma_by_species(double omega,
                                         double kparallel,
                                         double Bmag,
                                         double nue,
@@ -438,7 +450,87 @@ complex<double> S_cold_plasma_by_species(double omega,
 
    return suscept_particle;
 }
-/*
+
+complex<double> epyy_warm_plasma(double omega,
+                              double kparallel,
+                              double Bmag,
+                              double nue,
+                              double nui,
+                              const Vector & number,
+                              const Vector & charge,
+                              const Vector & mass,
+                              const Vector & temp,
+                              double iontemp,
+                              int nuprof,
+                              double Rval,
+                              double Lval)
+{
+   if (kparallel < 1.0){kparallel = 18.0;}
+   complex<double> val(1.0, 0.0);
+   complex<double> suscept_particle(0.0,0.0);
+   double n = number[0];
+   double q = charge[0];
+   double m = mass[0];
+   double Te = temp[0] * q_;
+   double Ti = iontemp * q_;
+   if (Te < 0.0) {Te = -1.0*temp[0] * q_;}
+   double coul_log = CoulombLog(n, Te);
+   double nuei = (nuprof == 0) ?
+                 nu_ei(q, coul_log, m, Te, n)  :
+                 nue;
+   double LH_nu = 0.0;
+   complex<double> collision_correction(0.0, nuei/omega);
+   double nparallel = (3e8*kparallel)/(omega);
+   complex<double> comp_val(0.0,1.0);
+   double width_coll = 0.1;
+   double FWcutoff1 = (-1.0*fabs(1.0 - pow(nparallel,2.0)/Rval) ) / width_coll;
+   double FWcutoff2 = (-1.0*fabs(1.0 - pow(nparallel,2.0)/Lval) ) / width_coll;
+   double LHres = -1.0*(0.5*fabs(Rval+Lval))/0.2;
+   double FWres = (-1.0*fabs(1.0 - pow(nparallel,2.0)/(0.5*Rval+0.5*Lval) ) ) / width_coll;
+
+   for (int i=0; i<number.Size(); i++)
+   {
+      double n = number[i];
+      if (n < 0) {n = -1.0*number[i];}
+      double q = charge[i];
+      double m = mass[i];
+      complex<double> m_eff = m;
+      if (i == 0) { m_eff = m * (1.0 + collision_correction); }
+      complex<double> w_c = omega_c(Bmag, q, m_eff);
+      complex<double> w_p = omega_p(n, q, m_eff);
+      double T = Te;
+      if (i == 3) {T = Te + Ti;}
+      complex<double> vth = vthermal(T, m_eff);
+
+      if (i == 0)
+      {
+         double scale = 0.0;
+         suscept_particle = (-1.0 * w_p * w_p) / ((omega + w_c)*(omega - w_c))
+         +scale*10.0*comp_val*exp(FWcutoff1)+scale*10.0*comp_val*exp(FWcutoff2)
+         +scale*10.0*comp_val*exp(LHres)+scale*40.0*comp_val*exp(FWres);
+      }
+      else
+      {
+         double kperp = 72.12776;
+         double cold_S = 0.5*Rval+0.5*Lval;
+         if (fabs(cold_S) < 10.0)
+         {
+            LH_nu = (nui*exp(-pow(cold_S,2.0)))/omega;
+         }
+
+         complex<double> zero_harm = zero_harm_kinetic_S(w_c, w_p, vth, omega, kparallel, LH_nu, kperp);
+         complex<double> first_harm = first_harm_kinetic_S(w_c, w_p, vth, omega, kparallel, LH_nu);
+         complex<double> second_harm = second_harm_kinetic_S(w_c, w_p, vth, omega, kparallel, LH_nu, kperp);
+
+         // Total particle susceptibility contribution:
+         suscept_particle = zero_harm + first_harm + second_harm;
+      }
+      val += suscept_particle;
+   }
+   return val;
+}
+
+
 complex<double> D_cold_plasma(double omega,
                               double kparallel,
                               double Bmag,
@@ -490,9 +582,9 @@ complex<double> D_cold_plasma(double omega,
    }
    return val;
 }
-*/
 
-complex<double> D_cold_plasma(double omega,
+
+complex<double> epxy_warm_plasma(double omega,
                               double kparallel,
                               double Bmag,
                               double nue,
@@ -561,7 +653,7 @@ complex<double> D_cold_plasma(double omega,
    return val;
 }
 
-complex<double> D_cold_plasma_by_species(double omega,
+complex<double> epxy_warm_plasma_by_species(double omega,
                                         double kparallel,
                                         double Bmag,
                                         double nue,
@@ -624,7 +716,7 @@ complex<double> D_cold_plasma_by_species(double omega,
 
    return suscept_particle;
 }
-/*
+
 complex<double> P_cold_plasma(double omega,
                               double kparallel,
                               double nue,
@@ -659,9 +751,9 @@ complex<double> P_cold_plasma(double omega,
    }
    return val;
 }
-*/
 
-complex<double> P_cold_plasma(double omega,
+
+complex<double> epzz_warm_plasma(double omega,
                               double kparallel,
                               double nue,
                               const Vector & number,
@@ -707,7 +799,7 @@ complex<double> P_cold_plasma(double omega,
    return val;
 }
 
-complex<double> P_cold_plasma_by_species(double omega,
+complex<double> epzz_warm_plasma_by_species(double omega,
                                         double kparallel,
                                         double Bmag,
                                         double nue,
@@ -1266,7 +1358,8 @@ StixCoefBase::StixCoefBase(const ParGridFunction & B,
                            const Vector & masses,
                            int nuprof,
                            double res_lim,
-                           bool realPart)
+                           bool realPart,
+                           bool thermal)
    : B_(B),
      k_(k),
      nue_(nue),
@@ -1278,6 +1371,7 @@ StixCoefBase::StixCoefBase(const ParGridFunction & B,
      H1FESpace_(H1FESpace),
      omega_(omega),
      realPart_(realPart),
+     thermal_(thermal),
      nuprof_(nuprof),
      res_lim_(res_lim),
      BVec_(3),
@@ -1301,6 +1395,7 @@ StixCoefBase::StixCoefBase(StixCoefBase & s)
      H1FESpace_(s.GetTemperatureFESpace()),
      omega_(s.GetOmega()),
      realPart_(s.GetRealPartFlag()),
+     thermal_(s.GetthermalFlag()),
      nuprof_(s.GetNuProf()),
      res_lim_(s.GetResonanceLimitorFactor()),
      BVec_(3),
@@ -1363,10 +1458,11 @@ StixLCoef::StixLCoef(const ParGridFunction & B,
                      const Vector & masses,
                      int nuprof,
                      double res_lim,
-                     bool realPart)
+                     bool realPart,
+                     bool thermal)
    : StixCoefBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
                   omega,
-                  charges, masses, nuprof, res_lim, realPart)
+                  charges, masses, nuprof, res_lim, realPart, thermal)
 {}
 
 double StixLCoef::Eval(ElementTransformation &T,
@@ -1411,10 +1507,11 @@ StixRCoef::StixRCoef(const ParGridFunction & B,
                      const Vector & masses,
                      int nuprof,
                      double res_lim,
-                     bool realPart)
+                     bool realPart,
+                     bool thermal)
    : StixCoefBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
                   omega,
-                  charges, masses, nuprof, res_lim, realPart)
+                  charges, masses, nuprof, res_lim, realPart, thermal)
 {}
 
 double StixRCoef::Eval(ElementTransformation &T,
@@ -1460,10 +1557,11 @@ StixSCoef::StixSCoef(const ParGridFunction & B,
                      const Vector & masses,
                      int nuprof,
                      double res_lim,
-                     bool realPart)
+                     bool realPart,
+                     bool thermal)
    : StixCoefBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
                   omega,
-                  charges, masses, nuprof, res_lim, realPart)
+                  charges, masses, nuprof, res_lim, realPart, thermal)
 {}
 
 double StixSCoef::Eval(ElementTransformation &T,
@@ -1516,10 +1614,11 @@ StixDCoef::StixDCoef(const ParGridFunction & B,
                      const Vector & masses,
                      int nuprof,
                      double res_lim,
-                     bool realPart)
+                     bool realPart,
+                     bool thermal)
    : StixCoefBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
                   omega,
-                  charges, masses, nuprof, res_lim, realPart)
+                  charges, masses, nuprof, res_lim, realPart, thermal)
 {}
 
 double StixDCoef::Eval(ElementTransformation &T,
@@ -1572,10 +1671,11 @@ StixPCoef::StixPCoef(const ParGridFunction & B,
                      const Vector & masses,
                      int nuprof,
                      double res_lim,
-                     bool realPart)
+                     bool realPart,
+                     bool thermal)
    : StixCoefBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
                   omega,
-                  charges, masses, nuprof, res_lim, realPart)
+                  charges, masses, nuprof, res_lim, realPart, thermal)
 {}
 
 double StixPCoef::Eval(ElementTransformation &T,
@@ -1619,9 +1719,10 @@ StixTensorBase::StixTensorBase(const ParGridFunction & B,
                                const Vector & masses,
                                int nuprof,
                                double res_lim,
-                               bool realPart)
+                               bool realPart,
+                               bool thermal)
    : StixCoefBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
-                  omega, charges, masses, nuprof, res_lim, realPart)
+                  omega, charges, masses, nuprof, res_lim, realPart, thermal)
 {}
 
 void StixTensorBase::addParallelComp(double P, DenseMatrix & eps)
@@ -1682,11 +1783,12 @@ DielectricTensor::DielectricTensor(const ParGridFunction & B,
                                    const Vector & masses,
                                    int nuprof,
                                    double res_lim,
-                                   bool realPart)
+                                   bool realPart,
+                                   bool thermal)
    : MatrixCoefficient(3),
      StixTensorBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
                     omega,
-                    charges, masses, nuprof, res_lim, realPart)
+                    charges, masses, nuprof, res_lim, realPart, thermal)
 {}
 
 void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
@@ -1725,6 +1827,43 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    this->addParallelComp(realPart_ ?  P.real() : P.imag(), epsilon);
    this->addPerpDiagComp(realPart_ ?  S.real() : S.imag(), epsilon);
    this->addPerpSkewComp(realPart_ ? -D.imag() : D.real(), epsilon);
+   /*
+   if (!thermal_)
+   {
+      this->addParallelComp(realPart_ ?  P.real() : P.imag(), epsilon);
+      this->addPerpDiagComp(realPart_ ?  S.real() : S.imag(), epsilon);
+      this->addPerpSkewComp(realPart_ ? -D.imag() : D.real(), epsilon);
+   }
+   else
+   {
+      double s = sqrt(BVec_[0]*BVec_[0]+BVec_[1]*BVec_[1]);
+      complex<double> exx = epxx_warm_plasma_by_species(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
+                                     density_vals_, charges_, masses_,
+                                     temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
+      complex<double> eyy = epyy_warm_plasma_by_species(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
+                                     density_vals_, charges_, masses_,
+                                     temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
+      complex<double> exy = epxy_warm_plasma_by_species(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
+                                     density_vals_, charges_, masses_,
+                                     temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
+      complex<double> ezz = epzz_warm_plasma_by_species(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
+                                     density_vals_, charges_, masses_,
+                                     temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
+
+      epsilon(0,0) = (exx*BVec_[1]*BVec_[1])/(s*s) + (eyy*BVec_[0]*BVec_[0]*BVec_[2]*BVec_[2])/(s*s)
+                     +(2.0*exy*BVec_[0]*BVec_[1]*BVec_[2])/(s*s) + ezz*BVec_[0]*BVec_[0];
+      epsilon(1,1) = (exx*BVec_[0]*BVec_[0])/(s*s) + (eyy*BVec_[1]*BVec_[1]*BVec_[2]*BVec_[2])/(s*s)
+                     -(2.0*exy*BVec_[0]*BVec_[1]*BVec_[2])/(s*s) + ezz*BVec_[1]*BVec_[1];
+      epsilon(2,2) = eyy*s*s + ezz*BVec_[2]*BVec_[2];
+
+      epsilon(0,1) = -(exx*BVec_[0]*BVec_[1])/(s*s) + (eyy*BVec_[0]*BVec_[1]*BVec_[2]*BVec_[2])/(s*s)
+                     + (exy*(BVec_[1]*BVec_[1] - BVec_[0]*BVec_[0])*BVec_[2])/(s*s) + ezz*BVec_[0]*BVec_[1];
+      epsilon(1,0) = -(exx*BVec_[0]*BVec_[1])/(s*s) + (eyy*BVec_[0]*BVec_[1]*BVec_[2]*BVec_[2])/(s*s)
+                     + (exy*(BVec_[1]*BVec_[1] - BVec_[0]*BVec_[0])*BVec_[2])/(s*s) + ezz*BVec_[0]*BVec_[1];
+      epsilon(0,2) = -(eyy*BVec_[0]*BVec_[2])/s - (exy*BVec_[1])/s + ezz*BVec_[0]*BVec_[2];
+      epsilon(2,0) = -(eyy*BVec_[0]*BVec_[2])/s - (exy*BVec_[1])/s + ezz*BVec_[0]*BVec_[2];
+   }
+   */
 
    /*
    if (realPart_)
@@ -1801,11 +1940,12 @@ InverseDielectricTensor::InverseDielectricTensor(
    const Vector & masses,
    int nuprof,
    double res_lim,
-   bool realPart)
+   bool realPart,
+   bool thermal)
    : MatrixCoefficient(3),
      StixTensorBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
                     omega,
-                    charges, masses, nuprof, res_lim, realPart)
+                    charges, masses, nuprof, res_lim, realPart, thermal)
 {}
 
 void InverseDielectricTensor::Eval(DenseMatrix &epsilonInv,
@@ -1869,11 +2009,12 @@ SusceptibilityTensor::SusceptibilityTensor(const ParGridFunction & B,
                                    const Vector & masses,
                                    int nuprof,
                                    double res_lim,
-                                   bool realPart)
+                                   bool realPart,
+                                   bool thermal)
    : MatrixCoefficient(3),
      StixTensorBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
                     omega,
-                    charges, masses, nuprof, res_lim, realPart)
+                    charges, masses, nuprof, res_lim, realPart, thermal)
 {}
 
 void SusceptibilityTensor::Eval(DenseMatrix &suscept, ElementTransformation &T,
@@ -1940,12 +2081,13 @@ SusceptibilityTensorbySpecies::SusceptibilityTensorbySpecies(const ParGridFuncti
                                    int nuprof,
                                    double res_lim,
                                    bool realPart,
+                                   bool thermal,
                                    int species)
    : MatrixCoefficient(3),
      species_(species),
      StixTensorBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
                     omega,
-                    charges, masses, nuprof, res_lim, realPart)
+                    charges, masses, nuprof, res_lim, realPart, thermal)
 
 {}
 
@@ -1977,15 +2119,15 @@ void SusceptibilityTensorbySpecies::Eval(DenseMatrix &suscept, ElementTransforma
                                      density_vals_, charges_, masses_,
                                      temp_vals_, Ti_vals_, nuprof_);
 
-   complex<double> S = S_cold_plasma_by_species(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
+   complex<double> S = epxx_warm_plasma_by_species(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                           density_vals_[species_], charges_[species_], masses_[species_],
                                           density_vals_[0], temp_vals_[0], masses_[0], charges_[0],
                                           Ti_vals_, nuprof_, R.real(),L.real(), species_);
-   complex<double> D = D_cold_plasma_by_species(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
+   complex<double> D = epxy_warm_plasma_by_species(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                           density_vals_[species_], charges_[species_], masses_[species_],
                                           density_vals_[0], temp_vals_[0], masses_[0], charges_[0],
                                           Ti_vals_, nuprof_, R.real(),L.real(), species_);
-   complex<double> P = P_cold_plasma_by_species(omega_, kparallel, Bmag, nue_vals_, density_vals_[species_], 
+   complex<double> P = epzz_warm_plasma_by_species(omega_, kparallel, Bmag, nue_vals_, density_vals_[species_], 
                                           charges_[species_], masses_[species_], density_vals_[0], temp_vals_[0], 
                                           masses_[0], charges_[0],nuprof_, species_);
 
@@ -2014,7 +2156,7 @@ SPDDielectricTensor::SPDDielectricTensor(
    : MatrixCoefficient(3),
      StixCoefBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
                   omega,
-                  charges, masses, nuprof, res_lim, true)
+                  charges, masses, nuprof, res_lim, true, false)
 {}
 
 void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
@@ -2124,7 +2266,7 @@ void CylRotMat::Eval(DenseMatrix &rotMat, ElementTransformation &T,
       rotMat.SetSize(3);
       T.Transform(ip, xyz_);
 
-      double th = atan2(xyz_[2], xyz_[0]);
+      double th = atan2(xyz_[1], xyz_[0]);
 
       rotMat(0,0) = cos(th);
       rotMat(1,1) = cos(th);
@@ -2143,7 +2285,6 @@ void CylRotMat::Eval(DenseMatrix &rotMat, ElementTransformation &T,
          rotMat(0,1) = sin(th);
          rotMat(1,0) = -sin(th);
       }
-
    }
 
 lambdaPML::lambdaPML(bool realPart,
@@ -2171,17 +2312,18 @@ void lambdaPML::Eval(DenseMatrix &lambdaPML, ElementTransformation &T,
       complex<double> sig_w = constant;
 
       /*
-      double x0 = 2.234;
-      double delta_x = 0.1;
+      double x0 = 2.2404;
+      double delta_x = 0.12;
 
       if (xyz_[0] <= x0)
       {
          sig_u = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[0]-x0)/delta_x),2.0); // x
       }
+
       
-      double y0 = 0.86;
-      double y1 = -0.86;
-      double delta_y = 0.2;
+      double y0 = 0.84;
+      double y1 = -0.84;
+      double delta_y = 0.22;
       if (xyz_[1] >= y0)
       {
          sig_v = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[1]-y0)/delta_y),2.0); // y
@@ -2191,9 +2333,9 @@ void lambdaPML::Eval(DenseMatrix &lambdaPML, ElementTransformation &T,
          sig_v = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[1]-y1)/delta_y),2.0); // y
       }
 
-      double z0 = 0.6159;
-      double z1 = -0.007;
-      double delta_z = 0.13;
+      double z0 = 0.6;
+      double z1 = 0;
+      double delta_z = 0.16;
       if (xyz_[2] >= z0)
       {
          sig_w = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[2]-z0)/delta_z),2.0); // z
@@ -2202,7 +2344,7 @@ void lambdaPML::Eval(DenseMatrix &lambdaPML, ElementTransformation &T,
       {
          sig_w = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[2]-z1)/delta_z),2.0); // z
       }
-      */
+      
       
       double x0 = 0.2;
       double x1 = 0.7;
@@ -2215,11 +2357,19 @@ void lambdaPML::Eval(DenseMatrix &lambdaPML, ElementTransformation &T,
       {
          sig_u = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[0]-x1)/delta_x),2.0); // x
       }
-      
+      */
+
+      double x1 = 2.0;
+      double delta_x = 1.0;
+      if (xyz_[2] >= x1)
+      {
+         sig_w = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[2]-x1)/delta_x),2.0); // x
+      }
+
       if (cyl_)
       {
          // Cylindrical coordinates: (PML in theta)
-         double th = atan2(xyz_[2], xyz_[0]);
+         double th = atan2(xyz_[1], xyz_[0]);
          double delta_th = 10.0*(M_PI/180.0);
 
          sig_u = constant; // R
@@ -2293,18 +2443,17 @@ void sigmaPML::Eval(DenseMatrix &sigmaPML, ElementTransformation &T,
       complex<double> sig_w = constant;
 
       /*
-      double x0 = 2.234;
-      double delta_x = 0.1;
+      double x0 = 2.2404;
+      double delta_x = 0.12;
 
       if (xyz_[0] <= x0)
       {
          sig_u = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[0]-x0)/delta_x),2.0); // x
       }
 
-      
-      double y0 = 0.86;
-      double y1 = -0.86;
-      double delta_y = 0.2;
+      double y0 = 0.84;
+      double y1 = -0.84;
+      double delta_y = 0.22;
       if (xyz_[1] >= y0)
       {
          sig_v = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[1]-y0)/delta_y),2.0); // y
@@ -2314,19 +2463,18 @@ void sigmaPML::Eval(DenseMatrix &sigmaPML, ElementTransformation &T,
          sig_v = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[1]-y1)/delta_y),2.0); // y
       }
 
-      double z0 = 0.6159;
-      double z1 = -0.007;
-      double delta_z = 0.13;
+      double z0 = 0.6;
+      double z1 = 0;
+      double delta_z = 0.16;
       if (xyz_[2] >= z0)
       {
          sig_w = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[2]-z0)/delta_z),2.0); // z
       }
       if (xyz_[2] <= z1)
       {
-         sig_w
-          = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[2]-z1)/delta_z),2.0); // z
+         sig_w = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[2]-z1)/delta_z),2.0); // z
       }
-      */
+      
       
       double x0 = 0.2;
       double x1 = 0.7;
@@ -2338,6 +2486,14 @@ void sigmaPML::Eval(DenseMatrix &sigmaPML, ElementTransformation &T,
       if (xyz_[0] >= x1)
       {
          sig_u = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[0]-x1)/delta_x),2.0); // x
+      }
+      */
+
+      double x1 = 2.0;
+      double delta_x = 1.0;
+      if (xyz_[2] >= x1)
+      {
+         sig_w = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[2]-x1)/delta_x),2.0); // x
       }
       
       if (cyl_)

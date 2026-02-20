@@ -605,6 +605,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool visit = true;
    bool pml = false;
+   bool thermal = false;
 
    double freq = 1.0e6;
    const char * wave_type = " ";
@@ -1025,6 +1026,8 @@ int main(int argc, char *argv[])
                   "Enable or disable VisIt visualization.");
    args.AddOption(&pml, "-pml", "--pml", "-no-pml", "--no-pml",
                   "Enable or disable Cartesian PML");
+   args.AddOption(&thermal, "-warm", "--warm", "-cold", "--cold",
+                  "Enable or disable thermal corrections to dielectric");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -1778,11 +1781,11 @@ int main(int argc, char *argv[])
          StixPCoef RePCoef(BField, k_gf, nue_gf, nui_gf, density, temperature,
                            iontemp_gf, L2FESpace, H1FESpace,
                            omega, charges, masses, nuprof, res_lim,
-                           true);
+                           true, thermal);
          StixPCoef ImPCoef(BField, k_gf, nue_gf, nui_gf, density, temperature,
                            iontemp_gf, L2FESpace, H1FESpace,
                            omega, charges, masses, nuprof, res_lim,
-                           false);
+                           false, thermal);
 
          L2_ParFESpace err_fes(&pmesh, 0, pmesh.Dimension());
 
@@ -1810,11 +1813,11 @@ int main(int argc, char *argv[])
          StixSCoef ReSCoef(BField, k_gf, nue_gf, nui_gf, density, temperature,
                            iontemp_gf, L2FESpace, H1FESpace,
                            omega, charges, masses, nuprof, res_lim,
-                           true);
+                           true, thermal);
          StixSCoef ImSCoef(BField, k_gf, nue_gf, nui_gf, density, temperature,
                            iontemp_gf, L2FESpace, H1FESpace,
                            omega, charges, masses, nuprof, res_lim,
-                           false);
+                           false, thermal);
 
          L2_ParFESpace err_fes(&pmesh, 0, pmesh.Dimension());
 
@@ -1850,22 +1853,22 @@ int main(int argc, char *argv[])
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
-                                           res_lim, true);
+                                           res_lim, true, thermal);
    InverseDielectricTensor epsilonInv_imag(BField, k_gf, nue_gf, nui_gf, density,
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
-                                           res_lim, false);
+                                           res_lim, false, thermal);
    SusceptibilityTensor suscept_real(BField, k_gf, nue_gf, nui_gf, density,
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
-                                           res_lim, true);
+                                           res_lim, true, thermal);
    SusceptibilityTensor suscept_imag(BField, k_gf, nue_gf, nui_gf, density,
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
-                                           res_lim, false);
+                                           res_lim, false, thermal);
    TransposeMatrixCoefficient suscept_realT(suscept_real);
    TransposeMatrixCoefficient suscept_imagT(suscept_imag);
    MatrixSumCoefficient suscept_real_diss(suscept_real, suscept_realT);
@@ -1934,12 +1937,12 @@ int main(int argc, char *argv[])
                                     density, temperature, iontemp_gf,
                                     L2FESpace, H1FESpace,
                                     omega, charges, masses, nuprof, res_lim,
-                                    true);
+                                    true, thermal);
       DielectricTensor epsilon_imag(BField, k_gf, nue_gf, nui_gf,
                                     density, temperature, iontemp_gf,
                                     L2FESpace, H1FESpace,
                                     omega, charges, masses, nuprof, res_lim,
-                                    false);
+                                    false, thermal);
       DenseMatrix epsInvRe(3,3);
       DenseMatrix epsInvIm(3,3);
       DenseMatrix epsRe(3,3);
