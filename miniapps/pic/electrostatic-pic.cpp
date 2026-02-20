@@ -161,6 +161,7 @@ private:
    // Gradient operator for computing E = -∇φ
    ParDiscreteLinearOperator *grad_interpolator;
    FindPointsGSLIB &E_finder;
+   ParLinearForm b;
 
 protected:
    /** Compute neutralizing constant and initialize with the constant.
@@ -569,7 +570,8 @@ FieldSolver::FieldSolver(ParFiniteElementSpace *phi_fes,
                          FindPointsGSLIB &E_finder_,
                          bool precompute_neutralizing_const_)
     : precompute_neutralizing_const(precompute_neutralizing_const_),
-      E_finder(E_finder_)
+      E_finder(E_finder_),
+      b(phi_fes)
 {
    // compute domain volume
    ParMesh *pmesh = phi_fes->GetParMesh();
@@ -723,7 +725,6 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet &particles,
       // 1) Make RHS and pre-subtract averaged charge density for zero-mean RHS
       // --------------------------------------------------------
       MPI_Comm comm = pfes->GetComm();
-      ParLinearForm b(pfes);
       b = ComputeNeutralizingRHS(pfes, Q, comm);
 
       // --------------------------------------------------------
