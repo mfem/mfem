@@ -1824,6 +1824,18 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
                                      density_vals_, charges_, masses_,
                                      temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
 
+   if (thermal_)
+   {
+      S = epxx_warm_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
+                                     density_vals_, charges_, masses_,
+                                     temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
+      D = epxy_warm_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
+                                     density_vals_, charges_, masses_,
+                                     temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
+      P = epzz_warm_plasma(omega_, kparallel, nue_vals_, density_vals_,
+                                     charges_, masses_, temp_vals_, Ti_vals_, nuprof_);
+   }
+
    this->addParallelComp(realPart_ ?  P.real() : P.imag(), epsilon);
    this->addPerpDiagComp(realPart_ ?  S.real() : S.imag(), epsilon);
    this->addPerpSkewComp(realPart_ ? -D.imag() : D.real(), epsilon);
