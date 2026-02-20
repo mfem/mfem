@@ -87,7 +87,11 @@ int main(int argc, char *argv[])
 
    // 6. Setup target function.
    // This function is not positive, so the projection will be clipped version of this function.
-   FunctionCoefficient u_targ([](const Vector &x) { return std::sin(2*M_PI * x[0]) * std::sin(2*M_PI * x[1]); });
+   FunctionCoefficient u_targ([](const Vector &x) { return
+      std::sin(2.0 * M_PI * x[0]) * std::sin(2.0*M_PI * x[1]);
+      // std::sin(M_PI * x[0]) * std::sin(M_PI * x[1]);
+      // 2.0 + std::atanh(2*(x[0]-0.5));
+    });
 
    // 7, Define entropy function
    Shannon entropy;
@@ -97,8 +101,7 @@ int main(int argc, char *argv[])
    // 7. Element Loop
    // Since our space is L2, we can do element-wise projection.
    MassIntegrator mass;
-   DomainLFIntegrator targ(u_targ, &ir);
-   DomainLFIntegrator int_u(u_cf, &ir);
+   DomainLFIntegrator targ(u_targ);
    DenseMatrix M, M_mixed, H;
    Vector b;
 
@@ -154,8 +157,12 @@ int main(int argc, char *argv[])
       Vector &primal_res = pg_rhs.GetBlock(0);
       Vector &dual_res = pg_rhs.GetBlock(1);
 
+      real_t w = mesh.GetElementVolume(e_idx);
       mass.AssembleElementMatrix(*primal_fe, *Tr, M);
-      // M *= 1.0 / mesh.GetElementVolume(e_idx); // normalize
+
+      // M *= 1.0 / w; // normalize
+      // primal_res *= 1.0 / w;
+
       targ.AssembleRHSElementVect(*primal_fe, *Tr, primal_res);
 
       pg_mat.SetSubMatrix(0, 0, M);
