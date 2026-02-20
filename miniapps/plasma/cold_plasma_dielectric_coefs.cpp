@@ -1588,6 +1588,12 @@ double StixSCoef::Eval(ElementTransformation &T,
    complex<double> S = S_cold_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
                                      temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
+   if (thermal_)
+   {
+      S = epxx_warm_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
+                           density_vals_, charges_, masses_,
+                           temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
+   }
 
    // Return the selected component
    if (realPart_)
@@ -1646,6 +1652,13 @@ double StixDCoef::Eval(ElementTransformation &T,
                                      density_vals_, charges_, masses_,
                                      temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
 
+   if (thermal_)
+   {
+   D = epxy_warm_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
+                        density_vals_, charges_, masses_,
+                        temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
+   }
+
    // Return the selected component
    if (realPart_)
    {
@@ -1693,6 +1706,12 @@ double StixPCoef::Eval(ElementTransformation &T,
    // Evaluate Stix Coefficient
    complex<double> P = P_cold_plasma(omega_, kparallel, nue_vals_, density_vals_,
                                      charges_, masses_, temp_vals_, Ti_vals_, nuprof_);
+
+   if (thermal_)
+   {
+      P = epzz_warm_plasma(omega_, kparallel, nue_vals_, density_vals_,
+                           charges_, masses_, temp_vals_, Ti_vals_, nuprof_);
+   }
 
    // Return the selected component
    if (realPart_)
