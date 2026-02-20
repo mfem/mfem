@@ -43,8 +43,7 @@
 //   2D2V Linear Landau damping test case (Ricketson & Hu, 2025):
 //      mpirun -n 4 ./electrostatic-pic -rdi 1 -npt 409600 -k 0.2855993321 -a 0.05 -nt 200 -nx 32 -ny 32 -O 1 -q 0.001181640625 -m 0.001181640625 -oci 1000 -dt 0.1
 //   3D3V Linear Landau damping test case (Zheng et al., 2025):
-//    * mpirun -n 128 ./electrostatic-pic -dim 3 -rdi 1 -npt 40960000 -k 0.5 -a 0.01 -nt 100 -nx 32 -ny 32 -nz 32 -O 1 -q 0.00004844730731 -m 0.00004844730731 -oci 1000 -dt 0.02 -no-vis
-
+//      mpirun -n 128 ./electrostatic-pic -dim 3 -rdi 1 -npt 40960000 -k 0.5 -a 0.01 -nt 100 -nx 32 -ny 32 -nz 32 -O 1 -q 0.00004844730731 -m 0.00004844730731 -oci 1000 -dt 0.02 -no-vis
 #include <ctime>
 #include <fstream>
 #include <iomanip>
@@ -142,7 +141,7 @@ public:
    ParticleSet& GetParticles() { return *charged_particles; }
 
    /// Compute (global) kinetic energy from particles
-   real_t ComputeKineticEnergy(real_t dt) const;
+   real_t ComputeKineticEnergy() const;
 };
 
 /** Field solver responsible for updating the electrostatic potential and field
@@ -185,8 +184,11 @@ public:
    /** Update the phi_gf grid function from the particles.
        Solve periodic Poisson: diffusion_matrix * phi = (rho - <rho>)
        with zero-mean enforcement via OrthoSolver. */
-   void UpdatePhiGridFunction(ParticleSet& particles, ParGridFunction& phi_gf,
-                              ParGridFunction& E_gf);
+   void UpdatePhiGridFunction(ParticleSet& particles, ParGridFunction& phi_gf);
+
+   /** Update E_gf grid function from phi_gf grid function.
+       Compute the gradient: E = -∇φ. */
+   void UpdateEGridFunction(ParGridFunction& phi_gf, ParGridFunction& E_gf);
 
    /// Compute (global) field energy: 0.5 * ∫ ||E||^2 dx
    real_t ComputeFieldEnergy(const ParGridFunction& E_gf) const;
@@ -327,7 +329,9 @@ int main(int argc, char* argv[])
 
          // Update phi_gf from particles
          field_solver.UpdatePhiGridFunction(particle_mover.GetParticles(),
-                                            phi_gf, E_gf);
+                                            phi_gf);
+         // Update E_gf from phi_gf
+         field_solver.UpdateEGridFunction(phi_gf, E_gf);
 
          // Visualize fields if requested
          if (ctx.visualization)
@@ -340,7 +344,7 @@ int main(int argc, char* argv[])
          }
 
          // Compute energies
-         real_t kinetic_energy = particle_mover.ComputeKineticEnergy(dt);
+         real_t kinetic_energy = particle_mover.ComputeKineticEnergy();
          real_t field_energy = field_solver.ComputeFieldEnergy(E_gf);
 
          // Output energies
@@ -502,10 +506,8 @@ void ParticleMover::Redistribute()
    FindParticles();
 }
 
-real_t ParticleMover::ComputeKineticEnergy(real_t dt) const
+real_t ParticleMover::ComputeKineticEnergy() const
 {
-   const ParticleVector& Q = charged_particles->Field(CHARGE);
-   const ParticleVector& E = charged_particles->Field(EFIELD);
    const ParticleVector& P = charged_particles->Field(MOM);
    const ParticleVector& M = charged_particles->Field(MASS);
 
@@ -513,11 +515,7 @@ real_t ParticleMover::ComputeKineticEnergy(real_t dt) const
    for (int p = 0; p < charged_particles->GetNParticles(); ++p)
    {
       real_t p_square_p = 0.0;
-      for (int d = 0; d < P.GetVDim(); ++d)
-      {
-         real_t p_curr = P(p, d) - 0.5 * dt * Q(p) * E(p, d);
-         p_square_p += p_curr * p_curr;
-      }
+      for (int d = 0; d < P.GetVDim(); ++d) { p_square_p += P(p, d) * P(p, d); }
       kinetic_energy += 0.5 * p_square_p / M(p);
    }
 
@@ -670,65 +668,63 @@ void FieldSolver::DepositCharge(ParFiniteElementSpace* pfes,
 }
 
 void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
-                                        ParGridFunction& phi_gf,
-                                        ParGridFunction& E_gf)
+                                        ParGridFunction& phi_gf)
 {
-   {
-      // FE space / mesh
-      ParFiniteElementSpace* pfes = phi_gf.ParFESpace();
+   // FE space / mesh
+   ParFiniteElementSpace* pfes = phi_gf.ParFESpace();
 
-      // Particle data: Q - charges (npt x 1)
-      ParticleVector& Q = particles.Field(ParticleMover::CHARGE);
+   // Particle data: Q - charges (npt x 1)
+   ParticleVector& Q = particles.Field(ParticleMover::CHARGE);
 
-      // --------------------------------------------------------
-      // 1) Make RHS and pre-subtract averaged charge density for zero-mean RHS
-      // --------------------------------------------------------
-      MPI_Comm comm = pfes->GetComm();
-      b = ComputeNeutralizingRHS(pfes, Q, comm);
+   // --------------------------------------------------------
+   // 1) Make RHS and pre-subtract averaged charge density for zero-mean RHS
+   // --------------------------------------------------------
+   MPI_Comm comm = pfes->GetComm();
+   b = ComputeNeutralizingRHS(pfes, Q, comm);
 
-      // --------------------------------------------------------
-      // 2) Deposit q_p * phi_i(x_p) into a ParLinearForm (RHS b)
-      //      b_i = sum_p q_p * φ_i(x_p)
-      // --------------------------------------------------------
-      DepositCharge(pfes, Q, b);
+   // --------------------------------------------------------
+   // 2) Deposit q_p * phi_i(x_p) into a ParLinearForm (RHS b)
+   //      b_i = sum_p q_p * φ_i(x_p)
+   // --------------------------------------------------------
+   DepositCharge(pfes, Q, b);
 
-      // Assemble to a global true-dof RHS vector compatible with MassMatrix
-      HypreParVector B(pfes);
-      b.ParallelAssemble(B);
+   // Assemble to a global true-dof RHS vector compatible with MassMatrix
+   HypreParVector B(pfes);
+   b.ParallelAssemble(B);
 
-      // ------------------------------------------------------------------
-      // 3) Solve A * phi = B with zero-mean enforcement via OrthoSolver
-      // ------------------------------------------------------------------
-      phi_gf = 0.0;
-      HypreParVector Phi_true(pfes);
-      Phi_true = 0.0;
+   // ------------------------------------------------------------------
+   // 3) Solve A * phi = B with zero-mean enforcement via OrthoSolver
+   // ------------------------------------------------------------------
+   phi_gf = 0.0;
+   HypreParVector Phi_true(pfes);
+   Phi_true = 0.0;
 
-      HyprePCG solver(diffusion_matrix->GetComm());
-      solver.SetOperator(*diffusion_matrix);
-      solver.SetTol(1e-12);
-      solver.SetMaxIter(200);
-      solver.SetPrintLevel(0);
+   HyprePCG solver(diffusion_matrix->GetComm());
+   solver.SetOperator(*diffusion_matrix);
+   solver.SetTol(1e-12);
+   solver.SetMaxIter(200);
+   solver.SetPrintLevel(0);
 
-      HypreBoomerAMG prec(*diffusion_matrix);
-      prec.SetPrintLevel(0);
-      solver.SetPreconditioner(prec);
+   HypreBoomerAMG prec(*diffusion_matrix);
+   prec.SetPrintLevel(0);
+   solver.SetPreconditioner(prec);
 
-      OrthoSolver ortho(comm);
-      ortho.SetSolver(solver);
-      ortho.Mult(B, Phi_true);
+   OrthoSolver ortho(comm);
+   ortho.SetSolver(solver);
+   ortho.Mult(B, Phi_true);
 
-      // Map true-dof solution back to the ParGridFunction
-      phi_gf.Distribute(Phi_true);
-   }
-
-   {
-      // Compute ∇φ using precomputed gradient operator
-      grad_interpolator->Mult(phi_gf, E_gf);
-      // Scale by -1 to get E = -∇φ
-      E_gf.Neg();
-   }
+   // Map true-dof solution back to the ParGridFunction
+   phi_gf.Distribute(Phi_true);
 }
 
+void FieldSolver::UpdateEGridFunction(ParGridFunction& phi_gf,
+                                      ParGridFunction& E_gf)
+{
+   // Compute ∇φ using precomputed gradient operator
+   grad_interpolator->Mult(phi_gf, E_gf);
+   // Scale by -1 to get E = -∇φ
+   E_gf.Neg();
+}
 real_t FieldSolver::ComputeFieldEnergy(const ParGridFunction& E_gf) const
 {
    // ---- Field energy: 0.5 * ∫ ||E||^2 dx ----
