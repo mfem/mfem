@@ -227,11 +227,11 @@ public:
                                            const ParGridFunction &dst);
 
    /**
-   * @brief Check if ParMesh @a m is a ParSubMesh.
+   * @brief Check if Mesh @a m is a ParSubMesh.
    *
-   * @param m The input ParMesh
+   * @param m The input Mesh
    */
-   static bool IsParSubMesh(const ParMesh *m)
+   static bool IsParSubMesh(const Mesh *m)
    {
       return dynamic_cast<const ParSubMesh *>(m) != nullptr;
    }
