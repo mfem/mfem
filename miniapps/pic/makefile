@@ -50,9 +50,20 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 all: $(MINIAPPS)
 
 # Rules for building the miniapps
-electrostatic-pic: electrostatic-pic.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+ELECTROSTATIC_PIC_SRCS = electrostatic-pic.cpp ParticleMover.cpp FieldSolver.cpp
+ELECTROSTATIC_PIC_OBJS = $(ELECTROSTATIC_PIC_SRCS:.cpp=.o)
+
+electrostatic-pic: $(ELECTROSTATIC_PIC_OBJS) $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(ELECTROSTATIC_PIC_OBJS) $(COMMON_LIB) $(MFEM_LIBS)
+
+electrostatic-pic.o: electrostatic-pic.cpp ParticleMover.hpp FieldSolver.hpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $<
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $(COMMON_LIB) $(MFEM_LIBS)
+
+ParticleMover.o: ParticleMover.cpp ParticleMover.hpp $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $<
+
+FieldSolver.o: FieldSolver.cpp FieldSolver.hpp ParticleMover.hpp $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $<
 
 # Rule for building lib-common
 lib-common:
