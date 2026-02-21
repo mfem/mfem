@@ -43,8 +43,7 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
                          bool precompute_neutralizing_const_)
     : precompute_neutralizing_const(precompute_neutralizing_const_),
       E_finder(E_finder_),
-      b(phi_fes),
-      rho_gf(phi_fes)
+      b(phi_fes)
 {
    ParMesh* pmesh = phi_fes->GetParMesh();
    real_t local_domain_volume = 0.0;
@@ -178,7 +177,8 @@ void FieldSolver::DepositCharge(ParFiniteElementSpace* pfes,
 }
 
 void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
-                                        ParGridFunction& phi_gf)
+                                        ParGridFunction& phi_gf,
+                                        ParGridFunction& rho_gf)
 {
    ParFiniteElementSpace* pfes = phi_gf.ParFESpace();
 
@@ -205,7 +205,7 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
       ComputeGlobalSum(b);
    }
 
-   DiffuseRHS(b);
+   DiffuseRHS(b, rho_gf);
    if (Mpi::Root())
    {
       cout << "Total charge C: " << ComputeGlobalSum(b) << endl;
@@ -246,7 +246,7 @@ void FieldSolver::UpdateEGridFunction(ParGridFunction& phi_gf,
    E_gf.Neg();
 }
 
-void FieldSolver::DiffuseRHS(ParLinearForm& b)
+void FieldSolver::DiffuseRHS(ParLinearForm& b, ParGridFunction& rho_gf)
 {
    HypreParVector* B = b.ParallelAssemble();
 

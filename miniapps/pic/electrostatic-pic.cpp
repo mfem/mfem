@@ -192,8 +192,10 @@ int main(int argc, char* argv[])
 
    // 5. Initialize the grid functions for the electric field and potential
    ParGridFunction phi_gf(&phi_fespace);
+   ParGridFunction rho_gf(&phi_fespace);
    ParGridFunction E_gf(&E_fespace);
    phi_gf = 0.0;  // Initialize phi_gf to zero
+   rho_gf = 0.0;  // Initialize rho_gf to zero
    E_gf = 0.0;    // Initialize E_gf to zero
 
    // 6. Construct the field solver
@@ -228,18 +230,20 @@ int main(int argc, char* argv[])
 
          // Update phi_gf from particles
          field_solver.UpdatePhiGridFunction(particle_mover.GetParticles(),
-                                            phi_gf);
+                                            phi_gf, rho_gf);
          // Update E_gf from phi_gf
          field_solver.UpdateEGridFunction(phi_gf, E_gf);
 
          // Visualize fields if requested
          if (ctx.visualization)
          {
-            static socketstream vis_e, vis_phi;
+            static socketstream vis_e, vis_phi, vis_rho;
             common::VisualizeField(vis_e, "localhost", ctx.visport, E_gf,
                                    "E_field", 0, 0, 500, 500);
             common::VisualizeField(vis_phi, "localhost", ctx.visport, phi_gf,
                                    "Potential", 500, 0, 500, 500);
+            common::VisualizeField(vis_rho, "localhost", ctx.visport, rho_gf,
+                                   "Charge density", 1000, 0, 500, 500);
          }
 
          // Compute energies
