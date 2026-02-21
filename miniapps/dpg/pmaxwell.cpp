@@ -44,7 +44,7 @@
 // The DPG UW deals with the First Order System
 //  i ω μ H + ∇ × E = 0,   in Ω
 // -i ω ϵ E + ∇ × H = J,   in Ω
-//            E × n = E_0, on ∂Ω
+//            E × n = E₀, on ∂Ω
 // Note: Ĵ = -iωJ
 
 // The ultraweak-DPG formulation is obtained by integration by parts of both
@@ -71,7 +71,7 @@
 
 // in 3D
 // E,H ∈ (L^2(Ω))³
-// Ê ∈ H_0^1/2(Ω)(curl, Γₕ), Ĥ ∈ H^-1/2(curl, Γₕ)
+// Ê ∈ H\_0^1/2(Ω)(curl, Γₕ), Ĥ ∈ H^-1/2(curl, Γₕ)
 //  i ω μ (H,F) + (E,∇ × F) + < Ê, F × n > = 0,      ∀ F ∈ H(curl,Ω)
 // -i ω ϵ (E,G) + (H,∇ × G) + < Ĥ, G × n > = (J,G)   ∀ G ∈ H(curl,Ω)
 //                                   Ê × n = E₀      on ∂Ω
@@ -106,7 +106,7 @@
 // in 2D
 // E ∈ (L²(Ω))² , H ∈ L²(Ω)
 // Ê ∈ H^-1/2(Ω)(Γₕ), Ĥ ∈ H^1/2(Γₕ)
-//  i ω μ (α⁻¹ H,F) + (E, ∇ × F) + < AÊ, F > = 0,          ∀ F ∈ H¹
+//  i ω μ (α⁻¹ H,F) + (E, ∇ × F) + < AÊ, F > = 0,         ∀ F ∈ H¹
 // -i ω ϵ (β E,G)   + (H,∇ × G)  + < Ĥ, G × n > = (J,G)   ∀ G ∈ H(curl,Ω)
 //                                            Ê = E₀     on ∂Ω
 // ---------------------------------------------------------------------------------
@@ -121,10 +121,10 @@
 //
 // in 3D
 // E,H ∈ (L^2(Ω))³
-// Ê ∈ H_0^1/2(Ω)(curl, Γ_h), Ĥ ∈ H^-1/2(curl, Γₕ)
+// Ê ∈ H_0^1/2(Ω)(curl, Γₕ), Ĥ ∈ H^-1/2(curl, Γₕ)
 //  i ω μ (α⁻¹ H,F) + (E,∇ × F) + < Ê, F × n > = 0,      ∀ F ∈ H(curl,Ω)
-// -i ω ϵ (β E,G)    + (H,∇ × G) + < Ĥ, G × n > = (J,G)   ∀ G ∈ H(curl,Ω)
-//                                        Ê × n = E_0     on ∂Ω
+// -i ω ϵ (β E,G)   + (H,∇ × G) + < Ĥ, G × n > = (J,G)   ∀ G ∈ H(curl,Ω)
+//                                       Ê × n = E₀      on ∂Ω
 // -------------------------------------------------------------------------------
 // |   |       E      |      H           |      Ê       |       Ĥ      |  RHS    |
 // -------------------------------------------------------------------------------
@@ -138,6 +138,7 @@
 #include "mfem.hpp"
 #include "util/pcomplexweakform.hpp"
 #include "util/pml.hpp"
+#include "util/preconditioners.hpp"
 #include "../common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
@@ -146,12 +147,12 @@ using namespace std;
 using namespace mfem;
 using namespace mfem::common;
 
+
 void E_exact_r(const Vector &x, Vector & E_r);
 void E_exact_i(const Vector &x, Vector & E_i);
 
 void H_exact_r(const Vector &x, Vector & H_r);
 void H_exact_i(const Vector &x, Vector & H_i);
-
 
 void  rhs_func_r(const Vector &x, Vector & J_r);
 void  rhs_func_i(const Vector &x, Vector & J_i);
@@ -221,6 +222,7 @@ int main(int argc, char *argv[])
    int delta_order = 1;
    real_t rnum=1.0;
    real_t theta = 0.0;
+   bool pmg = false;
    bool static_cond = false;
    int iprob = 0;
    int sr = 0;
@@ -255,6 +257,8 @@ int main(int argc, char *argv[])
                   "Number of parallel refinements.");
    args.AddOption(&pr, "-pref", "--parallel-ref",
                   "Number of parallel refinements.");
+   args.AddOption(&pmg, "-pmg", "--p-refinement-multigrid", "-no-pmg",
+                  "--no-p-refinement-multigrid", "Enable P-Refinement Multigrid.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -821,89 +825,67 @@ int main(int argc, char *argv[])
       a->FormLinearSystem(ess_tdof_list,x,Ah, X,B);
 
       ComplexOperator * Ahc = Ah.As<ComplexOperator>();
-
       BlockOperator * BlockA_r = dynamic_cast<BlockOperator *>(&Ahc->real());
-      BlockOperator * BlockA_i = dynamic_cast<BlockOperator *>(&Ahc->imag());
 
-      int num_blocks = BlockA_r->NumRowBlocks();
-      Array<int> tdof_offsets(2*num_blocks+1);
-
-      tdof_offsets[0] = 0;
-      int skip = (static_cond) ? 0 : 2;
-      int k = (static_cond) ? 2 : 0;
-      for (int i=0; i<num_blocks; i++)
+      Array<ParFiniteElementSpace *> prec_fes;
+      if (static_cond)
       {
-         tdof_offsets[i+1] = trial_fes[i+k]->GetTrueVSize();
-         tdof_offsets[num_blocks+i+1] = trial_fes[i+k]->GetTrueVSize();
-      }
-      tdof_offsets.PartialSum();
-
-      BlockOperator blockA(tdof_offsets);
-      for (int i = 0; i<num_blocks; i++)
-      {
-         for (int j = 0; j<num_blocks; j++)
-         {
-            blockA.SetBlock(i,j,&BlockA_r->GetBlock(i,j));
-            blockA.SetBlock(i,j+num_blocks,&BlockA_i->GetBlock(i,j), -1.0);
-            blockA.SetBlock(i+num_blocks,j+num_blocks,&BlockA_r->GetBlock(i,j));
-            blockA.SetBlock(i+num_blocks,j,&BlockA_i->GetBlock(i,j));
-         }
-      }
-
-      X = 0.;
-      BlockDiagonalPreconditioner M(tdof_offsets);
-
-      if (!static_cond)
-      {
-         HypreBoomerAMG * solver_E = new HypreBoomerAMG((HypreParMatrix &)
-                                                        BlockA_r->GetBlock(0,0));
-         solver_E->SetPrintLevel(0);
-         solver_E->SetSystemsOptions(dim);
-         HypreBoomerAMG * solver_H = new HypreBoomerAMG((HypreParMatrix &)
-                                                        BlockA_r->GetBlock(1,1));
-         solver_H->SetPrintLevel(0);
-         solver_H->SetSystemsOptions(dim);
-         M.SetDiagonalBlock(0,solver_E);
-         M.SetDiagonalBlock(1,solver_H);
-         M.SetDiagonalBlock(num_blocks,solver_E);
-         M.SetDiagonalBlock(num_blocks+1,solver_H);
-      }
-
-      HypreSolver * solver_hatH = nullptr;
-      HypreAMS * solver_hatE = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(skip,
-                                                                                 skip),
-                                            hatE_fes);
-      solver_hatE->SetPrintLevel(0);
-      if (dim == 2)
-      {
-         solver_hatH = new HypreBoomerAMG((HypreParMatrix &)BlockA_r->GetBlock(skip+1,
-                                                                               skip+1));
-         dynamic_cast<HypreBoomerAMG*>(solver_hatH)->SetPrintLevel(0);
+         a->GetTraceFESpaces(prec_fes);
       }
       else
       {
-         solver_hatH = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(skip+1,skip+1),
-                                    hatH_fes);
-         dynamic_cast<HypreAMS*>(solver_hatH)->SetPrintLevel(0);
+         prec_fes = trial_fes;
       }
-
-      M.SetDiagonalBlock(skip,solver_hatE);
-      M.SetDiagonalBlock(skip+1,solver_hatH);
-      M.SetDiagonalBlock(skip+num_blocks,solver_hatE);
-      M.SetDiagonalBlock(skip+num_blocks+1,solver_hatH);
+      Solver * cprec = nullptr;
+      if (pmg)
+      {
+#ifdef MFEM_USE_MUMPS
+         bool mumps_coarse_solver = true;
+#else
+         bool mumps_coarse_solver = false;
+#endif
+         std::vector<Array<int>> ess_bdr_marker(prec_fes.Size());
+         for (int b = 0; b<prec_fes.Size(); b++)
+         {
+            if (pmesh.bdr_attributes.Size())
+            {
+               ess_bdr_marker[b].SetSize(pmesh.bdr_attributes.Max());
+               if (b == 2) // hatE
+               {
+                  ess_bdr_marker[b] = ess_bdr;
+               }
+               else
+               {
+                  ess_bdr_marker[b] = 0;
+               }
+            }
+         }
+         cprec = new ComplexPRefinementMultigrid(prec_fes, ess_bdr_marker, *Ahc,
+                                                 mumps_coarse_solver);
+      }
+      else
+      {
+         BlockDiagonalPreconditioner * real_prec = new BlockDiagonalPreconditioner(
+            BlockA_r->RowOffsets());
+         real_prec->owns_blocks = 1;
+         for (int i = 0; i<BlockA_r->NumRowBlocks(); i++)
+         {
+            auto prec = MakeFESpaceDefaultSolver(prec_fes[i],0);
+            prec->SetOperator(BlockA_r->GetBlock(i,i));
+            real_prec->SetDiagonalBlock(i,prec);
+         }
+         cprec = new ComplexPreconditioner(real_prec, true);
+      }
 
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-6);
       cg.SetMaxIter(10000);
       cg.SetPrintLevel(0);
-      cg.SetPreconditioner(M);
-      cg.SetOperator(blockA);
+      cg.SetOperator(*Ahc);
+      cg.SetPreconditioner(*cprec);
       cg.Mult(B, X);
 
-      for (int i = 0; i<num_blocks; i++)
-      {
-         delete &M.GetDiagonalBlock(i);
-      }
+      delete cprec;
 
       int num_iter = cg.GetNumIterations();
 

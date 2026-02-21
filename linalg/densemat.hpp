@@ -467,6 +467,10 @@ public:
        then (*this)(i,j) = -(*this)(i,j).  */
    void AdjustDofDirection(Array<int> &dofs);
 
+
+   void AdjustDofDirection(Array<int> &row_dofs,
+                           Array<int> &col_dofs);
+
    /// Replace small entries, abs(a_ij) <= eps, with zero.
    void Threshold(real_t eps);
 

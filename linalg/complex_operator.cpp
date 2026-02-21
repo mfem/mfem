@@ -10,6 +10,9 @@
 // CONTRIBUTING.md for details.
 
 #include "complex_operator.hpp"
+#ifdef MFEM_USE_MPI
+#include "blockoperator.hpp"
+#endif
 #include <set>
 #include <map>
 
@@ -163,6 +166,51 @@ void ComplexOperator::MultTranspose(const Vector &x_r, const Vector &x_i,
       y_i.Add(-1.0, *u_);
    }
 }
+
+#ifdef MFEM_USE_MPI
+ComplexHypreParMatrix * ComplexOperator::AsComplexHypreParMatrix() const
+{
+   HypreParMatrix *Ar = nullptr;
+   HypreParMatrix *Ai = nullptr;
+   bool own_r = false;
+   bool own_i = false;
+
+   if (auto *Ahr = dynamic_cast<const HypreParMatrix*>(&real()))
+   {
+      Ar = const_cast<HypreParMatrix*>(Ahr);
+   }
+   else if (auto *Br = dynamic_cast<const BlockOperator*>(&real()))
+   {
+      Ar = Br->GetMonolithicHypreParMatrix();
+      own_r = true;
+   }
+   else
+   {
+      MFEM_ABORT("Real part is neither HypreParMatrix nor BlockOperator.");
+   }
+
+   if (auto *Ahi = dynamic_cast<const HypreParMatrix*>(&imag()))
+   {
+      Ai = const_cast<HypreParMatrix*>(Ahi);
+   }
+   else if (auto *Bi = dynamic_cast<const BlockOperator*>(&imag()))
+   {
+      Ai = Bi->GetMonolithicHypreParMatrix();
+      own_i = true;
+   }
+   else
+   {
+      MFEM_ABORT("Imag part is neither HypreParMatrix nor BlockOperator.");
+   }
+
+   return new ComplexHypreParMatrix(Ar, Ai, own_r, own_i, GetConvention());
+}
+
+
+
+#endif
+
+
 
 
 SparseMatrix & ComplexSparseMatrix::real()
