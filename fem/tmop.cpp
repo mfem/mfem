@@ -3768,6 +3768,7 @@ TMOP_Integrator::~TMOP_Integrator()
       delete ElemDer[i];
       delete ElemPertEnergy[i];
    }
+   // det_plb is automatically deleted by std::unique_ptr
 }
 
 void TMOP_Integrator::EnableLimiting(const GridFunction &n0,
@@ -5883,10 +5884,12 @@ ComputeUntangleMetricQuantiles(const Vector &d, const FiniteElementSpace &fes)
       dynamic_cast<const ParFiniteElementSpace *>(&fes);
 #endif
 
-   if (wcuo && wcuo->GetBarrierType() ==
+   if (wcuo->GetBarrierType() ==
        TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Shifted)
    {
-      real_t min_detT = ComputeMinDetT(x_loc, fes);
+      real_t min_detT = (det_gf != nullptr) ?
+                        GetDeterminantLowerBound(d, fes, true) :
+                        ComputeMinDetT(x_loc, fes);
       real_t min_detT_all = min_detT;
 #ifdef MFEM_USE_MPI
       if (pfes)
@@ -5895,7 +5898,7 @@ ComputeUntangleMetricQuantiles(const Vector &d, const FiniteElementSpace &fes)
                        MPITypeMap<real_t>::mpi_type, MPI_MIN, pfes->GetComm());
       }
 #endif
-      if (wcuo) { wcuo->SetMinDetT(min_detT_all); }
+      wcuo->SetMinDetT(min_detT_all);
    }
 
    real_t max_muT = ComputeUntanglerMaxMuBarrier(x_loc, fes);
@@ -5908,6 +5911,75 @@ ComputeUntangleMetricQuantiles(const Vector &d, const FiniteElementSpace &fes)
    }
 #endif
    wcuo->SetMaxMuT(max_muT_all);
+}
+
+void TMOP_Integrator::UpdateDeterminantGridFunction(const Vector &x_loc,
+                                                    const FiniteElementSpace &fes)
+{
+   MFEM_VERIFY(det_gf != nullptr,
+               "Determinant gridfunction has not been setup.");
+   Mesh *mesh = fes.GetMesh();
+   FiniteElementSpace *det_fes = det_gf->FESpace();
+   Array<int> dofs;
+   DenseMatrix PMat, dshape;
+   Array<int> xdofs;
+
+   for (int e = 0; e < mesh->GetNE(); e++)
+   {
+      const FiniteElement *fe = fes.GetFE(e);
+      const int dof = fe->GetDof(), dim = fe->GetDim();
+      DenseMatrix Jac(dim);
+      dshape.SetSize(dof, dim);
+      Vector posV(dof * dim);
+      PMat.UseExternalData(posV.GetData(), dof, dim);
+
+      fes.GetElementVDofs(e, xdofs);
+      x_loc.GetSubVector(xdofs, posV);
+
+      const IntegrationRule &irule = det_fes->GetFE(e)->GetNodes();
+      const int nsp = irule.GetNPoints();
+      Vector detvals(nsp);
+      det_fes->GetElementDofs(e, xdofs);
+      for (int q = 0; q < nsp; q++)
+      {
+         fes.GetFE(e)->CalcDShape(irule.IntPoint(q), dshape);
+         MultAtB(PMat, dshape, Jpr);
+         detvals(q) = Jpr.Det();
+      }
+      det_gf->SetSubVector(xdofs, detvals);
+   }
+}
+
+real_t TMOP_Integrator::GetDeterminantLowerBound(const Vector &d,
+                                                 const FiniteElementSpace &d_fes,
+                                                 bool update_det_gf)
+{
+   if (update_det_gf)
+   {
+      Vector x_loc;
+      if (periodic)
+      {
+         GetPeriodicPositions(*x_0, d, *x_0->FESpace(), d_fes, x_loc);
+         UpdateDeterminantGridFunction(x_loc, *x_0->FESpace());
+      }
+      else
+      {
+         if (x_0)
+         {
+            x_loc.SetSize(x_0->Size());
+            add(*x_0, d, x_loc);
+            UpdateDeterminantGridFunction(x_loc, *x_0->FESpace());
+         }
+         else
+         {
+            UpdateDeterminantGridFunction(d, d_fes);
+         }
+      }
+   }
+
+   auto minbounds = det_gf->EstimateFunctionMinimum(0, *det_plb,
+                                                    plb_rec_depth, 1e-5);
+   return minbounds.first;
 }
 
 void TMOPComboIntegrator::EnableLimiting(const GridFunction &n0,

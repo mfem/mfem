@@ -1568,6 +1568,17 @@ PLBound ParGridFunction::GetBounds(Vector &lower, Vector &upper,
    return plb;
 }
 
+void ParGridFunction::GetBounds(Vector &lower, Vector &upper,
+                                PLBound &plb, int vdim) const
+{
+   GridFunction::GetBounds(lower, upper, plb, vdim);
+   int siz = vdim > 0 ? 1 : fes->GetVDim();
+   MPI_Allreduce(MPI_IN_PLACE, lower.HostReadWrite(), siz,
+                 MFEM_MPI_REAL_T, MPI_MIN, pfes->GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, upper.HostReadWrite(), siz,
+                 MFEM_MPI_REAL_T, MPI_MAX, pfes->GetComm());
+}
+
 std::pair<real_t, real_t> ParGridFunction::EstimateFunctionMinimum(
    const int vdim, const PLBound &plb, const int max_depth,
    const real_t tol) const

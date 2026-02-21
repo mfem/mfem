@@ -493,7 +493,10 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
 
    // Check if the starting mesh (given by x) is inverted. Note that x hasn't
    // been modified by the Newton update yet.
-   const real_t min_detT_in = ComputeMinDet(d_loc, *fes);
+   const real_t min_detT_in = detj_bound ?
+                              GetDeterminantLowerBound(d_loc, *fes, true) :
+                              ComputeMinDet(d_loc, *fes);
+
    const bool untangling = (min_detT_in <= 0.0) ? true : false;
    const real_t untangle_factor = 1.5;
    if (untangling)
@@ -544,7 +547,10 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
 #endif
 
       // Check the changes in detJ.
-      min_detT_out = ComputeMinDet(d_loc, *fes);
+      min_detT_out = detj_bound ?
+                     GetDeterminantLowerBound(d_loc, *fes, true) :
+                     ComputeMinDet(d_loc, *fes);
+
       if (untangling == false && min_detT_out <= min_detJ_limit)
       {
          // No untangling, and detJ got negative (or small) -- no good.
@@ -1026,6 +1032,29 @@ real_t TMOPNewtonSolver::ComputeMinDet(const Vector &d_loc,
    min_detJ /= Wideal.Det();
 
    return min_detJ;
+}
+
+real_t TMOPNewtonSolver::GetDeterminantLowerBound(const Vector &d_loc,
+                                                  const FiniteElementSpace &fes,
+                                                  bool update_det_gf) const
+{
+   const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+   TMOP_Integrator *ti  = NULL;
+   TMOPComboIntegrator *co = NULL;
+   ti = dynamic_cast<TMOP_Integrator *>(integs[0]);
+   if (ti)
+   {
+      return ti->GetDeterminantLowerBound(d_loc, fes, update_det_gf);
+   }
+   co = dynamic_cast<TMOPComboIntegrator *>(integs[0]);
+   if (co)
+   {
+      Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
+      return ati[0]->GetDeterminantLowerBound(d_loc, fes, update_det_gf);
+   }
+   MFEM_ABORT("No TMOP integrator found.");
+   return 0.0;
 }
 
 #ifdef MFEM_USE_MPI

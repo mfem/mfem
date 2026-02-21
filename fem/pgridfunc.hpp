@@ -609,6 +609,9 @@ public:
    PLBound GetBounds(Vector &lower, Vector &upper,
                      const int ref_factor=1, const int vdim=-1) const override;
 
+   void GetBounds(Vector &lower, Vector &upper,
+                  PLBound &plb, int vdim=-1) const override;
+
    /** @brief Estimate the GridFunction minimum across all elements. */
    std::pair<real_t, real_t> EstimateFunctionMinimum(const int vdim,
                                                      const PLBound &plb,

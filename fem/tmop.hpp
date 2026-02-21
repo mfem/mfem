@@ -13,7 +13,7 @@
 #define MFEM_TMOP_HPP
 
 #include "../linalg/invariants.hpp"
-#include "nonlininteg.hpp"
+#include "gridfunc.hpp"
 #include "../linalg/dual.hpp"
 
 namespace mfem
@@ -2060,6 +2060,11 @@ protected:
    Array<int> surf_fit_dof_count;            // Number of dofs per node.
    Array<int> surf_fit_marker_dof_index;     // Indices of nodes to fit.
 
+   // Determinant bounding
+   mutable GridFunction *det_gf = nullptr;
+   std::unique_ptr<PLBound> det_plb;
+   int plb_rec_depth = 0;
+
    DiscreteAdaptTC *discr_tc;
 
    // Parameters for FD-based Gradient & Hessian calculation.
@@ -2550,6 +2555,26 @@ public:
    /// across MPI ranks.
    void ComputeUntangleMetricQuantiles(const Vector &d,
                                        const FiniteElementSpace &fes);
+
+
+   /// Enable determinant bounding with given refinement factor. Used to enforce
+   /// line-search constraints (if enabled in the TMOPNewtonSolver) and to compute
+   /// the determinant barrier in TMOP_WorstCaseUntangleOptimizer_Metric.
+   void EnableDeterminantPLBounds(GridFunction *det_gf_, int ref_factor,
+                                  int max_recursion_depth = 0)
+   {
+      det_gf = det_gf_;
+      int max_order = det_gf->FESpace()->GetMaxElementOrder();
+      det_plb = std::make_unique<PLBound>(det_gf->FESpace(),
+                                          ref_factor*(max_order+1));
+      plb_rec_depth = max_recursion_depth;
+   }
+
+   void UpdateDeterminantGridFunction(const Vector &x_loc,
+                                      const FiniteElementSpace &fes);
+   real_t GetDeterminantLowerBound(const Vector &d,
+                                   const FiniteElementSpace &fes,
+                                   bool update_det_gf);
 };
 
 class TMOPComboIntegrator : public NonlinearFormIntegrator

@@ -204,6 +204,8 @@ protected:
    // These fields are relevant for mixed meshes.
    IntegrationRules *IntegRules;
    int integ_order;
+   // Bounding determinant grid function
+   bool detj_bound = false;
 
    MemoryType temp_mt = MemoryType::DEFAULT;
 
@@ -218,6 +220,10 @@ protected:
 
    real_t ComputeMinDet(const Vector &d_loc,
                         const FiniteElementSpace &fes) const;
+
+   real_t GetDeterminantLowerBound(const Vector &d,
+                                   const FiniteElementSpace &fes,
+                                   bool update_det_gf) const;
 
    real_t MinDetJpr_2D(const FiniteElementSpace *, const Vector &) const;
    real_t MinDetJpr_3D(const FiniteElementSpace *, const Vector &) const;
@@ -260,6 +266,11 @@ public:
    }
 
    void SetMinDetPtr(real_t *md_ptr) { min_det_ptr = md_ptr; }
+
+   void EnsurePositiveDeterminantBound()
+   {
+      detj_bound = true;
+   }
 
    /// Set the memory type for temporary memory allocations.
    void SetTempMemoryType(MemoryType mt) { temp_mt = mt; }
