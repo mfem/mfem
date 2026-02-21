@@ -79,11 +79,18 @@ static PetscErrorCode __mfem_mat_shell_copy(Mat,Mat,MatStructure);
 #if PETSC_VERSION_LT(3,23,0)
 static PetscErrorCode __mfem_array_container_destroy(void*);
 static PetscErrorCode __mfem_matarray_container_destroy(void *);
-#else
+#elif PETSC_VERSION_LT(3,25,0)
 static PetscErrorCode __mfem_array_container_destroy(void**);
 static PetscErrorCode __mfem_matarray_container_destroy(void**);
+#else
+static PetscErrorCode __mfem_array_container_destroy(PetscCtxRt);
+static PetscErrorCode __mfem_matarray_container_destroy(PetscCtxRt);
 #endif
+#if PETSC_VERSION_LT(3,25,0)
 static PetscErrorCode __mfem_monitor_ctx_destroy(void**);
+#else
+static PetscErrorCode __mfem_monitor_ctx_destroy(PetscCtxRt);
+#endif
 
 // auxiliary functions
 static PetscErrorCode Convert_Array_IS(MPI_Comm,bool,const mfem::Array<int>*,
@@ -2485,7 +2492,11 @@ void PetscSolver::SetMaxIter(int max_iter)
 
 void PetscSolver::SetPrintLevel(int plev)
 {
+#if PETSC_VERSION_LT(3,25,0)
    typedef PetscErrorCode (*myPetscFunc)(void**);
+#else
+   typedef PetscCtxDestroyFn *myPetscFunc;
+#endif
    PetscViewerAndFormat *vf = NULL;
    PetscViewer viewer = PETSC_VIEWER_STDOUT_(PetscObjectComm(obj));
 
@@ -5356,7 +5367,7 @@ static PetscErrorCode __mfem_matarray_container_destroy(void *ptr)
    PetscFunctionReturn(PETSC_SUCCESS);
 }
 
-#else
+#elif PETSC_VERSION_LT(3,25,0)
 
 static PetscErrorCode __mfem_array_container_destroy(void **ptr)
 {
@@ -5383,7 +5394,36 @@ static PetscErrorCode __mfem_matarray_container_destroy(void **ptr)
    PetscFunctionReturn(PETSC_SUCCESS);
 }
 
+#else
+
+static PetscErrorCode __mfem_array_container_destroy(PetscCtxRt ptr)
+{
+   PetscErrorCode ierr;
+
+   PetscFunctionBeginUser;
+   ierr = PetscFree(*(void**)ptr); CHKERRQ(ierr);
+   PetscFunctionReturn(PETSC_SUCCESS);
+}
+
+static PetscErrorCode __mfem_matarray_container_destroy(PetscCtxRt ptr)
+{
+   mfem::Array<Mat> *a = *(mfem::Array<Mat>**)ptr;
+   PetscErrorCode   ierr;
+
+   PetscFunctionBeginUser;
+   for (int i=0; i<a->Size(); i++)
+   {
+      Mat M = (*a)[i];
+      MPI_Comm comm = PetscObjectComm((PetscObject)M);
+      ierr = MatDestroy(&M); CCHKERRQ(comm,ierr);
+   }
+   delete a;
+   PetscFunctionReturn(PETSC_SUCCESS);
+}
+
 #endif
+
+#if PETSC_VERSION_LT(3,25,0)
 
 static PetscErrorCode __mfem_monitor_ctx_destroy(void **ctx)
 {
@@ -5393,6 +5433,19 @@ static PetscErrorCode __mfem_monitor_ctx_destroy(void **ctx)
    ierr = PetscFree(*ctx); CHKERRQ(ierr);
    PetscFunctionReturn(PETSC_SUCCESS);
 }
+
+#else
+
+static PetscErrorCode __mfem_monitor_ctx_destroy(PetscCtxRt ctx)
+{
+   PetscErrorCode  ierr;
+
+   PetscFunctionBeginUser;
+   ierr = PetscFree(*(void**)ctx); CHKERRQ(ierr);
+   PetscFunctionReturn(PETSC_SUCCESS);
+}
+
+#endif
 
 // Sets the type of PC to PCSHELL and wraps the solver action
 // if ownsop is true, ownership of precond is transferred to the PETSc object
