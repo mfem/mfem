@@ -268,11 +268,55 @@ public:
 
    /// @brief Return an integration rule for KnotVector @a kv, defined by
    /// applying this rule on each knot interval.
-   IntegrationRule* ApplyToKnotIntervals(KnotVector const& kv) const;
+   IntegrationRule* ApplyToKnotIntervals(const KnotVector &kv) const;
 
    /// Destroys an IntegrationRule object
    ~IntegrationRule() { }
 };
+
+/// @brief Dispatcher for different integration methods over a spline
+class SplineIntegrationRule
+{
+public:
+   enum class Type
+   {
+      FullOrderGaussLegendre = 0,    /// (2*order)
+      ReducedOrderGaussLegendre = 1, /// (see Zou 2022)
+      FixedOrderGaussLegendre = 2,   /// User-specified order (set with fixed_order)
+   };
+
+   SplineIntegrationRule(Type T = Type::FullOrderGaussLegendre,
+                         int fixed_order = 0)
+      : T(T), fixed_order(fixed_order)
+   {
+      MFEM_VERIFY(!((T == Type::FixedOrderGaussLegendre) && (fixed_order <= 0)),
+                  "Fixed order must be positive");
+   }
+
+   SplineIntegrationRule(int type, int fixed_order = 0)
+      : SplineIntegrationRule(static_cast<Type>(type), fixed_order) {}
+
+   /** @brief
+       Applies this spline integration rule to the given knot vector
+       and returns the resulting integration rule.
+    */
+   IntegrationRule* Get(const KnotVector &kv) const;
+
+   /** @brief
+       Obtains a reduced quadrature rule for splines; points are
+       chosen like GaussLegendre but the number of points depends
+       on the knot multiplicity/continuity. For more details see
+       equation 14 in:
+       "Efficient and robust quadratures for isogeometric analysis:
+        Reduced Gauss and Gauss-Greville Rules" - Zou 2022
+       Generally, this rule should only be used as an approximation */
+   static IntegrationRule* GetReducedOrderGaussLegendre(const KnotVector &kv);
+
+private:
+   Type T = Type::FullOrderGaussLegendre;
+   int fixed_order = 0; /// Used only if T == FixedOrderGaussLegendre
+};
+
 
 /// Class for defining different integration rules on each NURBS patch.
 class NURBSMeshRules
@@ -282,6 +326,10 @@ public:
    NURBSMeshRules(const int numPatches, const int dim_) :
       patchRules1D(numPatches, dim_),
       npatches(numPatches), dim(dim_) { }
+
+   /// @brief Construct a rule for each patch, using a fixed 1D rule for each
+   /// individual knotvector.
+   NURBSMeshRules(const Mesh &mesh, const SplineIntegrationRule &splineRule);
 
    /// Returns a rule for the element.
    IntegrationRule &GetElementRule(const int elem, const int patch,

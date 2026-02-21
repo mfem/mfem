@@ -58,6 +58,12 @@ void BilinearFormIntegrator::AssemblePABoundaryFaces(const FiniteElementSpace&)
               "   is not implemented for this class.");
 }
 
+void BilinearFormIntegrator::AssembleDiagonalNURBSPA(Vector &)
+{
+   MFEM_ABORT("BilinearFormIntegrator::AssembleDiagonalNURBSPA(...)\n"
+              "   is not implemented for this class.");
+}
+
 void BilinearFormIntegrator::AssembleDiagonalPA(Vector &)
 {
    MFEM_ABORT("BilinearFormIntegrator::AssembleDiagonalPA(...)\n"

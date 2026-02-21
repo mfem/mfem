@@ -2,17 +2,14 @@
 //
 // Compile with: make nurbs_patch_ex1
 //
-// Sample runs:  nurbs_patch_ex1 -incdeg 3 -ref 2 -iro 8 -patcha
-//               nurbs_patch_ex1 -incdeg 3 -ref 2 -iro 8 -patcha -pa
-//               nurbs_patch_ex1 -incdeg 3 -ref 2 -iro 8 -patcha -fint
+// Sample runs:  nurbs_patch_ex1 -incdeg 3 -rf 4 -iro 8 -patcha
+//               nurbs_patch_ex1 -incdeg 3 -rf 4 -iro 8 -patcha -pa
+//               nurbs_patch_ex1 -incdeg 3 -rf 4 -iro 8 -patcha -fint
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Poisson problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
-//               Specifically, we discretize using a FE space of the specified
-//               order, or if order < 1 using an isoparametric/isogeometric
-//               space (i.e. quadratic for quadratic curvilinear mesh, NURBS for
-//               NURBS mesh, etc.)
+//               Specifically, we discretize using an isogeometric FE space.
 //
 //               This example is a specialization of ex1 which demonstrates
 //               patch-wise matrix assembly and partial assembly on NURBS
@@ -34,7 +31,6 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/beam-hex-nurbs.mesh";
-   int order = -1;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
@@ -43,8 +39,9 @@ int main(int argc, char *argv[])
    bool reducedIntegration = true;
    bool compareToElementWise = true;
    int nurbs_degree_increase = 0;  // Elevate the NURBS mesh degree by this
-   int ref_levels = 0;
+   int refinement_factor = 0;
    int visport = 19916;
+   int spline_integration_type = 0;
    int ir_order = -1;
 
    OptionsParser args(argc, argv);
@@ -65,8 +62,11 @@ int main(int argc, char *argv[])
                   "--no-patch-assembly", "Enable patch-wise assembly.");
    args.AddOption(&reducedIntegration, "-rint", "--reduced-integration", "-fint",
                   "--full-integration", "Enable reduced integration rules.");
-   args.AddOption(&ref_levels, "-ref", "--refine",
-                  "Number of uniform mesh refinements.");
+   args.AddOption(&refinement_factor, "-rf", "--refinement-factor",
+                  "Refinement factor for the NURBS mesh.");
+   args.AddOption(&spline_integration_type, "-int", "--integration-type",
+                  "Integration rule type: 0 - full order Gauss Legendre, "
+                  "1 - reduced order Gaussian Legendre");
    args.AddOption(&ir_order, "-iro", "--integration-order",
                   "Order of integration rule.");
    args.AddOption(&nurbs_degree_increase, "-incdeg", "--nurbs-degree-increase",
@@ -84,6 +84,14 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    MFEM_VERIFY(!(pa && !patchAssembly), "Patch assembly must be used with -pa");
+   MFEM_VERIFY(!(ir_order < 0 && spline_integration_type == 2),
+               "Set ir_order > 0 for fixed order integration");
+   if (ir_order > 0 && spline_integration_type != 2)
+   {
+      cout << "Warning: Setting spline_integration_type "
+           << "to 2 (fixed) since ir_order > 0." << endl;
+      spline_integration_type = 2;
+   }
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -94,29 +102,24 @@ int main(int argc, char *argv[])
    //    only 3D hexahedral meshes are currently supported. The NURBS degree is
    //    optionally increased.
    Mesh mesh(mesh_file, 1, 1);
-   int dim = mesh.Dimension();
+
+   // Verify mesh is valid for this problem
+   MFEM_VERIFY(mesh.IsNURBS(), "Example is for NURBS meshes");
+   MFEM_VERIFY(mesh.GetNodes(), "NURBS mesh must have nodes");
 
    if (nurbs_degree_increase > 0) { mesh.DegreeElevate(nurbs_degree_increase); }
 
    // 4. Refine the mesh to increase the resolution.
-   for (int l = 0; l < ref_levels; l++)
+   if (refinement_factor > 1)
    {
-      mesh.UniformRefinement();
+      mesh.NURBSUniformRefinement(refinement_factor);
    }
 
    // 5. Define an isoparametric/isogeometric finite element space on the mesh.
    FiniteElementCollection *fec = nullptr;
-   bool delete_fec;
-   if (mesh.GetNodes())
-   {
-      fec = mesh.GetNodes()->OwnFEC();
-      delete_fec = false;
-      cout << "Using isoparametric FEs: " << fec->Name() << endl;
-   }
-   else
-   {
-      MFEM_ABORT("Mesh must have nodes");
-   }
+   fec = mesh.GetNodes()->OwnFEC();
+   cout << "Using isoparametric FEs: " << fec->Name() << endl;
+
    FiniteElementSpace fespace(&mesh, fec);
    cout << "Number of finite element unknowns: "
         << fespace.GetTrueVSize() << endl;
@@ -152,55 +155,32 @@ int main(int argc, char *argv[])
    //    domain integrator.
    DiffusionIntegrator *di = new DiffusionIntegrator(one);
 
-   if (patchAssembly && reducedIntegration && !pa)
+   NURBSMeshRules* meshRules = nullptr;
+   if (patchAssembly)
    {
-#ifdef MFEM_USE_SINGLE
-      cout << "Reduced integration is not supported in single precision.\n";
-      return MFEM_SKIP_RETURN_VALUE;
-#endif
-
-      di->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE_REDUCED);
-   }
-   else if (patchAssembly)
-   {
-      di->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE);
-   }
-
-   NURBSMeshRules *patchRule = nullptr;
-   if (order < 0)
-   {
-      if (ir_order == -1) { ir_order = 2*fec->GetOrder(); }
-      cout << "Using ir_order " << ir_order << endl;
-
-      patchRule = new NURBSMeshRules(mesh.NURBSext->GetNP(), dim);
-      // Loop over patches and set a different rule for each patch.
-      for (int p=0; p<mesh.NURBSext->GetNP(); ++p)
+      if (reducedIntegration && !pa)
       {
-         Array<const KnotVector*> kv(dim);
-         mesh.NURBSext->GetPatchKnotVectors(p, kv);
+#ifdef MFEM_USE_SINGLE
+         cout << "Reduced integration is not supported in single precision.\n";
+         return MFEM_SKIP_RETURN_VALUE;
+#endif
+         di->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE_REDUCED);
+      }
+      else
+      {
+         di->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE);
+      }
 
-         std::vector<const IntegrationRule*> ir1D(dim);
-         const IntegrationRule *ir = &IntRules.Get(Geometry::SEGMENT, ir_order);
-
-         // Construct 1D integration rules by applying the rule ir to each
-         // knot span.
-         for (int i=0; i<dim; ++i)
-         {
-            ir1D[i] = ir->ApplyToKnotIntervals(*kv[i]);
-         }
-
-         patchRule->SetPatchRules1D(p, ir1D);
-      }  // loop (p) over patches
-
-      patchRule->Finalize(mesh);
-      di->SetNURBSPatchIntRule(patchRule);
+      SplineIntegrationRule splineRule(spline_integration_type, ir_order);
+      meshRules = new NURBSMeshRules(mesh, splineRule);
+      di->SetNURBSPatchIntRule(meshRules);
    }
 
    // 10. Assemble and solve the linear system
    cout << "Assembling system patch-wise and solving" << endl;
    AssembleAndSolve(b, di, ess_tdof_list, pa, algebraic_ceed, x);
 
-   delete patchRule;
+   delete meshRules;
 
    // 11. Save the refined mesh and the solution. This output can be viewed
    //     later using GLVis: "glvis -m refined.mesh -g sol.gf".
@@ -241,12 +221,6 @@ int main(int argc, char *argv[])
       cout << "Element-wise solution norm " << solNorm << endl;
       cout << "Relative error of patch-wise solution "
            << x_ew.Norml2() / solNorm << endl;
-   }
-
-   // 14. Free the used memory.
-   if (delete_fec)
-   {
-      delete fec;
    }
 
    return 0;

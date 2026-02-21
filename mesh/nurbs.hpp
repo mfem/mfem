@@ -51,6 +51,14 @@ protected:
    /// Number of elements, defined by distinct knots.
    int NumOfElements;
 
+   /// Stores the values of unique knots.
+   Vector uknot;
+
+   /// Stores the unique knot multiplicities.
+   Array<int> uknot_mult;
+
+   /// Compute unique knots and their multiplicities.
+   void ComputeUniqueKnots();
    // Stores the demko points
    mutable Vector demko;
 
@@ -260,6 +268,18 @@ public:
        functions, to result in a single element from which refinement can be
        done. The return value is 1 if uniform or nested spacing is used. */
    int GetCoarseningFactor() const;
+
+   /// Get the ith unique knot.
+   real_t GetUniqueKnot(int i) const;
+
+   /// Gets all unique knots.
+   void GetUniqueKnots(Vector &uknots) const;
+
+   /// Get the ith unique knot's multiplicity.
+   int GetKnotMult(int i) const;
+
+   /// Get all knot multiplicities
+   void GetKnotMults(Array<int> &mults) const;
 
    /** For a given coarsening factor @a cf, find the fine knots between the
        coarse knots. */

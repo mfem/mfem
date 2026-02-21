@@ -341,6 +341,9 @@ public:
    /// Return the sum of all the array entries using the '+'' operator for class 'T'.
    T Sum() const;
 
+   /// Return the product of all the array entries using the '*' operator for class 'T'.
+   T Product() const;
+
    /// Set all entries of the array to the provided constant.
    inline void operator=(const T &a);
 
