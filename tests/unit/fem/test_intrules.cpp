@@ -295,9 +295,9 @@ TEST_CASE("Witherden-Vincent weight positivity", "[WVRules]")
       }
    }
 
-   SECTION("WV tet rules have all positive weights for orders 0-11")
+   SECTION("WV tet rules have all positive weights for orders 0-20")
    {
-      for (int order = 0; order <= 11; order++)
+      for (int order = 0; order <= 20; order++)
       {
          const IntegrationRule &ir =
             wv_rules.Get(Geometry::TETRAHEDRON, order);
@@ -344,9 +344,9 @@ TEST_CASE("Witherden-Vincent rules advantage over legacy", "[WVRules]")
       }
    }
 
-   SECTION("WV tet weight stability is 1.0 for orders 0-11")
+   SECTION("WV tet weight stability is 1.0 for orders 0-20")
    {
-      for (int order = 0; order <= 11; order++)
+      for (int order = 0; order <= 20; order++)
       {
          const IntegrationRule &ir =
             wv_rules.Get(Geometry::TETRAHEDRON, order);
