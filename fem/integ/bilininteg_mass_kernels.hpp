@@ -1125,26 +1125,26 @@ void SmemPAMassApplyTetrahedron_Element(const int e,
    MFEM_SHARED real_t sDQ[BASIS_DIM_*MQ1];
    // MFEM_SHARED real_t sDQ2[BASIS_DIM2D_*MQ1];
    // MFEM_SHARED real_t sDQ1[MD1*MQ1];
-   real_t (*Ba1)[MQ1] = (real_t (*)[MQ1]) sDQ;
+   auto Ba1 = (real_t (*)[MQ1]) sDQ;
    // real_t (*Ba1t)[MD1] = (real_t (*)[MD1]) sDQ;
-   real_t (*Ba2)[MQ1] = (real_t (*)[MQ1]) sDQ;
+   auto Ba2 = (real_t (*)[MQ1]) sDQ;
    // real_t (*Ba2t)[BASIS_DIM2D_] = (real_t (*)[BASIS_DIM2D_]) sDQ;
-   real_t (*Ba3)[BASIS_DIM_] = (real_t (*)[BASIS_DIM_]) sDQ;
+   auto Ba3 = (real_t (*)[BASIS_DIM_]) sDQ;
    // real_t (*Ba3t)[BASIS_DIM_] = (real_t (*)[BASIS_DIM_]) sDQ;
    MFEM_SHARED real_t sm0[MDQ*MDQ*MDQ];
    MFEM_SHARED real_t sm1[MDQ*MDQ*MDQ];
-   real_t (*X) = (real_t (*)) sm0;
-   real_t (*C1)[MQ1] = (real_t (*)[MQ1]) sm1;
-   real_t (*C2)[MQ1][MQ1] = (real_t (*)[MQ1][MQ1]) sm0;
-   real_t (*C3)[MQ1][MQ1] = (real_t (*)[MQ1][MQ1]) sm1;
-   real_t (*F1)[MQ1][MD1] = (real_t (*)[MQ1][MD1]) sm0;
-   real_t (*F2)[MQ1] = (real_t (*)[MQ1]) sm1;
+   auto X = (real_t (*)) sm0;
+   auto C1 = (real_t (*)[MQ1]) sm1;
+   auto C2 = (real_t (*)[MQ1][MQ1]) sm0;
+   auto C3 = (real_t (*)[MQ1][MQ1]) sm1;
+   auto F1 = (real_t (*)[MQ1][MD1]) sm0;
+   auto F2 = (real_t (*)[MQ1]) sm1;
    MFEM_SHARED int s3D[MD1*MD1*MD1];
    MFEM_SHARED int s2D[MD1*MD1];
-   int (*forward_map3d)[MD1][MD1] = (int (*)[MD1][MD1]) s3D;
-   int (*forward_map2d)[MD1] = (int (*)[MD1]) s2D;
+   auto forward_map3d = (int (*)[MD1][MD1]) s3D;
+   auto forward_map2d = (int (*)[MD1]) s2D;
    MFEM_SHARED int s2D_inv[BASIS_DIM2D_*2];
-   int (*inverse_map2d)[2] = (int (*)[2]) s2D_inv;
+   auto inverse_map2d = (int (*)[2]) s2D_inv;
 
    MFEM_FOREACH_THREAD(a_2d,y,BASIS_DIM2D)
    {
