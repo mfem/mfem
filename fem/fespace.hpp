@@ -1505,8 +1505,8 @@ public:
    /// Return whether the space is Bernstein on a simplex
    bool IsBernsteinSimplexSpace() const
    {
-      return (dynamic_cast<const H1_FECollection*>(fec)->GetBasisType() ==
-              BasisType::Positive &&
+      const auto *h1_fec = dynamic_cast<const H1_FECollection *>(fec);
+      return (h1_fec && h1_fec->GetBasisType() == BasisType::Positive &&
               (GetTypicalFE()->GetGeomType() == Geometry::TRIANGLE ||
                GetTypicalFE()->GetGeomType() == Geometry::TETRAHEDRON));
    }
@@ -1565,7 +1565,7 @@ inline bool UsesTensorBasis(const FiniteElementSpace& fes)
 /// TODO: add support for tetrahedrons
 inline bool UsesRaggedTensorBasis(const FiniteElementSpace& fes)
 {
-   Mesh & mesh = *fes.GetMesh();
+   Mesh &mesh = *fes.GetMesh();
    const bool mixed = mesh.GetNumGeometries(mesh.Dimension()) > 1;
    const bool simplex = (fes.GetFE(0)->GetGeomType() == Geometry::TRIANGLE) ||
                         (fes.GetFE(0)->GetGeomType() == Geometry::TETRAHEDRON);
