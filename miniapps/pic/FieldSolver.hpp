@@ -18,40 +18,41 @@
     from the particle charge density. Assembles and solves the periodic Poisson
     problem, computes the electric field via a discrete gradient operator, and
     provides utilities for field diagnostics (e.g. global field energy). */
+
+using namespace mfem;
+using namespace mfem::common;
 class FieldSolver
 {
 private:
-   mfem::real_t domain_volume;
-   mfem::real_t neutralizing_const;
-   mfem::ParLinearForm* precomputed_neutralizing_lf = nullptr;
+   real_t domain_volume;
+   real_t neutralizing_const;
+   ParLinearForm* precomputed_neutralizing_lf = nullptr;
    bool precompute_neutralizing_const = false;
-   // Diffusion matrices: epsilon (for Poisson) and diffusivity c
-   mfem::HypreParMatrix* diffusion_matrix_e;
-   mfem::HypreParMatrix* diffusion_matrix_c;
+   // Diffusion matrix with epsilon (for Poisson solve)
+   HypreParMatrix* diffusion_matrix;
+   // LHS (M + c*K) for DiffuseRHS, from one ParBilinearForm (Mass + Diffusion(c))
+   HypreParMatrix* M_plus_cK_matrix;
    // Gradient operator for computing E = -∇phi
-   mfem::ParDiscreteLinearOperator* grad_interpolator;
-   mfem::FindPointsGSLIB& E_finder;
-   mfem::ParLinearForm b;
+   ParDiscreteLinearOperator* grad_interpolator;
+   FindPointsGSLIB& E_finder;
+   ParLinearForm b;
+   ParGridFunction rho_gf;
 
 protected:
    /** Compute neutralizing constant and initialize with the constant.
        Returns a reference to the precomputed neutralizing ParLinearForm. */
-   const mfem::ParLinearForm& ComputeNeutralizingRHS(
-      mfem::ParFiniteElementSpace* pfes,
-      const mfem::ParticleVector& Q,
-      MPI_Comm comm);
+   const ParLinearForm& ComputeNeutralizingRHS(ParFiniteElementSpace* pfes,
+                                               const ParticleVector& Q,
+                                               MPI_Comm comm);
 
    /** Deposit charge from particles into a ParLinearForm (RHS b).
        b_i = sum_p q_p * phi_i(x_p) */
-   void DepositCharge(mfem::ParFiniteElementSpace* pfes,
-                      const mfem::ParticleVector& Q,
-                      mfem::ParLinearForm& b);
+   void DepositCharge(ParFiniteElementSpace* pfes, const ParticleVector& Q,
+                      ParLinearForm& b);
 
 public:
-   FieldSolver(mfem::ParFiniteElementSpace* phi_fes,
-               mfem::ParFiniteElementSpace* E_fes,
-               mfem::FindPointsGSLIB& E_finder_,
-               mfem::real_t diffusivity,
+   FieldSolver(ParFiniteElementSpace* phi_fes, ParFiniteElementSpace* E_fes,
+               FindPointsGSLIB& E_finder_, real_t diffusivity,
                bool precompute_neutralizing_const_ = false);
 
    ~FieldSolver();
@@ -59,14 +60,16 @@ public:
    /** Update the phi_gf grid function from the particles.
        Solve periodic Poisson: diffusion_matrix * phi = (rho - <rho>)
        with zero-mean enforcement via OrthoSolver. */
-   void UpdatePhiGridFunction(mfem::ParticleSet& particles,
-                              mfem::ParGridFunction& phi_gf);
+   void UpdatePhiGridFunction(ParticleSet& particles, ParGridFunction& phi_gf);
 
    /** Update E_gf grid function from phi_gf grid function.
        Compute the gradient: E = -∇phi. */
-   void UpdateEGridFunction(mfem::ParGridFunction& phi_gf,
-                            mfem::ParGridFunction& E_gf);
+   void UpdateEGridFunction(ParGridFunction& phi_gf, ParGridFunction& E_gf);
+
+   /** Diffuse RHS by solving (M + c*K) u = M*rhs; overwrites rhs with u.
+       When c=0, M*u = M*rhs so u = rhs. */
+   void DiffuseRHS(ParLinearForm& b);
 
    /// Compute (global) field energy: 0.5 * ∫ ||E||^2 dx
-   mfem::real_t ComputeFieldEnergy(const mfem::ParGridFunction& E_gf) const;
+   real_t ComputeFieldEnergy(const ParGridFunction& E_gf) const;
 };

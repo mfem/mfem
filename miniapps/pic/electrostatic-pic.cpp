@@ -79,7 +79,7 @@ struct PICContext
    real_t alpha = 0.1;  ///< Perturbation amplitude (Landau damping init).
 
    real_t dt = 1e-2;  ///< Time step size.
-   real_t diffusivity = 1.0;  ///< Diffusivity coefficient c for diffusion matrix.
+   real_t diffusivity = 0.0;  ///< Diffusivity coefficient c for diffusion matrix.
 
    int nt = 1000;            ///< Number of time steps to run.
    int redist_interval = 5;  ///< Redistribution and update E_gf interval.

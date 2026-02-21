@@ -13,12 +13,24 @@
 
 #include <algorithm>
 #include <iostream>
+#include <memory>
 
 #include "ParticleMover.hpp"
 
 namespace
 {
-constexpr mfem::real_t EPSILON = 1.0;
+   constexpr mfem::real_t EPSILON = 1.0;
+
+   mfem::real_t ComputeGlobalSum(mfem::ParLinearForm& lf)
+   {
+      std::unique_ptr<mfem::HypreParVector> lf_true(lf.ParallelAssemble());
+      const mfem::real_t local_sum = lf_true->Sum();
+      mfem::real_t global_sum = 0.0;
+      MPI_Allreduce(&local_sum, &global_sum, 1,
+                    mfem::MPITypeMap<mfem::real_t>::mpi_type, MPI_SUM,
+                    lf.ParFESpace()->GetComm());
+      return global_sum;
+   }
 }
 
 using namespace std;
@@ -27,12 +39,12 @@ using namespace mfem::common;
 
 FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
                          ParFiniteElementSpace* E_fes,
-                         FindPointsGSLIB& E_finder_,
-                         real_t diffusivity,
+                         FindPointsGSLIB& E_finder_, real_t diffusivity,
                          bool precompute_neutralizing_const_)
-   : precompute_neutralizing_const(precompute_neutralizing_const_),
-     E_finder(E_finder_),
-     b(phi_fes)
+    : precompute_neutralizing_const(precompute_neutralizing_const_),
+      E_finder(E_finder_),
+      b(phi_fes),
+      rho_gf(phi_fes)
 {
    ParMesh* pmesh = phi_fes->GetParMesh();
    real_t local_domain_volume = 0.0;
@@ -49,16 +61,17 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
       dm.AddDomainIntegrator(new DiffusionIntegrator(epsilon));
       dm.Assemble();
       dm.Finalize();
-      diffusion_matrix_e = dm.ParallelAssemble();
+      diffusion_matrix = dm.ParallelAssemble();
    }
 
    {
-      ParBilinearForm dm(phi_fes);
-      ConstantCoefficient c(diffusivity);
-      dm.AddDomainIntegrator(new DiffusionIntegrator(c));
-      dm.Assemble();
-      dm.Finalize();
-      diffusion_matrix_c = dm.ParallelAssemble();
+      ParBilinearForm m_plus_ck(phi_fes);
+      ConstantCoefficient c_coef(diffusivity);
+      m_plus_ck.AddDomainIntegrator(new MassIntegrator());
+      m_plus_ck.AddDomainIntegrator(new DiffusionIntegrator(c_coef));
+      m_plus_ck.Assemble();
+      m_plus_ck.Finalize();
+      M_plus_cK_matrix = m_plus_ck.ParallelAssemble();
    }
 
    {
@@ -70,8 +83,8 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
 
 FieldSolver::~FieldSolver()
 {
-   delete diffusion_matrix_e;
-   delete diffusion_matrix_c;
+   delete diffusion_matrix;
+   delete M_plus_cK_matrix;
    delete precomputed_neutralizing_lf;
    delete grad_interpolator;
 }
@@ -142,8 +155,8 @@ void FieldSolver::DepositCharge(ParFiniteElementSpace* pfes,
 
       MFEM_ASSERT((int)proc[p] == curr_rank,
                   "Particle " << p << " found in element owned by rank "
-                              << proc[p] << " but current rank is "
-                              << curr_rank << "." << endl
+                              << proc[p] << " but current rank is " << curr_rank
+                              << "." << endl
                               << "You must call redistribute everytime before "
                                  "updating the density grid function.");
       const int e = elem[p];
@@ -173,8 +186,13 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
 
    MPI_Comm comm = pfes->GetComm();
    b = ComputeNeutralizingRHS(pfes, Q, comm);
+   cout << "Total charge A: " << ComputeGlobalSum(b) << endl;
 
    DepositCharge(pfes, Q, b);
+   cout << "Total charge B: " << ComputeGlobalSum(b) << endl;
+
+   DiffuseRHS(b);
+   cout << "Total charge C: " << ComputeGlobalSum(b) << endl;
 
    HypreParVector B(pfes);
    b.ParallelAssemble(B);
@@ -183,13 +201,13 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
    HypreParVector Phi_true(pfes);
    Phi_true = 0.0;
 
-   HyprePCG solver(diffusion_matrix_e->GetComm());
-   solver.SetOperator(*diffusion_matrix_e);
+   HyprePCG solver(diffusion_matrix->GetComm());
+   solver.SetOperator(*diffusion_matrix);
    solver.SetTol(1e-12);
    solver.SetMaxIter(200);
    solver.SetPrintLevel(0);
 
-   HypreBoomerAMG prec(*diffusion_matrix_e);
+   HypreBoomerAMG prec(*diffusion_matrix);
    prec.SetPrintLevel(0);
    solver.SetPreconditioner(prec);
 
@@ -205,6 +223,40 @@ void FieldSolver::UpdateEGridFunction(ParGridFunction& phi_gf,
 {
    grad_interpolator->Mult(phi_gf, E_gf);
    E_gf.Neg();
+}
+
+void FieldSolver::DiffuseRHS(ParLinearForm& b)
+{
+   HypreParVector* B = b.ParallelAssemble();
+
+   HyprePCG solver(M_plus_cK_matrix->GetComm());
+   solver.SetOperator(*M_plus_cK_matrix);
+   solver.SetTol(1e-12);
+   solver.SetMaxIter(200);
+   solver.SetPrintLevel(0);
+
+   HypreBoomerAMG prec(*M_plus_cK_matrix);
+   prec.SetPrintLevel(0);
+   solver.SetPreconditioner(prec);
+
+   rho_gf = 0.0;
+   ParFiniteElementSpace* pfes = rho_gf.ParFESpace();
+
+   HypreParVector Rho_true(pfes);
+   Rho_true = 0.0;
+
+   solver.Mult(*B, Rho_true);
+   delete B;
+
+   rho_gf.SetFromTrueDofs(Rho_true);
+
+   b = 0.0;
+
+   b.GetDLFI()->DeleteAll();
+
+   GridFunctionCoefficient rho_coeff(&rho_gf);
+   b.AddDomainIntegrator(new DomainLFIntegrator(rho_coeff));
+   b.Assemble();
 }
 
 real_t FieldSolver::ComputeFieldEnergy(const ParGridFunction& E_gf) const
