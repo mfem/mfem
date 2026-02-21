@@ -36,7 +36,6 @@ private:
    ParDiscreteLinearOperator* grad_interpolator;
    FindPointsGSLIB& E_finder;
    ParLinearForm b;
-   ParGridFunction rho_gf;
 
 protected:
    /** Compute neutralizing constant and initialize with the constant.
@@ -60,7 +59,7 @@ public:
    /** Update the phi_gf grid function from the particles.
        Solve periodic Poisson: diffusion_matrix * phi = (rho - <rho>)
        with zero-mean enforcement via OrthoSolver. */
-   void UpdatePhiGridFunction(ParticleSet& particles, ParGridFunction& phi_gf);
+   void UpdatePhiGridFunction(ParticleSet& particles, ParGridFunction& phi_gf, ParGridFunction& rho_gf);
 
    /** Update E_gf grid function from phi_gf grid function.
        Compute the gradient: E = -∇phi. */
@@ -68,7 +67,7 @@ public:
 
    /** Diffuse RHS by solving (M + c*K) u = M*rhs; overwrites rhs with u.
        When c=0, M*u = M*rhs so u = rhs. */
-   void DiffuseRHS(ParLinearForm& b);
+   void DiffuseRHS(ParLinearForm& b, ParGridFunction& rho_gf);
 
    /// Compute (global) field energy: 0.5 * ∫ ||E||^2 dx
    real_t ComputeFieldEnergy(const ParGridFunction& E_gf) const;

@@ -188,7 +188,7 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
    b = ComputeNeutralizingRHS(pfes, Q, comm);
    if (Mpi::Root())
    {
-      cout << "Total charge A: " << ComputeGlobalSum(b) << endl;
+      cout << "Total charge A: " << ComputeGlobalSum(b) << "\t";
    }
    else
    {
@@ -198,7 +198,7 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
    DepositCharge(pfes, Q, b);
    if (Mpi::Root())
    {
-      cout << "Total charge B: " << ComputeGlobalSum(b) << endl;
+      cout << "Total charge B: " << ComputeGlobalSum(b) << "\t";
    }
    else
    {
