@@ -114,10 +114,22 @@ public:
    Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }
 
    /// Move assignment operator
+   /** If *this is a non-owning view (e.g., from MakeRef()), the data is copied
+       so that the base is also modified. */
    Array<T> &operator=(Array<T> &&src)
    {
       if (this == &src) { return *this; }
-      Swap(src);  // Swap does not use move assignment!
+      // If *this is a non-owning view (alias), and its capacity is sufficient
+      // to contain src, then copy into *this so that the alias's base memory is
+      // modified.
+      if (!OwnsData() && Capacity() >= src.Size())
+      {
+         *this = src; // Copy assignment.
+      }
+      else
+      {
+         Swap(src); // Swap the pointers only.
+      }
       src.DeleteAll();
       return *this;
    }
