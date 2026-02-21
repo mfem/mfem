@@ -28,6 +28,7 @@ using namespace mfem::common;
 FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
                          ParFiniteElementSpace* E_fes,
                          FindPointsGSLIB& E_finder_,
+                         real_t diffusivity,
                          bool precompute_neutralizing_const_)
    : precompute_neutralizing_const(precompute_neutralizing_const_),
      E_finder(E_finder_),
@@ -46,11 +47,18 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
       ParBilinearForm dm(phi_fes);
       ConstantCoefficient epsilon(EPSILON);
       dm.AddDomainIntegrator(new DiffusionIntegrator(epsilon));
-
       dm.Assemble();
       dm.Finalize();
+      diffusion_matrix_e = dm.ParallelAssemble();
+   }
 
-      diffusion_matrix = dm.ParallelAssemble();
+   {
+      ParBilinearForm dm(phi_fes);
+      ConstantCoefficient c(diffusivity);
+      dm.AddDomainIntegrator(new DiffusionIntegrator(c));
+      dm.Assemble();
+      dm.Finalize();
+      diffusion_matrix_c = dm.ParallelAssemble();
    }
 
    {
@@ -62,7 +70,8 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
 
 FieldSolver::~FieldSolver()
 {
-   delete diffusion_matrix;
+   delete diffusion_matrix_e;
+   delete diffusion_matrix_c;
    delete precomputed_neutralizing_lf;
    delete grad_interpolator;
 }
@@ -174,13 +183,13 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
    HypreParVector Phi_true(pfes);
    Phi_true = 0.0;
 
-   HyprePCG solver(diffusion_matrix->GetComm());
-   solver.SetOperator(*diffusion_matrix);
+   HyprePCG solver(diffusion_matrix_e->GetComm());
+   solver.SetOperator(*diffusion_matrix_e);
    solver.SetTol(1e-12);
    solver.SetMaxIter(200);
    solver.SetPrintLevel(0);
 
-   HypreBoomerAMG prec(*diffusion_matrix);
+   HypreBoomerAMG prec(*diffusion_matrix_e);
    prec.SetPrintLevel(0);
    solver.SetPreconditioner(prec);
 

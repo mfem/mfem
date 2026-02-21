@@ -79,6 +79,7 @@ struct PICContext
    real_t alpha = 0.1;  ///< Perturbation amplitude (Landau damping init).
 
    real_t dt = 1e-2;  ///< Time step size.
+   real_t diffusivity = 1.0;  ///< Diffusivity coefficient c for diffusion matrix.
 
    int nt = 1000;            ///< Number of time steps to run.
    int redist_interval = 5;  ///< Redistribution and update E_gf interval.
@@ -115,6 +116,8 @@ int main(int argc, char* argv[])
    args.AddOption(&ctx.q, "-q", "--charge", "Particle charge.");
    args.AddOption(&ctx.m, "-m", "--mass", "Particle mass.");
    args.AddOption(&ctx.dt, "-dt", "--time-step", "Time Step.");
+   args.AddOption(&ctx.diffusivity, "-diff", "--diffusivity",
+                  "Diffusivity coefficient c for diffusion matrix.");
    args.AddOption(&ctx.nt, "-nt", "--num-timesteps", "Number of timesteps.");
    args.AddOption(&ctx.npt, "-npt", "--num-particles",
                   "Total number of particles.");
@@ -194,7 +197,8 @@ int main(int argc, char* argv[])
    E_gf = 0.0;    // Initialize E_gf to zero
 
    // 6. Construct the field solver
-   FieldSolver field_solver(&phi_fespace, &E_fespace, E_finder, true);
+   FieldSolver field_solver(&phi_fespace, &E_fespace, E_finder, ctx.diffusivity,
+                            true);
 
    // 7. Initialize ParticleMover
    Ordering::Type ordering_type =

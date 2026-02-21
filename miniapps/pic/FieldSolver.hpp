@@ -25,8 +25,9 @@ private:
    mfem::real_t neutralizing_const;
    mfem::ParLinearForm* precomputed_neutralizing_lf = nullptr;
    bool precompute_neutralizing_const = false;
-   // Diffusion matrix
-   mfem::HypreParMatrix* diffusion_matrix;
+   // Diffusion matrices: epsilon (for Poisson) and diffusivity c
+   mfem::HypreParMatrix* diffusion_matrix_e;
+   mfem::HypreParMatrix* diffusion_matrix_c;
    // Gradient operator for computing E = -∇phi
    mfem::ParDiscreteLinearOperator* grad_interpolator;
    mfem::FindPointsGSLIB& E_finder;
@@ -50,6 +51,7 @@ public:
    FieldSolver(mfem::ParFiniteElementSpace* phi_fes,
                mfem::ParFiniteElementSpace* E_fes,
                mfem::FindPointsGSLIB& E_finder_,
+               mfem::real_t diffusivity,
                bool precompute_neutralizing_const_ = false);
 
    ~FieldSolver();
