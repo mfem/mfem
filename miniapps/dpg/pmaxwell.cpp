@@ -507,7 +507,16 @@ int main(int argc, char *argv[])
          *negepsomeg_detJ_Jt_J_inv_r_rot, attrPML);
    }
 
+   pmesh.EnsureNodes();
+   int meshorder = pmesh.GetNodalFESpace()->FEColl()->GetOrder();
+   const IntegrationRule &test_ir = IntRules.Get(pmesh.GetElementGeometry(0),
+                                                 2*test_order + 5 + meshorder);
+   const IntegrationRule &trial_ir = IntRules.Get(pmesh.GetElementGeometry(0),
+                                                  order+test_order + 5 + meshorder);
+
    ParComplexDPGWeakForm * a = new ParComplexDPGWeakForm(trial_fes,test_fec);
+   // a->SetTrialIntegrationRule(trial_ir);
+   // a->SetTestIntegrationRule(test_ir);
    a->StoreMatrices(); // needed for AMR
 
    // (E,∇ × F)

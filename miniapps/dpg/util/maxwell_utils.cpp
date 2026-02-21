@@ -139,10 +139,12 @@ void VisualizeMatrixArrayCoefficient(MatrixArrayCoefficient &mc, ParMesh *pmesh,
    MFEM_VERIFY(pmesh != nullptr, "ParMesh pointer must not be null.");
    int dim = mc.GetVDim();
 
-   mfem::out << "Visualizing matrix coefficient with dimension: " << dim << endl;
-   mfem::out << "order = " << order << endl;
-   mfem::out << "pmesh dimension = " << pmesh->Dimension() << endl;
-
+   if (Mpi::Root())
+   {
+      mfem::out << "Visualizing matrix coefficient with dimension: " << dim << endl;
+      mfem::out << "order = " << order << endl;
+      mfem::out << "pmesh dimension = " << pmesh->Dimension() << endl;
+   }
    auto fec = new H1_FECollection(order, pmesh->Dimension());
    auto pfes = new ParFiniteElementSpace(pmesh, fec);
 
@@ -178,9 +180,10 @@ void VisualizeMatrixArrayCoefficient(MatrixArrayCoefficient &mc, ParMesh *pmesh,
          *pgfs[i*dim + j] = 0.0;
          pgfs[i*dim + j]->ProjectCoefficient(*c_ij);
 
-         mfem::out << "Visualizing component (" << i << "," << j << ")" << endl;
-         // mfem::out << "GridFunction size: " << gf->Size() << endl;
-         // gf->Print(mfem::out);
+         if (Mpi::Root())
+         {
+            mfem::out << "Projected component (" << i << "," << j << ")" << endl;
+         }
 
          char vishost[] = "localhost";
          int  visport   = 19916;

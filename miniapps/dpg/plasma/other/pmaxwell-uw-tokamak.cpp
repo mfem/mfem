@@ -42,79 +42,12 @@
 #include "../../util/pcomplexweakform.hpp"
 #include "../../util/preconditioners.hpp"
 #include "../../../common/mfem-common.hpp"
+#include "../../util/maxwell_utils.hpp"
 #include <fstream>
 #include <iostream>
 
 using namespace std;
 using namespace mfem;
-
-class EpsilonMatrixCoefficient : public MatrixArrayCoefficient
-{
-private:
-   Mesh * mesh = nullptr;
-   ParMesh * pmesh = nullptr;
-   Array<ParGridFunction * > pgfs;
-   Array<GridFunctionCoefficient * > gf_cfs;
-   GridFunction * vgf = nullptr;
-   ParFiniteElementSpace * pfes = nullptr;
-   int dim;
-public:
-   EpsilonMatrixCoefficient(const char * filename, Mesh * mesh_, ParMesh * pmesh_,
-                            real_t scale = 1.0)
-      : MatrixArrayCoefficient(mesh_->Dimension()), mesh(mesh_), pmesh(pmesh_),
-        dim(mesh_->Dimension())
-   {
-      std::filebuf fb;
-      fb.open(filename,std::ios::in);
-      std::istream is(&fb);
-      vgf = new GridFunction(mesh,is);
-      fb.close();
-      FiniteElementSpace * vfes = vgf->FESpace();
-      int vdim = vfes->GetVDim();
-      const FiniteElementCollection * fec = vfes->FEColl();
-      FiniteElementSpace * fes = new FiniteElementSpace(mesh, fec);
-      int num_procs = Mpi::WorldSize();
-      int * partitioning = mesh->GeneratePartitioning(num_procs);
-      real_t *data = vgf->GetData();
-      GridFunction gf;
-      pfes = new ParFiniteElementSpace(pmesh, fec);
-      pgfs.SetSize(vdim);
-      gf_cfs.SetSize(vdim);
-      for (int i = 0; i<dim; i++)
-      {
-         for (int j = 0; j<dim; j++)
-         {
-            int k = i*dim+j;
-            // int k = j*dim+i;
-            gf.MakeRef(fes,&data[k*fes->GetVSize()]);
-            pgfs[k] = new ParGridFunction(pmesh,&gf,partitioning);
-            (*pgfs[k])*=scale;
-            gf_cfs[k] = new GridFunctionCoefficient(pgfs[k]);
-            Set(i,j,gf_cfs[k], true);
-         }
-      }
-      delete fes;
-   }
-
-   void Update()
-   {
-      pfes->Update();
-      for (int k = 0; k<pgfs.Size(); k++)
-      {
-         pgfs[k]->Update();
-      }
-   }
-
-   ~EpsilonMatrixCoefficient()
-   {
-      for (int i = 0; i<pgfs.Size(); i++)
-      {
-         delete pgfs[i];
-      }
-      pgfs.DeleteAll();
-      delete pfes;
-   }
-};
 
 
 int main(int argc, char *argv[])
@@ -275,6 +208,25 @@ int main(int argc, char *argv[])
       dynamic_cast<EpsilonMatrixCoefficient *>(eps_r_cf)->Update();
       dynamic_cast<EpsilonMatrixCoefficient *>(eps_i_cf)->Update();
    }
+
+
+   auto cf_r = dynamic_cast<EpsilonMatrixCoefficient *>(eps_r_cf);
+   auto cf_i = dynamic_cast<EpsilonMatrixCoefficient *>(eps_i_cf);
+
+   std::ostringstream cf_r_file_name;
+   cf_r_file_name << "epsilor_r" << "_prob_" << prob  << "_order_" << order;
+   std::ostringstream cf_i_file_name;
+   cf_i_file_name << "epsilor_i" << "_prob_" << prob  << "_order_" << order;
+
+
+   VisualizeMatrixArrayCoefficient(*cf_r, &pmesh, order, paraview,
+       cf_r_file_name.str().c_str());
+
+   VisualizeMatrixArrayCoefficient(*cf_i, &pmesh, order, paraview,
+       cf_i_file_name.str().c_str());
+    
+   return 0;    
+
 
 
    int ne = pmesh.GetNE();

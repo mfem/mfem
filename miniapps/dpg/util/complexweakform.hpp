@@ -69,6 +69,10 @@ protected:
    Array2D<Array<BilinearFormIntegrator * > * > test_integs_r;
    Array2D<Array<BilinearFormIntegrator * > * > test_integs_i;
 
+   /// Integration rules for the test and trial integrators
+   const IntegrationRule *trial_ir = nullptr;
+   const IntegrationRule *test_ir = nullptr;
+
    /// Set of LinearForm Integrators to be applied.
    Array<Array<LinearFormIntegrator * > * > lfis_r;
    Array<Array<LinearFormIntegrator * > * > lfis_i;
@@ -101,7 +105,8 @@ protected:
    Vector residuals;
 
 private:
-
+   /// Enforces a unique integration rule for all trial/test integrators
+   void SetIntegrationRules();
 public:
 
    ComplexDPGWeakForm()
@@ -197,6 +202,11 @@ public:
    void AddDomainLFIntegrator(LinearFormIntegrator *lfi_r,
                               LinearFormIntegrator *lfi_i,
                               int n);
+
+   /// Sets the same integrations for all trial integrators
+   void SetTrialIntegrationRule(const IntegrationRule &ir) { trial_ir = &ir; }
+   /// Sets the same integrations for all test integrators
+   void SetTestIntegrationRule(const IntegrationRule &ir) { test_ir = &ir; }
 
    /// Assembles the form i.e. sums over all integrators.
    void Assemble(int skip_zeros = 1);

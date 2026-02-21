@@ -24,7 +24,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 DPG_COMPLEX_SEQ_SRC = ../../util/utils.cpp ../../util/complexweakform.cpp \
 	../../util/complexstaticcond.cpp ../../util/complexblockform.cpp \
-	../../util/preconditioners.cpp
+	../../util/preconditioners.cpp ../../util/maxwell_utils.cpp
 DPG_COMPLEX_PAR_SRC = $(DPG_COMPLEX_SEQ_SRC) ../../util/pcomplexweakform.cpp ../../util/pcomplexblockform.cpp ../../util/blockcomplexhypremat.cpp  
 DPG_COMPLEX_OBJ = $(DPG_COMPLEX_PAR_SRC:.cpp=.o)
 

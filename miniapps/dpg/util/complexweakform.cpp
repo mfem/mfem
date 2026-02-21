@@ -314,9 +314,48 @@ void ComplexDPGWeakForm::ConformingAssemble()
    width = 2*mat_r->Width();
 }
 
+void ComplexDPGWeakForm::SetIntegrationRules()
+{
+   if (trial_ir)
+   {
+      for (int i = 0; i < trial_integs_r.NumRows(); i++)
+      {
+         for (int j = 0; j < trial_integs_r.NumCols(); j++)
+         {
+            for (int k = 0; k < trial_integs_r(i,j)->Size(); k++)
+            {
+               (*trial_integs_r(i,j))[k]->SetIntRule(trial_ir);
+            }
+            for (int k = 0; k < trial_integs_i(i,j)->Size(); k++)
+            {
+               (*trial_integs_i(i,j))[k]->SetIntRule(trial_ir);
+            }
+         }
+      }
+   }
+   if (test_ir)
+   {
+      for (int i = 0; i < test_integs_r.NumRows(); i++)
+      {
+         for (int j = 0; j < test_integs_r.NumCols(); j++)
+         {
+            for (int k = 0; k < test_integs_r(i,j)->Size(); k++)
+            {
+               (*test_integs_r(i,j))[k]->SetIntRule(test_ir);
+            }
+            for (int k = 0; k < test_integs_i(i,j)->Size(); k++)
+            {
+               (*test_integs_i(i,j))[k]->SetIntRule(test_ir);
+            }
+         }
+      }
+   }
+}
+
 /// Assembles the form i.e. sums over all domain integrators.
 void ComplexDPGWeakForm::Assemble(int skip_zeros)
 {
+   this->SetIntegrationRules();
    ElementTransformation *eltrans;
    Array<int> faces, ori;
 
@@ -505,6 +544,7 @@ void ComplexDPGWeakForm::Assemble(int skip_zeros)
       }
 
       ComplexCholeskyFactors chol(G_r.GetData(), G_i.GetData());
+
       int h = G_r.Height();
       bool info = chol.Factor(h);
       MFEM_VERIFY(info, "Complex Cholesky factorization of G failed");
