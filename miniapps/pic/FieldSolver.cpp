@@ -186,13 +186,22 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
 
    MPI_Comm comm = pfes->GetComm();
    b = ComputeNeutralizingRHS(pfes, Q, comm);
-   cout << "Total charge A: " << ComputeGlobalSum(b) << endl;
+   if (Mpi::Root())
+   {
+      cout << "Total charge A: " << ComputeGlobalSum(b) << endl;
+   }
 
    DepositCharge(pfes, Q, b);
-   cout << "Total charge B: " << ComputeGlobalSum(b) << endl;
+   if (Mpi::Root())
+   {
+      cout << "Total charge B: " << ComputeGlobalSum(b) << endl;
+   }
 
    DiffuseRHS(b);
-   cout << "Total charge C: " << ComputeGlobalSum(b) << endl;
+   if (Mpi::Root())
+   {
+      cout << "Total charge C: " << ComputeGlobalSum(b) << endl;
+   }
 
    HypreParVector B(pfes);
    b.ParallelAssemble(B);
