@@ -71,6 +71,7 @@ option(MFEM_USE_BENCHMARK "Enable Google Benchmark" OFF)
 option(MFEM_USE_PARELAG "Enable ParELAG" OFF)
 option(MFEM_USE_TRIBOL "Enable Tribol" OFF)
 option(MFEM_USE_ENZYME "Enable Enzyme" OFF)
+option(MFEM_USE_LIBBACKTRACE "Enable Libbacktrace" OFF)
 
 # Optional overrides for autodetected MPIEXEC and MPIEXEC_NUMPROC_FLAG
 # set(MFEM_MPIEXEC "mpirun" CACHE STRING "Command for running MPI tests")
