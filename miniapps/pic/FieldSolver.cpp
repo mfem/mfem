@@ -190,17 +190,29 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
    {
       cout << "Total charge A: " << ComputeGlobalSum(b) << endl;
    }
+   else
+   {
+      ComputeGlobalSum(b);
+   }
 
    DepositCharge(pfes, Q, b);
    if (Mpi::Root())
    {
       cout << "Total charge B: " << ComputeGlobalSum(b) << endl;
    }
+   else
+   {
+      ComputeGlobalSum(b);
+   }
 
    DiffuseRHS(b);
    if (Mpi::Root())
    {
       cout << "Total charge C: " << ComputeGlobalSum(b) << endl;
+   }
+   else
+   {
+      ComputeGlobalSum(b);
    }
 
    HypreParVector B(pfes);
