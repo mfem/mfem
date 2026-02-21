@@ -108,6 +108,9 @@
 // Enable MFEM functionality based on the STRUMPACK library.
 // #define MFEM_USE_STRUMPACK
 
+// Enable MFEM functionality based on the cuDSS library.
+// #define MFEM_USE_CUDSS
+
 // Enable MFEM features based on the Ginkgo library.
 // #define MFEM_USE_GINKGO
 
