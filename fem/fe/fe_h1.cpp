@@ -589,7 +589,7 @@ void H1_TriangleElement::CalcHessian(const IntegrationPoint &ip,
    Vector   shape_x(p + 1),   shape_y(p + 1),   shape_l(p + 1);
    Vector  dshape_x(p + 1),  dshape_y(p + 1),  dshape_l(p + 1);
    Vector ddshape_x(p + 1), ddshape_y(p + 1), ddshape_l(p + 1);
-   DenseMatrix ddu(dof, dim);
+   DenseMatrix ddu(dof, (dim*(dim+1))/2);
 #endif
 
    poly1d.CalcBasis(p, ip.x, shape_x, dshape_x, ddshape_x);
