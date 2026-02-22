@@ -547,7 +547,7 @@ public:
 template <typename T>
 inline T ZeroSubnormal(T val)
 {
-   return (std::fpclassify(val) == FP_SUBNORMAL) ? 0.0 : val;
+   return (std::fpclassify(val) == FP_SUBNORMAL) ? T{} : val;
 }
 
 inline bool IsFinite(const real_t &val)
