@@ -1516,12 +1516,15 @@ void Mesh::ReadInlineMesh(std::istream &input, bool generate_edges)
 void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
 {
    string buff;
-   real_t version;
+   string version;
    int binary, dsize;
    input >> version >> binary >> dsize;
-   if (version < 2.2)
+   if (version != "2.2")
    {
-      MFEM_ABORT("Gmsh file version < 2.2");
+      MFEM_ABORT("Gmsh file version must be 2.2, found version "
+                 << version << ".\n"
+                 "To convert your mesh to the required format, use:\n"
+                 "  gmsh -format msh22 -save -o output.msh input.msh");
    }
    if (dsize != sizeof(double))
    {
