@@ -250,6 +250,17 @@ int main(int argc, char* argv[])
          real_t kinetic_energy = particle_mover.ComputeKineticEnergy();
          real_t field_energy = field_solver.ComputeFieldEnergy(E_gf);
 
+         {
+            ParLinearForm b(phi_gf.ParFESpace());
+            GridFunctionCoefficient phi_coeff(&phi_gf);
+            b.AddDomainIntegrator(new DomainLFIntegrator(phi_coeff));
+            b.Assemble();
+         
+            field_solver.DiffuseRHS(b, phi_gf);
+         }
+         // Update E_gf from phi_gf
+         field_solver.UpdateEGridFunction(phi_gf, E_gf);
+
          // Output energies
          if (Mpi::Root())
          {
