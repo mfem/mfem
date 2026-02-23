@@ -123,8 +123,10 @@ public:
    virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
 
-// We take the plane to be z = plane_g.
-const real_t plane_g = 0.0;
+// We take the plane to be z = plane_g and the force to be a constant downward
+// force of magnitude force_g.
+real_t plane_g = -0.5;
+real_t force_g = 2.0;
 
 int main(int argc, char *argv[])
 {
@@ -160,6 +162,10 @@ int main(int argc, char *argv[])
                   "Lamé's first parameter.");
    args.AddOption(&mu, "-mu", "--mu",
                   "Lamé's second parameter.");
+   args.AddOption(&plane_g, "-p", "--plane",
+                  "Height of the plane for the Signorini condition.");
+   args.AddOption(&force_g, "-f", "--force",
+                  "Magnitude of the downward force.");
    args.AddOption(&max_outer_iter, "-i", "--outer-iterations",
                   "Maximum number of iterations.");
    args.AddOption(&max_newton_iter, "-n", "--newton-iterations",
@@ -460,10 +466,8 @@ real_t GapFunction(const Vector &x)
  */
 void ForceFunction(const Vector &x, Vector &f)
 {
-   const real_t force = -2.0;
-
    f = 0.0;
-   f(x.Size() - 1) = force;
+   f(x.Size() - 1) = -force_g;
 }
 
 real_t RegLogPrimeCoefficient::RegLogPrime(const real_t a, const real_t M)
