@@ -66,10 +66,8 @@ using namespace std;
 using namespace mfem;
 
 void   InitDisplacement(const Vector &x, Vector &u);
-real_t GapFunction(const Vector &x);
 void   ForceFunction(const Vector &x, Vector &f);
-real_t RegLogPrime(const real_t a);
-real_t RegLogDoublePrime(const real_t a);
+real_t GapFunction(const Vector &x);
 
 /**
  * @brief Returns a Coefficient object for R_N'(ϕ − u ⋅ ñ) for a given
@@ -77,17 +75,23 @@ real_t RegLogDoublePrime(const real_t a);
  *
  * @param u GridFunction
  * @param n_tilde Unit vector field
+ * @param N Regularization parameter for the regularized log function (default: 1e2)
+ * @param sign Sign to apply to the coefficient (default: 1.0)
  */
 class RegLogPrimeCoefficient : public Coefficient
 {
 private:
    GridFunction *u;
    Vector &n_tilde;
+   real_t N;
    real_t sign;
 
 public:
    RegLogPrimeCoefficient(GridFunction *_u, Vector &_n_tilde,
-      real_t _sign = 1.0) : u(_u), n_tilde(_n_tilde), sign(_sign) {}
+      real_t _N = 1e2, real_t _sign = 1.0)
+      : u(_u), n_tilde(_n_tilde), N(_N), sign(_sign) {}
+
+   real_t RegLogPrime(const real_t a, const real_t M);
 
    virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
@@ -98,17 +102,23 @@ public:
  *
  * @param u GridFunction
  * @param n_tilde Unit vector field
+ * @param N Regularization parameter for the regularized log function (default: 1e2)
+ * @param sign Sign to apply to the coefficient (default: 1.0)
  */
 class RegLogDoublePrimeCoefficient : public Coefficient
 {
 private:
    GridFunction *u;
    Vector &n_tilde;
+   real_t N;
    real_t sign;
 
 public:
    RegLogDoublePrimeCoefficient(GridFunction *_u, Vector &_n_tilde,
-      real_t _sign = 1.0) : u(_u), n_tilde(_n_tilde), sign(_sign) {}
+      real_t _N = 1e2, real_t _sign = 1.0)
+      : u(_u), n_tilde(_n_tilde), N(_N), sign(_sign) {}
+
+   real_t RegLogDoublePrime(const real_t a, const real_t M);
 
    virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
@@ -270,9 +280,6 @@ int main(int argc, char *argv[])
    //     in the Newton iteration.
    StressGridFunctionCoefficient stress_u_curr_coeff(lambda, mu, &u_current);
    FlatVectorCoefficient nalpha_vstress_u_curr_coeff(stress_u_curr_coeff, -alpha);
-   RegLogDoublePrimeCoefficient reg_log_dp_curr_coeff(&u_current, n_tilde);
-   RegLogPrimeCoefficient reg_log_p_curr_coeff(&u_current, n_tilde);
-   RegLogPrimeCoefficient nreg_log_p_prev_coeff(&u_previous, n_tilde, -1.0);
 
    // 8. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs.
@@ -307,9 +314,13 @@ int main(int argc, char *argv[])
    }
 
    // 10. Iterate:
+   real_t N = 1e6;
    for (int k = 1; k <= max_outer_iter; k++)
    {
       ConstantCoefficient alpha_coeff(alpha);
+      RegLogDoublePrimeCoefficient reg_log_dp_curr_coeff(&u_current, n_tilde, N);
+      RegLogPrimeCoefficient reg_log_p_curr_coeff(&u_current, n_tilde, N);
+      RegLogPrimeCoefficient nreg_log_p_prev_coeff(&u_previous, n_tilde, N, -1.0);
 
       // Newton loop
       for (int j = 0; j <= max_newton_iter; j++)
@@ -455,18 +466,15 @@ void ForceFunction(const Vector &x, Vector &f)
    f(x.Size() - 1) = force;
 }
 
-real_t RegLogPrime(const real_t a)
+real_t RegLogPrimeCoefficient::RegLogPrime(const real_t a, const real_t M)
 {
-   // TODO: Make N a parameter
-   const real_t N = 1e5;
-
-   if (a > N)
+   if (a > M)
    {
-      return log(N) + 1.0/N * (a - N);
+      return log(M) + 1.0/M * (a - M);
    }
-   else if (a < 1.0/N)
+   else if (a < 1.0/M)
    {
-      return -log(N) + N * (a - 1.0/N);
+      return -log(M) + M * (a - 1.0/M);
    }
    else
    {
@@ -474,18 +482,16 @@ real_t RegLogPrime(const real_t a)
    }
 }
 
-real_t RegLogDoublePrime(const real_t a)
+real_t RegLogDoublePrimeCoefficient::RegLogDoublePrime(const real_t a,
+                                                       const real_t M)
 {
-   // TODO: Make N a parameter
-   const real_t N = 1e5;
-
-   if (a > N)
+   if (a > M)
    {
-      return 1.0 / N;
+      return 1.0 / M;
    }
-   else if (a < 1.0/N)
+   else if (a < 1.0/M)
    {
-      return N;
+      return M;
    }
    else
    {
@@ -517,7 +523,7 @@ real_t RegLogPrimeCoefficient::Eval(ElementTransformation &T,
    // Evaluate the gap function φ
    const real_t phi = GapFunction(x);
 
-   return sign * RegLogPrime(phi - u_val * n_tilde);
+   return sign * RegLogPrime(phi - u_val * n_tilde, N);
 }
 
 real_t RegLogDoublePrimeCoefficient::Eval(ElementTransformation &T,
@@ -544,5 +550,5 @@ real_t RegLogDoublePrimeCoefficient::Eval(ElementTransformation &T,
    // Evaluate the gap function φ
    const real_t phi = GapFunction(x);
 
-   return sign * RegLogDoublePrime(phi - u_val * n_tilde);
+   return sign * RegLogDoublePrime(phi - u_val * n_tilde, N);
 }
