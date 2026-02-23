@@ -38,9 +38,10 @@ void StressGridFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &
 
    for (int i = 0; i < height; i++)
    {
-      for (int j = 0; j < width; j++)
+      for (int j = i; j < width; j++)
       {
-         K(i, j) = c * ((i == j) ? 1.0 : 0.0) + M * (K(i, j) + K(j, i));
+         real_t k = c * ((i == j) ? 1.0 : 0.0) + M * (K(i, j) + K(j, i));
+         K(j,i) = K(i,j) = k;
       }
    }
 }
