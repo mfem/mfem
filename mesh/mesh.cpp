@@ -15751,9 +15751,18 @@ Mesh PartitionMPI(int dim, int mpi_cnt, int elem_per_mpi, bool print,
 {
    MFEM_VERIFY(dim > 1, "Not implemented for 1D meshes.");
 
-   auto factor = [&](int N)
+   // Closest int divisor to the cubit root, going down.
+   auto factor3 = [](int N)
    {
-      for (int i = static_cast<int>(sqrt(N)); i > 0; i--)
+      for (int i = static_cast<int>(round(cbrt(N))); i > 0; i--)
+      {  if (N % i == 0) { return i; } }
+      return 1;
+   };
+
+   // Closest int divisor to the square root, going down.
+   auto factor2 = [](int N)
+   {
+      for (int i = static_cast<int>(round(sqrt(N))); i > 0; i--)
       { if (N % i == 0) { return i; } }
       return 1;
    };
@@ -15777,22 +15786,22 @@ Mesh PartitionMPI(int dim, int mpi_cnt, int elem_per_mpi, bool print,
    int el0_x, el0_y, el0_z;
    if (dim == 2)
    {
-      mpi_x = factor(mpi_cnt);
+      mpi_x = factor2(mpi_cnt);
       mpi_y = mpi_cnt / mpi_x;
 
       // Switch order for better balance.
-      el0_y = factor(el0);
+      el0_y = factor2(el0);
       el0_x = el0 / el0_y;
    }
    else
    {
-      mpi_x = factor(mpi_cnt);
-      mpi_y = factor(mpi_cnt / mpi_x);
+      mpi_x = factor3(mpi_cnt);
+      mpi_y = factor2(mpi_cnt / mpi_x);
       mpi_z = mpi_cnt / mpi_x / mpi_y;
 
       // Switch order for better balance.
-      el0_z = factor(el0);
-      el0_y = factor(el0 / el0_z);
+      el0_z = factor3(el0);
+      el0_y = factor2(el0 / el0_z);
       el0_x = el0 / el0_y / el0_z;
    }
 
