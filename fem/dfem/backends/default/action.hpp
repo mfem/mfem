@@ -56,7 +56,8 @@ struct Action
       yq_offsets.PartialSum();
       yq.Update(yq_offsets);
 
-      create_output_to_outfd(outputs, ctx.outfds, output_to_outfd);
+      create_fop_to_fd(inputs, ctx.infds, input_to_infd);
+      create_fop_to_fd(outputs, ctx.outfds, output_to_outfd);
    }
 
    void operator()(
@@ -65,7 +66,7 @@ struct Action
    {
       if (ctx.attr.Size() == 0) { return; }
       // E -> Q
-      interpolate(inputs, qis, ctx.ir, xe, xq);
+      interpolate(inputs, input_to_infd, qis, ctx.ir, xe, xq);
       // Q -> Q
       if constexpr (
          detail::supports_tensor_array_qfunc<qfunc_t, inputs_t, outputs_t>::value)
@@ -89,8 +90,9 @@ struct Action
    inputs_t inputs;
    outputs_t outputs;
 
-   std::unordered_map<int, const QuadratureInterpolator *> qis;
+   std::array<size_t, ninputs> input_to_infd;
    std::array<size_t, noutputs> output_to_outfd;
+   std::unordered_map<int, const QuadratureInterpolator *> qis;
 
    int gnqp = 0;
    Array<int> xq_offsets, yq_offsets;

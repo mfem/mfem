@@ -632,7 +632,7 @@ void DifferentiableOperator::AddIntegrator(
    IntegratorContext ctx
    {
       mesh, elem_attributes, attributes, num_entities,
-      thread_blocks, unionfds, outfds, integration_rule
+      thread_blocks, infds, outfds, unionfds, integration_rule
    };
 
    action_callbacks.push_back(backend_t::MakeAction(ctx, qfunc, inputs, outputs));

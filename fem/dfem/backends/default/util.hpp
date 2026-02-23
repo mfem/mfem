@@ -22,6 +22,7 @@ constexpr std::array<bool, N> all_true()
 template <typename fops_t, size_t ninputs = tuple_size<fops_t>::value>
 void interpolate(
    const fops_t &fops,
+   const std::array<size_t, ninputs> &input_to_infd,
    const std::unordered_map<int, const QuadratureInterpolator *> &qis,
    const IntegrationRule &ir,
    const std::vector<Vector *> &xe,
@@ -52,6 +53,8 @@ void interpolate(
          return;
       }
 
+      const size_t j = input_to_infd[i];
+
       auto search = qis.find(input.GetFieldId());
       MFEM_ASSERT(search != qis.end(),
                   "can't find QuadratureInterpolator for given ID " << input.GetFieldId());
@@ -61,11 +64,11 @@ void interpolate(
 
       if constexpr (is_value_fop<input_t>::value)
       {
-         qi->Values(*xe[i], xq.GetBlock(i));
+         qi->Values(*xe[j], xq.GetBlock(i));
       }
       else if constexpr (is_gradient_fop<input_t>::value)
       {
-         qi->Derivatives(*xe[i], xq.GetBlock(i));
+         qi->Derivatives(*xe[j], xq.GetBlock(i));
       }
       else
       {
@@ -74,27 +77,31 @@ void interpolate(
    });
 }
 
-// Create quadrature function output to output fields map
-template <typename fops_t, size_t nfops>
-void create_output_to_outfd(const fops_t &fops,
-                            const std::vector<FieldDescriptor> &fields,
-                            std::array<size_t, nfops> &output_to_outfd)
+// Create quadrature function fop to fields map
+template <typename fops_t, size_t N = tuple_size<fops_t>::value, size_t M>
+void create_fop_to_fd(const fops_t &fops,
+                      const std::vector<FieldDescriptor> &fields,
+                      std::array<size_t, M> &fop_to_fd)
 {
-   constexpr_for<0, nfops>([&](auto i)
+   static_assert(N == M, "sizes must match");
+   constexpr_for<0, N>([&](auto i)
    {
-      const auto output = get<i>(fops);
-      output_to_outfd[i] = std::numeric_limits<size_t>::max();
+      const auto fop = get<i>(fops);
+      fop_to_fd[i] = std::numeric_limits<size_t>::max();
       for (size_t j = 0; j < fields.size(); j++)
       {
          // TODO: output.GetFieldId() should probably store/return size_t
-         if (static_cast<int>(fields[j].id) == output.GetFieldId())
+         if (static_cast<int>(fields[j].id) == fop.GetFieldId())
          {
-            output_to_outfd[i] = j;
+            fop_to_fd[i] = j;
          }
       }
-      if (output_to_outfd[i] == std::numeric_limits<size_t>::max())
+      // Handle Weight type. There is no FieldDescriptor for the weight.
+      // TODO: Create weight descriptor for the weight for internal use?
+      if (fop_to_fd[i] == std::numeric_limits<size_t>::max() &&
+          !is_weight_fop<std::remove_cv_t<decltype(fop)>>::value)
       {
-         MFEM_ABORT("can't find field referenced in quadrature function output");
+         MFEM_ABORT("not found");
       }
    });
 }

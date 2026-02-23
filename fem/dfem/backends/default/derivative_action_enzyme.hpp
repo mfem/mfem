@@ -72,6 +72,9 @@ struct DerivativeActionEnzyme
       });
       shadow_xq_offsets.PartialSum();
       shadow_xq.Update(shadow_xq_offsets);
+
+      create_fop_to_fd(inputs, ctx.infds, input_to_infd);
+      create_fop_to_fd(outputs, ctx.outfds, output_to_outfd);
    }
 
    void operator()(
@@ -81,10 +84,10 @@ struct DerivativeActionEnzyme
    {
       if (ctx.attr.Size() == 0) { return; }
       // E -> Q
-      interpolate(inputs, qis, ctx.ir, xe, xq);
+      interpolate(inputs, input_to_infd, qis, ctx.ir, xe, xq);
 
       const auto activity_map = detail::make_activity_map<derivative_id>(inputs);
-      interpolate(inputs, qis, ctx.ir, xe, shadow_xq, activity_map);
+      interpolate(inputs, input_to_infd, qis, ctx.ir, xe, shadow_xq, activity_map);
 
       // Q -> Q
       if constexpr (
@@ -112,8 +115,9 @@ struct DerivativeActionEnzyme
    inputs_t inputs;
    outputs_t outputs;
 
-   std::unordered_map<int, const QuadratureInterpolator *> qis;
+   std::array<size_t, ninputs> input_to_infd;
    std::array<size_t, noutputs> output_to_outfd;
+   std::unordered_map<int, const QuadratureInterpolator *> qis;
 
    int gnqp = 0;
    Array<int> xq_offsets, shadow_xq_offsets, yq_offsets;

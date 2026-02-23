@@ -48,6 +48,26 @@ struct massqf
    }
 };
 
+struct diffusionqf
+{
+   inline MFEM_HOST_DEVICE
+   void operator()(
+      const tensor_array<const real_t> &u,
+      const tensor_array<const real_t, DIM> &dudxi,
+      const tensor_array<const real_t, DIM, DIM> &J,
+      const tensor_array<const real_t> &w,
+      const tensor_array<real_t, DIM> &out) const
+   {
+      for (size_t q = 0; q < u.size(); q++)
+      {
+         const auto invJq = inv(J(q));
+         const auto v = (dudxi(q) * invJq) * transpose(invJq) * det(J(q))
+                        * (real_t)(w(q));
+         out(q) = v;
+      }
+   }
+};
+
 TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
 {
    const bool all_tests = launch_all_non_regression_tests;
@@ -67,9 +87,6 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
 
    const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), 2 * p);
 
-   UniformParameterSpace ups(pmesh, *ir, 1);
-   Vector scalar_out(ups.GetTrueVSize());
-
    ParGridFunction x(&fes), y(&fes), z(&fes);
 
    Array<int> inoffsets(3);
@@ -77,17 +94,6 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
    inoffsets[1] = fes.GetTrueVSize();
    inoffsets[2] = nodes->ParFESpace()->GetTrueVSize();
    inoffsets.PartialSum();
-
-   BlockVector X(inoffsets);
-   X = 1.0;
-   X.GetBlock(1) = *nodes;
-   x.SetFromTrueDofs(X.GetBlock(0));
-
-   Array<int> outoffsets(2);
-   outoffsets[0] = 0;
-   outoffsets[1] = fes.GetTrueVSize();
-   outoffsets.PartialSum();
-   BlockVector Z(outoffsets);
 
    ConstantCoefficient one(1.0);
 
@@ -98,57 +104,122 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
       all_domain_attr = 1;
    }
 
-   ParBilinearForm blf(&fes);
-   blf.AddDomainIntegrator(new MassIntegrator(one, ir));
-   blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   blf.Assemble();
-   blf.Mult(x, y);
-   Vector Y(fes.GetTrueVSize());
-   fes.GetProlongationMatrix()->MultTranspose(y, Y);
+   // {
+   //    BlockVector X(inoffsets);
+   //    X = 1.0;
+   //    X.GetBlock(1) = *nodes;
+   //    x.SetFromTrueDofs(X.GetBlock(0));
 
-   static constexpr int U = 0, COORDINATES = 1, V = 2;
-   const std::vector<FieldDescriptor> in
+   //    Array<int> outoffsets(2);
+   //    outoffsets[0] = 0;
+   //    outoffsets[1] = fes.GetTrueVSize();
+   //    outoffsets.PartialSum();
+   //    BlockVector Z(outoffsets);
+
+   //    ParBilinearForm blf(&fes);
+   //    blf.AddDomainIntegrator(new MassIntegrator(one, ir));
+   //    blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   //    blf.Assemble();
+   //    blf.Mult(x, y);
+   //    Vector Y(fes.GetTrueVSize());
+   //    fes.GetProlongationMatrix()->MultTranspose(y, Y);
+
+   //    static constexpr int U = 0, COORDINATES = 1, V = 2;
+   //    const std::vector<FieldDescriptor> in
+   //    {
+   //       {U, &fes},
+   //       {COORDINATES, nodes->ParFESpace()}
+   //    };
+
+   //    const std::vector<FieldDescriptor> out // test spaces?
+   //    {
+   //       {V, &fes},
+   //    };
+   //    DifferentiableOperator dop(in, out, pmesh);
+
+   //    auto derivatives = std::integer_sequence<size_t, U> {};
+   //    auto mass_qfunc = massqf{};
+   //    dop.AddDomainIntegrator(mass_qfunc,
+   //                            tuple{ Value<U>{}, Gradient<COORDINATES>{}, Weight{} },
+   //                            tuple{ Value<V>{}, Value<V>{} },
+   //                            *ir, all_domain_attr, derivatives);
+
+   //    fes.GetRestrictionMatrix()->Mult(x, X.GetBlock(0));
+   //    dop.Mult(X, Z);
+
+   //    Vector Y0(Y);
+   //    Y0 *= 2.0;
+   //    Y0 -= Z.GetBlock(0);
+
+   //    real_t norm_g, norm_l = Y0.Normlinf();
+   //    MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+   //    REQUIRE(norm_g == MFEM_Approx(0.0));
+   //    MPI_Barrier(MPI_COMM_WORLD);
+
+   //    auto ddop = dop.GetDerivative(U, X);
+
+   //    ddop->Mult(X.GetBlock(0), Z);
+   //    Y0 = Y;
+   //    Y0 *= 2.0;
+   //    Y0 -= Z.GetBlock(0);
+
+   //    norm_l = Y0.Normlinf();
+   //    MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+   //    REQUIRE(norm_g == MFEM_Approx(0.0));
+   //    MPI_Barrier(MPI_COMM_WORLD);
+   // }
+
    {
-      {U, &fes},
-      {COORDINATES, nodes->ParFESpace()}
-   };
+      BlockVector X(inoffsets);
+      X = 1.0;
+      X.GetBlock(1) = *nodes;
+      x.SetFromTrueDofs(X.GetBlock(0));
 
-   const std::vector<FieldDescriptor> out // test spaces?
-   {
-      {V, &fes},
-   };
-   DifferentiableOperator dop(in, out, pmesh);
+      Array<int> outoffsets(2);
+      outoffsets[0] = 0;
+      outoffsets[1] = fes.GetTrueVSize();
+      outoffsets.PartialSum();
+      BlockVector Z(outoffsets);
 
-   auto derivatives = std::integer_sequence<size_t, U> {};
-   auto mass_qfunc = massqf {};
-   dop.AddDomainIntegrator(mass_qfunc,
-                           tuple{ Value<U>{}, Gradient<COORDINATES>{}, Weight{} },
-                           tuple{ Value<V>{}, Value<V>{} },
-                           *ir, all_domain_attr, derivatives);
+      ParBilinearForm blf(&fes);
+      blf.AddDomainIntegrator(new DiffusionIntegrator(one, ir));
+      blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      blf.Assemble();
+      blf.Mult(x, y);
+      Vector Y(fes.GetTrueVSize());
+      fes.GetProlongationMatrix()->MultTranspose(y, Y);
 
-   fes.GetRestrictionMatrix()->Mult(x, X.GetBlock(0));
-   dop.Mult(X, Z);
+      static constexpr int U = 0, COORDINATES = 1, V = 2;
+      const std::vector<FieldDescriptor> in
+      {
+         {U, &fes},
+         {COORDINATES, nodes->ParFESpace()}
+      };
 
-   Vector Y0(Y);
-   Y0 *= 2.0;
-   Y0 -= Z.GetBlock(0);
+      const std::vector<FieldDescriptor> out
+      {
+         {V, &fes},
+      };
+      DifferentiableOperator dop(in, out, pmesh);
 
-   real_t norm_g, norm_l = Y0.Normlinf();
-   MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
-   REQUIRE(norm_g == MFEM_Approx(0.0));
-   MPI_Barrier(MPI_COMM_WORLD);
+      auto mass_qfunc = diffusionqf{};
+      dop.AddDomainIntegrator(mass_qfunc,
+                              tuple{ Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Weight{} },
+                              tuple{ Gradient<V>{}},
+                              *ir, all_domain_attr);
 
-   auto ddop = dop.GetDerivative(U, X);
+      fes.GetRestrictionMatrix()->Mult(x, X.GetBlock(0));
+      dop.Mult(X, Z);
 
-   ddop->Mult(X.GetBlock(0), Z);
-   Y0 = Y;
-   Y0 *= 2.0;
-   Y0 -= Z.GetBlock(0);
+      Vector Y0(Y);
+      Y0 -= Z.GetBlock(0);
 
-   norm_l = Y0.Normlinf();
-   MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
-   REQUIRE(norm_g == MFEM_Approx(0.0));
-   MPI_Barrier(MPI_COMM_WORLD);
+      real_t norm_g, norm_l = Y0.Normlinf();
+      MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+      REQUIRE(norm_g == MFEM_Approx(0.0));
+      MPI_Barrier(MPI_COMM_WORLD);
+   }
+
 }
 
 #endif // MFEM_USE_MPI

@@ -12,8 +12,9 @@ struct IntegratorContext
    Array<int> attr;
    int nentities;
    ThreadBlocks thread_blocks;
-   const std::vector<FieldDescriptor> &unionfds;
+   const std::vector<FieldDescriptor> &infds;
    const std::vector<FieldDescriptor> &outfds;
+   const std::vector<FieldDescriptor> &unionfds;
    const IntegrationRule &ir;
 };
 
