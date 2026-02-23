@@ -314,8 +314,7 @@ int main(int argc, char *argv[])
    u_current = u_previous;
    delta_u = 0.0;
 
-   // 7B. Define the regularized log prime and double prime coefficients present
-   //     in the Newton iteration.
+   // 7B. Define the stress coefficient present in the Newton iteration.
    StressGridFunctionCoefficient stress_u_curr_coeff(lambda, mu, &u_current);
    FlatVectorCoefficient nalpha_vstress_u_curr_coeff(stress_u_curr_coeff, -alpha);
 
@@ -389,7 +388,7 @@ int main(int argc, char *argv[])
    }
 
    // 10. Iterate:
-   real_t N = 1e6;
+   real_t N = 1e2;
    for (int k = 1; k <= max_outer_iter; k++)
    {
       ConstantCoefficient alpha_coeff(alpha);
@@ -524,18 +523,6 @@ void InitDisplacement(const Vector &x, Vector &u)
 }
 
 /**
- * @brief Computes the gap function φ based on the input vector x; represents
- *        the distance between a point x and the plane z = plane_g.
- *
- * @param  x Input vector
- * @return real_t Computed gap function value, φ(x)
- */
-real_t GapFunction(const Vector &x)
-{
-   return x(x.Size() - 1) - plane_g;
-}
-
-/**
  * @brief Computes the force function based on the input vector x.
  *
  * @param x Input vector
@@ -545,6 +532,18 @@ void ForceFunction(const Vector &x, Vector &f)
 {
    f = 0.0;
    f(x.Size() - 1) = -force_g;
+}
+
+/**
+ * @brief Computes the gap function φ based on the input vector x; represents
+ *        the distance between a point x and the plane z = plane_g.
+ *
+ * @param  x Input vector
+ * @return real_t Computed gap function value, φ(x)
+ */
+real_t GapFunction(const Vector &x)
+{
+   return x(x.Size() - 1) - plane_g;
 }
 
 real_t RegLogPrimeCoefficient::RegLogPrime(const real_t a, const real_t M)
