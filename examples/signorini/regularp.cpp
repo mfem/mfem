@@ -145,8 +145,8 @@ int main(int argc, char *argv[])
    real_t mu = 1.0;
    int max_outer_iter = 30;
    int max_newton_iter = 15;
-   real_t itol = 1e-9;
-   real_t ntol = 1e-12;
+   real_t itol = 1e-8;
+   real_t ntol = 1e-8;
    bool reorder_space = false;
    bool visualization = false;
 
