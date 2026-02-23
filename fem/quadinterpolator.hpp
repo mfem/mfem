@@ -198,8 +198,8 @@ public:
                          (int, QVectorLayout, unsigned, int, int));
    MFEM_REGISTER_KERNELS(TensorEvalTransposeKernels, TensorEvalTransposeKernelType,
                          (int, QVectorLayout, int, int, int), (int));
-   // MFEM_REGISTER_KERNELS(GradTransposeKernels, GradTransposeKernelType,
-   //                       (int, QVectorLayout, bool, int, int, int), (int));
+   MFEM_REGISTER_KERNELS(GradTransposeKernels, GradTransposeKernelType,
+                         (int, QVectorLayout, bool, int, int, int), (int));
 };
 
 }

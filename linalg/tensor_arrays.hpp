@@ -36,6 +36,7 @@ constexpr inline void for_unrolled_simple(std::index_sequence<Is...>, Fn &&fn)
 
 
 template <int... loop_sizes>
+__attribute__((annotate("enzyme_inactive")))
 constexpr inline auto to_multiindex(std::size_t i)
 {
    constexpr auto dims = sizeof...(loop_sizes);

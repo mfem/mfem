@@ -11,6 +11,7 @@
 
 #include "quadinterpolator.hpp"
 #include "qinterp/grad.hpp"
+#include "qinterp/grad_transpose.hpp"
 #include "qinterp/eval.hpp"
 #include "qspace.hpp"
 #include "../general/forall.hpp"
@@ -30,6 +31,8 @@ void InitEvalKernels();
 void InitDetKernels();
 template <bool P> void InitGradByNodesKernels();
 template <bool P> void InitGradByVDimKernels();
+template <bool P> void InitGradTransposeByNodesKernels();
+template <bool P> void InitGradTransposeByVDimKernels();
 void InitTensorEvalHDivKernels();
 void InitEvalTransposeByVDimKernels();
 struct Kernels
@@ -46,6 +49,12 @@ struct Kernels
       // Phys grad kernels
       InitGradByNodesKernels<true>();
       InitGradByVDimKernels<true>();
+      // Non-phys grad transpose kernels
+      InitGradTransposeByNodesKernels<false>();
+      InitGradTransposeByVDimKernels<false>();
+      // Phys grad transpose kernels
+      InitGradTransposeByNodesKernels<true>();
+      InitGradTransposeByVDimKernels<true>();
       // Determinants
       InitDetKernels();
       // Non-tensor
@@ -687,13 +696,13 @@ void QuadratureInterpolator::AddMultTranspose(unsigned eval_flags,
       }
       if (eval_flags & (DERIVATIVES | PHYSICAL_DERIVATIVES))
       {
-         // const bool phys = (eval_flags & PHYSICAL_DERIVATIVES);
-         // const real_t *J = phys ? geom->J.Read() : nullptr;
-         // const int s_dim = phys ? sdim : dim;
-         // GradTransposeKernels::Run(dim, q_layout, phys, vdim, nd, nq, ne,
-         //                           maps.B.Read(), maps.G.Read(), J,
-         //                           q_der.Read(), e_vec.ReadWrite(),
-         //                           s_dim, vdim, nd, nq);
+         const bool phys = (eval_flags & PHYSICAL_DERIVATIVES);
+         const real_t *J = phys ? geom->J.Read() : nullptr;
+         const int s_dim = phys ? sdim : dim;
+         GradTransposeKernels::Run(dim, q_layout, phys, vdim, nd, nq, ne,
+                                   maps.B.Read(), maps.G.Read(), J,
+                                   q_der.Read(), e_vec.ReadWrite(),
+                                   s_dim, vdim, nd, nq);
       }
    }
    else

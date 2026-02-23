@@ -114,15 +114,15 @@ void integrate(
    const BlockVector &yq,
    std::vector<Vector *> &ye)
 {
-   std::cout << "integrate\n";
+   // std::cout << "integrate\n";
    for (auto v : ye) { *v = 0.0; }
    constexpr_for<0, noutputs>([&](auto i)
    {
-      for (size_t l = 0; l < ye.size(); l++)
-      {
-         std::cout << "ye[" << l << "] = ";
-         pretty_print(*ye[l]);
-      }
+      // for (size_t l = 0; l < ye.size(); l++)
+      // {
+      //    std::cout << "ye[" << l << "] = ";
+      //    pretty_print(*ye[l]);
+      // }
 
       const auto output = get<i>(fops);
       using output_t = std::decay_t<decltype(output)>;
@@ -138,7 +138,7 @@ void integrate(
       // Check that output vector is allocated
       MFEM_ASSERT(ye[j] != nullptr, "output vector ye[" << j << "] is null");
 
-      std::cout << "filling ye[" << j << "]\n";
+      // std::cout << "filling ye[" << j << "]\n";
 
       auto search = qis.find(output.GetFieldId());
       MFEM_ASSERT(search != qis.end(),
@@ -157,22 +157,21 @@ void integrate(
       }
       else if constexpr (is_gradient_fop<output_t>::value)
       {
-         MFEM_ABORT("errrr");
          // Integrate gradients: Q -> E
-         // qi->MultTranspose(QuadratureInterpolator::DERIVATIVES,
-         //                   empty, yq.GetBlock(i), *ye[i]);
+         qi->AddMultTranspose(QuadratureInterpolator::DERIVATIVES,
+                              empty, yq.GetBlock(i), *ye[j]);
       }
       else
       {
          MFEM_ABORT("default backend doesn't support " << get_type_name<output_t>());
       }
 
-      std::cout << "after AddMultTranspose\n";
-      for (size_t l = 0; l < ye.size(); l++)
-      {
-         std::cout << "ye[" << l << "] = ";
-         pretty_print(*ye[l]);
-      }
+      // std::cout << "after AddMultTranspose\n";
+      // for (size_t l = 0; l < ye.size(); l++)
+      // {
+      //    std::cout << "ye[" << l << "] = ";
+      //    pretty_print(*ye[l]);
+      // }
    });
 }
 
@@ -429,6 +428,13 @@ inline void enzyme_fwddiff(
    constexpr auto activity_map = make_activity_map<derivative_id>(inputs_t{});
    static_assert(activity_map.size() == ninputs, "activity map size mismatch");
 
+   std::cout << "activity_map: ";
+   for (const auto &v : activity_map)
+   {
+      std::cout << v << " ";
+   }
+   std::cout << "\n";
+
    auto inputs = std::make_tuple(
                     make_tensor_array<std::remove_cv_t<std::remove_reference_t<
                     typename tuple_element<Is, qf_param_ts>::type>>>(
@@ -461,6 +467,11 @@ inline void enzyme_fwddiff(
       qfunction_wrapper<qfunc_t,
       std::remove_reference_t<decltype(std::get<Is>(inputs))>...,
       std::remove_reference_t<decltype(std::get<Os>(primals_out))>...>;
+
+   std::cout << "inputs: " << get_type_name<decltype(inputs)>() << "\n";
+   std::cout << "shadows: " << get_type_name<decltype(shadows)>() << "\n";
+   std::cout << "primals_out: " << get_type_name<decltype(primals_out)>() << "\n";
+   std::cout << "derivs_out: " << get_type_name<decltype(derivs_out)>() << "\n";
 
    // wrapper_fn travels as a non-type template parameter throughout without
    // being stored.
