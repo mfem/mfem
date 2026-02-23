@@ -21,7 +21,10 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS =
-PAR_MINIAPPS = volta tesla maxwell joule lorentz
+PAR_MINIAPPS = volta tesla maxwell joule
+ifeq ($(MFEM_USE_GSLIB), YES)
+   PAR_MINIAPPS += lorentz
+endif
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -51,9 +54,11 @@ all: $(MINIAPPS)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $@_solver.o $(COMMON_LIB) \
 	  $(MFEM_LIBS)
 
+ifeq ($(MFEM_USE_MPI),YES)
 lorentz: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $(COMMON_LIB) $(MFEM_LIBS)
+endif
 
 # Rules for compiling miniapp dependencies
 $(addsuffix _solver.o,$(MINIAPPS)): \
@@ -112,10 +117,10 @@ joule-test-par: joule
 lorentz-test-par: lorentz-test-1 lorentz-test-2
 lorentz-test-1: lorentz volta-test-3
 	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
-	-er Volta-AMR-Parallel -ec 2 -x0 '0.5 0.5 0.9' -p0 '1 0 0')
+	-er Volta-AMR-Parallel -ec 2 -npt 100 -xmin '0.0 0.0 0.0' -xmax '1.0 1.0 1.0' -pmin '1 0 0' -pmax '1 0 0' -rdf 0 -vt 0 -nt 100')
 lorentz-test-2: lorentz tesla-test-2
 	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
-	-br Tesla-AMR-Parallel -bc 2 -x0 '0.1 0.5 0.1' -p0 '0 0.4 0.1' -tf 9)
+	-br Tesla-AMR-Parallel -bc 2 -br Tesla-AMR-Parallel -npt 10 -xmin '0.0 0.0 0.0' -xmax '1.0 1.0 1.0' -pmin '0 0.1 0.05' -pmax '0 0.4 0.1' -nt 1000 -rdf 0 -vt 0)
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 

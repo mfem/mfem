@@ -1211,7 +1211,6 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       if (Dim <= 2) { nfaces = NEdges, nghosts = NGhostEdges; }
 
       // enlarge Mesh::faces_info for ghost slaves
-      MFEM_ASSERT(pmesh.faces_info.Size() == nfaces, "");
       MFEM_ASSERT(pmesh.GetNumFaces() == nfaces, "");
       pmesh.faces_info.SetSize(nfaces + nghosts);
       for (int i = nfaces; i < pmesh.faces_info.Size(); i++)
@@ -1312,7 +1311,6 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
                // Mesh::ApplyLocalSlaveTransformation.
             }
 
-            MFEM_ASSERT(fi.NCFace < 0, "fi.NCFace = " << fi.NCFace);
             fi.NCFace = pmesh.nc_faces_info.Size();
             pmesh.nc_faces_info.Append(Mesh::NCFaceInfo(true, sf.master, pm));
          }

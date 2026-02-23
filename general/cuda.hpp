@@ -20,9 +20,11 @@
 
 #if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
 #define MFEM_USE_CUDA_OR_HIP
+constexpr bool mfem_use_gpu = true;
 #define MFEM_DEVICE __device__
 #define MFEM_HOST __host__
 #define MFEM_LAMBDA __host__
+#define MFEM_LAUNCH_BOUNDS __launch_bounds__
 // #define MFEM_HOST_DEVICE __host__ __device__ // defined in config/config.hpp
 #define MFEM_DEVICE_SYNC MFEM_GPU_CHECK(cudaDeviceSynchronize())
 #define MFEM_STREAM_SYNC MFEM_GPU_CHECK(cudaStreamSynchronize(0))

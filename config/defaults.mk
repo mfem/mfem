@@ -18,6 +18,7 @@
 # Some choices below are based on the OS type:
 NOTMAC := $(subst Darwin,,$(shell uname -s))
 
+ASTYLE_BIN = astyle
 ETAGS_BIN = $(shell command -v etags 2> /dev/null)
 EGREP_BIN = $(shell command -v egrep 2> /dev/null)
 

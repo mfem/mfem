@@ -812,13 +812,12 @@ protected:
        PointMatrix and a local face identifier. */
    using Key = std::pair<const DenseMatrix*,int>;
    /// The temporary map used to store the different interpolators.
-   using Map = std::map<Key, std::pair<int,const DenseMatrix*>>;
+   using Map =
+      std::unordered_map<Key, std::pair<int,const DenseMatrix*>, PairHasher>;
    Map interp_map; // The temporary map that stores the interpolators.
 
 public:
-   InterpolationManager() = delete;
-
-   /** @brief main constructor.
+   /** @brief Constructor.
 
        @param[in] fes      The FiniteElementSpace on which this operates
        @param[in] ordering Request a specific element ordering.
@@ -909,7 +908,7 @@ private:
 class NCL2FaceRestriction : virtual public L2FaceRestriction
 {
 protected:
-   InterpolationManager interpolations;
+   const InterpolationManager &interpolations;
    mutable Vector x_interp;
 
    /** @brief Constructs an NCL2FaceRestriction, this is a specialization of a
@@ -996,9 +995,7 @@ public:
        @param[in] keep_nbr_block When set to true the SparseMatrix will
                                  include the rows (in addition to the columns)
                                  corresponding to face-neighbor dofs. The
-                                 default behavior is to disregard those rows.
-
-       @warning This method is not implemented yet. */
+                                 default behavior is to disregard those rows. */
    void FillI(SparseMatrix &mat,
               const bool keep_nbr_block = false) const override;
 
@@ -1016,9 +1013,7 @@ public:
        @param[in] keep_nbr_block When set to true the SparseMatrix will
                                  include the rows (in addition to the columns)
                                  corresponding to face-neighbor dofs. The
-                                 default behavior is to disregard those rows.
-
-       @warning This method is not implemented yet. */
+                                 default behavior is to disregard those rows. */
    void FillJAndData(const Vector &fea_data,
                      SparseMatrix &mat,
                      const bool keep_nbr_block = false) const override;
@@ -1036,9 +1031,7 @@ public:
                               added the face contributions.
                               The format is: dofs x dofs x ne, where dofs is the
                               number of dofs per element and ne the number of
-                              elements.
-
-       @warning This method is not implemented yet. */
+                              elements. */
    void AddFaceMatricesToElementMatrices(const Vector &fea_data,
                                          Vector &ea_data) const override;
 
@@ -1130,7 +1123,9 @@ protected:
    const int face_dofs; ///< Number of dofs on each face
    const int nfdofs; ///< Total number of dofs on the faces (E-vector size)
    const int ndofs; ///< Number of dofs in the space (L-vector size)
+   const int nsdofs; ///< Number of shared face neighbor (ghost) dofs
    Array<int> gather_map; ///< Gather map
+   Array<int> scatter_map; ///< Scatter map
 
 public:
    /** @brief Constructs an L2InterfaceFaceRestriction.
@@ -1168,7 +1163,24 @@ public:
    void AddMultTranspose(const Vector &x, Vector &y,
                          const real_t a = 1.0) const override;
 
+   /// @brief Gather degrees of freedom, from face E-vector to L-vector and
+   /// shared (ghost) DOFs.
+   ///
+   /// @param[in]     x The face E-Vector degrees of freedom with size
+   ///                  (face_dofs, vdim, nf), where nf is the number of
+   ///                  interior or boundary faces requested by @a type in the
+   ///                  constructor. The face_dofs should be ordered according
+   ///                  to the given ElementDofOrdering
+   /// @param[out]    y Vector of length vsize + face neighbor vsize
+   void MultTransposeShared(const Vector &x, Vector &y) const;
+
    const Array<int> &GatherMap() const override;
+
+   /// @brief Return the low-level mapping from L-dofs to E-dofs.
+   ///
+   /// L-dofs that do not correspond to an E-dof (e.g. that lie on a face of a
+   /// different type) are given index -1.
+   const Array<int> &ScatterMap() const;
 };
 
 /** @brief Convert a dof face index from Native ordering to lexicographic

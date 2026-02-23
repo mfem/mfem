@@ -301,18 +301,14 @@ template <int DIM, int T_D1D, int T_Q1D>
 DomainLFIntegrator::AssembleKernelType
 DomainLFIntegrator::AssembleKernels::Kernel()
 {
-   switch (DIM)
-   {
-      case 1:
-         return DLFEvalAssemble1D<T_D1D, T_Q1D>;
-      case 2:
-         return DLFEvalAssemble2D<T_D1D, T_Q1D>;
-      case 3:
-         return DLFEvalAssemble3D<T_D1D, T_Q1D>;
-   }
+   if constexpr (DIM == 1) { return DLFEvalAssemble1D<T_D1D, T_Q1D>; }
+   if constexpr (DIM == 2) { return DLFEvalAssemble2D<T_D1D, T_Q1D>; }
+   if constexpr (DIM == 3) { return DLFEvalAssemble3D<T_D1D, T_Q1D>; }
    MFEM_ABORT("");
 }
+
 /// \endcond DO_NOT_DOCUMENT
 
 } // namespace mfem
-#endif
+
+#endif // MFEM_LININTEG_DOMAIN_KERNELS_HPP

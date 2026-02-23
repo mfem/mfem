@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "kernel_reporter.hpp"
+#include "../general/hash_util.hpp"
 #include <unordered_map>
 #include <tuple>
 #include <type_traits>
@@ -86,35 +87,6 @@ namespace mfem
     }                                                                          \
   }
 
-/// @brief Hashes variadic packs for which each type contained in the variadic
-/// pack has a specialization of `std::hash` available.
-///
-/// For example, packs containing int, bool, enum values, etc.
-template<typename ...KernelParameters>
-struct KernelDispatchKeyHash
-{
-private:
-   template<int N>
-   size_t operator()(std::tuple<KernelParameters...> value) const { return 0; }
-
-   // The hashing formula here is taken directly from the Boost library, with
-   // the magic number 0x9e3779b9 chosen to minimize hashing collisions.
-   template<std::size_t N, typename THead, typename... TTail>
-   size_t operator()(std::tuple<KernelParameters...> value) const
-   {
-      constexpr int Index = N - sizeof...(TTail) - 1;
-      auto lhs_hash = std::hash<THead>()(std::get<Index>(value));
-      auto rhs_hash = operator()<N, TTail...>(value);
-      return lhs_hash^(rhs_hash + 0x9e3779b9 + (lhs_hash<<6) + (lhs_hash>>2));
-   }
-public:
-   /// Returns the hash of the given @a value.
-   size_t operator()(std::tuple<KernelParameters...> value) const
-   {
-      return operator()<sizeof...(KernelParameters),KernelParameters...>(value);
-   }
-};
-
 namespace internal { template<typename... Types> struct KernelTypeList { }; }
 
 template<typename... T> class KernelDispatchTable { };
@@ -128,8 +100,8 @@ class KernelDispatchTable<Kernels,
          internal::KernelTypeList<Params...>,
          internal::KernelTypeList<OptParams...>>
 {
-   using TableType = std::unordered_map<std::tuple<Params...>,
-         Signature, KernelDispatchKeyHash<Params...>>;
+   using TableType =
+      std::unordered_map<std::tuple<Params...>, Signature, TupleHasher>;
    TableType table;
 
    /// @brief Call function @a f with arguments @a args (perfect forwaring).
