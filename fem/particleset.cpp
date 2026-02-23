@@ -273,7 +273,6 @@ void ParticleSet::TransferParticlesImpl(ParticleSet &pset,
    send_ptrs.push_back(pset.Coords().HostRead());
    for (int f = 0; f < pset.GetNFields(); f++)
    {
-
       send_ptrs.push_back(pset.Field(f).HostRead());
    }
 
@@ -980,6 +979,14 @@ void ParticleSet::PrintCSV(const char *fname, const Array<int> &field_idxs,
 #ifdef MFEM_USE_MPI
    int rank = GetRank(comm);
 #endif // MFEM_USE_MPI
+   // make sure we can read tag data on host. fields and coords will be read as
+   // needed in the loop below, so we don't need to pre-read them here.
+   for (int i = 0; i < GetNTags(); i++)
+   {
+      tags[i]->HostRead();
+   }
+
+   // Write particle data
    for (int i = 0; i < GetNParticles(); i++)
    {
       ss_data << ids[i];
