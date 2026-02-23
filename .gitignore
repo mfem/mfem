@@ -82,6 +82,7 @@ examples/mesh.*
 examples/ex5.mesh
 examples/Example5*
 examples/ParaView
+examples/signorini/ParaView
 examples/Example9*
 examples/Example15*
 examples/Example16*

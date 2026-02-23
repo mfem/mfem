@@ -4,6 +4,7 @@
 //
 // Sample runs:  mpirun -np 4 regularp -r 1 -vis
 //               mpirun -np 4 regularp -f 1 -p 0 -i 50 -n 10 -a 20 -m ../../data/wheel.msh -vis
+//               mpirun -np 8 regularp -r 1 -f 1.5 -p 0 -i 50 -n 10 -a 20 -m ../../data/wheel.msh -pv
 //
 // Description:  This program solves Signorini's problem using MFEM. We aim to
 //               solve the bound-constrained minimization problem
@@ -150,6 +151,7 @@ int main(int argc, char *argv[])
    real_t ntol = 1e-8;
    bool reorder_space = false;
    bool visualization = false;
+   bool paraview_output = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -178,6 +180,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&paraview_output, "-pv", "--paraview", "-no-pv",
+                  "--no-paraview",
+                  "Enable or disable ParaView output.");
    args.Parse();
    if (!args.Good())
    {
@@ -356,11 +361,25 @@ int main(int argc, char *argv[])
    ess_tdof_list.Append(ess_tdof_list_x);
    ess_tdof_list.Append(ess_tdof_list_y);
 
-   // 9. Set up GLVis visualization.
+   // 9A. Set up GLVis visualization.
    char vishost[] = "localhost";
    int  visport   = 19916;
    socketstream sol_sock(vishost, visport);
    sol_sock.precision(8);
+
+   // 9B. Set up ParaView output.
+   ParaViewDataCollection paraview_dc("wheel", &pmesh);
+   if (paraview_output)
+   {
+      paraview_dc.SetPrefixPath("ParaView");
+      paraview_dc.SetLevelsOfDetail(order);
+      paraview_dc.SetDataFormat(VTKFormat::BINARY);
+      paraview_dc.SetHighOrderOutput(true);
+      paraview_dc.SetCycle(0);
+      paraview_dc.SetTime(0.0);
+      paraview_dc.RegisterField("Displacement",&u_previous);
+      paraview_dc.Save();
+   }
 
    real_t newton_error, iter_error;
 
@@ -478,6 +497,14 @@ int main(int argc, char *argv[])
 
       // Step 11: Update previous solution for next iteration.
       u_previous = u_current;
+   }
+
+   // 11. Save the final solution in ParaView format.
+   if (paraview_output)
+   {
+      paraview_dc.SetCycle(1);
+      paraview_dc.SetTime((real_t)1);
+      paraview_dc.Save();
    }
 
    // 12. Free used memory.
