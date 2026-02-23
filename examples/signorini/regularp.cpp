@@ -2,7 +2,8 @@
 //
 // Compile with: make regularp
 //
-// Sample runs:  mpirun -np 4 regularp
+// Sample runs:  mpirun -np 4 regularp -r 1 -vis
+//               mpirun -np 4 regularp -f 1 -p 0 -i 50 -n 10 -a 20 -m ../../data/wheel.msh -vis
 //
 // Description:  This program solves Signorini's problem using MFEM. We aim to
 //               solve the bound-constrained minimization problem
@@ -219,6 +220,34 @@ int main(int argc, char *argv[])
    ParMesh pmesh = ParMesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
+   if (strcmp(mesh_file, "../../data/wheel.msh") == 0)
+   {
+      for (int i = 0; i < pmesh.GetNBE(); i++)
+      {
+         Element *facet = pmesh.GetBdrElement(i);
+
+         // Mark only the outer ring
+         if (facet->GetAttribute() != 1) { continue; }
+
+         Array<int> vertices;
+         facet->GetVertices(vertices);
+
+         // Compute the z-centroid of the facet.
+         real_t z_centroid = 0.0;
+         for (int j = 0; j < vertices.Size(); j++)
+         {
+            z_centroid += pmesh.GetVertex(vertices[j])[dim-1];
+         }
+         z_centroid /= vertices.Size();
+
+         if (z_centroid < 0.4)
+         {
+            facet->SetAttribute(5);
+         }
+      }
+      pmesh.SetAttributes();
+   }
+
    // 5. Define a finite element space on the mesh. Here we use vector finite
    //    elements, i.e. dim copies of a scalar finite element space. The vector
    //    dimension is specified by the last argument of the FiniteElementSpace
@@ -292,11 +321,34 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr_x(pmesh.bdr_attributes.Max());
    Array<int> ess_bdr_y(pmesh.bdr_attributes.Max());
    Array<int> ess_bdr_z(pmesh.bdr_attributes.Max());
-   ess_bdr_x = 0; ess_bdr_x[2] = 1; ess_bdr_x[4] = 1;
-   ess_bdr_y = 0; ess_bdr_y[1] = 1; ess_bdr_y[3] = 1;
-   ess_bdr_z = 0; ess_bdr_z[0] = 1;
+   ess_bdr_x = 0; ess_bdr_y = 0; ess_bdr_z = 0;
 
-   Array<int> ess_tdof_list_x, ess_tdof_list_y, ess_tdof_list_z;
+   if (strcmp(mesh_file, "../../data/ref-cube.mesh") == 0)
+   {
+      ess_bdr_x[2] = 1; ess_bdr_x[4] = 1;
+      ess_bdr_y[1] = 1; ess_bdr_y[3] = 1;
+      ess_bdr_z[0] = 1;
+   }
+   else if (strcmp(mesh_file, "../../data/wheel.msh") == 0)
+   {
+      // ess_bdr_x[1] = 1; ess_bdr_x[2] = 1;
+      // ess_bdr_y[1] = 1; ess_bdr_y[2] = 1;
+
+      // ess_bdr_x[1] = 1; ess_bdr_x[2] = 1; ess_bdr_x[3] = 1;
+      // ess_bdr_y[3] = 1;
+
+      ess_bdr_x[1] = 1; ess_bdr_x[2] = 1; ess_bdr_x[3] = 1;
+      ess_bdr_y[1] = 1; ess_bdr_y[2] = 1; ess_bdr_y[3] = 1;
+
+      ess_bdr_z[4] = 1;
+   }
+   else
+   {
+      MFEM_ABORT("Unknown mesh file. Please specify essential boundary\
+      conditions for this mesh.");
+   }
+
+   Array<int> ess_tdof_list_x, ess_tdof_list_y;
    fespace->GetEssentialTrueDofs(ess_bdr_x, ess_tdof_list_x, 0);
    fespace->GetEssentialTrueDofs(ess_bdr_y, ess_tdof_list_y, 1);
 
