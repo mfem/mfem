@@ -37,6 +37,8 @@ void InitDetKernels()
    k::Specialization<3,3,3,3>::Add();
    k::Specialization<3,3,3,5>::Add();
    k::Specialization<3,3,3,6>::Add();
+   k::Specialization<3,3,4,6>::Add();
+   k::Specialization<3,3,3,4>::Add();
 }
 
 } // namespace quadrature_interpolator
@@ -48,7 +50,13 @@ QuadratureInterpolator::DetKernelType
 QuadratureInterpolator::DetKernels::Fallback(
    int DIM, int SDIM, int D1D, int Q1D)
 {
-   if (DIM == 1) { return internal::quadrature_interpolator::Det1D; }
+   if (DIM == 1)
+   {
+      if (SDIM == 1) { return internal::quadrature_interpolator::Det1D; }
+      else if (SDIM == 2) { return internal::quadrature_interpolator::Det1DSurface<0,0,2>; }
+      else if (SDIM == 3) { return internal::quadrature_interpolator::Det1DSurface<0,0,3>; }
+      else { MFEM_ABORT(""); }
+   }
    else if (DIM == 2 && SDIM == 2) { return internal::quadrature_interpolator::Det2D; }
    else if (DIM == 2 && SDIM == 3) { return internal::quadrature_interpolator::Det2DSurface; }
    else if (DIM == 3)

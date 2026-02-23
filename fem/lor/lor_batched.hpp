@@ -25,6 +25,7 @@ namespace mfem
 /// supported, currently:
 ///
 ///  - H1 diffusion + mass
+///  - DG diffusion + mass (in progress)
 ///  - ND curl-curl + mass
 ///  - RT div-div + mass
 ///
@@ -73,6 +74,9 @@ public:
    /// Return the vertices of the LOR mesh in E-vector format
    const Vector &GetLORVertexCoordinates() { return X_vert; }
 
+   /// Specialized implementation of SparseIJToCSR for DG spaces.
+   void SparseIJToCSR_DG(OperatorHandle &A) const;
+
 protected:
    /// After assembling the "sparse IJ" format, convert it to CSR.
    void SparseIJToCSR(OperatorHandle &A) const;
@@ -105,6 +109,9 @@ public:
    void FillJAndData(SparseMatrix &A) const;
 
 #ifdef MFEM_USE_MPI
+   /// Assemble the parallel DG matrix (with shared faces).
+   void ParAssemble_DG(SparseMatrix &A_local, OperatorHandle &A);
+
    /// Assemble the system in parallel and place the result in @a A.
    void ParAssemble(BilinearForm &a, const Array<int> &ess_dofs,
                     OperatorHandle &A);
@@ -128,9 +135,8 @@ void EnsureCapacity(Memory<T> &mem, int capacity)
 
 /// Return the first domain integrator in the form @a i of type @a T.
 template <typename T>
-static T *GetIntegrator(BilinearForm &a)
+static T *GetIntegrator(Array<BilinearFormIntegrator*> *integs)
 {
-   Array<BilinearFormIntegrator*> *integs = a.GetDBFI();
    if (integs != NULL)
    {
       for (auto *i : *integs)
@@ -144,7 +150,31 @@ static T *GetIntegrator(BilinearForm &a)
    return nullptr;
 }
 
+template <typename T>
+static T *GetIntegrator(BilinearForm &a)
+{
+   return GetIntegrator<T>(a.GetDBFI());
+}
+
+template <typename T>
+static T *GetInteriorFaceIntegrator(BilinearForm &a)
+{
+   return GetIntegrator<T>(a.GetFBFI());
+}
+
+/// @brief Return the Gauss-Lobatto rule for geometry @a geom with @a nd1d
+/// points per dimension.
+IntegrationRule GetLobattoIntRule(Geometry::Type geom, int nd1d);
+
+/// @brief Return the Gauss-Lobatto rule collocated with the element nodes.
+///
+/// Assumes @a fes uses Gauss-Lobatto basis.
 IntegrationRule GetCollocatedIntRule(FiniteElementSpace &fes);
+
+/// @brief Return the Gauss-Lobatto rule collocated with face nodes.
+///
+/// Assumes @a fes uses Gauss-Lobatto basis.
+IntegrationRule GetCollocatedFaceIntRule(FiniteElementSpace &fes);
 
 template <typename INTEGRATOR>
 void ProjectLORCoefficient(BilinearForm &a, CoefficientVector &coeff_vector)

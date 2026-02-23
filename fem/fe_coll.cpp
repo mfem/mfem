@@ -308,13 +308,25 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
                                           FiniteElement::INTEGRAL,
                                           BasisType::GetType(name[12]));
    }
-   else if (!strncmp(name, "RT_R1D",6))
+   else if (!strncmp(name, "RT_R1D_", 7))
    {
-      fec = new RT_R1D_FECollection(atoi(name+11),atoi(name + 7));
+      fec = new RT_R1D_FECollection(atoi(name + 11), atoi(name + 7));
    }
-   else if (!strncmp(name, "RT_R2D",6))
+   else if (!strncmp(name, "RT_R1D@", 7))
    {
-      fec = new RT_R2D_FECollection(atoi(name+11),atoi(name + 7));
+      fec = new RT_R1D_FECollection(atoi(name + 14), atoi(name + 10),
+                                    BasisType::GetType(name[7]),
+                                    BasisType::GetType(name[8]));
+   }
+   else if (!strncmp(name, "RT_R2D_", 7))
+   {
+      fec = new RT_R2D_FECollection(atoi(name + 11), atoi(name + 7));
+   }
+   else if (!strncmp(name, "RT_R2D@", 7))
+   {
+      fec = new RT_R2D_FECollection(atoi(name + 14), atoi(name + 10),
+                                    BasisType::GetType(name[7]),
+                                    BasisType::GetType(name[8]));
    }
    else if (!strncmp(name, "RT_", 3))
    {
@@ -336,13 +348,25 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
                                       BasisType::GetType(name[9]),
                                       BasisType::GetType(name[10]));
    }
-   else if (!strncmp(name, "ND_R1D",6))
+   else if (!strncmp(name, "ND_R1D_", 7))
    {
-      fec = new ND_R1D_FECollection(atoi(name+11),atoi(name + 7));
+      fec = new ND_R1D_FECollection(atoi(name + 11), atoi(name + 7));
    }
-   else if (!strncmp(name, "ND_R2D",6))
+   else if (!strncmp(name, "ND_R1D@", 7))
    {
-      fec = new ND_R2D_FECollection(atoi(name+11),atoi(name + 7));
+      fec = new ND_R1D_FECollection(atoi(name + 14), atoi(name + 10),
+                                    BasisType::GetType(name[7]),
+                                    BasisType::GetType(name[8]));
+   }
+   else if (!strncmp(name, "ND_R2D_", 7))
+   {
+      fec = new ND_R2D_FECollection(atoi(name + 11), atoi(name + 7));
+   }
+   else if (!strncmp(name, "ND_R2D@", 7))
+   {
+      fec = new ND_R2D_FECollection(atoi(name + 14), atoi(name + 10),
+                                    BasisType::GetType(name[7]),
+                                    BasisType::GetType(name[8]));
    }
    else if (!strncmp(name, "ND_", 3))
    {
@@ -401,9 +425,6 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    {
       MFEM_ABORT("unknown FiniteElementCollection: " << name);
    }
-   MFEM_VERIFY(!strcmp(fec->Name(), name), "input name: \"" << name
-               << "\" does not match the created collection name: \""
-               << fec->Name() << '"');
 
    return fec;
 }
@@ -488,7 +509,7 @@ GetFace(int &nv, v_t &v, int &ne, e_t &e, eo_t &eo,
       int v0 = v[f_consts::Edges[i][0]];
       int v1 = v[f_consts::Edges[i][1]];
       int eor = 0;
-      if (v0 > v1) { swap(v0, v1); eor = 1; }
+      if (v0 > v1) { std::swap(v0, v1); eor = 1; }
       for (int j = g_consts::VertToVert::I[v0]; true; j++)
       {
          MFEM_ASSERT(j < g_consts::VertToVert::I[v0+1],
@@ -2459,8 +2480,7 @@ RT_FECollection::RT_FECollection(const int order, const int dim,
       const char *cb_name = BasisType::Name(cb_type); // this may abort
       MFEM_ABORT("unknown closed BasisType: " << cb_name);
    }
-   if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid &&
-       ob_type != BasisType::IntegratedGLL)
+   if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid)
    {
       const char *ob_name = BasisType::Name(ob_type); // this may abort
       MFEM_ABORT("unknown open BasisType: " << ob_name);
@@ -2518,6 +2538,7 @@ RT_FECollection::RT_FECollection(const int p, const int dim,
                                  const int map_type, const bool signs,
                                  const int ob_type)
    : FiniteElementCollection(p + 1)
+   , dim(dim)
    , ob_type(ob_type)
 {
    if (Quadrature1D::CheckOpen(BasisType::GetQuadrature1D(ob_type)) ==
@@ -2786,8 +2807,7 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
    int cp_type = BasisType::GetQuadrature1D(cb_type);
 
    // Error checking
-   if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid &&
-       ob_type != BasisType::IntegratedGLL)
+   if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid)
    {
       const char *ob_name = BasisType::Name(ob_type);
       MFEM_ABORT("Invalid open basis point type: " << ob_name);
