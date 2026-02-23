@@ -105,7 +105,6 @@ public:
  * @param u GridFunction
  * @param n_tilde Unit vector field
  * @param N Regularization parameter for the regularized log function (default: 1e2)
- * @param sign Sign to apply to the coefficient (default: 1.0)
  */
 class RegLogDoublePrimeCoefficient : public Coefficient
 {
@@ -113,12 +112,11 @@ private:
    GridFunction *u;
    Vector &n_tilde;
    real_t N;
-   real_t sign;
 
 public:
    RegLogDoublePrimeCoefficient(GridFunction *_u, Vector &_n_tilde,
-      real_t _N = 1e2, real_t _sign = 1.0)
-      : u(_u), n_tilde(_n_tilde), N(_N), sign(_sign) {}
+      real_t _N = 1e2)
+      : u(_u), n_tilde(_n_tilde), N(_N) {}
 
    real_t RegLogDoublePrime(const real_t a, const real_t M);
 
@@ -633,5 +631,5 @@ real_t RegLogDoublePrimeCoefficient::Eval(ElementTransformation &T,
    // Evaluate the gap function φ
    const real_t phi = GapFunction(x);
 
-   return sign * RegLogDoublePrime(phi - u_val * n_tilde, N);
+   return RegLogDoublePrime(phi - u_val * n_tilde, N);
 }
