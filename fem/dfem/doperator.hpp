@@ -615,17 +615,17 @@ void DifferentiableOperator::AddIntegrator(
    }
    const int q1d = (int)floor(std::pow(num_qp, 1.0/dimension) + 0.5);
 
-   const int residual_size_on_qp =
-      GetSizeOnQP<entity_t>(output_fop,
-                            outfds[test_space_field_idx]);
+   // const int residual_size_on_qp =
+   //    GetSizeOnQP<entity_t>(output_fop,
+   //                          outfds[test_space_field_idx]);
 
-   auto input_dtq_maps = create_dtq_maps<entity_t>(inputs, dtq, input_to_field);
-   auto output_dtq_maps = create_dtq_maps<entity_t>(outputs, dtq, output_to_field);
+   // auto input_dtq_maps = create_dtq_maps<entity_t>(inputs, dtq, input_to_field);
+   // auto output_dtq_maps = create_dtq_maps<entity_t>(outputs, dtq, output_to_field);
 
-   auto ir_weights = Reshape(integration_rule.GetWeights().Read(), num_qp);
+   // auto ir_weights = Reshape(integration_rule.GetWeights().Read(), num_qp);
 
-   auto input_size_on_qp =
-      get_input_size_on_qp(inputs, std::make_index_sequence<num_inputs> {});
+   // auto input_size_on_qp =
+   //    get_input_size_on_qp(inputs, std::make_index_sequence<num_inputs> {});
 
    ThreadBlocks thread_blocks{1, 1, 1};
 

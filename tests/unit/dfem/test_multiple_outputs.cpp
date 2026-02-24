@@ -55,6 +55,7 @@ struct mass_diffusion_qdata_qf
       const tensor_array<const real_t> &u,
       const tensor_array<const real_t, DIM> &dudxi,
       const tensor_array<const real_t, DIM, DIM> &J,
+      const tensor_array<const real_t, DIM, DIM> &qdata,
       const tensor_array<const real_t> &w,
       const tensor_array<real_t> &out1,
       const tensor_array<real_t, DIM> &out2,
@@ -96,12 +97,6 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
 
    ParGridFunction x(&fes), y(&fes), z(&fes);
 
-   Array<int> inoffsets(3);
-   inoffsets[0] = 0;
-   inoffsets[1] = fes.GetTrueVSize();
-   inoffsets[2] = nodes->ParFESpace()->GetTrueVSize();
-   inoffsets.PartialSum();
-
    ConstantCoefficient one(1.0);
 
    Array<int> all_domain_attr;
@@ -112,6 +107,12 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
    }
 
    // {
+   //    Array<int> inoffsets(3);
+   // inoffsets[0] = 0;
+   // inoffsets[1] = fes.GetTrueVSize();
+   // inoffsets[2] = nodes->ParFESpace()->GetTrueVSize();
+   // inoffsets.PartialSum();
+
    //    BlockVector X(inoffsets);
    //    X.GetBlock(0).Randomize(1);
    //    X.GetBlock(1) = *nodes;
@@ -187,9 +188,17 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
       FunctionCoefficient coef(coef_func);
       x.ProjectCoefficient(coef);
 
+      Array<int> inoffsets(4);
+      inoffsets[0] = 0;
+      inoffsets[1] = fes.GetTrueVSize();
+      inoffsets[2] = nodes->ParFESpace()->GetTrueVSize();
+      inoffsets[3] = qdata.Size();
+      inoffsets.PartialSum();
+
       BlockVector X(inoffsets);
       x.GetTrueDofs(X.GetBlock(0));
       X.GetBlock(1) = *nodes;
+      X.GetBlock(2) = 123.0;
 
       Array<int> outoffsets(3);
       outoffsets[0] = 0;
@@ -214,7 +223,8 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
       const std::vector<FieldDescriptor> in
       {
          {U, &fes},
-         {COORDINATES, nodes->ParFESpace()}
+         {COORDINATES, nodes->ParFESpace()},
+         {S, &qdata}
       };
 
       const std::vector<FieldDescriptor> out
@@ -227,7 +237,7 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
       auto derivatives = std::integer_sequence<size_t, U> {};
       auto mass_diffusion_qfunc = mass_diffusion_qdata_qf{};
       dop.AddDomainIntegrator(mass_diffusion_qfunc,
-                              tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Weight{}},
+                              tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Identity<S>{}, Weight{}},
                               tuple{Value<V>{}, Gradient<V>{}, Identity<S>{}},
                               *ir, all_domain_attr, derivatives);
 

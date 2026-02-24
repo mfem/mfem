@@ -1276,13 +1276,23 @@ void prolongation(
    for (int i = 0; i < x.NumBlocks(); i++)
    {
       const auto P = get_prolongation(fields[i]);
-      MFEM_ASSERT(P->Width() == x.GetBlock(i).Size(),
-                  "prolongation not applicable to given input data size " <<
-                  P->Width() << " vs " << x.GetBlock(i).Size());
-      MFEM_ASSERT(P->Height() == x_l[i]->Size(),
-                  "prolongation not applicable to given output data size " <<
-                  P->Height() << " vs " << x_l[i]->Size());
-      P->Mult(x.GetBlock(i), *x_l[i]);
+
+      // If nullptr, assume Identity.
+      if (P == nullptr)
+      {
+         *x_l[i] = x.GetBlock(i);
+      }
+      else
+      {
+         const auto P = get_prolongation(fields[i]);
+         MFEM_ASSERT(P->Width() == x.GetBlock(i).Size(),
+                     "prolongation not applicable to given input data size " <<
+                     P->Width() << " vs " << x.GetBlock(i).Size());
+         MFEM_ASSERT(P->Height() == x_l[i]->Size(),
+                     "prolongation not applicable to given output data size " <<
+                     P->Height() << " vs " << x_l[i]->Size());
+         P->Mult(x.GetBlock(i), *x_l[i]);
+      }
    }
 }
 
@@ -1326,19 +1336,38 @@ void restriction(
                "internal error " << x_l.size() << " vs " << x_e.size());
    for (size_t i = 0; i < fields.size(); i++)
    {
+      int s = 0;
       const auto R = get_restriction<entity_t>(
                         fields[i], ElementDofOrdering::LEXICOGRAPHIC);
-      MFEM_ASSERT(R->Width() == x_l[i]->Size(),
-                  "restriction not applicable to given input data size " <<
-                  R->Width() << " vs " << x_l[i]->Size());
+
+      // If nullptr, assume Identity.
+      if (R == nullptr)
+      {
+         s = x_l[i]->Size();
+      }
+      else
+      {
+         s = R->Height();
+      }
 
       // TODO
       if (x_e[i] == nullptr)
       {
-         x_e[i] = new Vector(R->Height());
+         x_e[i] = new Vector(s);
       }
-      x_e[i]->SetSize(R->Height());
-      R->Mult(*x_l[i], *x_e[i]);
+      x_e[i]->SetSize(s);
+
+      if (R == nullptr)
+      {
+         x_e[i] = x_l[i];
+      }
+      else
+      {
+         MFEM_ASSERT(R->Width() == x_l[i]->Size(),
+                     "restriction not applicable to given input data size " <<
+                     R->Width() << " vs " << x_l[i]->Size());
+         R->Mult(*x_l[i], *x_e[i]);
+      }
    }
 }
 

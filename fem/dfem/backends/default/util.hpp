@@ -55,6 +55,12 @@ void interpolate(
 
       const size_t j = input_to_infd[i];
 
+      if constexpr (is_identity_fop<input_t>::value)
+      {
+         xq.GetBlock(i) = *xe[j];
+         return;
+      }
+
       auto search = qis.find(input.GetFieldId());
       MFEM_ASSERT(search != qis.end(),
                   "can't find QuadratureInterpolator for given ID " << input.GetFieldId());
