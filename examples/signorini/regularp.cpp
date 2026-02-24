@@ -256,7 +256,6 @@ int main(int argc, char *argv[])
 
    // 6. Define coefficients for later.
    VectorFunctionCoefficient f_coeff(dim, ForceFunction);
-   ScalarVectorProductCoefficient alpha_f_coeff(alpha, f_coeff);
    ConstantCoefficient zero(0.0);
    ConstantCoefficient one(1.0);
 
@@ -275,9 +274,9 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 7A. Define the solution vector u as a parallel finite element grid
-   //     function corresponding to fespace. Initialize u with initial guess of
-   //     u(x,y,z) = (0,0,plane_g), which satisfies the boundary conditions.
+   // 7. Define the solution vector u as a parallel finite element grid
+   //    function corresponding to fespace. Initialize u with initial guess of
+   //    u(x,y,z) = (0,0,plane_g), which satisfies the boundary conditions.
    ParGridFunction u_previous(fespace);
    ParGridFunction u_current(fespace);
    ParGridFunction delta_u(fespace);
@@ -286,10 +285,6 @@ int main(int argc, char *argv[])
    u_previous.ProjectCoefficient(init_u);
    u_current = u_previous;
    delta_u = 0.0;
-
-   // 7B. Define the stress coefficient present in the Newton iteration.
-   StressGridFunctionCoefficient stress_u_curr_coeff(lambda, mu, &u_current);
-   FlatVectorCoefficient nalpha_vstress_u_curr_coeff(stress_u_curr_coeff, -alpha);
 
    // 8. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs.
@@ -364,10 +359,15 @@ int main(int argc, char *argv[])
    for (int k = 1; k <= max_outer_iter; k++)
    {
       N *= 2;
+
       ConstantCoefficient alpha_coeff(alpha);
+      ScalarVectorProductCoefficient alpha_f_coeff(alpha, f_coeff);
+
       RegLogDoublePrimeCoefficient reg_log_dp_curr_coeff(&u_current, n_tilde, N);
       RegLogPrimeCoefficient reg_log_p_curr_coeff(&u_current, n_tilde, N);
       RegLogPrimeCoefficient nreg_log_p_prev_coeff(&u_previous, n_tilde, N, -1.0);
+      StressGridFunctionCoefficient stress_u_curr_coeff(lambda, mu, &u_current);
+      FlatVectorCoefficient nalpha_vstress_u_curr_coeff(stress_u_curr_coeff, -alpha);
 
       // Newton loop
       for (int j = 0; j <= max_newton_iter; j++)
