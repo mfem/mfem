@@ -13,6 +13,9 @@ void BoundaryProjectionLFIntegrator::AssembleRHSElementVect(
 void BoundaryProjectionLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
 {
+   MFEM_ASSERT(Tr.Elem2No < 0,
+               "support for interior faces is not implemented");
+
    int spaceDim = Tr.GetSpaceDim();
    int vdim = std::max(spaceDim, el.GetRangeDim());
    int dof  = el.GetDof();

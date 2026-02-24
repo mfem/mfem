@@ -11,6 +11,8 @@ void BoundaryProjectionIntegrator::AssembleFaceMatrix(
 #ifdef MFEM_THREAD_SAFE
    Vector shape1;
 #endif
+   MFEM_ASSERT(Trans.Elem2No < 0,
+               "support for interior faces is not implemented");
 
    const int dim = el1.GetDim();
    const int ndofs1 = el1.GetDof();
