@@ -1,63 +1,36 @@
-// Gmsh script: Solid Hemisphere (Half Ball)
-// Center: (0, 0, 0.4), Radius: 0.4, lower hemisphere (pointing down)
-//
-// Uses a single clean volume (no wedge splitting) with the HXT mesher,
-// which produces high-quality, well-distributed meshes that are as
-// symmetric as an unstructured mesher can achieve without constraints.
-
 SetFactory("OpenCASCADE");
 
-R  = 0.4;   // Radius
-lc = 0.05;  // Target mesh size
+// Parameters
+r = 0.4;
+cx = 0.0; cy = 0.0; cz = 0.4;
+res = 0.09;
+lc_min = res;
+lc_max = 2 * res;
 
-// Full sphere centered at (0, 0, 0.4)
-Sphere(1) = {0, 0, 0.4, R};
+Mesh.MshFileVersion = 2.2;
+Mesh.ElementOrder = 2;
+Mesh.Algorithm3D = 4;
 
-// Box covering the lower half: z in [0.4-R, 0.4]
-Box(2) = {-R, -R, 0.4-R, 2*R, 2*R, R};
+// Equivalent to: gmsh.model.occ.addPoint(center[0], center[1], center[2] - r)
+Point(1) = {cx, cy, cz - r, lc_min};
 
-// Intersect: keep only the lower hemisphere
-BooleanIntersection{ Volume{1}; Delete; }{ Volume{2}; Delete; }
+// Equivalent to: gmsh.model.occ.addSphere(..., angle1=-pi/2, angle2=0)
+Sphere(1) = {cx, cy, cz, r, -Pi/2, 0, 2*Pi};
 
-// --- Physical attributes ---
-eps = 1e-6;
+// Surface 1, 3: dome  -> sphere surface
+// Surface 2: z = 0.4  -> flat face
+Physical Surface("sphere_surface", 1) = {1, 3};   // sphere_surface tag = 1
+Physical Surface("flat_surface", 2)   = {2};      // flat_surface tag = 2
+Physical Volume("volume", 1)          = {1};
 
-// Attribute 2: flat top — entirely at z = 0.4
-flat_surfs[] = Surface In BoundingBox {
-    -R-eps, -R-eps, 0.4-eps,
-     R+eps,  R+eps, 0.4+eps };
-Physical Surface(2) = { flat_surfs[] };
+// Equivalent to the Distance + Threshold fields
+Field[1] = Distance;
+Field[1].NodesList = {1};
 
-// Attribute 1: curved dome — everything else
-all_surfs[]  = Surface{:};
-dome_surfs[] = {};
-For i In {0:#all_surfs[]-1}
-    s = all_surfs[i];
-    is_flat = 0;
-    For j In {0:#flat_surfs[]-1}
-        If (s == flat_surfs[j])
-            is_flat = 1;
-        EndIf
-    EndFor
-    If (!is_flat)
-        dome_surfs[] += {s};
-    EndIf
-EndFor
-Physical Surface(1) = { dome_surfs[] };
-
-// Volume attribute (required for MFEM to write interior elements)
-Physical Volume(1) = { Volume{:} };
-
-// --- Mesh settings ---
-MeshSize{ PointsOf{ Volume{:}; } } = lc;
-
-// HXT is the fastest and produces the most isotropic, well-distributed
-// tetrahedra — giving the best symmetry for an unstructured mesh
-Mesh.Algorithm3D = 10;  // HXT
-
-Mesh.ElementOrder = 1;
-Mesh.SaveAll = 0;
-
-// Optimize mesh quality after generation
-Mesh.Optimize = 1;
-Mesh.OptimizeNetgen = 1;
+Field[2] = Threshold;
+Field[2].IField = 1;
+Field[2].LcMin = lc_min;
+Field[2].LcMax = lc_max;
+Field[2].DistMin = 0.5 * r;
+Field[2].DistMax = r;
+Background Field = 2;
