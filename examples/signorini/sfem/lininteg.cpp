@@ -37,12 +37,9 @@ void BoundaryProjectionLFIntegrator::AssembleRHSElementVect(
       // Set the integration point in the face and the neighboring element
       Tr.SetAllIntPoints(&ip);
 
-      // Access the neighboring element's integration point
-      const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+      el.CalcPhysShape(*Tr.Elem1, shape);
 
-      val = Tr.Face->Weight() * Q.Eval(*Tr.Face, ip);
-
-      el.CalcShape(eip, shape);
+      val = Tr.Weight() * Q.Eval(Tr, ip);
 
       for (int k = 0; k < vdim; k++)
       {

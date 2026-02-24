@@ -38,12 +38,9 @@ void BoundaryProjectionIntegrator::AssembleFaceMatrix(
       // Set the integration point in the face and the neighboring elements
       Trans.SetAllIntPoints(&ip);
 
-      // Access the neighboring element's integration point
-      const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
+      el1.CalcPhysShape(*Trans.Elem1, shape1);
 
-      el1.CalcShape(eip1, shape1);
-
-      val = ip.weight / Trans.Elem1->Weight() * Q.Eval(*Trans.Elem1, eip1);
+      val = ip.weight * Trans.Weight() * Q.Eval(Trans, ip);
 
       for (int jm = 0, j = 0; jm < dim; ++jm)
       {
