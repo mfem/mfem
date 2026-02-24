@@ -353,9 +353,10 @@ int main(int argc, char *argv[])
    }
 
    // 10. Iterate:
-   real_t N = 1e2;
+   real_t N = 1;
    for (int k = 1; k <= max_outer_iter; k++)
    {
+      N *= 2;
       ConstantCoefficient alpha_coeff(alpha);
       RegLogDoublePrimeCoefficient reg_log_dp_curr_coeff(&u_current, n_tilde, N);
       RegLogPrimeCoefficient reg_log_p_curr_coeff(&u_current, n_tilde, N);
@@ -461,7 +462,7 @@ int main(int argc, char *argv[])
       u_previous = u_current;
 
       // Step 12: Update alpha.
-      alpha *= 2;
+      alpha *= 1.5;
    }
 
    // 11. Save the final solution in ParaView format.
