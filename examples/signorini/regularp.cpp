@@ -280,7 +280,7 @@ int main(int argc, char *argv[])
    ParGridFunction u_previous(fespace);
    ParGridFunction u_current(fespace);
    ParGridFunction delta_u(fespace);
-   GridFunctionCoefficient u_previous_coeff(&u_previous);
+   VectorGridFunctionCoefficient u_previous_coeff(&u_previous);
    VectorFunctionCoefficient init_u(dim, InitDisplacement);
    u_previous.ProjectCoefficient(init_u);
    u_current = u_previous;
