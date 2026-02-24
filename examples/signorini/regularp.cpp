@@ -365,10 +365,7 @@ int main(int argc, char *argv[])
       // Newton loop
       for (int j = 0; j <= max_newton_iter; j++)
       {
-         if (j == 0)
-         {
-            u_current = u_previous;
-         }
+         if (j == 0) { u_current = u_previous; }
 
          // Step 1: Set up the bilinear form a(⋅,⋅) on the finite element space.
          ParBilinearForm *a = new ParBilinearForm(fespace);
