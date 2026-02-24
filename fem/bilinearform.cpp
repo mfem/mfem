@@ -729,7 +729,8 @@ void BilinearForm::Assemble(int skip_zeros)
          tr = mesh -> GetBdrFaceTransformations (i);
          if (tr != NULL)
          {
-            fes -> GetElementVDofs (tr -> Elem1No, vdofs);
+            mfem::DofTransformation doftrans;
+            fes -> GetElementVDofs (tr -> Elem1No, vdofs, doftrans);
             fe1 = fes -> GetFE (tr -> Elem1No);
             // The fe2 object is really a dummy and not used on the boundaries,
             // but we can't dereference a NULL pointer, and we don't want to
@@ -743,6 +744,7 @@ void BilinearForm::Assemble(int skip_zeros)
 
                boundary_face_integs[k] -> AssembleFaceMatrix (*fe1, *fe2, *tr,
                                                               elemmat);
+               doftrans.TransformDual(elemmat);
                mat -> AddSubMatrix (vdofs, vdofs, elemmat, skip_zeros);
             }
          }
