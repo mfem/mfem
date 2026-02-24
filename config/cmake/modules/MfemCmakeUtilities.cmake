@@ -892,7 +892,7 @@ function(mfem_export_mk_files)
       set(${var} NO)
     endif()
   endforeach()
-  if (MFEM_USE_CUDA)
+  if (MFEM_USE_CUDA AND MFEM_EXPORT_GPU_CONFIG)
     set(MFEM_CXX ${CMAKE_CUDA_COMPILER})
     if(MFEM_CUDA_COMPILER_IS_NVCC)
       set(MFEM_HOST_CXX ${CMAKE_CUDA_HOST_COMPILER})
@@ -913,44 +913,46 @@ function(mfem_export_mk_files)
   string(STRIP
          "${cxx_std_flag} ${CMAKE_CXX_FLAGS_${BUILD_TYPE}} ${CMAKE_CXX_FLAGS}"
          MFEM_CXXFLAGS)
-  if (MFEM_USE_CUDA)
-    set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} ${CMAKE_CUDA_FLAGS}")
-    if (MFEM_CUDA_COMPILER_IS_NVCC)
-      set(MFEM_CXXFLAGS "-x=cu ${MFEM_CXXFLAGS} -ccbin ${CMAKE_CXX_COMPILER} --forward-unknown-to-host-compiler")
-      set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} -isystem ${CUDAToolkit_LIBRARY_ROOT}")
-      if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.18.0)
-        # architecture flags not part of CMAKE_CUDA_FLAGS
-        if ("all" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}"
-            OR "native" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}"
-            OR "all-major" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}")
-          set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} -arch=${CMAKE_CUDA_ARCHITECTURES}")
-        else()
-          foreach (ENTRY IN LISTS CMAKE_CUDA_ARCHITECTURES)
-            set(MFEM_CXXFLAGS
-              "${MFEM_CXXFLAGS} -gencode arch=compute_${ENTRY},code=sm_${ENTRY}")
-          endforeach()
+  if(MFEM_EXPORT_GPU_CONFIG)
+    if (MFEM_USE_CUDA)
+      set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} ${CMAKE_CUDA_FLAGS}")
+      if (MFEM_CUDA_COMPILER_IS_NVCC)
+        set(MFEM_CXXFLAGS "-x=cu ${MFEM_CXXFLAGS} -ccbin ${CMAKE_CXX_COMPILER} --forward-unknown-to-host-compiler")
+        set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} -isystem ${CUDAToolkit_LIBRARY_ROOT}")
+        if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.18.0)
+          # architecture flags not part of CMAKE_CUDA_FLAGS
+          if ("all" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}"
+              OR "native" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}"
+              OR "all-major" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}")
+            set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} -arch=${CMAKE_CUDA_ARCHITECTURES}")
+          else()
+            foreach (ENTRY IN LISTS CMAKE_CUDA_ARCHITECTURES)
+              set(MFEM_CXXFLAGS
+                "${MFEM_CXXFLAGS} -gencode arch=compute_${ENTRY},code=sm_${ENTRY}")
+            endforeach()
+          endif()
+        endif()
+      else()
+        set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} -xcuda --cuda-path=${CUDAToolkit_LIBRARY_ROOT}")
+        if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.18.0)
+          # architecture flags not part of CMAKE_CUDA_FLAGS
+          if ("all" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}"
+              OR "native" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}"
+              OR "all-major" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}")
+            # TODO: not supported
+          else()
+            foreach(ENTRY IN LISTS CMAKE_CUDA_ARCHITECTURES)
+              set(MFEM_CXXFLAGS "-cuda-gpu-arch=sm_${ENTRY} ${MFEM_CXXFLAGS}")
+            endforeach()
+          endif()
         endif()
       endif()
-    else()
-      set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} -xcuda --cuda-path=${CUDAToolkit_LIBRARY_ROOT}")
-      if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.18.0)
-        # architecture flags not part of CMAKE_CUDA_FLAGS
-        if ("all" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}"
-            OR "native" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}"
-            OR "all-major" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}")
-          # TODO: not supported
-        else()
-          foreach(ENTRY IN LISTS CMAKE_CUDA_ARCHITECTURES)
-            set(MFEM_CXXFLAGS "-cuda-gpu-arch=sm_${ENTRY} ${MFEM_CXXFLAGS}")
-          endforeach()
-        endif()
-      endif()
+    elseif (MFEM_USE_HIP)
+      set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} -xhip")
+      foreach(ENTRY IN LISTS CMAKE_HIP_ARCHITECTURES)
+        set(MFEM_CXXFLAGS "--offload-arch=${ENTRY} ${MFEM_CXXFLAGS}")
+      endforeach()
     endif()
-  elseif (MFEM_USE_HIP)
-    set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} -xhip")
-    foreach(ENTRY IN LISTS CMAKE_HIP_ARCHITECTURES)
-      set(MFEM_CXXFLAGS "--offload-arch=${ENTRY} ${MFEM_CXXFLAGS}")
-    endforeach()
   endif()
   set(MFEM_TPLFLAGS "")
   foreach(dir ${TPL_INCLUDE_DIRS})
