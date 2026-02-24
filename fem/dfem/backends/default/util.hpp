@@ -140,6 +140,12 @@ void integrate(
 
       // std::cout << "filling ye[" << j << "]\n";
 
+      if constexpr (is_identity_fop<output_t>::value)
+      {
+         *ye[j] = yq.GetBlock(i);
+         return;
+      }
+
       auto search = qis.find(output.GetFieldId());
       MFEM_ASSERT(search != qis.end(),
                   "can't find QuadratureInterpolator for given ID " << output.GetFieldId());
@@ -467,11 +473,6 @@ inline void enzyme_fwddiff(
       qfunction_wrapper<qfunc_t,
       std::remove_reference_t<decltype(std::get<Is>(inputs))>...,
       std::remove_reference_t<decltype(std::get<Os>(primals_out))>...>;
-
-   std::cout << "inputs: " << get_type_name<decltype(inputs)>() << "\n";
-   std::cout << "shadows: " << get_type_name<decltype(shadows)>() << "\n";
-   std::cout << "primals_out: " << get_type_name<decltype(primals_out)>() << "\n";
-   std::cout << "derivs_out: " << get_type_name<decltype(derivs_out)>() << "\n";
 
    // wrapper_fn travels as a non-type template parameter throughout without
    // being stored.

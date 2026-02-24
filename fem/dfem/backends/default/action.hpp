@@ -28,9 +28,7 @@ struct Action
    {
       for (const auto &f : ctx.unionfds)
       {
-         auto qi = get_qinterp(f, ctx.ir);
-         MFEM_ASSERT(qi != nullptr, "internal error");
-         qis[f.id] = qi;
+         qis[f.id] = get_qinterp(f, ctx.ir);
       }
 
       const int nqp = ctx.ir.GetNPoints();

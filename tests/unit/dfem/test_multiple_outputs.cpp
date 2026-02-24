@@ -48,7 +48,7 @@ struct massqf
    }
 };
 
-struct mass_diffusion_qf
+struct mass_diffusion_qdata_qf
 {
    inline MFEM_HOST_DEVICE
    void operator()(
@@ -57,7 +57,8 @@ struct mass_diffusion_qf
       const tensor_array<const real_t, DIM, DIM> &J,
       const tensor_array<const real_t> &w,
       const tensor_array<real_t> &out1,
-      const tensor_array<real_t, DIM> &out2) const
+      const tensor_array<real_t, DIM> &out2,
+      const tensor_array<real_t, DIM, DIM> &out3) const
    {
       for (size_t q = 0; q < u.size(); q++)
       {
@@ -67,6 +68,7 @@ struct mass_diffusion_qf
          out1(q) = u(q) * detJq * w(q);
          out2(q) = (dudxi(q) * invJq) * transpose(invJq) * detJq
                    * (real_t)(w(q));
+         out3(q) = J(q);
       }
    }
 };
@@ -175,6 +177,9 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
    // }
 
    {
+      QuadratureSpace qs(pmesh, *ir);
+      QuadratureFunction qdata(qs, DIM*DIM);
+
       auto coef_func = [](const Vector &coords)
       {
          return coords[0] * coords[1] * (DIM == 3 ? coords[2] : 1.0);
@@ -186,9 +191,10 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
       x.GetTrueDofs(X.GetBlock(0));
       X.GetBlock(1) = *nodes;
 
-      Array<int> outoffsets(2);
+      Array<int> outoffsets(3);
       outoffsets[0] = 0;
       outoffsets[1] = fes.GetTrueVSize();
+      outoffsets[2] = qdata.Size();
       outoffsets.PartialSum();
       BlockVector Z(outoffsets);
 
@@ -204,7 +210,7 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
       std::cout << "mfem: ";
       pretty_print(Y);
 
-      static constexpr int U = 0, COORDINATES = 1, V = 2;
+      static constexpr int U = 0, COORDINATES = 1, V = 2, S = 3;
       const std::vector<FieldDescriptor> in
       {
          {U, &fes},
@@ -214,14 +220,15 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
       const std::vector<FieldDescriptor> out
       {
          {V, &fes},
+         {S, &qdata}
       };
       DifferentiableOperator dop(in, out, pmesh);
 
       auto derivatives = std::integer_sequence<size_t, U> {};
-      auto mass_diffusion_qfunc = mass_diffusion_qf{};
+      auto mass_diffusion_qfunc = mass_diffusion_qdata_qf{};
       dop.AddDomainIntegrator(mass_diffusion_qfunc,
                               tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Weight{}},
-                              tuple{Value<V>{}, Gradient<V>{}},
+                              tuple{Value<V>{}, Gradient<V>{}, Identity<S>{}},
                               *ir, all_domain_attr, derivatives);
 
       fes.GetRestrictionMatrix()->Mult(x, X.GetBlock(0));
@@ -248,8 +255,10 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
       MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
       REQUIRE(norm_g == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
-   }
 
+      std::cout << "qdata: ";
+      pretty_print(Z.GetBlock(1));
+   }
 }
 
 #endif // MFEM_USE_MPI

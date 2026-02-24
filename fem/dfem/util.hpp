@@ -28,6 +28,7 @@
 #include "../fe/fe_base.hpp"
 #include "../fespace.hpp"
 #include "../pfespace.hpp"
+#include "../qfunction.hpp"
 #include "../../mesh/mesh.hpp"
 #include "../../linalg/dtensor.hpp"
 #include "../quadinterpolator.hpp"
@@ -578,7 +579,7 @@ struct FieldDescriptor
    using data_variant_t =
       std::variant<const FiniteElementSpace *,
       const ParFiniteElementSpace *,
-      const ParameterSpace *>;
+      const QuadratureFunction *>;
 
    /// Field ID
    std::size_t id;
@@ -816,6 +817,10 @@ int GetVSize(const FieldDescriptor &f)
       {
          return arg->GetVSize();
       }
+      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      {
+         return arg->Size();
+      }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          return arg->GetVSize();
@@ -854,6 +859,10 @@ void GetElementVDofs(const FieldDescriptor &f, int el, Array<int> &vdofs)
       {
          arg->GetElementVDofs(el, vdofs);
       }
+      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      {
+         MFEM_ABORT("internal error");
+      }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          MFEM_ABORT("internal error");
@@ -888,6 +897,10 @@ int GetTrueVSize(const FieldDescriptor &f)
       {
          return arg->GetTrueVSize();
       }
+      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      {
+         return arg->Size();
+      }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          return arg->GetTrueVSize();
@@ -915,6 +928,10 @@ int GetVDim(const FieldDescriptor &f)
          return arg->GetVDim();
       }
       else if constexpr (std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         return arg->GetVDim();
+      }
+      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
       {
          return arg->GetVDim();
       }
@@ -953,6 +970,10 @@ int GetDimension(const FieldDescriptor &f)
             return arg->GetMesh()->Dimension() - 1;
          }
       }
+      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      {
+         return arg->GetSpace()->GetMesh()->Dimension();
+      }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          return arg->Dimension();
@@ -977,6 +998,11 @@ const QuadratureInterpolator *get_qinterp(
                     std::is_same_v<T, const ParFiniteElementSpace *>)
       {
          return arg->GetQuadratureInterpolator(ir);
+      }
+      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      {
+         // QuadratureFunction doesn't need a QuadratureInterpolator
+         return nullptr;
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
@@ -1007,6 +1033,10 @@ const Operator *get_prolongation(const FieldDescriptor &f)
       {
          return arg->GetProlongationMatrix();
       }
+      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      {
+         return nullptr;
+      }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          return arg->GetProlongationMatrix();
@@ -1036,6 +1066,10 @@ const Operator *get_element_restriction(const FieldDescriptor &f,
                     || std::is_same_v<T, const ParFiniteElementSpace *>)
       {
          return arg->GetElementRestriction(o);
+      }
+      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      {
+         return nullptr;
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
@@ -1071,6 +1105,11 @@ const Operator *get_face_restriction(const FieldDescriptor &f,
                     std::is_same_v<T, const ParFiniteElementSpace *>)
       {
          return arg->GetFaceRestriction(o, ft, m);
+      }
+      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      {
+         // QuadratureFunction does not support face restrictions
+         MFEM_ABORT("internal error");
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
@@ -1258,13 +1297,22 @@ void prolongation_transpose(
    for (size_t i = 0; i < x_l.size(); i++)
    {
       const auto P = get_prolongation(fields[i]);
-      MFEM_ASSERT(P->Height() == x_l[i]->Size(),
-                  "prolongation not applicable to given input data size " <<
-                  P->Height() << " vs " << x_l[i]->Size());
-      MFEM_ASSERT(P->Width() == x.GetBlock(i).Size(),
-                  "prolongation not applicable to given output data size " <<
-                  P->Width() << " vs " << x.GetBlock(i).Size());
-      P->MultTranspose(*x_l[i], x.GetBlock(i));
+
+      // If nullptr, assume Identity.
+      if (P == nullptr)
+      {
+         x.GetBlock(i) = *x_l[i];
+      }
+      else
+      {
+         MFEM_ASSERT(P->Height() == x_l[i]->Size(),
+                     "prolongation not applicable to given input data size " <<
+                     P->Height() << " vs " << x_l[i]->Size());
+         MFEM_ASSERT(P->Width() == x.GetBlock(i).Size(),
+                     "prolongation not applicable to given output data size " <<
+                     P->Width() << " vs " << x.GetBlock(i).Size());
+         P->MultTranspose(*x_l[i], x.GetBlock(i));
+      }
    }
 }
 
@@ -1301,14 +1349,28 @@ void prepare_residual(
 {
    for (size_t i = 0; i < fields.size(); i++)
    {
-      const auto R = get_restriction<entity_t>(
-                        fields[i], ElementDofOrdering::LEXICOGRAPHIC);
+      int s = 0;
+      if (std::holds_alternative<const QuadratureFunction *>(fields[i].data))
+      {
+         const auto fd = std::get<const QuadratureFunction *>(fields[i].data);
+         s = fd->Size();
+      }
+      else
+      {
+         const auto R = get_restriction<entity_t>(
+                           fields[i], ElementDofOrdering::LEXICOGRAPHIC);
+         s = R->Height();
+      }
+
       // TODO
       if (r_e[i] == nullptr)
       {
-         r_e[i] = new Vector(R->Height());
+         r_e[i] = new Vector(s);
       }
-      r_e[i]->SetSize(R->Height());
+      else
+      {
+         r_e[i]->SetSize(s);
+      }
    }
 }
 
@@ -1320,17 +1382,35 @@ void restriction_transpose(
 {
    for (size_t i = 0; i < fields.size(); i++)
    {
+      int s = 0;
       const auto R = get_restriction<entity_t>(
                         fields[i], ElementDofOrdering::LEXICOGRAPHIC);
+      // TODO: if nullptr, assume Identity
+      if (R == nullptr)
+      {
+         s = x_e[i]->Size();
+      }
+      else
+      {
+         s = R->Width();
+      }
 
       // TODO
       if (x_l[i] == nullptr)
       {
-         x_l[i] = new Vector(R->Width());
+         x_l[i] = new Vector(s);
       }
-      x_l[i]->SetSize(R->Width());
+      x_l[i]->SetSize(s);
 
-      R->MultTranspose(*x_e[i], *x_l[i]);
+      // TODO: if nullptr, assume Identity
+      if (R == nullptr)
+      {
+         x_l[i] = x_e[i];
+      }
+      else
+      {
+         R->MultTranspose(*x_e[i], *x_l[i]);
+      }
    }
 }
 
@@ -1512,6 +1592,10 @@ const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
          {
             return &arg->GetTypicalTraceElement()->GetDofToQuad(ir, mode);
          }
+      }
+      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      {
+         return nullptr;
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
