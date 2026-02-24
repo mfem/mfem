@@ -5,6 +5,7 @@
 // Sample runs:  mpirun -np 4 regularp -r 1 -a 1 -vis
 //               mpirun -np 4 regularp -f 1 -p 0 -i 50 -n 10 -m ../../data/wheel.msh -vis
 //               mpirun -np 8 regularp -r 1 -f 1.5 -p 0 -i 50 -n 10 -m ../../data/wheel.msh -pv
+//               mpirun -np 8 regularp -f 5 -p 0 -i 50 -n 10 -m ../../data/hemisphere.msh -vis
 //
 // Description:  This program solves Signorini's problem using MFEM. We aim to
 //               solve the bound-constrained minimization problem
@@ -307,6 +308,12 @@ int main(int argc, char *argv[])
    {
       ess_bdr_x[1] = 1; ess_bdr_x[2] = 1; ess_bdr_x[3] = 1;
       ess_bdr_y[1] = 1; ess_bdr_y[2] = 1; ess_bdr_y[3] = 1;
+      ess_bdr_z[0] = 1;
+   }
+   else if (strcmp(mesh_file, "../../data/hemisphere.msh") == 0)
+   {
+      ess_bdr_x[1] = 1;
+      ess_bdr_y[1] = 1;
       ess_bdr_z[0] = 1;
    }
    else
