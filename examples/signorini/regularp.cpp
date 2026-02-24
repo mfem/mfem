@@ -223,34 +223,6 @@ int main(int argc, char *argv[])
    ParMesh pmesh = ParMesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
-   if (strcmp(mesh_file, "../../data/wheel.msh") == 0)
-   {
-      for (int i = 0; i < pmesh.GetNBE(); i++)
-      {
-         Element *facet = pmesh.GetBdrElement(i);
-
-         // Mark only the outer ring
-         if (facet->GetAttribute() != 1) { continue; }
-
-         Array<int> vertices;
-         facet->GetVertices(vertices);
-
-         // Compute the z-centroid of the facet.
-         real_t z_centroid = 0.0;
-         for (int j = 0; j < vertices.Size(); j++)
-         {
-            z_centroid += pmesh.GetVertex(vertices[j])[dim-1];
-         }
-         z_centroid /= vertices.Size();
-
-         if (z_centroid < 0.4)
-         {
-            facet->SetAttribute(5);
-         }
-      }
-      pmesh.SetAttributes();
-   }
-
    // 5. Define a finite element space on the mesh. Here we use vector finite
    //    elements, i.e. dim copies of a scalar finite element space. The vector
    //    dimension is specified by the last argument of the FiniteElementSpace
@@ -333,16 +305,9 @@ int main(int argc, char *argv[])
    }
    else if (strcmp(mesh_file, "../../data/wheel.msh") == 0)
    {
-      // ess_bdr_x[1] = 1; ess_bdr_x[2] = 1;
-      // ess_bdr_y[1] = 1; ess_bdr_y[2] = 1;
-
-      // ess_bdr_x[1] = 1; ess_bdr_x[2] = 1; ess_bdr_x[3] = 1;
-      // ess_bdr_y[3] = 1;
-
       ess_bdr_x[1] = 1; ess_bdr_x[2] = 1; ess_bdr_x[3] = 1;
       ess_bdr_y[1] = 1; ess_bdr_y[2] = 1; ess_bdr_y[3] = 1;
-
-      ess_bdr_z[4] = 1;
+      ess_bdr_z[0] = 1;
    }
    else
    {
