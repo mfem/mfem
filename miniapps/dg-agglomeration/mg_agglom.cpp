@@ -396,6 +396,7 @@ AgglomerationMultigrid::AgglomerationMultigrid(
       else
       {
          P = CreateNodalProlongation(E, E2, fes);
+         prolongations[l] = P;
          //P = CreateInclusionProlongation(k, E, E2, fes);
          SparseMatrix &A_prev = static_cast<SparseMatrix&>(*operators[l + 1]);
 

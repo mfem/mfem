@@ -142,7 +142,7 @@ struct AuxiliarySolver : Solver
    const Operator &R;
    const Array<int> ess_dofs;
    const Solver *D;
-   // mutable Vector z1, z2, z3;
+   mutable Vector z1, z2, z3;
    mutable Vector z;
 
    AuxiliarySolver(const Solver &A_hat_inv_, const Operator &R_,
@@ -159,13 +159,12 @@ struct AuxiliarySolver : Solver
 
    void Mult(const Vector &b, Vector &x) const
    {
-      // z1.SetSize(R.Width());
-      // z2.SetSize(R.Width());
+      z1.SetSize(R.Width());
+      z2.SetSize(R.Width());
 
-      // R.MultTranspose(b, z1);
-      // A_hat_inv.Mult(z1, z2);
-      // R.Mult(z2, x);
-      A_hat_inv.Mult(b, x);
+      R.MultTranspose(b, z1);
+      A_hat_inv.Mult(z1, z2);
+      R.Mult(z2, x);
 
       if (D)
       {
@@ -290,7 +289,8 @@ int main(int argc, char *argv[])
    // Solver* smoother = new OperatorChebyshevSmoother(A_dg, diag, ess_dofs, 2);
    // AuxiliarySolver prec(A_hat_inv, R_op, ess_dofs, smoother);
 
-   CompositeAuxiliaryAgglomerationSolver prec(h1_fes, A_cg, dg_fes, A_dg, ess_dofs, 4, 3, 0);
+   CompositeAuxiliaryAgglomerationSolver prec(h1_fes, A_cg, dg_fes, A_dg, ess_dofs,
+                                              4, 3, 0);
 
    // 8. Form the linear system A X = B. This includes eliminating boundary
    //    conditions, applying AMR constraints, and other transformations.
