@@ -21,8 +21,17 @@ std::vector<std::vector<int>> Agglomerate(Mesh &mesh);
 
 class AgglomerationMultigrid : public Multigrid
 {
+friend class TruncatedMultigrid;
 public:
    AgglomerationMultigrid(FiniteElementSpace &fes, SparseMatrix &Af, int ncoarse, int num_levels, int smoother_choice, bool paraview_vis);
+
+   const SparseMatrix& GetFinestProlongation() const;
+};
+
+class TruncatedMultigrid : public Multigrid
+{
+public:
+   TruncatedMultigrid(const Multigrid &other);
 };
 
 } // namespace mfem

@@ -24,7 +24,7 @@ DG_HEADERS = partition.hpp mg_agglom.hpp
 DG_SRC = partition.cpp mg_agglom.cpp
 DG_OBJ = $(DG_SRC:.cpp=.o)
 
-MINIAPPS = dg_agglom
+MINIAPPS = dg_agglom aux_cg_dg
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk

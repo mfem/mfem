@@ -3133,7 +3133,6 @@ void BlockGS::MultTranspose(const Vector &b, Vector &x) const
    MFEM_VERIFY(height > 0, "BlockGS preconditioner is not constructed");
    const int nblockrows = Height()/block_size;
    DenseMatrix L_ij;
-
    Vector xi, xj;
 
    for (int i = nblockrows-1; i>=0; --i)
