@@ -2159,7 +2159,8 @@ IntegrationRule *IntegrationRules::TrianglePositiveIntegrationRule(int Order)
          AllocIntRule(TriangleIntRules, i);
          ir = new IntegrationRule;
          ir->GrundmannMollerSimplexRule(i/2, 2);
-         TriangleIntRules[i-1] = TriangleIntRules[i] = ir;
+         if (!TriangleIntRules[i-1]) { TriangleIntRules[i-1] = ir; }
+         TriangleIntRules[i] = ir;
          return ir;
    }
 }
@@ -2740,7 +2741,8 @@ IntegrationRule *IntegrationRules::TetrahedronPositiveIntegrationRule(int Order)
          AllocIntRule(TetrahedronIntRules, i);
          ir = new IntegrationRule;
          ir->GrundmannMollerSimplexRule(i/2, 3);
-         TetrahedronIntRules[i-1] = TetrahedronIntRules[i] = ir;
+         if (!TetrahedronIntRules[i-1]) { TetrahedronIntRules[i-1] = ir; }
+         TetrahedronIntRules[i] = ir;
          return ir;
    }
 }
