@@ -106,6 +106,11 @@ int main(int argc, char *argv[])
    // low-order refined mesh
    Mesh mesh_lo = Mesh::MakeRefined(mesh_im, lref, BasisType::ClosedUniform); // GaussLobatto, ClosedUniform
 
+   // Other Refinement methods? 
+
+   // Mesh Mesh::MakeRefined(Mesh &orig_mesh, const Array<int> &ref_factors,
+   //                     int ref_type)
+
    // ======================================================
    // Create spaces
    // ======================================================
@@ -167,9 +172,9 @@ int main(int argc, char *argv[])
    // b_lo.AddDomainIntegrator(new DomainLFIntegrator(RHO));
    DomainLFIntegrator *lf_integ = new DomainLFIntegrator(RHO);
    const IntegrationRule &ir_rhs = IntRules.Get(fespace_lo.GetFE(0)->GetGeomType(), 
-                                                2*order_lo + 2);
+                                                order_hi+1);
    lf_integ->SetIntRule(&ir_rhs);
-   b_lo.AddDomainIntegrator(lf_integ);   
+   b_lo.AddDomainIntegrator(lf_integ);
    b_lo.Assemble();
 
    // ======================================================
@@ -247,7 +252,7 @@ int main(int argc, char *argv[])
    // ======================================================   
    // Compute error with respect to exact solution
 
-   cout.precision(12);
+   cout.precision(16);
    cout << "h ="<<element_size<<", |IM - EX|_{L^2} = " << rho_im.ComputeL2Error(RHO) << endl;
    cout << "h ="<<element_size<<", |HO - EX|_{L^2} = " << rho_hi.ComputeL2Error(RHO) << endl;
 
