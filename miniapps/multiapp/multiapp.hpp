@@ -128,7 +128,8 @@ public:
 class SubMeshTransfer : public GridFunctionTransfer
 {
 protected:
-    ParTransferMap transfer_map;
+    ParTransferMap *transfer_map = nullptr;
+    bool own_map = false;
 
 public:
     /**
@@ -141,7 +142,7 @@ public:
     SubMeshTransfer(ParFiniteElementSpace *src,
                     ParFiniteElementSpace *tar) :
                     GridFunctionTransfer(src, tar),
-                    transfer_map(*src_fes, *tar_fes){}
+                    transfer_map(new ParTransferMap(src, tar)), own_map(true) {}
 
     /**
        @brief Construct a new SubMeshTransfer between
@@ -152,6 +153,15 @@ public:
     SubMeshTransfer(ParGridFunction *src, ParGridFunction *tar) :
                     SubMeshTransfer(src->ParFESpace(), tar->ParFESpace()){}
 
+    void SetTransferMap(ParTransferMap *map, bool own=false)
+    {
+        if(own_map && transfer_map) delete transfer_map;
+        transfer_map = map;
+        own_map = own;
+    }
+
+    void Transfer(const Field &src, Field &tar) override;
+
     /**
        @brief Transfer from source to target ParGridFunction.
        @param src Source @a ParGridFunction
@@ -159,7 +169,7 @@ public:
      */
     virtual void Transfer(const ParGridFunction &src, ParGridFunction &tar) override
     {
-        transfer_map.Transfer(src, tar);
+        transfer_map->Transfer(src, tar);
     }
 };
 
@@ -189,6 +199,7 @@ protected:
     FieldTransfer *transfer_map = nullptr;
     bool own_map = false;
     int id = -1; // initialized to invalid id
+    Field *source = nullptr; // source field for this target field, if applicable
 
 public:
     Field(Vector *field_, bool is_src, bool is_tar, int id_ = -1) :
@@ -212,7 +223,7 @@ public:
     }
 
     ///@brief Get the stored internally stored field pointer
-    virtual Vector* GetField() { return field; }
+    virtual Vector* GetField() const { return field; }
 
     ///@brief Set the internally stored field pointer
     virtual void SetField(Vector *field_) { field = field_; }
@@ -221,7 +232,8 @@ public:
     virtual Application* GetParentApp() const { return app; }
 
     ///@brief Update the stored field with new values
-    virtual void Update(const Vector &f) { *field = f; }
+    // virtual void Update(const Vector &f) { *field = f; }
+    virtual void Update(const Vector &f) { }
 
     ///@brief Get the FieldTransfer associated with this target field
     virtual FieldTransfer* GetTransferMap() const { return transfer_map; }
@@ -235,6 +247,8 @@ public:
 
     void SetID(int id_) { id = id_; }
     int GetID() const { return id; }
+    void SetSource(Field *src) { source = src; }
+    Field* GetSource() const { return source; }
 
     bool IsSource() const { return is_source; }
     bool IsTarget() const { return is_target; }
@@ -339,6 +353,11 @@ public:
     void AddTarget(Field *tar, bool own=false)
     {
         targets.push_back(std::make_pair(tar, own));
+        if(source)
+        {
+            tar->SetID(source->GetID());
+            tar->SetSource(source);
+        }
         ndest++;
     }
 
@@ -372,6 +391,13 @@ public:
         {
             auto [target, owned] = targets[idest];
             FieldTransfer *transfer_map = target->GetTransferMap();
+            if(!transfer_map)
+            {
+                MFEM_WARNING("No transfer map associated with target field "
+                             << target->GetID() << " for destination index "
+                             << idest << ". Skipping transfer.");
+                return;
+            }
             transfer_map->Transfer(*source,*target);
             // Vector *tarf = target->GetField();
             // transfer_map->Transfer(*srcf,*tarf);
@@ -382,6 +408,13 @@ public:
             {
                 auto [target, owned] = destination;
                 FieldTransfer *transfer_map = target->GetTransferMap();
+                if(!transfer_map)
+                {
+                    MFEM_WARNING("No transfer map associated with target field "
+                                 << target->GetID() << " for destination index "
+                                 << idest << ". Skipping transfer.");
+                    continue;
+                }
                 transfer_map->Transfer(*source,*target);
             }
         }

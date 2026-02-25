@@ -653,11 +653,10 @@ int main(int argc, char *argv[])
    std::unique_ptr<ODESolver> Tf_odesolver = ODESolver::Select(ode_solver);
    Tf_odesolver->Init(fluid_ht);
 
-   ParGridFunction &Tf_gf = (ParGridFunction&)(*fluid_ht.Fields()["Temperature"]);
-   ParGridFunction &Qf_gf = (ParGridFunction&)(*fluid_ht.Fields()["Flux"]);
-   ParGridFunction &Tf_gf_bc = (ParGridFunction&)(*fluid_ht.Fields()["Temperature_BC"]);
-   ParGridFunction &Qf_gf_bc = (ParGridFunction&)(*fluid_ht.Fields()["Flux_BC"]);
-
+   ParGridFunction &Tf_gf = (ParGridFunction&)(*fluid_ht.Fields()["Temperature"]->GetField());
+   ParGridFunction &Qf_gf = (ParGridFunction&)(*fluid_ht.Fields()["Flux"]->GetField());
+   ParGridFunction &Tf_gf_bc = (ParGridFunction&)(*fluid_ht.Fields()["Temperature_BC"]->GetField());
+   ParGridFunction &Qf_gf_bc = (ParGridFunction&)(*fluid_ht.Fields()["Flux_BC"]->GetField());
 
    // Set initial conditions in fluid
    Tf_gf.ProjectCoefficient(*zero_coeff);
@@ -670,15 +669,14 @@ int main(int argc, char *argv[])
    std::unique_ptr<ODESolver> Ts_odesolver = ODESolver::Select(ode_solver);
    Ts_odesolver->Init(solid_ht);
 
-   ParGridFunction &Ts_gf = (ParGridFunction&)(*solid_ht.Fields()["Temperature"]);
-   ParGridFunction &Qs_gf = (ParGridFunction&)(*solid_ht.Fields()["Flux"]);
-   ParGridFunction &Ts_gf_bc = (ParGridFunction&)(*solid_ht.Fields()["Temperature_BC"]);
-   ParGridFunction &Qs_gf_bc = (ParGridFunction&)(*solid_ht.Fields()["Flux_BC"]);
+   ParGridFunction &Ts_gf = (ParGridFunction&)(*solid_ht.Fields()["Temperature"]->GetField());
+   ParGridFunction &Qs_gf = (ParGridFunction&)(*solid_ht.Fields()["Flux"]->GetField());
+   ParGridFunction &Ts_gf_bc = (ParGridFunction&)(*solid_ht.Fields()["Temperature_BC"]->GetField());
+   ParGridFunction &Qs_gf_bc = (ParGridFunction&)(*solid_ht.Fields()["Flux_BC"]->GetField());
 
    // Set initial conditions in solid
    FunctionCoefficient temp_coeff(temp_profile);
    Ts_gf.ProjectCoefficient(temp_coeff);
-
 
    // Set up the coupled heat transfer multiapp
    CoupledOperator ht_operator(2); // two coupled applications: fluid and solid heat transfer
@@ -706,22 +704,23 @@ int main(int argc, char *argv[])
    Application* nse_app = cht_app.AddOperator(&nse_miniapp,up.Size());  // (type-erased) Navier miniapp
    Application* ht_app  = cht_app.AddOperator(ht_odesolver.get()); // Coupled fluid-solid heat transfer ODESolver;
 
-
    // Set up field transfers
    SubMeshTransfer Tf_Ts_map(&Tf_fes, &Ts_fes); // default map if none provided
+   SubMeshTransfer Qs_Qf_map(&Ts_fes, &Tf_fes); // default map if none provided
+   SubMeshTransfer uf_Tuf_map(uf_gf.ParFESpace(), Tuf_gf.ParFESpace()); // default map if none provided
    // GSLibTransfer Tf_Ts_map(Tf_fes, Ts_fes);
 
    /// Create link between fields in different apps
-   LinkedFields uf_to_Tuf_lf(&uf_gf, &Tuf_gf); // Navier velocity to fluid-heat convection velocity
+   LinkedFields uf_to_Tuf_lf(&uf_gf, &Tuf_gf, &uf_Tuf_map); // Navier velocity to fluid-heat convection velocity
    LinkedFields Tf_to_Ts_lf(&Tf_gf, &Ts_gf_bc, &Tf_Ts_map);  // Fluid temperature to solid temperature
-   LinkedFields Qs_to_Qf_lf(&Qs_gf, &Qf_gf_bc);  // Solid heat flux to fluid heat flux
+   LinkedFields Qs_to_Qf_lf(&Qs_gf, &Qf_gf_bc, &Qs_Qf_map);  // Solid heat flux to fluid heat flux
 
    /// Different methods for adding the linked field to their source apps
    nse_app->AddLinkedFields("Velocity",&uf_to_Tuf_lf);
    fl_ht_app->AddLinkedFields("Temperature", &Tf_to_Ts_lf);
    fl_ht_app->Fields().AddTargetField("Flux", &Qs_gf_bc, &Tf_Ts_map);
    sl_ht_app->Fields().AddLinkedFields("Flux", &Qs_to_Qf_lf);
-   sl_ht_app->Fields().AddTargetField("Temperature", &Tf_gf_bc);
+   sl_ht_app->Fields().AddTargetField("Temperature", &Tf_gf_bc,&Qs_Qf_map);
 
    // Solvers
    // Select solver for partitioned coupling

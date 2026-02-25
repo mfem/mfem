@@ -42,15 +42,15 @@ set(MULTIAPP_COMMON_FILES
 if (MFEM_USE_MPI)
   add_mfem_miniapp(cht-BFS
     MAIN cht-BFS.cpp
-    ${MFEM_MINIAPPS_COMMON_HEADERS} ${MULTIAPP_COMMON_FILES} ../navier/navier_solver.hpp ../navier/navier_solver.cpp
+    ${MFEM_MINIAPPS_COMMON_HEADERS} ${MULTIAPP_COMMON_FILES} ../fluids/navier/navier_solver.hpp ../fluids/navier/navier_solver.cpp
     LIBRARIES mfem-common)
   add_dependencies(cht-BFS copy_miniapps_multiapp_data)
 
-  add_mfem_miniapp(fsi
-    MAIN fsi.cpp
-    ${MFEM_MINIAPPS_COMMON_HEADERS} ${MULTIAPP_COMMON_FILES}
-    LIBRARIES mfem-common)
-  add_dependencies(fsi copy_miniapps_multiapp_data)
+  # add_mfem_miniapp(fsi
+  #   MAIN fsi.cpp
+  #   ${MFEM_MINIAPPS_COMMON_HEADERS} ${MULTIAPP_COMMON_FILES}
+  #   LIBRARIES mfem-common)
+  # add_dependencies(fsi copy_miniapps_multiapp_data)
 
 # Add parallel tests.
   # if (MFEM_ENABLE_TESTING)

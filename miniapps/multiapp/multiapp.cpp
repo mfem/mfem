@@ -31,6 +31,16 @@ GridFunctionTransfer* GridFunctionTransfer::Select(Type type,
     }
 }
 
+
+void SubMeshTransfer::Transfer(const Field &src, Field &tar)
+{
+    // Use GetField() to get the underlying Vector and ParGridFunction objects
+    const ParGridFunction &src_gf = dynamic_cast<const ParGridFunction&>(*src.GetField());
+    ParGridFunction &tar_gf = dynamic_cast<ParGridFunction&>(*tar.GetField());
+    transfer_map->Transfer(src_gf, tar_gf);
+}
+
+
 OperatorCoupler* OperatorCoupler::Select(CoupledOperator *op, 
                                          Scheme scheme)
 {
