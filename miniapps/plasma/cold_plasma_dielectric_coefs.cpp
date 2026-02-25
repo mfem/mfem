@@ -1777,14 +1777,14 @@ void StixTensorBase::addPerpDiagComp(double S, DenseMatrix & eps)
 void StixTensorBase::addPerpSkewComp(double D, DenseMatrix & eps)
 {
    // For b = B/|B|, add D * b\times to epsilon
-   eps(1,2) -= D * BVec_[0];
-   eps(2,1) += D * BVec_[0];
+   eps(1,2) -= D * BVec_(0);
+   eps(2,1) += D * BVec_(0);
 
-   eps(2,0) -= D * BVec_[1];
-   eps(0,2) += D * BVec_[1];
+   eps(2,0) -= D * BVec_(1);
+   eps(0,2) += D * BVec_(1);
 
-   eps(0,1) -= D * BVec_[2];
-   eps(1,0) += D * BVec_[2];
+   eps(0,1) -= D * BVec_(2);
+   eps(1,0) += D * BVec_(2);
    
 }
 
@@ -1842,7 +1842,7 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    complex<double> D = D_cold_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
                                      temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
-
+   
    if (thermal_)
    {
       S = epxx_warm_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
@@ -1854,90 +1854,86 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
       P = epzz_warm_plasma(omega_, kparallel, nue_vals_, density_vals_,
                                      charges_, masses_, temp_vals_, Ti_vals_, nuprof_);
    }
-
+   
    this->addParallelComp(realPart_ ?  P.real() : P.imag(), epsilon);
    this->addPerpDiagComp(realPart_ ?  S.real() : S.imag(), epsilon);
    this->addPerpSkewComp(realPart_ ? -D.imag() : D.real(), epsilon);
+   
    /*
    if (!thermal_)
    {
-      this->addParallelComp(realPart_ ?  P.real() : P.imag(), epsilon);
-      this->addPerpDiagComp(realPart_ ?  S.real() : S.imag(), epsilon);
-      this->addPerpSkewComp(realPart_ ? -D.imag() : D.real(), epsilon);
+      complex<double> exx_f = epxx_warm_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
+                                     density_vals_, charges_, masses_,
+                                     temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
+      complex<double> eyy_f = epyy_warm_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
+                                     density_vals_, charges_, masses_,
+                                     temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
+      complex<double> exy_f = epxy_warm_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
+                                     density_vals_, charges_, masses_,
+                                     temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
+      complex<double> ezz_f = epzz_warm_plasma(omega_, kparallel, nue_vals_, density_vals_,
+                                     charges_, masses_, temp_vals_, Ti_vals_, nuprof_);
+
+      this->addParallelComp(realPart_ ?  ezz_f.real() : ezz_f.imag(), epsilon);
+      this->addPerpDiagComp(realPart_ ?  exx_f.real() : exx_f.imag(), epsilon);
+      this->addPerpSkewComp(realPart_ ? -exy_f.imag() : exy_f.real(), epsilon);
    }
    else
    {
-      double s = sqrt(BVec_[0]*BVec_[0]+BVec_[1]*BVec_[1]);
-      complex<double> exx = epxx_warm_plasma_by_species(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
+      
+      complex<double> exx_f = epxx_warm_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
                                      temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
-      complex<double> eyy = epyy_warm_plasma_by_species(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
+      complex<double> eyy_f = epyy_warm_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
                                      temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
-      complex<double> exy = epxy_warm_plasma_by_species(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
+      complex<double> exy_f = epxy_warm_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
                                      temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
-      complex<double> ezz = epzz_warm_plasma_by_species(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
-                                     density_vals_, charges_, masses_,
-                                     temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
+      complex<double> ezz_f = epzz_warm_plasma(omega_, kparallel, nue_vals_, density_vals_,
+                                     charges_, masses_, temp_vals_, Ti_vals_, nuprof_);
 
-      epsilon(0,0) = (exx*BVec_[1]*BVec_[1])/(s*s) + (eyy*BVec_[0]*BVec_[0]*BVec_[2]*BVec_[2])/(s*s)
-                     +(2.0*exy*BVec_[0]*BVec_[1]*BVec_[2])/(s*s) + ezz*BVec_[0]*BVec_[0];
-      epsilon(1,1) = (exx*BVec_[0]*BVec_[0])/(s*s) + (eyy*BVec_[1]*BVec_[1]*BVec_[2]*BVec_[2])/(s*s)
-                     -(2.0*exy*BVec_[0]*BVec_[1]*BVec_[2])/(s*s) + ezz*BVec_[1]*BVec_[1];
-      epsilon(2,2) = eyy*s*s + ezz*BVec_[2]*BVec_[2];
+      double exx = exx_f.real();
+      double eyy = exx_f.real(); //eyy_f.real();
+      double exy = exy_f.imag();
+      double ezz = ezz_f.real();
 
-      epsilon(0,1) = -(exx*BVec_[0]*BVec_[1])/(s*s) + (eyy*BVec_[0]*BVec_[1]*BVec_[2]*BVec_[2])/(s*s)
-                     + (exy*(BVec_[1]*BVec_[1] - BVec_[0]*BVec_[0])*BVec_[2])/(s*s) + ezz*BVec_[0]*BVec_[1];
-      epsilon(1,0) = -(exx*BVec_[0]*BVec_[1])/(s*s) + (eyy*BVec_[0]*BVec_[1]*BVec_[2]*BVec_[2])/(s*s)
-                     + (exy*(BVec_[1]*BVec_[1] - BVec_[0]*BVec_[0])*BVec_[2])/(s*s) + ezz*BVec_[0]*BVec_[1];
-      epsilon(0,2) = -(eyy*BVec_[0]*BVec_[2])/s - (exy*BVec_[1])/s + ezz*BVec_[0]*BVec_[2];
-      epsilon(2,0) = -(eyy*BVec_[0]*BVec_[2])/s - (exy*BVec_[1])/s + ezz*BVec_[0]*BVec_[2];
-   }
+      if (!realPart_)
+      {
+         exx = exx_f.imag();
+         eyy = exx_f.imag(); //eyy_f.imag();
+         exy = exy_f.real();
+         ezz = ezz_f.imag();
+      }
+
+      double s_sqrd = BVec_(0)*BVec_(0)+BVec_(1)*BVec_(1);
+
+      epsilon(0,0) = exx;
+      epsilon(1,1) = eyy;
+      epsilon(2,2) = ezz;
+      epsilon(0,1) = -exy;
+      epsilon(1,0) = exy;
+
+      if (s_sqrd != 0.0)
+      {
+         epsilon(0,0) = (exx*BVec_(1)*BVec_(1))/s_sqrd + (eyy*BVec_(0)*BVec_(0)*BVec_(2)*BVec_(2))/s_sqrd
+                        + ezz*BVec_(0)*BVec_(0);
+         epsilon(1,1) = (exx*BVec_(0)*BVec_(0))/s_sqrd + (eyy*BVec_(1)*BVec_(1)*BVec_(2)*BVec_(2))/s_sqrd 
+                        + ezz*BVec_(1)*BVec_(1);
+         epsilon(2,2) = eyy*s_sqrd + ezz*BVec_(2)*BVec_(2);
+
+         epsilon(0,1) = (-exx*BVec_(0)*BVec_(1))/s_sqrd + (eyy*BVec_(0)*BVec_(1)*BVec_(2)*BVec_(2))/s_sqrd
+                        + ezz*BVec_(0)*BVec_(1) - exy*BVec_(2);
+         epsilon(1,0) = (-exx*BVec_(0)*BVec_(1))/s_sqrd + (eyy*BVec_(0)*BVec_(1)*BVec_(2)*BVec_(2))/s_sqrd
+                        + ezz*BVec_(0)*BVec_(1) + exy*BVec_(2);
+         epsilon(0,2) = -eyy*BVec_(0)*BVec_(2) + ezz*BVec_(0)*BVec_(2) + exy*BVec_(1);
+         epsilon(2,0) = -eyy*BVec_(0)*BVec_(2) + ezz*BVec_(0)*BVec_(2) - exy*BVec_(1);
+         epsilon(1,2) = -eyy*BVec_(1)*BVec_(2) + ezz*BVec_(1)*BVec_(2) - exy*BVec_(0);
+         epsilon(2,1) = -eyy*BVec_(1)*BVec_(2) + ezz*BVec_(1)*BVec_(2) + exy*BVec_(0);
+      }
+   }  
    */
-
-   /*
-   if (realPart_)
-   {
-      epsilon(0,0) =  (real(P) - real(S)) *
-                      pow(sin(ph), 2) * pow(cos(th), 2) + real(S);
-      epsilon(1,1) =  (real(P) - real(S)) * pow(cos(ph), 2) + real(S);
-      epsilon(2,2) =  (real(P) - real(S)) *
-                      pow(sin(ph), 2) * pow(sin(th), 2) + real(S);
-      epsilon(0,1) = (real(P) - real(S)) * cos(ph) * cos(th) * sin(ph) -
-                     imag(D) * sin(th) * sin(ph);
-      epsilon(0,2) =  (real(P) - real(S)) *
-                      pow(sin(ph), 2) * sin(th) * cos(th) + imag(D) * cos(ph);
-      epsilon(1,2) = (real(P) - real(S)) * sin(th) * cos(ph) * sin(ph) -
-                     imag(D) * cos(th) * sin(ph);
-      epsilon(1,0) = (real(P) - real(S)) * cos(ph) * cos(th) * sin(ph) +
-                     imag(D) * sin(th) * sin(ph);
-      epsilon(2,1) = (real(P) - real(S)) * sin(th) * cos(ph) * sin(ph) +
-                     imag(D) * cos(th) * sin(ph);
-      epsilon(2,0) = (real(P) - real(S)) *
-                     pow(sin(ph),2) * sin(th) * cos(th) - imag(D) * cos(ph);
-   }
-   else
-   {
-      epsilon(0,0) = (imag(P) - imag(S)) *
-                     pow(sin(ph), 2) * pow(cos(th), 2) + imag(S);
-      epsilon(1,1) = (imag(P) - imag(S)) * pow(cos(ph), 2) + imag(S);
-      epsilon(2,2) = (imag(P) - imag(S)) *
-                     pow(sin(ph), 2) * pow(sin(th), 2) + imag(S);
-      epsilon(0,1) = (imag(P) - imag(S)) * cos(ph) * cos(th) * sin(ph) +
-                     real(D) * sin(th) * sin(ph);
-      epsilon(0,2) = (imag(P) - imag(S)) *
-                     pow(sin(ph), 2) * sin(th) * cos(th) - real(D) * cos(ph);
-      epsilon(1,2) = (imag(P) - imag(S)) * sin(th) * cos(ph) * sin(ph) +
-                     real(D) * cos(th) * sin(ph);
-      epsilon(1,0) = (imag(P) - imag(S)) * cos(ph) * cos(th) * sin(ph) -
-                     real(D) * sin(th) * sin(ph);
-      epsilon(2,1) = (imag(P) - imag(S)) * sin(th) * cos(ph) * sin(ph) -
-                     real(D) * cos(th) * sin(ph);
-      epsilon(2,0) = (imag(P) - imag(S)) *
-                     pow(sin(ph), 2) * sin(th) * cos(th) + real(D) * cos(ph);
-   }
-   */
+   
    epsilon *= epsilon0_;
 
    /*
@@ -2085,10 +2081,17 @@ void SusceptibilityTensor::Eval(DenseMatrix &suscept, ElementTransformation &T,
                                      density_vals_, charges_, masses_,
                                      temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
 
-   // Epsilon
-   //this->addParallelComp(realPart_ ?  P.real() : P.imag(), epsilon);
-   //this->addPerpDiagComp(realPart_ ?  S.real() : S.imag(), epsilon);
-   //this->addPerpSkewComp(realPart_ ? -D.imag() : D.real(), epsilon);
+   if (thermal_)
+   {
+      S = epxx_warm_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
+                                        density_vals_, charges_, masses_,
+                                        temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
+      P = epzz_warm_plasma(omega_, kparallel, nue_vals_, density_vals_,
+                                        charges_, masses_, temp_vals_, Ti_vals_, nuprof_);
+      D = epxy_warm_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
+                                        density_vals_, charges_, masses_,
+                                        temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
+   }
 
    this->addParallelComp(realPart_ ?  P.imag() : 1.0 - P.real(), suscept);
    this->addPerpDiagComp(realPart_ ?  S.imag() : 1.0 - S.real(), suscept);
@@ -2342,7 +2345,7 @@ void lambdaPML::Eval(DenseMatrix &lambdaPML, ElementTransformation &T,
       complex<double> sig_v = constant;
       complex<double> sig_w = constant;
 
-      /*
+      
       double x0 = 2.2404;
       double delta_x = 0.12;
 
@@ -2351,7 +2354,7 @@ void lambdaPML::Eval(DenseMatrix &lambdaPML, ElementTransformation &T,
          sig_u = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[0]-x0)/delta_x),2.0); // x
       }
 
-      
+      /*
       double y0 = 0.84;
       double y1 = -0.84;
       double delta_y = 0.22;
@@ -2378,7 +2381,7 @@ void lambdaPML::Eval(DenseMatrix &lambdaPML, ElementTransformation &T,
       
       
       double x0 = 0.2;
-      double x1 = 0.7;
+      double x1 = 0.8;
       double delta_x = x0;
       if (xyz_[0] <= x0)
       {
@@ -2389,9 +2392,9 @@ void lambdaPML::Eval(DenseMatrix &lambdaPML, ElementTransformation &T,
          sig_u = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[0]-x1)/delta_x),2.0); // x
       }
       */
-
-      double x1 = 2.0;
-      double delta_x = 1.0;
+      /*
+      double x1 = 0.5;
+      double delta_x = 2.5;
       if (xyz_[2] >= x1)
       {
          sig_w = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[2]-x1)/delta_x),2.0); // x
@@ -2407,6 +2410,7 @@ void lambdaPML::Eval(DenseMatrix &lambdaPML, ElementTransformation &T,
          sig_v = 1.0 - (1.0 - 2.0*val)*pow((th/delta_th),2.0); // Theta
          sig_w = constant; // Z
       }
+      */
 
       complex<double> lam_xx = sig_v*sig_w;
       complex<double> lam_yy = sig_u*sig_w;
@@ -2473,7 +2477,7 @@ void sigmaPML::Eval(DenseMatrix &sigmaPML, ElementTransformation &T,
       complex<double> sig_v = constant;
       complex<double> sig_w = constant;
 
-      /*
+      
       double x0 = 2.2404;
       double delta_x = 0.12;
 
@@ -2482,6 +2486,7 @@ void sigmaPML::Eval(DenseMatrix &sigmaPML, ElementTransformation &T,
          sig_u = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[0]-x0)/delta_x),2.0); // x
       }
 
+      /*
       double y0 = 0.84;
       double y1 = -0.84;
       double delta_y = 0.22;
@@ -2508,7 +2513,7 @@ void sigmaPML::Eval(DenseMatrix &sigmaPML, ElementTransformation &T,
       
       
       double x0 = 0.2;
-      double x1 = 0.7;
+      double x1 = 0.8;
       double delta_x = x0;
       if (xyz_[0] <= x0)
       {
@@ -2518,10 +2523,11 @@ void sigmaPML::Eval(DenseMatrix &sigmaPML, ElementTransformation &T,
       {
          sig_u = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[0]-x1)/delta_x),2.0); // x
       }
-      */
-
-      double x1 = 2.0;
-      double delta_x = 1.0;
+      */ 
+      
+      /*
+      double x1 = 0.5;
+      double delta_x = 2.5;
       if (xyz_[2] >= x1)
       {
          sig_w = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[2]-x1)/delta_x),2.0); // x
@@ -2537,6 +2543,7 @@ void sigmaPML::Eval(DenseMatrix &sigmaPML, ElementTransformation &T,
          sig_v = 1.0 - (1.0 - 2.0*val)*pow((th/delta_th),2.0); // Theta
          sig_w = constant; // Z
       }
+      */
 
       sigmaPML(0,0) = sig_u.imag(); 
       sigmaPML(1,1) = sig_v.imag(); 
