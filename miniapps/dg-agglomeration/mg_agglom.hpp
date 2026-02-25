@@ -31,7 +31,7 @@ public:
 class TruncatedMultigrid : public Multigrid
 {
 public:
-   TruncatedMultigrid(const Multigrid &other);
+   TruncatedMultigrid(const AgglomerationMultigrid &other);
 };
 
 } // namespace mfem

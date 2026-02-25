@@ -23,7 +23,7 @@ using namespace std;
 namespace mfem
 {
 
-TruncatedMultigrid::TruncatedMultigrid(const Multigrid &other)
+TruncatedMultigrid::TruncatedMultigrid(const AgglomerationMultigrid &other)
 {
    MFEM_VERIFY(other.NumLevels() >= 2, "");
    const int nlevels = other.NumLevels() - 1;
@@ -41,7 +41,7 @@ TruncatedMultigrid::TruncatedMultigrid(const Multigrid &other)
    ownedProlongations.SetSize(nlevels - 1, false);
 }
 
-const SparseMatrix AgglomerationMultigrid::GetFinestProlongation() const
+const SparseMatrix& AgglomerationMultigrid::GetFinestProlongation() const
 {
    return static_cast<SparseMatrix&>(*prolongations.Last());
 
