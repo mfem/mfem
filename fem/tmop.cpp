@@ -16,14 +16,6 @@
 #include "../general/forall.hpp"
 #include "../linalg/dual.hpp"
 
-#ifdef NVTX_DEBUG_HPP
-#undef NVTX_COLOR
-#define NVTX_COLOR ::nvtx::kGold
-#include NVTX_DEBUG_HPP
-#else
-#define dbg(...)
-#endif
-
 namespace mfem
 {
 
@@ -4829,7 +4821,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
    }
 
    if (adapt_lim_gf) { AssembleElemGradAdaptLim(el, *Tpr, ir, weights, elmat); }
-   if (surf_fit_gf || surf_fit_pos) { AssembleElemGradSurfFit(el, *Tpr, elmat); }
+   if (surf_fit_gf || surf_fit_pos) { AssembleElemGradSurfFit(el, *Tpr, elmat);}
 
    delete Tpr;
 }
@@ -4898,14 +4890,13 @@ void TMOP_Integrator::AssembleElemGradAdaptLim(const FiniteElement &el,
    // Project the gradient of each gradient of adapt_lim_gf in the same space.
    // The FE coefficients of the second derivatives go in adapt_lim_gf_hess_e.
    DenseMatrix adapt_lim_gf_hess_e(dof*dim, dim);
-   // Mult(grad_phys, adapt_lim_gf_grad_e, adapt_lim_gf_hess_e);
+   Mult(grad_phys, adapt_lim_gf_grad_e, adapt_lim_gf_hess_e);
    // Reshape to be more convenient later (no change in the data).
    adapt_lim_gf_hess_e.SetSize(dof, dim*dim);
 
    Vector adapt_lim_gf_grad_q(dim);
    DenseMatrix adapt_lim_gf_hess_q(dim, dim);
 
-   db1("nqp: {}, dof: {}, dim: {}", nqp, dof, dim);
    for (int q = 0; q < nqp; q++)
    {
       const IntegrationPoint &ip = ir.IntPoint(q);
@@ -4915,9 +4906,7 @@ void TMOP_Integrator::AssembleElemGradAdaptLim(const FiniteElement &el,
       Vector gg_ptr(adapt_lim_gf_hess_q.GetData(), dim*dim);
       adapt_lim_gf_hess_e.MultTranspose(shape, gg_ptr);
 
-      // const real_t weight_q = weights(q);
-      //* lim_normal * adapt_lim_coeff->Eval(Tpr, ip);
-      const real_t w = weights(q) * lim_normal * adapt_lim_coeff->Eval(Tpr, ip);
+      const real_t w = weights(q); // * lim_normal * adapt_lim_coeff->Eval(Tpr, ip);
       for (int i = 0; i < dof * dim; i++)
       {
          const int idof = i % dof, idim = i / dof;

@@ -14,14 +14,6 @@
 #include "pnonlinearform.hpp"
 #include "../general/osockstream.hpp"
 
-#ifdef NVTX_DEBUG_HPP
-#undef NVTX_COLOR
-#define NVTX_COLOR ::nvtx::kSkyBlue
-#include NVTX_DEBUG_HPP
-#else
-#define dbg(...)
-#endif
-
 namespace mfem
 {
 
@@ -706,7 +698,7 @@ void TMOPNewtonSolver::Mult(const Vector &b, Vector &x) const
 
    // Solve for the displacement, which always starts from zero.
    Vector dx(height); dx = 0.0;
-   if (solver_type == 0) { NewtonSolver::Mult(b, dx); }
+   if (solver_type == 0)      { NewtonSolver::Mult(b, dx); }
    else if (solver_type == 1) { LBFGSSolver::Mult(b, dx); }
    else { MFEM_ABORT("Invalid solver_type"); }
 
