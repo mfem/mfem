@@ -4958,33 +4958,33 @@ void TMOP_Integrator::AssembleElemGradAdaptLim(const FiniteElement &el,
       // Vector gg_ptr(adapt_lim_gf_hess_q.GetData(), dim*dim);
       // adapt_lim_gf_hess_e.MultTranspose(shape, gg_ptr);
 
-      const real_t weight_q = weights(q);
+      // const real_t weight_q = weights(q);
       //* lim_normal * adapt_lim_coeff->Eval(Tpr, ip);
-      for (int i = 0; i < dof; i++)
+      for (int i = 0; i < dof * dim; i++)
       {
-         const real_t wq_shape_i = weight_q * shape(i);
-         // const int idof = i % dof;//, idim = i / dof;
-         // for (int j = 0; j <= i; j++)
-         for (int j = 0; j < dof; j++)
+         // const real_t wq_shape_i = weight_q * shape(i);
+         const int idof = i % dof;//, idim = i / dof;
+         for (int j = 0; j <= i; j++)
+            // for (int j = 0; j < dof; j++)
          {
-            const real_t wq_shape_i_shape_j = wq_shape_i * shape(j);
-            // const int jdof = j % dof;//, jdim = j / dof;
+            // const real_t wq_shape_i_shape_j = wq_shape_i * shape(j);
+            const int jdof = j % dof;//, jdim = j / dof;
             // const real_t entry =
             //         ( 2.0 * adapt_lim_gf_grad_q(idim) * shape(idof) *
             //          /* */ adapt_lim_gf_grad_q(jdim) * shape(jdof) +
             //          0.0 * 2.0 * (adapt_lim_gf_q(q)) *
             //                       adapt_lim_gf_hess_q(idim, jdim) * shape(idof) * shape(jdof));
 
-            for (int d1 = 0; d1 < dim; d1++)
-            {
-               for (int d2 = 0; d2 < dim; d2++)
-               {
-                  mat(d1*dof + i, d2*dof + j) += wq_shape_i_shape_j;
-               }
-            }
-            // real_t entry = shape(idof) * shape(jdof);
-            // mat(i, j) += entry;
-            // if (i != j) { mat(j, i) += entry; }
+            // for (int d1 = 0; d1 < dim; d1++)
+            // {
+            //    for (int d2 = 0; d2 < dim; d2++)
+            //    {
+            //       mat(d1*dof + i, d2*dof + j) += wq_shape_i_shape_j;
+            //    }
+            // }
+            real_t entry = shape(idof) * shape(jdof);
+            mat(i, j) += entry;
+            if (i != j) { mat(j, i) += entry; }
          }
       }
    }

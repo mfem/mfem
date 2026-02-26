@@ -175,10 +175,12 @@ void TMOP_AddMultGradPA_AdaptLim_2D(const real_t lim_normal_,
 
             // r00(0, qy, qx) = 2.0 * (grad_alf[0] * R_q[0] * grad_alf[1] + 0.0 * (gf_val) * hess_R[0]);
             // r00(1, qy, qx) = 2.0 * (grad_alf[0] * R_q[1] * grad_alf[1] + 0.0 * (gf_val) * hess_R[1]);
-            r00(0, qy, qx) = weight * p0[0];
-            r00(1, qy, qx) = weight * p0[1];
-            // r00[0][qy][qx] = weight * p0[0];
-            // r00[1][qy][qx] = weight * p0[1];
+
+            // r00(0, qy, qx) = weight * (p0[0] + p0[1]);
+            // r00(1, qy, qx) = weight * (p0[0] + p0[1]);
+
+            r00[0][qy][qx] = p0[0] + p0[1];
+            r00[1][qy][qx] = p0[0] + p0[1];
          }
       }
       MFEM_SYNC_THREAD;
