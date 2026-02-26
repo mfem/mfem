@@ -1159,6 +1159,11 @@ size_t MemoryManager::insert(char *hptr, char *dptr, size_t nbytes,
                              MemoryType hloc, MemoryType dloc, bool valid_host,
                              bool valid_device, bool temporary)
 {
+   if (nbytes)
+   {
+      MFEM_ASSERT(hptr != nullptr,
+                  "cannot insert nbytes > 0 with hptr == nullptr");
+   }
    MFEM_ASSERT(hloc != MemoryType::PRESERVE, "hloc cannot be PRESERVE");
    MFEM_ASSERT(dloc != MemoryType::PRESERVE, "dloc cannot be PRESERVE");
    storage.create_next_segment(next_segment);

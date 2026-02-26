@@ -822,6 +822,22 @@ void Memory<T>::Wrap(T *ptr, size_t size, MemoryType loc, bool own)
       own_device = own;
       valid_host = false;
       valid_device = true;
+      if (h_mt != d_mt)
+      {
+         if (h_mt == MemoryType::HOST)
+         {
+            h_ptr_ = new T[size];
+         }
+         else
+         {
+            h_ptr_ =
+               reinterpret_cast<T *>(inst.Alloc(size * sizeof(T), h_mt, false));
+         }
+      }
+      else
+      {
+         h_ptr_ = d_ptr_;
+      }
    }
 
    Wrap(h_ptr_, d_ptr_, size, h_mt, d_mt, own_host, own_device, valid_host,
