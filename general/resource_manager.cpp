@@ -575,26 +575,6 @@ void MemoryManager::Configure(MemoryType host_loc, MemoryType device_loc,
 
 MemoryManager::~MemoryManager()
 {
-   for (auto &seg : storage.segments)
-   {
-      if (seg.ref_count)
-      {
-         if (seg.flag & RBase::Segment::Flags::OWN_HOST && seg.lowers[0])
-         {
-            mfem::err << "Leaked host memory " << (void *)seg.lowers[0]
-                      << std::endl;
-            // Dealloc(seg.lowers[0], seg.mtypes[0],
-            //         seg.flag & RBase::Segment::Flags::TEMPORARY);
-         }
-         if (seg.flag & RBase::Segment::Flags::OWN_DEVICE && seg.lowers[1])
-         {
-            mfem::err << "Leaked device memory " << (void *)seg.lowers[1]
-                      << std::endl;
-            // Dealloc(seg.lowers[1], seg.mtypes[1],
-            //         seg.flag & RBase::Segment::Flags::TEMPORARY);
-         }
-      }
-   }
    storage.nodes.clear();
    storage.segments.clear();
    for (size_t i = 0; i < allocs_storage.size(); ++i)
@@ -610,44 +590,17 @@ void MemoryManager::Destroy()
 {
    for (auto &seg : storage.segments)
    {
-      if (seg.ref_count)
+      if (seg.lowers[0] && (seg.mtypes[0] != MemoryType::HOST || seg.temporary))
       {
-         if (seg.flag & RBase::Segment::Flags::OWN_HOST)
-         {
-            switch (seg.mtypes[0])
-            {
-               case MemoryType::HOST_PINNED:
-                  [[fallthrough]];
-               case MemoryType::MANAGED:
-                  [[fallthrough]];
-               case MemoryType::DEVICE:
-                  [[fallthrough]];
-               case MemoryType::HOST_UMPIRE:
-                  [[fallthrough]];
-               case MemoryType::DEVICE_UMPIRE:
-                  [[fallthrough]];
-               case MemoryType::DEVICE_UMPIRE_2:
-                  Dealloc(seg.lowers[0], seg.mtypes[0],
-                          seg.flag & RBase::Segment::Flags::TEMPORARY);
-                  clear_segment(seg, true);
-                  seg.lowers[0] = nullptr;
-                  seg.mtypes[0] = MemoryType::DEFAULT;
-                  seg.set_owns_host(false);
-                  break;
-               default:
-                  // don't delete right now
-                  break;
-            }
-         }
-         if (seg.flag & RBase::Segment::Flags::OWN_DEVICE)
-         {
-            Dealloc(seg.lowers[1], seg.mtypes[1],
-                    seg.flag & RBase::Segment::Flags::TEMPORARY);
-            clear_segment(seg, true);
-            seg.lowers[1] = nullptr;
-            seg.mtypes[1] = MemoryType::DEFAULT;
-            seg.set_owns_device(false);
-         }
+         Dealloc(seg.lowers[0], seg.mtypes[0], seg.temporary);
+         seg.lowers[0] = nullptr;
+         seg.mtypes[0] = MemoryType::DEFAULT;
+      }
+      if (seg.lowers[1] && seg.lowers[1] != seg.lowers[0])
+      {
+         Dealloc(seg.lowers[1], seg.mtypes[1], seg.temporary);
+         seg.lowers[1] = nullptr;
+         seg.mtypes[1] = MemoryType::DEFAULT;
       }
    }
    // temporary device allocators need to have Clear called
@@ -677,6 +630,10 @@ void MemoryManager::Destroy()
 
 void MemoryManager::Dealloc(char *ptr, MemoryType type, bool temporary)
 {
+   if (!ptr)
+   {
+      return;
+   }
    MFEM_ASSERT(static_cast<int>(type) < MemoryTypeSize, "invalid memory type");
    size_t offset = 0;
    if (temporary)
@@ -691,41 +648,6 @@ void MemoryManager::Dealloc(char *ptr, MemoryType type, bool temporary)
       default:
          allocs[offset + static_cast<int>(type)]->Dealloc(ptr);
    }
-}
-
-std::array<size_t, 4> MemoryManager::Usage() const
-{
-   MFEM_ASSERT(static_cast<int>(RBase::Segment::Flags::OWN_HOST) == (1 << 0),
-               "unexpected value for Segment::Flags::OWN_HOST");
-   MFEM_ASSERT(static_cast<int>(RBase::Segment::Flags::OWN_DEVICE) == (1 << 1),
-               "unexpected value for Segment::Flags::OWN_DEVICE");
-   std::array<size_t, 4> res = {0};
-   for (auto &seg : storage.segments)
-   {
-      if (seg.ref_count)
-      {
-         size_t offset = (seg.flag & RBase::Segment::Flags::TEMPORARY) ? 2 : 0;
-         for (int i = 0; i < 2; ++i)
-         {
-            if (seg.flag & (1 << i))
-            {
-               if (IsHostMemory(seg.mtypes[i]))
-               {
-                  res[offset] += seg.nbytes;
-               }
-               else if (IsDeviceMemory(seg.mtypes[i]))
-               {
-                  res[offset + 1] += seg.nbytes;
-               }
-               else
-               {
-                  MFEM_ABORT("Invalid location");
-               }
-            }
-         }
-      }
-   }
-   return res;
 }
 
 void MemoryManager::EnsureAlloc(MemoryType mt)
@@ -936,8 +858,6 @@ void MemoryManager::RBase::insert_duplicate(size_t a, size_t b)
    cleanup_nodes();
 }
 
-
-
 void MemoryManager::RBase::cleanup_nodes()
 {
    size_t idx = nodes.size();
@@ -1088,7 +1008,7 @@ bool MemoryManager::ZeroCopy(size_t segment)
       auto &seg = storage.get_segment(segment);
       return seg.lowers[0] == seg.lowers[1];
    }
-   return true;
+   return GetDualMemoryType(MemoryType::HOST) == MemoryType::HOST;
 }
 
 template <class F>
@@ -1235,64 +1155,9 @@ void MemoryManager::mark_invalid(size_t segment, bool on_device,
    }
 }
 
-size_t MemoryManager::insert(char *hptr, size_t nbytes, MemoryType loc,
-                             bool own, bool temporary)
-{
-   char *dptr = nullptr;
-   MemoryType dloc = MemoryType::DEFAULT;
-   bool own_dev = false;
-   switch (loc)
-   {
-      case MemoryType::DEVICE:
-         [[fallthrough]];
-      case MemoryType::DEVICE_DEBUG:
-         [[fallthrough]];
-      case MemoryType::DEVICE_UMPIRE:
-         [[fallthrough]];
-      case MemoryType::DEVICE_UMPIRE_2:
-         // actually given a device ptr
-         std::swap(hptr, dptr);
-         std::swap(dloc, loc);
-         std::swap(own_dev, own);
-         [[fallthrough]];
-      case MemoryType::DEFAULT:
-         [[fallthrough]];
-      case MemoryType::HOST:
-         [[fallthrough]];
-      case MemoryType::HOST_32:
-         [[fallthrough]];
-      case MemoryType::HOST_64:
-         [[fallthrough]];
-      case MemoryType::HOST_DEBUG:
-         [[fallthrough]];
-      case MemoryType::HOST_UMPIRE:
-         if (memory_types[0] == memory_types[1])
-         {
-            // host and device memory space are the same, treat as a zero-copy
-            // segment
-            dptr = hptr;
-            dloc = loc;
-         }
-         break;
-      case MemoryType::HOST_PINNED:
-         [[fallthrough]];
-      case MemoryType::MANAGED:
-         if (GetDualMemoryType(loc) == loc)
-         {
-            dptr = hptr;
-            dloc = loc;
-         }
-         break;
-      case MemoryType::PRESERVE:
-      default:
-         MFEM_ABORT("Invalid loc");
-   }
-   return insert(hptr, dptr, nbytes, loc, dloc, own, own_dev, temporary);
-}
-
 size_t MemoryManager::insert(char *hptr, char *dptr, size_t nbytes,
-                             MemoryType hloc, MemoryType dloc, bool own_host,
-                             bool own_device, bool temporary)
+                             MemoryType hloc, MemoryType dloc, bool valid_host,
+                             bool valid_device, bool temporary)
 {
    MFEM_ASSERT(hloc != MemoryType::PRESERVE, "hloc cannot be PRESERVE");
    MFEM_ASSERT(dloc != MemoryType::PRESERVE, "dloc cannot be PRESERVE");
@@ -1305,40 +1170,25 @@ size_t MemoryManager::insert(char *hptr, char *dptr, size_t nbytes,
    seg.nbytes = nbytes;
    if (hptr && hloc == MemoryType::DEFAULT)
    {
-      hloc = memory_types[0];
+      hloc = GetHostMemoryType();
    }
    if (dptr && dloc == MemoryType::DEFAULT)
    {
-      dloc = memory_types[1];
+      dloc = GetDualMemoryType(hloc);
    }
    seg.mtypes[0] = hloc;
    seg.mtypes[1] = dloc;
-   if (hptr && own_host)
+   seg.temporary = temporary;
+
+   if (hptr && !valid_host)
    {
-      seg.flag = static_cast<RBase::Segment::Flags>(
-                    seg.flag | RBase::Segment::Flags::OWN_HOST);
+      mark_invalid(next_segment, false, 0, nbytes,
+      [](auto start, auto stop) {});
    }
-   if (dptr && own_device)
+   if (dptr && hptr != dptr && !valid_device)
    {
-      seg.flag = static_cast<RBase::Segment::Flags>(
-                    seg.flag | RBase::Segment::Flags::OWN_DEVICE);
-   }
-   if (temporary)
-   {
-      seg.flag = static_cast<RBase::Segment::Flags>(
-                    seg.flag | RBase::Segment::Flags::TEMPORARY);
-   }
-   // initial validity marking
-   // - host is valid
-   // - device is valid if dptr == hptr, otherwise invalid
-   if (hptr)
-   {
-      if (dptr && dptr != hptr)
-      {
-         // mark device initially invalid
-         mark_invalid(storage.segments.size(), false, 0, nbytes,
-         [](auto start, auto stop) {});
-      }
+      mark_invalid(next_segment, true, 0, nbytes,
+      [](auto start, auto stop) {});
    }
    return next_segment;
 }
@@ -1383,40 +1233,6 @@ void MemoryManager::clear_segment(size_t segment, bool on_device)
    clear_segment(seg, on_device);
 }
 
-void MemoryManager::Dealloc(size_t segment)
-{
-   if (valid_segment(segment))
-   {
-      auto &seg = storage.get_segment(segment);
-      if (seg.ref_count)
-      {
-         // deallocate
-         if (seg.lowers[1])
-         {
-            if ((seg.flag & RBase::Segment::OWN_DEVICE) &&
-                seg.lowers[1] != seg.lowers[0])
-            {
-               Dealloc(seg.lowers[1], seg.mtypes[1],
-                       seg.flag & RBase::Segment::TEMPORARY);
-               clear_segment(segment, true);
-               seg.lowers[1] = nullptr;
-            }
-         }
-         if (seg.lowers[0])
-         {
-            if (seg.flag & RBase::Segment::OWN_HOST)
-            {
-               Dealloc(seg.lowers[0], seg.mtypes[0],
-                       seg.flag & RBase::Segment::TEMPORARY);
-               clear_segment(segment, false);
-               seg.lowers[0] = nullptr;
-               seg.lowers[1] = nullptr;
-            }
-         }
-      }
-   }
-}
-
 void MemoryManager::erase(size_t segment)
 {
    if (valid_segment(segment))
@@ -1429,7 +1245,7 @@ void MemoryManager::erase(size_t segment)
             seg.lowers[0] = nullptr;
             seg.lowers[1] = nullptr;
             seg.nbytes = 0;
-            seg.flag = RBase::Segment::Flags::NONE;
+            seg.temporary = false;
             clear_segment(segment);
             storage.cleanup_segments();
             size_t idx = segment - 1;
@@ -1703,15 +1519,6 @@ bool MemoryManager::is_valid(size_t segment, size_t offset, size_t nbytes,
    return false;
 }
 
-static bool rw_on_dev(MemoryClass mc)
-{
-   if (IsHostMemory(GetMemoryType(mc)) && mc < MemoryClass::DEVICE)
-   {
-      return false;
-   }
-   return true;
-}
-
 char *MemoryManager::write(size_t segment, size_t offset, size_t nbytes,
                            MemoryClass mc)
 {
@@ -1753,14 +1560,6 @@ char *MemoryManager::write(size_t segment, size_t offset, size_t nbytes,
          }
          seg.lowers[on_device] =
             Alloc(seg.nbytes, seg.mtypes[on_device], seg.is_temporary());
-         if (on_device)
-         {
-            seg.set_owns_device(true);
-         }
-         else
-         {
-            seg.set_owns_host(true);
-         }
          // initially all invalid
          mark_invalid(segment, on_device, 0, seg.nbytes, [](auto, auto) {});
       }
@@ -2043,14 +1842,6 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
          }
          seg.lowers[on_device] =
             Alloc(seg.nbytes, seg.mtypes[on_device], seg.is_temporary());
-         if (on_device)
-         {
-            seg.set_owns_device(true);
-         }
-         else
-         {
-            seg.set_owns_host(true);
-         }
          // initially all invalid
          mark_invalid(segment, on_device, 0, seg.nbytes, [](auto, auto) {});
       }
@@ -2116,14 +1907,6 @@ const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
          }
          seg.lowers[on_device] =
             Alloc(seg.nbytes, seg.mtypes[on_device], seg.is_temporary());
-         if (on_device)
-         {
-            seg.set_owns_device(true);
-         }
-         else
-         {
-            seg.set_owns_host(true);
-         }
          // initially all invalid
          mark_invalid(segment, on_device, 0, seg.nbytes, [](auto, auto) {});
       }
@@ -2155,50 +1938,6 @@ const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
       return seg.lowers[on_device] + offset;
    }
    return nullptr;
-}
-
-bool MemoryManager::owns_host_ptr(size_t segment)
-{
-   if (valid_segment(segment))
-   {
-      auto &seg = storage.get_segment(segment);
-      return seg.flag & RBase::Segment::OWN_HOST;
-   }
-   return false;
-}
-
-void MemoryManager::set_owns_host_ptr(size_t segment, bool own)
-{
-   if (valid_segment(segment))
-   {
-      auto &seg = storage.get_segment(segment);
-      seg.set_owns_host(own);
-   }
-}
-
-bool MemoryManager::owns_device_ptr(size_t segment)
-{
-   if (valid_segment(segment))
-   {
-      auto &seg = storage.get_segment(segment);
-      return seg.flag & RBase::Segment::OWN_DEVICE;
-   }
-   return false;
-}
-
-void MemoryManager::set_owns_device_ptr(size_t segment, bool own)
-{
-   if (valid_segment(segment))
-   {
-      auto &seg = storage.get_segment(segment);
-      seg.set_owns_device(own);
-   }
-}
-
-void MemoryManager::clear_owner_flags(size_t segment)
-{
-   set_owns_host_ptr(segment, false);
-   set_owns_device_ptr(segment, false);
 }
 
 int MemoryManager::compare_host_device(size_t segment, size_t offset,
@@ -2647,7 +2386,6 @@ void MemoryManager::SetDeviceMemoryType(size_t segment, MemoryType loc)
          seg.mtypes[1] = loc;
          // lazy device memory allocation
          // seg.lowers[1] = Alloc(seg.nbytes, seg.mtypes[1], seg.is_temporary());
-         // seg.set_owns_device(true);
          // // initially all invalid
          // mark_invalid(segment, 1, 0, seg.nbytes, [&](auto, auto) {});
       }

@@ -7,51 +7,6 @@
 #if USE_NEW_MEM_MANAGER
 using namespace mfem;
 
-TEST_CASE("Resource Creation", "[Resource Manager]")
-{
-   auto &inst = MemoryManager::instance();
-   auto init_usage = inst.Usage();
-   std::array<size_t, 4> expected = init_usage;
-   SECTION("Non-Temporary Host")
-   {
-      Memory<int> tmp(10, MemoryType::HOST, false);
-      auto usage = inst.Usage();
-      expected[0] += 10 * sizeof(int);
-      REQUIRE(usage == expected);
-      tmp.Write(true);
-      usage = inst.Usage();
-      if (!tmp.ZeroCopy())
-      {
-         expected[1] += expected[0];
-      }
-      REQUIRE(usage == expected);
-      tmp.Delete();
-      usage = inst.Usage();
-      expected[0] = init_usage[0];
-      expected[1] = init_usage[1];
-      REQUIRE(usage == expected);
-   }
-   SECTION("Temporary Host")
-   {
-      Memory<int> tmp(10, MemoryType::HOST, true);
-      auto usage = inst.Usage();
-      expected[2] += 10 * sizeof(int);
-      REQUIRE(usage == expected);
-      tmp.Write(true);
-      usage = inst.Usage();
-      if (!tmp.ZeroCopy())
-      {
-         expected[2 + 1] += 10 * sizeof(int);
-      }
-      REQUIRE(usage == expected);
-      tmp.Delete();
-      usage = inst.Usage();
-      expected[2] = init_usage[2];
-      expected[2 + 1] = init_usage[2 + 1];
-      REQUIRE(usage == expected);
-   }
-}
-
 TEST_CASE("Resource Aliasing", "[Resource Manager][GPU]")
 {
    Memory<int> tmp(100, MemoryType::HOST, false);
@@ -67,6 +22,12 @@ TEST_CASE("Resource Aliasing", "[Resource Manager][GPU]")
    Memory<int> alias1 = tmp.CreateAlias(8, 11);
    // [50, 55)
    Memory<int> alias2 = tmp.CreateAlias(50, 5);
+   REQUIRE(alias0.HostRead() == hptr + 5);
+   REQUIRE(alias1.HostRead() == hptr + 8);
+   REQUIRE(alias2.HostRead() == hptr + 50);
+   REQUIRE(alias0.Capacity() == 5);
+   REQUIRE(alias1.Capacity() == 11);
+   REQUIRE(alias2.Capacity() == 5);
    {
       auto ptr = alias0.Write(true);
       REQUIRE(ptr != nullptr);
