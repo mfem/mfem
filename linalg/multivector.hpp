@@ -15,6 +15,8 @@
 #include "../general/array.hpp"
 #include "vector.hpp"
 #include <vector>
+#include <array>
+#include <variant>
 
 namespace mfem
 {
@@ -25,11 +27,18 @@ namespace mfem
     - the data for the individual Vector blocks does not need to be part of one
       big contiguous memory allocation;
     - this class does not inherit from class Vector (as a consequence of the
-      first bullet). */
+      first bullet).
+
+    Internally, each Vector block is represented as either:
+    - (default) a Vector object constructed and owned by this class; this
+      object, in turn, as any Vector object, can own its Memory allocation or
+      refer to a sub-Memory of another Memory object; or
+    - a pointer to an externally allocated Vector or classes derived from
+      Vector. */
 class MultiVector
 {
 private:
-   std::vector<Vector> blocks;
+   std::vector<std::variant<Vector,Vector*>> blocks;
 
 public:
    /// Create an empty MultiVector with zero blocks.
@@ -54,26 +63,43 @@ public:
    MultiVector(const Array<int> &vector_sizes, MemoryType mt);
 
    /** @brief Construct a MultiVector referencing data within a given monolithic
-       Vector @a base. */
+       Vector @a base.
+
+       With this constructor, the Memory flags of @a base and of the individual
+       Vector blocks may need to be explicitly synchronized when data is moved
+       between host and device. */
    MultiVector(Vector &base, const Array<int> &vector_sizes);
 
-   /** @brief Construct a MultiVector referencing the data of multiple Vectors
-       given as arguments.
+   /** @brief Construct a MultiVector referencing multiple Vectors given as
+       arguments.
 
        The VectorTypes reference arguments are expected to be static_cast-able
        to (Vector &) which is the case if the types are derived from Vector,
-       e.g. HypreParVector, GridFunction, etc. */
+       e.g. HypreParVector, GridFunction, etc.
+
+       With this constructor, operations on individual Vector blocks are
+       performed directly on the objects @a vs. In particular, there is no need
+       to synchronize the Memory flags of @a vs and the ones of the individual
+       Vector blocks when data is moved between host and device. */
    template <typename... VectorTypes,
              std::enable_if_t<
                 std::conjunction_v<
                    std::is_convertible<VectorTypes&,Vector&>...>, bool> = true>
    MultiVector(VectorTypes &...vs) { MakeRef(vs...); }
 
+   /// Return the number of Vectors in the MultiVector.
+   int NumBlocks() const { return blocks.size(); }
+
+   /** @brief Set the number of Vectors in the MultiVector. Existing Vector
+       blocks will remain unmodified. New Vector blocks will be default
+       initialized, i.e. they all have size zero. */
+   void SetNumBlocks(int num_blocks) { blocks.resize(num_blocks); }
+
    /// Read-write access to the i-th Vector.
-   Vector &operator[](int i) { return blocks[i]; }
+   inline Vector &operator[](int i);
 
    /// Read-only access to the i-th Vector.
-   const Vector &operator[](int i) const { return blocks[i]; }
+   inline const Vector &operator[](int i) const;
 
    /** @brief Update the MultiVector according to the given @a vector_sizes.
 
@@ -90,32 +116,82 @@ public:
    void SetSizes(const Array<int> &vector_sizes, MemoryType mt);
 
    /** @brief Update the MultiVector to reference data within a given monolithic
-       Vector @a base. */
+       Vector @a base.
+
+       After calling this method, the Memory flags of @a base and of the
+       individual Vector blocks may need to be explicitly synchronized when data
+       is moved between host and device.*/
    void MakeRef(Vector &base, const Array<int> &vector_sizes);
 
-   /** @brief Update the MultiVector to reference the data of multiple Vectors
-       given as arguments.
+   /** @brief Update the @a i-th MultiVector block to reference data within the
+       given monolithic Vector @a base at the given @a offset and with the given
+       @a size.
+
+       After calling this method, the Memory flags of @a base and of the @a i-th
+       Vector block may need to be explicitly synchronized when data is moved
+       between host and device.*/
+   inline void MakeRef(int i, Vector &base, int offset, int size)
+   {
+      blocks[i].emplace<0>(base, offset, size);
+   }
+
+   /** @brief Update the MultiVector to reference multiple Vectors given as
+       arguments.
 
        The VectorTypes reference arguments are expected to be static_cast-able
        to (Vector &) which is the case if the types are derived from Vector,
-       e.g. HypreParVector, GridFunction, etc. */
+       e.g. HypreParVector, GridFunction, etc.
+
+       After calling this method, operations on individual Vector blocks are
+       performed directly on the objects @a vs. In particular, there is no need
+       to synchronize the Memory flags of @a vs and the ones of the individual
+       Vector blocks when data is moved between host and device. */
    template <typename... VectorTypes,
              std::enable_if_t<
                 std::conjunction_v<
                    std::is_convertible<VectorTypes&,Vector&>...>, bool> = true>
-   void MakeRef(VectorTypes &...vs)
+   inline void MakeRef(VectorTypes &...vs);
+
+   /** @brief Update the @a i-th MultiVector block to reference the given
+       Vector @a v.
+
+       After calling this method, operations on the @a i-th Vector block are
+       performed directly on the Vector @a v. In particular, there is no need
+       to synchronize the Memory flags of @a v and the ones of the @a i-th
+       Vector blocks when data is moved between host and device. */
+   inline void MakeRef(int i, Vector &v) { blocks[i] = &v; }
+};
+
+// Inline and template methods
+
+inline Vector &MultiVector::operator[](int i)
+{
+   auto &bi = blocks[i];
+   return (bi.index() == 0) ? std::get<0>(bi) : *std::get<1>(bi);
+}
+
+inline const Vector &MultiVector::operator[](int i) const
+{
+   auto &bi = blocks[i];
+   return (bi.index() == 0) ? std::get<0>(bi) : *std::get<1>(bi);
+}
+
+template <typename... VectorTypes,
+          std::enable_if_t<
+             std::conjunction_v<
+                std::is_convertible<VectorTypes&,Vector&>...>, bool>>
+inline void MultiVector::MakeRef(VectorTypes &...vs)
+{
+   blocks.resize(sizeof...(vs));
+   if constexpr (sizeof...(vs) > 0)
    {
-      blocks.resize(sizeof...(vs));
-      if constexpr (sizeof...(vs) > 0)
+      const std::array vs_p{&static_cast<Vector&>(vs)...};
+      for (std::size_t i = 0; i < sizeof...(vs); i++)
       {
-         const std::array vs_p{&static_cast<Vector&>(vs)...};
-         for (std::size_t i = 0; i < sizeof...(vs); i++)
-         {
-            blocks[i].MakeRef(*vs_p[i], 0, vs_p[i]->Size());
-         }
+         blocks[i] = vs_p[i];
       }
    }
-};
+}
 
 } // namespace mfem
 

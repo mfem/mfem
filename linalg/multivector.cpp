@@ -34,7 +34,7 @@ void MultiVector::SetSizes(const Array<int> &vector_sizes)
    blocks.resize(vector_sizes.Size());
    for (int i = 0; i < vector_sizes.Size(); i++)
    {
-      blocks[i].SetSize(vector_sizes[i]);
+      operator[](i).SetSize(vector_sizes[i]);
    }
 }
 
@@ -43,7 +43,7 @@ void MultiVector::SetSizes(const Array<int> &vector_sizes, MemoryType mt)
    blocks.resize(vector_sizes.Size());
    for (int i = 0; i < vector_sizes.Size(); i++)
    {
-      blocks[i].SetSize(vector_sizes[i], mt);
+      operator[](i).SetSize(vector_sizes[i], mt);
    }
 }
 
@@ -52,7 +52,7 @@ void MultiVector::MakeRef(Vector &base, const Array<int> &vector_sizes)
    blocks.resize(vector_sizes.Size());
    for (int offset = 0, i = 0; i < vector_sizes.Size(); i++)
    {
-      blocks[i].MakeRef(base, offset, vector_sizes[i]);
+      blocks[i].emplace<0>(base, offset, vector_sizes[i]);
       offset += vector_sizes[i];
    }
 }
