@@ -4913,12 +4913,12 @@ void TMOP_Integrator::AssembleElemGradAdaptLim(const FiniteElement &el,
          for (int j = 0; j <= i; j++)
          {
             const int jdof = j % dof, jdim = j / dof;
-            const real_t entry =
-               w * ( 2.0 * adapt_lim_gf_grad_q(idim) * shape(idof) *
-                     /* */ adapt_lim_gf_grad_q(jdim) * shape(jdof) +
-                     2.0 * (adapt_lim_gf_q(q) - adapt_lim_gf0_q(q)) *
-                     adapt_lim_gf_hess_q(idim, jdim) * shape(idof) * shape(jdof)) /
-                   adapt_lim_delta_max / adapt_lim_delta_max;
+            // const real_t entry =
+            //         ( 2.0 * adapt_lim_gf_grad_q(idim) * shape(idof) *
+            //          /* */ adapt_lim_gf_grad_q(jdim) * shape(jdof) +
+            //          0.0 * 2.0 * (adapt_lim_gf_q(q)) *
+            //                       adapt_lim_gf_hess_q(idim, jdim) * shape(idof) * shape(jdof));
+            real_t entry = shape(idof) * shape(jdof);
             mat(i, j) += entry;
             if (i != j) { mat(j, i) += entry; }
          }

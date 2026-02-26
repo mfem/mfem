@@ -228,6 +228,14 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
             PA.C0(q + e * PA.nq) = lim_coeff->Eval(*T, ir.IntPoint(q));
          }
       }
+
+      if (PA.ALC.Size() > 1)
+      {
+         for (int q = 0; q < PA.nq; ++q)
+         {
+            PA.ALC(q + e * PA.nq) = adapt_lim_coeff->Eval(*T, ir.IntPoint(q));
+         }
+      }
    }
 
    delete T;
