@@ -14,14 +14,6 @@
 #include "../gridfunc.hpp"
 #include "../../linalg/dtensor.hpp"
 
-#ifdef NVTX_DEBUG_HPP
-#undef NVTX_COLOR
-#define NVTX_COLOR ::nvtx::kOlive
-#include NVTX_DEBUG_HPP
-#else
-#define dbg(...)
-#endif
-
 namespace mfem
 {
 
@@ -482,10 +474,8 @@ void TMOP_Integrator::AddMultGradPA(const Vector &re, Vector &ce) const
 
    if (PA.dim == 2)
    {
-      db1();
-      AddMultGradPA_2D(re, ce); // ✅
-      // db1("no AddMultGradPA_2D");
-      // if (lim_coeff) { assert(false); AddMultGradPA_C0_2D(re, ce); }
+      AddMultGradPA_2D(re, ce);
+      if (lim_coeff) { AddMultGradPA_C0_2D(re, ce); }
       if (adapt_lim_gf) { AddMultGradPA_AdaptLim_2D(re, ce); }
    }
 

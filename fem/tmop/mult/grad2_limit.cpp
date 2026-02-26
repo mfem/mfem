@@ -77,19 +77,19 @@ void TMOP_AddMultGradPA_C0_2D(const int NE,
 
 // Gradient action for AdaptLim limiting (2D)
 template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
-void TMOP_AddMultGradPA_AdaptLim_2D(const real_t lim_normal_,
-                                    const real_t adapt_lim_delta_max_,
-                                    const bool const_coeff_,
-                                    const DeviceTensor<3, const real_t> &ALC_,
+void TMOP_AddMultGradPA_AdaptLim_2D(const real_t lim_normal,
+                                    const real_t adapt_lim_delta_max,
+                                    const bool const_coeff,
+                                    const DeviceTensor<3, const real_t> &ALC,
                                     const int NE,
-                                    const DeviceTensor<5, const real_t> &J_,
+                                    const DeviceTensor<5, const real_t> &J,
                                     const ConstDeviceMatrix &W,
                                     const real_t *B,
                                     const DeviceTensor<4, const real_t> &R,
-                                    const DeviceTensor<4, const real_t> &ALF_grad_,
-                                    const DeviceTensor<5, const real_t> &ALF_hess_,
-                                    const ConstDeviceCube &ALF_,
-                                    const ConstDeviceCube &ALF0_,
+                                    const DeviceTensor<4, const real_t> &ALF_grad,
+                                    const DeviceTensor<5, const real_t> &ALF_hess,
+                                    const ConstDeviceCube &ALF,
+                                    const ConstDeviceCube &ALF0,
                                     DeviceTensor<4> &Y,
                                     const int d1d,
                                     const int q1d)
@@ -97,7 +97,6 @@ void TMOP_AddMultGradPA_AdaptLim_2D(const real_t lim_normal_,
    db1("MD1:{}, MQ1:{}, T_D1D:{}, T_Q1D:{}", MD1, MQ1, T_D1D, T_Q1D);
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   db1("D1D:{}, Q1D:{}", D1D, Q1D);
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
@@ -125,11 +124,9 @@ void TMOP_AddMultGradPA_AdaptLim_2D(const real_t lim_normal_,
 
       // kernels::internal::v_regs2d_t<2,MQ1> r00, r01;
 
-      // MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
-      for (int qy = 0; qy < Q1D; qy++)
+      MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
       {
-         // MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
-         for (int qx = 0; qx < Q1D; qx++)
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
          {
             // const real_t *Jtr = &J(0, 0, qx, qy, e);
             // const real_t detJtr = kernels::Det<2>(Jtr);
@@ -176,11 +173,8 @@ void TMOP_AddMultGradPA_AdaptLim_2D(const real_t lim_normal_,
             // r00(0, qy, qx) = 2.0 * (grad_alf[0] * R_q[0] * grad_alf[1] + 0.0 * (gf_val) * hess_R[0]);
             // r00(1, qy, qx) = 2.0 * (grad_alf[0] * R_q[1] * grad_alf[1] + 0.0 * (gf_val) * hess_R[1]);
 
-            // r00(0, qy, qx) = weight * (p0[0] + p0[1]);
-            // r00(1, qy, qx) = weight * (p0[0] + p0[1]);
-
-            r00[0][qy][qx] = p0[0] + p0[1];
-            r00[1][qy][qx] = p0[0] + p0[1];
+            r00(0, qy, qx) = weight * (p0[0] + p0[1]);
+            r00(1, qy, qx) = weight * (p0[0] + p0[1]);
          }
       }
       MFEM_SYNC_THREAD;
@@ -228,9 +222,6 @@ void TMOP_Integrator::AddMultGradPA_AdaptLim_2D(const Vector &R,
    const auto *B = PA.maps->B.Read();
 
    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q);
-   db1("PA.ir->GetWeights():{}\n",PA.ir->GetWeights());
-   db1("\x1b[33mPA.maps->B:{}",PA.maps->B);
-   // dbg("R:{}", R);
    const auto RR = Reshape(R.Read(), d, d, 2, NE);
    const auto ALF = Reshape(PA.ALF.Read(), d, d, NE);
    const auto ALF0 = Reshape(PA.ALF0.Read(), d, d, NE);

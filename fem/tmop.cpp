@@ -4790,88 +4790,46 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       const DenseMatrix &Jtr_q = Jtr(q);
       metric->SetTargetJacobian(Jtr_q);
       CalcInverse(Jtr_q, Jrt);
-      // weights(q) = (integ_over_target) ? ip.weight * Jtr_q.Det() : ip.weight;
-      weights(q) = ip.weight;
+      weights(q) = (integ_over_target) ? ip.weight * Jtr_q.Det() : ip.weight;
       real_t weight_m = weights(q) * metric_normal;
 
       el.CalcDShape(ip, DSh);
       Mult(DSh, Jrt, DS);
       MultAtB(PMatI, DS, Jpt);
 
-      // if (metric_coeff) { assert(false); weight_m *= metric_coeff->Eval(*Tpr, ip); }
+      if (metric_coeff) { weight_m *= metric_coeff->Eval(*Tpr, ip); }
 
-      // db1("No AssembleH");
-      metric->AssembleH(Jpt, DS, weight_m, elmat);  // ✅
+      metric->AssembleH(Jpt, DS, weight_m, elmat);
 
       // TODO: derivatives of adaptivity-based targets.
 
       if (lim_coeff)
       {
-         assert(false);
-         // el.CalcShape(ip, shape);
-         // // PMatI.MultTranspose(shape, p);
-         // // pos0.MultTranspose(shape, p0);
-         // weight_m = weights(q);// * lim_normal * lim_coeff->Eval(*Tpr, ip);
-         // // lim_func->Eval_d2(p, p0, d_vals(q), hess);
-         // for (int i = 0; i < dof; i++)
-         // {
-         //    const real_t w_shape_i = weight_m * shape(i);
-         //    for (int j = 0; j < dof; j++)
-         //    {
-         //       const real_t w = w_shape_i * shape(j);
-         //       for (int d1 = 0; d1 < dim; d1++)
-         //       {
-         //          for (int d2 = 0; d2 < dim; d2++)
-         //          {
-         //             elmat(d1*dof + i, d2*dof + j) += w * hess(d1, d2);
-         //          }
-         //       }
-         //    }
-         // }
+         el.CalcShape(ip, shape);
+         PMatI.MultTranspose(shape, p);
+         pos0.MultTranspose(shape, p0);
+         weight_m = weights(q) * lim_normal * lim_coeff->Eval(*Tpr, ip);
+         lim_func->Eval_d2(p, p0, d_vals(q), hess);
+         for (int i = 0; i < dof; i++)
+         {
+            const real_t w_shape_i = weight_m * shape(i);
+            for (int j = 0; j < dof; j++)
+            {
+               const real_t w = w_shape_i * shape(j);
+               for (int d1 = 0; d1 < dim; d1++)
+               {
+                  for (int d2 = 0; d2 < dim; d2++)
+                  {
+                     elmat(d1*dof + i, d2*dof + j) += w * hess(d1, d2);
+                  }
+               }
+            }
+         }
       }
    }
 
-   if (adapt_lim_gf)
-   {
-      dbg("adapt_lim_gf");
-
-      // w/o AssembleElemGradAdaptLim / AddMultGradPA_AdaptLim_2D
-      // Iteration :   0  (B r, r) = 3.44154e-07
-      // Iteration :   1  (B r, r) = 2.19637e-05
-      // Iteration :   2  (B r, r) = 1.21285e-05
-      // Iteration :   3  (B r, r) = 0.000313813
-      // Iteration :   4  (B r, r) = 0.000302679 ✅
-
-      // FA dim/dof wi, wj
-      // Iteration :   0  (B r, r) = 3.44154e-07
-      // Iteration :   1  (B r, r) = 2.19634e-05
-      // Iteration :   2  (B r, r) = 1.2128e-05
-      // Iteration :   3  (B r, r) = 0.000313615
-      // Iteration :   4  (B r, r) = 0.000302375
-
-      // FA w/o weights
-      // Iteration :   0  (B r, r) = 3.44154e-07
-      // Iteration :   1  (B r, r) = 2.19603e-05
-      // Iteration :   2  (B r, r) = 1.21229e-05
-      // Iteration :   3  (B r, r) = 0.000311623
-      // Iteration :   4  (B r, r) = 0.000299318
-
-      // PA w/ weight only
-      // Iteration :   1  (B r, r) = 2.19635e-05
-      // Iteration :   2  (B r, r) = 1.21282e-05
-      // Iteration :   3  (B r, r) = 0.000313695
-      // Iteration :   4  (B r, r) = 0.000302498
-
-      // PA w/o weights
-      // Iteration :   1  (B r, r) = 2.19615e-05
-      // Iteration :   2  (B r, r) = 1.2125e-05
-      // Iteration :   3  (B r, r) = 0.00031242
-      // Iteration :   4  (B r, r) = 0.000300538
-
-      db1("weights: {}", weights);
-      AssembleElemGradAdaptLim(el, *Tpr, ir, weights, elmat);
-   }
-   // if (surf_fit_gf || surf_fit_pos) { assert(false); AssembleElemGradSurfFit(el, *Tpr, elmat);}
+   if (adapt_lim_gf) { AssembleElemGradAdaptLim(el, *Tpr, ir, weights, elmat); }
+   if (surf_fit_gf || surf_fit_pos) { AssembleElemGradSurfFit(el, *Tpr, elmat); }
 
    delete Tpr;
 }
@@ -4915,74 +4873,63 @@ void TMOP_Integrator::AssembleElemVecAdaptLim(const FiniteElement &el,
 }
 
 void TMOP_Integrator::AssembleElemGradAdaptLim(const FiniteElement &el,
-                                               IsoparametricTransformation &Tpr_,
+                                               IsoparametricTransformation &Tpr,
                                                const IntegrationRule &ir,
                                                const Vector &weights,
                                                DenseMatrix &mat)
 {
    const int dof = el.GetDof(), dim = el.GetDim(), nqp = weights.Size();
-   Vector shape(dof);//, adapt_lim_gf_e, adapt_lim_gf_q, adapt_lim_gf0_q(nqp);
+   Vector shape(dof), adapt_lim_gf_e, adapt_lim_gf_q, adapt_lim_gf0_q(nqp);
 
-   // Array<int> dofs;
-   // adapt_lim_gf->FESpace()->GetElementDofs(Tpr.ElementNo, dofs);
-   // adapt_lim_gf->GetSubVector(dofs, adapt_lim_gf_e);
-   // adapt_lim_gf->GetValues(Tpr.ElementNo, ir, adapt_lim_gf_q);
-   // adapt_lim_gf0->GetValues(Tpr.ElementNo, ir, adapt_lim_gf0_q);
+   Array<int> dofs;
+   adapt_lim_gf->FESpace()->GetElementDofs(Tpr.ElementNo, dofs);
+   adapt_lim_gf->GetSubVector(dofs, adapt_lim_gf_e);
+   adapt_lim_gf->GetValues(Tpr.ElementNo, ir, adapt_lim_gf_q);
+   adapt_lim_gf0->GetValues(Tpr.ElementNo, ir, adapt_lim_gf0_q);
 
    // Project the gradient of adapt_lim_gf in the same space.
    // The FE coefficients of the gradient go in adapt_lim_gf_grad_e.
-   // DenseMatrix adapt_lim_gf_grad_e(dof, dim);
-   // DenseMatrix grad_phys; // This will be (dof x dim, dof).
-   // el.ProjectGrad(el, Tpr, grad_phys);
-   // Vector grad_ptr(adapt_lim_gf_grad_e.GetData(), dof*dim);
-   // grad_phys.Mult(adapt_lim_gf_e, grad_ptr);
+   DenseMatrix adapt_lim_gf_grad_e(dof, dim);
+   DenseMatrix grad_phys; // This will be (dof x dim, dof).
+   el.ProjectGrad(el, Tpr, grad_phys);
+   Vector grad_ptr(adapt_lim_gf_grad_e.GetData(), dof*dim);
+   grad_phys.Mult(adapt_lim_gf_e, grad_ptr);
 
    // Project the gradient of each gradient of adapt_lim_gf in the same space.
    // The FE coefficients of the second derivatives go in adapt_lim_gf_hess_e.
-   // DenseMatrix adapt_lim_gf_hess_e(dof*dim, dim);
+   DenseMatrix adapt_lim_gf_hess_e(dof*dim, dim);
    // Mult(grad_phys, adapt_lim_gf_grad_e, adapt_lim_gf_hess_e);
    // Reshape to be more convenient later (no change in the data).
-   // adapt_lim_gf_hess_e.SetSize(dof, dim*dim);
+   adapt_lim_gf_hess_e.SetSize(dof, dim*dim);
 
-   // Vector adapt_lim_gf_grad_q(dim);
-   // DenseMatrix adapt_lim_gf_hess_q(dim, dim);
+   Vector adapt_lim_gf_grad_q(dim);
+   DenseMatrix adapt_lim_gf_hess_q(dim, dim);
 
    db1("nqp: {}, dof: {}, dim: {}", nqp, dof, dim);
    for (int q = 0; q < nqp; q++)
    {
       const IntegrationPoint &ip = ir.IntPoint(q);
       el.CalcShape(ip, shape);
-      // dbg("shape: {}", shape);
 
-      // adapt_lim_gf_grad_e.MultTranspose(shape, adapt_lim_gf_grad_q);
-      // Vector gg_ptr(adapt_lim_gf_hess_q.GetData(), dim*dim);
-      // adapt_lim_gf_hess_e.MultTranspose(shape, gg_ptr);
+      adapt_lim_gf_grad_e.MultTranspose(shape, adapt_lim_gf_grad_q);
+      Vector gg_ptr(adapt_lim_gf_hess_q.GetData(), dim*dim);
+      adapt_lim_gf_hess_e.MultTranspose(shape, gg_ptr);
 
       // const real_t weight_q = weights(q);
       //* lim_normal * adapt_lim_coeff->Eval(Tpr, ip);
+      const real_t w = weights(q) * lim_normal * adapt_lim_coeff->Eval(Tpr, ip);
       for (int i = 0; i < dof * dim; i++)
       {
-         // const real_t wq_shape_i = weight_q * shape(i);
-         const int idof = i % dof;//, idim = i / dof;
+         const int idof = i % dof, idim = i / dof;
          for (int j = 0; j <= i; j++)
-            // for (int j = 0; j < dof; j++)
          {
-            // const real_t wq_shape_i_shape_j = wq_shape_i * shape(j);
-            const int jdof = j % dof;//, jdim = j / dof;
+            const int jdof = j % dof, jdim = j / dof;
             // const real_t entry =
             //         ( 2.0 * adapt_lim_gf_grad_q(idim) * shape(idof) *
             //          /* */ adapt_lim_gf_grad_q(jdim) * shape(jdof) +
             //          0.0 * 2.0 * (adapt_lim_gf_q(q)) *
             //                       adapt_lim_gf_hess_q(idim, jdim) * shape(idof) * shape(jdof));
-
-            // for (int d1 = 0; d1 < dim; d1++)
-            // {
-            //    for (int d2 = 0; d2 < dim; d2++)
-            //    {
-            //       mat(d1*dof + i, d2*dof + j) += wq_shape_i_shape_j;
-            //    }
-            // }
-            real_t entry = shape(idof) * shape(jdof);
+            real_t entry = w * shape(idof) * shape(jdof);
             mat(i, j) += entry;
             if (i != j) { mat(j, i) += entry; }
          }
