@@ -127,7 +127,7 @@ int main(int argc, char *argv[])
    }
 
    // Load mesh + complete any serial refinements
-   Mesh mesh("../../data/channel-bifurcation-2d.mesh");
+   Mesh mesh("../../../data/channel-bifurcation-2d.mesh");
    for (int lev = 0; lev < ctx.rs_levels; lev++)
    {
       mesh.UniformRefinement();

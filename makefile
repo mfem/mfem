@@ -794,7 +794,6 @@ status info:
 	$(info MFEM_MPI_NP            = $(MFEM_MPI_NP))
 	@true
 
-ASTYLE_BIN = astyle
 ASTYLE = $(ASTYLE_BIN) --options=$(SRC)config/mfem.astylerc
 ASTYLE_VER = "Artistic Style Version 3.1"
 FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,$(dir)/*.?pp)

@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "../general/communication.hpp"
+#include "../general/forall.hpp"
 #include "operator.hpp"
 #include "ode.hpp"
 
@@ -182,6 +183,23 @@ void ODESolver::Init(TimeDependentOperator &f_)
 {
    this->f = &f_;
    mem_type = GetMemoryType(f_.GetMemoryClass());
+}
+
+void ODESolver::ComputeSlopeFromState(const real_t dt, const Vector &u,
+                                      Vector &k)
+{
+   // k currently holds state u(t+dt),
+   // convert to slope k = du/dt ~= (u(t+dt)-u(t))/dt
+   const int usz = u.Size();
+   real_t fac = 1.0/dt;
+   auto d_u = u.Read();
+   auto d_k = k.ReadWrite();
+
+   mfem::forall(usz, [=] MFEM_HOST_DEVICE (int i)
+   {
+      d_k[i] -= d_u[i];
+      d_k[i] *= fac;
+   });
 }
 
 void ForwardEulerSolver::Init(TimeDependentOperator &f_)
@@ -629,6 +647,10 @@ void AdamsMoultonSolver::Step(Vector &x, real_t &t, real_t &dt)
       }
       state.ShiftStages();
       f->ImplicitSolve(a[0]*dt, x, state[0]);
+      if (f->ImplicitVarTypeIsState())
+      {
+         ComputeSlopeFromState(a[0]*dt, x, state[0]);
+      }
       x.Add(a[0]*dt, state[0]);
       t += dt;
    }
@@ -661,7 +683,15 @@ void BackwardEulerSolver::Step(Vector &x, real_t &t, real_t &dt)
 {
    f->SetTime(t + dt);
    f->ImplicitSolve(dt, x, k); // solve for k: k = f(x + dt*k, t + dt)
-   x.Add(dt, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      x = k; // x = u_{i+1}
+   }
+   else
+   {
+      x.Add(dt, k);
+   }
+
    t += dt;
 }
 
@@ -676,7 +706,16 @@ void ImplicitMidpointSolver::Step(Vector &x, real_t &t, real_t &dt)
 {
    f->SetTime(t + dt/2);
    f->ImplicitSolve(dt/2, x, k);
-   x.Add(dt, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      x.Neg();
+      x.Add(2.0, k);
+   }
+   else
+   {
+      x.Add(dt, k);
+   }
+
    t += dt;
 }
 
@@ -718,11 +757,19 @@ void SDIRK23Solver::Step(Vector &x, real_t &t, real_t &dt)
    // note: with gamma_opt=3, both solve are outside [t,t+dt] since a>1
    f->SetTime(t + gamma*dt);
    f->ImplicitSolve(gamma*dt, x, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      ComputeSlopeFromState(gamma*dt, x, k);
+   }
    add(x, (1.-2.*gamma)*dt, k, y); // y = x + (1-2*gamma)*dt*k
    x.Add(dt/2, k);
 
    f->SetTime(t + (1.-gamma)*dt);
    f->ImplicitSolve(gamma*dt, y, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      ComputeSlopeFromState(gamma*dt, y, k);
+   }
    x.Add(dt/2, k);
    t += dt;
 }
@@ -749,17 +796,29 @@ void SDIRK34Solver::Step(Vector &x, real_t &t, real_t &dt)
 
    f->SetTime(t + a*dt);
    f->ImplicitSolve(a*dt, x, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      ComputeSlopeFromState(a*dt, x, k);
+   }
    add(x, (0.5-a)*dt, k, y);
    add(x,  (2.*a)*dt, k, z);
    x.Add(b*dt, k);
 
    f->SetTime(t + dt/2);
    f->ImplicitSolve(a*dt, y, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      ComputeSlopeFromState(a*dt, y, k);
+   }
    z.Add((1.-4.*a)*dt, k);
    x.Add((1.-2.*b)*dt, k);
 
    f->SetTime(t + (1.-a)*dt);
    f->ImplicitSolve(a*dt, z, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      ComputeSlopeFromState(a*dt, z, k);
+   }
    x.Add(b*dt, k);
    t += dt;
 }
@@ -785,15 +844,27 @@ void SDIRK33Solver::Step(Vector &x, real_t &t, real_t &dt)
 
    f->SetTime(t + a*dt);
    f->ImplicitSolve(a*dt, x, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      ComputeSlopeFromState(a*dt, x, k);
+   }
    add(x, (c-a)*dt, k, y);
    x.Add(b*dt, k);
 
    f->SetTime(t + c*dt);
    f->ImplicitSolve(a*dt, y, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      ComputeSlopeFromState(a*dt, y, k);
+   }
    x.Add((1.0-a-b)*dt, k);
 
    f->SetTime(t + dt);
    f->ImplicitSolve(a*dt, x, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      ComputeSlopeFromState(a*dt, x, k);
+   }
    x.Add(a*dt, k);
    t += dt;
 }
@@ -818,6 +889,10 @@ void TrapezoidalRuleSolver::Step(Vector &x, real_t &t, real_t &dt)
 
    f->SetTime(t + dt);
    f->ImplicitSolve(dt/2.0, y, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      ComputeSlopeFromState(0.5*dt, y, k);
+   }
    x.Add(dt/2.0, k);
    t += dt;
 }
@@ -848,11 +923,19 @@ void ESDIRK32Solver::Step(Vector &x, real_t &t, real_t &dt)
 
    f->SetTime(t + (2.0*a)*dt);
    f->ImplicitSolve(a*dt, y, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      ComputeSlopeFromState(a*dt, y, k);
+   }
    z.Add(b*dt, k);
    x.Add(b*dt, k);
 
    f->SetTime(t + dt);
    f->ImplicitSolve(a*dt, z, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      ComputeSlopeFromState(a*dt, z, k);
+   }
    x.Add(a*dt, k);
    t += dt;
 }
@@ -885,11 +968,19 @@ void ESDIRK33Solver::Step(Vector &x, real_t &t, real_t &dt)
 
    f->SetTime(t + (2.0*a)*dt);
    f->ImplicitSolve(a*dt, y, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      ComputeSlopeFromState(a*dt, y, k);
+   }
    z.Add(b*dt, k);
    x.Add(b_2*dt, k);
 
    f->SetTime(t + dt);
    f->ImplicitSolve(a*dt, z, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      ComputeSlopeFromState(a*dt, z, k);
+   }
    x.Add(b_3*dt, k);
    t += dt;
 }
@@ -955,6 +1046,10 @@ void GeneralizedAlphaSolver::Step(Vector &x, real_t &t, real_t &dt)
    real_t dt_eff = (gamma*alpha_f/alpha_m)*dt;
    f->SetTime(t + alpha_f*dt);
    f->ImplicitSolve(dt_eff, y, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      ComputeSlopeFromState(dt_eff, y, k);
+   }
 
    // Update x and xdot
    x.Add((1.0 - (gamma/alpha_m))*dt, state[0]);
@@ -1116,8 +1211,8 @@ void SecondOrderODESolver::EulerStep(Vector &x, Vector &dxdt, real_t &t,
    f->SetTime(t + dt);
    f->ImplicitSolve(0.5*dt*dt, dt, x, dxdt, state[0]);
 
-   x   .Add(0.5*dt*dt, state[0]);
-   dxdt.Add(dt,    state[0]);
+   x.Add(0.5*dt*dt, state[0]);
+   dxdt.Add(dt, state[0]);
    t += dt;
 }
 
@@ -1203,8 +1298,8 @@ void NewmarkSolver::Step(Vector &x, Vector &dxdt, real_t &t, real_t &dt)
    f->SetTime(t + dt);
    f->ImplicitSolve(fac3*dt*dt, fac4*dt, x, dxdt, state[0]);
 
-   x   .Add(fac3*dt*dt, state[0]);
-   dxdt.Add(fac4*dt,    state[0]);
+   x.Add(fac3*dt*dt, state[0]);
+   dxdt.Add(fac4*dt, state[0]);
    t += dt;
 }
 
