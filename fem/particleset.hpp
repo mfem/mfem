@@ -399,12 +399,14 @@ protected:
     *  @param[in] field_names_        Array of field names.
     *  @param[in] num_tags            Number of tags to register.
     *  @param[in] tag_names_          Array of tag names.
+    *  @param[in] use_device          Use device memory for particle fields.
     */
    ParticleSet(int id_stride_, IDType id_counter_, int num_particles, int dim,
                Ordering::Type coords_ordering, const Array<int> &field_vdims,
                const Array<Ordering::Type> &field_orderings,
                const Array<const char*> &field_names_, int num_tags,
-               const Array<const char*> &tag_names_);
+               const Array<const char*> &tag_names_,
+               bool use_device);
 
 public:
 
@@ -413,9 +415,12 @@ public:
     *  @param[in] num_particles       Number of particles to initialize.
     *  @param[in] dim                 Particle spatial dimension.
     *  @param[in] coords_ordering     Ordering of coordinates.
+    *  @param[in] use_device          (Optional) Use device memory for particle
+    *                                 fields.
     */
    ParticleSet(int num_particles, int dim,
-               Ordering::Type coords_ordering=Ordering::byVDIM);
+               Ordering::Type coords_ordering=Ordering::byVDIM,
+               bool use_device=false);
 
    /** @brief Construct a serial ParticleSet with specified fields and tags at
     *  construction.
@@ -426,9 +431,12 @@ public:
     *  @param[in] num_tags            Number of tags to register.
     *  @param[in] all_ordering        (Optional) Ordering of coordinates and
     *                                 field ParticleVector.
+    *  @param[in] use_device          (Optional) Use device memory for particle
+    *                                 fields.
     */
    ParticleSet(int num_particles, int dim, const Array<int> &field_vdims,
-               int num_tags, Ordering::Type all_ordering=Ordering::byVDIM);
+               int num_tags, Ordering::Type all_ordering=Ordering::byVDIM,
+               bool use_device=false);
 
    /** @brief Construct a serial ParticleSet with specified fields and tags at
     *  construction, with names.
@@ -441,11 +449,14 @@ public:
     *  @param[in] tag_names_          Array of tag names.
     *  @param[in] all_ordering        (Optional) Ordering of coordinates and
     *                                 field ParticleVector.
+    *  @param[in] use_device          (Optional) Use device memory for particle
+    *                                 fields.
     */
    ParticleSet(int num_particles, int dim, const Array<int> &field_vdims,
                const Array<const char*> &field_names_, int num_tags,
                const Array<const char*> &tag_names_,
-               Ordering::Type all_ordering=Ordering::byVDIM);
+               Ordering::Type all_ordering=Ordering::byVDIM,
+               bool use_device=false);
 
    /** @brief Comprehensive serial constructor of ParticleSet.
     *
@@ -457,12 +468,15 @@ public:
     *  @param[in] field_names_        Array of field names.
     *  @param[in] num_tags            Number of tags to register.
     *  @param[in] tag_names_          Array of tag names.
+    *  @param[in] use_device          (Optional) Use device memory for particle
+    *                                 fields.
     */
    ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering,
                const Array<int> &field_vdims,
                const Array<Ordering::Type> &field_orderings,
                const Array<const char*> &field_names_, int num_tags,
-               const Array<const char*> &tag_names_);
+               const Array<const char*> &tag_names_,
+               bool use_device=false);
 
 #ifdef MFEM_USE_MPI
    /** @brief Construct a parallel ParticleSet.
@@ -471,9 +485,12 @@ public:
     *  @param[in] rank_num_particles  Number of particles to initialize.
     *  @param[in] dim                 Particle spatial dimension.
     *  @param[in] coords_ordering     (Optional) Ordering of coordinates.
+    *  @param[in] use_device          (Optional) Use device memory for particle
+    *                                 fields.
     */
    ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
-               Ordering::Type coords_ordering=Ordering::byVDIM);
+               Ordering::Type coords_ordering=Ordering::byVDIM,
+               bool use_device=false);
 
    /** @brief Construct a parallel ParticleSet with specified fields and tags
     *  at construction.
@@ -485,10 +502,13 @@ public:
     *  @param[in] num_tags            Number of tags to register.
     *  @param[in] all_ordering        (Optional) Ordering of coordinates and
     *                                 field ParticleVector.
+    *  @param[in] use_device          (Optional) Use device memory for particle
+    *                                 fields.
     */
    ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
                const Array<int> &field_vdims, int num_tags,
-               Ordering::Type all_ordering=Ordering::byVDIM);
+               Ordering::Type all_ordering=Ordering::byVDIM,
+               bool use_device=false);
 
    /** @brief Construct a parallel ParticleSet with specified fields and tags
     *  at construction, with names (for PrintCSV()).
@@ -502,12 +522,15 @@ public:
     *  @param[in] tag_names_          Array of tag names.
     *  @param[in] all_ordering        (Optional) Ordering of coordinates and
     *                                 field ParticleVector.
+    *  @param[in] use_device          (Optional) Use device memory for particle
+    *                                 fields.
     */
    ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
                const Array<int> &field_vdims,
                const Array<const char*> &field_names_,
                int num_tags, const Array<const char*> &tag_names_,
-               Ordering::Type all_ordering=Ordering::byVDIM);
+               Ordering::Type all_ordering=Ordering::byVDIM,
+               bool use_device=false);
 
    /** @brief Comprehensive parallel constructor of ParticleSet.
     *
@@ -520,12 +543,15 @@ public:
     *  @param[in] field_names_        Array of field names.
     *  @param[in] num_tags            Number of tags to register.
     *  @param[in] tag_names_          Array of tag names.
+    *  @param[in] use_device          (Optional) Use device memory for particle
+    *                                 fields.
     */
    ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
                Ordering::Type coords_ordering, const Array<int> &field_vdims,
                const Array<Ordering::Type> &field_orderings,
                const Array<const char*> &field_names_, int num_tags,
-               const Array<const char*> &tag_names_);
+               const Array<const char*> &tag_names_,
+               bool use_device=false);
 
    /// Get the MPI communicator for this ParticleSet.
    MPI_Comm GetComm() const { return comm; };
@@ -544,11 +570,12 @@ public:
     *  @param[in] vdim             Vector dimension of the field.
     *  @param[in] field_ordering   (Optional) Ordering::Type of the field.
     *  @param[in] field_name       (Optional) Name of the field.
+    *  @param[in] use_device       (Optional) Use device memory for field.
     *
     *  @return Index of the newly-added field.
     */
    int AddField(int vdim, Ordering::Type field_ordering=Ordering::byVDIM,
-                const char* field_name=nullptr);
+                const char* field_name=nullptr, bool use_device=false);
 
    /** @brief Add a field to the ParticleSet.
     *
@@ -556,9 +583,10 @@ public:
     *  for convenience
     */
    int AddNamedField(int vdim, const char* field_name,
-                     Ordering::Type field_ordering=Ordering::byVDIM)
+                     Ordering::Type field_ordering=Ordering::byVDIM,
+                     bool use_device=false)
    {
-      return AddField(vdim, field_ordering, field_name);
+      return AddField(vdim, field_ordering, field_name, use_device);
    }
 
    /** @brief Add a tag to the ParticleSet.
