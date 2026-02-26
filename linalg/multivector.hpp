@@ -57,6 +57,15 @@ public:
        Vector @a base. */
    MultiVector(Vector &base, const Array<int> &vector_sizes);
 
+   /** @brief Construct a MultiVector referencing the data of multiple Vectors
+       given as arguments.
+
+       The VectorTypes reference arguments are expected to be static_cast-able
+       to (Vector &) which is the case if the types are derived from Vector,
+       e.g. HypreParVector, GridFunction, etc. */
+   template <typename... VectorTypes>
+   MultiVector(VectorTypes &...vs) { MakeRef(vs...); }
+
    /// Read-write access to the i-th Vector.
    Vector &operator[](int i) { return blocks[i]; }
 
@@ -80,6 +89,26 @@ public:
    /** @brief Update the MultiVector to reference data within a given monolithic
        Vector @a base. */
    void MakeRef(Vector &base, const Array<int> &vector_sizes);
+
+   /** @brief Update the MultiVector to reference the data of multiple Vectors
+       given as arguments.
+
+       The VectorTypes reference arguments are expected to be static_cast-able
+       to (Vector &) which is the case if the types are derived from Vector,
+       e.g. HypreParVector, GridFunction, etc. */
+   template <typename... VectorTypes>
+   void MakeRef(VectorTypes &...vs)
+   {
+      blocks.resize(sizeof...(vs));
+      if constexpr (sizeof...(vs) > 0)
+      {
+         const std::array vs_p{&static_cast<Vector&>(vs)...};
+         for (std::size_t i = 0; i < sizeof...(vs); i++)
+         {
+            blocks[i].MakeRef(*vs_p[i], 0, vs_p[i]->Size());
+         }
+      }
+   }
 };
 
 } // namespace mfem
