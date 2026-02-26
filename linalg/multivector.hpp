@@ -63,7 +63,10 @@ public:
        The VectorTypes reference arguments are expected to be static_cast-able
        to (Vector &) which is the case if the types are derived from Vector,
        e.g. HypreParVector, GridFunction, etc. */
-   template <typename... VectorTypes>
+   template <typename... VectorTypes,
+             std::enable_if_t<
+                std::conjunction_v<
+                   std::is_convertible<VectorTypes&,Vector&>...>, bool> = true>
    MultiVector(VectorTypes &...vs) { MakeRef(vs...); }
 
    /// Read-write access to the i-th Vector.
@@ -96,7 +99,10 @@ public:
        The VectorTypes reference arguments are expected to be static_cast-able
        to (Vector &) which is the case if the types are derived from Vector,
        e.g. HypreParVector, GridFunction, etc. */
-   template <typename... VectorTypes>
+   template <typename... VectorTypes,
+             std::enable_if_t<
+                std::conjunction_v<
+                   std::is_convertible<VectorTypes&,Vector&>...>, bool> = true>
    void MakeRef(VectorTypes &...vs)
    {
       blocks.resize(sizeof...(vs));
