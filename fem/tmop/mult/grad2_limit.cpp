@@ -15,6 +15,14 @@
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
 
+#ifdef NVTX_DEBUG_HPP
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kSpringGreen
+#include NVTX_DEBUG_HPP
+#else
+#define dbg(...)
+#endif
+
 namespace mfem
 {
 
@@ -69,31 +77,33 @@ void TMOP_AddMultGradPA_C0_2D(const int NE,
 
 // Gradient action for AdaptLim limiting (2D)
 template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
-void TMOP_AddMultGradPA_AdaptLim_2D(const real_t lim_normal,
-                                   const real_t adapt_lim_delta_max,
-                                   const bool const_coeff,
-                                   const DeviceTensor<3, const real_t> &ALC,
-                                   const int NE,
-                                   const DeviceTensor<5, const real_t> &J,
-                                   const ConstDeviceMatrix &W,
-                                   const real_t *b,
-                                   const DeviceTensor<4, const real_t> &R,
-                                   const DeviceTensor<4, const real_t> &ALF_grad,
-                                   const DeviceTensor<5, const real_t> &ALF_hess,
-                                   const ConstDeviceCube &ALF,
-                                   const ConstDeviceCube &ALF0,
-                                   DeviceTensor<4> &Y,
-                                   const int d1d,
-                                   const int q1d)
+void TMOP_AddMultGradPA_AdaptLim_2D(const real_t lim_normal_,
+                                    const real_t adapt_lim_delta_max_,
+                                    const bool const_coeff_,
+                                    const DeviceTensor<3, const real_t> &ALC_,
+                                    const int NE,
+                                    const DeviceTensor<5, const real_t> &J_,
+                                    const ConstDeviceMatrix &W,
+                                    const real_t *B,
+                                    const DeviceTensor<4, const real_t> &R,
+                                    const DeviceTensor<4, const real_t> &ALF_grad_,
+                                    const DeviceTensor<5, const real_t> &ALF_hess_,
+                                    const ConstDeviceCube &ALF_,
+                                    const ConstDeviceCube &ALF0_,
+                                    DeviceTensor<4> &Y,
+                                    const int d1d,
+                                    const int q1d)
 {
+   db1("MD1:{}, MQ1:{}, T_D1D:{}, T_Q1D:{}", MD1, MQ1, T_D1D, T_Q1D);
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   db1("D1D:{}, Q1D:{}", D1D, Q1D);
 
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       MFEM_SHARED real_t sB[MD1][MQ1];
       MFEM_SHARED real_t smem[MQ1][MQ1];
-      kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
+      kernels::internal::LoadMatrix(D1D, Q1D, B, sB);
 
       // Load ALF and ALF0 values at quadrature points
       // kernels::internal::s_regs2d_t<MQ1> ralf_val_dof, ralf_val_quad;
@@ -105,49 +115,59 @@ void TMOP_AddMultGradPA_AdaptLim_2D(const real_t lim_normal,
       // kernels::internal::Eval2d(D1D, Q1D, smem, sB, ralf0_val_dof, ralf0_val_quad);
 
       // Load input vector R (the direction for Hessian action)
-      kernels::internal::v_regs2d_t<2,MQ1> r_R_dof, r_R_quad;
-      kernels::internal::LoadDofs2d(e, D1D, R, r_R_dof);
-      kernels::internal::Eval2d(D1D, Q1D, smem, sB, r_R_dof, r_R_quad);
+      // kernels::internal::v_regs2d_t<2,MQ1> r_R_dof, r_R_quad;
+      // kernels::internal::LoadDofs2d(e, D1D, R, r_R_dof);
+      // kernels::internal::Eval2d(D1D, Q1D, smem, sB, r_R_dof, r_R_quad);
 
       kernels::internal::v_regs2d_t<2,MQ1> r00, r01;
+      kernels::internal::LoadDofs2d(e, D1D, R, r00);
+      kernels::internal::Eval2d(D1D, Q1D, smem, sB, r00, r01);
 
-      MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+      // kernels::internal::v_regs2d_t<2,MQ1> r00, r01;
+
+      // MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+      for (int qy = 0; qy < Q1D; qy++)
       {
-         MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+         // MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+         for (int qx = 0; qx < Q1D; qx++)
          {
-            const real_t *Jtr = &J(0, 0, qx, qy, e);
-            const real_t detJtr = kernels::Det<2>(Jtr);
-            const real_t weight = W(qx, qy) * detJtr;
+            // const real_t *Jtr = &J(0, 0, qx, qy, e);
+            // const real_t detJtr = kernels::Det<2>(Jtr);
+            const real_t weight = W(qx, qy);// * detJtr;
+            // db1("detJtr:{}", detJtr);
 
             // const real_t gf_val = ralf_val_quad(qy, qx);
             // const real_t gf0_val = ralf0_val_quad(qy, qx);
 
             // Load precomputed gradient at this quadrature point
-            real_t grad_alf[2] = { ALF_grad(0, qx, qy, e),
-                                   ALF_grad(1, qx, qy, e) };
+            // real_t grad_alf[2] = { ALF_grad(0, qx, qy, e),
+            //                        ALF_grad(1, qx, qy, e)
+            //                      };
 
             // Load precomputed Hessian at this quadrature point
-            real_t hess_alf[2][2];
-            for (int i = 0; i < 2; i++)
-            {
-               for (int j = 0; j < 2; j++)
-               {
-                  hess_alf[i][j] = ALF_hess(i, j, qx, qy, e);
-               }
-            }
+            // real_t hess_alf[2][2];
+            // for (int i = 0; i < 2; i++)
+            // {
+            //    for (int j = 0; j < 2; j++)
+            //    {
+            //       hess_alf[i][j] = ALF_hess(i, j, qx, qy, e);
+            //    }
+            // }
 
             // Get input vector at this quad point
-            const real_t R_q[2] = { r_R_quad(0, qy, qx), r_R_quad(1, qy, qx) };
+            // const real_t R_q[2] = { r_R_quad(0, qy, qx), r_R_quad(1, qy, qx) };
+            const real_t p0[2] = { r01(0, qy, qx), r01(1, qy, qx) };
+            // const real_t p0[2] = { r01[0][qy][qx], r01[1][qy][qx] };
 
             // Compute Hessian action:
             // H*R = 2.0 / delta_max^2 * (grad_alf . R_q * grad_alf + (gf_val - gf0_val) * Hess_alf * R_q)
             // const real_t coeff = const_coeff ? ALC(0, 0, 0) : ALC(qx, qy, e);
             // const real_t factor = weight * lim_normal * coeff *
             //                       2.0 / (adapt_lim_delta_max * adapt_lim_delta_max);
-            
+
             // // First term: grad_alf . R_q (outer product contribution)
             // const real_t grad_dot_R = grad_alf[0] * R_q[0] + grad_alf[1] * R_q[1];
-            
+
             // Second term: Hess_alf * R_q
             // real_t hess_R[2];
             // hess_R[0] = hess_alf[0][0] * R_q[0] + hess_alf[0][1] * R_q[1];
@@ -155,8 +175,10 @@ void TMOP_AddMultGradPA_AdaptLim_2D(const real_t lim_normal,
 
             // r00(0, qy, qx) = 2.0 * (grad_alf[0] * R_q[0] * grad_alf[1] + 0.0 * (gf_val) * hess_R[0]);
             // r00(1, qy, qx) = 2.0 * (grad_alf[0] * R_q[1] * grad_alf[1] + 0.0 * (gf_val) * hess_R[1]);
-            r00(0, qy, qx) = R_q[0];
-            r00(1, qy, qx) = R_q[1];
+            r00(0, qy, qx) = weight * p0[0];
+            r00(1, qy, qx) = weight * p0[1];
+            // r00[0][qy][qx] = weight * p0[0];
+            // r00[1][qy][qx] = weight * p0[1];
          }
       }
       MFEM_SYNC_THREAD;
@@ -186,7 +208,8 @@ void TMOP_Integrator::AddMultGradPA_C0_2D(const Vector &R, Vector &C) const
 MFEM_TMOP_MDQ_REGISTER(TMOPMultGradAdaptLim, TMOP_AddMultGradPA_AdaptLim_2D);
 MFEM_TMOP_MDQ_SPECIALIZE(TMOPMultGradAdaptLim);
 
-void TMOP_Integrator::AddMultGradPA_AdaptLim_2D(const Vector &R, Vector &C) const
+void TMOP_Integrator::AddMultGradPA_AdaptLim_2D(const Vector &R,
+                                                Vector &C) const
 {
    const real_t ln = lim_normal;
    const real_t delta_max = PA.al_delta;
@@ -201,7 +224,11 @@ void TMOP_Integrator::AddMultGradPA_AdaptLim_2D(const Vector &R, Vector &C) cons
                     : Reshape(PA.ALC.Read(), q, q, NE);
    const auto J = Reshape(PA.Jtr.Read(), 2, 2, q, q, NE);
    const auto *B = PA.maps->B.Read();
+
    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q);
+   db1("PA.ir->GetWeights():{}\n",PA.ir->GetWeights());
+   db1("\x1b[33mPA.maps->B:{}",PA.maps->B);
+   // dbg("R:{}", R);
    const auto RR = Reshape(R.Read(), d, d, 2, NE);
    const auto ALF = Reshape(PA.ALF.Read(), d, d, NE);
    const auto ALF0 = Reshape(PA.ALF0.Read(), d, d, NE);
