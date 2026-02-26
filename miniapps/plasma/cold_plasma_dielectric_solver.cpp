@@ -262,7 +262,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
                      Array<ComplexCoefficientByAttr*> & sbcs,
                      void (*j_r_src)(const Vector&, Vector&),
                      void (*j_i_src)(const Vector&, Vector&),
-                     bool vis_u, bool pa)
+                     bool vis_u, bool pa, bool dim2)
    : myid_(0),
      num_procs_(1),
      order_(order),
@@ -274,6 +274,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      ownsEtaInv_(etaInvCoef == NULL),
      vis_u_(vis_u),
      pa_(pa),
+     dim2_(dim2),
      omega_(omega),
      pmesh_(&pmesh),
      L2FESpace_(NULL),
@@ -2285,6 +2286,7 @@ CPDSolver::Solve()
    }
 
    double global_diss = GetGlobalDissipation();
+   double mesh_vol = GetVolume();
    double global_electron_diss = GetElectronDissipation();
    double global_ion1_diss = GetIon1Dissipation();
    double global_ion2_diss = 0.0;
@@ -2297,7 +2299,15 @@ CPDSolver::Solve()
 
    if (myid_ == 0)
    {
-      cout << "Global Total Dissipation: " << global_diss << " W" << endl;
+      if (dim2_)
+      {
+         cout << "Global Total Dissipation: " << global_diss/mesh_vol << " W/m" << endl;
+      }
+      else
+      {
+         cout << "Global Total Dissipation: " << global_diss << " W" << endl;
+      }
+      
       cout << "Percent lost on Electrons: " << (global_electron_diss/global_diss)*100.0 << endl; 
       cout << "Percent lost on Ion 1: " << (global_ion1_diss/global_diss)*100.0 << endl; 
       if (global_ion2_diss != 0){cout << "Percent lost on Ion 2: " << (global_ion2_diss/global_diss)*100.0 << endl;}
@@ -2346,6 +2356,22 @@ CPDSolver::GetErrorEstimates(Vector & errors)
                       smooth_flux_fes, flux_fes, errors, norm_p);
 
    if ( myid_ == 0 && logging_ > 0 ) { cout << "done." << endl; }
+}
+
+double CPDSolver::GetVolume() const
+{
+   double global_volume = 0.0;
+   double local_volume = 0.0;
+   MPI_Comm comm = pmesh_->GetComm();
+
+   for (int j=0; j<pmesh_->GetNE(); j++)
+   {
+      local_volume += pmesh_->GetElementVolume(j);
+   }
+   MPI_Allreduce(&local_volume, &global_volume, 1, MPITypeMap<double>::mpi_type, MPI_SUM,
+                    comm);
+
+   return global_volume;
 }
 
 double

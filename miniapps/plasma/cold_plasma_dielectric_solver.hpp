@@ -252,7 +252,8 @@ public:
              void (*j_r_src)(const Vector&, Vector&),
              void (*j_i_src)(const Vector&, Vector&),
              bool vis_u = false,
-             bool pa = false);
+             bool pa = false,
+             bool dim2 = false);
    ~CPDSolver();
 
    HYPRE_Int GetProblemSize();
@@ -269,6 +270,8 @@ public:
                    const VectorCoefficient & EImCoef) const;
 
    void GetErrorEstimates(Vector & errors);
+
+   double GetVolume() const;
 
    double GetGlobalDissipation() const;
 
@@ -426,6 +429,7 @@ private:
    bool ownsEtaInv_;
    bool vis_u_;
    bool pa_;
+   bool dim2_;
 
    double omega_;
 
