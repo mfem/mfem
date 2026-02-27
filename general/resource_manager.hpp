@@ -931,15 +931,12 @@ void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
 
 template <class T> Memory<T>::Memory(int count, bool temporary)
 {
-   auto& inst = MemoryManager::instance();
    New(count, temporary);
 }
 
 template <class T>
 Memory<T>::Memory(size_t count, MemoryType loc, bool temporary)
 {
-   // ensure MemoryManager instance exists
-   MemoryManager::instance();
    New(count, loc, temporary);
 }
 
@@ -1127,7 +1124,6 @@ template <class T> Memory<T> &Memory<T>::operator=(Memory &&r) noexcept
 {
    if (&r != this)
    {
-      auto &inst = MemoryManager::instance();
       Reset();
       h_ptr = r.h_ptr;
       size_ = r.size_;
