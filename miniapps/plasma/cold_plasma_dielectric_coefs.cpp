@@ -2584,9 +2584,10 @@ void sigmaPML::Eval(DenseMatrix &sigmaPML, ElementTransformation &T,
 
 PlasmaProfile::PlasmaProfile(Type type, const Vector & params,
                              bool dim, CoordSystem sys,
+                             bool coords3d,
                              G_EQDSK_Data *eqdsk,
                              Interp_Data *interp_field)
-   : cyl_(sys == POLOIDAL), eqdsk_(eqdsk), interp_field_(interp_field),
+   : cyl_(sys == POLOIDAL), coords3d_(coords3d), eqdsk_(eqdsk), interp_field_(interp_field),
      dim_(dim), xyz_(3), rz_(2)
 {
    MFEM_VERIFY(params.Size() == np_[type],
@@ -2802,7 +2803,14 @@ double PlasmaProfile::EvalByType(Type type,
          {
             r = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
             z = xyz_[2];
-            phi = atan2(xyz_[1],xyz_[0]);         
+            phi = atan2(xyz_[1],xyz_[0]);  
+
+            if (coords3d_)
+            {
+               r = sqrt(xyz_[0] * xyz_[0] + xyz_[2] * xyz_[2]);
+               z = xyz_[1]; 
+               phi = atan2(xyz_[0],xyz_[2]);
+            }          
          }
 
          double d = (cyl_ || dim_) ? r : xyz_[0];
@@ -2870,7 +2878,13 @@ double PlasmaProfile::EvalByType(Type type,
          if (dim_)
          {
             r = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
-            z = xyz_[2];         
+            z = xyz_[2];
+
+            if (coords3d_)
+            {
+               r = sqrt(xyz_[0] * xyz_[0] + xyz_[2] * xyz_[2]);
+               z = xyz_[1]; 
+            }            
          }
 
          double x_tok_data[2];
@@ -3004,7 +3018,13 @@ double PlasmaProfile::EvalByType(Type type,
          if (dim_)
          {
             r = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
-            z = xyz_[2];         
+            z = xyz_[2];   
+
+            if (coords3d_)
+            {
+               r = sqrt(xyz_[0] * xyz_[0] + xyz_[2] * xyz_[2]);
+               z = xyz_[1]; 
+            }         
          }
 
          double x_tok_data[2];
@@ -3302,7 +3322,13 @@ double PlasmaProfile::EvalByType(Type type,
          if (dim_)
          {
             r = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
-            z = xyz_[2];         
+            z = xyz_[2]; 
+
+            if (coords3d_)
+            {
+               r = sqrt(xyz_[0] * xyz_[0] + xyz_[2] * xyz_[2]);
+               z = xyz_[1]; 
+            }           
          }
 
          double x_tok_data[2];
@@ -3366,6 +3392,19 @@ double PlasmaProfile::EvalByType(Type type,
          double r = cyl_ ? rz_[0] : xyz_[0];
          double z = cyl_ ? rz_[1] : xyz_[1];
 
+         if (dim_)
+         {
+            // west
+            r = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
+            z = xyz_[2];   
+
+            if (coords3d_)
+            {
+               r = sqrt(xyz_[0] * xyz_[0] + xyz_[2] * xyz_[2]);
+               z = xyz_[1]; 
+            }     
+         }
+
          double x_tok_data[2];
          Vector xTokVec(x_tok_data, 2);
          xTokVec[0] = r; xTokVec[1] = z;
@@ -3386,9 +3425,9 @@ double PlasmaProfile::EvalByType(Type type,
 }
 
 BFieldProfile::BFieldProfile(Type type, const Vector & params, bool dim,
-                           bool unit, CoordSystem sys, G_EQDSK_Data *eqdsk)
+                           bool unit, CoordSystem sys, bool coords3d, G_EQDSK_Data *eqdsk)
    : VectorCoefficient(3), type_(type), p_(params),
-     cyl_(sys == POLOIDAL), dim_(dim), unit_(unit),
+     cyl_(sys == POLOIDAL), coords3d_(coords3d), dim_(dim), unit_(unit),
      eqdsk_(eqdsk), /*x3_(3),*/ xyz_(3), rz_(2)
 {
    MFEM_VERIFY(params.Size() == np_[type],
@@ -3678,8 +3717,15 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
             if (dim_)
             {  
                Vector new_rz(2);
+               // west
                new_rz[0] = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
-               new_rz[1] = xyz_[2];   
+               new_rz[1] = xyz_[2]; 
+
+               if (coords3d_)
+               {
+                  new_rz[0] = sqrt(xyz_[0] * xyz_[0] + xyz_[2] * xyz_[2]);
+                  new_rz[1] = xyz_[1]; 
+               }     
 
                double cosphi = xyz_[0] / new_rz[0];
                double sinphi = xyz_[1] / new_rz[0];
@@ -3730,7 +3776,13 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
          if (dim_)
          {
             r = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
-            z = xyz_[2];         
+            z = xyz_[2];  
+
+            if (coords3d_)
+            {
+               r = sqrt(xyz_[0] * xyz_[0] + xyz_[2] * xyz_[2]);
+               z = xyz_[1]; 
+            }          
          }
 
          V[0] = (-1.0*p_[0]*xyz_[1])/pow(r,2.0);

@@ -457,6 +457,7 @@ int main(int argc, char *argv[])
    bool visit = true;
    bool pml = false;
    bool thermal = false;
+   bool coords3d = false;
 
    double freq = 1.0e6;
    const char * wave_type = " ";
@@ -556,7 +557,6 @@ int main(int argc, char *argv[])
 
    bool logo = false;
    bool cyl = false;
-   bool dim3 = false;
    bool per_y = false;
    bool check_eps_inv = false;
    bool pa = false;
@@ -1391,16 +1391,16 @@ int main(int argc, char *argv[])
 
    BFieldProfile::CoordSystem b_coord_sys =
       cyl ? BFieldProfile::POLOIDAL : BFieldProfile::CARTESIAN_3D;
-   BFieldProfile BCoef(bpt, bpp, dim3, false, b_coord_sys, eqdsk);
-   BFieldProfile BUnitCoef(bpt, bpp, dim3, true, b_coord_sys, eqdsk);
+   BFieldProfile BCoef(bpt, bpp, false, false, b_coord_sys, coords3d, eqdsk);
+   BFieldProfile BUnitCoef(bpt, bpp, false, true, b_coord_sys, coords3d, eqdsk);
 
    BField.ProjectCoefficient(BCoef);
 
    PlasmaProfile::CoordSystem coord_sys =
       cyl ? PlasmaProfile::POLOIDAL : PlasmaProfile::CARTESIAN_3D;
-   PlasmaProfile nueCoef(nept, nepp, dim3, coord_sys, eqdsk, interp_placeholder);
+   PlasmaProfile nueCoef(nept, nepp, false, coord_sys, coords3d, eqdsk, interp_placeholder);
    nue_gf.ProjectCoefficient(nueCoef);
-   PlasmaProfile TiCoef(tipt, tipp, dim3, coord_sys, eqdsk, interp_placeholder);
+   PlasmaProfile TiCoef(tipt, tipp, false, coord_sys, coords3d, eqdsk, interp_placeholder);
    iontemp_gf.ProjectCoefficient(TiCoef);
 
    int size_h1 = H1FESpace.GetVSize();
@@ -1427,7 +1427,7 @@ int main(int argc, char *argv[])
       cout << "Creating plasma profile." << endl;
    }
 
-   PlasmaProfile TeCoef(tpt_def, tpp_def, dim3, coord_sys, eqdsk, interp_TEMPdata);
+   PlasmaProfile TeCoef(tpt_def, tpp_def, false, coord_sys, coords3d, eqdsk, interp_TEMPdata);
    if (tpa_vac.Size() > 0)
    {
       TeCoef.SetParams(tpa_vac, tpt_vac, tpp_vac);
@@ -1441,7 +1441,7 @@ int main(int argc, char *argv[])
       TeCoef.SetParams(tpa_cor, tpt_cor, tpp_cor); 
    }
    
-   PlasmaProfile rhoCoef(dpt_def, dpp_def, dim3, coord_sys, eqdsk, interp_DENdata);
+   PlasmaProfile rhoCoef(dpt_def, dpp_def, false, coord_sys, coords3d, eqdsk, interp_DENdata);
    if (dpa_vac.Size() > 0)
    {
       rhoCoef.SetParams(dpa_vac, dpt_vac, dpp_vac);
@@ -1455,7 +1455,7 @@ int main(int argc, char *argv[])
       rhoCoef.SetParams(dpa_cor, dpt_cor, dpp_cor);
    }
 
-   PlasmaProfile nuiCoef(nipt, nipp, dim3, coord_sys, eqdsk, interp_placeholder);
+   PlasmaProfile nuiCoef(nipt, nipp, false, coord_sys, coords3d, eqdsk, interp_placeholder);
    if (nipa_vac.Size() > 0)
    {
       nuiCoef.SetParams(nipa_vac, nipt_vac, nipp_vac);

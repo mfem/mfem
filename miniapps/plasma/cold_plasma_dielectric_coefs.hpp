@@ -1027,6 +1027,7 @@ private:
    // Vector temp_p_;
    bool cyl_; // Assume cylindrical symmetyry
    bool dim_; // 2D or 3D
+   bool coords3d_;
 
    G_EQDSK_Data *eqdsk_;
    Interp_Data *interp_field_;
@@ -1044,6 +1045,7 @@ private:
 public:
    PlasmaProfile(Type type, const Vector & params, bool dim,
                  CoordSystem coord_sys = CARTESIAN_3D,
+                 bool coords3d = false,
                  G_EQDSK_Data *eqdsk = NULL,
                  Interp_Data *interp_field = NULL);
 
@@ -1080,6 +1082,7 @@ private:
    bool cyl_; // Assume cylindrical symmetyry
    bool unit_;
    bool dim_; // 2D or 3D
+   bool coords3d_;
 
    G_EQDSK_Data *eqdsk_;
 
@@ -1092,6 +1095,7 @@ private:
 public:
    BFieldProfile(Type type, const Vector & params, bool dim,
                  bool unit, CoordSystem coord_sys = CARTESIAN_3D,
+                 bool coords3d = false,
                  G_EQDSK_Data *eqdsk = NULL);
 
    void Eval(Vector &V, ElementTransformation &T,

@@ -105,33 +105,6 @@ using namespace mfem;
 using namespace mfem::common;
 using namespace mfem::plasma;
 
-class MeshTransformCoefficient : public VectorCoefficient
-{
-private:
-   double hphi_rad_;
-
-   mutable Vector uvw_;
-
-public:
-   MeshTransformCoefficient(double hphi_deg)
-      : VectorCoefficient(3), hphi_rad_(hphi_deg * M_PI / 180.0),
-        uvw_(3)
-   {}
-
-   void Eval(Vector &xyz, ElementTransformation &T,
-             const IntegrationPoint &ip)
-   {
-      T.Transform(ip, uvw_);
-
-      const double r   = uvw_[0];
-      const double phi = hphi_rad_ * (1.0 - uvw_[2]);
-      const double z   = uvw_[1];
-
-      xyz[0] = r * cos(phi);
-      xyz[1] = r * sin(phi);
-      xyz[2] = z;
-   }
-};
 
 class VectorConstantCylCoefficient : public VectorCoefficient
 {
@@ -519,6 +492,7 @@ int main(int argc, char *argv[])
    bool pml = false;
    bool pml_cyl = false;
    bool thermal = false;
+   bool coords3d = false;
 
    double freq = 1.0e6;
    const char * wave_type = " ";
@@ -531,9 +505,6 @@ int main(int argc, char *argv[])
    Vector kReVec;
    Vector kImVec;
 
-   double hz = -1.0; // Extruded mesh thickness in meters
-   double hphi = -1.0; // Cylindrically extruded mesh thickness in degrees
-
    Vector numbers;
    Vector charges;
    Vector masses;
@@ -543,6 +514,9 @@ int main(int argc, char *argv[])
    double nue = 0;
    double nui = 0;
    double Ti = 0;
+
+   const char *mdpt_data = "";
+   const char *mtpt_data = "";
 
    PlasmaProfile::Type dpt_def = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type dpt_vac = PlasmaProfile::CONSTANT;
@@ -617,7 +591,6 @@ int main(int argc, char *argv[])
 
    bool logo = false;
    bool cyl = false;
-   bool dim3 = true;
    bool per_y = false;
    bool check_eps_inv = false;
    bool pa = false;
@@ -656,11 +629,9 @@ int main(int argc, char *argv[])
    //               "Number of ion species.");
    args.AddOption(&freq, "-f", "--frequency",
                   "Frequency in Hertz (of course...)");
-   args.AddOption(&hz, "-mh", "--mesh-height",
-                  "Thickness of extruded mesh in meters.");
-   args.AddOption(&hphi, "-mhc", "--mesh-height-cyl",
-                  "Thickness of cylindrically extruded mesh in degrees.");
-args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
+   args.AddOption(&mdpt_data, "-mdpt-data", "--mesh-density-data-values",
+                  "Input density data.");
+   args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
                   "Density Profile Type (for ions): \n"
                   "0 - Constant, 1 - Constant Gradient, "
                   "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
@@ -722,6 +693,8 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
                   "BField Profile Parameters:\n"
                   "  B_P: value at -1, value at 1, "
                   "radius in x, radius in y, location of center, Bz, placeholder.");
+   args.AddOption(&mtpt_data, "-mtpt-data", "--mesh-temperature-data-values",
+                  "Input temperature data.");
    args.AddOption((int*)&tpt_def, "-tp", "--temperature-profile",
                   "Temperature Profile Type: \n"
                   "0 - Constant, 1 - Constant Gradient, "
@@ -994,6 +967,9 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&eqdsk_file, "-eqdsk", "--eqdsk-file",
                   "G EQDSK input file.");
+   args.AddOption(&coords3d,  "-zyx", "--zyx", "-xzy", "--xzy",
+                  "Sets 3D Cartesian coords in Cylindrical coords:"
+                  "Z,Y,X -> R,Z,Phi (true) and X,Z,Y -> R,Z,Phi (false)");
    args.Parse();
    if (!args.Good())
    {
@@ -1389,20 +1365,39 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
        }
     }
 
+   Interp_Data *interp_DENdata = NULL;
+   Interp_Data *interp_TEMPdata = NULL;
    Interp_Data *interp_placeholder = NULL;
+
+   {
+      named_ifgzstream idendata(mdpt_data);
+      named_ifgzstream itempdata(mtpt_data);
+      if (idendata)
+      {
+         interp_DENdata = new Interp_Data(idendata);
+         if (Mpi::Root())
+         {
+            interp_DENdata->PrintInfo();
+         }
+      }
+      if (itempdata)
+      {
+         interp_TEMPdata = new Interp_Data(itempdata);
+      }
+   }
     
    BFieldProfile::CoordSystem b_coord_sys =
       cyl ? BFieldProfile::POLOIDAL : BFieldProfile::CARTESIAN_3D;
-   BFieldProfile BCoef(bpt, bpp, dim3, false, b_coord_sys, eqdsk);
-   BFieldProfile BUnitCoef(bpt, bpp, dim3, true, b_coord_sys, eqdsk);
+   BFieldProfile BCoef(bpt, bpp, true, false, b_coord_sys, coords3d, eqdsk);
+   BFieldProfile BUnitCoef(bpt, bpp, true, true, b_coord_sys, coords3d, eqdsk);
 
    BField.ProjectCoefficient(BCoef);
 
    PlasmaProfile::CoordSystem coord_sys =
       cyl ? PlasmaProfile::POLOIDAL : PlasmaProfile::CARTESIAN_3D;
-   PlasmaProfile nueCoef(nept, nepp, dim3, coord_sys, eqdsk, interp_placeholder);
+   PlasmaProfile nueCoef(nept, nepp, true, coord_sys, coords3d, eqdsk, interp_placeholder);
    nue_gf.ProjectCoefficient(nueCoef);
-   PlasmaProfile TiCoef(tipt, tipp, dim3, coord_sys, eqdsk, interp_placeholder);
+   PlasmaProfile TiCoef(tipt, tipp, true, coord_sys, coords3d, eqdsk, interp_placeholder);
    iontemp_gf.ProjectCoefficient(TiCoef);
 
    int size_h1 = H1FESpace.GetVSize();
@@ -1429,7 +1424,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
       cout << "Creating plasma profile." << endl;
    }
 
-   PlasmaProfile TeCoef(tpt_def, tpp_def, dim3, coord_sys, eqdsk, interp_placeholder);
+   PlasmaProfile TeCoef(tpt_def, tpp_def, true, coord_sys, coords3d, eqdsk, interp_TEMPdata);
    if (tpa_vac.Size() > 0)
    {
       TeCoef.SetParams(tpa_vac, tpt_vac, tpp_vac);
@@ -1443,7 +1438,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
       TeCoef.SetParams(tpa_cor, tpt_cor, tpp_cor);
    }
    
-   PlasmaProfile rhoCoef(dpt_def, dpp_def, dim3, coord_sys, eqdsk, interp_placeholder);
+   PlasmaProfile rhoCoef(dpt_def, dpp_def, true, coord_sys, coords3d, eqdsk, interp_DENdata);
    if (dpa_vac.Size() > 0)
    {
       rhoCoef.SetParams(dpa_vac, dpt_vac, dpp_vac);
@@ -1457,7 +1452,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
       rhoCoef.SetParams(dpa_cor, dpt_cor, dpp_cor);
    }
 
-   PlasmaProfile nuiCoef(nipt, nipp, dim3, coord_sys, eqdsk, interp_placeholder);
+   PlasmaProfile nuiCoef(nipt, nipp, true, coord_sys, coords3d, eqdsk, interp_placeholder);
    if (nipa_vac.Size() > 0)
    {
       nuiCoef.SetParams(nipa_vac, nipt_vac, nipp_vac);
