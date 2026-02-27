@@ -793,8 +793,17 @@ template <class T> void Memory<T>::Delete()
 template <class T> void Memory<T>::Wrap(T *ptr, size_t size, bool own)
 {
    auto &inst = MemoryManager::instance();
-   Wrap(ptr, nullptr, size, inst.GetHostMemoryType(), MemoryType::DEFAULT, own,
-        own, true, false);
+   Reset();
+   h_ptr = ptr;
+   size_ = size;
+   flags = own ? OWNS_HOST : NONE;
+   auto h_mt = inst.GetHostMemoryType();
+   if (own && h_mt != MemoryType::HOST)
+   {
+      segment =
+         inst.insert(reinterpret_cast<char *>(h_ptr), nullptr, size * sizeof(T),
+                     h_mt, MemoryType::DEFAULT, true, false, false);
+   }
 }
 
 template <class T>
