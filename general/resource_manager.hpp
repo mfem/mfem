@@ -119,8 +119,8 @@ private:
       void create_next_segment(size_t &ns);
 
       /// Insert a validity transition marker for a given @a segment
-      size_t insert(size_t segment, ptrdiff_t offset, bool on_device,
-                    bool valid, size_t &nn);
+      size_t insert(size_t segment, ptrdiff_t offset, bool on_device, bool valid,
+                    size_t &nn);
 
       /// Insert a validity transition marker for a given @a segment
       size_t insert(size_t segment, size_t node, ptrdiff_t offset,
@@ -744,12 +744,13 @@ void Memory<T>::New(size_t size, MemoryType hloc, MemoryType dloc,
    if (hloc == MemoryType::HOST && !temporary && dloc == MemoryType::DEFAULT)
    {
       h_ptr = new T[size];
-      segment = 0;
+      MFEM_ASSERT(!inst.valid_segment(segment), "unexpected valid segment");
    }
    else
    {
       h_ptr =
          reinterpret_cast<T *>(inst.Alloc(size * sizeof(T), hloc, temporary));
+      MFEM_ASSERT(!inst.valid_segment(segment), "unexpected valid segment");
       segment =
          inst.insert(reinterpret_cast<char *>(h_ptr), nullptr, size * sizeof(T),
                      hloc, dloc, true, false, temporary);
@@ -772,12 +773,14 @@ template <class T> void Memory<T>::Delete()
          if (h_mt != MemoryType::HOST)
          {
             inst.Dealloc(seg.lowers[0], h_mt, seg.is_temporary());
+            seg.lowers[0] = nullptr;
             h_ptr = nullptr;
          }
       }
       if (flags & OWNS_DEVICE)
       {
          inst.Dealloc(seg.lowers[1], seg.mtypes[1], seg.is_temporary());
+         seg.lowers[1] = nullptr;
       }
    }
    if (h_ptr && (flags & OWNS_HOST))
@@ -863,6 +866,7 @@ void Memory<T>::Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc,
    size_ = size;
    if (d_ptr || hloc != MemoryType::HOST)
    {
+      MFEM_ASSERT(!inst.valid_segment(segment), "unexpected valid segment");
       segment = inst.insert(reinterpret_cast<char *>(h_ptr),
                             reinterpret_cast<char *>(d_ptr), size * sizeof(T),
                             hloc, dloc, valid_host, valid_device, false);
@@ -907,10 +911,12 @@ void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
             // register the 'base'
             true
 #else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
-            IsDeviceMemory(inst.GetDeviceMemoryType()) || HypreUsingGPU()
+            (IsDeviceMemory(inst.GetDeviceMemoryType()) || HypreUsingGPU())
 #endif
          )
          {
+            MFEM_ASSERT(!inst.valid_segment(base.segment),
+                        "unexpected valid segment");
             base.segment =
                inst.insert(reinterpret_cast<char *>(base.h_ptr), nullptr,
                            base.size_ * sizeof(T), MemoryType::HOST,
@@ -921,6 +927,7 @@ void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
             }
          }
       }
+      MFEM_ASSERT(!inst.valid_segment(segment), "unexpected valid segment");
       segment = base.segment;
       if (inst.valid_segment(segment))
       {
@@ -1024,37 +1031,7 @@ Memory<T>::Memory(const Memory &r)
       auto &seg = inst.storage.get_segment(segment);
       ++seg.ref_count;
    }
-   // technically probably should include this, but Memory copy-construction
-   // behaves strangely. Its semantics are much closer to a move constructor.
-#if 0
-   else
-   {
-      // may need to register the segment
-      if (
-#if !defined(HYPRE_USING_GPU)
-         IsDeviceMemory(MemoryManager::GetDeviceMemoryType())
-#elif MFEM_HYPRE_VERSION < 23100
-         // When HYPRE_USING_GPU is defined and HYPRE < 2.31.0, we always
-         // register the 'r'
-         true
-#else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
-         IsDeviceMemory(inst.GetDeviceMemoryType()) || HypreUsingGPU()
-#endif
-      )
-      {
-         segment = inst.insert(reinterpret_cast<char *>(h_ptr), nullptr,
-                               r.size_ * sizeof(T), MemoryType::HOST,
-                               MemoryType::DEFAULT, true, false, false);
-         r.segment = segment;
-         if (r.flags & OWNS_HOST)
-         {
-            r.flags = static_cast<Flags>(r.flags | OWNS_DEVICE);
-            flags = static_cast<Flags>(flags | OWNS_DEVICE);
-         }
-         ++inst.storage.get_segment(segment).ref_count;
-      }
-   }
-#endif
+   // Old copy constructor semantics closer to "move" so no else case is needed.
 }
 
 template <class T>
@@ -1078,6 +1055,7 @@ template <class T> Memory<T> &Memory<T>::operator=(const Memory &r)
       h_ptr = r.h_ptr;
       size_ = r.size_;
       offset_ = r.offset_;
+      MFEM_ASSERT(!inst.valid_segment(segment), "unexpected valid segment");
       segment = r.segment;
       flags = r.flags;
       if (inst.valid_segment(segment))
@@ -1085,37 +1063,7 @@ template <class T> Memory<T> &Memory<T>::operator=(const Memory &r)
          auto &seg = inst.storage.get_segment(segment);
          ++seg.ref_count;
       }
-      // technically probably should include this, but Memory copy-construction
-      // behaves strangely. Its semantics are much closer to a move constructor.
-#if 0
-      else
-      {
-         // may need to register the segment
-         if (
-#if !defined(HYPRE_USING_GPU)
-            IsDeviceMemory(MemoryManager::GetDeviceMemoryType())
-#elif MFEM_HYPRE_VERSION < 23100
-            // When HYPRE_USING_GPU is defined and HYPRE < 2.31.0, we always
-            // register the 'r'
-            true
-#else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
-            IsDeviceMemory(inst.GetDeviceMemoryType()) || HypreUsingGPU()
-#endif
-         )
-         {
-            segment = inst.insert(reinterpret_cast<char *>(h_ptr), nullptr,
-                                  r.size_ * sizeof(T), MemoryType::HOST,
-                                  MemoryType::DEFAULT, true, false, false);
-            r.segment = segment;
-            if (r.flags & OWNS_HOST)
-            {
-               r.flags = static_cast<Flags>(r.flags | OWNS_DEVICE);
-               flags = static_cast<Flags>(flags | OWNS_DEVICE);
-            }
-            ++inst.storage.get_segment(segment).ref_count;
-         }
-      }
-#endif
+      // old copy assign semantics closer to "move" so no else case is needed
    }
    return *this;
 }
@@ -1128,6 +1076,8 @@ template <class T> Memory<T> &Memory<T>::operator=(Memory &&r) noexcept
       h_ptr = r.h_ptr;
       size_ = r.size_;
       offset_ = r.offset_;
+      MFEM_ASSERT(!MemoryManager::instance().valid_segment(segment),
+                  "unexpected valid segment");
       segment = r.segment;
       flags = r.flags;
       r.h_ptr = nullptr;
@@ -1150,11 +1100,11 @@ template <class T> void Memory<T>::EnsureRegistered() const
        // register the 'base'
        true
 #else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
-       IsDeviceMemory(inst.GetDeviceMemoryType()) ||
-       HypreUsingGPU()
+       (IsDeviceMemory(inst.GetDeviceMemoryType()) || HypreUsingGPU())
 #endif
       )
    {
+      MFEM_ASSERT(!inst.valid_segment(segment), "unexpected valid segment");
       segment =
          inst.insert(reinterpret_cast<char *>(h_ptr), nullptr, size_ * sizeof(T),
                      MemoryType::HOST, MemoryType::DEFAULT, true, false, false);
