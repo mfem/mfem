@@ -918,7 +918,9 @@ function(mfem_export_mk_files)
       set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} ${CMAKE_CUDA_FLAGS}")
       if (MFEM_CUDA_COMPILER_IS_NVCC)
         set(MFEM_CXXFLAGS "-x=cu ${MFEM_CXXFLAGS} -ccbin ${CMAKE_CXX_COMPILER} --forward-unknown-to-host-compiler")
-        set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} -isystem ${CUDAToolkit_LIBRARY_ROOT}")
+        foreach(ENTRY IN LISTS CUDAToolkit_INCLUDE_DIRS)
+          set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} -isystem ${ENTRY}")
+        endforeach()
         if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.18.0)
           # architecture flags not part of CMAKE_CUDA_FLAGS
           if ("all" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}"
