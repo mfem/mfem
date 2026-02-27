@@ -996,7 +996,7 @@ function(mfem_export_mk_files)
   set(MFEM_TEST_MK "${PROJECT_SOURCE_DIR}/config/test.mk")
   set(MFEM_CONFIG_EXTRA "MFEM_BUILD_DIR ?= ${PROJECT_BINARY_DIR}")
   # TODO: CUDA/HIP support:
-  if (MFEM_USE_CUDA)
+  if (MFEM_USE_CUDA AND MFEM_EXPORT_GPU_CONFIG)
     if (MFEM_CUDA_COMPILER_IS_NVCC)
       set(MFEM_XLINKER "-Xlinker=")
     else()
