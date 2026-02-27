@@ -1366,8 +1366,8 @@ inline void Memory<T>::CopyFrom(const Memory &src, int size)
 template <typename T>
 inline void Memory<T>::CopyFromHost(const T *src, int size)
 {
-   ScopeBench sbench(5);
-   MFEM_MEM_OP_DEBUG("** CopyFromHost " << size * sizeof(T) << std::endl);
+   // ScopeBench sbench(5);
+   // MFEM_MEM_OP_DEBUG("** CopyFromHost " << size * sizeof(T) << std::endl);
    MFEM_VERIFY(capacity>=size, "Incorrect size");
    if (size <= 0) { return; }
    if (!(flags & Registered))
@@ -1397,8 +1397,8 @@ inline void Memory<T>::CopyTo(Memory &dest, int size) const
 template <typename T>
 inline void Memory<T>::CopyToHost(T *dest, int size) const
 {
-   ScopeBench sbench(6);
-   MFEM_MEM_OP_DEBUG("** CopyToHost " << size * sizeof(T) << std::endl);
+   // ScopeBench sbench(6);
+   // MFEM_MEM_OP_DEBUG("** CopyToHost " << size * sizeof(T) << std::endl);
    MFEM_VERIFY(capacity>=size, "Incorrect size");
    if (size <= 0) { return; }
    if (!(flags & Registered))
