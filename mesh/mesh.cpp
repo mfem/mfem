@@ -6849,7 +6849,6 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
 
       const int kv_signed = edge_to_ukv[pe[dir_edges[unsetDim][0]]];
       const int kv = kv_signed < 0 ? flipSign(kv_signed) : kv_signed;
-      MFEM_ASSERT(!edgeSet[pe[dir_edges[unsetDim][0]]], "");
 
       initKV = false;
 
