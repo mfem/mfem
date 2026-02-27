@@ -4906,19 +4906,23 @@ void TMOP_Integrator::AssembleElemGradAdaptLim(const FiniteElement &el,
       Vector gg_ptr(adapt_lim_gf_hess_q.GetData(), dim*dim);
       adapt_lim_gf_hess_e.MultTranspose(shape, gg_ptr);
 
-      const real_t w = weights(q) * lim_normal * adapt_lim_coeff->Eval(Tpr, ip);
+      const real_t coeff = adapt_lim_coeff->Eval(Tpr, ip);
+      const real_t factor =
+            weights(q) * lim_normal * coeff * 2.0 /
+            (adapt_lim_delta_max * adapt_lim_delta_max);
+
       for (int i = 0; i < dof * dim; i++)
       {
          const int idof = i % dof, idim = i / dof;
          for (int j = 0; j <= i; j++)
          {
             const int jdof = j % dof, jdim = j / dof;
-            // const real_t entry =
-            //         ( 2.0 * adapt_lim_gf_grad_q(idim) * shape(idof) *
-            //          /* */ adapt_lim_gf_grad_q(jdim) * shape(jdof) +
-            //          0.0 * 2.0 * (adapt_lim_gf_q(q)) *
-            //                       adapt_lim_gf_hess_q(idim, jdim) * shape(idof) * shape(jdof));
-            real_t entry = shape(idof) * shape(jdof);
+            const real_t entry =
+                  factor *
+                  (adapt_lim_gf_grad_q(idim) * shape(idof) *
+                   adapt_lim_gf_grad_q(jdim) * shape(jdof) +
+                   (adapt_lim_gf_q(q) - adapt_lim_gf0_q(q)) *
+                   adapt_lim_gf_hess_q(idim, jdim) * shape(idof) * shape(jdof));
             mat(i, j) += entry;
             if (i != j) { mat(j, i) += entry; }
          }
@@ -5676,6 +5680,7 @@ UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
    if (adapt_lim_gf)
    {
       adapt_lim_eval->ComputeAtNewPosition(x_loc, *adapt_lim_gf, ordering);
+      if (PA.enabled) { UpdateAdaptLimFieldPA(); }
    }
 
    // Update surf_fit_gf (and optionally its gradients) if surface

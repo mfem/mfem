@@ -2279,6 +2279,9 @@ protected:
    // Updates the Q-vectors for the metric_coeff and lim_coeff, based on the
    // new physical positions of the quadrature points.
    void UpdateCoefficientsPA(const Vector &d_loc);
+   // Refresh PA.ALF from the current adapt_lim_gf (called after remapping the
+   // field to the new mesh positions).
+   void UpdateAdaptLimFieldPA() const;
 
    // Compute Min(Det(Jpt)) in the mesh, does not reduce over MPI.
    real_t ComputeMinDetT(const Vector &x, const FiniteElementSpace &fes);

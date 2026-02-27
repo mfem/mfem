@@ -96,13 +96,13 @@ void TMOP_AddMultGradPA_AdaptLim_2D(const real_t lim_normal,
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
 
       // Load ALF and ALF0 values at quadrature points
-      // kernels::internal::s_regs2d_t<MQ1> ralf_val_dof, ralf_val_quad;
-      // kernels::internal::LoadDofs2d(e, D1D, ALF, ralf_val_dof);
-      // kernels::internal::Eval2d(D1D, Q1D, smem, sB, ralf_val_dof, ralf_val_quad);
+      kernels::internal::s_regs2d_t<MQ1> alf_dof, alf_quad;
+      kernels::internal::LoadDofs2d(e, D1D, ALF, alf_dof);
+      kernels::internal::Eval2d(D1D, Q1D, smem, sB, alf_dof, alf_quad);
 
-      // kernels::internal::s_regs2d_t<MQ1> ralf0_val_dof, ralf0_val_quad;
-      // kernels::internal::LoadDofs2d(e, D1D, ALF0, ralf0_val_dof);
-      // kernels::internal::Eval2d(D1D, Q1D, smem, sB, ralf0_val_dof, ralf0_val_quad);
+      kernels::internal::s_regs2d_t<MQ1> alf0_dof, alf0_quad;
+      kernels::internal::LoadDofs2d(e, D1D, ALF0, alf0_dof);
+      kernels::internal::Eval2d(D1D, Q1D, smem, sB, alf0_dof, alf0_quad);
 
       // Load input vector R (the direction for Hessian action)
       kernels::internal::v_regs2d_t<2,MQ1> r_R_dof, r_R_quad;
@@ -118,9 +118,7 @@ void TMOP_AddMultGradPA_AdaptLim_2D(const real_t lim_normal,
             const real_t *Jtr = &J(0, 0, qx, qy, e);
             const real_t detJtr = kernels::Det<2>(Jtr);
             const real_t weight = W(qx, qy) * detJtr;
-
-            // const real_t gf_val = ralf_val_quad(qy, qx);
-            // const real_t gf0_val = ralf0_val_quad(qy, qx);
+            const real_t diff = alf_quad(qy, qx) - alf0_quad(qy, qx);
 
             // Load precomputed gradient at this quadrature point
             real_t grad_alf[2] = { ALF_grad(0, qx, qy, e),
@@ -139,24 +137,22 @@ void TMOP_AddMultGradPA_AdaptLim_2D(const real_t lim_normal,
             // Get input vector at this quad point
             const real_t R_q[2] = { r_R_quad(0, qy, qx), r_R_quad(1, qy, qx) };
 
-            // Compute Hessian action:
-            // H*R = 2.0 / delta_max^2 * (grad_alf . R_q * grad_alf + (gf_val - gf0_val) * Hess_alf * R_q)
-            // const real_t coeff = const_coeff ? ALC(0, 0, 0) : ALC(qx, qy, e);
-            // const real_t factor = weight * lim_normal * coeff *
-            //                       2.0 / (adapt_lim_delta_max * adapt_lim_delta_max);
-            
-            // // First term: grad_alf . R_q (outer product contribution)
-            // const real_t grad_dot_R = grad_alf[0] * R_q[0] + grad_alf[1] * R_q[1];
-            
-            // Second term: Hess_alf * R_q
-            // real_t hess_R[2];
-            // hess_R[0] = hess_alf[0][0] * R_q[0] + hess_alf[0][1] * R_q[1];
-            // hess_R[1] = hess_alf[1][0] * R_q[0] + hess_alf[1][1] * R_q[1];
+            // Hessian action:
+            // H = factor * (grad x grad + (gf - gf0) * hess)
+            // so H * R = factor * (grad * (grad * R) + (gf - gf0) * (Hess * R))
+            const real_t coeff = const_coeff ? ALC(0, 0, 0) : ALC(qx, qy, e);
+            const real_t factor =
+                  weight * lim_normal * coeff *
+                  2.0 / (adapt_lim_delta_max * adapt_lim_delta_max);
 
-            // r00(0, qy, qx) = 2.0 * (grad_alf[0] * R_q[0] * grad_alf[1] + 0.0 * (gf_val) * hess_R[0]);
-            // r00(1, qy, qx) = 2.0 * (grad_alf[0] * R_q[1] * grad_alf[1] + 0.0 * (gf_val) * hess_R[1]);
-            r00(0, qy, qx) = R_q[0];
-            r00(1, qy, qx) = R_q[1];
+            const real_t grad_dot_R = grad_alf[0] * R_q[0] + grad_alf[1] * R_q[1];
+
+            real_t hess_R[2];
+            hess_R[0] = hess_alf[0][0] * R_q[0] + hess_alf[0][1] * R_q[1];
+            hess_R[1] = hess_alf[1][0] * R_q[0] + hess_alf[1][1] * R_q[1];
+
+            r00(0, qy, qx) = factor * (grad_alf[0] * grad_dot_R + diff * hess_R[0]);
+            r00(1, qy, qx) = factor * (grad_alf[1] * grad_dot_R + diff * hess_R[1]);
          }
       }
       MFEM_SYNC_THREAD;

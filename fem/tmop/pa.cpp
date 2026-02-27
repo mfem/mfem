@@ -13,6 +13,8 @@
 #include "../tmop_tools.hpp"
 #include "../gridfunc.hpp"
 #include "../../linalg/dtensor.hpp"
+#include <memory>
+#include <unordered_map>
 
 namespace mfem
 {
@@ -205,6 +207,7 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
    // Coefficients are always evaluated on the CPU for now.
    PA.MC.HostWrite();
    PA.C0.HostWrite();
+   PA.ALC.HostWrite();
 
    const IntegrationRule &ir = *PA.ir;
    auto T = new IsoparametricTransformation;
@@ -239,6 +242,16 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
    }
 
    delete T;
+}
+
+void TMOP_Integrator::UpdateAdaptLimFieldPA() const
+{
+   if (!PA.enabled || !adapt_lim_gf) { return; }
+   if (PA.ALF.Size() == 0) { return; }
+
+   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   const Operator *alf_R = adapt_lim_gf->FESpace()->GetElementRestriction(ordering);
+   alf_R->Mult(*adapt_lim_gf, PA.ALF);
 }
 
 void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
@@ -370,7 +383,30 @@ void TMOP_Integrator::AssemblePA_AdaptLim()
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
 
    const FiniteElement *fe_n = PA.fes->GetTypicalFE();
-   PA.maps_nodes = &fe_n->GetDofToQuad(fe_n->GetNodes(), DofToQuad::TENSOR);
+   // GetNodes() for tensor H1 elements with H1_DOF_MAP is stored in native DOF
+   // order (via dof_map), i.e. not in tensor-product order. DofToQuad::TENSOR
+   // assumes tensor-product ordering of the IntegrationRule points, so we keep
+   // a lexicographically ordered copy of the nodes per FE type.
+   const IntegrationRule &nodes = fe_n->GetNodes();
+   const auto *nfe = dynamic_cast<const NodalFiniteElement *>(fe_n);
+   const Array<int> *lex = (nfe && nfe->GetLexicographicOrdering().Size() > 0)
+                           ? &nfe->GetLexicographicOrdering()
+                           : nullptr;
+   if (!lex)
+   {
+      PA.maps_nodes = &fe_n->GetDofToQuad(nodes, DofToQuad::TENSOR);
+   }
+   else
+   {
+      IntegrationRule lex_nodes;
+      lex_nodes.SetSize(nodes.GetNPoints());
+      MFEM_VERIFY(lex->Size() == nodes.GetNPoints(), "");
+      for (int i = 0; i < nodes.GetNPoints(); i++)
+      {
+         lex_nodes.IntPoint(i) = nodes.IntPoint((*lex)[i]);
+      }
+      PA.maps_nodes = &fe_n->GetDofToQuad(lex_nodes, DofToQuad::TENSOR);
+   }
 
    // adapt_lim_gf -> PA.ALF (E-vector, same pattern as LD)
    const FiniteElement &fe = *alfes->GetTypicalFE();

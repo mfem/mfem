@@ -2126,22 +2126,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          AdaptiveLinRtolPreSolve(x, it, norm);
       }
 
-      for (int g = 0; g < r.Size(); g++)
-      {
-         r(g) = g*1e-8;
-      }
       prec->Mult(r, c); // c = [DF(x_i)]^{-1} [F(x_i)-b]
-
-      auto old_prec  = cout.precision();
-      cout << setprecision(15);
-      out << setprecision(15);
-
-      cout << "r: " << r.Norml1() << std::endl;
-      cout << "c: " << c.Norml1() << std::endl;
-      MFEM_ABORT("one mult");
-
-      cout << setprecision(old_prec);
-      out << setprecision(old_prec);
 
       if (lin_rtol_type)
       {
