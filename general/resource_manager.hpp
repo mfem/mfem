@@ -421,6 +421,7 @@ protected:
       OWNS_DEVICE = 1 << 2,
       USE_DEVICE = 1 << 3,
    };
+   MemoryType h_mt = MemoryManager::instance().GetHostMemoryType();
    mutable Flags flags = NONE;
 
    friend class MemoryManager;
@@ -465,12 +466,6 @@ public:
    }
 
    bool OwnsDevicePtr() const { return flags & OWNS_DEVICE; }
-
-   bool ZeroCopy() const
-   {
-      auto &inst = MemoryManager::instance();
-      return h_ptr ? inst.ZeroCopy(segment) : true;
-   }
 
    void SetDevicePtrOwner(bool own) const
    {
@@ -521,8 +516,28 @@ public:
 
    void SetDeviceMemoryType(MemoryType loc)
    {
+      if (!IsDeviceMemory(loc))
+      {
+         return;
+      }
       auto &inst = MemoryManager::instance();
-      inst.SetDeviceMemoryType(segment, loc);
+      if (!inst.valid_segment(segment))
+      {
+         if (h_ptr == nullptr)
+         {
+            MFEM_VERIFY(size_ == 0, "internal error");
+         }
+         else
+         {
+            segment = inst.insert(h_ptr, nullptr, size_ * sizeof(T), h_mt, loc,
+                                  true, false, false);
+            flags = static_cast<Flags>(flags | OWNS_DEVICE);
+         }
+      }
+      else
+      {
+         inst.SetDeviceMemoryType(segment, loc);
+      }
    }
 
    void Reset();
@@ -600,17 +615,17 @@ public:
          auto &seg = inst.storage.get_segment(segment);
          if (copy_to_host)
          {
-            HostRead();
+            // ensure the full segment is valid on host
+            inst.read(segment, 0, seg.nbytes, false);
          }
-         if (seg.lowers[1] != seg.lowers[0])
+         if (seg.lowers[1] != seg.lowers[0] && seg.lowers[1])
          {
             if (OwnsDevicePtr())
             {
                inst.Dealloc(seg.lowers[1], seg.mtypes[1], seg.is_temporary());
             }
-            inst.clear_segment(segment, true);
+            inst.clear_segment(seg, true);
             seg.lowers[1] = nullptr;
-            seg.mtypes[1] = MemoryType::DEFAULT;
          }
       }
    }
@@ -619,6 +634,7 @@ public:
    void Sync(const Memory &other) const
    {
    }
+
    /// Make *this valid everywhere other is valid, possibly involves copies.
    /// Should be @deprecated, but some code relies on the copy behavior?
    void SyncAlias(const Memory &other, int alias_size) const
@@ -637,19 +653,11 @@ public:
       }
       else
       {
-         return MemoryType::HOST;
+         return h_mt;
       }
    }
 
-   MemoryType GetHostMemoryType() const
-   {
-      auto &inst = MemoryManager::instance();
-      if (inst.valid_segment(segment))
-      {
-         return inst.storage.get_segment(segment).mtypes[0];
-      }
-      return h_ptr != nullptr ? MemoryType::HOST : inst.GetHostMemoryType();
-   }
+   MemoryType GetHostMemoryType() const { return h_mt; }
 
    MemoryType GetDeviceMemoryType() const
    {
@@ -720,18 +728,18 @@ template <class T>
 void Memory<T>::New(size_t size, MemoryType loc, bool temporary)
 {
    auto &inst = MemoryManager::instance();
-   MemoryType h_mt;
-   MemoryType d_mt = MemoryType::DEFAULT;
+   MemoryType hloc;
+   MemoryType dloc = MemoryType::DEFAULT;
    if (IsHostMemory(loc))
    {
-      h_mt = loc;
+      hloc = loc;
    }
    else
    {
-      h_mt = inst.GetDualMemoryType(loc);
-      d_mt = loc;
+      hloc = inst.GetDualMemoryType(loc);
+      dloc = loc;
    }
-   New(size, h_mt, d_mt, temporary);
+   New(size, hloc, dloc, temporary);
 }
 
 template <class T>
@@ -740,20 +748,23 @@ void Memory<T>::New(size_t size, MemoryType hloc, MemoryType dloc,
 {
    Reset();
    auto &inst = MemoryManager::instance();
-   flags = OWNS_HOST;
-   if (hloc == MemoryType::HOST && !temporary && dloc == MemoryType::DEFAULT)
+   h_mt = hloc;
+   if (hloc == MemoryType::HOST && !temporary)
    {
       h_ptr = new T[size];
-      MFEM_ASSERT(!inst.valid_segment(segment), "unexpected valid segment");
    }
    else
    {
       h_ptr =
          reinterpret_cast<T *>(inst.Alloc(size * sizeof(T), hloc, temporary));
+   }
+   flags = OWNS_HOST;
+   if (temporary || dloc != MemoryType::DEFAULT)
+   {
       MFEM_ASSERT(!inst.valid_segment(segment), "unexpected valid segment");
       segment =
          inst.insert(reinterpret_cast<char *>(h_ptr), nullptr, size * sizeof(T),
-                     hloc, dloc, true, false, temporary);
+                     h_mt, dloc, true, false, temporary);
       flags = static_cast<Flags>(flags | OWNS_DEVICE);
    }
    size_ = size;
@@ -763,29 +774,55 @@ void Memory<T>::New(size_t size, MemoryType hloc, MemoryType dloc,
 template <class T> void Memory<T>::Delete()
 {
    auto &inst = MemoryManager::instance();
-   auto h_mt = inst.GetHostMemoryType();
-   if (inst.valid_segment(segment))
-   {
-      auto &seg = inst.storage.get_segment(segment);
-      h_mt = seg.mtypes[0];
-      if (flags & OWNS_HOST)
-      {
-         if (h_mt != MemoryType::HOST)
-         {
-            inst.Dealloc(seg.lowers[0], h_mt, seg.is_temporary());
-            seg.lowers[0] = nullptr;
-            h_ptr = nullptr;
-         }
-      }
-      if (flags & OWNS_DEVICE)
-      {
-         inst.Dealloc(seg.lowers[1], seg.mtypes[1], seg.is_temporary());
-         seg.lowers[1] = nullptr;
-      }
-   }
    if (h_ptr && (flags & OWNS_HOST))
    {
-      delete[] h_ptr;
+      MFEM_ASSERT(offset_ == 0, "unexpected non-zero offset");
+
+      bool temporary = false;
+      if (inst.valid_segment(segment))
+      {
+         auto& seg = inst.storage.get_segment(segment);
+         if (seg.lowers[0] == nullptr)
+         {
+            // de-allocated by inst.Destroy()
+            h_ptr = reinterpret_cast<T *>(seg.lowers[0]);
+         }
+         MFEM_ASSERT(seg.mtypes[0] == h_mt, "host memory type mismatch");
+         MFEM_ASSERT((void *)h_ptr == (void *)seg.lowers[0],
+                     "host memory pointer mismatch");
+         // MFEM_ASSERT(flags & OWNS_DEVICE, "expected to also own device");
+         MFEM_ASSERT(offset_ == 0, "should not have any offset");
+         MFEM_ASSERT(size_ * sizeof(T) == size_t(seg.nbytes),
+                     "should hot refer to a subsection");
+         temporary = seg.is_temporary();
+         if (seg.lowers[1] == seg.lowers[0])
+         {
+            seg.lowers[1] = nullptr;
+         }
+         seg.lowers[0] = nullptr;
+      }
+      if (!temporary && h_mt == MemoryType::HOST)
+      {
+         delete[] h_ptr;
+      }
+      else
+      {
+         inst.Dealloc(reinterpret_cast<char *>(h_ptr), h_mt, temporary);
+      }
+   }
+   if ((flags & OWNS_DEVICE) && inst.valid_segment(segment))
+   {
+      auto& seg = inst.storage.get_segment(segment);
+      MFEM_ASSERT(offset_ == 0, "should not have any offset");
+      MFEM_ASSERT(size_ * sizeof(T) == size_t(seg.nbytes),
+                  "should hot refer to a subsection");
+      inst.Dealloc(seg.lowers[1], seg.mtypes[1], seg.is_temporary());
+      if (seg.lowers[0] == seg.lowers[1])
+      {
+         MFEM_ASSERT(flags & OWNS_HOST, "expected to also own host");
+         seg.lowers[0] = nullptr;
+      }
+      seg.lowers[1] = nullptr;
    }
    Reset(h_mt);
 }
@@ -797,13 +834,7 @@ template <class T> void Memory<T>::Wrap(T *ptr, size_t size, bool own)
    h_ptr = ptr;
    size_ = size;
    flags = own ? OWNS_HOST : NONE;
-   auto h_mt = inst.GetHostMemoryType();
-   if (own && h_mt != MemoryType::HOST)
-   {
-      segment =
-         inst.insert(reinterpret_cast<char *>(h_ptr), nullptr, size * sizeof(T),
-                     h_mt, MemoryType::DEFAULT, true, false, false);
-   }
+   h_mt = inst.GetHostMemoryType();
 }
 
 template <class T>
@@ -812,38 +843,39 @@ void Memory<T>::Wrap(T *ptr, size_t size, MemoryType loc, bool own)
    auto &inst = MemoryManager::instance();
    T *h_ptr_ = nullptr;
    T* d_ptr_ = nullptr;
-   MemoryType h_mt;
-   MemoryType d_mt = MemoryType::DEFAULT;
+   MemoryType hloc = MemoryType::DEFAULT;
+   MemoryType dloc = MemoryType::DEFAULT;
    bool own_host = false;
    bool own_device = false;
    bool valid_host = true;
    bool valid_device = false;
    if (IsHostMemory(loc))
    {
-      h_mt = loc;
+      hloc = loc;
       h_ptr_ = ptr;
       own_host = own;
       own_device = own;
    }
    else
    {
-      h_mt = inst.GetDualMemoryType(loc);
-      d_mt = loc;
+      MFEM_ASSERT(int(loc) < MemoryTypeSize, "invalid loc");
+      hloc = inst.GetDualMemoryType(loc);
+      dloc = loc;
       d_ptr_ = ptr;
       own_host = true;
       own_device = own;
       valid_host = false;
       valid_device = true;
-      if (h_mt != d_mt)
+      if (hloc != dloc)
       {
-         if (h_mt == MemoryType::HOST)
+         if (hloc == MemoryType::HOST)
          {
             h_ptr_ = new T[size];
          }
          else
          {
             h_ptr_ =
-               reinterpret_cast<T *>(inst.Alloc(size * sizeof(T), h_mt, false));
+               reinterpret_cast<T *>(inst.Alloc(size * sizeof(T), hloc, false));
          }
       }
       else
@@ -852,7 +884,7 @@ void Memory<T>::Wrap(T *ptr, size_t size, MemoryType loc, bool own)
       }
    }
 
-   Wrap(h_ptr_, d_ptr_, size, h_mt, d_mt, own_host, own_device, valid_host,
+   Wrap(h_ptr_, d_ptr_, size, hloc, dloc, own_host, own_device, valid_host,
         valid_device);
 }
 
@@ -872,8 +904,9 @@ void Memory<T>::Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc,
    Reset();
    auto &inst = MemoryManager::instance();
    h_ptr = h_ptr_;
+   h_mt = hloc;
    size_ = size;
-   if (d_ptr || hloc != MemoryType::HOST)
+   if (d_ptr || dloc != MemoryType::DEFAULT)
    {
       MFEM_ASSERT(!inst.valid_segment(segment), "unexpected valid segment");
       segment = inst.insert(reinterpret_cast<char *>(h_ptr),
@@ -900,48 +933,50 @@ void Memory<T>::Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc,
 template <class T>
 void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
 {
-   if (&base != this)
+   if (&base == this)
    {
-      Reset();
-      h_ptr = base.h_ptr + offset;
-      offset_ = offset;
-      size_ = size;
-      // Copy the flags from 'base' and set both OWNS_HOST and OWNS_DEVICE to
-      // false
-      flags = static_cast<Flags>(base.flags & ~(OWNS_HOST | OWNS_DEVICE));
-      auto &inst = MemoryManager::instance();
-      if (!inst.valid_segment(base.segment))
-      {
-         if (
+      MFEM_ASSERT(offset == 0 && size == size_, "Cannot MakeAlias(*this)");
+      return;
+   }
+
+   Reset();
+   h_ptr = base.h_ptr + offset;
+   offset_ = offset;
+   size_ = size;
+   h_mt = base.h_mt;
+   // Copy the flags from 'base' and resets both OWNS_HOST and OWNS_DEVICE
+   flags = static_cast<Flags>(base.flags & ~(OWNS_HOST | OWNS_DEVICE));
+   auto &inst = MemoryManager::instance();
+   if (!inst.valid_segment(base.segment))
+   {
+      if (
 #if !defined(HYPRE_USING_GPU)
-            IsDeviceMemory(inst.GetDeviceMemoryType())
+         IsDeviceMemory(inst.GetDeviceMemoryType())
 #elif MFEM_HYPRE_VERSION < 23100
-            // When HYPRE_USING_GPU is defined and HYPRE < 2.31.0, we always
-            // register the 'base'
-            true
+         // When HYPRE_USING_GPU is defined and HYPRE < 2.31.0, we always
+         // register the 'base'
+         true
 #else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
-            (IsDeviceMemory(inst.GetDeviceMemoryType()) || HypreUsingGPU())
+         (IsDeviceMemory(inst.GetDeviceMemoryType()) || HypreUsingGPU())
 #endif
-         )
+      )
+      {
+         MFEM_ASSERT(!inst.valid_segment(base.segment),
+                     "unexpected valid segment");
+         base.segment = inst.insert(reinterpret_cast<char *>(base.h_ptr),
+                                    nullptr, base.size_ * sizeof(T), base.h_mt,
+                                    MemoryType::DEFAULT, true, false, false);
+         if (base.flags & OWNS_HOST)
          {
-            MFEM_ASSERT(!inst.valid_segment(base.segment),
-                        "unexpected valid segment");
-            base.segment =
-               inst.insert(reinterpret_cast<char *>(base.h_ptr), nullptr,
-                           base.size_ * sizeof(T), MemoryType::HOST,
-                           MemoryType::DEFAULT, true, false, false);
-            if (base.flags & OWNS_HOST)
-            {
-               base.flags = static_cast<Flags>(base.flags | OWNS_DEVICE);
-            }
+            base.flags = static_cast<Flags>(base.flags | OWNS_DEVICE);
          }
       }
-      MFEM_ASSERT(!inst.valid_segment(segment), "unexpected valid segment");
-      segment = base.segment;
-      if (inst.valid_segment(segment))
-      {
-         ++inst.storage.get_segment(segment).ref_count;
-      }
+   }
+   MFEM_ASSERT(!inst.valid_segment(segment), "unexpected valid segment");
+   segment = base.segment;
+   if (inst.valid_segment(segment))
+   {
+      ++inst.storage.get_segment(segment).ref_count;
    }
 }
 
@@ -959,18 +994,20 @@ Memory<T>::Memory(size_t count, MemoryType loc, bool temporary)
 template <class T> Memory<T>::Memory(MemoryType mt) : Memory()
 {
    auto& inst = MemoryManager::instance();
-   if (mt != MemoryType::HOST && mt != MemoryType::DEFAULT)
+   MemoryType dloc = MemoryType::DEFAULT;
+   if (IsHostMemory(mt))
    {
-      if (IsHostMemory(mt))
-      {
-         inst.insert(nullptr, nullptr, 0, mt, MemoryType::DEFAULT, false, false,
-                     false);
-      }
-      else
-      {
-         inst.insert(nullptr, nullptr, 0, inst.GetDualMemoryType(mt), mt, false,
-                     false, false);
-      }
+      h_mt = mt;
+   }
+   else
+   {
+      dloc = mt;
+      h_mt = inst.GetDualMemoryType(dloc);
+   }
+   if (dloc != MemoryType::DEFAULT)
+   {
+      segment =
+         inst.insert(nullptr, nullptr, 0, h_mt, dloc, false, false, false);
    }
 }
 
@@ -1005,7 +1042,7 @@ template <class T> Memory<T>::Memory(const Memory &base, int offset, int size)
 
 template <class T> void Memory<T>::Reset()
 {
-   auto &inst = MemoryManager::instance();
+   auto& inst = MemoryManager::instance();
    Reset(inst.GetHostMemoryType());
 }
 
@@ -1021,18 +1058,13 @@ template <class T> void Memory<T>::Reset(MemoryType host_mt)
    offset_ = 0;
    segment = 0;
    flags = NONE;
-   if (host_mt != inst.GetHostMemoryType())
-   {
-      // need a segment so we can track the host memory type
-      inst.insert(nullptr, nullptr, 0, host_mt, MemoryType::DEFAULT, false,
-                  false, false);
-   }
+   h_mt = host_mt;
 }
 
 template <class T>
 Memory<T>::Memory(const Memory &r)
    : h_ptr(r.h_ptr), size_(r.size_), offset_(r.offset_), segment(r.segment),
-     flags(r.flags)
+     h_mt(r.h_mt), flags(r.flags)
 {
    auto &inst = MemoryManager::instance();
    if (inst.valid_segment(segment))
@@ -1046,7 +1078,7 @@ Memory<T>::Memory(const Memory &r)
 template <class T>
 Memory<T>::Memory(Memory &&r)
    : h_ptr(r.h_ptr), size_(r.size_), offset_(r.offset_), segment(r.segment),
-     flags(r.flags)
+     h_mt(r.h_mt), flags(r.flags)
 {
    r.h_ptr = nullptr;
    r.size_ = 0;
@@ -1114,9 +1146,9 @@ template <class T> void Memory<T>::EnsureRegistered() const
       )
    {
       MFEM_ASSERT(!inst.valid_segment(segment), "unexpected valid segment");
-      segment =
-         inst.insert(reinterpret_cast<char *>(h_ptr), nullptr, size_ * sizeof(T),
-                     MemoryType::HOST, MemoryType::DEFAULT, true, false, false);
+      segment = inst.insert(reinterpret_cast<char *>(h_ptr), nullptr,
+                            size_ * sizeof(T), h_mt, MemoryType::DEFAULT, true,
+                            false, false);
       flags = static_cast<Flags>(flags | OWNS_DEVICE);
    }
 }
@@ -1188,23 +1220,14 @@ template <class T> const T &Memory<T>::operator[](size_t idx) const
    return h_ptr[idx];
 }
 
-template <class T> Memory<T>::~Memory()
-{
-   auto &inst = MemoryManager::instance();
-   if (inst.valid_segment(segment))
-   {
-      inst.erase(segment);
-      segment = 0;
-      h_ptr = nullptr;
-      offset_ = 0;
-      size_ = 0;
-      flags = NONE;
-   }
-}
+template <class T> Memory<T>::~Memory() { Reset(); }
 
 template <class T> void Memory<T>::CopyFrom(const Memory &src, int size)
 {
    auto &inst = MemoryManager::instance();
+   MFEM_ASSERT(size >= 0, "out of bounds copy");
+   MFEM_ASSERT(size_t(size) <= size_, "out of bounds copy");
+   MFEM_ASSERT(size_t(size) <= src.size_, "out of bounds copy");
    if (inst.valid_segment(segment))
    {
       if (inst.valid_segment(src.segment))
@@ -1226,6 +1249,8 @@ template <class T> void Memory<T>::CopyFrom(const Memory &src, int size)
 template <class T> void Memory<T>::CopyFromHost(const T *src, int size)
 {
    auto &inst = MemoryManager::instance();
+   MFEM_ASSERT(size >= 0, "out of bounds copy");
+   MFEM_ASSERT(size_t(size) <= size_, "out of bounds copy");
    if (inst.valid_segment(segment))
    {
       inst.CopyFromHost(segment, offset_ * sizeof(T),
@@ -1245,6 +1270,8 @@ template <class T> void Memory<T>::CopyTo(Memory &dst, int size) const
 template <class T> void Memory<T>::CopyToHost(T *dst, int size) const
 {
    auto &inst = MemoryManager::instance();
+   MFEM_ASSERT(size >= 0, "out of bounds copy");
+   MFEM_ASSERT(size_t(size) <= size_, "out of bounds copy");
    if (inst.valid_segment(segment))
    {
       inst.CopyToHost(segment, offset_ * sizeof(T),

@@ -35,7 +35,7 @@
 
 #if USE_NEW_MEM_MANAGER
 
-#define MFEM_USE_BLIT_KERNEL
+// #define MFEM_USE_BLIT_KERNEL
 
 namespace mfem
 {
@@ -592,17 +592,17 @@ void MemoryManager::Destroy()
 {
    for (auto &seg : storage.segments)
    {
-      if (seg.lowers[0] && (seg.mtypes[0] != MemoryType::HOST || seg.temporary))
-      {
-         Dealloc(seg.lowers[0], seg.mtypes[0], seg.temporary);
-         seg.lowers[0] = nullptr;
-         seg.mtypes[0] = MemoryType::DEFAULT;
-      }
       if (seg.lowers[1] && seg.lowers[1] != seg.lowers[0])
       {
          Dealloc(seg.lowers[1], seg.mtypes[1], seg.temporary);
          seg.lowers[1] = nullptr;
-         seg.mtypes[1] = MemoryType::DEFAULT;
+         // seg.mtypes[1] = MemoryType::DEFAULT;
+      }
+      if (seg.lowers[0] && (seg.mtypes[0] != MemoryType::HOST || seg.temporary))
+      {
+         Dealloc(seg.lowers[0], seg.mtypes[0], seg.temporary);
+         seg.lowers[0] = nullptr;
+         // seg.mtypes[0] = MemoryType::DEFAULT;
       }
    }
    // temporary device allocators need to have Clear called
@@ -613,6 +613,9 @@ void MemoryManager::Destroy()
    allocs_storage[7]->Clear();
    // DEVICE
    allocs_storage[9]->Clear();
+   allocs[static_cast<int>(MemoryType::HOST_PINNED)] = nullptr;
+   allocs[static_cast<int>(MemoryType::MANAGED)] = nullptr;
+   allocs[static_cast<int>(MemoryType::DEVICE)] = nullptr;
 #ifdef MFEM_USE_UMPIRE
    // make sure umpire allocators are destroyed
    allocs_storage[10].reset();
@@ -648,7 +651,10 @@ void MemoryManager::Dealloc(char *ptr, MemoryType type, bool temporary)
       case MemoryType::DEFAULT:
          MFEM_ABORT("Invalid MemoryType");
       default:
-         allocs[offset + static_cast<int>(type)]->Dealloc(ptr);
+         if (allocs[offset + static_cast<int>(type)])
+         {
+            allocs[offset + static_cast<int>(type)]->Dealloc(ptr);
+         }
    }
 }
 
@@ -1167,6 +1173,7 @@ size_t MemoryManager::insert(char *hptr, char *dptr, size_t nbytes,
                   "cannot insert nbytes > 0 with hptr == nullptr");
    }
    MFEM_ASSERT(hloc != MemoryType::PRESERVE, "hloc cannot be PRESERVE");
+   MFEM_ASSERT(hloc != MemoryType::DEFAULT, "hloc cannot be DEFAULT");
    MFEM_ASSERT(dloc != MemoryType::PRESERVE, "dloc cannot be PRESERVE");
    storage.create_next_segment(next_segment);
    auto &seg = storage.get_segment(next_segment);
@@ -2393,7 +2400,7 @@ void MemoryManager::SetDeviceMemoryType(size_t segment, MemoryType loc)
          seg.mtypes[1] = loc;
          // lazy device memory allocation
          // seg.lowers[1] = Alloc(seg.nbytes, seg.mtypes[1], seg.is_temporary());
-         // // initially all invalid
+         // initially all invalid
          // mark_invalid(segment, 1, 0, seg.nbytes, [&](auto, auto) {});
       }
    }

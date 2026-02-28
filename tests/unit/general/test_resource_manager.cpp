@@ -31,28 +31,16 @@ TEST_CASE("Resource Aliasing", "[Resource Manager][GPU]")
    {
       auto ptr = alias0.Write(true);
       REQUIRE(ptr != nullptr);
-      if (!alias0.ZeroCopy())
-      {
-         REQUIRE(ptr != hptr);
-      }
       forall(5, [=] MFEM_HOST_DEVICE(int i) { ptr[i] = 0; });
    }
    {
       auto ptr = alias1.Write(true);
       REQUIRE(ptr != nullptr);
-      if (!alias1.ZeroCopy())
-      {
-         REQUIRE(ptr != hptr);
-      }
       forall(11, [=] MFEM_HOST_DEVICE(int i) { ptr[i] = 1; });
    }
    {
       auto ptr = alias2.Write(true);
       REQUIRE(ptr != nullptr);
-      if (!alias1.ZeroCopy())
-      {
-         REQUIRE(ptr != hptr);
-      }
       forall(5, [=] MFEM_HOST_DEVICE(int i) { ptr[i] = 2; });
    }
    {
