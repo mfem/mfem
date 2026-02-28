@@ -918,6 +918,7 @@ function(mfem_export_mk_files)
       set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} ${CMAKE_CUDA_FLAGS}")
       if (MFEM_CUDA_COMPILER_IS_NVCC)
         set(MFEM_CXXFLAGS "-x=cu ${MFEM_CXXFLAGS} -ccbin ${CMAKE_CXX_COMPILER} --forward-unknown-to-host-compiler")
+        # The following intentionally hides CUDA deprecation warnings
         foreach(ENTRY IN LISTS CUDAToolkit_INCLUDE_DIRS)
           set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} -isystem ${ENTRY}")
         endforeach()
