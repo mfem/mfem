@@ -529,8 +529,9 @@ public:
          }
          else
          {
-            segment = inst.insert(h_ptr, nullptr, size_ * sizeof(T), h_mt, loc,
-                                  true, false, false);
+            segment =
+               inst.insert(reinterpret_cast<char *>(h_ptr), nullptr,
+                           size_ * sizeof(T), h_mt, loc, true, false, false);
             flags = static_cast<Flags>(flags | OWNS_DEVICE);
          }
       }
