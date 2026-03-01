@@ -5,8 +5,8 @@
 // Sample runs:
 //     ex37 -alpha 10
 //     ex37 -alpha 10 -pv
-//     ex37 -lambda 0.1 -mu 0.1
-//     ex37 -o 2 -alpha 5.0 -mi 50 -vf 0.4 -ntol 1e-5
+//     ex37 -lambda 0.1 -mu 0.1 -growth 1
+//     ex37 -o 2 -alpha 10.0 -mi 50 -vf 0.4 -ntol 1e-5 -growth 1.5
 //     ex37 -r 6 -o 1 -alpha 25.0 -epsilon 0.02 -mi 50 -ntol 1e-5
 //
 // Description: This example code demonstrates the use of MFEM to solve a
@@ -54,53 +54,6 @@
 
 using namespace std;
 using namespace mfem;
-
-/**
- * @brief Bregman projection of ρ = sigmoid(ψ) onto the subspace
- *        ∫_Ω ρ dx = θ vol(Ω) as follows:
- *
- *        1. Compute the root of the R → R function
- *            f(c) = ∫_Ω sigmoid(ψ + c) dx - θ vol(Ω)
- *        2. Set ψ ← ψ + c.
- *
- * @param psi a GridFunction to be updated
- * @param target_volume θ vol(Ω)
- * @param tol Newton iteration tolerance
- * @param max_its Newton maximum iteration number
- * @return real_t Final volume, ∫_Ω sigmoid(ψ)
- */
-real_t proj(GridFunction &psi, real_t target_volume, real_t tol=1e-12,
-            int max_its=10)
-{
-   MappedGridFunctionCoefficient sigmoid_psi(&psi, sigmoid);
-   MappedGridFunctionCoefficient der_sigmoid_psi(&psi, der_sigmoid);
-
-   LinearForm int_sigmoid_psi(psi.FESpace());
-   int_sigmoid_psi.AddDomainIntegrator(new DomainLFIntegrator(sigmoid_psi));
-   LinearForm int_der_sigmoid_psi(psi.FESpace());
-   int_der_sigmoid_psi.AddDomainIntegrator(new DomainLFIntegrator(
-                                              der_sigmoid_psi));
-   bool done = false;
-   for (int k=0; k<max_its; k++) // Newton iteration
-   {
-      int_sigmoid_psi.Assemble(); // Recompute f(c) with updated ψ
-      const real_t f = int_sigmoid_psi.Sum() - target_volume;
-
-      int_der_sigmoid_psi.Assemble(); // Recompute df(c) with updated ψ
-      const real_t df = int_der_sigmoid_psi.Sum();
-
-      const real_t dc = -f/df;
-      psi += dc;
-      if (abs(dc) < tol) { done = true; break; }
-   }
-   if (!done)
-   {
-      mfem_warning("Projection reached maximum iteration without converging. "
-                   "Result may not be accurate.");
-   }
-   int_sigmoid_psi.Assemble();
-   return int_sigmoid_psi.Sum();
-}
 
 /*
  * ---------------------------------------------------------------
@@ -180,10 +133,11 @@ int main(int argc, char *argv[])
    int ref_levels = 5;
    int order = 2;
    real_t alpha = 1.0;
+   real_t growth = 2;
    real_t epsilon = 0.01;
    real_t vol_fraction = 0.5;
    int max_it = 1e3;
-   real_t itol = 1e-1;
+   real_t itol = 1e-2;
    real_t ntol = 1e-4;
    real_t rho_min = 1e-6;
    real_t lambda = 1.0;
@@ -198,6 +152,8 @@ int main(int argc, char *argv[])
                   "Order (degree) of the finite elements.");
    args.AddOption(&alpha, "-alpha", "--alpha-step-length",
                   "Step length for gradient descent.");
+   args.AddOption(&growth, "-growth", "--alpha-growth-rate",
+                  "Growth rate of step length for gradient descent.");
    args.AddOption(&epsilon, "-epsilon", "--epsilon-thickness",
                   "Length scale for ρ.");
    args.AddOption(&max_it, "-mi", "--max-it",
@@ -332,6 +288,7 @@ int main(int argc, char *argv[])
    }
    FilterSolver->SetEssentialBoundary(ess_bdr_filter);
    FilterSolver->SetupFEM();
+   FilterSolver->AssembleDiffusionBilinear();
 
    BilinearForm mass(&control_fes);
    mass.AddDomainIntegrator(new InverseIntegrator(new MassIntegrator(one)));
@@ -355,6 +312,7 @@ int main(int argc, char *argv[])
    vol_form.Assemble();
    real_t domain_volume = vol_form(onegf);
    const real_t target_volume = domain_volume * vol_fraction;
+   real_t c = 0;
 
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
@@ -385,7 +343,7 @@ int main(int argc, char *argv[])
    // 11. Iterate:
    for (int k = 1; k <= max_it; k++)
    {
-      if (k > 1) { alpha *= ((real_t) k) / ((real_t) k-1); }
+      if (k > 1) { alpha = std::pow((real_t) k,growth); }
 
       mfem::out << "\nStep = " << k << std::endl;
 
@@ -422,7 +380,11 @@ int main(int argc, char *argv[])
 
       // Step 5 - Update design variable ψ ← proj(ψ - αG)
       psi.Add(-alpha, grad);
-      const real_t material_volume = proj(psi, target_volume);
+      GridFunction alpha_grad(grad);
+      alpha_grad *= alpha;
+      std::pair<real_t,real_t> result = proj(psi, alpha_grad, c, target_volume);
+      const real_t material_volume = result.first;
+      c = result.second;
 
       // Compute ||ρ - ρ_old|| in control fes.
       real_t norm_increment = zerogf.ComputeL1Error(succ_diff_rho);
