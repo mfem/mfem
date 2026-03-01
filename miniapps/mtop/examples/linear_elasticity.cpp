@@ -11,6 +11,15 @@
 
 #include "linear_elasticity.hpp"
 
+#ifdef NVTX_DEBUG_HPP
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kCornflower
+#include NVTX_DEBUG_HPP
+#else
+#define db1(...)
+#define dbg(...)
+#endif
+
 using namespace mfem;
 
 using mfem::future::dual;
@@ -28,6 +37,7 @@ LinearElasticityTimeDependentOperator::LinearElasticityTimeDependentOperator(
      mesh(mesh_),
      order(vorder)
 {
+   dbg();
    mesh.EnsureNodes();
    dim = mesh.Dimension();
    space_dim = mesh.SpaceDimension();
@@ -111,10 +121,11 @@ LinearElasticityTimeDependentOperator::LinearElasticityTimeDependentOperator(
 void LinearElasticityTimeDependentOperator::SetObjective(
    std::shared_ptr<Operator> op_)
 {
-   if (op_.get()!=nullptr)
+   dbg();
+   if (op_.get() != nullptr)
    {
-      obj=op_;
-      //set the new objective and readjust the size of the operator and the state
+      obj = op_;
+      dbg("set the new objective and readjust the size of the operator and the state");
       block_true_offsets.SetSize(4);
       block_true_offsets[0] = 0;
       block_true_offsets[1] = fespace->TrueVSize();
@@ -132,18 +143,18 @@ void LinearElasticityTimeDependentOperator::SetObjective(
    }
    else
    {
+      dbg("New Objective");
       obj.reset();
 
       block_true_offsets.SetSize(3);
       block_true_offsets[0] = 0;
       block_true_offsets[1] = fespace->TrueVSize();
       block_true_offsets[2] = fespace->TrueVSize();
-
       block_true_offsets.PartialSum();
 
-      sol.Update(block_true_offsets); sol=0.0; sol.UseDevice(true);
-      rhs.Update(block_true_offsets); rhs=0.0; rhs.UseDevice(true);
-      tmp.Update(block_true_offsets); tmp=0.0; tmp.UseDevice(true);
+      sol.Update(block_true_offsets); sol.UseDevice(true); sol = 0.0;
+      rhs.Update(block_true_offsets); rhs.UseDevice(true); rhs = 0.0;
+      tmp.Update(block_true_offsets); tmp.UseDevice(true); tmp = 0.0;
 
       this->width = 2*fespace->TrueVSize();
       this->height = 2*fespace->TrueVSize();
@@ -172,7 +183,6 @@ template <int DI, typename scalar_t=real_t> struct QElasticityFunction
          const auto detJ = mfem::future::det(J);
          return tuple{dens * u * detJ * w};
       }
-
    };
 
    struct Elasticity
@@ -197,15 +207,15 @@ template <int DI, typename scalar_t=real_t> struct QElasticityFunction
 
    struct DynamicBdrForce
    {
-      //real_t time=0.0;
-      //real_t period=1.0;
+      // real_t time=0.0;
+      // real_t period=1.0;
       // mfem::Vector* time_mem;
       const real_t* time_mem;
 
       //mfem::Memory<int> alt_time; check the documentation about Memory class for more details
 
-      DynamicBdrForce(mfem::Vector&
-                      tm) // the Read method should be called on the vector passed as tm
+      DynamicBdrForce(mfem::Vector &tm)
+      // the Read method should be called on the vector passed as tm
       // before calling the Mult on the differentiable operator when
       // the time is changing, i.e., the values between the host
       // and device have to be synchronized.
@@ -229,7 +239,6 @@ template <int DI, typename scalar_t=real_t> struct QElasticityFunction
          return tuple{force * detJ * w};
       }
    };
-
 
    struct DynamicVolForce
    {
@@ -301,7 +310,6 @@ template <int DI, typename scalar_t=real_t> struct QElasticityFunction
             const real_t radius = *(obj_mem+1);
             //compute the distance from the center of the objective circle/sphere
             real_t dist_sq = 0.0;
-
             scalar_t obj = 0.0;
 
             for (int i = 0; i < DI; i++)
@@ -384,14 +392,13 @@ public:
    }
 
 private:
-   mfem::Coefficient &coeff1;
-   mfem::Coefficient &coeff2;
-   mfem::Coefficient &coeff3;
+   mfem::Coefficient &coeff1, &coeff2, &coeff3;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 void LinearElasticityTimeDependentOperator::AssembleExplicit()
 {
+   dbg();
    // define the mass differentiable operator
    {
       dfem_mass_op = std::make_unique<mfem::future::DifferentiableOperator>(
@@ -418,8 +425,7 @@ void LinearElasticityTimeDependentOperator::AssembleExplicit()
          mfem::future::Weight{}
       };
 
-      const auto moutputs =
-         mfem::future::tuple
+      const auto moutputs = mfem::future::tuple
       {
          mfem::future::Value<FDispl>{}
       };
@@ -464,8 +470,7 @@ void LinearElasticityTimeDependentOperator::AssembleExplicit()
          mfem::future::Weight{}
       };
 
-      const auto doutputs =
-         mfem::future::tuple
+      const auto doutputs = mfem::future::tuple
       {
          mfem::future::Value<FVeloc>{}
       };
@@ -484,7 +489,7 @@ void LinearElasticityTimeDependentOperator::AssembleExplicit()
       }
    }
 
-   //define the volumetric force differentiable operator
+   // define the volumetric force differentiable operator
    {
       dfem_vol_force_op = std::make_unique<mfem::future::DifferentiableOperator>(
       std::vector<mfem::future::FieldDescriptor> { {FDispl, fespace.get()} },
@@ -624,6 +629,7 @@ void LinearElasticityTimeDependentOperator::AssembleExplicit()
 void LinearElasticityTimeDependentOperator::Mult(const Vector &x,
                                                  Vector &y) const
 {
+   db1();
    real_t time = this->GetTime();
 
    BlockVector bx(const_cast<Vector&>(x), block_true_offsets);
@@ -689,6 +695,7 @@ void LinearElasticityTimeDependentOperator::Mult(const Vector &x,
 void LinearElasticityTimeDependentOperator::AdjointMult(const Vector &x,
                                                         Vector &y) const
 {
+   dbg();
    BlockVector bx(const_cast<Vector&>(x), block_true_offsets);
    BlockVector by(y, block_true_offsets);
 
@@ -718,13 +725,9 @@ template <int DI, typename scalar_t=real_t> struct QObjectiveFunction
                                               const matd_t &J,
                                               const real_t &w) const
       {
-         scalar_t rez;
-         rez=0.0;
-         for (int i=0; i<DI; i++)
-         {
-            rez=rez+u(i)*u(i);
-         }
-         rez=rez*co;
+         scalar_t rez {0.0};
+         for (int i=0; i<DI; i++) { rez = rez + u(i)*u(i); }
+         rez = rez*co;
          const auto detJ = mfem::future::det(J);
          return tuple{rez * detJ * w};
       }
@@ -733,8 +736,7 @@ template <int DI, typename scalar_t=real_t> struct QObjectiveFunction
    struct Objective2
    {
       const real_t s1, s2;
-
-      Objective2(real_t s1_ = 1.0, real_t s2_ = 1.0): s1(s1_), s2(s2_) { }
+      Objective2(real_t s1 = 1.0, real_t s2 = 1.0): s1(s1), s2(s2) { }
 
       MFEM_HOST_DEVICE inline auto operator()(const vecd_t &u,
                                               const vecd_t &v,
@@ -742,10 +744,10 @@ template <int DI, typename scalar_t=real_t> struct QObjectiveFunction
                                               const matd_t &J,
                                               const real_t &w) const
       {
-         scalar_t rez=0.0;
+         scalar_t rez = 0.0;
          for (int i=0; i<DI; i++)
          {
-            rez=rez+u(i)*u(i)*s1+v(i)*v(i)*s2;
+            rez = rez + u(i)*u(i)*s1 + v(i)*v(i)*s2;
          }
          const auto detJ = mfem::future::det(J);
          return tuple{rez * detJ * w};
@@ -758,6 +760,7 @@ ExampleObjectiveIntegrand::ExampleObjectiveIntegrand(ParFiniteElementSpace*
                                                      fes_,
                                                      std::shared_ptr<mfem::Coefficient> objc_)
 {
+   dbg();
    fes=fes_;
    fes->GetParMesh()->EnsureNodes();
 
@@ -802,6 +805,7 @@ ExampleObjectiveIntegrand::ExampleObjectiveIntegrand(ParFiniteElementSpace*
 void ExampleObjectiveIntegrand::SetCoefficients(
    std::shared_ptr<mfem::Coefficient> objc)
 {
+   dbg();
    co=objc;
    if (co.get()!=nullptr)
    {
@@ -873,6 +877,7 @@ void ExampleObjectiveIntegrand::SetCoefficients(
 ///////////////////////////////////////////////////////////////////////////////
 void ExampleObjectiveIntegrand::Mult(const Vector &x, Vector &y) const
 {
+   db1();
    mfem::Array<int> lblock_true_offsets;
    lblock_true_offsets.SetSize(4);
    lblock_true_offsets[0] = 0;
@@ -884,8 +889,8 @@ void ExampleObjectiveIntegrand::Mult(const Vector &x, Vector &y) const
    BlockVector bx(const_cast<Vector&>(x), lblock_true_offsets);
 
    obj->Mult(bx.GetBlock(0),res);
-   //sum up the weighted values
-   real_t lp=mfem::InnerProduct(fes->GetComm(), res, *density);
+   // sum up the weighted values
+   real_t lp = mfem::InnerProduct(fes->GetComm(), res, *density);
    y[0]=lp;
 }
 
@@ -893,6 +898,7 @@ void ExampleObjectiveIntegrand::Mult(const Vector &x, Vector &y) const
 void ExampleObjectiveIntegrand::EvalGradient(const Vector &x,
                                              Vector &grad_y) const
 {
+   dbg();
    mfem::Array<int> lblock_true_offsets;
    lblock_true_offsets.SetSize(4);
    lblock_true_offsets[0] = 0;

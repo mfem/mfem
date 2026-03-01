@@ -22,6 +22,14 @@
 //#define _WIN32
 //#define _aligned_malloc(s,a) malloc(s)
 
+#ifdef NVTX_DEBUG_HPP
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kGold
+#include NVTX_DEBUG_HPP
+#else
+#define dbg(...)
+#endif
+
 #ifndef _WIN32
 #include <unistd.h>
 #include <signal.h>
@@ -760,7 +768,12 @@ private:
       switch (mt)
       {
          case MT::HOST_DEBUG:
-            if (GetEnv("MFEM_MMU_STD")) { return new StdHostMemorySpace(); }
+            if (GetEnv("MFEM_MMU_STD"))
+            {
+               dbg("Using STD memory space for debug device!");
+               return new StdHostMemorySpace();
+            }
+            dbg("Using MMU memory space for debug device!");
             return new MmuHostMemorySpace();
 #ifdef MFEM_USE_UMPIRE
          case MT::HOST_UMPIRE:
