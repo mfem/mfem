@@ -936,7 +936,8 @@ void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
 {
    if (&base == this)
    {
-      MFEM_ASSERT(offset == 0 && size == size_, "Cannot MakeAlias(*this)");
+      MFEM_ASSERT(offset == 0 && size == size_t(size_),
+                  "Cannot MakeAlias(*this)");
       return;
    }
 

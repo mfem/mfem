@@ -321,8 +321,16 @@ class HostMemorySpace
 {
 public:
    virtual ~HostMemorySpace() { }
-   virtual void Alloc(void **ptr, size_t bytes) { *ptr = std::malloc(bytes); }
-   virtual void Dealloc(void *ptr) { std::free(ptr); }
+   virtual void Alloc(void **ptr, size_t bytes)
+   {
+      *ptr = std::malloc(bytes);
+      MFEM_MEM_OP_DEBUG("** Alloc " << *ptr << " " << bytes << std::endl);
+   }
+   virtual void Dealloc(void *ptr)
+   {
+      MFEM_MEM_OP_DEBUG("** Dealloc " << *ptr << " " << bytes << std::endl);
+      std::free(ptr);
+   }
    virtual void Protect(const Memory&, size_t) { }
    virtual void Unprotect(const Memory&, size_t) { }
    virtual void AliasProtect(const void*, size_t) { }
@@ -334,8 +342,16 @@ class DeviceMemorySpace
 {
 public:
    virtual ~DeviceMemorySpace() { }
-   virtual void Alloc(Memory &base) { base.d_ptr = std::malloc(base.bytes); }
-   virtual void Dealloc(Memory &base) { std::free(base.d_ptr); }
+   virtual void Alloc(Memory &base)
+   {
+      base.d_ptr = std::malloc(base.bytes);
+      MFEM_MEM_OP_DEBUG("** Alloc " << base.d_ptr << " " << base.bytes << std::endl);
+   }
+   virtual void Dealloc(Memory &base)
+   {
+      MFEM_MEM_OP_DEBUG("** Dealloc " << base.d_ptr << std::endl);
+      std::free(base.d_ptr);
+   }
    virtual void Protect(const Memory&) { }
    virtual void Unprotect(const Memory&) { }
    virtual void AliasProtect(const void*, size_t) { }
@@ -550,10 +566,12 @@ public:
 #ifdef MFEM_USE_HIP
       HipMallocManaged(ptr, bytes == 0 ? 8 : bytes);
 #endif
+      MFEM_MEM_OP_DEBUG("** Alloc " << *ptr << " " << bytes << std::endl);
    }
 
    void Dealloc(void *ptr) override
    {
+      MFEM_MEM_OP_DEBUG("** Dealloc " << ptr << std::endl);
 #ifdef MFEM_USE_CUDA
       CuMemFree(ptr);
 #endif
@@ -582,8 +600,17 @@ class CudaDeviceMemorySpace: public DeviceMemorySpace
 {
 public:
    CudaDeviceMemorySpace(): DeviceMemorySpace() { }
-   void Alloc(Memory &base) override { CuMemAlloc(&base.d_ptr, base.bytes); }
-   void Dealloc(Memory &base) override { CuMemFree(base.d_ptr); }
+   void Alloc(Memory &base) override
+   {
+      CuMemAlloc(&base.d_ptr, base.bytes);
+      MFEM_MEM_OP_DEBUG("** Alloc " << base.d_ptr << " " << base.bytes
+                        << std::endl);
+   }
+   void Dealloc(Memory &base) override
+   {
+      MFEM_MEM_OP_DEBUG("** Dealloc " << base.d_ptr << std::endl);
+      CuMemFree(base.d_ptr);
+   }
    void *HtoD(void *dst, const void *src, size_t bytes) override
    { return CuMemcpyHtoD(dst, src, bytes); }
    void *DtoD(void* dst, const void* src, size_t bytes) override
@@ -605,9 +632,11 @@ public:
 #ifdef MFEM_USE_HIP
       HipMemAllocHostPinned(ptr, bytes);
 #endif
+      MFEM_MEM_OP_DEBUG("** Alloc " << *ptr << " " << bytes << std::endl);
    }
    void Dealloc(void *ptr) override
    {
+      MFEM_MEM_OP_DEBUG("** Dealloc " << ptr << std::endl);
 #ifdef MFEM_USE_CUDA
       CuMemFreeHostPinned(ptr);
 #endif
@@ -622,8 +651,17 @@ class HipDeviceMemorySpace: public DeviceMemorySpace
 {
 public:
    HipDeviceMemorySpace(): DeviceMemorySpace() { }
-   void Alloc(Memory &base) override { HipMemAlloc(&base.d_ptr, base.bytes); }
-   void Dealloc(Memory &base) override { HipMemFree(base.d_ptr); }
+   void Alloc(Memory &base) override
+   {
+      HipMemAlloc(&base.d_ptr, base.bytes);
+      MFEM_MEM_OP_DEBUG("** Alloc " << base.d_ptr << " " << base.bytes
+                        << std::endl);
+   }
+   void Dealloc(Memory &base) override
+   {
+      MFEM_MEM_OP_DEBUG("** Dealloc " << base.d_ptr << std::endl);
+      HipMemFree(base.d_ptr);
+   }
    void *HtoD(void *dst, const void *src, size_t bytes) override
    { return HipMemcpyHtoD(dst, src, bytes); }
    void *DtoD(void* dst, const void* src, size_t bytes) override
@@ -735,8 +773,15 @@ public:
         UmpireMemorySpace(name, "HOST"),
         strat(allocator.getAllocationStrategy()) {}
    void Alloc(void **ptr, size_t bytes) override
-   { *ptr = allocator.allocate(bytes); }
-   void Dealloc(void *ptr) override { allocator.deallocate(ptr); }
+   {
+      *ptr = allocator.allocate(bytes);
+      MFEM_MEM_OP_DEBUG("** Alloc " << *ptr << " " << bytes << std::endl);
+   }
+   void Dealloc(void *ptr) override
+   {
+      MFEM_MEM_OP_DEBUG("** Dealloc " << ptr << std::endl);
+      allocator.deallocate(ptr);
+   }
    void Insert(void *ptr, size_t bytes)
    { rm.registerAllocation(ptr, {ptr, bytes, strat}); }
 };
@@ -751,8 +796,17 @@ public:
       : DeviceMemorySpace(),
         UmpireMemorySpace(name, "DEVICE") {}
    void Alloc(Memory &base) override
-   { base.d_ptr = allocator.allocate(base.bytes); }
-   void Dealloc(Memory &base) override { allocator.deallocate(base.d_ptr); }
+   {
+      base.d_ptr = allocator.allocate(base.bytes);
+      MFEM_MEM_OP_DEBUG("** Alloc " << base.d_ptr << " " << base.bytes
+                        << std::endl);
+   }
+   void Dealloc(Memory &base) override
+   {
+      MFEM_MEM_OP_DEBUG("** Dealloc " << base.d_ptr << " " << base.bytes
+                        << std::endl);
+      allocator.deallocate(base.d_ptr);
+   }
    void *HtoD(void *dst, const void *src, size_t bytes) override
    {
 #ifdef MFEM_USE_CUDA

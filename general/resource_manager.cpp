@@ -645,6 +645,7 @@ void MemoryManager::Dealloc(char *ptr, MemoryType type, bool temporary)
    {
       offset = allocs.size() / 2;
    }
+   MFEM_MEM_OP_DEBUG("** Dealloc " << (void *)ptr << std::endl);
    switch (type)
    {
       case MemoryType::PRESERVE:
@@ -726,6 +727,7 @@ char *MemoryManager::Alloc(size_t nbytes, MemoryType type, bool temporary)
          EnsureAlloc(type);
          allocs[offset + static_cast<int>(type)]->Alloc(&res, nbytes);
    }
+   MFEM_MEM_OP_DEBUG("** Alloc " << res << " " << nbytes << std::endl);
    return static_cast<char *>(res);
 }
 
