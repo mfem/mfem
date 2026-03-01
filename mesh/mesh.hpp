@@ -2503,8 +2503,12 @@ public:
        (default) or nonconforming. */
    void EnsureNCMesh(bool simplices_nonconforming = false);
 
+   /// Return a bool indicating whether this mesh is conforming.
    bool Conforming() const;
+   /// Return a bool indicating whether this mesh is nonconforming.
    bool Nonconforming() const { return !Conforming(); }
+   /// Is this a NURBS mesh?
+   bool IsNURBS() const { return NURBSext != NULL; }
 
    /** Designate this mesh for output as "NC mesh v1.1", meaning it is
        nonconforming with nonuniform refinement spacings. */

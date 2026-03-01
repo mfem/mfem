@@ -262,7 +262,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, const int *partitioning_,
       delete vert_element;
    }
 
-   if (mesh.NURBSext)
+   if (mesh.IsNURBS())
    {
       MFEM_ASSERT(mesh.GetNodes() &&
                   mesh.GetNodes()->FESpace()->GetNURBSext() == mesh.NURBSext,
@@ -398,7 +398,7 @@ int ParMesh::BuildLocalBoundary(const Mesh& mesh, const int* partitioning,
                                 Table*& edge_element)
 {
    int nbdry = 0;
-   if (mesh.NURBSext)
+   if (mesh.IsNURBS())
    {
       activeBdrElem.SetSize(mesh.GetNBE());
       activeBdrElem = false;
@@ -414,7 +414,7 @@ int ParMesh::BuildLocalBoundary(const Mesh& mesh, const int* partitioning,
          if (partitioning[(o % 2 == 0 || el2 < 0) ? el1 : el2] == MyRank)
          {
             nbdry++;
-            if (mesh.NURBSext)
+            if (mesh.IsNURBS())
             {
                activeBdrElem[i] = true;
             }
@@ -453,7 +453,7 @@ int ParMesh::BuildLocalBoundary(const Mesh& mesh, const int* partitioning,
          if (partitioning[el1] == MyRank)
          {
             nbdry++;
-            if (mesh.NURBSext)
+            if (mesh.IsNURBS())
             {
                activeBdrElem[i] = true;
             }

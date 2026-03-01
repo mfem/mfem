@@ -178,7 +178,7 @@ void IntegrationRule::GrundmannMollerSimplexRule(int s, int n)
 }
 
 IntegrationRule*
-IntegrationRule::ApplyToKnotIntervals(KnotVector const& kv) const
+IntegrationRule::ApplyToKnotIntervals(const KnotVector &kv) const
 {
    const int np = this->GetNPoints();
    const int ne = kv.GetNE();
@@ -222,6 +222,84 @@ IntegrationRule::ApplyToKnotIntervals(KnotVector const& kv) const
    }
 
    return kvir;
+}
+
+IntegrationRule*
+SplineIntegrationRule::GetReducedOrderGaussLegendre(const KnotVector &kv)
+{
+   const int ne = kv.GetNE();
+   // Get the unique knot vectors and their multiplicities
+   Vector ukv;
+   Array<int> m;
+   kv.GetUniqueKnots(ukv);
+   kv.GetKnotMults(m);
+   const int p = kv.GetOrder();
+
+   // For each knot span, the number of points we need is:
+   // np = max{ ceil( (m_{e} + m_{e+1}) / 2 ), ceil( (p + 1) / 2 ) }
+   const int np2 = ceil((p+1)/2);
+   int idx = 0;
+
+   // We don't know the size of ips yet but 2*ne*np2 is an upper bound
+   IntegrationRule *kvir = new IntegrationRule(2*ne*np2);
+   // This shouldn't really matter?
+   kvir->SetOrder(kv.GetOrder());
+
+   // Loop through elements/knot spans and compute the number of points
+   // needed, np=max(np1,np2).
+   //    - np2 is half the "typical" number of Gauss Legendre points required
+   //    - np1 is the ceiling of the mean multiplicity of the surrounding knots
+   // For more details, see Zou 2022, equation 14.
+   //
+   // Asymptotically as patch size increases, this should result in (1/2)^dim
+   // number of quadrature points, given that the interior knots have a
+   // a multiplicity of 1.
+   for (int e = 0; e < ne; ++e)
+   {
+      const int np1 = ceil((m[e] + m[e+1])/2);
+      const int np = max(np1, np2);
+      const real_t x0 = ukv[e];
+      const real_t x1 = ukv[e+1];
+      const real_t s = x1 - x0;
+
+      const IntegrationRule ir = IntRules.Get(Geometry::SEGMENT, 2*np-1);
+      for (int j = 0; j < np; ++j)
+      {
+         const real_t x = x0 + (s * ir[j].x);
+         (*kvir)[idx].Set1w(x, ir[j].weight);
+         idx++;
+      }
+   }
+
+   kvir->SetSize(idx);
+
+   return kvir;
+}
+
+IntegrationRule* SplineIntegrationRule::Get(const KnotVector &kv) const
+{
+   if (T == Type::FullOrderGaussLegendre)
+   {
+      const int order = kv.GetOrder();
+      const IntegrationRule& ir = IntRules.Get(Geometry::SEGMENT, 2*order);
+      return ir.ApplyToKnotIntervals(kv);
+   }
+   else if (T == Type::ReducedOrderGaussLegendre)
+   {
+      return GetReducedOrderGaussLegendre(kv);
+   }
+   else if (T == Type::FixedOrderGaussLegendre)
+   {
+      MFEM_VERIFY(fixed_order > 0, "Fixed order must be positive");
+      const IntegrationRule& ir = IntRules.Get(Geometry::SEGMENT, fixed_order);
+      return ir.ApplyToKnotIntervals(kv);
+   }
+   else
+   {
+      MFEM_ABORT("Unknown SplineIntegrationRule type");
+      return nullptr;
+   }
+
 }
 
 #ifdef MFEM_USE_MPFR
@@ -1878,6 +1956,27 @@ IntegrationRule *IntegrationRules::CubeIntegrationRule(int Order)
    return CubeIntRules[Order];
 }
 
+NURBSMeshRules::NURBSMeshRules(const Mesh &mesh,
+                               const SplineIntegrationRule &splineRule)
+   : npatches(mesh.NURBSext->GetNP()), dim(mesh.Dimension())
+{
+   patchRules1D.SetSize(npatches, dim);
+   // Loop over patches and set a different rule for each patch.
+   for (int p=0; p < mesh.NURBSext->GetNP(); ++p)
+   {
+      Array<const KnotVector*> kv(dim);
+      mesh.NURBSext->GetPatchKnotVectors(p, kv);
+
+      // Construct 1D integration rules by applying splineRule to each knotvector.
+      for (int i=0; i<dim; ++i)
+      {
+         patchRules1D(p,i) = splineRule.Get(*kv[i]);
+      }
+   }
+
+   Finalize(mesh);
+}
+
 IntegrationRule& NURBSMeshRules::GetElementRule(const int elem,
                                                 const int patch, const int *ijk,
                                                 Array<const KnotVector*> const& kv) const
@@ -1994,7 +2093,7 @@ void NURBSMeshRules::Finalize(Mesh const& mesh)
 
    MFEM_VERIFY(elementToRule.empty() && patchRules1D.NumRows() > 0
                && npatches > 0, "Assuming patchRules1D is set.");
-   MFEM_VERIFY(mesh.NURBSext, "");
+   MFEM_VERIFY(mesh.IsNURBS(), "");
    MFEM_VERIFY(mesh.Dimension() == dim, "");
 
    pointToElem.resize(npatches);
