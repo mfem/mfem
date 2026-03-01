@@ -6711,7 +6711,7 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
       };
    }
 
-   Array<int> ukvs((dim==2) ? 4 : 12);
+   Array<int> ukvs((dim == 2) ? 4 : 12);
    Array<int> pe, oe;
    bool initKV = false;
 
@@ -6735,10 +6735,17 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
          const int skv = edge_to_ukv[pe[dir_edges[d][0]]];
          if (skv == kv || FlipIndexSign(skv) == kv)
          {
-            thisDir = d;
+            for (auto e : dir_edges[d])
+               if (!edgeSet[pe[e]])
+               {
+                  thisDir = d;
+               }
          }
       }
-      MFEM_VERIFY(thisDir >= 0, "");
+      if (thisDir == -1)
+      {
+         return false;
+      }
 
       // For this direction, find any edge already set. If no edge is set, we
       // arbitrarily take the first.
@@ -6774,7 +6781,7 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
              (dim == 3 && ukvs[i] == FlipIndexSign(ukvs[ref_edge0])))
          {
             // Flip the sign of this edge
-            MFEM_VERIFY(!edgeSet[edge], "");
+            MFEM_ASSERT(!edgeSet[edge], "");
             edge_to_ukv[edge] = FlipIndexSign(edge_to_ukv[edge]);
          }
 
@@ -6820,10 +6827,11 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
       int unsetDim = -1;
       for (int d=0; d<dim; ++d) // Loop over dimensions.
       {
-         if (!edgeSet[pe[dir_edges[d][0]]])
-         {
-            unsetDim = d;
-         }
+         for (auto e : dir_edges[d])
+            if (!edgeSet[pe[e]])
+            {
+               unsetDim = d;
+            }
       }
 
       if (unsetDim == -1)
@@ -6833,7 +6841,6 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
       }
 
       const int kv = UnsignIndex(edge_to_ukv[pe[dir_edges[unsetDim][0]]]);
-      MFEM_VERIFY(!edgeSet[pe[dir_edges[unsetDim][0]]], "");
 
       initKV = false;
 
@@ -6883,6 +6890,7 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
       }
    }
 
+#ifdef MFEM_DEBUG
    bool allSet = true;
    for (auto eset : edgeSet)
    {
@@ -6891,7 +6899,8 @@ void Mesh::CorrectPatchTopoOrientations(Array<int> &edge_to_ukv) const
          allSet = false;
       }
    }
-   MFEM_VERIFY(allSet && unset.size() == 0, "Some edge is not set");
+   MFEM_ASSERT(allSet && unset.size() == 0, "Some edge is not set");
+#endif
 
    delete face2elem;
 }
