@@ -1,9 +1,20 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 #ifndef LINEAR_ELASTICITY_HPP
 #define LINEAR_ELASTICITY_HPP
+
 #include "mfem.hpp"
 
-
-class LinearElasticityTimeDependentOperator : public mfem::TimeDependentOperator
+///////////////////////////////////////////////////////////////////////////////
+class LinearElasticityTimeDependentOperator: public mfem::TimeDependentOperator
 {
 public:
 
@@ -200,8 +211,6 @@ private:
    std::shared_ptr<mfem::CoefficientVector> density;
    mfem::Coefficient *cdensity;
 
-
-
    static constexpr int FDispl = 0; //grid function displacement
    static constexpr int FVeloc = 1; //grid function velocity
    // elasticity Coefficient Vectors
@@ -250,7 +259,6 @@ private:
    //takes state vector s  and returns y which consists of multiple objectives/constraints
    std::shared_ptr<mfem::Operator> obj;
 
-
    struct
    {
       mfem::real_t Tfinal;
@@ -258,21 +266,17 @@ private:
       mfem::real_t times[2];
       int ind=0;
       int max_states=2;
-
    } adjoint_data;
-
 };
 
 
-
-
+///////////////////////////////////////////////////////////////////////////////
 class ExampleObjectiveIntegrand: public mfem::Operator
 {
 public:
 
    ExampleObjectiveIntegrand(mfem::ParFiniteElementSpace* fes_,
                              std::shared_ptr<mfem::Coefficient> objc);
-
 
    void SetCoefficients( std::shared_ptr<mfem::Coefficient> objc);
 
@@ -287,7 +291,6 @@ public:
    }
 
    void EvalGradient(const mfem::Vector &x, mfem::Vector &grad) const;
-
 
 private:
    std::shared_ptr<mfem::Coefficient> co;
@@ -321,7 +324,6 @@ private:
    const mfem::IntegrationRule *ir;
 
    mutable mfem::Vector res;
-
 };
 
 #endif // LINEAR_ELASTICITY_HPP

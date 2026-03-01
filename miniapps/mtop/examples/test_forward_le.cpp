@@ -1,17 +1,26 @@
 #include "linear_elasticity.hpp"
 
-#include "../chpt/dynamic_checkpointing.hpp"
-#include "../chpt/fixed_slot_checkpoint_storage.hpp"
+// #include "../chpt/dynamic_checkpointing.hpp"
+// #include "../chpt/fixed_slot_checkpoint_storage.hpp"
 
 #include <cmath>
-#include <iomanip>
 #include <cstring>
 
 using namespace mfem;
 using namespace std;
 
-constexpr auto MESH_TRI = MFEM_SOURCE_DIR "/miniapps/mtop/examples/dyn_hex2d_tri.msh";
-constexpr auto MESH_QUAD = MFEM_SOURCE_DIR "/miniapps/mtop/examples/dyn_hex2d_quad.msh";
+#ifdef NVTX_DEBUG_HPP
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kCyan
+#include NVTX_DEBUG_HPP
+#else
+#define dbg(...)
+#endif
+
+constexpr auto MESH_TRI = MFEM_SOURCE_DIR
+                          "/miniapps/mtop/examples/dyn_hex2d_tri.msh";
+constexpr auto MESH_QUAD = MFEM_SOURCE_DIR
+                           "/miniapps/mtop/examples/dyn_hex2d_quad.msh";
 
 struct State
 {
@@ -148,6 +157,8 @@ public:
 
 int main(int argc, char *argv[])
 {
+   dbg();
+
    // Initialize MPI and HYPRE.
    Mpi::Init();
    Hypre::Init();
@@ -159,7 +170,8 @@ int main(int argc, char *argv[])
    bool mesh_tri = false;
    bool mesh_quad = false;
    int par_ref_levels = 1;
-   bool paraview = true;
+   int max_steps = 1000;
+   bool paraview = false;
    bool visualization = true;
    int ode_solver_type = 4;
 
@@ -176,26 +188,29 @@ int main(int argc, char *argv[])
                   "--no-quadrilateral", "Enable or not quadrilateral mesh.");
    args.AddOption(&par_ref_levels, "-prl", "--par-ref-levels",
                   "Number of parallel mesh refinement levels.");
+   args.AddOption(&max_steps, "-ms", "--max-steps",
+                  "Maximum number of time steps.");
    args.AddOption(&paraview, "-pa", "--paraview", "-no-pa",
                   "--no-paraview", "Enable or not Paraview output.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization", "Enable or not visualization.");
-    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
+   args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   ODESolver::Types.c_str());
 
    args.ParseCheck();
+   dbg("mesh_file: {}", mesh_file);
 
    // Enable hardware devices such as GPUs, and programming models such as
    // CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
    if (Mpi::Root()) { device.Print(); }
-   
+
    // Read the (serial) mesh from the given mesh file on all processors.  We
    // can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    // and volume meshes with the same code.
    Mesh mesh(mesh_tri ? MESH_TRI : mesh_quad ? MESH_QUAD : mesh_file, 1, 1);
    const int dim = mesh.Dimension();
-   
+
    // Refine the serial mesh on all processors to increase the resolution. In
    // this example we do 'ref_levels' of uniform refinement. We choose
    // 'ref_levels' to be the largest number that gives a final mesh with no
@@ -208,6 +223,7 @@ int main(int argc, char *argv[])
    if (Mpi::Root())
    {
       std::cout << "Number of elements: " << mesh.GetNE() << std::endl;
+      dbg("Number of elements: {}", mesh.GetNE());
    }
 
    // Define a parallel mesh by a partitioning of the serial mesh. Refine
@@ -215,14 +231,15 @@ int main(int argc, char *argv[])
    // parallel mesh is defined, the serial mesh can be deleted.
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
-   for (int l = 0; l < par_ref_levels; l++) { pmesh.UniformRefinement(); }   
+   for (int l = 0; l < par_ref_levels; l++) { pmesh.UniformRefinement(); }
 
    // Allocate the time dependent linear elasticity operator
    LinearElasticityTimeDependentOperator lin_elasticity_op(pmesh, order);
 
    // Set the material coefficients
-   ConstantCoefficient rho_coef(0.5); // density coefficient for topology optimization
-   
+   ConstantCoefficient rho_coef(
+      0.5); // density coefficient for topology optimization
+
    // Set elasticity coefficients for material 1 and 2
    ConstantCoefficient E1(0.1);
    ConstantCoefficient E2(1.0);
@@ -249,27 +266,27 @@ int main(int argc, char *argv[])
    ProductCoefficient cmu2_coef(0.01, mu2);
 
    lin_elasticity_op.SetElasticityCoefficients(lambda1, mu1, lambda2, mu2);
-   
+
    lin_elasticity_op.SetDensityMaterialCoefficients(dens1_coef, dens2_coef);
-   
+
    lin_elasticity_op.SetDampingMaterialCoefficients(cm1_coef, cm2_coef);
    lin_elasticity_op.SetDampingMaterialCoefficients(cl1_coef, cmu1_coef,
                                                     cl2_coef, cmu2_coef);
 
    lin_elasticity_op.SetDensity(rho_coef);
-   
+
    //set bottom bdr to zero (both the velocities and the displacements)
    lin_elasticity_op.SetZeroBdr(1);
 
    lin_elasticity_op.SetVolForce(1.0 /*period*/, 1.0 /*amplitude*/, 0.2 /*radius*/,
-                                 0.0 /*x center*/ , 0.0 /*y center*/, 0.0 /*z center*/,
+                                 0.0 /*x center*/, 0.0 /*y center*/, 0.0 /*z center*/,
                                  5.0 /* train length*/, 2.5 /*center of the train*/, 2.0 /*power*/);
 
    lin_elasticity_op.AssembleExplicit();
 
    // test mult explicit
    {
-      BlockVector tst; tst.Update(lin_elasticity_op.GetTrueBlockOffsets()); 
+      BlockVector tst; tst.Update(lin_elasticity_op.GetTrueBlockOffsets());
       tst=0.0; //tst.Randomize();
       tst.UseDevice(true); tst.Read();
 
@@ -277,7 +294,7 @@ int main(int argc, char *argv[])
       grd=0.0;
       lin_elasticity_op.Mult(tst,grd);
       lin_elasticity_op.GetVelocity().SetFromTrueDofs(grd.GetBlock(1));
-   }   
+   }
 
    ParaViewDataCollection paraview_dc("isoel", &pmesh);
    paraview_dc.SetPrefixPath("ParaView");
@@ -363,7 +380,7 @@ int main(int argc, char *argv[])
       };
 
 
-      // Initial condition 
+      // Initial condition
       StateCheckPoint spt; spt.obj=-1.0; spt.time=-1.0; spt.state=(lin_elasticity_op.GetState());
 
       Step i=0;
@@ -381,7 +398,7 @@ int main(int argc, char *argv[])
          std::cout<<" Total number of steps="<<m<<std::endl;
       }
 
-      AdjState ast; ast.obj=1.0; ast.time=spt.time; 
+      AdjState ast; ast.obj=1.0; ast.time=spt.time;
       ast.adj=(lin_elasticity_op.GetState());
       ast.grd=(lin_elasticity_op.GetState());
 
@@ -392,10 +409,10 @@ int main(int argc, char *argv[])
          }
 
          ckpt.BackwardStep(j, ast, spt, primal_step, adjoint_step, make_snapshot, restore_snapshot);
-         
+
          if (j == 0) { break; }
       }
-      
+
 
 
    }
@@ -428,20 +445,43 @@ int main(int argc, char *argv[])
       real_t dt_real = 0.005;
       //ode_solver->Run(tsol, t, dt_real, 1.0);
 
-      for(int i=0;i<6000; i++){
+      for (int i=0; i< std::min(max_steps, 6000); i++)
+      {
+         dbg("#{}", i);
          ode_solver->Step(tsol, t, dt_real);
 
          if (Mpi::Root())
          {
-            std::cout << "t: " << t << std::endl; 
+            std::cout << "t: " << t << std::endl;
          }
 
-         if((i%5)==0){
+         if (paraview && (i%5)==0)
+         {
+            dbg("Paraview output at step {} time {}", i, t);
             paraview_dc.SetCycle(i+1);
             paraview_dc.SetTime(t);
             lin_elasticity_op.GetVelocity().SetFromTrueDofs(tsol.GetBlock(1));
             lin_elasticity_op.GetDisplacement().SetFromTrueDofs(tsol.GetBlock(0));
             paraview_dc.Save();
+         }
+
+         if (socketstream glvis; visualization && (i%10)==0 &&
+             ((glvis.open("localhost", 19916)),
+              (glvis.is_open() ? glvis.precision(8) : 0),
+              (glvis.is_open() ? (glvis << "mgjR" << std::endl, 0) : 0),
+              (glvis.is_open())))
+         {
+            dbg("GLVis output at step {} time {}", i, t);
+            glvis << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() << "\n";
+
+            lin_elasticity_op.GetVelocity().SetFromTrueDofs(tsol.GetBlock(1));
+            ParGridFunction velocity(lin_elasticity_op.GetVelocity());
+
+            // lin_elasticity_op.GetDisplacement().SetFromTrueDofs(tsol.GetBlock(0));
+            // ParGridFunction displacement(lin_elasticity_op.GetDisplacement());
+
+            glvis << "solution\n" << pmesh << velocity << std::flush;
+            glvis << "keys g\n" << std::flush; // pause
          }
       }
 

@@ -1,3 +1,14 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
 #include "linear_elasticity.hpp"
 
 using namespace mfem;
@@ -10,7 +21,7 @@ using mfem::future::Weight;
 using mfem::future::Gradient;
 using mfem::future::Identity;
 
-
+///////////////////////////////////////////////////////////////////////////////
 LinearElasticityTimeDependentOperator::LinearElasticityTimeDependentOperator(
    ParMesh &mesh_, int vorder)
    : TimeDependentOperator(),
@@ -41,9 +52,6 @@ LinearElasticityTimeDependentOperator::LinearElasticityTimeDependentOperator(
    ups.reset(new future::UniformParameterSpace(
                 mesh, *ir, 1, false /* used_in_tensor_product */));
 
-
-
-
    if (mesh.attributes.Size() > 0)
    {
       domain_attributes.SetSize(mesh.attributes.Max());
@@ -72,7 +80,6 @@ LinearElasticityTimeDependentOperator::LinearElasticityTimeDependentOperator(
    veloc.SetTrueVector();
    veloc.GetTrueVector().UseDevice(true);
 
-
    this->width = 2*fespace->TrueVSize();
    this->height = 2*fespace->TrueVSize();
 
@@ -98,9 +105,9 @@ LinearElasticityTimeDependentOperator::LinearElasticityTimeDependentOperator(
    bdr_force_mem(2) = 0.0; // amplitude
 
    obj.reset();
-
 }
 
+///////////////////////////////////////////////////////////////////////////////
 void LinearElasticityTimeDependentOperator::SetObjective(
    std::shared_ptr<Operator> op_)
 {
@@ -125,7 +132,6 @@ void LinearElasticityTimeDependentOperator::SetObjective(
    }
    else
    {
-
       obj.reset();
 
       block_true_offsets.SetSize(3);
@@ -144,12 +150,14 @@ void LinearElasticityTimeDependentOperator::SetObjective(
    }
 }
 
+///////////////////////////////////////////////////////////////////////////////
 template <int DI, typename scalar_t=real_t> struct QElasticityFunction
 {
-   using matd_t = tensor<scalar_t, DI, DI>;
-   using vecd_t = tensor<scalar_t, DI>;
    using vec_t = tensor<real_t, DI>;
+   using vecd_t = tensor<scalar_t, DI>;
+
    using mat_t = tensor<real_t, DI, DI>;
+   using matd_t = tensor<scalar_t, DI, DI>;
 
    struct Mass
    {
@@ -207,8 +215,7 @@ template <int DI, typename scalar_t=real_t> struct QElasticityFunction
 
       MFEM_HOST_DEVICE inline auto operator()(const vecd_t &u,
                                               const matd_t &J,
-                                              const real_t &w
-                                             ) const
+                                              const real_t &w) const
       {
          const real_t time = time_mem[0]; // (*time_mem)(0);
          const real_t period = time_mem[1]; // (*time_mem)(1);
@@ -221,7 +228,6 @@ template <int DI, typename scalar_t=real_t> struct QElasticityFunction
          force(0) = force_amplitude;
          return tuple{force * detJ * w};
       }
-
    };
 
 
@@ -233,12 +239,10 @@ template <int DI, typename scalar_t=real_t> struct QElasticityFunction
          time_mem = tm.Read(); //get the device pointer
       }
 
-
       MFEM_HOST_DEVICE inline auto operator()(const vecd_t &u,
                                               const vec_t &x,
                                               const matd_t &J,
-                                              const real_t &w
-                                             ) const
+                                              const real_t &w) const
 
       {
          const real_t time = *(time_mem+0);
@@ -277,13 +281,13 @@ template <int DI, typename scalar_t=real_t> struct QElasticityFunction
          return tuple{force * detJ * w};
       }
 
-      struct  Objective
+      struct Objective
       {
          /* data */
          const real_t* obj_mem;
          Objective(mfem::Vector& tm)
          {
-            obj_mem = tm.Read(); //get the device pointer
+            obj_mem = tm.Read(); // get the device pointer
          }
 
          // takes velocity and returns squared velocity
@@ -292,7 +296,6 @@ template <int DI, typename scalar_t=real_t> struct QElasticityFunction
                                                  const mat_t &J,
                                                  const real_t &w
                                                 ) const
-
          {
             // const real_t time = *(obj_mem+0);
             const real_t radius = *(obj_mem+1);
@@ -305,7 +308,6 @@ template <int DI, typename scalar_t=real_t> struct QElasticityFunction
             {
                const real_t diff = x(i) - *(obj_mem+2+i);
                dist_sq += diff * diff;
-
                obj  +=  u(i) * u(i);
             }
 
@@ -317,9 +319,7 @@ template <int DI, typename scalar_t=real_t> struct QElasticityFunction
 
             const auto detJ = mfem::future::det(J);
             return tuple{obj * detJ * w};
-
          }
-
       };
 
       struct  ObjectiveGrad
@@ -329,16 +329,14 @@ template <int DI, typename scalar_t=real_t> struct QElasticityFunction
 
          ObjectiveGrad(mfem::Vector& tm)
          {
-            obj_mem = tm.Read(); //get the device pointer
+            obj_mem = tm.Read(); // get the device pointer
          }
 
          // takes velocity and returns squared velocity
          MFEM_HOST_DEVICE inline auto operator()(const vecd_t &u,
                                                  const vecd_t &x,
                                                  const matd_t &J,
-                                                 const real_t &w
-                                                ) const
-
+                                                 const real_t &w) const
          {
             // const real_t time = *(obj_mem+0);
             const real_t radius = *(obj_mem+1);
@@ -363,40 +361,35 @@ template <int DI, typename scalar_t=real_t> struct QElasticityFunction
 
             const auto detJ = mfem::future::det(J);
             return tuple{objc* obj_grad * detJ * w};
-
          }
-
       };
-
    };
-
-
-
 };
 
+///////////////////////////////////////////////////////////////////////////////
 class InterpolatedCoefficient : public mfem::Coefficient
 {
-
 public:
    InterpolatedCoefficient(mfem::Coefficient &c1, mfem::Coefficient &c2,
                            mfem::Coefficient &c3)
       : coeff1(c1), coeff2(c2), coeff3(c3) {}
 
-   virtual double Eval(mfem::ElementTransformation &T,
-                       const mfem::IntegrationPoint &ip) override
+   double Eval(mfem::ElementTransformation &T,
+               const mfem::IntegrationPoint &ip) override
    {
       real_t c1=coeff1.Eval(T, ip);
       real_t c2=coeff2.Eval(T, ip);
       real_t dens=coeff3.Eval(T, ip);
       return c2*dens + (1.0-dens)*c1;
    }
+
 private:
    mfem::Coefficient &coeff1;
    mfem::Coefficient &coeff2;
    mfem::Coefficient &coeff3;
-
 };
 
+///////////////////////////////////////////////////////////////////////////////
 void LinearElasticityTimeDependentOperator::AssembleExplicit()
 {
    // define the mass differentiable operator
@@ -491,8 +484,6 @@ void LinearElasticityTimeDependentOperator::AssembleExplicit()
       }
    }
 
-
-
    //define the volumetric force differentiable operator
    {
       dfem_vol_force_op = std::make_unique<mfem::future::DifferentiableOperator>(
@@ -551,8 +542,7 @@ void LinearElasticityTimeDependentOperator::AssembleExplicit()
 
       dfem_forward_op->SetParameters({ l1.get(), m1.get(), l2.get(), m2.get(), density.get(), nodes });
 
-      const auto finputs =
-         mfem::future::tuple
+      const auto finputs = mfem::future::tuple
       {
          mfem::future::Gradient<FDispl>{},
          mfem::future::Identity<Lambda1>{},
@@ -564,8 +554,7 @@ void LinearElasticityTimeDependentOperator::AssembleExplicit()
          mfem::future::Weight{}
       };
 
-      const auto foutputs =
-         mfem::future::tuple
+      const auto foutputs = mfem::future::tuple
       {
          mfem::future::Gradient<FDispl>{}
       };
@@ -584,12 +573,10 @@ void LinearElasticityTimeDependentOperator::AssembleExplicit()
       }
    }
 
-   //Spectral mass-matrix
+   // Spectral mass-matrix
    {
       InterpolatedCoefficient interp_dens1(*cdens1, *cdens2, *cdensity);
-
       IntegrationRules gll_rules(0, Quadrature1D::GaussLobatto);
-
       const IntegrationRule &ir_ni = gll_rules.Get(mesh.GetTypicalElementGeometry(),
                                                    2 * order - 1);
 
@@ -631,9 +618,9 @@ void LinearElasticityTimeDependentOperator::AssembleExplicit()
       }
       fespace->GetEssentialTrueDofs(bdr_attr,ess_tdof_list);
    }
-
 }
 
+///////////////////////////////////////////////////////////////////////////////
 void LinearElasticityTimeDependentOperator::Mult(const Vector &x,
                                                  Vector &y) const
 {
@@ -658,7 +645,6 @@ void LinearElasticityTimeDependentOperator::Mult(const Vector &x,
    }
    //displ.SetFromTrueVector();
    //veloc.SetFromTrueVector();
-
 
    by.GetBlock(0).Set(1.0, veloc.GetTrueVector()); // dx/dt = velocity
 
@@ -695,6 +681,7 @@ void LinearElasticityTimeDependentOperator::Mult(const Vector &x,
    }
 }
 
+///////////////////////////////////////////////////////////////////////////////
 // implements the adjoint reverse time integration
 // i.e. x=[l_q,l_v, L_\rho]^T y=x' - i.e. the derivative with respect to \tau=T-t
 // before calling MultTranspose one should set the sol vector with the
@@ -708,7 +695,7 @@ void LinearElasticityTimeDependentOperator::AdjointMult(const Vector &x,
    y=0.0;
 }
 
-
+///////////////////////////////////////////////////////////////////////////////
 void LinearElasticityTimeDependentOperator::ImplicitSolve(
    const real_t dt,
    const Vector &x,
@@ -716,8 +703,7 @@ void LinearElasticityTimeDependentOperator::ImplicitSolve(
 {
 }
 
-
-
+///////////////////////////////////////////////////////////////////////////////
 template <int DI, typename scalar_t=real_t> struct QObjectiveFunction
 {
    using matd_t = tensor<scalar_t, DI, DI>;
@@ -746,13 +732,9 @@ template <int DI, typename scalar_t=real_t> struct QObjectiveFunction
 
    struct Objective2
    {
-      const real_t s1;
-      const real_t s2;
+      const real_t s1, s2;
 
-      Objective2(real_t s1_ = real_t(1.0), real_t s2_ = real_t(1.0)):s1(s1_),s2(s2_)
-      {
-
-      }
+      Objective2(real_t s1_ = 1.0, real_t s2_ = 1.0): s1(s1_), s2(s2_) { }
 
       MFEM_HOST_DEVICE inline auto operator()(const vecd_t &u,
                                               const vecd_t &v,
@@ -769,16 +751,14 @@ template <int DI, typename scalar_t=real_t> struct QObjectiveFunction
          return tuple{rez * detJ * w};
       }
    };
-
 };
 
-
+///////////////////////////////////////////////////////////////////////////////
 ExampleObjectiveIntegrand::ExampleObjectiveIntegrand(ParFiniteElementSpace*
                                                      fes_,
                                                      std::shared_ptr<mfem::Coefficient> objc_)
 {
    fes=fes_;
-
    fes->GetParMesh()->EnsureNodes();
 
    disp.SetSpace(fes); disp=0.0;
@@ -816,9 +796,9 @@ ExampleObjectiveIntegrand::ExampleObjectiveIntegrand(ParFiniteElementSpace*
    mfes = nodes->ParFESpace();
 
    SetCoefficients(objc_);
-
 }
 
+///////////////////////////////////////////////////////////////////////////////
 void ExampleObjectiveIntegrand::SetCoefficients(
    std::shared_ptr<mfem::Coefficient> objc)
 {
@@ -890,9 +870,9 @@ void ExampleObjectiveIntegrand::SetCoefficients(
    }
 }
 
+///////////////////////////////////////////////////////////////////////////////
 void ExampleObjectiveIntegrand::Mult(const Vector &x, Vector &y) const
 {
-
    mfem::Array<int> lblock_true_offsets;
    lblock_true_offsets.SetSize(4);
    lblock_true_offsets[0] = 0;
@@ -909,8 +889,9 @@ void ExampleObjectiveIntegrand::Mult(const Vector &x, Vector &y) const
    y[0]=lp;
 }
 
+///////////////////////////////////////////////////////////////////////////////
 void ExampleObjectiveIntegrand::EvalGradient(const Vector &x,
-                                             Vector &grad) const
+                                             Vector &grad_y) const
 {
    mfem::Array<int> lblock_true_offsets;
    lblock_true_offsets.SetSize(4);
@@ -921,12 +902,11 @@ void ExampleObjectiveIntegrand::EvalGradient(const Vector &x,
    lblock_true_offsets.PartialSum();
 
    BlockVector bx(const_cast<Vector&>(x), lblock_true_offsets);
-   BlockVector by(grad, lblock_true_offsets); by=0.0;
+   BlockVector by(grad_y, lblock_true_offsets); by=0.0;
    disp.SetFromTrueDofs(bx.GetBlock(0));
 
    std::shared_ptr<mfem::future::DerivativeOperator> dobj_du;
    dobj_du=obj->GetDerivative(FDispl, {&disp}, {density.get(), nodes});
-
 
    if (Mpi::Root())
    {
