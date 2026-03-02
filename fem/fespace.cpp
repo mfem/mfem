@@ -282,14 +282,7 @@ int FiniteElementSpace::DofToVDof(int dof, int vd, int ndofs_) const
 void FiniteElementSpace::AdjustVDofs(Array<int> &vdofs)
 {
    int n = vdofs.Size(), *vdof = vdofs;
-   for (int i = 0; i < n; i++)
-   {
-      int j;
-      if ((j = vdof[i]) < 0)
-      {
-         vdof[i] = -1-j;
-      }
-   }
+   for (int i = 0; i < n; i++) { vdof[i] = UnsignIndex(vdof[i]); }
 }
 
 void FiniteElementSpace::GetElementVDofs(int i, Array<int> &vdofs,
@@ -483,13 +476,14 @@ void FiniteElementSpace::ReorderElementToDofTable()
    for (int k = 0, dof_counter = 0; k < nnz; k++)
    {
       const int sdof = J[k]; // signed dof
-      const int dof = (sdof < 0) ? -1-sdof : sdof;
+      const int dof = UnsignIndex(sdof);
       int new_dof = dof_marker[dof];
       if (new_dof < 0)
       {
          dof_marker[dof] = new_dof = dof_counter++;
       }
-      J[k] = (sdof < 0) ? -1-new_dof : new_dof; // preserve the sign of sdof
+      // Preserve the sign of sdof
+      J[k] = (sdof < 0) ? FlipIndexSign(new_dof) : new_dof;
    }
 }
 
@@ -547,7 +541,7 @@ void MarkDofs(const Array<int> &dofs, Array<int> &mark_array)
 {
    for (auto d : dofs)
    {
-      mark_array[d >= 0 ? d : -1 - d] = -1;
+      mark_array[UnsignIndex(d)] = -1;
    }
 }
 
@@ -931,7 +925,7 @@ void FiniteElementSpace::AddDependencies(
             if (std::abs(coef) > 1e-12)
             {
                const int mdof = master_dofs[j];
-               if (mdof != sdof && mdof != (-1-sdof))
+               if (mdof != sdof && mdof != FlipIndexSign(sdof))
                {
                   deps.Add(sdof, mdof, coef);
                }
@@ -1024,7 +1018,7 @@ int FiniteElementSpace::GetDegenerateFaceDofs(int index, Array<int> &dofs,
    // FiniteElementSpace::AddDependencies.
 
    Array<int> edof;
-   int order = GetEdgeDofs(-1 - index, edof, variant);
+   int order = GetEdgeDofs(FlipIndexSign(index), edof, variant);
 
    int nv = fec->DofForGeometry(Geometry::POINT);
    int ne = fec->DofForGeometry(Geometry::SEGMENT);
@@ -1516,36 +1510,76 @@ const FaceRestriction *FiniteElementSpace::GetFaceRestriction(
    const bool is_dg_space = IsDGSpace();
    const L2FaceValues m = (is_dg_space && mul==L2FaceValues::DoubleValued) ?
                           L2FaceValues::DoubleValued : L2FaceValues::SingleValued;
-   key_face key = std::make_tuple(is_dg_space, f_ordering, type, m);
+   auto key = std::make_tuple(is_dg_space, f_ordering, type, m);
    auto itr = L2F.find(key);
    if (itr != L2F.end())
    {
-      return itr->second;
+      return itr->second.get();
    }
    else
    {
-      FaceRestriction *res;
+      std::unique_ptr<FaceRestriction> res;
       if (is_dg_space)
       {
          if (Conforming())
          {
-            res = new L2FaceRestriction(*this, f_ordering, type, m);
+            res.reset(new L2FaceRestriction(*this, f_ordering, type, m));
          }
          else
          {
-            res = new NCL2FaceRestriction(*this, f_ordering, type, m);
+            res.reset(new NCL2FaceRestriction(*this, f_ordering, type, m));
          }
       }
       else if (dynamic_cast<const DG_Interface_FECollection*>(fec))
       {
-         res = new L2InterfaceFaceRestriction(*this, f_ordering, type);
+         res.reset(new L2InterfaceFaceRestriction(*this, f_ordering, type));
       }
       else
       {
-         res = new ConformingFaceRestriction(*this, f_ordering, type);
+         res.reset(new ConformingFaceRestriction(*this, f_ordering, type));
       }
-      L2F[key] = res;
-      return res;
+      return L2F.emplace(key, std::move(res)).first->second.get();
+   }
+}
+
+const InterpolationManager &FiniteElementSpace::GetInterpolationManager(
+   ElementDofOrdering f_ordering, FaceType type) const
+{
+   const auto key = make_tuple(f_ordering, type);
+
+   auto it = interpolations.find(key);
+   if (it != interpolations.end())
+   {
+      return *it->second;
+   }
+   else
+   {
+      auto interp = make_unique<InterpolationManager>(*this, f_ordering, type);
+
+      int face_idx = 0;
+      for (int f = 0; f < mesh->GetNumFacesWithGhost(); ++f)
+      {
+         Mesh::FaceInformation face = mesh->GetFaceInformation(f);
+         if (!face.IsOfFaceType(type) || face.IsNonconformingCoarse())
+         {
+            continue;
+         }
+         if (face.IsConforming() || face.IsBoundary())
+         {
+            interp->RegisterFaceConformingInterpolation(face, face_idx);
+         }
+         else
+         {
+            interp->RegisterFaceCoarseToFineInterpolation(face, face_idx);
+         }
+         ++face_idx;
+      }
+
+      // Transform the interpolation matrix map into contiguous memory.
+      interp->LinearizeInterpolatorMapIntoVector();
+      interp->InitializeNCInterpConfig();
+
+      return *interpolations.emplace(key, std::move(interp)).first->second;
    }
 }
 
@@ -1670,8 +1704,8 @@ SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
 
          for (int i = 0; i < fine_ldof; i++)
          {
-            int r = DofToVDof(dofs[i], vd);
-            int m = (r >= 0) ? r : (-1 - r);
+            const int r = DofToVDof(dofs[i], vd);
+            const int m = UnsignIndex(r);
 
             if (!mark[m])
             {
@@ -1732,7 +1766,7 @@ SparseMatrix *FiniteElementSpace::VariableOrderRefinementMatrix(
          for (int i = 0; i < fine_ldof; i++)
          {
             const int r = DofToVDof(dofs[i], vd);
-            int m = (r >= 0) ? r : (-1 - r);
+            const int m = UnsignIndex(r);
 
             if (!mark[m])
             {
@@ -2442,8 +2476,8 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
          {
             if (!std::isfinite(lR(i, 0))) { continue; }
 
-            int r = DofToVDof(dofs[i], vd);
-            int m = (r >= 0) ? r : (-1 - r);
+            const int r = DofToVDof(dofs[i], vd);
+            const int m = UnsignIndex(r);
 
             if (is_dg || !mark[m])
             {
@@ -3161,7 +3195,7 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
             else
             {
                // degenerate face (i.e., edge-face constraint)
-               slave_orders |= edge_orders[-1 - slave.index];
+               slave_orders |= edge_orders[FlipIndexSign(slave.index)];
             }
          }
 
@@ -3972,11 +4006,8 @@ void FiniteElementSpace::Destroy()
       delete E2Q_array[i];
    }
    E2Q_array.SetSize(0);
-   for (auto &x : L2F)
-   {
-      delete x.second;
-   }
    L2F.clear();
+   interpolations.clear();
    for (int i = 0; i < E2IFQ_array.Size(); i++)
    {
       delete E2IFQ_array[i];
