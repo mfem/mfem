@@ -64,6 +64,8 @@
 #include "sfem/bilininteg.hpp"
 #include "sfem/lininteg.hpp"
 #include "sfem/coefficient.hpp"
+#include <fstream>
+#include <filesystem>
 
 using namespace std;
 using namespace mfem;
@@ -286,26 +288,29 @@ int main(int argc, char *argv[])
    u_current = u_previous;
    delta_u = 0.0;
 
-   // 8. Determine the list of true (i.e. parallel conforming) essential
-   //    boundary dofs.
+   // 8A. Determine the list of true (i.e. parallel conforming) essential
+   //     boundary dofs.
    Array<int> ess_bdr_x(pmesh.bdr_attributes.Max());
    Array<int> ess_bdr_y(pmesh.bdr_attributes.Max());
    Array<int> ess_bdr_z(pmesh.bdr_attributes.Max());
    ess_bdr_x = 0; ess_bdr_y = 0; ess_bdr_z = 0;
 
-   if (strcmp(mesh_file, "../../data/ref-cube.mesh") == 0)
+   // 8B. Apply boundary conditions for each mesh.
+   filesystem::path mesh_path(mesh_file);
+   string mesh_stem = mesh_path.stem().string();
+   if (mesh_stem == "ref-cube")
    {
       ess_bdr_x[2] = 1; ess_bdr_x[4] = 1;
       ess_bdr_y[1] = 1; ess_bdr_y[3] = 1;
       ess_bdr_z[0] = 1;
    }
-   else if (strcmp(mesh_file, "../../data/wheel.msh") == 0)
+   else if (mesh_stem == "wheel")
    {
       ess_bdr_x[1] = 1; ess_bdr_x[2] = 1; ess_bdr_x[3] = 1;
       ess_bdr_y[1] = 1; ess_bdr_y[2] = 1; ess_bdr_y[3] = 1;
       ess_bdr_z[0] = 1;
    }
-   else if (strcmp(mesh_file, "../../data/hemisphere.msh") == 0)
+   else if (mesh_stem == "hemisphere")
    {
       ess_bdr_x[1] = 1;
       ess_bdr_y[1] = 1;
@@ -332,7 +337,7 @@ int main(int argc, char *argv[])
    sol_sock.precision(8);
 
    // 9B. Set up ParaView output.
-   ParaViewDataCollection paraview_dc("wheel", &pmesh);
+   ParaViewDataCollection paraview_dc(mesh_stem, &pmesh);
    if (paraview_output)
    {
       paraview_dc.SetPrefixPath("ParaView");
