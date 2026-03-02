@@ -315,7 +315,7 @@ public:
    /// Dot product with a `dtype *` array.
    dtype operator*(const dtype *v) const
    {
-      dtype dot = 0.0;
+      dtype dot = {};
       for (int i = 0; i < size; i++)
       {
          dot += data[i] * v[i];
@@ -327,7 +327,7 @@ public:
    dtype operator*(const TAutoDiffVector<dtype> &v) const
    {
       MFEM_ASSERT(size == v.Size(), "incompatible Vectors!");
-      dtype dot = 0.0;
+      dtype dot = {};
       for (int i = 0; i < size; i++)
       {
          dot += data[i] * v[i];
@@ -338,7 +338,7 @@ public:
    dtype operator*(const Vector &v) const
    {
       MFEM_ASSERT(size == v.Size(), "incompatible Vectors!");
-      dtype dot = 0.0;
+      dtype dot = {};
       for (int i = 0; i < size; i++)
       {
          dot += data[i] * v[i];
@@ -649,8 +649,8 @@ public:
          return abs(data[0]);
       } // end if 1 == size
 
-      dtype scale = 0.0;
-      dtype sum = 0.0;
+      dtype scale = {};
+      dtype sum = {};
 
       for (int i = 0; i < size; i++)
       {
@@ -674,7 +674,7 @@ public:
    /// Returns the l_infinity norm of the vector.
    dtype Normlinf() const
    {
-      dtype max = 0.0;
+      dtype max = {};
       for (int i = 0; i < size; i++)
       {
          max = max(abs(data[i]), max);
@@ -684,7 +684,7 @@ public:
    /// Returns the l_1 norm of the vector.
    dtype Norml1() const
    {
-      dtype sum = 0.0;
+      dtype sum = {};
       for (int i = 0; i < size; i++)
       {
          sum += abs(data[i]);
