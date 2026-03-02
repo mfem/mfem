@@ -350,21 +350,21 @@ std::ostream &mem_op_debug_sync_alias(size_t idx, const void *astart,
    auto &tracker = mem_op_tracker::instance();
    if (astart != nullptr)
    {
-      MFEM_ASSERT(bstart != nullptr, "bstart null");
+      MFEM_VERIFY(bstart != nullptr, "bstart null");
       auto iter = tracker.find_allocation(bstart);
       auto pidx = mfem::mem_op_debug(idx);
       if (iter != tracker.allocations.end())
       {
-         MFEM_ASSERT(iter->first.first == bstart,
+         MFEM_VERIFY(iter->first.first == bstart,
                      "registered ptr doesn't match base");
          auto seg_len = reinterpret_cast<const char *>(iter->first.second) -
                         reinterpret_cast<const char *>(iter->first.first);
-         MFEM_ASSERT(seg_len >= nbytes, "alias size too large");
-         MFEM_ASSERT(reinterpret_cast<const char *>(astart) -
+         MFEM_VERIFY(seg_len >= nbytes, "alias size too large");
+         MFEM_VERIFY(reinterpret_cast<const char *>(astart) -
                      reinterpret_cast<const char *>(bstart) >=
                      0,
                      "astart not inside of base segment");
-         MFEM_ASSERT(reinterpret_cast<const char *>(astart) + nbytes -
+         MFEM_VERIFY(reinterpret_cast<const char *>(astart) + nbytes -
                      reinterpret_cast<const char *>(bstart) <=
                      seg_len,
                      "astart not inside of base segment");
