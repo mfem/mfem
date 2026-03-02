@@ -359,7 +359,7 @@ std::ostream &mem_op_debug_sync_alias(size_t idx, const void *astart,
                      "registered ptr doesn't match base");
          auto seg_len = reinterpret_cast<const char *>(iter->first.second) -
                         reinterpret_cast<const char *>(iter->first.first);
-         MFEM_VERIFY(seg_len >= nbytes, "alias size too large");
+         MFEM_VERIFY(size_t(seg_len) >= nbytes, "alias size too large");
          MFEM_VERIFY(reinterpret_cast<const char *>(astart) -
                      reinterpret_cast<const char *>(bstart) >=
                      0,
