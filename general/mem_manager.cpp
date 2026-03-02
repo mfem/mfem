@@ -56,8 +56,136 @@
 // Internal debug option, useful for tracking some memory manager operations.
 // #define MFEM_TRACK_MEM_MANAGER
 
+std::pair<size_t, size_t> mem_op_tracker::add_allocation(const void *start,
+                                                         const void *stop)
+{
+   size_t res = counter++;
+   auto v = allocations.emplace(std::make_pair(start, stop),
+                                std::pair<size_t, size_t>(res, 1));
+   if (!v.second)
+   {
+      ++v.first->second.second;
+      --counter;
+   }
+   return v.first->second;
+}
+
+typename mem_op_tracker::key_type
+mem_op_tracker::find_containing(const void *start, const void *stop)
+{
+   auto iter = allocations.lower_bound(std::make_pair(start, stop));
+   while (iter != allocations.end())
+   {
+      if (iter->first.first > start)
+      {
+         return allocations.end();
+      }
+      if (iter->first.first <= start && iter->first.second >= stop)
+      {
+         return iter;
+      }
+      ++iter;
+   }
+   return allocations.end();
+}
+
+typename mem_op_tracker::key_type
+mem_op_tracker::find_containing(const void *start)
+{
+   auto iter = allocations.lower_bound(std::make_pair(start, start));
+   while (iter != allocations.end())
+   {
+      if (iter->first.first > start)
+      {
+         return allocations.end();
+      }
+      if (iter->first.first <= start && iter->first.second >= start)
+      {
+         return iter;
+      }
+      ++iter;
+   }
+   return allocations.end();
+}
+
+mem_op_tracker::key_type mem_op_tracker::find_allocation(const void *start,
+                                                         const void *stop)
+{
+   auto iter = allocations.lower_bound(std::make_pair(start, stop));
+   while (iter != allocations.end())
+   {
+      if (iter->first.first > start)
+      {
+         mfem::out << "unable to find " << start << ", " << stop << std::endl;
+         MFEM_ABORT("no allocation");
+      }
+      if (iter->first.first == start && iter->first.second == stop)
+      {
+         return iter;
+      }
+      ++iter;
+   }
+   mfem::out << "unable to find " << start << ", " << stop << std::endl;
+   MFEM_ABORT("no allocation");
+}
+
+typename mem_op_tracker::key_type
+mem_op_tracker::find_allocation(const void *start)
+{
+   auto iter = allocations.lower_bound(std::make_pair(start, start));
+   while (iter != allocations.end())
+   {
+      if (iter->first.first > start)
+      {
+         mfem::out << "unable to find " << start << std::endl;
+         MFEM_ABORT("no allocation");
+      }
+      if (iter->first.first == start)
+      {
+         auto it2 = iter;
+         ++it2;
+         if (it2 != allocations.end())
+         {
+            if (it2->first.first <= start)
+            {
+               MFEM_ABORT("overlapping allocations");
+            }
+         }
+         return iter;
+      }
+      ++iter;
+   }
+   mfem::out << "unable to find " << start << std::endl;
+   MFEM_ABORT("no allocation");
+}
+
+std::pair<size_t, size_t> mem_op_tracker::remove_allocation(const void *start,
+                                                            const void *stop)
+{
+   auto iter = find_allocation(start, stop);
+   auto res = iter->second;
+   allocations.erase(iter);
+   return res;
+}
+
+std::pair<size_t, size_t> mem_op_tracker::remove_allocation(const void *start)
+{
+   auto iter = find_allocation(start);
+   auto res = iter->second;
+   allocations.erase(iter);
+   return res;
+}
+
 namespace mfem
 {
+
+OutStream &nullstream()
+{
+   static std::stringstream buf;
+   static OutStream str(buf);
+   str.Disable();
+   return str;
+}
 
 BenchTimer &BenchTimer::Instance()
 {
@@ -118,10 +246,240 @@ ScopeBench::~ScopeBench()
       BenchTimer::Instance().start_points[idx];
 }
 
-std::ostream &mem_op_debug()
+size_t mem_op_debug(size_t idx)
 {
-   static size_t op_idx = 0;
-   return mfem::out << "[DEBUG] " << op_idx++ << ": ";
+   static std::vector<size_t> idcs;
+   while (idcs.size() <= idx)
+   {
+      idcs.push_back(0);
+   }
+   return idcs.at(idx)++;
+}
+
+std::ostream &mem_op_debug(size_t idx, int)
+{
+   auto pidx = mfem::mem_op_debug(idx);
+   return mfem::out << "[DEBUG] " << pidx << ": ";
+}
+
+std::ostream &mem_op_debug_add(size_t idx, const void *start, const void *stop)
+{
+   auto &tracker = mem_op_tracker::instance();
+   if (start != nullptr)
+   {
+      auto v = tracker.add_allocation(start, stop);
+      auto pidx = mfem::mem_op_debug(idx);
+#ifdef MFEM_ENABLE_MEM_OP_DEBUG_PRINT_PTRS
+      return mfem::out << "[DEBUG] " << pidx << ", add "
+             << reinterpret_cast<const char *>(stop) -
+             reinterpret_cast<const char *>(start)
+             << " Bytes " << v.first << " (" << start << ", " << stop
+             << "): ";
+#else
+      return mfem::out << "[DEBUG] " << pidx << ", add "
+             << reinterpret_cast<const char *>(stop) -
+             reinterpret_cast<const char *>(start)
+             << " Bytes " << v.first << ": ";
+#endif
+   }
+   else
+   {
+      return nullstream();
+   }
+}
+
+std::ostream &mem_op_debug_remove(size_t idx, const void *start,
+                                  const void *stop)
+{
+   auto &tracker = mem_op_tracker::instance();
+   if (start != nullptr)
+   {
+      auto v = tracker.remove_allocation(start, stop);
+      auto pidx = mfem::mem_op_debug(idx);
+      return mfem::out << "[DEBUG] " << pidx << ", remove "
+             << reinterpret_cast<const char *>(stop) -
+             reinterpret_cast<const char *>(start)
+             << " Bytes " << v.first << ": ";
+   }
+   else
+   {
+      return nullstream();
+   }
+}
+
+std::ostream &mem_op_debug_remove(size_t idx, const void *start)
+{
+   auto &tracker = mem_op_tracker::instance();
+   if (start != nullptr)
+   {
+      auto iter = tracker.find_allocation(start);
+      auto nbytes = reinterpret_cast<const char *>(iter->first.second) -
+                    reinterpret_cast<const char *>(iter->first.first);
+      auto v = tracker.remove_allocation(start);
+      auto pidx = mfem::mem_op_debug(idx);
+      return mfem::out << "[DEBUG] " << pidx << ", remove " << nbytes
+             << " Bytes " << v.first << ": ";
+   }
+   else
+   {
+      return nullstream();
+   }
+}
+
+std::ostream &mem_op_debug_use(size_t idx, const void *start, const void *stop)
+{
+   auto &tracker = mem_op_tracker::instance();
+   if (start != nullptr)
+   {
+      size_t v = tracker.find_allocation(start, stop)->second.first;
+      auto pidx = mfem::mem_op_debug(idx);
+      return mfem::out << "[DEBUG] " << pidx << ", use " << v
+             << ": ";
+   }
+   else
+   {
+      auto pidx = mfem::mem_op_debug(idx);
+      return mfem::out << "[DEBUG] " << pidx << ", use nullptr "
+             << ": ";
+   }
+}
+
+std::ostream &mem_op_debug_sync_alias(size_t idx, const void *astart,
+                                      const void *bstart, size_t nbytes)
+{
+   auto &tracker = mem_op_tracker::instance();
+   if (astart != nullptr)
+   {
+      MFEM_ASSERT(bstart != nullptr, "bstart null");
+      auto iter = tracker.find_allocation(bstart);
+      auto pidx = mfem::mem_op_debug(idx);
+      if (iter != tracker.allocations.end())
+      {
+         MFEM_ASSERT(iter->first.first == bstart,
+                     "registered ptr doesn't match base");
+         auto seg_len = reinterpret_cast<const char *>(iter->first.second) -
+                        reinterpret_cast<const char *>(iter->first.first);
+         MFEM_ASSERT(seg_len >= nbytes, "alias size too large");
+         MFEM_ASSERT(reinterpret_cast<const char *>(astart) -
+                     reinterpret_cast<const char *>(bstart) >=
+                     0,
+                     "astart not inside of base segment");
+         MFEM_ASSERT(reinterpret_cast<const char *>(astart) + nbytes -
+                     reinterpret_cast<const char *>(bstart) <=
+                     seg_len,
+                     "astart not inside of base segment");
+         return mfem::out << "[DEBUG] " << pidx << ", SYNC_ALIAS "
+                << iter->second.first << "["
+                << reinterpret_cast<const char *>(astart) -
+                reinterpret_cast<const char *>(bstart)
+                << "]: " << nbytes << std::endl;
+      }
+      else
+      {
+         return mfem::out << "[DEBUG] " << pidx << ", sync alias external"
+                << std::endl;
+      }
+   }
+   else
+   {
+      auto pidx = mfem::mem_op_debug(idx);
+      return mfem::out << "[DEBUG] " << pidx << ", sync alias nullptr" << std::endl;
+   }
+}
+
+std::ostream &mem_op_debug_use(size_t idx, const void *start)
+{
+   auto &tracker = mem_op_tracker::instance();
+   if (start != nullptr)
+   {
+      size_t v = tracker.find_allocation(start)->second.first;
+      auto pidx = mfem::mem_op_debug(idx);
+      return mfem::out << "[DEBUG] " << pidx << ", use " << v
+             << ": ";
+   }
+   else
+   {
+      auto pidx = mfem::mem_op_debug(idx);
+      return mfem::out << "[DEBUG] " << pidx << ", use nullptr: ";
+   }
+}
+
+std::ostream &mem_op_debug_batch_mem_copy(size_t idx, const void *src_start,
+                                          const void *dst_start, size_t nbytes,
+                                          MemoryType src_loc,
+                                          MemoryType dst_loc)
+{
+   auto &tracker = mem_op_tracker::instance();
+   auto src_iter = tracker.find_containing(
+                      src_start, reinterpret_cast<const char *>(src_start) + nbytes);
+   auto dst_iter = tracker.find_containing(
+                      dst_start, reinterpret_cast<const char *>(dst_start) + nbytes);
+   auto pidx = mfem::mem_op_debug(idx);
+   mfem::out << "[DEBUG] " << pidx << ": BATCH_MEM_COPY "
+             << mem_op_debug_copy_type(src_loc, dst_loc) << " " << nbytes
+             << " Bytes, ";
+   if (src_iter != tracker.allocations.end())
+   {
+      mfem::out << src_iter->second.first << "["
+                << reinterpret_cast<const char *>(src_iter->first.first) -
+                reinterpret_cast<const char *>(src_start)
+                << "] -> ";
+   }
+   else
+   {
+      mfem::out << "external src -> ";
+   }
+   if (dst_iter != tracker.allocations.end())
+   {
+      return mfem::out << dst_iter->second.first << "["
+             << reinterpret_cast<const char *>(
+                dst_iter->first.first) -
+             reinterpret_cast<const char *>(dst_start)
+             << "]";
+   }
+   else
+   {
+      return mfem::out << "external dst";
+   }
+}
+
+std::ostream &mem_op_debug_batch_mem_copy2(size_t idx, const void *src_start,
+                                           const void *dst_start, size_t nbytes,
+                                           MemoryType src_loc,
+                                           MemoryType dst_loc)
+{
+   auto &tracker = mem_op_tracker::instance();
+   auto src_iter = tracker.find_containing(
+                      src_start, reinterpret_cast<const char *>(src_start) + nbytes);
+   auto dst_iter = tracker.find_containing(
+                      dst_start, reinterpret_cast<const char *>(dst_start) + nbytes);
+   auto pidx = mfem::mem_op_debug(idx);
+   mfem::out << "[DEBUG] " << pidx << ": BATCH_MEM_COPY2 "
+             << mem_op_debug_copy_type(src_loc, dst_loc) << " " << nbytes
+             << " Bytes, ";
+   if (src_iter != tracker.allocations.end())
+   {
+      mfem::out << src_iter->second.first << "["
+                << reinterpret_cast<const char *>(src_iter->first.first) -
+                reinterpret_cast<const char *>(src_start)
+                << "] -> ";
+   }
+   else
+   {
+      mfem::out << "external src -> ";
+   }
+   if (dst_iter != tracker.allocations.end())
+   {
+      return mfem::out << dst_iter->second.first << "["
+             << reinterpret_cast<const char *>(
+                dst_iter->first.first) -
+             reinterpret_cast<const char *>(dst_start)
+             << "] -> ";
+   }
+   else
+   {
+      return mfem::out << "external dst";
+   }
 }
 
 std::string mem_op_debug_copy_type(MemoryType src_loc, MemoryType dst_loc)
@@ -324,11 +682,13 @@ public:
    virtual void Alloc(void **ptr, size_t bytes)
    {
       *ptr = std::malloc(bytes);
-      MFEM_MEM_OP_DEBUG("** Alloc " << *ptr << " " << bytes << std::endl);
+      MFEM_MEM_OP_DEBUG_ADD(0, *ptr, reinterpret_cast<char *>(*ptr) + bytes,
+                            "alloc " << (int)MemoryType::HOST << ", " << false);
    }
    virtual void Dealloc(void *ptr)
    {
-      MFEM_MEM_OP_DEBUG("** Dealloc " << *ptr << " " << bytes << std::endl);
+      MFEM_MEM_OP_DEBUG_REMOVE(
+         1, ptr, "dealloc " << (int)MemoryType::HOST << ", " << false);
       std::free(ptr);
    }
    virtual void Protect(const Memory&, size_t) { }
@@ -345,11 +705,14 @@ public:
    virtual void Alloc(Memory &base)
    {
       base.d_ptr = std::malloc(base.bytes);
-      MFEM_MEM_OP_DEBUG("** Alloc " << base.d_ptr << " " << base.bytes << std::endl);
+      MFEM_MEM_OP_DEBUG_ADD(
+         0, base.d_ptr, reinterpret_cast<char *>(base.d_ptr) + base.bytes,
+         "alloc " << (int)MemoryType::DEVICE << ", " << false);
    }
    virtual void Dealloc(Memory &base)
    {
-      MFEM_MEM_OP_DEBUG("** Dealloc " << base.d_ptr << std::endl);
+      MFEM_MEM_OP_DEBUG_REMOVE(
+         1, base.d_ptr, "dealloc " << (int)MemoryType::DEVICE << ", " << false);
       std::free(base.d_ptr);
    }
    virtual void Protect(const Memory&) { }
@@ -379,8 +742,20 @@ class Aligned32HostMemorySpace : public HostMemorySpace
 public:
    Aligned32HostMemorySpace(): HostMemorySpace() { }
    void Alloc(void **ptr, size_t bytes) override
-   { if (mfem_memalign(ptr, 32, bytes) != 0) { throw ::std::bad_alloc(); } }
-   void Dealloc(void *ptr) override { mfem_aligned_free(ptr); }
+   {
+      if (mfem_memalign(ptr, 32, bytes) != 0)
+      {
+         throw ::std::bad_alloc();
+      }
+      MFEM_MEM_OP_DEBUG_ADD(0, *ptr, reinterpret_cast<char *>(*ptr) + bytes,
+                            "alloc " << (int)MemoryType::HOST_32 << ", " << false);
+   }
+   void Dealloc(void *ptr) override
+   {
+      MFEM_MEM_OP_DEBUG_REMOVE(
+         1, ptr, "dealloc " << (int)MemoryType::HOST_32 << ", " << false);
+      mfem_aligned_free(ptr);
+   }
 };
 
 /// The aligned 64 host memory space
@@ -389,8 +764,21 @@ class Aligned64HostMemorySpace : public HostMemorySpace
 public:
    Aligned64HostMemorySpace(): HostMemorySpace() { }
    void Alloc(void **ptr, size_t bytes) override
-   { if (mfem_memalign(ptr, 64, bytes) != 0) { throw ::std::bad_alloc(); } }
-   void Dealloc(void *ptr) override { mfem_aligned_free(ptr); }
+   {
+      if (mfem_memalign(ptr, 64, bytes) != 0)
+      {
+         throw ::std::bad_alloc();
+      }
+      MFEM_MEM_OP_DEBUG_ADD(0, *ptr, reinterpret_cast<char *>(*ptr) + bytes,
+                            "alloc " << (int)MemoryType::HOST_64 << ", "
+                            << false);
+   }
+   void Dealloc(void *ptr) override
+   {
+      MFEM_MEM_OP_DEBUG_REMOVE(
+         1, ptr, "dealloc " << (int)MemoryType::HOST_64 << ", " << false);
+      mfem_aligned_free(ptr);
+   }
 };
 
 #ifndef _WIN32
@@ -538,8 +926,19 @@ class MmuHostMemorySpace : public HostMemorySpace
 {
 public:
    MmuHostMemorySpace(): HostMemorySpace() { MmuInit(); }
-   void Alloc(void **ptr, size_t bytes) override { MmuAlloc(ptr, bytes); }
-   void Dealloc(void *ptr) override { MmuDealloc(ptr, maps->memories.at(ptr).bytes); }
+   void Alloc(void **ptr, size_t bytes) override
+   {
+      MmuAlloc(ptr, bytes);
+      MFEM_MEM_OP_DEBUG_ADD(0, *ptr, reinterpret_cast<char *>(*ptr) + bytes,
+                            "alloc " << (int)MemoryType::HOST_DEBUG << ", "
+                            << false);
+   }
+   void Dealloc(void *ptr) override
+   {
+      MFEM_MEM_OP_DEBUG_REMOVE(
+         1, ptr, "dealloc " << (int)MemoryType::HOST_DEBUG << ", " << false);
+      MmuDealloc(ptr, maps->memories.at(ptr).bytes);
+   }
    void Protect(const Memory& mem, size_t bytes) override
    { if (mem.h_rw) { mem.h_rw = false; MmuProtect(mem.h_ptr, bytes); } }
    void Unprotect(const Memory &mem, size_t bytes) override
@@ -566,12 +965,15 @@ public:
 #ifdef MFEM_USE_HIP
       HipMallocManaged(ptr, bytes == 0 ? 8 : bytes);
 #endif
-      MFEM_MEM_OP_DEBUG("** Alloc " << *ptr << " " << bytes << std::endl);
+      MFEM_MEM_OP_DEBUG_ADD(0, *ptr, reinterpret_cast<char *>(*ptr) + bytes,
+                            "alloc " << (int)MemoryType::MANAGED << ", "
+                            << false);
    }
 
    void Dealloc(void *ptr) override
    {
-      MFEM_MEM_OP_DEBUG("** Dealloc " << ptr << std::endl);
+      MFEM_MEM_OP_DEBUG_REMOVE(
+         1, ptr, "dealloc " << (int)MemoryType::MANAGED << ", " << false);
 #ifdef MFEM_USE_CUDA
       CuMemFree(ptr);
 #endif
@@ -603,12 +1005,14 @@ public:
    void Alloc(Memory &base) override
    {
       CuMemAlloc(&base.d_ptr, base.bytes);
-      MFEM_MEM_OP_DEBUG("** Alloc " << base.d_ptr << " " << base.bytes
-                        << std::endl);
+      MFEM_MEM_OP_DEBUG_ADD(
+         0, base.d_ptr, reinterpret_cast<char *>(base.d_ptr) + base.bytes,
+         "alloc " << (int)MemoryType::DEVICE << ", " << false);
    }
    void Dealloc(Memory &base) override
    {
-      MFEM_MEM_OP_DEBUG("** Dealloc " << base.d_ptr << std::endl);
+      MFEM_MEM_OP_DEBUG_REMOVE(
+         1, base.d_ptr, "dealloc " << (int)MemoryType::DEVICE << ", " << false);
       CuMemFree(base.d_ptr);
    }
    void *HtoD(void *dst, const void *src, size_t bytes) override
@@ -632,11 +1036,14 @@ public:
 #ifdef MFEM_USE_HIP
       HipMemAllocHostPinned(ptr, bytes);
 #endif
-      MFEM_MEM_OP_DEBUG("** Alloc " << *ptr << " " << bytes << std::endl);
+      MFEM_MEM_OP_DEBUG_ADD(0, *ptr, reinterpret_cast<char *>(*ptr) + bytes,
+                            "alloc " << (int)MemoryType::HOST_PINNED << ", "
+                            << false);
    }
    void Dealloc(void *ptr) override
    {
-      MFEM_MEM_OP_DEBUG("** Dealloc " << ptr << std::endl);
+      MFEM_MEM_OP_DEBUG_REMOVE(
+         1, ptr, "dealloc " << (int)MemoryType::HOST_PINNED << ", " << false);
 #ifdef MFEM_USE_CUDA
       CuMemFreeHostPinned(ptr);
 #endif
@@ -654,12 +1061,14 @@ public:
    void Alloc(Memory &base) override
    {
       HipMemAlloc(&base.d_ptr, base.bytes);
-      MFEM_MEM_OP_DEBUG("** Alloc " << base.d_ptr << " " << base.bytes
-                        << std::endl);
+      MFEM_MEM_OP_DEBUG_ADD(
+         0, base.d_ptr, reinterpret_cast<char *>(base.d_ptr) + base.bytes,
+         "alloc " << (int)MemoryType::DEVICE << ", " << false);
    }
    void Dealloc(Memory &base) override
    {
-      MFEM_MEM_OP_DEBUG("** Dealloc " << base.d_ptr << std::endl);
+      MFEM_MEM_OP_DEBUG_REMOVE(
+         1, base.d_ptr, "dealloc " << (int)MemoryType::DEVICE << ", " << false);
       HipMemFree(base.d_ptr);
    }
    void *HtoD(void *dst, const void *src, size_t bytes) override
@@ -714,8 +1123,20 @@ class MmuDeviceMemorySpace : public DeviceMemorySpace
 {
 public:
    MmuDeviceMemorySpace(): DeviceMemorySpace() { }
-   void Alloc(Memory &m) override { MmuAlloc(&m.d_ptr, m.bytes); }
-   void Dealloc(Memory &m) override { MmuDealloc(m.d_ptr, m.bytes); }
+   void Alloc(Memory &m) override
+   {
+      MmuAlloc(&m.d_ptr, m.bytes);
+      MFEM_MEM_OP_DEBUG_REMOVE(1, m.d_ptr,
+                               "dealloc " << (int)MemoryType::DEVICE_DEBUG
+                               << ", " << false);
+   }
+   void Dealloc(Memory &m) override
+   {
+      MFEM_MEM_OP_DEBUG_REMOVE(1, m.d_ptr,
+                               "dealloc " << (int)MemoryType::DEVICE_DEBUG
+                               << ", " << false);
+      MmuDealloc(m.d_ptr, m.bytes);
+   }
    void Protect(const Memory &m) override
    { if (m.d_rw) { m.d_rw = false; MmuProtect(m.d_ptr, m.bytes); } }
    void Unprotect(const Memory &m) override
@@ -775,11 +1196,14 @@ public:
    void Alloc(void **ptr, size_t bytes) override
    {
       *ptr = allocator.allocate(bytes);
-      MFEM_MEM_OP_DEBUG("** Alloc " << *ptr << " " << bytes << std::endl);
+      MFEM_MEM_OP_DEBUG_ADD(0, *ptr, reinterpret_cast<char *>(*ptr) + bytes,
+                            "alloc " << (int)MemoryType::HOST_UMPIRE << ", "
+                            << false);
    }
    void Dealloc(void *ptr) override
    {
-      MFEM_MEM_OP_DEBUG("** Dealloc " << ptr << std::endl);
+      MFEM_MEM_OP_DEBUG_REMOVE(
+         1, ptr, "dealloc " << (int)MemoryType::HOST_UMPIRE << ", " << false);
       allocator.deallocate(ptr);
    }
    void Insert(void *ptr, size_t bytes)
@@ -798,13 +1222,14 @@ public:
    void Alloc(Memory &base) override
    {
       base.d_ptr = allocator.allocate(base.bytes);
-      MFEM_MEM_OP_DEBUG("** Alloc " << base.d_ptr << " " << base.bytes
-                        << std::endl);
+      MFEM_MEM_OP_DEBUG_ADD(
+         0, base.d_ptr, reinterpret_cast<char *>(base.d_ptr) + base.bytes,
+         "alloc " << (int)MemoryType::DEVICE_UMPIRE << ", " << false);
    }
    void Dealloc(Memory &base) override
    {
-      MFEM_MEM_OP_DEBUG("** Dealloc " << base.d_ptr << " " << base.bytes
-                        << std::endl);
+      MFEM_MEM_OP_DEBUG_REMOVE(
+         1, base.ptr, "dealloc " << (int)MemoryType::DEVICE << ", " << false);
       allocator.deallocate(base.d_ptr);
    }
    void *HtoD(void *dst, const void *src, size_t bytes) override
@@ -1412,8 +1837,9 @@ void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
             MFEM_ASSERT((const char*)dst_h_ptr + bytes <= src_h_ptr ||
                         (const char*)src_h_ptr + bytes <= dst_h_ptr,
                         "data overlaps!");
-            MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY2(bytes, MemoryType::HOST,
-                                              MemoryType::HOST);
+            MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(2, src_h_ptr, dst_h_ptr, bytes, "",
+                                             MemoryType::HOST,
+                                             MemoryType::HOST);
             std::memcpy(dst_h_ptr, src_h_ptr, bytes);
          }
       }
@@ -1424,8 +1850,9 @@ void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
             MemoryType src_d_mt = (src_flags & Mem::ALIAS) ?
                                   maps->aliases.at(src_h_ptr).mem->d_mt :
                                   maps->memories.at(src_h_ptr).d_mt;
-            MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY2(bytes, MemoryType::HOST,
-                                              MemoryType::DEVICE);
+            MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(2, src_d_ptr, dst_h_ptr, bytes, "",
+                                             MemoryType::DEVICE,
+                                             MemoryType::HOST);
             ctrl->Device(src_d_mt)->DtoH(dst_h_ptr, src_d_ptr, bytes);
          }
       }
@@ -1443,8 +1870,8 @@ void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
          const MemoryType d_mt = known ?
                                  maps->memories.at(dst_h_ptr).d_mt :
                                  maps->aliases.at(dst_h_ptr).mem->d_mt;
-         MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY2(bytes, MemoryType::HOST,
-                                           MemoryType::DEVICE);
+         MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(2, src_h_ptr, dest_d_ptr, bytes, "",
+                                          MemoryType::HOST, MemoryType::DEVICE);
          ctrl->Device(d_mt)->HtoD(dest_d_ptr, src_h_ptr, bytes);
       }
       else
@@ -1457,8 +1884,9 @@ void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
             const MemoryType d_mt = known ?
                                     maps->memories.at(dst_h_ptr).d_mt :
                                     maps->aliases.at(dst_h_ptr).mem->d_mt;
-            MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY2(bytes, MemoryType::DEVICE,
-                                              MemoryType::DEVICE);
+            MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(2, src_d_ptr, dest_d_ptr, bytes, "",
+                                             MemoryType::DEVICE,
+                                             MemoryType::DEVICE);
             ctrl->Device(d_mt)->DtoD(dest_d_ptr, src_d_ptr, bytes);
          }
       }
@@ -1480,8 +1908,8 @@ void MemoryManager::CopyToHost_(void *dest_h_ptr, const void *src_h_ptr,
          MFEM_ASSERT((char*)dest_h_ptr + bytes <= src_h_ptr ||
                      (const char*)src_h_ptr + bytes <= dest_h_ptr,
                      "data overlaps!");
-         MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(bytes, MemoryType::HOST,
-                                          MemoryType::HOST);
+         MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(2, src_h_ptr, dest_h_ptr, bytes, "",
+                                          MemoryType::HOST, MemoryType::HOST);
          std::memcpy(dest_h_ptr, src_h_ptr, bytes);
       }
    }
@@ -1494,8 +1922,8 @@ void MemoryManager::CopyToHost_(void *dest_h_ptr, const void *src_h_ptr,
       MemoryType src_d_mt = (src_flags & Mem::ALIAS) ?
                             maps->aliases.at(src_h_ptr).mem->d_mt :
                             maps->memories.at(src_h_ptr).d_mt;
-      MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(bytes, MemoryType::DEVICE,
-                                       MemoryType::HOST);
+      MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(2, src_d_ptr, dest_h_ptr, bytes, "",
+                                       MemoryType::DEVICE, MemoryType::HOST);
       ctrl->Device(src_d_mt)->DtoH(dest_h_ptr, src_d_ptr, bytes);
    }
 }
@@ -1515,8 +1943,8 @@ void MemoryManager::CopyFromHost_(void *dest_h_ptr, const void *src_h_ptr,
          MFEM_ASSERT((char*)dest_h_ptr + bytes <= src_h_ptr ||
                      (const char*)src_h_ptr + bytes <= dest_h_ptr,
                      "data overlaps!");
-         MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(bytes, MemoryType::HOST,
-                                          MemoryType::HOST);
+         MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(2, src_h_ptr, dest_h_ptr, bytes, "",
+                                          MemoryType::HOST, MemoryType::HOST);
          std::memcpy(dest_h_ptr, src_h_ptr, bytes);
       }
    }
@@ -1528,8 +1956,8 @@ void MemoryManager::CopyFromHost_(void *dest_h_ptr, const void *src_h_ptr,
       MemoryType dest_d_mt = (dest_flags & Mem::ALIAS) ?
                              maps->aliases.at(dest_h_ptr).mem->d_mt :
                              maps->memories.at(dest_h_ptr).d_mt;
-      MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(bytes, MemoryType::HOST,
-                                       MemoryType::DEVICE);
+      MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(2, src_h_ptr, dest_d_ptr, bytes, "",
+                                       MemoryType::HOST, MemoryType::DEVICE);
       ctrl->Device(dest_d_mt)->HtoD(dest_d_ptr, src_h_ptr, bytes);
    }
    dest_flags = dest_flags &
@@ -1698,8 +2126,8 @@ void *MemoryManager::GetDevicePtr(const void *h_ptr, size_t bytes,
       MFEM_ASSERT(bytes <= mem.bytes, "invalid copy size");
       if (bytes)
       {
-         MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(bytes, MemoryType::HOST,
-                                          MemoryType::DEVICE);
+         MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(2, h_ptr, mem.d_ptr, bytes, "",
+                                          MemoryType::HOST, MemoryType::DEVICE);
          ctrl->Device(d_mt)->HtoD(mem.d_ptr, h_ptr, bytes);
       }
    }
@@ -1738,8 +2166,8 @@ void *MemoryManager::GetAliasDevicePtr(const void *alias_ptr, size_t bytes,
    ctrl->Host(h_mt)->AliasUnprotect(alias_ptr, bytes);
    if (copy && mem.d_ptr)
    {
-      MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(bytes, MemoryType::HOST,
-                                       MemoryType::DEVICE);
+      MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(2, alias_h_ptr, alias_d_ptr, bytes, "",
+                                       MemoryType::HOST, MemoryType::DEVICE);
       ctrl->Device(d_mt)->HtoD(alias_d_ptr, alias_h_ptr, bytes);
    }
    ctrl->Host(h_mt)->AliasProtect(alias_ptr, bytes);
@@ -1759,8 +2187,8 @@ void *MemoryManager::GetHostPtr(const void *ptr, size_t bytes, bool copy)
    if (mem.d_ptr) { ctrl->Device(d_mt)->Unprotect(mem); }
    if (copy && mem.d_ptr)
    {
-      MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(bytes, MemoryType::DEVICE,
-                                       MemoryType::HOST);
+      MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(2, mem.d_ptr, mem.h_ptr, bytes, "",
+                                       MemoryType::DEVICE, MemoryType::HOST);
       ctrl->Device(d_mt)->DtoH(mem.h_ptr, mem.d_ptr, bytes);
    }
    if (mem.d_ptr) { ctrl->Device(d_mt)->Protect(mem); }
@@ -1783,8 +2211,8 @@ void *MemoryManager::GetAliasHostPtr(const void *ptr, size_t bytes,
    if (mem->d_ptr) { ctrl->Device(d_mt)->AliasUnprotect(alias_d_ptr, bytes); }
    if (copy_data && mem->d_ptr)
    {
-      MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(bytes, MemoryType::DEVICE,
-                                       MemoryType::HOST);
+      MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(2, ptr, alias_d_ptr, bytes, "",
+                                       MemoryType::DEVICE, MemoryType::HOST);
       ctrl->Device(d_mt)->DtoH(const_cast<void *>(ptr), alias_d_ptr, bytes);
    }
    if (mem->d_ptr) { ctrl->Device(d_mt)->AliasProtect(alias_d_ptr, bytes); }
@@ -1938,6 +2366,8 @@ int MemoryManager::CompareHostAndDevice_(void *h_ptr, size_t size,
                  mm.GetAliasDevicePtr(h_ptr, size, false) :
                  mm.GetDevicePtr(h_ptr, size, false);
    char *h_buf = new char[size];
+   MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(2, d_ptr, h_buf, size, "",
+                                    MemoryType::DEVICE, MemoryType::HOST);
 #if defined(MFEM_USE_CUDA)
    CuMemcpyDtoH(h_buf, d_ptr, size);
 #elif defined(MFEM_USE_HIP)

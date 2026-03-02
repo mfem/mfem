@@ -594,12 +594,18 @@ void MemoryManager::Destroy()
    {
       if (seg.lowers[1] && seg.lowers[1] != seg.lowers[0])
       {
+         MFEM_MEM_OP_DEBUG_REMOVE2(0, seg.lowers[1], seg.lowers[1] + seg.nbytes,
+                                   "destroy " << (int)seg.mtypes[1] << ", "
+                                   << seg.is_temporary());
          Dealloc(seg.lowers[1], seg.mtypes[1], seg.temporary);
          seg.lowers[1] = nullptr;
          // seg.mtypes[1] = MemoryType::DEFAULT;
       }
       if (seg.lowers[0] && (seg.mtypes[0] != MemoryType::HOST || seg.temporary))
       {
+         MFEM_MEM_OP_DEBUG_REMOVE2(0, seg.lowers[0], seg.lowers[0] + seg.nbytes,
+                                   "destroy " << (int)seg.mtypes[0] << ", "
+                                   << seg.is_temporary());
          Dealloc(seg.lowers[0], seg.mtypes[0], seg.temporary);
          seg.lowers[0] = nullptr;
          // seg.mtypes[0] = MemoryType::DEFAULT;
@@ -645,7 +651,6 @@ void MemoryManager::Dealloc(char *ptr, MemoryType type, bool temporary)
    {
       offset = allocs.size() / 2;
    }
-   MFEM_MEM_OP_DEBUG("** Dealloc " << (void *)ptr << std::endl);
    switch (type)
    {
       case MemoryType::PRESERVE:
@@ -727,7 +732,6 @@ char *MemoryManager::Alloc(size_t nbytes, MemoryType type, bool temporary)
          EnsureAlloc(type);
          allocs[offset + static_cast<int>(type)]->Alloc(&res, nbytes);
    }
-   MFEM_MEM_OP_DEBUG("** Alloc " << res << " " << nbytes << std::endl);
    return static_cast<char *>(res);
 }
 
@@ -1196,15 +1200,14 @@ size_t MemoryManager::insert(char *hptr, char *dptr, size_t nbytes,
    seg.mtypes[1] = dloc;
    seg.temporary = temporary;
 
-   if (hptr && !valid_host)
+   if (!valid_host)
    {
       mark_invalid(next_segment, false, 0, nbytes,
       [](auto start, auto stop) {});
    }
-   if (dptr && hptr != dptr && !valid_device)
+   if (!valid_device)
    {
-      mark_invalid(next_segment, true, 0, nbytes,
-      [](auto start, auto stop) {});
+      mark_invalid(next_segment, true, 0, nbytes, [](auto start, auto stop) {});
    }
    return next_segment;
 }
@@ -1556,8 +1559,6 @@ const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
 char *MemoryManager::write(size_t segment, size_t offset, size_t nbytes,
                            bool on_device)
 {
-   MFEM_MEM_OP_BENCH(2);
-   MFEM_MEM_OP_DEBUG("** write " << nbytes << std::endl);
    if (valid_segment(segment))
    {
       auto &seg = storage.get_segment(segment);
@@ -1576,8 +1577,10 @@ char *MemoryManager::write(size_t segment, size_t offset, size_t nbytes,
          }
          seg.lowers[on_device] =
             Alloc(seg.nbytes, seg.mtypes[on_device], seg.is_temporary());
-         // initially all invalid
-         mark_invalid(segment, on_device, 0, seg.nbytes, [](auto, auto) {});
+         MFEM_MEM_OP_DEBUG_ADD(0, seg.lowers[on_device],
+                               seg.lowers[on_device] + seg.nbytes,
+                               "alloc " << (int)seg.mtypes[on_device] << ", "
+                               << seg.is_temporary());
       }
       mark_valid(segment, on_device, offset, offset + nbytes,
       [](auto, auto) {});
@@ -1633,8 +1636,9 @@ void MemoryManager::BatchMemCopy(
    // for debugging
    for (size_t i = 0; i < copy_segs.size(); ++i)
    {
-      MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(copy_segs[i].second - copy_segs[i].first,
-                                       src_loc, dst_loc);
+      MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(
+         2, src + copy_segs[i].first, dst + copy_segs[i].first,
+         copy_segs[i].second - copy_segs[i].first, "", src_loc, dst_loc);
    }
 #endif
    // copy_segs is assumed to be allocated in either HOSTPINNED or MANAGED
@@ -1736,7 +1740,9 @@ void MemoryManager::BatchMemCopy2(
    // for debugging
    for (size_t i = 0; i < copy_segs.size(); i += 3)
    {
-      MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY2(copy_segs[i + 2], src_loc, dst_loc);
+      MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(2, src + copy_segs[i],
+                                       dst + copy_segs[i + 1], copy_segs[i + 2],
+                                       "", src_loc, dst_loc);
    }
 #endif
    // copy_segs is assumed to be allocated in either HOSTPINNED or MANAGED
@@ -1833,8 +1839,6 @@ void MemoryManager::BatchMemCopy2(
 char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
                                 bool on_device)
 {
-   MFEM_MEM_OP_BENCH(0);
-   MFEM_MEM_OP_DEBUG("** read_write " << nbytes << std::endl);
    if (valid_segment(segment))
    {
       std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
@@ -1858,8 +1862,10 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
          }
          seg.lowers[on_device] =
             Alloc(seg.nbytes, seg.mtypes[on_device], seg.is_temporary());
-         // initially all invalid
-         mark_invalid(segment, on_device, 0, seg.nbytes, [](auto, auto) {});
+         MFEM_MEM_OP_DEBUG_ADD(0, seg.lowers[on_device],
+                               seg.lowers[on_device] + seg.nbytes,
+                               "alloc " << (int)seg.mtypes[on_device] << ", "
+                               << seg.is_temporary());
       }
       bool need_sync = false;
       if (seg.lowers[0] == seg.lowers[1])
@@ -1875,9 +1881,28 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
       }
       if (copy_segs.size())
       {
-         MFEM_VERIFY(seg.lowers[!on_device], "no other to read from");
-         BatchMemCopy(seg.lowers[on_device], seg.lowers[!on_device],
-                      seg.mtypes[on_device], seg.mtypes[!on_device], copy_segs);
+         if (!seg.lowers[!on_device])
+         {
+            // need to allocate
+            if (seg.mtypes[!on_device] == MemoryType::DEFAULT ||
+                seg.mtypes[!on_device] == MemoryType::PRESERVE)
+            {
+               seg.mtypes[!on_device] =
+                  !on_device ? memory_types[1] : memory_types[0];
+            }
+            seg.lowers[!on_device] =
+               Alloc(seg.nbytes, seg.mtypes[!on_device], seg.is_temporary());
+            MFEM_MEM_OP_DEBUG_ADD(0, seg.lowers[!on_device],
+                                  seg.lowers[!on_device] + seg.nbytes,
+                                  "alloc " << (int)seg.mtypes[!on_device]
+                                  << ", " << seg.is_temporary());
+         }
+         else
+         {
+            BatchMemCopy(seg.lowers[on_device], seg.lowers[!on_device],
+                         seg.mtypes[on_device], seg.mtypes[!on_device],
+                         copy_segs);
+         }
       }
 
       if (seg.lowers[!on_device])
@@ -1888,6 +1913,8 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
       if (!on_device && need_sync)
       {
          // TODO: stream or device sync?
+         MFEM_ASSERT(seg.lowers[0] == seg.lowers[1],
+                     "Expected to have h_ptr == d_ptr");
          MFEM_DEVICE_SYNC;
       }
       return seg.lowers[on_device] + offset;
@@ -1898,8 +1925,6 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
 const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
                                 bool on_device)
 {
-   MFEM_MEM_OP_BENCH(1);
-   MFEM_MEM_OP_DEBUG("** read " << nbytes << std::endl);
    if (valid_segment(segment))
    {
       std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
@@ -1923,8 +1948,12 @@ const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
          }
          seg.lowers[on_device] =
             Alloc(seg.nbytes, seg.mtypes[on_device], seg.is_temporary());
+         MFEM_MEM_OP_DEBUG_ADD(0, seg.lowers[on_device],
+                               seg.lowers[on_device] + seg.nbytes,
+                               "alloc " << (int)seg.mtypes[on_device] << ", "
+                               << seg.is_temporary());
          // initially all invalid
-         mark_invalid(segment, on_device, 0, seg.nbytes, [](auto, auto) {});
+         // mark_invalid(segment, on_device, 0, seg.nbytes, [](auto, auto) {});
       }
 
       bool need_sync = false;
@@ -1941,9 +1970,28 @@ const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
       }
       if (copy_segs.size())
       {
-         MFEM_VERIFY(seg.lowers[!on_device], "no other to read from");
-         BatchMemCopy(seg.lowers[on_device], seg.lowers[!on_device],
-                      seg.mtypes[on_device], seg.mtypes[!on_device], copy_segs);
+         if (!seg.lowers[!on_device])
+         {
+            // need to allocate
+            if (seg.mtypes[!on_device] == MemoryType::DEFAULT ||
+                seg.mtypes[!on_device] == MemoryType::PRESERVE)
+            {
+               seg.mtypes[!on_device] =
+                  !on_device ? memory_types[1] : memory_types[0];
+            }
+            seg.lowers[!on_device] =
+               Alloc(seg.nbytes, seg.mtypes[!on_device], seg.is_temporary());
+            MFEM_MEM_OP_DEBUG_ADD(0, seg.lowers[!on_device],
+                                  seg.lowers[!on_device] + seg.nbytes,
+                                  "alloc " << (int)seg.mtypes[!on_device]
+                                  << ", " << seg.is_temporary());
+         }
+         else
+         {
+            BatchMemCopy(seg.lowers[on_device], seg.lowers[!on_device],
+                         seg.mtypes[on_device], seg.mtypes[!on_device],
+                         copy_segs);
+         }
       }
 
       if (!on_device && need_sync)
@@ -2254,12 +2302,10 @@ size_t MemoryManager::CopyImpl(char *dst, MemoryType dloc, size_t dst_offset,
 void MemoryManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
                          size_t src_offset, size_t nbytes)
 {
-   MFEM_MEM_OP_BENCH(4);
    if (nbytes == 0)
    {
       return;
    }
-   MFEM_MEM_OP_DEBUG("** Copy " << nbytes << std::endl);
    if (dst_seg != src_seg || dst_offset != src_offset)
    {
       size_t currs[2] = {0, 0};
@@ -2314,8 +2360,6 @@ void MemoryManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
 void MemoryManager::CopyFromHost(size_t segment, size_t offset, const char *src,
                                  size_t nbytes)
 {
-   MFEM_MEM_OP_BENCH(5);
-   MFEM_MEM_OP_DEBUG("** CopyFromHost " << nbytes << std::endl);
    if (nbytes == 0)
    {
       return;
@@ -2362,8 +2406,6 @@ void MemoryManager::CopyFromHost(size_t segment, size_t offset, const char *src,
 void MemoryManager::CopyToHost(size_t segment, size_t offset, char *dst,
                                size_t nbytes)
 {
-   MFEM_MEM_OP_BENCH(6);
-   MFEM_MEM_OP_DEBUG("** CopyToHost " << nbytes << std::endl);
    if (nbytes == 0)
    {
       return;
