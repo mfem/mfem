@@ -223,10 +223,11 @@ private:
                                                 size_t nbytes, MemoryClass mc);
 
    /// src0 is the preferred copy-from location
-   size_t CopyImpl(char *dst, MemoryType dloc, size_t dst_offset, size_t marker,
-                   size_t nbytes, const char *src0, const char *src1,
-                   MemoryType sloc0, MemoryType sloc1, size_t src_offset,
-                   size_t marker0, size_t marker1);
+   size_t CopyImpl(char **dst, MemoryType dloc, size_t dst_offset,
+                   size_t marker, size_t nbytes, const char *src0,
+                   const char *src1, MemoryType sloc0, MemoryType sloc1,
+                   size_t src_offset, size_t marker0, size_t marker1,
+                   RBase::Segment *dseg, bool on_device);
 
    /// copies to the part of dst_seg which is valid
    void Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
@@ -653,6 +654,10 @@ public:
 
    MemoryType GetMemoryType() const
    {
+      if (h_ptr == nullptr)
+      {
+         return h_mt;
+      }
       auto &inst = MemoryManager::instance();
       if (inst.valid_segment(segment))
       {

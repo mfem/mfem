@@ -1126,9 +1126,9 @@ public:
    void Alloc(Memory &m) override
    {
       MmuAlloc(&m.d_ptr, m.bytes);
-      MFEM_MEM_OP_DEBUG_REMOVE(1, m.d_ptr,
-                               "dealloc " << (int)MemoryType::DEVICE_DEBUG
-                               << ", " << false);
+      MFEM_MEM_OP_DEBUG_ADD(
+         0, m.d_ptr, reinterpret_cast<char *>(m.d_ptr) + m.bytes,
+         "alloc " << (int)MemoryType::DEVICE_DEBUG << ", " << false);
    }
    void Dealloc(Memory &m) override
    {

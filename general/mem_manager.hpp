@@ -1096,8 +1096,11 @@ inline void Memory<T>::New(int size)
    h_mt = MemoryManager::GetHostMemoryType();
    h_ptr = (h_mt == MemoryType::HOST) ? NewHOST(size) :
            (T*)MemoryManager::New_(nullptr, size*sizeof(T), h_mt, flags);
-   MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
-                         "alloc " << (int)h_mt << ", " << false);
+   if (h_mt == MemoryType::HOST)
+   {
+      MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
+                            "alloc " << (int)h_mt << ", " << false);
+   }
 }
 
 template <typename T>
@@ -1109,9 +1112,12 @@ inline void Memory<T>::New(int size, MemoryType mt)
    if (mt_host) { flags = OWNS_HOST | VALID_HOST; }
    h_mt = IsHostMemory(mt) ? mt : MemoryManager::GetDualMemoryType(mt);
    T *h_tmp = (h_mt == MemoryType::HOST) ? NewHOST(size) : nullptr;
+   if (h_mt == MemoryType::HOST)
+   {
+      MFEM_MEM_OP_DEBUG_ADD(0, h_tmp, h_tmp + size,
+                            "alloc " << (int)h_mt << ", " << false);
+   }
    h_ptr = (mt_host) ? h_tmp : (T*)MemoryManager::New_(h_tmp, bytes, mt, flags);
-   MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
-                         "alloc " << (int)h_mt << ", " << false);
 }
 
 template <typename T>
@@ -1121,10 +1127,13 @@ inline void Memory<T>::New(int size, MemoryType host_mt, MemoryType device_mt)
    const size_t bytes = size*sizeof(T);
    this->h_mt = host_mt;
    T *h_tmp = (host_mt == MemoryType::HOST) ? NewHOST(size) : nullptr;
+   if (h_mt == MemoryType::HOST)
+   {
+      MFEM_MEM_OP_DEBUG_ADD(0, h_tmp, h_tmp + size,
+                            "alloc " << (int)h_mt << ", " << false);
+   }
    h_ptr = (T*)MemoryManager::New_(h_tmp, bytes, host_mt, device_mt,
                                    VALID_HOST, flags);
-   MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
-                         "alloc " << (int)h_mt << ", " << false);
 }
 
 template <typename T>
