@@ -298,13 +298,20 @@ inline void call_qfunc(
    using qf_signature = typename get_function_signature<qfunc_t>::type;
    using qf_param_ts = typename qf_signature::parameter_ts;
 
-   qfunc(
-      make_tensor_array<std::remove_cv_t<std::remove_reference_t<
-      typename tuple_element<Is, qf_param_ts>::type>>>(
-         xq.GetBlock(Is).Read(), gnqp)...,
-      make_tensor_array<std::remove_cv_t<std::remove_reference_t<
-      typename tuple_element<ninputs + Os, qf_param_ts>::type>>>(
-         yq.GetBlock(Os).ReadWrite(), gnqp)...);
+   auto inputs = std::make_tuple(
+                    make_tensor_array<std::remove_cv_t<std::remove_reference_t<
+                    typename tuple_element<Is, qf_param_ts>::type>>>(
+                       xq.GetBlock(Is).Read(), gnqp)...);
+
+   auto outputs = std::make_tuple(
+                     make_tensor_array<std::remove_cv_t<std::remove_reference_t<
+                     typename tuple_element<ninputs + Os, qf_param_ts>::type>>>(
+                        yq.GetBlock(Os).ReadWrite(), gnqp)...);
+
+   std::apply([&](auto&&... args)
+   {
+      qfunc(args...);
+   }, std::tuple_cat(inputs, outputs));
 }
 
 template <typename func_t, typename... arg_ts>

@@ -33,11 +33,11 @@ struct massqf
 {
    inline MFEM_HOST_DEVICE
    void operator()(
-      const tensor_array<const real_t> &u,
-      const tensor_array<const real_t, DIM, DIM> &J,
-      const tensor_array<const real_t> &w,
-      const tensor_array<real_t> &out1,
-      const tensor_array<real_t> &out2) const
+      tensor_array<const real_t> &u,
+      tensor_array<const real_t, DIM, DIM> &J,
+      tensor_array<const real_t> &w,
+      tensor_array<real_t> &out1,
+      tensor_array<real_t> &out2) const
    {
       for (size_t q = 0; q < u.size(); q++)
       {
@@ -52,14 +52,14 @@ struct mass_diffusion_qdata_qf
 {
    inline MFEM_HOST_DEVICE
    void operator()(
-      const tensor_array<const real_t> &u,
-      const tensor_array<const real_t, DIM> &dudxi,
-      const tensor_array<const real_t, DIM, DIM> &J,
-      const tensor_array<const real_t, DIM, DIM> &qdata,
-      const tensor_array<const real_t> &w,
-      const tensor_array<real_t> &out1,
-      const tensor_array<real_t, DIM> &out2,
-      const tensor_array<real_t, DIM, DIM> &out3) const
+      tensor_array<const real_t> &u,
+      tensor_array<const real_t, DIM> &dudxi,
+      tensor_array<const real_t, DIM, DIM> &J,
+      tensor_array<const real_t, DIM, DIM> &qdata,
+      tensor_array<const real_t> &w,
+      tensor_array<real_t> &out1,
+      tensor_array<real_t, DIM> &out2,
+      tensor_array<real_t, DIM, DIM> &out3) const
    {
       for (size_t q = 0; q < u.size(); q++)
       {
@@ -67,8 +67,8 @@ struct mass_diffusion_qdata_qf
          const auto detJq = det(J(q));
 
          out1(q) = u(q) * detJq * w(q);
-         out2(q) = (dudxi(q) * invJq) * transpose(invJq) * detJq
-                   * (real_t)(w(q));
+         out2(q) = (dudxi(q) * invJq) * transpose(invJq) *
+                   (detJq * (real_t)(w(q)));
          out3(q) = J(q);
       }
    }
@@ -232,6 +232,7 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
          {V, &fes},
          {S, &qdata}
       };
+
       DifferentiableOperator dop(in, out, pmesh);
 
       auto derivatives = std::integer_sequence<size_t, U> {};
