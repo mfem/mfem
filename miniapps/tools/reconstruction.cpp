@@ -22,10 +22,9 @@ int main(int argc, char* argv[])
    Mpi::Init(argc, argv);
 
    // Default command-line options
+   std::string lor_method = "optimization"; // "optimization" or "l2_projection"
    int refinement_levels = 0;
-
-   int order_representation = 3;
-   int order_reconstruction = 1;
+   int order_reconstruction = 3;
 
    int field_profile = 0;
    real_t field_kx = 2.0;
@@ -72,8 +71,6 @@ int main(int argc, char* argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&refinement_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
-   args.AddOption(&order_representation, "-orep", "--order-representation",
-                  "Order of the finite element space to represent the field.");
    args.AddOption(&order_reconstruction, "-orec", "--order-reconstruction",
                   "Order of the finite element space to reconstruct the field.");
    args.AddOption(&field_profile, "-f", "--field-profile", field_profiles_help.c_str());
@@ -111,11 +108,6 @@ int main(int argc, char* argv[])
    ParFiniteElementSpace fe_space_averages(&mesh, &fe_collection_averages);
    ParGridFunction u_averages(&fe_space_averages);
 
-   // HO space
-   L2_FECollection fe_collection_representation(order_representation, mesh.Dimension());
-   ParFiniteElementSpace fe_space_representation(&mesh, &fe_collection_representation);
-   ParGridFunction u(&fe_space_representation);
-
    // Reconstruction (LO->HO) space
    L2_FECollection fe_collection_reconstruction(order_reconstruction, mesh.Dimension());
    ParFiniteElementSpace fe_space_reconstruction(&mesh, &fe_collection_reconstruction);
@@ -123,8 +115,6 @@ int main(int argc, char* argv[])
    ParGridFunction u_reconstruction_averages(&fe_space_averages);
 
    // compute element averages
-   u.ProjectCoefficient(u_coefficient);
-   u.GetElementAverages(u_averages);
 
    // compute reconstruction
    L2Reconstruction(u_averages, u_reconstruction);
@@ -142,9 +132,6 @@ int main(int argc, char* argv[])
        glvis_reconstruction &&
        visualization)
    {
-      glvis_original.precision(8);
-      glvis_original << "solution\n" << mesh << u
-         << "window_title 'original'\n" << std::flush;
       glvis_averages.precision(8);
       glvis_averages << "solution\n" << mesh << u_averages
          << "window_title 'averages'\n" << std::flush;
