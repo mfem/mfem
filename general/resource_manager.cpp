@@ -1835,7 +1835,6 @@ bool MemoryManager::check_read_write(size_t segment, size_t offset,
           segs(AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(
                   GetHostMemoryType(), true));
 
-      auto &seg = storage.get_segment(segment);
       check_valid(segment, on_device, offset, offset + nbytes,
                   [&](auto start, auto stop, bool valid)
       {
@@ -1888,7 +1887,6 @@ bool MemoryManager::check_read(size_t segment, size_t offset, size_t nbytes,
           segs(AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(
                   GetHostMemoryType(), true));
 
-      auto &seg = storage.get_segment(segment);
       check_valid(segment, on_device, offset, offset + nbytes,
                   [&](auto start, auto stop, bool valid)
       {
