@@ -105,14 +105,18 @@ int main(int argc, char* argv[])
    serial_mesh.Clear();
 
    // create FEM things
+
+   // LO space
    L2_FECollection fe_collection_averages(0, mesh.Dimension());
    ParFiniteElementSpace fe_space_averages(&mesh, &fe_collection_averages);
    ParGridFunction u_averages(&fe_space_averages);
 
+   // HO space
    L2_FECollection fe_collection_representation(order_representation, mesh.Dimension());
    ParFiniteElementSpace fe_space_representation(&mesh, &fe_collection_representation);
    ParGridFunction u(&fe_space_representation);
 
+   // Reconstruction (LO->HO) space
    L2_FECollection fe_collection_reconstruction(order_reconstruction, mesh.Dimension());
    ParFiniteElementSpace fe_space_reconstruction(&mesh, &fe_collection_reconstruction);
    ParGridFunction u_reconstruction(&fe_space_reconstruction);
@@ -269,7 +273,7 @@ void L2Reconstruction(const ParGridFunction& src, ParGridFunction& dst)
             const real_t detJ = trans.Weight();
             alpha.Add(int_point.weight * detJ, shape);
             volume += int_point.weight * detJ;
-         }
+         } // k, int_rule.GetNPoints()
          alpha *= 1.0/volume;
          // DEBUG
          Vector tmp(2);
@@ -279,18 +283,18 @@ void L2Reconstruction(const ParGridFunction& src, ParGridFunction& dst)
 
          // update Q block (of A) with Q_neighbor = alpha \otimes alpha
          DenseMatrix Q_neighbor(N,N);
-         MultVVt(alpha, Q_neighbor);
-         A.AddSubMatrix(0, Q_neighbor);
+         MultVVt(alpha, Q_neighbor); // tensor product
+         A.AddSubMatrix(0, Q_neighbor); // ibeg=0
          // update c block (of b) with c_neighbor = neighbor_average * alpha
          Vector c_neighbor = alpha;
          c_neighbor *= neighbor_average;
-         b.AddSubVector(c_neighbor, 0);
+         b.AddSubVector(c_neighbor, 0); // offset=0
          // for the original element, set e blocks (of A) with e = alpha
          if (element_idx == neighbor_element_idx)
          {
             for (int k=0; k < N; k++)
             {
-               A(k,N) = -alpha(k);
+               A(k,N) = -alpha(k); // Why minus?
                A(N,k) = alpha(k);
             }
          }
@@ -298,7 +302,7 @@ void L2Reconstruction(const ParGridFunction& src, ParGridFunction& dst)
 
       Vector y(N+1);
       DenseMatrixInverse A_inverse(A);
-      A_inverse.Factor();
+      A_inverse.Factor(); // LU factorization
       A_inverse.Mult(b, y);
       // DEBUG
       if (std::abs(y(N)) > 1e-8 && false)
@@ -338,7 +342,7 @@ void L2Reconstruction(const ParGridFunction& src, ParGridFunction& dst)
       }
       const Vector x(y, 0, N);
       dst.SetSubVector(element_dofs, x);
-   }
+   } // element_idx
 }
 
 // TODO: Delete the remaining code if not used
