@@ -695,18 +695,8 @@ class HostMemorySpace
 {
 public:
    virtual ~HostMemorySpace() { }
-   virtual void Alloc(void **ptr, size_t bytes)
-   {
-      *ptr = std::malloc(bytes);
-      MFEM_MEM_OP_DEBUG_ADD(0, *ptr, reinterpret_cast<char *>(*ptr) + bytes,
-                            "alloc " << (int)MemoryType::HOST << ", " << false);
-   }
-   virtual void Dealloc(void *ptr)
-   {
-      MFEM_MEM_OP_DEBUG_REMOVE(
-         1, ptr, "dealloc " << (int)MemoryType::HOST << ", " << false);
-      std::free(ptr);
-   }
+   virtual void Alloc(void **ptr, size_t bytes) { *ptr = std::malloc(bytes); }
+   virtual void Dealloc(void *ptr) { std::free(ptr); }
    virtual void Protect(const Memory&, size_t) { }
    virtual void Unprotect(const Memory&, size_t) { }
    virtual void AliasProtect(const void*, size_t) { }
@@ -718,19 +708,8 @@ class DeviceMemorySpace
 {
 public:
    virtual ~DeviceMemorySpace() { }
-   virtual void Alloc(Memory &base)
-   {
-      base.d_ptr = std::malloc(base.bytes);
-      MFEM_MEM_OP_DEBUG_ADD(
-         0, base.d_ptr, reinterpret_cast<char *>(base.d_ptr) + base.bytes,
-         "alloc " << (int)MemoryType::DEVICE << ", " << false);
-   }
-   virtual void Dealloc(Memory &base)
-   {
-      MFEM_MEM_OP_DEBUG_REMOVE(
-         1, base.d_ptr, "dealloc " << (int)MemoryType::DEVICE << ", " << false);
-      std::free(base.d_ptr);
-   }
+   virtual void Alloc(Memory &base) { base.d_ptr = std::malloc(base.bytes); }
+   virtual void Dealloc(Memory &base) { std::free(base.d_ptr); }
    virtual void Protect(const Memory&) { }
    virtual void Unprotect(const Memory&) { }
    virtual void AliasProtect(const void*, size_t) { }
@@ -763,15 +742,8 @@ public:
       {
          throw ::std::bad_alloc();
       }
-      MFEM_MEM_OP_DEBUG_ADD(0, *ptr, reinterpret_cast<char *>(*ptr) + bytes,
-                            "alloc " << (int)MemoryType::HOST_32 << ", " << false);
    }
-   void Dealloc(void *ptr) override
-   {
-      MFEM_MEM_OP_DEBUG_REMOVE(
-         1, ptr, "dealloc " << (int)MemoryType::HOST_32 << ", " << false);
-      mfem_aligned_free(ptr);
-   }
+   void Dealloc(void *ptr) override { mfem_aligned_free(ptr); }
 };
 
 /// The aligned 64 host memory space
@@ -785,16 +757,8 @@ public:
       {
          throw ::std::bad_alloc();
       }
-      MFEM_MEM_OP_DEBUG_ADD(0, *ptr, reinterpret_cast<char *>(*ptr) + bytes,
-                            "alloc " << (int)MemoryType::HOST_64 << ", "
-                            << false);
    }
-   void Dealloc(void *ptr) override
-   {
-      MFEM_MEM_OP_DEBUG_REMOVE(
-         1, ptr, "dealloc " << (int)MemoryType::HOST_64 << ", " << false);
-      mfem_aligned_free(ptr);
-   }
+   void Dealloc(void *ptr) override { mfem_aligned_free(ptr); }
 };
 
 #ifndef _WIN32
@@ -942,17 +906,9 @@ class MmuHostMemorySpace : public HostMemorySpace
 {
 public:
    MmuHostMemorySpace(): HostMemorySpace() { MmuInit(); }
-   void Alloc(void **ptr, size_t bytes) override
-   {
-      MmuAlloc(ptr, bytes);
-      MFEM_MEM_OP_DEBUG_ADD(0, *ptr, reinterpret_cast<char *>(*ptr) + bytes,
-                            "alloc " << (int)MemoryType::HOST_DEBUG << ", "
-                            << false);
-   }
+   void Alloc(void **ptr, size_t bytes) override { MmuAlloc(ptr, bytes); }
    void Dealloc(void *ptr) override
    {
-      MFEM_MEM_OP_DEBUG_REMOVE(
-         1, ptr, "dealloc " << (int)MemoryType::HOST_DEBUG << ", " << false);
       MmuDealloc(ptr, maps->memories.at(ptr).bytes);
    }
    void Protect(const Memory& mem, size_t bytes) override
@@ -981,15 +937,10 @@ public:
 #ifdef MFEM_USE_HIP
       HipMallocManaged(ptr, bytes == 0 ? 8 : bytes);
 #endif
-      MFEM_MEM_OP_DEBUG_ADD(0, *ptr, reinterpret_cast<char *>(*ptr) + bytes,
-                            "alloc " << (int)MemoryType::MANAGED << ", "
-                            << false);
    }
 
    void Dealloc(void *ptr) override
    {
-      MFEM_MEM_OP_DEBUG_REMOVE(
-         1, ptr, "dealloc " << (int)MemoryType::MANAGED << ", " << false);
 #ifdef MFEM_USE_CUDA
       CuMemFree(ptr);
 #endif
@@ -1018,19 +969,8 @@ class CudaDeviceMemorySpace: public DeviceMemorySpace
 {
 public:
    CudaDeviceMemorySpace(): DeviceMemorySpace() { }
-   void Alloc(Memory &base) override
-   {
-      CuMemAlloc(&base.d_ptr, base.bytes);
-      MFEM_MEM_OP_DEBUG_ADD(
-         0, base.d_ptr, reinterpret_cast<char *>(base.d_ptr) + base.bytes,
-         "alloc " << (int)MemoryType::DEVICE << ", " << false);
-   }
-   void Dealloc(Memory &base) override
-   {
-      MFEM_MEM_OP_DEBUG_REMOVE(
-         1, base.d_ptr, "dealloc " << (int)MemoryType::DEVICE << ", " << false);
-      CuMemFree(base.d_ptr);
-   }
+   void Alloc(Memory &base) override { CuMemAlloc(&base.d_ptr, base.bytes); }
+   void Dealloc(Memory &base) override { CuMemFree(base.d_ptr); }
    void *HtoD(void *dst, const void *src, size_t bytes) override
    { return CuMemcpyHtoD(dst, src, bytes); }
    void *DtoD(void* dst, const void* src, size_t bytes) override
@@ -1052,14 +992,9 @@ public:
 #ifdef MFEM_USE_HIP
       HipMemAllocHostPinned(ptr, bytes);
 #endif
-      MFEM_MEM_OP_DEBUG_ADD(0, *ptr, reinterpret_cast<char *>(*ptr) + bytes,
-                            "alloc " << (int)MemoryType::HOST_PINNED << ", "
-                            << false);
    }
    void Dealloc(void *ptr) override
    {
-      MFEM_MEM_OP_DEBUG_REMOVE(
-         1, ptr, "dealloc " << (int)MemoryType::HOST_PINNED << ", " << false);
 #ifdef MFEM_USE_CUDA
       CuMemFreeHostPinned(ptr);
 #endif
@@ -1074,19 +1009,8 @@ class HipDeviceMemorySpace: public DeviceMemorySpace
 {
 public:
    HipDeviceMemorySpace(): DeviceMemorySpace() { }
-   void Alloc(Memory &base) override
-   {
-      HipMemAlloc(&base.d_ptr, base.bytes);
-      MFEM_MEM_OP_DEBUG_ADD(
-         0, base.d_ptr, reinterpret_cast<char *>(base.d_ptr) + base.bytes,
-         "alloc " << (int)MemoryType::DEVICE << ", " << false);
-   }
-   void Dealloc(Memory &base) override
-   {
-      MFEM_MEM_OP_DEBUG_REMOVE(
-         1, base.d_ptr, "dealloc " << (int)MemoryType::DEVICE << ", " << false);
-      HipMemFree(base.d_ptr);
-   }
+   void Alloc(Memory &base) override { HipMemAlloc(&base.d_ptr, base.bytes); }
+   void Dealloc(Memory &base) override { HipMemFree(base.d_ptr); }
    void *HtoD(void *dst, const void *src, size_t bytes) override
    { return HipMemcpyHtoD(dst, src, bytes); }
    void *DtoD(void* dst, const void* src, size_t bytes) override
@@ -1139,20 +1063,8 @@ class MmuDeviceMemorySpace : public DeviceMemorySpace
 {
 public:
    MmuDeviceMemorySpace(): DeviceMemorySpace() { }
-   void Alloc(Memory &m) override
-   {
-      MmuAlloc(&m.d_ptr, m.bytes);
-      MFEM_MEM_OP_DEBUG_ADD(
-         0, m.d_ptr, reinterpret_cast<char *>(m.d_ptr) + m.bytes,
-         "alloc " << (int)MemoryType::DEVICE_DEBUG << ", " << false);
-   }
-   void Dealloc(Memory &m) override
-   {
-      MFEM_MEM_OP_DEBUG_REMOVE(1, m.d_ptr,
-                               "dealloc " << (int)MemoryType::DEVICE_DEBUG
-                               << ", " << false);
-      MmuDealloc(m.d_ptr, m.bytes);
-   }
+   void Alloc(Memory &m) override { MmuAlloc(&m.d_ptr, m.bytes); }
+   void Dealloc(Memory &m) override { MmuDealloc(m.d_ptr, m.bytes); }
    void Protect(const Memory &m) override
    { if (m.d_rw) { m.d_rw = false; MmuProtect(m.d_ptr, m.bytes); } }
    void Unprotect(const Memory &m) override
@@ -1212,16 +1124,8 @@ public:
    void Alloc(void **ptr, size_t bytes) override
    {
       *ptr = allocator.allocate(bytes);
-      MFEM_MEM_OP_DEBUG_ADD(0, *ptr, reinterpret_cast<char *>(*ptr) + bytes,
-                            "alloc " << (int)MemoryType::HOST_UMPIRE << ", "
-                            << false);
    }
-   void Dealloc(void *ptr) override
-   {
-      MFEM_MEM_OP_DEBUG_REMOVE(
-         1, ptr, "dealloc " << (int)MemoryType::HOST_UMPIRE << ", " << false);
-      allocator.deallocate(ptr);
-   }
+   void Dealloc(void *ptr) override { allocator.deallocate(ptr); }
    void Insert(void *ptr, size_t bytes)
    { rm.registerAllocation(ptr, {ptr, bytes, strat}); }
 };
@@ -1238,17 +1142,8 @@ public:
    void Alloc(Memory &base) override
    {
       base.d_ptr = allocator.allocate(base.bytes);
-      MFEM_MEM_OP_DEBUG_ADD(
-         0, base.d_ptr, reinterpret_cast<char *>(base.d_ptr) + base.bytes,
-         "alloc " << (int)MemoryType::DEVICE_UMPIRE << ", " << false);
    }
-   void Dealloc(Memory &base) override
-   {
-      MFEM_MEM_OP_DEBUG_REMOVE(1, base.d_ptr,
-                               "dealloc " << (int)MemoryType::DEVICE_UMPIRE
-                               << ", " << false);
-      allocator.deallocate(base.d_ptr);
-   }
+   void Dealloc(Memory &base) override { allocator.deallocate(base.d_ptr); }
    void *HtoD(void *dst, const void *src, size_t bytes) override
    {
 #ifdef MFEM_USE_CUDA
@@ -1457,7 +1352,12 @@ void *MemoryManager::New_(void *h_tmp, size_t bytes, MemoryType h_mt,
    MFEM_ASSERT((valid_flags & ~(Mem::VALID_HOST | Mem::VALID_DEVICE)) == 0,
                "Internal error");
    void *h_ptr;
-   if (h_tmp == nullptr) { ctrl->Host(h_mt)->Alloc(&h_ptr, bytes); }
+   if (h_tmp == nullptr)
+   {
+      ctrl->Host(h_mt)->Alloc(&h_ptr, bytes);
+      MFEM_MEM_OP_DEBUG_ADD(0, *h_ptr, reinterpret_cast<char *>(*h_ptr) + bytes,
+                            "alloc " << (int)h_mt << ", " << false);
+   }
    else { h_ptr = h_tmp; }
    flags = Mem::Registered | Mem::OWNS_INTERNAL | Mem::OWNS_HOST |
            Mem::OWNS_DEVICE | valid_flags;
@@ -1507,7 +1407,13 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
    {
       MFEM_VERIFY(ptr || bytes == 0,
                   "cannot register NULL device pointer with bytes = " << bytes);
-      if (h_tmp == nullptr) { ctrl->Host(h_mt)->Alloc(&h_ptr, bytes); }
+      if (h_tmp == nullptr)
+      {
+         ctrl->Host(h_mt)->Alloc(&h_ptr, bytes);
+         MFEM_MEM_OP_DEBUG_ADD(0, *h_ptr,
+                               reinterpret_cast<char *>(*h_ptr) + bytes,
+                               "alloc " << (int)h_mt << ", " << false);
+      }
       else { h_ptr = h_tmp; }
       mm.InsertDevice(ptr, h_ptr, bytes, h_mt, d_mt);
       flags = own ? flags | Mem::OWNS_DEVICE : flags & ~Mem::OWNS_DEVICE;
@@ -1612,7 +1518,11 @@ void MemoryManager::Delete_(void *h_ptr, MemoryType h_mt, unsigned flags)
    else // Known
    {
       if (owns_host && (h_mt != MemoryType::HOST))
-      { ctrl->Host(h_mt)->Dealloc(h_ptr); }
+      {
+         MFEM_MEM_OP_DEBUG_REMOVE(1, h_ptr,
+                                  "dealloc " << (int)h_mt << ", " << false);
+         ctrl->Host(h_mt)->Dealloc(h_ptr);
+      }
       if (owns_internal)
       {
          MFEM_ASSERT(mm.IsKnown(h_ptr), "");
@@ -2034,7 +1944,13 @@ void MemoryManager::InsertDevice(void *d_ptr, void *h_ptr, size_t bytes,
    MFEM_ASSERT(h_ptr != NULL, "internal error");
    Insert(h_ptr, bytes, h_mt, d_mt);
    internal::Memory &mem = maps->memories.at(h_ptr);
-   if (d_ptr == NULL && bytes != 0) { ctrl->Device(d_mt)->Alloc(mem); }
+   if (d_ptr == NULL && bytes != 0)
+   {
+      ctrl->Device(d_mt)->Alloc(mem);
+      MFEM_MEM_OP_DEBUG_ADD(0, mem.d_ptr,
+                            reinterpret_cast<char *>(mem.d_ptr) + mem.bytes,
+                            "alloc " << (int)d_mt << ", " << false);
+   }
    else { mem.d_ptr = d_ptr; }
 }
 
@@ -2091,7 +2007,12 @@ void MemoryManager::Erase(void *h_ptr, bool free_dev_ptr)
    auto mem_map_iter = maps->memories.find(h_ptr);
    if (mem_map_iter == maps->memories.end()) { mfem_error("Unknown pointer!"); }
    internal::Memory &mem = mem_map_iter->second;
-   if (mem.d_ptr && free_dev_ptr) { ctrl->Device(mem.d_mt)->Dealloc(mem);}
+   if (mem.d_ptr && free_dev_ptr)
+   {
+      MFEM_MEM_OP_DEBUG_REMOVE(1, mem.d_ptr,
+                               "dealloc " << (int)mem.d_mt << ", " << false);
+      ctrl->Device(mem.d_mt)->Dealloc(mem);
+   }
    maps->memories.erase(mem_map_iter);
 }
 
@@ -2101,7 +2022,12 @@ void MemoryManager::EraseDevice(void *h_ptr)
    auto mem_map_iter = maps->memories.find(h_ptr);
    if (mem_map_iter == maps->memories.end()) { mfem_error("Unknown pointer!"); }
    internal::Memory &mem = mem_map_iter->second;
-   if (mem.d_ptr) { ctrl->Device(mem.d_mt)->Dealloc(mem);}
+   if (mem.d_ptr)
+   {
+      MFEM_MEM_OP_DEBUG_REMOVE(1, mem.d_ptr,
+                               "dealloc " << (int)mem.d_mt << ", " << false);
+      ctrl->Device(mem.d_mt)->Dealloc(mem);
+   }
    mem.d_ptr = nullptr;
 }
 
@@ -2134,7 +2060,13 @@ void *MemoryManager::GetDevicePtr(const void *h_ptr, size_t bytes,
    if (!mem.d_ptr)
    {
       if (d_mt == MemoryType::DEFAULT) { d_mt = GetDualMemoryType(h_mt); }
-      if (mem.bytes) { ctrl->Device(d_mt)->Alloc(mem); }
+      if (mem.bytes)
+      {
+         ctrl->Device(d_mt)->Alloc(mem);
+         MFEM_MEM_OP_DEBUG_ADD(0, mem.d_ptr,
+                               reinterpret_cast<char *>(mem.d_ptr) + mem.bytes,
+                               "alloc " << (int)d_mt << ", " << false);
+      }
    }
    // Aliases might have done some protections
    if (mem.d_ptr) { ctrl->Device(d_mt)->Unprotect(mem); }
@@ -2172,7 +2104,13 @@ void *MemoryManager::GetAliasDevicePtr(const void *alias_ptr, size_t bytes,
    if (!mem.d_ptr)
    {
       if (d_mt == MemoryType::DEFAULT) { d_mt = GetDualMemoryType(h_mt); }
-      if (mem.bytes) { ctrl->Device(d_mt)->Alloc(mem); }
+      if (mem.bytes)
+      {
+         ctrl->Device(d_mt)->Alloc(mem);
+         MFEM_MEM_OP_DEBUG_ADD(0, mem.d_ptr,
+                               reinterpret_cast<char *>(mem.d_ptr) + mem.bytes,
+                               "alloc " << (int)d_mt << ", " << false);
+      }
    }
    void *alias_h_ptr = static_cast<char*>(mem.h_ptr) + offset;
    void *alias_d_ptr = static_cast<char*>(mem.d_ptr) + offset;
@@ -2323,8 +2261,18 @@ void MemoryManager::Destroy()
    {
       internal::Memory &mem = n.second;
       bool mem_h_ptr = mem.h_mt != MemoryType::HOST && mem.h_ptr;
-      if (mem_h_ptr) { ctrl->Host(mem.h_mt)->Dealloc(mem.h_ptr); }
-      if (mem.d_ptr) { ctrl->Device(mem.d_mt)->Dealloc(mem); }
+      if (mem_h_ptr)
+      {
+         MFEM_MEM_OP_DEBUG_REMOVE(0, mem.h_ptr,
+                                  "destroy " << (int)mem.h_mt << ", " << false);
+         ctrl->Host(mem.h_mt)->Dealloc(mem.h_ptr);
+      }
+      if (mem.d_ptr)
+      {
+         MFEM_MEM_OP_DEBUG_REMOVE(0, mem.d_ptr,
+                                  "destroy " << (int)mem.d_mt << ", " << false);
+         ctrl->Device(mem.d_mt)->Dealloc(mem);
+      }
    }
    delete maps; maps = nullptr;
    delete ctrl; ctrl = nullptr;
