@@ -652,6 +652,8 @@ foreach(TPL IN LISTS MFEM_TPLS)
   endif()
 endforeach(TPL)
 
+# reverse to remove the first instance of entries in TPL_LIBRARIES
+# so later duplicates are kept (for dependency ordering)
 list(REVERSE TPL_LIBRARIES)
 list(REMOVE_DUPLICATES TPL_LIBRARIES)
 list(REVERSE TPL_LIBRARIES)
