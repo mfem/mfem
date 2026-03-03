@@ -1,6 +1,5 @@
 #pragma once
 
-#include "../fem/quadinterpolator.hpp"
 #include "../../integrator_ctx.hpp"
 #include "util.hpp"
 #include <utility>
@@ -26,10 +25,63 @@ struct Action
       inputs(inputs),
       outputs(outputs)
    {
-      for (const auto &f : ctx.unionfds)
+      create_fop_to_fd(inputs, ctx.infds, input_to_infd);
+      create_fop_to_fd(outputs, ctx.outfds, output_to_outfd);
+
+      constexpr_for<0, ninputs>([&](auto i)
       {
-         qis[f.id] = get_qinterp(f, ctx.ir);
-      }
+         const auto input = get<i>(inputs);
+         using input_t = std::decay_t<decltype(input)>;
+
+         const auto fd = ctx.infds[input_to_infd[i]];
+
+         constexpr QuadratureInterpolator::EvalFlags dummy_mode =
+            QuadratureInterpolator::VALUES;
+         if constexpr (is_identity_fop<input_t>::value)
+         {
+            input_bases[i] = GetFieldBasis(fd, ctx.ir, dummy_mode);
+         }
+         else if constexpr (is_weight_fop<input_t>::value)
+         {
+            input_bases[i] = FieldBasisFromWeight(ctx.ir);
+         }
+         else if constexpr (is_value_fop<input_t>::value)
+         {
+            input_bases[i] = GetFieldBasis(fd, ctx.ir, QuadratureInterpolator::VALUES);
+         }
+         else if constexpr (is_gradient_fop<input_t>::value)
+         {
+            input_bases[i] = GetFieldBasis(fd, ctx.ir, QuadratureInterpolator::DERIVATIVES);
+         }
+      });
+
+      constexpr_for<0, noutputs>([&](auto i)
+      {
+         const auto output = get<i>(outputs);
+         using output_t = std::decay_t<decltype(output)>;
+
+         const auto fd = ctx.outfds[output_to_outfd[i]];
+
+         constexpr QuadratureInterpolator::EvalFlags dummy_mode =
+            QuadratureInterpolator::VALUES;
+         if constexpr (is_identity_fop<output_t>::value)
+         {
+            output_bases[i] = GetFieldBasis(fd, ctx.ir, dummy_mode);
+         }
+         else if constexpr (is_weight_fop<output_t>::value)
+         {
+            output_bases[i] = FieldBasisFromWeight(ctx.ir);
+         }
+         else if constexpr (is_value_fop<output_t>::value)
+         {
+            output_bases[i] = GetFieldBasis(fd, ctx.ir, QuadratureInterpolator::VALUES);
+         }
+         else if constexpr (is_gradient_fop<output_t>::value)
+         {
+            output_bases[i] = GetFieldBasis(fd, ctx.ir,
+                                            QuadratureInterpolator::DERIVATIVES);
+         }
+      });
 
       const int nqp = ctx.ir.GetNPoints();
       gnqp = nqp * ctx.nentities;
@@ -53,9 +105,6 @@ struct Action
       });
       yq_offsets.PartialSum();
       yq.Update(yq_offsets);
-
-      create_fop_to_fd(inputs, ctx.infds, input_to_infd);
-      create_fop_to_fd(outputs, ctx.outfds, output_to_outfd);
    }
 
    void operator()(
@@ -64,7 +113,7 @@ struct Action
    {
       if (ctx.attr.Size() == 0) { return; }
       // E -> Q
-      interpolate(inputs, input_to_infd, qis, ctx.ir, xe, xq);
+      interpolate(input_to_infd, input_bases, xe, xq);
       // Q -> Q
       if constexpr (
          detail::supports_tensor_array_qfunc<qfunc_t, inputs_t, outputs_t>::value)
@@ -80,7 +129,7 @@ struct Action
                        "qfunc signature not supported by default backend Action");
       }
       // Q -> E
-      integrate(outputs, output_to_outfd, qis, yq, ye);
+      integrate(output_to_outfd, output_bases, yq, ye);
    }
 
    IntegratorContext ctx;
@@ -90,7 +139,9 @@ struct Action
 
    std::array<size_t, ninputs> input_to_infd;
    std::array<size_t, noutputs> output_to_outfd;
-   std::unordered_map<int, const QuadratureInterpolator *> qis;
+
+   std::array<FieldBasis, ninputs> input_bases;
+   std::array<FieldBasis, noutputs> output_bases;
 
    int gnqp = 0;
    Array<int> xq_offsets, yq_offsets;

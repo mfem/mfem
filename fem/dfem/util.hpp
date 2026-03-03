@@ -579,7 +579,8 @@ struct FieldDescriptor
    using data_variant_t =
       std::variant<const FiniteElementSpace *,
       const ParFiniteElementSpace *,
-      const QuadratureFunction *>;
+      const QuadratureFunction *,
+      const ParameterSpace *>;
 
    /// Field ID
    std::size_t id;
@@ -595,7 +596,6 @@ struct FieldDescriptor
    template <typename T>
    FieldDescriptor(std::size_t field_id, const T* v) :
       id(field_id), data(v) {}
-
 
    bool operator==(const FieldDescriptor& other) const
    {
@@ -987,7 +987,7 @@ int GetDimension(const FieldDescriptor &f)
 }
 
 inline
-const QuadratureInterpolator *get_qinterp(
+std::variant<const QuadratureInterpolator *, const Operator *>get_qinterp(
    const FieldDescriptor &f,
    const IntegrationRule &ir)
 {
@@ -1006,7 +1006,6 @@ const QuadratureInterpolator *get_qinterp(
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
-         MFEM_ASSERT(false, "ParameterSpace doesn't have QuadratureInterpolator yet");
          return nullptr;
       }
       else

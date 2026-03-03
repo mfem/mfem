@@ -573,80 +573,32 @@ void DifferentiableOperator::AddIntegrator(
       doftoquad_mode = DofToQuad::Mode::TENSOR;
    }
 
-   int dimension;
-   if constexpr (std::is_same_v<entity_t, Entity::Element>)
-   {
-      dimension = mesh.Dimension();
-   }
-   else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
-   {
-      dimension = mesh.Dimension() - 1;
-   }
-
-   [[maybe_unused]] const int num_elements = GetNumEntities<entity_t>(mesh);
    const int num_entities = GetNumEntities<entity_t>(mesh);
-   const int num_qp = integration_rule.GetNPoints();
 
    residual_e.resize(outfds.size());
    residual_l.resize(outfds.size());
 
-   // if constexpr (is_sum_fop<decltype(output_fop)>::value)
-   // {
-   //    residual_l.SetSize(1);
-   //    height = 1;
-   // }
-   // else
-   // {
-   //    const int residual_lsize = GetVSize(outfds[test_space_field_idx]);
-   //    residual_l.SetSize(residual_lsize);
-   //    height = GetTrueVSize(outfds[test_space_field_idx]);
-   // }
-
    // TODO: Is this a hack?
    width = GetTrueVSize(infds[0]);
-
-   std::vector<const DofToQuad*> dtq;
-   for (const auto &f : infds)
-   {
-      dtq.emplace_back(GetDofToQuad<entity_t>(
-                          f,
-                          integration_rule,
-                          doftoquad_mode));
-   }
-   const int q1d = (int)floor(std::pow(num_qp, 1.0/dimension) + 0.5);
-
-   // const int residual_size_on_qp =
-   //    GetSizeOnQP<entity_t>(output_fop,
-   //                          outfds[test_space_field_idx]);
-
-   // auto input_dtq_maps = create_dtq_maps<entity_t>(inputs, dtq, input_to_field);
-   // auto output_dtq_maps = create_dtq_maps<entity_t>(outputs, dtq, output_to_field);
-
-   // auto ir_weights = Reshape(integration_rule.GetWeights().Read(), num_qp);
-
-   // auto input_size_on_qp =
-   //    get_input_size_on_qp(inputs, std::make_index_sequence<num_inputs> {});
-
-   ThreadBlocks thread_blocks{1, 1, 1};
 
    IntegratorContext ctx
    {
       mesh, elem_attributes, attributes, num_entities,
-      thread_blocks, infds, outfds, unionfds, integration_rule
+      infds, outfds, unionfds, integration_rule
    };
 
    action_callbacks.push_back(backend_t::MakeAction(ctx, qfunc, inputs, outputs));
 
-   for_constexpr([&](auto i)
-   {
-#ifdef MFEM_USE_ENZYME
-      derivative_action_callbacks[i].push_back(
-         backend_t::template MakeDerivativeActionEnzyme<i>(ctx, qfunc, inputs, outputs));
-#else
-      MFEM_ABORT("DifferentiableOperator requested Enzyme derivative action, "
-                 "but MFEM_USE_ENZYME is not defined.");
-#endif
-   }, derivative_ids);
+   //    for_constexpr([&](auto i)
+   //    {
+   // #ifdef MFEM_USE_ENZYME
+   //       derivative_action_callbacks[i].push_back(
+   //          backend_t::template MakeDerivativeActionEnzyme<i>(ctx, qfunc, inputs, outputs));
+   // #else
+   //       MFEM_ABORT("DifferentiableOperator requested Enzyme derivative action, "
+   //                  "but MFEM_USE_ENZYME is not defined.");
+   // #endif
+   //    }, derivative_ids);
 }
 
 } // namespace mfem::future
