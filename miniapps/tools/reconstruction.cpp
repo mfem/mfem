@@ -69,6 +69,7 @@ int main(int argc, char* argv[])
 
    // Parse options
    OptionsParser args(argc, argv);
+   args.AddOption(&lor_method, "-m", "--method", "LOR method.");
    args.AddOption(&refinement_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&order_ho, "-ho", "--order_ho",
@@ -94,13 +95,15 @@ int main(int argc, char* argv[])
    // create simple 2D mesh
    const int num_x = 2;
    const int num_y = 2;
+   real_t element_size = 1.0 / std::max(num_x, num_y);
    Mesh serial_mesh = Mesh::MakeCartesian2D(num_x, num_y, Element::QUADRILATERAL);
-   for (int i = 0; i < refinement_levels; i++)
-   { serial_mesh.UniformRefinement(); }
+   for (int i = 0; i < refinement_levels; i++) {
+      serial_mesh.UniformRefinement();
+      element_size /= 2.0;
+   }
    serial_mesh.EnsureNCMesh();
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
    serial_mesh.Clear();
-
    int dim = mesh.Dimension();
 
    // create FEM things
@@ -117,21 +120,21 @@ int main(int argc, char* argv[])
    ParGridFunction u_lo(&fespace_lo);   
    ParGridFunction u_hi(&fespace_hi);
 
-   // if (lor_method == "optimization")
-   // {
+   if (lor_method == "optimization")
+   {
       FiniteElementCollection *fec_exact;
       fec_exact = new L2_FECollection(order_ho, dim);
       ParFiniteElementSpace fespace_exact(&mesh, fec_exact);
       ParGridFunction u_exact(&fespace_exact);
-   // }
 
-   // compute element averages
-   // u_lo.ProjectCoefficient(u_function_exact);
-   u_exact.ProjectCoefficient(u_function_exact);
-   u_exact.GetElementAverages(u_lo);
+      // compute element averages
+      // u_lo.ProjectCoefficient(u_function_exact);
+      u_exact.ProjectCoefficient(u_function_exact);
+      u_exact.GetElementAverages(u_lo);
 
-   // compute reconstruction
-   L2Reconstruction(u_lo, u_hi);
+      // compute reconstruction
+      L2Reconstruction(u_lo, u_hi);
+   }
 
    // evaluate reconstruction
    char vishost[] = "localhost";
