@@ -5,8 +5,8 @@
 // Sample runs:  mpirun -np 4 regularp -r 1 -a 1 -vis
 //               mpirun -np 4 regularp -f 1 -p 0 -i 50 -n 10 -m ../../data/wheel.msh -vis
 //               mpirun -np 8 regularp -r 1 -f 1 -p 0 -i 50 -n 10 -m ../../data/wheel.msh -pv
-//               mpirun -np 8 regularp -f 5 -p 0 -r 1 -i 50 -n 10 -m ../../data/hemisphere.msh -vis
-//               mpirun -np 8 regularp -f 5 -p 0 -r 1 -i 50 -n 10 -m ../../data/hemisphere.msh -pv
+//               mpirun -np 8 regularp -r 1 -f 5 -p 0 -i 50 -n 10 -m ../../data/hemisphere.msh -vis
+//               mpirun -np 8 regularp -r 1 -f 5 -p 0 -i 50 -n 10 -m ../../data/hemisphere.msh -pv
 //
 // Description:  This program solves Signorini's problem using MFEM. We aim to
 //               solve the bound-constrained minimization problem
@@ -201,7 +201,10 @@ int main(int argc, char *argv[])
    }
    if (mu <= 0.0 || lambda + 2.0/3.0 * mu <= 0.0)
    {
-      MFEM_WARNING("Unphysical Lamé parameters.");
+      if (myid == 0)
+      {
+         MFEM_WARNING("Unphysical Lamé parameters.");
+      }
    }
    if (myid == 0)
    {
