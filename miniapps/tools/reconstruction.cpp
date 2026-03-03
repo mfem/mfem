@@ -89,7 +89,7 @@ int main(int argc, char* argv[])
    const Vector k({field_kx, field_ky});
    std::function<real_t(const Vector&)> u_function_wrapper =
       [&](const Vector &x) { return u_function(x, k); };
-   FunctionCoefficient u_coefficient(u_function_wrapper);
+   FunctionCoefficient u_function_exact(u_function_wrapper);
 
    // create simple 2D mesh
    const int num_x = 2;
@@ -110,14 +110,25 @@ int main(int argc, char* argv[])
 
    fec_lo = new L2_FECollection(0, dim); 
    fec_hi = new L2_FECollection(order_ho, dim);
-
+   
    ParFiniteElementSpace fespace_lo(&mesh, fec_lo);
    ParFiniteElementSpace fespace_hi(&mesh, fec_hi);
 
    ParGridFunction u_lo(&fespace_lo);   
    ParGridFunction u_hi(&fespace_hi);
 
+   // if (lor_method == "optimization")
+   // {
+      FiniteElementCollection *fec_exact;
+      fec_exact = new L2_FECollection(order_ho, dim);
+      ParFiniteElementSpace fespace_exact(&mesh, fec_exact);
+      ParGridFunction u_exact(&fespace_exact);
+   // }
+
    // compute element averages
+   // u_lo.ProjectCoefficient(u_function_exact);
+   u_exact.ProjectCoefficient(u_function_exact);
+   u_exact.GetElementAverages(u_lo);
 
    // compute reconstruction
    L2Reconstruction(u_lo, u_hi);
@@ -136,7 +147,7 @@ int main(int argc, char* argv[])
          << "window_title 'High-order'\n" << std::flush;
    }
 
-   real_t error = u_hi.ComputeL2Error(u_coefficient);
+   real_t error = u_hi.ComputeL2Error(u_function_exact);
    ConstantCoefficient zeros(0.0);
    real_t error_avg = 0.0;//diff.ComputeL2Error(zeros);
 
