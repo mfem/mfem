@@ -24,7 +24,10 @@ int main(int argc, char* argv[])
    // Default command-line options
    std::string lor_method = "optimization"; // "optimization" or "l2_projection"
    int refinement_levels = 0;
+   int order_lo = 0;
    int order_ho = 3;
+   int order_im = 3; // itermediate order, only used for L2 projection method
+   int lref = order_im+1;
 
    int field_profile = 0;
    real_t field_kx = 2.0;
@@ -93,26 +96,48 @@ int main(int argc, char* argv[])
    FunctionCoefficient u_function_exact(u_function_wrapper);
 
    // create simple 2D mesh
-   const int num_x = 2;
-   const int num_y = 2;
-   real_t element_size = 1.0 / std::max(num_x, num_y);
-   Mesh serial_mesh = Mesh::MakeCartesian2D(num_x, num_y, Element::QUADRILATERAL);
-   for (int i = 0; i < refinement_levels; i++) {
-      serial_mesh.UniformRefinement();
-      element_size /= 2.0;
+   ParMesh mesh;
+   ParMesh mesh_im;
+
+   const int num_x = 8;
+   const int num_y = 8;   
+
+   if (lor_method == "optimization") {
+
+      Mesh serial_mesh = Mesh::MakeCartesian2D(num_x, num_y, Element::QUADRILATERAL);
+      for (int i = 0; i < refinement_levels; i++) {
+         serial_mesh.UniformRefinement();
+      }
+      serial_mesh.EnsureNCMesh();
+      mesh = ParMesh(MPI_COMM_WORLD, serial_mesh);
+      serial_mesh.Clear();
+
+   } else if (lor_method == "l2_projection") {
+
+   //    order_im = order_ho;
+   //    lref = order_im + 1;
+   //    MFEM_VERIFY((num_x % lref) == 0 && (num_y % lref) == 0,
+   //                "For l2_projection, lref = order_im (=order_ho) + 1 must divide both num_x and num_y.");
+   //    int num_x_im = num_x / lref;
+   //    int num_y_im = num_y / lref;
+   //    Mesh mesh_im_serial = Mesh::MakeCartesian2D(num_x_im, num_y_im, Element::QUADRILATERAL);
+   //    for (int i = 0; i < refinement_levels; i++) {
+   //       mesh_im_serial.UniformRefinement();
+   //    }
+   //    mesh_im_serial.EnsureNCMesh();
+   //    mesh_im = ParMesh(MPI_COMM_WORLD, mesh_im_serial);
+   //    Mesh mesh_refined = Mesh::MakeRefined(mesh_im_serial, lref, BasisType::ClosedUniform);
+   //    mesh = ParMesh(MPI_COMM_WORLD, mesh_refined); // GaussLobatto, ClosedUniform
    }
-   serial_mesh.EnsureNCMesh();
-   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
-   serial_mesh.Clear();
    int dim = mesh.Dimension();
 
    // create FEM things
 
-   FiniteElementCollection *fec_lo;   
+   FiniteElementCollection *fec_lo;
    FiniteElementCollection *fec_hi;
-
-   fec_lo = new L2_FECollection(0, dim); 
-   fec_hi = new L2_FECollection(order_ho, dim);
+   
+   fec_lo = new L2_FECollection(order_lo, dim);
+   fec_hi = new L2_FECollection(order_ho, dim);   
    
    ParFiniteElementSpace fespace_lo(&mesh, fec_lo);
    ParFiniteElementSpace fespace_hi(&mesh, fec_hi);
@@ -134,6 +159,11 @@ int main(int argc, char* argv[])
 
       // compute reconstruction
       L2Reconstruction(u_lo, u_hi);
+   } else if (lor_method == "l2_projection") {
+      FiniteElementCollection *fec_im;
+      fec_im = new H1_FECollection(order_im, dim); // Both L2 and H1 give the same convergence.
+      ParFiniteElementSpace fespace_im(&mesh_im, fec_im);
+      ParGridFunction u_im(&fespace_im);
    }
 
    // evaluate reconstruction
