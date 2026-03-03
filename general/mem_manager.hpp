@@ -96,8 +96,7 @@ struct mem_op_tracker
 #define MFEM_MEM_OP_DEBUG_REMOVE2(OP_IDX, START, STOP, MSG)
 #define MFEM_MEM_OP_DEBUG(OP_IDX, MSG)
 #define MFEM_MEM_OP_DEBUG_SYNC_ALIAS(OP_IDX, ASTART, BSTART, NBYTES)
-#define MFEM_MEM_OP_DEBUG_USE(OP_IDX, START, MSG)
-#define MFEM_MEM_OP_DEBUG_USE2(OP_IDX, START, STOP, MSG)
+#define MFEM_MEM_OP_DEBUG_USE(OP_IDX, START, STOP, MSG)
 #define MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(OP_IDX, SRC_START, DST_START, NBYTES, \
                                          MSG, src_loc, dst_loc)
 #endif
@@ -1329,6 +1328,7 @@ inline Memory<T>::operator T*()
                ((flags & VALID_HOST) &&
                 (std::is_const<T>::value || !(flags & VALID_DEVICE))),
                "invalid host pointer access");
+   MFEM_MEM_OP_DEBUG_USE(6, h_ptr, h_ptr + capacity, " ReadWrite*");
    return h_ptr;
 }
 
@@ -1336,6 +1336,7 @@ template <typename T>
 inline Memory<T>::operator const T*() const
 {
    MFEM_ASSERT(Empty() || (flags & VALID_HOST), "invalid host pointer access");
+   MFEM_MEM_OP_DEBUG_USE(4, h_ptr, h_ptr + capacity, " Read*");
    return h_ptr;
 }
 
@@ -1346,6 +1347,7 @@ inline Memory<T>::operator U*()
                ((flags & VALID_HOST) &&
                 (std::is_const<U>::value || !(flags & VALID_DEVICE))),
                "invalid host pointer access");
+   MFEM_MEM_OP_DEBUG_USE(6, h_ptr, h_ptr + capacity, " ReadWrite*");
    return reinterpret_cast<U*>(h_ptr);
 }
 
@@ -1353,6 +1355,7 @@ template <typename T> template <typename U>
 inline Memory<T>::operator const U*() const
 {
    MFEM_ASSERT(Empty() || (flags & VALID_HOST), "invalid host pointer access");
+   MFEM_MEM_OP_DEBUG_USE(4, h_ptr, h_ptr + capacity, " Read*");
    return reinterpret_cast<U*>(h_ptr);
 }
 

@@ -288,7 +288,7 @@ std::ostream &mem_op_debug_add(size_t idx, const void *start, const void *stop)
       return mfem::out << "[DEBUG] " << pidx << ", add "
              << reinterpret_cast<const char *>(stop) -
              reinterpret_cast<const char *>(start)
-             << " Bytes " << v.first << " external[" << start << ":"
+             << " Bytes " << v.first << " [" << start << ":"
              << stop << "]: ";
    }
    else

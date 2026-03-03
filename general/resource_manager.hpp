@@ -206,20 +206,23 @@ private:
 
    bool is_valid(size_t segment, size_t offset, size_t nbytes, bool on_device);
 
+   bool check_read(size_t segment, size_t offset, size_t nbytes,
+                   bool on_device);
+   bool check_read_write(size_t segment, size_t offset, size_t nbytes,
+                         bool on_device);
+
+   MFEM_ENZYME_FN_LIKE_DYNCAST const char *read(size_t segment, size_t offset,
+                                                size_t nbytes, bool on_device);
    MFEM_ENZYME_FN_LIKE_DYNCAST char *write(size_t segment, size_t offset,
                                            size_t nbytes, bool on_device);
    MFEM_ENZYME_FN_LIKE_DYNCAST char *read_write(size_t segment, size_t offset,
                                                 size_t nbytes, bool on_device);
 
    MFEM_ENZYME_FN_LIKE_DYNCAST const char *read(size_t segment, size_t offset,
-                                                size_t nbytes, bool on_device);
-
+                                                size_t nbytes, MemoryClass mc);
    MFEM_ENZYME_FN_LIKE_DYNCAST char *write(size_t segment, size_t offset,
                                            size_t nbytes, MemoryClass mc);
    MFEM_ENZYME_FN_LIKE_DYNCAST char *read_write(size_t segment, size_t offset,
-                                                size_t nbytes, MemoryClass mc);
-
-   MFEM_ENZYME_FN_LIKE_DYNCAST const char *read(size_t segment, size_t offset,
                                                 size_t nbytes, MemoryClass mc);
 
    /// src0 is the preferred copy-from location
@@ -1201,7 +1204,7 @@ template <class T> void Memory<T>::EnsureRegistered() const
 
 template <class T> T *Memory<T>::Write(bool on_device, int size)
 {
-   MFEM_MEM_OP_DEBUG(5, "Write " << size * sizeof(T) << " bytes");
+   MFEM_MEM_OP_DEBUG_USE(5, h_ptr, h_ptr + size, " Write Request");
    auto &inst = MemoryManager::instance();
    if (on_device)
    {
@@ -1212,12 +1215,14 @@ template <class T> T *Memory<T>::Write(bool on_device, int size)
       return reinterpret_cast<T *>(inst.write(segment, offset_ * sizeof(T),
                                               size * sizeof(T), on_device));
    }
+   MFEM_MEM_OP_DEBUG_USE(5, h_ptr, h_ptr + size, " Write");
    return h_ptr;
 }
 
+
 template <class T> T *Memory<T>::ReadWrite(bool on_device, int size)
 {
-   MFEM_MEM_OP_DEBUG(6, "ReadWrite " << size * sizeof(T) << " bytes");
+   MFEM_MEM_OP_DEBUG_USE(6, h_ptr, h_ptr + size, " ReadWrite Request");
    auto &inst = MemoryManager::instance();
    if (on_device)
    {
@@ -1228,12 +1233,13 @@ template <class T> T *Memory<T>::ReadWrite(bool on_device, int size)
       return reinterpret_cast<T *>(inst.read_write(
                                       segment, offset_ * sizeof(T), size * sizeof(T), on_device));
    }
+   MFEM_MEM_OP_DEBUG_USE(6, h_ptr, h_ptr + size, " ReadWrite");
    return h_ptr;
 }
 
 template <class T> const T *Memory<T>::Read(bool on_device, int size) const
 {
-   MFEM_MEM_OP_DEBUG(4, "Read " << size * sizeof(T) << " bytes");
+   MFEM_MEM_OP_DEBUG_USE(4, h_ptr, h_ptr + size, " Read Request");
    auto &inst = MemoryManager::instance();
    if (on_device)
    {
@@ -1244,6 +1250,7 @@ template <class T> const T *Memory<T>::Read(bool on_device, int size) const
       return reinterpret_cast<const T *>(
                 inst.read(segment, offset_ * sizeof(T), size * sizeof(T), on_device));
    }
+   MFEM_MEM_OP_DEBUG_USE(4, h_ptr, h_ptr + size, " Read");
    return h_ptr;
 }
 
@@ -1262,10 +1269,23 @@ template <class T> const T *Memory<T>::Read(MemoryClass mc, int size) const
    return Read(MemoryManager::rw_on_dev(mc), size);
 }
 
-template <class T> T &Memory<T>::operator[](size_t idx) { return h_ptr[idx]; }
+template <class T> T &Memory<T>::operator[](size_t idx)
+{
+   MFEM_MEM_OP_DEBUG_USE(6, h_ptr + idx, h_ptr + idx + 1, " ReadWrite[]");
+   MFEM_ASSERT(h_ptr && idx < size_ &&
+               MemoryManager::instance().check_read_write(
+                  segment, (offset_ + idx) * sizeof(T), sizeof(T), false),
+               "invalid host pointer access");
+   return h_ptr[idx];
+}
 
 template <class T> const T &Memory<T>::operator[](size_t idx) const
 {
+   MFEM_MEM_OP_DEBUG_USE(4, h_ptr + idx, h_ptr + idx + 1, " Read[]");
+   MFEM_ASSERT(h_ptr && idx < size_ &&
+               MemoryManager::instance().check_read(
+                  segment, (offset_ + idx) * sizeof(T), sizeof(T), false),
+               "invalid host pointer access");
    return h_ptr[idx];
 }
 
@@ -1363,17 +1383,39 @@ template <class T> void Memory<T>::CopyToHost(T *dst, int size) const
    }
 }
 
-template <class T> Memory<T>::operator T *() { return h_ptr; }
+template <class T> Memory<T>::operator T *()
+{
+   MFEM_MEM_OP_DEBUG_USE(6, h_ptr, h_ptr + size_, " ReadWrite*");
+   MFEM_ASSERT(MemoryManager::instance().check_read_write(
+                  segment, offset_ * sizeof(T), size_ * sizeof(T), false),
+               "invalid host pointer access");
+   return h_ptr;
+}
 
-template <class T> Memory<T>::operator const T *() const { return h_ptr; }
+template <class T> Memory<T>::operator const T *() const
+{
+   MFEM_MEM_OP_DEBUG_USE(4, h_ptr, h_ptr + size_, " Read*");
+   MFEM_ASSERT(MemoryManager::instance().check_read(
+                  segment, offset_ * sizeof(T), size_ * sizeof(T), false),
+               "invalid host pointer access");
+   return h_ptr;
+}
 
 template <class T> template <class U> Memory<T>::operator U *()
 {
+   MFEM_MEM_OP_DEBUG_USE(6, h_ptr, h_ptr + size_, " ReadWrite*");
+   MFEM_ASSERT(MemoryManager::instance().check_read_write(
+                  segment, offset_ * sizeof(T), size_ * sizeof(T), false),
+               "invalid host pointer access");
    return reinterpret_cast<U *>(h_ptr);
 }
 
 template <class T> template <class U> Memory<T>::operator const U *() const
 {
+   MFEM_MEM_OP_DEBUG_USE(4, h_ptr, h_ptr + size_, " Read*");
+   MFEM_ASSERT(MemoryManager::instance().check_read(
+                  segment, offset_ * sizeof(T), size_ * sizeof(T), false),
+               "invalid host pointer access");
    return reinterpret_cast<const U *>(h_ptr);
 }
 

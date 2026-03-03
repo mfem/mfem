@@ -1554,15 +1554,11 @@ const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
 char *MemoryManager::write(size_t segment, size_t offset, size_t nbytes,
                            bool on_device)
 {
-   if (valid_segment(segment) || nbytes == 0)
+   if (valid_segment(segment) && nbytes > 0)
    {
       auto &seg = storage.get_segment(segment);
       if (!seg.lowers[on_device])
       {
-         if (!seg.lowers[!on_device])
-         {
-            return nullptr;
-         }
          // need to allocate
          if (seg.mtypes[on_device] == MemoryType::DEFAULT ||
              seg.mtypes[on_device] == MemoryType::PRESERVE)
@@ -1828,10 +1824,97 @@ void MemoryManager::BatchMemCopy2(
 #endif
 }
 
+bool MemoryManager::check_read_write(size_t segment, size_t offset,
+                                     size_t nbytes, bool on_device)
+{
+   bool valid = true;
+   if (valid_segment(segment) && nbytes > 0)
+   {
+      std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
+          AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
+          segs(AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(
+                  GetHostMemoryType(), true));
+
+      auto &seg = storage.get_segment(segment);
+      check_valid(segment, on_device, offset, offset + nbytes,
+                  [&](auto start, auto stop, bool valid)
+      {
+         if (!valid)
+         {
+            segs.emplace_back(start, stop);
+         }
+         return false;
+      });
+      if (segs.size())
+      {
+         for (auto &v : segs)
+         {
+            mfem::err << "check read write expected valid but was invalid: "
+                      << v.first << ", " << v.second << std::endl;
+         }
+         valid = false;
+      }
+      segs.clear();
+      check_valid(segment, !on_device, offset, offset + nbytes,
+                  [&](auto start, auto stop, bool valid)
+      {
+         if (valid)
+         {
+            segs.emplace_back(start, stop);
+         }
+         return false;
+      });
+      if (segs.size())
+      {
+         for (auto &v : segs)
+         {
+            mfem::err << "check read write expected invalid but was valid: "
+                      << v.first << ", " << v.second << std::endl;
+         }
+         valid = false;
+      }
+   }
+   return valid;
+}
+
+bool MemoryManager::check_read(size_t segment, size_t offset, size_t nbytes,
+                               bool on_device)
+{
+   bool valid = true;
+   if (valid_segment(segment) && nbytes > 0)
+   {
+      std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
+          AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
+          segs(AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(
+                  GetHostMemoryType(), true));
+
+      auto &seg = storage.get_segment(segment);
+      check_valid(segment, on_device, offset, offset + nbytes,
+                  [&](auto start, auto stop, bool valid)
+      {
+         if (!valid)
+         {
+            segs.emplace_back(start, stop);
+         }
+         return false;
+      });
+      if (segs.size())
+      {
+         for (auto &v : segs)
+         {
+            mfem::err << "check read write expected valid but was invalid: "
+                      << v.first << ", " << v.second << std::endl;
+         }
+         valid = false;
+      }
+   }
+   return valid;
+}
+
 char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
                                 bool on_device)
 {
-   if (valid_segment(segment) || nbytes == 0)
+   if (valid_segment(segment) && nbytes > 0)
    {
       std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
           AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
@@ -1841,10 +1924,6 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
       auto &seg = storage.get_segment(segment);
       if (!seg.lowers[on_device])
       {
-         if (!seg.lowers[!on_device])
-         {
-            return nullptr;
-         }
          // need to allocate
          if (seg.mtypes[on_device] == MemoryType::DEFAULT ||
              seg.mtypes[on_device] == MemoryType::PRESERVE)
@@ -1914,7 +1993,7 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
 const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
                                 bool on_device)
 {
-   if (valid_segment(segment) || nbytes == 0)
+   if (valid_segment(segment) && nbytes > 0)
    {
       std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
           AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
@@ -1924,10 +2003,6 @@ const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
       auto &seg = storage.get_segment(segment);
       if (!seg.lowers[on_device])
       {
-         if (!seg.lowers[!on_device])
-         {
-            return nullptr;
-         }
          // need to allocate
          if (seg.mtypes[on_device] == MemoryType::DEFAULT ||
              seg.mtypes[on_device] == MemoryType::PRESERVE)
