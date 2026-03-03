@@ -285,18 +285,11 @@ std::ostream &mem_op_debug_add(size_t idx, const void *start, const void *stop)
    {
       auto v = tracker.add_allocation(start, stop);
       auto pidx = mfem::mem_op_debug(idx);
-#ifdef MFEM_ENABLE_MEM_OP_DEBUG_PRINT_PTRS
       return mfem::out << "[DEBUG] " << pidx << ", add "
              << reinterpret_cast<const char *>(stop) -
              reinterpret_cast<const char *>(start)
-             << " Bytes " << v.first << " (" << start << ", " << stop
-             << "): ";
-#else
-      return mfem::out << "[DEBUG] " << pidx << ", add "
-             << reinterpret_cast<const char *>(stop) -
-             reinterpret_cast<const char *>(start)
-             << " Bytes " << v.first << ": ";
-#endif
+             << " Bytes " << v.first << " external[" << start << ":"
+             << stop << "]: ";
    }
    else
    {
@@ -347,10 +340,24 @@ std::ostream &mem_op_debug_use(size_t idx, const void *start, const void *stop)
    auto &tracker = mem_op_tracker::instance();
    if (start != nullptr)
    {
-      size_t v = tracker.find_allocation(start, stop)->second.first;
+      auto iter = tracker.find_containing(start, stop);
       auto pidx = mfem::mem_op_debug(idx);
-      return mfem::out << "[DEBUG] " << pidx << ", use " << v
-             << ": ";
+      if (iter != tracker.allocations.end())
+      {
+         return mfem::out
+                << "[DEBUG] " << pidx << ", " << iter->second.first << "["
+                << reinterpret_cast<const char *>(start) -
+                reinterpret_cast<const char *>(iter->first.first)
+                << ":"
+                << reinterpret_cast<const char *>(stop) -
+                reinterpret_cast<const char *>(iter->first.first)
+                << "]: ";
+      }
+      else
+      {
+         return mfem::out << "[DEBUG] " << pidx << ", external[" << start << ":"
+                << stop << "]: ";
+      }
    }
    else
    {
@@ -367,6 +374,9 @@ std::ostream &mem_op_debug_sync_alias(size_t idx, const void *astart,
    if (astart != nullptr)
    {
       MFEM_VERIFY(bstart != nullptr, "bstart null");
+      MFEM_VERIFY(reinterpret_cast<const char *>(astart) >=
+                  reinterpret_cast<const char *>(bstart),
+                  "alias start before base start");
       auto iter = tracker.find_containing(bstart);
       auto pidx = mfem::mem_op_debug(idx);
       if (iter != tracker.allocations.end())
@@ -388,35 +398,27 @@ std::ostream &mem_op_debug_sync_alias(size_t idx, const void *astart,
                 << iter->second.first << "["
                 << reinterpret_cast<const char *>(astart) -
                 reinterpret_cast<const char *>(bstart)
-                << "]: " << nbytes << std::endl;
+                << ":"
+                << reinterpret_cast<const char *>(astart) -
+                reinterpret_cast<const char *>(bstart) + nbytes
+                << "]: " << nbytes << " Bytes" << std::endl;
       }
       else
       {
-         return mfem::out << "[DEBUG] " << pidx << ", sync alias external"
-                << std::endl;
+         return mfem::out << "[DEBUG] " << pidx << ", sync alias external "
+                << bstart << "["
+                << reinterpret_cast<const char *>(astart) -
+                reinterpret_cast<const char *>(bstart)
+                << ":"
+                << reinterpret_cast<const char *>(astart) -
+                reinterpret_cast<const char *>(bstart) + nbytes
+                << "]: " << nbytes << " Bytes" << std::endl;
       }
    }
    else
    {
       auto pidx = mfem::mem_op_debug(idx);
       return mfem::out << "[DEBUG] " << pidx << ", sync alias nullptr" << std::endl;
-   }
-}
-
-std::ostream &mem_op_debug_use(size_t idx, const void *start)
-{
-   auto &tracker = mem_op_tracker::instance();
-   if (start != nullptr)
-   {
-      size_t v = tracker.find_allocation(start)->second.first;
-      auto pidx = mfem::mem_op_debug(idx);
-      return mfem::out << "[DEBUG] " << pidx << ", use " << v
-             << ": ";
-   }
-   else
-   {
-      auto pidx = mfem::mem_op_debug(idx);
-      return mfem::out << "[DEBUG] " << pidx << ", use nullptr: ";
    }
 }
 
@@ -443,7 +445,7 @@ std::ostream &mem_op_debug_batch_mem_copy(size_t idx, const void *src_start,
    }
    else
    {
-      mfem::out << "external src -> ";
+      mfem::out << "external src " << src_start << " -> ";
    }
    if (dst_iter != tracker.allocations.end())
    {
@@ -455,46 +457,7 @@ std::ostream &mem_op_debug_batch_mem_copy(size_t idx, const void *src_start,
    }
    else
    {
-      return mfem::out << "external dst";
-   }
-}
-
-std::ostream &mem_op_debug_batch_mem_copy2(size_t idx, const void *src_start,
-                                           const void *dst_start, size_t nbytes,
-                                           MemoryType src_loc,
-                                           MemoryType dst_loc)
-{
-   auto &tracker = mem_op_tracker::instance();
-   auto src_iter = tracker.find_containing(
-                      src_start, reinterpret_cast<const char *>(src_start) + nbytes);
-   auto dst_iter = tracker.find_containing(
-                      dst_start, reinterpret_cast<const char *>(dst_start) + nbytes);
-   auto pidx = mfem::mem_op_debug(idx);
-   mfem::out << "[DEBUG] " << pidx << ": BATCH_MEM_COPY2 "
-             << mem_op_debug_copy_type(src_loc, dst_loc) << " " << nbytes
-             << " Bytes, ";
-   if (src_iter != tracker.allocations.end())
-   {
-      mfem::out << src_iter->second.first << "["
-                << reinterpret_cast<const char *>(src_start) -
-                reinterpret_cast<const char *>(src_iter->first.first)
-                << "] -> ";
-   }
-   else
-   {
-      mfem::out << "external src -> ";
-   }
-   if (dst_iter != tracker.allocations.end())
-   {
-      return mfem::out << dst_iter->second.first << "["
-             << reinterpret_cast<const char *>(dst_start) -
-             reinterpret_cast<const char *>(
-                dst_iter->first.first)
-             << "] -> ";
-   }
-   else
-   {
-      return mfem::out << "external dst";
+      return mfem::out << "external dst " << dst_start;
    }
 }
 
@@ -1355,7 +1318,7 @@ void *MemoryManager::New_(void *h_tmp, size_t bytes, MemoryType h_mt,
    if (h_tmp == nullptr)
    {
       ctrl->Host(h_mt)->Alloc(&h_ptr, bytes);
-      MFEM_MEM_OP_DEBUG_ADD(0, *h_ptr, reinterpret_cast<char *>(*h_ptr) + bytes,
+      MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, reinterpret_cast<char *>(h_ptr) + bytes,
                             "alloc " << (int)h_mt << ", " << false);
    }
    else { h_ptr = h_tmp; }
@@ -1410,8 +1373,8 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
       if (h_tmp == nullptr)
       {
          ctrl->Host(h_mt)->Alloc(&h_ptr, bytes);
-         MFEM_MEM_OP_DEBUG_ADD(0, *h_ptr,
-                               reinterpret_cast<char *>(*h_ptr) + bytes,
+         MFEM_MEM_OP_DEBUG_ADD(0, h_ptr,
+                               reinterpret_cast<char *>(h_ptr) + bytes,
                                "alloc " << (int)h_mt << ", " << false);
       }
       else { h_ptr = h_tmp; }
@@ -1604,22 +1567,26 @@ void *MemoryManager::ReadWrite_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
    if (h_ptr) { CheckHostMemoryType_(h_mt, h_ptr, flags & Mem::ALIAS); }
    if (bytes > 0) { MFEM_VERIFY(flags & Mem::Registered,""); }
    MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
+   void* res = nullptr;
    if (IsHostMemory(GetMemoryType(mc)) && mc < MemoryClass::DEVICE)
    {
       const bool copy = !(flags & Mem::VALID_HOST);
       flags = (flags | Mem::VALID_HOST) & ~Mem::VALID_DEVICE;
       if (flags & Mem::ALIAS)
-      { return mm.GetAliasHostPtr(h_ptr, bytes, copy); }
-      else { return mm.GetHostPtr(h_ptr, bytes, copy); }
+      { res = mm.GetAliasHostPtr(h_ptr, bytes, copy); }
+      else { res = mm.GetHostPtr(h_ptr, bytes, copy); }
    }
    else
    {
       const bool copy = !(flags & Mem::VALID_DEVICE);
       flags = (flags | Mem::VALID_DEVICE) & ~Mem::VALID_HOST;
       if (flags & Mem::ALIAS)
-      { return mm.GetAliasDevicePtr(h_ptr, bytes, copy); }
-      else { return mm.GetDevicePtr(h_ptr, bytes, copy); }
+      { res = mm.GetAliasDevicePtr(h_ptr, bytes, copy); }
+      else { res = mm.GetDevicePtr(h_ptr, bytes, copy); }
    }
+   MFEM_MEM_OP_DEBUG_USE(6, res, reinterpret_cast<const char *>(res) + bytes,
+                         " ReadWrite ");
+   return res;
 }
 
 const void *MemoryManager::Read_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
@@ -1628,22 +1595,26 @@ const void *MemoryManager::Read_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
    if (h_ptr) { CheckHostMemoryType_(h_mt, h_ptr, flags & Mem::ALIAS); }
    if (bytes > 0) { MFEM_VERIFY(flags & Mem::Registered,""); }
    MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
+   const void* res = nullptr;
    if (IsHostMemory(GetMemoryType(mc)) && mc < MemoryClass::DEVICE)
    {
       const bool copy = !(flags & Mem::VALID_HOST);
       flags |= Mem::VALID_HOST;
       if (flags & Mem::ALIAS)
-      { return mm.GetAliasHostPtr(h_ptr, bytes, copy); }
-      else { return mm.GetHostPtr(h_ptr, bytes, copy); }
+      { res = mm.GetAliasHostPtr(h_ptr, bytes, copy); }
+      else { res = mm.GetHostPtr(h_ptr, bytes, copy); }
    }
    else
    {
       const bool copy = !(flags & Mem::VALID_DEVICE);
       flags |= Mem::VALID_DEVICE;
       if (flags & Mem::ALIAS)
-      { return mm.GetAliasDevicePtr(h_ptr, bytes, copy); }
-      else { return mm.GetDevicePtr(h_ptr, bytes, copy); }
+      { res = mm.GetAliasDevicePtr(h_ptr, bytes, copy); }
+      else { res = mm.GetDevicePtr(h_ptr, bytes, copy); }
    }
+   MFEM_MEM_OP_DEBUG_USE(4, res, reinterpret_cast<const char *>(res) + bytes,
+                         " Read");
+   return res;
 }
 
 void *MemoryManager::Write_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
@@ -1652,20 +1623,24 @@ void *MemoryManager::Write_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
    if (h_ptr) { CheckHostMemoryType_(h_mt, h_ptr, flags & Mem::ALIAS); }
    if (bytes > 0) { MFEM_VERIFY(flags & Mem::Registered,""); }
    MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
+   void* res = nullptr;
    if (IsHostMemory(GetMemoryType(mc)) && mc < MemoryClass::DEVICE)
    {
       flags = (flags | Mem::VALID_HOST) & ~Mem::VALID_DEVICE;
       if (flags & Mem::ALIAS)
-      { return mm.GetAliasHostPtr(h_ptr, bytes, false); }
-      else { return mm.GetHostPtr(h_ptr, bytes, false); }
+      { res = mm.GetAliasHostPtr(h_ptr, bytes, false); }
+      else { res = mm.GetHostPtr(h_ptr, bytes, false); }
    }
    else
    {
       flags = (flags | Mem::VALID_DEVICE) & ~Mem::VALID_HOST;
       if (flags & Mem::ALIAS)
-      { return mm.GetAliasDevicePtr(h_ptr, bytes, false); }
-      else { return mm.GetDevicePtr(h_ptr, bytes, false); }
+      { res = mm.GetAliasDevicePtr(h_ptr, bytes, false); }
+      else { res = mm.GetDevicePtr(h_ptr, bytes, false); }
    }
+   MFEM_MEM_OP_DEBUG_USE(5, res, reinterpret_cast<const char *>(res) + bytes,
+                         " Write");
+   return res;
 }
 
 void MemoryManager::SyncAlias_(const void *base_h_ptr, void *alias_h_ptr,

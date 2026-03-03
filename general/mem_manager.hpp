@@ -68,7 +68,6 @@ struct mem_op_tracker
 
 #define USE_NEW_MEM_MANAGER 1
 // #define MFEM_ENABLE_MEM_OP_DEBUG
-// #define MFEM_ENABLE_MEM_OP_DEBUG_PRINT_PTRS
 
 #ifdef MFEM_ENABLE_MEM_OP_DEBUG
 #define MFEM_MEM_OP_DEBUG_ADD(OP_IDX, START, STOP, MSG)                        \
@@ -83,18 +82,11 @@ struct mem_op_tracker
 
 #define MFEM_MEM_OP_DEBUG_SYNC_ALIAS(OP_IDX, ASTART, BSTART, NBYTES)           \
    mfem::mem_op_debug_sync_alias(OP_IDX, ASTART, BSTART, NBYTES)
-#define MFEM_MEM_OP_DEBUG_USE(OP_IDX, START, MSG)                              \
-   mfem::mem_op_debug_use(OP_IDX, START) << MSG << std::endl
-#define MFEM_MEM_OP_DEBUG_USE2(OP_IDX, START, STOP, MSG)                       \
+#define MFEM_MEM_OP_DEBUG_USE(OP_IDX, START, STOP, MSG)                        \
    mfem::mem_op_debug_use(OP_IDX, START, STOP) << MSG << std::endl
 
 #define MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(OP_IDX, SRC_START, DST_START, NBYTES, \
                                          MSG, src_loc, dst_loc)                \
-   mfem::mem_op_debug_batch_mem_copy(OP_IDX, SRC_START, DST_START, NBYTES,     \
-                                     src_loc, dst_loc)                         \
-      << MSG << std::endl
-#define MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY2(OP_IDX, SRC_START, DST_START,        \
-                                          NBYTES, MSG, src_loc, dst_loc)       \
    mfem::mem_op_debug_batch_mem_copy(OP_IDX, SRC_START, DST_START, NBYTES,     \
                                      src_loc, dst_loc)                         \
       << MSG << std::endl
@@ -108,8 +100,6 @@ struct mem_op_tracker
 #define MFEM_MEM_OP_DEBUG_USE2(OP_IDX, START, STOP, MSG)
 #define MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(OP_IDX, SRC_START, DST_START, NBYTES, \
                                          MSG, src_loc, dst_loc)
-#define MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY2(OP_IDX, SRC_START, DST_START,        \
-                                          NBYTES, MSG, src_loc, dst_loc)
 #endif
 
 namespace mfem
@@ -187,10 +177,6 @@ std::ostream &mem_op_debug_batch_mem_copy(size_t op_idx, const void *src_start,
                                           const void *dst_start, size_t nbytes,
                                           MemoryType src_loc,
                                           MemoryType dst_loc);
-std::ostream &mem_op_debug_batch_mem_copy2(size_t op_idx, const void *src_start,
-                                           const void *dst_start, size_t nbytes,
-                                           MemoryType src_loc,
-                                           MemoryType dst_loc);
 std::string mem_op_debug_copy_type(MemoryType src_loc, MemoryType dst_loc);
 
 /// Static casts to 'int' and sizes of some useful memory types.
@@ -1324,6 +1310,7 @@ inline T &Memory<T>::operator[](int idx)
 {
    MFEM_ASSERT((flags & VALID_HOST) && !(flags & VALID_DEVICE),
                "invalid host pointer access");
+   MFEM_MEM_OP_DEBUG_USE(6, h_ptr + idx, h_ptr + idx + 1, " ReadWrite[]");
    return h_ptr[idx];
 }
 
@@ -1331,6 +1318,7 @@ template <typename T>
 inline const T &Memory<T>::operator[](int idx) const
 {
    MFEM_ASSERT((flags & VALID_HOST), "invalid host pointer access");
+   MFEM_MEM_OP_DEBUG_USE(4, h_ptr + idx, h_ptr + idx + 1, " Read[]");
    return h_ptr[idx];
 }
 
@@ -1371,12 +1359,13 @@ inline Memory<T>::operator const U*() const
 template <typename T>
 inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
 {
+   MFEM_MEM_OP_DEBUG_USE(6, h_ptr, h_ptr + size, " ReadWrite Request");
    const size_t bytes = size * sizeof(T);
-   MFEM_MEM_OP_DEBUG(6, "ReadWrite " << bytes << " bytes");
    if (!(flags & Registered))
    {
       if (mc == MemoryClass::HOST)
       {
+         MFEM_MEM_OP_DEBUG_USE(6, h_ptr, h_ptr + size, " ReadWrite");
          return h_ptr;
       }
       MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt,
@@ -1388,12 +1377,13 @@ inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
 template <typename T>
 inline const T *Memory<T>::Read(MemoryClass mc, int size) const
 {
+   MFEM_MEM_OP_DEBUG_USE(4, h_ptr, h_ptr + size, " Read Request");
    const size_t bytes = size * sizeof(T);
-   MFEM_MEM_OP_DEBUG(4, "Read " << bytes << " bytes");
    if (!(flags & Registered))
    {
       if (mc == MemoryClass::HOST)
       {
+         MFEM_MEM_OP_DEBUG_USE(4, h_ptr, h_ptr + size, " Read");
          return h_ptr;
       }
       MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt,
@@ -1406,12 +1396,13 @@ template <typename T>
 inline T *Memory<T>::Write(MemoryClass mc, int size)
 {
 
+   MFEM_MEM_OP_DEBUG_USE(5, h_ptr, h_ptr + size, " Write Request");
    const size_t bytes = size * sizeof(T);
-   MFEM_MEM_OP_DEBUG(5, "Write " << bytes << " bytes");
    if (!(flags & Registered))
    {
       if (mc == MemoryClass::HOST)
       {
+         MFEM_MEM_OP_DEBUG_USE(5, h_ptr, h_ptr + size, " Write");
          return h_ptr;
       }
       MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt,
