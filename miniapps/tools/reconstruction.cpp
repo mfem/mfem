@@ -32,6 +32,7 @@ int main(int argc, char* argv[])
    int field_profile = 0;
    real_t field_kx = 2.0;
    real_t field_ky = 4.0;
+   bool use_ea = false;
 
    bool visualization = true;
    int visport = 19916;
@@ -86,6 +87,8 @@ int main(int argc, char* argv[])
                   "--no-visualization", "Enable or disable GLVis visualization.");
    args.AddOption(&visport, "-visp", "--visualization-port",
                   "Use custom port number for GLVis.");
+   args.AddOption(&use_ea, "-ea", "--ea-version", "-no-ea",
+                  "--no-ea-version", "Use element assembly version.");                  
    args.ParseCheck();
 
    // define u(x,y) to be represented
@@ -102,6 +105,8 @@ int main(int argc, char* argv[])
    const int num_x = 8;
    const int num_y = 8;   
 
+   // std::cout << "LOR method: " << lor_method << ", (lor_method == l2_projection) = "<< (lor_method == "l2_projection")<< std::endl;
+
    if (lor_method == "optimization") {
 
       Mesh serial_mesh = Mesh::MakeCartesian2D(num_x, num_y, Element::QUADRILATERAL);
@@ -114,20 +119,20 @@ int main(int argc, char* argv[])
 
    } else if (lor_method == "l2_projection") {
 
-   //    order_im = order_ho;
-   //    lref = order_im + 1;
-   //    MFEM_VERIFY((num_x % lref) == 0 && (num_y % lref) == 0,
-   //                "For l2_projection, lref = order_im (=order_ho) + 1 must divide both num_x and num_y.");
-   //    int num_x_im = num_x / lref;
-   //    int num_y_im = num_y / lref;
-   //    Mesh mesh_im_serial = Mesh::MakeCartesian2D(num_x_im, num_y_im, Element::QUADRILATERAL);
-   //    for (int i = 0; i < refinement_levels; i++) {
-   //       mesh_im_serial.UniformRefinement();
-   //    }
-   //    mesh_im_serial.EnsureNCMesh();
-   //    mesh_im = ParMesh(MPI_COMM_WORLD, mesh_im_serial);
-   //    Mesh mesh_refined = Mesh::MakeRefined(mesh_im_serial, lref, BasisType::ClosedUniform);
-   //    mesh = ParMesh(MPI_COMM_WORLD, mesh_refined); // GaussLobatto, ClosedUniform
+      order_im = order_ho;
+      lref = order_im + 1;
+      MFEM_VERIFY((num_x % lref) == 0 && (num_y % lref) == 0,
+                  "For l2_projection, lref = order_im (=order_ho) + 1 must divide both num_x and num_y.");
+      int num_x_im = num_x / lref;
+      int num_y_im = num_y / lref;
+      Mesh mesh_im_serial = Mesh::MakeCartesian2D(num_x_im, num_y_im, Element::QUADRILATERAL);
+      for (int i = 0; i < refinement_levels; i++) {
+         mesh_im_serial.UniformRefinement();
+      }
+      mesh_im_serial.EnsureNCMesh();
+      mesh_im = ParMesh(MPI_COMM_WORLD, mesh_im_serial);
+      Mesh mesh_refined = Mesh::MakeRefined(mesh_im_serial, lref, BasisType::ClosedUniform);
+      mesh = ParMesh(MPI_COMM_WORLD, mesh_refined); // GaussLobatto, ClosedUniform
    }
    int dim = mesh.Dimension();
 
@@ -164,6 +169,65 @@ int main(int argc, char* argv[])
       fec_im = new H1_FECollection(order_im, dim); // Both L2 and H1 give the same convergence.
       ParFiniteElementSpace fespace_im(&mesh_im, fec_im);
       ParGridFunction u_im(&fespace_im);
+
+      BilinearForm M_lo(&fespace_lo);
+      M_lo.AddDomainIntegrator(new MassIntegrator);
+      M_lo.Assemble();
+      M_lo.Finalize();
+
+      BilinearForm M_im(&fespace_im);
+      M_im.AddDomainIntegrator(new MassIntegrator);
+      M_im.Assemble();
+      M_im.Finalize();
+
+      BilinearForm M_hi(&fespace_hi);
+      M_hi.AddDomainIntegrator(new MassIntegrator);
+      M_hi.Assemble();
+      M_hi.Finalize();
+
+      // Set up the right-hand side vector for the exact solution
+      LinearForm b_lo(&fespace_lo);
+      // b_lo.AddDomainIntegrator(new DomainLFIntegrator(RHO));
+      DomainLFIntegrator *lf_integ = new DomainLFIntegrator(u_function_exact);
+      const IntegrationRule &ir_rhs = IntRules.Get(fespace_lo.GetFE(0)->GetGeomType(), 
+                                                   order_ho+1);
+      lf_integ->SetIntRule(&ir_rhs);
+      b_lo.AddDomainIntegrator(lf_integ);
+      b_lo.Assemble();
+
+      GridTransfer *gt1 = nullptr;
+      GridTransfer *gt2 = nullptr;
+      gt1 = new L2ProjectionGridTransfer(fespace_im, fespace_lo); // (dom_fes_, ran_fes_)
+      gt2 = new L2ProjectionGridTransfer(fespace_im, fespace_hi);
+
+      // Configure element assembly for device acceleration
+      gt1->UseEA(use_ea);
+      gt2->UseEA(use_ea);
+
+      const Operator &P1 = gt1->BackwardOperator();   // Prolongation 1 (LO->IM)
+      const Operator &P2 = gt2->ForwardOperator();    // Prolongation 2 (IM->HO)
+
+      const Operator &R1 = gt1->ForwardOperator();    // Restriction 1 (IM->LO)
+      const Operator &R2 = gt2->BackwardOperator();   // Restriction 2 (HO->IM)
+
+      // STEP1: L2 projection of RHO onto u_lo
+      SparseMatrix &M_mat_lo = M_lo.SpMat();
+      CGSolver cg;
+      cg.SetOperator(M_mat_lo);
+      cg.SetRelTol(1e-16);
+      cg.SetMaxIter(1000);
+      cg.SetPrintLevel(0);
+      u_lo = 0.0;
+      cg.Mult(b_lo, u_lo); // Solve: M * u_lo = b_lo
+      u_lo.SetTrueVector();
+      u_lo.SetFromTrueVector();
+
+      // STEP2: Prolongation 1 (LO->IM)
+      P1.Mult(u_lo, u_im); // u_im = P1 * u_lo
+
+      // STEP3: Prolongation 2 (IM->HO)
+      P2.Mult(u_im, u_hi); // u_hi = P2 * u_im
+
    }
 
    // evaluate reconstruction
@@ -181,20 +245,10 @@ int main(int argc, char* argv[])
    }
 
    real_t error = u_hi.ComputeL2Error(u_function_exact);
-   ConstantCoefficient zeros(0.0);
-   real_t error_avg = 0.0;//diff.ComputeL2Error(zeros);
-
-   Vector el_error(mesh.GetNE());
-   ConstantCoefficient ones(1.0);
-   GridFunction zero(&fespace_hi);
-   zero = 0.0;
-   zero.ComputeElementLpErrors(2.0, ones, el_error);
-   real_t hmax = el_error.Max();
 
    if (Mpi::Root())
    {
-      mfem::out << "\n|| Avg(Rec(u_h)) - u_h ||_{L^2} = " << error_avg
-                << std::endl;
+      mfem::out.precision(16);
       mfem::out << "|| u_h - u ||_{L^2} = \n" << error << std::endl;
    }
 
