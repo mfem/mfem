@@ -1554,7 +1554,7 @@ const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
 char *MemoryManager::write(size_t segment, size_t offset, size_t nbytes,
                            bool on_device)
 {
-   if (valid_segment(segment))
+   if (valid_segment(segment) || nbytes == 0)
    {
       auto &seg = storage.get_segment(segment);
       if (!seg.lowers[on_device])
@@ -1831,7 +1831,7 @@ void MemoryManager::BatchMemCopy2(
 char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
                                 bool on_device)
 {
-   if (valid_segment(segment))
+   if (valid_segment(segment) || nbytes == 0)
    {
       std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
           AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
@@ -1914,7 +1914,7 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
 const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
                                 bool on_device)
 {
-   if (valid_segment(segment))
+   if (valid_segment(segment) || nbytes == 0)
    {
       std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
           AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
