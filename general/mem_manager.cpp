@@ -351,7 +351,7 @@ std::ostream &mem_op_debug_sync_alias(size_t idx, const void *astart,
    if (astart != nullptr)
    {
       MFEM_VERIFY(bstart != nullptr, "bstart null");
-      auto iter = tracker.find_allocation(bstart);
+      auto iter = tracker.find_containing(bstart);
       auto pidx = mfem::mem_op_debug(idx);
       if (iter != tracker.allocations.end())
       {
