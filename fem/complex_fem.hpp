@@ -82,6 +82,25 @@ public:
    /// underlying #fes
    int VectorDim() const;
 
+   /// Copy assignment. Only the data of the base class Vector is copied.
+   /** It is assumed that this object and @a rhs use FiniteElementSpace%s that
+       have the same size.
+
+       @note Defining this method overwrites the implicitly defined copy
+       assignment operator. */
+   ComplexGridFunction &operator=(const ComplexGridFunction &rhs)
+   { return operator=((const Vector &)rhs); }
+
+   /// Copy the data from @a v.
+   /** The size of @a v must be equal to double of the size of the associated
+       FiniteElementSpace #fes. */
+   ComplexGridFunction &operator=(const Vector &v)
+   {
+      MFEM_ASSERT(fes && v.Size() == 2*fes->GetVSize(), "");
+      Vector::operator=(v);
+      return *this;
+   }
+
    /// Assign constant values to the ComplexGridFunction data.
    ComplexGridFunction &operator=(const std::complex<real_t> & value)
    { *gfr = value.real(); *gfi = value.imag(); return *this; }
