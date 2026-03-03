@@ -24,7 +24,7 @@ int main(int argc, char* argv[])
    // Default command-line options
    std::string lor_method = "optimization"; // "optimization" or "l2_projection"
    int refinement_levels = 0;
-   int order_reconstruction = 3;
+   int order_ho = 3;
 
    int field_profile = 0;
    real_t field_kx = 2.0;
@@ -71,8 +71,8 @@ int main(int argc, char* argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&refinement_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
-   args.AddOption(&order_reconstruction, "-orec", "--order-reconstruction",
-                  "Order of the finite element space to reconstruct the field.");
+   args.AddOption(&order_ho, "-ho", "--order_ho",
+                  "Finite element order (polynomial degree) for high-order space.");
    args.AddOption(&field_profile, "-f", "--field-profile", field_profiles_help.c_str());
    args.AddOption(&field_kx, "-fx", "--field-kx",
                   "Value of kx in field profile");
@@ -101,56 +101,48 @@ int main(int argc, char* argv[])
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
    serial_mesh.Clear();
 
+   int dim = mesh.Dimension();
+
    // create FEM things
 
-   // LO space
-   L2_FECollection fe_collection_averages(0, mesh.Dimension());
-   ParFiniteElementSpace fe_space_averages(&mesh, &fe_collection_averages);
-   ParGridFunction u_averages(&fe_space_averages);
+   FiniteElementCollection *fec_lo;   
+   FiniteElementCollection *fec_hi;
 
-   // Reconstruction (LO->HO) space
-   L2_FECollection fe_collection_reconstruction(order_reconstruction, mesh.Dimension());
-   ParFiniteElementSpace fe_space_reconstruction(&mesh, &fe_collection_reconstruction);
-   ParGridFunction u_reconstruction(&fe_space_reconstruction);
-   ParGridFunction u_reconstruction_averages(&fe_space_averages);
+   fec_lo = new L2_FECollection(0, dim); 
+   fec_hi = new L2_FECollection(order_ho, dim);
+
+   ParFiniteElementSpace fespace_lo(&mesh, fec_lo);
+   ParFiniteElementSpace fespace_hi(&mesh, fec_hi);
+
+   ParGridFunction u_lo(&fespace_lo);   
+   ParGridFunction u_hi(&fespace_hi);
 
    // compute element averages
 
    // compute reconstruction
-   L2Reconstruction(u_averages, u_reconstruction);
+   L2Reconstruction(u_lo, u_hi);
 
    // evaluate reconstruction
-   u_reconstruction.GetElementAverages(u_reconstruction_averages);
    char vishost[] = "localhost";
-   socketstream glvis_original(vishost, visport);
-   socketstream glvis_averages(vishost, visport);
-   socketstream glvis_reconstruction_averages(vishost, visport);
-   socketstream glvis_reconstruction(vishost, visport);
-   if (glvis_original &&
-       glvis_averages &&
-       glvis_reconstruction_averages &&
-       glvis_reconstruction &&
-       visualization)
+   socketstream glvis_u_lo(vishost, visport);
+   socketstream glvis_u_hi(vishost, visport);
+   if (visualization && glvis_u_lo && glvis_u_hi)
    {
-      glvis_averages.precision(8);
-      glvis_averages << "solution\n" << mesh << u_averages
-         << "window_title 'averages'\n" << std::flush;
-      glvis_reconstruction.precision(8);
-      glvis_reconstruction << "solution\n" << mesh << u_reconstruction
-         << "window_title 'reconstruction'\n" << std::flush;
-      glvis_reconstruction.precision(8);
-      glvis_reconstruction_averages << "solution\n" << mesh << u_reconstruction_averages
-         << "window_title 'rec average'\n" << std::flush;
+      glvis_u_lo.precision(8);
+      glvis_u_lo << "solution\n" << mesh << u_lo
+         << "window_title 'Low-order'\n" << std::flush;
+      glvis_u_hi.precision(8);
+      glvis_u_hi << "solution\n" << mesh << u_hi
+         << "window_title 'High-order'\n" << std::flush;
    }
 
-   real_t error = u_reconstruction.ComputeL2Error(u_coefficient);
-   //subtract(u_reconstruction_averages, u_averages, diff);
+   real_t error = u_hi.ComputeL2Error(u_coefficient);
    ConstantCoefficient zeros(0.0);
    real_t error_avg = 0.0;//diff.ComputeL2Error(zeros);
 
    Vector el_error(mesh.GetNE());
    ConstantCoefficient ones(1.0);
-   GridFunction zero(&fe_space_reconstruction);
+   GridFunction zero(&fespace_hi);
    zero = 0.0;
    zero.ComputeElementLpErrors(2.0, ones, el_error);
    real_t hmax = el_error.Max();
