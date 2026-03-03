@@ -88,12 +88,15 @@ class RegLogPrimeCoefficient : public Coefficient
 {
 private:
    GridFunction *u;
-   Vector &n_tilde;
+   VectorCoefficient *n_tilde;
    real_t N;
    real_t sign;
 
 public:
-   RegLogPrimeCoefficient(GridFunction *_u, Vector &_n_tilde,
+   RegLogPrimeCoefficient(GridFunction *_u, real_t _N = 1e2, real_t _sign = 1.0)
+      : u(_u), n_tilde(NULL), N(_N), sign(_sign) {}
+
+   RegLogPrimeCoefficient(GridFunction *_u, VectorCoefficient *_n_tilde,
       real_t _N = 1e2, real_t _sign = 1.0)
       : u(_u), n_tilde(_n_tilde), N(_N), sign(_sign) {}
 
@@ -114,13 +117,15 @@ class RegLogDoublePrimeCoefficient : public Coefficient
 {
 private:
    GridFunction *u;
-   Vector &n_tilde;
+   VectorCoefficient *n_tilde;
    real_t N;
 
 public:
-   RegLogDoublePrimeCoefficient(GridFunction *_u, Vector &_n_tilde,
-      real_t _N = 1e2)
-      : u(_u), n_tilde(_n_tilde), N(_N) {}
+   RegLogDoublePrimeCoefficient(GridFunction *_u, real_t _N = 1e2)
+      : u(_u), n_tilde(NULL), N(_N) {}
+
+   RegLogDoublePrimeCoefficient(GridFunction *_u, VectorCoefficient *_n_tilde,
+      real_t _N = 1e2) : u(_u), n_tilde(_n_tilde), N(_N) {}
 
    real_t RegLogDoublePrime(const real_t a, const real_t M);
 
@@ -276,6 +281,7 @@ int main(int argc, char *argv[])
          n_tilde /= n_tilde_norm;
       }
    }
+   VectorConstantCoefficient n_tilde_coeff(n_tilde);
 
    // 7. Define the solution vector u as a parallel finite element grid
    //    function corresponding to fespace. Initialize u with initial guess of
@@ -369,9 +375,9 @@ int main(int argc, char *argv[])
       ConstantCoefficient alpha_coeff(alpha);
       ScalarVectorProductCoefficient alpha_f_coeff(alpha, f_coeff);
 
-      RegLogDoublePrimeCoefficient reg_log_dp_curr_coeff(&u_current, n_tilde, N);
-      RegLogPrimeCoefficient reg_log_p_curr_coeff(&u_current, n_tilde, N);
-      RegLogPrimeCoefficient nreg_log_p_prev_coeff(&u_previous, n_tilde, N, -1.0);
+      RegLogDoublePrimeCoefficient reg_log_dp_curr_coeff(&u_current, &n_tilde_coeff, N);
+      RegLogPrimeCoefficient reg_log_p_curr_coeff(&u_current, &n_tilde_coeff, N);
+      RegLogPrimeCoefficient nreg_log_p_prev_coeff(&u_previous, &n_tilde_coeff, N, -1.0);
       StressGridFunctionCoefficient stress_u_curr_coeff(lambda, mu, &u_current);
       FlatVectorCoefficient nalpha_vstress_u_curr_coeff(stress_u_curr_coeff, -alpha);
 
@@ -385,18 +391,18 @@ int main(int argc, char *argv[])
          a->AddDomainIntegrator(new ElasticityIntegrator(alpha_coeff,lambda,mu));
          a->AddBdrFaceIntegrator(
             new BoundaryProjectionIntegrator(reg_log_dp_curr_coeff,
-            n_tilde), ess_bdr_z);
+            n_tilde_coeff), ess_bdr_z);
          a->Assemble();
 
          // Step 2: Set up the linear form b(⋅) on the finite element space.
          ParLinearForm *b = new ParLinearForm(fespace);
          b->AddDomainIntegrator(new VectorDomainLFStrainIntegrator(nalpha_vstress_u_curr_coeff));
          b->AddBdrFaceIntegrator(
-            new BoundaryProjectionLFIntegrator(reg_log_p_curr_coeff, n_tilde),
+            new BoundaryProjectionLFIntegrator(reg_log_p_curr_coeff, &n_tilde_coeff),
             ess_bdr_z);
          b->AddDomainIntegrator(new VectorDomainLFIntegrator(alpha_f_coeff));
          b->AddBdrFaceIntegrator(
-            new BoundaryProjectionLFIntegrator(nreg_log_p_prev_coeff, n_tilde),
+            new BoundaryProjectionLFIntegrator(nreg_log_p_prev_coeff, &n_tilde_coeff),
             ess_bdr_z);
          b->Assemble();
 
@@ -579,10 +585,19 @@ real_t RegLogPrimeCoefficient::Eval(ElementTransformation &T,
       u->GetVectorValue(T, ip, u_val);
    }
 
+   Vector n(dim);
+   T.SetIntPoint(&Geometries.GetCenter(T.GetGeometryType()));
+   CalcOrtho(T.Jacobian(), n);
+   n /= n.Norml2();
+
+   Vector w(dim);
+   if (!n_tilde) { w = n; }
+   else { n_tilde->Eval(w, T, ip); }
+
    // Evaluate the gap function φ
    const real_t phi = GapFunction(x);
 
-   return sign * RegLogPrime(phi - u_val * n_tilde, N);
+   return sign * RegLogPrime(phi - u_val * w, N);
 }
 
 real_t RegLogDoublePrimeCoefficient::Eval(ElementTransformation &T,
@@ -606,8 +621,17 @@ real_t RegLogDoublePrimeCoefficient::Eval(ElementTransformation &T,
       u->GetVectorValue(T, ip, u_val);
    }
 
+   Vector n(dim);
+   T.SetIntPoint(&Geometries.GetCenter(T.GetGeometryType()));
+   CalcOrtho(T.Jacobian(), n);
+   n /= n.Norml2();
+
+   Vector w(dim);
+   if (!n_tilde) { w = n; }
+   else { n_tilde->Eval(w, T, ip); }
+
    // Evaluate the gap function φ
    const real_t phi = GapFunction(x);
 
-   return RegLogDoublePrime(phi - u_val * n_tilde, N);
+   return RegLogDoublePrime(phi - u_val * w, N);
 }

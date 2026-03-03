@@ -9,16 +9,20 @@ class BoundaryProjectionIntegrator : public BilinearFormIntegrator
 {
 protected:
    Coefficient &Q;
-   Vector &W;
+   VectorCoefficient *W;
 
 #ifndef MFEM_THREAD_SAFE
    // values of all scalar basis functions for one component of u (which is a
    // vector) at the integration point in the reference space
    Vector shape1;
+   Vector w;
 #endif
 
 public:
-   BoundaryProjectionIntegrator(Coefficient &q, Vector &w) : Q(q), W(w) { }
+   BoundaryProjectionIntegrator(Coefficient &q) : Q(q), W(NULL) { }
+
+   BoundaryProjectionIntegrator(Coefficient &q, VectorCoefficient &w)
+      : Q(q), W(&w) { }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
    void AssembleFaceMatrix(const FiniteElement &el1,

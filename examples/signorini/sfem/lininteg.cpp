@@ -21,6 +21,7 @@ void BoundaryProjectionLFIntegrator::AssembleRHSElementVect(
    int dof  = el.GetDof();
 
    real_t val, cf;
+   Vector w(spaceDim);
 
    shape.SetSize(dof);
    elvect.SetSize(dof * vdim);
@@ -33,6 +34,11 @@ void BoundaryProjectionLFIntegrator::AssembleRHSElementVect(
       ir = &IntRules.Get(Tr.FaceGeom, intorder); // of integration order
    }
 
+   Vector n(spaceDim);
+   Tr.SetIntPoint(&Geometries.GetCenter(Tr.GetGeometryType()));
+   CalcOrtho(Tr.Jacobian(), n);
+   n /= n.Norml2();
+
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
@@ -44,9 +50,12 @@ void BoundaryProjectionLFIntegrator::AssembleRHSElementVect(
 
       val = Tr.Weight() * Q.Eval(Tr, ip);
 
+      if (!W) { w = n; }
+      else { W->Eval(w, Tr, ip); }
+
       for (int k = 0; k < vdim; k++)
       {
-         cf = val * W(k);
+         cf = val * w(k);
 
          for (int s = 0; s < dof; s++)
          {

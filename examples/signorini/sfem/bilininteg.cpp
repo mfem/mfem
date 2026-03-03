@@ -10,6 +10,7 @@ void BoundaryProjectionIntegrator::AssembleFaceMatrix(
 {
 #ifdef MFEM_THREAD_SAFE
    Vector shape1;
+   Vector w;
 #endif
    MFEM_ASSERT(Trans.Elem2No < 0,
                "support for interior faces is not implemented");
@@ -22,6 +23,7 @@ void BoundaryProjectionIntegrator::AssembleFaceMatrix(
    elmat = 0.0;
 
    shape1.SetSize(ndofs1);
+   w.SetSize(dim);
 
    real_t val;
 
@@ -32,6 +34,11 @@ void BoundaryProjectionIntegrator::AssembleFaceMatrix(
       const int order = 2 * el1.GetOrder();
       ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
+
+   Vector n(dim);
+   Trans.SetIntPoint(&Geometries.GetCenter(Trans.GetGeometryType()));
+   CalcOrtho(Trans.Jacobian(), n);
+   n /= n.Norml2();
 
    for (int pind = 0; pind < ir->GetNPoints(); ++pind)
    {
@@ -44,16 +51,19 @@ void BoundaryProjectionIntegrator::AssembleFaceMatrix(
 
       val = ip.weight * Trans.Weight() * Q.Eval(Trans, ip);
 
+      if (!W) { w = n; }
+      else { W->Eval(w, Trans, ip); }
+
       for (int jm = 0, j = 0; jm < dim; ++jm)
       {
          for (int jdof = 0; jdof < ndofs1; ++jdof, ++j)
          {
-            const real_t sj = val * shape1(jdof) * W(jm);
+            const real_t sj = val * shape1(jdof) * w(jm);
             for (int im = 0, i = 0; im < dim; ++im)
             {
                for (int idof = 0; idof < ndofs1; ++idof, ++i)
                {
-                  elmat(i, j) += shape1(idof) * sj * W(im);
+                  elmat(i, j) += shape1(idof) * sj * w(im);
                }
             }
          }

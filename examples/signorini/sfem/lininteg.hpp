@@ -8,12 +8,17 @@ class BoundaryProjectionLFIntegrator : public LinearFormIntegrator
 {
    Vector shape;
    Coefficient &Q;
-   Vector &W;
+   VectorCoefficient *W;
    int oa, ob;
+
 public:
    /// Constructs a boundary integrator with a given Coefficient qg
+   BoundaryProjectionLFIntegrator(Coefficient &qg,
+      int a = 1, int b = 1) : Q(qg), W(NULL), oa(a), ob(b) { }
+
+   /// Constructs a boundary integrator with a given Coefficient qg
    /// and Vector w
-   BoundaryProjectionLFIntegrator(Coefficient &qg, Vector &w,
+   BoundaryProjectionLFIntegrator(Coefficient &qg, VectorCoefficient *w,
       int a = 1, int b = 1) : Q(qg), W(w), oa(a), ob(b) { }
 
    void AssembleRHSElementVect(const FiniteElement &el,
