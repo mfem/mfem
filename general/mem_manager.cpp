@@ -73,7 +73,11 @@ std::pair<size_t, size_t> mem_op_tracker::add_allocation(const void *start,
 typename mem_op_tracker::key_type
 mem_op_tracker::find_containing(const void *start, const void *stop)
 {
-   auto iter = allocations.lower_bound(std::make_pair(start, stop));
+   auto iter = allocations.upper_bound(std::make_pair(start, stop));
+   if (iter != allocations.begin())
+   {
+      --iter;
+   }
    while (iter != allocations.end())
    {
       if (iter->first.first > start)
@@ -92,7 +96,11 @@ mem_op_tracker::find_containing(const void *start, const void *stop)
 typename mem_op_tracker::key_type
 mem_op_tracker::find_containing(const void *start)
 {
-   auto iter = allocations.lower_bound(std::make_pair(start, start));
+   auto iter = allocations.upper_bound(std::make_pair(start, start));
+   if (iter != allocations.begin())
+   {
+      --iter;
+   }
    while (iter != allocations.end())
    {
       if (iter->first.first > start)
@@ -111,7 +119,11 @@ mem_op_tracker::find_containing(const void *start)
 mem_op_tracker::key_type mem_op_tracker::find_allocation(const void *start,
                                                          const void *stop)
 {
-   auto iter = allocations.lower_bound(std::make_pair(start, stop));
+   auto iter = allocations.upper_bound(std::make_pair(start, stop));
+   if (iter != allocations.begin())
+   {
+      --iter;
+   }
    while (iter != allocations.end())
    {
       if (iter->first.first > start)
@@ -132,7 +144,11 @@ mem_op_tracker::key_type mem_op_tracker::find_allocation(const void *start,
 typename mem_op_tracker::key_type
 mem_op_tracker::find_allocation(const void *start)
 {
-   auto iter = allocations.lower_bound(std::make_pair(start, start));
+   auto iter = allocations.upper_bound(std::make_pair(start, start));
+   if (iter != allocations.begin())
+   {
+      --iter;
+   }
    while (iter != allocations.end())
    {
       if (iter->first.first > start)
@@ -421,8 +437,8 @@ std::ostream &mem_op_debug_batch_mem_copy(size_t idx, const void *src_start,
    if (src_iter != tracker.allocations.end())
    {
       mfem::out << src_iter->second.first << "["
-                << reinterpret_cast<const char *>(src_iter->first.first) -
-                reinterpret_cast<const char *>(src_start)
+                << reinterpret_cast<const char *>(src_start) -
+                reinterpret_cast<const char *>(src_iter->first.first)
                 << "] -> ";
    }
    else
@@ -432,9 +448,9 @@ std::ostream &mem_op_debug_batch_mem_copy(size_t idx, const void *src_start,
    if (dst_iter != tracker.allocations.end())
    {
       return mfem::out << dst_iter->second.first << "["
-             << reinterpret_cast<const char *>(
-                dst_iter->first.first) -
-             reinterpret_cast<const char *>(dst_start)
+             << reinterpret_cast<const char *>(dst_start) -
+             reinterpret_cast<const char *>(
+                dst_iter->first.first)
              << "]";
    }
    else
@@ -460,8 +476,8 @@ std::ostream &mem_op_debug_batch_mem_copy2(size_t idx, const void *src_start,
    if (src_iter != tracker.allocations.end())
    {
       mfem::out << src_iter->second.first << "["
-                << reinterpret_cast<const char *>(src_iter->first.first) -
-                reinterpret_cast<const char *>(src_start)
+                << reinterpret_cast<const char *>(src_start) -
+                reinterpret_cast<const char *>(src_iter->first.first)
                 << "] -> ";
    }
    else
@@ -471,9 +487,9 @@ std::ostream &mem_op_debug_batch_mem_copy2(size_t idx, const void *src_start,
    if (dst_iter != tracker.allocations.end())
    {
       return mfem::out << dst_iter->second.first << "["
-             << reinterpret_cast<const char *>(
-                dst_iter->first.first) -
-             reinterpret_cast<const char *>(dst_start)
+             << reinterpret_cast<const char *>(dst_start) -
+             reinterpret_cast<const char *>(
+                dst_iter->first.first)
              << "] -> ";
    }
    else
