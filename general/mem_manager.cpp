@@ -1228,8 +1228,9 @@ public:
    }
    void Dealloc(Memory &base) override
    {
-      MFEM_MEM_OP_DEBUG_REMOVE(
-         1, base.d_ptr, "dealloc " << (int)MemoryType::DEVICE << ", " << false);
+      MFEM_MEM_OP_DEBUG_REMOVE(1, base.d_ptr,
+                               "dealloc " << (int)MemoryType::DEVICE_UMPIRE
+                               << ", " << false);
       allocator.deallocate(base.d_ptr);
    }
    void *HtoD(void *dst, const void *src, size_t bytes) override
