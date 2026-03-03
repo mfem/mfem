@@ -3139,15 +3139,13 @@ void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[],
 void GridFunction::ProjectBdrCoefficientNormal(
    Coefficient *coeff, VectorCoefficient *vcoeff, const Array<int> &bdr_attr)
 {
-#ifdef MFEM_DEBUG
    if (fes->GetNBE() > 0)
    {
       // TODO: Replace this by GetTypicalBdrElement() once implemented
       const FiniteElement *be = fes->GetBE(0);
-      MFEM_ASSERT(be->GetRangeType() == FiniteElement::SCALAR &&
+      MFEM_VERIFY(be->GetRangeType() == FiniteElement::SCALAR &&
                   be->GetMapType() == FiniteElement::INTEGRAL, "Not an RT FE space!");
    }
-#endif
 
    // implementation for the case when the face dofs are scaled point
    // values of the normal component.
