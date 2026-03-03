@@ -1999,21 +1999,28 @@ int MemoryManager::compare_host_device(size_t segment, size_t offset,
       auto &seg = storage.get_segment(segment);
       if (seg.lowers[0] && seg.lowers[1] && seg.lowers[0] != seg.lowers[1])
       {
-         Memory<char> tmp;
-         // TODO: fix
-#if 0
-         MFEM_ASSERT(seg.mtypes[0] != DEVICE,
+         MFEM_ASSERT(seg.mtypes[0] != MemoryType::DEVICE &&
+                     seg.mtypes[0] != MemoryType::DEVICE_UMPIRE &&
+                     seg.mtypes[0] != MemoryType::DEVICE_UMPIRE_2,
                      "host memory space cannot be DEVICE");
          char *ptr0 = seg.lowers[0] + offset;
          char *ptr1 = seg.lowers[1] + offset;
-         if (seg.locs[1] == DEVICE)
+         char *tmp = nullptr;
+         if (seg.mtypes[1] == MemoryType::DEVICE ||
+             seg.mtypes[1] == MemoryType::DEVICE_UMPIRE ||
+             seg.mtypes[1] == MemoryType::DEVICE_UMPIRE_2)
          {
-            tmp = Memory<char>(nbytes, HOST, true);
-            ptr1 = tmp.HostWrite();
-            MemCopy(ptr1, seg.lowers[1] + offset, nbytes, HOST, seg.locs[1]);
+            tmp = Alloc(nbytes, seg.mtypes[0], true);
+            ptr1 = tmp;
+            MemCopy(ptr1, seg.lowers[1] + offset, nbytes, seg.mtypes[0],
+                    seg.mtypes[1]);
          }
-         return std::memcmp(ptr0, ptr1, nbytes);
-#endif
+         auto res = std::memcmp(ptr0, ptr1, nbytes);
+         if (tmp != nullptr)
+         {
+            Dealloc(tmp, seg.mtypes[0], true);
+         }
+         return res;
       }
    }
    return 0;
