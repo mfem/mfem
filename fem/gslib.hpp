@@ -102,6 +102,12 @@ protected:
    double     bdr_tol;
    // Use CPU functions for Mesh/GridFunction on device for gslib1.0.7
    bool       gpu_to_cpu_fallback = false;
+   // Check if a point is inside the oriented bounding box of an
+   // element before the Newton iteration.
+   // Note: only used in MFEM implementation (not in gslib) which currently
+   // supports GPU kernels for area meshes in 2D, volume meshes in 3D,
+   // and surface meshes in 1D/2D/3D.
+   bool       obb_check = true;
 
    // Device specific data used for FindPoints
    struct DEV_STRUCT
@@ -253,7 +259,8 @@ protected:
                             const unsigned m,
                             const double bbox_tol,
                             const uint local_hash_size,
-                            const uint global_hash_size);
+                            const uint global_hash_size,
+                            const Vector *bb_size);
 
    /// Preprocess 3D surface mesh needed for FindPoints.
    void findptssurf_setup_3(DEV_STRUCT &devs,
@@ -264,8 +271,16 @@ protected:
                             const double bbox_tol,
                             const uint local_hash_size,
                             const uint global_hash_size,
-                            const int rD);
+                            const int rD,
+                            const Vector *bb_size);
 
+   /// Shared implementation for SetupSurf overloads.
+   /// If @a bb_size is not null, it is used to post-expand the axis-aligned
+   /// bounding boxes after they are constructed with @a bbox_tol.
+   void SetupSurf_Base(Mesh &m,
+                       const double bbox_tol,
+                       const Vector *bb_size,
+                       const double newt_tol);
 public:
    FindPointsGSLIB();
    FindPointsGSLIB(Mesh &mesh_in, const double bb_t = 0.1,
@@ -307,6 +322,25 @@ public:
                   const double bb_t = 0.1,
                   const double newt_tol = 1.0e-12,
                   const int npt_max = 256);
+
+   /// Preprocess the surface mesh to compute data for FindPoints. The
+   /// minimum axis-aligned bounding box size in each direction is specified.
+   /// If bb_size.Size() == 1, the specified size is used for X/Y/Z direction in
+   ///                         all elements.
+   /// If bb_size.Size() == NElements, the specified size is used for each
+   ///                         element in all directions.
+   /// If bb_size.Size() == SpaceDim, the minimum bounding box
+   ///                         size in each direction is used for all elements.
+   /// If bb_size.Size() ==  NElements*SpaceDim, the minimum bounding box size
+   ///                       in each direction is used for each element.
+   ///                       The ordering is (dx1,dy1,dz1, ... dxN,dyN,dzN)
+   ///                       where N is the number of elements.
+   /// Note that this disables the oriented bounding box check as this
+   /// overload is only used to modify the axis-aligned bounding boxes.
+   void SetupSurf(Mesh &m, const Vector &bb_size,
+                  const double bb_t = 0.1,
+                  const double newt_tol = 1.0e-12);
+
 
    /** @brief Searches positions given in physical space by \p point_pos.
 

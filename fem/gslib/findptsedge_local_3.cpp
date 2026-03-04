@@ -99,8 +99,8 @@ static MFEM_HOST_DEVICE inline void lag_eval_second_der(double *p0, double x,
 }
 
 /* positive when possibly inside */
-static MFEM_HOST_DEVICE inline double obbox_axis_test(const obbox_t *const b,
-                                                      const double x[sDIM])
+static MFEM_HOST_DEVICE inline double aabb_axis_test(const obbox_t *const b,
+                                                     const double x[sDIM])
 {
    double b_d;
    for (int d=0; d<sDIM; ++d)
@@ -118,8 +118,7 @@ static MFEM_HOST_DEVICE inline double obbox_axis_test(const obbox_t *const b,
 static MFEM_HOST_DEVICE inline double obbox_test(const obbox_t *const b,
                                                  const double x[sDIM])
 {
-   const double bxyz = obbox_axis_test(b, x);
-   return bxyz;
+   const double bxyz = aabb_axis_test(b, x);
    if (bxyz<0)
    {
       return bxyz;
@@ -355,6 +354,7 @@ static void FindPointsEdgeLocal3D_Kernel(const int npt,
                                          const int nel,
                                          const double *wtend,
                                          const double *boxinfo,
+                                         const bool obb_check,
                                          const int hash_n,
                                          const double *hashMin,
                                          const double *hashFac,
@@ -423,21 +423,35 @@ static void FindPointsEdgeLocal3D_Kernel(const int npt,
       for (; elp!=ele; ++elp)
       {
          const unsigned int el = *elp;
+
+         const int n_box_ents = obb_check ? (3*sDIM + sDIM2) : (2*sDIM);
+         bool pass_bb = true;
          obbox_t box;
-         int n_box_ents = 3*sDIM + sDIM2;
-
-         for (int idx = 0; idx < sDIM; ++idx)
+         if (obb_check)
          {
-            box.c0[idx] = boxinfo[n_box_ents*el + idx];
-            box.x[idx].min = boxinfo[n_box_ents*el + sDIM + idx];
-            box.x[idx].max = boxinfo[n_box_ents*el + 2*sDIM + idx];
+            for (int idx = 0; idx < sDIM; ++idx)
+            {
+               box.c0[idx] = boxinfo[n_box_ents*el + idx];
+               box.x[idx].min = boxinfo[n_box_ents*el + sDIM + idx];
+               box.x[idx].max = boxinfo[n_box_ents*el + 2*sDIM + idx];
+            }
+            for (int idx = 0; idx < sDIM2; ++idx)
+            {
+               box.A[idx] = boxinfo[n_box_ents*el + 3*sDIM + idx];
+            }
+            pass_bb = (obbox_test(&box, x_i) >= 0);
          }
-         for (int idx = 0; idx < sDIM2; ++idx)
+         else
          {
-            box.A[idx] = boxinfo[n_box_ents*el + 3*sDIM + idx];
+            for (int d = 0; d < sDIM; ++d)
+            {
+               box.x[d].min = boxinfo[n_box_ents*el + d];
+               box.x[d].max = boxinfo[n_box_ents*el + sDIM + d];
+            }
+            pass_bb = (aabb_axis_test(&box, x_i) >= 0);
          }
 
-         if (obbox_test(&box, x_i)>=0)
+         if (pass_bb)
          {
             //// findpts_local ////
             {
@@ -692,27 +706,28 @@ void FindPointsGSLIB::FindPointsEdgeLocal3(const Vector &point_pos,
    auto pgll1d = DEV.gll1d.ReadWrite(use_dev);
    auto plc = DEV.lagcoeff.Read(use_dev);
    double dist2tol = DEV.surf_dist_tol;
+   const bool obb_chk = obb_check;
    switch (DEV.dof1d)
    {
       case 2:
          return FindPointsEdgeLocal3D_Kernel<2>(
                    npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
-                   NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
+                   NE_split_total, pwt, pbb, obb_chk, DEV.lh_nx, plhm, plhf,
                    plho, pcode, pelem, pref, pdist, pgll1d, plc);
       case 3:
          return FindPointsEdgeLocal3D_Kernel<3>(
                    npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
-                   NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
+                   NE_split_total, pwt, pbb, obb_chk, DEV.lh_nx, plhm, plhf,
                    plho, pcode, pelem, pref, pdist, pgll1d, plc);
       case 4:
          return FindPointsEdgeLocal3D_Kernel<4>(
                    npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
-                   NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
+                   NE_split_total, pwt, pbb, obb_chk, DEV.lh_nx, plhm, plhf,
                    plho, pcode, pelem, pref, pdist, pgll1d, plc);
       default:
          return FindPointsEdgeLocal3D_Kernel(
                    npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
-                   NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
+                   NE_split_total, pwt, pbb, obb_chk, DEV.lh_nx, plhm, plhf,
                    plho, pcode, pelem, pref, pdist, pgll1d, plc, DEV.dof1d);
    }
 }

@@ -53,6 +53,7 @@
 //    mpirun -np 4 pfindpts -m ../../data/square-disc-p2.mesh -o 4 -mo 2 -vis -random 1 -surf
 //    mpirun -np 4 pfindpts -m ../../data/star-q3.mesh -o 6 -mo 3 -vis -random 1 -surf
 //    mpirun -np 4 pfindpts -m ../../data/fichera-q2.mesh -o 6 -mo 3 -vis -random 1 -surf
+//    make pfindpts -j4 && mpirun -np 4 pfindpts -m ../../data/square-disc-p2.mesh -o 4 -mo 2 -vis -random 1 -surf -sabs 0.1
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -103,6 +104,7 @@ int main (int argc, char *argv[])
    int npt               = 100; //points per proc
    int visport           = 19916;
    bool surface          = false;
+   double surf_aabb_size = 0.0;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -147,7 +149,9 @@ int main (int argc, char *argv[])
    args.AddOption(&surface, "-surf", "--surface", "-no-surf",
                   "--no-surface",
                   "Extract surface mesh from volume mesh.");
-
+   args.AddOption(&surf_aabb_size, "-sabs", "--surface-aabb-size",
+                  "Minimum axis-aligned bounding box size in FindPointsGSLIB "
+                  " surface meshes.");
    args.Parse();
    if (!args.Good())
    {
@@ -212,6 +216,19 @@ int main (int argc, char *argv[])
       {
          cout << "z in [" << pos_min(2) << ", " << pos_max(2) << "]" << std::endl;
       }
+   }
+
+   if (visualization && surface && myid == 0)
+   {
+      osockstream sock(19916, "localhost");
+      sock << "mesh\n";
+      input_mesh->Print(sock);
+      sock.send();
+      sock << "window_title 'AABB Mesh'\n"
+           << "window_geometry "
+           << 0 << " " << 0 << " "
+           << 400 << " " << 400 << "\n"
+           << "keys RmclA" << endl;
    }
 
    // Distribute the mesh.
@@ -307,7 +324,8 @@ int main (int argc, char *argv[])
          if (sdim == 3) { sout << "keys mA\n"; }
          sout << "window_title 'Solution'\n"
               << "window_geometry "
-              << 0 << " " << 0 << " " << 400 << " " << 400 << "\n";
+              << (surface ? 400 : 0) << " " << 0 << " "
+              << 400 << " " << 400 << "\n";
          sout << flush;
       }
    }
@@ -398,6 +416,23 @@ int main (int argc, char *argv[])
    // Find and Interpolate FE function values on the desired points.
    Vector interp_vals(pts_cnt*vec_dim);
    FindPointsGSLIB finder(pmesh);
+   if (surface && surf_aabb_size > 0.0)
+   {
+      Vector bb_size({surf_aabb_size});
+      bool spatially_varying = false;
+      if (spatially_varying)
+      {
+         bb_size.SetSize(pmesh.GetNE()*sdim);
+         for (int e = 0; e < pmesh.GetNE(); e++)
+         {
+            Vector center(sdim);
+            pmesh.GetElementCenter(e, center);
+            bb_size(e*sdim) = surf_aabb_size + 0.2*abs(center(1)-0.5);
+            bb_size(e*sdim + 1) = surf_aabb_size;
+         }
+      }
+      finder.SetupSurf(pmesh, bb_size);
+   }
    finder.SetDistanceToleranceForPointsFoundOnBoundary(10);
    // Enable GPU to CPU fallback for GPUData only if you are using an older
    // version of GSLIB.
@@ -483,6 +518,22 @@ int main (int argc, char *argv[])
            << "\nMax dist (of found):  " << max_dist
            << endl;
    }
+
+   Mesh *aabb_mesh = finder.GetBoundingBoxMesh(0);
+   if (visualization && myid == 0)
+   {
+      osockstream sock(19916, "localhost");
+      sock << "mesh\n";
+      aabb_mesh->Print(sock);
+      sock.send();
+      sock << "window_title 'AABB Mesh'\n"
+           << "window_geometry "
+           << (surface ? 800 : 0) << " " << 0 << " "
+           << 400 << " " << 400 << "\n"
+           << "keys jRmclA" << endl;
+   }
+   delete aabb_mesh;
+
 
    delete fec;
 
