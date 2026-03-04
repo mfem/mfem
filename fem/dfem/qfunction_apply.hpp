@@ -614,6 +614,251 @@ void apply_kernel_fwddiff_enzyme(
    process_qf_result(f_qp,
                      get<0>(fwddiff_apply_enzyme(qfunc, args, shadow_args, tuple<> {})));
 }
+template <typename func_t, typename ret_t, typename... arg_ts>
+MFEM_HOST_DEVICE inline
+void qfunction_wrapper_out(const func_t &f, ret_t &out, arg_ts &&...args)
+{
+   out = f(std::forward<arg_ts>(args)...);
+}
+
+template <typename T>
+MFEM_HOST_DEVICE inline
+void process_qf_result_rev(const DeviceTensor<1, real_t> &r, T &x)
+{
+   x = r(0);
+}
+
+template <typename T>
+MFEM_HOST_DEVICE inline
+void process_qf_result_rev(const DeviceTensor<1, real_t> &r, dual<T, T> &x)
+{
+   x.value = r(0);
+}
+
+template <typename T>
+MFEM_HOST_DEVICE inline
+void process_qf_result_rev(const DeviceTensor<1, real_t> &r, tensor<T> &x)
+{
+   x(0) = r(0);
+}
+
+template <typename T, int n>
+MFEM_HOST_DEVICE inline
+void process_qf_result_rev(const DeviceTensor<1, real_t> &r, tensor<T, n> &x)
+{
+   for (size_t i = 0; i < n; i++)
+   {
+      x(i) = r(i);
+   }
+}
+
+template <typename T, int n, int m>
+MFEM_HOST_DEVICE inline
+void process_qf_result_rev(const DeviceTensor<1, real_t> &r, tensor<T, n, m> &x)
+{
+   for (size_t i = 0; i < n; i++)
+   {
+      for (size_t j = 0; j < m; j++)
+      {
+         x(i, j) = r(i + n * j);
+      }
+   }
+}
+
+// In Reverse mode, enzyme expects interleaved dup arguments:
+// __enzyme_autodiff(..., enzyme_dup, &arg1, &shadow_arg1, enzyme_dup, &arg2, &shadow_arg2, ...)
+
+#define ENZYME_DUP_ARGS_1(A, SA) enzyme_dup, &(A), &(SA)
+#define ENZYME_DUP_ARGS_2(A, SA, B, SB) enzyme_dup, &(A), &(SA), enzyme_dup, &(B), &(SB)
+#define ENZYME_DUP_ARGS_3(A, SA, B, SB, C, SC) enzyme_dup, &(A), &(SA), enzyme_dup, &(B), &(SB), enzyme_dup, &(C), &(SC)
+#define ENZYME_DUP_ARGS_4(A, SA, B, SB, C, SC, D, SD) enzyme_dup, &(A), &(SA), enzyme_dup, &(B), &(SB), enzyme_dup, &(C), &(SC), enzyme_dup, &(D), &(SD)
+#define ENZYME_DUP_ARGS_5(A, SA, B, SB, C, SC, D, SD, E, SE) enzyme_dup, &(A), &(SA), enzyme_dup, &(B), &(SB), enzyme_dup, &(C), &(SC), enzyme_dup, &(D), &(SD), enzyme_dup, &(E), &(SE)
+
+template <typename qfunc_t, typename arg_ts, typename inactive_arg_ts>
+MFEM_HOST_DEVICE inline
+void autodiff_apply_enzyme_indexed_1(qfunc_t &qfunc, void *out, void *dout, arg_ts &args, arg_ts &shadow_args, inactive_arg_ts &inactive_args)
+{
+   using qf_return_t = typename create_function_signature<decltype(&qfunc_t::operator())>::type::return_t;
+   __enzyme_autodiff<void>((void*)&qfunction_wrapper_out<qfunc_t, qf_return_t, decltype(get<0>(args))>,
+      enzyme_const, &qfunc,
+      enzyme_dupnoneed, out, dout,
+      ENZYME_DUP_ARGS_1(get<0>(args), get<0>(shadow_args))
+   );
+}
+
+template <typename qfunc_t, typename arg_ts, typename inactive_arg_ts>
+MFEM_HOST_DEVICE inline
+void autodiff_apply_enzyme_indexed_2(qfunc_t &qfunc, void *out, void *dout, arg_ts &args, arg_ts &shadow_args, inactive_arg_ts &inactive_args)
+{
+   using qf_return_t = typename create_function_signature<decltype(&qfunc_t::operator())>::type::return_t;
+   __enzyme_autodiff<void>((void*)&qfunction_wrapper_out<qfunc_t, qf_return_t, decltype(get<0>(args)), decltype(get<1>(args))>,
+      enzyme_const, &qfunc,
+      enzyme_dupnoneed, out, dout,
+      ENZYME_DUP_ARGS_2(get<0>(args), get<0>(shadow_args), get<1>(args), get<1>(shadow_args))
+   );
+}
+
+template <typename qfunc_t, typename arg_ts, typename inactive_arg_ts>
+MFEM_HOST_DEVICE inline
+void autodiff_apply_enzyme_indexed_3(qfunc_t &qfunc, void *out, void *dout, arg_ts &args, arg_ts &shadow_args, inactive_arg_ts &inactive_args)
+{
+   using qf_return_t = typename create_function_signature<decltype(&qfunc_t::operator())>::type::return_t;
+   __enzyme_autodiff<void>((void*)&qfunction_wrapper_out<qfunc_t, qf_return_t, decltype(get<0>(args)), decltype(get<1>(args)), decltype(get<2>(args))>,
+      enzyme_const, &qfunc,
+      enzyme_dupnoneed, out, dout,
+      ENZYME_DUP_ARGS_3(get<0>(args), get<0>(shadow_args), get<1>(args), get<1>(shadow_args), get<2>(args), get<2>(shadow_args))
+   );
+}
+
+template <typename qfunc_t, typename arg_ts, typename inactive_arg_ts>
+MFEM_HOST_DEVICE inline
+void autodiff_apply_enzyme_indexed_4(qfunc_t &qfunc, void *out, void *dout, arg_ts &args, arg_ts &shadow_args, inactive_arg_ts &inactive_args)
+{
+   using qf_return_t = typename create_function_signature<decltype(&qfunc_t::operator())>::type::return_t;
+   __enzyme_autodiff<void>((void*)&qfunction_wrapper_out<qfunc_t, qf_return_t, decltype(get<0>(args)), decltype(get<1>(args)), decltype(get<2>(args)), decltype(get<3>(args))>,
+      enzyme_const, &qfunc,
+      enzyme_dupnoneed, out, dout,
+      ENZYME_DUP_ARGS_4(get<0>(args), get<0>(shadow_args), get<1>(args), get<1>(shadow_args), get<2>(args), get<2>(shadow_args), get<3>(args), get<3>(shadow_args))
+   );
+}
+
+template <typename qfunc_t, typename arg_ts, typename inactive_arg_ts>
+MFEM_HOST_DEVICE inline
+void autodiff_apply_enzyme_indexed_5(qfunc_t &qfunc, void *out, void *dout, arg_ts &args, arg_ts &shadow_args, inactive_arg_ts &inactive_args)
+{
+   using qf_return_t = typename create_function_signature<decltype(&qfunc_t::operator())>::type::return_t;
+   __enzyme_autodiff<void>((void*)&qfunction_wrapper_out<qfunc_t, qf_return_t, decltype(get<0>(args)), decltype(get<1>(args)), decltype(get<2>(args)), decltype(get<3>(args)), decltype(get<4>(args))>,
+      enzyme_const, &qfunc,
+      enzyme_dupnoneed, out, dout,
+      ENZYME_DUP_ARGS_5(get<0>(args), get<0>(shadow_args), get<1>(args), get<1>(shadow_args), get<2>(args), get<2>(shadow_args), get<3>(args), get<3>(shadow_args), get<4>(args), get<4>(shadow_args))
+   );
+}
+
+template <typename qfunc_t, typename arg_ts, typename inactive_arg_ts>
+MFEM_HOST_DEVICE inline
+void autodiff_apply_enzyme(qfunc_t &qfunc, void *out, void *dout, arg_ts &&args,
+                          arg_ts &&shadow_args,
+                          inactive_arg_ts &&inactive_args)
+{
+   constexpr size_t num_active_args = tuple_size<std::remove_reference_t<arg_ts>>::value;
+   
+   if constexpr (num_active_args == 1) {
+       autodiff_apply_enzyme_indexed_1(qfunc, out, dout, args, shadow_args, inactive_args);
+   } else if constexpr (num_active_args == 2) {
+       autodiff_apply_enzyme_indexed_2(qfunc, out, dout, args, shadow_args, inactive_args);
+   } else if constexpr (num_active_args == 3) {
+       autodiff_apply_enzyme_indexed_3(qfunc, out, dout, args, shadow_args, inactive_args);
+   } else if constexpr (num_active_args == 4) {
+       autodiff_apply_enzyme_indexed_4(qfunc, out, dout, args, shadow_args, inactive_args);
+   } else if constexpr (num_active_args == 5) {
+       autodiff_apply_enzyme_indexed_5(qfunc, out, dout, args, shadow_args, inactive_args);
+   } else {
+       MFEM_ABORT("Unsupported number of arguments for reverse mode AD.");
+   }
+}
+
+template <typename qfunc_t, typename arg_ts, size_t num_args>
+MFEM_HOST_DEVICE inline
+void apply_kernel_vjp_enzyme(
+   const DeviceTensor<1, real_t> &df_qp,
+   qfunc_t &qfunc,
+   arg_ts &args,
+   arg_ts &shadow_args,
+   const std::array<DeviceTensor<2>, num_args> &u,
+   const std::array<DeviceTensor<2>, num_args> &du,
+   int qp_idx)
+{
+   process_qf_args(u, args, qp_idx);
+   process_qf_args(du, shadow_args, qp_idx);
+   
+   using qf_return_t = typename create_function_signature<
+                       decltype(&qfunc_t::operator())>::type::return_t;
+   qf_return_t out{};
+   qf_return_t dout{};
+
+   process_qf_result_rev(df_qp, get<0>(dout));
+
+   autodiff_apply_enzyme(qfunc, &out, &dout, std::forward<arg_ts>(args), std::forward<arg_ts>(shadow_args), tuple<> {});
+}
+
+template <
+   typename qf_param_ts,
+   typename qfunc_t,
+   std::size_t num_fields>
+MFEM_HOST_DEVICE inline
+void call_qfunction_vjp(
+   qfunc_t &qfunc,
+   const std::array<DeviceTensor<2>, num_fields> &input_shmem,
+   const std::array<DeviceTensor<2>, num_fields> &shadow_shmem,
+   DeviceTensor<2> &residual_shmem_adj,
+   const int &rs_qp,
+   const int &num_qp,
+   const int &q1d,
+   const int &dimension,
+   const bool &use_sum_factorization)
+{
+   if (use_sum_factorization)
+   {
+      if (dimension == 1)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(q, x, q1d)
+         {
+            auto qf_args = decay_tuple<qf_param_ts> {};
+            auto qf_shadow_args = decay_tuple<qf_param_ts> {};
+            auto r_adj = Reshape(&residual_shmem_adj(0, q), rs_qp);
+            apply_kernel_vjp_enzyme(r_adj, qfunc, qf_args, qf_shadow_args, input_shmem, shadow_shmem, q);
+         }
+      }
+      else if (dimension == 2)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+            {
+               const int q = qx + q1d * qy;
+               auto qf_args = decay_tuple<qf_param_ts> {};
+               auto qf_shadow_args = decay_tuple<qf_param_ts> {};
+               auto r_adj = Reshape(&residual_shmem_adj(0, q), rs_qp);
+               apply_kernel_vjp_enzyme(r_adj, qfunc, qf_args, qf_shadow_args, input_shmem, shadow_shmem, q);
+            }
+         }
+      }
+      else if (dimension == 3)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
+               {
+                  const int q = qx + q1d * (qy + q1d * qz);
+                  auto qf_args = decay_tuple<qf_param_ts> {};
+                  auto qf_shadow_args = decay_tuple<qf_param_ts> {};
+                  auto r_adj = Reshape(&residual_shmem_adj(0, q), rs_qp);
+                  apply_kernel_vjp_enzyme(r_adj, qfunc, qf_args, qf_shadow_args, input_shmem, shadow_shmem, q);
+               }
+            }
+         }
+      }
+      else
+      {
+#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+         MFEM_ABORT("unsupported dimension for sum factorization");
+#endif
+      }
+   }
+   else
+   {
+      MFEM_FOREACH_THREAD_DIRECT(q, x, num_qp)
+      {
+         auto qf_args = decay_tuple<qf_param_ts> {};
+         auto qf_shadow_args = decay_tuple<qf_param_ts> {};
+         auto r_adj = Reshape(&residual_shmem_adj(0, q), rs_qp);
+         apply_kernel_vjp_enzyme(r_adj, qfunc, qf_args, qf_shadow_args, input_shmem, shadow_shmem, q);
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
 #endif // MFEM_USE_ENZYME
 
 } // namespace mfem::future

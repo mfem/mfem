@@ -227,6 +227,43 @@ void diffusion(const char *filename, int p)
       MPI_Barrier(MPI_COMM_WORLD);
    }
 
+   SECTION("vjp")
+   {
+#ifdef MFEM_USE_ENZYME
+      DOperator dop_mf(sol, {{Rho, &rho_ps}, {Coords, mfes}}, pmesh);
+      typename Diffusion<DIM>::MFApply mf_apply_qf;
+      auto derivatives = std::integer_sequence<size_t, U> {};
+      dop_mf.AddDomainIntegrator(mf_apply_qf,
+                                 tuple{ Gradient<U>{}, Identity<Rho>{},
+                                        Gradient<Coords>{}, Weight{} },
+                                 tuple{ Gradient<U>{} }, *ir,
+                                 all_domain_attr, derivatives);
+      dop_mf.SetParameters({ &rho_coeff_cv, nodes });
+      auto dRdU = dop_mf.GetDerivative(U, {&x}, {&rho_coeff_cv, nodes});
+
+      Vector V(pfes.GetTrueVSize()), VJP_expected(pfes.GetTrueVSize()), VJP_actual(pfes.GetTrueVSize());
+      V.Randomize(2);
+
+      pfes.GetRestrictionMatrix()->Mult(x, X);
+
+      // Compute vjp using DifferentiableOperator::vjp
+      dop_mf.vjp(X, V, VJP_actual);
+
+      // Compute vjp using DerivativeOperator::MultTranspose
+      dRdU->MultTranspose(V, VJP_expected);
+
+      VJP_actual -= VJP_expected;
+
+      real_t norm_global = 0.0;
+      real_t norm_local = VJP_actual.Normlinf();
+      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                    pmesh.GetComm());
+
+      REQUIRE(norm_global == MFEM_Approx(0.0));
+      MPI_Barrier(MPI_COMM_WORLD);
+#endif
+   }
+
    SECTION("action vector")
    {
       ParFiniteElementSpace vpfes(&pmesh, &fec, DIM);
