@@ -20,6 +20,7 @@
 //  mpirun -np 4 pacoustics -o 4 -m ../../data/inline-tri.mesh -sref 1 -pref 2  -rnum 7.1 -sc -prob 1
 //  mpirun -np 4 pacoustics -o 2 -m ../../data/inline-hex.mesh -sref 0 -pref 1 -rnum 1.9 -sc -prob 0
 //  mpirun -np 4 pacoustics -o 3 -m ../../data/inline-quad.mesh -sref 2 -pref 1 -rnum 7.1 -sc -prob 2
+//  mpirun -np 4 pacoustics -o 3 -m ../../data/inline-quad.mesh -sref 2 -pref 1 -rnum 7.1 -sc -prob 2 -pmg
 //  mpirun -np 4 pacoustics -o 2 -m ../../data/inline-hex.mesh -sref 0 -pref 1  -rnum 4.1 -sc -prob 2
 //  mpirun -np 4 pacoustics -o 3 -m meshes/scatter.mesh -sref 1 -pref 1  -rnum 7.1 -sc -prob 3
 //  mpirun -np 4 pacoustics -o 4 -m meshes/scatter.mesh -sref 1 -pref 1  -rnum 10.1 -sc -prob 4
@@ -194,6 +195,8 @@ int main(int argc, char *argv[])
    int sr = 0;
    int pr = 0;
    bool pmg = false;
+   int pmg_levels = -1;
+   real_t relax_factor = 2.0/3;
    int visport = 19916;
    bool exact_known = false;
    bool with_pml = false;
@@ -220,6 +223,10 @@ int main(int argc, char *argv[])
                   "Number of parallel refinements.");
    args.AddOption(&pmg, "-pmg", "--p-refinement-multigrid", "-no-pmg",
                   "--no-p-refinement-multigrid", "Enable P-Refinement Multigrid.");
+   args.AddOption(&pmg_levels, "-pmgl","--p-refinement-multigrid-levels",
+                  "Number of levels for P-Refinement Multigrid.");
+   args.AddOption(&relax_factor, "-rf", "--relaxation-factor",
+                  "Relaxation factor for the p-multigrid smoother.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -648,7 +655,8 @@ int main(int argc, char *argv[])
             if (pmesh.bdr_attributes.Size())
             {
                ess_bdr_marker[b].SetSize(pmesh.bdr_attributes.Max());
-               if (b == 2) // hatp
+               int ess_block = (static_cond) ? 0 : 2;
+               if (b == ess_block) // hatp
                {
                   ess_bdr_marker[b] = ess_bdr;
                }
@@ -659,7 +667,7 @@ int main(int argc, char *argv[])
             }
          }
          cprec = new ComplexPRefinementMultigrid(prec_fes, ess_bdr_marker, *Ahc,
-                                                 mumps_coarse_solver);
+                                                 pmg_levels, relax_factor, mumps_coarse_solver );
       }
       else
       {

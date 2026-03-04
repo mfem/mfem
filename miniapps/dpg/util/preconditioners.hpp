@@ -18,9 +18,23 @@ namespace mfem
 // Convenient to use with Multigrid Class in which a MultTranspose is needed
 class SymmetricBlockDiagonalPreconditioner : public BlockDiagonalPreconditioner
 {
+private:
+   real_t c;
 public:
-   SymmetricBlockDiagonalPreconditioner(const Array<int> & offsets)
-      : BlockDiagonalPreconditioner(offsets) { }
+   /// @brief Constructs a symmetric block-diagonal preconditioner with the given block offsets
+   ///and scaling factor.
+   /// @param offsets The offsets of the blocks in the block-diagonal preconditioner.
+   /// @param c_ The scaling factor to be applied to the result.
+   SymmetricBlockDiagonalPreconditioner(const Array<int> & offsets,
+                                        real_t c_ = 1.0)
+      : BlockDiagonalPreconditioner(offsets), c(c_) { }
+
+   void Mult(const Vector & x, Vector & y) const override
+   {
+      BlockDiagonalPreconditioner::Mult(x,y);
+      y*=c;
+   }
+
    void MultTranspose (const Vector & x, Vector & y) const override
    {
       this->Mult(x,y);
@@ -29,6 +43,14 @@ public:
 
 #ifdef MFEM_USE_MPI
 
+/// @brief  Creates a default solver for a given parallel finite element space.
+/// The default solvers are the folowing:
+/// - For H1 and L2 spaces: HypreBoomerAMG
+/// - For 3D RT spaces: HypreADS
+/// - For 2D RT and ND spaces: HypreAMS
+/// @param pfespace The parallel finite element space for which the solver is to be created.
+/// @param print_level The printing level for the solver.
+/// @return a pointer to the created solver.
 Solver * MakeFESpaceDefaultSolver(
    const ParFiniteElementSpace * pfespace, int print_level);
 
@@ -63,7 +85,7 @@ public:
    int GetFESpaceMinimumOrder(const ParFiniteElementSpace *pfespace) const;
 
    /// Computes orders/maxlevels and constructs fec/fes hierarchy and T_level storage.
-   void BuildSpaceHierarchy();
+   void BuildSpaceHierarchy(int mgmaxlevels = -1);
 
    /// Builds block-diagonal prolongation for level lev (coarse=lev, fine=lev+1).
    /// Its diagonal blocks are HypreParMatrix*
@@ -71,6 +93,8 @@ public:
    BlockOperator *BuildProlongation(int lev);
 };
 
+/// @brief  Creates a p-refinement multigrid preconditioner for a given set of parallel
+/// finite element space and block operator.
 class PRefinementMultigrid : public Multigrid
 {
 private:
@@ -82,13 +106,15 @@ private:
 public:
    PRefinementMultigrid(const Array<ParFiniteElementSpace*> &pfes_,
                         const std::vector<Array<int>> & ess_bdr_marker_,
-                        const BlockOperator &Op_,
+                        const BlockOperator &Op_, int mgmaxlevels = -1,
+                        real_t smoother_relax_factor = 2.0/3,
                         bool mumps_coarse_solver = false);
 
    ~PRefinementMultigrid() override = default;
 };
 
-
+/// @brief  Creates a p-refinement multigrid preconditioner for a given set of parallel
+/// finite element space and complex operator.
 class ComplexPRefinementMultigrid : public Multigrid
 {
 private:
@@ -102,7 +128,8 @@ private:
 public:
    ComplexPRefinementMultigrid(const Array<ParFiniteElementSpace*> &pfes_,
                                const std::vector<Array<int>> & ess_bdr_marker,
-                               const ComplexOperator &Op_,
+                               const ComplexOperator &Op_, int mgmaxlevels = -1,
+                               real_t smoother_relax_factor = 2.0/3,
                                bool mumps_coarse_solver = false);
 
    ~ComplexPRefinementMultigrid() override = default;

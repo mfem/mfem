@@ -18,6 +18,7 @@
 //  mpirun -np 4 pmaxwell -m ../../data/inline-quad.mesh -o 3 -sref 0 -pref 3 -rnum 4.8 -sc -prob 0
 //  mpirun -np 4 pmaxwell -m ../../data/inline-hex.mesh -o 2 -sref 0 -pref 1 -rnum 0.8 -sc -prob 0
 //  mpirun -np 4 pmaxwell -m ../../data/inline-quad.mesh -o 3 -sref 1 -pref 3 -rnum 4.8 -sc -prob 2
+//  mpirun -np 4 pmaxwell -m ../../data/inline-quad.mesh -o 3 -sref 1 -pref 3 -rnum 4.8 -sc -prob 2 -pmg
 //  mpirun -np 4 pmaxwell -o 3 -sref 1 -pref 2 -rnum 11.8 -sc -prob 3
 //  mpirun -np 4 pmaxwell -o 3 -sref 1 -pref 2 -rnum 9.8 -sc -prob 4
 
@@ -223,6 +224,8 @@ int main(int argc, char *argv[])
    real_t rnum=1.0;
    real_t theta = 0.0;
    bool pmg = false;
+   int pmg_levels = -1;
+   real_t relax_factor = 2.0/3;
    bool static_cond = false;
    int iprob = 0;
    int sr = 0;
@@ -259,6 +262,10 @@ int main(int argc, char *argv[])
                   "Number of parallel refinements.");
    args.AddOption(&pmg, "-pmg", "--p-refinement-multigrid", "-no-pmg",
                   "--no-p-refinement-multigrid", "Enable P-Refinement Multigrid.");
+   args.AddOption(&pmg_levels, "-pmgl","--p-refinement-multigrid-levels",
+                  "Number of levels for P-Refinement Multigrid.");
+   args.AddOption(&relax_factor, "-rf", "--relaxation-factor",
+                  "Relaxation factor for the p-multigrid smoother.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -850,7 +857,8 @@ int main(int argc, char *argv[])
             if (pmesh.bdr_attributes.Size())
             {
                ess_bdr_marker[b].SetSize(pmesh.bdr_attributes.Max());
-               if (b == 2) // hatE
+               int ess_block = (static_cond) ? 0 : 2;
+               if (b == ess_block) // hatE
                {
                   ess_bdr_marker[b] = ess_bdr;
                }
@@ -861,7 +869,7 @@ int main(int argc, char *argv[])
             }
          }
          cprec = new ComplexPRefinementMultigrid(prec_fes, ess_bdr_marker, *Ahc,
-                                                 mumps_coarse_solver);
+                                                 pmg_levels, relax_factor, mumps_coarse_solver);
       }
       else
       {

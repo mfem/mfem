@@ -89,7 +89,7 @@ const
            dynamic_cast<const RT_FECollection*>(pfespace->FEColl())) ? 0 : 1;
 }
 
-void PRefinementHierarchy::BuildSpaceHierarchy()
+void PRefinementHierarchy::BuildSpaceHierarchy(int mgmaxlevels)
 {
    orders.SetSize(nblocks);
    Array<int> levels(nblocks);
@@ -100,6 +100,11 @@ void PRefinementHierarchy::BuildSpaceHierarchy()
    }
 
    maxlevels = levels.Min() + 1;
+   if (mgmaxlevels > 0)
+   {
+      maxlevels = std::min(maxlevels, mgmaxlevels);
+   }
+
    MFEM_VERIFY(maxlevels >= 1, "Invalid maxlevels computed.");
 
    fec_owned.resize(maxlevels-1);
@@ -196,8 +201,8 @@ BlockOperator *PRefinementHierarchy::BuildProlongation(int lev)
 PRefinementMultigrid::PRefinementMultigrid(const Array<ParFiniteElementSpace*>
                                            &pfes_,
                                            const std::vector<Array<int>> & ess_bdr_marker_,
-                                           const BlockOperator &Op_,
-                                           bool mumps_coarse_solver)
+                                           const BlockOperator &Op_, int mgmaxlevels,
+                                           real_t smoother_relax_factor, bool mumps_coarse_solver)
    : Multigrid()
    , hierarchy(pfes_, ess_bdr_marker_)
    , Op(Op_)
@@ -210,7 +215,7 @@ PRefinementMultigrid::PRefinementMultigrid(const Array<ParFiniteElementSpace*>
    mumps_coarse_solver = false;
 #endif
 
-   hierarchy.BuildSpaceHierarchy();
+   hierarchy.BuildSpaceHierarchy(mgmaxlevels);
 
    const int maxlevels = hierarchy.maxlevels;
    const int nblocks   = hierarchy.nblocks;
@@ -249,7 +254,7 @@ PRefinementMultigrid::PRefinementMultigrid(const Array<ParFiniteElementSpace*>
 
          for (int j = 0; j < nblocks; j++)
          {
-            if (Op.IsZeroBlock(i, j)) { continue; }
+            if (OpFine->IsZeroBlock(i, j)) { continue; }
 
             const HypreParMatrix *A_fine =
                dynamic_cast<const HypreParMatrix*>(&OpFine->GetBlock(i, j));
@@ -282,7 +287,7 @@ PRefinementMultigrid::PRefinementMultigrid(const Array<ParFiniteElementSpace*>
       auto *cOp = dynamic_cast<BlockOperator*>(operators[lev]);
       MFEM_VERIFY(cOp, "Expected BlockOperator in operators[].");
 
-      if (lev == 0) // coarse
+      if (lev == 0 && operators.Size() > 1) // coarse
       {
 #ifdef MFEM_USE_MUMPS
          if (mumps_coarse_solver)
@@ -328,7 +333,8 @@ PRefinementMultigrid::PRefinementMultigrid(const Array<ParFiniteElementSpace*>
       }
       else
       {
-         auto *prec = new SymmetricBlockDiagonalPreconditioner(cOp->RowOffsets());
+         auto *prec = new SymmetricBlockDiagonalPreconditioner(cOp->RowOffsets(),
+                                                               smoother_relax_factor);
          prec->owns_blocks = 1;
 
          for (int b = 0; b < nblocks; b++)
@@ -351,7 +357,8 @@ PRefinementMultigrid::PRefinementMultigrid(const Array<ParFiniteElementSpace*>
 ComplexPRefinementMultigrid::ComplexPRefinementMultigrid(
    const Array<ParFiniteElementSpace*> &pfes_,
    const std::vector<Array<int>> & ess_bdr_marker,
-   const ComplexOperator &Op_, bool mumps_coarse_solver)
+   const ComplexOperator &Op_, int mgmaxlevels,
+   real_t smoother_relax_factor, bool mumps_coarse_solver)
    : Multigrid(), Op(Op_)
 {
 #ifndef MFEM_USE_MUMPS
@@ -371,7 +378,7 @@ ComplexPRefinementMultigrid::ComplexPRefinementMultigrid(
    MFEM_VERIFY(nblocks == Op_i->NumRowBlocks(), "Real/imag block counts differ.");
    hierarchy = std::make_unique<PRefinementHierarchy>(pfes_, ess_bdr_marker);
 
-   hierarchy->BuildSpaceHierarchy();
+   hierarchy->BuildSpaceHierarchy(mgmaxlevels);
 
    const int maxlevels = hierarchy->maxlevels;
 
@@ -420,7 +427,7 @@ ComplexPRefinementMultigrid::ComplexPRefinementMultigrid(
 
          for (int j = 0; j < nblocks; j++)
          {
-            if (!Op_r->IsZeroBlock(i, j))
+            if (!cOp_r->IsZeroBlock(i, j))
             {
                const HypreParMatrix *A_fine_r =
                   dynamic_cast<const HypreParMatrix*>(&cOp_r->GetBlock(i, j));
@@ -443,7 +450,7 @@ ComplexPRefinementMultigrid::ComplexPRefinementMultigrid(
                }
             }
 
-            if (!Op_i->IsZeroBlock(i, j))
+            if (!cOp_i->IsZeroBlock(i, j))
             {
                const HypreParMatrix *A_fine_i =
                   dynamic_cast<const HypreParMatrix*>(&cOp_i->GetBlock(i, j));
@@ -484,7 +491,7 @@ ComplexPRefinementMultigrid::ComplexPRefinementMultigrid(
       auto *cOp_r = dynamic_cast<BlockOperator*>(&cOp->real());
       MFEM_VERIFY(cOp_r, "Expected BlockOperator real part in ComplexOperator.");
 
-      if (lev == 0)
+      if (lev == 0 && operators.Size() > 1) // coarse
       {
 #ifdef MFEM_USE_MUMPS
          if (mumps_coarse_solver)
@@ -533,7 +540,8 @@ ComplexPRefinementMultigrid::ComplexPRefinementMultigrid(
       }
       else
       {
-         auto *prec_r = new SymmetricBlockDiagonalPreconditioner(cOp_r->RowOffsets());
+         auto *prec_r = new SymmetricBlockDiagonalPreconditioner(cOp_r->RowOffsets(),
+                                                                 smoother_relax_factor);
          prec_r->owns_blocks = 1;
 
          for (int b = 0; b < nblocks; b++)
