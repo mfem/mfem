@@ -516,7 +516,7 @@ void ParticleMover::Redistribute()
    FindParticles();
 }
 
-real_t ParticleMover::ComputeKineticEnergy() const
+real_t ParticleMover::ComputeKineticEnergy(real_t dt) const
 {
    const ParticleVector& P = charged_particles->Field(MOM);
    const ParticleVector& M = charged_particles->Field(MASS);
