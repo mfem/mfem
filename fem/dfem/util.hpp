@@ -1253,6 +1253,37 @@ void prolongation(
 }
 
 inline
+void prolongation(
+   const std::vector<FieldDescriptor> fields,
+   const MultiVector &x,
+   std::vector<Vector *> &x_l)
+{
+   MFEM_ASSERT(x.NumBlocks() == static_cast<int>(x_l.size()),
+               "error " << x.NumBlocks() << " vs " << x_l.size());
+   for (int i = 0; i < x.NumBlocks(); i++)
+   {
+      const auto P = get_prolongation(fields[i]);
+
+      // If nullptr, assume Identity.
+      if (P == nullptr)
+      {
+         *x_l[i] = x[i];
+      }
+      else
+      {
+         const auto P = get_prolongation(fields[i]);
+         MFEM_ASSERT(P->Width() == x[i].Size(),
+                     "prolongation not applicable to given input data size " <<
+                     P->Width() << " vs " << x[i].Size());
+         MFEM_ASSERT(P->Height() == x_l[i]->Size(),
+                     "prolongation not applicable to given output data size " <<
+                     P->Height() << " vs " << x_l[i]->Size());
+         P->Mult(x[i], *x_l[i]);
+      }
+   }
+}
+
+inline
 void prolongation_transpose(
    const std::vector<FieldDescriptor> fields,
    const std::vector<Vector *> &x_l,
@@ -1278,6 +1309,36 @@ void prolongation_transpose(
                      "prolongation not applicable to given output data size " <<
                      P->Width() << " vs " << x.GetBlock(i).Size());
          P->MultTranspose(*x_l[i], x.GetBlock(i));
+      }
+   }
+}
+
+inline
+void prolongation_transpose(
+   const std::vector<FieldDescriptor> fields,
+   const std::vector<Vector *> &x_l,
+   MultiVector &x)
+{
+   MFEM_ASSERT(static_cast<int>(x_l.size()) == x.NumBlocks(),
+               "error " << x_l.size() << " vs " << x.NumBlocks());
+   for (size_t i = 0; i < x_l.size(); i++)
+   {
+      const auto P = get_prolongation(fields[i]);
+
+      // If nullptr, assume Identity.
+      if (P == nullptr)
+      {
+         x[i] = *x_l[i];
+      }
+      else
+      {
+         MFEM_ASSERT(P->Height() == x_l[i]->Size(),
+                     "prolongation not applicable to given input data size " <<
+                     P->Height() << " vs " << x_l[i]->Size());
+         MFEM_ASSERT(P->Width() == x[i].Size(),
+                     "prolongation not applicable to given output data size " <<
+                     P->Width() << " vs " << x[i].Size());
+         P->MultTranspose(*x_l[i], x[i]);
       }
    }
 }

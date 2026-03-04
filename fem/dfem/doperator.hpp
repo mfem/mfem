@@ -14,6 +14,7 @@
 
 #ifdef MFEM_USE_MPI
 #include "../fespace.hpp"
+#include "../linalg/multivector.hpp"
 
 #include "util.hpp"
 #include "integrator_ctx.hpp"
@@ -72,12 +73,13 @@ public:
    /// This is usually not called directly from a user. A DifferentiableOperator
    /// calls this constructor when using
    /// DifferentiableOperator::GetDerivative().
+   template <typename vector_t>
    DerivativeOperator(
       const int &height,
       const int &width,
       const std::vector<derivative_action_t> &derivative_actions,
       const FieldDescriptor &direction,
-      const Vector &x,
+      const vector_t &x,
       const std::vector<FieldDescriptor> &infds,
       const std::vector<FieldDescriptor> &outfds) :
       Operator(height, width),
@@ -86,24 +88,26 @@ public:
       infds(infds),
       outfds(outfds)
    {
-      MFEM_ASSERT(dynamic_cast<const BlockVector*>(&x),
-                  "x needs to be a BlockVector");
-
-      const auto &bx = static_cast<const BlockVector &>(x);
-
+      daction_l.resize(outfds.size());
+      daction_e.resize(outfds.size());
+      infields_e.resize(infds.size());
       infields_l.resize(infds.size());
       for (size_t i = 0; i < infds.size(); i++)
       {
          infields_l[i] = new Vector(GetVSize(infds[i]));
       }
 
-      infields_e.resize(infds.size());
-
-      // Cache L-vector input fields
-      prolongation(infds, bx, infields_l);
-
-      daction_l.resize(outfds.size());
-      daction_e.resize(outfds.size());
+      if constexpr (std::is_same_v<vector_t, Vector>)
+      {
+         MFEM_ASSERT(dynamic_cast<const BlockVector*>(&x),
+                     "x needs to be a BlockVector");
+         const auto &bx = static_cast<const BlockVector &>(x);
+         prolongation(infds, bx, infields_l);
+      }
+      else if constexpr (std::is_same_v<vector_t, MultiVector>)
+      {
+         prolongation(infds, x, infields_l);
+      }
    }
 
    /// @brief Compute the action of the derivative operator on a given vector.
@@ -117,7 +121,12 @@ public:
       MFEM_ASSERT(dynamic_cast<const BlockVector*>(&y),
                   "y needs to be a BlockVector");
       auto &by = static_cast<BlockVector &>(y);
+      Mult(x, by);
+   };
 
+   template <typename vector_t>
+   void Mult(const Vector &x, vector_t &y) const
+   {
       prolongation(direction, x, direction_l);
       restriction<Entity::Element>(infds, infields_l, infields_e);
       prepare_residual<Entity::Element>(outfds, daction_e);
@@ -126,8 +135,8 @@ public:
          f(infields_e, &direction_l, daction_e);
       }
       restriction_transpose<Entity::Element>(outfds, daction_e, daction_l);
-      prolongation_transpose(outfds, daction_l, by);
-   };
+      prolongation_transpose(outfds, daction_l, y);
+   }
 
    /// @brief Compute the transpose of the derivative operator on a given
    /// vector.
@@ -278,6 +287,28 @@ public:
    /// the MultLevel.
    void Mult(const Vector &x, Vector &y) const override;
 
+   template <typename x_t, typename y_t>
+   void Mult(const x_t &x, y_t &y) const
+   {
+      // TODO: Do we want those extensive checks here?
+      static_assert(
+         std::is_same_v<x_t, MultiVector> && std::is_same_v<y_t, MultiVector> ||
+         std::is_same_v<x_t, BlockVector> && std::is_same_v<y_t, MultiVector> ||
+         std::is_same_v<x_t, MultiVector> && std::is_same_v<y_t, BlockVector> ||
+         std::is_same_v<x_t, BlockVector> && std::is_same_v<y_t, BlockVector>,
+         "input and output vector types are incompatible");
+
+      prolongation(infds, x, infields_l);
+      restriction<Entity::Element>(infds, infields_l, infields_e);
+      prepare_residual<Entity::Element>(outfds, residual_e);
+      for (size_t i = 0; i < action_callbacks.size(); i++)
+      {
+         action_callbacks[i](infields_e, residual_e);
+      }
+      restriction_transpose<Entity::Element>(outfds, residual_e, residual_l);
+      prolongation_transpose(outfds, residual_l, y);
+   }
+
    /// @brief Add an integrator to the operator.
    /// Called only from AddDomainIntegrator() and AddBoundaryIntegrator().
    template <
@@ -373,6 +404,9 @@ public:
    /// @return A shared pointer to the DerivativeOperator.
    std::shared_ptr<DerivativeOperator> GetDerivative(
       size_t derivative_id, const Vector &x);
+
+   std::shared_ptr<DerivativeOperator> GetDerivative(
+      size_t derivative_id, const MultiVector &x);
 
 private:
    const ParMesh &mesh;

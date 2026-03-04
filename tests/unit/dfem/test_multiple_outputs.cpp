@@ -238,6 +238,8 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
       QuadratureFunction qdata(qs, DIM*DIM);
 
       DummyParamterSpace dps;
+      ParameterFunction dpf(dps);
+      dpf = 9.12345;
 
       auto coef_func = [](const Vector &coords)
       {
@@ -246,26 +248,18 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
       FunctionCoefficient coef(coef_func);
       x.ProjectCoefficient(coef);
 
-      Array<int> inoffsets(5);
-      inoffsets[0] = 0;
-      inoffsets[1] = fes.GetTrueVSize();
-      inoffsets[2] = nodes->ParFESpace()->GetTrueVSize();
-      inoffsets[3] = qdata.Size();
-      inoffsets[4] = dps.GetTrueVSize();
-      inoffsets.PartialSum();
+      Vector xtvec, ytvec;
+      x.GetTrueDofs(xtvec);
+      ytvec.SetSize(xtvec.Size());
 
-      BlockVector X(inoffsets);
-      x.GetTrueDofs(X.GetBlock(0));
-      X.GetBlock(1) = *nodes;
-      X.GetBlock(2) = 123.0;
-      X.GetBlock(3) = 9.12345;
+      Vector nodestvec;
+      nodes->GetTrueDofs(nodestvec);
 
-      Array<int> outoffsets(3);
-      outoffsets[0] = 0;
-      outoffsets[1] = fes.GetTrueVSize();
-      outoffsets[2] = qdata.Size();
-      outoffsets.PartialSum();
-      BlockVector Z(outoffsets);
+      qdata = 123.0;
+      Vector yqdata(qdata.Size());
+
+      MultiVector X{xtvec, nodestvec, qdata, dpf};
+      MultiVector Z{ytvec, yqdata};
 
       ParBilinearForm blf(&fes);
       blf.AddDomainIntegrator(new MassIntegrator(ir));
@@ -273,11 +267,10 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
       blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
       blf.Assemble();
       blf.Mult(x, y);
-      Vector Y(fes.GetTrueVSize());
-      fes.GetProlongationMatrix()->MultTranspose(y, Y);
+      fes.GetProlongationMatrix()->MultTranspose(y, ytvec);
 
       std::cout << "mfem: ";
-      pretty_print(Y);
+      pretty_print(ytvec);
 
       static constexpr int U = 0, COORDINATES = 1, V = 2, S = 3, L = 4;
       const std::vector<FieldDescriptor> in
@@ -303,14 +296,14 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
                               tuple{Value<V>{}, Gradient<V>{}, Identity<S>{}},
                               *ir, all_domain_attr, derivatives);
 
-      fes.GetRestrictionMatrix()->Mult(x, X.GetBlock(0));
+      fes.GetRestrictionMatrix()->Mult(x, xtvec);
       dop.Mult(X, Z);
 
       std::cout << "dfem: ";
-      pretty_print(Z.GetBlock(0));
+      pretty_print(Z[0]);
 
-      Vector Y0(Y);
-      Y0 -= Z.GetBlock(0);
+      Vector Y0(ytvec);
+      Y0 -= Z[0];
 
       real_t norm_g, norm_l = Y0.Normlinf();
       MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
@@ -319,9 +312,9 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
 
       auto ddop = dop.GetDerivative(U, X);
 
-      ddop->Mult(X.GetBlock(0), Z);
-      Y0 = Y;
-      Y0 -= Z.GetBlock(0);
+      ddop->Mult(X[0], Z);
+      Y0 = ytvec;
+      Y0 -= Z[0];
 
       norm_l = Y0.Normlinf();
       MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());

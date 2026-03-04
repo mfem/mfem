@@ -62,27 +62,7 @@ void DifferentiableOperator::Mult(const Vector &x, Vector &y) const
    const auto &bx = static_cast<const BlockVector &>(x);
    auto &by = static_cast<BlockVector &>(y);
 
-   // if (mult_level == MultLevel::LVECTOR)
-   // {
-   //    get_lvectors(inputfds, solutions_in, fields_l);
-   //    result_in = 0.0;
-   //    for (auto &action : action_callbacks)
-   //    {
-   //       action(fields_l, parameters_l, result_in);
-   //    }
-   // }
-   // else
-   {
-      prolongation(infds, bx, infields_l);
-      restriction<Entity::Element>(infds, infields_l, infields_e);
-      prepare_residual<Entity::Element>(outfds, residual_e);
-      for (size_t i = 0; i < action_callbacks.size(); i++)
-      {
-         action_callbacks[i](infields_e, residual_e);
-      }
-      restriction_transpose<Entity::Element>(outfds, residual_e, residual_l);
-      prolongation_transpose(outfds, residual_l, by);
-   }
+   Mult(bx, by);
 }
 
 void DifferentiableOperator::DisableTensorProductStructure(bool disable)
@@ -107,58 +87,25 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
              x,
              infds,
              outfds);
+}
 
-   // MFEM_ASSERT(sol_l.size() == solutions.size(),
-   //             "wrong number of solutions");
+std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
+   size_t derivative_id, const MultiVector &x)
+{
+   MFEM_ASSERT(derivative_action_callbacks.find(derivative_id) !=
+               derivative_action_callbacks.end(),
+               "no derivative action has been found for ID " << derivative_id);
 
-   // MFEM_ASSERT(par_l.size() == parameters.size(),
-   //             "wrong number of parameters");
+   const size_t dfidx = FindIdx(derivative_id, infds);
 
-   // const size_t derivative_idx = FindIdx(derivative_id, fields);
-
-   // std::vector<Vector> s_l(fields_l.size());
-   // for (size_t i = 0; i < s_l.size(); i++)
-   // {
-   //    s_l[i] = *sol_l[i];
-   // }
-
-   // std::vector<Vector> p_l(parameters_l.size());
-   // for (size_t i = 0; i < p_l.size(); i++)
-   // {
-   //    p_l[i] = *par_l[i];
-   // }
-
-   // fields_e.resize(fields_l.size() + parameters_l.size());
-   // restriction_callback(s_l, p_l, fields_e);
-
-   // // Dummy
-   // Vector dir_l;
-   // if (derivative_idx > s_l.size())
-   // {
-   //    dir_l = p_l[derivative_idx - s_l.size()];
-   // }
-   // else
-   // {
-   //    dir_l = s_l[derivative_idx];
-   // }
-
-   // derivative_setup_callbacks[derivative_id][0](fields_e, dir_l);
-
-   // return std::make_shared<DerivativeOperator>(
-   //           height,
-   //           GetTrueVSize(fields[derivative_idx]),
-   //           derivative_action_callbacks[derivative_id],
-   //           fields[derivative_idx],
-   //           residual_l.Size(),
-   //           daction_transpose_callbacks[derivative_id],
-   //           fields[test_space_field_idx],
-   //           GetVSize(fields[test_space_field_idx]),
-   //           sol_l,
-   //           par_l,
-   //           restriction_callback,
-   //           prolongation_transpose,
-   //           assemble_derivative_sparsematrix_callbacks[derivative_id],
-   //           assemble_derivative_hypreparmatrix_callbacks[derivative_id]);
+   return std::make_shared<DerivativeOperator>(
+             height,
+             GetTrueVSize(infds[dfidx]),
+             derivative_action_callbacks[derivative_id],
+             infds[dfidx],
+             x,
+             infds,
+             outfds);
 }
 
 #endif // MFEM_USE_MPI
