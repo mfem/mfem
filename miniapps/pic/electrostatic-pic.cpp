@@ -141,7 +141,8 @@ public:
    ParticleSet& GetParticles() { return *charged_particles; }
 
    /// Compute (global) kinetic energy from particles
-   real_t ComputeKineticEnergy() const;
+   /** Optionally, advance the particle momenta by time step @a dt. */
+   real_t ComputeKineticEnergy(real_t dt = 0.) const;
 };
 
 /** Field solver responsible for updating the electrostatic potential and field
