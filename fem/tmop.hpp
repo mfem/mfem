@@ -2270,7 +2270,7 @@ protected:
    void AssembleDiagonalPA_3D(Vector&) const;
    void AssembleDiagonalPA_C0_2D(Vector&) const;
    void AssembleDiagonalPA_C0_3D(Vector&) const;
-   // void AssembleDiagonalPA_AdaptLim_2D(Vector&) const;
+   void AssembleDiagonalPA_AdaptLim_2D(Vector&) const;
    // void AssembleDiagonalPA_AdaptLim_3D(Vector&) const;
 
    void AssemblePA_Limiting();

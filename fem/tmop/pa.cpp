@@ -452,6 +452,7 @@ void TMOP_Integrator::AssembleGradDiagonalPA(Vector &de) const
    {
       AssembleDiagonalPA_2D(de);
       if (lim_coeff) { AssembleDiagonalPA_C0_2D(de); }
+      if (adapt_lim_gf) { AssembleDiagonalPA_AdaptLim_2D(de); }
    }
 
    if (PA.dim == 3)
