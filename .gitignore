@@ -369,6 +369,7 @@ miniapps/shifted/lsf_integral
 miniapps/tools/display-basis
 miniapps/tools/load-dc
 miniapps/tools/convert-dc
+miniapps/tools/compare-dc
 miniapps/tools/gridfunction-bounds
 miniapps/tools/lor-transfer
 miniapps/tools/plor-transfer

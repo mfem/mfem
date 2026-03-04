@@ -1568,6 +1568,39 @@ PLBound ParGridFunction::GetBounds(Vector &lower, Vector &upper,
    return plb;
 }
 
+std::pair<real_t, real_t> ParGridFunction::EstimateFunctionMinimum(
+   const int vdim, const PLBound &plb, const int max_depth,
+   const real_t tol) const
+{
+   std::pair<real_t, real_t> minmax =
+      GridFunction::EstimateFunctionMinimum(vdim, plb, max_depth, tol);
+
+   real_t glob_min_lower = minmax.first;
+   real_t glob_min_upper = minmax.second;
+   MPI_Allreduce(MPI_IN_PLACE, &glob_min_lower, 1,
+                 MFEM_MPI_REAL_T, MPI_MIN, pfes->GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &glob_min_upper, 1,
+                 MFEM_MPI_REAL_T, MPI_MIN, pfes->GetComm());
+
+   return std::make_pair(glob_min_lower, glob_min_upper);
+}
+
+std::pair<real_t, real_t> ParGridFunction::EstimateFunctionMaximum(
+   const int vdim, const PLBound &plb, const int max_depth,
+   const real_t tol) const
+{
+   std::pair<real_t, real_t> minmax =
+      GridFunction::EstimateFunctionMaximum(vdim, plb, max_depth, tol);
+
+   real_t glob_max_lower = minmax.first;
+   real_t glob_max_upper = minmax.second;
+   MPI_Allreduce(MPI_IN_PLACE, &glob_max_lower, 1,
+                 MFEM_MPI_REAL_T, MPI_MAX, pfes->GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &glob_max_upper, 1,
+                 MFEM_MPI_REAL_T, MPI_MAX, pfes->GetComm());
+   return std::make_pair(glob_max_lower, glob_max_upper);
+}
+
 } // namespace mfem
 
 #endif // MFEM_USE_MPI
