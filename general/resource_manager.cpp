@@ -1468,7 +1468,6 @@ MemoryType MemoryManager::GetMemoryType(size_t segment, size_t offset,
    if (valid_segment(segment))
    {
       auto &seg = storage.get_segment(segment);
-      if (seg.lowers[1])
       {
          bool any_invalid = false;
          check_valid(segment, true, offset, offset + nbytes,
@@ -1486,7 +1485,6 @@ MemoryType MemoryManager::GetMemoryType(size_t segment, size_t offset,
             return seg.mtypes[1];
          }
       }
-      if (seg.lowers[0])
       {
          bool any_invalid = false;
          check_valid(segment, false, offset, offset + nbytes,
@@ -2082,6 +2080,26 @@ int MemoryManager::compare_host_device(size_t segment, size_t offset,
 {
    if (valid_segment(segment))
    {
+      // only compare if both host and device are valid
+      for (int i = 0; i < 2; ++i)
+      {
+         bool any_invalid = false;
+         check_valid(segment, i, offset, offset + nbytes,
+                     [&](auto, auto, bool valid)
+         {
+            if (valid)
+            {
+               return false;
+            }
+            any_invalid = true;
+            return true;
+         });
+         if (any_invalid)
+         {
+            return 0;
+         }
+      }
+
       auto &seg = storage.get_segment(segment);
       if (seg.lowers[0] && seg.lowers[1] && seg.lowers[0] != seg.lowers[1])
       {
@@ -2097,9 +2115,10 @@ int MemoryManager::compare_host_device(size_t segment, size_t offset,
              seg.mtypes[1] == MemoryType::DEVICE_UMPIRE_2)
          {
             tmp = Alloc(nbytes, seg.mtypes[0], true);
+            MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(2, ptr1, tmp, nbytes, "",
+                                             seg.mtypes[1], seg.mtypes[0]);
+            MemCopy(tmp, ptr1, nbytes, seg.mtypes[0], seg.mtypes[1]);
             ptr1 = tmp;
-            MemCopy(ptr1, seg.lowers[1] + offset, nbytes, seg.mtypes[0],
-                    seg.mtypes[1]);
          }
          auto res = std::memcmp(ptr0, ptr1, nbytes);
          if (tmp != nullptr)

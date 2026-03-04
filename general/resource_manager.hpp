@@ -811,7 +811,6 @@ template <class T> void Memory<T>::Delete()
                   "should hot refer to a subsection");
       if (seg.lowers[0] != seg.lowers[1])
       {
-         MFEM_ASSERT(flags & OWNS_HOST, "expected to also own host");
          MFEM_MEM_OP_DEBUG_REMOVE2(1, seg.lowers[1], seg.lowers[1] + seg.nbytes,
                                    "dealloc " << (int)seg.mtypes[1] << ", "
                                    << seg.is_temporary());
@@ -949,20 +948,27 @@ void Memory<T>::Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc,
    h_ptr = h_ptr_;
    h_mt = hloc;
    size_ = size;
-   if (d_ptr || dloc != MemoryType::DEFAULT ||
-       hloc == MemoryType::HOST_PINNED || hloc == MemoryType::MANAGED)
+   if ((hloc == MemoryType::HOST_PINNED || hloc == MemoryType::MANAGED) &&
+       dloc == MemoryType::DEFAULT)
+   {
+      MFEM_ASSERT(d_ptr == nullptr || d_ptr == h_ptr,
+                  "expected h_ptr == d_ptr or d_ptr == nullptr");
+      d_ptr = h_ptr;
+      dloc = hloc;
+   }
+   if (d_ptr)
    {
       MFEM_ASSERT(!inst.valid_segment(segment), "unexpected valid segment");
+      if (dloc == MemoryType::DEFAULT)
+      {
+         MFEM_ASSERT(int(hloc) < MemoryTypeSize, "invalid hloc");
+         dloc = inst.GetDualMemoryType(hloc);
+      }
+      MFEM_ASSERT(h_ptr != nullptr,
+                  "Cannot wrap d_ptr != nullptr with h_ptr == nullptr");
       segment = inst.insert(reinterpret_cast<char *>(h_ptr),
                             reinterpret_cast<char *>(d_ptr), size * sizeof(T),
                             hloc, dloc, valid_host, valid_device, false);
-      if (!d_ptr)
-      {
-         // in case of future lazy allocation
-         MFEM_ASSERT(h_ptr != nullptr,
-                     "Cannot wrap d_ptr != nullptr with h_ptr == nullptr");
-         own_device = true;
-      }
    }
    if (own_host)
    {

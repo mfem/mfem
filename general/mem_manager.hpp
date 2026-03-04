@@ -104,8 +104,6 @@ struct mem_op_tracker
 namespace mfem
 {
 
-OutStream &nullstream();
-
 struct BenchTimer
 {
    std::chrono::high_resolution_clock timer;

@@ -128,7 +128,7 @@ mem_op_tracker::key_type mem_op_tracker::find_allocation(const void *start,
    {
       if (iter->first.first > start)
       {
-         mfem::out << "unable to find " << start << ", " << stop << std::endl;
+         mfem::err << "unable to find " << start << ", " << stop << std::endl;
          MFEM_ABORT("no allocation");
       }
       if (iter->first.first == start && iter->first.second == stop)
@@ -137,7 +137,7 @@ mem_op_tracker::key_type mem_op_tracker::find_allocation(const void *start,
       }
       ++iter;
    }
-   mfem::out << "unable to find " << start << ", " << stop << std::endl;
+   mfem::err << "unable to find " << start << ", " << stop << std::endl;
    MFEM_ABORT("no allocation");
 }
 
@@ -153,8 +153,7 @@ mem_op_tracker::find_allocation(const void *start)
    {
       if (iter->first.first > start)
       {
-         mfem::out << "unable to find " << start << std::endl;
-         MFEM_ABORT("no allocation");
+         MFEM_ABORT("unable to find " << start);
       }
       if (iter->first.first == start)
       {
@@ -171,8 +170,7 @@ mem_op_tracker::find_allocation(const void *start)
       }
       ++iter;
    }
-   mfem::out << "unable to find " << start << std::endl;
-   MFEM_ABORT("no allocation");
+   MFEM_ABORT("unable to find " << start);
 }
 
 std::pair<size_t, size_t> mem_op_tracker::remove_allocation(const void *start,
@@ -195,7 +193,7 @@ std::pair<size_t, size_t> mem_op_tracker::remove_allocation(const void *start)
 namespace mfem
 {
 
-OutStream &nullstream()
+static OutStream &nullstream()
 {
    static std::stringstream buf;
    static OutStream str(buf);
