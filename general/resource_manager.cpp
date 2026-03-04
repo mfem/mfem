@@ -1577,8 +1577,12 @@ char *MemoryManager::write(size_t segment, size_t offset, size_t nbytes,
       [](auto, auto) {});
       mark_invalid(segment, !on_device, offset, offset + nbytes,
       [](auto, auto) {});
+      MFEM_MEM_OP_DEBUG_USE(5, seg.lowers[on_device] + offset,
+                            seg.lowers[on_device] + offset + nbytes, " Write");
       return seg.lowers[on_device] + offset;
    }
+   MFEM_ASSERT(nbytes == 0, "Invalid write pointer");
+   MFEM_MEM_OP_DEBUG_USE(5, nullptr, nullptr, " Write");
    return nullptr;
 }
 
@@ -1983,8 +1987,13 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
                      "Expected to have h_ptr == d_ptr");
          MFEM_DEVICE_SYNC;
       }
+      MFEM_MEM_OP_DEBUG_USE(6, seg.lowers[on_device] + offset,
+                            seg.lowers[on_device] + offset + nbytes,
+                            " ReadWrite ");
       return seg.lowers[on_device] + offset;
    }
+   MFEM_ASSERT(nbytes == 0, "Invalid write pointer");
+   MFEM_MEM_OP_DEBUG_USE(6, nullptr, nullptr, " ReadWrite");
    return nullptr;
 }
 
@@ -2059,8 +2068,12 @@ const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
          // TODO: stream or device sync?
          MFEM_DEVICE_SYNC;
       }
+      MFEM_MEM_OP_DEBUG_USE(4, seg.lowers[on_device] + offset,
+                            seg.lowers[on_device] + offset + nbytes, " Read");
       return seg.lowers[on_device] + offset;
    }
+   MFEM_ASSERT(nbytes == 0, "Invalid write pointer");
+   MFEM_MEM_OP_DEBUG_USE(4, nullptr, nullptr, " Read");
    return nullptr;
 }
 
