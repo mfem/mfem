@@ -28,60 +28,8 @@ struct Action
       create_fop_to_fd(inputs, ctx.infds, input_to_infd);
       create_fop_to_fd(outputs, ctx.outfds, output_to_outfd);
 
-      constexpr_for<0, ninputs>([&](auto i)
-      {
-         const auto input = get<i>(inputs);
-         using input_t = std::decay_t<decltype(input)>;
-
-         const auto fd = ctx.infds[input_to_infd[i]];
-
-         constexpr QuadratureInterpolator::EvalFlags dummy_mode =
-            QuadratureInterpolator::VALUES;
-         if constexpr (is_identity_fop<input_t>::value)
-         {
-            input_bases[i] = GetFieldBasis(fd, ctx.ir, dummy_mode);
-         }
-         else if constexpr (is_weight_fop<input_t>::value)
-         {
-            input_bases[i] = FieldBasisFromWeight(ctx.ir);
-         }
-         else if constexpr (is_value_fop<input_t>::value)
-         {
-            input_bases[i] = GetFieldBasis(fd, ctx.ir, QuadratureInterpolator::VALUES);
-         }
-         else if constexpr (is_gradient_fop<input_t>::value)
-         {
-            input_bases[i] = GetFieldBasis(fd, ctx.ir, QuadratureInterpolator::DERIVATIVES);
-         }
-      });
-
-      constexpr_for<0, noutputs>([&](auto i)
-      {
-         const auto output = get<i>(outputs);
-         using output_t = std::decay_t<decltype(output)>;
-
-         const auto fd = ctx.outfds[output_to_outfd[i]];
-
-         constexpr QuadratureInterpolator::EvalFlags dummy_mode =
-            QuadratureInterpolator::VALUES;
-         if constexpr (is_identity_fop<output_t>::value)
-         {
-            output_bases[i] = GetFieldBasis(fd, ctx.ir, dummy_mode);
-         }
-         else if constexpr (is_weight_fop<output_t>::value)
-         {
-            output_bases[i] = FieldBasisFromWeight(ctx.ir);
-         }
-         else if constexpr (is_value_fop<output_t>::value)
-         {
-            output_bases[i] = GetFieldBasis(fd, ctx.ir, QuadratureInterpolator::VALUES);
-         }
-         else if constexpr (is_gradient_fop<output_t>::value)
-         {
-            output_bases[i] = GetFieldBasis(fd, ctx.ir,
-                                            QuadratureInterpolator::DERIVATIVES);
-         }
-      });
+      create_fieldbases(inputs, input_to_infd, ctx, input_bases);
+      create_fieldbases(outputs, output_to_outfd, ctx, output_bases);
 
       const int nqp = ctx.ir.GetNPoints();
       gnqp = nqp * ctx.nentities;

@@ -33,6 +33,7 @@
 #include "../../linalg/dtensor.hpp"
 #include "../quadinterpolator.hpp"
 
+#include "fielddescriptor.hpp"
 #include "fieldoperator.hpp"
 #include "parameterspace.hpp"
 #include "tuple.hpp"
@@ -570,50 +571,6 @@ constexpr auto filter_fields(const std::tuple<Ts...>& t)
    return std::tuple_cat(
              std::conditional_t<Ts::GetFieldId() != -1, std::tuple<Ts>, std::tuple<>> {}...);
 }
-
-/// @brief FieldDescriptor struct
-///
-/// This struct is used to store information about a field.
-struct FieldDescriptor
-{
-   using data_variant_t =
-      std::variant<const FiniteElementSpace *,
-      const ParFiniteElementSpace *,
-      const QuadratureFunction *,
-      const ParameterSpace *>;
-
-   /// Field ID
-   std::size_t id;
-
-   /// Field variant
-   data_variant_t data;
-
-   /// Default constructor
-   FieldDescriptor() :
-      id(SIZE_MAX), data(data_variant_t{}) {}
-
-   /// Constructor
-   template <typename T>
-   FieldDescriptor(std::size_t field_id, const T* v) :
-      id(field_id), data(v) {}
-
-   bool operator==(const FieldDescriptor& other) const
-   {
-      return id == other.id;
-   }
-
-   bool operator<(const FieldDescriptor& other) const
-   {
-      return id < other.id;
-   }
-
-   friend void swap(FieldDescriptor& a, FieldDescriptor& b)
-   {
-      using std::swap;
-      swap(a.id, b.id);
-      swap(a.data, b.data);
-   }
-};
 
 namespace dfem
 {

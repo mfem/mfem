@@ -2,6 +2,7 @@
 
 #include "../fem/quadinterpolator.hpp"
 #include "../../util.hpp"
+#include "../../integrator_ctx.hpp"
 #include "general/enzyme.hpp"
 
 namespace mfem::future
@@ -131,6 +132,41 @@ const FieldBasis GetFieldBasis(const FieldDescriptor &f,
          static_assert(dfem::always_false<T>, "internal error");
       }
    }, f.data);
+}
+
+template <typename fops_t, size_t nfops>
+void create_fieldbases(
+   fops_t &fops,
+   const std::array<size_t, nfops> &fop_to_fd,
+   const IntegratorContext &ctx,
+   std::array<FieldBasis, nfops> &bases)
+{
+   constexpr_for<0, nfops>([&](auto i)
+   {
+      const auto input = get<i>(fops);
+      using input_t = std::decay_t<decltype(input)>;
+
+      const auto fd = ctx.infds[fop_to_fd[i]];
+
+      constexpr QuadratureInterpolator::EvalFlags dummy_mode =
+         QuadratureInterpolator::VALUES;
+      if constexpr (is_identity_fop<input_t>::value)
+      {
+         bases[i] = GetFieldBasis(fd, ctx.ir, dummy_mode);
+      }
+      else if constexpr (is_weight_fop<input_t>::value)
+      {
+         bases[i] = FieldBasisFromWeight(ctx.ir);
+      }
+      else if constexpr (is_value_fop<input_t>::value)
+      {
+         bases[i] = GetFieldBasis(fd, ctx.ir, QuadratureInterpolator::VALUES);
+      }
+      else if constexpr (is_gradient_fop<input_t>::value)
+      {
+         bases[i] = GetFieldBasis(fd, ctx.ir, QuadratureInterpolator::DERIVATIVES);
+      }
+   });
 }
 
 template <size_t ninputs>

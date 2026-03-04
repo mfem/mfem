@@ -589,16 +589,16 @@ void DifferentiableOperator::AddIntegrator(
 
    action_callbacks.push_back(backend_t::MakeAction(ctx, qfunc, inputs, outputs));
 
-   //    for_constexpr([&](auto i)
-   //    {
-   // #ifdef MFEM_USE_ENZYME
-   //       derivative_action_callbacks[i].push_back(
-   //          backend_t::template MakeDerivativeActionEnzyme<i>(ctx, qfunc, inputs, outputs));
-   // #else
-   //       MFEM_ABORT("DifferentiableOperator requested Enzyme derivative action, "
-   //                  "but MFEM_USE_ENZYME is not defined.");
-   // #endif
-   //    }, derivative_ids);
+   for_constexpr([&](auto i)
+   {
+#ifdef MFEM_USE_ENZYME
+      derivative_action_callbacks[i].push_back(
+         backend_t::template MakeDerivativeActionEnzyme<i>(ctx, qfunc, inputs, outputs));
+#else
+      MFEM_ABORT("DifferentiableOperator requested Enzyme derivative action, "
+                 "but MFEM_USE_ENZYME is not defined.");
+#endif
+   }, derivative_ids);
 }
 
 } // namespace mfem::future
