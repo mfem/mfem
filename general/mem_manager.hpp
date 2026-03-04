@@ -1484,9 +1484,9 @@ inline void Memory<T>::CopyFrom(const Memory &src, int size)
       {
          MFEM_ASSERT(h_ptr + size <= src.h_ptr || src.h_ptr + size <= h_ptr,
                      "data overlaps!");
-         MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(2, src, h_ptr, size * sizeof(T), "",
-                                          h_mt, h_mt);
-         std::memcpy(h_ptr, src, size*sizeof(T));
+         MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(2, src.h_ptr, h_ptr, size * sizeof(T),
+                                          "", h_mt, h_mt);
+         std::memcpy(h_ptr, src.h_ptr, size*sizeof(T));
       }
       // *this is not registered, so (flags & VALID_HOST) must be true
    }
