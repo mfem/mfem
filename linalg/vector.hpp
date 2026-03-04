@@ -680,7 +680,7 @@ inline void Vector::Destroy()
 
 inline real_t &Vector::operator()(int i)
 {
-   MFEM_ASSERT(data && i >= 0 && i < size,
+   MFEM_ASSERT(!data.Empty() && i >= 0 && i < size,
                "index [" << i << "] is out of range [0," << size << ")");
 
    return data[i];
@@ -688,7 +688,7 @@ inline real_t &Vector::operator()(int i)
 
 inline const real_t &Vector::operator()(int i) const
 {
-   MFEM_ASSERT(data && i >= 0 && i < size,
+   MFEM_ASSERT(!data.Empty() && i >= 0 && i < size,
                "index [" << i << "] is out of range [0," << size << ")");
 
    return data[i];

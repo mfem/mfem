@@ -49,19 +49,19 @@ TEST_CASE("Resource Aliasing", "[Resource Manager][GPU]")
       {
          if (i >= 5 && i < 8)
          {
-            REQUIRE(tmp[i] == 0);
+            REQUIRE(AsConst(tmp)[i] == 0);
          }
          else if (i >= 8 && i < 19)
          {
-            REQUIRE(tmp[i] == 1);
+            REQUIRE(AsConst(tmp)[i] == 1);
          }
          else if (i >= 50 && i < 55)
          {
-            REQUIRE(tmp[i] == 2);
+            REQUIRE(AsConst(tmp)[i] == 2);
          }
          else
          {
-            REQUIRE(tmp[i] == i);
+            REQUIRE(AsConst(tmp)[i] == i);
          }
       }
    }
@@ -158,7 +158,7 @@ TEST_CASE("Resource Copy 2", "[Resource Manager][GPU]")
       dst.CopyTo(cmp, dst.Capacity());
       for (int i = 0; i < dst.Capacity(); ++i)
       {
-         REQUIRE(cmp[i] == tmp[i]);
+         REQUIRE(AsConst(cmp)[i] == AsConst(tmp)[i]);
       }
 
       cmp.Delete();
