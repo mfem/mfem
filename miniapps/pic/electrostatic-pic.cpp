@@ -530,7 +530,11 @@ real_t ParticleMover::ComputeKineticEnergy(real_t dt) const
    for (int p = 0; p < charged_particles->GetNParticles(); ++p)
    {
       real_t p_square_p = 0.0;
-      for (int d = 0; d < P.GetVDim(); ++d) { p_square_p += P(p, d) * P(p, d); }
+      for (int d = 0; d < P.GetVDim(); ++d)
+      {
+         const real_t P_m = P(p, d) + dt * Q(p) * E(p, d);
+         p_square_p += P_m * P_m;
+      }
       kinetic_energy += 0.5 * p_square_p / M(p);
    }
 
