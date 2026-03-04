@@ -169,6 +169,46 @@ void create_fieldbases(
    });
 }
 
+template <typename fops_t, size_t nfops>
+void check_consistency(
+   fops_t &fops,
+   const std::array<size_t, nfops> &fop_to_fd,
+   const std::vector<FieldDescriptor> &fields)
+{
+   constexpr_for<0, nfops>([&](auto i)
+   {
+      const auto input = get<i>(fops);
+      using input_t = std::decay_t<decltype(input)>;
+
+      const auto fd = fields[fop_to_fd[i]];
+
+      if constexpr (is_identity_fop<input_t>::value)
+      {
+         MFEM_ASSERT(std::holds_alternative<const QuadratureFunction *>(fd.data),
+                     "Identity FieldOperator requested on non "
+                     "QuadratureFunction");
+      }
+      else if constexpr (is_weight_fop<input_t>::value)
+      {
+      }
+      else if constexpr (is_value_fop<input_t>::value)
+      {
+         MFEM_ASSERT(std::holds_alternative<const FiniteElementSpace *>(fd.data) ||
+                     std::holds_alternative<const ParFiniteElementSpace *>(fd.data) ||
+                     std::holds_alternative<const ParameterSpace *>(fd.data),
+                     "Value FieldOperator requested on non "
+                     "QuadratureFunction");
+      }
+      else if constexpr (is_gradient_fop<input_t>::value)
+      {
+         MFEM_ASSERT(std::holds_alternative<const FiniteElementSpace *>(fd.data) ||
+                     std::holds_alternative<const ParFiniteElementSpace *>(fd.data),
+                     "Value FieldOperator requested on non "
+                     "QuadratureFunction");
+      }
+   });
+}
+
 template <size_t ninputs>
 void interpolate(
    const std::array<size_t, ninputs> &input_to_infd,

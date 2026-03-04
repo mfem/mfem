@@ -30,6 +30,9 @@ struct DerivativeActionEnzyme
       create_fop_to_fd(inputs, ctx.infds, input_to_infd);
       create_fop_to_fd(outputs, ctx.outfds, output_to_outfd);
 
+      check_consistency(inputs, input_to_infd, ctx.infds);
+      check_consistency(outputs, output_to_outfd, ctx.outfds);
+
       create_fieldbases(inputs, input_to_infd, ctx, input_bases);
       create_fieldbases(outputs, output_to_outfd, ctx, output_bases);
 
@@ -71,9 +74,6 @@ struct DerivativeActionEnzyme
       });
       shadow_xq_offsets.PartialSum();
       shadow_xq.Update(shadow_xq_offsets);
-
-      create_fop_to_fd(inputs, ctx.infds, input_to_infd);
-      create_fop_to_fd(outputs, ctx.outfds, output_to_outfd);
    }
 
    void operator()(
