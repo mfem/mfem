@@ -18,9 +18,20 @@ namespace mfem
 // Convenient to use with Multigrid Class in which a MultTranspose is needed
 class SymmetricBlockDiagonalPreconditioner : public BlockDiagonalPreconditioner
 {
+private:
+   real_t c;
 public:
-   SymmetricBlockDiagonalPreconditioner(const Array<int> & offsets)
-      : BlockDiagonalPreconditioner(offsets) { }
+   SymmetricBlockDiagonalPreconditioner(const Array<int> & offsets,
+                                        real_t c_ = 1.0)
+      : BlockDiagonalPreconditioner(offsets), c(c_) { }
+
+   void Mult(const Vector & x, Vector & y) const override
+   {
+      BlockDiagonalPreconditioner::Mult(x,y);
+      y*=c;
+   }
+
+
    void MultTranspose (const Vector & x, Vector & y) const override
    {
       this->Mult(x,y);
@@ -63,7 +74,7 @@ public:
    int GetFESpaceMinimumOrder(const ParFiniteElementSpace *pfespace) const;
 
    /// Computes orders/maxlevels and constructs fec/fes hierarchy and T_level storage.
-   void BuildSpaceHierarchy();
+   void BuildSpaceHierarchy(int mgmaxlevels = -1);
 
    /// Builds block-diagonal prolongation for level lev (coarse=lev, fine=lev+1).
    /// Its diagonal blocks are HypreParMatrix*
@@ -82,7 +93,8 @@ private:
 public:
    PRefinementMultigrid(const Array<ParFiniteElementSpace*> &pfes_,
                         const std::vector<Array<int>> & ess_bdr_marker_,
-                        const BlockOperator &Op_,
+                        const BlockOperator &Op_, int mgmaxlevels = -1,
+                        real_t smoother_relax_factor = 2.0/3,
                         bool mumps_coarse_solver = false);
 
    ~PRefinementMultigrid() override = default;
@@ -102,7 +114,8 @@ private:
 public:
    ComplexPRefinementMultigrid(const Array<ParFiniteElementSpace*> &pfes_,
                                const std::vector<Array<int>> & ess_bdr_marker,
-                               const ComplexOperator &Op_,
+                               const ComplexOperator &Op_, int mgmaxlevels = -1,
+                               real_t smoother_relax_factor = 2.0/3,
                                bool mumps_coarse_solver = false);
 
    ~ComplexPRefinementMultigrid() override = default;

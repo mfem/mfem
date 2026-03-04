@@ -116,6 +116,8 @@ int main(int argc, char *argv[])
    int pref = 0; // parallel mesh refinements for AMR
    int iprob = 0;
    bool pmg = false;
+   int pmg_levels = -1;
+   real_t relax_factor = 2.0/3;
    bool static_cond = false;
    real_t theta = 0.7;
    bool visualization = true;
@@ -141,6 +143,10 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pmg, "-pmg", "--p-refinement-multigrid", "-no-pmg",
                   "--no-p-refinement-multigrid", "Enable P-Refinement Multigrid.");
+   args.AddOption(&pmg_levels, "-pmgl","--p-refinement-multigrid-levels",
+                  "Number of levels for P-Refinement Multigrid.");
+   args.AddOption(&relax_factor, "-rf", "--relaxation-factor",
+                  "Relaxation factor for the p-multigrid smoother.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -402,7 +408,8 @@ int main(int argc, char *argv[])
          for (int b = 0; b<prec_fes.Size(); b++)
          {
             ess_bdr_marker[b].SetSize(pmesh.bdr_attributes.Max());
-            if (b == 2)
+            int ess_block = (static_cond) ? 0 : 2;
+            if (b == ess_block)
             {
                ess_bdr_marker[b] = ess_bdr;
             }
@@ -412,7 +419,7 @@ int main(int argc, char *argv[])
             }
          }
          preconditioner = new PRefinementMultigrid(prec_fes, ess_bdr_marker, *A,
-                                                   mumps_coarse_solver);
+                                                   pmg_levels, relax_factor,mumps_coarse_solver);
       }
       else
       {

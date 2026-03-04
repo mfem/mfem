@@ -223,6 +223,8 @@ int main(int argc, char *argv[])
    real_t rnum=1.0;
    real_t theta = 0.0;
    bool pmg = false;
+   int pmg_levels = -1;
+   real_t relax_factor = 2.0/3;
    bool static_cond = false;
    int iprob = 0;
    int sr = 0;
@@ -259,6 +261,10 @@ int main(int argc, char *argv[])
                   "Number of parallel refinements.");
    args.AddOption(&pmg, "-pmg", "--p-refinement-multigrid", "-no-pmg",
                   "--no-p-refinement-multigrid", "Enable P-Refinement Multigrid.");
+   args.AddOption(&pmg_levels, "-pmgl","--p-refinement-multigrid-levels",
+                  "Number of levels for P-Refinement Multigrid.");
+   args.AddOption(&relax_factor, "-rf", "--relaxation-factor",
+                  "Relaxation factor for the p-multigrid smoother.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -848,7 +854,7 @@ int main(int argc, char *argv[])
       Solver * cprec = nullptr;
       if (pmg)
       {
-#ifdef MFEM_USE_MUMPS
+#ifdef MFEM_USE_COMPLEX_MUMPS
          bool mumps_coarse_solver = true;
 #else
          bool mumps_coarse_solver = false;
@@ -859,7 +865,8 @@ int main(int argc, char *argv[])
             if (pmesh.bdr_attributes.Size())
             {
                ess_bdr_marker[b].SetSize(pmesh.bdr_attributes.Max());
-               if (b == 2) // hatE
+               int ess_block = (static_cond) ? 0 : 2;
+               if (b == ess_block) // hatE
                {
                   ess_bdr_marker[b] = ess_bdr;
                }
@@ -870,7 +877,7 @@ int main(int argc, char *argv[])
             }
          }
          cprec = new ComplexPRefinementMultigrid(prec_fes, ess_bdr_marker, *Ahc,
-                                                 mumps_coarse_solver);
+                                                 pmg_levels, relax_factor, mumps_coarse_solver);
       }
       else
       {
@@ -887,10 +894,12 @@ int main(int argc, char *argv[])
       }
 
       CGSolver cg(MPI_COMM_WORLD);
+      // SLISolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-6);
       cg.SetMaxIter(10000);
       cg.SetPrintLevel(0);
       cg.SetOperator(*Ahc);
+
       cg.SetPreconditioner(*cprec);
       cg.Mult(B, X);
 

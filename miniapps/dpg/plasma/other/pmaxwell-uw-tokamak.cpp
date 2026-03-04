@@ -69,6 +69,8 @@ int main(int argc, char *argv[])
    bool graph_norm = true;
    int prob = 0;
    bool pmg = false;
+   int pmg_levels = -1;
+   real_t relax_factor = 2.0/3;
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
@@ -90,6 +92,10 @@ int main(int argc, char *argv[])
                   "3: hex-mesh eps from file, 4: 400k-tet-mesh eps from file");
    args.AddOption(&pmg, "-pmg", "--p-refinement-multigrid", "-no-pmg",
                   "--no-p-refinement-multigrid", "Enable P-Refinement Multigrid.");
+   args.AddOption(&pmg_levels, "-pmgl","--p-refinement-multigrid-levels",
+                  "Number of levels for P-Refinement Multigrid.");
+   args.AddOption(&relax_factor, "-rf", "--relaxation-factor",
+                  "Relaxation factor for the p-multigrid smoother.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&graph_norm, "-graph", "--graph-norm", "-no-gn",
@@ -150,9 +156,21 @@ int main(int argc, char *argv[])
 
 
    real_t omega = 2.*M_PI*rnum;
-
-
    Mesh mesh(mesh_file, 1, 1);
+
+   mesh.RemoveInternalBoundaries();
+
+   mesh.Save("tokamak-400K-tet-new.mesh");
+
+   return 0;
+   
+   // for (int i = 0; i<mesh.GetNBE(); i++)
+   // {
+   //    int face_idx = mesh.GetBdrElementFaceIndex(i);
+   //    if (mesh.FaceIsInterior(face_idx))
+   // }
+
+
    int dim = mesh.Dimension();
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
@@ -201,7 +219,6 @@ int main(int argc, char *argv[])
       eps_i_cf = new EpsilonMatrixCoefficient(eps_i_file,&mesh,&pmesh, epsilon_scale);
    }
    mesh.Clear();
-
    for (int i = 0; i<pr; i++)
    {
       pmesh.UniformRefinement();
@@ -564,7 +581,8 @@ int main(int argc, char *argv[])
          if (pmesh.bdr_attributes.Size())
          {
             ess_bdr_marker[b].SetSize(pmesh.bdr_attributes.Max());
-            if (b == 2) // hatE
+            int ess_block = (static_cond) ? 0 : 2;
+            if (b == ess_block) // hatE
             {
                ess_bdr_marker[b] = ess_bdr;
             }
@@ -574,7 +592,8 @@ int main(int argc, char *argv[])
             }
          }
       }
-      cprec = new ComplexPRefinementMultigrid(prec_fes, ess_bdr_marker, *Ahc, mumps_coarse_solver);
+      cprec = new ComplexPRefinementMultigrid(prec_fes, ess_bdr_marker, *Ahc, 
+                                              pmg_levels, relax_factor, mumps_coarse_solver);
    }
    else
    {
