@@ -520,6 +520,11 @@ real_t ParticleMover::ComputeKineticEnergy(real_t dt) const
 {
    const ParticleVector& P = charged_particles->Field(MOM);
    const ParticleVector& M = charged_particles->Field(MASS);
+   const ParticleVector& Q = charged_particles->Field(CHARGE);
+   const ParticleVector& E = charged_particles->Field(EFIELD);
+   
+   // Note the electric field is not reinterpolated here and the last
+   // update from Step() is used directly.
 
    real_t kinetic_energy = 0.0;
    for (int p = 0; p < charged_particles->GetNParticles(); ++p)
