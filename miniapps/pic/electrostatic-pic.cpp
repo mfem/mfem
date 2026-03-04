@@ -343,26 +343,6 @@ int main(int argc, char* argv[])
             common::VisualizeField(vis_phi, "localhost", ctx.visport, phi_gf,
                                    "Potential", 500, 0, 500, 500);
          }
-
-         // Compute energies
-         real_t kinetic_energy = particle_mover.ComputeKineticEnergy();
-         real_t field_energy = field_solver.ComputeFieldEnergy(E_gf);
-
-         // Output energies
-         if (Mpi::Root())
-         {
-            cout << "Kinetic energy: " << kinetic_energy << "\t";
-            cout << "Field energy: " << field_energy << "\t";
-            cout << "Total energy: " << kinetic_energy + field_energy << endl;
-         }
-         // Write energies to a CSV file
-         if (Mpi::Root())
-         {
-            std::ofstream energy_file("energy.csv", std::ios::app);
-            energy_file << setprecision(10) << kinetic_energy << ","
-                        << field_energy << "," << kinetic_energy + field_energy
-                        << "\n";
-         }
       }
 
       // Step the ParticleMover
