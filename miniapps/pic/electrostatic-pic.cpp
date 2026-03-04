@@ -364,6 +364,35 @@ int main(int argc, char* argv[])
          particle_mover.GetParticles().PrintCSV(file_name.c_str(), field_idx,
                                                 tag_idx);
       }
+
+      if (ctx.redist_interval > 0 &&
+          (step % ctx.redist_interval == 0 || step == 1) &&
+          particle_mover.GetParticles().GetGlobalNParticles() > 0)
+      {
+         // Compute energies
+         // Note that particle momenta are a half time step ahead of the field
+         // after particle_mover.Step(). Therefore they are returned to the
+         // time level of the field for calculation of kinetic energy.
+         real_t kinetic_energy = particle_mover.ComputeKineticEnergy(-dt/2.);
+         real_t field_energy = field_solver.ComputeFieldEnergy(E_gf);
+
+         // Output energies
+         if (Mpi::Root())
+         {
+            cout << "Kinetic energy: " << kinetic_energy << "\t"
+                 << "Field energy: " << field_energy << "\t"
+                 << "Total energy: " << kinetic_energy + field_energy
+                 << endl;
+         }
+         // Write energies to a CSV file
+         if (Mpi::Root())
+         {
+            std::ofstream energy_file("energy.csv", std::ios::app);
+            energy_file << setprecision(10) << kinetic_energy << ","
+                        << field_energy << "," << kinetic_energy + field_energy
+                        << "\n";
+         }
+      }
    }
 }
 
