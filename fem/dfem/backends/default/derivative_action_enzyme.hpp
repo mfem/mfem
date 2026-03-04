@@ -89,21 +89,16 @@ struct DerivativeActionEnzyme
       interpolate(input_to_infd, input_bases, xe, shadow_xq, activity_map);
 
       // Q -> Q
-      if constexpr (
-         detail::supports_tensor_array_qfunc<qfunc_t, inputs_t, outputs_t>::value)
-      {
-         detail::enzyme_fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>
-         (
-            qfunc, xq, shadow_xq, yq, gnqp,
-            std::make_index_sequence<ninputs> {},
-            std::make_index_sequence<noutputs> {}
-         );
-      }
-      else
-      {
-         static_assert(dfem::always_false<qfunc_t>,
-                       "qfunc signature not supported by default backend Action");
-      }
+      static_assert(
+         detail::supports_tensor_array_qfunc<qfunc_t, inputs_t, outputs_t>::value,
+         "qfunc signature not supported by default backend Action");
+
+      detail::enzyme_fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>
+      (
+         qfunc, xq, shadow_xq, yq, gnqp,
+         std::make_index_sequence<ninputs> {},
+         std::make_index_sequence<noutputs> {}
+      );
 
       // Q -> E
       integrate(output_to_outfd, output_bases, yq, ye);
