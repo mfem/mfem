@@ -148,6 +148,12 @@ if (MFEM_USE_MKL_PARDISO)
   list(APPEND HDRS pardiso.hpp)
 endif()
 
+# cudss solver
+if (MFEM_USE_CUDSS)
+  list(APPEND SRCS cudss.cpp)
+  list(APPEND HDRS cudss.hpp)
+endif()
+
 convert_filenames_to_full_paths(SRCS)
 convert_filenames_to_full_paths(HDRS)
 
