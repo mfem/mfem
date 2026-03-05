@@ -445,7 +445,6 @@ miniapps/contact/ParaView
 
 miniapps/plasma/pic/electrostatic-*
 !miniapps/plasma/pic/electrostatic-*.cpp
-!miniapps/plasma/pic/electrostatic-*.hpp
 miniapps/plasma/pic/*.csv
 
 # Unit test binary and outputs
