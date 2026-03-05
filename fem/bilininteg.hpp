@@ -2351,7 +2351,7 @@ public:
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
-                                         const int StroudFlag = 0);
+                                         const bool stroud = false);
 
    bool SupportsCeed() const override { return DeviceCanUseCeed(); }
 
@@ -2464,7 +2464,7 @@ public:
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
                                          const ElementTransformation &Trans,
-                                         const int StroudFlag = 0);
+                                         const bool stroud = false);
 
    bool SupportsCeed() const override { return DeviceCanUseCeed(); }
 

@@ -18,13 +18,6 @@
 using namespace std;
 using namespace mfem;
 
-real_t m_func(const Vector &x);
-real_t d_func(const Vector &x);
-real_t f_func(const Vector &x);
-real_t u_ex(const Vector &x);
-void up_ex(const Vector &x, Vector &up);
-void dm_func(const Vector &x, DenseMatrix &D);
-
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
@@ -142,7 +135,6 @@ int main(int argc, char *argv[])
    ConstantCoefficient one(1.0);
    const FiniteElement *el = fespace.GetFE(0);
    const IntegrationRule ir_b = IntRules.Get(el->GetGeomType(), 2*order);
-   // FunctionCoefficient fcoeff(f_func);
    FunctionCoefficient fcoeff([dim, bp_type](const Vector &x)
    {
       if (dim == 2)
@@ -202,13 +194,11 @@ int main(int argc, char *argv[])
    a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    if (bp_type == "bp3")
    {
-      static FunctionCoefficient diffcoeff(d_func);
-      a.AddDomainIntegrator(new DiffusionIntegrator(diffcoeff));
+      a.AddDomainIntegrator(new DiffusionIntegrator);
    }
    else if (bp_type == "bp1")
    {
-      static FunctionCoefficient masscoeff(m_func);
-      a.AddDomainIntegrator(new MassIntegrator(masscoeff));
+      a.AddDomainIntegrator(new MassIntegrator);
    }
    else
    {
@@ -325,16 +315,6 @@ int main(int argc, char *argv[])
    }
 
    return 0;
-}
-
-real_t m_func(const Vector &x)
-{
-   return 1.0;
-}
-
-real_t d_func(const Vector &x)
-{
-   return 1.0;
 }
 
 // void dm_func(const Vector &x, DenseMatrix &D)

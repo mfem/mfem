@@ -2309,11 +2309,11 @@ ApplyKernelType MassIntegrator::ApplyPAKernels::Kernel()
 }
 
 inline ApplyKernelType MassIntegrator::ApplyPAKernels::Fallback(
-   int DIM, int, int)
+   int dim, int, int)
 {
-   if (DIM == 1) { return internal::PAMassApply1D; }
-   else if (DIM == 2) { return internal::PAMassApply2D; }
-   else if (DIM == 3) { return internal::PAMassApply3D; }
+   if (dim == 1) { return internal::PAMassApply1D; }
+   else if (dim == 2) { return internal::PAMassApply2D; }
+   else if (dim == 3) { return internal::PAMassApply3D; }
    else { MFEM_ABORT(""); }
 }
 
@@ -2326,10 +2326,10 @@ ApplySimplexKernelType MassIntegrator::ApplySimplexPAKernels::Kernel()
 }
 
 inline ApplySimplexKernelType MassIntegrator::ApplySimplexPAKernels::Fallback(
-   int DIM, int, int)
+   int dim, int, int)
 {
-   if (DIM == 2) { return internal::PAMassApplyTriangle; }
-   else if (DIM == 3) { return internal::PAMassApplyTetrahedron; }
+   if (dim == 2) { return internal::PAMassApplyTriangle; }
+   else if (dim == 3) { return internal::PAMassApplyTetrahedron; }
    else { MFEM_ABORT(""); }
 }
 
@@ -2343,11 +2343,11 @@ DiagonalKernelType MassIntegrator::DiagonalPAKernels::Kernel()
 }
 
 inline DiagonalKernelType MassIntegrator::DiagonalPAKernels::Fallback(
-   int DIM, int, int)
+   int dim, int, int)
 {
-   if (DIM == 1) { return internal::PAMassAssembleDiagonal1D; }
-   else if (DIM == 2) { return internal::PAMassAssembleDiagonal2D; }
-   else if (DIM == 3) { return internal::PAMassAssembleDiagonal3D; }
+   if (dim == 1) { return internal::PAMassAssembleDiagonal1D; }
+   else if (dim == 2) { return internal::PAMassAssembleDiagonal2D; }
+   else if (dim == 3) { return internal::PAMassAssembleDiagonal3D; }
    else { MFEM_ABORT(""); }
 }
 /// \endcond DO_NOT_DOCUMENT

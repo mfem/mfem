@@ -45,48 +45,45 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
    else
    {
+      const Array<real_t> &B = maps->B;
+      const Array<real_t> &G = maps->G;
+      const Array<real_t> &Bt = maps->Bt;
+      const Array<real_t> &Gt = maps->Gt;
       const Vector &Dv = pa_data;
-      if (fespace->IsBernsteinSimplexSpace())
-      {
-         const Array<real_t> &Ga1 = maps->Ga1;
-         const Array<real_t> &Ga2 = maps->Ga2;
-         const Array<real_t> &Ga3 = maps->Ga3;
-         const Array<int> &lex_map = maps->lex_map;
-         const Array<int> &forward_map2d = maps->forward_map2d_diff;
-         const Array<int> &inverse_map2d = maps->inverse_map2d_diff;
-         const Array<int> &inverse_map3d = maps->inverse_map3d_diff;
-         const Array<int> &forward_map3d = maps->forward_map3d_diff;
-         ApplySimplexPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric, lex_map,
-                                    forward_map2d, inverse_map2d,
-                                    forward_map3d, inverse_map3d, Ga1, Ga2, Ga3, Dv, x, y, dofs1D, quad1D);
-      }
-      else
-      {
-         const Array<real_t> &B = maps->B;
-         const Array<real_t> &G = maps->G;
-         const Array<real_t> &Bt = maps->Bt;
-         const Array<real_t> &Gt = maps->Gt;
 
 #ifdef MFEM_USE_OCCA
-         if (DeviceCanUseOcca())
+      if (DeviceCanUseOcca())
+      {
+         if (dim == 2)
          {
-            if (dim == 2)
-            {
-               internal::OccaPADiffusionApply2D(dofs1D,quad1D,ne,B,G,Bt,Gt,Dv,x,y);
-               return;
-            }
-            if (dim == 3)
-            {
-               internal::OccaPADiffusionApply3D(dofs1D,quad1D,ne,B,G,Bt,Gt,Dv,x,y);
-               return;
-            }
-            MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
+            internal::OccaPADiffusionApply2D(dofs1D,quad1D,ne,B,G,Bt,Gt,Dv,x,y);
+            return;
          }
+         if (dim == 3)
+         {
+            internal::OccaPADiffusionApply3D(dofs1D,quad1D,ne,B,G,Bt,Gt,Dv,x,y);
+            return;
+         }
+         MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
+      }
 #endif // MFEM_USE_OCCA
 
-         ApplyPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric, B, G, Bt,
-                             Gt, Dv, x, y, dofs1D, quad1D);
+      if (fespace->IsBernsteinSimplexSpace())
+      {
+         return ApplySimplexPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric,
+                                           maps->lex_map,
+                                           maps->forward_map2d_diff,
+                                           maps->inverse_map2d_diff,
+                                           maps->forward_map3d_diff,
+                                           maps->inverse_map3d_diff,
+                                           maps->Ga1,
+                                           maps->Ga2,
+                                           maps->Ga3,
+                                           Dv, x, y, dofs1D, quad1D);
       }
+
+      ApplyPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric, B, G, Bt,
+                          Gt, Dv, x, y, dofs1D, quad1D);
    }
 }
 
@@ -111,8 +108,8 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetTypicalFE();
-   int StroudFlag = fes.IsBernsteinSimplexSpace() ? 1 : 0;
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, StroudFlag);
+   const bool stroud = fes.IsBernsteinSimplexSpace();
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, stroud);
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
@@ -136,7 +133,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
    ne = fes.GetNE();
-   if (StroudFlag)
+   if (stroud)
    {
       geom = mesh->GetGeometricFactors(ir->InverseDuffyTrans(dim),
                                        GeometricFactors::JACOBIANS, mt);

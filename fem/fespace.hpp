@@ -1561,17 +1561,17 @@ inline bool UsesTensorBasis(const FiniteElementSpace& fes)
 }
 
 /// @brief Return true if the mesh contains only one topology, the elements are
-/// all triangles, and the elements are ragged tensor elements i.e. Bernstein/positive basis.
-/// TODO: add support for tetrahedrons
+/// all triangles or tetrahedrons, and the elements are ragged tensor elements
+/// i.e. Bernstein/positive basis.
 inline bool UsesRaggedTensorBasis(const FiniteElementSpace& fes)
 {
-   Mesh &mesh = *fes.GetMesh();
-   const bool mixed = mesh.GetNumGeometries(mesh.Dimension()) > 1;
-   const bool simplex = (fes.GetFE(0)->GetGeomType() == Geometry::TRIANGLE) ||
-                        (fes.GetFE(0)->GetGeomType() == Geometry::TETRAHEDRON);
-   return !mixed && simplex &&
-          (dynamic_cast<const mfem::H1Pos_TriangleElement *>(fes.GetFE(0))!=nullptr ||
-           dynamic_cast<const mfem::H1Pos_TetrahedronElement *>(fes.GetFE(0))!=nullptr);
+   bool mixed = fes.GetMesh()->IsMixedMesh();
+   bool simplex = (fes.GetTypicalFE()->GetGeomType() == Geometry::TRIANGLE) ||
+                  (fes.GetTypicalFE()->GetGeomType() == Geometry::TETRAHEDRON);
+   bool positive =
+      dynamic_cast<const mfem::H1Pos_TriangleElement *>(fes.GetTypicalFE()) ||
+      dynamic_cast<const mfem::H1Pos_TetrahedronElement *>(fes.GetTypicalFE());
+   return !mixed && simplex && positive;
 }
 
 /// @brief Return LEXICOGRAPHIC if mesh contains only one topology and the
