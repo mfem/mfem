@@ -29,7 +29,7 @@ using dscalar_t = dual<real_t, real_t>;
 
 constexpr int DIM = 2;
 
-class DummyParamterSpace : public ParameterSpace
+class DummyParameterSpace : public ParameterSpace
 {
 public:
    class Bimpl : public Operator
@@ -51,7 +51,7 @@ public:
       }
    };
 
-   DummyParamterSpace() : ParameterSpace(1) {}
+   DummyParameterSpace() : ParameterSpace(1) {}
 
    virtual int GetTrueVSize() const override
    {
@@ -236,7 +236,7 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
       QuadratureSpace qs(pmesh, *ir);
       QuadratureFunction qdata(qs, DIM*DIM);
 
-      DummyParamterSpace dps;
+      DummyParameterSpace dps;
       ParameterFunction dpf(dps);
       dpf = 9.12345;
 
