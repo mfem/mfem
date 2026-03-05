@@ -55,7 +55,8 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    nq = ir->GetNPoints();
    if (StroudFlag)
    {
-      geom = mesh->GetGeometricFactors(ir->InverseDuffyTrans(dim), GeometricFactors::DETERMINANTS, mt);
+      geom = mesh->GetGeometricFactors(ir->InverseDuffyTrans(dim),
+                                       GeometricFactors::DETERMINANTS, mt);
       maps = &el.GetDofToQuad(ir->InverseDuffyTrans(dim), DofToQuad::RAGGED_TENSOR);
       // DofToQuad expects ir pulled back to reference cube, so we apply InverseDuffyTrans
    }
