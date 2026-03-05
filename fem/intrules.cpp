@@ -544,13 +544,13 @@ void QuadratureFunctions1D::GaussJacobi(const int np, const real_t alpha,
          return;
    }
 
-   if (alpha <= -1.0 or beta <= -1.0)
+   if (alpha <= -1.0 || beta <= -1.0)
    {
       MFEM_ABORT("Gauss-Jacobi quadrature only defined for alpha > -1 and beta > -1");
    }
    // Jacobi weight function is undefined whenever alpha <= -1 or beta <= -1
 
-   if (alpha > 4.0 or beta > 4.0)
+   if (alpha > 4.0 || beta > 4.0)
    {
       MFEM_ABORT("Current Gauss-Jacobi quadrature implementation only tested for alpha <= 4 and beta <= 4");
    }
