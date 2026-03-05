@@ -635,9 +635,9 @@ public:
                   "dealloc " << (int)seg.mtypes[1] << ", "
                   << seg.is_temporary());
                inst.Dealloc(seg.lowers[1], seg.mtypes[1], seg.is_temporary());
+               inst.SetValidity(segment, true, false);
+               seg.lowers[1] = nullptr;
             }
-            inst.clear_segment(seg, true);
-            seg.lowers[1] = nullptr;
          }
       }
    }
