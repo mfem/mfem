@@ -846,7 +846,6 @@ inline void PADiffusionApplyTriangle(const int NE,
          Y(idx, e) = 0.0;
       }
 
-      constexpr int basis_dim2d = (int) 3 * (max_D1D-1) * (max_D1D) / 2;
       real_t cin[2 * (max_D1D-1) * (max_D1D-1)];
       real_t C1[2 * (max_D1D-1) * max_Q1D];
       real_t C2[2 * max_Q1D * max_Q1D];
