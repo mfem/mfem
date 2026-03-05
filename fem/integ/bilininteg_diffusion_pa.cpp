@@ -136,12 +136,18 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
    ne = fes.GetNE();
-   const IntegrationRule ir_cube = StroudFlag ? (ir->InverseDuffyTrans(dim)) : *ir;
-   geom = mesh->GetGeometricFactors(ir_cube, GeometricFactors::JACOBIANS, mt);
+   if (StroudFlag)
+   {
+      geom = mesh->GetGeometricFactors(ir->InverseDuffyTrans(dim), GeometricFactors::JACOBIANS, mt);
+      maps = &el.GetDofToQuad(ir->InverseDuffyTrans(dim), DofToQuad::RAGGED_TENSOR);
+      // DofToQuad expects ir pulled back to reference cube, so we apply InverseDuffyTrans
+   }
+   else
+   {
+      geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
+      maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   }
    const int sdim = mesh->SpaceDimension();
-   maps = &el.GetDofToQuad(ir_cube,
-                           StroudFlag ? DofToQuad::RAGGED_TENSOR : DofToQuad::TENSOR);
-   // DofToQuad expects ir pulled back to reference cube, so we apply InverseDuffyTrans
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
 

@@ -53,11 +53,17 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    int map_type = el.GetMapType();
    ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
-   const IntegrationRule ir_cube = StroudFlag ? (ir->InverseDuffyTrans(dim)) : *ir;
-   geom = mesh->GetGeometricFactors(ir_cube, GeometricFactors::DETERMINANTS, mt);
-   maps = &el.GetDofToQuad(ir_cube,
-                           StroudFlag ? DofToQuad::RAGGED_TENSOR : DofToQuad::TENSOR);
-   // DofToQuad expects ir pulled back to reference cube, so we apply InverseDuffyTrans
+   if (StroudFlag)
+   {
+      geom = mesh->GetGeometricFactors(ir->InverseDuffyTrans(dim), GeometricFactors::DETERMINANTS, mt);
+      maps = &el.GetDofToQuad(ir->InverseDuffyTrans(dim), DofToQuad::RAGGED_TENSOR);
+      // DofToQuad expects ir pulled back to reference cube, so we apply InverseDuffyTrans
+   }
+   else
+   {
+      geom = mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS, mt);
+      maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   }
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(ne*nq, mt);
