@@ -123,8 +123,7 @@ struct mass_diffusion_qdata_qf
          const auto detJq = det(J(q));
 
          out1(q) = u(q) * detJq * w(q);
-         out2(q) = (dudxi(q) * invJq) * transpose(invJq) *
-                   (detJq * (real_t)(w(q)));
+         out2(q) = (dudxi(q) * invJq) * transpose(invJq) * (detJq * w(q));
          out3(q) = J(q);
       }
    }
