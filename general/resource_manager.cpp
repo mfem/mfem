@@ -1501,7 +1501,6 @@ bool MemoryManager::is_valid(size_t segment, size_t offset, size_t nbytes,
 {
    if (valid_segment(segment))
    {
-      auto &seg = storage.get_segment(segment);
       bool all_valid = true;
       check_valid(segment, on_device, offset, offset + nbytes,
                   [&](auto, auto, bool valid)
