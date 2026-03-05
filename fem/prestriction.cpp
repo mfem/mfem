@@ -321,11 +321,16 @@ void ParL2FaceRestriction::DoubleValuedConformingMult(
    const int vd = vdim;
    const bool t = byvdim;
    const int threshold = ndofs;
-   const int nsdofs = pfes.GetFaceNbrVSize();
+   const int nsdofs_v = pfes.GetFaceNbrVSize();
+   // nvolume dofs per element
+   const int ndofs_e = pfes.GetTypicalFE()->GetDof();
+   // nscalar dofs in face-neighbor space
+   const int nsdofs = nsdofs_v / vd;
    auto d_indices1 = scatter_indices1.Read();
    auto d_indices2 = scatter_indices2.Read();
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
-   auto d_x_shared = Reshape(face_nbr_data.Read(),
+   auto fnd = face_nbr_data.Read();
+   auto d_x_shared = Reshape(fnd,
                              t?vd:nsdofs, t?nsdofs:vd);
    auto d_y = Reshape(y.Write(), nface_dofs, vd, 2, nf);
    mfem::forall(nfdofs, [=] MFEM_HOST_DEVICE (int i)
@@ -346,8 +351,8 @@ void ParL2FaceRestriction::DoubleValuedConformingMult(
          }
          else if (idx2>=threshold) // shared boundary
          {
-            d_y(dof, c, 1, face) = d_x_shared(t?c:(idx2-threshold),
-                                              t?(idx2-threshold):c);
+           const int base = idx2-threshold;
+           d_y(dof, c, 1, face) = fnd[base + c * ndofs_e];
          }
          else // true boundary
          {
