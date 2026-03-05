@@ -13,19 +13,19 @@
 // explicit:
 //   time mpirun -np 8 laghos -p 3 -glvis -tf 5.0 -av -av-type 2 -ov 4 -oe 3 -rs 2 -cfl 0.5 -s 2 -vs 100
 // implicit:
-//   time mpirun -np 8 laghos -p 3 -glvis -tf 5.0 -nmi 50 -pt 1 -dump-jacobians 0 -nretry 50000 -kmi 20 -av -av-type 7 -ov 3 -oe 2 -rs 2 -cfl 32 -s 12 -vs 10
+//   time mpirun -np 8 laghos -p 3 -glvis -tf 5.0 -nmi 50 -pt 1 -dump-jacobians 0 -kmi 20 -av -av-type 7 -ov 3 -oe 2 -rs 2 -cfl 32 -s 12 -vs 10
 //
 // Sedov:
 // explicit:
-//   time mpirun -np 8 laghos -p 1 -glvis -tf 0.8 -av -av-type 2 -ov 4 -oe 3 -rs 2 -cfl 0.5 -s 2 -vs 100
+//   mpirun -np 8 laghos -p 1 -glvis -tf 0.8 -av -av-type 7 -ov 2 -oe 1 -s 3 -cfl 0.5 -rs 3 -vs 50
 // implicit:
-//   time mpirun -np 8 laghos -p 1 -glvis -tf 0.8 -nmi 50 -pt 1 -dump-jacobians 0 -nretry 50000 -kmi 20 -av -av-type 7 -ov 3 -oe 2 -rs 2 -cfl 32 -s 12 -vs 10
+//   mpirun -np 8 laghos -p 1 -glvis -tf 0.8 -nmi 50 -pt 1 -dump-jacobians 0 -kmi 20 -av -av-type 7 -ov 2 -oe 1 -s 12 -cfl 8 -vs 10 -rs 3
 //
 // TG:
 // explicit:
-//   time mpirun -np 8 laghos -p 0 -glvis -tf 0.75 -ov 3 -oe 2 -rs 2 -cfl 0.5 -s 7 -vs 100
+//   time mpirun -np 8 laghos -p 0 -glvis -tf 0.75 -ov 3 -oe 2 -rs 2 -cfl 0.5 -s 4 -vs 100
 // implicit:
-//   time mpirun -np 8 laghos -p 0 -glvis -tf 0.5 -nmi 50 -pt 1 -dump-jacobians 0 -nretry 50000 -kmi 20 -ov 3 -oe 2 -rs 3 -cfl 32 -s 12 -vs 50
+//   time mpirun -np 8 laghos -p 0 -glvis -tf 0.5 -nmi 50 -pt 1 -dump-jacobians 0 -kmi 20 -ov 3 -oe 2 -rs 3 -cfl 32 -s 12 -vs 50
 //
 
 
@@ -366,8 +366,8 @@ matd qdata_setup(
          const auto h = h0 * pow(det(J), 1.0 / DIMENSION);
          const auto delta_v = h * tr(dvdx);
          const auto psi1 = softstep(delta, -delta_v);
-         const auto q1 = 3.0;
-         const auto q2 = 3.0;
+         const auto q1 = 12.0;
+         const auto q2 = 12.0;
          const auto mu = 3.0 / 4.0 * rho * h * psi1 *
                          (q2 * softabs(delta, delta_v) + q1 * cs);
          stress += 2.0 * mu * sym(dvdx);
@@ -722,6 +722,8 @@ public:
    protected:
       void ProcessNewState(const Vector &x) const override
       {
+         if (problem == 0) { return; }
+
          s_new.SetSize(x.Size());
          s_new = x;
          s_new *= hydro.residual->dt;
@@ -739,6 +741,8 @@ public:
       // Override the scaling factor computation to implement line search
       real_t ComputeScalingFactor(const Vector &x, const Vector &b) const override
       {
+         if (problem == 0) { return 1.0; }
+
          const bool have_b = (b.Size() == Height());
          real_t lambda = 1.0;  // Initial step length
          x_new.SetSize(x.Size());
@@ -778,8 +782,8 @@ public:
             if (new_norm <= initial_norm - alpha * lambda * grad_norm)
             {
                // Found acceptable step
-               if (Mpi::Root())
-               { out << "linesearch good lambda: " << lambda << "\n"; }
+               // if (Mpi::Root())
+               // { out << "linesearch good lambda: " << lambda << "\n"; }
                return lambda;
             }
 
@@ -1000,7 +1004,7 @@ public:
 
          if (hydro.preconditioner_type == PRECONDITIONER_TYPE::BLOCK_DIAGONAL_AMG)
          {
-            if (Mpi::Root()) { out << "building pc\n"; }
+            // if (Mpi::Root()) { out << "building pc\n"; }
             vv_mat.reset(Mv_hdRvdv_mat);
             amg_v.reset(new HypreBoomerAMG(*vv_mat));
             amg_v->SetPrintLevel(0);
@@ -1450,17 +1454,18 @@ public:
       preconditioner.reset(new Preconditioner(*this));
 
       auto gmres = new GMRESSolver(MPI_COMM_WORLD);
-      // gmres->SetMaxIter(500);
       gmres->SetKDim(500);
       gmres->SetMaxIter(krylov_maximum_iterations);
       gmres->SetRelTol(1e-12);
       gmres->SetAbsTol(0.0);
-      gmres->SetPrintLevel(IterativeSolver::PrintLevel().Summary());
+      // gmres->SetPrintLevel(IterativeSolver::PrintLevel().Summary());
+      gmres->SetPrintLevel(IterativeSolver::PrintLevel().None());
       gmres->SetPreconditioner(*preconditioner);
       krylov.reset(gmres);
 
       newton.reset(new LineSearchNewtonSolver(MPI_COMM_WORLD, *this));
-      newton->SetPrintLevel(IterativeSolver::PrintLevel().Summary());
+      //newton->SetPrintLevel(IterativeSolver::PrintLevel().Summary());
+      newton->SetPrintLevel(IterativeSolver::PrintLevel().None());
       newton->SetOperator(*residual);
       newton->SetSolver(*krylov);
       newton->SetMaxIter(nonlinear_maximum_iterations);
@@ -1765,6 +1770,42 @@ public:
          inv.Mult(rhs_e, rho_z);
          rho.SetSubVector(dofs, rho_z);
       }
+   }
+
+   void DensityScatter()
+   {
+      Mesh m0 = H1.GetParMesh()->GetSerialMesh(0);
+      GridFunction r0 = rho0.GetSerialGridFunction(0, m0);
+
+      if (Mpi::WorldRank() != 0) { return; }
+
+      std::ofstream fstream_rho;
+      fstream_rho.open("rho.out");
+      fstream_rho.precision(8);
+
+      const int nqp = ir.GetNPoints();
+      Vector pos(2);
+      const int NE = m0.GetNE();
+      for (int e = 0; e < NE; e++)
+      {
+         ElementTransformation &Tr = *m0.GetElementTransformation(e);
+
+         for (int q = 0; q < nqp; q++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(q);
+            Tr.SetIntPoint(&ip);
+            Tr.Transform(ip, pos);
+
+            double detJ = Tr.Weight();
+            // rho0 * detJ0 / detJ.
+            double rho = r0.GetValue(Tr, ip)  * (1.0 / NE) / detJ;
+            double r = sqrt(pos(0) * pos(0) + pos(1) * pos(1));
+
+            fstream_rho << r << " " << rho << "\n";
+         }
+      }
+
+      fstream_rho.close();
    }
 
    real_t ComputeMinDet(const Vector &S) const
@@ -2373,7 +2414,7 @@ int main(int argc, char *argv[])
    int preconditioner_type =
       PRECONDITIONER_TYPE::BLOCK_DIAGONAL_AMG;
    int dump_jacobians = 0;
-   int nretry = 10;
+   int nretry = 100;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -2722,10 +2763,10 @@ int main(int argc, char *argv[])
    real_t dt = hydro->GetTimeStepEstimate(S);
    external_data[EXT_DATA_IDX::CFL] = cfl;
 
-   if (Mpi::Root())
-   {
-      out << "time step estimate: " << dt << "\n";
-   }
+   // if (Mpi::Root())
+   // {
+   //    out << "time step estimate: " << dt << "\n";
+   // }
 
    real_t t_old;
    bool last_step = false;
@@ -2805,11 +2846,13 @@ int main(int argc, char *argv[])
 
       // Adaptive time step control.
       const real_t dt_est = hydro->GetTimeStepEstimate(S);
-      // out << "dt_est: " << dt_est << "\n";
 
       if (ode_solver_type > 10)
       {
-         //if (false)
+         // Repeat only when the mesh inverted.
+         // Can happen at time integration, even if all stages were ok.
+         //real_t min_detJ = hydro->ComputeMinDet(S);
+         //if (min_detJ < 0.0)
          if (dt_est < dt || !hydro->newton_converged)
          {
             if (!hydro->newton_converged)
@@ -2830,7 +2873,7 @@ int main(int argc, char *argv[])
             if (Mpi::Root())
             {
                out << "Repeating step " << ti << " with dt: " << dt << "." << std::endl;
-               out << "Reason: ";
+               //out << "Reason: " << min_detJ << std::endl;
                if (!hydro->newton_converged)
                {
                   out << "Newton did not converge in "
@@ -2855,7 +2898,7 @@ int main(int argc, char *argv[])
 
             ti--; continue;
          }
-         else if (dt_est > 1.25 * dt) { dt *= 1.20; }
+         else if (dt_est > 1.25 * dt) { dt *= 1.10; }
       }
       else if (dt_est < dt)
       {
@@ -2885,14 +2928,6 @@ int main(int argc, char *argv[])
       // out << "x_gf outer loop\n";
       // print_vector(x_gf);
 
-      if (Mpi::Root())
-      {
-         out << "step " << std::setw(5) << ti
-             << ",\tt = " << std::setw(5) << t
-             << ",\tdt = " << std::setw(5) << dt;
-         out << std::endl;
-      }
-
       // verr_gf.ProjectCoefficient(v_coeff);
       // for (int i = 0; i < verr_gf.Size(); i++)
       // {
@@ -2901,7 +2936,18 @@ int main(int argc, char *argv[])
 
       if (ti % vis_steps == 0 || last_step)
       {
-         vizcb(ti, t);
+         if (Mpi::Root()) { out << "dt_est: " << dt_est << "\n"; }
+
+         if (Mpi::Root())
+         {
+            out << "step " << std::setw(5) << ti
+                << ",\tt = " << std::setw(5) << t
+                << ",\tdt = " << std::setw(5) << dt;
+            out << std::endl;
+         }
+
+         // Paraview.
+         // vizcb(ti, t);
 
          if (glvis)
          {
@@ -2945,6 +2991,11 @@ int main(int argc, char *argv[])
              << "L_1    error: " << v_err_l1 << std::endl
              << "L_2    error: " << v_err_l2 << std::endl;
       }
+   }
+
+   if (problem == 1)
+   {
+      hydro->DensityScatter();
    }
 
    mesh.SaveAsOne("3point.mesh");
