@@ -114,10 +114,22 @@ public:
    Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }
 
    /// Move assignment operator
+   /** If *this is a non-owning view (e.g., from MakeRef()), the data is copied
+       so that the base is also modified. */
    Array<T> &operator=(Array<T> &&src)
    {
       if (this == &src) { return *this; }
-      Swap(src);  // Swap does not use move assignment!
+      // If *this is a non-owning view (alias), and its capacity is sufficient
+      // to contain src, then copy into *this so that the alias's base memory is
+      // modified.
+      if (!OwnsData() && Capacity() >= src.Size())
+      {
+         *this = src; // Copy assignment.
+      }
+      else
+      {
+         Swap(src); // Swap the pointers only.
+      }
       src.DeleteAll();
       return *this;
    }
@@ -250,6 +262,9 @@ public:
 
    /// Make this Array a reference to 'master'.
    inline void MakeRef(const Array &master);
+
+   /// Make this Array a reference to the given sub-Memory of @a base.
+   inline void MakeRef(Memory<T> &base, int offset, int size_);
 
    /// Reset the Array to use the given external Memory @a mem and size @a s.
    /** If @a own_mem is false, the Array will not own any of the pointers of
@@ -1071,6 +1086,14 @@ inline void Array<T>::MakeRef(const Array &master)
    data.Delete();
    size = master.size;
    data.MakeAlias(master.GetMemory(), 0, size);
+}
+
+template <class T>
+inline void Array<T>::MakeRef(Memory<T> &base, int offset, int size_)
+{
+   data.Delete();
+   size = size_;
+   data.MakeAlias(base, offset, size_);
 }
 
 template <class T>
