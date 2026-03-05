@@ -22,6 +22,7 @@
 #include "restriction.hpp"
 #include <iostream>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace mfem
 {
@@ -1376,6 +1377,59 @@ public:
        can be used to restricts the marked tDOFs to the specified component. */
    virtual void GetExteriorTrueDofs(Array<int> &exterior_dofs,
                                     int component = -1) const;
+
+   /** @brief Extract edge degrees of freedom from specified boundary elements.
+       This method identifies all edge-based degrees of freedom that lie on the
+       boundary edges of the specified boundary elements.
+       @param[in] boundary_element_indices Array of all boundary element indices on a certain
+       boundary surface (3D) or boundary curve (2D)
+       @param[out] boundary_edge_dofs Set of local DoF indices that lie on boundary edges
+       @param[out] dof_to_edge Map from boundary edge DoF index to local edge index
+       @param[out] dof_to_boundary_element Map from DoF index to a boundary element containing it
+       @param[out] dof_to_edge_orientation Map from DoF index to edge orientation (+1 or -1)
+
+       @note In 3D: Extracts edge DoFs from the 1D edges of 2D boundary elements (faces).
+       @note In 2D: Extracts edge DoFs directly from 1D boundary elements (segments).
+       In 2D, dof_to_edge and dof_to_boundary_element contain identical edge indices.
+       @note Uses a toggle approach: DoFs appearing on multiple boundary edges are considered
+       interior to the boundary surface/curve and are excluded from the result.
+       @note This method uses GetEdgeDofs internally, which returns both vertex and edge DoFs.
+       For standard Nédélec elements (ND_FECollection), vertex DoFs are zero, so only actual
+       edge DoFs are included. However, for specialized collections like ND_R2D_FECollection
+       that have vertex DoFs, those will be included for loop endpoints.
+       @note This is the serial version. For parallel meshes, use the parallel
+       version in ParFiniteElementSpace which handles processor boundaries correctly.
+       @note Requires a 2D or 3D mesh to identify edge objects. The method will assert
+       if called on 1D meshes.
+       @note Only supports conforming meshes; non-conforming meshes are not supported. */
+   void GetBoundaryLoopEdgeDofs(const Array<int> &boundary_element_indices,
+                                std::unordered_set<int> &boundary_edge_dofs,
+                                std::unordered_map<int, int> &dof_to_edge,
+                                std::unordered_map<int, int> &dof_to_boundary_element,
+                                std::unordered_map<int, int> &dof_to_edge_orientation) const;
+
+   /** @brief Get boundary elements grouped by attribute.
+       Serial version that finds all boundary elements with specified attributes. */
+   virtual void GetBoundaryElementsByAttribute(
+      const Array<int> &bdr_attrs,
+      std::unordered_map<int, Array<int>> &attr_to_elements);
+
+   /** @brief Get boundary elements with a specific attribute.
+       Serial version that finds all boundary elements with the given attribute. */
+   virtual void GetBoundaryElementsByAttribute(int bdr_attr,
+                                               Array<int> &boundary_elements);
+
+   /** @brief Compute edge orientations for loop traversal.
+       Here, a "loop" refers to a connected sequence of boundary edges that together
+       form a closed or open path along the boundary of a surface.
+       This is the serial version that determines edge orientations relative to a
+       loop normal and is intended for 3D meshes only.
+        */
+   virtual void ComputeLoopEdgeOrientations(
+      const std::unordered_map<int, int>& dof_to_edge,
+      const std::unordered_map<int, int>& dof_to_boundary_element,
+      const Vector& loop_normal,
+      std::unordered_map<int, int>& edge_loop_orientations);
 
    /// Convert a Boolean marker array to a list containing all marked indices.
    static void MarkerToList(const Array<int> &marker, Array<int> &list);
