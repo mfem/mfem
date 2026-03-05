@@ -164,8 +164,6 @@ private:
       /* DEVICE_UMPIRE_2 */ MemoryType::HOST_UMPIRE
    };
 
-   bool ZeroCopy(size_t segment);
-
    bool valid_segment(size_t seg) const { return seg >= storage.seg_offset; }
 
    /// remove all validity markers for a segment
@@ -694,7 +692,6 @@ public:
                               false);
       }
       return h_ptr != nullptr;
-
    }
 
    bool DeviceIsValid() const

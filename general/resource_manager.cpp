@@ -1015,16 +1015,6 @@ void MemoryManager::mark_valid(size_t segment, bool on_device, ptrdiff_t start,
    }
 }
 
-bool MemoryManager::ZeroCopy(size_t segment)
-{
-   if (valid_segment(segment))
-   {
-      auto &seg = storage.get_segment(segment);
-      return seg.lowers[0] == seg.lowers[1];
-   }
-   return GetDualMemoryType(MemoryType::HOST) == MemoryType::HOST;
-}
-
 template <class F>
 void MemoryManager::mark_invalid(size_t segment, bool on_device,
                                  ptrdiff_t start, ptrdiff_t stop, F &&func)
@@ -1512,21 +1502,18 @@ bool MemoryManager::is_valid(size_t segment, size_t offset, size_t nbytes,
    if (valid_segment(segment))
    {
       auto &seg = storage.get_segment(segment);
-      if (seg.lowers[on_device])
+      bool all_valid = true;
+      check_valid(segment, on_device, offset, offset + nbytes,
+                  [&](auto, auto, bool valid)
       {
-         bool all_valid = true;
-         check_valid(segment, on_device, offset, offset + nbytes,
-                     [&](auto, auto, bool valid)
+         if (valid)
          {
-            if (valid)
-            {
-               return false;
-            }
-            all_valid = false;
-            return true;
-         });
-         return all_valid;
-      }
+            return false;
+         }
+         all_valid = false;
+         return true;
+      });
+      return all_valid;
    }
    return false;
 }
