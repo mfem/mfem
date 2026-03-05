@@ -837,15 +837,51 @@ inline void PADiffusionApplyTriangle(const int NE,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
+      // the following variables are evaluated at compile time
+      constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+
       for (int idx = 0; idx < BASIS_DIM; idx++)
       {
          Y(idx, e) = 0.0;
       }
 
-      // should be using stack memory here like quad version, but this seems faster...
-      real_t *cin = new real_t[2 * (D1D-1) * (D1D-1)] {0};
-      real_t *C1 = new real_t[2 * (D1D-1) * Q1D] {0};
-      real_t *C2 = new real_t[2 * Q1D * Q1D] {0};
+      constexpr int basis_dim2d = (int) 3 * (max_D1D-1) * (max_D1D) / 2;
+      real_t cin[2 * (max_D1D-1) * (max_D1D-1)];
+      real_t C1[2 * (max_D1D-1) * max_Q1D];
+      real_t C2[2 * max_Q1D * max_Q1D];
+      real_t fin[2 * max_Q1D * max_Q1D];
+      real_t F1[2 * (max_D1D-1) * max_Q1D];
+      real_t F2[2 * (max_D1D-1) * (max_D1D-1)];
+
+      for (int dy = 0; dy < D1D-1; ++dy)
+      {
+         for (int dx = 0; dx < D1D-1-dy; ++dx)
+         {
+            const int q = 2*(dx + (D1D-1)*dy);
+            cin[q] = 0.0;
+            cin[1+q] = 0.0;
+            F2[q] = 0.0;
+            F2[1+q] = 0.0;
+         }
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            const int q = 2*(qx + Q1D*dy);
+            C1[q] = 0.0;
+            C1[1+q] = 0.0;
+            F1[q] = 0.0;
+            F1[1+q] = 0.0;
+         }
+      }
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            const int q = 2*(qx + Q1D*qy);
+            C2[q] = 0.0;
+            C2[1+q] = 0.0;
+         }
+      }
 
       // cin contains the vector coefficient
       //    cin_{\beta} = \sum_{k=1}^{3} \nabla\lambda_{k} * X_{\beta + e_{k}},
@@ -923,10 +959,6 @@ inline void PADiffusionApplyTriangle(const int NE,
       }
 
       // now evaluate the Bernstein moments
-      real_t *fin = new real_t[2 * Q1D * Q1D];
-      real_t *F1 = new real_t[2 * (D1D-1) * Q1D] {0};
-      real_t *F2 = new real_t[2 * (D1D-1) * (D1D-1)] {0};
-
       // fin contains (B_{K})^{-1} * D(x) * (B_{K})^{-T} * C2(x). the result stored in F2
       // will be all Bernstein moments
       //    \int_{K} B_{\alpha}^{p-1}(x) * fin(x) dx.
@@ -999,13 +1031,6 @@ inline void PADiffusionApplyTriangle(const int NE,
             Y(idx,e) -= p2 * (F2[a2a1] + F2[1 + a2a1]);
          }
       }
-
-      delete[] cin;
-      delete[] C1;
-      delete[] C2;
-      delete[] fin;
-      delete[] F1;
-      delete[] F2;
    });
 }
 
@@ -2218,9 +2243,7 @@ template<int DIM, int T_D1D, int T_Q1D>
 ApplySimplexKernelType DiffusionIntegrator::ApplySimplexPAKernels::Kernel()
 {
    if (DIM == 2) { return internal::SmemPADiffusionApplyTriangle<T_D1D,T_Q1D>; }
-   // if (DIM == 2) { return internal::PADiffusionApplyTriangle<T_D1D,T_Q1D>; }
    else if (DIM == 3) { return internal::SmemPADiffusionApplyTetrahedron<T_D1D,T_Q1D>; }
-   // else if (DIM == 3) { return internal::PADiffusionApplyTetrahedron; }
    else { MFEM_ABORT(""); }
 }
 

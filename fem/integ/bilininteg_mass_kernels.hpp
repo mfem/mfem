@@ -681,6 +681,9 @@ void PAMassApplyTriangle_Element(const int e,
 {
    const int D1D = d1d;
    const int Q1D = q1d;
+   constexpr int max_D1D = DofQuadLimits::MAX_D1D;
+   constexpr int max_Q1D = DofQuadLimits::MAX_Q1D;
+
    const auto Ba1 = ConstDeviceMatrix(ba1_, Q1D, D1D);
    const auto Ba2 = ConstDeviceCube(ba2_, D1D, Q1D, D1D);
 
@@ -700,10 +703,22 @@ void PAMassApplyTriangle_Element(const int e,
    // evaluated at all of the quadrature nodes in O(p^{d+1}). we have
    //    C2[t1,t2] = \sum_{\alpha} X_{\alpha} * B_{\alpha}^{p}(\Phi(t1,t2)),
    // where \Phi is the Duffy transformation and (t1,t2) is a Stroud node.
+   real_t C2[max_Q1D * max_Q1D];
+   real_t C1[max_D1D * max_Q1D];
 
-   // should be using stack memory here like quad version, but this seems faster...
-   real_t *C2 = new real_t[Q1D * Q1D] {0};
-   real_t *C1 = new real_t[D1D * Q1D] {0};
+   for (int i1 = 0; i1 < Q1D; i1++)
+   {
+      for (int i2 = 0; i2 < Q1D; i2++)
+      {
+         const int q = i2 + Q1D*i1;
+         C2[q] = 0.0;
+      }
+      for (int a1 = 0; a1 < D1D; a1++)
+      {
+         const int q = a1 + D1D*i1;
+         C1[q] = 0.0;
+      }
+   }
 
    // quad to dofs operation (i.e. evaluating Bernstein polynomial at all quad nodes),
    // step 1: convert first quadrature index to first multiindex.
@@ -736,11 +751,11 @@ void PAMassApplyTriangle_Element(const int e,
          }
       }
    }
-   for (int qy = 0; qy < Q1D; qy++)
+   for (int i1 = 0; i1 < Q1D; i1++)
    {
-      for (int qx = 0; qx < Q1D; qx++)
+      for (int i2 = 0; i2 < Q1D; i2++)
       {
-         C2[qx + Q1D*qy] *= D(qy, qx, e);
+         C2[i2 + Q1D*i1] *= D(i1, i2, e);
       }
    }
    // dofs to quad operation (i.e. evaluating all Bernstein moments of the form
@@ -780,9 +795,6 @@ void PAMassApplyTriangle_Element(const int e,
          }
       }
    }
-
-   delete[] C2;
-   delete[] C1;
 }
 
 template<int T_D1D, int T_Q1D, int T_NBZ, bool ACCUMULATE = true>
@@ -2308,10 +2320,8 @@ inline ApplyKernelType MassIntegrator::ApplyPAKernels::Fallback(
 template<int DIM, int T_D1D, int T_Q1D>
 ApplySimplexKernelType MassIntegrator::ApplySimplexPAKernels::Kernel()
 {
-   // if (DIM == 2) { return internal::PAMassApplyTriangle; }
    if (DIM == 2) { return internal::SmemPAMassApplyTriangle<T_D1D,T_Q1D>; }
    else if (DIM == 3) { return internal::SmemPAMassApplyTetrahedron<T_D1D, T_Q1D>; }
-   // else if (DIM == 3) { return internal::PAMassApplyTetrahedron; }
    else { MFEM_ABORT(""); }
 }
 
