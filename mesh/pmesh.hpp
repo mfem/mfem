@@ -697,8 +697,7 @@ public:
        non-conforming faces. */
    int GetNFbyType(FaceType type) const override;
 
-   void GenerateBoundaryElements() override
-   { MFEM_ABORT("Generation of boundary elements works properly only on serial meshes."); }
+   void GenerateBoundaryElements() override;
 
    /// See the remarks for the serial version in mesh.hpp
    MFEM_DEPRECATED void ReorientTetMesh() override;
