@@ -1153,6 +1153,7 @@ template <class T> Memory<T> &Memory<T>::operator=(const Memory &r)
       offset_ = r.offset_;
       MFEM_ASSERT(!inst.valid_segment(segment), "unexpected valid segment");
       segment = r.segment;
+      h_mt = r.h_mt;
       flags = r.flags;
       if (inst.valid_segment(segment))
       {
@@ -1175,6 +1176,7 @@ template <class T> Memory<T> &Memory<T>::operator=(Memory &&r) noexcept
       MFEM_ASSERT(!MemoryManager::instance().valid_segment(segment),
                   "unexpected valid segment");
       segment = r.segment;
+      h_mt = r.h_mt;
       flags = r.flags;
       r.h_ptr = nullptr;
       r.size_ = 0;
