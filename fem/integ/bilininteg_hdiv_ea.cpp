@@ -198,14 +198,18 @@ static void EAHdivAssemble3D(const int NE,
       MFEM_FOREACH_THREAD(idx_i, x, NDOF)
       {
          const int ic = idx_i / NDOF_C;
-         const int idx_ii = idx_i % NDOF_C;
+         const int idx_ii = idx_i - ic * NDOF_C;
 
          const int nx_i = (ic == 0) ? D1D : D1D-1;
          const int ny_i = (ic == 1) ? D1D : D1D-1;
 
-         const int ix = idx_ii % nx_i;
-         const int iy = (idx_ii / nx_i) % ny_i;
-         const int iz = (idx_ii / nx_i) / ny_i;
+         const int qx_i = idx_ii / nx_i;
+         const int ix = idx_ii - qx_i * nx_i;
+
+         const int qy_i = qx_i / ny_i;
+         const int iy = qx_i - qy_i * ny_i;
+
+         const int iz = qy_i;
 
          const real_t (&Bi1)[MQ1][MD1] = (ic == 0) ? r_Bc : r_Bo;
          const real_t (&Bi2)[MQ1][MD1] = (ic == 1) ? r_Bc : r_Bo;
@@ -214,14 +218,18 @@ static void EAHdivAssemble3D(const int NE,
          for (int idx_j = 0; idx_j < NDOF; ++idx_j)
          {
             const int jc = idx_j / NDOF_C;
-            const int idx_jj = idx_j % NDOF_C;
+            const int idx_jj = idx_j - jc * NDOF_C;
 
             const int nx_j = (jc == 0) ? D1D : D1D-1;
             const int ny_j = (jc == 1) ? D1D : D1D-1;
 
-            const int jx = idx_jj % nx_j;
-            const int jy = (idx_jj / nx_j) % ny_j;
-            const int jz = (idx_jj / nx_j) / ny_j;
+            const int qx_j = idx_jj / nx_j;
+            const int jx = idx_jj - qx_j * nx_j;
+
+            const int qy_j = qx_j / ny_j;
+            const int jy = qx_j - qy_j * ny_j;
+
+            const int jz = qy_j;
 
             const real_t (&Bj1)[MQ1][MD1] = (jc == 0) ? r_Bc : r_Bo;
             const real_t (&Bj2)[MQ1][MD1] = (jc == 1) ? r_Bc : r_Bo;
