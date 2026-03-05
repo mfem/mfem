@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -100,7 +100,8 @@ public:
 
    /** @brief Factor and solve the linear systems $ Y_i = Op^{-1} X_i $
        across the array of vectors. */
-   void ArrayMult(const Array<const Vector *> &X, Array<Vector *> &Y) const;
+   void ArrayMult(const Array<const Vector *> &X,
+                  Array<Vector *> &Y) const override;
 
    /** @brief Set the operator/matrix.
        \note  @a A must be a STRUMPACKRowLocMatrix. */

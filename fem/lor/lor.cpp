@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -29,7 +29,7 @@ void LORBase::AddIntegrators(BilinearForm &a_from,
    {
       BilinearFormIntegrator *integrator = (*integrators)[i];
       (a_to.*add_integrator)(integrator);
-      ir_map[integrator] = integrator->GetIntegrationRule();
+      ir_map[integrator] = integrator->GetIntRule();
       if (ir) { integrator->SetIntegrationRule(*ir); }
    }
 }
@@ -43,20 +43,20 @@ void LORBase::AddIntegratorsAndMarkers(BilinearForm &a_from,
                                        const IntegrationRule *ir)
 {
    Array<BilinearFormIntegrator*> *integrators = (a_from.*get_integrators)();
-   Array<Array<int>*> *markers = (a_from.*get_markers)();
+   Array<Array<int>*> &markers = *(a_from.*get_markers)();
 
    for (int i=0; i<integrators->Size(); ++i)
    {
       BilinearFormIntegrator *integrator = (*integrators)[i];
-      if (*markers[i])
+      if (markers[i] != nullptr)
       {
-         (a_to.*add_integrator_marker)(integrator, *(*markers[i]));
+         (a_to.*add_integrator_marker)(integrator, *markers[i]);
       }
       else
       {
          (a_to.*add_integrator)(integrator);
       }
-      ir_map[integrator] = integrator->GetIntegrationRule();
+      ir_map[integrator] = integrator->GetIntRule();
       if (ir) { integrator->SetIntegrationRule(*ir); }
    }
 }
@@ -158,15 +158,16 @@ void LORBase::ConstructLocalDofPermutation(Array<int> &perm_) const
                int i;
                i = dofmap_lor[off_lor + i1 + i2*2];
                int s1 = i < 0 ? -1 : 1;
-               int idof_lor = vdof_lor[absdof(i)];
+               int idof_lor = vdof_lor[UnsignIndex(i)];
                i = dofmap_ho[off_ho + i1*n1 + i2*n2];
                int s2 = i < 0 ? -1 : 1;
-               int idof_ho = vdof_ho[absdof(i)];
+               int idof_ho = vdof_ho[UnsignIndex(i)];
                int s3 = idof_lor < 0 ? -1 : 1;
                int s4 = idof_ho < 0 ? -1 : 1;
                int s = s1*s2*s3*s4;
-               i = absdof(idof_ho);
-               perm_[absdof(idof_lor)] = s < 0 ? -1-absdof(i) : absdof(i);
+               i = UnsignIndex(idof_ho);
+               perm_[UnsignIndex(idof_lor)] = s < 0 ? -1-UnsignIndex(i) :
+                                              UnsignIndex(i);
             }
          }
       };
@@ -232,7 +233,7 @@ void LORBase::ConstructDofPermutation() const
          int j = l_perm[i];
          int s = j < 0 ? -1 : 1;
          int t_i = pfes_lor->GetLocalTDofNumber(i);
-         int t_j = pfes_ho->GetLocalTDofNumber(absdof(j));
+         int t_j = pfes_ho->GetLocalTDofNumber(UnsignIndex(j));
          // Either t_i and t_j both -1, or both non-negative
          if ((t_i < 0 && t_j >=0) || (t_j < 0 && t_i >= 0))
          {

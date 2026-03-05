@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,8 +15,8 @@
 #include "kernel_helpers.hpp"
 #include "linalg/vector.hpp"
 
-using mfem::internal::tensor;
-using mfem::internal::make_tensor;
+using mfem::future::tensor;
+using mfem::future::make_tensor;
 
 namespace mfem
 {

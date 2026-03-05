@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -9,6 +9,22 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
+# Serial miniapps
+add_mfem_miniapp(lsf_integral
+  MAIN lsf_integral.cpp
+  LIBRARIES mfem-common)
+
+# Serial tests
+if (MFEM_ENABLE_TESTING)
+  set(SERIAL_TESTS
+    lsf_integral
+  )
+  foreach(test ${SERIAL_TESTS})
+    add_test(NAME ${test} COMMAND ${test} -no-vis)
+  endforeach()
+endif()
+
+# Parallel miniapps and tests
 if (MFEM_USE_MPI)
   list(APPEND DIST_COMMON_SOURCES
         sbm_solver.cpp
@@ -42,17 +58,11 @@ if (MFEM_USE_MPI)
     ${DIST_COMMON_FILES}
     LIBRARIES mfem-common)
 
-  add_mfem_miniapp(lsf_integral
-    MAIN lsf_integral.cpp
-    ${DIST_COMMON_FILES}
-    LIBRARIES mfem-common)
-
   if (MFEM_ENABLE_TESTING)
     set(PARALLEL_TESTS
       distance
       diffusion
       extrapolate
-      lsf_integral
     )
     # Shifted miniapps that return MFEM_SKIP_RETURN_VALUE in some cases:
     set(SKIP_TESTS)

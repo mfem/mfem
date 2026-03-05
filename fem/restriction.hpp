@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -39,11 +39,6 @@ public:
     objects, see FiniteElementSpace::GetElementRestriction(). */
 class ElementRestriction : public ElementRestrictionOperator
 {
-private:
-   /** This number defines the maximum number of elements any dof can belong to
-       for the FillSparseMatrix method. */
-   static const int MaxNbNbr = 16;
-
 protected:
    const FiniteElementSpace &fes;
    const int ne;
@@ -64,9 +59,18 @@ public:
                          const real_t a = 1.0) const override;
 
    /// Compute Mult without applying signs based on DOF orientations.
-   void MultUnsigned(const Vector &x, Vector &y) const;
+   void AbsMult(const Vector &x, Vector &y) const override;
+
    /// Compute MultTranspose without applying signs based on DOF orientations.
-   void MultTransposeUnsigned(const Vector &x, Vector &y) const;
+   void AbsMultTranspose(const Vector &x, Vector &y) const override;
+
+   /// @deprecated Use AbsMult() instead.
+   MFEM_DEPRECATED void MultUnsigned(const Vector &x, Vector &y) const
+   { AbsMult(x, y); }
+
+   /// @deprecated Use AbsMultTranspose() instead.
+   MFEM_DEPRECATED void MultTransposeUnsigned(const Vector &x, Vector &y) const
+   { AbsMultTranspose(x, y); }
 
    /// Compute MultTranspose by setting (rather than adding) element
    /// contributions; this is a left inverse of the Mult() operation
@@ -189,10 +193,17 @@ public:
 
    /** @brief Add the face degrees of freedom @a x to the element degrees of
        freedom @a y ignoring the signs from DOF orientation. */
-   virtual void AddMultTransposeUnsigned(const Vector &x, Vector &y,
-                                         const real_t a = 1.0) const
+   virtual void AddAbsMultTranspose(const Vector &x, Vector &y,
+                                    const real_t a = 1.0) const
    {
       AddMultTranspose(x, y, a);
+   }
+
+   /// @deprecated Use AddAbsMultTranspose() instead.
+   MFEM_DEPRECATED void AddMultTransposeUnsigned(const Vector &x, Vector &y,
+                                                 const real_t a = 1.0) const
+   {
+      AddAbsMultTranspose(x, y, a);
    }
 
    /** @brief Add the face degrees of freedom @a x to the element degrees of
@@ -222,6 +233,12 @@ public:
    {
       y = 0.0;
       AddMultTranspose(x, y);
+   }
+
+   void AbsMultTranspose(const Vector &x, Vector &y) const override
+   {
+      y = 0.0;
+      AddAbsMultTranspose(x, y);
    }
 
    /** @brief For each face, sets @a y to the partial derivative of @a x with
@@ -259,6 +276,12 @@ public:
        @param[in,out] y The L-vector degrees of freedom.
    */
    virtual void NormalDerivativeAddMultTranspose(const Vector &x, Vector &y) const
+   {
+      MFEM_ABORT("Not implemented for this restriction operator.");
+   }
+
+   /// @brief Low-level access to the underlying gather map.
+   virtual const Array<int> &GatherMap() const
    {
       MFEM_ABORT("Not implemented for this restriction operator.");
    }
@@ -318,7 +341,16 @@ public:
                      requested by @a type in the constructor.
                      The face_dofs are ordered according to the given
                      ElementDofOrdering. */
-   void Mult(const Vector &x, Vector &y) const override;
+   void Mult(const Vector &x, Vector &y) const override
+   { MultInternal(x, y); }
+
+   /// Compute Mult without applying signs based on DOF orientations.
+   void AbsMult(const Vector &x, Vector &y) const override
+   { MultInternal(x, y, true); }
+
+   /// @deprecated Use AbsMult() instead.
+   MFEM_DEPRECATED void MultUnsigned(const Vector &x, Vector &y) const
+   { AbsMult(x, y); }
 
    using FaceRestriction::AddMultTransposeInPlace;
 
@@ -340,8 +372,20 @@ public:
        L-Vector @b not taking into account signs from DOF orientations.
 
        @sa AddMultTranspose(). */
-   void AddMultTransposeUnsigned(const Vector &x, Vector &y,
-                                 const real_t a = 1.0) const override;
+   void AddAbsMultTranspose(const Vector &x, Vector &y,
+                            const real_t a = 1.0) const override;
+
+   /// @deprecated Use AddAbsMultTranspose() instead.
+   MFEM_DEPRECATED void AddMultTransposeUnsigned(const Vector &x, Vector &y) const
+   {
+      AddAbsMultTranspose(x, y);
+   }
+
+   void AbsMultTranspose(const Vector &x, Vector &y) const override
+   {
+      y = 0.0;
+      AddAbsMultTranspose(x, y);
+   }
 
 private:
    /** @brief Compute the scatter indices: L-vector to E-vector, and the offsets
@@ -394,6 +438,11 @@ protected:
    void SetFaceDofsGatherIndices(const Mesh::FaceInformation &face,
                                  const int face_index,
                                  const ElementDofOrdering f_ordering);
+
+public:
+   // This method needs to be public due to 'nvcc' restriction.
+   void MultInternal(const Vector &x, Vector &y,
+                     const bool useAbs = false) const;
 };
 
 /// @brief Alias for ConformingFaceRestriction, for backwards compatibility and
@@ -763,13 +812,12 @@ protected:
        PointMatrix and a local face identifier. */
    using Key = std::pair<const DenseMatrix*,int>;
    /// The temporary map used to store the different interpolators.
-   using Map = std::map<Key, std::pair<int,const DenseMatrix*>>;
+   using Map =
+      std::unordered_map<Key, std::pair<int,const DenseMatrix*>, PairHasher>;
    Map interp_map; // The temporary map that stores the interpolators.
 
 public:
-   InterpolationManager() = delete;
-
-   /** @brief main constructor.
+   /** @brief Constructor.
 
        @param[in] fes      The FiniteElementSpace on which this operates
        @param[in] ordering Request a specific element ordering.
@@ -860,7 +908,7 @@ private:
 class NCL2FaceRestriction : virtual public L2FaceRestriction
 {
 protected:
-   InterpolationManager interpolations;
+   const InterpolationManager &interpolations;
    mutable Vector x_interp;
 
    /** @brief Constructs an NCL2FaceRestriction, this is a specialization of a
@@ -947,9 +995,7 @@ public:
        @param[in] keep_nbr_block When set to true the SparseMatrix will
                                  include the rows (in addition to the columns)
                                  corresponding to face-neighbor dofs. The
-                                 default behavior is to disregard those rows.
-
-       @warning This method is not implemented yet. */
+                                 default behavior is to disregard those rows. */
    void FillI(SparseMatrix &mat,
               const bool keep_nbr_block = false) const override;
 
@@ -967,9 +1013,7 @@ public:
        @param[in] keep_nbr_block When set to true the SparseMatrix will
                                  include the rows (in addition to the columns)
                                  corresponding to face-neighbor dofs. The
-                                 default behavior is to disregard those rows.
-
-       @warning This method is not implemented yet. */
+                                 default behavior is to disregard those rows. */
    void FillJAndData(const Vector &fea_data,
                      SparseMatrix &mat,
                      const bool keep_nbr_block = false) const override;
@@ -987,9 +1031,7 @@ public:
                               added the face contributions.
                               The format is: dofs x dofs x ne, where dofs is the
                               number of dofs per element and ne the number of
-                              elements.
-
-       @warning This method is not implemented yet. */
+                              elements. */
    void AddFaceMatricesToElementMatrices(const Vector &fea_data,
                                          Vector &ea_data) const override;
 
@@ -1064,6 +1106,81 @@ public:
                         x.
    */
    void DoubleValuedNonconformingTransposeInterpolationInPlace(Vector& x) const;
+};
+
+/// Operator that extracts face degrees of freedom for L2 interface spaces.
+/** Objects of this type are typically created and owned by FiniteElementSpace
+    objects, see FiniteElementSpace::GetFaceRestriction(). */
+class L2InterfaceFaceRestriction : public FaceRestriction
+{
+protected:
+   const FiniteElementSpace &fes; ///< The finite element space
+   const ElementDofOrdering ordering; ///< Requested ordering
+   const FaceType type; ///< Face type (interior or boundary)
+   const int nfaces; ///< Number of faces of the requested type
+   const int vdim; ///< vdim of the space
+   const bool byvdim; ///< DOF ordering (by nodes or by vdim)
+   const int face_dofs; ///< Number of dofs on each face
+   const int nfdofs; ///< Total number of dofs on the faces (E-vector size)
+   const int ndofs; ///< Number of dofs in the space (L-vector size)
+   const int nsdofs; ///< Number of shared face neighbor (ghost) dofs
+   Array<int> gather_map; ///< Gather map
+   Array<int> scatter_map; ///< Scatter map
+
+public:
+   /** @brief Constructs an L2InterfaceFaceRestriction.
+
+       @param[in] fes_       The FiniteElementSpace on which this operates
+       @param[in] ordering_  Request a specific face dof ordering
+       @param[in] type_      Request internal or boundary faces dofs */
+   L2InterfaceFaceRestriction(const FiniteElementSpace& fes_,
+                              const ElementDofOrdering ordering_,
+                              const FaceType type_);
+
+   /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
+       face E-Vector.
+
+       @param[in]  x The L-vector degrees of freedom.
+       @param[out] y The face E-Vector degrees of freedom with size (face_dofs,
+                     vdim, nf), where nf is the number of interior or boundary
+                     faces requested by @a type in the constructor. The
+                     face_dofs are ordered according to the given
+                     ElementDofOrdering. */
+   void Mult(const Vector &x, Vector &y) const override;
+
+   using FaceRestriction::AddMultTranspose;
+
+   /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
+       L-Vector.
+
+       @param[in]     x The face E-Vector degrees of freedom with size
+                        (face_dofs, vdim, nf), where nf is the number of
+                        interior or boundary faces requested by @a type in the
+                        constructor. The face_dofs should be ordered according
+                        to the given ElementDofOrdering
+       @param[in,out] y The L-vector degrees of freedom.
+       @param[in]     a Scalar coefficient for addition. */
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const real_t a = 1.0) const override;
+
+   /// @brief Gather degrees of freedom, from face E-vector to L-vector and
+   /// shared (ghost) DOFs.
+   ///
+   /// @param[in]     x The face E-Vector degrees of freedom with size
+   ///                  (face_dofs, vdim, nf), where nf is the number of
+   ///                  interior or boundary faces requested by @a type in the
+   ///                  constructor. The face_dofs should be ordered according
+   ///                  to the given ElementDofOrdering
+   /// @param[out]    y Vector of length vsize + face neighbor vsize
+   void MultTransposeShared(const Vector &x, Vector &y) const;
+
+   const Array<int> &GatherMap() const override;
+
+   /// @brief Return the low-level mapping from L-dofs to E-dofs.
+   ///
+   /// L-dofs that do not correspond to an E-dof (e.g. that lie on a face of a
+   /// different type) are given index -1.
+   const Array<int> &ScatterMap() const;
 };
 
 /** @brief Convert a dof face index from Native ordering to lexicographic

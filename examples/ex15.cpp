@@ -159,7 +159,7 @@ int main(int argc, char *argv[])
    FiniteElementSpace fespace(&mesh, &fec);
 
    // 6. As in Example 1p, we set up bilinear and linear forms corresponding to
-   //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
+   //    the Poisson problem -\Delta u = 1. We don't assemble the discrete
    //    problem yet, this will be done in the inner loop.
    BilinearForm a(&fespace);
    LinearForm b(&fespace);
@@ -446,7 +446,7 @@ real_t bdr_func(const Vector &pt, real_t t)
    return composite_func(pt, t, front, ball);
 }
 
-// Laplace of the exact solution, used for the right hand side.
+// Laplacian of the exact solution, used for the right hand side.
 real_t rhs_func(const Vector &pt, real_t t)
 {
    return composite_func(pt, t, front_laplace, ball_laplace);

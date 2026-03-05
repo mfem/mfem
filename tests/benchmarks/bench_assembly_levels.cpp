@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -55,7 +55,7 @@ struct BakeOff
       mesh(Mesh::MakeCartesian3D(N,N,N,Element::HEXAHEDRON)),
       fec(p, dim, BasisType::GaussLobatto),
       fes(&mesh, &fec, vdim),
-      geom_type(fes.GetFE(0)->GetGeomType()),
+      geom_type(mesh.GetTypicalElementGeometry()),
       IntRulesGLL(0, Quadrature1D::GaussLobatto),
       irGLL(&IntRulesGLL.Get(geom_type, q)),
       ir(&IntRules.Get(geom_type, q)),
@@ -260,7 +260,7 @@ struct Kernel: public BakeOff
    GridFunction y;
 
    Kernel(AssemblyLevel assembly, int order, int N)
-   : BakeOff(assembly,order,N,VDIM,GLL), y(&fes)
+      : BakeOff(assembly,order,N,VDIM,GLL), y(&fes)
    {
       if (is_runnable())
       {
@@ -376,10 +376,11 @@ int main(int argc, char *argv[])
 
    // Device setup, cpu by default
    std::string device_config = "cpu";
-   if (bmi::global_context != nullptr)
+   auto global_context = bmi::GetGlobalContext();
+   if (global_context != nullptr)
    {
-      const auto device = bmi::global_context->find("device");
-      if (device != bmi::global_context->end())
+      const auto device = global_context->find("device");
+      if (device != global_context->end())
       {
          mfem::out << device->first << " : " << device->second << std::endl;
          device_config = device->second;

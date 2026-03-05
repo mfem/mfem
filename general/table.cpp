@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -25,30 +25,6 @@ namespace mfem
 
 using namespace std;
 
-Table::Table(const Table &table)
-{
-   size = table.size;
-   if (size >= 0)
-   {
-      if (!table.UsingBigI())
-      {
-         const int nnz = table.I[size];
-         I.New(size+1, table.I.GetMemoryType());
-         J.New(nnz, table.J.GetMemoryType());
-         I.CopyFrom(table.I, size+1);
-         J.CopyFrom(table.J, nnz);
-      }
-      else
-      {
-         const bigint nnz = table.bigI[size];
-         bigI.New(size+1, table.bigI.GetMemoryType());
-         J.New(nnz, table.J.GetMemoryType());
-         bigI.CopyFrom(table.bigI, size+1);
-         J.CopyFrom(table.J, nnz);
-      }
-   }
-}
-
 Table::Table(const Table &table1,
              const Table &table2, int offset)
 {
@@ -59,8 +35,8 @@ Table::Table(const Table &table1,
    size = table1.size;
 
    const int nnz = table1.I[size] + table2.I[size];
-   I.New(size+1, table1.I.GetMemoryType());
-   J.New(nnz, table1.J.GetMemoryType());
+   I.SetSize(size+1);
+   J.SetSize(nnz);
 
    I[0] = 0;
    Array<int> row;
@@ -97,8 +73,8 @@ Table::Table(const Table &table1,
    size = table1.size;
 
    const int nnz = table1.I[size] + table2.I[size] + table3.I[size];
-   I.New(size+1, table1.I.GetMemoryType());
-   J.New(nnz, table1.J.GetMemoryType());
+   I.SetSize(size+1);
+   J.SetSize(nnz);
 
    I[0] = 0;
    Array<int> row;
@@ -126,16 +102,6 @@ Table::Table(const Table &table1,
    }
 }
 
-Table& Table::operator=(const Table &rhs)
-{
-   Clear();
-
-   Table copy(rhs);
-   Swap(copy);
-
-   return *this;
-}
-
 Table::Table (int dim, int connections_per_row)
 {
    bigint sum = bigint(dim) * connections_per_row;
@@ -143,8 +109,8 @@ Table::Table (int dim, int connections_per_row)
    size = dim;
    if (int(sum) == sum)
    {
-      I.New(size+1);
-      J.New(sum);
+      I.SetSize(size+1);
+      J.SetSize(sum);
       I[0] = 0;
       for (int i = 1; i <= size; i++)
       {
@@ -154,8 +120,8 @@ Table::Table (int dim, int connections_per_row)
    }
    else
    {
-      bigI.New(size+1);
-      J.New(sum);
+      bigI.SetSize(size+1);
+      J.SetSize(sum);
       bigI[0] = 0;
       for (int i = 1; i <= size; i++)
       {
@@ -165,12 +131,12 @@ Table::Table (int dim, int connections_per_row)
    }
 }
 
-Table::Table (int nrows, int *partitioning)
+Table::Table(int nrows, int *partitioning)
 {
    size = nrows;
 
-   I.New(size+1);
-   J.New(size);
+   I.SetSize(size+1);
+   J.SetSize(size);
 
    for (int i = 0; i < size; i++)
    {
@@ -180,9 +146,9 @@ Table::Table (int nrows, int *partitioning)
    I[size] = size;
 }
 
-void Table::MakeI (int nrows)
+void Table::MakeI(int nrows)
 {
-   SetDims (nrows, 0);
+   SetDims(nrows, 0);
 
    for (int i = 0; i <= nrows; i++)
    {
@@ -193,8 +159,6 @@ void Table::MakeI (int nrows)
 void Table::MakeJ()
 {
    bigint nnz;
-
-   J.Delete();
 
    if (!UsingBigI())
    {
@@ -208,8 +172,7 @@ void Table::MakeJ()
          nnz += row_size;
          if (nnz_int != nnz) // check for overflow
          {
-            // bigI is empty, so no need to delete it before New
-            bigI.New(size+1);
+            bigI.SetSize(size+1);
             for (int j = 0; j <= i; j++) { bigI[j] = I[j]; }
             for (i++ ; i < size; i++)
             {
@@ -217,7 +180,7 @@ void Table::MakeJ()
                nnz += I[i];
             }
             bigI[size] = nnz;
-            I.Delete(); // calls Reset too
+            I.DeleteAll();
             goto I_is_updated;
          }
       }
@@ -237,10 +200,10 @@ void Table::MakeJ()
       bigI[size] = nnz;
    }
 
-   J.New(nnz);
+   J.SetSize(nnz);
 }
 
-void Table::AddConnections (int r, const int *c, int nc)
+void Table::AddConnections(int r, const int *c, int nc)
 {
    int *jp = GetRow(r);
 
@@ -303,23 +266,25 @@ void Table::SetSize(int dim, int connections_per_row)
 
 void Table::SetDims(int rows, bigint nnz)
 {
-   bigint nnz_old = I ? I[size] : (bigI ? bigI[size] : 0);
-
-   if (size != rows)
+   const bool new_use_big_i = (bigint(int(nnz)) != nnz);
+   if (size != rows || new_use_big_i != UsingBigI())
    {
       size = rows;
-      UsingBigI() ? bigI.Delete() : I.Delete(); // delete calls reset too
-      if (rows >= 0)
+      if (new_use_big_i != UsingBigI())
       {
-         (int(nnz) == nnz) ? I.New(rows+1) : bigI.New(rows+1);
+         UsingBigI() ? bigI.DeleteAll() : I.DeleteAll();
+      }
+      if (size >= 0)
+      {
+         new_use_big_i ? bigI.SetSize(size+1) : I.SetSize(size+1);
+      }
+      else
+      {
+         new_use_big_i ? bigI.DeleteAll() : I.DeleteAll();
       }
    }
 
-   if (nnz_old != nnz)
-   {
-      J.Delete(); // delete calls reset too
-      if (nnz > 0) { J.New(nnz); }
-   }
+   (nnz > 0) ? J.SetSize(nnz) : J.DeleteAll();
 
    if (size >= 0)
    {
@@ -336,7 +301,7 @@ void Table::SetDims(int rows, bigint nnz)
    }
 }
 
-int Table::operator() (int i, int j) const
+int Table::operator()(int i, int j) const
 {
    MFEM_VERIFY(!UsingBigI(), "");
 
@@ -379,28 +344,27 @@ void Table::SortRows()
    {
       for (int r = 0; r < size; r++)
       {
-         std::sort(J + I[r], J + I[r+1]);
+         std::sort(J.GetData()+I[r], J.GetData()+I[r+1]);
       }
    }
    else
    {
       for (int r = 0; r < size; r++)
       {
-         std::sort(J + bigI[r], J + bigI[r+1]);
+         std::sort(J.GetData()+bigI[r], J.GetData()+bigI[r+1]);
       }
    }
 }
 
 void Table::SetIJ(int *newI, int *newJ, int newsize)
 {
-   UsingBigI() ? bigI.Delete() : I.Delete();
-   J.Delete();
+   if (UsingBigI()) { bigI.DeleteAll(); }
    if (newsize >= 0)
    {
       size = newsize;
    }
-   I.Wrap(newI, size+1, true);
-   J.Wrap(newJ, I[size], true);
+   I.MakeRef(newI, size + 1, true);
+   J.MakeRef(newJ, I[size], true);
 }
 
 int Table::Push(int i, int j)
@@ -445,7 +409,7 @@ void Table::Finalize()
 
    if (sum != I[size])
    {
-      int *NewJ = Memory<int>(sum);
+      Array<int> NewJ(sum);
 
       for (i=0; i<size; i++)
       {
@@ -460,9 +424,7 @@ void Table::Finalize()
       }
       I[size] = sum;
 
-      J.Delete();
-
-      J.Wrap(NewJ, sum, true);
+      mfem::Swap(J, NewJ);
 
       MFEM_ASSERT(sum == n, "sum = " << sum << ", n = " << n);
    }
@@ -473,14 +435,16 @@ void Table::MakeFromList(int nrows, const Array<Connection> &list)
    Clear();
 
    size = nrows;
-   int nnz = list.Size();
+   const bigint nnz = list.Size();
+   const bool use_big_i = (bigint(int(nnz)) != nnz);
 
-   I.New(size+1);
-   J.New(nnz);
+   use_big_i ? bigI.SetSize(size+1) : I.SetSize(size+1);
+   J.SetSize(nnz);
 
-   for (int i = 0, k = 0; i <= size; i++)
+   bigint k = 0;
+   for (int i = 0; i <= size; i++)
    {
-      I[i] = k;
+      use_big_i ? bigI[i] = k : I[i] = int(k);
       while (k < nnz && list[k].from == i)
       {
          J[k] = list[k].to;
@@ -491,24 +455,7 @@ void Table::MakeFromList(int nrows, const Array<Connection> &list)
 
 int Table::Width() const
 {
-   int width = -1;
-   if (!UsingBigI())
-   {
-      int nnz = (size >= 0) ? I[size] : 0;
-      for (int k = 0; k < nnz; k++)
-      {
-         if (J[k] > width) { width = J[k]; }
-      }
-   }
-   else
-   {
-      bigint nnz = (size >= 0) ? bigI[size] : 0;
-      for (bigint k = 0; k < nnz; k++)
-      {
-         if (J[k] > width) { width = J[k]; }
-      }
-   }
-   return width + 1;
+   return (J.Size() > 0) ? J.Max() + 1 : 0;
 }
 
 void Table::Print(std::ostream & os, int width) const
@@ -556,46 +503,32 @@ void Table::Save(std::ostream &os) const
 
    if (!UsingBigI())
    {
-      for (int i = 0; i <= size; i++)
-      {
-         os << I[i] << '\n';
-      }
-      for (int i = 0, nnz = I[size]; i < nnz; i++)
-      {
-         os << J[i] << '\n';
-      }
+      I.Save(os, 1);
    }
    else
    {
-      for (int i = 0; i <= size; i++)
-      {
-         os << bigI[i] << '\n';
-      }
-      const bigint nnz = bigI[size];
-      for (bigint i = 0; i < nnz; i++)
-      {
-         os << J[i] << '\n';
-      }
+      bigI.Save(os, 1);
    }
+   J.Save(os, 1);
 }
 
 void Table::Load(std::istream &in)
 {
-   UsingBigI() ? bigI.Delete() : I.Delete();
-   J.Delete();
+   Clear();
 
    in >> size;
-   I.New(size+1);
+   I.SetSize(size+1);
    for (int i = 0; i <= size; i++)
    {
       bigint big_offset;
       in >> big_offset;
       const int offset = int(big_offset);
-      if (offset != big_offset)
+      if (bigint(offset) != big_offset)
       {
-         bigI.New(size+1);
+         // switch to using bigI instead of I
+         bigI.SetSize(size+1);
          for (int j = 0; j < i; j++) { bigI[j] = I[j]; }
-         I.Delete(); // calls reset too
+         I.DeleteAll();
          bigI[i] = big_offset;
          for (i++; i <= size; i++)
          {
@@ -605,19 +538,15 @@ void Table::Load(std::istream &in)
       }
       I[i] = offset;
    }
-   bigint nnz = UsingBigI() ? bigI[size] : I[size];
-   J.New(nnz);
-   for (bigint j = 0; j < nnz; j++)
-   {
-      in >> J[j];
-   }
+   J.SetSize(UsingBigI() ? bigI[size] : I[size]);
+   J.Load(in, 1);
 }
 
 void Table::Clear()
 {
-   UsingBigI() ? bigI.Delete() : I.Delete();
-   J.Delete();
-   // Note: Memory::Delete calls Reset.
+   I.DeleteAll();
+   bigI.DeleteAll();
+   J.DeleteAll();
    size = -1;
 }
 
@@ -628,27 +557,17 @@ void Table::Copy(Table & copy) const
 
 void Table::Swap(Table & other)
 {
-   mfem::Swap(size, other.size);
-   mfem::Swap(bigI, other.bigI);
-   mfem::Swap(I, other.I);
-   mfem::Swap(J, other.J);
+   mfem::Swap(*this, other);
 }
 
 std::size_t Table::MemoryUsage() const
 {
-   if (size < 0 || (I.Empty() && bigI.Empty())) { return 0; }
+   if (size < 0 || (I.IsEmpty() && bigI.IsEmpty())) { return 0; }
    if (!UsingBigI())
    {
-      return I.Capacity()*sizeof(I[0]) + J.Capacity()*sizeof(J[0]);
+      return I.MemoryUsage() + J.MemoryUsage();
    }
-   return bigI.Capacity()*sizeof(bigI[0]) + J.Capacity()*sizeof(J[0]);
-}
-
-Table::~Table ()
-{
-   J.Delete();
-   I.Delete();
-   bigI.Delete();
+   return bigI.MemoryUsage() + J.MemoryUsage();
 }
 
 template <typename TI, typename TJ>
@@ -682,7 +601,7 @@ void TransposeImpl(const TI *i_A, const TJ *j_A, const TJ nrows_A,
    i_At[0] = 0;
 }
 
-void Transpose (const Table &A, Table &At, int ncols_A_)
+void Transpose(const Table &A, Table &At, int ncols_A_)
 {
    const int *j_A     = A.HostReadJ();
    const int  nrows_A = A.Size();
@@ -690,8 +609,8 @@ void Transpose (const Table &A, Table &At, int ncols_A_)
 
    if (!A.UsingBigI())
    {
-      const int *i_A     = A.HostReadI();
-      const int  nnz_A   = i_A[nrows_A];
+      const int *i_A   = A.HostReadI();
+      const int  nnz_A = i_A[nrows_A];
 
       At.SetDims(ncols_A, nnz_A);
 
@@ -702,8 +621,8 @@ void Transpose (const Table &A, Table &At, int ncols_A_)
    }
    else
    {
-      const bigint *i_A     = A.HostReadBigI();
-      const bigint  nnz_A   = i_A[nrows_A];
+      const bigint *i_A   = A.HostReadBigI();
+      const bigint  nnz_A = i_A[nrows_A];
 
       At.SetDims(ncols_A, nnz_A);
 
@@ -736,7 +655,7 @@ void Transpose(const Array<int> &A, Table &At, int ncols_A_)
    At.ShiftUpI();
 }
 
-void Mult (const Table &A, const Table &B, Table &C)
+void Mult(const Table &A, const Table &B, Table &C)
 {
    MFEM_VERIFY(!A.UsingBigI() && !B.UsingBigI(), "");
 
@@ -809,18 +728,18 @@ void Mult (const Table &A, const Table &B, Table &C)
 }
 
 
-Table * Mult (const Table &A, const Table &B)
+Table * Mult(const Table &A, const Table &B)
 {
    Table * C = new Table;
    Mult(A,B,*C);
    return C;
 }
 
-STable::STable (int dim, int connections_per_row) :
+STable::STable(int dim, int connections_per_row) :
    Table(dim, connections_per_row)
 {}
 
-int STable::operator() (int i, int j) const
+int STable::operator()(int i, int j) const
 {
    if (i < j)
    {

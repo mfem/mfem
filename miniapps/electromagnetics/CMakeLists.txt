@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -34,6 +34,13 @@ if (MFEM_USE_MPI)
    EXTRA_HEADERS maxwell_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
    LIBRARIES mfem-common)
 
+ if (MFEM_USE_GSLIB)
+  add_mfem_miniapp(lorentz
+    MAIN lorentz.cpp
+    EXTRA_HEADERS ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem-common)
+endif()
+  
   # Add the corresponding tests to the "test" target
   if (MFEM_ENABLE_TESTING)
     add_test(NAME tesla_np=4

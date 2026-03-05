@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -28,11 +28,12 @@
 namespace mfem
 {
 
-template <class T>
-class Array;
+/** @brief Swap objects of type T. The operation is performed using the most
+    specialized `swap` function from the `mfem` namespace (or other visible
+    `swap` functions), or using the `std::swap` generic template and its
+    specializations in the standard library. */
+template <class T> inline void Swap(T &a, T &b);
 
-template <class T>
-void Swap(Array<T> &, Array<T> &);
 
 /**
    Abstract data type Array.
@@ -49,28 +50,30 @@ protected:
    /// Pointer to data
    Memory<T> data;
    /// Size of the array
-   int size;
+   bigint size;
 
-   inline void GrowSize(int minsize);
+   inline void GrowSize(bigint minsize);
 
    static_assert(std::is_trivial<T>::value, "type T must be trivial");
 
 public:
-   friend void Swap<T>(Array<T> &, Array<T> &);
+   using value_type = T; ///< Type alias for stl.
+   using reference = T&; ///< Type alias for stl.
+   using const_reference = const T&; ///< Type alias for stl.
 
    /// Creates an empty array
-   inline Array() : size(0) { data.Reset(); }
+   inline Array() : size(0) { }
 
    /// Creates an empty array with a given MemoryType
-   inline Array(MemoryType mt) : size(0) { data.Reset(mt); }
+   inline Array(MemoryType mt) : data(mt), size(0) { }
 
    /// Creates array of @a asize elements
-   explicit inline Array(int asize)
-      : size(asize) { asize > 0 ? data.New(asize) : data.Reset(); }
+   explicit inline Array(bigint asize)
+      : size(asize) { if (asize > 0) { data.New(asize); } }
 
    /// Creates array of @a asize elements with a given MemoryType
-   inline Array(int asize, MemoryType mt)
-      : size(asize) { asize > 0 ? data.New(asize, mt) : data.Reset(mt); }
+   inline Array(bigint asize, MemoryType mt)
+      : data(mt), size(asize) { if (asize > 0) { data.New(asize, mt); } }
 
    /** @brief Creates array using an externally allocated host pointer @a data_
        to @a asize elements. If @a own_data is true, the array takes ownership
@@ -78,7 +81,7 @@ public:
 
        When @a own_data is true, the pointer @a data_ must be allocated with
        MemoryType given by MemoryManager::GetHostMemoryType(). */
-   inline Array(T *data_, int asize, bool own_data = false)
+   inline Array(T *data_, bigint asize, bool own_data = false)
    { data.Wrap(data_, asize, own_data); size = asize; }
 
    /// Copy constructor: deep copy from @a src
@@ -90,7 +93,7 @@ public:
    inline Array(const Array<CT> &src);
 
    /// Construct an Array from a C-style array of static length
-   template <typename CT, int N>
+   template <typename CT, bigint N>
    explicit inline Array(const CT (&values)[N]);
 
    /// Construct an Array from a braced initializer list of convertible type
@@ -99,17 +102,45 @@ public:
    explicit inline Array(std::initializer_list<CT> values);
 
    /// Move constructor ("steals" data from 'src')
-   inline Array(Array<T> &&src) { Swap(src, *this); }
+   Array(Array<T> &&src) : data(std::move(src.data)), size(src.size)
+   {
+      src.size = 0;
+   }
 
    /// Destructor
    inline ~Array() { data.Delete(); }
 
-   /// Assignment operator: deep copy from 'src'.
+   /// Copy assignment operator: deep copy from 'src'.
    Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }
+
+   /// Move assignment operator
+   /** If *this is a non-owning view (e.g., from MakeRef()), the data is copied
+       so that the base is also modified. */
+   Array<T> &operator=(Array<T> &&src)
+   {
+      if (this == &src) { return *this; }
+      // If *this is a non-owning view (alias), and its capacity is sufficient
+      // to contain src, then copy into *this so that the alias's base memory is
+      // modified.
+      if (!OwnsData() && Capacity() >= src.Size())
+      {
+         *this = src; // Copy assignment.
+      }
+      else
+      {
+         Swap(src); // Swap the pointers only.
+      }
+      src.DeleteAll();
+      return *this;
+   }
 
    /// Assignment operator (deep copy) from @a src, an Array of convertible type.
    template <typename CT>
    inline Array &operator=(const Array<CT> &src);
+
+   /// Swap the contents of the Array with @a other.
+   /** Implemented without using move assignment, avoiding DeleteAll() calls. */
+   inline void Swap(Array &other);
 
    /// Return the data as 'T *'
    inline operator T *() { return data; }
@@ -144,44 +175,47 @@ public:
    void MakeDataOwner() const { data.SetHostPtrOwner(true); }
 
    /// Return the logical size of the array.
-   inline int Size() const { return size; }
+   inline bigint Size() const { return size; }
 
    /// Change the logical size of the array, keep existing entries.
-   inline void SetSize(int nsize);
+   inline void SetSize(bigint nsize);
 
-   /// Same as SetSize(int) plus initialize new entries with 'initval'.
-   inline void SetSize(int nsize, const T &initval);
+   /// Same as SetSize(bigint) plus initialize new entries with 'initval'.
+   inline void SetSize(bigint nsize, const T &initval);
 
    /** @brief Resize the array to size @a nsize using MemoryType @a mt. Note
        that unlike the other versions of SetSize(), the current content of the
        array is not preserved. */
-   inline void SetSize(int nsize, MemoryType mt);
+   inline void SetSize(bigint nsize, MemoryType mt);
 
    /** Maximum number of entries the array can store without allocating more
        memory. */
-   inline int Capacity() const { return data.Capacity(); }
+   inline bigint Capacity() const { return data.Capacity(); }
 
    /// Ensures that the allocated size is at least the given size.
-   inline void Reserve(int capacity)
+   inline void Reserve(bigint capacity)
    { if (capacity > Capacity()) { GrowSize(capacity); } }
 
    /// Reference access to the ith element.
-   inline T & operator[](int i);
+   inline T & operator[](bigint i);
 
    /// Const reference access to the ith element.
-   inline const T &operator[](int i) const;
+   inline const T &operator[](bigint i) const;
 
    /// Append element 'el' to array, resize if necessary.
-   inline int Append(const T & el);
+   inline bigint Append(const T & el);
+
+   /// STL-like push_back. Append element 'el' to array, resize if necessary.
+   void push_back(const T &el) { Append(el); }
 
    /// Append another array to this array, resize if necessary.
-   inline int Append(const T *els, int nels);
+   inline bigint Append(const T *els, bigint nels);
 
    /// Append another array to this array, resize if necessary.
-   inline int Append(const Array<T> &els) { return Append(els, els.Size()); }
+   inline bigint Append(const Array<T> &els) { return Append(els, els.Size()); }
 
    /// Prepend an 'el' to the array, resize if necessary.
-   inline int Prepend(const T &el);
+   inline bigint Prepend(const T &el);
 
    /// Return the last element in the array.
    inline T &Last();
@@ -190,13 +224,13 @@ public:
    inline const T &Last() const;
 
    /// Append element when it is not yet in the array, return index.
-   inline int Union(const T & el);
+   inline bigint Union(const T & el);
 
    /// Return the first index where 'el' is found; return -1 if not found.
-   inline int Find(const T &el) const;
+   inline bigint Find(const T &el) const;
 
    /// Do bisection search for 'el' in a sorted array; return -1 if not found.
-   inline int FindSorted(const T &el) const;
+   inline bigint FindSorted(const T &el) const;
 
    /// Delete the last entry of the array.
    inline void DeleteLast() { if (size > 0) { size--; } }
@@ -204,27 +238,42 @@ public:
    /// Delete the first entry with value == 'el'.
    inline void DeleteFirst(const T &el);
 
+   /// Delete entries at @a indices, and resize.
+   inline void DeleteAt(const Array<int> &indices);
+
    /// Delete the whole array.
    inline void DeleteAll();
 
    /// Reduces the capacity of the array to exactly match the current size.
    inline void ShrinkToFit();
 
-   ///  Create a copy of the internal array to the provided @a copy.
+   /// Create a copy of the internal array to the provided @a copy.
    inline void Copy(Array &copy) const;
 
    /// Make this Array a reference to a pointer.
    /** When @a own_data is true, the pointer @a data_ must be allocated with
        MemoryType given by MemoryManager::GetHostMemoryType(). */
-   inline void MakeRef(T *data_, int size_, bool own_data = false);
+   inline void MakeRef(T *data_, bigint size_, bool own_data = false);
 
    /// Make this Array a reference to a pointer.
    /** When @a own_data is true, the pointer @a data_ must be allocated with
        MemoryType given by @a mt. */
-   inline void MakeRef(T *data_, int size, MemoryType mt, bool own_data);
+   inline void MakeRef(T *data_, bigint size, MemoryType mt, bool own_data);
 
    /// Make this Array a reference to 'master'.
    inline void MakeRef(const Array &master);
+
+   /// Make this Array a reference to the given sub-Memory of @a base.
+   inline void MakeRef(Memory<T> &base, bigint offset, bigint size_);
+
+   /// Reset the Array to use the given external Memory @a mem and size @a s.
+   /** If @a own_mem is false, the Array will not own any of the pointers of
+       @a mem.
+
+       Note that when @a own_mem is true, the @a mem object can be destroyed
+       immediately by the caller but `mem.Delete()` should NOT be called since
+       the Array object takes ownership of all pointers owned by @a mem. */
+   inline void NewMemoryAndSize(const Memory<T> &mem, bigint s, bool own_mem);
 
    /**
     * @brief Permute the array using the provided indices. Sorts the indices
@@ -240,7 +289,7 @@ public:
    inline void Permute(const I &indices) { Permute(I(indices)); }
 
    /// Copy sub array starting from @a offset out to the provided @a sa.
-   inline void GetSubArray(int offset, int sa_size, Array<T> &sa) const;
+   inline void GetSubArray(bigint offset, bigint sa_size, Array<T> &sa) const;
 
    /// Prints array to stream with width elements per row.
    void Print(std::ostream &out = mfem::out, int width = 4) const;
@@ -263,7 +312,7 @@ public:
 
    /** @brief Set the Array size to @a new_size and read that many entries from
        the stream @a in. */
-   void Load(int new_size, std::istream &in)
+   void Load(bigint new_size, std::istream &in)
    { SetSize(new_size); Load(in, 1); }
 
    /** @brief Find the maximal element in the array, using the comparison
@@ -286,7 +335,7 @@ public:
    void Unique()
    {
       T* end = std::unique((T*)data, data + size);
-      SetSize((int)(end - data));
+      SetSize((bigint)(end - data));
    }
 
    /// Return 1 if the array is sorted from lowest to highest.  Otherwise return 0.
@@ -295,8 +344,14 @@ public:
    /// Does the Array have Size zero.
    bool IsEmpty() const { return Size() == 0; }
 
+   /// Return true if all entries of the array are the same.
+   bool IsConstant() const;
+
    /// Fill the entries of the array with the cumulative sum of the entries.
    void PartialSum();
+
+   /// Replace each entry of the array with its absolute value.
+   void Abs();
 
    /// Return the sum of all the array entries using the '+'' operator for class 'T'.
    T Sum() const;
@@ -316,7 +371,11 @@ public:
        the Size to match this Capacity after this.*/
    template <typename U>
    inline void CopyFrom(const U *src)
-   { std::memcpy(begin(), src, MemoryUsage()); }
+   {
+      if (!begin() || size == 0) { return; }
+      MFEM_ASSERT(begin() && src, "Error in Array::CopyFrom");
+      std::memcpy(begin(), src, MemoryUsage());
+   }
 
    /// STL-like begin.  Returns pointer to the first element of the array.
    inline T* begin() { return data; }
@@ -362,7 +421,7 @@ template <class T>
 inline bool operator==(const Array<T> &LHS, const Array<T> &RHS)
 {
    if ( LHS.Size() != RHS.Size() ) { return false; }
-   for (int i=0; i<LHS.Size(); i++)
+   for (bigint i=0; i<LHS.Size(); i++)
    {
       if ( LHS[i] != RHS[i] ) { return false; }
    }
@@ -380,29 +439,25 @@ inline bool operator!=(const Array<T> &LHS, const Array<T> &RHS)
 template <typename T> const T &AsConst(const T &a) { return a; }
 
 
-template <class T>
-class Array2D;
-
-template <class T>
-void Swap(Array2D<T> &, Array2D<T> &);
-
 /// Dynamic 2D array using row-major layout
 template <class T>
 class Array2D
 {
 private:
-   friend void Swap<T>(Array2D<T> &, Array2D<T> &);
-
    Array<T> array1d;
    int M, N; // number of rows and columns
 
 public:
    Array2D() { M = N = 0; }
-   Array2D(int m, int n) : array1d(m*n) { M = m; N = n; }
+
+   /// Construct an m x n 2D array.
+   Array2D(int m, int n) : array1d(bigint(m)*n) { M = m; N = n; }
 
    Array2D(const Array2D &) = default;
+   Array2D(Array2D &&) = default;
 
-   void SetSize(int m, int n) { array1d.SetSize(m*n); M = m; N = n; }
+   /// Set the 2D array size to m x n.
+   void SetSize(int m, int n) { array1d.SetSize(bigint(m)*n); M = m; N = n; }
 
    int NumRows() const { return M; }
    int NumCols() const { return N; }
@@ -427,10 +482,10 @@ public:
    }
 
    /** @brief Save the Array2D to the stream @a out using the format @a fmt.
-       The format @a fmt can be:
 
-          0 - write the number of rows and columns, followed by all entries
-          1 - write only the entries, using row-major layout
+       The format @a fmt can be:
+       - 0 - write the number of rows and columns, followed by all entries
+       - 1 - write only the entries, using row-major layout
    */
    void Save(std::ostream &os, int fmt = 0) const
    {
@@ -439,10 +494,10 @@ public:
    }
 
    /** @brief Read an Array2D from the stream @a in using format @a fmt.
-       The format @a fmt can be:
 
-          0 - read the number of rows and columns, then the entries
-          1 - read NumRows() x NumCols() entries, using row-major layout
+       The format @a fmt can be:
+       - 0 - read the number of rows and columns, then the entries
+       - 1 - read NumRows() x NumCols() entries, using row-major layout
    */
    void Load(std::istream &in, int fmt = 0)
    {
@@ -458,15 +513,24 @@ public:
    void Load(int new_size0,int new_size1, std::istream &in)
    { SetSize(new_size0,new_size1); Load(in, 1); }
 
-   void Copy(Array2D &copy) const
-   { copy.M = M; copy.N = N; array1d.Copy(copy.array1d); }
+   void Copy(Array2D &copy) const { copy = *this; }
 
+   /// Set all entries of the array to the provided constant.
    inline void operator=(const T &a)
    { array1d = a; }
 
-   inline Array2D& operator=(const Array2D &a) = default;
+   /// Copy assignment.
+   Array2D& operator=(const Array2D &) = default;
 
-   /// Make this Array a reference to 'master'
+   /// Move assignment.
+   Array2D& operator=(Array2D &&) = default;
+
+   /// Swap the contents of the Array2D with @a other.
+   /** Implemented without using move assignment, avoiding some unnecessary
+       calls. */
+   inline void Swap(Array2D &other);
+
+   /// Make this Array2D a reference to 'master'
    inline void MakeRef(const Array2D &master)
    { M = master.M; N = master.N; array1d.MakeRef(master.array1d); }
 
@@ -475,6 +539,14 @@ public:
 
    /// Prints array to stream with width elements per row
    void Print(std::ostream &out = mfem::out, int width = 4);
+
+   /** @brief Find the maximal element in the array, using the comparison
+        operator `<` for class T. */
+   T Max() const { return array1d.Max(); }
+
+   /** @brief Find the minimal element in the array, using the comparison
+       operator `<` for class T. */
+   T Min() const { return array1d.Min(); }
 };
 
 
@@ -487,15 +559,32 @@ private:
 
 public:
    Array3D() { N2 = N3 = 0; }
-   Array3D(int n1, int n2, int n3)
-      : array1d(n1*n2*n3) { N2 = n2; N3 = n3; }
 
+   /// Construct a 3D array of size n1 x n2 x n3.
+   Array3D(int n1, int n2, int n3)
+      : array1d(bigint(n1)*n2*n3) { N2 = n2; N3 = n3; }
+
+   /// Set the 3D array size to n1 x n2 x n3.
    void SetSize(int n1, int n2, int n3)
-   { array1d.SetSize(n1*n2*n3); N2 = n2; N3 = n3; }
+   { array1d.SetSize(bigint(n1)*n2*n3); N2 = n2; N3 = n3; }
+
+   /// Get the 3D array size in the first dimension.
+   int GetSize1() const
+   {
+      const bigint size = array1d.Size();
+      return size == 0 ? 0 : size / (N2 * N3);
+   }
+
+   /// Get the 3D array size in the second dimension.
+   int GetSize2() const { return N2; }
+
+   /// Get the 3D array size in the third dimension.
+   int GetSize3() const { return N3; }
 
    inline const T &operator()(int i, int j, int k) const;
    inline       T &operator()(int i, int j, int k);
 
+   /// Set all entries of the array to the provided constant.
    inline void operator=(const T &a)
    { array1d = a; }
 };
@@ -658,21 +747,22 @@ protected:
 };
 
 
-/// inlines ///
+// Inlines
 
-template <class T>
-inline void Swap(T &a, T &b)
+
+template <class T> inline void Swap(T &a, T &b)
 {
-   T c = a;
-   a = b;
-   b = c;
+   using std::swap;
+   swap(a, b);
 }
 
-template <class T>
-inline void Swap(Array<T> &a, Array<T> &b)
+/** @brief Swap of Array<T> objects for use with standard library algorithms.
+    Also, used by mfem::Swap(). */
+template <typename T>
+inline void swap(Array<T> &a, Array<T> &b)
 {
-   Swap(a.data, b.data);
-   Swap(a.size, b.size);
+   // swap without using move assignment
+   a.Swap(b);
 }
 
 template <class T>
@@ -689,7 +779,7 @@ inline Array<T>::Array(const Array<CT> &src)
    : size(src.Size())
 {
    size > 0 ? data.New(size) : data.Reset();
-   for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); }
+   for (bigint i = 0; i < size; i++) { (*this)[i] = T(src[i]); }
 }
 
 template <typename T>
@@ -700,14 +790,21 @@ inline Array<T>::Array(std::initializer_list<CT> values) : Array(values.size())
    std::copy(values.begin(), values.end(), begin());
 }
 
-template <typename T> template <typename CT, int N>
+template <typename T> template <typename CT, bigint N>
 inline Array<T>::Array(const CT (&values)[N]) : Array(N)
 {
    std::copy(values, values + N, begin());
 }
 
 template <class T>
-inline void Array<T>::GrowSize(int minsize)
+inline void Array<T>::Swap(Array &other)
+{
+   mfem::Swap(data, other.data);
+   std::swap(size, other.size);
+}
+
+template <class T>
+inline void Array<T>::GrowSize(bigint minsize)
 {
    const bigint nsize = std::max(bigint(minsize), 2 * data.Capacity());
    Memory<T> p(nsize, data.GetMemoryType());
@@ -732,7 +829,7 @@ template <typename T>
 template <typename I>
 inline void Array<T>::Permute(I &&indices)
 {
-   for (int i = 0; i < size; i++)
+   for (bigint i = 0; i < size; i++)
    {
       auto current = i;
       while (i != indices[current])
@@ -750,12 +847,12 @@ template <typename T> template <typename CT>
 inline Array<T> &Array<T>::operator=(const Array<CT> &src)
 {
    SetSize(src.Size());
-   for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); }
+   for (bigint i = 0; i < size; i++) { (*this)[i] = T(src[i]); }
    return *this;
 }
 
 template <class T>
-inline void Array<T>::SetSize(int nsize)
+inline void Array<T>::SetSize(bigint nsize)
 {
    MFEM_ASSERT( nsize>=0, "Size must be non-negative.  It is " << nsize );
    if (nsize > Capacity())
@@ -766,7 +863,7 @@ inline void Array<T>::SetSize(int nsize)
 }
 
 template <class T>
-inline void Array<T>::SetSize(int nsize, const T &initval)
+inline void Array<T>::SetSize(bigint nsize, const T &initval)
 {
    MFEM_ASSERT( nsize>=0, "Size must be non-negative.  It is " << nsize );
    if (nsize > size)
@@ -775,7 +872,7 @@ inline void Array<T>::SetSize(int nsize, const T &initval)
       {
          GrowSize(nsize);
       }
-      for (int i = size; i < nsize; i++)
+      for (bigint i = size; i < nsize; i++)
       {
          data[i] = initval;
       }
@@ -784,7 +881,7 @@ inline void Array<T>::SetSize(int nsize, const T &initval)
 }
 
 template <class T>
-inline void Array<T>::SetSize(int nsize, MemoryType mt)
+inline void Array<T>::SetSize(bigint nsize, MemoryType mt)
 {
    MFEM_ASSERT(nsize >= 0, "invalid new size: " << nsize);
    if (mt == data.GetMemoryType())
@@ -811,7 +908,7 @@ inline void Array<T>::SetSize(int nsize, MemoryType mt)
 }
 
 template <class T>
-inline T &Array<T>::operator[](int i)
+inline T &Array<T>::operator[](bigint i)
 {
    MFEM_ASSERT( i>=0 && i<size,
                 "Access element " << i << " of array, size = " << size );
@@ -819,7 +916,7 @@ inline T &Array<T>::operator[](int i)
 }
 
 template <class T>
-inline const T &Array<T>::operator[](int i) const
+inline const T &Array<T>::operator[](bigint i) const
 {
    MFEM_ASSERT( i>=0 && i<size,
                 "Access element " << i << " of array, size = " << size );
@@ -827,7 +924,7 @@ inline const T &Array<T>::operator[](int i) const
 }
 
 template <class T>
-inline int Array<T>::Append(const T &el)
+inline bigint Array<T>::Append(const T &el)
 {
    SetSize(size+1);
    data[size-1] = el;
@@ -835,12 +932,12 @@ inline int Array<T>::Append(const T &el)
 }
 
 template <class T>
-inline int Array<T>::Append(const T *els, int nels)
+inline bigint Array<T>::Append(const T *els, bigint nels)
 {
-   const int old_size = size;
+   const bigint old_size = size;
 
    SetSize(size + nels);
-   for (int i = 0; i < nels; i++)
+   for (bigint i = 0; i < nels; i++)
    {
       data[old_size+i] = els[i];
    }
@@ -848,10 +945,10 @@ inline int Array<T>::Append(const T *els, int nels)
 }
 
 template <class T>
-inline int Array<T>::Prepend(const T &el)
+inline bigint Array<T>::Prepend(const T &el)
 {
    SetSize(size+1);
-   for (int i = size-1; i > 0; i--)
+   for (bigint i = size-1; i > 0; i--)
    {
       data[i] = data[i-1];
    }
@@ -874,9 +971,9 @@ inline const T &Array<T>::Last() const
 }
 
 template <class T>
-inline int Array<T>::Union(const T &el)
+inline bigint Array<T>::Union(const T &el)
 {
-   int i = 0;
+   bigint i = 0;
    while ((i < size) && (data[i] != el)) { i++; }
    if (i == size)
    {
@@ -886,9 +983,9 @@ inline int Array<T>::Union(const T &el)
 }
 
 template <class T>
-inline int Array<T>::Find(const T &el) const
+inline bigint Array<T>::Find(const T &el) const
 {
-   for (int i = 0; i < size; i++)
+   for (bigint i = 0; i < size; i++)
    {
       if (data[i] == el) { return i; }
    }
@@ -896,18 +993,18 @@ inline int Array<T>::Find(const T &el) const
 }
 
 template <class T>
-inline int Array<T>::FindSorted(const T &el) const
+inline bigint Array<T>::FindSorted(const T &el) const
 {
    const T *begin = data, *end = begin + size;
    const T* first = std::lower_bound(begin, end, el);
    if (first == end || !(*first == el)) { return  -1; }
-   return (int)(first - begin);
+   return (bigint)(first - begin);
 }
 
 template <class T>
 inline void Array<T>::DeleteFirst(const T &el)
 {
-   for (int i = 0; i < size; i++)
+   for (bigint i = 0; i < size; i++)
    {
       if (data[i] == el)
       {
@@ -922,11 +1019,36 @@ inline void Array<T>::DeleteFirst(const T &el)
 }
 
 template <class T>
+inline void Array<T>::DeleteAt(const Array<int> &indices)
+{
+   HostReadWrite();
+
+   // Make a copy of the indices, sorted.
+   Array<int> sorted_indices(indices);
+   sorted_indices.Sort();
+
+   bigint rm_count = 0;
+   for (bigint i = 0; i < size; i++)
+   {
+      if (rm_count < sorted_indices.Size() && i == sorted_indices[rm_count])
+      {
+         rm_count++;
+      }
+      else
+      {
+         data[i-rm_count] = data[i]; // shift data rm_count
+      }
+   }
+
+   // Resize to remove tail
+   size -= rm_count;
+}
+
+template <class T>
 inline void Array<T>::DeleteAll()
 {
    const bool use_dev = data.UseDevice();
-   data.Delete();
-   data.Reset();
+   data.Delete();  // calls data.Reset(h_mt) as well
    size = 0;
    data.UseDevice(use_dev);
 }
@@ -934,13 +1056,16 @@ inline void Array<T>::DeleteAll()
 template <typename T>
 inline void Array<T>::Copy(Array &copy) const
 {
-   copy.SetSize(Size(), data.GetMemoryType());
-   data.CopyTo(copy.data, Size());
-   copy.data.UseDevice(data.UseDevice());
+   copy.SetSize(Size());
+   const bool use_dev = UseDevice() || copy.UseDevice();
+   copy.data.UseDevice(use_dev);
+   // keep 'copy.data' where it is, unless 'use_dev' is true
+   if (use_dev) { copy.Write(); }
+   copy.data.CopyFrom(data, Size());
 }
 
 template <class T>
-inline void Array<T>::MakeRef(T *data_, int size_, bool own_data)
+inline void Array<T>::MakeRef(T *data_, bigint size_, bool own_data)
 {
    data.Delete();
    data.Wrap(data_, size_, own_data);
@@ -948,7 +1073,8 @@ inline void Array<T>::MakeRef(T *data_, int size_, bool own_data)
 }
 
 template <class T>
-inline void Array<T>::MakeRef(T *data_, int size_, MemoryType mt, bool own_data)
+inline void Array<T>::MakeRef(T *data_, bigint size_, MemoryType mt,
+                              bool own_data)
 {
    data.Delete();
    data.Wrap(data_, size_, mt, own_data);
@@ -964,10 +1090,35 @@ inline void Array<T>::MakeRef(const Array &master)
 }
 
 template <class T>
-inline void Array<T>::GetSubArray(int offset, int sa_size, Array<T> &sa) const
+inline void Array<T>::MakeRef(Memory<T> &base, bigint offset, bigint size_)
+{
+   data.Delete();
+   size = size_;
+   data.MakeAlias(base, offset, size_);
+}
+
+template <class T>
+inline void Array<T>::NewMemoryAndSize(
+   const Memory<T> &mem, bigint s, bool own_mem)
+{
+   data.Delete();
+   size = s;
+   if (own_mem)
+   {
+      data = mem;
+   }
+   else
+   {
+      data.MakeAlias(mem, 0, s);
+   }
+}
+
+template <class T>
+inline void Array<T>::GetSubArray(bigint offset, bigint sa_size,
+                                  Array<T> &sa) const
 {
    sa.SetSize(sa_size);
-   for (int i = 0; i < sa_size; i++)
+   for (bigint i = 0; i < sa_size; i++)
    {
       sa[i] = (*this)[offset+i];
    }
@@ -976,7 +1127,7 @@ inline void Array<T>::GetSubArray(int offset, int sa_size, Array<T> &sa) const
 template <class T>
 inline void Array<T>::operator=(const T &a)
 {
-   for (int i = 0; i < size; i++)
+   for (bigint i = 0; i < size; i++)
    {
       data[i] = a;
    }
@@ -1027,12 +1178,20 @@ inline T *Array2D<T>::operator[](int i)
    return &array1d[i*N];
 }
 
-
 template <class T>
-inline void Swap(Array2D<T> &a, Array2D<T> &b)
+inline void Array2D<T>::Swap(Array2D<T> &other)
 {
-   Swap(a.array1d, b.array1d);
-   Swap(a.N, b.N);
+   mfem::Swap(array1d, other.array1d);
+   std::swap(M, other.M);
+   std::swap(N, other.N);
+}
+
+/** @brief Swap of Array2D<T> objects for use with standard library algorithms.
+    Also, used by mfem::Swap(). */
+template <typename T>
+inline void swap(Array2D<T> &a, Array2D<T> &b)
+{
+   a.Swap(b);
 }
 
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -13,6 +13,12 @@ set(GINKGO_EXAMPLES_SRCS)
 list(APPEND GINKGO_EXAMPLES_SRCS
   ex1.cpp
 )
+
+if (MFEM_USE_MPI AND GINKGO_BUILD_MPI)
+    list(APPEND GINKGO_EXAMPLES_SRCS
+    ex1p.cpp
+)
+endif()
 
 # Include the source directory where mfem.hpp and mfem-performance.hpp are.
 include_directories(BEFORE ${PROJECT_BINARY_DIR})

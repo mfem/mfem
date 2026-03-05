@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -57,7 +57,7 @@ public:
    };
 
 private:
-   /// All available backends. Unavailble backends will be nullptr.
+   /// All available backends. Unavailable backends will be nullptr.
    std::array<std::unique_ptr<class BatchedLinAlgBase>,
           Backend::NUM_BACKENDS> backends;
    Backend active_backend;
@@ -87,7 +87,7 @@ public:
    /// pivots are stored in @a P.
    ///
    /// $A$ is represented by the DenseTensor @a A with shape (n, n, n_mat). On
-   /// output, $P$ has shape (n, n_mat).
+   /// output, $P$ has shape (n, n_mat). Pivots always use 1-based indexing.
    static void LUFactor(DenseTensor &A, Array<int> &P);
    /// @brief Replaces $x$ with $A^{-1} x$, given the LU factors @a A and pivots
    /// @a P of the block-diagonal matrix $A$.
@@ -96,14 +96,13 @@ public:
    /// LUFactor(). $A$ has shape (n, n, n_mat) and $x$ has shape (n, n_rhs,
    /// n_mat).
    ///
-   /// @warning LUSolve() and LUFactor() should be called using the same backend
-   /// because of potential incompatibilities (e.g. 0-based or 1-based
-   /// indexing).
+   /// @warning P should use 1-based indexing. This is what LUFactor() generates
+   /// for all available backends.
    static void LUSolve(const DenseTensor &A, const Array<int> &P, Vector &x);
    /// @brief Returns true if the requested backend is available.
    ///
    /// The available backends depend on which third-party libraries MFEM is
-   /// compiled with, and whether the the CUDA/HIP device is enabled.
+   /// compiled with, and whether the CUDA/HIP device is enabled.
    static bool IsAvailable(Backend backend);
    /// Set the default backend for batched linear algebra operations.
    static void SetActiveBackend(Backend backend);

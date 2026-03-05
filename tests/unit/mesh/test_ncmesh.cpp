@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2730,11 +2730,13 @@ TEST_CASE("RP=I", "[NCMesh]")
       for (int i = 0; i < R->Height(); i++)
       {
          e_i = 0.0;
+         e_i.HostReadWrite();
          e_i(i) = 1.0;
          R->MultTranspose(e_i, Rrow);
          for (int j = 0; j < P->Width(); j++)
          {
             e_j = 0.0;
+            e_j.HostReadWrite();
             e_j(j) = 1.0;
             P->Mult(e_j, Pcol);
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -99,20 +99,27 @@ Array<int> & AttributeSets::GetAttributeSet(const std::string & set_name)
    return attr_sets[set_name];
 }
 
-Array<int> AttributeSets::GetAttributeSetMarker(const std::string & set_name)
+const Array<int> &
+AttributeSets::GetAttributeSet(const std::string & set_name) const
+{
+   return attr_sets[set_name];
+}
+
+Array<int>
+AttributeSets::GetAttributeSetMarker(const std::string & set_name) const
 {
    return AttrToMarker(attributes.Max(), GetAttributeSet(set_name));
 }
 
 Array<int> AttributeSets::AttrToMarker(int max_attr, const Array<int> &attrs)
 {
-   MFEM_ASSERT(attrs.Max() <= max_attr, "Invalid attribute number present.");
+   MFEM_VERIFY(attrs.Min() >= 1, "Found attribute less than one")
+   MFEM_ASSERT(attrs.Max() <= max_attr, "Found attribute greater than max_attr")
 
    Array<int> marker(max_attr);
    marker = 0;
    for (auto const &attr : attrs)
    {
-      MFEM_VERIFY(attr > 0, "Attribute number less than one!");
       marker[attr-1] = 1;
    }
    return marker;

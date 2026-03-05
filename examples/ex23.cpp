@@ -94,7 +94,7 @@ WaveOperator::WaveOperator(FiniteElementSpace &f,
    M->AddDomainIntegrator(new MassIntegrator());
    M->Assemble();
 
-   // Apply Bcs
+   // Apply BCs
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    K->FormSystemMatrix(ess_tdof_list, Kmat);
    M->FormSystemMatrix(ess_tdof_list, Mmat);

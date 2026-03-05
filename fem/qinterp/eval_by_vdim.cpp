@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -30,6 +30,7 @@ void InitEvalByVDimKernels()
    k::Specialization<2,QVectorLayout::byVDIM,2,2,4>::Opt<8>::Add();
    k::Specialization<2,QVectorLayout::byVDIM,2,3,4>::Opt<8>::Add();
    k::Specialization<2,QVectorLayout::byVDIM,2,3,6>::Opt<4>::Add();
+   k::Specialization<2,QVectorLayout::byVDIM,2,4,6>::Opt<2>::Add();
    k::Specialization<2,QVectorLayout::byVDIM,2,4,8>::Opt<2>::Add();
    // 3D
    k::Specialization<3,QVectorLayout::byVDIM,1,2,4>::Opt<1>::Add();
@@ -47,6 +48,9 @@ void InitEvalByVDimKernels()
    k::Specialization<3,QVectorLayout::byVDIM,3,7,7>::Opt<1>::Add();
    k::Specialization<3,QVectorLayout::byVDIM,3,8,8>::Opt<1>::Add();
    k::Specialization<3,QVectorLayout::byVDIM,3,9,9>::Opt<1>::Add();
+
+   k::Specialization<3,QVectorLayout::byVDIM,3,4,6>::Opt<1>::Add();
+   k::Specialization<3,QVectorLayout::byVDIM,3,3,4>::Opt<1>::Add();
 }
 
 } // namespace quadrature_interpolator

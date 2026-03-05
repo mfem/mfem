@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -42,7 +42,7 @@ TEST_CASE("ParGridFunction in Serial", "[ParGridFunction][Parallel]")
    const double l2_norm = px.ComputeL2Error(zero);
 
    // Get the ParMesh and ParGridFunction on 1 of the mpi ranks. Check the
-   // L2 error on that rank and save gridfunction.
+   // L2 error on that rank and save grid function.
    Mesh par_to_ser_mesh = pmesh.GetSerialMesh(save_rank);
    GridFunction x_par_to_ser = px.GetSerialGridFunction(
                                   save_rank, par_to_ser_mesh);
@@ -61,7 +61,7 @@ TEST_CASE("ParGridFunction in Serial", "[ParGridFunction][Parallel]")
       REQUIRE(x_par_to_ser_2.Normlinf() == MFEM_Approx(0.0));
    }
 
-   // Save the mesh and then load the saved mesh and gridfunction, and check
+   // Save the mesh and then load the saved mesh and grid function, and check
    // the L2 error on all ranks.
    px.SaveAsSerial("parallel_in_serial.gf", 16, save_rank);
 

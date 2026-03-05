@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -149,23 +149,28 @@ TEST_CASE("Gecko integration in MFEM", "[Mesh]")
 TEST_CASE("MakeSimplicial", "[Mesh]")
 {
    auto mesh_fname = GENERATE("../../data/star.mesh",
+                              "../../data/star-surf.mesh",
+                              "../../data/inline-tri.mesh",
                               "../../data/inline-quad.mesh",
                               "../../data/inline-hex.mesh",
+                              "../../data/inline-tet.mesh",
                               "../../data/inline-wedge.mesh",
                               "../../data/beam-wedge.mesh");
 
    Mesh orig_mesh(mesh_fname, 1, 1);
    Mesh simplex_mesh = Mesh::MakeSimplicial(orig_mesh);
 
-   Geometry::Type orig_geom = orig_mesh.GetElementBaseGeometry(0);
-   int factor;
-   switch (orig_geom)
+   Geometry::Type orig_geom = orig_mesh.GetTypicalElementGeometry();
+   const auto factor = [orig_geom]()
    {
-      case Geometry::SQUARE: factor = 2; break;
-      case Geometry::PRISM: factor = 3; break;
-      case Geometry::CUBE: factor = 6; break;
-      default: factor = 1;
-   }
+      switch (orig_geom)
+      {
+         default: return 1; // No-op
+         case Geometry::SQUARE: return 2;
+         case Geometry::PRISM: return 3;
+         case Geometry::CUBE: return 6;
+      }
+   }();
 
    int dim = orig_mesh.Dimension();
    Geometry::Type simplex_geom
@@ -179,6 +184,86 @@ TEST_CASE("MakeSimplicial", "[Mesh]")
    // Note: assuming no hex is subdivided into 5 tets. This can happen depending
    // on the original mesh, but it doesn't happen for these test cases.
    REQUIRE(simplex_mesh.GetNE() == orig_mesh.GetNE()*factor);
+
+   auto curvature = GENERATE(1,2,3);
+   orig_mesh.SetCurvature(curvature, false, -1, GENERATE(0,1));
+   auto ho_simplex_mesh = Mesh::MakeSimplicial(orig_mesh);
+
+   CHECK(orig_mesh.GetNV() == simplex_mesh.GetNV());
+   CHECK(orig_mesh.GetNV() == ho_simplex_mesh.GetNV());
+
+   // Vertex locations should be unchanged after higher order transformation.
+   Vector vert;
+   constexpr real_t tol = 10*std::numeric_limits<real_t>::epsilon();
+   for (int i = 0; i < ho_simplex_mesh.SpaceDimension(); i++)
+   {
+      ho_simplex_mesh.GetNodes()->GetNodalValues(vert, i+1);
+      for (int j = 0; j < ho_simplex_mesh.GetNV(); j++)
+      {
+         REQUIRE(std::abs(simplex_mesh.GetVertex(j)[i] - vert(j)) < tol);
+      }
+   }
+}
+
+TEST_CASE("MakeMixedSimplicial", "[Mesh]")
+{
+   auto mesh_fname = "../../data/fichera-mixed-p2.mesh";
+
+   Mesh orig_mesh(mesh_fname, 1, 1);
+   Mesh simplex_mesh = Mesh::MakeSimplicial(orig_mesh);
+
+   int ntet = 0, ncube = 0, nprism = 0;
+   for (int i = 0; i < orig_mesh.GetNE(); i++)
+   {
+      auto geom_type = orig_mesh.GetElementGeometry(i);
+      switch (geom_type)
+      {
+         case Geometry::Type::TETRAHEDRON : ntet++; break;
+         case Geometry::Type::CUBE : ncube++; break;
+         case Geometry::Type::PRISM : nprism++; break;
+         default: break; // to calm compilers
+      }
+   }
+
+   int dim = orig_mesh.Dimension();
+   Geometry::Type simplex_geom
+      = (dim == 2) ? Geometry::TRIANGLE : Geometry::TETRAHEDRON;
+
+   Array<Geometry::Type> geoms;
+   simplex_mesh.GetGeometries(simplex_mesh.Dimension(), geoms);
+
+   REQUIRE(geoms.Size() == 1);
+   REQUIRE(geoms[0] == simplex_geom);
+   // Note: assuming no hex is subdivided into 5 tets. This can happen depending
+   // on the original mesh, but it doesn't happen for these test cases.
+   REQUIRE(simplex_mesh.GetNE() == ntet + nprism * 3 + ncube * 6);
+
+   CHECK(orig_mesh.GetNV() == simplex_mesh.GetNV());
+
+   // Vertex locations should be unchanged after higher order transformation.
+   Vector vert;
+   constexpr real_t tol = 10*std::numeric_limits<real_t>::epsilon();
+   for (int i = 0; i < simplex_mesh.SpaceDimension(); i++)
+   {
+      simplex_mesh.GetNodes()->GetNodalValues(vert, i+1);
+      for (int j = 0; j < simplex_mesh.GetNV(); j++)
+      {
+         CHECK(std::abs(orig_mesh.GetVertex(j)[i] - vert(j)) < tol);
+      }
+   }
+}
+
+TEST_CASE("MakeSimplicial Surface Mesh", "[Mesh]")
+{
+   Mesh orig_mesh("../../data/star-surf.mesh");
+   Mesh simplex_mesh = Mesh::MakeSimplicial(orig_mesh);
+   for (int i = 0; i < orig_mesh.GetNV(); ++i)
+   {
+      for (int j = 0; j < 3; ++j)
+      {
+         REQUIRE(simplex_mesh.GetVertex(i)[j] == orig_mesh.GetVertex(i)[j]);
+      }
+   }
 }
 
 TEST_CASE("MakeNurbs", "[Mesh]")
@@ -264,4 +349,132 @@ TEST_CASE("MakeNurbs", "[Mesh]")
    Mesh patch_topology_3d =
       Mesh::MakeCartesian3D(1, 1, 1, Element::Type::HEXAHEDRON);
    test_nurbs_extension(patch_topology_3d);
+}
+
+TEST_CASE("NURBS 1D curve in 2D from patches", "[Mesh]")
+{
+   // Build a 1D patch topology embedded in 2D physical space with
+   // three segments of varying orders (linear, quadratic and cubic)
+   constexpr int dim       = 1;
+   constexpr int space_dim = 2;
+   Mesh patch_topology(dim, 0, 0, 0, space_dim);
+
+   constexpr int nv_input = 6;
+   for (int i = 0; i < nv_input; i++)
+   {
+      patch_topology.AddVertex((real_t)i, 0.0, 0.0);
+   }
+
+   patch_topology.AddSegment(0, 1, 1);
+   patch_topology.AddSegment(2, 3, 2);
+   patch_topology.AddSegment(4, 5, 3);
+
+   // Three 1D NURBS patches with variable order, each with control points
+   // given in (x, y, w) format so that the physical dimension is 2 while the
+   // topological dimension is 1.
+
+   auto set_knots = [](KnotVector &kv, std::initializer_list<real_t> knots)
+   {
+      MFEM_VERIFY(kv.Size() == static_cast<int>(knots.size()),
+                  "KnotVector and knot list must have the same size.");
+      int i = 0;
+      for (const auto &k : knots)
+      {
+         kv[i++] = k;
+      }
+   };
+
+   auto set_cp = [](std::initializer_list<std::array<real_t, 3>> pts)
+   {
+      Array<real_t> cp(3 * static_cast<int>(pts.size()));
+      int i = 0;
+      for (const auto &[x, y, w] : pts)
+      {
+         cp[i++] = x;
+         cp[i++] = y;
+         cp[i++] = w;
+      }
+      return cp;
+   };
+
+   // Patch 0: order 1, 4 control points
+   KnotVector kv1(1, 4);
+   set_knots(kv1, {0.0, 0.0, 0.4, 0.6, 1.0, 1.0});
+   kv1.GetElements();
+   Array<real_t> cp1 = set_cp(
+   {
+      {0.0, 0.0, 1.0},
+      {0.4, 0.6, 1.0},
+      {0.6, 0.4, 1.0},
+      {1.0, 1.0, 1.0}});
+   Array<const KnotVector *> kvs1({&kv1});
+
+   // Patch 1: order 2, 3 control points
+   KnotVector kv2(2, 3);
+   set_knots(kv2, {0.0, 0.0, 0.0, 1.0, 1.0, 1.0});
+   kv2.GetElements();
+   Array<real_t> cp2 = set_cp(
+   {
+      {1.0, 0.0, 1.0},
+      {1.0, 1.0, 1.2},
+      {2.0, 1.0, 1.0}});
+   Array<const KnotVector *> kvs2({&kv2});
+
+   // Patch 2: order 3, 4 control points
+   KnotVector kv3(3, 4);
+   set_knots(kv3, {0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0});
+   kv3.GetElements();
+   Array<real_t> cp3 = set_cp(
+   {
+      {2.0, 0.0, 1.0},
+      {2.0, 0.9, 1.31},
+      {2.1, 1.0, 1.32},
+      {3.0, 1.0, 1.0}});
+   Array<const KnotVector *> kvs3({&kv3});
+
+   auto p1 = std::make_unique<NURBSPatch>(kvs1, 3, cp1.GetData());
+   auto p2 = std::make_unique<NURBSPatch>(kvs2, 3, cp2.GetData());
+   auto p3 = std::make_unique<NURBSPatch>(kvs3, 3, cp3.GetData());
+
+   Array<const NURBSPatch *> patches(3);
+   patches[0] = p1.get();
+   patches[1] = p2.get();
+   patches[2] = p3.get();
+
+   NURBSExtension ne(&patch_topology, patches);
+   Mesh mesh(ne);
+
+   // Check that we created a 1D NURBS mesh embedded in 2D physical space and
+   // that the associated finite element space uses the correct vector dimension.
+   REQUIRE(mesh.Dimension() == dim);
+   REQUIRE(mesh.SpaceDimension() == space_dim);
+   REQUIRE(mesh.GetNE() == 5);
+   REQUIRE(mesh.GetNV() == 8);
+
+   GridFunction *nodes = mesh.GetNodes();
+   REQUIRE(nodes != NULL);
+   REQUIRE(nodes->FESpace() != NULL);
+   REQUIRE(nodes->FESpace()->GetVDim() == space_dim);
+
+   REQUIRE(mesh.NURBSext != NULL);
+   REQUIRE(mesh.NURBSext->GetNP() == 3);
+
+   // Additionally, exercise degree elevation and ensure basic invariants hold
+   {
+      const Array<int> &orders = mesh.NURBSext->GetOrders();
+      const int max_order = orders.Max();
+      mesh.DegreeElevate(max_order, max_order);
+
+      REQUIRE(mesh.NURBSext != nullptr);
+      REQUIRE(mesh.Dimension() == dim);
+      REQUIRE(mesh.SpaceDimension() == space_dim);
+      REQUIRE(mesh.NURBSext->Dimension() == dim);
+
+      const Array<int> &new_orders = mesh.NURBSext->GetOrders();
+      REQUIRE(new_orders.Size() == orders.Size());
+      for (int i = 0; i < new_orders.Size(); ++i)
+      {
+         REQUIRE(new_orders[i] == max_order);
+      }
+   }
 }

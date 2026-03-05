@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -56,8 +56,6 @@ private:
    /// Resets the integration rules of the integrators of @a a to their original
    /// values (after temporarily changing them for LOR assembly).
    void ResetIntegrationRules(GetIntegratorsFn get_integrators);
-
-   static inline int absdof(int i) { return i < 0 ? -1-i : i; }
 
 protected:
    enum FESpaceType { H1, ND, RT, L2, INVALID };

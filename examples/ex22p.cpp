@@ -235,7 +235,7 @@ int main(int argc, char *argv[])
    // 9. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system.
    ParComplexLinearForm b(fespace, conv);
-   b.Vector::operator=(0.0);
+   b = 0.0;
 
    // 10. Define the solution vector u as a parallel complex finite element grid
    //     function corresponding to fespace. Initialize u with initial guess of
@@ -507,10 +507,11 @@ int main(int argc, char *argv[])
    // 15. Save the refined mesh and the solution in parallel. This output can be
    //     viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
-      ostringstream mesh_name, sol_r_name, sol_i_name;
+      ostringstream mesh_name, sol_r_name, sol_i_name, sol_z_name;
       mesh_name << "mesh." << setfill('0') << setw(6) << myid;
       sol_r_name << "sol_r." << setfill('0') << setw(6) << myid;
       sol_i_name << "sol_i." << setfill('0') << setw(6) << myid;
+      sol_z_name << "sol_z." << setfill('0') << setw(6) << myid;
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
@@ -518,10 +519,13 @@ int main(int argc, char *argv[])
 
       ofstream sol_r_ofs(sol_r_name.str().c_str());
       ofstream sol_i_ofs(sol_i_name.str().c_str());
+      ofstream sol_z_ofs(sol_z_name.str().c_str());
       sol_r_ofs.precision(8);
       sol_i_ofs.precision(8);
+      sol_z_ofs.precision(8);
       u.real().Save(sol_r_ofs);
       u.imag().Save(sol_i_ofs);
+      u.Save(sol_z_ofs);
    }
 
    // 16. Send the solution by socket to a GLVis server.

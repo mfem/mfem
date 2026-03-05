@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -22,47 +22,37 @@ using namespace mfem;
 namespace bm = benchmark;
 namespace bmi = benchmark::internal;
 
-namespace benchmark
-{
-namespace internal
-{
-extern std::map<std::string, std::string> *global_context;
-}
-}
-
 namespace mfem
 {
 
-constexpr std::size_t KB = (1<<10);
+constexpr std::size_t KB = (1 << 10);
 
 // Specific MFEM Reporter
 class Reporter : public benchmark::BenchmarkReporter
 {
    const int width, precision;
+
 public:
-   explicit Reporter(int width = 48, int precision = 2) :
-      width(width), precision(precision) { }
+   explicit Reporter(int width = 48, int precision = 2):
+      width(width), precision(precision)
+   {
+   }
 
    // platform information
-   bool ReportContext(const Context& context)
-   { return PrintBasicContext(&mfem::err, context), true; }
-
-   void ReportRuns(const std::vector<Run>& reports)
+   bool ReportContext(const Context &context) override
    {
-      for (const auto& run : reports)
+      return PrintBasicContext(&mfem::err, context), true;
+   }
+
+   void ReportRuns(const std::vector<Run> &reports) override
+   {
+      for (const auto &run : reports)
       {
-         MFEM_VERIFY(!run.error_occurred, run.error_message.c_str());
-         // const double real_time = run.GetAdjustedRealTime();
-         const double cpu_time = run.GetAdjustedCPUTime();
-         const char* timeLabel = GetTimeUnitString(run.time_unit);
-         mfem::out << std::left
-                   << std::fixed
-                   << std::setprecision(precision)
-                   << std::setw(width) << run.benchmark_name().c_str()
-                   // << " " << real_time
-                   << " " << cpu_time
-                   << " " << timeLabel
-                   << std::endl;
+         const auto cpu_time = run.GetAdjustedCPUTime();
+         const char *timeLabel = GetTimeUnitString(run.time_unit);
+         mfem::out << std::left << std::fixed << std::setprecision(precision)
+                   << std::setw(width) << run.benchmark_name().c_str() << " "
+                   << cpu_time << " " << timeLabel << std::endl;
       }
    }
 };

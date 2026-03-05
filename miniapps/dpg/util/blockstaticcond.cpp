@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -431,7 +431,7 @@ void BlockStaticCondensation::AssembleReducedSystem(int el,
    }
 
    // Assemble global mat and rhs
-   DofTransformation * doftrans_i, *doftrans_j;
+   DofTransformation doftrans_i, doftrans_j;
 
    Array<int> faces, ori;
    int dim = mesh->Dimension();
@@ -459,7 +459,7 @@ void BlockStaticCondensation::AssembleReducedSystem(int el,
    {
       if (!tr_fes[i]) { continue; }
       Array<int> vdofs_i;
-      doftrans_i = nullptr;
+      doftrans_i.SetDofTransformation(nullptr);
       if (IsTraceSpace[i])
       {
          Array<int> face_vdofs;
@@ -472,14 +472,14 @@ void BlockStaticCondensation::AssembleReducedSystem(int el,
       }
       else
       {
-         doftrans_i = tr_fes[i]->GetElementVDofs(el, vdofs_i);
+         tr_fes[i]->GetElementVDofs(el, vdofs_i, doftrans_i);
       }
       int skip_j=0;
       for (int j = 0; j<tr_fes.Size(); j++)
       {
          if (!tr_fes[j]) { continue; }
          Array<int> vdofs_j;
-         doftrans_j = nullptr;
+         doftrans_j.SetDofTransformation(nullptr);
 
          if (IsTraceSpace[j])
          {
@@ -493,16 +493,13 @@ void BlockStaticCondensation::AssembleReducedSystem(int el,
          }
          else
          {
-            doftrans_j = tr_fes[j]->GetElementVDofs(el, vdofs_j);
+            tr_fes[j]->GetElementVDofs(el, vdofs_j, doftrans_j);
          }
 
          DenseMatrix Ae;
          rmatptr->GetSubMatrix(offsets[i],offsets[i+1],
                                offsets[j],offsets[j+1], Ae);
-         if (doftrans_i || doftrans_j)
-         {
-            TransformDual(doftrans_i, doftrans_j, Ae);
-         }
+         TransformDual(doftrans_i, doftrans_j, Ae);
          S->GetBlock(skip_i,skip_j).AddSubMatrix(vdofs_i,vdofs_j, Ae);
          skip_j++;
       }
@@ -513,10 +510,7 @@ void BlockStaticCondensation::AssembleReducedSystem(int el,
       // ref subvector
       vec1.SetDataAndSize(&data[offsets[i]],
                           offsets[i+1]-offsets[i]);
-      if (doftrans_i)
-      {
-         doftrans_i->TransformDual(vec1);
-      }
+      doftrans_i.TransformDual(vec1);
       y->GetBlock(skip_i).AddElementVector(vdofs_i,vec1);
       skip_i++;
    }

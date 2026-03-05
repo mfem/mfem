@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -78,7 +78,7 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh, const ParNCMesh &parent,
 #ifdef MFEM_DEBUG
    // Check all processors have the same number of roots
    {
-      int p[2] = {root_state.Size(), -root_state.Size()};
+      int p[2] = {(int)root_state.Size(), -(int)root_state.Size()};
       MPI_Allreduce(MPI_IN_PLACE, p, 2, MPI_INT, MPI_MIN, submesh.GetComm());
       MFEM_ASSERT(p[0] == -p[1], "Ranks must agree on number of root elements: min "
                   << p[0] << " max " << -p[1] << " local " << root_state.Size() << " MyRank " <<

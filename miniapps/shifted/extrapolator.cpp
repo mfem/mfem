@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -51,7 +51,7 @@ void AdvectionOper::Mult(const Vector &x, Vector &dx) const
 {
    ParFiniteElementSpace &pfes = *M.ParFESpace();
    const int NE = pfes.GetNE();
-   const int nd = pfes.GetFE(0)->GetDof();
+   const int nd = pfes.GetTypicalFE()->GetDof();
    Array<int> dofs(nd);
 
    if (adv_mode == LO)
@@ -100,7 +100,7 @@ void AdvectionOper::ComputeElementsMinMax(const ParGridFunction &gf,
                                           Vector &el_min, Vector &el_max) const
 {
    ParFiniteElementSpace &pfes = *gf.ParFESpace();
-   const int NE = pfes.GetNE(), ndof = pfes.GetFE(0)->GetDof();
+   const int NE = pfes.GetNE(), ndof = pfes.GetTypicalFE()->GetDof();
    for (int k = 0; k < NE; k++)
    {
       el_min(k) = numeric_limits<real_t>::infinity();

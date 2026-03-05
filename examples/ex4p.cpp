@@ -9,6 +9,7 @@
 //               mpirun -np 4 ex4p -m ../data/beam-hex.mesh -o 2 -pa
 //               mpirun -np 4 ex4p -m ../data/escher.mesh -o 2 -sc
 //               mpirun -np 4 ex4p -m ../data/fichera.mesh -o 2 -hb
+//               mpirun -np 4 ex4p -m ../data/fichera.mesh -o 2 -hb -ea
 //               mpirun -np 4 ex4p -m ../data/fichera-q2.vtk
 //               mpirun -np 4 ex4p -m ../data/fichera-q3.mesh -o 2 -sc
 //               mpirun -np 4 ex4p -m ../data/square-disc-nurbs.mesh -o 3
@@ -17,14 +18,18 @@
 //               mpirun -np 4 ex4p -m ../data/periodic-cube.mesh -no-bc
 //               mpirun -np 4 ex4p -m ../data/amr-quad.mesh
 //               mpirun -np 3 ex4p -m ../data/amr-quad.mesh -o 2 -hb
+//               mpirun -np 3 ex4p -m ../data/amr-quad.mesh -o 2 -hb -ea
 //               mpirun -np 4 ex4p -m ../data/amr-hex.mesh -o 2 -sc
 //               mpirun -np 4 ex4p -m ../data/amr-hex.mesh -o 2 -hb
+//               mpirun -np 4 ex4p -m ../data/amr-hex.mesh -o 2 -hb -ea
 //               mpirun -np 4 ex4p -m ../data/ref-prism.mesh -o 1
 //               mpirun -np 4 ex4p -m ../data/octahedron.mesh -o 1
 //               mpirun -np 4 ex4p -m ../data/star-surf.mesh -o 3 -hb
 //
 // Device sample runs:
 //               mpirun -np 4 ex4p -m ../data/star.mesh -pa -d cuda
+//               mpirun -np 4 ex4p -m ../data/star.mesh -ea -hb -d cuda
+//               mpirun -np 4 ex4p -m ../data/amr-hex.mesh -ea -hb -d cuda
 //               mpirun -np 4 ex4p -m ../data/star.mesh -pa -d raja-cuda
 //               mpirun -np 4 ex4p -m ../data/star.mesh -pa -d raja-omp
 //               mpirun -np 4 ex4p -m ../data/beam-hex.mesh -pa -d cuda
@@ -71,6 +76,7 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    bool hybridization = false;
    bool pa = false;
+   bool ea = false;
    const char *device_config = "cpu";
    bool visualization = 1;
 
@@ -89,24 +95,14 @@ int main(int argc, char *argv[])
                   "--no-hybridization", "Enable hybridization.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&ea, "-ea", "--element-assembly", "-no-ea",
+                  "--no-element-assembly", "Enable Element Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.Parse();
-   if (!args.Good())
-   {
-      if (myid == 0)
-      {
-         args.PrintUsage(cout);
-      }
-      return 1;
-   }
-   if (myid == 0)
-   {
-      args.PrintOptions(cout);
-   }
+   args.ParseCheck();
    kappa = freq * M_PI;
 
    // 3. Enable hardware devices such as GPUs, and programming models such as
@@ -194,6 +190,7 @@ int main(int argc, char *argv[])
    Coefficient *beta  = new ConstantCoefficient(1.0);
    ParBilinearForm *a = new ParBilinearForm(fespace);
    if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   if (ea) { a->SetAssemblyLevel(AssemblyLevel::ELEMENT); }
    a->AddDomainIntegrator(new DivDivIntegrator(*alpha));
    a->AddDomainIntegrator(new VectorFEMassIntegrator(*beta));
 
@@ -238,7 +235,7 @@ int main(int argc, char *argv[])
    pcg->SetMaxIter(2000);
    pcg->SetPrintLevel(1);
    if (hybridization) { prec = new HypreBoomerAMG(*A.As<HypreParMatrix>()); }
-   else if (pa) { prec = new OperatorJacobiSmoother(*a, ess_tdof_list); }
+   else if (pa || ea) { prec = new OperatorJacobiSmoother(*a, ess_tdof_list); }
    else
    {
       ParFiniteElementSpace *prec_fespace =

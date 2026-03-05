@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -592,10 +592,10 @@ template<int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int VDIM, int D1D,
 QuadratureInterpolator::GradKernelType
 QuadratureInterpolator::GradKernels::Kernel()
 {
-   if (DIM == 1) { return internal::quadrature_interpolator::Derivatives1D<Q_LAYOUT, GRAD_PHYS>; }
-   else if (DIM == 2) { return internal::quadrature_interpolator::Derivatives2D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D, Q1D, NBZ>; }
-   else if (DIM == 3) { return internal::quadrature_interpolator::Derivatives3D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D, Q1D>; }
-   else { MFEM_ABORT(""); }
+   if constexpr (DIM == 1) { return internal::quadrature_interpolator::Derivatives1D<Q_LAYOUT, GRAD_PHYS>; }
+   else if constexpr (DIM == 2) { return internal::quadrature_interpolator::Derivatives2D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D, Q1D, NBZ>; }
+   else if constexpr (DIM == 3) { return internal::quadrature_interpolator::Derivatives3D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D, Q1D>; }
+   MFEM_ABORT("");
 }
 
 template<int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int VDIM, int D1D,
@@ -603,10 +603,10 @@ template<int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int VDIM, int D1D,
 QuadratureInterpolator::CollocatedGradKernelType
 QuadratureInterpolator::CollocatedGradKernels::Kernel()
 {
-   if (DIM == 1) { return internal::quadrature_interpolator::CollocatedDerivatives1D<Q_LAYOUT, GRAD_PHYS>; }
-   else if (DIM == 2) { return internal::quadrature_interpolator::CollocatedDerivatives2D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D, NBZ>; }
-   else if (DIM == 3) { return internal::quadrature_interpolator::CollocatedDerivatives3D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D>; }
-   else { MFEM_ABORT(""); }
+   if constexpr (DIM == 1) { return internal::quadrature_interpolator::CollocatedDerivatives1D<Q_LAYOUT, GRAD_PHYS>; }
+   else if constexpr (DIM == 2) { return internal::quadrature_interpolator::CollocatedDerivatives2D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D, NBZ>; }
+   else if constexpr (DIM == 3) { return internal::quadrature_interpolator::CollocatedDerivatives3D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D>; }
+   MFEM_ABORT("");
 }
 
 /// @endcond

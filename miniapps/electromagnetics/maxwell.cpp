@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -49,30 +49,19 @@
 // Sample runs:
 //
 //   Current source in a sphere with absorbing boundary conditions:
-//     mpirun -np 4 maxwell -m ../../data/ball-nurbs.mesh -rs 2
-//                          -abcs '-1'
-//                          -dp '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5'
+//     mpirun -np 4 maxwell -m ../../data/ball-nurbs.mesh -rs 2 -abcs '-1' -dp '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5'
 //
 //   Current source in a metal sphere with dielectric and conducting materials:
-//     mpirun -np 4 maxwell -m ../../data/ball-nurbs.mesh -rs 2
-//                          -dbcs '-1'
-//                          -dp '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5'
-//                          -cs '0.0 0.0 -0.5 .2 3e6'
-//                          -ds '0.0 0.0 0.5 .2 10'
+//     mpirun -np 4 maxwell -m ../../data/ball-nurbs.mesh -rs 2 -dbcs '-1' -dp '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5' -cs '0.0 0.0 -0.5 .2 3e6' -ds '0.0 0.0 0.5 .2 10'
 //
 //   Current source in a metal box:
-//     mpirun -np 4 maxwell -m ../../data/fichera.mesh -rs 3
-//                          -ts 0.25 -tf 10 -dbcs '-1'
-//                          -dp '-0.5 -0.5 0.0 -0.5 -0.5 1.0 0.1 1 .5 1'
+//     mpirun -np 4 maxwell -m ../../data/fichera.mesh -rs 3 -ts 0.25 -tf 10 -dbcs '-1' -dp '-0.5 -0.5 0.0 -0.5 -0.5 1.0 0.1 1 .5 1'
 //
 //   Current source with a mixture of absorbing and reflecting boundaries:
-//     mpirun -np 4 maxwell -m ../../data/fichera.mesh -rs 3
-//                          -ts 0.25 -tf 10
-//                          -dp '-0.5 -0.5 0.0 -0.5 -0.5 1.0 0.1 1 .5 1'
-//                          -dbcs '4 8 19 21' -abcs '5 18'
+//     mpirun -np 4 maxwell -m ../../data/fichera.mesh -rs 3 -ts 0.25 -tf 10 -dp '-0.5 -0.5 0.0 -0.5 -0.5 1.0 0.1 1 .5 1' -dbcs '4 8 19 21' -abcs '5 18'
 //
 //   By default the sources and fields are all zero:
-//     mpirun -np 4 maxwell
+//   * mpirun -np 4 maxwell
 
 #include "maxwell_solver.hpp"
 #include <fstream>

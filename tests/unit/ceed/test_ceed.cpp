@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -474,7 +474,7 @@ void test_ceed_convection(const char* mesh_filename, int order,
    BilinearForm conv_op(&fes);
 
    IntegrationRules rules(0, Quadrature1D::GaussLobatto);
-   const IntegrationRule &ir = rules.Get(fes.GetFE(0)->GetGeomType(),
+   const IntegrationRule &ir = rules.Get(mesh.GetTypicalElementGeometry(),
                                          2 * order - 1);
 
    ConvectionIntegrator *conv_integ = new ConvectionIntegrator(velocity_coeff, 1);

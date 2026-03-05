@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -81,11 +81,12 @@ real_t ThresholdRefiner::GetNorm(const Vector &local_err, Mesh &mesh) const
    return local_err.Normlp(total_norm_p);
 }
 
-int ThresholdRefiner::ApplyImpl(Mesh &mesh)
+int ThresholdRefiner::MarkWithoutRefining(Mesh & mesh,
+                                          Array<Refinement> & refinements)
 {
    threshold = 0.0;
    num_marked_elements = 0LL;
-   marked_elements.SetSize(0);
+   refinements.SetSize(0);
    current_sequence = mesh.GetSequence();
 
    const long long num_elements = mesh.GetGlobalNE();
@@ -113,7 +114,7 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
    {
       if (local_err(el) > threshold)
       {
-         marked_elements.Append(Refinement(el));
+         refinements.Append(Refinement(el));
       }
    }
 
@@ -122,19 +123,27 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
       const Array<int> &aniso_flags = aniso_estimator->GetAnisotropicFlags();
       if (aniso_flags.Size() > 0)
       {
-         for (int i = 0; i < marked_elements.Size(); i++)
+         for (int i = 0; i < refinements.Size(); i++)
          {
-            Refinement &ref = marked_elements[i];
+            Refinement &ref = refinements[i];
             ref.SetType(aniso_flags[ref.index]);
          }
       }
    }
 
+   return NONE;
+}
+
+int ThresholdRefiner::ApplyImpl(Mesh &mesh)
+{
+   const int action = MarkWithoutRefining(mesh, marked_elements);
+   if (action == STOP) { return STOP; }
+
    num_marked_elements = mesh.ReduceInt(marked_elements.Size());
    if (num_marked_elements == 0LL) { return STOP; }
 
    mesh.GeneralRefinement(marked_elements, non_conforming, nc_limit);
-   return CONTINUE + REFINED;
+   return static_cast<int>(CONTINUE) + static_cast<int>(REFINED);
 }
 
 void ThresholdRefiner::Reset()
@@ -153,7 +162,7 @@ int ThresholdDerefiner::ApplyImpl(Mesh &mesh)
    const Vector &local_err = estimator.GetLocalErrors();
    bool derefs = mesh.DerefineByError(local_err, threshold, nc_limit, op);
 
-   return derefs ? CONTINUE + DEREFINED : NONE;
+   return derefs ? static_cast<int>(CONTINUE) + static_cast<int>(DEREFINED) : NONE;
 }
 
 
@@ -281,7 +290,7 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
    }
    delete l2fes;
    delete gf;
-   return CONTINUE + REFINED;
+   return static_cast<int>(CONTINUE) + static_cast<int>(REFINED);
 
 }
 
@@ -301,7 +310,7 @@ int Rebalancer::ApplyImpl(Mesh &mesh)
    if (pmesh && pmesh->Nonconforming())
    {
       pmesh->Rebalance();
-      return CONTINUE + REBALANCED;
+      return static_cast<int>(CONTINUE) + static_cast<int>(REBALANCED);
    }
 #endif
    return NONE;
