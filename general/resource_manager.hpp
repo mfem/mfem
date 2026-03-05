@@ -984,6 +984,11 @@ void Memory<T>::Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc,
 template <class T>
 void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
 {
+   MFEM_ASSERT(0 <= offset, "invalid offset = " << offset);
+   MFEM_ASSERT(0 <= size, "invalid size = " << size);
+   MFEM_ASSERT(offset + size <= base.size_,
+               "invalid offset + size = "
+               << offset + size << " > base capacity = " << base.size_);
    if (&base == this)
    {
       MFEM_ASSERT(offset == 0 && size_t(size) == size_,
@@ -993,7 +998,7 @@ void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
 
    Reset();
    h_ptr = base.h_ptr + offset;
-   offset_ = offset;
+   offset_ = base.offset_ + offset;
    size_ = size;
    h_mt = base.h_mt;
    // Copy the flags from 'base' and resets both OWNS_HOST and OWNS_DEVICE
@@ -1013,8 +1018,6 @@ void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
 #endif
       )
       {
-         MFEM_ASSERT(!inst.valid_segment(base.segment),
-                     "unexpected valid segment");
          base.segment = inst.insert(reinterpret_cast<char *>(base.h_ptr),
                                     nullptr, base.size_ * sizeof(T), base.h_mt,
                                     MemoryType::DEFAULT, true, false, false);
