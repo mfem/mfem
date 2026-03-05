@@ -643,13 +643,15 @@ int main(int argc, char *argv[])
          Mt->AddInteriorFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff));
          if (hybridization)
          {
-            //centered scheme does not work with Dirichlet when hybridized,
-            //giving an diverging system, we use the full BC flux here
+            // centered scheme does not work with Dirichlet when hybridized,
+            // giving an diverging system, we use the full BC flux here
             Mt->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff),
                                      bdr_is_neumann);
          }
          else
          {
+            // we use averaged interior + BC flux for Dirichlet for stability
+            // reasons and full BC flux for Neumann
             Mt->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff),
                                      bdr_is_dirichlet);
             Mt->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(ccoeff),
@@ -897,7 +899,7 @@ int main(int argc, char *argv[])
                                         bdr_is_dirichlet);//<-- full BC flux, see above
          else
             fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(tcoeff, ccoeff, +1., 0.),
-                                        bdr_is_dirichlet);
+                                        bdr_is_dirichlet);//<-- half BC flux, see above
       }
    }
 
