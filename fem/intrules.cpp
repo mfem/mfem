@@ -1235,7 +1235,7 @@ IntegrationRules::IntegrationRules(int ref, int type)
 }
 
 const IntegrationRule &IntegrationRules::Get(int GeomType, int Order,
-                                             int StroudFlag)
+                                             bool stroud)
 {
    Array<IntegrationRule *> *ir_array = NULL;
 
@@ -1243,27 +1243,13 @@ const IntegrationRule &IntegrationRules::Get(int GeomType, int Order,
    {
       case Geometry::POINT:       ir_array = &PointIntRules; Order = 0; break;
       case Geometry::SEGMENT:     ir_array = &SegmentIntRules; break;
-      case Geometry::TRIANGLE:
-      {
-         if (StroudFlag)
-         {
-            ir_array = &TriangleStroudIntRules; break;
-         }
-         else
-         {
-            ir_array = &TriangleIntRules; break;
-         }
-      }
+      case Geometry::TRIANGLE:    ir_array = stroud ?
+                                                &TriangleStroudIntRules :
+                                                &TriangleIntRules; break;
       case Geometry::SQUARE:      ir_array = &SquareIntRules; break;
-      case Geometry::TETRAHEDRON:
-         if (StroudFlag)
-         {
-            ir_array = &TetrahedronStroudIntRules; break;
-         }
-         else
-         {
-            ir_array = &TetrahedronIntRules; break;
-         }
+      case Geometry::TETRAHEDRON: ir_array = stroud ?
+                                                &TetrahedronStroudIntRules :
+                                                &TetrahedronIntRules; break;
       case Geometry::CUBE:        ir_array = &CubeIntRules; break;
       case Geometry::PRISM:       ir_array = &PrismIntRules; break;
       case Geometry::PYRAMID:     ir_array = &PyramidIntRules; break;
@@ -1283,7 +1269,7 @@ const IntegrationRule &IntegrationRules::Get(int GeomType, int Order,
 
    if (!HaveIntRule(*ir_array, Order))
    {
-      IntegrationRule *ir = GenerateIntegrationRule(GeomType, Order, StroudFlag);
+      IntegrationRule *ir = GenerateIntegrationRule(GeomType, Order, stroud);
 #ifdef MFEM_DEBUG
       int RealOrder = Order;
       while (RealOrder+1 < ir_array->Size() && (*ir_array)[RealOrder+1] == ir)
@@ -1304,7 +1290,7 @@ const IntegrationRule &IntegrationRules::Get(int GeomType, int Order,
 }
 
 void IntegrationRules::Set(int GeomType, int Order, IntegrationRule &IntRule,
-                           int StroudFlag)
+                           bool stroud)
 {
    Array<IntegrationRule *> *ir_array = NULL;
 
@@ -1312,27 +1298,13 @@ void IntegrationRules::Set(int GeomType, int Order, IntegrationRule &IntRule,
    {
       case Geometry::POINT:       ir_array = &PointIntRules; break;
       case Geometry::SEGMENT:     ir_array = &SegmentIntRules; break;
-      case Geometry::TRIANGLE:
-      {
-         if (StroudFlag)
-         {
-            ir_array = &TriangleStroudIntRules; break;
-         }
-         else
-         {
-            ir_array = &TriangleIntRules; break;
-         }
-      }
+      case Geometry::TRIANGLE:    ir_array = stroud ?
+                                                &TriangleStroudIntRules :
+                                                &TriangleIntRules; break;
       case Geometry::SQUARE:      ir_array = &SquareIntRules; break;
-      case Geometry::TETRAHEDRON:
-         if (StroudFlag)
-         {
-            ir_array = &TetrahedronStroudIntRules; break;
-         }
-         else
-         {
-            ir_array = &TetrahedronIntRules; break;
-         }
+      case Geometry::TETRAHEDRON: ir_array = stroud ?
+                                                &TetrahedronStroudIntRules :
+                                                &TetrahedronIntRules; break;
       case Geometry::CUBE:        ir_array = &CubeIntRules; break;
       case Geometry::PRISM:       ir_array = &PrismIntRules; break;
       case Geometry::PYRAMID:     ir_array = &PyramidIntRules; break;
@@ -1404,7 +1376,7 @@ IntegrationRules::~IntegrationRules()
 
 IntegrationRule *IntegrationRules::GenerateIntegrationRule(int GeomType,
                                                            int Order,
-                                                           int StroudFlag)
+                                                           bool stroud)
 {
    switch (GeomType)
    {
@@ -1413,29 +1385,15 @@ IntegrationRule *IntegrationRules::GenerateIntegrationRule(int GeomType,
       case Geometry::SEGMENT:
          return SegmentIntegrationRule(Order);
       case Geometry::TRIANGLE:
-      {
-         if (StroudFlag)
-         {
-            return TriangleStroudIntegrationRule(Order);
-         }
-         else
-         {
-            return TriangleIntegrationRule(Order);
-         }
-      }
+         return stroud ?
+                TriangleStroudIntegrationRule(Order) :
+                TriangleIntegrationRule(Order);
       case Geometry::SQUARE:
          return SquareIntegrationRule(Order);
       case Geometry::TETRAHEDRON:
-      {
-         if (StroudFlag)
-         {
-            return TetrahedronStroudIntegrationRule(Order);
-         }
-         else
-         {
-            return TetrahedronIntegrationRule(Order);
-         }
-      }
+         return  stroud ?
+                 TetrahedronStroudIntegrationRule(Order) :
+                 TetrahedronIntegrationRule(Order);
       case Geometry::CUBE:
          return CubeIntegrationRule(Order);
       case Geometry::PRISM:

@@ -883,6 +883,7 @@ const DofToQuad &H1Pos_TetrahedronElement::GetRaggedTensorDofToQuad(
          d2q->forward_map3d_diff.SetSize((ndof-1) * (ndof-1) * (ndof-1));
          d2q->inverse_map2d_diff.SetSize(2 * (int) ( (ndof-1)*(ndof) / 2 ));
          d2q->inverse_map3d_diff.SetSize(3 * (int) ( (ndof-1)*(ndof)*(ndof+1) / 6 ));
+
          d2q->forward_map2d_mass.SetSize(ndof * ndof);
          d2q->forward_map3d_mass.SetSize(ndof * ndof * ndof);
          d2q->inverse_map2d_mass.SetSize(2 * (int) ( ndof*(ndof+1) / 2 ));

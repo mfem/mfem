@@ -32,9 +32,8 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    dim = mesh->Dimension();
    const FiniteElement &el = *fes.GetTypicalFE();
    ElementTransformation *T0 = mesh->GetTypicalElementTransformation();
-   int StroudFlag = fes.IsBernsteinSimplexSpace() ? 1 : 0;
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T0,
-                                                            StroudFlag);
+   const bool stroud = fes.IsBernsteinSimplexSpace();
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T0, stroud);
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
@@ -53,7 +52,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    int map_type = el.GetMapType();
    ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
-   if (StroudFlag)
+   if (stroud)
    {
       geom = mesh->GetGeometricFactors(ir->InverseDuffyTrans(dim),
                                        GeometricFactors::DETERMINANTS, mt);

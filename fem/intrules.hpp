@@ -476,7 +476,7 @@ private:
    /// checking if they already exist.  To avoid memory leaks use
    /// IntegrationRules::Get(int GeomType, int Order) instead.
    IntegrationRule *GenerateIntegrationRule(int GeomType, int Order,
-                                            int StroudFlag=0);
+                                            bool stroud = false);
    IntegrationRule *PointIntegrationRule(int Order);
    IntegrationRule *SegmentIntegrationRule(int Order, real_t alpha=0,
                                            real_t beta=0);
@@ -502,9 +502,10 @@ public:
                              int type = Quadrature1D::GaussLegendre);
 
    /// Returns an integration rule for given GeomType and Order.
-   const IntegrationRule &Get(int GeomType, int Order, int StroudFlag=0);
+   const IntegrationRule &Get(int GeomType, int Order, bool stroud = false);
 
-   void Set(int GeomType, int Order, IntegrationRule &IntRule, int StroudFlag=0);
+   void Set(int GeomType, int Order, IntegrationRule &IntRule,
+            bool stroud = false);
 
    void SetOwnRules(int o) { own_rules = o; }
 

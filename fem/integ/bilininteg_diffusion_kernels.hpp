@@ -1954,14 +1954,14 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
    const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D;
    MFEM_VERIFY(D1D <= max_d1d, "");
    MFEM_VERIFY(Q1D <= max_q1d, "");
-   const auto forward_map3d__ = DeviceTensor<3,const int>(forward_map3d_.Read(),
-                                                          D1D-1, D1D-1, D1D-1);
-   const auto forward_map2d__ = DeviceTensor<2,const int>(forward_map2d_.Read(),
-                                                          D1D-1, D1D-1);
-   const auto inverse_map2d__ = DeviceTensor<2,const int>(inverse_map2d_.Read(), 2,
-                                                          BASIS_DIM2D_DIFF);
-   const auto lex_map__ = DeviceTensor<3,const int>(lex_map_.Read(), D1D, D1D,
-                                                    D1D);
+   const auto forward_map3d__ =
+      DeviceTensor<3,const int>(forward_map3d_.Read(), D1D-1, D1D-1, D1D-1);
+   const auto forward_map2d__ =
+      DeviceTensor<2,const int>(forward_map2d_.Read(), D1D-1, D1D-1);
+   const auto inverse_map2d__ =
+      DeviceTensor<2,const int>(inverse_map2d_.Read(), 2, BASIS_DIM2D_DIFF);
+   const auto lex_map__ =
+      DeviceTensor<3,const int>(lex_map_.Read(), D1D, D1D, D1D);
    const auto ga1 = ConstDeviceMatrix(ga1_.Read(), Q1D, D1D-1);
    const auto ga2 = ConstDeviceMatrix(ga2_.Read(), Q1D, BASIS_DIM2D_DIFF);
    const auto ga3 = ConstDeviceMatrix(ga3_.Read(), Q1D, BASIS_DIM3D_DIFF);
@@ -2231,27 +2231,27 @@ ApplyKernelType DiffusionIntegrator::ApplyPAKernels::Kernel()
 }
 
 inline
-ApplyKernelType DiffusionIntegrator::ApplyPAKernels::Fallback(int DIM, int, int)
+ApplyKernelType DiffusionIntegrator::ApplyPAKernels::Fallback(int dim, int, int)
 {
-   if (DIM == 2) { return internal::PADiffusionApply2D; }
-   else if (DIM == 3) { return internal::PADiffusionApply3D; }
+   if (dim == 2) { return internal::PADiffusionApply2D; }
+   else if (dim == 3) { return internal::PADiffusionApply3D; }
    else { MFEM_ABORT(""); }
 }
 
 template<int DIM, int T_D1D, int T_Q1D>
 ApplySimplexKernelType DiffusionIntegrator::ApplySimplexPAKernels::Kernel()
 {
-   if (DIM == 2) { return internal::SmemPADiffusionApplyTriangle<T_D1D,T_Q1D>; }
-   else if (DIM == 3) { return internal::SmemPADiffusionApplyTetrahedron<T_D1D,T_Q1D>; }
+   if constexpr (DIM == 2) { return internal::SmemPADiffusionApplyTriangle<T_D1D,T_Q1D>; }
+   else if constexpr (DIM == 3) { return internal::SmemPADiffusionApplyTetrahedron<T_D1D,T_Q1D>; }
    else { MFEM_ABORT(""); }
 }
 
 inline
 ApplySimplexKernelType DiffusionIntegrator::ApplySimplexPAKernels::Fallback(
-   int DIM, int, int)
+   int dim, int, int)
 {
-   if (DIM == 2) { return internal::PADiffusionApplyTriangle; }
-   else if (DIM == 3) { return internal::PADiffusionApplyTetrahedron; }
+   if (dim == 2) { return internal::PADiffusionApplyTriangle; }
+   else if (dim == 3) { return internal::PADiffusionApplyTetrahedron; }
    else { MFEM_ABORT(""); }
 }
 
@@ -2260,14 +2260,14 @@ DiagonalKernelType DiffusionIntegrator::DiagonalPAKernels::Kernel()
 {
    if constexpr (DIM == 2) { return internal::SmemPADiffusionDiagonal2D<D1D,Q1D>; }
    else if constexpr (DIM == 3) { return internal::SmemPADiffusionDiagonal3D<D1D, Q1D>; }
-   MFEM_ABORT("");
+   else { MFEM_ABORT(""); }
 }
 
 inline DiagonalKernelType
-DiffusionIntegrator::DiagonalPAKernels::Fallback(int DIM, int, int)
+DiffusionIntegrator::DiagonalPAKernels::Fallback(int dim, int, int)
 {
-   if (DIM == 2) { return internal::PADiffusionDiagonal2D; }
-   else if (DIM == 3) { return internal::PADiffusionDiagonal3D; }
+   if (dim == 2) { return internal::PADiffusionDiagonal2D; }
+   else if (dim == 3) { return internal::PADiffusionDiagonal3D; }
    else { MFEM_ABORT(""); }
 }
 /// \endcond DO_NOT_DOCUMENT
