@@ -447,6 +447,7 @@ Boris::Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_,
    }
 
    int dim = E_mesh ? E_mesh->SpaceDimension() : B_mesh->SpaceDimension();
+   MFEM_VERIFY(dim == 3, "Only 3D meshes are currently supported.");
 
    pxB_.SetSize(dim); pm_.SetSize(dim); pp_.SetSize(dim);
 
@@ -588,30 +589,22 @@ void Boris::StepDevice(real_t &t, real_t &dt)
 
       // ... along pm x B
       // pxB = pm x b
-      if (dim == 3)
-      {
-         pxB[0] = pm[1] * b[2] - pm[2] * b[1];
-         pxB[1] = pm[2] * b[0] - pm[0] * b[2];
-         pxB[2] = pm[0] * b[1] - pm[1] * b[0];
-      }
-      else
-      {
-         pxB[0] = 0.0; pxB[1] = 0.0; pxB[2] = 0.0;
-      }
+      pxB[0] = pm[1] * b[2] - pm[2] * b[1];
+      pxB[1] = pm[2] * b[0] - pm[0] * b[2];
+      pxB[2] = pm[0] * b[1] - pm[1] * b[0];
 
-      const real_t a1 = 4.0 * dt * q * m;
       // pp = a1 * pxB
+      const real_t a1 = 4.0 * dt * q * m;
       for (int d = 0; d < dim; d++) { pp[d] = a1 * pxB[d]; }
 
       // ... along pm
-      const real_t a2 = 4.0 * m * m - dt * dt * q * q * B2;
       // pp += a2 * pm
+      const real_t a2 = 4.0 * m * m - dt * dt * q * q * B2;
       for (int d = 0; d < dim; d++) { pp[d] += a2 * pm[d]; }
 
       // ... along B
       real_t b_dot_pm = 0.0;
       for (int d = 0; d < dim; d++) { b_dot_pm += b[d] * pm[d]; }
-
       const real_t a3 = 2.0 * dt * dt * q * q * b_dot_pm;
       // pp += a3 * b
       for (int d = 0; d < dim; d++) { pp[d] += a3 * b[d]; }
