@@ -53,10 +53,10 @@
 #include <string>
 #include <vector>
 
-#include "../../general/text.hpp"
-#include "../common/fem_extras.hpp"
-#include "../common/particles_extras.hpp"
-#include "../common/pfem_extras.hpp"
+#include "../../../general/text.hpp"
+#include "../../common/fem_extras.hpp"
+#include "../../common/particles_extras.hpp"
+#include "../../common/pfem_extras.hpp"
 #include "mfem.hpp"
 
 #define EPSILON 1  // ε_0
@@ -523,7 +523,7 @@ real_t ParticleMover::ComputeKineticEnergy(real_t dt) const
    const ParticleVector& M = charged_particles->Field(MASS);
    const ParticleVector& Q = charged_particles->Field(CHARGE);
    const ParticleVector& E = charged_particles->Field(EFIELD);
-   
+
    // Note the electric field is not reinterpolated here and the last
    // update from Step() is used directly.
 
