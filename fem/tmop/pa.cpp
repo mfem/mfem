@@ -485,7 +485,14 @@ void TMOP_Integrator::AddMultPA(const Vector &de, Vector &ye) const
    {
       AddMultPA_2D(xe, ye);
       if (lim_coeff) { AddMultPA_C0_2D(xe, ye); }
-      if (adapt_lim_gf) { AddMultPA_AdaptLim_2D(xe, ye); }
+      if (adapt_lim_gf)
+      {
+         // AddMultPA_AdaptLim_2D uses the precomputed AdaptLim field gradient
+         // at quadrature points (PA.ALFG). Ensure it is up-to-date for the
+         // current mesh configuration.
+         AssembleGradPA_AdaptLim_2D(xe);
+         AddMultPA_AdaptLim_2D(xe, ye);
+      }
 
    }
 
