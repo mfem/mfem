@@ -69,9 +69,9 @@ inline int ToLexOrdering2D(const int face_id, const int size1d, const int i)
 }
 
 /// @brief Given a face DOF index on a shared face, ordered lexicographically
-/// relative to element the element (where the local face is face_id), and
-/// return the corresponding face DOF index ordered lexicographically relative
-/// to the face itself.
+/// relative to the element (where the local face is face_id), return the
+/// corresponding face DOF index ordered lexicographically relative to the face
+/// itself.
 MFEM_HOST_DEVICE
 inline int PermuteFace2D(const int face_id, const int orientation,
                          const int size1d, const int index)

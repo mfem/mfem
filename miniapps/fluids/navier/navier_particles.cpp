@@ -421,22 +421,18 @@ void NavierParticles::Step(const real_t dt, const ParGridFunction &u_gf,
 void NavierParticles::InterpolateUW(const ParGridFunction &u_gf,
                                     const ParGridFunction &w_gf)
 {
-   finder.FindPoints(X(), X().GetOrdering());
+   finder.FindPoints(X());
 
-   finder.Interpolate(u_gf, U());
-   Ordering::Reorder(U(), U().GetVDim(), u_gf.ParFESpace()->GetOrdering(),
-                     U().GetOrdering());
+   finder.Interpolate(u_gf, U(), U().GetOrdering());
 
-   finder.Interpolate(w_gf, W());
-   Ordering::Reorder(W(), W().GetVDim(), w_gf.ParFESpace()->GetOrdering(),
-                     W().GetOrdering());
+   finder.Interpolate(w_gf, W(), W().GetOrdering());
 }
 
 void NavierParticles::DeactivateLostParticles(bool findpts)
 {
    if (findpts)
    {
-      finder.FindPoints(X(), X().GetOrdering());
+      finder.FindPoints(X());
    }
 
    const Array<unsigned int> lost_idxs = finder.GetPointsNotFoundIndices();

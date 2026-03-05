@@ -17,10 +17,18 @@ Discretization improvements
   Vector and VectorFE, also NURBS versions. Optionally different types of
   projections can be selected, default behaviour has not changed.
 
+- Added methods to estimate function extremum using piecewise linear bounds +
+  recursive subdivision.
+
 Meshing improvements
 --------------------
 - Improved support for 1D NURBS meshes with variable order, including using
   the patches construct for 1D NURBS meshes.
+
+New and updated examples and miniapps
+-------------------------------------
+- Electromagnetics/lorentz miniapp has been updated to leverage the ParticleSet
+  capability.
 
 
 Version 4.9, released on Dec 11, 2025
@@ -105,6 +113,23 @@ Linear and nonlinear solvers
 - Added AMGFSolver: a derived class of FilteredSolver, specialized for AMG with
   Filtering (AMGF), providing robust preconditioning for linear systems arising
   in constrained optimization problems such as frictionless contact.
+
+  Added 'GetResiduals' and 'GetFinalAbsResidualNorm' to 'HyprePCG',
+  'HypreGMRES', and 'HypreFGMRES' to get 'r' and '|r|_p'. Note that the latter
+  computes '|r|_p' from 'r' instead of returning a cached value like the
+  relative 'GetFinalResidualNorm'. These require Hypre >= 2.15.0.
+
+  Changed the default solver parameters for 'HyprePCG' to 'tol=1e-6' and
+  'max_iter=1000'. This matches the default parameters in Hypre 3.0.
+
+  Added various helper functions for querying/modifying Hypre solvers:
+  'HypreSmoother::GetType', 'HypreSmoother::GetSOROptions',
+  'HypreSmoother::GetPolyOptions', 'HypreSmoother::GetWindowParameters',
+  'HypreSmoother::IsOperatorSymmetric', 'HyprePCG::GetTol',
+  'HyprePCG::GetAbsTol', 'HyprePCG::GetMaxIter', 'HyprePCG::SetUseTwoNorm',
+  'HypreGMRES::GetTol', 'HypreGMRES::GetAbsTol', 'HypreGMRES::GetMaxIter',
+  'HypreGMRES::GetKDim', 'HypreFGMRES::GetTol', 'HypreFGMRES::GetMaxIter',
+  'HypreFGMRES::GetKDim', and 'HypreBoomerAMG::GetMaxIter'.
 
 GPU computing
 -------------
