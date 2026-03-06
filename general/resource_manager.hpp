@@ -986,7 +986,7 @@ void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
 {
    MFEM_ASSERT(0 <= offset, "invalid offset = " << offset);
    MFEM_ASSERT(0 <= size, "invalid size = " << size);
-   MFEM_ASSERT(offset + size <= base.size_,
+   MFEM_ASSERT(size_t(offset + size) <= base.size_,
                "invalid offset + size = "
                << offset + size << " > base capacity = " << base.size_);
    if (&base == this)
