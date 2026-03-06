@@ -1502,6 +1502,15 @@ public:
       return dynamic_cast<const L2_FECollection*>(fec) != NULL;
    }
 
+   /// Return whether the space is Bernstein on a simplex
+   bool IsBernsteinSimplexSpace() const
+   {
+      const auto *h1_fec = dynamic_cast<const H1_FECollection *>(fec);
+      return (h1_fec && h1_fec->GetBasisType() == BasisType::Positive &&
+              (GetTypicalFE()->GetGeomType() == Geometry::TRIANGLE ||
+               GetTypicalFE()->GetGeomType() == Geometry::TETRAHEDRON));
+   }
+
    /** In variable-order spaces on nonconforming (NC) meshes, this function
        controls whether strict conformity is enforced in cases where coarse
        edges/faces have higher polynomial order than their fine NC neighbors.
@@ -1549,6 +1558,20 @@ inline bool UsesTensorBasis(const FiniteElementSpace& fes)
    return !mixed &&
           dynamic_cast<const mfem::TensorBasisElement *>(
              fes.GetTypicalFE()) != nullptr;
+}
+
+/// @brief Return true if the mesh contains only one topology, the elements are
+/// all triangles or tetrahedrons, and the elements are ragged tensor elements
+/// i.e. Bernstein/positive basis.
+inline bool UsesRaggedTensorBasis(const FiniteElementSpace& fes)
+{
+   bool mixed = fes.GetMesh()->IsMixedMesh();
+   bool simplex = (fes.GetTypicalFE()->GetGeomType() == Geometry::TRIANGLE) ||
+                  (fes.GetTypicalFE()->GetGeomType() == Geometry::TETRAHEDRON);
+   bool positive =
+      dynamic_cast<const mfem::H1Pos_TriangleElement *>(fes.GetTypicalFE()) ||
+      dynamic_cast<const mfem::H1Pos_TetrahedronElement *>(fes.GetTypicalFE());
+   return !mixed && simplex && positive;
 }
 
 /// @brief Return LEXICOGRAPHIC if mesh contains only one topology and the
