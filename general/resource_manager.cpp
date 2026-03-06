@@ -2392,8 +2392,14 @@ size_t MemoryManager::CopyImpl(char **dst, MemoryType dloc, size_t dst_offset,
          0, dseg->lowers[on_device], dseg->lowers[on_device] + dseg->nbytes,
          "alloc " << (int)dseg->mtypes[on_device] << ", " << dseg->is_temporary());
    }
-   BatchMemCopy2(*dst, src0, dloc, sloc0, copy0);
-   BatchMemCopy2(*dst, src1, dloc, sloc1, copy1);
+   if (src0)
+   {
+      BatchMemCopy2(*dst, src0, dloc, sloc0, copy0);
+   }
+   if (src1)
+   {
+      BatchMemCopy2(*dst, src1, dloc, sloc1, copy1);
+   }
    return copy0.size() + copy1.size();
 }
 
@@ -2417,7 +2423,9 @@ void MemoryManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
       {
          currs[1] = find_marker(src_seg, src_offset, true);
       }
-      if (dseg.lowers[1] == dseg.lowers[0])
+      // TODO: is this the right condition for detecting zero-copy dseg?
+      // might want to check the memory space is the same instead
+      if (dseg.lowers[1] == dseg.lowers[0] && dseg.lowers[0] != nullptr)
       {
          // assume dst is valid in either host or device over the entire range
          CopyImpl(&dseg.lowers[0], dseg.mtypes[1], dst_offset, 0, nbytes,
