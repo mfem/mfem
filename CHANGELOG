@@ -30,6 +30,11 @@ New and updated examples and miniapps
 - Electromagnetics/lorentz miniapp has been updated to leverage the ParticleSet
   capability.
 
+Miscellaneous
+-------------
+- Added a dFEM Sedov parallel miniapp in the unit tests (`psedov_dfem_tests`)
+  and updated the PA version of the tests (`[p]sedov_pa_tests`).
+
 
 Version 4.9, released on Dec 11, 2025
 =====================================
