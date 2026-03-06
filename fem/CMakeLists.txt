@@ -24,6 +24,7 @@ set(SRCS
   integ/bilininteg_diffusion_mf.cpp
   integ/bilininteg_diffusion_pa.cpp
   integ/bilininteg_diffusion_ea.cpp
+  integ/bilininteg_vecdiffusion_ea.cpp
   integ/bilininteg_diffusion_patch.cpp
   integ/bilininteg_divdiv_pa.cpp
   integ/bilininteg_elasticity_ea.cpp
@@ -56,6 +57,8 @@ set(SRCS
   integ/lininteg_domain.cpp
   integ/lininteg_domain_grad.cpp
   integ/lininteg_domain_vectorfe.cpp
+  integ/nonlininteg_stress_divergence_ea.cpp
+  integ/nonlininteg_stress_divergence_pa.cpp
   integ/nonlininteg_vecconvection_pa.cpp
   integ/nonlininteg_vecconvection_mf.cpp
   coefficient.cpp
@@ -133,7 +136,7 @@ set(SRCS
   tmop/assemble/diag2.cpp
   tmop/assemble/grad2_limit.cpp
   tmop/assemble/grad2.cpp
-  tmop/assemble/diag3_limit.cpp  
+  tmop/assemble/diag3_limit.cpp
   tmop/assemble/diag3.cpp
   tmop/assemble/grad3_limit.cpp
   tmop/assemble/grad3.cpp
