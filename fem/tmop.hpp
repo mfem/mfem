@@ -2237,14 +2237,14 @@ protected:
    void AssembleGradPA_C0_2D(const Vector&) const;
    void AssembleGradPA_C0_3D(const Vector&) const;
    void AssembleGradPA_AdaptLim_2D(const Vector&) const;
-   // void AssembleGradPA_AdaptLim_3D(const Vector&) const;
+   void AssembleGradPA_AdaptLim_3D(const Vector&) const;
 
    void GetLocalStateEnergyPA_2D(const Vector &x, real_t &energy) const;
    void GetLocalStateEnergyPA_3D(const Vector&, real_t &energy) const;
    real_t GetLocalStateEnergyPA_C0_2D(const Vector&) const;
    real_t GetLocalStateEnergyPA_C0_3D(const Vector&) const;
    real_t GetLocalStateEnergyPA_AdaptLim_2D(const Vector&) const;
-   // real_t GetLocalStateEnergyPA_AdaptLim_3D(const Vector&) const;
+   real_t GetLocalStateEnergyPA_AdaptLim_3D(const Vector&) const;
    void GetLocalNormalizationEnergiesPA_2D(const Vector &x,
                                            real_t &met_energy,
                                            real_t &lim_energy) const;
@@ -2257,21 +2257,21 @@ protected:
    void AddMultPA_C0_2D(const Vector&, Vector&) const;
    void AddMultPA_C0_3D(const Vector&, Vector&) const;
    void AddMultPA_AdaptLim_2D(const Vector&, Vector&) const;
-   // void AddMultPA_AdaptLim_3D(const Vector&, Vector&) const;
+   void AddMultPA_AdaptLim_3D(const Vector&, Vector&) const;
 
    void AddMultGradPA_2D(const Vector&, Vector&) const;
    void AddMultGradPA_3D(const Vector&, Vector&) const;
    void AddMultGradPA_C0_2D(const Vector&, Vector&) const;
    void AddMultGradPA_C0_3D(const Vector&, Vector&) const;
    void AddMultGradPA_AdaptLim_2D(const Vector&, Vector&) const;
-   // void AddMultGradPA_AdaptLim_3D(const Vector&, Vector&) const;
+   void AddMultGradPA_AdaptLim_3D(const Vector&, Vector&) const;
 
    void AssembleDiagonalPA_2D(Vector&) const;
    void AssembleDiagonalPA_3D(Vector&) const;
    void AssembleDiagonalPA_C0_2D(Vector&) const;
    void AssembleDiagonalPA_C0_3D(Vector&) const;
    void AssembleDiagonalPA_AdaptLim_2D(Vector&) const;
-   // void AssembleDiagonalPA_AdaptLim_3D(Vector&) const;
+   void AssembleDiagonalPA_AdaptLim_3D(Vector&) const;
 
    void AssemblePA_Limiting();
    void AssemblePA_AdaptLim();

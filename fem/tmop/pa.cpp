@@ -55,7 +55,7 @@ void TMOP_Integrator::AssembleGradPA(const Vector &de,
    {
       AssembleGradPA_3D(xe);
       if (lim_coeff) { AssembleGradPA_C0_3D(xe); }
-      // if (adapt_lim_gf) { AssembleGradPA_AdaptLim_3D(xe); }
+      if (adapt_lim_gf) { AssembleGradPA_AdaptLim_3D(xe); }
    }
 }
 
@@ -201,13 +201,36 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
       add(*x_0, d_loc, x_loc);
    }
 
-   // Both are constant or not specified.
-   if (PA.MC.Size() == 1 && PA.C0.Size() == 1) { return; }
-
-   // Coefficients are always evaluated on the CPU for now.
+   // Refresh constant coefficients (used e.g. by miniapps to temporarily set
+   // constants to 0.0 for reporting metric-only energies).
    PA.MC.HostWrite();
    PA.C0.HostWrite();
    PA.ALC.HostWrite();
+
+   if (PA.MC.Size() == 1)
+   {
+      if (auto *c = dynamic_cast<ConstantCoefficient *>(metric_coeff))
+      {
+         PA.MC(0) = c->constant;
+      }
+   }
+   if (PA.C0.Size() == 1)
+   {
+      if (auto *c = dynamic_cast<ConstantCoefficient *>(lim_coeff))
+      {
+         PA.C0(0) = c->constant;
+      }
+   }
+   if (PA.ALC.Size() == 1)
+   {
+      if (auto *c = dynamic_cast<ConstantCoefficient *>(adapt_lim_coeff))
+      {
+         PA.ALC(0) = c->constant;
+      }
+   }
+
+   // All coefficients are constant.
+   if (PA.MC.Size() == 1 && PA.C0.Size() == 1 && PA.ALC.Size() == 1) { return; }
 
    const IntegrationRule &ir = *PA.ir;
    auto T = new IsoparametricTransformation;
@@ -459,6 +482,7 @@ void TMOP_Integrator::AssembleGradDiagonalPA(Vector &de) const
    {
       AssembleDiagonalPA_3D(de);
       if (lim_coeff) { AssembleDiagonalPA_C0_3D(de); }
+      if (adapt_lim_gf) { AssembleDiagonalPA_AdaptLim_3D(de); }
    }
 }
 
@@ -500,6 +524,11 @@ void TMOP_Integrator::AddMultPA(const Vector &de, Vector &ye) const
    {
       AddMultPA_3D(xe, ye);
       if (lim_coeff) { AddMultPA_C0_3D(xe, ye); }
+      if (adapt_lim_gf)
+      {
+         AssembleGradPA_AdaptLim_3D(xe);
+         AddMultPA_AdaptLim_3D(xe, ye);
+      }
    }
 }
 
@@ -527,6 +556,7 @@ void TMOP_Integrator::AddMultGradPA(const Vector &re, Vector &ce) const
    {
       AddMultGradPA_3D(re, ce);
       if (lim_coeff) { AddMultGradPA_C0_3D(re, ce); }
+      if (adapt_lim_gf) { AddMultGradPA_AdaptLim_3D(re, ce); }
    }
 }
 
@@ -562,7 +592,7 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA(const Vector &de) const
    {
       GetLocalStateEnergyPA_3D(xe, energy);
       if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_3D(xe); }
-      //if (adapt_lim_gf) { energy += GetLocalStateEnergyPA_AdaptLim_3D(xe); }
+      if (adapt_lim_gf) { energy += GetLocalStateEnergyPA_AdaptLim_3D(xe); }
    }
 
    return energy;
