@@ -63,6 +63,12 @@ protected:
    void ProjectBdrCoefficient(Coefficient *coeff[], VectorCoefficient *vcoeff,
                               const Array<int> &attr);
 
+   /** @brief Project a discontinuous (vector) coefficient as a grid function on
+       a continuous finite element space. The values in shared dofs are
+       determined from the element with maximal attribute. */
+   void ProjectDiscCoefficient(
+      std::variant<Coefficient*, VectorCoefficient*> coeff);
+
 public:
    ParGridFunction() { pfes = NULL; }
 
@@ -267,11 +273,17 @@ public:
    void ProjectCoefficient(VectorCoefficient &vcoeff,
                            ProjectType type = ProjectType::DEFAULT) override;
 
-   using GridFunction::ProjectDiscCoefficient;
+   /** @brief Project a discontinuous coefficient as a grid function on
+       a continuous finite element space. The values in shared dofs are
+       determined from the element with maximal attribute. */
+   void ProjectDiscCoefficient(Coefficient &coeff) override
+   { ProjectDiscCoefficient(&coeff); }
+
    /** @brief Project a discontinuous vector coefficient as a grid function on
        a continuous finite element space. The values in shared dofs are
        determined from the element with maximal attribute. */
-   void ProjectDiscCoefficient(VectorCoefficient &coeff) override;
+   void ProjectDiscCoefficient(VectorCoefficient &coeff) override
+   { ProjectDiscCoefficient(&coeff); }
 
    void ProjectDiscCoefficient(Coefficient &coeff, AvgType type) override;
 
