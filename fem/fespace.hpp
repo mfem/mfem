@@ -1150,7 +1150,7 @@ public:
 
    /// Helper to return the DOF associated with a sign encoded DOF
    static inline int DecodeDof(int dof)
-   { return (dof >= 0) ? dof : (-1 - dof); }
+   { return UnsignIndex(dof); }
 
    /// Helper to determine the DOF and sign of a sign encoded DOF
    static inline int DecodeDof(int dof, real_t& sign)
