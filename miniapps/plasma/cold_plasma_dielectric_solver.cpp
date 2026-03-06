@@ -1507,6 +1507,9 @@ CPDSolver::Update()
    if (d_v_) { d_v_->Update(); }
    if (j_v_) { j_v_->Update(); }
    if (b_hat_) { b_hat_->Update(); }
+   if (StixS_) { StixS_->Update(); }
+   if (StixD_) { StixD_->Update(); }
+   if (StixP_) { StixP_->Update(); }
    if (power_absorp_t_) { power_absorp_t_->Update(); }
    if (power_absorp_e_) { power_absorp_e_->Update(); }
    if (power_absorp_i1_) { power_absorp_i1_->Update(); }

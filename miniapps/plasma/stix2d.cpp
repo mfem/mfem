@@ -2001,7 +2001,7 @@ int main(int argc, char *argv[])
                  (rod_params_.Size() > 0 ||slab_params_.Size() > 0 ||curve_params_.Size() > 0) ?
                  j_src_r : NULL,
                  (rod_params_.Size() > 0 ||slab_params_.Size() > 0 ||curve_params_.Size() > 0) ?
-                 j_src_i : NULL, vis_u, pa);
+                 j_src_i : NULL, vis_u, pa, true);
 
    // Initialize GLVis visualization
    if (visualization)

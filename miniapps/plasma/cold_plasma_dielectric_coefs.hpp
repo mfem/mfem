@@ -53,6 +53,12 @@ inline std::complex<double> omega_p(double number, double charge,
    return fabs(charge * q_) * 1.0 * sqrt(number / (epsilon0_ * mass * amu_));
 }
 
+// Alfven speed
+inline double kperp_cold_plasma(double omega, double w_c, double w_p)
+{
+   return (omega*w_p)/(3e8*w_c);
+}
+
 // Thermal Velocity
 inline double vthermal(double Te   /* Joules */,
                        double mass   /* AMU */)
@@ -150,48 +156,6 @@ std::complex<double> S_cold_plasma(double omega,
                                    double Rval,
                                    double Lval);
 
-std::complex<double> epxx_warm_plasma(double omega,
-                                   double kparallel, double Bmag,
-                                   double nue, double nui,
-                                   const Vector & number,
-                                   const Vector & charge,
-                                   const Vector & mass,
-                                   const Vector & temp,
-                                   double iontemp,
-                                   int nuprof,
-                                   double Rval,
-                                   double Lval);
-
-std::complex<double> epxx_warm_plasma_by_species(double omega,
-                                        double kparallel,
-                                        double Bmag,
-                                        double nue,
-                                        double nui,
-                                        double number,
-                                        double charge,
-                                        double mass,
-                                        double ne,
-                                        double te,
-                                        double me,
-                                        double qe,
-                                        double iontemp,
-                                        int nuprof,
-                                        double Rval,
-                                        double Lval,
-                                        int i);
-
-std::complex<double> epyy_warm_plasma(double omega,
-                                   double kparallel, double Bmag,
-                                   double nue, double nui,
-                                   const Vector & number,
-                                   const Vector & charge,
-                                   const Vector & mass,
-                                   const Vector & temp,
-                                   double iontemp,
-                                   int nuprof,
-                                   double Rval,
-                                   double Lval);
-
 std::complex<double> D_cold_plasma(double omega,
                                    double kparallel, double Bmag,
                                    double nue, double nui,
@@ -204,6 +168,41 @@ std::complex<double> D_cold_plasma(double omega,
                                    double Rval,
                                    double Lval);
 
+std::complex<double> P_cold_plasma(double omega,
+                                   double kparallel, double nue,
+                                   const Vector & number,
+                                   const Vector & charge,
+                                   const Vector & mass,
+                                   const Vector & temp,
+                                   double iontemp,
+                                   int nuprof);
+
+std::complex<double> epxx_warm_plasma_by_species(double omega,
+                                   double kparallel, double Bmag,
+                                   double nue, double nui,
+                                   const Vector & number,
+                                   const Vector & charge,
+                                   const Vector & mass,
+                                   const Vector & temp,
+                                   double iontemp,
+                                   int nuprof,
+                                   double Rval,
+                                   double Lval,
+                                   int i);
+
+std::complex<double> epyy_warm_plasma_by_species(double omega,
+                                   double kparallel, double Bmag,
+                                   double nue, double nui,
+                                   const Vector & number,
+                                   const Vector & charge,
+                                   const Vector & mass,
+                                   const Vector & temp,
+                                   double iontemp,
+                                   int nuprof,
+                                   double Rval,
+                                   double Lval,
+                                   int i);
+
 std::complex<double> epxy_warm_plasma(double omega,
                                    double kparallel, double Bmag,
                                    double nue, double nui,
@@ -214,57 +213,32 @@ std::complex<double> epxy_warm_plasma(double omega,
                                    double iontemp,
                                    int nuprof,
                                    double Rval,
-                                   double Lval);
+                                   double Lval,
+                                   int i);
 
-std::complex<double> epxy_warm_plasma_by_species(double omega,
-                                        double kparallel,
-                                        double Bmag,
-                                        double nue,
-                                        double nui,
-                                        double number,
-                                        double charge,
-                                        double mass,
-                                        double ne,
-                                        double te,
-                                        double me,
-                                        double qe,
-                                        double iontemp,
-                                        int nuprof,
-                                        double Rval,
-                                        double Lval,
-                                        int i);
-
-std::complex<double> P_cold_plasma(double omega,
-                                   double kparallel, double nue,
+std::complex<double> epyz_warm_plasma_by_species(double omega,
+                                   double kparallel, double Bmag,
+                                   double nue, double nui,
                                    const Vector & number,
                                    const Vector & charge,
                                    const Vector & mass,
                                    const Vector & temp,
                                    double iontemp,
-                                   int nuprof);
-
-std::complex<double> epzz_warm_plasma(double omega,
-                                   double kparallel, double nue,
-                                   const Vector & number,
-                                   const Vector & charge,
-                                   const Vector & mass,
-                                   const Vector & temp,
-                                   double iontemp,
-                                   int nuprof);
+                                   int nuprof,
+                                   double Rval,
+                                   double Lval,
+                                   int i);
 
 std::complex<double> epzz_warm_plasma_by_species(double omega,
-                                        double kparallel,
-                                        double Bmag,
-                                        double nue,
-                                        double number,
-                                        double charge,
-                                        double mass,
-                                        double ne,
-                                        double te,
-                                        double me,
-                                        double qe,
-                                        int nuprof,
-                                        int i);
+                                   double Bmag,
+                                   double kparallel, double nue,
+                                   const Vector & number,
+                                   const Vector & charge,
+                                   const Vector & mass,
+                                   const Vector & temp,
+                                   double iontemp,
+                                   int nuprof,
+                                   int i);
 
 // """""""""""""""""""""""""""""""""""""""""""""""""""""""
 // Jim's old sheath parameterization from Kohno et al 2017:
@@ -846,7 +820,7 @@ public:
                     double res_lim,
                     bool realPart,
                     bool thermal,
-                    int species_);
+                    int species);
 
    SusceptibilityTensorbySpecies(StixCoefBase &s)
       : MatrixCoefficient(3), StixTensorBase(s) {}
@@ -855,6 +829,7 @@ public:
                      const IntegrationPoint &ip);
 
    virtual ~SusceptibilityTensorbySpecies() {}
+
    private:
       int species_;
 };
