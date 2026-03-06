@@ -4131,7 +4131,7 @@ void NCMesh::CollectQuadFaceVertices(int v0, int v1, int v2, int v3,
 void NCMesh::BuildElementToVertexTable()
 {
    int nrows = leaf_elements.Size();
-   int* I = Memory<int>(nrows + 1);
+   int *I = Memory<int>(nrows + 1);
    int** JJ = new int*[nrows];
 
    Array<int> indices;
