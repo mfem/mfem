@@ -349,14 +349,14 @@ inline MemoryClass GetMemoryClass(const Memory<T> &mem, bool on_dev)
     HostMemoryClass, otherwise. */
 /** Also, if @a on_dev = true, the device flag of @a mem will be set. */
 template <typename T>
-inline const T *Read(const Memory<T> &mem, int size, bool on_dev = true)
+inline const T *Read(const Memory<T> &mem, bigint size, bool on_dev = true)
 {
    return mem.Read(GetMemoryClass(mem, on_dev), size);
 }
 
-/** @brief Shortcut to Read(const Memory<T> &mem, int size, false) */
+/** @brief Shortcut to Read(const Memory<T> &mem, bigint size, false) */
 template <typename T>
-inline const T *HostRead(const Memory<T> &mem, int size)
+inline const T *HostRead(const Memory<T> &mem, bigint size)
 {
    return mfem::Read(mem, size, false);
 }
@@ -366,14 +366,14 @@ inline const T *HostRead(const Memory<T> &mem, int size)
     HostMemoryClass, otherwise. */
 /** Also, if @a on_dev = true, the device flag of @a mem will be set. */
 template <typename T>
-inline T *Write(Memory<T> &mem, int size, bool on_dev = true)
+inline T *Write(Memory<T> &mem, bigint size, bool on_dev = true)
 {
    return mem.Write(GetMemoryClass(mem, on_dev), size);
 }
 
-/** @brief Shortcut to Write(const Memory<T> &mem, int size, false) */
+/** @brief Shortcut to Write(const Memory<T> &mem, bigint size, false) */
 template <typename T>
-inline T *HostWrite(Memory<T> &mem, int size)
+inline T *HostWrite(Memory<T> &mem, bigint size)
 {
    return mfem::Write(mem, size, false);
 }
@@ -383,14 +383,14 @@ inline T *HostWrite(Memory<T> &mem, int size)
     HostMemoryClass, otherwise. */
 /** Also, if @a on_dev = true, the device flag of @a mem will be set. */
 template <typename T>
-inline T *ReadWrite(Memory<T> &mem, int size, bool on_dev = true)
+inline T *ReadWrite(Memory<T> &mem, bigint size, bool on_dev = true)
 {
    return mem.ReadWrite(GetMemoryClass(mem, on_dev), size);
 }
 
-/** @brief Shortcut to ReadWrite(Memory<T> &mem, int size, false) */
+/** @brief Shortcut to ReadWrite(Memory<T> &mem, bigint size, false) */
 template <typename T>
-inline T *HostReadWrite(Memory<T> &mem, int size)
+inline T *HostReadWrite(Memory<T> &mem, bigint size)
 {
    return mfem::ReadWrite(mem, size, false);
 }

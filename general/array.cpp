@@ -116,9 +116,8 @@ void Array<T>::Abs()
 {
    static_assert(std::is_arithmetic<T>::value, "Use with arithmetic types!");
    const bool useDevice = UseDevice();
-   const int N = size;
    auto y = ReadWrite(useDevice);
-   mfem::forall_switch(useDevice, N, [=] MFEM_HOST_DEVICE (int i)
+   mfem::forall_switch(useDevice, size, [=] MFEM_HOST_DEVICE (bigint i)
    {
       y[i] = std::abs(y[i]);
    });

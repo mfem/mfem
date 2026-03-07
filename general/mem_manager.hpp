@@ -236,7 +236,7 @@ public:
    /// Allocate host memory for @a size entries.
    /** The allocation uses the current host memory type returned by
        MemoryManager::GetHostMemoryType(). */
-   explicit Memory(int size) { New(size); }
+   explicit Memory(bigint size) { New(size); }
 
    /// Creates a new empty Memory object with host MemoryType @a mt.
    explicit Memory(MemoryType mt) { Reset(mt); }
@@ -245,19 +245,20 @@ public:
        @a mt. */
    /** The newly allocated memory is not initialized, however the given
        MemoryType is still set as valid. */
-   Memory(int size, MemoryType mt) { New(size, mt); }
+   Memory(bigint size, MemoryType mt) { New(size, mt); }
 
    /** @brief Allocate memory for @a size entries with the given host MemoryType
        @a h_mt and device MemoryType @a d_mt. */
    /** The newly allocated memory is not initialized. The host pointer is set as
        valid. */
-   Memory(int size, MemoryType h_mt, MemoryType d_mt) { New(size, h_mt, d_mt); }
+   Memory(bigint size, MemoryType h_mt, MemoryType d_mt)
+   { New(size, h_mt, d_mt); }
 
    /** @brief Wrap an externally allocated host pointer, @a ptr with the current
        host memory type returned by MemoryManager::GetHostMemoryType(). */
    /** The parameter @a own determines whether @a ptr will be deleted when the
        method Delete() is called. */
-   explicit Memory(T *ptr, int size, bool own) { Wrap(ptr, size, own); }
+   explicit Memory(T *ptr, bigint size, bool own) { Wrap(ptr, size, own); }
 
    /// Wrap an externally allocated pointer, @a ptr, of the given MemoryType.
    /** The new memory object will have the given MemoryType set as valid.
@@ -267,13 +268,13 @@ public:
 
        The parameter @a own determines whether @a ptr will be deleted when the
        method Delete() is called. */
-   Memory(T *ptr, int size, MemoryType mt, bool own)
+   Memory(T *ptr, bigint size, MemoryType mt, bool own)
    { Wrap(ptr, size, mt, own); }
 
    /** @brief Alias constructor. Create a Memory object that points inside the
        Memory object @a base. */
    /** The new Memory object uses the same MemoryType(s) as @a base. */
-   Memory(const Memory &base, int offset, int size)
+   Memory(const Memory &base, bigint offset, bigint size)
    { MakeAlias(base, offset, size); }
 
    /// Destructor: default.

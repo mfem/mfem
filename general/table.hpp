@@ -116,12 +116,7 @@ public:
    /// If Finalize() is not called, it returns the number of possible
    /// connections established by the used constructor. Otherwise, it is exactly
    /// the number of established connections after calling Finalize(). */
-   inline int Size_of_connections() const
-   {
-      const bigint nnz = J.Size();
-      MFEM_VERIFY(bigint(int(nnz)) == nnz, "overflow");
-      return int(nnz);
-   }
+   inline bigint Size_of_connections() const { return J.Size(); }
 
    /// @brief Returns index of the connection between element i of TYPE I and
    /// element j of TYPE II.
@@ -144,7 +139,7 @@ public:
 
    int *GetI()
    {
-      MFEM_VERIFY(!UsingBigI(), "");
+      MFEM_ASSERT(!UsingBigI(), "");
       return I.GetData();
    }
 
@@ -152,73 +147,73 @@ public:
 
    const int *GetI() const
    {
-      MFEM_VERIFY(!UsingBigI(), "");
+      MFEM_ASSERT(!UsingBigI(), "");
       return I.GetData();
    }
 
    const int *GetJ() const { return J.GetData(); }
 
    Memory<int> &GetIMemory()
-   { MFEM_VERIFY(!UsingBigI(), ""); return I.GetMemory(); }
+   { MFEM_ASSERT(!UsingBigI(), ""); return I.GetMemory(); }
 
    Memory<int> &GetJMemory() { return J.GetMemory(); }
 
    const Memory<int> &GetIMemory() const
-   { MFEM_VERIFY(!UsingBigI(), ""); return I.GetMemory(); }
+   { MFEM_ASSERT(!UsingBigI(), ""); return I.GetMemory(); }
 
    const Memory<int> &GetJMemory() const { return J.GetMemory(); }
 
    const int *ReadI(bool on_dev = true) const
    {
-      MFEM_VERIFY(!UsingBigI(), "");
+      MFEM_ASSERT(!UsingBigI(), "");
       return I.Read(on_dev);
    }
 
    int *WriteI(bool on_dev = true)
    {
-      MFEM_VERIFY(!UsingBigI(), "");
+      MFEM_ASSERT(!UsingBigI(), "");
       return I.Write(on_dev);
    }
 
    int *ReadWriteI(bool on_dev = true)
    {
-      MFEM_VERIFY(!UsingBigI(), "");
+      MFEM_ASSERT(!UsingBigI(), "");
       return I.ReadWrite(on_dev);
    }
 
    const int *HostReadI() const
    {
-      MFEM_VERIFY(!UsingBigI(), "");
+      MFEM_ASSERT(!UsingBigI(), "");
       return I.HostRead();
    }
 
    int *HostWriteI()
    {
-      MFEM_VERIFY(!UsingBigI(), "");
+      MFEM_ASSERT(!UsingBigI(), "");
       return I.HostWrite();
    }
 
    int *HostReadWriteI()
    {
-      MFEM_VERIFY(!UsingBigI(), "");
+      MFEM_ASSERT(!UsingBigI(), "");
       return I.HostReadWrite();
    }
 
    const bigint *HostReadBigI() const
    {
-      MFEM_VERIFY(UsingBigI(), "");
+      MFEM_ASSERT(UsingBigI(), "");
       return bigI.HostRead();
    }
 
    bigint *HostWriteBigI()
    {
-      MFEM_VERIFY(UsingBigI(), "");
+      MFEM_ASSERT(UsingBigI(), "");
       return bigI.HostWrite();
    }
 
    bigint *HostReadWriteBigI()
    {
-      MFEM_VERIFY(UsingBigI(), "");
+      MFEM_ASSERT(UsingBigI(), "");
       return bigI.HostReadWrite();
    }
 

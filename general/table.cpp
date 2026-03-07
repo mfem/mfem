@@ -291,7 +291,7 @@ void Table::SetDims(int rows, bigint nnz)
       if (!UsingBigI())
       {
          I[0] = 0;
-         I[size] = nnz;
+         I[size] = int(nnz);
       }
       else
       {
@@ -562,12 +562,7 @@ void Table::Swap(Table & other)
 
 std::size_t Table::MemoryUsage() const
 {
-   if (size < 0 || (I.IsEmpty() && bigI.IsEmpty())) { return 0; }
-   if (!UsingBigI())
-   {
-      return I.MemoryUsage() + J.MemoryUsage();
-   }
-   return bigI.MemoryUsage() + J.MemoryUsage();
+   return I.MemoryUsage() + bigI.MemoryUsage() + J.MemoryUsage();
 }
 
 template <typename TI, typename TJ>
