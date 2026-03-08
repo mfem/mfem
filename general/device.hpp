@@ -321,6 +321,10 @@ public:
 
    /** @brief Gets the @a free and @a total memory on the device. */
    static void DeviceMem(size_t *free, size_t *total);
+
+   /** @brief Gets the @a rss (resident set size) and @a maxrss (maximum
+       resident set size) memory of the host process, in bytes. */
+   static void HostMem(size_t *rss, size_t *maxrss);
 };
 
 
