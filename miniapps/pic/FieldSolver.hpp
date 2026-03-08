@@ -30,7 +30,8 @@ private:
    bool precompute_neutralizing_const = false;
    // Diffusion matrix with epsilon (for Poisson solve)
    HypreParMatrix* diffusion_matrix;
-   // LHS (M + c*K) for DiffuseRHS, from one ParBilinearForm (Mass + Diffusion(c))
+   // Discrete p=4 hyper-diffusion operator for DiffuseRHS:
+   // M_plus_cK_matrix = M + c * K^4, where K is the Poisson stiffness matrix.
    HypreParMatrix* M_plus_cK_matrix;
    // Gradient operator for computing E = -∇phi
    ParDiscreteLinearOperator* grad_interpolator;
@@ -65,8 +66,9 @@ public:
        Compute the gradient: E = -∇phi. */
    void UpdateEGridFunction(ParGridFunction& phi_gf, ParGridFunction& E_gf);
 
-   /** Diffuse RHS by solving (M + c*K) u = M*rhs; overwrites rhs with u.
-       When c=0, M*u = M*rhs so u = rhs. */
+   /** Diffuse RHS with a p=4 hyper-diffusion by solving a linear system with
+       the discrete operator (M + c * K^4); overwrites rhs with the hyper-diffused
+       field. */
    void DiffuseRHS(ParLinearForm& b, ParGridFunction& rho_gf);
 
    /// Compute (global) field energy: 0.5 * ∫ ||E||^2 dx

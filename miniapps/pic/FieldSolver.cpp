@@ -64,13 +64,30 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
    }
 
    {
-      ParBilinearForm m_plus_ck(phi_fes);
-      ConstantCoefficient c_coef(diffusivity);
-      m_plus_ck.AddDomainIntegrator(new MassIntegrator());
-      m_plus_ck.AddDomainIntegrator(new DiffusionIntegrator(c_coef));
-      m_plus_ck.Assemble();
-      m_plus_ck.Finalize();
-      M_plus_cK_matrix = m_plus_ck.ParallelAssemble();
+      ParBilinearForm dm(phi_fes);
+      dm.AddDomainIntegrator(new DiffusionIntegrator);
+      dm.Assemble();
+      dm.Finalize();
+      HypreParMatrix* temp_diffusion_matrix = dm.ParallelAssemble();
+
+      // Build mass matrix M
+      ParBilinearForm m(phi_fes);
+      m.AddDomainIntegrator(new MassIntegrator());
+      m.Assemble();
+      m.Finalize();
+      HypreParMatrix* M = m.ParallelAssemble();
+
+      // Build discrete K^4 using the Poisson stiffness matrix (diffusion_matrix)
+      HypreParMatrix* K2 = ParMult(temp_diffusion_matrix, temp_diffusion_matrix);
+      HypreParMatrix* K4 = ParMult(K2, K2);
+
+      // Form the p=4 hyper-diffusion operator: M + diffusivity * K^4
+      M_plus_cK_matrix = Add(1.0, *M, diffusivity, *K4);
+
+      delete K4;
+      delete K2;
+      delete temp_diffusion_matrix;
+      delete M;
    }
 
    {
