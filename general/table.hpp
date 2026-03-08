@@ -42,6 +42,7 @@ struct Connection
 class Table
 {
 protected:
+   // FIXME: this member can mess up the default move ctor ?!!
    int size; ///< The number of TYPE I elements.
 
    /// @name Arrays for the connectivity information in the CSR storage.
@@ -49,6 +50,10 @@ protected:
 
    /// The length of the I array is 'size + 1',
    Array<int> I;
+
+   /** @brief Alternative to the I array. Used when the number of connections
+       overflows the int type. */
+   Array<bigint> bigI;
 
    /// @brief The length of the J array is equal to the number of connections
    /// between TYPE I and TYPE II elements.
@@ -83,13 +88,17 @@ public:
    /// @name Used together with the default constructor
    /// @{
    void MakeI(int nrows);
-   void AddAColumnInRow(int r) { I[r]++; }
-   void AddColumnsInRow(int r, int ncol) { I[r] += ncol; }
+   void AddAColumnInRow(int r) { UsingBigI() ? bigI[r]++ : I[r]++; }
+   void AddColumnsInRow (int r, int ncol)
+   { UsingBigI() ? bigI[r] += ncol : I[r] += ncol; }
    void MakeJ();
-   void AddConnection(int r, int c) { J[I[r]++] = c; }
+   void AddConnection (int r, int c)
+   { UsingBigI() ? J[bigI[r]++] = c : J[I[r]++] = c; }
    void AddConnections(int r, const int *c, int nc);
    void ShiftUpI();
    /// @}
+
+   bool UsingBigI() const { return !bigI.IsEmpty(); }
 
    /// Set the size and the number of connections for the table.
    void SetSize(int dim, int connections_per_row);
@@ -97,7 +106,7 @@ public:
    /// @brief Set the rows and the number of all connections for the table.
    ///
    /// Does NOT initialize the whole array I ! (I[0]=0 and I[rows]=nnz only)
-   void SetDims(int rows, int nnz);
+   void SetDims(int rows, bigint nnz);
 
    /// Returns the number of TYPE I elements.
    inline int Size() const { return size; }
@@ -107,7 +116,7 @@ public:
    /// If Finalize() is not called, it returns the number of possible
    /// connections established by the used constructor. Otherwise, it is exactly
    /// the number of established connections after calling Finalize(). */
-   inline int Size_of_connections() const { return J.Size(); }
+   inline bigint Size_of_connections() const { return J.Size(); }
 
    /// @brief Returns index of the connection between element i of TYPE I and
    /// element j of TYPE II.
@@ -119,27 +128,94 @@ public:
    /// Return row i in array row (the Table must be finalized)
    void GetRow(int i, Array<int> &row) const;
 
-   int RowSize(int i) const { return I[i+1] - I[i]; }
+   int RowSize(int i) const
+   { return UsingBigI() ? int(bigI[i+1]-bigI[i]): I[i+1]-I[i]; }
 
-   const int *GetRow(int i) const { return J.GetMemory() + I[i]; }
-   int *GetRow(int i) { return J.GetMemory() + I[i]; }
+   const int *GetRow(int i) const
+   { return UsingBigI() ? J.GetData()+bigI[i] : J.GetData()+I[i]; }
 
-   int *GetI() { return I.GetData(); }
+   int *GetRow(int i)
+   { return UsingBigI() ? J.GetData()+bigI[i] : J.GetData()+I[i]; }
+
+   int *GetI()
+   {
+      MFEM_ASSERT(!UsingBigI(), "");
+      return I.GetData();
+   }
+
    int *GetJ() { return J.GetData(); }
-   const int *GetI() const { return I.GetData(); }
+
+   const int *GetI() const
+   {
+      MFEM_ASSERT(!UsingBigI(), "");
+      return I.GetData();
+   }
+
    const int *GetJ() const { return J.GetData(); }
 
-   Memory<int> &GetIMemory() { return I.GetMemory(); }
+   Memory<int> &GetIMemory()
+   { MFEM_ASSERT(!UsingBigI(), ""); return I.GetMemory(); }
+
    Memory<int> &GetJMemory() { return J.GetMemory(); }
-   const Memory<int> &GetIMemory() const { return I.GetMemory(); }
+
+   const Memory<int> &GetIMemory() const
+   { MFEM_ASSERT(!UsingBigI(), ""); return I.GetMemory(); }
+
    const Memory<int> &GetJMemory() const { return J.GetMemory(); }
 
-   const int *ReadI(bool on_dev = true) const { return I.Read(on_dev); }
-   int *WriteI(bool on_dev = true) { return I.Write(on_dev); }
-   int *ReadWriteI(bool on_dev = true) { return I.ReadWrite(on_dev); }
-   const int *HostReadI() const { return I.HostRead(); }
-   int *HostWriteI() { return I.HostWrite(); }
-   int *HostReadWriteI() { return I.HostReadWrite(); }
+   const int *ReadI(bool on_dev = true) const
+   {
+      MFEM_ASSERT(!UsingBigI(), "");
+      return I.Read(on_dev);
+   }
+
+   int *WriteI(bool on_dev = true)
+   {
+      MFEM_ASSERT(!UsingBigI(), "");
+      return I.Write(on_dev);
+   }
+
+   int *ReadWriteI(bool on_dev = true)
+   {
+      MFEM_ASSERT(!UsingBigI(), "");
+      return I.ReadWrite(on_dev);
+   }
+
+   const int *HostReadI() const
+   {
+      MFEM_ASSERT(!UsingBigI(), "");
+      return I.HostRead();
+   }
+
+   int *HostWriteI()
+   {
+      MFEM_ASSERT(!UsingBigI(), "");
+      return I.HostWrite();
+   }
+
+   int *HostReadWriteI()
+   {
+      MFEM_ASSERT(!UsingBigI(), "");
+      return I.HostReadWrite();
+   }
+
+   const bigint *HostReadBigI() const
+   {
+      MFEM_ASSERT(UsingBigI(), "");
+      return bigI.HostRead();
+   }
+
+   bigint *HostWriteBigI()
+   {
+      MFEM_ASSERT(UsingBigI(), "");
+      return bigI.HostWrite();
+   }
+
+   bigint *HostReadWriteBigI()
+   {
+      MFEM_ASSERT(UsingBigI(), "");
+      return bigI.HostReadWrite();
+   }
 
    const int *ReadJ(bool on_dev = true) const { return J.Read(on_dev); }
    int *WriteJ(bool on_dev = true) { return J.Write(on_dev); }
@@ -181,7 +257,7 @@ public:
    int Width() const;
 
    /// Releases ownership of and null-ifies the data.
-   void LoseData() { size = -1; I.LoseData(); J.LoseData(); }
+   void LoseData() { size = -1; I.LoseData(); bigI.LoseData(); J.LoseData(); }
 
    /// Prints the table to the stream @a out.
    void Print(std::ostream & out = mfem::out, int width = 4) const;
