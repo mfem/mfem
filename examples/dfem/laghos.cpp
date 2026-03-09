@@ -371,7 +371,7 @@ matd qdata_setup(
          // Smoother viscosity for well-defined gradients.
 
          const auto dvdx = dvdxi * inv(J);
-         const auto h = sqrt(h0 * pow(det(J), 1.0 / DIMENSION));
+         const auto h = h0 * pow(det(J) / det(J0), 1.0 / DIMENSION);
          const auto delta_v = h * tr(dvdx);
 
          // Smooth activation switch.
@@ -381,7 +381,7 @@ matd qdata_setup(
          const auto psi = softstep(0.05 * cs, -delta_v);
 
          // Smooths the kink at |delta_v| ~ 0 with correct units scaling.
-         // The smoothing becomes active when |delta_v| approaches 1e-4 * cs.
+         // The smoothing becomes active when |delta_v| approaches 1e-4 cs.
          const auto abs_delta_v = softabs(1e-4 * cs, delta_v);
 
          const auto q1 = 0.25; // linear    - stability in weak shocks.
