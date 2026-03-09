@@ -369,7 +369,7 @@ int main(int argc, char *argv[])
    delete newton;
 
    // Save the solution in parallel using ParaView format
-   ParaViewDataCollection dc("neml2-output", &pmesh);
+   ParaViewDataCollection dc("neml2-output", fespaces.GetFinestFESpace().GetParMesh());
    dc.RegisterField("disp", &u);
    dc.SetCycle(0);
    dc.Save();
