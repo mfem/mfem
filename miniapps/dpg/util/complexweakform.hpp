@@ -203,9 +203,9 @@ public:
                               LinearFormIntegrator *lfi_i,
                               int n);
 
-   /// Sets the same integrations for all trial integrators
+   /// Sets the same integration rules for all trial integrators
    void SetTrialIntegrationRule(const IntegrationRule &ir) { trial_ir = &ir; }
-   /// Sets the same integrations for all test integrators
+   /// Sets the same integration rules for all test integrators
    void SetTestIntegrationRule(const IntegrationRule &ir) { test_ir = &ir; }
 
    /// Assembles the form i.e. sums over all integrators.

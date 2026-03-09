@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
    }
    else if (prob == 4)
    {
-      mesh_file = "meshes/tokamak-400K-tet.mesh";
+      mesh_file = "meshes/tokamak-400K-tet-new.mesh";
       rnum = 54.0e6;
       mu = 1.257e-6;
       sigma = 0.0;
@@ -159,17 +159,6 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
 
    mesh.RemoveInternalBoundaries();
-
-   mesh.Save("tokamak-400K-tet-new.mesh");
-
-   return 0;
-   
-   // for (int i = 0; i<mesh.GetNBE(); i++)
-   // {
-   //    int face_idx = mesh.GetBdrElementFaceIndex(i);
-   //    if (mesh.FaceIsInterior(face_idx))
-   // }
-
 
    int dim = mesh.Dimension();
 
@@ -242,9 +231,6 @@ int main(int argc, char *argv[])
    VisualizeMatrixArrayCoefficient(*cf_i, &pmesh, order, paraview,
        cf_i_file_name.str().c_str());
     
-   return 0;    
-
-
 
    int ne = pmesh.GetNE();
    MPI_Allreduce(MPI_IN_PLACE,&ne,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
@@ -327,7 +313,13 @@ int main(int argc, char *argv[])
    }
 
    ParComplexDPGWeakForm * a = new ParComplexDPGWeakForm(trial_fes,test_fec);
+   const IntegrationRule &ir_test = IntRules.Get(pmesh.GetElementGeometry(0),
+                                           2*test_order + 4);
+   const IntegrationRule &ir_trial = IntRules.Get(pmesh.GetElementGeometry(0),
+                                           order+test_order + 4);
 
+   a->SetTestIntegrationRule(ir_test);
+   // a->SetTrialIntegrationRule(ir_trial);
    // (E,∇ × F)
    a->AddTrialIntegrator(new TransposeIntegrator(new MixedCurlIntegrator(one)),
                          nullptr,0,0);
@@ -411,14 +403,10 @@ int main(int argc, char *argv[])
    const IntegrationRule &ir = IntRules.Get(pmesh.GetElementGeometry(0),
                                             2*test_order + 2);
 
-   VectorFEMassIntegrator * integ_r = new VectorFEMassIntegrator(MMr_cf);
-   integ_r->SetIntegrationRule(ir);
-   VectorFEMassIntegrator * integ_i = new VectorFEMassIntegrator(MMi_cf);
-   integ_i->SetIntegrationRule(ir);
-
    if (graph_norm)
    {
-      a->AddTestIntegrator(integ_r,integ_i,1,1);
+      a->AddTestIntegrator(new VectorFEMassIntegrator(MMr_cf),
+                           new VectorFEMassIntegrator(MMi_cf),1,1);
    }
    // --------------------------------------------------------------------------
 
@@ -464,15 +452,15 @@ int main(int argc, char *argv[])
       paraview_dc->RegisterField("H_r",&H.real());
       paraview_dc->RegisterField("H_i",&H.imag());
 
-      paraview_dct = new ParaViewDataCollection(paraview_file_namet.str(), &pmesh);
-      paraview_dct->SetPrefixPath("ParaView/UW3D");
-      paraview_dct->SetLevelsOfDetail(order);
-      paraview_dct->SetCycle(0);
-      paraview_dct->SetDataFormat(VTKFormat::BINARY);
-      paraview_dct->SetHighOrderOutput(true);
-      paraview_dct->SetTime(0.0); // set the time
-      paraview_dct->RegisterField("Et",&Et);
-      paraview_dct->RegisterField("Ht",&Ht);
+      // paraview_dct = new ParaViewDataCollection(paraview_file_namet.str(), &pmesh);
+      // paraview_dct->SetPrefixPath("ParaView/UW3D");
+      // paraview_dct->SetLevelsOfDetail(order);
+      // paraview_dct->SetCycle(0);
+      // paraview_dct->SetDataFormat(VTKFormat::BINARY);
+      // paraview_dct->SetHighOrderOutput(true);
+      // paraview_dct->SetTime(0.0); // set the time
+      // paraview_dct->RegisterField("Et",&Et);
+      // paraview_dct->RegisterField("Ht",&Ht);
    }
 
    Array<int> ess_tdof_list;
@@ -649,17 +637,16 @@ int main(int argc, char *argv[])
       paraview_dc->SetTime(0.0);
       paraview_dc->Save();
 
-      Et = E.real();
-      int num_frames = 32;
-      for (int it = 0; it<num_frames; it++)
-      {
-         real_t t = (real_t)(it % num_frames) / num_frames;
-         add(cos(2.0*M_PI*t), E.real(), sin(2.0*M_PI*t), E.imag(), Et);
-         paraview_dct->SetCycle(it);
-         paraview_dct->SetTime((real_t)it);
-         paraview_dct->Save();
-      }
-
+      // Et = E.real();
+      // int num_frames = 32;
+      // for (int it = 0; it<num_frames; it++)
+      // {
+      //    real_t t = (real_t)(it % num_frames) / num_frames;
+      //    add(cos(2.0*M_PI*t), E.real(), sin(2.0*M_PI*t), E.imag(), Et);
+      //    paraview_dct->SetCycle(it);
+      //    paraview_dct->SetTime((real_t)it);
+      //    paraview_dct->Save();
+      // }
 
 
 
