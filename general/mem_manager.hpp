@@ -75,7 +75,7 @@
    mfem::internal::ScopeBench MFEM_MEM_OP_BENCH_SCOPE_NAME(                    \
       mem_op_bench_scope_var, __LINE__)(OP_IDX, DO_SYNC)
 #else
-#define MFEM_MEM_OP_BENCH_SCOPE(OP_IDX)
+#define MFEM_MEM_OP_BENCH_SCOPE(OP_IDX, DO_SYNC)
 #endif
 
 namespace mfem
