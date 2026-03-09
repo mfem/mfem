@@ -197,6 +197,9 @@ static void EAHdivAssemble3D(const int NE,
       // Assemble (one row per thread)
       MFEM_FOREACH_THREAD(idx_i, x, NDOF)
       {
+         // NOTE: due to an llvm backend bug, usage of the modulus operator
+         // has been removed from this foreach section. Example of previous
+         // modulus usage: idx_ii = idx_i % NDOF_C;
          const int ic = idx_i / NDOF_C;
          const int idx_ii = idx_i - ic * NDOF_C;
 
