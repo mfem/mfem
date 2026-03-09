@@ -15,7 +15,7 @@
 
 using namespace mfem;
 
-void L2Reconstruction(const ParGridFunction& src, ParGridFunction& dst);
+void L2Reconstruction(const GridFunction& src, GridFunction& dst);
 
 int main(int argc, char* argv[])
 {
@@ -99,8 +99,8 @@ int main(int argc, char* argv[])
    FunctionCoefficient u_function_exact(u_function_wrapper);
 
    // create simple 2D mesh
-   ParMesh mesh;
-   ParMesh mesh_im;
+   Mesh mesh;
+   Mesh mesh_im;
 
    const int num_x = 8;
    const int num_y = 8;   
@@ -109,13 +109,13 @@ int main(int argc, char* argv[])
 
    // if (lor_method == "element_least_squares") {
 
-      Mesh serial_mesh = Mesh::MakeCartesian2D(num_x, num_y, Element::QUADRILATERAL);
+      mesh = Mesh::MakeCartesian2D(num_x, num_y, Element::QUADRILATERAL);
       for (int i = 0; i < refinement_levels; i++) {
-         serial_mesh.UniformRefinement();
+         mesh.UniformRefinement();
       }
-      serial_mesh.EnsureNCMesh();
-      mesh = ParMesh(MPI_COMM_WORLD, serial_mesh);
-      serial_mesh.Clear();
+      mesh.EnsureNCMesh();
+      // mesh = Mesh(MPI_COMM_WORLD, serial_mesh);
+      // serial_mesh.Clear();
 
    // } else if (lor_method == "l2_projection") {
 
@@ -130,9 +130,9 @@ int main(int argc, char* argv[])
    //       mesh_im_serial.UniformRefinement();
    //    }
    //    mesh_im_serial.EnsureNCMesh();
-   //    mesh_im = ParMesh(MPI_COMM_WORLD, mesh_im_serial);
+   //    mesh_im = Mesh(MPI_COMM_WORLD, mesh_im_serial);
    //    Mesh mesh_refined = Mesh::MakeRefined(mesh_im_serial, lref, BasisType::ClosedUniform);
-   //    mesh = ParMesh(MPI_COMM_WORLD, mesh_refined); // GaussLobatto, ClosedUniform
+   //    mesh = Mesh(MPI_COMM_WORLD, mesh_refined); // GaussLobatto, ClosedUniform
    // }
    int dim = mesh.Dimension();
 
@@ -144,18 +144,18 @@ int main(int argc, char* argv[])
    fec_lo = new L2_FECollection(order_lo, dim);
    fec_hi = new L2_FECollection(order_ho, dim);   
    
-   ParFiniteElementSpace fespace_lo(&mesh, fec_lo);
-   ParFiniteElementSpace fespace_hi(&mesh, fec_hi);
+   FiniteElementSpace fespace_lo(&mesh, fec_lo);
+   FiniteElementSpace fespace_hi(&mesh, fec_hi);
 
-   ParGridFunction u_lo(&fespace_lo);   
-   ParGridFunction u_hi(&fespace_hi);
+   GridFunction u_lo(&fespace_lo);   
+   GridFunction u_hi(&fespace_hi);
 
    // if (lor_method == "element_least_squares")
    // {
       FiniteElementCollection *fec_exact;
       fec_exact = new L2_FECollection(order_ho, dim);
-      ParFiniteElementSpace fespace_exact(&mesh, fec_exact);
-      ParGridFunction u_exact(&fespace_exact);
+      FiniteElementSpace fespace_exact(&mesh, fec_exact);
+      GridFunction u_exact(&fespace_exact);
 
       // compute element averages
       // u_lo.ProjectCoefficient(u_function_exact);
@@ -167,8 +167,8 @@ int main(int argc, char* argv[])
    // } else if (lor_method == "l2_projection") {
    //    FiniteElementCollection *fec_im;
    //    fec_im = new H1_FECollection(order_im, dim); // Both L2 and H1 give the same convergence.
-   //    ParFiniteElementSpace fespace_im(&mesh_im, fec_im);
-   //    ParGridFunction u_im(&fespace_im);
+   //    FiniteElementSpace fespace_im(&mesh_im, fec_im);
+   //    GridFunction u_im(&fespace_im);
 
    //    BilinearForm M_lo(&fespace_lo);
    //    M_lo.AddDomainIntegrator(new MassIntegrator);
@@ -277,7 +277,7 @@ void SaturateNeighborhood(NCMesh& mesh, const int element_idx,
    neighbors.Unique();
 }
 
-void L2Reconstruction(const ParGridFunction& src, ParGridFunction& dst)
+void L2Reconstruction(const GridFunction& src, GridFunction& dst)
 {
    const real_t RTOL = 1.0e-5;
 
