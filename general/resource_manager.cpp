@@ -2551,8 +2551,6 @@ void MemoryManager::SetDeviceMemoryType(size_t segment, MemoryType loc)
          seg.mtypes[1] = loc;
          // lazy device memory allocation
          // seg.lowers[1] = Alloc(seg.nbytes, seg.mtypes[1], seg.is_temporary());
-         // initially all invalid
-         // mark_invalid(segment, 1, 0, seg.nbytes, [&](auto, auto) {});
       }
    }
 }

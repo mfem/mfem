@@ -453,6 +453,9 @@ std::string mem_op_debug_copy_type(MemoryType src_loc, MemoryType dst_loc)
 } // namespace internal
 #endif
 
+#ifdef MFEM_ENABLE_MEM_BENCH
+namespace internal
+{
 BenchTimer &BenchTimer::Instance()
 {
    static BenchTimer v;
@@ -511,6 +514,8 @@ ScopeBench::~ScopeBench()
       BenchTimer::Instance().timer.now() -
       BenchTimer::Instance().start_points[idx];
 }
+} // namespace internal
+#endif
 
 MemoryType GetMemoryType(MemoryClass mc)
 {
