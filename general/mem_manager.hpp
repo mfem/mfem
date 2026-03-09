@@ -33,62 +33,29 @@
 
 #include <map>
 
-struct mem_op_tracker
-{
-   using map_type = std::map<std::pair<const void *, const void *>,
-         std::pair<size_t, size_t>>;
-   map_type allocations;
-
-   using key_type = typename map_type::iterator;
-
-   size_t counter = 0;
-
-   std::pair<size_t, size_t> add_allocation(const void *start,
-                                            const void *stop);
-
-   key_type find_containing(const void *start, const void *stop);
-
-   key_type find_containing(const void *start);
-
-   key_type find_allocation(const void *start, const void *stop);
-
-   key_type find_allocation(const void *start);
-
-   std::pair<size_t, size_t> remove_allocation(const void *start,
-                                               const void *stop);
-
-   std::pair<size_t, size_t> remove_allocation(const void *start);
-
-   static mem_op_tracker &instance()
-   {
-      static mem_op_tracker res;
-      return res;
-   }
-};
-
 #define USE_NEW_MEM_MANAGER 1
-// #define MFEM_ENABLE_MEM_OP_DEBUG
+#define MFEM_ENABLE_MEM_OP_DEBUG
 
 #ifdef MFEM_ENABLE_MEM_OP_DEBUG
 #define MFEM_MEM_OP_DEBUG_ADD(OP_IDX, START, STOP, MSG)                        \
-   mfem::mem_op_debug_add(OP_IDX, START, STOP) << MSG << std::endl
+   mfem::internal::mem_op_debug_add(OP_IDX, START, STOP) << MSG << std::endl
 #define MFEM_MEM_OP_DEBUG_REMOVE(OP_IDX, START, MSG)                           \
-   mfem::mem_op_debug_remove(OP_IDX, START) << MSG << std::endl
+   mfem::internal::mem_op_debug_remove(OP_IDX, START) << MSG << std::endl
 #define MFEM_MEM_OP_DEBUG_REMOVE2(OP_IDX, START, STOP, MSG)                    \
-   mfem::mem_op_debug_remove(OP_IDX, START, STOP) << MSG << std::endl
+   mfem::internal::mem_op_debug_remove(OP_IDX, START, STOP) << MSG << std::endl
 
 #define MFEM_MEM_OP_DEBUG(OP_IDX, MSG)                                         \
-   mfem::mem_op_debug(OP_IDX, 0) << MSG << std::endl
+   mfem::internal::mem_op_debug(OP_IDX, 0) << MSG << std::endl
 
 #define MFEM_MEM_OP_DEBUG_SYNC_ALIAS(OP_IDX, ASTART, BSTART, NBYTES)           \
-   mfem::mem_op_debug_sync_alias(OP_IDX, ASTART, BSTART, NBYTES)
+   mfem::internal::mem_op_debug_sync_alias(OP_IDX, ASTART, BSTART, NBYTES)
 #define MFEM_MEM_OP_DEBUG_USE(OP_IDX, START, STOP, MSG)                        \
-   mfem::mem_op_debug_use(OP_IDX, START, STOP) << MSG << std::endl
+   mfem::internal::mem_op_debug_use(OP_IDX, START, STOP) << MSG << std::endl
 
 #define MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(OP_IDX, SRC_START, DST_START, NBYTES, \
                                          MSG, src_loc, dst_loc)                \
-   mfem::mem_op_debug_batch_mem_copy(OP_IDX, SRC_START, DST_START, NBYTES,     \
-                                     src_loc, dst_loc)                         \
+   mfem::internal::mem_op_debug_batch_mem_copy(OP_IDX, SRC_START, DST_START,   \
+                                               NBYTES, src_loc, dst_loc)       \
       << MSG << std::endl
 #else
 #define MFEM_MEM_OP_DEBUG_ADD(OP_IDX, START, STOP, MSG)
@@ -157,6 +124,42 @@ enum class MemoryType
                         device MemoryType. */
 };
 
+#ifdef MFEM_ENABLE_MEM_OP_DEBUG
+namespace internal
+{
+struct mem_op_tracker
+{
+   using map_type = std::map<std::pair<const void *, const void *>,
+         std::pair<size_t, size_t>>;
+   map_type allocations;
+
+   using key_type = typename map_type::iterator;
+
+   size_t counter = 0;
+
+   std::pair<size_t, size_t> add_allocation(const void *start,
+                                            const void *stop);
+
+   key_type find_containing(const void *start, const void *stop);
+
+   key_type find_containing(const void *start);
+
+   key_type find_allocation(const void *start, const void *stop);
+
+   key_type find_allocation(const void *start);
+
+   std::pair<size_t, size_t> remove_allocation(const void *start,
+                                               const void *stop);
+
+   std::pair<size_t, size_t> remove_allocation(const void *start);
+
+   static mem_op_tracker &instance()
+   {
+      static mem_op_tracker res;
+      return res;
+   }
+};
+
 std::ostream &mem_op_debug(size_t idx, int);
 
 size_t mem_op_debug(size_t idx);
@@ -175,6 +178,8 @@ std::ostream &mem_op_debug_batch_mem_copy(size_t op_idx, const void *src_start,
                                           MemoryType src_loc,
                                           MemoryType dst_loc);
 std::string mem_op_debug_copy_type(MemoryType src_loc, MemoryType dst_loc);
+} // namespace internal
+#endif
 
 /// Static casts to 'int' and sizes of some useful memory types.
 constexpr int MemoryTypeSize = static_cast<int>(MemoryType::SIZE);

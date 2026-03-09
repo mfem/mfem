@@ -56,6 +56,12 @@
 // Internal debug option, useful for tracking some memory manager operations.
 // #define MFEM_TRACK_MEM_MANAGER
 
+namespace mfem
+{
+
+#ifdef MFEM_ENABLE_MEM_OP_DEBUG
+namespace internal
+{
 std::pair<size_t, size_t> mem_op_tracker::add_allocation(const void *start,
                                                          const void *stop)
 {
@@ -190,74 +196,12 @@ std::pair<size_t, size_t> mem_op_tracker::remove_allocation(const void *start)
    return res;
 }
 
-namespace mfem
-{
-
 static OutStream &nullstream()
 {
    static std::stringstream buf;
    static OutStream str(buf);
    str.Disable();
    return str;
-}
-
-BenchTimer &BenchTimer::Instance()
-{
-   static BenchTimer v;
-   return v;
-}
-
-BenchTimer::BenchTimer()
-{
-   glob_start = timer.now();
-   start_points.resize(7);
-   durations.resize(start_points.size());
-   call_counts.resize(start_points.size());
-}
-
-BenchTimer::~BenchTimer()
-{
-   auto tot_time = timer.now() - glob_start;
-   std::vector<double> sums;
-   for (auto &v : durations)
-   {
-      sums.emplace_back(
-         std::chrono::duration_cast<std::chrono::duration<double>>(v).count());
-   }
-   mfem::out << "Total time: "
-             << std::chrono::duration_cast<std::chrono::duration<double>>(
-                tot_time)
-             .count()
-             << std::endl;
-   mfem::out << "ReadWrite [" << call_counts[0] << "]: " << sums[0] << " s"
-             << std::endl;
-   mfem::out << "Read [" << call_counts[1] << "]: " << sums[1] << " s"
-             << std::endl;
-   mfem::out << "Write [" << call_counts[2] << "]: " << sums[2] << " s"
-             << std::endl;
-   mfem::out << "SyncAlias [" << call_counts[3] << "]: " << sums[3] << " s"
-             << std::endl;
-   mfem::out << "Copy [" << call_counts[4] << "]: " << sums[4] << " s"
-             << std::endl;
-   mfem::out << "CopyFromHost [" << call_counts[5] << "]: " << sums[5] << " s"
-             << std::endl;
-   mfem::out << "CopyToHost [" << call_counts[6] << "]: " << sums[6] << " s"
-             << std::endl;
-}
-
-ScopeBench::ScopeBench(size_t i) : idx(i)
-{
-   ++BenchTimer::Instance().call_counts[i];
-   MFEM_DEVICE_SYNC;
-   BenchTimer::Instance().start_points[i] = BenchTimer::Instance().timer.now();
-}
-
-ScopeBench::~ScopeBench()
-{
-   MFEM_DEVICE_SYNC;
-   BenchTimer::Instance().durations[idx] +=
-      BenchTimer::Instance().timer.now() -
-      BenchTimer::Instance().start_points[idx];
 }
 
 size_t mem_op_debug(size_t idx)
@@ -272,7 +216,7 @@ size_t mem_op_debug(size_t idx)
 
 std::ostream &mem_op_debug(size_t idx, int)
 {
-   auto pidx = mfem::mem_op_debug(idx);
+   auto pidx = mem_op_debug(idx);
    return mfem::out << "[DEBUG] " << pidx << ": ";
 }
 
@@ -282,12 +226,12 @@ std::ostream &mem_op_debug_add(size_t idx, const void *start, const void *stop)
    if (start != nullptr)
    {
       auto v = tracker.add_allocation(start, stop);
-      auto pidx = mfem::mem_op_debug(idx);
+      auto pidx = mem_op_debug(idx);
       return mfem::out << "[DEBUG] " << pidx << ", add "
              << reinterpret_cast<const char *>(stop) -
              reinterpret_cast<const char *>(start)
-             << " Bytes " << v.first << " [" << start << ":"
-             << stop << "]: ";
+             << " Bytes " << v.first << " [" << start << ":" << stop
+             << "]: ";
    }
    else
    {
@@ -302,7 +246,7 @@ std::ostream &mem_op_debug_remove(size_t idx, const void *start,
    if (start != nullptr)
    {
       auto v = tracker.remove_allocation(start, stop);
-      auto pidx = mfem::mem_op_debug(idx);
+      auto pidx = mem_op_debug(idx);
       return mfem::out << "[DEBUG] " << pidx << ", remove "
              << reinterpret_cast<const char *>(stop) -
              reinterpret_cast<const char *>(start)
@@ -323,7 +267,7 @@ std::ostream &mem_op_debug_remove(size_t idx, const void *start)
       auto nbytes = reinterpret_cast<const char *>(iter->first.second) -
                     reinterpret_cast<const char *>(iter->first.first);
       auto v = tracker.remove_allocation(start);
-      auto pidx = mfem::mem_op_debug(idx);
+      auto pidx = mem_op_debug(idx);
       return mfem::out << "[DEBUG] " << pidx << ", remove " << nbytes
              << " Bytes " << v.first << ": ";
    }
@@ -339,7 +283,7 @@ std::ostream &mem_op_debug_use(size_t idx, const void *start, const void *stop)
    if (start != nullptr)
    {
       auto iter = tracker.find_containing(start, stop);
-      auto pidx = mfem::mem_op_debug(idx);
+      auto pidx = mem_op_debug(idx);
       if (iter != tracker.allocations.end())
       {
          return mfem::out
@@ -359,7 +303,7 @@ std::ostream &mem_op_debug_use(size_t idx, const void *start, const void *stop)
    }
    else
    {
-      auto pidx = mfem::mem_op_debug(idx);
+      auto pidx = mem_op_debug(idx);
       return mfem::out << "[DEBUG] " << pidx << ", use nullptr "
              << ": ";
    }
@@ -376,7 +320,7 @@ std::ostream &mem_op_debug_sync_alias(size_t idx, const void *astart,
                   reinterpret_cast<const char *>(bstart),
                   "alias start before base start");
       auto iter = tracker.find_containing(bstart);
-      auto pidx = mfem::mem_op_debug(idx);
+      auto pidx = mem_op_debug(idx);
       if (iter != tracker.allocations.end())
       {
          MFEM_VERIFY(iter->first.first == bstart,
@@ -415,8 +359,9 @@ std::ostream &mem_op_debug_sync_alias(size_t idx, const void *astart,
    }
    else
    {
-      auto pidx = mfem::mem_op_debug(idx);
-      return mfem::out << "[DEBUG] " << pidx << ", sync alias nullptr" << std::endl;
+      auto pidx = mem_op_debug(idx);
+      return mfem::out << "[DEBUG] " << pidx << ", sync alias nullptr"
+             << std::endl;
    }
 }
 
@@ -430,7 +375,7 @@ std::ostream &mem_op_debug_batch_mem_copy(size_t idx, const void *src_start,
                       src_start, reinterpret_cast<const char *>(src_start) + nbytes);
    auto dst_iter = tracker.find_containing(
                       dst_start, reinterpret_cast<const char *>(dst_start) + nbytes);
-   auto pidx = mfem::mem_op_debug(idx);
+   auto pidx = mem_op_debug(idx);
    mfem::out << "[DEBUG] " << pidx << ": BATCH_MEM_COPY "
              << mem_op_debug_copy_type(src_loc, dst_loc) << " " << nbytes
              << " Bytes, ";
@@ -504,6 +449,67 @@ std::string mem_op_debug_copy_type(MemoryType src_loc, MemoryType dst_loc)
          break;
    }
    return res.str();
+}
+} // namespace internal
+#endif
+
+BenchTimer &BenchTimer::Instance()
+{
+   static BenchTimer v;
+   return v;
+}
+
+BenchTimer::BenchTimer()
+{
+   glob_start = timer.now();
+   start_points.resize(7);
+   durations.resize(start_points.size());
+   call_counts.resize(start_points.size());
+}
+
+BenchTimer::~BenchTimer()
+{
+   auto tot_time = timer.now() - glob_start;
+   std::vector<double> sums;
+   for (auto &v : durations)
+   {
+      sums.emplace_back(
+         std::chrono::duration_cast<std::chrono::duration<double>>(v).count());
+   }
+   mfem::out << "Total time: "
+             << std::chrono::duration_cast<std::chrono::duration<double>>(
+                tot_time)
+             .count()
+             << std::endl;
+   mfem::out << "ReadWrite [" << call_counts[0] << "]: " << sums[0] << " s"
+             << std::endl;
+   mfem::out << "Read [" << call_counts[1] << "]: " << sums[1] << " s"
+             << std::endl;
+   mfem::out << "Write [" << call_counts[2] << "]: " << sums[2] << " s"
+             << std::endl;
+   mfem::out << "SyncAlias [" << call_counts[3] << "]: " << sums[3] << " s"
+             << std::endl;
+   mfem::out << "Copy [" << call_counts[4] << "]: " << sums[4] << " s"
+             << std::endl;
+   mfem::out << "CopyFromHost [" << call_counts[5] << "]: " << sums[5] << " s"
+             << std::endl;
+   mfem::out << "CopyToHost [" << call_counts[6] << "]: " << sums[6] << " s"
+             << std::endl;
+}
+
+ScopeBench::ScopeBench(size_t i) : idx(i)
+{
+   ++BenchTimer::Instance().call_counts[i];
+   MFEM_DEVICE_SYNC;
+   BenchTimer::Instance().start_points[i] = BenchTimer::Instance().timer.now();
+}
+
+ScopeBench::~ScopeBench()
+{
+   MFEM_DEVICE_SYNC;
+   BenchTimer::Instance().durations[idx] +=
+      BenchTimer::Instance().timer.now() -
+      BenchTimer::Instance().start_points[idx];
 }
 
 MemoryType GetMemoryType(MemoryClass mc)
