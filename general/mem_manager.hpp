@@ -34,7 +34,7 @@
 #include <map>
 
 #define USE_NEW_MEM_MANAGER 1
-// #define MFEM_ENABLE_MEM_BENCH
+#define MFEM_ENABLE_MEM_BENCH
 // #define MFEM_ENABLE_MEM_OP_DEBUG
 
 #ifdef MFEM_ENABLE_MEM_OP_DEBUG
@@ -71,9 +71,9 @@
 
 #ifdef MFEM_ENABLE_MEM_BENCH
 #define MFEM_MEM_OP_BENCH_SCOPE_NAME(base, counter)base##counter
-#define MFEM_MEM_OP_BENCH_SCOPE(OP_IDX)                                        \
+#define MFEM_MEM_OP_BENCH_SCOPE(OP_IDX, DO_SYNC)                               \
    mfem::internal::ScopeBench MFEM_MEM_OP_BENCH_SCOPE_NAME(                    \
-      mem_op_bench_scope_var, __LINE__)(OP_IDX)
+      mem_op_bench_scope_var, __LINE__)(OP_IDX, DO_SYNC)
 #else
 #define MFEM_MEM_OP_BENCH_SCOPE(OP_IDX)
 #endif
@@ -133,7 +133,8 @@ struct BenchTimer
 struct ScopeBench
 {
    size_t idx;
-   ScopeBench(size_t i);
+   bool sync;
+   ScopeBench(size_t i, bool do_sync);
    ~ScopeBench();
 };
 } // namespace internal
@@ -1381,7 +1382,7 @@ template <typename T>
 inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
 {
    MFEM_MEM_OP_DEBUG_USE(6, h_ptr, h_ptr + size, " ReadWrite Request");
-   MFEM_MEM_OP_BENCH_SCOPE(0);
+   MFEM_MEM_OP_BENCH_SCOPE(0, true);
    const size_t bytes = size * sizeof(T);
    if (!(flags & Registered))
    {
@@ -1400,7 +1401,7 @@ template <typename T>
 inline const T *Memory<T>::Read(MemoryClass mc, int size) const
 {
    MFEM_MEM_OP_DEBUG_USE(4, h_ptr, h_ptr + size, " Read Request");
-   MFEM_MEM_OP_BENCH_SCOPE(1);
+   MFEM_MEM_OP_BENCH_SCOPE(1, true);
    const size_t bytes = size * sizeof(T);
    if (!(flags & Registered))
    {
@@ -1419,7 +1420,7 @@ template <typename T>
 inline T *Memory<T>::Write(MemoryClass mc, int size)
 {
    MFEM_MEM_OP_DEBUG_USE(5, h_ptr, h_ptr + size, " Write Request");
-   MFEM_MEM_OP_BENCH_SCOPE(2);
+   MFEM_MEM_OP_BENCH_SCOPE(2, true);
    const size_t bytes = size * sizeof(T);
    if (!(flags & Registered))
    {
@@ -1451,7 +1452,7 @@ inline void Memory<T>::Sync(const Memory &other) const
 template <typename T>
 inline void Memory<T>::SyncAlias(const Memory &base, int alias_size) const
 {
-   MFEM_MEM_OP_BENCH_SCOPE(3);
+   MFEM_MEM_OP_BENCH_SCOPE(3, true);
    // Assuming that if *this is registered then base is also registered.
    MFEM_ASSERT(!(flags & Registered) || (base.flags & Registered),
                "invalid base state");
@@ -1494,7 +1495,7 @@ template <typename T>
 inline void Memory<T>::CopyFrom(const Memory &src, int size)
 {
    MFEM_MEM_OP_DEBUG(7, "CopyFrom " << size * sizeof(T) << " bytes");
-   MFEM_MEM_OP_BENCH_SCOPE(4);
+   MFEM_MEM_OP_BENCH_SCOPE(4, true);
    MFEM_VERIFY(src.capacity>=size && capacity>=size, "Incorrect size");
    if (size <= 0)
    {
@@ -1522,7 +1523,7 @@ template <typename T>
 inline void Memory<T>::CopyFromHost(const T *src, int size)
 {
    MFEM_MEM_OP_DEBUG(8, "CopyFromHost " << size * sizeof(T) << " bytes");
-   MFEM_MEM_OP_BENCH_SCOPE(5);
+   MFEM_MEM_OP_BENCH_SCOPE(5, true);
    MFEM_VERIFY(capacity>=size, "Incorrect size");
    if (size <= 0)
    {
@@ -1556,7 +1557,7 @@ template <typename T>
 inline void Memory<T>::CopyToHost(T *dest, int size) const
 {
    MFEM_MEM_OP_DEBUG(8, "CopyToHost " << size * sizeof(T) << " bytes");
-   MFEM_MEM_OP_BENCH_SCOPE(6);
+   MFEM_MEM_OP_BENCH_SCOPE(6, true);
    MFEM_VERIFY(capacity>=size, "Incorrect size");
    if (size <= 0)
    {

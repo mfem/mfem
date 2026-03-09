@@ -465,7 +465,7 @@ BenchTimer &BenchTimer::Instance()
 BenchTimer::BenchTimer()
 {
    glob_start = timer.now();
-   start_points.resize(7);
+   start_points.resize(11);
    durations.resize(start_points.size());
    call_counts.resize(start_points.size());
 }
@@ -498,18 +498,32 @@ BenchTimer::~BenchTimer()
              << std::endl;
    mfem::out << "CopyToHost [" << call_counts[6] << "]: " << sums[6] << " s"
              << std::endl;
+   mfem::out << "MarkInvalid [" << call_counts[7] << "]: " << sums[7] << " s"
+             << std::endl;
+   mfem::out << "MarkValid [" << call_counts[8] << "]: " << sums[8] << " s"
+             << std::endl;
+   mfem::out << "CheckValid [" << call_counts[9] << "]: " << sums[9] << " s"
+             << std::endl;
+   mfem::out << "MemCopy [" << call_counts[10] << "]: " << sums[10] << " s"
+             << std::endl;
 }
 
-ScopeBench::ScopeBench(size_t i) : idx(i)
+ScopeBench::ScopeBench(size_t i, bool do_sync) : idx(i), sync(do_sync)
 {
    ++BenchTimer::Instance().call_counts[i];
-   MFEM_DEVICE_SYNC;
+   if (do_sync)
+   {
+      MFEM_DEVICE_SYNC;
+   }
    BenchTimer::Instance().start_points[i] = BenchTimer::Instance().timer.now();
 }
 
 ScopeBench::~ScopeBench()
 {
-   MFEM_DEVICE_SYNC;
+   if (sync)
+   {
+      MFEM_DEVICE_SYNC;
+   }
    BenchTimer::Instance().durations[idx] +=
       BenchTimer::Instance().timer.now() -
       BenchTimer::Instance().start_points[idx];

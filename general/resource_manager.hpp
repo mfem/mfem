@@ -1213,7 +1213,7 @@ template <class T> void Memory<T>::EnsureRegistered() const
 template <class T> T *Memory<T>::Write(bool on_device, int size)
 {
    MFEM_MEM_OP_DEBUG_USE(5, h_ptr, h_ptr + size, " Write Request");
-   MFEM_MEM_OP_BENCH_SCOPE(2);
+   MFEM_MEM_OP_BENCH_SCOPE(2, true);
    auto &inst = MemoryManager::instance();
    if (on_device)
    {
@@ -1232,7 +1232,7 @@ template <class T> T *Memory<T>::Write(bool on_device, int size)
 template <class T> T *Memory<T>::ReadWrite(bool on_device, int size)
 {
    MFEM_MEM_OP_DEBUG_USE(6, h_ptr, h_ptr + size, " ReadWrite Request");
-   MFEM_MEM_OP_BENCH_SCOPE(0);
+   MFEM_MEM_OP_BENCH_SCOPE(0, true);
    auto &inst = MemoryManager::instance();
    if (on_device)
    {
@@ -1250,7 +1250,7 @@ template <class T> T *Memory<T>::ReadWrite(bool on_device, int size)
 template <class T> const T *Memory<T>::Read(bool on_device, int size) const
 {
    MFEM_MEM_OP_DEBUG_USE(4, h_ptr, h_ptr + size, " Read Request");
-   MFEM_MEM_OP_BENCH_SCOPE(1);
+   MFEM_MEM_OP_BENCH_SCOPE(1, true);
    auto &inst = MemoryManager::instance();
    if (on_device)
    {
@@ -1305,7 +1305,7 @@ template <class T> Memory<T>::~Memory() { Reset(); }
 template <class T> void Memory<T>::CopyFrom(const Memory &src, int size)
 {
    MFEM_MEM_OP_DEBUG(7, "CopyFrom " << size * sizeof(T) << " bytes");
-   MFEM_MEM_OP_BENCH_SCOPE(4);
+   MFEM_MEM_OP_BENCH_SCOPE(4, true);
    if (size <= 0)
    {
       return;
@@ -1347,7 +1347,7 @@ template <class T> void Memory<T>::CopyFrom(const Memory &src, int size)
 template <class T> void Memory<T>::CopyFromHost(const T *src, int size)
 {
    MFEM_MEM_OP_DEBUG(8, "CopyFromHost " << size * sizeof(T) << " bytes");
-   MFEM_MEM_OP_BENCH_SCOPE(5);
+   MFEM_MEM_OP_BENCH_SCOPE(5, true);
    if (size <= 0)
    {
       return;
@@ -1376,7 +1376,7 @@ template <class T> void Memory<T>::CopyTo(Memory &dst, int size) const
 template <class T> void Memory<T>::CopyToHost(T *dst, int size) const
 {
    MFEM_MEM_OP_DEBUG(8, "CopyToHost " << size * sizeof(T) << " bytes");
-   MFEM_MEM_OP_BENCH_SCOPE(6);
+   MFEM_MEM_OP_BENCH_SCOPE(6, true);
    if (size <= 0)
    {
       return;

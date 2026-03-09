@@ -396,6 +396,7 @@ void TempAllocator<BaseAlloc, NeedsWait>::Dealloc(void *ptr)
 void MemoryManager::MemCopy(void *dst, const void *src, size_t nbytes,
                             MemoryType dst_loc, MemoryType src_loc)
 {
+   MFEM_MEM_OP_BENCH_SCOPE(10, true);
    if (dst == src)
    {
       return;
@@ -915,6 +916,7 @@ template <class F>
 void MemoryManager::mark_valid(size_t segment, bool on_device, ptrdiff_t start,
                                ptrdiff_t stop, F &&func)
 {
+   MFEM_MEM_OP_BENCH_SCOPE(8, false);
    auto &seg = storage.get_segment(segment);
    size_t curr = find_marker(segment, start, on_device);
    if (!curr)
@@ -1019,6 +1021,7 @@ template <class F>
 void MemoryManager::mark_invalid(size_t segment, bool on_device,
                                  ptrdiff_t start, ptrdiff_t stop, F &&func)
 {
+   MFEM_MEM_OP_BENCH_SCOPE(7, false);
    auto &seg = storage.get_segment(segment);
    size_t curr = find_marker(segment, start, on_device);
    if (!curr)
@@ -1359,6 +1362,7 @@ template <class F>
 void MemoryManager::check_valid(size_t curr, ptrdiff_t start, ptrdiff_t stop,
                                 F &&func)
 {
+   MFEM_MEM_OP_BENCH_SCOPE(9, false);
    if (!curr)
    {
       func(start, stop, true);
