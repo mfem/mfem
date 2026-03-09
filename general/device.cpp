@@ -32,6 +32,7 @@
 #include <mach/mach_init.h>  // mach_task_self
 #include <mach/task.h>       // task_info
 #elif defined(_WIN32)
+#include <windows.h>
 #include <psapi.h>  // GetProcessMemoryInfo
 #pragma comment(lib, "psapi.lib")
 #endif
