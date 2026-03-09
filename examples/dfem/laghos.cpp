@@ -269,17 +269,25 @@ matd qdata_setup(
 
    if (use_viscosity)
    {
-      auto softstep = [](const real_t &eps, const real_t x)
+      auto softstep = [](const real_t &width, const real_t x)
       {
-         auto arg = std::max(std::min(x / (eps + 1e-6), 40.0),
-                             -40.0); // [-40,40] covers most practical values
+         // Clamping to prevend under/overflow.
+         // This does not affect smoothness, it's only for extreme values.
+         // [-40,40] covers most practical values.
+         auto arg = std::max(std::min(x / (width + 1e-6), 40.0), -40.0);
+
+         // Smooth transition from 0 to 1; symmetric around the zero.
+         // width: controls the slope of the sigmoid; lower -> sharper.
+         // value(0) = 0.5, value(+width) ~ 0.73, value(-width) ~ 0.27.
          return 1.0 / (1.0 + std::exp(-arg));
       };
 
       auto softabs = [=](const real_t &eps, const real_t x)
       {
-         // Clamp eps to avoid division/overflow, and to promote smoothing for AD
+         // Clamping to prevend under/overflow; doesn't affect smoothness.
          auto e = std::max(eps, 1e-6_r);
+
+         // Diffuse the kink at |x| ~ 0. Activates as |x| approaches eps.
          return sqrt(x * x + e * e);
       };
 
@@ -360,23 +368,30 @@ matd qdata_setup(
       }
       else if (viscosity_type == 7)
       {
-         // Some new viscosity.
-         const auto delta = 0.2 * cs;
+         // Smoother viscosity for well-defined gradients.
+
          const auto dvdx = dvdxi * inv(J);
-         const auto h = h0 * pow(det(J), 1.0 / DIMENSION);
+         const auto h = sqrt(h0 * pow(det(J), 1.0 / DIMENSION));
          const auto delta_v = h * tr(dvdx);
-         const auto psi1 = softstep(delta, -delta_v);
-         const auto q1 = 12.0;
-         const auto q2 = 12.0;
-         const auto mu = 3.0 / 4.0 * rho * h * psi1 *
-                         (q2 * softabs(delta, delta_v) + q1 * cs);
-         stress += 2.0 * mu * sym(dvdx);
-         dt_visc_coeff = 2.0 * mu;
+
+         // Smooth activation switch.
+         // Motivation: in compression, delta_v < 0.
+         //             in shocks, delta_v starts to be comparable to cs.
+         // -> this viscosity becomes noticable when delta_v > 0.05 cs.
+         const auto psi = softstep(0.05 * cs, -delta_v);
+
+         // Smooths the kink at |delta_v| ~ 0 with correct units scaling.
+         // The smoothing becomes active when |delta_v| approaches 1e-4 * cs.
+         const auto abs_delta_v = softabs(1e-4 * cs, delta_v);
+
+         const auto q1 = 0.25; // linear    - stability in weak shocks.
+         const auto q2 = 1.00; // quadratic - grows in strong shocks.
+         const auto mu = psi * rho * h * (q2 * abs_delta_v + q1 * cs);
+         stress += mu * sym(dvdx);
+
+         dt_visc_coeff = mu;
       }
-      else
-      {
-         exit(1);
-      }
+      else { MFEM_ABORT("wrong viscosity option"); }
    }
 
    if (rho < 0.0)
@@ -1458,14 +1473,14 @@ public:
       gmres->SetMaxIter(krylov_maximum_iterations);
       gmres->SetRelTol(1e-12);
       gmres->SetAbsTol(0.0);
-      // gmres->SetPrintLevel(IterativeSolver::PrintLevel().Summary());
+      //gmres->SetPrintLevel(IterativeSolver::PrintLevel().Summary());
       gmres->SetPrintLevel(IterativeSolver::PrintLevel().None());
       gmres->SetPreconditioner(*preconditioner);
       krylov.reset(gmres);
 
       newton.reset(new LineSearchNewtonSolver(MPI_COMM_WORLD, *this));
-      //newton->SetPrintLevel(IterativeSolver::PrintLevel().Summary());
-      newton->SetPrintLevel(IterativeSolver::PrintLevel().None());
+      newton->SetPrintLevel(IterativeSolver::PrintLevel().Summary());
+      //newton->SetPrintLevel(IterativeSolver::PrintLevel().None());
       newton->SetOperator(*residual);
       newton->SetSolver(*krylov);
       newton->SetMaxIter(nonlinear_maximum_iterations);
@@ -2851,9 +2866,8 @@ int main(int argc, char *argv[])
       {
          // Repeat only when the mesh inverted.
          // Can happen at time integration, even if all stages were ok.
-         //real_t min_detJ = hydro->ComputeMinDet(S);
-         //if (min_detJ < 0.0)
-         if (dt_est < dt || !hydro->newton_converged)
+         // Don't repeat time steps for implicit 3point.
+         if ( (dt_est < dt || !hydro->newton_converged) && (problem != 3))
          {
             if (!hydro->newton_converged)
             {
