@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command line options.
    int primal_order = 2;
-   int latent_order = 0;
+   int latent_order = 10;
    int ref_levels = 2;
 
    OptionsParser args(argc, argv);
@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
    L2_FECollection primal_fec(primal_order, mesh.Dimension());
    FiniteElementSpace primal_fes(&mesh, &primal_fec);
    cout << "Number of unknowns: " << primal_fes.GetTrueVSize() << endl;
-   PLBound plb(&primal_fes);
+   PLBound plb(&primal_fes, latent_order);
    Vector points(plb.GetControlPoints());
    IntegrationRule ir_1D(points.Size());
    for (int i=0; i<points.Size(); i++)
@@ -87,11 +87,13 @@ int main(int argc, char *argv[])
 
    // 6. Setup target function.
    // This function is not positive, so the projection will be clipped version of this function.
-   FunctionCoefficient u_targ([](const Vector &x) { return
-      std::sin(2.0 * M_PI * x[0]) * std::sin(2.0*M_PI * x[1]);
+   FunctionCoefficient u_targ([](const Vector &x)
+   {
+      return
+         std::sin(2.0 * M_PI * x[0]) * std::sin(2.0*M_PI * x[1]) + 0.5;
       // std::sin(M_PI * x[0]) * std::sin(M_PI * x[1]);
       // 2.0 + std::atanh(2*(x[0]-0.5));
-    });
+   });
 
    // 7, Define entropy function
    Shannon entropy;
@@ -114,6 +116,7 @@ int main(int argc, char *argv[])
    Array<int> offsets(3);
    BlockVector pg_rhs, pg_sol, pg_prev, newt_prev;
    Vector psi_prev, psi_curr;
+   Vector delta_all, delta_res;
 
    Array<int> primal_glb_idx;
    Array<int> latent_glb_idx;
@@ -157,6 +160,9 @@ int main(int argc, char *argv[])
       Vector &primal_res = pg_rhs.GetBlock(0);
       Vector &dual_res = pg_rhs.GetBlock(1);
 
+      delta_all.SetSize(primal_dof + latent_dof);
+      delta_res.SetSize(primal_dof + latent_dof);
+
       real_t w = mesh.GetElementVolume(e_idx);
       mass.AssembleElementMatrix(*primal_fe, *Tr, M);
 
@@ -169,7 +175,7 @@ int main(int argc, char *argv[])
       pg_mat.SetSubMatrix(primal_dof, 0, L);
       pg_mat.SetSubMatrix(0, primal_dof, neg_Lt);
 
-      real_t alpha = 0.01; // proximal step size
+      real_t alpha = 0.001; // proximal step size
       out << "Element " << e_idx << std::endl;
       bool prox_converged = false;
       for (int prox_it = 0; prox_it < 1000; prox_it++)
@@ -177,44 +183,61 @@ int main(int argc, char *argv[])
          out << "  Proximal iteration " << prox_it << std::endl;
          pg_prev = pg_sol;
          psi_prev = psi_curr;
+         for (auto &val : psi_prev)
+         {
+            val = std::max(val, -1e02);
+         }
 
          // TODO: Wrap this into an Operator and use NewtonSolver
          bool newt_converged = false;
-         for (int newt_it = 0; newt_it < 20; newt_it++)
+         while (alpha > 1e-10)
          {
-            newt_prev = pg_sol;
-            add(psi_prev, -alpha, lam_e, psi_curr);
-
-            for (int j=0; j<latent_dof; j++)
+            for (int newt_it = 0; newt_it < 20; newt_it++)
             {
-               const real_t primval = entropy.gradinv(psi_curr[j]);
-               const real_t hessval = entropy.hessinv(psi_curr[j]);
+               newt_prev = pg_sol;
+               add(psi_prev, -alpha, lam_e, psi_curr);
 
-               dual_res[j] = primval;
-               H(j, j) = hessval;
+               for (int j=0; j<latent_dof; j++)
+               {
+                  const real_t primval = entropy.gradinv(psi_curr[j]);
+                  const real_t hessval = entropy.hessinv(psi_curr[j]);
+
+                  dual_res[j] = primval;
+                  H(j, j) = hessval + 1e-05;;
+               }
+
+               H *= alpha;
+               H.AddMult(lam_e, dual_res);
+               pg_mat.SetSubMatrix(primal_dof, primal_dof, H);
+
+               pg_inv.Factor(pg_mat);
+               pg_inv.Mult(pg_rhs, pg_sol);
+
+               if (pg_sol.GetBlock(0).DistanceTo(newt_prev.GetBlock(0)) < 1e-08)
+                  // if (pg_sol.DistanceTo(newt_prev) < 1e-08)
+               {
+                  newt_converged = true;
+                  break;
+               }
             }
-
-            H *= alpha;
-            H.AddMult(lam_e, dual_res);
-            pg_mat.SetSubMatrix(primal_dof, primal_dof, H);
-
-            pg_inv.Factor(pg_mat);
-            pg_inv.Mult(pg_rhs, pg_sol);
-            // if (pg_sol.GetBlock(0).DistanceTo(newt_prev.GetBlock(0)) < 1e-08)
-            if (pg_sol.DistanceTo(newt_prev) < 1e-08)
+            if (newt_converged)
             {
-               newt_converged = true;
                break;
             }
+            out << "   Newton solver failed to converge. Reducing alpha to " << alpha*0.5 <<
+                std::endl;
+            alpha *= 0.5;
+            pg_sol = pg_prev;
          }
          MFEM_VERIFY(newt_converged, "Newton solver did not converge");
          // if (pg_sol.GetBlock(0).DistanceTo(pg_prev.GetBlock(0)) < 1e-08)
-         if (pg_sol.DistanceTo(pg_prev) < 1e-08)
+         if (!newt_converged || pg_sol.DistanceTo(pg_prev) < 1e-08)
          {
             prox_converged = true;
             break;
          }
-         alpha *= 1.1;
+         alpha *= 1.2;
+         alpha = std::min(alpha, 1e06);
       }
       MFEM_VERIFY(prox_converged, "Proximal solver did not converge");
       u.SetSubVector(primal_glb_idx, u_e);
