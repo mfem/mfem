@@ -1725,6 +1725,7 @@ void MixedBilinearForm::Assemble(int skip_zeros)
          }
       }
 
+      DofTransformation dom_dof_trans, ran_dof_trans;
       for (int i = 0; i < trial_fes -> GetNBE(); i++)
       {
          const int bdr_attr = mesh->GetBdrAttribute(i);
@@ -1733,8 +1734,8 @@ void MixedBilinearForm::Assemble(int skip_zeros)
          ftr = mesh -> GetBdrFaceTransformations (i);
          if (ftr != NULL)
          {
-            trial_fes->GetElementVDofs(ftr->Elem1No, trial_vdofs);
-            test_fes->GetElementVDofs(ftr->Elem1No, test_vdofs);
+            trial_fes->GetElementVDofs(ftr->Elem1No, trial_vdofs, dom_dof_trans);
+            test_fes->GetElementVDofs(ftr->Elem1No, test_vdofs, ran_dof_trans);
             trial_fe1 = trial_fes->GetFE(ftr->Elem1No);
             test_fe1 = test_fes->GetFE(ftr->Elem1No);
             // The test_fe2 object is really a dummy and not used on the
@@ -1750,6 +1751,7 @@ void MixedBilinearForm::Assemble(int skip_zeros)
                boundary_face_integs[k]->AssembleFaceMatrix(*trial_fe1, *test_fe1, *trial_fe2,
                                                            *test_fe2,
                                                            *ftr, elemmat);
+               TransformDual(ran_dof_trans, dom_dof_trans, elemmat);
                mat->AddSubMatrix(test_vdofs, trial_vdofs, elemmat, skip_zeros);
             }
          }
