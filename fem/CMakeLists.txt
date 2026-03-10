@@ -128,32 +128,46 @@ set(SRCS
   normal_deriv_restriction.cpp
   staticcond.cpp
   tmop.cpp
-  tmop/tmop_pa.cpp
-  tmop/tmop_pa_da3.cpp
-  tmop/tmop_pa_h2d.cpp
-  tmop/tmop_pa_h2d_c0.cpp
-  tmop/tmop_pa_h2m.cpp
-  tmop/tmop_pa_h2m_c0.cpp
-  tmop/tmop_pa_h2s.cpp
-  tmop/tmop_pa_h2s_c0.cpp
-  tmop/tmop_pa_h3d.cpp
-  tmop/tmop_pa_h3d_c0.cpp
-  tmop/tmop_pa_h3m.cpp
-  tmop/tmop_pa_h3m_c0.cpp
-  tmop/tmop_pa_h3s.cpp
-  tmop/tmop_pa_h3s_c0.cpp
-  tmop/tmop_pa_jp2.cpp
-  tmop/tmop_pa_jp3.cpp
-  tmop/tmop_pa_p2.cpp
-  tmop/tmop_pa_p2_c0.cpp
-  tmop/tmop_pa_p3.cpp
-  tmop/tmop_pa_p3_c0.cpp
-  tmop/tmop_pa_tc2.cpp
-  tmop/tmop_pa_tc3.cpp
-  tmop/tmop_pa_w2.cpp
-  tmop/tmop_pa_w2_c0.cpp
-  tmop/tmop_pa_w3.cpp
-  tmop/tmop_pa_w3_c0.cpp
+  tmop/pa.cpp
+  tmop/assemble/diag2_limit.cpp
+  tmop/assemble/diag2.cpp
+  tmop/assemble/grad2_limit.cpp
+  tmop/assemble/grad2.cpp
+  tmop/assemble/diag3_limit.cpp  
+  tmop/assemble/diag3.cpp
+  tmop/assemble/grad3_limit.cpp
+  tmop/assemble/grad3.cpp
+  tmop/metrics/001.cpp
+  tmop/metrics/002.cpp
+  tmop/metrics/007.cpp
+  tmop/metrics/056.cpp
+  tmop/metrics/077.cpp
+  tmop/metrics/080.cpp
+  tmop/metrics/094.cpp
+  tmop/metrics/302.cpp
+  tmop/metrics/303.cpp
+  tmop/metrics/315.cpp
+  tmop/metrics/318.cpp
+  tmop/metrics/321.cpp
+  tmop/metrics/332.cpp
+  tmop/metrics/338.cpp
+  tmop/mult/grad2_limit.cpp
+  tmop/mult/grad2.cpp
+  tmop/mult/mult2_limit.cpp
+  tmop/mult/mult2.cpp
+  tmop/mult/grad3_limit.cpp
+  tmop/mult/grad3.cpp
+  tmop/mult/mult3_limit.cpp
+  tmop/mult/mult3.cpp
+  tmop/tools/det2_jpr.cpp
+  tmop/tools/det3_jpr.cpp
+  tmop/tools/discrete.cpp
+  tmop/tools/energy2_limit.cpp
+  tmop/tools/energy2.cpp
+  tmop/tools/energy3_limit.cpp
+  tmop/tools/energy3.cpp
+  tmop/tools/target2.cpp
+  tmop/tools/target3.cpp
   tmop_tools.cpp
   tmop_amr.cpp
   gslib.cpp
@@ -165,18 +179,26 @@ set(SRCS
   hyperbolic.cpp
   integrator.cpp
   bounds.cpp
+  particleset.cpp
   )
 
 set(HDRS
   bilinearform.hpp
   bilinearform_ext.hpp
   bilininteg.hpp
+  integ/lininteg_domain_kernels.hpp
+  integ/bilininteg_dgdiffusion_kernels.hpp
+  integ/bilininteg_dgtrace_kernels.hpp
+  integ/bilininteg_vecdiffusion_kernels.hpp
+  integ/bilininteg_convection_kernels.hpp
   integ/bilininteg_diffusion_kernels.hpp
   integ/bilininteg_elasticity_kernels.hpp
   integ/bilininteg_hcurl_kernels.hpp
   integ/bilininteg_hdiv_kernels.hpp
   integ/bilininteg_hcurlhdiv_kernels.hpp
   integ/bilininteg_mass_kernels.hpp
+  integ/bilininteg_vecdiffusion_pa.hpp
+  integ/bilininteg_vecmass_pa.hpp
   coefficient.hpp
   complex_fem.hpp
   convergence.hpp
@@ -241,8 +263,13 @@ set(HDRS
   lor/lor_ams.hpp
   lor/lor_batched.hpp
   lor/lor_h1.hpp
+  lor/lor_dg.hpp
   lor/lor_nd.hpp
   lor/lor_rt.hpp
+  lor/lor_h1_impl.hpp
+  lor/lor_dg_impl.hpp
+  lor/lor_nd_impl.hpp
+  lor/lor_rt_impl.hpp
   lor/lor_util.hpp
   multigrid.hpp
   nonlinearform.hpp
@@ -269,7 +296,12 @@ set(HDRS
   tfespace.hpp
   tintrules.hpp
   tmop.hpp
-  tmop/tmop_pa.hpp
+  tmop/pa.hpp
+  tmop/assemble/grad2.hpp
+  tmop/assemble/grad2.hpp
+  tmop/mult/mult2.hpp
+  tmop/mult/mult3.hpp
+  tmop/tools/energy2.hpp
   tmop_tools.hpp
   tmop_amr.hpp
   gslib.hpp
@@ -277,6 +309,7 @@ set(HDRS
   hyperbolic.hpp
   integrator.hpp
   bounds.hpp
+  particleset.hpp
   )
 
 if (MFEM_USE_SIDRE)
