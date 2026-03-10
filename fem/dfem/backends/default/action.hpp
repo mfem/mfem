@@ -40,8 +40,8 @@ struct Action
       check_consistency(inputs, input_to_infd, ctx.infds);
       check_consistency(outputs, output_to_outfd, ctx.outfds);
 
-      create_fieldbases(inputs, input_to_infd, ctx, input_bases);
-      create_fieldbases(outputs, output_to_outfd, ctx, output_bases);
+      create_fieldbases(inputs, input_to_infd, ctx.infds, ctx.ir, input_bases);
+      create_fieldbases(outputs, output_to_outfd, ctx.outfds, ctx.ir, output_bases);
 
       constexpr_for<0, ninputs>([&](auto i)
       {
