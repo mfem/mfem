@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -176,7 +176,7 @@ __device__ void abort_msg(T & msg)
       printf(__VA_ARGS__);     \
       asm("trap;");            \
    }
-#elif defined(MFEM_USE_HIP)
+#elif defined(__HIP_DEVICE_COMPILE__)
 #define MFEM_ABORT_KERNEL(...) \
    {                           \
       printf(__VA_ARGS__);     \

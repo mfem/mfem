@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,10 +14,11 @@
 
 #include "../mesh.hpp"
 #include "transfermap.hpp"
-#include <unordered_map>
 
 namespace mfem
 {
+
+class NCSubMesh;
 
 /**
  * @brief Subdomain representation of a topological parent in another Mesh.
@@ -27,31 +28,34 @@ namespace mfem
  * subset of the parents Mesh and reuses the parallel distribution.
  *
  * The attributes are taken from the parent. That means if a volume is extracted
- * from a volume, it has the same domain attribute as the parent. Its boundary
- * attributes are generated (there will be one boundary attribute 1 for all of
- * the boundaries).
+ * from a volume, it has the same domain attribute as the parent. Its new
+ * boundary attributes are, for any boundary common to the parent and the new
+ * submesh, the boundary attribute of the parent; and, for all new boundaries,
+ * a single, generated, common attribute equal to one plus the largest boundary
+ * attribute of the parent.
  *
  * If a surface is extracted from a volume, the boundary attribute from the
- * parent is assigned to be the new domain attribute. Its boundary attributes
- * are generated (there will be one boundary attribute 1 for all of the
- * boundaries).
+ * parent is assigned to be the new domain attribute. Its new boundary attribute
+ * is a single, generated, common attribute equal to one plus the largest
+ * boundary attribute of the parent.
  *
  * For more customized boundary attributes, the resulting SubMesh has to be
  * postprocessed.
  */
 class SubMesh : public Mesh
 {
+   friend class NCSubMesh;
 public:
    /// Indicator from which part of the parent Mesh the SubMesh is created.
-   enum From
+   enum class From
    {
       Domain,
       Boundary
    };
 
-   static const int GENERATED_ATTRIBUTE = 900;
-
    SubMesh() = delete;
+   SubMesh(SubMesh &&) = default;
+   SubMesh &operator=(SubMesh &&) = default;
 
    /**
     * @brief Create a domain SubMesh from its parent.
@@ -64,7 +68,7 @@ public:
     * @param[in] domain_attributes Domain attributes to extract
     */
    static SubMesh CreateFromDomain(const Mesh &parent,
-                                   Array<int> domain_attributes);
+                                   const Array<int> &domain_attributes);
 
    /**
    * @brief Create a surface SubMesh from its parent.
@@ -78,22 +82,18 @@ public:
 
    */
    static SubMesh CreateFromBoundary(const Mesh &parent,
-                                     Array<int> boundary_attributes);
+                                     const Array<int> &boundary_attributes);
 
-   /**
-    * @brief Get the parent Mesh object
-    *
-    */
+   ///Get the parent Mesh object
    const Mesh* GetParent() const
    {
-      return &parent_;
+      return parent_;
    }
 
    /**
     * @brief Get the From indicator.
     *
-    * Indicates whether the SubMesh has been created from a domain or
-    * surface.
+    * Indicates whether the SubMesh has been created from a domain or surface.
     */
    From GetFrom() const
    {
@@ -113,11 +113,21 @@ public:
    /**
     * @brief Get the face id map
     *
-    * SubMesh element id (array index) to parent Mesh face id.
+    * SubMesh face id (array index) to parent Mesh face id.
     */
    const Array<int>& GetParentFaceIDMap() const
    {
       return parent_face_ids_;
+   }
+
+   /**
+    * @brief Get the edge id map
+    *
+    * Submesh edge id (array index) to parent Mesh edge id.
+    */
+   const Array<int>& GetParentEdgeIDMap() const
+   {
+      return parent_edge_ids_;
    }
 
    /**
@@ -141,6 +151,47 @@ public:
    }
 
    /**
+    * @brief Get the submesh element corresponding to a parent element. -1 ==
+    * not present.
+    * @param pe The parent element id.
+    * @return int
+    */
+   int GetSubMeshElementFromParent(int pe) const
+   {
+      return pe == -1 ? pe : parent_to_submesh_element_ids_[pe];
+   }
+   /**
+    * @brief Get the submesh vertex corresponding to a parent element. -1 == not
+    * present.
+    * @param pv The parent vertex id.
+    * @return int
+    */
+   int GetSubMeshVertexFromParent(int pv) const
+   {
+      return pv == -1 ? pv : parent_to_submesh_vertex_ids_[pv];
+   }
+   /**
+    * @brief Get the submesh edge corresponding to a parent element. -1 == not
+    * present.
+    * @param pe The parent edge id.
+    * @return int
+    */
+   int GetSubMeshEdgeFromParent(int pe) const
+   {
+      return pe == -1 ? pe : parent_to_submesh_edge_ids_[pe];
+   }
+   /**
+    * @brief Get the submesh face corresponding to a parent element. -1 == not
+    * present.
+    * @param pf The parent face id.
+    * @return int
+    */
+   int GetSubMeshFaceFromParent(int pf) const
+   {
+      return pf == -1 ? pf : parent_to_submesh_face_ids_[pf];
+   }
+
+   /**
     * @brief Transfer the dofs of a GridFunction.
     *
     * The @a src GridFunction can either be defined on a Mesh or a SubMesh and
@@ -156,8 +207,8 @@ public:
    /**
     * @brief Create a Transfer Map object.
     *
-    * The @a src GridFunction can either be defined on a Mesh or a
-    * SubMesh and is transferred appropriately.
+    * The @a src GridFunction can either be defined on a Mesh or a SubMesh and
+    * is transferred appropriately.
     *
     * @note Either @a src or @a dst has to be defined on a SubMesh.
     */
@@ -174,14 +225,15 @@ public:
       return dynamic_cast<const SubMesh *>(m) != nullptr;
    }
 
-   ~SubMesh();
-
 private:
    /// Private constructor
-   SubMesh(const Mesh &parent, From from, Array<int> attributes);
+   SubMesh(const Mesh &parent, From from, const Array<int> &attributes);
 
-   /// The parent Mesh
-   const Mesh &parent_;
+   /// The parent Mesh. Not owned.
+   const Mesh *parent_;
+
+   /// Optional nonconformal submesh. Managed via ncmesh pointer in base class.
+   NCSubMesh *ncsubmesh_;
 
    /// Indicator from which part of the parent ParMesh the ParSubMesh is going
    /// to be created.
@@ -207,11 +259,25 @@ private:
    /// face ids.
    Array<int> parent_face_ids_;
 
-   /// Mapping from SubMesh face ids (index of the array), to the orientation
-   /// of the face relative to the parent face.
+   /// Mapping from SubMesh face ids (index of the array), to the orientation of
+   /// the face relative to the parent face.
    Array<int> parent_face_ori_;
 
-   Array<int> face_to_be;
+   /// Mapping from parent Mesh vertex ids (index of the array), to the SubMesh
+   /// vertex ids. Inverse map of parent_element_ids_.
+   Array<int> parent_to_submesh_element_ids_;
+
+   /// Mapping from parent Mesh vertex ids (index of the array), to the SubMesh
+   /// vertex ids. Inverse map of parent_vertex_ids_.
+   Array<int> parent_to_submesh_vertex_ids_;
+
+   /// Mapping from parent Mesh edge ids (index of the array), to the SubMesh
+   /// edge ids. Inverse map of parent_edge_ids_.
+   Array<int> parent_to_submesh_edge_ids_;
+
+   /// Mapping from parent Mesh face ids (index of the array), to the SubMesh
+   /// face ids. Inverse map of parent_face_ids_.
+   Array<int> parent_to_submesh_face_ids_;
 };
 
 } // namespace mfem

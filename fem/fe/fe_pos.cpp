@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1042,6 +1042,435 @@ void H1Pos_WedgeElement::CalcDShape(const IntegrationPoint &ip,
    }
 }
 
+H1Pos_PyramidElement::H1Pos_PyramidElement(const int p)
+   : PositiveFiniteElement(3, Geometry::PYRAMID,
+                           ((p + 1)*(p + 2)*(2 * p + 3))/6, p,
+                           FunctionSpace::Uk),
+     nterms(((p + 1)*(p + 2)*(p + 3)*(p + 4))/24)
+{
+#ifndef MFEM_THREAD_SAFE
+   m_shape_1d.SetSize(order + 1);
+   m_shape.SetSize(nterms);
+   m_dshape.SetSize(nterms, dim);
+#endif
+
+   Index idx;
+
+   // vertices
+   dof_map[idx(p,0,0,0,0)] = 0;
+   Nodes.IntPoint(0).Set3(0., 0., 0.);
+   dof_map[idx(0,p,0,0,0)] = 1;
+   Nodes.IntPoint(1).Set3(1., 0., 0.);
+   dof_map[idx(0,0,p,0,0)] = 2;
+   Nodes.IntPoint(2).Set3(1., 1., 0.);
+   dof_map[idx(0,0,0,p,0)] = 3;
+   Nodes.IntPoint(3).Set3(0., 1., 0.);
+   dof_map[idx(0,0,0,0,p)] = 4;
+   Nodes.IntPoint(4).Set3(0., 0., 1.);
+
+   // edges (see Geometry::Constants<Geometry::PYRAMID>::Edges
+   // in fem/geom.cpp)
+   int o = 5;
+   for (int i = 1; i < p; i++)  // (0,1)
+   {
+      dof_map[idx(p-i,i,0,0,0)] = o;
+      Nodes.IntPoint(o++).Set3(real_t(i)/p, 0., 0.);
+   }
+   for (int i = 1; i < p; i++)  // (1,2)
+   {
+      dof_map[idx(0,p-i,i,0,0)] = o;
+      Nodes.IntPoint(o++).Set3(1.0, real_t(i)/p, 0.);
+   }
+   for (int i = 1; i < p; i++)  // (3,2)
+   {
+      dof_map[idx(0,0,i,p-i,0)] = o;
+      Nodes.IntPoint(o++).Set3(real_t(i)/p, 1., 0.);
+   }
+   for (int i = 1; i < p; i++)  // (0,3)
+   {
+      dof_map[idx(p-i,0,0,i,0)] = o;
+      Nodes.IntPoint(o++).Set3(0., real_t(i)/p, 0.);
+   }
+   for (int i = 1; i < p; i++)  // (0,4)
+   {
+      dof_map[idx(p-i,0,0,0,i)] = o;
+      Nodes.IntPoint(o++).Set3(0., 0., real_t(i)/p);
+   }
+   for (int i = 1; i < p; i++)  // (1,4)
+   {
+      dof_map[idx(0,p-i,0,0,i)] = o;
+      Nodes.IntPoint(o++).Set3(real_t(p-i)/p, 0., real_t(i)/p);
+   }
+   for (int i = 1; i < p; i++)  // (2,4)
+   {
+      dof_map[idx(0,0,p-i,0,i)] = o;
+      Nodes.IntPoint(o++).Set3(real_t(p-i)/p, real_t(p-i)/p, real_t(i)/p);
+   }
+   for (int i = 1; i < p; i++)  // (3,4)
+   {
+      dof_map[idx(0,0,0,p-i,i)] = o;
+      Nodes.IntPoint(o++).Set3(0., real_t(p-i)/p, real_t(i)/p);
+   }
+
+   // faces (see Geometry::Constants<Geometry::PYRAMID>::FaceVert
+   // in fem/geom.cpp)
+   for (int j = 1; j < p; j++)
+   {
+      int i1 = j;
+      int i2 = 0;
+      int i3 = 0;
+      int i4 = p - j;
+      const int i5 = 0;
+
+      for (int i = 1; i <= p - j; i++)  // (3,2,1,0)
+      {
+         i3++;
+         i4--;
+         dof_map[idx(i1,i2,i3,i4,i5)] = o;
+         Nodes.IntPoint(o++).Set3(real_t(i)/p, real_t(p-j)/p, 0);
+      }
+      for (int i = p - j + 1; i < p; i++)  // (3,2,1,0)
+      {
+         i1--;
+         i2++;
+         dof_map[idx(i1,i2,i3,i4,i5)] = o;
+         Nodes.IntPoint(o++).Set3(real_t(i)/p, real_t(p-j)/p, 0);
+      }
+   }
+   for (int j = 1; j < p; j++)
+      for (int i = 1; i + j < p; i++)  // (0, 1, 4)
+      {
+         dof_map[idx(p-i-j,i,0,0,j)] = o;
+         Nodes.IntPoint(o++).Set3(real_t(i)/p, 0., real_t(j)/p);
+      }
+   for (int j = 1; j < p; j++)
+      for (int i = 1; i + j < p; i++)  // (1, 2, 4)
+      {
+         dof_map[idx(0,p-i-j,i,0,j)] = o;
+         Nodes.IntPoint(o++).Set3(real_t(p-j)/p, real_t(i)/p, real_t(j)/p);
+      }
+   for (int j = 1; j < p; j++)
+      for (int i = 1; i + j < p; i++)  // (2, 3, 4)
+      {
+         dof_map[idx(0,0,p-i-j,i,j)] = o;
+         Nodes.IntPoint(o++).Set3(real_t(p-i-j)/p, real_t(p-j)/p, real_t(j)/p);
+      }
+   for (int j = 1; j < p; j++)
+      for (int i = 1; i + j < p; i++)  // (3, 0, 4)
+      {
+         dof_map[idx(i,0,0,p-i-j,j)] = o;
+         Nodes.IntPoint(o++).Set3(0., real_t(p-i-j)/p, real_t(j)/p);
+      }
+
+   // interior
+   for (int k = 1; k < p; k++)
+      for (int j = 1; j + k < p; j++)
+      {
+         int i1 = p - j - k;
+         int i2 = 0;
+         int i3 = 0;
+         int i4 = j;
+         const int i5 = k;
+
+         for (int i = 1; i <= j; i++)
+         {
+            i3++;
+            i4--;
+            dof_map[idx(i1,i2,i3,i4,i5)] = o;
+            Nodes.IntPoint(o++).Set3(real_t(i)/p, real_t(j)/p, 0);
+         }
+         for (int i = j + 1; i + k < p; i++)
+         {
+            i1--;
+            i2++;
+            dof_map[idx(i1,i2,i3,i4,i5)] = o;
+            Nodes.IntPoint(o++).Set3(real_t(i)/p, real_t(j)/p, 0);
+         }
+      }
+}
+
+// static method
+void H1Pos_PyramidElement::CalcShape(const int p, const real_t x,
+                                     const real_t y, const real_t z,
+                                     real_t *shape_1d,
+                                     real_t *shape)
+{
+   const int lshape = ((p + 1)*(p + 2)*(p + 3)*(p + 4))/24;
+   for (int i=0; i<lshape; i++) { shape[i] = 0.0; }
+
+   const real_t l1 = lam1(x, y, z);
+   const real_t l2 = lam2(x, y, z);
+   const real_t l3 = lam3(x, y, z);
+   const real_t l4 = lam4(x, y, z);
+   const real_t l5 = lam5(x, y, z);
+
+   // The basis functions are the terms in the expansion:
+   //   (l1 + l2 + l3 + l4 + l5)^p =
+   //      \sum_{l=0}^p \binom{p}{l} l5^l
+   //         \sum_{k=0}^{p-l} \binom{p-l}{k} l4^k
+   //            \sum_{j=0}^{p-l-k} \binom{p-l-k}{j} l3^j
+   //               \sum_{i=0}^{p-l-k-j} \binom{p-l-k-j}{i} l2^i l1^{p-l-k-j-i}
+   Index idx;
+   const int *bp = Poly_1D::Binom(p);
+   real_t l5i5 = 1.;
+   for (int i5 = 0; i5 <= p; i5++)
+   {
+      const int *bpi5 = Poly_1D::Binom(p - i5);
+      const real_t ei5 = bp[i5]*l5i5;
+      real_t l4i4 = 1.;
+      for (int i4 = 0; i4 <= p - i5; i4++)
+      {
+         const int *bpi45 = Poly_1D::Binom(p - i5 - i4);
+         const real_t ei45 = ei5*bpi5[i4]*l4i4;
+         real_t l3i3 = 1.;
+         for (int i3 = 0; i3 <= p - i5 - i4; i3++)
+         {
+            Poly_1D::CalcBinomTerms(p - i5 - i4 - i3, l2, l1, shape_1d);
+            real_t ei345 = ei45*bpi45[i3]*l3i3;
+            for (int i2 = 0; i2 <= p - i5 - i4 - i3; i2++)
+            {
+               const int i1 = p - i5 - i4 - i3 - i2;
+               const int o = idx(i1,i2,i3,i4,i5);
+               shape_1d[i2] *= ei345;
+               shape[o] += shape_1d[i2];
+            }
+            l3i3 *= l3;
+         }
+         l4i4 *= l4;
+      }
+      l5i5 *= l5;
+   }
+}
+
+// static method
+void H1Pos_PyramidElement::CalcDShape(const int p, const real_t x,
+                                      const real_t y, const real_t z,
+                                      real_t *dshape_1d, real_t *dshape)
+{
+   const int nterms = ((p + 1)*(p + 2)*(p + 3)*(p + 4))/24;
+   for (int i=0; i<3*nterms; i++) { dshape[i] = 0.0; }
+
+   const real_t l1 = lam1(x, y, z);
+   const real_t l2 = lam2(x, y, z);
+   const real_t l3 = lam3(x, y, z);
+   const real_t l4 = lam4(x, y, z);
+   const real_t l5 = lam5(x, y, z);
+
+   const Vector dl1 = grad_lam1(x, y, z);
+   const Vector dl2 = grad_lam2(x, y, z);
+   const Vector dl3 = grad_lam3(x, y, z);
+   const Vector dl4 = grad_lam4(x, y, z);
+   const Vector dl5 = grad_lam5(x, y, z);
+
+   // The basis functions are the terms in the expansion:
+   //   (l1 + l2 + l3 + l4 + l5)^p
+   // We will compute the derivative by first computing the derivatives
+   // of these terms w.r.t each of the l1, l2, l3, l4, and l5 and summing
+   // the results together.
+   Index idx;
+
+   // Derivative w.r.t. l1 times grad(l1)
+   const int *bp = Poly_1D::Binom(p);
+   real_t l5i5 = 1.;
+   for (int i5 = 0; i5 <= p; i5++)
+   {
+      const int *bpi5 = Poly_1D::Binom(p - i5);
+      const real_t ei5 = bp[i5]*l5i5;
+      real_t l4i4 = 1.;
+      for (int i4 = 0; i4 <= p - i5; i4++)
+      {
+         const int *bpi45 = Poly_1D::Binom(p - i5 - i4);
+         const real_t ei45 = ei5*bpi5[i4]*l4i4;
+         real_t l3i3 = 1.;
+         for (int i3 = 0; i3 <= p - i5 - i4; i3++)
+         {
+            Poly_1D::CalcDyBinomTerms(p - i5 - i4 - i3, l2, l1, dshape_1d);
+            real_t ei345 = ei45*bpi45[i3]*l3i3;
+            for (int i2 = 0; i2 <= p - i5 - i4 - i3; i2++)
+            {
+               const int i1 = p - i5 - i4 - i3 - i2;
+               const int o = idx(i1,i2,i3,i4,i5);
+               const real_t dshape_dl1 = dshape_1d[i2]*ei345;
+               for (int d = 0; d < 3; d++)
+               {
+                  dshape[o + d * nterms] += dshape_dl1 * dl1[d];
+               }
+            }
+            l3i3 *= l3;
+         }
+         l4i4 *= l4;
+      }
+      l5i5 *= l5;
+   }
+
+   // Derivative w.r.t. l2 times grad(l2)
+   l5i5 = 1.;
+   for (int i5 = 0; i5 <= p; i5++)
+   {
+      const int *bpi5 = Poly_1D::Binom(p - i5);
+      const real_t ei5 = bp[i5]*l5i5;
+      real_t l4i4 = 1.;
+      for (int i4 = 0; i4 <= p - i5; i4++)
+      {
+         const int *bpi45 = Poly_1D::Binom(p - i5 - i4);
+         const real_t ei45 = ei5*bpi5[i4]*l4i4;
+         real_t l3i3 = 1.;
+         for (int i3 = 0; i3 <= p - i5 - i4; i3++)
+         {
+            Poly_1D::CalcDxBinomTerms(p - i5 - i4 - i3, l2, l1, dshape_1d);
+            real_t ei345 = ei45*bpi45[i3]*l3i3;
+            for (int i2 = 0; i2 <= p - i5 - i4 - i3; i2++)
+            {
+               const int i1 = p - i5 - i4 - i3 - i2;
+               const int o = idx(i1,i2,i3,i4,i5);
+               const real_t dshape_dl2 = dshape_1d[i2]*ei345;
+               for (int d = 0; d < 3; d++)
+               {
+                  dshape[o + d * nterms] += dshape_dl2*dl2[d];
+               }
+            }
+            l3i3 *= l3;
+         }
+         l4i4 *= l4;
+      }
+      l5i5 *= l5;
+   }
+
+   // Derivative w.r.t. l3 times grad(l3)
+   l5i5 = 1.;
+   for (int i5 = 0; i5 <= p; i5++)
+   {
+      const int *bpi5 = Poly_1D::Binom(p - i5);
+      const real_t ei5 = bp[i5]*l5i5;
+      real_t l4i4 = 1.;
+      for (int i4 = 0; i4 <= p - i5; i4++)
+      {
+         const int *bpi45 = Poly_1D::Binom(p - i5 - i4);
+         const real_t ei45 = ei5*bpi5[i4]*l4i4;
+         real_t l3i3 = 1.;
+         for (int i3 = 1; i3 <= p - i5 - i4; i3++)
+         {
+            Poly_1D::CalcBinomTerms(p - i5 - i4 - i3, l2, l1, dshape_1d);
+            real_t ei345 = i3*ei45*bpi45[i3]*l3i3;
+            for (int i2 = 0; i2 <= p - i5 - i4 - i3; i2++)
+            {
+               const int i1 = p - i5 - i4 - i3 - i2;
+               const int o = idx(i1,i2,i3,i4,i5);
+               const real_t dshape_dl3 = dshape_1d[i2]*ei345;
+               for (int d = 0; d < 3; d++)
+               {
+                  dshape[o + d * nterms] += dshape_dl3*dl3[d];
+               }
+            }
+            l3i3 *= l3;
+         }
+         l4i4 *= l4;
+      }
+      l5i5 *= l5;
+   }
+
+   // Derivative w.r.t. l4 times grad(l4)
+   l5i5 = 1.;
+   for (int i5 = 0; i5 <= p; i5++)
+   {
+      const int *bpi5 = Poly_1D::Binom(p - i5);
+      const real_t ei5 = bp[i5]*l5i5;
+      real_t l4i4 = 1.;
+      for (int i4 = 1; i4 <= p - i5; i4++)
+      {
+         const int *bpi45 = Poly_1D::Binom(p - i5 - i4);
+         const real_t ei45 = i4*ei5*bpi5[i4]*l4i4;
+         real_t l3i3 = 1.;
+         for (int i3 = 0; i3 <= p - i5 - i4; i3++)
+         {
+            Poly_1D::CalcBinomTerms(p - i5 - i4 - i3, l2, l1, dshape_1d);
+            real_t ei345 = ei45*bpi45[i3]*l3i3;
+            for (int i2 = 0; i2 <= p - i5 - i4 - i3; i2++)
+            {
+               const int i1 = p - i5 - i4 - i3 - i2;
+               const int o = idx(i1,i2,i3,i4,i5);
+               const real_t dshape_dl4 = dshape_1d[i2]*ei345;
+               for (int d = 0; d < 3; d++)
+               {
+                  dshape[o + d * nterms] += dshape_dl4*dl4[d];
+               }
+            }
+            l3i3 *= l3;
+         }
+         l4i4 *= l4;
+      }
+      l5i5 *= l5;
+   }
+
+   // Derivative w.r.t. l5 times grad(l5)
+   l5i5 = 1.;
+   for (int i5 = 1; i5 <= p; i5++)
+   {
+      const int *bpi5 = Poly_1D::Binom(p - i5);
+      const real_t ei5 = i5*bp[i5]*l5i5;
+      real_t l4i4 = 1.;
+      for (int i4 = 0; i4 <= p - i5; i4++)
+      {
+         const int *bpi45 = Poly_1D::Binom(p - i5 - i4);
+         const real_t ei45 = ei5*bpi5[i4]*l4i4;
+         real_t l3i3 = 1.;
+         for (int i3 = 0; i3 <= p - i5 - i4; i3++)
+         {
+            Poly_1D::CalcBinomTerms(p - i5 - i4 - i3, l2, l1, dshape_1d);
+            real_t ei345 = ei45*bpi45[i3]*l3i3;
+            for (int i2 = 0; i2 <= p - i5 - i4 - i3; i2++)
+            {
+               const int i1 = p - i5 - i4 - i3 - i2;
+               const int o = idx(i1,i2,i3,i4,i5);
+               const real_t dshape_dl5 = dshape_1d[i2]*ei345;
+               for (int d = 0; d < 3; d++)
+               {
+                  dshape[o + d * nterms] += dshape_dl5*dl5[d];
+               }
+            }
+            l3i3 *= l3;
+         }
+         l4i4 *= l4;
+      }
+      l5i5 *= l5;
+   }
+}
+
+void H1Pos_PyramidElement::CalcShape(const IntegrationPoint &ip,
+                                     Vector &shape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector m_shape_1d(order + 1);
+   Vector m_shape(nterms);
+#endif
+
+   CalcShape(order, ip.x, ip.y, ip.z, m_shape_1d.GetData(), m_shape.GetData());
+
+   for (auto const& it : dof_map)
+   {
+      if (it.first < m_shape.Size()) { shape[it.second] = m_shape[it.first]; }
+   }
+}
+
+void H1Pos_PyramidElement::CalcDShape(const IntegrationPoint &ip,
+                                      DenseMatrix &dshape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector m_shape_1d(order + 1);
+   DenseMatrix m_dshape(nterms, 3);
+#endif
+
+   CalcDShape(order, ip.x, ip.y, ip.z,
+              m_shape_1d.GetData(), m_dshape.GetData());
+
+   for (auto const& it : dof_map)
+      for (int d=0; d<3; d++)
+      {
+         dshape(it.second, d) = m_dshape(it.first, d);
+      }
+
+}
+
 L2Pos_SegmentElement::L2Pos_SegmentElement(const int p)
    : PositiveTensorFiniteElement(1, p, L2_DOF_MAP)
 {
@@ -1446,6 +1875,335 @@ void L2Pos_WedgeElement::CalcDShape(const IntegrationPoint &ip,
       dshape(i, 1) = t_dshape(t_dof[i],1) * s_shape[s_dof[i]];
       dshape(i, 2) = t_shape[t_dof[i]] * s_dshape(s_dof[i],0);
    }
+}
+
+L2Pos_PyramidElement::L2Pos_PyramidElement(const int p)
+   : PositiveFiniteElement(3, Geometry::PYRAMID,
+                           ((p + 1)*(p + 2)*(2 * p + 3))/6, p,
+                           FunctionSpace::Uk),
+     nterms(((p + 1)*(p + 2)*(p + 3)*(p + 4))/24)
+{
+#ifndef MFEM_THREAD_SAFE
+   m_shape_1d.SetSize(order + 1);
+   m_shape.SetSize(nterms);
+   m_dshape.SetSize(nterms, dim);
+#endif
+
+   Index idx;
+
+   if (p == 0)
+   {
+      dof_map[idx(0,0,0,0,0)] = 0;
+      Nodes.IntPoint(0).Set3(0.375, 0.375, 0.25);
+   }
+   else
+   {
+      for (int o = 0, k = 0; k <= p; k++)
+         for (int j = 0; j + k <= p; j++)
+         {
+            int i1 = p - j - k;
+            int i2 = 0;
+            int i3 = -1;
+            int i4 = j + 1;
+            const int i5 = k;
+
+            for (int i = 0; i <= j; i++)
+            {
+               i3++;
+               i4--;
+               dof_map[idx(i1,i2,i3,i4,i5)] = o;
+               Nodes.IntPoint(o++).Set3(real_t(i)/p, real_t(j)/p, 0);
+            }
+            for (int i = j + 1; i + k <= p; i++)
+            {
+               i1--;
+               i2++;
+               dof_map[idx(i1,i2,i3,i4,i5)] = o;
+               Nodes.IntPoint(o++).Set3(real_t(i)/p, real_t(j)/p, 0);
+            }
+         }
+   }
+}
+
+// static method
+void L2Pos_PyramidElement::CalcShape(const int p, const real_t x,
+                                     const real_t y, const real_t z,
+                                     real_t *shape_1d,
+                                     real_t *shape)
+{
+   const int lshape = ((p + 1)*(p + 2)*(p + 3)*(p + 4))/24;
+   for (int i=0; i<lshape; i++) { shape[i] = 0.0; }
+
+   const real_t l1 = lam1(x, y, z);
+   const real_t l2 = lam2(x, y, z);
+   const real_t l3 = lam3(x, y, z);
+   const real_t l4 = lam4(x, y, z);
+   const real_t l5 = lam5(x, y, z);
+
+   // The basis functions are the terms in the expansion:
+   //   (l1 + l2 + l3 + l4 + l5)^p =
+   //      \sum_{l=0}^p \binom{p}{l} l5^l
+   //         \sum_{k=0}^{p-l} \binom{p-l}{k} l4^k
+   //            \sum_{j=0}^{p-l-k} \binom{p-l-k}{j} l3^j
+   //               \sum_{i=0}^{p-l-k-j} \binom{p-l-k-j}{i} l2^i l1^{p-l-k-j-i}
+   Index idx;
+   const int *bp = Poly_1D::Binom(p);
+   real_t l5i5 = 1.;
+   for (int i5 = 0; i5 <= p; i5++)
+   {
+      const int *bpi5 = Poly_1D::Binom(p - i5);
+      const real_t ei5 = bp[i5]*l5i5;
+      real_t l4i4 = 1.;
+      for (int i4 = 0; i4 <= p - i5; i4++)
+      {
+         const int *bpi45 = Poly_1D::Binom(p - i5 - i4);
+         const real_t ei45 = ei5*bpi5[i4]*l4i4;
+         real_t l3i3 = 1.;
+         for (int i3 = 0; i3 <= p - i5 - i4; i3++)
+         {
+            Poly_1D::CalcBinomTerms(p - i5 - i4 - i3, l2, l1, shape_1d);
+            real_t ei345 = ei45*bpi45[i3]*l3i3;
+            for (int i2 = 0; i2 <= p - i5 - i4 - i3; i2++)
+            {
+               const int i1 = p - i5 - i4 - i3 - i2;
+               const int o = idx(i1,i2,i3,i4,i5);
+               shape_1d[i2] *= ei345;
+               shape[o] += shape_1d[i2];
+            }
+            l3i3 *= l3;
+         }
+         l4i4 *= l4;
+      }
+      l5i5 *= l5;
+   }
+}
+
+// static method
+void L2Pos_PyramidElement::CalcDShape(const int p, const real_t x,
+                                      const real_t y, const real_t z,
+                                      real_t *dshape_1d, real_t *dshape)
+{
+   const int nterms = ((p + 1)*(p + 2)*(p + 3)*(p + 4))/24;
+   for (int i=0; i<3*nterms; i++) { dshape[i] = 0.0; }
+
+   const real_t l1 = lam1(x, y, z);
+   const real_t l2 = lam2(x, y, z);
+   const real_t l3 = lam3(x, y, z);
+   const real_t l4 = lam4(x, y, z);
+   const real_t l5 = lam5(x, y, z);
+
+   const Vector dl1 = grad_lam1(x, y, z);
+   const Vector dl2 = grad_lam2(x, y, z);
+   const Vector dl3 = grad_lam3(x, y, z);
+   const Vector dl4 = grad_lam4(x, y, z);
+   const Vector dl5 = grad_lam5(x, y, z);
+
+   // The basis functions are the terms in the expansion:
+   //   (l1 + l2 + l3 + l4 + l5)^p
+   // We will compute the derivative by first computing the derivatives
+   // of these terms w.r.t each of the l1, l2, l3, l4, and l5 and summing
+   // the results together.
+   Index idx;
+
+   // Derivative w.r.t. l1 times grad(l1)
+   const int *bp = Poly_1D::Binom(p);
+   real_t l5i5 = 1.;
+   for (int i5 = 0; i5 <= p; i5++)
+   {
+      const int *bpi5 = Poly_1D::Binom(p - i5);
+      const real_t ei5 = bp[i5]*l5i5;
+      real_t l4i4 = 1.;
+      for (int i4 = 0; i4 <= p - i5; i4++)
+      {
+         const int *bpi45 = Poly_1D::Binom(p - i5 - i4);
+         const real_t ei45 = ei5*bpi5[i4]*l4i4;
+         real_t l3i3 = 1.;
+         for (int i3 = 0; i3 <= p - i5 - i4; i3++)
+         {
+            Poly_1D::CalcDyBinomTerms(p - i5 - i4 - i3, l2, l1, dshape_1d);
+            real_t ei345 = ei45*bpi45[i3]*l3i3;
+            for (int i2 = 0; i2 <= p - i5 - i4 - i3; i2++)
+            {
+               const int i1 = p - i5 - i4 - i3 - i2;
+               const int o = idx(i1,i2,i3,i4,i5);
+               const real_t dshape_dl1 = dshape_1d[i2]*ei345;
+               for (int d = 0; d < 3; d++)
+               {
+                  dshape[o + d * nterms] += dshape_dl1 * dl1[d];
+               }
+            }
+            l3i3 *= l3;
+         }
+         l4i4 *= l4;
+      }
+      l5i5 *= l5;
+   }
+
+   // Derivative w.r.t. l2 times grad(l2)
+   l5i5 = 1.;
+   for (int i5 = 0; i5 <= p; i5++)
+   {
+      const int *bpi5 = Poly_1D::Binom(p - i5);
+      const real_t ei5 = bp[i5]*l5i5;
+      real_t l4i4 = 1.;
+      for (int i4 = 0; i4 <= p - i5; i4++)
+      {
+         const int *bpi45 = Poly_1D::Binom(p - i5 - i4);
+         const real_t ei45 = ei5*bpi5[i4]*l4i4;
+         real_t l3i3 = 1.;
+         for (int i3 = 0; i3 <= p - i5 - i4; i3++)
+         {
+            Poly_1D::CalcDxBinomTerms(p - i5 - i4 - i3, l2, l1, dshape_1d);
+            real_t ei345 = ei45*bpi45[i3]*l3i3;
+            for (int i2 = 0; i2 <= p - i5 - i4 - i3; i2++)
+            {
+               const int i1 = p - i5 - i4 - i3 - i2;
+               const int o = idx(i1,i2,i3,i4,i5);
+               const real_t dshape_dl2 = dshape_1d[i2]*ei345;
+               for (int d = 0; d < 3; d++)
+               {
+                  dshape[o + d * nterms] += dshape_dl2*dl2[d];
+               }
+            }
+            l3i3 *= l3;
+         }
+         l4i4 *= l4;
+      }
+      l5i5 *= l5;
+   }
+
+   // Derivative w.r.t. l3 times grad(l3)
+   l5i5 = 1.;
+   for (int i5 = 0; i5 <= p; i5++)
+   {
+      const int *bpi5 = Poly_1D::Binom(p - i5);
+      const real_t ei5 = bp[i5]*l5i5;
+      real_t l4i4 = 1.;
+      for (int i4 = 0; i4 <= p - i5; i4++)
+      {
+         const int *bpi45 = Poly_1D::Binom(p - i5 - i4);
+         const real_t ei45 = ei5*bpi5[i4]*l4i4;
+         real_t l3i3 = 1.;
+         for (int i3 = 1; i3 <= p - i5 - i4; i3++)
+         {
+            Poly_1D::CalcBinomTerms(p - i5 - i4 - i3, l2, l1, dshape_1d);
+            real_t ei345 = i3*ei45*bpi45[i3]*l3i3;
+            for (int i2 = 0; i2 <= p - i5 - i4 - i3; i2++)
+            {
+               const int i1 = p - i5 - i4 - i3 - i2;
+               const int o = idx(i1,i2,i3,i4,i5);
+               const real_t dshape_dl3 = dshape_1d[i2]*ei345;
+               for (int d = 0; d < 3; d++)
+               {
+                  dshape[o + d * nterms] += dshape_dl3*dl3[d];
+               }
+            }
+            l3i3 *= l3;
+         }
+         l4i4 *= l4;
+      }
+      l5i5 *= l5;
+   }
+
+   // Derivative w.r.t. l4 times grad(l4)
+   l5i5 = 1.;
+   for (int i5 = 0; i5 <= p; i5++)
+   {
+      const int *bpi5 = Poly_1D::Binom(p - i5);
+      const real_t ei5 = bp[i5]*l5i5;
+      real_t l4i4 = 1.;
+      for (int i4 = 1; i4 <= p - i5; i4++)
+      {
+         const int *bpi45 = Poly_1D::Binom(p - i5 - i4);
+         const real_t ei45 = i4*ei5*bpi5[i4]*l4i4;
+         real_t l3i3 = 1.;
+         for (int i3 = 0; i3 <= p - i5 - i4; i3++)
+         {
+            Poly_1D::CalcBinomTerms(p - i5 - i4 - i3, l2, l1, dshape_1d);
+            real_t ei345 = ei45*bpi45[i3]*l3i3;
+            for (int i2 = 0; i2 <= p - i5 - i4 - i3; i2++)
+            {
+               const int i1 = p - i5 - i4 - i3 - i2;
+               const int o = idx(i1,i2,i3,i4,i5);
+               const real_t dshape_dl4 = dshape_1d[i2]*ei345;
+               for (int d = 0; d < 3; d++)
+               {
+                  dshape[o + d * nterms] += dshape_dl4*dl4[d];
+               }
+            }
+            l3i3 *= l3;
+         }
+         l4i4 *= l4;
+      }
+      l5i5 *= l5;
+   }
+
+   // Derivative w.r.t. l5 times grad(l5)
+   l5i5 = 1.;
+   for (int i5 = 1; i5 <= p; i5++)
+   {
+      const int *bpi5 = Poly_1D::Binom(p - i5);
+      const real_t ei5 = i5*bp[i5]*l5i5;
+      real_t l4i4 = 1.;
+      for (int i4 = 0; i4 <= p - i5; i4++)
+      {
+         const int *bpi45 = Poly_1D::Binom(p - i5 - i4);
+         const real_t ei45 = ei5*bpi5[i4]*l4i4;
+         real_t l3i3 = 1.;
+         for (int i3 = 0; i3 <= p - i5 - i4; i3++)
+         {
+            Poly_1D::CalcBinomTerms(p - i5 - i4 - i3, l2, l1, dshape_1d);
+            real_t ei345 = ei45*bpi45[i3]*l3i3;
+            for (int i2 = 0; i2 <= p - i5 - i4 - i3; i2++)
+            {
+               const int i1 = p - i5 - i4 - i3 - i2;
+               const int o = idx(i1,i2,i3,i4,i5);
+               const real_t dshape_dl5 = dshape_1d[i2]*ei345;
+               for (int d = 0; d < 3; d++)
+               {
+                  dshape[o + d * nterms] += dshape_dl5*dl5[d];
+               }
+            }
+            l3i3 *= l3;
+         }
+         l4i4 *= l4;
+      }
+      l5i5 *= l5;
+   }
+}
+
+void L2Pos_PyramidElement::CalcShape(const IntegrationPoint &ip,
+                                     Vector &shape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector m_shape_1d(order + 1);
+   Vector m_shape(nterms);
+#endif
+
+   CalcShape(order, ip.x, ip.y, ip.z, m_shape_1d.GetData(), m_shape.GetData());
+
+   for (auto const& it : dof_map)
+   {
+      if (it.first < m_shape.Size()) { shape[it.second] = m_shape[it.first]; }
+   }
+}
+
+void L2Pos_PyramidElement::CalcDShape(const IntegrationPoint &ip,
+                                      DenseMatrix &dshape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector m_shape_1d(order + 1);
+   DenseMatrix m_dshape(nterms, 3);
+#endif
+
+   CalcDShape(order, ip.x, ip.y, ip.z,
+              m_shape_1d.GetData(), m_dshape.GetData());
+
+   for (auto const& it : dof_map)
+      for (int d=0; d<3; d++)
+      {
+         dshape(it.second, d) = m_dshape(it.first, d);
+      }
 }
 
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -72,6 +72,7 @@ int main(int argc, char *argv[])
    int nclimit = 1;
    const char *mesh_file = "../../data/inline-quad.mesh";
    bool aniso = false;
+   int visport = 19916;
 
    // Parse command line
    OptionsParser args(argc, argv);
@@ -83,6 +84,7 @@ int main(int argc, char *argv[])
                   "Level of hanging nodes allowed (-1 = unlimited).");
    args.AddOption(&aniso, "-a", "--aniso", "-i", "--iso",
                   "Enable anisotropic refinement of quads and hexes.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    args.PrintOptions(cout);
@@ -107,7 +109,6 @@ int main(int argc, char *argv[])
 
    // GLVis server to visualize to
    char vishost[] = "localhost";
-   int  visport   = 19916;
    socketstream sol_sock(vishost, visport);
    sol_sock.precision(8);
 

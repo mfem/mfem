@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,6 +17,8 @@
 #include "vector.hpp"
 #include "matrix.hpp"
 #include "densemat.hpp"
+#include "lapack.hpp"
+#include "batched/batched.hpp"
 #include "../general/forall.hpp"
 #include "../general/table.hpp"
 #include "../general/globals.hpp"
@@ -32,103 +34,6 @@
 #endif
 
 
-#ifdef MFEM_USE_LAPACK
-#ifdef MFEM_USE_SINGLE
-extern "C" void
-sgemm_(char *, char *, int *, int *, int *, float *, float *,
-       int *, float *, int *, float *, float *, int *);
-extern "C" void
-sgetrf_(int *, int *, float *, int *, int *, int *);
-extern "C" void
-sgetrs_(char *, int *, int *, float *, int *, int *, float *, int *, int *);
-extern "C" void
-sgetri_(int *N, float *A, int *LDA, int *IPIV, float *WORK,
-        int *LWORK, int *INFO);
-extern "C" void
-ssyevr_(char *JOBZ, char *RANGE, char *UPLO, int *N, float *A, int *LDA,
-        float *VL, float *VU, int *IL, int *IU, float *ABSTOL, int *M,
-        float *W, float *Z, int *LDZ, int *ISUPPZ, float *WORK, int *LWORK,
-        int *IWORK, int *LIWORK, int *INFO);
-extern "C" void
-ssyev_(char *JOBZ, char *UPLO, int *N, float *A, int *LDA, float *W,
-       float *WORK, int *LWORK, int *INFO);
-extern "C" void
-ssygv_ (int *ITYPE, char *JOBZ, char *UPLO, int * N, float *A, int *LDA,
-        float *B, int *LDB, float *W,  float *WORK, int *LWORK, int *INFO);
-extern "C" void
-sgesvd_(char *JOBU, char *JOBVT, int *M, int *N, float *A, int *LDA,
-        float *S, float *U, int *LDU, float *VT, int *LDVT, float *WORK,
-        int *LWORK, int *INFO);
-extern "C" void
-strsm_(char *side, char *uplo, char *transa, char *diag, int *m, int *n,
-       float *alpha, float *a, int *lda, float *b, int *ldb);
-extern "C" void
-sggev_(char *jobvl, char *jobvr, int *n, float *a, int *lda, float *B,
-       int *ldb, float *alphar, float *alphai, float *beta, float *vl,
-       int * ldvl, float * vr, int * ldvr, float * work, int * lwork, int* info);
-
-// Cholesky factorizations/solves
-extern "C" void
-spotrf_(char *, int *, float *, int *, int *);
-// Solve
-extern "C" void
-spotrs_(char *, int *, int *, float *, int *, float *, int *, int *);
-// Triangular Solves
-extern "C" void
-strtrs_(char *, char*, char *, int *, int *, float *, int *, float *, int *,
-        int *);
-extern "C" void
-spotri_(char *, int *, float *, int*, int *);
-#elif defined MFEM_USE_DOUBLE
-extern "C" void
-dgemm_(char *, char *, int *, int *, int *, double *, double *,
-       int *, double *, int *, double *, double *, int *);
-extern "C" void
-dgetrf_(int *, int *, double *, int *, int *, int *);
-extern "C" void
-dgetrs_(char *, int *, int *, double *, int *, int *, double *, int *, int *);
-extern "C" void
-dgetri_(int *N, double *A, int *LDA, int *IPIV, double *WORK,
-        int *LWORK, int *INFO);
-extern "C" void
-dsyevr_(char *JOBZ, char *RANGE, char *UPLO, int *N, double *A, int *LDA,
-        double *VL, double *VU, int *IL, int *IU, double *ABSTOL, int *M,
-        double *W, double *Z, int *LDZ, int *ISUPPZ, double *WORK, int *LWORK,
-        int *IWORK, int *LIWORK, int *INFO);
-extern "C" void
-dsyev_(char *JOBZ, char *UPLO, int *N, double *A, int *LDA, double *W,
-       double *WORK, int *LWORK, int *INFO);
-extern "C" void
-dsygv_ (int *ITYPE, char *JOBZ, char *UPLO, int * N, double *A, int *LDA,
-        double *B, int *LDB, double *W,  double *WORK, int *LWORK, int *INFO);
-extern "C" void
-dgesvd_(char *JOBU, char *JOBVT, int *M, int *N, double *A, int *LDA,
-        double *S, double *U, int *LDU, double *VT, int *LDVT, double *WORK,
-        int *LWORK, int *INFO);
-extern "C" void
-dtrsm_(char *side, char *uplo, char *transa, char *diag, int *m, int *n,
-       double *alpha, double *a, int *lda, double *b, int *ldb);
-extern "C" void
-dggev_(char *jobvl, char *jobvr, int *n, double *a, int *lda, double *B,
-       int *ldb, double *alphar, double *alphai, double *beta, double *vl,
-       int * ldvl, double * vr, int * ldvr, double * work, int * lwork, int* info);
-
-// Cholesky factorizations/solves
-extern "C" void
-dpotrf_(char *, int *, double *, int *, int *);
-// Solve
-extern "C" void
-dpotrs_(char *, int *, int *, double *, int *, double *, int *, int *);
-// Triangular Solves
-extern "C" void
-dtrtrs_(char *, char*, char *, int *, int *, double *, int *, double *, int *,
-        int *);
-extern "C" void
-dpotri_(char *, int *, double *, int*, int *);
-#endif
-#endif
-
-
 namespace mfem
 {
 
@@ -136,23 +41,12 @@ using namespace std;
 
 DenseMatrix::DenseMatrix() : Matrix(0) { }
 
-DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
-{
-   const int hw = height * width;
-   if (hw > 0)
-   {
-      MFEM_ASSERT(m.data, "invalid source matrix");
-      data.New(hw);
-      std::memcpy(data, m.data, sizeof(real_t)*hw);
-   }
-}
-
 DenseMatrix::DenseMatrix(int s) : Matrix(s)
 {
    MFEM_ASSERT(s >= 0, "invalid DenseMatrix size: " << s);
    if (s > 0)
    {
-      data.New(s*s);
+      data.SetSize(s*s);
       *this = 0.0; // init with zeroes
    }
 }
@@ -164,7 +58,7 @@ DenseMatrix::DenseMatrix(int m, int n) : Matrix(m, n)
    const int capacity = m*n;
    if (capacity > 0)
    {
-      data.New(capacity);
+      data.SetSize(capacity);
       *this = 0.0; // init with zeroes
    }
 }
@@ -176,7 +70,7 @@ DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
    const int capacity = height*width;
    if (capacity > 0)
    {
-      data.New(capacity);
+      data.SetSize(capacity);
 
       for (int i = 0; i < height; i++)
       {
@@ -198,13 +92,7 @@ void DenseMatrix::SetSize(int h, int w)
    }
    height = h;
    width = w;
-   const int hw = h*w;
-   if (hw > data.Capacity())
-   {
-      data.Delete();
-      data.New(hw);
-      *this = 0.0; // init with zeroes
-   }
+   data.SetSize(h*w, 0.0);
 }
 
 real_t &DenseMatrix::Elem(int i, int j)
@@ -219,21 +107,21 @@ const real_t &DenseMatrix::Elem(int i, int j) const
 
 void DenseMatrix::Mult(const real_t *x, real_t *y) const
 {
-   kernels::Mult(height, width, Data(), x, y);
+   kernels::Mult(height, width, HostRead(), x, y);
 }
 
 void DenseMatrix::Mult(const real_t *x, Vector &y) const
 {
    MFEM_ASSERT(height == y.Size(), "incompatible dimensions");
 
-   Mult(x, y.GetData());
+   Mult(x, y.HostWrite());
 }
 
 void DenseMatrix::Mult(const Vector &x, real_t *y) const
 {
    MFEM_ASSERT(width == x.Size(), "incompatible dimensions");
 
-   Mult(x.GetData(), y);
+   Mult(x.HostRead(), y);
 }
 
 void DenseMatrix::Mult(const Vector &x, Vector &y) const
@@ -241,7 +129,15 @@ void DenseMatrix::Mult(const Vector &x, Vector &y) const
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
                "incompatible dimensions");
 
-   Mult(x.GetData(), y.GetData());
+   Mult(x.HostRead(), y.HostWrite());
+}
+
+void DenseMatrix::AbsMult(const Vector &x, Vector &y) const
+{
+   MFEM_ASSERT(height == y.Size() && width == x.Size(),
+               "incompatible dimensions");
+
+   kernels::AbsMult(height, width, HostRead(), x.HostRead(), y.HostWrite());
 }
 
 real_t DenseMatrix::operator *(const DenseMatrix &m) const
@@ -261,31 +157,21 @@ real_t DenseMatrix::operator *(const DenseMatrix &m) const
 
 void DenseMatrix::MultTranspose(const real_t *x, real_t *y) const
 {
-   real_t *d_col = Data();
-   for (int col = 0; col < width; col++)
-   {
-      real_t y_col = 0.0;
-      for (int row = 0; row < height; row++)
-      {
-         y_col += x[row]*d_col[row];
-      }
-      y[col] = y_col;
-      d_col += height;
-   }
+   kernels::MultTranspose(height, width, HostRead(), x, y);
 }
 
 void DenseMatrix::MultTranspose(const real_t *x, Vector &y) const
 {
    MFEM_ASSERT(width == y.Size(), "incompatible dimensions");
 
-   MultTranspose(x, y.GetData());
+   MultTranspose(x, y.HostWrite());
 }
 
 void DenseMatrix::MultTranspose(const Vector &x, real_t *y) const
 {
    MFEM_ASSERT(height == x.Size(), "incompatible dimensions");
 
-   MultTranspose(x.GetData(), y);
+   MultTranspose(x.HostRead(), y);
 }
 
 void DenseMatrix::MultTranspose(const Vector &x, Vector &y) const
@@ -293,7 +179,16 @@ void DenseMatrix::MultTranspose(const Vector &x, Vector &y) const
    MFEM_ASSERT(height == x.Size() && width == y.Size(),
                "incompatible dimensions");
 
-   MultTranspose(x.GetData(), y.GetData());
+   MultTranspose(x.HostRead(), y.HostWrite());
+}
+
+void DenseMatrix::AbsMultTranspose(const Vector &x, Vector &y) const
+{
+   MFEM_ASSERT(height == x.Size() && width == y.Size(),
+               "incompatible dimensions");
+
+   kernels::AbsMultTranspose(height, width, HostRead(),
+                             x.HostRead(), y.HostWrite());
 }
 
 void DenseMatrix::AddMult(const Vector &x, Vector &y, const real_t a) const
@@ -348,6 +243,9 @@ void DenseMatrix::AddMult_a(real_t a, const Vector &x, Vector &y) const
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
                "incompatible dimensions");
 
+   HostRead();
+   x.HostRead();
+   y.HostReadWrite();
    const real_t *xp = x.GetData(), *d_col = data;
    real_t *yp = y.GetData();
    for (int col = 0; col < width; col++)
@@ -728,19 +626,6 @@ DenseMatrix &DenseMatrix::operator=(const real_t *d)
    return *this;
 }
 
-DenseMatrix &DenseMatrix::operator=(const DenseMatrix &m)
-{
-   SetSize(m.height, m.width);
-
-   const int hw = height * width;
-   for (int i = 0; i < hw; i++)
-   {
-      data[i] = m.data[i];
-   }
-
-   return *this;
-}
-
 DenseMatrix &DenseMatrix::operator+=(const real_t *m)
 {
    kernels::Add(Height(), Width(), m, (real_t*)data);
@@ -801,36 +686,19 @@ void DenseMatrix::Invert()
    real_t qwork, *work;
    int    info;
 
-#ifdef MFEM_USE_SINGLE
-   sgetrf_(&width, &width, data, &width, ipiv, &info);
-#elif defined MFEM_USE_DOUBLE
-   dgetrf_(&width, &width, data, &width, ipiv, &info);
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
+   MFEM_LAPACK_PREFIX(getrf_)(&width, &width, data, &width, ipiv, &info);
 
    if (info)
    {
       mfem_error("DenseMatrix::Invert() : Error in DGETRF");
    }
 
-#ifdef MFEM_USE_SINGLE
-   sgetri_(&width, data, &width, ipiv, &qwork, &lwork, &info);
+   MFEM_LAPACK_PREFIX(getri_)(&width, data, &width, ipiv, &qwork, &lwork, &info);
 
    lwork = (int) qwork;
-   work = new float[lwork];
+   work = new real_t[lwork];
 
-   sgetri_(&width, data, &width, ipiv, work, &lwork, &info);
-#elif defined MFEM_USE_DOUBLE
-   dgetri_(&width, data, &width, ipiv, &qwork, &lwork, &info);
-
-   lwork = (int) qwork;
-   work = new double[lwork];
-
-   dgetri_(&width, data, &width, ipiv, work, &lwork, &info);
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
+   MFEM_LAPACK_PREFIX(getri_)(&width, data, &width, ipiv, work, &lwork, &info);
 
    if (info)
    {
@@ -1066,15 +934,9 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
       A[i] = data[i];
    }
 
-#ifdef MFEM_USE_SINGLE
-   ssyevr_( &JOBZ, &RANGE, &UPLO, &N, A, &LDA, &VL, &VU, &IL, &IU,
-#elif defined MFEM_USE_DOUBLE
-   dsyevr_( &JOBZ, &RANGE, &UPLO, &N, A, &LDA, &VL, &VU, &IL, &IU,
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
-            &ABSTOL, &M, W, Z, &LDZ, ISUPPZ, &QWORK, &LWORK,
-            &QIWORK, &LIWORK, &INFO );
+   MFEM_LAPACK_PREFIX(syevr_)(&JOBZ, &RANGE, &UPLO, &N, A, &LDA, &VL, &VU, &IL,
+                              &IU, &ABSTOL, &M, W, Z, &LDZ, ISUPPZ, &QWORK,
+                              &LWORK, &QIWORK, &LIWORK, &INFO);
 
    LWORK  = (int) QWORK;
    LIWORK = QIWORK;
@@ -1082,15 +944,9 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
    WORK  = new real_t[LWORK];
    IWORK = new int[LIWORK];
 
-#ifdef MFEM_USE_SINGLE
-   ssyevr_( &JOBZ, &RANGE, &UPLO, &N, A, &LDA, &VL, &VU, &IL, &IU,
-#elif defined MFEM_USE_DOUBLE
-   dsyevr_( &JOBZ, &RANGE, &UPLO, &N, A, &LDA, &VL, &VU, &IL, &IU,
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
-            &ABSTOL, &M, W, Z, &LDZ, ISUPPZ, WORK, &LWORK,
-            IWORK, &LIWORK, &INFO );
+   MFEM_LAPACK_PREFIX(syevr_)(&JOBZ, &RANGE, &UPLO, &N, A, &LDA, &VL, &VU, &IL,
+                              &IU, &ABSTOL, &M, W, Z, &LDZ, ISUPPZ, WORK,
+                              &LWORK, IWORK, &LIWORK, &INFO);
 
    if (INFO != 0)
    {
@@ -1230,24 +1086,12 @@ void dsyev_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
       A[i] = data[i];
    }
 
-#ifdef MFEM_USE_SINGLE
-   ssyev_(&JOBZ, &UPLO, &N, A, &LDA, W, &QWORK, &LWORK, &INFO);
-#elif defined MFEM_USE_DOUBLE
-   dsyev_(&JOBZ, &UPLO, &N, A, &LDA, W, &QWORK, &LWORK, &INFO);
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
+   MFEM_LAPACK_PREFIX(syev_)(&JOBZ, &UPLO, &N, A, &LDA, W, &QWORK, &LWORK, &INFO);
 
    LWORK = (int) QWORK;
    WORK = new real_t[LWORK];
 
-#ifdef MFEM_USE_SINGLE
-   ssyev_(&JOBZ, &UPLO, &N, A, &LDA, W, WORK, &LWORK, &INFO);
-#elif defined MFEM_USE_DOUBLE
-   dsyev_(&JOBZ, &UPLO, &N, A, &LDA, W, WORK, &LWORK, &INFO);
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
+   MFEM_LAPACK_PREFIX(syev_)(&JOBZ, &UPLO, &N, A, &LDA, W, WORK, &LWORK, &INFO);
 
    if (INFO != 0)
    {
@@ -1322,24 +1166,14 @@ void dsygv_Eigensystem(DenseMatrix &a, DenseMatrix &b, Vector &ev,
       B[i] = b_data[i];
    }
 
-#ifdef MFEM_USE_SINGLE
-   ssygv_(&ITYPE, &JOBZ, &UPLO, &N, A, &LDA, B, &LDB, W, &QWORK, &LWORK, &INFO);
-#elif defined MFEM_USE_DOUBLE
-   dsygv_(&ITYPE, &JOBZ, &UPLO, &N, A, &LDA, B, &LDB, W, &QWORK, &LWORK, &INFO);
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
+   MFEM_LAPACK_PREFIX(sygv_)(&ITYPE, &JOBZ, &UPLO, &N, A, &LDA, B, &LDB, W,
+                             &QWORK, &LWORK, &INFO);
 
    LWORK = (int) QWORK;
    WORK = new real_t[LWORK];
 
-#ifdef MFEM_USE_SINGLE
-   ssygv_(&ITYPE, &JOBZ, &UPLO, &N, A, &LDA, B, &LDB, W, WORK, &LWORK, &INFO);
-#elif defined MFEM_USE_DOUBLE
-   dsygv_(&ITYPE, &JOBZ, &UPLO, &N, A, &LDA, B, &LDB, W, WORK, &LWORK, &INFO);
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
+   MFEM_LAPACK_PREFIX(sygv_)(&ITYPE, &JOBZ, &UPLO, &N, A, &LDA, B, &LDB, W, WORK,
+                             &LWORK, &INFO);
 
    if (INFO != 0)
    {
@@ -1391,26 +1225,14 @@ void DenseMatrix::SingularValues(Vector &sv) const
    int         info;
    real_t      qwork;
 
-#ifdef MFEM_USE_SINGLE
-   sgesvd_(&jobu, &jobvt, &m, &n, a, &m,
-#elif defined MFEM_USE_DOUBLE
-   dgesvd_(&jobu, &jobvt, &m, &n, a, &m,
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
-           s, u, &m, vt, &n, &qwork, &lwork, &info);
+   MFEM_LAPACK_PREFIX(gesvd_)(&jobu, &jobvt, &m, &n, a, &m, s, u, &m, vt, &n,
+                              &qwork, &lwork, &info);
 
    lwork = (int) qwork;
    work = new real_t[lwork];
 
-#ifdef MFEM_USE_SINGLE
-   sgesvd_(&jobu, &jobvt, &m, &n, a, &m,
-#elif defined MFEM_USE_DOUBLE
-   dgesvd_(&jobu, &jobvt, &m, &n, a, &m,
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
-           s, u, &m, vt, &n, work, &lwork, &info);
+   MFEM_LAPACK_PREFIX(gesvd_)(&jobu, &jobvt, &m, &n, a, &m, s, u, &m, vt, &n,
+                              work, &lwork, &info);
 
    delete [] work;
    if (info)
@@ -1546,6 +1368,35 @@ void DenseMatrix::Getl1Diag(Vector &l) const
       {
          l(i) += fabs((*this)(i,j));
       }
+}
+
+void DenseMatrix::GetRowl1(Vector &l) const
+{
+   l.SetSize(height);
+   l = 0.0;
+
+   for (int j = 0; j < width; ++j)
+      for (int i = 0; i < height; ++i)
+      {
+         l(i) += fabs((*this)(i,j));
+      }
+}
+
+void DenseMatrix::GetRowl2(Vector &l) const
+{
+   l.SetSize(height);
+   l = 0.0;
+
+   for (int j = 0; j < width; ++j)
+      for (int i = 0; i < height; ++i)
+      {
+         l[i] += operator()(i,j)*operator()(i,j);
+      }
+
+   for (int i = 0; i < height; ++i)
+   {
+      l[i] = sqrt(l[i]);
+   }
 }
 
 void DenseMatrix::GetRowSums(Vector &l) const
@@ -2439,6 +2290,35 @@ void DenseMatrix::PrintMatlab(std::ostream &os) const
    os.flags(old_flags);
 }
 
+void DenseMatrix::PrintMathematica(std::ostream &os) const
+{
+   ios::fmtflags old_fmt = os.flags();
+   os.setf(ios::scientific);
+   std::streamsize old_prec = os.precision(14);
+
+   os << "(* Read file into Mathematica using: "
+      << "myMat = Get[\"this_file_name\"] *)\n";
+   os << "{\n";
+
+   for (int i = 0; i < height; i++)
+   {
+      os << "{\n";
+      for (int j = 0; j < width; j++)
+      {
+         os << "Internal`StringToMReal[\"" << (*this)(i,j) << "\"]";
+         if (j < width - 1) { os << ','; }
+         os << '\n';
+      }
+      os << '}';
+      if (i < height - 1) { os << ','; }
+      os << '\n';
+   }
+   os << "}\n";
+
+   os.precision(old_prec);
+   os.flags(old_fmt);
+}
+
 void DenseMatrix::PrintT(std::ostream &os, int width_) const
 {
    // save current output flags
@@ -2481,16 +2361,8 @@ void DenseMatrix::TestInversion()
 
 void DenseMatrix::Swap(DenseMatrix &other)
 {
-   mfem::Swap(width, other.width);
-   mfem::Swap(height, other.height);
-   mfem::Swap(data, other.data);
+   mfem::Swap(*this, other);
 }
-
-DenseMatrix::~DenseMatrix()
-{
-   data.Delete();
-}
-
 
 
 void Add(const DenseMatrix &A, const DenseMatrix &B,
@@ -2573,14 +2445,8 @@ void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
    static real_t alpha = 1.0, beta = 0.0;
    int m = b.Height(), n = c.Width(), k = b.Width();
 
-#ifdef MFEM_USE_SINGLE
-   sgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
-#elif defined MFEM_USE_DOUBLE
-   dgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
-          c.Data(), &k, &beta, a.Data(), &m);
+   MFEM_LAPACK_PREFIX(gemm_)(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
+                             c.Data(), &k, &beta, a.Data(), &m);
 #else
    const int ah = a.Height();
    const int aw = a.Width();
@@ -2603,14 +2469,8 @@ void AddMult_a(real_t alpha, const DenseMatrix &b, const DenseMatrix &c,
    static real_t beta = 1.0;
    int m = b.Height(), n = c.Width(), k = b.Width();
 
-#ifdef MFEM_USE_SINGLE
-   sgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
-#elif defined MFEM_USE_DOUBLE
-   dgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
-          c.Data(), &k, &beta, a.Data(), &m);
+   MFEM_LAPACK_PREFIX(gemm_)(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
+                             c.Data(), &k, &beta, a.Data(), &m);
 #else
    const int ah = a.Height();
    const int aw = a.Width();
@@ -2641,12 +2501,8 @@ void AddMult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
    static real_t alpha = 1.0, beta = 1.0;
    int m = b.Height(), n = c.Width(), k = b.Width();
 
-#ifdef MFEM_USE_SINGLE
-   sgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
-#elif defined MFEM_USE_DOUBLE
-   dgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
-#endif
-          c.Data(), &k, &beta, a.Data(), &m);
+   MFEM_LAPACK_PREFIX(gemm_)(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
+                             c.Data(), &k, &beta, a.Data(), &m);
 #else
    const int ah = a.Height();
    const int aw = a.Width();
@@ -2965,12 +2821,8 @@ void MultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
    static real_t alpha = 1.0, beta = 0.0;
    int m = A.Height(), n = B.Height(), k = A.Width();
 
-#ifdef MFEM_USE_SINGLE
-   sgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
-#elif defined MFEM_USE_DOUBLE
-   dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
-#endif
-          B.Data(), &n, &beta, ABt.Data(), &m);
+   MFEM_LAPACK_PREFIX(gemm_)(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
+                             B.Data(), &n, &beta, ABt.Data(), &m);
 #elif 1
    const int ah = A.Height();
    const int bh = B.Height();
@@ -3074,12 +2926,8 @@ void AddMultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
    static real_t alpha = 1.0, beta = 1.0;
    int m = A.Height(), n = B.Height(), k = A.Width();
 
-#ifdef MFEM_USE_SINGLE
-   sgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
-#elif defined MFEM_USE_DOUBLE
-   dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
-#endif
-          B.Data(), &n, &beta, ABt.Data(), &m);
+   MFEM_LAPACK_PREFIX(gemm_)(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
+                             B.Data(), &n, &beta, ABt.Data(), &m);
 #elif 1
    const int ah = A.Height();
    const int bh = B.Height();
@@ -3173,12 +3021,8 @@ void AddMult_a_ABt(real_t a, const DenseMatrix &A, const DenseMatrix &B,
    static real_t beta = 1.0;
    int m = A.Height(), n = B.Height(), k = A.Width();
 
-#ifdef MFEM_USE_SINGLE
-   sgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
-#elif defined MFEM_USE_DOUBLE
-   dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
-#endif
-          B.Data(), &n, &beta, ABt.Data(), &m);
+   MFEM_LAPACK_PREFIX(gemm_)(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
+                             B.Data(), &n, &beta, ABt.Data(), &m);
 #elif 1
    const int ah = A.Height();
    const int bh = B.Height();
@@ -3234,12 +3078,8 @@ void MultAtB(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &AtB)
    static real_t alpha = 1.0, beta = 0.0;
    int m = A.Width(), n = B.Width(), k = A.Height();
 
-#ifdef MFEM_USE_SINGLE
-   sgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &k,
-#elif defined MFEM_USE_DOUBLE
-   dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &k,
-#endif
-          B.Data(), &k, &beta, AtB.Data(), &m);
+   MFEM_LAPACK_PREFIX(gemm_)(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &k,
+                             B.Data(), &k, &beta, AtB.Data(), &m);
 #elif 1
    const int ah = A.Height();
    const int aw = A.Width();
@@ -3291,12 +3131,8 @@ void AddMultAtB(const DenseMatrix &A, const DenseMatrix &B,
    static real_t alpha = 1.0, beta = 1.0;
    int m = A.Width(), n = B.Width(), k = A.Height();
 
-#ifdef MFEM_USE_SINGLE
-   sgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &k,
-#elif defined MFEM_USE_DOUBLE
-   dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &k,
-#endif
-          B.Data(), &k, &beta, AtB.Data(), &m);
+   MFEM_LAPACK_PREFIX(gemm_)(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &k,
+                             B.Data(), &k, &beta, AtB.Data(), &m);
 #else
    const int ah = A.Height();
    const int aw = A.Width();
@@ -3335,12 +3171,8 @@ void AddMult_a_AtB(real_t a, const DenseMatrix &A, const DenseMatrix &B,
    static real_t beta = 1.0;
    int m = A.Width(), n = B.Width(), k = A.Height();
 
-#ifdef MFEM_USE_SINGLE
-   sgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &k,
-#elif defined MFEM_USE_DOUBLE
-   dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &k,
-#endif
-          B.Data(), &k, &beta, AtB.Data(), &m);
+   MFEM_LAPACK_PREFIX(gemm_)(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &k,
+                             B.Data(), &k, &beta, AtB.Data(), &m);
 #else
    const int ah = A.Height();
    const int aw = A.Width();
@@ -3545,13 +3377,7 @@ bool LUFactors::Factor(int m, real_t TOL)
 {
 #ifdef MFEM_USE_LAPACK
    int info = 0;
-#ifdef MFEM_USE_SINGLE
-   if (m) { sgetrf_(&m, &m, data, &m, ipiv, &info); }
-#elif defined MFEM_USE_DOUBLE
-   if (m) { dgetrf_(&m, &m, data, &m, ipiv, &info); }
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
+   if (m) { MFEM_LAPACK_PREFIX(getrf_)(&m, &m, data, &m, ipiv, &info); }
    return info == 0;
 #else
    // compiling without LAPACK
@@ -3571,7 +3397,7 @@ bool LUFactors::Factor(int m, real_t TOL)
                piv = j;
             }
          }
-         ipiv[i] = piv;
+         ipiv[i] = piv + 1;
          if (piv != i)
          {
             // swap rows i and piv in both L and U parts
@@ -3611,7 +3437,7 @@ real_t LUFactors::Det(int m) const
    real_t det = 1.0;
    for (int i=0; i<m; i++)
    {
-      if (ipiv[i] != i-ipiv_base)
+      if (ipiv[i] != i - ipiv_base)
       {
          det *= -data[m * i + i];
       }
@@ -3662,20 +3488,7 @@ void LUFactors::LSolve(int m, int n, real_t *X) const
    real_t *x = X;
    for (int k = 0; k < n; k++)
    {
-      // X <- P X
-      for (int i = 0; i < m; i++)
-      {
-         mfem::Swap<real_t>(x[i], x[ipiv[i]-ipiv_base]);
-      }
-      // X <- L^{-1} X
-      for (int j = 0; j < m; j++)
-      {
-         const real_t x_j = x[j];
-         for (int i = j+1; i < m; i++)
-         {
-            x[i] -= data[i+j*m] * x_j;
-         }
-      }
+      kernels::LSolve(data, m, ipiv, x);
       x += m;
    }
 }
@@ -3683,17 +3496,9 @@ void LUFactors::LSolve(int m, int n, real_t *X) const
 void LUFactors::USolve(int m, int n, real_t *X) const
 {
    real_t *x = X;
-   // X <- U^{-1} X
    for (int k = 0; k < n; k++)
    {
-      for (int j = m-1; j >= 0; j--)
-      {
-         const real_t x_j = ( x[j] /= data[j+j*m] );
-         for (int i = 0; i < j; i++)
-         {
-            x[i] -= data[i+j*m] * x_j;
-         }
-      }
+      kernels::USolve(data, m, x);
       x += m;
    }
 }
@@ -3703,13 +3508,10 @@ void LUFactors::Solve(int m, int n, real_t *X) const
 #ifdef MFEM_USE_LAPACK
    char trans = 'N';
    int  info = 0;
-#ifdef MFEM_USE_SINGLE
-   if (m > 0 && n > 0) { sgetrs_(&trans, &m, &n, data, &m, ipiv, X, &m, &info); }
-#elif defined MFEM_USE_DOUBLE
-   if (m > 0 && n > 0) { dgetrs_(&trans, &m, &n, data, &m, ipiv, X, &m, &info); }
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
+   if (m > 0 && n > 0)
+   {
+      MFEM_LAPACK_PREFIX(getrs_)(&trans, &m, &n, data, &m, ipiv, X, &m, &info);
+   }
    MFEM_VERIFY(!info, "LAPACK: error in DGETRS");
 #else
    // compiling without LAPACK
@@ -3726,15 +3528,8 @@ void LUFactors::RightSolve(int m, int n, real_t *X) const
    real_t alpha = 1.0;
    if (m > 0 && n > 0)
    {
-#ifdef MFEM_USE_SINGLE
-      strsm_(&side,&u_ch,&n_ch,&n_ch,&n,&m,&alpha,data,&m,X,&n);
-      strsm_(&side,&l_ch,&n_ch,&u_ch,&n,&m,&alpha,data,&m,X,&n);
-#elif defined MFEM_USE_DOUBLE
-      dtrsm_(&side,&u_ch,&n_ch,&n_ch,&n,&m,&alpha,data,&m,X,&n);
-      dtrsm_(&side,&l_ch,&n_ch,&u_ch,&n,&m,&alpha,data,&m,X,&n);
-#else
-      MFEM_ABORT("Floating point type undefined");
-#endif
+      MFEM_LAPACK_PREFIX(trsm_)(&side,&u_ch,&n_ch,&n_ch,&n,&m,&alpha,data,&m,X,&n);
+      MFEM_LAPACK_PREFIX(trsm_)(&side,&l_ch,&n_ch,&u_ch,&n,&m,&alpha,data,&m,X,&n);
    }
 #else
    // compiling without LAPACK
@@ -3846,44 +3641,13 @@ void LUFactors::GetInverseMatrix(int m, real_t *X) const
 void LUFactors::SubMult(int m, int n, int r, const real_t *A21,
                         const real_t *X1, real_t *X2)
 {
-   // X2 <- X2 - A21 X1
-   for (int k = 0; k < r; k++)
-   {
-      for (int j = 0; j < m; j++)
-      {
-         const real_t x1_jk = X1[j+k*m];
-         for (int i = 0; i < n; i++)
-         {
-            X2[i+k*n] -= A21[i+j*n] * x1_jk;
-         }
-      }
-   }
+   kernels::SubMult(m, n, r, A21, X1, X2);
 }
 
 void LUFactors::BlockFactor(
    int m, int n, real_t *A12, real_t *A21, real_t *A22) const
 {
-   // A12 <- L^{-1} P A12
-   LSolve(m, n, A12);
-   // A21 <- A21 U^{-1}
-   for (int j = 0; j < m; j++)
-   {
-      const real_t u_jj_inv = 1.0/data[j+j*m];
-      for (int i = 0; i < n; i++)
-      {
-         A21[i+j*n] *= u_jj_inv;
-      }
-      for (int k = j+1; k < m; k++)
-      {
-         const real_t u_jk = data[j+k*m];
-         for (int i = 0; i < n; i++)
-         {
-            A21[i+k*n] -= A21[i+j*n] * u_jk;
-         }
-      }
-   }
-   // A22 <- A22 - A21 A12
-   SubMult(m, n, n, A21, A12, A22);
+   kernels::BlockFactor(data, m, ipiv, n, A12, A21, A22);
 }
 
 void LUFactors::BlockForwSolve(int m, int n, int r, const real_t *L21,
@@ -3911,13 +3675,7 @@ bool CholeskyFactors::Factor(int m, real_t TOL)
    int info = 0;
    char uplo = 'L';
    MFEM_VERIFY(data, "Matrix data not set");
-#ifdef MFEM_USE_SINGLE
-   if (m) {spotrf_(&uplo, &m, data, &m, &info);}
-#elif defined MFEM_USE_DOUBLE
-   if (m) {dpotrf_(&uplo, &m, data, &m, &info);}
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
+   if (m) { MFEM_LAPACK_PREFIX(potrf_)(&uplo, &m, data, &m, &info); }
    return info == 0;
 #else
    // Cholesky–Crout algorithm
@@ -4009,13 +3767,8 @@ void CholeskyFactors::LSolve(int m, int n, real_t * X) const
    char diag = 'N';
    int info = 0;
 
-#ifdef MFEM_USE_SINGLE
-   strtrs_(&uplo, &trans, &diag, &m, &n, data, &m, X, &m, &info);
-#elif defined MFEM_USE_DOUBLE
-   dtrtrs_(&uplo, &trans, &diag, &m, &n, data, &m, X, &m, &info);
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
+   MFEM_LAPACK_PREFIX(trtrs_)(&uplo, &trans, &diag, &m, &n, data, &m, X, &m,
+                              &info);
    MFEM_VERIFY(!info, "CholeskyFactors:LSolve:: info");
 
 #else
@@ -4045,13 +3798,8 @@ void CholeskyFactors::USolve(int m, int n, real_t * X) const
    char diag = 'N';
    int info = 0;
 
-#ifdef MFEM_USE_SINGLE
-   strtrs_(&uplo, &trans, &diag, &m, &n, data, &m, X, &m, &info);
-#elif defined MFEM_USE_DOUBLE
-   dtrtrs_(&uplo, &trans, &diag, &m, &n, data, &m, X, &m, &info);
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
+   MFEM_LAPACK_PREFIX(trtrs_)(&uplo, &trans, &diag, &m, &n, data, &m, X, &m,
+                              &info);
    MFEM_VERIFY(!info, "CholeskyFactors:USolve:: info");
 
 #else
@@ -4077,13 +3825,7 @@ void CholeskyFactors::Solve(int m, int n, real_t * X) const
 #ifdef MFEM_USE_LAPACK
    char uplo = 'L';
    int info = 0;
-#ifdef MFEM_USE_SINGLE
-   spotrs_(&uplo, &m, &n, data, &m, X, &m, &info);
-#elif defined MFEM_USE_DOUBLE
-   dpotrs_(&uplo, &m, &n, data, &m, X, &m, &info);
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
+   MFEM_LAPACK_PREFIX(potrs_)(&uplo, &m, &n, data, &m, X, &m, &info);
    MFEM_VERIFY(!info, "CholeskyFactors:Solve:: info");
 
 #else
@@ -4104,15 +3846,8 @@ void CholeskyFactors::RightSolve(int m, int n, real_t * X) const
    real_t alpha = 1.0;
    if (m > 0 && n > 0)
    {
-#ifdef MFEM_USE_SINGLE
-      strsm_(&side,&uplo,&transt,&diag,&n,&m,&alpha,data,&m,X,&n);
-      strsm_(&side,&uplo,&trans,&diag,&n,&m,&alpha,data,&m,X,&n);
-#elif defined MFEM_USE_DOUBLE
-      dtrsm_(&side,&uplo,&transt,&diag,&n,&m,&alpha,data,&m,X,&n);
-      dtrsm_(&side,&uplo,&trans,&diag,&n,&m,&alpha,data,&m,X,&n);
-#else
-      MFEM_ABORT("Floating point type undefined");
-#endif
+      MFEM_LAPACK_PREFIX(trsm_)(&side,&uplo,&transt,&diag,&n,&m,&alpha,data,&m,X,&n);
+      MFEM_LAPACK_PREFIX(trsm_)(&side,&uplo,&trans,&diag,&n,&m,&alpha,data,&m,X,&n);
    }
 #else
    // X <- X L^{-t}
@@ -4160,13 +3895,7 @@ void CholeskyFactors::GetInverseMatrix(int m, real_t * X) const
    }
    char uplo = 'L';
    int info = 0;
-#ifdef MFEM_USE_SINGLE
-   spotri_(&uplo, &m, X, &m, &info);
-#elif defined MFEM_USE_DOUBLE
-   dpotri_(&uplo, &m, X, &m, &info);
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
+   MFEM_LAPACK_PREFIX(potri_)(&uplo, &m, X, &m, &info);
    MFEM_VERIFY(!info, "CholeskyFactors:GetInverseMatrix:: info");
    // fill in the upper triangular part
    for (int i = 0; i<m; i++)
@@ -4350,14 +4079,8 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m)
    uplo = 'U';
    lwork = -1;
    real_t qwork;
-#ifdef MFEM_USE_SINGLE
-   ssyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
-#elif defined MFEM_USE_DOUBLE
-   dsyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
-          &qwork, &lwork, &info);
+   MFEM_LAPACK_PREFIX(syev_)(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
+                             &qwork, &lwork, &info);
 
    lwork = (int) qwork;
    work = new real_t[lwork];
@@ -4385,14 +4108,8 @@ void DenseMatrixEigensystem::Eval()
 #endif
 
    EVect = mat;
-#ifdef MFEM_USE_SINGLE
-   ssyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
-#elif defined MFEM_USE_DOUBLE
-   dsyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
-          work, &lwork, &info);
+   MFEM_LAPACK_PREFIX(syev_)(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
+                             work, &lwork, &info);
 
    if (info != 0)
    {
@@ -4444,15 +4161,9 @@ DenseMatrixGeneralizedEigensystem::DenseMatrixGeneralizedEigensystem(
    int nl = max(1,Vl.Height());
    int nr = max(1,Vr.Height());
 
-#ifdef MFEM_USE_SINGLE
-   sggev_(&jobvl,&jobvr,&n,A_copy.Data(),&n,B_copy.Data(),&n,alphar,
-#elif defined MFEM_USE_DOUBLE
-   dggev_(&jobvl,&jobvr,&n,A_copy.Data(),&n,B_copy.Data(),&n,alphar,
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
-          alphai, beta, Vl.Data(), &nl, Vr.Data(), &nr,
-          &qwork, &lwork, &info);
+   MFEM_LAPACK_PREFIX(ggev_)(&jobvl,&jobvr,&n,A_copy.Data(),&n,B_copy.Data(),&n,
+                             alphar, alphai, beta, Vl.Data(), &nl, Vr.Data(),
+                             &nr, &qwork, &lwork, &info);
 
    lwork = (int) qwork;
    work = new real_t[lwork];
@@ -4465,15 +4176,9 @@ void DenseMatrixGeneralizedEigensystem::Eval()
 
    A_copy = A;
    B_copy = B;
-#ifdef MFEM_USE_SINGLE
-   sggev_(&jobvl,&jobvr,&n,A_copy.Data(),&n,B_copy.Data(),&n,alphar,
-#elif defined MFEM_USE_DOUBLE
-   dggev_(&jobvl,&jobvr,&n,A_copy.Data(),&n,B_copy.Data(),&n,alphar,
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
-          alphai, beta, Vl.Data(), &nl, Vr.Data(), &nr,
-          work, &lwork, &info);
+   MFEM_LAPACK_PREFIX(ggev_)(&jobvl,&jobvr,&n,A_copy.Data(),&n,B_copy.Data(),&n,
+                             alphar, alphai, beta, Vl.Data(), &nl, Vr.Data(),
+                             &nr, work, &lwork, &info);
    if (info != 0)
    {
       mfem::err << "DenseMatrixGeneralizedEigensystem::Eval(): DGGEV error code: "
@@ -4554,14 +4259,8 @@ void DenseMatrixSVD::Init()
    sv.SetSize(min(m, n));
    real_t qwork;
    lwork = -1;
-#ifdef MFEM_USE_SINGLE
-   sgesvd_(&jobu, &jobvt, &m, &n, NULL, &m, sv.GetData(), NULL, &m,
-#elif defined MFEM_USE_DOUBLE
-   dgesvd_(&jobu, &jobvt, &m, &n, NULL, &m, sv.GetData(), NULL, &m,
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
-           NULL, &n, &qwork, &lwork, &info);
+   MFEM_LAPACK_PREFIX(gesvd_)(&jobu, &jobvt, &m, &n, NULL, &m, sv.GetData(),
+                              NULL, &m, NULL, &n, &qwork, &lwork, &info);
    lwork = (int) qwork;
    work = new real_t[lwork];
 }
@@ -4597,14 +4296,8 @@ void DenseMatrixSVD::Eval(DenseMatrix &M)
       datavt = Vt.Data();
    }
    Mc = M;
-#ifdef MFEM_USE_SINGLE
-   sgesvd_(&jobu, &jobvt, &m, &n, Mc.Data(), &m, sv.GetData(), datau, &m,
-#elif defined MFEM_USE_DOUBLE
-   dgesvd_(&jobu, &jobvt, &m, &n, Mc.Data(), &m, sv.GetData(), datau, &m,
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
-           datavt, &n, work, &lwork, &info);
+   MFEM_LAPACK_PREFIX(gesvd_)(&jobu, &jobvt, &m, &n, Mc.Data(), &m, sv.GetData(),
+                              datau, &m, datavt, &n, work, &lwork, &info);
 
    if (info)
    {
@@ -4626,7 +4319,7 @@ const
 {
    int n = SizeI(), ne = SizeK();
    const int *I = elem_dof.GetI(), *J = elem_dof.GetJ(), *dofs;
-   const real_t *d_col = mfem::HostRead(tdata, n*SizeJ()*ne);
+   const real_t *d_col = tdata.HostRead();
    real_t *yp = y.HostReadWrite();
    real_t x_col;
    const real_t *xp = x.HostRead();
@@ -4686,95 +4379,42 @@ DenseTensor &DenseTensor::operator=(real_t c)
    return *this;
 }
 
-DenseTensor &DenseTensor::operator=(const DenseTensor &other)
-{
-   DenseTensor new_tensor(other);
-   Swap(new_tensor);
-   return *this;
-}
-
 void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const real_t TOL)
 {
-   const int m = Mlu.SizeI();
-   const int NE = Mlu.SizeK();
-   P.SetSize(m*NE);
-
-   auto data_all = mfem::Reshape(Mlu.ReadWrite(), m, m, NE);
-   auto ipiv_all = mfem::Reshape(P.Write(), m, NE);
-   Array<bool> pivot_flag(1);
-   pivot_flag[0] = true;
-   bool *d_pivot_flag = pivot_flag.ReadWrite();
-
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
-   {
-      for (int i = 0; i < m; i++)
-      {
-         // pivoting
-         {
-            int piv = i;
-            real_t a = fabs(data_all(piv,i,e));
-            for (int j = i+1; j < m; j++)
-            {
-               const real_t b = fabs(data_all(j,i,e));
-               if (b > a)
-               {
-                  a = b;
-                  piv = j;
-               }
-            }
-            ipiv_all(i,e) = piv;
-            if (piv != i)
-            {
-               // swap rows i and piv in both L and U parts
-               for (int j = 0; j < m; j++)
-               {
-                  mfem::kernels::internal::Swap<real_t>(data_all(i,j,e), data_all(piv,j,e));
-               }
-            }
-         } // pivot end
-
-         if (abs(data_all(i,i,e)) <= TOL)
-         {
-            d_pivot_flag[0] = false;
-         }
-
-         const real_t a_ii_inv = 1.0 / data_all(i,i,e);
-         for (int j = i+1; j < m; j++)
-         {
-            data_all(j,i,e) *= a_ii_inv;
-         }
-
-         for (int k = i+1; k < m; k++)
-         {
-            const real_t a_ik = data_all(i,k,e);
-            for (int j = i+1; j < m; j++)
-            {
-               data_all(j,k,e) -= a_ik * data_all(j,i,e);
-            }
-         }
-
-      } // m loop
-
-   });
-
-   MFEM_ASSERT(pivot_flag.HostRead()[0], "Batch LU factorization failed \n");
+   BatchedLinAlg::LUFactor(Mlu, P);
 }
 
 void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X)
 {
-
-   const int m = Mlu.SizeI();
-   const int NE = Mlu.SizeK();
-
-   auto data_all = mfem::Reshape(Mlu.Read(), m, m, NE);
-   auto piv_all = mfem::Reshape(P.Read(), m, NE);
-   auto x_all = mfem::Reshape(X.ReadWrite(), m, NE);
-
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
-   {
-      kernels::LUSolve(&data_all(0, 0,e), m, &piv_all(0, e), &x_all(0,e));
-   });
-
+   BatchedLinAlg::LUSolve(Mlu, P, X);
 }
+
+#ifdef MFEM_USE_LAPACK
+void BandedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
+                 Array<int> &ipiv)
+{
+   int LDAB = (2*KL) + KU + 1;
+   int N = AB.NumCols();
+   int NRHS = B.NumCols();
+   int info;
+   ipiv.SetSize(N);
+   MFEM_LAPACK_PREFIX(gbsv_)(&N, &KL, &KU, &NRHS, AB.GetData(), &LDAB,
+                             ipiv.GetData(), B.GetData(), &N, &info);
+   MFEM_ASSERT(info == 0, "BandedSolve failed in LAPACK");
+}
+
+void BandedFactorizedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
+                           bool transpose, Array<int> &ipiv)
+{
+   int LDAB = (2*KL) + KU + 1;
+   int N = AB.NumCols();
+   int NRHS = B.NumCols();
+   char trans = transpose ? 'T' : 'N';
+   int info;
+   MFEM_LAPACK_PREFIX(gbtrs_)(&trans, &N, &KL, &KU, &NRHS, AB.GetData(), &LDAB,
+                              ipiv.GetData(), B.GetData(), &N, &info);
+   MFEM_ASSERT(info == 0, "BandedFactorizedSolve failed in LAPACK");
+}
+#endif
 
 } // namespace mfem

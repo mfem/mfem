@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -107,7 +107,7 @@ L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(
 
    Mesh &mesh = *fes.GetMesh();
 
-   const FiniteElement &fe = *fes.GetFE(0);
+   const FiniteElement &fe = *fes.GetTypicalFE();
    const int d = fe.GetDofToQuad(fe.GetNodes(), DofToQuad::TENSOR).ndof;
 
    if (dim == 2)
@@ -323,7 +323,7 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector &x, Vector &y) const
    const bool t = fes.GetOrdering() == Ordering::byVDIM;
    const int num_elem = ne;
 
-   const FiniteElement &fe = *fes.GetFE(0);
+   const FiniteElement &fe = *fes.GetTypicalFE();
    const DofToQuad &maps = fe.GetDofToQuad(fe.GetNodes(), DofToQuad::TENSOR);
 
    const int q = maps.nqpt;
@@ -435,7 +435,7 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
    const bool t = fes.GetOrdering() == Ordering::byVDIM;
    const int num_elem = ne;
 
-   const FiniteElement &fe = *fes.GetFE(0);
+   const FiniteElement &fe = *fes.GetTypicalFE();
    const DofToQuad &maps = fe.GetDofToQuad(fe.GetNodes(), DofToQuad::TENSOR);
 
    const int q = maps.nqpt;
@@ -560,7 +560,7 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(
    const int vd = fes.GetVDim();
    const bool t = fes.GetOrdering() == Ordering::byVDIM;
 
-   const FiniteElement &fe = *fes.GetFE(0);
+   const FiniteElement &fe = *fes.GetTypicalFE();
    const DofToQuad &maps = fe.GetDofToQuad(fe.GetNodes(), DofToQuad::TENSOR);
 
    const int q = maps.nqpt;
@@ -682,7 +682,7 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(
 
    MFEM_VERIFY(vd == 1, "vdim > 1 not supported.");
 
-   const FiniteElement &fe = *fes.GetFE(0);
+   const FiniteElement &fe = *fes.GetTypicalFE();
    const DofToQuad &maps = fe.GetDofToQuad(fe.GetNodes(), DofToQuad::TENSOR);
 
    const int q = maps.nqpt;

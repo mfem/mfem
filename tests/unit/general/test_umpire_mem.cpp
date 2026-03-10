@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,7 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "general/forall.hpp"
 
 #if defined(MFEM_USE_UMPIRE) && (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
 #include "unit_tests.hpp"
@@ -18,12 +17,13 @@
 #include <unistd.h>
 #include <stdio.h>
 #include "umpire/Umpire.hpp"
+#include <umpire/strategy/QuickPool.hpp>
 
 #ifdef MFEM_USE_CUDA
 #include <cuda.h>
 constexpr const char * device_name = "cuda";
 #elif defined(MFEM_USE_HIP)
-constexpr const char * device_name = "raja-hip";
+constexpr const char * device_name = "hip";
 #endif
 
 using namespace mfem;
@@ -45,10 +45,12 @@ static bool is_pinned_host(void * h_p)
    unsigned flags;
 #ifdef MFEM_USE_CUDA
    auto err = cudaHostGetFlags(&flags, h_p);
+   cudaGetLastError(); // also resets last error
    if (err == cudaSuccess) { return true; }
    else if (err == cudaErrorInvalidValue) { return false; }
 #elif defined(MFEM_USE_HIP)
    auto err = hipHostGetFlags(&flags, h_p);
+   hipGetLastError(); // also resets last error
    if (err == hipSuccess) { return true; }
    else if (err == hipErrorInvalidValue) { return false; }
 #endif

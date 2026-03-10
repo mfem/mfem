@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -152,7 +152,7 @@ public:
       du_dt.SetSubVector(ess_tdofs_, 0.0);
    }
 
-   ~ConvectionDiffusionTDO()
+   ~ConvectionDiffusionTDO() override
    {
       delete aq;
       delete q;
@@ -214,6 +214,7 @@ int main(int argc, char *argv[])
    real_t t_final = 5.0;
    real_t dt = 1.0e-5;
    bool visualization = true;
+   int visport = 19916;
    int vis_steps = 10;
 
    OptionsParser args(argc, argv);
@@ -324,7 +325,6 @@ int main(int argc, char *argv[])
       ParSubMesh::CreateFromBoundary(parent_mesh, cylinder_surface_attributes);
 
    char vishost[] = "localhost";
-   int  visport   = 19916;
    socketstream cyl_sol_sock;
    if (visualization)
    {

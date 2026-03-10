@@ -9,8 +9,8 @@
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               triangulation of a unit sphere and a simple isoparametric
-//               finite element discretization of the Laplace problem with mass
-//               term, -Delta u + u = f.
+//               finite element discretization of the screened Poisson problem,
+//               -Delta u + u = f.
 //
 //               The example highlights mesh generation, the use of mesh
 //               refinement, high-order meshes and finite elements, as well as

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -63,6 +63,10 @@ public:
 
    FaceQuadratureInterpolator(const FiniteElementSpace &fes,
                               const IntegrationRule &ir, FaceType type);
+
+   /// @brief Returns true if the given finite element space is supported by
+   /// FaceQuadratureInterpolator.
+   static bool SupportsFESpace(const FiniteElementSpace &fes);
 
    /** @brief Disable the use of tensor product evaluations, for tensor-product
        elements, e.g. quads and hexes. */

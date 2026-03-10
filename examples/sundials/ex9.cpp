@@ -1,7 +1,9 @@
 //                                MFEM Example 9
 //                             SUNDIALS Modification
 //
-// Compile with: make ex9
+// Compile with:
+//    make ex9              (GNU make)
+//    make sundials_ex9     (CMake)
 //
 // Sample runs:
 //    ex9 -m ../../data/periodic-segment.mesh -p 0 -r 2 -s 7 -dt 0.005
@@ -74,7 +76,7 @@ public:
    DG_Solver(SparseMatrix &M_, SparseMatrix &K_, const FiniteElementSpace &fes)
       : M(M_),
         K(K_),
-        prec(fes.GetFE(0)->GetDof(),
+        prec(fes.GetTypicalFE()->GetDof(),
              BlockILU::Reordering::MINIMUM_DISCARDED_FILL),
         dt(-1.0)
    {

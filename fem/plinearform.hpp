@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -101,7 +101,7 @@ public:
 
        @note This version of the method will also perform bounds checks when the
        build option MFEM_DEBUG is enabled. */
-   virtual void MakeRef(FiniteElementSpace *f, Vector &v, int v_offset);
+   void MakeRef(FiniteElementSpace *f, Vector &v, int v_offset) override;
 
    /** @brief Make the ParLinearForm reference external data on a new
        ParFiniteElementSpace. */
@@ -120,7 +120,7 @@ public:
    void Assemble();
 
    /// Return true if assembly on device is supported, false otherwise.
-   virtual bool SupportsDevice() const;
+   bool SupportsDevice() const override;
 
    void AssembleSharedFaces();
 

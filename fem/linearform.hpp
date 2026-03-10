@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -198,7 +198,7 @@ public:
 
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
    /** When @ref UseFastAssembly "UseFastAssembly(true)" has been called and the
-       linearform assembly is compatible with device execution, it will be
+       linear form assembly is compatible with device execution, it will be
        executed on the device. */
    void Assemble();
 
