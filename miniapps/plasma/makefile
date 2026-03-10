@@ -14,9 +14,6 @@ MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/plasma/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
-# Use the MFEM install directory
-# MFEM_INSTALL_DIR = ../../mfem
-# CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
@@ -51,8 +48,10 @@ COMMON_O=
 
 all: $(MINIAPPS) subdirs
 
-.PHONY: subdirs
+.PHONY: subdirs $(PLASMA_SUBDIRS)
 subdirs: $(PLASMA_SUBDIRS)
+$(PLASMA_SUBDIRS): lib-common
+	$(MAKE) -C $(BLD)$(@)
 
 # Rules for building the miniapps
 %: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
@@ -80,15 +79,14 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
 
-#ALL_CLEAN_SUBDIRS = $(addsuffix /clean,$(PLASMA_SUBDIRS))
-#.PHONY: $(ALL_CLEAN_SUBDIRS)
-#$(ALL_CLEAN_SUBDIRS):
-#	$(MAKE) -C $(BLD)$(@D) $(@F)
+ALL_CLEAN_SUBDIRS = $(addsuffix /clean,$(PLASMA_SUBDIRS))
+.PHONY: $(ALL_CLEAN_SUBDIRS)
+$(ALL_CLEAN_SUBDIRS):
+	$(MAKE) -C $(BLD)$(@D) $(@F)
 
 clean: clean-build clean-exec
 
-clean-build:
-	$(addsuffix /clean,$(PLASMA_SUBDIRS))
+clean-build: $(addsuffix /clean,$(PLASMA_SUBDIRS))
 	rm -f *.o *~ $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 

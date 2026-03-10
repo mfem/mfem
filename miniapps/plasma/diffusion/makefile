@@ -14,9 +14,6 @@ MFEM_DIR ?= ../../..
 MFEM_BUILD_DIR ?= ../../..
 SRC = $(if $(MFEM_DIR:../../..=),$(MFEM_DIR)/miniapps/plasma/diffusion/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
-# Use the MFEM install directory
-# MFEM_INSTALL_DIR = ../../mfem
-# CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
