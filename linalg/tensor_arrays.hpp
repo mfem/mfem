@@ -108,8 +108,9 @@ public:
 
 private:
    scalar_t *data;  /// Not owned
+public:
    std::array<std::size_t,ndims> dyn_sizes;
-   std::array<std::size_t,total_dims> strides;
+   mutable std::array<std::size_t,total_dims> strides;
 
 public:
    /** @brief Constructor with the default, column-major or left, layout where
@@ -125,6 +126,8 @@ public:
 
    /// Number of dynamic array dimensions.
    static constexpr std::size_t rank() { return ndims; }
+
+   scalar_t *get_data() const { return data; }
 
    /// Array size in the @a k-th dynamic dimension.
    std::size_t size(int k = 0) const { return dyn_sizes[k]; }
@@ -166,7 +169,7 @@ public:
        { 0, 1, ..., rank()+tensor_rank()-1 }.
 
        @note This method does not permute the global 1D data array. */
-   void set_layout(std::array<std::size_t,rank()+tensor_rank()> perm)
+   void set_layout(std::array<std::size_t,rank()+tensor_rank()> perm) const
    {
       std::size_t stride = 1;
       for (std::size_t d_g = 0; d_g < total_dims; d_g++)

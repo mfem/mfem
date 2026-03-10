@@ -58,6 +58,12 @@ return_type __enzyme_fwddiff(Args...);
 #define MFEM_ENZYME_INACTIVENOFREE
 #define MFEM_ENZYME_INACTIVE
 #define MFEM_ENZYME_FN_LIKE(x)
+
+extern int enzyme_dup;
+extern int enzyme_dupnoneed;
+extern int enzyme_out;
+extern int enzyme_const;
+extern int enzyme_interleave;
 #endif
 
 #define MFEM_ENZYME_FN_LIKE_FREE MFEM_ENZYME_FN_LIKE(free)
