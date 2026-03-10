@@ -615,6 +615,7 @@ void DifferentiableOperator::AddIntegrator(
          use_sum_factorization = true;
       }
    }
+   dbg("use_sum_factorization: {}", use_sum_factorization);
 
    // ElementDofOrdering element_dof_ordering = ElementDofOrdering::NATIVE;
    // DofToQuad::Mode doftoquad_mode = DofToQuad::Mode::FULL;

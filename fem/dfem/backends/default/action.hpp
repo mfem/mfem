@@ -4,6 +4,14 @@
 #include "util.hpp"
 #include <utility>
 
+#ifdef NVTX_DEBUG_HPP
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kYellow
+#include NVTX_DEBUG_HPP
+#else
+#define dbg(...)
+#endif
+
 namespace mfem::future
 {
 
@@ -25,6 +33,7 @@ struct Action
       inputs(inputs),
       outputs(outputs)
    {
+      dbg("ninputs: {}, noutputs: {}", ninputs, noutputs);
       create_fop_to_fd(inputs, ctx.infds, input_to_infd);
       create_fop_to_fd(outputs, ctx.outfds, output_to_outfd);
 

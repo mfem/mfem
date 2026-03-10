@@ -5,6 +5,14 @@
 #include "../../integrator_ctx.hpp"
 #include "general/enzyme.hpp"
 
+#ifdef NVTX_DEBUG_HPP
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kGold
+#include NVTX_DEBUG_HPP
+#else
+#define dbg(...)
+#endif
+
 namespace mfem::future
 {
 
@@ -32,6 +40,7 @@ struct FieldBasis
 FieldBasis FromQI(const QuadratureInterpolator *qi,
                   QuadratureInterpolator::EvalFlags mode)
 {
+   dbg();
    return
    {
       [qi, mode](const Vector &xe, Vector &xq)
@@ -65,6 +74,7 @@ FieldBasis FromQI(const QuadratureInterpolator *qi,
 // QuadratureFunction identity copy
 FieldBasis FromQF()
 {
+   dbg();
    return
    {
       [](const Vector &xe, Vector &xq) { xq = xe; },
@@ -75,6 +85,7 @@ FieldBasis FromQF()
 // User-defined parameter space B
 FieldBasis FromPS(const Operator *B, const Operator *Bt)
 {
+   dbg();
    return
    {
       [B](const Vector &xe, Vector &xq) { B->Mult(xe, xq); },
@@ -84,6 +95,7 @@ FieldBasis FromPS(const Operator *B, const Operator *Bt)
 
 FieldBasis FieldBasisFromWeight(const IntegrationRule &ir)
 {
+   dbg();
    return
    {
       [&ir](const Vector &, Vector &xq)
@@ -107,25 +119,45 @@ const FieldBasis GetFieldBasis(const FieldDescriptor &f,
                                const IntegrationRule &ir,
                                QuadratureInterpolator::EvalFlags mode)
 {
+   dbg();
    return std::visit([&ir, &mode](auto && arg) -> FieldBasis
    {
       using T = std::decay_t<decltype(arg)>;
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
-                    std::is_same_v<T, const ParFiniteElementSpace *>)
+
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *>)
       {
+         std::cout << "[GetFieldBasis] variant = FiniteElementSpace*\n"
+                   << "  mode=" << static_cast<int>(mode) << "\n";
+         dbg("FromQI(FiniteElementSpace)");
+         return FromQI(arg->GetQuadratureInterpolator(ir), mode);
+      }
+      else if constexpr (std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         std::cout << "[GetFieldBasis] variant = ParFiniteElementSpace*\n"
+                   << "  mode=" << static_cast<int>(mode) << "\n";
+         dbg("FromQI(ParFiniteElementSpace)");
          return FromQI(arg->GetQuadratureInterpolator(ir), mode);
       }
       else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
       {
+         std::cout << "[GetFieldBasis] variant = QuadratureFunction*\n"
+                   << "  mode=" << static_cast<int>(mode) << "\n";
+         dbg("FromQF()");
          return FromQF();
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
+         std::cout << "[GetFieldBasis] variant = ParameterSpace*\n"
+                   << "  mode=" << static_cast<int>(mode) << "\n";
+         dbg("FromPS()");
          return FromPS(arg->GetB(), arg->GetBt());
       }
       else if constexpr (std::is_same_v<T, const IntegrationRule *>)
       {
-         // return nullptr;
+         std::cout << "[GetFieldBasis] variant = IntegrationRule*\n"
+                   << "  mode=" << static_cast<int>(mode) << "\n";
+         dbg("FieldBasis{}");
+         return FieldBasis{}; // pick whatever "null/empty basis" means in your code
       }
       else
       {
@@ -232,6 +264,7 @@ void integrate(
    const BlockVector &yq,
    std::vector<Vector *> &ye)
 {
+   dbg();
    for (auto v : ye) { *v = 0.0; }
 
    constexpr_for<0, noutputs>([&](auto i)

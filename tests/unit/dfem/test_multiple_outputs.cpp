@@ -14,6 +14,14 @@
 #include "../fem/dfem/doperator.hpp"
 #include "linalg/tensor_arrays.hpp"
 
+#ifdef NVTX_DEBUG_HPP
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kCyan
+#include NVTX_DEBUG_HPP
+#else
+#define dbg(...)
+#endif
+
 #ifdef MFEM_USE_MPI
 
 using namespace mfem;
@@ -285,11 +293,11 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][Outputs]")
          {S, &qdata}
       };
 
-      DifferentiableOperator dop(in, out, pmesh);
+      DifferentiableOperator dop(din, dout, pmesh);
 
       dop.SetQLayouts({{Value<U>{}, {1, 0}}}, {});
 
-      auto derivatives = std::integer_sequence<size_t, U> {};
+      // auto derivatives = std::integer_sequence<size_t, U> {};
       auto mass_diffusion_qfunc = mass_diffusion_qdata_qf{};
       dop.AddDomainIntegrator(mass_diffusion_qfunc,
                               tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Identity<S>{}, Weight{}, Value<L>{}},
@@ -311,7 +319,10 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][Outputs]")
       REQUIRE(norm_g == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
 
-      // auto ddop = dop.GetDerivative(U, X);
+      dbg("🔥🔥🔥");
+      return;
+
+      auto ddop = dop.GetDerivative(U, X);
 
       ddop->Mult(X[0], Z);
       Y0 = ytvecmfem;
