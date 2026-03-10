@@ -1,17 +1,9 @@
 #pragma once
 
-#include "../fem/quadinterpolator.hpp"
+#include "fem/quadinterpolator.hpp"
 #include "../../util.hpp"
 #include "../../integrator_ctx.hpp"
 #include "general/enzyme.hpp"
-
-#ifdef NVTX_DEBUG_HPP
-#undef NVTX_COLOR
-#define NVTX_COLOR ::nvtx::kGold
-#include NVTX_DEBUG_HPP
-#else
-#define dbg(...)
-#endif
 
 namespace mfem::future
 {
@@ -37,10 +29,9 @@ struct FieldBasis
    std::function<void(const Vector &, Vector &)> transpose;
 };
 
-FieldBasis FromQI(const QuadratureInterpolator *qi,
-                  QuadratureInterpolator::EvalFlags mode)
+inline FieldBasis FromQI(const QuadratureInterpolator *qi,
+                         QuadratureInterpolator::EvalFlags mode)
 {
-   dbg();
    return
    {
       [qi, mode](const Vector &xe, Vector &xq)
@@ -72,9 +63,8 @@ FieldBasis FromQI(const QuadratureInterpolator *qi,
 }
 
 // QuadratureFunction identity copy
-FieldBasis FromQF()
+inline FieldBasis FromQF()
 {
-   dbg();
    return
    {
       [](const Vector &xe, Vector &xq) { xq = xe; },
@@ -83,9 +73,8 @@ FieldBasis FromQF()
 }
 
 // User-defined parameter space B
-FieldBasis FromPS(const Operator *B, const Operator *Bt)
+inline FieldBasis FromPS(const Operator *B, const Operator *Bt)
 {
-   dbg();
    return
    {
       [B](const Vector &xe, Vector &xq) { B->Mult(xe, xq); },
@@ -93,9 +82,8 @@ FieldBasis FromPS(const Operator *B, const Operator *Bt)
    };
 }
 
-FieldBasis FieldBasisFromWeight(const IntegrationRule &ir)
+inline FieldBasis FieldBasisFromWeight(const IntegrationRule &ir)
 {
-   dbg();
    return
    {
       [&ir](const Vector &, Vector &xq)
@@ -115,11 +103,10 @@ FieldBasis FieldBasisFromWeight(const IntegrationRule &ir)
    };
 }
 
-const FieldBasis GetFieldBasis(const FieldDescriptor &f,
-                               const IntegrationRule &ir,
-                               QuadratureInterpolator::EvalFlags mode)
+inline const FieldBasis GetFieldBasis(const FieldDescriptor &f,
+                                      const IntegrationRule &ir,
+                                      QuadratureInterpolator::EvalFlags mode)
 {
-   dbg();
    return std::visit([&ir, &mode](auto && arg) -> FieldBasis
    {
       using T = std::decay_t<decltype(arg)>;
@@ -130,23 +117,14 @@ const FieldBasis GetFieldBasis(const FieldDescriptor &f,
       }
       else if constexpr (std::is_same_v<T, const ParFiniteElementSpace *>)
       {
-         std::cout << "[GetFieldBasis] variant = ParFiniteElementSpace*\n"
-                   << "  mode=" << static_cast<int>(mode) << "\n";
-         dbg("FromQI(ParFiniteElementSpace)");
          return FromQI(arg->GetQuadratureInterpolator(ir), mode);
       }
       else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
       {
-         std::cout << "[GetFieldBasis] variant = QuadratureFunction*\n"
-                   << "  mode=" << static_cast<int>(mode) << "\n";
-         dbg("FromQF()");
          return FromQF();
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
-         std::cout << "[GetFieldBasis] variant = ParameterSpace*\n"
-                   << "  mode=" << static_cast<int>(mode) << "\n";
-         dbg("FromPS()");
          return FromPS(arg->GetB(), arg->GetBt());
       }
       else if constexpr (std::is_same_v<T, const IntegrationRule *>)
@@ -161,7 +139,7 @@ const FieldBasis GetFieldBasis(const FieldDescriptor &f,
 }
 
 template <typename fops_t, size_t nfops>
-void create_fieldbases(
+inline void create_fieldbases(
    fops_t &fops,
    const std::array<size_t, nfops> &fop_to_fd,
    const std::vector<FieldDescriptor> &fds,
@@ -197,7 +175,7 @@ void create_fieldbases(
 }
 
 template <typename fops_t, size_t nfops>
-void check_consistency(
+inline void check_consistency(
    fops_t &fops,
    const std::array<size_t, nfops> &fop_to_fd,
    const std::vector<FieldDescriptor> &fields)
@@ -237,7 +215,7 @@ void check_consistency(
 }
 
 template <size_t ninputs>
-void interpolate(
+inline void interpolate(
    const std::array<size_t, ninputs> &input_to_infd,
    const std::array<FieldBasis, ninputs> &input_bases,
    const std::vector<Vector *> &xe,
@@ -253,13 +231,13 @@ void interpolate(
 }
 
 template <size_t noutputs>
-void integrate(
+inline void integrate(
    const std::array<size_t, noutputs> &output_to_outfd,
    const std::array<FieldBasis, noutputs> &output_bases,
    const BlockVector &yq,
    std::vector<Vector *> &ye)
 {
-   dbg();
+   // dbg();
    for (auto v : ye) { *v = 0.0; }
 
    constexpr_for<0, noutputs>([&](auto i)
@@ -465,7 +443,9 @@ template <auto wrapper_fn, typename qf_return_t, typename... AccArgs>
 __attribute__((always_inline)) inline void
 do_enzyme_call(AccArgs... acc)
 {
+#ifdef MFEM_USE_ENZYME
    __enzyme_fwddiff<qf_return_t>(wrapper_fn, acc...);
+#endif
 }
 
 template <auto wrapper_fn, typename qf_return_t,
