@@ -2078,12 +2078,13 @@ public:
        contrary to the ones obtained through Mesh::GetFacesElements and can
        directly be used, e.g., Elem1 and Elem2 indices.
        Likewise the orientations for Elem1 and Elem2 already take into account
-       special cases and can be used as is.
-   */
+       special cases and can be used as is. */
    struct FaceInformation
    {
+      /// The face topology (boundary, conforming, or nonconforming).
       FaceTopology topology;
 
+      /// Information about the adjacent elements.
       struct
       {
          ElementLocation location;
@@ -2093,8 +2094,13 @@ public:
          int orientation;
       } element[2];
 
+      /// Detailed face information (see FaceInfoTag).
       FaceInfoTag tag;
+
+      /// If the face is nonconforming, the index of the NC face. -1 otherwise.
       int ncface;
+
+      /// The point matrix for nonconforming faces.
       const DenseMatrix* point_matrix;
 
       /** @brief Return true if the face is a local interior face which is NOT
@@ -2113,21 +2119,20 @@ public:
 
       /** @brief return true if the face is an interior face to the computation
           domain, either a local or shared interior face (not a boundary face)
-          which is NOT a master nonconforming face.
-       */
+          which is NOT a master nonconforming face. */
       bool IsInterior() const
       {
          return topology == FaceTopology::Conforming ||
                 topology == FaceTopology::Nonconforming;
       }
 
-      /** @brief Return true if the face is a boundary face. */
+      /// Return true if the face is a boundary face.
       bool IsBoundary() const
       {
          return topology == FaceTopology::Boundary;
       }
 
-      /// @brief Return true if the face is of the same type as @a type.
+      /// Return true if the face is of the same type as @a type.
       bool IsOfFaceType(FaceType type) const
       {
          switch (type)
@@ -2141,13 +2146,13 @@ public:
          }
       }
 
-      /// @brief Return true if the face is a conforming face.
+      /// Return true if the face is a conforming face.
       bool IsConforming() const
       {
          return topology == FaceTopology::Conforming;
       }
 
-      /// @brief Return true if the face is a nonconforming fine face.
+      /// Return true if the face is a nonconforming fine face.
       bool IsNonconformingFine() const
       {
          return topology == FaceTopology::Nonconforming &&
@@ -2155,7 +2160,7 @@ public:
                  element[1].conformity == ElementConformity::Superset);
       }
 
-      /// @brief Return true if the face is a nonconforming coarse face.
+      /// Return true if the face is a nonconforming coarse face.
       /** Note that ghost nonconforming master faces cannot be clearly
           identified as such with the currently available information, so this
           method will return false for such faces. */
@@ -2165,7 +2170,7 @@ public:
                 element[1].conformity == ElementConformity::Subset;
       }
 
-      /// @brief cast operator from FaceInformation to FaceInfo.
+      /// cast operator from FaceInformation to FaceInfo.
       operator Mesh::FaceInfo() const;
    };
 
@@ -3206,6 +3211,28 @@ Mesh *Extrude1D(Mesh *mesh, const int ny, const real_t sy,
 
 /// Extrude a 2D mesh
 Mesh *Extrude2D(Mesh *mesh, const int nz, const real_t sz);
+
+/** @brief Constructs the smallest possible [0,1]^dim serial mesh that can be
+    used later to obtain a ParMesh with @a elem_per_mpi elements, with the same
+    topology, for each of the @a mpi_cnt MPI tasks. For quads and hexes.
+
+    The serial mesh has the smallest possible number of elements. The parallel
+    mesh will be obtained by parallel refinements. Each MPI task will have
+    elements with the same topology (same number, same connectivity).
+
+    @param[in]  dim          dimension (2 or 3).
+    @param[in]  mpi_cnt      number of MPI tasks.
+    @param[in]  elem_per_mpi number of elements per MPI task.
+    @param[in]  print        shows meshing info in the terminal.
+    @param[out] par_ref      number of parallel refinement needed afterwards.
+    @param[out] partitioning partitioning to create the desired ParMesh.
+
+    Usual use case:
+    Mesh mesh = PartitionMPI(dim, mpi_cnt, elem_per_mpi, print, par_ref, par);
+    ParMesh pmesh(MPI_COMM_WORLD, mesh, par.GetData());
+    for (int lev = 0; lev < par_ref; lev++) { pmesh.UniformRefinement(); }   */
+Mesh PartitionMPI(int dim, int mpi_cnt, int elem_per_mpi, bool print,
+                  int &par_ref, Array<int> &partitioning);
 
 // shift cyclically 3 integers left-to-right
 inline void ShiftRight(int &a, int &b, int &c)
