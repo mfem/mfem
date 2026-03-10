@@ -190,6 +190,78 @@ public:
       while (t < tf) { Step(x, t, dt); }
    }
 
+   /// @brief The enum defines the supported adjoint modes.
+   enum class AdjointMode { None, Continuous, Discrete };
+
+   AdjointMode adj_mode= AdjointMode::None;
+
+   /// Sets the solution at time ts. The solution will be used by the adjoint step
+   /// to recompute the internal stages/steps between ts and the time t used in the 
+   /// AdjointStep operator.
+   /// SetSolution(x,ts); and then calling AdjointStep(lambda, t, dt), will
+   /// first restore the solution/parametrization between  ts and t (if required by 
+   /// the time integration scheme) and then execute the adjoint step. 
+   virtual void SetSolution(const Vector& x, real_t ts){} 
+
+   
+   /// Return primal state x(t) for t in the recorded time interval.
+   /// Default false => solver does not provide primal interpolation access.
+   virtual bool GetForwardSolution(real_t t, Vector &x) const 
+   { 
+      return false; 
+   }
+
+   /// Perform one backward step for the adjoint variable lambda.
+   /// dt > 0 requests stepping from t to t - dt.
+   /// The solver may adjust dt (adaptive / grid snapping) and returns dt used.
+   /** @param[in,out] lambda   Approximate solution.
+       @param[in,out] t   Time associated with the approximate solution @a x.
+       @param[in,out] dt  Time step size.
+   */
+   virtual void AdjointStep(Vector &lambda, real_t &t, real_t &dt)
+   {
+      MFEM_ABORT("Adjoint stepping is not supported by this ODESolver.");
+   }
+
+   /// Perform adjoint integration from time @a t [in] to time @a tf [in].
+   /** @param[in,out] lambda   Approximate adjoint solution.
+       @param[in,out] t        Time associated with the approximate solution @a lambda.
+       @param[in,out] dt  Time step size.
+       @param[in]     t0  Requested final time. (t0<t)
+   */
+   virtual void AdjointRun(Vector &lambda, real_t &t, real_t &dt, real_t t0)
+   {
+      MFEM_VERIFY(t0 <= t, "AdjointRun expects t0 <= t.");
+      while (t > t0) { 
+         real_t d = std::min(dt, t - t0); 
+         AdjointStep(lambda, t, d); 
+         dt = d; 
+      }
+   }
+
+   /// Enable adjoint functionality and tell the solver 
+   /// what to record during forward stepping. 
+   /// Default: abort (adjoint mode is not supported).
+   virtual void EnableAdjoint(AdjointMode mod)
+   {
+      if(AdjointMode::None!=mod)
+      {
+         MFEM_ABORT("Adjoint is not supported by the ODESolver.");
+      }
+   }
+
+   /// Return true of the ODESolver supports the AdjointMode
+   /// and false if not.
+   virtual bool SupportsAdjoint(AdjointMode mod) const
+   { 
+      if(AdjointMode::None==mod)
+      {
+         return true;
+      }
+      //else
+      return false;
+   }
+
    /// Returns how many State vectors the ODE requires
    virtual int GetStateSize() { return 0; };
 
@@ -309,10 +381,67 @@ class RK4Solver : public ODESolver
 private:
    Vector y, k, z;
 
+   //storage for the adjoint solver
+   /// @brief stores the state x at time t
+   struct StepRecord{
+      real_t t;
+      Vector x;
+   };
+
+   /// @brief stores several steps
+   std::vector<StepRecord> hist;
+
+   Vector k1,y2,y3,y4; //RK4 stages
+
 public:
    void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
+
+   /// Return true of the ODESolver supports the AdjointMode and false
+   /// if not.
+   virtual bool SupportsAdjoint(AdjointMode mod) const override
+   { 
+      if(AdjointMode::Discrete==mod)
+      {
+         return true;
+      }
+      //else
+      return false;
+   }
+
+   /// Enable adjoint functionality and tell the solver 
+   /// what to record during forward stepping. 
+   /// Default: abort (adjoint mode is not supported).
+   virtual void EnableAdjoint(AdjointMode mod) override
+   {
+      if(AdjointMode::Continuous==mod)
+      {
+         MFEM_ABORT("Continuous adjoint not supported by the RK4Solver.");
+      }
+      adj_mode=mod;
+
+      // allocate the storage memeory
+      if(AdjointMode::Discrete==mod){
+         int n = f->Width();
+         k1.SetSize(n, mem_type);
+         y2.SetSize(n, mem_type);
+         y3.SetSize(n, mem_type);
+         y4.SetSize(n, mem_type);
+      }
+   }
+
+
+   void AdjointStep(Vector &lam, real_t &t, real_t &dt) override;
+
+   //Two posible ways to restore the histroy
+   //1) Use Step(Vector &x, real_t &t, real_t &dt) in discrete adjoint mode and record the internal states
+   //2) Use additional Method SetState(const Vector &x, real_t ts);
+   //   Calling AdjointStep(lam,t,dt) should restore the history between ts and t, and then execute the 
+   //   adjoint step in reverse to time t-dt with the recorded discrete states between ts and t. 
+   // Here we will use SetSolution
+   virtual void SetSolution(const Vector& x, real_t ts) override;
+
 };
 
 

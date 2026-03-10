@@ -284,7 +284,7 @@ void RK4Solver::Init(TimeDependentOperator &f_)
    int n = f->Width();
    y.SetSize(n, mem_type);
    k.SetSize(n, mem_type);
-   z.SetSize(n, mem_type);
+   z.SetSize(n, mem_type);   
 }
 
 void RK4Solver::Step(Vector &x, real_t &t, real_t &dt)
@@ -314,6 +314,41 @@ void RK4Solver::Step(Vector &x, real_t &t, real_t &dt)
    f->Mult(y, k); // k4
    add(z, dt/6, k, x);
    t += dt;
+}
+
+void RK4Solver::SetSolution(const Vector& x, real_t ts)
+{
+   hist.clear(); //we need only the last time step at time ts
+   StepRecord rec{ts,x};
+   hist.push_back(rec);
+}
+
+void RK4Solver::AdjointStep(Vector &lambda, real_t &t, real_t &dt)
+{
+   MFEM_VERIFY(!hist.empty(), "No forward history.");
+   MFEM_VERIFY(adj_mode == AdjointMode::Discrete, "Wrong adjoint mode.");
+
+   //Restore the solution history, i.e., perform a forward step.
+   auto rec = hist.back();
+   hist.pop_back();
+   const real_t tn = rec.t;
+   const real_t h  = dt;
+   const Vector &xn = rec.x;
+   // Recompute forward stage states and stage RHS:
+   f->SetTime(tn);
+   f->Mult(xn, k1); // k1
+   add(xn, h/2.0, k1, y2); // y2
+
+   f->SetTime(tn+h/2.0);
+   f->Mult(y2, k); // k2
+   add(xn, h/2.0, k, y3); // y3
+
+   f->Mult(y3, k); // k3
+   add(xn, h, k, y4); // y4
+
+
+
+
 }
 
 ExplicitRKSolver::ExplicitRKSolver(int s_, const real_t *a_, const real_t *b_,
