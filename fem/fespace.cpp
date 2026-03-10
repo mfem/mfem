@@ -282,14 +282,7 @@ int FiniteElementSpace::DofToVDof(int dof, int vd, int ndofs_) const
 void FiniteElementSpace::AdjustVDofs(Array<int> &vdofs)
 {
    int n = vdofs.Size(), *vdof = vdofs;
-   for (int i = 0; i < n; i++)
-   {
-      int j;
-      if ((j = vdof[i]) < 0)
-      {
-         vdof[i] = -1-j;
-      }
-   }
+   for (int i = 0; i < n; i++) { vdof[i] = UnsignIndex(vdof[i]); }
 }
 
 void FiniteElementSpace::GetElementVDofs(int i, Array<int> &vdofs,
@@ -483,13 +476,14 @@ void FiniteElementSpace::ReorderElementToDofTable()
    for (int k = 0, dof_counter = 0; k < nnz; k++)
    {
       const int sdof = J[k]; // signed dof
-      const int dof = (sdof < 0) ? -1-sdof : sdof;
+      const int dof = UnsignIndex(sdof);
       int new_dof = dof_marker[dof];
       if (new_dof < 0)
       {
          dof_marker[dof] = new_dof = dof_counter++;
       }
-      J[k] = (sdof < 0) ? -1-new_dof : new_dof; // preserve the sign of sdof
+      // Preserve the sign of sdof
+      J[k] = (sdof < 0) ? FlipIndexSign(new_dof) : new_dof;
    }
 }
 
@@ -547,7 +541,7 @@ void MarkDofs(const Array<int> &dofs, Array<int> &mark_array)
 {
    for (auto d : dofs)
    {
-      mark_array[d >= 0 ? d : -1 - d] = -1;
+      mark_array[UnsignIndex(d)] = -1;
    }
 }
 
@@ -931,7 +925,7 @@ void FiniteElementSpace::AddDependencies(
             if (std::abs(coef) > 1e-12)
             {
                const int mdof = master_dofs[j];
-               if (mdof != sdof && mdof != (-1-sdof))
+               if (mdof != sdof && mdof != FlipIndexSign(sdof))
                {
                   deps.Add(sdof, mdof, coef);
                }
@@ -1024,7 +1018,7 @@ int FiniteElementSpace::GetDegenerateFaceDofs(int index, Array<int> &dofs,
    // FiniteElementSpace::AddDependencies.
 
    Array<int> edof;
-   int order = GetEdgeDofs(-1 - index, edof, variant);
+   int order = GetEdgeDofs(FlipIndexSign(index), edof, variant);
 
    int nv = fec->DofForGeometry(Geometry::POINT);
    int ne = fec->DofForGeometry(Geometry::SEGMENT);
@@ -1710,8 +1704,8 @@ SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
 
          for (int i = 0; i < fine_ldof; i++)
          {
-            int r = DofToVDof(dofs[i], vd);
-            int m = (r >= 0) ? r : (-1 - r);
+            const int r = DofToVDof(dofs[i], vd);
+            const int m = UnsignIndex(r);
 
             if (!mark[m])
             {
@@ -1772,7 +1766,7 @@ SparseMatrix *FiniteElementSpace::VariableOrderRefinementMatrix(
          for (int i = 0; i < fine_ldof; i++)
          {
             const int r = DofToVDof(dofs[i], vd);
-            int m = (r >= 0) ? r : (-1 - r);
+            const int m = UnsignIndex(r);
 
             if (!mark[m])
             {
@@ -2482,8 +2476,8 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
          {
             if (!std::isfinite(lR(i, 0))) { continue; }
 
-            int r = DofToVDof(dofs[i], vd);
-            int m = (r >= 0) ? r : (-1 - r);
+            const int r = DofToVDof(dofs[i], vd);
+            const int m = UnsignIndex(r);
 
             if (is_dg || !mark[m])
             {
@@ -3201,7 +3195,7 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
             else
             {
                // degenerate face (i.e., edge-face constraint)
-               slave_orders |= edge_orders[-1 - slave.index];
+               slave_orders |= edge_orders[FlipIndexSign(slave.index)];
             }
          }
 
