@@ -759,7 +759,9 @@ private:
    {
       switch (mt)
       {
-         case MT::HOST_DEBUG: return new MmuHostMemorySpace();
+         case MT::HOST_DEBUG:
+            if (GetEnv("MFEM_MMU_STD")) { return new StdHostMemorySpace(); }
+            return new MmuHostMemorySpace();
 #ifdef MFEM_USE_UMPIRE
          case MT::HOST_UMPIRE:
             return new UmpireHostMemorySpace(
@@ -788,7 +790,9 @@ private:
          case MT::DEVICE_UMPIRE: return new NoDeviceMemorySpace();
          case MT::DEVICE_UMPIRE_2: return new NoDeviceMemorySpace();
 #endif
-         case MT::DEVICE_DEBUG: return new MmuDeviceMemorySpace();
+         case MT::DEVICE_DEBUG:
+            if (GetEnv("MFEM_MMU_STD")) { return new StdDeviceMemorySpace(); }
+            return new MmuDeviceMemorySpace();
          case MT::DEVICE:
          {
 #if defined(MFEM_USE_CUDA)
@@ -1384,8 +1388,11 @@ void MemoryManager::Insert(void *h_ptr, size_t bytes,
    {
       auto &m = res.first->second;
       MFEM_VERIFY(m.bytes >= bytes && m.h_mt == h_mt &&
-                  (m.d_mt == d_mt || (d_mt == MemoryType::DEFAULT &&
-                                      m.d_mt == GetDualMemoryType(h_mt))),
+                  (m.d_mt == d_mt ||
+                   (d_mt == MemoryType::DEFAULT &&
+                    m.d_mt == GetDualMemoryType(h_mt)) ||
+                   (m.d_mt == MemoryType::DEFAULT &&
+                    d_mt == GetDualMemoryType(m.h_mt))),
                   "Address already present with different attributes!");
 #ifdef MFEM_TRACK_MEM_MANAGER
       mfem::out << "[mfem memory manager]: repeated registration of h_ptr: "

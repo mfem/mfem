@@ -10,7 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "general/forall.hpp"
 
 #if defined(MFEM_USE_UMPIRE) && (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
 #include "unit_tests.hpp"

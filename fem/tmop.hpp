@@ -14,9 +14,13 @@
 
 #include "../linalg/invariants.hpp"
 #include "nonlininteg.hpp"
+#include "../linalg/dual.hpp"
 
 namespace mfem
 {
+
+using AD1Type = future::dual<real_t, real_t>;
+using AD2Type = future::dual<AD1Type, AD1Type>;
 
 /** @brief Abstract class for local mesh quality metrics in the target-matrix
     optimization paradigm (TMOP) by P. Knupp et al. */
@@ -68,6 +72,22 @@ public:
    /** Compute dmu/dW */
    virtual void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const
    { PW = 0.0;}
+
+   /// @brief First-derivative hook for AD-based computations.
+   /// @warning Not for public use. Internal use for AD-based computations.
+   virtual AD1Type EvalW_AD1(const std::vector<AD1Type> &T,
+                             const std::vector<AD1Type> &W) const
+   {
+      MFEM_ABORT("EvalW_AD1 not implemented for this metric");
+   }
+
+   /// @brief Second-derivative hook for AD-based computations.
+   /// @warning Not for public use. Internal use for AD-based computations.
+   virtual AD2Type EvalW_AD2(const std::vector<AD2Type> &T,
+                             const std::vector<AD2Type> &W) const
+   {
+      MFEM_ABORT("EvalW_AD2 not implemented for this metric");
+   }
 
    /** @brief Evaluate the derivative of the 1st Piola-Kirchhoff stress tensor
        and assemble its contribution to the local gradient matrix 'A'.
@@ -123,6 +143,12 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   AD1Type EvalW_AD1(const std::vector<AD1Type> &T,
+                     const std::vector<AD1Type> &W) const override;
+
+   AD2Type EvalW_AD2(const std::vector<AD2Type> &T,
+                     const std::vector<AD2Type> &W) const override;
 
    /// Computes the averages of all metrics (integral of metric / volume).
    /// Works in parallel when called with a ParGridFunction.
@@ -221,12 +247,16 @@ public:
 
    real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override
-   { MFEM_ABORT("Not implemented"); }
+   AD1Type EvalW_AD1(const std::vector<AD1Type> &T,
+                     const std::vector<AD1Type> &W) const override;
+
+   AD2Type EvalW_AD2(const std::vector<AD2Type> &T,
+                     const std::vector<AD2Type> &W) const override;
+
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                  const real_t weight, DenseMatrix &A) const override
-   { MFEM_ABORT("Not implemented"); }
+                  const real_t weight, DenseMatrix &A) const override;
 
    // Compute mu_hat.
    real_t EvalWBarrier(const DenseMatrix &Jpt) const;
@@ -368,6 +398,10 @@ class TMOP_Metric_004 : public TMOP_QualityMetric
 protected:
    mutable InvariantsEvaluator2D<real_t> ie;
 
+   template<typename type>
+   type EvalW_AD_impl(const std::vector<type> &T,
+                      const std::vector<type> &W) const;
+
 public:
    // W = |J|^2 - 2*det(J)
    real_t EvalW(const DenseMatrix &Jpt) const override;
@@ -376,6 +410,12 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   AD1Type EvalW_AD1(const std::vector<AD1Type> &T,
+                     const std::vector<AD1Type> &W) const override;
+
+   AD2Type EvalW_AD2(const std::vector<AD2Type> &T,
+                     const std::vector<AD2Type> &W) const override;
 
    int Id() const override { return 4; }
 };
@@ -412,6 +452,8 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   int Id() const override { return 9; }
 };
 
 /// 2D non-barrier Shape+Size+Orientation (VOS) metric (polyconvex).
@@ -419,6 +461,10 @@ class TMOP_Metric_014 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<real_t> ie;
+
+   template <typename type>
+   type EvalW_AD_impl(const std::vector<type> &T,
+                      const std::vector<type> &W) const;
 
 public:
    // W = |J - I|^2.
@@ -431,6 +477,14 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   AD1Type EvalW_AD1(const std::vector<AD1Type> &T,
+                     const std::vector<AD1Type> &W) const override;
+
+   AD2Type EvalW_AD2(const std::vector<AD2Type> &T,
+                     const std::vector<AD2Type> &W) const override;
+
+   int Id() const override { return 14; }
 };
 
 /// 2D Shifted barrier form of shape metric (mu_2).
@@ -450,6 +504,8 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   int Id() const override { return 22; }
 };
 
 /// 2D barrier shape metric (polyconvex).
@@ -470,6 +526,8 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   int Id() const override { return 50; }
 };
 
 /// 2D non-barrier size (V) metric (not polyconvex).
@@ -479,6 +537,10 @@ class TMOP_Metric_055 : public TMOP_QualityMetric
 protected:
    mutable InvariantsEvaluator2D<real_t> ie;
 
+   template<typename type>
+   type EvalW_AD_impl(const std::vector<type> &T,
+                      const std::vector<type> &W) const;
+
 public:
    // W = (det(J) - 1)^2.
    real_t EvalW(const DenseMatrix &Jpt) const override;
@@ -487,6 +549,14 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   AD1Type EvalW_AD1(const std::vector<AD1Type> &T,
+                     const std::vector<AD1Type> &W) const override;
+
+   AD2Type EvalW_AD2(const std::vector<AD2Type> &T,
+                     const std::vector<AD2Type> &W) const override;
+
+   int Id() const override { return 55; }
 
 };
 
@@ -529,6 +599,8 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   int Id() const override { return 58; }
 };
 
 /// 2D non-barrier Shape+Size (VS) metric.
@@ -611,6 +683,8 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   int Id() const override { return 85; }
 };
 
 /// 2D compound barrier Shape+Size (VS) metric (balanced).
@@ -668,6 +742,8 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   int Id() const override { return 98; }
 };
 
 /// 2D untangling metric.
@@ -687,6 +763,8 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   int Id() const override { return 211; }
 };
 
 /// Shifted barrier form of metric 56 (area, ideal barrier metric), 2D
@@ -707,6 +785,8 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   int Id() const override { return 252; }
 };
 
 /// 3D barrier Shape (S) metric, well-posed (polyconvex & invex).
@@ -726,6 +806,8 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   int Id() const override { return 301; }
 };
 
 /// 3D barrier Shape (S) metric, well-posed (polyconvex & invex).
@@ -808,6 +890,8 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   int Id() const override { return 311; }
 };
 
 /// 3D Shape (S) metric, untangling version of 303.
@@ -866,6 +950,8 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   int Id() const override { return 316; }
 };
 
 /// 3D Size (V) metric.
@@ -1010,6 +1096,7 @@ public:
       AddQualityMetric(sz_metric, gamma);
    }
 
+   int Id() const override { return 333; }
    virtual ~TMOP_Metric_333() { delete sh_metric; delete sz_metric; }
 };
 
@@ -1072,6 +1159,8 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   int Id() const override { return 342; }
 };
 
 /// 3D barrier Shape+Size (VS) metric, well-posed (polyconvex).
@@ -1113,6 +1202,8 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   int Id() const override { return 352; }
 };
 
 /// 3D non-barrier Shape (S) metric.
@@ -1520,6 +1611,11 @@ protected:
    const TargetType target_type;
    bool uses_phys_coords; // see UsesPhysicalCoordinates()
 
+   /// Cached copy of GeomToPerfGeomJac used on device.
+   mutable DenseMatrix current_W;
+   /// Geometry type of current W matrix (used for cache invalidation).
+   mutable Geometry::Type current_W_type = Geometry::INVALID;
+
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
 #endif
@@ -1899,6 +1995,12 @@ class TMOP_Integrator : public NonlinearFormIntegrator
 protected:
    friend class TMOPNewtonSolver;
    friend class TMOPComboIntegrator;
+   friend class TMOPEnergyPA2D;
+   friend class TMOPEnergyPA3D;
+   friend class TMOPAssembleGradPA2D;
+   friend class TMOPAssembleGradPA3D;
+   friend class TMOPAddMultPA2D;
+   friend class TMOPAddMultPA3D;
 
    // Initial positions of the mesh nodes. Not owned. The pointer is set at the
    // start of the solve by TMOPNewtonSolver::Mult(), and unset at the end.
@@ -2418,6 +2520,11 @@ public:
 #ifdef MFEM_USE_MPI
    void ParEnableNormalization(const ParGridFunction &x);
 #endif
+
+   /** @brief Get the normalization factors of the metric */
+   void GetNormalizationFactors(real_t &metric_normal,
+                                real_t &lim_normal,
+                                real_t &surf_fit_normal);
 
    /** @brief Enables FD-based approximation and computes dx. */
    void EnableFiniteDifferences(const GridFunction &x);

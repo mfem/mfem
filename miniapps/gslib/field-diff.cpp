@@ -164,14 +164,14 @@ int main (int argc, char *argv[])
       }
    }
 
-   FindPointsGSLIB finder1, finder2;
+   FindPointsGSLIB finder1(mesh_1), finder2(mesh_2);
    Vector interp_vals_1(pts_cnt), interp_vals_2(pts_cnt);
 
    // First solution.
-   finder1.Interpolate(mesh_1, vxyz, func_1, interp_vals_1);
+   finder1.Interpolate(vxyz, func_1, interp_vals_1);
 
    // Second solution.
-   finder2.Interpolate(mesh_2, vxyz, func_2, interp_vals_2);
+   finder2.Interpolate(vxyz, func_2, interp_vals_2);
 
    // Compute differences between the two sets of values.
    double avg_diff = 0.0, max_diff = 0.0, diff_p;
@@ -244,10 +244,6 @@ int main (int argc, char *argv[])
    lf.Assemble();
    const double vol_diff = diff * lf;
    std::cout << "Vol diff: " << vol_diff << std::endl;
-
-   // Free the internal gslib data.
-   finder1.FreeData();
-   finder2.FreeData();
 
    return 0;
 }
