@@ -36,6 +36,24 @@ struct DerivativeActionEnzyme
       create_fieldbases(inputs, input_to_infd, ctx, input_bases);
       create_fieldbases(outputs, output_to_outfd, ctx, output_bases);
 
+      constexpr_for<0, ninputs>([&](auto i)
+      {
+         using fop_t =
+            std::remove_cv_t<std::remove_reference_t<decltype(get<i>(inputs))>>;
+         auto it = ctx.in_qlayouts.find(std::type_index(typeid(fop_t)));
+         if (it != ctx.in_qlayouts.end()) { input_qlayouts[i] = it->second; }
+         else                             { input_qlayouts[i].clear(); }
+      });
+
+      constexpr_for<0, noutputs>([&](auto i)
+      {
+         using fop_t =
+            std::remove_cv_t<std::remove_reference_t<decltype(get<i>(outputs))>>;
+         auto it = ctx.out_qlayouts.find(std::type_index(typeid(fop_t)));
+         if (it != ctx.out_qlayouts.end()) { output_qlayouts[i] = it->second; }
+         else                              { output_qlayouts[i].clear(); }
+      });
+
       const int nqp = ctx.ir.GetNPoints();
       gnqp = nqp * ctx.nentities;
 
@@ -93,12 +111,10 @@ struct DerivativeActionEnzyme
          detail::supports_tensor_array_qfunc<qfunc_t, inputs_t, outputs_t>::value,
          "qfunc signature not supported by default backend Action");
 
-      detail::enzyme_fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>
-      (
-         qfunc, xq, shadow_xq, yq, gnqp,
+      detail::enzyme_fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>(
+         qfunc, xq, shadow_xq, yq, gnqp, input_qlayouts, output_qlayouts,
          std::make_index_sequence<ninputs> {},
-         std::make_index_sequence<noutputs> {}
-      );
+         std::make_index_sequence<noutputs> {});
 
       // Q -> E
       integrate(output_to_outfd, output_bases, yq, ye);
@@ -114,6 +130,9 @@ struct DerivativeActionEnzyme
 
    std::array<FieldBasis, ninputs> input_bases;
    std::array<FieldBasis, noutputs> output_bases;
+
+   std::array<std::vector<int>, ninputs>  input_qlayouts;
+   std::array<std::vector<int>, noutputs> output_qlayouts;
 
    int gnqp = 0;
    Array<int> xq_offsets, shadow_xq_offsets, yq_offsets;

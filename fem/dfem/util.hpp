@@ -21,6 +21,7 @@
 #include <type_traits>
 #include <numeric>
 #include <iomanip>
+#include <typeindex>
 
 #include "../../general/communication.hpp"
 #include "../../general/forall.hpp"
@@ -2657,6 +2658,26 @@ std::array<DofToQuadMap, num_fields> create_dtq_maps(
              fops, dtqmaps,
              to_field_map,
              std::make_index_sequence<num_fields> {});
+}
+
+struct QLayoutEntry
+{
+   std::type_index type;
+   std::vector<int> layout;
+
+   template <class Fop>
+   QLayoutEntry(Fop, std::initializer_list<int> idx) :
+      type(typeid(Fop)), layout(idx) {}
+};
+
+static void ExtractQLayouts(
+   const std::initializer_list<QLayoutEntry> entries,
+   std::unordered_map<std::type_index, std::vector<int>>& out)
+{
+   for (const auto& e : entries)
+   {
+      out[e.type] = e.layout;
+   }
 }
 
 } // namespace mfem::future

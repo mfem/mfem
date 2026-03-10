@@ -15,6 +15,8 @@ struct IntegratorContext
    const std::vector<FieldDescriptor> &outfds;
    const std::vector<FieldDescriptor> &unionfds;
    const IntegrationRule &ir;
+   std::unordered_map<std::type_index, std::vector<int>> &in_qlayouts;
+   std::unordered_map<std::type_index, std::vector<int>> &out_qlayouts;
 };
 
 }

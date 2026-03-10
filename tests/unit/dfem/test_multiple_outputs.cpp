@@ -117,8 +117,6 @@ struct mass_diffusion_qdata_qf
    {
       for (size_t q = 0; q < u.size(); q++)
       {
-         std::cout << dummy_parameter(q) << "\n";
-
          const auto invJq = inv(J(q));
          const auto detJq = det(J(q));
 
@@ -247,9 +245,10 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
       FunctionCoefficient coef(coef_func);
       x.ProjectCoefficient(coef);
 
-      Vector xtvec, ytvec;
+      Vector xtvec, ytvec, ytvecmfem;
       x.GetTrueDofs(xtvec);
       ytvec.SetSize(xtvec.Size());
+      ytvecmfem.SetSize(xtvec.Size());
 
       Vector nodestvec;
       nodes->GetTrueDofs(nodestvec);
@@ -266,10 +265,10 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
       blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
       blf.Assemble();
       blf.Mult(x, y);
-      fes.GetProlongationMatrix()->MultTranspose(y, ytvec);
+      fes.GetProlongationMatrix()->MultTranspose(y, ytvecmfem);
 
       std::cout << "mfem: ";
-      pretty_print(ytvec);
+      pretty_print(ytvecmfem);
 
       static constexpr int U = 0, COORDINATES = 1, V = 2, S = 3, L = 4;
       const std::vector<FieldDescriptor> in
@@ -288,6 +287,8 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
 
       DifferentiableOperator dop(in, out, pmesh);
 
+      dop.SetQLayouts({{Value<U>{}, {1, 0}}}, {});
+
       auto derivatives = std::integer_sequence<size_t, U> {};
       auto mass_diffusion_qfunc = mass_diffusion_qdata_qf{};
       dop.AddDomainIntegrator(mass_diffusion_qfunc,
@@ -301,10 +302,11 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
       std::cout << "dfem: ";
       pretty_print(Z[0]);
 
-      Vector Y0(ytvec);
+      Vector Y0(ytvecmfem);
       Y0 -= Z[0];
 
-      real_t norm_g, norm_l = Y0.Normlinf();
+      real_t norm_l = Y0.Normlinf();
+      real_t norm_g = norm_l;
       MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
       REQUIRE(norm_g == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
@@ -312,10 +314,14 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
       auto ddop = dop.GetDerivative(U, X);
 
       ddop->Mult(X[0], Z);
-      Y0 = ytvec;
+      Y0 = ytvecmfem;
       Y0 -= Z[0];
 
+      std::cout << "∂dfem: ";
+      pretty_print(Z[0]);
+
       norm_l = Y0.Normlinf();
+      norm_g = norm_l;
       MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
       REQUIRE(norm_g == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
