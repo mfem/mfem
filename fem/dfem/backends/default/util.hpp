@@ -259,7 +259,7 @@ struct is_tensor_array_mut<tensor_array<scalar_t, Dims...>> :
 
 
 template <typename ndarray_t>
-inline void set_layout(ndarray_t &a)
+inline void set_layout_default(ndarray_t &a)
 {
    if constexpr (ndarray_t::tensor_rank() == 0) { return; }
 
@@ -269,6 +269,32 @@ inline void set_layout(ndarray_t &a)
 
    for (std::size_t i = 0; i < td; i++) { perm[i] = nd + i; }
    for (std::size_t i = 0; i < nd; i++) { perm[td + i] = i; }
+
+   a.set_layout(perm);
+}
+
+template <typename ndarray_t>
+inline void set_layout(ndarray_t& a, const std::vector<int>& layout)
+{
+   if constexpr (ndarray_t::tensor_rank() == 0) { return; }
+
+   constexpr std::size_t nd = ndarray_t::rank();
+   constexpr std::size_t td = ndarray_t::tensor_rank();
+   constexpr std::size_t N  = nd + td;
+
+   // missing means default
+   if (layout.empty()) { set_layout_default(a); return; }
+
+   MFEM_VERIFY(layout.size() == N,
+               "layout size mismatch: expected " << N << " got " << layout.size());
+
+   // TODO: make a version of set_layout that takes `std::vector<int>`
+   std::array<std::size_t, N> perm{};
+   for (std::size_t i = 0; i < N; i++)
+   {
+      MFEM_VERIFY(layout[i] >= 0, "layout index must be >=0");
+      perm[i] = static_cast<std::size_t>(layout[i]);
+   }
 
    a.set_layout(perm);
 }
@@ -298,12 +324,14 @@ struct tensor_array_traits<tensor_ndarray<scalar_t, ndims, tensor_sizes...>>
 /// Entry point: explicit tensor type T as template argument.
 template <typename T, typename ptr_scalar_t, typename... dyn_sizes_t>
 decltype(auto) make_tensor_array(ptr_scalar_t *ptr,
+                                 const std::vector<int>* layout,
                                  dyn_sizes_t... dynamic_sizes)
 {
    using traits = tensor_array_traits<T>;
    using array_t = typename traits::template array_type<sizeof...(dynamic_sizes)>;
    auto a = array_t(ptr, {std::size_t(dynamic_sizes)...});
-   set_layout(a);
+   if (layout) { set_layout(a, *layout); }
+   else        { set_layout_default(a); }
    return a;
 }
 
@@ -343,6 +371,8 @@ inline void call_qfunc(
    const BlockVector &xq,
    BlockVector &yq,
    int gnqp,
+   const std::array<std::vector<int>, sizeof...(Is)>& in_layouts,
+   const std::array<std::vector<int>, sizeof...(Os)>& out_layouts,
    std::index_sequence<Is...>,
    std::index_sequence<Os...>)
 {
@@ -354,12 +384,12 @@ inline void call_qfunc(
    auto inputs = std::make_tuple(
                     make_tensor_array<std::remove_cv_t<std::remove_reference_t<
                     typename tuple_element<Is, qf_param_ts>::type>>>(
-                       xq.GetBlock(Is).Read(), gnqp)...);
+                       xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp)...);
 
    auto outputs = std::make_tuple(
                      make_tensor_array<std::remove_cv_t<std::remove_reference_t<
                      typename tuple_element<ninputs + Os, qf_param_ts>::type>>>(
-                        yq.GetBlock(Os).ReadWrite(), gnqp)...);
+                        yq.GetBlock(Os).ReadWrite(), &out_layouts[Os], gnqp)...);
 
    std::apply([&](auto&&... args)
    {
@@ -486,6 +516,8 @@ inline void enzyme_fwddiff(
    const BlockVector &shadow_xq,
    BlockVector &yq,
    const int &gnqp,
+   const std::array<std::vector<int>, sizeof...(Is)>& in_layouts,
+   const std::array<std::vector<int>, sizeof...(Os)>& out_layouts,
    std::index_sequence<Is...>,
    std::index_sequence<Os...>)
 {
@@ -510,12 +542,12 @@ inline void enzyme_fwddiff(
    auto inputs = std::make_tuple(
                     make_tensor_array<std::remove_cv_t<std::remove_reference_t<
                     typename tuple_element<Is, qf_param_ts>::type>>>(
-                       xq.GetBlock(Is).Read(), gnqp)...);
+                       xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp)...);
 
    auto shadows = std::make_tuple(
                      make_tensor_array<std::remove_cv_t<std::remove_reference_t<
                      typename tuple_element<Is, qf_param_ts>::type>>>(
-                        shadow_xq.GetBlock(Is).Read(), gnqp)...);
+                        shadow_xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp)...);
 
    std::array<Vector, noutputs> primal_storage;
    ((primal_storage[Os].SetSize(yq.GetBlock(Os).Size())), ...);
@@ -523,12 +555,12 @@ inline void enzyme_fwddiff(
    auto primals_out = std::make_tuple(
                          make_tensor_array<std::remove_cv_t<std::remove_reference_t<
                          typename tuple_element<ninputs + Os, qf_param_ts>::type>>>(
-                            primal_storage[Os].ReadWrite(), gnqp)...);
+                            primal_storage[Os].ReadWrite(), &out_layouts[Os], gnqp)...);
 
    auto derivs_out = std::make_tuple(
                         make_tensor_array<std::remove_cv_t<std::remove_reference_t<
                         typename tuple_element<ninputs + Os, qf_param_ts>::type>>>(
-                           yq.GetBlock(Os).ReadWrite(), gnqp)...);
+                           yq.GetBlock(Os).ReadWrite(), &out_layouts[Os], gnqp)...);
 
    using wrapper_fn_t = qf_return_t (*)(
                            const qfunc_t &,

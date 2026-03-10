@@ -272,6 +272,20 @@ public:
       LVECTOR
    };
 
+   void SetQLayouts(std::initializer_list<QLayoutEntry> in,
+                    std::initializer_list<QLayoutEntry> out)
+   {
+      if (action_callbacks.size() > 0)
+      {
+         MFEM_ABORT("trying to set the quadrature point layouts for an operator "
+                    "that already has layouts set");
+      }
+      in_qlayouts.clear();
+      out_qlayouts.clear();
+      ExtractQLayouts(in, in_qlayouts);
+      ExtractQLayouts(out, out_qlayouts);
+   }
+
    /// @brief Set the MultLevel mode for the DifferentiableOperator.
    /// The default is TVECTOR, which means that the Operator will use
    /// T->L before Mult and L->T Operators after.
@@ -412,6 +426,9 @@ private:
    const ParMesh &mesh;
 
    MultLevel mult_level = TVECTOR;
+
+   std::unordered_map<std::type_index, std::vector<int>> in_qlayouts;
+   std::unordered_map<std::type_index, std::vector<int>> out_qlayouts;
 
    std::vector<action_t> action_callbacks;
    std::map<size_t, std::vector<derivative_setup_t>> derivative_setup_callbacks;
@@ -618,7 +635,8 @@ void DifferentiableOperator::AddIntegrator(
    IntegratorContext ctx
    {
       mesh, elem_attributes, attributes, num_entities,
-      infds, outfds, unionfds, integration_rule
+      infds, outfds, unionfds, integration_rule,
+      in_qlayouts, out_qlayouts
    };
 
    action_callbacks.push_back(backend_t::MakeAction(ctx, qfunc, inputs, outputs));
