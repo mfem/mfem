@@ -110,8 +110,12 @@ const FieldBasis GetFieldBasis(const FieldDescriptor &f,
    return std::visit([&ir, &mode](auto && arg) -> FieldBasis
    {
       using T = std::decay_t<decltype(arg)>;
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
-                    std::is_same_v<T, const ParFiniteElementSpace *>)
+
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *>)
+      {
+         return FromQI(arg->GetQuadratureInterpolator(ir), mode);
+      }
+      else if constexpr (std::is_same_v<T, const ParFiniteElementSpace *>)
       {
          return FromQI(arg->GetQuadratureInterpolator(ir), mode);
       }
@@ -125,7 +129,7 @@ const FieldBasis GetFieldBasis(const FieldDescriptor &f,
       }
       else if constexpr (std::is_same_v<T, const IntegrationRule *>)
       {
-         // return nullptr;
+         return FieldBasis{};
       }
       else
       {
@@ -138,33 +142,34 @@ template <typename fops_t, size_t nfops>
 void create_fieldbases(
    fops_t &fops,
    const std::array<size_t, nfops> &fop_to_fd,
-   const IntegratorContext &ctx,
+   const std::vector<FieldDescriptor> &fds,
+   const IntegrationRule &ir,
    std::array<FieldBasis, nfops> &bases)
 {
    constexpr_for<0, nfops>([&](auto i)
    {
-      const auto input = get<i>(fops);
-      using input_t = std::decay_t<decltype(input)>;
+      const auto fop = get<i>(fops);
+      using fop_t = std::decay_t<decltype(fop)>;
 
-      const auto fd = ctx.infds[fop_to_fd[i]];
+      const auto fd = fds[fop_to_fd[i]];
 
       constexpr QuadratureInterpolator::EvalFlags dummy_mode =
          QuadratureInterpolator::VALUES;
-      if constexpr (is_identity_fop<input_t>::value)
+      if constexpr (is_identity_fop<fop_t>::value)
       {
-         bases[i] = GetFieldBasis(fd, ctx.ir, dummy_mode);
+         bases[i] = GetFieldBasis(fd, ir, dummy_mode);
       }
-      else if constexpr (is_weight_fop<input_t>::value)
+      else if constexpr (is_weight_fop<fop_t>::value)
       {
-         bases[i] = FieldBasisFromWeight(ctx.ir);
+         bases[i] = FieldBasisFromWeight(ir);
       }
-      else if constexpr (is_value_fop<input_t>::value)
+      else if constexpr (is_value_fop<fop_t>::value)
       {
-         bases[i] = GetFieldBasis(fd, ctx.ir, QuadratureInterpolator::VALUES);
+         bases[i] = GetFieldBasis(fd, ir, QuadratureInterpolator::VALUES);
       }
-      else if constexpr (is_gradient_fop<input_t>::value)
+      else if constexpr (is_gradient_fop<fop_t>::value)
       {
-         bases[i] = GetFieldBasis(fd, ctx.ir, QuadratureInterpolator::DERIVATIVES);
+         bases[i] = GetFieldBasis(fd, ir, QuadratureInterpolator::DERIVATIVES);
       }
    });
 }
@@ -437,9 +442,6 @@ template <auto wrapper_fn, typename qf_return_t, typename... AccArgs>
 __attribute__((always_inline)) inline void
 do_enzyme_call(AccArgs... acc)
 {
-   std::cout << "__enzyme_fwddiff args:\n";
-   int i = 0;
-   ((std::cout << "  [" << i++ << "] " << get_type_name<AccArgs>() << "\n"), ...);
    __enzyme_fwddiff<qf_return_t>(wrapper_fn, acc...);
 }
 
@@ -485,6 +487,21 @@ process_inputs(inputs_t &inputs, shadows_t &shadows,
    {
       constexpr bool active =
          std::array<bool, sizeof...(ActivityMap)> {ActivityMap...} [CurI];
+
+      if constexpr (active)
+      {
+         std::cout << "Input[" << CurI << "]: ACTIVE (enzyme_dup)\n"
+                   << "  primal ptr type:  "
+                   << get_type_name<decltype(&std::get<CurI>(inputs))>() << "\n"
+                   << "  shadow ptr type:  "
+                   << get_type_name<decltype(&std::get<CurI>(shadows))>() << "\n";
+      }
+      else
+      {
+         std::cout << "Input[" << CurI << "]: INACTIVE (enzyme_const)\n"
+                   << "  primal ptr type:  "
+                   << get_type_name<decltype(&std::get<CurI>(inputs))>() << "\n";
+      }
 
       if constexpr (active)
       {
