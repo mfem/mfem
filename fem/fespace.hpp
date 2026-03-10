@@ -13,6 +13,7 @@
 #define MFEM_FESPACE
 
 #include "../config/config.hpp"
+#include "../general/hash_util.hpp"
 #include "../linalg/ordering.hpp"
 #include "../linalg/sparsemat.hpp"
 #include "../mesh/mesh.hpp"
@@ -320,18 +321,11 @@ protected:
    mutable OperatorHandle L2E_nat, L2E_lex;
    /// The face restriction operators, see GetFaceRestriction().
    using key_face = std::tuple<bool, ElementDofOrdering, FaceType, L2FaceValues>;
-   struct key_hash
-   {
-      std::size_t operator()(const key_face& k) const
-      {
-         return std::get<0>(k)
-                + 2 * (int)std::get<1>(k)
-                + 4 * (int)std::get<2>(k)
-                + 8 * (int)std::get<3>(k);
-      }
-   };
-   using map_L2F = std::unordered_map<const key_face,FaceRestriction*,key_hash>;
-   mutable map_L2F L2F;
+   mutable std::unordered_map<key_face,std::unique_ptr<FaceRestriction>,
+           TupleHasher> L2F;
+
+   mutable std::unordered_map<std::tuple<ElementDofOrdering,FaceType>,
+           std::unique_ptr<InterpolationManager>, TupleHasher> interpolations;
 
    mutable Array<QuadratureInterpolator*> E2Q_array;
    mutable Array<FaceQuadratureInterpolator*> E2IFQ_array;
@@ -750,6 +744,9 @@ public:
    virtual const FaceRestriction *GetFaceRestriction(
       ElementDofOrdering f_ordering, FaceType,
       L2FaceValues mul = L2FaceValues::DoubleValued) const;
+
+   const InterpolationManager &GetInterpolationManager(
+      ElementDofOrdering f_ordering, FaceType type) const;
 
    /** @brief Return a QuadratureInterpolator that interpolates E-vectors to
        quadrature point values and/or derivatives (Q-vectors). */

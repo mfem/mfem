@@ -29,15 +29,68 @@ using dscalar_t = dual<real_t, real_t>;
 
 constexpr int DIM = 2;
 
+class DummyParameterSpace : public ParameterSpace
+{
+public:
+   class Bimpl : public Operator
+   {
+      virtual void Mult(const Vector &x, Vector &y) const
+      {
+         for (int i = 0; i < y.Size(); i++)
+         {
+            y(i) = x(0);
+         }
+      }
+   };
+
+   class Btimpl : public Operator
+   {
+      virtual void Mult(const Vector &x, Vector &y) const
+      {
+         y(0) = x(0);
+      }
+   };
+
+   DummyParameterSpace() : ParameterSpace(1) {}
+
+   virtual int GetTrueVSize() const override
+   {
+      return 1;
+   }
+
+   virtual int GetVSize() const override
+   {
+      return 1;
+   }
+
+   virtual const Operator* GetB() const override
+   {
+      if (!B)
+      {
+         B.reset(new Bimpl());
+      }
+      return B.get();
+   }
+
+   virtual const Operator* GetBt() const override
+   {
+      if (!Bt)
+      {
+         Bt.reset(new Btimpl());
+      }
+      return Bt.get();
+   }
+};
+
 struct massqf
 {
    inline MFEM_HOST_DEVICE
    void operator()(
-      const tensor_array<const real_t> &u,
-      const tensor_array<const real_t, DIM, DIM> &J,
-      const tensor_array<const real_t> &w,
-      const tensor_array<real_t> &out1,
-      const tensor_array<real_t> &out2) const
+      tensor_array<const real_t> &u,
+      tensor_array<const real_t, DIM, DIM> &J,
+      tensor_array<const real_t> &w,
+      tensor_array<real_t> &out1,
+      tensor_array<real_t> &out2) const
    {
       for (size_t q = 0; q < u.size(); q++)
       {
@@ -52,23 +105,25 @@ struct mass_diffusion_qdata_qf
 {
    inline MFEM_HOST_DEVICE
    void operator()(
-      const tensor_array<const real_t> &u,
-      const tensor_array<const real_t, DIM> &dudxi,
-      const tensor_array<const real_t, DIM, DIM> &J,
-      const tensor_array<const real_t, DIM, DIM> &qdata,
-      const tensor_array<const real_t> &w,
-      const tensor_array<real_t> &out1,
-      const tensor_array<real_t, DIM> &out2,
-      const tensor_array<real_t, DIM, DIM> &out3) const
+      tensor_array<const real_t> &u,
+      tensor_array<const real_t, DIM> &dudxi,
+      tensor_array<const real_t, DIM, DIM> &J,
+      tensor_array<const real_t, DIM, DIM> &qdata,
+      tensor_array<const real_t> &w,
+      tensor_array<const real_t> &dummy_parameter,
+      tensor_array<real_t> &out1,
+      tensor_array<real_t, DIM> &out2,
+      tensor_array<real_t, DIM, DIM> &out3) const
    {
       for (size_t q = 0; q < u.size(); q++)
       {
+         std::cout << dummy_parameter(q) << "\n";
+
          const auto invJq = inv(J(q));
          const auto detJq = det(J(q));
 
          out1(q) = u(q) * detJq * w(q);
-         out2(q) = (dudxi(q) * invJq) * transpose(invJq) * detJq
-                   * (real_t)(w(q));
+         out2(q) = (dudxi(q) * invJq) * transpose(invJq) * (detJq * w(q));
          out3(q) = J(q);
       }
    }
@@ -181,6 +236,10 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
       QuadratureSpace qs(pmesh, *ir);
       QuadratureFunction qdata(qs, DIM*DIM);
 
+      DummyParameterSpace dps;
+      ParameterFunction dpf(dps);
+      dpf = 9.12345;
+
       auto coef_func = [](const Vector &coords)
       {
          return coords[0] * coords[1] * (DIM == 3 ? coords[2] : 1.0);
@@ -188,24 +247,18 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
       FunctionCoefficient coef(coef_func);
       x.ProjectCoefficient(coef);
 
-      Array<int> inoffsets(4);
-      inoffsets[0] = 0;
-      inoffsets[1] = fes.GetTrueVSize();
-      inoffsets[2] = nodes->ParFESpace()->GetTrueVSize();
-      inoffsets[3] = qdata.Size();
-      inoffsets.PartialSum();
+      Vector xtvec, ytvec;
+      x.GetTrueDofs(xtvec);
+      ytvec.SetSize(xtvec.Size());
 
-      BlockVector X(inoffsets);
-      x.GetTrueDofs(X.GetBlock(0));
-      X.GetBlock(1) = *nodes;
-      X.GetBlock(2) = 123.0;
+      Vector nodestvec;
+      nodes->GetTrueDofs(nodestvec);
 
-      Array<int> outoffsets(3);
-      outoffsets[0] = 0;
-      outoffsets[1] = fes.GetTrueVSize();
-      outoffsets[2] = qdata.Size();
-      outoffsets.PartialSum();
-      BlockVector Z(outoffsets);
+      qdata = 123.0;
+      Vector yqdata(qdata.Size());
+
+      MultiVector X{xtvec, nodestvec, qdata, dpf};
+      MultiVector Z{ytvec, yqdata};
 
       ParBilinearForm blf(&fes);
       blf.AddDomainIntegrator(new MassIntegrator(ir));
@@ -213,18 +266,18 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
       blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
       blf.Assemble();
       blf.Mult(x, y);
-      Vector Y(fes.GetTrueVSize());
-      fes.GetProlongationMatrix()->MultTranspose(y, Y);
+      fes.GetProlongationMatrix()->MultTranspose(y, ytvec);
 
       std::cout << "mfem: ";
-      pretty_print(Y);
+      pretty_print(ytvec);
 
-      static constexpr int U = 0, COORDINATES = 1, V = 2, S = 3;
+      static constexpr int U = 0, COORDINATES = 1, V = 2, S = 3, L = 4;
       const std::vector<FieldDescriptor> in
       {
          {U, &fes},
          {COORDINATES, nodes->ParFESpace()},
-         {S, &qdata}
+         {S, &qdata},
+         {L, &dps}
       };
 
       const std::vector<FieldDescriptor> out
@@ -232,23 +285,24 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
          {V, &fes},
          {S, &qdata}
       };
+
       DifferentiableOperator dop(in, out, pmesh);
 
       auto derivatives = std::integer_sequence<size_t, U> {};
       auto mass_diffusion_qfunc = mass_diffusion_qdata_qf{};
       dop.AddDomainIntegrator(mass_diffusion_qfunc,
-                              tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Identity<S>{}, Weight{}},
+                              tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Identity<S>{}, Weight{}, Value<L>{}},
                               tuple{Value<V>{}, Gradient<V>{}, Identity<S>{}},
                               *ir, all_domain_attr, derivatives);
 
-      fes.GetRestrictionMatrix()->Mult(x, X.GetBlock(0));
+      fes.GetRestrictionMatrix()->Mult(x, xtvec);
       dop.Mult(X, Z);
 
       std::cout << "dfem: ";
-      pretty_print(Z.GetBlock(0));
+      pretty_print(Z[0]);
 
-      Vector Y0(Y);
-      Y0 -= Z.GetBlock(0);
+      Vector Y0(ytvec);
+      Y0 -= Z[0];
 
       real_t norm_g, norm_l = Y0.Normlinf();
       MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
@@ -257,17 +311,14 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM]")
 
       auto ddop = dop.GetDerivative(U, X);
 
-      ddop->Mult(X.GetBlock(0), Z);
-      Y0 = Y;
-      Y0 -= Z.GetBlock(0);
+      ddop->Mult(X[0], Z);
+      Y0 = ytvec;
+      Y0 -= Z[0];
 
       norm_l = Y0.Normlinf();
       MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
       REQUIRE(norm_g == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
-
-      std::cout << "qdata: ";
-      pretty_print(Z.GetBlock(1));
    }
 }
 

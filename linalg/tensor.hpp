@@ -33,21 +33,62 @@ struct tensor;
 /// The implementation can be drastically generalized by using concepts of the
 /// c++17 standard.
 
-template < typename T >
+template <typename T>
 struct tensor<T>
 {
    using type = T;
    static constexpr int ndim      = 1;
    static constexpr int first_dim = 0;
+
    MFEM_HOST_DEVICE tensor() = default;
    MFEM_HOST_DEVICE tensor(T v) : values(v) {}
-   MFEM_HOST_DEVICE T& operator[](int /*unused*/) { return values; }
-   MFEM_HOST_DEVICE const T& operator[](int /*unused*/) const { return values; }
-   MFEM_HOST_DEVICE T& operator()(int /*unused*/) { return values; }
-   MFEM_HOST_DEVICE const T& operator()(int /*unused*/) const { return values; }
+
+   MFEM_HOST_DEVICE T& operator[](int) { return values; }
+   MFEM_HOST_DEVICE const T& operator[](int) const { return values; }
+   MFEM_HOST_DEVICE T& operator()(int) { return values; }
+   MFEM_HOST_DEVICE const T& operator()(int) const { return values; }
    MFEM_HOST_DEVICE T& operator()() { return values; }
    MFEM_HOST_DEVICE const T& operator()() const { return values; }
+
    MFEM_HOST_DEVICE operator T() const { return values; }
+
+   MFEM_HOST_DEVICE constexpr const T& scalar() const { return values; }
+
+   // A * tensor<T>  ->  A * T
+   template <typename A,
+             std::enable_if_t<!std::is_same_v<std::decay_t<A>, tensor>, int> = 0>
+   MFEM_HOST_DEVICE friend auto operator*(const A& a, const tensor& s)
+   -> decltype(a * s.scalar())
+   {
+      return a * s.scalar();
+   }
+
+   // tensor<T> * A  ->  T * A
+   template <typename A,
+             std::enable_if_t<!std::is_same_v<std::decay_t<A>, tensor>, int> = 0>
+   MFEM_HOST_DEVICE friend auto operator*(const tensor& s, const A& a)
+   -> decltype(s.scalar() * a)
+   {
+      return s.scalar() * a;
+   }
+
+   // A / tensor<T>, tensor<T> / A
+   template <typename A,
+             std::enable_if_t<!std::is_same_v<std::decay_t<A>, tensor>, int> = 0>
+   MFEM_HOST_DEVICE friend auto operator/(const A& a, const tensor& s)
+   -> decltype(a / s.scalar())
+   {
+      return a / s.scalar();
+   }
+
+   template <typename A,
+             std::enable_if_t<!std::is_same_v<std::decay_t<A>, tensor>, int> = 0>
+   MFEM_HOST_DEVICE friend auto operator/(const tensor& s, const A& a)
+   -> decltype(s.scalar() / a)
+   {
+      return s.scalar() / a;
+   }
+
    T values;
 };
 

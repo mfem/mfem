@@ -33,6 +33,7 @@
 #include "../../linalg/dtensor.hpp"
 #include "../quadinterpolator.hpp"
 
+#include "fielddescriptor.hpp"
 #include "fieldoperator.hpp"
 #include "parameterspace.hpp"
 #include "tuple.hpp"
@@ -571,50 +572,6 @@ constexpr auto filter_fields(const std::tuple<Ts...>& t)
              std::conditional_t<Ts::GetFieldId() != -1, std::tuple<Ts>, std::tuple<>> {}...);
 }
 
-/// @brief FieldDescriptor struct
-///
-/// This struct is used to store information about a field.
-struct FieldDescriptor
-{
-   using data_variant_t =
-      std::variant<const FiniteElementSpace *,
-      const ParFiniteElementSpace *,
-      const QuadratureFunction *>;
-
-   /// Field ID
-   std::size_t id;
-
-   /// Field variant
-   data_variant_t data;
-
-   /// Default constructor
-   FieldDescriptor() :
-      id(SIZE_MAX), data(data_variant_t{}) {}
-
-   /// Constructor
-   template <typename T>
-   FieldDescriptor(std::size_t field_id, const T* v) :
-      id(field_id), data(v) {}
-
-
-   bool operator==(const FieldDescriptor& other) const
-   {
-      return id == other.id;
-   }
-
-   bool operator<(const FieldDescriptor& other) const
-   {
-      return id < other.id;
-   }
-
-   friend void swap(FieldDescriptor& a, FieldDescriptor& b)
-   {
-      using std::swap;
-      swap(a.id, b.id);
-      swap(a.data, b.data);
-   }
-};
-
 namespace dfem
 {
 template <class... T> constexpr bool always_false = false;
@@ -987,7 +944,7 @@ int GetDimension(const FieldDescriptor &f)
 }
 
 inline
-const QuadratureInterpolator *get_qinterp(
+std::variant<const QuadratureInterpolator *, const Operator *>get_qinterp(
    const FieldDescriptor &f,
    const IntegrationRule &ir)
 {
@@ -1006,7 +963,6 @@ const QuadratureInterpolator *get_qinterp(
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
-         MFEM_ASSERT(false, "ParameterSpace doesn't have QuadratureInterpolator yet");
          return nullptr;
       }
       else
@@ -1297,6 +1253,37 @@ void prolongation(
 }
 
 inline
+void prolongation(
+   const std::vector<FieldDescriptor> fields,
+   const MultiVector &x,
+   std::vector<Vector *> &x_l)
+{
+   MFEM_ASSERT(x.NumBlocks() == static_cast<int>(x_l.size()),
+               "error " << x.NumBlocks() << " vs " << x_l.size());
+   for (int i = 0; i < x.NumBlocks(); i++)
+   {
+      const auto P = get_prolongation(fields[i]);
+
+      // If nullptr, assume Identity.
+      if (P == nullptr)
+      {
+         *x_l[i] = x[i];
+      }
+      else
+      {
+         const auto P = get_prolongation(fields[i]);
+         MFEM_ASSERT(P->Width() == x[i].Size(),
+                     "prolongation not applicable to given input data size " <<
+                     P->Width() << " vs " << x[i].Size());
+         MFEM_ASSERT(P->Height() == x_l[i]->Size(),
+                     "prolongation not applicable to given output data size " <<
+                     P->Height() << " vs " << x_l[i]->Size());
+         P->Mult(x[i], *x_l[i]);
+      }
+   }
+}
+
+inline
 void prolongation_transpose(
    const std::vector<FieldDescriptor> fields,
    const std::vector<Vector *> &x_l,
@@ -1322,6 +1309,36 @@ void prolongation_transpose(
                      "prolongation not applicable to given output data size " <<
                      P->Width() << " vs " << x.GetBlock(i).Size());
          P->MultTranspose(*x_l[i], x.GetBlock(i));
+      }
+   }
+}
+
+inline
+void prolongation_transpose(
+   const std::vector<FieldDescriptor> fields,
+   const std::vector<Vector *> &x_l,
+   MultiVector &x)
+{
+   MFEM_ASSERT(static_cast<int>(x_l.size()) == x.NumBlocks(),
+               "error " << x_l.size() << " vs " << x.NumBlocks());
+   for (size_t i = 0; i < x_l.size(); i++)
+   {
+      const auto P = get_prolongation(fields[i]);
+
+      // If nullptr, assume Identity.
+      if (P == nullptr)
+      {
+         x[i] = *x_l[i];
+      }
+      else
+      {
+         MFEM_ASSERT(P->Height() == x_l[i]->Size(),
+                     "prolongation not applicable to given input data size " <<
+                     P->Height() << " vs " << x_l[i]->Size());
+         MFEM_ASSERT(P->Width() == x[i].Size(),
+                     "prolongation not applicable to given output data size " <<
+                     P->Width() << " vs " << x[i].Size());
+         P->MultTranspose(*x_l[i], x[i]);
       }
    }
 }

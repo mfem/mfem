@@ -2,6 +2,7 @@
 
 #include "../fem/quadinterpolator.hpp"
 #include "../../util.hpp"
+#include "../../integrator_ctx.hpp"
 #include "general/enzyme.hpp"
 
 namespace mfem::future
@@ -19,12 +20,199 @@ constexpr std::array<bool, N> all_true()
    return all_true_impl<N>(std::make_index_sequence<N> {});
 }
 
-template <typename fops_t, size_t ninputs = tuple_size<fops_t>::value>
+struct FieldBasis
+{
+   // E-vector -> Q-vector
+   std::function<void(const Vector &, Vector &)> forward;
+
+   // Q-vector -> E-vector
+   std::function<void(const Vector &, Vector &)> transpose;
+};
+
+FieldBasis FromQI(const QuadratureInterpolator *qi,
+                  QuadratureInterpolator::EvalFlags mode)
+{
+   return
+   {
+      [qi, mode](const Vector &xe, Vector &xq)
+      {
+         qi->SetOutputLayout(QVectorLayout::byVDIM);
+         if (mode == QuadratureInterpolator::VALUES)
+         {
+            qi->Values(xe, xq);
+         }
+         else
+         {
+            qi->Derivatives(xe, xq);
+         }
+      },
+      [qi, mode](const Vector &yq, Vector &ye)
+      {
+         Vector empty;
+         qi->SetOutputLayout(QVectorLayout::byVDIM);
+         if (mode == QuadratureInterpolator::VALUES)
+         {
+            qi->AddMultTranspose(QuadratureInterpolator::VALUES, yq, empty, ye);
+         }
+         else
+         {
+            qi->AddMultTranspose(QuadratureInterpolator::DERIVATIVES, empty, yq, ye);
+         }
+      }
+   };
+}
+
+// QuadratureFunction identity copy
+FieldBasis FromQF()
+{
+   return
+   {
+      [](const Vector &xe, Vector &xq) { xq = xe; },
+      [](const Vector &yq, Vector &ye) { ye = yq; }
+   };
+}
+
+// User-defined parameter space B
+FieldBasis FromPS(const Operator *B, const Operator *Bt)
+{
+   return
+   {
+      [B](const Vector &xe, Vector &xq) { B->Mult(xe, xq); },
+      [Bt](const Vector &yq, Vector &ye) { Bt->Mult(yq, ye); }
+   };
+}
+
+FieldBasis FieldBasisFromWeight(const IntegrationRule &ir)
+{
+   return
+   {
+      [&ir](const Vector &, Vector &xq)
+      {
+         const int nqp = ir.GetNPoints();
+         MFEM_ASSERT(xq.Size() % nqp == 0, "weight block has unexpected size");
+
+         const int ne = xq.Size() / nqp;
+         const real_t *wref = ir.GetWeights().Read();
+
+         for (int e = 0; e < ne; e++)
+         {
+            std::memcpy(xq.GetData() + e*nqp, wref, nqp*sizeof(real_t));
+         }
+      },
+      [](const Vector &, Vector &) {}
+   };
+}
+
+const FieldBasis GetFieldBasis(const FieldDescriptor &f,
+                               const IntegrationRule &ir,
+                               QuadratureInterpolator::EvalFlags mode)
+{
+   return std::visit([&ir, &mode](auto && arg) -> FieldBasis
+   {
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
+                    std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         return FromQI(arg->GetQuadratureInterpolator(ir), mode);
+      }
+      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      {
+         return FromQF();
+      }
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
+      {
+         return FromPS(arg->GetB(), arg->GetBt());
+      }
+      else if constexpr (std::is_same_v<T, const IntegrationRule *>)
+      {
+         // return nullptr;
+      }
+      else
+      {
+         static_assert(dfem::always_false<T>, "internal error");
+      }
+   }, f.data);
+}
+
+template <typename fops_t, size_t nfops>
+void create_fieldbases(
+   fops_t &fops,
+   const std::array<size_t, nfops> &fop_to_fd,
+   const IntegratorContext &ctx,
+   std::array<FieldBasis, nfops> &bases)
+{
+   constexpr_for<0, nfops>([&](auto i)
+   {
+      const auto input = get<i>(fops);
+      using input_t = std::decay_t<decltype(input)>;
+
+      const auto fd = ctx.infds[fop_to_fd[i]];
+
+      constexpr QuadratureInterpolator::EvalFlags dummy_mode =
+         QuadratureInterpolator::VALUES;
+      if constexpr (is_identity_fop<input_t>::value)
+      {
+         bases[i] = GetFieldBasis(fd, ctx.ir, dummy_mode);
+      }
+      else if constexpr (is_weight_fop<input_t>::value)
+      {
+         bases[i] = FieldBasisFromWeight(ctx.ir);
+      }
+      else if constexpr (is_value_fop<input_t>::value)
+      {
+         bases[i] = GetFieldBasis(fd, ctx.ir, QuadratureInterpolator::VALUES);
+      }
+      else if constexpr (is_gradient_fop<input_t>::value)
+      {
+         bases[i] = GetFieldBasis(fd, ctx.ir, QuadratureInterpolator::DERIVATIVES);
+      }
+   });
+}
+
+template <typename fops_t, size_t nfops>
+void check_consistency(
+   fops_t &fops,
+   const std::array<size_t, nfops> &fop_to_fd,
+   const std::vector<FieldDescriptor> &fields)
+{
+   constexpr_for<0, nfops>([&](auto i)
+   {
+      const auto input = get<i>(fops);
+      using input_t = std::decay_t<decltype(input)>;
+
+      const auto fd = fields[fop_to_fd[i]];
+
+      if constexpr (is_identity_fop<input_t>::value)
+      {
+         MFEM_ASSERT(std::holds_alternative<const QuadratureFunction *>(fd.data),
+                     "Identity FieldOperator requested on non "
+                     "QuadratureFunction");
+      }
+      else if constexpr (is_weight_fop<input_t>::value)
+      {
+      }
+      else if constexpr (is_value_fop<input_t>::value)
+      {
+         MFEM_ASSERT(std::holds_alternative<const FiniteElementSpace *>(fd.data) ||
+                     std::holds_alternative<const ParFiniteElementSpace *>(fd.data) ||
+                     std::holds_alternative<const ParameterSpace *>(fd.data),
+                     "Value FieldOperator requested on non "
+                     "QuadratureFunction");
+      }
+      else if constexpr (is_gradient_fop<input_t>::value)
+      {
+         MFEM_ASSERT(std::holds_alternative<const FiniteElementSpace *>(fd.data) ||
+                     std::holds_alternative<const ParFiniteElementSpace *>(fd.data),
+                     "Value FieldOperator requested on non "
+                     "QuadratureFunction");
+      }
+   });
+}
+
+template <size_t ninputs>
 void interpolate(
-   const fops_t &fops,
    const std::array<size_t, ninputs> &input_to_infd,
-   const std::unordered_map<int, const QuadratureInterpolator *> &qis,
-   const IntegrationRule &ir,
+   const std::array<FieldBasis, ninputs> &input_bases,
    const std::vector<Vector *> &xe,
    BlockVector &xq,
    const std::array<bool, ninputs> &conditional = all_true<ninputs>())
@@ -33,157 +221,22 @@ void interpolate(
    {
       if (!conditional.empty() && !conditional[i]) { return; }
 
-      const auto input = get<i>(fops);
-      using input_t = std::decay_t<decltype(input)>;
-
-      if constexpr (is_weight_fop<input_t>::value)
-      {
-         Vector &w = xq.GetBlock(i);
-
-         const int nqp = ir.GetNPoints();
-         MFEM_ASSERT(w.Size() % nqp == 0, "weight block has unexpected size");
-
-         const int ne = w.Size() / nqp;
-         const real_t *wref = ir.GetWeights().Read();
-
-         for (int e = 0; e < ne; e++)
-         {
-            std::memcpy(w.GetData() + e*nqp, wref, nqp*sizeof(real_t));
-         }
-         return;
-      }
-
-      const size_t j = input_to_infd[i];
-
-      if constexpr (is_identity_fop<input_t>::value)
-      {
-         xq.GetBlock(i) = *xe[j];
-         return;
-      }
-
-      auto search = qis.find(input.GetFieldId());
-      MFEM_ASSERT(search != qis.end(),
-                  "can't find QuadratureInterpolator for given ID " << input.GetFieldId());
-      auto qi = search->second;
-
-      qi->SetOutputLayout(QVectorLayout::byVDIM);
-
-      if constexpr (is_value_fop<input_t>::value)
-      {
-         qi->Values(*xe[j], xq.GetBlock(i));
-      }
-      else if constexpr (is_gradient_fop<input_t>::value)
-      {
-         qi->Derivatives(*xe[j], xq.GetBlock(i));
-      }
-      else
-      {
-         MFEM_ABORT("default backend doesn't support " << get_type_name<input_t>());
-      }
+      input_bases[i].forward(*xe[input_to_infd[i]], xq.GetBlock(i));
    });
 }
 
-// Create quadrature function fop to fields map
-template <typename fops_t, size_t N = tuple_size<fops_t>::value, size_t M>
-void create_fop_to_fd(const fops_t &fops,
-                      const std::vector<FieldDescriptor> &fields,
-                      std::array<size_t, M> &fop_to_fd)
-{
-   static_assert(N == M, "sizes must match");
-   constexpr_for<0, N>([&](auto i)
-   {
-      const auto fop = get<i>(fops);
-      fop_to_fd[i] = std::numeric_limits<size_t>::max();
-      for (size_t j = 0; j < fields.size(); j++)
-      {
-         // TODO: output.GetFieldId() should probably store/return size_t
-         if (static_cast<int>(fields[j].id) == fop.GetFieldId())
-         {
-            fop_to_fd[i] = j;
-         }
-      }
-      // Handle Weight type. There is no FieldDescriptor for the weight.
-      // TODO: Create weight descriptor for the weight for internal use?
-      if (fop_to_fd[i] == std::numeric_limits<size_t>::max() &&
-          !is_weight_fop<std::remove_cv_t<decltype(fop)>>::value)
-      {
-         MFEM_ABORT("not found");
-      }
-   });
-}
-
-template <typename fops_t, size_t noutputs>
+template <size_t noutputs>
 void integrate(
-   const fops_t &fops,
    const std::array<size_t, noutputs> &output_to_outfd,
-   const std::unordered_map<int, const QuadratureInterpolator *> &qis,
+   const std::array<FieldBasis, noutputs> &output_bases,
    const BlockVector &yq,
    std::vector<Vector *> &ye)
 {
-   // std::cout << "integrate\n";
    for (auto v : ye) { *v = 0.0; }
+
    constexpr_for<0, noutputs>([&](auto i)
    {
-      // for (size_t l = 0; l < ye.size(); l++)
-      // {
-      //    std::cout << "ye[" << l << "] = ";
-      //    pretty_print(*ye[l]);
-      // }
-
-      const auto output = get<i>(fops);
-      using output_t = std::decay_t<decltype(output)>;
-
-      // Weights are not outputs - they're only inputs
-      if constexpr (is_weight_fop<output_t>::value)
-      {
-         MFEM_ABORT("Weight cannot be an output");
-         return;
-      }
-
-      const size_t j = output_to_outfd[i];
-      // Check that output vector is allocated
-      MFEM_ASSERT(ye[j] != nullptr, "output vector ye[" << j << "] is null");
-
-      // std::cout << "filling ye[" << j << "]\n";
-
-      if constexpr (is_identity_fop<output_t>::value)
-      {
-         *ye[j] = yq.GetBlock(i);
-         return;
-      }
-
-      auto search = qis.find(output.GetFieldId());
-      MFEM_ASSERT(search != qis.end(),
-                  "can't find QuadratureInterpolator for given ID " << output.GetFieldId());
-      auto qi = search->second;
-      qi->SetOutputLayout(QVectorLayout::byVDIM);
-
-      // For unused arguments
-      Vector empty;
-
-      if constexpr (is_value_fop<output_t>::value)
-      {
-         // Integrate values: Q -> E
-         qi->AddMultTranspose(QuadratureInterpolator::VALUES,
-                              yq.GetBlock(i), empty, *ye[j]);
-      }
-      else if constexpr (is_gradient_fop<output_t>::value)
-      {
-         // Integrate gradients: Q -> E
-         qi->AddMultTranspose(QuadratureInterpolator::DERIVATIVES,
-                              empty, yq.GetBlock(i), *ye[j]);
-      }
-      else
-      {
-         MFEM_ABORT("default backend doesn't support " << get_type_name<output_t>());
-      }
-
-      // std::cout << "after AddMultTranspose\n";
-      // for (size_t l = 0; l < ye.size(); l++)
-      // {
-      //    std::cout << "ye[" << l << "] = ";
-      //    pretty_print(*ye[l]);
-      // }
+      output_bases[i].transpose(yq.GetBlock(i), *ye[output_to_outfd[i]]);
    });
 }
 
@@ -298,13 +351,20 @@ inline void call_qfunc(
    using qf_signature = typename get_function_signature<qfunc_t>::type;
    using qf_param_ts = typename qf_signature::parameter_ts;
 
-   qfunc(
-      make_tensor_array<std::remove_cv_t<std::remove_reference_t<
-      typename tuple_element<Is, qf_param_ts>::type>>>(
-         xq.GetBlock(Is).Read(), gnqp)...,
-      make_tensor_array<std::remove_cv_t<std::remove_reference_t<
-      typename tuple_element<ninputs + Os, qf_param_ts>::type>>>(
-         yq.GetBlock(Os).ReadWrite(), gnqp)...);
+   auto inputs = std::make_tuple(
+                    make_tensor_array<std::remove_cv_t<std::remove_reference_t<
+                    typename tuple_element<Is, qf_param_ts>::type>>>(
+                       xq.GetBlock(Is).Read(), gnqp)...);
+
+   auto outputs = std::make_tuple(
+                     make_tensor_array<std::remove_cv_t<std::remove_reference_t<
+                     typename tuple_element<ninputs + Os, qf_param_ts>::type>>>(
+                        yq.GetBlock(Os).ReadWrite(), gnqp)...);
+
+   std::apply([&](auto&&... args)
+   {
+      qfunc(args...);
+   }, std::tuple_cat(inputs, outputs));
 }
 
 template <typename func_t, typename... arg_ts>
@@ -499,5 +559,38 @@ inline void enzyme_fwddiff(
 }
 
 } // namespace detail
+
+// Create quadrature function fop to fields map
+template <typename fops_t, size_t N = tuple_size<fops_t>::value, size_t M>
+void create_fop_to_fd(const fops_t &fops,
+                      const std::vector<FieldDescriptor> &fields,
+                      std::array<size_t, M> &fop_to_fd)
+{
+   static_assert(N == M, "sizes must match");
+   constexpr_for<0, N>([&](auto i)
+   {
+      const auto fop = get<i>(fops);
+      fop_to_fd[i] = std::numeric_limits<size_t>::max();
+      for (size_t j = 0; j < fields.size(); j++)
+      {
+         // TODO: output.GetFieldId() should probably store/return size_t
+         if (static_cast<int>(fields[j].id) == fop.GetFieldId())
+         {
+            fop_to_fd[i] = j;
+         }
+      }
+      // Handle Weight type. There is no FieldDescriptor for the weight.
+      // TODO: Create weight descriptor for the weight for internal use?
+      // TODO: this is a hack...
+      if (is_weight_fop<std::remove_cv_t<decltype(fop)>>::value)
+      {
+         fop_to_fd[i] = 0;
+      }
+      else if (fop_to_fd[i] == std::numeric_limits<size_t>::max())
+      {
+         MFEM_ABORT("not found");
+      }
+   });
+}
 
 }
