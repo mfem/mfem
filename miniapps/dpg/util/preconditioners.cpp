@@ -24,7 +24,7 @@ Solver * MakeFESpaceDefaultSolver(
    const int dim = pfespace->GetParMesh()->Dimension();
    Solver * prec = nullptr;
    if (dynamic_cast<const H1_FECollection*>(&fec) ||
-       dynamic_cast<const L2_FECollection*>(&fec))
+       dynamic_cast<const L2_FECollection*>(&fec) || vdim > 1)
    {
       prec = new HypreBoomerAMG();
       dynamic_cast<HypreBoomerAMG*>(prec)->SetPrintLevel(print_level);
