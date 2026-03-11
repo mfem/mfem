@@ -2029,6 +2029,11 @@ void GridFunction::AccumulateAndCountBdrValues(
    Coefficient *coeff[], VectorCoefficient *vcoeff, const Array<int> &attr,
    Array<int> &values_counter)
 {
+   if (vcoeff)
+   {
+      MFEM_VERIFY(fes->GetVDim() == vcoeff->GetVDim(),
+                  "vcoeff vdim != fes VDim");
+   }
    Array<int> vdofs;
    Vector vc;
 
@@ -2181,6 +2186,7 @@ void GridFunction::AccumulateAndCountBdrTangentValues(
    VectorCoefficient &vcoeff, const Array<int> &bdr_attr,
    Array<int> &values_counter)
 {
+   MFEM_VERIFY(VectorDim() == vcoeff.GetVDim(), "vcoeff vdim != VectorDim ");
    const FiniteElement *fe;
    ElementTransformation *T;
    Array<int> dofs;
@@ -3083,9 +3089,6 @@ void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff,
 void GridFunction::ProjectBdrCoefficient(VectorCoefficient &vcoeff,
                                          const Array<int> &attr)
 {
-   // TODO
-   // MFEM_VERIFY(BdrVectorDim() == vcoeff.GetVDim(),
-   //             "vcoeff vdim != BdrVectorDim()");
    Array<int> values_counter;
    AccumulateAndCountBdrValues(NULL, &vcoeff, attr, values_counter);
    ComputeMeans(ARITHMETIC, values_counter);
@@ -3134,10 +3137,9 @@ void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[],
 void GridFunction::ProjectBdrCoefficientNormal(
    VectorCoefficient &vcoeff, const Array<int> &bdr_attr)
 {
-   // TODO
-   // MFEM_VERIFY(BdrVectorDim() == 1, "BdrVectorDim() != 1");
-   // MFEM_VERIFY(vcoeff.GetVDim() == fes->GetMesh()->SpaceDimension(),
-   //             "vcoeff vdim != space dim");
+   MFEM_VERIFY(fes->GetVDim() == 1, "fespace VDim != 1");
+   MFEM_VERIFY(vcoeff.GetVDim() == fes->GetMesh()->SpaceDimension(),
+               "vcoeff vdim != space dim");
 #if 0
    // implementation for the case when the face dofs are integrals of the
    // normal component.
@@ -3146,6 +3148,7 @@ void GridFunction::ProjectBdrCoefficientNormal(
    Array<int> dofs;
    int dim = vcoeff.GetVDim();
    Vector vc(dim), nor(dim), lvec, shape;
+
 
    for (int i = 0; i < fes->GetNBE(); i++)
    {
@@ -3211,9 +3214,6 @@ void GridFunction::ProjectBdrCoefficientNormal(
 void GridFunction::ProjectBdrCoefficientTangent(
    VectorCoefficient &vcoeff, const Array<int> &bdr_attr)
 {
-   // TODO
-   // MFEM_VERIFY(BdrVectorDim()+1 == vcoeff.GetVDim(),
-   //             "vcoeff vdim != BdrVectorDim()+1");
    Array<int> values_counter;
    AccumulateAndCountBdrTangentValues(vcoeff, bdr_attr, values_counter);
    ComputeMeans(ARITHMETIC, values_counter);
