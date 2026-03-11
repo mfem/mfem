@@ -869,16 +869,18 @@ void ParGridFunction::ProjectBdrCoefficient(
 void ParGridFunction::ProjectBdrCoefficient(VectorCoefficient &vcoeff,
                                             const Array<int> &attr)
 {
-   MFEM_VERIFY(BdrVectorDim() == vcoeff.GetVDim(),
-               "vcoeff vdim != BdrVectorDim()");
+   // TODO
+   // MFEM_VERIFY(BdrVectorDim() == vcoeff.GetVDim(),
+   //             "vcoeff vdim != BdrVectorDim()");
    ProjectBdrCoefficient(NULL, &vcoeff, attr);
 }
 
 void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
                                                    const Array<int> &bdr_attr)
 {
-   MFEM_VERIFY(BdrVectorDim()+1 == vcoeff.GetVDim(),
-               "vcoeff vdim != BdrVectorDim()+1");
+   // TODO
+   // MFEM_VERIFY(BdrVectorDim()+1 == vcoeff.GetVDim(),
+   //             "vcoeff vdim != BdrVectorDim()+1");
    Array<int> values_counter;
    AccumulateAndCountBdrTangentValues(vcoeff, bdr_attr, values_counter);
 

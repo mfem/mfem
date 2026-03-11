@@ -1463,31 +1463,6 @@ int FiniteElementSpace::GetVectorDim() const
    return GetVDim()*std::max(GetMesh()->SpaceDimension(), fe->GetRangeDim());
 }
 
-int FiniteElementSpace::GetBdrVectorDim() const
-{
-   const FiniteElement *be = GetTypicalBE();
-   MFEM_VERIFY(be, "A typical boundary finite element does not exist!");
-
-   if (be->GetRangeType() == FiniteElement::SCALAR)
-   {
-      return GetVDim();
-   }
-   return GetVDim()*std::max(GetMesh()->SpaceDimension()-1, be->GetRangeDim());
-}
-
-int FiniteElementSpace::GetFaceVectorDim() const
-{
-   const FiniteElement *face_el = GetTypicalFaceElement();
-   MFEM_VERIFY(face_el, "A typical face finite element does not exist!");
-
-   if (face_el->GetRangeType() == FiniteElement::SCALAR)
-   {
-      return GetVDim();
-   }
-   return GetVDim()*std::max(GetMesh()->SpaceDimension()-1,
-                             face_el->GetRangeDim());
-}
-
 int FiniteElementSpace::GetCurlDim() const
 {
    const FiniteElement *fe = GetTypicalFE();

@@ -345,27 +345,6 @@ void GridFunction::ComputeFlux(BilinearFormIntegrator &blfi,
    }
 }
 
-int GridFunction::VectorDim() const
-{
-   const FiniteElement *fe = fes->GetTypicalFE();
-   if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
-   {
-      return fes->GetVDim();
-   }
-   return fes->GetVDim()*std::max(fes->GetMesh()->SpaceDimension(),
-                                  fe->GetRangeDim());
-}
-
-int GridFunction::CurlDim() const
-{
-   const FiniteElement *fe = fes->GetTypicalFE();
-   if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
-   {
-      return 2 * fes->GetMesh()->SpaceDimension() - 3;
-   }
-   return fes->GetVDim()*fe->GetCurlDim();
-}
-
 void GridFunction::GetTrueDofs(Vector &tv) const
 {
    const SparseMatrix *R = fes->GetRestrictionMatrix();
@@ -3104,8 +3083,9 @@ void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff,
 void GridFunction::ProjectBdrCoefficient(VectorCoefficient &vcoeff,
                                          const Array<int> &attr)
 {
-   MFEM_VERIFY(BdrVectorDim() == vcoeff.GetVDim(),
-               "vcoeff vdim != BdrVectorDim()");
+   // TODO
+   // MFEM_VERIFY(BdrVectorDim() == vcoeff.GetVDim(),
+   //             "vcoeff vdim != BdrVectorDim()");
    Array<int> values_counter;
    AccumulateAndCountBdrValues(NULL, &vcoeff, attr, values_counter);
    ComputeMeans(ARITHMETIC, values_counter);
@@ -3154,9 +3134,10 @@ void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[],
 void GridFunction::ProjectBdrCoefficientNormal(
    VectorCoefficient &vcoeff, const Array<int> &bdr_attr)
 {
-   MFEM_VERIFY(BdrVectorDim() == 1, "BdrVectorDim() != 1");
-   MFEM_VERIFY(vcoeff.GetVDim() == fes->GetMesh()->SpaceDimension(),
-               "vcoeff vdim != space dim");
+   // TODO
+   // MFEM_VERIFY(BdrVectorDim() == 1, "BdrVectorDim() != 1");
+   // MFEM_VERIFY(vcoeff.GetVDim() == fes->GetMesh()->SpaceDimension(),
+   //             "vcoeff vdim != space dim");
 #if 0
    // implementation for the case when the face dofs are integrals of the
    // normal component.
@@ -3230,8 +3211,9 @@ void GridFunction::ProjectBdrCoefficientNormal(
 void GridFunction::ProjectBdrCoefficientTangent(
    VectorCoefficient &vcoeff, const Array<int> &bdr_attr)
 {
-   MFEM_VERIFY(BdrVectorDim()+1 == vcoeff.GetVDim(),
-               "vcoeff vdim != BdrVectorDim()+1");
+   // TODO
+   // MFEM_VERIFY(BdrVectorDim()+1 == vcoeff.GetVDim(),
+   //             "vcoeff vdim != BdrVectorDim()+1");
    Array<int> values_counter;
    AccumulateAndCountBdrTangentValues(vcoeff, bdr_attr, values_counter);
    ComputeMeans(ARITHMETIC, values_counter);

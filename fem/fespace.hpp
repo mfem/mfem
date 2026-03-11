@@ -843,14 +843,6 @@ public:
        */
    int GetVectorDim() const;
 
-   /// Return the total dimension of a vector on boundary
-   /** @see GetVectorDim() */
-   int GetBdrVectorDim() const;
-
-   /// Return the total dimension of a vector on a face
-   /** @see GetVectorDim() */
-   int GetFaceVectorDim() const;
-
    /// Return the dimension of the curl of a GridFunction defined on this space.
    /** Note: This assumes a space dimension of 2 or 3 only. */
    int GetCurlDim() const;

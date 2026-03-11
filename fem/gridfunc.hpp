@@ -154,14 +154,6 @@ public:
        underlying #fes */
    int VectorDim() const { return fes->GetVectorDim(); }
 
-   /** @brief Shortcut for calling FiniteElementSpace::GetBdrVectorDim() on the
-       underlying #fes */
-   int BdrVectorDim() const { return fes->GetBdrVectorDim(); }
-
-   /** @brief Shortcut for calling FiniteElementSpace::GetFaceVectorDim() on
-       the underlying #fes */
-   int FaceVectorDim() const { return fes->GetFaceVectorDim(); }
-
    /** @brief Shortcut for calling FiniteElementSpace::GetCurlDim() on the
        underlying #fes */
    int CurlDim() const { return fes->GetCurlDim(); }
