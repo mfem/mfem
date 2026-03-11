@@ -4890,7 +4890,7 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
    if (print_interfaces && Dim > 1)
    {
       // We need face neighbor elements to determine if shared faces in parallel
-      // are on material interfaces.2
+      // are on material interfaces.
       const_cast<ParMesh*>(this)->ExchangeFaceNbrData();
 
       // Choose a boundary attribute that does not collide with existing ones
