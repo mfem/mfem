@@ -1273,7 +1273,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
       case 0:
       case 1:
          ir = new IntegrationRule(1);
-         ir->AddTriMidPoint(0, 5.00000000000000000000e-01);
+         ir->AddTriMidPoint(0, 0.5);
          ir->SetOrder(1);
          TriangleIntRules[0] =
             TriangleIntRules[1] = ir;
@@ -1281,7 +1281,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
 
       case 2:
          ir = new IntegrationRule(3);
-         ir->AddTriPoints3(0, 1.66666666666666740682e-01, 1.66666666666666657415e-01);
+         ir->AddTriPoints3(0, 1./6., 1./6.);
          ir->SetOrder(2);
          TriangleIntRules[2] = ir;
          return ir;
@@ -1298,7 +1298,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
 
       case 5:
          ir = new IntegrationRule(7);
-         ir->AddTriMidPoint(0, 1.12500000000000002776e-01);
+         ir->AddTriMidPoint(0, 0.1125);
          ir->AddTriPoints3(1, 1.01286507323456342888e-01, 6.29695902724135697648e-02);
          ir->AddTriPoints3(4, 4.70142064105115109474e-01, 6.61970763942530959767e-02);
          ir->SetOrder(5);
@@ -1701,7 +1701,7 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
       case 0:
       case 1:
          ir = new IntegrationRule(1);
-         ir->AddTetMidPoint(0, 1.66666666666666657415e-01);
+         ir->AddTetMidPoint(0, 1./6.);
          ir->SetOrder(1);
          TetrahedronIntRules[0] =
             TetrahedronIntRules[1] = ir;
@@ -1709,7 +1709,7 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
 
       case 2:
          ir = new IntegrationRule(4);
-         ir->AddTetPoints4(0, 1.38196601125010531952e-01, 4.16666666666666643537e-02);
+         ir->AddTetPoints4(0, 1.38196601125010531952e-01, 1./24.);
          ir->SetOrder(2);
          TetrahedronIntRules[2] = ir;
          return ir;
