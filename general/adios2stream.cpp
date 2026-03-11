@@ -24,6 +24,7 @@
 #include "../fem/gridfunc.hpp"
 
 #include <algorithm>
+#include <string_view>
 
 namespace mfem
 {
@@ -86,11 +87,11 @@ adios2::Attribute<T> SafeDefineAttribute(adios2::IO io,
                                 separator );
 }
 
-bool SetBoolParameter(const std::string key,
+bool SetBoolParameter(std::string_view key,
                       const std::map<std::string, std::string>& parameters,
                       const bool default_value) noexcept
 {
-   auto it = parameters.find(key);
+   auto it = parameters.find(std::string(key));
    if (it != parameters.end())
    {
       std::string value = it->second;

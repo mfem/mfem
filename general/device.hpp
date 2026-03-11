@@ -17,6 +17,7 @@
 #include "mem_manager.hpp"
 
 #include <string>
+#include <string_view>
 
 namespace mfem
 {
@@ -154,10 +155,10 @@ private:
    static Device& Get() { return device_singleton; }
 
    /// Setup switcher based on configuration settings.
-   void Setup(const std::string &device_option, const int device_id);
+   void Setup(std::string_view device_option, const int device_id);
 
    /// Configure host/device MemoryType/MemoryClass.
-   void UpdateMemoryTypeAndClass(const std::string &device_option);
+   void UpdateMemoryTypeAndClass(std::string_view device_option);
 
    /// Configure the backends to include @a b.
    void MarkBackend(Backend::Id b) { backends |= b; }

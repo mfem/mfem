@@ -12,6 +12,7 @@
 #include "mesh_headers.hpp"
 #include <unordered_set>
 #include <cstdarg>
+#include <string_view>
 
 #ifdef MFEM_USE_NETCDF
 #include "netcdf.h"
@@ -141,18 +142,18 @@ public:
    /// @brief Writes the mesh to an ExodusII file.
    /// @param fpath The path to the file.
    /// @param flags NC_CLOBBER will overwrite existing file.
-   void PrintExodusII(const std::string &fpath, int flags = NC_CLOBBER);
+   void PrintExodusII(std::string_view fpath, int flags = NC_CLOBBER);
 
    /// @brief Static method for writing a mesh to an ExodusII file.
    /// @param mesh The mesh to write to the file.
    /// @param fpath The path to the file.
    /// @param flags NetCDF file flags.
-   static void PrintExodusII(Mesh & mesh, const std::string &fpath,
+   static void PrintExodusII(Mesh & mesh, std::string_view fpath,
                              int flags = NC_CLOBBER);
 
 protected:
    /// @brief Closes any open file and creates a NetCDF file using selected flags.
-   void OpenExodusII(const std::string &fpath, int flags);
+   void OpenExodusII(std::string_view fpath, int flags);
 
    /// @brief Closes any open file.
    void CloseExodusII();
@@ -368,7 +369,7 @@ void ExodusIIWriter::WriteExodusIIMeshInformation()
    WriteNodeSets();
 }
 
-void ExodusIIWriter::PrintExodusII(const std::string &fpath, int flags)
+void ExodusIIWriter::PrintExodusII(std::string_view fpath, int flags)
 {
    OpenExodusII(fpath, flags);
 
@@ -380,7 +381,7 @@ void ExodusIIWriter::PrintExodusII(const std::string &fpath, int flags)
    mfem::out << "Mesh successfully written to Exodus II file" << std::endl;
 }
 
-void ExodusIIWriter::PrintExodusII(Mesh &mesh, const std::string &fpath,
+void ExodusIIWriter::PrintExodusII(Mesh &mesh, std::string_view fpath,
                                    int flags)
 {
    ExodusIIWriter writer(mesh);
@@ -388,11 +389,12 @@ void ExodusIIWriter::PrintExodusII(Mesh &mesh, const std::string &fpath,
    writer.PrintExodusII(fpath, flags);
 }
 
-void ExodusIIWriter::OpenExodusII(const std::string &fpath, int flags)
+void ExodusIIWriter::OpenExodusII(std::string_view fpath, int flags)
 {
    CloseExodusII();  // Close any open files.
 
-   CHECK_NETCDF_CODE(nc_create(fpath.c_str(), flags, &exid));
+   const std::string fpath_str(fpath);
+   CHECK_NETCDF_CODE(nc_create(fpath_str.c_str(), flags, &exid));
 
    file_open = true;
 }

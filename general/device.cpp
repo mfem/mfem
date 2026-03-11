@@ -354,7 +354,7 @@ void Device::Print(std::ostream &os)
    os << std::endl;
 }
 
-void Device::UpdateMemoryTypeAndClass(const std::string &device_option)
+void Device::UpdateMemoryTypeAndClass(std::string_view device_option)
 {
    const bool debug = Device::Allows(Backend::DEBUG_DEVICE);
    const bool device = Device::Allows(Backend::DEVICE_MASK);
@@ -530,10 +530,10 @@ static void OccaDeviceSetup(const int dev)
 #endif
 }
 
-static void CeedDeviceSetup(const std::string &ceed_spec)
+static void CeedDeviceSetup(std::string_view ceed_spec)
 {
 #ifdef MFEM_USE_CEED
-   CeedInit(ceed_spec.c_str(), &internal::ceed);
+   CeedInit(std::string(ceed_spec_str).c_str(), &internal::ceed);
    const char *ceed_backend;
    CeedGetResource(internal::ceed, &ceed_backend);
    if (ceed_spec != ceed_backend && ceed_spec != "/cpu/self" &&
@@ -551,7 +551,7 @@ static void CeedDeviceSetup(const std::string &ceed_spec)
 #endif
 }
 
-void Device::Setup(const std::string &device_option, const int device_id)
+void Device::Setup(std::string_view device_option, const int device_id)
 {
    MFEM_VERIFY(ngpu == -1, "the mfem::Device is already configured!");
 
@@ -602,16 +602,16 @@ void Device::Setup(const std::string &device_option, const int device_id)
          Allows(Backend::CEED_CPU) ? "/cpu/self" :
          (Allows(Backend::CEED_CUDA) ? "/gpu/cuda/gen" :
           (Allows(Backend::CEED_HIP) ? "/gpu/hip/gen" : ""));
-      std::string::size_type beg = device_option.find(ceed_spec_search), end;
-      if (beg == std::string::npos)
+      auto beg = device_option.find(ceed_spec_search), end = std::string_view::npos;
+      if (beg == std::string_view::npos)
       {
          CeedDeviceSetup(ceed_spec_default);
       }
       else
       {
          end = device_option.find(':', beg + 1);
-         end = (end != std::string::npos) ? end : device_option.size();
-         CeedDeviceSetup(device_option.substr(beg + 1, end - beg - 1).c_str());
+         end = (end != std::string_view::npos) ? end : device_option.size();
+         CeedDeviceSetup(device_option.substr(beg + 1, end - beg - 1));
       }
    }
    if (Allows(Backend::DEBUG_DEVICE)) { ngpu = 1; }

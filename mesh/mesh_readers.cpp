@@ -22,6 +22,7 @@
 #include <vector>
 #include <algorithm>
 #include <map>
+#include <string_view>
 
 #ifdef MFEM_USE_NETCDF
 #include "netcdf.h"
@@ -3487,7 +3488,7 @@ class NetCDFReader
 {
 public:
    NetCDFReader() = delete;
-   NetCDFReader(const std::string fname);
+   NetCDFReader(std::string_view fname);
 
    ~NetCDFReader();
 
@@ -3533,9 +3534,10 @@ private:
 };
 
 
-NetCDFReader::NetCDFReader(const std::string fname)
+NetCDFReader::NetCDFReader(std::string_view fname)
 {
-   _netcdf_status = nc_open(fname.c_str(), NC_NOWRITE, &_netcdf_descriptor);
+   _netcdf_status = nc_open(std::string(fname).c_str(), NC_NOWRITE,
+                            &_netcdf_descriptor);
    CheckForNetCDFError();
 
    // NB: add byte for '\0' terminating char.

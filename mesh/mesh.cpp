@@ -4942,8 +4942,9 @@ void Mesh::SetMeshGen()
 }
 
 void Mesh::Loader(std::istream &input, int generate_edges,
-                  std::string parse_tag)
+                  std::string_view parse_tag)
 {
+   std::string parse_tag_str(parse_tag);
    int curved = 0, read_gf = 1;
    bool finalize_topo = true;
 
@@ -4978,9 +4979,9 @@ void Mesh::Loader(std::istream &input, int generate_edges,
       // section in the stream. A user provided parse tag can also be provided
       // via the arguments. For example, if this is called from parallel mesh
       // object, it can indicate to read until parallel mesh section begins.
-      if (mfem_version >= 12 && parse_tag.empty())
+      if (mfem_version >= 12 && parse_tag_str.empty())
       {
-         parse_tag = "mfem_mesh_end";
+         parse_tag_str = "mfem_mesh_end";
       }
       ReadMFEMMesh(input, mfem_version, curved);
    }
@@ -5155,7 +5156,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
          // we find "mfem_mesh_end" which is required by mfem v1.2 format.
          if (line == "mfem_mesh_end") { break; }
       }
-      while (line != parse_tag);
+      while (line != parse_tag_str);
    }
    else if (mfem_nc_version >= 10)
    {

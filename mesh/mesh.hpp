@@ -30,6 +30,7 @@
 #include <iostream>
 #include <array>
 #include <map>
+#include <string_view>
 #include <vector>
 #include <memory>
 
@@ -627,7 +628,7 @@ protected:
    void FinalizeCheck();
 
    void Loader(std::istream &input, int generate_edges = 0,
-               std::string parse_tag = "");
+               std::string_view parse_tag = "");
 
    /** @brief If NURBS mesh, write NURBS format. If NCMesh, write mfem v1.1
        format. If section_delimiter is empty, write mfem v1.0 format. Otherwise,

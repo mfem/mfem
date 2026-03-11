@@ -83,11 +83,11 @@ void VTKHDF::EnsureSteps()
    H5Gclose(pd_offsets);
 }
 
-hid_t VTKHDF::EnsureDataset(hid_t f, const std::string &name, hid_t type,
+hid_t VTKHDF::EnsureDataset(hid_t f, std::string_view name, hid_t type,
                             Dims &dims)
 {
-   const char *name_c = name.c_str();
-
+   const std::string name_str(name);
+   const char *name_c = name_str.c_str();
    const herr_t status = H5LTfind_dataset(f, name_c);
    Barrier();
 
@@ -148,11 +148,12 @@ hid_t VTKHDF::EnsureDataset(hid_t f, const std::string &name, hid_t type,
    }
 }
 
-void VTKHDF::EnsureGroup(const std::string &name, hid_t &group)
+void VTKHDF::EnsureGroup(std::string_view name, hid_t &group)
 {
    if (group != H5I_INVALID_HID) { return; }
 
-   const char *cname = name.c_str();
+   const std::string name_str(name);
+   const char *cname = name_str.c_str();
    const htri_t found = H5Lexists(vtk, cname, H5P_DEFAULT);
    Barrier();
 
@@ -171,7 +172,7 @@ void VTKHDF::EnsureGroup(const std::string &name, hid_t &group)
 }
 
 template <typename T>
-void VTKHDF::AppendParData(hid_t f, const std::string &name, hsize_t locsize,
+void VTKHDF::AppendParData(hid_t f, std::string_view name, hsize_t locsize,
                            hsize_t offset, Dims globsize, T *data)
 {
    const int ndims = globsize.ndims;
@@ -231,7 +232,7 @@ VTKHDF::OffsetTotal VTKHDF::GetOffsetAndTotal(const size_t loc) const
 
 template <typename T>
 VTKHDF::OffsetTotal VTKHDF::AppendParVector(
-   hid_t f, const std::string &name, const std::vector<T> &data, Dims dims)
+   hid_t f, std::string_view name, const std::vector<T> &data, Dims dims)
 {
    const size_t locsize = data.size();
    const auto offset_total = GetOffsetAndTotal(locsize);
@@ -264,9 +265,10 @@ void VTKHDF::Barrier() const
 }
 
 template <typename T>
-std::vector<T> VTKHDF::ReadDataset(const std::string &name) const
+std::vector<T> VTKHDF::ReadDataset(std::string_view name) const
 {
-   const char *cname = name.c_str();
+   const std::string name_str(name);
+   const char *cname = name_str.c_str();
    int ndims;
    H5LTget_dataset_ndims(vtk, cname, &ndims);
    Dims dims(ndims);
@@ -277,10 +279,10 @@ std::vector<T> VTKHDF::ReadDataset(const std::string &name) const
 }
 
 template <typename T>
-T VTKHDF::ReadValue(const std::string &name, hsize_t index) const
+T VTKHDF::ReadValue(std::string_view name, hsize_t index) const
 {
-   const char *cname = name.c_str();
-
+   const std::string name_str(name);
+   const char *cname = name_str.c_str();
    int ndims;
    H5LTget_dataset_ndims(vtk, cname, &ndims);
 
@@ -306,9 +308,11 @@ T VTKHDF::ReadValue(const std::string &name, hsize_t index) const
    return value;
 }
 
-void VTKHDF::TruncateDataset(const std::string &name, hsize_t size)
+void VTKHDF::TruncateDataset(std::string_view name, hsize_t size)
 {
-   const hid_t d = H5Dopen2(vtk, name.c_str(), H5P_DEFAULT);
+   const std::string name_str(name);
+   const char *cname = name_str.c_str();
+   const hid_t d = H5Dopen2(vtk, cname, H5P_DEFAULT);
    const hid_t dspace = H5Dget_space(d);
    const int ndims = H5Sget_simple_extent_ndims(dspace);
    Dims dims(ndims);
@@ -417,8 +421,10 @@ void VTKHDF::Truncate(const real_t t)
    }
 }
 
-void VTKHDF::CreateFile(const std::string &filename, Restart restart)
+void VTKHDF::CreateFile(std::string_view filename, Restart restart)
 {
+   const std::string filename_str(filename);
+   const char *filename_c = filename_str.c_str();
    if (restart.enabled)
    {
       bool file_exists = mpi_rank == 0 && [&filename]()
@@ -440,7 +446,7 @@ void VTKHDF::CreateFile(const std::string &filename, Restart restart)
          // open in ParaView (otherwise writes will fail).
          H5Pset_file_locking(fapl, false, true);
 
-         file = H5Fopen(filename.c_str(), H5F_ACC_RDWR, fapl);
+         file = H5Fopen(filename_c, H5F_ACC_RDWR, fapl);
          vtk = H5Gopen(file, "VTKHDF", H5P_DEFAULT);
          Truncate(restart.time);
          return;
@@ -450,9 +456,9 @@ void VTKHDF::CreateFile(const std::string &filename, Restart restart)
    // At this point, either restart is disabled, or file doesn't exist
 
    // Delete the file if it exists
-   std::remove(filename.c_str());
+   std::remove(filename_c);
    // Create the new file
-   file = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl);
+   file = H5Fcreate(filename_c, H5F_ACC_TRUNC, H5P_DEFAULT, fapl);
    // Setup 'VTKHDF' group
    SetupVTKHDF();
 }
@@ -498,7 +504,7 @@ VTKHDF::VTKHDF(const std::string &filename, MPI_Comm comm_, Restart restart)
 #endif
 
 template <typename T>
-void VTKHDF::AppendValue(const hid_t f, const std::string &name, T value)
+void VTKHDF::AppendValue(const hid_t f, std::string_view name, T value)
 {
    const hsize_t locsize = (mpi_rank == 0) ? 1 : 0;
    AppendParData(f, name, locsize, 0, Dims({1}), &value);

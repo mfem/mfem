@@ -32,7 +32,7 @@ namespace mfem
 {
 
 // static method
-int DataCollection::create_directory(const std::string &dir_name,
+int DataCollection::create_directory(std::string_view dir_name,
                                      const Mesh *mesh, int myid)
 {
    // create directories recursively
@@ -46,7 +46,7 @@ int DataCollection::create_directory(const std::string &dir_name,
    do
    {
       pos = dir_name.find(path_delim, pos+1);
-      std::string subdir = dir_name.substr(0, pos);
+      std::string subdir(dir_name.substr(0, pos));
 
 #ifndef MFEM_USE_MPI
       err_flag = mkdir(subdir.c_str(), 0777);
@@ -259,7 +259,7 @@ std::string DataCollection::GetMeshFileName() const
    return GetFieldFileName(GetMeshShortFileName());
 }
 
-std::string DataCollection::GetFieldFileName(const std::string &field_name)
+std::string DataCollection::GetFieldFileName(std::string_view field_name)
 const
 {
    std::string dir_name = prefix_path + name;
@@ -267,7 +267,7 @@ const
    {
       dir_name += "_" + to_padded_string(cycle, pad_digits_cycle);
    }
-   std::string file_name = dir_name + "/" + field_name;
+   std::string file_name = dir_name + "/" + std::string(field_name);
    if (appendRankToFileName)
    {
       file_name += "." + to_padded_string(myid, pad_digits_rank);
@@ -555,9 +555,9 @@ void VisItDataCollection::Load(int cycle_)
    }
 }
 
-void VisItDataCollection::LoadVisItRootFile(const std::string& root_name)
+void VisItDataCollection::LoadVisItRootFile(std::string_view root_name)
 {
-   std::ifstream root_file(root_name);
+   std::ifstream root_file{std::string(root_name)};
    std::stringstream buffer;
    buffer << root_file.rdbuf();
    if (!buffer)
@@ -710,10 +710,10 @@ std::string VisItDataCollection::GetVisItRootString()
    return picojson::value(top).serialize(true);
 }
 
-void VisItDataCollection::ParseVisItRootString(const std::string& json)
+void VisItDataCollection::ParseVisItRootString(std::string_view json)
 {
    picojson::value top, dsets, main, mesh, fields;
-   std::string parse_err = picojson::parse(top, json);
+   std::string parse_err = picojson::parse(top, std::string(json));
    if (!parse_err.empty())
    {
       error = READ_ERROR;
@@ -873,15 +873,15 @@ std::string ParaViewDataCollection::GeneratePVDFileName()
 }
 
 std::string ParaViewDataCollection::GeneratePVTUFileName(
-   const std::string &prefix)
+   std::string_view prefix)
 {
-   return prefix + ".pvtu";
+   return std::string(prefix) + ".pvtu";
 }
 
 std::string ParaViewDataCollection::GenerateVTUFileName(
-   const std::string &prefix, int rank)
+   std::string_view prefix, int rank)
 {
-   return prefix + to_padded_string(rank, pad_digits_rank) + ".vtu";
+   return std::string(prefix) + to_padded_string(rank, pad_digits_rank) + ".vtu";
 }
 
 void ParaViewDataCollection::Save()
@@ -1109,7 +1109,7 @@ void ParaViewDataCollection::WritePVTUHeader(std::ostream &os)
 }
 
 void ParaViewDataCollection::WritePVTUFooter(std::ostream &os,
-                                             const std::string &vtu_prefix)
+                                             std::string_view vtu_prefix)
 {
    for (int ii=0; ii<num_procs; ii++)
    {
@@ -1212,7 +1212,7 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &os, int ref_,
 }
 
 void ParaViewDataCollection::SaveCoeffFieldVTU(std::ostream &os, int ref_,
-                                               const std::string &name, Coefficient &coeff)
+                                               std::string_view name, Coefficient &coeff)
 {
    RefinedGeometry *RefG;
    real_t val;
@@ -1269,7 +1269,7 @@ void ParaViewDataCollection::SaveCoeffFieldVTU(std::ostream &os, int ref_,
 }
 
 void ParaViewDataCollection::SaveVCoeffFieldVTU(std::ostream &os, int ref_,
-                                                const std::string &name, VectorCoefficient &coeff)
+                                                std::string_view name, VectorCoefficient &coeff)
 {
    RefinedGeometry *RefG;
    Vector val;

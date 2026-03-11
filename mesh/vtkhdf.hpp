@@ -20,6 +20,7 @@
 
 #include <hdf5.h>
 #include <cstdint>
+#include <string_view>
 #include <unordered_map>
 
 #if defined(MFEM_USE_MPI) && defined(H5_HAVE_PARALLEL)
@@ -190,13 +191,13 @@ private:
    /// If the dataset does not exist, it will initially have size @a dims.
    /// Otherwise, it will be resized to append data of size @a dims, and @a dims
    /// will be set to the new total size.
-   hid_t EnsureDataset(hid_t f, const std::string &name, hid_t type, Dims &dims);
+   hid_t EnsureDataset(hid_t f, std::string_view name, hid_t type, Dims &dims);
 
    /// @brief Ensure the named group is open, creating it if needed. Set @a
    /// group to the ID.
    ///
    /// If @a group has already been opened, do nothing.
-   void EnsureGroup(const std::string &name, hid_t &group);
+   void EnsureGroup(std::string_view name, hid_t &group);
 
    /// Appends data in parallel to the dataset named @a name in @a f.
    ///
@@ -205,7 +206,7 @@ private:
    /// locsize is equal to the zeroth dimension of @a globsize. The data is
    /// written in row-major order.
    template <typename T>
-   void AppendParData(hid_t f, const std::string &name, hsize_t locsize,
+   void AppendParData(hid_t f, std::string_view name, hsize_t locsize,
                       hsize_t offset, Dims globsize, T *data);
 
    /// Appends data in parallel to the dataset named @a name in @a f.
@@ -219,12 +220,12 @@ private:
    ///
    /// The row offset and total are returned.
    template <typename T>
-   OffsetTotal AppendParVector(hid_t f, const std::string &name,
+   OffsetTotal AppendParVector(hid_t f, std::string_view name,
                                const std::vector<T> &data, Dims dims = Dims(1));
 
    /// @brief Append a single value to the dataset named @a name in @a f.
    template <typename T>
-   void AppendValue(const hid_t f, const std::string &name, T value);
+   void AppendValue(const hid_t f, std::string_view name, T value);
 
    /// Gather the value 'loc' from all MPI ranks and return the resulting array.
    template <typename T>
@@ -257,18 +258,18 @@ private:
    void SetupVTKHDF();
 
    /// Create a new file (deleting existing file if needed).
-   void CreateFile(const std::string &filename, Restart restart);
+   void CreateFile(std::string_view filename, Restart restart);
 
    /// Read the entire named dataset.
    template <typename T>
-   std::vector<T> ReadDataset(const std::string &name) const;
+   std::vector<T> ReadDataset(std::string_view name) const;
 
    /// Read a single value from the named dataset.
    template <typename T>
-   T ReadValue(const std::string &name, hsize_t index) const;
+   T ReadValue(std::string_view name, hsize_t index) const;
 
    /// Truncate the named dataset after position size in the first dimension.
-   void TruncateDataset(const std::string &name, hsize_t size);
+   void TruncateDataset(std::string_view name, hsize_t size);
 
    /// Truncate all datasets on and after time @a t.
    void Truncate(const real_t t);

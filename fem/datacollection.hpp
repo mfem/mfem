@@ -19,6 +19,7 @@
 #include "pgridfunc.hpp"
 #endif
 #include <string>
+#include <string_view>
 #include <map>
 #include <fstream>
 
@@ -223,7 +224,7 @@ protected:
 
    std::string GetMeshShortFileName() const;
    std::string GetMeshFileName() const;
-   std::string GetFieldFileName(const std::string &field_name) const;
+   std::string GetFieldFileName(std::string_view field_name) const;
 
    /// Save one field to disk, assuming the collection directory exists
    void SaveOneField(const FieldMapIterator &it);
@@ -232,7 +233,7 @@ protected:
    void SaveOneQField(const QFieldMapIterator &it);
 
    // Helper method
-   static int create_directory(const std::string &dir_name,
+   static int create_directory(std::string_view dir_name,
                                const Mesh *mesh, int myid);
 
 public:
@@ -437,12 +438,12 @@ protected:
    /// Prepare the VisIt root file in JSON format for the current collection
    std::string GetVisItRootString();
    /// Read in a VisIt root file in JSON format
-   void ParseVisItRootString(const std::string& json);
+   void ParseVisItRootString(std::string_view json);
 
    void UpdateMeshInfo();
 
    // Helper functions for Load()
-   void LoadVisItRootFile(const std::string& root_name);
+   void LoadVisItRootFile(std::string_view root_name);
    void LoadMesh();
    void LoadFields();
 
@@ -596,21 +597,21 @@ private:
    VCoeffFieldMap vcoeff_field_map;
 protected:
    void WritePVTUHeader(std::ostream &out);
-   void WritePVTUFooter(std::ostream &out, const std::string &vtu_prefix);
+   void WritePVTUFooter(std::ostream &out, std::string_view vtu_prefix);
    void SaveDataVTU(std::ostream &out, int ref);
    void SaveGFieldVTU(std::ostream& out, int ref_, const FieldMapIterator& it);
-   void SaveCoeffFieldVTU(std::ostream& out, int ref_, const std::string &name,
+   void SaveCoeffFieldVTU(std::ostream& out, int ref_, std::string_view name,
                           Coefficient &coeff);
-   void SaveVCoeffFieldVTU(std::ostream& out, int ref_, const std::string &name,
+   void SaveVCoeffFieldVTU(std::ostream& out, int ref_, std::string_view name,
                            VectorCoefficient& coeff);
    const char *GetDataFormatString() const;
    const char *GetDataTypeString() const;
 
    std::string GenerateCollectionPath();
-   std::string GenerateVTUFileName(const std::string &prefix, int rank);
+   std::string GenerateVTUFileName(std::string_view prefix, int rank);
    std::string GenerateVTUPath();
    std::string GeneratePVDFileName();
-   std::string GeneratePVTUFileName(const std::string &prefix);
+   std::string GeneratePVTUFileName(std::string_view prefix);
    std::string GeneratePVTUPath();
 
 public:
