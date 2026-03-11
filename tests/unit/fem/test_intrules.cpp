@@ -278,16 +278,15 @@ TEST_CASE("Simplex integration rules", "[SimplexRules]")
 // specific to the positive-weight rules: weight positivity, stability,
 // and interior point placement.
 
-TEST_CASE("Positive-weight simplex rule positivity", "[PositiveWeightRules]")
+TEST_CASE("Simplex rule positivity", "[PositiveWeightRules]")
 {
-   IntegrationRules pw_rules(0, Quadrature1D::GaussLegendre,
-                             SimplexQuadrature::PositiveWeights);
+   IntegrationRules rules;
 
-   SECTION("triangle rules have all positive weights for orders 0-20")
+   SECTION("triangle rules have all positive weights for orders 0-25")
    {
-      for (int order = 0; order <= 20; order++)
+      for (int order = 0; order <= 25; order++)
       {
-         const IntegrationRule &ir = pw_rules.Get(Geometry::TRIANGLE, order);
+         const IntegrationRule &ir = rules.Get(Geometry::TRIANGLE, order);
          for (int i = 0; i < ir.GetNPoints(); i++)
          {
             INFO("order=" << order << ", point=" << i);
@@ -301,7 +300,7 @@ TEST_CASE("Positive-weight simplex rule positivity", "[PositiveWeightRules]")
       for (int order = 0; order <= 20; order++)
       {
          const IntegrationRule &ir =
-            pw_rules.Get(Geometry::TETRAHEDRON, order);
+            rules.Get(Geometry::TETRAHEDRON, order);
          for (int i = 0; i < ir.GetNPoints(); i++)
          {
             INFO("order=" << order << ", point=" << i);

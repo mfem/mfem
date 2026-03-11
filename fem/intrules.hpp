@@ -450,14 +450,6 @@ public:
    static int CheckOpen(int type);
 };
 
-/// Simplex (triangle/tetrahedron) quadrature rule selection.
-enum class SimplexQuadrature
-{
-   Legacy           = 0,  ///< Original MFEM rules (may have negative weights)
-   PositiveWeights  = 1,  ///< Positive-weight interior-point rules for simplices
-   Default          = PositiveWeights
-};
-
 /// Container class for integration rules
 class IntegrationRules
 {
@@ -466,9 +458,6 @@ private:
    /// Determines the type of numerical quadrature used for
    /// segment, square, and cube geometries
    const int quad_type;
-
-   /// Determines which simplex (triangle/tetrahedron) quadrature rules to use
-   const SimplexQuadrature simplex_type;
 
    int own_rules, refined;
 
@@ -515,17 +504,11 @@ private:
    IntegrationRule *PrismIntegrationRule(int Order);
    IntegrationRule *CubeIntegrationRule(int Order);
 
-   /// Witherden-Vincent triangle quadrature rules (all-positive weights)
-   IntegrationRule *TrianglePositiveIntegrationRule(int Order);
-   /// Witherden-Vincent and Chuluunbaatar tetrahedron quadrature rules
-   IntegrationRule *TetrahedronPositiveIntegrationRule(int Order);
-
 public:
    /// Sets initial sizes for the integration rule arrays, but rules
    /// are defined the first time they are requested with the Get method.
    explicit IntegrationRules(int ref = 0,
-                             int type = Quadrature1D::GaussLegendre,
-                             SimplexQuadrature stype = SimplexQuadrature::Default);
+                             int type = Quadrature1D::GaussLegendre);
 
    /// Returns an integration rule for given GeomType and Order.
    const IntegrationRule &Get(int GeomType, int Order);
