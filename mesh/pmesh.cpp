@@ -4895,7 +4895,7 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
 
       // Choose a boundary attribute that does not collide with existing ones
       // (including those introduced by print_shared). We do that by taking the
-      // global maximum: interface_attr = global_max_atte + NRanks + 1.
+      // global maximum: interface_attr = global_max_attr + NRanks + 1.
       int local_max = bdr_attributes.Size() ? bdr_attributes.Max() : 0;
       int global_max = 0;
       MPI_Allreduce(&local_max, &global_max, 1, MPI_INT, MPI_MAX, MyComm);
