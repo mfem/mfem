@@ -347,8 +347,34 @@ void RK4Solver::AdjointStep(Vector &lambda, real_t &t, real_t &dt)
    add(xn, h, k, y4); // y4
 
 
+   //set the initial values for a1,a2,a3,a4
+   a1.Set(h/6.0,lambda);
+   a2.Set(h/3.0,lambda);
+   a3.Set(h/3.0,lambda);
+   a4.Set(h/6.0,lambda);
+   
+   //stage 4
+   f->SetTime(tn+h);
+   f->JacobianMultTranspose(y4, a4, k);
+   lambda.Add(1.0,k);
+   a3.Add(h,k);
 
+   //stage 3
+   f->SetTime(tn+h/2.0);
+   f->JacobianMultTranspose(y3, a3, k);
+   lambda.Add(1.0,k);
+   a2.Add(h/2.0,k);
 
+   //stage 2
+   f->SetTime(tn+h/2.0);
+   f->JacobianMultTranspose(y2, a2, k);
+   lambda.Add(1.0,k);
+   a1.Add(h/2.0,k);
+
+   //stage 1
+   f->SetTime(tn);
+   f->JacobianMultTranspose(xn, a1, k);
+   lambda.Add(1.0,k);
 }
 
 ExplicitRKSolver::ExplicitRKSolver(int s_, const real_t *a_, const real_t *b_,

@@ -392,6 +392,7 @@ private:
    std::vector<StepRecord> hist;
 
    Vector k1,y2,y3,y4; //RK4 stages
+   Vector a1,a2,a3,a4; //adjoint vectors
 
 public:
    void Init(TimeDependentOperator &f_) override;
@@ -428,6 +429,11 @@ public:
          y2.SetSize(n, mem_type);
          y3.SetSize(n, mem_type);
          y4.SetSize(n, mem_type);
+
+         a1.SetSize(n, mem_type);
+         a2.SetSize(n, mem_type);
+         a3.SetSize(n, mem_type);
+         a4.SetSize(n, mem_type);
       }
    }
 
