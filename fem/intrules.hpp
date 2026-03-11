@@ -125,18 +125,6 @@ private:
    void AddTriPoints3b(const int off, const real_t b, const real_t weight)
    { AddTriPoints3(off, (1. - b)/2., b, weight); }
 
-   void AddTriPoints3R(const int off, const real_t a, const real_t b,
-                       const real_t c, const real_t weight)
-   {
-      IntPoint(off + 0).Set2w(a, b, weight);
-      IntPoint(off + 1).Set2w(c, a, weight);
-      IntPoint(off + 2).Set2w(b, c, weight);
-   }
-
-   void AddTriPoints3R(const int off, const real_t a, const real_t b,
-                       const real_t weight)
-   { AddTriPoints3R(off, a, b, 1. - a - b, weight); }
-
    void AddTriPoints6(const int off, const real_t a, const real_t b,
                       const real_t c, const real_t weight)
    {
@@ -183,14 +171,6 @@ private:
       AddTetPoints3(off + 1, a, 1. - 3.*a, weight);
    }
 
-   // given b, add the permutations of (a,a,a,b), where 3*a + b = 1
-   void AddTetPoints4b(const int off, const real_t b, const real_t weight)
-   {
-      const real_t a = (1. - b)/3.;
-      IntPoint(off).Set(a, a, a, weight);
-      AddTetPoints3(off + 1, a, b, weight);
-   }
-
    // add the permutations of (a,a,b,b), 2*(a + b) = 1
    void AddTetPoints6(const int off, const real_t a, const real_t weight)
    {
@@ -207,16 +187,6 @@ private:
       AddTetPoints3(off,     a, bc, weight);
       AddTetPoints3(off + 3, a, cb, weight);
       AddTetPoints6(off + 6, a, bc, cb, weight);
-   }
-
-   // given (b,c), add the permutations of (a,a,b,c), 2*a + b + c = 1
-   void AddTetPoints12bc(const int off, const real_t b, const real_t c,
-                         const real_t weight)
-   {
-      const real_t a = (1. - b - c)/2.;
-      AddTetPoints3(off,     a, b, weight);
-      AddTetPoints3(off + 3, a, c, weight);
-      AddTetPoints6(off + 6, a, b, c, weight);
    }
 
    // add all 24 permutations of (a,b,c,d) where a+b+c+d = 1, all distinct
