@@ -1262,23 +1262,6 @@ IntegrationRule *IntegrationRules::SegmentIntegrationRule(int Order)
    return ir;
 }
 
-// Integration rules for unit square
-IntegrationRule *IntegrationRules::SquareIntegrationRule(int Order)
-{
-   int RealOrder = GetSegmentRealOrder(Order);
-   // Order is one of {RealOrder-1,RealOrder}
-   if (!HaveIntRule(SegmentIntRules, RealOrder))
-   {
-      SegmentIntegrationRule(RealOrder);
-   }
-   AllocIntRule(SquareIntRules, RealOrder); // RealOrder >= Order
-   SquareIntRules[RealOrder-1] =
-      SquareIntRules[RealOrder] =
-         new IntegrationRule(*SegmentIntRules[RealOrder],
-                             *SegmentIntRules[RealOrder]);
-   return SquareIntRules[Order];
-}
-
 // Triangle rules from Witherden & Vincent [1].
 // Orbit data from PyFR (https://pyfr.org), licensed under CC-BY 4.0.
 IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
@@ -1688,6 +1671,23 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
          TriangleIntRules[i] = ir;
          return ir;
    }
+}
+
+// Integration rules for unit square
+IntegrationRule *IntegrationRules::SquareIntegrationRule(int Order)
+{
+   int RealOrder = GetSegmentRealOrder(Order);
+   // Order is one of {RealOrder-1,RealOrder}
+   if (!HaveIntRule(SegmentIntRules, RealOrder))
+   {
+      SegmentIntegrationRule(RealOrder);
+   }
+   AllocIntRule(SquareIntRules, RealOrder); // RealOrder >= Order
+   SquareIntRules[RealOrder-1] =
+      SquareIntRules[RealOrder] =
+         new IntegrationRule(*SegmentIntRules[RealOrder],
+                             *SegmentIntRules[RealOrder]);
+   return SquareIntRules[Order];
 }
 
 // Tet rules d=0-13 from Witherden & Vincent [1], orbit data from PyFR, CC-BY 4.0.
