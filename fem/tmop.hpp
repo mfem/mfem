@@ -1611,6 +1611,11 @@ protected:
    const TargetType target_type;
    bool uses_phys_coords; // see UsesPhysicalCoordinates()
 
+   /// Cached copy of GeomToPerfGeomJac used on device.
+   mutable DenseMatrix current_W;
+   /// Geometry type of current W matrix (used for cache invalidation).
+   mutable Geometry::Type current_W_type = Geometry::INVALID;
+
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
 #endif

@@ -119,11 +119,13 @@ protected:
    } DEV;
 
    /// Use GSLIB for communication and interpolation
-   virtual void InterpolateH1(const GridFunction &field_in, Vector &field_out);
+   virtual void InterpolateH1(const GridFunction &field_in, Vector &field_out,
+                              const int field_out_ordering);
    /// Uses GSLIB Crystal Router for communication followed by MFEM's
    /// interpolation functions
    virtual void InterpolateGeneral(const GridFunction &field_in,
-                                   Vector &field_out);
+                                   Vector &field_out,
+                                   const int field_out_ordering);
 
    /// Since GSLIB is designed to work with quads/hexes, we split every
    /// triangle/tet/prism/pyramid element into quads/hexes.
@@ -140,7 +142,7 @@ protected:
    virtual void SetupSplitMeshesAndIntegrationRules(const int order);
 
    /// Get GridFunction value at the points expected by GSLIB.
-   virtual void GetNodalValues(const GridFunction *gf_in, Vector &node_vals);
+   virtual void GetNodalValues(const GridFunction *gf_in, Vector &node_vals) const;
 
    /// Map {r,s,t} coordinates from [-1,1] to [0,1] for MFEM. For simplices,
    /// find the original element number (that was split into micro quads/hexes)
@@ -182,7 +184,7 @@ protected:
        These positions can be ordered byNodes: (XXX...,YYY...,ZZZ) or
        byVDim: (XYZ,XYZ,....XYZ) specified by @a point_pos_ordering. */
    void FindPointsOnDevice(const Vector &point_pos,
-                           int point_pos_ordering = Ordering::byNODES);
+                           const int point_pos_ordering = Ordering::byNODES);
 
    /** Interpolation of field values at prescribed reference space positions.
        @param[in] field_in_evec E-vector of grid function to be interpolated.
@@ -253,10 +255,15 @@ public:
        #gsl_dist        Distance between the sought and the found point
                         in physical space. */
    void FindPoints(const Vector &point_pos,
-                   int point_pos_ordering = Ordering::byNODES);
+                   const int point_pos_ordering = Ordering::byNODES);
+   /// Convenience function when point positions are in a ParticleVector
+   void FindPoints(const ParticleVector &point_pos)
+   {
+      FindPoints(point_pos, point_pos.GetOrdering());
+   }
    /// Setup FindPoints and search positions
    void FindPoints(Mesh &m, const Vector &point_pos,
-                   int point_pos_ordering = Ordering::byNODES,
+                   const int point_pos_ordering = Ordering::byNODES,
                    const double bb_t = 0.1, const double newt_tol = 1.0e-12,
                    const int npt_max = 256);
 
@@ -266,20 +273,28 @@ public:
                               \p field_in is in H1 and in the same space as the
                               mesh that was given to Setup().
        @param[out] field_out  Interpolated values. For points that are not found
-                              the value is set to #default_interp_value. */
+                              the value is set to #default_interp_value.
+                              The output ordering is determined from field_in.*/
    virtual void Interpolate(const GridFunction &field_in, Vector &field_out);
+   /// Interpolation of field values, with output ordering specification.
+   virtual void Interpolate(const GridFunction &field_in, Vector &field_out,
+                            const int field_out_ordering);
    /** Search positions and interpolate. The ordering (byNODES or byVDIM) of
        the output values in \p field_out corresponds to the ordering used
        in the input GridFunction \p field_in. */
    void Interpolate(const Vector &point_pos, const GridFunction &field_in,
                     Vector &field_out,
-                    int point_pos_ordering = Ordering::byNODES);
+                    const int point_pos_ordering = Ordering::byNODES);
+   /// Search positions and interpolate with given point and output ordering.
+   void Interpolate(const Vector &point_pos, const GridFunction &field_in,
+                    Vector &field_out, const int point_pos_ordering,
+                    const int field_out_ordering);
    /** Setup FindPoints, search positions and interpolate. The ordering (byNODES
        or byVDIM) of the output values in \p field_out corresponds to the
        ordering used in the input GridFunction \p field_in. */
    void Interpolate(Mesh &m, const Vector &point_pos,
                     const GridFunction &field_in, Vector &field_out,
-                    int point_pos_ordering = Ordering::byNODES);
+                    const int point_pos_ordering = Ordering::byNODES);
 
    /// Average type to be used for L2 functions in-case a point is located at
    /// an element boundary where the function might be multi-valued.
@@ -376,7 +391,7 @@ public:
    /// The size of the returned vector is (nel x nverts x dim), where nel is the
    /// number of elements (after splitting for simplcies), nverts is number of
    /// vertices (4 in 2D, 8 in 3D), and dim is the spatial dimension.
-   void GetAxisAlignedBoundingBoxes(Vector &aabb);
+   void GetAxisAlignedBoundingBoxes(Vector &aabb) const;
 
    /// Return the oriented bounding boxes (OBB) computed during \ref Setup.
    /// Each OBB is represented using the inverse transformation (A^{-1}) and
@@ -386,7 +401,8 @@ public:
    /// size (dim x dim x nel), and the OBB centers are returned in \p obbC,
    /// a vector of size (nel x dim). The vertices of the OBBs are returned in
    /// \p obbV, a vector of size (nel x nverts x dim) .
-   void GetOrientedBoundingBoxes(DenseTensor &obbA, Vector &obbC, Vector &obbV);
+   void GetOrientedBoundingBoxes(DenseTensor &obbA, Vector &obbC,
+                                 Vector &obbV) const;
 };
 
 /** \brief OversetFindPointsGSLIB enables use of findpts for arbitrary number of
@@ -446,13 +462,14 @@ public:
                                        byNodes: (XXX...,YYY...,ZZZ) or
                                        byVDim: (XYZ,XYZ,....XYZ) */
    void FindPoints(const Vector &point_pos,
-                   Array<unsigned int> &point_id,
-                   int point_pos_ordering = Ordering::byNODES);
+                   const Array<unsigned int> &point_id,
+                   const int point_pos_ordering = Ordering::byNODES);
 
    /** Search positions and interpolate */
-   void Interpolate(const Vector &point_pos, Array<unsigned int> &point_id,
+   void Interpolate(const Vector &point_pos,
+                    const Array<unsigned int> &point_id,
                     const GridFunction &field_in, Vector &field_out,
-                    int point_pos_ordering = Ordering::byNODES);
+                    const int point_pos_ordering = Ordering::byNODES);
    using FindPointsGSLIB::Interpolate;
 };
 

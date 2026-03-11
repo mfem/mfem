@@ -27,6 +27,8 @@ protected:
    bool own_qspace; ///< Does this own the associated QuadratureSpaceBase?
    int vdim; ///< Vector dimension.
 
+   void ProjectGridFunctionFallback(const GridFunction &gf);
+
 public:
    /// Default constructor, results in an empty vector.
    QuadratureFunction() : qspace(nullptr), own_qspace(false), vdim(0)
@@ -270,10 +272,7 @@ inline void QuadratureFunction::GetValues(
    const int s_offset = qspace->Offset(idx);
    const int sl_size = qspace->Offset(idx + 1) - s_offset;
    // Make the values matrix memory an alias of the quadrature function memory
-   Memory<real_t> &values_mem = values.GetMemory();
-   values_mem.Delete();
-   values_mem.MakeAlias(GetMemory(), vdim*s_offset, vdim*sl_size);
-   values.SetSize(vdim, sl_size);
+   values.MakeRef(GetMemory(), vdim*s_offset, vdim, sl_size);
 }
 
 inline void QuadratureFunction::GetValues(

@@ -19,7 +19,8 @@ namespace mfem
 
 struct TMOP_PA_Metric_080 : TMOP_PA_Metric_2D
 {
-   MFEM_HOST_DEVICE real_t EvalW(const real_t (&Jpt)[4], const real_t *w) override
+   MFEM_HOST_DEVICE real_t EvalW(const real_t (&Jpt)[4],
+                                 const real_t *w) const final
    {
       kernels::InvariantsEvaluator2D ie(Args().J(Jpt));
       const real_t eval_w_02 = 0.5 * ie.Get_I1b() - 1.0;
@@ -28,8 +29,8 @@ struct TMOP_PA_Metric_080 : TMOP_PA_Metric_2D
       return w[0] * eval_w_02 + w[1] * eval_w_77;
    };
 
-   MFEM_HOST_DEVICE
-   void EvalP(const real_t (&Jpt)[4], const real_t *w, real_t (&P)[4]) override
+   MFEM_HOST_DEVICE void EvalP(const real_t (&Jpt)[4],
+                               const real_t *w, real_t (&P)[4]) const final
    {
       MFEM_CONTRACT_VAR(w);
       // w0 P_2 + w1 P_77
@@ -41,14 +42,12 @@ struct TMOP_PA_Metric_080 : TMOP_PA_Metric_2D
       kernels::Add(2, 2, w[1] * 0.5 * (1.0 - 1.0 / (I2 * I2)), ie.Get_dI2(), P);
    }
 
-   MFEM_HOST_DEVICE
-   void AssembleH(const int qx,
-                  const int qy,
-                  const int e,
-                  const real_t weight,
-                  const real_t (&Jpt)[4],
-                  const real_t *w,
-                  const DeviceTensor<7> &H) override
+   MFEM_HOST_DEVICE void AssembleH(const int qx, const int qy,
+                                   const int e,
+                                   const real_t weight,
+                                   const real_t (&Jpt)[4],
+                                   const real_t *w,
+                                   const DeviceTensor<7> &H) const final
    {
       // w0 H_2 + w1 H_77
       real_t ddI1[4], ddI1b[4], dI2[4], dI2b[4], ddI2[4];

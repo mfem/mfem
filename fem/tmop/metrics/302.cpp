@@ -20,7 +20,7 @@ namespace mfem
 struct TMOP_PA_Metric_302 : TMOP_PA_Metric_3D
 {
    MFEM_HOST_DEVICE real_t EvalW(const real_t (&Jpt)[DIM * DIM],
-                                 const real_t *w) override
+                                 const real_t *w) const final
    {
       real_t B[9];
       MFEM_CONTRACT_VAR(w);
@@ -29,8 +29,8 @@ struct TMOP_PA_Metric_302 : TMOP_PA_Metric_3D
       return ie.Get_I1b() * ie.Get_I2b() / 9. - 1.;
    }
 
-   MFEM_HOST_DEVICE
-   void EvalP(const real_t (&Jpt)[9], const real_t *w, real_t (&P)[9]) override
+   MFEM_HOST_DEVICE void EvalP(const real_t (&Jpt)[9],
+                               const real_t *w, real_t (&P)[9]) const final
    {
       MFEM_CONTRACT_VAR(w);
       // (I1b/9)*dI2b + (I2b/9)*dI1b
@@ -43,17 +43,14 @@ struct TMOP_PA_Metric_302 : TMOP_PA_Metric_3D
       kernels::Add(3, 3, alpha, ie.Get_dI2b(), beta, ie.Get_dI1b(), P);
    }
 
-   MFEM_HOST_DEVICE
-   void AssembleH(const int qx,
-                  const int qy,
-                  const int qz,
-                  const int e,
-                  const real_t weight,
-                  real_t *Jrt,
-                  real_t *Jpr,
-                  const real_t (&Jpt)[9],
-                  const real_t *w,
-                  const DeviceTensor<8> &H) const override
+   MFEM_HOST_DEVICE void AssembleH(const int qx, const int qy, const int qz,
+                                   const int e,
+                                   const real_t weight,
+                                   real_t *Jrt,
+                                   real_t *Jpr,
+                                   const real_t (&Jpt)[9],
+                                   const real_t *w,
+                                   const DeviceTensor<8> &H) const final
    {
       MFEM_CONTRACT_VAR(Jrt);
       MFEM_CONTRACT_VAR(Jpr);
