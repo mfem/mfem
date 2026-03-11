@@ -16,7 +16,8 @@ namespace mfem
 
 void ParticleVector::GrowSize(int min_num_vectors, bool keep_data)
 {
-   const int nsize = std::max(min_num_vectors*vdim, 2 * data.Capacity());
+   const bigint nsize = std::max(bigint(min_num_vectors)*vdim,
+                                 2 * data.Capacity());
    Memory<real_t> p(nsize, data.GetMemoryType());
    if (keep_data) { p.CopyFrom(data, size); }
    p.UseDevice(data.UseDevice());

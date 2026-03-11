@@ -213,7 +213,7 @@ void test_derefine_L2_element(int order, Element::Type el_type, int basis_type)
    double eps = 1.e-3;
 
    // limit to max 20 dofs for efficiency in 3D
-   int test_ndofs = std::min(coarse_soln_v.Size(), 20);
+   int test_ndofs = std::min(coarse_soln_v.Size(), bigint(20));
    for (int i = 0; i < test_ndofs; i++)
    {
       for (int f = -1; f <= 1; f += 2)

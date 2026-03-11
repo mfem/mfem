@@ -24,6 +24,18 @@
 #include <map>
 #include <sstream>
 #include <iomanip>
+#if defined(__linux__)
+#include <sys/resource.h>  // getrusage
+#include <unistd.h>        // sysconf
+#include <cstdio>          // fopen, fscanf, fclose
+#elif defined(__APPLE__)
+#include <mach/mach_init.h>  // mach_task_self
+#include <mach/task.h>       // task_info
+#elif defined(_WIN32)
+#include <windows.h>
+#include <psapi.h>  // GetProcessMemoryInfo
+#pragma comment(lib, "psapi.lib")
+#endif
 
 namespace mfem
 {
@@ -716,6 +728,52 @@ void Device::DeviceMem(size_t *free, size_t *total)
       *total = 0;
    }
 #endif
+}
+
+// static method
+void Device::HostMem(size_t *rss_p, size_t *maxrss_p)
+{
+   size_t rss = 0, maxrss = 0;
+
+#if defined(__linux__)
+   struct rusage usage;
+   if (getrusage(RUSAGE_SELF, &usage)) { usage.ru_maxrss = 0; }
+   maxrss = 1024*usage.ru_maxrss;
+   static const long PAGE_SIZE = sysconf(_SC_PAGESIZE);
+   FILE *statm = fopen("/proc/self/statm", "r");
+   if (statm)
+   {
+      // Values are measured in pages, see Table 1-3 at
+      // https://www.kernel.org/doc/Documentation/filesystems/proc.txt
+      long rss_pages;
+      if (fscanf(statm, "%*d %ld", &rss_pages) == EOF) { rss_pages = 0; }
+      fclose(statm);
+      rss = rss_pages * PAGE_SIZE;
+   }
+#elif defined(__APPLE__)
+   struct mach_task_basic_info info;
+   mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
+   if (task_info(mach_task_self(), MACH_TASK_BASIC_INFO,
+                 (task_info_t)&info, &count) == KERN_SUCCESS)
+   {
+      rss = info.resident_size;
+      maxrss = info.resident_size_max;
+   }
+#elif defined(_WIN32)
+   PROCESS_MEMORY_COUNTERS mem_counters;
+   if (GetProcessMemoryInfo(GetCurrentProcess(),
+                            &mem_counters,
+                            sizeof(mem_counters)))
+   {
+      // Reference:
+      // https://learn.microsoft.com/en-us/windows/win32/api/psapi/ns-psapi-process_memory_counters
+      rss = mem_counters.WorkingSetSize;
+      maxrss = mem_counters.PeakWorkingSetSize;
+   }
+#endif
+
+   *rss_p = rss;
+   *maxrss_p = maxrss;
 }
 
 std::string Device::GetUUID(const int device_id)
