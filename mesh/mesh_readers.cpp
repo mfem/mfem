@@ -1328,11 +1328,12 @@ void Mesh::ReadNURBSMesh(std::istream &input, int &curved, int &read_gf,
    if (NURBSext->HavePatches())
    {
       NURBSFECollection  *fec = new NURBSFECollection(NURBSext->GetOrder());
-      FiniteElementSpace *fes = new FiniteElementSpace(this, fec, Dim,
+      const int vdim = NURBSext->GetPatchSpaceDimension();
+      FiniteElementSpace *fes = new FiniteElementSpace(this, fec, vdim,
                                                        Ordering::byVDIM);
       Nodes = new GridFunction(fes);
       Nodes->MakeOwner(fec);
-      NURBSext->SetCoordsFromPatches(*Nodes);
+      NURBSext->SetCoordsFromPatches(*Nodes, vdim);
       own_nodes = 1;
       read_gf = 0;
       spaceDim = Nodes->VectorDim();
