@@ -36,23 +36,8 @@ struct DerivativeActionEnzyme
       create_fieldbases(inputs, input_to_infd, ctx.infds, ctx.ir, input_bases);
       create_fieldbases(outputs, output_to_outfd, ctx.outfds, ctx.ir, output_bases);
 
-      constexpr_for<0, ninputs>([&](auto i)
-      {
-         using fop_t =
-            std::remove_cv_t<std::remove_reference_t<decltype(get<i>(inputs))>>;
-         auto it = ctx.in_qlayouts.find(std::type_index(typeid(fop_t)));
-         if (it != ctx.in_qlayouts.end()) { input_qlayouts[i] = it->second; }
-         else                             { input_qlayouts[i].clear(); }
-      });
-
-      constexpr_for<0, noutputs>([&](auto i)
-      {
-         using fop_t =
-            std::remove_cv_t<std::remove_reference_t<decltype(get<i>(outputs))>>;
-         auto it = ctx.out_qlayouts.find(std::type_index(typeid(fop_t)));
-         if (it != ctx.out_qlayouts.end()) { output_qlayouts[i] = it->second; }
-         else                              { output_qlayouts[i].clear(); }
-      });
+      create_qlayouts(inputs, ctx.in_qlayouts, input_qlayouts);
+      create_qlayouts(outputs, ctx.out_qlayouts, output_qlayouts);
 
       const int nqp = ctx.ir.GetNPoints();
       gnqp = nqp * ctx.nentities;
