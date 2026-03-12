@@ -571,9 +571,23 @@ public:
    void Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc, MemoryType dloc,
              bool own, bool valid_host = false, bool valid_device = true);
 
-   MFEM_ENZYME_FN_LIKE_DYNCAST T *Write(bool on_device, int size);
-   MFEM_ENZYME_FN_LIKE_DYNCAST T *ReadWrite(bool on_device, int size);
-   MFEM_ENZYME_FN_LIKE_DYNCAST const T *Read(bool on_device, int size) const;
+   MFEM_ENZYME_FN_LIKE_DYNCAST T *Write(bool on_device, int offset, int size);
+   MFEM_ENZYME_FN_LIKE_DYNCAST T *ReadWrite(bool on_device, int offset,
+                                            int size);
+   MFEM_ENZYME_FN_LIKE_DYNCAST const T *Read(bool on_device, int offset,
+                                             int size) const;
+   MFEM_ENZYME_FN_LIKE_DYNCAST T *Write(bool on_device, int size)
+   {
+      return Write(on_device, 0, size);
+   }
+   MFEM_ENZYME_FN_LIKE_DYNCAST T *ReadWrite(bool on_device, int size)
+   {
+      return ReadWrite(on_device, 0, size);
+   }
+   MFEM_ENZYME_FN_LIKE_DYNCAST const T *Read(bool on_device, int size) const
+   {
+      return Read(on_device, 0, size);
+   }
 
    MFEM_ENZYME_FN_LIKE_DYNCAST T *Write(bool on_device = true)
    {
@@ -1218,9 +1232,10 @@ template <class T> void Memory<T>::EnsureRegistered() const
    }
 }
 
-template <class T> T *Memory<T>::Write(bool on_device, int size)
+template <class T> T *Memory<T>::Write(bool on_device, int offset, int size)
 {
-   MFEM_MEM_OP_DEBUG_USE(5, h_ptr, h_ptr + size, " Write Request");
+   MFEM_MEM_OP_DEBUG_USE(5, h_ptr + offset, h_ptr + offset + size,
+                         " Write Request");
    MFEM_MEM_OP_BENCH_SCOPE(2, true);
    auto &inst = MemoryManager::instance();
    if (on_device)
@@ -1229,17 +1244,17 @@ template <class T> T *Memory<T>::Write(bool on_device, int size)
    }
    if (inst.valid_segment(segment))
    {
-      return reinterpret_cast<T *>(inst.write(segment, offset_ * sizeof(T),
-                                              size * sizeof(T), on_device));
+      return reinterpret_cast<T *>(inst.write(
+                                      segment, (offset + offset_) * sizeof(T), size * sizeof(T), on_device));
    }
-   MFEM_MEM_OP_DEBUG_USE(5, h_ptr, h_ptr + size, " Write");
-   return h_ptr;
+   MFEM_MEM_OP_DEBUG_USE(5, h_ptr + offset, h_ptr + offset + size, " Write");
+   return h_ptr + offset;
 }
 
-
-template <class T> T *Memory<T>::ReadWrite(bool on_device, int size)
+template <class T> T *Memory<T>::ReadWrite(bool on_device, int offset, int size)
 {
-   MFEM_MEM_OP_DEBUG_USE(6, h_ptr, h_ptr + size, " ReadWrite Request");
+   MFEM_MEM_OP_DEBUG_USE(6, h_ptr + offset, h_ptr + offset + size,
+                         " ReadWrite Request");
    MFEM_MEM_OP_BENCH_SCOPE(0, true);
    auto &inst = MemoryManager::instance();
    if (on_device)
@@ -1249,15 +1264,18 @@ template <class T> T *Memory<T>::ReadWrite(bool on_device, int size)
    if (inst.valid_segment(segment))
    {
       return reinterpret_cast<T *>(inst.read_write(
-                                      segment, offset_ * sizeof(T), size * sizeof(T), on_device));
+                                      segment, (offset_ + offset) * sizeof(T), size * sizeof(T), on_device));
    }
-   MFEM_MEM_OP_DEBUG_USE(6, h_ptr, h_ptr + size, " ReadWrite");
-   return h_ptr;
+   MFEM_MEM_OP_DEBUG_USE(6, h_ptr + offset, h_ptr + offset + size,
+                         " ReadWrite");
+   return h_ptr + offset;
 }
 
-template <class T> const T *Memory<T>::Read(bool on_device, int size) const
+template <class T>
+const T *Memory<T>::Read(bool on_device, int offset, int size) const
 {
-   MFEM_MEM_OP_DEBUG_USE(4, h_ptr, h_ptr + size, " Read Request");
+   MFEM_MEM_OP_DEBUG_USE(4, h_ptr + offset, h_ptr + offset + size,
+                         " Read Request");
    MFEM_MEM_OP_BENCH_SCOPE(1, true);
    auto &inst = MemoryManager::instance();
    if (on_device)
@@ -1266,11 +1284,11 @@ template <class T> const T *Memory<T>::Read(bool on_device, int size) const
    }
    if (inst.valid_segment(segment))
    {
-      return reinterpret_cast<const T *>(
-                inst.read(segment, offset_ * sizeof(T), size * sizeof(T), on_device));
+      return reinterpret_cast<const T *>(inst.read(
+                                            segment, (offset_ + offset) * sizeof(T), size * sizeof(T), on_device));
    }
-   MFEM_MEM_OP_DEBUG_USE(4, h_ptr, h_ptr + size, " Read");
-   return h_ptr;
+   MFEM_MEM_OP_DEBUG_USE(4, h_ptr + offset, h_ptr + offset + size, " Read");
+   return h_ptr + offset;
 }
 
 template <class T> T *Memory<T>::Write(MemoryClass mc, int size)

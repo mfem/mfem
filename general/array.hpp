@@ -219,10 +219,13 @@ public:
    void push_back(const T &el) { Append(el); }
 
    /// Append another array to this array, resize if necessary.
-   inline int Append(const T *els, int nels);
+   inline int Append(const Array<T> &els);
 
    /// Append another array to this array, resize if necessary.
-   inline int Append(const Array<T> &els) { return Append(els, els.Size()); }
+   inline int Append(const T *els, int nels)
+   {
+      return Append(Array(const_cast<T *>(els), nels));
+   }
 
    /// Prepend an 'el' to the array, resize if necessary.
    inline int Prepend(const T &el);
@@ -890,6 +893,10 @@ inline void Array<T>::SetSize(int nsize, const T &initval)
       {
          GrowSize(nsize);
       }
+#ifdef MFEM_USE_NEW_MEM_MANAGER
+      // resizing could have a fragmented memory validity
+      data.Write(false, size, nsize - size);
+#endif
       for (int i = size; i < nsize; i++)
       {
          data[i] = initval;
@@ -957,17 +964,27 @@ template <class T>
 inline int Array<T>::Append(const T &el)
 {
    SetSize(size+1);
+#ifdef MFEM_USE_NEW_MEM_MANAGER
+   // resizing could have a fragmented memory validity
+   data.Write(false, size - 1, 1)[0] = el;
+#else
    data[size-1] = el;
+#endif
    return size;
 }
 
 template <class T>
-inline int Array<T>::Append(const T *els, int nels)
+inline int Array<T>::Append(const Array& els)
 {
    const int old_size = size;
 
-   SetSize(size + nels);
-   for (int i = 0; i < nels; i++)
+   SetSize(size + els.Size());
+#ifdef MFEM_USE_NEW_MEM_MANAGER
+   // resizing could have a fragmented memory validity
+   data.Write(false, old_size, els.Size());
+#endif
+   // TODO: use data.CopyFrom(els) with the proper offset
+   for (int i = 0; i < els.Size(); i++)
    {
       data[old_size+i] = els[i];
    }
@@ -977,8 +994,12 @@ inline int Array<T>::Append(const T *els, int nels)
 template <class T>
 inline int Array<T>::Prepend(const T &el)
 {
-   SetSize(size+1);
-   for (int i = size-1; i > 0; i--)
+   SetSize(size + 1);
+#ifdef MFEM_USE_NEW_MEM_MANAGER
+   // resizing could have a fragmented memory validity
+   data.Write(false, size);
+#endif
+   for (int i = size - 1; i > 0; i--)
    {
       data[i] = data[i-1];
    }
