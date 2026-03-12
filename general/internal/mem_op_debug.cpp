@@ -1,3 +1,4 @@
+#include "../forall.hpp"
 #include "../mem_manager.hpp"
 
 namespace mfem
