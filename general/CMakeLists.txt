@@ -24,6 +24,8 @@ list(APPEND SRCS
   occa.cpp
   optparser.cpp
   osockstream.cpp
+  resource_manager.cpp
+  internal/mem_op_debug.cpp
   sets.cpp
   socketstream.cpp
   stable3d.cpp

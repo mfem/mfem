@@ -28,6 +28,56 @@
 #endif
 #endif
 
+#include <chrono>
+#include <vector>
+
+#include <map>
+
+#define USE_NEW_MEM_MANAGER
+// #define MFEM_ENABLE_MEM_BENCH
+// #define MFEM_ENABLE_MEM_OP_DEBUG
+
+#ifdef MFEM_ENABLE_MEM_OP_DEBUG
+#define MFEM_MEM_OP_DEBUG_ADD(OP_IDX, START, STOP, MSG)                        \
+   mfem::internal::mem_op_debug_add(OP_IDX, START, STOP) << MSG << std::endl
+#define MFEM_MEM_OP_DEBUG_REMOVE(OP_IDX, START, MSG)                           \
+   mfem::internal::mem_op_debug_remove(OP_IDX, START) << MSG << std::endl
+#define MFEM_MEM_OP_DEBUG_REMOVE2(OP_IDX, START, STOP, MSG)                    \
+   mfem::internal::mem_op_debug_remove(OP_IDX, START, STOP) << MSG << std::endl
+
+#define MFEM_MEM_OP_DEBUG(OP_IDX, MSG)                                         \
+   mfem::internal::mem_op_debug(OP_IDX, 0) << MSG << std::endl
+
+#define MFEM_MEM_OP_DEBUG_SYNC_ALIAS(OP_IDX, ASTART, BSTART, NBYTES)           \
+   mfem::internal::mem_op_debug_sync_alias(OP_IDX, ASTART, BSTART, NBYTES)
+#define MFEM_MEM_OP_DEBUG_USE(OP_IDX, START, STOP, MSG)                        \
+   mfem::internal::mem_op_debug_use(OP_IDX, START, STOP) << MSG << std::endl
+
+#define MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(OP_IDX, SRC_START, DST_START, NBYTES, \
+                                         MSG, src_loc, dst_loc)                \
+   mfem::internal::mem_op_debug_batch_mem_copy(OP_IDX, SRC_START, DST_START,   \
+                                               NBYTES, src_loc, dst_loc)       \
+      << MSG << std::endl
+#else
+#define MFEM_MEM_OP_DEBUG_ADD(OP_IDX, START, STOP, MSG)
+#define MFEM_MEM_OP_DEBUG_REMOVE(OP_IDX, START, MSG)
+#define MFEM_MEM_OP_DEBUG_REMOVE2(OP_IDX, START, STOP, MSG)
+#define MFEM_MEM_OP_DEBUG(OP_IDX, MSG)
+#define MFEM_MEM_OP_DEBUG_SYNC_ALIAS(OP_IDX, ASTART, BSTART, NBYTES)
+#define MFEM_MEM_OP_DEBUG_USE(OP_IDX, START, STOP, MSG)
+#define MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(OP_IDX, SRC_START, DST_START, NBYTES, \
+                                         MSG, src_loc, dst_loc)
+#endif
+
+#ifdef MFEM_ENABLE_MEM_BENCH
+#define MFEM_MEM_OP_BENCH_SCOPE_NAME(base, counter)base##counter
+#define MFEM_MEM_OP_BENCH_SCOPE(OP_IDX, DO_SYNC)                               \
+   mfem::internal::ScopeBench MFEM_MEM_OP_BENCH_SCOPE_NAME(                    \
+      mem_op_bench_scope_var, __LINE__)(OP_IDX, DO_SYNC)
+#else
+#define MFEM_MEM_OP_BENCH_SCOPE(OP_IDX, DO_SYNC)
+#endif
+
 namespace mfem
 {
 
@@ -62,6 +112,90 @@ enum class MemoryType
                         parameters to request the use of the default host or
                         device MemoryType. */
 };
+
+#ifdef MFEM_ENABLE_MEM_BENCH
+namespace internal
+{
+struct BenchTimer
+{
+   std::chrono::high_resolution_clock timer;
+   std::vector<size_t> call_counts;
+   std::vector<std::chrono::high_resolution_clock::time_point> start_points;
+   std::vector<std::chrono::high_resolution_clock::duration> durations;
+   std::chrono::high_resolution_clock::time_point glob_start;
+
+   static BenchTimer &Instance();
+
+   BenchTimer();
+   ~BenchTimer();
+};
+
+struct ScopeBench
+{
+   size_t idx;
+   bool sync;
+   ScopeBench(size_t i, bool do_sync);
+   ~ScopeBench();
+};
+} // namespace internal
+#endif
+
+#ifdef MFEM_ENABLE_MEM_OP_DEBUG
+namespace internal
+{
+struct mem_op_tracker
+{
+   using map_type = std::map<std::pair<const void *, const void *>,
+         std::pair<size_t, size_t>>;
+   map_type allocations;
+
+   using key_type = typename map_type::iterator;
+
+   size_t counter = 0;
+
+   std::pair<size_t, size_t> add_allocation(const void *start,
+                                            const void *stop);
+
+   key_type find_containing(const void *start, const void *stop);
+
+   key_type find_containing(const void *start);
+
+   key_type find_allocation(const void *start, const void *stop);
+
+   key_type find_allocation(const void *start);
+
+   std::pair<size_t, size_t> remove_allocation(const void *start,
+                                               const void *stop);
+
+   std::pair<size_t, size_t> remove_allocation(const void *start);
+
+   static mem_op_tracker &instance()
+   {
+      static mem_op_tracker res;
+      return res;
+   }
+};
+
+std::ostream &mem_op_debug(size_t idx, int);
+
+size_t mem_op_debug(size_t idx);
+std::ostream &mem_op_debug_add(size_t op_idx, const void *start,
+                               const void *stop);
+std::ostream &mem_op_debug_remove(size_t op_idx, const void *start);
+std::ostream &mem_op_debug_remove(size_t op_idx, const void *start,
+                                  const void *stop);
+std::ostream &mem_op_debug_sync_alias(size_t op_idx, const void *astart,
+                                      const void *bstart, size_t nbytes);
+std::ostream &mem_op_debug_use(size_t op_idx, const void *start);
+std::ostream &mem_op_debug_use(size_t op_idx, const void *start,
+                               const void *stop);
+std::ostream &mem_op_debug_batch_mem_copy(size_t op_idx, const void *src_start,
+                                          const void *dst_start, size_t nbytes,
+                                          MemoryType src_loc,
+                                          MemoryType dst_loc);
+std::string mem_op_debug_copy_type(MemoryType src_loc, MemoryType dst_loc);
+} // namespace internal
+#endif
 
 /// Static casts to 'int' and sizes of some useful memory types.
 constexpr int MemoryTypeSize = static_cast<int>(MemoryType::SIZE);
@@ -112,7 +246,7 @@ bool MemoryClassContainsType(MemoryClass mc, MemoryType mt);
 
     HOST < HOST_32 < HOST_64 < DEVICE < MANAGED. */
 MemoryClass operator*(MemoryClass mc1, MemoryClass mc2);
-
+#ifndef USE_NEW_MEM_MANAGER
 /// Class used by MFEM to store pointers to host and/or device memory.
 /** The template class parameter, T, must be a plain-old-data (POD) type.
 
@@ -505,6 +639,7 @@ public:
        validated by a previous call to Read() or ReadWrite() with
        the same MemoryClass. */
    inline T *Write(MemoryClass mc, int size);
+   T *HostWrite() { return Write(MemoryClass::HOST, Capacity()); }
 
    /// Copy the host/device pointer validity flags from @a other to @a *this.
    /** This method synchronizes the pointer validity flags of two Memory objects
@@ -797,6 +932,8 @@ public:
    MemoryManager();
    ~MemoryManager();
 
+   static MemoryManager& instance();
+
    /// Initialize the memory manager.
    void Init();
 
@@ -893,7 +1030,7 @@ public:
                                                       };
 #endif
 };
-
+#endif
 
 #ifdef MFEM_USE_MPI
 
@@ -934,7 +1071,7 @@ inline bool HypreUsingGPU()
 
 #endif // MFEM_USE_MPI
 
-
+#ifndef USE_NEW_MEM_MANAGER
 // Inline methods
 
 template <typename T>
@@ -963,6 +1100,11 @@ inline void Memory<T>::New(int size)
    h_mt = MemoryManager::GetHostMemoryType();
    h_ptr = (h_mt == MemoryType::HOST) ? NewHOST(size) :
            (T*)MemoryManager::New_(nullptr, size*sizeof(T), h_mt, flags);
+   if (h_mt == MemoryType::HOST)
+   {
+      MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
+                            "alloc " << (int)h_mt << ", " << false);
+   }
 }
 
 template <typename T>
@@ -974,6 +1116,11 @@ inline void Memory<T>::New(int size, MemoryType mt)
    if (mt_host) { flags = OWNS_HOST | VALID_HOST; }
    h_mt = IsHostMemory(mt) ? mt : MemoryManager::GetDualMemoryType(mt);
    T *h_tmp = (h_mt == MemoryType::HOST) ? NewHOST(size) : nullptr;
+   if (h_mt == MemoryType::HOST)
+   {
+      MFEM_MEM_OP_DEBUG_ADD(0, h_tmp, h_tmp + size,
+                            "alloc " << (int)h_mt << ", " << false);
+   }
    h_ptr = (mt_host) ? h_tmp : (T*)MemoryManager::New_(h_tmp, bytes, mt, flags);
 }
 
@@ -984,6 +1131,11 @@ inline void Memory<T>::New(int size, MemoryType host_mt, MemoryType device_mt)
    const size_t bytes = size*sizeof(T);
    this->h_mt = host_mt;
    T *h_tmp = (host_mt == MemoryType::HOST) ? NewHOST(size) : nullptr;
+   if (h_mt == MemoryType::HOST)
+   {
+      MFEM_MEM_OP_DEBUG_ADD(0, h_tmp, h_tmp + size,
+                            "alloc " << (int)h_mt << ", " << false);
+   }
    h_ptr = (T*)MemoryManager::New_(h_tmp, bytes, host_mt, device_mt,
                                    VALID_HOST, flags);
 }
@@ -1008,6 +1160,11 @@ inline void Memory<T>::Wrap(T *ptr, int size, bool own)
       const size_t bytes = size*sizeof(T);
       MemoryManager::Register_(ptr, ptr, bytes, h_mt, own, false, flags);
    }
+   if (own)
+   {
+      MFEM_MEM_OP_DEBUG_ADD(0, ptr, ptr + size,
+                            "wrap own " << (int)h_mt << ", " << false);
+   }
 }
 
 template <typename T>
@@ -1018,6 +1175,11 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
    {
       h_mt = mt;
       h_ptr = ptr;
+      if (own)
+      {
+         MFEM_MEM_OP_DEBUG_ADD(0, ptr, ptr + size,
+                               "wrap own " << (int)h_mt << ", " << false);
+      }
       if (mt == MemoryType::HOST || !own)
       {
          // Skip registration
@@ -1029,6 +1191,16 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
    {
       h_mt = MemoryManager::GetDualMemoryType(mt);
       h_ptr = (h_mt == MemoryType::HOST) ? NewHOST(size) : nullptr;
+      if (h_mt == MemoryType::HOST)
+      {
+         MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
+                               "wrap own " << (int)h_mt << ", " << false);
+      }
+      if (own)
+      {
+         MFEM_MEM_OP_DEBUG_ADD(0, ptr, ptr + size,
+                               "wrap own " << (int)mt << ", " << false);
+      }
    }
    flags = 0;
    h_ptr = (T*)MemoryManager::Register_(ptr, h_ptr, size*sizeof(T), mt,
@@ -1047,6 +1219,13 @@ inline void Memory<T>::Wrap(T *h_ptr_, T *d_ptr, int size, MemoryType h_mt_,
    MFEM_ASSERT(valid_host || valid_device,"");
    const size_t bytes = size*sizeof(T);
    const MemoryType d_mt = MemoryManager::GetDualMemoryType(h_mt);
+   if (own)
+   {
+      MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
+                            "wrap own " << (int)h_mt << ", " << false);
+      MFEM_MEM_OP_DEBUG_ADD(0, d_ptr, d_ptr + size,
+                            "wrap own " << (int)d_mt << ", " << false);
+   }
    MemoryManager::Register2_(h_ptr, d_ptr, bytes, h_mt, d_mt,
                              own, false, flags,
                              valid_host*VALID_HOST|valid_device*VALID_DEVICE);
@@ -1124,7 +1303,12 @@ inline void Memory<T>::Delete()
 
    if (mt_host)
    {
-      if (flags & OWNS_HOST) { delete [] h_ptr; }
+      if (flags & OWNS_HOST)
+      {
+         MFEM_MEM_OP_DEBUG_REMOVE2(1, h_ptr, h_ptr + capacity,
+                                   "dealloc " << (int)h_mt << ", " << false);
+         delete[] h_ptr;
+      }
    }
    Reset(h_mt);
 }
@@ -1144,6 +1328,7 @@ inline T &Memory<T>::operator[](int idx)
 {
    MFEM_ASSERT((flags & VALID_HOST) && !(flags & VALID_DEVICE),
                "invalid host pointer access");
+   MFEM_MEM_OP_DEBUG_USE(6, h_ptr + idx, h_ptr + idx + 1, " ReadWrite[]");
    return h_ptr[idx];
 }
 
@@ -1151,6 +1336,7 @@ template <typename T>
 inline const T &Memory<T>::operator[](int idx) const
 {
    MFEM_ASSERT((flags & VALID_HOST), "invalid host pointer access");
+   MFEM_MEM_OP_DEBUG_USE(4, h_ptr + idx, h_ptr + idx + 1, " Read[]");
    return h_ptr[idx];
 }
 
@@ -1161,6 +1347,7 @@ inline Memory<T>::operator T*()
                ((flags & VALID_HOST) &&
                 (std::is_const<T>::value || !(flags & VALID_DEVICE))),
                "invalid host pointer access");
+   MFEM_MEM_OP_DEBUG_USE(6, h_ptr, h_ptr + capacity, " ReadWrite*");
    return h_ptr;
 }
 
@@ -1168,6 +1355,7 @@ template <typename T>
 inline Memory<T>::operator const T*() const
 {
    MFEM_ASSERT(Empty() || (flags & VALID_HOST), "invalid host pointer access");
+   MFEM_MEM_OP_DEBUG_USE(4, h_ptr, h_ptr + capacity, " Read*");
    return h_ptr;
 }
 
@@ -1178,6 +1366,7 @@ inline Memory<T>::operator U*()
                ((flags & VALID_HOST) &&
                 (std::is_const<U>::value || !(flags & VALID_DEVICE))),
                "invalid host pointer access");
+   MFEM_MEM_OP_DEBUG_USE(6, h_ptr, h_ptr + capacity, " ReadWrite*");
    return reinterpret_cast<U*>(h_ptr);
 }
 
@@ -1185,16 +1374,23 @@ template <typename T> template <typename U>
 inline Memory<T>::operator const U*() const
 {
    MFEM_ASSERT(Empty() || (flags & VALID_HOST), "invalid host pointer access");
+   MFEM_MEM_OP_DEBUG_USE(4, h_ptr, h_ptr + capacity, " Read*");
    return reinterpret_cast<U*>(h_ptr);
 }
 
 template <typename T>
 inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
 {
+   MFEM_MEM_OP_DEBUG_USE(6, h_ptr, h_ptr + size, " ReadWrite Request");
+   MFEM_MEM_OP_BENCH_SCOPE(0, true);
    const size_t bytes = size * sizeof(T);
    if (!(flags & Registered))
    {
-      if (mc == MemoryClass::HOST) { return h_ptr; }
+      if (mc == MemoryClass::HOST)
+      {
+         MFEM_MEM_OP_DEBUG_USE(6, h_ptr, h_ptr + size, " ReadWrite");
+         return h_ptr;
+      }
       MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt,
                                flags & OWNS_HOST, flags & ALIAS, flags);
    }
@@ -1204,10 +1400,16 @@ inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
 template <typename T>
 inline const T *Memory<T>::Read(MemoryClass mc, int size) const
 {
+   MFEM_MEM_OP_DEBUG_USE(4, h_ptr, h_ptr + size, " Read Request");
+   MFEM_MEM_OP_BENCH_SCOPE(1, true);
    const size_t bytes = size * sizeof(T);
    if (!(flags & Registered))
    {
-      if (mc == MemoryClass::HOST) { return h_ptr; }
+      if (mc == MemoryClass::HOST)
+      {
+         MFEM_MEM_OP_DEBUG_USE(4, h_ptr, h_ptr + size, " Read");
+         return h_ptr;
+      }
       MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt,
                                flags & OWNS_HOST, flags & ALIAS, flags);
    }
@@ -1217,10 +1419,16 @@ inline const T *Memory<T>::Read(MemoryClass mc, int size) const
 template <typename T>
 inline T *Memory<T>::Write(MemoryClass mc, int size)
 {
+   MFEM_MEM_OP_DEBUG_USE(5, h_ptr, h_ptr + size, " Write Request");
+   MFEM_MEM_OP_BENCH_SCOPE(2, true);
    const size_t bytes = size * sizeof(T);
    if (!(flags & Registered))
    {
-      if (mc == MemoryClass::HOST) { return h_ptr; }
+      if (mc == MemoryClass::HOST)
+      {
+         MFEM_MEM_OP_DEBUG_USE(5, h_ptr, h_ptr + size, " Write");
+         return h_ptr;
+      }
       MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt,
                                flags & OWNS_HOST, flags & ALIAS, flags);
    }
@@ -1244,10 +1452,15 @@ inline void Memory<T>::Sync(const Memory &other) const
 template <typename T>
 inline void Memory<T>::SyncAlias(const Memory &base, int alias_size) const
 {
+   MFEM_MEM_OP_BENCH_SCOPE(3, true);
    // Assuming that if *this is registered then base is also registered.
    MFEM_ASSERT(!(flags & Registered) || (base.flags & Registered),
                "invalid base state");
-   if (!(base.flags & Registered)) { return; }
+   MFEM_MEM_OP_DEBUG_SYNC_ALIAS(3, h_ptr, base.h_ptr, alias_size * sizeof(T));
+   if (!(base.flags & Registered))
+   {
+      return;
+   }
    MemoryManager::SyncAlias_(base.h_ptr, h_ptr, alias_size*sizeof(T),
                              base.flags, flags);
 }
@@ -1281,15 +1494,22 @@ inline bool Memory<T>::DeviceIsValid() const
 template <typename T>
 inline void Memory<T>::CopyFrom(const Memory &src, int size)
 {
+   MFEM_MEM_OP_DEBUG(7, "CopyFrom " << size * sizeof(T) << " bytes");
+   MFEM_MEM_OP_BENCH_SCOPE(4, true);
    MFEM_VERIFY(src.capacity>=size && capacity>=size, "Incorrect size");
-   if (size <= 0) { return; }
+   if (size <= 0)
+   {
+      return;
+   }
    if (!(flags & Registered) && !(src.flags & Registered))
    {
       if (h_ptr != src.h_ptr)
       {
          MFEM_ASSERT(h_ptr + size <= src.h_ptr || src.h_ptr + size <= h_ptr,
                      "data overlaps!");
-         std::memcpy(h_ptr, src, size*sizeof(T));
+         MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(2, src.h_ptr, h_ptr, size * sizeof(T),
+                                          "", h_mt, h_mt);
+         std::memcpy(h_ptr, src.h_ptr, size*sizeof(T));
       }
       // *this is not registered, so (flags & VALID_HOST) must be true
    }
@@ -1302,14 +1522,21 @@ inline void Memory<T>::CopyFrom(const Memory &src, int size)
 template <typename T>
 inline void Memory<T>::CopyFromHost(const T *src, int size)
 {
+   MFEM_MEM_OP_DEBUG(8, "CopyFromHost " << size * sizeof(T) << " bytes");
+   MFEM_MEM_OP_BENCH_SCOPE(5, true);
    MFEM_VERIFY(capacity>=size, "Incorrect size");
-   if (size <= 0) { return; }
+   if (size <= 0)
+   {
+      return;
+   }
    if (!(flags & Registered))
    {
       if (h_ptr != src)
       {
          MFEM_ASSERT(h_ptr + size <= src || src + size <= h_ptr,
                      "data overlaps!");
+         MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(2, src, h_ptr, size * sizeof(T), "",
+                                          h_mt, h_mt);
          std::memcpy(h_ptr, src, size*sizeof(T));
       }
       // *this is not registered, so (flags & VALID_HOST) must be true
@@ -1329,14 +1556,21 @@ inline void Memory<T>::CopyTo(Memory &dest, int size) const
 template <typename T>
 inline void Memory<T>::CopyToHost(T *dest, int size) const
 {
+   MFEM_MEM_OP_DEBUG(8, "CopyToHost " << size * sizeof(T) << " bytes");
+   MFEM_MEM_OP_BENCH_SCOPE(6, true);
    MFEM_VERIFY(capacity>=size, "Incorrect size");
-   if (size <= 0) { return; }
+   if (size <= 0)
+   {
+      return;
+   }
    if (!(flags & Registered))
    {
       if (h_ptr != dest)
       {
          MFEM_ASSERT(h_ptr + size <= dest || dest + size <= h_ptr,
                      "data overlaps!");
+         MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(2, h_ptr, dest, size * sizeof(T), "",
+                                          h_mt, h_mt);
          std::memcpy(dest, h_ptr, size*sizeof(T));
       }
    }
@@ -1368,7 +1602,9 @@ inline int Memory<T>::CompareHostAndDevice(int size) const
 
 /// The (single) global memory manager object
 extern MFEM_EXPORT MemoryManager mm;
-
+#endif
 } // namespace mfem
+
+#include "resource_manager.hpp"
 
 #endif // MFEM_MEM_MANAGER_HPP
