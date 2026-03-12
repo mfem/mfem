@@ -99,16 +99,20 @@ def plot_convergence(refinement_levels, errors_dict, method):
     font_tick = font_manager.FontProperties(family='serif', size=0.8 * fs)
 
     # Define colors and markers for different ho values
+    plot_colors = ['k', 'b', 'r', 'g', 'm', 'c']
+    plot_markers = ['o', 's', '^', 'D', 'v', 'p']
     styles = {
-        1: {'color': 'b', 'marker': 'o', 'label': r'$p=1$'},
-        3: {'color': 'r', 'marker': 's', 'label': r'$p=3$'}
+        ho: {'color': plot_colors[idx % len(plot_colors)],
+             'marker': plot_markers[idx % len(plot_markers)],
+             'label': fr'$p={ho}$'}
+        for idx, ho in enumerate(errors_dict.keys())
     }
 
     h_values = np.array([1.0 / (2**(r + 1)) for r in refinement_levels])
 
     # Plot the data for each ho value
     for ho, errors in errors_dict.items():
-        style = styles.get(ho, {'color': 'k', 'marker': 'o', 'label': f'$p={ho}$'})
+        style = styles[ho]
         ax.plot(
             h_values,
             errors,
@@ -128,23 +132,14 @@ def plot_convergence(refinement_levels, errors_dict, method):
     h_ref = h_values[h_ref_idx]
     
     # For each ho value, use its error at the reference point
-    for ho, errors in errors_dict.items():
+    for idx, (ho, errors) in enumerate(errors_dict.items()):
         if not np.isnan(errors[h_ref_idx]):
             e_ref = errors[h_ref_idx]
-            
-            # Determine which convergence rate to show based on ho
-            if ho == 1:
-                rate = 2  # O(h^2) for p=1
-                linestyle = '--'
-                color = 'b'
-                alpha = 0.5
-            elif ho == 3:
-                rate = 4  # O(h^4) for p=3
-                linestyle = '--'
-                color = 'r'
-                alpha = 0.5
-            else:
-                continue
+
+            rate = ho + 1
+            linestyle = '--'
+            alpha = 0.5
+            color = styles[ho]['color']
             
             # Calculate reference line: error = C * h^rate
             # At h_ref: e_ref = C * h_ref^rate, so C = e_ref / h_ref^rate
@@ -239,7 +234,7 @@ def main():
     refinement_levels = [0, 1, 2, 3, 4]
     
     # ho values to test
-    ho_values = [1, 3]
+    ho_values = [1, 7]
     
     # Error data filename
     error_file = 'convergence_errors.json'
