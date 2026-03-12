@@ -15,7 +15,10 @@
 
 using namespace mfem;
 
+using profile_t = std::function<real_t(const Vector&,const Vector&)>;
+
 void L2Reconstruction(const GridFunction& src, GridFunction& dst);
+std::vector<std::pair<std::string, profile_t>> GetFieldProfiles();
 
 int main(int argc, char* argv[])
 {
@@ -38,34 +41,7 @@ int main(int argc, char* argv[])
    int visport = 19916;
 
    // example field profiles
-   using profile_t = std::function<real_t(const Vector&,const Vector&)>;
-   std::vector<std::pair<std::string, profile_t>> field_profiles;
-   // plane profile
-   field_profiles.push_back(std::make_pair(
-      "1 + kx x + ky y",
-      [](const Vector &x, const Vector &k)
-      {
-         return 1.0 + x*k;
-      }));
-   // sinusoidal profile
-   field_profiles.push_back(std::make_pair(
-      "sin(2pi kx x) sin(2pi ky y)",
-      [](const Vector &x, const Vector &k)
-      {
-         real_t result = 1.0;
-         for(int i=0; i < x.Size(); i++) result *= std::sin(2.0*M_PI*k(i)*x(i));
-         return result;
-      }));
-   // exponential-sinusoidal profile
-   field_profiles.push_back(std::make_pair(
-      "exp(r) cos(kx x) sin(ky y)",
-      [](const Vector &x, const Vector &k)
-      {
-         real_t result = 1.0;
-         for(int i=0; i < x.Size(); i++)
-            result *= std::exp(x.Norml2()) * std::sin(2.0*M_PI*k(i)*x(i));
-         return result;
-      }));
+   std::vector<std::pair<std::string, profile_t>> field_profiles = GetFieldProfiles();
    // create CLI help string for profiles
    std::string field_profiles_help = "Profile of field to be reconstructed:";
    for (int i=0; i < field_profiles.size(); i++)
@@ -271,6 +247,38 @@ void SaturateNeighborhood(NCMesh& mesh, const int element_idx,
       neighbors = temp;
    }
    neighbors.Unique();
+}
+
+std::vector<std::pair<std::string, profile_t>> GetFieldProfiles()
+{
+   std::vector<std::pair<std::string, profile_t>> field_profiles;
+   // plane profile
+   field_profiles.push_back(std::make_pair(
+      "1 + kx x + ky y",
+      [](const Vector &x, const Vector &k)
+      {
+         return 1.0 + x*k;
+      }));
+   // sinusoidal profile
+   field_profiles.push_back(std::make_pair(
+      "sin(2pi kx x) sin(2pi ky y)",
+      [](const Vector &x, const Vector &k)
+      {
+         real_t result = 1.0;
+         for(int i=0; i < x.Size(); i++) result *= std::sin(2.0*M_PI*k(i)*x(i));
+         return result;
+      }));
+   // exponential-sinusoidal profile
+   field_profiles.push_back(std::make_pair(
+      "exp(r) cos(kx x) sin(ky y)",
+      [](const Vector &x, const Vector &k)
+      {
+         real_t result = 1.0;
+         for(int i=0; i < x.Size(); i++)
+            result *= std::exp(x.Norml2()) * std::sin(2.0*M_PI*k(i)*x(i));
+         return result;
+      }));
+   return field_profiles;
 }
 
 void L2Reconstruction(const GridFunction& src, GridFunction& dst)
