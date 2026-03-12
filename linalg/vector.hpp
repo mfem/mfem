@@ -134,7 +134,6 @@ public:
    { std::copy(values.begin(), values.end(), begin()); }
 
 #ifdef USE_NEW_MEM_MANAGER
-   Vector(int size_, bool temporary) : data(size_, temporary), size(size_) {}
    Vector(int size_, MemoryType mt, bool temporary)
       : data(size_, mt, temporary), size(size_)
    {}
