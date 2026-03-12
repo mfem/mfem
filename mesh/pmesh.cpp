@@ -4893,13 +4893,10 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
       // are on material interfaces.
       const_cast<ParMesh*>(this)->ExchangeFaceNbrData();
 
-      // Choose a boundary attribute that does not collide with existing ones
-      // (including those introduced by print_shared). We do that by taking the
-      // global maximum: interface_attr = global_max_attr + NRanks + 1.
-      int local_max = bdr_attributes.Size() ? bdr_attributes.Max() : 0;
-      int global_max = 0;
-      MPI_Allreduce(&local_max, &global_max, 1, MPI_INT, MPI_MAX, MyComm);
-      interface_bdr_attr = global_max + NRanks + 1;
+      // Choose a boundary attribute that does not collide with existing ones,
+      // including those introduced by print_shared.
+      const int max_bdr_attr = bdr_attributes.Size() ? bdr_attributes.Max() : 0;
+      interface_bdr_attr = max_bdr_attr + NRanks + 1;
 
       const int nf = GetNumFaces();
       for (int f = 0; f < nf; f++)
@@ -6970,7 +6967,9 @@ void ParMesh::Swap(ParMesh &other)
    // Nodes, NCMesh, and NURBSExtension are taken care of by Mesh::Swap
    mfem::Swap(pncmesh, other.pncmesh);
 
-   print_shared = other.print_shared;
+   // Keep Print() behavior consistent after move/swap operations.
+   mfem::Swap(print_shared, other.print_shared);
+   mfem::Swap(print_interfaces, other.print_interfaces);
 }
 
 void ParMesh::Destroy()
