@@ -70,21 +70,21 @@ void TMOP_AddMultGradPA_C0_2D(const int NE,
 // Gradient action for AdaptLim limiting (2D)
 template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_AddMultGradPA_AdaptLim_2D(const real_t lim_normal,
-                                   const real_t adapt_lim_delta_max,
-                                   const bool const_coeff,
-                                   const DeviceTensor<3, const real_t> &ALC,
-                                   const int NE,
-                                   const DeviceTensor<5, const real_t> &J,
-                                   const ConstDeviceMatrix &W,
-                                   const real_t *b,
-                                   const DeviceTensor<4, const real_t> &R,
-                                   const DeviceTensor<4, const real_t> &ALF_grad,
-                                   const DeviceTensor<5, const real_t> &ALF_hess,
-                                   const ConstDeviceCube &ALF,
-                                   const ConstDeviceCube &ALF0,
-                                   DeviceTensor<4> &Y,
-                                   const int d1d,
-                                   const int q1d)
+                                    const real_t adapt_lim_delta_max,
+                                    const bool const_coeff,
+                                    const DeviceTensor<3, const real_t> &ALC,
+                                    const int NE,
+                                    const DeviceTensor<5, const real_t> &J,
+                                    const ConstDeviceMatrix &W,
+                                    const real_t *b,
+                                    const DeviceTensor<4, const real_t> &R,
+                                    const DeviceTensor<4, const real_t> &ALF_grad,
+                                    const DeviceTensor<5, const real_t> &ALF_hess,
+                                    const ConstDeviceCube &ALF,
+                                    const ConstDeviceCube &ALF0,
+                                    DeviceTensor<4> &Y,
+                                    const int d1d,
+                                    const int q1d)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -122,7 +122,8 @@ void TMOP_AddMultGradPA_AdaptLim_2D(const real_t lim_normal,
 
             // Load precomputed gradient at this quadrature point
             real_t grad_alf[2] = { ALF_grad(0, qx, qy, e),
-                                   ALF_grad(1, qx, qy, e) };
+                                   ALF_grad(1, qx, qy, e)
+                                 };
 
             // Load precomputed Hessian at this quadrature point
             real_t hess_alf[2][2];
@@ -142,8 +143,8 @@ void TMOP_AddMultGradPA_AdaptLim_2D(const real_t lim_normal,
             // so H * R = factor * (grad * (grad * R) + (gf - gf0) * (Hess * R))
             const real_t coeff = const_coeff ? ALC(0, 0, 0) : ALC(qx, qy, e);
             const real_t factor =
-                  weight * lim_normal * coeff *
-                  2.0 / (adapt_lim_delta_max * adapt_lim_delta_max);
+               weight * lim_normal * coeff *
+               2.0 / (adapt_lim_delta_max * adapt_lim_delta_max);
 
             const real_t grad_dot_R = grad_alf[0] * R_q[0] + grad_alf[1] * R_q[1];
 
@@ -182,7 +183,8 @@ void TMOP_Integrator::AddMultGradPA_C0_2D(const Vector &R, Vector &C) const
 MFEM_TMOP_MDQ_REGISTER(TMOPMultGradAdaptLim, TMOP_AddMultGradPA_AdaptLim_2D);
 MFEM_TMOP_MDQ_SPECIALIZE(TMOPMultGradAdaptLim);
 
-void TMOP_Integrator::AddMultGradPA_AdaptLim_2D(const Vector &R, Vector &C) const
+void TMOP_Integrator::AddMultGradPA_AdaptLim_2D(const Vector &R,
+                                                Vector &C) const
 {
    const real_t ln = lim_normal;
    const real_t delta_max = PA.al_delta;

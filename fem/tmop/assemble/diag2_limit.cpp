@@ -69,20 +69,20 @@ void TMOP_AssembleDiagPA_C0_2D(const int NE,
 // Diagonal assembly for AdaptLim limiting (2D)
 template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_AssembleDiagPA_AdaptLim_2D(const real_t lim_normal,
-                                    const real_t adapt_lim_delta_max,
-                                    const bool const_coeff,
-                                    const DeviceTensor<3, const real_t> &ALC,
-                                    const int NE,
-                                    const DeviceTensor<5, const real_t> &J,
-                                    const ConstDeviceMatrix &W,
-                                    const real_t *b,
-                                    const DeviceTensor<4, const real_t> &ALF_grad,
-                                    const DeviceTensor<5, const real_t> &ALF_hess,
-                                    const ConstDeviceCube &ALF,
-                                    const ConstDeviceCube &ALF0,
-                                    DeviceTensor<4> &D,
-                                    const int d1d,
-                                    const int q1d)
+                                     const real_t adapt_lim_delta_max,
+                                     const bool const_coeff,
+                                     const DeviceTensor<3, const real_t> &ALC,
+                                     const int NE,
+                                     const DeviceTensor<5, const real_t> &J,
+                                     const ConstDeviceMatrix &W,
+                                     const real_t *b,
+                                     const DeviceTensor<4, const real_t> &ALF_grad,
+                                     const DeviceTensor<5, const real_t> &ALF_hess,
+                                     const ConstDeviceCube &ALF,
+                                     const ConstDeviceCube &ALF0,
+                                     DeviceTensor<4> &D,
+                                     const int d1d,
+                                     const int q1d)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -175,7 +175,8 @@ void TMOP_Integrator::AssembleDiagonalPA_C0_2D(Vector &diagonal) const
    TMOPAssembleDiagCoef2D::Run(d, q, NE, B, H0, D, d, q);
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPAssembleDiagAdaptLim2D, TMOP_AssembleDiagPA_AdaptLim_2D);
+MFEM_TMOP_MDQ_REGISTER(TMOPAssembleDiagAdaptLim2D,
+                       TMOP_AssembleDiagPA_AdaptLim_2D);
 MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleDiagAdaptLim2D);
 
 void TMOP_Integrator::AssembleDiagonalPA_AdaptLim_2D(Vector &diagonal) const

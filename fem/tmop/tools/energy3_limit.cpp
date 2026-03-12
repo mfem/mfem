@@ -211,7 +211,7 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_AdaptLim_3D(const Vector &x) const
 
    const bool const_coeff = PA.ALC.Size() == 1;
    const auto ALC = const_coeff ? Reshape(PA.ALC.Read(), 1, 1, 1, 1)
-                                : Reshape(PA.ALC.Read(), q, q, q, NE);
+                    : Reshape(PA.ALC.Read(), q, q, q, NE);
    const auto J = Reshape(PA.Jtr.Read(), 3, 3, q, q, q, NE);
    const auto *b = PA.maps->B.Read();
    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q, q);
@@ -220,7 +220,7 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_AdaptLim_3D(const Vector &x) const
    auto E = Reshape(PA.E.Write(), q, q, q, NE);
 
    TMOPEnergyAdaptLim3D::Run(d, q, ln, delta_max, const_coeff, ALC, NE, J, W, b,
-                            ALF, ALF0, E, d, q);
+                             ALF, ALF0, E, d, q);
 
    return PA.E * PA.O;
 }

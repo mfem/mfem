@@ -116,15 +116,15 @@ void TMOP_AssembleGradPA_C0_2D(const real_t lim_normal,
 // Assemble gradient and Hessian of ALF field at quadrature points for AdaptLim (2D)
 template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_AssembleGradPA_AdaptLim_2D(const int NE,
-                                      const real_t *b_nodes,
-                                      const real_t *g_nodes,
-                                      const real_t *B,
-                                      const DeviceTensor<4, const real_t> &X,
-                                      const ConstDeviceCube &ALF,
-                                      DeviceTensor<4> &ALF_grad,
-                                      DeviceTensor<5> &ALF_hess,
-                                      const int d1d,
-                                      const int q1d)
+                                     const real_t *b_nodes,
+                                     const real_t *g_nodes,
+                                     const real_t *B,
+                                     const DeviceTensor<4, const real_t> &X,
+                                     const ConstDeviceCube &ALF,
+                                     DeviceTensor<4> &ALF_grad,
+                                     DeviceTensor<5> &ALF_hess,
+                                     const int d1d,
+                                     const int q1d)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -301,8 +301,8 @@ void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &x) const
    const real_t ln = lim_normal;
    const bool const_c0 = PA.C0.Size() == 1;
    const auto C0 = PA.C0.Size() == 1
-                       ? Reshape(PA.C0.Read(), 1, 1, 1)
-                       : Reshape(PA.C0.Read(), q, q, NE);
+                   ? Reshape(PA.C0.Read(), 1, 1, 1)
+                   : Reshape(PA.C0.Read(), q, q, NE);
    const auto J = Reshape(PA.Jtr.Read(), 2, 2, q, q, NE);
    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q);
    const auto *b = PA.maps->B.Read(), *bld = PA.maps_lim->B.Read();
@@ -318,7 +318,8 @@ void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &x) const
                                J, W, b, bld, XL, X, H0, exp_lim, d, q);
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPAssembleGradAdaptLim2D, TMOP_AssembleGradPA_AdaptLim_2D);
+MFEM_TMOP_MDQ_REGISTER(TMOPAssembleGradAdaptLim2D,
+                       TMOP_AssembleGradPA_AdaptLim_2D);
 MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleGradAdaptLim2D);
 
 void TMOP_Integrator::AssembleGradPA_AdaptLim_2D(const Vector &x) const
@@ -327,7 +328,8 @@ void TMOP_Integrator::AssembleGradPA_AdaptLim_2D(const Vector &x) const
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
-   const auto *B_nodes = PA.maps_nodes->B.Read(), *G_nodes = PA.maps_nodes->G.Read();
+   const auto *B_nodes = PA.maps_nodes->B.Read(),
+               *G_nodes = PA.maps_nodes->G.Read();
    const auto *B = PA.maps->B.Read(), *G = PA.maps->G.Read();
    const auto X = Reshape(x.Read(), d, d, 2, NE);
    const auto ALF = Reshape(PA.ALF.Read(), d, d, NE);

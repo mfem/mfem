@@ -140,7 +140,7 @@ void TMOP_EnergyPA_AdaptLim_2D(const real_t lim_normal,
             const real_t diff = (gf_val - gf0_val) / adapt_lim_delta_max;
 
             const real_t coeff = const_coeff ? ALC(0, 0, 0) : ALC(qx, qy, e);
-            
+
             // Energy: coeff * lim_normal * diff^2
             E(qx, qy, e) = weight * coeff * lim_normal * diff * diff;
          }

@@ -273,7 +273,8 @@ void TMOP_Integrator::UpdateAdaptLimFieldPA() const
    if (PA.ALF.Size() == 0) { return; }
 
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   const Operator *alf_R = adapt_lim_gf->FESpace()->GetElementRestriction(ordering);
+   const Operator *alf_R = adapt_lim_gf->FESpace()->GetElementRestriction(
+                              ordering);
    alf_R->Mult(*adapt_lim_gf, PA.ALF);
 }
 

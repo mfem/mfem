@@ -151,19 +151,19 @@ void TMOP_Integrator::AddMultPA_C0_3D(const Vector &x, Vector &y) const
 // Residual term for AdaptLim limiting (3D)
 template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_AddMultPA_AdaptLim_3D(const real_t lim_normal,
-                               const real_t adapt_lim_delta_max,
-                               const bool const_coeff,
-                               const DeviceTensor<4, const real_t> &ALC,
-                               const int NE,
-                               const DeviceTensor<6, const real_t> &J,
-                               const ConstDeviceCube &W,
-                               const real_t *b,
-                               const DeviceTensor<5, const real_t> &ALF_grad,
-                               const DeviceTensor<4, const real_t> &ALF,
-                               const DeviceTensor<4, const real_t> &ALF0,
-                               DeviceTensor<5> &Y,
-                               const int d1d,
-                               const int q1d)
+                                const real_t adapt_lim_delta_max,
+                                const bool const_coeff,
+                                const DeviceTensor<4, const real_t> &ALC,
+                                const int NE,
+                                const DeviceTensor<6, const real_t> &J,
+                                const ConstDeviceCube &W,
+                                const real_t *b,
+                                const DeviceTensor<5, const real_t> &ALF_grad,
+                                const DeviceTensor<4, const real_t> &ALF,
+                                const DeviceTensor<4, const real_t> &ALF0,
+                                DeviceTensor<5> &Y,
+                                const int d1d,
+                                const int q1d)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -236,7 +236,7 @@ void TMOP_Integrator::AddMultPA_AdaptLim_3D(const Vector &x, Vector &y) const
    auto Y = Reshape(y.ReadWrite(), d, d, d, 3, NE);
 
    TMOPMultAdaptLim3D::Run(d, q, ln, delta_max, const_coeff, ALC, NE, J, W,
-                          B, ALF_grad, ALF, ALF0, Y, d, q);
+                           B, ALF_grad, ALF, ALF0, Y, d, q);
 }
 
 } // namespace mfem

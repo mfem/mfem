@@ -383,7 +383,8 @@ void TMOP_AssembleGradPA_AdaptLim_3D(const int NE,
    });
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPAssembleGradAdaptLim3D, TMOP_AssembleGradPA_AdaptLim_3D);
+MFEM_TMOP_MDQ_REGISTER(TMOPAssembleGradAdaptLim3D,
+                       TMOP_AssembleGradPA_AdaptLim_3D);
 MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleGradAdaptLim3D);
 
 void TMOP_Integrator::AssembleGradPA_AdaptLim_3D(const Vector &x) const
@@ -392,7 +393,8 @@ void TMOP_Integrator::AssembleGradPA_AdaptLim_3D(const Vector &x) const
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
-   const auto *B_nodes = PA.maps_nodes->B.Read(), *G_nodes = PA.maps_nodes->G.Read();
+   const auto *B_nodes = PA.maps_nodes->B.Read(),
+               *G_nodes = PA.maps_nodes->G.Read();
    const auto *B = PA.maps->B.Read();
    const auto X = Reshape(x.Read(), d, d, d, 3, NE);
    const auto ALF = Reshape(PA.ALF.Read(), d, d, d, NE);
@@ -400,7 +402,7 @@ void TMOP_Integrator::AssembleGradPA_AdaptLim_3D(const Vector &x) const
    auto ALF_hess = Reshape(PA.ALFH.Write(), 3, 3, q, q, q, NE);
 
    TMOPAssembleGradAdaptLim3D::Run(d, q, NE, B_nodes, G_nodes, B, X, ALF,
-                                  ALF_grad, ALF_hess, d, q);
+                                   ALF_grad, ALF_hess, d, q);
 }
 
 } // namespace mfem

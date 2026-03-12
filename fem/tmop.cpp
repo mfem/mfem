@@ -4911,8 +4911,8 @@ void TMOP_Integrator::AssembleElemGradAdaptLim(const FiniteElement &el,
 
       const real_t coeff = adapt_lim_coeff->Eval(Tpr, ip);
       const real_t factor =
-            weights(q) * lim_normal * coeff * 2.0 /
-            (adapt_lim_delta_max * adapt_lim_delta_max);
+         weights(q) * lim_normal * coeff * 2.0 /
+         (adapt_lim_delta_max * adapt_lim_delta_max);
 
       for (int i = 0; i < dof * dim; i++)
       {
@@ -4921,11 +4921,11 @@ void TMOP_Integrator::AssembleElemGradAdaptLim(const FiniteElement &el,
          {
             const int jdof = j % dof, jdim = j / dof;
             const real_t entry =
-                  factor *
-                  (adapt_lim_gf_grad_q(idim) * shape(idof) *
-                   adapt_lim_gf_grad_q(jdim) * shape(jdof) +
-                   (adapt_lim_gf_q(q) - adapt_lim_gf0_q(q)) *
-                   adapt_lim_gf_hess_q(idim, jdim) * shape(idof) * shape(jdof));
+               factor *
+               (adapt_lim_gf_grad_q(idim) * shape(idof) *
+                adapt_lim_gf_grad_q(jdim) * shape(jdof) +
+                (adapt_lim_gf_q(q) - adapt_lim_gf0_q(q)) *
+                adapt_lim_gf_hess_q(idim, jdim) * shape(idof) * shape(jdof));
             mat(i, j) += entry;
             if (i != j) { mat(j, i) += entry; }
          }
