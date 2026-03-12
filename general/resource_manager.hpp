@@ -14,7 +14,7 @@
 #include <type_traits>
 #include <vector>
 
-#if USE_NEW_MEM_MANAGER
+#ifdef USE_NEW_MEM_MANAGER
 
 namespace mfem
 {
@@ -437,14 +437,13 @@ public:
    Memory() { MemoryManager::instance(); };
    explicit Memory(int size, bool temporary = false);
    Memory(size_t count, MemoryType loc, bool temporary = false);
+   Memory(size_t count, MemoryType hloc, MemoryType dloc,
+          bool temporary = false);
    explicit Memory(MemoryType mt);
 
    Memory(T *ptr, size_t count, bool own);
    Memory(T *ptr, size_t count, MemoryType loc, bool own);
    Memory(const Memory &base, int offset, int size);
-
-   Memory(size_t count, MemoryType hloc, MemoryType dloc,
-          bool temporary = false);
 
    Memory(const Memory &r);
    Memory(Memory &&r);
@@ -728,6 +727,16 @@ public:
       auto &inst = MemoryManager::instance();
       return inst.compare_host_device(segment, offset_ * sizeof(T),
                                       size * sizeof(T));
+   }
+
+   bool IsTemporary() const
+   {
+      auto &inst = MemoryManager::instance();
+      if (inst.valid_segment(segment))
+      {
+         return inst.storage.get_segment(segment).is_temporary();
+      }
+      return false;
    }
 };
 
@@ -1046,6 +1055,13 @@ Memory<T>::Memory(size_t count, MemoryType loc, bool temporary)
    New(count, loc, temporary);
 }
 
+template <class T>
+Memory<T>::Memory(size_t count, MemoryType hloc, MemoryType dloc,
+                  bool temporary)
+{
+   New(count, hloc, dloc, temporary);
+}
+
 template <class T> Memory<T>::Memory(MemoryType mt) : Memory()
 {
    auto& inst = MemoryManager::instance();
@@ -1080,14 +1096,6 @@ Memory<T>::Memory(T *ptr, size_t count, MemoryType loc, bool own)
    // ensure MemoryManager instance exists
    MemoryManager::instance();
    Wrap(ptr, count, loc, own);
-}
-
-template <class T>
-Memory<T>::Memory(size_t count, MemoryType hloc, MemoryType dloc,
-                  bool temporary)
-{
-   MemoryManager::instance();
-   New(count, hloc, dloc, temporary);
 }
 
 template <class T> Memory<T>::Memory(const Memory &base, int offset, int size)

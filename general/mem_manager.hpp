@@ -33,7 +33,7 @@
 
 #include <map>
 
-#define USE_NEW_MEM_MANAGER 1
+#define USE_NEW_MEM_MANAGER
 // #define MFEM_ENABLE_MEM_BENCH
 // #define MFEM_ENABLE_MEM_OP_DEBUG
 
@@ -246,7 +246,7 @@ bool MemoryClassContainsType(MemoryClass mc, MemoryType mt);
 
     HOST < HOST_32 < HOST_64 < DEVICE < MANAGED. */
 MemoryClass operator*(MemoryClass mc1, MemoryClass mc2);
-#if !USE_NEW_MEM_MANAGER
+#ifndef USE_NEW_MEM_MANAGER
 /// Class used by MFEM to store pointers to host and/or device memory.
 /** The template class parameter, T, must be a plain-old-data (POD) type.
 
@@ -1071,7 +1071,7 @@ inline bool HypreUsingGPU()
 
 #endif // MFEM_USE_MPI
 
-#if !USE_NEW_MEM_MANAGER
+#ifndef USE_NEW_MEM_MANAGER
 // Inline methods
 
 template <typename T>

@@ -112,7 +112,7 @@ MemoryClass operator*(MemoryClass mc1, MemoryClass mc2)
    return std::max(mc1, mc2);
 }
 
-#if !USE_NEW_MEM_MANAGER
+#ifndef USE_NEW_MEM_MANAGER
 static void MFEM_VERIFY_TYPES(const MemoryType h_mt, const MemoryType d_mt)
 {
    MFEM_VERIFY(IsHostMemory(h_mt), "h_mt = " << (int)h_mt);

@@ -33,7 +33,7 @@
 #include <cstdlib>
 #include <tuple>
 
-#if USE_NEW_MEM_MANAGER
+#ifdef USE_NEW_MEM_MANAGER
 
 // #define MFEM_USE_BLIT_KERNEL
 

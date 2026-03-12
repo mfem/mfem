@@ -567,7 +567,7 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
 
       red_type red{nullptr, std::forward<B>(body), reducer, N, items_per_thread};
       // allocate res to fit block_size entries
-      auto mt = workspace.GetMemory().GetMemoryType();
+      auto mt = workspace.GetMemory().GetHostMemoryType();
       if (mt != MemoryType::HOST_PINNED && mt != MemoryType::MANAGED)
       {
          mt = MemoryType::HOST_PINNED;
@@ -590,6 +590,28 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
    {
       body(i, res);
    }
+}
+
+/**
+ @brief Performs a 1D reduction on the range [0,N).
+ @a res initial value and where the result will be written.
+ @a body reduction function body.
+ @a reducer helper for joining two reduced values.
+ @a use_dev true to perform the reduction on the device, if possible.
+ @tparam T value_type to operate on
+ */
+template <class T, class B, class R>
+void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev)
+{
+#ifdef USE_NEW_MEM_MANAGER
+   Array<T> workspace =
+      use_dev ? Array<T>(0, MemoryType::HOST_PINNED, true) : Array<T>();
+   reduce(N, res, std::forward<B>(body), reducer, use_dev, workspace);
+#else
+   static Array<T> workspace;
+   reduce(N, res, std::forward<B>(body), reducer, use_dev, workspace);
+#endif
+
 }
 
 } // namespace mfem
