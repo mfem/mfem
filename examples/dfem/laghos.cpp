@@ -274,21 +274,35 @@ matd qdata_setup(
          // Clamping to prevend under/overflow.
          // This does not affect smoothness, it's only for extreme values.
          // [-40,40] covers most practical values.
-         auto arg = std::max(std::min(x / (width + 1e-6), 40.0), -40.0);
+         //auto arg = std::max(std::min(x / (width + 1e-6), 40.0), -40.0);
 
          // Smooth transition from 0 to 1; symmetric around the zero.
          // width: controls the slope of the sigmoid; lower -> sharper.
          // value(0) = 0.5, value(+width) ~ 0.73, value(-width) ~ 0.27.
-         return 1.0 / (1.0 + std::exp(-arg));
+         //return 1.0 / (1.0 + std::exp(-arg));
+
+         // Value at x=0.
+         real_t y0 = width;
+         real_t shift = 2.0 * width * atanh(1.0 - 2.0 * y0);
+         return 0.5 + 0.5 * tanh(0.5 * (x-shift) / width);
+      };
+
+      // y0 is value at x=0.
+      auto softstep7 = [](const real_t &width, const real_t y0, const real_t x)
+      {
+         real_t shift = 2.0 * width * atanh(1.0 - 2.0 * y0);
+         return 0.5 + 0.5 * tanh(0.5 * (x-shift) / width);
       };
 
       auto softabs = [=](const real_t &eps, const real_t x)
       {
          // Clamping to prevend under/overflow; doesn't affect smoothness.
-         auto e = std::max(eps, 1e-6_r);
+         //auto e = std::max(eps, 1e-6_r);
 
          // Diffuse the kink at |x| ~ 0. Activates as |x| approaches eps.
-         return sqrt(x * x + e * e);
+         //return sqrt(x * x + e * e);
+
+         return hypot(x, eps);
       };
 
       if (viscosity_type == 2)
@@ -374,19 +388,23 @@ matd qdata_setup(
          const auto h = h0 * pow(det(J) / det(J0), 1.0 / DIMENSION);
          const auto delta_v = h * tr(dvdx);
 
+         // Coarses mesh h for the domain.
+         const real_t h_coarse = 1.0;
+         real_t dv_scale = 0.5 * h / h_coarse * cs;
+
          // Smooth activation switch.
          // Motivation: in compression, delta_v < 0.
          //             in shocks, delta_v starts to be comparable to cs.
-         // -> this viscosity becomes noticable when delta_v > 0.05 cs.
-         const auto psi = softstep(0.05 * cs, -delta_v);
+         // -> this viscosity becomes noticable when delta_v > dv_scale.
+         const auto psi = softstep7(dv_scale, 0.5 * h0 / h_coarse, -delta_v);
 
          // Smooths the kink at |delta_v| ~ 0 with correct units scaling.
-         // The smoothing becomes active when |delta_v| approaches 1e-4 cs.
-         const auto abs_delta_v = softabs(1e-4 * cs, delta_v);
+         // The smoothing becomes active when |delta_v| approaches dv_scale.
+         const auto abs_delta_v = softabs(dv_scale, delta_v);
 
          const auto q1 = 0.25; // linear    - stability in weak shocks.
          const auto q2 = 1.00; // quadratic - grows in strong shocks.
-         const auto mu = psi * rho * h * (q2 * abs_delta_v + q1 * cs);
+         const auto mu =  rho * h * (q2 * abs_delta_v + psi * q1 * cs);
          stress += mu * sym(dvdx);
 
          dt_visc_coeff = mu;
@@ -3012,8 +3030,11 @@ int main(int argc, char *argv[])
       hydro->DensityScatter();
    }
 
-   mesh.SaveAsOne("3point.mesh");
-   rho_gf.SaveAsOne("3point.gf");
+   if (problem == 3)
+   {
+      mesh.SaveAsOne("3point.mesh");
+      rho_gf.SaveAsOne("3point.gf");
+   }
 
    delete hydro;
 
