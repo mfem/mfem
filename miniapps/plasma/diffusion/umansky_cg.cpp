@@ -88,7 +88,9 @@ int main(int argc, char *argv[])
    int el_type_arg = 1;
    real_t w = 1.0, h = 1.0;
    real_t Ak = 10.0;
-   int maxit = 100;
+   int max_iter = 100;
+   int max_dofs = 1000000;
+   real_t min_err = 1e-6;
    int serial_ref_levels = 0;
    int parallel_ref_levels = 0;
    const char *device_config = "cpu";
@@ -110,8 +112,12 @@ int main(int argc, char *argv[])
                   "Number of serial refinement levels.");
    args.AddOption(&parallel_ref_levels, "-rp", "--parallel-ref-levels",
                   "Number of parallel refinement levels.");
-   args.AddOption(&maxit, "-maxit", "--max-amr-iterations",
+   args.AddOption(&max_iter, "-maxit", "--max-amr-iterations",
                   "Max number of iterations in the main AMR loop.");
+   args.AddOption(&max_dofs, "-maxdofs", "--max-amr-dofs",
+                  "Max number of degrees of freedom in the main AMR loop.");
+   args.AddOption(&min_err, "-minerr", "--min-amr-err",
+                  "Min error target in the main AMR loop.");
    args.AddOption(&nx, "-nx", "--num-elem-x",
                   "Number of elements in x direction.");
    args.AddOption(&ny, "-ny", "--num-elem-y",
@@ -270,8 +276,7 @@ int main(int argc, char *argv[])
    // the worst elements and update all objects to work with the new mesh.  We
    // refine until the maximum number of dofs in the nodal finite element space
    // reaches 10 million.
-   const int max_dofs = 10000000;
-   for (int it = 1; it <= maxit; it++)
+   for (int it = 1; it <= max_iter; it++)
    {
       if (Mpi::Root())
       {
@@ -344,8 +349,12 @@ int main(int argc, char *argv[])
          }
          break;
       }
-      if (it == maxit)
+      if (it == max_iter)
       {
+         if (Mpi::Root())
+         {
+            cout << "Reached maximum number of iterations, exiting..." << endl;
+         }
          break;
       }
 
@@ -385,29 +394,43 @@ int main(int argc, char *argv[])
       MPI_Allreduce(&local_max_err, &global_max_err, 1,
                     MPITypeMap<real_t>::mpi_type, MPI_MAX, pmesh.GetComm());
 
+      if (global_max_err < min_err)
+      {
+         if (Mpi::Root())
+         {
+            cout << "Reached minimum error target, exiting..." << endl;
+         }
+         break;
+      }
+
       // Refine the elements whose error is larger than a fraction of the
       // maximum element error.
       const real_t frac = 0.7;
       real_t threshold = frac * global_max_err;
-      if (Mpi::Root()) { cout << "Refining ..." << endl; }
-      pmesh.RefineByError(errors, threshold);
-
-      // Update the electrostatic solver to reflect the new state of the mesh.
-      fespace.Update();
-      a.Update();
-      b.Update();
-      x.Update();
-
-      if (pmesh.Nonconforming() && Mpi::WorldSize() > 1)
+      if (Mpi::Root()) { cout << "Refining ..." << global_max_err << endl; }
+      if (pmesh.RefineByError(errors, threshold))
       {
-         if (Mpi::Root()) { cout << "Rebalancing ..." << endl; }
-         pmesh.Rebalance();
-
-         // Update again after rebalancing
+         // Update the solver to reflect the new state of the mesh.
          fespace.Update();
          a.Update();
          b.Update();
          x.Update();
+
+         if (pmesh.Nonconforming() && Mpi::WorldSize() > 1)
+         {
+            if (Mpi::Root()) { cout << "Rebalancing ..." << endl; }
+            pmesh.Rebalance();
+
+            // Update again after rebalancing
+            fespace.Update();
+            a.Update();
+            b.Update();
+            x.Update();
+         }
+      }
+      else
+      {
+         break;
       }
    }
 

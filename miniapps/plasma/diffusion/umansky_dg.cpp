@@ -119,17 +119,19 @@ int main(int argc, char *argv[])
    int el_type_arg = 1;
    real_t w = 1.0, h = 1.0;
    real_t Ak = 10.0;
-   int maxit = 100;
+   int max_iter = 100;
+   int max_dofs = 1000000;
+   real_t min_err = 1e-6;
    int serial_ref_levels = 0;
    int parallel_ref_levels = 0;
    const char *device_config = "cpu";
    bool nc = true;
    real_t sigma = -1.0;
    real_t kappa = -1.0;
-   // real_t eta = 0.0;
+   real_t eta = 0.0;
    bool pa = false;
    bool visualization = true;
-   bool visit = true;
+   bool visit = false;
 
    char vishost[] = "localhost";
    int  visport   = 19916;
@@ -145,8 +147,12 @@ int main(int argc, char *argv[])
                   "Number of serial refinement levels.");
    args.AddOption(&parallel_ref_levels, "-rp", "--parallel-ref-levels",
                   "Number of parallel refinement levels.");
-   args.AddOption(&maxit, "-maxit", "--max-amr-iterations",
+   args.AddOption(&max_iter, "-maxit", "--max-amr-iterations",
                   "Max number of iterations in the main AMR loop.");
+   args.AddOption(&max_dofs, "-maxdofs", "--max-amr-dofs",
+                  "Max number of degrees of freedom in the main AMR loop.");
+   args.AddOption(&min_err, "-minerr", "--min-amr-err",
+                  "Min error target in the main AMR loop.");
    args.AddOption(&nx, "-nx", "--num-elem-x",
                   "Number of elements in x direction.");
    args.AddOption(&ny, "-ny", "--num-elem-y",
@@ -168,7 +174,7 @@ int main(int argc, char *argv[])
    args.AddOption(&kappa, "-k", "--kappa",
                   "One of the three DG penalty parameters, should be positive."
                   " Negative values are replaced with (order+1)^2.");
-   // args.AddOption(&eta, "-e", "--eta", "BR2 penalty parameter.");
+   args.AddOption(&eta, "-eta", "--eta", "BR2 penalty parameter.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
 #ifdef MFEM_USE_CEED
@@ -289,14 +295,12 @@ int main(int argc, char *argv[])
                                                          sigma, kappa));
    a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(anisoDiffCoef,
                                                     sigma, kappa));
-   /*
    if (eta > 0)
    {
       MFEM_VERIFY(!pa, "BR2 not yet compatible with partial assembly.");
       a.AddInteriorFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
       a.AddBdrFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
    }
-   */
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
    // Initialize VisIt visualization
@@ -313,8 +317,7 @@ int main(int argc, char *argv[])
    // the worst elements and update all objects to work with the new mesh.  We
    // refine until the maximum number of dofs in the nodal finite element space
    // reaches 10 million.
-   const int max_dofs = 10000000;
-   for (int it = 1; it <= maxit; it++)
+   for (int it = 1; it <= max_iter; it++)
    {
       if (Mpi::Root())
       {
@@ -392,8 +395,12 @@ int main(int argc, char *argv[])
          sol_sock << "parallel " << num_procs << " " << myid << "\n";
          sol_sock.precision(8);
          sol_sock << "solution\n" << pmesh << x
-                  << " window_title 'Number of DoFs: " << prob_size << "'"
-                  << flush;
+                  << " window_title 'Number of DoFs: " << prob_size << "'";
+         if (it == 1)
+         {
+            sol_sock << " keys 'mmjR'\n";
+         }
+         sol_sock << flush;
       }
 
       if (Mpi::Root())
@@ -410,8 +417,12 @@ int main(int argc, char *argv[])
          }
          break;
       }
-      if (it == maxit)
+      if (it == max_iter)
       {
+         if (Mpi::Root())
+         {
+            cout << "Reached maximum number of iterations, exiting..." << endl;
+         }
          break;
       }
 
@@ -451,29 +462,43 @@ int main(int argc, char *argv[])
       MPI_Allreduce(&local_max_err, &global_max_err, 1,
                     MPITypeMap<real_t>::mpi_type, MPI_MAX, pmesh.GetComm());
 
+      if (global_max_err < min_err)
+      {
+         if (Mpi::Root())
+         {
+            cout << "Reached minimum error target, exiting..." << endl;
+         }
+         break;
+      }
+
       // Refine the elements whose error is larger than a fraction of the
       // maximum element error.
       const real_t frac = 0.7;
       real_t threshold = frac * global_max_err;
       if (Mpi::Root()) { cout << "Refining ..." << endl; }
-      pmesh.RefineByError(errors, threshold);
-
-      // Update the electrostatic solver to reflect the new state of the mesh.
-      fespace.Update();
-      a.Update();
-      b.Update();
-      x.Update();
-
-      if (pmesh.Nonconforming() && Mpi::WorldSize() > 1)
+      if (pmesh.RefineByError(errors, threshold))
       {
-         if (Mpi::Root()) { cout << "Rebalancing ..." << endl; }
-         pmesh.Rebalance();
-
-         // Update again after rebalancing
+         // Update the solver to reflect the new state of the mesh.
          fespace.Update();
          a.Update();
          b.Update();
          x.Update();
+
+         if (pmesh.Nonconforming() && Mpi::WorldSize() > 1)
+         {
+            if (Mpi::Root()) { cout << "Rebalancing ..." << endl; }
+            pmesh.Rebalance();
+
+            // Update again after rebalancing
+            fespace.Update();
+            a.Update();
+            b.Update();
+            x.Update();
+         }
+      }
+      else
+      {
+         break;
       }
    }
 
