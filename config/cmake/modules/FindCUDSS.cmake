@@ -1,0 +1,21 @@
+if (NOT cudss_DIR AND CUDSS_DIR)
+  set(cudss_DIR ${CUDSS_DIR}/lib/cmake/cudss)
+endif()
+message(STATUS "Looking for CUDSS ...")
+message(STATUS "   in CUDSS_DIR = ${CUDSS_DIR}")
+message(STATUS "      cudss_DIR = ${cudss_DIR}")
+find_package(cudss)
+set(CUDSS_FOUND ${cudss_FOUND})
+set(CUDSS_LIBRARIES "cudss")
+if (CUDSS_FOUND)
+  message(STATUS
+    "Found CUDSS target: ${CUDSS_LIBRARIES} (version: ${cudss_VERSION})")
+else()
+  set(msg STATUS)
+  if (CUDSS_FIND_REQUIRED)
+    set(msg FATAL_ERROR)
+  endif()
+  message(${msg}
+    "CUDSS not found. Please set CUDSS_DIR to the install prefix.")
+endif()
+
