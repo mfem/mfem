@@ -75,6 +75,7 @@ examples/signorini/groschwheelp
 examples/signorini/mmsp
 examples/signorini/weakexplicitp
 examples/signorini/regularp
+examples/signorini/lvpp_signorini
 
 examples/refined.mesh
 examples/displaced.mesh
