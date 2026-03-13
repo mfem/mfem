@@ -420,12 +420,14 @@ complex<double> epxx_warm_plasma_by_species(double omega,
 
    double w_c = omega_c(Bmag, q, m);
    double w_p = omega_p(n, q, m);
+   double w_cd = omega_c(Bmag, charge[1], mass[1]);
+   double w_pd = omega_p(n, charge[1], mass[1]);
    double T = Te;
    if (i == 3) {T = Te + Ti;}
    double vth = vthermal(T, m);
 
    complex<double> comp_val(0.0,1.0);
-   double kperp = kperp_cold_plasma(omega,w_c,w_p);
+   double kperp = kperp_cold_plasma(omega,w_cd,w_pd);
    complex<double> lambda = pow(kperp*vth,2.0)/(2.0*pow(w_c,2.0));
 
    // n = 0 harmonic is zero
@@ -471,12 +473,14 @@ complex<double> epyy_warm_plasma_by_species(double omega,
 
    double w_c = omega_c(Bmag, q, m);
    double w_p = omega_p(n, q, m);
+   double w_cd = omega_c(Bmag, charge[1], mass[1]);
+   double w_pd = omega_p(n, charge[1], mass[1]);
    double T = Te;
    if (i == 3) {T = Te + Ti;}
    double vth = vthermal(T, m);
 
    complex<double> comp_val(0.0,1.0);
-   double kperp = kperp_cold_plasma(omega, w_c,w_p);
+   double kperp = kperp_cold_plasma(omega, w_cd,w_pd);
    complex<double> lambda = pow(kperp*vth,2.0)/(2.0*pow(w_c,2.0));
 
    // n = 0 harmonic:
@@ -524,12 +528,14 @@ complex<double> epxy_warm_plasma_by_species(double omega,
 
    double w_c = omega_c(Bmag, q, m);
    double w_p = omega_p(n, q, m);
+   double w_cd = omega_c(Bmag, charge[1], mass[1]);
+   double w_pd = omega_p(n, charge[1], mass[1]);
    double T = Te;
    if (i == 3) {T = Te + Ti;}
    double vth = vthermal(T, m);
 
    complex<double> comp_val(0.0,1.0);
-   double kperp = kperp_cold_plasma(omega, w_c,w_p);
+   double kperp = kperp_cold_plasma(omega, w_cd,w_pd);
    complex<double> lambda = pow(kperp*vth,2.0)/(2.0*pow(w_c,2.0));
 
    // n = 0 harmonic is zero
@@ -571,12 +577,14 @@ complex<double> epzz_warm_plasma_by_species(double omega,
 
    double w_c = omega_c(Bmag, q, m);
    double w_p = omega_p(n, q, m);
+   double w_cd = omega_c(Bmag, charge[1], mass[1]);
+   double w_pd = omega_p(n, charge[1], mass[1]);
    double T = Te;
    if (i == 3) {T = Te + Ti;}
    double vth = vthermal(T, m);
 
    complex<double> comp_val(0.0,1.0);
-   double kperp = kperp_cold_plasma(omega,w_c,w_p);
+   double kperp = kperp_cold_plasma(omega,w_cd,w_pd);
    complex<double> lambda = pow(kperp*vth,2.0)/(2.0*pow(w_c,2.0));
 
    // n = 0 harmonic:
@@ -614,12 +622,14 @@ complex<double> epyz_warm_plasma_by_species(double omega,
 
    double w_c = omega_c(Bmag, q, m);
    double w_p = omega_p(n, q, m);
+   double w_cd = omega_c(Bmag, charge[1], mass[1]);
+   double w_pd = omega_p(n, charge[1], mass[1]);
    double T = Te;
    if (i == 3) {T = Te + Ti;}
    double vth = vthermal(T, m);
 
    complex<double> comp_val(0.0,1.0);
-   double kperp = kperp_cold_plasma(omega, w_c,w_p);
+   double kperp = kperp_cold_plasma(omega, w_cd,w_pd);
    complex<double> lambda = pow(kperp*vth,2.0)/(2.0*pow(w_c,2.0));
 
    // n = 0 harmonic:
@@ -1763,15 +1773,15 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
          double r22 = BVec_(2);
 
          ep00 = exx*r00*r00 + eyy*r01*r01 + ezz*r02*r02;
-         ep01 = exx*r00*r10 + eyy*r01*r11 + ezz*r02*r12 + val*(-exy*r22+eyz*r20);
-         ep02 = exx*r00*r20 + eyy*r01*r21 + ezz*r02*r22 - val*(-exy*r12+eyz*r10);
+         ep01 = exx*r00*r10 + eyy*r01*r11 + ezz*r02*r12 - val*(exy*r22+eyz*r20);
+         ep02 = exx*r00*r20 + eyy*r01*r21 + ezz*r02*r22 + val*(exy*r12+eyz*r10);
 
-         ep10 = exx*r10*r00 + eyy*r11*r01 + ezz*r12*r02 - val*(-exy*r22+eyz*r20);
+         ep10 = exx*r10*r00 + eyy*r11*r01 + ezz*r12*r02 + val*(exy*r22+eyz*r20);
          ep11 = exx*r10*r10 + eyy*r11*r11 + ezz*r12*r12;
-         ep12 = exx*r10*r20 + eyy*r11*r21 + ezz*r12*r22 + val*(-exy*r02+eyz*r00);
+         ep12 = exx*r10*r20 + eyy*r11*r21 + ezz*r12*r22 - val*(exy*r02+eyz*r00);
 
-         ep20 = exx*r20*r00 + eyy*r21*r01 + ezz*r22*r02 + val*(-exy*r12+eyz*r10);
-         ep21 = exx*r20*r10 + eyy*r21*r11 + ezz*r22*r12 - val*(-exy*r02+eyz*r00);
+         ep20 = exx*r20*r00 + eyy*r21*r01 + ezz*r22*r02 - val*(exy*r12+eyz*r10);
+         ep21 = exx*r20*r10 + eyy*r21*r11 + ezz*r22*r12 + val*(exy*r02+eyz*r00);
          ep22 = exx*r20*r20 + eyy*r21*r21 + ezz*r22*r22;
       }
 
@@ -1968,15 +1978,15 @@ void InverseDielectricTensor::Eval(DenseMatrix &epsilonInv,
          double r22 = BVec_(2);
 
          ep00 = exx*r00*r00 + eyy*r01*r01 + ezz*r02*r02;
-         ep01 = exx*r00*r10 + eyy*r01*r11 + ezz*r02*r12 + val*(-exy*r22+eyz*r20);
-         ep02 = exx*r00*r20 + eyy*r01*r21 + ezz*r02*r22 - val*(-exy*r12+eyz*r10);
+         ep01 = exx*r00*r10 + eyy*r01*r11 + ezz*r02*r12 - val*(exy*r22+eyz*r20);
+         ep02 = exx*r00*r20 + eyy*r01*r21 + ezz*r02*r22 + val*(exy*r12+eyz*r10);
 
-         ep10 = exx*r10*r00 + eyy*r11*r01 + ezz*r12*r02 - val*(-exy*r22+eyz*r20);
+         ep10 = exx*r10*r00 + eyy*r11*r01 + ezz*r12*r02 + val*(exy*r22+eyz*r20);
          ep11 = exx*r10*r10 + eyy*r11*r11 + ezz*r12*r12;
-         ep12 = exx*r10*r20 + eyy*r11*r21 + ezz*r12*r22 + val*(-exy*r02+eyz*r00);
+         ep12 = exx*r10*r20 + eyy*r11*r21 + ezz*r12*r22 - val*(exy*r02+eyz*r00);
 
-         ep20 = exx*r20*r00 + eyy*r21*r01 + ezz*r22*r02 + val*(-exy*r12+eyz*r10);
-         ep21 = exx*r20*r10 + eyy*r21*r11 + ezz*r22*r12 - val*(-exy*r02+eyz*r00);
+         ep20 = exx*r20*r00 + eyy*r21*r01 + ezz*r22*r02 - val*(exy*r12+eyz*r10);
+         ep21 = exx*r20*r10 + eyy*r21*r11 + ezz*r22*r12 + val*(exy*r02+eyz*r00);
          ep22 = exx*r20*r20 + eyy*r21*r21 + ezz*r22*r22;
       }
 
@@ -2153,15 +2163,15 @@ void SusceptibilityTensor::Eval(DenseMatrix &suscept, ElementTransformation &T,
          double r22 = BVec_(2);
 
          ep00 = exx*r00*r00 + eyy*r01*r01 + ezz*r02*r02;
-         ep01 = exx*r00*r10 + eyy*r01*r11 + ezz*r02*r12 + val*(-exy*r22+eyz*r20);
-         ep02 = exx*r00*r20 + eyy*r01*r21 + ezz*r02*r22 - val*(-exy*r12+eyz*r10);
+         ep01 = exx*r00*r10 + eyy*r01*r11 + ezz*r02*r12 - val*(exy*r22+eyz*r20);
+         ep02 = exx*r00*r20 + eyy*r01*r21 + ezz*r02*r22 + val*(exy*r12+eyz*r10);
 
-         ep10 = exx*r10*r00 + eyy*r11*r01 + ezz*r12*r02 - val*(-exy*r22+eyz*r20);
+         ep10 = exx*r10*r00 + eyy*r11*r01 + ezz*r12*r02 + val*(exy*r22+eyz*r20);
          ep11 = exx*r10*r10 + eyy*r11*r11 + ezz*r12*r12;
-         ep12 = exx*r10*r20 + eyy*r11*r21 + ezz*r12*r22 + val*(-exy*r02+eyz*r00);
+         ep12 = exx*r10*r20 + eyy*r11*r21 + ezz*r12*r22 - val*(exy*r02+eyz*r00);
 
-         ep20 = exx*r20*r00 + eyy*r21*r01 + ezz*r22*r02 + val*(-exy*r12+eyz*r10);
-         ep21 = exx*r20*r10 + eyy*r21*r11 + ezz*r22*r12 - val*(-exy*r02+eyz*r00);
+         ep20 = exx*r20*r00 + eyy*r21*r01 + ezz*r22*r02 - val*(exy*r12+eyz*r10);
+         ep21 = exx*r20*r10 + eyy*r21*r11 + ezz*r22*r12 + val*(exy*r02+eyz*r00);
          ep22 = exx*r20*r20 + eyy*r21*r21 + ezz*r22*r22;
       }
 
@@ -2265,16 +2275,6 @@ void SusceptibilityTensorbySpecies::Eval(DenseMatrix &suscept, ElementTransforma
       complex<double> ezz = epzz_warm_plasma_by_species(omega_, Bmag, kparallel, nue_vals_, density_vals_,
                                           charges_, masses_, temp_vals_, Ti_vals_, nuprof_, species_);
 
-      if (species_ == 2)
-      {
-         cout << "Species = " << species_ << endl;
-         cout << "Exx = " << exx << endl;
-         cout << "Eyy = " << eyy << endl;
-         cout << "Ezz = " << ezz << endl;
-         cout << "Exy = " << exy << endl;
-         cout << "Eyz = " << eyz << endl;         
-      }
-
       double s = sqrt(BVec_(0)*BVec_(0)+BVec_(1)*BVec_(1));
       complex<double> val(0.0,1.0);
 
@@ -2306,15 +2306,15 @@ void SusceptibilityTensorbySpecies::Eval(DenseMatrix &suscept, ElementTransforma
          double r22 = BVec_(2);
 
          ep00 = exx*r00*r00 + eyy*r01*r01 + ezz*r02*r02;
-         ep01 = exx*r00*r10 + eyy*r01*r11 + ezz*r02*r12 + val*(-exy*r22+eyz*r20);
-         ep02 = exx*r00*r20 + eyy*r01*r21 + ezz*r02*r22 - val*(-exy*r12+eyz*r10);
+         ep01 = exx*r00*r10 + eyy*r01*r11 + ezz*r02*r12 - val*(exy*r22+eyz*r20);
+         ep02 = exx*r00*r20 + eyy*r01*r21 + ezz*r02*r22 + val*(exy*r12+eyz*r10);
 
-         ep10 = exx*r10*r00 + eyy*r11*r01 + ezz*r12*r02 - val*(-exy*r22+eyz*r20);
+         ep10 = exx*r10*r00 + eyy*r11*r01 + ezz*r12*r02 + val*(exy*r22+eyz*r20);
          ep11 = exx*r10*r10 + eyy*r11*r11 + ezz*r12*r12;
-         ep12 = exx*r10*r20 + eyy*r11*r21 + ezz*r12*r22 + val*(-exy*r02+eyz*r00);
+         ep12 = exx*r10*r20 + eyy*r11*r21 + ezz*r12*r22 - val*(exy*r02+eyz*r00);
 
-         ep20 = exx*r20*r00 + eyy*r21*r01 + ezz*r22*r02 + val*(-exy*r12+eyz*r10);
-         ep21 = exx*r20*r10 + eyy*r21*r11 + ezz*r22*r12 - val*(-exy*r02+eyz*r00);
+         ep20 = exx*r20*r00 + eyy*r21*r01 + ezz*r22*r02 - val*(exy*r12+eyz*r10);
+         ep21 = exx*r20*r10 + eyy*r21*r11 + ezz*r22*r12 + val*(exy*r02+eyz*r00);
          ep22 = exx*r20*r20 + eyy*r21*r21 + ezz*r22*r22;
       }
 
