@@ -76,7 +76,7 @@
 //
 //   Adaptive limiting:
 //     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -rs 1 -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 1.0
-//     mpirun -np 8 pmesh-optimizer -m stretched3D.mesh -rs 2 -o 2 -mid 303 -tid 1 -ni 5 -qo 5 -nor -vl 1 -alc 2.0
+//     mpirun -np 8 pmesh-optimizer -m stretched3D.mesh -rs 2 -o 2 -mid 303 -tid 1 -ni 5 -qo 5 -nor -vl 1 -alc 2.0 -pa
 //   Adaptive limiting through the L-BFGS solver:
 //     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 400 -qo 5 -nor -vl 1 -alc 1.0 -st 1 -rtol 1e-8
 //

@@ -5683,7 +5683,16 @@ UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
    if (adapt_lim_gf)
    {
       adapt_lim_eval->ComputeAtNewPosition(x_loc, *adapt_lim_gf, ordering);
-      if (PA.enabled) { UpdateAdaptLimFieldPA(); }
+      if (PA.enabled)
+      {
+         PA.AL_grads_assembled = false;
+
+         // Refresh PA.ALF from the updated adapt_lim_gf.
+         const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+         const Operator *alf_R =
+             adapt_lim_gf->FESpace()->GetElementRestriction(ordering);
+         alf_R->Mult(*adapt_lim_gf, PA.ALF);
+      }
    }
 
    // Update surf_fit_gf (and optionally its gradients) if surface

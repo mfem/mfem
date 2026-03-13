@@ -2145,6 +2145,7 @@ protected:
       mutable bool Jtr_debug_grad;
       mutable Vector E, O, X0, XL, H, C0, LD, H0, MC, ALC,
               ALF, ALF0, ALFG, ALFH;
+      mutable bool AL_grads_assembled;
       real_t al_delta;
       const DofToQuad *maps;
       const DofToQuad *maps_lim = nullptr;
@@ -2279,9 +2280,6 @@ protected:
    // Updates the Q-vectors for the metric_coeff and lim_coeff, based on the
    // new physical positions of the quadrature points.
    void UpdateCoefficientsPA(const Vector &d_loc);
-   // Refresh PA.ALF from the current adapt_lim_gf (called after remapping the
-   // field to the new mesh positions).
-   void UpdateAdaptLimFieldPA() const;
 
    // Compute Min(Det(Jpt)) in the mesh, does not reduce over MPI.
    real_t ComputeMinDetT(const Vector &x, const FiniteElementSpace &fes);
@@ -2380,15 +2378,17 @@ public:
 
    /** @brief Restriction of the node positions to certain regions.
 
-       Adds the term $ \int c (z(x) - z_0(x_0))^2 $, where z0(x0) is a given
-       function on the starting mesh, and z(x) is its image on the new mesh.
-       Minimizing this term means that a node at x0 is allowed to move to a
-       position x(x0) only if z(x) ~ z0(x0).
+       Adds the term $ \int c (z(x) - z_0(x_0))^2 / delta_max^2 $, where z0(x0)
+       is a given function on the starting mesh, and z(x) is its image on the
+       new mesh. Minimizing this term means that a node at x0 is allowed to
+       move to a position x(x0) only if z(x) ~ z0(x0).
        Such term can be used for tangential mesh relaxation.
 
        @param[in] z0     Function z0 that controls the adaptive limiting.
        @param[in] coeff  Coefficient c for the above integral.
-       @param[in] ae     AdaptivityEvaluator to compute z(x) from z0(x0). */
+       @param[in] ae     AdaptivityEvaluator to compute z(x) from z0(x0).
+       @param[in] delta_max Controls the allowable deviation from z0.
+                            Smaller values activate the term faster. */
    void EnableAdaptiveLimiting(const GridFunction &z0, Coefficient &coeff,
                                AdaptivityEvaluator &ae, double delta_max);
 #ifdef MFEM_USE_MPI

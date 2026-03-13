@@ -267,17 +267,6 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
    delete T;
 }
 
-void TMOP_Integrator::UpdateAdaptLimFieldPA() const
-{
-   if (!PA.enabled || !adapt_lim_gf) { return; }
-   if (PA.ALF.Size() == 0) { return; }
-
-   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   const Operator *alf_R = adapt_lim_gf->FESpace()->GetElementRestriction(
-                              ordering);
-   alf_R->Mult(*adapt_lim_gf, PA.ALF);
-}
-
 void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 {
    const MemoryType mt =
@@ -381,6 +370,8 @@ void TMOP_Integrator::AssemblePA_AdaptLim()
    MFEM_VERIFY(strcmp(alfes->FEColl()->Name(), PA.fes->FEColl()->Name()) == 0 &&
                alfes->FEColl()->GetOrder() == PA.fes->FEColl()->GetOrder(),
                "The PA code assumes the same FE spaces for mesh and limiting.");
+
+   PA.AL_grads_assembled = false;
 
    // adapt_lim_coeff -> PA.ALC (Q-vector).
    PA.ALC.UseDevice(true);

@@ -324,6 +324,8 @@ MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleGradAdaptLim2D);
 
 void TMOP_Integrator::AssembleGradPA_AdaptLim_2D(const Vector &x) const
 {
+   if (PA.AL_grads_assembled) { return; }
+
    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
@@ -338,6 +340,7 @@ void TMOP_Integrator::AssembleGradPA_AdaptLim_2D(const Vector &x) const
 
    TMOPAssembleGradAdaptLim2D::Run(d, q, NE, B_nodes, G_nodes, B, X, ALF,
                                    ALF_grad, ALF_hess, d, q);
+   PA.AL_grads_assembled = true;
 }
 
 } // namespace mfem
