@@ -844,8 +844,6 @@ void ConformingFaceRestriction::ComputeGatherIndices(
    gather_offsets[0] = 0;
 }
 
-static inline int absdof(int i) { return i < 0 ? -1-i : i; }
-
 void ConformingFaceRestriction::SetFaceDofsScatterIndices(
    const Mesh::FaceInformation &face,
    const int face_index,
@@ -868,9 +866,9 @@ void ConformingFaceRestriction::SetFaceDofsScatterIndices(
    {
       const int lex_volume_dof = face_map[face_dof];
       const int s_volume_dof = AsConst(vol_dof_map)[lex_volume_dof]; // signed
-      const int volume_dof = absdof(s_volume_dof);
+      const int volume_dof = UnsignIndex(s_volume_dof);
       const int s_global_dof = elem_map[elem_index*elem_dofs + volume_dof];
-      const int global_dof = absdof(s_global_dof);
+      const int global_dof = UnsignIndex(s_global_dof);
       const int restriction_dof = face_dofs*face_index + face_dof;
       scatter_indices[restriction_dof] = s_global_dof;
       ++gather_offsets[global_dof + 1];
@@ -897,10 +895,10 @@ void ConformingFaceRestriction::SetFaceDofsGatherIndices(
    {
       const int lex_volume_dof = face_map[face_dof];
       const int s_volume_dof = AsConst(vol_dof_map)[lex_volume_dof];
-      const int volume_dof = absdof(s_volume_dof);
+      const int volume_dof = UnsignIndex(s_volume_dof);
       const int s_global_dof = elem_map[elem_index*elem_dofs + volume_dof];
       const int sgn = (s_global_dof >= 0) ? 1 : -1;
-      const int global_dof = absdof(s_global_dof);
+      const int global_dof = UnsignIndex(s_global_dof);
       const int restriction_dof = face_dofs*face_index + face_dof;
       const int s_restriction_dof = (sgn >= 0) ? restriction_dof : -1 -
                                     restriction_dof;
