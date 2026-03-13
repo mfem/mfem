@@ -236,6 +236,20 @@ public:
       return dynamic_cast<const ParSubMesh *>(m) != nullptr;
    }
 
+   /**
+   * @brief Check if Mesh @a sub is a ParSubMesh of Mesh @a parent.
+   *
+   * @param sub The potential submesh Mesh
+   * @param parent The potential parent Mesh
+   */
+   static bool IsParSubMesh(const Mesh* sub, const Mesh* parent)
+   {
+      while (IsParSubMesh(sub) &&
+             (sub = static_cast<const ParSubMesh *>(sub)->GetParent()) &&
+             sub != parent);
+      return sub == parent;
+   }
+
 private:
    ParSubMesh(const ParMesh &parent, SubMesh::From from,
               const Array<int> &attributes);
