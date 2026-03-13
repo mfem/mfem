@@ -17,6 +17,10 @@ Discretization improvements
   Vector and VectorFE, also NURBS versions. Optionally different types of
   projections can be selected, default behaviour has not changed.
 
+- GPU-enabled partial assembly (PA) for simplicial Bernstein (H1) basis based on
+  ragged tensor algorithms in (https://doi.org/10.1137/11082539X) for mass and
+  diffusion integrators.
+
 - Added methods to estimate function extremum using piecewise linear bounds +
   recursive subdivision.
 
@@ -29,6 +33,11 @@ New and updated examples and miniapps
 -------------------------------------
 - Electromagnetics/lorentz miniapp has been updated to leverage the ParticleSet
   capability.
+
+Miscellaneous
+-------------
+- Added support for general 1D Gauss-Jacobi quadrature rules and Stroud conical
+  quadrature rules on triangles and tetrahedra.
 
 
 Version 4.9, released on Dec 11, 2025

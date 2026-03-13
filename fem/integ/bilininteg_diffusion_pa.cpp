@@ -68,6 +68,20 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
       }
 #endif // MFEM_USE_OCCA
 
+      if (fespace->IsBernsteinSimplexSpace())
+      {
+         return ApplySimplexPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric,
+                                           maps->lex_map,
+                                           maps->forward_map2d_diff,
+                                           maps->inverse_map2d_diff,
+                                           maps->forward_map3d_diff,
+                                           maps->inverse_map3d_diff,
+                                           maps->Ga1,
+                                           maps->Ga2,
+                                           maps->Ga3,
+                                           Dv, x, y, dofs1D, quad1D);
+      }
+
       ApplyPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric, B, G, Bt,
                           Gt, Dv, x, y, dofs1D, quad1D);
    }
@@ -94,7 +108,8 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetTypicalFE();
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
+   const bool stroud = fes.IsBernsteinSimplexSpace();
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, stroud);
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
@@ -118,14 +133,26 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
    ne = fes.GetNE();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
+   if (stroud)
+   {
+      geom = mesh->GetGeometricFactors(ir->InverseDuffyTrans(dim),
+                                       GeometricFactors::JACOBIANS, mt);
+      maps = &el.GetDofToQuad(ir->InverseDuffyTrans(dim), DofToQuad::RAGGED_TENSOR);
+      // DofToQuad expects ir pulled back to reference cube, so we apply InverseDuffyTrans
+   }
+   else
+   {
+      geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
+      maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   }
    const int sdim = mesh->SpaceDimension();
-   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
 
    QuadratureSpace qs(*mesh, *ir);
    CoefficientVector coeff(qs, CoefficientStorage::COMPRESSED);
+   // QuadratureSpace expects ir defined in reference simplex for Bernstein
+   // elements with partial assembly
 
    if (MQ) { coeff.ProjectTranspose(*MQ); }
    else if (VQ) { coeff.Project(*VQ); }
