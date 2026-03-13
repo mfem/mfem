@@ -123,16 +123,16 @@ TEST_CASE("Vector FE Face Restriction", "[FaceRestriction]")
 TEST_CASE("L2 Face Restriction", "[FaceRestriction][Parallel]")
 {
    const int dim = GENERATE(2, 3);
-   const int nx = 3;
-   const int order = 2;
-   const int vdim = 2;
+   constexpr int nx = 3;
+   constexpr int order = 2;
+   constexpr int vdim = 2;
    const Ordering::Type ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
 
    Mesh serial_mesh = MakeCartesianMesh(nx, dim);
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
 
    L2_FECollection fec(order, dim, BasisType::GaussLobatto);
-   ParFiniteElementSpace fes(&mesh, &fec, 2, ordering);
+   ParFiniteElementSpace fes(&mesh, &fec, vdim, ordering);
 
    auto *R = fes.GetFaceRestriction(ElementDofOrdering::LEXICOGRAPHIC,
                                     FaceType::Interior);
