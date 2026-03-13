@@ -113,6 +113,182 @@ void TMOP_AssembleGradPA_C0_2D(const real_t lim_normal,
    });
 }
 
+// Assemble gradient and Hessian of ALF field at quadrature points for AdaptLim (2D)
+template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
+void TMOP_AssembleGradPA_AdaptLim_2D(const int NE,
+                                     const real_t *b_nodes,
+                                     const real_t *g_nodes,
+                                     const real_t *B,
+                                     const DeviceTensor<4, const real_t> &X,
+                                     const ConstDeviceCube &ALF,
+                                     DeviceTensor<4> &ALF_grad,
+                                     DeviceTensor<5> &ALF_hess,
+                                     const int d1d,
+                                     const int q1d)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   {
+      MFEM_SHARED real_t smem_d[MD1][MD1];
+      MFEM_SHARED real_t smem_q[MQ1][MQ1];
+      MFEM_SHARED real_t sB_nodes[MD1][MD1], sG_nodes[MD1][MD1];
+      MFEM_SHARED real_t sB_q[MD1][MQ1];
+
+      // Node-point maps for gradients at the element DOF nodes.
+      kernels::internal::LoadMatrix(D1D, D1D, b_nodes, sB_nodes);
+      kernels::internal::LoadMatrix(D1D, D1D, g_nodes, sG_nodes);
+
+      // Quadrature-point map for interpolation back to quadrature.
+      kernels::internal::LoadMatrix(D1D, Q1D, B, sB_q);
+
+      // Compute the physical Jacobian at DOF nodes.
+      kernels::internal::vd_regs2d_t<2, 2, MD1> r_X, r_X_grad_nodes;
+      kernels::internal::LoadDofs2d(e, D1D, X, r_X);
+      kernels::internal::Grad2d(D1D, D1D, smem_d,
+                                sB_nodes, sG_nodes, r_X, r_X_grad_nodes);
+
+      // Compute the reference derivatives of ALF at DOF nodes.
+      kernels::internal::s_regs2d_t<MD1> alf_n, dalf_dx_n, dalf_dy_n;
+      kernels::internal::LoadDofs2d(e, D1D, ALF, alf_n);
+      kernels::internal::Contract2d<false, MD1>(D1D, D1D, smem_d,
+                                                sG_nodes, sB_nodes,
+                                                alf_n, dalf_dx_n);
+      kernels::internal::LoadDofs2d(e, D1D, ALF, alf_n);
+      kernels::internal::Contract2d<false, MD1>(D1D, D1D, smem_d,
+                                                sB_nodes, sG_nodes,
+                                                alf_n, dalf_dy_n);
+
+      // Physical gradient coefficients at DOF nodes (stored as nodal values).
+      real_t grad_e[MD1][MD1][2];
+      for (int dy = 0; dy < D1D; dy++)
+      {
+         for (int dx = 0; dx < D1D; dx++)
+         {
+            const real_t Jpr[4] =
+            {
+               r_X_grad_nodes[0][0][dy][dx], r_X_grad_nodes[1][0][dy][dx],
+               r_X_grad_nodes[0][1][dy][dx], r_X_grad_nodes[1][1][dy][dx]
+            };
+            real_t Jpr_inv[4];
+            kernels::CalcInverse<2>(Jpr, Jpr_inv);
+
+            const real_t dalf_dx = dalf_dx_n[dy][dx];
+            const real_t dalf_dy = dalf_dy_n[dy][dx];
+
+            grad_e[dy][dx][0] = Jpr_inv[0] * dalf_dx + Jpr_inv[1] * dalf_dy;
+            grad_e[dy][dx][1] = Jpr_inv[2] * dalf_dx + Jpr_inv[3] * dalf_dy;
+         }
+      }
+
+      // Compute the Hessian coefficients at DOF nodes by differentiating grad_e.
+      real_t hess_e[MD1][MD1][2][2];
+      for (int dy = 0; dy < D1D; dy++)
+      {
+         for (int dx = 0; dx < D1D; dx++)
+         {
+            for (int i = 0; i < 2; i++)
+            {
+               for (int j = 0; j < 2; j++) { hess_e[dy][dx][i][j] = 0.0; }
+            }
+
+            const real_t Jpr[4] =
+            {
+               r_X_grad_nodes[0][0][dy][dx], r_X_grad_nodes[1][0][dy][dx],
+               r_X_grad_nodes[0][1][dy][dx], r_X_grad_nodes[1][1][dy][dx]
+            };
+            real_t Jpr_inv[4];
+            kernels::CalcInverse<2>(Jpr, Jpr_inv);
+
+            for (int c = 0; c < 2; c++)
+            {
+               // Assemble scalar field grad_e[...,c] in registers.
+               kernels::internal::s_regs2d_t<MD1> rgrad_nodes, ddalf_dx_n, ddalf_dy_n;
+               for (int yy = 0; yy < D1D; yy++)
+               {
+                  for (int xx = 0; xx < D1D; xx++)
+                  {
+                     rgrad_nodes[yy][xx] = grad_e[yy][xx][c];
+                  }
+               }
+               kernels::internal::Contract2d<false, MD1>(D1D, D1D, smem_d,
+                                                         sG_nodes, sB_nodes,
+                                                         rgrad_nodes, ddalf_dx_n);
+
+               // Contract2d modifies its input registers, so reload before reusing.
+               for (int yy = 0; yy < D1D; yy++)
+               {
+                  for (int xx = 0; xx < D1D; xx++)
+                  {
+                     rgrad_nodes[yy][xx] = grad_e[yy][xx][c];
+                  }
+               }
+               kernels::internal::Contract2d<false, MD1>(D1D, D1D, smem_d,
+                                                         sB_nodes, sG_nodes,
+                                                         rgrad_nodes, ddalf_dy_n);
+
+               const real_t ddalf_dx = ddalf_dx_n[dy][dx];
+               const real_t ddalf_dy = ddalf_dy_n[dy][dx];
+               const real_t ddx = Jpr_inv[0] * ddalf_dx + Jpr_inv[1] * ddalf_dy;
+               const real_t ddy = Jpr_inv[2] * ddalf_dx + Jpr_inv[3] * ddalf_dy;
+
+               hess_e[dy][dx][c][0] = ddx;
+               hess_e[dy][dx][c][1] = ddy;
+            }
+         }
+      }
+
+      // Interpolate gradient and Hessian to quadrature points using the
+      // standard tensor-product evaluation kernels (to match other PA paths).
+      kernels::internal::s_regs2d_t<MQ1> r_node, r_quad;
+
+      // Gradient at quad points: 2 scalar evals.
+      for (int i = 0; i < 2; i++)
+      {
+         for (int dy = 0; dy < D1D; dy++)
+         {
+            for (int dx = 0; dx < D1D; dx++)
+            {
+               r_node[dy][dx] = grad_e[dy][dx][i];
+            }
+         }
+         MFEM_SYNC_THREAD;
+         kernels::internal::Eval2d<MQ1>(D1D, Q1D, smem_q, sB_q, r_node, r_quad);
+         MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+            {
+               ALF_grad(i, qx, qy, e) = r_quad[qy][qx];
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+
+      // Hessian at quad points: 4 scalar evals.
+      for (int i = 0; i < 2; i++)
+      {
+         for (int j = 0; j < 2; j++)
+         {
+            for (int dy = 0; dy < D1D; dy++)
+            {
+               for (int dx = 0; dx < D1D; dx++) { r_node[dy][dx] = hess_e[dy][dx][i][j]; }
+            }
+            MFEM_SYNC_THREAD;
+            kernels::internal::Eval2d<MQ1>(D1D, Q1D, smem_q, sB_q, r_node, r_quad);
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+               {
+                  ALF_hess(i, j, qx, qy, e) = r_quad[qy][qx];
+               }
+            }
+            MFEM_SYNC_THREAD;
+         }
+      }
+   });
+}
+
 MFEM_TMOP_MDQ_REGISTER(TMOPAssembleGradCoef2D, TMOP_AssembleGradPA_C0_2D);
 MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleGradCoef2D);
 
@@ -140,6 +316,31 @@ void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &x) const
 
    TMOPAssembleGradCoef2D::Run(d, q, ln, LD, const_c0, C0, NE,
                                J, W, b, bld, XL, X, H0, exp_lim, d, q);
+}
+
+MFEM_TMOP_MDQ_REGISTER(TMOPAssembleGradAdaptLim2D,
+                       TMOP_AssembleGradPA_AdaptLim_2D);
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleGradAdaptLim2D);
+
+void TMOP_Integrator::AssembleGradPA_AdaptLim_2D(const Vector &x) const
+{
+   if (PA.AL_grads_assembled) { return; }
+
+   const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
+   MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+
+   const auto *B_nodes = PA.maps_nodes->B.Read(),
+               *G_nodes = PA.maps_nodes->G.Read();
+   const auto *B = PA.maps->B.Read(), *G = PA.maps->G.Read();
+   const auto X = Reshape(x.Read(), d, d, 2, NE);
+   const auto ALF = Reshape(PA.ALF.Read(), d, d, NE);
+   auto ALF_grad = Reshape(PA.ALFG.Write(), 2, q, q, NE);
+   auto ALF_hess = Reshape(PA.ALFH.Write(), 2, 2, q, q, NE);
+
+   TMOPAssembleGradAdaptLim2D::Run(d, q, NE, B_nodes, G_nodes, B, X, ALF,
+                                   ALF_grad, ALF_hess, d, q);
+   PA.AL_grads_assembled = true;
 }
 
 } // namespace mfem
