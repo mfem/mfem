@@ -355,6 +355,11 @@ miniapps/performance/refined.mesh
 miniapps/performance/mesh.*
 miniapps/performance/sol.*
 
+miniapps/plasma/diffusion/umansky_cg
+miniapps/plasma/diffusion/umansky_dg
+miniapps/plasma/diffusion/Umansky-CG-AMR*
+miniapps/plasma/diffusion/Umansky-DG-AMR*
+
 miniapps/shifted/distance
 miniapps/shifted/ParaViewDistance
 miniapps/shifted/ParaViewLSF

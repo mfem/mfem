@@ -10,23 +10,21 @@
 # CONTRIBUTING.md for details.
 
 # Use the MFEM build directory
-MFEM_DIR ?= ../..
-MFEM_BUILD_DIR ?= ../..
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/plasma/,)
+MFEM_DIR ?= ../../..
+MFEM_BUILD_DIR ?= ../../..
+SRC = $(if $(MFEM_DIR:../../..=),$(MFEM_DIR)/miniapps/plasma/diffusion/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS = 
-PAR_MINIAPPS = 
+PAR_MINIAPPS = umansky_cg umansky_dg
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
    MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
 endif
-
-PLASMA_SUBDIRS = diffusion
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
@@ -46,12 +44,7 @@ COMMON_O=
 %: %.cpp
 %.o: %.cpp
 
-all: $(MINIAPPS) subdirs
-
-.PHONY: subdirs $(PLASMA_SUBDIRS)
-subdirs: $(PLASMA_SUBDIRS)
-$(PLASMA_SUBDIRS): lib-common
-	$(MAKE) -C $(BLD)$(@)
+all: $(MINIAPPS)
 
 # Rules for building the miniapps
 %: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
@@ -79,16 +72,11 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
 
-ALL_CLEAN_SUBDIRS = $(addsuffix /clean,$(PLASMA_SUBDIRS))
-.PHONY: $(ALL_CLEAN_SUBDIRS)
-$(ALL_CLEAN_SUBDIRS):
-	$(MAKE) -C $(BLD)$(@D) $(@F)
-
 clean: clean-build clean-exec
 
-clean-build: $(addsuffix /clean,$(PLASMA_SUBDIRS))
+clean-build:
 	rm -f *.o *~ $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-
+	@rm -rf Umansky-CG-AMR* Umansky-DG-AMR*
