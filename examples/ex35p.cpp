@@ -282,11 +282,11 @@ int main(int argc, char *argv[])
       mesh_name << "port_mesh." << setfill('0') << setw(6) << myid;
       port_name << "port_mode." << setfill('0') << setw(6) << myid;
 
-      ofstream mesh_ofs(mesh_name.str().c_str());
+      ofstream mesh_ofs(mesh_name.str());
       mesh_ofs.precision(8);
       pmesh_port.Print(mesh_ofs);
 
-      ofstream port_ofs(port_name.str().c_str());
+      ofstream port_ofs(port_name.str());
       port_ofs.precision(8);
       port_bc.Save(port_ofs);
    }
@@ -534,12 +534,12 @@ int main(int argc, char *argv[])
       sol_r_name << "sol_r." << setfill('0') << setw(6) << myid;
       sol_i_name << "sol_i." << setfill('0') << setw(6) << myid;
 
-      ofstream mesh_ofs(mesh_name.str().c_str());
+      ofstream mesh_ofs(mesh_name.str());
       mesh_ofs.precision(8);
       pmesh.Print(mesh_ofs);
 
-      ofstream sol_r_ofs(sol_r_name.str().c_str());
-      ofstream sol_i_ofs(sol_i_name.str().c_str());
+      ofstream sol_r_ofs(sol_r_name.str());
+      ofstream sol_i_ofs(sol_i_name.str());
       sol_r_ofs.precision(8);
       sol_i_ofs.precision(8);
       u.real().Save(sol_r_ofs);

@@ -146,9 +146,9 @@ private:
    /// Current Device MemoryClass
    MemoryClass device_mem_class = MemoryClass::HOST;
 
-   // Delete copy constructor and copy assignment.
-   Device(const Device &) = delete;
-   Device &operator=(const Device &) = delete;
+   // Make copy constructor and copy assignment private.
+   Device(const Device &) = default;
+   Device &operator=(const Device &) = default;
 
    // Access the Device singleton.
    static Device& Get() { return device_singleton; }

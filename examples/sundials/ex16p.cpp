@@ -289,10 +289,10 @@ int main(int argc, char *argv[])
       ostringstream mesh_name, sol_name;
       mesh_name << "ex16-mesh." << setfill('0') << setw(6) << myid;
       sol_name << "ex16-init." << setfill('0') << setw(6) << myid;
-      ofstream omesh(mesh_name.str().c_str());
+      ofstream omesh(mesh_name.str());
       omesh.precision(precision);
       pmesh->Print(omesh);
-      ofstream osol(sol_name.str().c_str());
+      ofstream osol(sol_name.str());
       osol.precision(precision);
       u_gf.Save(osol);
    }
@@ -489,6 +489,16 @@ int main(int argc, char *argv[])
 
    // 11. Save the final solution in parallel. This output can be viewed later
    //     using GLVis: "glvis -np <np> -m ex16-mesh -g ex16-final".
+   {
+      ostringstream sol_name;
+      sol_name << "ex16-final." << setfill('0') << setw(6) << myid;
+      ofstream osol(sol_name.str());
+      osol.precision(precision);
+      u_gf.Save(osol);
+   }
+
+   // 12. Free the used memory.
+   delete pmesh;
    u_gf.Save("ex16-final", precision);
 
    return 0;
