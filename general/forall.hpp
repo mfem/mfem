@@ -22,6 +22,14 @@
 #ifdef MFEM_USE_MPI
 #include <_hypre_utilities.h>
 #endif
+#ifdef MFEM_USE_PROTEUS
+#include <proteus/JitInterface.h>
+#define MFEM_JIT __attribute__((annotate("jit")))
+#define MFEM_JIT_VAR(v) v = proteus::jit_variable(v)
+#else
+#define MFEM_JIT
+#define MFEM_JIT_VAR(v) v = v
+#endif // MFEM_USE_PROTEUS
 
 namespace mfem
 {
@@ -672,8 +680,24 @@ void HipKernel1D(const int N, BODY body)
    body(k);
 }
 
+template <typename BODY> __global__ MFEM_JIT static
+void HipKernel1DJIT(const int N, BODY body)
+{
+   const int k = hipBlockDim_x*hipBlockIdx_x + hipThreadIdx_x;
+   if (k >= N) { return; }
+   body(k);
+}
+
 template <typename BODY> __global__ static
 void HipKernel2D(const int N, BODY body)
+{
+   const int k = hipBlockIdx_x*hipBlockDim_z + hipThreadIdx_z;
+   if (k >= N) { return; }
+   body(k);
+}
+
+template <typename BODY> __global__ MFEM_JIT static
+void HipKernel2DJIT(const int N, BODY body)
 {
    const int k = hipBlockIdx_x*hipBlockDim_z + hipThreadIdx_z;
    if (k >= N) { return; }
@@ -686,70 +710,106 @@ void HipKernel3D(const int N, BODY body)
    for (int k = hipBlockIdx_x; k < N; k += hipGridDim_x) { body(k); }
 }
 
-template <const int BLCK = MFEM_HIP_BLOCKS, typename DBODY>
+template <typename BODY> __global__ MFEM_JIT static
+void HipKernel3DJIT(const int N, BODY body)
+{
+   for (int k = hipBlockIdx_x; k < N; k += hipGridDim_x) { body(k); }
+}
+
+template <const int BLCK = MFEM_HIP_BLOCKS, const bool JIT = false, typename DBODY>
 void HipWrap1D(const int N, DBODY &&d_body)
 {
    if (N==0) { return; }
    const int GRID = (N+BLCK-1)/BLCK;
-   hipLaunchKernelGGL(HipKernel1D,GRID,BLCK,0,nullptr,N,d_body);
+   if constexpr(JIT)
+   {
+#ifdef MFEM_USE_PROTEUS
+      proteus::register_lambda(d_body);
+#endif
+      hipLaunchKernelGGL(HipKernel1DJIT,GRID,BLCK,0,nullptr,N,d_body);
+   }
+   else
+   {
+      hipLaunchKernelGGL(HipKernel1D,GRID,BLCK,0,nullptr,N,d_body);
+   }
    MFEM_GPU_CHECK(hipGetLastError());
 }
 
-template <typename DBODY>
+template <const bool JIT, typename DBODY>
 void HipWrap2D(const int N, DBODY &&d_body,
                const int X, const int Y, const int BZ)
 {
    if (N==0) { return; }
    const int GRID = (N+BZ-1)/BZ;
    const dim3 BLCK(X,Y,BZ);
-   hipLaunchKernelGGL(HipKernel2D,GRID,BLCK,0,nullptr,N,d_body);
+   if constexpr(JIT)
+   {
+#ifdef MFEM_USE_PROTEUS
+      proteus::register_lambda(d_body);
+#endif
+      hipLaunchKernelGGL(HipKernel2DJIT,GRID,BLCK,0,nullptr,N,d_body);
+   }
+   else
+   {
+      hipLaunchKernelGGL(HipKernel2D,GRID,BLCK,0,nullptr,N,d_body);
+   }
    MFEM_GPU_CHECK(hipGetLastError());
 }
 
-template <typename DBODY>
+template <const bool JIT, typename DBODY>
 void HipWrap3D(const int N, DBODY &&d_body,
                const int X, const int Y, const int Z, const int G)
 {
    if (N==0) { return; }
    const int GRID = G == 0 ? N : G;
    const dim3 BLCK(X,Y,Z);
-   hipLaunchKernelGGL(HipKernel3D,GRID,BLCK,0,nullptr,N,d_body);
+   if constexpr(JIT)
+   {
+#ifdef MFEM_USE_PROTEUS
+      proteus::register_lambda(d_body);
+#endif
+      hipLaunchKernelGGL(HipKernel3DJIT,GRID,BLCK,0,nullptr,N,d_body);
+   }
+   else
+   {
+      hipLaunchKernelGGL(HipKernel3D,GRID,BLCK,0,nullptr,N,d_body);
+   }
    MFEM_GPU_CHECK(hipGetLastError());
 }
 
-template <int Dim>
+template <int Dim, bool JIT=false>
 struct HipWrap;
 
-template <>
-struct HipWrap<1>
+template <bool JIT>
+struct HipWrap<1, JIT>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
    static void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
-      HipWrap1D<BLCK>(N, d_body);
+      HipWrap1D<BLCK, JIT>(N, d_body);
    }
 };
 
-template <>
-struct HipWrap<2>
+template <bool JIT>
+struct HipWrap<2, JIT>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
    static void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
-      HipWrap2D(N, d_body, X, Y, Z);
+      HipWrap2D<JIT>(N, d_body, X, Y, Z);
    }
 };
 
-template <>
-struct HipWrap<3>
+template <bool JIT>
+struct HipWrap<3, JIT>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
    static void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
-      HipWrap3D(N, d_body, X, Y, Z, G);
+      HipWrap3D<JIT>(N, d_body, X, Y, Z, G);
    }
 };
 
@@ -757,17 +817,18 @@ struct HipWrap<3>
 
 
 /// The forall kernel body wrapper
-template <const int DIM, typename d_lambda, typename h_lambda>
+template <const int DIM, const bool JIT=false, typename d_lambda, typename h_lambda>
 inline void ForallWrap(const bool use_dev, const int N,
                        d_lambda &&d_body, h_lambda &&h_body,
                        const int X=0, const int Y=0, const int Z=0,
-                       const int G=0)
+                       const int G=0, const std::string & name = "")
 {
    MFEM_CONTRACT_VAR(X);
    MFEM_CONTRACT_VAR(Y);
    MFEM_CONTRACT_VAR(Z);
    MFEM_CONTRACT_VAR(G);
    MFEM_CONTRACT_VAR(d_body);
+   MFEM_CONTRACT_VAR(name);
    if (!use_dev) { goto backend_cpu; }
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA) && defined(__CUDACC__)
@@ -798,7 +859,10 @@ inline void ForallWrap(const bool use_dev, const int N,
    // If Backend::HIP is allowed, use it
    if (Device::Allows(Backend::HIP))
    {
-      return HipWrap<DIM>::run(N, d_body, X, Y, Z, G);
+      if (!name.empty()) { roctxRangePush(name.c_str()); }
+      HipWrap<DIM, JIT>::run(N, d_body, X, Y, Z, G);
+      if (!name.empty()) { roctxRangePop(); }
+      return;
    }
 #endif
 
@@ -827,16 +891,19 @@ backend_cpu:
    for (int k = 0; k < N; k++) { h_body(k); }
 }
 
-template <const int DIM, typename lambda>
+template <const int DIM, const bool JIT=false, typename lambda>
 inline void ForallWrap(const bool use_dev, const int N, lambda &&body,
                        const int X=0, const int Y=0, const int Z=0,
-                       const int G=0)
+                       const int G=0, const std::string & name = "")
 {
-   ForallWrap<DIM>(use_dev, N, body, body, X, Y, Z, G);
+   ForallWrap<DIM, JIT>(use_dev, N, body, body, X, Y, Z, G, name);
 }
 
 template<typename lambda>
 inline void forall(int N, lambda &&body) { ForallWrap<1>(true, N, body); }
+
+template<typename lambda>
+inline void forall_jit(const std::string & name, int N, lambda &&body) { ForallWrap<1, true>(true, N, body, 0, 0, 0, 0, name); }
 
 template<typename lambda>
 inline void forall(int Nx, int Ny, lambda &&body)
@@ -928,15 +995,36 @@ inline void forall_2D(int N, int X, int Y, lambda &&body)
 }
 
 template<typename lambda>
+inline void forall_2D_jit(const std::string & name, int N, int X, int Y,
+                          lambda &&body)
+{
+   ForallWrap<2, true>(true, N, body, X, Y, 1, 0, name);
+}
+
+template<typename lambda>
 inline void forall_2D_batch(int N, int X, int Y, int BZ, lambda &&body)
 {
    ForallWrap<2>(true, N, body, X, Y, BZ);
 }
 
 template<typename lambda>
+inline void forall_2D_batch_jit(const std::string & name, int N, int X, int Y,
+                                int BZ, lambda &&body)
+{
+   ForallWrap<2, true>(true, N, body, X, Y, BZ, 0, name);
+}
+
+template<typename lambda>
 inline void forall_3D(int N, int X, int Y, int Z, lambda &&body)
 {
    ForallWrap<3>(true, N, body, X, Y, Z, 0);
+}
+
+template<typename lambda>
+inline void forall_3D_jit(const std::string & name, int N, int X, int Y, int Z,
+                          lambda &&body)
+{
+   ForallWrap<3, true>(true, N, body, X, Y, Z, 0, name);
 }
 
 template<typename lambda>

@@ -386,7 +386,9 @@ inline void SmemPADiffusionDiagonal3D(const int NE,
    auto g = Reshape(g_.Read(), Q1D, D1D);
    auto D = Reshape(d_.Read(), Q1D*Q1D*Q1D, symmetric ? 6 : 9, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D_jit("SmemPADiffusionDiagonal3D@", NE, Q1D, Q1D, Q1D, [=,
+                                                                         MFEM_JIT_VAR(d1d), MFEM_JIT_VAR(q1d),
+                                                                         MFEM_JIT_VAR(symmetric)] MFEM_HOST_DEVICE (int e) MFEM_JIT
    {
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -1010,7 +1012,9 @@ inline void SmemPADiffusionApply3D(const int NE,
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
    MFEM_VERIFY(D1D <= Q1D, "THREAD_DIRECT requires D1D <= Q1D");
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D_jit("SmemPADiffusionApply3D@", NE, Q1D, Q1D, Q1D, [=,
+                                                                      MFEM_JIT_VAR(d1d), MFEM_JIT_VAR(q1d),
+                                                                      MFEM_JIT_VAR(symmetric)] MFEM_HOST_DEVICE (int e) MFEM_JIT
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;

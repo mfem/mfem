@@ -59,7 +59,10 @@ public:
                       ? Reshape(mc.Read(), 1, 1, 1, 1)
                       : Reshape(mc.Read(), Q1D, Q1D, Q1D, NE);
 
-      mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+      // NOTE: metric_normal changes
+      mfem::forall_2D_jit("TMOPAssembleGradPA3D::Mult@", NE, Q1D, Q1D, [=,
+                                                                        MFEM_JIT_VAR(Q1D), MFEM_JIT_VAR(D1D),
+                                                                        MFEM_JIT_VAR(const_m0)] MFEM_HOST_DEVICE(int e) MFEM_JIT
       {
          MFEM_SHARED real_t smem[MQ1][MQ1];
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
@@ -80,8 +83,8 @@ public:
                   const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
                   const real_t detJtr = kernels::Det<3>(Jtr);
                   const real_t m_coef = const_m0 ?
-                                        MC(0, 0, 0, 0) :
-                                        MC(qx, qy, qz, e);
+                  MC(0, 0, 0, 0) :
+                  MC(qx, qy, qz, e);
                   const real_t weight = metric_normal * m_coef * W(qx, qy, qz) * detJtr;
 
                   // Jrt = Jtr^{-1}

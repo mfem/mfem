@@ -212,5 +212,8 @@
 
 // Enable the Enzyme LLVM plugin
 // #define MFEM_USE_ENZYME
+//
+// Enable the Proteus LLVM plugin
+// #define MFEM_USE_PROTEUS
 
 #endif // MFEM_CONFIG_HEADER

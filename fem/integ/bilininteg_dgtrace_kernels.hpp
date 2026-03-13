@@ -638,7 +638,8 @@ static void SmemPADGTraceApplyTranspose3D(const int NF, const Array<real_t> &b,
    auto x = Reshape(x_.Read(), D1D, D1D, 2, NF);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, 2, NF);
 
-   mfem::forall_2D_batch(NF, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE(int f)
+   mfem::forall_2D_batch_jit("SmemPADGTraceApplyTranspose3D@", NF, Q1D, Q1D,
+                             NBZ, [=, MFEM_JIT_VAR(d1d), MFEM_JIT_VAR(q1d)] MFEM_HOST_DEVICE(int f) MFEM_JIT
    {
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;

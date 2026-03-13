@@ -1137,7 +1137,8 @@ inline void SmemPAMassApply3D(const int NE,
    auto d = d_.Read();
    auto x = x_.Read();
    auto y = y_.ReadWrite();
-   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D_jit("SmemPAMassApply3D@", NE, Q1D, Q1D, [=, MFEM_JIT_VAR(NE),
+                                                               MFEM_JIT_VAR(d1d), MFEM_JIT_VAR(q1d)] MFEM_HOST_DEVICE (int e) MFEM_JIT
    {
       internal::SmemPAMassApply3D_Element<T_D1D,T_Q1D>(e, NE, b, d, x, y, d1d, q1d);
    });
@@ -1281,7 +1282,9 @@ inline void EAMassAssemble3D(const int NE,
    auto D = Reshape(padata.Read(), Q1D, Q1D, Q1D, NE);
    auto M = Reshape(add ? eadata.ReadWrite() : eadata.Write(), D1D, D1D, D1D, D1D,
                     D1D, D1D, NE);
-   mfem::forall_3D(NE, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D_jit("EAMassAssemble3D@", NE, D1D, D1D, D1D, [=,
+                                                                MFEM_JIT_VAR(d1d), MFEM_JIT_VAR(q1d),
+                                                                MFEM_JIT_VAR(add)] MFEM_HOST_DEVICE (int e) MFEM_JIT
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;

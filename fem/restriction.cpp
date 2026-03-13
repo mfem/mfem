@@ -115,7 +115,8 @@ void ElementRestriction::Mult(const Vector& x, Vector& y) const
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
    auto d_y = Reshape(y.Write(), nd, vd, ne);
    auto d_gather_map = gather_map.Read();
-   mfem::forall(dof*ne, [=] MFEM_HOST_DEVICE (int i)
+   mfem::forall_jit("ElementRestriction::Mult@", dof*ne, [=, MFEM_JIT_VAR(vd),
+                                                             MFEM_JIT_VAR(t), MFEM_JIT_VAR(nd)] MFEM_HOST_DEVICE (int i) MFEM_JIT
    {
       const int gid = d_gather_map[i];
       const bool plus = gid >= 0;
@@ -160,7 +161,9 @@ void ElementRestriction::TAddMultTranspose(const Vector& x, Vector& y) const
    auto d_indices = indices.Read();
    auto d_x = Reshape(x.Read(), nd, vd, ne);
    auto d_y = Reshape(ADD ? y.ReadWrite() : y.Write(), t?vd:ndofs, t?ndofs:vd);
-   mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i)
+   mfem::forall_jit("ElementRestriction::TAddMultTranspose@", ndofs, [=,
+                                                                      MFEM_JIT_VAR(vd), MFEM_JIT_VAR(nd),
+                                                                      MFEM_JIT_VAR(t)] MFEM_HOST_DEVICE (int i) MFEM_JIT
    {
       const int offset = d_offsets[i];
       const int next_offset = d_offsets[i + 1];

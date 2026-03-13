@@ -255,7 +255,8 @@ static void Derivatives3D(const int NE,
             Reshape(y_, Q1D, Q1D, Q1D, VDIM, 3, NE):
             Reshape(y_, VDIM, 3, Q1D, Q1D, Q1D, NE);
 
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D_jit("Derivatives3D@", NE, Q1D, Q1D, Q1D, [=, MFEM_JIT_VAR(d1d),
+                                                                MFEM_JIT_VAR(q1d), MFEM_JIT_VAR(vdim)] MFEM_HOST_DEVICE (int e) MFEM_JIT
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;

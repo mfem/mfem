@@ -474,7 +474,8 @@ void SmemPAConvectionApply3D(const int ne,
    auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, 3, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D_jit("SmemPAConvectionApply3D@", NE, Q1D, Q1D, Q1D, [=,
+                                                                       MFEM_JIT_VAR(d1d), MFEM_JIT_VAR(q1d)] MFEM_HOST_DEVICE (int e) MFEM_JIT
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;

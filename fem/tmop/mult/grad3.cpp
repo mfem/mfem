@@ -30,7 +30,8 @@ void TMOP_AddMultGradPA_3D(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D_jit("TMOP_AddMultGradPA_3D@", NE, Q1D, Q1D, [=,
+                                                                MFEM_JIT_VAR(Q1D), MFEM_JIT_VAR(D1D)] MFEM_HOST_DEVICE(int e) MFEM_JIT
    {
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
