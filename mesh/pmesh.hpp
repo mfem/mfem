@@ -100,6 +100,10 @@ protected:
    // for visualization purposes)
    bool print_shared = true;
 
+   // Enable Print() to add material interfaces as boundary, i.e. interior
+   // faces whose adjacent elements have different attributes.
+   bool print_interfaces = false;
+
    /// Create from a nonconforming mesh.
    ParMesh(const ParNCMesh &pncmesh);
 
@@ -724,9 +728,14 @@ public:
    // for visualization purposes)
    void SetPrintShared(bool print) { print_shared = print; }
 
+   // Enable Print() to add material interfaces as boundary (typically used
+   // for visualization purposes)
+   void SetPrintInterfaces(bool print) { print_interfaces = print; }
+
    /** Print the part of the mesh in the calling processor using the mfem v1.0
-       format. Depending on SetPrintShared(), the parallel interface can be
-       added as boundary for visualization (true by default). If @a comments is
+       format. Depending on SetPrintShared() and SetPrintInterfaces(), the
+       parallel interface and/or material interfaces can be added as boundary
+       for visualization (true/false respectively by default). If @a comments is
        non-empty, it will be printed after the first line of the file, and each
        line should begin with '#'. */
    void Print(std::ostream &out = mfem::out,

@@ -4838,6 +4838,8 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
 {
    int shared_bdr_attr;
    Array<int> nc_shared_faces;
+   Array<int> interface_faces;
+   int interface_bdr_attr = 0;
 
    if (NURBSext)
    {
@@ -4882,6 +4884,48 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
    const bool set_names = attribute_sets.SetsExist() ||
                           bdr_attribute_sets.SetsExist();
 
+   // Add material interfaces as boundary elements for visualization. We build a
+   // list of local faces to print as extra boundary elements. This does not
+   // modify the ParMesh object, only the printed mesh.
+   if (print_interfaces && Dim > 1)
+   {
+      // We need face neighbor elements to determine if shared faces in parallel
+      // are on material interfaces.
+      const_cast<ParMesh*>(this)->ExchangeFaceNbrData();
+
+      // Choose a boundary attribute that does not collide with existing ones,
+      // including those introduced by print_shared.
+      const int max_bdr_attr = bdr_attributes.Size() ? bdr_attributes.Max() : 0;
+      interface_bdr_attr = max_bdr_attr + NRanks + 1;
+
+      const int nf = GetNumFaces();
+      for (int f = 0; f < nf; f++)
+      {
+         if (!FaceIsTrueInterior(f)) { continue; } // skip true boundary
+
+         const int e1 = faces_info[f].Elem1No;
+         if (e1 < 0) { continue; }
+         const int a1 = elements[e1]->GetAttribute();
+
+         int a2 = a1;
+         if (faces_info[f].Elem2No >= 0)
+         {
+            a2 = elements[faces_info[f].Elem2No]->GetAttribute();
+         }
+         else
+         {
+            // Shared face: element 2 is a face-neighbor element with index
+            // -1-Elem2No (see Mesh::FaceInfo).
+            const int nbr_el = -1 - faces_info[f].Elem2No;
+            MFEM_ASSERT(0 <= nbr_el && nbr_el < face_nbr_elements.Size(),
+                        "ParMesh::Print: invalid face-neighbor index");
+            a2 = face_nbr_elements[nbr_el]->GetAttribute();
+         }
+
+         if (a1 != a2) { interface_faces.Append(f); }
+      }
+   }
+
    os << (!set_names ? "MFEM mesh v1.0\n" : "MFEM mesh v1.3\n");
 
    if (!comments.empty()) { os << '\n' << comments << '\n'; }
@@ -4916,6 +4960,12 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
    {
       num_bdr_elems += s2l_face->Size();
    }
+   if (print_interfaces && Dim > 1)
+   {
+      // in 3D we print two oriented copies for each material interface face
+      num_bdr_elems += (Dim == 3) ? 2*interface_faces.Size()
+                       : interface_faces.Size();
+   }
    os << "\nboundary\n" << num_bdr_elems << '\n';
    for (int i = 0; i < NumOfBdrElements; i++)
    {
@@ -4937,6 +4987,50 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
          // Modify the attributes of the faces (not used otherwise?)
          faces[(*s2l_face)[i]]->SetAttribute(shared_bdr_attr);
          PrintElement(faces[(*s2l_face)[i]], os);
+      }
+   }
+
+   // Print interface faces as additional boundary elements. In 3D we print two
+   // copies of each face, with opposite orientation, so material subdomains can
+   // be pulled apart with F11/F12 in GLVis.
+   if (print_interfaces && Dim > 1)
+   {
+      for (int i = 0; i < interface_faces.Size(); i++)
+      {
+         const int f = interface_faces[i];
+         const int *fv = faces[f]->GetVertices();
+         if (Dim == 2)
+         {
+            Segment seg(fv, interface_bdr_attr);
+            PrintElement(&seg, os);
+         }
+         else // Dim == 3
+         {
+            const Geometry::Type geom = faces[f]->GetGeometryType();
+            if (geom == Geometry::TRIANGLE)
+            {
+               int v0[3] = { fv[0], fv[1], fv[2] };
+               int v1[3] = { fv[0], fv[2], fv[1] };
+               Triangle t0(v0, interface_bdr_attr);
+               Triangle t1(v1, interface_bdr_attr);
+               PrintElement(&t0, os);
+               PrintElement(&t1, os);
+            }
+            else if (geom == Geometry::SQUARE)
+            {
+               int v0[4] = { fv[0], fv[1], fv[2], fv[3] };
+               int v1[4] = { fv[0], fv[3], fv[2], fv[1] };
+               Quadrilateral q0(v0, interface_bdr_attr);
+               Quadrilateral q1(v1, interface_bdr_attr);
+               PrintElement(&q0, os);
+               PrintElement(&q1, os);
+            }
+            else
+            {
+               MFEM_ABORT("ParMesh::Print: unsupported 3D face geometry type "
+                          << geom << " while printing interface boundaries.");
+            }
+         }
       }
    }
 
@@ -6873,7 +6967,9 @@ void ParMesh::Swap(ParMesh &other)
    // Nodes, NCMesh, and NURBSExtension are taken care of by Mesh::Swap
    mfem::Swap(pncmesh, other.pncmesh);
 
-   print_shared = other.print_shared;
+   // Keep Print() behavior consistent after move/swap operations.
+   mfem::Swap(print_shared, other.print_shared);
+   mfem::Swap(print_interfaces, other.print_interfaces);
 }
 
 void ParMesh::Destroy()
