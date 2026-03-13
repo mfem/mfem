@@ -1735,8 +1735,8 @@ public:
                              const int ref_factor=1, const int vdim=-1) const;
 
    /// Computes the \ref PLBound for the gridfunction with number of control
-   /// points based on \p ref_factor, and returns the bounds for each element
-   /// ordered byNodes:
+   /// points based on @a ref_factor, and returns the bounds for each element
+   /// ordered byNODES:
    /// lower_{0,0}, lower_{1,0}, ..., lower_{ne-1,0},
    /// lower_{0,1}, ..., lower_{ne-1,vdim-1}. We also return the
    /// PLBound object used to compute the bounds.
@@ -1770,7 +1770,7 @@ public:
                          const int vdim = -1) const;
 
    /// Compute bounds on the grid function for all the elements. The bounds
-   /// are returned in @b lower and @b upper, ordered byNodes:
+   /// are returned in @b lower and @b upper, ordered byNODES:
    /// lower_{0,0}, lower_{1,0}, ..., lower_{ne-1,0},
    /// lower_{0,1}, ..., lower_{ne-1,vdim-1}
    void GetElementBounds(const PLBound &plb, Vector &lower, Vector &upper,
