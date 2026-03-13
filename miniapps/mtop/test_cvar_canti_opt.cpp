@@ -17,7 +17,6 @@ using namespace mfem;
  *
  * Get the Failure probabilities or 0, 1, 2, or 3 contiguous holes failing.
  */
-// change to bitset
 
 const int N = 6;
 
@@ -66,20 +65,20 @@ std::vector<std::pair<std::bitset<N>, real_t>> getProbabilitySpace(real_t p1, re
          probability_space.emplace_back(tripleFailure, p3);
     }
 
-    // for (int i = 0; i < N - 3; i++)
-    // {
-    //     bitset<N> quadrupleFailure;
-    //     quadrupleFailure.set(i);
-    //     quadrupleFailure.set(i + 1);
-    //     quadrupleFailure.set(i + 2);
-    //     quadrupleFailure.set(i + 3);
-    //     probability_space.emplace_back(quadrupleFailure, p4);
-    // }
+    for (int i = 0; i < N - 3; i++)
+    {
+        bitset<N> quadrupleFailure;
+        quadrupleFailure.set(i);
+        quadrupleFailure.set(i + 1);
+        quadrupleFailure.set(i + 2);
+        quadrupleFailure.set(i + 3);
+        probability_space.emplace_back(quadrupleFailure, p4);
+    }
 
     return probability_space;
 }
 
-//
+
 real_t proj_latent_onto_probability_simplex(
     std::vector<std::tuple<std::bitset<N>, real_t, real_t>> latent_probabilities_unnormalized,
     std::vector<std::tuple<std::bitset<N>, real_t, real_t>> &latent_probabilities_normalized,
@@ -356,35 +355,35 @@ int main(int argc, char *argv[])
     bool algebraic_ceed = false;
     real_t filter_radius = real_t(0.03);
 
-    const real_t starting_gamma = 0.001;
+    const real_t starting_gamma = 0.005;
     real_t gamma = starting_gamma;
 
-    real_t vol_fraction = 0.3;
-    int max_it = 100;
+    real_t vol_fraction = 0.45;
+    // int max_it = 100;
     real_t itol = 1e-1;
     real_t ntol = 1e-4;
     real_t rho_min = 1e-3;
     real_t E_min = 1e-6;
     real_t E_max = 1.0;
-    real_t poisson_ratio = 0.2;
+    real_t poisson_ratio = 0.02;
     bool glvis_visualization = true;
     bool paraview_output = true;
 
-    const real_t p1 = 0.05;
-    const real_t p2 = 0.05;
-    const real_t p3 = 0.05;
-    const real_t p4 = 0.0;
+    const real_t p1 = 0.01;
+    const real_t p2 = 0.01;
+    const real_t p3 = 0.01;
+    const real_t p4 = 0.005;
 
     const real_t cvar_alpha = 0.05;
-    const int outer_loop_iterations = 150;
+    const int outer_loop_iterations = 25;
 
     // "const" or "gradient"
     const std::string inner_loop_termination_mode = "const";
-    const int inner_loop_iterations = 2;
+    const int inner_loop_iterations = 10;
     const float inner_loop_gradient_epsilon = 0.001;
 
     // "lockstep" or "restart"
-    const std::string inner_loop_gamma_choice = "restart";
+    const std::string inner_loop_gamma_choice = "lockstep";
 
     if (inner_loop_termination_mode != "const" && inner_loop_termination_mode != "gradient") {
         throw std::runtime_error("Invalid inner_loop_termination_mode");
@@ -566,7 +565,7 @@ int main(int argc, char *argv[])
     ParGridFunction& sol=elsolver->GetDisplacements();
 
     // set up the paraview
-    mfem::ParaViewDataCollection paraview_dc("cvar_optimization", &pmesh);
+    mfem::ParaViewDataCollection paraview_dc("cvar_optimization_06Mar2026", &pmesh);
     // rho_gf.ProjectCoefficient(rho);
     paraview_dc.SetPrefixPath("ParaView");
     paraview_dc.SetLevelsOfDetail(order);
@@ -617,6 +616,8 @@ int main(int argc, char *argv[])
     std::vector<std::tuple<std::bitset<N>, real_t, real_t>> latent_probabilities_unnormalized;
     std::vector<std::tuple<std::bitset<N>, real_t, real_t>> latent_probabilities;
 
+    int total_iterations = 0;
+
     // loop
     for (int k = 1; k <= outer_loop_iterations; k++)
     {
@@ -629,13 +630,14 @@ int main(int argc, char *argv[])
         {
             cout << "\nStep = " << k << endl;
         }
+        // cout << "K IS " << k << endl;
 
         filt->FFilter(&odens, fdens);
 
         {
             odens_gf.ProjectCoefficient(odens);
-            paraview_dc.SetCycle(k);
-            paraview_dc.SetTime((real_t)k);
+            paraview_dc.SetCycle(total_iterations);
+            paraview_dc.SetTime((real_t)total_iterations);
             paraview_dc.Save();
         }
 
@@ -649,6 +651,7 @@ int main(int argc, char *argv[])
             throw std::runtime_error("Invalid gamma");
         }
 
+        // cout << "STARTING RUNNING LOOP" << endl;
 
         int inner = 1;
         while (true)
@@ -659,6 +662,8 @@ int main(int argc, char *argv[])
 
             latent_probabilities_unnormalized.clear();
             latent_probabilities.clear(); // fresh start in inner loop
+
+            // cout << "SETTING NEW LATENT PROBABILITIES" << endl;
 
             // iterate through the probability space
             for (auto &[bits, original_probability, latent_probability] : latent_probabilities_old)
@@ -712,6 +717,8 @@ int main(int argc, char *argv[])
                 latent_probabilities_unnormalized.emplace_back(
                     bits, original_probability, latent_probability + gamma * compliance_i);
             }
+
+            // cout << "DONE CALCULATING NEW LATENT PROBABILITIES" << endl;
 
             if (myid == 0) {
                 std::cout << "Printing latent_probabilities_unnormalized within inner loop, after calculating.\n";
@@ -793,6 +800,8 @@ int main(int argc, char *argv[])
                 }
             }
 
+            // cout << "DONE GETTING NEW GRADIENT" << endl;
+
             real_t material_volume = proj(odens_latent, target_volume, domain_volume, 1e-12, 25); // last two are tol and max its
             // odens_latent.SetTrueVector();
             // odens_latent.GetTrueDofs(odens_latent_vector);
@@ -806,7 +815,10 @@ int main(int argc, char *argv[])
             // odens *= target_volume / total_volume_current;
             // odens.GetTrueDofs(odv);
 
+            // cout << "PROJECTING NEW COEFFICIENT at " << k << endl;
+
             {
+                total_iterations += 1;
                 odens_gf.ProjectCoefficient(odens);
                 paraview_dc.SetCycle(k);
                 paraview_dc.SetTime((real_t)k);
@@ -814,6 +826,7 @@ int main(int argc, char *argv[])
             }
 
             if (inner_loop_termination_mode == "const") {
+                inner += 1;
                 if (inner > inner_loop_iterations) {
                     break;
                 };

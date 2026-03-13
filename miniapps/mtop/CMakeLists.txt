@@ -46,6 +46,11 @@ add_mfem_miniapp(test_cvar_canti_opt
      ${PARMTOP_COMMON_FILES}
      LIBRARIES mfem)
 
+add_mfem_miniapp(test_cvar_canti_opt_stochastic
+     MAIN test_cvar_canti_opt_stochastic.cpp
+     ${PARMTOP_COMMON_FILES}
+     LIBRARIES mfem)
+
 add_mfem_miniapp(test_filter
      MAIN test_filter.cpp
      ${PARMTOP_COMMON_FILES}
