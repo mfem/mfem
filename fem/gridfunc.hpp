@@ -23,6 +23,7 @@
 #include <limits>
 #include <ostream>
 #include <string>
+#include <variant>
 
 namespace mfem
 {
@@ -79,10 +80,11 @@ protected:
                         bool wcoef,
                         int subdomain);
 
-   /** Project a discontinuous vector coefficient in a continuous space and
+   /** Project a discontinuous (vector) coefficient in a continuous space and
        return in dof_attr the maximal attribute of the elements containing each
        degree of freedom. */
-   void ProjectDiscCoefficient(VectorCoefficient &coeff, Array<int> &dof_attr);
+   void ProjectDiscCoefficient(
+      std::variant<Coefficient*, VectorCoefficient*> coeff, Array<int> &dof_attr);
 
    /** Helper function for ProjectCoefficientElementL2 */
    void ProjectCoefficientElementL2_(Coefficient &coeff, Vector &sol, Vector &Va);
@@ -513,10 +515,17 @@ public:
        but using an array of scalar coefficients for each component. */
    void ProjectCoefficient(Coefficient *coeff[]);
 
+   /** @brief Project a discontinuous coefficient as a grid function on
+       a continuous finite element space. The values in shared dofs are
+       determined from the element with maximal attribute. */
+   virtual void ProjectDiscCoefficient(Coefficient &coeff)
+   { Array<int> dof_attr; ProjectDiscCoefficient(&coeff, dof_attr); }
+
    /** @brief Project a discontinuous vector coefficient as a grid function on
        a continuous finite element space. The values in shared dofs are
        determined from the element with maximal attribute. */
-   virtual void ProjectDiscCoefficient(VectorCoefficient &coeff);
+   virtual void ProjectDiscCoefficient(VectorCoefficient &coeff)
+   { Array<int> dof_attr; ProjectDiscCoefficient(&coeff, dof_attr); }
 
    enum AvgType {ARITHMETIC, HARMONIC};
    /** @brief Projects a discontinuous coefficient so that the values in shared

@@ -3030,8 +3030,8 @@ void GridFunction::ProjectCoefficient(Coefficient *coeff[])
    }
 }
 
-void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff,
-                                          Array<int> &dof_attr)
+void GridFunction::ProjectDiscCoefficient(
+   std::variant<Coefficient*, VectorCoefficient*> coeff, Array<int> &dof_attr)
 {
    Array<int> vdofs;
    Vector vals;
@@ -3046,7 +3046,10 @@ void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff,
    {
       fes->GetElementVDofs(i, vdofs);
       vals.SetSize(vdofs.Size());
-      fes->GetFE(i)->Project(coeff, *fes->GetElementTransformation(i), vals);
+      std::visit([&](auto* c)
+      {
+         fes->GetFE(i)->Project(*c, *fes->GetElementTransformation(i), vals);
+      }, coeff);
 
       // the values in shared dofs are determined from the element with maximal
       // attribute
@@ -3060,12 +3063,6 @@ void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff,
          }
       }
    }
-}
-
-void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff)
-{
-   Array<int> dof_attr;
-   ProjectDiscCoefficient(coeff, dof_attr);
 }
 
 void GridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
