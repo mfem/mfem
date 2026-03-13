@@ -47,21 +47,23 @@ const SparseMatrix& AgglomerationMultigrid::GetFinestProlongation() const
 
 }
 
-std::vector<std::vector<int>> Agglomerate(Mesh &mesh, int ncoarse)
+std::vector<std::vector<int>> Agglomerate(Mesh &mesh, int ncoarse, int num_levels)
 {
    const int ne = mesh.GetNE();
 
-   const int num_partitions = std::ceil(std::log(ne)/std::log(ncoarse));
+   const int ne_coarsest = ne / pow(ncoarse, num_levels-1);
+
+   // const int num_partitions = std::ceil(std::log(ne)/std::log(ncoarse));
 
    std::cout << "number of fine elements: " << ne << std::endl;
    std::cout << "number of elements per macro elements: " << ncoarse << std::endl;
-   std::cout << "number of times we partition: " << num_partitions << std::endl;
+   std::cout << "number of coarsest level elements: " << ne_coarsest << std::endl;
 
    // E is a data structure such that E_ij = index of the parent element to element j on level i.
    // i goes from coarsest to finest, so i = 0 corresponds to the coarsest level.
    // For example, E_0j = 0, since for any element j on the second-coarsest level, the parent element is 0.
 
-   std::vector<std::vector<int>> E(num_partitions);
+   std::vector<std::vector<int>> E(num_levels+1);
 
    // Recursive METIS partitioning to create 'E' data
 
@@ -71,22 +73,23 @@ std::vector<std::vector<int>> Agglomerate(Mesh &mesh, int ncoarse)
    // Partition the coarsest mesh.
    GridFunction p(&fes);
    p = 0;
-   Array<int> partitioning = PartitionMesh(mesh, ncoarse);
+   Array<int> partitioning = PartitionMesh(mesh, ne_coarsest);
    for (int i = 0; i < p.Size(); ++i)
    {
       p[i] = partitioning[i];
    }
-   for (int i = 0; i < ncoarse; ++i)
+   for (int i = 0; i < ne_coarsest; ++i)
    {
       E[0].push_back(0);
    }
 
    // Iterate through each level, and populate E. 
    int j = 1;
-   while (E[j-1].size() != ne)
+   int ej = E[j-1].size();
+   while (ej != ne)
    {
       // If j is >= num_partitions, but we still have not fully refined the mesh, resize E
-      if(j >= num_partitions){E.resize(E.size()+1);}
+      if(j >= num_levels+1){E.resize(E.size()+1);}
 
       // macro_elements is a data structure which, for each macro element idx i, gives the indices of all the fine mesh elements which belong to it
       std::vector<std::vector<int>> macro_elements(E[j-1].size());
@@ -98,7 +101,7 @@ std::vector<std::vector<int>> Agglomerate(Mesh &mesh, int ncoarse)
 
       // for each macro_element, partition it
       int total_new_macros = 0;
-      for (int e = 0; e < E[j-1].size(); ++e)
+      for (int e = 0; e < ej; ++e)
       {
          const int num_fine_in_macro = macro_elements[e].size(); 
          if (num_fine_in_macro == 1)
@@ -124,6 +127,7 @@ std::vector<std::vector<int>> Agglomerate(Mesh &mesh, int ncoarse)
          }
       }
       j = j+1;
+      ej = E[j-1].size();
    }
 
    return E;
@@ -139,8 +143,8 @@ void GetMeshSubsetBoundingBox(const mfem::Mesh &mesh, const std::vector<int> &E2
        min_coords(i) = infinity();
        max_coords(i) = -infinity();
    }
-
-   for (int i = 0; i < E2l.size(); ++i) {
+   int E2l_size = E2l.size();
+   for (int i = 0; i < E2l_size; ++i) {
        if (E2l[i] == c) {
            mfem::Array<int> vert_indices;
            mesh.GetElementVertices(i, vert_indices);
@@ -165,36 +169,33 @@ SparseMatrix *CreateNodalProlongation(
    GridFunction nodes(&nodal_fes);
    mesh.GetNodes(nodes);
    int nnodes = nodes.Size()/dim;
-   int nnodes_per_el = nnodes/ne; // Assumes same number of nodes per element on fine mesh
    const int n = E.size();
    const int p = fes.GetOrder(0);
    int d = (dim == 2) ? (p+1)*(p+2)/2 : (p+1)*(p+2)*(p+3)/6;
-   //int d = nnodes_per_el;
    int nc = d*E[n-2].size();
    int nr = nnodes;
    std::cout << "nodal prolongation rows: " << nr << std::endl;
    std::cout << "nodal prolongation columns: " << nc << std::endl;
    SparseMatrix *P = new SparseMatrix(nr, nc);
-   for (int e = 0; e < E[n-1].size(); ++e)
+   for (int e = 0; e < ne; ++e)
    {
       int c = E[n-1][e];
       Vector bb_min_coarse; Vector bb_max_coarse;
       GetMeshSubsetBoundingBox(mesh, E2[n-1], c, bb_min_coarse, bb_max_coarse);
-      L2_FECollection fec(p, dim);
-      Geometry::Type geom = mesh.GetElementGeometry(e);
-      const FiniteElement *rfe_f = fec.GetFE(geom, p);
-      const IntegrationRule rfef_nodes = rfe_f->GetNodes();
-      const int num_dof_rfe = rfe_f->GetDof();
-      for (int i = 0; i < num_dof_rfe; ++i)
+      Array<int> local_element_dof_indices;
+      fes.GetElementDofs(e, local_element_dof_indices);
+      int num_el_dofs = local_element_dof_indices.Size();
+      for (int i = 0; i < num_el_dofs; ++i)
       {
-         double x_phys = nodes(e*num_dof_rfe + i); double y_phys = nodes(nnodes + e*num_dof_rfe + i);
+         int dof_idx = local_element_dof_indices[i];
+         double x_phys = nodes(dof_idx); double y_phys = nodes(nnodes + dof_idx);
          double x_ref = (x_phys - bb_min_coarse(0)) / (bb_max_coarse(0) - bb_min_coarse(0));
          double y_ref = (y_phys - bb_min_coarse(1)) / (bb_max_coarse(1) - bb_min_coarse(1));
          IntegrationPoint ip;
          Vector shape_vec(d);
          if (dim == 3){
             L2_TetrahedronElement rfe(p);
-            double z_phys = nodes(2*nnodes + e*num_dof_rfe + i);
+            double z_phys = nodes(2*nnodes + dof_idx);
             double z_ref = (z_phys - bb_min_coarse(2)) / (bb_max_coarse(2) - bb_min_coarse(2));
             ip.Set(x_ref, y_ref, z_ref, 1);
             rfe.CalcShape(ip, shape_vec);
@@ -207,7 +208,7 @@ SparseMatrix *CreateNodalProlongation(
          }
          for (int k = 0; k < d; k++)
          {
-            P -> Set(nnodes_per_el*e + i, d*c + k, shape_vec(k));
+            P -> Set(dof_idx, d*c + k, shape_vec(k));
          }
       }
    }
@@ -229,7 +230,8 @@ SparseMatrix *CreateInclusionProlongation(
    std::cout << "inclusion prolongation rows: " << nr << std::endl;
    std::cout << "inclusion prolongation columns: " << nc << std::endl;
    SparseMatrix *P = new SparseMatrix(nr, nc);
-   for (int e = 0; e < E[l].size(); ++e)
+   int el_size = E[l].size();
+   for (int e = 0; e < el_size; ++e)
     {
       int c = E[l][e];
       Vector bb_min_coarse; Vector bb_max_coarse;
@@ -292,14 +294,12 @@ SparseMatrix *CreateInclusionProlongation(
 AgglomerationMultigrid::AgglomerationMultigrid(
    FiniteElementSpace &fes, SparseMatrix &Af, int ncoarse, int num_levels, int smoother_choice, bool paraview_vis)
 {
-   // Create the mesh hierarchy
-   int order = fes.GetMaxElementOrder();
-   std::cout << "element order: " << order << std::endl;
-
-   auto E = Agglomerate(*fes.GetMesh(), ncoarse);
-   int num_levels_s = E.size() + 1;
    Mesh &mesh = *fes.GetMesh();
    const int ne = mesh.GetNE();
+
+   // Create the mesh hierarchy
+   // E2 is a data structure such that E2_ij = gives the level i index for fine element j
+   auto E = Agglomerate(*fes.GetMesh(), ncoarse, num_levels);
    vector<vector<int>> E2(E.size());
    E2.back() = E.back();
    for (int i = E.size() - 2; i >= 0; --i)
@@ -317,7 +317,8 @@ AgglomerationMultigrid::AgglomerationMultigrid(
       E2_finest_level[i] = i; 
    }
    E2.push_back(E2_finest_level);
-   int dim = mesh.Dimension();
+
+   // output a paraview visualization of the partition, if desired
    if (paraview_vis)
    {
       L2_FECollection l2_fec(0, mesh.Dimension());
@@ -326,7 +327,8 @@ AgglomerationMultigrid::AgglomerationMultigrid(
       ParaViewDataCollection pv("Agglomeration", &mesh);
       pv.SetPrefixPath("ParaView");
       pv.RegisterField("p", &p_gf);
-      for (int i = 0; i < E.size(); ++i)
+      int E_size = E.size();
+      for (int i = 0; i < E_size; ++i)
       {
          for (int e = 0; e < ne; ++e)
          {
@@ -339,8 +341,8 @@ AgglomerationMultigrid::AgglomerationMultigrid(
       for (int e = 0; e < ne; ++e)
       {
          p_gf[e] = e;
-         pv.SetCycle(num_levels_s - 1);
-         pv.SetTime(num_levels_s - 1);
+         pv.SetCycle(E.size());
+         pv.SetTime(E.size());
          pv.Save();
       }
    }
@@ -350,18 +352,12 @@ AgglomerationMultigrid::AgglomerationMultigrid(
    // Populate the arrays: operators, smoothers, ownedOperators, ownedSmoothers
    // from the MultigridBase class. (All smoothers are owned, all operators
    // except the finest are owned).
-
    operators.SetSize(num_levels);
    smoothers.SetSize(num_levels);
    ownedOperators.SetSize(num_levels);
    ownedSmoothers.SetSize(num_levels);
    prolongations.SetSize(num_levels-1);
    ownedProlongations.SetSize(num_levels-1);
-
-   //Used for making the smoother
-   real_t alpha = 1.0;
-   Array<Operator*> sm_operators;
-   sm_operators.SetSize(num_levels);
 
    //Set the ownership
    for (int l = 0; l < num_levels-1; ++l)
@@ -373,48 +369,39 @@ AgglomerationMultigrid::AgglomerationMultigrid(
    ownedOperators[num_levels-1] = false;
    ownedSmoothers[num_levels-1] = true;
 
-   operators[num_levels - 1] = &Af;
-
    // Populate the arrays: prolongations, ownedProlongations from the Multigrid
    // class. All prolongations are owned.
    // Create the prolongations using 'E' using the SparseMatrix class
-   int k = num_levels_s-2;
+   operators[num_levels - 1] = &Af;
+   int k = num_levels;
    for (int l = num_levels - 2; l >= 0; --l)
    {
       SparseMatrix *P;
       if (l < num_levels - 2)
       {
          P = CreateInclusionProlongation(k, E, E2, fes);
-         prolongations[l] = P;
-         // P->Print(mfem::out);
          SparseMatrix &A_prev = static_cast<SparseMatrix&>(*operators[l + 1]);
-
          unique_ptr<SparseMatrix> AP(mfem::Mult(A_prev, *P));
          unique_ptr<SparseMatrix> Pt(Transpose(*P));
          operators[l] = mfem::Mult(*Pt, *AP);
+         prolongations[l] = P;
       }
       else
       {
          P = CreateNodalProlongation(E, E2, fes);
-         //P = CreateInclusionProlongation(k, E, E2, fes);
          SparseMatrix &A_prev = static_cast<SparseMatrix&>(*operators[l + 1]);
-
          unique_ptr<SparseMatrix> AP(mfem::Mult(A_prev, *P));
          unique_ptr<SparseMatrix> Pt(Transpose(*P));
          operators[l] = mfem::Mult(*Pt, *AP);
+         prolongations[l] = P;
       }
-
-      //sm_operators[l] = &(*(mfem::Mult(*Pt, *AP))*=alpha);
       k = k-1;
    }
 
    // Create the smoothers remember block size is num degrees of freedom per element
-   
    SparseMatrix &Ac = static_cast<SparseMatrix&>(*operators[0]);
-   // mfem::out << "Sparse Matrix A:\n";
-   // Ac.Print(mfem::out);
    smoothers[0] = new UMFPackSolver(Ac);
-   int block_size = 4;
+   int block_size = 1;
    for (int l=1; l < num_levels; l++)
    {
       if (smoother_choice == 0)
@@ -427,6 +414,8 @@ AgglomerationMultigrid::AgglomerationMultigrid(
       }
       else if (smoother_choice == 2)
       {
+         // note - need to set alpha value
+         //sm_operators[l] = &(*(mfem::Mult(*Pt, *AP))*=alpha);
          smoothers[l] = new BlockILU(*operators[l], block_size);
       }
       else
