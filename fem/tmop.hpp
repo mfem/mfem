@@ -2390,11 +2390,11 @@ public:
        @param[in] delta_max Controls the allowable deviation from z0.
                             Smaller values activate the term faster. */
    void EnableAdaptiveLimiting(const GridFunction &z0, Coefficient &coeff,
-                               AdaptivityEvaluator &ae, double delta_max);
+                               AdaptivityEvaluator &ae, real_t delta_max);
 #ifdef MFEM_USE_MPI
    /// Parallel support for adaptive limiting.
    void EnableAdaptiveLimiting(const ParGridFunction &z0, Coefficient &coeff,
-                               AdaptivityEvaluator &ae, double delta_max);
+                               AdaptivityEvaluator &ae, real_t delta_max);
 #endif
 
    /** @brief Fitting of certain DOFs to the zero level set of a function.
