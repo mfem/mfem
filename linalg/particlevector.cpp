@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "particlevector.hpp"
+#include "../general/forall.hpp"
 
 namespace mfem
 {
@@ -46,20 +47,38 @@ void ParticleVector::GetValues(int i, Vector &nvals) const
 {
    nvals.SetSize(vdim);
 
-   if (ordering == Ordering::byNODES)
+   const bool nvals_use_dev = nvals.UseDevice();
+   // Use ParticleVector's device flag to minimize movement from large source
+   const bool use_dev = UseDevice();
+   const auto d_src = Read(use_dev);
+   auto d_dest = nvals.Write(use_dev);
+
+   const int vdim_ = vdim;
+   const int ordering_ = (int)ordering;
+   const int nv = (ordering == Ordering::byNODES) ? size / vdim : 0;
+
+   MFEM_FORALL(c, vdim_,
    {
-      int nv = GetNumParticles();
-      for (int c = 0; c < vdim; c++)
+      if (ordering_ == Ordering::byNODES)
       {
-         nvals[c] = Vector::operator[](i+nv*c);
+         d_dest[c] = d_src[i + nv*c];
       }
+      else
+      {
+         d_dest[c] = d_src[c + vdim_*i];
+      }
+   });
+
+   // If nvals was not using device but ParticleVector is, copy back to host
+   if (!nvals_use_dev && use_dev)
+   {
+      nvals.HostRead();
+      nvals.UseDevice(false);
    }
-   else
+   // If nvals was using device but ParticleVector is not, copy back to device
+   if (!use_dev && nvals_use_dev)
    {
-      for (int c = 0; c < vdim; c++)
-      {
-         nvals[c] = Vector::operator[](c+vdim*i);
-      }
+      nvals.Read();
    }
 }
 
@@ -99,21 +118,27 @@ void ParticleVector::GetComponentsRef(int vd, Vector &nref)
 
 void ParticleVector::SetValues(int i, const Vector &nvals)
 {
-   if (ordering == Ordering::byNODES)
+   const bool use_dev = UseDevice(); // use ParticleVector's device flag
+   const bool nvals_use_dev = nvals.UseDevice();
+   auto d_dest = ReadWrite(use_dev);
+   const auto d_src = nvals.Read(use_dev);
+
+   const int vdim_ = vdim;
+   const int ordering_ = (int)ordering;
+   const int nv = (ordering == Ordering::byNODES) ? size / vdim : 0;
+
+   MFEM_FORALL(c, vdim_,
    {
-      int nv = GetNumParticles();
-      for (int c = 0; c < vdim; c++)
+      if (ordering_ == Ordering::byNODES)
       {
-         Vector::operator[](i + c*nv) = nvals[c];
+         d_dest[i + c*nv] = d_src[c];
       }
-   }
-   else
-   {
-      for (int c = 0; c < vdim; c++)
+      else
       {
-         Vector::operator[](c + i*vdim) = nvals[c];
+         d_dest[c + i*vdim_] = d_src[c];
       }
-   }
+   });
+   nvals.UseDevice(nvals_use_dev);
 }
 
 void ParticleVector::SetComponents(int vd, const Vector &comp)
@@ -144,6 +169,8 @@ real_t& ParticleVector::operator()(int i, int comp)
                "Component index " << comp <<
                " is invalid for vector dimension " << vdim);
 
+   HostRead();
+
    if (ordering == Ordering::byNODES)
    {
       return Vector::operator[](i + comp*GetNumParticles());
@@ -162,6 +189,8 @@ const real_t& ParticleVector::operator()(int i, int comp) const
    MFEM_ASSERT(comp < vdim,
                "Component index " << comp <<
                " is invalid for vector dimension " << vdim);
+
+   HostRead();
 
    if (ordering == Ordering::byNODES)
    {
@@ -240,9 +269,37 @@ void ParticleVector::SetVDim(int vdim_, bool keep_data)
 
 void ParticleVector::SetOrdering(Ordering::Type ordering_, bool keep_data)
 {
-   if (keep_data)
+   if (keep_data && ordering != ordering_)
    {
-      Ordering::Reorder(*this, vdim, ordering, ordering_);
+      int num_particles = GetNumParticles();
+      // create deep copy of old data that will be copied
+      Vector old_data(*this);
+
+      const bool use_dev = UseDevice();
+      const auto d_src = old_data.Read(use_dev);
+      auto d_dest = Write(use_dev);
+
+      const int vdim_ = vdim;
+      const int size_ = size;
+
+      if (ordering_ == Ordering::byNODES) // byVDIM -> byNODES
+      {
+         MFEM_FORALL(k, size_,
+         {
+            int i = k / vdim_; // src particle index
+            int d = k % vdim_; // src component index
+            d_dest[i + d * num_particles] = d_src[k];
+         });
+      }
+      else // byNODES -> byVDIM
+      {
+         MFEM_FORALL(k, size_,
+         {
+            int d = k / num_particles; // src component index
+            int i = k % num_particles; // src particle index
+            d_dest[d + i * vdim_] = d_src[k];
+         });
+      }
    }
    ordering = ordering_;
 }
@@ -270,32 +327,44 @@ void ParticleVector::SetNumParticles(int num_vectors, bool keep_data)
 
       if (!keep_data) { return; }
 
+      auto d_dest = this->ReadWrite(UseDevice());
+
       if (ordering == Ordering::byNODES)
       {
-         // Shift entries for byNODES
-         for (int c = vdim-1; c > 0; c--)
-         {
-            for (int i = old_nv-1; i >= 0; i--)
-            {
-               Vector::operator[](i+c*num_vectors) = Vector::operator[](i+c*old_nv);
-            }
-         }
+         // create deep copy of old data that will be copied
+         Vector old_slice;
+         old_slice.MakeRef(*this, 0, old_nv * vdim);
+         Vector old_copy(old_slice);
 
-         // Zero-out data now associated with new Vectors
-         for (int c = 0; c < vdim; c++)
+         const auto d_src = old_copy.Read(UseDevice());
+         const int vdim_ = vdim;
+
+         // Shift entries for byNODES
+         MFEM_FORALL(k, old_nv * vdim_,
          {
-            for (int i = old_nv; i < num_vectors; i++)
-            {
-               Vector::operator[](i+c*num_vectors) = 0.0;
-            }
-         }
+            const int d = k / old_nv;
+            const int i = k % old_nv;
+            d_dest[i + d*num_vectors] = d_src[k];
+         });
+
+         // Zero-out new data slots
+         const int diff = num_vectors - old_nv;
+         MFEM_FORALL(k, diff * vdim,
+         {
+            const int d = k / diff;
+            const int i = k % diff;
+            d_dest[d * num_vectors + old_nv + i] = 0.0;
+         });
       }
       else // byVDIM
       {
-         for (int i = old_nv*vdim; i < num_vectors*vdim; i++)
+         const int start_idx = old_nv * vdim;
+         const int end_idx = num_vectors * vdim;
+         const int diff = end_idx - start_idx;
+         MFEM_FORALL(i, diff,
          {
-            data[i] = 0.0;
-         }
+            d_dest[start_idx + i] = 0.0;
+         });
       }
    }
    else // Else just remove the trailing vector data
