@@ -51,11 +51,9 @@
 #include <vector>
 
 #include "../../general/text.hpp"
-#include "../common/fem_extras.hpp"
 #include "../common/pfem_extras.hpp"
 #include "FieldSolver.hpp"
 #include "ParticleMover.hpp"
-#include "mfem.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -261,7 +259,7 @@ int main(int argc, char* argv[])
             GridFunctionCoefficient phi_coeff(&phi_gf);
             b.AddDomainIntegrator(new DomainLFIntegrator(phi_coeff));
             b.Assemble();
-         
+
             field_solver.DiffuseRHS(b, phi_gf);
          }
          // Update E_gf from phi_gf

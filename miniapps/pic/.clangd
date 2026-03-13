@@ -1,0 +1,31 @@
+CompileFlags:
+  Add:
+    # Match VS Code includePath:
+    # "${workspaceFolder}/**" and "${workspaceFolder}/../../../**"
+    # clangd doesn't support globs here, but adding the roots is sufficient.
+    - -I.
+    - -I..
+    - -I../..
+    - -I../../..
+    - -I../../../..
+    # Match make/mpicxx includes
+    - -I../../../hypre/src/hypre/include
+    - -I../../../gslib/build/include
+
+---
+# Treat C files as C17
+If:
+  PathMatch: .*\.(c|h)
+CompileFlags:
+  Add:
+    - -xc
+    - -std=c17
+
+---
+# Treat C++ code (including .hpp) as C++17, so 'constexpr' is valid
+If:
+  PathMatch: .*\.(cpp|cc|cxx|hpp|ipp|hh|hxx)
+CompileFlags:
+  Add:
+    - -xc++
+    - -std=c++17

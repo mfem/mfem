@@ -78,7 +78,8 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
       HypreParMatrix* M = m.ParallelAssemble();
 
       // Build discrete K^4 using the Poisson stiffness matrix (diffusion_matrix)
-      HypreParMatrix* K2 = ParMult(temp_diffusion_matrix, temp_diffusion_matrix);
+      HypreParMatrix* K2 =
+         ParMult(temp_diffusion_matrix, temp_diffusion_matrix);
       HypreParMatrix* K4 = ParMult(K2, K2);
 
       // Form the p=4 hyper-diffusion operator: M + diffusivity * K^4
