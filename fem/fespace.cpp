@@ -1454,6 +1454,8 @@ int FiniteElementSpace::GetNConformingDofs() const
 int FiniteElementSpace::GetVectorDim() const
 {
    const FiniteElement *fe = GetTypicalFE();
+   MFEM_VERIFY(fe, "A typical finite element does not exist!");
+
    if (fe->GetRangeType() == FiniteElement::SCALAR)
    {
       return GetVDim();
@@ -3934,6 +3936,16 @@ const FiniteElement *FiniteElementSpace::GetBE(int i) const
    return BE;
 }
 
+const FiniteElement *FiniteElementSpace::GetTypicalBE() const
+{
+   if (mesh->GetNBE() > 0) { return GetBE(0); }
+
+   Geometry::Type geom = mesh->GetTypicalFaceGeometry();
+   const FiniteElement *be = fec->FiniteElementForGeometry(geom);
+   MFEM_VERIFY(be != nullptr, "Could not determine a typical BE!");
+   return be;
+}
+
 const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
 {
    MFEM_VERIFY(!IsVariableOrder(), "not implemented");
@@ -3962,6 +3974,11 @@ const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
    }
 
    return fe;
+}
+
+const FiniteElement *FiniteElementSpace::GetTypicalFaceElement() const
+{
+   return fec->FiniteElementForGeometry(mesh->GetTypicalFaceGeometry());
 }
 
 const FiniteElement *FiniteElementSpace::GetEdgeElement(int i,
