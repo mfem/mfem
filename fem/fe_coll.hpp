@@ -250,6 +250,12 @@ public:
        its GetOrder() method. */
    virtual FiniteElementCollection *Clone(int p) const;
 
+   virtual int GetConstructorOrder() const
+   {
+      MFEM_ABORT("Collection " << Name() << " does not support GetConstructorOrder");
+      return -1;
+   }
+
 protected:
    const int base_p; ///< Order as returned by GetOrder().
 
@@ -314,6 +320,9 @@ public:
    FiniteElementCollection *Clone(int p) const override
    { return new H1_FECollection(p, dim, b_type); }
 
+   int GetConstructorOrder() const override
+   { return base_p; }
+
    virtual ~H1_FECollection();
 };
 
@@ -343,6 +352,10 @@ class H1_Trace_FECollection : public H1_FECollection
 public:
    H1_Trace_FECollection(const int p, const int dim,
                          const int btype = BasisType::GaussLobatto);
+
+   FiniteElementCollection *Clone(int p) const override
+   { return new H1_Trace_FECollection(p, dim+1, b_type); }
+
 };
 
 /// Arbitrary order "L2-conforming" discontinuous finite elements.
@@ -395,6 +408,9 @@ public:
 
    FiniteElementCollection *Clone(int p) const override
    { return new L2_FECollection(p, dim, b_type, m_type); }
+
+   int GetConstructorOrder() const override
+   { return base_p; }
 
    virtual ~L2_FECollection();
 };
@@ -455,6 +471,9 @@ public:
 
    FiniteElementCollection *Clone(int p) const override
    { return new RT_FECollection(p, dim, cb_type, ob_type); }
+
+   int GetConstructorOrder() const override
+   { return base_p-1; }
 
    virtual ~RT_FECollection();
 };
@@ -536,6 +555,9 @@ public:
    FiniteElementCollection *Clone(int p) const override
    { return new ND_FECollection(p, dim, cb_type, ob_type); }
 
+   int GetConstructorOrder() const override
+   { return dim>1 ? base_p : base_p+1; }
+
    virtual ~ND_FECollection();
 };
 
@@ -548,6 +570,9 @@ public:
    ND_Trace_FECollection(const int p, const int dim,
                          const int cb_type = BasisType::GaussLobatto,
                          const int ob_type = BasisType::GaussLegendre);
+
+   FiniteElementCollection *Clone(int p) const override
+   { return new ND_Trace_FECollection(p, dim+1, cb_type, ob_type); }
 };
 
 /// Arbitrary order 3D H(curl)-conforming Nedelec finite elements in 1D.
