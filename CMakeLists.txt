@@ -59,7 +59,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 4.8.1)
+set(${PROJECT_NAME}_VERSION 4.9.1)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -133,33 +133,49 @@ if (MFEM_USE_CUDA)
    if (NOT CMAKE_CUDA_HOST_COMPILER)
       set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
    endif()
-   if (CMAKE_VERSION VERSION_LESS 3.18.0)
-      set(CUDA_FLAGS "-arch=${CUDA_ARCH} ${CUDA_FLAGS}")
-   elseif (NOT CMAKE_CUDA_ARCHITECTURES)
-      string(REGEX REPLACE "^sm_" "" ARCH_NUMBER "${CUDA_ARCH}")
-      if ("${CUDA_ARCH}" STREQUAL "sm_${ARCH_NUMBER}")
-         set(CMAKE_CUDA_ARCHITECTURES "${ARCH_NUMBER}")
-      else()
-         message(FATAL_ERROR "Unknown CUDA_ARCH: ${CUDA_ARCH}")
-      endif()
+   if (NOT CMAKE_CUDA_ARCHITECTURES)
+      # make CUDA_ARCH resemble the same form as CMAKE_CUDA_ARCHITECTURES
+      string(REPLACE "sm_" "" CUDA_ARCH_TMP "${CUDA_ARCH}")
+      string(REPLACE "," ";" CUDA_ARCH "${CUDA_ARCH_TMP}")
+      set(CMAKE_CUDA_ARCHITECTURES "${CUDA_ARCH}")
    else()
       set(CUDA_ARCH "CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
    endif()
    message(STATUS "Using CUDA architecture: ${CUDA_ARCH}")
    enable_language(CUDA)
    if (CMAKE_VERSION VERSION_LESS 3.18.0)
-     # backup try to detect if this is clang or nvcc
-     if(CMAKE_CUDA_COMPILER MATCHES "nvcc$")
-       # nvcc
-       set(MFEM_CUDA_COMPILER_IS_NVCC ON)
-       set(CUDA_FLAGS "${CUDA_FLAGS} --expt-extended-lambda --expt-relaxed-constexpr")
-     endif()
+      # backup try to detect if this is clang or nvcc
+      if(CMAKE_CUDA_COMPILER MATCHES "nvcc$")
+         # nvcc
+         set(MFEM_CUDA_COMPILER_IS_NVCC ON)
+         set(CUDA_FLAGS "${CUDA_FLAGS} --expt-extended-lambda --expt-relaxed-constexpr")
+         if ("all" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}"
+             OR "native" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}"
+             OR "all-major" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}")
+            set(CUDA_FLAGS "-arch=${CMAKE_CUDA_ARCHITECTURES} ${CUDA_FLAGS}")
+         else()
+            # build -gencode sequence for multiple architectures
+            foreach(ENTRY IN LISTS CMAKE_CUDA_ARCHITECTURES)
+               set(CUDA_FLAGS
+                   "-gencode arch=compute_${ENTRY},code=sm_${ENTRY} ${CUDA_FLAGS}")
+            endforeach()
+         endif()
+      else()
+         # build cuda-gpu-arch sequence for multiple architectures
+         # does not support all/all-major/native
+         foreach(ENTRY IN LISTS CMAKE_CUDA_ARCHITECTURES)
+            set(CUDA_FLAGS "-cuda-gpu-arch=sm_${ENTRY} ${CUDA_FLAGS}")
+         endforeach()
+      endif()
    else()
-     if (CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
-       # nvcc
-       set(MFEM_CUDA_COMPILER_IS_NVCC ON)
-       set(CUDA_FLAGS "${CUDA_FLAGS} --expt-extended-lambda --expt-relaxed-constexpr")
-     endif()
+      # TODO: all, native, all-major require CMake 3.24+
+      # backport support for CMake 3.18 to 3.24
+      if (CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
+         # nvcc
+         set(MFEM_CUDA_COMPILER_IS_NVCC ON)
+         set(CUDA_FLAGS
+             "${CUDA_FLAGS} --expt-extended-lambda --expt-relaxed-constexpr")
+      endif()
    endif()
    set(CMAKE_CUDA_STANDARD ${CMAKE_CXX_STANDARD} CACHE STRING
       "CUDA standard to use.")
@@ -173,19 +189,6 @@ if (MFEM_USE_CUDA)
    # Initialize CUSPARSE_LIBRARIES and CUBLAS_LIBRARIES:
    mfem_culib_set_libraries(CUSPARSE cusparse)
    mfem_culib_set_libraries(CUBLAS cublas)
-endif()
-
-# Proteus config
-if (ENABLE_JIT)
-  set(MFEM_USE_PROTEUS ON)
-  if (NOT "${PROTEUS_INSTALL_DIR}" STREQUAL "")
-    find_package(proteus REQUIRED PATHS "${PROTEUS_INSTALL_DIR}")
-    message(STATUS "${PROTEUS_INSTALL_DIR}/include")
-    include_directories("${PROTEUS_INSTALL_DIR}/include")
-  else()
-    #add_subdirectory(tpl/RAJA/tpl/proteus)
-    message(FATAL_ERROR "Couldn't find Proteus, but ENABLE_JIT was turned on")
-  endif()
 endif()
 
 if (XSDK_ENABLE_C)
@@ -255,11 +258,16 @@ endif()
 
 # AMD HIP
 if (MFEM_USE_HIP)
-  enable_language(HIP)
-  if (HIP_ARCH)
-    message(STATUS "Using HIP architecture: ${HIP_ARCH}")
-    set(GPU_TARGETS "${HIP_ARCH}" CACHE STRING "HIP targets to compile for")
+  if (NOT CMAKE_HIP_ARCHITECTURES)
+    if (HIP_ARCH)
+      set(CMAKE_HIP_ARCHITECTURES CACHE STRING "HIP targets to compile for" "${HIP_ARCH}")
+      set(GPU_TARGETS "${HIP_ARCH}" CACHE STRING "HIP targets to compile for" FORCE)
+    endif()
+  else()
+    set(HIP_ARCH CACHE STRING "HIP targets to compile for" "${CMAKE_HIP_ARCHITECTURES}")
+    set(GPU_TARGETS "${CMAKE_HIP_ARCHITECTURES}" CACHE STRING "HIP targets to compile for" FORCE)
   endif()
+  message(STATUS "Using HIP architecture: ${CMAKE_HIP_ARCHITECTURES}")
   if (ROCM_PATH)
     list(INSERT CMAKE_PREFIX_PATH 0 ${ROCM_PATH})
   endif()
@@ -292,8 +300,42 @@ if (MFEM_USE_OPENMP OR MFEM_USE_LEGACY_OPENMP)
   endif()
 endif()
 
-# Umpire (must be included before hypre, so hypre can use it if needed)
+# Warn user if deprecated FETCH_TPLS is provided
+if (DEFINED FETCH_TPLS)
+  message(STATUS "Setting MFEM_FETCH_TPLS to user-provided value of FETCH_TPLS (i.e., MFEM_FETCH_TPLS=${FETCH_TPLS})")
+  set (MFEM_FETCH_TPLS FETCH_TPLS)
+  message(DEPRECATION "The use of FETCH_TPLS is deprecated and will be removed in future verison. Please use MFEM_FETCH_TPLS instead.")
+endif()
+
+# Proteus config
+if (MFEM_ENABLE_JIT)
+  set(MFEM_USE_PROTEUS ON)
+  if (NOT "${PROTEUS_INSTALL_DIR}" STREQUAL "")
+    find_package(proteus REQUIRED PATHS "${PROTEUS_INSTALL_DIR}")
+    message(STATUS "${PROTEUS_INSTALL_DIR}/include")
+    include_directories("${PROTEUS_INSTALL_DIR}/include")
+  else()
+    set(PROTEUS_ENABLE_HIP  "${MFEM_ENABLE_HIP}" CACHE BOOL "Enable JIT compilation of HIP kernels")
+    set(PROTEUS_ENABLE_CUDA "${MFEM_ENABLE_CUDA}" CACHE BOOL "Enable JIT compilation of CUDA kernels")
+
+    include(FetchContent)
+    FetchContent_Declare(
+      proteus
+      GIT_REPOSITORY https://github.com/Olympus-HPC/proteus.git
+      GIT_TAG        257707cf7e60452ed38161f6429421be303ddaf3
+      )
+    FetchContent_MakeAvailable(proteus)
+    include(${proteus_SOURCE_DIR}/cmake/ProteusFunctions.cmake)
+    set(PROTEUS_HEADERS_DIR "${proteus_SOURCE_DIR}/include" CACHE STRING "")
+  endif()
+endif()
+
+  # Umpire (must be included before hypre, so hypre can use it if needed)
 if (MFEM_USE_UMPIRE)
+   # umpire uses FindCUDA, which needs CMP0146=OLD in CMake >= 3.27
+   if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.27.0)
+      cmake_policy(SET CMP0146 OLD)
+   endif()
    find_package(UMPIRE REQUIRED)
 endif()
 
@@ -633,6 +675,8 @@ foreach(TPL IN LISTS MFEM_TPLS)
   endif()
 endforeach(TPL)
 
+# reverse to remove the first instance of entries in TPL_LIBRARIES
+# so later duplicates are kept (for dependency ordering)
 list(REVERSE TPL_LIBRARIES)
 list(REMOVE_DUPLICATES TPL_LIBRARIES)
 list(REVERSE TPL_LIBRARIES)
@@ -706,7 +750,7 @@ set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX})
 mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES} ${TPL_TARGETS})
-if (ENABLE_JIT)
+if (MFEM_ENABLE_JIT)
   add_proteus(mfem)
 endif()
 if (TPL_TARGETS)
@@ -853,11 +897,12 @@ add_dependencies(exec
 #  - https://cmake.org/Bug/view.php?id=8438
 
 # Add a target to copy the mfem data directory to the build directory
-add_custom_command(OUTPUT data_is_copied
-  COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/data data
-  COMMAND ${CMAKE_COMMAND} -E touch data_is_copied
-  COMMENT "Copying the data directory ...")
-add_custom_target(copy_data DEPENDS data_is_copied)
+# Implementable as a single copy_directory_if_different command w/ CMake >= 3.26
+file(GLOB DATA_FILES CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/data/*)
+add_custom_target(copy_data
+  COMMAND ${CMAKE_COMMAND} -E make_directory data
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different ${DATA_FILES} data
+  COMMENT "Syncing the data directory ...")
 # Add 'copy_data' as a prerequisite for all executables, if the source and the
 # build directories are not the same.
 if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
@@ -989,9 +1034,15 @@ install(FILES
 install(EXPORT ${PROJECT_NAME_UC}Targets
     DESTINATION ${INSTALL_CMAKE_DIR})
 
+# Install the data directory if present, i.e. if the copy_data target is built
+install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data
+  DESTINATION ${MFEM_INSTALL_DIR} OPTIONAL)
+
 #-------------------------------------------------------------------------------
 # Create 'config.mk' from 'config.mk.in' for the build and install locations and
 # define install rules for 'config.mk' and 'test.mk'
 #-------------------------------------------------------------------------------
-
+if (MFEM_USE_CUDA OR MFEM_USE_HIP)
+  option(MFEM_EXPORT_GPU_CONFIG "Export config.mk for GPU-enabled downstream packages" ON)
+endif()
 mfem_export_mk_files()
