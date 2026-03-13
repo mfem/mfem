@@ -15,6 +15,7 @@
 // Linear algebra header file
 
 #include "vector.hpp"
+#include "multivector.hpp"
 #include "operator.hpp"
 #include "matrix.hpp"
 #include "sparsemat.hpp"

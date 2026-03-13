@@ -13,6 +13,7 @@
 #define MFEM_OPERATOR
 
 #include "vector.hpp"
+#include "multivector.hpp"
 
 namespace mfem
 {
@@ -129,6 +130,16 @@ public:
    virtual void ArrayAddMultTranspose(const Array<const Vector *> &X,
                                       Array<Vector *> &Y, const real_t a = 1.0) const;
 
+   /** @brief Operator application, y = A(x), where the input @a x and the
+       output @a y are MultiVector objects, i.e. they generally use
+       non-contiguous memory representation.
+
+       The typical use case for this method are block operators like
+       DifferentiableOperator.
+
+       The base class implementation for the method is to generate an error. */
+   virtual void Mult(const MultiVector &x, MultiVector &y);
+
    /** @brief Evaluate the gradient operator at the point @a x. The default
        behavior in class Operator is to generate an error. */
    virtual Operator &GetGradient(const Vector &x) const
@@ -136,6 +147,16 @@ public:
       MFEM_ABORT("Operator::GetGradient() is not overridden!");
       return const_cast<Operator &>(*this);
    }
+
+   /** @brief Evaluate the gradient operator at the point @a x. The input @a x
+       is provided as a MultiVector, i.e. it generally uses non-contiguous
+       memory representation.
+
+       The typical use case for this method are block operators like
+       DifferentiableOperator.
+
+       The base class implementation for the method is to generate an error. */
+   virtual Operator &GetGradient(const MultiVector &x) const;
 
    /** @brief Computes the diagonal entries into @a diag. Typically, this
        operation only makes sense for linear Operator%s. In some cases, only an
