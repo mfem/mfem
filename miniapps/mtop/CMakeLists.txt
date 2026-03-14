@@ -26,5 +26,10 @@ if(MFEM_USE_MPI AND MFEM_USE_DOUBLE)
 					 MAIN mtop_test_iso_elasticity.cpp
 					 ${PAR_MTOP_COMMON_FILES}
 					 LIBRARIES mfem)
+	add_mfem_miniapp(tst_rk4_adj
+				 	MAIN tst_rk4_adj.cpp
+					${PAR_MTOP_COMMON_FILES}
+                                         LIBRARIES mfem)
+
 
 endif (MFEM_USE_MPI AND MFEM_USE_DOUBLE)
