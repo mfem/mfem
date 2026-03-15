@@ -86,7 +86,7 @@ protected:
 
 public:
    HyperelasticOperator(ParFiniteElementSpace &f, Array<int> &ess_bdr,
-                        real_t visc, real_t mu, real_t K);
+                        real_t visc, real_t mu, real_t K, bool modern_assembly);
 
    /// Compute the right-hand side of the ODE system.
    void Mult(const Vector &vx, Vector &dvx_dt) const override;
@@ -181,6 +181,7 @@ int main(int argc, char *argv[])
    bool adaptive_lin_rtol = true;
    bool visualization = true;
    int vis_steps = 1;
+   bool modern_assembly = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -211,6 +212,9 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
+   args.AddOption(&modern_assembly, "-ma", "--modern-assembly", "-no-ma",
+                  "--no-modern-assembly",
+                  "Whether to use MFEM's modern full assembly infrastructure");
    args.Parse();
    if (!args.Good())
    {
@@ -303,7 +307,7 @@ int main(int argc, char *argv[])
 
    // 9. Initialize the hyperelastic operator, the GLVis visualization and print
    //    the initial energies.
-   HyperelasticOperator oper(fespace, ess_bdr, visc, mu, K);
+   HyperelasticOperator oper(fespace, ess_bdr, visc, mu, K, modern_assembly);
 
    socketstream vis_v, vis_w;
    if (visualization)
@@ -495,7 +499,7 @@ ReducedSystemOperator::~ReducedSystemOperator()
 
 HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
                                            Array<int> &ess_bdr, real_t visc,
-                                           real_t mu, real_t K)
+                                           real_t mu, real_t K, bool modern_assembly)
    : TimeDependentOperator(2*f.TrueVSize(), (real_t) 0.0), fespace(f),
      M(&fespace), S(&fespace), H(&fespace),
      viscosity(visc), M_solver(f.GetComm()), newton_solver(f.GetComm()),
@@ -538,9 +542,14 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
    H.SetEssentialTrueDofs(ess_tdof_list);
 
    ConstantCoefficient visc_coeff(viscosity);
+   if (modern_assembly)
+   {
+      S.SetAssemblyLevel(AssemblyLevel::FULL);
+   }
    S.AddDomainIntegrator(new VectorDiffusionIntegrator(visc_coeff));
    S.Assemble(skip_zero_entries);
    S.Finalize(skip_zero_entries);
+   S.Print();
 
    reduced_oper = new ReducedSystemOperator(&M, &S, &H, ess_tdof_list);
 

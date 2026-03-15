@@ -42,6 +42,14 @@ void NonlinearFormIntegrator::AssembleGradPA(const Vector &x,
                "   is not implemented for this class.");
 }
 
+void NonlinearFormIntegrator::AssembleGradEA(const Vector &x,
+                                             const FiniteElementSpace &fes,
+                                             Vector & ea_data)
+{
+   mfem_error ("NonlinearFormIntegrator::AssembleGradEA(...)\n"
+               "   is not implemented for this class.");
+}
+
 void NonlinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
 {
    mfem_error ("NonlinearFormIntegrator::AddMultPA(...)\n"
