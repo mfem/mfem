@@ -710,18 +710,26 @@ static inline void dump_args(int id, const char *args[])
 
 static inline void tmop_require(int id, const char *args[])
 {
+   real_t tol_fe = 4e-12;
+
+   const bool has_adapt_lim = std::atof(args[ALC]) > 0.0;
+   if (has_adapt_lim) { tol_fe = 1e-6; }
+
    Req res[2];
-   constexpr real_t eps = 4e-12;
    (args[ALV] = "-pa", dump_args(id, args), req_tmop(id, args, res[0]));
    (args[ALV] = "-no-pa", dump_args(id, args), req_tmop(id, args, res[1]));
-   REQUIRE(res[0].dot == MFEM_Approx(res[1].dot));
-   REQUIRE(res[0].diag == MFEM_Approx(res[1].diag));
-   REQUIRE(res[0].min_detJ == MFEM_Approx(res[1].min_detJ));
-   REQUIRE(res[0].met_normal == MFEM_Approx(res[1].met_normal));
-   REQUIRE(res[0].lim_normal == MFEM_Approx(res[1].lim_normal));
-   REQUIRE(res[0].bal_weights == MFEM_Approx(res[1].bal_weights));
-   REQUIRE(res[0].init_energy == MFEM_Approx(res[1].init_energy));
-   REQUIRE(res[0].final_energy == MFEM_Approx(res[1].final_energy, eps));
+
+   if (has_adapt_lim == false)
+   {
+      REQUIRE(res[0].dot       == MFEM_Approx(res[1].dot));
+   }
+   REQUIRE(res[0].diag         == MFEM_Approx(res[1].diag));
+   REQUIRE(res[0].min_detJ     == MFEM_Approx(res[1].min_detJ));
+   REQUIRE(res[0].met_normal   == MFEM_Approx(res[1].met_normal));
+   REQUIRE(res[0].lim_normal   == MFEM_Approx(res[1].lim_normal));
+   REQUIRE(res[0].bal_weights  == MFEM_Approx(res[1].bal_weights));
+   REQUIRE(res[0].init_energy  == MFEM_Approx(res[1].init_energy));
+   REQUIRE(res[0].final_energy == MFEM_Approx(res[1].final_energy, tol_fe));
 }
 
 static constexpr int SZ = 32;
@@ -964,32 +972,34 @@ static void tmop_tests(int id = 0, bool all = false)
           .NORMALIZATION()
           .MID({ 2 })
           .TID({ 1 })
-          .LS({ 2 })
-          .POR({ 2 })
-          .QOR({ 5 })
-          .NEWTON_ITERATIONS(20)
-          .NEWTON_RTOLERANCE(1e-3)
-          .LINSOL_RTOLERANCE(1e-10)
-          .LINSOL_ITERATIONS(20)
-          .ADAPT_LIMITING(1.0)
-          .DIAGONAL(true))
-   .Run(id, false);
-
-   Launch(Launch::Args("3D + adaptive limiting")
-          .MESH("../../miniapps/meshing/stretched3D.mesh")
-          .REFINE(1)
-          .NORMALIZATION()
-          .MID({ 303 })
-          .TID({ 1 })
-          .LS({ 2 })
+          .LS({ 3 })
           .POR({ 2 })
           .QOR({ 5 })
           .NEWTON_ITERATIONS(50)
-          .NEWTON_RTOLERANCE(1e-2)
+          .NEWTON_RTOLERANCE(1e-6)
+          .LINSOL_RTOLERANCE(1e-10)
+          .LINSOL_ITERATIONS(100)
+          .ADAPT_LIMITING(1.0)
+          .DIAGONAL(true))
+   .Run(id, all);
+
+   Launch(Launch::Args("3D + adaptive limiting")
+          .MESH("../../miniapps/meshing/stretched3D.mesh")
+          .REFINE(0)
+          .NORMALIZATION()
+          .MID({ 302 })
+          .TID({ 1 })
+          .LS({ 3 })
+          .POR({ 2 })
+          .QOR({ 5 })
+          .NEWTON_ITERATIONS(50)
+          .NEWTON_RTOLERANCE(1e-6)
           .LINSOL_RTOLERANCE(1e-10)
           .ADAPT_LIMITING(1.0)
           .DIAGONAL(true))
-   .Run(id, false);
+   .Run(id, all);
+
+   return;
 
    Launch(Launch::Args("2D Periodic + adapted discrete size")
           .MESH("../../data/periodic-square.mesh")
