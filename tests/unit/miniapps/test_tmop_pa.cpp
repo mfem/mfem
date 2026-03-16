@@ -640,6 +640,15 @@ int tmop(int id, Req &res, int argc, char *argv[])
          }
       }
 
+      // Adaptive limiting evolves adapt_lim_gf as the mesh moves. When running
+      // repeated solves from the same initial mesh (newton_loop > 1), reset the
+      // adaptive limiting state so each solve is comparable.
+      if (adapt_lim_const > 0.0)
+      {
+         tmop_integ->EnableAdaptiveLimiting(*adapt_lim_gf0, *adapt_lim_coeff,
+                                            *adapt_lim_eval, 1.0);
+      }
+
       a.Setup();
 
       if (normalization) { tmop_integ->ParEnableNormalization(x); }
