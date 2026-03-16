@@ -267,22 +267,22 @@ void FieldSolver::UpdateEGridFunction(ParGridFunction& phi_gf,
 void FieldSolver::DiffuseRHS(ParLinearForm& b, ParGridFunction& rho_gf)
 {
    HypreParVector* B = b.ParallelAssemble();
+   ParFiniteElementSpace* pfes = rho_gf.ParFESpace();
+
+   // Warm-start from the previous rho state to reduce linear iterations.
+   HypreParVector Rho_true(pfes);
+   rho_gf.GetTrueDofs(Rho_true);
 
    HyprePCG solver(M_plus_cK_matrix->GetComm());
    solver.SetOperator(*M_plus_cK_matrix);
-   solver.SetTol(1e-6);
+   solver.SetTol(1e-12);
    solver.SetMaxIter(4000);
-   solver.SetPrintLevel(1);
+   solver.SetPrintLevel(0);
+   solver.iterative_mode = true;
 
    HypreBoomerAMG prec(*M_plus_cK_matrix);
    prec.SetPrintLevel(0);
    solver.SetPreconditioner(prec);
-
-   rho_gf = 0.0;
-   ParFiniteElementSpace* pfes = rho_gf.ParFESpace();
-
-   HypreParVector Rho_true(pfes);
-   Rho_true = 0.0;
 
    solver.Mult(*B, Rho_true);
    delete B;
