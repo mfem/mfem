@@ -68,27 +68,26 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
       dm.AddDomainIntegrator(new DiffusionIntegrator);
       dm.Assemble();
       dm.Finalize();
-      HypreParMatrix* temp_diffusion_matrix = dm.ParallelAssemble();
+      stiffness_matrix = dm.ParallelAssemble();
 
       // Build mass matrix M
       ParBilinearForm m(phi_fes);
       m.AddDomainIntegrator(new MassIntegrator());
       m.Assemble();
       m.Finalize();
-      HypreParMatrix* M = m.ParallelAssemble();
+      mass_matrix = m.ParallelAssemble();
 
-      // Build discrete K^4 using the Poisson stiffness matrix (diffusion_matrix)
-      HypreParMatrix* K2 =
-         ParMult(temp_diffusion_matrix, temp_diffusion_matrix);
-      HypreParMatrix* K4 = ParMult(K2, K2);
+      const int ntrue = phi_fes->GetTrueVSize();
+      Array<int> offsets(3);
+      offsets[0] = 0;
+      offsets[1] = ntrue;
+      offsets[2] = 2 * ntrue;
 
-      // Form the p=4 hyper-diffusion operator: M + diffusivity * K^4
-      M_plus_cK_matrix = Add(1.0, *M, diffusivity, *K4);
-
-      delete K4;
-      delete K2;
-      delete temp_diffusion_matrix;
-      delete M;
+      mixed_system_matrix = new BlockOperator(offsets);
+      mixed_system_matrix->SetBlock(0, 0, mass_matrix);
+      mixed_system_matrix->SetBlock(0, 1, stiffness_matrix, diffusivity);
+      mixed_system_matrix->SetBlock(1, 0, stiffness_matrix, -1.0);
+      mixed_system_matrix->SetBlock(1, 1, mass_matrix);
    }
 
    {
@@ -101,7 +100,9 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
 FieldSolver::~FieldSolver()
 {
    delete diffusion_matrix;
-   delete M_plus_cK_matrix;
+   delete mixed_system_matrix;
+   delete stiffness_matrix;
+   delete mass_matrix;
    delete precomputed_neutralizing_lf;
    delete grad_interpolator;
 }
@@ -267,27 +268,31 @@ void FieldSolver::UpdateEGridFunction(ParGridFunction& phi_gf,
 void FieldSolver::DiffuseRHS(ParLinearForm& b, ParGridFunction& rho_gf)
 {
    HypreParVector* B = b.ParallelAssemble();
+   ParFiniteElementSpace* pfes = rho_gf.ParFESpace();
+   const int ntrue = pfes->GetTrueVSize();
+   Array<int> offsets(3);
+   offsets[0] = 0;
+   offsets[1] = ntrue;
+   offsets[2] = 2 * ntrue;
 
-   HyprePCG solver(M_plus_cK_matrix->GetComm());
-   solver.SetOperator(*M_plus_cK_matrix);
-   solver.SetTol(1e-12);
-   solver.SetMaxIter(200);
+   BlockVector X(offsets);
+   BlockVector RHS(offsets);
+   X = 0.0;
+   RHS = 0.0;
+   RHS.GetBlock(0) = *B;
+
+   GMRESSolver solver(pfes->GetComm());
+   solver.SetOperator(*mixed_system_matrix);
+   solver.SetRelTol(1e-12);
+   solver.SetAbsTol(0.0);
+   solver.SetMaxIter(500);
    solver.SetPrintLevel(0);
-
-   HypreBoomerAMG prec(*M_plus_cK_matrix);
-   prec.SetPrintLevel(0);
-   solver.SetPreconditioner(prec);
+   solver.Mult(RHS, X);
 
    rho_gf = 0.0;
-   ParFiniteElementSpace* pfes = rho_gf.ParFESpace();
-
-   HypreParVector Rho_true(pfes);
-   Rho_true = 0.0;
-
-   solver.Mult(*B, Rho_true);
    delete B;
 
-   rho_gf.SetFromTrueDofs(Rho_true);
+   rho_gf.SetFromTrueDofs(X.GetBlock(0));
 
    b = 0.0;
 

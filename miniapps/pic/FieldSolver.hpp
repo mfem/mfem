@@ -30,9 +30,15 @@ private:
    bool precompute_neutralizing_const = false;
    // Diffusion matrix with epsilon (for Poisson solve)
    HypreParMatrix* diffusion_matrix;
-   // Discrete p=4 hyper-diffusion operator for DiffuseRHS:
-   // M_plus_cK_matrix = M + c * K^4, where K is the Poisson stiffness matrix.
-   HypreParMatrix* M_plus_cK_matrix;
+   // Blocks for the mixed reformulation:
+   // [ M    nu K ]
+   // [ -K    M   ] [u; w] = [F; 0]
+   Array<int> mixed_offsets;
+   HypreParMatrix* mass_matrix = nullptr;
+   HypreParMatrix* stiffness_matrix = nullptr;
+   HypreParMatrix* schur_matrix = nullptr;
+   BlockOperator* mixed_system_matrix = nullptr;
+   BlockLowerTriangularPreconditioner* mixed_system_preconditioner = nullptr;
    // Gradient operator for computing E = -∇phi
    ParDiscreteLinearOperator* grad_interpolator;
    FindPointsGSLIB& E_finder;
@@ -66,9 +72,8 @@ public:
        Compute the gradient: E = -∇phi. */
    void UpdateEGridFunction(ParGridFunction& phi_gf, ParGridFunction& E_gf);
 
-   /** Diffuse RHS with a p=4 hyper-diffusion by solving a linear system with
-       the discrete operator (M + c * K^4); overwrites rhs with the hyper-diffused
-       field. */
+   /** Diffuse RHS with the mixed biharmonic reformulation
+       [ M  nu K; -K  M ] [u; w] = [F; 0], then overwrite rhs with u. */
    void DiffuseRHS(ParLinearForm& b, ParGridFunction& rho_gf);
 
    /// Compute (global) field energy: 0.5 * ∫ ||E||^2 dx
