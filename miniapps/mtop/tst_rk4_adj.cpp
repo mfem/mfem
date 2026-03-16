@@ -41,6 +41,7 @@ private:
 
    // Minv(i) = 1 / diag(M)(i) on TRUE dofs
    Vector Minv;
+   mutable Vector tmpv;
 
 public:
    /// ess_bdr: boundary attribute marker (size = pmesh->bdr_attributes.Max()), 1 -> essential (Dirichlet)
@@ -51,7 +52,8 @@ public:
       : TimeDependentOperator(pfes_.GetTrueVSize(), 0.0, TimeDependentOperator::EXPLICIT),
         pfes(pfes_),
         k_form(&pfes_),
-        Minv(height)
+        Minv(height),
+        tmpv(height)
    {
       // Essential TRUE dofs
       // pfes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
@@ -109,15 +111,13 @@ public:
                                       Vector &y) const override
    {
       y=0.0;
-      // y += -1 * (P^T K_local P) u  (true-dof action; PA supported)
-      k_form.TrueAddMult(w, y, -1.0); 
+      tmpv.Set(1.0,w);
+      if (ess_tdof_list.Size()){
+        tmpv.SetSubVector(ess_tdof_list, 0.0);}
       // Apply diagonal inverse mass
-      y *= Minv;
-      // Strongly enforce Dirichlet: derivative is zero on essential tdofs
-      if (ess_tdof_list.Size())
-      {
-         y.SetSubVector(ess_tdof_list, 0.0);
-      }
+      tmpv*=Minv;
+      // y += -1 * (P^T K_local P) u  (true-dof action; PA supported)
+      k_form.TrueAddMult(tmpv, y, -1.0); 
    }
 };    
 
@@ -450,6 +450,8 @@ int main(int argc, char *argv[])
    paraview_dc.SetTime(t);
    paraview_dc.Save();
 
+
+   /*
    for (int ti = 0; ti < 10; ti++)
    {
       ode.Step(u, t, dt);
@@ -462,7 +464,72 @@ int main(int argc, char *argv[])
       paraview_dc.SetTime(t);
       paraview_dc.Save();
    }
+   */
 
+
+   //test the RK4 adjoint
+   {
+        Vector x;
+        {
+            mfem::FunctionCoefficient fc([](const Vector &x) -> real_t
+            {   return std::sin(4.0*x[0]*M_PI)*std::sin(4.0*x[1]*M_PI); });
+            //project
+            u_gf.ProjectCoefficient(fc);
+        }
+        u_gf.GetTrueDofs(x);
+        // Enforce homogeneous Dirichlet initially
+        x.SetSubVector(oper.GetEssentialTrueDofs(), 0.0);
+        u_gf.SetFromTrueDofs(x);
+        u.Set(1.0,x);
+
+        Vector vone(x); vone=1.0;
+
+        //compute one step
+        t=0.0;
+        ode.Step(x, t, dt);
+        //compute objective 
+        real_t obj=mfem::InnerProduct(pmesh.GetComm(),x,vone);
+
+        //compute the adjoint
+        mfem::Vector lam(u.Size()); lam=0.0;
+        {
+            ode.EnableAdjoint(mfem::ODESolver::AdjointMode::Discrete);
+            ode.SetSolution(u,0.0); //set the solution at t=0.0;
+            lam.Set(1.0,vone);
+            ode.AdjointStep(lam,t,dt); //on exit lam is the adjoint at t-dt
+        }
+
+        mfem::Vector rnd(u.Size()); rnd.Randomize();
+        rnd.SetSubVector(oper.GetEssentialTrueDofs(), 0.0);
+
+        real_t iprod=mfem::InnerProduct(pmesh.GetComm(),rnd,lam);
+
+        real_t sca=1.0;
+        for(int i=0;i<20;i++){
+            x.Set(sca,rnd);
+            x.Add(1.0,u);
+            t=0.0;
+            ode.Step(x, t, dt);
+            real_t pobj=mfem::InnerProduct(pmesh.GetComm(),x,vone);
+
+            x.Set(-sca,rnd);
+            x.Add(1.0,u);
+            t=0.0;
+            ode.Step(x, t, dt);
+            real_t mobj=mfem::InnerProduct(pmesh.GetComm(),x,vone);
+
+            if(mfem::Mpi::Root())
+            {
+                std::cout<<" scale="<<sca<<" "<<" o="<<obj<<" p="<<pobj
+                            <<" do="<<(pobj-mobj)/(2.0*sca)
+                            <<" oo="<<(obj-mobj)/sca
+                            <<" to="<<iprod<<std::endl;
+            }
+
+            sca=sca/10.0;
+        }
+
+   }
 
 
 
