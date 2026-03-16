@@ -351,7 +351,6 @@ void VisServer::Open()
 {
    if (!path || strlen(path) <= 0) { return; }
 
-#if _POSIX_C_SOURCE >= 2 || _BSD_SOURCE || _SVID_SOURCE
 #ifdef MFEM_USE_MPI
    if (Mpi::Root())
 #endif // MFEM_USE_MPI
@@ -397,14 +396,10 @@ void VisServer::Open()
 #ifdef MFEM_USE_MPI
    MPI_Bcast(&port, 1, MPI_INT, 0, MPI_COMM_WORLD);
 #endif // MFEM_USE_MPI
-#else // _POSIX_C_SOURCE >= 2 || _BSD_SOURCE || _SVID_SOURCE
-   std::cerr << "Cannot start GLVis server on this platform." << std::endl;
-#endif // _POSIX_C_SOURCE >= 2 || _BSD_SOURCE || _SVID_SOURCE
 }
 
 void VisServer::Deleter::operator()(FILE *f)
 {
-#if _POSIX_C_SOURCE >= 2 || _BSD_SOURCE || _SVID_SOURCE
    if (f != nullptr)
    {
       int ierr = pclose(f);
@@ -413,5 +408,4 @@ void VisServer::Deleter::operator()(FILE *f)
          std::cerr << "GLVis server pclose() returns: " << ierr << std::endl;
       }
    }
-#endif // _POSIX_C_SOURCE >= 2 || _BSD_SOURCE || _SVID_SOURCE
 }
