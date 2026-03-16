@@ -335,7 +335,7 @@ void FieldSolver::DiffuseRHS(ParLinearForm& b, ParGridFunction& rho_gf)
    solver.SetRelTol(1e-12);
    solver.SetAbsTol(0.0);
    solver.SetMaxIter(1000);
-   solver.SetPrintLevel(1);
+   solver.SetPrintLevel(0);
    solver.SetPreconditioner(*block_preconditioner);
    solver.Mult(RHS, X);
 
