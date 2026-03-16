@@ -369,7 +369,7 @@ void VisServer::Open()
       std::stringstream ss;
       ss << "trap '' SIGPIPE && " << path <<
          " -no-pr -no-ex 2>&1 | tee \"" << stmp <<
-         "\" | grep -m 1 ^GLVIS_SERVER_PORT";
+         "\" 2> /dev/null | grep -m 1 ^GLVIS_SERVER_PORT";
       fglvis.reset(popen(ss.str().c_str(), "r"));
 
       // Capture the port number
