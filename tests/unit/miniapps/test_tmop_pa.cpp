@@ -710,10 +710,10 @@ static inline void dump_args(int id, const char *args[])
       "tmop_pa_tests %6.6s -m %s -o %s -rs %s -mid %s -tid %s -qt %s -qo %s "
       "-ni %s -nl %s -nrtol %s -lrtol %s -ls %s -li %s -lc %s -alc %s -lt %s %s -ji %s "
       "%s -cmb %s %s %s\n";
-   printf(format, args[ALV], args[MSH], args[POR], args[RS], args[MID], args[TID],
-          args[QTY], args[QOR], args[NI], args[NL], args[NRTOL], args[LRTOL],
-          args[LS], args[LI], args[LC], args[ALC], args[LT], args[NOR], args[JI], args[DIAG],
-          args[CMB], args[BEC], args[PER]);
+   printf(format, args[ALV], args[MSH], args[POR], args[RS], args[MID],
+          args[TID], args[QTY], args[QOR], args[NI], args[NL], args[NRTOL],
+          args[LRTOL], args[LS], args[LI], args[LC], args[ALC], args[LT],
+          args[NOR], args[JI], args[DIAG], args[CMB], args[BEC], args[PER]);
    fflush(nullptr);
 }
 
