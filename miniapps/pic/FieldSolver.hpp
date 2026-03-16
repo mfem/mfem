@@ -33,12 +33,12 @@ private:
    // Blocks for the mixed reformulation:
    // [ M    nu K ]
    // [ -K    M   ] [u; w] = [F; 0]
-   Array<int> mixed_offsets;
+   Array<int> offsets;
    HypreParMatrix* mass_matrix = nullptr;
    HypreParMatrix* stiffness_matrix = nullptr;
    HypreParMatrix* schur_matrix = nullptr;
-   BlockOperator* mixed_system_matrix = nullptr;
-   BlockLowerTriangularPreconditioner* mixed_system_preconditioner = nullptr;
+   BlockOperator* block_matrix = nullptr;
+   BlockLowerTriangularPreconditioner* block_preconditioner = nullptr;
    // Gradient operator for computing E = -∇phi
    ParDiscreteLinearOperator* grad_interpolator;
    FindPointsGSLIB& E_finder;
