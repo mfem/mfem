@@ -64,16 +64,20 @@
 //               discrete linear system. We also cover the explicit elimination
 //               of essential boundary conditions, static condensation, and the
 //               optional connection to the GLVis tool for visualization.
+#define NVTX_COLOR ::nvtx::kOrchid
 
 #include "mfem.hpp"
-#include <fstream>
+// #include <fstream>
 #include <iostream>
+#include "general/glvis_stream.hpp"
 
 using namespace std;
 using namespace mfem;
 
 int main(int argc, char *argv[])
 {
+   dbgClearScreen();
+   dbg();
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
@@ -128,6 +132,7 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
+   if constexpr (false)
    {
       int ref_levels =
          (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
@@ -262,21 +267,32 @@ int main(int argc, char *argv[])
 
    // 13. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
-   ofstream mesh_ofs("refined.mesh");
-   mesh_ofs.precision(8);
-   mesh.Print(mesh_ofs);
-   ofstream sol_ofs("sol.gf");
-   sol_ofs.precision(8);
-   x.Save(sol_ofs);
+   // ofstream mesh_ofs("refined.mesh");
+   // mesh_ofs.precision(8);
+   // mesh.Print(mesh_ofs);
+   // ofstream sol_ofs("sol.gf");
+   // sol_ofs.precision(8);
+   // x.Save(sol_ofs);
 
    // 14. Send the solution by socket to a GLVis server.
    if (visualization)
    {
+#ifdef MFEM_USE_GLVIS
+      dbg("ex1 visualization with GLVis stream");
+      {
+         glvis_stream glvis;
+         glvis.precision(8);
+         glvis << "solution\n" << mesh << x << std::flush;
+      }
+      dbg("done");
+#else
+      dbg("GLVis stream");
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << mesh << x << flush;
+#endif
    }
 
    // 15. Free the used memory.
@@ -285,5 +301,6 @@ int main(int argc, char *argv[])
       delete fec;
    }
 
+   dbg("✅");
    return 0;
 }
