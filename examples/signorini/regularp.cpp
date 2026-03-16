@@ -375,19 +375,19 @@ int main(int argc, char *argv[])
    {
       N *= 2;
 
-      ConstantCoefficient alpha_coeff(alpha);
-      ScalarVectorProductCoefficient alpha_f_coeff(alpha, f_coeff);
-
-      RegLogDoublePrimeCoefficient reg_log_dp_curr_coeff(&u_current, &n_tilde_coeff, N);
-      RegLogPrimeCoefficient reg_log_p_curr_coeff(&u_current, &n_tilde_coeff, N);
-      RegLogPrimeCoefficient nreg_log_p_prev_coeff(&u_previous, &n_tilde_coeff, N, -1.0);
-      StressGridFunctionCoefficient stress_u_curr_coeff(lambda, mu, &u_current);
-      FlatVectorCoefficient nalpha_vstress_u_curr_coeff(stress_u_curr_coeff, -alpha);
+      u_current = u_previous;
 
       // Newton loop
       for (int j = 0; j <= max_newton_iter; j++)
       {
-         if (j == 0) { u_current = u_previous; }
+         ConstantCoefficient alpha_coeff(alpha);
+         ScalarVectorProductCoefficient alpha_f_coeff(alpha, f_coeff);
+
+         RegLogDoublePrimeCoefficient reg_log_dp_curr_coeff(&u_current, &n_tilde_coeff, N);
+         RegLogPrimeCoefficient reg_log_p_curr_coeff(&u_current, &n_tilde_coeff, N);
+         RegLogPrimeCoefficient nreg_log_p_prev_coeff(&u_previous, &n_tilde_coeff, N, -1.0);
+         StressGridFunctionCoefficient stress_u_curr_coeff(lambda, mu, &u_current);
+         FlatVectorCoefficient nalpha_vstress_u_curr_coeff(stress_u_curr_coeff, -alpha);
 
          // Step 1: Set up the bilinear form a(⋅,⋅) on the finite element space.
          ParBilinearForm *a = new ParBilinearForm(fespace);
