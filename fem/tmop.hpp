@@ -2122,9 +2122,9 @@ protected:
    // ALFH: Q-Vector for Hessian of ALF at quadrature points.
    //       Updated by every call to PANonlinearFormExtension::GetGradient().
    //
-   // maps:      Dof2Quad map for fes associated with the nodal coordinates.
-   // maps_lim:  Dof2Quad map for fes associated with the limiting dist GF.
-   // maps_alim: Dof2Quad map for fes associated with the adaptive limiting GFs.
+   // maps:       Dof2Quad map for fes associated with the nodal coordinates.
+   // maps_lim:   Dof2Quad map for fes associated with the limiting dist GF.
+   // maps_nodes: like maps, but the quad points are the FE nodes.
    //
    // Jtr_debug_grad
    //     We keep track if Jtr was set by AssembleGradPA() in Jtr_debug_grad: it

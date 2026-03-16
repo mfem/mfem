@@ -13,8 +13,6 @@
 #include "../tmop_tools.hpp"
 #include "../gridfunc.hpp"
 #include "../../linalg/dtensor.hpp"
-#include <memory>
-#include <unordered_map>
 
 namespace mfem
 {
@@ -201,36 +199,14 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
       add(*x_0, d_loc, x_loc);
    }
 
-   // Refresh constant coefficients (used e.g. by miniapps to temporarily set
-   // constants to 0.0 for reporting metric-only energies).
+
+   // All are constant or not specified.
+   if (PA.MC.Size() == 1 && PA.C0.Size() == 1 && PA.ALC.Size() == 1) { return; }
+
+   // Coefficients are always evaluated on the CPU for now.
    PA.MC.HostWrite();
    PA.C0.HostWrite();
    PA.ALC.HostWrite();
-
-   if (PA.MC.Size() == 1)
-   {
-      if (auto *c = dynamic_cast<ConstantCoefficient *>(metric_coeff))
-      {
-         PA.MC(0) = c->constant;
-      }
-   }
-   if (PA.C0.Size() == 1)
-   {
-      if (auto *c = dynamic_cast<ConstantCoefficient *>(lim_coeff))
-      {
-         PA.C0(0) = c->constant;
-      }
-   }
-   if (PA.ALC.Size() == 1)
-   {
-      if (auto *c = dynamic_cast<ConstantCoefficient *>(adapt_lim_coeff))
-      {
-         PA.ALC(0) = c->constant;
-      }
-   }
-
-   // All coefficients are constant.
-   if (PA.MC.Size() == 1 && PA.C0.Size() == 1 && PA.ALC.Size() == 1) { return; }
 
    const IntegrationRule &ir = *PA.ir;
    auto T = new IsoparametricTransformation;
@@ -398,23 +374,20 @@ void TMOP_Integrator::AssemblePA_AdaptLim()
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
 
    const FiniteElement *fe_n = PA.fes->GetTypicalFE();
-   // GetNodes() for tensor H1 elements with H1_DOF_MAP is stored in native DOF
-   // order (via dof_map), i.e. not in tensor-product order. DofToQuad::TENSOR
-   // assumes tensor-product ordering of the IntegrationRule points, so we keep
-   // a lexicographically ordered copy of the nodes per FE type.
+   // GetNodes() for tensor H1 elements with H1_DOF_MAP is stored in NATIVE
+   // order (via dof_map), while DofToQuad::TENSOR assumes LEXICOGRAPHIC
+   // ordering of the integration points.
    const IntegrationRule &nodes = fe_n->GetNodes();
    const auto *nfe = dynamic_cast<const NodalFiniteElement *>(fe_n);
    const Array<int> *lex = (nfe && nfe->GetLexicographicOrdering().Size() > 0)
-                           ? &nfe->GetLexicographicOrdering()
-                           : nullptr;
+                           ? &nfe->GetLexicographicOrdering() : nullptr;
    if (!lex)
    {
       PA.maps_nodes = &fe_n->GetDofToQuad(nodes, DofToQuad::TENSOR);
    }
    else
    {
-      IntegrationRule lex_nodes;
-      lex_nodes.SetSize(nodes.GetNPoints());
+      IntegrationRule lex_nodes(nodes.GetNPoints());
       MFEM_VERIFY(lex->Size() == nodes.GetNPoints(), "");
       for (int i = 0; i < nodes.GetNPoints(); i++)
       {

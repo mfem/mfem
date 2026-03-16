@@ -5688,9 +5688,9 @@ UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
          PA.AL_grads_assembled = false;
 
          // Refresh PA.ALF from the updated adapt_lim_gf.
-         const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+         const ElementDofOrdering ord = ElementDofOrdering::LEXICOGRAPHIC;
          const Operator *alf_R =
-            adapt_lim_gf->FESpace()->GetElementRestriction(ordering);
+            adapt_lim_gf->FESpace()->GetElementRestriction(ord);
          alf_R->Mult(*adapt_lim_gf, PA.ALF);
       }
    }
