@@ -21,36 +21,6 @@ namespace
 {
    constexpr mfem::real_t EPSILON = 1.0;
 
-   mfem::HypreParMatrix* MakeDiagonalMatrix(
-      mfem::Vector& diag, const mfem::ParFiniteElementSpace& fes)
-   {
-      const int n = diag.Size();
-
-      mfem::SparseMatrix diag_spmat;
-      diag_spmat.OverrideSize(n, n);
-      diag_spmat.GetMemoryI().New(n + 1, mfem::Device::GetDeviceMemoryType());
-      diag_spmat.GetMemoryJ().New(n, mfem::Device::GetDeviceMemoryType());
-      diag_spmat.GetMemoryData().New(n, mfem::Device::GetDeviceMemoryType());
-
-      {
-         int* I = diag_spmat.WriteI();
-         int* J = diag_spmat.WriteJ();
-         mfem::real_t* A = diag_spmat.WriteData();
-         const mfem::real_t* d_diag = diag.Read();
-         MFEM_FORALL(i, n + 1, I[i] = i;);
-         MFEM_FORALL(i, n,
-         {
-            J[i] = i;
-            A[i] = d_diag[i];
-         });
-      }
-
-      HYPRE_BigInt global_size = fes.GlobalTrueVSize();
-      HYPRE_BigInt* row_starts = fes.GetTrueDofOffsets();
-      mfem::HypreParMatrix D(fes.GetComm(), global_size, row_starts, &diag_spmat);
-      return new mfem::HypreParMatrix(D);
-   }
-
    mfem::real_t ComputeGlobalSum(mfem::ParLinearForm& lf)
    {
       std::unique_ptr<mfem::HypreParVector> lf_true(lf.ParallelAssemble());
@@ -98,49 +68,27 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
       dm.AddDomainIntegrator(new DiffusionIntegrator);
       dm.Assemble();
       dm.Finalize();
-      stiffness_matrix = dm.ParallelAssemble();
+      HypreParMatrix* temp_diffusion_matrix = dm.ParallelAssemble();
 
       // Build mass matrix M
       ParBilinearForm m(phi_fes);
       m.AddDomainIntegrator(new MassIntegrator());
       m.Assemble();
       m.Finalize();
-      mass_matrix = m.ParallelAssemble();
+      HypreParMatrix* M = m.ParallelAssemble();
 
-      const int ntrue = phi_fes->GetTrueVSize();
-      offsets.SetSize(3);
-      offsets[0] = 0;
-      offsets[1] = ntrue;
-      offsets[2] = 2 * ntrue;
+      // Build discrete K^4 using the Poisson stiffness matrix (diffusion_matrix)
+      HypreParMatrix* K2 =
+         ParMult(temp_diffusion_matrix, temp_diffusion_matrix);
+      HypreParMatrix* K4 = ParMult(K2, K2);
 
-      block_matrix = new BlockOperator(offsets);
-      block_matrix->SetBlock(0, 0, mass_matrix);
-      block_matrix->SetBlock(0, 1, stiffness_matrix,
-                                          diffusivity);
-      block_matrix->SetBlock(1, 0, stiffness_matrix, -1.0);
-      block_matrix->SetBlock(1, 1, mass_matrix);
+      // Form the p=4 hyper-diffusion operator: M + diffusivity * K^4
+      M_plus_cK_matrix = Add(1.0, *M, diffusivity, *K4);
 
-      Vector inv_mass_diag;
-      mass_matrix->GetDiag(inv_mass_diag);
-      inv_mass_diag.Reciprocal();
-      std::unique_ptr<HypreParMatrix> inv_mass_diag_matrix(
-         MakeDiagonalMatrix(inv_mass_diag, *phi_fes));
-      std::unique_ptr<HypreParMatrix> K_Minv_K(
-         RAP(inv_mass_diag_matrix.get(), stiffness_matrix));
-      schur_matrix =
-         Add(1.0, *mass_matrix, diffusivity, *K_Minv_K);
-
-      block_preconditioner =
-         new BlockLowerTriangularPreconditioner(offsets);
-      block_preconditioner->SetDiagonalBlock(
-         0, new HypreDiagScale(*mass_matrix));
-      block_preconditioner->SetBlock(
-         1, 0, new ScaledOperator(stiffness_matrix, -1.0));
-      block_preconditioner->SetDiagonalBlock(
-         1, new HypreBoomerAMG(*schur_matrix));
-      static_cast<HypreBoomerAMG&>(
-         block_preconditioner->GetBlock(1, 1)).SetPrintLevel(0);
-      block_preconditioner->owns_blocks = 1;
+      delete K4;
+      delete K2;
+      delete temp_diffusion_matrix;
+      delete M;
    }
 
    {
@@ -153,11 +101,7 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
 FieldSolver::~FieldSolver()
 {
    delete diffusion_matrix;
-   delete block_preconditioner;
-   delete block_matrix;
-   delete schur_matrix;
-   delete stiffness_matrix;
-   delete mass_matrix;
+   delete M_plus_cK_matrix;
    delete precomputed_neutralizing_lf;
    delete grad_interpolator;
 }
@@ -323,26 +267,27 @@ void FieldSolver::UpdateEGridFunction(ParGridFunction& phi_gf,
 void FieldSolver::DiffuseRHS(ParLinearForm& b, ParGridFunction& rho_gf)
 {
    HypreParVector* B = b.ParallelAssemble();
-   ParFiniteElementSpace* pfes = rho_gf.ParFESpace();
-   BlockVector X(offsets);
-   BlockVector RHS(offsets);
-   X = 0.0;
-   RHS = 0.0;
-   RHS.GetBlock(0) = *B;
 
-   GMRESSolver solver(pfes->GetComm());
-   solver.SetOperator(*block_matrix);
-   solver.SetRelTol(1e-12);
-   solver.SetAbsTol(0.0);
-   solver.SetMaxIter(1000);
-   solver.SetPrintLevel(0);
-   solver.SetPreconditioner(*block_preconditioner);
-   solver.Mult(RHS, X);
+   HyprePCG solver(M_plus_cK_matrix->GetComm());
+   solver.SetOperator(*M_plus_cK_matrix);
+   solver.SetTol(1e-6);
+   solver.SetMaxIter(4000);
+   solver.SetPrintLevel(1);
+
+   HypreBoomerAMG prec(*M_plus_cK_matrix);
+   prec.SetPrintLevel(0);
+   solver.SetPreconditioner(prec);
 
    rho_gf = 0.0;
+   ParFiniteElementSpace* pfes = rho_gf.ParFESpace();
+
+   HypreParVector Rho_true(pfes);
+   Rho_true = 0.0;
+
+   solver.Mult(*B, Rho_true);
    delete B;
 
-   rho_gf.SetFromTrueDofs(X.GetBlock(0));
+   rho_gf.SetFromTrueDofs(Rho_true);
 
    b = 0.0;
 
