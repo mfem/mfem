@@ -69,6 +69,8 @@ examples/ex3[0-9]
 examples/ex3[0-9]p
 examples/ex4[0-9]
 examples/ex4[0-9]p
+examples/pg_signorini
+examples/pg_signorinip
 
 examples/refined.mesh
 examples/displaced.mesh
