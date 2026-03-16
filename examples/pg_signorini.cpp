@@ -231,15 +231,6 @@ int main(int argc, char *argv[])
 
          BilinearForm a11(&L2fes);
          a11.AddDomainIntegrator(new MassIntegrator(exp_psi));
-         ConstantCoefficient eps_cf(1e-6);
-         if (order == 1)
-         {
-            a11.AddDomainIntegrator(new MassIntegrator(eps_cf));
-         }
-         else
-         {
-            a11.AddDomainIntegrator(new DiffusionIntegrator(eps_cf));
-         }
          a11.Assemble();
          a11.Finalize();
          SparseMatrix &A11 = a11.SpMat();
@@ -247,16 +238,34 @@ int main(int argc, char *argv[])
          A.SetBlock(0,0,&A00);
          A.SetBlock(1,1,&A11);
 
-         BlockDiagonalPreconditioner prec(offsets);
-         prec.SetDiagonalBlock(0,new GSSmoother(A00));
-         prec.SetDiagonalBlock(1,new GSSmoother(A11));
-         prec.owns_blocks = 1;
+         // Construct the Schur complement preconditioner.
+         // P =   [ diag(K)                  0          ]
+         //       [  0           H + M diag(K)^(-1) M^T ]
+         Vector A00_diag(A00.Height());
+         A00.GetDiag(A00_diag);
+         SparseMatrix KinvMt(*A01);
+         for (int i=0; i<A00_diag.Size(); i++)
+         {
+            KinvMt.ScaleRow(i, 1.0/A00_diag(i));
+         }
+         SparseMatrix *MKinvMt = Mult(A10, KinvMt);
+         SparseMatrix *S = Add(1.0, A11, 1.0, *MKinvMt);
 
-         // GMRES(A,prec,rhs,x,0,1000000,500,1e-12,0.0);
+         DSmoother P00(A00);
+         GSSmoother P11(*S);
+         P00.iterative_mode = false;
+         P11.iterative_mode = false;
+
+         BlockDiagonalPreconditioner prec(offsets);
+         prec.SetDiagonalBlock(0, &P00);
+         prec.SetDiagonalBlock(1, &P11);
 
          gmres.SetPreconditioner(prec);
          gmres.SetOperator(A);
          gmres.Mult(rhs, x);
+
+         delete MKinvMt;
+         delete S;
 
          u_gf.MakeRef(&H1fes, x.GetBlock(0), 0);
          delta_psi_gf.MakeRef(&L2fes, x.GetBlock(1), 0);
