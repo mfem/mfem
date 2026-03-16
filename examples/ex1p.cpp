@@ -66,6 +66,26 @@
 using namespace std;
 using namespace mfem;
 
+class VisServer
+{
+   const char *path{};
+   int port{-1};
+
+   struct Deleter { void operator()(FILE *); };
+   std::unique_ptr<FILE, Deleter> fglvis;
+
+   void Open();
+public:
+   VisServer(const char *path_, int port_ = 19916)
+      : path(path_), port(port_) { Open(); }
+
+   explicit VisServer() = default;
+
+   inline const char *GetPath() const { return path; }
+   inline int GetPort() const { return port; }
+   inline bool IsOpen() const { return (fglvis != nullptr); }
+};
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
@@ -82,6 +102,7 @@ int main(int argc, char *argv[])
    bool fa = false;
    const char *device_config = "cpu";
    bool visualization = true;
+   const char *visserver = "";
    bool algebraic_ceed = false;
 
    OptionsParser args(argc, argv);
@@ -106,6 +127,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visserver, "-vs", "--visualization-server",
+                  "Path to GLVis binary to start own server.");
    args.Parse();
    if (!args.Good())
    {
@@ -301,6 +324,14 @@ int main(int argc, char *argv[])
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
+
+      VisServer server;
+      if (strlen(visserver) > 0)
+      {
+         server = std::move(VisServer(visserver, visport));
+         visport = server.GetPort();
+      }
+
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
@@ -314,4 +345,71 @@ int main(int argc, char *argv[])
    }
 
    return 0;
+}
+
+void VisServer::Open()
+{
+   if (!path || strlen(path) <= 0) { return; }
+
+#if _POSIX_C_SOURCE >= 2 || _BSD_SOURCE || _SVID_SOURCE
+#ifdef MFEM_USE_MPI
+   if (Mpi::Root())
+#endif // MFEM_USE_MPI
+   {
+      // Open a log file
+      FILE *ftmp = popen("mktemp --tmpdir glvis-log.XXXXXX", "r");
+      constexpr size_t ssize = 256;
+      char stmp[ssize];
+      fgets(stmp, ssize, ftmp);
+      pclose(ftmp);
+      int len = strlen(stmp);
+      if (len > 0 && stmp[len-1] == '\n') { stmp[--len] = '\0'; }
+      std::cout << "Starting GLVis log in: " << stmp << std::endl;
+
+      // Start the server
+      std::stringstream ss;
+      ss << path <<
+         " -no-pr -no-ex 2>&1 | tee -p \"" << stmp <<
+         "\" | grep -m 1 ^GLVIS_SERVER_PORT";
+      fglvis.reset(popen(ss.str().c_str(), "r"));
+
+      // Capture the port number
+      char line[ssize];
+      bool captured = false;
+      while (fgets(line, ssize, fglvis.get()))
+      {
+         if (strncmp(line, "GLVIS_SERVER_PORT=", 18) == 0)
+         {
+            sscanf(line, "GLVIS_SERVER_PORT=%d", &port);
+            captured = true;
+            break;
+         }
+      }
+      if (captured)
+      {
+         std::cout << "Started GLVis server at port: " << port << std::endl;
+      }
+      else
+      {
+         std::cerr << "GLVis server did not start normally." << std::endl;
+      }
+   }
+#endif // _POSIX_C_SOURCE >= 2 || _BSD_SOURCE || _SVID_SOURCE
+#ifdef MFEM_USE_MPI
+   MPI_Bcast(&port, 1, MPI_INT, 0, MPI_COMM_WORLD);
+#endif // MFEM_USE_MPI
+}
+
+void VisServer::Deleter::operator()(FILE *f)
+{
+#if _POSIX_C_SOURCE >= 2 || _BSD_SOURCE || _SVID_SOURCE
+   if (f != nullptr)
+   {
+      int ierr = pclose(f);
+      if (ierr != 0)
+      {
+         std::cerr << "GLVis server pclose() returns: " << ierr << std::endl;
+      }
+   }
+#endif // _POSIX_C_SOURCE >= 2 || _BSD_SOURCE || _SVID_SOURCE
 }
