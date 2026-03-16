@@ -390,7 +390,7 @@ public:
  * @param target_volume θ vol(Ω)
  * @param tol Bisection iteration tolerance
  * @param max_its Bisection maximum iteration number
- * @return real_t Final volume, ∫_Ω sigmoid(ψ)
+ * @return std::pair<real_t, real_t> Final volume (∫_Ω sigmoid(ψ) dx) and the correction (c)
  */
 std::pair<real_t, real_t> proj(GridFunction &psi, GridFunction &alpha_grad,
                                real_t c, real_t target_volume,
