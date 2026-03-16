@@ -328,7 +328,7 @@ int main(int argc, char *argv[])
       VisServer server;
       if (strlen(visserver) > 0)
       {
-         server = std::move(VisServer(visserver, visport));
+         server = VisServer(visserver, visport);
          visport = server.GetPort();
       }
 
