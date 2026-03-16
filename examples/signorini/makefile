@@ -10,7 +10,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_EXAMPLES = explicit lvpp_signorini
-PAR_EXAMPLES = explicitp mmsp weakexplicitp groschwheelp regularp
+PAR_EXAMPLES = explicitp mmsp weakexplicitp groschwheelp regularp lvpp_signorinip
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else

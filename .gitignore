@@ -76,6 +76,7 @@ examples/signorini/mmsp
 examples/signorini/weakexplicitp
 examples/signorini/regularp
 examples/signorini/lvpp_signorini
+examples/signorini/lvpp_signorinip
 
 examples/refined.mesh
 examples/displaced.mesh

@@ -31,7 +31,11 @@ protected:
 
 public:
    ExponentialGridFunctionCoefficient(GridFunction &psi_, real_t min_val_=0.0, real_t max_val_=1e6)
-      : psi(&psi_), min_val(min_val_), max_val(max_val_) { }
+      : psi(&psi_), min_val(min_val_), max_val(max_val_)
+   {
+      MFEM_VERIFY(min_val <= max_val,
+                  "ExponentialGridFunctionCoefficient: min_val must not exceed max_val");
+   }
 
    real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
 };
@@ -45,50 +49,158 @@ class ParentToSubMixedBilinearForm : public Operator
 private:
    FiniteElementSpace *trial_parent_fes; // trial space defined on a parent mesh
    FiniteElementSpace *test_sub_fes; // test space defined on a sub mesh
-   std::unique_ptr<FiniteElementCollection> parent_trace_fec;
-   std::unique_ptr<FiniteElementSpace> parent_trace_fes; // trial space restricted to the sub mesh
-   std::unique_ptr<MixedBilinearForm> sub_bf; // sub mesh bilinear form
 
-   std::unique_ptr<SparseMatrix> P; // Prolongation from sub to parent test space
+   std::unique_ptr<FiniteElementCollection> parent_trace_fec; // FEC for trial space restricted to the sub mesh
+   std::unique_ptr<FiniteElementSpace> parent_trace_fes; // trial space restricted to the sub mesh
+   std::unique_ptr<MixedBilinearForm> sub_bf; // serial sub mesh bilinear form
+
+   std::unique_ptr<SparseMatrix> R; // restriction matrix that maps from parent to sub mesh trial space
    std::unique_ptr<SparseMatrix> mat; // the final coupling matrix
+   Array<int> sub_to_parent; // map from trace dof on sub mesh to dof on parent mesh
+
+#ifdef MFEM_USE_MPI
+   std::unique_ptr<ParMixedBilinearForm> p_sub_bf; // parallel sub mesh bilinear form
+   std::unique_ptr<OperatorHandle> p_R; // parallel restriction operator that maps from parent to sub mesh trial space
+#endif
 
 public:
    ParentToSubMixedBilinearForm(FiniteElementSpace *trial_parent_fes_,
                                 FiniteElementSpace *test_sub_fes_)
       : trial_parent_fes(trial_parent_fes_), test_sub_fes(test_sub_fes_)
    {
+      auto *parent_mesh = trial_parent_fes->GetMesh();
+      MFEM_VERIFY(parent_mesh != nullptr, "trial_parent_fes mesh is null");
+
+#ifdef MFEM_USE_MPI
+      auto *sub_mesh = dynamic_cast<SubMesh*>(test_sub_fes->GetMesh());
+      auto *sub_pmesh = dynamic_cast<ParSubMesh*>(test_sub_fes->GetMesh());
+
+      MFEM_VERIFY(sub_mesh != nullptr || sub_pmesh != nullptr,
+                  "SubMeshToParentCouplingTransfer: test_sub_fes should be defined on a SubMesh");
+
+      if (sub_mesh)
+      {
+         MFEM_VERIFY(sub_mesh->GetParent() == parent_mesh,
+                     "SubMeshToParentCouplingTransfer: trial_parent_fes mesh should be the parent of test_sub_fes mesh");
+      }
+      else
+      {
+         MFEM_VERIFY(sub_pmesh->GetParent() == parent_mesh,
+                     "SubMeshToParentCouplingTransfer: trial_parent_fes mesh should be the parent of test_sub_fes mesh");
+      }
+#else
       auto *sub_mesh = dynamic_cast<SubMesh*>(test_sub_fes->GetMesh());
       MFEM_VERIFY(sub_mesh != nullptr,
-                  "SubMeshToParentCouplingTransfer: sub_fes should be defined on a SubMesh");
-
-      auto *parent_mesh = trial_parent_fes->GetMesh();
+                  "SubMeshToParentCouplingTransfer: test_sub_fes should be defined on a SubMesh");
       MFEM_VERIFY(sub_mesh->GetParent() == parent_mesh,
-                  "SubMeshToParentCouplingTransfer: parent_fes mesh should be the parent of sub_fes mesh");
-      
-      auto parent_fec = trial_parent_fes->FEColl();
+                  "SubMeshToParentCouplingTransfer: trial_parent_fes mesh should be the parent of test_sub_fes mesh");
+#endif
+
+      bool parallel = false;  
+
+#ifdef MFEM_USE_MPI
+      auto *trial_parent_pfes = dynamic_cast<ParFiniteElementSpace*>(trial_parent_fes);
+      auto *test_sub_pfes = dynamic_cast<ParFiniteElementSpace*>(test_sub_fes);
+
+      if (!(trial_parent_pfes == nullptr && test_sub_pfes == nullptr))
+      {
+         MFEM_VERIFY(trial_parent_pfes != nullptr && test_sub_pfes != nullptr,
+                     "ParentToSubMixedBilinearForm: trial and test must both be parallel or both be serial");
+         MFEM_VERIFY(trial_parent_pfes->GetParMesh()->GetComm() ==
+                     test_sub_pfes->GetParMesh()->GetComm(),
+                     "ParentToSubMixedBilinearForm: communicator mismatch");
+         MFEM_VERIFY(sub_pmesh != nullptr,
+                     "ParentToSubMixedBilinearForm: parallel test space must live on ParSubMesh");
+         parallel = true;
+      }
+#endif
+
+      auto *parent_fec = trial_parent_fes->FEColl();
+      MFEM_VERIFY(parent_fec != nullptr, "trial_parent_fes finite element collection is null");
       parent_trace_fec.reset(parent_fec->GetTraceCollection());
-      parent_trace_fes = std::make_unique<FiniteElementSpace>(
-                            sub_mesh, parent_trace_fec.get(), trial_parent_fes->GetVDim()
-                         );      
-      
-      Array<int> sub_to_parent;
-      SubMeshUtils::BuildVdofToVdofMap(*parent_trace_fes, *trial_parent_fes_,
-                                       sub_mesh->GetFrom(), sub_mesh->GetParentElementIDMap(),
-                                       sub_to_parent);
+      MFEM_VERIFY(parent_trace_fec != nullptr,
+                  "failed to create trace finite element collection");
+
+#ifdef MFEM_USE_MPI
+      if (parallel)
+      {
+         parent_trace_fes = std::make_unique<ParFiniteElementSpace>(
+                               sub_pmesh, parent_trace_fec.get(),
+                               trial_parent_fes->GetVDim());
+
+         SubMeshUtils::BuildVdofToVdofMap(*parent_trace_fes, *trial_parent_fes_,
+                                          sub_pmesh->GetFrom(),
+                                          sub_pmesh->GetParentElementIDMap(),
+                                          sub_to_parent);
+
+         auto *parent_trace_pfes = static_cast<ParFiniteElementSpace*>(parent_trace_fes.get());
+         p_sub_bf = std::make_unique<ParMixedBilinearForm>(parent_trace_pfes,
+                                                           test_sub_pfes);
+      }
+      else
+#endif
+      {
+         parent_trace_fes = std::make_unique<FiniteElementSpace>(
+                               sub_mesh, parent_trace_fec.get(),
+                               trial_parent_fes->GetVDim());
+
+         SubMeshUtils::BuildVdofToVdofMap(*parent_trace_fes, *trial_parent_fes_,
+                                          sub_mesh->GetFrom(),
+                                          sub_mesh->GetParentElementIDMap(),
+                                          sub_to_parent);
+
+         sub_bf = std::make_unique<MixedBilinearForm>(parent_trace_fes.get(),
+                                                      test_sub_fes);
+      }
 
       const int ndof_sub = parent_trace_fes->GetVSize();
       const int ndof_parent = trial_parent_fes_->GetVSize();
+      MFEM_VERIFY(sub_to_parent.Size() == ndof_sub,
+                  "sub_to_parent map size does not match the trace space size");
 
-      P = std::make_unique<SparseMatrix>(ndof_sub, ndof_parent);
-
+      R = std::make_unique<SparseMatrix>(ndof_sub, ndof_parent);
       for (int i = 0; i < ndof_sub; i++)
       {
          int I = sub_to_parent[i];
-         if (I >= 0) { P->Add(i, I, 1.0); }
+         if (I >= 0) { R->Add(i, I, 1.0); }
       }
-      P->Finalize();
+      R->Finalize();
 
-      sub_bf = std::make_unique<MixedBilinearForm>(parent_trace_fes.get(), test_sub_fes);
+#ifdef MFEM_USE_MPI
+      if (parallel)
+      {
+         auto *parent_trace_pfes = static_cast<ParFiniteElementSpace*>(parent_trace_fes.get());
+
+         // tdof parent -> vdof parent
+         HypreParMatrix *P_parent = trial_parent_pfes->Dof_TrueDof_Matrix();
+
+         // vdof parent -> vdof sub
+         HypreParMatrix R_vdof(
+            trial_parent_pfes->GetComm(),
+            parent_trace_pfes->GlobalVSize(),
+            trial_parent_pfes->GlobalVSize(),
+            parent_trace_pfes->GetDofOffsets(),
+            trial_parent_pfes->GetDofOffsets(),
+            R.get());
+
+         // tdof parent -> vdof sub
+         std::unique_ptr<HypreParMatrix> tdof_parent_to_vdof_sub(
+            ParMult(&R_vdof, P_parent));
+
+         // vdof sub -> tdof sub
+         std::unique_ptr<HypreParMatrix> vdof_sub_to_tdof_sub(
+            parent_trace_pfes->Dof_TrueDof_Matrix()->Transpose());
+
+         // tdof parent -> tdof sub
+         HypreParMatrix *pR_hypre = ParMult(vdof_sub_to_tdof_sub.get(),
+                    tdof_parent_to_vdof_sub.get());
+
+         // Rescale the nonzeros of the restriction operator to be 1.0
+         *pR_hypre = 1.0;
+         p_R = std::make_unique<OperatorHandle>(Operator::Hypre_ParCSR);
+         p_R->Reset(pR_hypre);
+      }
+#endif
    }
    virtual ~ParentToSubMixedBilinearForm() = default;
 
@@ -96,19 +208,56 @@ public:
 
    virtual void AddBoundaryDomainIntegrator(BilinearFormIntegrator *bdr_intg)
    {
+      MFEM_VERIFY(bdr_intg != nullptr,
+                  "ParentToSubMixedBilinearForm: boundary integrator is null");
+#ifdef MFEM_USE_MPI
+      if (p_sub_bf)
+      {
+         p_sub_bf->AddDomainIntegrator(bdr_intg);
+         return;
+      }
+#endif
+      MFEM_VERIFY(sub_bf != nullptr,
+                  "ParentToSubMixedBilinearForm: serial mixed bilinear form is not initialized");
       sub_bf->AddDomainIntegrator(bdr_intg);
    }
 
    virtual void Assemble()
    {
+#ifdef MFEM_USE_MPI
+      if (p_sub_bf)
+      {
+         p_sub_bf->Assemble();
+         return;
+      }
+#endif
+      MFEM_VERIFY(sub_bf != nullptr,
+                  "ParentToSubMixedBilinearForm: serial mixed bilinear form is not initialized");
       sub_bf->Assemble();
-      sub_bf->Finalize();
-      mat.reset(mfem::Mult(sub_bf->SpMat(), *P));
    }
 
    virtual void Finalize()
    {
-      MFEM_VERIFY(mat!=nullptr, "ParentToSubMixedBilinearForm: mat not built");
+#ifdef MFEM_USE_MPI
+      if (p_sub_bf)
+      {
+         p_sub_bf->Finalize();
+      }
+      else
+#endif
+      {
+         sub_bf->Finalize();
+      }
+      
+#ifdef MFEM_USE_MPI
+      if (p_R) { return; } // skip to parallel assemble
+#endif
+
+      MFEM_VERIFY(sub_bf != nullptr,
+                  "ParentToSubMixedBilinearForm: serial mixed bilinear form is not initialized");
+      MFEM_VERIFY(R != nullptr,
+                  "ParentToSubMixedBilinearForm: restriction matrix is not initialized");
+      mat.reset(mfem::Mult(sub_bf->SpMat(), *R));
       mat->Finalize();
    }
 
@@ -132,6 +281,35 @@ public:
                   "ParentToSubMixedBilinearForm: matrix not finalized");
       return *mat;
    }
+
+#ifdef MFEM_USE_MPI
+   HypreParMatrix *ParallelAssemble()
+   {
+      OperatorHandle Mh(Operator::Hypre_ParCSR);
+      ParallelAssemble(Mh);
+      Mh.SetOperatorOwner(false);
+      return Mh.As<HypreParMatrix>();
+   }
+
+   void ParallelAssemble(OperatorHandle &A)
+   {
+      MFEM_VERIFY(p_sub_bf != nullptr,
+                  "ParentToSubMixedBilinearForm: p_sub_bf is not initialized");
+      MFEM_VERIFY(p_R != nullptr,
+                  "ParentToSubMixedBilinearForm: p_R is not initialized");
+
+      OperatorHandle Mh_restricted(Operator::Hypre_ParCSR);
+      p_sub_bf->ParallelAssemble(Mh_restricted);
+
+      MFEM_VERIFY(Mh_restricted.Type() == Operator::Hypre_ParCSR,
+                  "ParentToSubMixedBilinearForm: expected Hypre_ParCSR matrix");
+      MFEM_VERIFY(p_R->Type() == Operator::Hypre_ParCSR,
+                  "ParentToSubMixedBilinearForm: expected Hypre_ParCSR restriction");
+
+      A.Reset(ParMult(Mh_restricted.As<HypreParMatrix>(),
+                      p_R->As<HypreParMatrix>()));
+   }
+#endif
 };
 
 /// Integrator for the mixed form (u · n~, w)_Γ where u is a vector field
@@ -220,5 +398,3 @@ protected:
              "and the test space must be L2 scalar";
    }
 };
-
-
