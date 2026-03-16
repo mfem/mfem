@@ -368,8 +368,8 @@ void VisServer::Open()
 
       // Start the server
       std::stringstream ss;
-      ss << path <<
-         " -no-pr -no-ex 2>&1 | tee -p \"" << stmp <<
+      ss << "trap '' SIGPIPE && " << path <<
+         " -no-pr -no-ex 2>&1 | tee \"" << stmp <<
          "\" | grep -m 1 ^GLVIS_SERVER_PORT";
       fglvis.reset(popen(ss.str().c_str(), "r"));
 
