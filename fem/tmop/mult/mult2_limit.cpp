@@ -130,21 +130,18 @@ void TMOP_AddMultPA_AdaptLim_2D(const real_t lim_normal,
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       MFEM_SHARED real_t smem[MQ1][MQ1];
-      MFEM_SHARED real_t sB_quad[MD1][MQ1];
-      kernels::internal::LoadMatrix(D1D, Q1D, b, sB_quad);
+      MFEM_SHARED real_t sB[MD1][MQ1];
 
-      // Load ALF DOFs into MQ1 array for Eval2d.
-      kernels::internal::s_regs2d_t<MQ1> alf_dof;
+      kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
+
+      // Evaluate ALF and ALF0 at the quad points.
+      kernels::internal::s_regs2d_t<MQ1> alf_dof, alf_quad;
       kernels::internal::LoadDofs2d(e, D1D, ALF, alf_dof);
-
-      // Evaluate ALF and ALF0 at quad points.
-      kernels::internal::s_regs2d_t<MQ1> alf_quad;
-      kernels::internal::Eval2d(D1D, Q1D, smem, sB_quad,
+      kernels::internal::Eval2d(D1D, Q1D, smem, sB,
                                 alf_dof, alf_quad);
-
       kernels::internal::s_regs2d_t<MQ1> alf0_dof, alf0_quad;
       kernels::internal::LoadDofs2d(e, D1D, ALF0, alf0_dof);
-      kernels::internal::Eval2d(D1D, Q1D, smem, sB_quad,
+      kernels::internal::Eval2d(D1D, Q1D, smem, sB,
                                 alf0_dof, alf0_quad);
 
       kernels::internal::v_regs2d_t<2,MQ1> r00, r01;
@@ -156,8 +153,6 @@ void TMOP_AddMultPA_AdaptLim_2D(const real_t lim_normal,
             const real_t detJtr = kernels::Det<2>(Jtr);
             const real_t weight = W(qx, qy) * detJtr;
 
-            // Apply scaling:
-            // 2.0 * (gf_q - gf0_q) / delta_max^2 * weight * lim_normal * coeff
             const real_t coeff = const_coeff ? ALC(0, 0, 0) : ALC(qx, qy, e);
             const real_t factor = weight * lim_normal * coeff *
                                   2.0 * (alf_quad(qy, qx) - alf0_quad(qy, qx)) /
@@ -169,7 +164,7 @@ void TMOP_AddMultPA_AdaptLim_2D(const real_t lim_normal,
       }
       MFEM_SYNC_THREAD;
 
-      kernels::internal::EvalTranspose2d(D1D, Q1D, smem, sB_quad, r00, r01);
+      kernels::internal::EvalTranspose2d(D1D, Q1D, smem, sB, r00, r01);
       kernels::internal::WriteDofs2d(e, D1D, r01, Y);
    });
 }

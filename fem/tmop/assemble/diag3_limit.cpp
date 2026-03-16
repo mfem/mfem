@@ -155,13 +155,12 @@ void TMOP_AssembleDiagPA_AdaptLim_3D(const real_t lim_normal,
       MFEM_SHARED real_t sB[MD1][MQ1];
       MFEM_SHARED real_t smem[MQ1][MQ1];
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
-      kernels::internal::s_regs3d_t<MQ1> alf_dof, alf_quad;
-      kernels::internal::s_regs3d_t<MQ1> alf0_dof, alf0_quad;
 
-      // Evaluate ALF and ALF0 at quadrature points.
+      // ALF and ALF0 values at quad points.
+      kernels::internal::s_regs3d_t<MQ1> alf_dof, alf_quad;
       kernels::internal::LoadDofs3d(e, D1D, ALF, alf_dof);
       kernels::internal::Eval3d(D1D, Q1D, smem, sB, alf_dof, alf_quad);
-
+      kernels::internal::s_regs3d_t<MQ1> alf0_dof, alf0_quad;
       kernels::internal::LoadDofs3d(e, D1D, ALF0, alf0_dof);
       kernels::internal::Eval3d(D1D, Q1D, smem, sB, alf0_dof, alf0_quad);
 
@@ -171,7 +170,7 @@ void TMOP_AssembleDiagPA_AdaptLim_3D(const real_t lim_normal,
 
       for (int v = 0; v < 3; ++v)
       {
-         // First contraction: along z.
+         // Contract in z.
          for (int dz = 0; dz < D1D; ++dz)
          {
             MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
@@ -203,7 +202,7 @@ void TMOP_AssembleDiagPA_AdaptLim_3D(const real_t lim_normal,
             MFEM_SYNC_THREAD;
          }
 
-         // Second contraction: along y.
+         // Contract in y.
          for (int dz = 0; dz < D1D; ++dz)
          {
             MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
@@ -231,7 +230,7 @@ void TMOP_AssembleDiagPA_AdaptLim_3D(const real_t lim_normal,
             MFEM_SYNC_THREAD;
          }
 
-         // Third contraction: along x.
+         // Contract in x.
          for (int dz = 0; dz < D1D; ++dz)
          {
             MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)

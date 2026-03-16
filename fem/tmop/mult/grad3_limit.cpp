@@ -124,24 +124,23 @@ void TMOP_AddMultGradPA_AdaptLim_3D(const real_t lim_normal,
    {
       MFEM_SHARED real_t sB[MD1][MQ1];
       MFEM_SHARED real_t smem[MQ1][MQ1];
+
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
 
-      // ALF and ALF0 values at quadrature points.
+      // ALF and ALF0 values at quad points.
       kernels::internal::s_regs3d_t<MQ1> alf_dof, alf_quad;
       kernels::internal::LoadDofs3d(e, D1D, ALF, alf_dof);
       kernels::internal::Eval3d(D1D, Q1D, smem, sB, alf_dof, alf_quad);
-
       kernels::internal::s_regs3d_t<MQ1> alf0_dof, alf0_quad;
       kernels::internal::LoadDofs3d(e, D1D, ALF0, alf0_dof);
       kernels::internal::Eval3d(D1D, Q1D, smem, sB, alf0_dof, alf0_quad);
 
-      // Input vector R at quadrature points.
+      // Input vector R at quad points.
       kernels::internal::v_regs3d_t<3, MQ1> r_R_dof, r_R_quad;
       kernels::internal::LoadDofs3d(e, D1D, R, r_R_dof);
       kernels::internal::Eval3d(D1D, Q1D, smem, sB, r_R_dof, r_R_quad);
 
       kernels::internal::v_regs3d_t<3, MQ1> r00, r01;
-
       for (int qz = 0; qz < Q1D; ++qz)
       {
          MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
@@ -153,6 +152,7 @@ void TMOP_AddMultGradPA_AdaptLim_3D(const real_t lim_normal,
                const real_t weight = W(qx, qy, qz) * detJtr;
                const real_t diff = alf_quad(qz, qy, qx) - alf0_quad(qz, qy, qx);
 
+               // Load precomputed gradient at this quad point.
                const real_t grad_alf[3] =
                {
                   ALF_grad(0, qx, qy, qz, e),
@@ -160,6 +160,7 @@ void TMOP_AddMultGradPA_AdaptLim_3D(const real_t lim_normal,
                   ALF_grad(2, qx, qy, qz, e)
                };
 
+               // Get input vector at this quad point.
                const real_t R_q[3] =
                {
                   r_R_quad(0, qz, qy, qx),
@@ -167,14 +168,14 @@ void TMOP_AddMultGradPA_AdaptLim_3D(const real_t lim_normal,
                   r_R_quad(2, qz, qy, qx)
                };
 
+               // Hessian action:
+               // H = factor * (grad x grad + (gf - gf0) * hess)
                const real_t coeff = const_coeff ? ALC(0, 0, 0, 0) : ALC(qx, qy, qz, e);
                const real_t factor =
                   weight * lim_normal * coeff *
                   2.0 / (adapt_lim_delta_max * adapt_lim_delta_max);
-
                const real_t grad_dot_R =
                   grad_alf[0] * R_q[0] + grad_alf[1] * R_q[1] + grad_alf[2] * R_q[2];
-
                real_t hess_R[3];
                hess_R[0] =
                   ALF_hess(0, 0, qx, qy, qz, e) * R_q[0] +

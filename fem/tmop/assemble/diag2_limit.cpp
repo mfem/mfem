@@ -93,11 +93,10 @@ void TMOP_AssembleDiagPA_AdaptLim_2D(const real_t lim_normal,
       MFEM_SHARED real_t smem[MQ1][MQ1];
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
 
-      // ALF and ALF0 values at quadrature points (for diff = ALF - ALF0).
+      // ALF and ALF0 values at quad points.
       kernels::internal::s_regs2d_t<MQ1> alf_dof, alf_quad;
       kernels::internal::LoadDofs2d(e, D1D, ALF, alf_dof);
       kernels::internal::Eval2d(D1D, Q1D, smem, sB, alf_dof, alf_quad);
-
       kernels::internal::s_regs2d_t<MQ1> alf0_dof, alf0_quad;
       kernels::internal::LoadDofs2d(e, D1D, ALF0, alf0_dof);
       kernels::internal::Eval2d(D1D, Q1D, smem, sB, alf0_dof, alf0_quad);

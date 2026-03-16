@@ -115,15 +115,14 @@ void TMOP_EnergyPA_AdaptLim_2D(const real_t lim_normal,
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1];
 
-      // Load basis functions for ALF/ALF0 (use bld, same as LD)
+      // Load basis functions for ALF/ALF0.
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
 
       // Load ALF and ALF0 (scalar pattern).
-      kernels::internal::s_regs2d_t<MQ1> ralf_0, ralf_1; // scalar ALF
+      kernels::internal::s_regs2d_t<MQ1> ralf_0, ralf_1;
       kernels::internal::LoadDofs2d(e, D1D, ALF, ralf_0);
       kernels::internal::Eval2d(D1D, Q1D, smem, sB, ralf_0, ralf_1);
-
-      kernels::internal::s_regs2d_t<MQ1> ralf0_0, ralf0_1; // scalar ALF0
+      kernels::internal::s_regs2d_t<MQ1> ralf0_0, ralf0_1;
       kernels::internal::LoadDofs2d(e, D1D, ALF0, ralf0_0);
       kernels::internal::Eval2d(D1D, Q1D, smem, sB, ralf0_0, ralf0_1);
 

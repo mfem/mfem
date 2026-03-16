@@ -187,17 +187,19 @@ void TMOP_AssembleGradPA_AdaptLim_3D(const int NE,
       MFEM_SHARED real_t sB_nodes[MD1][MD1], sG_nodes[MD1][MD1];
       MFEM_SHARED real_t sB_q[MD1][MQ1];
 
+      // Maps nodes - nodes.
       kernels::internal::LoadMatrix(D1D, D1D, b_nodes, sB_nodes);
       kernels::internal::LoadMatrix(D1D, D1D, g_nodes, sG_nodes);
+          // Map nodes - quads.
       kernels::internal::LoadMatrix(D1D, Q1D, B, sB_q);
 
-      // Physical Jacobian at DOF nodes.
+      // Compute the physical Jacobian at DOF nodes.
       kernels::internal::vd_regs3d_t<3, 3, MD1> r_X, r_X_grad_nodes;
       kernels::internal::LoadDofs3d(e, D1D, X, r_X);
       kernels::internal::Grad3d(D1D, D1D, smem_d,
                                 sB_nodes, sG_nodes, r_X, r_X_grad_nodes);
 
-      // Reference derivatives of ALF at DOF nodes.
+      // Compute the reference derivatives of ALF at DOF nodes.
       kernels::internal::s_regs3d_t<MD1> alf_n, dalf_dxi_n, dalf_deta_n, dalf_dzeta_n;
       kernels::internal::LoadDofs3d(e, D1D, ALF, alf_n);
       kernels::internal::Contract3d<false, MD1>(D1D, D1D, smem_d,
@@ -212,7 +214,8 @@ void TMOP_AssembleGradPA_AdaptLim_3D(const int NE,
                                                 sB_nodes, sB_nodes, sG_nodes,
                                                 alf_n, dalf_dzeta_n);
 
-      // Physical gradient coefficients at DOF nodes (stored as nodal values).
+      // Physical gradient coefficients at DOF nodes into grad_e.
+      // Takes derivatives of alf.
       real_t grad_e[MD1][MD1][MD1][3];
       for (int dz = 0; dz < D1D; dz++)
       {
@@ -243,7 +246,8 @@ void TMOP_AssembleGradPA_AdaptLim_3D(const int NE,
          }
       }
 
-      // Hessian coefficients at DOF nodes by differentiating grad_e.
+      // Compute the Hessian coefficients at DOF nodes into hess_e.
+      // Takes derivatives of grad_e.
       real_t hess_e[MD1][MD1][MD1][3][3];
       for (int dz = 0; dz < D1D; dz++)
       {
@@ -327,9 +331,10 @@ void TMOP_AssembleGradPA_AdaptLim_3D(const int NE,
          }
       }
 
-      // Interpolate gradient and Hessian to quadrature points.
+      // Interpolate gradient and Hessian at quad points.
       kernels::internal::s_regs3d_t<MQ1> r_node, r_quad;
 
+      // Gradient at quad points: 3 scalar evals.
       for (int i = 0; i < 3; i++)
       {
          for (int dz = 0; dz < D1D; dz++)
@@ -354,6 +359,7 @@ void TMOP_AssembleGradPA_AdaptLim_3D(const int NE,
          MFEM_SYNC_THREAD;
       }
 
+      // Hessian at quad points: 9 scalar evals.
       for (int i = 0; i < 3; i++)
       {
          for (int j = 0; j < 3; j++)

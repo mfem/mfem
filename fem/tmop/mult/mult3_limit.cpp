@@ -175,10 +175,10 @@ void TMOP_AddMultPA_AdaptLim_3D(const real_t lim_normal,
 
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
 
+      // Evaluate ALF and ALF0 at the quad points.
       kernels::internal::s_regs3d_t<MQ1> alf_dof, alf_quad;
       kernels::internal::LoadDofs3d(e, D1D, ALF, alf_dof);
       kernels::internal::Eval3d(D1D, Q1D, smem, sB, alf_dof, alf_quad);
-
       kernels::internal::s_regs3d_t<MQ1> alf0_dof, alf0_quad;
       kernels::internal::LoadDofs3d(e, D1D, ALF0, alf0_dof);
       kernels::internal::Eval3d(D1D, Q1D, smem, sB, alf0_dof, alf0_quad);
@@ -206,6 +206,7 @@ void TMOP_AddMultPA_AdaptLim_3D(const real_t lim_normal,
          }
       }
       MFEM_SYNC_THREAD;
+
       kernels::internal::EvalTranspose3d(D1D, Q1D, smem, sB, r00, r01);
       kernels::internal::WriteDofs3d(e, D1D, r01, Y);
    });

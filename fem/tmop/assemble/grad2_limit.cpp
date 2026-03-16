@@ -116,8 +116,8 @@ void TMOP_AssembleGradPA_C0_2D(const real_t lim_normal,
 // Assemble gradient and Hessian of ALF field at quadrature points for AdaptLim (2D)
 template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_AssembleGradPA_AdaptLim_2D(const int NE,
-                                     const real_t *b_nodes,
-                                     const real_t *g_nodes,
+                                     const real_t *B_nodes,
+                                     const real_t *G_nodes,
                                      const real_t *B,
                                      const DeviceTensor<4, const real_t> &X,
                                      const ConstDeviceCube &ALF,
@@ -136,11 +136,10 @@ void TMOP_AssembleGradPA_AdaptLim_2D(const int NE,
       MFEM_SHARED real_t sB_nodes[MD1][MD1], sG_nodes[MD1][MD1];
       MFEM_SHARED real_t sB_q[MD1][MQ1];
 
-      // Node-point maps for gradients at the element DOF nodes.
-      kernels::internal::LoadMatrix(D1D, D1D, b_nodes, sB_nodes);
-      kernels::internal::LoadMatrix(D1D, D1D, g_nodes, sG_nodes);
-
-      // Quadrature-point map for interpolation back to quadrature.
+      // Maps nodes - nodes.
+      kernels::internal::LoadMatrix(D1D, D1D, B_nodes, sB_nodes);
+      kernels::internal::LoadMatrix(D1D, D1D, G_nodes, sG_nodes);
+      // Map nodes - quads.
       kernels::internal::LoadMatrix(D1D, Q1D, B, sB_q);
 
       // Compute the physical Jacobian at DOF nodes.
@@ -160,7 +159,8 @@ void TMOP_AssembleGradPA_AdaptLim_2D(const int NE,
                                                 sB_nodes, sG_nodes,
                                                 alf_n, dalf_dy_n);
 
-      // Physical gradient coefficients at DOF nodes (stored as nodal values).
+      // Physical gradient coefficients at DOF nodes into grad_e.
+      // Takes derivatives of alf.
       real_t grad_e[MD1][MD1][2];
       for (int dy = 0; dy < D1D; dy++)
       {
@@ -182,7 +182,8 @@ void TMOP_AssembleGradPA_AdaptLim_2D(const int NE,
          }
       }
 
-      // Compute the Hessian coefficients at DOF nodes by differentiating grad_e.
+      // Compute the Hessian coefficients at DOF nodes into hess_e.
+      // Takes derivatives of grad_e.
       real_t hess_e[MD1][MD1][2][2];
       for (int dy = 0; dy < D1D; dy++)
       {
@@ -239,8 +240,7 @@ void TMOP_AssembleGradPA_AdaptLim_2D(const int NE,
          }
       }
 
-      // Interpolate gradient and Hessian to quadrature points using the
-      // standard tensor-product evaluation kernels (to match other PA paths).
+      // Interpolate gradient and Hessian at quad points.
       kernels::internal::s_regs2d_t<MQ1> r_node, r_quad;
 
       // Gradient at quad points: 2 scalar evals.
@@ -331,7 +331,7 @@ void TMOP_Integrator::AssembleGradPA_AdaptLim_2D(const Vector &x) const
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    const auto *B_nodes = PA.maps_nodes->B.Read(),
-               *G_nodes = PA.maps_nodes->G.Read();
+              *G_nodes = PA.maps_nodes->G.Read();
    const auto *B = PA.maps->B.Read();
    const auto X = Reshape(x.Read(), d, d, 2, NE);
    const auto ALF = Reshape(PA.ALF.Read(), d, d, NE);
