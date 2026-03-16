@@ -269,7 +269,7 @@ public:
    void ResetFEM();
    void SetupFEM();
 
-   void AssembleBoundary();
+   void UpdateEssentialTDofs();
    void AssembleDiffusionBilinear(bool update_bc);
    void Solve();
    GridFunction * GetFEMSolution();
@@ -550,7 +550,7 @@ void DiffusionSolver::SetupFEM()
    }
 }
 
-void DiffusionSolver::AssembleBoundary()
+void DiffusionSolver::UpdateEssentialTDofs()
 {
 #ifdef MFEM_USE_MPI
    if (parallel)
@@ -570,7 +570,7 @@ void DiffusionSolver::AssembleDiffusionBilinear(bool update_bc=true)
 {
    if (update_bc)
    {
-      AssembleBoundary();
+      UpdateEssentialTDofs();
    }
 #ifdef MFEM_USE_MPI
    if (parallel)
