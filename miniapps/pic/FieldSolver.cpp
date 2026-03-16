@@ -139,7 +139,7 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
       block_preconditioner->SetDiagonalBlock(
          1, new HypreBoomerAMG(*schur_matrix));
       static_cast<HypreBoomerAMG&>(
-         block_preconditioner->GetBlock(1, 1)).SetPrintLevel(1);
+         block_preconditioner->GetBlock(1, 1)).SetPrintLevel(0);
       block_preconditioner->owns_blocks = 1;
    }
 
