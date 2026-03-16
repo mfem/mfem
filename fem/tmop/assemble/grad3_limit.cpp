@@ -190,7 +190,7 @@ void TMOP_AssembleGradPA_AdaptLim_3D(const int NE,
       // Maps nodes - nodes.
       kernels::internal::LoadMatrix(D1D, D1D, b_nodes, sB_nodes);
       kernels::internal::LoadMatrix(D1D, D1D, g_nodes, sG_nodes);
-          // Map nodes - quads.
+      // Map nodes - quads.
       kernels::internal::LoadMatrix(D1D, Q1D, B, sB_q);
 
       // Compute the physical Jacobian at DOF nodes.
