@@ -433,9 +433,9 @@ std::pair<real_t, real_t> proj(GridFunction &psi, GridFunction &alpha_grad,
 #ifdef MFEM_USE_MPI
    if (pfes)
    {
-      MPI_Allreduce(MPI_IN_PLACE, &f_a, 1, MFEM_MPI_REAL_T,
+      MPI_Allreduce(MPI_IN_PLACE, &f_a, 1, MPITypeMap<real_t>::mpi_type,
                     MPI_SUM, MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE, &f_b, 1, MFEM_MPI_REAL_T,
+      MPI_Allreduce(MPI_IN_PLACE, &f_b, 1, MPITypeMap<real_t>::mpi_type,
                     MPI_SUM, MPI_COMM_WORLD);
    }
 #endif
@@ -457,7 +457,7 @@ std::pair<real_t, real_t> proj(GridFunction &psi, GridFunction &alpha_grad,
 #ifdef MFEM_USE_MPI
       if (pfes)
       {
-         MPI_Allreduce(MPI_IN_PLACE, &f_c, 1, MFEM_MPI_REAL_T,
+         MPI_Allreduce(MPI_IN_PLACE, &f_c, 1, MPITypeMap<real_t>::mpi_type,
                        MPI_SUM, MPI_COMM_WORLD);
       }
 #endif
@@ -494,7 +494,7 @@ std::pair<real_t, real_t> proj(GridFunction &psi, GridFunction &alpha_grad,
    if (pfes)
    {
       MPI_Allreduce(MPI_IN_PLACE, &material_volume, 1,
-                    MFEM_MPI_REAL_T, MPI_SUM, MPI_COMM_WORLD);
+                    MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
    }
 #endif
    return {material_volume,c};
