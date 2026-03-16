@@ -332,7 +332,7 @@ void TMOP_Integrator::AssembleGradPA_AdaptLim_2D(const Vector &x) const
 
    const auto *B_nodes = PA.maps_nodes->B.Read(),
                *G_nodes = PA.maps_nodes->G.Read();
-   const auto *B = PA.maps->B.Read(), *G = PA.maps->G.Read();
+   const auto *B = PA.maps->B.Read();
    const auto X = Reshape(x.Read(), d, d, 2, NE);
    const auto ALF = Reshape(PA.ALF.Read(), d, d, NE);
    auto ALF_grad = Reshape(PA.ALFG.Write(), 2, q, q, NE);
