@@ -28,9 +28,11 @@
 #include <sys/resource.h>  // getrusage
 #include <unistd.h>        // sysconf
 #include <cstdio>          // fopen, fscanf, fclose
+#include <malloc.h>        // mallinfo()
 #elif defined(__APPLE__)
 #include <mach/mach_init.h>  // mach_task_self
 #include <mach/task.h>       // task_info
+#include <malloc/malloc.h>   // malloc_zone_statistics()
 #elif defined(_WIN32)
 #include <windows.h>
 #include <psapi.h>  // GetProcessMemoryInfo
@@ -774,6 +776,201 @@ void Device::HostMem(size_t *rss_p, size_t *maxrss_p)
 
    *rss_p = rss;
    *maxrss_p = maxrss;
+}
+
+// static method
+void Device::HostMallocStats(size_t *used, size_t *total)
+{
+   size_t used_bytes = 0, total_bytes = 0;
+
+#if defined(__linux__)
+#if ((__GLIBC__ << 16) + __GLIBC_MINOR__) >= ((2 << 16) + 33)
+   /* Use mallinfo2() - uses size_t values */
+#define USE_MALLINFO
+#else
+   /* Use mallinfo() - uses int values which may overflow */
+   // #define USE_MALLINFO
+   /* Use malloc_info() - uses size_t values; we need to parse text; free/used
+      bytes are a bit off. */
+#define USE_MEMALLOC_INFO
+#endif
+   // To ensure we get the same memory stats with both malloc_info and mallinfo
+   // we make sure we call both functions without any allocation/deallocation
+   // functions inbetween.
+#ifdef USE_MEMALLOC_INFO
+   // int malloc_info(int options, FILE *stream); // glibc 2.10, 2009-05-09
+   // FILE *fmemopen(void *buf, size_t size, const char *mode);
+   // FILE *open_memstream(char **ptr, size_t *sizeloc);
+   constexpr size_t buf_len = 4096;
+   char buf[buf_len];
+   FILE *mem_file = fmemopen(buf, buf_len, "w");  // allocates memory?
+   MFEM_VERIFY(mem_file != nullptr, "error in fmemopen: " << strerror(errno));
+   setbuf(mem_file, nullptr);
+   const int malloc_info_err = malloc_info(0, mem_file);
+   const int malloc_info_errno = errno;
+#endif  // USE_MEMALLOC_INFO
+#ifdef USE_MALLINFO
+#if ((__GLIBC__ << 16) + __GLIBC_MINOR__) >= ((2 << 16) + 33)
+   struct mallinfo2 mi = mallinfo2();
+#else
+   struct mallinfo mi = mallinfo();
+#endif
+   used_bytes = mi.uordblks + mi.hblkhd;
+   total_bytes = used_bytes + mi.fordblks + mi.fsmblks;
+#if 0
+   // keep for debugging purposes
+   std::ostream &os = mfem::out;
+   os <<   "malloc/arena      : " << mi.arena;
+   os << "\nmalloc/ordblks    : " << mi.ordblks;
+   os << "\nmalloc/smblks     : " << mi.smblks << " (used by older glibc)";
+   os << "\nmalloc/hblks      : " << mi.hblks;
+   os << "\nmalloc/hblkhd     : " << mi.hblkhd;
+   os << "\nmalloc/usmblks    : " << mi.usmblks << " (always 0?)";
+   os << "\nmalloc/fsmblks    : " << mi.fsmblks << " (used by older glibc)";
+   os << "\nmalloc/uordblks   : " << mi.uordblks;
+   os << "\nmalloc/fordblks   : " << mi.fordblks;
+   os << "\nmalloc/keepcost   : " << mi.keepcost << '\n';
+
+   os <<   "malloc/free blocks: " << mi.ordblks + mi.smblks;
+   os << "\nmalloc/ mmap bytes: " << mi.hblkhd;
+   os << "\nmalloc/ used bytes: " << mi.uordblks + mi.hblkhd;
+   os << "\nmalloc/ free bytes: " << mi.fordblks + mi.fsmblks;
+   os << "\nmalloc/total bytes: "
+      << mi.uordblks + mi.hblkhd + mi.fordblks + mi.fsmblks << '\n';
+#endif
+#endif  // USE_MALLINFO
+#ifdef USE_MEMALLOC_INFO
+   fclose(mem_file);  // frees memory allocated by fmemopen?
+   MFEM_VERIFY(malloc_info_err == 0, "error in malloc_info: "
+               << strerror(malloc_info_errno));
+#ifdef USE_MALLINFO
+   used_bytes = total_bytes = 0;
+#endif
+   size_t free_bytes = 0, mmap_bytes = 0;
+   // begin parsing buf
+   // - define some parsing lambdas:
+   auto try_read_prefix = [](std::string_view text, size_t &pos,
+                             std::string_view prefix) -> bool
+   {
+      if (pos + prefix.size() > text.size()) { return false; }
+      for (size_t i = 0; i < prefix.size(); i++)
+      {
+         if (text[pos+i] != prefix[i]) { return false; }
+      }
+      pos += prefix.size();
+      return true;
+   };
+   auto skip_white_space = [](std::string_view text, size_t &pos) -> bool
+   {
+      while (true)
+      {
+         if (pos >= text.size()) { return false; }
+         if (std::isspace(text[pos])) { ++pos; }
+         else { break; }
+      }
+      return true;
+   };
+   auto read_quoted_val = [](std::string_view text, size_t &pos,
+                             std::string_view &val) -> bool
+   {
+      if (pos >= text.size() || text[pos] != '"') { return false; }
+      size_t off = pos + 1;
+      while (true)
+      {
+         if (off >= text.size()) { return false; }
+         if (text[off] != '"') { ++off; }
+         else { break; }
+      }
+      val = text.substr(pos + 1, off - (pos + 1));
+      pos = off + 1;
+      return true;
+   };
+   auto parse_size_t = [](std::string_view text) -> size_t
+   {
+      char *end = nullptr;
+      return strtoull(text.data(), &end, 10);
+   };
+   std::string_view text{buf};
+   std::string_view heap_end{"</heap>"};
+   auto pos = text.rfind(heap_end);
+   if (pos == text.npos) { goto text_parsed; }
+   pos += heap_end.size();
+   while (true)
+   {
+      if (skip_white_space(text, pos) == false) { break; }
+      if (try_read_prefix(text, pos, "<total type="))
+      {
+         std::string_view type, count, size;
+         if (read_quoted_val(text, pos, type) &&
+             skip_white_space(text, pos) &&
+             try_read_prefix(text, pos, "count=") &&
+             read_quoted_val(text, pos, count) &&
+             skip_white_space(text, pos) &&
+             try_read_prefix(text, pos, "size=") &&
+             read_quoted_val(text, pos, size) &&
+             try_read_prefix(text, pos, "/>"))
+         {
+            if (type == "fast" || type == "rest")
+            {
+               free_bytes += parse_size_t(size);
+            }
+            else if (type == "mmap")
+            {
+               mmap_bytes += parse_size_t(size);
+            }
+         }
+         else { break; }
+      }
+      else if (try_read_prefix(text, pos, "<system type="))
+      {
+         std::string_view type, size;
+         if (read_quoted_val(text, pos, type) &&
+             skip_white_space(text, pos) &&
+             try_read_prefix(text, pos, "size=") &&
+             read_quoted_val(text, pos, size) &&
+             try_read_prefix(text, pos, "/>"))
+         {
+            if (type == "current")
+            {
+               total_bytes += parse_size_t(size);
+            }
+         }
+         else { break; }
+      }
+      else { break; }
+   }
+text_parsed:
+   total_bytes += mmap_bytes;
+   used_bytes = total_bytes - free_bytes;
+#if 0
+   // keep for debugging purposes
+   std::ostream &os = mfem::out;
+   // os << buf;
+   os <<   "malloc_info/ used bytes: " << used_bytes;
+   os << "\nmalloc_info/ free bytes: " << free_bytes;
+   os << "\nmalloc_info/total bytes: " << total_bytes << '\n';
+#endif
+#endif  // USE_MEMALLOC_INFO
+#elif defined(__APPLE__)
+   malloc_statistics_t stats;
+   // malloc_zone_t *zone = malloc_default_zone(); // the initial zone
+   malloc_zone_t *zone = nullptr; // sums all zones
+   malloc_zone_statistics(zone, &stats);
+   used_bytes = stats.size_in_use;
+   total_bytes = stats.size_allocated;
+#if 0
+   // keep for debugging purposes
+   std::ostream &os = mfem::out;
+   os <<   "malloc/used blocks: " << stats.blocks_in_use;
+   os << "\nmalloc/ used bytes: " << stats.size_in_use;
+   os << "\nmalloc/ free bytes: " << stats.size_allocated - stats.size_in_use;
+   // os << "\nmalloc/  max bytes: " << stats.max_size_in_use; // always 0?
+   os << "\nmalloc/total bytes: " << stats.size_allocated << '\n';
+#endif
+#endif
+
+   *used = used_bytes;
+   *total = total_bytes;
 }
 
 std::string Device::GetUUID(const int device_id)

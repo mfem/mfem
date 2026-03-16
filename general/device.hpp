@@ -325,6 +325,17 @@ public:
    /** @brief Gets the @a rss (resident set size) and @a maxrss (maximum
        resident set size) memory of the host process, in bytes. */
    static void HostMem(size_t *rss, size_t *maxrss);
+
+   /** @brief Gets (1) the amount of memory, in bytes, currently @a used by the
+       host application due to allocations via malloc; and (2) the @a total
+       memory, in bytes, allocated by the malloc implementation from the OS.
+
+       The @a used memory includes memory management overhead incurred by the
+       malloc implementation. The difference @a total - @a used is memory that
+       is free and can be allocated via malloc by the application without
+       allocating more memory from the OS, if fragmentation and other factors
+       allow it. */
+   static void HostMallocStats(size_t *used, size_t *total);
 };
 
 
