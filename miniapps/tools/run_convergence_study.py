@@ -225,8 +225,8 @@ def main():
     )
     parser.add_argument(
         '-m', '--method',
-        default='element_least_squares',
-        help='Method passed to ./reconstruction via -m (default: element_least_squares).'
+        default='element_average_reconstruction',
+        help='Method passed to ./reconstruction via -m (default: element_average_reconstruction).'
     )
     cli_args = parser.parse_args()
 

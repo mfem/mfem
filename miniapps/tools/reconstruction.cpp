@@ -25,7 +25,7 @@ int main(int argc, char* argv[])
    Mpi::Init(argc, argv);
 
    // Default command-line options
-   std::string lor_method = "element_least_squares"; // "element_least_squares" or "l2_projection"
+   std::string lor_method = "element_average_reconstruction"; // "element_average_reconstruction" or "l2_projection"
    int refinement_levels = 0;
    int order_lo = 0;
    int order_ho = 3;
@@ -49,7 +49,7 @@ int main(int argc, char* argv[])
 
    // Parse options
    OptionsParser args(argc, argv);
-   args.AddOption(&lor_method, "-m", "--method", "LOR method: \"element_least_squares\" or \"l2_projection\".");
+   args.AddOption(&lor_method, "-m", "--method", "LOR method: \"element_average_reconstruction\" or \"l2_projection\".");
    args.AddOption(&refinement_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&order_ho, "-ho", "--order_ho",
@@ -83,7 +83,7 @@ int main(int argc, char* argv[])
 
    std::cout << "LOR method: " << lor_method << std::endl;
 
-   if (lor_method == "element_least_squares") {
+   if (lor_method == "element_average_reconstruction") {
 
       mesh = Mesh::MakeCartesian2D(num_x, num_y, Element::QUADRILATERAL);
       for (int i = 0; i < refinement_levels; i++) {
@@ -122,7 +122,7 @@ int main(int argc, char* argv[])
    GridFunction u_lo(&fespace_lo);   
    GridFunction u_hi(&fespace_hi);
 
-   if (lor_method == "element_least_squares")
+   if (lor_method == "element_average_reconstruction")
    {
       FiniteElementCollection *fec_exact;
       fec_exact = new L2_FECollection(order_ho, dim);
