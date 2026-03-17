@@ -11,14 +11,14 @@
 
 #include "mfem.hpp"
 #include <string>
-#include <map>
+#include <unordered_map>
 
 using namespace mfem;
 
 using profile_t = std::function<real_t(const Vector&,const Vector&)>;
 
 void L2Reconstruction(const GridFunction& src, GridFunction& dst);
-std::vector<std::pair<std::string, profile_t>> GetFieldProfiles();
+std::unordered_map<std::string, profile_t> GetFieldProfiles();
 
 int main(int argc, char* argv[])
 {
@@ -32,7 +32,7 @@ int main(int argc, char* argv[])
    int order_im = 3; // itermediate order, only used for L2 projection method
    int lref = order_im+1;
 
-   int field_profile = 0;
+   std::string field_profile = "1 + kx x + ky y";
    real_t field_kx = 2.0;
    real_t field_ky = 4.0;
    bool use_ea = false;
@@ -41,11 +41,11 @@ int main(int argc, char* argv[])
    int visport = 19916;
 
    // example field profiles
-   std::vector<std::pair<std::string, profile_t>> field_profiles = GetFieldProfiles();
+   std::unordered_map<std::string, profile_t> field_profiles = GetFieldProfiles();
    // create CLI help string for profiles
    std::string field_profiles_help = "Profile of field to be reconstructed:";
-   for (int i=0; i < field_profiles.size(); i++)
-      field_profiles_help += "\n\t" + std::to_string(i) + ": " + field_profiles[i].first;
+   for (const auto& [name, _] : field_profiles)
+      field_profiles_help += "\n\t" + name;
 
    // Parse options
    OptionsParser args(argc, argv);
@@ -68,7 +68,7 @@ int main(int argc, char* argv[])
    args.ParseCheck();
 
    // define u(x,y) to be represented
-   profile_t u_function = field_profiles[field_profile].second;
+   profile_t u_function = field_profiles.at(field_profile);
    const Vector k({field_kx, field_ky});
    std::function<real_t(const Vector&)> u_function_wrapper =
       [&](const Vector &x) { return u_function(x, k); };
@@ -236,35 +236,32 @@ void SaturateNeighborhood(NCMesh& mesh, const int element_idx,
    neighbors.Unique();
 }
 
-std::vector<std::pair<std::string, profile_t>> GetFieldProfiles()
+std::unordered_map<std::string, profile_t> GetFieldProfiles()
 {
-   std::vector<std::pair<std::string, profile_t>> field_profiles;
+   std::unordered_map<std::string, profile_t> field_profiles;
    // plane profile
-   field_profiles.push_back(std::make_pair(
-      "1 + kx x + ky y",
+   field_profiles["1 + kx x + ky y"] =
       [](const Vector &x, const Vector &k)
       {
          return 1.0 + x*k;
-      }));
+      };
    // sinusoidal profile
-   field_profiles.push_back(std::make_pair(
-      "sin(2pi kx x) sin(2pi ky y)",
+   field_profiles["sin(2pi kx x) sin(2pi ky y)"] =
       [](const Vector &x, const Vector &k)
       {
          real_t result = 1.0;
          for(int i=0; i < x.Size(); i++) result *= std::sin(2.0*M_PI*k(i)*x(i));
          return result;
-      }));
+      };
    // exponential-sinusoidal profile
-   field_profiles.push_back(std::make_pair(
-      "exp(r) cos(kx x) sin(ky y)",
+   field_profiles["exp(r) cos(kx x) sin(ky y)"] =
       [](const Vector &x, const Vector &k)
       {
          real_t result = 1.0;
          for(int i=0; i < x.Size(); i++)
             result *= std::exp(x.Norml2()) * std::sin(2.0*M_PI*k(i)*x(i));
          return result;
-      }));
+      };
    return field_profiles;
 }
 
