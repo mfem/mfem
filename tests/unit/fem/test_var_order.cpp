@@ -1092,7 +1092,7 @@ static void TestSolveParVec(ParFiniteElementSpace &fespace)
 
    ParGridFunction x(&fespace);
    x = 0.0;
-   if (x.FESpace()->GetTypicalBE()->GetRangeDim() <= 1)
+   if (x.FESpace()->GetTypicalBE()->GetRangeDim() == 0)
    {
       // scalar or vector length 1 fespace
       x.ProjectBdrCoefficientNormal(exsol, ess_attr);
