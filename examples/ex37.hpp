@@ -236,6 +236,7 @@ private:
    GridFunction * u = nullptr;
    LinearForm * b = nullptr;
    BilinearForm * a = nullptr;
+   OperatorPtr A;
    bool parallel;
 #ifdef MFEM_USE_MPI
    ParMesh * pmesh = nullptr;
@@ -590,11 +591,11 @@ void DiffusionSolver::AssembleDiffusionBilinear(bool update_ess_tdofs)
       a->AddDomainIntegrator(new MassIntegrator(*masscf));
    }
    a->Assemble();
+   a->FormSystemMatrix(ess_tdof_list, A);
 }
 
 void DiffusionSolver::Solve()
 {
-   OperatorPtr A;
    Vector B, X;
 
    if (b)
@@ -636,7 +637,28 @@ void DiffusionSolver::Solve()
    {
       u->ProjectBdrCoefficient(*essbdr_cf,ess_bdr);
    }
-   a->FormLinearSystem(ess_tdof_list, *u, *b, A, X, B);
+
+#ifdef MFEM_USE_MPI
+   if (parallel)
+   {
+      X.SetSize(pfes->TrueVSize());
+      B.SetSize(pfes->TrueVSize());
+      dynamic_cast<ParGridFunction*>(u)->ParallelAssemble(X);
+      dynamic_cast<ParLinearForm*>(b)->ParallelAssemble(B);
+      dynamic_cast<ParBilinearForm*>(a)->ParallelEliminateTDofsInRHS(
+         ess_tdof_list, X, B);
+   }
+   else
+   {
+      X.NewDataAndSize(u->GetData(), u->Size());
+      B.NewDataAndSize(b->GetData(), b->Size());
+      a->EliminateVDofsInRHS(ess_tdof_list, X, B);
+   }
+#else
+   X.NewDataAndSize(u->GetData(), u->Size());
+   B.NewDataAndSize(b->GetData(), b->Size());
+   a->EliminateVDofsInRHS(ess_tdof_list, X, B);
+#endif
 
    CGSolver * cg = nullptr;
    Solver * M = nullptr;
@@ -696,6 +718,7 @@ DiffusionSolver::~DiffusionSolver()
 #endif
    delete fec; fec = nullptr;
    delete b;
+   A.Clear();
    delete a;
 }
 
