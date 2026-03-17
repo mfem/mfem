@@ -21,8 +21,8 @@
 extern int GLVisLibWindow(bool fix_elem_orient,
                           bool save_coloring, bool headless,
                           const std::string &plot_caption,
-                          std::unique_ptr<std::istream> &&stream,
-                          const std::string &data_type);
+                          std::istream &stream,
+                          std::string data_type);
 
 namespace mfem
 {
@@ -94,20 +94,19 @@ void glvis_stream::glvis_window()
    }
 
    dbg("ACK");
-
    dbg("data type: {}", data->type);
-   dbg("streams: #{}", data->streams.size());
-   assert(data->streams[0]->good());
+   dbg("streams size: #{}", data->streams.size());
+   assert(data->streams[0].good());
+   dbg("streams[0] size: #{}", data->streams[0].str().size());
 
    constexpr bool fix_elem_orien = true;
    constexpr bool save_coloring = true;
    constexpr bool headless = false;
 
    // needs to be in 'main' thread
-   GLVisLibWindow(fix_elem_orien, save_coloring, headless,
-                  "",
-                  std::move(data->streams[0]),
-                  data->type);
+   GLVisLibWindow(fix_elem_orien, save_coloring, headless, "",
+                  data->streams[0], data->type);
+
    dbg("✅");
 }
 

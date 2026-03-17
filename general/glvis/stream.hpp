@@ -54,8 +54,8 @@ class glvis_stream : public std::iostream
 
    struct SerialImpl : public Impl
    {
-      std::shared_ptr<GLVisData> data;
-      SerialImpl(std::shared_ptr<GLVisData> data): data(data)
+      const std::shared_ptr<GLVisData> &data;
+      SerialImpl(std::shared_ptr<GLVisData> &data): data(data)
       {
          data->stream.clear();
       }

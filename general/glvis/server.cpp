@@ -44,7 +44,8 @@ static int Execute(const std::shared_ptr<GLVisData> &data)
    std::unique_ptr<mfem::Mesh> serial_mesh;
    std::unique_ptr<mfem::GridFunction> serial_grid_f;
 
-   data->bbs.clear();
+   data->streams.clear();
+   data->type.clear();
 
    std::vector<mfem::Mesh*> mesh_array(data_size);
    std::vector<mfem::GridFunction*> gf_array(data_size);
@@ -56,14 +57,13 @@ static int Execute(const std::shared_ptr<GLVisData> &data)
       const size_t size = data->offset[k+1] - data->offset[k];
       dbg("\x1b[37mCreating bufferstream #{}, size: {}, offset: {}", k, size, offset);
 
-      data->bbs.push_back(std::make_unique<std::stringstream>
-                          (data->stream.str().data() + offset, size));
-      data->bbs.back()->clear();
-      data->bbs.back()->seekg(0);  // Reset get position to the beginning for reading
-      data->streams.push_back(std::make_unique<std::istream>
-                              (data->bbs.back()->rdbuf()));
+      data->streams.emplace_back();
+      data->streams.back().write(data->stream.str().data() + offset, size);
+      // data->streams.back().flush();
+      // data->streams.back().clear();
+      // data->streams.back().seekg(0);
 
-      auto isock = data->streams.back().get();
+      auto isock = &data->streams.back();
 
       if (!(*isock)) { dbg("\x1b[37mdone"); break; }
 
@@ -110,9 +110,9 @@ static int Execute(const std::shared_ptr<GLVisData> &data)
          if (data->type == "mesh")
          {
             dbg("\x1b[37m<mesh>");
-            serial_mesh = std::make_unique<mfem::Mesh>(*data->streams[0], 1, 0,
+            serial_mesh = std::make_unique<mfem::Mesh>(data->streams[0], 1, 0,
                                                        fix_elem_orient);
-            if (!(*data->streams[0])) { dbg("\x1b[37mdone"); break; }
+            if (!(data->streams[0])) { dbg("\x1b[37mdone"); break; }
          }
          else if (data->type == "solution")
          {
@@ -122,14 +122,14 @@ static int Execute(const std::shared_ptr<GLVisData> &data)
             dbg("data->type: {}", data->type);
 #else
             dbg("\x1b[37mMesh");
-            serial_mesh = std::make_unique<mfem::Mesh>(*data->streams[0], 1, 0,
+            serial_mesh = std::make_unique<mfem::Mesh>(data->streams[0], 1, 0,
                                                        fix_elem_orient);
-            if (!(*data->streams[0])) { dbg("\x1b[37mdone"); break; }
+            if (!(data->streams[0])) { dbg("\x1b[37mdone"); break; }
 
             dbg("\x1b[37mGridFunction");
             serial_grid_f =
-               std::make_unique<mfem::GridFunction>(serial_mesh.get(), *data->streams[0]);
-            if (!(*data->streams[0])) { dbg("\x1b[37mdone"); break; }
+               std::make_unique<mfem::GridFunction>(serial_mesh.get(), data->streams[0]);
+            if (!(data->streams[0])) { dbg("\x1b[37mdone"); break; }
 #endif
          }
          else { MFEM_ABORT("Unknown identifier");}
@@ -212,7 +212,6 @@ static int GLVisThreadLoop(const std::shared_ptr<GLVisData> &data)
       assert(data);
       assert(data->update);
 
-      // 🔥🔥🔥🔥
       const size_t mpi_size = data->mpi_size;
       dbg("\x1b[33mmpi_size: {}", mpi_size);
       assert(mpi_size >= 0 && mpi_size <= 32);
@@ -233,8 +232,8 @@ static int GLVisThreadLoop(const std::shared_ptr<GLVisData> &data)
       // signal_for_update(data);
       data->update.store(false);
 
-      // dbg("one-shot for now ❌❌❌");
-      // break; // one-shot for now ❌❌❌
+      // dbg("one-shot for now");
+      // break; // one-shot for now
    }
    return (cleanup(), EXIT_SUCCESS);
 }

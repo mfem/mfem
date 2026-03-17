@@ -751,7 +751,7 @@ PTHREAD_LIB = -lpthread
 GLVIS_LIBS += $(PTHREAD_LIB)
 
 GLVIS_DIR = @MFEM_DIR@/../glvis
-GLVIS_OPT = -DNVTX_DEBUG_HPP=\"/Users/camierjs/home/mfem/stash/debug/nvtx.hpp\"
+GLVIS_OPT = 
 GLVIS_LIB = -L$(GLVIS_DIR)/lib -lglvis $(GLVIS_LIBS)
 
 # If YES, enable some informational messages

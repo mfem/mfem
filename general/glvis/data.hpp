@@ -11,8 +11,6 @@
 #pragma once
 
 #include <condition_variable>
-#include <istream>
-#include <memory>
 #include <mutex>
 #include <sstream>
 #include <vector>
@@ -24,7 +22,6 @@ struct GLVisData
    std::atomic<bool> running {false}, ready {false}, update {false};
    std::stringstream stream;
    size_t mpi_size {0}, offset[32], total_size {0};
-   std::vector<std::unique_ptr<std::stringstream>> bbs {};
-   std::vector<std::unique_ptr<std::istream>> streams {};
-   std::string type { "unknown" };
+   std::vector<std::stringstream> streams;
+   std::string type;
 };
