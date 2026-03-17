@@ -67,9 +67,8 @@
 #define NVTX_COLOR ::nvtx::kOrchid
 
 #include "mfem.hpp"
-// #include <fstream>
 #include <iostream>
-#include "general/glvis_stream.hpp"
+#include "general/glvis/glvis_stream.hpp"
 
 using namespace std;
 using namespace mfem;

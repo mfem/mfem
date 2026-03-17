@@ -20,66 +20,41 @@ namespace mfem
 {
 
 glvis_stream::SerialImpl::SerialImpl(std::shared_ptr<GLVisData> data):
-   data((assert(data), data)),
-   stream((dbg(), std::make_unique<char_stream_t>(data->buffer, RNK_SIZE)))
+   data(data)
 {
-   dbg("Serial stream ready");
-   stream->clear();
-}
-
-glvis_stream::SerialImpl::~SerialImpl()
-{
-   dbg("🚨");
-   flush();
-   dbg("✅");
+   data->stream.clear();
 }
 
 std::streamsize glvis_stream::SerialImpl::precision() const
 {
    dbg();
-   return stream->precision();
+   return data->stream.precision();
 }
 
 std::streamsize glvis_stream::SerialImpl::precision(std::streamsize new_prec)
 {
    dbg();
-   stream->precision(new_prec);
+   data->stream.precision(new_prec);
    return new_prec;
 }
 
 std::streambuf *glvis_stream::SerialImpl::get_buf()
 {
    dbg();
-   return stream->rdbuf();
+   return data->stream.rdbuf();
 }
 
 size_t glvis_stream::SerialImpl::size() const
 {
    dbg();
-   return stream->tellp();
+   return data->stream.tellp();
 }
 
 void glvis_stream::SerialImpl::flush()
 {
    dbg();
-   stream->flush(); // Optional
-
-   const size_t ssize = size();
-   dbg("stream size: {}", ssize);
-
-   if (ssize == 0)
-   {
-      dbg("Nothing to flush");
-      return;
-   }
-   assert(ssize > 0 && ssize <= RNK_SIZE);
-   data->serial = true, data->shared_size = 1;
-   data->offset[0] = 0, data->offset[1] = ssize;
-   data->total_size = ssize;
-
-   // Optionally reset the local buffer for reuse.
-   stream->clear();
-   stream->seekp(0);  // Reset put position.
+   data->stream.flush();
+   assert(data->stream.str().size() == size());
 }
 
 } // namespace mfem

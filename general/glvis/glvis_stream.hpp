@@ -55,9 +55,8 @@ class glvis_stream : public std::iostream
    struct SerialImpl : public Impl
    {
       std::shared_ptr<GLVisData> data;
-      char_stream_uptr stream;
       SerialImpl(std::shared_ptr<GLVisData> data);
-      ~SerialImpl() override;
+      ~SerialImpl() override {}
       size_t size() const override;
       std::streambuf *get_buf() override;
       std::streamsize precision() const override;
@@ -76,9 +75,7 @@ public:
    glvis_stream &operator=(const glvis_stream &) = delete;
    glvis_stream &operator=(glvis_stream &&) = delete;
 
-   void Flush();
-
-   virtual ~glvis_stream();
+   virtual ~glvis_stream() {}
 
    std::streamsize precision() const { return impl->precision(); }
    std::streamsize precision(std::streamsize new_prec) { return impl->precision(new_prec); }
@@ -92,11 +89,15 @@ public:
       static_cast<std::ostream&>(*this) << val;
       return *this;
    }
-   int open(const char hostname[], int port);
+   int open(const char hostname[], int port) { return 0; }
 
-   bool is_open() const;
+   bool is_open() const { return true; }
 
-   int close();
+   int close() { return 0; }
+
+   void flush();
+
+   void glvis_window();
 
 private:
    std::shared_ptr<GLVisData> data;

@@ -46,15 +46,6 @@ void GLVisOptions()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void *GLVisInit()
-{
-   dbg();
-   extern void *GLVisLibGetWindow();
-   void *win = GLVisLibGetWindow();
-   return win;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 static int Execute(const std::shared_ptr<GLVisData> &data)
 {
    const int shared_size = data->shared_size;
@@ -86,8 +77,8 @@ static int Execute(const std::shared_ptr<GLVisData> &data)
       const size_t size = data->offset[k+1] - data->offset[k];
       dbg("\x1b[37mCreating bufferstream #{}, size: {}, offset: {}", k, size, offset);
 
-      data->bbs.push_back(std::make_unique<char_stream_t>(data->buffer + offset,
-                                                          size));
+      data->bbs.push_back(std::make_unique<std::stringstream>
+                          (data->stream.str().data() + offset, size));
       data->bbs.back()->clear();
       data->bbs.back()->seekg(0);  // Reset get position to the beginning for reading
       data->streams.push_back(std::make_unique<std::istream>
@@ -101,7 +92,7 @@ static int Execute(const std::shared_ptr<GLVisData> &data)
       *isock >> data->type >> std::ws;
       dbg("\x1b[37mdata_type: '{}'", data->type);
 
-      // for (char &c : data_type) { dbg("{:02x}", c); }
+      for (char &c : data->type) { dbg("{:02x}", c); }
 
       if (data->type == "parallel") // Handle parallel data
       {
@@ -216,7 +207,8 @@ static int GLVisThreadLoop(const std::shared_ptr<GLVisData> &data)
 
    while (data->running)
    {
-      // dbg("\x1b[33mWait for update (timed wait of {}s)", GLVIS_MAX_WAIT_SECONDS);
+      constexpr auto TIMEOUT = GLVisData::GLVIS_MAX_WAIT_SECONDS;
+      // dbg("\x1b[33mWait for update (timed wait of {}s)", TIMEOUT);
       {
          std::unique_lock<std::mutex> lock(data->mutex);
          bool signaled = false;
@@ -224,10 +216,10 @@ static int GLVisThreadLoop(const std::shared_ptr<GLVisData> &data)
          while (!data->update && !signaled)
          {
             const auto start = std::chrono::steady_clock::now();
-            const auto timeout = start + std::chrono::seconds(GLVIS_MAX_WAIT_SECONDS);
+            const auto timeout = start + std::chrono::seconds(TIMEOUT);
             if (data->cond.wait_until(lock, timeout) == std::cv_status::timeout)
             {
-               dbg("\x1b[33mTimeout occurred after {} seconds", GLVIS_MAX_WAIT_SECONDS);
+               dbg("\x1b[33mTimeout occurred after {} seconds", TIMEOUT);
                return (cleanup(), EXIT_FAILURE);
             }
             else { signaled = true; }
@@ -254,7 +246,7 @@ static int GLVisThreadLoop(const std::shared_ptr<GLVisData> &data)
       assert(data->offset[shared_size] == data->total_size);
 
       const size_t total_size = data->total_size;
-      assert(total_size <= SHM_DELTA_SIZE);
+      // assert(total_size <= SHM_DELTA_SIZE);
       dbg("\x1b[33m✅ {}", total_size);
 
       Execute(data); // Execute
@@ -276,8 +268,6 @@ GLVisServer::GLVisServer(std::shared_ptr<GLVisData> data) : data(data)
 
    GLVisBanner();
    GLVisOptions();
-   data->win = GLVisInit();
-   assert(data->win);
 
    dbg();
    assert(!data->running);
