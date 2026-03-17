@@ -22,8 +22,6 @@ std::unordered_map<std::string, profile_t> GetFieldProfiles();
 
 int main(int argc, char* argv[])
 {
-   Mpi::Init(argc, argv);
-
    // Default command-line options
    std::string lor_method = "element_average_reconstruction"; // "element_average_reconstruction" or "l2_projection"
    int refinement_levels = 0;
@@ -168,11 +166,11 @@ int main(int argc, char* argv[])
       gt1.UseEA(use_ea);
       gt2.UseEA(use_ea);
 
-      const Operator &P1 = gt1.BackwardOperator();   // Prolongation 1 (LO->IM)
-      const Operator &P2 = gt2.ForwardOperator();    // Prolongation 2 (IM->HO)
+      [[maybe_unused]] const Operator &P1 = gt1.BackwardOperator();   // Prolongation 1 (LO->IM)
+      [[maybe_unused]] const Operator &P2 = gt2.ForwardOperator();    // Prolongation 2 (IM->HO)
 
-      const Operator &R1 = gt1.ForwardOperator();    // Restriction 1 (IM->LO)
-      const Operator &R2 = gt2.BackwardOperator();   // Restriction 2 (HO->IM)
+      [[maybe_unused]] const Operator &R1 = gt1.ForwardOperator();    // Restriction 1 (IM->LO)
+      [[maybe_unused]] const Operator &R2 = gt2.BackwardOperator();   // Restriction 2 (HO->IM)
 
       // STEP1: L2 projection of RHO onto u_lo
       SparseMatrix &M_mat_lo = M_lo.SpMat();
@@ -210,13 +208,8 @@ int main(int argc, char* argv[])
 
    real_t error = u_hi.ComputeL2Error(u_function_exact);
 
-   if (Mpi::Root())
-   {
-      mfem::out.precision(16);
-      mfem::out << "|| u_h - u ||_{L^2} = \n" << error << std::endl;
-   }
-
-   Mpi::Finalize();
+   mfem::out.precision(16);
+   mfem::out << "|| u_h - u ||_{L^2} = \n" << error << std::endl;
 
    return 0;
 }
@@ -272,9 +265,7 @@ std::unordered_map<std::string, profile_t> GetFieldProfiles()
 
 void L2Reconstruction(const GridFunction& src, GridFunction& dst)
 {
-   const real_t RTOL = 1.0e-5;
-
-   Mesh *mesh = dst.FESpace()->GetMesh();
+   // Mesh *mesh = dst.FESpace()->GetMesh();
    FiniteElementSpace *fes = dst.FESpace();
    NCMesh *ncmesh = fes->GetMesh()->ncmesh;
 
@@ -396,7 +387,7 @@ void L2Reconstruction(const GridFunction& src, GridFunction& dst)
          trans.Transform(int_point_average, tmp);
          mfem::out << "Current element: ";
          tmp.Print();
-         for (int i=0; i < alphas.size(); i++)
+         for (int i=0; i < (int)alphas.size(); i++)
          {
             mfem::out << "Neighbor element: ";
             centers[i].Print();
@@ -417,6 +408,7 @@ void L2Reconstruction(const GridFunction& src, GridFunction& dst)
 
 // TODO: Delete the remaining code if not used
 
+#ifdef MFEM_USE_MPI
 // Special integrator for the second derivative
 class MixedBidirectionalHessianIntegrator : public MixedScalarIntegrator
 {
@@ -577,4 +569,5 @@ void reconstructField(const ParGridFunction& src, ParGridFunction& dst)
    }
    dst.ExchangeFaceNbrData();
 }
+#endif
 
