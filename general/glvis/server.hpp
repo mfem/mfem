@@ -13,8 +13,7 @@
 #include <memory>
 #include <thread>
 
-#include "glvis_data.hpp"
-
+#include "general/glvis/data.hpp"
 
 // wait/signal for READY
 inline void wait_for_ready(const std::shared_ptr<GLVisData>& data)
@@ -26,8 +25,8 @@ inline void wait_for_ready(const std::shared_ptr<GLVisData>& data)
 inline void signal_for_ready(const std::shared_ptr<GLVisData>& data)
 {
    std::lock_guard<std::mutex> lock(data->mutex);
-   data->ready.store(true);  // Set atomic flag
-   data->cond.notify_one();  // Notify the waiter
+   data->ready.store(true);
+   data->cond.notify_one();
 }
 
 // wait/signal for RUNNING
@@ -49,7 +48,7 @@ inline void wait_for_update(const std::shared_ptr<GLVisData>& data)
 {
    std::unique_lock<std::mutex> lock(data->mutex);
    data->cond.wait(lock, [&data] { return data->update.load(); });
-   data->update.store(false); // Reset for next
+   data->update.store(false);
 }
 
 inline void signal_for_update(const std::shared_ptr<GLVisData>& data)
@@ -68,7 +67,7 @@ class GLVisServer
 public:
    GLVisServer(std::shared_ptr<GLVisData>);
 
-   ~GLVisServer();
+   ~GLVisServer() { Stop(); }
 
    int Wait();
 

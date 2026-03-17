@@ -13,8 +13,8 @@
 #include <iostream>
 #include <memory>
 
-#include "glvis_data.hpp"
-#include "glvis_server.hpp"
+#include "general/glvis/data.hpp"
+#include "general/glvis/server.hpp"
 
 namespace mfem
 {
@@ -41,7 +41,7 @@ class glvis_stream : public std::iostream
       {
          int overflow(int c) override { return c; }
       } nullbuf;
-      NullImpl();
+      NullImpl() = default;
       size_t size() const override { return 0; }
       std::streambuf* get_buf() override { return &nullbuf; }
       std::streamsize precision() const override { return 0; }
@@ -55,16 +55,19 @@ class glvis_stream : public std::iostream
    struct SerialImpl : public Impl
    {
       std::shared_ptr<GLVisData> data;
-      SerialImpl(std::shared_ptr<GLVisData> data);
+      SerialImpl(std::shared_ptr<GLVisData> data): data(data)
+      {
+         data->stream.clear();
+      }
       ~SerialImpl() override {}
-      size_t size() const override;
-      std::streambuf *get_buf() override;
-      std::streamsize precision() const override;
-      std::streamsize precision(std::streamsize) override;
+      size_t size() const override { return data->stream.tellp(); }
+      std::streambuf *get_buf() override { return data->stream.rdbuf(); }
+      std::streamsize precision() const override {return data->stream.precision();}
+      std::streamsize precision(std::streamsize new_prec) override {return data->stream.precision(new_prec);}
       int open(const char[], int) override { return 0; }
       bool is_open() const override { return true; }
       int close() override { return 0; }
-      void flush() override;
+      void flush() override { data->stream.flush(); }
    };
 
 public:

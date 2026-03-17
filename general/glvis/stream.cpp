@@ -10,13 +10,11 @@
 // CONTRIBUTING.md for details.
 #define NVTX_COLOR ::nvtx::kCyan
 
-#include "mesh/mesh.hpp"
-#include "fem/gridfunc.hpp"
+#include <cassert>
 
-#include "glvis_server.hpp"
-#include "glvis_stream.hpp"
+#include "config/config.hpp" // IWYU pragma: keep dbg
 
-// #include NVTX_FMT_HPP // IWYU pragma: keep
+#include "general/glvis/stream.hpp"
 
 extern int GLVisLibWindow(bool fix_elem_orient,
                           bool save_coloring, bool headless,
@@ -27,9 +25,10 @@ extern int GLVisLibWindow(bool fix_elem_orient,
 namespace mfem
 {
 
+glvis_stream::NullImpl::null_streambuf glvis_stream::NullImpl::nullbuf {};
+
 ////////////////////////////////////////////////////////////////////////////
-glvis_stream::glvis_stream():
-   std::iostream((dbg(), nullptr)),
+glvis_stream::glvis_stream(): std::iostream((dbg(), nullptr)),
    data(std::make_shared<GLVisData>()),
    impl(std::make_unique<glvis_stream::SerialImpl>(data)),
    glvis(data)
@@ -42,6 +41,7 @@ glvis_stream::glvis_stream():
    wait_for_ready(data);
    assert(data->ready);
 
+   // link the stream buffer to the one provided by the implementation
    this->rdbuf(impl->get_buf());
 }
 
@@ -63,7 +63,7 @@ void glvis_stream::glvis_window()
 
    if (size == 0) { return; }
 
-   data->serial = true, data->shared_size = 1;
+   data->mpi_size = 1;
    data->offset[0] = 0, data->offset[1] = size;
    data->total_size = size;
 
@@ -76,7 +76,6 @@ void glvis_stream::glvis_window()
 
    {
       dbg("Signal UPDATE");
-      data->streamsize = impl_size;
       assert(!data->update);
       signal_for_update(data);
       assert(data->update);
@@ -97,9 +96,12 @@ void glvis_stream::glvis_window()
    dbg("streams: #{}", data->streams.size());
    assert(data->streams[0]->good());
 
+   constexpr bool fix_elem_orien = true;
+   constexpr bool save_coloring = true;
+   constexpr bool headless = false;
+
    // needs to be in 'main' thread
-   GLVisLibWindow(data->fix_elem_orien,
-                  data->save_coloring, data->headless,
+   GLVisLibWindow(fix_elem_orien, save_coloring, headless,
                   "",
                   std::move(data->streams[0]),
                   data->type);

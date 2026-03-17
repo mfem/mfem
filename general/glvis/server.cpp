@@ -16,50 +16,27 @@
 #include <memory>
 #include <vector>
 
-#include "glvis_server.hpp"
+#include "general/glvis/server.hpp"
 
 #include "../mesh/mesh.hpp"
 #include "../fem/gridfunc.hpp"
 
-thread_local mfem::GeometryRefiner GLVisGeometryRefiner;
-
-///////////////////////////////////////////////////////////////////////////////
-void GLVisBanner()
-{
-   std::cout << std::endl
-             << "       _/_/_/  _/      _/      _/  _/"          << std::endl
-             << "    _/        _/      _/      _/        _/_/_/" << std::endl
-             << "   _/  _/_/  _/      _/      _/  _/  _/_/"      << std::endl
-             << "  _/    _/  _/        _/  _/    _/      _/_/"   << std::endl
-             << "   _/_/_/  _/_/_/_/    _/      _/  _/_/_/"      << std::endl
-             << std::endl;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-void GLVisOptions()
-{
-   dbg();
-   bool enable_hidpi  = true;
-
-   extern void SetUseHiDPI(bool status);
-   SetUseHiDPI(enable_hidpi);
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 static int Execute(const std::shared_ptr<GLVisData> &data)
 {
-   const int shared_size = data->shared_size;
-   dbg("\x1b[37mshared_size: {}", shared_size);
+   const int data_size = data->mpi_size;
+   const bool serial = (data_size == 1);
+   dbg("\x1b[37mmpi_size: {}", data_size);
 
-   if (data->serial)
+   if (serial)
    {
       dbg("\x1b[37mSerial mode");
-      assert(data->shared_size == 1);
+      assert(data->mpi_size == 1);
    }
    else
    {
       dbg("\x1b[37mParallel mode");
-      assert(data->shared_size >= 1);
+      assert(data->mpi_size >= 1);
    }
 
    std::unique_ptr<mfem::Mesh> serial_mesh;
@@ -67,11 +44,11 @@ static int Execute(const std::shared_ptr<GLVisData> &data)
 
    data->bbs.clear();
 
-   std::vector<mfem::Mesh*> mesh_array(data->shared_size);
-   std::vector<mfem::GridFunction*> gf_array(data->shared_size);
+   std::vector<mfem::Mesh*> mesh_array(data_size);
+   std::vector<mfem::GridFunction*> gf_array(data_size);
 
    // loop over all input streams
-   for (int k = 0; k < shared_size; ++k)
+   for (int k = 0; k < data_size; ++k)
    {
       const size_t offset = data->offset[k];
       const size_t size = data->offset[k+1] - data->offset[k];
@@ -97,12 +74,11 @@ static int Execute(const std::shared_ptr<GLVisData> &data)
       if (data->type == "parallel") // Handle parallel data
       {
          dbg("\x1b[37m<parallel>");
-         assert(!data->serial);
 
          int mpi_size, mpi_rank;
          *isock >> mpi_size >> mpi_rank;
          dbg("\x1b[37mmpi_size: {}, mpi_rank: {}", mpi_size, mpi_rank);
-         assert(mpi_size == static_cast<int>(data->shared_size));
+         assert(mpi_size == static_cast<int>(data->mpi_size));
          assert(mpi_rank == static_cast<int>(k));
 
          // "*_data" / "mesh" / "solution"
@@ -164,11 +140,11 @@ static int Execute(const std::shared_ptr<GLVisData> &data)
    }
    dbg("\x1b[37mStreams: end of input.");
 
-   if (!data->serial)
+   if (!serial)
    {
       dbg("\x1b[37m🚨🚨🚨 Parallel mode 🚨🚨🚨");
       const size_t nproc = data->streams.size();
-      assert(data->shared_size == nproc);
+      assert(data->mpi_size == nproc);
       serial_mesh = std::make_unique<mfem::Mesh>(mesh_array.data(), nproc);
       serial_grid_f = std::make_unique<mfem::GridFunction>
                       (serial_mesh.get(), gf_array.data(), nproc);
@@ -207,7 +183,7 @@ static int GLVisThreadLoop(const std::shared_ptr<GLVisData> &data)
 
    while (data->running)
    {
-      constexpr auto TIMEOUT = GLVisData::GLVIS_MAX_WAIT_SECONDS;
+      constexpr auto TIMEOUT = 3600; // seconds
       // dbg("\x1b[33mWait for update (timed wait of {}s)", TIMEOUT);
       {
          std::unique_lock<std::mutex> lock(data->mutex);
@@ -235,15 +211,15 @@ static int GLVisThreadLoop(const std::shared_ptr<GLVisData> &data)
       assert(data->update);
 
       // 🔥🔥🔥🔥
-      const size_t shared_size = data->shared_size;
-      dbg("\x1b[33mshared_size: {}", shared_size);
-      assert(shared_size >= 0 && shared_size <= 32);
-      for (size_t i = 0; i < shared_size; ++i)
+      const size_t mpi_size = data->mpi_size;
+      dbg("\x1b[33mmpi_size: {}", mpi_size);
+      assert(mpi_size >= 0 && mpi_size <= 32);
+      for (size_t i = 0; i < mpi_size; ++i)
       {
          dbg("\x1b[33mdata->offset[{}]: {}", i, data->offset[i]);
       }
       dbg("\x1b[33mdata->total_size: {}", data->total_size);
-      assert(data->offset[shared_size] == data->total_size);
+      assert(data->offset[mpi_size] == data->total_size);
 
       const size_t total_size = data->total_size;
       // assert(total_size <= SHM_DELTA_SIZE);
@@ -262,15 +238,27 @@ static int GLVisThreadLoop(const std::shared_ptr<GLVisData> &data)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-GLVisServer::GLVisServer(std::shared_ptr<GLVisData> data) : data(data)
+extern void SetUseHiDPI(bool);
+thread_local mfem::GeometryRefiner GLVisGeometryRefiner;
+
+///////////////////////////////////////////////////////////////////////////////
+GLVisServer::GLVisServer(std::shared_ptr<GLVisData> data): data(data)
 {
+   dbg();
    assert(data);
 
-   GLVisBanner();
-   GLVisOptions();
+   std::cout << std::endl
+             << "       _/_/_/  _/      _/      _/  _/"          << std::endl
+             << "    _/        _/      _/      _/        _/_/_/" << std::endl
+             << "   _/  _/_/  _/      _/      _/  _/  _/_/"      << std::endl
+             << "  _/    _/  _/        _/  _/    _/      _/_/"   << std::endl
+             << "   _/_/_/  _/_/_/_/    _/      _/  _/_/_/"      << std::endl
+             << std::endl;
 
-   dbg();
-   assert(!data->running);
+   const bool enable_hidpi = true;
+
+   SetUseHiDPI(enable_hidpi);
+
    if (data->running)
    {
       dbg("GLVis Server already running, stopping it first...");
@@ -278,9 +266,6 @@ GLVisServer::GLVisServer(std::shared_ptr<GLVisData> data) : data(data)
       assert(!data->running);
       dbg("Now starting a new GLVis Server...");
    }
-
-   // Init data
-   data->streamsize = 0;
 
    dbg("Spawning server thread");
    signal_for_running(data);
@@ -292,22 +277,12 @@ GLVisServer::GLVisServer(std::shared_ptr<GLVisData> data) : data(data)
    assert(data->ready);
 }
 
-GLVisServer::~GLVisServer()
-{
-   dbg();
-   Stop();
-}
-
 int GLVisServer::Wait()
 {
    dbg("Waiting for data");
    assert(glvis_thread->joinable());
-
-   dbg("Joining server thread");
    glvis_thread->join();
    glvis_thread.reset(nullptr);
-   dbg("Server thread joined");
-
    dbg("✅");
    return EXIT_SUCCESS;
 }
@@ -317,13 +292,13 @@ int GLVisServer::Stop()
    dbg();
    if (!data->running)
    {
-      dbg("Server not running ❌");
+      dbg("Server not running");
       return EXIT_FAILURE;
    }
 
    if (glvis_thread && glvis_thread->joinable())
    {
-      dbg("Kill server thread: !update & cond.notify_one 🔥🔥🔥");
+      dbg("Kill server thread: !update & cond.notify_one");
       if (data)
       {
          std::unique_lock<std::mutex> lock(data->mutex);
@@ -333,9 +308,8 @@ int GLVisServer::Stop()
       dbg("Waiting for server thread to finish...");
       glvis_thread->join();
       assert(!data->running);
+      dbg("GLVis Server killed");
    }
-   dbg("GLVis Server killed");
-
    dbg("GLVis Server stopped");
    return EXIT_SUCCESS;
 }

@@ -17,10 +17,8 @@ list(APPEND SRCS
   error.cpp
   gecko.cpp
   globals.cpp
-  glvis/glvis_server.cpp
-  glvis/glvis_stream.cpp
-  glvis/glvis_stream_null.cpp
-  glvis/glvis_stream_serial.cpp
+  glvis/server.cpp
+  glvis/stream.cpp
   hash.cpp
   hash_util.cpp
   isockstream.cpp
@@ -49,9 +47,9 @@ list(APPEND HDRS
   error.hpp
   gecko.hpp
   globals.hpp
-  glvis/glvis_data.hpp
-  glvis/glvis_server.hpp
-  glvis/glvis_stream.hpp
+  glvis/data.hpp
+  glvis/server.hpp
+  glvis/stream.hpp
   zstr.hpp
   hash.hpp
   hash_util.hpp

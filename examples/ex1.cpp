@@ -68,7 +68,7 @@
 
 #include "mfem.hpp"
 #include <iostream>
-#include "general/glvis/glvis_stream.hpp"
+#include "general/glvis/stream.hpp"
 
 using namespace std;
 using namespace mfem;
