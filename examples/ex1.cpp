@@ -64,19 +64,15 @@
 //               discrete linear system. We also cover the explicit elimination
 //               of essential boundary conditions, static condensation, and the
 //               optional connection to the GLVis tool for visualization.
-#define NVTX_COLOR ::nvtx::kOrchid
 
 #include "mfem.hpp"
 #include <iostream>
-#include "general/glvis/stream.hpp"
 
 using namespace std;
 using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   dbgClearScreen();
-   dbg();
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
@@ -131,7 +127,6 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
-   if constexpr (true)
    {
       int ref_levels =
          (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
@@ -276,22 +271,11 @@ int main(int argc, char *argv[])
    // 14. Send the solution by socket to a GLVis server.
    if (visualization)
    {
-#if 1
-      dbg("ex1 visualization with GLVis stream");
-      {
-         glvis_stream glvis;
-         glvis.precision(8);
-         glvis << "solution\n" << mesh << x << std::flush;
-      }
-      dbg("done");
-#else
-      dbg("GLVis stream");
       char vishost[] = "localhost";
       int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
+      glvis_stream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "solution\n" << mesh << x << flush;
-#endif
+      sol_sock << "solution\n" << mesh << x << std::flush;
    }
 
    // 15. Free the used memory.
@@ -300,6 +284,5 @@ int main(int argc, char *argv[])
       delete fec;
    }
 
-   dbg("✅");
    return 0;
 }

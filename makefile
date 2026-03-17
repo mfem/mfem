@@ -302,7 +302,7 @@ endif
 MFEM_REQ_LIB_DEPS = SUPERLU MUMPS METIS FMS CONDUIT SIDRE LAPACK SUNDIALS\
  SUITESPARSE STRUMPACK GINKGO GNUTLS HDF5 NETCDF SLEPC PETSC MPFR PUMI HIOP\
  GSLIB OCCA CEED RAJA UMPIRE MKL_CPARDISO MKL_PARDISO AMGX MAGMA CALIPER PARELAG\
- TRIBOL BENCHMARK MOONOLITH ALGOIM
+ TRIBOL BENCHMARK MOONOLITH ALGOIM GLVIS
 
 
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
@@ -371,7 +371,8 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_SIMD MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO MFEM_USE_MKL_PARDISO MFEM_USE_AMGX\
  MFEM_USE_MAGMA MFEM_USE_MUMPS MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_CALIPER\
  MFEM_USE_BENCHMARK MFEM_USE_PARELAG MFEM_USE_TRIBOL MFEM_USE_ALGOIM MFEM_USE_ENZYME\
- MFEM_SOURCE_DIR MFEM_INSTALL_DIR MFEM_SHARED_BUILD MFEM_USE_DOUBLE MFEM_USE_SINGLE
+ MFEM_SOURCE_DIR MFEM_INSTALL_DIR MFEM_SHARED_BUILD MFEM_USE_DOUBLE MFEM_USE_SINGLE\
+ MFEM_USE_GLVIS
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_HOST_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS\
@@ -445,7 +446,8 @@ DIRS = general linalg linalg/batched linalg/simd mesh mesh/submesh fem \
        fem/ceed/integrators/diffusion fem/ceed/integrators/nlconvection \
        fem/ceed/interface fem/ceed/solvers fem/eltrans fem/fe fem/gslib \
        fem/integ fem/lor fem/moonolith fem/qinterp fem/tmop fem/dfem \
-	   fem/tmop/assemble fem/tmop/metrics fem/tmop/mult fem/tmop/tools
+	   fem/tmop/assemble fem/tmop/metrics fem/tmop/mult fem/tmop/tools \
+	   general/glvis
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)
@@ -771,6 +773,7 @@ status info:
 	$(info MFEM_USE_PARELAG       = $(MFEM_USE_PARELAG))
 	$(info MFEM_USE_TRIBOL        = $(MFEM_USE_TRIBOL))
 	$(info MFEM_USE_ENZYME        = $(MFEM_USE_ENZYME))
+	$(info MFEM_USE_GLVIS         = $(MFEM_USE_GLVIS))
 	$(info MFEM_CXX               = $(value MFEM_CXX))
 	$(info MFEM_HOST_CXX          = $(value MFEM_HOST_CXX))
 	$(info MFEM_CPPFLAGS          = $(value MFEM_CPPFLAGS))

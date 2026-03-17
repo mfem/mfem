@@ -11,10 +11,12 @@
 #define NVTX_COLOR ::nvtx::kCyan
 
 #include <cassert>
+#include <string>
+#include <iostream>
 
-#include "config/config.hpp" // IWYU pragma: keep dbg
+#include "../../config/config.hpp" // IWYU pragma: keep dbg
 
-#include "general/glvis/stream.hpp"
+#include "../../general/glvis/stream.hpp"
 
 extern int GLVisLibWindow(bool fix_elem_orient,
                           bool save_coloring, bool headless,
@@ -28,7 +30,8 @@ namespace mfem
 glvis_stream::NullImpl::null_streambuf glvis_stream::NullImpl::nullbuf {};
 
 ////////////////////////////////////////////////////////////////////////////
-glvis_stream::glvis_stream(): std::iostream((dbg(), nullptr)),
+glvis_stream::glvis_stream(const char *, int):
+   std::iostream(nullptr),
    data(std::make_shared<GLVisData>()),
    impl(std::make_unique<glvis_stream::SerialImpl>(data)),
    glvis(data)
@@ -72,7 +75,7 @@ void glvis_stream::glvis_window()
    data->stream.seekp(0);
 
    const size_t impl_size = impl->size();
-   dbg("size: {} 🔥", impl_size);
+   dbg("size: {}", impl_size);
 
    {
       dbg("Signal UPDATE");
@@ -90,7 +93,7 @@ void glvis_stream::glvis_window()
       assert(!data->update);
    }
 
-   dbg("ACK ✅");
+   dbg("ACK");
 
    dbg("data type: {}", data->type);
    dbg("streams: #{}", data->streams.size());

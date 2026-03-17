@@ -13,7 +13,7 @@
 #include <memory>
 #include <thread>
 
-#include "general/glvis/data.hpp"
+#include "../../general/glvis/data.hpp"
 
 // wait/signal for READY
 inline void wait_for_ready(const std::shared_ptr<GLVisData>& data)

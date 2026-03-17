@@ -13,8 +13,8 @@
 #include <iostream>
 #include <memory>
 
-#include "general/glvis/data.hpp"
-#include "general/glvis/server.hpp"
+#include "../../general/glvis/data.hpp"
+#include "../../general/glvis/server.hpp"
 
 namespace mfem
 {
@@ -71,7 +71,8 @@ class glvis_stream : public std::iostream
    };
 
 public:
-   glvis_stream();
+   glvis_stream()= delete;
+   glvis_stream(const char*, int);
 
    glvis_stream(glvis_stream &&) = delete;
    glvis_stream(const glvis_stream &) = delete;

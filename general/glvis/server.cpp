@@ -16,10 +16,12 @@
 #include <memory>
 #include <vector>
 
-#include "general/glvis/server.hpp"
+#include "../../config/config.hpp" // IWYU pragma: keep dbg
 
-#include "../mesh/mesh.hpp"
-#include "../fem/gridfunc.hpp"
+#include "../../general/glvis/server.hpp"
+
+#include "../../mesh/mesh.hpp"
+#include "../../fem/gridfunc.hpp"
 
 ///////////////////////////////////////////////////////////////////////////////
 static int Execute(const std::shared_ptr<GLVisData> &data)
@@ -69,7 +71,7 @@ static int Execute(const std::shared_ptr<GLVisData> &data)
       *isock >> data->type >> std::ws;
       dbg("\x1b[37mdata_type: '{}'", data->type);
 
-      for (char &c : data->type) { dbg("{:02x}", c); }
+      // for (char &c : data->type) { dbg("{:02x}", c); }
 
       if (data->type == "parallel") // Handle parallel data
       {
@@ -116,8 +118,8 @@ static int Execute(const std::shared_ptr<GLVisData> &data)
          {
             dbg("\x1b[37m<solution>");
 #if 1 // do nothing with the stream 
-            dbg("Nothing done with the streams 🔥");
-            dbg("data->type: {} 🔥", data->type);
+            dbg("Nothing done with the streams");
+            dbg("data->type: {}", data->type);
 #else
             dbg("\x1b[37mMesh");
             serial_mesh = std::make_unique<mfem::Mesh>(*data->streams[0], 1, 0,
@@ -179,7 +181,7 @@ static int GLVisThreadLoop(const std::shared_ptr<GLVisData> &data)
    dbg("\x1b[33m[GLVisThreadLoop] Starting GLVis server thread loop");
    assert(data);
    assert(data->running);
-   const auto cleanup = [&]() { dbg("\x1b[33m🔥🔥🔥 Cleanup"); data->running = false; };
+   const auto cleanup = [&]() { dbg("\x1b[33mCleanup"); data->running = false; };
 
    while (data->running)
    {
@@ -202,8 +204,8 @@ static int GLVisThreadLoop(const std::shared_ptr<GLVisData> &data)
          } // End of waiting loop
 
          // timed out or killed
-         if (data && !data->update) { dbg("\x1b[33m❌[1]❌"); return (cleanup(), EXIT_FAILURE); }
-         if (!data) { dbg("\x1b[33m❌[2]❌"); return (cleanup(), EXIT_FAILURE); }
+         if (data && !data->update) { dbg("\x1b[33m❌[1]"); return (cleanup(), EXIT_FAILURE); }
+         if (!data) { dbg("\x1b[33m❌[2]"); return (cleanup(), EXIT_FAILURE); }
          dbg("\x1b[33mData ready");
       } // unlock mutex
 
@@ -223,7 +225,7 @@ static int GLVisThreadLoop(const std::shared_ptr<GLVisData> &data)
 
       const size_t total_size = data->total_size;
       // assert(total_size <= SHM_DELTA_SIZE);
-      dbg("\x1b[33m✅ {}", total_size);
+      dbg("\x1b[33m{}", total_size);
 
       Execute(data); // Execute
 
@@ -246,18 +248,7 @@ GLVisServer::GLVisServer(std::shared_ptr<GLVisData> data): data(data)
 {
    dbg();
    assert(data);
-
-   std::cout << std::endl
-             << "       _/_/_/  _/      _/      _/  _/"          << std::endl
-             << "    _/        _/      _/      _/        _/_/_/" << std::endl
-             << "   _/  _/_/  _/      _/      _/  _/  _/_/"      << std::endl
-             << "  _/    _/  _/        _/  _/    _/      _/_/"   << std::endl
-             << "   _/_/_/  _/_/_/_/    _/      _/  _/_/_/"      << std::endl
-             << std::endl;
-
-   const bool enable_hidpi = true;
-
-   SetUseHiDPI(enable_hidpi);
+   SetUseHiDPI(true);
 
    if (data->running)
    {
