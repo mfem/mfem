@@ -13,12 +13,7 @@
 #include <iostream>
 #include <memory>
 
-#include <boost/interprocess/streams/bufferstream.hpp>
-namespace bip = boost::interprocess;
-
-using char_stream_t = bip::basic_bufferstream<char>;
-using char_stream_uptr = std::unique_ptr<char_stream_t>;
-
+#include "glvis_data.hpp"
 #include "glvis_server.hpp"
 
 namespace mfem
@@ -60,7 +55,6 @@ class glvis_stream : public std::iostream
    struct SerialImpl : public Impl
    {
       std::shared_ptr<GLVisData> data;
-      //   std::unique_ptr<std::stringstream> stream;
       char_stream_uptr stream;
       SerialImpl(std::shared_ptr<GLVisData> data);
       ~SerialImpl() override;

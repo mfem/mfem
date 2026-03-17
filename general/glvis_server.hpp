@@ -12,37 +12,11 @@
 
 #ifdef MFEM_USE_GLVIS
 
-#include <condition_variable>
 #include <memory>
-#include <mutex>
 #include <thread>
-#include <istream>
-#include <vector>
 
-using StreamCollection = std::vector<std::unique_ptr<std::istream>>;
+#include "glvis_data.hpp"
 
-///////////////////////////////////////////////////////////////////////////////
-constexpr size_t RNK_SIZE = 8*1024*1024;
-constexpr size_t SHM_SIZE = 64*1024*1024;
-constexpr size_t BIP_SIZE = 4*1024;
-constexpr size_t SHM_DELTA_SIZE = SHM_SIZE - BIP_SIZE;
-
-constexpr int GLVIS_MAX_HOOK_SECONDS = 1;
-constexpr int GLVIS_MAX_WAIT_SECONDS = 3600;
-
-struct GLVisData
-{
-   std::mutex mutex;
-   std::condition_variable cond;
-   std::atomic<bool> running {false};
-   std::atomic<bool> ready {false}, update {false};
-   std::size_t streamsize;
-   char buffer[SHM_DELTA_SIZE];
-   bool serial {true};
-   size_t shared_size {0}; // should be equal to mpi_size in parallel
-   size_t offset[32];
-   size_t total_size {0};
-};
 
 // wait/signal for READY
 inline void wait_for_ready(const std::shared_ptr<GLVisData>& data)

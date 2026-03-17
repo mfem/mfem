@@ -9,7 +9,7 @@
         "MFEM_DEBUG": "1",
         "UBSAN_OPTIONS": "print_stacktrace=1:halt_on_error=1",
         "MFEM_REPORT_KERNELS": "1",
-        "ASAN_OPTIONS": "detect_leaks=1, strict_init_order=1, strict_string_checks=1, check_initialization_order=1, detect_stack_use_after_return=1",
+        // "ASAN_OPTIONS": "detect_leaks=1, strict_init_order=1, strict_string_checks=1, check_initialization_order=1, detect_stack_use_after_return=1",
         "LSAN_OPTIONS": "suppressions=/Users/camierjs/.asan.sup"
     },
     "cmake.debugConfig": {
@@ -19,7 +19,6 @@
             "-pa",
             "-m",
             "../data/inline-quad.mesh",
-            // "--shm-visualization",
             "--visualization"
         ]
     },

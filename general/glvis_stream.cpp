@@ -18,6 +18,12 @@
 
 // #include NVTX_FMT_HPP // IWYU pragma: keep
 
+extern int GLVisLibWindow(void *win_ptr, bool fix_elem_orient,
+                          bool save_coloring, bool headless,
+                          const std::string &plot_caption,
+                          std::unique_ptr<std::istream> &&stream,
+                          const std::string &data_type);
+
 namespace mfem
 {
 
@@ -42,7 +48,7 @@ glvis_stream::glvis_stream():
 glvis_stream::~glvis_stream()
 {
    dbg("🚨");
-   Flush();
+   // Flush();
    impl.reset(nullptr); // trigger impl destructor
    dbg("✅");
 }
@@ -51,7 +57,9 @@ void glvis_stream::Flush()
 {
    const size_t impl_size = impl->size();
    dbg("size: {} 🔥", impl_size);
+
    impl->flush();
+
    {
       dbg("Signal UPDATE");
       data->streamsize = impl_size;
@@ -62,11 +70,30 @@ void glvis_stream::Flush()
    {
       dbg("Waiting ACK");
       // std::unique_lock<std::mutex> lock(data->mutex);
-      while (data->update.load()) { /*data->cond.wait(lock);*/ }
+      while (data->update.load()) { /*data->cond.wait(lock); */}
       assert(!data->update);
    }
 
    dbg("ACK ✅");
+
+   // std::memcpy(data->buffer, impl->get_buf(), impl_size);
+
+   dbg("win: {}", fmt::ptr(data->win));
+   dbg("data type: {}", data->type);
+   dbg("streams: #{}", data->streams.size());
+   dbg("plot_caption: {}", data->plot_caption);
+
+   MFEM_VERIFY(data->streams[0]->good(), "Stream is not good");
+
+   dbg("GLVisLibWindow...");
+   GLVisLibWindow(data->win, data->fix_elem_orien,
+                  data->save_coloring, data->headless,
+                  data->plot_caption,
+                  std::move(data->streams[0]),
+                  data->type);
+   dbg("✅");
+   dbg("🔥🔥🔥");
+   std::exit(EXIT_SUCCESS);
 }
 
 glvis_stream& glvis_stream::operator<<(ostream_manipulator pf)

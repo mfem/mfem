@@ -24,6 +24,7 @@ glvis_stream::SerialImpl::SerialImpl(std::shared_ptr<GLVisData> data):
    stream((dbg(), std::make_unique<char_stream_t>(data->buffer, RNK_SIZE)))
 {
    dbg("Serial stream ready");
+   stream->clear();
 }
 
 glvis_stream::SerialImpl::~SerialImpl()
@@ -61,12 +62,18 @@ size_t glvis_stream::SerialImpl::size() const
 void glvis_stream::SerialImpl::flush()
 {
    dbg();
-   const size_t ssize = stream->tellp();
+   stream->flush(); // Optional
+
+   const size_t ssize = size();
    dbg("stream size: {}", ssize);
    assert(ssize > 0 && ssize <= RNK_SIZE);
    data->serial = true, data->shared_size = 1;
    data->offset[0] = 0, data->offset[1] = ssize;
    data->total_size = ssize;
+
+   // Optionally reset the local buffer for reuse.
+   stream->clear();
+   stream->seekp(0);  // Reset put position.
 }
 
 } // namespace mfem
