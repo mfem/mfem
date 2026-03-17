@@ -97,6 +97,10 @@ public:
    /// Solves the forward problem.
    void FSolve();
 
+   /// Solves the adjoint problem.
+   void ASolve( mfem::Vector dQdu );
+
+
    /// Adds displacement BC in direction 0(x), 1(y), 2(z), or -1(all).
    void AddDispBC(int id, int dir, real_t val);
 
@@ -190,6 +194,13 @@ public:
       lambda = new IsoElasticyLambdaCoeff(E, nu);
       mu = new IsoElasticySchearCoeff(E, nu);
    }
+
+   void SetMaterialLame(mfem::Coefficient &lambda_, mfem::Coefficient &mu_)
+   {
+      lambda = &lambda_;
+      mu = &mu_;
+   }
+
 
    class NqptUniformParameterSpace : public
       mfem::future::UniformParameterSpace

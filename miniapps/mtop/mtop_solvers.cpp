@@ -504,8 +504,9 @@ void IsoLinElasticSolver::Assemble()
          prec->SetElasticityOptions(vfes);
          ls->SetPreconditioner(*prec);
       }
+      prec->SetPrintLevel(0);
       ls->SetOperator(((pa||dfem) ? *Kh->Ptr() : *K));
-      ls->SetPrintLevel(1);
+      ls->SetPrintLevel(0);
    }
    else
    {
@@ -547,3 +548,15 @@ void IsoLinElasticSolver::FSolve()
    delete lf;
    lf = nullptr;
 }
+
+void IsoLinElasticSolver::ASolve( mfem::Vector dQdu )
+{
+   if (pa || dfem) { Kc->EliminateRHS(adj, dQdu); }
+   else
+   {
+      K->EliminateBC(*Ke, ess_tdofv, adj, dQdu);
+   }
+
+   ls->Mult(dQdu, adj);
+}
+

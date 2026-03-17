@@ -12,8 +12,9 @@
 # Skip dFEM qfunction with floats
 if(MFEM_USE_MPI AND MFEM_USE_DOUBLE)
 
-	list(APPEND PAR_MTOP_SOURCES mtop_solvers.cpp)
-	list(APPEND PAR_MTOP_HEADERS mtop_solvers.hpp)
+	list(APPEND PAR_MTOP_SOURCES mtop_solvers.cpp tmop_ad_err.cpp)
+	list(APPEND PAR_MTOP_HEADERS mtop_solvers.hpp tmop_ad_err.hpp)
+
 
 	convert_filenames_to_full_paths(PAR_MTOP_SOURCES)
 	convert_filenames_to_full_paths(PAR_MTOP_HEADERS)
@@ -26,5 +27,11 @@ if(MFEM_USE_MPI AND MFEM_USE_DOUBLE)
 					 MAIN mtop_test_iso_elasticity.cpp
 					 ${PAR_MTOP_COMMON_FILES}
 					 LIBRARIES mfem)
+
+	add_mfem_miniapp(mtop_Rref_TO
+					 MAIN mtop_Rref_TO.cpp
+					 ${PAR_MTOP_COMMON_FILES}
+					 LIBRARIES mfem)
+
 
 endif (MFEM_USE_MPI AND MFEM_USE_DOUBLE)
