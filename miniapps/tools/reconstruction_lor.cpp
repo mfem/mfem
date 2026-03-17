@@ -104,13 +104,16 @@ int main(int argc, char *argv[])
    int dim = mesh_im.Dimension();
 
    // low-order refined mesh
-   Mesh mesh_lo = Mesh::MakeRefined(mesh_im, lref, BasisType::ClosedUniform); // GaussLobatto, ClosedUniform
+   // Mesh mesh_lo = Mesh::MakeRefined(mesh_im, lref, BasisType::ClosedUniform); // GaussLobatto, ClosedUniform
 
    // Other Refinement methods? 
-
-   // Mesh Mesh::MakeRefined(Mesh &orig_mesh, const Array<int> &ref_factors,
-   //                     int ref_type)
-
+   Array<int> ref_factors(mesh_im.GetNE());
+   for (int i = 0; i < mesh_im.GetNE(); i++)
+   {
+      ref_factors[i] = lref;
+   }
+   // ref_factors[0] = 2*lref;
+   Mesh mesh_lo = Mesh::MakeRefined(mesh_im, ref_factors, BasisType::ClosedUniform); // GaussLobatto, ClosedUniform
    // ======================================================
    // Create spaces
    // ======================================================
@@ -128,7 +131,7 @@ int main(int argc, char *argv[])
 
    fec_lo = new L2_FECollection(order_lo, dim);
    // fec_im = new L2_FECollection(order_im, dim);
-   fec_im = new H1_FECollection(order_im, dim);
+   fec_im = new H1_FECollection(order_im, dim); // Both L2 and H1 give the same convergence.
    fec_hi = new L2_FECollection(order_ho, dim);
 
    FiniteElementSpace fespace_lo(&mesh_lo, fec_lo);
@@ -172,7 +175,7 @@ int main(int argc, char *argv[])
    // b_lo.AddDomainIntegrator(new DomainLFIntegrator(RHO));
    DomainLFIntegrator *lf_integ = new DomainLFIntegrator(RHO);
    const IntegrationRule &ir_rhs = IntRules.Get(fespace_lo.GetFE(0)->GetGeomType(), 
-                                                order_hi+1);
+                                                order_ho+1);
    lf_integ->SetIntRule(&ir_rhs);
    b_lo.AddDomainIntegrator(lf_integ);
    b_lo.Assemble();
@@ -228,8 +231,8 @@ int main(int argc, char *argv[])
    rho_lo.SetTrueVector();
    rho_lo.SetFromTrueVector();
 
-   real_t mass_ex = compute_mass(&fespace_hi, -1.0, dc_ex, "EX");
-   if (vis) { visualize(dc_ex, "EX", Wx, Wy, visport); Wx += offx; }
+   // real_t mass_ex = compute_mass(&fespace_hi, -1.0, dc_ex, "EX");
+   // if (vis) { visualize(dc_ex, "EX", Wx, Wy, visport); Wx += offx; }
 
    real_t mass_lo = compute_mass(&fespace_lo, -1.0, dc_lo, "LO");
    if (vis) { visualize(dc_lo, "LO", Wx, Wy, visport); Wx += offx; }
