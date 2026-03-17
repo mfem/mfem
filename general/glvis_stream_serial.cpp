@@ -66,6 +66,12 @@ void glvis_stream::SerialImpl::flush()
 
    const size_t ssize = size();
    dbg("stream size: {}", ssize);
+
+   if (ssize == 0)
+   {
+      dbg("Nothing to flush");
+      return;
+   }
    assert(ssize > 0 && ssize <= RNK_SIZE);
    data->serial = true, data->shared_size = 1;
    data->offset[0] = 0, data->offset[1] = ssize;

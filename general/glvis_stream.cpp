@@ -86,14 +86,15 @@ void glvis_stream::Flush()
    MFEM_VERIFY(data->streams[0]->good(), "Stream is not good");
 
    dbg("GLVisLibWindow...");
+   // needs to be in main thread
    GLVisLibWindow(data->win, data->fix_elem_orien,
                   data->save_coloring, data->headless,
                   data->plot_caption,
                   std::move(data->streams[0]),
                   data->type);
    dbg("✅");
-   dbg("🔥🔥🔥");
-   std::exit(EXIT_SUCCESS);
+   // dbg("🔥🔥🔥");
+   // std::exit(EXIT_SUCCESS);
 }
 
 glvis_stream& glvis_stream::operator<<(ostream_manipulator pf)
