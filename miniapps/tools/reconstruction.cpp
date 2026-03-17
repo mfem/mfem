@@ -364,7 +364,7 @@ void L2Reconstruction(const GridFunction& src, GridFunction& dst)
          {
             for (int k=0; k < N; k++)
             {
-               A(k,N) = -alpha(k); // Why minus?
+               A(k,N) = alpha(k);
                A(N,k) = alpha(k);
             }
          }
