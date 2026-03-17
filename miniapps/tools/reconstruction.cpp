@@ -23,7 +23,8 @@ std::unordered_map<std::string, profile_t> GetFieldProfiles();
 int main(int argc, char* argv[])
 {
    // Default command-line options
-   std::string lor_method = "element_average_reconstruction"; // "element_average_reconstruction" or "l2_projection"
+   std::string lor_method =
+      "element_average_reconstruction"; // "element_average_reconstruction" or "l2_projection"
    int refinement_levels = 0;
    int order_lo = 0;
    int order_ho = 3;
@@ -43,16 +44,20 @@ int main(int argc, char* argv[])
    // create CLI help string for profiles
    std::string field_profiles_help = "Profile of field to be reconstructed:";
    for (const auto& [name, _] : field_profiles)
+   {
       field_profiles_help += "\n\t" + name;
+   }
 
    // Parse options
    OptionsParser args(argc, argv);
-   args.AddOption(&lor_method, "-m", "--method", "LOR method: \"element_average_reconstruction\" or \"l2_projection\".");
+   args.AddOption(&lor_method, "-m", "--method",
+                  "LOR method: \"element_average_reconstruction\" or \"l2_projection\".");
    args.AddOption(&refinement_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&order_ho, "-ho", "--order_ho",
                   "Finite element order (polynomial degree) for high-order space.");
-   args.AddOption(&field_profile, "-f", "--field-profile", field_profiles_help.c_str());
+   args.AddOption(&field_profile, "-f", "--field-profile",
+                  field_profiles_help.c_str());
    args.AddOption(&field_kx, "-fx", "--field-kx",
                   "Value of kx in field profile");
    args.AddOption(&field_ky, "-fy", "--field-ky",
@@ -62,14 +67,14 @@ int main(int argc, char* argv[])
    args.AddOption(&visport, "-visp", "--visualization-port",
                   "Use custom port number for GLVis.");
    args.AddOption(&use_ea, "-ea", "--ea-version", "-no-ea",
-                  "--no-ea-version", "Use element assembly version.");                  
+                  "--no-ea-version", "Use element assembly version.");
    args.ParseCheck();
 
    // define u(x,y) to be represented
    profile_t u_function = field_profiles.at(field_profile);
    const Vector k({field_kx, field_ky});
    std::function<real_t(const Vector&)> u_function_wrapper =
-      [&](const Vector &x) { return u_function(x, k); };
+   [&](const Vector &x) { return u_function(x, k); };
    FunctionCoefficient u_function_exact(u_function_wrapper);
 
    // create simple 2D mesh
@@ -77,19 +82,23 @@ int main(int argc, char* argv[])
    Mesh mesh_im;
 
    const int num_x = 8;
-   const int num_y = 8;   
+   const int num_y = 8;
 
    std::cout << "LOR method: " << lor_method << std::endl;
 
-   if (lor_method == "element_average_reconstruction") {
+   if (lor_method == "element_average_reconstruction")
+   {
 
       mesh = Mesh::MakeCartesian2D(num_x, num_y, Element::QUADRILATERAL);
-      for (int i = 0; i < refinement_levels; i++) {
+      for (int i = 0; i < refinement_levels; i++)
+      {
          mesh.UniformRefinement();
       }
       mesh.EnsureNCMesh();
 
-   } else if (lor_method == "l2_projection") {
+   }
+   else if (lor_method == "l2_projection")
+   {
 
       order_im = order_ho;
       lref = order_im + 1;
@@ -98,7 +107,8 @@ int main(int argc, char* argv[])
       int num_x_im = num_x / lref;
       int num_y_im = num_y / lref;
       mesh_im = Mesh::MakeCartesian2D(num_x_im, num_y_im, Element::QUADRILATERAL);
-      for (int i = 0; i < refinement_levels; i++) {
+      for (int i = 0; i < refinement_levels; i++)
+      {
          mesh_im.UniformRefinement();
       }
       mesh_im.EnsureNCMesh();
@@ -106,15 +116,15 @@ int main(int argc, char* argv[])
    }
    int dim = mesh.Dimension();
 
-   // create FEM things 
-   
+   // create FEM things
+
    L2_FECollection fec_lo(order_lo, dim);
    L2_FECollection fec_hi(order_ho, dim);
 
    FiniteElementSpace fespace_lo(&mesh, &fec_lo);
    FiniteElementSpace fespace_hi(&mesh, &fec_hi);
 
-   GridFunction u_lo(&fespace_lo);   
+   GridFunction u_lo(&fespace_lo);
    GridFunction u_hi(&fespace_hi);
 
    if (lor_method == "element_average_reconstruction")
@@ -130,9 +140,12 @@ int main(int argc, char* argv[])
       // compute reconstruction
       L2Reconstruction(u_lo, u_hi);
 
-   } else if (lor_method == "l2_projection") {
+   }
+   else if (lor_method == "l2_projection")
+   {
 
-      H1_FECollection fec_im(order_im, dim); // Both L2 and H1 give the same convergence.
+      H1_FECollection fec_im(order_im,
+                             dim); // Both L2 and H1 give the same convergence.
       FiniteElementSpace fespace_im(&mesh_im, &fec_im);
       GridFunction u_im(&fespace_im);
 
@@ -154,7 +167,8 @@ int main(int argc, char* argv[])
       // Set up the right-hand side vector for the exact solution
       LinearForm b_lo(&fespace_lo);
       DomainLFIntegrator *lf_integ = new DomainLFIntegrator(u_function_exact);
-      const IntegrationRule &ir_rhs = IntRules.Get(fespace_lo.GetFE(0)->GetGeomType(), order_ho+1);
+      const IntegrationRule &ir_rhs = IntRules.Get(fespace_lo.GetFE(0)->GetGeomType(),
+                                                   order_ho+1);
       lf_integ->SetIntRule(&ir_rhs);
       b_lo.AddDomainIntegrator(lf_integ);
       b_lo.Assemble();
@@ -166,11 +180,15 @@ int main(int argc, char* argv[])
       gt1.UseEA(use_ea);
       gt2.UseEA(use_ea);
 
-      [[maybe_unused]] const Operator &P1 = gt1.BackwardOperator();   // Prolongation 1 (LO->IM)
-      [[maybe_unused]] const Operator &P2 = gt2.ForwardOperator();    // Prolongation 2 (IM->HO)
+      [[maybe_unused]] const Operator &P1 =
+         gt1.BackwardOperator();   // Prolongation 1 (LO->IM)
+      [[maybe_unused]] const Operator &P2 =
+         gt2.ForwardOperator();    // Prolongation 2 (IM->HO)
 
-      [[maybe_unused]] const Operator &R1 = gt1.ForwardOperator();    // Restriction 1 (IM->LO)
-      [[maybe_unused]] const Operator &R2 = gt2.BackwardOperator();   // Restriction 2 (HO->IM)
+      [[maybe_unused]] const Operator &R1 =
+         gt1.ForwardOperator();    // Restriction 1 (IM->LO)
+      [[maybe_unused]] const Operator &R2 =
+         gt2.BackwardOperator();   // Restriction 2 (HO->IM)
 
       // STEP1: L2 projection of RHO onto u_lo
       SparseMatrix &M_mat_lo = M_lo.SpMat();
@@ -200,10 +218,10 @@ int main(int argc, char* argv[])
    {
       glvis_u_lo.precision(8);
       glvis_u_lo << "solution\n" << mesh << u_lo
-         << "window_title 'Low-order'\n" << std::flush;
+                 << "window_title 'Low-order'\n" << std::flush;
       glvis_u_hi.precision(8);
       glvis_u_hi << "solution\n" << mesh << u_hi
-         << "window_title 'High-order'\n" << std::flush;
+                 << "window_title 'High-order'\n" << std::flush;
    }
 
    real_t error = u_hi.ComputeL2Error(u_function_exact);
@@ -240,26 +258,28 @@ std::unordered_map<std::string, profile_t> GetFieldProfiles()
    // plane profile
    field_profiles["plane"] =
       [](const Vector &x, const Vector &k)
-      {
-         return 1.0 + x*k;
-      };
+   {
+      return 1.0 + x*k;
+   };
    // sinusoidal profile
    field_profiles["sinusoidal"] =
       [](const Vector &x, const Vector &k)
-      {
-         real_t result = 1.0;
-         for(int i=0; i < x.Size(); i++) result *= std::sin(2.0*M_PI*k(i)*x(i));
-         return result;
-      };
+   {
+      real_t result = 1.0;
+      for (int i=0; i < x.Size(); i++) { result *= std::sin(2.0*M_PI*k(i)*x(i)); }
+      return result;
+   };
    // exponential-sinusoidal profile
    field_profiles["exponential"] =
       [](const Vector &x, const Vector &k)
+   {
+      real_t result = 1.0;
+      for (int i=0; i < x.Size(); i++)
       {
-         real_t result = 1.0;
-         for(int i=0; i < x.Size(); i++)
-            result *= std::exp(x.Norml2()) * std::sin(2.0*M_PI*k(i)*x(i));
-         return result;
-      };
+         result *= std::exp(x.Norml2()) * std::sin(2.0*M_PI*k(i)*x(i));
+      }
+      return result;
+   };
    return field_profiles;
 }
 
@@ -303,7 +323,8 @@ void L2Reconstruction(const GridFunction& src, GridFunction& dst)
       {
          const FiniteElement* neighbor_element = fes->GetFE(neighbor_element_idx);
          fes->GetElementTransformation(neighbor_element_idx, &neighbor_trans);
-         const real_t neighbor_average = src.GetValue(neighbor_element_idx, int_point_average);
+         const real_t neighbor_average = src.GetValue(neighbor_element_idx,
+                                                      int_point_average);
 
          // compute average of u over neighbor element (denoted alpha)
          Vector alpha(N);
@@ -368,7 +389,8 @@ void L2Reconstruction(const GridFunction& src, GridFunction& dst)
       // DEBUG
       if (std::abs(y(N)) > 1e-8 && false)
       {
-         mfem::out << "\nnumber of neighbors: " << neighbor_element_idxs.Size() << std::endl;
+         mfem::out << "\nnumber of neighbors: " << neighbor_element_idxs.Size() <<
+                   std::endl;
          mfem::out << "y: ";
          y.Print();
          DenseMatrix Q(N,N);
