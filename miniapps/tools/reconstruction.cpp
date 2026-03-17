@@ -124,6 +124,11 @@ int main(int argc, char* argv[])
       L2_FECollection fec_exact(order_ho, dim);
       FiniteElementSpace fespace_exact(&mesh, &fec_exact);
 
+      // Initialize u_lo with element averages of the exact solution
+      GridFunction u_exact(&fespace_exact);
+      u_exact.ProjectCoefficient(u_function_exact);
+      u_exact.GetElementAverages(u_lo);
+
       // compute reconstruction
       L2Reconstruction(u_lo, u_hi);
 
