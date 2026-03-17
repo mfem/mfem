@@ -2033,6 +2033,12 @@ void GridFunction::AccumulateAndCountBdrValues(
    {
       MFEM_VERIFY(fes->GetVDim() == vcoeff->GetVDim(),
                   "vcoeff vdim != fes VDim");
+      MFEM_VERIFY(fes->GetTypicalBE()->GetMapType() == FiniteElement::VALUE &&
+                  fes->GetTypicalBE()->GetRangeDim() <= 1,
+                  "Can only call ProjectBdrCoefficient on scalar value-type "
+                  "boundary elements. "
+                  "Did you intended to ProjectBdrCoefficientNormal or "
+                  "ProjectBdrCoefficientTangent?");
    }
    Array<int> vdofs;
    Vector vc;
@@ -2186,7 +2192,9 @@ void GridFunction::AccumulateAndCountBdrTangentValues(
    VectorCoefficient &vcoeff, const Array<int> &bdr_attr,
    Array<int> &values_counter)
 {
-   MFEM_VERIFY(VectorDim() == vcoeff.GetVDim(), "vcoeff vdim != VectorDim ");
+   MFEM_VERIFY(fes->GetTypicalBE()->GetPhysRangeDim(
+                  fes->GetMesh()->SpaceDimension()) == vcoeff.GetVDim(),
+               "vcoeff vdim != PhysRangeDim");
    const FiniteElement *fe;
    ElementTransformation *T;
    Array<int> dofs;
@@ -3139,7 +3147,8 @@ void GridFunction::ProjectBdrCoefficientNormal(
 {
    MFEM_VERIFY(fes->GetVDim() == 1, "fespace VDim != 1");
    MFEM_VERIFY(vcoeff.GetVDim() == fes->GetMesh()->SpaceDimension(),
-               "vcoeff vdim != space dim");
+               "vcoeff vdim (" << vcoeff.GetVDim() << ") != SpaceDimension ("
+               << fes->GetMesh()->SpaceDimension() << ")");
 #if 0
    // implementation for the case when the face dofs are integrals of the
    // normal component.
@@ -3148,7 +3157,6 @@ void GridFunction::ProjectBdrCoefficientNormal(
    Array<int> dofs;
    int dim = vcoeff.GetVDim();
    Vector vc(dim), nor(dim), lvec, shape;
-
 
    for (int i = 0; i < fes->GetNBE(); i++)
    {

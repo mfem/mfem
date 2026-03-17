@@ -271,6 +271,8 @@ TEST_CASE("Variable Order FiniteElementSpace",
 
       const auto space_type = GENERATE(SpaceType::RT, SpaceType::ND);
       const int dim = GENERATE(2, 3);
+      CAPTURE(space_type);
+      CAPTURE(dim);
 
       Mesh mesh = MakeCartesianMesh(dim == 2 ? 4 : 2, dim);
       mesh.EnsureNCMesh();
@@ -698,8 +700,9 @@ static void TestSolveVec(FiniteElementSpace &fespace)
 
    GridFunction x(&fespace);
    x = 0.0;
-   if (x.FESpace()->GetTypicalBE()->GetRangeDim() == 1)
+   if (x.FESpace()->GetTypicalBE()->GetRangeDim() <= 1)
    {
+      // scalar or length 1 vector coefficient
       x.ProjectBdrCoefficientNormal(exsol, ess_attr);
    }
    else
