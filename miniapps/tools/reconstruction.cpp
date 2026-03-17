@@ -135,9 +135,8 @@ int main(int argc, char* argv[])
 
    } else if (lor_method == "l2_projection") {
 
-      FiniteElementCollection *fec_im;
-      fec_im = new H1_FECollection(order_im, dim); // Both L2 and H1 give the same convergence.
-      FiniteElementSpace fespace_im(&mesh_im, fec_im);
+      H1_FECollection fec_im(order_im, dim); // Both L2 and H1 give the same convergence.
+      FiniteElementSpace fespace_im(&mesh_im, &fec_im);
       GridFunction u_im(&fespace_im);
 
       BilinearForm M_lo(&fespace_lo);
@@ -163,20 +162,18 @@ int main(int argc, char* argv[])
       b_lo.AddDomainIntegrator(lf_integ);
       b_lo.Assemble();
 
-      GridTransfer *gt1 = nullptr;
-      GridTransfer *gt2 = nullptr;
-      gt1 = new L2ProjectionGridTransfer(fespace_im, fespace_lo);
-      gt2 = new L2ProjectionGridTransfer(fespace_im, fespace_hi);
+      L2ProjectionGridTransfer gt1(fespace_im, fespace_lo);
+      L2ProjectionGridTransfer gt2(fespace_im, fespace_hi);
 
       // Configure element assembly for device acceleration
-      gt1->UseEA(use_ea);
-      gt2->UseEA(use_ea);
+      gt1.UseEA(use_ea);
+      gt2.UseEA(use_ea);
 
-      const Operator &P1 = gt1->BackwardOperator();   // Prolongation 1 (LO->IM)
-      const Operator &P2 = gt2->ForwardOperator();    // Prolongation 2 (IM->HO)
+      const Operator &P1 = gt1.BackwardOperator();   // Prolongation 1 (LO->IM)
+      const Operator &P2 = gt2.ForwardOperator();    // Prolongation 2 (IM->HO)
 
-      const Operator &R1 = gt1->ForwardOperator();    // Restriction 1 (IM->LO)
-      const Operator &R2 = gt2->BackwardOperator();   // Restriction 2 (HO->IM)
+      const Operator &R1 = gt1.ForwardOperator();    // Restriction 1 (IM->LO)
+      const Operator &R2 = gt2.BackwardOperator();   // Restriction 2 (HO->IM)
 
       // STEP1: L2 projection of RHO onto u_lo
       SparseMatrix &M_mat_lo = M_lo.SpMat();
