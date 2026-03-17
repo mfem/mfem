@@ -10,8 +10,6 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#ifdef MFEM_USE_GLVIS
-
 #include <memory>
 #include <thread>
 
@@ -76,5 +74,3 @@ public:
 
    int Stop();
 };
-
-#endif // MFEM_USE_GLVIS

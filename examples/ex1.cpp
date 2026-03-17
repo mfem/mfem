@@ -132,7 +132,7 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
-   if constexpr (false)
+   if constexpr (true)
    {
       int ref_levels =
          (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
@@ -277,7 +277,7 @@ int main(int argc, char *argv[])
    // 14. Send the solution by socket to a GLVis server.
    if (visualization)
    {
-#ifdef MFEM_USE_GLVIS
+#if 1
       dbg("ex1 visualization with GLVis stream");
       {
          glvis_stream glvis;

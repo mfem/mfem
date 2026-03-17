@@ -10,8 +10,6 @@
 // CONTRIBUTING.md for details.
 #define NVTX_COLOR ::nvtx::kPaleGreen
 
-#ifdef MFEM_USE_GLVIS
-
 #include <cassert>
 #include <chrono>
 #include <iostream>
@@ -22,6 +20,8 @@
 
 #include "../mesh/mesh.hpp"
 #include "../fem/gridfunc.hpp"
+
+thread_local mfem::GeometryRefiner GLVisGeometryRefiner;
 
 ///////////////////////////////////////////////////////////////////////////////
 void GLVisBanner()
@@ -349,5 +349,3 @@ int GLVisServer::Stop()
    dbg("GLVis Server stopped");
    return EXIT_SUCCESS;
 }
-
-#endif // MFEM_USE_GLVIS

@@ -18,11 +18,12 @@
 
 // #include NVTX_FMT_HPP // IWYU pragma: keep
 
-extern int GLVisLibWindow(void *win_ptr, bool fix_elem_orient,
-                          bool save_coloring, bool headless,
-                          const std::string &plot_caption,
-                          std::unique_ptr<std::istream> &&stream,
-                          const std::string &data_type);
+extern int GLVisLibWindow(//void *win_ptr,
+   bool fix_elem_orient,
+   bool save_coloring, bool headless,
+   const std::string &plot_caption,
+   std::unique_ptr<std::istream> &&stream,
+   const std::string &data_type);
 
 namespace mfem
 {
@@ -87,11 +88,12 @@ void glvis_stream::Flush()
 
    dbg("GLVisLibWindow...");
    // needs to be in main thread
-   GLVisLibWindow(data->win, data->fix_elem_orien,
-                  data->save_coloring, data->headless,
-                  data->plot_caption,
-                  std::move(data->streams[0]),
-                  data->type);
+   GLVisLibWindow(//data->win,
+      data->fix_elem_orien,
+      data->save_coloring, data->headless,
+      data->plot_caption,
+      std::move(data->streams[0]),
+      data->type);
    dbg("✅");
    // dbg("🔥🔥🔥");
    // std::exit(EXIT_SUCCESS);

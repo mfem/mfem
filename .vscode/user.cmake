@@ -32,7 +32,10 @@ elseif(${CMAKE_HOST_SYSTEM_NAME} MATCHES "Darwin")
     # set(CXX /opt/homebrew/bin/g++-15)
     # set(CXX /opt/homebrew/bin/mpicxx)
     # set(CXX /opt/homebrew/opt/llvm/bin/clang++)
-    # add_link_options(-L/opt/homebrew/opt/llvm/lib/c++)
+    add_compile_options(-I/opt/homebrew/opt/llvm/include/c++/v1)
+    add_compile_options(-I/opt/homebrew/opt/boost/include)
+    add_compile_options(-nostdinc++)
+    add_link_options(-L/opt/homebrew/opt/llvm/lib/c++)
     set(CXX /usr/bin/clang++)
 else()
    message(FATAL_ERROR "Unsupported system")
@@ -107,35 +110,16 @@ set(ENABLE_EXAMPLES OFF)
 set(MFEM_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(MFEM_PRECISION "double" CACHE STRING "" FORCE)
 
-# ------------------------- Other MFEM Definitions ----------------------------
-add_compile_definitions(MFEM_USE_GLVIS)
-add_link_options(-Wl,-undefined,dynamic_lookup)
-
-# ------------------------- Other GLVis Libraries -----------------------------
-add_link_options(-L$ENV{HOME}/home/glvis/glvis-lib/build/lib)
-add_link_options(-lglvis)
-
-add_link_options(-L$ENV{HOME}/home/glvis/glvis-lib/build/share)
-add_link_options(-lglvis_logo)
-
-add_link_options(-framework OpenGL)
+# ------------------------------ GLVis Options ---------------------------------
 # add_link_options(-Wl,-rpath,/opt/homebrew/lib)
-add_link_options(/opt/homebrew/Cellar/sdl2/2.32.10/lib/libSDL2.dylib)
-add_link_options(/opt/homebrew/lib/libGLEW.2.3.1.dylib)
-add_link_options(/opt/homebrew/lib/libpng.dylib)
-add_link_options(/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib/libz.tbd)
-add_link_options(/opt/homebrew/lib/libfreetype.dylib)
-add_link_options(/opt/homebrew/lib/libfontconfig.dylib)
-
-# add_link_options(-lGL)
-# SDL2::SDL2;GLEW::GLEW;PNG::PNG;Freetype::Freetype;/opt/homebrew/lib/libfontconfig.dylib")
+set(GLVIS_DIR $ENV{HOME}/home/glvis/glvis-lib)
 
 # ------------------------------ MFEM Options ---------------------------------
 option(MFEM_USE_MPI "Enable MPI" OFF)
 option(MFEM_USE_METIS "Enable METIS usage" ${MFEM_USE_MPI})
 
 option(MFEM_USE_LIBUNWIND "Enable backtrace for errors." OFF)
-option(BUILD_SHARED_LIBS "Enable shared library build of MFEM" ON)
+option(BUILD_SHARED_LIBS "Enable shared library build of MFEM" OFF)
 
 option(MFEM_USE_METAL "Enable METAL" OFF)
 option(MFEM_USE_ENZYME "Enable Enzyme" OFF)
