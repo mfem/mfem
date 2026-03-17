@@ -270,7 +270,7 @@ public:
    void SetupFEM();
 
    void UpdateEssentialTDofs();
-   void AssembleDiffusionBilinear(bool update_bc);
+   void AssembleDiffusionBilinear(bool update_ess_tdofs=true);
    void Solve();
    GridFunction * GetFEMSolution();
    LinearForm * GetLinearForm() {return b;}
@@ -566,9 +566,9 @@ void DiffusionSolver::UpdateEssentialTDofs()
 #endif
 }
 
-void DiffusionSolver::AssembleDiffusionBilinear(bool update_bc=true)
+void DiffusionSolver::AssembleDiffusionBilinear(bool update_ess_tdofs)
 {
-   if (update_bc)
+   if (update_ess_tdofs)
    {
       UpdateEssentialTDofs();
    }
