@@ -585,12 +585,14 @@ public:
    using LegendreFunction::gradinv;
    real_t gradinv(const real_t x) const override
    {
-      return std::exp(x);
+      if (x < -1e03) { return 0.0; }
+      else { return std::exp(x); }
    }
    using LegendreFunction::hessinv;
    real_t hessinv(const real_t x) const override
    {
-      return std::exp(x);
+      if (x < -1e03) { return 0.0; }
+      else { return std::exp(x); }
    }
 };
 

@@ -29,3 +29,7 @@ add_mfem_miniapp(pg_projection_pos
          ${PG_COMMON_FILES}
          LIBRARIES mfem)
 
+add_mfem_miniapp(pg_projection_pospos
+         MAIN pg_projection_pospos.cpp
+         ${PG_COMMON_FILES}
+         LIBRARIES mfem)
