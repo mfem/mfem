@@ -66,6 +66,7 @@
 //               optional connection to the GLVis tool for visualization.
 
 #include "mfem.hpp"
+#include <fstream>
 #include <iostream>
 
 using namespace std;
@@ -275,7 +276,7 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       glvis_stream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "solution\n" << mesh << x << std::flush;
+      sol_sock << "solution\n" << mesh << x << flush;
    }
 
    // 15. Free the used memory.
