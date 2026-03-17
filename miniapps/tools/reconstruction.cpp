@@ -113,17 +113,16 @@ int main(int argc, char* argv[])
    L2_FECollection fec_lo(order_lo, dim);
    L2_FECollection fec_hi(order_ho, dim);
 
-   FiniteElementSpace fespace_lo(&mesh, fec_lo);
-   FiniteElementSpace fespace_hi(&mesh, fec_hi);
+   FiniteElementSpace fespace_lo(&mesh, &fec_lo);
+   FiniteElementSpace fespace_hi(&mesh, &fec_hi);
 
    GridFunction u_lo(&fespace_lo);   
    GridFunction u_hi(&fespace_hi);
 
    if (lor_method == "element_average_reconstruction")
    {
-      FiniteElementCollection *fec_exact;
-      fec_exact = new L2_FECollection(order_ho, dim);
-      FiniteElementSpace fespace_exact(&mesh, fec_exact);
+      L2_FECollection fec_exact(order_ho, dim);
+      FiniteElementSpace fespace_exact(&mesh, &fec_exact);
       GridFunction u_exact(&fespace_exact);
 
       // compute element averages
