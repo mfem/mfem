@@ -255,6 +255,10 @@ public:
    /// Get the number of available devices (may be called before configuration).
    static int GetDeviceCount();
 
+   /// Gets a string representation of the GPU UUID.
+   /// 0 <= @a device_id < GetDeviceCount()
+   static std::string GetUUID(const int device_id = 0);
+
    /** @brief Return true if any of the backends in the backend mask, @a b_mask,
        are allowed. */
    /** This method can be used with any of the Backend::Id constants, the
@@ -297,9 +301,9 @@ public:
    /// Get the status of GPU-aware MPI flag.
    static bool GetGPUAwareMPI() { return Get().mpi_gpu_aware; }
 
-   /** @brief Query the device driver for what memory type a given @a ptr is
-       allocated with. */
-   static MemoryType QueryMemoryType(void *ptr);
+   /** Query the device driver for what memory type a given @a ptr is allocated
+    * with. */
+   static MemoryType QueryMemoryType(const void* ptr);
 
    /** @brief The number of hardware compute units/streaming multiprocessors
        available on a given compute device @a device_id. */

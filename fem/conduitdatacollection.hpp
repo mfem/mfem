@@ -50,11 +50,11 @@ namespace mfem
     Those that construct MFEM objects from Conduit Nodes (Conduit Blueprint to
     MFEM) provide a zero-copy option. Zero-copy is only possible if the
     blueprint data matches the data types provided by the MFEM API, for example:
-    ints for connectivity arrays, doubles for field value arrays, allocations
-    that match MFEM's striding options, etc. If these constraints are not met,
-    MFEM objects that own the data are created and returned. In either case
-    pointers to new MFEM object instances are returned, the zero-copy only
-    applies to data backing the MFEM object instances.
+    ints for connectivity arrays, real_t (double/float) for field value arrays,
+    allocations that match MFEM's striding options, etc. If these constraints
+    are not met, MFEM objects that own the data are created and returned. In
+    either case pointers to new MFEM object instances are returned, the
+    zero-copy only applies to data backing the MFEM object instances.
 
     @note QuadratureFunction%s (q-fields) are not supported.
 
@@ -183,6 +183,21 @@ public:
                                             conduit::Node &out,
                                             const std::string &main_topology_name = "main");
 
+   /// Describes a MFEM quadrature function using the mesh blueprint
+   /** Sets up passed conduit::Node out to describe the given quadrature function
+       using the mesh field blueprint.
+
+       Zero-copies as much data as possible.
+
+       @a main_toplogy_name is used to set the associated topology name.
+       With the default setting, the resulting field is associated with the
+       topology `main`.
+   */
+   static void QuadratureFunctionToBlueprintField(QuadratureFunction *qf,
+                                                  conduit::Node &out,
+                                                  const std::string &main_topology_name = "main");
+
+
    /// Constructs and MFEM mesh from a Conduit Blueprint Description
    /** @a main_topology_name is used to select which topology to use, when
        empty ("") the first topology entry will be used.
@@ -190,7 +205,7 @@ public:
        If zero_copy == true, tries to construct a mesh that points to the data
        described by the conduit node. This is only possible if the data in the
        node matches the data types needed for the MFEM API (ints for
-       connectivity, doubles for field values, etc). If these constraints are
+       connectivity, real_t for field values, etc). If these constraints are
        not met, a mesh that owns the data is created and returned.
    */
    static Mesh *BlueprintMeshToMesh(const conduit::Node &n_mesh,
@@ -200,7 +215,7 @@ public:
    /// Constructs and MFEM Grid Function from a Conduit Blueprint Description
    /** If zero_copy == true, tries to construct a grid function that points to
        the data described by the conduit node. This is only possible if the data
-       in the node matches the data types needed for the MFEM API (doubles for
+       in the node matches the data types needed for the MFEM API (real_t for
        field values, allocated in soa or aos ordering, etc).  If these
        constraints are not met, a grid function that owns the data is created
        and returned.
@@ -208,6 +223,17 @@ public:
    static GridFunction *BlueprintFieldToGridFunction(Mesh *mesh,
                                                      const conduit::Node &n_field,
                                                      bool zero_copy = false);
+   /// Constructs and MFEM Quadrature Function from a Conduit Blueprint Description
+   /** If zero_copy == true, tries to construct a quadrature function that points to
+       the data described by the conduit node. This is only possible if the data
+       in the node matches the data types needed for the MFEM API (real_t for
+       field values, allocated in an interleavred/byVDIM order, etc). If these
+       constraints are not met, a grid function that owns the data is created
+       and returned.
+   */
+   static QuadratureFunction *BlueprintFieldToQuadratureFunction(Mesh *mesh,
+                                                                 const conduit::Node &n_field,
+                                                                 bool zero_copy = false);
 
 private:
    /// Converts from MFEM element type enum to mesh bp shape name

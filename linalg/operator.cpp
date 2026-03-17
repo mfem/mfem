@@ -852,6 +852,22 @@ void RectangularConstrainedOperator::MultTranspose(const Vector &x,
    }
 }
 
+real_t InnerProductOperator::Dot(const Vector &x, const Vector &y) const
+{
+#ifndef MFEM_USE_MPI
+   return (x * y);
+#else
+   if (dot_prod_type == 0)
+   {
+      return (x * y);
+   }
+   else
+   {
+      return InnerProduct(comm, x, y);
+   }
+#endif
+}
+
 real_t PowerMethod::EstimateLargestEigenvalue(Operator& opr, Vector& v0,
                                               int numSteps, real_t tolerance,
                                               int seed)
