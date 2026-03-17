@@ -702,7 +702,7 @@ static void TestSolveVec(FiniteElementSpace &fespace)
    x = 0.0;
    if (x.FESpace()->GetTypicalBE()->GetRangeDim() <= 1)
    {
-      // scalar or length 1 vector coefficient
+      // scalar or vector length 1 fespace
       x.ProjectBdrCoefficientNormal(exsol, ess_attr);
    }
    else
