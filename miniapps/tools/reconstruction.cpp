@@ -108,14 +108,11 @@ int main(int argc, char* argv[])
    }
    int dim = mesh.Dimension();
 
-   // create FEM things
+   // create FEM things 
+   
+   L2_FECollection fec_lo(order_lo, dim);
+   L2_FECollection fec_hi(order_ho, dim);
 
-   FiniteElementCollection *fec_lo;
-   FiniteElementCollection *fec_hi;
-   
-   fec_lo = new L2_FECollection(order_lo, dim);
-   fec_hi = new L2_FECollection(order_ho, dim);   
-   
    FiniteElementSpace fespace_lo(&mesh, fec_lo);
    FiniteElementSpace fespace_hi(&mesh, fec_hi);
 
