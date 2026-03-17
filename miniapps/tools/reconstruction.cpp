@@ -123,12 +123,6 @@ int main(int argc, char* argv[])
    {
       L2_FECollection fec_exact(order_ho, dim);
       FiniteElementSpace fespace_exact(&mesh, &fec_exact);
-      GridFunction u_exact(&fespace_exact);
-
-      // compute element averages
-      // u_lo.ProjectCoefficient(u_function_exact);
-      u_exact.ProjectCoefficient(u_function_exact);
-      u_exact.GetElementAverages(u_lo);
 
       // compute reconstruction
       L2Reconstruction(u_lo, u_hi);
@@ -357,12 +351,12 @@ void L2Reconstruction(const GridFunction& src, GridFunction& dst)
 
          // update Q block (of A) with Q_neighbor = alpha \otimes alpha
          DenseMatrix Q_neighbor(N,N);
-         MultVVt(alpha, Q_neighbor); // tensor product
-         A.AddSubMatrix(0, Q_neighbor); // ibeg=0
+         MultVVt(alpha, Q_neighbor);
+         A.AddSubMatrix(0, Q_neighbor);
          // update c block (of b) with c_neighbor = neighbor_average * alpha
          Vector c_neighbor = alpha;
          c_neighbor *= neighbor_average;
-         b.AddSubVector(c_neighbor, 0); // offset=0
+         b.AddSubVector(c_neighbor, 0);
          // for the original element, set e blocks (of A) with e = alpha
          if (element_idx == neighbor_element_idx)
          {
