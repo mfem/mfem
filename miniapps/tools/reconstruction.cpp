@@ -32,7 +32,7 @@ int main(int argc, char* argv[])
    int order_im = 3; // itermediate order, only used for L2 projection method
    int lref = order_im+1;
 
-   std::string field_profile = "1 + kx x + ky y";
+   std::string field_profile = "plane";
    real_t field_kx = 2.0;
    real_t field_ky = 4.0;
    bool use_ea = false;
@@ -245,13 +245,13 @@ std::unordered_map<std::string, profile_t> GetFieldProfiles()
 {
    std::unordered_map<std::string, profile_t> field_profiles;
    // plane profile
-   field_profiles["1 + kx x + ky y"] =
+   field_profiles["plane"] =
       [](const Vector &x, const Vector &k)
       {
          return 1.0 + x*k;
       };
    // sinusoidal profile
-   field_profiles["sin(2pi kx x) sin(2pi ky y)"] =
+   field_profiles["sinusoidal"] =
       [](const Vector &x, const Vector &k)
       {
          real_t result = 1.0;
@@ -259,7 +259,7 @@ std::unordered_map<std::string, profile_t> GetFieldProfiles()
          return result;
       };
    // exponential-sinusoidal profile
-   field_profiles["exp(r) cos(kx x) sin(ky y)"] =
+   field_profiles["exponential"] =
       [](const Vector &x, const Vector &k)
       {
          real_t result = 1.0;

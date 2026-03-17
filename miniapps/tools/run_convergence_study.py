@@ -18,7 +18,8 @@ def run_reconstruction(refinement_level, ho_value, method):
     try:
         # Run the executable
         result = subprocess.run(
-            ['./reconstruction', '-r', str(refinement_level), '-f', '2',
+            ['./reconstruction', '-r', str(refinement_level),
+             '-f', 'exponential',
              '-ho', str(ho_value), '-m', method],
             capture_output=True,
             text=True,
@@ -231,10 +232,10 @@ def main():
     cli_args = parser.parse_args()
 
     # Refinement levels to test
-    refinement_levels = [0, 1, 2, 3, 4]
+    refinement_levels = [0, 1, 2, 3]
     
     # ho values to test
-    ho_values = [1, 7]
+    ho_values = [1, 3]
     
     # Error data filename
     error_file = 'convergence_errors.json'
