@@ -16,13 +16,17 @@
 
 #include "../../config/config.hpp" // IWYU pragma: keep dbg
 
-// #include "../../fem/pgridfunc.hpp"
+// #include "../../mesh/mesh.hpp"
+// #include "../../fem/gridfunc.hpp"
+#include "../../fem/geom.hpp" // GeometryRefiner
 
 #include "../../general/glvis/stream.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "../../general/glvis/exchange.hpp"
 #endif
+
+thread_local mfem::GeometryRefiner GLVisGeometryRefiner;
 
 extern int GLVisLibWindow(bool fix_elem_orient,
                           bool save_coloring, bool headless,
@@ -64,16 +68,6 @@ int glvis_stream::MpiRank() const
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-glvis_stream::NullImpl::null_streambuf glvis_stream::NullImpl::nullbuf {};
-
-///////////////////////////////////////////////////////////////////////////////
-glvis_stream::glvis_stream(const char *host, int port):
-   glvis_stream::glvis_stream(host, port, -1)
-{
-   dbg("Serial glvis_stream");
-}
-
-///////////////////////////////////////////////////////////////////////////////
 const auto IsMpiInitialized = []()
 {
    int flag;
@@ -86,40 +80,24 @@ const auto GetImpl = [](const bool serial,
                      -> std::unique_ptr<glvis_stream::IBase>
 {
    if (serial) { return std::make_unique<glvis_stream::SerialImpl>(data); }
-   return std::make_unique<glvis_stream::ParallelImpl>(data);
+   return std::make_unique<glvis_stream::SerialImpl>(data);
 };
 
 /////////////////////////////////////////////////////////////////////
-glvis_stream::glvis_stream(const char *, int, int myid):
-   std::iostream((dbg(myid >= 0 ? "Parallel" : "Serial"), nullptr)),
-   MpiInitialized(IsMpiInitialized),
-   mpi_initialized(MpiInitialized()),
+glvis_stream::glvis_stream(const char*, int, int rank):
+   std::iostream((dbg(rank >= 0 ? "Parallel" : "Serial"), nullptr)),
+   mpi_initialized(IsMpiInitialized()),
    mpi_size(MpiSize()),
    mpi_rank(MpiRank()),
-   serial(myid < 0),
+   serial(rank < 0),
    mpi_root(!mpi_initialized || mpi_rank == 0),
    data(std::make_shared<GLVisData>()),
-   impl(GetImpl(serial, data)),
-   glvis((data->serial = serial, data->mpi_root = mpi_root, data))
+   impl(GetImpl(serial, data))
 {
-   if (serial) { assert(myid == -1); }
+   data->serial = serial;
+   data->mpi_root = mpi_root;
 
-   data->glvis_thread_running = (serial || mpi_root);
-
-   if (data->glvis_thread_running)
-   {
-      dbg("Wait for GLVis server RUNNING...");
-      wait_for_running(data);
-      assert(data->running);
-
-      dbg("Wait for GLVis server READY...");
-      wait_for_ready(data);
-      assert(data->ready);
-   }
-   else
-   {
-      dbg("Mpi non-root, no GLVis server");
-   }
+   if (serial) { assert(rank == -1); }
 
    // link the stream buffer to the one provided by the implementation
    this->rdbuf(impl->get_buf());
@@ -131,13 +109,13 @@ glvis_stream& glvis_stream::operator<<(ostream_manipulator pf)
    dbg();
    this->flush(); // will trigger the GLVis update
    std::iostream::operator<<(pf); // optional
-   this->glvis_window();
+   this->glvis();
    return *this;
 }
 
 void glvis_stream::flush() { impl->flush(); }
 
-void glvis_stream::glvis_window()
+void glvis_stream::glvis()
 {
    if (data->serial)
    {
@@ -153,6 +131,7 @@ void glvis_stream::glvis_window()
    {
       dbg("Parallel, data->mpi_size: {}", data->mpi_size);
       dbg("Parallel, data->total_size: {}", data->total_size);
+      GLVisExchanger mpi_exchange(data);
    }
 
    // reset the local buffer for reuse
@@ -160,26 +139,88 @@ void glvis_stream::glvis_window()
    data->stream.seekg(0, std::ios::beg);
    data->stream.seekp(0, std::ios::beg);
 
-   if (data->glvis_thread_running)
+   if (mpi_root)
    {
+      assert(mpi_size >= 0 &&
+             (size_t)mpi_size <= sizeof(data->offset) / sizeof(data->offset[0]) - 1);
+      if (data->mpi_root)
       {
-         dbg("Signal UPDATE");
-         assert(!data->update);
-         signal_for_update(data);
-         assert(data->update);
+         for (int i = 0; i < mpi_size; ++i)
+         {
+            dbg("\x1b[33mdata->offset[{}]: {}", i, data->offset[i]);
+         }
+         dbg("\x1b[33mdata->total_size: {}", data->total_size);
+         assert(data->offset[mpi_size] == data->total_size);
       }
 
+      const int data_mpi_size = data->mpi_size;
+      dbg("\x1b[37m data_mpi_size: {}", data_mpi_size);
+      dbg("\x1b[37m data->serial: {}", serial);
+
+      if (serial)
       {
-         dbg("Waiting ACK");
-         while (data->update.load())
-         {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-         }
-         assert(!data->update);
+         dbg("\x1b[37m Serial mode");
+         assert(data->mpi_size == 1);
       }
-      dbg("ACK");
-      dbg("data type: {}", data->type);
-      dbg("streams size: #{}", data->streams.size());
+      else
+      {
+         dbg("\x1b[37m Parallel mode");
+         assert(data->mpi_size >= 1);
+      }
+
+      data->streams.clear();
+      data->type.clear();
+
+      // loop over all input streams
+      for (int k = 0; k < data_mpi_size; ++k)
+      {
+         const size_t offset = data->offset[k];
+         const size_t size = data->offset[k+1] - data->offset[k];
+         dbg("\x1b[37m Creating bufferstream #{}, size: {}, offset: {}",
+             k, size, offset);
+
+         // add a new stream for this rank's data
+         data->streams.emplace_back();
+         data->streams.back().write(data->stream.str().data() + offset, size);
+
+         auto isock = &data->streams.back();
+         if (!(*isock)) { dbg("\x1b[37mdone"); break; }
+
+         dbg("\x1b[37m Get data_type");
+         *isock >> std::ws >> data->type >> std::ws;
+         dbg("\x1b[37m data_type: '{}'", data->type);
+
+         if (data->type == "parallel") // Handle parallel data
+         {
+            dbg("\x1b[37m <parallel>");
+
+            int is_mpi_size, is_mpi_rank;
+            *isock >> is_mpi_size >> is_mpi_rank;
+            dbg("\x1b[37m is_mpi_size: {}, is_mpi_rank: {}", is_mpi_size, is_mpi_rank);
+            assert(is_mpi_size == static_cast<int>(data->mpi_size));
+            assert(is_mpi_rank == static_cast<int>(k));
+
+            dbg("\x1b[37m Nothing done with the streams");
+         }
+         else if (data->type == "mesh" || data->type == "solution")
+         {
+            if (data->type == "mesh")
+            {
+               dbg("\x1b[37m <mesh>");
+            }
+            else if (data->type == "solution")
+            {
+               dbg("\x1b[37m <solution>");
+            }
+            else { MFEM_ABORT("Unknown identifier");}
+         }
+         else
+         {
+            dbg("\x1b[37m Unknown data_type: '{}'", data->type);
+            MFEM_ABORT("\x1b[31mStream: unknown command: " << data->type);
+         }
+      }
+      dbg("\x1b[37m ✅");
    }
 
    constexpr bool fix_elem_orien = true;
@@ -209,7 +250,6 @@ void glvis_stream::glvis_window()
          }
          return result;
       };
-
       GLVisLibWindow(fix_elem_orien, save_coloring, headless,
                      to_istream_vector(std::move(data->streams)));
    }
@@ -217,61 +257,7 @@ void glvis_stream::glvis_window()
    {
       dbg("🔴 Parallel None 🔴");
    }
-
    dbg("✅");
 }
-
-
-#ifdef MFEM_USE_MPI
-///////////////////////////////////////////////////////////////////////////////
-glvis_stream::ParallelImpl::ParallelImpl(const std::shared_ptr<GLVisData> &data)
-   : data(data)
-{
-   dbg("Parallel GLVis stream");
-}
-
-size_t glvis_stream::ParallelImpl::size() const
-{
-   assert(data);
-   return data->stream.tellp();
-}
-
-std::streambuf* glvis_stream::ParallelImpl::get_buf()
-{
-   assert(data);
-   return data->stream.rdbuf();
-}
-
-std::streamsize glvis_stream::ParallelImpl::precision() const
-{
-   assert(data);
-   return data->stream.precision();
-}
-
-std::streamsize glvis_stream::ParallelImpl::precision(std::streamsize new_prec)
-{
-   assert(data);
-   data->stream.precision(new_prec);
-   return new_prec;
-}
-
-void glvis_stream::ParallelImpl::reset()
-{
-   dbg();
-   data->stream.clear();
-   data->stream.seekg(0, std::ios::beg);
-   data->stream.seekp(0, std::ios::beg);
-}
-
-void glvis_stream::ParallelImpl::flush()
-{
-   dbg();
-   // dbg("\x1b[31m data stream:\n{}", data->stream.str());
-   const size_t ssize = data->stream.tellp();
-   dbg("stream size: {}", ssize);
-   GLVisExchanger mpi_exchange(data);
-   dbg("✅");
-}
-#endif // MFEM_USE_MPI
 
 } // namespace mfem
