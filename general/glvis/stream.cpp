@@ -15,9 +15,6 @@
 #include <iostream>
 
 #include "../../config/config.hpp" // IWYU pragma: keep dbg
-
-// #include "../../mesh/mesh.hpp"
-// #include "../../fem/gridfunc.hpp"
 #include "../../fem/geom.hpp" // GeometryRefiner
 
 #include "../../general/glvis/stream.hpp"
@@ -82,16 +79,10 @@ glvis_stream::glvis_stream(const char*, int, int rank):
    mpi_rank(MpiRank()),
    serial(rank < 0),
    mpi_root(!mpi_initialized || mpi_rank == 0),
-   data(std::make_shared<GLVisData>()),
-   impl(data)
+   data(serial, mpi_size, mpi_rank, mpi_root)
 {
-   data->serial = serial;
-   data->mpi_root = mpi_root;
-
-   if (serial) { assert(rank == -1); }
-
-   // link the stream buffer to the one provided by the implementation
-   this->rdbuf(impl.get_buf());
+   // Sets the associated stream buffer to the data stream one
+   this->rdbuf(data.stream.rdbuf());
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -104,102 +95,106 @@ glvis_stream& glvis_stream::operator<<(ostream_manipulator pf)
    return *this;
 }
 
-void glvis_stream::flush() { impl.flush(); }
+void glvis_stream::flush() { std::iostream::flush(); }
+
+void glvis_stream::reset()
+{
+   data.stream.clear();
+   data.stream.seekg(0, std::ios::beg);
+   data.stream.seekp(0, std::ios::beg);
+}
 
 void glvis_stream::glvis()
 {
-   if (data->serial)
+   if (data.serial)
    {
       dbg("Serial");
-      const auto size = impl.size();
+      const auto size = this->size();
       dbg("stream size: {}", size);
       assert(size > 0);
-      data->mpi_size = 1;
-      data->offset[0] = 0, data->offset[1] = size;
-      data->total_size = size;
+      assert(data.mpi_size == 1);
+      data.offsets.resize(2);
+      data.offsets[0] = 0, data.offsets[1] = size;
+      data.total_size = size;
    }
    else
    {
-      dbg("Parallel, data->mpi_size: {}", data->mpi_size);
-      dbg("Parallel, data->total_size: {}", data->total_size);
+      dbg("Parallel, data.mpi_size: {}", data.mpi_size);
+      dbg("Parallel, data.total_size: {}", data.total_size);
       GLVisExchanger mpi_exchange(data);
    }
 
-   // reset the local buffer for reuse
-   data->stream.clear();
-   data->stream.seekg(0, std::ios::beg);
-   data->stream.seekp(0, std::ios::beg);
+   this->reset(); // reset the local buffer for reuse
 
    if (mpi_root)
    {
-      assert(mpi_size >= 0 &&
-             (size_t)mpi_size <= sizeof(data->offset) / sizeof(data->offset[0]) - 1);
-      if (data->mpi_root)
+      assert(mpi_size >= 0 && (size_t)mpi_size <= data.offsets.size());
+      if (data.mpi_root)
       {
          for (int i = 0; i < mpi_size; ++i)
          {
-            dbg("\x1b[33mdata->offset[{}]: {}", i, data->offset[i]);
+            dbg("\x1b[33mdata->offset[{}]: {}", i, data.offsets[i]);
          }
-         dbg("\x1b[33mdata->total_size: {}", data->total_size);
-         assert(data->offset[mpi_size] == data->total_size);
+         dbg("\x1b[33mdata->total_size: {}", data.total_size);
+         assert(data.offsets[mpi_size] == data.total_size);
       }
 
-      const int data_mpi_size = data->mpi_size;
+      const int data_mpi_size = data.mpi_size;
       dbg("\x1b[37m data_mpi_size: {}", data_mpi_size);
-      dbg("\x1b[37m data->serial: {}", serial);
+      dbg("\x1b[37m data.serial: {}", serial);
 
       if (serial)
       {
          dbg("\x1b[37m Serial mode");
-         assert(data->mpi_size == 1);
+         assert(data.mpi_size == 1);
       }
       else
       {
          dbg("\x1b[37m Parallel mode");
-         assert(data->mpi_size >= 1);
+         assert(data.mpi_size >= 1);
       }
 
-      data->streams.clear();
-      data->type.clear();
+      data.streams.clear();
+      data.type.clear();
 
       // loop over all input streams
       for (int k = 0; k < data_mpi_size; ++k)
       {
-         const size_t offset = data->offset[k];
-         const size_t size = data->offset[k+1] - data->offset[k];
+         const size_t offset = data.offsets[k];
+         const size_t size = data.offsets[k+1] - data.offsets[k];
          dbg("\x1b[37m Creating bufferstream #{}, size: {}, offset: {}",
              k, size, offset);
 
          // add a new stream for this rank's data
-         data->streams.emplace_back();
-         data->streams.back().write(data->stream.str().data() + offset, size);
+         data.streams.emplace_back();
+         data.streams.back().write(data.stream.str().data() + offset, size);
 
-         auto isock = &data->streams.back();
+         auto isock = &data.streams.back();
          if (!(*isock)) { dbg("\x1b[37mdone"); break; }
 
          dbg("\x1b[37m Get data_type");
-         *isock >> std::ws >> data->type >> std::ws;
-         dbg("\x1b[37m data_type: '{}'", data->type);
+         *isock >> std::ws >> data.type >> std::ws;
+         dbg("\x1b[37m data_type: '{}'", data.type);
 
-         if (data->type == "parallel") // Handle parallel data
+         if (data.type == "parallel") // Handle parallel data
          {
             dbg("\x1b[37m <parallel>");
 
             int is_mpi_size, is_mpi_rank;
             *isock >> is_mpi_size >> is_mpi_rank;
             dbg("\x1b[37m is_mpi_size: {}, is_mpi_rank: {}", is_mpi_size, is_mpi_rank);
-            assert(is_mpi_size == static_cast<int>(data->mpi_size));
+            assert(is_mpi_size == static_cast<int>(data.mpi_size));
             assert(is_mpi_rank == static_cast<int>(k));
 
             dbg("\x1b[37m Nothing done with the streams");
          }
-         else if (data->type == "mesh" || data->type == "solution")
+         else if (data.type == "mesh" || data.type == "solution")
          {
-            if (data->type == "mesh")
+            if (data.type == "mesh")
             {
                dbg("\x1b[37m <mesh>");
             }
-            else if (data->type == "solution")
+            else if (data.type == "solution")
             {
                dbg("\x1b[37m <solution>");
             }
@@ -207,8 +202,8 @@ void glvis_stream::glvis()
          }
          else
          {
-            dbg("\x1b[37m Unknown data_type: '{}'", data->type);
-            MFEM_ABORT("\x1b[31mStream: unknown command: " << data->type);
+            dbg("\x1b[37m Unknown data_type: '{}'", data.type);
+            MFEM_ABORT("\x1b[31mStream: unknown command: " << data.type);
          }
       }
       dbg("\x1b[37m ✅");
@@ -219,11 +214,11 @@ void glvis_stream::glvis()
    constexpr bool headless = false;
 
    // SDL2 window needs to be in the 'main' thread
-   if (data->serial)
+   if (data.serial)
    {
       dbg("🟠 Serial mode 🟠");
       GLVisLibWindow(fix_elem_orien, save_coloring, headless,
-                     data->streams[0], data->type);
+                     data.streams[0], data.type);
    }
    else if (mpi_root)
    {
@@ -235,14 +230,14 @@ void glvis_stream::glvis()
          result.reserve(streams.size());
          for (auto& s : streams)
          {
-            dbg("Adding stream of size {}", s.str().size());
+            // dbg("Adding stream of size {}", s.str().size());
             result.push_back(
                std::make_unique<std::stringstream>(std::move(s)));
          }
          return result;
       };
       GLVisLibWindow(fix_elem_orien, save_coloring, headless,
-                     to_istream_vector(std::move(data->streams)));
+                     to_istream_vector(std::move(data.streams)));
    }
    else
    {

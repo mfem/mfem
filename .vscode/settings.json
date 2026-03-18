@@ -16,10 +16,10 @@
         "args": [
             "-o",
             "2",
-            "-pa",
+            // "-pa",
             "-m",
-            "../data/inline-quad.mesh",
-            // "../data/square-disc.mesh",
+            // "../data/inline-quad.mesh",
+            "../data/square-disc.mesh",
             "--visualization"
         ]
     },

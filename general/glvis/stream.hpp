@@ -11,7 +11,6 @@
 #pragma once
 
 #include <iostream>
-#include <memory>
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
@@ -24,24 +23,6 @@ namespace mfem
 
 class glvis_stream : public std::iostream
 {
-   struct SerialImpl
-   {
-      const std::shared_ptr<GLVisData> &data;
-      SerialImpl(const std::shared_ptr<GLVisData> &data): data(data)
-      {
-         data->stream.clear();
-      }
-      ~SerialImpl() {}
-      size_t size() const { return data->stream.tellp(); }
-      std::streambuf *get_buf() { return data->stream.rdbuf(); }
-      std::streamsize precision() const { return data->stream.precision(); }
-      std::streamsize precision(std::streamsize prec) { return data->stream.precision(prec); }
-      int open(const char[], int) { return 0; }
-      bool is_open() const { return true; }
-      int close() { return 0; }
-      void flush() { data->stream.flush(); }
-   };
-
    int MpiSize() const;
    int MpiRank() const;
    inline bool Root() const { return MpiRank() == 0; }
@@ -56,8 +37,9 @@ public:
 
    virtual ~glvis_stream() {}
 
-   std::streamsize precision() const { return impl.precision(); }
-   std::streamsize precision(std::streamsize new_prec) { return impl.precision(new_prec); }
+   size_t size() { return data.stream.tellp(); }
+   std::streamsize precision() const { return std::iostream::precision(); }
+   std::streamsize precision(std::streamsize new_prec) { return std::iostream::precision(new_prec); }
 
    using ostream_manipulator = std::ostream& (*)(std::ostream&);
    glvis_stream& operator<<(ostream_manipulator pf);
@@ -77,14 +59,15 @@ public:
 
    void flush();
 
+   void reset();
+
    void glvis();
 
 private:
    const bool mpi_initialized;
    const int mpi_size, mpi_rank;
    const bool serial, mpi_root;
-   std::shared_ptr<GLVisData> data;
-   SerialImpl impl;
+   GLVisData data;
 };
 
 } // namespace mfem

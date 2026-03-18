@@ -18,9 +18,16 @@ using StreamUniqueVector = StreamCollection;
 
 struct GLVisData
 {
-   bool serial, mpi_root;
+   const bool serial;
+   const int mpi_size, mpi_rank, mpi_root;
    std::stringstream stream;
-   size_t mpi_size {0}, offset[128], total_size {0};
    std::vector<std::stringstream> streams;
+   size_t total_size;
+   std::vector<size_t> offsets;
    std::string type;
+
+   GLVisData(const bool serial, const size_t size,
+             const size_t rank, const bool root):
+      serial(serial), mpi_size(size), mpi_rank(rank), mpi_root(root),
+      stream(), streams(), total_size(0), offsets(), type({}) {}
 };

@@ -23,20 +23,14 @@ namespace mfem
 
 class GLVisExchanger
 {
-   int tmp = 0;
-   const size_t stream_size;
-   const std::size_t buffer_size;
-   char *buffer;
-   const int mpi_size, mpi_rank;
-   const bool mpi_root;
-   MPI_Comm shared_comm;
-   int shared_rank, shared_size;
-
-   MPI_Win win;
-   void* base_ptr = nullptr;
+   GLVisData &data;
 
 public:
-   GLVisExchanger(const std::shared_ptr<GLVisData> &data);
+   GLVisExchanger(GLVisData &data);
+
+   void MpiSharedMemoryExchange();
+
+   void MpiDefaultExchange();
 };
 
 } // namespace mfem
