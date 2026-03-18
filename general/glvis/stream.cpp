@@ -67,20 +67,11 @@ int glvis_stream::MpiRank() const
    return 0;
 }
 
-///////////////////////////////////////////////////////////////////////////////
 const auto IsMpiInitialized = []()
 {
    int flag;
    MPI_Initialized(&flag);
    return flag != 0;
-};
-
-const auto GetImpl = [](const bool serial,
-                        const std::shared_ptr<GLVisData> &data)
-                     -> std::unique_ptr<glvis_stream::IBase>
-{
-   if (serial) { return std::make_unique<glvis_stream::SerialImpl>(data); }
-   return std::make_unique<glvis_stream::SerialImpl>(data);
 };
 
 /////////////////////////////////////////////////////////////////////
@@ -92,7 +83,7 @@ glvis_stream::glvis_stream(const char*, int, int rank):
    serial(rank < 0),
    mpi_root(!mpi_initialized || mpi_rank == 0),
    data(std::make_shared<GLVisData>()),
-   impl(GetImpl(serial, data))
+   impl(data)
 {
    data->serial = serial;
    data->mpi_root = mpi_root;
@@ -100,7 +91,7 @@ glvis_stream::glvis_stream(const char*, int, int rank):
    if (serial) { assert(rank == -1); }
 
    // link the stream buffer to the one provided by the implementation
-   this->rdbuf(impl->get_buf());
+   this->rdbuf(impl.get_buf());
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -113,14 +104,14 @@ glvis_stream& glvis_stream::operator<<(ostream_manipulator pf)
    return *this;
 }
 
-void glvis_stream::flush() { impl->flush(); }
+void glvis_stream::flush() { impl.flush(); }
 
 void glvis_stream::glvis()
 {
    if (data->serial)
    {
       dbg("Serial");
-      const auto size = impl->size();
+      const auto size = impl.size();
       dbg("stream size: {}", size);
       assert(size > 0);
       data->mpi_size = 1;
