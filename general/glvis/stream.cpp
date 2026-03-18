@@ -121,7 +121,7 @@ void glvis_stream::glvis()
    {
       dbg("Parallel, data.mpi_size: {}", data.mpi_size);
       dbg("Parallel, data.total_size: {}", data.total_size);
-      GLVisExchanger mpi_exchange(data);
+      MpiExchange();
    }
 
    this->reset(); // reset the local buffer for reuse
@@ -244,6 +244,85 @@ void glvis_stream::glvis()
       dbg("🔴 Parallel None 🔴");
    }
    dbg("✅");
+}
+
+void glvis_stream::MpiExchange()
+{
+   dbg("MPI size: {}, rank: {}", data.mpi_size, data.mpi_rank);
+
+   // Gather sizes from ALL ranks
+   std::vector<uint64_t> all_sizes(data.mpi_size);
+   uint64_t local_size_u = data.stream.tellp();
+   int status = MPI_Allgather(&local_size_u, 1, MPI_UINT64_T,
+                              all_sizes.data(), 1, MPI_UINT64_T,
+                              MPI_COMM_WORLD);
+   assert(status == MPI_SUCCESS);
+   if (data.mpi_root)
+   {
+      for (int r = 0; r < data.mpi_size; ++r)
+      {
+         dbg("Rank {} size: {}", r, all_sizes[r]);
+      }
+   }
+
+   // Compute offsets and total size on root only
+   data.offsets.resize(data.mpi_size + 1);
+   data.offsets[0] = 0;
+   if (data.mpi_root) { dbg("Offsets[{}]: {}", 0, data.offsets[0]); }
+   uint64_t total_size = 0;
+   for (int i = 1; i <= data.mpi_size; ++i)
+   {
+      total_size += all_sizes[i - 1];
+      if (data.mpi_root)
+      {
+         data.offsets[i] = total_size;
+         dbg("Offsets[{}]: {}", i, data.offsets[i]);
+      }
+   }
+   if (data.mpi_root)
+   {
+      data.total_size = total_size;
+      dbg("Total size: {}", total_size);
+   }
+
+   // Root allocates a temporary buffer for the full data
+   std::vector<char> recvbuf;
+   if (data.mpi_root) { recvbuf.resize(total_size); }
+
+   // Prepare Gatherv arguments (counts & displacements)
+   std::vector<int> recvcounts(data.mpi_size, 0);
+   std::vector<int> displs(data.mpi_size, 0);
+   if (data.mpi_root)
+   {
+      for (int i = 0; i < data.mpi_size; ++i)
+      {
+         assert(all_sizes[i] <= static_cast<uint64_t>(std::numeric_limits<int>::max()));
+         recvcounts[i] = static_cast<int>(all_sizes[i]);
+         displs[i]     = static_cast<int>(data.offsets[i]);
+      }
+   }
+
+   // Everyone sends their data to the root
+   status = MPI_Gatherv(data.stream.str().data(),
+                        data.stream.tellp(), MPI_CHAR,
+                        recvbuf.data(),
+                        recvcounts.data(),
+                        displs.data(),
+                        MPI_CHAR, 0, MPI_COMM_WORLD);
+   assert(status == MPI_SUCCESS);
+
+   // Root writes the concatenated result back into its stream
+   if (data.mpi_root)
+   {
+      data.stream.clear();
+      data.stream.seekg(0);
+      data.stream.seekp(0);
+      dbg("data.stream size before write: {}", (int)data.stream.tellp());
+      data.stream.write(recvbuf.data(), total_size);
+      dbg("data.stream size after write: {}", (int)data.stream.tellp());
+   }
+
+   MPI_Barrier(MPI_COMM_WORLD);
 }
 
 } // namespace mfem

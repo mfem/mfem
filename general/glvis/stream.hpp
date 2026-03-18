@@ -63,6 +63,8 @@ public:
 
    void glvis();
 
+   void MpiExchange();
+
 private:
    const bool mpi_initialized;
    const int mpi_size, mpi_rank;
