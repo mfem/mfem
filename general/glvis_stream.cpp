@@ -11,18 +11,14 @@
 #define NVTX_COLOR ::nvtx::kCyan
 
 #include <cassert>
-#include <string>
-#include <iostream>
+#include <istream>
 
-#include "../../config/config.hpp" // IWYU pragma: keep dbg
-#include "../../fem/geom.hpp" // GeometryRefiner
+#include "../config/config.hpp" // IWYU pragma: keep dbg
+#include "../fem/geom.hpp" // GeometryRefiner
 
-#include "../../general/glvis/stream.hpp"
+#include "glvis_stream.hpp"
 
-#ifdef MFEM_USE_MPI
-#include "../../general/glvis/exchange.hpp"
-#endif
-
+///////////////////////////////////////////////////////////////////////////////
 thread_local mfem::GeometryRefiner GLVisGeometryRefiner;
 
 extern int GLVisLibWindow(bool fix_elem_orient,
@@ -81,7 +77,7 @@ glvis_stream::glvis_stream(const char*, int, int rank):
    mpi_root(!mpi_initialized || mpi_rank == 0),
    data(serial, mpi_size, mpi_rank, mpi_root)
 {
-   // Sets the associated stream buffer to the data stream one
+   // Sets the associated stream buffer to the data stream
    this->rdbuf(data.stream.rdbuf());
 }
 
@@ -90,7 +86,6 @@ glvis_stream& glvis_stream::operator<<(ostream_manipulator pf)
 {
    dbg();
    this->flush(); // will trigger the GLVis update
-   std::iostream::operator<<(pf); // optional
    this->glvis();
    return *this;
 }
@@ -121,7 +116,7 @@ void glvis_stream::glvis()
    {
       dbg("Parallel, data.mpi_size: {}", data.mpi_size);
       dbg("Parallel, data.total_size: {}", data.total_size);
-      MpiExchange();
+      MpiGather();
    }
 
    this->reset(); // reset the local buffer for reuse
@@ -246,8 +241,9 @@ void glvis_stream::glvis()
    dbg("✅");
 }
 
-void glvis_stream::MpiExchange()
+void glvis_stream::MpiGather()
 {
+#ifdef MFEM_USE_MPI
    dbg("MPI size: {}, rank: {}", data.mpi_size, data.mpi_rank);
 
    // Gather sizes from ALL ranks
@@ -323,6 +319,7 @@ void glvis_stream::MpiExchange()
    }
 
    MPI_Barrier(MPI_COMM_WORLD);
+#endif // MFEM_USE_MPI
 }
 
 } // namespace mfem

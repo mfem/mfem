@@ -16,7 +16,7 @@
 #include "error.hpp"
 #include "globals.hpp"
 
-#include "glvis/stream.hpp"
+#include "glvis_stream.hpp"
 
 #ifdef MFEM_USE_GNUTLS
 #include <gnutls/gnutls.h>
