@@ -10,28 +10,22 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
+#include <memory>
 #include <sstream>
 #include <string>
 #include <vector>
 
-#include "../config/config.hpp" // IWYU pragma: keep
-
-#ifdef MFEM_USE_MPI
-#include <mpi.h>
-#endif
-
-using StreamCollection = std::vector<std::unique_ptr<std::istream>>;
-// using StreamUniqueVector = StreamCollection;
+namespace mfem
+{
 
 struct GLVisData
 {
    const bool serial;
    const int mpi_size, mpi_rank, mpi_root;
    std::stringstream stream;
-   std::vector<std::stringstream> streams;
-   // StreamCollection streams;
-   size_t total_size;
-   std::vector<size_t> offsets;
+   std::vector<std::unique_ptr<std::stringstream>> streams;
+   int total_size;
+   std::vector<int> offsets;
    std::string type;
 
    GLVisData(const bool serial, const size_t size,
@@ -40,14 +34,8 @@ struct GLVisData
       stream(), streams(), total_size(0), offsets(), type({}) {}
 };
 
-namespace mfem
-{
-
 class glvis_stream : public std::iostream
 {
-   int MpiSize() const;
-   int MpiRank() const;
-   inline bool Root() const { return MpiRank() == 0; }
    void MpiGather();
 
 public:
@@ -80,16 +68,18 @@ public:
 
    int close() { return 0; }
 
-   void flush();
+   void flush() { std::iostream::flush();}
 
-   void reset();
+   void reset()
+   {
+      data.stream.clear();
+      data.stream.seekg(0, std::ios::beg);
+      data.stream.seekp(0, std::ios::beg);
+   }
 
    void glvis();
 
 private:
-   const bool mpi_initialized;
-   const int mpi_size, mpi_rank;
-   const bool serial, mpi_root;
    GLVisData data;
 };
 
