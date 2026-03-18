@@ -15,6 +15,8 @@
 
 #include "../config/config.hpp" // IWYU pragma: keep dbg
 
+#ifdef MFEM_USE_GLVIS
+
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
 #endif
@@ -259,3 +261,5 @@ void glvis_stream::MpiGather()
 }
 
 } // namespace mfem
+
+#endif // MFEM_USE_GLVIS

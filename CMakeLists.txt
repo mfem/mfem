@@ -593,7 +593,9 @@ if (MFEM_USE_ENZYME)
 endif()
 
 # GLVis
-find_package(GLVis REQUIRED)
+if (MFEM_USE_GLVIS)
+  find_package(GLVis REQUIRED)
+endif()
 
 # MFEM_TIMER_TYPE
 if (NOT DEFINED MFEM_TIMER_TYPE)

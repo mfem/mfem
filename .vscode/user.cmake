@@ -125,6 +125,7 @@ option(MFEM_USE_METIS "Enable METIS usage" ${MFEM_USE_MPI})
 option(MFEM_USE_LIBUNWIND "Enable backtrace for errors." OFF)
 option(BUILD_SHARED_LIBS "Enable shared library build of MFEM" OFF)
 
+option(MFEM_USE_GLVIS "Enable GLVis" ON)
 option(MFEM_USE_METAL "Enable METAL" OFF)
 option(MFEM_USE_ENZYME "Enable Enzyme" OFF)
 option(MFEM_USE_BENCHMARK "Enable Benchmarks" OFF)
