@@ -508,6 +508,8 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
       MFEM_VERIFY(min_detJ_limit == 0.0,
                   "This setup is not supported. Contact TMOP Developers.");
       *min_det_ptr = untangle_factor * min_detT_in;
+      MFEM_VERIFY(!tangential_relaxation, "Tangential relaxation not currently "
+                  "supported for inverted meshes.");
    }
 
    const bool have_b = (b.Size() == Height());
@@ -520,6 +522,8 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
 
    const real_t detJ_factor = (solver_type == 1) ? 0.25 : 0.5;
    compute_metric_quantile_flag = false;
+   Vector d_out_tang, d_loc_tang;
+
    // TODO:
    // - Customized line search for worst-quality optimization.
    // - What is the Newton exit criterion for worst-quality optimization?
@@ -568,6 +572,50 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
             mfem::out << "Scale = " << scale << " Neg det(J) decreased.\n";
          }
          scale *= detJ_factor; continue;
+      }
+
+      // do tangential relaxation and update d_loc
+      if (tangential_relaxation)
+      {
+         d_loc_tang.SetSize(d_loc.Size());
+         bool tang_success = TangentialRelaxation(d_loc, d_loc_tang);
+         if (!tang_success)
+         {
+            if (print_options.iterations)
+            {
+               mfem::out << "Scale = " << scale <<
+                         " Tangential relaxation requires rescaling.\n";
+            }
+            scale *= 0.5; continue;
+         }
+
+         d_out_tang.SetSize(d_out.Size());
+         if (serial)
+         {
+            const SparseMatrix *cR = fes->GetConformingRestriction();
+            if (!cR) { d_out_tang = d_loc_tang; }
+            else     { cR->Mult(d_loc_tang, d_out_tang); }
+         }
+#ifdef MFEM_USE_MPI
+         else { fes->GetRestrictionMatrix()->Mult(d_loc_tang, d_out_tang); }
+#endif
+         d_loc = d_loc_tang;
+         d_out = d_out_tang;
+
+         // Check the changes in detJ.
+         min_detT_out = detj_bound ?
+                        GetDeterminantLowerBound(d_loc, *fes, true) :
+                        ComputeMinDet(d_loc, *fes);
+         if (min_detT_out <= min_detJ_limit)
+         {
+            // No untangling, and detJ got negative (or small) -- no good.
+            if (print_options.iterations)
+            {
+               mfem::out << "Scale = " << scale <<
+                         " Neg det(J) found post tangential relaxation.\n";
+            }
+            scale *= detJ_factor; continue;
+         }
       }
 
       // Skip the energy and residual checks when we're untangling. The
@@ -667,6 +715,13 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
 
    if (surf_fit_scale_factor > 0.0) { surf_fit_coeff_update = true; }
    compute_metric_quantile_flag = true;
+
+   if (tangential_relaxation && x_out_ok)
+   {
+      c = d_in;
+      c -= d_out;
+      scale = 1.0;
+   }
 
    return scale;
 }
@@ -975,6 +1030,47 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &dx) const
    }
 }
 
+bool TMOPNewtonSolver::TangentialRelaxation(const Vector &d_loc_in,
+                                            Vector &d_loc_out) const
+{
+   MFEM_VERIFY(tangential_relaxation,
+               "Tangential relaxation is not enabled.");
+
+   const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+   TMOP_Integrator *ti  = NULL;
+   bool flag;
+
+   for (int i = 0; i < 1; i++)
+   {
+      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      if (ti)
+      {
+         flag = ti->PreprocessTangentialRelaxation(d_loc_in, nlf->FESpace());
+      }
+      else
+      {
+         MFEM_ABORT("Combo integrators not supported yet.");
+      }
+   }
+   if (!flag) { return flag; }
+
+   for (int i = 0; i < 1; i++)
+   {
+      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      if (ti)
+      {
+         FiniteElementSpace *d_fes = const_cast<FiniteElementSpace *>(nlf->FESpace());
+         ti->TangentialRelaxation(d_loc_in, d_fes, d_loc_out);
+      }
+      else
+      {
+         MFEM_ABORT("Combo integrators not supported yet.");
+      }
+   }
+
+   return true;
+}
 real_t TMOPNewtonSolver::ComputeMinDet(const Vector &d_loc,
                                        const FiniteElementSpace &fes) const
 {
@@ -1062,7 +1158,7 @@ real_t TMOPNewtonSolver::GetDeterminantLowerBound(const Vector &d_loc,
 // computing the metric values at the nodes.
 void vis_tmop_metric_p(int order, TMOP_QualityMetric &qm,
                        const TargetConstructor &tc, ParMesh &pmesh,
-                       char *title, int position)
+                       const char *title, int posx, int posy, int size)
 {
    L2_FECollection fec(order, pmesh.Dimension(), BasisType::GaussLobatto);
    ParFiniteElementSpace fes(&pmesh, &fec, 1);
@@ -1080,7 +1176,7 @@ void vis_tmop_metric_p(int order, TMOP_QualityMetric &qm,
    {
       sock << "window_title '"<< title << "'\n"
            << "window_geometry "
-           << position << " " << 0 << " " << 600 << " " << 600 << "\n"
+           << posx << " " << posy << " " << size << " " << size << "\n"
            << "keys jRmclA\n";
    }
 }
@@ -1090,7 +1186,7 @@ void vis_tmop_metric_p(int order, TMOP_QualityMetric &qm,
 // computing the metric values at the nodes.
 void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,
                        const TargetConstructor &tc, Mesh &mesh,
-                       char *title, int position)
+                       const char *title, int posx, int posy, int size)
 {
    L2_FECollection fec(order, mesh.Dimension(), BasisType::GaussLobatto);
    FiniteElementSpace fes(&mesh, &fec, 1);
@@ -1103,7 +1199,7 @@ void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,
    sock.send();
    sock << "window_title '"<< title << "'\n"
         << "window_geometry "
-        << position << " " << 0 << " " << 600 << " " << 600 << "\n"
+        << posx << " " << posy << " " << size << " " << size << "\n"
         << "keys jRmclA\n";
 }
 
