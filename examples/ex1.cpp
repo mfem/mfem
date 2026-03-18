@@ -128,14 +128,14 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
-   /*{
+   {
       int ref_levels =
          (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
       }
-   }*/
+   }
 
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
@@ -262,12 +262,12 @@ int main(int argc, char *argv[])
 
    // 13. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
-   // ofstream mesh_ofs("refined.mesh");
-   // mesh_ofs.precision(8);
-   // mesh.Print(mesh_ofs);
-   // ofstream sol_ofs("sol.gf");
-   // sol_ofs.precision(8);
-   // x.Save(sol_ofs);
+   ofstream mesh_ofs("refined.mesh");
+   mesh_ofs.precision(8);
+   mesh.Print(mesh_ofs);
+   ofstream sol_ofs("sol.gf");
+   sol_ofs.precision(8);
+   x.Save(sol_ofs);
 
    // 14. Send the solution by socket to a GLVis server.
    if (visualization)

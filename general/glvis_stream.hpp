@@ -34,7 +34,7 @@ struct GLVisData
       stream(), streams(), total_size(0), offsets(), type({}) {}
 };
 
-class glvis_stream : public std::iostream
+class glvis_stream: public std::iostream
 {
    void MpiGather();
 

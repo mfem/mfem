@@ -8,7 +8,6 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-#define NVTX_COLOR ::nvtx::kGold
 
 // Implementation of GridFunction
 
@@ -4402,7 +4401,6 @@ void GridFunction::SaveSTL(std::ostream &os, int TimesToRefine)
 
 std::ostream &operator<<(std::ostream &os, const GridFunction &sol)
 {
-   dbg();
    sol.Save(os);
    return os;
 }

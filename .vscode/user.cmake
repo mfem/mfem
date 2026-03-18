@@ -1,6 +1,7 @@
 # m distclean && m serial CXX="ccache clang++"
 
-# m distclean && m serial MFEM_USE_GLVIS=YES CXX="ccache clang++"
+# m distclean && m   serial MFEM_USE_GLVIS=YES CXX="ccache clang++"
+# m distclean && m parallel MFEM_USE_GLVIS=YES CXX="ccache mpicxx" HYPRE_DIR=/opt/homebrew/opt/hypre MFEM_USE_METIS_5=YES METIS_DIR=/opt/homebrew/opt/metis
 
 # -------------------------------- CMake Setup --------------------------------
 cmake_minimum_required(VERSION 3.11)

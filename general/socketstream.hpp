@@ -16,8 +16,6 @@
 #include "error.hpp"
 #include "globals.hpp"
 
-#include "glvis_stream.hpp"
-
 #ifdef MFEM_USE_GNUTLS
 #include <gnutls/gnutls.h>
 #if GNUTLS_VERSION_NUMBER < 0x020800

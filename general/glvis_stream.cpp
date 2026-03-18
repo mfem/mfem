@@ -32,6 +32,7 @@ extern int GLVisStreamSession(const bool fix_elem_orient,
                               const bool save_coloring,
                               const bool headless,
                               const std::string &plot_caption,
+                              const std::string &data_type,
                               StreamCollection &&streams);
 
 namespace mfem
@@ -75,13 +76,7 @@ inline int MpiRank()
 }
 
 /////////////////////////////////////////////////////////////////////
-glvis_stream::glvis_stream(const char*, int, int rank):
-   std::iostream((dbg(rank >= 0 ? "Parallel" : "Serial"), nullptr)),
-   // mpi_initialized(IsMpiInitialized()),
-   // mpi_size(MpiSize()),
-   // mpi_rank(MpiRank()),
-   // serial(rank < 0),
-   // mpi_root(!mpi_initialized || mpi_rank == 0),
+glvis_stream::glvis_stream(const char*, int, int rank): std::iostream(nullptr),
    data((rank < 0), MpiSize(), MpiRank(), !IsMpiInitialized() || MpiRank() == 0)
 {
    // Sets the associated stream buffer to the data stream
@@ -179,6 +174,7 @@ void glvis_stream::glvis()
                       save_coloring,
                       headless,
                       plot_caption,
+                      data.type,
                       to_istream_vector(std::move(data.streams)));
    dbg("✅");
 }
@@ -194,7 +190,7 @@ void glvis_stream::MpiGather()
    int status = MPI_Allgather(&local_size_u, 1, MPI_UINT64_T,
                               all_sizes.data(), 1, MPI_UINT64_T,
                               MPI_COMM_WORLD);
-   assert(status == MPI_SUCCESS);
+   MFEM_VERIFY(status == MPI_SUCCESS, "MPI_Allgather failed");
    if (data.mpi_root)
    {
       for (int r = 0; r < data.mpi_size; ++r)

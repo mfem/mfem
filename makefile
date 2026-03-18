@@ -158,6 +158,8 @@ MFEM_BUILD_DIR := $(BUILD_DIR)
 
 CONFIG_MK = $(BLD)config/config.mk
 
+GLVIS_MK = $(SRC)config/glvis.mk
+
 DEFAULTS_MK = $(SRC)config/defaults.mk
 include $(DEFAULTS_MK)
 
@@ -446,8 +448,7 @@ DIRS = general linalg linalg/batched linalg/simd mesh mesh/submesh fem \
        fem/ceed/integrators/diffusion fem/ceed/integrators/nlconvection \
        fem/ceed/interface fem/ceed/solvers fem/eltrans fem/fe fem/gslib \
        fem/integ fem/lor fem/moonolith fem/qinterp fem/tmop fem/dfem \
-	   fem/tmop/assemble fem/tmop/metrics fem/tmop/mult fem/tmop/tools \
-	   general/glvis
+	   fem/tmop/assemble fem/tmop/metrics fem/tmop/mult fem/tmop/tools
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)
