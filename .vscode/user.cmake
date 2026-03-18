@@ -118,7 +118,7 @@ set(MFEM_PRECISION "double" CACHE STRING "" FORCE)
 set(GLVIS_DIR $ENV{HOME}/home/glvis/glvis-lib)
 
 # ------------------------------ MFEM Options ---------------------------------
-option(MFEM_USE_MPI "Enable MPI" OFF)
+option(MFEM_USE_MPI "Enable MPI" ON)
 option(MFEM_USE_METIS "Enable METIS usage" ${MFEM_USE_MPI})
 
 option(MFEM_USE_LIBUNWIND "Enable backtrace for errors." OFF)

@@ -10,19 +10,34 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include <condition_variable>
-#include <mutex>
-#include <sstream>
-#include <vector>
+#include "../../config/config.hpp" // IWYU pragma: keep
 
-struct GLVisData
+#ifdef MFEM_USE_MPI
+
+#include <mpi.h>
+
+#include "../../general/glvis/data.hpp"
+
+namespace mfem
 {
-   std::mutex mutex;
-   std::condition_variable cond;
-   std::atomic<bool> running {false}, ready {false}, update {false};
-   std::stringstream stream;
-   bool serial;
-   size_t mpi_size {0}, offset[32], total_size {0};
-   std::vector<std::stringstream> streams;
-   std::string type;
+
+class GLVisExchanger
+{
+   int tmp = 0;
+   const size_t stream_size;
+   const std::size_t buffer_size;
+   char *buffer;
+   const int mpi_size, mpi_rank;
+   MPI_Comm shared_comm;
+   int shared_rank, shared_size;
+
+   MPI_Win win;
+   void* base_ptr = nullptr;
+
+public:
+   GLVisExchanger(const std::shared_ptr<GLVisData> &data);
 };
+
+} // namespace mfem
+
+#endif // MFEM_USE_MPI

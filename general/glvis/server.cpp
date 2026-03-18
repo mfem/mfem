@@ -27,17 +27,21 @@
 static int Execute(const std::shared_ptr<GLVisData> &data)
 {
    const int data_size = data->mpi_size;
-   const bool serial = (data_size == 1);
-   dbg("\x1b[37mmpi_size: {}", data_size);
+   dbg("\x1b[37m data_size: {}", data_size);
+
+   const bool serial = data->serial;
+   dbg("\x1b[37m data->serial: {}", serial);
+
+   dbg("\x1b[37m mpi_size: {}", data->mpi_size);
 
    if (serial)
    {
-      dbg("\x1b[37mSerial mode");
+      dbg("\x1b[37m Serial mode");
       assert(data->mpi_size == 1);
    }
    else
    {
-      dbg("\x1b[37mParallel mode");
+      dbg("\x1b[37m Parallel mode");
       assert(data->mpi_size >= 1);
    }
 
@@ -47,31 +51,50 @@ static int Execute(const std::shared_ptr<GLVisData> &data)
    data->streams.clear();
    data->type.clear();
 
-   std::vector<mfem::Mesh*> mesh_array(data_size);
-   std::vector<mfem::GridFunction*> gf_array(data_size);
+   std::vector<mfem::Mesh*> parallel_mesh(data_size);
+   std::vector<mfem::GridFunction*> parallel_gf(data_size);
 
    // loop over all input streams
    for (int k = 0; k < data_size; ++k)
    {
       const size_t offset = data->offset[k];
       const size_t size = data->offset[k+1] - data->offset[k];
-      dbg("\x1b[37mCreating bufferstream #{}, size: {}, offset: {}", k, size, offset);
+      dbg("\x1b[37m Creating bufferstream #{}, size: {}, offset: {}",
+          k, size, offset);
 
+      // add a new stream for this rank's data
       data->streams.emplace_back();
       data->streams.back().write(data->stream.str().data() + offset, size);
-      // data->streams.back().flush();
-      // data->streams.back().clear();
-      // data->streams.back().seekg(0);
 
       auto isock = &data->streams.back();
 
       if (!(*isock)) { dbg("\x1b[37mdone"); break; }
 
-      dbg("\x1b[37mGet data_type");
-      *isock >> data->type >> std::ws;
-      dbg("\x1b[37mdata_type: '{}'", data->type);
+      if (serial)
+      {
+         dbg("\x1b[37m Get data_type");
+         *isock >> data->type >> std::ws;
+         dbg("\x1b[37m data_type: '{}'", data->type);
+      }
+      else
+      {
+         std::string parallel;
+         int num_procs, myid;
+         dbg("\x1b[37m Get parallel");
+         *isock >> std::ws >> parallel;
+         *isock >> std::ws >> num_procs;
+         *isock >> std::ws >> myid;
+         *isock >> std::ws;
+         dbg("\x1b[37m parallel: {}, num_procs: {}, myid: {}",
+             parallel, num_procs, myid);
+         assert((size_t)num_procs == data->mpi_size);
 
-      // for (char &c : data->type) { dbg("{:02x}", c); }
+         dbg("\x1b[37m Get data_type");
+         *isock >> data->type >> std::ws;
+         dbg("\x1b[37m data_type: '{}'", data->type);
+      }
+
+      for (char &c : data->type) { dbg("{:02x}", c); }
 
       if (data->type == "parallel") // Handle parallel data
       {
@@ -86,22 +109,20 @@ static int Execute(const std::shared_ptr<GLVisData> &data)
          // "*_data" / "mesh" / "solution"
          *isock >> std::ws >> data->type >> std::ws;
          dbg("\x1b[37mdata_type: {}", data->type);
-
-         mesh_array[k] = new mfem::Mesh(*isock, 1, 0, true);
+         parallel_mesh[k] = new mfem::Mesh(*isock, 1, 0, true);
          if (true)
          {
             // set element and boundary attributes to proc+1
-            for (int i = 0; i < mesh_array[k]->GetNE(); i++)
+            for (int i = 0; i < parallel_mesh[k]->GetNE(); i++)
             {
-               mesh_array[k]->GetElement(i)->SetAttribute(k+1);
+               parallel_mesh[k]->GetElement(i)->SetAttribute(k+1);
             }
-            for (int i = 0; i < mesh_array[k]->GetNBE(); i++)
+            for (int i = 0; i < parallel_mesh[k]->GetNBE(); i++)
             {
-               mesh_array[k]->GetBdrElement(i)->SetAttribute(k+1);
+               parallel_mesh[k]->GetBdrElement(i)->SetAttribute(k+1);
             }
          }
-         gf_array[k] = new mfem::GridFunction(mesh_array[k], *isock);
-
+         parallel_gf[k] = new mfem::GridFunction(parallel_mesh[k], *isock);
       }
       else if (data->type == "mesh" || data->type == "solution")
       {
@@ -147,9 +168,9 @@ static int Execute(const std::shared_ptr<GLVisData> &data)
       dbg("\x1b[37m🚨🚨🚨 Parallel mode 🚨🚨🚨");
       const size_t nproc = data->streams.size();
       assert(data->mpi_size == nproc);
-      serial_mesh = std::make_unique<mfem::Mesh>(mesh_array.data(), nproc);
+      serial_mesh = std::make_unique<mfem::Mesh>(parallel_mesh.data(), nproc);
       serial_grid_f = std::make_unique<mfem::GridFunction>
-                      (serial_mesh.get(), gf_array.data(), nproc);
+                      (serial_mesh.get(), parallel_gf.data(), nproc);
    }
 
    // glvis -m shm.mesh -g shm.gf

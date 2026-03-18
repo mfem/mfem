@@ -15,11 +15,11 @@
     "cmake.debugConfig": {
         "args": [
             "-o",
-            "2",
-            // "-pa",
+            "1",
+            "-pa",
             "-m",
-            // "../data/inline-quad.mesh",
-            "../data/square-disc.mesh",
+            "../data/inline-quad.mesh",
+            // "../data/square-disc.mesh",
             "--visualization"
         ]
     },

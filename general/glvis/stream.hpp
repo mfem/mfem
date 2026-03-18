@@ -13,6 +13,10 @@
 #include <iostream>
 #include <memory>
 
+#ifdef MFEM_USE_MPI
+#include <mpi.h>
+#endif
+
 #include "../../general/glvis/data.hpp"
 #include "../../general/glvis/server.hpp"
 
@@ -21,9 +25,10 @@ namespace mfem
 
 class glvis_stream : public std::iostream
 {
-   struct Impl
+public:
+   struct IBase
    {
-      virtual ~Impl() = default;
+      virtual ~IBase() = default;
       virtual size_t size() const = 0;
       virtual std::streambuf* get_buf() = 0;
       virtual std::streamsize precision() const = 0;
@@ -34,7 +39,8 @@ class glvis_stream : public std::iostream
       virtual void flush() = 0;
    };
 
-   struct NullImpl: public Impl
+   //////////////////////////////////////////////////////////////////
+   struct NullImpl: public IBase
    {
       // Null streambuf for no-op output: discards everything
       static class null_streambuf: public std::streambuf
@@ -52,10 +58,11 @@ class glvis_stream : public std::iostream
       void flush() override { }
    };
 
-   struct SerialImpl : public Impl
+   //////////////////////////////////////////////////////////////////
+   struct SerialImpl : public IBase
    {
       const std::shared_ptr<GLVisData> &data;
-      SerialImpl(std::shared_ptr<GLVisData> &data): data(data)
+      SerialImpl(const std::shared_ptr<GLVisData> &data): data(data)
       {
          data->stream.clear();
       }
@@ -63,16 +70,41 @@ class glvis_stream : public std::iostream
       size_t size() const override { return data->stream.tellp(); }
       std::streambuf *get_buf() override { return data->stream.rdbuf(); }
       std::streamsize precision() const override {return data->stream.precision();}
-      std::streamsize precision(std::streamsize new_prec) override {return data->stream.precision(new_prec);}
+      std::streamsize precision(std::streamsize new_prec) override { return data->stream.precision(new_prec); }
       int open(const char[], int) override { return 0; }
       bool is_open() const override { return true; }
       int close() override { return 0; }
       void flush() override { data->stream.flush(); }
    };
 
+#ifdef MFEM_USE_MPI
+   //////////////////////////////////////////////////////////////////
+   struct ParallelRealImpl : public IBase
+   {
+      const std::shared_ptr<GLVisData> &data;
+      ParallelRealImpl(const std::shared_ptr<GLVisData> &data);
+      ~ParallelRealImpl() override { }
+      std::streamsize precision() const override;
+      std::streamsize precision(std::streamsize new_prec) override;
+      std::streambuf* get_buf() override;
+      size_t size() const override;
+      int open(const char hostname[], int port) override { return 0; }
+      bool is_open() const override { return true; }
+      int close() override { return 0; }
+      void reset();
+      void flush() override;
+   };
+#endif // MFEM_USE_MPI
+
+   int MpiSize() const;
+   int MpiRank() const;
+   inline bool Root() const { return MpiRank() == 0; }
+
 public:
    glvis_stream()= delete;
-   glvis_stream(const char*, int);
+
+   explicit glvis_stream(const char*, int); // serial
+   explicit glvis_stream(const char*, int, int mpi_rank); // parallel
 
    glvis_stream(glvis_stream &&) = delete;
    glvis_stream(const glvis_stream &) = delete;
@@ -93,6 +125,7 @@ public:
       static_cast<std::ostream&>(*this) << val;
       return *this;
    }
+
    int open(const char hostname[], int port) { return 0; }
 
    bool is_open() const { return true; }
@@ -104,8 +137,12 @@ public:
    void glvis_window();
 
 private:
+   std::function<bool()> MpiInitialized;
+   const bool mpi_initialized;
+   const int mpi_size, mpi_rank;
+   const bool serial;
    std::shared_ptr<GLVisData> data;
-   std::unique_ptr<Impl> impl;
+   std::unique_ptr<IBase> impl;
    GLVisServer glvis;
 };
 
