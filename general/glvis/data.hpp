@@ -24,7 +24,7 @@ struct GLVisData
    std::atomic<bool> running {false}, ready {false}, update {false};
    std::stringstream stream;
    bool serial, mpi_root, glvis_thread_running;
-   size_t mpi_size {0}, offset[32], total_size {0};
+   size_t mpi_size {0}, offset[128], total_size {0};
    std::vector<std::stringstream> streams;
    std::string type;
 };

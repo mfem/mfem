@@ -217,7 +217,8 @@ static int GLVisThreadLoop(const std::shared_ptr<GLVisData> &data)
 
       const size_t mpi_size = data->mpi_size;
       dbg("\x1b[33mmpi_size: {}", mpi_size);
-      assert(mpi_size >= 0 && mpi_size <= 32);
+      assert(mpi_size >= 0 &&
+             mpi_size <= sizeof(data->offset) / sizeof(data->offset[0]) - 1);
       if (data->mpi_root)
       {
          for (size_t i = 0; i < mpi_size; ++i)
