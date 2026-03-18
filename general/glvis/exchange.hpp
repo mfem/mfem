@@ -28,6 +28,7 @@ class GLVisExchanger
    const std::size_t buffer_size;
    char *buffer;
    const int mpi_size, mpi_rank;
+   const bool mpi_root;
    MPI_Comm shared_comm;
    int shared_rank, shared_size;
 

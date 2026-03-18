@@ -15,13 +15,15 @@
 #include <sstream>
 #include <vector>
 
+using StreamCollection = std::vector<std::unique_ptr<std::istream>>;
+
 struct GLVisData
 {
    std::mutex mutex;
    std::condition_variable cond;
    std::atomic<bool> running {false}, ready {false}, update {false};
    std::stringstream stream;
-   bool serial;
+   bool serial, mpi_root, glvis_thread_running;
    size_t mpi_size {0}, offset[32], total_size {0};
    std::vector<std::stringstream> streams;
    std::string type;

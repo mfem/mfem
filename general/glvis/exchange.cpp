@@ -23,34 +23,37 @@ GLVisExchanger::GLVisExchanger(const std::shared_ptr<GLVisData> &data):
    buffer_size(16*1024*1024),
    buffer(static_cast<char*>(std::malloc(buffer_size))),
    mpi_size((MPI_Comm_size(MPI_COMM_WORLD, &tmp), tmp)),
-   mpi_rank((MPI_Comm_rank(MPI_COMM_WORLD, &tmp), tmp))
+   mpi_rank((MPI_Comm_rank(MPI_COMM_WORLD, &tmp), tmp)),
+   mpi_root(mpi_rank == 0)
 {
    dbg("MPI size: {}, rank: {}", mpi_size, mpi_rank);
 
    dbg("buffer_size: {}, stream_size: {}", buffer_size, stream_size);
    assert(stream_size <= buffer_size);
 
-   dbg("\x1b[33m data stream:\n{}", data->stream.str());
+   // dbg("data stream:\n{}", data->stream.str());
 
-   dbg("Split into shared-memory communicator");
+   dbg("Split into shared-memory communicator (?)");
    auto status = MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED,
                                      0, MPI_INFO_NULL, &shared_comm);
    assert(status == MPI_SUCCESS);
 
    MPI_Comm_rank(shared_comm, &shared_rank);
    MPI_Comm_size(shared_comm, &shared_size);
+   dbg("shared_comm size: {}, rank: {}", shared_size, shared_rank);
    assert(shared_size == mpi_size);
 
    constexpr int size_of_type = sizeof(char);
    static_assert(size_of_type == 1, "size_of_type != 1");
 
+   // Gather sizes to root and compute offsets
    std::vector<uint64_t> all_sizes(shared_size);
    uint64_t local_size_u = stream_size;
    status = MPI_Allgather(&local_size_u, 1, MPI_UINT64_T, all_sizes.data(), 1,
                           MPI_UINT64_T, shared_comm);
    assert(status == MPI_SUCCESS);
 
-   if (data)
+   if (mpi_root)
    {
       for (int r = 0; r < shared_size; ++r)
       {
@@ -60,22 +63,22 @@ GLVisExchanger::GLVisExchanger(const std::shared_ptr<GLVisData> &data):
 
    std::vector<uint64_t> offsets(shared_size);
    offsets[0] = 0;
-   if (data) { dbg("Offsets[0]: {}", offsets[0]); }
 
-   if (data) { data->mpi_size = 1; }
-   if (data) { data->total_size = shared_size; }
-   if (data) { data->offset[0] = 0; }
+   data->mpi_size = mpi_size;
+   data->mpi_root = mpi_root;
+
    for (int i = 1; i < shared_size; ++i)
    {
       offsets[i] = offsets[i - 1] + all_sizes[i - 1];
-      if (data) { dbg("Offsets[{}]: {}", i, offsets[i]); }
-      if (data) { data->offset[i] = offsets[i]; }
+      if (mpi_root) { dbg("Offsets[{}]: {}", i, offsets[i]); }
+      if (mpi_root) { data->offset[i] = offsets[i]; }
    }
+   assert(shared_size > 0);
    uint64_t total_size = (shared_size > 0) ? offsets.back() + all_sizes.back() : 0;
-   if (data) { assert((size_t)shared_size < sizeof(data->offset)); }
-   if (data) { data->offset[shared_size] = total_size; }
-   if (data) { data->total_size = total_size; }
-   if (data) { dbg("Total size: {}", total_size); }
+   if (mpi_root) { assert((size_t)shared_size < sizeof(data->offset)); }
+   if (mpi_root) { data->offset[shared_size] = total_size; }
+   if (mpi_root) { data->total_size = total_size; }
+   if (mpi_root) { dbg("Total size: {}", total_size); }
 
    // Allocate shared window (full on rank 0)
    MPI_Aint alloc_size = (shared_rank == 0) ? total_size * size_of_type : 0;
@@ -86,7 +89,7 @@ GLVisExchanger::GLVisExchanger(const std::shared_ptr<GLVisData> &data):
 
    // Get shared buffer pointer
    char* shared_buf = nullptr;
-   if (shared_rank == 0)
+   if (mpi_root)
    {
       dbg("shared_rank == 0, base_ptr: {}, alloc_size: {}",
           (void*)base_ptr, alloc_size);
@@ -102,7 +105,6 @@ GLVisExchanger::GLVisExchanger(const std::shared_ptr<GLVisData> &data):
       shared_buf = static_cast<char*>(base_ptr);
       dbg("shared_rank != 0, base_ptr: {}, alloc_size: {}, target_disp_unit: {}",
           (void*)base_ptr, alloc_size, target_disp_unit);
-      assert(false);
    }
 
    // Start access
@@ -128,8 +130,9 @@ GLVisExchanger::GLVisExchanger(const std::shared_ptr<GLVisData> &data):
    std::memcpy(shared_buf + offsets[shared_rank], // dst
                data->stream.str().data(), // src
                all_sizes[shared_rank] * size_of_type);
-   dbg("Rank {}, buf: {}", mpi_rank, std::string(data->stream.str().data(),
-                                                 all_sizes[shared_rank]));
+   assert(all_sizes[shared_rank] == stream_size);
+   // dbg("Rank {}, buf: {}", mpi_rank, std::string(data->stream.str().data(),
+   //                                               all_sizes[shared_rank]));
 
    // Sync writes
    MPI_Win_fence(0, win);

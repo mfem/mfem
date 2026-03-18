@@ -26,9 +26,12 @@
 
 extern int GLVisLibWindow(bool fix_elem_orient,
                           bool save_coloring, bool headless,
-                          const std::string &plot_caption,
                           std::istream &stream,
                           std::string data_type);
+
+extern int GLVisLibWindow(bool fix_elem_orient,
+                          bool save_coloring, bool headless,
+                          StreamCollection &&streams);
 
 namespace mfem
 {
@@ -83,7 +86,7 @@ const auto GetImpl = [](const bool serial,
                      -> std::unique_ptr<glvis_stream::IBase>
 {
    if (serial) { return std::make_unique<glvis_stream::SerialImpl>(data); }
-   return std::make_unique<glvis_stream::ParallelRealImpl>(data);
+   return std::make_unique<glvis_stream::ParallelImpl>(data);
 };
 
 /////////////////////////////////////////////////////////////////////
@@ -94,20 +97,29 @@ glvis_stream::glvis_stream(const char *, int, int myid):
    mpi_size(MpiSize()),
    mpi_rank(MpiRank()),
    serial(myid < 0),
+   mpi_root(!mpi_initialized || mpi_rank == 0),
    data(std::make_shared<GLVisData>()),
    impl(GetImpl(serial, data)),
-   glvis(data)
+   glvis((data->serial = serial, data->mpi_root = mpi_root, data))
 {
    if (serial) { assert(myid == -1); }
-   data->serial = serial;
 
-   dbg("Wait for GLVis server RUNNING...");
-   wait_for_running(data);
-   assert(data->running);
+   data->glvis_thread_running = (serial || mpi_root);
 
-   dbg("Wait for GLVis server READY...");
-   wait_for_ready(data);
-   assert(data->ready);
+   if (data->glvis_thread_running)
+   {
+      dbg("Wait for GLVis server RUNNING...");
+      wait_for_running(data);
+      assert(data->running);
+
+      dbg("Wait for GLVis server READY...");
+      wait_for_ready(data);
+      assert(data->ready);
+   }
+   else
+   {
+      dbg("Mpi non-root, no GLVis server");
+   }
 
    // link the stream buffer to the one provided by the implementation
    this->rdbuf(impl->get_buf());
@@ -117,7 +129,6 @@ glvis_stream::glvis_stream(const char *, int, int myid):
 glvis_stream& glvis_stream::operator<<(ostream_manipulator pf)
 {
    dbg();
-   dbg("\x1b[32m data stream:\n{}", data->stream.str());
    this->flush(); // will trigger the GLVis update
    std::iostream::operator<<(pf); // optional
    this->glvis_window();
@@ -128,52 +139,84 @@ void glvis_stream::flush() { impl->flush(); }
 
 void glvis_stream::glvis_window()
 {
-   const auto size = impl->size();
-   dbg("stream size: {}", size);
-
-   if (size == 0) { return; }
-
-   data->mpi_size = 1;
-   data->offset[0] = 0, data->offset[1] = size;
-   data->total_size = size;
+   if (data->serial)
+   {
+      dbg("Serial");
+      const auto size = impl->size();
+      dbg("stream size: {}", size);
+      assert(size > 0);
+      data->mpi_size = 1;
+      data->offset[0] = 0, data->offset[1] = size;
+      data->total_size = size;
+   }
+   else
+   {
+      dbg("Parallel, data->mpi_size: {}", data->mpi_size);
+      dbg("Parallel, data->total_size: {}", data->total_size);
+   }
 
    // reset the local buffer for reuse
    data->stream.clear();
    data->stream.seekg(0, std::ios::beg);
    data->stream.seekp(0, std::ios::beg);
 
-   const size_t impl_size = impl->size();
-   dbg("size: {}", impl_size);
-
+   if (data->glvis_thread_running)
    {
-      dbg("Signal UPDATE");
-      assert(!data->update);
-      signal_for_update(data);
-      assert(data->update);
-   }
-
-   {
-      dbg("Waiting ACK");
-      while (data->update.load())
       {
-         std::this_thread::sleep_for(std::chrono::milliseconds(10));
+         dbg("Signal UPDATE");
+         assert(!data->update);
+         signal_for_update(data);
+         assert(data->update);
       }
-      assert(!data->update);
-   }
 
-   dbg("ACK");
-   dbg("data type: {}", data->type);
-   dbg("streams size: #{}", data->streams.size());
-   assert(data->streams[0].good());
-   dbg("streams[0] size: #{}", data->streams[0].str().size());
+      {
+         dbg("Waiting ACK");
+         while (data->update.load())
+         {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+         }
+         assert(!data->update);
+      }
+      dbg("ACK");
+      dbg("data type: {}", data->type);
+      dbg("streams size: #{}", data->streams.size());
+   }
 
    constexpr bool fix_elem_orien = true;
    constexpr bool save_coloring = true;
    constexpr bool headless = false;
 
-   // needs to be in 'main' thread
-   GLVisLibWindow(fix_elem_orien, save_coloring, headless, "",
-                  data->streams[0], data->type);
+   // SDL2 window needs to be in the 'main' thread
+   if (data->serial)
+   {
+      dbg("🟠 Serial mode 🟠");
+      GLVisLibWindow(fix_elem_orien, save_coloring, headless,
+                     data->streams[0], data->type);
+   }
+   else if (mpi_root)
+   {
+      dbg("🟣 Parallel Root 🟣");
+      const auto to_istream_vector = [](std::vector<std::stringstream> &&streams)
+                                     ->std::vector<std::unique_ptr<std::istream>>
+      {
+         std::vector<std::unique_ptr<std::istream>> result;
+         result.reserve(streams.size());
+         for (auto& s : streams)
+         {
+            dbg("Adding stream of size {}", s.str().size());
+            result.push_back(
+               std::make_unique<std::stringstream>(std::move(s)));
+         }
+         return result;
+      };
+
+      GLVisLibWindow(fix_elem_orien, save_coloring, headless,
+                     to_istream_vector(std::move(data->streams)));
+   }
+   else
+   {
+      dbg("🔴 Parallel None 🔴");
+   }
 
    dbg("✅");
 }
@@ -181,40 +224,38 @@ void glvis_stream::glvis_window()
 
 #ifdef MFEM_USE_MPI
 ///////////////////////////////////////////////////////////////////////////////
-glvis_stream::ParallelRealImpl::ParallelRealImpl(const
-                                                 std::shared_ptr<GLVisData> &data):
-   data(data)
+glvis_stream::ParallelImpl::ParallelImpl(const std::shared_ptr<GLVisData> &data)
+   : data(data)
 {
-   dbg("Master GLVis stream");
+   dbg("Parallel GLVis stream");
 }
 
-size_t glvis_stream::ParallelRealImpl::size() const
+size_t glvis_stream::ParallelImpl::size() const
 {
    assert(data);
    return data->stream.tellp();
 }
 
-std::streambuf* glvis_stream::ParallelRealImpl::get_buf()
+std::streambuf* glvis_stream::ParallelImpl::get_buf()
 {
    assert(data);
    return data->stream.rdbuf();
 }
 
-std::streamsize glvis_stream::ParallelRealImpl::precision() const
+std::streamsize glvis_stream::ParallelImpl::precision() const
 {
    assert(data);
    return data->stream.precision();
 }
 
-std::streamsize
-glvis_stream::ParallelRealImpl::precision(std::streamsize new_prec)
+std::streamsize glvis_stream::ParallelImpl::precision(std::streamsize new_prec)
 {
    assert(data);
    data->stream.precision(new_prec);
    return new_prec;
 }
 
-void glvis_stream::ParallelRealImpl::reset()
+void glvis_stream::ParallelImpl::reset()
 {
    dbg();
    data->stream.clear();
@@ -222,10 +263,10 @@ void glvis_stream::ParallelRealImpl::reset()
    data->stream.seekp(0, std::ios::beg);
 }
 
-void glvis_stream::ParallelRealImpl::flush()
+void glvis_stream::ParallelImpl::flush()
 {
    dbg();
-   dbg("\x1b[31m data stream:\n{}", data->stream.str());
+   // dbg("\x1b[31m data stream:\n{}", data->stream.str());
    const size_t ssize = data->stream.tellp();
    dbg("stream size: {}", ssize);
    GLVisExchanger mpi_exchange(data);

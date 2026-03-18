@@ -26,13 +26,11 @@
 ///////////////////////////////////////////////////////////////////////////////
 static int Execute(const std::shared_ptr<GLVisData> &data)
 {
-   const int data_size = data->mpi_size;
-   dbg("\x1b[37m data_size: {}", data_size);
+   const int data_mpi_size = data->mpi_size;
+   dbg("\x1b[37m data_mpi_size: {}", data_mpi_size);
 
    const bool serial = data->serial;
    dbg("\x1b[37m data->serial: {}", serial);
-
-   dbg("\x1b[37m mpi_size: {}", data->mpi_size);
 
    if (serial)
    {
@@ -51,11 +49,11 @@ static int Execute(const std::shared_ptr<GLVisData> &data)
    data->streams.clear();
    data->type.clear();
 
-   std::vector<mfem::Mesh*> parallel_mesh(data_size);
-   std::vector<mfem::GridFunction*> parallel_gf(data_size);
+   std::vector<mfem::Mesh*> parallel_mesh(data_mpi_size);
+   std::vector<mfem::GridFunction*> parallel_gf(data_mpi_size);
 
    // loop over all input streams
-   for (int k = 0; k < data_size; ++k)
+   for (int k = 0; k < data_mpi_size; ++k)
    {
       const size_t offset = data->offset[k];
       const size_t size = data->offset[k+1] - data->offset[k];
@@ -67,34 +65,12 @@ static int Execute(const std::shared_ptr<GLVisData> &data)
       data->streams.back().write(data->stream.str().data() + offset, size);
 
       auto isock = &data->streams.back();
-
       if (!(*isock)) { dbg("\x1b[37mdone"); break; }
 
-      if (serial)
-      {
-         dbg("\x1b[37m Get data_type");
-         *isock >> data->type >> std::ws;
-         dbg("\x1b[37m data_type: '{}'", data->type);
-      }
-      else
-      {
-         std::string parallel;
-         int num_procs, myid;
-         dbg("\x1b[37m Get parallel");
-         *isock >> std::ws >> parallel;
-         *isock >> std::ws >> num_procs;
-         *isock >> std::ws >> myid;
-         *isock >> std::ws;
-         dbg("\x1b[37m parallel: {}, num_procs: {}, myid: {}",
-             parallel, num_procs, myid);
-         assert((size_t)num_procs == data->mpi_size);
-
-         dbg("\x1b[37m Get data_type");
-         *isock >> data->type >> std::ws;
-         dbg("\x1b[37m data_type: '{}'", data->type);
-      }
-
-      for (char &c : data->type) { dbg("{:02x}", c); }
+      dbg("\x1b[37m Get data_type");
+      *isock >> std::ws >> data->type >> std::ws;
+      dbg("\x1b[37m data_type: '{}'", data->type);
+      // for (char &c : data->type) { dbg("{:02x}", c); }
 
       if (data->type == "parallel") // Handle parallel data
       {
@@ -106,6 +82,10 @@ static int Execute(const std::shared_ptr<GLVisData> &data)
          assert(mpi_size == static_cast<int>(data->mpi_size));
          assert(mpi_rank == static_cast<int>(k));
 
+#if 1 // do nothing with the stream 
+         dbg("Nothing done with the streams");
+         dbg("data->type: {}", data->type);
+#else
          // "*_data" / "mesh" / "solution"
          *isock >> std::ws >> data->type >> std::ws;
          dbg("\x1b[37mdata_type: {}", data->type);
@@ -123,6 +103,7 @@ static int Execute(const std::shared_ptr<GLVisData> &data)
             }
          }
          parallel_gf[k] = new mfem::GridFunction(parallel_mesh[k], *isock);
+#endif
       }
       else if (data->type == "mesh" || data->type == "solution")
       {
@@ -166,11 +147,12 @@ static int Execute(const std::shared_ptr<GLVisData> &data)
    if (!serial)
    {
       dbg("\x1b[37m🚨🚨🚨 Parallel mode 🚨🚨🚨");
-      const size_t nproc = data->streams.size();
+      dbg("\x1b[37m🚨🚨🚨   Skipping    🚨🚨🚨");
+      /*const size_t nproc = data->streams.size();
       assert(data->mpi_size == nproc);
       serial_mesh = std::make_unique<mfem::Mesh>(parallel_mesh.data(), nproc);
       serial_grid_f = std::make_unique<mfem::GridFunction>
-                      (serial_mesh.get(), parallel_gf.data(), nproc);
+                      (serial_mesh.get(), parallel_gf.data(), nproc);*/
    }
 
    // glvis -m shm.mesh -g shm.gf
@@ -236,12 +218,15 @@ static int GLVisThreadLoop(const std::shared_ptr<GLVisData> &data)
       const size_t mpi_size = data->mpi_size;
       dbg("\x1b[33mmpi_size: {}", mpi_size);
       assert(mpi_size >= 0 && mpi_size <= 32);
-      for (size_t i = 0; i < mpi_size; ++i)
+      if (data->mpi_root)
       {
-         dbg("\x1b[33mdata->offset[{}]: {}", i, data->offset[i]);
+         for (size_t i = 0; i < mpi_size; ++i)
+         {
+            dbg("\x1b[33mdata->offset[{}]: {}", i, data->offset[i]);
+         }
+         dbg("\x1b[33mdata->total_size: {}", data->total_size);
+         assert(data->offset[mpi_size] == data->total_size);
       }
-      dbg("\x1b[33mdata->total_size: {}", data->total_size);
-      assert(data->offset[mpi_size] == data->total_size);
 
       const size_t total_size = data->total_size;
       // assert(total_size <= SHM_DELTA_SIZE);
@@ -266,6 +251,16 @@ thread_local mfem::GeometryRefiner GLVisGeometryRefiner;
 ///////////////////////////////////////////////////////////////////////////////
 GLVisServer::GLVisServer(std::shared_ptr<GLVisData> data): data(data)
 {
+   if (data->mpi_root)
+   {
+      dbg("MPI Root");
+   }
+   else
+   {
+      dbg("MPI Non-root, return without starting server thread");
+      return;
+   }
+
    dbg();
    assert(data);
    SetUseHiDPI(true);

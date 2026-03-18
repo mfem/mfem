@@ -79,11 +79,11 @@ public:
 
 #ifdef MFEM_USE_MPI
    //////////////////////////////////////////////////////////////////
-   struct ParallelRealImpl : public IBase
+   struct ParallelImpl : public IBase
    {
       const std::shared_ptr<GLVisData> &data;
-      ParallelRealImpl(const std::shared_ptr<GLVisData> &data);
-      ~ParallelRealImpl() override { }
+      ParallelImpl(const std::shared_ptr<GLVisData>&);
+      ~ParallelImpl() override { }
       std::streamsize precision() const override;
       std::streamsize precision(std::streamsize new_prec) override;
       std::streambuf* get_buf() override;
@@ -140,7 +140,7 @@ private:
    std::function<bool()> MpiInitialized;
    const bool mpi_initialized;
    const int mpi_size, mpi_rank;
-   const bool serial;
+   const bool serial, mpi_root;
    std::shared_ptr<GLVisData> data;
    std::unique_ptr<IBase> impl;
    GLVisServer glvis;
