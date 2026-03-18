@@ -310,219 +310,247 @@ void obboxsurf_calc_3(Vector &bb,
                       const unsigned n,
                       uint nel,
                       const unsigned m,
-                      const double tol)
+                      const double tol,
+                      const bool store_obb)
 {
    auto h_bb = bb.HostWrite();
    const double *x = elx[0], *y = elx[1], *z = elx[2];
    const unsigned nr = n, ns = n;
    const unsigned mr = m, ms = m;
-   const int n_el_ents = 18; // 3(c0) + 3(aabb_min) + 3(aabb_max) + 9(A)
-
+   const int n_el_ents = store_obb ? 18 : 6;
    const unsigned nrs = nr*ns;
-   const unsigned lbsize0 = gslib::lob_bnd_size(nr,mr),
-                  lbsize1 = gslib::lob_bnd_size(ns,ms);
+   const unsigned lbsize0 = gslib::lob_bnd_size(nr, mr);
+   const unsigned lbsize1 = gslib::lob_bnd_size(ns, ms);
 
-   unsigned wsize = std::max(3*nr*ns+2*mr*(ns+ms+1),2*nr*ns+3*nr);
-   wsize = std::max(wsize, gslib::gll_lag_size(nr));
-   wsize = std::max(wsize, gslib::gll_lag_size(ns));
+   // lob_bnd_2 work size: 2*mr*(ns+ms+1)
+   unsigned wsize = store_obb ?
+                    std::max(3*nr*ns + 2*mr*(ns+ms+1), 2*nr*ns + 3*nr) :
+                    (2*mr*(ns+ms+1));
+   wsize = std::max(wsize, store_obb ? gslib::gll_lag_size(nr) : 0u);
 
-   Vector datavec(2*(nr+ns)+lbsize0+lbsize1+wsize);
+   Vector datavec(lbsize0 + lbsize1 + wsize + (store_obb ? 2*(nr+ns) : 0));
    double *data = datavec.GetData();
 
+   double *const I0r = store_obb ? data : nullptr;
+   double *const I0s = store_obb ? (data + 2*nr) : nullptr;
+   double *const lob_bnd_data_r = store_obb ? (data + 2*(nr+ns)) : data;
+   double *const lob_bnd_data_s = store_obb ? (data + 2*(nr+ns) + lbsize0) :
+                                  (data + lbsize0);
+   double *const work = store_obb ? (data + 2*(nr+ns) + lbsize0 + lbsize1) :
+                        (data + lbsize0 + lbsize1);
+
+   gslib::lob_bnd_setup(lob_bnd_data_r, nr, mr);
+   gslib::lob_bnd_setup(lob_bnd_data_s, ns, ms);
+
+   if (!store_obb)
    {
-      double *const I0r            = data;
-      double *const I0s            = I0r  + 2*nr;
-      double *const lob_bnd_data_r = data + 2*(nr+ns);
-      double *const lob_bnd_data_s = data + 2*(nr+ns) + lbsize0;
-      double *const work           = data + 2*(nr+ns) + lbsize0 + lbsize1;
-
-#define SETUP_DIR(r) do { \
-      gslib::lagrange_fun *const lag = gslib::gll_lag_setup(work, n##r); \
-      lag(I0##r, work,n##r,1, 0); \
-      gslib::lob_bnd_setup(lob_bnd_data_##r, n##r,m##r); \
-    } while(0)
-      SETUP_DIR(r);
-      SETUP_DIR(s);
-#undef SETUP_DIR
-
-      for (int ie = 0; ie < nel; ie++,x+=nrs,y+=nrs,z+=nrs)
+      for (int ie = 0; ie < (int)nel; ie++, x += nrs, y += nrs, z += nrs)
       {
          struct gslib::dbl_range ab[3];
-         struct gslib::dbl_range tb[3];
-         double x0[3], tv[9], A[9];
+         ab[0] = gslib::lob_bnd_2(lob_bnd_data_r, nr, mr,
+                                  lob_bnd_data_s, ns, ms,
+                                  x, work);
+         ab[1] = gslib::lob_bnd_2(lob_bnd_data_r, nr, mr,
+                                  lob_bnd_data_s, ns, ms,
+                                  y, work);
+         ab[2] = gslib::lob_bnd_2(lob_bnd_data_r, nr, mr,
+                                  lob_bnd_data_s, ns, ms,
+                                  z, work);
 
-         /*
-          * Find the center of the element (r=0 ref. coord.) in physical space
-          * and store in x0.
-          * tv[0], tv[1], tv[2]: kept empty at this point for convenience.
-          * tv[3], tv[4]: dx/dr, dx/ds
-          * tv[5], tv[6]: dy/dr, dy/ds
-          * tv[7], tv[8]: dz/dr, dz/ds
-          */
-         x0[0] = gslib::tensor_ig2(tv+3, I0r,nr, I0s,ns, x, work);
-         x0[1] = gslib::tensor_ig2(tv+5, I0r,nr, I0s,ns, y, work);
-         x0[2] = gslib::tensor_ig2(tv+7, I0r,nr, I0s,ns, z, work);
+         dbl_range_diag_expand_3(ab, tol);
 
-         // tangent vector 1 moved to tv[0], tv[1], tv[2]
-         tv[0] = tv[3], tv[1] = tv[5], tv[2] = tv[7];
-         // tangent vector 2 moved to tv[3], tv[4], tv[5]
-         tv[3] = tv[4], tv[4] = tv[6], tv[5] = tv[8];
-         // normal vector to the plane formed by t1 and t2 (cross product)
-         // is stored in tv[6], tv[7], tv[8]
-         tv[6] = tv[1]*tv[5] - tv[2]*tv[4];
-         tv[7] = tv[2]*tv[3] - tv[0]*tv[5];
-         tv[8] = tv[0]*tv[4] - tv[1]*tv[3];
-         // normalize the normal vector
-         const double nmag  = sqrt(tv[6]*tv[6] + tv[7]*tv[7] + tv[8]*tv[8]);
-         tv[6] = tv[6]/nmag;
-         tv[7] = tv[7]/nmag;
-         tv[8] = tv[8]/nmag;
+         h_bb[n_el_ents*ie + 0] = ab[0].min;
+         h_bb[n_el_ents*ie + 1] = ab[1].min;
+         h_bb[n_el_ents*ie + 2] = ab[2].min;
+         h_bb[n_el_ents*ie + 3] = ab[0].max;
+         h_bb[n_el_ents*ie + 4] = ab[1].max;
+         h_bb[n_el_ents*ie + 5] = ab[2].max;
+      }
+      return;
+   }
 
-         // Rodrigues formula to compute the rotation matrix
-         // Axis of rotation is n x [0,0,1] = [n_2, -n_1, 0], and we must
-         // normalize it
-         double nmag2 = tv[6]*tv[6] + tv[7]*tv[7];
-         if (nmag2 > 0)
-         {
-            nmag2 = sqrt(nmag2);
-            tv[7] = tv[7]/nmag2;
-            tv[6] = tv[6]/nmag2;
-         }
-         double kx = tv[7];
-         double ky = -tv[6];
-         double kz = 0.0;
+   gslib::lagrange_fun *const lag_r = gslib::gll_lag_setup(work, nr);
+   lag_r(I0r, work, nr, 1, 0);
+   gslib::lagrange_fun *const lag_s = gslib::gll_lag_setup(work, ns);
+   lag_s(I0s, work, ns, 1, 0);
 
-         double ct = tv[8];
-         double st = nmag2; //1.0 - ct*ct;
+   for (int ie = 0; ie < (int)nel; ie++, x += nrs, y += nrs, z += nrs)
+   {
+      struct gslib::dbl_range ab[3];
+      struct gslib::dbl_range tb[3];
+      double x0[3], tv[9], A[9];
 
-         // row-major
-         A[0] = 1.0 + st*0.0 + (1.0-ct)*(-ky*ky-kz*kz);
-         A[1] = 0.0 + st*(0.0) + (1.0-ct)*(kx*ky);
-         A[2] = 0.0 + st*(ky) + (1.0-ct)*(kx*kz);
+      /*
+       * Find the center of the element (r=0 ref. coord.) in physical space
+       * and store in x0.
+       * tv[0], tv[1], tv[2]: kept empty at this point for convenience.
+       * tv[3], tv[4]: dx/dr, dx/ds
+       * tv[5], tv[6]: dy/dr, dy/ds
+       * tv[7], tv[8]: dz/dr, dz/ds
+       */
+      x0[0] = gslib::tensor_ig2(tv+3, I0r,nr, I0s,ns, x, work);
+      x0[1] = gslib::tensor_ig2(tv+5, I0r,nr, I0s,ns, y, work);
+      x0[2] = gslib::tensor_ig2(tv+7, I0r,nr, I0s,ns, z, work);
 
-         A[3] = 0.0 + st*(0.0) + (1.0-ct)*(kx*ky);
-         A[4] = 1.0 + st*(0.0) + (1.0-ct)*(-kx*kx-kz*kz);
-         A[5] = 0.0 + st*(-kx) + (1.0-ct)*(ky*kz);
+      // tangent vector 1 moved to tv[0], tv[1], tv[2]
+      tv[0] = tv[3], tv[1] = tv[5], tv[2] = tv[7];
+      // tangent vector 2 moved to tv[3], tv[4], tv[5]
+      tv[3] = tv[4], tv[4] = tv[6], tv[5] = tv[8];
+      // normal vector to the plane formed by t1 and t2 (cross product)
+      // is stored in tv[6], tv[7], tv[8]
+      tv[6] = tv[1]*tv[5] - tv[2]*tv[4];
+      tv[7] = tv[2]*tv[3] - tv[0]*tv[5];
+      tv[8] = tv[0]*tv[4] - tv[1]*tv[3];
+      // normalize the normal vector
+      const double nmag  = sqrt(tv[6]*tv[6] + tv[7]*tv[7] + tv[8]*tv[8]);
+      tv[6] = tv[6]/nmag;
+      tv[7] = tv[7]/nmag;
+      tv[8] = tv[8]/nmag;
 
-         A[6] = 0.0 + st*(-ky) + (1.0-ct)*(kx*kz);
-         A[7] = 0.0 + st*(kx) + (1.0-ct)*(ky*kz);
-         A[8] = 1.0 + st*(0.0) + (1.0-ct)*(-kx*kx-ky*ky);
+      // Rodrigues formula to compute the rotation matrix
+      // Axis of rotation is n x [0,0,1] = [n_2, -n_1, 0], and we must
+      // normalize it
+      double nmag2 = tv[6]*tv[6] + tv[7]*tv[7];
+      if (nmag2 > 0)
+      {
+         nmag2 = sqrt(nmag2);
+         tv[7] = tv[7]/nmag2;
+         tv[6] = tv[6]/nmag2;
+      }
+      double kx = tv[7];
+      double ky = -tv[6];
+      double kz = 0.0;
 
-         /* double work[2*m##r*(n##s+m##s+1)] */
+      double ct = tv[8];
+      double st = nmag2; //1.0 - ct*ct;
+
+      // row-major
+      A[0] = 1.0 + st*0.0 + (1.0-ct)*(-ky*ky-kz*kz);
+      A[1] = 0.0 + st*(0.0) + (1.0-ct)*(kx*ky);
+      A[2] = 0.0 + st*(ky) + (1.0-ct)*(kx*kz);
+
+      A[3] = 0.0 + st*(0.0) + (1.0-ct)*(kx*ky);
+      A[4] = 1.0 + st*(0.0) + (1.0-ct)*(-kx*kx-kz*kz);
+      A[5] = 0.0 + st*(-kx) + (1.0-ct)*(ky*kz);
+
+      A[6] = 0.0 + st*(-ky) + (1.0-ct)*(kx*kz);
+      A[7] = 0.0 + st*(kx) + (1.0-ct)*(ky*kz);
+      A[8] = 1.0 + st*(0.0) + (1.0-ct)*(-kx*kx-ky*ky);
+
+      /* double work[2*m##r*(n##s+m##s+1)] */
 #define DO_BOUND(bnd,r,s,x,work) do { \
         bnd = gslib::lob_bnd_2(lob_bnd_data_##r,n##r,m##r, \
                         lob_bnd_data_##s,n##s,m##s, \
                         x, work); \
       } while(0)
 
-         DO_BOUND(ab[0],r,s,x,work);
-         DO_BOUND(ab[1],r,s,y,work);
-         DO_BOUND(ab[2],r,s,z,work);
-         // expand bounding box based on (tol*diagonal_length) in each direction
-         // to avoid 0 extent in 1 direction.
-         double aabb_diag_len = dbl_range_diag_expand_3(ab, tol);
-         h_bb[n_el_ents*ie + 3] = ab[0].min;
-         h_bb[n_el_ents*ie + 4] = ab[1].min;
-         h_bb[n_el_ents*ie + 5] = ab[2].min;
-         h_bb[n_el_ents*ie + 6] = ab[0].max;
-         h_bb[n_el_ents*ie + 7] = ab[1].max;
-         h_bb[n_el_ents*ie + 8] = ab[2].max;
+      DO_BOUND(ab[0],r,s,x,work);
+      DO_BOUND(ab[1],r,s,y,work);
+      DO_BOUND(ab[2],r,s,z,work);
+      // expand bounding box based on (tol*diagonal_length) in each direction
+      // to avoid 0 extent in 1 direction.
+      double aabb_diag_len = dbl_range_diag_expand_3(ab, tol);
+      h_bb[n_el_ents*ie + 3] = ab[0].min;
+      h_bb[n_el_ents*ie + 4] = ab[1].min;
+      h_bb[n_el_ents*ie + 5] = ab[2].min;
+      h_bb[n_el_ents*ie + 6] = ab[0].max;
+      h_bb[n_el_ents*ie + 7] = ab[1].max;
+      h_bb[n_el_ents*ie + 8] = ab[2].max;
 
-         Array<double> xtfm(3*nrs);
-         bbox_3_tfm(xtfm.GetData(), x0,A, x,y,z,nrs);
-         // The rotated z-coords are used to calculate z-bounds.
-         DO_BOUND(tb[2],r,s,xtfm.GetData()+2*nrs,work);
+      Array<double> xtfm(3*nrs);
+      bbox_3_tfm(xtfm.GetData(), x0,A, x,y,z,nrs);
+      // The rotated z-coords are used to calculate z-bounds.
+      DO_BOUND(tb[2],r,s,xtfm.GetData()+2*nrs,work);
 
-         tb[2].min -= aabb_diag_len;
-         tb[2].max += aabb_diag_len;
+      tb[2].min -= aabb_diag_len;
+      tb[2].max += aabb_diag_len;
 
-         // Also apply A to the tangent vectors, which allows us to
-         // calculate the Jacobian matrix at the rotated element center.
-         // NOTE that the z components of the rotated tangent vectors will
-         // become zero, since the normal vector is aligned with the z-axis.
-         double J[4], Ji[4];
-         J[0] = A[0]*tv[0] + A[1]*tv[1] + A[2]*tv[2]; // rotated dx/dr
-         J[1] = A[0]*tv[3] + A[1]*tv[4] + A[2]*tv[5]; // rotated dx/ds
-         J[2] = A[3]*tv[0] + A[4]*tv[1] + A[5]*tv[2]; // rotated dy/dr
-         J[3] = A[3]*tv[3] + A[4]*tv[4] + A[5]*tv[5]; // rotated dy/ds
-         DenseMatrix JM(J, 2, 2);
-         DenseMatrix JiM(Ji, 2, 2);
-         CalcInverse(JM, JiM);
+      // Also apply A to the tangent vectors, which allows us to
+      // calculate the Jacobian matrix at the rotated element center.
+      // NOTE that the z components of the rotated tangent vectors will
+      // become zero, since the normal vector is aligned with the z-axis.
+      double J[4], Ji[4];
+      J[0] = A[0]*tv[0] + A[1]*tv[1] + A[2]*tv[2]; // rotated dx/dr
+      J[1] = A[0]*tv[3] + A[1]*tv[4] + A[2]*tv[5]; // rotated dx/ds
+      J[2] = A[3]*tv[0] + A[4]*tv[1] + A[5]*tv[2]; // rotated dy/dr
+      J[3] = A[3]*tv[3] + A[4]*tv[4] + A[5]*tv[5]; // rotated dy/ds
+      DenseMatrix JM(J, 2, 2);
+      DenseMatrix JiM(Ji, 2, 2);
+      CalcInverse(JM, JiM);
 
-         // Now transform the already rotated x,y coordinates according to Ji to
-         // their reference space.
-         // Important to note that the nodes used here already have the element
-         // center at (0,0). Hence, Ji can be directly applied to them.
-         for (unsigned i=0; i<nrs; ++i)
-         {
-            const double xt = xtfm[i], yt = xtfm[nrs+i];
-            xtfm[    i] = Ji[0]*xt + Ji[1]*yt;
-            xtfm[nrs+i] = Ji[2]*xt + Ji[3]*yt;
-         }
-         // Bound these reference space xy coordinates
-         DO_BOUND(tb[0],r,s,xtfm,work);
-         DO_BOUND(tb[1],r,s,xtfm+nrs,work);
-         // Expand the bounds based on the tol
-         tb[0] = dbl_range_expand(tb[0],tol);
-         tb[1] = dbl_range_expand(tb[1],tol);
+      // Now transform the already rotated x,y coordinates according to Ji to
+      // their reference space.
+      // Important to note that the nodes used here already have the element
+      // center at (0,0). Hence, Ji can be directly applied to them.
+      for (unsigned i=0; i<nrs; ++i)
+      {
+         const double xt = xtfm[i], yt = xtfm[nrs+i];
+         xtfm[    i] = Ji[0]*xt + Ji[1]*yt;
+         xtfm[nrs+i] = Ji[2]*xt + Ji[3]*yt;
+      }
+      // Bound these reference space xy coordinates
+      DO_BOUND(tb[0],r,s,xtfm,work);
+      DO_BOUND(tb[1],r,s,xtfm+nrs,work);
+      // Expand the bounds based on the tol
+      tb[0] = dbl_range_expand(tb[0],tol);
+      tb[1] = dbl_range_expand(tb[1],tol);
 #undef DO_BOUND
 
-         /* We now have a BB whose bounds represent bounds of a OBB around the
-          * original element.
-          *
-          * We calculate the center of the OBB in physical space by calculating
-          * the center of this BB, which is the same as the displacement needed
-          * to move from the element center in the transformed space to the BB center. This displacement is then untransformed by applying (Ji.A)^-1
-          * to it, and added to known physical element center.
-          *
-          * This BB does not necessarily have known fixed size like [-1,1].
-          * So, we premultiply a length scaling matrix, say L, to Ji.A to
-          * L.Ji.A. This is the total transformation needed to move a physical
-          * location that is inside the physical OBB to a location within [-1,1]^3. Any transformed point not in [-1,1]^3 is outside the OBB.
-          *
-          * It must be noted: this transformation matrix is only applied to
-          * points that have been translated by the physical OBB center.
-          */
-         {
-            // The center of the BB in the transformed space
-            const double av0 = (tb[0].min+tb[0].max)/2,
-                         av1 = (tb[1].min+tb[1].max)/2,
-                         av2 = (tb[2].min+tb[2].max)/2;
-            // First untransform the x,y coordinates by J to obtain all
-            // components in the rotated space
-            const double Jav0 = J[0]*av0 + J[1]*av1,
-                         Jav1 = J[2]*av0 + J[3]*av1;
-            // The physical displacement needed to move from the element center
-            // to the OBB center is calculated by "un"rotating {Jav0,Jav1,av2}
-            // by applying inverse of A.
-            // The physical untransformed OBB center can then be obtained.
+      /* We now have a BB whose bounds represent bounds of a OBB around the
+       * original element.
+       *
+       * We calculate the center of the OBB in physical space by calculating
+       * the center of this BB, which is the same as the displacement needed
+       * to move from the element center in the transformed space to the BB center. This displacement is then untransformed by applying (Ji.A)^-1
+       * to it, and added to known physical element center.
+       *
+       * This BB does not necessarily have known fixed size like [-1,1].
+       * So, we premultiply a length scaling matrix, say L, to Ji.A to
+       * L.Ji.A. This is the total transformation needed to move a physical
+       * location that is inside the physical OBB to a location within [-1,1]^3. Any transformed point not in [-1,1]^3 is outside the OBB.
+       *
+       * It must be noted: this transformation matrix is only applied to
+       * points that have been translated by the physical OBB center.
+       */
+      {
+         // The center of the BB in the transformed space
+         const double av0 = (tb[0].min+tb[0].max)/2,
+                      av1 = (tb[1].min+tb[1].max)/2,
+                      av2 = (tb[2].min+tb[2].max)/2;
+         // First untransform the x,y coordinates by J to obtain all
+         // components in the rotated space
+         const double Jav0 = J[0]*av0 + J[1]*av1,
+                      Jav1 = J[2]*av0 + J[3]*av1;
+         // The physical displacement needed to move from the element center
+         // to the OBB center is calculated by "un"rotating {Jav0,Jav1,av2}
+         // by applying inverse of A.
+         // The physical untransformed OBB center can then be obtained.
 
-            h_bb[n_el_ents*ie + 0] = x0[0] + A[0]*Jav0 + A[3]*Jav1 + A[6]*av2;
-            h_bb[n_el_ents*ie + 1] = x0[1] + A[1]*Jav0 + A[4]*Jav1 + A[7]*av2;
-            h_bb[n_el_ents*ie + 2] = x0[2] + A[2]*Jav0 + A[5]*Jav1 + A[8]*av2;
-         }
+         h_bb[n_el_ents*ie + 0] = x0[0] + A[0]*Jav0 + A[3]*Jav1 + A[6]*av2;
+         h_bb[n_el_ents*ie + 1] = x0[1] + A[1]*Jav0 + A[4]*Jav1 + A[7]*av2;
+         h_bb[n_el_ents*ie + 2] = x0[2] + A[2]*Jav0 + A[5]*Jav1 + A[8]*av2;
+      }
 
-         // Finally, obtain (L.Ji.A) and store it in out->A
-         {
-            // The scaling matrix L's diagonal terms, needed to scale the
-            // transformation to [-1,1]^3.
-            const double di0 = 2/(tb[0].max-tb[0].min),
-                         di1 = 2/(tb[1].max-tb[1].min),
-                         di2 = 2/(tb[2].max-tb[2].min);
+      // Finally, obtain (L.Ji.A) and store it in out->A
+      {
+         // The scaling matrix L's diagonal terms, needed to scale the
+         // transformation to [-1,1]^3.
+         const double di0 = 2/(tb[0].max-tb[0].min),
+                      di1 = 2/(tb[1].max-tb[1].min),
+                      di2 = 2/(tb[2].max-tb[2].min);
 
-            // We finally construct the final transformation matrix A=L.Ji.A.
-            // This maps a position relative to OBB center to a position in
-            // [-1,1]^3, if the position is inside the OBB.
-            h_bb[n_el_ents*ie + 9 ]=di0*(Ji[0]*A[0] + Ji[1]*A[3]);
-            h_bb[n_el_ents*ie + 10]=di0*(Ji[0]*A[1] + Ji[1]*A[4]);
-            h_bb[n_el_ents*ie + 11]=di0*(Ji[0]*A[2] + Ji[1]*A[5]);
-            h_bb[n_el_ents*ie + 12]=di1*(Ji[2]*A[0] + Ji[3]*A[3]);
-            h_bb[n_el_ents*ie + 13]=di1*(Ji[2]*A[1] + Ji[3]*A[4]);
-            h_bb[n_el_ents*ie + 14]=di1*(Ji[2]*A[2] + Ji[3]*A[5]);
-            h_bb[n_el_ents*ie + 15]=di2*A[6];
-            h_bb[n_el_ents*ie + 16]=di2*A[7];
-            h_bb[n_el_ents*ie + 17]=di2*A[8];
-         }
+         // We finally construct the final transformation matrix A=L.Ji.A.
+         // This maps a position relative to OBB center to a position in
+         // [-1,1]^3, if the position is inside the OBB.
+         h_bb[n_el_ents*ie + 9 ]=di0*(Ji[0]*A[0] + Ji[1]*A[3]);
+         h_bb[n_el_ents*ie + 10]=di0*(Ji[0]*A[1] + Ji[1]*A[4]);
+         h_bb[n_el_ents*ie + 11]=di0*(Ji[0]*A[2] + Ji[1]*A[5]);
+         h_bb[n_el_ents*ie + 12]=di1*(Ji[2]*A[0] + Ji[3]*A[3]);
+         h_bb[n_el_ents*ie + 13]=di1*(Ji[2]*A[1] + Ji[3]*A[4]);
+         h_bb[n_el_ents*ie + 14]=di1*(Ji[2]*A[2] + Ji[3]*A[5]);
+         h_bb[n_el_ents*ie + 15]=di2*A[6];
+         h_bb[n_el_ents*ie + 16]=di2*A[7];
+         h_bb[n_el_ents*ie + 17]=di2*A[8];
       }
    }
 }
@@ -532,32 +560,46 @@ void obboxedge_calc_2(Vector &bb,
                       const unsigned nr,
                       uint nel,
                       const unsigned mr,
-                      const double tol)
+                      const double tol,
+                      const bool store_obb)
 {
    auto h_bb = bb.HostWrite();
    const double *x   = elx[0];
    const double *y   = elx[1];
-   const int n_el_ents = 10; // 2(c0) + 2(aabb_min) + 2(aabb_max) + 4(A)
+
+   const int n_el_ents = store_obb ? 10 : 4; // store only AABB if !store_obb
 
    const unsigned lbsize0 = gslib::lob_bnd_size(nr,mr);
-
-   unsigned wsize = std::max(2*nr+2*mr, gslib::gll_lag_size(nr));
-
-   Vector datavec(2*nr + lbsize0 + wsize);
+   unsigned wsize = std::max(2*nr+2*mr,store_obb ? gslib::gll_lag_size(nr) : 0);
+   Vector datavec(lbsize0 + wsize + (store_obb ? 2*nr : 0));
    double *data = datavec.GetData();
 
-   double *const I0r = data;
-   double *const lob_bnd_data_r = data + 2*nr;
-   double *const work = data + 2*nr + lbsize0;
+   double *const I0r = store_obb ? data : nullptr;
+   double *const lob_bnd_data_r = store_obb ? data + 2*nr : data;
+   double *const work = lob_bnd_data_r + lbsize0;
 
-#define SETUP_DIR(r) do { \
-      gslib::lagrange_fun *const lag = gslib::gll_lag_setup(work, n##r); \
-      lag(I0##r, work,n##r,1, 0); \
-      gslib::lob_bnd_setup(lob_bnd_data_##r, n##r,m##r); \
-    } while(0)
+   gslib::lob_bnd_setup(lob_bnd_data_r, nr, mr);
 
-   SETUP_DIR(r);
-#undef SETUP_DIR
+   if (!store_obb)
+   {
+      for (int ie = 0; ie < (int)nel; ie++, x+=nr, y+=nr)
+      {
+         struct gslib::dbl_range ab[2];
+         ab[0] = gslib::lob_bnd_1(lob_bnd_data_r, nr, mr, x, work);
+         ab[1] = gslib::lob_bnd_1(lob_bnd_data_r, nr, mr, y, work);
+
+         dbl_range_diag_expand_2(ab, tol);
+
+         h_bb[n_el_ents*ie + 0] = ab[0].min;
+         h_bb[n_el_ents*ie + 1] = ab[1].min;
+         h_bb[n_el_ents*ie + 2] = ab[0].max;
+         h_bb[n_el_ents*ie + 3] = ab[1].max;
+      }
+      return;
+   }
+
+   gslib::lagrange_fun *const lag = gslib::gll_lag_setup(work, nr);
+   lag(I0r, work, nr,1, 0);
 
    for (int ie = 0; ie < nel; ie++,x+=nr,y+=nr)
    {
@@ -624,89 +666,108 @@ void obboxedge_calc_3(Vector &bb,
                       const unsigned nr,
                       uint nel,
                       const unsigned mr,
-                      const double tol)
+                      const double tol,
+                      const bool store_obb)
 {
    auto h_bb = bb.HostWrite();
    const double *x   = elx[0];
    const double *y   = elx[1];
    const double *z   = elx[2];
-   const int n_el_ents = 18; // 3(c0) + 3(aabb_min) + 3(aabb_max) + 9(A)
+   const int n_el_ents = store_obb ? 18 : 6;
 
-   const unsigned lbsize0 = gslib::lob_bnd_size(nr,mr);
-   unsigned wsize = std::max(4*nr+2*mr, gslib::gll_lag_size(nr));
+   const unsigned lbsize0 = gslib::lob_bnd_size(nr, mr);
+   const unsigned wsize = store_obb ?
+                          std::max(4*nr + 2*mr, gslib::gll_lag_size(nr)) :
+                          (2*nr + 2*mr);
 
-   Vector datavec(2*nr + lbsize0 + wsize);
+   Vector datavec(lbsize0 + wsize + (store_obb ? 2*nr : 0));
    double *data = datavec.GetData();
 
+   double *const I0r = store_obb ? data : nullptr;
+   double *const lob_bnd_data_r = store_obb ? data + 2*nr : data;
+   double *const work = lob_bnd_data_r + lbsize0;
+
+   gslib::lob_bnd_setup(lob_bnd_data_r, nr, mr);
+
+   if (!store_obb)
    {
-      double *const I0r = data;                         // 2*nr doubles
-      double *const lob_bnd_data_r = data + 2*nr;        // lbsize0 doubles
-      double *const work = data + 2*nr + lbsize0;        // wsize doubles
-
-#define SETUP_DIR(r) do { \
-      gslib::lagrange_fun *const lag = gslib::gll_lag_setup(work, n##r); \
-      lag(I0##r, work,n##r,1, 0); \
-      gslib::lob_bnd_setup(lob_bnd_data_##r, n##r,m##r); \
-    } while(0)
-
-      SETUP_DIR(r);
-#undef SETUP_DIR
-
-      for (int ie = 0; ie < nel; ie++,x+=nr,y+=nr,z+=nr)
+      for (int ie = 0; ie < (int)nel; ie++, x += nr, y += nr, z += nr)
       {
-         double x0[3], A[9], Ai[9];
-         struct gslib::dbl_range ab[3], tb[3];
+         struct gslib::dbl_range ab[3];
+         ab[0] = gslib::lob_bnd_1(lob_bnd_data_r, nr, mr, x, work);
+         ab[1] = gslib::lob_bnd_1(lob_bnd_data_r, nr, mr, y, work);
+         ab[2] = gslib::lob_bnd_1(lob_bnd_data_r, nr, mr, z, work);
 
-         x0[0] = gslib::tensor_ig1(A,I0r,nr,x);
-         x0[1] = gslib::tensor_ig1(A+1,I0r,nr,y);
-         x0[2] = gslib::tensor_ig1(A+2,I0r,nr,z);
+         dbl_range_diag_expand_3(ab, tol);
 
-         // normalize the normal vector
-         double nmag  = A[0]*A[0] + A[1]*A[1] + A[2]*A[2];
-         if (nmag > 0)
-         {
-            nmag = sqrt(nmag);
-            A[0] = A[0]/nmag;
-            A[1] = A[1]/nmag;
-            A[2] = A[2]/nmag;
-         }
+         h_bb[n_el_ents*ie + 0] = ab[0].min;
+         h_bb[n_el_ents*ie + 1] = ab[1].min;
+         h_bb[n_el_ents*ie + 2] = ab[2].min;
+         h_bb[n_el_ents*ie + 3] = ab[0].max;
+         h_bb[n_el_ents*ie + 4] = ab[1].max;
+         h_bb[n_el_ents*ie + 5] = ab[2].max;
+      }
+      return;
+   }
 
-         double nmag2 = A[0]*A[0] + A[1]*A[1];
-         if (nmag2 > 0)
-         {
-            nmag2 = sqrt(nmag2);
-            A[1] = A[1]/nmag2;
-            A[0] = A[0]/nmag2;
-         }
-         double kx = A[1];
-         double ky = -A[0];
-         double kz = 0.0;
+   gslib::lagrange_fun *const lag = gslib::gll_lag_setup(work, nr);
+   lag(I0r, work, nr, 1, 0);
 
-         double ct = A[2];
-         double st = nmag2; //1.0 - ct*ct;
+   for (int ie = 0; ie < (int)nel; ie++, x += nr, y += nr, z += nr)
+   {
+      double x0[3], A[9], Ai[9];
+      struct gslib::dbl_range ab[3], tb[3];
 
-         // row-major rotation matrix to align the tangent with x-axis
-         A[0] = 1.0 + st*0.0 + (1.0-ct)*(-ky*ky-kz*kz);
-         A[1] = 0.0 + st*(0.0) + (1.0-ct)*(kx*ky);
-         A[2] = 0.0 + st*(ky) + (1.0-ct)*(kx*kz);
+      x0[0] = gslib::tensor_ig1(A,I0r,nr,x);
+      x0[1] = gslib::tensor_ig1(A+1,I0r,nr,y);
+      x0[2] = gslib::tensor_ig1(A+2,I0r,nr,z);
 
-         A[3] = 0.0 + st*(0.0) + (1.0-ct)*(kx*ky);
-         A[4] = 1.0 + st*(0.0) + (1.0-ct)*(-kx*kx-kz*kz);
-         A[5] = 0.0 + st*(-kx) + (1.0-ct)*(ky*kz);
+      // normalize the normal vector
+      double nmag  = A[0]*A[0] + A[1]*A[1] + A[2]*A[2];
+      if (nmag > 0)
+      {
+         nmag = sqrt(nmag);
+         A[0] = A[0]/nmag;
+         A[1] = A[1]/nmag;
+         A[2] = A[2]/nmag;
+      }
 
-         A[6] = 0.0 + st*(-ky) + (1.0-ct)*(kx*kz);
-         A[7] = 0.0 + st*(kx) + (1.0-ct)*(ky*kz);
-         A[8] = 1.0 + st*(0.0) + (1.0-ct)*(-kx*kx-ky*ky);
+      double nmag2 = A[0]*A[0] + A[1]*A[1];
+      if (nmag2 > 0)
+      {
+         nmag2 = sqrt(nmag2);
+         A[1] = A[1]/nmag2;
+         A[0] = A[0]/nmag2;
+      }
+      double kx = A[1];
+      double ky = -A[0];
+      double kz = 0.0;
 
-         DenseMatrix AM(A, 3, 3);
-         DenseMatrix AiM(Ai, 3, 3);
-         CalcInverse(AM, AiM);
+      double ct = A[2];
+      double st = nmag2; //1.0 - ct*ct;
+
+      // row-major rotation matrix to align the tangent with x-axis
+      A[0] = 1.0 + st*0.0 + (1.0-ct)*(-ky*ky-kz*kz);
+      A[1] = 0.0 + st*(0.0) + (1.0-ct)*(kx*ky);
+      A[2] = 0.0 + st*(ky) + (1.0-ct)*(kx*kz);
+
+      A[3] = 0.0 + st*(0.0) + (1.0-ct)*(kx*ky);
+      A[4] = 1.0 + st*(0.0) + (1.0-ct)*(-kx*kx-kz*kz);
+      A[5] = 0.0 + st*(-kx) + (1.0-ct)*(ky*kz);
+
+      A[6] = 0.0 + st*(-ky) + (1.0-ct)*(kx*kz);
+      A[7] = 0.0 + st*(kx) + (1.0-ct)*(ky*kz);
+      A[8] = 1.0 + st*(0.0) + (1.0-ct)*(-kx*kx-ky*ky);
+
+      DenseMatrix AM(A, 3, 3);
+      DenseMatrix AiM(Ai, 3, 3);
+      CalcInverse(AM, AiM);
 
 #define DO_BOUND(bnd,r,x,work) do { \
         bnd = gslib::lob_bnd_1(lob_bnd_data_##r,n##r,m##r, x, work); \
       } while(0)
 
-         /* double work[2*n##r + 2*m##r] */
+      /* double work[2*n##r + 2*m##r] */
 #define DO_EDGE(r,x,y,z,work) do { \
         DO_BOUND(ab[0],r,x,work); \
         DO_BOUND(ab[1],r,y,work); \
@@ -716,47 +777,46 @@ void obboxedge_calc_3(Vector &bb,
         DO_BOUND(tb[1],r,(work)+n##r,(work)+3*n##r); \
         DO_BOUND(tb[2],r,(work)+2*n##r,(work)+3*n##r); \
       } while(0)
-         DO_EDGE(r,x,y,z,work);
+      DO_EDGE(r,x,y,z,work);
 #undef DO_EDGE
 #undef DO_BOUND
 
-         double aabb_diag_len = dbl_range_diag_expand_3(ab, tol);
+      double aabb_diag_len = dbl_range_diag_expand_3(ab, tol);
 
-         {
-            const double av0 = (tb[0].min+tb[0].max)/2,
-                         av1 = (tb[1].min+tb[1].max)/2,
-                         av2 = (tb[2].min+tb[2].max)/2;
-            h_bb[n_el_ents*ie + 0] = x0[0] + Ai[0]*av0 + Ai[1]*av1 + Ai[2]*av2;
-            h_bb[n_el_ents*ie + 1] = x0[1] + Ai[3]*av0 + Ai[4]*av1 + Ai[5]*av2;
-            h_bb[n_el_ents*ie + 2] = x0[2] + Ai[6]*av0 + Ai[7]*av1 + Ai[8]*av2;
-            h_bb[n_el_ents*ie + 3] = ab[0].min;
-            h_bb[n_el_ents*ie + 4] = ab[1].min;
-            h_bb[n_el_ents*ie + 5] = ab[2].min;
-            h_bb[n_el_ents*ie + 6] = ab[0].max;
-            h_bb[n_el_ents*ie + 7] = ab[1].max;
-            h_bb[n_el_ents*ie + 8] = ab[2].max;
-         }
+      {
+         const double av0 = (tb[0].min+tb[0].max)/2,
+                      av1 = (tb[1].min+tb[1].max)/2,
+                      av2 = (tb[2].min+tb[2].max)/2;
+         h_bb[n_el_ents*ie + 0] = x0[0] + Ai[0]*av0 + Ai[1]*av1 + Ai[2]*av2;
+         h_bb[n_el_ents*ie + 1] = x0[1] + Ai[3]*av0 + Ai[4]*av1 + Ai[5]*av2;
+         h_bb[n_el_ents*ie + 2] = x0[2] + Ai[6]*av0 + Ai[7]*av1 + Ai[8]*av2;
+         h_bb[n_el_ents*ie + 3] = ab[0].min;
+         h_bb[n_el_ents*ie + 4] = ab[1].min;
+         h_bb[n_el_ents*ie + 5] = ab[2].min;
+         h_bb[n_el_ents*ie + 6] = ab[0].max;
+         h_bb[n_el_ents*ie + 7] = ab[1].max;
+         h_bb[n_el_ents*ie + 8] = ab[2].max;
+      }
 
-         tb[0].min -= aabb_diag_len;
-         tb[0].max += aabb_diag_len;
-         tb[1].min -= aabb_diag_len;
-         tb[1].max += aabb_diag_len;
-         tb[2].min -= aabb_diag_len;
-         tb[2].max += aabb_diag_len;
-         {
-            const double di0 = 2/((1+tol)*(tb[0].max-tb[0].min)),
-                         di1 = 2/((1+tol)*(tb[1].max-tb[1].min)),
-                         di2 = 2/((1+tol)*(tb[2].max-tb[2].min));
-            h_bb[n_el_ents*ie + 9 ]=di0*A[0];
-            h_bb[n_el_ents*ie + 10]=di0*A[1];
-            h_bb[n_el_ents*ie + 11]=di0*A[2];
-            h_bb[n_el_ents*ie + 12]=di1*A[3];
-            h_bb[n_el_ents*ie + 13]=di1*A[4];
-            h_bb[n_el_ents*ie + 14]=di1*A[5];
-            h_bb[n_el_ents*ie + 15]=di2*A[6];
-            h_bb[n_el_ents*ie + 16]=di2*A[7];
-            h_bb[n_el_ents*ie + 17]=di2*A[8];
-         }
+      tb[0].min -= aabb_diag_len;
+      tb[0].max += aabb_diag_len;
+      tb[1].min -= aabb_diag_len;
+      tb[1].max += aabb_diag_len;
+      tb[2].min -= aabb_diag_len;
+      tb[2].max += aabb_diag_len;
+      {
+         const double di0 = 2/((1+tol)*(tb[0].max-tb[0].min)),
+                      di1 = 2/((1+tol)*(tb[1].max-tb[1].min)),
+                      di2 = 2/((1+tol)*(tb[2].max-tb[2].min));
+         h_bb[n_el_ents*ie + 9 ]=di0*A[0];
+         h_bb[n_el_ents*ie + 10]=di0*A[1];
+         h_bb[n_el_ents*ie + 11]=di0*A[2];
+         h_bb[n_el_ents*ie + 12]=di1*A[3];
+         h_bb[n_el_ents*ie + 13]=di1*A[4];
+         h_bb[n_el_ents*ie + 14]=di1*A[5];
+         h_bb[n_el_ents*ie + 15]=di2*A[6];
+         h_bb[n_el_ents*ie + 16]=di2*A[7];
+         h_bb[n_el_ents*ie + 17]=di2*A[8];
       }
    }
 }
@@ -769,33 +829,71 @@ void FindPointsGSLIB::findptssurf_setup_3(DEV_STRUCT &devs,
                                           const double bbox_tol,
                                           const uint local_hash_size,
                                           const uint global_hash_size,
-                                          const int rD)
+                                          const int rD,
+                                          const Vector *bb_size)
 {
    // compute element bounding boxes.
-   int n_box_ents = 18;
+   const bool store_obb = obb_check;
+   const int sd = 3;
+   const int n_box_ents = store_obb ? (3*sd + sd*sd) : (2*sd);
    devs.bb.SetSize(nel*n_box_ents);
    if (rD == 1)
    {
-      obboxedge_calc_3(devs.bb,elx,n,nel,m,bbox_tol);
+      obboxedge_calc_3(devs.bb, elx, n, nel, m, bbox_tol, store_obb);
    }
    else if (rD == 2)
    {
-      obboxsurf_calc_3(devs.bb,elx,n,nel,m,bbox_tol);
+      obboxsurf_calc_3(devs.bb, elx, n, nel, m, bbox_tol, store_obb);
    }
    else
    {
       MFEM_ABORT("FindPointsGSLIB::findptssurf_setup_3: rD must be 1 or 2");
    }
 
+   auto h_bb = devs.bb.HostReadWrite();
+
+   if (bb_size)
+   {
+      const int sz = bb_size->Size();
+      MFEM_VERIFY(sz == 1 || sz == (int)nel || sz == sd || sz == (int)nel*sd,
+                  "Invalid bb_size length for SetupSurf: expected 1, NE, SpaceDim, or NE*SpaceDim.");
+   }
+
+   auto GetMinAABBSize = [&](const uint e, const int d)
+   {
+      if (!bb_size) { return 0.0; }
+      const int sd = 3;
+      const int sz = bb_size->Size();
+      double s = 0.0;
+      if (sz == 1) { s = (*bb_size)(0); }
+      else if (sz == (int)nel) { s = (*bb_size)((int)e); }
+      else if (sz == sd) { s = (*bb_size)(d); }
+      else { s = (*bb_size)((int)e*sd + d); }
+      return s;
+   };
+
    Vector elmin(3*nel), elmax(3*nel);
    for (uint i = 0; i < nel; i++)
    {
-      elmin(i) = devs.bb(n_box_ents*i + 3); // xmin
-      elmin(i + nel) = devs.bb(n_box_ents*i + 4); // ymin
-      elmin(i + 2*nel) = devs.bb(n_box_ents*i + 5); // zmin
-      elmax(i) = devs.bb(n_box_ents*i + 6); // xmax
-      elmax(i + nel) = devs.bb(n_box_ents*i + 7); // ymax
-      elmax(i + 2*nel) = devs.bb(n_box_ents*i + 8); // zmax
+      const int min_off = (store_obb ? sd : 0) + n_box_ents*i;
+      const int max_off = (store_obb ? 2*sd : sd) + n_box_ents*i;
+      for (int d = 0; d < 3; d++)
+      {
+         const double req = GetMinAABBSize(i, d);
+         const double cur = h_bb[max_off + d] - h_bb[min_off + d];
+         if (cur < req)
+         {
+            const double pad = 0.5*(req - cur);
+            h_bb[min_off + d] -= pad;
+            h_bb[max_off + d] += pad;
+         }
+      }
+      elmin(i) = h_bb[min_off + 0];
+      elmin(i + nel) = h_bb[min_off + 1];
+      elmin(i + 2*nel) = h_bb[min_off + 2];
+      elmax(i) = h_bb[max_off + 0];
+      elmax(i + nel) = h_bb[max_off + 1];
+      elmax(i + 2*nel) = h_bb[max_off + 2];
    }
 
    // build local map
@@ -823,19 +921,54 @@ void FindPointsGSLIB::findptsedge_setup_2(DEV_STRUCT &devs,
                                           const unsigned m,
                                           const double bbox_tol,
                                           const uint local_hash_size,
-                                          const uint global_hash_size)
+                                          const uint global_hash_size,
+                                          const Vector *bb_size)
 {
    // compute element bounding boxes.
-   int n_box_ents = 10;
+   const bool store_obb = obb_check;
+   const int sd = 2;
+   const int n_box_ents = store_obb ? (3*sd + sd*sd) : (2*sd);
    devs.bb.SetSize(nel*n_box_ents);
-   obboxedge_calc_2(devs.bb,elx,n,nel,m,bbox_tol);
+   obboxedge_calc_2(devs.bb, elx, n, nel, m, bbox_tol, store_obb);
+
+   auto h_bb = devs.bb.HostReadWrite();
+
+   auto GetMinAABBSize = [&](const uint e, const int d)
+   {
+      if (!bb_size) { return 0.0; }
+      const int sd = 2;
+      const int sz = bb_size->Size();
+      MFEM_VERIFY(sz == 1 || sz == (int)nel || sz == sd || sz == (int)nel*sd,
+                  "Invalid bb_size length for SetupSurf: expected 1, NE, SpaceDim, or NE*SpaceDim.");
+      double s = 0.0;
+      if (sz == 1) { s = (*bb_size)(0); }
+      else if (sz == (int)nel) { s = (*bb_size)((int)e); }
+      else if (sz == sd) { s = (*bb_size)(d); }
+      else { s = (*bb_size)((int)e*sd + d); }
+      MFEM_VERIFY(s >= 0.0, "bb_size entries must be non-negative.");
+      return s;
+   };
+
    Vector elmin(2*nel), elmax(2*nel);
    for (uint i = 0; i < nel; i++)
    {
-      elmin(i) = devs.bb(n_box_ents*i + 2); // xmin
-      elmin(i + nel) = devs.bb(n_box_ents*i + 3); // ymin
-      elmax(i) = devs.bb(n_box_ents*i + 4); // xmax
-      elmax(i + nel) = devs.bb(n_box_ents*i + 5); // ymax
+      const int min_off = (store_obb ? sd : 0) + n_box_ents*i;
+      const int max_off = (store_obb ? 2*sd : sd) + n_box_ents*i;
+      for (int d = 0; d < 2 && bb_size; d++)
+      {
+         const double req = GetMinAABBSize(i, d);
+         const double cur = h_bb[max_off+d] - h_bb[min_off+d];
+         if (cur < req)
+         {
+            const double pad = 0.5*(req - cur);
+            h_bb[min_off+d] -= pad;
+            h_bb[max_off+d] += pad;
+         }
+      }
+      elmin(i) = h_bb[min_off + 0];
+      elmin(i + nel) = h_bb[min_off + 1];
+      elmax(i) = h_bb[max_off + 0];
+      elmax(i + nel) = h_bb[max_off + 1];
    }
 
    // build local map
@@ -844,7 +977,6 @@ void FindPointsGSLIB::findptsedge_setup_2(DEV_STRUCT &devs,
    devs.lh_fac.HostWrite();    devs.lh_fac = bbmap.GetGridFac();
    devs.lh_offset.HostWrite(); devs.lh_offset = bbmap.GetGridMap();
    devs.lh_nx = bbmap.GetGridN()[0];
-
 
 #ifdef MFEM_USE_MPI
    // build global map
@@ -886,6 +1018,22 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t,
                                 const double newt_tol,
                                 const int npt_max)
 {
+   SetupSurf_Base(m, bb_t, nullptr, newt_tol);
+}
+
+void FindPointsGSLIB::SetupSurf(Mesh &m, const Vector &bb_size,
+                                const double bb_t,
+                                const double newt_tol)
+{
+   obb_check = false;
+   SetupSurf_Base(m, bb_t, &bb_size, newt_tol);
+}
+
+void FindPointsGSLIB::SetupSurf_Base(Mesh &m,
+                                     const double bbox_tol,
+                                     const Vector *bb_size,
+                                     const double newt_tol)
+{
    // EnsureNodes call could be useful if the mesh is 1st order and has no gridfunction defined
    MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
 
@@ -911,7 +1059,6 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t,
    unsigned dof1D      = meshOrder + 1;
 
    SetupSplitMeshesAndIntegrationRules(meshOrder);
-
    GetNodalValues(mesh->GetNodes(), gsl_mesh);
 
    mesh_points_cnt     = gsl_mesh.Size()/spacedim;
@@ -933,9 +1080,10 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t,
                           nr,
                           NE_split_total,
                           mr,
-                          bb_t,
+                          bbox_tol,
                           mesh_points_cnt,
-                          mesh_points_cnt);
+                          mesh_points_cnt,
+                          bb_size);
    }
    else if (spacedim==3)
    {
@@ -950,9 +1098,11 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t,
                           nr,
                           NE_split_total,
                           mr,
-                          bb_t,
+                          bbox_tol,
                           mesh_points_cnt,
-                          mesh_points_cnt, dim);
+                          mesh_points_cnt,
+                          dim,
+                          bb_size);
    }
 
    // Compute avg element size in the mesh to set surface distance tolerance.
@@ -970,32 +1120,22 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t,
    DEV.surf_dist_tol /= nelem;
    DEV.surf_dist_tol *= 1e-10;
 
-   // Setup gll points and lagrange coefficient data for
-   // findpoints
+   // Setup gll points and lagrange coefficient data for findpoints
    Vector gll1dtemp(DEV.dof1d),
           lagcoefftemp(DEV.dof1d),
           wtendtemp(6*DEV.dof1d);
 
-   // Get gll points [-1,1] for the given dof1d
    gslib::lobatto_nodes(gll1dtemp.GetData(), DEV.dof1d);
-
-   // Get lagrange coefficients at the gll points
    gslib::gll_lag_setup(lagcoefftemp.GetData(), DEV.dof1d);
 
-   for (int i=0; i<DEV.dof1d; i++)   // loop through all lagrange polynomials
+   for (int i=0; i<DEV.dof1d; i++)
    {
-      lagrange_eval_second_derivative(wtendtemp.GetData(),
-                                      -1.0,  // evaluate at -1
-                                      i,     // for the ith lagrange polynomial
+      lagrange_eval_second_derivative(wtendtemp.GetData(), -1.0, i,
                                       gll1dtemp.GetData(),
-                                      lagcoefftemp.GetData(),
-                                      DEV.dof1d);
-      lagrange_eval_second_derivative(wtendtemp.GetData()+3*DEV.dof1d,
-                                      1.0,  // evaluate at 1
-                                      i,    // for the ith lagrange polynomial
+                                      lagcoefftemp.GetData(), DEV.dof1d);
+      lagrange_eval_second_derivative(wtendtemp.GetData()+3*DEV.dof1d, 1.0, i,
                                       gll1dtemp.GetData(),
-                                      lagcoefftemp.GetData(),
-                                      DEV.dof1d);
+                                      lagcoefftemp.GetData(), DEV.dof1d);
    }
 
    DEV.wtend.SetSize(6*DEV.dof1d);
@@ -1011,7 +1151,6 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t,
    for (int i = 0; i < DEV.dof1d; i++) { h_lagcoeff[i] = lagcoefftemp[i]; }
 
    DEV.cr = cr;
-
    setupflag = true;
 }
 
@@ -3850,11 +3989,14 @@ void FindPointsGSLIB::GetAxisAlignedBoundingBoxes(Vector &aabb) const
          }
          else
          {
-            int n_el_ents = 18;
+            const int n_el_ents = obb_check ?
+                                  (3*spacedim + spacedim*spacedim) : (2*spacedim);
+            const int min_off = obb_check ? spacedim : 0;
+            const int max_off = obb_check ? 2*spacedim : spacedim;
             for (int d = 0; d < spacedim; d++)
             {
-               minn[d] = DEV.bb(e*n_el_ents + spacedim + d);
-               maxx[d] = DEV.bb(e*n_el_ents + 2*spacedim + d);
+               minn[d] = DEV.bb(e*n_el_ents + min_off + d);
+               maxx[d] = DEV.bb(e*n_el_ents + max_off + d);
             }
          }
          int c = 0;
@@ -3900,11 +4042,14 @@ void FindPointsGSLIB::GetAxisAlignedBoundingBoxes(Vector &aabb) const
          }
          else
          {
-            int n_el_ents = 10;
+            const int n_el_ents = obb_check ? (3*spacedim + spacedim*spacedim) :
+                                  (2*spacedim);
+            const int min_off = obb_check ? spacedim : 0;
+            const int max_off = obb_check ? 2*spacedim : spacedim;
             for (int d = 0; d < spacedim; d++)
             {
-               minn[d] = DEV.bb(e*n_el_ents + spacedim + d);
-               maxx[d] = DEV.bb(e*n_el_ents + 2*spacedim + d);
+               minn[d] = DEV.bb(e*n_el_ents + min_off + d);
+               maxx[d] = DEV.bb(e*n_el_ents + max_off + d);
             }
          }
          aabb(e*nve*spacedim + 0) = minn[0]; /* first vertex - x */
@@ -3922,6 +4067,11 @@ void FindPointsGSLIB::GetAxisAlignedBoundingBoxes(Vector &aabb) const
 Mesh* FindPointsGSLIB::GetBoundingBoxMesh(int type)
 {
    MFEM_VERIFY(setupflag, "Call FindPointsGSLIB::Setup method first");
+   if (type != 0)
+   {
+      MFEM_VERIFY(obb_check || dim == spacedim,
+                  "Oriented bounding boxes are not available when obb_check is false");
+   }
    int save_rank = 0;
    int myid = gsl_comm->id;
    Vector bbvert;
@@ -4033,6 +4183,8 @@ void FindPointsGSLIB::GetOrientedBoundingBoxes(DenseTensor &obbA, Vector &obbC,
                                                Vector &obbV) const
 {
    MFEM_VERIFY(setupflag, "Call FindPointsGSLIB::Setup method first");
+   MFEM_VERIFY(obb_check || dim == spacedim,
+               "Oriented bounding boxes are not available when obb_check is false");
    auto *findptsData3 = (gslib::findpts_data_3 *)this->fdataD;
    auto *findptsData2 = (gslib::findpts_data_2 *)this->fdataD;
    int nve   = spacedim == 2 ? 4 : 8;
