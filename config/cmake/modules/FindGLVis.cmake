@@ -16,7 +16,7 @@
 
 include(MfemCmakeUtilities)
 mfem_find_package(GLVis GLVIS GLVIS_DIR 
-        "include" "lib/session.hpp"
+        "include" "lib/glwindow.hpp"
         "lib" "build/lib/libglvis.a"
         "Paths to headers required by GLVis"
         "Libraries required by GLVis")
@@ -53,6 +53,5 @@ if (GLVIS_FOUND)
         list(APPEND GLVIS_LIBRARIES ${COCOA_LIBRARY})
 endif()
         
-message(STATUS "[🔵 GLVis  🔵] GLVIS_INCLUDE_DIRS: ${GLVIS_INCLUDE_DIRS}")
-message(STATUS "[🔵 GLVis  🔵] GLVIS_LIBRARIES: ${GLVIS_LIBRARIES}")
-
+message(STATUS "GLVIS_INCLUDE_DIRS: ${GLVIS_INCLUDE_DIRS}")
+message(STATUS "GLVIS_LIBRARIES: ${GLVIS_LIBRARIES}")
