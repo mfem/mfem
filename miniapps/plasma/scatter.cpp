@@ -67,7 +67,7 @@ typedef std::function<void(const Vector &, Vector &)> VecFunc;
 typedef std::function<void(const Vector &, real_t, Vector &)> VecTFunc;
 typedef std::function<real_t(real_t f, const Vector &x)> KFunc;
 
-enum Problem
+enum class Problem
 {
    MaterialWave = 1,
    Maxwell,
@@ -77,11 +77,21 @@ enum Problem
 
 constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
 
-TFunc GetSigFun(Problem prob, real_t f, real_t s0);
-TFunc GetNFun(Problem prob, real_t t_0, real_t k, real_t c);
-VecTFunc GetUFun(Problem prob, real_t f, real_t a0);
-VecTFunc GetEFun(Problem prob, real_t f);
-TFunc GetFFun(Problem prob, real_t t_0, real_t k, real_t c);
+struct Params
+{
+   Problem prob{Problem::MaterialWave};
+   real_t freq{1.};     // frequency
+   real_t s0{1.};       // coupling factor
+   real_t kappa{1.};    // heat conductivity
+   real_t c{1.};        // velocity
+   real_t a0{1e-3};     // amplitude factor
+};
+
+TFunc GetSigFun(const Params &pars);
+TFunc GetNFun(const Params &pars);
+VecTFunc GetUFun(const Params &pars);
+VecTFunc GetEFun(const Params &pars);
+TFunc GetFFun(const Params &pars);
 
 int main(int argc, char *argv[])
 {
@@ -96,15 +106,11 @@ int main(int argc, char *argv[])
    int order = 1;
    bool dg = false;
    bool brt = false;
-   int iproblem = Problem::MaterialWave;
+   int iproblem = (int)Problem::MaterialWave;
    real_t tf = 1.;
    int nt = 0;
    int ode = 1;
-   real_t k = 1.;
-   real_t c = 1.;
-   real_t freq = 1.;
-   real_t s0 = 1.;
-   real_t a0 = 1e-3;
+   Params params;
    real_t td = 0.5;
    bool bc_neumann = false;
    //bool reduction = false;
@@ -151,15 +157,15 @@ int main(int argc, char *argv[])
                   "Number of time steps.");
    args.AddOption(&ode, "-ode", "--ode-solver",
                   "ODE time solver (1=Bacward Euler, 2=RK23L, 3=RK23A, 4=RK34).");
-   args.AddOption(&k, "-k", "--kappa",
+   args.AddOption(&params.kappa, "-k", "--kappa",
                   "Heat conductivity");
-   args.AddOption(&c, "-c", "--velocity",
+   args.AddOption(&params.c, "-c", "--velocity",
                   "Convection velocity");
-   args.AddOption(&freq, "-f", "--frequency",
+   args.AddOption(&params.freq, "-f", "--frequency",
                   "Harmonic frequency");
-   args.AddOption(&s0, "-s0", "--sigma0",
+   args.AddOption(&params.s0, "-s0", "--sigma0",
                   "Coupling factor");
-   args.AddOption(&a0, "-a0", "--amplitude0",
+   args.AddOption(&params.a0, "-a0", "--amplitude0",
                   "Amplitude factor");
    args.AddOption(&td, "-td", "--stab_diff",
                   "Diffusion stabilization factor (1/2=default)");
@@ -208,9 +214,9 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    // Set the problem options
-   Problem problem = (Problem)iproblem;
+   params.prob = (Problem)iproblem;
    bool btime = false;
-   switch (problem)
+   switch (params.prob)
    {
       case Problem::MaterialWave:
       case Problem::Maxwell:
@@ -282,7 +288,7 @@ int main(int argc, char *argv[])
    bdr_u_is_neumann = 0;
    bdr_E_is_neumann = 0;
 
-   switch (problem)
+   switch (params.prob)
    {
       case Problem::MaterialWave:
          bdr_u_is_neumann[3] = -1;//inflow
@@ -376,25 +382,25 @@ int main(int argc, char *argv[])
    // 6. Define the coefficients, analytical solution, and rhs of the PDE.
    const real_t t_0 = 1.; //base density
 
-   ConstantCoefficient kcoeff(k); //conductivity
-   ConstantCoefficient ikcoeff(1./k); //inverse conductivity
+   ConstantCoefficient kcoeff(params.kappa); //conductivity
+   ConstantCoefficient ikcoeff(1./params.kappa); //inverse conductivity
 
-   auto sigFun = GetSigFun(problem, freq, s0);
+   auto sigFun = GetSigFun(params);
    FunctionCoefficient sigcoeff(sigFun); //coupling
 
-   auto nFun = GetNFun(problem, t_0, k, c);
+   auto nFun = GetNFun(params);
    FunctionCoefficient ncoeff(nFun); //density
    SumCoefficient gcoeff(0., ncoeff, 1., -1.); //boundary velocity rhs
    ProductCoefficient ghcoeff(0.5, gcoeff);
 
-   auto fFun = GetFFun(problem, t_0, k, c);
+   auto fFun = GetFFun(params);
    FunctionCoefficient fcoeff(fFun); //density rhs
 
-   auto uFun = GetUFun(problem, freq, a0);
+   auto uFun = GetUFun(params);
    VectorFunctionCoefficient ucoeff(dim, uFun); //velocity
    ConstantCoefficient one;
 
-   auto Efun = GetEFun(problem, freq);
+   auto Efun = GetEFun(params);
    VectorFunctionCoefficient Ecoeff(dim, Efun); //electric field
 
    // 7. Assemble the finite element matrices for the Darcy operator
@@ -797,9 +803,9 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-TFunc GetSigFun(Problem prob, real_t f, real_t s0)
+TFunc GetSigFun(const Params &pars)
 {
-   switch (prob)
+   switch (pars.prob)
    {
       case Problem::MaterialWave:
       case Problem::Maxwell:
@@ -815,15 +821,15 @@ TFunc GetSigFun(Problem prob, real_t f, real_t s0)
             constexpr real_t y0 = 0.5;
             constexpr real_t w = 0.5;
             const real_t r = hypot(x(0) - x0, x(1) - y0) / w;
-            return exp(-r*r) * s0;
+            return exp(-r*r) * pars.s0;
          };
    }
    return TFunc();
 }
 
-TFunc GetNFun(Problem prob, real_t t_0, real_t k, real_t c)
+TFunc GetNFun(const Params &pars)
 {
-   switch (prob)
+   switch (pars.prob)
    {
       case Problem::MaterialWave:
       case Problem::Maxwell:
@@ -841,9 +847,9 @@ TFunc GetNFun(Problem prob, real_t t_0, real_t k, real_t c)
    return TFunc();
 }
 
-VecTFunc GetUFun(Problem prob, real_t f, real_t a0)
+VecTFunc GetUFun(const Params &pars)
 {
-   switch (prob)
+   switch (pars.prob)
    {
       case Problem::MaterialWave:
          return [=](const Vector &x, real_t t, Vector &v)
@@ -855,7 +861,7 @@ VecTFunc GetUFun(Problem prob, real_t f, real_t a0)
             constexpr real_t w = 0.25;
             constexpr real_t y0 = 0.5;
             const real_t dy = (x(1) - y0) / w;
-            v(0) = exp(-dy*dy) * sin(M_PI * f * t) * cos(M_PI * x(0));
+            v(0) = exp(-dy*dy) * sin(M_PI * pars.freq * t) * cos(M_PI * x(0));
          };
       case Problem::Maxwell:
       case Problem::Excitation:
@@ -880,15 +886,16 @@ VecTFunc GetUFun(Problem prob, real_t f, real_t a0)
             constexpr real_t z0 = 0.5;
             const real_t dz = x(1) - z0;
             const real_t R = dz / (dz*dz + zR*zR);
-            v(1) = exp(-rw*rw) * sin(M_PI * (f * t - r*r / R)) * cos(M_PI * x(1)) * a0;
+            v(1) = exp(-rw*rw) * sin(M_PI * (pars.freq* t - r*r / R))
+                   * cos(M_PI * x(1)) * pars.a0;
          };
    }
    return VecTFunc();
 }
 
-VecTFunc GetEFun(Problem prob, real_t f)
+VecTFunc GetEFun(const Params &pars)
 {
-   switch (prob)
+   switch (pars.prob)
    {
       case Problem::MaterialWave:
       case Problem::Maxwell:
@@ -902,7 +909,7 @@ VecTFunc GetEFun(Problem prob, real_t f)
             constexpr real_t w = 0.25;
             constexpr real_t y0 = 0.5;
             const real_t dy = (x(1) - y0) / w;
-            v(1) = exp(-dy*dy) * sin(M_PI * f * t) * cos(M_PI * x(0));
+            v(1) = exp(-dy*dy) * sin(M_PI * pars.freq * t) * cos(M_PI * x(0));
          };
       case Problem::Scattering:
          return [=](const Vector &x, real_t t, Vector &v)
@@ -918,15 +925,15 @@ VecTFunc GetEFun(Problem prob, real_t f)
             constexpr real_t z0 = 0.5;
             const real_t dz = x(0) - z0;
             const real_t R = dz / (dz*dz + zR*zR);
-            v(1) = exp(-rw*rw) * sin(M_PI * (f * t - r*r / R)) * cos(M_PI * x(0));
+            v(1) = exp(-rw*rw) * sin(M_PI * (pars.freq * t - r*r / R)) * cos(M_PI * x(0));
          };
    }
    return VecTFunc();
 }
 
-TFunc GetFFun(Problem prob, real_t t_0, real_t k, real_t c)
+TFunc GetFFun(const Params &pars)
 {
-   switch (prob)
+   switch (pars.prob)
    {
       case Problem::MaterialWave:
       case Problem::Maxwell:
