@@ -25,81 +25,6 @@ complex<double> Zfunction(complex<double> xi)
    return complex<double>(0,1)*sqrt(M_PI)*Faddeeva::w(xi);
 }
 
-complex<double> zero_harm_kinetic_S(complex<double> w_c, complex<double> w_p, 
-                                     complex<double> vth, double omega,
-                                     double kparallel, double nu)
-{
-   double kperp = kperp_cold_plasma(omega, w_c.real(),w_p.real());
-   complex<double> comp_val(0.0,1.0);
-   complex<double> lambda = pow(kperp*vth,2.0)/(2.0*pow(w_c,2.0));
-
-   // n =0 0:
-   complex<double> Z0 = Zfunction((omega*(1.0+comp_val*nu))/(kparallel*vth));
-
-   return (2.0*lambda)*(pow(w_p,2.0)/omega)*(Z0/(kparallel*vth));
-}
-
-complex<double> first_harm_kinetic_S(complex<double> w_c, complex<double> w_p, 
-                                     complex<double> vth, double omega,
-                                     double kparallel, double nu)
-{
-   complex<double> comp_val(0.0,1.0);
-
-   // n > 0:
-   complex<double> Zp = Zfunction((omega*(1.0+comp_val*nu) - w_c)/(kparallel*vth));
-
-   // n < 0:
-   complex<double> Zm = Zfunction((omega*(1.0+comp_val*nu) + w_c)/(kparallel*vth));
-
-   return ((pow(w_p,2.0)/omega)*(0.5)*(1.0/(kparallel*vth))*(Zp+Zm));
-}
-
-complex<double> second_harm_kinetic_S(complex<double> w_c, complex<double> w_p, 
-                                      complex<double> vth, double omega,
-                                       double kparallel, double nu)
-{
-   double kperp = kperp_cold_plasma(omega, w_c.real(),w_p.real());
-   complex<double> comp_val(0.0,1.0);
-   complex<double> lambda = pow(kperp*vth,2.0)/(2.0*pow(w_c,2.0));
-
-   // n > 0:
-   complex<double> Zp = Zfunction((omega*(1.0+comp_val*nu) - 2.0*w_c)/(kparallel*vth));
-
-   // n < 0:
-   complex<double> Zm = Zfunction((omega*(1.0+comp_val*nu) + 2.0*w_c)/(kparallel*vth));
-   
-   return ((pow(w_p,2.0)/omega)*lambda*(0.5)*(1.0/(kparallel*vth))*(Zp+Zm));
-}
-
-complex<double> first_harm_kinetic_D(complex<double> w_c, complex<double> w_p, 
-                                     complex<double> vth, double omega,
-                                      double kparallel)
-{
-   // n > 0:
-   complex<double> Zp = Zfunction((omega - w_c)/(kparallel*vth));
-
-   // n < 0:
-   complex<double> Zm = Zfunction((omega + w_c)/(kparallel*vth));
-
-   return ((pow(w_p,2.0)/omega)*(-0.5)*(1.0/(kparallel*vth))*(Zp-Zm));
-
-}
-
-complex<double> second_harm_kinetic_D(complex<double> w_c, complex<double> w_p, 
-                                     complex<double> vth, double omega,
-                                     double kparallel)
-{
-   double kperp = kperp_cold_plasma(omega, w_c.real(),w_p.real());
-   complex<double> lambda = pow(kperp*vth,2.0)/(2.0*pow(w_c,2.0));
-   // n > 0:
-   complex<double> Zp = Zfunction((omega - 2.0*w_c)/(kparallel*vth));
-
-   // n < 0:
-   complex<double> Zm = Zfunction((omega + 2.0*w_c)/(kparallel*vth));
-   
-   return ((pow(w_p,2.0)/omega)*lambda*(-0.5)*(1.0/(kparallel*vth))*(Zp-Zm));
-}
-
 void StixCoefs_cold_plasma(Vector &V,
                            double omega,
                            double Bmag,
@@ -430,16 +355,30 @@ complex<double> epxx_warm_plasma_by_species(double omega,
    double kperp = kperp_cold_plasma(omega,w_cd,w_pd);
    complex<double> lambda = pow(kperp*vth,2.0)/(2.0*pow(w_c,2.0));
 
+   complex<double> omega_eff(omega,0.0);
+   double LH_nu = 0.0;
+
+   if (i != 0)
+   {
+      double cold_S = 0.5*(Rval+Lval);
+      if (fabs(cold_S) < 10.0)
+      {
+         LH_nu = (nui*exp(-pow(cold_S,2.0)))/omega;
+      }
+
+      omega_eff = omega*(1.0+comp_val*LH_nu);
+   }
+
    // n = 0 harmonic is zero
 
    // n = 1 harmonic:
-   complex<double> Zp1 = Zfunction((omega - w_c)/(kparallel*vth));
-   complex<double> Zm1 = Zfunction((omega + w_c)/(kparallel*vth));
+   complex<double> Zp1 = Zfunction((omega_eff - w_c)/(kparallel*vth));
+   complex<double> Zm1 = Zfunction((omega_eff + w_c)/(kparallel*vth));
 
    complex<double> n1 = ((w_p*w_p)/omega)*(0.5)*(1.0 - lambda)*((Zp1+Zm1)/(kparallel*vth));
 
-   complex<double> Zp2 = Zfunction((omega - 2.0*w_c)/(kparallel*vth));
-   complex<double> Zm2 = Zfunction((omega + 2.0*w_c)/(kparallel*vth));
+   complex<double> Zp2 = Zfunction((omega_eff - 2.0*w_c)/(kparallel*vth));
+   complex<double> Zm2 = Zfunction((omega_eff + 2.0*w_c)/(kparallel*vth));
       
    complex<double> n2 = ((w_p*w_p)/omega)*lambda*(0.5)*((Zp2+Zm2)/(kparallel*vth));
          
@@ -629,7 +568,7 @@ complex<double> epyz_warm_plasma_by_species(double omega,
    double vth = vthermal(T, m);
 
    complex<double> comp_val(0.0,1.0);
-   double kperp = kperp_cold_plasma(omega, w_cd,w_pd);
+   double kperp = kperp_cold_plasma(omega,w_cd,w_pd);
    complex<double> lambda = pow(kperp*vth,2.0)/(2.0*pow(w_c,2.0));
 
    // n = 0 harmonic:
@@ -2515,7 +2454,6 @@ void lambdaPML::Eval(DenseMatrix &lambdaPML, ElementTransformation &T,
       complex<double> sig_v = constant;
       complex<double> sig_w = constant;
 
-      
       double x0 = 2.2404;
       double delta_x = 0.12;
 
@@ -2524,7 +2462,6 @@ void lambdaPML::Eval(DenseMatrix &lambdaPML, ElementTransformation &T,
          sig_u = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[0]-x0)/delta_x),2.0); // x
       }
 
-      /*
       double y0 = 0.84;
       double y1 = -0.84;
       double delta_y = 0.22;
@@ -2548,8 +2485,8 @@ void lambdaPML::Eval(DenseMatrix &lambdaPML, ElementTransformation &T,
       {
          sig_w = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[2]-z1)/delta_z),2.0); // z
       }
-      
-      
+
+      /*
       double x0 = 0.2;
       double x1 = 0.8;
       double delta_x = x0;
@@ -2618,7 +2555,7 @@ void lambdaPML::Eval(DenseMatrix &lambdaPML, ElementTransformation &T,
       lambdaPML(0,2) = 0.0;
       lambdaPML(1,2) = 0.0;
       lambdaPML(2,1) = 0.0;
-      lambdaPML(0,2) = 0.0;
+      lambdaPML(2,0) = 0.0;
       lambdaPML(0,1) = 0.0;
       lambdaPML(1,0) = 0.0;
    }
@@ -2647,7 +2584,6 @@ void sigmaPML::Eval(DenseMatrix &sigmaPML, ElementTransformation &T,
       complex<double> sig_v = constant;
       complex<double> sig_w = constant;
 
-      
       double x0 = 2.2404;
       double delta_x = 0.12;
 
@@ -2655,8 +2591,7 @@ void sigmaPML::Eval(DenseMatrix &sigmaPML, ElementTransformation &T,
       {
          sig_u = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[0]-x0)/delta_x),2.0); // x
       }
-
-      /*
+      
       double y0 = 0.84;
       double y1 = -0.84;
       double delta_y = 0.22;
@@ -2680,8 +2615,8 @@ void sigmaPML::Eval(DenseMatrix &sigmaPML, ElementTransformation &T,
       {
          sig_w = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[2]-z1)/delta_z),2.0); // z
       }
-      
-      
+
+      /*      
       double x0 = 0.2;
       double x1 = 0.8;
       double delta_x = x0;
@@ -2693,7 +2628,7 @@ void sigmaPML::Eval(DenseMatrix &sigmaPML, ElementTransformation &T,
       {
          sig_u = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[0]-x1)/delta_x),2.0); // x
       }
-      */ 
+      */
       
       /*
       double x1 = 0.5;
@@ -2747,7 +2682,7 @@ void sigmaPML::Eval(DenseMatrix &sigmaPML, ElementTransformation &T,
       sigmaPML(0,2) = 0.0;
       sigmaPML(1,2) = 0.0;
       sigmaPML(2,1) = 0.0;
-      sigmaPML(0,2) = 0.0;
+      sigmaPML(2,0) = 0.0;
       sigmaPML(0,1) = 0.0;
       sigmaPML(1,0) = 0.0;
    }

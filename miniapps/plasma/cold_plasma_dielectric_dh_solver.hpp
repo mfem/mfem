@@ -304,9 +304,19 @@ public:
                VectorCoefficient & BCoef,
                MatrixCoefficient & epsInvReCoef,
                MatrixCoefficient & epsInvImCoef,
+               MatrixCoefficient & epsAbsCoef,
                MatrixCoefficient & susceptReCoef,
                MatrixCoefficient & susceptImCoef,
-               MatrixCoefficient & epsAbsCoef,
+               MatrixCoefficient & susceptReCoef_e,
+               MatrixCoefficient & susceptImCoef_e,
+               MatrixCoefficient & susceptReCoef_i1,
+               MatrixCoefficient & susceptImCoef_i1,
+               MatrixCoefficient * susceptReCoef_i2,
+               MatrixCoefficient * susceptImCoef_i2,
+               MatrixCoefficient * susceptReCoef_i3,
+               MatrixCoefficient * susceptImCoef_i3,
+               MatrixCoefficient & muReCoef,
+               MatrixCoefficient & muImCoef,
                Coefficient & muCoef,
                Coefficient * etaCoef,
                VectorCoefficient * kReCoef,
@@ -318,7 +328,8 @@ public:
                void (*j_r_src)(const Vector&, Vector&),
                void (*j_i_src)(const Vector&, Vector&),
                bool vis_u = false,
-               bool pa = false);
+               bool pa = false,
+               bool dim2 = false);
    ~CPDSolverDH();
 
    HYPRE_Int GetProblemSize();
@@ -338,6 +349,8 @@ public:
                          const VectorCoefficient & HImCoef) const;
 
    void GetErrorEstimates(Vector & errors);
+
+   double GetVolume() const;
 
    double GetGlobalDissipation() const;
 
@@ -618,6 +631,7 @@ private:
    bool ownsEta_;
    bool vis_u_;
    bool pa_;
+   bool dim2_;
 
    double omega_;
    int H_iter_;
@@ -692,7 +706,11 @@ private:
    ParComplexGridFunction * e_perp_; // Complex perpendicular electric field (L2)
    ParComplexGridFunction * e_plus_; // Complex + polarized electric field (L2)
    ParComplexGridFunction * e_min_; // Complex - polarized electric field (L2)
-   ParGridFunction        * power_absorp_; // Real valued power absorption (H1)
+   ParGridFunction        * power_absorp_t_; // Real valued total power absorption (H1)
+   ParGridFunction        * power_absorp_e_; // Real valued electron power absorption (H1)
+   ParGridFunction        * power_absorp_i1_; // Real valued ion 1 absorption (H1)
+   ParGridFunction        * power_absorp_i2_; // Real valued ion 2 power absorption (H1)
+   ParGridFunction        * power_absorp_i3_; // Real valued ion 3 power absorption (H1)
    ParComplexGridFunction * h_v_; // Complex magnetic field (L2^d)
    ParComplexGridFunction * e_v_; // Complex electric field (L2^d)
    ParComplexGridFunction * d_v_; // Complex electric flux (L2^d)
@@ -741,9 +759,19 @@ private:
    MatrixCoefficient * epsInvImCoef_;    // Dielectric Material Coefficient
    MatrixCoefficient * susceptReCoef_;    // Real Susceptibility Coefficient
    MatrixCoefficient * susceptImCoef_;    // Imag Susceptibility Coefficient
+   MatrixCoefficient * susceptReCoef_e_;    // Electron Real Susceptibility Coefficient
+   MatrixCoefficient * susceptImCoef_e_;    // Electron Imag Susceptibility Coefficient
+   MatrixCoefficient * susceptReCoef_i1_;    // Ion 1 Real Susceptibility Coefficient
+   MatrixCoefficient * susceptImCoef_i1_;    // Ion 1 Imag Susceptibility Coefficient
+   MatrixCoefficient * susceptReCoef_i2_;    // Ion 2 Real Susceptibility Coefficient
+   MatrixCoefficient * susceptImCoef_i2_;    // Ion 2 Imag Susceptibility Coefficient
+   MatrixCoefficient * susceptReCoef_i3_;    // Ion 3 Real Susceptibility Coefficient
+   MatrixCoefficient * susceptImCoef_i3_;    // Ion 3 Imag Susceptibility Coefficient
    // MatrixCoefficient * epsAbsCoef_;   // Dielectric Material Coefficient
-   Coefficient       * muCoef_;       // Dia/Paramagnetic Material Coefficient
-   PowerCoefficient    muInvCoef_;    // Dia/Paramagnetic Material Coefficient
+   Coefficient * muCoef_;       // Real Dia/Paramagnetic Material Coefficient
+   MatrixCoefficient * muReCoef_;       // Real Dia/Paramagnetic Material Coefficient
+   MatrixCoefficient * muImCoef_;       // Imag Dia/Paramagnetic Material Coefficient
+   PowerCoefficient    muInvReCoef_;    // Dia/Paramagnetic Material Coefficient
    Coefficient       * etaCoef_;      // Impedance Coefficient
    SheathPower       * sheathPowCoef_; // Sheath Width * Admittance Coefficient
    VectorCoefficient * kReCoef_;        // Wave Vector
@@ -769,6 +797,8 @@ private:
    // Coefficient * negMuInvCoef_;  // -1.0 / mu
 
    Coefficient * massCoef_;  // -omega^2 mu
+   MatrixCoefficient * massReCoef_;  // -omega^2 mu_r
+   MatrixCoefficient * massImCoef_;  // -omega^2 mu_i
    Coefficient * posMassCoef_; // omega^2 mu
    // MatrixCoefficient * negMuInvkxkxCoef_; // -\vec{k}\times\vec{k}\times/mu
 

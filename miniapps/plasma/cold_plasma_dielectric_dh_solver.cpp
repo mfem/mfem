@@ -449,6 +449,16 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
                          MatrixCoefficient & epsAbsCoef,
                          MatrixCoefficient & susceptReCoef,
                          MatrixCoefficient & susceptImCoef,
+                         MatrixCoefficient & susceptReCoef_e,
+                         MatrixCoefficient & susceptImCoef_e,
+                         MatrixCoefficient & susceptReCoef_i1,
+                         MatrixCoefficient & susceptImCoef_i1,
+                         MatrixCoefficient * susceptReCoef_i2,
+                         MatrixCoefficient * susceptImCoef_i2,
+                         MatrixCoefficient * susceptReCoef_i3,
+                         MatrixCoefficient * susceptImCoef_i3,
+                         MatrixCoefficient & muReCoef,
+                         MatrixCoefficient & muImCoef,
                          Coefficient & muCoef,
                          Coefficient * etaCoef,
                          VectorCoefficient * kReCoef,
@@ -459,7 +469,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
                          Array<ComplexCoefficientByAttr*> & sbcs,
                          void (*j_r_src)(const Vector&, Vector&),
                          void (*j_i_src)(const Vector&, Vector&),
-                         bool vis_u, bool pa)
+                         bool vis_u, bool pa, bool dim2)
    : myid_(0),
      num_procs_(1),
      order_(order),
@@ -471,6 +481,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      ownsEta_(etaCoef == NULL),
      vis_u_(vis_u),
      pa_(pa),
+     dim2_(dim2),
      omega_(omega),
      pmesh_(&pmesh),
      L2FESpace_(NULL),
@@ -557,7 +568,11 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      e_perp_(NULL),
      e_plus_(NULL),
      e_min_(NULL),
-     power_absorp_(NULL),
+     power_absorp_t_(NULL),
+     power_absorp_e_(NULL),
+     power_absorp_i1_(NULL),
+     power_absorp_i2_(NULL),
+     power_absorp_i3_(NULL),
      h_v_(NULL),
      e_v_(NULL),
      d_v_(NULL),
@@ -579,9 +594,19 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      epsInvImCoef_(&epsInvImCoef),
      susceptReCoef_(&susceptReCoef),
      susceptImCoef_(&susceptImCoef),
+     susceptReCoef_e_(&susceptReCoef_e),
+     susceptImCoef_e_(&susceptImCoef_e),
+     susceptReCoef_i1_(&susceptReCoef_i1),
+     susceptImCoef_i1_(&susceptImCoef_i1),
+     susceptReCoef_i2_(susceptReCoef_i2),
+     susceptImCoef_i2_(susceptImCoef_i2),
+     susceptReCoef_i3_(susceptReCoef_i3),
+     susceptImCoef_i3_(susceptImCoef_i3),
      // epsAbsCoef_(&epsAbsCoef),
      muCoef_(&muCoef),
-     muInvCoef_(muCoef, -1),
+     muReCoef_(&muReCoef),
+     muImCoef_(&muImCoef),
+     muInvReCoef_(muCoef, -1),
      etaCoef_(etaCoef),
      kReCoef_(kReCoef),
      kImCoef_(kImCoef),
@@ -601,6 +626,8 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      negsinkx_(NULL),
      // negMuInvCoef_(NULL),
      massCoef_(NULL),
+     massReCoef_(NULL),
+     massImCoef_(NULL),
      posMassCoef_(NULL),
      kekReCoef_(kReCoef_, kImCoef_, epsInvReCoef_, epsInvImCoef_, true, -1.0),
      kekImCoef_(kReCoef_, kImCoef_, epsInvReCoef_, epsInvImCoef_, false, -1.0),
@@ -674,8 +701,8 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
       b_hat_ = new ParGridFunction(HDivFESpace_);
       EpsPara_ = new ParComplexGridFunction(L2FESpace_);
    }
-   power_absorp_ = new ParGridFunction(H1FESpace_);
-   *power_absorp_ = 0.0;
+   power_absorp_t_ = new ParGridFunction(H1FESpace_);
+   *power_absorp_t_ = 0.0;
 
    if (kReCoef_ || kImCoef_)
    {
@@ -771,6 +798,10 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    */
    massCoef_ = new ProductCoefficient(*negOmega2Coef_,
                                       *muCoef_);
+   massReCoef_ = new ScalarMatrixProductCoefficient(*negOmega2Coef_,
+                                      *muReCoef_);
+   massImCoef_ = new ScalarMatrixProductCoefficient(*negOmega2Coef_,
+                                      *muImCoef_);
    posMassCoef_ = new ProductCoefficient(*omega2Coef_,
                                          *muCoef_);
 
@@ -864,7 +895,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    if (pa_) { a1_->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a1_->AddDomainIntegrator(new CurlCurlIntegrator(*epsInvReCoef_),
                             new CurlCurlIntegrator(*epsInvImCoef_));
-   a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massCoef_), NULL);
+   a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massReCoef_), new VectorFEMassIntegrator(*massImCoef_));
    if (kReCoef_ || kImCoef_)
    {
       if (pa_)
@@ -1244,6 +1275,8 @@ CPDSolverDH::~CPDSolverDH()
    delete PReCoef_;
    delete PImCoef_;
    delete massCoef_;
+   delete massReCoef_;
+   delete massImCoef_;
    delete posMassCoef_;
    delete abcCoef_;
    if ( ownsEta_ ) { delete etaCoef_; }
@@ -1265,7 +1298,7 @@ CPDSolverDH::~CPDSolverDH()
    delete e_perp_;
    delete e_plus_;
    delete e_min_;
-   delete power_absorp_;
+   delete power_absorp_t_;
    delete b_hat_;
    // delete e_r_;
    // delete e_i_;
@@ -1683,7 +1716,7 @@ CPDSolverDH::Update()
    if (e_perp_) { e_perp_->Update(); }
    if (e_plus_) { e_plus_->Update(); }
    if (e_min_) { e_min_->Update(); }
-   if (power_absorp_) { power_absorp_->Update(); }
+   if (power_absorp_t_) { power_absorp_t_->Update(); }
    if (h_v_) { h_v_->Update(); }
    if (e_v_) { e_v_->Update(); }
    if (d_v_) { d_v_->Update(); }
@@ -2005,7 +2038,12 @@ CPDSolverDH::Solve()
       VectorConstantCoefficient zeroVCoef(zeroVec);
 
       double nrmh = h_->ComputeL2Error(zeroVCoef, zeroVCoef);
-      if (myid_ == 0) { cout << "norm of H: " << nrmh << endl; }
+      if (myid_ == 0) 
+      { 
+         cout << "norm of H: " << nrmh << endl; 
+         cout << " Solver done in " << tic_toc.RealTime() << " seconds." << endl;
+      }
+
       if (sbcs_->Size() > 0)
       {
          m3_->Assemble();
@@ -2042,14 +2080,22 @@ CPDSolverDH::Solve()
    M4soli_ = m4soli_->ParallelAssemble();
 
    double global_diss = GetGlobalDissipation();
+   double mesh_vol = GetVolume();
    double core_diss = GetCoreDissipation();
    double sol_diss = GetSOLDissipation();
 
    if (myid_ == 0)
    {
-      cout << "Global Dissipation: " << global_diss << " W" << endl; 
-      cout << "Core Dissipation: " << core_diss << " W" << endl; 
-      cout << "SOL Dissipation: " << sol_diss << " W" << endl; 
+      if (dim2_)
+      {
+         cout << "Global Total Dissipation: " << global_diss/mesh_vol << " W/m" << endl;
+      }
+      else
+      {
+         cout << "Global Total Dissipation: " << global_diss << " W" << endl;
+      }
+      //cout << "Core Dissipation: " << core_diss << " W" << endl; 
+      //cout << "SOL Dissipation: " << sol_diss << " W" << endl; 
       cout << " Solve done." << endl;
    }
 }
@@ -2183,7 +2229,7 @@ void CPDSolverDH::computeE(const ParComplexGridFunction & d,
 
    m1_->FormLinearSystem(sbc_nd_tdofs_, e, *rhs1_, M1, E, RHS1);
 
-   
+   /*
    bool minres = true;
    if (minres)
    {
@@ -2218,8 +2264,9 @@ void CPDSolverDH::computeE(const ParComplexGridFunction & d,
 
      gmres.Mult(RHS1, E);
    }
+   */
    
-/*
+
 #ifdef MFEM_USE_MUMPS
    {
       bool dmumps = true;
@@ -2269,7 +2316,7 @@ void CPDSolverDH::computeE(const ParComplexGridFunction & d,
    }
 #endif
 #endif
-*/
+
    m1_->RecoverFEMSolution(E, *rhs1_, e);
 
    if (logging_ > 0)
@@ -2328,7 +2375,7 @@ CPDSolverDH::GetErrorEstimates(Vector & errors)
    { cout << "Estimating Error ... " << flush; }
 
    // Space for the discontinuous (original) flux
-   CurlCurlIntegrator flux_integrator(muInvCoef_);
+   CurlCurlIntegrator flux_integrator(muInvReCoef_);
    RT_FECollection flux_fec(order_-1, pmesh_->SpaceDimension());
    ParFiniteElementSpace flux_fes(pmesh_, &flux_fec);
 
@@ -2347,6 +2394,22 @@ CPDSolverDH::GetErrorEstimates(Vector & errors)
    errors += err_i;
 
    if ( myid_ == 0 && logging_ > 0 ) { cout << "done." << endl; }
+}
+
+double CPDSolverDH::GetVolume() const
+{
+   double global_volume = 0.0;
+   double local_volume = 0.0;
+   MPI_Comm comm = pmesh_->GetComm();
+
+   for (int j=0; j<pmesh_->GetNE(); j++)
+   {
+      local_volume += pmesh_->GetElementVolume(j);
+   }
+   MPI_Allreduce(&local_volume, &global_volume, 1, MPITypeMap<double>::mpi_type, MPI_SUM,
+                    comm);
+
+   return global_volume;
 }
 
 double
@@ -2475,7 +2538,7 @@ CPDSolverDH::RegisterVisItFields(VisItDataCollection & visit_dc)
       // visit_dc.RegisterField("Re_EpsPara", &EpsPara_->real());
       // visit_dc.RegisterField("Im_EpsPara", &EpsPara_->imag());
    }
-   visit_dc.RegisterField("Power_Absorp", power_absorp_);
+   visit_dc.RegisterField("Power_Absorp", power_absorp_t_);
 
    // visit_dc.RegisterField("Er", e_r_);
    // visit_dc.RegisterField("Ei", e_i_);
@@ -2666,7 +2729,7 @@ CPDSolverDH::WriteVisItFields(int it)
       InnerProductCoefficient ESE2(e_i,ImSE);
 
       SumCoefficient PowerAbsorp(ESE1,ESE2,0.5,0.5);
-      power_absorp_->ProjectCoefficient(PowerAbsorp);
+      power_absorp_t_->ProjectCoefficient(PowerAbsorp);
 
 
       //ComplexCoefficientByAttr & sbc = (*sbcs_)[0];

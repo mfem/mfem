@@ -1842,9 +1842,6 @@ int main(int argc, char *argv[])
       cout << "Creating coefficients for Maxwell equations." << endl;
    }
 
-   // Create a coefficient describing the magnetic permeability
-   ConstantCoefficient muCoef(mu0_);
-
    // Create a coefficient describing the surface admittance
    Coefficient * etaCoef = SetupImpedanceCoefficient(pmesh, abcs);
 
@@ -1869,11 +1866,60 @@ int main(int argc, char *argv[])
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
                                            res_lim, false, thermal);
-   TransposeMatrixCoefficient suscept_realT(suscept_real);
-   TransposeMatrixCoefficient suscept_imagT(suscept_imag);
-   MatrixSumCoefficient suscept_real_diss(suscept_real, suscept_realT);
-   //MatrixSumCoefficient suscept_imag_diss(suscept_imag, suscept_imagT);
-   MatrixSumCoefficient suscept_imag_diss(suscept_imag, suscept_imagT,1.0,-1.0);
+   SusceptibilityTensorbySpecies suscept_real_electrons(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, true, thermal, 0);
+   SusceptibilityTensorbySpecies suscept_imag_electrons(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, false, thermal, 0);
+   SusceptibilityTensorbySpecies suscept_real_ion1(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, true, thermal, 1);
+   SusceptibilityTensorbySpecies suscept_imag_ion1(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, false, thermal, 1);
+
+   SusceptibilityTensorbySpecies *suscept_real_ion2 = NULL;
+   SusceptibilityTensorbySpecies *suscept_imag_ion2 = NULL;
+
+   if (numbers.Size() > 2)
+   {
+      suscept_real_ion2 = new SusceptibilityTensorbySpecies(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, true, thermal, 2);
+      suscept_imag_ion2 = new SusceptibilityTensorbySpecies(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, false, thermal, 2);     
+   }
+
+   SusceptibilityTensorbySpecies *suscept_real_ion3 = NULL;
+   SusceptibilityTensorbySpecies *suscept_imag_ion3 = NULL;
+
+   if (numbers.Size() > 3)
+   {
+      suscept_real_ion3 = new SusceptibilityTensorbySpecies(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, true, thermal, 3);
+      suscept_imag_ion3 = new SusceptibilityTensorbySpecies(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, false, thermal, 3);
+   }
 
    
    DenseMatrix test(3,3);
@@ -1909,7 +1955,7 @@ int main(int argc, char *argv[])
    sigmaPML sigma_real(true,false,false);
    sigmaPML sigma_imag(false,false,false);
 
-   // Lambda * Epsilon
+   // sigma * epsilon^-1
 
    MatrixProductCoefficient sigEpsilon_real1(sigma_real,epsilonInv_real);
    MatrixProductCoefficient sigEpsilon_real2(sigma_imag,epsilonInv_imag);
@@ -1920,7 +1966,7 @@ int main(int argc, char *argv[])
    MatrixSumCoefficient sigEpsilon_real(sigEpsilon_real1,sigEpsilon_real2,1.0,-1.0);
    MatrixSumCoefficient sigEpsilon_imag(sigEpsilon_imag1,sigEpsilon_imag2);
 
-   // Epsilon_PML^-1 = Sigma * Epsilon^-1 * Lambda^-1
+   // epsilon_PML^-1 = sigma * epsilon^-1 * Lambda^-1
 
    MatrixProductCoefficient sigEpsilonlambdainv_real1(sigEpsilon_real,invlambdaPML_real);
    MatrixProductCoefficient sigEpsilonlambdainv_real2(sigEpsilon_imag,invlambdaPML_imag);
@@ -1930,6 +1976,40 @@ int main(int argc, char *argv[])
 
    MatrixSumCoefficient epsilonInvPML_real(sigEpsilonlambdainv_real1,sigEpsilonlambdainv_real2,1.0,-1.0);
    MatrixSumCoefficient epsilonInvPML_imag(sigEpsilonlambdainv_imag1,sigEpsilonlambdainv_imag2);
+
+   // Create a coefficient describing the magnetic permeability
+   ConstantCoefficient muCoef(mu0_);
+
+   IdentityMatrixCoefficient identityM(3);
+   ScalarMatrixProductCoefficient muReCoef(mu0_, identityM);
+
+   DenseMatrix mat(3);
+   mat = 0.0; 
+   MatrixConstantCoefficient muImCoef(mat);
+
+   // PML for permeability tensor:
+
+   lambdaPML lambdaPML_real(true,false,false);
+   lambdaPML lambdaPML_imag(false,false,false);
+
+   sigmaPML invSigma_real(true,false,true);
+   sigmaPML invSigma_imag(false,false,true);
+
+   // mu * Sigma^-1
+
+   MatrixProductCoefficient muinvSigma_real(muReCoef,invSigma_real);
+   MatrixProductCoefficient muinvSigma_imag(muReCoef,invSigma_imag);
+
+   // mu_PML = Lambda * mu * Sigma^-1
+
+   MatrixProductCoefficient lamb_mu_invsig_real1(lambdaPML_real, muinvSigma_real);
+   MatrixProductCoefficient lamb_mu_invsig_real2(lambdaPML_imag, muinvSigma_imag);
+
+   MatrixProductCoefficient lamb_mu_invsig_imag1(lambdaPML_real, muinvSigma_imag);
+   MatrixProductCoefficient lamb_mu_invsig_imag2(lambdaPML_imag, muinvSigma_real);
+
+   MatrixSumCoefficient muPML_real(lamb_mu_invsig_real1,lamb_mu_invsig_real2,1.0,-1.0);
+   MatrixSumCoefficient muPML_imag(lamb_mu_invsig_imag1,lamb_mu_invsig_imag2);
 
    if (check_eps_inv)
    {
@@ -2285,6 +2365,14 @@ int main(int argc, char *argv[])
                    (pml) ? (MatrixCoefficient&) epsilonInvPML_imag : (MatrixCoefficient&) epsilonInv_imag,
                    epsilon_abs,
                    suscept_real, suscept_imag,
+                   suscept_real_electrons, suscept_imag_electrons,
+                   suscept_real_ion1, suscept_imag_ion1,
+                   (numbers.Size() > 2) ? suscept_real_ion2 : NULL,
+                   (numbers.Size() > 2) ? suscept_imag_ion2 : NULL,
+                   (numbers.Size() > 3) ? suscept_real_ion3 : NULL,
+                   (numbers.Size() > 3) ? suscept_imag_ion3 : NULL,
+                   (pml) ? (MatrixCoefficient&) muPML_real : (MatrixCoefficient&) muReCoef,
+                   (pml) ? (MatrixCoefficient&) muPML_imag : (MatrixCoefficient&) muImCoef,
                    muCoef, etaCoef,
                    (phase_shift) ? &kReCoef : NULL,
                    (phase_shift) ? &kImCoef : NULL,
@@ -2295,7 +2383,7 @@ int main(int argc, char *argv[])
                    (rod_params_.Size() > 0 ||slab_params_.Size() > 0 ||curve_params_.Size() > 0) ?
                    j_src_r : NULL,
                    (rod_params_.Size() > 0 ||slab_params_.Size() > 0 ||curve_params_.Size() > 0) ?
-                   j_src_i : NULL, vis_u, pa);
+                   j_src_i : NULL, vis_u, pa, true);
 
    // Initialize GLVis visualization
    if (visualization)
@@ -3731,12 +3819,12 @@ void curve_current_source_v2_i(const Vector &x, Vector &j)
 
 void curve_current_source_r(const Vector &x, Vector &j)
 {
-   curve_current_source_v2_r(x, j);
+   curve_current_source_v0_r(x, j);
 }
 
 void curve_current_source_i(const Vector &x, Vector &j)
 {
-   curve_current_source_v2_i(x, j);
+   curve_current_source_v0_i(x, j);
 }
 
 void e_bc_r(const Vector &x, Vector &E)

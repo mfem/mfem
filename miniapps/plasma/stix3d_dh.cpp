@@ -165,6 +165,31 @@ public:
    const Vector& GetVec() { return vec; }
 };
 
+class KCoefficient : public Coefficient
+{
+private:
+   bool coords3d_;
+   int nphi_;
+   mutable Vector x_;
+
+public:
+   KCoefficient(bool coords3d, const int &nphi)
+      : coords3d_(coords3d), nphi_(nphi), x_(3) {}
+
+   double Eval(ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+      double r = sqrt(x_[0] * x_[0] + x_[1] * x_[1]);
+      if (coords3d_)
+      {
+         r = sqrt(x_[0] * x_[0] + x_[2] * x_[2]);
+      }
+
+      return nphi_ / r;
+   }
+};
+
 // Admittance for Absorbing Boundary Condition
 Coefficient * SetupImpedanceCoefficient(const Mesh & mesh,
                                         const Array<int> & abcs);
@@ -531,6 +556,7 @@ int main(int argc, char *argv[])
    Vector kVec;
    Vector kReVec;
    Vector kImVec;
+   int nphitherm = 45;
 
    Vector numbers;
    Vector charges;
@@ -871,6 +897,8 @@ int main(int argc, char *argv[])
                   "Phase shift vector across periodic directions."
                   " For complex phase shifts input 3 real phase shifts "
                   "followed by 3 imaginary phase shifts");
+   args.AddOption(&nphitherm, "-nphitherm", "--nphithermal",
+                  "N_parallel to use for thermal dielectric.");
    args.AddOption(&msa_n, "-ns", "--num-straps","");
    args.AddOption(&msa_p, "-sp", "--strap-params","");
    args.AddOption(&msa_c, "-sc", "--strap-currents","");
@@ -1617,6 +1645,12 @@ int main(int argc, char *argv[])
    ParGridFunction k_gf(&H1VFESpace);
    k_gf.ProjectCoefficient(kReCoef);
 
+   // Setting kparallel for thermal dielectric:
+   KCoefficient kThermal(coords3d,nphitherm);
+   //ConstantCoefficient kThermal(nphitherm);
+   ParGridFunction ktherm_gf(&H1VFESpace);
+   ktherm_gf.ProjectCoefficient(kThermal);
+
    if (amr_stix)
    {
       if (amr_coef == 1)
@@ -1691,38 +1725,86 @@ int main(int argc, char *argv[])
       cout << "Creating coefficients for Maxwell equations." << endl;
    }
 
-   // Create a coefficient describing the magnetic permeability
-   ConstantCoefficient muCoef(mu0_);
-
    // Create a coefficient describing the surface admittance
    Coefficient * etaCoef = SetupImpedanceCoefficient(pmesh, abcs);
 
    // Create tensor coefficients describing the dielectric permittivity
-   InverseDielectricTensor epsilonInv_real(BField, k_gf, nue_gf, nui_gf, density,
+   InverseDielectricTensor epsilonInv_real(BField, ktherm_gf, nue_gf, nui_gf, density,
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
                                            res_lim, true, thermal);
-   InverseDielectricTensor epsilonInv_imag(BField, k_gf, nue_gf, nui_gf, density,
+   InverseDielectricTensor epsilonInv_imag(BField, ktherm_gf, nue_gf, nui_gf, density,
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
                                            res_lim, false, thermal);
-   SusceptibilityTensor suscept_real(BField, k_gf, nue_gf, nui_gf, density,
+   SusceptibilityTensor suscept_real(BField, ktherm_gf, nue_gf, nui_gf, density,
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
                                            res_lim, true, thermal);
-   SusceptibilityTensor suscept_imag(BField, k_gf, nue_gf, nui_gf, density,
+   SusceptibilityTensor suscept_imag(BField, ktherm_gf, nue_gf, nui_gf, density,
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
                                            res_lim, false, thermal);
-   TransposeMatrixCoefficient suscept_realT(suscept_real);
-   TransposeMatrixCoefficient suscept_imagT(suscept_imag);
-   MatrixSumCoefficient suscept_real_diss(suscept_real, suscept_realT,1.0,-1.0);
-   MatrixSumCoefficient suscept_imag_diss(suscept_imag, suscept_imagT);
-   SPDDielectricTensor epsilon_abs(BField, k_gf, nue_gf, nui_gf, density,
+   SusceptibilityTensorbySpecies suscept_real_electrons(BField, ktherm_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, true, thermal, 0);
+   SusceptibilityTensorbySpecies suscept_imag_electrons(BField, ktherm_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, false, thermal, 0);
+   SusceptibilityTensorbySpecies suscept_real_ion1(BField, ktherm_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, true, thermal, 1);
+   SusceptibilityTensorbySpecies suscept_imag_ion1(BField, ktherm_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, false, thermal, 1);
+
+   SusceptibilityTensorbySpecies *suscept_real_ion2 = NULL;
+   SusceptibilityTensorbySpecies *suscept_imag_ion2 = NULL;
+
+   if (numbers.Size() > 2)
+   {
+      suscept_real_ion2 = new SusceptibilityTensorbySpecies(BField, ktherm_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, true, thermal, 2);
+      suscept_imag_ion2 = new SusceptibilityTensorbySpecies(BField, ktherm_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, false, thermal, 2);     
+   }
+
+   SusceptibilityTensorbySpecies *suscept_real_ion3 = NULL;
+   SusceptibilityTensorbySpecies *suscept_imag_ion3 = NULL;
+
+   if (numbers.Size() > 3)
+   {
+      suscept_real_ion3 = new SusceptibilityTensorbySpecies(BField, ktherm_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, true, thermal, 3);
+      suscept_imag_ion3 = new SusceptibilityTensorbySpecies(BField, ktherm_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, false, thermal, 3);
+   }
+
+   SPDDielectricTensor epsilon_abs(BField, ktherm_gf, nue_gf, nui_gf, density,
                                    temperature,
                                    iontemp_gf, L2FESpace, H1FESpace,
                                    omega, charges, masses, nuprof, res_lim);
@@ -1739,7 +1821,7 @@ int main(int argc, char *argv[])
    sigmaPML sigma_real(true,false,false);
    sigmaPML sigma_imag(false,false,false);
 
-   // Lambda * Epsilon
+   // sigma * epsilon^-1
 
    MatrixProductCoefficient sigEpsilon_real1(sigma_real,epsilonInv_real);
    MatrixProductCoefficient sigEpsilon_real2(sigma_imag,epsilonInv_imag);
@@ -1750,7 +1832,7 @@ int main(int argc, char *argv[])
    MatrixSumCoefficient sigEpsilon_real(sigEpsilon_real1,sigEpsilon_real2,1.0,-1.0);
    MatrixSumCoefficient sigEpsilon_imag(sigEpsilon_imag1,sigEpsilon_imag2);
 
-   // Epsilon_PML^-1 = Sigma * Epsilon^-1 * Lambda^-1
+   // epsilon_PML^-1 = sigma * epsilon^-1 * Lambda^-1
 
    MatrixProductCoefficient sigEpsilonlambdainv_real1(sigEpsilon_real,invlambdaPML_real);
    MatrixProductCoefficient sigEpsilonlambdainv_real2(sigEpsilon_imag,invlambdaPML_imag);
@@ -1761,14 +1843,48 @@ int main(int argc, char *argv[])
    MatrixSumCoefficient epsilonInvPML_real(sigEpsilonlambdainv_real1,sigEpsilonlambdainv_real2,1.0,-1.0);
    MatrixSumCoefficient epsilonInvPML_imag(sigEpsilonlambdainv_imag1,sigEpsilonlambdainv_imag2);
 
+   // Create a coefficient describing the magnetic permeability
+   ConstantCoefficient muCoef(mu0_);
+
+   IdentityMatrixCoefficient identityM(3);
+   ScalarMatrixProductCoefficient muReCoef(mu0_, identityM);
+
+   DenseMatrix mat(3);
+   mat = 0.0; 
+   MatrixConstantCoefficient muImCoef(mat);
+
+   // PML for permeability tensor:
+
+   lambdaPML lambdaPML_real(true,false,false);
+   lambdaPML lambdaPML_imag(false,false,false);
+
+   sigmaPML invSigma_real(true,false,true);
+   sigmaPML invSigma_imag(false,false,true);
+
+   // mu * Sigma^-1
+
+   MatrixProductCoefficient muinvSigma_real(muReCoef,invSigma_real);
+   MatrixProductCoefficient muinvSigma_imag(muReCoef,invSigma_imag);
+
+   // mu_PML = Lambda * mu * Sigma^-1
+
+   MatrixProductCoefficient lamb_mu_invsig_real1(lambdaPML_real, muinvSigma_real);
+   MatrixProductCoefficient lamb_mu_invsig_real2(lambdaPML_imag, muinvSigma_imag);
+
+   MatrixProductCoefficient lamb_mu_invsig_imag1(lambdaPML_real, muinvSigma_imag);
+   MatrixProductCoefficient lamb_mu_invsig_imag2(lambdaPML_imag, muinvSigma_real);
+
+   MatrixSumCoefficient muPML_real(lamb_mu_invsig_real1,lamb_mu_invsig_real2,1.0,-1.0);
+   MatrixSumCoefficient muPML_imag(lamb_mu_invsig_imag1,lamb_mu_invsig_imag2);
+
    if (check_eps_inv)
    {
-      DielectricTensor epsilon_real(BField, k_gf, nue_gf, nui_gf,
+      DielectricTensor epsilon_real(BField, ktherm_gf, nue_gf, nui_gf,
                                     density, temperature, iontemp_gf,
                                     L2FESpace, H1FESpace,
                                     omega, charges, masses, nuprof, res_lim,
                                     true, thermal);
-      DielectricTensor epsilon_imag(BField, k_gf, nue_gf, nui_gf,
+      DielectricTensor epsilon_imag(BField, ktherm_gf, nue_gf, nui_gf,
                                     density, temperature, iontemp_gf,
                                     L2FESpace, H1FESpace,
                                     omega, charges, masses, nuprof, res_lim,
@@ -2169,8 +2285,15 @@ int main(int argc, char *argv[])
                    conv, BUnitCoef,
                    (pml) ? (MatrixCoefficient&) epsilonInvPML_real : (MatrixCoefficient&) epsilonInv_real,
                    (pml) ? (MatrixCoefficient&) epsilonInvPML_imag : (MatrixCoefficient&) epsilonInv_imag,
-                   suscept_real_diss, suscept_imag_diss,
-                   epsilon_abs,
+                   epsilon_abs, suscept_real, suscept_imag,
+                   suscept_real_electrons, suscept_imag_electrons,
+                   suscept_real_ion1, suscept_imag_ion1,
+                   (numbers.Size() > 2) ? suscept_real_ion2 : NULL,
+                   (numbers.Size() > 2) ? suscept_imag_ion2 : NULL,
+                   (numbers.Size() > 3) ? suscept_real_ion3 : NULL,
+                   (numbers.Size() > 3) ? suscept_imag_ion3 : NULL,
+                   (pml) ? (MatrixCoefficient&) muPML_real : (MatrixCoefficient&) muReCoef,
+                   (pml) ? (MatrixCoefficient&) muPML_imag : (MatrixCoefficient&) muImCoef,
                    muCoef, etaCoef,
                    (phase_shift) ? &kReCoef : NULL,
                    (phase_shift) ? &kImCoef : NULL,

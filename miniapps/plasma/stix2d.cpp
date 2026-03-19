@@ -1566,9 +1566,6 @@ int main(int argc, char *argv[])
       cout << "Creating coefficients for Maxwell equations." << endl;
    }
 
-   // Create a coefficient describing the magnetic permeability
-   ConstantCoefficient muInvCoef(1.0 / mu0_);
-
    // Create a coefficient describing the surface admittance
    Coefficient * etaInvCoef = SetupAdmittanceCoefficient(pmesh, abcs);
 
@@ -1651,8 +1648,24 @@ int main(int argc, char *argv[])
                                            res_lim, false, thermal, 3);
    }
 
+   /*
+   DielectricTensorPML epsilonPML_real(BField, k_gf, nue_gf, nui_gf, density,
+                                 temperature, iontemp_gf,
+                                 L2FESpace, H1FESpace,
+                                 omega, charges, masses, nuprof,
+                                 res_lim, true, thermal);
+   DielectricTensorPML epsilonPML_imag(BField, k_gf, nue_gf, nui_gf, density,
+                                 temperature, iontemp_gf,
+                                 L2FESpace, H1FESpace,
+                                 omega, charges, masses, nuprof,
+                                 res_lim, false, thermal);
+   */
+
+   
    CylRotMat epsilon_cyl(true); // rotation matrix to cylindrical coords
    CylRotMat epsilon_cart(false); // rotation matrix to cartesian coords
+
+   // PML for dielectric tensor:
 
    lambdaPML lambdaPML_real(true,false,false);
    lambdaPML lambdaPML_imag(false,false,false);
@@ -1682,6 +1695,43 @@ int main(int argc, char *argv[])
    MatrixSumCoefficient epsilonPML_real(lambEpsilonSigma_real1,lambEpsilonSigma_real2,1.0,-1.0);
    MatrixSumCoefficient epsilonPML_imag(lambEpsilonSigma_imag1,lambEpsilonSigma_imag2);
 
+
+   // Create a coefficient describing the magnetic permeability
+   //ConstantCoefficient muInvCoef(1.0 / mu0_);
+   IdentityMatrixCoefficient identityM(3);
+   ScalarMatrixProductCoefficient muInvReCoef(1.0/mu0_, identityM);
+
+   DenseMatrix mat(3);
+   mat = 0.0; 
+   MatrixConstantCoefficient muInvImCoef(mat);
+
+   // PML for permeability tensor:
+
+   lambdaPML invlambdaPML_real(true,false,true);
+   lambdaPML invlambdaPML_imag(false,false,true);
+
+   sigmaPML Sigma_real(true,false,false);
+   sigmaPML Sigma_imag(false,false,false);
+
+   // mu^-1 * Lambda^-1
+
+   MatrixProductCoefficient lambMu_real(invlambdaPML_real,muInvReCoef);
+   MatrixProductCoefficient lambMu_imag(invlambdaPML_imag,muInvReCoef);
+
+   // (mu_PML)^-1 = Sigma * mu^-1 * Lambda^-1
+
+   MatrixProductCoefficient sigma_muinv_lambinv_real1(Sigma_real,lambMu_real);
+   MatrixProductCoefficient sigma_muinv_lambinv_real2(Sigma_imag,lambMu_imag);
+
+   MatrixProductCoefficient sigma_muinv_lambinv_imag1(Sigma_real,lambMu_imag);
+   MatrixProductCoefficient sigma_muinv_lambinv_imag2(Sigma_imag,lambMu_real);
+
+   MatrixSumCoefficient muInvPML_real(sigma_muinv_lambinv_real1,sigma_muinv_lambinv_real2,1.0,-1.0);
+   MatrixSumCoefficient muInvPML_imag(sigma_muinv_lambinv_imag1,sigma_muinv_lambinv_imag2);
+
+   //muPML muInvPML_real(true,false,false);
+   //muPML muInvPML_imag(false,false,false);
+
    SheathImpedance z_r(BField, density, temperature,
                        L2FESpace, H1FESpace,
                        omega, charges, masses, true);
@@ -1692,15 +1742,15 @@ int main(int argc, char *argv[])
    MultiStrapAntennaH HReStrapCoef(msa_n, msa_p, msa_c, true);
    MultiStrapAntennaH HImStrapCoef(msa_n, msa_p, msa_c, false);
 
-   MatrixComponentCoefficient exx_r(epsilon_real,0,0);
-   MatrixComponentCoefficient exy_r(epsilon_real,0,1);
-   MatrixComponentCoefficient exz_r(epsilon_real,0,2);
-   MatrixComponentCoefficient eyx_r(epsilon_real,1,0);
-   MatrixComponentCoefficient eyy_r(epsilon_real,1,1);
-   MatrixComponentCoefficient eyz_r(epsilon_real,1,2);
-   MatrixComponentCoefficient ezx_r(epsilon_real,2,0);
-   MatrixComponentCoefficient ezy_r(epsilon_real,2,1);
-   MatrixComponentCoefficient ezz_r(epsilon_real,2,2);
+   MatrixComponentCoefficient exx_r(epsilonPML_real,0,0);
+   MatrixComponentCoefficient exy_r(epsilonPML_imag,0,1);
+   MatrixComponentCoefficient exz_r(epsilonPML_real,0,2);
+   MatrixComponentCoefficient eyx_r(epsilonPML_real,1,0);
+   MatrixComponentCoefficient eyy_r(epsilonPML_real,1,1);
+   MatrixComponentCoefficient eyz_r(epsilonPML_real,1,2);
+   MatrixComponentCoefficient ezx_r(epsilonPML_real,2,0);
+   MatrixComponentCoefficient ezy_r(epsilonPML_real,2,1);
+   MatrixComponentCoefficient ezz_r(epsilonPML_real,2,2);
    exx_r_gf.ProjectCoefficient(exx_r);
    exy_r_gf.ProjectCoefficient(exy_r);
    exz_r_gf.ProjectCoefficient(exz_r);
@@ -1992,7 +2042,9 @@ int main(int argc, char *argv[])
                  (numbers.Size() > 2) ? suscept_imag_ion2 : NULL,
                  (numbers.Size() > 3) ? suscept_real_ion3 : NULL,
                  (numbers.Size() > 3) ? suscept_imag_ion3 : NULL,
-                 muInvCoef, etaInvCoef,
+                 (pml) ? (MatrixCoefficient&) muInvPML_real : (MatrixCoefficient&) muInvReCoef,
+                 (pml) ? (MatrixCoefficient&) muInvPML_imag : (MatrixCoefficient&) muInvImCoef,
+                  etaInvCoef,
                  (phase_shift) ? &kReCoef : NULL,
                  (phase_shift) ? &kImCoef : NULL,
                  abcs, dbcs, nbcs, sbcs,
