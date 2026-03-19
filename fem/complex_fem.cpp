@@ -237,7 +237,7 @@ ComplexGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient
    gfi->SyncAliasMemory(*this);
 }
 
-real_t 
+real_t
 ComplexGridFunction::ComputeLpError(const real_t p,
                                     Coefficient &exsolr,
                                     Coefficient &exsoli,
