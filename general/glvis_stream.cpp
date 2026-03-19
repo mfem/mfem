@@ -78,11 +78,26 @@ inline int MpiRank()
 }
 
 /////////////////////////////////////////////////////////////////////
-glvis_stream::glvis_stream(const char*, int, int rank): std::iostream(nullptr),
-   data((rank < 0), MpiSize(), MpiRank(), !IsMpiInitialized() || MpiRank() == 0)
+glvis_stream::glvis_stream(): std::iostream(nullptr),
+   data(true, 0, 0, true)
+{
+   dbg();
+   MFEM_ABORT("Not implemented");
+}
+
+glvis_stream::glvis_stream(std::streambuf*): std::iostream(nullptr),
+   data(true, 0, 0, true)
+{
+   dbg();
+   MFEM_ABORT("Not implemented");
+}
+
+glvis_stream::glvis_stream(const char*, int): std::iostream(nullptr),
+   data((!IsMpiInitialized() && MpiSize() == 1), MpiSize(), MpiRank(),
+        !IsMpiInitialized() || MpiRank() == 0)
 {
    // Sets the associated stream buffer to the data stream
-   this->rdbuf(data.stream.rdbuf());
+   std::iostream::rdbuf(data.stream.rdbuf());
 }
 
 glvis_stream& glvis_stream::operator<<(ostream_manipulator pf)

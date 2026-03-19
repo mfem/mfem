@@ -16,6 +16,8 @@
 
 #include "socketstream.hpp"
 
+#ifndef MFEM_USE_GLVIS
+
 #include <cstring>      // memset, memcpy, strerror
 #include <cerrno>       // errno
 #ifndef _WIN32
@@ -1087,3 +1089,5 @@ socketstream::~socketstream()
 }
 
 } // namespace mfem
+
+#endif // MFEM_USE_GLVIS

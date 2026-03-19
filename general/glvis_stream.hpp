@@ -34,12 +34,56 @@ struct GLVisData
       stream(), streams(), total_size(0), offsets(), type({}) {}
 };
 
+class glvisbuf : public std::streambuf
+{
+
+public:
+   glvisbuf() = default;
+
+   explicit glvisbuf(int sd) { }
+
+   glvisbuf(const char hostname[], int port) { }
+
+   /** @brief Attach a new socket descriptor to the socketbuf. Returns the old
+       socket descriptor which is NOT closed. */
+   virtual int attach(int sd);
+
+   /// Detach the current socket descriptor from the socketbuf.
+   int detach() { return attach(-1); }
+
+   /** @brief Open a socket on the 'port' at 'hostname' and store the socket
+       descriptor. Returns 0 if there is no error, otherwise returns -1. */
+   virtual int open(const char hostname[], int port);
+
+   /// Close the current socket descriptor.
+   virtual int close();
+
+   /// Returns the attached socket descriptor.
+   int getsocketdescriptor() { return -1; }
+
+   /** @brief Returns true if the socket is open and has a valid socket
+       descriptor. Otherwise returns false. */
+   bool is_open() { return false; }
+
+   virtual ~glvisbuf() { close(); }
+
+protected:
+   int sync() override;
+   int_type underflow() override;
+   int_type overflow(int_type c = traits_type::eof()) override;
+   std::streamsize xsgetn(char_type *s__, std::streamsize n__) override;
+   std::streamsize xsputn(const char_type *s__, std::streamsize n__) override;
+};
+
 class glvis_stream: public std::iostream
 {
    void MpiGather();
 
 public:
-   explicit glvis_stream(const char*, int, int rank = -1);
+   glvis_stream();
+   explicit glvis_stream(std::streambuf*);
+
+   explicit glvis_stream(const char*, int);
 
    glvis_stream(glvis_stream &&) = delete;
    glvis_stream(const glvis_stream &) = delete;
@@ -70,6 +114,8 @@ public:
 
    void flush() { std::iostream::flush();}
 
+   glvisbuf* rdbuf() { return buf__; }
+
    void reset()
    {
       data.stream.clear();
@@ -81,6 +127,7 @@ public:
 
 private:
    GLVisData data;
+   glvisbuf *buf__ {nullptr};
 };
 
 } // namespace mfem
