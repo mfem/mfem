@@ -6,6 +6,8 @@
 #include <cstring>
 #include <climits>
 #include <memory>
+#include <print>
+#include <cstdio>
 
 namespace mfem{
 
@@ -109,7 +111,50 @@ void CrystalRouter::Exchange(uint32_t send_n, int target, int recvn, int tag){
 
 // crystal.c/crystal_router
 void CrystalRouter::Route(){
-    
+    uint32_t bl = 0, bh, nl;
+    uint32_t id = rank, n = nprocs;
+    uint32_t send_n, targ, tag = 0;
+    bool send_hi;
+    int recvn;
+
+    while(n > 1){
+        nl = (n+1)/2;
+        bh = bl + nl;
+        send_hi = (id < nl) ? true : false;
+        send_n = Move(bh, send_hi);
+
+        /* overflow check, deal with later
+        long long send_n_long = send_n;
+        send_n_long *= sizeof(uint32_t);
+        bool overflow = send_n_long > INT_MAX;
+
+        if(overflow){
+            std::print(stderr, "Error in crystal_router: rank = %d send_n = %lld (> "
+        "INT_MAX)\n", id, send_n_long);
+            MPI_Abort(comm, 1);
+        }
+        */
+        
+
+        recvn = 1, targ = n-1-(id-bl)+bl;
+        if(id == targ){
+            targ = bh;
+            recvn = 0;
+        }
+        if(n&1 && id==bh){
+            recvn = 2;
+        }
+
+        Exchange(send_n,targ,recvn,tag);
+        if(id < bh){
+            n = nl;
+        }
+        else{
+            n -= nl;
+            bl = bh;
+        }
+        tag += 2;
+    }
 }
 
 }
