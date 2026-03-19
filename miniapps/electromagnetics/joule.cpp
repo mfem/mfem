@@ -155,6 +155,7 @@ int main(int argc, char *argv[])
    int amr = 0;
    int debug = 0;
    int visport = 19916;
+   const char *glvis = "";
    const char *problem = "rod";
 
    OptionsParser args(argc, argv);
@@ -182,6 +183,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&glvis, "-glvis", "--glvis",
+                  "Path to GLVis binary to start a server.");
    args.AddOption(&visit, "-visit", "--visit", "-no-visit", "--no-visit",
                   "Enable or disable VisIt visualization.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
@@ -210,6 +213,7 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
+   if (*glvis) { visualization = true; }
    if (Mpi::Root())
    {
       args.PrintOptions(cout);
@@ -522,6 +526,12 @@ int main(int argc, char *argv[])
 
    socketstream vis_T, vis_E, vis_B, vis_w, vis_P;
    char vishost[] = "localhost";
+   if (*glvis)
+   {
+      int port = StartGLVisServer(glvis, visport);
+      if (port > 0) { visport = port; }
+      else { visualization = false; }
+   }
    if (visualization)
    {
       // Make sure all ranks have sent their 'v' solution before initiating

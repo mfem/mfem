@@ -132,6 +132,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    int onlySome = -1;
 
+   const char *glvis = "";
    int visport = 19916;
    vector<socketstream*> sock;
 
@@ -159,6 +160,8 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&onlySome, "-only", "--onlySome",
                   "Only view 10 dofs, starting with the specified one.");
+   args.AddOption(&glvis, "-glvis", "--glvis",
+                  "Path to GLVis binary to start a server.");
    args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
@@ -166,8 +169,15 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
+   if (*glvis) { visualization = true; }
    {
       args.PrintOptions(cout);
+   }
+   if (*glvis)
+   {
+      int port = StartGLVisServer(glvis, visport);
+      if (port > 0) { visport = port; }
+      else { visualization = false; }
    }
    if ( eInt > 0 && eInt < 7 )
    {

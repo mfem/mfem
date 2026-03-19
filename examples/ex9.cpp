@@ -156,6 +156,7 @@ int main(int argc, char *argv[])
    real_t t_final = 10.0;
    real_t dt = 0.01;
    bool visualization = true;
+   const char *glvis = "";
    bool visit = false;
    bool paraview = false;
    bool binary = false;
@@ -194,6 +195,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&glvis, "-glvis", "--glvis",
+                  "Path to GLVis binary to start a server.");
    args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
                   "--no-visit-datafiles",
                   "Save data files for VisIt (visit.llnl.gov) visualization.");
@@ -211,6 +214,7 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
+   if (*glvis) { visualization = true; }
    args.PrintOptions(cout);
 
    Device device(device_config);
@@ -347,15 +351,24 @@ int main(int argc, char *argv[])
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
-      sout.open(vishost, visport);
-      if (!sout)
+      if (*glvis)
+      {
+         int port = StartGLVisServer(glvis, visport);
+         if (port > 0) { visport = port; }
+         else { visualization = false; }
+      }
+      if (visualization)
+      {
+         sout.open(vishost, visport);
+      }
+      if (visualization && !sout)
       {
          cout << "Unable to connect to GLVis server at "
               << vishost << ':' << visport << endl;
          visualization = false;
          cout << "GLVis visualization disabled.\n";
       }
-      else
+      else if (visualization)
       {
          sout.precision(precision);
          sout << "solution\n" << mesh << u;

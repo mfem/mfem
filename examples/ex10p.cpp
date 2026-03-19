@@ -180,6 +180,7 @@ int main(int argc, char *argv[])
    real_t K = 5.0;
    bool adaptive_lin_rtol = true;
    bool visualization = true;
+   const char *glvis = "";
    int vis_steps = 1;
 
    OptionsParser args(argc, argv);
@@ -209,6 +210,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&glvis, "-glvis", "--glvis",
+                  "Path to GLVis binary to start a server.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.Parse();
@@ -220,6 +223,7 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
+   if (*glvis) { visualization = true; }
    if (myid == 0)
    {
       args.PrintOptions(cout);
@@ -310,20 +314,47 @@ int main(int argc, char *argv[])
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
-      vis_v.open(vishost, visport);
-      vis_v.precision(8);
-      visualize(vis_v, pmesh, &x_gf, &v_gf, "Velocity", true);
-      // Make sure all ranks have sent their 'v' solution before initiating
-      // another set of GLVis connections (one from each rank):
-      MPI_Barrier(pmesh->GetComm());
-      vis_w.open(vishost, visport);
-      if (vis_w)
+
+      if (*glvis)
       {
-         oper.GetElasticEnergyDensity(x_gf, w_gf);
-         vis_w.precision(8);
-         visualize(vis_w, pmesh, &x_gf, &w_gf, "Elastic energy density", true);
+         int port = StartGLVisServer(glvis, visport);
+         if (port > 0) { visport = port; }
+         else { visualization = false; }
       }
-      if (myid == 0)
+
+      if (visualization)
+      {
+         vis_v.open(vishost, visport);
+      }
+
+      if (visualization && !vis_v)
+      {
+         if (myid == 0)
+         {
+            cout << "Unable to connect to GLVis server at "
+                 << vishost << ':' << visport << endl;
+            cout << "GLVis visualization disabled.\n";
+         }
+         visualization = false;
+      }
+
+      if (visualization)
+      {
+         vis_v.precision(8);
+         visualize(vis_v, pmesh, &x_gf, &v_gf, "Velocity", true);
+         // Make sure all ranks have sent their 'v' solution before initiating
+         // another set of GLVis connections (one from each rank):
+         MPI_Barrier(pmesh->GetComm());
+         vis_w.open(vishost, visport);
+         if (vis_w)
+         {
+            oper.GetElasticEnergyDensity(x_gf, w_gf);
+            vis_w.precision(8);
+            visualize(vis_w, pmesh, &x_gf, &w_gf, "Elastic energy density",
+                      true);
+         }
+      }
+      if (visualization && myid == 0)
       {
          cout << "GLVis visualization paused."
               << " Press space (in the GLVis window) to resume it.\n";

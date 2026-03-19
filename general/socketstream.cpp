@@ -18,12 +18,18 @@
 
 #include <cstring>      // memset, memcpy, strerror
 #include <cerrno>       // errno
+#include <cstdio>
+#include <cstdlib>
+#include <memory>
+#include <sstream>
+#include <string>
 #ifndef _WIN32
 #include <netdb.h>      // getaddrinfo
 #include <arpa/inet.h>  // htons
 #include <sys/types.h>  // socket, setsockopt, connect, recv, send
 #include <sys/socket.h> // socket, setsockopt, connect, recv, send
 #include <unistd.h>     // close
+#include <poll.h>
 #define closesocket (::close)
 #else
 #include <winsock2.h>
@@ -42,6 +48,10 @@ typedef int socklen_t;
 #endif
 // Enable debug messages from GnuTLS_* classes
 // #define MFEM_USE_GNUTLS_DEBUG
+#endif
+
+#ifdef MFEM_USE_MPI
+#include "communication.hpp"
 #endif
 
 namespace mfem
@@ -1084,6 +1094,107 @@ socketstream::~socketstream()
 #ifdef MFEM_USE_GNUTLS
    if (glvis_client) { remove_socket(); }
 #endif
+}
+
+#ifndef _WIN32
+namespace
+{
+
+// Keep the popen() handle alive; popen() must be closed with pclose()
+struct GLVisServerDeleter
+{
+   void operator()(FILE *f) const
+   {
+      if (f != nullptr)
+      {
+         const int ierr = pclose(f);
+         if (ierr != 0)
+         {
+            mfem::err << "GLVis server pclose() returns: " << ierr << std::endl;
+         }
+      }
+   }
+};
+
+// Store the server handle
+std::unique_ptr<FILE, GLVisServerDeleter> glvis_server;
+
+}
+#endif
+
+int StartGLVisServer(const char *glvis_path, int preferred_port, int timeout_ms)
+{
+   if (!glvis_path || !*glvis_path) { return -1; }
+   if (preferred_port <= 0) { return -1; }
+   if (timeout_ms < 0) { timeout_ms = 0; }
+
+   int port = -1;
+
+#ifdef MFEM_USE_MPI
+   const bool use_mpi = Mpi::IsInitialized() && !Mpi::IsFinalized();
+   if (use_mpi && !Mpi::Root())
+   {
+      MPI_Bcast(&port, 1, MPI_INT, 0, MPI_COMM_WORLD);
+      return port;
+   }
+#endif
+
+#ifndef _WIN32
+   if (GetEnv("MFEM_GLVIS_DEBUG"))
+   {
+      mfem::out << "MFEM_GLVIS_DEBUG: starting GLVis: " << glvis_path
+                << " -p " << preferred_port << " -no-pr -no-ex" << std::endl;
+   }
+
+   // Keep the shell-based startup path, but wait with poll() so startup failure
+   // does not block indefinitely.
+   std::stringstream ss;
+   ss << "trap '' SIGPIPE && " << glvis_path
+      << " -p " << preferred_port
+      << " -no-pr -no-ex 2>&1 | grep -m 1 ^GLVIS_SERVER_PORT";
+   glvis_server.reset(popen(ss.str().c_str(), "r"));
+   FILE *fglvis = glvis_server.get();
+   if (fglvis)
+   {
+      pollfd pfd{};
+      pfd.fd = fileno(fglvis);
+      pfd.events = POLLIN;
+
+      int pr = -1;
+      do
+      {
+         pr = poll(&pfd, 1, timeout_ms);
+      }
+      while (pr < 0 && errno == EINTR);
+
+      constexpr size_t ssize = 256;
+      char line[ssize];
+      if (pr > 0 && fgets(line, ssize, fglvis) &&
+          strncmp(line, "GLVIS_SERVER_PORT=", 18) == 0)
+      {
+         port = std::atoi(line + 18);
+      }
+      else
+      {
+         glvis_server.reset();
+      }
+   }
+#endif // !_WIN32
+
+   if (port <= 0)
+   {
+      mfem::err << "Failed to start GLVis server '" << glvis_path
+                << "'. Disabling visualization." << std::endl;
+   }
+
+#ifdef MFEM_USE_MPI
+   if (use_mpi)
+   {
+      MPI_Bcast(&port, 1, MPI_INT, 0, MPI_COMM_WORLD);
+   }
+#endif
+
+   return port;
 }
 
 } // namespace mfem

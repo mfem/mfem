@@ -252,6 +252,7 @@ int main(int argc, char *argv[])
    real_t t_final = 10.0;
    real_t dt = 0.01;
    bool visualization = true;
+   const char *glvis = "";
    bool visit = false;
    bool paraview = false;
    bool adios2 = false;
@@ -299,6 +300,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&glvis, "-glvis", "--glvis",
+                  "Path to GLVis binary to start a server.");
    args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
                   "--no-visit-datafiles",
                   "Save data files for VisIt (visit.llnl.gov) visualization.");
@@ -322,6 +325,7 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
+   if (*glvis) { visualization = true; }
    if (Mpi::Root())
    {
       args.PrintOptions(cout);
@@ -507,31 +511,42 @@ int main(int argc, char *argv[])
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
-      sout.open(vishost, visport);
-      if (!sout)
+
+      if (*glvis)
       {
-         if (Mpi::Root())
-         {
-            cout << "Unable to connect to GLVis server at "
-                 << vishost << ':' << visport << endl;
-         }
-         visualization = false;
-         if (Mpi::Root())
-         {
-            cout << "GLVis visualization disabled.\n";
-         }
+         int port = StartGLVisServer(glvis, visport);
+         if (port <= 0) { visualization = false; }
+         else { visport = port; }
       }
-      else
+
+      if (visualization)
       {
-         sout << "parallel " << num_procs << " " << myid << "\n";
-         sout.precision(precision);
-         sout << "solution\n" << *pmesh << *u;
-         sout << "pause\n";
-         sout << flush;
-         if (Mpi::Root())
+         sout.open(vishost, visport);
+         if (!sout)
          {
-            cout << "GLVis visualization paused."
-                 << " Press space (in the GLVis window) to resume it.\n";
+            if (Mpi::Root())
+            {
+               cout << "Unable to connect to GLVis server at "
+                    << vishost << ':' << visport << endl;
+            }
+            visualization = false;
+            if (Mpi::Root())
+            {
+               cout << "GLVis visualization disabled.\n";
+            }
+         }
+         else
+         {
+            sout << "parallel " << num_procs << " " << myid << "\n";
+            sout.precision(precision);
+            sout << "solution\n" << *pmesh << *u;
+            sout << "pause\n";
+            sout << flush;
+            if (Mpi::Root())
+            {
+               cout << "GLVis visualization paused."
+                    << " Press space (in the GLVis window) to resume it.\n";
+            }
          }
       }
    }
@@ -633,7 +648,6 @@ int main(int argc, char *argv[])
 
    return 0;
 }
-
 
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,

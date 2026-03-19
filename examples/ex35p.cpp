@@ -83,6 +83,7 @@ int main(int argc, char *argv[])
    bool herm_conv = true;
    bool slu_solver  = false;
    bool visualization = 1;
+   const char *glvis = "";
    bool mixed = true;
    bool pa = false;
    const char *device_config = "cpu";
@@ -126,6 +127,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&glvis, "-glvis", "--glvis",
+                  "Path to GLVis binary to start a server.");
    args.AddOption(&mixed, "-mixed", "--mixed-mesh", "-hex",
                   "--hex-mesh", "Mixed mesh of hexahedral mesh.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -141,6 +144,7 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
+   if (*glvis) { visualization = true; }
 
    if (!mixed || pa)
    {
@@ -169,6 +173,15 @@ int main(int argc, char *argv[])
    if (myid == 0)
    {
       args.PrintOptions(cout);
+   }
+
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+   if (*glvis)
+   {
+      int port = StartGLVisServer(glvis, visport);
+      if (port > 0) { visport = port; }
+      else { visualization = false; }
    }
 
    MFEM_VERIFY(prob >= 0 && prob <=2,
@@ -293,8 +306,6 @@ int main(int argc, char *argv[])
    // 8c. Send the port bc, computed on the SubMesh, to a GLVis server.
    if (visualization && dim == 3)
    {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream port_sock(vishost, visport);
       port_sock << "parallel " << num_procs << " " << myid << "\n";
       port_sock.precision(8);
@@ -336,8 +347,6 @@ int main(int argc, char *argv[])
 
       if (visualization)
       {
-         char vishost[] = "localhost";
-         int  visport   = 19916;
          socketstream full_sock(vishost, visport);
          full_sock << "parallel " << num_procs << " " << myid << "\n";
          full_sock.precision(8);
@@ -549,8 +558,6 @@ int main(int argc, char *argv[])
    // 17. Send the solution by socket to a GLVis server.
    if (visualization)
    {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sol_sock_r(vishost, visport);
       sol_sock_r << "parallel " << num_procs << " " << myid << "\n";
       sol_sock_r.precision(8);
@@ -571,8 +578,6 @@ int main(int argc, char *argv[])
    {
       ParGridFunction u_t(&fespace);
       u_t = u.real();
-      char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);

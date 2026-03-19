@@ -70,6 +70,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = 1;
+   const char *glvis = "";
    bool adios2 = false;
 
    OptionsParser args(argc, argv);
@@ -89,6 +90,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&glvis, "-glvis", "--glvis",
+                  "Path to GLVis binary to start a server.");
    args.AddOption(&adios2, "-adios2", "--adios2-streams", "-no-adios2",
                   "--no-adios2-streams",
                   "Save data using adios2 streams.");
@@ -101,6 +104,7 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
+   if (*glvis) { visualization = true; }
    if (verbose)
    {
       args.PrintOptions(cout);
@@ -449,19 +453,28 @@ int main(int argc, char *argv[])
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
-      socketstream u_sock(vishost, visport);
-      u_sock << "parallel " << num_procs << " " << myid << "\n";
-      u_sock.precision(8);
-      u_sock << "solution\n" << *pmesh << *u << "window_title 'Velocity'"
-             << endl;
-      // Make sure all ranks have sent their 'u' solution before initiating
-      // another set of GLVis connections (one from each rank):
-      MPI_Barrier(pmesh->GetComm());
-      socketstream p_sock(vishost, visport);
-      p_sock << "parallel " << num_procs << " " << myid << "\n";
-      p_sock.precision(8);
-      p_sock << "solution\n" << *pmesh << *p << "window_title 'Pressure'"
-             << endl;
+      if (*glvis)
+      {
+         int port = StartGLVisServer(glvis, visport);
+         if (port > 0) { visport = port; }
+         else { visualization = false; }
+      }
+      if (visualization)
+      {
+         socketstream u_sock(vishost, visport);
+         u_sock << "parallel " << num_procs << " " << myid << "\n";
+         u_sock.precision(8);
+         u_sock << "solution\n" << *pmesh << *u << "window_title 'Velocity'"
+                << endl;
+         // Make sure all ranks have sent their 'u' solution before initiating
+         // another set of GLVis connections (one from each rank):
+         MPI_Barrier(pmesh->GetComm());
+         socketstream p_sock(vishost, visport);
+         p_sock << "parallel " << num_procs << " " << myid << "\n";
+         p_sock.precision(8);
+         p_sock << "solution\n" << *pmesh << *p << "window_title 'Pressure'"
+                << endl;
+      }
    }
 
    // 20. Free the used memory.

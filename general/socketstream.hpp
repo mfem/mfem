@@ -294,6 +294,28 @@ public:
    ~socketserver() { close(); }
 };
 
+/** @brief Start a GLVis server process and return the selected port.
+
+    This is the library version of the old `examples/ex1p.cpp` helper.
+    It starts GLVis with `-no-ex` so it can take the first available port at
+    or above `preferred_port`. The selected port is expected to be printed as
+    `GLVIS_SERVER_PORT=<port>` on stderr.
+
+    Compared to the old `VisServer::Open()`, this helper does not create a
+    log file and uses `timeout_ms` to bound the wait for the port line.
+
+    When MPI is enabled and initialized, this function starts GLVis on rank 0
+    and broadcasts the selected port to all ranks in `MPI_COMM_WORLD`.
+
+    @param glvis_path Path to the GLVis executable.
+    @param preferred_port Initial port to try (default: 19916).
+    @param timeout_ms Max time (milliseconds) to wait for port capture.
+    On failure, this function prints a diagnostic message and returns -1.
+    @return The selected port (>0) on success, or -1 on failure. */
+MFEM_EXPORT int StartGLVisServer(const char *glvis_path,
+                                 int preferred_port = 19916,
+                                 int timeout_ms = 5000);
+
 } // namespace mfem
 
 #endif

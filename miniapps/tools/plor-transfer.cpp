@@ -78,6 +78,7 @@ int main(int argc, char *argv[])
    int lorder = 0;
    bool vis = true;
    bool useH1 = false;
+   const char *glvis = "";
    int visport = 19916;
    bool use_pointwise_transfer = false;
    const char *device_config = "cpu";
@@ -97,6 +98,8 @@ int main(int argc, char *argv[])
    args.AddOption(&vis, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&glvis, "-glvis", "--glvis",
+                  "Path to GLVis binary to start a server.");
    args.AddOption(&useH1, "-h1", "--use-h1", "-l2", "--use-l2",
                   "Use H1 spaces instead of L2.");
    args.AddOption(&use_pointwise_transfer, "-t", "--use-pointwise-transfer",
@@ -107,6 +110,13 @@ int main(int argc, char *argv[])
    args.AddOption(&use_ea, "-ea", "--ea-version", "-no-ea",
                   "--no-ea-version", "Use element assembly version.");
    args.ParseCheck();
+
+   if (*glvis)
+   {
+      int port = StartGLVisServer(glvis, visport);
+      if (port > 0) { visport = port; vis = true; }
+      else { vis = false; }
+   }
 
    // Configure device
    Device device(device_config);

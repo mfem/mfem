@@ -76,6 +76,7 @@ int main(int argc, char *argv[])
    bool smooth_rt = true;
    bool restart = false;
    bool visualization = true;
+   const char *glvis = "";
    bool rebalance = true;
    bool usePRefinement = false;
 
@@ -108,6 +109,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&glvis, "-glvis", "--glvis",
+                  "Path to GLVis binary to start a server.");
    args.Parse();
    if (!args.Good())
    {
@@ -117,6 +120,7 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
+   if (*glvis) { visualization = true; }
    if (myid == 0)
    {
       args.PrintOptions(cout);
@@ -236,8 +240,17 @@ int main(int argc, char *argv[])
    socketstream sout;
    if (visualization)
    {
-      sout.open(vishost, visport);
-      if (!sout)
+      if (*glvis)
+      {
+         int port = StartGLVisServer(glvis, visport);
+         if (port > 0) { visport = port; }
+         else { visualization = false; }
+      }
+      if (visualization)
+      {
+         sout.open(vishost, visport);
+      }
+      if (visualization && !sout)
       {
          if (myid == 0)
          {
@@ -248,7 +261,7 @@ int main(int argc, char *argv[])
          visualization = false;
       }
 
-      sout.precision(8);
+      if (visualization) { sout.precision(8); }
    }
 
    // 14. Set up an error estimator. Here we use the Zienkiewicz-Zhu estimator
