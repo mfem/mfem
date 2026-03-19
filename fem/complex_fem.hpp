@@ -172,7 +172,7 @@ public:
    ///
    /// @param[in] exsolr  Coefficient object reproducing the real part of the
    ///                    anticipated values of the scalar field, Re(u_ex).
-   /// @param[in] exsolr  Coefficient object reproducing the imaginary part of
+   /// @param[in] exsoli  Coefficient object reproducing the imaginary part of
    ///                    the anticipated values of the scalar field, Im(u_ex).
    /// @param[in] irs        Optional pointer to an array of custom integration
    ///                       rules e.g. higher order than the default rules. If
@@ -205,7 +205,7 @@ public:
    ///                    either finite or infinite.
    /// @param[in] exsolr  Coefficient object reproducing the real part of the
    ///                    anticipated values of the scalar field, Re(u_ex).
-   /// @param[in] exsolr  Coefficient object reproducing the imaginary part of
+   /// @param[in] exsoli  Coefficient object reproducing the imaginary part of
    ///                    the anticipated values of the scalar field, Im(u_ex).
    /// @param[in] weight  Optional pointer to a Coefficient object reproducing
    ///                    a weighting function, w.
