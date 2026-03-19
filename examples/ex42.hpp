@@ -14,7 +14,7 @@ protected:
    real_t min_val;
 
 public:
-   LogarithmGridFunctionCoefficient(GridFunction &u_, Coefficient &gap_, 
+   LogarithmGridFunctionCoefficient(GridFunction &u_, Coefficient &gap_,
                                     Vector &n_tilde_, real_t min_val_=-36)
       : u(&u_), gap(&gap_), n_tilde(&n_tilde_), min_val(min_val_) { }
 
@@ -29,7 +29,8 @@ protected:
    real_t max_val;
 
 public:
-   ExponentialGridFunctionCoefficient(GridFunction &psi_, real_t min_val_=0.0, real_t max_val_=1e6)
+   ExponentialGridFunctionCoefficient(GridFunction &psi_, real_t min_val_=0.0,
+                                      real_t max_val_=1e6)
       : psi(&psi_), min_val(min_val_), max_val(max_val_)
    {
       MFEM_VERIFY(min_val <= max_val,
@@ -39,9 +40,9 @@ public:
    real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
 };
 
-/// Mixed Bilinear Form between parent mesh trial space and sub mesh test space. 
-/// <A\hat{u}, v>_{\Gamma} 
-/// where \hat{u} is defined on a parent mesh and v is defined on the sub mesh. 
+/// Mixed bilinear form between a parent mesh trial space and a submesh test space.
+/// Represents the coupling term <A u_trace, v> on the coupling boundary, where
+/// u_trace is the restriction of u from the parent mesh to the submesh.
 /// Use @a AddBoundaryDomainIntegrator to add boundary "volume" integrators on the coupling boundary.
 class ParentToSubMixedBilinearForm : public Operator
 {
@@ -49,17 +50,23 @@ private:
    FiniteElementSpace *trial_parent_fes; // trial space defined on a parent mesh
    FiniteElementSpace *test_sub_fes; // test space defined on a sub mesh
 
-   std::unique_ptr<FiniteElementCollection> parent_trace_fec; // FEC for trial space restricted to the sub mesh
-   std::unique_ptr<FiniteElementSpace> parent_trace_fes; // trial space restricted to the sub mesh
+   std::unique_ptr<FiniteElementCollection>
+   parent_trace_fec; // FEC for trial space restricted to the sub mesh
+   std::unique_ptr<FiniteElementSpace>
+   parent_trace_fes; // trial space restricted to the sub mesh
    std::unique_ptr<MixedBilinearForm> sub_bf; // serial sub mesh bilinear form
 
-   std::unique_ptr<SparseMatrix> R; // restriction matrix that maps from parent to sub mesh trial space
+   std::unique_ptr<SparseMatrix>
+   R; // restriction matrix that maps from parent to sub mesh trial space
    std::unique_ptr<SparseMatrix> mat; // the final coupling matrix
-   Array<int> sub_to_parent; // map from trace dof on sub mesh to dof on parent mesh
+   Array<int>
+   sub_to_parent; // map from trace dof on sub mesh to dof on parent mesh
 
 #ifdef MFEM_USE_MPI
-   std::unique_ptr<ParMixedBilinearForm> p_sub_bf; // parallel sub mesh bilinear form
-   std::unique_ptr<OperatorHandle> p_R; // parallel restriction operator that maps from parent to sub mesh trial space
+   std::unique_ptr<ParMixedBilinearForm>
+   p_sub_bf; // parallel sub mesh bilinear form
+   std::unique_ptr<OperatorHandle>
+   p_R; // parallel restriction operator that maps from parent to sub mesh trial space
 #endif
 
 public:
@@ -95,10 +102,11 @@ public:
                   "SubMeshToParentCouplingTransfer: trial_parent_fes mesh should be the parent of test_sub_fes mesh");
 #endif
 
-      bool parallel = false;  
+      bool parallel = false;
 
 #ifdef MFEM_USE_MPI
-      auto *trial_parent_pfes = dynamic_cast<ParFiniteElementSpace*>(trial_parent_fes);
+      auto *trial_parent_pfes = dynamic_cast<ParFiniteElementSpace*>
+                                (trial_parent_fes);
       auto *test_sub_pfes = dynamic_cast<ParFiniteElementSpace*>(test_sub_fes);
 
       if (!(trial_parent_pfes == nullptr && test_sub_pfes == nullptr))
@@ -115,7 +123,8 @@ public:
 #endif
 
       auto *parent_fec = trial_parent_fes->FEColl();
-      MFEM_VERIFY(parent_fec != nullptr, "trial_parent_fes finite element collection is null");
+      MFEM_VERIFY(parent_fec != nullptr,
+                  "trial_parent_fes finite element collection is null");
       parent_trace_fec.reset(parent_fec->GetTraceCollection());
       MFEM_VERIFY(parent_trace_fec != nullptr,
                   "failed to create trace finite element collection");
@@ -132,7 +141,8 @@ public:
                                           sub_pmesh->GetParentElementIDMap(),
                                           sub_to_parent);
 
-         auto *parent_trace_pfes = static_cast<ParFiniteElementSpace*>(parent_trace_fes.get());
+         auto *parent_trace_pfes = static_cast<ParFiniteElementSpace*>
+                                   (parent_trace_fes.get());
          p_sub_bf = std::make_unique<ParMixedBilinearForm>(parent_trace_pfes,
                                                            test_sub_pfes);
       }
@@ -168,7 +178,8 @@ public:
 #ifdef MFEM_USE_MPI
       if (parallel)
       {
-         auto *parent_trace_pfes = static_cast<ParFiniteElementSpace*>(parent_trace_fes.get());
+         auto *parent_trace_pfes = static_cast<ParFiniteElementSpace*>
+                                   (parent_trace_fes.get());
 
          // tdof parent -> vdof parent
          HypreParMatrix *P_parent = trial_parent_pfes->Dof_TrueDof_Matrix();
@@ -192,7 +203,7 @@ public:
 
          // tdof parent -> tdof sub
          HypreParMatrix *pR_hypre = ParMult(vdof_sub_to_tdof_sub.get(),
-                    tdof_parent_to_vdof_sub.get());
+                                            tdof_parent_to_vdof_sub.get());
 
          // Rescale the nonzeros of the restriction operator to be 1.0
          *pR_hypre = 1.0;
@@ -247,7 +258,7 @@ public:
       {
          sub_bf->Finalize();
       }
-      
+
 #ifdef MFEM_USE_MPI
       if (p_R) { return; } // skip to parallel assemble
 #endif
@@ -318,7 +329,7 @@ class MixedFormIntegrator : public BilinearFormIntegrator
 {
 private:
    VectorCoefficient *N;
-   int dim_parent; 
+   int dim_parent;
    Vector nval;
 
 public:
@@ -386,8 +397,8 @@ protected:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetRangeType() == FiniteElement::SCALAR && 
-               test_fe.GetRangeType() == FiniteElement::SCALAR);
+      return (trial_fe.GetRangeType() == FiniteElement::SCALAR &&
+              test_fe.GetRangeType() == FiniteElement::SCALAR);
    }
 
    inline virtual const char * FiniteElementTypeFailureMessage() const
