@@ -141,8 +141,10 @@ int main(int argc, char *argv[])
                   "--no-broken-RT", "Enable broken RT elements for fluxes.");
    args.AddOption(&iproblem, "-p", "--problem",
                   "Problem to solve:\n\t\t"
-                  "1=dumping\n\t\t"
-                  "2=Maxwell\n\t\t");
+                  "1=Material wave\n\t\t"
+                  "2=Maxwell\n\t\t"
+                  "3=Excitation\n\t\t"
+                  "4=Scattering");
    args.AddOption(&tf, "-tf", "--time-final",
                   "Final time.");
    args.AddOption(&nt, "-nt", "--ntimesteps",
