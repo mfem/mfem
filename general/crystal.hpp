@@ -13,9 +13,9 @@ namespace mfem
     class CrystalRouter{
     public:
         // crystal.c/crystal_init
-        // crystal.c/crystal_free 
-        // equivalents
         CrystalRouter(MPI_Comm comm);
+        
+        // crystal.c/crystal_free 
         ~CrystalRouter();
 
         // crystal.c/crystal_router
@@ -27,8 +27,8 @@ namespace mfem
     private:
         MPI_Comm comm;
         int rank, nprocs;
-        std::vector<uint32_t> data;  // gslib's buffer data
-        std::vector<uint32_t> work;  // gslib's buffer work
+        std::vector<uint32_t> data;  // gslib's data buffer
+        std::vector<uint32_t> work;  // gslib's work buffer (temp)
 
         // crystal.c/crystal_move
         uint32_t Move(uint32_t cutoff, bool send_hi);

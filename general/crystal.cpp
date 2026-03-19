@@ -21,11 +21,6 @@ CrystalRouter::~CrystalRouter(){
     MPI_Comm_free(&comm);
 }
 
-// crystal.c/crystal_router
-void CrystalRouter::Route(){
-
-}
-
 // crystal.c/crystal_move
 uint32_t CrystalRouter::Move(uint32_t cutoff, bool send_hi){
     size_t src = 0, keep = 0, send = 0, len = 0;
@@ -76,8 +71,46 @@ uint32_t CrystalRouter::Move(uint32_t cutoff, bool send_hi){
 
 // crystal.c/crystal_exchange
 void CrystalRouter::Exchange(uint32_t send_n, int target, int recvn, int tag){
+    MPI_Request reqs[3];
+    uint32_t count[2] = {0, 0};
+    uint32_t sum;
+    size_t recv0, recv1;
+
+    // exchange counts
+    if(recvn >= 1){
+        MPI_Irecv(&count[0], 1, MPI_UINT32_T, target, tag, comm, &reqs[1]);
+    }
+    if(recvn == 2){
+        MPI_Irecv(&count[1], 1, MPI_UINT32_T, rank - 1, tag, comm, &reqs[2]);
+    }
+    MPI_Isend(&send_n, 1, MPI_UINT32_T, target, tag, comm, &reqs[0]);
+    MPI_Waitall(recvn+1, reqs, MPI_STATUSES_IGNORE);
+    
+    sum = static_cast<uint32_t>(data.size()) + count[0] + count[1];
+    size_t end_kept = data.size();                                              // end ptr of kept msg
+    data.resize(sum);
+    recv0 = end_kept;                                                           // recv0 immediatelyt after kept msg
+    recv1 = end_kept + count[0];                                                // if recv 2 messages, recv1 immediately after recv0
+
+
+    //note for myself:
+    // |kept msg ... | recv0 ... | recv1 ...|
+
+    // exchange data
+    if(recvn >= 1){
+        MPI_Irecv(&data[recv0], count[0], MPI_UINT32_T, target, tag+1, comm, &reqs[1]);
+    }
+    if(recvn == 2){
+        MPI_Irecv(&data[recv1], count[1], MPI_UINT32_T, rank - 1, tag+1, comm, &reqs[2]);
+    }
+    MPI_Isend(work.data(), send_n, MPI_UINT32_T, target, tag+1, comm, &reqs[0]);
+    MPI_Waitall(recvn+1, reqs, MPI_STATUSES_IGNORE);
 }
 
+// crystal.c/crystal_router
+void CrystalRouter::Route(){
+    
+}
 
 }
 
