@@ -251,8 +251,8 @@ ComplexGridFunction::ComputeLpError(const real_t p,
    Vector valsr;
    Vector valsi;
 
-   const GridFunction& gfr = real();
-   const GridFunction& gfi = imag();
+   const GridFunction& gf_r = real();
+   const GridFunction& gf_i = imag();
 
    for (int i = 0; i < fes->GetNE(); i++)
    {
@@ -269,8 +269,8 @@ ComplexGridFunction::ComputeLpError(const real_t p,
          ir = &(IntRules.Get(fe->GetGeomType(), intorder));
       }
       real_t elem_error = 0.0;
-      gfr.GetValues(i, *ir, valsr);
-      gfi.GetValues(i, *ir, valsi);
+      gf_r.GetValues(i, *ir, valsr);
+      gf_i.GetValues(i, *ir, valsi);
       T = fes->GetElementTransformation(i);
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
