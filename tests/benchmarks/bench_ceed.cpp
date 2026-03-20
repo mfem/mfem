@@ -342,7 +342,8 @@ REGISTER(BP, 3, 1, false, true);    // tet
 REGISTER(BP, 4, 3, false, false);
 
 // BP5: scalar PCG with stiffness matrix, q=p+1
-REGISTER(BP, 5, 1, true, false);
+REGISTER(BP, 5, 1, true, false);   // hex
+REGISTER(BP, 5, 1, true, true);    // tet
 
 // BP6: vector PCG with stiffness matrix, q=p+1
 REGISTER(BP, 6, 3, true, false);
