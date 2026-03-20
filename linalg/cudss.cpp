@@ -1,5 +1,7 @@
 #include "cudss.hpp"
 #include "../general/communication.hpp"
+#include <chrono>
+#include <iomanip>
 #include <string>
 
 #ifdef MFEM_USE_CUDSS
@@ -24,12 +26,55 @@
 
 namespace mfem
 {
+// Forward declaration needed by MFEM_CUDSS_CHECK uses before the definition.
+static void mfem_cudss_error(cudssStatus_t status, const char *expr,
+                             const char *func, const char *file, int line);
+
 cudssHandle_t CuDSSSolver::handle = nullptr;
 int CuDSSSolver::CuDSSSolverCount = 0;
 
+static size_t ToSizeTOrZero(int64_t value)
+{
+   return (value > 0) ? static_cast<size_t>(value) : 0;
+}
+
+static void UpdateMemoryEstimates(cudssHandle_t handle,
+                                  cudssData_t solverData,
+                                  CuDSSSolver::CuDSSSummary &summary)
+{
+   // Reset in case estimates are unavailable for the current operator/config.
+   summary.est_device_mem_permanent = 0;
+   summary.est_device_mem_peak = 0;
+   summary.est_host_mem_permanent = 0;
+   summary.est_host_mem_peak = 0;
+
+   int64_t estimates[16] = {0};
+   cudssStatus_t status = cudssDataGet(handle, solverData,
+                                       CUDSS_DATA_MEMORY_ESTIMATES,
+                                       estimates, sizeof(estimates), nullptr);
+   if (status == CUDSS_STATUS_SUCCESS)
+   {
+      summary.est_device_mem_permanent = ToSizeTOrZero(estimates[0]);
+      summary.est_device_mem_peak = ToSizeTOrZero(estimates[1]);
+      summary.est_host_mem_permanent = ToSizeTOrZero(estimates[2]);
+      summary.est_host_mem_peak = ToSizeTOrZero(estimates[3]);
+   }
+   else if (status == CUDSS_STATUS_NOT_SUPPORTED) { }
+   else
+   {
+      MFEM_CUDSS_CHECK(status);
+   }
+}
+
+static bool HasMemoryEstimates(const CuDSSSolver::CuDSSSummary &summary)
+{
+   return summary.est_device_mem_permanent || summary.est_device_mem_peak ||
+          summary.est_host_mem_permanent || summary.est_host_mem_peak;
+}
+
 // Function used by the macro MFEM_CUDSS_CHECK.
-void mfem_cudss_error(cudssStatus_t status, const char *expr, const char *func,
-                      const char *file, int line)
+static void mfem_cudss_error(cudssStatus_t status, const char *expr,
+                             const char *func, const char *file, int line)
 {
    mfem::err << "\n\nCUDSS error: (" << expr << ") failed with error:\n --> "
              << "CUDSS call ended unsuccessfully"
@@ -252,20 +297,48 @@ void CuDSSSolver::SetMatrix(const HypreParMatrix &op)
       MFEM_CUDSS_CHECK(cudssMatrixSetDistributionRow1d(*Ac, row_start, row_end));
 
       // Analysis
-      MFEM_CUDSS_CHECK(
-         cudssExecute(handle, CUDSS_PHASE_ANALYSIS, solverConfig,
-                      solverData, *Ac, yc, xc));
+      {
+         auto t0 = std::chrono::steady_clock::now();
+         MFEM_CUDSS_CHECK(
+            cudssExecute(handle, CUDSS_PHASE_ANALYSIS, solverConfig,
+                         solverData, *Ac, yc, xc));
+         auto t1 = std::chrono::steady_clock::now();
+         summary.analysis_time_seconds = std::chrono::duration<double>(t1 - t0).count();
+         UpdateMemoryEstimates(handle, solverData, summary);
+      }
    }
    else // cuDSSObjectInitialized && reorder_reuse
    {
+      summary.analysis_time_seconds = 0.0; // analysis skipped (reusing symbolic factorization)
       // NOTE: When reusing analysis result, we only update the Data array,
       // without changing the I and J arrays.
       MFEM_CUDSS_CHECK(cudssMatrixSetValues(*Ac, csr_op->data));
    }
 
    // Factorization
-   MFEM_CUDSS_CHECK(cudssExecute(handle, CUDSS_PHASE_FACTORIZATION,
-                                 solverConfig, solverData, *Ac, yc, xc));
+   {
+      auto t0 = std::chrono::steady_clock::now();
+      MFEM_CUDSS_CHECK(cudssExecute(handle, CUDSS_PHASE_FACTORIZATION,
+                                    solverConfig, solverData, *Ac, yc, xc));
+      auto t1 = std::chrono::steady_clock::now();
+      summary.factorization_time_seconds = std::chrono::duration<double>(t1 - t0).count();
+   }
+
+   // Query solver statistics
+   summary.input_nnz = nnz;
+   int64_t lu_nnz = 0;
+   int num_pivots = 0;
+   int info = 0;
+   cudssDataGet(handle, solverData, CUDSS_DATA_LU_NNZ,
+                &lu_nnz, sizeof(int64_t), nullptr);
+   cudssDataGet(handle, solverData, CUDSS_DATA_NPIVOTS,
+                &num_pivots, sizeof(int), nullptr);
+   cudssDataGet(handle, solverData, CUDSS_DATA_INFO,
+                &info, sizeof(int), nullptr);
+   MFEM_VERIFY(info == 0, "cuDSS factorization info returned nonzero status: "
+               << info);
+   summary.lu_nnz = (lu_nnz > 0) ? static_cast<size_t>(lu_nnz) : 0;
+   summary.num_pivots = (num_pivots > 0) ? static_cast<size_t>(num_pivots) : 0;
 
    hypre_CSRMatrixDestroy(csr_op);
 }
@@ -340,19 +413,47 @@ void CuDSSSolver::SetMatrix(const SparseMatrix &op)
       }
 
       // Analysis
-      MFEM_CUDSS_CHECK(cudssExecute(handle, CUDSS_PHASE_ANALYSIS, solverConfig,
-                                    solverData, *Ac, yc, xc));
+      {
+         auto t0 = std::chrono::steady_clock::now();
+         MFEM_CUDSS_CHECK(cudssExecute(handle, CUDSS_PHASE_ANALYSIS, solverConfig,
+                                       solverData, *Ac, yc, xc));
+         auto t1 = std::chrono::steady_clock::now();
+         summary.analysis_time_seconds = std::chrono::duration<double>(t1 - t0).count();
+         UpdateMemoryEstimates(handle, solverData, summary);
+      }
    }
    else    // cuDSSObjectInitialized && reorder_reuse
    {
+      summary.analysis_time_seconds = 0.0; // analysis skipped (reusing symbolic factorization)
       // NOTE: When reusing analysis result, we only update the Data array,
       // without changing the I and J arrays.
       MFEM_CUDSS_CHECK(cudssMatrixSetValues(*Ac, csr_data));
    }
 
    // Factorization
-   MFEM_CUDSS_CHECK(cudssExecute(handle, CUDSS_PHASE_FACTORIZATION, solverConfig,
-                                 solverData, *Ac, yc, xc));
+   {
+      auto t0 = std::chrono::steady_clock::now();
+      MFEM_CUDSS_CHECK(cudssExecute(handle, CUDSS_PHASE_FACTORIZATION, solverConfig,
+                                    solverData, *Ac, yc, xc));
+      auto t1 = std::chrono::steady_clock::now();
+      summary.factorization_time_seconds = std::chrono::duration<double>(t1 - t0).count();
+   }
+
+   // Query solver statistics
+   summary.input_nnz = nnz;
+   int64_t lu_nnz = 0;
+   int num_pivots = 0;
+   int info = 0;
+   cudssDataGet(handle, solverData, CUDSS_DATA_LU_NNZ,
+                &lu_nnz, sizeof(int64_t), nullptr);
+   cudssDataGet(handle, solverData, CUDSS_DATA_NPIVOTS,
+                &num_pivots, sizeof(int), nullptr);
+   cudssDataGet(handle, solverData, CUDSS_DATA_INFO,
+                &info, sizeof(int), nullptr);
+   MFEM_VERIFY(info == 0, "cuDSS factorization info returned nonzero status: "
+               << info);
+   summary.lu_nnz = (lu_nnz > 0) ? static_cast<size_t>(lu_nnz) : 0;
+   summary.num_pivots = (num_pivots > 0) ? static_cast<size_t>(num_pivots) : 0;
 }
 
 void CuDSSSolver::SetOperator(const Operator &op)
@@ -377,6 +478,37 @@ void CuDSSSolver::SetOperator(const Operator &op)
    else
    {
       mfem_error("Unsupported Operator Type \n");
+   }
+
+   if (print_level > 0)
+   {
+      mfem::out << "\nCuDSSSolver: SetOperator statistics";
+      if (summary.analysis_time_seconds >= 0.0)
+         mfem::out << "\n  Analysis time:       "
+                   << std::fixed << std::setprecision(4) << summary.analysis_time_seconds << " s";
+      mfem::out << "\n  Factorization time:  "
+                << std::fixed << std::setprecision(4) << summary.factorization_time_seconds << " s";
+      mfem::out << "\n  LU nnz:              " << summary.lu_nnz
+                << "  (fill ratio: "
+                << std::fixed << std::setprecision(2)
+                << (summary.input_nnz > 0 ? (double)summary.lu_nnz / summary.input_nnz : 0.0) << "x)";
+      mfem::out << "\n  Pivots used:         " << summary.num_pivots;
+      if (HasMemoryEstimates(summary))
+      {
+         mfem::out << "\n  Est. device memory:  "
+                   << std::fixed << std::setprecision(1)
+                   << summary.est_device_mem_permanent / (1024.0 * 1024.0)
+                   << " MiB perm, "
+                   << summary.est_device_mem_peak / (1024.0 * 1024.0)
+                   << " MiB peak";
+         mfem::out << "\n  Est. host memory:    "
+                   << std::fixed << std::setprecision(1)
+                   << summary.est_host_mem_permanent / (1024.0 * 1024.0)
+                   << " MiB perm, "
+                   << summary.est_host_mem_peak / (1024.0 * 1024.0)
+                   << " MiB peak";
+      }
+      mfem::out << "\n";
    }
 }
 
@@ -445,8 +577,17 @@ void CuDSSSolver::ArrayMult(const Array<const Vector *> &X,
    MFEM_CUDSS_CHECK(cudssMatrixSetValues(yc, SOL.Write()));
 
    // Solve
-   MFEM_CUDSS_CHECK(cudssExecute(handle, CUDSS_PHASE_SOLVE, solverConfig,
-                                 solverData, *Ac, yc, xc));
+   {
+      auto t0 = std::chrono::steady_clock::now();
+      MFEM_CUDSS_CHECK(cudssExecute(handle, CUDSS_PHASE_SOLVE, solverConfig,
+                                    solverData, *Ac, yc, xc));
+      auto t1 = std::chrono::steady_clock::now();
+      summary.solve_time_seconds = std::chrono::duration<double>(t1 - t0).count();
+   }
+   int info = 0;
+   cudssDataGet(handle, solverData, CUDSS_DATA_INFO,
+                &info, sizeof(int), nullptr);
+   MFEM_VERIFY(info == 0, "cuDSS solve info returned nonzero status: " << info);
 
    if (nrhs == 1)
    {
@@ -462,6 +603,55 @@ void CuDSSSolver::ArrayMult(const Array<const Vector *> &X,
          *Y[i] = s;
       }
    }
+
+   if (print_level > 0)
+   {
+      mfem::out << "\nCuDSSSolver: Solve statistics (nrhs=" << nrhs << ")";
+      mfem::out << "\n  Solve time:          "
+                << std::fixed << std::setprecision(4) << summary.solve_time_seconds << " s";
+      mfem::out << "\n";
+   }
+}
+
+void CuDSSSolver::CuDSSSummary::PrintSummary() const
+{
+   mfem::out << "\nCuDSSSolver statistics:\n";
+   if (analysis_time_seconds == 0.0)
+      mfem::out << "  Analysis time:       (skipped — reusing symbolic factorization)\n";
+   else if (analysis_time_seconds > 0.0)
+      mfem::out << "  Analysis time:       "
+                << std::fixed << std::setprecision(4) << analysis_time_seconds << " s\n";
+   if (factorization_time_seconds >= 0.0)
+      mfem::out << "  Factorization time:  "
+                << std::fixed << std::setprecision(4) << factorization_time_seconds << " s\n";
+   if (solve_time_seconds >= 0.0)
+      mfem::out << "  Solve time:          "
+                << std::fixed << std::setprecision(4) << solve_time_seconds << " s\n";
+   mfem::out << "  LU nnz:              " << lu_nnz
+             << "  (fill ratio: "
+             << std::fixed << std::setprecision(2)
+             << (input_nnz > 0 ? (double)lu_nnz / input_nnz : 0.0) << "x)\n";
+   mfem::out << "  Pivots used:         " << num_pivots << "\n";
+   if (HasMemoryEstimates(*this))
+   {
+      mfem::out << "  Est. device memory:  "
+                << std::fixed << std::setprecision(1)
+                << est_device_mem_permanent / (1024.0 * 1024.0)
+                << " MiB perm, "
+                << est_device_mem_peak / (1024.0 * 1024.0)
+                << " MiB peak\n";
+      mfem::out << "  Est. host memory:    "
+                << std::fixed << std::setprecision(1)
+                << est_host_mem_permanent / (1024.0 * 1024.0)
+                << " MiB perm, "
+                << est_host_mem_peak / (1024.0 * 1024.0)
+                << " MiB peak\n";
+   }
+}
+
+void CuDSSSolver::PrintSummary() const
+{
+   summary.PrintSummary();
 }
 
 } // namespace mfem
