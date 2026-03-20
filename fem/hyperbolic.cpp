@@ -1595,6 +1595,256 @@ real_t ShallowWaterFlux::ComputeFluxDotN(const Vector &U,
    return vel + sound;
 }
 
+real_t IsothermalFlux::ComputeFlux(const Vector &U,
+                                   ElementTransformation &Tr,
+                                   DenseMatrix &FU) const
+{
+   // 1. Get states
+   const real_t density = U(0);                  // ρ
+   const Vector momentum(U.GetData() + 1, dim);  // ρu
+
+   // Check whether the solution is physical only in debug mode
+   MFEM_ASSERT(density >= 0, "Negative Density");
+
+   // Detect vacuum state
+   if (density == 0.)
+   {
+      FU = 0.;
+      return 0.;
+   }
+
+   // 2. Compute Flux
+   for (int d = 0; d < dim; d++)
+   {
+      FU(0, d) = momentum(d);  // ρu
+      for (int i = 0; i < dim; i++)
+      {
+         // ρuuᵀ
+         FU(1 + i, d) = momentum(i) * momentum(d) / density;
+      }
+   }
+
+   // 3. Compute maximum characteristic speed
+
+   // fluid speed |u|
+   const real_t speed = momentum.Norml2() / density;
+   // max characteristic speed = fluid speed
+   return speed;
+}
+
+
+real_t IsothermalFlux::ComputeFluxDotN(const Vector &x,
+                                       const Vector &normal,
+                                       FaceElementTransformations &Tr,
+                                       Vector &FUdotN) const
+{
+   // 1. Get states
+   const real_t density = x(0);                  // ρ
+   const Vector momentum(x.GetData() + 1, dim);  // ρu
+
+   // Check whether the solution is physical only in debug mode
+   MFEM_ASSERT(density >= 0, "Negative Density");
+
+   // Detect vacuum state
+   if (density == 0.)
+   {
+      FUdotN = 0.;
+      return 0.;
+   }
+
+   // 2. Compute normal flux
+
+   FUdotN(0) = momentum * normal;  // ρu⋅n
+   // u⋅n
+   const real_t normal_velocity = FUdotN(0) / density;
+   for (int d = 0; d < dim; d++)
+   {
+      // (ρuuᵀ)n = ρu*(u⋅n)
+      FUdotN(1 + d) = normal_velocity * momentum(d);
+   }
+
+   // 3. Compute maximum characteristic speed
+
+   // fluid speed |u|
+   const real_t speed = std::fabs(normal_velocity) / std::sqrt(normal*normal);
+   // max characteristic speed = fluid speed
+   return speed;
+}
+
+void IsothermalFlux::CalcAvgFlux(real_t density1, real_t density2,
+                                 const Vector &momentum1, const Vector &momentum2, real_t vel1, real_t vel2,
+                                 Vector &flux)
+{
+   const real_t density = 0.5 * (density1 + density2);
+   const real_t dden = (density2 - density1) / density;
+   constexpr real_t den_tol = 5e-6;
+   const int dim = momentum1.Size();
+   const real_t avel = 0.5 * (vel1 + vel2);
+   const real_t dvel = vel1 - vel2;
+
+   if (fabs(dden) > den_tol)
+   {
+      const real_t dlnden = (-log(1. - dden/2.) + log(1. + dden/2.)) / dden;
+      for (int d = 0; d < dim; d++)
+      {
+         const real_t &mom1 = momentum1(d);
+         const real_t &mom2 = momentum2(d);
+         const real_t dmom = mom1 - mom2;
+         const real_t amom = 0.5 * (mom1 + mom2);
+         flux(d) = (dlnden - 1.) / (dden*dden) *
+                   (dmom * dvel + (dmom * avel + amom * dvel) * dden)
+                   + amom*avel * dlnden;
+      }
+   }
+   else
+   {
+      for (int d = 0; d < dim; d++)
+      {
+         const real_t &mom1 = momentum1(d);
+         const real_t &mom2 = momentum2(d);
+         const real_t dmom = mom1 - mom2;
+         const real_t amom = 0.5 * (mom1 + mom2);
+         flux(d) = (2.*mom1*vel1 + mom1*vel2 + mom2*vel1 + 2.*mom2*vel2) / 6. +
+                   (amom * dvel + dmom * avel) * dden / 12.;
+      }
+   }
+}
+
+real_t IsothermalFlux::ComputeAvgFlux(const Vector &U1, const Vector &U2,
+                                      ElementTransformation &Tr, DenseMatrix &FAvgU) const
+{
+   // 1. Get states
+   const real_t density1 = U1(0);                 // ρ1
+   const real_t density2 = U2(0);                 // ρ2
+   const Vector momentum1(U1.GetData() + 1, dim); // ρu1
+   const Vector momentum2(U2.GetData() + 1, dim); // ρu2
+
+   // Check whether the solution is physical only in debug mode
+   MFEM_ASSERT(density1 >= 0 && density2 >= 0, "Negative Density");
+
+   // Detect vacuum state
+   if (density1 == 0.)
+   {
+      return ComputeFlux(U2, Tr, FAvgU);
+   }
+   else if (density2 == 0.)
+   {
+      return ComputeFlux(U1, Tr, FAvgU);
+   }
+
+   // density
+   const real_t density = 0.5 * (density1 + density2);
+
+   // 2. Compute Flux
+   for (int d = 0; d < dim; d++)
+   {
+      const real_t &mom1_d = momentum1(d);
+      const real_t &mom2_d = momentum2(d);
+      FAvgU(0, d) = 0.5 * (mom1_d + mom2_d); // ρu
+
+      // ρuuᵀ
+      Vector FAvgU_mom(FAvgU.GetData() + 1 + d*(2+dim), dim);
+      const real_t vel1_d = mom1_d / density;
+      const real_t vel2_d = mom2_d / density;
+      CalcAvgFlux(density1, density2, momentum1, momentum2, vel1_d, vel2_d,
+                  FAvgU_mom);
+   }
+
+   // 3. Compute maximum characteristic speed
+
+   // fluid speed |u|
+   const real_t speed = std::max(momentum1.Norml2() / density1,
+                                 momentum2.Norml2() / density2);
+   // max characteristic speed = fluid speed
+   return speed;
+}
+
+real_t IsothermalFlux::ComputeAvgFluxDotN(const Vector &U1, const Vector &U2,
+                                          const Vector &normal, FaceElementTransformations &Tr,
+                                          Vector &FAvgUDotN) const
+{
+   // 1. Get states
+   const real_t density1 = U1(0);                 // ρ1
+   const real_t density2 = U2(0);                 // ρ2
+   const Vector momentum1(U1.GetData() + 1, dim); // ρu1
+   const Vector momentum2(U2.GetData() + 1, dim); // ρu2
+
+   // Check whether the solution is physical only in debug mode
+   MFEM_ASSERT(density1 >= 0 && density2 >= 0, "Negative Density");
+
+   // Detect vacuum state
+   if (density1 == 0.)
+   {
+      return ComputeFluxDotN(U2, normal, Tr, FAvgUDotN);
+   }
+   else if (density2 == 0.)
+   {
+      return ComputeFluxDotN(U1, normal, Tr, FAvgUDotN);
+   }
+
+   // density
+   const real_t density = 0.5 * (density1 + density2);
+
+   // 2. Compute normal flux
+
+   FAvgUDotN(0) = 0.5 * (momentum1 * normal + momentum2 * normal); // ρu⋅n
+
+   // ρuu⋅n + pn
+   Vector FAvgUDotN_mom(FAvgUDotN, 1, dim);
+   const real_t nvel1 = momentum1 * normal / density;
+   const real_t nvel2 = momentum2 * normal / density;
+   CalcAvgFlux(density1, density2, momentum1, momentum2, nvel1, nvel2,
+               FAvgUDotN_mom);
+
+   // 3. Compute maximum characteristic speed
+
+   // fluid speed |u|
+   const real_t speed = std::max(momentum1 * normal / density1,
+                                 momentum2 * normal / density2);
+   // max characteristic speed = fluid speed
+   return speed;
+}
+
+void IsothermalFlux::ComputeFluxJacobian(const Vector &U,
+                                         ElementTransformation &Tr,
+                                         DenseTensor &JU) const
+{
+   // 1. Get states
+   const real_t density = U(0);                  // ρ
+   const Vector momentum(U.GetData() + 1, dim);  // ρu
+
+   // Check whether the solution is physical only in debug mode
+   MFEM_ASSERT(density >= 0, "Negative Density");
+
+   // Detect vacuum state
+   if (density == 0.)
+   {
+      JU = 0.;
+      return;
+   }
+
+   // 2. Compute Jacobian
+   JU = 0.;
+   for (int d = 0; d < dim; d++)
+   {
+      const real_t velocity_d = momentum(d) / density;
+      // ρu
+      JU(0, 1 + d, d) = 1.;
+      // ρuuᵀ
+      JU(1 + d, 1 + d, d) = 2. * velocity_d;
+      for (int i = 0; i < dim; i++)
+      {
+         const real_t velocity_i = momentum(i) / density;
+         // ρuuᵀ
+         JU(1 + i, 0, d) = -velocity_i * velocity_d;
+         if (i != d)
+         {
+            JU(1 + i, 1 + i, d) = velocity_d;
+            JU(1 + i, 1 + d, d) = velocity_i;
+         }
+      }
+   }
+}
 
 real_t EulerFlux::ComputeFlux(const Vector &U,
                               ElementTransformation &Tr,
@@ -1741,45 +1991,6 @@ real_t EulerFlux::CalcAvgKineticEnergy(real_t density1, real_t density2,
    }
 
    return kinetic_energy;
-}
-
-void EulerFlux::CalcAvgFlux(real_t density1, real_t density2,
-                            const Vector &momentum1, const Vector &momentum2, real_t vel1, real_t vel2,
-                            Vector &flux)
-{
-   const real_t density = 0.5 * (density1 + density2);
-   const real_t dden = (density2 - density1) / density;
-   constexpr real_t den_tol = 5e-6;
-   const int dim = momentum1.Size();
-   const real_t avel = 0.5 * (vel1 + vel2);
-   const real_t dvel = vel1 - vel2;
-
-   if (fabs(dden) > den_tol)
-   {
-      const real_t dlnden = (-log(1. - dden/2.) + log(1. + dden/2.)) / dden;
-      for (int d = 0; d < dim; d++)
-      {
-         const real_t &mom1 = momentum1(d);
-         const real_t &mom2 = momentum2(d);
-         const real_t dmom = mom1 - mom2;
-         const real_t amom = 0.5 * (mom1 + mom2);
-         flux(d) = (dlnden - 1.) / (dden*dden) *
-                   (dmom * dvel + (dmom * avel + amom * dvel) * dden)
-                   + amom*avel * dlnden;
-      }
-   }
-   else
-   {
-      for (int d = 0; d < dim; d++)
-      {
-         const real_t &mom1 = momentum1(d);
-         const real_t &mom2 = momentum2(d);
-         const real_t dmom = mom1 - mom2;
-         const real_t amom = 0.5 * (mom1 + mom2);
-         flux(d) = (2.*mom1*vel1 + mom1*vel2 + mom2*vel1 + 2.*mom2*vel2) / 6. +
-                   (amom * dvel + dmom * avel) * dden / 12.;
-      }
-   }
 }
 
 real_t EulerFlux::CalcAvgFlux(real_t den1, real_t den2, real_t mom1,

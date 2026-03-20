@@ -1082,6 +1082,88 @@ public:
                           Vector &fluxN) const override;
 };
 
+/// Isothermal flux
+class IsothermalFlux : public FluxFunction
+{
+private:
+   static void CalcAvgFlux(real_t den1, real_t den2, const Vector &mom1,
+                           const Vector &mom2, real_t vel1, real_t vel2, Vector &flux);
+
+   friend class EulerFlux;
+
+public:
+   /**
+    * @brief Construct a new IsothermalFlux FluxFunction with given spatial
+    * dimension and specific heat ratio
+    *
+    * @param dim spatial dimension
+    */
+   IsothermalFlux(const int dim)
+      : FluxFunction(dim + 1, dim) {}
+
+   /**
+    * @brief Compute F(ρ, ρu)
+    *
+    * @param state state (ρ, ρu) at current integration point
+    * @param Tr current element transformation with the integration point
+    * @param flux F(ρ, ρu) = [ρuᵀ; ρuuᵀ]
+    * @return real_t maximum characteristic speed, |u|
+    */
+   real_t ComputeFlux(const Vector &state, ElementTransformation &Tr,
+                      DenseMatrix &flux) const override;
+
+   /**
+    * @brief Compute normal flux, F(ρ, ρu)n
+    *
+    * @param state state (ρ, ρu) at the current integration point
+    * @param normal normal vector, usually not a unit vector
+    * @param Tr current element transformation with the integration point
+    * @param fluxN F(ρ, ρu)n = [ρu⋅n; ρu(u⋅n)]
+    * @return real_t maximum characteristic speed, |u|
+    */
+   real_t ComputeFluxDotN(const Vector &state, const Vector &normal,
+                          FaceElementTransformations &Tr,
+                          Vector &fluxN) const override;
+
+   /**
+    * @brief Compute F̄(ρ1, ρu1, ρ2, ρu2)
+    *
+    * @param state1 first state (ρ1, ρu1) at current integration point
+    * @param state2 first state (ρ2, ρu2) at current integration point
+    * @param Tr current element transformation with the integration point
+    * @param flux F̄(ρ1, ρu1, ρ2, ρu2)
+    * @return real_t maximum characteristic speed, |u|
+    */
+   real_t ComputeAvgFlux(const Vector &state1, const Vector &state2,
+                         ElementTransformation &Tr,
+                         DenseMatrix &flux) const override;
+
+   /**
+    * @brief Compute F̄(ρ1, ρu1, E1, ρ2, ρu2, E2)n
+    *
+    * @param state1 first state (ρ1, ρu1) at current integration point
+    * @param state2 first state (ρ2, ρu2) at current integration point
+    * @param normal normal vector, usually not a unit vector
+    * @param Tr current element transformation with the integration point
+    * @param flux F̄(ρ1, ρu1, ρ2, ρu2)n
+    * @return real_t maximum characteristic speed, |u|
+    */
+   real_t ComputeAvgFluxDotN(const Vector &state1, const Vector &state2,
+                             const Vector &normal, FaceElementTransformations &Tr,
+                             Vector &fluxN) const override;
+
+   /**
+    * @brief Compute J(ρ, ρu)
+    *
+    * @param state state (ρ, ρu) at current integration point
+    * @param Tr current element transformation with the integration point
+    * @param J J(ρ, ρu)
+    */
+   void ComputeFluxJacobian(const Vector &state,
+                            ElementTransformation &Tr,
+                            DenseTensor &J) const override;
+};
+
 /// Euler flux
 class EulerFlux : public FluxFunction
 {
@@ -1091,8 +1173,11 @@ private:
 
    static real_t CalcAvgKineticEnergy(real_t den1, real_t den2, const Vector &mom1,
                                       const Vector &mom2);
+
    static void CalcAvgFlux(real_t den1, real_t den2, const Vector &mom1,
-                           const Vector &mom2, real_t vel1, real_t vel2, Vector &flux);
+                           const Vector &mom2, real_t vel1, real_t vel2, Vector &flux)
+   { IsothermalFlux::CalcAvgFlux(den1, den2, mom1, mom2, vel1, vel2, flux); }
+
    static real_t CalcAvgFlux(real_t den1, real_t den2, real_t mom1, real_t mom2,
                              real_t vel1, real_t vel2);
 
