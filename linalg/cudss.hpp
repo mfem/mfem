@@ -64,10 +64,10 @@ public:
       size_t num_pivots = 0;
 
       /// Estimated memory from cuDSS analysis.
-      size_t est_device_mem_permanent = 0;
-      size_t est_device_mem_peak = 0;
-      size_t est_host_mem_permanent = 0;
-      size_t est_host_mem_peak = 0;
+      size_t est_device_mem_permanent_bytes = 0;
+      size_t est_device_mem_peak_bytes = 0;
+      size_t est_host_mem_permanent_bytes = 0;
+      size_t est_host_mem_peak_bytes = 0;
 
       /// Print this summary to mfem::out.
       void PrintSummary() const;

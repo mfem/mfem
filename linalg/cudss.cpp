@@ -33,6 +33,11 @@ static void mfem_cudss_error(cudssStatus_t status, const char *expr,
 cudssHandle_t CuDSSSolver::handle = nullptr;
 int CuDSSSolver::CuDSSSolverCount = 0;
 
+constexpr double BytesToMiB(size_t bytes)
+{
+   return static_cast<double>(bytes) / static_cast<double>(1u << 20);
+}
+
 static size_t ToSizeTOrZero(int64_t value)
 {
    return (value > 0) ? static_cast<size_t>(value) : 0;
@@ -43,10 +48,10 @@ static void UpdateMemoryEstimates(cudssHandle_t handle,
                                   CuDSSSolver::CuDSSSummary &summary)
 {
    // Reset in case estimates are unavailable for the current operator/config.
-   summary.est_device_mem_permanent = 0;
-   summary.est_device_mem_peak = 0;
-   summary.est_host_mem_permanent = 0;
-   summary.est_host_mem_peak = 0;
+   summary.est_device_mem_permanent_bytes = 0;
+   summary.est_device_mem_peak_bytes = 0;
+   summary.est_host_mem_permanent_bytes = 0;
+   summary.est_host_mem_peak_bytes = 0;
 
    int64_t estimates[16] = {0};
    cudssStatus_t status = cudssDataGet(handle, solverData,
@@ -54,10 +59,10 @@ static void UpdateMemoryEstimates(cudssHandle_t handle,
                                        estimates, sizeof(estimates), nullptr);
    if (status == CUDSS_STATUS_SUCCESS)
    {
-      summary.est_device_mem_permanent = ToSizeTOrZero(estimates[0]);
-      summary.est_device_mem_peak = ToSizeTOrZero(estimates[1]);
-      summary.est_host_mem_permanent = ToSizeTOrZero(estimates[2]);
-      summary.est_host_mem_peak = ToSizeTOrZero(estimates[3]);
+      summary.est_device_mem_permanent_bytes = ToSizeTOrZero(estimates[0]);
+      summary.est_device_mem_peak_bytes = ToSizeTOrZero(estimates[1]);
+      summary.est_host_mem_permanent_bytes = ToSizeTOrZero(estimates[2]);
+      summary.est_host_mem_peak_bytes = ToSizeTOrZero(estimates[3]);
    }
    else if (status == CUDSS_STATUS_NOT_SUPPORTED) { }
    else
@@ -68,8 +73,10 @@ static void UpdateMemoryEstimates(cudssHandle_t handle,
 
 static bool HasMemoryEstimates(const CuDSSSolver::CuDSSSummary &summary)
 {
-   return summary.est_device_mem_permanent || summary.est_device_mem_peak ||
-          summary.est_host_mem_permanent || summary.est_host_mem_peak;
+      return summary.est_device_mem_permanent_bytes ||
+         summary.est_device_mem_peak_bytes ||
+         summary.est_host_mem_permanent_bytes ||
+         summary.est_host_mem_peak_bytes;
 }
 
 // Function used by the macro MFEM_CUDSS_CHECK.
@@ -497,15 +504,15 @@ void CuDSSSolver::SetOperator(const Operator &op)
       {
          mfem::out << "\n  Est. device memory:  "
                    << std::fixed << std::setprecision(1)
-                   << summary.est_device_mem_permanent / (1024.0 * 1024.0)
+                   << BytesToMiB(summary.est_device_mem_permanent_bytes)
                    << " MiB perm, "
-                   << summary.est_device_mem_peak / (1024.0 * 1024.0)
+                   << BytesToMiB(summary.est_device_mem_peak_bytes)
                    << " MiB peak";
          mfem::out << "\n  Est. host memory:    "
                    << std::fixed << std::setprecision(1)
-                   << summary.est_host_mem_permanent / (1024.0 * 1024.0)
+                   << BytesToMiB(summary.est_host_mem_permanent_bytes)
                    << " MiB perm, "
-                   << summary.est_host_mem_peak / (1024.0 * 1024.0)
+                   << BytesToMiB(summary.est_host_mem_peak_bytes)
                    << " MiB peak";
       }
       mfem::out << "\n";
@@ -636,15 +643,15 @@ void CuDSSSolver::CuDSSSummary::PrintSummary() const
    {
       mfem::out << "  Est. device memory:  "
                 << std::fixed << std::setprecision(1)
-                << est_device_mem_permanent / (1024.0 * 1024.0)
+                << BytesToMiB(est_device_mem_permanent_bytes)
                 << " MiB perm, "
-                << est_device_mem_peak / (1024.0 * 1024.0)
+                << BytesToMiB(est_device_mem_peak_bytes)
                 << " MiB peak\n";
       mfem::out << "  Est. host memory:    "
                 << std::fixed << std::setprecision(1)
-                << est_host_mem_permanent / (1024.0 * 1024.0)
+                << BytesToMiB(est_host_mem_permanent_bytes)
                 << " MiB perm, "
-                << est_host_mem_peak / (1024.0 * 1024.0)
+                << BytesToMiB(est_host_mem_peak_bytes)
                 << " MiB peak\n";
    }
 }
