@@ -106,3 +106,4 @@ endif
 
 PTHREAD_LIB = -lpthread
 GLVIS_LIBS += $(PTHREAD_LIB)
+GLVIS_LIBS += -lmfem
