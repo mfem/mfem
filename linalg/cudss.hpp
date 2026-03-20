@@ -69,6 +69,15 @@ public:
       size_t est_host_mem_permanent_bytes = 0;
       size_t est_host_mem_peak_bytes = 0;
 
+   #ifdef MFEM_USE_MPI
+      /// Return the summary reduced across all ranks in @a comm.
+      /// Timing fields use MPI_MAX; count/memory fields use MPI_SUM.
+      CuDSSSummary GetGlobalSummary(MPI_Comm comm) const;
+   #else
+      /// Serial fallback: return this summary unchanged.
+      CuDSSSummary GetGlobalSummary() const { return *this; }
+   #endif
+
       /// Print this summary to mfem::out.
       void PrintSummary() const;
    };
@@ -137,24 +146,11 @@ public:
     */
    void SetMatrixSortRow(bool sort_row_);
 
-   /**
-    * @brief Enable automatic printing of solver statistics after SetOperator
-    * and Mult. Reports timing, GPU memory, LU fill-in, and solver info.
-    *
-    * @param print_stats_ If true, statistics are printed after each phase.
-    */
-   void SetPrintLevel(int print_level_) { print_level = print_level_; }
-
    /// Return a const reference to the latest solver statistics.
    const CuDSSSummary &GetSummary() const { return summary; }
 
-   /**
-    * @brief Print solver performance statistics to mfem::out.
-    *
-    * Reports the latest analysis time, factorization time, solve time, LU
-    * fill-in (nnz), pivot count, solver info code, and GPU memory consumed.
-    */
-   void PrintSummary() const;
+   /// Return summary statistics reduced across all MPI ranks (or local in serial).
+   CuDSSSummary GetGlobalSummary() const;
 
    void SetOperator(const Operator &op) override;
 
@@ -224,9 +220,6 @@ private:
    mutable cudssConfig_t solverConfig;
    // cuDSS object holds internal data
    mutable cudssData_t solverData;
-
-   // Flag controlling automatic statistics printing after SetOperator / Mult
-   int print_level = 1;
 
    // Solver statistics, updated after each phase
    mutable CuDSSSummary summary;

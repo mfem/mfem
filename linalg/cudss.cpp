@@ -79,6 +79,43 @@ static bool HasMemoryEstimates(const CuDSSSolver::CuDSSSummary &summary)
          summary.est_host_mem_peak_bytes;
 }
 
+#ifdef MFEM_USE_MPI
+CuDSSSolver::CuDSSSummary
+CuDSSSolver::CuDSSSummary::GetGlobalSummary(MPI_Comm comm) const
+{
+   if (comm == MPI_COMM_NULL) { return *this; }
+
+   CuDSSSummary global = *this;
+
+   MPI_Allreduce(&analysis_time_seconds, &global.analysis_time_seconds, 1,
+                 MPI_DOUBLE, MPI_MAX, comm);
+   MPI_Allreduce(&factorization_time_seconds, &global.factorization_time_seconds,
+                 1, MPI_DOUBLE, MPI_MAX, comm);
+   MPI_Allreduce(&solve_time_seconds, &global.solve_time_seconds, 1,
+                 MPI_DOUBLE, MPI_MAX, comm);
+
+   auto sum_size_t = [comm](size_t local_value) -> size_t
+   {
+      unsigned long long local_ull = static_cast<unsigned long long>(local_value);
+      unsigned long long global_ull = 0;
+      MPI_Allreduce(&local_ull, &global_ull, 1, MPI_UNSIGNED_LONG_LONG,
+                    MPI_SUM, comm);
+      return static_cast<size_t>(global_ull);
+   };
+
+   global.lu_nnz = sum_size_t(lu_nnz);
+   global.input_nnz = sum_size_t(input_nnz);
+   global.num_pivots = sum_size_t(num_pivots);
+   global.est_device_mem_permanent_bytes =
+      sum_size_t(est_device_mem_permanent_bytes);
+   global.est_device_mem_peak_bytes = sum_size_t(est_device_mem_peak_bytes);
+   global.est_host_mem_permanent_bytes = sum_size_t(est_host_mem_permanent_bytes);
+   global.est_host_mem_peak_bytes = sum_size_t(est_host_mem_peak_bytes);
+
+   return global;
+}
+#endif
+
 // Function used by the macro MFEM_CUDSS_CHECK.
 static void mfem_cudss_error(cudssStatus_t status, const char *expr,
                              const char *func, const char *file, int line)
@@ -486,37 +523,6 @@ void CuDSSSolver::SetOperator(const Operator &op)
    {
       mfem_error("Unsupported Operator Type \n");
    }
-
-   if (print_level > 0)
-   {
-      mfem::out << "\nCuDSSSolver: SetOperator statistics";
-      if (summary.analysis_time_seconds >= 0.0)
-         mfem::out << "\n  Analysis time:       "
-                   << std::fixed << std::setprecision(4) << summary.analysis_time_seconds << " s";
-      mfem::out << "\n  Factorization time:  "
-                << std::fixed << std::setprecision(4) << summary.factorization_time_seconds << " s";
-      mfem::out << "\n  LU nnz:              " << summary.lu_nnz
-                << "  (fill ratio: "
-                << std::fixed << std::setprecision(2)
-                << (summary.input_nnz > 0 ? (double)summary.lu_nnz / summary.input_nnz : 0.0) << "x)";
-      mfem::out << "\n  Pivots used:         " << summary.num_pivots;
-      if (HasMemoryEstimates(summary))
-      {
-         mfem::out << "\n  Est. device memory:  "
-                   << std::fixed << std::setprecision(1)
-                   << BytesToMiB(summary.est_device_mem_permanent_bytes)
-                   << " MiB perm, "
-                   << BytesToMiB(summary.est_device_mem_peak_bytes)
-                   << " MiB peak";
-         mfem::out << "\n  Est. host memory:    "
-                   << std::fixed << std::setprecision(1)
-                   << BytesToMiB(summary.est_host_mem_permanent_bytes)
-                   << " MiB perm, "
-                   << BytesToMiB(summary.est_host_mem_peak_bytes)
-                   << " MiB peak";
-      }
-      mfem::out << "\n";
-   }
 }
 
 void CuDSSSolver::SetNumRHS(int nrhs_) const
@@ -610,14 +616,15 @@ void CuDSSSolver::ArrayMult(const Array<const Vector *> &X,
          *Y[i] = s;
       }
    }
+}
 
-   if (print_level > 0)
-   {
-      mfem::out << "\nCuDSSSolver: Solve statistics (nrhs=" << nrhs << ")";
-      mfem::out << "\n  Solve time:          "
-                << std::fixed << std::setprecision(4) << summary.solve_time_seconds << " s";
-      mfem::out << "\n";
-   }
+CuDSSSolver::CuDSSSummary CuDSSSolver::GetGlobalSummary() const
+{
+#ifdef MFEM_USE_MPI
+   return summary.GetGlobalSummary(mpi_comm);
+#else
+   return summary.GetGlobalSummary();
+#endif
 }
 
 void CuDSSSolver::CuDSSSummary::PrintSummary() const
@@ -654,11 +661,6 @@ void CuDSSSolver::CuDSSSummary::PrintSummary() const
                 << BytesToMiB(est_host_mem_peak_bytes)
                 << " MiB peak\n";
    }
-}
-
-void CuDSSSolver::PrintSummary() const
-{
-   summary.PrintSummary();
 }
 
 } // namespace mfem
