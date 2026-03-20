@@ -134,7 +134,7 @@ struct BakeOff
    BilinearFormIntegrator *bfi;
 
    BakeOff(int p, int side):
-      p(p), c(SIMPLICES ? side / 2 : side), q(2 * p + (GLL ? -1 : 3)),
+      p(p), c(SIMPLICES ? side / 2 : side), q(2 * p + (GLL ? SIMPLICES ? 0 : -1 : 3)),
       n((assert(c >= p), c / p)),
       nx(n + (p * (n + 1) * p * n * p * n < c * c * c ? 1 : 0)),
       ny(n + (p * (n + 1) * p * (n + 1) * p * n < c * c * c ? 1 : 0)),
