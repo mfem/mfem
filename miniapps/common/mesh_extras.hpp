@@ -151,8 +151,8 @@ public:
 // pmesh->Transform(spiralT);
 class SpiralTransformation : public VectorCoefficient
 {
-private:
-   real_t dim, turns, width, gap, height;
+   int dim;
+   real_t turns, width, gap, height;
 
 public:
    SpiralTransformation(int dim_, real_t turns_ = 1.0, real_t width_ = 0.1,

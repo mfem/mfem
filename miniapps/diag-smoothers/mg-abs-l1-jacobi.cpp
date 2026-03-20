@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
    int order_levels = 1;
    // Solver parameters
    real_t rel_tol = 1e-10;
-   real_t max_iter = 3000;
+   int max_iter = 3000;
    // Kershaw Transformation
    real_t eps_y = 0.0;
    real_t eps_z = 0.0;
@@ -258,7 +258,7 @@ int main(int argc, char *argv[])
       {
          case mass:
          case diffusion:
-            fec_array.Append(new H1_FECollection(std::pow(2, lo + 1), dim));
+            fec_array.Append(new H1_FECollection(static_cast<int>(std::pow(2, lo+1)), dim));
             break;
          default:
             mfem_error("Invalid integrator type! Check "
