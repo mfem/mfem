@@ -30,7 +30,7 @@
 #include "fem/integ/bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep
 
 // Custom benchmark arguments generator
-static void CustomArguments(bm::Benchmark *b) noexcept
+static void CustomArguments(bmi::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 16 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
@@ -134,7 +134,7 @@ struct BakeOff
    BilinearFormIntegrator *bfi;
 
    BakeOff(int p, int side):
-      p(p), c(side), q(2 * p + (GLL ? -1 : 3)),
+      p(p), c(SIMPLICES ? side / 2 : side), q(2 * p + (GLL ? -1 : 3)),
       n((assert(c >= p), c / p)),
       nx(n + (p * (n + 1) * p * n * p * n < c * c * c ? 1 : 0)),
       ny(n + (p * (n + 1) * p * (n + 1) * p * n < c * c * c ? 1 : 0)),
@@ -144,7 +144,7 @@ struct BakeOff
       fes(&mesh, &fec, VDIM, VDIM == 3 ? Ordering::byVDIM : Ordering::byNODES),
       geom_type(mesh.GetTypicalElementGeometry()),
       irs(0, GLL ? Quadrature1D::GaussLobatto : Quadrature1D::GaussLegendre),
-      ir(&IntRules.Get(geom_type, q, SIMPLICES)),
+      ir(&irs.Get(geom_type, q, SIMPLICES)),
       ir_rhs(&IntRules.Get(geom_type, 2*p)),
       one(1.0),
       uvec(DIM),
@@ -320,7 +320,7 @@ static void Benchmark(bm::State& state) noexcept
 }
 
 #define MAKE_NAME_false(PK, BFI)   #PK #BFI
-#define MAKE_NAME_true(PK, BFI)    #PK #BFI "simplices"
+#define MAKE_NAME_true(PK, BFI)    #PK #BFI "tet"
 #define MAKE_NAME(PK, BFI, SIMPLICES) MAKE_NAME_ ## SIMPLICES (PK, BFI)
 
 #define REGISTER(PK, BFI, VDIM, GLL, SIMPLICES) \
@@ -328,15 +328,15 @@ static void Benchmark(bm::State& state) noexcept
    ->Name(MAKE_NAME(PK, BFI, SIMPLICES))->Apply(CustomArguments)->Unit(bm::kMillisecond)
 
 // BP1: scalar PCG with mass matrix, q=p+2
-REGISTER(BP, 1, 1, false, false);
-REGISTER(BP, 1, 1, false, true); // with simplices
+REGISTER(BP, 1, 1, false, false);   // hex
+REGISTER(BP, 1, 1, false, true);    // tet
 
 // BP2: vector PCG with mass matrix, q=p+2
 REGISTER(BP, 2, 3, false, false);
 
 // BP3: scalar PCG with stiffness matrix, q=p+2
-REGISTER(BP, 3, 1, false, false);
-REGISTER(BP, 3, 1, false, true); // with simplices
+REGISTER(BP, 3, 1, false, false);   // hex
+REGISTER(BP, 3, 1, false, true);    // tet
 
 // BP4: vector PCG with stiffness matrix, q=p+2
 REGISTER(BP, 4, 3, false, false);

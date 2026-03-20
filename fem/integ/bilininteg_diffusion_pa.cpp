@@ -16,6 +16,15 @@
 #include "../ceed/integrators/diffusion/diffusion.hpp"
 #include "bilininteg_diffusion_kernels.hpp"
 
+#ifdef NVTX_DEBUG_HPP
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kNvidia
+#include NVTX_DEBUG_HPP
+#else
+#define db1(...)
+#define dbg(...)
+#endif
+
 namespace mfem
 {
 
@@ -68,6 +77,7 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
       }
 #endif // MFEM_USE_OCCA
 
+      db1("dofs1D: {}, quad1D: {}", dofs1D, quad1D);
       if (fespace->IsBernsteinSimplexSpace())
       {
          return ApplySimplexPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric,
