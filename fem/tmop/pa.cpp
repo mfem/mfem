@@ -201,7 +201,7 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
 
 
    // All are constant or not specified.
-   if (PA.MC.Size() == 1 && PA.C0.Size() == 1 && PA.ALC.Size() == 1) { return; }
+   if (PA.MC.Size() == 1 && PA.C0.Size() <= 1 && PA.ALC.Size() <= 1) { return; }
 
    // Coefficients are always evaluated on the CPU for now.
    PA.MC.HostWrite();

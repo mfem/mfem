@@ -3800,6 +3800,9 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const GridFunction &z0,
                                              AdaptivityEvaluator &ae,
                                              real_t delta_max)
 {
+   MFEM_VERIFY(delta_max > 0.0,
+               "EnableAdaptiveLimiting requires delta_max > 0.0.");
+
    adapt_lim_gf0 = &z0;
    delete adapt_lim_gf;
    adapt_lim_gf   = new GridFunction(z0);
@@ -3819,6 +3822,9 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const ParGridFunction &z0,
                                              AdaptivityEvaluator &ae,
                                              real_t delta_max)
 {
+   MFEM_VERIFY(delta_max > 0.0,
+               "EnableAdaptiveLimiting requires delta_max > 0.0.");
+
    adapt_lim_gf0 = &z0;
    adapt_lim_pgf0 = &z0;
    delete adapt_lim_gf;

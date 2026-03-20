@@ -1008,8 +1008,6 @@ static void tmop_tests(int id = 0, bool all = false)
           .DIAGONAL(true))
    .Run(id, all);
 
-   return;
-
    Launch(Launch::Args("2D Periodic + adapted discrete size")
           .MESH("../../data/periodic-square.mesh")
           .PERIODIC()
