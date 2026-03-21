@@ -207,7 +207,7 @@ namespace future {
  * @brief Find the root of a univariate funtion
  */
 template<auto f, typename T>
-MFEM_HOST_DEVICE real_t SolveNewtonBisection(real_t x0, T p, SolverSettings settings) {
+MFEM_HOST_DEVICE __attribute__((always_inline)) real_t SolveNewtonBisection(real_t x0, T p, SolverSettings settings) {
   real_t x;
   internal::SolveNewtonBisection_impl<f>(&x0, &p, &settings, &x);
   return x;
