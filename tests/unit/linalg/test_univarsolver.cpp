@@ -14,6 +14,8 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+extern int enzyme_strong_zero;
+
 using mfem::real_t;
 using namespace mfem::future;
 
@@ -162,21 +164,14 @@ real_t norm_inf(tensor<real_t, dim, dim> A) {
   return maxval;
 }
 
-void ComputeStressRef(const J2Plasticity* material, tensor<real_t, 3, 3> dudxi, 
-                      J2Plasticity::PackedInternalState Q, 
-                      tensor<real_t, 3, 3> J, real_t w,
+void ComputeStressRef(const J2Plasticity* material, const tensor<real_t, 3, 3>& dudxi,
+                      const J2Plasticity::PackedInternalState& Q,
+                      const tensor<real_t, 3, 3>& J, real_t w,
                       tensor<real_t, 3, 3>& sigma)
 {
   sigma = material->stress(dudxi, Q, J, w);
 }
 
-struct StressArgs
-{
-  tensor<real_t, 3, 3> dudxi;
-  J2Plasticity::PackedInternalState Q;
-  tensor<real_t, 3, 3> J;
-  real_t w;
-};
 
 __attribute__((used))
 void* __enzyme_register_gradient_SolveNewtonBisectionJ2[3] = {
@@ -185,7 +180,7 @@ void* __enzyme_register_gradient_SolveNewtonBisectionJ2[3] = {
   (void*)mfem::internal::SolveNewtonBisection_impl_rev<J2PlasticityResidual, J2PlasticityParameters>
 };
 
-TEST_CASE("Univariate function solver on qfunction", "[univar]")
+TEST_CASE("Univariate function solver on qfunction", "[UnivarOnQfunction]")
 {
     J2Plasticity material{.E = 70.0e3, .nu = 0.34, .sigma_y = 240.0, .n = 0.15, .ep_0 = 1e-3};
     tensor<real_t, 3, 3> H{{{0.947667  , 0.9785799 , 0.33229148},
@@ -240,20 +235,40 @@ TEST_CASE("Univariate function solver on qfunction", "[univar]")
         REQUIRE(norm_inf(rel_error) < 1e-5);
     }
 
-    // SECTION("VJP")
-    // {
-    //   tensor<real_t, 3, 3> sigma_bar{{{1.0, 0.0 , 0.0},
-    //                                   {0.0, 0.0 , 0.0},
-    //                                   {0.0, 0.0 , 0.0}}};
-    //   tensor<real_t, 3, 3> sigma;
-    //   J2Plasticity material_bar;
-    //   auto input_bar = __enzyme_autodiff<StressArgs>(
-    //     (void*)ComputeStressRef, enzyme_const, &material, enzyme_out, H,
-    //     enzyme_out, Q, enzyme_out, J, enzyme_out, w,
-    //     enzyme_dup, &sigma, &sigma_bar);
-    //   INFO("H_bar = " << input_bar.dudxi);
-    //   REQUIRE(norm(input_bar.dudxi) > 0);
-    // }
+    SECTION("VJP")
+    {
+      H = H*0.0;
+      H[0][0] = 4.75e-3;
+      tensor<real_t, 3, 3> sigma;
+      ComputeStressRef(&material, H, Q, J, w, sigma);
+      double epsilon = 1e-5;
+      tensor<real_t, 3, 3> dH{{{1.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}}};
+      auto H_p = H + epsilon*dH;
+      tensor<real_t, 3, 3> sigma_p;
+      ComputeStressRef(&material, H_p, Q, J, w, sigma_p);
+      auto sigma_dot = (sigma_p - sigma)/epsilon;
+      INFO("sigma_dot = " << sigma_dot << "\n");
+
+
+      tensor<real_t, 3, 3> sigma_bar{{{1.0, 0.0, 0.0},
+                                      {0.0, 0.0, 0.0},
+                                      {0.0, 0.0, 0.0}}};
+      INFO("H = " << H);
+      INFO("Q = " << Q);
+
+      J2Plasticity material_bar;
+      tensor<real_t, 3, 3> H_bar{};
+      J2Plasticity::PackedInternalState Q_bar{};
+      tensor<real_t, 3, 3> J_bar{};
+      __enzyme_autodiff<void>(
+        (void*)ComputeStressRef,  enzyme_strong_zero, enzyme_const, &material, enzyme_dup, &H, &H_bar,
+        enzyme_dup, &Q, &Q_bar, enzyme_dup, &J, &J_bar, enzyme_const, w,
+        enzyme_dup, &sigma, &sigma_bar);
+      INFO("H_bar = " << H_bar);
+      INFO("Q_bar = " << Q_bar);
+      INFO("J_bar = " << J_bar);
+      REQUIRE(norm(H_bar) == 0);
+    }
 }
 
 
