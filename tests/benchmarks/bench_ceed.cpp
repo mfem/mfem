@@ -134,7 +134,8 @@ struct BakeOff
    BilinearFormIntegrator *bfi;
 
    BakeOff(int p, int side):
-      p(p), c(SIMPLICES ? side / 2 : side), q(2 * p + (GLL ? SIMPLICES ? 0 : -1 : 3)),
+      p(p), c(SIMPLICES ? side / 2 : side),
+      q(2 * p + (GLL ? (SIMPLICES && BFI != 7) ? 0 : -1 : 3)),
       n((assert(c >= p), c / p)),
       nx(n + (p * (n + 1) * p * n * p * n < c * c * c ? 1 : 0)),
       ny(n + (p * (n + 1) * p * (n + 1) * p * n < c * c * c ? 1 : 0)),
@@ -163,7 +164,7 @@ struct BakeOff
       {
          bfi = new VectorMassIntegrator(one, ir);
       }
-      else if constexpr (BFI == 3 || BFI == 5)
+      else if constexpr (BFI == 3 || BFI == 5 || BFI == 7)
       {
          bfi = new DiffusionIntegrator(one, ir);
       }
@@ -344,6 +345,7 @@ REGISTER(BP, 4, 3, false, false);
 // BP5: scalar PCG with stiffness matrix, q=p+1
 REGISTER(BP, 5, 1, true, false);   // hex
 REGISTER(BP, 5, 1, true, true);    // tet
+REGISTER(BP, 7, 1, true, true);    // tet
 
 // BP6: vector PCG with stiffness matrix, q=p+1
 REGISTER(BP, 6, 3, true, false);
