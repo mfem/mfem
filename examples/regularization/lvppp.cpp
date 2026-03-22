@@ -1,14 +1,14 @@
 //                          MFEM Signorini Problem Using LVPP
 //
-// Compile with: make lvpp_signorinip
+// Compile with: make lvppp
 //
-// Sample runs: mpirun -np 4 lvpp_signorinip
+// Sample runs: mpirun -np 4 lvppp
 //
 // Parallel Version
 //
 
 #include "mfem.hpp"
-#include "lvpp_signorini.hpp"
+#include "lvpp.hpp"
 #include <iostream>
 
 using namespace std;
@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
    const real_t lambda = 1.0;
    const real_t mu = 1.0;
    Array<int> col_markers;
-   
+
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
    L2_FECollection L2fec(order-1, sub_dim, BasisType::GaussLobatto);
    ParFiniteElementSpace L2fes(&contact_mesh, &L2fec, 1);
 
-   int num_dofs_H1 = H1fes.GlobalTrueVSize();   
+   int num_dofs_H1 = H1fes.GlobalTrueVSize();
    int num_dofs_L2 = L2fes.GlobalTrueVSize();
 
    if (myid == 0) {
@@ -152,18 +152,18 @@ int main(int argc, char *argv[])
    VectorConstantCoefficient f_coeff(f);
    VectorConstantCoefficient n_tilde_c(n_tilde);
    ConstantCoefficient zero(0.0);
-   
+
    ParGridFunction u_gf, delta_psi_gf;
    u_gf.MakeRef(&H1fes,x,offsets[0]);
    delta_psi_gf.MakeRef(&L2fes,x,offsets[1]);
    delta_psi_gf = 0.0;
-   
+
    ParGridFunction u_old_gf(&H1fes);
    ParGridFunction psi_old_gf(&L2fes);
    ParGridFunction psi_gf(&L2fes);
    u_old_gf = 0.0;
    psi_old_gf = 0.0;
-   
+
    // 9. Initialize the solutions.
    VectorFunctionCoefficient init_u_c(dim, InitialCondition);
    u_gf.ProjectCoefficient(init_u_c);
@@ -195,7 +195,7 @@ int main(int argc, char *argv[])
    BlockOperator A(toffsets);
    A.SetBlock(1,0,A10);
    A.SetBlock(0,1,A01);
-   
+
    // 11. Set up GLVis visualization.
    char vishost[] = "localhost";
    int  visport   = 19916;
@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock << "solution\n" << pmesh << u_gf << flush;   
+      sol_sock << "solution\n" << pmesh << u_gf << flush;
    }
 
    //  12. Iterate
@@ -227,7 +227,7 @@ int main(int argc, char *argv[])
 
       if(myid == 0)
       {
-         mfem::out << "\nOuter iteration: " << k+1 
+         mfem::out << "\nOuter iteration: " << k+1
                    << "\n----------------------------------------" << endl;
       }
 
@@ -243,7 +243,7 @@ int main(int argc, char *argv[])
          ExponentialGridFunctionCoefficient exp_psi(psi_gf);
          FunctionCoefficient gap_cf(GapFunction);
          SumCoefficient gap_minus_exp_psi(gap_cf, exp_psi, 1.0, -1.0);
-      
+
          ParLinearForm b0,b1;
          b0.Update(&H1fes,rhs.GetBlock(0),0);
          b1.Update(&L2fes,rhs.GetBlock(1),0);
@@ -252,7 +252,7 @@ int main(int argc, char *argv[])
          b0.Assemble();
          b0.ParallelAssemble(trhs.GetBlock(0));
 
-         // Transform linear form on parent mesh to the sub mesh, 
+         // Transform linear form on parent mesh to the sub mesh,
          // then add the mixed term to the rhs.
          Vector psi_old_true(L2fes.GetTrueVSize());
          Vector psi_true(L2fes.GetTrueVSize());
@@ -260,7 +260,7 @@ int main(int argc, char *argv[])
          psi_gf.GetTrueDofs(psi_true);
          A01->AddMult(psi_old_true, trhs.GetBlock(0), 1.0);
          A01->AddMult(psi_true, trhs.GetBlock(0), -1.0);
-         
+
          b1.AddDomainIntegrator(new DomainLFIntegrator(gap_minus_exp_psi));
          b1.Assemble();
          b1.ParallelAssemble(trhs.GetBlock(1));
@@ -336,9 +336,9 @@ int main(int argc, char *argv[])
       if (visualization)
       {
          sol_sock << "parallel " << num_procs << " " << myid << "\n";
-         sol_sock << "solution\n" << pmesh << u_gf << flush;   
+         sol_sock << "solution\n" << pmesh << u_gf << flush;
       }
-      
+
       u_tmp = u_gf;
       u_tmp -= u_old_gf;
       increment_u = u_tmp.ComputeL2Error(zero);
@@ -360,18 +360,18 @@ int main(int argc, char *argv[])
 
    delete A01;
    delete A10;
-   
+
    return 0;
 }
 
-real_t LogarithmGridFunctionCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip) 
+real_t LogarithmGridFunctionCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
 {
    MFEM_ASSERT(u != NULL, "grid function is not set");
    const int dim = T.GetSpaceDim();
 
    Vector u_val(dim);
    u->GetVectorValue(T, ip, u_val);
-   
+
    // Return ln(φ₁ - u · ñ)
    real_t val = log(gap->Eval(T, ip) - u_val * *n_tilde);
    return max(min_val, val);
@@ -384,7 +384,7 @@ real_t ExponentialGridFunctionCoefficient::Eval(ElementTransformation &T, const 
    // Return exp(ψ)
    return min(max_val, max(min_val, exp(psi->GetValue(T, ip))));
 }
-   
+
 void InitialCondition(const Vector &x, Vector &u)
 {
    const int dim = x.Size();
