@@ -702,7 +702,6 @@ static void TestSolveVec(FiniteElementSpace &fespace)
    x = 0.0;
    if (x.FESpace()->GetTypicalBE()->GetRangeDim() == 0)
    {
-      // scalar or vector length 1 fespace
       x.ProjectBdrCoefficientNormal(exsol, ess_attr);
    }
    else
@@ -1094,7 +1093,6 @@ static void TestSolveParVec(ParFiniteElementSpace &fespace)
    x = 0.0;
    if (x.FESpace()->GetTypicalBE()->GetRangeDim() == 0)
    {
-      // scalar or vector length 1 fespace
       x.ProjectBdrCoefficientNormal(exsol, ess_attr);
    }
    else
