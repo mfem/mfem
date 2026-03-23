@@ -1077,6 +1077,7 @@ MFEM_USE_BENCHMARK
 MFEM_USE_PARELAG
 MFEM_USE_TRIBOL
 MFEM_USE_ENZYME
+MFEM_USE_GLVIS
 
 The following options are CMake specific:
 
@@ -1087,6 +1088,7 @@ MFEM_FETCH_TPLS      - Enable fetching of all supported third-party libraries.
 MFEM_FETCH_GSLIB     - Enable fetching of gslib.
 MFEM_FETCH_HYPRE     - Enable fetching of hypre.
 MFEM_FETCH_METIS     - Enable fetching of metis.
+MFEM_FETCH_GLVIS     - Enable fetching of GLVis.
 
 External libraries (CMake):
 ---------------------------

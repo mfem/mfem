@@ -96,6 +96,7 @@ option(MFEM_FETCH_TPLS "Enable fetching of all supported third-party libraries" 
 option(MFEM_FETCH_GSLIB "Enable fetching of GSLIB" OFF)
 option(MFEM_FETCH_HYPRE "Enable fetching of hypre" OFF)
 option(MFEM_FETCH_METIS "Enable fetching of METIS" OFF)
+option(MFEM_FETCH_GLVIS "Enable fetching of GLVis" OFF)
 
 # Setting CXX/MPICXX on the command line or in user.cmake will overwrite the
 # autodetected C++ compiler.

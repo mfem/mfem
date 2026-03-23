@@ -593,7 +593,7 @@ if (MFEM_USE_ENZYME)
 endif()
 
 # GLVis
-if (MFEM_USE_GLVIS)
+if (MFEM_USE_GLVIS AND NOT MFEM_FETCH_GLVIS)
   find_package(GLVis REQUIRED)
 endif()
 
@@ -818,6 +818,11 @@ endif()
 
 set(MFEM_CUSTOM_TARGET_PREFIX CACHE STRING "")
 
+if (MFEM_USE_GLVIS AND MFEM_FETCH_GLVIS)
+    # needs to be after mfem_add_library(mfem) to be able to depend on it
+    find_package(GLVis REQUIRED)
+endif()
+
 #-------------------------------------------------------------------------------
 # Examples, miniapps, benchmarks and testing
 #-------------------------------------------------------------------------------
@@ -917,6 +922,10 @@ message(STATUS "CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
 target_include_directories(mfem BEFORE
   PUBLIC
     $<INSTALL_INTERFACE:${INSTALL_INCLUDE_DIR}>)
+
+if (MFEM_USE_GLVIS AND MFEM_FETCH_GLVIS)
+    target_link_libraries(mfem GLVIS)
+endif()
 
 # The 'install' target will not depend on 'all'.
 # set(CMAKE_SKIP_INSTALL_ALL_DEPENDENCY TRUE)
