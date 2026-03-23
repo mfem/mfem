@@ -2034,7 +2034,7 @@ void GridFunction::AccumulateAndCountBdrValues(
       MFEM_VERIFY(fes->GetVDim() == vcoeff->GetVDim(),
                   "vcoeff vdim != fes VDim");
       MFEM_VERIFY(fes->GetTypicalBE()->GetMapType() == FiniteElement::VALUE &&
-                  fes->GetTypicalBE()->GetRangeDim() <= 1,
+                  fes->GetTypicalBE()->GetRangeType() == FiniteElement::SCALAR,
                   "Can only call ProjectBdrCoefficient on scalar value-type "
                   "boundary elements. "
                   "Did you intended to ProjectBdrCoefficientNormal or "
