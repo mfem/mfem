@@ -1723,11 +1723,11 @@ public:
    /**
     * @param m      1D mesh
     * @param s      1D vector coefficient
-    * @param n_     number of traverse elements of the extruded mesh
+    * @param n_     number of transverse elements of the extruded mesh
     */
    ExtrudeCoefficient(Mesh *m, Coefficient &s, int n_)
       : n(n_), mesh_in(m), sol_in(s)
-   { MFEM_VERIFY(n > 0, "Number of traverse elements must be positive!"); }
+   { MFEM_VERIFY(n > 0, "Number of transverse elements must be positive!"); }
 
    real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
 
@@ -1746,11 +1746,11 @@ public:
    /**
     * @param m      1D mesh
     * @param s      1D vector coefficient
-    * @param n_     number of traverse elements of the extruded mesh
+    * @param n_     number of transverse elements of the extruded mesh
     */
    VectorExtrudeCoefficient(Mesh *m, VectorCoefficient &s, int n_)
       : VectorCoefficient(s.GetVDim()), n(n_), mesh_in(m), sol_in(s)
-   { MFEM_VERIFY(n > 0, "Number of traverse elements must be positive!"); }
+   { MFEM_VERIFY(n > 0, "Number of transverse elements must be positive!"); }
 
    void Eval(Vector &v, ElementTransformation &T,
              const IntegrationPoint &ip) override;
@@ -1763,7 +1763,7 @@ public:
  * @param mesh      1D mesh
  * @param mesh2d    extruded mesh
  * @param sol       grid function
- * @param ny        number of traverse elements of the extruded mesh
+ * @param ny        number of transverse elements of the extruded mesh
  */
 GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
                                     GridFunction *sol, const int ny);
