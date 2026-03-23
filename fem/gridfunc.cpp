@@ -3147,6 +3147,8 @@ void GridFunction::ProjectBdrCoefficientNormal(
    VectorCoefficient &vcoeff, const Array<int> &bdr_attr)
 {
    MFEM_VERIFY(fes->GetVDim() == 1, "fespace VDim != 1");
+   MFEM_VERIFY(fes->GetTypicalBE()->GetRangeType() == FiniteElement::SCALAR,
+               "Boundary element type is not a scalar element");
    MFEM_VERIFY(vcoeff.GetVDim() == fes->GetMesh()->SpaceDimension(),
                "vcoeff vdim (" << vcoeff.GetVDim() << ") != SpaceDimension ("
                << fes->GetMesh()->SpaceDimension() << ")");
