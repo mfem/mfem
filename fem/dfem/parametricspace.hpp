@@ -34,6 +34,9 @@ public:
       // dtq.ndof = (int)floor(pow(element_size, 1.0/spatial_dim) + 0.5);
       dtq.ndof = element_size;
       dtq.nqpt = dtq.ndof;
+      dtq.mode = DofToQuad::FULL;
+      dtq.FE = nullptr;
+      dtq.IntRule = nullptr;
    }
 
    ParametricSpace(int local_size) :
@@ -44,6 +47,9 @@ public:
    {
       dtq.ndof = (int)floor(pow(element_size, 1.0/spatial_dim) + 0.5);
       dtq.nqpt = dtq.ndof;
+      dtq.mode = DofToQuad::FULL;
+      dtq.FE = nullptr;
+      dtq.IntRule = nullptr;
    }
 
    ParametricSpace(int spatial_dim, int local_size, int element_size,
@@ -56,6 +62,9 @@ public:
    {
       dtq.ndof = d1d;
       dtq.nqpt = q1d;
+      dtq.mode = DofToQuad::TENSOR;
+      dtq.FE = nullptr;
+      dtq.IntRule = nullptr;
    }
 
    int Dimension() const

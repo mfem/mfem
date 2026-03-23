@@ -378,6 +378,20 @@ void DifferentiableOperator::AddDomainIntegrator(
       use_sum_factorization = true;
    }
 
+   // ParametricSpace currently only provides FULL DofToQuad maps (identity
+   // in quadrature space). Disable sum factorization to avoid requesting
+   // TENSOR-mode maps for parametric fields.
+   if (use_sum_factorization)
+   {
+      const bool uses_parametric_space =
+         std::any_of(fields.begin(), fields.end(),
+                     [](const FieldDescriptor &f)
+                     {
+                        return std::holds_alternative<const ParametricSpace *>(f.data);
+                     });
+      if (uses_parametric_space) { use_sum_factorization = false; }
+   }
+
    ElementDofOrdering element_dof_ordering = ElementDofOrdering::NATIVE;
    DofToQuad::Mode doftoquad_mode = DofToQuad::Mode::FULL;
    if (use_sum_factorization)
@@ -1008,10 +1022,132 @@ void DifferentiableOperator::AddDomainIntegrator(
                      }
                   }
                }
+               else if (dimension == 3)
+               {
+                  // Lexicographic ordering uses the last index as the
+                  // fastest-varying one. For consistency with the 2D case above:
+                  // - Jz/qz correspond to the fastest (x-like) direction,
+                  // - Jy/qy correspond to the middle (y-like) direction,
+                  // - Jx/qx correspond to the slowest (z-like) direction.
+                  for (int Jx = 0; Jx < num_trial_dof_1d; Jx++)
+                  {
+                     for (int Jy = 0; Jy < num_trial_dof_1d; Jy++)
+                     {
+                        for (int Jz = 0; Jz < num_trial_dof_1d; Jz++)
+                        {
+                           const int J = Jz + Jy * num_trial_dof_1d +
+                                         Jx * num_trial_dof_1d * num_trial_dof_1d;
+
+                           for (int j = 0; j < trial_vdim; j++)
+                           {
+                              fhat_mem = 0.0;
+                              size_t m_offset = 0;
+                              for_constexpr_with_arg([&](auto s, auto&& input_fop)
+                              {
+                                 if (input_is_dependent[s] == false)
+                                 {
+                                    return;
+                                 }
+
+                                 int trial_op_dim = input_size_on_qp[s] / mfem::get<s>(inputs).vdim;
+
+                                 auto &B = input_dtq_maps[s].B;
+                                 auto &G = input_dtq_maps[s].G;
+
+                                 if constexpr (is_value_fop<std::decay_t<decltype(input_fop)>>::value)
+                                 {
+                                    for (int qx = 0; qx < q1d; qx++)
+                                    {
+                                       for (int qy = 0; qy < q1d; qy++)
+                                       {
+                                          for (int qz = 0; qz < q1d; qz++)
+                                          {
+                                             const int q = qz + qy * q1d + qx * q1d * q1d;
+                                             for (int m = 0; m < trial_op_dim; m++)
+                                             {
+                                                for (int i = 0; i < test_vdim; i++)
+                                                {
+                                                   for (int k = 0; k < test_op_dim; k++)
+                                                   {
+                                                      const real_t f = a_qp(i, k, j, m + m_offset, q, e);
+                                                      fhat(i, k, q) += f *
+                                                                       B(qx, 0, Jx) *
+                                                                       B(qy, 0, Jy) *
+                                                                       B(qz, 0, Jz);
+                                                   }
+                                                }
+                                             }
+                                          }
+                                       }
+                                    }
+                                 }
+                                 else if constexpr (is_gradient_fop<std::decay_t<decltype(input_fop)>>::value)
+                                 {
+                                    for (int qx = 0; qx < q1d; qx++)
+                                    {
+                                       for (int qy = 0; qy < q1d; qy++)
+                                       {
+                                          for (int qz = 0; qz < q1d; qz++)
+                                          {
+                                             const int q = qz + qy * q1d + qx * q1d * q1d;
+                                             for (int m = 0; m < trial_op_dim; m++)
+                                             {
+                                                for (int i = 0; i < test_vdim; i++)
+                                                {
+                                                   for (int k = 0; k < test_op_dim; k++)
+                                                   {
+                                                      const real_t f = a_qp(i, k, j, m + m_offset, q, e);
+                                                      if (m == 0)
+                                                      {
+                                                         // derivative in the fastest (qz/Jz) direction
+                                                         fhat(i, k, q) += f *
+                                                                          B(qx, 0, Jx) *
+                                                                          B(qy, 0, Jy) *
+                                                                          G(qz, 0, Jz);
+                                                      }
+                                                      else if (m == 1)
+                                                      {
+                                                         // derivative in the middle (qy/Jy) direction
+                                                         fhat(i, k, q) += f *
+                                                                          B(qx, 0, Jx) *
+                                                                          G(qy, 0, Jy) *
+                                                                          B(qz, 0, Jz);
+                                                      }
+                                                      else
+                                                      {
+                                                         // derivative in the slowest (qx/Jx) direction
+                                                         fhat(i, k, q) += f *
+                                                                          G(qx, 0, Jx) *
+                                                                          B(qy, 0, Jy) *
+                                                                          B(qz, 0, Jz);
+                                                      }
+                                                   }
+                                                }
+                                             }
+                                          }
+                                       }
+                                    }
+                                 }
+                                 else
+                                 {
+                                    MFEM_ABORT("sum factorized sparse matrix assemble routine "
+                                               "not implemented for field operator");
+                                 }
+                                 m_offset += trial_op_dim;
+                              }, inputs);
+
+                              auto bvtfhat = Reshape(&A_e(0, 0, J, j, e), num_test_dof, test_vdim);
+                              map_quadrature_data_to_fields(
+                                 bvtfhat, fhat, output_fop, output_dtq_shmem[0],
+                                 scratch_shmem, dimension, use_sum_factorization);
+                           }
+                        }
+                     }
+                  }
+               }
                else
                {
-                  MFEM_ABORT("sum factorized sparse matrix assemble routine "
-                             "not implemented for 3D");
+                  MFEM_ABORT("unsupported dimension");
                }
             }
             else

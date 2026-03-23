@@ -13,20 +13,21 @@
 // explicit:
 //   time mpirun -np 8 laghos -p 3 -glvis -tf 5.0 -av -av-type 2 -ov 4 -oe 3 -rs 2 -cfl 0.5 -s 2 -vs 100
 // implicit:
-//   time mpirun -np 8 laghos -p 3 -glvis -tf 5.0 -nmi 50 -pt 1 -dump-jacobians 0 -kmi 20 -av -av-type 7 -ov 3 -oe 2 -rs 2 -cfl 32 -s 12 -vs 10
+//   time mpirun -np 8 laghos -p 3 -glvis -tf 5.0 -nmi 50 -pt 1 -kmi 20 -av -av-type 7 -ov 3 -oe 2 -rs 2 -cfl 32 -s 12 -vs 10
 //
 // Sedov:
 // explicit:
 //   mpirun -np 8 laghos -p 1 -glvis -tf 0.8 -av -av-type 7 -ov 2 -oe 1 -s 3 -cfl 0.5 -rs 3 -vs 50
 // implicit:
-//   mpirun -np 8 laghos -p 1 -glvis -tf 0.8 -nmi 50 -pt 1 -dump-jacobians 0 -kmi 20 -av -av-type 7 -ov 2 -oe 1 -s 12 -cfl 8 -vs 10 -rs 3
+//   mpirun -np 8 laghos -p 1 -glvis -tf 0.8 -nmi 50 -pt 1 -kmi 20 -av -av-type 7 -ov 2 -oe 1 -s 12 -cfl 8 -vs 10 -rs 3
 //
 // TG:
-// explicit:
-//   time mpirun -np 8 laghos -p 0 -glvis -tf 0.75 -ov 3 -oe 2 -rs 2 -cfl 0.5 -s 4 -vs 100
-// implicit:
-//   time mpirun -np 8 laghos -p 0 -glvis -tf 0.5 -nmi 50 -pt 1 -dump-jacobians 0 -kmi 20 -ov 3 -oe 2 -rs 3 -cfl 32 -s 12 -vs 50
-//
+// explicit 2D, 3D:
+//   mpirun -np 8 laghos -p 0 -glvis -tf 0.75 -ov 3 -oe 2 -rs 2 -cfl 0.5 -s 4 -vs 100
+//   mpirun -np 8 laghos -m ./cube.mesh -p 0 -glvis -tf 0.75 -av -av-type 7 -ov 2 -oe 1 -rs 1 -cfl 0.5 -s 4 -vs 10
+// implicit 2D, 3D:
+//   mpirun -np 8 laghos -p 0 -glvis -tf 0.75 -nmi 50 -pt 1 -kmi 20 -ov 3 -oe 2 -rs 3 -cfl 32 -s 12 -vs 50
+//   mpirun -np 8 laghos -m ./cube.mesh -p 0 -glvis -tf 0.75 -av -av-type 7 -nmi 50 -pt 1 -kmi 20 -ov 2 -oe 1 -rs 1 -cfl 32 -s 12 -vs 10
 
 
 #include <mfem.hpp>
@@ -51,7 +52,7 @@ constexpr int SPECIFIC_INTERNAL_ENERGY = 5;
 constexpr int DT_EST = 8;
 constexpr int STRESS_TENSOR = 9;
 
-constexpr int DIMENSION = 2;
+constexpr int DIMENSION = 3;
 
 enum EXT_DATA_IDX
 {
@@ -294,7 +295,7 @@ matd qdata_setup(
          return 0.5 + 0.5 * tanh(0.5 * (x-shift) / width);
       };
 
-      auto softabs = [=](const real_t &eps, const real_t x)
+      auto softabs = [](const real_t &eps, const real_t x)
       {
          // Clamping to prevend under/overflow; doesn't affect smoothness.
          //auto e = std::max(eps, 1e-6_r);
@@ -307,78 +308,86 @@ matd qdata_setup(
 
       if (viscosity_type == 2)
       {
+         MFEM_ABORT("commented in due to 3D!");
+
          // Default Laghos viscosity.
-         auto symdvdx = sym(dvdxi * invJ);
-         auto [eigvals, eigvecs] = eig(symdvdx);
+         // auto symdvdx = sym(dvdxi * invJ);
+         // auto [eigvals, eigvecs] = eig(symdvdx);
 
-         // Measure of maximal compression.
-         const real_t mu = eigvals(0);
-         vecd compr_dir = get_col(eigvecs, 0);
+         // // Measure of maximal compression.
+         // const real_t mu = eigvals(0);
+         // vecd compr_dir = get_col(eigvecs, 0);
 
-         auto ph_dir = (J * inv(J0)) * compr_dir;
-         const real_t h = h0 * norm(ph_dir) / norm(compr_dir);
-         auto visc_coeff = 2.0 * rho * h * h * fabs(mu);
-         visc_coeff += 0.5 * rho * h * cs * vorticity_coeff *
-                       (1.0 - softstep(eps, mu - 2.0 * eps));
-         stress += visc_coeff * symdvdx;
-         dt_visc_coeff = visc_coeff;
+         // auto ph_dir = (J * inv(J0)) * compr_dir;
+         // const real_t h = h0 * norm(ph_dir) / norm(compr_dir);
+         // auto visc_coeff = 2.0 * rho * h * h * fabs(mu);
+         // visc_coeff += 0.5 * rho * h * cs * vorticity_coeff *
+         //               (1.0 - softstep(eps, mu - 2.0 * eps));
+         // stress += visc_coeff * symdvdx;
+         // dt_visc_coeff = visc_coeff;
       }
       else if (viscosity_type == 21)
       {
+         MFEM_ABORT("commented in due to 3D!");
+
          // Default Laghos viscosity through a power method to
          // get the measure of maximal compression.
-         auto symdvdx = sym(dvdxi * invJ);
-         auto [mu, compr_dir] = sinvpm(symdvdx, 10, 1e-12);
+         // auto symdvdx = sym(dvdxi * invJ);
+         // auto [mu, compr_dir] = sinvpm(symdvdx, 10, 1e-12);
 
-         auto ph_dir = (J * inv(J0)) * compr_dir;
-         const real_t h = h0 * norm(ph_dir) / norm(compr_dir);
-         auto visc_coeff = 2.0 * rho * h * h * softabs(1e-6, mu);
-         visc_coeff += 0.5 * rho * h * cs * vorticity_coeff *
-                       (1.0 - softstep(eps, mu - 2.0 * eps));
-         stress += visc_coeff * symdvdx;
-         dt_visc_coeff = visc_coeff;
+         // auto ph_dir = (J * inv(J0)) * compr_dir;
+         // const real_t h = h0 * norm(ph_dir) / norm(compr_dir);
+         // auto visc_coeff = 2.0 * rho * h * h * softabs(1e-6, mu);
+         // visc_coeff += 0.5 * rho * h * cs * vorticity_coeff *
+         //               (1.0 - softstep(eps, mu - 2.0 * eps));
+         // stress += visc_coeff * symdvdx;
+         // dt_visc_coeff = visc_coeff;
       }
       else if (viscosity_type == 22)
       {
-         const auto delta = 0.2 * cs;
+         MFEM_ABORT("commented in due to 3D!");
 
-         auto symdvdx = sym(dvdxi * invJ);
-         auto [eigvals, eigvecs] = eig2(symdvdx);
+         // const auto delta = 0.2 * cs;
 
-         // Measure of maximal compression.
-         const real_t mu = eigvals(0);
-         vecd compr_dir = get_col(eigvecs, 0);
-         for (int i = 0; i < compr_dir.first_dim; i++)
-         {
-            compr_dir(i) = softstep(delta, compr_dir(i));
-         }
+         // auto symdvdx = sym(dvdxi * invJ);
+         // auto [eigvals, eigvecs] = eig2(symdvdx);
 
-         auto ph_dir = (J * inv(J0)) * compr_dir;
-         const real_t h = h0 * norm(ph_dir) / norm(compr_dir);
-         auto visc_coeff = 2.0 * rho * h * h * softabs(delta, mu);
-         visc_coeff += 0.5 * rho * h * cs * vorticity_coeff *
-                       (1.0 - softstep(eps, mu - 2.0 * eps));
-         if (!std::isfinite(visc_coeff)) { out << "err\n"; exit(1); }
-         stress += visc_coeff * symdvdx;
-         dt_visc_coeff = visc_coeff;
+         // // Measure of maximal compression.
+         // const real_t mu = eigvals(0);
+         // vecd compr_dir = get_col(eigvecs, 0);
+         // for (int i = 0; i < compr_dir.first_dim; i++)
+         // {
+         //    compr_dir(i) = softstep(delta, compr_dir(i));
+         // }
+
+         // auto ph_dir = (J * inv(J0)) * compr_dir;
+         // const real_t h = h0 * norm(ph_dir) / norm(compr_dir);
+         // auto visc_coeff = 2.0 * rho * h * h * softabs(delta, mu);
+         // visc_coeff += 0.5 * rho * h * cs * vorticity_coeff *
+         //               (1.0 - softstep(eps, mu - 2.0 * eps));
+         // if (!std::isfinite(visc_coeff)) { out << "err\n"; exit(1); }
+         // stress += visc_coeff * symdvdx;
+         // dt_visc_coeff = visc_coeff;
       }
       else if (viscosity_type == 4)
       {
-         // Viscosity type 4 from the paper (use all eigenvalues).
-         auto symdvdx = sym(dvdxi * invJ);
-         auto [lam, s] = eig(symdvdx);
-         const auto delta = 0.2 * cs;
+         MFEM_ABORT("commented in due to 3D!");
 
-         for (int k = 0; k < DIMENSION; k++)
-         {
-            const auto ph_dir = (J * inv(J0)) * s(k);
-            const real_t h = h0 * norm(ph_dir) / norm(s(k));
-            auto visc_coeff = 2.0 * rho * h * h * softabs(delta, lam(k));
-            visc_coeff += 0.5 * rho * h * cs * vorticity_coeff *
-                          (1.0 - softstep(delta, lam(k) - 2.0 * eps));
-            stress += visc_coeff * symdvdx;
-            dt_visc_coeff += visc_coeff;
-         }
+         // Viscosity type 4 from the paper (use all eigenvalues).
+         // auto symdvdx = sym(dvdxi * invJ);
+         // auto [lam, s] = eig(symdvdx);
+         // const auto delta = 0.2 * cs;
+
+         // for (int k = 0; k < DIMENSION; k++)
+         // {
+         //    const auto ph_dir = (J * inv(J0)) * s(k);
+         //    const real_t h = h0 * norm(ph_dir) / norm(s(k));
+         //    auto visc_coeff = 2.0 * rho * h * h * softabs(delta, lam(k));
+         //    visc_coeff += 0.5 * rho * h * cs * vorticity_coeff *
+         //                  (1.0 - softstep(delta, lam(k) - 2.0 * eps));
+         //    stress += visc_coeff * symdvdx;
+         //    dt_visc_coeff += visc_coeff;
+         // }
       }
       else if (viscosity_type == 7)
       {
@@ -427,7 +436,8 @@ matd qdata_setup(
    }
    else
    {
-      const real_t sv = calcsv(J, DIMENSION-1);
+      //const real_t sv = calcsv(J, DIMENSION-1);
+      const real_t sv = h0 * pow(det(J) / det(J0), 1.0 / DIMENSION);
       // out << sv << ", ";
       const real_t hmin = sv / static_cast<real_t>(order_v);
       const real_t ihmin = 1.0 / hmin;
@@ -459,17 +469,19 @@ struct TimeStepEstimateQFunction
       const real_t &E,
       const real_t &w) const
    {
-      // real_t dt_est = mfem::get<1>(
-      //                    qdata_setup(
-      //                       dvdxi, rho0, J0, J, gamma, E, w,
-      //                       external_data[EXT_DATA_IDX::H0],
-      //                       external_data[EXT_DATA_IDX::ORDER_VEL],
-      //                       external_data[EXT_DATA_IDX::CFL],
-      //                       static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG]),
-      //                       dt_est));
-      out << " >>>> PANIC \n";
-      exit(0);
-      return mfem::tuple{external_data[EXT_DATA_IDX::DT_ESTIMATE]};
+      real_t dt_est = std::numeric_limits<real_t>::infinity();
+
+      // Reuse qdata_setup() for the dt estimate logic; ignore its stress output.
+      (void)qdata_setup(
+         dvdxi, rho0, J0, J, gamma, E, w,
+         external_data[EXT_DATA_IDX::H0],
+         external_data[EXT_DATA_IDX::ORDER_VEL],
+         external_data[EXT_DATA_IDX::CFL],
+         static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG]),
+         static_cast<int>(external_data[EXT_DATA_IDX::VISCOSITY_TYPE]),
+         dt_est);
+
+      return mfem::tuple{dt_est};
    }
 
    real_t *external_data;
@@ -491,6 +503,9 @@ struct UpdateQuadratureDataQFunction
       const real_t &w) const
    {
       // out << "qdata update on qp\n";
+      // Do not update the global DT estimate here; that must be computed
+      // through a proper reduction over quadrature points.
+      real_t dt_est_dummy = std::numeric_limits<real_t>::infinity();
       auto stressJiT =
          qdata_setup(
             dvdxi, rho0, J0, J, gamma, E, w,
@@ -498,8 +513,8 @@ struct UpdateQuadratureDataQFunction
             external_data[EXT_DATA_IDX::ORDER_VEL],
             external_data[EXT_DATA_IDX::CFL],
             static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG]),
-            external_data[EXT_DATA_IDX::VISCOSITY_TYPE],
-            external_data[EXT_DATA_IDX::DT_ESTIMATE]);
+            static_cast<int>(external_data[EXT_DATA_IDX::VISCOSITY_TYPE]),
+            dt_est_dummy);
       return mfem::tuple{stressJiT};
    }
 
@@ -1704,35 +1719,23 @@ public:
 
    real_t GetTimeStepEstimate(const Vector &S)
    {
+      MFEM_VERIFY(dtest_mf, "dt estimate operator (dtest_mf) is null");
+      MFEM_VERIFY(qdata, "quadrature data (qdata) is null");
+
       UpdateMesh(S);
       UpdateQuadratureData(S);
 
-      // auto sptr = const_cast<Vector*>(&S);
-      // const int H1vsize = H1.GetVSize();
-      // ParGridFunction x, v, e;
-      // x.MakeRef(&H1, *sptr, 0);
-      // v.MakeRef(&H1, *sptr, H1vsize);
-      // e.MakeRef(&L2, *sptr, 2*H1vsize);
-      // dtest_mf->SetParameters({&v, &rho0, &x0, &x, &material, &e});
-      // auto &dt_est = qdata->dt_est;
-      // dtest_mf->Mult(dt_est, dt_est);
+      auto sptr = const_cast<Vector*>(&S);
+      const int H1vsize = H1.GetVSize();
+      ParGridFunction x, v, e;
+      x.MakeRef(&H1, *sptr, 0);
+      v.MakeRef(&H1, *sptr, H1vsize);
+      e.MakeRef(&L2, *sptr, 2*H1vsize);
 
-      // out << ">>> dt_est\n";
-      // pretty_print(dt_est);
+      dtest_mf->SetParameters({&v, &rho0, &x0, &x, &material, &e});
+      dtest_mf->Mult(qdata->dt_est, qdata->dt_est);
 
-      // real_t dt_est_local = std::numeric_limits<real_t>::infinity();
-      // for (int i = 0; i < dt_est.Size(); i++)
-      // {
-      //    if (dt_est(i) == 0.0)
-      //    {
-      //       return 0.0;
-      //    }
-      //    dt_est_local = fmin(dt_est_local, dt_est(i));
-      // }
-
-      // update_qdata
-
-      real_t dt_est_local = external_data[EXT_DATA_IDX::DT_ESTIMATE];
+      real_t dt_est_local = qdata->dt_est.Min();
 
       real_t dt_est_global;
       MPI_Allreduce(&dt_est_local, &dt_est_global, 1, MPITypeMap<real_t>::mpi_type,
@@ -1991,6 +1994,7 @@ static auto CreateLagrangianHydroOperator(
    Array<int> all_domain_attr(mesh.attributes.Max());
    all_domain_attr = 1;
 
+   // Contains a ParametricSpace.
    std::shared_ptr<DifferentiableOperator> dt_est_mf;
    {
       mfem::tuple dt_est_kernel_ao =
@@ -2030,6 +2034,7 @@ static auto CreateLagrangianHydroOperator(
                                      all_domain_attr);
    }
 
+   // Contains a ParametricSpace.
    std::shared_ptr<DifferentiableOperator> update_qdata;
    {
       mfem::tuple update_qdata_kernel_ao =
@@ -2492,8 +2497,9 @@ int main(int argc, char *argv[])
    if (Mpi::Root()) { device.Print(); }
 
    Mesh serial_mesh = Mesh(mesh_file, true, true);
+   const int dim = serial_mesh.Dimension();
 
-   if (problem == 0 || problem == 1)
+   if ((dim == 2) && (problem == 0 || problem == 1))
    {
       serial_mesh = Mesh(Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL,
                                                true));
@@ -2522,7 +2528,6 @@ int main(int argc, char *argv[])
    // serial_mesh.RandomRefinement(0.1);
 
    ParMesh mesh = ParMesh(MPI_COMM_WORLD, serial_mesh);
-   const int dim = mesh.Dimension();
 
    MFEM_ASSERT(dim == DIMENSION, "mesh dimension inconsistency");
 
