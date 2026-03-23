@@ -452,8 +452,10 @@ private:
 #ifndef MFEM_THREAD_SAFE
    // Local storage for element integration
    Vector shape;  // shape function value at an integration point
+   Vector shape_tr;  // trace shape function value at an integration point
    Vector state_in;  // state value at an integration point - interior
    Vector state_out;  // state value at an integration point - boundary
+   Vector state_tr;   // state value at an integration point - trace
    Vector nor;     // normal vector, see mfem::CalcOrtho()
    Vector fluxN;   // F̂(u⁻,u_b,x) n
    DenseMatrix JDotN;   // Ĵ(u⁻,u_b,x) n
@@ -514,6 +516,20 @@ public:
                          const FiniteElement &el2,
                          FaceElementTransformations &Tr,
                          const Vector &elfun, DenseMatrix &elmat) override;
+
+   void AssembleHDGFaceVector(int type,
+                              const FiniteElement &trace_face_fe,
+                              const FiniteElement &fe,
+                              FaceElementTransformations &Tr,
+                              const Vector &trfun, const Vector &elfun,
+                              Vector &elvect) override;
+
+   void AssembleHDGFaceGrad(int type,
+                            const FiniteElement &trace_face_fe,
+                            const FiniteElement &fe,
+                            FaceElementTransformations &Tr,
+                            const Vector &trfun, const Vector &elfun,
+                            DenseMatrix &elmat) override;
 };
 
 /**

@@ -693,6 +693,7 @@ BdrHyperbolicDirichletIntegrator::BdrHyperbolicDirichletIntegrator(
 #ifndef MFEM_THREAD_SAFE
    state_in.SetSize(num_equations);
    state_out.SetSize(num_equations);
+   state_tr.SetSize(num_equations);
    fluxN.SetSize(num_equations);
    JDotN.SetSize(num_equations);
    nor.SetSize(fluxFunction.dim);
@@ -857,6 +858,288 @@ void BdrHyperbolicDirichletIntegrator::AssembleFaceGrad(
                   elmat(i+dof*di, j+dof*dj) += w * shape(i) * shape(j);
                }
          }
+   }
+}
+
+void BdrHyperbolicDirichletIntegrator::AssembleHDGFaceVector(
+   int type, const FiniteElement &trace_face_fe, const FiniteElement &fe,
+   FaceElementTransformations &Tr, const Vector &trfun, const Vector &elfun,
+   Vector &elvect)
+{
+   MFEM_ASSERT((type & HDGFaceType::ELEM && type & HDGFaceType::TRACE &&
+                !(type & 1)) ||
+               (type & HDGFaceType::CONSTR && type & HDGFaceType::FACE),
+               "Not allowed combination of types");
+
+   const int dof_el = fe.GetDof();
+   const int dof_tr = trace_face_fe.GetDof();
+
+   const int dof_dual_el = (type & (HDGFaceType::ELEM | HDGFaceType::TRACE))?
+                           (dof_el):(0);
+   const int dof_dual_tr = (type & (HDGFaceType::CONSTR | HDGFaceType::FACE))?
+                           (dof_tr):(0);
+
+#ifdef MFEM_THREAD_SAFE
+   // Local storage for element integration
+
+   // normal vector (usually not a unit vector)
+   Vector nor(Tr.GetSpaceDim());
+   // shape function value at an integration point - elem
+   Vector shape_el(dof_el);
+   // shape function value at an integration point - trace
+   Vector shape_tr(dof_tr);
+   // state value at an integration point - in
+   Vector state_in(num_equations);
+   // state value at an integration point - trace
+   Vector state_tr(num_equations);
+   // state value at an integration point - out
+   Vector state_out(num_equations);
+   // hat(F)(u,x)
+   Vector fluxN(num_equations);
+#else
+   Vector &shape_el(shape);
+   shape_el.SetSize(dof_el);
+   shape_tr.SetSize(dof_tr);
+#endif
+
+   elvect.SetSize((dof_dual_el + dof_dual_tr) * num_equations);
+   elvect = 0.0;
+
+   const DenseMatrix elfun_mat(elfun.GetData(), dof_el, num_equations);
+   const DenseMatrix trfun_mat(trfun.GetData(), dof_tr, num_equations);
+
+   DenseMatrix elvect_mat(elvect.GetData(), dof_dual_el, num_equations);
+   DenseMatrix trvect_mat(elvect.GetData() + dof_dual_el * num_equations,
+                          dof_dual_tr, num_equations);
+
+   const IntegrationRule *ir = IntRule;
+   if (!ir)
+   {
+      const int order = 2*std::max(fe.GetOrder(),
+                                   trace_face_fe.GetOrder()) + IntOrderOffset;
+      ir = &IntRules.Get(Tr.GetGeometryType(), order);
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.SetAllIntPoints(&ip); // set face and element int. points
+
+      if (type & 1)
+      {
+         // Evaluate boundary state at the point
+         u_vcoeff.Eval(state_out, Tr, ip);
+      }
+      else
+      {
+         const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+
+         // Calculate basis functions on interior element at the face
+         fe.CalcShape(eip, shape_el);
+
+         // Interpolate elfun at the point
+         elfun_mat.MultTranspose(shape_el, state_in);
+      }
+
+      // Calculate basis functions on trace element at the face
+      trace_face_fe.CalcShape(ip, shape_tr);
+
+      // Interpolate trfun at the point
+      trfun_mat.MultTranspose(shape_tr, state_tr);
+
+      // Get the normal vector and the flux on the face
+      if (nor.Size() == 1)  // if 1D, use 1 or -1.
+      {
+         // This assume the 1D integration point is in (0,1). This may not work
+         // if this changes.
+         nor(0) = (Tr.GetElement1IntPoint().x - 0.5) * 2.0;
+      }
+      else
+      {
+         CalcOrtho(Tr.Jacobian(), nor);
+      }
+      if (type & 1) { nor.Neg(); }
+
+      // Compute average flux hat(F)(û,u) with maximum characteristic speed
+      numFlux.Average(state_tr, (type & 1)?(state_out):(state_in), nor, Tr, fluxN);
+
+      // pre-multiply integration weight to flux
+      if (type & (HDGFaceType::ELEM | HDGFaceType::TRACE))
+      {
+         AddMult_a_VWt(-ip.weight*sign, shape_el, fluxN, elvect_mat);
+      }
+      if (type & (HDGFaceType::CONSTR | HDGFaceType::FACE))
+      {
+         AddMult_a_VWt(-ip.weight*sign, shape_tr, fluxN, trvect_mat);
+      }
+   }
+}
+
+void BdrHyperbolicDirichletIntegrator::AssembleHDGFaceGrad(
+   int type, const FiniteElement &trace_face_fe, const FiniteElement &fe,
+   FaceElementTransformations &Tr, const Vector &trfun, const Vector &elfun,
+   DenseMatrix &elmat)
+{
+   const int dof_el = fe.GetDof();
+   const int dof_tr = trace_face_fe.GetDof();
+
+   const int dof_prim_el = (type & (HDGFaceType::ELEM | HDGFaceType::CONSTR))?
+                           (dof_el):(0);
+   const int dof_prim_tr = (type & (HDGFaceType::TRACE | HDGFaceType::FACE))?
+                           (dof_tr):(0);
+   const int dof_dual_el = (type & (HDGFaceType::ELEM | HDGFaceType::TRACE))?
+                           (dof_el):(0);
+   const int dof_dual_tr = (type & (HDGFaceType::CONSTR | HDGFaceType::FACE))?
+                           (dof_tr):(0);
+   const int dof_prim = dof_prim_el + dof_prim_tr;
+   const int dof_dual = dof_dual_el + dof_dual_tr;
+
+#ifdef MFEM_THREAD_SAFE
+   // Local storage for element integration
+
+   // normal vector (usually not a unit vector)
+   Vector nor(Tr.GetSpaceDim());
+   // shape function value at an integration point - elem
+   Vector shape_el(dof_el);
+   // shape function value at an integration point - trace
+   Vector shape_tr(dof_tr);
+   // state value at an integration point - in
+   Vector state_in(num_equations);
+   // state value at an integration point - trace
+   Vector state_tr(num_equations);
+   // state value at an integration point - out
+   Vector state_out(num_equations);
+   // J(F)(u,x)
+   DenseMatrix JDotN(num_equations);
+#else
+   Vector &shape_el(shape);
+   shape_el.SetSize(dof_el);
+   shape_tr.SetSize(dof_tr);
+#endif
+
+   elmat.SetSize(dof_dual * num_equations,
+                 dof_prim * num_equations);
+   elmat = 0.0;
+
+   const DenseMatrix elfun_mat(elfun.GetData(), dof_el, num_equations);
+   const DenseMatrix trfun_mat(trfun.GetData(), dof_tr, num_equations);
+
+   const IntegrationRule *ir = IntRule;
+   if (!ir)
+   {
+      const int order = 2*std::max(fe.GetOrder(),
+                                   trace_face_fe.GetOrder()) + IntOrderOffset;
+      ir = &IntRules.Get(Tr.GetGeometryType(), order);
+   }
+
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+
+      Tr.SetAllIntPoints(&ip); // set face and element int. points
+
+      if (type & 1)
+      {
+         // Evaluate boundary state at the point
+         u_vcoeff.Eval(state_out, Tr, ip);
+      }
+      else
+      {
+         const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+
+         // Calculate basis functions on interior element at the face
+         fe.CalcShape(eip, shape_el);
+
+         // Interpolate elfun at the point
+         elfun_mat.MultTranspose(shape_el, state_in);
+      }
+
+      // Calculate basis functions on trace element at the face
+      trace_face_fe.CalcShape(ip, shape_tr);
+
+      // Interpolate trfun at the point
+      trfun_mat.MultTranspose(shape_tr, state_tr);
+
+      // Get the normal vector and the flux on the face
+      if (nor.Size() == 1)  // if 1D, use 1 or -1.
+      {
+         // This assume the 1D integration point is in (0,1). This may not work
+         // if this changes.
+         nor(0) = (Tr.GetElement1IntPoint().x - 0.5) * 2.0;
+      }
+      else
+      {
+         CalcOrtho(Tr.Jacobian(), nor);
+      }
+      if (type & 1) { nor.Neg(); }
+
+      // Compute average J(û, u)
+      int joff = 0;
+      if (type & (HDGFaceType::ELEM | HDGFaceType::CONSTR) && !(type & 1))
+      {
+         numFlux.AverageGrad(2, state_tr, state_in, nor, Tr, JDotN);
+
+         // pre-multiply integration weight to Jacobians
+         const real_t w = -ip.weight*sign;
+         int ioff = 0;
+         if (type & HDGFaceType::ELEM)
+         {
+            for (int di = 0; di < num_equations; di++)
+               for (int dj = 0; dj < num_equations; dj++)
+                  for (int i = 0; i < dof_el; i++)
+                     for (int j = 0; j < dof_el; j++)
+                     {
+                        elmat(di*dof_dual+ioff+i, dj*dof_prim+joff+j) +=
+                           w * JDotN(di,dj) * shape_el(i) * shape_el(j);
+                     }
+            ioff += dof_el;
+         }
+         if (type & HDGFaceType::CONSTR)
+         {
+            for (int di = 0; di < num_equations; di++)
+               for (int dj = 0; dj < num_equations; dj++)
+                  for (int i = 0; i < dof_tr; i++)
+                     for (int j = 0; j < dof_el; j++)
+                     {
+                        elmat(di*dof_dual+ioff+i, dj*dof_prim+joff+j) +=
+                           w * JDotN(di,dj) * shape_tr(i) * shape_el(j);
+                     }
+         }
+         joff += dof_el;
+      }
+      if (type & (HDGFaceType::TRACE | HDGFaceType::FACE))
+      {
+         numFlux.AverageGrad(1, state_tr, (type & 1)?(state_out):(state_in),
+                             nor, Tr, JDotN);
+
+         // pre-multiply integration weight to Jacobians
+         const real_t w = -ip.weight*sign;
+         int ioff = 0;
+         if (type & HDGFaceType::TRACE && !(type & 1))
+         {
+            for (int di = 0; di < num_equations; di++)
+               for (int dj = 0; dj < num_equations; dj++)
+                  for (int i = 0; i < dof_el; i++)
+                     for (int j = 0; j < dof_tr; j++)
+                     {
+                        elmat(di*dof_dual+ioff+i, dj*dof_prim+joff+j) +=
+                           w * JDotN(di,dj) * shape_el(i) * shape_tr(j);
+                     }
+            ioff += dof_el;
+         }
+         if (type & HDGFaceType::FACE)
+         {
+            for (int di = 0; di < num_equations; di++)
+               for (int dj = 0; dj < num_equations; dj++)
+                  for (int i = 0; i < dof_tr; i++)
+                     for (int j = 0; j < dof_tr; j++)
+                     {
+                        elmat(di*dof_dual+ioff+i, dj*dof_prim+joff+j) +=
+                           w * JDotN(di,dj) * shape_tr(i) * shape_tr(j);
+                     }
+         }
+      }
    }
 }
 
