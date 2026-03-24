@@ -43,7 +43,7 @@ public:
    /// Get spatial dimension
    ///
    /// returns always 1.
-   int Dimension() const
+   constexpr int Dimension() const
    {
       return 1;
    }
@@ -74,11 +74,14 @@ public:
       return elem_restr.get();
    }
 
+   virtual const Operator* GetB() const = 0;
+
+   virtual const Operator* GetBt() const = 0;
+
 protected:
    int vdim;
    DofToQuad dtq;
-   mutable std::unique_ptr<Operator> prolongation;
-   mutable std::unique_ptr<Operator> elem_restr;
+   mutable std::unique_ptr<Operator> prolongation, elem_restr, B, Bt;
 };
 
 /// @brief Uniform parameter space

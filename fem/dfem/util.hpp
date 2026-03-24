@@ -21,6 +21,7 @@
 #include <type_traits>
 #include <numeric>
 #include <iomanip>
+#include <typeindex>
 
 #include "../../general/communication.hpp"
 #include "../../general/forall.hpp"
@@ -28,9 +29,12 @@
 #include "../fe/fe_base.hpp"
 #include "../fespace.hpp"
 #include "../pfespace.hpp"
+#include "../qfunction.hpp"
 #include "../../mesh/mesh.hpp"
 #include "../../linalg/dtensor.hpp"
+#include "../quadinterpolator.hpp"
 
+#include "fielddescriptor.hpp"
 #include "fieldoperator.hpp"
 #include "parameterspace.hpp"
 #include "tuple.hpp"
@@ -106,6 +110,16 @@ constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg)
       std::make_index_sequence<tuple_size<std::remove_reference_t<arg_t>>::value>;
    for_constexpr_with_arg(std::forward<lambda>(f), std::forward<arg_t>(arg),
                           indices{});
+}
+
+template <auto start, auto end, auto inc = 1, typename F>
+constexpr void constexpr_for(F&& f)
+{
+   if constexpr (start < end)
+   {
+      f(std::integral_constant<decltype(start), start>());
+      constexpr_for<start + inc, end, inc>(f);
+   }
 }
 
 template <std::size_t I, typename Tuple, std::size_t... Is>
@@ -444,6 +458,21 @@ struct create_function_signature<output_t (*)(input_ts...)>
    using type = FunctionSignature<output_t(input_ts...)>;
 };
 
+template <typename...>
+using void_t = void;
+
+template <typename T, typename = void>
+struct get_function_signature
+{
+   using type = typename create_function_signature<T>::type;
+};
+
+template <typename T>
+struct get_function_signature<T, void_t<decltype(&T::operator())>>
+{
+   using type = typename create_function_signature<decltype(&T::operator())>::type;
+};
+
 template <typename T>
 constexpr int GetFieldId()
 {
@@ -543,32 +572,6 @@ constexpr auto filter_fields(const std::tuple<Ts...>& t)
    return std::tuple_cat(
              std::conditional_t<Ts::GetFieldId() != -1, std::tuple<Ts>, std::tuple<>> {}...);
 }
-
-/// @brief FieldDescriptor struct
-///
-/// This struct is used to store information about a field.
-struct FieldDescriptor
-{
-   using data_variant_t =
-      std::variant<const FiniteElementSpace *,
-      const ParFiniteElementSpace *,
-      const ParameterSpace *>;
-
-   /// Field ID
-   std::size_t id;
-
-   /// Field variant
-   data_variant_t data;
-
-   /// Default constructor
-   FieldDescriptor() :
-      id(SIZE_MAX), data(data_variant_t{}) {}
-
-   /// Constructor
-   template <typename T>
-   FieldDescriptor(std::size_t field_id, const T* v) :
-      id(field_id), data(v) {}
-};
 
 namespace dfem
 {
@@ -772,6 +775,10 @@ int GetVSize(const FieldDescriptor &f)
       {
          return arg->GetVSize();
       }
+      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      {
+         return arg->Size();
+      }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          return arg->GetVSize();
@@ -810,6 +817,10 @@ void GetElementVDofs(const FieldDescriptor &f, int el, Array<int> &vdofs)
       {
          arg->GetElementVDofs(el, vdofs);
       }
+      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      {
+         MFEM_ABORT("internal error");
+      }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          MFEM_ABORT("internal error");
@@ -844,6 +855,10 @@ int GetTrueVSize(const FieldDescriptor &f)
       {
          return arg->GetTrueVSize();
       }
+      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      {
+         return arg->Size();
+      }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          return arg->GetTrueVSize();
@@ -871,6 +886,10 @@ int GetVDim(const FieldDescriptor &f)
          return arg->GetVDim();
       }
       else if constexpr (std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         return arg->GetVDim();
+      }
+      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
       {
          return arg->GetVDim();
       }
@@ -909,6 +928,10 @@ int GetDimension(const FieldDescriptor &f)
             return arg->GetMesh()->Dimension() - 1;
          }
       }
+      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      {
+         return arg->GetSpace()->GetMesh()->Dimension();
+      }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          return arg->Dimension();
@@ -921,6 +944,36 @@ int GetDimension(const FieldDescriptor &f)
    }, f.data);
 }
 
+inline
+std::variant<const QuadratureInterpolator *, const Operator *>get_qinterp(
+   const FieldDescriptor &f,
+   const IntegrationRule &ir)
+{
+   return std::visit([&ir](auto && arg) -> const QuadratureInterpolator*
+   {
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
+                    std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         return arg->GetQuadratureInterpolator(ir);
+      }
+      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      {
+         // QuadratureFunction doesn't need a QuadratureInterpolator
+         return nullptr;
+      }
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
+      {
+         return nullptr;
+      }
+      else
+      {
+         static_assert(dfem::always_false<T>, "internal error");
+      }
+
+      return nullptr; // Unreachable, but avoids compiler warning
+   }, f.data);
+}
 
 /// @brief Get the prolongation operator for a field descriptor.
 ///
@@ -936,6 +989,10 @@ const Operator *get_prolongation(const FieldDescriptor &f)
                     std::is_same_v<T, const ParFiniteElementSpace *>)
       {
          return arg->GetProlongationMatrix();
+      }
+      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      {
+         return nullptr;
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
@@ -966,6 +1023,10 @@ const Operator *get_element_restriction(const FieldDescriptor &f,
                     || std::is_same_v<T, const ParFiniteElementSpace *>)
       {
          return arg->GetElementRestriction(o);
+      }
+      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      {
+         return nullptr;
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
@@ -1001,6 +1062,11 @@ const Operator *get_face_restriction(const FieldDescriptor &f,
                     std::is_same_v<T, const ParFiniteElementSpace *>)
       {
          return arg->GetFaceRestriction(o, ft, m);
+      }
+      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      {
+         // QuadratureFunction does not support face restrictions
+         MFEM_ABORT("internal error");
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
@@ -1091,6 +1157,15 @@ void prolongation(const FieldDescriptor field, const Vector &x, Vector &field_l)
    P->Mult(x, field_l);
 }
 
+inline
+void prolongation_transpose(
+   const FieldDescriptor &field, const Vector &field_l, Vector &x)
+{
+   const auto P = get_prolongation(field);
+   x.SetSize(P->Width());
+   P->MultTranspose(field_l, x);
+}
+
 /// @brief Apply the prolongation operator to a vector of fields.
 ///
 /// x is a long vector containing the data for all fields on tdofs and
@@ -1130,20 +1205,259 @@ void prolongation(const std::array<FieldDescriptor, N> fields,
 /// @param fields the array of field descriptors.
 /// @param x the input vector in tdofs.
 /// @param fields_l the array of output vectors in vdofs.
+// inline
+// void prolongation(const std::vector<FieldDescriptor> fields,
+//                   const Vector &x,
+//                   std::vector<Vector> &fields_l)
+// {
+//    int data_offset = 0;
+//    for (std::size_t i = 0; i < fields.size(); i++)
+//    {
+//       const auto P = get_prolongation(fields[i]);
+//       const int width = P->Width();
+//       const Vector x_i(const_cast<Vector&>(x), data_offset, width);
+//       fields_l[i].SetSize(P->Height());
+//       P->Mult(x_i, fields_l[i]);
+//       data_offset += width;
+//    }
+// }
+
 inline
-void prolongation(const std::vector<FieldDescriptor> fields,
-                  const Vector &x,
-                  std::vector<Vector> &fields_l)
+void prolongation(
+   const std::vector<FieldDescriptor> fields,
+   const BlockVector &x,
+   std::vector<Vector *> &x_l)
 {
-   int data_offset = 0;
-   for (std::size_t i = 0; i < fields.size(); i++)
+   MFEM_ASSERT(x.NumBlocks() == static_cast<int>(x_l.size()),
+               "error " << x.NumBlocks() << " vs " << x_l.size());
+   for (int i = 0; i < x.NumBlocks(); i++)
    {
       const auto P = get_prolongation(fields[i]);
-      const int width = P->Width();
-      const Vector x_i(const_cast<Vector&>(x), data_offset, width);
-      fields_l[i].SetSize(P->Height());
-      P->Mult(x_i, fields_l[i]);
-      data_offset += width;
+
+      // If nullptr, assume Identity.
+      if (P == nullptr)
+      {
+         *x_l[i] = x.GetBlock(i);
+      }
+      else
+      {
+         const auto P = get_prolongation(fields[i]);
+         MFEM_ASSERT(P->Width() == x.GetBlock(i).Size(),
+                     "prolongation not applicable to given input data size " <<
+                     P->Width() << " vs " << x.GetBlock(i).Size());
+         MFEM_ASSERT(P->Height() == x_l[i]->Size(),
+                     "prolongation not applicable to given output data size " <<
+                     P->Height() << " vs " << x_l[i]->Size());
+         P->Mult(x.GetBlock(i), *x_l[i]);
+      }
+   }
+}
+
+inline
+void prolongation(
+   const std::vector<FieldDescriptor> fields,
+   const MultiVector &x,
+   std::vector<Vector *> &x_l)
+{
+   MFEM_ASSERT(x.NumBlocks() == static_cast<int>(x_l.size()),
+               "error " << x.NumBlocks() << " vs " << x_l.size());
+   for (int i = 0; i < x.NumBlocks(); i++)
+   {
+      const auto P = get_prolongation(fields[i]);
+
+      // If nullptr, assume Identity.
+      if (P == nullptr)
+      {
+         *x_l[i] = x[i];
+      }
+      else
+      {
+         const auto P = get_prolongation(fields[i]);
+         MFEM_ASSERT(P->Width() == x[i].Size(),
+                     "prolongation not applicable to given input data size " <<
+                     P->Width() << " vs " << x[i].Size());
+         MFEM_ASSERT(P->Height() == x_l[i]->Size(),
+                     "prolongation not applicable to given output data size " <<
+                     P->Height() << " vs " << x_l[i]->Size());
+         P->Mult(x[i], *x_l[i]);
+      }
+   }
+}
+
+inline
+void prolongation_transpose(
+   const std::vector<FieldDescriptor> fields,
+   const std::vector<Vector *> &x_l,
+   BlockVector &x)
+{
+   MFEM_ASSERT(static_cast<int>(x_l.size()) == x.NumBlocks(),
+               "error " << x_l.size() << " vs " << x.NumBlocks());
+   for (size_t i = 0; i < x_l.size(); i++)
+   {
+      const auto P = get_prolongation(fields[i]);
+
+      // If nullptr, assume Identity.
+      if (P == nullptr)
+      {
+         x.GetBlock(i) = *x_l[i];
+      }
+      else
+      {
+         MFEM_ASSERT(P->Height() == x_l[i]->Size(),
+                     "prolongation not applicable to given input data size " <<
+                     P->Height() << " vs " << x_l[i]->Size());
+         MFEM_ASSERT(P->Width() == x.GetBlock(i).Size(),
+                     "prolongation not applicable to given output data size " <<
+                     P->Width() << " vs " << x.GetBlock(i).Size());
+         P->MultTranspose(*x_l[i], x.GetBlock(i));
+      }
+   }
+}
+
+inline
+void prolongation_transpose(
+   const std::vector<FieldDescriptor> fields,
+   const std::vector<Vector *> &x_l,
+   MultiVector &x)
+{
+   MFEM_ASSERT(static_cast<int>(x_l.size()) == x.NumBlocks(),
+               "error " << x_l.size() << " vs " << x.NumBlocks());
+   for (size_t i = 0; i < x_l.size(); i++)
+   {
+      const auto P = get_prolongation(fields[i]);
+
+      // If nullptr, assume Identity.
+      if (P == nullptr)
+      {
+         x[i] = *x_l[i];
+      }
+      else
+      {
+         MFEM_ASSERT(P->Height() == x_l[i]->Size(),
+                     "prolongation not applicable to given input data size " <<
+                     P->Height() << " vs " << x_l[i]->Size());
+         MFEM_ASSERT(P->Width() == x[i].Size(),
+                     "prolongation not applicable to given output data size " <<
+                     P->Width() << " vs " << x[i].Size());
+         P->MultTranspose(*x_l[i], x[i]);
+      }
+   }
+}
+
+template <typename entity_t>
+void restriction(
+   const std::vector<FieldDescriptor> fields,
+   const std::vector<Vector *> &x_l,
+   std::vector<Vector *> &x_e)
+{
+   MFEM_ASSERT(x_l.size() == x_e.size(),
+               "internal error " << x_l.size() << " vs " << x_e.size());
+   for (size_t i = 0; i < fields.size(); i++)
+   {
+      int s = 0;
+      const auto R = get_restriction<entity_t>(
+                        fields[i], ElementDofOrdering::LEXICOGRAPHIC);
+
+      // If nullptr, assume Identity.
+      if (R == nullptr)
+      {
+         s = x_l[i]->Size();
+      }
+      else
+      {
+         s = R->Height();
+      }
+
+      // TODO
+      if (x_e[i] == nullptr)
+      {
+         x_e[i] = new Vector(s);
+      }
+      x_e[i]->SetSize(s);
+
+      if (R == nullptr)
+      {
+         x_e[i] = x_l[i];
+      }
+      else
+      {
+         MFEM_ASSERT(R->Width() == x_l[i]->Size(),
+                     "restriction not applicable to given input data size " <<
+                     R->Width() << " vs " << x_l[i]->Size());
+         R->Mult(*x_l[i], *x_e[i]);
+      }
+   }
+}
+
+template <typename entity_t>
+void prepare_residual(
+   const std::vector<FieldDescriptor> &fields,
+   std::vector<Vector *> &r_e)
+{
+   for (size_t i = 0; i < fields.size(); i++)
+   {
+      int s = 0;
+      if (std::holds_alternative<const QuadratureFunction *>(fields[i].data))
+      {
+         const auto fd = std::get<const QuadratureFunction *>(fields[i].data);
+         s = fd->Size();
+      }
+      else
+      {
+         const auto R = get_restriction<entity_t>(
+                           fields[i], ElementDofOrdering::LEXICOGRAPHIC);
+         s = R->Height();
+      }
+
+      // TODO
+      if (r_e[i] == nullptr)
+      {
+         r_e[i] = new Vector(s);
+      }
+      else
+      {
+         r_e[i]->SetSize(s);
+      }
+   }
+}
+
+template <typename entity_t>
+void restriction_transpose(
+   const std::vector<FieldDescriptor> &fields,
+   const std::vector<Vector *> &x_e,
+   std::vector<Vector *> &x_l)
+{
+   for (size_t i = 0; i < fields.size(); i++)
+   {
+      int s = 0;
+      const auto R = get_restriction<entity_t>(
+                        fields[i], ElementDofOrdering::LEXICOGRAPHIC);
+      // TODO: if nullptr, assume Identity
+      if (R == nullptr)
+      {
+         s = x_e[i]->Size();
+      }
+      else
+      {
+         s = R->Width();
+      }
+
+      // TODO
+      if (x_l[i] == nullptr)
+      {
+         x_l[i] = new Vector(s);
+      }
+      x_l[i]->SetSize(s);
+
+      // TODO: if nullptr, assume Identity
+      if (R == nullptr)
+      {
+         x_l[i] = x_e[i];
+      }
+      else
+      {
+         R->MultTranspose(*x_e[i], *x_l[i]);
+      }
    }
 }
 
@@ -1326,6 +1640,10 @@ const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
             return &arg->GetTypicalTraceElement()->GetDofToQuad(ir, mode);
          }
       }
+      else if constexpr (std::is_same_v<T, const QuadratureFunction *>)
+      {
+         return nullptr;
+      }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          return &arg->GetDofToQuad();
@@ -1457,7 +1775,7 @@ create_descriptors_to_fields_map(
 
    auto f = [&](auto &fop, auto &map)
    {
-      if constexpr (std::is_same_v<std::decay_t<decltype(fop)>, Weight>)
+      if constexpr (is_weight_fop<std::decay_t<decltype(fop)>>::value)
       {
          // TODO-bug: stealing dimension from the first field
          fop.dim = GetDimension<entity_t>(fields[0]);
@@ -2340,6 +2658,26 @@ std::array<DofToQuadMap, num_fields> create_dtq_maps(
              fops, dtqmaps,
              to_field_map,
              std::make_index_sequence<num_fields> {});
+}
+
+struct QLayoutEntry
+{
+   std::type_index type;
+   std::vector<int> layout;
+
+   template <class Fop>
+   QLayoutEntry(Fop, std::initializer_list<int> idx) :
+      type(typeid(Fop)), layout(idx) {}
+};
+
+static void ExtractQLayouts(
+   const std::initializer_list<QLayoutEntry> entries,
+   std::unordered_map<std::type_index, std::vector<int>>& out)
+{
+   for (const auto& e : entries)
+   {
+      out[e.type] = e.layout;
+   }
 }
 
 } // namespace mfem::future
