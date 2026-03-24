@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
+#include <limits>
 #include <string>
 #include <unordered_map>
 
@@ -343,7 +344,7 @@ void L2Reconstruction(const GridFunction& src, GridFunction& dst)
                InverseElementTransformation inv_trans(&trans);
                inv_trans.SetSolverType(inv_trans.Newton);
                inv_trans.SetInitialGuessType(inv_trans.Center);
-               inv_trans.SetPhysicalRelTol(1e-12);
+               inv_trans.SetPhysicalRelTol(1e3 * std::numeric_limits<real_t>::epsilon());
                IntegrationPoint inv_int_point;
                const int result = inv_trans.Transform(physical_point, inv_int_point);
                MFEM_VERIFY(result != inv_trans.Unknown, "InverseTransform failed.");
