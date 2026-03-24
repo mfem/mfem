@@ -54,9 +54,9 @@ inline std::complex<double> omega_p(double number, double charge,
 }
 
 // Alfven speed
-inline double kperp_cold_plasma(double omega, double w_c, double w_p)
+inline double kperp_cold_plasma(double omega, double Bmag, double rho)
 {
-   return (omega*w_p)/(3e8*w_c);
+   return omega/(Bmag/sqrt(4.0*M_PI*1e-7*rho));
 }
 
 // Thermal Velocity
@@ -723,39 +723,6 @@ public:
    virtual ~DielectricTensor() {}
 };
 
-class DielectricTensorPML: public MatrixCoefficient, public StixTensorBase
-{
-private:
-   mutable Vector xyz_; // 3D coordinate in computational mesh
-   
-public:
-   DielectricTensorPML(const ParGridFunction & B,
-                    const ParGridFunction & k,
-                    const ParGridFunction & nue,
-                    const ParGridFunction & nui,
-                    const BlockVector & density,
-                    const BlockVector & temp,
-                    const ParGridFunction & iontemp,
-                    const ParFiniteElementSpace & L2FESpace,
-                    const ParFiniteElementSpace & H1FESpace,
-                    double omega,
-                    const Vector & charges,
-                    const Vector & masses,
-                    int nuprof,
-                    double res_lim,
-                    bool realPart,
-                    bool thermal);
-
-   DielectricTensorPML(StixCoefBase &s)
-      : MatrixCoefficient(3), StixTensorBase(s) {}
-
-   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip);
-
-   virtual ~DielectricTensorPML() {}
-
-};
-
 class InverseDielectricTensor: public MatrixCoefficient, public StixTensorBase
 {
 public:
@@ -900,22 +867,6 @@ public:
 private:
    mutable Vector xyz_; // 3D coordinate in computational mesh
    mutable bool cart2cyl_; // 3D coordinate in computational mesh
-
-};
-
-class muPML: public MatrixCoefficient
-{
-public:
-   muPML(bool realPart, bool cyl, bool inverse);
-
-   virtual void Eval(DenseMatrix &muPML, ElementTransformation &T,
-                     const IntegrationPoint &ip);
-
-private:
-   mutable Vector xyz_; // 3D coordinate in computational mesh
-   mutable bool realPart_; // real part
-   mutable bool cyl_; // cartesian coordinates
-   mutable bool inverse_; // inverse of matrix
 
 };
 
@@ -1077,7 +1028,8 @@ public:
               B_EQDSK_TOPDOWN  = 4,
               B_EQDSK_POLOIDAL = 5,
               B_TOR            = 6,
-              B_WHAM           = 7
+              B_WHAM           = 7,
+              B_R              = 8
              };
 
 private:
@@ -1090,7 +1042,7 @@ private:
 
    G_EQDSK_Data *eqdsk_;
 
-   const int np_[8] = {3, 7, 6, 8, 4, 1, 1, 2};
+   const int np_[9] = {3, 7, 6, 8, 4, 1, 1, 2, 3};
 
    // mutable Vector x3_; // Not currently used
    mutable Vector xyz_; // 3D coordinate in computational mesh

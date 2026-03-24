@@ -352,7 +352,12 @@ complex<double> epxx_warm_plasma_by_species(double omega,
    double vth = vthermal(T, m);
 
    complex<double> comp_val(0.0,1.0);
-   double kperp = kperp_cold_plasma(omega,w_cd,w_pd);
+   double rho_i = 0.0;
+   for (int i=1; i<number.Size(); i++)
+   {
+      rho_i += number[i]*mass[i];
+   }
+   double kperp = kperp_cold_plasma(omega, Bmag, rho_i);
    complex<double> lambda = pow(kperp*vth,2.0)/(2.0*pow(w_c,2.0));
 
    complex<double> omega_eff(omega,0.0);
@@ -419,7 +424,12 @@ complex<double> epyy_warm_plasma_by_species(double omega,
    double vth = vthermal(T, m);
 
    complex<double> comp_val(0.0,1.0);
-   double kperp = kperp_cold_plasma(omega, w_cd,w_pd);
+   double rho_i = 0.0;
+   for (int i=1; i<number.Size(); i++)
+   {
+      rho_i += number[i]*mass[i];
+   }
+   double kperp = kperp_cold_plasma(omega, Bmag, rho_i);
    complex<double> lambda = pow(kperp*vth,2.0)/(2.0*pow(w_c,2.0));
 
    // n = 0 harmonic:
@@ -474,7 +484,12 @@ complex<double> epxy_warm_plasma_by_species(double omega,
    double vth = vthermal(T, m);
 
    complex<double> comp_val(0.0,1.0);
-   double kperp = kperp_cold_plasma(omega, w_cd,w_pd);
+   double rho_i = 0.0;
+   for (int i=1; i<number.Size(); i++)
+   {
+      rho_i += number[i]*mass[i];
+   }
+   double kperp = kperp_cold_plasma(omega, Bmag, rho_i);
    complex<double> lambda = pow(kperp*vth,2.0)/(2.0*pow(w_c,2.0));
 
    // n = 0 harmonic is zero
@@ -523,7 +538,12 @@ complex<double> epzz_warm_plasma_by_species(double omega,
    double vth = vthermal(T, m);
 
    complex<double> comp_val(0.0,1.0);
-   double kperp = kperp_cold_plasma(omega,w_cd,w_pd);
+   double rho_i = 0.0;
+   for (int i=1; i<number.Size(); i++)
+   {
+      rho_i += number[i]*mass[i];
+   }
+   double kperp = kperp_cold_plasma(omega, Bmag, rho_i);
    complex<double> lambda = pow(kperp*vth,2.0)/(2.0*pow(w_c,2.0));
 
    // n = 0 harmonic:
@@ -568,7 +588,12 @@ complex<double> epyz_warm_plasma_by_species(double omega,
    double vth = vthermal(T, m);
 
    complex<double> comp_val(0.0,1.0);
-   double kperp = kperp_cold_plasma(omega,w_cd,w_pd);
+   double rho_i = 0.0;
+   for (int i=1; i<number.Size(); i++)
+   {
+      rho_i += number[i]*mass[i];
+   }
+   double kperp = kperp_cold_plasma(omega, Bmag, rho_i);
    complex<double> lambda = pow(kperp*vth,2.0)/(2.0*pow(w_c,2.0));
 
    // n = 0 harmonic:
@@ -1776,8 +1801,23 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
       }      
    }
    */
-   
+
+   /*
+   cout << "EXX = " << epsilon(0,0) << endl;
+   cout << "EXY = " << epsilon(0,1) << endl;
+   cout << "EXZ = " << epsilon(0,2) << endl;
+   cout << "EYX = " << epsilon(1,0) << endl;
+   cout << "EYY = " << epsilon(1,1) << endl;
+   cout << "EYZ = " << epsilon(1,2) << endl;
+   cout << "EZX = " << epsilon(2,0) << endl;
+   cout << "EZY = " << epsilon(2,1) << endl;
+   cout << "EZZ = " << epsilon(2,2) << endl;
+   */
+
    epsilon *= epsilon0_;
+
+
+   
 
    /*
    Vector lambda(3);
@@ -2476,7 +2516,7 @@ void lambdaPML::Eval(DenseMatrix &lambdaPML, ElementTransformation &T,
 
       double z0 = 0.6;
       double z1 = 0;
-      double delta_z = 0.16;
+      double delta_z = 0.2;
       if (xyz_[2] >= z0)
       {
          sig_w = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[2]-z0)/delta_z),2.0); // z
@@ -2616,7 +2656,7 @@ void sigmaPML::Eval(DenseMatrix &sigmaPML, ElementTransformation &T,
          sig_w = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[2]-z1)/delta_z),2.0); // z
       }
 
-      /*      
+      /*     
       double x0 = 0.2;
       double x1 = 0.8;
       double delta_x = x0;
@@ -2920,7 +2960,8 @@ double PlasmaProfile::EvalByType(Type type,
 
          double d = (cyl_ || dim_) ? r : xyz_[0];
 
-         return nu0*(phi*phi) + (nu0*exp(-(xyz_[0]-shift)/decay));
+         //return nu0*(phi*phi) + (nu0*exp(-(xyz_[0]-shift)/decay));
+         return (nu0*exp(-(xyz_[0]-shift)/decay)); //+ 1e8*exp((xyz_[1]*xyz_[1])/0.2) + 5e8*exp(((xyz_[2]-0.35)*(xyz_[2]-0.35))/0.1);
       }
       break;
       case NUE:
@@ -3929,6 +3970,27 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
             V /= vmag;
          }
 
+      }
+      break;
+      case B_R:
+      {
+         double r = xyz_[0];
+         double z = xyz_[2]; 
+
+         V[0] = p_[0];
+         V[1] = p_[1]/r; 
+         V[2] = p_[2];
+
+         if (xyz_[0] <= 2.2404)
+         {
+            V[1] = 9.9089448; 
+         }
+
+         if (unit_)
+         {
+            double vmag = sqrt(V * V);
+            V /= vmag;
+         }
       }
       break;
       default:
