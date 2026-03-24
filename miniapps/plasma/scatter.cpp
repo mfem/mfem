@@ -87,11 +87,10 @@ struct Params
    real_t a0{1e-3};     // amplitude factor
 };
 
-TFunc GetSigFun(const Params &pars);
-TFunc GetNFun(const Params &pars);
-VecTFunc GetUFun(const Params &pars);
-VecTFunc GetEFun(const Params &pars);
-TFunc GetFFun(const Params &pars);
+TFunc GetSigmaFun(const Params &pars);
+VecTFunc GetPlasmaFun(const Params &pars);
+VecTFunc GetPlasmaFunBase(const Params &pars);
+VecTFunc GetEfieldFun(const Params &pars);
 
 int main(int argc, char *argv[])
 {
@@ -281,42 +280,43 @@ int main(int argc, char *argv[])
    int dim = mesh->Dimension();
 
    // Mark boundary conditions
-   Array<int> bdr_u_is_dirichlet(mesh->bdr_attributes.Max());
-   Array<int> bdr_u_is_neumann(bdr_u_is_dirichlet.Size());
-   Array<int> bdr_E_is_neumann(bdr_u_is_dirichlet.Size());
-   bdr_u_is_dirichlet = 0;
-   bdr_u_is_neumann = 0;
+   const int nbdrs = mesh->bdr_attributes.Size() ? mesh->bdr_attributes.Max() : 1;
+   Array<int> bdr_p_is_dirichlet(nbdrs);
+   //Array<int> bdr_p_is_neumann(bdr_p_is_dirichlet.Size());
+   Array<int> bdr_E_is_neumann(bdr_p_is_dirichlet.Size());
+   bdr_p_is_dirichlet = 0;
+   //bdr_p_is_neumann = 0;
    bdr_E_is_neumann = 0;
 
    switch (params.prob)
    {
       case Problem::MaterialWave:
-         bdr_u_is_neumann[3] = -1;//inflow
-         if (bc_neumann)
+         bdr_p_is_dirichlet[3] = -1;//inflow
+         /*if (bc_neumann)
          {
-            bdr_u_is_neumann[0] = -1;//outflow
-            bdr_u_is_neumann[2] = -1;//outflow
-         }
+            bdr_p_is_neumann[0] = -1;//outflow
+            bdr_p_is_neumann[2] = -1;//outflow
+         }*/
          break;
       case Problem::Maxwell:
       case Problem::Excitation:
-         bdr_u_is_dirichlet = -1;
-         bdr_u_is_neumann[3] = -1;
+         bdr_p_is_dirichlet = -1;
+         //bdr_p_is_neumann[3] = -1;
          bdr_E_is_neumann[3] = -1;//inflow
-         if (bc_neumann)
+         /*if (bc_neumann)
          {
             bdr_E_is_neumann[0] = -1;//outflow
             bdr_E_is_neumann[2] = -1;//outflow
-         }
+         }*/
          break;
       case Problem::Scattering:
-         bdr_u_is_dirichlet = -1;
-         bdr_u_is_neumann[0] = -1;//inflow
+         bdr_p_is_dirichlet = -1;
+         //bdr_p_is_neumann[0] = -1;//inflow
          bdr_E_is_neumann[3] = -1;//inflow
          if (bc_neumann)
          {
-            bdr_u_is_neumann[1] = -1;//outflow
-            bdr_u_is_neumann[3] = -1;//outflow
+            //bdr_p_is_neumann[1] = -1;//outflow
+            //bdr_p_is_neumann[3] = -1;//outflow
             bdr_E_is_neumann[0] = -1;//outflow
             bdr_E_is_neumann[2] = -1;//outflow
          }
@@ -362,11 +362,13 @@ int main(int argc, char *argv[])
    FiniteElementCollection *B_coll = new L2_FECollection(order, dim, 0,
                                                          FiniteElement::INTEGRAL);
 
+   const int num_equations = dim + 1;
    FiniteElementSpace *V_space = new FiniteElementSpace(mesh, V_coll,
-                                                        (dg)?(dim):(1));
-   FiniteElementSpace *V_space_dg = (V_coll_dg)?(new FiniteElementSpace(
-                                                    mesh, V_coll_dg, dim)):(NULL);
-   FiniteElementSpace *W_space = new FiniteElementSpace(mesh, W_coll);
+                                                        ((dg)?(dim):(1)) * num_equations);
+   FiniteElementSpace *W_space = new FiniteElementSpace(mesh, W_coll,
+                                                        num_equations);
+   FiniteElementSpace *W_space_n = new FiniteElementSpace(mesh, W_coll);
+   FiniteElementSpace *W_space_u = new FiniteElementSpace(mesh, W_coll, dim);
    FiniteElementSpace *E_space = new FiniteElementSpace(mesh, E_coll);
    FiniteElementSpace *B_space = new FiniteElementSpace(mesh, B_coll);
 
@@ -376,31 +378,26 @@ int main(int argc, char *argv[])
    if (hybridization)
    {
       trace_coll = new DG_Interface_FECollection(order, dim);
-      trace_space = new FiniteElementSpace(mesh, trace_coll);
+      trace_space = new FiniteElementSpace(mesh, trace_coll, num_equations);
    }
 
    // 6. Define the coefficients, analytical solution, and rhs of the PDE.
-   const real_t t_0 = 1.; //base density
+   //const real_t t_0 = 1.; //base density
 
    ConstantCoefficient kcoeff(params.kappa); //conductivity
-   ConstantCoefficient ikcoeff(1./params.kappa); //inverse conductivity
+   vector<Coefficient*> kcoeffs(num_equations);
+   for (int i = 0; i < num_equations; i++) { kcoeffs[i] = &kcoeff; }
 
-   auto sigFun = GetSigFun(params);
+   auto sigFun = GetSigmaFun(params);
    FunctionCoefficient sigcoeff(sigFun); //coupling
 
-   auto nFun = GetNFun(params);
-   FunctionCoefficient ncoeff(nFun); //density
-   SumCoefficient gcoeff(0., ncoeff, 1., -1.); //boundary velocity rhs
-   ProductCoefficient ghcoeff(0.5, gcoeff);
+   auto plFun = GetPlasmaFun(params);
+   VectorFunctionCoefficient pcoeff(dim+1, plFun); //plasma
 
-   auto fFun = GetFFun(params);
-   FunctionCoefficient fcoeff(fFun); //density rhs
+   auto plFun0 = GetPlasmaFunBase(params);
+   VectorFunctionCoefficient pcoeff_zero(dim+1, plFun0); //plasma
 
-   auto uFun = GetUFun(params);
-   VectorFunctionCoefficient ucoeff(dim, uFun); //velocity
-   ConstantCoefficient one;
-
-   auto Efun = GetEFun(params);
+   auto Efun = GetEfieldFun(params);
    VectorFunctionCoefficient Ecoeff(dim, Efun); //electric field
 
    // 7. Assemble the finite element matrices for the Darcy operator
@@ -436,6 +433,38 @@ int main(int argc, char *argv[])
    }
    std::cout << "***********************************************************\n";
 
+   //construct the operator
+
+   vector<pair<CoupledOperator::BCType,VectorCoefficient*>> bc_plasma(nbdrs);
+   vector<pair<CoupledOperator::BCType,VectorCoefficient*>> bc_maxwell(nbdrs);
+
+   for (int b = 0; b < nbdrs; b++)
+   {
+      if (bdr_p_is_dirichlet[b])
+      {
+         bc_plasma[b].first = CoupledOperator::BCType::Dirichlet;
+         bc_plasma[b].second = &pcoeff;
+      }
+      else
+      {
+         bc_plasma[b].first = CoupledOperator::BCType::Dirichlet;
+         bc_plasma[b].second = &pcoeff_zero;
+      }
+      if (bdr_E_is_neumann[b])
+      {
+         bc_maxwell[b].first = CoupledOperator::BCType::Neumann;
+         bc_maxwell[b].second = &Ecoeff;
+      }
+      else
+      {
+         bc_maxwell[b].first = CoupledOperator::BCType::Zero;
+      }
+   }
+
+   CoupledOperator op(kcoeffs, &sigcoeff,
+                      std::move(bc_plasma), std::move(bc_maxwell),
+                      V_space, W_space, E_space, B_space, trace_space, td);
+
    // 9. Allocate memory (x, rhs) for the analytical solution and the right hand
    //    side.  Define the GridFunction q,t for the finite element solution and
    //    linear forms fform and gform for the right hand side.  The data
@@ -445,10 +474,10 @@ int main(int argc, char *argv[])
    BlockVector x(block_offsets, mt), rhs(block_offsets, mt);
 
    x = 0.;
-   GridFunction u_h, n_h, tr_h, E_h, B_h;
+   GridFunction q_h, p_h, tr_h, E_h, B_h;
    int i = 0;
-   u_h.MakeRef(V_space, x.GetBlock(i++), 0);
-   n_h.MakeRef(W_space, x.GetBlock(i++), 0);
+   q_h.MakeRef(V_space, x.GetBlock(i++), 0);
+   p_h.MakeRef(W_space, x.GetBlock(i++), 0);
    if (trace_space)
    {
       tr_h.MakeRef(trace_space, x.GetBlock(i++), 0);
@@ -458,83 +487,8 @@ int main(int argc, char *argv[])
 
    if (btime)
    {
-      n_h.ProjectCoefficient(ncoeff); //initial condition
+      op.ProjectIC(x, pcoeff);
    }
-
-   if (!dg && !brt)
-   {
-      u_h.ProjectBdrCoefficientNormal(ucoeff,
-                                      bdr_u_is_neumann);   //essential Neumann BC
-   }
-
-   LinearForm *gform(new LinearForm);
-   gform->Update(V_space, rhs.GetBlock(0), 0);
-   if (dg)
-   {
-      gform->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(gcoeff),
-                                  bdr_u_is_dirichlet);
-      if (!hybridization)
-      {
-         gform->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(
-                                        gcoeff, 0.5), bdr_u_is_neumann);
-      }
-   }
-   else
-   {
-      if (brt)
-      {
-         gform->AddBdrFaceIntegrator(new VectorFEBoundaryFluxLFIntegrator(gcoeff),
-                                     bdr_u_is_dirichlet);
-         if (!hybridization)
-         {
-            gform->AddBdrFaceIntegrator(new VectorFEBoundaryFluxLFIntegrator(
-                                           ghcoeff), bdr_u_is_neumann);
-         }
-      }
-      else
-      {
-         gform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(gcoeff),
-                                      bdr_u_is_dirichlet);
-      }
-   }
-
-   LinearForm *fform(new LinearForm);
-   fform->Update(W_space, rhs.GetBlock(1), 0);
-   fform->AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
-
-   //Neumann
-   if (!hybridization && (dg || brt))
-   {
-      fform->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(one, ucoeff, +1., 0.),
-                                  bdr_u_is_neumann);
-   }
-
-   //prepare (reduced) solution and rhs vectors
-
-   LinearForm *hform = NULL;
-
-   //Neumann BC for the hybridized system
-
-   if (hybridization)
-   {
-      hform = new LinearForm();
-      hform->Update(trace_space, rhs.GetBlock(2), 0);
-      //note that Neumann BC must be applied only for the velocity
-      //and not the total flux for stability reasons
-      hform->AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(ucoeff, 2),
-                                   bdr_u_is_neumann);
-   }
-
-   //construct the operator
-
-   Array<LinearForm*> lfs({gform, fform, hform, (LinearForm*)NULL, (LinearForm*)NULL});
-
-   Array<Coefficient*> coeffs({(Coefficient*)&gcoeff,
-                               (Coefficient*)&fcoeff,
-                               (Coefficient*)&ucoeff});
-
-   CoupledOperator op(bdr_u_is_neumann, bdr_E_is_neumann, &sigcoeff, lfs, coeffs,
-                      V_space, W_space, E_space, B_space, trace_space, td);
 
    //construct the time solver
 
@@ -565,12 +519,12 @@ int main(int argc, char *argv[])
 
       real_t t = tf * ti / nt;
 
-      if (!dg && !brt)
+      /*if (!dg && !brt)
       {
          ucoeff.SetTime(t);
-         u_h.ProjectBdrCoefficientNormal(ucoeff,
-                                         bdr_u_is_neumann);   //essential Neumann BC
-      }
+         q_h.ProjectBdrCoefficientNormal(ucoeff,
+                                         bdr_q_is_neumann);   //essential Neumann BC
+      }*/
 
       Ecoeff.SetTime(t);
       E_h.ProjectBdrCoefficientTangent(Ecoeff, bdr_E_is_neumann);
@@ -589,48 +543,37 @@ int main(int argc, char *argv[])
          irs[i] = &(IntRules.Get(i, order_quad));
       }
 
-      real_t err_u  = u_h.ComputeL2Error(ucoeff, irs);
-      real_t norm_u = ComputeLpNorm(2., ucoeff, *mesh, irs);
-      real_t err_n  = n_h.ComputeL2Error(ncoeff, irs);
-      real_t norm_n = ComputeLpNorm(2., ncoeff, *mesh, irs);
+      real_t err_p  = p_h.ComputeL2Error(pcoeff, irs);
+      real_t norm_p = ComputeLpNorm(2., pcoeff, *mesh, irs);
 
       if (btime)
       {
          cout << "iter:\t" << ti
               << "\ttime:\t" << t
-              << "\tq_err:\t" << err_u / norm_u
-              << "\tt_err:\t" << err_n / norm_n
+              << "\tt_err:\t" << err_p / norm_p
               << endl;
       }
       else
       {
-         cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
-         cout << "|| n_h - n_ex || / || n_ex || = " << err_n / norm_n << "\n";
+         cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
       }
 
-      // Project the broken space
+      // Alias the solution
 
-      GridFunction u_v;
-      if (V_space_dg)
-      {
-         VectorGridFunctionCoefficient coeff(&u_h);
-         u_v.SetSpace(V_space_dg);
-         u_v.ProjectCoefficient(coeff);
-      }
-      else
-      {
-         u_v.MakeRef(V_space, u_h, 0);
-      }
+      GridFunction n_h, u_h;
+      n_h.MakeRef(W_space_n, p_h, 0);
+      u_h.MakeRef(W_space_u, p_h, n_h.Size());
 
       // Project the analytic solution
 
-      static GridFunction u_a, n_a, c_gf;
+      static GridFunction p_a;
+      GridFunction n_a, u_a;
 
-      u_a.SetSpace(V_space);
-      u_a.ProjectCoefficient(ucoeff);
+      p_a.SetSpace(W_space);
+      p_a.ProjectCoefficient(pcoeff);
 
-      n_a.SetSpace(W_space);
-      n_a.ProjectCoefficient(ncoeff);
+      n_a.MakeRef(W_space_n, p_a, 0);
+      u_a.MakeRef(W_space_u, p_a, n_a.Size());
 
       // 13. Save the mesh and the solution. This output can be viewed later using
       //     GLVis: "glvis -m ex5.mesh -g sol_q.gf" or "glvis -m ex5.mesh -g
@@ -652,7 +595,7 @@ int main(int argc, char *argv[])
          ss << ".gf";
          ofstream u_ofs(ss.str());
          u_ofs.precision(8);
-         u_v.Save(u_ofs);
+         u_h.Save(u_ofs);
 
          ss.str("");
          ss << "sol_n";
@@ -728,7 +671,7 @@ int main(int argc, char *argv[])
          const int  visport   = 19916;
          static socketstream u_sock(vishost, visport);
          u_sock.precision(8);
-         u_sock << "solution\n" << *mesh << u_v << endl;
+         u_sock << "solution\n" << *mesh << u_h << endl;
          if (ti == 0)
          {
             u_sock << "window_title 'Velocity'" << endl;
@@ -783,12 +726,10 @@ int main(int argc, char *argv[])
    // 17. Free the used memory.
 
    delete ode_solver;
-   delete fform;
-   delete gform;
-   delete hform;
    delete W_space;
+   delete W_space_n;
+   delete W_space_u;
    delete V_space;
-   delete V_space_dg;
    delete E_space;
    delete B_space;
    delete trace_space;
@@ -803,7 +744,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-TFunc GetSigFun(const Params &pars)
+TFunc GetSigmaFun(const Params &pars)
 {
    switch (pars.prob)
    {
@@ -827,27 +768,7 @@ TFunc GetSigFun(const Params &pars)
    return TFunc();
 }
 
-TFunc GetNFun(const Params &pars)
-{
-   switch (pars.prob)
-   {
-      case Problem::MaterialWave:
-      case Problem::Maxwell:
-      case Problem::Scattering:
-         return [=](const Vector &x, real_t) -> real_t
-         {
-            return 0.;
-         };
-      case Problem::Excitation:
-         return [=](const Vector &x, real_t) -> real_t
-         {
-            return 1.;
-         };
-   }
-   return TFunc();
-}
-
-VecTFunc GetUFun(const Params &pars)
+VecTFunc GetPlasmaFun(const Params &pars)
 {
    switch (pars.prob)
    {
@@ -855,27 +776,35 @@ VecTFunc GetUFun(const Params &pars)
          return [=](const Vector &x, real_t t, Vector &v)
          {
             const int vdim = x.Size();
-            v.SetSize(vdim);
+            v.SetSize(vdim+1);
 
             v = 0.;
             constexpr real_t w = 0.25;
             constexpr real_t y0 = 0.5;
             const real_t dy = (x(1) - y0) / w;
-            v(0) = exp(-dy*dy) * sin(M_PI * pars.freq * t) * cos(M_PI * x(0));
+            v(0) = 1.;
+            v(1) = exp(-dy*dy) * sin(M_PI * pars.freq * t) * cos(M_PI * x(0));
          };
       case Problem::Maxwell:
+         return [=](const Vector &x, real_t t, Vector &v)
+         {
+            const int vdim = x.Size();
+            v.SetSize(vdim+1);
+            v = 0.;
+         };
       case Problem::Excitation:
          return [=](const Vector &x, real_t t, Vector &v)
          {
             const int vdim = x.Size();
-            v.SetSize(vdim);
+            v.SetSize(vdim+1);
             v = 0.;
+            v(0) = 1.;
          };
       case Problem::Scattering:
          return [=](const Vector &x, real_t t, Vector &v)
          {
             const int vdim = x.Size();
-            v.SetSize(vdim);
+            v.SetSize(vdim+1);
 
             v = 0.;
             constexpr real_t w = 0.15;
@@ -886,14 +815,39 @@ VecTFunc GetUFun(const Params &pars)
             constexpr real_t z0 = 0.5;
             const real_t dz = x(1) - z0;
             const real_t R = dz / (dz*dz + zR*zR);
-            v(1) = exp(-rw*rw) * sin(M_PI * (pars.freq* t - r*r / R))
+            v(2) = exp(-rw*rw) * sin(M_PI * (pars.freq* t - r*r / R))
                    * cos(M_PI * x(1)) * pars.a0;
          };
    }
    return VecTFunc();
 }
 
-VecTFunc GetEFun(const Params &pars)
+VecTFunc GetPlasmaFunBase(const Params &pars)
+{
+   switch (pars.prob)
+   {
+      case Problem::MaterialWave:
+      case Problem::Excitation:
+      case Problem::Scattering:
+         return [=](const Vector &x, real_t t, Vector &v)
+         {
+            const int vdim = x.Size();
+            v.SetSize(vdim+1);
+            v = 0.;
+            v(0) = 1.;
+         };
+      case Problem::Maxwell:
+         return [=](const Vector &x, real_t t, Vector &v)
+         {
+            const int vdim = x.Size();
+            v.SetSize(vdim+1);
+            v = 0.;
+         };
+   }
+   return VecTFunc();
+}
+
+VecTFunc GetEfieldFun(const Params &pars)
 {
    switch (pars.prob)
    {
@@ -929,20 +883,4 @@ VecTFunc GetEFun(const Params &pars)
          };
    }
    return VecTFunc();
-}
-
-TFunc GetFFun(const Params &pars)
-{
-   switch (pars.prob)
-   {
-      case Problem::MaterialWave:
-      case Problem::Maxwell:
-      case Problem::Excitation:
-      case Problem::Scattering:
-         return [=](const Vector &x, real_t) -> real_t
-         {
-            return 0.;
-         };
-   }
-   return TFunc();
 }

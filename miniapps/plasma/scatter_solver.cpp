@@ -15,93 +15,224 @@ namespace mfem
 {
 namespace plasma
 {
-CoupledOperator::CoupledOperator(const Array<int> &bdr_u_is_ess,
-                                 const Array<int> &bdr_E_is_ess, Coefficient *sigma_,
-                                 const Array<LinearForm*> &lfs_, const Array<Coefficient*> &coeffs_,
-                                 FiniteElementSpace *u_space_, FiniteElementSpace *n_space_,
+
+CoupledOperator::CoupledOperator(std::vector<Coefficient*> kappa_,
+                                 Coefficient *sigma_,
+                                 std::vector<std::pair<BCType,VectorCoefficient*>> bcs_plasma,
+                                 std::vector<std::pair<BCType,VectorCoefficient*>> bcs_maxwell,
+                                 FiniteElementSpace *q_space_, FiniteElementSpace *p_space_,
                                  FiniteElementSpace *E_space_, FiniteElementSpace *B_space_,
                                  FiniteElementSpace *tr_space_, real_t td)
-   : TimeDependentOperator(0, IMPLICIT), sigma(sigma_), lfs(lfs_),
-     coeffs(coeffs_), u_space(u_space_), n_space(n_space_),
+   : TimeDependentOperator(0, IMPLICIT), kappa(kappa_), sigma(sigma_),
+     q_space(q_space_), p_space(p_space_),
      E_space(E_space_), B_space(B_space_), tr_space(tr_space_)
 {
-   offsets = ConstructOffsets(u_space, n_space, E_space, B_space, tr_space);
+   offsets = ConstructOffsets(q_space, p_space, E_space, B_space, tr_space);
 
    width = height = offsets.Last();
 
    //plasma
 
-   const int dim = u_space->GetMesh()->Dimension();
-   const bool fec_disc = (u_space->FEColl()->GetContType() ==
+   const Mesh *mesh = q_space->GetMesh();
+   const int dim = mesh->Dimension();
+   const int num_equations = 1 + dim;
+   const bool fec_disc = (q_space->FEColl()->GetContType() ==
                           FiniteElementCollection::DISCONTINUOUS);
-   const bool fec_vec = (u_space->FEColl()->GetRangeType(dim) ==
+   const bool fec_vec = (q_space->FEColl()->GetRangeType(dim) ==
                          FiniteElement::VECTOR);
    const bool dg = (fec_disc && !fec_vec);
    const bool brt = (fec_disc && fec_vec);
 
-   if (!dg)
+   /*if (!dg && !brt)
    {
-      u_space->GetEssentialTrueDofs(bdr_u_is_ess, ess_u_tdofs_list);
-   }
+      q_space->GetEssentialTrueDofs(bdr_q_is_ess, ess_q_tdofs_list);
+   }*/
 
-   darcy = new DarcyForm(u_space, n_space);
+   //bcs
+   const int nbdrs = (mesh->bdr_attributes.Size() > 0)?
+                     (mesh->bdr_attributes.Max()):(1);
+   MFEM_ASSERT(bcs_plasma.size() == (size_t)nbdrs, "Wrong number of BCs");
+   bdr_is_dirichlet_plasma.resize(nbdrs);
+   bdr_coeffs_plasma.resize(nbdrs);
+   bdr_gcoeffs_plasma.resize(nbdrs);
 
-   Mu = darcy->GetFluxMassForm();
-   Mn = darcy->GetPotentialMassForm();
-   Du = darcy->GetFluxDivForm();
-
-   idtcoeff = new FunctionCoefficient([&](const Vector &) { return idt; });
-   dtcoeff = new FunctionCoefficient([&](const Vector &) { return 1./idt; });
-
-   if (dg)
+   for (int b = 0; b < nbdrs; b++)
    {
-      Mu->AddDomainIntegrator(new VectorMassIntegrator(*idtcoeff));
-   }
-   else
-   {
-      Mu->AddDomainIntegrator(new VectorFEMassIntegrator(idtcoeff));
-   }
-
-   if (dg)
-   {
-      Du->AddDomainIntegrator(new VectorDivergenceIntegrator());
-      Du->AddInteriorFaceIntegrator(new TransposeIntegrator(
-                                       new DGNormalTraceIntegrator(-1.)));
-      Du->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
-                                                          -1.)), const_cast<Array<int>&>(bdr_u_is_ess));
-   }
-   else
-   {
-      Du->AddDomainIntegrator(new VectorFEDivergenceIntegrator());
-      if (brt)
+      switch (bcs_plasma[b].first)
       {
-         Du->AddInteriorFaceIntegrator(new TransposeIntegrator(
-                                          new DGNormalTraceIntegrator(-1.)));
-         Du->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
-                                                             -1.)), const_cast<Array<int>&>(bdr_u_is_ess));
+         case BCType::Zero: continue;
+         case BCType::Dirichlet:
+            bdr_is_dirichlet_plasma[b].SetSize(nbdrs);
+            bdr_is_dirichlet_plasma[b] = 0;
+            bdr_is_dirichlet_plasma[b][b] = -1;
+            bdr_coeffs_plasma[b] = bcs_plasma[b].second;
+            MFEM_ASSERT(bdr_coeffs_plasma[b], "Dirichlet BC is null.");
+            bdr_gcoeffs_plasma[b].reset(new ScalarVectorProductCoefficient(
+                                           -1., *bdr_coeffs_plasma[b]));
+            break;
+         default:
+            MFEM_ABORT("Not implemented");
       }
    }
 
-   if (dg && td > 0.)
+   //(bi)linear forms
+   darcy = new DarcyForm(q_space, p_space);
+
+   Mq = darcy->GetFluxMassForm();
+   Mpnl = darcy->GetPotentialMassNonlinearForm();
+   Dq = darcy->GetFluxDivForm();
+
+   bq = darcy->GetFluxRHS();
+   bp = darcy->GetPotentialRHS();
+
+   MFEM_ASSERT(kappa.size() == (size_t)num_equations,
+               "Not the right number of coefficients");
+   ikappa.resize(num_equations);
+   for (int i = 0; i < num_equations; i++)
    {
-      Mn->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(*dtcoeff, td));
-      Mn->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(*dtcoeff, td),
-                               const_cast<Array<int>&>(bdr_u_is_ess));
+      ikappa[i] = std::make_unique<RatioCoefficient>(1., *kappa[i]);
    }
 
-   Mn->AddDomainIntegrator(new MassIntegrator(*idtcoeff));
+   // flux mass
+   {
+      std::vector<BilinearFormIntegrator*> bfis(num_equations);
+      if (dg)
+      {
+         for (int i = 0; i < num_equations; i++)
+         {
+            bfis[i] = new VectorMassIntegrator(*ikappa[i]);
+         }
+      }
+      else
+      {
+         for (int i = 0; i < num_equations; i++)
+         {
+            bfis[i] = new VectorFEMassIntegrator(*ikappa[i]);
+         }
+      }
+      Mq->AddDomainIntegrator(new VectorBlockDiagonalIntegrator(bfis));
+   }
+
+   // flux divergence
+   if (dg)
+   {
+      Dq->AddDomainIntegrator(new VectorBlockDiagonalIntegrator(num_equations,
+                                                                new VectorDivergenceIntegrator()));
+   }
+   else
+   {
+      Dq->AddDomainIntegrator(new VectorBlockDiagonalIntegrator(num_equations,
+                                                                new VectorFEDivergenceIntegrator()));
+   }
+
+   if (dg || brt)
+   {
+      Dq->AddInteriorFaceIntegrator(new VectorBlockDiagonalIntegrator(
+                                       num_equations, new TransposeIntegrator(new DGNormalTraceIntegrator(-1.))));
+   }
+
+   // linear diffusion stabilization
+   if (dg && td > 0.)
+   {
+      std::vector<BilinearFormIntegrator*> bfis(num_equations);
+      for (int i = 0; i < num_equations; i++)
+      {
+         bfis[i] = new HDGDiffusionIntegrator(*kappa[i], td);
+      }
+      Mpnl->AddInteriorFaceIntegrator(new VectorBlockDiagonalIntegrator(bfis));
+   }
+
+   // potential mass term
+   idtcoeff = std::make_unique<FunctionCoefficient>([&](const Vector &) { return idt; });
+   Mpnl->AddDomainIntegrator(new VectorBlockDiagonalIntegrator(num_equations,
+                                                               new MassIntegrator(*idtcoeff)));
+
+   Mpdt = new BilinearForm(p_space);
+   Mpdt->AddDomainIntegrator(new VectorBlockDiagonalIntegrator(num_equations,
+                                                               new MassIntegrator()));
+   Mpdt->Assemble();
+   Mpdt->Finalize();
+
+   // nonlinear convection
+   flux = std::make_unique<IsothermalFlux>(dim);
+   numericalFlux = std::make_unique<RusanovFlux>(*flux);
+   Mpnl->AddDomainIntegrator(new HyperbolicFormIntegrator(*numericalFlux, 0, -1));
+   Mpnl->AddInteriorFaceIntegrator(new HyperbolicFormIntegrator(*numericalFlux, 0,
+                                                                -1));
+   for (int b = 0; b < nbdrs; b++)
+   {
+      if (!bdr_is_dirichlet_plasma[b].Size()) { continue; }
+      Mpnl->AddBdrFaceIntegrator(new BdrHyperbolicDirichletIntegrator(
+                                    *numericalFlux, *bdr_coeffs_plasma[b], 0, -1.),
+                                 bdr_is_dirichlet_plasma[b]);
+   }
+
+   //dirichlet BC
+   for (int b = 0; b < nbdrs; b++)
+   {
+      if (!bdr_is_dirichlet_plasma[b].Size()) { continue; }
+      if (dg)
+      {
+         bq->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(
+                                     *bdr_gcoeffs_plasma[b]), bdr_is_dirichlet_plasma[b]);
+      }
+      else if (brt)
+      {
+         bq->AddBdrFaceIntegrator(new VectorFEBoundaryFluxLFIntegrator(
+                                     *bdr_gcoeffs_plasma[b]), bdr_is_dirichlet_plasma[b]);
+      }
+      else
+      {
+         bq->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(
+                                      *bdr_gcoeffs_plasma[b]), bdr_is_dirichlet_plasma[b]);
+      }
+
+   }
+
+   //set hybridization
 
    if (tr_space)
    {
       darcy->EnableHybridization(tr_space,
-                                 new NormalTraceJumpIntegrator(),
-                                 ess_u_tdofs_list);
+                                 new VectorBlockDiagonalIntegrator(
+                                    num_equations, new NormalTraceJumpIntegrator()),
+                                 ess_q_tdofs_list);
    }
+
+   darcy->Assemble();
 
    //Maxwell
 
+   //bcs
+   MFEM_ASSERT(bcs_maxwell.size() == (size_t)nbdrs, "Wrong number of BCs");
+   bdr_is_neumann_maxwell.resize(nbdrs);
+   bdr_coeffs_maxwell.resize(nbdrs);
+   Array<int> bdr_E_is_ess(nbdrs);
+   bdr_E_is_ess = 0;
+
+   for (int b = 0; b < nbdrs; b++)
+   {
+      switch (bcs_maxwell[b].first)
+      {
+         case BCType::Free:
+            bdr_E_is_ess[b] = -1;
+            break;
+         case BCType::Neumann:
+            bdr_is_neumann_maxwell[b].SetSize(nbdrs);
+            bdr_is_neumann_maxwell[b] = 0;
+            bdr_is_neumann_maxwell[b][b] = -1;
+            bdr_E_is_ess[b] = -1;
+            bdr_coeffs_maxwell[b] = bcs_maxwell[b].second;
+            break;
+         case BCType::Zero:
+            break;
+         default:
+            MFEM_ABORT("Not implemented");
+      }
+   }
    E_space->GetEssentialTrueDofs(bdr_E_is_ess, ess_E_tdofs_list);
 
+   //(bi)linear forms
    ME = new BilinearForm(E_space);
    ME->AddDomainIntegrator(new VectorFEMassIntegrator());
    CE = new MixedBilinearForm(E_space, B_space);
@@ -121,23 +252,23 @@ CoupledOperator::CoupledOperator(const Array<int> &bdr_u_is_ess,
 
 CoupledOperator::~CoupledOperator()
 {
+   delete Mpdt;
    delete ME;
    delete CE;
    delete CdE;
    delete darcy;
-   delete idtcoeff;
-   delete dtcoeff;
 }
 
-Array<int> CoupledOperator::ConstructOffsets(const FiniteElementSpace *u_space,
-                                             const FiniteElementSpace *n_space, const FiniteElementSpace *E_space,
-                                             const FiniteElementSpace *B_space, const FiniteElementSpace *trace_space)
+Array<int> CoupledOperator::ConstructOffsets(
+   const FiniteElementSpace *q_space, const FiniteElementSpace *p_space,
+   const FiniteElementSpace *E_space, const FiniteElementSpace *B_space,
+   const FiniteElementSpace *trace_space)
 {
    Array<int> offsets((trace_space)?(6):(5));
    int i = 0;
    offsets[i++] = 0;
-   offsets[i++] = u_space->GetVSize();
-   offsets[i++] = n_space->GetVSize();
+   offsets[i++] = q_space->GetVSize();
+   offsets[i++] = p_space->GetVSize();
    if (trace_space)
    {
       offsets[i++] = trace_space->GetVSize();
@@ -149,6 +280,16 @@ Array<int> CoupledOperator::ConstructOffsets(const FiniteElementSpace *u_space,
    return offsets;
 }
 
+void CoupledOperator::ProjectIC(BlockVector &x, VectorCoefficient &p) const
+{
+   GridFunction p_h(darcy->PotentialFESpace(), x.GetBlock(1), 0);
+   p_h.ProjectCoefficient(p); //initial condition
+   if (tr_space)
+   {
+      darcy->GetHybridization()->ProjectSolution(x, x.GetBlock(2));
+   }
+}
+
 void CoupledOperator::ImplicitSolve(const double dt, const Vector &x, Vector &y)
 {
    const bool time_track = false;
@@ -156,21 +297,21 @@ void CoupledOperator::ImplicitSolve(const double dt, const Vector &x, Vector &y)
    BlockVector bx(const_cast<Vector&>(x), offsets);
    BlockVector by(y, offsets);
 
-   int i = 0;
-   const Vector &un = bx.GetBlock(i++);
-   const Vector &nn = bx.GetBlock(i++);
+   int i = 1;
+   //const Vector &qn = bx.GetBlock(i++);
+   const Vector &pn = bx.GetBlock(i++);
    if (tr_space) { i++; }
    const Vector &En = bx.GetBlock(i++);
    const Vector &Bn = bx.GetBlock(i++);
 
    i = 2;
-   //Vector &u = by.GetBlock(i++);
-   //Vector &n = by.GetBlock(i++);
+   //Vector &q = by.GetBlock(i++);
+   //Vector &p = by.GetBlock(i++);
    if (tr_space) { i++; }
    Vector &E = by.GetBlock(i++);
    Vector &B = by.GetBlock(i++);
 
-   //offsets
+   //reduced offsets
 
    Array<int> X_offsets(3);
    X_offsets[0] = 0;
@@ -193,16 +334,19 @@ void CoupledOperator::ImplicitSolve(const double dt, const Vector &x, Vector &y)
 
    //plasma
 
-   LinearForm *g = lfs[0];
-   LinearForm *f = lfs[1];
-   LinearForm *h = lfs[2];
-
    //set time
 
-   for (Coefficient *coeff : coeffs)
+   for (int b = 0; b < (int)bdr_coeffs_plasma.size(); b++)
    {
-      coeff->SetTime(t);
+      if (bdr_coeffs_plasma[b]) { bdr_coeffs_plasma[b]->SetTime(t); }
    }
+
+   for (int b = 0; b < (int)bdr_coeffs_maxwell.size(); b++)
+   {
+      if (bdr_coeffs_maxwell[b]) { bdr_coeffs_maxwell[b]->SetTime(t); }
+   }
+
+   idt = 1./dt;
 
    //assemble rhs
 
@@ -213,90 +357,38 @@ void CoupledOperator::ImplicitSolve(const double dt, const Vector &x, Vector &y)
       chrono.Start();
    }
 
-   g->Assemble();
-   f->Assemble();
-   if (h) { h->Assemble(); }
+   bq->Assemble();
 
-   //check if the operator has to be reassembled
-
-   bool reassemble = (idt != 1./dt);
-
-   if (reassemble)
-   {
-      idt = 1./dt;
-
-      //reset the operator
-
-      darcy->Update();
-
-      //assemble the system
-      darcy->Assemble();
-
-      if (Mu && tr_space)
-      {
-         Mu->Update();
-         Mu->Assemble();
-         //Mq0->Finalize();
-      }
-      if (Mn && tr_space)
-      {
-         Mn->Update();
-         Mn->Assemble();
-         //Mt0->Finalize();
-      }
-   }
-
-   if (Mu)
-   {
-      GridFunction u_h;
-      u_h.MakeRef(darcy->FluxFESpace(), const_cast<Vector&>(un), 0);
-      Mu->AddMult(u_h, *g, +1.);
-   }
-
-   if (Mn)
+   if (Mpdt)
    {
       GridFunction p_h;
-      p_h.MakeRef(darcy->PotentialFESpace(), const_cast<Vector&>(nn), 0);
-      Mn->AddMult(p_h, *f, -1.);
+      p_h.MakeRef(darcy->PotentialFESpace(), const_cast<Vector&>(pn), 0);
+      Mpdt->Mult(p_h, *bp);
+      *bp *= -idt;
    }
 
    //form the reduced system
 
    OperatorHandle op_pl;
    BlockVector darcy_x(const_cast<Vector&>(x), darcy->GetOffsets());
-   BlockVector darcy_rhs(g->GetData(), darcy->GetOffsets());
-   BlockVector X_pl;
-   BlockVector RHS_pl;
-   Array<int> tr_offsets(2);
+   Vector X_pl;
+   Vector RHS_pl;
 
    if (tr_space)
    {
-      tr_offsets[0] = 0;
-      tr_offsets[1] = tr_space->GetVSize();
-      X_pl.Update(X, tr_offsets);
-      RHS_pl.Update(RHS, tr_offsets);
-      if (h)
-      {
-         RHS_pl.Vector::operator=(*h);
-      }
-      else
-      {
-         RHS_pl = 0.;
-      }
-      darcy->FormLinearSystem(ess_u_tdofs_list, darcy_x, darcy_rhs,
-                              op_pl, X_pl, RHS_pl);
+      const Vector darcy_tr(const_cast<Vector&>(bx.GetBlock(2)), 0,
+                            bx.GetBlock(2).Size());
+      X_pl.SetSize(darcy_tr.Size());
+      X_pl = darcy_tr;
    }
-   else
-   {
-      X_pl.Update(X, darcy->GetOffsets());
-      RHS_pl.Update(RHS, darcy->GetOffsets());
-      X_pl = darcy_x;
-      RHS_pl = darcy_rhs;
-      BlockVector darcy_x_tmp(X_pl, darcy->GetOffsets());
-      BlockVector darcy_rhs_tmp(RHS_pl, darcy->GetOffsets());
-      darcy->FormLinearSystem(ess_u_tdofs_list, darcy_x_tmp, darcy_rhs_tmp,
-                              op_pl, X_pl, RHS_pl);
-   }
+
+   darcy->FormLinearSystem(ess_q_tdofs_list, darcy_x,
+                           op_pl, X_pl, RHS_pl, true);
+
+   X.GetBlock(0) = X_pl;
+   RHS.GetBlock(0) = RHS_pl;
+   X_pl.MakeRef(X.GetBlock(0), 0);
+   RHS_pl.MakeRef(RHS.GetBlock(0), 0);
 
    if (time_track)
    {
@@ -304,17 +396,20 @@ void CoupledOperator::ImplicitSolve(const double dt, const Vector &x, Vector &y)
       std::cout << "Assembly took " << chrono.RealTime() << "s.\n";
    }
 
+   //SparseMatrix sp_grad;
    if (tr_space)
    {
-      bprec.SetDiagonalBlock(0, new DSmoother(*op_pl.As<SparseMatrix>()));
+      //sp_grad = static_cast<SparseMatrix&>(op_pl->GetGradient(X_pl));
+      //bprec.SetDiagonalBlock(0, new GSSmoother(sp_grad));
+      //bprec.SetDiagonalBlock(0, new DSmoother(*op_pl.As<SparseMatrix>()));
    }
    else
    {
       BlockDiagonalPreconditioner *darcy_prec = new BlockDiagonalPreconditioner(
          darcy->GetOffsets());
       darcy_prec->owns_blocks = true;;
-      darcy_prec->SetDiagonalBlock(0, new GSSmoother(Mu->SpMat()));
-      darcy_prec->SetDiagonalBlock(1, new DSmoother(Mn->SpMat()));
+      darcy_prec->SetDiagonalBlock(0, new GSSmoother(Mq->SpMat()));
+      darcy_prec->SetDiagonalBlock(1, new DSmoother(Mpdt->SpMat(), 0, idt));
       bprec.SetDiagonalBlock(0, darcy_prec);
    }
 
@@ -339,37 +434,32 @@ void CoupledOperator::ImplicitSolve(const double dt, const Vector &x, Vector &y)
    //(M + dt2*c2/2*Ct*C)E = MEn + dt*c2CtBn - dt2*c2/2*CtCEn
    //-1/dt B - CE = 0
 
-   //ME->EliminateVDofsInRHS(ess_tdof_list, En, rhs);
-
    ConstrainedOperator op_max(&MECtCd, ess_E_tdofs_list);
-
-   //op_max.EliminateRHS(En, RHS_max);
 
    bprec.SetDiagonalBlock(1, new DSmoother(ME->SpMat()));
 
    //coupling
 
-   /*const Mesh *mesh = n_space->GetMesh();
-   const int NE = mesh->GetNE();
-   for (int el = 0; el < NE; el++)
-   {
 
-   }*/
-
-   ReducedOperator bop(sigma, darcy, E_space, *op_pl.Ptr(), op_max);
+   ReducedOperator bop(sigma, darcy, E_space, *op_pl, op_max);
    if (tr_space)
    {
       Array<int> ess_tr_tdofs_list;//dummy
       bop.SetEssentialTDOFs(ess_tr_tdofs_list, ess_E_tdofs_list);
-      bop.SetDarcyRHS(darcy_rhs);
    }
    else
    {
-      bop.SetEssentialTDOFs(ess_u_tdofs_list, ess_E_tdofs_list);
+      bop.SetEssentialTDOFs(ess_q_tdofs_list, ess_E_tdofs_list);
    }
    bop.EliminateRHS(X, RHS);
 
    //solve
+
+   if (tr_space)
+   {
+      //darcy->GetHybridization()->SetLocalNLSolver(
+      //   DarcyHybridization::LSsolveType::Newton);
+   }
 
    GMRESSolver solver;
    solver.SetMaxIter(1000);
@@ -421,7 +511,7 @@ void CoupledOperator::ImplicitSolve(const double dt, const Vector &x, Vector &y)
 
    if (tr_space)
    {
-      darcy->RecoverFEMSolution(X_pl, darcy_rhs, darcy_y);
+      darcy->RecoverFEMSolution(X_pl, darcy_y);
       Vector &darcy_tr = by.GetBlock(2);
       darcy_tr = X_pl;
       darcy_tr -= bx.GetBlock(2);
@@ -429,8 +519,9 @@ void CoupledOperator::ImplicitSolve(const double dt, const Vector &x, Vector &y)
    }
    else
    {
-      darcy->RecoverFEMSolution(X_pl, RHS_pl, X_pl);
-      darcy_y = X_pl;
+      BlockVector bX_pl(X_pl, darcy->GetOffsets());
+      darcy->RecoverFEMSolution(X_pl, bX_pl);
+      darcy_y = bX_pl;
    }
 
    darcy_y -= darcy_x;
@@ -446,14 +537,15 @@ void CoupledOperator::ImplicitSolve(const double dt, const Vector &x, Vector &y)
    //B *= -1./2.;
    B.Neg();
 }
-CoupledOperator::ReducedOperator::ReducedOperator(Coefficient *sigma_,
-                                                  DarcyForm *darcy_, FiniteElementSpace *fes_E_, Operator &pl, Operator &max)
-   : sigma(sigma_), darcy(darcy_), fes_E(fes_E_)
+CoupledOperator::ReducedOperator::ReducedOperator(
+   Coefficient *sigma_, DarcyForm *darcy_, FiniteElementSpace *fes_E_,
+   Operator &pl_, Operator &max_)
+   : sigma(sigma_), darcy(darcy_), fes_E(fes_E_), op_pl(pl_), op_max(max_)
 {
    offsets.SetSize(3);
    offsets[0] = 0;
-   offsets[1] = pl.Width();
-   offsets[2] = max.Width();
+   offsets[1] = op_pl.Width();
+   offsets[2] = op_max.Width();
    offsets.PartialSum();
 
    width = height = offsets.Last();
@@ -461,6 +553,8 @@ CoupledOperator::ReducedOperator::ReducedOperator(Coefficient *sigma_,
    if (darcy->GetHybridization())
    {
       offsets_x = offsets;
+      darcy_bp = darcy->GetPotentialRHS();
+      darcy_bp_lin = *darcy_bp;
    }
    else
    {
@@ -473,8 +567,8 @@ CoupledOperator::ReducedOperator::ReducedOperator(Coefficient *sigma_,
    }
 
    BlockOperator *bop = new BlockOperator(offsets);
-   bop->SetDiagonalBlock(0, &pl);
-   bop->SetDiagonalBlock(1, &max);
+   bop->SetDiagonalBlock(0, &op_pl);
+   bop->SetDiagonalBlock(1, &op_max);
 
    op.Reset(bop);
 }
@@ -487,7 +581,7 @@ void CoupledOperator::ReducedOperator::SetEssentialTDOFs(
    const Array<int> &u_tdofs_list, const Array<int> &E_tdofs_list)
 {
    ess_tdofs_list.DeleteAll();
-   ess_tdofs_list.Append(u_tdofs_list);
+   //ess_tdofs_list.Append(u_tdofs_list);
    ess_tdofs_list.Append(E_tdofs_list);
    const int size = ess_tdofs_list.Size();
    for (int i = 0; i < E_tdofs_list.Size(); i++)
@@ -559,62 +653,58 @@ void CoupledOperator::ReducedOperator::MultUnconstrained(const Vector &x,
    if (hybr)
    {
       darcy_x.Update(darcy->GetOffsets());
-      darcy->GetHybridization()->ComputeSolution(*darcy_rhs, x, darcy_x);
-      darcy_rhs->Vector::operator=(darcy_rhs_lin);
+      darcy->RecoverFEMSolution(x, darcy_x);
+      *darcy_bp = darcy_bp_lin;
    }
 
-   const Vector &xn = ((hybr)?(darcy_x):(bx)).GetBlock(1);
+   const Vector &xp = ((hybr)?(darcy_x):(bx)).GetBlock(1);
+   const int dim = darcy->PotentialFESpace()->GetMesh()->Dimension();
+   const int vdim = darcy->PotentialFESpace()->GetVDim();
+   MFEM_ASSERT(vdim == dim+1, "Wrong number of dimensions");
+   const int size = darcy->PotentialFESpace()->GetNDofs();
+   const Vector xn(const_cast<Vector&>(xp), 0, size);
    const Vector &xE = bx.GetBlock((hybr)?(1):(2));
-   Vector &yu = ((hybr)?(*darcy_rhs):(by)).GetBlock(0);
+   Vector &yp = ((hybr)?(*darcy_bp):(by.GetBlock(1)));
    Vector &yE = by.GetBlock((hybr)?(1):(2));
 
    Mesh *mesh = fes_E->GetMesh();
-   FiniteElementSpace *fes_u = darcy->FluxFESpace();
-   FiniteElementSpace *fes_n = darcy->PotentialFESpace();
-   Array<int> vdofs_u, dofs_n, vdofs_E;
-   DenseMatrix vshape_u, vshape_E;
-   Vector shape_u, shape_E, shape_n, n_z, E_z, E, bu_z, bE_z;
+   FiniteElementSpace *fes_p = darcy->PotentialFESpace();
+   Array<int> vdofs_u, dofs_p, vdofs_E;
+   DenseMatrix vshape_E;
+   Vector shape_E, shape_p, n_z, E_z, E, bu_z, bE_z;
 
    for (int z = 0; z < mesh->GetNE(); z++)
    {
       ElementTransformation *Tr = mesh->GetElementTransformation(z);
-      const FiniteElement *fe_u = fes_u->GetFE(z);
-      const FiniteElement *fe_n = fes_n->GetFE(z);
+      const FiniteElement *fe_p = fes_p->GetFE(z);
       const FiniteElement *fe_E = fes_E->GetFE(z);
       const int sdim = Tr->GetSpaceDim();
-      const int ndof_u = fe_u->GetDof();
-      const int ndof_n = fe_n->GetDof();
+      const int ndof_p = fe_p->GetDof();
 
-      fes_u->GetElementVDofs(z, vdofs_u);
-      fes_n->GetElementDofs(z, dofs_n);
+      fes_p->GetElementDofs(z, dofs_p);
       fes_E->GetElementVDofs(z, vdofs_E);
 
-      if (fe_u->GetRangeType() == FiniteElement::VECTOR)
-      {
-         vshape_u.SetSize(vdofs_u.Size(), sdim);
-      }
-      shape_u.SetSize(ndof_u);
-      shape_n.SetSize(ndof_n);
+      shape_p.SetSize(ndof_p);
       vshape_E.SetSize(vdofs_E.Size(), sdim);
       shape_E.SetSize(vdofs_E.Size());
       E.SetSize(sdim);
 
-      bu_z.SetSize(vdofs_u.Size());
+      bu_z.SetSize(dofs_p.Size() * dim);
       bE_z.SetSize(vdofs_E.Size());
       bu_z = 0.;
       bE_z = 0.;
 
-      xn.GetSubVector(dofs_n, n_z);
+      xn.GetSubVector(dofs_p, n_z);
       xE.GetSubVector(vdofs_E, E_z);
 
-      const int order = std::max(fe_E->GetOrder(), fe_n->GetOrder()) * 2 + 1;
-      const IntegrationRule &ir = IntRules.Get(fe_n->GetGeomType(), order);
+      const int order = std::max(fe_E->GetOrder(), fe_p->GetOrder()) * 2 + 1;
+      const IntegrationRule &ir = IntRules.Get(fe_p->GetGeomType(), order);
       for (int q = 0; q < ir.GetNPoints(); q++)
       {
          const IntegrationPoint &ip = ir.IntPoint(q);
          Tr->SetIntPoint(&ip);
-         fe_n->CalcShape(ip, shape_n);
-         const real_t n = n_z * shape_n;
+         fe_p->CalcShape(ip, shape_p);
+         const real_t n = n_z * shape_p;
 
          fe_E->CalcVShape(*Tr, vshape_E);
          vshape_E.MultTranspose(E_z, E);
@@ -622,48 +712,65 @@ void CoupledOperator::ReducedOperator::MultUnconstrained(const Vector &x,
          real_t w = n * Tr->Weight();
          if (sigma) { w *= sigma->Eval(*Tr, ip); }
 
-         if (fe_u->GetRangeType() == FiniteElement::VECTOR)
-         {
-            fe_u->CalcVShape(*Tr, vshape_u);
-            vshape_u.Mult(E, shape_u);
-            bu_z.Add(w, shape_u);
-         }
-         else
-         {
-            fe_u->CalcShape(ip, shape_u);
-            for (int d = 0; d < sdim; d++)
-               for (int i = 0; i < ndof_u; i++)
-               {
-                  bu_z(i+d*ndof_u) += w * E(d) * shape_u(i);
-               }
-         }
+         for (int d = 0; d < sdim; d++)
+            for (int i = 0; i < ndof_p; i++)
+            {
+               bu_z(i+d*ndof_p) += w * E(d) * shape_p(i);
+            }
          vshape_E.Mult(E, shape_E);
          bE_z.Add(w, shape_E);
       }
 
       if (hybr) { bu_z.Neg(); }
 
-      yu.AddElementVector(vdofs_u, bu_z);
+      for (int d = 0; d < dim; d++)
+      {
+         vdofs_u = dofs_p;
+         fes_p->DofsToVDofs(d+1, vdofs_u);
+         const Vector bu_zd(bu_z, d*ndof_p, ndof_p);
+         yp.AddElementVector(vdofs_u, bu_zd);
+      }
       yE.AddElementVector(vdofs_E, bE_z);
    }
 
    if (hybr)
    {
       BlockVector darcy_Xrhs(darcy->GetOffsets());
-      add(darcy_rhs_lin, -1., *darcy_rhs, darcy_Xrhs);
+      darcy_Xrhs.GetBlock(0) = *darcy->GetFluxRHS();
+      add(darcy_bp_lin, -1., *darcy_bp, darcy_Xrhs.GetBlock(1));
       darcy->GetHybridization()->ReduceRHS(darcy_Xrhs, by.GetBlock(0));
    }
 }
 
 Operator &CoupledOperator::ReducedOperator::GetGradient(const Vector &x) const
 {
-   if (darcy->GetHybridization())
-   {
-      //TODO: coupling terms
-      return const_cast<Operator&>(*op);
-   }
 
-   grad.Clear();
+   const bool hybr = darcy->GetHybridization() != NULL;
+
+   const BlockVector bx(const_cast<Vector&>(x), offsets_x);
+
+   BlockOperator *bgrad = new BlockOperator(offsets);
+   if (hybr)
+   {
+      bgrad->SetBlock(0, 0, &op_pl.GetGradient(bx.GetBlock(0)));
+   }
+   else
+   {
+      const BlockVector darcy_x(const_cast<Vector&>(x), darcy->GetOffsets());
+      bgrad->SetBlock(0, 0, &op_pl.GetGradient(darcy_x));
+   }
+   bgrad->SetBlock(1, 1, &op_max);
+   grad.Reset(bgrad);
+   return *grad;
+
+   //if (darcy->GetHybridization())
+   /*{
+      //TODO: coupling terms
+      //return const_cast<Operator&>(*op);
+      return op->GetGradient(x);
+   }*/
+
+   /*grad.Clear();
 
    FiniteElementSpace *fes_u = darcy->FluxFESpace();
    FiniteElementSpace *fes_n = darcy->PotentialFESpace();
@@ -791,7 +898,7 @@ Operator &CoupledOperator::ReducedOperator::GetGradient(const Vector &x) const
       grad.Reset(new ConstrainedOperator(grad.Ptr(), ess_tdofs_list));
    }
 
-   return *grad;
+   return *grad;*/
 }
 } // namespace plasma
 } // namespace mfem
