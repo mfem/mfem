@@ -15,16 +15,17 @@
 #   - GLVIS_INCLUDE_DIRS
 
 if (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS)
-    message(STATUS "[🔵 GLVis 🔵] Fetch/ExternalProject")
+    message(STATUS "GLVis: Fetch/ExternalProject")
 
-    get_directory_property(COMPILE_DEFINITIONS COMPILE_DEFINITIONS)
     get_directory_property(COMPILE_OPTS COMPILE_OPTIONS)
-    get_directory_property(LINK_OPTS LINK_OPTIONS)
+    string(REPLACE ";" " " COMPILE_CXX_FLAGS "${COMPILE_OPTS}")
 
-    string(REPLACE ";" " " COMPILE_OPTS_STR "${COMPILE_OPTS}")
-    string(REPLACE "\"" "\\\"" COMPILE_DEFS_QUOTED_STR "${COMPILE_DEFINITIONS}")
-    string(REPLACE ";" " -D" COMPILE_DEFS_STR "-D${COMPILE_DEFS_QUOTED_STR}")
-    string(JOIN " " COMPILE_CXX_FLAGS ${COMPILE_OPTS_STR} ${COMPILE_DEFS_STR})
+    # get_directory_property(COMPILE_DEFINITIONS COMPILE_DEFINITIONS)
+    # string(REPLACE "\"" "\\\"" COMPILE_DEFS_QUOTED_STR "${COMPILE_DEFINITIONS}")
+    # string(REPLACE ";" " -D" COMPILE_DEFS_STR "-D${COMPILE_DEFS_QUOTED_STR}")
+    # string(JOIN " " COMPILE_CXX_FLAGS ${COMPILE_OPTS_STR} ${COMPILE_DEFS_STR})
+
+    cmake_host_system_information(RESULT NCPU QUERY NUMBER_OF_LOGICAL_CORES)
 
     add_library(GLVIS STATIC IMPORTED)
 
@@ -44,15 +45,16 @@ if (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS)
         BINARY_DIR ${FETCH_GLVIS}/build
         DEPENDS mfem
         CMAKE_ARGS
-            -DCMAKE_VERBOSE_MAKEFILE=ON
+            # -DCMAKE_VERBOSE_MAKEFILE=ON
             -DMFEM_DIR=${CMAKE_CURRENT_BINARY_DIR}
             -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
             -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
             -DCMAKE_CXX_FLAGS:STRING=${COMPILE_CXX_FLAGS}
-        BUILD_COMMAND
-            ${CMAKE_COMMAND} --build ${FETCH_GLVIS}/build
-                            --config $<CONFIG>
-                            --target libglvis.a glvis_logo
+        BUILD_COMMAND ${CMAKE_COMMAND}
+            --build ${FETCH_GLVIS}/build
+            --config $<CONFIG>
+            --target glvis glvis_logo
+            --parallel ${NCPU}
         BUILD_BYPRODUCTS 
             ${FETCH_GLVIS}/build/lib/libglvis.a
             ${FETCH_GLVIS}/build/share/libglvis_logo.a
