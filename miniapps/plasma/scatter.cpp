@@ -463,7 +463,8 @@ int main(int argc, char *argv[])
 
    CoupledOperator op(kcoeffs, &sigcoeff,
                       std::move(bc_plasma), std::move(bc_maxwell),
-                      V_space, W_space, E_space, B_space, trace_space, td);
+                      V_space, W_space, E_space, B_space, trace_space,
+                      params.c, td);
 
    // 9. Allocate memory (x, rhs) for the analytical solution and the right hand
    //    side.  Define the GridFunction q,t for the finite element solution and

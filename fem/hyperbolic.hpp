@@ -1102,6 +1102,8 @@ public:
 class IsothermalFlux : public FluxFunction
 {
 private:
+   const real_t sound_speed; // speed of sound
+
    static void CalcAvgFlux(real_t den1, real_t den2, const Vector &mom1,
                            const Vector &mom2, real_t vel1, real_t vel2, Vector &flux);
 
@@ -1114,8 +1116,8 @@ public:
     *
     * @param dim spatial dimension
     */
-   IsothermalFlux(const int dim)
-      : FluxFunction(dim + 1, dim) {}
+   IsothermalFlux(const int dim, const real_t sound_speed_)
+      : FluxFunction(dim + 1, dim), sound_speed(sound_speed_) {}
 
    /**
     * @brief Compute F(ρ, ρu)

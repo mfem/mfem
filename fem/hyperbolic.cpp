@@ -1878,6 +1878,8 @@ real_t ShallowWaterFlux::ComputeFluxDotN(const Vector &U,
    return vel + sound;
 }
 
+#define HYPERBOLIC_ISOTHERMAL_FLUX_DYNAMIC_PRESSURE
+
 real_t IsothermalFlux::ComputeFlux(const Vector &U,
                                    ElementTransformation &Tr,
                                    DenseMatrix &FU) const
@@ -1885,6 +1887,9 @@ real_t IsothermalFlux::ComputeFlux(const Vector &U,
    // 1. Get states
    const real_t density = U(0);                  // ρ
    const Vector momentum(U.GetData() + 1, dim);  // ρu
+
+   // pressure, p = cs²ρ
+   const real_t pressure = sound_speed*sound_speed * density;
 
    // Check whether the solution is physical only in debug mode
    MFEM_ASSERT(density >= 0, "Negative Density");
@@ -1903,16 +1908,22 @@ real_t IsothermalFlux::ComputeFlux(const Vector &U,
       for (int i = 0; i < dim; i++)
       {
          // ρuuᵀ
+#ifdef HYPERBOLIC_ISOTHERMAL_FLUX_DYNAMIC_PRESSURE
          FU(1 + i, d) = momentum(i) * momentum(d) / density;
+#else // HYPERBOLIC_ISOTHERMAL_FLUX_DYNAMIC_PRESSURE
+         FU(1 + i, d) = 0.;
+#endif // HYPERBOLIC_ISOTHERMAL_FLUX_DYNAMIC_PRESSURE
       }
+      // ρuuᵀ + p
+      FU(1 + d, d) += pressure;
    }
 
    // 3. Compute maximum characteristic speed
 
    // fluid speed |u|
    const real_t speed = momentum.Norml2() / density;
-   // max characteristic speed = fluid speed
-   return speed;
+   // max characteristic speed = fluid speed + sound speed
+   return speed + sound_speed;
 }
 
 
@@ -1924,6 +1935,9 @@ real_t IsothermalFlux::ComputeFluxDotN(const Vector &x,
    // 1. Get states
    const real_t density = x(0);                  // ρ
    const Vector momentum(x.GetData() + 1, dim);  // ρu
+
+   // pressure, p = cs²ρ
+   const real_t pressure = sound_speed*sound_speed * density;
 
    // Check whether the solution is physical only in debug mode
    MFEM_ASSERT(density >= 0, "Negative Density");
@@ -1942,16 +1956,20 @@ real_t IsothermalFlux::ComputeFluxDotN(const Vector &x,
    const real_t normal_velocity = FUdotN(0) / density;
    for (int d = 0; d < dim; d++)
    {
-      // (ρuuᵀ)n = ρu*(u⋅n)
-      FUdotN(1 + d) = normal_velocity * momentum(d);
+      // (ρuuᵀ + pI)n = ρu*(u⋅n) + pn
+#ifdef HYPERBOLIC_ISOTHERMAL_FLUX_DYNAMIC_PRESSURE
+      FUdotN(1 + d) = normal_velocity * momentum(d) + pressure * normal(d);
+#else // HYPERBOLIC_ISOTHERMAL_FLUX_DYNAMIC_PRESSURE
+      FUdotN(1 + d) = pressure * normal(d);
+#endif // HYPERBOLIC_ISOTHERMAL_FLUX_DYNAMIC_PRESSURE
    }
 
    // 3. Compute maximum characteristic speed
 
    // fluid speed |u|
    const real_t speed = std::fabs(normal_velocity) / std::sqrt(normal*normal);
-   // max characteristic speed = fluid speed
-   return speed;
+   // max characteristic speed = fluid speed + sound speed
+   return speed + sound_speed;
 }
 
 void IsothermalFlux::CalcAvgFlux(real_t density1, real_t density2,
@@ -2016,7 +2034,9 @@ real_t IsothermalFlux::ComputeAvgFlux(const Vector &U1, const Vector &U2,
    }
 
    // density
-   const real_t density = 0.5 * (density1 + density2);
+
+   // pressure, p = cs²ρ
+   const real_t pressure = sound_speed*sound_speed * density;
 
    // 2. Compute Flux
    for (int d = 0; d < dim; d++)
@@ -2027,10 +2047,16 @@ real_t IsothermalFlux::ComputeAvgFlux(const Vector &U1, const Vector &U2,
 
       // ρuuᵀ
       Vector FAvgU_mom(FAvgU.GetData() + 1 + d*(2+dim), dim);
+#ifdef HYPERBOLIC_ISOTHERMAL_FLUX_DYNAMIC_PRESSURE
       const real_t vel1_d = mom1_d / density;
       const real_t vel2_d = mom2_d / density;
       CalcAvgFlux(density1, density2, momentum1, momentum2, vel1_d, vel2_d,
                   FAvgU_mom);
+#else // HYPERBOLIC_ISOTHERMAL_FLUX_DYNAMIC_PRESSURE
+      FAvgU_mom = 0.;
+#endif // HYPERBOLIC_ISOTHERMAL_FLUX_DYNAMIC_PRESSURE
+      // (ρuuᵀ) + p
+      FAvgU(1 + d, d) += pressure;
    }
 
    // 3. Compute maximum characteristic speed
@@ -2038,8 +2064,8 @@ real_t IsothermalFlux::ComputeAvgFlux(const Vector &U1, const Vector &U2,
    // fluid speed |u|
    const real_t speed = std::max(momentum1.Norml2() / density1,
                                  momentum2.Norml2() / density2);
-   // max characteristic speed = fluid speed
-   return speed;
+   // max characteristic speed = fluid speed + sound speed
+   return speed + sound_speed;
 }
 
 real_t IsothermalFlux::ComputeAvgFluxDotN(const Vector &U1, const Vector &U2,
@@ -2066,7 +2092,9 @@ real_t IsothermalFlux::ComputeAvgFluxDotN(const Vector &U1, const Vector &U2,
    }
 
    // density
-   const real_t density = 0.5 * (density1 + density2);
+
+   // pressure, p = cs²ρ
+   const real_t pressure = sound_speed*sound_speed * density;
 
    // 2. Compute normal flux
 
@@ -2074,18 +2102,23 @@ real_t IsothermalFlux::ComputeAvgFluxDotN(const Vector &U1, const Vector &U2,
 
    // ρuu⋅n + pn
    Vector FAvgUDotN_mom(FAvgUDotN, 1, dim);
+#ifdef HYPERBOLIC_ISOTHERMAL_FLUX_DYNAMIC_PRESSURE
    const real_t nvel1 = momentum1 * normal / density;
    const real_t nvel2 = momentum2 * normal / density;
    CalcAvgFlux(density1, density2, momentum1, momentum2, nvel1, nvel2,
                FAvgUDotN_mom);
+#else // HYPERBOLIC_ISOTHERMAL_FLUX_DYNAMIC_PRESSURE
+   FAvgUDotN_mom = 0.;
+#endif // HYPERBOLIC_ISOTHERMAL_FLUX_DYNAMIC_PRESSURE
+   FAvgUDotN_mom.Add(pressure, normal);
 
    // 3. Compute maximum characteristic speed
 
    // fluid speed |u|
    const real_t speed = std::max(momentum1 * normal / density1,
                                  momentum2 * normal / density2);
-   // max characteristic speed = fluid speed
-   return speed;
+   // max characteristic speed = fluid speed + sound speed
+   return speed + sound_speed;
 }
 
 void IsothermalFlux::ComputeFluxJacobian(const Vector &U,
@@ -2110,10 +2143,11 @@ void IsothermalFlux::ComputeFluxJacobian(const Vector &U,
    JU = 0.;
    for (int d = 0; d < dim; d++)
    {
-      const real_t velocity_d = momentum(d) / density;
       // ρu
       JU(0, 1 + d, d) = 1.;
       // ρuuᵀ
+#ifdef HYPERBOLIC_ISOTHERMAL_FLUX_DYNAMIC_PRESSURE
+      const real_t velocity_d = momentum(d) / density;
       JU(1 + d, 1 + d, d) = 2. * velocity_d;
       for (int i = 0; i < dim; i++)
       {
@@ -2126,6 +2160,9 @@ void IsothermalFlux::ComputeFluxJacobian(const Vector &U,
             JU(1 + i, 1 + d, d) = velocity_i;
          }
       }
+#endif // HYPERBOLIC_ISOTHERMAL_FLUX_DYNAMIC_PRESSURE
+      // (ρuuᵀ) + p
+      JU(1 + d, 0, d) += sound_speed*sound_speed;
    }
 }
 

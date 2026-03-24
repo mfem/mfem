@@ -22,7 +22,7 @@ CoupledOperator::CoupledOperator(std::vector<Coefficient*> kappa_,
                                  std::vector<std::pair<BCType,VectorCoefficient*>> bcs_maxwell,
                                  FiniteElementSpace *q_space_, FiniteElementSpace *p_space_,
                                  FiniteElementSpace *E_space_, FiniteElementSpace *B_space_,
-                                 FiniteElementSpace *tr_space_, real_t td)
+                                 FiniteElementSpace *tr_space_, real_t cs, real_t td)
    : TimeDependentOperator(0, IMPLICIT), kappa(kappa_), sigma(sigma_),
      q_space(q_space_), p_space(p_space_),
      E_space(E_space_), B_space(B_space_), tr_space(tr_space_)
@@ -154,7 +154,7 @@ CoupledOperator::CoupledOperator(std::vector<Coefficient*> kappa_,
    Mpdt->Finalize();
 
    // nonlinear convection
-   flux = std::make_unique<IsothermalFlux>(dim);
+   flux = std::make_unique<IsothermalFlux>(dim, cs);
    numericalFlux = std::make_unique<RusanovFlux>(*flux);
    Mpnl->AddDomainIntegrator(new HyperbolicFormIntegrator(*numericalFlux, 0, -1));
    Mpnl->AddInteriorFaceIntegrator(new HyperbolicFormIntegrator(*numericalFlux, 0,

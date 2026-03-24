@@ -88,7 +88,8 @@ public:
                    std::vector<std::pair<BCType,VectorCoefficient*>> bcs_maxwell,
                    FiniteElementSpace *q_space, FiniteElementSpace *p_space,
                    FiniteElementSpace *E_space, FiniteElementSpace *B_space,
-                   FiniteElementSpace *tr_space = NULL, real_t td = 0.5);
+                   FiniteElementSpace *tr_space = NULL, real_t cs = 1.,
+                   real_t td = 0.5);
    ~CoupledOperator();
 
    static Array<int> ConstructOffsets(
