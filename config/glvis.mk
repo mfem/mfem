@@ -1,4 +1,4 @@
-# GLVis library - From GLVis makefile
+# GLVis library - Adapted from GLVis' makefile
 
 # Macro that searches for a file in a list of directories returning the first
 # directory that contains the file.
@@ -66,7 +66,7 @@ GL_LIBS ?= $(if $(FREETYPE_LIB_DIR),-L$(FREETYPE_LIB_DIR)) \
  $(if $(NOTMAC),$(if $(OPENGL_LIB_DIR),-L$(OPENGL_LIB_DIR) \
    $(rpath)$(OPENGL_LIB_DIR))) \
  $(if $(GLEW_LIB_DIR),-L$(GLEW_LIB_DIR) $(rpath)$(GLEW_LIB_DIR)) \
- $(FREETYPE_LIBS) $(SDL_LIBS) $(GLEW_LIBS) $(OPENGL_LIBS)
+ $(FREETYPE_LIBS) $(SDL_LIBS) $(GLEW_LIBS)
 
 GLVIS_FLAGS += $(GL_OPTS)
 GLVIS_LIBS  += $(GL_LIBS)
@@ -105,5 +105,12 @@ ifeq ($(GLVIS_USE_CGL),YES)
 endif
 
 PTHREAD_LIB = -lpthread
+
 GLVIS_LIBS += $(PTHREAD_LIB)
-GLVIS_LIBS += -lmfem
+GLVIS_LIBS += $(if $(NOTMAC),-lmfem)
+GLVIS_LIBS := $(sort $(GLVIS_LIBS))
+GLVIS_LIBS += $(OPENGL_LIBS)
+
+GLVIS_DIR = @MFEM_DIR@/../glvis
+GLVIS_OPT = 
+GLVIS_LIB = -L$(GLVIS_DIR)/lib -lglvis $(GLVIS_LIBS)

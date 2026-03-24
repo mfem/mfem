@@ -641,11 +641,8 @@ endif
 ENZYME_OPT = -fplugin=$(ENZYME_PLUGIN)
 ENZYME_LIB =
 
-# GLVis library - From GLVis makefile
+# GLVis configuration
 include $(GLVIS_MK)
-GLVIS_DIR = @MFEM_DIR@/../glvis
-GLVIS_OPT = 
-GLVIS_LIB = -L$(GLVIS_DIR)/lib -lglvis $(GLVIS_LIBS)
 
 # If YES, enable some informational messages
 VERBOSE = NO

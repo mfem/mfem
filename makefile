@@ -288,6 +288,11 @@ ifeq ($(MFEM_USE_HIP),YES)
    endif
 endif
 
+# GLVis configuration
+ifeq ($(MFEM_USE_GLVIS),YES)
+	GLVIS_DIR:=$(abspath $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(GLVIS_DIR)))
+endif
+
 DEP_CXX ?= $(MFEM_CXX)
 
 # Check legacy OpenMP configuration
@@ -474,7 +479,9 @@ OKL_DIRS = fem
 %:	%.cpp
 
 # Default rule.
-lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
+lib:$(if $(static),$(BLD)libmfem.a) \
+	$(if $(shared),$(BLD)libmfem.$(SO_EXT)) \
+	$(and $(MFEM_USE_GLVIS),$(and $(static),$(GLVIS_DIR)/lib/libglvis.a))
 
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
@@ -506,6 +513,14 @@ $(BLD)libmfem.a: $(OBJECT_FILES)
 $(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER)
 	cd $(@D) && ln -sf $(<F) $(@F)
 	@$(MAKE) deprecation-warnings
+
+ifeq ($(MFEM_USE_GLVIS),YES)
+$(GLVIS_DIR)/lib/libglvis.a: $(BLD)libmfem.a
+	$(if $(wildcard $(GLVIS_DIR)/makefile),,$(error No makefile in GLVIS_DIR: $(GLVIS_DIR)))
+	@$(MAKE) -C $(GLVIS_DIR) -j $(shell nproc) \
+		MFEM_DIR=$(BUILD_REAL_DIR) \
+		GLVIS_USE_LOGO=NO GLVIS_USE_LIBPNG=YES lib/libglvis.a
+endif
 
 # If some of the external libraries are build without -fPIC, linking shared MFEM
 # library may fail. In such cases, one may set EXT_LIBS on the command line.
@@ -601,6 +616,7 @@ clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
 
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
+	-$(if $(filter YES,$(MFEM_USE_GLVIS)),$(MAKE) -C $(GLVIS_DIR) distclean)
 
 # User-definable install permissions.
 # Install permissions for everything except directories and binaries:
