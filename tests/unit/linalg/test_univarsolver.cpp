@@ -21,7 +21,7 @@ using namespace mfem::future;
 
 MFEM_HOST_DEVICE inline real_t FlowResistance(real_t eqps, real_t sigma_y, real_t n, real_t ep_0)
 {
-    return sigma_y*(1.0 + std::pow(eqps/ep_0, n));
+    return sigma_y*(1.0 + std::pow((eqps + 1e-8)/ep_0, n));
 }
 
 using J2PlasticityParameters = tuple<real_t, real_t, real_t, real_t, real_t, real_t>;
@@ -96,7 +96,9 @@ struct J2Plasticity {
 
     if (q > FlowResistance(accumulated_plastic_strain, sigma_y, n, ep_0)) {
         real_t lb = 0.0;
-        real_t ub = (q - FlowResistance(accumulated_plastic_strain, sigma_y, n, ep_0))/(3*G);
+        // FIXME: Reverse mode derivative produces nans if ub depends on state
+        // real_t ub = (q - FlowResistance(accumulated_plastic_strain, sigma_y, n, ep_0))/(3*G);
+        real_t ub = 2.0;
         SolverSettings settings{.residual_abs_tol = 1e-10*sigma_y, .residual_rel_tol = 1e-10, 
                                 .bounds{.lower = lb, .upper = ub}};
         real_t delta_eqps = SolveNewtonBisection<J2PlasticityResidual>(
@@ -180,7 +182,7 @@ void* __enzyme_register_gradient_SolveNewtonBisectionJ2[3] = {
   (void*)mfem::internal::SolveNewtonBisection_impl_rev<J2PlasticityResidual, J2PlasticityParameters>
 };
 
-TEST_CASE("Univariate function solver on qfunction", "[UnivarOnQfunction]")
+TEST_CASE("Univariate function solver on qfunction", "[univar]")
 {
     J2Plasticity material{.E = 70.0e3, .nu = 0.34, .sigma_y = 240.0, .n = 0.15, .ep_0 = 1e-3};
     tensor<real_t, 3, 3> H{{{0.947667  , 0.9785799 , 0.33229148},
@@ -188,7 +190,7 @@ TEST_CASE("Univariate function solver on qfunction", "[UnivarOnQfunction]")
                             {0.3101946 , 0.68948054, 0.74676657}}};
     J2Plasticity::PackedInternalState Q{};
     const tensor<real_t, 3, 3> J = IdentityMatrix<3>();
-    const double w = 1.0;
+    const real_t w = 1.0;
 
     SECTION("Correctness")
     {
@@ -237,8 +239,6 @@ TEST_CASE("Univariate function solver on qfunction", "[UnivarOnQfunction]")
 
     SECTION("VJP")
     {
-      H = H*0.0;
-      H[0][0] = 4.75e-3;
       tensor<real_t, 3, 3> sigma;
       ComputeStressRef(&material, H, Q, J, w, sigma);
       double epsilon = 1e-5;
@@ -264,6 +264,7 @@ TEST_CASE("Univariate function solver on qfunction", "[UnivarOnQfunction]")
         (void*)ComputeStressRef,  enzyme_strong_zero, enzyme_const, &material, enzyme_dup, &H, &H_bar,
         enzyme_dup, &Q, &Q_bar, enzyme_dup, &J, &J_bar, enzyme_const, w,
         enzyme_dup, &sigma, &sigma_bar);
+      std::cout << "Check that console output works" << std::endl;
       INFO("H_bar = " << H_bar);
       INFO("Q_bar = " << Q_bar);
       INFO("J_bar = " << J_bar);
