@@ -39,6 +39,7 @@ if (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS)
         GIT_TAG stream_sessions
         GIT_SHALLOW TRUE
         UPDATE_DISCONNECTED TRUE
+        CMAKE_GENERATOR ${CMAKE_GENERATOR}
         PREFIX ${FETCH_GLVIS}
         SOURCE_DIR ${FETCH_GLVIS}/src
         STAMP_DIR ${FETCH_GLVIS}/stamp
@@ -50,6 +51,7 @@ if (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS)
             -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
             -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
             -DCMAKE_CXX_FLAGS:STRING=${COMPILE_CXX_FLAGS}
+            -DGLVIS_BUILD_LIB_ONLY=ON
         BUILD_COMMAND ${CMAKE_COMMAND}
             --build ${FETCH_GLVIS}/build
             --config $<CONFIG>
@@ -59,7 +61,7 @@ if (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS)
             ${FETCH_GLVIS}/build/lib/libglvis.a
             ${FETCH_GLVIS}/build/share/libglvis_logo.a
         INSTALL_COMMAND "")
-
+        
     set_target_properties(GLVIS PROPERTIES
         IMPORTED_LOCATION ${FETCH_GLVIS}/build/lib/libglvis.a)
 
