@@ -640,6 +640,15 @@ public:
    virtual int SUNMassMult(const Vector &x, Vector &v);
 
    virtual ~TimeDependentOperator() { }
+
+   /// y = (df/dx(x,t))^T * w
+   /// Default uses GetGradient(x).MultTranspose(w,y).
+   virtual void JacobianMultTranspose(const Vector &x,
+                                      const Vector &w,
+                                      Vector &y) const
+   {
+      GetGradient(x).MultTranspose(w, y);
+   }
 };
 
 
