@@ -873,10 +873,17 @@ void DifferentiableOperator::AddDomainIntegrator(
 
          for (int e = 0; e < num_elements; e++)
          {
-            auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, direction_shmem,
-                                   input_shmem, shadow_shmem, residual_shmem, scratch_shmem] =
-            unpack_shmem(shmem, shmem_info, input_dtq_maps,
-                         output_dtq_maps, wrapped_fields_e, wrapped_direction_e, num_qp, e);
+            auto [input_dtq_shmem, output_dtq_shmem,
+                  fields_shmem, direction_shmem,
+                  input_shmem_, shadow_shmem_,
+                  residual_shmem_, scratch_shmem] =
+                unpack_shmem(shmem, shmem_info, input_dtq_maps,
+                             output_dtq_maps, wrapped_fields_e,
+                             wrapped_direction_e, num_qp, e);
+            // Avoid warning for captured structured bindings.
+            auto &input_shmem = input_shmem_;
+            auto &shadow_shmem = shadow_shmem_;
+            auto &residual_shmem = residual_shmem_;
 
             map_fields_to_quadrature_data(
                input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,

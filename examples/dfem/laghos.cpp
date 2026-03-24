@@ -11,9 +11,9 @@
 //
 // 3point:
 // explicit:
-//   time mpirun -np 8 laghos -p 3 -glvis -tf 5.0 -av -av-type 2 -ov 4 -oe 3 -rs 2 -cfl 0.5 -s 2 -vs 100
+//   mpirun -np 8 laghos -p 3 -glvis -tf 5.0 -av -av-type 7 -ov 4 -oe 3 -rs 1 -cfl 0.5 -s 2 -vs 50
 // implicit:
-//   time mpirun -np 8 laghos -p 3 -glvis -tf 5.0 -nmi 50 -pt 1 -kmi 20 -av -av-type 7 -ov 3 -oe 2 -rs 2 -cfl 32 -s 12 -vs 10
+//   mpirun -np 8 laghos -p 3 -glvis -tf 5.0 -nmi 50 -pt 1 -kmi 20 -av -av-type 7 -ov 3 -oe 2 -rs 2 -cfl 32 -s 12 -vs 10
 //
 // Sedov:
 // explicit:
@@ -26,7 +26,7 @@
 //   mpirun -np 8 laghos -p 0 -glvis -tf 0.75 -ov 3 -oe 2 -rs 2 -cfl 0.5 -s 4 -vs 100
 //   mpirun -np 8 laghos -m ./cube.mesh -p 0 -glvis -tf 0.75 -av -av-type 7 -ov 2 -oe 1 -rs 1 -cfl 0.5 -s 4 -vs 10
 // implicit 2D, 3D:
-//   mpirun -np 8 laghos -p 0 -glvis -tf 0.75 -nmi 50 -pt 1 -kmi 20 -ov 3 -oe 2 -rs 3 -cfl 32 -s 12 -vs 50
+//   mpirun -np 8 laghos -p 0 -glvis -tf 0.75 -nmi 50 -pt 1 -kmi 20 -ov 3 -oe 2 -rs 3 -cfl 32 -s 12 -vs 10
 //   mpirun -np 8 laghos -m ./cube.mesh -p 0 -glvis -tf 0.75 -av -av-type 7 -nmi 50 -pt 1 -kmi 20 -ov 2 -oe 1 -rs 1 -cfl 32 -s 12 -vs 10
 
 
@@ -51,8 +51,6 @@ constexpr int MATERIAL = 4;
 constexpr int SPECIFIC_INTERNAL_ENERGY = 5;
 constexpr int DT_EST = 8;
 constexpr int STRESS_TENSOR = 9;
-
-constexpr int DIMENSION = 3;
 
 enum EXT_DATA_IDX
 {
@@ -190,18 +188,22 @@ void ComputeMaterialProperties(const real_t &gamma, const real_t &rho,
    cs = sqrt(gamma * (gamma - 1.0) * E);
 }
 
-using vecd = tensor<real_t, DIMENSION>;
-using matd = tensor<real_t, DIMENSION, DIMENSION>;
+template <int DIM>
+using vecd_t = tensor<real_t, DIM>;
 
+template <int DIM>
+using matd_t = tensor<real_t, DIM, DIM>;
+
+template <int DIM>
 struct TaylorSourceQFunction
 {
+   using vecd = vecd_t<DIM>;
+   using matd = matd_t<DIM>;
+
    TaylorSourceQFunction() = default;
 
    MFEM_HOST_DEVICE inline
-   auto operator()(
-      const vecd &x,
-      const matd &J,
-      const real_t &w) const
+   auto operator()(const vecd &x, const matd &J, const real_t &w) const
    {
       auto f = 3.0 / 8.0 * M_PI * ( cos(3.0*M_PI*x(0)) * cos(M_PI*x(1)) -
                                     cos(M_PI*x(0))     * cos(3.0*M_PI*x(1)) );
@@ -226,18 +228,19 @@ std::tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>> grad_eig2(
    return grad_eig(A, dA);
 }
 
-void* __enzyme_register_derivative_eig[] =
-{
-   (std::tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>>*)eig2,
-   (std::tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>>*)grad_eig2,
-};
+// void* __enzyme_register_derivative_eig[] =
+// {
+//    (std::tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>>*)eig2,
+//    (std::tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>>*)grad_eig2,
+// };
 
+template <int DIM>
 MFEM_HOST_DEVICE inline
-matd qdata_setup(
-   const matd &dvdxi,
+matd_t<DIM> qdata_setup(
+   const matd_t<DIM> &dvdxi,
    const real_t &rho0,
-   const matd &J0,
-   const matd &J,
+   const matd_t<DIM> &J0,
+   const matd_t<DIM> &J,
    const real_t &gamma,
    const real_t &E,
    const real_t &w,
@@ -248,6 +251,8 @@ matd qdata_setup(
    const int &viscosity_type,
    real_t &dt_est)
 {
+   using matd = matd_t<DIM>;
+
    constexpr real_t eps = 1e-12;
    constexpr real_t vorticity_coeff = 1.0;
    real_t p, cs;
@@ -260,13 +265,7 @@ matd qdata_setup(
 
    ComputeMaterialProperties(gamma, rho, Ez, p, cs);
 
-   for (int d = 0; d < DIMENSION; d++)
-   {
-      stress(d, d) = -p;
-   }
-
-   // out << "qpinfo: " << rho << " " << Ez << " " << p << " " << cs << "\n";
-   // out << "Ez: " << E << "\n";
+   for (int d = 0; d < DIM; d++) { stress(d, d) = -p; }
 
    if (use_viscosity)
    {
@@ -308,7 +307,7 @@ matd qdata_setup(
 
       if (viscosity_type == 2)
       {
-         MFEM_ABORT("commented in due to 3D!");
+         MFEM_ABORT("works only in 2D!");
 
          // Default Laghos viscosity.
          // auto symdvdx = sym(dvdxi * invJ);
@@ -328,7 +327,7 @@ matd qdata_setup(
       }
       else if (viscosity_type == 21)
       {
-         MFEM_ABORT("commented in due to 3D!");
+         MFEM_ABORT("works only in 2D!");
 
          // Default Laghos viscosity through a power method to
          // get the measure of maximal compression.
@@ -345,7 +344,7 @@ matd qdata_setup(
       }
       else if (viscosity_type == 22)
       {
-         MFEM_ABORT("commented in due to 3D!");
+         MFEM_ABORT("works only in 2D!");
 
          // const auto delta = 0.2 * cs;
 
@@ -371,7 +370,7 @@ matd qdata_setup(
       }
       else if (viscosity_type == 4)
       {
-         MFEM_ABORT("commented in due to 3D!");
+         MFEM_ABORT("works only in 2D!");
 
          // Viscosity type 4 from the paper (use all eigenvalues).
          // auto symdvdx = sym(dvdxi * invJ);
@@ -394,7 +393,7 @@ matd qdata_setup(
          // Smoother viscosity for well-defined gradients.
 
          const auto dvdx = dvdxi * inv(J);
-         const auto h = h0 * pow(det(J) / det(J0), 1.0 / DIMENSION);
+         const auto h = h0 * pow(det(J) / det(J0), 1.0 / static_cast<real_t>(DIM));
          const auto delta_v = h * tr(dvdx);
 
          // Coarses mesh h for the domain.
@@ -437,7 +436,7 @@ matd qdata_setup(
    else
    {
       //const real_t sv = calcsv(J, DIMENSION-1);
-      const real_t sv = h0 * pow(det(J) / det(J0), 1.0 / DIMENSION);
+      const real_t sv = h0 * pow(det(J) / det(J0), 1.0 / static_cast<real_t>(DIM));
       // out << sv << ", ";
       const real_t hmin = sv / static_cast<real_t>(order_v);
       const real_t ihmin = 1.0 / hmin;
@@ -454,25 +453,23 @@ matd qdata_setup(
    return stressJiT;
 }
 
+template <int DIM>
 struct TimeStepEstimateQFunction
 {
+   using matd = matd_t<DIM>;
+
    TimeStepEstimateQFunction(real_t *external_data) :
       external_data(external_data) {}
 
    MFEM_HOST_DEVICE inline
-   auto operator()(
-      const matd &dvdxi,
-      const real_t &rho0,
-      const matd &J0,
-      const matd &J,
-      const real_t &gamma,
-      const real_t &E,
-      const real_t &w) const
+   auto operator()(const matd &dvdxi, const real_t &rho0, const matd &J0,
+                   const matd &J, const real_t &gamma, const real_t &E,
+                   const real_t &w) const
    {
       real_t dt_est = std::numeric_limits<real_t>::infinity();
 
       // Reuse qdata_setup() for the dt estimate logic; ignore its stress output.
-      (void)qdata_setup(
+      (void)qdata_setup<DIM>(
          dvdxi, rho0, J0, J, gamma, E, w,
          external_data[EXT_DATA_IDX::H0],
          external_data[EXT_DATA_IDX::ORDER_VEL],
@@ -487,27 +484,24 @@ struct TimeStepEstimateQFunction
    real_t *external_data;
 };
 
+template <int DIM>
 struct UpdateQuadratureDataQFunction
 {
+   using matd = matd_t<DIM>;
+
    UpdateQuadratureDataQFunction(real_t *external_data) :
       external_data(external_data) {}
 
    MFEM_HOST_DEVICE inline
-   auto operator()(
-      const matd &dvdxi,
-      const real_t &rho0,
-      const matd &J0,
-      const matd &J,
-      const real_t &gamma,
-      const real_t &E,
-      const real_t &w) const
+   auto operator()(const matd &dvdxi, const real_t &rho0, const matd &J0,
+                   const matd &J, const real_t &gamma, const real_t &E,
+                   const real_t &w) const
    {
-      // out << "qdata update on qp\n";
-      // Do not update the global DT estimate here; that must be computed
+      // Do not update the global dt estimate here; that will be computed
       // through a proper reduction over quadrature points.
       real_t dt_est_dummy = std::numeric_limits<real_t>::infinity();
       auto stressJiT =
-         qdata_setup(
+         qdata_setup<DIM>(
             dvdxi, rho0, J0, J, gamma, E, w,
             external_data[EXT_DATA_IDX::H0],
             external_data[EXT_DATA_IDX::ORDER_VEL],
@@ -521,24 +515,22 @@ struct UpdateQuadratureDataQFunction
    real_t *external_data;
 };
 
+template <int DIM>
 class MomentumQFunction
 {
+   using matd = matd_t<DIM>;
+
 public:
    MomentumQFunction(real_t *external_data) :
       external_data(external_data) {}
 
    MFEM_HOST_DEVICE inline
-   auto operator()(
-      const matd &dvdxi,
-      const real_t &rho0,
-      const matd &J0,
-      const matd &J,
-      const real_t &gamma,
-      const real_t &E,
-      const real_t &w) const
+   auto operator()(const matd &dvdxi, const real_t &rho0, const matd &J0,
+                   const matd &J, const real_t &gamma, const real_t &E,
+                   const real_t &w) const
    {
       auto stressJiT =
-         qdata_setup(
+         qdata_setup<DIM>(
             dvdxi, rho0, J0, J, gamma, E, w,
             external_data[EXT_DATA_IDX::H0],
             external_data[EXT_DATA_IDX::ORDER_VEL],
@@ -553,21 +545,26 @@ public:
    real_t *external_data;
 };
 
+template <int DIM>
 class MomentumPAQFunction
 {
+   using matd = matd_t<DIM>;
+
 public:
    MomentumPAQFunction() = default;
 
    MFEM_HOST_DEVICE inline
-   auto operator()(
-      const matd &stressJiT) const
+   auto operator()(const matd &stressJiT) const
    {
       return mfem::tuple{stressJiT};
    }
 };
 
+template <int DIM>
 class EnergyConservationQFunction
 {
+   using matd = matd_t<DIM>;
+
 public:
    EnergyConservationQFunction(const real_t *external_data) :
       external_data(external_data) {}
@@ -583,7 +580,7 @@ public:
       const real_t &w) const
    {
       auto stressJiT =
-         qdata_setup(
+         qdata_setup<DIM>(
             dvdxi, rho0, J0, J, gamma, E, w,
             external_data[EXT_DATA_IDX::H0],
             external_data[EXT_DATA_IDX::ORDER_VEL],
@@ -598,22 +595,26 @@ public:
    const real_t *external_data;
 };
 
+template <int DIM>
 class EnergyConservationPAQFunction
 {
+   using matd = matd_t<DIM>;
+
 public:
    EnergyConservationPAQFunction() = default;
 
    MFEM_HOST_DEVICE inline
-   auto operator()(
-      const matd &dvdxi,
-      const matd &stressJiT) const
+   auto operator()(const matd &dvdxi, const matd &stressJiT) const
    {
       return mfem::tuple{ddot(stressJiT, dvdxi)};
    }
 };
 
+template <int DIM>
 class TotalInternalEnergyQFunction
 {
+   using matd = matd_t<DIM>;
+
 public:
    TotalInternalEnergyQFunction() = default;
 
@@ -628,8 +629,12 @@ public:
    }
 };
 
+template <int DIM>
 class TotalKineticEnergyQFunction
 {
+   using vecd = vecd_t<DIM>;
+   using matd = matd_t<DIM>;
+
 public:
    TotalKineticEnergyQFunction() = default;
 
@@ -644,8 +649,11 @@ public:
    }
 };
 
+template <int DIM>
 class DensityQFunction
 {
+   using matd = matd_t<DIM>;
+
 public:
    DensityQFunction() = default;
 
@@ -1939,6 +1947,7 @@ public:
    mutable bool qdata_is_current = false;
 };
 
+template <int DIM>
 static auto CreateLagrangianHydroOperator(
    ParFiniteElementSpace &H1,
    ParFiniteElementSpace &L2,
@@ -2027,7 +2036,7 @@ static auto CreateLagrangianHydroOperator(
 
       dt_est_mf = std::make_shared<DifferentiableOperator>(
                      dt_est_solutions, dt_est_parameters, mesh);
-      TimeStepEstimateQFunction dt_est_qf(d_external_data);
+      TimeStepEstimateQFunction<DIM> dt_est_qf(d_external_data);
       dt_est_mf->AddDomainIntegrator(dt_est_qf, dt_est_kernel_ao,
                                      dt_est_kernel_oo,
                                      ir,
@@ -2067,7 +2076,7 @@ static auto CreateLagrangianHydroOperator(
 
       update_qdata = std::make_shared<DifferentiableOperator>(
                         update_qdata_solutions, update_qdata_parameters, mesh);
-      UpdateQuadratureDataQFunction update_qdata_qf(d_external_data);
+      UpdateQuadratureDataQFunction<DIM> update_qdata_qf(d_external_data);
       update_qdata->AddDomainIntegrator(update_qdata_qf, update_qdata_kernel_ao,
                                         update_qdata_kernel_oo,
                                         ir,
@@ -2110,7 +2119,7 @@ static auto CreateLagrangianHydroOperator(
       momentum_mf = std::make_shared<DifferentiableOperator>(
                        momentum_mf_solutions, momentum_mf_parameters, mesh);
 
-      MomentumQFunction momentum_qf(d_external_data);
+      MomentumQFunction<DIM> momentum_qf(d_external_data);
       auto derivatives =
          std::integer_sequence<size_t, VELOCITY, COORDINATES, SPECIFIC_INTERNAL_ENERGY> {};
       momentum_mf->AddDomainIntegrator(momentum_qf, momentum_mf_kernel_ao,
@@ -2128,7 +2137,7 @@ static auto CreateLagrangianHydroOperator(
       momentum_pa = std::make_shared<DifferentiableOperator>(
                        momentum_pa_solutions, momentum_pa_parameters, mesh);
 
-      MomentumPAQFunction momentum_pa_qf;
+      MomentumPAQFunction<DIM> momentum_pa_qf;
       momentum_pa->AddDomainIntegrator(momentum_pa_qf, momentum_pa_kernel_ao,
                                        momentum_pa_kernel_oo, ir, all_domain_attr);
    }
@@ -2170,7 +2179,7 @@ static auto CreateLagrangianHydroOperator(
          std::make_shared<DifferentiableOperator>(
             energy_conservation_mf_solutions, energy_conservation_mf_parameters, mesh);
 
-      EnergyConservationQFunction energy_conservation_qf(d_external_data);
+      EnergyConservationQFunction<DIM> energy_conservation_qf(d_external_data);
       auto derivatives =
          std::integer_sequence<size_t, VELOCITY, COORDINATES, SPECIFIC_INTERNAL_ENERGY> {};
       energy_conservation_mf->AddDomainIntegrator(
@@ -2198,9 +2207,9 @@ static auto CreateLagrangianHydroOperator(
          std::make_shared<DifferentiableOperator>(
             energy_conservation_pa_solutions, energy_conservation_pa_parameters, mesh);
 
-      EnergyConservationPAQFunction energy_conservation_qf;
+      EnergyConservationPAQFunction<DIM> energy_conservation_pa_qf;
       energy_conservation_pa->AddDomainIntegrator(
-         energy_conservation_qf, energy_conservation_pa_kernel_ao,
+         energy_conservation_pa_qf, energy_conservation_pa_kernel_ao,
          energy_conservation_pa_kernel_oo, ir, all_domain_attr);
    }
 
@@ -2234,7 +2243,7 @@ static auto CreateLagrangianHydroOperator(
             total_internal_energy_parameters,
             mesh);
 
-      TotalInternalEnergyQFunction total_internal_energy_qf;
+      TotalInternalEnergyQFunction<DIM> total_internal_energy_qf;
       total_internal_energy_mf->AddDomainIntegrator(
          total_internal_energy_qf, total_internal_energy_kernel_ao,
          total_internal_energy_kernel_oo, ir, all_domain_attr);
@@ -2268,7 +2277,7 @@ static auto CreateLagrangianHydroOperator(
          std::make_shared<DifferentiableOperator>(
             total_kinetic_energy_solutions,
             total_kinetic_energy_parameters, mesh);
-      TotalKineticEnergyQFunction total_kinetic_energy_qf;
+      TotalKineticEnergyQFunction<DIM> total_kinetic_energy_qf;
       total_kinetic_energy_mf->AddDomainIntegrator(
          total_kinetic_energy_qf, total_kinetic_energy_kernel_ao,
          total_kinetic_energy_kernel_oo, ir, all_domain_attr);
@@ -2299,7 +2308,7 @@ static auto CreateLagrangianHydroOperator(
       density_mf = std::make_shared<DifferentiableOperator>(
                       density_solutions, density_parameters, mesh);
 
-      DensityQFunction density_qf;
+      DensityQFunction<DIM> density_qf;
       density_mf->AddDomainIntegrator(density_qf, density_kernel_ao,
                                       density_kernel_oo, ir, all_domain_attr);
    }
@@ -2329,7 +2338,7 @@ static auto CreateLagrangianHydroOperator(
       taylor_source_mf = std::make_shared<DifferentiableOperator>(
                             taylor_source_solutions, taylor_source_parameters, mesh);
 
-      TaylorSourceQFunction taylor_source_qf;
+      TaylorSourceQFunction<DIM> taylor_source_qf;
       auto derivatives = std::integer_sequence<size_t, COORDINATES> {};
       taylor_source_mf->AddDomainIntegrator(taylor_source_qf, taylor_source_kernel_ao,
                                             taylor_source_kernel_oo, ir, all_domain_attr,
@@ -2497,7 +2506,7 @@ int main(int argc, char *argv[])
    if (Mpi::Root()) { device.Print(); }
 
    Mesh serial_mesh = Mesh(mesh_file, true, true);
-   const int dim = serial_mesh.Dimension();
+   int dim = serial_mesh.Dimension();
 
    if ((dim == 2) && (problem == 0 || problem == 1))
    {
@@ -2527,9 +2536,10 @@ int main(int argc, char *argv[])
    // serial_mesh.EnsureNCMesh();
    // serial_mesh.RandomRefinement(0.1);
 
-   ParMesh mesh = ParMesh(MPI_COMM_WORLD, serial_mesh);
+   // The mesh dimension can change based on selected problem setup (e.g. -p 2).
+   dim = serial_mesh.Dimension();
 
-   MFEM_ASSERT(dim == DIMENSION, "mesh dimension inconsistency");
+   ParMesh mesh = ParMesh(MPI_COMM_WORLD, serial_mesh);
 
    // Define the parallel finite element spaces. We use:
    // - H1 (Gauss-Lobatto, continuous) for position and velocity.
@@ -2721,22 +2731,51 @@ int main(int argc, char *argv[])
    external_data[EXT_DATA_IDX::DT_ESTIMATE] =
       std::numeric_limits<real_t>::infinity();
 
-   auto hydro = CreateLagrangianHydroOperator(H1FESpace,
-                                              L2FESpace,
-                                              ess_tdof,
-                                              rho0_coeff,
-                                              x0_gf,
-                                              rho0_gf,
-                                              material_gf,
-                                              external_data,
-                                              ir,
-                                              fd_gradient,
-                                              dump_jacobians,
-                                              nonlinear_maximum_iterations,
-                                              nonlinear_relative_tolerance,
-                                              krylov_maximum_iterations,
-                                              preconditioner_lag,
-                                              (PRECONDITIONER_TYPE)preconditioner_type);
+   LagrangianHydroOperator *hydro = nullptr;
+   switch (dim)
+   {
+      case 2:
+      {
+         hydro = CreateLagrangianHydroOperator<2>(H1FESpace,
+                                                 L2FESpace,
+                                                 ess_tdof,
+                                                 rho0_coeff,
+                                                 x0_gf,
+                                                 rho0_gf,
+                                                 material_gf,
+                                                 external_data,
+                                                 ir,
+                                                 fd_gradient,
+                                                 dump_jacobians,
+                                                 nonlinear_maximum_iterations,
+                                                 nonlinear_relative_tolerance,
+                                                 krylov_maximum_iterations,
+                                                 preconditioner_lag,
+                                                 (PRECONDITIONER_TYPE)preconditioner_type);
+         break;
+      }
+      case 3:
+      {
+         hydro = CreateLagrangianHydroOperator<3>(H1FESpace,
+                                                 L2FESpace,
+                                                 ess_tdof,
+                                                 rho0_coeff,
+                                                 x0_gf,
+                                                 rho0_gf,
+                                                 material_gf,
+                                                 external_data,
+                                                 ir,
+                                                 fd_gradient,
+                                                 dump_jacobians,
+                                                 nonlinear_maximum_iterations,
+                                                 nonlinear_relative_tolerance,
+                                                 krylov_maximum_iterations,
+                                                 preconditioner_lag,
+                                                 (PRECONDITIONER_TYPE)preconditioner_type);
+         break;
+      }
+      default: MFEM_ABORT("unsupported mesh dimension: " << dim);
+   }
 
    ODESolver *ode_solver = NULL;
    switch (ode_solver_type)
