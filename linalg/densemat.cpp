@@ -41,23 +41,12 @@ using namespace std;
 
 DenseMatrix::DenseMatrix() : Matrix(0) { }
 
-DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
-{
-   const int hw = height * width;
-   if (hw > 0)
-   {
-      MFEM_ASSERT(m.data, "invalid source matrix");
-      data.New(hw);
-      std::memcpy(data, m.data, sizeof(real_t)*hw);
-   }
-}
-
 DenseMatrix::DenseMatrix(int s) : Matrix(s)
 {
    MFEM_ASSERT(s >= 0, "invalid DenseMatrix size: " << s);
    if (s > 0)
    {
-      data.New(s*s);
+      data.SetSize(s*s);
       *this = 0.0; // init with zeroes
    }
 }
@@ -69,7 +58,7 @@ DenseMatrix::DenseMatrix(int m, int n) : Matrix(m, n)
    const int capacity = m*n;
    if (capacity > 0)
    {
-      data.New(capacity);
+      data.SetSize(capacity);
       *this = 0.0; // init with zeroes
    }
 }
@@ -81,7 +70,7 @@ DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
    const int capacity = height*width;
    if (capacity > 0)
    {
-      data.New(capacity);
+      data.SetSize(capacity);
 
       for (int i = 0; i < height; i++)
       {
@@ -103,13 +92,7 @@ void DenseMatrix::SetSize(int h, int w)
    }
    height = h;
    width = w;
-   const int hw = h*w;
-   if (hw > data.Capacity())
-   {
-      data.Delete();
-      data.New(hw);
-      *this = 0.0; // init with zeroes
-   }
+   data.SetSize(h*w, 0.0);
 }
 
 real_t &DenseMatrix::Elem(int i, int j)
@@ -640,19 +623,6 @@ DenseMatrix &DenseMatrix::operator=(const real_t *d)
    {
       data[i] = d[i];
    }
-   return *this;
-}
-
-DenseMatrix &DenseMatrix::operator=(const DenseMatrix &m)
-{
-   SetSize(m.height, m.width);
-
-   const int hw = height * width;
-   for (int i = 0; i < hw; i++)
-   {
-      data[i] = m.data[i];
-   }
-
    return *this;
 }
 
@@ -1398,6 +1368,35 @@ void DenseMatrix::Getl1Diag(Vector &l) const
       {
          l(i) += fabs((*this)(i,j));
       }
+}
+
+void DenseMatrix::GetRowl1(Vector &l) const
+{
+   l.SetSize(height);
+   l = 0.0;
+
+   for (int j = 0; j < width; ++j)
+      for (int i = 0; i < height; ++i)
+      {
+         l(i) += fabs((*this)(i,j));
+      }
+}
+
+void DenseMatrix::GetRowl2(Vector &l) const
+{
+   l.SetSize(height);
+   l = 0.0;
+
+   for (int j = 0; j < width; ++j)
+      for (int i = 0; i < height; ++i)
+      {
+         l[i] += operator()(i,j)*operator()(i,j);
+      }
+
+   for (int i = 0; i < height; ++i)
+   {
+      l[i] = sqrt(l[i]);
+   }
 }
 
 void DenseMatrix::GetRowSums(Vector &l) const
@@ -2362,16 +2361,8 @@ void DenseMatrix::TestInversion()
 
 void DenseMatrix::Swap(DenseMatrix &other)
 {
-   mfem::Swap(width, other.width);
-   mfem::Swap(height, other.height);
-   mfem::Swap(data, other.data);
+   mfem::Swap(*this, other);
 }
-
-DenseMatrix::~DenseMatrix()
-{
-   data.Delete();
-}
-
 
 
 void Add(const DenseMatrix &A, const DenseMatrix &B,
@@ -3406,7 +3397,7 @@ bool LUFactors::Factor(int m, real_t TOL)
                piv = j;
             }
          }
-         ipiv[i] = piv;
+         ipiv[i] = piv + 1;
          if (piv != i)
          {
             // swap rows i and piv in both L and U parts
@@ -3446,7 +3437,7 @@ real_t LUFactors::Det(int m) const
    real_t det = 1.0;
    for (int i=0; i<m; i++)
    {
-      if (ipiv[i] != i-ipiv_base)
+      if (ipiv[i] != i - ipiv_base)
       {
          det *= -data[m * i + i];
       }
@@ -4328,7 +4319,7 @@ const
 {
    int n = SizeI(), ne = SizeK();
    const int *I = elem_dof.GetI(), *J = elem_dof.GetJ(), *dofs;
-   const real_t *d_col = mfem::HostRead(tdata, n*SizeJ()*ne);
+   const real_t *d_col = tdata.HostRead();
    real_t *yp = y.HostReadWrite();
    real_t x_col;
    const real_t *xp = x.HostRead();
@@ -4388,13 +4379,6 @@ DenseTensor &DenseTensor::operator=(real_t c)
    return *this;
 }
 
-DenseTensor &DenseTensor::operator=(const DenseTensor &other)
-{
-   DenseTensor new_tensor(other);
-   Swap(new_tensor);
-   return *this;
-}
-
 void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const real_t TOL)
 {
    BatchedLinAlg::LUFactor(Mlu, P);
@@ -4404,5 +4388,33 @@ void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X)
 {
    BatchedLinAlg::LUSolve(Mlu, P, X);
 }
+
+#ifdef MFEM_USE_LAPACK
+void BandedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
+                 Array<int> &ipiv)
+{
+   int LDAB = (2*KL) + KU + 1;
+   int N = AB.NumCols();
+   int NRHS = B.NumCols();
+   int info;
+   ipiv.SetSize(N);
+   MFEM_LAPACK_PREFIX(gbsv_)(&N, &KL, &KU, &NRHS, AB.GetData(), &LDAB,
+                             ipiv.GetData(), B.GetData(), &N, &info);
+   MFEM_ASSERT(info == 0, "BandedSolve failed in LAPACK");
+}
+
+void BandedFactorizedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
+                           bool transpose, Array<int> &ipiv)
+{
+   int LDAB = (2*KL) + KU + 1;
+   int N = AB.NumCols();
+   int NRHS = B.NumCols();
+   char trans = transpose ? 'T' : 'N';
+   int info;
+   MFEM_LAPACK_PREFIX(gbtrs_)(&trans, &N, &KL, &KU, &NRHS, AB.GetData(), &LDAB,
+                              ipiv.GetData(), B.GetData(), &N, &info);
+   MFEM_ASSERT(info == 0, "BandedFactorizedSolve failed in LAPACK");
+}
+#endif
 
 } // namespace mfem

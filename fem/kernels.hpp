@@ -113,6 +113,7 @@ inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d, const int c,
          }
       }
    }
+   MFEM_SYNC_THREAD;
 }
 
 /// Load 2D input VDIM*DIM vector into given register tensor
@@ -140,6 +141,7 @@ inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
          }
       }
    }
+   MFEM_SYNC_THREAD;
 }
 
 /// Load 2D input scalar into given register tensor
@@ -155,6 +157,7 @@ inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
          Y[dy][dx] = X(dx, dy, e);
       }
    }
+   MFEM_SYNC_THREAD;
 }
 
 /// Write 2D vector into given device tensor, with read (i) write (j) indices
@@ -173,6 +176,7 @@ inline MFEM_HOST_DEVICE void WriteDofs2d(const int e, const int d1d,
          Y(dx, dy, j, e) += y;
       }
    }
+   MFEM_SYNC_THREAD;
 }
 
 /// Write 2D VDIM*DIM vector into given device tensor
@@ -200,6 +204,7 @@ inline MFEM_HOST_DEVICE void WriteDofs2d(const int e, const int d1d,
          }
       }
    }
+   MFEM_SYNC_THREAD;
 }
 
 /// Load 3D input VDIM*DIM vector into given register tensor, specific component
@@ -221,6 +226,7 @@ inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d, const int c,
          }
       }
    }
+   MFEM_SYNC_THREAD;
 }
 
 /// Load 3D input VDIM*DIM vector into given register tensor
@@ -251,6 +257,7 @@ inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d,
          }
       }
    }
+   MFEM_SYNC_THREAD;
 }
 
 /// Load 3D input scalar into given register tensor
@@ -269,6 +276,7 @@ inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d,
          }
       }
    }
+   MFEM_SYNC_THREAD;
 }
 
 /// Write 3D scalar into given device tensor, with read (i) write (j) indices
@@ -290,6 +298,7 @@ inline MFEM_HOST_DEVICE void WriteDofs3d(const int e, const int d1d,
          }
       }
    }
+   MFEM_SYNC_THREAD;
 }
 
 /// Write 3D VDIM*DIM vector into given device tensor
@@ -320,6 +329,7 @@ inline MFEM_HOST_DEVICE void WriteDofs3d(const int e, const int d1d,
          }
       }
    }
+   MFEM_SYNC_THREAD;
 }
 
 /// 2D scalar contraction, X direction
@@ -391,6 +401,7 @@ inline MFEM_HOST_DEVICE void Copy2d(const int q1d,
    {
       MFEM_FOREACH_THREAD_DIRECT(x, x, q1d) { Y[y][x] = X[y][x]; }
    }
+   MFEM_SYNC_THREAD;
 }
 
 /// 2D scalar contraction: X & Y directions, with additional copy
@@ -532,7 +543,6 @@ inline MFEM_HOST_DEVICE void ContractX3d(const int d1d, const int q1d,
          }
       }
       MFEM_SYNC_THREAD;
-
       MFEM_FOREACH_THREAD_DIRECT(y, y, d1d)
       {
          MFEM_FOREACH_THREAD_DIRECT(x, x, (Transpose ? d1d : q1d))
@@ -564,7 +574,6 @@ inline MFEM_HOST_DEVICE void ContractY3d(const int d1d, const int q1d,
          MFEM_FOREACH_THREAD_DIRECT(x, x, q1d) { smem[y][x] = X[z][y][x]; }
       }
       MFEM_SYNC_THREAD;
-
       MFEM_FOREACH_THREAD_DIRECT(y, y, (Transpose ? d1d : q1d))
       {
          MFEM_FOREACH_THREAD_DIRECT(x, x, q1d)

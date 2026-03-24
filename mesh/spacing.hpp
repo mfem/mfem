@@ -21,7 +21,7 @@ namespace mfem
 {
 
 enum class SpacingType {UNIFORM_SPACING, LINEAR, GEOMETRIC, BELL,
-                        GAUSSIAN, LOGARITHMIC, PIECEWISE
+                        GAUSSIAN, LOGARITHMIC, PIECEWISE, PARTIAL
                        };
 
 /// Class for spacing functions that define meshes in a dimension, using a
@@ -31,9 +31,9 @@ class SpacingFunction
 public:
    /** @brief Base class constructor.
    @param[in] n  Size or number of intervals, which defines elements.
-   @param[in] r   Whether to reverse the spacings, false by default.
-   @param[in] s   Whether to scale parameters by the refinement or coarsening
-                  factor, in the function @a SpacingFunction::ScaleParameters.
+   @param[in] r  Whether to reverse the spacings, false by default.
+   @param[in] s  Whether to scale parameters by the refinement or coarsening
+                 factor, in the function @a SpacingFunction::ScaleParameters.
    */
    SpacingFunction(int n, bool r=false, bool s=false) : n(n), reverse(r), scale(s)
    { }
@@ -46,6 +46,10 @@ public:
 
    /// Sets the property that determines whether the spacing is reversed.
    void SetReverse(bool r) { reverse = r; }
+
+   bool GetReverse() const { return reverse; }
+
+   void Flip() { reverse = !reverse; }
 
    /// Returns the width of interval @a p (between 0 and @a Size() - 1).
    virtual real_t Eval(int p) const = 0;
@@ -96,6 +100,13 @@ public:
 
    /// Returns a clone (deep-copy) of this spacing function.
    virtual std::unique_ptr<SpacingFunction> Clone() const;
+
+   void FullyCoarsen()
+   {
+      const int nfine = n;
+      SetSize(1);
+      ScaleParameters(nfine);
+   }
 
    virtual ~SpacingFunction() = default;
 
@@ -447,7 +458,7 @@ private:
 class GaussianSpacingFunction : public SpacingFunction
 {
 public:
-   /** @brief Constructor for BellSpacingFunction.
+   /** @brief Constructor for GaussianSpacingFunction.
    @param[in] n  Size or number of intervals, which defines elements.
    @param[in] r  Whether to reverse the spacings.
    @param[in] s0 Width of the first interval (element).
@@ -639,7 +650,7 @@ public:
 
    /// Copy constructor (deep-copy all data, including SpacingFunction pieces)
    PiecewiseSpacingFunction(const PiecewiseSpacingFunction &sf)
-      : SpacingFunction(sf), np(sf.np), partition(sf.partition),
+      : SpacingFunction(sf.n, sf.reverse), np(sf.np), partition(sf.partition),
         npartition(sf.npartition), pieces(), n0(sf.n0), s(sf.s)
    {
       // To copy, the pointers must be cloned.
@@ -681,22 +692,79 @@ public:
    void SetupPieces(Array<int> const& ipar, Vector const& dpar);
 
    SpacingType GetSpacingType() const override { return SpacingType::PIECEWISE; }
-   int NumIntParameters() const override { return 3; }
-   int NumDoubleParameters() const override { return np - 1; }
+   int NumIntParameters() const override
+   {
+      int count = 3 + np;
+      for (const auto &p : pieces)
+      {
+         // Add three for the type and the integer and double parameter counts.
+         count += p->NumIntParameters() + 3;
+      }
+      return count;
+   }
+
+   int NumDoubleParameters() const override
+   {
+      int count = np - 1;
+      for (const auto &p : pieces)
+      {
+         count += p->NumDoubleParameters();
+      }
+      return count;
+   }
+
+   Array<int> RelativePieceSizes() const { return npartition; }
+
+   void ScalePartition(Array<int> const& f, bool reorient)
+   {
+      MFEM_VERIFY(npartition.Size() == f.Size(), "");
+      n0 = 0;
+      for (int i=0; i<f.Size(); ++i)
+      {
+         const int ir = reorient && reverse ? f.Size() - 1 - i : i;
+         npartition[i] *= f[ir];
+         n0 += npartition[i];
+      }
+   }
 
    void GetIntParameters(Array<int> & p) const override
    {
-      p.SetSize(3 + np);
+      p.SetSize(NumIntParameters());
       p[0] = n;
       p[1] = np;
       p[2] = (int) reverse;
       for (int i=0; i<np; ++i) { p[3 + i] = npartition[i]; }
+
+      Array<int> ipar;
+      int os = 3 + np;
+      for (int i=0; i<np; ++i)
+      {
+         p[os++] = (int) pieces[i]->GetSpacingType();
+         p[os++] = pieces[i]->NumIntParameters();
+         p[os++] = pieces[i]->NumDoubleParameters();
+
+         pieces[i]->GetIntParameters(ipar);
+         for (auto ip : ipar)
+         {
+            p[os++] = ip;
+         }
+      }
    }
 
    void GetDoubleParameters(Vector & p) const override
    {
-      p.SetSize(np - 1);
-      p = partition;
+      p.SetSize(NumDoubleParameters());
+      for (int i=0; i<partition.Size(); ++i) { p[i] = partition[i]; }
+      int os = partition.Size();
+      Vector dpar;
+      for (int i=0; i<np; ++i)
+      {
+         pieces[i]->GetDoubleParameters(dpar);
+         for (auto dp : dpar)
+         {
+            p[os++] = dp;
+         }
+      }
    }
 
    // PiecewiseSpacingFunction is nested if and only if all pieces are nested.
@@ -705,10 +773,111 @@ public:
 private:
    int np;  ///< Number of pieces
    Vector partition;  ///< Partition of the unit interval
-   Array<int> npartition;  ///< Number of intervals in each partition
+   Array<int> npartition;  ///< Relative number of intervals in each partition
    std::vector<std::unique_ptr<SpacingFunction>> pieces;
 
-   int n0 = 0;  ///< Total number of intervals
+   int n0 = 0;  ///< Sum of npartition
+
+   Vector s;  ///< Stores the spacings calculated by @a CalculateSpacing
+
+   /// Calculate parameters used by @a Eval and @a EvalAll
+   void CalculateSpacing();
+};
+
+/** @brief Partial spacing function, defined as part of an existing spacing
+    function.
+ */
+class PartialSpacingFunction : public SpacingFunction
+{
+public:
+   PartialSpacingFunction(int n, bool r, int rel_first_elem, int rel_num_elems,
+                          int rel_num_elems_full,
+                          Array<int> const& ipar, Vector const& dpar,
+                          SpacingType typeFull)
+      : SpacingFunction(n, r), num_elems_full(rel_num_elems_full),
+        num_elems(rel_num_elems), first_elem(rel_first_elem)
+   {
+      SetupFull(typeFull, ipar, dpar);
+      CalculateSpacing();
+   }
+
+   /// Copy constructor (deep-copy all data, including SpacingFunction pieces)
+   PartialSpacingFunction(const PartialSpacingFunction &sf)
+      : SpacingFunction(sf.n, sf.reverse), fullSpacing(sf.fullSpacing->Clone()),
+        num_elems_full(sf.num_elems_full), num_elems(sf.num_elems),
+        first_elem(sf.first_elem), s(sf.s)
+   { }
+
+   PartialSpacingFunction& operator=(const PartialSpacingFunction &sf)
+   {
+      PartialSpacingFunction tmp(sf);
+      std::swap(tmp, *this);
+      return *this;
+   }
+
+   PartialSpacingFunction(PartialSpacingFunction &&sf) = default;
+   PartialSpacingFunction& operator=(PartialSpacingFunction &&sf) = default;
+
+   void SetSize(int size) override
+   {
+      n = size;
+      CalculateSpacing();
+   }
+
+   real_t Eval(int p) const override
+   {
+      const int i = reverse ? n - 1 - p : p;
+      return s[i];
+   }
+
+   void ScaleParameters(real_t a) override;
+
+   void Print(std::ostream &os) const override;
+
+   std::unique_ptr<SpacingFunction> Clone() const override
+   {
+      return std::unique_ptr<SpacingFunction>(
+                new PartialSpacingFunction(*this));
+   }
+
+   void SetupFull(SpacingType typeFull,
+                  Array<int> const& ipar, Vector const& dpar);
+
+   SpacingType GetSpacingType() const override { return SpacingType::PARTIAL; }
+   int NumIntParameters() const override { return 8 + fullSpacing->NumIntParameters(); }
+   int NumDoubleParameters() const override { return fullSpacing->NumDoubleParameters(); }
+
+   void GetIntParameters(Array<int> & p) const override
+   {
+      Array<int> ipar;
+      fullSpacing->GetIntParameters(ipar);
+      p.SetSize(8 + ipar.Size());
+      p[0] = n;
+      p[1] = (int) reverse;
+      p[2] = first_elem;
+      p[3] = num_elems;
+      p[4] = num_elems_full;
+      p[5] = (int) fullSpacing->GetSpacingType();
+      p[6] = ipar.Size();
+      p[7] = NumDoubleParameters();
+      for (int i=0; i<ipar.Size(); ++i) { p[8 + i] = ipar[i]; }
+   }
+
+   void GetDoubleParameters(Vector & p) const override
+   {
+      fullSpacing->GetDoubleParameters(p);
+   }
+
+   // PartialSpacingFunction is nested if and only if the full spacing is nested.
+   bool Nested() const override { return fullSpacing->Nested(); }
+
+private:
+   std::unique_ptr<SpacingFunction> fullSpacing;
+
+   // The following numbers and indices may be relative, not absolute.
+   int num_elems_full; ///< Reference number of elements in fullSpacing
+   int num_elems; ///< Number of elements, relative to num_elems_full
+   int first_elem; ///< Index of the first element, relative to num_elems_full
 
    Vector s;  ///< Stores the spacings calculated by @a CalculateSpacing
 
