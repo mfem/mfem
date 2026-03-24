@@ -355,7 +355,7 @@ complex<double> epxx_warm_plasma_by_species(double omega,
    double rho_i = 0.0;
    for (int i=1; i<number.Size(); i++)
    {
-      rho_i += number[i]*mass[i];
+      rho_i += number[i]*mass[i]*amu_;
    }
    double kperp = kperp_cold_plasma(omega, Bmag, rho_i);
    complex<double> lambda = pow(kperp*vth,2.0)/(2.0*pow(w_c,2.0));
@@ -427,7 +427,7 @@ complex<double> epyy_warm_plasma_by_species(double omega,
    double rho_i = 0.0;
    for (int i=1; i<number.Size(); i++)
    {
-      rho_i += number[i]*mass[i];
+      rho_i += number[i]*mass[i]*amu_;
    }
    double kperp = kperp_cold_plasma(omega, Bmag, rho_i);
    complex<double> lambda = pow(kperp*vth,2.0)/(2.0*pow(w_c,2.0));
@@ -487,7 +487,7 @@ complex<double> epxy_warm_plasma_by_species(double omega,
    double rho_i = 0.0;
    for (int i=1; i<number.Size(); i++)
    {
-      rho_i += number[i]*mass[i];
+      rho_i += number[i]*mass[i]*amu_;
    }
    double kperp = kperp_cold_plasma(omega, Bmag, rho_i);
    complex<double> lambda = pow(kperp*vth,2.0)/(2.0*pow(w_c,2.0));
@@ -541,7 +541,7 @@ complex<double> epzz_warm_plasma_by_species(double omega,
    double rho_i = 0.0;
    for (int i=1; i<number.Size(); i++)
    {
-      rho_i += number[i]*mass[i];
+      rho_i += number[i]*mass[i]*amu_;
    }
    double kperp = kperp_cold_plasma(omega, Bmag, rho_i);
    complex<double> lambda = pow(kperp*vth,2.0)/(2.0*pow(w_c,2.0));
@@ -591,7 +591,7 @@ complex<double> epyz_warm_plasma_by_species(double omega,
    double rho_i = 0.0;
    for (int i=1; i<number.Size(); i++)
    {
-      rho_i += number[i]*mass[i];
+      rho_i += number[i]*mass[i]*amu_;
    }
    double kperp = kperp_cold_plasma(omega, Bmag, rho_i);
    complex<double> lambda = pow(kperp*vth,2.0)/(2.0*pow(w_c,2.0));
@@ -2502,6 +2502,7 @@ void lambdaPML::Eval(DenseMatrix &lambdaPML, ElementTransformation &T,
          sig_u = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[0]-x0)/delta_x),2.0); // x
       }
 
+      /*
       double y0 = 0.84;
       double y1 = -0.84;
       double delta_y = 0.22;
@@ -2525,6 +2526,7 @@ void lambdaPML::Eval(DenseMatrix &lambdaPML, ElementTransformation &T,
       {
          sig_w = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[2]-z1)/delta_z),2.0); // z
       }
+      */
 
       /*
       double x0 = 0.2;
@@ -2632,6 +2634,7 @@ void sigmaPML::Eval(DenseMatrix &sigmaPML, ElementTransformation &T,
          sig_u = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[0]-x0)/delta_x),2.0); // x
       }
       
+      /*
       double y0 = 0.84;
       double y1 = -0.84;
       double delta_y = 0.22;
@@ -2655,7 +2658,7 @@ void sigmaPML::Eval(DenseMatrix &sigmaPML, ElementTransformation &T,
       {
          sig_w = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[2]-z1)/delta_z),2.0); // z
       }
-
+      */
       /*     
       double x0 = 0.2;
       double x1 = 0.8;
