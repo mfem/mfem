@@ -343,17 +343,20 @@ static void DerivativesTranspose3D(const int NE,
                                    const real_t *b_,
                                    const real_t *g_,
                                    const real_t *j_,
-                                   const real_t *q_,
-                                   real_t *e_,
+                                   const real_t *q_,    // q_der
+                                   real_t *e_,          // e_vec
                                    const int sdim = 3,
                                    const int vdim = 0,
                                    const int d1d = 0,
                                    const int q1d = 0)
 {
+   dbg();
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
 
+   dbg("VDIM:{}, Q1D:{}, NE:{}", VDIM, Q1D, NE);
+   dbg("DIM*Q1D*Q1D*Q1D*NE: {}", VDIM*3*Q1D*Q1D*Q1D*NE);
    const auto b = Reshape(b_, Q1D, D1D);
    const auto g = Reshape(g_, Q1D, D1D);
    const auto j = Reshape(j_, Q1D, Q1D, Q1D, 3, 3, NE);
@@ -662,7 +665,8 @@ static void DerivativesTranspose3D(const int NE,
                   {
                      u += G(dz,qz) * QQQ(qx,qy,qz);
                   }
-                  DQQ(qx,qy,dz) = u;
+                  //   DQQ(qx,qy,dz) = u; // 🔥🔥🔥
+                  DQQ(dz,qy,qx) = u; // 🔥🔥🔥
                }
             }
          }
@@ -678,9 +682,11 @@ static void DerivativesTranspose3D(const int NE,
                   real_t u = 0.0;
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
-                     u += B(dy,qy) * DQQ(qx,qy,dz);
+                     //  u += B(dy,qy) * DQQ(qx,qy,dz);
+                     u += B(dy,qy) * DQQ(dz,qy,qx);
                   }
-                  DDQ(qx,dy,dz) = u;
+                  //   DDQ(qx,dy,dz) = u;
+                  DDQ(dz,dy,qx) = u;
                }
             }
          }
@@ -696,7 +702,8 @@ static void DerivativesTranspose3D(const int NE,
                   real_t u = 0.0;
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-                     u += B(dx,qx) * DDQ(qx,dy,dz);
+                     //  u += B(dx,qx) * DDQ(qx,dy,dz);
+                     u += B(dx,qx) * DDQ(dz,dy,qx);
                   }
                   DDD(dx,dy,dz) = u;
                }

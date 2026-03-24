@@ -32,30 +32,38 @@ struct FieldBasis
 inline FieldBasis FromQI(const QuadratureInterpolator *qi,
                          QuadratureInterpolator::EvalFlags mode)
 {
+   dbg();
    return
    {
       [qi, mode](const Vector &xe, Vector &xq)
       {
+         dbg();
          qi->SetOutputLayout(QVectorLayout::byVDIM);
          if (mode == QuadratureInterpolator::VALUES)
          {
+            dbg("VALUES");
             qi->Values(xe, xq);
          }
          else
          {
+            dbg("DERIVATIVES");
             qi->Derivatives(xe, xq);
          }
       },
       [qi, mode](const Vector &yq, Vector &ye)
       {
+         dbg();
          Vector empty;
          qi->SetOutputLayout(QVectorLayout::byVDIM);
          if (mode == QuadratureInterpolator::VALUES)
          {
+            dbg("Transposed VALUES");
             qi->AddMultTranspose(QuadratureInterpolator::VALUES, yq, empty, ye);
          }
          else
          {
+            dbg("Transposed DERIVATIVES");
+            dbg("empty: {}, yq: {}, ye: {}", empty.Size(), yq.Size(), ye.Size());
             qi->AddMultTranspose(QuadratureInterpolator::DERIVATIVES, empty, yq, ye);
          }
       }
@@ -65,6 +73,7 @@ inline FieldBasis FromQI(const QuadratureInterpolator *qi,
 // QuadratureFunction identity copy
 inline FieldBasis FromQF()
 {
+   dbg();
    return
    {
       [](const Vector &xe, Vector &xq) { xq = xe; },
@@ -75,6 +84,7 @@ inline FieldBasis FromQF()
 // User-defined parameter space B
 inline FieldBasis FromPS(const Operator *B, const Operator *Bt)
 {
+   dbg();
    return
    {
       [B](const Vector &xe, Vector &xq) { B->Mult(xe, xq); },
@@ -84,6 +94,7 @@ inline FieldBasis FromPS(const Operator *B, const Operator *Bt)
 
 inline FieldBasis FieldBasisFromWeight(const IntegrationRule &ir)
 {
+   dbg();
    return
    {
       [&ir](const Vector &, Vector &xq)
@@ -107,6 +118,7 @@ inline const FieldBasis GetFieldBasis(const FieldDescriptor &f,
                                       const IntegrationRule &ir,
                                       QuadratureInterpolator::EvalFlags mode)
 {
+   dbg();
    return std::visit([&ir, &mode](auto && arg) -> FieldBasis
    {
       using T = std::decay_t<decltype(arg)>;
@@ -146,6 +158,7 @@ inline void create_fieldbases(
    const IntegrationRule &ir,
    std::array<FieldBasis, nfops> &bases)
 {
+   dbg();
    constexpr_for<0, nfops>([&](auto i)
    {
       const auto fop = get<i>(fops);
@@ -180,6 +193,7 @@ inline void check_consistency(
    const std::array<size_t, nfops> &fop_to_fd,
    const std::vector<FieldDescriptor> &fields)
 {
+   dbg();
    constexpr_for<0, nfops>([&](auto i)
    {
       const auto input = get<i>(fops);
@@ -222,6 +236,7 @@ inline void interpolate(
    BlockVector &xq,
    const std::array<bool, ninputs> &conditional = all_true<ninputs>())
 {
+   dbg();
    constexpr_for<0, ninputs>([&](auto i)
    {
       if (!conditional.empty() && !conditional[i]) { return; }
@@ -237,7 +252,7 @@ inline void integrate(
    const BlockVector &yq,
    std::vector<Vector *> &ye)
 {
-   // dbg();
+   dbg();
    for (auto v : ye) { *v = 0.0; }
 
    constexpr_for<0, noutputs>([&](auto i)

@@ -1228,19 +1228,25 @@ void prolongation(
    const BlockVector &x,
    std::vector<Vector *> &x_l)
 {
+   dbg("fields: {}", fields.size());
+   dbg("x.NumBlocks(): {}", x.NumBlocks());
+   dbg("x_l.size(): {}", x_l.size());
    MFEM_ASSERT(x.NumBlocks() == static_cast<int>(x_l.size()),
                "error " << x.NumBlocks() << " vs " << x_l.size());
    for (int i = 0; i < x.NumBlocks(); i++)
    {
+      dbg("i: {}", i);
       const auto P = get_prolongation(fields[i]);
 
       // If nullptr, assume Identity.
       if (P == nullptr)
       {
+         dbg("prolongation is identity for field {}", i);
          *x_l[i] = x.GetBlock(i);
       }
       else
       {
+         dbg("applying prolongation for field {}", i);
          const auto P = get_prolongation(fields[i]);
          MFEM_ASSERT(P->Width() == x.GetBlock(i).Size(),
                      "prolongation not applicable to given input data size " <<
@@ -1251,6 +1257,7 @@ void prolongation(
          P->Mult(x.GetBlock(i), *x_l[i]);
       }
    }
+   dbg("done");
 }
 
 inline

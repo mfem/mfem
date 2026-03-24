@@ -662,6 +662,9 @@ void QuadratureInterpolator::AddMultTranspose(unsigned eval_flags,
                                               const Vector &q_der,
                                               Vector &e_vec) const
 {
+   dbg("eval_flags: {}", eval_flags);
+   dbg("q_val: {}, q_der: {}, e_vec: {}",
+       q_val.Size(), q_der.Size(), e_vec.Size());
    const int ne = fespace->GetNE();
    if (ne == 0) { return; }
    const FiniteElement *fe = fespace->GetFE(0);
@@ -689,14 +692,17 @@ void QuadratureInterpolator::AddMultTranspose(unsigned eval_flags,
 
    if (use_tensor_eval)
    {
+      dbg("use_tensor_eval");
       if (eval_flags & (VALUES | PHYSICAL_VALUES))
       {
+         dbg("VALUES or PHYSICAL_VALUES");
          TensorEvalTransposeKernels::Run(dim, q_layout, vdim, nd, nq, ne,
                                          maps.B.Read(), q_val.Read(),
                                          e_vec.ReadWrite(), vdim, nd, nq);
       }
       if (eval_flags & (DERIVATIVES | PHYSICAL_DERIVATIVES))
       {
+         dbg("DERIVATIVES or PHYSICAL_DERIVATIVES");
          const bool phys = (eval_flags & PHYSICAL_DERIVATIVES);
          const real_t *J = phys ? geom->J.Read() : nullptr;
          const int s_dim = phys ? sdim : dim;

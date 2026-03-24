@@ -1071,7 +1071,9 @@ class ConstrainedOperator : public Operator
 {
 protected:
    Array<int> constraint_list;  ///< List of constrained indices/dofs.
+public:
    Operator *A;                 ///< The unconstrained Operator.
+protected:
    bool own_A;                  ///< Ownership flag for A.
    mutable Vector z, w;         ///< Auxiliary vectors.
    MemoryClass mem_class;

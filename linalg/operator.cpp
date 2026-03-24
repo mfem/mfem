@@ -8,10 +8,13 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
+#define NVTX_COLOR ::nvtx::kGold
 
+#include "blockvector.hpp"
 #include "vector.hpp"
 #include "operator.hpp"
 #include "../general/forall.hpp"
+#include "../fem/dfem/doperator.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -26,24 +29,24 @@ void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
 {
    if (!IsIdentityProlongation(Po))
    {
-      // Variational restriction with Po
+      dbg("Variational restriction with Po");
       B.SetSize(Po->Width(), b);
       Po->MultTranspose(b, B);
    }
    else
    {
-      // B points to same data as b
+      dbg("B points to same data as b");
       B.MakeRef(b, 0, b.Size());
    }
    if (!IsIdentityProlongation(Pi))
    {
-      // Variational restriction with Ri
+      dbg("Variational restriction with Ri");
       X.SetSize(Ri->Height(), x);
       Ri->Mult(x, X);
    }
    else
    {
-      // X points to same data as x
+      dbg("X points to same data as x");
       X.MakeRef(x, 0, x.Size());
    }
 }
@@ -126,9 +129,16 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
                                 Operator* &Aout, Vector &X, Vector &B,
                                 int copy_interior)
 {
+   dbg();
    const Operator *P = this->GetProlongation();
    const Operator *R = this->GetRestriction();
+
+   assert(dynamic_cast<BlockVector*>(&x) != nullptr);
+   assert(dynamic_cast<BlockVector*>(&b));
+
+   dbg("ess_tdof_list: {}, x: {} b:{}", ess_tdof_list.Size(), x.Size(), b.Size());
    InitTVectors(P, R, P, x, b, X, B);
+   dbg("X: {} B:{}", X.Size(), B.Size());
 
    if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
 
@@ -207,6 +217,7 @@ Operator * Operator::SetupRAP(const Operator *Pi, const Operator *Po)
 void Operator::FormConstrainedSystemOperator(
    const Array<int> &ess_tdof_list, ConstrainedOperator* &Aout)
 {
+   dbg();
    const Operator *P = this->GetProlongation();
    Operator *rap = SetupRAP(P, P);
 
@@ -524,6 +535,8 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
    : Operator(A->Height(), A->Width()), A(A), own_A(own_A_),
      diag_policy(diag_policy_)
 {
+   dbg("Height: {}, Width: {}", height, width);
+   if (height == 0) { dbg("❌❌❌ Null Height ❌❌❌"); }
    // 'mem_class' should work with A->Mult() and mfem::forall():
    mem_class = A->GetMemoryClass()*Device::GetDeviceMemoryClass();
    MemoryType mem_type = GetMemoryType(mem_class);
@@ -533,6 +546,8 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
    // operations on them
    z.SetSize(height, mem_type); z.UseDevice(true);
    w.SetSize(height, mem_type); w.UseDevice(true);
+   dbg("constraint_list: {}, z: {}, w: {}",
+       constraint_list.Size(), z.Size(), w.Size());
 }
 
 void ConstrainedOperator::AssembleDiagonal(Vector &diag) const
@@ -568,7 +583,13 @@ void ConstrainedOperator::AssembleDiagonal(Vector &diag) const
 
 void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
+   dbg("x: {}, b: {}", x.Size(), b.Size());
+
+   w = x; // to get the size
+   dbg("w: {}", w.Size());
    w = 0.0;
+
+   dbg("constraint_list: {}", constraint_list.Size());
    const int csz = constraint_list.Size();
    auto idx = constraint_list.Read();
    auto d_x = x.Read();
@@ -581,8 +602,37 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
    });
 
    // A.AddMult(w, b, -1.0); // if available to all Operators
-   A->Mult(w, z);
-   b -= z;
+
+   if (auto *dop = dynamic_cast<future::DifferentiableOperator*>(A))
+   {
+      dbg("DifferentiableOperator detected, using MultiVector");
+
+      assert(dynamic_cast<const BlockVector*>(&x));
+      const auto *block_x = dynamic_cast<const BlockVector*>(&x);
+
+      assert(dynamic_cast<BlockVector*>(&b));
+      auto *block_b = dynamic_cast<BlockVector*>(&b);
+
+      z = w; // to get the size
+
+      const Array<int> i_block_offsets {0, x.Size(), b.Size()};
+      const Array<int> o_block_offsets {0, x.Size()};
+      BlockVector block_w(i_block_offsets), block_z(o_block_offsets);
+      block_w = *block_b;
+      block_z = *block_x;
+
+      dbg("A->Mult");
+      MultiVector P{block_w.GetBlock(0), block_w.GetBlock(1)};
+      MultiVector Q{block_z.GetBlock(0)};
+      dop->Mult(P, Q);
+      //   dbg("🔥🔥🔥");      std::exit(EXIT_SUCCESS);
+      block_b->GetBlock(0) -= z;
+   }
+   else
+   {
+      A->Mult(w, z);
+      b -= z;
+   }
 
    // Use read+write access - we are modifying sub-vector of b
    auto d_b = b.ReadWrite();

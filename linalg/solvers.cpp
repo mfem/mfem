@@ -21,6 +21,8 @@
 #include <cmath>
 #include <set>
 
+#include "../fem/dfem/doperator.hpp"
+
 namespace mfem
 {
 
@@ -866,25 +868,61 @@ void CGSolver::UpdateVectors()
    z.UseDevice(true);
 }
 
-void CGSolver::Mult(const Vector &b, Vector &x) const
+void CGSolver::Mult(const Vector &input_B, Vector &input_X) const
 {
+   const auto *constrained_oper = dynamic_cast<const ConstrainedOperator*>(oper);
+   assert(constrained_oper);
+
+   const auto *dop =
+      dynamic_cast<const future::DifferentiableOperator*>(constrained_oper->A);
+
+   dbg("input_B: {}, input_X: {}", input_B.Size(), input_X.Size());
+
+   assert(dynamic_cast<BlockVector*>(&input_X));
+   auto *block_x = dynamic_cast<BlockVector*>(&input_X);
+   assert(block_x);
+   Vector x(block_x->GetBlock(0).Size());
+   dbg("x: {}", x.Size());
+   x = 0.0;
+
+   assert(dynamic_cast<const BlockVector*>(&input_B));
+   auto *block_b =
+      const_cast<BlockVector*>(dynamic_cast<const BlockVector*>(&input_B));
+   assert(block_b);
+   Vector b(block_b->GetBlock(0).Size());
+   dbg("b: {}", b.Size());
+
+   const int bbs0 = block_b->BlockSize(0);
+   const int bbs1 = block_b->BlockSize(1);
+   const int bxs0 = block_x->BlockSize(0);
+
+   const Array<int> b_block_offsets {0, bbs0, bbs0 + bbs1};
+   const Array<int> x_block_offsets {0, bxs0};
+
+
    int i;
    real_t r0, den, nom, nom0, betanom, alpha, beta;
 
    x.UseDevice(true);
    if (iterative_mode)
    {
+      assert(false);
       oper->Mult(x, r);
       subtract(b, r, r); // r = b - A x
    }
    else
    {
+      dbg("r = b");
       r = b;
+
+      dbg("x = 0.0");
       x = 0.0;
    }
+   dbg("x: {}, r: {}", x.Size(), r.Size());
 
    if (prec)
    {
+      assert(false);
       prec->Mult(r, z); // z = B r
       d = z;
    }
@@ -892,9 +930,13 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    {
       d = r;
    }
+   dbg("d: {}, r: {}", d.Size(), r.Size());
+
    nom0 = nom = Dot(d, r);
+   dbg("nom0: {}", nom0);
    if (nom0 >= 0.0) { initial_norm = sqrt(nom0); }
    MFEM_VERIFY(IsFinite(nom), "nom = " << nom);
+
    if (print_options.iterations || print_options.first_and_last)
    {
       mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
@@ -927,9 +969,30 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       return;
    }
 
-   oper->Mult(d, z);  // z = A d
-   den = Dot(z, d);
-   MFEM_VERIFY(IsFinite(den), "den = " << den);
+   if (dop)
+   {
+      dbg("DOP, using BlockVector");
+      dbg("d: {}, z: {}", d.Size(), z.Size());
+
+      BlockVector block_d(b_block_offsets), block_z(x_block_offsets);
+      block_d = *block_b;
+      block_z = *block_x;
+
+      dbg("A->Mult");
+      dop->Mult(block_d, block_z);   // z = A d
+      dbg("z = A d ✅");
+      z = block_z.GetBlock(0);
+      assert(z.Size() == block_d.GetBlock(0).Size());
+      den = Dot(z, block_d.GetBlock(0));
+   }
+   else
+   {
+      oper->Mult(d, z);   // z = A d
+      den = Dot(z, d);
+   }
+
+   dbg("den");
+   if (!dop) { MFEM_VERIFY(IsFinite(den), "den = " << den); }
    if (den <= 0.0)
    {
       if (Dot(d, d) > 0.0 && print_options.warnings)
@@ -959,6 +1022,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 
       if (prec)
       {
+         assert(false);
          prec->Mult(r, z);      //  z = B r
          betanom = Dot(r, z);
       }
@@ -966,7 +1030,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       {
          betanom = Dot(r, r);
       }
-      MFEM_VERIFY(IsFinite(betanom), "betanom = " << betanom);
+      if (!dop) { MFEM_VERIFY(IsFinite(betanom), "betanom = " << betanom); }
       if (betanom < 0.0)
       {
          if (print_options.warnings)
@@ -1000,15 +1064,36 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       beta = betanom/nom;
       if (prec)
       {
+         assert(false);
          add(z, beta, d, d);   //  d = z + beta d
       }
       else
       {
          add(r, beta, d, d);
       }
-      oper->Mult(d, z);       //  z = A d
-      den = Dot(d, z);
-      MFEM_VERIFY(IsFinite(den), "den = " << den);
+
+      if (dop)
+      {
+         //  assert(false);
+         BlockVector block_d(b_block_offsets), block_z(x_block_offsets);
+         block_d = *block_b;
+         block_z = *block_x;
+
+         dbg("A->Mult");
+         dop->Mult(block_d, block_z);   // z = A d
+         dbg("z = A d ✅");
+         z = block_z.GetBlock(0);
+         assert(z.Size() == block_d.GetBlock(0).Size());
+         den = Dot(z, block_d.GetBlock(0));
+
+      }
+      else
+      {
+         oper->Mult(d, z);       //  z = A d
+         den = Dot(d, z);
+      }
+
+      if (!dop) { MFEM_VERIFY(IsFinite(den), "den = " << den); }
       if (den <= 0.0)
       {
          if (Dot(d, d) > 0.0 && print_options.warnings)
