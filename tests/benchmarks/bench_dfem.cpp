@@ -473,6 +473,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       cg.SetMaxIter(max_it);
       cg.SetPrintLevel(print_lvl);
       benchmark();
+      mdofs = 0.0;
    }
 
    void benchmark() override

@@ -120,6 +120,7 @@ struct Problem : public BakeOff<VDIM, GLL>
       cg.SetPrintLevel(print_lvl);
       cg.iterative_mode = false;
       benchmark();
+      mdofs = 0.0;
    }
 
    void benchmark() override
