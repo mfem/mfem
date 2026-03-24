@@ -173,8 +173,7 @@ protected:
 
    /** Deposit charge from particles into a ParLinearForm (RHS b).
        b_i = sum_p q_p * φ_i(x_p) */
-   void DepositCharge(ParFiniteElementSpace* pfes, const ParticleVector& Q,
-                      ParLinearForm& b);
+   void DepositCharge(ParFiniteElementSpace* pfes, const ParticleVector& Q);
 
 public:
    FieldSolver(ParFiniteElementSpace* phi_fes, ParFiniteElementSpace* E_fes,
@@ -637,7 +636,7 @@ const ParLinearForm& FieldSolver::ComputeNeutralizingRHS(
 }
 
 void FieldSolver::DepositCharge(ParFiniteElementSpace* pfes,
-                                const ParticleVector& Q, ParLinearForm& b)
+                                const ParticleVector& Q)
 {
    int npt = Q.Size();
    ParMesh* pmesh = pfes->GetParMesh();
@@ -706,7 +705,7 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
    // 2) Deposit q_p * phi_i(x_p) into a ParLinearForm (RHS b)
    //      b_i = sum_p q_p * φ_i(x_p)
    // --------------------------------------------------------
-   DepositCharge(pfes, Q, b);
+   DepositCharge(pfes, Q);
 
    // Assemble to a global true-dof RHS vector compatible with MassMatrix
    HypreParVector B(pfes);
