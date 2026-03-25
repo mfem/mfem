@@ -103,6 +103,7 @@ int main(int argc, char *argv[])
    real_t sx = 1.;
    real_t sy = 1.;
    int order = 1;
+   bool imex = true;
    bool dg = false;
    bool brt = false;
    int iproblem = (int)Problem::MaterialWave;
@@ -140,6 +141,8 @@ int main(int argc, char *argv[])
                   "Size along y axis.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&imex, "-imex", "--imex", "-impl", "--implicit",
+                  "Time integration of the plasma operator IMEX/implicit.");
    args.AddOption(&dg, "-dg", "--discontinuous", "-no-dg",
                   "--no-discontinuous", "Enable DG elements for fluxes.");
    args.AddOption(&brt, "-brt", "--broken-RT", "-no-brt",
@@ -464,7 +467,7 @@ int main(int argc, char *argv[])
    CoupledOperator op(kcoeffs, &sigcoeff,
                       std::move(bc_plasma), std::move(bc_maxwell),
                       V_space, W_space, E_space, B_space, trace_space,
-                      params.c, td);
+                      params.c, td, imex);
 
    // 9. Allocate memory (x, rhs) for the analytical solution and the right hand
    //    side.  Define the GridFunction q,t for the finite element solution and

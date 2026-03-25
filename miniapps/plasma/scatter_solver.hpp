@@ -27,6 +27,7 @@ class CoupledOperator : public TimeDependentOperator
    std::vector<std::unique_ptr<Coefficient>> ikappa;
    Coefficient *sigma;
    FiniteElementSpace *q_space, *p_space, *E_space, *B_space, *tr_space;
+   bool imex_plasma{true};
 
    std::vector<Array<int>> bdr_is_dirichlet_plasma;
    std::vector<Array<int>> bdr_is_neumann_maxwell;
@@ -35,7 +36,7 @@ class CoupledOperator : public TimeDependentOperator
    std::vector<VectorCoefficient*> bdr_coeffs_maxwell;
    Array<int> offsets;
    BilinearForm *ME{}, *Mq{};
-   NonlinearForm *Mpnl{};
+   NonlinearForm *Mpnl{}, *Kp{};
    BilinearForm *Mpdt{};
    LinearForm *bq{}, *bp{};
    MixedBilinearForm *CE{}, *Dq{};
@@ -89,7 +90,7 @@ public:
                    FiniteElementSpace *q_space, FiniteElementSpace *p_space,
                    FiniteElementSpace *E_space, FiniteElementSpace *B_space,
                    FiniteElementSpace *tr_space = NULL, real_t cs = 1.,
-                   real_t td = 0.5);
+                   real_t td = 0.5, bool imex_plasma = true);
    ~CoupledOperator();
 
    static Array<int> ConstructOffsets(

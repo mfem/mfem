@@ -22,10 +22,12 @@ CoupledOperator::CoupledOperator(std::vector<Coefficient*> kappa_,
                                  std::vector<std::pair<BCType,VectorCoefficient*>> bcs_maxwell,
                                  FiniteElementSpace *q_space_, FiniteElementSpace *p_space_,
                                  FiniteElementSpace *E_space_, FiniteElementSpace *B_space_,
-                                 FiniteElementSpace *tr_space_, real_t cs, real_t td)
+                                 FiniteElementSpace *tr_space_, real_t cs, real_t td,
+                                 bool imex_)
    : TimeDependentOperator(0, IMPLICIT), kappa(kappa_), sigma(sigma_),
      q_space(q_space_), p_space(p_space_),
-     E_space(E_space_), B_space(B_space_), tr_space(tr_space_)
+     E_space(E_space_), B_space(B_space_), tr_space(tr_space_),
+     imex_plasma(imex_)
 {
    offsets = ConstructOffsets(q_space, p_space, E_space, B_space, tr_space);
 
@@ -80,6 +82,7 @@ CoupledOperator::CoupledOperator(std::vector<Coefficient*> kappa_,
 
    Mq = darcy->GetFluxMassForm();
    Mpnl = darcy->GetPotentialMassNonlinearForm();
+   Kp = (imex_plasma)?(new NonlinearForm(p_space)):(Mpnl);
    Dq = darcy->GetFluxDivForm();
 
    bq = darcy->GetFluxRHS();
@@ -156,15 +159,15 @@ CoupledOperator::CoupledOperator(std::vector<Coefficient*> kappa_,
    // nonlinear convection
    flux = std::make_unique<IsothermalFlux>(dim, cs);
    numericalFlux = std::make_unique<RusanovFlux>(*flux);
-   Mpnl->AddDomainIntegrator(new HyperbolicFormIntegrator(*numericalFlux, 0, -1));
-   Mpnl->AddInteriorFaceIntegrator(new HyperbolicFormIntegrator(*numericalFlux, 0,
-                                                                -1));
+   Kp->AddDomainIntegrator(new HyperbolicFormIntegrator(*numericalFlux, 0, -1));
+   Kp->AddInteriorFaceIntegrator(new HyperbolicFormIntegrator(*numericalFlux, 0,
+                                                              -1));
    for (int b = 0; b < nbdrs; b++)
    {
       if (!bdr_is_dirichlet_plasma[b].Size()) { continue; }
-      Mpnl->AddBdrFaceIntegrator(new BdrHyperbolicDirichletIntegrator(
-                                    *numericalFlux, *bdr_coeffs_plasma[b], 0, -1.),
-                                 bdr_is_dirichlet_plasma[b]);
+      Kp->AddBdrFaceIntegrator(new BdrHyperbolicDirichletIntegrator(
+                                  *numericalFlux, *bdr_coeffs_plasma[b], 0, -1.),
+                               bdr_is_dirichlet_plasma[b]);
    }
 
    //dirichlet BC
@@ -253,6 +256,7 @@ CoupledOperator::CoupledOperator(std::vector<Coefficient*> kappa_,
 CoupledOperator::~CoupledOperator()
 {
    delete Mpdt;
+   if (imex_plasma) { delete Kp; }
    delete ME;
    delete CE;
    delete CdE;
@@ -326,12 +330,6 @@ void CoupledOperator::ImplicitSolve(const double dt, const Vector &x, Vector &y)
    X_offsets[2] = E_space->GetVSize();
    X_offsets.PartialSum();
 
-   //solution & rhs vectors
-
-   BlockVector X(X_offsets), RHS(X_offsets);
-   BlockDiagonalPreconditioner bprec(X_offsets);
-   bprec.owns_blocks = true;
-
    //plasma
 
    //set time
@@ -363,11 +361,19 @@ void CoupledOperator::ImplicitSolve(const double dt, const Vector &x, Vector &y)
    {
       GridFunction p_h;
       p_h.MakeRef(darcy->PotentialFESpace(), const_cast<Vector&>(pn), 0);
-      Mpdt->Mult(p_h, *bp);
-      *bp *= -idt;
+      if (imex_plasma)
+      {
+         Kp->Mult(p_h, *bp);
+         Mpdt->AddMult(p_h, *bp, -idt);
+      }
+      else
+      {
+         Mpdt->Mult(p_h, *bp);
+         *bp *= -idt;
+      }
    }
 
-   //form the reduced system
+   //form the system operator
 
    OperatorHandle op_pl;
    BlockVector darcy_x(const_cast<Vector&>(x), darcy->GetOffsets());
@@ -385,6 +391,9 @@ void CoupledOperator::ImplicitSolve(const double dt, const Vector &x, Vector &y)
    darcy->FormLinearSystem(ess_q_tdofs_list, darcy_x,
                            op_pl, X_pl, RHS_pl, true);
 
+   //solution & rhs vectors
+
+   BlockVector X(X_offsets), RHS(X_offsets);
    X.GetBlock(0) = X_pl;
    RHS.GetBlock(0) = RHS_pl;
    X_pl.MakeRef(X.GetBlock(0), 0);
@@ -396,18 +405,24 @@ void CoupledOperator::ImplicitSolve(const double dt, const Vector &x, Vector &y)
       std::cout << "Assembly took " << chrono.RealTime() << "s.\n";
    }
 
+   // preconditioning
+   BlockDiagonalPreconditioner bprec(X_offsets);
+   bprec.owns_blocks = true;
+
    //SparseMatrix sp_grad;
    if (tr_space)
    {
       //sp_grad = static_cast<SparseMatrix&>(op_pl->GetGradient(X_pl));
       //bprec.SetDiagonalBlock(0, new GSSmoother(sp_grad));
-      //bprec.SetDiagonalBlock(0, new DSmoother(*op_pl.As<SparseMatrix>()));
+      //const SparseMatrix &sp_grad = static_cast<const SparseMatrix&>
+      //                              (op_pl->GetGradient(X_pl));
+      //bprec.SetDiagonalBlock(0, new GSSmoother(sp_grad));
    }
    else
    {
       BlockDiagonalPreconditioner *darcy_prec = new BlockDiagonalPreconditioner(
          darcy->GetOffsets());
-      darcy_prec->owns_blocks = true;;
+      darcy_prec->owns_blocks = true;
       darcy_prec->SetDiagonalBlock(0, new GSSmoother(Mq->SpMat()));
       darcy_prec->SetDiagonalBlock(1, new DSmoother(Mpdt->SpMat(), 0, idt));
       bprec.SetDiagonalBlock(0, darcy_prec);
