@@ -4,6 +4,7 @@
 #include "../../util.hpp"
 #include "../../integrator_ctx.hpp"
 #include "general/enzyme.hpp"
+#include NVTX_FMT_HPP
 
 namespace mfem::future
 {
@@ -47,7 +48,9 @@ inline FieldBasis FromQI(const QuadratureInterpolator *qi,
          else
          {
             dbg("DERIVATIVES");
+            // dbg("xe: {}", xe);
             qi->Derivatives(xe, xq);
+            // dbg("xq: {}", xq);
          }
       },
       [qi, mode](const Vector &yq, Vector &ye)
@@ -257,7 +260,9 @@ inline void integrate(
 
    constexpr_for<0, noutputs>([&](auto i)
    {
+      //   dbg("out transpose block #{} yq: {}", i.value, yq.GetBlock(i));
       output_bases[i].transpose(yq.GetBlock(i), *ye[output_to_outfd[i]]);
+      //   dbg("out transpose block #{} ye: {}", i.value, *ye[output_to_outfd[i]]);
    });
 }
 

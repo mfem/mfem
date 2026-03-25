@@ -41,7 +41,7 @@ using future::Identity;
 
 /// Max number of DOFs ////////////////////////////////////////////////////////
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-constexpr int MAX_NDOFS = 128; //* 1024;
+constexpr int MAX_NDOFS = 128 * 1024;
 constexpr int NDOFS_INC = 2; // 25;
 #else
 constexpr int MAX_NDOFS = 10 * 1024 * 1024;
@@ -357,10 +357,10 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       ess_bdr(pmesh.bdr_attributes.Max()),
       all_domain_attr(pmesh.bdr_attributes.Max()),
       b(&pfes),
-      //   u_fd{U, &pfes},
-      //   Ξ_fd{Ξ, &mfes},
+      // u_fd{U, &pfes},
+      // Ξ_fd{Ξ, &mfes},
       // q_fd{Q, &qd_ps},
-      //   u_sol{u_fd},
+      // u_sol{u_fd},
       // q_param {q_fd},
       // Ξ_q_params {Ξ_fd, q_fd},
       B(/*version < 2 ? b.Size() :*/ mfes.GetVSize() + pfes.GetVSize()),
@@ -413,11 +413,13 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       else if (version == 2) // 2: MF ∂fem
       {
          dbg("MF ∂fem");
+         dbg("pfes.GetVSize(): {}, mfes.GetVSize(): {}", pfes.GetVSize(),
+             mfes.GetVSize());
          const std::vector<FieldDescriptor> infds = {{U, &pfes}, {Ξ, &mfes}};
          const std::vector<FieldDescriptor> outfds = {{U, &pfes}};
          const int height = pfes.GetVSize(), width = pfes.GetVSize(); // 🔥🔥🔥
-         dop = std::make_unique<DifferentiableOperator>(height, width, infds, outfds,
-                                                        pmesh);
+         dop = std::make_unique<DifferentiableOperator>(height, width,
+                                                        infds, outfds, pmesh);
          const auto diffusion_mf_kernel =
             [] MFEM_HOST_DEVICE (tensor_array<const real_t, DIM> &Gu,
                                  tensor_array<const real_t, DIM, DIM> &J,
@@ -429,10 +431,13 @@ struct Diffusion : public BakeOff<VDIM, GLL>
             for (size_t q = 0; q < NQ; q++)
             {
                const auto invJ = inv(J(q));
-               Gv(q) = ((Gu(q) * invJ)) * transpose(invJ) * det(J(q)) * weight(q);
+               const real_t detJ = det(J(q));
+               assert(std::isfinite(detJ));
+               const real_t w = weight(q);
+               assert(detJ > 0.0);
+               Gv(q) = ((Gu(q) * invJ)) * transpose(invJ) * detJ * w;
             }
          };
-         //  dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          //  dop->SetQLayouts({}, {{Gradient<U>{}, {1,0}}});
          dop->AddDomainIntegrator(diffusion_mf_kernel,
                                   // inputs
@@ -440,6 +445,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
                                   // outputs
                                   tuple{Gradient<U>{}},
                                   *ir, ess_bdr);
+         dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
 
          /*{
             dbg("dop->Mult(P, Q)");
@@ -452,33 +458,35 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          {
             dbg("FormLinearSystem:");
             A_ptr = nullptr;
-            dbg("ess_tdof_list: {}, x: {} b:{}", ess_tdof_list.Size(), x.Size(), b.Size());
-            dbg("block_B: {} block_X: {}", block_B.Size(), block_X.Size());
-            dbg("block_b size: {}", block_b.Size());
-            dbg("block_x size: {}", block_x.Size());
+            // dbg("ess_tdof_list: {}, x: {} b:{}", ess_tdof_list.Size(), x.Size(), b.Size());
+            // dbg("block_B: {} block_X: {}", block_B.Size(), block_X.Size());
+            // dbg("block_b size: {}", block_b.Size());
+            // dbg("block_x size: {}", block_x.Size());
 
-            dbg("block_x: {}", block_x*block_x);    // ✅ 0.0
-            dbg("block_b0: {}",                     // ✅ 6.0236287999992145e-05
-                block_b.GetBlock(0)*block_b.GetBlock(0));
-            dbg("block_b1: {}",                     // ✅ 17927.520000004253
-                block_b.GetBlock(1)*block_b.GetBlock(1));
+            // dbg("block_x: {}", block_x*block_x);    // ✅ 0.0
+            // dbg("block_b0: {}",                     // ✅ 6.0236287999992145e-05
+            //     block_b.GetBlock(0)*block_b.GetBlock(0));
+            // dbg("block_b0: {}", block_b.GetBlock(0));
+            // dbg("block_b1: {}",                     // ✅ 17927.520000004253
+            //     block_b.GetBlock(1)*block_b.GetBlock(1));
+            // dbg("block_b1: {}", block_b.GetBlock(1));
             // Vector dop_B, dop_X;
             dbg("dop Width: {}, height: {}", dop->Width(), dop->Height());
             dop->FormLinearSystem(ess_tdof_list, block_x, block_b, A_ptr, block_X, block_B);
-            dbg("block_X: {}", block_X*block_X);
-            dbg("block_B0: {}",  // ❌
-                block_B.GetBlock(0)*block_B.GetBlock(0));
-            dbg("block_B1: {}",  // ❌
-                block_B.GetBlock(1)*block_B.GetBlock(1));
+            Vector b0v, b1v;
+            block_B.GetBlockView(0, b0v);
+            block_B.GetBlockView(1, b1v);
 
-            // block_B.GetBlock(0) = block_B.GetBlock(0);
-            block_B.GetBlock(1) = *nodes;
+            // dbg("block_X: {}", block_X*block_X);
+            // dbg("b0v: {}", b0v*b0v);
+            // dbg("b1v: {}", b1v*b1v);
+
+            b1v = *nodes;
 
             A.Reset(A_ptr);
             dbg("FormLinearSystem ✅");
-            dbg("B: {}", block_B.GetBlock(0)*block_B.GetBlock(0)); //  🔥
-            dbg("block_b1: {}",                     // 0.0 ✅
-                block_b.GetBlock(1)*block_b.GetBlock(1));
+            // dbg("b0v: {}", b0v*b0v); //  🔥
+            // dbg("b1v: {}", b1v*b1v); //  🔥
          }
 
          //  std::exit(EXIT_SUCCESS);

@@ -17,6 +17,7 @@
 #include "../general/forall.hpp"
 #include "../linalg/dtensor.hpp"
 #include "../linalg/kernels.hpp"
+#include NVTX_FMT_HPP
 
 namespace mfem
 {
@@ -561,13 +562,16 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
 
    if (use_tensor_eval)
    {
+      dbg();
       if (eval_flags & (VALUES | PHYSICAL_VALUES))
       {
+         dbg("VALUES | PHYSICAL_VALUES");
          TensorEvalKernels::Run(dim, q_layout, vdim, nd, nq, ne, maps.B.Read(),
                                 e_vec.Read(), q_val.Write(), vdim, nd, nq);
       }
       if (eval_flags & (DERIVATIVES | PHYSICAL_DERIVATIVES))
       {
+         dbg("DERIVATIVES | PHYSICAL_DERIVATIVES");
          const bool phys = (eval_flags & PHYSICAL_DERIVATIVES);
          const real_t *J = phys ? geom->J.Read() : nullptr;
          const int s_dim = phys ? sdim : dim;
@@ -577,6 +581,7 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
       }
       if (eval_flags & DETERMINANTS)
       {
+         dbg("DETERMINANTS");
          DetKernels::Run(dim, vdim, nd, nq, ne, maps.B.Read(),
                          maps.G.Read(), e_vec.Read(), q_det.Write(), nd,
                          nq, &d_buffer);
@@ -584,6 +589,7 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
    }
    else // use_tensor_eval == false
    {
+      dbg();
       EvalKernels::Run(dim, vdim, maps.ndof, maps.nqpt, ne,vdim, q_layout,
                        geom, maps, e_vec, q_val, q_der, q_det, eval_flags);
    }
@@ -706,10 +712,15 @@ void QuadratureInterpolator::AddMultTranspose(unsigned eval_flags,
          const bool phys = (eval_flags & PHYSICAL_DERIVATIVES);
          const real_t *J = phys ? geom->J.Read() : nullptr;
          const int s_dim = phys ? sdim : dim;
+         //  dbg("[ini] q_der: {}", q_der);
+         //  dbg("[ini] e_vec: {}", e_vec);
+         dbg("dim: {}, q_layout: {}, phys: {}, vdim: {}, nd: {}, nq: {}, ne: {}",
+             dim, (int)q_layout, phys, vdim, nd, nq, ne);
          GradTransposeKernels::Run(dim, q_layout, phys, vdim, nd, nq, ne,
                                    maps.B.Read(), maps.G.Read(), J,
                                    q_der.Read(), e_vec.ReadWrite(),
                                    s_dim, vdim, nd, nq);
+         //  dbg("[end] e_vec: {}", e_vec);
       }
    }
    else

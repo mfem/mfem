@@ -355,7 +355,7 @@ static void DerivativesTranspose3D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
 
-   dbg("VDIM:{}, Q1D:{}, NE:{}", VDIM, Q1D, NE);
+   dbg("VDIM:{}, D1D:{}, Q1D:{}, NE:{}", VDIM, D1D, Q1D, NE);
    dbg("DIM*Q1D*Q1D*Q1D*NE: {}", VDIM*3*Q1D*Q1D*Q1D*NE);
    const auto b = Reshape(b_, Q1D, D1D);
    const auto g = Reshape(g_, Q1D, D1D);
@@ -378,8 +378,8 @@ static void DerivativesTranspose3D(const int NE,
       DeviceMatrix B(BG[0], D1D, Q1D);
       DeviceMatrix G(BG[1], D1D, Q1D);
 
-      MFEM_SHARED real_t sm0[3][MQ1*MQ1*MQ1];
-      MFEM_SHARED real_t sm1[3][MQ1*MQ1*MQ1];
+      MFEM_SHARED real_t sm0[1][MQ1*MQ1*MQ1];
+      MFEM_SHARED real_t sm1[1][MQ1*MQ1*MQ1];
       DeviceCube QQQ(sm0[0], MQ1, MQ1, MQ1);
       DeviceCube DQQ(sm1[0], MD1, MQ1, MQ1);
       DeviceCube DDQ(sm0[0], MD1, MD1, MQ1);
@@ -407,6 +407,7 @@ static void DerivativesTranspose3D(const int NE,
                      dq[1] = q(qx,qy,qz,c,1,el);
                      dq[2] = q(qx,qy,qz,c,2,el);
                   }
+                  //   dbg("dq: {}, {}, {}", dq[0], dq[1], dq[2]);
 
                   real_t du[3] = {dq[0], dq[1], dq[2]};
                   if (GRAD_PHYS)
@@ -493,6 +494,7 @@ static void DerivativesTranspose3D(const int NE,
                MFEM_FOREACH_THREAD(dx,x,D1D)
                {
                   e(dx,dy,dz,c,el) += DDD(dx,dy,dz);
+                  //   dbg("DDD(dx,dy,dz): {}", DDD(dx,dy,dz));
                }
             }
          }

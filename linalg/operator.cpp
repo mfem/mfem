@@ -591,7 +591,7 @@ void ConstrainedOperator::EliminateRHS(const Vector &X, Vector &B) const
    dbg("[Sizes] X: {}, B: {}, w: {}, z: {}", X.Size(), B.Size(), w.Size(),
        z.Size());
    dbg("[dot] X: {} B: {}", X*X, B*B);
-   dbg("B: {}", B);
+   //    dbg("B: {}", B);
 
    w = 0.0;
 
@@ -614,61 +614,110 @@ void ConstrainedOperator::EliminateRHS(const Vector &X, Vector &B) const
       dbg("DifferentiableOperator detected, using MultiVector");
 
       assert(dynamic_cast<const BlockVector*>(&X));
-      //   const auto *block_x = dynamic_cast<const BlockVector*>(&X);
+      // const auto *block_x = dynamic_cast<const BlockVector*>(&X);
 
       assert(dynamic_cast<BlockVector*>(&B));
       auto *block_b = dynamic_cast<BlockVector*>(&B);
+      //   dbg("\x1b[32m block_b: {}", (Vector)*block_b);
 
       const Array<int> b_block_offsets {0, X.Size(), B.Size()};
+      //   dbg("b_block_offsets: {}", b_block_offsets);
       const Array<int> x_block_offsets {0, X.Size()};
+      //   dbg("x_block_offsets: {}", x_block_offsets);
+
+      //   block_b->Update(B, b_block_offsets);
+      Vector bB0;
+      block_b->GetBlockView(0, bB0);
+      //   dbg("\x1b[31m bB0: {}", bB0); // ✅
+
+      Vector bB1;
+      block_b->GetBlockView(1, bB1);
+      //   dbg("\x1b[31m bB1: {}", bB1); // ✅
+
+      //   const Vector &b0 = block_b->GetBlock(0);
+      //   dbg("\x1b[31m  b0: {}", b0);  // ❌
+
+      //   dbg("\x1b[37m block_b1: {}", block_b->GetBlock(1));
+
       BlockVector block_w(b_block_offsets), block_z(x_block_offsets);
       assert(block_w.GetBlock(0).Size() == w.Size());
       assert(block_w.GetBlock(1).Size() == block_b->GetBlock(1).Size());
-      dbg("block_b->GetBlock(1): {}", block_b->GetBlock(1)*block_b->GetBlock(1));
+      //   dbg("block_b->GetBlock(1): {}", block_b->GetBlock(1)*block_b->GetBlock(1));
+      //   dbg("block_b->GetBlock(1): {}", block_b->GetBlock(1));
 
-      dbg("lock_b->GetBlock(1): {}", block_b->GetBlock(1));
-
-      Vector &w0 = block_w.GetBlock(0);
+      Vector w0; block_w.GetBlockView(0, w0);
       w0 = w;
       dbg("w0: {}", w0*w0);
 
-      Vector &w1 = block_w.GetBlock(1);
-      w1 = block_b->GetBlock(1); // set nodes
+      Vector w1; block_w.GetBlockView(1, w1);
+      //   dbg("block_b->GetBlock(1): {}", block_b->GetBlock(1));
+      w1 = bB1;//block_b->GetBlock(1); // set nodes
+      //   dbg("w1: {}", w1);
       dbg("w1: {}", w1*w1);
 
       block_z = 0.0;
       dbg("block_z: {}", block_z*block_z); // ✅ 0.0
 
       dbg("A->Mult");
-      MultiVector P{block_w.GetBlock(0), block_w.GetBlock(1)};
-      MultiVector Q{block_z.GetBlock(0)};
+      //   MultiVector P{block_w.GetBlock(0), block_w.GetBlock(1)};
+      MultiVector P{w0, w1};
+      MultiVector Q{block_z};
       dop->Mult(P, Q);
-      z = block_z.GetBlock(0);
-      block_b->GetBlock(0) -= z;
-      dbg("block_b0: {}", block_b->GetBlock(0)*block_b->GetBlock(0));
+
+      Vector zv; block_z.GetBlockView(0, zv);
+      //   z = block_z.GetBlock(0);
+      dbg("z: {}", zv*zv); // ⚠️ 0.0
+
+      Vector b0v; block_b->GetBlockView(0, b0v);
+      b0v -= zv;
+
+      dbg("b0v: {}", b0v*b0v); // ⚠️ 0.052734375
+      //   dbg("B-z: {}",  b0v);
 
       // Use read+write access - we are modifying sub-vector of b
-      auto d_b = block_b->GetBlock(0).ReadWrite();
+      auto d_b = b0v.ReadWrite();
       mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i)
       {
          const int id = idx[i];
          d_b[id] = d_x[id];
       });
-      dbg("block_b0: {}", block_b->GetBlock(0)*block_b->GetBlock(0));
-      dbg("🔥🔥🔥"), std::exit(EXIT_SUCCESS);
+
+      dbg("b0v: {}", b0v*b0v); // ⚠️ 0.015625
+      //   dbg("b0v: {}", b0v);
+
+      //   dbg("🔥🔥🔥"), std::exit(EXIT_SUCCESS);
    }
    else
    {
       A->Mult(w, z);
+      dbg("z: {}", z*z); // 0.0
       B -= z;
+      dbg("B-z: {}", B*B); // 0.052734375
+      //   dbg("B-z: {}", B);
+      // [1.562500e-02, 3.125000e-02, 1.562500e-02, 3.125000e-02,
+      // 6.250000e-02, 3.125000e-02, 1.562500e-02, 3.125000e-02,
+      // 1.562500e-02, 3.125000e-02, 6.250000e-02, 3.125000e-02,
+      // 6.250000e-02, 1.250000e-01, 6.250000e-02, 3.125000e-02,
+      // 6.250000e-02, 3.125000e-02, 1.562500e-02, 3.125000e-02,
+      // 1.562500e-02, 3.125000e-02, 6.250000e-02, 3.125000e-02,
+      // 1.562500e-02, 3.125000e-02, 1.562500e-02]
       // Use read+write access - we are modifying sub-vector of B
       auto d_B = B.ReadWrite();
       mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i)
       {
          const int id = idx[i];
+         //  dbg("Setting B[{}]: {}", id, d_x[id]);
          d_B[id] = d_x[id];
       });
-      dbg("B: {}", B*B);
+      dbg("B: {}", B*B); // 0.015625
+      //   dbg("B: {}", B);
+      // 0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00,
+      // 0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00,
+      // 0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00,
+      // 0.000000e+00, 1.250000e-01, 0.000000e+00, 0.000000e+00,
+      // 0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00,
+      // 0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00,
+      // 0.000000e+00, 0.000000e+00, 0.000000e+00]
       //   dbg("🔥🔥🔥"), std::exit(EXIT_SUCCESS);
    }
 }
@@ -676,9 +725,11 @@ void ConstrainedOperator::EliminateRHS(const Vector &X, Vector &B) const
 void ConstrainedOperator::ConstrainedMult(const Vector &x, Vector &y,
                                           const bool transpose) const
 {
+   //    dbg("x: {}", x);
    const int csz = constraint_list.Size();
    if (csz == 0)
    {
+      dbg("csz == 0");
       if (transpose)
       {
          A->MultTranspose(x, y);
@@ -699,11 +750,30 @@ void ConstrainedOperator::ConstrainedMult(const Vector &x, Vector &y,
 
    if (transpose)
    {
+      dbg("MultTranspose");
       A->MultTranspose(z, y);
    }
    else
    {
-      A->Mult(z, y);
+      dbg("Mult");
+      if (auto *dop = dynamic_cast<future::DifferentiableOperator*>(A))
+      {
+         dbg("DifferentiableOperator detected, using MultiVector");
+
+         auto *block_x = const_cast<BlockVector*>(dynamic_cast<const BlockVector*>(&x));
+         Vector U, Ξ;
+         block_x->GetBlockView(0, U);
+         block_x->GetBlockView(1, Ξ);
+         //  dbg("U:{} Ξ:{}", U.Size(), Ξ.Size());
+
+         MultiVector P{U, Ξ};
+         MultiVector Q{y};
+         dop->Mult(P, Q);
+      }
+      else
+      {
+         A->Mult(z, y);
+      }
    }
 
    auto d_x = x.Read();
@@ -733,6 +803,7 @@ void ConstrainedOperator::ConstrainedMult(const Vector &x, Vector &y,
          mfem_error("ConstrainedOperator::Mult #2");
          break;
    }
+   //    dbg("y: {}", y);
 }
 
 void ConstrainedOperator::ConstrainedAbsMult(const Vector &x, Vector &y,
@@ -799,6 +870,7 @@ void ConstrainedOperator::ConstrainedAbsMult(const Vector &x, Vector &y,
 
 void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
 {
+   dbg("ConstrainedOperator");
    constexpr bool transpose = false;
    ConstrainedMult(x, y, transpose);
 }
