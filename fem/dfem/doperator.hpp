@@ -552,10 +552,10 @@ void DifferentiableOperator::AddIntegrator(
    constexpr auto inout_tuple =
       merge_mfem_tuples_as_empty_std_tuple(inputs, outputs);
    constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
-   static constexpr size_t num_fields =
-      count_unique_field_ids(filtered_inout_tuple);
 
-   out << "num_fields: " << num_fields << "\n";
+   // static constexpr size_t num_fields =
+   //   count_unique_field_ids(filtered_inout_tuple);
+   // out << "num_fields: " << num_fields << "\n";
 
    MFEM_ASSERT(num_fields == unionfds.size(),
                "Total number of fields in the Q-function doesn't match"
