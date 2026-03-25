@@ -287,7 +287,7 @@ int main(int argc, char *argv[])
       Array<int> ess_tdof_list;
       cout << "calling form lin sys" << endl;
       // a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-	    
+
       std::unique_ptr<HypreBoomerAMG> amg;
       if (pa)
       {
@@ -305,7 +305,7 @@ int main(int argc, char *argv[])
       if (sigma == -1.0)
       {
          cout << "using cg" << endl;
-        CGSolver cg(MPI_COMM_WORLD);
+         CGSolver cg(MPI_COMM_WORLD);
          cg.SetRelTol(1e-12);
          cg.SetMaxIter(500);
          cg.SetPrintLevel(1);
@@ -315,8 +315,8 @@ int main(int argc, char *argv[])
       }
       else
       {
-	 cout << "using gmres" << endl;
-	 CustomSolverMonitor monitor(pmesh, x);
+         cout << "using gmres" << endl;
+         CustomSolverMonitor monitor(pmesh, x);
          GMRESSolver gmres(MPI_COMM_WORLD);
          gmres.SetAbsTol(0.0);
          gmres.SetRelTol(1e-12);
