@@ -105,7 +105,7 @@ inline FieldBasis FieldBasisFromWeight(const IntegrationRule &ir)
 
          for (int e = 0; e < ne; e++)
          {
-            std::memcpy(xq.GetData() + e*nqp, wref, nqp*sizeof(real_t));
+            std::memcpy(xq.HostReadWrite() + e*nqp, wref, nqp*sizeof(real_t));
          }
       },
       [](const Vector &, Vector &) {}
