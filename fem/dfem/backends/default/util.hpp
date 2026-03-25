@@ -4,7 +4,6 @@
 #include "../../util.hpp"
 #include "../../integrator_ctx.hpp"
 #include "general/enzyme.hpp"
-#include NVTX_FMT_HPP
 
 namespace mfem::future
 {
