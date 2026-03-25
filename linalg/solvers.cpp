@@ -1247,7 +1247,14 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
          H(i+1,i) = Norm(w);           // H(i+1,i) = ||w||
          MFEM_VERIFY(IsFinite(H(i+1,i)), "Norm(w) = " << H(i+1,i));
          if (v[i+1] == NULL) { v[i+1] = new Vector(n); }
-         v[i+1]->Set(1.0/H(i+1,i), w); // v[i+1] = w / H(i+1,i)
+         if (H(i+1,i) != 0.)
+         {
+            v[i+1]->Set(1.0/H(i+1,i), w);   // v[i+1] = w / H(i+1,i)
+         }
+         else
+         {
+            *v[i+1] = 0.;
+         }
 
          for (k = 0; k < i; k++)
          {
