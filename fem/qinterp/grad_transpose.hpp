@@ -350,13 +350,10 @@ static void DerivativesTranspose3D(const int NE,
                                    const int d1d = 0,
                                    const int q1d = 0)
 {
-   dbg();
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
 
-   dbg("VDIM:{}, D1D:{}, Q1D:{}, NE:{}", VDIM, D1D, Q1D, NE);
-   dbg("DIM*Q1D*Q1D*Q1D*NE: {}", VDIM*3*Q1D*Q1D*Q1D*NE);
    const auto b = Reshape(b_, Q1D, D1D);
    const auto g = Reshape(g_, Q1D, D1D);
    const auto j = Reshape(j_, Q1D, Q1D, Q1D, 3, 3, NE);
@@ -407,7 +404,6 @@ static void DerivativesTranspose3D(const int NE,
                      dq[1] = q(qx,qy,qz,c,1,el);
                      dq[2] = q(qx,qy,qz,c,2,el);
                   }
-                  //   dbg("dq: {}, {}, {}", dq[0], dq[1], dq[2]);
 
                   real_t du[3] = {dq[0], dq[1], dq[2]};
                   if (GRAD_PHYS)
@@ -494,7 +490,6 @@ static void DerivativesTranspose3D(const int NE,
                MFEM_FOREACH_THREAD(dx,x,D1D)
                {
                   e(dx,dy,dz,c,el) += DDD(dx,dy,dz);
-                  //   dbg("DDD(dx,dy,dz): {}", DDD(dx,dy,dz));
                }
             }
          }
@@ -667,8 +662,7 @@ static void DerivativesTranspose3D(const int NE,
                   {
                      u += G(dz,qz) * QQQ(qx,qy,qz);
                   }
-                  //   DQQ(qx,qy,dz) = u; // 🔥🔥🔥
-                  DQQ(dz,qy,qx) = u; // 🔥🔥🔥
+                  DQQ(dz,qy,qx) = u;
                }
             }
          }
@@ -684,10 +678,8 @@ static void DerivativesTranspose3D(const int NE,
                   real_t u = 0.0;
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
-                     //  u += B(dy,qy) * DQQ(qx,qy,dz);
                      u += B(dy,qy) * DQQ(dz,qy,qx);
                   }
-                  //   DDQ(qx,dy,dz) = u;
                   DDQ(dz,dy,qx) = u;
                }
             }
@@ -704,7 +696,6 @@ static void DerivativesTranspose3D(const int NE,
                   real_t u = 0.0;
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-                     //  u += B(dx,qx) * DDQ(qx,dy,dz);
                      u += B(dx,qx) * DDQ(dz,dy,qx);
                   }
                   DDD(dx,dy,dz) = u;

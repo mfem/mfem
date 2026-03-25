@@ -15,6 +15,7 @@
 #ifdef MFEM_USE_BENCHMARK
 
 #include <memory>
+#include <utility>
 
 #include <fem/qinterp/det.cpp>
 #include <fem/qinterp/grad.hpp> // IWYU pragma: keep
@@ -327,8 +328,6 @@ struct Diffusion : public BakeOff<VDIM, GLL>
 
    Array<int> ess_tdof_list, ess_bdr, all_domain_attr;
    ParLinearForm b;
-   // FieldDescriptor u_fd, Ξ_fd;//, q_fd;
-   // std::vector<FieldDescriptor> u_sol;//, q_param, Ξ_q_params;
    OperatorPtr A;
    Operator *A_ptr;
    Vector B, X;
@@ -348,8 +347,6 @@ struct Diffusion : public BakeOff<VDIM, GLL>
    using BakeOff<VDIM, GLL>::mdofs;
    using BakeOff<VDIM, GLL>::dop;
    using BakeOff<VDIM, GLL>::nodes;
-   //    using BakeOff<VDIM, GLL>::qdata;
-   //    using BakeOff<VDIM, GLL>::qd_ps;
    using BakeOff<VDIM, GLL>::dofs;
 
    Diffusion(int version, int order, int side):
@@ -357,13 +354,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       ess_bdr(pmesh.bdr_attributes.Max()),
       all_domain_attr(pmesh.bdr_attributes.Max()),
       b(&pfes),
-      // u_fd{U, &pfes},
-      // Ξ_fd{Ξ, &mfes},
-      // q_fd{Q, &qd_ps},
-      // u_sol{u_fd},
-      // q_param {q_fd},
-      // Ξ_q_params {Ξ_fd, q_fd},
-      B(/*version < 2 ? b.Size() :*/ mfes.GetVSize() + pfes.GetVSize()),
+      B(mfes.GetVSize() + pfes.GetVSize()),
       X(x),
       // *INDENT-OFF*
       i_block_offsets({0, pfes.GetVSize(), pfes.GetVSize() + mfes.GetVSize()}),
@@ -375,7 +366,6 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       cg(MPI_COMM_WORLD)
       // *INDENT-ON*
    {
-      // dbg("pmesh.bdr_attributes.Max():{}",pmesh.bdr_attributes.Max());
       static_assert(VDIM == 1 && GLL == false);
 
       ess_bdr = 1;
@@ -385,7 +375,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       b.AddDomainIntegrator(new DomainLFIntegrator(this->one));
       b.UseFastAssembly(true);
       b.Assemble();
-      dbg("b: {}", b*b); // 6.0236287999992145e-05 ✅
+
       assert(block_b.GetBlock(0).Size() == b.Size());
       block_b.GetBlock(0) = b;
       block_b.GetBlock(1) = *nodes;
@@ -398,14 +388,12 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          if (version == 1) { a.AddDomainIntegrator(new StiffnessIntegrator()); }
          a.Assemble();
          a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-         dbg("B: {}", B*B); // 5.662310399999065e-05 ✅
          if (version == 0)
          {
             BilinearFormIntegrator *bfi = a.GetDBFI()->operator[](0);
             auto *di = dynamic_cast<DiffusionIntegrator*>(bfi);
             assert(di);
             const int d1d = di->dofs1D, q1d = di->quad1D;
-            // dbg("\x1b[33md1d: {} q1d: {}", d1d, q1d);
             MFEM_VERIFY(d1d == gD1D, "D1D mismatch: " << d1d << " != " << gD1D);
             MFEM_VERIFY(q1d == gQ1D, "Q1D mismatch: " << q1d << " != " << gQ1D);
          }
@@ -413,11 +401,9 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       else if (version == 2) // 2: MF ∂fem
       {
          dbg("MF ∂fem");
-         dbg("pfes.GetVSize(): {}, mfes.GetVSize(): {}", pfes.GetVSize(),
-             mfes.GetVSize());
          const std::vector<FieldDescriptor> infds = {{U, &pfes}, {Ξ, &mfes}};
          const std::vector<FieldDescriptor> outfds = {{U, &pfes}};
-         const int height = pfes.GetVSize(), width = pfes.GetVSize(); // 🔥🔥🔥
+         const int height = pfes.GetVSize(), width = pfes.GetVSize();
          dop = std::make_unique<DifferentiableOperator>(height, width,
                                                         infds, outfds, pmesh);
          const auto diffusion_mf_kernel =
@@ -427,7 +413,6 @@ struct Diffusion : public BakeOff<VDIM, GLL>
                                  tensor_array<real_t, DIM> &Gv)
          {
             const size_t NQ = Gu.size();
-            dbg("\x1b[33mNQ: {}", NQ);
             for (size_t q = 0; q < NQ; q++)
             {
                const auto invJ = inv(J(q));
@@ -438,7 +423,6 @@ struct Diffusion : public BakeOff<VDIM, GLL>
                Gv(q) = ((Gu(q) * invJ)) * transpose(invJ) * detJ * w;
             }
          };
-         //  dop->SetQLayouts({}, {{Gradient<U>{}, {1,0}}});
          dop->AddDomainIntegrator(diffusion_mf_kernel,
                                   // inputs
                                   tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
@@ -447,46 +431,18 @@ struct Diffusion : public BakeOff<VDIM, GLL>
                                   *ir, ess_bdr);
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
 
-         /*{
-            dbg("dop->Mult(P, Q)");
-            MultiVector P{b, *nodes};
-            MultiVector Q{x};
-            dop->Mult(P, Q);
-            dbg("✅");
-         }*/
-
          {
             dbg("FormLinearSystem:");
             A_ptr = nullptr;
-            // dbg("ess_tdof_list: {}, x: {} b:{}", ess_tdof_list.Size(), x.Size(), b.Size());
-            // dbg("block_B: {} block_X: {}", block_B.Size(), block_X.Size());
-            // dbg("block_b size: {}", block_b.Size());
-            // dbg("block_x size: {}", block_x.Size());
-
-            // dbg("block_x: {}", block_x*block_x);    // ✅ 0.0
-            // dbg("block_b0: {}",                     // ✅ 6.0236287999992145e-05
-            //     block_b.GetBlock(0)*block_b.GetBlock(0));
-            // dbg("block_b0: {}", block_b.GetBlock(0));
-            // dbg("block_b1: {}",                     // ✅ 17927.520000004253
-            //     block_b.GetBlock(1)*block_b.GetBlock(1));
-            // dbg("block_b1: {}", block_b.GetBlock(1));
-            // Vector dop_B, dop_X;
             dbg("dop Width: {}, height: {}", dop->Width(), dop->Height());
             dop->FormLinearSystem(ess_tdof_list, block_x, block_b, A_ptr, block_X, block_B);
             Vector b0v, b1v;
             block_B.GetBlockView(0, b0v);
             block_B.GetBlockView(1, b1v);
 
-            // dbg("block_X: {}", block_X*block_X);
-            // dbg("b0v: {}", b0v*b0v);
-            // dbg("b1v: {}", b1v*b1v);
-
             b1v = *nodes;
 
             A.Reset(A_ptr);
-            dbg("FormLinearSystem ✅");
-            // dbg("b0v: {}", b0v*b0v); //  🔥
-            // dbg("b1v: {}", b1v*b1v); //  🔥
          }
 
          //  std::exit(EXIT_SUCCESS);
@@ -533,10 +489,10 @@ struct Diffusion : public BakeOff<VDIM, GLL>
 
       cg.SetOperator(*A);
       cg.iterative_mode = false;
-      if (dofs < 128 * 1024) // check
+      if (static auto done = false; !std::exchange(done, true) && dofs < 128 * 1024)
       {
          dbg("check");
-         cg.SetPrintLevel(-1);
+         cg.SetPrintLevel(3/*-1*/);
          cg.SetMaxIter(2000);
          cg.SetRelTol(1e-8);
          cg.SetAbsTol(0.0);
@@ -559,9 +515,9 @@ struct Diffusion : public BakeOff<VDIM, GLL>
             // ...
             // Iteration :  35  (B r, r) = 2.87451e-21
          }
-         MFEM_VERIFY(cg.GetConverged(), "❌❌❌ CG solver did not converge.");
+         MFEM_VERIFY(cg.GetConverged(), "❌ CG solver did not converge.");
          MFEM_DEVICE_SYNC;
-         //  mfem::out << "✅" << std::endl;
+         mfem::out << "✅" << std::endl;
       }
       cg.SetAbsTol(0.0);
       cg.SetRelTol(rtol);
