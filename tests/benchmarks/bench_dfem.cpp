@@ -26,6 +26,8 @@
 #include "fem/kernels.hpp"
 namespace ker = kernels::internal;
 
+// #include NVTX_FMT_HPP
+
 using namespace mfem;
 
 using mfem::future::tuple;
@@ -37,13 +39,14 @@ using future::UniformParameterSpace;
 using future::ParameterFunction;
 using future::FieldDescriptor;
 using future::Gradient;
+using future::Value;
 using future::Weight;
 using future::Identity;
 
 /// Max number of DOFs ////////////////////////////////////////////////////////
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
 constexpr int MAX_NDOFS = 128 * 1024;
-constexpr int NDOFS_INC = 8; // 25;
+constexpr int NDOFS_INC = 16;
 #else
 constexpr int MAX_NDOFS = 10 * 1024 * 1024;
 constexpr int NDOFS_INC = 25;
@@ -256,14 +259,14 @@ struct BakeOff
    Vector uvec;
    VectorConstantCoefficient unit_vec;
    const int dofs;
-   ParGridFunction *nodes;
+   ParGridFunction &nodes;
    ParFiniteElementSpace& mfes;
    ParGridFunction x, y;
    ParBilinearForm a;
    std::unique_ptr<DifferentiableOperator> dop;
    const int elem_size, total_size, d1d, q1d;
-   // QuadratureSpace qd_ps;
-   // QuadratureFunction qdata;
+   QuadratureSpace qspace;
+   QuadratureFunction qdata;
 
    double mdofs{};
 
@@ -274,37 +277,35 @@ struct BakeOff
       check_x(p * nx * p * ny * p * nz <= c * c * c),
       check_y(p * (nx + 1) * p * (ny + 1) * p * nz > c * c * c),
       check_z(p * (nx + 1) * p * (ny + 1) * p * (nz + 1) > c * c * c),
-      checked((assert(check_x &&check_y &&check_z), true)),
+      checked((assert(check_x &&check_y && check_z), true)),
       smesh(Mesh::MakeCartesian3D(nx, ny, nz, Element::HEXAHEDRON)),
       pmesh(MPI_COMM_WORLD, (smesh.EnsureNodes(), smesh)),
       fec(p, DIM, BasisType::GaussLobatto),
-      pfes(&pmesh, &fec, VDIM),//, Ordering::byNODES),
+      pfes(&pmesh, &fec, VDIM),
       geom_type(pmesh.GetTypicalElementGeometry()),
       irs(0, GLL ? Quadrature1D::GaussLobatto : Quadrature1D::GaussLegendre),
       ir(&irs.Get(geom_type, q)), one(1.0), uvec(DIM),
       unit_vec((uvec = 1.0, uvec /= uvec.Norml2(), uvec)),
       dofs(pfes.GetTrueVSize()),
-      nodes(static_cast<ParGridFunction*>(pmesh.GetNodes())),
-      mfes(*nodes->ParFESpace()),
+      nodes(*static_cast<ParGridFunction*>(pmesh.GetNodes())),
+      mfes(*(nodes.ParFESpace())),
       x(&pfes),
       y(&pfes),
       a(&pfes),
       elem_size(DIM * DIM * ir->GetNPoints()),
       total_size(elem_size * pmesh.GetNE()),
       d1d(p + 1),
-      q1d(IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints())//,
-      //   qd_ps(pmesh, *ir),
-      //   qdata(qd_ps, DIM*DIM)
+      q1d(IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints()),
+      qspace(pmesh, *ir),
+      qdata(qspace, DIM*DIM)
    {
       NVTX_MARK_FUNCTION;
-      dbg("p:{} q:{}", p, q);
       // pmesh.SetCurvature(p);
       smesh.Clear();
       x = 0.0;
 
       gD1D = d1d, gQ1D = q1d;
-      dbg("D1D: {}, Q1D: {}", gD1D, gQ1D);
-      // qdata.UseDevice(true);
+      // dbg("D1D: {}, Q1D: {}", gD1D, gQ1D);
       assert(q1d*q1d*q1d == ir->GetNPoints());
    }
 
@@ -320,8 +321,7 @@ template <int VDIM = 1, bool GLL = false>
 struct Diffusion : public BakeOff<VDIM, GLL>
 {
    static constexpr int DIM = 3;
-   static constexpr int U = 0, Ξ = 1;//, Q = 2;
-   static constexpr int V = 2;
+   static constexpr int U = 0, Ξ = 1, Q = 2;
 
    const real_t rtol = 0.0;
    const int max_it = 32, print_lvl = -1;
@@ -331,8 +331,9 @@ struct Diffusion : public BakeOff<VDIM, GLL>
    OperatorPtr A;
    Operator *A_ptr;
    Vector B, X;
-   const Array<int> i_block_offsets;
-   const Array<int> o_block_offsets;
+   const Array<int> i_mf_block_offsets, o_mf_block_offsets;
+   const Array<int> i_pa_block_offsets, o_pa_block_offsets;
+   const bool dfem_pa;
    BlockVector block_b, block_x, block_B, block_X;
    CGSolver cg;
 
@@ -347,6 +348,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
    using BakeOff<VDIM, GLL>::mdofs;
    using BakeOff<VDIM, GLL>::dop;
    using BakeOff<VDIM, GLL>::nodes;
+   using BakeOff<VDIM, GLL>::qdata;
    using BakeOff<VDIM, GLL>::dofs;
 
    Diffusion(int version, int order, int side):
@@ -354,15 +356,23 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       ess_bdr(pmesh.bdr_attributes.Max()),
       all_domain_attr(pmesh.bdr_attributes.Max()),
       b(&pfes),
-      B(mfes.GetVSize() + pfes.GetVSize()),
+      B(pfes.GetVSize() +
+        (version == 2 ? mfes.GetVSize() : // dFEM MF
+         version == 3 ? qdata.Size() :    // dFEM PA
+         0)),
       X(x),
       // *INDENT-OFF*
-      i_block_offsets({0, pfes.GetVSize(), pfes.GetVSize() + mfes.GetVSize()}),
-      o_block_offsets({0, pfes.GetVSize()}),
-      block_b(i_block_offsets),
-      block_x(x, o_block_offsets),
-      block_B(B, i_block_offsets),
-      block_X(X, o_block_offsets),
+      // MF block are: pfes and nodes
+      i_mf_block_offsets({0, pfes.GetVSize(), pfes.GetVSize() + mfes.GetVSize()}),
+      o_mf_block_offsets({0, pfes.GetVSize()}),
+      // PA block are: pfes and qdata
+      i_pa_block_offsets({0, pfes.GetVSize(), pfes.GetVSize() + qdata.Size()}),
+      o_pa_block_offsets({0, pfes.GetVSize()}),
+      dfem_pa(version == 3),
+      block_b(   dfem_pa ? i_pa_block_offsets : i_mf_block_offsets),
+      block_x(x, dfem_pa ? o_pa_block_offsets : o_mf_block_offsets),
+      block_B(B, dfem_pa ? i_pa_block_offsets : i_mf_block_offsets),
+      block_X(X, dfem_pa ? o_pa_block_offsets : o_mf_block_offsets),
       cg(MPI_COMM_WORLD)
       // *INDENT-ON*
    {
@@ -378,7 +388,8 @@ struct Diffusion : public BakeOff<VDIM, GLL>
 
       assert(block_b.GetBlock(0).Size() == b.Size());
       block_b.GetBlock(0) = b;
-      block_b.GetBlock(1) = *nodes;
+
+      assert(block_x.GetBlock(0).Size() == x.Size());
       block_x.GetBlock(0) = x;
 
       if (version < 2) // standard, new PA regs
@@ -398,15 +409,15 @@ struct Diffusion : public BakeOff<VDIM, GLL>
             MFEM_VERIFY(q1d == gQ1D, "Q1D mismatch: " << q1d << " != " << gQ1D);
          }
       }
-      else if (version == 2) // 2: MF ∂fem
+      else if (version == 2) // 2: MF ∂fem ////////////////////////////////////
       {
-         dbg("MF ∂fem");
+         dbg("\x1b[33m MF ∂fem");
          const std::vector<FieldDescriptor> infds = {{U, &pfes}, {Ξ, &mfes}};
          const std::vector<FieldDescriptor> outfds = {{U, &pfes}};
          const int height = pfes.GetVSize(), width = pfes.GetVSize();
          dop = std::make_unique<DifferentiableOperator>(height, width,
                                                         infds, outfds, pmesh);
-         const auto diffusion_mf_kernel =
+         const auto mf_apply_qf =
             [] MFEM_HOST_DEVICE (tensor_array<const real_t, DIM> &Gu,
                                  tensor_array<const real_t, DIM, DIM> &J,
                                  tensor_array<const real_t> &weight,
@@ -423,7 +434,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
                Gv(q) = ((Gu(q) * invJ)) * transpose(invJ) * detJ * w;
             }
          };
-         dop->AddDomainIntegrator(diffusion_mf_kernel,
+         dop->AddDomainIntegrator(mf_apply_qf,
                                   // inputs
                                   tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
                                   // outputs
@@ -431,93 +442,96 @@ struct Diffusion : public BakeOff<VDIM, GLL>
                                   *ir, ess_bdr);
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
 
-         {
-            dbg("FormLinearSystem:");
-            A_ptr = nullptr;
-            dbg("dop Width: {}, height: {}", dop->Width(), dop->Height());
-            dop->FormLinearSystem(ess_tdof_list, block_x, block_b, A_ptr, block_X, block_B);
-            Vector b0v, b1v;
-            block_B.GetBlockView(0, b0v);
-            block_B.GetBlockView(1, b1v);
-
-            b1v = *nodes;
-
-            A.Reset(A_ptr);
-         }
-
-         //  std::exit(EXIT_SUCCESS);
-      }
-      /*else if (version == 3) // PA ∂fem
-      {
-         dbg("PA ∂fem");
-         auto w = Weight{};
-         auto q = Identity<Q> {};
-         auto u = Identity<U> {};
-         auto Gu = Gradient<U> {};
-         auto GΞ = Gradient<Ξ> {};
-         tuple Gu_q = {Gu, q};
-         tuple u_J_w = {u, GΞ, w};
-
-         auto pa_setup_qf =
-            [] MFEM_HOST_DEVICE(const real_t &u,
-                                const tensor<real_t, DIM, DIM> &J,
-                                const real_t &w)
-         {
-            return tuple{inv(J) * transpose(inv(J)) * det(J) * w};
-         };
-         DifferentiableOperator dSetup(u_sol, Ξ_q_params, pmesh);
-         dSetup.AddDomainIntegrator(pa_setup_qf, u_J_w, tuple{q}, *ir, ess_bdr);
-         //  dSetup.SetParameters({nodes, &qdata});
-         X.SetSize(pfes.GetTrueVSize());
-         pfes.GetRestrictionMatrix()->Mult(x, X);
-         dSetup.Mult(X, qdata);
-
-         auto pa_apply_qf =
-            [] MFEM_HOST_DEVICE(const tensor<real_t, DIM> &Gu,
-                                const tensor<real_t, DIM, DIM> &q)
-         {
-            return tuple{q * Gu};
-         };
-         dop = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
-         dop->AddDomainIntegrator(pa_apply_qf, Gu_q, tuple{Gu}, *ir, ess_bdr);
-         //  dop->SetParameters({ &qdata });
-
-         dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
+         block_b.GetBlock(1) = nodes;
+         dop->FormLinearSystem(ess_tdof_list, block_x, block_b, A_ptr, block_X, block_B);
+         Vector b1v;
+         block_B.GetBlockView(1, b1v);
+         b1v = nodes;
          A.Reset(A_ptr);
-      }*/
+      }
+      else if (version == 3) // PA ∂fem ///////////////////////////////////////
+      {
+         dbg("\x1b[33m PA ∂fem");
+         const int height = pfes.GetVSize(), width = pfes.GetVSize();
+         dbg("height: {} width: {}", height, width);
+
+         dbg("\x1b[33m PA Setup operator");
+         const auto i0 = std::vector<FieldDescriptor> {{Ξ, &mfes}};
+         const auto o0 = std::vector<FieldDescriptor> {{Q, &qdata}};
+         DifferentiableOperator dSetup(height, width, i0, o0, pmesh);
+         const auto pa_setup_qf =
+            [] MFEM_HOST_DEVICE(tensor_array<const real_t, DIM, DIM> &J,
+                                tensor_array<const real_t> &weight,
+                                tensor_array<real_t, DIM, DIM> &D)
+         {
+            const size_t NQ = J.size();
+            for (size_t q = 0; q < NQ; q++)
+            {
+               const auto invJ = inv(J(q));
+               const real_t detJ = det(J(q));
+               assert(std::isfinite(detJ));
+               const real_t w = weight(q);
+               assert(detJ > 0.0);
+               D(q) = invJ * transpose(invJ) * detJ * w;
+            }
+         };
+         dSetup.AddDomainIntegrator(pa_setup_qf,
+                                    // inputs
+                                    tuple{Gradient<Ξ>{}, Weight{}},
+                                    // outputs
+                                    tuple{Identity<Q>{}},
+                                    *ir, ess_bdr);
+         dSetup.SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
+         MultiVector N{nodes}, D{qdata};
+         dSetup.Mult(N, D);
+
+         dbg("\x1b[33m PA Apply operator");
+         const auto i1 = std::vector<FieldDescriptor> {{U, &pfes}, {Q, &qdata}};
+         const auto o1 = std::vector<FieldDescriptor> {{U, &pfes}};
+         dop = std::make_unique<DifferentiableOperator>(height, width, i1, o1, pmesh);
+         const auto pa_apply_qf =
+            [] MFEM_HOST_DEVICE(tensor_array<const real_t, DIM> &Gu,
+                                tensor_array<const real_t, DIM, DIM> &D,
+                                tensor_array<const real_t> &weight,
+                                tensor_array<real_t, DIM> &Gv)
+         {
+            for (size_t q = 0; q < Gu.size(); q++) { Gv(q) = D(q) * Gu(q); }
+         };
+         dop->AddDomainIntegrator(pa_apply_qf,
+                                  // inputs
+                                  tuple{Gradient<U>{}, Identity<Q>{}, Weight{}},
+                                  // outputs
+                                  tuple{Gradient<U>{}},
+                                  *ir, ess_bdr);
+         dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
+         assert(block_b.GetBlock(1).Size() == qdata.Size());
+         block_b.GetBlock(1) = qdata;
+         dop->FormLinearSystem(ess_tdof_list, block_x, block_b, A_ptr, block_X, block_B);
+         block_B.GetBlock(1) = qdata;
+         A.Reset(A_ptr);
+      }
       else { MFEM_ABORT("Invalid version"); }
 
       cg.SetOperator(*A);
       cg.iterative_mode = false;
-      if (static auto done = false; !std::exchange(done, true) && dofs < 128 * 1024)
+      if (dofs < 128 * 1024)
       {
          dbg("check");
-         cg.SetPrintLevel(3/*-1*/);
+         cg.SetPrintLevel(-1);
          cg.SetMaxIter(2000);
          cg.SetRelTol(1e-8);
          cg.SetAbsTol(0.0);
          if (dynamic_cast<DifferentiableOperator*>(dop.get()))
          {
-            MFEM_VERIFY(A_ptr != nullptr, "A_ptr is null");
-            // const Array<int> bOffsets({0});
-            // BlockVector bB(B, bOffsets), bX(X, bOffsets);
             cg.Mult(block_B, block_X);
          }
          else
          {
-            dbg("B: {}", B*B); // 5.662310399999065e-05
-            dbg("X: {}", X*X); // 0.0
-
             cg.Mult(B, X);
-            // BP3/1/1
-            // Iteration :   0  (B r, r) = 5.66231e-05
-            // Iteration :   1  (B r, r) = 0.000197876
-            // ...
-            // Iteration :  35  (B r, r) = 2.87451e-21
          }
          MFEM_VERIFY(cg.GetConverged(), "❌ CG solver did not converge.");
          MFEM_DEVICE_SYNC;
-         mfem::out << "✅" << std::endl;
+         // mfem::out << "✅" << std::endl;
       }
       cg.SetAbsTol(0.0);
       cg.SetRelTol(rtol);
@@ -529,20 +543,12 @@ struct Diffusion : public BakeOff<VDIM, GLL>
 
    void benchmark() override
    {
-      //   dbg();
-      //   cg.Mult(B, X);
       if (dynamic_cast<DifferentiableOperator*>(dop.get()))
       {
-         //  dbg("dop Mult");
-         //  MFEM_VERIFY(A_ptr != nullptr, "A_ptr is null");
-         //  const Array<int> bOffsets({0});
-         //  BlockVector bB(B, bOffsets), bX(X, bOffsets);
-         //  cg.Mult(bB, bX);
          cg.Mult(block_B, block_X);
       }
       else
       {
-         dbg("std Mult");
          cg.Mult(B, X);
       }
       MFEM_DEVICE_SYNC;
@@ -601,8 +607,8 @@ void info()
    mfem::out << "\x1b[33m";
    mfem::out << "version 0: PA std" << std::endl;
    mfem::out << "version 1: PA new" << std::endl;
-   mfem::out << "version 2: MF ∂fem" << std::endl;
-   mfem::out << "version 3: PA ∂fem" << std::endl;
+   mfem::out << "version 2: MF ∂fem-global" << std::endl;
+   mfem::out << "version 3: PA ∂fem-global" << std::endl;
    mfem::out << "\x1b[m" << std::endl;
 }
 

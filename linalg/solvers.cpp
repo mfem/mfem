@@ -877,16 +877,11 @@ void CGSolver::Mult(const Vector &input_B, Vector &input_X) const
    const auto *dop =
       dynamic_cast<const future::DifferentiableOperator*>(constrained_oper->A);
 
-   dbg("input_B: {}, input_X: {}", input_B.Size(), input_X.Size());
-
-   //    dbg("input_B: {}", input_B);
-   //    dbg("input_X: {}", input_X);
-
    Vector b, x;
 
    Array<int> b_block_offsets, x_block_offsets;
    BlockVector *block_b = nullptr, *block_x = nullptr;
-   Vector nodes;
+   Vector block1;
 
    if (dop)
    {
@@ -895,19 +890,15 @@ void CGSolver::Mult(const Vector &input_B, Vector &input_X) const
       assert(block_x);
       x.SetSize(block_x->GetBlock(0).Size());
       x = input_X;
-      dbg("x: {} {}", x.Size(), x*x);
 
-      if (dop) { assert(dynamic_cast<const BlockVector*>(&input_B)); }
+      assert(dynamic_cast<const BlockVector*>(&input_B));
       block_b =
          const_cast<BlockVector*>(dynamic_cast<const BlockVector*>(&input_B));
-      if (dop) { assert(block_b); }
+      assert(block_b);
       b.SetSize(block_b->GetBlock(0).Size());
 
-      //   b = block_b->GetBlock(0);
       block_b->GetBlockView(0, b);
-      dbg("b: {} {}", b.Size(), b*b);
-
-      block_b->GetBlockView(1, nodes);
+      block_b->GetBlockView(1, block1);
 
       const int bbs0 = block_b->BlockSize(0);
       const int bbs1 = block_b->BlockSize(1);
@@ -925,14 +916,10 @@ void CGSolver::Mult(const Vector &input_B, Vector &input_X) const
    else
    {
       x.SetSize(input_X.Size());
-      dbg("x: {}", x.Size());
       x = input_X;
-      dbg("x: {}", x*x);
 
       b.SetSize(input_B.Size());
-      dbg("b: {}", b.Size());
       b = input_B;
-      dbg("b: {}", b*b);
    }
 
 
@@ -948,13 +935,9 @@ void CGSolver::Mult(const Vector &input_B, Vector &input_X) const
    }
    else
    {
-      dbg("r = b");
       r = b;
-
-      dbg("x = 0.0");
       x = 0.0;
    }
-   dbg("x: {}, r: {}", x.Size(), r.Size());
 
    if (prec)
    {
@@ -966,7 +949,6 @@ void CGSolver::Mult(const Vector &input_B, Vector &input_X) const
    {
       d = r;
    }
-   dbg("d: {}, r: {}", d.Size(), r.Size());
 
    nom0 = nom = Dot(d, r);
    dbg("nom0: {}", nom0);
@@ -1008,46 +990,22 @@ void CGSolver::Mult(const Vector &input_B, Vector &input_X) const
    if (dop)
    {
       dbg("DOP, using BlockVector");
-      dbg("d: {}, z: {}", d.Size(), z.Size());
-
       BlockVector block_d(b_block_offsets), block_z(x_block_offsets);
       block_d = *block_b;
       block_z = *block_x;
-
-      dbg("A->Mult");
-
-      //   dbg("block_d: {}", (Vector)block_d);
       oper->Mult(block_d, block_z);   // z = A d
-
-      //   dbg("block_z: {}", (Vector)block_z);
-
-      dbg("z = A d ✅");
       z = block_z.GetBlock(0);
-      //   dbg("z: {}", z);
       assert(z.Size() == block_d.GetBlock(0).Size());
       den = Dot(z, block_d.GetBlock(0));
    }
    else
    {
-      //   dbg("d: {}", d);
-      // [0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00,
-      // 0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00,
-      // 0.000000e+00, 1.250000e-01, 0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00,
-      // 0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00,
-      // 0.000000e+00, 0.000000e+00, 0.000000e+00]
       oper->Mult(d, z);   // z = A d
-      //   dbg("z: {}", z);
-      // 0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00,
-      // 0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00,
-      // 0.000000e+00, 1.666667e-01, 0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00,
-      // 0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00,
-      // 0.000000e+00, 0.000000e+00, 0.000000e+00]
       den = Dot(z, d);
    }
 
-   dbg("den: {}", den); // 0.020833333333333332
+   dbg("den: {}", den);
    MFEM_VERIFY(IsFinite(den), "den = " << den);
-   //    dbg("🔥🔥🔥"), std::exit(EXIT_SUCCESS);
 
    if (den <= 0.0)
    {
@@ -1097,7 +1055,6 @@ void CGSolver::Mult(const Vector &input_B, Vector &input_X) const
          }
          converged = false;
          final_iter = i;
-         dbg("🔥🔥🔥"), std::exit(EXIT_SUCCESS);
          break;
       }
 
@@ -1112,7 +1069,6 @@ void CGSolver::Mult(const Vector &input_B, Vector &input_X) const
          converged = true;
          final_iter = i;
          dbg("betanom: {}", betanom);
-         //  dbg("🔥🔥🔥"), std::exit(EXIT_SUCCESS);
          break;
       }
 
@@ -1143,15 +1099,12 @@ void CGSolver::Mult(const Vector &input_B, Vector &input_X) const
          block_d.GetBlockView(1, d1);
 
          d0 = d;
-         d1 = nodes;
+         d1 = block1;
 
-         dbg("A->Mult");
          oper->Mult(block_d, block_z);   // z = A d
-         dbg("z = A d ✅");
          z = block_z.GetBlock(0);
          assert(z.Size() == block_d.GetBlock(0).Size());
          den = Dot(z, block_d.GetBlock(0));
-
       }
       else
       {
@@ -1160,7 +1113,6 @@ void CGSolver::Mult(const Vector &input_B, Vector &input_X) const
       }
 
       dbg("den:{}", den);
-      //   dbg("🔥🔥🔥"),  std::exit(EXIT_SUCCESS);
 
       MFEM_VERIFY(IsFinite(den), "den = " << den);
       if (den <= 0.0)
