@@ -211,13 +211,14 @@ int main(int argc, char *argv[])
    // boundary dofs. In this example, the boundary conditions are defined
    // by marking all the external boundary attributes from the mesh as
    // essential (Dirichlet) and converting them to a list of true dofs.
+   /*
    Array<int> ess_tdof_list;
    Array<int> ess_bdr(pmesh.bdr_attributes.Max());
    if (pmesh.bdr_attributes.Size())
    {
       ess_bdr = 1;
    }
-
+   */
    // Set up the parallel linear form b(.) which corresponds to the
    // right-hand side of the FEM linear system, which in this case is
    // (1,phi_i) where phi_i are the basis functions in fespace.
@@ -284,8 +285,8 @@ int main(int argc, char *argv[])
 
       OperatorHandle A;
       // Vector B, X;
-      Array<int> ess_tdof_list;
-      cout << "calling form lin sys" << endl;
+      // Array<int> ess_tdof_list;
+      // cout << "calling form lin sys" << endl;
       // a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
       std::unique_ptr<HypreBoomerAMG> amg;
