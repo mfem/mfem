@@ -412,6 +412,16 @@ int main(int argc, char *argv[])
       //set initial conditions at time t
       tsol=0.0;
 
+      ExampleObjectiveIntegrand* obj=new ExampleObjectiveIntegrand(lin_elasticity_op.GetFESpace());
+
+      real_t oo=obj->EvalScalar(tsol);
+      if(Mpi::Root())
+      {
+         std::cout<<"t="<<t<<" oo="<<oo<<std::endl;
+      }
+
+      delete obj;
+
       // 4. Define the ODE solver used for time integration. Several explicit
       //    Runge-Kutta methods are available.
       unique_ptr<ODESolver> ode_solver = ODESolver::Select(ode_solver_type);
@@ -428,7 +438,7 @@ int main(int argc, char *argv[])
       real_t dt_real = 0.005;
       //ode_solver->Run(tsol, t, dt_real, 1.0);
 
-      for(int i=0;i<1000; i++){
+      for(int i=0;i<10; i++){
          ode_solver->Step(tsol, t, dt_real);
 
          if (Mpi::Root())
@@ -445,9 +455,8 @@ int main(int argc, char *argv[])
          }
       }
 
-      ExampleObjectiveIntegrand* obj=new ExampleObjectiveIntegrand(lin_elasticity_op.GetFESpace());
-
-      real_t oo=obj->EvalScalar(tsol);
+      obj=new ExampleObjectiveIntegrand(lin_elasticity_op.GetFESpace());
+      oo=obj->EvalScalar(tsol);
       if(Mpi::Root())
       {
          std::cout<<"t="<<t<<" oo="<<oo<<std::endl;

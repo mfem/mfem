@@ -728,7 +728,9 @@ void ExampleObjectiveIntegrand::SetCoefficients( std::shared_ptr<mfem::Coefficie
         mass->AddDomainIntegrator(mi);
     }
 
+    mass->Assemble();
     res.SetSize(fes->GetTrueVSize());
+
 
 }
 
