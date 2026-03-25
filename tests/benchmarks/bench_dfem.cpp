@@ -41,7 +41,7 @@ using future::Identity;
 /// Max number of DOFs ////////////////////////////////////////////////////////
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
 constexpr int MAX_NDOFS = 128 * 1024;
-constexpr int NDOFS_INC = 25;
+constexpr int NDOFS_INC = 16;
 #else
 constexpr int MAX_NDOFS = 10 * 1024 * 1024;
 constexpr int NDOFS_INC = 25;
@@ -275,7 +275,7 @@ struct BakeOff
       smesh(Mesh::MakeCartesian3D(nx, ny, nz, Element::HEXAHEDRON)),
       pmesh(MPI_COMM_WORLD, (smesh.EnsureNodes(), smesh)),
       fec(p, DIM, BasisType::GaussLobatto),
-      pfes(&pmesh, &fec, VDIM),//, Ordering::byNODES),
+      pfes(&pmesh, &fec, VDIM),
       geom_type(pmesh.GetTypicalElementGeometry()),
       irs(0, GLL ? Quadrature1D::GaussLobatto : Quadrature1D::GaussLegendre),
       ir(&irs.Get(geom_type, q)), one(1.0), uvec(DIM),
@@ -294,7 +294,6 @@ struct BakeOff
       qdata(qd_ps)
    {
       NVTX_MARK_FUNCTION;
-      // dbg("p:{} q:{}", p, q);
       // pmesh.SetCurvature(p);
       smesh.Clear();
       x = 0.0;
@@ -528,8 +527,8 @@ void info()
    mfem::out << "\x1b[33m";
    mfem::out << "version 0: PA std" << std::endl;
    mfem::out << "version 1: PA new" << std::endl;
-   mfem::out << "version 2: MF ∂fem" << std::endl;
-   mfem::out << "version 3: PA ∂fem" << std::endl;
+   mfem::out << "version 2: MF ∂fem-master" << std::endl;
+   mfem::out << "version 3: PA ∂fem-master" << std::endl;
    mfem::out << "\x1b[m" << std::endl;
 }
 
