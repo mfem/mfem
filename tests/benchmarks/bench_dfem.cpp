@@ -455,7 +455,10 @@ struct Diffusion : public BakeOff<VDIM, GLL>
                                   tuple{Gradient<U>{}},
                                   *ir, ess_bdr);
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
-
+#if 1
+         wop = std::make_unique<WrapOpArg1>(dop, nodes);
+         wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
+#else
          assert(block_x.GetBlock(0).Size() == x.Size());
          block_x.GetBlock(0) = x;
 
@@ -469,6 +472,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          Vector b1v;
          block_B.GetBlockView(1, b1v);
          b1v = nodes;
+#endif
          A.Reset(A_ptr);
       }
       else if (version == 3) // PA ∂FEM ///////////////////////////////////////
@@ -526,7 +530,10 @@ struct Diffusion : public BakeOff<VDIM, GLL>
                                   tuple{Gradient<U>{}},
                                   *ir, ess_bdr);
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
-
+#if 1
+         wop = std::make_unique<WrapOpArg1>(dop, qdata);
+         wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
+#else
          assert(block_x.GetBlock(0).Size() == x.Size());
          block_x.GetBlock(0) = x;
 
@@ -538,6 +545,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
 
          dop->FormLinearSystem(ess_tdof_list, block_x, block_b, A_ptr, block_X, block_B);
          block_B.GetBlock(1) = qdata;
+#endif
          A.Reset(A_ptr);
       }
       else if (version == 4) // MF ∂FEM + Wrap ////////////////////////////////
@@ -573,9 +581,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
                                   *ir, ess_bdr);
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          wop = std::make_unique<WrapOpArg1>(dop, nodes);
-         dbg("ini FormLinearSystem");
          wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
-         dbg("done FormLinearSystem");
          A.Reset(A_ptr);
       }
       else { MFEM_ABORT("Invalid version"); }
@@ -590,19 +596,19 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          cg.SetRelTol(1e-8);
          cg.SetAbsTol(0.0);
          dbg("Version:{}", version);
-         if ((version == 2 || version == 3) &&
-             dynamic_cast<DifferentiableOperator*>(dop.get()))
-         {
-            dbg("dop block mult 🔥");
-            cg.Mult(block_B, block_X);
-         }
-         else
+         // if ((/*version == 2 ||*/ version == 3) &&
+         //     dynamic_cast<DifferentiableOperator*>(dop.get()))
+         // {
+         //    dbg("dop block mult 🔥");
+         //    cg.Mult(block_B, block_X);
+         // }
+         // else
          {
             cg.Mult(B, X);
          }
          MFEM_VERIFY(cg.GetConverged(), "❌ CG solver did not converge.");
          MFEM_DEVICE_SYNC;
-         // mfem::out << "✅" << std::endl;
+         mfem::out << "✅" << std::endl;
       }
       cg.SetAbsTol(0.0);
       cg.SetRelTol(rtol);
@@ -614,12 +620,12 @@ struct Diffusion : public BakeOff<VDIM, GLL>
 
    void benchmark() override
    {
-      if ((version == 2 || version == 3) &&
-          dynamic_cast<DifferentiableOperator*>(dop.get()))
-      {
-         cg.Mult(block_B, block_X);
-      }
-      else
+      // if ((/*version == 2 ||*/ version == 3) &&
+      //     dynamic_cast<DifferentiableOperator*>(dop.get()))
+      // {
+      //    cg.Mult(block_B, block_X);
+      // }
+      // else
       {
          cg.Mult(B, X);
       }
