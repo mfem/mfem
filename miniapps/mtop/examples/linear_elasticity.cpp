@@ -718,7 +718,7 @@ void ExampleObjectiveIntegrand::SetCoefficients( std::shared_ptr<mfem::Coefficie
 {
     co=objc;
     mass.reset(new mfem::ParBilinearForm(fes));
-    //mass->SetAssemblyLevel(mfem::AssemblyLevel::LEGACY);
+    mass->SetAssemblyLevel(mfem::AssemblyLevel::PARTIAL);
     if(co.get()!=nullptr)
     {
         mfem::BilinearFormIntegrator* mi=new mfem::VectorMassIntegrator(*co);
@@ -737,6 +737,7 @@ void ExampleObjectiveIntegrand::SetCoefficients( std::shared_ptr<mfem::Coefficie
 void ExampleObjectiveIntegrand::Mult(const Vector &x, Vector &y) const
 {
 
+    res=0.0;
     BlockVector bx(const_cast<Vector&>(x), block_true_offsets);
     mass->TrueAddMult(bx.GetBlock(0),res);
     //sum up the weighted values
