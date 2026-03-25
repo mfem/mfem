@@ -718,7 +718,7 @@ void ExampleObjectiveIntegrand::SetCoefficients( std::shared_ptr<mfem::Coefficie
 {
     co=objc;
     mass.reset(new mfem::ParBilinearForm(fes));
-    mass->SetAssemblyLevel(mfem::AssemblyLevel::PARTIAL);
+    //mass->SetAssemblyLevel(mfem::AssemblyLevel::LEGACY);
     if(co.get()!=nullptr)
     {
         mfem::BilinearFormIntegrator* mi=new mfem::VectorMassIntegrator(*co);
