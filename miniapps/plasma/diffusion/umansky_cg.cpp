@@ -15,65 +15,12 @@
 //               of essential boundary conditions, static condensation, and the
 //               optional connection to the GLVis tool for visualization.
 
-#include "mfem.hpp"
+#include "umansky.hpp"
 #include <fstream>
 #include <iostream>
 
 using namespace std;
 using namespace mfem;
-
-class UnitStepCoefficient : public Coefficient
-{
-public:
-   UnitStepCoefficient(real_t w, real_t h) : w_(w), h_(h) {}
-
-   real_t Eval(ElementTransformation &T,
-               const IntegrationPoint &ip)
-   {
-      real_t x[2];
-      Vector transip(x, 2);
-
-      T.Transform(ip, transip);
-
-      if (fabs(w_ * x[1] - h_ * x[0]) < 1e-6 * sqrt(w_ * h_))
-      {
-         return 0.5;
-      }
-      else if (w_ * x[1] > h_ * x[0])
-      {
-         return 1.0;
-      }
-      else
-      {
-         return 0.0;
-      }
-   }
-
-private:
-   real_t w_, h_;
-};
-
-class AnisotropicDiffusionCoefficient : public MatrixCoefficient
-{
-public:
-   AnisotropicDiffusionCoefficient(real_t w, real_t h, real_t Ak)
-      : MatrixCoefficient(2), w_(w), h_(h), Ak_(Ak)
-   { d2_ = w_ * w_ + h_ * h_; }
-
-   void Eval(DenseMatrix &M, ElementTransformation &T,
-             const IntegrationPoint &ip)
-   {
-      M.SetSize(2);
-
-      M(0,0) = 1.0 + (Ak_ - 1.0) * w_ * w_ / d2_;
-      M(0,1) = (Ak_ - 1.0) * w_ * h_ / d2_;
-      M(1,0) = M(0,1);
-      M(1,1) = 1.0 + (Ak_ - 1.0) * h_ * h_ / d2_;
-   }
-
-private:
-   real_t w_, h_, Ak_, d2_;
-};
 
 int main(int argc, char *argv[])
 {
@@ -331,8 +278,12 @@ int main(int argc, char *argv[])
          sol_sock << "parallel " << num_procs << " " << myid << "\n";
          sol_sock.precision(8);
          sol_sock << "solution\n" << pmesh << x
-                  << " window_title 'Number of DoFs: " << prob_size << "'"
-                  << flush;
+                  << " window_title 'Number of DoFs: " << prob_size << "'";
+         if (it == 1)
+         {
+            sol_sock << " keys 'mmjR'\n";
+         }
+         sol_sock << flush;
       }
 
       if (Mpi::Root())
@@ -407,7 +358,7 @@ int main(int argc, char *argv[])
       // maximum element error.
       const real_t frac = 0.7;
       real_t threshold = frac * global_max_err;
-      if (Mpi::Root()) { cout << "Refining ..." << global_max_err << endl; }
+      if (Mpi::Root()) { cout << "Refining ..." << endl; }
       if (pmesh.RefineByError(errors, threshold))
       {
          // Update the solver to reflect the new state of the mesh.

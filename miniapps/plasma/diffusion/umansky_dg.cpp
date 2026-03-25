@@ -15,65 +15,12 @@
 //               of essential boundary conditions, static condensation, and the
 //               optional connection to the GLVis tool for visualization.
 
-#include "mfem.hpp"
+#include "umansky.hpp"
 #include <fstream>
 #include <iostream>
 
 using namespace std;
 using namespace mfem;
-
-class UnitStepCoefficient : public Coefficient
-{
-public:
-   UnitStepCoefficient(real_t w, real_t h) : w_(w), h_(h) {}
-
-   real_t Eval(ElementTransformation &T,
-               const IntegrationPoint &ip)
-   {
-      real_t x[2];
-      Vector transip(x, 2);
-
-      T.Transform(ip, transip);
-
-      if (fabs(w_ * x[1] - h_ * x[0]) < 1e-6 * sqrt(w_ * h_))
-      {
-         return 0.5;
-      }
-      else if (w_ * x[1] > h_ * x[0])
-      {
-         return 1.0;
-      }
-      else
-      {
-         return 0.0;
-      }
-   }
-
-private:
-   real_t w_, h_;
-};
-
-class AnisotropicDiffusionCoefficient : public MatrixCoefficient
-{
-public:
-   AnisotropicDiffusionCoefficient(real_t w, real_t h, real_t Ak)
-      : MatrixCoefficient(2), w_(w), h_(h), Ak_(Ak)
-   { d2_ = w_ * w_ + h_ * h_; }
-
-   void Eval(DenseMatrix &M, ElementTransformation &T,
-             const IntegrationPoint &ip)
-   {
-      M.SetSize(2);
-
-      M(0,0) = 1.0 + (Ak_ - 1.0) * w_ * w_ / d2_;
-      M(0,1) = (Ak_ - 1.0) * w_ * h_ / d2_;
-      M(1,0) = M(0,1);
-      M(1,1) = 1.0 + (Ak_ - 1.0) * h_ * h_ / d2_;
-   }
-
-private:
-   real_t w_, h_, Ak_, d2_;
-};
 
 class CustomSolverMonitor : public IterativeSolverMonitor
 {
@@ -336,7 +283,11 @@ int main(int argc, char *argv[])
       a.Finalize();
 
       OperatorHandle A;
-
+      // Vector B, X;
+      Array<int> ess_tdof_list;
+      cout << "calling form lin sys" << endl;
+      // a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+	    
       std::unique_ptr<HypreBoomerAMG> amg;
       if (pa)
       {
@@ -353,7 +304,8 @@ int main(int argc, char *argv[])
       //     GMRES solver for AX=B using the BoomerAMG preconditioner from hypre.
       if (sigma == -1.0)
       {
-         CGSolver cg(MPI_COMM_WORLD);
+         cout << "using cg" << endl;
+        CGSolver cg(MPI_COMM_WORLD);
          cg.SetRelTol(1e-12);
          cg.SetMaxIter(500);
          cg.SetPrintLevel(1);
@@ -363,7 +315,8 @@ int main(int argc, char *argv[])
       }
       else
       {
-         CustomSolverMonitor monitor(pmesh, x);
+	 cout << "using gmres" << endl;
+	 CustomSolverMonitor monitor(pmesh, x);
          GMRESSolver gmres(MPI_COMM_WORLD);
          gmres.SetAbsTol(0.0);
          gmres.SetRelTol(1e-12);
