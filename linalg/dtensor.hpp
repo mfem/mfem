@@ -83,7 +83,7 @@ template<int Dim, typename Scalar = real_t>
 class DeviceTensor
 {
 protected:
-   int capacity;
+   long int capacity;
    Scalar *data;
    int sizes[Dim];
 
