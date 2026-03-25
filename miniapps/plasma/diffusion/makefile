@@ -68,6 +68,20 @@ include $(MFEM_TEST_MK)
 
 # Testing: Specific execution options
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
+umansky_cg-test-par: umansky_cg-test-0 umansky_cg-test-1
+umansky_cg-test-0: umansky_cg
+	@$(call mfem-test,$<, $(RUN_MPI), Plasma miniapp,\
+	-maxit 2 -rs 1 -rp 1 --height 0.8 --width 1.2 -Ak 1e2 -e 0)
+umansky_cg-test-1: umansky_cg
+	@$(call mfem-test,$<, $(RUN_MPI), Plasma miniapp,\
+	-maxit 2 -rs 1 -rp 1 --height 0.8 --width 1.2 -Ak 1e2)
+umansky_dg-test-par: umansky_dg-test-0 umansky_dg-test-1
+umansky_dg-test-0: umansky_dg
+	@$(call mfem-test,$<, $(RUN_MPI), Plasma miniapp,\
+	-maxit 2 -rs 1 -rp 1 --height 0.8 --width 1.2 -Ak 1e2 -e 0 -k 5)
+umansky_dg-test-1: umansky_dg
+	@$(call mfem-test,$<, $(RUN_MPI), Plasma miniapp,\
+	-maxit 2 -rs 1 -rp 1 --height 0.8 --width 1.2 -Ak 1e2 -k 5)
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
