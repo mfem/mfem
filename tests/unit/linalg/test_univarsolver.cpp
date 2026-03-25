@@ -21,7 +21,7 @@ using namespace mfem::future;
 
 MFEM_HOST_DEVICE inline real_t FlowResistance(real_t eqps, real_t sigma_y, real_t n, real_t ep_0)
 {
-    return sigma_y*(1.0 + std::pow((eqps + 1e-8)/ep_0, n));
+    return sigma_y*(1.0 + std::pow((eqps)/ep_0, n));
 }
 
 using J2PlasticityParameters = tuple<real_t, real_t, real_t, real_t, real_t, real_t>;
@@ -241,13 +241,15 @@ TEST_CASE("Univariate function solver on qfunction", "[univar]")
     {
       tensor<real_t, 3, 3> sigma;
       ComputeStressRef(&material, H, Q, J, w, sigma);
-      double epsilon = 1e-5;
+      double epsilon = 1e-6;
       tensor<real_t, 3, 3> dH{{{1.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}}};
       auto H_p = H + epsilon*dH;
       tensor<real_t, 3, 3> sigma_p;
       ComputeStressRef(&material, H_p, Q, J, w, sigma_p);
-      auto sigma_dot = (sigma_p - sigma)/epsilon;
-      INFO("sigma_dot = " << sigma_dot << "\n");
+      // sigma_dot_h[i,j] = ∂sigma[i,j]/∂H[0,0]
+      auto sigma_dot_h = (sigma_p - sigma)/epsilon;
+
+      INFO("sigma_dot = " << sigma_dot_h << "\n");
 
 
       tensor<real_t, 3, 3> sigma_bar{{{1.0, 0.0, 0.0},
@@ -264,11 +266,20 @@ TEST_CASE("Univariate function solver on qfunction", "[univar]")
         (void*)ComputeStressRef,  enzyme_strong_zero, enzyme_const, &material, enzyme_dup, &H, &H_bar,
         enzyme_dup, &Q, &Q_bar, enzyme_dup, &J, &J_bar, enzyme_const, w,
         enzyme_dup, &sigma, &sigma_bar);
-      std::cout << "Check that console output works" << std::endl;
+      // H_bar[ij] = ∂sigma[0,0]/∂H[i,j]
+      // For this model, we expect the major symmetries in the tangent operator.
+      // Hence H_bar \approx sigma_dot_h
+      const double abs_tol = 1e-12;
+      const double rel_tol = 5e-6;
+      for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+          CHECK(H_bar[i][j] == MFEM_Approx(sigma_dot_h[i][j], abs_tol, rel_tol));
+        }
+      }
+
       INFO("H_bar = " << H_bar);
       INFO("Q_bar = " << Q_bar);
       INFO("J_bar = " << J_bar);
-      REQUIRE(norm(H_bar) == 0);
     }
 }
 
