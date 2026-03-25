@@ -260,6 +260,7 @@ public:
    /// @param parameters The parameter fields that define coefficients.
    /// @param mesh The mesh on which the operator is defined.
    DifferentiableOperator(
+      int height, int width,
       const std::vector<FieldDescriptor> &infds,
       const std::vector<FieldDescriptor> &outfds,
       const ParMesh &mesh);

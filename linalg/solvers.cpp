@@ -878,26 +878,53 @@ void CGSolver::Mult(const Vector &input_B, Vector &input_X) const
 
    dbg("input_B: {}, input_X: {}", input_B.Size(), input_X.Size());
 
-   assert(dynamic_cast<BlockVector*>(&input_X));
-   auto *block_x = dynamic_cast<BlockVector*>(&input_X);
-   assert(block_x);
-   Vector x(block_x->GetBlock(0).Size());
-   dbg("x: {}", x.Size());
-   x = 0.0;
+   Vector b, x;
 
-   assert(dynamic_cast<const BlockVector*>(&input_B));
-   auto *block_b =
-      const_cast<BlockVector*>(dynamic_cast<const BlockVector*>(&input_B));
-   assert(block_b);
-   Vector b(block_b->GetBlock(0).Size());
-   dbg("b: {}", b.Size());
+   Array<int> b_block_offsets, x_block_offsets;
+   BlockVector *block_b = nullptr, *block_x = nullptr;
 
-   const int bbs0 = block_b->BlockSize(0);
-   const int bbs1 = block_b->BlockSize(1);
-   const int bxs0 = block_x->BlockSize(0);
+   if (dop)
+   {
+      assert(dynamic_cast<BlockVector*>(&input_X));
+      block_x = dynamic_cast<BlockVector*>(&input_X);
+      assert(block_x);
+      x.SetSize(block_x->GetBlock(0).Size());
+      x = input_X;
+      dbg("x: {} {}", x.Size(), x*x);
 
-   const Array<int> b_block_offsets {0, bbs0, bbs0 + bbs1};
-   const Array<int> x_block_offsets {0, bxs0};
+      if (dop) { assert(dynamic_cast<const BlockVector*>(&input_B)); }
+      block_b =
+         const_cast<BlockVector*>(dynamic_cast<const BlockVector*>(&input_B));
+      if (dop) { assert(block_b); }
+      b.SetSize(block_b->GetBlock(0).Size());
+      b = block_b->GetBlock(0);
+      dbg("b: {} {}", b.Size(), b*b);
+
+      const int bbs0 = block_b->BlockSize(0);
+      const int bbs1 = block_b->BlockSize(1);
+      const int bxs0 = block_x->BlockSize(0);
+
+      b_block_offsets.SetSize(3);
+      b_block_offsets[0] = 0;
+      b_block_offsets[1] = bbs0;
+      b_block_offsets[2] = bbs0 + bbs1;
+
+      x_block_offsets.SetSize(2);
+      x_block_offsets[0] = 0;
+      x_block_offsets[1] = bxs0;
+   }
+   else
+   {
+      x.SetSize(input_X.Size());
+      dbg("x: {}", x.Size());
+      x = input_X;
+      dbg("x: {}", x*x);
+
+      b.SetSize(input_B.Size());
+      dbg("b: {}", b.Size());
+      b = input_B;
+      dbg("b: {}", b*b);
+   }
 
 
    int i;
@@ -992,7 +1019,7 @@ void CGSolver::Mult(const Vector &input_B, Vector &input_X) const
    }
 
    dbg("den");
-   if (!dop) { MFEM_VERIFY(IsFinite(den), "den = " << den); }
+   MFEM_VERIFY(IsFinite(den), "den = " << den);
    if (den <= 0.0)
    {
       if (Dot(d, d) > 0.0 && print_options.warnings)
@@ -1030,7 +1057,7 @@ void CGSolver::Mult(const Vector &input_B, Vector &input_X) const
       {
          betanom = Dot(r, r);
       }
-      if (!dop) { MFEM_VERIFY(IsFinite(betanom), "betanom = " << betanom); }
+      MFEM_VERIFY(IsFinite(betanom), "betanom = " << betanom);
       if (betanom < 0.0)
       {
          if (print_options.warnings)
@@ -1093,7 +1120,7 @@ void CGSolver::Mult(const Vector &input_B, Vector &input_X) const
          den = Dot(d, z);
       }
 
-      if (!dop) { MFEM_VERIFY(IsFinite(den), "den = " << den); }
+      MFEM_VERIFY(IsFinite(den), "den = " << den);
       if (den <= 0.0)
       {
          if (Dot(d, d) > 0.0 && print_options.warnings)

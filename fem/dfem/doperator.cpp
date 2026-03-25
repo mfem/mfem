@@ -19,10 +19,11 @@ using namespace mfem;
 using namespace mfem::future;
 
 DifferentiableOperator::DifferentiableOperator(
+   int height, int width,
    const std::vector<FieldDescriptor> &infds,
    const std::vector<FieldDescriptor> &outfds,
    const ParMesh &mesh) :
-   Operator(),
+   Operator(height, width),
    mesh(mesh),
    infds(infds),
    outfds(outfds)
