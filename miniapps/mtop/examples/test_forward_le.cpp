@@ -438,7 +438,7 @@ int main(int argc, char *argv[])
       real_t dt_real = 0.005;
       //ode_solver->Run(tsol, t, dt_real, 1.0);
 
-      for(int i=0;i<10; i++){
+      for(int i=0;i<2000; i++){
          ode_solver->Step(tsol, t, dt_real);
 
          if (Mpi::Root())

@@ -166,7 +166,7 @@ int main(int argc, char *argv[])
    bool paraview = true;
    bool visualization = true;
    int ode_solver_type = 4;
-   real_t Tfinal = 1.0;
+   real_t Tfinal = 10.0;
    real_t dt = 0.005;
 
    OptionsParser args(argc, argv);
@@ -289,12 +289,9 @@ int main(int argc, char *argv[])
       lin_elasticity_op.GetVelocity().SetFromTrueDofs(grd.GetBlock(1));
    }   
 
-   std::shared_ptr<ExampleObjectiveIntegrand> obj=
-      std::make_shared<ExampleObjectiveIntegrand>(lin_elasticity_op.GetDisplacement().ParFESpace(),
-                                                   std::shared_ptr<Coefficient>() );
+   std::shared_ptr<ExampleObjectiveIntegrand> eobj=
+      std::make_shared<ExampleObjectiveIntegrand>(lin_elasticity_op.GetFESpace());
    //set the objective for the integration process                                                   
-
-   lin_elasticity_op.SetObjective(obj);
 
    ParaViewDataCollection paraview_dc("isoel", &pmesh);
    paraview_dc.SetPrefixPath("ParaView");
@@ -335,6 +332,11 @@ int main(int argc, char *argv[])
 
          // Ensure host access if MFEM device is in use:
          const mfem::real_t *vh = u.v.HostRead();
+
+         if (Mpi::Root())
+         {
+            mfem::out<<"t snap: "<<u.time<<" dt="<<u.dt<<" obj:"<<u.obj<<"\n";
+         }
 
          StateSnapshotView snap;
          snap.time = u.time;
@@ -379,8 +381,7 @@ int main(int argc, char *argv[])
          //advance u_st
          ode_solver->Step(u_st.v,t,ldt);
          //TO-DO update objective 
-         obj=u_st.v[u_st.v.Size()-1];
-
+         obj=eobj->EvalScalar(u_st.v);
 
          //return updated u_st
          u_st.dt=t-u_st.time;
@@ -417,31 +418,6 @@ int main(int argc, char *argv[])
 
    //test objective gradients
    {
-      Vector state; state.SetSize(lin_elasticity_op.GetState().Size());
-      state.Randomize();
-
-      Vector dx(state); dx.Randomize();
-      Vector tmp(state);
-      Vector grd(state);
-
-      real_t ro=obj->EvalScalar(state);
-      obj->EvalGradient(state,grd);
-
-      real_t dp=InnerProduct(MPI_COMM_WORLD,grd,dx);
-      real_t np=InnerProduct(MPI_COMM_WORLD,dx,dx);
-
-      real_t sca=10.0;
-      for(int i=0;i<10;i++){
-         sca=sca/10;
-         tmp.Set(sca,dx);
-         tmp.Add(1.0,state);
-         real_t rc=obj->EvalScalar(tmp);
-         if(Mpi::Root())
-         {
-            std::cout<<" obj="<<ro<<" true drv="<<dp<<" fd drv="<<(rc-ro)/(sca)<<std::endl;
-         }
-      }
-      
 
    }
 
