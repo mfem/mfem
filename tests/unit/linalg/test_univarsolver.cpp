@@ -14,8 +14,6 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
-extern int enzyme_strong_zero;
-
 using mfem::real_t;
 using namespace mfem::future;
 
@@ -194,51 +192,57 @@ TEST_CASE("Univariate function solver on qfunction", "[univar]")
 
     SECTION("Correctness")
     {
-        auto [stress, Q_new] = material.update(H, Q, IdentityMatrix<3>(), 1.0);
-        INFO("stress = " << stress << "\ninternal vars =" << Q_new << "\n");
-        real_t mises = std::sqrt(1.5)*norm(dev(stress));
-        real_t eqps = Q_new[9];
-        real_t Y = FlowResistance(eqps, material.sigma_y, material.n, material.ep_0);
-        REQUIRE(mises == MFEM_Approx(Y, 0.0, 1e-8));
+      // Checks that stress after update is on the yield surface
+      auto [stress, Q_new] = material.update(H, Q, IdentityMatrix<3>(), 1.0);
+      real_t mises = std::sqrt(1.5)*norm(dev(stress));
+      real_t eqps = Q_new[9];
+      // This test only makes sense if the displacement gradient is big enough to 
+      // cuase yielding.
+      REQUIRE(eqps > 1e-9);
+      real_t Y = FlowResistance(eqps, material.sigma_y, material.n, material.ep_0);
+      CHECK(mises == MFEM_Approx(Y, 0.0, 1e-8));
     }
 
     SECTION("JVP")
     {
-        tensor<real_t, 3, 3> H_dot{{{1.0, 0.0 , 0.0},
-                                    {0.0, 0.0 , 0.0},
-                                    {0.0, 0.0 , 0.0}}};
+      // Compare forward mode derivative to finite difference approximation
 
-        // Enzyme directional derivative (uses custom derivative of solver)
-        auto sigma_dot = __enzyme_fwddiff<tensor<real_t, 3, 3>>((void*)ComputeStress, 
-                                                                enzyme_const, &material,
-                                                                enzyme_dup, H, H_dot,
-                                                                enzyme_const, Q,
-                                                                enzyme_const, J,
-                                                                enzyme_const, w);
-        INFO("sigma dot = " << sigma_dot << "\n");
-        REQUIRE(sigma_dot[0][0] > 0.0);
+      tensor<real_t, 3, 3> H_dot{{{1.0, 0.0 , 0.0},
+                                  {0.0, 0.0 , 0.0},
+                                  {0.0, 0.0 , 0.0}}};
 
-        // Finite difference derivative
-        constexpr int dim = 3;
-        real_t eps = 1e-5;
-        tensor<real_t, 3, 3> sigma = ComputeStress(&material, H, Q, J, w);
-        tensor<real_t, 3, 3> sigma_p = ComputeStress(&material, H + eps*H_dot, Q, J, w);
-        tensor<real_t, 3, 3> sigma_dot_h = (1.0/eps)*(sigma_p - sigma);
-        INFO("sigma dot_h = " << sigma_dot_h << "\n");
+      // Enzyme directional derivative (uses custom derivative of solver)
+      auto sigma_dot = __enzyme_fwddiff<tensor<real_t, 3, 3>>((void*)ComputeStress, 
+                                                              enzyme_const, &material,
+                                                              enzyme_dup, H, H_dot,
+                                                              enzyme_const, Q,
+                                                              enzyme_const, J,
+                                                              enzyme_const, w);
+      // sigma_dot = ∂sigma / ∂H[0, 0]
+      REQUIRE(sigma_dot[0][0] > 0.0);
 
-        tensor<real_t, 3, 3> rel_error = sigma_dot - sigma_dot_h;
-        for (int i = 0; i < dim; i++) {
-          for (int j = 0; j < dim; j++) {
-            real_t denom = sigma[i][j] != 0? sigma[i][j] : 1.0;
-            rel_error[i][j] /= denom;
-          }
+      // Finite difference derivative approximation
+      constexpr int dim = 3;
+      real_t eps = 1e-5;
+      tensor<real_t, 3, 3> sigma = ComputeStress(&material, H, Q, J, w);
+      tensor<real_t, 3, 3> sigma_p = ComputeStress(&material, H + eps*H_dot, Q, J, w);
+      tensor<real_t, 3, 3> sigma_dot_h = (1.0/eps)*(sigma_p - sigma);
+
+      tensor<real_t, 3, 3> rel_error = sigma_dot - sigma_dot_h;
+      for (int i = 0; i < dim; i++) {
+        for (int j = 0; j < dim; j++) {
+          real_t denom = sigma[i][j] != 0? sigma[i][j] : 1.0;
+          rel_error[i][j] /= denom;
         }
-        INFO("real errors = " << rel_error);
-        REQUIRE(norm_inf(rel_error) < 1e-5);
+      }
+      INFO("real errors = " << rel_error);
+      CHECK(norm_inf(rel_error) < 1e-5);
     }
 
     SECTION("VJP")
     {
+      // compare reverse mode derivative to finite differences
+
       tensor<real_t, 3, 3> sigma;
       ComputeStressRef(&material, H, Q, J, w, sigma);
       double epsilon = 1e-6;
@@ -246,29 +250,26 @@ TEST_CASE("Univariate function solver on qfunction", "[univar]")
       auto H_p = H + epsilon*dH;
       tensor<real_t, 3, 3> sigma_p;
       ComputeStressRef(&material, H_p, Q, J, w, sigma_p);
-      // sigma_dot_h[i,j] = ∂sigma[i,j]/∂H[0,0]
       auto sigma_dot_h = (sigma_p - sigma)/epsilon;
-
-      INFO("sigma_dot = " << sigma_dot_h << "\n");
-
+      // Note: sigma_dot_h[i,j] = ∂sigma[i,j]/∂H[0,0]
 
       tensor<real_t, 3, 3> sigma_bar{{{1.0, 0.0, 0.0},
                                       {0.0, 0.0, 0.0},
                                       {0.0, 0.0, 0.0}}};
-      INFO("H = " << H);
-      INFO("Q = " << Q);
 
       J2Plasticity material_bar;
       tensor<real_t, 3, 3> H_bar{};
       J2Plasticity::PackedInternalState Q_bar{};
       tensor<real_t, 3, 3> J_bar{};
       __enzyme_autodiff<void>(
-        (void*)ComputeStressRef,  enzyme_strong_zero, enzyme_const, &material, enzyme_dup, &H, &H_bar,
+        (void*)ComputeStressRef,  enzyme_const, &material, enzyme_dup, &H, &H_bar,
         enzyme_dup, &Q, &Q_bar, enzyme_dup, &J, &J_bar, enzyme_const, w,
         enzyme_dup, &sigma, &sigma_bar);
+
       // H_bar[ij] = ∂sigma[0,0]/∂H[i,j]
       // For this model, we expect the major symmetries in the tangent operator.
       // Hence H_bar \approx sigma_dot_h
+
       const double abs_tol = 1e-12;
       const double rel_tol = 5e-6;
       for (int i = 0; i < 3; i++) {
@@ -276,10 +277,6 @@ TEST_CASE("Univariate function solver on qfunction", "[univar]")
           CHECK(H_bar[i][j] == MFEM_Approx(sigma_dot_h[i][j], abs_tol, rel_tol));
         }
       }
-
-      INFO("H_bar = " << H_bar);
-      INFO("Q_bar = " << Q_bar);
-      INFO("J_bar = " << J_bar);
     }
 }
 
@@ -288,11 +285,6 @@ real_t nthroot_res(real_t x, tuple<real_t, real_t> p)
 {
     auto [index, radicand] = p;
     return std::pow(x, index) - radicand;
-}
-
-real_t sqrt_res(real_t x, real_t p)
-{
-  return x*x - p;
 }
 
 __attribute__((used))
@@ -306,6 +298,8 @@ real_t mysqrt(real_t x)
 {
   real_t x0 = x;
   real_t index = 2.0;
+  // FIXME: derivative value becomes inf when upper bound depends on x.
+  // I would like to make the upper bound x.
   SolverSettings settings{.bounds = {.lower = 0, .upper = 10.0}};
   return SolveNewtonBisection<nthroot_res>(x0, make_tuple(index, x), settings);
 }
@@ -315,11 +309,11 @@ TEST_CASE("Univariate solver reverse mode", "[univar]")
   real_t x = 2.0;
   real_t y = mysqrt(x);
   std::cout << "x = " << x << " sqrt(x) = " << y << std::endl;
-  REQUIRE(y == MFEM_Approx(M_SQRT2, 0.0, 1e-8));
+  CHECK(y == MFEM_Approx(M_SQRT2, 0.0, 1e-8));
 
   std::cout << "Computing derivative" << std::endl;
   real_t dydx = __enzyme_autodiff<real_t>((void*)mysqrt, enzyme_out, x);
-  REQUIRE(dydx == MFEM_Approx(0.5/std::sqrt(2.0)));
+  CHECK(dydx == MFEM_Approx(0.5/std::sqrt(2.0)));
 }
 
 TEST_CASE("Univariate function solver robustness", "[univar]")
