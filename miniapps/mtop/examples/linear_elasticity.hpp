@@ -22,9 +22,6 @@ virtual void ImplicitSolve(const mfem::real_t dt,
                              const mfem::Vector &x,
                              mfem::Vector &k) override;
 
-// sets the objective integraand which will be integrated with the state of the system
-void SetObjective(std::shared_ptr<mfem::Operator> op_);
-
 
 // Assemble the explicit operators
 // must be called after setting all material coefficients
@@ -109,7 +106,7 @@ mfem::Array<int>& GetTrueBlockOffsets(){ return block_true_offsets;}
 
 mfem::Vector& GetState(){return sol;}
 
-const mfem::ParFiniteElementSpace* GetFESpace(){ return fespace.get();}
+mfem::ParFiniteElementSpace* GetFESpace(){ return fespace.get();}
 
 void SetZeroBdr(int bdr_attr)
 {
@@ -141,14 +138,6 @@ void SetVolForce(mfem::real_t period, mfem::real_t amplitude, mfem::real_t rad,
 
     // copy data to the device
     vol_force_mem.Read();
-}
-
-void AddState(mfem::real_t t, mfem::Vector& state)
-{
-    int cind=adjoint_data.ind % adjoint_data.max_states;
-    adjoint_data.states[cind]=state;
-    adjoint_data.times[cind]=t;
-    adjoint_data.ind++;
 }
 
 private:
@@ -250,21 +239,6 @@ mutable mfem::Vector vol_force_mem;
 // zero bdr dofs - constructed during the corrsponding Assemble calls
 mfem::Array<int> ess_tdof_list;
 
-//objective/constraints integrand 
-//obj->Mult(x,y)
-//takes state vector s  and returns y which consists of multiple objectives/constraints 
-std::shared_ptr<mfem::Operator> obj;
-
-
-struct{
-    mfem::real_t Tfinal;
-    mfem::Vector states[2];
-    mfem::real_t times[2];
-    int ind=0;
-    int max_states=2;
-
-} adjoint_data;
-
 };
 
 
@@ -275,7 +249,7 @@ class ExampleObjectiveIntegrand: public mfem::Operator
 public:
 
     ExampleObjectiveIntegrand(mfem::ParFiniteElementSpace* fes_, 
-                                std::shared_ptr<mfem::Coefficient> objc);
+                                std::shared_ptr<mfem::Coefficient> objc={});
 
 
     void SetCoefficients( std::shared_ptr<mfem::Coefficient> objc);
@@ -300,31 +274,12 @@ private:
     mutable mfem::ParGridFunction velo;
 
     mfem::Operator* grad;
-
-    static constexpr int FDispl = 0; //grid function displacement
-    static constexpr int FVeloc = 1; //grid function velocity
-    static constexpr int Density = 14; // coefficient vector
-    static constexpr int Coords = 15; // coordinates grid function
-
-    // DFEM related definitions (3 objectives)
-    std::unique_ptr<mfem::future::DifferentiableOperator> obj;
-
-    // density coefficient for computing the objective function
-    std::shared_ptr<mfem::CoefficientVector> density;
-
+    
     mfem::Array<int> block_true_offsets;
 
-    //uniform parameter space
-    std::unique_ptr<mfem::future::UniformParameterSpace> ups;
-    //quadrature space for the coefficient
-    std::unique_ptr<mfem::QuadratureSpace> qs;
-
-    mfem::ParGridFunction *nodes;
-    mfem::ParFiniteElementSpace *mfes;
-    mfem::Array<int> domain_attributes;
-    const mfem::IntegrationRule *ir;
-
     mutable mfem::Vector res; 
+
+    std::unique_ptr<mfem::ParBilinearForm> mass;
 
 };
 
