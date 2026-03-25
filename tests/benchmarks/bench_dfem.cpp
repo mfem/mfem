@@ -45,8 +45,8 @@ using future::Identity;
 
 /// Max number of DOFs ////////////////////////////////////////////////////////
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-constexpr int MAX_NDOFS = 128;   // 128 * 1024;
-constexpr int NDOFS_INC = 4;     // 16;
+constexpr int MAX_NDOFS = 128 * 1024;
+constexpr int NDOFS_INC = 16;
 #else
 constexpr int MAX_NDOFS = 10 * 1024 * 1024;
 constexpr int NDOFS_INC = 25;
@@ -503,7 +503,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          cg.Mult(B, X);
          MFEM_VERIFY(cg.GetConverged(), "❌ CG solver did not converge.");
          MFEM_DEVICE_SYNC;
-         mfem::out << "✅" << std::endl;
+         // mfem::out << "✅" << std::endl;
       }
       cg.SetAbsTol(0.0);
       cg.SetRelTol(rtol);

@@ -21,9 +21,6 @@
 #include <cmath>
 #include <set>
 
-#include "../fem/dfem/doperator.hpp"
-#include NVTX_FMT_HPP
-
 namespace mfem
 {
 

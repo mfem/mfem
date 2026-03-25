@@ -8,13 +8,10 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-#define NVTX_COLOR ::nvtx::kGold
 
-#include "blockvector.hpp"
 #include "vector.hpp"
 #include "operator.hpp"
 #include "../general/forall.hpp"
-#include "../fem/dfem/doperator.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -131,14 +128,12 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
 {
    const Operator *P = this->GetProlongation();
    const Operator *R = this->GetRestriction();
-
    InitTVectors(P, R, P, x, b, X, B);
 
    if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
 
    ConstrainedOperator *constrainedA;
    FormConstrainedSystemOperator(ess_tdof_list, constrainedA);
-
    constrainedA->EliminateRHS(X, B);
    Aout = constrainedA;
 }
@@ -529,7 +524,6 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
    : Operator(A->Height(), A->Width()), A(A), own_A(own_A_),
      diag_policy(diag_policy_)
 {
-   assert(height > 0 && width > 0);
    // 'mem_class' should work with A->Mult() and mfem::forall():
    mem_class = A->GetMemoryClass()*Device::GetDeviceMemoryClass();
    MemoryType mem_type = GetMemoryType(mem_class);
@@ -572,13 +566,12 @@ void ConstrainedOperator::AssembleDiagonal(Vector &diag) const
    }
 }
 
-void ConstrainedOperator::EliminateRHS(const Vector &X, Vector &B) const
+void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
    w = 0.0;
-
    const int csz = constraint_list.Size();
    auto idx = constraint_list.Read();
-   auto d_x = X.Read();
+   auto d_x = x.Read();
    // Use read+write access - we are modifying sub-vector of w
    auto d_w = w.ReadWrite();
    mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i)
@@ -588,63 +581,16 @@ void ConstrainedOperator::EliminateRHS(const Vector &X, Vector &B) const
    });
 
    // A.AddMult(w, b, -1.0); // if available to all Operators
+   A->Mult(w, z);
+   b -= z;
 
-   if (auto *dop = dynamic_cast<future::DifferentiableOperator*>(A))
+   // Use read+write access - we are modifying sub-vector of b
+   auto d_b = b.ReadWrite();
+   mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i)
    {
-      assert(dynamic_cast<const BlockVector*>(&X));
-      assert(dynamic_cast<BlockVector*>(&B));
-      auto *block_b = dynamic_cast<BlockVector*>(&B);
-
-      const Array<int> b_block_offsets {0, X.Size(), B.Size()};
-      const Array<int> x_block_offsets {0, X.Size()};
-
-      Vector bB0, bB1;
-      block_b->GetBlockView(0, bB0);
-      block_b->GetBlockView(1, bB1);
-
-      BlockVector block_w(b_block_offsets), block_z(x_block_offsets);
-      assert(block_w.GetBlock(0).Size() == w.Size());
-      assert(block_w.GetBlock(1).Size() == block_b->GetBlock(1).Size());
-
-      Vector w0, w1;
-      block_w.GetBlockView(0, w0);
-      block_w.GetBlockView(1, w1);
-
-      w0 = w;
-      w1 = bB1; // set nodes
-
-      block_z = 0.0;
-
-      MultiVector P{w0, w1}, Q{block_z};
-      dop->Mult(P, Q);
-
-      Vector zv;
-      block_z.GetBlockView(0, zv);
-
-      Vector b0v;
-      block_b->GetBlockView(0, b0v);
-      b0v -= zv;
-
-      // Use read+write access - we are modifying sub-vector of b
-      auto d_b = b0v.ReadWrite();
-      mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i)
-      {
-         const int id = idx[i];
-         d_b[id] = d_x[id];
-      });
-   }
-   else
-   {
-      A->Mult(w, z);
-      B -= z;
-      // Use read+write access - we are modifying sub-vector of B
-      auto d_B = B.ReadWrite();
-      mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i)
-      {
-         const int id = idx[i];
-         d_B[id] = d_x[id];
-      });
-   }
+      const int id = idx[i];
+      d_b[id] = d_x[id];
+   });
 }
 
 void ConstrainedOperator::ConstrainedMult(const Vector &x, Vector &y,
@@ -653,7 +599,6 @@ void ConstrainedOperator::ConstrainedMult(const Vector &x, Vector &y,
    const int csz = constraint_list.Size();
    if (csz == 0)
    {
-      dbg("csz == 0");
       if (transpose)
       {
          A->MultTranspose(x, y);
@@ -674,28 +619,11 @@ void ConstrainedOperator::ConstrainedMult(const Vector &x, Vector &y,
 
    if (transpose)
    {
-      dbg("MultTranspose");
       A->MultTranspose(z, y);
    }
    else
    {
-      // dbg("Mult");
-      if (auto *dop = dynamic_cast<future::DifferentiableOperator*>(A))
-      {
-         db1("DifferentiableOperator detected, using MultiVector");
-         auto *block_x = const_cast<BlockVector*>(dynamic_cast<const BlockVector*>(&x));
-         Vector U, Ξ;
-         block_x->GetBlockView(0, U);
-         block_x->GetBlockView(1, Ξ);
-         //  dbg("U:{} Ξ:{}", U.Size(), Ξ.Size());
-         MultiVector P{U, Ξ};
-         MultiVector Q{y};
-         dop->Mult(P, Q);
-      }
-      else
-      {
-         A->Mult(z, y);
-      }
+      A->Mult(z, y);
    }
 
    auto d_x = x.Read();
