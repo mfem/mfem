@@ -650,7 +650,6 @@ void ConstrainedOperator::EliminateRHS(const Vector &X, Vector &B) const
 void ConstrainedOperator::ConstrainedMult(const Vector &x, Vector &y,
                                           const bool transpose) const
 {
-   //    dbg("x: {}", x);
    const int csz = constraint_list.Size();
    if (csz == 0)
    {
@@ -680,17 +679,15 @@ void ConstrainedOperator::ConstrainedMult(const Vector &x, Vector &y,
    }
    else
    {
-      dbg("Mult");
+      // dbg("Mult");
       if (auto *dop = dynamic_cast<future::DifferentiableOperator*>(A))
       {
-         dbg("DifferentiableOperator detected, using MultiVector");
-
+         db1("DifferentiableOperator detected, using MultiVector");
          auto *block_x = const_cast<BlockVector*>(dynamic_cast<const BlockVector*>(&x));
          Vector U, Ξ;
          block_x->GetBlockView(0, U);
          block_x->GetBlockView(1, Ξ);
          //  dbg("U:{} Ξ:{}", U.Size(), Ξ.Size());
-
          MultiVector P{U, Ξ};
          MultiVector Q{y};
          dop->Mult(P, Q);

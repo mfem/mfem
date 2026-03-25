@@ -869,7 +869,190 @@ void CGSolver::UpdateVectors()
    z.UseDevice(true);
 }
 
-void CGSolver::Mult(const Vector &input_B, Vector &input_X) const
+void CGSolver::Mult(const Vector &b, Vector &x) const
+{
+   int i;
+   real_t r0, den, nom, nom0, betanom, alpha, beta;
+
+   x.UseDevice(true);
+   if (iterative_mode)
+   {
+      oper->Mult(x, r);
+      subtract(b, r, r); // r = b - A x
+   }
+   else
+   {
+      r = b;
+      x = 0.0;
+   }
+
+   if (prec)
+   {
+      prec->Mult(r, z); // z = B r
+      d = z;
+   }
+   else
+   {
+      d = r;
+   }
+   nom0 = nom = Dot(d, r);
+   if (nom0 >= 0.0) { initial_norm = sqrt(nom0); }
+   MFEM_VERIFY(IsFinite(nom), "nom = " << nom);
+   if (print_options.iterations || print_options.first_and_last)
+   {
+      mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
+                << nom << (print_options.first_and_last ? " ...\n" : "\n");
+   }
+
+   if (nom < 0.0)
+   {
+      if (print_options.warnings)
+      {
+         mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
+                   << nom << '\n';
+      }
+      converged = false;
+      final_iter = 0;
+      initial_norm = nom;
+      final_norm = nom;
+
+      Monitor(0, nom, r, x, true);
+      return;
+   }
+   r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
+   if (Monitor(0, nom, r, x) || nom <= r0)
+   {
+      converged = true;
+      final_iter = 0;
+      final_norm = sqrt(nom);
+
+      Monitor(0, nom, r, x, true);
+      return;
+   }
+
+   oper->Mult(d, z);  // z = A d
+   den = Dot(z, d);
+   MFEM_VERIFY(IsFinite(den), "den = " << den);
+   if (den <= 0.0)
+   {
+      if (Dot(d, d) > 0.0 && print_options.warnings)
+      {
+         mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
+                   << den << '\n';
+      }
+      if (den == 0.0)
+      {
+         converged = false;
+         final_iter = 0;
+         final_norm = sqrt(nom);
+
+         Monitor(0, nom, r, x, true);
+         return;
+      }
+   }
+
+   // start iteration
+   converged = false;
+   final_iter = max_iter;
+   for (i = 1; true; )
+   {
+      alpha = nom/den;
+      add(x,  alpha, d, x);     //  x = x + alpha d
+      add(r, -alpha, z, r);     //  r = r - alpha A d
+
+      if (prec)
+      {
+         prec->Mult(r, z);      //  z = B r
+         betanom = Dot(r, z);
+      }
+      else
+      {
+         betanom = Dot(r, r);
+      }
+      MFEM_VERIFY(IsFinite(betanom), "betanom = " << betanom);
+      if (betanom < 0.0)
+      {
+         if (print_options.warnings)
+         {
+            mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
+                      << betanom << '\n';
+         }
+         converged = false;
+         final_iter = i;
+         break;
+      }
+
+      if (print_options.iterations)
+      {
+         mfem::out << "   Iteration : " << setw(3) << i << "  (B r, r) = "
+                   << betanom << std::endl;
+      }
+
+      if (Monitor(i, betanom, r, x) || betanom <= r0)
+      {
+         converged = true;
+         final_iter = i;
+         break;
+      }
+
+      if (++i > max_iter)
+      {
+         break;
+      }
+
+      beta = betanom/nom;
+      if (prec)
+      {
+         add(z, beta, d, d);   //  d = z + beta d
+      }
+      else
+      {
+         add(r, beta, d, d);
+      }
+      oper->Mult(d, z);       //  z = A d
+      den = Dot(d, z);
+      MFEM_VERIFY(IsFinite(den), "den = " << den);
+      if (den <= 0.0)
+      {
+         if (Dot(d, d) > 0.0 && print_options.warnings)
+         {
+            mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
+                      << den << '\n';
+         }
+         if (den == 0.0)
+         {
+            final_iter = i;
+            break;
+         }
+      }
+      nom = betanom;
+   }
+   if (print_options.first_and_last && !print_options.iterations)
+   {
+      mfem::out << "   Iteration : " << setw(3) << final_iter << "  (B r, r) = "
+                << betanom << '\n';
+   }
+   if (print_options.summary || (print_options.warnings && !converged))
+   {
+      mfem::out << "PCG: Number of iterations: " << final_iter << '\n';
+   }
+   if (print_options.summary || print_options.iterations ||
+       print_options.first_and_last)
+   {
+      const auto arf = pow (betanom/nom0, 0.5/final_iter);
+      mfem::out << "Average reduction factor = " << arf << '\n';
+   }
+   if (print_options.warnings && !converged)
+   {
+      mfem::out << "PCG: No convergence!" << '\n';
+   }
+
+   final_norm = sqrt(betanom);
+
+   Monitor(final_iter, final_norm, r, x, true);
+}
+
+/*void CGSolver::Mult(const Vector &input_B, Vector &input_X) const
 {
    const auto *constrained_oper = dynamic_cast<const ConstrainedOperator*>(oper);
    assert(constrained_oper);
@@ -951,7 +1134,7 @@ void CGSolver::Mult(const Vector &input_B, Vector &input_X) const
    }
 
    nom0 = nom = Dot(d, r);
-   dbg("nom0: {}", nom0);
+   db1("nom0: {}", nom0);
    if (nom0 >= 0.0) { initial_norm = sqrt(nom0); }
    MFEM_VERIFY(IsFinite(nom), "nom = " << nom);
 
@@ -989,7 +1172,7 @@ void CGSolver::Mult(const Vector &input_B, Vector &input_X) const
 
    if (dop)
    {
-      dbg("DOP, using BlockVector");
+      db1("DOP, using BlockVector");
       BlockVector block_d(b_block_offsets), block_z(x_block_offsets);
       block_d = *block_b;
       block_z = *block_x;
@@ -1004,7 +1187,7 @@ void CGSolver::Mult(const Vector &input_B, Vector &input_X) const
       den = Dot(z, d);
    }
 
-   dbg("den: {}", den);
+   db1("den: {}", den);
    MFEM_VERIFY(IsFinite(den), "den = " << den);
 
    if (den <= 0.0)
@@ -1068,7 +1251,7 @@ void CGSolver::Mult(const Vector &input_B, Vector &input_X) const
       {
          converged = true;
          final_iter = i;
-         dbg("betanom: {}", betanom);
+         db1("betanom: {}", betanom);
          break;
       }
 
@@ -1091,7 +1274,7 @@ void CGSolver::Mult(const Vector &input_B, Vector &input_X) const
 
       if (dop)
       {
-         //  assert(false);
+         assert(false);
          BlockVector block_d(b_block_offsets), block_z(x_block_offsets);
 
          Vector d0, d1;
@@ -1112,8 +1295,7 @@ void CGSolver::Mult(const Vector &input_B, Vector &input_X) const
          den = Dot(d, z);
       }
 
-      dbg("den:{}", den);
-
+      // db1("den:{}", den);
       MFEM_VERIFY(IsFinite(den), "den = " << den);
       if (den <= 0.0)
       {
@@ -1154,7 +1336,8 @@ void CGSolver::Mult(const Vector &input_B, Vector &input_X) const
    final_norm = sqrt(betanom);
 
    Monitor(final_iter, final_norm, r, x, true);
-}
+   input_X = x;
+}*/
 
 void CG(const Operator &A, const Vector &b, Vector &x,
         int print_iter, int max_num_iter,

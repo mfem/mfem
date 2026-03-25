@@ -38,35 +38,30 @@ inline FieldBasis FromQI(const QuadratureInterpolator *qi,
    {
       [qi, mode](const Vector &xe, Vector &xq)
       {
-         dbg();
          qi->SetOutputLayout(QVectorLayout::byVDIM);
          if (mode == QuadratureInterpolator::VALUES)
          {
-            dbg("VALUES");
+            // dbg("VALUES");
             qi->Values(xe, xq);
          }
          else
          {
-            dbg("DERIVATIVES");
-            // dbg("xe: {}", xe);
+            // dbg("DERIVATIVES");
             qi->Derivatives(xe, xq);
-            // dbg("xq: {}", xq);
          }
       },
       [qi, mode](const Vector &yq, Vector &ye)
       {
-         dbg();
          Vector empty;
          qi->SetOutputLayout(QVectorLayout::byVDIM);
          if (mode == QuadratureInterpolator::VALUES)
          {
-            dbg("Transposed VALUES");
+            // dbg("Transposed VALUES");
             qi->AddMultTranspose(QuadratureInterpolator::VALUES, yq, empty, ye);
          }
          else
          {
-            dbg("Transposed DERIVATIVES");
-            dbg("empty: {}, yq: {}, ye: {}", empty.Size(), yq.Size(), ye.Size());
+            // dbg("Transposed DERIVATIVES");
             qi->AddMultTranspose(QuadratureInterpolator::DERIVATIVES, empty, yq, ye);
          }
       }
@@ -239,7 +234,6 @@ inline void interpolate(
    BlockVector &xq,
    const std::array<bool, ninputs> &conditional = all_true<ninputs>())
 {
-   dbg();
    constexpr_for<0, ninputs>([&](auto i)
    {
       if (!conditional.empty() && !conditional[i]) { return; }
@@ -255,7 +249,6 @@ inline void integrate(
    const BlockVector &yq,
    std::vector<Vector *> &ye)
 {
-   dbg();
    for (auto v : ye) { *v = 0.0; }
 
    constexpr_for<0, noutputs>([&](auto i)
