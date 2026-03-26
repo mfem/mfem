@@ -169,6 +169,7 @@ public:
        { 0, 1, ..., rank()+tensor_rank()-1 }.
 
        @note This method does not permute the global 1D data array. */
+   MFEM_HOST_DEVICE
    void set_layout(std::array<std::size_t,rank()+tensor_rank()> perm) const
    {
       std::size_t stride = 1;
@@ -184,6 +185,7 @@ public:
    /** @brief Comute the dynamic offset for a given dynamic multi-index @a is.
        The total offset in the global data array is the sum of the dynamic and
        static (tensor) offsets. */
+   MFEM_HOST_DEVICE
    std::size_t get_dynamic_offset(
       const std::array<std::size_t,rank()> &is) const
    {
@@ -198,6 +200,7 @@ public:
    /** @brief Comute the static (tensor) offset for a given tensor multi-index
        @a js. The total offset in the global data array is the sum of the
        dynamic and static (tensor) offsets. */
+   MFEM_HOST_DEVICE
    std::size_t get_static_offset(
       const std::array<std::size_t,tensor_rank()> &js) const
    {
@@ -213,6 +216,7 @@ public:
        corresponding to the given dynamic multi-index @a is. */
    /** @note Return a const tensor to prevent attempts to assign to the
        temporary object which is considered a mistake. */
+   MFEM_HOST_DEVICE
    const tensor_type get_tensor(std::array<std::size_t,rank()> is) const
    {
       tensor_type result;
@@ -231,7 +235,7 @@ public:
        corresponding to the given dynamic indices @a is. */
    /** @note Return a const tensor to prevent attempts to assign to the
        temporary object which is considered a mistake. */
-   template <typename... index_types>
+   template <typename... index_types> MFEM_HOST_DEVICE
    const tensor_type get_tensor(index_types... is) const
    {
       static_assert(sizeof...(is) == rank(), "invalid number of indices!");
@@ -242,6 +246,7 @@ public:
        - get_tensor(std::array<std::size_t,rank()>) iff scalar_t is const,
        - get_accessor(std::array<std::size_t,rank()>) iff scalar_t is not
          const. */
+   MFEM_HOST_DEVICE
    decltype(auto) operator()(std::array<std::size_t,rank()> is) const
    {
       if constexpr (std::is_const_v<scalar_t>) { return get_tensor(is); }
@@ -251,7 +256,7 @@ public:
    /** @brief Returns one of the following depending on the type scalar_t:
        - get_tensor(index_types...) iff scalar_t is const,
        - get_accessor(index_types...) iff scalar_t is not const. */
-   template <typename... index_types>
+   template <typename... index_types> MFEM_HOST_DEVICE
    decltype(auto) operator()(index_types... is) const
    {
       if constexpr (std::is_const_v<scalar_t>) { return get_tensor(is...); }
@@ -272,6 +277,7 @@ public:
 
           During its life time, this object assumes that the @a base object
           remains unmodified. */
+      MFEM_HOST_DEVICE
       tensor_accessor(const tensor_ndarray &base,
                       const std::array<std::size_t,rank()> &is)
          : base_array(base)
@@ -282,6 +288,7 @@ public:
       /// Read-write access to a particular entry of the referenced tensor.
       /** The returned reference points to the corresponding entry in the global
           data array of the base tensor_ndarray. */
+      MFEM_HOST_DEVICE
       scalar_t &operator()(const std::array<std::size_t,tensor_rank()> &js)
       {
          return offset_data[base_array.get_static_offset(js)];
@@ -289,6 +296,7 @@ public:
 
       /** @brief Write a tensor to the referenced tensor in the global data
           array of the base tensor_ndarray. */
+      MFEM_HOST_DEVICE
       tensor_accessor &operator=(const tensor_type &rhs)
       {
          for_multiindex<tensor_sizes...>(
@@ -303,6 +311,7 @@ public:
    /** @brief Get a tensor_accessor object referencing the tensor stored at the
        dynamic multi-index @a is. This object can be used to write tensor
        objects into the global data array of the tensor_ndarray. */
+   MFEM_HOST_DEVICE
    tensor_accessor get_accessor(std::array<std::size_t,rank()> is) const
    {
       return tensor_accessor(*this, is);
@@ -311,7 +320,7 @@ public:
    /** @brief Get a tensor_accessor object referencing the tensor stored at the
        dynamic indices @a is. This object can be used to write tensor objects
        into the global data array of the tensor_ndarray. */
-   template <typename... index_types>
+   template <typename... index_types> MFEM_HOST_DEVICE
    tensor_accessor get_accessor(index_types... is) const
    {
       static_assert(sizeof...(is) == rank(), "invalid number of indices!");

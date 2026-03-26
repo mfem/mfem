@@ -4,6 +4,7 @@
 #include "../../util.hpp"
 #include "../../integrator_ctx.hpp"
 #include "general/enzyme.hpp"
+#include "../../../../linalg/tensor_arrays.hpp"
 
 namespace mfem::future
 {
