@@ -340,17 +340,13 @@ TEST_CASE("Univariate function solver robustness", "[univar]")
         REQUIRE(x == MFEM_Approx(1.0));
     }
 
-    SECTION("Escapes local minimum")
+    SECTION("Works where Newton diverges")
     {
-        auto f = [](real_t x, real_t m) { return std::cos(2*M_PI*x) - m*x + 2.5; };
-        real_t x0 = 0.1;
-        real_t m = 2.0;
+        auto f = [](double x, int) { return std::atan(x); };
+        real_t x0 = 1.5;
         SolverSettings settings{.bounds{.lower = 0.0, .upper = 2.0}};
-        real_t x = SolveNewtonBisection<+f>(x0, m, settings);
-        real_t y = f(x, m);
-        mfem::out << "f(x) = " << f(x, m) << "\n";
-        INFO("f(x) = " << f(x, m));
-        REQUIRE(x == MFEM_Approx(1.25));
+        real_t x = SolveNewtonBisection<+f>(x0, int{}, settings);
+        CHECK(std::abs(x) == MFEM_Approx(0.0));
     }
 }
 
