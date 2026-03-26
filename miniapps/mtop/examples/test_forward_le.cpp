@@ -401,10 +401,68 @@ int main(int argc, char *argv[])
    }
       */
 
+   //Test Jacobian transpose   
+   {
+      BlockVector x; x.Update(lin_elasticity_op.GetTrueBlockOffsets());
+      BlockVector w; w.Update(lin_elasticity_op.GetTrueBlockOffsets());
+      BlockVector d; d.Update(lin_elasticity_op.GetTrueBlockOffsets());
+      BlockVector g; g.Update(lin_elasticity_op.GetTrueBlockOffsets());
+      x.Randomize();
+
+      real_t t = 0.0;
+
+      ExampleObjectiveIntegrand* obj=new ExampleObjectiveIntegrand(lin_elasticity_op.GetFESpace());
+
+      lin_elasticity_op.Mult(x,d);
+      real_t oo=obj->EvalScalar(d);
+      if(Mpi::Root())
+      {
+         std::cout<<"t="<<t<<" oo="<<oo<<std::endl;
+      }
+
+      obj->EvalGradient(d,w);
+      lin_elasticity_op.JacobianMultTranspose(x,w,g); //the gradient is in g
+
+      //FD check
+      {
+         BlockVector rnd; rnd.Update(lin_elasticity_op.GetTrueBlockOffsets());
+         rnd.Randomize();
+         real_t sca=1.0;
+
+         real_t ipr=mfem::InnerProduct(pmesh.GetComm(),rnd,g);
+
+         for(int i=0;i<20;i++){
+            w.Set(sca,rnd);
+            w.Add(1.0,x);
+            lin_elasticity_op.Mult(w,d);
+            real_t co=obj->EvalScalar(d);
+
+            w.Set(-sca,rnd);
+            w.Add(1.0,x);
+            lin_elasticity_op.Mult(w,d);
+            real_t mo=obj->EvalScalar(d);
+
+
+            if(Mpi::Root())
+            {
+               std::cout<<"s="<<sca<<" o="<<oo<<" c="<<co<<" gr="
+                                 <<ipr<<" fd="<<(co-oo)/sca
+                                 <<" cd="<<(co-mo)/(2.0*sca)<<std::endl;
+            }
+            sca=sca/2;
+         }   
+
+
+      }
+
+      delete obj;
+
+   }
 
 
 
    //test time integration
+   /*
    {
       real_t t = 0.0;
 
@@ -465,6 +523,7 @@ int main(int argc, char *argv[])
       delete obj;
 
    }
+   */   
 
    /*
    if (paraview)

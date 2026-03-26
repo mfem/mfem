@@ -611,19 +611,72 @@ void LinearElasticityTimeDependentOperator::Mult(const Vector &x,
 
     //dfem_mass_op->SetParameters({dens1.get(), dens2.get(), density.get(), nodes});
     cg->Mult(res, by.GetBlock(1)); // solve for acceleration
+    //by.GetBlock(1).Set(1.0,res);
+
+    //set zero grad BC
+    {
+        int N = ess_tdof_list.Size();
+        real_t *dp=by.GetBlock(0).ReadWrite();
+        real_t *vp=by.GetBlock(1).ReadWrite();
+        const int *ep = ess_tdof_list.Read();
+        mfem::forall(N, [=] MFEM_HOST_DEVICE(int i) { 
+                        dp[ep[i]] = 0.0;
+                        vp[ep[i]] = 0.0;
+                     });
+    }
+
 }
 
-// implements the adjoint reverse time integration 
-// i.e. x=[l_q,l_v, L_\rho]^T y=x' - i.e. the derivative with respect to \tau=T-t 
-// before calling MultTranspose one should set the sol vector with the
-// solution for the forward problem at time t
-void LinearElasticityTimeDependentOperator::AdjointMult(const Vector &x,
-                                                            Vector &y) const
+
+/// y = (df/dx(x,t))^T * w
+void LinearElasticityTimeDependentOperator::JacobianMultTranspose(const Vector &x,
+                                                                    const Vector &w,
+                                                                    Vector &y) const 
 {
-    BlockVector bx(const_cast<Vector&>(x), block_true_offsets);
-    BlockVector by(y, block_true_offsets);
+    //BlockVector bw(const_cast<Vector&>(w), block_true_offsets);
+
+    rhs.Set(1.0,w);
 
     y=0.0;
+    BlockVector by(y, block_true_offsets);
+
+    Vector& lu=rhs.GetBlock(0);
+    Vector& lv=rhs.GetBlock(1);
+
+    //set zero grad BC
+    {
+        int N = ess_tdof_list.Size();
+        real_t *dp=lu.ReadWrite();
+        real_t *vp=lv.ReadWrite();
+        const int *ep = ess_tdof_list.Read();
+        mfem::forall(N, [=] MFEM_HOST_DEVICE(int i) { 
+                        dp[ep[i]] = 0.0;
+                        vp[ep[i]] = 0.0;
+                     });
+    }
+
+    res=0.0;
+    cg->Mult(lv,res);  res*=(-1.0); //res=-M^{-1}*v
+    //res.Set(-1.0,lv);
+
+    //multiply by the elastic matrix
+    dfem_forward_op->Mult(res,by.GetBlock(0)); 
+
+    //multiply by the damping matrix
+    dfem_damp_op->Mult(res,by.GetBlock(1)); 
+    by.GetBlock(1).Add(1.0,lu); //add lu
+
+    //set zero BC
+    {
+        int N = ess_tdof_list.Size();
+        real_t *dp=by.GetBlock(0).ReadWrite();//displ adj
+        real_t *vp=by.GetBlock(1).ReadWrite();//veloc adj
+        const int *ep = ess_tdof_list.Read();
+        mfem::forall(N, [=] MFEM_HOST_DEVICE(int i) { 
+                        dp[ep[i]] = 0.0;
+                        vp[ep[i]] = 0.0;
+                     });
+    }
 }
 
 
@@ -742,7 +795,12 @@ void ExampleObjectiveIntegrand::Mult(const Vector &x, Vector &y) const
     mass->TrueAddMult(bx.GetBlock(0),res);
     //sum up the weighted values
     real_t lp=mfem::InnerProduct(fes->GetComm(), res, bx.GetBlock(0));
-    y[0]=0.5*lp;
+   
+    res=0.0;
+    mass->TrueAddMult(bx.GetBlock(1),res);
+    real_t lv=mfem::InnerProduct(fes->GetComm(), res, bx.GetBlock(1));
+   
+    y[0]=0.5*(lp+lv);
 }
 
 void ExampleObjectiveIntegrand::EvalGradient(const Vector &x, Vector &grad) const
@@ -751,4 +809,5 @@ void ExampleObjectiveIntegrand::EvalGradient(const Vector &x, Vector &grad) cons
     BlockVector by(grad, block_true_offsets); by=0.0;
 
     mass->TrueAddMult(bx.GetBlock(0),by.GetBlock(0));
+    mass->TrueAddMult(bx.GetBlock(1),by.GetBlock(1));
 }

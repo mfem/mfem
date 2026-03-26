@@ -16,7 +16,9 @@ virtual ~LinearElasticityTimeDependentOperator() override
 
 virtual void Mult(const mfem::Vector &x, mfem::Vector &y) const override;
 
-virtual void AdjointMult(const mfem::Vector &x, mfem::Vector &y) const;
+void JacobianMultTranspose(const mfem::Vector &x,
+                                      const mfem::Vector &w,
+                                      mfem::Vector &y) const override;
 
 virtual void ImplicitSolve(const mfem::real_t dt,
                              const mfem::Vector &x,

@@ -88,7 +88,6 @@ struct AdjState
    mfem::real_t time;
    mfem::real_t obj;
    mfem::Vector adj;
-   mfem::Vector grd;
 };
 
 
@@ -166,7 +165,7 @@ int main(int argc, char *argv[])
    bool paraview = true;
    bool visualization = true;
    int ode_solver_type = 4;
-   real_t Tfinal = 10.0;
+   real_t Tfinal = 0.07;
    real_t dt = 0.005;
 
    OptionsParser args(argc, argv);
@@ -380,7 +379,7 @@ int main(int argc, char *argv[])
 
          //advance u_st
          ode_solver->Step(u_st.v,t,ldt);
-         //TO-DO update objective 
+         //update objective 
          obj=eobj->EvalScalar(u_st.v);
 
          //return updated u_st
@@ -392,6 +391,25 @@ int main(int argc, char *argv[])
          {
             mfem::out<<"t: "<<u_st.time<<" dt="<<u_st.dt<<" obj:"<<obj<<"\n";
          }
+      };
+
+
+      auto adjoint_step = [&](AdjState &adj_st, const State &u_st, Step i)
+      {
+         real_t t=u_st.time;
+         real_t ldt=u_st.dt;
+         real_t obj=u_st.obj;
+
+         if (Mpi::Root())
+         {
+            mfem::out<<"Adj step i="<<i<<"  t: "<<u_st.time<<" dt="<<u_st.dt<<" obj:"<<obj<<"\n";
+         }
+
+         ode_solver->EnableAdjoint(mfem::ODESolver::AdjointMode::Discrete);
+         ode_solver->SetSolution(u_st.v,t);
+         ode_solver->AdjointStep(adj_st.adj,t,ldt);
+         adj_st.time=t;
+         adj_st.obj=obj;
       };
 
       State u;
@@ -413,6 +431,38 @@ int main(int argc, char *argv[])
          t=u.time;
          ++i;
       }
+
+      if(Mpi::Root())
+      {
+         std::cout<<"Total number of steps i="<<i<<std::endl;
+         std::cout<<"Start adjoint steps!"<<std::endl;
+      }
+
+      // define the adjoint state
+      AdjState adj_st; 
+      adj_st.adj.SetSize(lin_elasticity_op.GetState().Size()); 
+      adj_st.adj=0.0;
+      adj_st.obj=0.0;
+      adj_st.time=t;
+      
+      //step backward
+      const Step m=i;
+      
+      //tmp state for stepping backward
+      State u_wrk;
+      u_wrk.v.SetSize(lin_elasticity_op.GetState().Size());
+      u_wrk.obj=0.0;
+      u_wrk.time=0.0;
+      u_wrk.dt=0.0;
+
+      for (Step i = m - 1; i >= 0; --i)
+      {
+         ckpt.BackwardStep(i,adj_st, u_wrk,
+                           primal_step, adjoint_step,
+                           make_snapshot, restore_snapshot);
+         if (i == 0) { break; }
+      }
+
 
    }
 
