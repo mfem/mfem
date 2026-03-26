@@ -2260,12 +2260,6 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
          TetrahedronIntRules[20] = ir;
          return ir;
 
-      case 21: // Grundmann-Moller; explicit case to avoid overwriting [20]
-         ir = new IntegrationRule;
-         ir->GrundmannMollerSimplexRule(10, 3);
-         TetrahedronIntRules[21] = ir;
-         return ir;
-
       default:
          // Grundmann-Moller fallback for orders beyond tabulated rules
          int i = (Order / 2) * 2 + 1;   // closest odd >= Order
@@ -2277,7 +2271,6 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
          return ir;
    }
 }
-
 
 // Integration rules for reference pyramid
 IntegrationRule *IntegrationRules::PyramidIntegrationRule(int Order)

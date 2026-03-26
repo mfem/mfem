@@ -278,7 +278,7 @@ TEST_CASE("Simplex integration rules", "[SimplexRules]")
 // specific to the positive-weight rules: weight positivity, stability,
 // and interior point placement.
 
-TEST_CASE("Simplex rule positivity", "[PositiveWeightRules]")
+TEST_CASE("Simplex rule positivity", "[IntegrationRules]")
 {
    IntegrationRules rules;
 
