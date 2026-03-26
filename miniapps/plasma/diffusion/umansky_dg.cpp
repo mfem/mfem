@@ -1,19 +1,64 @@
-// Sample runs:  mpirun -np 4 ex1p -m ../data/square-disc.mesh
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
-// Description:  This example code demonstrates the use of MFEM to define a
-//               simple finite element discretization of the Poisson problem
-//               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
-//               Specifically, we discretize using a FE space of the specified
-//               order, or if order < 1 using an isoparametric/isogeometric
-//               space (i.e. quadratic for quadratic curvilinear mesh, NURBS for
-//               NURBS mesh, etc.)
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
 //
-//               The example highlights the use of mesh refinement, finite
-//               element grid functions, as well as linear and bilinear forms
-//               corresponding to the left-hand side and right-hand side of the
-//               discrete linear system. We also cover the explicit elimination
-//               of essential boundary conditions, static condensation, and the
-//               optional connection to the GLVis tool for visualization.
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+//
+//       --------------------------------------------------------
+//       Umansky_DG Miniapp:  Anisotropic Diffusion Test
+//                            Using Discontinuous Galerkin Method
+//       --------------------------------------------------------
+//
+// This miniapp implements a simple DG solver for the test problem
+// defined in the paper "On numerical solution of strongly anisotropic
+// diffusion equation on misaligned grids" by M.V. Umansky, M.S. Day,
+// and T. D. Rognlien published in 2005.
+//
+// The test problem consists of a heat equation with an anisotropic
+// diffusion coefficient. The anisotropy is defined by an anisotropy
+// ratio and a direction along which the diffusion differs from
+// unity. In this case the domain is a 2D rectangle and the direction
+// defining the anisotropy is aligned with the main diagonal of the
+// domain. There is no heat source but there is a discontinuous
+// boundary condition with the temperature on the left and upper
+// boundaries equal to one and zero on the remaining boundaries.
+//
+// There are two main challenges presented by this test
+// problem. First, the discontinuous boundary condition leads to
+// difficulty in the lower left and upper right corners of the
+// domain. Second, as the anisotropy ratio is increased the numerical
+// scheme may introduce anomalous diffusion in the direction
+// perpendicular to the highly diffusive direction.
+//
+// Note that by default the Kappa DG penalty parameter is set to
+// (order+1)^2. However, for anisotropic diffusion problems this is
+// often insufficient. Even at relatively modest anisotropy ratios the
+// linear solver may complain of finding an indefinite linear
+// system. In such cases increasing Kappa will often correct this
+// problem. Even when the system remains positive definite increasing
+// Kappa may improve solver convergence.
+//
+// At sufficiently high anisotropy ratios the solver may fail to find
+// an acceptable solution. Therefore, the purpose of this mini
+// application is to provide a starting point for evaluating solution
+// methods based on a discontinuous discretization of the temperature
+// field.
+//
+// Sample runs:
+//
+//   Rectangular domain with two anisotropy ratios:
+//      mpirun -np 4 umansky_dg --height 0.8 --width 1.2 -Ak 1e0
+//      mpirun -np 4 umansky_dg --height 0.8 --width 1.2 -Ak 1e2 -k 5
+//
+//   By default the domain will be the unit square and the anisotropy
+//   ratio will be 10:
+//      mpirun -np 4 umansky_dg
+//
 
 #include "umansky.hpp"
 #include <fstream>
@@ -21,37 +66,6 @@
 
 using namespace std;
 using namespace mfem;
-
-class CustomSolverMonitor : public IterativeSolverMonitor
-{
-private:
-   const ParMesh &pmesh;
-   ParGridFunction &pgf;
-public:
-   CustomSolverMonitor(const ParMesh &pmesh_,
-                       ParGridFunction &pgf_) :
-      pmesh(pmesh_),
-      pgf(pgf_) {}
-
-   void MonitorSolution(int i, real_t norm, const Vector &x, bool final) override
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      int  num_procs, myid;
-
-      MPI_Comm_size(pmesh.GetComm(), &num_procs);
-      MPI_Comm_rank(pmesh.GetComm(), &myid);
-
-      pgf.SetFromTrueDofs(x);
-
-      socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << pmesh << pgf
-               << "window_title 'Iteration no " << i << "'"
-               << "keys rRjlc\n" << flush;
-   }
-};
 
 int main(int argc, char *argv[])
 {
@@ -66,7 +80,7 @@ int main(int argc, char *argv[])
    int el_type_arg = 1;
    real_t w = 1.0, h = 1.0;
    real_t Ak = 10.0;
-   int max_iter = 100;
+   int max_iter = 8;
    int max_dofs = 1000000;
    real_t min_err = 1e-6;
    int serial_ref_levels = 0;
@@ -207,23 +221,11 @@ int main(int argc, char *argv[])
       cout << "Number of finite element unknowns: " << size << endl;
    }
 
-   // Determine the list of true (i.e. parallel conforming) essential
-   // boundary dofs. In this example, the boundary conditions are defined
-   // by marking all the external boundary attributes from the mesh as
-   // essential (Dirichlet) and converting them to a list of true dofs.
-   /*
-   Array<int> ess_tdof_list;
-   Array<int> ess_bdr(pmesh.bdr_attributes.Max());
-   if (pmesh.bdr_attributes.Size())
-   {
-      ess_bdr = 1;
-   }
-   */
    // Set up the parallel linear form b(.) which corresponds to the
-   // right-hand side of the FEM linear system, which in this case is
-   // (1,phi_i) where phi_i are the basis functions in fespace.
+   // right-hand side of the FEM linear system, which in this case only
+   // defines the boundary condition.
    AnisotropicDiffusionCoefficient anisoDiffCoef(w, h, Ak);
-   UnitStepCoefficient unitStepCoef(w, h);
+   UmanskyBoundaryCoefficient unitStepCoef(w, h);
    ParLinearForm b(&fespace);
    b.AddBdrFaceIntegrator(
       new DGDirichletLFIntegrator(unitStepCoef, anisoDiffCoef, sigma, kappa));
@@ -263,8 +265,8 @@ int main(int argc, char *argv[])
    // The main AMR loop. In each iteration we solve the problem on the current
    // mesh, visualize the solution, estimate the error on all elements, refine
    // the worst elements and update all objects to work with the new mesh.  We
-   // refine until the maximum number of dofs in the nodal finite element space
-   // reaches 10 million.
+   // refine until the number of dofs in the finite element space
+   // reaches the user selected limit (defaults to one million dofs).
    for (int it = 1; it <= max_iter; it++)
    {
       if (Mpi::Root())
@@ -284,10 +286,6 @@ int main(int argc, char *argv[])
       a.Finalize();
 
       OperatorHandle A;
-      // Vector B, X;
-      // Array<int> ess_tdof_list;
-      // cout << "calling form lin sys" << endl;
-      // a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
       std::unique_ptr<HypreBoomerAMG> amg;
       if (pa)
@@ -301,11 +299,10 @@ int main(int argc, char *argv[])
          amg.reset(new HypreBoomerAMG(*A.As<HypreParMatrix>()));
       }
 
-      // 11. Depending on the symmetry of A, define and apply a parallel PCG or
-      //     GMRES solver for AX=B using the BoomerAMG preconditioner from hypre.
+      // Depending on the symmetry of A, define and apply a parallel PCG or
+      // GMRES solver for AX=B using the BoomerAMG preconditioner from hypre.
       if (sigma == -1.0)
       {
-         cout << "using cg" << endl;
          CGSolver cg(MPI_COMM_WORLD);
          cg.SetRelTol(1e-12);
          cg.SetMaxIter(500);
@@ -316,8 +313,6 @@ int main(int argc, char *argv[])
       }
       else
       {
-         cout << "using gmres" << endl;
-         CustomSolverMonitor monitor(pmesh, x);
          GMRESSolver gmres(MPI_COMM_WORLD);
          gmres.SetAbsTol(0.0);
          gmres.SetRelTol(1e-12);
@@ -326,16 +321,13 @@ int main(int argc, char *argv[])
          gmres.SetPrintLevel(1);
          gmres.SetOperator(*A);
          if (amg) { gmres.SetPreconditioner(*amg); }
-         gmres.SetMonitor(monitor);
          gmres.Mult(b, x);
       }
 
-      // Recover the parallel grid function corresponding to X. This is the
-      // local finite element solution on each processor.
-      // a.RecoverFEMSolution(X, b, x);
-
+      // Obtain the number of degrees of freedom
       int prob_size = fespace.GetTrueVSize();
 
+      // Send the solution to VisIt if enabled.
       if (visit)
       {
          visit_dc.SetCycle(it);
@@ -343,7 +335,7 @@ int main(int argc, char *argv[])
          visit_dc.Save();
       }
 
-      // Send the solution by socket to a GLVis server.
+      // Send the solution by socket to a GLVis server if enabled.
       if (visualization)
       {
          sol_sock << "parallel " << num_procs << " " << myid << "\n";

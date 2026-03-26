@@ -1,19 +1,56 @@
-// Sample runs:  mpirun -np 4 ex1p -m ../data/square-disc.mesh
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
-// Description:  This example code demonstrates the use of MFEM to define a
-//               simple finite element discretization of the Poisson problem
-//               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
-//               Specifically, we discretize using a FE space of the specified
-//               order, or if order < 1 using an isoparametric/isogeometric
-//               space (i.e. quadratic for quadratic curvilinear mesh, NURBS for
-//               NURBS mesh, etc.)
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
 //
-//               The example highlights the use of mesh refinement, finite
-//               element grid functions, as well as linear and bilinear forms
-//               corresponding to the left-hand side and right-hand side of the
-//               discrete linear system. We also cover the explicit elimination
-//               of essential boundary conditions, static condensation, and the
-//               optional connection to the GLVis tool for visualization.
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+//
+//         -----------------------------------------------------
+//         Umansky_CG Miniapp:  Anisotropic Diffusion Test
+//                              Using Continuous Galerkin Method
+//         -----------------------------------------------------
+//
+// This miniapp implements a simple H1 solver for the test problem
+// defined in the paper "On numerical solution of strongly anisotropic
+// diffusion equation on misaligned grids" by M.V. Umansky, M.S. Day,
+// and T. D. Rognlien published in 2005.
+//
+// The test problem consists of a heat equation with an anisotropic
+// diffusion coefficient. The anisotropy is defined by an anisotropy
+// ratio and a direction along which the diffusion differs from
+// unity. In this case the domain is a 2D rectangle and the direction
+// defining the anisotropy is aligned with the main diagonal of the
+// domain. There is no heat source but there is a discontinuous
+// boundary condition with the temperature on the left and upper
+// boundaries equal to one and zero on the remaining boundaries.
+//
+// There are two main challenges presented by this test
+// problem. First, the discontinuous boundary condition leads to
+// difficulty in the lower left and upper right corners of the
+// domain. Second, as the anisotropy ratio is increased the numerical
+// scheme may introduce anomalous diffusion in the direction
+// perpendicular to the highly diffusive direction.
+//
+// At sufficiently high anisotropy ratios the solver may fail to find
+// an acceptable solution. Therefore, the purpose of this mini
+// application is to provide a starting point for evaluating solution
+// methods based on a continuous nodal discretization of the
+// temperature field.
+//
+// Sample runs:
+//
+//   Rectangular domain with two anisotropy ratios:
+//      mpirun -np 4 umansky_cg --height 0.8 --width 1.2 -Ak 1e0
+//      mpirun -np 4 umansky_cg --height 0.8 --width 1.2 -Ak 1e2
+//
+//   By default the domain will be the unit square and the anisotropy
+//   ratio will be 10:
+//      mpirun -np 4 umansky_cg
+//
 
 #include "umansky.hpp"
 #include <fstream>
@@ -35,7 +72,7 @@ int main(int argc, char *argv[])
    int el_type_arg = 1;
    real_t w = 1.0, h = 1.0;
    real_t Ak = 10.0;
-   int max_iter = 100;
+   int max_iter = 8;
    int max_dofs = 1000000;
    real_t min_err = 1e-6;
    int serial_ref_levels = 0;
@@ -192,13 +229,13 @@ int main(int argc, char *argv[])
 
    // Set up the parallel linear form b(.) which corresponds to the
    // right-hand side of the FEM linear system, which in this case is
-   // (1,phi_i) where phi_i are the basis functions in fespace.
+   // equal to zero.
    ParLinearForm b(&fespace);
 
    // Define the solution vector x as a parallel finite element grid
    // function corresponding to fespace. Initialize x with initial guess of
    // zero, which satisfies the boundary conditions.
-   UnitStepCoefficient unitStepCoef(w, h);
+   UmanskyBoundaryCoefficient unitStepCoef(w, h);
    ParGridFunction x(&fespace);
    x = 0.0;
 
@@ -221,8 +258,8 @@ int main(int argc, char *argv[])
    // The main AMR loop. In each iteration we solve the problem on the current
    // mesh, visualize the solution, estimate the error on all elements, refine
    // the worst elements and update all objects to work with the new mesh.  We
-   // refine until the maximum number of dofs in the nodal finite element space
-   // reaches 10 million.
+   // refine until the number of dofs in the nodal finite element space
+   // reaches the user selected limit (defaults to one million dofs).
    for (int it = 1; it <= max_iter; it++)
    {
       if (Mpi::Root())
@@ -235,10 +272,11 @@ int main(int argc, char *argv[])
       // assembly, eliminating boundary conditions, applying conforming
       // constraints for non-conforming AMR, static condensation, etc.
 
-      a.Assemble();
-      b = 0.0;
-
       x = 0.0;
+      b = 0.0;
+      a.Assemble();
+      a.Finalize();
+
       x.ProjectBdrCoefficient(unitStepCoef, ess_bdr);
 
       OperatorPtr A;
@@ -263,8 +301,10 @@ int main(int argc, char *argv[])
       // local finite element solution on each processor.
       a.RecoverFEMSolution(X, b, x);
 
+      // Obtain the number of degrees of freedom
       int prob_size = fespace.GetTrueVSize();
 
+      // Send the solution to VisIt if enabled.
       if (visit)
       {
          visit_dc.SetCycle(it);
@@ -272,7 +312,7 @@ int main(int argc, char *argv[])
          visit_dc.Save();
       }
 
-      // Send the solution by socket to a GLVis server.
+      // Send the solution by socket to a GLVis server if enabled.
       if (visualization)
       {
          sol_sock << "parallel " << num_procs << " " << myid << "\n";

@@ -16,10 +16,10 @@
 
 using namespace mfem;
 
-class UnitStepCoefficient : public Coefficient
+class UmanskyBoundaryCoefficient : public Coefficient
 {
 public:
-   UnitStepCoefficient(real_t w, real_t h) : w_(w), h_(h) {}
+   UmanskyBoundaryCoefficient(real_t w, real_t h) : w_(w), h_(h) {}
 
    real_t Eval(ElementTransformation &T,
                const IntegrationPoint &ip)
