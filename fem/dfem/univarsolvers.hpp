@@ -40,7 +40,7 @@ struct Bounds {
 struct SolverSettings {
   real_t residual_abs_tol = 1e-10; ///< Tolerance for convergence check on absolute value of residual
   real_t residual_rel_tol = 0.0;   ///< Tolerance for convergence check on absolute value of current residual relative to absolute value of residual at initial guess
-  Bounds bounds{.lower = -std::numeric_limits<real_t>::infinity(), .upper = std::numeric_limits<real_t>::infinity()}; ///< Bounds on root
+  Bounds bounds; ///< Bounds on root
 };
 } // namespace future
 
@@ -195,6 +195,7 @@ void SolveNewtonBisection_impl_rev(const real_t* x0, real_t* x0_bar,
     // The solution has no sensitivity to these parameters.
     *x0_bar = 0.0;
     *settings_bar = SolverSettings{};
+    std::cout << "settings_bar.bounds.upper = " << settings_bar->bounds.upper << std::endl;
 }
 
 /// @endcond
