@@ -303,7 +303,7 @@ int main(int argc, char *argv[])
          break;
       case Problem::Maxwell:
       case Problem::Excitation:
-         bdr_p_is_dirichlet = -1;
+         //bdr_p_is_dirichlet = -1;
          //bdr_p_is_neumann[3] = -1;
          bdr_E_is_neumann[3] = -1;//inflow
          /*if (bc_neumann)
@@ -313,16 +313,15 @@ int main(int argc, char *argv[])
          }*/
          break;
       case Problem::Scattering:
-         bdr_p_is_dirichlet = -1;
-         //bdr_p_is_neumann[0] = -1;//inflow
+         bdr_p_is_dirichlet[0] = -1;//inflow
          bdr_E_is_neumann[3] = -1;//inflow
-         if (bc_neumann)
+         /*if (bc_neumann)
          {
             //bdr_p_is_neumann[1] = -1;//outflow
             //bdr_p_is_neumann[3] = -1;//outflow
             bdr_E_is_neumann[0] = -1;//outflow
             bdr_E_is_neumann[2] = -1;//outflow
-         }
+         }*/
          break;
    }
 
@@ -811,16 +810,17 @@ VecTFunc GetPlasmaFun(const Params &pars)
             v.SetSize(vdim+1);
 
             v = 0.;
-            constexpr real_t w = 0.15;
+            v(0) = 1.;
+            constexpr real_t w = 0.25;
             constexpr real_t r0 = 0.5;
             const real_t r = x(0) - r0;
             const real_t rw = r / w;
             constexpr real_t zR = 0.5;
             constexpr real_t z0 = 0.5;
             const real_t dz = x(1) - z0;
-            const real_t R = dz / (dz*dz + zR*zR);
-            v(2) = exp(-rw*rw) * sin(M_PI * (pars.freq* t - r*r / R))
-                   * cos(M_PI * x(1)) * pars.a0;
+            const real_t invR = dz / (dz*dz + zR*zR);
+            v(2) = exp(-rw*rw) * sin(M_PI * (pars.freq* t - r*r * invR))
+                   * cos(M_PI * x(1));// * pars.a0;
          };
    }
    return VecTFunc();
@@ -856,6 +856,12 @@ VecTFunc GetEfieldFun(const Params &pars)
    switch (pars.prob)
    {
       case Problem::MaterialWave:
+         return [=](const Vector &x, real_t t, Vector &v)
+         {
+            const int vdim = x.Size();
+            v.SetSize(vdim);
+            v = 0.;
+         };
       case Problem::Maxwell:
       case Problem::Excitation:
          return [=](const Vector &x, real_t t, Vector &v)
@@ -876,14 +882,15 @@ VecTFunc GetEfieldFun(const Params &pars)
             v.SetSize(vdim);
 
             v = 0.;
-            constexpr real_t w = 0.15;
+            constexpr real_t w = 0.25;
             const real_t r = x(1) - 0.5;
             const real_t rw = r / w;
             constexpr real_t zR = 0.5;
             constexpr real_t z0 = 0.5;
             const real_t dz = x(0) - z0;
-            const real_t R = dz / (dz*dz + zR*zR);
-            v(1) = exp(-rw*rw) * sin(M_PI * (pars.freq * t - r*r / R)) * cos(M_PI * x(0));
+            const real_t invR = dz / (dz*dz + zR*zR);
+            v(1) = exp(-rw*rw) * sin(M_PI * (pars.freq * t - r*r * invR))
+                   * cos(M_PI * x(0)) * pars.a0;
          };
    }
    return VecTFunc();
