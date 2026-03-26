@@ -94,9 +94,7 @@ struct J2Plasticity {
 
     if (q > FlowResistance(accumulated_plastic_strain, sigma_y, n, ep_0)) {
         real_t lb = 0.0;
-        // FIXME: Reverse mode derivative produces nans if ub depends on state
-        // real_t ub = (q - FlowResistance(accumulated_plastic_strain, sigma_y, n, ep_0))/(3*G);
-        real_t ub = 2.0;
+        real_t ub = (q - FlowResistance(accumulated_plastic_strain, sigma_y, n, ep_0))/(3*G);
         SolverSettings settings{.residual_abs_tol = 1e-10*sigma_y, .residual_rel_tol = 1e-10, 
                                 .bounds{.lower = lb, .upper = ub}};
         real_t delta_eqps = SolveNewtonBisection<J2PlasticityResidual>(
@@ -298,9 +296,7 @@ real_t mysqrt(real_t x)
 {
   real_t x0 = x;
   real_t index = 2.0;
-  // FIXME: derivative value becomes inf when upper bound depends on x.
-  // I would like to make the upper bound x.
-  SolverSettings settings{.bounds = {.lower = 0, .upper = 10.0}};
+  SolverSettings settings{.bounds = {.lower = 0, .upper = x}};
   return SolveNewtonBisection<nthroot_res>(x0, make_tuple(index, x), settings);
 }
 
