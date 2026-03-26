@@ -208,8 +208,8 @@ CoupledOperator::CoupledOperator(std::vector<Coefficient*> kappa_,
 
    //bcs
    MFEM_ASSERT(bcs_maxwell.size() == (size_t)nbdrs, "Wrong number of BCs");
-   bdr_is_neumann_maxwell.resize(nbdrs);
-   bdr_coeffs_maxwell.resize(nbdrs);
+   //bdr_is_neumann_maxwell.resize(nbdrs);
+   //bdr_coeffs_maxwell.resize(nbdrs);
    Array<int> bdr_E_is_ess(nbdrs);
    bdr_E_is_ess = 0;
 
@@ -221,11 +221,11 @@ CoupledOperator::CoupledOperator(std::vector<Coefficient*> kappa_,
             bdr_E_is_ess[b] = -1;
             break;
          case BCType::Neumann:
-            bdr_is_neumann_maxwell[b].SetSize(nbdrs);
-            bdr_is_neumann_maxwell[b] = 0;
-            bdr_is_neumann_maxwell[b][b] = -1;
+            //bdr_is_neumann_maxwell[b].SetSize(nbdrs);
+            //bdr_is_neumann_maxwell[b] = 0;
+            //bdr_is_neumann_maxwell[b][b] = -1;
             bdr_E_is_ess[b] = -1;
-            bdr_coeffs_maxwell[b] = bcs_maxwell[b].second;
+            //bdr_coeffs_maxwell[b] = bcs_maxwell[b].second;
             break;
          case BCType::Zero:
             break;
@@ -339,10 +339,10 @@ void CoupledOperator::ImplicitSolve(const double dt, const Vector &x, Vector &y)
       if (bdr_coeffs_plasma[b]) { bdr_coeffs_plasma[b]->SetTime(t); }
    }
 
-   for (int b = 0; b < (int)bdr_coeffs_maxwell.size(); b++)
+   /*for (int b = 0; b < (int)bdr_coeffs_maxwell.size(); b++)
    {
       if (bdr_coeffs_maxwell[b]) { bdr_coeffs_maxwell[b]->SetTime(t); }
-   }
+   }*/
 
    idt = 1./dt;
 
@@ -455,7 +455,6 @@ void CoupledOperator::ImplicitSolve(const double dt, const Vector &x, Vector &y)
 
    //coupling
 
-
    ReducedOperator bop(sigma, darcy, E_space, *op_pl, op_max);
    if (tr_space)
    {
@@ -466,20 +465,25 @@ void CoupledOperator::ImplicitSolve(const double dt, const Vector &x, Vector &y)
    {
       bop.SetEssentialTDOFs(ess_q_tdofs_list, ess_E_tdofs_list);
    }
-   bop.EliminateRHS(X, RHS);
+   //bop.EliminateRHS(X, RHS);
 
    //solve
 
+   constexpr real_t rtol = 1e-6;
+
    if (tr_space)
    {
-      //darcy->GetHybridization()->SetLocalNLSolver(
-      //   DarcyHybridization::LSsolveType::Newton);
+      darcy->GetHybridization()->SetLocalNLSolver(
+         DarcyHybridization::LSsolveType::Newton,
+         1000, rtol * 1e-3);
+      darcy->GetHybridization()->SetLocalNLPreconditioner(
+         DarcyHybridization::LPrecType::GMRES);
    }
 
    GMRESSolver solver;
    solver.SetMaxIter(1000);
    solver.SetAbsTol(0.);
-   solver.SetRelTol(1e-6);
+   solver.SetRelTol(rtol * 1e-1);
    solver.SetOperator(bop);
    solver.SetPreconditioner(bprec);
    solver.SetPrintLevel(0);
@@ -487,7 +491,7 @@ void CoupledOperator::ImplicitSolve(const double dt, const Vector &x, Vector &y)
    NewtonSolver newton;
    newton.SetMaxIter(1000);
    newton.SetAbsTol(0.);
-   newton.SetRelTol(1e-5);
+   newton.SetRelTol(rtol);
    newton.SetOperator(bop);
    newton.SetSolver(solver);
    newton.SetPrintLevel(1);
@@ -638,15 +642,15 @@ void CoupledOperator::ReducedOperator::EliminateRHS(const Vector &x,
 
 void CoupledOperator::ReducedOperator::Mult(const Vector &x, Vector &y) const
 {
-   Vector z(x.Size());
+   /*Vector z(x.Size());
    z = x;
 
    for (int tdof : ess_tdofs_list)
    {
       z(tdof) = 0.;
-   }
+   }*/
 
-   MultUnconstrained(z, y);
+   MultUnconstrained(x, y);
 
    for (int tdof : ess_tdofs_list)
    {
@@ -657,9 +661,16 @@ void CoupledOperator::ReducedOperator::Mult(const Vector &x, Vector &y) const
 void CoupledOperator::ReducedOperator::MultUnconstrained(const Vector &x,
                                                          Vector &y) const
 {
-   op->Mult(x, y);
-
    const bool hybr = darcy->GetHybridization() != NULL;
+
+   if (hybr)
+   {
+      y = 0.;
+   }
+   else
+   {
+      op->Mult(x, y);
+   }
 
    BlockVector bx(const_cast<Vector&>(x), offsets_x);
    BlockVector by(const_cast<Vector&>(y), offsets_x);
@@ -668,7 +679,7 @@ void CoupledOperator::ReducedOperator::MultUnconstrained(const Vector &x,
    if (hybr)
    {
       darcy_x.Update(darcy->GetOffsets());
-      darcy->RecoverFEMSolution(x, darcy_x);
+      darcy->RecoverFEMSolution(bx.GetBlock(0), darcy_x);
       *darcy_bp = darcy_bp_lin;
    }
 
@@ -750,10 +761,9 @@ void CoupledOperator::ReducedOperator::MultUnconstrained(const Vector &x,
 
    if (hybr)
    {
-      BlockVector darcy_Xrhs(darcy->GetOffsets());
-      darcy_Xrhs.GetBlock(0) = *darcy->GetFluxRHS();
-      add(darcy_bp_lin, -1., *darcy_bp, darcy_Xrhs.GetBlock(1));
+      BlockVector darcy_Xrhs(darcy->GetFluxRHS()->GetData(), darcy->GetOffsets());
       darcy->GetHybridization()->ReduceRHS(darcy_Xrhs, by.GetBlock(0));
+      op->AddMult(x, y);
    }
 }
 
