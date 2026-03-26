@@ -12,8 +12,11 @@
 #include "FieldSolver.hpp"
 
 #include <algorithm>
+#include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <memory>
+#include <sstream>
 
 #include "ParticleMover.hpp"
 
@@ -40,11 +43,19 @@ using namespace mfem::common;
 FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
                          ParFiniteElementSpace* E_fes,
                          FindPointsGSLIB& E_finder_, real_t diffusivity,
-                         bool precompute_neutralizing_const_)
+                         bool precompute_neutralizing_const_,
+                         int efield_output_interval_,
+                         int efield_sample_resolution_)
     : precompute_neutralizing_const(precompute_neutralizing_const_),
       E_finder(E_finder_),
-      b(phi_fes)
+      b(phi_fes),
+      efield_output_interval(efield_output_interval_)
 {
+   MFEM_VERIFY(efield_sample_resolution_ > 0,
+               "efield sample resolution must be positive.");
+   efield_sample_nx = efield_sample_resolution_;
+   efield_sample_ny = efield_sample_resolution_;
+
    ParMesh* pmesh = phi_fes->GetParMesh();
    real_t local_domain_volume = 0.0;
    for (int i = 0; i < pmesh->GetNE(); i++)
@@ -96,6 +107,8 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
       grad_interpolator->AddDomainInterpolator(new GradientInterpolator);
       grad_interpolator->Assemble();
    }
+
+   InitializeEFieldSamplingGrid(E_fes);
 }
 
 FieldSolver::~FieldSolver()
@@ -208,30 +221,21 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
    {
       cout << "Total charge A: " << ComputeGlobalSum(b) << "\t";
    }
-   else
-   {
-      ComputeGlobalSum(b);
-   }
+   else { ComputeGlobalSum(b); }
 
    DepositCharge(pfes, Q, b);
    if (Mpi::Root())
    {
       cout << "Total charge B: " << ComputeGlobalSum(b) << "\t";
    }
-   else
-   {
-      ComputeGlobalSum(b);
-   }
+   else { ComputeGlobalSum(b); }
 
    DiffuseRHS(b, rho_gf);
    if (Mpi::Root())
    {
       cout << "Total charge C: " << ComputeGlobalSum(b) << endl;
    }
-   else
-   {
-      ComputeGlobalSum(b);
-   }
+   else { ComputeGlobalSum(b); }
 
    HypreParVector B(pfes);
    b.ParallelAssemble(B);
@@ -258,10 +262,92 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
 }
 
 void FieldSolver::UpdateEGridFunction(ParGridFunction& phi_gf,
-                                      ParGridFunction& E_gf)
+                                      ParGridFunction& E_gf, int timestep)
 {
    grad_interpolator->Mult(phi_gf, E_gf);
    E_gf.Neg();
+
+   if (efield_output_interval < 0) { return; }
+   if (efield_output_interval == 0 ||
+       (timestep > 0 && timestep % efield_output_interval == 0))
+   {
+      SampleAndWriteEField(E_gf, timestep);
+   }
+}
+
+void FieldSolver::InitializeEFieldSamplingGrid(ParFiniteElementSpace* E_fes)
+{
+   ParMesh* pmesh = E_fes->GetParMesh();
+   if (pmesh->SpaceDimension() != 2)
+   {
+      efield_sampling_enabled = false;
+      if (Mpi::Root())
+      {
+         cout << "Skipping E-field " << efield_sample_nx << "x"
+              << efield_sample_ny << " sampling: only supported in 2D." << endl;
+      }
+      return;
+   }
+
+   Vector bb_min, bb_max;
+   pmesh->GetBoundingBox(bb_min, bb_max, 1);
+   const real_t xmin = bb_min(0);
+   const real_t xmax = bb_max(0);
+   const real_t ymin = bb_min(1);
+   const real_t ymax = bb_max(1);
+
+   const real_t dx = (xmax - xmin) / efield_sample_nx;
+   const real_t dy = (ymax - ymin) / efield_sample_ny;
+
+   efield_sample_npts = efield_sample_nx * efield_sample_ny;
+   efield_sample_points.SetSize(2 * efield_sample_npts);
+   efield_sample_values.SetSize(2 * efield_sample_npts);
+
+   // byNODES ordering: [x0..xN-1, y0..yN-1]
+   for (int j = 0; j < efield_sample_ny; ++j)
+   {
+      for (int i = 0; i < efield_sample_nx; ++i)
+      {
+         const int p = j * efield_sample_nx + i;
+         efield_sample_points[p] = xmin + i * dx;
+         efield_sample_points[efield_sample_npts + p] = ymin + j * dy;
+      }
+   }
+
+   efield_sampling_enabled = true;
+}
+
+void FieldSolver::SampleAndWriteEField(const ParGridFunction& E_gf,
+                                       int timestep)
+{
+   if (!efield_sampling_enabled) { return; }
+
+   // byVDIM ordering: [Ex0,Ey0, Ex1,Ey1, ...]
+   E_finder.Interpolate(efield_sample_points, E_gf, efield_sample_values,
+                        Ordering::byNODES, Ordering::byVDIM);
+
+   if (!Mpi::Root()) { return; }
+
+   ostringstream filename;
+   filename << "E_field_samples_" << efield_sample_nx << "x" << efield_sample_ny
+            << "_step_" << setw(6) << setfill('0') << timestep << ".csv";
+
+   ofstream out(filename.str());
+   out << setfill(' ') << setprecision(17);
+   out << "step,i,j,x,y,Ex,Ey\n";
+   for (int j = 0; j < efield_sample_ny; ++j)
+   {
+      for (int i = 0; i < efield_sample_nx; ++i)
+      {
+         const int p = j * efield_sample_nx + i;
+         const real_t x = efield_sample_points[p];
+         const real_t y = efield_sample_points[efield_sample_npts + p];
+         const real_t ex = efield_sample_values[2 * p];
+         const real_t ey = efield_sample_values[2 * p + 1];
+         out << timestep << "," << i << "," << j << "," << x << "," << y << ","
+             << ex << "," << ey << "\n";
+      }
+   }
 }
 
 void FieldSolver::DiffuseRHS(ParLinearForm& b, ParGridFunction& rho_gf)

@@ -41,7 +41,7 @@
 // Sample runs:
 //
 //   2D2V Linear Landau damping test case (Ricketson & Hu, 2025):
-//      mpirun -n 4 ./electrostatic-pic -rdi 1 -npt 409600 -k 0.2855993321 -a 0.05 -nt 200 -nx 32 -ny 32 -O 1 -q 0.001181640625 -m 0.001181640625 -oci 1000 -dt 0.1
+//      mpirun -n 4 ./electrostatic-pic -rdi 1 -npt 409600 -k 0.2855993321 -a 0.05 -nt 200 -nx 32 -ny 32 -O 1 -q 0.001181640625 -m 0.001181640625 -oci 1000 -dt 0.1 -diff 10 -eoi 10
 //   3D3V Linear Landau damping test case (Zheng et al., 2025):
 //      mpirun -n 128 ./electrostatic-pic -dim 3 -rdi 1 -npt 40960000 -k 0.5 -a 0.01 -nt 100 -nx 32 -ny 32 -nz 32 -O 1 -q 0.00004844730731 -m 0.00004844730731 -oci 1000 -dt 0.02 -no-vis
 #include <fstream>
@@ -79,6 +79,9 @@ struct PICContext
    real_t dt = 1e-2;  ///< Time step size.
    real_t diffusivity =
       0.0;  ///< Diffusivity coefficient c for diffusion matrix.
+   int efield_output_interval =
+      1000;  ///< E-field sampling CSV interval. Disabled if < 0.
+   int efield_sample_resolution = 512;  ///< E-field sample grid resolution N.
 
    int nt = 1000;            ///< Number of time steps to run.
    int redist_interval = 5;  ///< Redistribution and update E_gf interval.
@@ -117,6 +120,13 @@ int main(int argc, char* argv[])
    args.AddOption(&ctx.dt, "-dt", "--time-step", "Time Step.");
    args.AddOption(&ctx.diffusivity, "-diff", "--diffusivity",
                   "Diffusivity coefficient c for diffusion matrix.");
+   args.AddOption(&ctx.efield_output_interval, "-eoi",
+                  "--efield-output-interval",
+                  "E-field sample CSV output interval. Disabled if < 0. "
+                  "Use 0 to output every field update.");
+   args.AddOption(&ctx.efield_sample_resolution, "-esr",
+                  "--efield-sample-resolution",
+                  "E-field sample resolution N for an N x N grid.");
    args.AddOption(&ctx.nt, "-nt", "--num-timesteps", "Number of timesteps.");
    args.AddOption(&ctx.npt, "-npt", "--num-particles",
                   "Total number of particles.");
@@ -199,7 +209,8 @@ int main(int argc, char* argv[])
 
    // 6. Construct the field solver
    FieldSolver field_solver(&phi_fespace, &E_fespace, E_finder, ctx.diffusivity,
-                            true);
+                            true, ctx.efield_output_interval,
+                            ctx.efield_sample_resolution);
 
    // 7. Initialize ParticleMover
    Ordering::Type ordering_type =
@@ -231,7 +242,7 @@ int main(int argc, char* argv[])
          field_solver.UpdatePhiGridFunction(particle_mover.GetParticles(),
                                             phi_gf, rho_gf);
          // Update E_gf from phi_gf
-         field_solver.UpdateEGridFunction(phi_gf, E_gf);
+         field_solver.UpdateEGridFunction(phi_gf, E_gf, step);
 
          // Visualize fields if requested
          if (ctx.visualization)
@@ -263,7 +274,7 @@ int main(int argc, char* argv[])
             field_solver.DiffuseRHS(b, phi_gf);
          }
          // Update E_gf from phi_gf
-         field_solver.UpdateEGridFunction(phi_gf, E_gf);
+         field_solver.UpdateEGridFunction(phi_gf, E_gf, step);
 
          // Output energies
          if (Mpi::Root())

@@ -37,8 +37,18 @@ private:
    ParDiscreteLinearOperator* grad_interpolator;
    FindPointsGSLIB& E_finder;
    ParLinearForm b;
+   int efield_output_interval;
+   int efield_sample_nx;
+   int efield_sample_ny;
+   bool efield_sampling_enabled;
+   int efield_sample_npts;
+   Vector efield_sample_points;
+   Vector efield_sample_values;
 
 protected:
+   void InitializeEFieldSamplingGrid(ParFiniteElementSpace* E_fes);
+   void SampleAndWriteEField(const ParGridFunction& E_gf, int timestep);
+
    /** Compute neutralizing constant and initialize with the constant.
        Returns a reference to the precomputed neutralizing ParLinearForm. */
    const ParLinearForm& ComputeNeutralizingRHS(ParFiniteElementSpace* pfes,
@@ -53,7 +63,9 @@ protected:
 public:
    FieldSolver(ParFiniteElementSpace* phi_fes, ParFiniteElementSpace* E_fes,
                FindPointsGSLIB& E_finder_, real_t diffusivity,
-               bool precompute_neutralizing_const_ = false);
+               bool precompute_neutralizing_const_ = false,
+               int efield_output_interval_ = -1,
+               int efield_sample_resolution_ = 512);
 
    ~FieldSolver();
 
@@ -64,7 +76,8 @@ public:
 
    /** Update E_gf grid function from phi_gf grid function.
        Compute the gradient: E = -∇phi. */
-   void UpdateEGridFunction(ParGridFunction& phi_gf, ParGridFunction& E_gf);
+   void UpdateEGridFunction(ParGridFunction& phi_gf, ParGridFunction& E_gf,
+                            int timestep);
 
    /** Diffuse RHS with a p=4 hyper-diffusion by solving a linear system with
        the discrete operator (M + c * K^4); overwrites rhs with the hyper-diffused

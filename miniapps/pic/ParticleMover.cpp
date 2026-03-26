@@ -90,6 +90,9 @@ void ParticleMover::FindParticles()
 
 void ParticleMover::Step(real_t& t, real_t dt, real_t L, bool first_step)
 {
+   // Keep finder cache in sync in case other modules query different points.
+   FindParticles();
+
    // Update E field at particles.
    ParticleVector& E = charged_particles->Field(EFIELD);
    E_finder.Interpolate(*E_gf, E, E.GetOrdering());
