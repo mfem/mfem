@@ -27,6 +27,9 @@
 
 #ifdef MFEM_USE_ENZYME
 
+// Currently needed to work around a bug in LLVM
+extern void __enzyme_double(void*, size_t);
+
 namespace mfem {
 
 namespace future {
@@ -41,6 +44,7 @@ struct SolverSettings {
   real_t residual_abs_tol = 1e-10; ///< Tolerance for convergence check on absolute value of residual
   real_t residual_rel_tol = 0.0;   ///< Tolerance for convergence check on absolute value of current residual relative to absolute value of residual at initial guess
   Bounds bounds; ///< Bounds on root
+  int max_iters;
 };
 } // namespace future
 
@@ -53,9 +57,7 @@ template <auto f, typename T>
 __attribute__((noinline))
 MFEM_HOST_DEVICE void SolveNewtonBisection_impl(const real_t* x0_ptr, const T* p_ptr, const SolverSettings* settings_ptr, real_t* x_ptr)
 {
-    // It would be better to have the max iterations in the settings instead of
-    // hard-coded.
-    constexpr int max_iters = 50;
+    int max_iters = settings_ptr->max_iters;
 
     const real_t& x0 = *x0_ptr;
     const T& p = *p_ptr;
@@ -219,6 +221,16 @@ namespace future {
  */
 template<auto f, typename T>
 MFEM_HOST_DEVICE __attribute__((always_inline)) real_t SolveNewtonBisection(real_t x0, T p, SolverSettings settings) {
+  // We need to tell Enzyme how much memory in the SolverSettings object is
+  // used by active variables (in the sense of Enzyme activity analysis).
+  // Without this, it seems that a bug in LLVM causes this information to
+  // be lost during some optimization pass, and the Enzyme pass fails in
+  // Release builds.
+  // There are 4 real_t members in settings, which is what Enzyme will
+  // consider active.
+  // TODO: File an issue on Enzyme to remind Bill to fix this in LLVM.
+  __enzyme_double((void*)&settings, sizeof(real_t)*4);
+
   real_t x;
   internal::SolveNewtonBisection_impl<f>(&x0, &p, &settings, &x);
   return x;
