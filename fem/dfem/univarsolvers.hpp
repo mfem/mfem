@@ -33,7 +33,7 @@ extern void __enzyme_double(void*, size_t);
 namespace mfem {
 
 namespace future {
-/// Representation of bound constraints
+/// Representation of root search bounds
 struct Bounds {
   real_t lower, upper;
 };
@@ -41,10 +41,10 @@ struct Bounds {
 
 /// Settings for univariate solver
 struct SolverSettings {
-  real_t residual_abs_tol = 1e-10; ///< Tolerance for convergence check on absolute value of residual
-  real_t residual_rel_tol = 0.0;   ///< Tolerance for convergence check on absolute value of current residual relative to absolute value of residual at initial guess
+  real_t residual_abs_tol; ///< Tolerance for convergence check on absolute value of residual
+  real_t residual_rel_tol;   ///< Tolerance for convergence check on absolute value of current residual relative to absolute value of residual at initial guess
   Bounds bounds; ///< Bounds on root
-  int max_iters;
+  int max_iters = 50;
 };
 } // namespace future
 

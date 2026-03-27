@@ -168,7 +168,7 @@ tensor<real_t, 3, 3> ComputeStress(
 }
 
 template <int dim>
-real_t elementwise_norm(tensor<real_t, dim, dim> A) {
+real_t elementwise_max_norm(tensor<real_t, dim, dim> A) {
   real_t maxval = 0;
   for (int i = 0; i < dim; i++) {
     for (int j = 0; j < dim; j++) {
@@ -244,7 +244,7 @@ TEST_CASE("Univariate function solver in a qfunction", "[univar]")
         }
       }
 
-      CHECK(elementwise_norm(rel_error) < 1e-5);
+      CHECK(elementwise_max_norm(rel_error) < 1e-5);
     }
 
     SECTION("VJP")
@@ -307,11 +307,11 @@ real_t mysqrt(real_t x)
   real_t x0 = x;
   real_t index = 2.0;
   real_t ub = std::max(1.0, x);
-  SolverSettings settings{.bounds = {.lower = 0, .upper = ub}};
+  SolverSettings settings{.residual_abs_tol = 1e-10, .residual_rel_tol = 1e-8, .bounds = {.lower = 0, .upper = ub}, .max_iters = 50};
   return SolveNewtonBisection<nthroot_res>(x0, make_tuple(index, x), settings);
 }
 
-TEST_CASE("Univariate solver reverse mode", "[univar]")
+TEST_CASE("Univariate solver reverse mode derivative", "[univar]")
 {
   real_t x = 2.0;
   real_t y = mysqrt(x);
@@ -325,33 +325,35 @@ TEST_CASE("Univariate solver reverse mode", "[univar]")
 
 TEST_CASE("Univariate function solver robustness", "[univar]")
 {
-    SECTION("Simple case")
-    {
-        auto Nthroot = [](real_t x, real_t n) {
-            real_t x0 = std::max(x, 1.0);
-            SolverSettings settings{.bounds{0.0, x0}};
-            return SolveNewtonBisection<nthroot_res>(x0, make_tuple(n, x), settings);
-        };
-        real_t x = 8.0;
-        real_t y = Nthroot(x, 3.0);
-        REQUIRE(y == MFEM_Approx(2.0));
-    }
+  SolverSettings settings{.residual_abs_tol = 1e-12, .residual_rel_tol = 1e-12};
+
+  SECTION("Simple case")
+  {
+      auto Nthroot = [&settings](real_t x, real_t n) {
+          real_t x0 = std::max(x, 1.0);
+          settings.bounds = {.lower = 0.0, .upper = x0};
+          return SolveNewtonBisection<nthroot_res>(x0, make_tuple(n, x), settings);
+      };
+      real_t x = 8.0;
+      real_t y = Nthroot(x, 3.0);
+      CHECK(y == MFEM_Approx(2.0));
+  }
 
     SECTION("Stiff problem")
     {
         auto f = [](real_t x, real_t p) { return std::pow(x, p) - 1.0; };
         real_t x0 = 0.1;
         real_t p = 50;
-        SolverSettings settings{.bounds{.lower = 0.0, .upper = 5.1}};
+        settings.bounds = {.lower = 0.0, .upper = 5.1};
         real_t x = SolveNewtonBisection<+f>(x0, p, settings);
-        REQUIRE(x == MFEM_Approx(1.0));
+        CHECK(x == MFEM_Approx(1.0));
     }
 
     SECTION("Works where Newton diverges")
     {
         auto f = [](double x, int) { return std::atan(x); };
         real_t x0 = 1.5;
-        SolverSettings settings{.bounds{.lower = 0.0, .upper = 2.0}};
+        settings.bounds = {.lower = 0.0, .upper = 2.0};
         real_t x = SolveNewtonBisection<+f>(x0, int{}, settings);
         CHECK(std::abs(x) == MFEM_Approx(0.0));
     }
