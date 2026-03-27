@@ -308,8 +308,7 @@ int main(int argc, char *argv[])
    ode_solver->Init(lin_elasticity_op);
 
    //random perturbation of the initial conditions
-   BlockVector p; p.Update(lin_elasticity_op.GetTrueBlockOffsets()); p.Randomize();
-   real_t tg=0.0; //projection of the true gradient on the perturbed direction p
+   BlockVector p; p.Update(lin_elasticity_op.GetTrueBlockOffsets()); p=0.0;
    Vector tmpv(p.GetBlock(0)); tmpv=0.0;
 
    //Forward computations
@@ -335,11 +334,6 @@ int main(int argc, char *argv[])
 
          // Ensure host access if MFEM device is in use:
          const mfem::real_t *vh = u.v.HostRead();
-
-         if (Mpi::Root())
-         {
-            mfem::out<<"t snap: "<<u.time<<" dt="<<u.dt<<" obj:"<<u.obj<<"\n";
-         }
 
          StateSnapshotView snap;
          snap.time = u.time;
@@ -390,11 +384,6 @@ int main(int argc, char *argv[])
          u_st.dt=t-u_st.time;
          u_st.time=t;
          u_st.obj=obj;
-
-         if (Mpi::Root())
-         {
-            mfem::out<<" i: "<<i<<" t: "<<u_st.time<<" dt="<<u_st.dt<<" obj:"<<obj<<"\n";
-         }
       };
 
 
@@ -404,11 +393,6 @@ int main(int argc, char *argv[])
          real_t ldt=u_st.dt;
          real_t obj=u_st.obj;
 
-         if (Mpi::Root())
-         {
-            mfem::out<<"Adj step i="<<i<<"  t: "<<u_st.time<<" dt="<<u_st.dt<<" obj:"<<obj<<"\n";
-         }
-
          ode_solver->EnableAdjoint(mfem::ODESolver::AdjointMode::Discrete);
          ode_solver->SetSolution(u_st.v,t);
          ode_solver->AdjointStep(adj_st.adj,t,ldt);
@@ -416,6 +400,12 @@ int main(int argc, char *argv[])
          adj_st.time=t;
          adj_st.obj=obj;
       };
+
+      BlockVector x0; x0.Update(lin_elasticity_op.GetTrueBlockOffsets()); 
+      x0=0.0;
+
+   //optimization loop   
+   for(int ii=0;ii<10;ii++){
 
       ParaViewDataCollection paraview_dc("frw", &pmesh);
       paraview_dc.SetPrefixPath("ParaView");
@@ -435,6 +425,7 @@ int main(int argc, char *argv[])
 
       //set initial state to 0
       u.v=0.0;
+      u.v.Set(1.0,x0);
 
       // Forward sweep (unknown number of steps) 
       real_t t = 0.0;
@@ -526,10 +517,6 @@ int main(int argc, char *argv[])
          ckpt.BackwardStep(i,adj_st, u_wrk,
                            primal_step, adjoint_step,
                            make_snapshot, restore_snapshot);
-         if(Mpi::Root())
-         {
-            std::cout<<"Adj st i="<<i<<" t="<<adj_st.time<<" obj="<<adj_st.obj<<std::endl;
-         }
 
          if((i%5)==0){
             paraview_ac.SetCycle(i);
@@ -546,58 +533,13 @@ int main(int argc, char *argv[])
          if (i == 0) { break; }
       }
 
-      tg=mfem::InnerProduct(pmesh.GetComm(), adj_st.adj, p);
-
+      lin_elasticity_op.MultInvMass(adj_st.adj.GetBlock(0),tmpv);
+      x0.GetBlock(0).Add(-0.5,tmpv);
+      lin_elasticity_op.MultInvMass(adj_st.adj.GetBlock(1),tmpv);
+      x0.GetBlock(1).Add(-0.5,tmpv);
    }
 
-   //test objective gradients
-   {
-      BlockVector x; x.Update(lin_elasticity_op.GetTrueBlockOffsets()); x=0.0;
-
-      real_t t=0.0;
-      while(t<Tfinal)
-      {
-         ode_solver->Step(x,t,dt);
-      }
-      ode_solver->Step(x,t,dt);
-      real_t oobj=eobj->EvalScalar(x);
-
-      //FD check
-      {
-         real_t sca=1.0;
-         for(int i=0;i<10;i++){
-            x.Set(sca,p);
-            t=0.0;
-            while(t<Tfinal)
-            {
-               ode_solver->Step(x,t,dt);
-            }
-            ode_solver->Step(x,t,dt);
-            real_t cobj=eobj->EvalScalar(x);
-
-            x.Set(-sca,p);
-            t=0.0;
-            while(t<Tfinal)
-            {
-               ode_solver->Step(x,t,dt);
-            }
-            ode_solver->Step(x,t,dt);
-            real_t mobj=eobj->EvalScalar(x);
-            
-            if(Mpi::Root())
-            {
-               std::cout<<" sca="<<sca<<" tg="<<tg<<" fd="<<(cobj-mobj)/(2.0*sca)<<std::endl;
-            }
-
-            sca=sca/10.0;
-
-         }
-
-      }
-
-
    }
-
 
    return EXIT_SUCCESS;
 }
