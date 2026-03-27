@@ -18,7 +18,7 @@ struct State
    mfem::real_t time = 0.0; //time of the state
    mfem::real_t dt=0.0;
    mfem::real_t obj  = 0.0; //accumulated objective 
-   mfem::Vector v; //state of the system
+   mfem::BlockVector v; //state of the system
 };
 
 // Snapshot = *view* (non-owning) used only during Store() packing and Read() callback
@@ -87,7 +87,7 @@ struct AdjState
 {
    mfem::real_t time;
    mfem::real_t obj;
-   mfem::Vector adj;
+   mfem::BlockVector adj;
 };
 
 
@@ -311,6 +311,7 @@ int main(int argc, char *argv[])
    BlockVector p; p.Update(lin_elasticity_op.GetTrueBlockOffsets()); p.Randomize();
    real_t tg=0.0; //projection of the true gradient on the perturbed direction p
 
+
    //Forward computations
    {
       int s=10; //number of snapshots to be stored by the checkpointing process
@@ -416,8 +417,18 @@ int main(int argc, char *argv[])
          adj_st.obj=obj;
       };
 
+      ParaViewDataCollection paraview_dc("frw", &pmesh);
+      paraview_dc.SetPrefixPath("ParaView");
+      paraview_dc.SetLevelsOfDetail(order);
+      paraview_dc.SetDataFormat(VTKFormat::BINARY);
+      paraview_dc.SetHighOrderOutput(true);
+      paraview_dc.RegisterField("disp", &(lin_elasticity_op.GetDisplacement()));
+      paraview_dc.RegisterField("velo", &(lin_elasticity_op.GetVelocity()));
+
+
       State u;
-      u.v.SetSize(lin_elasticity_op.GetState().Size());
+      //u.v.SetSize(lin_elasticity_op.GetState().Size());
+      u.v.Update(lin_elasticity_op.GetTrueBlockOffsets());
       u.obj=0.0;
       u.time=0.0;
       u.dt=0.0;
@@ -429,11 +440,26 @@ int main(int argc, char *argv[])
       real_t t = 0.0;
       Step i = 0;
 
+      paraview_dc.SetCycle(0);
+      paraview_dc.SetTime(t);
+      lin_elasticity_op.GetVelocity().SetFromTrueDofs(u.v.GetBlock(1));
+      lin_elasticity_op.GetDisplacement().SetFromTrueDofs(u.v.GetBlock(0));
+      paraview_dc.Save();
+
+
       while(t<Tfinal)
       {
          ckpt.ForwardStep(i,u, primal_step, make_snapshot);
          t=u.time;
          ++i;
+
+         if((i%5)==0){
+            paraview_dc.SetCycle(i+1);
+            paraview_dc.SetTime(t);
+            lin_elasticity_op.GetVelocity().SetFromTrueDofs(u.v.GetBlock(1));
+            lin_elasticity_op.GetDisplacement().SetFromTrueDofs(u.v.GetBlock(0));
+            paraview_dc.Save();
+         }
       }
 
       //Do one more time step without checkpointing
@@ -442,6 +468,13 @@ int main(int argc, char *argv[])
       //update objective 
       real_t obj=eobj->EvalScalar(u.v);
 
+      {
+         paraview_dc.SetCycle(i+1);
+         paraview_dc.SetTime(t);
+         lin_elasticity_op.GetVelocity().SetFromTrueDofs(u.v.GetBlock(1));
+         lin_elasticity_op.GetDisplacement().SetFromTrueDofs(u.v.GetBlock(0));
+         paraview_dc.Save();
+      }
 
       if(Mpi::Root())
       {
@@ -449,20 +482,39 @@ int main(int argc, char *argv[])
          std::cout<<"Start adjoint steps!"<<std::endl;
       }
 
+      ParGridFunction adisp(lin_elasticity_op.GetDisplacement());
+      ParGridFunction avelo(lin_elasticity_op.GetVelocity());
+      ParaViewDataCollection paraview_ac("adj", &pmesh);
+      paraview_ac.SetPrefixPath("ParaView");
+      paraview_ac.SetLevelsOfDetail(order);
+      paraview_ac.SetDataFormat(VTKFormat::BINARY);
+      paraview_ac.SetHighOrderOutput(true);
+      paraview_ac.RegisterField("adisp", &(adisp));
+      paraview_ac.RegisterField("avelo", &(avelo));
+
       // define the adjoint state
       AdjState adj_st; 
-      adj_st.adj.SetSize(lin_elasticity_op.GetState().Size()); 
+      //adj_st.adj.SetSize(lin_elasticity_op.GetState().Size()); 
+      adj_st.adj.Update(lin_elasticity_op.GetTrueBlockOffsets());
       adj_st.adj=0.0;
       eobj->EvalGradient(u.v,adj_st.adj);
       adj_st.obj=obj;
       adj_st.time=t;
+
+      paraview_ac.SetCycle(i);
+      paraview_ac.SetTime(t);
+      adisp.SetFromTrueDofs(adj_st.adj.GetBlock(0));
+      avelo.SetFromTrueDofs(adj_st.adj.GetBlock(1));
+      paraview_ac.Save();
+
       
       //step backward
       const Step m=i;
       
       //tmp state for stepping backward
       State u_wrk;
-      u_wrk.v.SetSize(lin_elasticity_op.GetState().Size());
+      //u_wrk.v.SetSize(lin_elasticity_op.GetState().Size());
+      u_wrk.v.Update(lin_elasticity_op.GetTrueBlockOffsets());
       u_wrk.obj=0.0;
       u_wrk.time=0.0;
       u_wrk.dt=0.0;
@@ -476,6 +528,15 @@ int main(int argc, char *argv[])
          {
             std::cout<<"Adj st i="<<i<<" t="<<adj_st.time<<" obj="<<adj_st.obj<<std::endl;
          }
+
+         if((i%5)==0){
+            paraview_ac.SetCycle(i);
+            paraview_ac.SetTime(adj_st.time);
+            adisp.SetFromTrueDofs(adj_st.adj.GetBlock(0));
+            avelo.SetFromTrueDofs(adj_st.adj.GetBlock(1));
+            paraview_ac.Save();
+         }
+
          if (i == 0) { break; }
       }
 
