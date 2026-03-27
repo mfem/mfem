@@ -74,15 +74,21 @@ MFEM_HOST_DEVICE void SolveNewtonBisection_impl(const real_t* x0_ptr, const T* p
     real_t fh = f(right_bracket, p);
 
     // handle corner cases where one of the brackets is the root
-    if (abs(fl) < settings.residual_abs_tol) {
+    if (abs(fl) < settings.residual_abs_tol)
+    {
         x = left_bracket;
         return;
-    } else if (abs(fh) < settings.residual_abs_tol) {
+    }
+    else if (abs(fh) < settings.residual_abs_tol)
+    {
         x = right_bracket;
         return;
     }
 
-    MFEM_ASSERT(fl * fh < 0.0, "Root is not bracketed, solve cannot continue.");
+    if (fl * fh > 0)
+    {
+        MFEM_WARNING("Root is not bracketed, solver may diverge.");
+    }
     MFEM_ASSERT(x0 >= left_bracket && x0 <= right_bracket, "Initial guess must be within bounds.");
 
     // Orient search so that f(xl) < 0
