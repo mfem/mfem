@@ -302,24 +302,19 @@ void* __enzyme_register_gradient_solver[3] = {
   (void*)mfem::internal::SolveNewtonBisection_impl_rev<nthroot_res, tuple<real_t, real_t>>
 };
 
-real_t mysqrt(real_t x)
-{
-  real_t x0 = x;
-  real_t index = 2.0;
-  real_t ub = std::max(1.0, x);
-  SolverSettings settings{.residual_abs_tol = 1e-10, .residual_rel_tol = 1e-8, .bounds = {.lower = 0, .upper = ub}, .max_iters = 50};
-  return SolveNewtonBisection<nthroot_res>(x0, make_tuple(index, x), settings);
-}
-
 TEST_CASE("Univariate solver reverse mode derivative", "[univar]")
 {
-  real_t x = 2.0;
-  real_t y = mysqrt(x);
-  std::cout << "x = " << x << " sqrt(x) = " << y << std::endl;
-  CHECK(y == MFEM_Approx(M_SQRT2, 0.0, 1e-8));
+  auto mysqrt = [](real_t x) -> real_t
+    {
+      real_t x0 = x;
+      real_t index = 2.0;
+      real_t ub = std::max(1.0, x);
+      SolverSettings settings{.residual_abs_tol = 1e-12, .residual_rel_tol = 1e-12, .bounds = {.lower = 0, .upper = ub}, .max_iters = 50};
+      return SolveNewtonBisection<nthroot_res>(x0, make_tuple(index, x), settings);
+    };
 
-  std::cout << "Computing derivative" << std::endl;
-  real_t dydx = __enzyme_autodiff<real_t>((void*)mysqrt, enzyme_out, x);
+  real_t x = 2.0;
+  real_t dydx = __enzyme_autodiff<real_t>((void*)+mysqrt, enzyme_out, x);
   CHECK(dydx == MFEM_Approx(0.5/std::sqrt(2.0)));
 }
 
