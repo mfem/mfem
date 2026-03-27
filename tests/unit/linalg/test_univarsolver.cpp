@@ -345,4 +345,3 @@ TEST_CASE("Univariate function solver robustness", "[univar]")
         CHECK(std::abs(x) == MFEM_Approx(0.0));
     }
 }
-
