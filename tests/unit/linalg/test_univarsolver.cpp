@@ -53,6 +53,7 @@ struct J2Plasticity {
   /// Internal state variables in a flattened array for storing in a global field
   using PackedInternalState = mfem::future::tensor<real_t, N_INTERNAL_STATES>;
 
+  // Unflatten internal state variables
   MFEM_HOST_DEVICE static inline InternalState unpack_internal_state(
       const mfem::future::tensor<real_t, N_INTERNAL_STATES>& packed_state)
   {
@@ -62,6 +63,7 @@ struct J2Plasticity {
     return {plastic_strain, accumulated_plastic_strain};
   }
 
+  // Flatten internal state variables (for repacking into global field)
   MFEM_HOST_DEVICE static inline PackedInternalState pack_internal_state(
       const mfem::future::tensor<real_t, dim, dim>& plastic_strain, real_t accumulated_plastic_strain)
   {
@@ -102,6 +104,8 @@ struct J2Plasticity {
         real_t ub = (q - FlowResistance(accumulated_plastic_strain, sigma_y, n, ep_0))/(3*G);
         SolverSettings settings{.residual_abs_tol = 1e-10*sigma_y, .residual_rel_tol = 1e-10, 
                                 .bounds{.lower = lb, .upper = ub}};
+        // Use the differentiable univariate root finder.
+        // This has custom derivatives, so it's ok to differentiate this enclosing function.
         real_t delta_eqps = SolveNewtonBisection<J2PlasticityResidual>(
             0.5*(lb + ub), make_tuple(accumulated_plastic_strain, q, G, sigma_y, n, ep_0), settings);
         accumulated_plastic_strain += delta_eqps;
@@ -111,9 +115,6 @@ struct J2Plasticity {
     auto Q_new = pack_internal_state(plastic_strain, accumulated_plastic_strain);
     auto stress = s + p * I;
     const real_t dV = det(J)*w;
-    // Question: if I use make_tuple as in this comment, I get a segfault in
-    // derivatives of this function. Is this expected?
-    // return make_tuple(stress*transpose(invJ)*dV, Q_new);
     return {stress*transpose(invJ)*dV, Q_new};
   }
   

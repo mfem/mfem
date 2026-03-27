@@ -42,7 +42,7 @@ struct Bounds {
 /// Settings for univariate solver
 struct SolverSettings {
   real_t residual_abs_tol; ///< Tolerance for convergence check on absolute value of residual
-  real_t residual_rel_tol;   ///< Tolerance for convergence check on absolute value of current residual relative to absolute value of residual at initial guess
+  real_t residual_rel_tol; ///< Tolerance for convergence check on absolute value of current residual relative to absolute value of residual at initial guess
   Bounds bounds; ///< Bounds on root
   int max_iters = 50;
 };
@@ -94,8 +94,6 @@ MFEM_HOST_DEVICE void SolveNewtonBisection_impl(const real_t* x0_ptr, const T* p
 
     // clamp initial guess within root brackets
     x = x0 > right_bracket? right_bracket : x0 < left_bracket? left_bracket : x0;
-    std::cout << "why is this not printing?" << std::endl;
-    std::cout << "x0 = " << x0 << " initial x set to " << x << std::endl;
 
     // Orient search so that f(xl) < 0
     real_t xl = left_bracket;
@@ -173,7 +171,6 @@ void SolveNewtonBisection_impl_aug(const real_t* x0, real_t* x0_bar,
                                    real_t* x, real_t* x_bar)
 {
     SolveNewtonBisection_impl<f>(x0, p, settings, x);
-    std::cout << "augmented forward, x = " << *x << std::endl;
 }
 
 // Change the residual function to return-by-reference so that there is a
@@ -192,22 +189,13 @@ void SolveNewtonBisection_impl_rev(const real_t* x0, real_t* x0_bar,
                                    real_t* x, real_t* x_bar)
 {
     real_t drdx = __enzyme_fwddiff<real_t>((void*)+f, enzyme_dup, *x, 1.0, enzyme_const, *p);
-    std::cout << "reverse pass" << std::endl;
-    std::cout << "x = " << *x << std::endl;
-    std::cout << "x from tape = " << *x << std::endl;
-    std::cout << "drdx = " << drdx << std::endl;
     real_t lambda = -(*x_bar / drdx);
-    std::cout << "lambda = " << lambda << std::endl;
     real_t r;
     __enzyme_autodiff<void>((void*)wrapper<f, T>, enzyme_const, *x, enzyme_dup, p, p_bar, enzyme_dupnoneed, &r, &lambda);
 
-    std::cout << "p_bar = " << *p_bar << std::endl;
-
-    // TODO: Make enzyme treat these as enzyme_const
-    // The solution has no sensitivity to these parameters.
+    // These are logically constants, the root has no sensitivity to these
     *x0_bar = 0.0;
     *settings_bar = SolverSettings{};
-    std::cout << "settings_bar.bounds.upper = " << settings_bar->bounds.upper << std::endl;
 }
 
 /// @endcond
