@@ -89,7 +89,11 @@ MFEM_HOST_DEVICE void SolveNewtonBisection_impl(const real_t* x0_ptr, const T* p
     {
         MFEM_WARNING("Root is not bracketed, solver may diverge.");
     }
-    MFEM_ASSERT(x0 >= left_bracket && x0 <= right_bracket, "Initial guess must be within bounds.");
+
+    // clamp initial guess within root brackets
+    x = x0 > right_bracket? right_bracket : x0 < left_bracket? left_bracket : x0;
+    std::cout << "why is this not printing?" << std::endl;
+    std::cout << "x0 = " << x0 << " initial x set to " << x << std::endl;
 
     // Orient search so that f(xl) < 0
     real_t xl = left_bracket;
