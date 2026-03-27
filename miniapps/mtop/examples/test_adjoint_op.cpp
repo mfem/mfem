@@ -534,9 +534,9 @@ int main(int argc, char *argv[])
       }
 
       lin_elasticity_op.MultInvMass(adj_st.adj.GetBlock(0),tmpv);
-      x0.GetBlock(0).Add(-1.0,tmpv);
+      x0.GetBlock(0).Add(1.0,tmpv);
       lin_elasticity_op.MultInvMass(adj_st.adj.GetBlock(1),tmpv);
-      x0.GetBlock(1).Add(-1.0,tmpv);
+      x0.GetBlock(1).Add(1.0,tmpv);
    }
 
    }
