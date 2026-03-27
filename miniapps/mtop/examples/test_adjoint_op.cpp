@@ -405,7 +405,7 @@ int main(int argc, char *argv[])
       x0=0.0;
 
    //optimization loop   
-   for(int ii=0;ii<10;ii++){
+   for(int ii=0;ii<2;ii++){
 
       ParaViewDataCollection paraview_dc("frw", &pmesh);
       paraview_dc.SetPrefixPath("ParaView");
@@ -534,9 +534,9 @@ int main(int argc, char *argv[])
       }
 
       lin_elasticity_op.MultInvMass(adj_st.adj.GetBlock(0),tmpv);
-      x0.GetBlock(0).Add(-0.5,tmpv);
+      x0.GetBlock(0).Add(-1.0,tmpv);
       lin_elasticity_op.MultInvMass(adj_st.adj.GetBlock(1),tmpv);
-      x0.GetBlock(1).Add(-0.5,tmpv);
+      x0.GetBlock(1).Add(-1.0,tmpv);
    }
 
    }
