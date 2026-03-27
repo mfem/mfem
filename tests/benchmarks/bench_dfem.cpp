@@ -47,7 +47,7 @@ static void CustomArguments(bmi::Benchmark *b) noexcept
 
    const auto versions = { 0, /*1, 2,*/ 3 };
 
-   const auto orders = { /*6, 5,*/ 4, 3, 2, 1 };
+   const auto orders = { /*6, 5, 4,*/ 3, 2, 1 };
 
    constexpr auto ndofs = [](int n) constexpr noexcept -> int
    {
@@ -109,11 +109,11 @@ static int gD1D = 0, gQ1D = 0;
 /// StiffnessIntegrator ///////////////////////////////////////////////////////
 struct StiffnessIntegrator : public BilinearFormIntegrator
 {
+   using mfem::NonlinearFormIntegrator::AssemblePA;
    const FiniteElementSpace *fes;
    const real_t *B, *G, *DX;
    int ne, d1d, q1d;
    Vector J0, dx;
-
 public:
    StiffnessIntegrator()
    {
@@ -348,6 +348,44 @@ struct BakeOff
    [[nodiscard]] double MDofs() const noexcept { return 1e-6 * dofs; }
 };
 
+/// Q-Functions ///////////////////////////////////////////////////////////////
+template<int DIM>
+struct MF
+{
+   MFEM_HOST_DEVICE inline
+   auto operator()(const tensor<real_t, DIM>& Gu,
+                   const tensor<real_t, DIM, DIM>& J,
+                   const real_t& w) const
+   {
+      auto invJ = inv(J);
+      return tuple{((Gu * invJ)) * transpose(invJ) * det(J) * w};
+   }
+};
+
+template<int DIM>
+struct PASetup
+{
+   MFEM_HOST_DEVICE inline
+   auto operator()(const real_t &u,
+                   const tensor<real_t, DIM, DIM> &J,
+                   const real_t &w)const
+   {
+      return tuple{inv(J) * transpose(inv(J)) * det(J) * w};
+   }
+};
+
+
+template<int DIM>
+struct PAApply
+{
+   MFEM_HOST_DEVICE inline
+   auto operator()(const tensor<real_t, DIM> &Gu,
+                   const tensor<real_t, DIM, DIM> &q) const
+   {
+      return tuple{q * Gu};
+   };
+};
+
 /// Diffusion /////////////////////////////////////////////////////////////////
 template <int VDIM = 1, bool GLL = false>
 struct Diffusion : public BakeOff<VDIM, GLL>
@@ -430,15 +468,8 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          auto parameters = std::vector{FieldDescriptor{Ξ, &mfes}};
          dop = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
          dop->SetParameters({nodes});
-         auto diffusion_mf_kernel =
-            [] MFEM_HOST_DEVICE (const tensor<real_t, DIM>& Gu,
-                                 const tensor<real_t, DIM, DIM>& J,
-                                 const real_t& w)
-         {
-            auto invJ = inv(J);
-            return tuple{((Gu * invJ)) * transpose(invJ) * det(J) * w};
-         };
-         dop->AddDomainIntegrator(diffusion_mf_kernel,
+         MF<DIM> mf_apply;
+         dop->AddDomainIntegrator(mf_apply,
                                   tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
                                   tuple{Gradient<U>{}},
                                   *ir, ess_bdr);
@@ -456,28 +487,16 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          tuple Gu_q = {Gu, q};
          tuple u_J_w = {u, GΞ, w};
 
-         auto pa_setup_qf =
-            [] MFEM_HOST_DEVICE(const real_t &u,
-                                const tensor<real_t, DIM, DIM> &J,
-                                const real_t &w)
-         {
-            return tuple{inv(J) * transpose(inv(J)) * det(J) * w};
-         };
          DifferentiableOperator dSetup(u_sol, Ξ_q_params, pmesh);
-         dSetup.AddDomainIntegrator(pa_setup_qf, u_J_w, tuple{q}, *ir, ess_bdr);
+         PASetup<DIM> pa_setup;
+         dSetup.AddDomainIntegrator(pa_setup, u_J_w, tuple{q}, *ir, ess_bdr);
          dSetup.SetParameters({nodes, &qdata});
          X.SetSize(pfes.GetTrueVSize());
          pfes.GetRestrictionMatrix()->Mult(x, X);
          dSetup.Mult(X, qdata);
-
-         auto pa_apply_qf =
-            [] MFEM_HOST_DEVICE(const tensor<real_t, DIM> &Gu,
-                                const tensor<real_t, DIM, DIM> &q)
-         {
-            return tuple{q * Gu};
-         };
          dop = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
-         dop->AddDomainIntegrator(pa_apply_qf, Gu_q, tuple{Gu}, *ir, ess_bdr);
+         PAApply<DIM> pa_apply;
+         dop->AddDomainIntegrator(pa_apply, Gu_q, tuple{Gu}, *ir, ess_bdr);
          dop->SetParameters({ &qdata });
 
          dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
