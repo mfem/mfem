@@ -307,6 +307,9 @@ int main(int argc, char *argv[])
    lin_elasticity_op.SetTime(0.0);
    ode_solver->Init(lin_elasticity_op);
 
+   //random perturbation of the initial conditions
+   BlockVector p; p.Update(lin_elasticity_op.GetTrueBlockOffsets()); p.Randomize();
+   real_t tg=0.0; //projection of the true gradient on the perturbed direction p
 
    //Forward computations
    {
@@ -476,15 +479,14 @@ int main(int argc, char *argv[])
          if (i == 0) { break; }
       }
 
+      tg=mfem::InnerProduct(pmesh.GetComm(), adj_st.adj, p);
 
    }
 
    //test objective gradients
    {
       BlockVector x; x.Update(lin_elasticity_op.GetTrueBlockOffsets()); x=0.0;
-      BlockVector p; p.Update(lin_elasticity_op.GetTrueBlockOffsets()); p.Randomize();
 
-      real_t tg=0.0; //true grad
       real_t t=0.0;
       while(t<Tfinal)
       {
