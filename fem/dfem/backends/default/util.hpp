@@ -101,7 +101,7 @@ inline FieldBasis FieldBasisFromWeight(const IntegrationRule &ir)
          MFEM_ASSERT(xq.Size() % nqp == 0, "weight block has unexpected size");
 
          const int ne = xq.Size() / nqp;
-         const real_t *wref = ir.GetWeights().Read();
+         const real_t *wref = ir.GetWeights().HostRead();
 
          for (int e = 0; e < ne; e++)
          {

@@ -10,17 +10,15 @@
 // CONTRIBUTING.md for details.
 #define NVTX_COLOR ::nvtx::kNvidia
 
-#include "../usr/src/array/tensor_std_array.hpp"
-
 #include "bench.hpp" // IWYU pragma: keep
 
 #ifdef MFEM_USE_BENCHMARK
 
 #include <memory>
-#include <utility>
 
 #include "fem/qinterp/det.hpp" // IWYU pragma: keep
 #include "fem/qinterp/grad.hpp" // IWYU pragma: keep
+#include "fem/quadinterpolator.hpp" // IWYU pragma: keep
 #include "fem/integ/lininteg_domain_kernels.hpp" // IWYU pragma: keep
 #include "fem/integ/bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep
 
@@ -30,6 +28,10 @@
 
 #include "fem/kernels.hpp"
 namespace ker = kernels::internal;
+
+#if defined(__HIP__)
+#include "../usr/src/array/tensor_std_array.hpp"
+#endif
 
 // #include NVTX_FMT_HPP
 
@@ -49,11 +51,11 @@ using future::Weight;
 using future::Identity;
 
 // Custom benchmark arguments generator ///////////////////////////////////////
-static void CustomArguments(bmi::Benchmark *b) noexcept
+static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
-   const auto versions = { 0, 1, 2, 3 };
+   const auto versions = { 0, /*1, 2,*/ 3 };
 
    const auto orders = { 6, 5, 4, 3, 2, 1 };
 
@@ -357,6 +359,61 @@ struct BakeOff
    double MDofs() const { return 1e-6 * dofs; }
 };
 
+/// Q-Functions ///////////////////////////////////////////////////////////////
+template<int DIM>
+struct MF
+{
+   // MFEM_HOST_DEVICE inline
+   void operator()(tensor_array<const real_t, DIM> &Gu,
+                   tensor_array<const real_t, DIM, DIM> &J,
+                   tensor_array<const real_t> &weight,
+                   tensor_array<real_t, DIM> &Gv) const
+   {
+      const size_t NQ = Gu.size();
+      for (size_t q = 0; q < NQ; q++)
+      {
+         const auto invJ = inv(J(q));
+         const real_t detJ = det(J(q));
+         assert(std::isfinite(detJ));
+         const real_t w = weight(q);
+         assert(detJ > 0.0);
+         Gv(q) = ((Gu(q) * invJ)) * transpose(invJ) * detJ * w;
+      }
+   }
+};
+
+template<int DIM>
+struct PASetup
+{
+   void operator()(tensor_array<const real_t, DIM, DIM> &J,
+                   tensor_array<const real_t> &weight,
+                   tensor_array<real_t, DIM, DIM> &D) const
+   {
+      const size_t NQ = J.size();
+      mfem::forall(NQ, [=] MFEM_HOST_DEVICE (int q)
+      {
+         const auto invJ = inv(J(q));
+         const real_t detJ = det(J(q));
+         assert(std::isfinite(detJ));
+         assert(detJ > 0.0);
+         D(q) = invJ * transpose(invJ) * detJ * weight(q);
+      });
+   }
+};
+
+template<int DIM>
+struct PAApply
+{
+   // MFEM_HOST_DEVICE inline
+   void operator()(tensor_array<const real_t, DIM> &Gu,
+                   tensor_array<const real_t, DIM, DIM> &D,
+                   tensor_array<const real_t> &weight,
+                   tensor_array<real_t, DIM> &Gv) const
+   {
+      mfem::forall(Gu.size(), [=] MFEM_HOST_DEVICE (int q) { Gv(q) = D(q) * Gu(q); });
+   }
+};
+
 /// Diffusion /////////////////////////////////////////////////////////////////
 template <int VDIM = 1, bool GLL = false>
 struct Diffusion : public BakeOff<VDIM, GLL>
@@ -449,23 +506,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          const int height = pfes.GetVSize(), width = pfes.GetVSize();
          dop = std::make_unique<DifferentiableOperator>(height, width,
                                                         infds, outfds, pmesh);
-         const auto mf_apply_qf =
-            [] MFEM_HOST_DEVICE (tensor_array<const real_t, DIM> &Gu,
-                                 tensor_array<const real_t, DIM, DIM> &J,
-                                 tensor_array<const real_t> &weight,
-                                 tensor_array<real_t, DIM> &Gv)
-         {
-            const size_t NQ = Gu.size();
-            for (size_t q = 0; q < NQ; q++)
-            {
-               const auto invJ = inv(J(q));
-               const real_t detJ = det(J(q));
-               assert(std::isfinite(detJ));
-               const real_t w = weight(q);
-               assert(detJ > 0.0);
-               Gv(q) = ((Gu(q) * invJ)) * transpose(invJ) * detJ * w;
-            }
-         };
+         MF<DIM> mf_apply_qf;
          dop->AddDomainIntegrator(mf_apply_qf,
                                   tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
                                   tuple{Gradient<U>{}},
@@ -484,20 +525,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          const auto i0 = std::vector<FieldDescriptor> {{Ξ, &mfes}};
          const auto o0 = std::vector<FieldDescriptor> {{Q, &qdata}};
          DifferentiableOperator dSetup(height, width, i0, o0, pmesh);
-         auto pa_setup_qf = [] (tensor_array<const real_t, DIM, DIM> &J,
-                                tensor_array<const real_t> &weight,
-                                tensor_array<real_t, DIM, DIM> &D)
-         {
-            const size_t NQ = J.size();
-            mfem::forall(NQ, [=] MFEM_HOST_DEVICE (int q)
-            {
-               const auto invJ = inv(J(q));
-               const real_t detJ = det(J(q));
-               assert(std::isfinite(detJ));
-               assert(detJ > 0.0);
-               D(q) = invJ * transpose(invJ) * detJ * weight(q);
-            });
-         };
+         PASetup<DIM> pa_setup_qf;
          dSetup.AddDomainIntegrator(pa_setup_qf,
                                     tuple{Gradient<Ξ>{}, Weight{}},
                                     tuple{Identity<Q>{}},
@@ -510,13 +538,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          const auto i1 = std::vector<FieldDescriptor> {{U, &pfes}, {Q, &qdata}};
          const auto o1 = std::vector<FieldDescriptor> {{U, &pfes}};
          dop = std::make_unique<DifferentiableOperator>(height, width, i1, o1, pmesh);
-         auto pa_apply_qf = [] (tensor_array<const real_t, DIM> &Gu,
-                                tensor_array<const real_t, DIM, DIM> &D,
-                                tensor_array<const real_t> &weight,
-                                tensor_array<real_t, DIM> &Gv)
-         {
-            mfem::forall(Gu.size(), [=] MFEM_HOST_DEVICE (int q) { Gv(q) = D(q) * Gu(q); });
-         };
+         PAApply<DIM> pa_apply_qf;
          dop->AddDomainIntegrator(pa_apply_qf,
                                   tuple{Gradient<U>{}, Identity<Q>{}, Weight{}},
                                   tuple{Gradient<U>{}},

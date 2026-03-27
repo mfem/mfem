@@ -97,14 +97,22 @@ template <typename scalar_t, int ndims, int... tensor_sizes>
 class tensor_ndarray
 {
 public:
-   typedef scalar_t scalar_type;
-   typedef tensor<std::remove_cv_t<scalar_t>,tensor_sizes...> tensor_type;
+   using scalar_type = scalar_t;
+   using tensor_type = tensor<std::remove_cv_t<scalar_t>,tensor_sizes...>;
 
    static constexpr std::integer_sequence<size_t, tensor_sizes...> tensor_sizes_;
    static constexpr auto tensor_dims = sizeof...(tensor_sizes);
    static constexpr auto total_dims = ndims + tensor_dims;
-   static constexpr std::array<std::size_t,tensor_dims>
+#ifdef __NVCC__
+   // nvcc does not always emit the device-side symbol
+   static constexpr auto tensor_sizes_array() noexcept
+   {
+      return std::array<std::size_t, tensor_dims> {tensor_sizes...};
+   }
+#else
+   inline static constexpr std::array<std::size_t,tensor_dims>
    tensor_sizes_array{tensor_sizes...};
+#endif
 
 private:
    scalar_t *data;  /// Not owned
@@ -149,7 +157,14 @@ public:
 
    /// Tensor size in the @a k-th tensor (static) dimension.
    static constexpr std::size_t tensor_size(int k = 0)
-   { return tensor_sizes_array[k]; }
+   {
+
+#ifdef __NVCC__
+      return tensor_sizes_array()[k];
+#else
+      return tensor_sizes_array[k];
+#endif
+   }
 
    /// Returns the product of all sizes of the static (tensor) dimensions.
    static constexpr std::size_t total_tensor_size()
@@ -178,7 +193,11 @@ public:
          const auto d_l = perm[d_g];
          strides[d_l] = stride;
          stride *= (d_l < ndims) ? dyn_sizes[d_l] :
-                   tensor_sizes_array[d_l-ndims];
+#ifdef __NVCC__
+                   this->tensor_sizes_array()[d_l-ndims];
+#else
+                   this->tensor_sizes_array[d_l-ndims];
+#endif
       }
    }
 
