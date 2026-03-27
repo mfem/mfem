@@ -15,6 +15,8 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+#ifdef MFEM_USE_ENZYME
+
 using mfem::real_t;
 using namespace mfem::future;
 
@@ -355,3 +357,5 @@ TEST_CASE("Univariate function solver robustness", "[univar]")
         CHECK(std::abs(x) == MFEM_Approx(0.0));
     }
 }
+
+#endif // MFEM_USE_ENZYME
