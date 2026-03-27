@@ -389,7 +389,7 @@ int main(int argc, char *argv[])
 
          if (Mpi::Root())
          {
-            mfem::out<<"t: "<<u_st.time<<" dt="<<u_st.dt<<" obj:"<<obj<<"\n";
+            mfem::out<<" i: "<<i<<" t: "<<u_st.time<<" dt="<<u_st.dt<<" obj:"<<obj<<"\n";
          }
       };
 
@@ -408,6 +408,7 @@ int main(int argc, char *argv[])
          ode_solver->EnableAdjoint(mfem::ODESolver::AdjointMode::Discrete);
          ode_solver->SetSolution(u_st.v,t);
          ode_solver->AdjointStep(adj_st.adj,t,ldt);
+          ode_solver->EnableAdjoint(mfem::ODESolver::AdjointMode::None);
          adj_st.time=t;
          adj_st.obj=obj;
       };
@@ -432,9 +433,16 @@ int main(int argc, char *argv[])
          ++i;
       }
 
+      //Do one more time step without checkpointing
+      //advance u_st
+      ode_solver->Step(u.v,t,dt);
+      //update objective 
+      real_t obj=eobj->EvalScalar(u.v);
+
+
       if(Mpi::Root())
       {
-         std::cout<<"Total number of steps i="<<i<<std::endl;
+         std::cout<<"Total number of steps i="<<i<<" t="<<t<<" obj="<<obj<<std::endl;
          std::cout<<"Start adjoint steps!"<<std::endl;
       }
 
@@ -442,7 +450,8 @@ int main(int argc, char *argv[])
       AdjState adj_st; 
       adj_st.adj.SetSize(lin_elasticity_op.GetState().Size()); 
       adj_st.adj=0.0;
-      adj_st.obj=0.0;
+      eobj->EvalGradient(u.v,adj_st.adj);
+      adj_st.obj=obj;
       adj_st.time=t;
       
       //step backward
@@ -460,6 +469,10 @@ int main(int argc, char *argv[])
          ckpt.BackwardStep(i,adj_st, u_wrk,
                            primal_step, adjoint_step,
                            make_snapshot, restore_snapshot);
+         if(Mpi::Root())
+         {
+            std::cout<<"Adj st i="<<i<<" t="<<adj_st.time<<" obj="<<adj_st.obj<<std::endl;
+         }
          if (i == 0) { break; }
       }
 
@@ -468,6 +481,51 @@ int main(int argc, char *argv[])
 
    //test objective gradients
    {
+      BlockVector x; x.Update(lin_elasticity_op.GetTrueBlockOffsets()); x=0.0;
+      BlockVector p; p.Update(lin_elasticity_op.GetTrueBlockOffsets()); p.Randomize();
+
+      real_t tg=0.0; //true grad
+      real_t t=0.0;
+      while(t<Tfinal)
+      {
+         ode_solver->Step(x,t,dt);
+      }
+      ode_solver->Step(x,t,dt);
+      real_t oobj=eobj->EvalScalar(x);
+
+      //FD check
+      {
+         real_t sca=1.0;
+         for(int i=0;i<10;i++){
+            x.Set(sca,p);
+            t=0.0;
+            while(t<Tfinal)
+            {
+               ode_solver->Step(x,t,dt);
+            }
+            ode_solver->Step(x,t,dt);
+            real_t cobj=eobj->EvalScalar(x);
+
+            x.Set(-sca,p);
+            t=0.0;
+            while(t<Tfinal)
+            {
+               ode_solver->Step(x,t,dt);
+            }
+            ode_solver->Step(x,t,dt);
+            real_t mobj=eobj->EvalScalar(x);
+            
+            if(Mpi::Root())
+            {
+               std::cout<<" sca="<<sca<<" tg="<<tg<<" fd="<<(cobj-mobj)/(2.0*sca)<<std::endl;
+            }
+
+            sca=sca/10.0;
+
+         }
+
+      }
+
 
    }
 
