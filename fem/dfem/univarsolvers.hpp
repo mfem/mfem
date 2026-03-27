@@ -138,7 +138,7 @@ MFEM_HOST_DEVICE void SolveNewtonBisection_impl(const real_t* x0_ptr, const T* p
             fh = r;
         }
     }
-    mfem_error("Univariate solve did not converge.");
+    MFEM_ABORT("Univariate solve did not converge.");
 }
 
 template <auto f, typename T>
