@@ -25,6 +25,8 @@ MFEM_HOST_DEVICE inline real_t FlowResistance(real_t eqps, real_t sigma_y, real_
 
 using J2PlasticityParameters = tuple<real_t, real_t, real_t, real_t, real_t, real_t>;
 
+// Residual function that is solved in the plasticity model.
+// Made a free function to facilitate Enzyme differentiation.
 real_t J2PlasticityResidual(real_t delta_eqps, J2PlasticityParameters p)
 {
     auto [eqps, q, G, sigma_y, n, ep_0] = p;
@@ -48,6 +50,7 @@ struct J2Plasticity {
     real_t accumulated_plastic_strain;
   };
 
+  /// Internal state variables in a flattened array for storing in a global field
   using PackedInternalState = mfem::future::tensor<real_t, N_INTERNAL_STATES>;
 
   MFEM_HOST_DEVICE static inline InternalState unpack_internal_state(
@@ -72,6 +75,7 @@ struct J2Plasticity {
     return packed_state;
   }
 
+  // Compute the new stress and the internal state variables
   MFEM_HOST_DEVICE inline tuple<tensor<real_t, dim, dim>, PackedInternalState>
   update(tensor<real_t, dim, dim> dudxi,
          PackedInternalState internal_state,
@@ -135,16 +139,27 @@ struct J2Plasticity {
 };
 
 
-// Register the custom derivative for the solver.
+// Register the custom derivatives for the solver.
 // This needs to be done for every residual function that the solver is applied on,
 // since the SolveNewtonBisection_impl is a function template, and we need a real
 // function with an address to specify the custom derivative.
+
+// Forward mode
 __attribute__((used))
 void *  __enzyme_register_derivative_newton_bisection_on_j2[2] = {
   (void*) mfem::internal::SolveNewtonBisection_impl<J2PlasticityResidual, J2PlasticityParameters>,
   (void*) mfem::internal::SolveNewtonBisection_impl_fwddiff<J2PlasticityResidual, J2PlasticityParameters>
 };
 
+ // Reverse mode
+__attribute__((used))
+void* __enzyme_register_gradient_SolveNewtonBisectionJ2[3] = {
+  (void*)mfem::internal::SolveNewtonBisection_impl<J2PlasticityResidual, J2PlasticityParameters>,
+  (void*)mfem::internal::SolveNewtonBisection_impl_aug<J2PlasticityResidual, J2PlasticityParameters>,
+  (void*)mfem::internal::SolveNewtonBisection_impl_rev<J2PlasticityResidual, J2PlasticityParameters>
+};
+
+// create a free function for Enzyme to differentiate in the tests
 tensor<real_t, 3, 3> ComputeStress(
     J2Plasticity* material, tensor<real_t, 3, 3> dudxi, 
     J2Plasticity::PackedInternalState Q, tensor<real_t, 3, 3> J, real_t w)
@@ -153,7 +168,7 @@ tensor<real_t, 3, 3> ComputeStress(
 }
 
 template <int dim>
-real_t norm_inf(tensor<real_t, dim, dim> A) {
+real_t elementwise_norm(tensor<real_t, dim, dim> A) {
   real_t maxval = 0;
   for (int i = 0; i < dim; i++) {
     for (int j = 0; j < dim; j++) {
@@ -172,14 +187,8 @@ void ComputeStressRef(const J2Plasticity* material, const tensor<real_t, 3, 3>& 
 }
 
 
-__attribute__((used))
-void* __enzyme_register_gradient_SolveNewtonBisectionJ2[3] = {
-  (void*)mfem::internal::SolveNewtonBisection_impl<J2PlasticityResidual, J2PlasticityParameters>,
-  (void*)mfem::internal::SolveNewtonBisection_impl_aug<J2PlasticityResidual, J2PlasticityParameters>,
-  (void*)mfem::internal::SolveNewtonBisection_impl_rev<J2PlasticityResidual, J2PlasticityParameters>
-};
 
-TEST_CASE("Univariate function solver on qfunction", "[univar]")
+TEST_CASE("Univariate function solver in a qfunction", "[univar]")
 {
     J2Plasticity material{.E = 70.0e3, .nu = 0.34, .sigma_y = 240.0, .n = 0.15, .ep_0 = 1e-3};
     tensor<real_t, 3, 3> H{{{0.947667  , 0.9785799 , 0.33229148},
@@ -191,7 +200,7 @@ TEST_CASE("Univariate function solver on qfunction", "[univar]")
 
     SECTION("Correctness")
     {
-      // Checks that stress after update is on the yield surface
+      // Checks that stress after update is on the yield surface.
       auto [stress, Q_new] = material.update(H, Q, IdentityMatrix<3>(), 1.0);
       real_t mises = std::sqrt(1.5)*norm(dev(stress));
       real_t eqps = Q_new[9];
@@ -234,8 +243,8 @@ TEST_CASE("Univariate function solver on qfunction", "[univar]")
           rel_error[i][j] /= denom;
         }
       }
-      INFO("real errors = " << rel_error);
-      CHECK(norm_inf(rel_error) < 1e-5);
+
+      CHECK(elementwise_norm(rel_error) < 1e-5);
     }
 
     SECTION("VJP")
