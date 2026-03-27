@@ -13,6 +13,7 @@ virtual ~LinearElasticityTimeDependentOperator() override
 {
 }
 
+void MultInvMass(const mfem::Vector &x, mfem::Vector &y) const;
 
 virtual void Mult(const mfem::Vector &x, mfem::Vector &y) const override;
 

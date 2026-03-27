@@ -310,7 +310,7 @@ int main(int argc, char *argv[])
    //random perturbation of the initial conditions
    BlockVector p; p.Update(lin_elasticity_op.GetTrueBlockOffsets()); p.Randomize();
    real_t tg=0.0; //projection of the true gradient on the perturbed direction p
-
+   Vector tmpv(p.GetBlock(0)); tmpv=0.0;
 
    //Forward computations
    {
@@ -412,7 +412,7 @@ int main(int argc, char *argv[])
          ode_solver->EnableAdjoint(mfem::ODESolver::AdjointMode::Discrete);
          ode_solver->SetSolution(u_st.v,t);
          ode_solver->AdjointStep(adj_st.adj,t,ldt);
-          ode_solver->EnableAdjoint(mfem::ODESolver::AdjointMode::None);
+         ode_solver->EnableAdjoint(mfem::ODESolver::AdjointMode::None);
          adj_st.time=t;
          adj_st.obj=obj;
       };
@@ -503,8 +503,10 @@ int main(int argc, char *argv[])
 
       paraview_ac.SetCycle(i);
       paraview_ac.SetTime(t);
-      adisp.SetFromTrueDofs(adj_st.adj.GetBlock(0));
-      avelo.SetFromTrueDofs(adj_st.adj.GetBlock(1));
+      lin_elasticity_op.MultInvMass(adj_st.adj.GetBlock(0),tmpv);
+      adisp.SetFromTrueDofs(tmpv);
+      lin_elasticity_op.MultInvMass(adj_st.adj.GetBlock(1),tmpv);
+      avelo.SetFromTrueDofs(tmpv);
       paraview_ac.Save();
 
       
@@ -532,8 +534,12 @@ int main(int argc, char *argv[])
          if((i%5)==0){
             paraview_ac.SetCycle(i);
             paraview_ac.SetTime(adj_st.time);
-            adisp.SetFromTrueDofs(adj_st.adj.GetBlock(0));
-            avelo.SetFromTrueDofs(adj_st.adj.GetBlock(1));
+            //adisp.SetFromTrueDofs(adj_st.adj.GetBlock(0));
+            //avelo.SetFromTrueDofs(adj_st.adj.GetBlock(1));
+            lin_elasticity_op.MultInvMass(adj_st.adj.GetBlock(0),tmpv);
+            adisp.SetFromTrueDofs(tmpv);
+            lin_elasticity_op.MultInvMass(adj_st.adj.GetBlock(1),tmpv);
+            avelo.SetFromTrueDofs(tmpv);
             paraview_ac.Save();
          }
 

@@ -679,6 +679,10 @@ void LinearElasticityTimeDependentOperator::JacobianMultTranspose(const Vector &
     }
 }
 
+void LinearElasticityTimeDependentOperator::MultInvMass(const mfem::Vector &x, mfem::Vector &y) const
+{
+    cg->Mult(x,y);
+}
 
 void LinearElasticityTimeDependentOperator::ImplicitSolve(
     const real_t dt,
