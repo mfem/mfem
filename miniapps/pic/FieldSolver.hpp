@@ -13,6 +13,8 @@
 
 #include "../common/particles_extras.hpp"
 #include "mfem.hpp"
+#include <string>
+#include <limits>
 
 /** Field solver responsible for updating the electrostatic potential and field
     from the particle charge density. Assembles and solves the periodic Poisson
@@ -38,15 +40,25 @@ private:
    FindPointsGSLIB& E_finder;
    ParLinearForm b;
    int efield_output_interval;
+   int phi_output_interval;
+   int rho_output_interval;
+   int efield_last_output_step = std::numeric_limits<int>::min();
+   int phi_last_output_step = std::numeric_limits<int>::min();
+   int rho_last_output_step = std::numeric_limits<int>::min();
    int efield_sample_nx;
    int efield_sample_ny;
    bool efield_sampling_enabled;
    int efield_sample_npts;
    Vector efield_sample_points;
    Vector efield_sample_values;
+   Vector scalar_sample_values;
+
+   bool ShouldWriteSample(int interval, int timestep) const;
+   void SampleAndWriteScalarField(const ParGridFunction& field,
+                                  const std::string& field_name, int timestep);
 
 protected:
-   void InitializeEFieldSamplingGrid(ParFiniteElementSpace* E_fes);
+   void InitializeFieldSamplingGrid(ParFiniteElementSpace* sample_fes);
    void SampleAndWriteEField(const ParGridFunction& E_gf, int timestep);
 
    /** Compute neutralizing constant and initialize with the constant.
@@ -65,7 +77,9 @@ public:
                FindPointsGSLIB& E_finder_, real_t diffusivity,
                bool precompute_neutralizing_const_ = false,
                int efield_output_interval_ = -1,
-               int efield_sample_resolution_ = 512);
+               int phi_output_interval_ = -1,
+               int rho_output_interval_ = -1,
+               int field_sample_resolution_ = 512);
 
    ~FieldSolver();
 
@@ -76,8 +90,12 @@ public:
 
    /** Update E_gf grid function from phi_gf grid function.
        Compute the gradient: E = -∇phi. */
-   void UpdateEGridFunction(ParGridFunction& phi_gf, ParGridFunction& E_gf,
-                            int timestep);
+   void UpdateEGridFunction(ParGridFunction& phi_gf, ParGridFunction& E_gf);
+
+   /** Save sampled E/phi/rho fields if their output intervals are due. */
+   void SaveFieldSamples(const ParGridFunction& E_gf,
+                         const ParGridFunction& phi_gf,
+                         const ParGridFunction& rho_gf, int timestep);
 
    /** Diffuse RHS with a p=4 hyper-diffusion by solving a linear system with
        the discrete operator (M + c * K^4); overwrites rhs with the hyper-diffused

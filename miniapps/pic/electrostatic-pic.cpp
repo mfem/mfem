@@ -81,7 +81,12 @@ struct PICContext
       0.0;  ///< Diffusivity coefficient c for diffusion matrix.
    int efield_output_interval =
       1000;  ///< E-field sampling CSV interval. Disabled if < 0.
-   int efield_sample_resolution = 512;  ///< E-field sample grid resolution N.
+   int phi_output_interval =
+      1000;  ///< Phi sampling CSV interval. Disabled if < 0.
+   int rho_output_interval =
+      1000;  ///< Rho sampling CSV interval. Disabled if < 0.
+   int field_sample_resolution =
+      512;  ///< Sample grid resolution N for all field outputs.
 
    int nt = 1000;            ///< Number of time steps to run.
    int redist_interval = 5;  ///< Redistribution and update E_gf interval.
@@ -124,9 +129,16 @@ int main(int argc, char* argv[])
                   "--efield-output-interval",
                   "E-field sample CSV output interval. Disabled if < 0. "
                   "Use 0 to output every field update.");
-   args.AddOption(&ctx.efield_sample_resolution, "-esr",
-                  "--efield-sample-resolution",
-                  "E-field sample resolution N for an N x N grid.");
+   args.AddOption(&ctx.phi_output_interval, "-poi", "--phi-output-interval",
+                  "Phi sample CSV output interval. Disabled if < 0. "
+                  "Use 0 to output every field update.");
+   args.AddOption(&ctx.rho_output_interval, "-roi", "--rho-output-interval",
+                  "Rho sample CSV output interval. Disabled if < 0. "
+                  "Use 0 to output every field update.");
+   args.AddOption(&ctx.field_sample_resolution, "-fsr",
+                  "--field-sample-resolution",
+                  "Sample resolution N for an N x N output grid for E, phi, "
+                  "and rho.");
    args.AddOption(&ctx.nt, "-nt", "--num-timesteps", "Number of timesteps.");
    args.AddOption(&ctx.npt, "-npt", "--num-particles",
                   "Total number of particles.");
@@ -210,7 +222,8 @@ int main(int argc, char* argv[])
    // 6. Construct the field solver
    FieldSolver field_solver(&phi_fespace, &E_fespace, E_finder, ctx.diffusivity,
                             true, ctx.efield_output_interval,
-                            ctx.efield_sample_resolution);
+                            ctx.phi_output_interval, ctx.rho_output_interval,
+                            ctx.field_sample_resolution);
 
    // 7. Initialize ParticleMover
    Ordering::Type ordering_type =
@@ -242,7 +255,7 @@ int main(int argc, char* argv[])
          field_solver.UpdatePhiGridFunction(particle_mover.GetParticles(),
                                             phi_gf, rho_gf);
          // Update E_gf from phi_gf
-         field_solver.UpdateEGridFunction(phi_gf, E_gf, step);
+         field_solver.UpdateEGridFunction(phi_gf, E_gf);
 
          // Visualize fields if requested
          if (ctx.visualization)
@@ -260,6 +273,7 @@ int main(int argc, char* argv[])
             //         << "valuerange " << -1 << " " << 1 << "\n"
             //         << flush;
          }
+         field_solver.SaveFieldSamples(E_gf, phi_gf, rho_gf, step);
 
          // Compute energies
          real_t kinetic_energy = particle_mover.ComputeKineticEnergy();
@@ -274,7 +288,7 @@ int main(int argc, char* argv[])
             field_solver.DiffuseRHS(b, phi_gf);
          }
          // Update E_gf from phi_gf
-         field_solver.UpdateEGridFunction(phi_gf, E_gf, step);
+         field_solver.UpdateEGridFunction(phi_gf, E_gf);
 
          // Output energies
          if (Mpi::Root())

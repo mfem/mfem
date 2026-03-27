@@ -45,16 +45,20 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
                          FindPointsGSLIB& E_finder_, real_t diffusivity,
                          bool precompute_neutralizing_const_,
                          int efield_output_interval_,
-                         int efield_sample_resolution_)
+                         int phi_output_interval_,
+                         int rho_output_interval_,
+                         int field_sample_resolution_)
     : precompute_neutralizing_const(precompute_neutralizing_const_),
       E_finder(E_finder_),
       b(phi_fes),
-      efield_output_interval(efield_output_interval_)
+      efield_output_interval(efield_output_interval_),
+      phi_output_interval(phi_output_interval_),
+      rho_output_interval(rho_output_interval_)
 {
-   MFEM_VERIFY(efield_sample_resolution_ > 0,
-               "efield sample resolution must be positive.");
-   efield_sample_nx = efield_sample_resolution_;
-   efield_sample_ny = efield_sample_resolution_;
+   MFEM_VERIFY(field_sample_resolution_ > 0,
+               "field sample resolution must be positive.");
+   efield_sample_nx = field_sample_resolution_;
+   efield_sample_ny = field_sample_resolution_;
 
    ParMesh* pmesh = phi_fes->GetParMesh();
    real_t local_domain_volume = 0.0;
@@ -108,7 +112,7 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
       grad_interpolator->Assemble();
    }
 
-   InitializeEFieldSamplingGrid(E_fes);
+   InitializeFieldSamplingGrid(phi_fes);
 }
 
 FieldSolver::~FieldSolver()
@@ -262,28 +266,53 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
 }
 
 void FieldSolver::UpdateEGridFunction(ParGridFunction& phi_gf,
-                                      ParGridFunction& E_gf, int timestep)
+                                      ParGridFunction& E_gf)
 {
    grad_interpolator->Mult(phi_gf, E_gf);
    E_gf.Neg();
+}
 
-   if (efield_output_interval < 0) { return; }
-   if (efield_output_interval == 0 ||
-       (timestep > 0 && timestep % efield_output_interval == 0))
+bool FieldSolver::ShouldWriteSample(int interval, int timestep) const
+{
+   return interval >= 0 &&
+          (interval == 0 || (timestep > 0 && timestep % interval == 0));
+}
+
+void FieldSolver::SaveFieldSamples(const ParGridFunction& E_gf,
+                                   const ParGridFunction& phi_gf,
+                                   const ParGridFunction& rho_gf, int timestep)
+{
+   if (ShouldWriteSample(efield_output_interval, timestep) &&
+       efield_last_output_step != timestep)
    {
       SampleAndWriteEField(E_gf, timestep);
+      efield_last_output_step = timestep;
+   }
+
+   if (ShouldWriteSample(phi_output_interval, timestep) &&
+       phi_last_output_step != timestep)
+   {
+      SampleAndWriteScalarField(phi_gf, "phi", timestep);
+      phi_last_output_step = timestep;
+   }
+
+   if (ShouldWriteSample(rho_output_interval, timestep) &&
+       rho_last_output_step != timestep)
+   {
+      SampleAndWriteScalarField(rho_gf, "rho", timestep);
+      rho_last_output_step = timestep;
    }
 }
 
-void FieldSolver::InitializeEFieldSamplingGrid(ParFiniteElementSpace* E_fes)
+void FieldSolver::InitializeFieldSamplingGrid(ParFiniteElementSpace* sample_fes)
 {
-   ParMesh* pmesh = E_fes->GetParMesh();
+   ParMesh* pmesh = sample_fes->GetParMesh();
    if (pmesh->SpaceDimension() != 2)
    {
       efield_sampling_enabled = false;
       if (Mpi::Root())
       {
-         cout << "Skipping E-field " << efield_sample_nx << "x"
+         cout << "Skipping field " << efield_sample_nx << "x"
               << efield_sample_ny << " sampling: only supported in 2D." << endl;
       }
       return;
@@ -302,15 +331,17 @@ void FieldSolver::InitializeEFieldSamplingGrid(ParFiniteElementSpace* E_fes)
    efield_sample_npts = efield_sample_nx * efield_sample_ny;
    efield_sample_points.SetSize(2 * efield_sample_npts);
    efield_sample_values.SetSize(2 * efield_sample_npts);
+   scalar_sample_values.SetSize(efield_sample_npts);
 
    // byNODES ordering: [x0..xN-1, y0..yN-1]
+   // Sample at cell centers, not domain boundaries.
    for (int j = 0; j < efield_sample_ny; ++j)
    {
       for (int i = 0; i < efield_sample_nx; ++i)
       {
          const int p = j * efield_sample_nx + i;
-         efield_sample_points[p] = xmin + i * dx;
-         efield_sample_points[efield_sample_npts + p] = ymin + j * dy;
+         efield_sample_points[p] = xmin + (i + 0.5) * dx;
+         efield_sample_points[efield_sample_npts + p] = ymin + (j + 0.5) * dy;
       }
    }
 
@@ -346,6 +377,39 @@ void FieldSolver::SampleAndWriteEField(const ParGridFunction& E_gf,
          const real_t ey = efield_sample_values[2 * p + 1];
          out << timestep << "," << i << "," << j << "," << x << "," << y << ","
              << ex << "," << ey << "\n";
+      }
+   }
+}
+
+void FieldSolver::SampleAndWriteScalarField(const ParGridFunction& field,
+                                            const std::string& field_name,
+                                            int timestep)
+{
+   if (!efield_sampling_enabled) { return; }
+
+   E_finder.Interpolate(efield_sample_points, field, scalar_sample_values,
+                        Ordering::byNODES, Ordering::byNODES);
+
+   if (!Mpi::Root()) { return; }
+
+   ostringstream filename;
+   filename << field_name << "_field_samples_" << efield_sample_nx << "x"
+            << efield_sample_ny << "_step_" << setw(6) << setfill('0')
+            << timestep << ".csv";
+
+   ofstream out(filename.str());
+   out << setfill(' ') << setprecision(17);
+   out << "step,i,j,x,y," << field_name << "\n";
+   for (int j = 0; j < efield_sample_ny; ++j)
+   {
+      for (int i = 0; i < efield_sample_nx; ++i)
+      {
+         const int p = j * efield_sample_nx + i;
+         const real_t x = efield_sample_points[p];
+         const real_t y = efield_sample_points[efield_sample_npts + p];
+         const real_t value = scalar_sample_values[p];
+         out << timestep << "," << i << "," << j << "," << x << "," << y
+             << "," << value << "\n";
       }
    }
 }
