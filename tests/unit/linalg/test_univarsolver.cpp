@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include <algorithm>
 #include <cmath>
 
 #include "mfem.hpp"
@@ -296,7 +297,8 @@ real_t mysqrt(real_t x)
 {
   real_t x0 = x;
   real_t index = 2.0;
-  SolverSettings settings{.bounds = {.lower = 0, .upper = x}};
+  real_t ub = std::max(1.0, x);
+  SolverSettings settings{.bounds = {.lower = 0, .upper = ub}};
   return SolveNewtonBisection<nthroot_res>(x0, make_tuple(index, x), settings);
 }
 
