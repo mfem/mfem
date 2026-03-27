@@ -160,12 +160,22 @@ void* __enzyme_register_gradient_SolveNewtonBisectionJ2[3] = {
   (void*)mfem::internal::SolveNewtonBisection_impl_rev<J2PlasticityResidual, J2PlasticityParameters>
 };
 
-// create a free function for Enzyme to differentiate in the tests
+// Create free functions for Enzyme to differentiate in the tests
+// Return by value version
 tensor<real_t, 3, 3> ComputeStress(
     J2Plasticity* material, tensor<real_t, 3, 3> dudxi, 
     J2Plasticity::PackedInternalState Q, tensor<real_t, 3, 3> J, real_t w)
 {
     return material->stress(dudxi, Q, J, w);
+}
+
+// Return by reference version
+void ComputeStressRef(const J2Plasticity* material, const tensor<real_t, 3, 3>& dudxi,
+                      const J2Plasticity::PackedInternalState& Q,
+                      const tensor<real_t, 3, 3>& J, real_t w,
+                      tensor<real_t, 3, 3>& sigma)
+{
+  sigma = material->stress(dudxi, Q, J, w);
 }
 
 template <int dim>
@@ -178,15 +188,6 @@ real_t elementwise_max_norm(tensor<real_t, dim, dim> A) {
   }
   return maxval;
 }
-
-void ComputeStressRef(const J2Plasticity* material, const tensor<real_t, 3, 3>& dudxi,
-                      const J2Plasticity::PackedInternalState& Q,
-                      const tensor<real_t, 3, 3>& J, real_t w,
-                      tensor<real_t, 3, 3>& sigma)
-{
-  sigma = material->stress(dudxi, Q, J, w);
-}
-
 
 
 TEST_CASE("Univariate function solver in a qfunction", "[univar]")
