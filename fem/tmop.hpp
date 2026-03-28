@@ -2617,6 +2617,16 @@ public:
    void EnableLimiting(const GridFunction &n0, Coefficient &w0,
                        TMOP_LimiterFunction *lfunc = NULL);
 
+   /// Adds the adaptive limiting term to the first integrator.
+   void EnableAdaptiveLimiting(const GridFunction &z0, Coefficient &coeff,
+                               AdaptivityEvaluator &ae, real_t delta_max = 1.0);
+#ifdef MFEM_USE_MPI
+   /// Parallel support for adaptive limiting.
+   void EnableAdaptiveLimiting(const ParGridFunction &z0, Coefficient &coeff,
+                               AdaptivityEvaluator &ae, real_t delta_max = 1.0);
+#endif
+
+
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0);
 

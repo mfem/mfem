@@ -5959,6 +5959,28 @@ void TMOPComboIntegrator::EnableLimiting(const GridFunction &n0,
    for (int i = 1; i < tmopi.Size(); i++) { tmopi[i]->DisableLimiting(); }
 }
 
+void TMOPComboIntegrator::EnableAdaptiveLimiting(const GridFunction &z0,
+                                                 Coefficient &coeff,
+                                                 AdaptivityEvaluator &ae,
+                                                 real_t delta_max)
+{
+   MFEM_VERIFY(tmopi.Size() > 0, "No TMOP_Integrators were added.");
+
+   tmopi[0]->EnableAdaptiveLimiting(z0, coeff, ae, delta_max);
+}
+
+#ifdef MFEM_USE_MPI
+void TMOPComboIntegrator::EnableAdaptiveLimiting(const ParGridFunction &z0,
+                                                 Coefficient &coeff,
+                                                 AdaptivityEvaluator &ae,
+                                                 real_t delta_max)
+{
+   MFEM_VERIFY(tmopi.Size() > 0, "No TMOP_Integrators were added.");
+
+   tmopi[0]->EnableAdaptiveLimiting(z0, coeff, ae, delta_max);
+}
+#endif
+
 void TMOPComboIntegrator::SetLimitingNodes(const GridFunction &n0)
 {
    MFEM_VERIFY(tmopi.Size() > 0, "No TMOP_Integrators were added.");
