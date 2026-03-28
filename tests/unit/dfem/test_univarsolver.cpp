@@ -268,7 +268,6 @@ TEST_CASE("Univariate function solver in a qfunction", "[univar]")
                                       {0.0, 0.0, 0.0},
                                       {0.0, 0.0, 0.0}}};
 
-      J2Plasticity material_bar;
       tensor<real_t, 3, 3> H_bar{};
       J2Plasticity::PackedInternalState Q_bar{};
       tensor<real_t, 3, 3> J_bar{};
