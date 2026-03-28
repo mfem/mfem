@@ -2046,7 +2046,8 @@ using outer_product_t = typename detail::outer_prod<T1, T2>::type;
  * @brief Retrieves the gradient component of a real_t (which is nothing)
  * @return The sentinel, @see zero
  */
-inline MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE zero get_gradient(real_t /* arg */) { return zero{}; }
+inline MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE zero get_gradient(
+   real_t /* arg */) { return zero{}; }
 
 /**
  * @brief get the gradient of type `tensor` (note: since its stored type is not a dual
@@ -2094,8 +2095,9 @@ MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE zero chain_rule(const T /* df_dx */,
  * @overload
  * @note for a scalar-valued function of a scalar, the chain rule is just multiplication
  */
-inline MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE real_t chain_rule(const real_t df_dx,
-                                                                    const real_t dx) { return df_dx * dx; }
+inline MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE real_t chain_rule(
+   const real_t df_dx,
+   const real_t dx) { return df_dx * dx; }
 
 /**
  * @overload
