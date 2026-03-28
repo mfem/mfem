@@ -21,7 +21,7 @@
 #include <cmath>
 #include <limits>
 
-#include "../config/config.hpp"
+#include "../../config/config.hpp"
 #include "general/enzyme.hpp"
 #include "general/error.hpp"
 
