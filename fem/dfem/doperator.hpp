@@ -118,6 +118,7 @@ public:
    /// direction_t on T-dofs.
    void Mult(const Vector &x, Vector &y) const override
    {
+      NVTX_MARK_FUNCTION;
       MFEM_ASSERT(dynamic_cast<const BlockVector*>(&y),
                   "y needs to be a BlockVector");
       auto &by = static_cast<BlockVector &>(y);
@@ -276,6 +277,7 @@ public:
    void SetQLayouts(std::initializer_list<QLayoutEntry> in,
                     std::initializer_list<QLayoutEntry> out)
    {
+      NVTX_MARK_FUNCTION;
       if (action_callbacks.size() > 0)
       {
          MFEM_ABORT("trying to set the quadrature point layouts for an operator "
@@ -305,6 +307,7 @@ public:
    template <typename x_t, typename y_t>
    void Mult(const x_t &x, y_t &y) const
    {
+      NVTX_MARK_FUNCTION;
       // TODO: Do we want those extensive checks here?
       static_assert(
          (std::is_same_v<x_t, MultiVector> && std::is_same_v<y_t, MultiVector>) ||
@@ -481,6 +484,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    const Array<int> &domain_attributes,
    derivative_ids_t derivative_ids)
 {
+   NVTX_MARK_FUNCTION;
    AddIntegrator<backend_t, Entity::Element>(
       qfunc, inputs, outputs, integration_rule, domain_attributes, derivative_ids);
 }
@@ -498,7 +502,7 @@ void DifferentiableOperator::AddBoundaryIntegrator(
    const Array<int> &boundary_attributes,
    derivative_ids_t derivative_ids)
 {
-
+   NVTX_MARK_FUNCTION;
    if (mesh.GetNFbyType(FaceType::Boundary) != mesh.GetNBE())
    {
       MFEM_ABORT("AddBoundaryIntegrator on meshes with interior boundaries is not supported.");
@@ -522,6 +526,7 @@ void DifferentiableOperator::AddIntegrator(
    const Array<int> &attributes,
    derivative_ids_t derivative_ids)
 {
+   NVTX_MARK_FUNCTION;
    if constexpr (!(std::is_same_v<entity_t, Entity::Element> ||
                    std::is_same_v<entity_t, Entity::BoundaryElement>))
    {

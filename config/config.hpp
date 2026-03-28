@@ -167,7 +167,9 @@ constexpr real_t operator""_r(unsigned long long v)
 #define dbc(...)
 #define NVTX_MARK_FUNCTION
 #define NVTX_MARK_BEGIN(...)
+#define NVTX_MARK_INI(...)
 #define NVTX_MARK_END(...)
+#define NVTX_MARK(...)
 #define NVTX(...)
 #endif
 

@@ -18,6 +18,7 @@
 
 #include "fem/qinterp/det.hpp" // IWYU pragma: keep
 #include "fem/qinterp/grad.hpp" // IWYU pragma: keep
+#include "fem/qinterp/grad_transpose.hpp" // IWYU pragma: keep
 #include "fem/quadinterpolator.hpp" // IWYU pragma: keep
 #include "fem/integ/lininteg_domain_kernels.hpp" // IWYU pragma: keep
 #include "fem/integ/bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep
@@ -91,12 +92,33 @@ static void AddKernelSpecializations()
    DET::Specialization<3, 3, 2, 6>::Add();
    DET::Specialization<3, 3, 5, 5>::Add();
    // Others might exceed memory limits
+   // DET::Specialization<3, 3, 2, 7>::Add(); // uses too much shared data
 
    using GRAD = QuadratureInterpolator::GradKernels;
    GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 2>::Add();
    GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 7>::Add();
    GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 8>::Add();
    GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 9>::Add();
+
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 3>::Add();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 4>::Add();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 5>::Add();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 6>::Add();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 7>::Add();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 8>::Add();
+
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 1, 2, 3>::Add();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 1, 4, 5>::Add();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 1, 5, 6>::Add();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 1, 6, 7>::Add();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 1, 7, 8>::Add();
+
+   using GRAD_TRANSPOSE = QuadratureInterpolator::GradTransposeKernels;
+   GRAD_TRANSPOSE::Specialization<3, QVectorLayout::byVDIM, false, 1,2,3>::Add();
+   GRAD_TRANSPOSE::Specialization<3, QVectorLayout::byVDIM, false, 1,4,5>::Add();
+   GRAD_TRANSPOSE::Specialization<3, QVectorLayout::byVDIM, false, 1,5,6>::Add();
+   GRAD_TRANSPOSE::Specialization<3, QVectorLayout::byVDIM, false, 1,6,7>::Add();
+   GRAD_TRANSPOSE::Specialization<3, QVectorLayout::byVDIM, false, 1,7,8>::Add();
 
    using LIN = DomainLFIntegrator::AssembleKernels;
    LIN::Specialization<3, 7, 7>::Add();
@@ -363,20 +385,18 @@ struct BakeOff
 template<int DIM>
 struct MF
 {
-   // MFEM_HOST_DEVICE inline
    void operator()(tensor_array<const real_t, DIM> &Gu,
                    tensor_array<const real_t, DIM, DIM> &J,
                    tensor_array<const real_t> &weight,
                    tensor_array<real_t, DIM> &Gv) const
    {
+      NVTX_MARK_FUNCTION;
       const size_t NQ = Gu.size();
       for (size_t q = 0; q < NQ; q++)
       {
          const auto invJ = inv(J(q));
          const real_t detJ = det(J(q));
-         assert(std::isfinite(detJ));
          const real_t w = weight(q);
-         assert(detJ > 0.0);
          Gv(q) = ((Gu(q) * invJ)) * transpose(invJ) * detJ * w;
       }
    }
@@ -389,13 +409,12 @@ struct PASetup
                    tensor_array<const real_t> &weight,
                    tensor_array<real_t, DIM, DIM> &D) const
    {
+      NVTX_MARK_FUNCTION;
       const size_t NQ = J.size();
       mfem::forall(NQ, [=] MFEM_HOST_DEVICE (int q)
       {
          const auto invJ = inv(J(q));
          const real_t detJ = det(J(q));
-         assert(std::isfinite(detJ));
-         assert(detJ > 0.0);
          D(q) = invJ * transpose(invJ) * detJ * weight(q);
       });
    }
@@ -404,12 +423,12 @@ struct PASetup
 template<int DIM>
 struct PAApply
 {
-   // MFEM_HOST_DEVICE inline
    void operator()(tensor_array<const real_t, DIM> &Gu,
                    tensor_array<const real_t, DIM, DIM> &D,
                    tensor_array<const real_t> &weight,
                    tensor_array<real_t, DIM> &Gv) const
    {
+      NVTX_MARK_FUNCTION;
       mfem::forall(Gu.size(), [=] MFEM_HOST_DEVICE (int q) { Gv(q) = D(q) * Gu(q); });
    }
 };

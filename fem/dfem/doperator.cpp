@@ -28,6 +28,7 @@ DifferentiableOperator::DifferentiableOperator(
    infds(infds),
    outfds(outfds)
 {
+   NVTX_MARK_FUNCTION;
    unionfds.clear();
    unionfds.insert(unionfds.end(), infds.begin(), infds.end());
    unionfds.insert(unionfds.end(), outfds.begin(), outfds.end());
@@ -51,6 +52,7 @@ void DifferentiableOperator::SetMultLevel(MultLevel level)
 
 void DifferentiableOperator::Mult(const Vector &x, Vector &y) const
 {
+   NVTX_MARK_FUNCTION;
    MFEM_ASSERT(!action_callbacks.empty(),
                "no integrators have been set");
 

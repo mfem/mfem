@@ -158,7 +158,6 @@ public:
    /// Tensor size in the @a k-th tensor (static) dimension.
    static constexpr std::size_t tensor_size(int k = 0)
    {
-
 #ifdef __NVCC__
       return tensor_sizes_array()[k];
 #else
@@ -354,6 +353,7 @@ public:
 template <int... tensor_sizes, typename scalar_t, typename... dyn_sizes_t>
 decltype(auto) make_tensor_ndarray(scalar_t *ptr, dyn_sizes_t... dynamic_sizes)
 {
+   NVTX_MARK_FUNCTION;
    return tensor_ndarray<scalar_t,sizeof...(dynamic_sizes),tensor_sizes...>(
              ptr, {std::size_t(dynamic_sizes)...});
 }
@@ -363,6 +363,7 @@ decltype(auto) make_tensor_ndarray(scalar_t *ptr, dyn_sizes_t... dynamic_sizes)
 template <int... tensor_sizes, typename scalar_t, typename... dyn_sizes_t>
 decltype(auto) make_tensor_array(scalar_t *ptr, dyn_sizes_t... dynamic_sizes)
 {
+   NVTX_MARK_FUNCTION;
    return tensor_ndarray<scalar_t,sizeof...(dynamic_sizes),tensor_sizes...>(
              ptr, {std::size_t(dynamic_sizes)...});
 }

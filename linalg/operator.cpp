@@ -126,6 +126,7 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
                                 Operator* &Aout, Vector &X, Vector &B,
                                 int copy_interior)
 {
+   NVTX_MARK_FUNCTION;
    const Operator *P = this->GetProlongation();
    const Operator *R = this->GetRestriction();
    InitTVectors(P, R, P, x, b, X, B);
@@ -207,6 +208,7 @@ Operator * Operator::SetupRAP(const Operator *Pi, const Operator *Po)
 void Operator::FormConstrainedSystemOperator(
    const Array<int> &ess_tdof_list, ConstrainedOperator* &Aout)
 {
+   NVTX_MARK_FUNCTION;
    const Operator *P = this->GetProlongation();
    Operator *rap = SetupRAP(P, P);
 
@@ -524,6 +526,7 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
    : Operator(A->Height(), A->Width()), A(A), own_A(own_A_),
      diag_policy(diag_policy_)
 {
+   NVTX_MARK_FUNCTION;
    // 'mem_class' should work with A->Mult() and mfem::forall():
    mem_class = A->GetMemoryClass()*Device::GetDeviceMemoryClass();
    MemoryType mem_type = GetMemoryType(mem_class);
@@ -537,6 +540,7 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
 
 void ConstrainedOperator::AssembleDiagonal(Vector &diag) const
 {
+   NVTX_MARK_FUNCTION;
    A->AssembleDiagonal(diag);
 
    if (diag_policy == DIAG_KEEP) { return; }
@@ -568,6 +572,7 @@ void ConstrainedOperator::AssembleDiagonal(Vector &diag) const
 
 void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
+   NVTX_MARK_FUNCTION;
    w = 0.0;
    const int csz = constraint_list.Size();
    auto idx = constraint_list.Read();
@@ -596,6 +601,7 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 void ConstrainedOperator::ConstrainedMult(const Vector &x, Vector &y,
                                           const bool transpose) const
 {
+   NVTX_MARK_FUNCTION;
    const int csz = constraint_list.Size();
    if (csz == 0)
    {
@@ -719,6 +725,7 @@ void ConstrainedOperator::ConstrainedAbsMult(const Vector &x, Vector &y,
 
 void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
 {
+   NVTX_MARK_FUNCTION;
    constexpr bool transpose = false;
    ConstrainedMult(x, y, transpose);
 }
@@ -731,6 +738,7 @@ void ConstrainedOperator::AbsMult(const Vector &x, Vector &y) const
 
 void ConstrainedOperator::MultTranspose(const Vector &x, Vector &y) const
 {
+   NVTX_MARK_FUNCTION;
    constexpr bool transpose = true;
    ConstrainedMult(x, y, transpose);
 }
@@ -744,6 +752,7 @@ void ConstrainedOperator::AbsMultTranspose(const Vector &x, Vector &y) const
 void ConstrainedOperator::AddMult(const Vector &x, Vector &y,
                                   const real_t a) const
 {
+   NVTX_MARK_FUNCTION;
    Mult(x, w);
    y.Add(a, w);
 }
