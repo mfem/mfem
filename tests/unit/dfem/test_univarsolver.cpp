@@ -104,8 +104,7 @@ struct J2Plasticity {
     if (q > FlowResistance(accumulated_plastic_strain, sigma_y, n, ep_0)) {
         real_t lb = 0.0;
         real_t ub = (q - FlowResistance(accumulated_plastic_strain, sigma_y, n, ep_0))/(3*G);
-        SolverSettings settings{.residual_abs_tol = 1e-10*sigma_y, .residual_rel_tol = 1e-10, 
-                                .bounds{.lower = lb, .upper = ub}};
+        SolverSettings settings{1e-10*sigma_y, 1e-10, {lb, ub}};
         // Use the differentiable univariate root finder.
         // This has custom derivatives, so it's ok to differentiate this enclosing function.
         real_t delta_eqps = SolveNewtonBisection<J2PlasticityResidual>(
@@ -194,7 +193,7 @@ real_t elementwise_max_norm(tensor<real_t, dim, dim> A) {
 
 TEST_CASE("Univariate function solver in a qfunction", "[univar]")
 {
-    J2Plasticity material{.E = 70.0e3, .nu = 0.34, .sigma_y = 240.0, .n = 0.15, .ep_0 = 1e-3};
+    J2Plasticity material{70.0e3, 0.34, 240.0, 0.15, 1e-3};
     tensor<real_t, 3, 3> H{{{0.947667  , 0.9785799 , 0.33229148},
                             {0.46866846, 0.5698887 , 0.16550303},
                             {0.3101946 , 0.68948054, 0.74676657}}};
@@ -313,7 +312,7 @@ TEST_CASE("Univariate solver reverse mode derivative", "[univar]")
       real_t x0 = x;
       real_t index = 2.0;
       real_t ub = std::max(1.0, x);
-      SolverSettings settings{.residual_abs_tol = 1e-12, .residual_rel_tol = 1e-12, .bounds = {.lower = 0, .upper = ub}, .max_iters = 50};
+      SolverSettings settings{1e-12, 1e-12, {0, ub}};
       return SolveNewtonBisection<nthroot_res>(x0, make_tuple(index, x), settings);
     };
 
@@ -324,13 +323,13 @@ TEST_CASE("Univariate solver reverse mode derivative", "[univar]")
 
 TEST_CASE("Univariate function solver robustness", "[univar]")
 {
-  SolverSettings settings{.residual_abs_tol = 1e-12, .residual_rel_tol = 1e-12};
+  SolverSettings settings{1e-12, 1e-12};
 
   SECTION("Simple case")
   {
       auto Nthroot = [&settings](real_t x, real_t n) {
           real_t x0 = std::max(x, 1.0);
-          settings.bounds = {.lower = 0.0, .upper = x0};
+          settings.bounds = {0.0, x0};
           return SolveNewtonBisection<nthroot_res>(x0, make_tuple(n, x), settings);
       };
       real_t x = 8.0;
@@ -343,7 +342,7 @@ TEST_CASE("Univariate function solver robustness", "[univar]")
         auto f = [](real_t x, real_t p) { return std::pow(x, p) - 1.0; };
         real_t x0 = 0.1;
         real_t p = 50;
-        settings.bounds = {.lower = 0.0, .upper = 5.1};
+        settings.bounds = {0.0, 5.1};
         real_t x = SolveNewtonBisection<+f>(x0, p, settings);
         CHECK(x == MFEM_Approx(1.0));
     }
@@ -352,7 +351,7 @@ TEST_CASE("Univariate function solver robustness", "[univar]")
     {
         auto f = [](double x, int) { return std::atan(x); };
         real_t x0 = 1.5;
-        settings.bounds = {.lower = 0.0, .upper = 2.0};
+        settings.bounds = {0.0, 2.0};
         real_t x = SolveNewtonBisection<+f>(x0, int{}, settings);
         CHECK(std::abs(x) == MFEM_Approx(0.0));
     }
