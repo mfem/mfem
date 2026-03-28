@@ -123,7 +123,7 @@ MFEM_HOST_DEVICE void SolveNewtonBisection_impl(const real_t* x0_ptr,
    x = x0;
    real_t r = f(x, p);
    real_t dr_dx = fprime(x);
-   real_t r_old = r;
+   real_t r0 = r;
    for (int i = 0; i < max_iters; i++)
    {
       if ((((x - xh) * dr_dx - r)*((x - xl)*dr_dx - r) >= 0.0) ||
@@ -153,7 +153,7 @@ MFEM_HOST_DEVICE void SolveNewtonBisection_impl(const real_t* x0_ptr,
       dr_dx = fprime(x);
 
       // Check convergence
-      if (abs(r) < settings.residual_rel_tol*r_old ||
+      if (abs(r) < settings.residual_rel_tol*r0 ||
           abs(r) < settings.residual_abs_tol)
       {
          return;
