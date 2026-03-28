@@ -23,7 +23,7 @@
 #include <type_traits> // for std::false_type
 
 #if defined(MFEM_USE_ENZYME)
-#define MFEM_TENSOR_ALWAYS_INLINE inline __attribute__((always_inline))
+#define MFEM_TENSOR_ALWAYS_INLINE __attribute__((always_inline))
 #else
 #define MFEM_TENSOR_ALWAYS_INLINE
 #endif
@@ -1680,7 +1680,7 @@ bool is_symmetric(tensor<real_t, n, n> A, real_t abs_tolerance = 1.0e-8_r)
  * @param A The matrix to test for positive definiteness
  * @return Whether the matrix is positive definite
  */
-MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
+inline MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 bool is_symmetric_and_positive_definite(tensor<real_t, 2, 2> A)
 {
    if (!is_symmetric(A))
@@ -1698,7 +1698,7 @@ bool is_symmetric_and_positive_definite(tensor<real_t, 2, 2> A)
    return true;
 }
 /// @overload
-MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
+inline MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 bool is_symmetric_and_positive_definite(tensor<real_t, 3, 3> A)
 {
    if (!is_symmetric(A))
@@ -1790,14 +1790,14 @@ tensor<T, n> linear_solve(tensor<T, n, n> A, const tensor<T, n> b)
  * @note Uses a shortcut for inverting a 1x1, 2x2 and 3x3 matrix
  */
 template <typename T>
-MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor<T, 1, 1> inv(
+inline MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor<T, 1, 1> inv(
    const tensor<T, 1, 1>& A)
 {
    return tensor<T, 1, 1> {{{T{1.0} / A[0][0]}}};
 }
 
 template <typename T>
-MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor<T, 2, 2> inv(
+inline MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor<T, 2, 2> inv(
    const tensor<T, 2, 2>& A)
 {
    T inv_detA(1.0_r / det(A));
@@ -1817,7 +1817,7 @@ MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor<T, 2, 2> inv(
  * @note Uses a shortcut for inverting a 3-by-3 matrix
  */
 template <typename T>
-MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor<T, 3, 3> inv(
+inline MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor<T, 3, 3> inv(
    const tensor<T, 3, 3>& A)
 {
    T inv_detA(1.0_r / det(A));
@@ -2046,7 +2046,7 @@ using outer_product_t = typename detail::outer_prod<T1, T2>::type;
  * @brief Retrieves the gradient component of a real_t (which is nothing)
  * @return The sentinel, @see zero
  */
-MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE zero get_gradient(real_t /* arg */) { return zero{}; }
+inline MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE zero get_gradient(real_t /* arg */) { return zero{}; }
 
 /**
  * @brief get the gradient of type `tensor` (note: since its stored type is not a dual
@@ -2063,7 +2063,7 @@ MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE zero get_gradient(
 /**
  * @brief evaluate the change (to first order) in a function, f, given a small change in the input argument, dx.
  */
-MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE zero chain_rule(
+inline MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE zero chain_rule(
    const zero /* df_dx */,
    const zero /* dx */) { return zero{}; }
 
@@ -2094,8 +2094,8 @@ MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE zero chain_rule(const T /* df_dx */,
  * @overload
  * @note for a scalar-valued function of a scalar, the chain rule is just multiplication
  */
-MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE real_t chain_rule(const real_t df_dx,
-                                                             const real_t dx) { return df_dx * dx; }
+inline MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE real_t chain_rule(const real_t df_dx,
+                                                                    const real_t dx) { return df_dx * dx; }
 
 /**
  * @overload
