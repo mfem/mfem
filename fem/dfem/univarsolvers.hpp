@@ -22,8 +22,8 @@
 #include <limits>
 
 #include "../../config/config.hpp"
-#include "general/enzyme.hpp"
-#include "general/error.hpp"
+#include "../../general/enzyme.hpp"
+#include "../../general/error.hpp"
 
 #ifdef MFEM_USE_ENZYME
 
