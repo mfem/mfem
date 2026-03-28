@@ -39,6 +39,7 @@ set(UNIT_TESTS_SRCS
   dfem/test_divergence.cpp
   dfem/test_lvector_interface.cpp
   dfem/test_mass.cpp
+  dfem/test_univarsolver.cpp
   general/test_array.cpp
   general/test_scan.cpp
   general/test_arrays_by_name.cpp
@@ -72,7 +73,6 @@ set(UNIT_TESTS_SRCS
   linalg/test_operator.cpp
   linalg/test_particlevector.cpp
   linalg/test_sparsesmoothers.cpp
-  linalg/test_univarsolver.cpp
   linalg/test_vector.cpp
   mesh/mesh_test_utils.cpp
   mesh/test_exodus_reader.cpp
