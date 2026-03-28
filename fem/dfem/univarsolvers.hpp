@@ -53,6 +53,9 @@ namespace internal {
 
 using future::SolverSettings;
 
+// The noinline attribute is neccessary for Enzyme. If this function were to be
+//  inlined in the calling function, The custom derivative rules would not be
+// found (since the function they refer to would no longer exist).
 template <auto f, typename T>
 __attribute__((noinline))
 MFEM_HOST_DEVICE void SolveNewtonBisection_impl(const real_t* x0_ptr, const T* p_ptr, const SolverSettings* settings_ptr, real_t* x_ptr)
@@ -177,7 +180,7 @@ void SolveNewtonBisection_impl_aug(const real_t* x0, real_t* x0_bar,
 // slot to provide the downstream cotangent (ie the shadow for y)
 // in the reverse mode call.
 template<auto f, typename T>
-void wrapper(real_t x, T& p, real_t& y)
+void rbr_wrapper(real_t x, T& p, real_t& y)
 {
     y = f(x, p);
 }
@@ -191,7 +194,7 @@ void SolveNewtonBisection_impl_rev(const real_t* x0, real_t* x0_bar,
     real_t drdx = __enzyme_fwddiff<real_t>((void*)+f, enzyme_dup, *x, 1.0, enzyme_const, *p);
     real_t lambda = -(*x_bar / drdx);
     real_t r;
-    __enzyme_autodiff<void>((void*)wrapper<f, T>, enzyme_const, *x, enzyme_dup, p, p_bar, enzyme_dupnoneed, &r, &lambda);
+    __enzyme_autodiff<void>((void*)rbr_wrapper<f, T>, enzyme_const, *x, enzyme_dup, p, p_bar, enzyme_dupnoneed, &r, &lambda);
 
     // These are logically constants, the root has no sensitivity to these
     *x0_bar = 0.0;
