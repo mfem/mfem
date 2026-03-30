@@ -3150,9 +3150,13 @@ void GridFunction::ProjectBdrCoefficientNormal(
    MFEM_VERIFY(fes->GetTypicalBE()->GetRangeType() == FiniteElement::SCALAR &&
                fes->GetTypicalBE()->GetMapType() == FiniteElement::INTEGRAL,
                "Not an RT FE space!");
-   MFEM_VERIFY(vcoeff->GetVDim() == fes->GetMesh()->SpaceDimension(),
-               "vcoeff vdim (" << vcoeff->GetVDim() << ") != SpaceDimension ("
-               << fes->GetMesh()->SpaceDimension() << ")");
+   if (vcoeff)
+   {
+      MFEM_VERIFY(vcoeff->GetVDim() == fes->GetMesh()->SpaceDimension(),
+                  "vcoeff vdim (" << vcoeff->GetVDim()
+                  << ") != SpaceDimension ("
+                  << fes->GetMesh()->SpaceDimension() << ")");
+   }
 
    // implementation for the case when the face dofs are scaled point
    // values of the normal component.
