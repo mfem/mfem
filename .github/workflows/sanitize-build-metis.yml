@@ -17,11 +17,11 @@ jobs:
     runs-on: ubuntu-latest
     name: 4.0.3
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ./.github/actions/sanitize/config
       - name: Cache
         id: cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{env.METIS_DIR}}
           key: ${{runner.os}}-build-${{env.METIS_DIR}}-v2.5
