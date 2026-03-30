@@ -28,7 +28,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/sanitize/mfem
         with:
           par: ${{inputs.par}}
@@ -40,7 +40,7 @@ jobs:
     env:
       ex: ${{inputs.par && 'ex1p' || 'ex1'}}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/sanitize/restore
         id: restore
         with:
@@ -58,7 +58,7 @@ jobs:
     env:
       exclude: ${{inputs.par && '-E "_ser"' || ''}}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/sanitize/restore
         id: restore
         with:
@@ -82,7 +82,7 @@ jobs:
     env:
       exclude: ${{inputs.par && '-E "_ser"' || ''}}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/sanitize/restore
         id: restore
         with:
@@ -107,7 +107,7 @@ jobs:
       run: ${{inputs.par && '-R "_cpu_np"' || ''}}
       exclude: ${{inputs.par && '"unit_tests|debug"' || '"^unit_tests$|debug"'}}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/sanitize/restore
         id: restore
         with:
@@ -131,7 +131,7 @@ jobs:
     env:
       unit_tests: ${{inputs.par && 'punit_tests' || 'unit_tests'}}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/sanitize/restore
         id: restore
         with:
@@ -165,7 +165,7 @@ jobs:
       unit_tests: ${{inputs.par && 'punit_tests' || 'unit_tests'}}
       np: ${{inputs.par && '_np=2' || ''}}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/sanitize/restore
         id: restore
         with:

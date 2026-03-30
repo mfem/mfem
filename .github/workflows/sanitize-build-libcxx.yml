@@ -27,7 +27,7 @@ jobs:
             llvm_use_sanitizer: "Undefined"
     name: ${{matrix.sanitizer}}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/sanitize/config
         with:
           NO_FLAGS: true
