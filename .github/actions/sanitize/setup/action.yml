@@ -57,7 +57,7 @@ runs:
         fail-on-cache-miss: true
         key: build-lsan-suppression-file
 
-    - uses: actions/checkout@v5  # Checkout the repository
+    - uses: actions/checkout@v6  # Checkout the repository
       with:
         path: mfem
         # ref: ${{env.BRANCH}}
