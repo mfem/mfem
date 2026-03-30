@@ -1973,6 +1973,7 @@ public:
 
    void Eval(Vector &v, ElementTransformation &T,
              const IntegrationPoint &ip) override;
+   using VectorCoefficient::Eval;
 
    virtual ~VectorExtrudeCoefficient() { }
 };
