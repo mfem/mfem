@@ -1844,7 +1844,7 @@ inline MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE tensor<T, 3, 3> inv(
 template <typename T, int n>
 MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
 typename std::enable_if<(n > 3), tensor<T, n, n>>::type
-inv(const tensor<T, n, n>& A)
+                                               inv(const tensor<T, n, n>& A)
 {
    auto abs  = [](T x) { return (x < 0) ? -x : x; };
    auto swap = [](tensor<T, n>& x, tensor<T, n>& y)
