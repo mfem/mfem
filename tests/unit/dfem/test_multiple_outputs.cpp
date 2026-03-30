@@ -130,7 +130,9 @@ struct mass_diffusion_qdata_qf
       jit_bounds(dudxi, J, w, out2, u.size());
    }
 
-   __attribute__((annotate("jit", 5)))
+   // XXX: Attribute instrumentation does not work due to ABI differences that
+   // change the argument number.
+   //__attribute__((annotate("jit", 5)))
    void jit_bounds(
       tensor_array<const real_t, DIM> &dudxi,
       tensor_array<const real_t, DIM, DIM> &J,
@@ -138,6 +140,7 @@ struct mass_diffusion_qdata_qf
       tensor_array<real_t, DIM> &out,
       size_t NQ) const
    {
+      proteus::jit_arg(NQ);
       for (size_t q = 0; q < NQ; q++)
       {
          const auto invJq = inv(J(q));
