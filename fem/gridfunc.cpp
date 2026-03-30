@@ -3148,7 +3148,7 @@ void GridFunction::ProjectBdrCoefficientNormal(
 {
    MFEM_VERIFY(fes->GetVDim() == 1, "fespace VDim != 1");
    MFEM_VERIFY(fes->GetTypicalBE()->GetRangeType() == FiniteElement::SCALAR &&
-               be->GetMapType() == FiniteElement::INTEGRAL,
+               fes->GetTypicalBE()->GetMapType() == FiniteElement::INTEGRAL,
                "Not an RT FE space!");
    MFEM_VERIFY(vcoeff.GetVDim() == fes->GetMesh()->SpaceDimension(),
                "vcoeff vdim (" << vcoeff.GetVDim() << ") != SpaceDimension ("
