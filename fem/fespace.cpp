@@ -1454,8 +1454,6 @@ int FiniteElementSpace::GetNConformingDofs() const
 int FiniteElementSpace::GetVectorDim() const
 {
    const FiniteElement *fe = GetTypicalFE();
-   MFEM_ASSERT(fe, "A typical finite element does not exist!");
-
    if (fe->GetRangeType() == FiniteElement::SCALAR)
    {
       return GetVDim();
@@ -1466,8 +1464,6 @@ int FiniteElementSpace::GetVectorDim() const
 int FiniteElementSpace::GetCurlDim() const
 {
    const FiniteElement *fe = GetTypicalFE();
-   MFEM_ASSERT(fe, "A typical finite element does not exist!");
-
    if (fe->GetRangeType() == FiniteElement::SCALAR)
    {
       return 2 * GetMesh()->SpaceDimension() - 3;
