@@ -737,9 +737,10 @@ target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES} ${TPL_TARGETS})
 if (MFEM_USE_PROTEUS)
     add_library(ClangProteusFlags INTERFACE IMPORTED)
     set_target_properties(ClangProteusFlags PROPERTIES
-        INTERFACE_COMPILE_OPTIONS "-fpass-plugin=/Users/andrej1/local/proteus/lib/libProteusPass.dylib"
+        INTERFACE_COMPILE_OPTIONS "-fpass-plugin=$<TARGET_FILE:ProteusPass>"
     )
     target_link_libraries(mfem PUBLIC ClangProteusFlags)
+    target_link_libraries(mfem PUBLIC proteus)
 endif()
 
 if (TPL_TARGETS)
