@@ -278,9 +278,18 @@ void ArraysByName<T>::Load(std::istream &in)
          q1 = ArrayLine.find(' ');
          ArrayName = ArrayLine.substr(0,q1-1);
       }
-
-      // Ignore the remainder of the line which may contain explanatory comments
-      data[ArrayName].Load(in, 0);
+      if (q1+2 < ArrayLine.size())
+      {
+         // Read the remainder of the line which contains the array data
+         std::istringstream ArrayDataStream(ArrayLine.substr(q1+2,
+                                                             ArrayLine.size()));
+         data[ArrayName].Load(ArrayDataStream, 0);
+      }
+      else
+      {
+         // Read the array data starting on the next line
+         data[ArrayName].Load(in, 0);
+      }
    }
 
 }
