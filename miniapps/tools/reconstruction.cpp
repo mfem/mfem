@@ -24,8 +24,7 @@ std::unordered_map<std::string, profile_t> GetFieldProfiles();
 int main(int argc, char* argv[])
 {
    // Default command-line options
-   std::string lor_method =
-      "element_average_reconstruction"; // "element_average_reconstruction" or "l2_projection"
+   std::string lor_method = "element_average_reconstruction";
    int refinement_levels = 0;
    int order_lo = 0;
    int order_ho = 3;
@@ -35,7 +34,6 @@ int main(int argc, char* argv[])
    std::string field_profile = "plane";
    real_t field_kx = 2.0;
    real_t field_ky = 4.0;
-   bool use_ea = false;
 
    bool visualization = true;
    int visport = 19916;
@@ -67,8 +65,6 @@ int main(int argc, char* argv[])
                   "--no-visualization", "Enable or disable GLVis visualization.");
    args.AddOption(&visport, "-visp", "--visualization-port",
                   "Use custom port number for GLVis.");
-   args.AddOption(&use_ea, "-ea", "--ea-version", "-no-ea",
-                  "--no-ea-version", "Use element assembly version.");
    args.ParseCheck();
 
    // define u(x,y) to be represented
@@ -176,10 +172,6 @@ int main(int argc, char* argv[])
 
       L2ProjectionGridTransfer gt1(fespace_im, fespace_lo);
       L2ProjectionGridTransfer gt2(fespace_im, fespace_hi);
-
-      // Configure element assembly for device acceleration
-      gt1.UseEA(use_ea);
-      gt2.UseEA(use_ea);
 
       [[maybe_unused]] const Operator &P1 =
          gt1.BackwardOperator();   // Prolongation 1 (LO->IM)
