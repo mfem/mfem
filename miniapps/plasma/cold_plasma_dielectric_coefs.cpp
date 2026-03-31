@@ -345,14 +345,11 @@ complex<double> epxx_warm_plasma_by_species(double omega,
 
    double w_c = omega_c(Bmag, q, m);
    double w_p = omega_p(n, q, m);
-   double w_cd = omega_c(Bmag, charge[1], mass[1]);
-   double w_pd = omega_p(number[1], charge[1], mass[1]);
    double T = Te;
    if (i == 3) {T = Te + Ti;}
    double vth = vthermal(T, m);
 
    complex<double> comp_val(0.0,1.0);
-   //double kperp = kperp_cold_plasma(omega,w_cd,w_pd);
    double rho_i = 0.0;
    for (int j=1; j<number.Size(); j++)
    {
@@ -418,14 +415,11 @@ complex<double> epyy_warm_plasma_by_species(double omega,
 
    double w_c = omega_c(Bmag, q, m);
    double w_p = omega_p(n, q, m);
-   double w_cd = omega_c(Bmag, charge[1], mass[1]);
-   double w_pd = omega_p(number[1], charge[1], mass[1]);
    double T = Te;
    if (i == 3) {T = Te + Ti;}
    double vth = vthermal(T, m);
 
    complex<double> comp_val(0.0,1.0);
-   //double kperp = kperp_cold_plasma(omega,w_cd,w_pd);
    double rho_i = 0.0;
    for (int j=1; j<number.Size(); j++)
    {
@@ -479,14 +473,11 @@ complex<double> epxy_warm_plasma_by_species(double omega,
 
    double w_c = omega_c(Bmag, q, m);
    double w_p = omega_p(n, q, m);
-   double w_cd = omega_c(Bmag, charge[1], mass[1]);
-   double w_pd = omega_p(number[1], charge[1], mass[1]);
    double T = Te;
    if (i == 3) {T = Te + Ti;}
    double vth = vthermal(T, m);
 
    complex<double> comp_val(0.0,1.0);
-   //double kperp = kperp_cold_plasma(omega,w_cd,w_pd);
    double rho_i = 0.0;
    for (int j=1; j<number.Size(); j++)
    {
@@ -534,14 +525,11 @@ complex<double> epzz_warm_plasma_by_species(double omega,
 
    double w_c = omega_c(Bmag, q, m);
    double w_p = omega_p(n, q, m);
-   double w_cd = omega_c(Bmag, charge[1], mass[1]);
-   double w_pd = omega_p(number[1], charge[1], mass[1]);
    double T = Te;
    if (i == 3) {T = Te + Ti;}
    double vth = vthermal(T, m);
 
    complex<double> comp_val(0.0,1.0);
-   //double kperp = kperp_cold_plasma(omega,w_cd,w_pd);
    double rho_i = 0.0;
    for (int j=1; j<number.Size(); j++)
    {
@@ -585,14 +573,11 @@ complex<double> epyz_warm_plasma_by_species(double omega,
 
    double w_c = omega_c(Bmag, q, m);
    double w_p = omega_p(n, q, m);
-   double w_cd = omega_c(Bmag, charge[1], mass[1]);
-   double w_pd = omega_p(number[1], charge[1], mass[1]);
    double T = Te;
    if (i == 3) {T = Te + Ti;}
    double vth = vthermal(T, m);
 
    complex<double> comp_val(0.0,1.0);
-   //double kperp = kperp_cold_plasma(omega,w_cd,w_pd);
    double rho_i = 0.0;
    for (int j=1; j<number.Size(); j++)
    {
