@@ -10,24 +10,28 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
+#include <limits>
 #include <string>
-#include <map>
+#include <unordered_map>
 
 using namespace mfem;
 
-void L2Reconstruction(const ParGridFunction& src, ParGridFunction& dst);
+using profile_t = std::function<real_t(const Vector&,const Vector&)>;
+
+void ElementAverageReconstruction(const GridFunction& src, GridFunction& dst);
+std::unordered_map<std::string, profile_t> GetFieldProfiles();
 
 int main(int argc, char* argv[])
 {
-   Mpi::Init(argc, argv);
-
    // Default command-line options
+   std::string reconstruction_method = "element_average_reconstruction";
    int refinement_levels = 0;
+   int order_lo = 0;
+   int order_ho = 3;
+   int order_im = 3; // intermediate order, only used for LOR reconstruction method
+   int lref = order_im+1;
 
-   int order_representation = 3;
-   int order_reconstruction = 1;
-
-   int field_profile = 0;
+   std::string field_profile = "plane";
    real_t field_kx = 2.0;
    real_t field_ky = 4.0;
 
@@ -35,48 +39,24 @@ int main(int argc, char* argv[])
    int visport = 19916;
 
    // example field profiles
-   using profile_t = std::function<real_t(const Vector&,const Vector&)>;
-   std::vector<std::pair<std::string, profile_t>> field_profiles;
-   // plane profile
-   field_profiles.push_back(std::make_pair(
-      "1 + kx x + ky y",
-      [](const Vector &x, const Vector &k)
-      {
-         return 1.0 + x*k;
-      }));
-   // sinusoidal profile
-   field_profiles.push_back(std::make_pair(
-      "sin(2pi kx x) sin(2pi ky y)",
-      [](const Vector &x, const Vector &k)
-      {
-         real_t result = 1.0;
-         for(int i=0; i < x.Size(); i++) result *= std::sin(2.0*M_PI*k(i)*x(i));
-         return result;
-      }));
-   // exponential-sinusoidal profile
-   field_profiles.push_back(std::make_pair(
-      "exp(r) cos(kx x) sin(ky y)",
-      [](const Vector &x, const Vector &k)
-      {
-         real_t result = 1.0;
-         for(int i=0; i < x.Size(); i++)
-            result *= std::exp(x.Norml2()) * std::sin(2.0*M_PI*k(i)*x(i));
-         return result;
-      }));
+   std::unordered_map<std::string, profile_t> field_profiles = GetFieldProfiles();
    // create CLI help string for profiles
    std::string field_profiles_help = "Profile of field to be reconstructed:";
-   for (int i=0; i < field_profiles.size(); i++)
-      field_profiles_help += "\n\t" + std::to_string(i) + ": " + field_profiles[i].first;
+   for (const auto& [name, _] : field_profiles)
+   {
+      field_profiles_help += "\n\t" + name;
+   }
 
    // Parse options
    OptionsParser args(argc, argv);
+   args.AddOption(&reconstruction_method, "-m", "--method",
+                  "Reconstruction method: \"element_average_reconstruction\" or \"LOR_reconstruction\".");
    args.AddOption(&refinement_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
-   args.AddOption(&order_representation, "-orep", "--order-representation",
-                  "Order of the finite element space to represent the field.");
-   args.AddOption(&order_reconstruction, "-orec", "--order-reconstruction",
-                  "Order of the finite element space to reconstruct the field.");
-   args.AddOption(&field_profile, "-f", "--field-profile", field_profiles_help.c_str());
+   args.AddOption(&order_ho, "-ho", "--order_ho",
+                  "Finite element order (polynomial degree) for high-order space.");
+   args.AddOption(&field_profile, "-f", "--field-profile",
+                  field_profiles_help.c_str());
    args.AddOption(&field_kx, "-fx", "--field-kx",
                   "Value of kx in field profile");
    args.AddOption(&field_ky, "-fy", "--field-ky",
@@ -88,90 +68,152 @@ int main(int argc, char* argv[])
    args.ParseCheck();
 
    // define u(x,y) to be represented
-   profile_t u_function = field_profiles[field_profile].second;
+   profile_t u_function = field_profiles.at(field_profile);
    const Vector k({field_kx, field_ky});
    std::function<real_t(const Vector&)> u_function_wrapper =
-      [&](const Vector &x) { return u_function(x, k); };
-   FunctionCoefficient u_coefficient(u_function_wrapper);
+   [&](const Vector &x) { return u_function(x, k); };
+   FunctionCoefficient u_function_exact(u_function_wrapper);
 
    // create simple 2D mesh
-   const int num_x = 2;
-   const int num_y = 2;
-   Mesh serial_mesh = Mesh::MakeCartesian2D(num_x, num_y, Element::QUADRILATERAL);
-   for (int i = 0; i < refinement_levels; i++)
-   { serial_mesh.UniformRefinement(); }
-   serial_mesh.EnsureNCMesh();
-   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
-   serial_mesh.Clear();
+   Mesh mesh;
+   Mesh mesh_im;
+
+   const int num_x = 8;
+   const int num_y = 8;
+
+   std::cout << "reconstruction method: " << reconstruction_method << std::endl;
+
+   if (reconstruction_method == "element_average_reconstruction")
+   {
+
+      mesh = Mesh::MakeCartesian2D(num_x, num_y, Element::QUADRILATERAL);
+      for (int i = 0; i < refinement_levels; i++)
+      {
+         mesh.UniformRefinement();
+      }
+      mesh.EnsureNCMesh();
+
+   }
+   else if (reconstruction_method == "LOR_reconstruction")
+   {
+
+      order_im = order_ho;
+      lref = order_im + 1;
+      MFEM_VERIFY((num_x % lref) == 0 && (num_y % lref) == 0,
+                  "For LOR_reconstruction, lref = order_im (=order_ho) + 1 must divide both num_x and num_y.");
+      int num_x_im = num_x / lref;
+      int num_y_im = num_y / lref;
+      mesh_im = Mesh::MakeCartesian2D(num_x_im, num_y_im, Element::QUADRILATERAL);
+      for (int i = 0; i < refinement_levels; i++)
+      {
+         mesh_im.UniformRefinement();
+      }
+      mesh_im.EnsureNCMesh();
+      mesh = Mesh::MakeRefined(mesh_im, lref, BasisType::ClosedUniform);
+   }
+   int dim = mesh.Dimension();
 
    // create FEM things
-   L2_FECollection fe_collection_averages(0, mesh.Dimension());
-   ParFiniteElementSpace fe_space_averages(&mesh, &fe_collection_averages);
-   ParGridFunction u_averages(&fe_space_averages);
 
-   L2_FECollection fe_collection_representation(order_representation, mesh.Dimension());
-   ParFiniteElementSpace fe_space_representation(&mesh, &fe_collection_representation);
-   ParGridFunction u(&fe_space_representation);
+   L2_FECollection fec_lo(order_lo, dim);
+   L2_FECollection fec_hi(order_ho, dim);
 
-   L2_FECollection fe_collection_reconstruction(order_reconstruction, mesh.Dimension());
-   ParFiniteElementSpace fe_space_reconstruction(&mesh, &fe_collection_reconstruction);
-   ParGridFunction u_reconstruction(&fe_space_reconstruction);
-   ParGridFunction u_reconstruction_averages(&fe_space_averages);
+   FiniteElementSpace fespace_lo(&mesh, &fec_lo);
+   FiniteElementSpace fespace_hi(&mesh, &fec_hi);
 
-   // compute element averages
-   u.ProjectCoefficient(u_coefficient);
-   u.GetElementAverages(u_averages);
+   GridFunction u_lo(&fespace_lo);
+   GridFunction u_hi(&fespace_hi);
 
-   // compute reconstruction
-   L2Reconstruction(u_averages, u_reconstruction);
+   if (reconstruction_method == "element_average_reconstruction")
+   {
+      L2_FECollection fec_exact(order_ho, dim);
+      FiniteElementSpace fespace_exact(&mesh, &fec_exact);
+
+      // Initialize u_lo with element averages of the exact solution
+      GridFunction u_exact(&fespace_exact);
+      u_exact.ProjectCoefficient(u_function_exact);
+      u_exact.GetElementAverages(u_lo);
+
+      // compute reconstruction
+      ElementAverageReconstruction(u_lo, u_hi);
+
+   }
+   else if (reconstruction_method == "LOR_reconstruction")
+   {
+
+      H1_FECollection fec_im(order_im,
+                             dim); // Both L2 and H1 give the same convergence.
+      FiniteElementSpace fespace_im(&mesh_im, &fec_im);
+      GridFunction u_im(&fespace_im);
+
+      BilinearForm M_lo(&fespace_lo);
+      M_lo.AddDomainIntegrator(new MassIntegrator);
+      M_lo.Assemble();
+      M_lo.Finalize();
+
+      BilinearForm M_im(&fespace_im);
+      M_im.AddDomainIntegrator(new MassIntegrator);
+      M_im.Assemble();
+      M_im.Finalize();
+
+      BilinearForm M_hi(&fespace_hi);
+      M_hi.AddDomainIntegrator(new MassIntegrator);
+      M_hi.Assemble();
+      M_hi.Finalize();
+
+      // Set up the right-hand side vector for the exact solution
+      LinearForm b_lo(&fespace_lo);
+      DomainLFIntegrator lf_integ(u_function_exact);
+      const IntegrationRule &ir_rhs = IntRules.Get(fespace_lo.GetFE(0)->GetGeomType(),
+                                                   order_ho+1);
+      lf_integ.SetIntRule(&ir_rhs);
+      b_lo.AddDomainIntegrator(&lf_integ);
+      b_lo.Assemble();
+
+      L2ProjectionGridTransfer gt1(fespace_im, fespace_lo);
+      L2ProjectionGridTransfer gt2(fespace_im, fespace_hi);
+
+      const Operator &P1 = gt1.BackwardOperator();   // Prolongation 1 (LO->IM)
+      const Operator &P2 = gt2.ForwardOperator();    // Prolongation 2 (IM->HO)
+
+      // STEP1: L2 projection of RHO onto u_lo
+      SparseMatrix &M_mat_lo = M_lo.SpMat();
+      CGSolver cg;
+      cg.SetOperator(M_mat_lo);
+      cg.SetRelTol(1e-16);
+      cg.SetMaxIter(1000);
+      cg.SetPrintLevel(0);
+      u_lo = 0.0;
+      cg.Mult(b_lo, u_lo); // Solve: M * u_lo = b_lo
+      u_lo.SetTrueVector();
+      u_lo.SetFromTrueVector();
+
+      // STEP2: Prolongation 1 (LO->IM)
+      P1.Mult(u_lo, u_im); // u_im = P1 * u_lo
+
+      // STEP3: Prolongation 2 (IM->HO)
+      P2.Mult(u_im, u_hi); // u_hi = P2 * u_im
+
+   }
 
    // evaluate reconstruction
-   u_reconstruction.GetElementAverages(u_reconstruction_averages);
    char vishost[] = "localhost";
-   socketstream glvis_original(vishost, visport);
-   socketstream glvis_averages(vishost, visport);
-   socketstream glvis_reconstruction_averages(vishost, visport);
-   socketstream glvis_reconstruction(vishost, visport);
-   if (glvis_original &&
-       glvis_averages &&
-       glvis_reconstruction_averages &&
-       glvis_reconstruction &&
-       visualization)
+   socketstream glvis_u_lo(vishost, visport);
+   socketstream glvis_u_hi(vishost, visport);
+   if (visualization && glvis_u_lo && glvis_u_hi)
    {
-      glvis_original.precision(8);
-      glvis_original << "solution\n" << mesh << u
-         << "window_title 'original'\n" << std::flush;
-      glvis_averages.precision(8);
-      glvis_averages << "solution\n" << mesh << u_averages
-         << "window_title 'averages'\n" << std::flush;
-      glvis_reconstruction.precision(8);
-      glvis_reconstruction << "solution\n" << mesh << u_reconstruction
-         << "window_title 'reconstruction'\n" << std::flush;
-      glvis_reconstruction.precision(8);
-      glvis_reconstruction_averages << "solution\n" << mesh << u_reconstruction_averages
-         << "window_title 'rec average'\n" << std::flush;
+      glvis_u_lo.precision(8);
+      glvis_u_lo << "solution\n" << mesh << u_lo
+                 << "window_title 'Low-order'\n" << std::flush;
+      glvis_u_hi.precision(8);
+      glvis_u_hi << "solution\n" << mesh << u_hi
+                 << "window_title 'High-order'\n" << std::flush;
    }
 
-   real_t error = u_reconstruction.ComputeL2Error(u_coefficient);
-   //subtract(u_reconstruction_averages, u_averages, diff);
-   ConstantCoefficient zeros(0.0);
-   real_t error_avg = 0.0;//diff.ComputeL2Error(zeros);
+   real_t error = u_hi.ComputeL2Error(u_function_exact);
 
-   Vector el_error(mesh.GetNE());
-   ConstantCoefficient ones(1.0);
-   GridFunction zero(&fe_space_reconstruction);
-   zero = 0.0;
-   zero.ComputeElementLpErrors(2.0, ones, el_error);
-   real_t hmax = el_error.Max();
-
-   if (Mpi::Root())
-   {
-      mfem::out << "\n|| Avg(Rec(u_h)) - u_h ||_{L^2} = " << error_avg
-                << std::endl;
-      mfem::out << "|| u_h - u ||_{L^2} = \n" << error << std::endl;
-   }
-
-   Mpi::Finalize();
+   mfem::out.precision(16);
+   mfem::out << "|| u_h - u ||_{L^2} = \n" << error << std::endl;
 
    return 0;
 }
@@ -196,11 +238,39 @@ void SaturateNeighborhood(NCMesh& mesh, const int element_idx,
    neighbors.Unique();
 }
 
-void L2Reconstruction(const ParGridFunction& src, ParGridFunction& dst)
+std::unordered_map<std::string, profile_t> GetFieldProfiles()
 {
-   const real_t RTOL = 1.0e-5;
+   std::unordered_map<std::string, profile_t> field_profiles;
+   // plane profile
+   field_profiles["plane"] =
+      [](const Vector &x, const Vector &k)
+   {
+      return 1.0 + x*k;
+   };
+   // sinusoidal profile
+   field_profiles["sinusoidal"] =
+      [](const Vector &x, const Vector &k)
+   {
+      real_t result = 1.0;
+      for (int i=0; i < x.Size(); i++) { result *= std::sin(2.0*M_PI*k(i)*x(i)); }
+      return result;
+   };
+   // exponential-sinusoidal profile
+   field_profiles["exponential"] =
+      [](const Vector &x, const Vector &k)
+   {
+      real_t result = 1.0;
+      for (int i=0; i < x.Size(); i++)
+      {
+         result *= std::exp(x.Norml2()) * std::sin(2.0*M_PI*k(i)*x(i));
+      }
+      return result;
+   };
+   return field_profiles;
+}
 
-   Mesh *mesh = dst.FESpace()->GetMesh();
+void ElementAverageReconstruction(const GridFunction& src, GridFunction& dst)
+{
    FiniteElementSpace *fes = dst.FESpace();
    NCMesh *ncmesh = fes->GetMesh()->ncmesh;
 
@@ -238,7 +308,8 @@ void L2Reconstruction(const ParGridFunction& src, ParGridFunction& dst)
       {
          const FiniteElement* neighbor_element = fes->GetFE(neighbor_element_idx);
          fes->GetElementTransformation(neighbor_element_idx, &neighbor_trans);
-         const real_t neighbor_average = src.GetValue(neighbor_element_idx, int_point_average);
+         const real_t neighbor_average = src.GetValue(neighbor_element_idx,
+                                                      int_point_average);
 
          // compute average of u over neighbor element (denoted alpha)
          Vector alpha(N);
@@ -257,7 +328,7 @@ void L2Reconstruction(const ParGridFunction& src, ParGridFunction& dst)
                InverseElementTransformation inv_trans(&trans);
                inv_trans.SetSolverType(inv_trans.Newton);
                inv_trans.SetInitialGuessType(inv_trans.Center);
-               inv_trans.SetPhysicalRelTol(1e-12);
+               inv_trans.SetPhysicalRelTol(1e3 * std::numeric_limits<real_t>::epsilon());
                IntegrationPoint inv_int_point;
                const int result = inv_trans.Transform(physical_point, inv_int_point);
                MFEM_VERIFY(result != inv_trans.Unknown, "InverseTransform failed.");
@@ -269,7 +340,7 @@ void L2Reconstruction(const ParGridFunction& src, ParGridFunction& dst)
             const real_t detJ = trans.Weight();
             alpha.Add(int_point.weight * detJ, shape);
             volume += int_point.weight * detJ;
-         }
+         } // k, int_rule.GetNPoints()
          alpha *= 1.0/volume;
          // DEBUG
          Vector tmp(2);
@@ -290,7 +361,7 @@ void L2Reconstruction(const ParGridFunction& src, ParGridFunction& dst)
          {
             for (int k=0; k < N; k++)
             {
-               A(k,N) = -alpha(k);
+               A(k,N) = alpha(k);
                A(N,k) = alpha(k);
             }
          }
@@ -298,12 +369,13 @@ void L2Reconstruction(const ParGridFunction& src, ParGridFunction& dst)
 
       Vector y(N+1);
       DenseMatrixInverse A_inverse(A);
-      A_inverse.Factor();
+      A_inverse.Factor(); // LU factorization
       A_inverse.Mult(b, y);
       // DEBUG
       if (std::abs(y(N)) > 1e-8 && false)
       {
-         mfem::out << "\nnumber of neighbors: " << neighbor_element_idxs.Size() << std::endl;
+         mfem::out << "\nnumber of neighbors: " << neighbor_element_idxs.Size() <<
+                   std::endl;
          mfem::out << "y: ";
          y.Print();
          DenseMatrix Q(N,N);
@@ -322,7 +394,7 @@ void L2Reconstruction(const ParGridFunction& src, ParGridFunction& dst)
          trans.Transform(int_point_average, tmp);
          mfem::out << "Current element: ";
          tmp.Print();
-         for (int i=0; i < alphas.size(); i++)
+         for (int i=0; i < (int)alphas.size(); i++)
          {
             mfem::out << "Neighbor element: ";
             centers[i].Print();
@@ -338,11 +410,12 @@ void L2Reconstruction(const ParGridFunction& src, ParGridFunction& dst)
       }
       const Vector x(y, 0, N);
       dst.SetSubVector(element_dofs, x);
-   }
+   } // element_idx
 }
 
 // TODO: Delete the remaining code if not used
 
+#ifdef MFEM_USE_MPI
 // Special integrator for the second derivative
 class MixedBidirectionalHessianIntegrator : public MixedScalarIntegrator
 {
@@ -503,4 +576,5 @@ void reconstructField(const ParGridFunction& src, ParGridFunction& dst)
    }
    dst.ExchangeFaceNbrData();
 }
+#endif
 
