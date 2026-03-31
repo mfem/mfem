@@ -135,7 +135,7 @@ int main(int argc, char* argv[])
       u_exact.GetElementAverages(u_lo);
 
       // compute reconstruction
-      L2Reconstruction(u_lo, u_hi);
+      ElementAverageReconstruction(u_lo, u_hi);
 
    }
    else if (reconstruction_method == "LOR_reconstruction")
