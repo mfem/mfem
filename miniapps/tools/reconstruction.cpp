@@ -29,7 +29,7 @@ int main(int argc, char* argv[])
    int refinement_levels = 0;
    int order_lo = 0;
    int order_ho = 3;
-   int order_im = 3; // itermediate order, only used for L2 projection method
+   int order_im = 3; // intermediate order, only used for LOR method
    int lref = order_im+1;
 
    std::string field_profile = "plane";
