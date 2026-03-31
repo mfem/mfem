@@ -1013,7 +1013,8 @@ public:
               POLOIDAL_SOL           = 13,
               POLOIDAL_MIN_TEMP      = 14,
               RHO_CORE               = 15,
-              INTERP_VALUE           = 16
+              INTERP_VALUE           = 16,
+              SIMP_SHEATH            = 17
              };
 
 private:
@@ -1036,7 +1037,7 @@ private:
    G_EQDSK_Data *eqdsk_;
    Interp_Data *interp_field_;
 
-   const int np_[17] = {1, 7, 9, 7, 4, 7, 3, 3, 3, 1, 11, 8, 8, 6, 2, 5,1};
+   const int np_[18] = {1, 7, 9, 7, 4, 7, 3, 3, 3, 1, 11, 8, 8, 6, 2, 5,1,1};
 
    mutable Vector xyz_; // 3D coordinate in computational mesh
    mutable Vector rz_;  // 2D coordinate in poloidal cross section
@@ -1077,7 +1078,8 @@ public:
               B_EQDSK_TOPDOWN  = 4,
               B_EQDSK_POLOIDAL = 5,
               B_TOR            = 6,
-              B_WHAM           = 7
+              B_WHAM           = 7,
+              B_R              = 8
              };
 
 private:
@@ -1090,7 +1092,7 @@ private:
 
    G_EQDSK_Data *eqdsk_;
 
-   const int np_[8] = {3, 7, 6, 8, 4, 1, 1, 2};
+   const int np_[9] = {3, 7, 6, 8, 4, 1, 1, 2, 3};
 
    // mutable Vector x3_; // Not currently used
    mutable Vector xyz_; // 3D coordinate in computational mesh

@@ -2468,7 +2468,6 @@ CPDSolver::GetElectronDissipation() const
    M4ei_->Mult(*Er_,*TMPie_);
    *RHSie_ += *TMPie_;
 
-   M4ei_->Mult(*Ei_,*RHSie_);
    elec_diss = InnerProduct(*Er_,*RHSre_) + InnerProduct(*Ei_,*RHSie_);
 
    return 0.5*elec_diss;

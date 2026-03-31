@@ -1861,6 +1861,9 @@ CPDSolverDH::Solve()
 
    a1_->FormLinearSystem(dbc_nd_tdofs_, *h_, *rhs1_, A1, H, RHS1);
 
+   tic_toc.Clear();
+   tic_toc.Start();
+
    ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
    HypreParMatrix * A1C = (sol_ != SolverType::ZMUMPS) ?
                           A1Z->GetSystemMatrix() : NULL;
