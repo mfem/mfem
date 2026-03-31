@@ -276,9 +276,8 @@ std::unordered_map<std::string, profile_t> GetFieldProfiles()
    return field_profiles;
 }
 
-void L2Reconstruction(const GridFunction& src, GridFunction& dst)
+void ElementAverageReconstruction(const GridFunction& src, GridFunction& dst)
 {
-   // Mesh *mesh = dst.FESpace()->GetMesh();
    FiniteElementSpace *fes = dst.FESpace();
    NCMesh *ncmesh = fes->GetMesh()->ncmesh;
 
