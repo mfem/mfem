@@ -502,6 +502,7 @@ enum BinaryOrASCII : bool
    BINARY = true
 };
 
+/// Enum for supported Gmsh mesh file versions.
 enum class GmshVersion { V2_2, V4_1 };
 
 /// Helper class for hashing std::pair of hashable types. Will not be needed
@@ -900,10 +901,7 @@ void Mesh::ReadGmsh4Mesh(GmshReader &g, istream &input)
    MFEM_VERIFY(g.data_size == sizeof(size_t), "Incompatible Gmsh mesh.");
 
    const auto b = g.is_binary;
-
    unordered_map<pair<int,int>, int, PairHash> entity_physical_tag;
-
-   vector<vector<int>> el_nodes;
 
    string section;
    do
@@ -1057,9 +1055,9 @@ void Mesh::ReadGmsh4Mesh(GmshReader &g, istream &input)
             const size_t n_nodes = g.ReadBinaryOrASCII<size_t>(b);
             for (size_t j = 0; j < n_nodes; ++j)
             {
-               const int node_num = g.ReadBinaryOrASCII<int>(b);
-               const int primary_node_num = g.ReadBinaryOrASCII<int>(b);
-               g.v2v[node_num - 1] = primary_node_num - 1;
+               const size_t node_num = g.ReadBinaryOrASCII<size_t>(b);
+               const size_t primary_node_num = g.ReadBinaryOrASCII<size_t>(b);
+               g.v2v[node_num - 1] = int(primary_node_num - 1);
             }
          }
       }
