@@ -14,30 +14,30 @@ if (MFEM_USE_MPI)
     MAIN stix1d.cpp
     EXTRA_SOURCES cold_plasma_dielectric_solver.cpp cold_plasma_dielectric_coefs.cpp g_eqdsk_data.cpp
     EXTRA_HEADERS cold_plasma_dielectric_solver.hpp cold_plasma_dielectric_coefs.hpp g_eqdsk_data.hpp plasma.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
-    LIBRARIES mfem mfem_miniapps_common)
+    LIBRARIES mfem mfem-common)
 
   add_mfem_miniapp(stix2d
     MAIN stix2d.cpp
-    EXTRA_SOURCES cold_plasma_dielectric_solver.cpp cold_plasma_dielectric_coefs.cpp g_eqdsk_data.cpp
-    EXTRA_HEADERS cold_plasma_dielectric_solver.hpp cold_plasma_dielectric_coefs.hpp g_eqdsk_data.hpp plasma.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
-    LIBRARIES mfem mfem_miniapps_common)
+    EXTRA_SOURCES cold_plasma_dielectric_solver.cpp cold_plasma_dielectric_coefs.cpp g_eqdsk_data.cpp interp_data.cpp
+    EXTRA_HEADERS cold_plasma_dielectric_solver.hpp cold_plasma_dielectric_coefs.hpp g_eqdsk_data.hpp interp_data.hpp plasma.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem mfem-common)
 
   add_mfem_miniapp(stix3d
     MAIN stix3d.cpp
-    EXTRA_SOURCES cold_plasma_dielectric_solver.cpp cold_plasma_dielectric_coefs.cpp g_eqdsk_data.cpp
-    EXTRA_HEADERS cold_plasma_dielectric_solver.hpp cold_plasma_dielectric_coefs.hpp g_eqdsk_data.hpp plasma.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
-    LIBRARIES mfem mfem_miniapps_common)
+    EXTRA_SOURCES cold_plasma_dielectric_solver.cpp cold_plasma_dielectric_coefs.cpp g_eqdsk_data.cpp interp_data.cpp
+    EXTRA_HEADERS cold_plasma_dielectric_solver.hpp cold_plasma_dielectric_coefs.hpp g_eqdsk_data.hpp interp_data.hpp plasma.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem mfem-common)
 
   add_mfem_miniapp(stix1d_dh
     MAIN stix1d_dh.cpp
     EXTRA_SOURCES cold_plasma_dielectric_solver.cpp cold_plasma_dielectric_coefs.cpp cold_plasma_dielectric_dh_solver.cpp g_eqdsk_data.cpp
     EXTRA_HEADERS cold_plasma_dielectric_solver.hpp cold_plasma_dielectric_coefs.hpp cold_plasma_dielectric_dh_solver.hpp g_eqdsk_data.hpp plasma.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
-    LIBRARIES mfem mfem_miniapps_common)
+    LIBRARIES mfem mfem-common)
 
   add_mfem_miniapp(stix2d_dh
     MAIN stix2d_dh.cpp
     EXTRA_SOURCES cold_plasma_dielectric_solver.cpp cold_plasma_dielectric_coefs.cpp cold_plasma_dielectric_dh_solver.cpp g_eqdsk_data.cpp
     EXTRA_HEADERS cold_plasma_dielectric_solver.hpp cold_plasma_dielectric_coefs.hpp cold_plasma_dielectric_dh_solver.hpp g_eqdsk_data.hpp plasma.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
-    LIBRARIES mfem mfem_miniapps_common)
+    LIBRARIES mfem mfem-common)
 
 endif()

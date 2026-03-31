@@ -34,6 +34,7 @@ return 3.0 * x[0] - 2.0 * x[1];
 */
 // Used for combining scalar coefficients
 //double prodFunc(double a, double b) { return a * b; }
+
 /*
 ElectricEnergyDensityCoef::ElectricEnergyDensityCoef(VectorCoefficient &Er,
                                                      VectorCoefficient &Ei,
@@ -2332,7 +2333,6 @@ void CPDSolverDH::computeE(const ParComplexGridFunction & d,
       if (myid_ == 0) 
          { 
             cout << "norm of E: " << nrme << endl; 
-            //cout << "Global Dissipation: " << global_diss << endl; 
          }
    }
 }

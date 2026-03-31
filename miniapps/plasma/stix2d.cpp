@@ -1715,8 +1715,8 @@ int main(int argc, char *argv[])
 
    // mu^-1 * Lambda^-1
 
-   MatrixProductCoefficient lambMu_real(invlambdaPML_real,muInvReCoef);
-   MatrixProductCoefficient lambMu_imag(invlambdaPML_imag,muInvReCoef);
+   MatrixProductCoefficient lambMu_real(muInvReCoef,invlambdaPML_real);
+   MatrixProductCoefficient lambMu_imag(muInvReCoef,invlambdaPML_imag);
 
    // (mu_PML)^-1 = Sigma * mu^-1 * Lambda^-1
 
@@ -1742,15 +1742,15 @@ int main(int argc, char *argv[])
    MultiStrapAntennaH HReStrapCoef(msa_n, msa_p, msa_c, true);
    MultiStrapAntennaH HImStrapCoef(msa_n, msa_p, msa_c, false);
 
-   MatrixComponentCoefficient exx_r(epsilonPML_real,0,0);
-   MatrixComponentCoefficient exy_r(epsilonPML_imag,0,1);
-   MatrixComponentCoefficient exz_r(epsilonPML_real,0,2);
-   MatrixComponentCoefficient eyx_r(epsilonPML_real,1,0);
-   MatrixComponentCoefficient eyy_r(epsilonPML_real,1,1);
-   MatrixComponentCoefficient eyz_r(epsilonPML_real,1,2);
-   MatrixComponentCoefficient ezx_r(epsilonPML_real,2,0);
-   MatrixComponentCoefficient ezy_r(epsilonPML_real,2,1);
-   MatrixComponentCoefficient ezz_r(epsilonPML_real,2,2);
+   MatrixComponentCoefficient exx_r(epsilon_real,0,0);
+   MatrixComponentCoefficient exy_r(epsilon_real,0,1);
+   MatrixComponentCoefficient exz_r(epsilon_real,0,2);
+   MatrixComponentCoefficient eyx_r(epsilon_real,1,0);
+   MatrixComponentCoefficient eyy_r(epsilon_real,1,1);
+   MatrixComponentCoefficient eyz_r(epsilon_real,1,2);
+   MatrixComponentCoefficient ezx_r(epsilon_real,2,0);
+   MatrixComponentCoefficient ezy_r(epsilon_real,2,1);
+   MatrixComponentCoefficient ezz_r(epsilon_real,2,2);
    exx_r_gf.ProjectCoefficient(exx_r);
    exy_r_gf.ProjectCoefficient(exy_r);
    exz_r_gf.ProjectCoefficient(exz_r);

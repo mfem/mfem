@@ -1051,7 +1051,7 @@ int main(int argc, char *argv[])
    if (dpp_def.Size() == 0)
    {
       dpp_def.SetSize(1);
-      dpp_def[0] = 1.0e19;
+      dpp_def[0] = 2.0e20;
    }
 
    if (nepp.Size() == 0)
@@ -1126,8 +1126,8 @@ int main(int argc, char *argv[])
                numbers[1] = dpp_def[0];
                break;
             default:
-               numbers[0] = 1.0e19;
-               numbers[1] = 1.0e19;
+               numbers[0] = 2.0e20;
+               numbers[1] = 2.0e20;
                break;
          }
       }
@@ -1152,9 +1152,9 @@ int main(int argc, char *argv[])
                numbers[2] = 0.5*dpp_def[0];
                break;
             default:
-               numbers[0] = 1.0e19;
-               numbers[1] = 0.5*1.0e19;
-               numbers[2] = 0.5*1.0e19;
+               numbers[0] = 2.0e20;
+               numbers[1] = 0.5*2.0e20;
+               numbers[2] = 0.5*2.0e20;
                break;
          }
       }
@@ -1189,9 +1189,9 @@ int main(int argc, char *argv[])
                numbers[2] = minority[2]*dpp_def[0];
                break;
             default:
-               numbers[0] = 1.0e19;
-               numbers[1] = (1.0-minority[0]*minority[2])*1.0e19;
-               numbers[2] = minority[2]*1.0e19;
+               numbers[0] = 2.0e20;
+               numbers[1] = (1.0-minority[0]*minority[2])*2.0e20;
+               numbers[2] = minority[2]*2.0e20;
                break;
          }
       }
@@ -1227,10 +1227,10 @@ int main(int argc, char *argv[])
                numbers[3] = minority[2]*dpp_def[0];
                break;
             default:
-               numbers[0] = 1.0e19;
-               numbers[1] = 0.5*(1.0-minority[0]*minority[2])*1.0e19;
-               numbers[2] = 0.5*(1.0-minority[0]*minority[2])*1.0e19;
-               numbers[3] = minority[2]*1.0e19;
+               numbers[0] = 2.0e20;
+               numbers[1] = 0.5*(1.0-minority[0]*minority[2])*2.0e20;
+               numbers[2] = 0.5*(1.0-minority[0]*minority[2])*2.0e20;
+               numbers[3] = minority[2]*2.0e20;
                break;
          }
       }
@@ -1278,7 +1278,7 @@ int main(int argc, char *argv[])
    if (Mpi::Root())
    {
       double lam0 = c0_ / freq;
-      double Bmag = 5.4; //BVec.Norml2();
+      double Bmag = 12.0; //BVec.Norml2();
       double kvecmag = kVec.Norml2();
       double Rval = 0.0;
       double Lval = 0.0;
@@ -1408,6 +1408,26 @@ int main(int argc, char *argv[])
    ParGridFunction nue_gf(&H1FESpace);
    ParGridFunction nui_gf(&H1FESpace);
    ParGridFunction iontemp_gf(&H1FESpace);
+
+   ParGridFunction exx_r_gf(&L2FESpace);
+   ParGridFunction exy_r_gf(&L2FESpace);
+   ParGridFunction exz_r_gf(&L2FESpace);
+   ParGridFunction eyx_r_gf(&L2FESpace);
+   ParGridFunction eyy_r_gf(&L2FESpace);
+   ParGridFunction eyz_r_gf(&L2FESpace);
+   ParGridFunction ezx_r_gf(&L2FESpace);
+   ParGridFunction ezy_r_gf(&L2FESpace);
+   ParGridFunction ezz_r_gf(&L2FESpace);
+
+   ParGridFunction exx_i_gf(&L2FESpace);
+   ParGridFunction exy_i_gf(&L2FESpace);
+   ParGridFunction exz_i_gf(&L2FESpace);
+   ParGridFunction eyx_i_gf(&L2FESpace);
+   ParGridFunction eyy_i_gf(&L2FESpace);
+   ParGridFunction eyz_i_gf(&L2FESpace);
+   ParGridFunction ezx_i_gf(&L2FESpace);
+   ParGridFunction ezy_i_gf(&L2FESpace);
+   ParGridFunction ezz_i_gf(&L2FESpace);
 
    G_EQDSK_Data *eqdsk = NULL;
    {
@@ -1877,6 +1897,44 @@ int main(int argc, char *argv[])
    MatrixSumCoefficient muPML_real(lamb_mu_invsig_real1,lamb_mu_invsig_real2,1.0,-1.0);
    MatrixSumCoefficient muPML_imag(lamb_mu_invsig_imag1,lamb_mu_invsig_imag2);
 
+   MatrixComponentCoefficient exx_r(epsilonInvPML_real,0,0);
+   MatrixComponentCoefficient exy_r(epsilonInvPML_real,0,1);
+   MatrixComponentCoefficient exz_r(epsilonInvPML_real,0,2);
+   MatrixComponentCoefficient eyx_r(epsilonInvPML_real,1,0);
+   MatrixComponentCoefficient eyy_r(epsilonInvPML_real,1,1);
+   MatrixComponentCoefficient eyz_r(epsilonInvPML_real,1,2);
+   MatrixComponentCoefficient ezx_r(epsilonInvPML_real,2,0);
+   MatrixComponentCoefficient ezy_r(epsilonInvPML_real,2,1);
+   MatrixComponentCoefficient ezz_r(epsilonInvPML_real,2,2);
+   exx_r_gf.ProjectCoefficient(exx_r);
+   exy_r_gf.ProjectCoefficient(exy_r);
+   exz_r_gf.ProjectCoefficient(exz_r);
+   eyx_r_gf.ProjectCoefficient(eyx_r);
+   eyy_r_gf.ProjectCoefficient(eyy_r);
+   eyz_r_gf.ProjectCoefficient(eyz_r);
+   ezx_r_gf.ProjectCoefficient(ezx_r);
+   ezy_r_gf.ProjectCoefficient(ezy_r);
+   ezz_r_gf.ProjectCoefficient(ezz_r);
+
+   MatrixComponentCoefficient exx_i(epsilonInvPML_imag,0,0);
+   MatrixComponentCoefficient exy_i(epsilonInvPML_imag,0,1);
+   MatrixComponentCoefficient exz_i(epsilonInvPML_imag,0,2);
+   MatrixComponentCoefficient eyx_i(epsilonInvPML_imag,1,0);
+   MatrixComponentCoefficient eyy_i(epsilonInvPML_imag,1,1);
+   MatrixComponentCoefficient eyz_i(epsilonInvPML_imag,1,2);
+   MatrixComponentCoefficient ezx_i(epsilonInvPML_imag,2,0);
+   MatrixComponentCoefficient ezy_i(epsilonInvPML_imag,2,1);
+   MatrixComponentCoefficient ezz_i(epsilonInvPML_imag,2,2);
+   exx_i_gf.ProjectCoefficient(exx_i);
+   exy_i_gf.ProjectCoefficient(exy_i);
+   exz_i_gf.ProjectCoefficient(exz_i);
+   eyx_i_gf.ProjectCoefficient(eyx_i);
+   eyy_i_gf.ProjectCoefficient(eyy_i);
+   eyz_i_gf.ProjectCoefficient(eyz_i);
+   ezx_i_gf.ProjectCoefficient(ezx_i);
+   ezy_i_gf.ProjectCoefficient(ezy_i);
+   ezz_i_gf.ProjectCoefficient(ezz_i);
+
    if (check_eps_inv)
    {
       DielectricTensor epsilon_real(BField, ktherm_gf, nue_gf, nui_gf,
@@ -2326,8 +2384,47 @@ int main(int argc, char *argv[])
       visit_dc.RegisterField("Electron_Density", &density_gf);
 
       //nue_gf *= 1/omega;
+      exx_r_gf *= epsilon0_;
+      exy_r_gf *= epsilon0_;
+      exz_r_gf *= epsilon0_;
+      eyx_r_gf *= epsilon0_;
+      eyy_r_gf *= epsilon0_;
+      eyz_r_gf *= epsilon0_;
+      ezx_r_gf *= epsilon0_;
+      ezy_r_gf *= epsilon0_;
+      ezz_r_gf *= epsilon0_;
+
+      exx_i_gf *= epsilon0_;
+      exy_i_gf *= epsilon0_;
+      exz_i_gf *= epsilon0_;
+      eyx_i_gf *= epsilon0_;
+      eyy_i_gf *= epsilon0_;
+      eyz_i_gf *= epsilon0_;
+      ezx_i_gf *= epsilon0_;
+      ezy_i_gf *= epsilon0_;
+      ezz_i_gf *= epsilon0_;
+
       visit_dc.RegisterField("Electron_Collisional_Profile", &nue_gf);
       visit_dc.RegisterField("Ion_Collisional_Profile", &nui_gf);
+      visit_dc.RegisterField("exx_r", &exx_r_gf);
+      visit_dc.RegisterField("exy_r", &exy_r_gf);
+      visit_dc.RegisterField("exz_r", &exz_r_gf);
+      visit_dc.RegisterField("eyx_r", &eyx_r_gf);
+      visit_dc.RegisterField("eyy_r", &eyy_r_gf);
+      visit_dc.RegisterField("eyz_r", &eyz_r_gf);
+      visit_dc.RegisterField("ezx_r", &ezx_r_gf);
+      visit_dc.RegisterField("ezy_r", &ezy_r_gf);
+      visit_dc.RegisterField("ezz_r", &ezz_r_gf);
+
+      visit_dc.RegisterField("exx_i", &exx_i_gf);
+      visit_dc.RegisterField("exy_i", &exy_i_gf);
+      visit_dc.RegisterField("exz_i", &exz_i_gf);
+      visit_dc.RegisterField("eyx_i", &eyx_i_gf);
+      visit_dc.RegisterField("eyy_i", &eyy_i_gf);
+      visit_dc.RegisterField("eyz_i", &eyz_i_gf);
+      visit_dc.RegisterField("ezx_i", &ezx_i_gf);
+      visit_dc.RegisterField("ezy_i", &ezy_i_gf);
+      visit_dc.RegisterField("ezz_i", &ezz_i_gf);
 
       //visit_dc.RegisterField("Min_Ion_Temp", &iontemp_gf);
 
