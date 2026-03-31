@@ -24,11 +24,11 @@ std::unordered_map<std::string, profile_t> GetFieldProfiles();
 int main(int argc, char* argv[])
 {
    // Default command-line options
-   std::string lor_method = "element_average_reconstruction";
+   std::string reconstruction_method = "element_average_reconstruction";
    int refinement_levels = 0;
    int order_lo = 0;
    int order_ho = 3;
-   int order_im = 3; // intermediate order, only used for LOR method
+   int order_im = 3; // intermediate order, only used for LOR reconstruction method
    int lref = order_im+1;
 
    std::string field_profile = "plane";
@@ -49,8 +49,8 @@ int main(int argc, char* argv[])
 
    // Parse options
    OptionsParser args(argc, argv);
-   args.AddOption(&lor_method, "-m", "--method",
-                  "LOR method: \"element_average_reconstruction\" or \"l2_projection\".");
+   args.AddOption(&reconstruction_method, "-m", "--method",
+                  "Reconstruction method: \"element_average_reconstruction\" or \"LOR_reconstruction\".");
    args.AddOption(&refinement_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&order_ho, "-ho", "--order_ho",
@@ -81,9 +81,9 @@ int main(int argc, char* argv[])
    const int num_x = 8;
    const int num_y = 8;
 
-   std::cout << "LOR method: " << lor_method << std::endl;
+   std::cout << "reconstruction method: " << reconstruction_method << std::endl;
 
-   if (lor_method == "element_average_reconstruction")
+   if (reconstruction_method == "element_average_reconstruction")
    {
 
       mesh = Mesh::MakeCartesian2D(num_x, num_y, Element::QUADRILATERAL);
@@ -94,13 +94,13 @@ int main(int argc, char* argv[])
       mesh.EnsureNCMesh();
 
    }
-   else if (lor_method == "l2_projection")
+   else if (reconstruction_method == "LOR_reconstruction")
    {
 
       order_im = order_ho;
       lref = order_im + 1;
       MFEM_VERIFY((num_x % lref) == 0 && (num_y % lref) == 0,
-                  "For l2_projection, lref = order_im (=order_ho) + 1 must divide both num_x and num_y.");
+                  "For LOR_reconstruction, lref = order_im (=order_ho) + 1 must divide both num_x and num_y.");
       int num_x_im = num_x / lref;
       int num_y_im = num_y / lref;
       mesh_im = Mesh::MakeCartesian2D(num_x_im, num_y_im, Element::QUADRILATERAL);
@@ -124,7 +124,7 @@ int main(int argc, char* argv[])
    GridFunction u_lo(&fespace_lo);
    GridFunction u_hi(&fespace_hi);
 
-   if (lor_method == "element_average_reconstruction")
+   if (reconstruction_method == "element_average_reconstruction")
    {
       L2_FECollection fec_exact(order_ho, dim);
       FiniteElementSpace fespace_exact(&mesh, &fec_exact);
@@ -138,7 +138,7 @@ int main(int argc, char* argv[])
       L2Reconstruction(u_lo, u_hi);
 
    }
-   else if (lor_method == "l2_projection")
+   else if (reconstruction_method == "LOR_reconstruction")
    {
 
       H1_FECollection fec_im(order_im,
