@@ -44,11 +44,20 @@ void call_qfunction(
 {
    if (use_sum_factorization)
    {
-      if (dimension == 2)
+      if (dimension == 1)
       {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(q, x, q1d)
          {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
+            auto qf_args = decay_tuple<qf_param_ts> {};
+            auto r = Reshape(&residual_shmem(0, q), rs_qp);
+            apply_kernel(r, qfunc, qf_args, input_shmem, q);
+         }
+      }
+      else if (dimension == 2)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
             {
                const int q = qx + q1d * qy;
                auto qf_args = decay_tuple<qf_param_ts> {};
@@ -59,11 +68,11 @@ void call_qfunction(
       }
       else if (dimension == 3)
       {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
          {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
             {
-               MFEM_FOREACH_THREAD(qz, z, q1d)
+               MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
                {
                   const int q = qx + q1d * (qy + q1d * qz);
                   auto qf_args = decay_tuple<qf_param_ts> {};
@@ -83,7 +92,7 @@ void call_qfunction(
    }
    else
    {
-      MFEM_FOREACH_THREAD(q, x, num_qp)
+      MFEM_FOREACH_THREAD_DIRECT(q, x, num_qp)
       {
          auto qf_args = decay_tuple<qf_param_ts> {};
          auto r = Reshape(&residual_shmem(0, q), rs_qp);
@@ -123,11 +132,26 @@ void call_qfunction_derivative_action(
 {
    if (use_sum_factorization)
    {
-      if (dimension == 2)
+      if (dimension == 1)
       {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(q, x, q1d)
          {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
+            auto r = Reshape(&residual_shmem(0, q), das_qp);
+            auto qf_args = decay_tuple<qf_param_ts> {};
+#ifdef MFEM_USE_ENZYME
+            auto qf_shadow_args = decay_tuple<qf_param_ts> {};
+            apply_kernel_fwddiff_enzyme(r, qfunc, qf_args, qf_shadow_args, input_shmem,
+                                        shadow_shmem, q);
+#else
+            apply_kernel_native_dual(r, qfunc, qf_args, input_shmem, shadow_shmem, q);
+#endif
+         }
+      }
+      else if (dimension == 2)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
             {
                const int q = qx + q1d * qy;
                auto r = Reshape(&residual_shmem(0, q), das_qp);
@@ -144,11 +168,11 @@ void call_qfunction_derivative_action(
       }
       else if (dimension == 3)
       {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
          {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
             {
-               MFEM_FOREACH_THREAD(qz, z, q1d)
+               MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
                {
                   const int q = qx + q1d * (qy + q1d * qz);
                   auto r = Reshape(&residual_shmem(0, q), das_qp);
@@ -164,11 +188,14 @@ void call_qfunction_derivative_action(
             }
          }
       }
-      MFEM_SYNC_THREAD;
+      else
+      {
+         MFEM_ABORT_KERNEL("unsupported dimension");
+      }
    }
    else
    {
-      MFEM_FOREACH_THREAD(q, x, num_qp)
+      MFEM_FOREACH_THREAD_DIRECT(q, x, num_qp)
       {
          auto r = Reshape(&residual_shmem(0, q), das_qp);
          auto qf_args = decay_tuple<qf_param_ts> {};
@@ -180,7 +207,301 @@ void call_qfunction_derivative_action(
          apply_kernel_native_dual(r, qfunc, qf_args, input_shmem, shadow_shmem, q);
 #endif
       }
-      MFEM_SYNC_THREAD;
+   }
+   MFEM_SYNC_THREAD;
+}
+
+namespace detail
+{
+template <
+   typename qf_param_ts,
+   typename qfunc_t,
+   std::size_t num_fields>
+MFEM_HOST_DEVICE inline
+void call_qfunction_derivative(
+   qfunc_t &qfunc,
+   const std::array<DeviceTensor<2>, num_fields> &input_shmem,
+   const std::array<DeviceTensor<2>, num_fields> &shadow_shmem,
+   DeviceTensor<2> &residual_shmem,
+   DeviceTensor<5> &qpdc,
+   const DeviceTensor<1, const real_t> &itod,
+   const int &das_qp,
+   const int &q)
+{
+   const int test_vdim = qpdc.GetShape()[0];
+   const int test_op_dim = qpdc.GetShape()[1];
+   const int trial_vdim = qpdc.GetShape()[2];
+   const int num_qp = qpdc.GetShape()[4];
+   const size_t num_inputs = itod.GetShape()[0];
+
+   for (int j = 0; j < trial_vdim; j++)
+   {
+      int m_offset = 0;
+      for (size_t s = 0; s < num_inputs; s++)
+      {
+         const int trial_op_dim = static_cast<int>(itod(s));
+         if (trial_op_dim == 0)
+         {
+            continue;
+         }
+
+         auto d_qp = Reshape(&(shadow_shmem[s])[0], trial_vdim, trial_op_dim, num_qp);
+         for (int m = 0; m < trial_op_dim; m++)
+         {
+            d_qp(j, m, q) = 1.0;
+
+            auto r = Reshape(&residual_shmem(0, q), das_qp);
+            auto qf_args = decay_tuple<qf_param_ts> {};
+#ifdef MFEM_USE_ENZYME
+            auto qf_shadow_args = decay_tuple<qf_param_ts> {};
+            apply_kernel_fwddiff_enzyme(r, qfunc, qf_args, qf_shadow_args, input_shmem,
+                                        shadow_shmem, q);
+#else
+            apply_kernel_native_dual(r, qfunc, qf_args, input_shmem, shadow_shmem, q);
+#endif
+            d_qp(j, m, q) = 0.0;
+
+            auto f = Reshape(&r(0), test_vdim, test_op_dim);
+            for (int i = 0; i < test_vdim; i++)
+            {
+               for (int k = 0; k < test_op_dim; k++)
+               {
+                  qpdc(i, k, j, m + m_offset, q) = f(i, k);
+               }
+            }
+         }
+         m_offset += trial_op_dim;
+      }
+   }
+}
+}
+
+/// @brief Call a qfunction with the given parameters and
+/// compute it's derivative represented by the Jacobian on
+/// each quadrature point.
+///
+/// @param qfunc the qfunction to call.
+/// @param input_shmem the input shared memory.
+/// @param shadow_shmem the shadow shared memory.
+/// @param residual_shmem the residual shared memory.
+/// @param qpdc the quadrature point data cache holding the resulting
+/// Jacobians on each quadrature point.
+/// @param itod inputs trial operator dimension.
+/// If input is dependent the value corresponds to the spatial dimension, otherwise
+/// a zero indicates non-dependence on the variable.
+/// @param das_qp the size of the derivative action.
+/// @param q1d the number of quadrature points in 1D.
+/// @param dimension the spatial dimension.
+/// @param use_sum_factorization whether to use sum factorization.
+/// @tparam qf_param_ts the tuple type of the qfunction parameters.
+template <
+   typename qf_param_ts,
+   typename qfunc_t,
+   std::size_t num_fields>
+MFEM_HOST_DEVICE inline
+void call_qfunction_derivative(
+   qfunc_t &qfunc,
+   const std::array<DeviceTensor<2>, num_fields> &input_shmem,
+   const std::array<DeviceTensor<2>, num_fields> &shadow_shmem,
+   DeviceTensor<2> &residual_shmem,
+   DeviceTensor<5> &qpdc,
+   const DeviceTensor<1, const real_t> &itod,
+   const int &das_qp,
+   const int &q1d,
+   const int &dimension,
+   const bool &use_sum_factorization)
+{
+   if (use_sum_factorization)
+   {
+      if (dimension == 1)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(q, x, q1d)
+         {
+            detail::call_qfunction_derivative<qf_param_ts>(
+               qfunc, input_shmem, shadow_shmem, residual_shmem, qpdc, itod, das_qp, q);
+         }
+      }
+      else if (dimension == 2)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+            {
+               const int q = qx + q1d * qy;
+               detail::call_qfunction_derivative<qf_param_ts>(
+                  qfunc, input_shmem, shadow_shmem, residual_shmem, qpdc, itod, das_qp, q);
+            }
+         }
+      }
+      else if (dimension == 3)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
+               {
+                  const int q = qx + q1d * (qy + q1d * qz);
+                  detail::call_qfunction_derivative<qf_param_ts>(
+                     qfunc, input_shmem, shadow_shmem, residual_shmem, qpdc, itod, das_qp, q);
+               }
+            }
+         }
+      }
+      else
+      {
+         MFEM_ABORT_KERNEL("unsupported dimension");
+      }
+   }
+   else
+   {
+      const int num_qp = qpdc.GetShape()[4];
+      MFEM_FOREACH_THREAD_DIRECT(q, x, num_qp)
+      {
+         detail::call_qfunction_derivative<qf_param_ts>(
+            qfunc, input_shmem, shadow_shmem, residual_shmem, qpdc, itod, das_qp, q);
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+namespace detail
+{
+
+/// @brief Apply the quadrature point data cache (qpdc) to a vector
+/// (usually a direction) on quadrature point q.
+///
+/// The qpdc consists of compatible data to be used for integration with a test
+/// operator, e.g. Jacobians of a linearization from a FE operation with a trial
+/// function including integration weights and necessesary transformations.
+///
+/// @param fhat the qpdc applied to a vector in shadow_memory.
+/// @param shadow_shmem the shadow shared memory.
+/// @param qpdc the quadrature point data cache holding the resulting
+/// Jacobians on each quadrature point.
+/// @param itod inputs trial operator dimension.
+/// If input is dependent the value corresponds to the spatial dimension, otherwise
+/// a zero indicates non-dependence on the variable.
+/// @param q the current quadrature point index.
+template <size_t num_fields>
+MFEM_HOST_DEVICE inline
+void apply_qpdc(
+   DeviceTensor<3> &fhat,
+   const std::array<DeviceTensor<2>, num_fields> &shadow_shmem,
+   const DeviceTensor<5, const real_t> &qpdc,
+   const DeviceTensor<1, const real_t> &itod,
+   const int &q)
+{
+   const int test_vdim = qpdc.GetShape()[0];
+   const int test_op_dim = qpdc.GetShape()[1];
+   const int trial_vdim = qpdc.GetShape()[2];
+   const int num_qp = qpdc.GetShape()[4];
+   const size_t num_inputs = itod.GetShape()[0];
+
+   for (int i = 0; i < test_vdim; i++)
+   {
+      for (int k = 0; k < test_op_dim; k++)
+      {
+         real_t sum = 0.0;
+         int m_offset = 0;
+         for (size_t s = 0; s < num_inputs; s++)
+         {
+            const int trial_op_dim = static_cast<int>(itod(s));
+            if (trial_op_dim == 0)
+            {
+               continue;
+            }
+            const auto d_qp =
+               Reshape(&(shadow_shmem[s])[0], trial_vdim, trial_op_dim, num_qp);
+            for (int j = 0; j < trial_vdim; j++)
+            {
+               for (int m = 0; m < trial_op_dim; m++)
+               {
+                  sum += qpdc(i, k, j, m + m_offset, q) * d_qp(j, m, q);
+               }
+            }
+            m_offset += trial_op_dim;
+         }
+         fhat(i, k, q) = sum;
+      }
+   }
+}
+}
+
+/// @brief Apply the quadrature point data cache (qpdc) to a vector
+/// (usually a direction).
+///
+/// The qpdc consists of compatible data to be used for integration with a test
+/// operator, e.g. Jacobians of a linearization from a FE operation with a trial
+/// function including integration weights and necessesary transformations.
+///
+/// @param fhat the qpdc applied to a vector in shadow_memory.
+/// @param shadow_shmem the shadow shared memory.
+/// @param qpdc the quadrature point data cache holding the resulting
+/// Jacobians on each quadrature point.
+/// @param itod inputs trial operator dimension.
+/// If input is dependent the value corresponds to the spatial dimension, otherwise
+/// a zero indicates non-dependence on the variable.
+/// @param q1d number of quadrature points in 1D.
+/// @param dimension spatial dimension.
+/// @param use_sum_factorization whether to use sum factorization.
+template <size_t num_fields>
+MFEM_HOST_DEVICE inline
+void apply_qpdc(
+   DeviceTensor<3> &fhat,
+   const std::array<DeviceTensor<2>, num_fields> &shadow_shmem,
+   const DeviceTensor<5, const real_t> &qpdc,
+   const DeviceTensor<1, const real_t> &itod,
+   const int &q1d,
+   const int &dimension,
+   const bool &use_sum_factorization)
+{
+   if (use_sum_factorization)
+   {
+      if (dimension == 1)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(q, x, q1d)
+         {
+            detail::apply_qpdc(fhat, shadow_shmem, qpdc, itod, q);
+         }
+      }
+      else if (dimension == 2)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+            {
+               const int q = qx + q1d * qy;
+               detail::apply_qpdc(fhat, shadow_shmem, qpdc, itod, q);
+            }
+         }
+      }
+      else if (dimension == 3)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
+               {
+                  const int q = qx + q1d * (qy + q1d * qz);
+                  detail::apply_qpdc(fhat, shadow_shmem, qpdc, itod, q);
+               }
+            }
+         }
+      }
+      else
+      {
+         MFEM_ABORT_KERNEL("unsupported dimension");
+      }
+   }
+   else
+   {
+      const int num_qp = qpdc.GetShape()[4];
+      MFEM_FOREACH_THREAD_DIRECT(q, x, num_qp)
+      {
+         detail::apply_qpdc(fhat, shadow_shmem, qpdc, itod, q);
+      }
    }
 }
 
