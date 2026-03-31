@@ -2351,8 +2351,8 @@ public:
    template <int DIM, int D1D, int Q1D>
    static void AddSpecialization()
    {
-      ApplyPAKernels::Specialization<DIM,D1D,Q1D>::Add();
-      DiagonalPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+      ApplyPAKernels::Add<DIM,D1D,Q1D>();
+      DiagonalPAKernels::Add<DIM,D1D,Q1D>();
    }
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(
@@ -2451,8 +2451,8 @@ public:
    template <int DIM, int D1D, int Q1D>
    static void AddSpecialization()
    {
-      ApplyPAKernels::Specialization<DIM,D1D,Q1D>::Add();
-      DiagonalPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+      ApplyPAKernels::Add<DIM,D1D,Q1D>();
+      DiagonalPAKernels::Add<DIM,D1D,Q1D>();
    }
 
 protected:
@@ -2546,8 +2546,8 @@ public:
    template <int DIM, int D1D, int Q1D>
    static void AddSpecialization()
    {
-      ApplyPAKernels::Specialization<DIM, D1D, Q1D>::Add();
-      ApplyPATKernels::Specialization<DIM, D1D, Q1D>::Add();
+      ApplyPAKernels::Add<DIM, D1D, Q1D>();
+      ApplyPATKernels::Add<DIM, D1D, Q1D>();
    }
 
    struct Kernels { Kernels(); };
@@ -2892,8 +2892,8 @@ public:
 
    template <int DIM, int D1D, int Q1D> static void AddSpecialization()
    {
-      ApplyPAKernels::Specialization<DIM, D1D, Q1D>::Add();
-      DiagonalPAKernels::Specialization<DIM, D1D, Q1D>::Add();
+      ApplyPAKernels::Add<DIM, D1D, Q1D>();
+      DiagonalPAKernels::Add<DIM, D1D, Q1D>();
    }
 };
 
@@ -3219,7 +3219,7 @@ public:
    template <int DIM, int VDIM, int D1D, int Q1D>
    static void AddSpecialization()
    {
-      ApplyPAKernels::Specialization<DIM, VDIM, D1D, Q1D>::Add();
+      ApplyPAKernels::Add<DIM, VDIM, D1D, Q1D>();
    }
 
    // struct Kernels { Kernels(); };
@@ -3451,8 +3451,8 @@ public:
 
    template <int DIM, int D1D, int Q1D> static void AddSpecialization()
    {
-      ApplyPAKernels::Specialization<DIM, D1D, Q1D>::Add();
-      ApplyPATKernels::Specialization<DIM, D1D, Q1D>::Add();
+      ApplyPAKernels::Add<DIM, D1D, Q1D>();
+      ApplyPATKernels::Add<DIM, D1D, Q1D>();
    }
 
    struct Kernels { Kernels(); };
@@ -3560,7 +3560,7 @@ public:
 
    template <int DIM, int D1D, int Q1D> static void AddSpecialization()
    {
-      ApplyPAKernels::Specialization<DIM, D1D, Q1D>::Add();
+      ApplyPAKernels::Add<DIM, D1D, Q1D>();
    }
 
    struct Kernels { Kernels(); };

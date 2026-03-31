@@ -86,52 +86,52 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 static void AddKernelSpecializations()
 {
    using DET = QuadratureInterpolator::DetKernels;
-   DET::Specialization<3, 3, 2, 2>::Add();
-   DET::Specialization<3, 3, 2, 3>::Add();
-   DET::Specialization<3, 3, 2, 5>::Add();
-   DET::Specialization<3, 3, 2, 6>::Add();
-   DET::Specialization<3, 3, 5, 5>::Add();
+   QuadratureInterpolator::DetKernels::Add<3, 3, 2, 2>();
+   QuadratureInterpolator::DetKernels::Add<3, 3, 2, 3>();
+   QuadratureInterpolator::DetKernels::Add<3, 3, 2, 5>();
+   QuadratureInterpolator::DetKernels::Add<3, 3, 2, 6>();
+   QuadratureInterpolator::DetKernels::Add<3, 3, 5, 5>();
    // Others might exceed memory limits
    // DET::Specialization<3, 3, 2, 7>::Add(); // uses too much shared data
 
    using GRAD = QuadratureInterpolator::GradKernels;
-   GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 2>::Add();
-   GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 7>::Add();
-   GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 8>::Add();
-   GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 9>::Add();
+   GRAD::Add<3, QVectorLayout::byNODES, false, 3, 2, 2>();
+   GRAD::Add<3, QVectorLayout::byNODES, false, 3, 2, 7>();
+   GRAD::Add<3, QVectorLayout::byNODES, false, 3, 2, 8>();
+   GRAD::Add<3, QVectorLayout::byNODES, false, 3, 2, 9>();
 
-   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 3>::Add();
-   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 4>::Add();
-   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 5>::Add();
-   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 6>::Add();
-   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 7>::Add();
-   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 8>::Add();
+   GRAD::Add<3, QVectorLayout::byVDIM, false, 3, 2, 3>();
+   GRAD::Add<3, QVectorLayout::byVDIM, false, 3, 2, 4>();
+   GRAD::Add<3, QVectorLayout::byVDIM, false, 3, 2, 5>();
+   GRAD::Add<3, QVectorLayout::byVDIM, false, 3, 2, 6>();
+   GRAD::Add<3, QVectorLayout::byVDIM, false, 3, 2, 7>();
+   GRAD::Add<3, QVectorLayout::byVDIM, false, 3, 2, 8>();
 
-   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 1, 2, 3>::Add();
-   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 1, 4, 5>::Add();
-   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 1, 5, 6>::Add();
-   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 1, 6, 7>::Add();
-   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 1, 7, 8>::Add();
+   GRAD::Add<3, QVectorLayout::byVDIM, false, 1, 2, 3>();
+   GRAD::Add<3, QVectorLayout::byVDIM, false, 1, 4, 5>();
+   GRAD::Add<3, QVectorLayout::byVDIM, false, 1, 5, 6>();
+   GRAD::Add<3, QVectorLayout::byVDIM, false, 1, 6, 7>();
+   GRAD::Add<3, QVectorLayout::byVDIM, false, 1, 7, 8>();
 
    using GRAD_TRANSPOSE = QuadratureInterpolator::GradTransposeKernels;
-   GRAD_TRANSPOSE::Specialization<3, QVectorLayout::byVDIM, false, 1,2,3>::Add();
-   GRAD_TRANSPOSE::Specialization<3, QVectorLayout::byVDIM, false, 1,4,5>::Add();
-   GRAD_TRANSPOSE::Specialization<3, QVectorLayout::byVDIM, false, 1,5,6>::Add();
-   GRAD_TRANSPOSE::Specialization<3, QVectorLayout::byVDIM, false, 1,6,7>::Add();
-   GRAD_TRANSPOSE::Specialization<3, QVectorLayout::byVDIM, false, 1,7,8>::Add();
+   GRAD_TRANSPOSE::Add<3, QVectorLayout::byVDIM, false, 1,2,3>();
+   GRAD_TRANSPOSE::Add<3, QVectorLayout::byVDIM, false, 1,4,5>();
+   GRAD_TRANSPOSE::Add<3, QVectorLayout::byVDIM, false, 1,5,6>();
+   GRAD_TRANSPOSE::Add<3, QVectorLayout::byVDIM, false, 1,6,7>();
+   GRAD_TRANSPOSE::Add<3, QVectorLayout::byVDIM, false, 1,7,8>();
 
    using LIN = DomainLFIntegrator::AssembleKernels;
-   LIN::Specialization<3, 7, 7>::Add();
-   LIN::Specialization<3, 6, 6>::Add();
-   LIN::Specialization<3, 8, 8>::Add();
+   LIN::Add<3, 7, 7>();
+   LIN::Add<3, 6, 6>();
+   LIN::Add<3, 8, 8>();
 
    using VDIFF = VectorDiffusionIntegrator::ApplyPAKernels;
-   VDIFF::Specialization<3, 3, 3, 3>::Add();
-   VDIFF::Specialization<3, 3, 4, 4>::Add();
-   VDIFF::Specialization<3, 3, 5, 5>::Add();
-   VDIFF::Specialization<3, 3, 6, 6>::Add();
-   VDIFF::Specialization<3, 3, 7, 7>::Add();
-   VDIFF::Specialization<3, 3, 8, 8>::Add();
+   VDIFF::Add<3, 3, 3, 3>();
+   VDIFF::Add<3, 3, 4, 4>();
+   VDIFF::Add<3, 3, 5, 5>();
+   VDIFF::Add<3, 3, 6, 6>();
+   VDIFF::Add<3, 3, 7, 7>();
+   VDIFF::Add<3, 3, 8, 8>();
 }
 
 /// Globals ///////////////////////////////////////////////////////////////////
@@ -151,13 +151,13 @@ public:
    {
       dbg();
       NVTX();
-      StiffnessKernels::Specialization<2, 3>::Add();
-      StiffnessKernels::Specialization<3, 4>::Add();
-      StiffnessKernels::Specialization<4, 5>::Add();
-      StiffnessKernels::Specialization<5, 6>::Add();
-      StiffnessKernels::Specialization<6, 7>::Add();
-      StiffnessKernels::Specialization<7, 8>::Add();
-      StiffnessKernels::Specialization<9, 10>::Add();
+      StiffnessKernels::Add<2, 3>();
+      StiffnessKernels::Add<3, 4>();
+      StiffnessKernels::Add<4, 5>();
+      StiffnessKernels::Add<5, 6>();
+      StiffnessKernels::Add<6, 7>();
+      StiffnessKernels::Add<7, 8>();
+      StiffnessKernels::Add<9, 10>();
    }
 
    void AssemblePA(const FiniteElementSpace &fespace) override
@@ -303,7 +303,9 @@ StiffnessIntegrator::StiffnessKernelType
 StiffnessIntegrator::StiffnessKernels::Fallback(int d1d, int q1d)
 {
    dbg("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
-   return StiffnessMult<>;
+   MFEM_ABORT("No kernel for D1D=" << d1d << " Q1D=" << q1d);
+   return (StiffnessIntegrator::StiffnessKernelType) nullptr;
+   // return StiffnessMult<2, 2>;
 }
 
 /// BakeOff ///////////////////////////////////////////////////////////////////
@@ -374,7 +376,7 @@ struct BakeOff
       assert(q1d*q1d*q1d == ir->GetNPoints());
    }
 
-   virtual void benchmark() = 0;
+   virtual void Benchmark() { MFEM_ABORT("Not implemented."); }
 
    double SumMdofs() const { return mdofs; }
 
@@ -425,7 +427,7 @@ struct PAApply
 {
    void operator()(tensor_array<const real_t, DIM> &Gu,
                    tensor_array<const real_t, DIM, DIM> &D,
-                   tensor_array<const real_t> &weight,
+                   tensor_array<const real_t> &/*weight*/,
                    tensor_array<real_t, DIM> &Gv) const
    {
       NVTX_MARK_FUNCTION;
@@ -434,7 +436,7 @@ struct PAApply
 };
 
 /// Diffusion /////////////////////////////////////////////////////////////////
-template <int VDIM = 1, bool GLL = false>
+template <int VDIM /*= 1*/, bool GLL /*= false*/>
 struct Diffusion : public BakeOff<VDIM, GLL>
 {
    static constexpr int DIM = 3;
@@ -455,8 +457,9 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       const std::unique_ptr<DifferentiableOperator> &dop;
       Vector &arg1;
 
-      WrapOpArg1(const std::unique_ptr<DifferentiableOperator> &dop, Vector &arg1):
-         Operator(dop->Height(), dop->Width()), dop(dop), arg1(arg1) { }
+      WrapOpArg1(const std::unique_ptr<DifferentiableOperator> &dop,
+                 const int height, const int width, Vector &arg1):
+         Operator(height, width), dop(dop), arg1(arg1) { }
 
       void Mult(const Vector &x, Vector &y) const override
       {
@@ -531,7 +534,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
                                   tuple{Gradient<U>{}},
                                   *ir, ess_bdr);
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
-         wop = std::make_unique<WrapOpArg1>(dop, nodes);
+         wop = std::make_unique<WrapOpArg1>(dop, height, width, nodes);
          wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
       }
@@ -563,7 +566,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
                                   tuple{Gradient<U>{}},
                                   *ir, ess_bdr);
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
-         wop = std::make_unique<WrapOpArg1>(dop, qdata);
+         wop = std::make_unique<WrapOpArg1>(dop, height, width, qdata);
          wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
       }
@@ -587,11 +590,11 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       cg.SetRelTol(rtol);
       cg.SetMaxIter(max_it);
       cg.SetPrintLevel(print_lvl);
-      benchmark();
+      Benchmark();
       mdofs = 0.0;
    }
 
-   void benchmark() override
+   void Benchmark() override
    {
       cg.Mult(B, X);
       MFEM_DEVICE_SYNC;
@@ -600,14 +603,14 @@ struct Diffusion : public BakeOff<VDIM, GLL>
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-#define BakeOff_Problem(i, Problem)                                  \
+#define BakeOff_Problem(i)                                           \
    static void BP##i(bm::State &state)                               \
    {                                                                 \
       const auto version = static_cast<int>(state.range(0));         \
       const auto order = static_cast<int>(state.range(1));           \
       const auto side = static_cast<int>(state.range(2));            \
-      Problem ker(version, order, side);                             \
-      while (state.KeepRunning()) { ker.benchmark(); }               \
+      Diffusion<1,false> ker(version, order, side);                  \
+      while (state.KeepRunning()) { ker.Benchmark(); }               \
       bm::Counter::Flags flags = bm::Counter::kIsRate;               \
       state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), flags); \
       state.counters["Dofs"] = bm::Counter(ker.dofs);                \
@@ -618,7 +621,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       ->Apply(CustomArguments)                                       \
       ->Unit(bm::kMillisecond)
 
-BakeOff_Problem(3, Diffusion);
+BakeOff_Problem(3);
 
 /// info //////////////////////////////////////////////////////////////////////
 void info()
@@ -662,7 +665,7 @@ int main(int argc, char *argv[])
 
    if (bm::ReportUnrecognizedArguments(argc, argv)) { return EXIT_FAILURE; }
 
-   bm::RunSpecifiedBenchmarks(&CR);
+   bm::RunSpecifiedBenchmarks((bm::BenchmarkReporter*)&CR);
 
    return EXIT_SUCCESS;
 }
