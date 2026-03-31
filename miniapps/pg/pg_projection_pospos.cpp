@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command line options.
    int primal_order = 2;
-   int latent_order = 15;
+   int latent_order = 6;
    int ref_levels = 0;
 
    OptionsParser args(argc, argv);
@@ -92,10 +92,12 @@ int main(int argc, char *argv[])
    {
       return
          std::sin(2.0 * M_PI * x[0]) * std::sin(2.0*M_PI * x[1]);
-      // std::sin(M_PI * x[0]) * std::sin(M_PI * x[1]);
-      // 2.0 + std::atanh(2*(x[0]-0.5));
    });
-   u.ProjectCoefficient(u_targ); // initialize u to the target function
+   FunctionCoefficient u_targ_clipped([](const Vector &x)
+   {
+      return std::max(1e-03, std::sin(2.0 * M_PI * x[0]) * std::sin(2.0*M_PI * x[1]));
+   });
+   u.ProjectCoefficient(u_targ_clipped); // initialize u to the target function
 
    // 7, Define entropy function
    Shannon entropy;
@@ -130,6 +132,8 @@ int main(int argc, char *argv[])
    socketstream sol_sock(vishost, visport);
    sol_sock.precision(8);
    sol_sock << "solution\n" << mesh << u << flush;
+
+   Vector u_interp;
 
    for (int e_idx=0; e_idx<mesh.GetNE(); e_idx++)
    {
@@ -167,19 +171,27 @@ int main(int argc, char *argv[])
       pg_diff.Update(offsets);
 
       Vector &u_e = pg_sol.GetBlock(0);
+
       u.GetSubVector(primal_glb_idx, u_e);
-      for (auto &val : u_e) { val = std::max(val, 1e-02); }
+      entropy.grad(u_e, psi_nodal_prev);
+      psi_nodal_curr = psi_nodal_prev;
+
+      u_interp.SetSize(latent_dof);
+      u.GetValues(e_idx, ir, u_interp);
+      entropy.gradinv(u_interp, psi_prev);
+      psi_curr = psi_prev;
+
       Vector &lam_e = pg_sol.GetBlock(1);
       Vector &lam_nodal_e = pg_sol.GetBlock(2);
-      L.Mult(u_e, psi_curr);
-      for (int j=0; j<latent_dof; j++)
-      {
-         psi_curr[j] = entropy.grad(psi_curr[j]);
-      }
-      for (int j=0; j<latent_dof; j++)
-      {
-         psi_nodal_curr[j] = entropy.grad(u_e[j]);
-      }
+      // // L.Mult(u_e, psi_curr);
+      // for (int j=0; j<latent_dof; j++)
+      // {
+      //    psi_curr[j] = entropy.grad(psi_curr[j]);
+      // }
+      // for (int j=0; j<latent_dof; j++)
+      // {
+      //    psi_nodal_curr[j] = entropy.grad(u_e[j]);
+      // }
 
 
       Vector &primal_res = pg_rhs.GetBlock(0);

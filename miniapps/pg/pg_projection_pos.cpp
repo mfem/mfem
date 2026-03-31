@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command line options.
    int primal_order = 2;
-   int latent_order = 10;
+   int latent_order = 4;
    int ref_levels = 2;
 
    OptionsParser args(argc, argv);
@@ -90,9 +90,11 @@ int main(int argc, char *argv[])
    FunctionCoefficient u_targ([](const Vector &x)
    {
       return
-         std::sin(2.0 * M_PI * x[0]) * std::sin(2.0*M_PI * x[1]) + 0.5;
-      // std::sin(M_PI * x[0]) * std::sin(M_PI * x[1]);
-      // 2.0 + std::atanh(2*(x[0]-0.5));
+         std::sin(2.0 * M_PI * x[0]) * std::sin(2.0*M_PI * x[1]);
+   });
+   FunctionCoefficient u_targ_clipped([](const Vector &x)
+   {
+      return std::max(1e-03, std::sin(2.0 * M_PI * x[0]) * std::sin(2.0*M_PI * x[1]));
    });
 
    // 7, Define entropy function
@@ -126,6 +128,8 @@ int main(int argc, char *argv[])
    socketstream sol_sock(vishost, visport);
    sol_sock.precision(8);
    sol_sock << "solution\n" << mesh << u << flush;
+   Vector u_interp;
+   u.ProjectCoefficient(u_targ_clipped);
 
    for (int e_idx=0; e_idx<mesh.GetNE(); e_idx++)
    {
@@ -137,15 +141,16 @@ int main(int argc, char *argv[])
       pg_mat.SetSize(primal_dof + latent_dof);
       H.SetSize(latent_dof);
       H = 0.0;
+      u.GetValues(e_idx, ir, u_interp);
 
       offsets[0] = 0;
       offsets[1] = primal_dof;
       offsets[2] = primal_dof + latent_dof;
 
       psi_prev.SetSize(latent_dof);
-      psi_prev = 0.0;
+      entropy.gradinv(u_interp, psi_prev);
       psi_curr.SetSize(latent_dof);
-      psi_curr = 0.0;
+      psi_curr = psi_prev;
 
       pg_rhs.Update(offsets);
       pg_rhs = 0.0;
@@ -220,7 +225,6 @@ int main(int argc, char *argv[])
                pg_inv.Mult(pg_rhs, pg_sol);
 
                if (pg_sol.GetBlock(0).DistanceTo(newt_prev.GetBlock(0)) < 1e-08)
-                  // if (pg_sol.DistanceTo(newt_prev) < 1e-08)
                {
                   newt_converged = true;
                   break;
@@ -235,7 +239,12 @@ int main(int argc, char *argv[])
             alpha *= 0.5;
             pg_sol = pg_prev;
          }
-         MFEM_VERIFY(newt_converged, "Newton solver did not converge");
+         if (!newt_converged)
+         {
+            u_e = -1.0;
+            break;
+         }
+         // MFEM_VERIFY(newt_converged, "Newton solver did not converge");
          // if (pg_sol.GetBlock(0).DistanceTo(pg_prev.GetBlock(0)) < 1e-08)
          if (!newt_converged || pg_sol.DistanceTo(pg_prev) < 1e-08)
          {
@@ -245,7 +254,7 @@ int main(int argc, char *argv[])
          alpha *= 1.2;
          alpha = std::min(alpha, 1e06);
       }
-      MFEM_VERIFY(prox_converged, "Proximal solver did not converge");
+      // MFEM_VERIFY(prox_converged, "Proximal solver did not converge");
       u.SetSubVector(primal_glb_idx, u_e);
       sol_sock << "solution\n" << mesh << u << flush;
    }
