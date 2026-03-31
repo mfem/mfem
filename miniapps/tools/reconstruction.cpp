@@ -18,7 +18,7 @@ using namespace mfem;
 
 using profile_t = std::function<real_t(const Vector&,const Vector&)>;
 
-void L2Reconstruction(const GridFunction& src, GridFunction& dst);
+void ElementAverageReconstruction(const GridFunction& src, GridFunction& dst);
 std::unordered_map<std::string, profile_t> GetFieldProfiles();
 
 int main(int argc, char* argv[])
