@@ -433,7 +433,7 @@ if (MFEM_USE_STRUMPACK)
   endif()
 endif()
 
-# cuDSS can only be enabled in both CUDA and parallel
+# cuDSS can only be enabled in CUDA
 if (MFEM_USE_CUDSS)
   if (MFEM_USE_CUDA)
     find_package(CUDSS REQUIRED)

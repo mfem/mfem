@@ -111,6 +111,12 @@
 // Enable MFEM functionality based on the cuDSS library.
 // #define MFEM_USE_CUDSS
 
+// CUDSS communication layer library path
+// #define MFEM_CUDSS_COMM_LIB "@MFEM_CUDSS_COMM_LIB@"
+
+// CUDSS threading layer library path
+// #define MFEM_CUDSS_THREADING_LIB "@MFEM_CUDSS_THREADING_LIB@"
+
 // Enable MFEM features based on the Ginkgo library.
 // #define MFEM_USE_GINKGO
 

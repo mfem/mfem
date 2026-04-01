@@ -83,9 +83,6 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = true;
    bool algebraic_ceed = false;
-#ifdef MFEM_USE_CUDSS
-   bool cudss_solver = false;
-#endif
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -104,10 +101,6 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_CEED
    args.AddOption(&algebraic_ceed, "-a", "--algebraic", "-no-a", "--no-algebraic",
                   "Use algebraic Ceed solver");
-#endif
-#ifdef MFEM_USE_CUDSS
-   args.AddOption(&cudss_solver, "-cudss", "--cudss-solver", "-no-cudss",
-                  "--no-cudss-solver", "Use the cuDSS Solver.");
 #endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -231,9 +224,8 @@ int main(int argc, char *argv[])
    // 11. Solve the linear system A X = B.
    if (!pa)
    {
-#ifndef MFEM_USE_SUITESPARSE
 #ifdef MFEM_USE_CUDSS
-      if (cudss_solver && Device::Allows(Backend::CUDA_MASK))
+      if (Device::Allows(Backend::CUDA_MASK))
       {
          // Use cuDSS to solve the system.
          CuDSSSolver cudss_solver;
@@ -241,23 +233,20 @@ int main(int argc, char *argv[])
          cudss_solver.Mult(B, X);
       }
       else
+#endif
       {
+#ifndef MFEM_USE_SUITESPARSE
          // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
          GSSmoother M((SparseMatrix&)(*A));
          PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
+#else
+         // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+         UMFPackSolver umf_solver;
+         umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+         umf_solver.SetOperator(*A);
+         umf_solver.Mult(B, X);
+#endif
       }
-#else
-      // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-      GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
-#endif
-#else
-      // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-      UMFPackSolver umf_solver;
-      umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-      umf_solver.SetOperator(*A);
-      umf_solver.Mult(B, X);
-#endif
    }
    else
    {
@@ -296,7 +285,7 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
+      int visport = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << mesh << x << flush;

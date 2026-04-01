@@ -83,7 +83,6 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = true;
    bool algebraic_ceed = false;
-   bool cudss_solver = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -103,10 +102,6 @@ int main(int argc, char *argv[])
    args.AddOption(&algebraic_ceed, "-a", "--algebraic",
                   "-no-a", "--no-algebraic",
                   "Use algebraic Ceed solver");
-#endif
-#ifdef MFEM_USE_CUDSS
-   args.AddOption(&cudss_solver, "-cudss", "--cudss-solver", "-no-cudss",
-                  "--no-cudss-solver", "Use the cuDSS Solver.");
 #endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -253,7 +248,19 @@ int main(int argc, char *argv[])
    // 13. Solve the linear system A X = B.
    //     * With full assembly, use the BoomerAMG preconditioner from hypre.
    //     * With partial assembly, use Jacobi smoothing, for now.
-   if (pa || !(cudss_solver && Device::Allows(Backend::CUDA_MASK)))
+#ifdef MFEM_USE_CUDSS
+   if (!pa && (Device::Allows(Backend::CUDA_MASK)))
+   {
+      // Solve using a direct solver with cuDSS
+      CuDSSSolver cudss_solver(MPI_COMM_WORLD);
+      cudss_solver.SetMatrixSymType(
+         CuDSSSolver::MatType::SYMMETRIC_POSITIVE_DEFINITE);
+      cudss_solver.SetMatrixViewType(CuDSSSolver::MatViewType::UPPER);
+      cudss_solver.SetOperator(*A);
+      cudss_solver.Mult(B, X);
+   }
+   else
+#endif
    {
       Solver *prec = NULL;
       if (pa)
@@ -286,18 +293,7 @@ int main(int argc, char *argv[])
       cg.Mult(B, X);
       delete prec;
    }
-   // 13a. Solve using a direct solver with cuDSS
-#ifdef MFEM_USE_CUDSS
-   if (!pa && (cudss_solver && Device::Allows(Backend::CUDA_MASK)))
-   {
-      CuDSSSolver cudss_solver(MPI_COMM_WORLD);
-      cudss_solver.SetMatrixSymType(
-         CuDSSSolver::MatType::SYMMETRIC_POSITIVE_DEFINITE);
-      cudss_solver.SetMatrixViewType(CuDSSSolver::MatViewType::UPPER);
-      cudss_solver.SetOperator(*A);
-      cudss_solver.Mult(B, X);
-   }
-#endif
+
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    a.RecoverFEMSolution(X, b, x);

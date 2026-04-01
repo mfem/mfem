@@ -82,7 +82,7 @@ public:
     * Supported matrix types:
     *          CuDSSSolver::NONSYMMETRIC,
     *          CuDSSSolver::SYMMETRIC_INDEFINITE,
-    *      and CuDSSSolver::SYMMETRIC_INDEFINITE,
+    *      and CuDSSSolver::SYMMETRIC_POSITIVE_DEFINITE
     *
     * @param mtype_ Matrix type
     *
@@ -96,7 +96,7 @@ public:
     * Supported matrix types:
     *          CuDSSSolver::FULL,
     *          CuDSSSolver::LOWER,
-    *      and CuDSSSolver::UPPER,
+    *      and CuDSSSolver::UPPER
     *
     * @param mvtype Matrix view type
     *
@@ -113,15 +113,6 @@ public:
     * @note This method has to be called before repeated calls to SetOperator
     */
    void SetReorderingReuse(bool reuse);
-
-   /**
-    * @brief Set the flag controlling sort the rows of CSR matrix
-    *
-    * @param sort_row_ Flag to sort the row of CSR matrix
-    *
-    * @note This method has to be called before repeated calls to SetOperator
-    */
-   void SetMatrixSortRow(bool sort_row_);
 
    void SetOperator(const Operator &op) override;
 
@@ -157,11 +148,6 @@ private:
    // for multiple calls to SetOperator
    bool reorder_reuse = false;
 
-   // Parameter controlling whether or not to sort the row of CSR matrix
-   bool sort_row = false;
-
-   // Matrix type
-   MatType mtype = MatType::NONSYMMETRIC;
    // Parameter controlling the matrix type
    cudssMatrixType_t mat_type = CUDSS_MTYPE_GENERAL;
 
@@ -175,6 +161,7 @@ private:
    // phase
    void *csr_offsets_d = NULL; // copy and keep I in device
    void *csr_columns_d = NULL; // copy and keep J in device
+   void *csr_values_d = NULL;  // copy and keep csr data in device
 
    // cuDSS object specifies available matrix types for sparse matrices
    cudssMatrixViewType_t mview = CUDSS_MVIEW_FULL;
@@ -216,6 +203,17 @@ private:
     * @note This method is called inside SetOperator
     */
    void SetMatrix(const SparseMatrix &op);
+
+   /**
+    * @brief Set the matrix values for cuDSS
+    *
+    * @param csr_offsets Row offsets of the CSR matrix
+    * @param csr_columns Column indices of the CSR matrix
+    * @param csr_values Non-zero values of the CSR matrix
+    *
+    * @note This method is called inside SetMatrix.
+   */
+   void SetMatrixCuDSS(int* csr_offsets, int* csr_columns, real_t* csr_values);
 };
 
 } // namespace mfem
