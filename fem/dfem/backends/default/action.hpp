@@ -2,15 +2,9 @@
 
 #include "../../integrator_ctx.hpp"
 #include "util.hpp"
-#include <utility>
 
-// #ifdef NVTX_DEBUG_HPP
-// #undef NVTX_COLOR
-// #define NVTX_COLOR ::nvtx::kYellow
-// #include NVTX_DEBUG_HPP
-// #else
-// #define dbg(...)
-// #endif
+#include <tuple>
+#include <utility>
 
 namespace mfem::future
 {
@@ -19,8 +13,8 @@ template<
    typename qfunc_t,
    typename inputs_t,
    typename outputs_t,
-   size_t ninputs = tuple_size<inputs_t>::value,
-   size_t noutputs = tuple_size<outputs_t>::value>
+   size_t ninputs = std::tuple_size_v<inputs_t>,
+   size_t noutputs = std::tuple_size_v<outputs_t>>
 struct Action
 {
    Action(

@@ -37,7 +37,8 @@
 #include "fielddescriptor.hpp"
 #include "fieldoperator.hpp"
 #include "parameterspace.hpp"
-#include "tuple.hpp"
+// #include "tuple.hpp"
+#include <tuple>
 
 namespace mfem::future
 {
@@ -107,7 +108,7 @@ template <typename lambda, typename arg_t>
 constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg)
 {
    using indices =
-      std::make_index_sequence<tuple_size<std::remove_reference_t<arg_t>>::value>;
+      std::make_index_sequence<std::tuple_size_v<std::remove_reference_t<arg_t>>>;
    for_constexpr_with_arg(std::forward<lambda>(f), std::forward<arg_t>(arg),
                           indices{});
 }
@@ -130,7 +131,7 @@ make_dependency_array(const Tuple& inputs, std::index_sequence<Is...>)
 }
 
 template <typename... input_ts, std::size_t... Is>
-auto make_dependency_map_impl(tuple<input_ts...> inputs,
+auto make_dependency_map_impl(std::tuple<input_ts...> inputs,
                               std::index_sequence<Is...>)
 {
    constexpr std::size_t N = sizeof...(input_ts);
@@ -158,7 +159,7 @@ auto make_dependency_map_impl(tuple<input_ts...> inputs,
 // @returns an unordered_map where the keys are the field IDs and the values
 // are arrays of booleans indicating which inputs depend on each field ID.
 template <typename... input_ts>
-auto make_dependency_map(tuple<input_ts...> inputs)
+auto make_dependency_map(std::tuple<input_ts...> inputs)
 {
    return make_dependency_map_impl(inputs, std::index_sequence_for<input_ts...> {});
 }
@@ -427,8 +428,8 @@ void pretty_print_mpi(const mfem::Vector& v)
 
 
 template <typename ... Ts>
-constexpr auto decay_types(tuple<Ts...> const &)
--> tuple<std::remove_cv_t<std::remove_reference_t<Ts>>...>;
+constexpr auto decay_types(std::tuple<Ts...> const &)
+-> std::tuple<std::remove_cv_t<std::remove_reference_t<Ts>>...>;
 
 template <typename T>
 using decay_tuple = decltype(decay_types(std::declval<T>()));
@@ -439,7 +440,7 @@ template <typename output_t, typename... input_ts>
 struct FunctionSignature<output_t(input_ts...)>
 {
    using return_t = output_t;
-   using parameter_ts = tuple<input_ts...>;
+   using parameter_ts = std::tuple<input_ts...>;
 };
 
 template <class T> struct create_function_signature;
@@ -1228,33 +1229,27 @@ void prolongation(
    const BlockVector &x,
    std::vector<Vector *> &x_l)
 {
-   dbg("fields: {}", fields.size());
-   dbg("x.NumBlocks(): {}", x.NumBlocks());
-   dbg("x_l.size(): {}", x_l.size());
    MFEM_ASSERT(x.NumBlocks() == static_cast<int>(x_l.size()),
                "error " << x.NumBlocks() << " vs " << x_l.size());
    for (int i = 0; i < x.NumBlocks(); i++)
    {
-      dbg("i: {}", i);
       const auto P = get_prolongation(fields[i]);
 
       // If nullptr, assume Identity.
       if (P == nullptr)
       {
-         dbg("prolongation is identity for field {}", i);
          *x_l[i] = x.GetBlock(i);
       }
       else
       {
-         dbg("applying prolongation for field {}", i);
-         const auto P = get_prolongation(fields[i]);
-         MFEM_ASSERT(P->Width() == x.GetBlock(i).Size(),
+         const auto prolongation = get_prolongation(fields[i]);
+         MFEM_ASSERT(prolongation->Width() == x.GetBlock(i).Size(),
                      "prolongation not applicable to given input data size " <<
-                     P->Width() << " vs " << x.GetBlock(i).Size());
-         MFEM_ASSERT(P->Height() == x_l[i]->Size(),
+                     prolongation->Width() << " vs " << x.GetBlock(i).Size());
+         MFEM_ASSERT(prolongation->Height() == x_l[i]->Size(),
                      "prolongation not applicable to given output data size " <<
-                     P->Height() << " vs " << x_l[i]->Size());
-         P->Mult(x.GetBlock(i), *x_l[i]);
+                     prolongation->Height() << " vs " << x_l[i]->Size());
+         prolongation->Mult(x.GetBlock(i), *x_l[i]);
       }
    }
    dbg("done");
@@ -1279,14 +1274,14 @@ void prolongation(
       }
       else
       {
-         const auto P = get_prolongation(fields[i]);
-         MFEM_ASSERT(P->Width() == x[i].Size(),
+         const auto prolongation = get_prolongation(fields[i]);
+         MFEM_ASSERT(prolongation->Width() == x[i].Size(),
                      "prolongation not applicable to given input data size " <<
-                     P->Width() << " vs " << x[i].Size());
-         MFEM_ASSERT(P->Height() == x_l[i]->Size(),
+                     prolongation->Width() << " vs " << x[i].Size());
+         MFEM_ASSERT(prolongation->Height() == x_l[i]->Size(),
                      "prolongation not applicable to given output data size " <<
-                     P->Height() << " vs " << x_l[i]->Size());
-         P->Mult(x[i], *x_l[i]);
+                     prolongation->Height() << " vs " << x_l[i]->Size());
+         prolongation->Mult(x[i], *x_l[i]);
       }
    }
 }
@@ -1758,12 +1753,12 @@ int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
 /// @tparam entity_t the entity type (see Entity).
 /// @returns an array mapping field operator types to field descriptor indices.
 template <typename entity_t, typename field_operator_ts>
-std::array<size_t, tuple_size<field_operator_ts>::value>
-create_descriptors_to_fields_map(
-   const std::vector<FieldDescriptor> &fields,
-   field_operator_ts &fops)
+std::array<size_t, std::tuple_size_v<field_operator_ts>>
+                                                      create_descriptors_to_fields_map(
+                                                         const std::vector<FieldDescriptor> &fields,
+                                                         field_operator_ts &fops)
 {
-   std::array<size_t, tuple_size<field_operator_ts>::value> map;
+   std::array<size_t, std::tuple_size_v<field_operator_ts>> map;
 
    auto find_id = [](const std::vector<FieldDescriptor> &fields, std::size_t i)
    {
@@ -1807,7 +1802,7 @@ create_descriptors_to_fields_map(
       }
    };
 
-   for_constexpr<tuple_size<field_operator_ts>::value>([&](auto idx)
+   for_constexpr<std::tuple_size_v<field_operator_ts>>([&](auto idx)
    {
       f(get<idx>(fops), map[idx]);
    });
@@ -2331,7 +2326,7 @@ auto unpack_shmem(
    MFEM_SYNC_THREAD;
 
    // nvcc needs make_tuple to be fully qualified
-   return mfem::future::make_tuple(
+   return std::make_tuple(
              input_dtq_shmem, output_dtq_shmem, fields_shmem,
              input_shmem, residual_shmem, scratch_mem);
 }
@@ -2410,7 +2405,7 @@ auto unpack_shmem(
    MFEM_SYNC_THREAD;
 
    // nvcc needs make_tuple to be fully qualified
-   return mfem::future::make_tuple(
+   return std::make_tuple(
              input_dtq_shmem, output_dtq_shmem, fields_shmem,
              direction_shmem, input_shmem, shadow_shmem,
              residual_shmem, scratch_mem);
@@ -2569,7 +2564,7 @@ int accumulate_sizes_on_qp(
 template <
    typename entity_t,
    typename field_operator_ts,
-   std::size_t N = tuple_size<field_operator_ts>::value,
+   std::size_t N = std::tuple_size_v<field_operator_ts>,
    std::size_t... Is>
 std::array<DofToQuadMap, N> create_dtq_maps_impl(
    field_operator_ts &fops,
@@ -2677,7 +2672,7 @@ struct QLayoutEntry
       type(typeid(Fop)), layout(idx) {}
 };
 
-static void ExtractQLayouts(
+inline static void ExtractQLayouts(
    const std::initializer_list<QLayoutEntry> entries,
    std::unordered_map<std::type_index, std::vector<int>>& out)
 {

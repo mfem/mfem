@@ -21,7 +21,18 @@
 #include "fem/qinterp/grad_transpose.hpp" // IWYU pragma: keep
 #include "fem/quadinterpolator.hpp" // IWYU pragma: keep
 #include "fem/integ/lininteg_domain_kernels.hpp" // IWYU pragma: keep
-#include "fem/integ/bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep
+#include "fem/integ/bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep 
+
+#include <fem/dfem/backends/devices.hpp>
+using device_backend = mfem::future::DeviceBackend;
+
+#define DFEM_USE_DEFAULT_BACKEND
+#ifdef DFEM_USE_DEFAULT_BACKEND
+#include <fem/dfem/backends/default/default.hpp>
+using default_backend = mfem::future::DefaultBackend;
+#else
+using default_backend = mfem::future::DeviceBackend;
+#endif
 
 #include <fem/dfem/doperator.hpp>
 #include <linalg/tensor.hpp>
@@ -38,7 +49,7 @@ namespace ker = kernels::internal;
 
 using namespace mfem;
 
-using mfem::future::tuple;
+// using mfem::future::tuple;
 using mfem::future::tensor;
 using mfem::future::tensor_array;
 
@@ -51,12 +62,24 @@ using future::Value;
 using future::Weight;
 using future::Identity;
 
+/// info //////////////////////////////////////////////////////////////////////
+void info()
+{
+   mfem::out << "\x1b[33m";
+   mfem::out << "version 0: PA std" << std::endl;
+   mfem::out << "version 1: PA new" << std::endl;
+   mfem::out << "version 2: MF ∂fem-global" << std::endl;
+   mfem::out << "version 3: PA ∂fem-global" << std::endl;
+   mfem::out << "version 4: PA ∂fem-global 'devices' backend" << std::endl;
+   mfem::out << "\x1b[m" << std::endl;
+}
+
 // Custom benchmark arguments generator ///////////////////////////////////////
 static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
-   const auto versions = { 0, 1, 2, 3 };
+   const auto versions = { 0, 1, 2, 3, 4 };
 
    const auto orders = { 6, 5, 4, 3, 2, 1 };
 
@@ -528,10 +551,10 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          dop = std::make_unique<DifferentiableOperator>(height, width,
                                                         infds, outfds, pmesh);
          MF<DIM> mf_apply_qf;
-         dop->AddDomainIntegrator(mf_apply_qf,
-                                  tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
-                                  tuple{Gradient<U>{}},
-                                  *ir, ess_bdr);
+         dop->template AddDomainIntegrator<default_backend>(mf_apply_qf,
+                                                            std::tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
+                                                            std::tuple{Gradient<U>{}},
+                                                            *ir, ess_bdr);
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          wop = std::make_unique<WrapOpArg1>(dop, height, width, nodes);
          wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
@@ -547,10 +570,10 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          const auto o0 = std::vector<FieldDescriptor> {{Q, &qdata}};
          DifferentiableOperator dSetup(height, width, i0, o0, pmesh);
          PASetup<DIM> pa_setup_qf;
-         dSetup.AddDomainIntegrator(pa_setup_qf,
-                                    tuple{Gradient<Ξ>{}, Weight{}},
-                                    tuple{Identity<Q>{}},
-                                    *ir, ess_bdr);
+         dSetup.AddDomainIntegrator<default_backend>(pa_setup_qf,
+                                                     std::tuple{Gradient<Ξ>{}, Weight{}},
+                                                     std::tuple{Identity<Q>{}},
+                                                     *ir, ess_bdr);
          dSetup.SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          MultiVector N{nodes}, D{qdata};
          dSetup.Mult(N, D);
@@ -560,10 +583,42 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          const auto o1 = std::vector<FieldDescriptor> {{U, &pfes}};
          dop = std::make_unique<DifferentiableOperator>(height, width, i1, o1, pmesh);
          PAApply<DIM> pa_apply_qf;
-         dop->AddDomainIntegrator(pa_apply_qf,
-                                  tuple{Gradient<U>{}, Identity<Q>{}, Weight{}},
-                                  tuple{Gradient<U>{}},
-                                  *ir, ess_bdr);
+         dop->template AddDomainIntegrator<default_backend>(pa_apply_qf,
+                                                            std::tuple{Gradient<U>{}, Identity<Q>{}, Weight{}},
+                                                            std::tuple{Gradient<U>{}},
+                                                            *ir, ess_bdr);
+         dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
+         wop = std::make_unique<WrapOpArg1>(dop, height, width, qdata);
+         wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
+         A.Reset(A_ptr);
+      }
+      else if (version == 4) // PA ∂FEM 'devices' backend /////////////////////
+      {
+         dbg("\x1b[33m PA ∂FEM 'devices' backend ");
+         const int height = pfes.GetVSize(), width = pfes.GetVSize();
+         dbg("height: {} width: {}", height, width);
+         dbg("\x1b[33m PA Setup operator");
+         const auto i0 = std::vector<FieldDescriptor> {{Ξ, &mfes}};
+         const auto o0 = std::vector<FieldDescriptor> {{Q, &qdata}};
+         DifferentiableOperator dSetup(height, width, i0, o0, pmesh);
+         PASetup<DIM> pa_setup_qf;
+         dSetup.AddDomainIntegrator<device_backend>(pa_setup_qf,
+                                                    std::tuple{Gradient<Ξ>{}, Weight{}},
+                                                    std::tuple{Identity<Q>{}},
+                                                    *ir, ess_bdr);
+         dSetup.SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
+         MultiVector N{nodes}, D{qdata};
+         dSetup.Mult(N, D);
+
+         dbg("\x1b[33m PA Apply operator");
+         const auto i1 = std::vector<FieldDescriptor> {{U, &pfes}, {Q, &qdata}};
+         const auto o1 = std::vector<FieldDescriptor> {{U, &pfes}};
+         dop = std::make_unique<DifferentiableOperator>(height, width, i1, o1, pmesh);
+         PAApply<DIM> pa_apply_qf;
+         dop->template AddDomainIntegrator<device_backend>(pa_apply_qf,
+                                                           std::tuple{Gradient<U>{}, Identity<Q>{}, Weight{}},
+                                                           std::tuple{Gradient<U>{}},
+                                                           *ir, ess_bdr);
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          wop = std::make_unique<WrapOpArg1>(dop, height, width, qdata);
          wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
@@ -621,17 +676,6 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       ->Unit(bm::kMillisecond)
 
 BakeOff_Problem(3);
-
-/// info //////////////////////////////////////////////////////////////////////
-void info()
-{
-   mfem::out << "\x1b[33m";
-   mfem::out << "version 0: PA std" << std::endl;
-   mfem::out << "version 1: PA new" << std::endl;
-   mfem::out << "version 2: MF ∂fem-global" << std::endl;
-   mfem::out << "version 3: PA ∂fem-global" << std::endl;
-   mfem::out << "\x1b[m" << std::endl;
-}
 
 /// main //////////////////////////////////////////////////////////////////////
 int main(int argc, char *argv[])

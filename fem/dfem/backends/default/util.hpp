@@ -1,5 +1,7 @@
 #pragma once
 
+#include <tuple>
+
 #include "fem/quadinterpolator.hpp"
 #include "../../util.hpp"
 #include "../../integrator_ctx.hpp"
@@ -33,7 +35,6 @@ struct FieldBasis
 inline FieldBasis FromQI(const QuadratureInterpolator *qi,
                          QuadratureInterpolator::EvalFlags mode)
 {
-   NVTX_MARK_FUNCTION;
    return
    {
       [qi, mode](const Vector &xe, Vector &xq)
@@ -41,12 +42,10 @@ inline FieldBasis FromQI(const QuadratureInterpolator *qi,
          qi->SetOutputLayout(QVectorLayout::byVDIM);
          if (mode == QuadratureInterpolator::VALUES)
          {
-            NVTX("VALUES");
             qi->Values(xe, xq);
          }
          else
          {
-            NVTX("DERIVATIVES");
             qi->Derivatives(xe, xq);
          }
       },
@@ -56,12 +55,10 @@ inline FieldBasis FromQI(const QuadratureInterpolator *qi,
          qi->SetOutputLayout(QVectorLayout::byVDIM);
          if (mode == QuadratureInterpolator::VALUES)
          {
-            NVTX("Transposed VALUES");
             qi->AddMultTranspose(QuadratureInterpolator::VALUES, yq, empty, ye);
          }
          else
          {
-            NVTX("Transposed DERIVATIVES");
             qi->AddMultTranspose(QuadratureInterpolator::DERIVATIVES, empty, yq, ye);
          }
       }
@@ -71,54 +68,39 @@ inline FieldBasis FromQI(const QuadratureInterpolator *qi,
 // QuadratureFunction identity copy
 inline FieldBasis FromQF()
 {
-   NVTX_MARK_FUNCTION;
    return
    {
-      [](const Vector &xe, Vector &xq) { NVTX("FromQF(e->q)"); xq = xe; },
-      [](const Vector &yq, Vector &ye) { NVTX("FromQF(q->e)"); ye = yq; }
+      [](const Vector &xe, Vector &xq) { xq = xe; },
+      [](const Vector &yq, Vector &ye) { ye = yq; }
    };
 }
 
 // User-defined parameter space B
 inline FieldBasis FromPS(const Operator *B, const Operator *Bt)
 {
-   NVTX_MARK_FUNCTION;
    return
    {
-      [B](const Vector &xe, Vector &xq) { NVTX("B->Mult(e->q)");  B->Mult(xe, xq); },
-      [Bt](const Vector &yq, Vector &ye) { NVTX("Bt->Mult(q->e)"); Bt->Mult(yq, ye); }
+      [B](const Vector &xe, Vector &xq) { B->Mult(xe, xq); },
+      [Bt](const Vector &yq, Vector &ye) { Bt->Mult(yq, ye); }
    };
 }
 
 inline FieldBasis FieldBasisFromWeight(const IntegrationRule &ir)
 {
-   NVTX_MARK_FUNCTION;
    return
    {
       [&ir](const Vector &, Vector &xq)
       {
-         NVTX("FieldBasisFromWeight");
          const int nqp = ir.GetNPoints();
          MFEM_ASSERT(xq.Size() % nqp == 0, "weight block has unexpected size");
 
          const int ne = xq.Size() / nqp;
-#if 0
          const real_t *wref = ir.GetWeights().HostRead();
 
          for (int e = 0; e < ne; e++)
          {
             std::memcpy(xq.HostReadWrite() + e*nqp, wref, nqp*sizeof(real_t));
          }
-#else
-         const auto wref = ir.GetWeights().Read();
-         auto xq_w = Reshape(xq.Write(), nqp, ne);
-
-         mfem::forall(ne * nqp, [=] MFEM_HOST_DEVICE(int eq)
-         {
-            const int q = eq % nqp, e = eq / nqp;
-            xq_w(q,e) = wref[q];
-         });
-#endif
       },
       [](const Vector &, Vector &) { }
    };
@@ -128,7 +110,6 @@ inline const FieldBasis GetFieldBasis(const FieldDescriptor &f,
                                       const IntegrationRule &ir,
                                       QuadratureInterpolator::EvalFlags mode)
 {
-   NVTX_MARK_FUNCTION;
    return std::visit([&ir, &mode](auto && arg) -> FieldBasis
    {
       using T = std::decay_t<decltype(arg)>;
@@ -168,7 +149,6 @@ inline void create_fieldbases(
    const IntegrationRule &ir,
    std::array<FieldBasis, nfops> &bases)
 {
-   NVTX_MARK_FUNCTION;
    constexpr_for<0, nfops>([&](auto i)
    {
       const auto fop = get<i>(fops);
@@ -203,7 +183,6 @@ inline void check_consistency(
    const std::array<size_t, nfops> &fop_to_fd,
    const std::vector<FieldDescriptor> &fields)
 {
-   NVTX_MARK_FUNCTION;
    constexpr_for<0, nfops>([&](auto i)
    {
       const auto input = get<i>(fops);
@@ -246,7 +225,6 @@ inline void interpolate(
    BlockVector &xq,
    const std::array<bool, ninputs> &conditional = all_true<ninputs>())
 {
-   NVTX_MARK_FUNCTION;
    constexpr_for<0, ninputs>([&](auto i)
    {
       if (!conditional.empty() && !conditional[i]) { return; }
@@ -262,12 +240,10 @@ inline void integrate(
    const BlockVector &yq,
    std::vector<Vector *> &ye)
 {
-   NVTX_MARK_FUNCTION;
    for (auto v : ye) { *v = 0.0; }
 
    constexpr_for<0, noutputs>([&](auto i)
    {
-      NVTX_MARK("out transpose block #{}", i.value);
       output_bases[i].transpose(yq.GetBlock(i), *ye[output_to_outfd[i]]);
    });
 }
@@ -293,7 +269,6 @@ struct is_tensor_array_mut<tensor_array<scalar_t, Dims...>> :
 template <typename ndarray_t>
 inline void set_layout_default(ndarray_t &a)
 {
-   NVTX_MARK_FUNCTION;
    if constexpr (ndarray_t::tensor_rank() == 0) { return; }
 
    constexpr std::size_t nd = ndarray_t::rank();
@@ -309,7 +284,6 @@ inline void set_layout_default(ndarray_t &a)
 template <typename ndarray_t>
 inline void set_layout(ndarray_t& a, const std::vector<int>& layout)
 {
-   NVTX_MARK_FUNCTION;
    if constexpr (ndarray_t::tensor_rank() == 0) { return; }
 
    constexpr std::size_t nd = ndarray_t::rank();
@@ -361,7 +335,6 @@ decltype(auto) make_tensor_array(ptr_scalar_t *ptr,
                                  const std::vector<int>* layout,
                                  dyn_sizes_t... dynamic_sizes)
 {
-   NVTX_MARK_FUNCTION;
    using traits = tensor_array_traits<T>;
    using array_t = typename traits::template array_type<sizeof...(dynamic_sizes)>;
    auto a = array_t(ptr, {std::size_t(dynamic_sizes)...});
@@ -376,22 +349,22 @@ struct supports_tensor_array_qfunc
    using qf_signature = typename get_function_signature<qfunc_t>::type;
    using qf_param_ts = typename qf_signature::parameter_ts;
 
-   static constexpr int ninputs = tuple_size<inputs_t>::value;
-   static constexpr int noutputs = tuple_size<outputs_t>::value;
-   static constexpr int nparams = tuple_size<qf_param_ts>::value;
+   static constexpr int ninputs = std::tuple_size<inputs_t>::value;
+   static constexpr int noutputs = std::tuple_size<outputs_t>::value;
+   static constexpr int nparams = std::tuple_size<qf_param_ts>::value;
 
    template <std::size_t... Is>
    static constexpr bool InputsOk(std::index_sequence<Is...>)
    {
       return (is_tensor_array<std::remove_cv_t<std::remove_reference_t<
-              typename tuple_element<Is, qf_param_ts>::type>>>::value && ...);
+              typename std::tuple_element<Is, qf_param_ts>::type>>>::value && ...);
    }
 
    template <std::size_t... Is>
    static constexpr bool OutputsOk(std::index_sequence<Is...>)
    {
       return (is_tensor_array_mut<std::remove_cv_t<std::remove_reference_t<
-              typename tuple_element<ninputs + Is, qf_param_ts>::type>>>::value && ...);
+              typename std::tuple_element<ninputs + Is, qf_param_ts>::type>>>::value && ...);
    }
 
    static constexpr bool value =
@@ -411,39 +384,31 @@ inline void call_qfunc(
    std::index_sequence<Is...>,
    std::index_sequence<Os...>)
 {
-   NVTX_MARK_FUNCTION;
    constexpr std::size_t ninputs = sizeof...(Is);
 
    using qf_signature = typename get_function_signature<qfunc_t>::type;
    using qf_param_ts = typename qf_signature::parameter_ts;
 
-   NVTX_MARK_INI("inputs");
    auto inputs = std::make_tuple(
                     make_tensor_array<std::remove_cv_t<std::remove_reference_t<
-                    typename tuple_element<Is, qf_param_ts>::type>>>(
+                    typename std::tuple_element<Is, qf_param_ts>::type>>>(
                        xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp)...);
-   NVTX_MARK_END("inputs");
 
-   NVTX_MARK_INI("outputs");
    auto outputs = std::make_tuple(
                      make_tensor_array<std::remove_cv_t<std::remove_reference_t<
-                     typename tuple_element<ninputs + Os, qf_param_ts>::type>>>(
+                     typename std::tuple_element<ninputs + Os, qf_param_ts>::type>>>(
                         yq.GetBlock(Os).ReadWrite(), &out_layouts[Os], gnqp)...);
-   NVTX_MARK_END("outputs");
 
-   NVTX_MARK_INI("apply");
    std::apply([&](auto&&... args)
    {
       qfunc(args...);
    }, std::tuple_cat(inputs, outputs));
-   NVTX_MARK_END("apply");
 }
 
 template <typename func_t, typename... arg_ts>
 MFEM_HOST_DEVICE inline
 auto qfunction_wrapper(const func_t &f, arg_ts...args)
 {
-   NVTX_MARK_FUNCTION;
    return f(args...);
 }
 
@@ -451,7 +416,7 @@ template <std::size_t derivative_id, std::size_t I, typename Tuple, std::size_t.
 constexpr std::array<bool, sizeof...(Is)>
 make_activity_array(std::index_sequence<Is...>)
 {
-   return { (std::decay_t<typename tuple_element<Is, Tuple>::type>::GetFieldId() == derivative_id)... };
+   return { (std::decay_t< std::tuple_element_t<Is, Tuple>>::GetFieldId() == derivative_id)... };
 }
 
 template <std::size_t derivative_id, typename inputs_t, std::size_t... Is>
@@ -470,7 +435,7 @@ template <std::size_t derivative_id, typename inputs_t>
 constexpr auto make_activity_map(inputs_t)
 {
    return make_activity_map_impl<derivative_id, inputs_t>(
-             std::make_index_sequence<tuple_size<inputs_t>::value> {});
+             std::make_index_sequence<std::tuple_size_v<inputs_t>> {});
 }
 
 namespace enzyme_detail
@@ -650,7 +615,7 @@ inline void enzyme_fwddiff(
 } // namespace detail
 
 // Create quadrature function fop to fields map
-template <typename fops_t, size_t N = tuple_size<fops_t>::value, size_t M>
+template <typename fops_t, size_t N = std::tuple_size_v<fops_t>, size_t M>
 void create_fop_to_fd(const fops_t &fops,
                       const std::vector<FieldDescriptor> &fields,
                       std::array<size_t, M> &fop_to_fd)

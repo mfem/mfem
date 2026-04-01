@@ -1,6 +1,10 @@
 #pragma once
 
-#include "util.hpp"
+#include <typeindex>
+#include <unordered_map>
+#include <vector>
+
+#include "fielddescriptor.hpp"
 
 namespace mfem::future
 {

@@ -18,7 +18,6 @@ struct DefaultBackend
       inputs_t inputs,
       outputs_t outputs)
    {
-      NVTX_MARK_FUNCTION;
       return Action(ctx, qfunc, inputs, outputs);
    }
 
@@ -33,7 +32,6 @@ struct DefaultBackend
       inputs_t inputs,
       outputs_t outputs)
    {
-      NVTX_MARK_FUNCTION;
       return DerivativeActionEnzyme<
              derivative_id, qfunc_t, inputs_t, outputs_t>(
                 ctx, qfunc, inputs, outputs);

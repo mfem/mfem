@@ -19,7 +19,7 @@
 #include "util.hpp"
 #include "integrator_ctx.hpp"
 
-#include "backends/default/default.hpp"
+// #include "backends/default/default.hpp"
 
 namespace mfem::future
 {
@@ -330,7 +330,7 @@ public:
    /// @brief Add an integrator to the operator.
    /// Called only from AddDomainIntegrator() and AddBoundaryIntegrator().
    template <
-      typename backend_t = DefaultBackend,
+      typename backend_t, // = DefaultBackend,
       typename entity_t,
       typename qfunc_t,
       typename input_t,
@@ -357,7 +357,7 @@ public:
    /// @param derivative_ids Derivatives to be made available for this
    /// integrator.
    template <
-      typename backend_t = DefaultBackend,
+      typename backend_t, // = DefaultBackend,
       typename qfunc_t,
       typename input_t,
       typename output_t,
@@ -535,10 +535,10 @@ void DifferentiableOperator::AddIntegrator(
    }
 
    static constexpr size_t num_inputs =
-      tuple_size<decltype(inputs)>::value;
+      std::tuple_size_v<decltype(inputs)>;
 
    static constexpr size_t num_outputs =
-      tuple_size<decltype(outputs)>::value;
+      std::tuple_size_v<decltype(outputs)>;
 
    using qf_signature =
       typename get_function_signature<qfunc_t>::type;
@@ -546,7 +546,7 @@ void DifferentiableOperator::AddIntegrator(
    using qf_output_t = typename qf_signature::return_t;
 
    // Consistency checks
-   constexpr size_t num_qfparams = tuple_size<qf_param_ts>::value;
+   constexpr size_t num_qfparams = std::tuple_size_v<qf_param_ts>;
    static_assert(num_qfparams == num_inputs + num_outputs,
                  "quadrature function must take"
                  "num_inputs + num_outputs parameters");
@@ -554,8 +554,8 @@ void DifferentiableOperator::AddIntegrator(
    static_assert(std::is_same_v<qf_output_t, void>,
                  "quadrature function must return void");
 
-   constexpr auto inout_tuple =
-      merge_mfem_tuples_as_empty_std_tuple(inputs, outputs);
+   const auto inout_tuple = std::tuple_cat(inputs, outputs);
+   // merge_mfem_tuples_as_empty_std_tuple(inputs, outputs);
    constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
 
    static constexpr size_t num_fields =

@@ -13,8 +13,8 @@ template<
    typename qfunc_t,
    typename inputs_t,
    typename outputs_t,
-   size_t ninputs = tuple_size<inputs_t>::value,
-   size_t noutputs = tuple_size<outputs_t>::value>
+   size_t ninputs = std::tuple_size_v<inputs_t>,
+   size_t noutputs = std::tuple_size_v<outputs_t>>
 struct DerivativeActionEnzyme
 {
    DerivativeActionEnzyme(
