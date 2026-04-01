@@ -300,7 +300,7 @@ inline FieldBasis FieldBasisFromWeight(const IntegrationRule &ir)
    {
       [&ir](const Vector &, Vector &xq)
       {
-         NVTX("Weights"); // should be done once 🔥
+         NVTX("Weights"); // could be done once 🔥
          const int nqp = ir.GetNPoints();
          MFEM_ASSERT(xq.Size() % nqp == 0, "weight block has unexpected size");
          const int ne = xq.Size() / nqp;
@@ -360,7 +360,7 @@ inline FieldBasis FromQF()
    NVTX_MARK_FUNCTION;
    return
    {
-      [](const Vector &xe, Vector &xq) { NVTX("FromQF(e->q)"); xq = xe; },
+      [](const Vector &xe, Vector &xq) { NVTX("FromQF(e->q)"); xq = xe; }, // extra copy 🔥🔥🔥
       [](const Vector &yq, Vector &ye) { NVTX("FromQF(q->e)"); ye = yq; }
    };
 }

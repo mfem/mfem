@@ -128,6 +128,7 @@ public:
    template <typename vector_t>
    void Mult(const Vector &x, vector_t &y) const
    {
+      NVTX_MARK_FUNCTION;
       prolongation(direction, x, direction_l);
       restriction<Entity::Element>(infds, infields_l, infields_e);
       prepare_residual<Entity::Element>(outfds, daction_e);
@@ -321,6 +322,7 @@ public:
       prepare_residual<Entity::Element>(outfds, residual_e);
       for (size_t i = 0; i < action_callbacks.size(); i++)
       {
+         NVTX_MARK("action callback #{}", i);
          action_callbacks[i](infields_e, residual_e);
       }
       restriction_transpose<Entity::Element>(outfds, residual_e, residual_l);

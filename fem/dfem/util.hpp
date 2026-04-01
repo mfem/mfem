@@ -621,6 +621,7 @@ void forall(func_t f,
             int num_shmem = 0,
             real_t *shmem = nullptr)
 {
+   NVTX_MARK_FUNCTION;
    if (Device::Allows(Backend::CUDA_MASK) ||
        Device::Allows(Backend::HIP_MASK))
    {
@@ -1121,10 +1122,12 @@ get_restriction_transpose(
    const ElementDofOrdering &o,
    const fop_t &fop)
 {
+   NVTX_MARK_FUNCTION;
    if constexpr (is_sum_fop<fop_t>::value)
    {
       auto RT = [=](const Vector &v_e, Vector &v_l)
       {
+         NVTX_MARK_FUNCTION;
          v_l += v_e;
       };
       return std::make_tuple(RT, 1);
@@ -1134,6 +1137,7 @@ get_restriction_transpose(
       const Operator *R = get_restriction<entity_t>(f, o);
       std::function<void(const Vector&, Vector&)> RT = [=](const Vector &x, Vector &y)
       {
+         NVTX_MARK_FUNCTION;
          R->AddMultTranspose(x, y);
       };
       return std::make_tuple(RT, R->Height());
@@ -1153,6 +1157,7 @@ get_restriction_transpose(
 inline
 void prolongation(const FieldDescriptor field, const Vector &x, Vector &field_l)
 {
+   NVTX_MARK_FUNCTION;
    const auto P = get_prolongation(field);
    field_l.SetSize(P->Height());
    P->Mult(x, field_l);
@@ -1162,6 +1167,7 @@ inline
 void prolongation_transpose(
    const FieldDescriptor &field, const Vector &field_l, Vector &x)
 {
+   NVTX_MARK_FUNCTION;
    const auto P = get_prolongation(field);
    x.SetSize(P->Width());
    P->MultTranspose(field_l, x);
@@ -1183,6 +1189,7 @@ void prolongation(const std::array<FieldDescriptor, N> fields,
                   const Vector &x,
                   std::array<Vector, M> &fields_l)
 {
+   NVTX_MARK_FUNCTION;
    int data_offset = 0;
    for (int i = 0; i < N; i++)
    {
@@ -1229,6 +1236,7 @@ void prolongation(
    const BlockVector &x,
    std::vector<Vector *> &x_l)
 {
+   NVTX_MARK_FUNCTION;
    MFEM_ASSERT(x.NumBlocks() == static_cast<int>(x_l.size()),
                "error " << x.NumBlocks() << " vs " << x_l.size());
    for (int i = 0; i < x.NumBlocks(); i++)
@@ -1261,6 +1269,7 @@ void prolongation(
    const MultiVector &x,
    std::vector<Vector *> &x_l)
 {
+   NVTX_MARK_FUNCTION;
    MFEM_ASSERT(x.NumBlocks() == static_cast<int>(x_l.size()),
                "error " << x.NumBlocks() << " vs " << x_l.size());
    for (int i = 0; i < x.NumBlocks(); i++)
@@ -1270,7 +1279,8 @@ void prolongation(
       // If nullptr, assume Identity.
       if (P == nullptr)
       {
-         *x_l[i] = x[i];
+         NVTX_MARK("P(id)");
+         *x_l[i] = x[i]; // extra copy 🔥🔥🔥
       }
       else
       {
@@ -1292,6 +1302,7 @@ void prolongation_transpose(
    const std::vector<Vector *> &x_l,
    BlockVector &x)
 {
+   NVTX_MARK_FUNCTION;
    MFEM_ASSERT(static_cast<int>(x_l.size()) == x.NumBlocks(),
                "error " << x_l.size() << " vs " << x.NumBlocks());
    for (size_t i = 0; i < x_l.size(); i++)
@@ -1301,6 +1312,7 @@ void prolongation_transpose(
       // If nullptr, assume Identity.
       if (P == nullptr)
       {
+         NVTX_MARK("P^T(id)");
          x.GetBlock(i) = *x_l[i];
       }
       else
@@ -1322,6 +1334,7 @@ void prolongation_transpose(
    const std::vector<Vector *> &x_l,
    MultiVector &x)
 {
+   NVTX_MARK_FUNCTION;
    MFEM_ASSERT(static_cast<int>(x_l.size()) == x.NumBlocks(),
                "error " << x_l.size() << " vs " << x.NumBlocks());
    for (size_t i = 0; i < x_l.size(); i++)
@@ -1331,7 +1344,8 @@ void prolongation_transpose(
       // If nullptr, assume Identity.
       if (P == nullptr)
       {
-         x[i] = *x_l[i];
+         NVTX_MARK("P^T(id)");
+         x[i] = *x_l[i]; // extra copy 🔥🔥🔥
       }
       else
       {
@@ -1352,6 +1366,7 @@ void restriction(
    const std::vector<Vector *> &x_l,
    std::vector<Vector *> &x_e)
 {
+   NVTX_MARK_FUNCTION;
    MFEM_ASSERT(x_l.size() == x_e.size(),
                "internal error " << x_l.size() << " vs " << x_e.size());
    for (size_t i = 0; i < fields.size(); i++)
@@ -1396,6 +1411,7 @@ void prepare_residual(
    const std::vector<FieldDescriptor> &fields,
    std::vector<Vector *> &r_e)
 {
+   NVTX_MARK_FUNCTION;
    for (size_t i = 0; i < fields.size(); i++)
    {
       int s = 0;
@@ -1429,6 +1445,7 @@ void restriction_transpose(
    const std::vector<Vector *> &x_e,
    std::vector<Vector *> &x_l)
 {
+   NVTX_MARK_FUNCTION;
    for (size_t i = 0; i < fields.size(); i++)
    {
       int s = 0;
@@ -1536,6 +1553,7 @@ void restriction(const FieldDescriptor u,
                  Vector &field_e,
                  ElementDofOrdering ordering)
 {
+   NVTX_MARK_FUNCTION;
    const auto R = get_restriction<entity_t>(u, ordering);
    MFEM_ASSERT(R->Width() == u_l.Size(),
                "restriction not applicable to given data size");
@@ -1559,6 +1577,7 @@ void restriction(const std::vector<FieldDescriptor> u,
                  ElementDofOrdering ordering,
                  const int offset = 0)
 {
+   NVTX_MARK_FUNCTION;
    for (std::size_t i = 0; i < u.size(); i++)
    {
       const auto R = get_restriction<entity_t>(u[i], ordering);
@@ -1578,6 +1597,7 @@ void element_restriction(const std::array<FieldDescriptor, N> u,
                          ElementDofOrdering ordering,
                          const int offset = 0)
 {
+   NVTX_MARK_FUNCTION;
    for (int i = 0; i < N; i++)
    {
       const auto R = get_element_restriction(u[i], ordering);

@@ -520,6 +520,7 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
                                   Vector &q_der,
                                   Vector &q_det) const
 {
+   NVTX_MARK_FUNCTION;
    using namespace internal::quadrature_interpolator;
 
    const int ne = fespace->GetNE();
@@ -563,11 +564,13 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
    {
       if (eval_flags & (VALUES | PHYSICAL_VALUES))
       {
+         NVTX_MARK("VALUES");
          TensorEvalKernels::Run(dim, q_layout, vdim, nd, nq, ne, maps.B.Read(),
                                 e_vec.Read(), q_val.Write(), vdim, nd, nq);
       }
       if (eval_flags & (DERIVATIVES | PHYSICAL_DERIVATIVES))
       {
+         NVTX_MARK("DERIVATIVES");
          const bool phys = (eval_flags & PHYSICAL_DERIVATIVES);
          const real_t *J = phys ? geom->J.Read() : nullptr;
          const int s_dim = phys ? sdim : dim;
@@ -577,6 +580,7 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
       }
       if (eval_flags & DETERMINANTS)
       {
+         NVTX_MARK("DETERMINANTS");
          DetKernels::Run(dim, vdim, nd, nq, ne, maps.B.Read(),
                          maps.G.Read(), e_vec.Read(), q_det.Write(), nd,
                          nq, &d_buffer);
@@ -584,6 +588,7 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
    }
    else // use_tensor_eval == false
    {
+      NVTX_MARK("!TENSOR");
       EvalKernels::Run(dim, vdim, maps.ndof, maps.nqpt, ne,vdim, q_layout,
                        geom, maps, e_vec, q_val, q_der, q_det, eval_flags);
    }
@@ -662,6 +667,7 @@ void QuadratureInterpolator::AddMultTranspose(unsigned eval_flags,
                                               const Vector &q_der,
                                               Vector &e_vec) const
 {
+   NVTX_MARK_FUNCTION;
    const int ne = fespace->GetNE();
    if (ne == 0) { return; }
    const FiniteElement *fe = fespace->GetFE(0);
@@ -691,12 +697,14 @@ void QuadratureInterpolator::AddMultTranspose(unsigned eval_flags,
    {
       if (eval_flags & (VALUES | PHYSICAL_VALUES))
       {
+         NVTX_MARK("VALUES");
          TensorEvalTransposeKernels::Run(dim, q_layout, vdim, nd, nq, ne,
                                          maps.B.Read(), q_val.Read(),
                                          e_vec.ReadWrite(), vdim, nd, nq);
       }
       if (eval_flags & (DERIVATIVES | PHYSICAL_DERIVATIVES))
       {
+         NVTX_MARK("DERIVATIVES");
          const bool phys = (eval_flags & PHYSICAL_DERIVATIVES);
          const real_t *J = phys ? geom->J.Read() : nullptr;
          const int s_dim = phys ? sdim : dim;
@@ -715,6 +723,7 @@ void QuadratureInterpolator::AddMultTranspose(unsigned eval_flags,
 void QuadratureInterpolator::Values(const Vector &e_vec,
                                     Vector &q_val) const
 {
+   NVTX_MARK_FUNCTION;
    Vector empty;
    Mult(e_vec, VALUES, q_val, empty, empty);
 }
@@ -722,6 +731,7 @@ void QuadratureInterpolator::Values(const Vector &e_vec,
 void QuadratureInterpolator::PhysValues(const Vector &e_vec,
                                         Vector &q_val) const
 {
+   NVTX_MARK_FUNCTION;
    Vector empty;
    Mult(e_vec, PHYSICAL_VALUES, q_val, empty, empty);
 }
@@ -729,6 +739,7 @@ void QuadratureInterpolator::PhysValues(const Vector &e_vec,
 void QuadratureInterpolator::Derivatives(const Vector &e_vec,
                                          Vector &q_der) const
 {
+   NVTX_MARK_FUNCTION;
    Vector empty;
    Mult(e_vec, DERIVATIVES, empty, q_der, empty);
 }
@@ -736,6 +747,7 @@ void QuadratureInterpolator::Derivatives(const Vector &e_vec,
 void QuadratureInterpolator::PhysDerivatives(const Vector &e_vec,
                                              Vector &q_der) const
 {
+   NVTX_MARK_FUNCTION;
    Vector empty;
    Mult(e_vec, PHYSICAL_DERIVATIVES, empty, q_der, empty);
 }
@@ -743,6 +755,7 @@ void QuadratureInterpolator::PhysDerivatives(const Vector &e_vec,
 void QuadratureInterpolator::Determinants(const Vector &e_vec,
                                           Vector &q_det) const
 {
+   NVTX_MARK_FUNCTION;
    Vector empty;
    Mult(e_vec, DETERMINANTS, empty, empty, q_det);
 }
