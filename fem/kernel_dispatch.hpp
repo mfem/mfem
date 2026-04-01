@@ -31,7 +31,6 @@ template <typename... Types> struct KernelTypeList {};
 template <typename... T> class KernelDispatchTable
 {
 public:
-   template <typename... Args> static void Run(Args &&...);
    template <auto...> static inline void Add();
 };
 

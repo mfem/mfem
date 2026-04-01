@@ -56,7 +56,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
-   const auto versions = { 0, /*1, 2,*/ 3 };
+   const auto versions = { 0, 1, 2, 3 };
 
    const auto orders = { 6, 5, 4, 3, 2, 1 };
 
@@ -85,14 +85,13 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 // Register kernel specializations used in the benchmarks /////////////////////
 static void AddKernelSpecializations()
 {
-   using DET = QuadratureInterpolator::DetKernels;
    QuadratureInterpolator::DetKernels::Add<3, 3, 2, 2>();
    QuadratureInterpolator::DetKernels::Add<3, 3, 2, 3>();
    QuadratureInterpolator::DetKernels::Add<3, 3, 2, 5>();
    QuadratureInterpolator::DetKernels::Add<3, 3, 2, 6>();
    QuadratureInterpolator::DetKernels::Add<3, 3, 5, 5>();
-   // Others might exceed memory limits
-   // DET::Specialization<3, 3, 2, 7>::Add(); // uses too much shared data
+   // Others use too much shared data
+   // uadratureInterpolator::DetKernels::Add<3, 3, 2, 7>();
 
    using GRAD = QuadratureInterpolator::GradKernels;
    GRAD::Add<3, QVectorLayout::byNODES, false, 3, 2, 2>();
