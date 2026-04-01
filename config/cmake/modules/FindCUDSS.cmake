@@ -32,10 +32,8 @@ if (MFEM_USE_OPENMP)
     PATHS ${CUDSS_LIBRARY_DIR}
     NO_DEFAULT_PATH
   )
-  if (NOT MFEM_CUDSS_THREADING_LIB AND CUDSS_THREADING_LIB)
+  if (NOT DEFINED MFEM_CUDSS_THREADING_LIB AND CUDSS_THREADING_LIB)
     set(MFEM_CUDSS_THREADING_LIB "${CUDSS_THREADING_LIB}")
-  else()
-    message(WARNING "CUDSS threading layer library not found.")
   endif()
   message(STATUS "CUDSS threading layer library: ${MFEM_CUDSS_THREADING_LIB}")
 endif()
@@ -52,10 +50,8 @@ if (MFEM_USE_MPI)
     PATHS ${CUDSS_LIBRARY_DIR}
     NO_DEFAULT_PATH
   )
-  if (NOT MFEM_CUDSS_COMM_LIB AND CUDSS_THREADING_LIB)
+  if (NOT DEFINED MFEM_CUDSS_COMM_LIB AND CUDSS_COMM_LIB)
     set(MFEM_CUDSS_COMM_LIB "${CUDSS_COMM_LIB}")
-  else()
-    message(WARNING "CUDSS communication layer library not found.")
   endif()
   message(STATUS "CUDSS communication layer library: ${MFEM_CUDSS_COMM_LIB}")
 endif()

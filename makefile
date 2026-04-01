@@ -739,6 +739,8 @@ status info:
 	$(info MFEM_USE_MUMPS         = $(MFEM_USE_MUMPS))
 	$(info MFEM_USE_STRUMPACK     = $(MFEM_USE_STRUMPACK))
 	$(info MFEM_USE_CUDSS         = $(MFEM_USE_CUDSS))
+	$(info MFEM_CUDSS_COMM_LIB    = $(MFEM_CUDSS_COMM_LIB))
+	$(info MFEM_CUDSS_THREADING_LIB = $(MFEM_CUDSS_THREADING_LIB))
 	$(info MFEM_USE_GINKGO        = $(MFEM_USE_GINKGO))
 	$(info MFEM_USE_AMGX          = $(MFEM_USE_AMGX))
 	$(info MFEM_USE_MAGMA         = $(MFEM_USE_MAGMA))
