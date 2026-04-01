@@ -325,8 +325,6 @@ StiffnessIntegrator::StiffnessKernelType
 StiffnessIntegrator::StiffnessKernels::Fallback(int d1d, int q1d)
 {
    dbg("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
-   MFEM_ABORT("No kernel for D1D=" << d1d << " Q1D=" << q1d);
-   // return (StiffnessIntegrator::StiffnessKernelType) nullptr;
    return StiffnessMult;
 }
 
@@ -458,7 +456,7 @@ struct PAApply
 };
 
 /// Diffusion /////////////////////////////////////////////////////////////////
-template <int VDIM /*= 1*/, bool GLL /*= false*/>
+template <int VDIM, bool GLL>
 struct Diffusion : public BakeOff<VDIM, GLL>
 {
    static constexpr int DIM = 3;
@@ -525,6 +523,39 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       b.UseFastAssembly(true);
       b.Assemble();
 
+      const auto dOperatorSetup = [&] (auto backend)
+      {
+         using backend_t = decltype(backend);
+         const int height = pfes.GetVSize(), width = pfes.GetVSize();
+         dbg("height: {} width: {}", height, width);
+         dbg("\x1b[33m PA Setup operator");
+         const auto i0 = std::vector<FieldDescriptor> { {Ξ, &mfes}};
+         const auto o0 = std::vector<FieldDescriptor> { {Q, &qdata}};
+         DifferentiableOperator dSetup(height, width, i0, o0, pmesh);
+         PASetup<DIM> pa_setup_qf;
+         dSetup.AddDomainIntegrator<backend_t>(pa_setup_qf,
+                                               std::tuple{Gradient<Ξ>{}, Weight{}},
+                                               std::tuple{Identity<Q>{}},
+                                               *ir, ess_bdr);
+         dSetup.SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
+         MultiVector N{nodes}, D{qdata};
+         dSetup.Mult(N, D);
+
+         dbg("\x1b[33m PA Apply operator");
+         const auto i1 = std::vector<FieldDescriptor> { {U, &pfes}, {Q, &qdata}};
+         const auto o1 = std::vector<FieldDescriptor> { {U, &pfes}};
+         dop = std::make_unique<DifferentiableOperator>(height, width, i1, o1, pmesh);
+         PAApply<DIM> pa_apply_qf;
+         dop->template AddDomainIntegrator<backend_t>(pa_apply_qf,
+                                                      std::tuple{Gradient<U>{}, Identity<Q>{}, Weight{}},
+                                                      std::tuple{Gradient<U>{}},
+                                                      *ir, ess_bdr);
+         dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
+         wop = std::make_unique<WrapOpArg1>(dop, height, width, qdata);
+         wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
+         A.Reset(A_ptr);
+      };
+
       if (version < 2) // standard, new PA regs
       {
          a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -562,67 +593,13 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       }
       else if (version == 3) // PA ∂FEM ///////////////////////////////////////
       {
-         dbg("\x1b[33m PA ∂FEM");
-         const int height = pfes.GetVSize(), width = pfes.GetVSize();
-         dbg("height: {} width: {}", height, width);
-         dbg("\x1b[33m PA Setup operator");
-         const auto i0 = std::vector<FieldDescriptor> {{Ξ, &mfes}};
-         const auto o0 = std::vector<FieldDescriptor> {{Q, &qdata}};
-         DifferentiableOperator dSetup(height, width, i0, o0, pmesh);
-         PASetup<DIM> pa_setup_qf;
-         dSetup.AddDomainIntegrator<default_backend>(pa_setup_qf,
-                                                     std::tuple{Gradient<Ξ>{}, Weight{}},
-                                                     std::tuple{Identity<Q>{}},
-                                                     *ir, ess_bdr);
-         dSetup.SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
-         MultiVector N{nodes}, D{qdata};
-         dSetup.Mult(N, D);
-
-         dbg("\x1b[33m PA Apply operator");
-         const auto i1 = std::vector<FieldDescriptor> {{U, &pfes}, {Q, &qdata}};
-         const auto o1 = std::vector<FieldDescriptor> {{U, &pfes}};
-         dop = std::make_unique<DifferentiableOperator>(height, width, i1, o1, pmesh);
-         PAApply<DIM> pa_apply_qf;
-         dop->template AddDomainIntegrator<default_backend>(pa_apply_qf,
-                                                            std::tuple{Gradient<U>{}, Identity<Q>{}, Weight{}},
-                                                            std::tuple{Gradient<U>{}},
-                                                            *ir, ess_bdr);
-         dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
-         wop = std::make_unique<WrapOpArg1>(dop, height, width, qdata);
-         wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
-         A.Reset(A_ptr);
+         dbg("\x1b[33m PA ∂FEM + default backend");
+         dOperatorSetup(default_backend{});
       }
       else if (version == 4) // PA ∂FEM 'devices' backend /////////////////////
       {
-         dbg("\x1b[33m PA ∂FEM 'devices' backend ");
-         const int height = pfes.GetVSize(), width = pfes.GetVSize();
-         dbg("height: {} width: {}", height, width);
-         dbg("\x1b[33m PA Setup operator");
-         const auto i0 = std::vector<FieldDescriptor> {{Ξ, &mfes}};
-         const auto o0 = std::vector<FieldDescriptor> {{Q, &qdata}};
-         DifferentiableOperator dSetup(height, width, i0, o0, pmesh);
-         PASetup<DIM> pa_setup_qf;
-         dSetup.AddDomainIntegrator<device_backend>(pa_setup_qf,
-                                                    std::tuple{Gradient<Ξ>{}, Weight{}},
-                                                    std::tuple{Identity<Q>{}},
-                                                    *ir, ess_bdr);
-         dSetup.SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
-         MultiVector N{nodes}, D{qdata};
-         dSetup.Mult(N, D);
-
-         dbg("\x1b[33m PA Apply operator");
-         const auto i1 = std::vector<FieldDescriptor> {{U, &pfes}, {Q, &qdata}};
-         const auto o1 = std::vector<FieldDescriptor> {{U, &pfes}};
-         dop = std::make_unique<DifferentiableOperator>(height, width, i1, o1, pmesh);
-         PAApply<DIM> pa_apply_qf;
-         dop->template AddDomainIntegrator<device_backend>(pa_apply_qf,
-                                                           std::tuple{Gradient<U>{}, Identity<Q>{}, Weight{}},
-                                                           std::tuple{Gradient<U>{}},
-                                                           *ir, ess_bdr);
-         dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
-         wop = std::make_unique<WrapOpArg1>(dop, height, width, qdata);
-         wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
-         A.Reset(A_ptr);
+         dbg("\x1b[33m PA ∂FEM + devices backend");
+         dOperatorSetup(device_backend{});
       }
       else { MFEM_ABORT("Invalid version"); }
 
