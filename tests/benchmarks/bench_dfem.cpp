@@ -26,7 +26,7 @@
 #include <fem/dfem/backends/devices.hpp>
 using device_backend = mfem::future::DeviceBackend;
 
-#define DFEM_USE_DEFAULT_BACKEND
+#undef DFEM_USE_DEFAULT_BACKEND
 #ifdef DFEM_USE_DEFAULT_BACKEND
 #include <fem/dfem/backends/default/default.hpp>
 using default_backend = mfem::future::DefaultBackend;
@@ -326,8 +326,8 @@ StiffnessIntegrator::StiffnessKernels::Fallback(int d1d, int q1d)
 {
    dbg("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
    MFEM_ABORT("No kernel for D1D=" << d1d << " Q1D=" << q1d);
-   return (StiffnessIntegrator::StiffnessKernelType) nullptr;
-   // return StiffnessMult<2, 2>;
+   // return (StiffnessIntegrator::StiffnessKernelType) nullptr;
+   return StiffnessMult;
 }
 
 /// BakeOff ///////////////////////////////////////////////////////////////////
@@ -549,7 +549,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          const std::vector<FieldDescriptor> outfds = {{U, &pfes}};
          const int height = pfes.GetVSize(), width = pfes.GetVSize();
          dop = std::make_unique<DifferentiableOperator>(height, width,
-                                                        infds, outfds, pmesh); /**/
+                                                        infds, outfds, pmesh);
          MF<DIM> mf_apply_qf;
          dop->template AddDomainIntegrator<default_backend>(mf_apply_qf,
                                                             std::tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},

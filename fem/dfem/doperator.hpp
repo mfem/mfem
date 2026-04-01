@@ -568,10 +568,10 @@ void DifferentiableOperator::AddIntegrator(
 
    // pretty_print(dependency_map);
 
-   // auto input_to_field =
-   //    create_descriptors_to_fields_map<entity_t>(infds, inputs);
-   // auto output_to_field =
-   //    create_descriptors_to_fields_map<entity_t>(outfds, outputs);
+   [[maybe_unused]] const auto input_to_field =
+      create_descriptors_to_fields_map<entity_t>(infds, inputs);
+   [[maybe_unused]] const auto output_to_field =
+      create_descriptors_to_fields_map<entity_t>(outfds, outputs);
 
    // TODO: factor out
    std::vector<int> inputs_vdim(num_inputs);
