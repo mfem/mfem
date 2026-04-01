@@ -10,10 +10,10 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include "../../config/config.hpp"
+#include "../../config/config.hpp" // IWYU pragma: keep
 
 #ifdef MFEM_USE_MPI
-#include "../fespace.hpp"
+// #include "../fespace.hpp"
 #include "linalg/multivector.hpp"
 
 #include "util.hpp"
@@ -560,9 +560,7 @@ void DifferentiableOperator::AddIntegrator(
 
    static constexpr size_t num_fields =
       count_unique_field_ids(filtered_inout_tuple);
-   // out << "num_fields: " << num_fields << "\n";
-
-   MFEM_ASSERT(num_fields == unionfds.size(),
+   MFEM_VERIFY(num_fields == unionfds.size(),
                "Total number of fields in the Q-function doesn't match"
                "the union of FieldDescriptors.");
 
@@ -570,10 +568,10 @@ void DifferentiableOperator::AddIntegrator(
 
    // pretty_print(dependency_map);
 
-   auto input_to_field =
-      create_descriptors_to_fields_map<entity_t>(infds, inputs);
-   auto output_to_field =
-      create_descriptors_to_fields_map<entity_t>(outfds, outputs);
+   // auto input_to_field =
+   //    create_descriptors_to_fields_map<entity_t>(infds, inputs);
+   // auto output_to_field =
+   //    create_descriptors_to_fields_map<entity_t>(outfds, outputs);
 
    // TODO: factor out
    std::vector<int> inputs_vdim(num_inputs);

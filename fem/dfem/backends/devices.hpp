@@ -463,7 +463,7 @@ inline void check_consistency(fops_t &fops,
       const auto input = get<i>(fops);
       using input_t = std::decay_t<decltype(input)>;
 
-      const auto fd = fields[fop_to_fd[i]];
+      [[maybe_unused]] const auto fd = fields[fop_to_fd[i]];
 
       if constexpr (is_identity_fop<input_t>::value)
       {

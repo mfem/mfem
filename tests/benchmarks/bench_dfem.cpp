@@ -549,7 +549,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          const std::vector<FieldDescriptor> outfds = {{U, &pfes}};
          const int height = pfes.GetVSize(), width = pfes.GetVSize();
          dop = std::make_unique<DifferentiableOperator>(height, width,
-                                                        infds, outfds, pmesh);
+                                                        infds, outfds, pmesh); /**/
          MF<DIM> mf_apply_qf;
          dop->template AddDomainIntegrator<default_backend>(mf_apply_qf,
                                                             std::tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
