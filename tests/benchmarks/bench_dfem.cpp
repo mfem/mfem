@@ -524,6 +524,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       b.UseFastAssembly(true);
       b.Assemble();
 
+      // MF setup ///////////////////////////////////////////////////
       const auto dMFOperatorSetup = [&] (auto backend)
       {
          using backend_t = decltype(backend);
@@ -542,6 +543,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          A.Reset(A_ptr);
       };
 
+      // PA setup ///////////////////////////////////////////////////
       const auto dPAOperatorSetup = [&] (auto backend)
       {
          using backend_t = decltype(backend);
@@ -559,7 +561,6 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          dSetup.SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          MultiVector N{nodes}, D{qdata};
          dSetup.Mult(N, D);
-
          dbg("\x1b[33m PA Apply operator");
          const auto i1 = std::vector<FieldDescriptor> { {U, &pfes}, {Q, &qdata}};
          const auto o1 = std::vector<FieldDescriptor> { {U, &pfes}};

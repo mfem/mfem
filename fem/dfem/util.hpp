@@ -1230,11 +1230,9 @@ void prolongation(const std::array<FieldDescriptor, N> fields,
 //    }
 // }
 
-inline
-void prolongation(
-   const std::vector<FieldDescriptor> fields,
-   const BlockVector &x,
-   std::vector<Vector *> &x_l)
+inline void prolongation(const std::vector<FieldDescriptor> fields,
+                         const BlockVector &x,
+                         std::vector<Vector *> &x_l)
 {
    NVTX_MARK_FUNCTION;
    MFEM_ASSERT(x.NumBlocks() == static_cast<int>(x_l.size()),
@@ -1246,6 +1244,7 @@ void prolongation(
       // If nullptr, assume Identity.
       if (P == nullptr)
       {
+         NVTX_MARK("P(id)");
          *x_l[i] = x.GetBlock(i);
       }
       else
@@ -1257,17 +1256,16 @@ void prolongation(
          MFEM_ASSERT(prolongation->Height() == x_l[i]->Size(),
                      "prolongation not applicable to given output data size " <<
                      prolongation->Height() << " vs " << x_l[i]->Size());
+         NVTX_MARK("P(x_l)");
          prolongation->Mult(x.GetBlock(i), *x_l[i]);
       }
    }
    dbg("done");
 }
 
-inline
-void prolongation(
-   const std::vector<FieldDescriptor> fields,
-   const MultiVector &x,
-   std::vector<Vector *> &x_l)
+inline void prolongation(const std::vector<FieldDescriptor> fields,
+                         const MultiVector &x,
+                         std::vector<Vector *> &x_l)
 {
    NVTX_MARK_FUNCTION;
    MFEM_ASSERT(x.NumBlocks() == static_cast<int>(x_l.size()),
@@ -1281,6 +1279,7 @@ void prolongation(
       {
          NVTX_MARK("P(id)");
          *x_l[i] = x[i]; // extra copy 🔥🔥🔥
+         // x_l[i] = new Vector(const_cast<Vector&>(x[i]).ReadWrite(), x[i].Size());
       }
       else
       {
@@ -1291,6 +1290,7 @@ void prolongation(
          MFEM_ASSERT(prolongation->Height() == x_l[i]->Size(),
                      "prolongation not applicable to given output data size " <<
                      prolongation->Height() << " vs " << x_l[i]->Size());
+         NVTX_MARK("P(x_l)");
          prolongation->Mult(x[i], *x_l[i]);
       }
    }
@@ -1323,6 +1323,7 @@ void prolongation_transpose(
          MFEM_ASSERT(P->Width() == x.GetBlock(i).Size(),
                      "prolongation not applicable to given output data size " <<
                      P->Width() << " vs " << x.GetBlock(i).Size());
+         NVTX_MARK("P^T(x_l)");
          P->MultTranspose(*x_l[i], x.GetBlock(i));
       }
    }
@@ -1345,7 +1346,7 @@ void prolongation_transpose(
       if (P == nullptr)
       {
          NVTX_MARK("P^T(id)");
-         x[i] = *x_l[i]; // extra copy 🔥🔥🔥
+         x[i] = *x_l[i];
       }
       else
       {
@@ -1355,7 +1356,8 @@ void prolongation_transpose(
          MFEM_ASSERT(P->Width() == x[i].Size(),
                      "prolongation not applicable to given output data size " <<
                      P->Width() << " vs " << x[i].Size());
-         P->MultTranspose(*x_l[i], x[i]);
+         NVTX_MARK("P^T(x_l)");
+         P->MultTranspose(*x_l[i], x[i]); // D2D copy 🔥🔥🔥
       }
    }
 }

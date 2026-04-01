@@ -317,7 +317,14 @@ public:
          (std::is_same_v<x_t, BlockVector> && std::is_same_v<y_t, BlockVector>),
          "input and output vector types are incompatible");
 
-      prolongation(infds, x, infields_l);
+      if (mult_level == TVECTOR)
+      {
+         prolongation(infds, x, infields_l);
+      }
+      else
+      {
+         prolongation(infds, x, infields_l);
+      }
       restriction<Entity::Element>(infds, infields_l, infields_e);
       prepare_residual<Entity::Element>(outfds, residual_e);
       for (size_t i = 0; i < action_callbacks.size(); i++)
