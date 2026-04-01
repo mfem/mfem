@@ -13,9 +13,8 @@
 #include <tuple>
 #include <utility>
 
+#include "fem/dfem/fieldoperator.hpp"
 #include "fem/dfem/integrator_ctx.hpp"
-#include "fem/dfem/fieldoperator.hpp" // Identity, Value, Gradient
-// #include "fem/dfem/tuple.hpp"
 
 #include "fem/pfespace.hpp"
 #include "fem/quadinterpolator.hpp"
@@ -24,10 +23,10 @@
 #include "linalg/tensor_arrays.hpp"
 #include "linalg/vector.hpp"
 
-namespace mfem::future::device::detail
+namespace mfem::future::device
 {
 
-///////////////////////////////////////////////////////////////////////////////
+// FieldBasis /////////////////////////////////////////////////////////////////
 struct FieldBasis
 {
    // E-vector -> Q-vector
@@ -36,7 +35,7 @@ struct FieldBasis
    std::function<void(const Vector &, Vector &)> transpose;
 };
 
-///////////////////////////////////////////////////////////////////////////////
+// FunctionSignature //////////////////////////////////////////////////////////
 template <class F> struct FunctionSignature;
 
 template <typename output_t, typename... input_ts>
@@ -62,7 +61,7 @@ struct create_function_signature<output_t (*)(input_ts...)>
    using type = FunctionSignature<output_t(input_ts...)>;
 };
 
-///////////////////////////////////////////////////////////////////////////////
+// get_function_signature /////////////////////////////////////////////////////
 template <typename...>
 using void_t = void;
 
@@ -78,7 +77,7 @@ struct get_function_signature<T, void_t<decltype(&T::operator())>>
    using type = typename create_function_signature<decltype(&T::operator())>::type;
 };
 
-///////////////////////////////////////////////////////////////////////////////
+// all_true ///////////////////////////////////////////////////////////////////
 template <size_t N, size_t... Is>
 constexpr std::array<bool, N> all_true_impl(std::index_sequence<Is...>)
 {
@@ -91,7 +90,7 @@ constexpr std::array<bool, N> all_true()
    return all_true_impl<N>(std::make_index_sequence<N> {});
 }
 
-///////////////////////////////////////////////////////////////////////////////
+// set_layout /////////////////////////////////////////////////////////////////
 template <typename ndarray_t>
 inline void set_layout_default(ndarray_t &a)
 {
@@ -127,7 +126,7 @@ inline void set_layout(ndarray_t& a, const std::vector<int>& layout)
    a.set_layout(perm);
 }
 
-///////////////////////////////////////////////////////////////////////////////
+// make_tensor_array //////////////////////////////////////////////////////////
 /// Primary template: intentionally undefined — gives a clear error for unsupported types.
 template <typename T>
 struct tensor_array_traits;
@@ -165,7 +164,7 @@ decltype(auto) make_tensor_array(ptr_scalar_t *ptr,
    return a;
 }
 
-///////////////////////////////////////////////////////////////////////////////
+// constexpr_for //////////////////////////////////////////////////////////////
 template <auto start, auto end, auto inc = 1, typename F>
 constexpr void constexpr_for(F&& f)
 {
@@ -176,7 +175,7 @@ constexpr void constexpr_for(F&& f)
    }
 }
 
-///////////////////////////////////////////////////////////////////////////////
+// integrate //////////////////////////////////////////////////////////////////
 template <size_t noutputs>
 inline void integrate(const std::array<size_t, noutputs> &output_to_outfd,
                       const std::array<FieldBasis, noutputs> &output_bases,
@@ -192,7 +191,7 @@ inline void integrate(const std::array<size_t, noutputs> &output_to_outfd,
    });
 }
 
-///////////////////////////////////////////////////////////////////////////////
+// call_qfunc /////////////////////////////////////////////////////////////////
 template <typename qfunc_t, std::size_t... Is, std::size_t... Os>
 inline void call_qfunc(const qfunc_t &qfunc,
                        const BlockVector &xq,
@@ -231,7 +230,7 @@ inline void call_qfunc(const qfunc_t &qfunc,
    NVTX_MARK_END("apply");
 }
 
-///////////////////////////////////////////////////////////////////////////////
+// is_tensor_array ////////////////////////////////////////////////////////////
 template <typename T>
 struct is_tensor_array : std::false_type {};
 
@@ -245,7 +244,7 @@ template <typename scalar_t, int... Dims>
 struct is_tensor_array_mut<tensor_array<scalar_t, Dims...>>:
 /*  */ std::bool_constant<!std::is_const_v<scalar_t>> {};
 
-///////////////////////////////////////////////////////////////////////////////
+// supports_tensor_array_qfunc ////////////////////////////////////////////////
 template <typename qfunc_t, typename inputs_t, typename outputs_t>
 struct supports_tensor_array_qfunc
 {
@@ -276,7 +275,7 @@ struct supports_tensor_array_qfunc
       OutputsOk(std::make_index_sequence<noutputs> {});
 };
 
-///////////////////////////////////////////////////////////////////////////////
+// interpolate ////////////////////////////////////////////////////////////////
 template <size_t ninputs>
 inline void interpolate(const std::array<size_t, ninputs> &input_to_infd,
                         const std::array<FieldBasis, ninputs> &input_bases,
@@ -293,7 +292,7 @@ inline void interpolate(const std::array<size_t, ninputs> &input_to_infd,
    });
 }
 
-///////////////////////////////////////////////////////////////////////////////
+// FieldBasisFromWeight ///////////////////////////////////////////////////////
 inline FieldBasis FieldBasisFromWeight(const IntegrationRule &ir)
 {
    NVTX_MARK_FUNCTION;
@@ -301,7 +300,7 @@ inline FieldBasis FieldBasisFromWeight(const IntegrationRule &ir)
    {
       [&ir](const Vector &, Vector &xq)
       {
-         NVTX("FieldBasisFromWeight");
+         NVTX("Weights"); // should be done once 🔥
          const int nqp = ir.GetNPoints();
          MFEM_ASSERT(xq.Size() % nqp == 0, "weight block has unexpected size");
          const int ne = xq.Size() / nqp;
@@ -377,7 +376,7 @@ inline FieldBasis FromPS(const Operator *B, const Operator *Bt)
    };
 }
 
-///////////////////////////////////////////////////////////////////////////////
+// GetFieldBasis //////////////////////////////////////////////////////////////
 inline const FieldBasis GetFieldBasis(const FieldDescriptor &f,
                                       const IntegrationRule &ir,
                                       QuadratureInterpolator::EvalFlags mode)
@@ -414,7 +413,7 @@ inline const FieldBasis GetFieldBasis(const FieldDescriptor &f,
    }, f.data);
 }
 
-///////////////////////////////////////////////////////////////////////////////
+// create_fieldbases //////////////////////////////////////////////////////////
 template <typename fops_t, size_t nfops>
 inline void create_fieldbases(fops_t &fops,
                               const std::array<size_t, nfops> &fop_to_fd,
@@ -425,7 +424,7 @@ inline void create_fieldbases(fops_t &fops,
    NVTX_MARK_FUNCTION;
    constexpr_for<0, nfops>([&](auto i)
    {
-      const auto fop = get<i>(fops);
+      const auto fop = std::get<i>(fops);
       using fop_t = std::decay_t<decltype(fop)>;
 
       const auto fd = fds[fop_to_fd[i]];
@@ -434,24 +433,25 @@ inline void create_fieldbases(fops_t &fops,
          QuadratureInterpolator::VALUES;
       if constexpr (is_identity_fop<fop_t>::value)
       {
-         bases[i] = detail::GetFieldBasis(fd, ir, dummy_mode);
+         bases[i] = device::GetFieldBasis(fd, ir, dummy_mode);
       }
       else if constexpr (is_weight_fop<fop_t>::value)
       {
-         bases[i] = detail::FieldBasisFromWeight(ir);
+         bases[i] = device::FieldBasisFromWeight(ir);
       }
       else if constexpr (is_value_fop<fop_t>::value)
       {
-         bases[i] = detail::GetFieldBasis(fd, ir, QuadratureInterpolator::VALUES);
+         bases[i] = device::GetFieldBasis(fd, ir, QuadratureInterpolator::VALUES);
       }
       else if constexpr (is_gradient_fop<fop_t>::value)
       {
-         bases[i] = detail::GetFieldBasis(fd, ir, QuadratureInterpolator::DERIVATIVES);
+         bases[i] = device::GetFieldBasis(fd, ir, QuadratureInterpolator::DERIVATIVES);
       }
+      else { static_assert(false, "internal error"); }
    });
 }
 
-///////////////////////////////////////////////////////////////////////////////
+// check_consistency //////////////////////////////////////////////////////////
 template <typename fops_t, size_t nfops>
 inline void check_consistency(fops_t &fops,
                               const std::array<size_t, nfops> &fop_to_fd,
@@ -460,7 +460,7 @@ inline void check_consistency(fops_t &fops,
    NVTX_MARK_FUNCTION;
    constexpr_for<0, nfops>([&](auto i)
    {
-      const auto input = get<i>(fops);
+      const auto input = std::get<i.value>(fops);
       using input_t = std::decay_t<decltype(input)>;
 
       [[maybe_unused]] const auto fd = fields[fop_to_fd[i]];
@@ -492,7 +492,7 @@ inline void check_consistency(fops_t &fops,
    });
 }
 
-///////////////////////////////////////////////////////////////////////////////
+// create_fop_to_fd ///////////////////////////////////////////////////////////
 // Create quadrature function fop to fields map
 template <typename fops_t, size_t N = std::tuple_size_v<fops_t>, size_t M>
 void create_fop_to_fd(const fops_t &fops,
@@ -502,7 +502,7 @@ void create_fop_to_fd(const fops_t &fops,
    static_assert(N == M, "sizes must match");
    constexpr_for<0, N>([&](auto i)
    {
-      const auto fop = get<i>(fops);
+      const auto fop = std::get<i>(fops);
       fop_to_fd[i] = std::numeric_limits<size_t>::max();
       for (size_t j = 0; j < fields.size(); j++)
       {
@@ -526,6 +526,7 @@ void create_fop_to_fd(const fops_t &fops,
    });
 }
 
+// ACTION /////////////////////////////////////////////////////////////////////
 template<typename qfunc_t,
          typename inputs_t,
          typename outputs_t,
@@ -541,22 +542,23 @@ struct Action
    {
       NVTX_MARK_FUNCTION;
       // dbg("ninputs: {}, noutputs: {}", ninputs, noutputs);
-      detail::create_fop_to_fd(inputs, ctx.infds, input_to_infd);
-      detail::create_fop_to_fd(outputs, ctx.outfds, output_to_outfd);
+      device::create_fop_to_fd(inputs, ctx.infds, input_to_infd);
+      device::create_fop_to_fd(outputs, ctx.outfds, output_to_outfd);
 
-      detail::check_consistency(inputs, input_to_infd, ctx.infds);
-      detail::check_consistency(outputs, output_to_outfd, ctx.outfds);
+      device::check_consistency(inputs, input_to_infd, ctx.infds);
+      device::check_consistency(outputs, output_to_outfd, ctx.outfds);
 
-      detail::create_fieldbases(inputs, input_to_infd, ctx.infds, ctx.ir,
+      device::create_fieldbases(inputs, input_to_infd, ctx.infds, ctx.ir,
                                 input_bases);
-      detail::create_fieldbases(outputs, output_to_outfd, ctx.outfds, ctx.ir,
+      device::create_fieldbases(outputs, output_to_outfd, ctx.outfds, ctx.ir,
                                 output_bases);
 
       // Prepare inputs q-layouts maps for the qfunc call
       constexpr_for<0, ninputs>([&](auto i)
       {
-         using fop_t =
-            std::remove_cv_t<std::remove_reference_t<decltype(get<i>(inputs))>>;
+         using in_t = std::decay_t<decltype(inputs)>;
+         using fop_t = std::remove_cv_t<std::remove_reference_t<
+                       std::tuple_element_t<decltype(i)::value, in_t>>>;
          const auto it = ctx.in_qlayouts.find(std::type_index(typeid(fop_t)));
          if (it != ctx.in_qlayouts.end()) { input_qlayouts[i] = it->second; }
          else
@@ -568,8 +570,9 @@ struct Action
       // Prepare outputs q-layouts maps for the qfunc call
       constexpr_for<0, noutputs>([&](auto i)
       {
-         using fop_t =
-            std::remove_cv_t<std::remove_reference_t<decltype(get<i>(outputs))>>;
+         using out_t = std::decay_t<decltype(outputs)>;
+         using fop_t = std::remove_cv_t<std::remove_reference_t<
+                       std::tuple_element_t<decltype(i)::value, out_t>>>;
          const auto it = ctx.out_qlayouts.find(std::type_index(typeid(fop_t)));
          if (it != ctx.out_qlayouts.end())
          {
@@ -589,7 +592,7 @@ struct Action
       xq_offsets[0] = 0;
       constexpr_for<0, ninputs>([&](auto i)
       {
-         const auto input = get<i>(inputs);
+         const auto input = std::get<i>(inputs);
          xq_offsets[i + 1] = nqp * input.size_on_qp * ctx.nentities;
       });
       xq_offsets.PartialSum();
@@ -599,8 +602,8 @@ struct Action
       yq_offsets[0] = 0;
       constexpr_for<0, noutputs>([&](auto i)
       {
-         const auto output = get<i>(outputs);
-         yq_offsets[i + 1] = nqp * output.size_on_qp * ctx.nentities;
+         const auto output = std::get<i>(outputs);
+         yq_offsets[i.value + 1] = nqp * output.size_on_qp * ctx.nentities;
       });
       yq_offsets.PartialSum();
       yq.Update(yq_offsets);
@@ -613,21 +616,21 @@ struct Action
       NVTX_MARK_FUNCTION;
       if (ctx.attr.Size() == 0) { return; }
       // E -> Q
-      detail::interpolate(input_to_infd, input_bases, xe, xq);
+      interpolate(input_to_infd, input_bases, xe, xq);
       // Q -> Q
       static_assert(
          supports_tensor_array_qfunc<qfunc_t, inputs_t, outputs_t>::value,
          "qfunc signature not supported by default backend Action");
-      detail::call_qfunc(qfunc,
-                         xq,
-                         yq,
-                         gnqp,
-                         input_qlayouts,
-                         output_qlayouts,
-                         std::make_index_sequence<ninputs> {},
-                         std::make_index_sequence<noutputs> {});
+      call_qfunc(qfunc,
+                 xq,
+                 yq,
+                 gnqp,
+                 input_qlayouts,
+                 output_qlayouts,
+                 std::make_index_sequence<ninputs> {},
+                 std::make_index_sequence<noutputs> {});
       // Q -> E
-      detail::integrate(output_to_outfd, output_bases, yq, ye);
+      integrate(output_to_outfd, output_bases, yq, ye);
    }
 
    IntegratorContext ctx;
@@ -649,7 +652,7 @@ struct Action
    mutable BlockVector xq, yq;
 };
 
-} // namespace mfem::future::device::detail
+} // namespace mfem::future::device
 
 namespace mfem::future
 {
@@ -663,7 +666,7 @@ struct DeviceBackend
                           outputs_t outputs)
    {
       NVTX_MARK_FUNCTION;
-      return device::detail::Action(ctx, qfunc, inputs, outputs);
+      return device::Action(ctx, qfunc, inputs, outputs);
    }
 };
 

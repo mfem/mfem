@@ -39,8 +39,9 @@ struct Action
 
       constexpr_for<0, ninputs>([&](auto i)
       {
-         using fop_t =
-            std::remove_cv_t<std::remove_reference_t<decltype(get<i>(inputs))>>;
+         using in_t = std::decay_t<decltype(inputs)>;
+         using fop_t = std::remove_cv_t<std::remove_reference_t<
+                       std::tuple_element_t<decltype(i)::value, in_t>>>;
          auto it = ctx.in_qlayouts.find(std::type_index(typeid(fop_t)));
          if (it != ctx.in_qlayouts.end()) { input_qlayouts[i] = it->second; }
          else                             { input_qlayouts[i].clear(); }
@@ -48,8 +49,9 @@ struct Action
 
       constexpr_for<0, noutputs>([&](auto i)
       {
-         using fop_t =
-            std::remove_cv_t<std::remove_reference_t<decltype(get<i>(outputs))>>;
+         using out_t = std::decay_t<decltype(outputs)>;
+         using fop_t = std::remove_cv_t<std::remove_reference_t<
+                       std::tuple_element_t<decltype(i)::value, out_t>>>;
          auto it = ctx.out_qlayouts.find(std::type_index(typeid(fop_t)));
          if (it != ctx.out_qlayouts.end()) { output_qlayouts[i] = it->second; }
          else                              { output_qlayouts[i].clear(); }

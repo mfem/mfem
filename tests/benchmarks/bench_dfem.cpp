@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 #define NVTX_COLOR ::nvtx::kNvidia
 
-#include "bench.hpp" // IWYU pragma: keep
+#include "bench.hpp" // IWYU pragma: keep 
 
 #ifdef MFEM_USE_BENCHMARK
 
@@ -26,7 +26,7 @@
 #include <fem/dfem/backends/devices.hpp>
 using device_backend = mfem::future::DeviceBackend;
 
-#undef DFEM_USE_DEFAULT_BACKEND
+#define DFEM_USE_DEFAULT_BACKEND
 #ifdef DFEM_USE_DEFAULT_BACKEND
 #include <fem/dfem/backends/default/default.hpp>
 using default_backend = mfem::future::DefaultBackend;
@@ -70,7 +70,8 @@ void info()
    mfem::out << "version 1: PA new" << std::endl;
    mfem::out << "version 2: MF ∂fem-global" << std::endl;
    mfem::out << "version 3: PA ∂fem-global" << std::endl;
-   mfem::out << "version 4: PA ∂fem-global 'devices' backend" << std::endl;
+   mfem::out << "version 4: MF ∂fem-global 'devices' backend" << std::endl;
+   mfem::out << "version 5: PA ∂fem-global 'devices' backend" << std::endl;
    mfem::out << "\x1b[m" << std::endl;
 }
 
@@ -79,9 +80,9 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
-   const auto versions = { 0, 1, 2, 3, 4 };
+   const auto versions = { 0, 1, 2, 3, 4, 5 };
 
-   const auto orders = { 6, 5, 4, 3, 2, 1 };
+   const auto orders = { 8, 6, 5, 4, 3, 2, 1 };
 
    constexpr auto ndofs = [](int n) constexpr noexcept -> int
    {
@@ -252,7 +253,7 @@ public:
       });
    }
 
-   template <int T_D1D = 0, int T_Q1D = 0>
+   template <int T_D1D, int T_Q1D>
    static void StiffnessMult(const int NE, const real_t *b, const real_t *g,
                              const real_t *dx, const real_t *xe, real_t *ye,
                              const int d1d, const int q1d)
@@ -266,7 +267,7 @@ public:
       const auto DX = Reshape(dx, 3, 3, Q1D, Q1D, Q1D, NE);
       auto YE = Reshape(ye, D1D, D1D, D1D, VDIM, NE);
 
-      mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+      mfem::forall_2D<T_Q1D*T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
          constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
          constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
@@ -304,7 +305,7 @@ public:
       });
    }
 
-   using StiffnessKernelType = decltype(&StiffnessMult<>);
+   using StiffnessKernelType = decltype(&StiffnessMult<0, 0>);
    MFEM_REGISTER_KERNELS(StiffnessKernels, StiffnessKernelType, (int, int));
 
    void AddMultPA(const Vector &x, Vector &y) const override
@@ -322,10 +323,13 @@ StiffnessIntegrator::StiffnessKernels::Kernel()
 }
 
 StiffnessIntegrator::StiffnessKernelType
-StiffnessIntegrator::StiffnessKernels::Fallback(int d1d, int q1d)
+StiffnessIntegrator::StiffnessKernels::Fallback([[maybe_unused]] int d1d,
+                                                [[maybe_unused]] int q1d)
 {
    dbg("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
-   return StiffnessMult;
+   MFEM_ABORT("No kernel for d1d=" << d1d << " q1d=" << q1d);
+   return nullptr;
+   // return StiffnessMult;
 }
 
 /// BakeOff ///////////////////////////////////////////////////////////////////
@@ -405,7 +409,7 @@ struct BakeOff
 
 /// Q-Functions ///////////////////////////////////////////////////////////////
 template<int DIM>
-struct MF
+struct MFApply
 {
    void operator()(tensor_array<const real_t, DIM> &Gu,
                    tensor_array<const real_t, DIM, DIM> &J,
@@ -413,14 +417,12 @@ struct MF
                    tensor_array<real_t, DIM> &Gv) const
    {
       NVTX_MARK_FUNCTION;
-      const size_t NQ = Gu.size();
-      for (size_t q = 0; q < NQ; q++)
+      mfem::forall(J.size(), [=] MFEM_HOST_DEVICE (int q)
       {
          const auto invJ = inv(J(q));
          const real_t detJ = det(J(q));
-         const real_t w = weight(q);
-         Gv(q) = ((Gu(q) * invJ)) * transpose(invJ) * detJ * w;
-      }
+         Gv(q) = ((Gu(q) * invJ)) * transpose(invJ) * detJ * weight(q);
+      });
    }
 };
 
@@ -432,8 +434,7 @@ struct PASetup
                    tensor_array<real_t, DIM, DIM> &D) const
    {
       NVTX_MARK_FUNCTION;
-      const size_t NQ = J.size();
-      mfem::forall(NQ, [=] MFEM_HOST_DEVICE (int q)
+      mfem::forall(J.size(), [=] MFEM_HOST_DEVICE (int q)
       {
          const auto invJ = inv(J(q));
          const real_t detJ = det(J(q));
@@ -523,7 +524,25 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       b.UseFastAssembly(true);
       b.Assemble();
 
-      const auto dOperatorSetup = [&] (auto backend)
+      const auto dMFOperatorSetup = [&] (auto backend)
+      {
+         using backend_t = decltype(backend);
+         const auto ifs = std::vector<FieldDescriptor> {{U, &pfes}, {Ξ, &mfes}};
+         const auto ofs = std::vector<FieldDescriptor> {{U, &pfes}};
+         const int height = pfes.GetVSize(), width = pfes.GetVSize();
+         dop = std::make_unique<DifferentiableOperator>(height, width, ifs, ofs, pmesh);
+         MFApply<DIM> mf_apply_qf;
+         dop->template AddDomainIntegrator<backend_t>(mf_apply_qf,
+                                                      std::tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
+                                                      std::tuple{Gradient<U>{}},
+                                                      *ir, ess_bdr);
+         dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
+         wop = std::make_unique<WrapOpArg1>(dop, height, width, nodes);
+         wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
+         A.Reset(A_ptr);
+      };
+
+      const auto dPAOperatorSetup = [&] (auto backend)
       {
          using backend_t = decltype(backend);
          const int height = pfes.GetVSize(), width = pfes.GetVSize();
@@ -576,30 +595,22 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       else if (version == 2) // 2: MF ∂FEM ////////////////////////////////////
       {
          dbg("\x1b[33m MF ∂FEM");
-         const std::vector<FieldDescriptor> infds = {{U, &pfes}, {Ξ, &mfes}};
-         const std::vector<FieldDescriptor> outfds = {{U, &pfes}};
-         const int height = pfes.GetVSize(), width = pfes.GetVSize();
-         dop = std::make_unique<DifferentiableOperator>(height, width,
-                                                        infds, outfds, pmesh);
-         MF<DIM> mf_apply_qf;
-         dop->template AddDomainIntegrator<default_backend>(mf_apply_qf,
-                                                            std::tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
-                                                            std::tuple{Gradient<U>{}},
-                                                            *ir, ess_bdr);
-         dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
-         wop = std::make_unique<WrapOpArg1>(dop, height, width, nodes);
-         wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
-         A.Reset(A_ptr);
+         dMFOperatorSetup(default_backend{});
       }
       else if (version == 3) // PA ∂FEM ///////////////////////////////////////
       {
          dbg("\x1b[33m PA ∂FEM + default backend");
-         dOperatorSetup(default_backend{});
+         dPAOperatorSetup(default_backend{});
       }
-      else if (version == 4) // PA ∂FEM 'devices' backend /////////////////////
+      else if (version == 4) // MF ∂FEM 'devices' backend /////////////////////
+      {
+         dbg("\x1b[33m MF ∂FEM + devices backend");
+         dMFOperatorSetup(device_backend{});
+      }
+      else if (version == 5) // PA ∂FEM 'devices' backend /////////////////////
       {
          dbg("\x1b[33m PA ∂FEM + devices backend");
-         dOperatorSetup(device_backend{});
+         dPAOperatorSetup(device_backend{});
       }
       else { MFEM_ABORT("Invalid version"); }
 
