@@ -386,21 +386,19 @@ ifeq ($(MFEM_USE_CUDSS),YES)
    # Set the full name of cuDSS communication library (libcudss_commlayer_mpi.so). 
    # It is located under the cuDSS library directory by default.
    ifeq ($(MFEM_USE_MPI),YES)
-      MFEM_CUDSS_COMM_LIB = \
-       $(or $(CUDSS_COMM_LIB),$(CUDSS_LIBRARY_DIR)/libcudss_commlayer_openmpi.so)
-      ifeq ($(wildcard $(MFEM_CUDSS_COMM_LIB)),)
+      MFEM_CUDSS_COMM_LIB = $(abspath $(wildcard $(or $(CUDSS_COMM_LIB),\
+         $(subst @MFEM_DIR@,$(MFEM_DIR), $(CUDSS_LIBRARY_DIR)/libcudss_commlayer_openmpi.so))))
+      ifeq ($(MFEM_CUDSS_COMM_LIB),)
          $(warning cuDSS communication library not found.)
-         MFEM_CUDSS_COMM_LIB =
       endif
    endif
    # Set the full name of cuDSS threading library (libcudss_mtlayer_gomp.so). 
    # It is located under the cuDSS library directory by default.
    ifeq ($(MFEM_USE_OPENMP),YES)
-      MFEM_CUDSS_THREADING_LIB = \
-       $(or $(CUDSS_THREADING_LIB),$(CUDSS_LIBRARY_DIR)/libcudss_mtlayer_gomp.so)
-      ifeq ($(wildcard $(MFEM_CUDSS_THREADING_LIB)),)
+      MFEM_CUDSS_THREADING_LIB = $(abspath $(wildcard $(or $(CUDSS_THREADING_LIB),\
+         $(subst @MFEM_DIR@,$(MFEM_DIR),$(CUDSS_LIBRARY_DIR)/libcudss_mtlayer_gomp.so))))
+      ifeq ($(MFEM_CUDSS_COMM_LIB),)
          $(warning cuDSS threading library not found.)
-         MFEM_CUDSS_THREADING_LIB =
       endif
    endif
 endif
