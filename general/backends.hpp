@@ -14,7 +14,7 @@
 
 #include "../config/config.hpp"
 
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
 #include <cusparse.h>
 #include <library_types.h>
 #include <cuda_runtime.h>
@@ -22,7 +22,7 @@
 #endif
 #include "cuda.hpp"
 
-#ifdef MFEM_USE_HIP
+#if defined(MFEM_USE_HIP) && defined(__HIP__)
 #include <hip/hip_runtime.h>
 #endif
 #include "hip.hpp"
@@ -43,7 +43,8 @@
 #endif
 #endif
 
-#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+#if !defined(MFEM_USE_CUDA_OR_HIP)
+constexpr bool mfem_use_gpu = false;
 #define MFEM_DEVICE
 #define MFEM_HOST
 #define MFEM_LAMBDA
@@ -53,10 +54,11 @@
 #define MFEM_DEVICE_SYNC
 // MFEM_STREAM_SYNC is used for UVM and MPI GPU-Aware kernels
 #define MFEM_STREAM_SYNC
+#define MFEM_LAUNCH_BOUNDS(...)
 #endif
 
 #if !((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
-      (defined(MFEM_USE_HIP)  && defined(__HIP_DEVICE_COMPILE__)))
+      (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)))
 #define MFEM_SHARED
 #define MFEM_SYNC_THREAD
 #define MFEM_BLOCK_ID(k) 0
@@ -67,7 +69,7 @@
 #endif
 
 // 'double' and 'float' atomicAdd implementation for previous versions of CUDA
-#if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 600
+#if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 600)
 MFEM_DEVICE inline mfem::real_t atomicAdd(mfem::real_t *add, mfem::real_t val)
 {
    unsigned long long int *ptr = (unsigned long long int *) add;
@@ -95,7 +97,7 @@ template <typename T>
 MFEM_HOST_DEVICE T AtomicAdd(T &add, const T val)
 {
 #if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
-     (defined(MFEM_USE_HIP)  && defined(__HIP_DEVICE_COMPILE__)))
+     (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)))
    return atomicAdd(&add,val);
 #else
    T old = add;

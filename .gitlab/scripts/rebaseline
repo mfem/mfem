@@ -11,7 +11,7 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-# There will be collision between corona and ruby baselines.
+# There will be collision between corona and dane baselines.
 # Once the corresponding files have been generated, we can switch to machine
 # specific ref.
 ARTIFACT_PATH=${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/baseline-${SYS_TYPE}
@@ -21,7 +21,7 @@ PATCH_FILE=${ARTIFACT_PATH}.patch
 FULL_FILE=${ARTIFACT_PATH}.out
 DIFF_FILE=${ARTIFACT_PATH}.diff
 
-# There will be collision between corona and ruby baselines.
+# There will be collision between corona and dane baselines.
 # Once the corresponding files have been generated, we can switch to machine
 # specific ref.
 SAVED_NAME=baseline-${SYS_TYPE}.saved

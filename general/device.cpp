@@ -22,6 +22,8 @@
 
 #include <unordered_map>
 #include <map>
+#include <sstream>
+#include <iomanip>
 
 namespace mfem
 {
@@ -615,7 +617,7 @@ void Device::Setup(const std::string &device_option, const int device_id)
    if (Allows(Backend::DEBUG_DEVICE)) { ngpu = 1; }
 }
 
-MemoryType Device::QueryMemoryType(void *ptr)
+MemoryType Device::QueryMemoryType(const void* ptr)
 {
    // from HYPRE's hypre_GetPointerLocation
    MemoryType res = MemoryType::HOST;
@@ -714,6 +716,29 @@ void Device::DeviceMem(size_t *free, size_t *total)
       *total = 0;
    }
 #endif
+}
+
+std::string Device::GetUUID(const int device_id)
+{
+   std::stringstream res;
+#if defined(MFEM_USE_CUDA)
+   cudaDeviceProp prop;
+   MFEM_GPU_CHECK(cudaGetDeviceProperties(&prop, device_id));
+   for (int i = 0; i < 16; ++i)
+   {
+      res << std::setfill('0') << std::setw(2) << std::hex
+          << static_cast<unsigned>(prop.uuid.bytes[i]);
+   }
+#elif defined(MFEM_USE_HIP)
+   hipUUID uuid;
+   MFEM_GPU_CHECK(hipDeviceGetUuid(&uuid, device_id));
+   for (int i = 0; i < 16; ++i)
+   {
+      res << std::setfill('0') << std::setw(2) << std::hex
+          << static_cast<unsigned>(uuid.bytes[i]);
+   }
+#endif
+   return res.str();
 }
 
 int Device::NumMultiprocessors(int dev)

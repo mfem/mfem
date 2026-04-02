@@ -1019,7 +1019,7 @@ MMA::MMA(MPI_Comm comm_, int nVar, int nCon, real_t *xval, int iter)
    mSubProblem.reset(new MMA::MMASubSvanberg(*this, nVar, nCon));
 }
 
-MMA::MMA(MPI_Comm comm_, const int & nVar, const int & nCon,
+MMA::MMA(MPI_Comm comm_, const int nVar, const int nCon,
          const Vector & xval, int iter) : MMA(comm_, nVar, nCon, xval.GetData(), iter)
 {}
 #endif

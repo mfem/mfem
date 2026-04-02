@@ -101,7 +101,7 @@ $ cd ../miniapps
 $ ls
 CMakeLists.txt  common            meshing  nurbs        shifted  toys
 adjoint         electromagnetics  mtop     parelag      solvers
-autodiff        gslib             navier   performance  tools
+autodiff        gslib             fluids   performance  tools
 ```
 
 And an example in "toys"

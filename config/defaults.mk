@@ -18,6 +18,7 @@
 # Some choices below are based on the OS type:
 NOTMAC := $(subst Darwin,,$(shell uname -s))
 
+ASTYLE_BIN = astyle
 ETAGS_BIN = $(shell command -v etags 2> /dev/null)
 EGREP_BIN = $(shell command -v egrep 2> /dev/null)
 
@@ -57,7 +58,7 @@ CUDA_DIR = $(or $(CUDA_HOME),$(patsubst %/,%,$(dir \
 CLANG_CUDA_FLAGS = -xcuda --cuda-path=$(CUDA_DIR) --cuda-gpu-arch=$(CUDA_ARCH)
 # flags for nvcc
 NVCC_FLAGS = -x=cu --expt-extended-lambda --expt-relaxed-constexpr \
- -arch=$(CUDA_ARCH)
+ -arch=$(CUDA_ARCH) -isystem "$(CUDA_DIR)/include"
 # Prefixes for passing flags to the host compiler and linker when using
 # CUDA_CXX=nvcc
 CUDA_XCOMPILER = -Xcompiler=
@@ -407,7 +408,7 @@ AMGX_LIB = -L$(AMGX_DIR)/lib -lamgx -lcusparse -lcusolver -lcublas -lnvToolsExt
 # MAGMA library configuration
 MAGMA_DIR = @MFEM_DIR@/../magma
 MAGMA_OPT = -I$(MAGMA_DIR)/include
-MAGMA_LIB = -L$(MAGMA_DIR)/lib -l:libmagma.a -lcublas -lcusparse $(LAPACK_LIB)
+MAGMA_LIB = -L$(MAGMA_DIR)/lib -l:libmagma.a $(LAPACK_LIB)
 
 # GnuTLS library configuration
 GNUTLS_OPT =
