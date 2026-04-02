@@ -8,6 +8,7 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
+#define NVTX_COLOR ::nvtx::kNvidia
 
 #include "bench.hpp" // IWYU pragma: keep
 
@@ -24,14 +25,6 @@
 
 #include "fem/kernels.hpp"
 namespace ker = kernels::internal;
-
-#if defined(__has_include) && __has_include("general/nvtx.hpp") && !defined(_WIN32)
-#undef NVTX_COLOR
-#define NVTX_COLOR ::nvtx::kNvidia
-#include "general/nvtx.hpp"
-#else
-#define dbg(...)
-#endif
 
 using namespace mfem;
 
@@ -56,7 +49,7 @@ constexpr int NDOFS_INC = 25;
 #endif
 
 /// Benchmarks Arguments //////////////////////////////////////////////////////
-static void OrderSideVersionArgs(bmi::Benchmark *b)
+static void OrderSideVersionArgs(bm::Benchmark *b)
 {
    const auto est = [](int c) { return (c + 1) * (c + 1) * (c + 1); };
    const auto versions = { 0, 1, 2, 3 };
@@ -430,7 +423,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
 
          dbg("[PA ∂fem] SETUP 🟣🟣🟣🟣");
          auto pa_setup_qf =
-            [] MFEM_HOST_DEVICE(const real_t &u,
+            [] MFEM_HOST_DEVICE(const real_t &u [[maybe_unused]],
                                 const tensor<real_t, DIM, DIM> &J,
                                 const real_t &w)
          {

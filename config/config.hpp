@@ -154,4 +154,20 @@ constexpr real_t operator""_r(unsigned long long v)
 #endif
 #endif // MFEM_USE_MPI not defined
 
+#ifdef NVTX_DBG_HPP
+#include NVTX_DBG_HPP
+#else
+#define db1(...)
+#define dbg(...)
+#define dbl(...)
+#define dba(...)
+#define dbc(...)
+#define NVTX_MARK_FUNCTION
+#define NVTX_MARK_BEGIN(...)
+#define NVTX_MARK_INI(...)
+#define NVTX_MARK_END(...)
+#define NVTX_MARK(...)
+#define NVTX(...)
+#endif
+
 #endif // MFEM_CONFIG_HPP

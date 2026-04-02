@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 #pragma once
+// #define NVTX_COLOR ::nvtx::kTurquoise
 
 #include <cassert>
 #include <type_traits>
@@ -24,14 +25,6 @@
 #include "integrate.hpp"
 #include "qfunction_apply.hpp"
 #include "util.hpp"
-
-#if defined(__has_include) && __has_include("general/nvtx.hpp") && !defined(_WIN32)
-#undef NVTX_COLOR
-#define NVTX_COLOR ::nvtx::kTurquoise
-#include "general/nvtx.hpp"
-#else
-#define dbg(...)
-#endif
 
 namespace mfem::future
 {
@@ -780,7 +773,7 @@ void DifferentiableOperator::AddDomainIntegrator(
 #endif
       });
    }
-   else
+   else // use_new_kernels == false
    {
       action_callbacks.push_back(
          // Explicitly capture everything we need, so we can make explicit choice

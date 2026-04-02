@@ -10,19 +10,13 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
+// #define NVTX_COLOR ::nvtx::kOrchid
+
 #include <cstddef>
 
 #include "fem/kernels.hpp"
 
 #include "util.hpp"
-
-#if defined(__has_include) && __has_include("general/nvtx.hpp") && !defined(_WIN32)
-#undef NVTX_COLOR
-#define NVTX_COLOR ::nvtx::kOrchid
-#include "general/nvtx.hpp"
-#else
-#define dbg(...)
-#endif
 
 namespace mfem::future
 {
@@ -243,7 +237,8 @@ inline void action_callback_new(restriction_cb_t &restriction_cb,
       if constexpr (is_gradient_fop<std::decay_t<output_fop_t>>::value) // Gradient
       {
          const auto dtq = output_dtq_maps[0];
-         const auto B = dtq.B, G = dtq.G;
+         // const auto B = dtq.B, G = dtq.G;
+         const auto G = dtq.G;
          const auto [_, unused, d1d] = G.GetShape();
          const auto output = output_fop;
          const int vdim = output.vdim;

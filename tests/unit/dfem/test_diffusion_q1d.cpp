@@ -8,6 +8,7 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
+#define NVTX_COLOR nvtx::kGold
 
 #include "unit_tests.hpp"
 #include "mfem.hpp"
@@ -16,10 +17,6 @@
 #include "fem/dfem/util.hpp"
 
 #include <fem/integ/bilininteg_diffusion_kernels.hpp>
-
-#undef NVTX_COLOR
-#define NVTX_COLOR nvtx::kGold
-#include "general/nvtx.hpp"
 
 #ifdef MFEM_USE_MPI
 

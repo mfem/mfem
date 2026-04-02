@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 #pragma once
+// #define NVTX_COLOR nvtx::kPeru
 
 #include "util.hpp"
 #include "fem/kernels.hpp"
@@ -25,9 +26,6 @@ AlmostEq(T x, T y, T tolerance = 15.0 * std::numeric_limits<T>::epsilon())
    if (std::abs(min_abs) == 0.0) { return neg < eps; }
    return (neg / (1.0 + std::max(min, min_abs))) < tolerance;
 }
-#undef NVTX_COLOR
-#define NVTX_COLOR nvtx::kPeru
-#include "general/nvtx.hpp"
 
 namespace mfem::future
 {
