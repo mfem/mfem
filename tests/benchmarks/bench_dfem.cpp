@@ -356,7 +356,8 @@ StiffnessIntegrator::StiffnessKernels::Kernel()
 }
 
 StiffnessIntegrator::StiffnessKernelType
-StiffnessIntegrator::StiffnessKernels::Fallback(int d1d, int q1d)
+StiffnessIntegrator::StiffnessKernels::Fallback([[maybe_unused]]int d1d,
+                                                [[maybe_unused]] int q1d)
 {
    // dbg("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
    return StiffnessMult<>;
