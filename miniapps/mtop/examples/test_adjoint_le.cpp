@@ -1251,6 +1251,11 @@ int main(int argc, char *argv[])
          paraview_ac.RegisterField("adisp", &(adisp));
          paraview_ac.RegisterField("avelo", &(avelo));
 
+         real_t o=eobj->EvalScalar(u.v);
+         if(Mpi::Root()){
+            mfem::out<<" obj="<<o<<'\n';
+         }
+
          AdjState adj_st;
          adj_st.adj.Update(lin_elasticity_op.GetTrueBlockOffsets());
          adj_st.adj = 0.0;
@@ -1308,10 +1313,6 @@ int main(int argc, char *argv[])
 
          AdjointWithCheckpointing(1000,100);
          x.Add(-0.01,g);
-         real_t o=eobj->EvalScalar(x);
-         if(Mpi::Root()){
-            mfem::out<<" iter="<<bi<<" obj="<<o<<'\n';
-         }
       }
 
    }
