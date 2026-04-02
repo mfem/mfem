@@ -283,13 +283,8 @@ void ArraysByName<T>::Load(std::istream &in)
       }
       else
       {
-         do
-         {
-            auto c = in.get();
-            MFEM_VERIFY(in.good(), "error parsing input!");
-            ArrayName += std::string::traits_type::to_char_type(c);
-         }
-         while (!std::isspace(in.peek()));
+         in >> ArrayName;
+         MFEM_VERIFY(in.good(), "error parsing input!");
       }
 
       // Read the array
