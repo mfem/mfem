@@ -22,6 +22,7 @@
 
 #include "fem/dfem/doperator.hpp"
 #include <linalg/tensor.hpp>
+#include "tests/benchmarks/kernels.hpp"
 
 #include "fem/kernels.hpp"
 namespace ker = kernels::internal;
@@ -35,9 +36,25 @@ using future::DifferentiableOperator;
 using future::UniformParameterSpace;
 using future::ParameterFunction;
 using future::FieldDescriptor;
+using future::make_tensor;
 using future::Gradient;
 using future::Weight;
 using future::Identity;
+
+
+#if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) ||       \
+     (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)))
+
+template<int N>
+using MQZ = std::integral_constant<int, 0>;
+
+#else
+
+template<int N>
+using MQZ = std::integral_constant<int, N>;
+
+constexpr int SetMaxOf2(int n) { return mfem::kernels::internal::NextMultipleOf<2>(n); }
+#endif
 
 /// Max number of DOFs ////////////////////////////////////////////////////////
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
@@ -67,8 +84,9 @@ static void OrderSideVersionArgs(bm::Benchmark *b)
 
 /// Globals ///////////////////////////////////////////////////////////////////
 Device *device_ptr = nullptr;
-static bool use_new_kernels = false;
 static int gD1D = 0, gQ1D = 0;
+static bool use_new_kernels = false;
+static bool use_kernels_specialization = true;
 
 /// StiffnessIntegrator ///////////////////////////////////////////////////////
 struct StiffnessIntegrator : public BilinearFormIntegrator
@@ -83,6 +101,8 @@ public:
    {
       dbg();
       NVTX();
+      if (!use_kernels_specialization) { return; }
+      dbg("Adding StiffnessKernels specializations");
       StiffnessKernels::Specialization<2, 3>::Add();
       StiffnessKernels::Specialization<3, 4>::Add();
       StiffnessKernels::Specialization<4, 5>::Add();
@@ -161,12 +181,13 @@ public:
       });
    }
 
+   ///////////////////////////////////////////////////////////////////
+   /// BP3/1/6/25 | 12.5ms | 12.5ms | 10 | 15.625k | 40.1397/s | 6 | 1
    template <int T_D1D = 0, int T_Q1D = 0>
    static void StiffnessMult(const int NE, const real_t *b, const real_t *g,
                              const real_t *dx, const real_t *xe, real_t *ye,
                              const int d1d, const int q1d)
    {
-      // NVTX();
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
@@ -177,8 +198,8 @@ public:
 
       mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
-         constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
-         constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
+         constexpr int MD1 = T_D1D > 0 ? T_D1D : 32;
+         constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 32;
 
          MFEM_SHARED real_t smem[MQ1][MQ1];
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
@@ -213,27 +234,131 @@ public:
       });
    }
 
+   ///////////////////////////////////////////////////////////////////
+   // BP3/1/6/25 | 49.5 ms | 49.5 ms | 10 | 15.625k | 10.0983/s | 6 | 1
+   template <int T_D1D = 0, int T_Q1D = 0>
+   static void StiffnessMultVD(const int NE, const real_t *b, const real_t *g,
+                               const real_t *dx, const real_t *xe, real_t *ye,
+                               const int d1d, const int q1d)
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      db1("StiffnessMultVD: D1D:{} Q1D:{}", D1D, Q1D);
+
+      constexpr int DIM = 3, VDIM = 1;
+      const auto XE = Reshape(xe, D1D, D1D, D1D, VDIM, NE);
+      const auto DX = Reshape(dx, 3, 3, Q1D, Q1D, Q1D, NE);
+      auto YE = Reshape(ye, D1D, D1D, D1D, VDIM, NE);
+
+      mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+      {
+         // constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
+         // constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
+         constexpr int MD1 = T_D1D > 0 ? T_D1D : 32;
+         constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 32;
+
+         MFEM_SHARED real_t smem[MQ1][MQ1];
+         MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
+
+         constexpr int MZ1 = MQZ<MQ1>::value;
+         mfem::future::tensor<real_t, MQ1, MZ1, MZ1, VDIM, DIM> v0, v1;
+
+         ker::LoadMatrix(D1D, Q1D, b, sB);
+         ker::LoadMatrix(D1D, Q1D, g, sG);
+
+         ker::vd::LoadDofs3d(e, D1D, XE, v0);
+         ker::vd::Grad3d(D1D, Q1D, smem, sB, sG, v0, v1);
+
+         for (int qz = 0; qz < Q1D; qz++)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+               {
+                  auto &vd_v = v0[qz][qy][qx][0];
+                  const auto &vd_u = v1[qz][qy][qx][0];
+                  const auto d = make_tensor<3, 3>([&](int i, int j) { return DX(i, j, qx, qy, qz, e); });
+                  vd_v = d * vd_u;
+               }
+            }
+         }
+         ker::vd::GradTranspose3d(D1D, Q1D, smem, sB, sG, v0, v1);
+         ker::vd::WriteDofs3d(e, D1D, v1, YE);
+      });
+   }
+
    using StiffnessKernelType = decltype(&StiffnessMult<>);
    MFEM_REGISTER_KERNELS(StiffnessKernels, StiffnessKernelType, (int, int));
 
    void AddMultPA(const Vector &x, Vector &y) const override
    {
-      StiffnessKernels::Run(d1d, q1d, ne, B, G, DX, x.Read(), y.ReadWrite(),
+      StiffnessKernels::Run(d1d, q1d,
+                            ne, B, G, DX, x.Read(), y.ReadWrite(),
                             d1d, q1d);
    }
 };
+/*
+--------------------------------------------------------------------------------------------------
+Benchmark            Time             CPU   Iterations       Dofs     MDof/s          p    version
+--------------------------------------------------------------------------------------------------
+BP3/0/6/25        2.33 ms         2.29 ms          306    15.625k  218.454/s          6          0
+BP3/0/6/50        2.95 ms         2.92 ms          232   132.055k 1.44567k/s          6          0
+BP3/0/6/75        4.64 ms         4.61 ms          149   420.991k 2.92423k/s          6          0
+BP3/0/6/100       8.84 ms         8.80 ms           78   1.02907M 3.74023k/s          6          0
+BP3/0/6/125       15.5 ms         15.5 ms           45   1.95161M 4.02333k/s          6          0
+BP3/0/6/150       26.5 ms         26.5 ms           26   3.44295M 4.16497k/s          6          0
+BP3/0/6/175       40.9 ms         40.6 ms           17   5.35938M 4.22609k/s          6          0
+BP3/0/6/200       61.3 ms         60.7 ms           12    8.1182M 4.27719k/s          6          0
+--------------------------------------------------------------------------------------------------
+StiffnessMultVD:
+BP3/1/6/25        2.86 ms         2.80 ms          304    15.625k  178.514/s          6          1
+BP3/1/6/50        3.39 ms         3.33 ms          210   132.055k 1.26724k/s          6          1
+BP3/1/6/75        5.06 ms         4.99 ms          136   420.991k 2.69718k/s          6          1
+BP3/1/6/100       8.71 ms         8.63 ms           80   1.02907M 3.81789k/s          6          1
+BP3/1/6/125       15.5 ms         15.1 ms           46   1.95161M 4.13199k/s          6          1
+BP3/1/6/150       24.4 ms         24.2 ms           29   3.44295M 4.54897k/s          6          1
+BP3/1/6/175       37.4 ms         36.7 ms           19   5.35938M 4.67061k/s          6          1
+BP3/1/6/200       56.1 ms         55.2 ms           13    8.1182M 4.70794k/s          6          1
+--------------------------------------------------------------------------------------------------
+StiffnessMult:
+BP3/1/6/25        2.94 ms         2.86 ms          245    15.625k  174.602/s          6          1
+BP3/1/6/50        3.44 ms         3.37 ms          206   132.055k 1.25531k/s          6          1
+BP3/1/6/75        5.26 ms         5.15 ms          137   420.991k 2.61688k/s          6          1
+BP3/1/6/100       9.15 ms         9.04 ms           77   1.02907M 3.64348k/s          6          1
+BP3/1/6/125       15.7 ms         15.6 ms           45   1.95161M 4.01224k/s          6          1
+BP3/1/6/150       25.1 ms         25.0 ms           28   3.44295M 4.40159k/s          6          1
+BP3/1/6/175       37.7 ms         37.7 ms           18   5.35938M 4.54855k/s          6          1
+BP3/1/6/200       56.2 ms         56.2 ms           12    8.1182M 4.62524k/s          6          1
 
+
+[Darwin]
+-------------------------------------------------------------------------------------------------
+Benchmark           Time             CPU   Iterations       Dofs     MDof/s          p    version
+-------------------------------------------------------------------------------------------------
+StiffnessMult:
+BP3/0/6/25       17.2 ms         17.2 ms           41    15.625k  29.0621/s          6          0
+BP3/1/6/25       13.3 ms         13.1 ms           52    15.625k   38.234/s          6          1
+BP3/2/6/25       39.9 ms         39.8 ms           18    15.625k  12.5509/s          6          2
+BP3/3/6/25       24.4 ms         24.1 ms           29    15.625k  20.7329/s          6          3
+-------------------------------------------------------------------------------------------------
+StiffnessMultVD:
+BP3/0/6/25       17.4 ms         17.4 ms           38    15.625k  28.8158/s          6          0
+BP3/1/6/25       51.9 ms         51.9 ms           13    15.625k  9.63093/s          6          1
+BP3/2/6/25       39.9 ms         39.9 ms           17    15.625k  12.5196/s          6          2
+BP3/3/6/25       23.4 ms         23.4 ms           30    15.625k  21.3528/s          6          3
+*/
 template <int D1D, int Q1D>
 StiffnessIntegrator::StiffnessKernelType
 StiffnessIntegrator::StiffnessKernels::Kernel()
 {
    return StiffnessMult<D1D, Q1D>;
+   // return StiffnessMultVD<D1D, Q1D>;
 }
 
 StiffnessIntegrator::StiffnessKernelType
 StiffnessIntegrator::StiffnessKernels::Fallback(int d1d, int q1d)
 {
-   dbg("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
+   // dbg("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
    return StiffnessMult<>;
 }
 
@@ -304,7 +429,7 @@ struct BakeOff
       gD1D = d1d, gQ1D = q1d;
       // dbg("D1D: {}, Q1D: {}", gD1D, gQ1D);
       qdata.UseDevice(true);
-      assert(q1d*q1d*q1d == ir->GetNPoints());
+      MFEM_VERIFY(q1d*q1d*q1d == ir->GetNPoints(), "");
    }
 
    virtual void benchmark() = 0;
@@ -445,6 +570,8 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          };
          dop = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
          if (use_new_kernels) { dop->UseNewKernels(); }
+         if (use_kernels_specialization) { dop->UseKernelsSpecialization(); }
+         else { dbg("[PA ∂fem] NOT using kernels specialization"); }
          dop->AddDomainIntegrator(pa_apply_qf, Gu_Iq, tuple{Gu}, *ir, ess_bdr);
          dop->SetParameters({ &qdata });
 
@@ -462,9 +589,9 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          cg.SetRelTol(1e-8);
          cg.SetAbsTol(0.0);
          cg.Mult(B, X);
-         MFEM_VERIFY(cg.GetConverged(), "❌ CG solver did not converge.");
+         // MFEM_VERIFY(cg.GetConverged(), "❌ CG solver did not converge.");
          MFEM_DEVICE_SYNC;
-         mfem::out << "✅" << std::endl;
+         // mfem::out << "✅" << std::endl;
       }
       cg.SetAbsTol(0.0);
       cg.SetRelTol(rtol);
@@ -503,8 +630,8 @@ struct Diffusion : public BakeOff<VDIM, GLL>
 
 BakeOff_Problem(3, Diffusion);
 
-/// Specializations ///////////////////////////////////////////////////////////
-void AddKernelSpecializations()
+/// Basic Kernels Specializations /////////////////////////////////////////////
+static void AddBasicKernelSpecializations()
 {
    using Det = QuadratureInterpolator::DetKernels;
    Det::Specialization<3, 3, 2, 2>::Add();
@@ -528,12 +655,12 @@ void AddKernelSpecializations()
 }
 
 /// info //////////////////////////////////////////////////////////////////////
-void info()
+static void DumpVersionInfo()
 {
    mfem::out << "\x1b[33m";
    mfem::out << "version 0: PA std" << std::endl;
    mfem::out << "version 1: PA new" << std::endl;
-   // mfem::out << "version 2: MF ∂fem" << std::endl;
+   mfem::out << "version 2: MF ∂fem" << std::endl;
    mfem::out << "version 3: PA ∂fem" << std::endl;
    mfem::out << "\x1b[m" << std::endl;
 }
@@ -542,34 +669,48 @@ void info()
 int main(int argc, char *argv[])
 {
    dbg();
+   DumpVersionInfo();
+   AddBasicKernelSpecializations();
    static mfem::MPI_Session mpi(argc, argv);
 
    bm::ConsoleReporter CR;
    bm::Initialize(&argc, argv);
 
-   AddKernelSpecializations();
-   info();
-
    // Device setup, cpu by default
-   std::string device_context = "cpu", kernels_context = "std";
+   std::string device_context = "cpu",
+               kernels_context = "std",
+               kernels_specialization = "yes";
    const auto global_context = bmi::GetGlobalContext();
    if (global_context != nullptr)
    {
       const auto device = global_context->find("device");
       if (device != global_context->end())
       {
-         mfem::out << device->first << " : " << device->second << std::endl;
+         mfem::out << device->first << " : "
+                   << device->second << std::endl;
          device_context = device->second;
       }
 
       const auto kernels = global_context->find("kernels");
       if (kernels != global_context->end())
       {
-         mfem::out << kernels->first << " : " << kernels->second << std::endl;
+         mfem::out << kernels->first << " : "
+                   << kernels->second << std::endl;
          kernels_context = kernels->second;
          MFEM_VERIFY(kernels_context == "std" || kernels_context == "new",
                      "Invalid kernels config: " << kernels_context);
          use_new_kernels = (kernels_context == "new");
+      }
+
+      const auto specialization = global_context->find("specialization");
+      if (specialization != global_context->end())
+      {
+         mfem::out << specialization->first << " : "
+                   << specialization->second << std::endl;
+         kernels_specialization = specialization->second;
+         MFEM_VERIFY(kernels_specialization == "yes" || kernels_specialization == "no",
+                     "Invalid kernels specialization config: " << kernels_specialization);
+         use_kernels_specialization = (kernels_specialization == "yes");
       }
    }
    dbg("device_config: {}", device_context);

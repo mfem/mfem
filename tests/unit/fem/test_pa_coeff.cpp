@@ -397,13 +397,13 @@ TEST_CASE("Hcurl/Hdiv PA Coefficient",
          {
             if (space_type == HcurlHdiv)
             {
-               pa_form.AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff));
-               fa_form.AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff));
+               pa_form.AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff2));
+               fa_form.AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff2));
             }
             else
             {
-               pa_form.AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*coeff));
-               fa_form.AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*coeff));
+               pa_form.AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*coeff2));
+               fa_form.AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*coeff2));
             }
          }
       }

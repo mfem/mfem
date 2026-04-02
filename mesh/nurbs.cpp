@@ -9,8 +9,13 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "mesh_headers.hpp"
-#include "../fem/fem.hpp"
+#include "nurbs.hpp"
+
+#include "point.hpp"
+#include "segment.hpp"
+#include "quadrilateral.hpp"
+#include "hexahedron.hpp"
+#include "../fem/gridfunc.hpp"
 #include "../general/text.hpp"
 
 #include <fstream>
@@ -33,6 +38,7 @@ KnotVector::KnotVector(istream &input)
 
    knot.Load(input, NumOfControlPoints + Order + 1);
    GetElements();
+   coarse = false;
 }
 
 KnotVector::KnotVector(int order, int NCP)
@@ -41,6 +47,7 @@ KnotVector::KnotVector(int order, int NCP)
    NumOfControlPoints = NCP;
    knot.SetSize(NumOfControlPoints + Order + 1);
    NumOfElements = 0;
+   coarse = false;
 
    knot = -1.;
 }
@@ -86,6 +93,7 @@ KnotVector::KnotVector(int order, const Vector& intervals,
          ++NumOfElements;
       }
    }
+   coarse = false;
 }
 
 KnotVector &KnotVector::operator=(const KnotVector &kv)
@@ -1431,8 +1439,8 @@ void NURBSPatch::DegreeElevate(int dir, int t)
    KnotVector &oldkv = *kv[dir];
    oldkv.GetElements();
 
-   NURBSPatch *newpatch = new NURBSPatch(this, dir, oldkv.GetOrder() + t,
-                                         oldkv.GetNCP() + oldkv.GetNE()*t);
+   auto *newpatch = new NURBSPatch(this, dir, oldkv.GetOrder() + t,
+                                   oldkv.GetNCP() + oldkv.GetNE()*t);
    NURBSPatch &newp  = *newpatch;
    KnotVector &newkv = *newp.GetKV(dir);
 
@@ -4587,7 +4595,7 @@ void NURBSExtension::KnotInsert(Array<Vector *> &kv)
 
             // Flip vector
             int size = pkvc[d]->Size();
-            int ns = ceil(size/2.0);
+            int ns = static_cast<int>(ceil(size/2.0));
             for (int j = 0; j < ns; j++)
             {
                real_t tmp = apb - pkvc[d]->Elem(j);
@@ -4647,7 +4655,7 @@ void NURBSExtension::KnotRemove(Array<Vector *> &kv, real_t tol)
 
             // Flip vector
             int size = pkvc[d]->Size();
-            int ns = ceil(size/2.0);
+            int ns = static_cast<int>(ceil(size/2.0));
             for (int j = 0; j < ns; j++)
             {
                real_t tmp = apb - pkvc[d]->Elem(j);

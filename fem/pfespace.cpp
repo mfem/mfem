@@ -5259,7 +5259,7 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
       gc.GetNeighborLTDofTable(nbr_ltdof);
       const int nb_connections = nbr_ltdof.Size_of_connections();
       shr_ltdof.SetSize(nb_connections);
-      shr_ltdof.CopyFrom(nbr_ltdof.GetJ());
+      if (nb_connections > 0) { shr_ltdof.CopyFrom(nbr_ltdof.GetJ()); }
       shr_buf.SetSize(nb_connections);
       shr_buf.UseDevice(true);
       shr_buf_offsets = nbr_ltdof.GetIMemory();
@@ -5288,7 +5288,7 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
       gc.GetNeighborLDofTable(nbr_ldof);
       const int nb_connections = nbr_ldof.Size_of_connections();
       ext_ldof.SetSize(nb_connections);
-      ext_ldof.CopyFrom(nbr_ldof.GetJ());
+      if (nb_connections > 0) { ext_ldof.CopyFrom(nbr_ldof.GetJ()); }
       ext_ldof.GetMemory().UseDevice(true);
       ext_buf.SetSize(nb_connections);
       ext_buf.UseDevice(true);

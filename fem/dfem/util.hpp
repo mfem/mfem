@@ -569,7 +569,7 @@ struct ThreadBlocks
 };
 
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
-template <typename tag_t>
+/*template <typename tag_t>
 struct ForallKernel
 {
    template <typename func_t>
@@ -582,7 +582,18 @@ struct ForallKernel
          f(i, shmem);
       }
    }
-};
+};*/
+
+template <typename func_t>
+__global__ void forall_kernel_shmem(func_t f, int n)
+{
+   int i = blockIdx.x;
+   extern __shared__ real_t shmem[];
+   if (i < n)
+   {
+      f(i, shmem);
+   }
+}
 #endif
 
 template </*typename kernel_tag,*/ typename func_t>
@@ -598,7 +609,15 @@ void forall(func_t f,
 #if (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
       int num_bytes = num_shmem * sizeof(decltype(shmem));
       dim3 block_size(blocks.x, blocks.y, blocks.z);
-      ForallKernel<kernel_tag>::run<<<N, block_size, num_bytes>>>(f, N);
+      // ForallKernel<kernel_tag>::run<<<N, block_size, num_bytes>>>(f, N);
+      if (num_bytes > 0)
+      {
+         forall_kernel_shmem<<<N, block_size, num_bytes>>>(f, N);
+      }
+      else
+      {
+         forall_kernel_shmem<<<N, block_size>>>(f, N);
+      }
 #if defined(MFEM_USE_CUDA)
       MFEM_GPU_CHECK(cudaGetLastError());
 #elif defined(MFEM_USE_HIP)
@@ -1705,12 +1724,13 @@ std::array<DofToQuadMap, N> load_dtq_mem(
    std::array<DofToQuadMap, N> f;
    for (std::size_t i = 0; i < N; i++)
    {
-      const auto [nqp_b, dim_b, ndof_b] = dtq[i].B.GetShape();
-      const auto B = Reshape(&dtq[i].B[0], nqp_b, dim_b, ndof_b);
-      auto mem_Bi = Reshape(reinterpret_cast<real_t *>(mem) + offset, nqp_b, dim_b,
-                            ndof_b);
       if (dtq[i].which_input != -1)
       {
+         const auto [nqp_b, dim_b, ndof_b] = dtq[i].B.GetShape();
+         const auto B = Reshape(&dtq[i].B[0], nqp_b, dim_b, ndof_b);
+         auto mem_Bi = Reshape(reinterpret_cast<real_t *>(mem) + offset, nqp_b, dim_b,
+                               ndof_b);
+
          MFEM_FOREACH_THREAD(q, x, nqp_b)
          {
             MFEM_FOREACH_THREAD(d, y, ndof_b)
@@ -2161,7 +2181,7 @@ template <
    std::size_t... Is>
 std::array<DofToQuadMap, N> create_dtq_maps_impl(
    field_operator_ts &fops,
-   std::vector<const DofToQuad*> dtqs,
+   std::vector<const DofToQuad*> &dtqs,
    const std::array<int, N> &field_map,
    std::index_sequence<Is...>)
 {
@@ -2246,7 +2266,7 @@ template <
    std::size_t num_fields>
 std::array<DofToQuadMap, num_fields> create_dtq_maps(
    field_operator_ts &fops,
-   std::vector<const DofToQuad*> dtqmaps,
+   std::vector<const DofToQuad*> &dtqmaps,
    const std::array<int, num_fields> &to_field_map)
 {
    return create_dtq_maps_impl<entity_t>(

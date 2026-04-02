@@ -244,7 +244,7 @@ public:
    /// solutions_t. The result is a T-dof vector.
    void Mult(const Vector &solutions_t, Vector &result_t) const override
    {
-      db1();
+      // db1();
       MFEM_ASSERT(!action_callbacks.empty(), "no integrators have been set");
       prolongation(solutions, solutions_t, solutions_l);
       for (auto &action : action_callbacks)
@@ -349,6 +349,8 @@ public:
 
    void UseNewKernels() { use_new_kernels = true; }
 
+   void UseKernelsSpecialization() { use_kernels_specialization = true; }
+
 private:
    const ParMesh &mesh;
 
@@ -382,6 +384,7 @@ private:
 
    bool use_tensor_product_structure = true;
    bool use_new_kernels = false;
+   bool use_kernels_specialization = false;
 
    size_t test_space_field_idx = SIZE_MAX;
 };
@@ -408,8 +411,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    static constexpr size_t num_outputs =
       tuple_size<decltype(outputs)>::value;
 
-   // #warning MQ1 = 3
-   constexpr int MQ1 = 8; // qfunc_t::MQ1;
+   // constexpr int MQ1 = 8; // qfunc_t::MQ1;
    using qf_signature =
       typename create_function_signature<decltype(&qfunc_t::operator())>::type;
    using qf_param_ts = typename qf_signature::parameter_ts;
@@ -548,8 +550,8 @@ void DifferentiableOperator::AddDomainIntegrator(
                           doftoquad_mode));
    }
    const int q1d = (int)floor(std::pow(num_qp, 1.0/dimension) + 0.5);
-   dbg("q1d:{} \x1b[33mMQ1:{}", q1d, MQ1);
-   MFEM_VERIFY(MQ1 == 0 || q1d == MQ1, "q1d and MQ1 have to match");
+   // dbg("q1d:{} \x1b[33mMQ1:{}", q1d, MQ1);
+   // MFEM_VERIFY(MQ1 == 0 || q1d == MQ1, "q1d and MQ1 have to match");
 
    const int residual_size_on_qp =
       GetSizeOnQP<entity_t>(output_fop,
@@ -557,6 +559,9 @@ void DifferentiableOperator::AddDomainIntegrator(
 
    auto input_dtq_maps = create_dtq_maps<entity_t>(inputs, dtq, input_to_field);
    auto output_dtq_maps = create_dtq_maps<entity_t>(outputs, dtq, output_to_field);
+
+   const auto d1d = input_dtq_maps[0].B.GetShape()[2];
+   dbg("\x1b[33md1d:{} q1d:{} ", d1d, q1d);
 
    const int test_vdim = output_fop.vdim;
    const int test_op_dim = output_fop.size_on_qp / output_fop.vdim;
@@ -584,7 +589,7 @@ void DifferentiableOperator::AddDomainIntegrator(
       {
          thread_blocks.x = q1d;
          thread_blocks.y = q1d;
-         thread_blocks.z = use_new_kernels ? 1 :q1d;
+         thread_blocks.z = use_new_kernels ? 1 : q1d;
       }
    }
    else if (dimension == 2)
@@ -599,12 +604,15 @@ void DifferentiableOperator::AddDomainIntegrator(
 
    if (use_new_kernels)
    {
+      // dbg("ThreadBlocks: x:{} y:{} z:{}",
+      //     thread_blocks.x, thread_blocks.y, thread_blocks.z);
       action_callbacks.push_back(
          [
             // 🟢🟢🟢🟢 capture by copy:
             dimension,                    // int
             num_entities,                 // int
             num_test_dof,                 // int
+            d1d,                          // int
             q1d,                          // int
             test_vdim,                    // int (= output_fop.vdim)
             inputs,                       // input_t
@@ -624,6 +632,7 @@ void DifferentiableOperator::AddDomainIntegrator(
             dependency_map,               // std::map<int, std::vector<int>>
             inputs_vdim,                  // std::vector<int>
             // 🟣🟣🟣🟣 capture by ref:
+            &use_kernels_specialization = this->use_kernels_specialization,   // bool
             &restriction_cb = this->restriction_callback,
             &fields_e = this->fields_e,
             &residual_e = this->residual_e,
@@ -633,144 +642,30 @@ void DifferentiableOperator::AddDomainIntegrator(
            Vector &residual_l)
          mutable
       {
-#if 1
-         action_callback_new<MQ1, num_fields>(restriction_cb,
-                                              qfunc,
-                                              inputs,
-                                              input_to_field,
-                                              input_dtq_maps,
-                                              output_dtq_maps,
-                                              num_entities,
-                                              test_vdim,
-                                              num_test_dof,
-                                              dimension,
-                                              q1d,
-                                              thread_blocks,
-                                              action_shmem_info,
-                                              elem_attributes,
-                                              output_fop,
-                                              domain_attributes,
-                                              fields_e,
-                                              residual_e,
-                                              output_restriction_transpose,
-                                              solutions_l,
-                                              parameters_l,
-                                              residual_l);
-#else
-         db1();
-         assert(dimension == 3);
-
-         // types
-         // using qf_signature =
-         // typename create_function_signature<decltype(&qfunc_t::operator())>::type;
-         // using qf_param_ts = typename qf_signature::parameter_ts;
-
-         // db1("Restriction");
-         restriction_cb(solutions_l, parameters_l, fields_e);
-
-         // db1("residule_e = 0.0");
-         residual_e = 0.0;
-
-         auto ye = Reshape(residual_e.ReadWrite(), test_vdim, num_test_dof,
-                           num_entities);
-
-         // std::array<DeviceTensor<2>, num_fields>: (field_sizes, num_entities)
-         auto wrapped_fields_e = wrap_fields(fields_e,
-                                             action_shmem_info.field_sizes,
-                                             num_entities);
-
-         const bool has_attr = domain_attributes.Size() > 0;
-         const auto d_domain_attr = domain_attributes.Read();
-         const auto d_elem_attr = elem_attributes.Read();
-
-         // db1("forall");
-         forall([=] MFEM_HOST_DEVICE (int e, void *)
-         {
-            // this could be optimized out
-            if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
-
-            constexpr int DIM = 3;
-            MFEM_SHARED real_t smem[MQ1][MQ1], sB[MQ1][MQ1], sG[MQ1][MQ1];
-            kernels::internal::d_regs3d_t<DIM, MQ1> r0, r1;
-            real_t *r2;
-
-            const auto fields_e_ptr = load_field_e_ptr(wrapped_fields_e, e);
-
-            // Interpolate
-            const auto dummy_field_weight = DeviceTensor<1>(nullptr, 0);
-            for_constexpr<num_inputs>([&](auto i)
-            {
-               using field_operator_t = std::decay_t<decltype(get<i>(inputs))>;
-
-               if constexpr (is_gradient_fop<field_operator_t>::value) // Grad
-               {
-                  // db1("\x1b[32m[Gradient] r0, r1");
-                  const auto input = get<i>(inputs);
-                  const int vdim = input.vdim;
-                  const auto dtq = input_dtq_maps[i];
-                  const auto B = dtq.B, G = dtq.G;
-                  const auto [B_q1d, B_dim, d1d] = B.GetShape();
-                  assert(B_q1d == q1d);
-                  const real_t *field_e_r = fields_e_ptr[input_to_field[i]];
-                  const auto field = Reshape(field_e_r, d1d, d1d, d1d, vdim);
-                  kernels::internal::LoadMatrix(d1d, q1d, B, sB);
-                  kernels::internal::LoadMatrix(d1d, q1d, G, sG);
-                  for (int c = 0; c < vdim; c++)
-                  {
-                     kernels::internal::LoadDofs3d(d1d, c, field, r0);
-                     kernels::internal::Grad3d(d1d, q1d, smem, sB, sG, r0, r1, c);
-                  }
-               }
-
-               if constexpr (is_identity_fop<field_operator_t>::value) // Identity
-               {
-                  // db1("Identity");
-                  r2 = fields_e_ptr[input_to_field[i]];
-               }
-            }); // for_constexpr<num_inputs>
-
-            // db1("Now calling qfunction");
-            auto qf_args = decay_tuple<qf_param_ts> {};
-            MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
-            {
-               MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
-               {
-                  MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
-                  {
-                     qf::apply_kernel<MQ1, num_inputs>(r0, r1, r2, qx, qy, qz,
-                                                       qfunc, qf_args);
-                  }
-               }
-            }
-
-            // db1("Integrate");
-            using output_fop_t = std::decay_t<decltype(output_fop)>;
-            auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
-            if constexpr (is_gradient_fop<output_fop_t>::value) // Gradient
-            {
-               const auto dtq = output_dtq_maps[0];
-               const auto B = dtq.B, G = dtq.G;
-               const auto [_, unused, d1d] = G.GetShape();
-               const auto output = output_fop;
-               const int vdim = output.vdim;
-               auto yd = Reshape(&y(0, 0), d1d, d1d, d1d, vdim);
-               // can be avoided IF one input to one output
-               // kernels::internal::LoadMatrix(d1d, q1d, B, sB);
-               // kernels::internal::LoadMatrix(d1d, q1d, G, sG);
-               for (int c = 0; c < vdim; c++)
-               {
-                  kernels::internal::GradTranspose3d(d1d, q1d, smem, sB, sG, r0, r1, c);
-                  kernels::internal::WriteDofs3d(d1d, c, r1, yd);
-               }
-            }
-         },
-         num_entities,
-         thread_blocks);
-
-         // db1("RestrictionT");
-         output_restriction_transpose(residual_e, residual_l);
-
-#endif
+         NewActionCallback action(use_kernels_specialization,
+                                  restriction_cb,
+                                  qfunc,
+                                  inputs,
+                                  input_to_field,
+                                  input_dtq_maps,
+                                  output_dtq_maps,
+                                  num_entities,
+                                  test_vdim,
+                                  num_test_dof,
+                                  dimension,
+                                  q1d,
+                                  thread_blocks,
+                                  action_shmem_info,
+                                  elem_attributes,
+                                  output_fop,
+                                  domain_attributes,
+                                  fields_e,
+                                  residual_e,
+                                  output_restriction_transpose,
+                                  solutions_l,
+                                  parameters_l,
+                                  residual_l);
+         action.Apply(d1d, q1d);
       });
    }
    else // use_new_kernels == false
@@ -837,7 +732,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                                   wrapped_fields_e, num_qp, e);
 
 
-            map_fields_to_quadrature_data<MQ1>(
+            map_fields_to_quadrature_data(
                input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,
                scratch_shmem, dimension, use_sum_factorization);
 
@@ -956,7 +851,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                                      wrapped_fields_e, wrapped_direction_e, num_qp, e);
                auto &shadow_shmem = shadow_shmem_;
 
-               map_fields_to_quadrature_data<MQ1>(
+               map_fields_to_quadrature_data(
                   input_shmem, fields_shmem, input_dtq_shmem, input_to_field,
                   inputs, ir_weights, scratch_shmem, dimension,
                   use_sum_factorization);
@@ -964,7 +859,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                // TODO: Probably redundant
                set_zero(shadow_shmem);
 
-               map_direction_to_quadrature_data_conditional<MQ1>(
+               map_direction_to_quadrature_data_conditional(
                   shadow_shmem, direction_shmem, input_dtq_shmem, inputs,
                   ir_weights, scratch_shmem, input_is_dependent, dimension,
                   use_sum_factorization);

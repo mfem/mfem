@@ -111,8 +111,7 @@ void kSmemForceMult2D(const int NE,
    auto b = Reshape(B_.Read(), Q1D, L1D);
    auto bt = Reshape(Bt_.Read(), H1D, Q1D);
    auto gt = Reshape(Gt_.Read(), H1D, Q1D);
-   auto sJit = Reshape(Read(sJit_.GetMemory(), Q1D*Q1D*NE*2*2),
-                       Q1D,Q1D,NE,2,2);
+   auto sJit = Reshape(Read(sJit_.GetMemory(), Q1D*Q1D*NE*2*2), Q1D,Q1D,NE,2,2);
    auto energy = Reshape(e_.Read(), L1D, L1D, NE);
    const real_t eps1 = std::numeric_limits<real_t>::epsilon();
    const real_t eps2 = eps1*eps1;
@@ -124,14 +123,14 @@ void kSmemForceMult2D(const int NE,
       MFEM_SHARED real_t Bt[H1D][Q1D];
       MFEM_SHARED real_t Gt[H1D][Q1D];
       MFEM_SHARED real_t Ez[NBZ][L1D][L1D];
-      real_t (*E)[L1D] = (real_t (*)[L1D])(Ez + z);
+      auto E = (real_t (*)[L1D])(Ez + z);
       MFEM_SHARED real_t LQz[2][NBZ][H1D][Q1D];
-      real_t (*LQ0)[Q1D] = (real_t (*)[Q1D])(LQz[0] + z);
-      real_t (*LQ1)[Q1D] = (real_t (*)[Q1D])(LQz[1] + z);
+      auto LQ0 = (real_t (*)[Q1D])(LQz[0] + z);
+      auto LQ1 = (real_t (*)[Q1D])(LQz[1] + z);
       MFEM_SHARED real_t QQz[3][NBZ][Q1D][Q1D];
-      real_t (*QQ)[Q1D] = (real_t (*)[Q1D])(QQz[0] + z);
-      real_t (*QQ0)[Q1D] = (real_t (*)[Q1D])(QQz[1] + z);
-      real_t (*QQ1)[Q1D] = (real_t (*)[Q1D])(QQz[2] + z);
+      auto QQ = (real_t (*)[Q1D])(QQz[0] + z);
+      auto QQ0 = (real_t (*)[Q1D])(QQz[1] + z);
+      auto QQ1 = (real_t (*)[Q1D])(QQz[2] + z);
       if (z == 0)
       {
          MFEM_FOREACH_THREAD(q,x,Q1D)
@@ -269,16 +268,16 @@ void kSmemForceMult3D(const int NE,
       MFEM_SHARED real_t E[L1D][L1D][L1D];
       MFEM_SHARED real_t sm0[3][Q1D*Q1D*Q1D];
       MFEM_SHARED real_t sm1[3][Q1D*Q1D*Q1D];
-      real_t (*MMQ0)[D1D][Q1D] = (real_t (*)[D1D][Q1D]) (sm0+0);
-      real_t (*MMQ1)[D1D][Q1D] = (real_t (*)[D1D][Q1D]) (sm0+1);
-      real_t (*MMQ2)[D1D][Q1D] = (real_t (*)[D1D][Q1D]) (sm0+2);
-      real_t (*MQQ0)[Q1D][Q1D] = (real_t (*)[Q1D][Q1D]) (sm1+0);
-      real_t (*MQQ1)[Q1D][Q1D] = (real_t (*)[Q1D][Q1D]) (sm1+1);
-      real_t (*MQQ2)[Q1D][Q1D] = (real_t (*)[Q1D][Q1D]) (sm1+2);
+      auto MMQ0 = (real_t (*)[D1D][Q1D]) (sm0+0);
+      auto MMQ1 = (real_t (*)[D1D][Q1D]) (sm0+1);
+      auto MMQ2 = (real_t (*)[D1D][Q1D]) (sm0+2);
+      auto MQQ0 = (real_t (*)[Q1D][Q1D]) (sm1+0);
+      auto MQQ1 = (real_t (*)[Q1D][Q1D]) (sm1+1);
+      auto MQQ2 = (real_t (*)[Q1D][Q1D]) (sm1+2);
       MFEM_SHARED real_t QQQ[Q1D][Q1D][Q1D];
-      real_t (*QQQ0)[Q1D][Q1D] = (real_t (*)[Q1D][Q1D]) (sm0+0);
-      real_t (*QQQ1)[Q1D][Q1D] = (real_t (*)[Q1D][Q1D]) (sm0+1);
-      real_t (*QQQ2)[Q1D][Q1D] = (real_t (*)[Q1D][Q1D]) (sm0+2);
+      auto QQQ0 = (real_t (*)[Q1D][Q1D]) (sm0+0);
+      auto QQQ1 = (real_t (*)[Q1D][Q1D]) (sm0+1);
+      auto QQQ2 = (real_t (*)[Q1D][Q1D]) (sm0+2);
       if (z == 0)
       {
          MFEM_FOREACH_THREAD(q,x,Q1D)
@@ -455,13 +454,13 @@ void kSmemForceMult3D(const int NE,
    });
 }
 
-typedef void (*fForceMult)(const int E,
-                           const Array<real_t> &B,
-                           const Array<real_t> &Bt,
-                           const Array<real_t> &Gt,
-                           const DenseTensor &stressJinvT,
-                           const Vector &e,
-                           Vector &v);
+using fForceMult = void (*)(const int E,
+                            const Array<real_t> &B,
+                            const Array<real_t> &Bt,
+                            const Array<real_t> &Gt,
+                            const DenseTensor &stressJinvT,
+                            const Vector &e,
+                            Vector &v);
 
 static void kForceMult(const int DIM,
                        const int D1D,
@@ -517,16 +516,16 @@ void kSmemForceMultTranspose2D(const int NE,
       MFEM_SHARED real_t B[Q1D][H1D];
       MFEM_SHARED real_t G[Q1D][H1D];
       MFEM_SHARED real_t Vz[NBZ][D1D*D1D];
-      real_t (*V)[D1D] = (real_t (*)[D1D])(Vz + z);
+      auto V = (real_t (*)[D1D])(Vz + z);
       MFEM_SHARED real_t DQz[2][NBZ][D1D*Q1D];
-      real_t (*DQ0)[Q1D] = (real_t (*)[Q1D])(DQz[0] + z);
-      real_t (*DQ1)[Q1D] = (real_t (*)[Q1D])(DQz[1] + z);
+      auto DQ0 = (real_t (*)[Q1D])(DQz[0] + z);
+      auto DQ1 = (real_t (*)[Q1D])(DQz[1] + z);
       MFEM_SHARED real_t QQz[3][NBZ][Q1D*Q1D];
-      real_t (*QQ)[Q1D] = (real_t (*)[Q1D])(QQz[0] + z);
-      real_t (*QQ0)[Q1D] = (real_t (*)[Q1D])(QQz[1] + z);
-      real_t (*QQ1)[Q1D] = (real_t (*)[Q1D])(QQz[2] + z);
+      auto QQ = (real_t (*)[Q1D])(QQz[0] + z);
+      auto QQ0 = (real_t (*)[Q1D])(QQz[1] + z);
+      auto QQ1 = (real_t (*)[Q1D])(QQz[2] + z);
       MFEM_SHARED real_t QLz[NBZ][Q1D*L1D];
-      real_t (*QL)[L1D] = (real_t (*)[L1D]) (QLz + z);
+      auto QL = (real_t (*)[L1D]) (QLz + z);
       if (z == 0)
       {
          MFEM_FOREACH_THREAD(q,x,Q1D)
@@ -658,15 +657,15 @@ void kSmemForceMultTranspose3D(const int NE,
       MFEM_SHARED real_t G[Q1D][H1D];
       MFEM_SHARED real_t sm0[3][Q1D*Q1D*Q1D];
       MFEM_SHARED real_t sm1[3][Q1D*Q1D*Q1D];
-      real_t (*V)[D1D][D1D]    = (real_t (*)[D1D][D1D]) (sm0+0);
-      real_t (*MMQ0)[D1D][Q1D] = (real_t (*)[D1D][Q1D]) (sm0+1);
-      real_t (*MMQ1)[D1D][Q1D] = (real_t (*)[D1D][Q1D]) (sm0+2);
-      real_t (*MQQ0)[Q1D][Q1D] = (real_t (*)[Q1D][Q1D]) (sm1+0);
-      real_t (*MQQ1)[Q1D][Q1D] = (real_t (*)[Q1D][Q1D]) (sm1+1);
-      real_t (*MQQ2)[Q1D][Q1D] = (real_t (*)[Q1D][Q1D]) (sm1+2);
-      real_t (*QQQ0)[Q1D][Q1D] = (real_t (*)[Q1D][Q1D]) (sm0+0);
-      real_t (*QQQ1)[Q1D][Q1D] = (real_t (*)[Q1D][Q1D]) (sm0+1);
-      real_t (*QQQ2)[Q1D][Q1D] = (real_t (*)[Q1D][Q1D]) (sm0+2);
+      auto V = (real_t (*)[D1D][D1D]) (sm0+0);
+      auto MMQ0 = (real_t (*)[D1D][Q1D]) (sm0+1);
+      auto MMQ1 = (real_t (*)[D1D][Q1D]) (sm0+2);
+      auto MQQ0 = (real_t (*)[Q1D][Q1D]) (sm1+0);
+      auto MQQ1 = (real_t (*)[Q1D][Q1D]) (sm1+1);
+      auto MQQ2 = (real_t (*)[Q1D][Q1D]) (sm1+2);
+      auto QQQ0 = (real_t (*)[Q1D][Q1D]) (sm0+0);
+      auto QQQ1 = (real_t (*)[Q1D][Q1D]) (sm0+1);
+      auto QQQ2 = (real_t (*)[Q1D][Q1D]) (sm0+2);
       MFEM_SHARED real_t QQQ[Q1D][Q1D][Q1D];
       if (z == 0)
       {
@@ -837,13 +836,13 @@ void kSmemForceMultTranspose3D(const int NE,
    });
 }
 
-typedef void (*fForceMultTranspose)(const int nzones,
-                                    const Array<real_t> &Bt,
-                                    const Array<real_t> &B,
-                                    const Array<real_t> &G,
-                                    const DenseTensor &sJit,
-                                    const Vector &v,
-                                    Vector &e);
+using fForceMultTranspose = void (*)(const int nzones,
+                                     const Array<real_t> &Bt,
+                                     const Array<real_t> &B,
+                                     const Array<real_t> &G,
+                                     const DenseTensor &sJit,
+                                     const Vector &v,
+                                     Vector &e);
 
 static void kForceMultTranspose(const int DIM,
                                 const int D1D,
@@ -949,8 +948,7 @@ static void ComputeDiagonal2D(const int height, const int nzones,
                               const Tensors1D *tensors1D,
                               Vector &diag)
 {
-   const TensorBasisElement *fe_H1 =
-      dynamic_cast<const TensorBasisElement *>(FESpace.GetTypicalFE());
+   auto fe_H1 = dynamic_cast<const TensorBasisElement *>(FESpace.GetTypicalFE());
    const Array<int> &dof_map = fe_H1->GetDofMap();
    const DenseMatrix &HQs = tensors1D->HQshape1D;
    const int ndof1D = HQs.Height(), nqp1D = HQs.Width(), nqp = nqp1D * nqp1D;
@@ -984,8 +982,7 @@ static void ComputeDiagonal3D(const int height, const int nzones,
                               const Tensors1D *tensors1D,
                               Vector &diag)
 {
-   const TensorBasisElement *fe_H1 =
-      dynamic_cast<const TensorBasisElement *>(FESpace.GetTypicalFE());
+   auto fe_H1 = dynamic_cast<const TensorBasisElement *>(FESpace.GetTypicalFE());
    const Array<int> &dof_map = fe_H1->GetDofMap();
    const DenseMatrix &HQs = tensors1D->HQshape1D;
    const int ndof1D = HQs.Height(), nqp1D = HQs.Width(),
@@ -1043,7 +1040,7 @@ private:
    FiniteElementSpace &FESpace;
    ParBilinearForm pabf;
    int ess_tdofs_count;
-   Array<int> ess_tdofs;
+   Array<int> ess_tdofs, empty;
    OperatorPtr massOperator;
    Tensors1D *tensors1D;
 public:
@@ -1062,13 +1059,12 @@ public:
       FESpace(pfes),
       pabf(&pfes),
       ess_tdofs_count(0),
-      ess_tdofs(0),
       tensors1D(t1D)
    {
       pabf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      pabf.AddDomainIntegrator(new mfem::MassIntegrator(Q,&ir));
+      pabf.AddDomainIntegrator(new mfem::MassIntegrator(Q, &ir));
       pabf.Assemble();
-      pabf.FormSystemMatrix(mfem::Array<int>(), massOperator);
+      pabf.FormSystemMatrix(empty, massOperator);
    }
 
    void Mult(const Vector &x, Vector &y) const override
@@ -1138,15 +1134,14 @@ public:
    void SetDiagonal(Vector &d)
    {
       const Operator *P = FESpace.GetProlongationMatrix();
-      if (P == NULL) { diag = d; return; }
+      if (P == nullptr) { diag = d; return; }
       diag.SetSize(P->Width());
       P->MultTranspose(d, diag);
    }
    void Mult(const Vector &x, Vector &y) const override
    {
       const int N = x.Size();
-      auto d_diag = diag.Read();
-      auto d_x = x.Read();
+      const auto d_diag = diag.Read(), d_x = x.Read();
       auto d_y = y.Write();
       mfem::forall(N, [=] MFEM_HOST_DEVICE (int i) { d_y[i] = d_x[i] / d_diag[i]; });
    }
@@ -1217,10 +1212,10 @@ void ComputeRho0DetJ0AndVolume(const int dim,
    rho0Q.UseDevice(true);
    const QuadratureInterpolator *qi = l2_fes.GetQuadratureInterpolator(ir);
    qi->Values(rho0, rho0Q);
-   auto W = ir.GetWeights().Read();
-   auto R = Reshape(rho0Q.Read(), NQ, NE);
-   auto J = Reshape(geom->J.Read(), NQ, dim, dim, NE);
-   auto detJ = Reshape(geom->detJ.Read(), NQ, NE);
+   const auto W = ir.GetWeights().Read();
+   const auto R = Reshape(rho0Q.Read(), NQ, NE);
+   const auto J = Reshape(geom->J.Read(), NQ, dim, dim, NE);
+   const auto detJ = Reshape(geom->detJ.Read(), NQ, NE);
    auto V = Reshape(quad_data.rho0DetJ0w.Write(), NQ, NE);
    Memory<real_t> &Jinv_m = quad_data.Jac0inv.GetMemory();
    auto invJ = Reshape(Jinv_m.Write(Device::GetDeviceMemoryClass(),
@@ -1430,16 +1425,16 @@ void QKernel(const int nzones,
              Vector &dt_est,
              DenseTensor &stressJinvT)
 {
-   auto d_weights = weights.Read();
-   auto d_Jacobians = Jacobians.Read();
-   auto d_rho0DetJ0w = rho0DetJ0w.Read();
-   auto d_e_quads = e_quads.Read();
-   auto d_grad_v_ext = grad_v_ext.Read();
+   const auto d_weights = weights.Read();
+   const auto d_Jacobians = Jacobians.Read();
+   const auto d_rho0DetJ0w = rho0DetJ0w.Read();
+   const auto d_e_quads = e_quads.Read();
+   const auto d_grad_v_ext = grad_v_ext.Read();
    auto d_Jac0inv = Read(Jac0inv.GetMemory(), Jac0inv.TotalSize());
    auto d_dt_est = dt_est.ReadWrite();
    auto d_stressJinvT = Write(stressJinvT.GetMemory(),
                               stressJinvT.TotalSize());
-   if (dim==2)
+   if (dim == 2)
    {
       mfem::forall_2D(nzones, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int z)
       {
@@ -1516,7 +1511,7 @@ void QUpdate::UpdateQuadratureData(const Vector &S,
    Vector* S_p = const_cast<Vector*>(&S);
    const int H1_size = H1.GetVSize();
    const int nqp1D = tensors1D->LQshape1D.Width();
-   const real_t h1order = (real_t) H1.GetElementOrder(0);
+   const real_t h1order = H1.GetElementOrder(0);
    const real_t infinity = std::numeric_limits<real_t>::infinity();
    GridFunction d_x, d_v, d_e;
    d_x.MakeRef(&H1,*S_p, 0);
@@ -1531,15 +1526,15 @@ void QUpdate::UpdateQuadratureData(const Vector &S,
    q2->Values(d_e, d_l2_e_quads_data);
    d_dt_est = quad_data.dt_est;
    const int id = (dim<<4) | nqp1D;
-   typedef void (*fQKernel)(const int NE, const int NQ,
-                            const real_t gamma, const bool use_viscosity,
-                            const real_t h0, const real_t h1order,
-                            const real_t cfl, const real_t infinity,
-                            const Array<real_t> &weights,
-                            const Vector &Jacobians, const Vector &rho0DetJ0w,
-                            const Vector &e_quads, const Vector &grad_v_ext,
-                            const DenseTensor &Jac0inv,
-                            Vector &dt_est, DenseTensor &stressJinvT);
+   using fQKernel = void (*)(const int NE, const int NQ,
+                             const real_t gamma, const bool use_viscosity,
+                             const real_t h0, const real_t h1order,
+                             const real_t cfl, const real_t infinity,
+                             const Array<real_t> &weights,
+                             const Vector &Jacobians, const Vector &rho0DetJ0w,
+                             const Vector &e_quads, const Vector &grad_v_ext,
+                             const DenseTensor &Jac0inv,
+                             Vector &dt_est, DenseTensor &stressJinvT);
    static std::unordered_map<int, fQKernel> qupdate =
    {
       {0x24,&QKernel<2,4>}, //{0x26,&QKernel<2,6>}, {0x28,&QKernel<2,8>},
@@ -2030,6 +2025,7 @@ int sedov(int myid, int argc, char *argv[])
    rho.ProjectGridFunction(l2_rho);
    DeltaCoefficient e_coeff(blast_position[0], blast_position[1],
                             blast_position[2], blast_energy);
+   e_coeff.SetWeight(new ConstantCoefficient(1.0));
    l2_e.ProjectCoefficient(e_coeff);
    e_gf.ProjectGridFunction(l2_e);
    e_gf.SyncAliasMemory(S);
@@ -2038,13 +2034,13 @@ int sedov(int myid, int argc, char *argv[])
    ParGridFunction mat_gf(&mat_fes);
    FunctionCoefficient mat_coeff(gamma);
    mat_gf.ProjectCoefficient(mat_coeff);
-   GridFunctionCoefficient *mat_gf_coeff = new GridFunctionCoefficient(&mat_gf);
+   GridFunctionCoefficient mat_gf_coeff(&mat_gf);
    const int source = 0; bool visc = true;
 
    mfem::hydrodynamics::LagrangianHydroOperator oper(rho_coeff, S.Size(),
                                                      H1FESpace, L2FESpace,
                                                      ess_tdofs, rho, source,
-                                                     cfl, mat_gf_coeff,
+                                                     cfl, &mat_gf_coeff,
                                                      visc, cg_tol, cg_max_iter,
                                                      ftz_tol, order_q,
                                                      gamma(S),
@@ -2148,7 +2144,6 @@ int sedov(int myid, int argc, char *argv[])
    //oper.PrintTimingData(myid, steps, fom);
    delete ode_solver;
    delete pmesh;
-   delete mat_gf_coeff;
    return 0;
 }
 } // namespace mfem
