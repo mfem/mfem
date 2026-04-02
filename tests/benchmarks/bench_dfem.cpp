@@ -40,14 +40,25 @@ using future::Gradient;
 using future::Weight;
 using future::Identity;
 
+/// info //////////////////////////////////////////////////////////////////////
+void info()
+{
+   mfem::out << "\x1b[33m";
+   mfem::out << "version 0: PA std" << std::endl;
+   mfem::out << "version 1: PA new" << std::endl;
+   mfem::out << "version 2: MF ∂fem-master" << std::endl;
+   mfem::out << "version 3: PA ∂fem-master" << std::endl;
+   mfem::out << "\x1b[m" << std::endl;
+}
+
 // Custom benchmark arguments generator ///////////////////////////////////////
-static void CustomArguments(bmi::Benchmark *b) noexcept
+static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
    const auto versions = { 0, /*1, 2,*/ 3 };
 
-   const auto orders = { /*6, 5, 4,*/ 3, 2, 1 };
+   const auto orders = { /*6, 5,*/ 4, 3, 2, 1 };
 
    constexpr auto ndofs = [](int n) constexpr noexcept -> int
    {
@@ -87,6 +98,19 @@ static void AddKernelSpecializations()
    GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 7>::Add();
    GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 8>::Add();
    GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 9>::Add();
+
+   // GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 3>::Add();
+   // GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 4>::Add();
+   // GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 5>::Add();
+   // GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 6>::Add();
+   // GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 7>::Add();
+   // GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 8>::Add();
+
+   // GRAD::Specialization<3, QVectorLayout::byVDIM, false, 1, 2, 3>::Add();
+   // GRAD::Specialization<3, QVectorLayout::byVDIM, false, 1, 4, 5>::Add();
+   // GRAD::Specialization<3, QVectorLayout::byVDIM, false, 1, 5, 6>::Add();
+   // GRAD::Specialization<3, QVectorLayout::byVDIM, false, 1, 6, 7>::Add();
+   // GRAD::Specialization<3, QVectorLayout::byVDIM, false, 1, 7, 8>::Add();
 
    using LIN = DomainLFIntegrator::AssembleKernels;
    LIN::Specialization<3, 7, 7>::Add();
@@ -270,7 +294,8 @@ StiffnessIntegrator::StiffnessKernelType
 StiffnessIntegrator::StiffnessKernels::Fallback(int d1d, int q1d)
 {
    dbg("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
-   return StiffnessMult<>;
+   MFEM_ABORT("No kernel for d1d=" << d1d << " q1d=" << q1d);
+   // return StiffnessMult<>;
 }
 
 /// BakeOff ///////////////////////////////////////////////////////////////////
@@ -366,7 +391,7 @@ template<int DIM>
 struct PASetup
 {
    MFEM_HOST_DEVICE inline
-   auto operator()(const real_t &u,
+   auto operator()([[maybe_unused]] const real_t &u,
                    const tensor<real_t, DIM, DIM> &J,
                    const real_t &w)const
    {
@@ -505,9 +530,11 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       else { MFEM_ABORT("Invalid version"); }
 
       cg.SetOperator(*A);
+      cg.iterative_mode = false;
       cg.SetAbsTol(0.0);
       if (dofs < 128 * 1024) // check
       {
+         dbg("check");
          cg.SetPrintLevel(-1);
          cg.SetMaxIter(2000);
          cg.SetRelTol(1e-8);
@@ -518,7 +545,6 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       cg.SetRelTol(rtol);
       cg.SetMaxIter(max_it);
       cg.SetPrintLevel(print_lvl);
-      cg.iterative_mode = false;
       benchmark();
       mdofs = 0.0;
    }
@@ -551,17 +577,6 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       ->Unit(bm::kMillisecond)
 
 BakeOff_Problem(3, Diffusion);
-
-/// info //////////////////////////////////////////////////////////////////////
-void info()
-{
-   mfem::out << "\x1b[33m";
-   mfem::out << "version 0: PA std" << std::endl;
-   mfem::out << "version 1: PA new" << std::endl;
-   mfem::out << "version 2: MF ∂fem-master" << std::endl;
-   mfem::out << "version 3: PA ∂fem-master" << std::endl;
-   mfem::out << "\x1b[m" << std::endl;
-}
 
 /// main //////////////////////////////////////////////////////////////////////
 int main(int argc, char *argv[])
