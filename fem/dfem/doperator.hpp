@@ -829,34 +829,35 @@ void DifferentiableOperator::AddIntegrator(
       action_callbacks.push_back(
          [
             // 🟢🟢🟢🟢 capture by copy:
-            dimension,                    // int
-            num_entities,                 // int
-            num_test_dof,                 // int
-            d1d,                          // int
-            q1d,                          // int
-            test_vdim,                    // int (= output_fop.vdim)
-            inputs,                       // input_t
-            domain_attributes,            // Array<int>
-            input_dtq_maps,               // std::array<DofToQuadMap, num_fields>
-            output_dtq_maps,              // std::array<DofToQuadMap, num_fields>
-            input_to_field,               // std::array<int, s>
-            output_fop,                   // class derived from FieldOperator
-            qfunc,                        // qfunc_t
-            thread_blocks,                // ThreadBlocks
-            shmem_cache,                  // Vector (local)
-            action_shmem_info,            // SharedMemoryInfo
-            elem_attributes,              // Array<int>
+            dimension,                       // int
+            num_entities,                    // int
+            num_test_dof,                    // int
+            d1d,                             // int
+            q1d,                             // int
+            test_vdim,                       // int (= output_fop.vdim)
+            inputs,                          // input_t
+            domain_attributes = attributes,  // const Array<int> &
+            input_dtq_maps,                  // std::array<DofToQuadMap, num_inputs>
+            output_dtq_maps,                 // std::array<DofToQuadMap, num_outputs>
+            input_to_field,                  // std::array<size_t, num_inputs>
+            output_fop,                      // class derived from FieldOperator
+            qfunc,                           // qfunc_t
+            thread_blocks,                   // ThreadBlocks
+            // shmem_cache,                     // Vector (local)
+            action_shmem_info,               // SharedMemoryInfo
+            elem_attributes,                 // const Array<int> *
 
-            fields = this->fields,        // std::vector<FieldDescriptor>
-            input_size_on_qp,             // std::array<int, num_inputs>
-            dependency_map,               // std::map<int, std::vector<int>>
-            inputs_vdim,                  // std::vector<int>
+            // fields = this->fields,           // std::vector<FieldDescriptor>
+            // input_size_on_qp,                // std::vector<int> ⚠️ std::array<int, num_inputs>
+            // dependency_map,                  // std::unordered_map<int, std::array<bool, N>> ⚠️ std::map<int, std::vector<int>>
+            // inputs_vdim,                     // std::vector<int>
             // 🟣🟣🟣🟣 capture by ref:
-            &use_kernels_specialization = this->use_kernels_specialization,   // bool
             &restriction_cb = this->restriction_callback,
             &fields_e = this->fields_e,
             &residual_e = this->residual_e,
-            &output_restriction_transpose = this->output_restriction_transpose
+            &output_restriction_transpose = this->output_restriction_transpose,
+
+            &use_kernels_specialization = this->use_kernels_specialization   // bool
          ](std::vector<Vector> &solutions_l,
            const std::vector<Vector> &parameters_l,
            Vector &residual_l)

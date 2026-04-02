@@ -140,20 +140,20 @@ class NewActionCallback
    restriction_cb_t &restriction_cb;
    qfunc_t &qfunc;
    input_t &inputs;
-   const std::array<int, num_inputs> &input_to_field;
+   const std::array<size_t, num_inputs> &input_to_field;
    const std::array<DofToQuadMap, num_inputs> &input_dtq_maps;
    const std::array<DofToQuadMap, num_outputs> &output_dtq_maps;
    const int num_entities;
    const int test_vdim;
    const int num_test_dof;
    const int dimension;
-   const int q1d_;
+   const int q1d;
    const ThreadBlocks &thread_blocks;
    SharedMemoryInfo<num_fields, num_inputs, num_outputs> &shmem_info;
-   Array<int> &elem_attributes;
+   const Array<int> *elem_attributes;
    const output_fop_t &output_fop;
    const Array<int> &domain_attributes;
-   // &
+   // refs
    std::vector<Vector> &fields_e;
    Vector &residual_e;
    std::function<void(Vector &, Vector &)> &output_restriction_transpose;
@@ -163,11 +163,13 @@ class NewActionCallback
    Vector &residual_l;
 
 public:
+   NewActionCallback() = delete;
+
    NewActionCallback(const bool use_kernels_specialization,
                      restriction_cb_t &restriction_cb,
                      qfunc_t &qfunc,
                      input_t &inputs,
-                     const std::array<int, num_inputs> &input_to_field,
+                     const std::array<size_t, num_inputs> &input_to_field,
                      const std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
                      const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
                      const int num_entities,
@@ -177,10 +179,10 @@ public:
                      const int q1d,
                      const ThreadBlocks &thread_blocks,
                      SharedMemoryInfo<num_fields, num_inputs, num_outputs> &shmem_info,
-                     Array<int> &elem_attributes,
+                     const Array<int> *elem_attributes,
                      const output_fop_t &output_fop,
                      const Array<int> &domain_attributes,
-                     // &
+                     // refs
                      std::vector<Vector> &fields_e,
                      Vector &residual_e,
                      std::function<void(Vector &, Vector &)> &output_restriction_transpose,
@@ -198,7 +200,7 @@ public:
       test_vdim(test_vdim),
       num_test_dof(num_test_dof),
       dimension(dimension),
-      q1d_(q1d),
+      q1d(q1d),
       thread_blocks(thread_blocks),
       shmem_info(shmem_info),
       elem_attributes(elem_attributes),
@@ -212,6 +214,7 @@ public:
       residual_l(residual_l)
    {
       if (!use_kernels_specialization) { return; }
+
       NewActionCallbackKernels::template Specialization<3,4>::Add();
       NewActionCallbackKernels::template Specialization<4,5>::Add();
       NewActionCallbackKernels::template Specialization<5,6>::Add();
@@ -225,20 +228,20 @@ public:
    static void action_callback_new(restriction_cb_t &restriction_cb,
                                    qfunc_t &qfunc,
                                    input_t &inputs,
-                                   const std::array<int, num_inputs> &input_to_field,
+                                   const std::array<size_t, num_inputs> &input_to_field,
                                    const std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
                                    const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
                                    const int num_entities,
                                    const int test_vdim,
                                    const int num_test_dof,
                                    const int dimension,
-                                   //   const int q1d,
+                                   // const int q1d,
                                    const ThreadBlocks &thread_blocks,
                                    SharedMemoryInfo<num_fields, num_inputs, num_outputs> &shmem_info,
-                                   Array<int> &elem_attributes,
+                                   const Array<int> *elem_attributes,
                                    const output_fop_t &output_fop,
                                    const Array<int> &domain_attributes,
-                                   // &
+                                   // refs
                                    std::vector<Vector> &fields_e,
                                    Vector &residual_e,
                                    std::function<void(Vector &, Vector &)> &output_restriction_transpose,
@@ -305,7 +308,7 @@ public:
 
       const bool has_attr = domain_attributes.Size() > 0;
       const auto d_domain_attr = domain_attributes.Read();
-      const auto d_elem_attr = elem_attributes.Read();
+      const auto d_elem_attr = elem_attributes->Read();
 
       // db1("forall");
       forall([=] MFEM_HOST_DEVICE (int e, void *)
@@ -441,7 +444,7 @@ template<size_t num_fields,
          typename output_fop_t>
 typename NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t, input_t, output_fop_t>::KernelSignature
 NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t, input_t, output_fop_t>::NewActionCallbackKernels::Fallback
-(int d1d, int q1d)
+([[maybe_unused]] int d1d, [[maybe_unused]] int q1d)
 {
    return action_callback_new<>;
 }
