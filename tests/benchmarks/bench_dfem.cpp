@@ -16,8 +16,10 @@
 
 #include <memory>
 
-#include <fem/qinterp/det.cpp>
-#include <fem/qinterp/grad.hpp> // IWYU pragma: keep
+#include "fem/qinterp/det.hpp" // IWYU pragma: keep
+#include "fem/qinterp/grad.hpp" // IWYU pragma: keep
+#include "fem/integ/lininteg_domain_kernels.hpp" // IWYU pragma: keep
+#include "fem/integ/bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep
 
 #include <fem/dfem/doperator.hpp>
 #include <linalg/tensor.hpp>
@@ -38,30 +40,66 @@ using future::Gradient;
 using future::Weight;
 using future::Identity;
 
-/// Max number of DOFs ////////////////////////////////////////////////////////
-#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-constexpr int MAX_NDOFS = 128 * 1024;
-constexpr int NDOFS_INC = 16;
-#else
-constexpr int MAX_NDOFS = 10 * 1024 * 1024;
-constexpr int NDOFS_INC = 25;
-#endif
-
-/// Benchmarks Arguments //////////////////////////////////////////////////////
-static void OrderSideVersionArgs(bm::Benchmark *b)
+// Custom benchmark arguments generator ///////////////////////////////////////
+static void CustomArguments(bmi::Benchmark *b) noexcept
 {
-   const auto est = [](int c) { return (c + 1) * (c + 1) * (c + 1); };
-   const auto versions = { 0, 1, 2, 3 };
+   constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
+
+   const auto versions = { 0, /*1, 2,*/ 3 };
+
+   const auto orders = { /*6, 5, 4,*/ 3, 2, 1 };
+
+   constexpr auto ndofs = [](int n) constexpr noexcept -> int
+   {
+      return (n + 1) * (n + 1) * (n + 1);
+   };
+
+   constexpr auto inc = [](int n) constexpr noexcept -> int
+   {
+      return n < 160 ?  4 : n < 240 ?  8 : n < 320 ? 16 : 32;
+   };
+
    for (auto k : versions)
    {
-      for (int p = 8; p >= 1; p -= 1)
+      for (auto p : orders)
       {
-         for (int c = NDOFS_INC; est(c) <= MAX_NDOFS; c += NDOFS_INC)
+         for (int n = 16; ndofs(n) <= MAX_NDOFS; n += inc(n))
          {
-            b->Args({ k, p, c });
+            b->Args({k, p, n});
          }
       }
    }
+}
+
+// Register kernel specializations used in the benchmarks /////////////////////
+static void AddKernelSpecializations()
+{
+   using DET = QuadratureInterpolator::DetKernels;
+   DET::Specialization<3, 3, 2, 2>::Add();
+   DET::Specialization<3, 3, 2, 3>::Add();
+   DET::Specialization<3, 3, 2, 5>::Add();
+   DET::Specialization<3, 3, 2, 6>::Add();
+   DET::Specialization<3, 3, 5, 5>::Add();
+   // Others might exceed memory limits
+
+   using GRAD = QuadratureInterpolator::GradKernels;
+   GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 2>::Add();
+   GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 7>::Add();
+   GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 8>::Add();
+   GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 9>::Add();
+
+   using LIN = DomainLFIntegrator::AssembleKernels;
+   LIN::Specialization<3, 7, 7>::Add();
+   LIN::Specialization<3, 6, 6>::Add();
+   LIN::Specialization<3, 8, 8>::Add();
+
+   using VDIFF = VectorDiffusionIntegrator::ApplyPAKernels;
+   VDIFF::Specialization<3, 3, 3, 3>::Add();
+   VDIFF::Specialization<3, 3, 4, 4>::Add();
+   VDIFF::Specialization<3, 3, 5, 5>::Add();
+   VDIFF::Specialization<3, 3, 6, 6>::Add();
+   VDIFF::Specialization<3, 3, 7, 7>::Add();
+   VDIFF::Specialization<3, 3, 8, 8>::Add();
 }
 
 /// Globals ///////////////////////////////////////////////////////////////////
@@ -71,11 +109,11 @@ static int gD1D = 0, gQ1D = 0;
 /// StiffnessIntegrator ///////////////////////////////////////////////////////
 struct StiffnessIntegrator : public BilinearFormIntegrator
 {
+   using mfem::NonlinearFormIntegrator::AssemblePA;
    const FiniteElementSpace *fes;
    const real_t *B, *G, *DX;
    int ne, d1d, q1d;
    Vector J0, dx;
-
 public:
    StiffnessIntegrator()
    {
@@ -241,7 +279,6 @@ struct BakeOff
 {
    static constexpr int DIM = 3;
    const int p, c, q, n, nx, ny, nz;
-   const bool check_x, check_y, check_z, checked;
    Mesh smesh;
    ParMesh pmesh;
    H1_FECollection fec;
@@ -265,20 +302,20 @@ struct BakeOff
    double mdofs{};
 
    BakeOff(int p, int side):
-      p(p), c(side), q(2 * p + (GLL ? -1 : 3)), n((assert(c >= p), c / p)),
+      p(p), c(side), q(2 * p + (GLL ? -1 : 3)),
+      n((assert(c >= p), c / p)),
       nx(n + (p * (n + 1) * p * n * p * n < c * c * c ? 1 : 0)),
-      ny(n + (p * (n + 1) * p * (n + 1) * p * n < c * c * c ? 1 : 0)), nz(n),
-      check_x(p * nx * p * ny * p * nz <= c * c * c),
-      check_y(p * (nx + 1) * p * (ny + 1) * p * nz > c * c * c),
-      check_z(p * (nx + 1) * p * (ny + 1) * p * (nz + 1) > c * c * c),
-      checked((assert(check_x &&check_y &&check_z), true)),
+      ny(n + (p * (n + 1) * p * (n + 1) * p * n < c * c * c ? 1 : 0)),
+      nz(n),
       smesh(Mesh::MakeCartesian3D(nx, ny, nz, Element::HEXAHEDRON)),
       pmesh(MPI_COMM_WORLD, (smesh.EnsureNodes(), smesh)),
       fec(p, DIM, BasisType::GaussLobatto),
       pfes(&pmesh, &fec, VDIM),
       geom_type(pmesh.GetTypicalElementGeometry()),
       irs(0, GLL ? Quadrature1D::GaussLobatto : Quadrature1D::GaussLegendre),
-      ir(&irs.Get(geom_type, q)), one(1.0), uvec(DIM),
+      ir(&irs.Get(geom_type, q)),
+      one(1.0),
+      uvec(DIM),
       unit_vec((uvec = 1.0, uvec /= uvec.Norml2(), uvec)),
       dofs(pfes.GetTrueVSize()),
       nodes(static_cast<ParGridFunction*>(pmesh.GetNodes())),
@@ -306,9 +343,47 @@ struct BakeOff
 
    virtual void benchmark() = 0;
 
-   double SumMdofs() const { return mdofs; }
+   [[nodiscard]] double SumMdofs() const noexcept { return mdofs; }
 
-   double MDofs() const { return 1e-6 * dofs; }
+   [[nodiscard]] double MDofs() const noexcept { return 1e-6 * dofs; }
+};
+
+/// Q-Functions ///////////////////////////////////////////////////////////////
+template<int DIM>
+struct MF
+{
+   MFEM_HOST_DEVICE inline
+   auto operator()(const tensor<real_t, DIM>& Gu,
+                   const tensor<real_t, DIM, DIM>& J,
+                   const real_t& w) const
+   {
+      auto invJ = inv(J);
+      return tuple{((Gu * invJ)) * transpose(invJ) * det(J) * w};
+   }
+};
+
+template<int DIM>
+struct PASetup
+{
+   MFEM_HOST_DEVICE inline
+   auto operator()(const real_t &u,
+                   const tensor<real_t, DIM, DIM> &J,
+                   const real_t &w)const
+   {
+      return tuple{inv(J) * transpose(inv(J)) * det(J) * w};
+   }
+};
+
+
+template<int DIM>
+struct PAApply
+{
+   MFEM_HOST_DEVICE inline
+   auto operator()(const tensor<real_t, DIM> &Gu,
+                   const tensor<real_t, DIM, DIM> &q) const
+   {
+      return tuple{q * Gu};
+   };
 };
 
 /// Diffusion /////////////////////////////////////////////////////////////////
@@ -330,20 +405,21 @@ struct Diffusion : public BakeOff<VDIM, GLL>
    Vector B, X;
    CGSolver cg;
 
-   using BakeOff<VDIM, GLL>::a;
-   using BakeOff<VDIM, GLL>::ir;
-   using BakeOff<VDIM, GLL>::one;
-   using BakeOff<VDIM, GLL>::pmesh;
-   using BakeOff<VDIM, GLL>::pfes;
-   using BakeOff<VDIM, GLL>::mfes;
-   using BakeOff<VDIM, GLL>::x;
-   using BakeOff<VDIM, GLL>::y;
-   using BakeOff<VDIM, GLL>::mdofs;
-   using BakeOff<VDIM, GLL>::dop;
-   using BakeOff<VDIM, GLL>::nodes;
-   using BakeOff<VDIM, GLL>::qdata;
-   using BakeOff<VDIM, GLL>::qd_ps;
-   using BakeOff<VDIM, GLL>::dofs;
+   using base = BakeOff<VDIM, GLL>;
+   using base::a;
+   using base::ir;
+   using base::one;
+   using base::pmesh;
+   using base::pfes;
+   using base::mfes;
+   using base::x;
+   using base::y;
+   using base::mdofs;
+   using base::dop;
+   using base::nodes;
+   using base::qdata;
+   using base::qd_ps;
+   using base::dofs;
 
    Diffusion(int version, int order, int side):
       BakeOff<VDIM, GLL>(order, side),
@@ -392,15 +468,8 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          auto parameters = std::vector{FieldDescriptor{Ξ, &mfes}};
          dop = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
          dop->SetParameters({nodes});
-         auto diffusion_mf_kernel =
-            [] MFEM_HOST_DEVICE (const tensor<real_t, DIM>& Gu,
-                                 const tensor<real_t, DIM, DIM>& J,
-                                 const real_t& w)
-         {
-            auto invJ = inv(J);
-            return tuple{((Gu * invJ)) * transpose(invJ) * det(J) * w};
-         };
-         dop->AddDomainIntegrator(diffusion_mf_kernel,
+         MF<DIM> mf_apply;
+         dop->AddDomainIntegrator(mf_apply,
                                   tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
                                   tuple{Gradient<U>{}},
                                   *ir, ess_bdr);
@@ -418,28 +487,16 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          tuple Gu_q = {Gu, q};
          tuple u_J_w = {u, GΞ, w};
 
-         auto pa_setup_qf =
-            [] MFEM_HOST_DEVICE(const real_t &u,
-                                const tensor<real_t, DIM, DIM> &J,
-                                const real_t &w)
-         {
-            return tuple{inv(J) * transpose(inv(J)) * det(J) * w};
-         };
          DifferentiableOperator dSetup(u_sol, Ξ_q_params, pmesh);
-         dSetup.AddDomainIntegrator(pa_setup_qf, u_J_w, tuple{q}, *ir, ess_bdr);
+         PASetup<DIM> pa_setup;
+         dSetup.AddDomainIntegrator(pa_setup, u_J_w, tuple{q}, *ir, ess_bdr);
          dSetup.SetParameters({nodes, &qdata});
          X.SetSize(pfes.GetTrueVSize());
          pfes.GetRestrictionMatrix()->Mult(x, X);
          dSetup.Mult(X, qdata);
-
-         auto pa_apply_qf =
-            [] MFEM_HOST_DEVICE(const tensor<real_t, DIM> &Gu,
-                                const tensor<real_t, DIM, DIM> &q)
-         {
-            return tuple{q * Gu};
-         };
          dop = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
-         dop->AddDomainIntegrator(pa_apply_qf, Gu_q, tuple{Gu}, *ir, ess_bdr);
+         PAApply<DIM> pa_apply;
+         dop->AddDomainIntegrator(pa_apply, Gu_q, tuple{Gu}, *ir, ess_bdr);
          dop->SetParameters({ &qdata });
 
          dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
@@ -448,22 +505,20 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       else { MFEM_ABORT("Invalid version"); }
 
       cg.SetOperator(*A);
-      cg.iterative_mode = false;
+      cg.SetAbsTol(0.0);
       if (dofs < 128 * 1024) // check
       {
          cg.SetPrintLevel(-1);
          cg.SetMaxIter(2000);
          cg.SetRelTol(1e-8);
-         cg.SetAbsTol(0.0);
          cg.Mult(B, X);
          MFEM_VERIFY(cg.GetConverged(), "❌❌❌ CG solver did not converge.");
-         MFEM_DEVICE_SYNC;
          // mfem::out << "✅" << std::endl;
       }
-      cg.SetAbsTol(0.0);
       cg.SetRelTol(rtol);
       cg.SetMaxIter(max_it);
       cg.SetPrintLevel(print_lvl);
+      cg.iterative_mode = false;
       benchmark();
       mdofs = 0.0;
    }
@@ -492,34 +547,10 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       state.counters["version"] = bm::Counter(version);              \
    }                                                                 \
    BENCHMARK(BP##i)                                                  \
-      ->Apply(OrderSideVersionArgs)                                  \
+      ->Apply(CustomArguments)                                       \
       ->Unit(bm::kMillisecond)
 
 BakeOff_Problem(3, Diffusion);
-
-/// Specializations ///////////////////////////////////////////////////////////
-void AddKernelSpecializations()
-{
-   using Det = QuadratureInterpolator::DetKernels;
-   Det::Specialization<3, 3, 2, 2>::Add();
-   Det::Specialization<3, 3, 2, 3>::Add();
-   Det::Specialization<3, 3, 2, 5>::Add();
-   Det::Specialization<3, 3, 2, 6>::Add();
-   Det::Specialization<3, 3, 2, 7>::Add();
-
-   using Grad = QuadratureInterpolator::GradKernels;
-   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 3>::Add();
-   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 4>::Add();
-   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 5>::Add();
-   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 6>::Add();
-   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 7>::Add();
-   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 8>::Add();
-   Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 7>::Add();
-   Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 8>::Add();
-
-   // using Diffusion = DiffusionIntegrator::ApplyPAKernels;
-   // Diffusion::Specialization<3, 9, 10>::Add();
-}
 
 /// info //////////////////////////////////////////////////////////////////////
 void info()
