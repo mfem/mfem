@@ -1793,8 +1793,10 @@ inline void PAMassApplyTriangle(const int NE,
                                 const int d1d = 0,
                                 const int q1d = 0)
 {
-   MFEM_VERIFY(T_D1D ? T_D1D : d1d <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
-   MFEM_VERIFY(T_Q1D ? T_Q1D : q1d <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
+   MFEM_VERIFY(T_D1D ? T_D1D : d1d <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX,
+               "");
+   MFEM_VERIFY(T_Q1D ? T_Q1D : q1d <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX,
+               "");
 
    const int BASIS_DIM = d1d * (d1d + 1) / 2;
    const auto lex_map = lex_map_.Read();
@@ -1933,8 +1935,10 @@ inline void PAMassApplyTetrahedron(const int NE,
                                    const int d1d = 0,
                                    const int q1d = 0)
 {
-   MFEM_VERIFY(T_D1D ? T_D1D : d1d <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
-   MFEM_VERIFY(T_Q1D ? T_Q1D : q1d <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
+   MFEM_VERIFY(T_D1D ? T_D1D : d1d <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX,
+               "");
+   MFEM_VERIFY(T_Q1D ? T_Q1D : q1d <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX,
+               "");
 
    const int BASIS_DIM = d1d * (d1d + 1) * (d1d + 2) / 6;
    const int BASIS_DIM2D = d1d * (d1d + 1) / 2;
