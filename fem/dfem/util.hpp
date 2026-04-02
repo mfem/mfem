@@ -1278,8 +1278,9 @@ inline void prolongation(const std::vector<FieldDescriptor> fields,
       if (P == nullptr)
       {
          NVTX_MARK("P(id)");
-         *x_l[i] = x[i]; // extra copy 🔥🔥🔥
-         // x_l[i] = new Vector(const_cast<Vector&>(x[i]).ReadWrite(), x[i].Size());
+         x[i].UseDevice(true);
+         x_l[i]->SetDataAndSize(const_cast<Vector&>(x[i]).ReadWrite(), x[i].Size());
+         x_l[i]->UseDevice(true);
       }
       else
       {

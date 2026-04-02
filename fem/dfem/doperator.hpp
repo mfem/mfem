@@ -305,6 +305,7 @@ public:
    /// the MultLevel.
    void Mult(const Vector &x, Vector &y) const override;
 
+   // MultiVector
    template <typename x_t, typename y_t>
    void Mult(const x_t &x, y_t &y) const
    {
@@ -317,14 +318,7 @@ public:
          (std::is_same_v<x_t, BlockVector> && std::is_same_v<y_t, BlockVector>),
          "input and output vector types are incompatible");
 
-      if (mult_level == TVECTOR)
-      {
-         prolongation(infds, x, infields_l);
-      }
-      else
-      {
-         prolongation(infds, x, infields_l);
-      }
+      prolongation(infds, x, infields_l);
       restriction<Entity::Element>(infds, infields_l, infields_e);
       prepare_residual<Entity::Element>(outfds, residual_e);
       for (size_t i = 0; i < action_callbacks.size(); i++)

@@ -40,6 +40,7 @@ DifferentiableOperator::DifferentiableOperator(
    for (size_t i = 0; i < infds.size(); i++)
    {
       infields_l[i] = new Vector(GetVSize(infds[i]));
+      infields_l[i]->UseDevice(true);
    }
 
    infields_e.resize(infds.size());

@@ -175,61 +175,6 @@ constexpr void constexpr_for(F&& f)
    }
 }
 
-// integrate //////////////////////////////////////////////////////////////////
-template <size_t noutputs>
-inline void integrate(const std::array<size_t, noutputs> &output_to_outfd,
-                      const std::array<FieldBasis, noutputs> &output_bases,
-                      const BlockVector &yq,
-                      std::vector<Vector *> &ye)
-{
-   NVTX_MARK_FUNCTION;
-   for (auto v : ye) { *v = 0.0; }
-   constexpr_for<0, noutputs>([&](auto i)
-   {
-      NVTX_MARK("out transpose block #{}", i.value);
-      output_bases[i].transpose(yq.GetBlock(i), *ye[output_to_outfd[i]]);
-   });
-}
-
-// call_qfunc /////////////////////////////////////////////////////////////////
-template <typename qfunc_t, std::size_t... Is, std::size_t... Os>
-inline void call_qfunc(const qfunc_t &qfunc,
-                       const BlockVector &xq,
-                       BlockVector &yq,
-                       int gnqp,
-                       const std::array<std::vector<int>, sizeof...(Is)>& in_layouts,
-                       const std::array<std::vector<int>, sizeof...(Os)>& out_layouts,
-                       std::index_sequence<Is...>,
-                       std::index_sequence<Os...>)
-{
-   NVTX_MARK_FUNCTION;
-   constexpr std::size_t ninputs = sizeof...(Is);
-
-   using qf_signature = typename get_function_signature<qfunc_t>::type;
-   using qf_param_ts = typename qf_signature::parameter_ts;
-
-   NVTX_MARK_INI("inputs");
-   auto inputs = std::make_tuple(
-                    make_tensor_array<std::remove_cv_t<std::remove_reference_t<
-                    std::tuple_element_t<Is, qf_param_ts>>>>(
-                       xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp)...);
-   NVTX_MARK_END("inputs");
-
-   NVTX_MARK_INI("outputs");
-   auto outputs = std::make_tuple(
-                     make_tensor_array<std::remove_cv_t<std::remove_reference_t<
-                     std::tuple_element_t<ninputs + Os, qf_param_ts>>>>(
-                        yq.GetBlock(Os).ReadWrite(), &out_layouts[Os], gnqp)...);
-   NVTX_MARK_END("outputs");
-
-   NVTX_MARK_INI("apply");
-   std::apply([&](auto&&... args)
-   {
-      qfunc(args...);
-   }, std::tuple_cat(inputs, outputs));
-   NVTX_MARK_END("apply");
-}
-
 // is_tensor_array ////////////////////////////////////////////////////////////
 template <typename T>
 struct is_tensor_array : std::false_type {};
@@ -274,23 +219,6 @@ struct supports_tensor_array_qfunc
       InputsOk(std::make_index_sequence<ninputs> {}) &&
       OutputsOk(std::make_index_sequence<noutputs> {});
 };
-
-// interpolate ////////////////////////////////////////////////////////////////
-template <size_t ninputs>
-inline void interpolate(const std::array<size_t, ninputs> &input_to_infd,
-                        const std::array<FieldBasis, ninputs> &input_bases,
-                        const std::vector<Vector *> &xe,
-                        BlockVector &xq,
-                        const std::array<bool, ninputs> &conditional = all_true<ninputs>())
-{
-   NVTX_MARK_FUNCTION;
-   constexpr_for<0, ninputs>([&](auto i)
-   {
-      if (!conditional.empty() && !conditional[i]) { return; }
-      NVTX_MARK("input forward block #{}", i.value);
-      input_bases[i].forward(*xe[input_to_infd[i]], xq.GetBlock(i));
-   });
-}
 
 // FieldBasisFromWeight ///////////////////////////////////////////////////////
 inline FieldBasis FieldBasisFromWeight(const IntegrationRule &ir)
@@ -360,7 +288,28 @@ inline FieldBasis FromQF()
    NVTX_MARK_FUNCTION;
    return
    {
-      [](const Vector &xe, Vector &xq) { NVTX("FromQF(e->q)"); xq = xe; }, // extra copy 🔥🔥🔥
+      [](const Vector &xe, Vector &xq)
+      {
+         NVTX("FromQF(e->q)");
+         xq = xe; // extra copy 🔥🔥🔥
+
+         // NVTX_MARK_INI("xe_r");
+         // xe.SyncAliasMemory(xq);
+         // xe.Read();
+         // NVTX_MARK_END("xe_r");
+
+         // auto &non_const_xe = const_cast<Vector&>(xe);
+         // NVTX_MARK_INI("StealData");
+         // xq.SetDataAndSize(non_const_xe.StealData(), xe.Size());
+         // NVTX_MARK_END("StealData");
+
+         // xq.SyncAliasMemory(xe);
+         // xq.SyncMemory(xe);
+
+         // NVTX_MARK_INI("SetDataAndSize");
+         // xq.SetDataAndSize(non_const_xe.ReadWrite(), xe.Size());
+         // NVTX_MARK_END("SetDataAndSize");
+      },
       [](const Vector &yq, Vector &ye) { NVTX("FromQF(q->e)"); ye = yq; }
    };
 }
@@ -526,6 +475,92 @@ void create_fop_to_fd(const fops_t &fops,
    });
 }
 
+// interpolate ////////////////////////////////////////////////////////////////
+template <size_t ninputs>
+inline void interpolate(const std::array<size_t, ninputs> &input_to_infd,
+                        const std::array<FieldBasis, ninputs> &input_bases,
+                        const std::vector<Vector *> &xe,
+                        BlockVector &xq,
+                        const std::array<bool, ninputs> &conditional = all_true<ninputs>())
+{
+   NVTX_MARK_FUNCTION;
+   constexpr_for<0, ninputs>([&](auto i)
+   {
+      if (!conditional.empty() && !conditional[i]) { return; }
+      NVTX_MARK("input forward block #{}", i.value);
+      input_bases[i].forward(*xe[input_to_infd[i]], xq.GetBlock(i));
+   });
+   // xq.Read();
+   // xq.SyncFromBlocks();
+   // xq.SyncToBlocks();
+}
+
+// call_qfunc /////////////////////////////////////////////////////////////////
+template <typename qfunc_t, std::size_t... Is, std::size_t... Os>
+inline void call_qfunc(const qfunc_t &qfunc,
+                       const BlockVector &xq,
+                       BlockVector &yq,
+                       int gnqp,
+                       const std::array<std::vector<int>, sizeof...(Is)>& in_layouts,
+                       const std::array<std::vector<int>, sizeof...(Os)>& out_layouts,
+                       std::index_sequence<Is...>,
+                       std::index_sequence<Os...>)
+{
+   NVTX_MARK_FUNCTION;
+   constexpr std::size_t ninputs = sizeof...(Is);
+
+   using qf_signature = typename get_function_signature<qfunc_t>::type;
+   using qf_param_ts = typename qf_signature::parameter_ts;
+
+   NVTX_MARK_INI("inputs");
+   auto inputs = std::make_tuple(
+                    make_tensor_array<std::remove_cv_t<std::remove_reference_t<
+                    std::tuple_element_t<Is, qf_param_ts>>>>(
+                       [&]()
+   {
+      NVTX_MARK_INI("xq_r");
+      // const auto &mem = xq.GetBlock(Is).GetMemory();
+      // auto &non_const_mem = const_cast<Memory<real_t>&>(mem);
+      // non_const_mem.ValidateDevice(true);
+      const real_t *xq_r = xq.GetBlock(Is).Read();
+      // non_const_mem.ValidateDevice(false);
+      NVTX_MARK_END("xq_r");
+      return xq_r;
+   }(),
+   &in_layouts[Is], gnqp)...);
+   NVTX_MARK_END("inputs");
+
+   NVTX_MARK_INI("outputs");
+   auto outputs = std::make_tuple(
+                     make_tensor_array<std::remove_cv_t<std::remove_reference_t<
+                     std::tuple_element_t<ninputs + Os, qf_param_ts>>>>(
+                        yq.GetBlock(Os).ReadWrite(), &out_layouts[Os], gnqp)...);
+   NVTX_MARK_END("outputs");
+
+   NVTX_MARK_INI("apply");
+   std::apply([&](auto&&... args)
+   {
+      qfunc(args...);
+   }, std::tuple_cat(inputs, outputs));
+   NVTX_MARK_END("apply");
+}
+
+// integrate //////////////////////////////////////////////////////////////////
+template <size_t noutputs>
+inline void integrate(const std::array<size_t, noutputs> &output_to_outfd,
+                      const std::array<FieldBasis, noutputs> &output_bases,
+                      const BlockVector &yq,
+                      std::vector<Vector *> &ye)
+{
+   NVTX_MARK_FUNCTION;
+   for (auto v : ye) { *v = 0.0; }
+   constexpr_for<0, noutputs>([&](auto i)
+   {
+      NVTX_MARK("out transpose block #{}", i.value);
+      output_bases[i].transpose(yq.GetBlock(i), *ye[output_to_outfd[i]]);
+   });
+}
+
 // ACTION /////////////////////////////////////////////////////////////////////
 template<typename qfunc_t,
          typename inputs_t,
@@ -597,6 +632,9 @@ struct Action
       });
       xq_offsets.PartialSum();
       xq.Update(xq_offsets);
+      xq.UseDevice(true);
+      xq = 0.0;
+      xq.SyncToBlocks();
 
       yq_offsets.SetSize(noutputs + 1);
       yq_offsets[0] = 0;
@@ -607,6 +645,9 @@ struct Action
       });
       yq_offsets.PartialSum();
       yq.Update(yq_offsets);
+      yq.UseDevice(true);
+      yq = 0.0;
+      yq.SyncToBlocks();
    }
 
    //////////////////////////////////////////////////////////////////

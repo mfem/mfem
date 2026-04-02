@@ -616,12 +616,16 @@ void ConstrainedOperator::ConstrainedMult(const Vector &x, Vector &y,
       return;
    }
 
+   NVTX_MARK_INI("z=x");
    z = x;
+   NVTX_MARK_END("z=x");
 
+   NVTX_MARK_INI("z[bc]=0.0");
    auto idx = constraint_list.Read();
    // Use read+write access - we are modifying sub-vector of z
    auto d_z = z.ReadWrite();
    mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i) { d_z[idx[i]] = 0.0; });
+   NVTX_MARK_END("z[bc]=0.0");
 
    if (transpose)
    {
@@ -629,9 +633,11 @@ void ConstrainedOperator::ConstrainedMult(const Vector &x, Vector &y,
    }
    else
    {
+      NVTX_MARK("A->Mult(z, y)");
       A->Mult(z, y);
    }
 
+   NVTX_MARK_INI("DIAG");
    auto d_x = x.Read();
    // Use read+write access - we are modifying sub-vector of y
    auto d_y = y.ReadWrite();
@@ -659,6 +665,7 @@ void ConstrainedOperator::ConstrainedMult(const Vector &x, Vector &y,
          mfem_error("ConstrainedOperator::Mult #2");
          break;
    }
+   NVTX_MARK_END("DIAG");
 }
 
 void ConstrainedOperator::ConstrainedAbsMult(const Vector &x, Vector &y,
