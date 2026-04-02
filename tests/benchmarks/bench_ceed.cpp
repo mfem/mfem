@@ -102,11 +102,11 @@ struct BakeOff
       {
          if constexpr (DIM == 2)
          {
-            return Mesh::MakeCartesian2DWith4TrisPerQuad(nx, ny);
+            return Mesh::MakeCartesian2D(nx, ny, Element::TRIANGLE);
          }
          else
          {
-            return Mesh::MakeCartesian3DWith24TetsPerHex(nx, ny, nz);
+            return Mesh::MakeCartesian3D(nx, ny, nz, Element::TETRAHEDRON);
          }
       }
       if constexpr (DIM == 2)

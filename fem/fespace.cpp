@@ -4616,7 +4616,7 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
 
 ElementDofOrdering GetEVectorOrdering(const FiniteElementSpace& fes)
 {
-   return (UsesTensorBasis(fes) || UsesRaggedTensorBasis(fes)) ?
+   return (UsesTensorBasis(fes) || fes.UsesRaggedTensorBasis()) ?
           ElementDofOrdering::LEXICOGRAPHIC:
           ElementDofOrdering::NATIVE;
 }

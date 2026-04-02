@@ -46,6 +46,8 @@ struct DofQuadLimits_CUDA
 {
    static constexpr int MAX_D1D = 14;
    static constexpr int MAX_Q1D = 14;
+   static constexpr int MAX_D1D_SIMPLEX = 14;
+   static constexpr int MAX_Q1D_SIMPLEX = 14;
    static constexpr int MAX_T1D = 32;
    static constexpr int HCURL_MAX_D1D = 5;
    static constexpr int HCURL_MAX_Q1D = 6;
@@ -57,8 +59,10 @@ struct DofQuadLimits_CUDA
 
 struct DofQuadLimits_HIP
 {
-   static constexpr int MAX_D1D = 9;
-   static constexpr int MAX_Q1D = 9;
+   static constexpr int MAX_D1D = 10;
+   static constexpr int MAX_Q1D = 10;
+   static constexpr int MAX_D1D_SIMPLEX = 9;
+   static constexpr int MAX_Q1D_SIMPLEX = 9;
    static constexpr int MAX_T1D = 32;
    static constexpr int HCURL_MAX_D1D = 5;
    static constexpr int HCURL_MAX_Q1D = 5;
@@ -73,9 +77,13 @@ struct DofQuadLimits_CPU
 #ifndef _WIN32
    static constexpr int MAX_D1D = 24;
    static constexpr int MAX_Q1D = 24;
+   static constexpr int MAX_D1D_SIMPLEX = 24;
+   static constexpr int MAX_Q1D_SIMPLEX = 24;
 #else
    static constexpr int MAX_D1D = 14;
    static constexpr int MAX_Q1D = 14;
+   static constexpr int MAX_D1D_SIMPLEX = 14;
+   static constexpr int MAX_Q1D_SIMPLEX = 14;
 #endif
    static constexpr int MAX_T1D = 32;
    static constexpr int HCURL_MAX_D1D = 10;
@@ -117,6 +125,8 @@ struct DeviceDofQuadLimits
 {
    int MAX_D1D; ///< Maximum number of 1D nodal points.
    int MAX_Q1D; ///< Maximum number of 1D quadrature points.
+   int MAX_D1D_SIMPLEX; ///< Maximum number of 1D nodal points for simplices.
+   int MAX_Q1D_SIMPLEX; ///< Maximum number of 1D quadrature points for simplices.
    int HCURL_MAX_D1D; ///< Maximum number of 1D nodal points for H(curl).
    int HCURL_MAX_Q1D; ///< Maximum number of 1D quadrature points for H(curl).
    int HDIV_MAX_D1D; ///< Maximum number of 1D nodal points for H(div).
@@ -148,6 +158,8 @@ private:
    {
       MAX_D1D = T::MAX_D1D;
       MAX_Q1D = T::MAX_Q1D;
+      MAX_D1D_SIMPLEX = T::MAX_D1D_SIMPLEX;
+      MAX_Q1D_SIMPLEX = T::MAX_Q1D_SIMPLEX;
       HCURL_MAX_D1D = T::HCURL_MAX_D1D;
       HCURL_MAX_Q1D = T::HCURL_MAX_Q1D;
       HDIV_MAX_D1D = T::HDIV_MAX_D1D;

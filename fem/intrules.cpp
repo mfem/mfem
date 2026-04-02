@@ -226,41 +226,25 @@ IntegrationRule::ApplyToKnotIntervals(KnotVector const& kv) const
 
 void IntegrationRule::DuffyTrans(int dim)
 {
-   // todo: add dimension argument, currently implement for triangle
-   IntegrationRule ir_mapped(GetNPoints());
-
    if (dim == 2)
    {
       for (int i = 0; i < GetNPoints(); i++)
       {
-         const real_t L1 = IntPoint(i).x;
-         const real_t L2 = IntPoint(i).y * (1 - L1);
-         IntegrationPoint &ip = const_cast<IntegrationPoint &>((*this)[i]);
-         ip.x = L1;
-         ip.y = L2;
-         // corresponds to x1 = (1,0) and x2 = (0,1)
+         IntPoint(i).y *= (1.0 - IntPoint(i).x);
       }
-      return;
    }
-
-   if (dim == 3)
+   else if (dim == 3)
    {
       for (int i = 0; i < GetNPoints(); i++)
       {
-         const real_t L1 = IntPoint(i).x;
-         const real_t L2 = IntPoint(i).y * (1 - L1);
-         const real_t L3 = IntPoint(i).z * (1 - L1 - L2);
-         IntegrationPoint &ip = const_cast<IntegrationPoint &>((*this)[i]);
-         ip.x = L1;
-         ip.y = L2;
-         ip.z = L3;
-         // corresponds to x1 = (1,0,0) and x2 = (0,1,0) and x3 = (0,0,0)
-         // and x4 = (0,0,1)
+         IntPoint(i).z *= (1.0 - IntPoint(i).x) * (1.0 - IntPoint(i).y);
+         IntPoint(i).y *= (1.0 - IntPoint(i).x);
       }
-      return;
    }
-
-   MFEM_ABORT("Duffy transformation not implemented for this dimension!");
+   else
+   {
+      MFEM_ABORT("Duffy transformation not implemented for this dimension!");
+   }
 }
 
 const IntegrationRule IntegrationRule::InverseDuffyTrans(int dim) const
@@ -271,35 +255,31 @@ const IntegrationRule IntegrationRule::InverseDuffyTrans(int dim) const
    {
       for (int i = 0; i < GetNPoints(); i++)
       {
-         const real_t L1 = IntPoint(i).x;
-         const real_t L2 = IntPoint(i).y;
          IntegrationPoint &ip_mapped = ir_mapped.IntPoint(i);
-         ip_mapped.x = L1;
-         ip_mapped.y = L2 / (1 - L1);
+         ip_mapped.x = IntPoint(i).x;
+         ip_mapped.y = IntPoint(i).y / (1 - IntPoint(i).x);
          ip_mapped.weight = IntPoint(i).weight;
          // might be good to safeguard against Lobatto case here
       }
       return ir_mapped;
    }
-
-   if (dim == 3)
+   else if (dim == 3)
    {
       for (int i = 0; i < GetNPoints(); i++)
       {
-         const real_t L1 = IntPoint(i).x;
-         const real_t L2 = IntPoint(i).y;
-         const real_t L3 = IntPoint(i).z;
          IntegrationPoint &ip_mapped = ir_mapped.IntPoint(i);
-         ip_mapped.x = L1;
-         ip_mapped.y = L2 / (1 - L1);
-         ip_mapped.z = L3 / (1 - L1 - L2);
+         ip_mapped.x = IntPoint(i).x;
+         ip_mapped.y = IntPoint(i).y / (1 - IntPoint(i).x);
+         ip_mapped.z = IntPoint(i).z / (1 - IntPoint(i).x - IntPoint(i).y);
          ip_mapped.weight = IntPoint(i).weight;
          // might be good to safeguard against Lobatto case here
       }
       return ir_mapped;
    }
-
-   MFEM_ABORT("Inverse Duffy transformation not implemented for this dimension!");
+   else
+   {
+      MFEM_ABORT("Inverse Duffy transformation not implemented for this dimension!");
+   }
 }
 
 #ifdef MFEM_USE_MPFR
@@ -1189,16 +1169,6 @@ IntegrationRules::IntegrationRules(int ref, int type)
    SegmentIntRules.SetSize(32, h_mt);
    SegmentIntRules = NULL;
 
-   // used to store 1st, 2nd, and 3rd dimension quadrature rules for Stroud
-   SegmentStroud1IntRules.SetSize(32, h_mt);
-   SegmentStroud1IntRules = NULL;
-
-   SegmentStroud2IntRules.SetSize(32, h_mt);
-   SegmentStroud2IntRules = NULL;
-
-   SegmentStroud3IntRules.SetSize(32, h_mt);
-   SegmentStroud3IntRules = NULL;
-
    // TriangleIntegrationRule() assumes that this size is >= 26
    TriangleIntRules.SetSize(32, h_mt);
    TriangleIntRules = NULL;
@@ -1360,9 +1330,6 @@ IntegrationRules::~IntegrationRules()
 
    DeleteIntRuleArray(PointIntRules);
    DeleteIntRuleArray(SegmentIntRules);
-   DeleteIntRuleArray(SegmentStroud1IntRules);
-   DeleteIntRuleArray(SegmentStroud2IntRules);
-   DeleteIntRuleArray(SegmentStroud3IntRules);
    DeleteIntRuleArray(TriangleIntRules);
    DeleteIntRuleArray(TriangleStroudIntRules);
    DeleteIntRuleArray(SquareIntRules);
@@ -1428,9 +1395,7 @@ IntegrationRule *IntegrationRules::PointIntegrationRule(int Order)
 }
 
 // Integration rules for line segment [0,1]
-IntegrationRule *IntegrationRules::SegmentIntegrationRule(int Order,
-                                                          real_t alpha,
-                                                          real_t beta)
+IntegrationRule *IntegrationRules::SegmentIntegrationRule(int Order)
 {
    int RealOrder = GetSegmentRealOrder(Order); // RealOrder >= Order
    // Order is one of {RealOrder-1,RealOrder}
@@ -1443,13 +1408,6 @@ IntegrationRule *IntegrationRules::SegmentIntegrationRule(int Order,
    // degree Order polynomial
    switch (quad_type)
    {
-      case Quadrature1D::GaussJacobi:
-      {
-         // Gauss-Jacobi is exact for 2*n-1
-         n = Order/2 + 1;
-         QuadratureFunctions1D::GaussJacobi(n, alpha, beta, ir);
-         break;
-      }
       case Quadrature1D::GaussLegendre:
       {
          // Gauss-Legendre is exact for 2*n-1
@@ -1506,66 +1464,6 @@ IntegrationRule *IntegrationRules::SegmentIntegrationRule(int Order,
       ir = refined_ir;
    }
    SegmentIntRules[RealOrder-1] = SegmentIntRules[RealOrder] = ir;
-   return ir;
-}
-
-/* Integration rules for line segment [0,1] for 1st dimension. This function
-   is only called for triangles and tetrahedrons so quad_type is assumed GaussJacobi */
-IntegrationRule *IntegrationRules::SegmentStroud1IntegrationRule(int Order,
-                                                                 real_t alpha,
-                                                                 real_t beta)
-{
-   int RealOrder = GetSegmentRealOrder(Order); // RealOrder >= Order
-   // Order is one of {RealOrder-1,RealOrder}
-   AllocIntRule(SegmentStroud1IntRules, RealOrder);
-
-   IntegrationRule *ir = new IntegrationRule;
-
-   // Gauss-Jacobi is exact for 2*n-1
-   int n = Order/2 + 1;
-   QuadratureFunctions1D::GaussJacobi(n, alpha, beta, ir);
-
-   SegmentStroud1IntRules[RealOrder-1] = SegmentStroud1IntRules[RealOrder] = ir;
-   return ir;
-}
-
-/* Integration rules for line segment [0,1] for 2nd dimension. This function
-   is only called for triangles and tetrahedrons so quad_type is assumed GaussJacobi */
-IntegrationRule *IntegrationRules::SegmentStroud2IntegrationRule(int Order,
-                                                                 real_t alpha,
-                                                                 real_t beta)
-{
-   int RealOrder = GetSegmentRealOrder(Order); // RealOrder >= Order
-   // Order is one of {RealOrder-1,RealOrder}
-   AllocIntRule(SegmentStroud2IntRules, RealOrder);
-
-   IntegrationRule *ir = new IntegrationRule;
-
-   // Gauss-Jacobi is exact for 2*n-1
-   int n = Order/2 + 1;
-   QuadratureFunctions1D::GaussJacobi(n, alpha, beta, ir);
-
-   SegmentStroud2IntRules[RealOrder-1] = SegmentStroud2IntRules[RealOrder] = ir;
-   return ir;
-}
-
-/* Integration rules for line segment [0,1] for 3rd dimension. This function
-   is only called for tetrahedrons so quad_type is assumed GaussJacobi */
-IntegrationRule *IntegrationRules::SegmentStroud3IntegrationRule(int Order,
-                                                                 real_t alpha,
-                                                                 real_t beta)
-{
-   int RealOrder = GetSegmentRealOrder(Order); // RealOrder >= Order
-   // Order is one of {RealOrder-1,RealOrder}
-   AllocIntRule(SegmentStroud2IntRules, RealOrder);
-
-   IntegrationRule *ir = new IntegrationRule;
-
-   // Gauss-Jacobi is exact for 2*n-1
-   int n = Order/2 + 1;
-   QuadratureFunctions1D::GaussJacobi(n, alpha, beta, ir);
-
-   SegmentStroud3IntRules[RealOrder-1] = SegmentStroud3IntRules[RealOrder] = ir;
    return ir;
 }
 
@@ -1982,24 +1880,24 @@ IntegrationRule *IntegrationRules::TriangleStroudIntegrationRule(int Order)
 {
    int RealOrder = GetSegmentRealOrder(Order);
    // Order is one of {RealOrder-1,RealOrder}
-   if (!HaveIntRule(SegmentStroud1IntRules, RealOrder))
+   if (!HaveIntRule(SegmentIntRules, RealOrder))
    {
-      SegmentStroud1IntegrationRule(RealOrder, 0.0, 0.0);        // for 1st dimension
+      SegmentIntegrationRule(RealOrder);
    }
 
-   if (!HaveIntRule(SegmentStroud2IntRules, RealOrder))
-   {
-      SegmentStroud2IntegrationRule(RealOrder, 1.0, 0.0); // for 2nd dimension
-   }
+   IntegrationRule *ir_1_0 = new IntegrationRule;
+   // Gauss-Jacobi is exact for 2*n-1
+   int n = RealOrder/2 + 1;
+   QuadratureFunctions1D::GaussJacobi(n, 1.0, 0.0, ir_1_0);
 
    AllocIntRule(TriangleStroudIntRules, RealOrder); // RealOrder >= Order
+   // create rule in unit square
    TriangleStroudIntRules[RealOrder-1] =
       TriangleStroudIntRules[RealOrder] =
-         new IntegrationRule(*SegmentStroud2IntRules[RealOrder],
-                             *SegmentStroud1IntRules[RealOrder]);
-   // create rule in unit square
-   TriangleStroudIntRules[RealOrder-1]->DuffyTrans(2);
+         new IntegrationRule(*ir_1_0,
+                             *SegmentIntRules[RealOrder]);
    // map rule to reference triangle
+   TriangleStroudIntRules[RealOrder-1]->DuffyTrans(2);
    return TriangleStroudIntRules[Order];
 }
 
@@ -2146,30 +2044,25 @@ IntegrationRule *IntegrationRules::TetrahedronStroudIntegrationRule(int Order)
 {
    int RealOrder = GetSegmentRealOrder(Order);
    // Order is one of {RealOrder-1,RealOrder}
-   if (!HaveIntRule(SegmentStroud1IntRules, RealOrder))
+   if (!HaveIntRule(SegmentIntRules, RealOrder))
    {
-      SegmentStroud1IntegrationRule(RealOrder, 0.0, 0.0); // for 1st dimension
+      SegmentIntegrationRule(RealOrder);
    }
 
-   if (!HaveIntRule(SegmentStroud2IntRules, RealOrder))
-   {
-      SegmentStroud2IntegrationRule(RealOrder, 1.0, 0.0); // for 2nd dimension
-   }
+   IntegrationRule *ir_1_0 = new IntegrationRule;
+   int n = RealOrder/2 + 1;
+   QuadratureFunctions1D::GaussJacobi(n, 1.0, 0.0, ir_1_0);
 
-   if (!HaveIntRule(SegmentStroud3IntRules, RealOrder))
-   {
-      SegmentStroud3IntegrationRule(RealOrder, 2.0, 0.0); // for 3rd dimension
-   }
+   IntegrationRule *ir_2_0 = new IntegrationRule;
+   QuadratureFunctions1D::GaussJacobi(n, 2.0, 0.0, ir_2_0);
 
    AllocIntRule(TetrahedronStroudIntRules, RealOrder); // RealOrder >= Order
+   // create rule in unit cube
    TetrahedronStroudIntRules[RealOrder-1] =
       TetrahedronStroudIntRules[RealOrder] =
-         new IntegrationRule(*SegmentStroud3IntRules[RealOrder],
-                             *SegmentStroud2IntRules[RealOrder],
-                             *SegmentStroud1IntRules[RealOrder]);
-   // create rule in unit cube
-   TetrahedronStroudIntRules[RealOrder-1]->DuffyTrans(3);
+         new IntegrationRule(*ir_2_0, *ir_1_0, *SegmentIntRules[RealOrder]);
    // map rule to reference tetrahedron
+   TetrahedronStroudIntRules[RealOrder-1]->DuffyTrans(3);
    return TetrahedronStroudIntRules[Order];
 }
 

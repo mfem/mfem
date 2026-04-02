@@ -822,8 +822,8 @@ inline void PADiffusionApplyTriangle(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    const int BASIS_DIM = D1D * (D1D+1) / 2;
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
    const auto lex_map = lex_map_.Read();
    const auto Ga1 = ConstDeviceMatrix(ga1_.Read(), Q1D, D1D-1);
    const auto Ga2 = ConstDeviceCube(ga2_.Read(), Q1D, D1D-1, D1D-1);
@@ -838,8 +838,8 @@ inline void PADiffusionApplyTriangle(const int NE,
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
       // the following variables are evaluated at compile time
-      constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D_SIMPLEX;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D_SIMPLEX;
 
       for (int idx = 0; idx < BASIS_DIM; idx++)
       {
@@ -1054,8 +1054,8 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    const int BASIS_DIM = D1D * (D1D+1) / 2;
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
    const auto lex_map__ = DeviceTensor<2,const int>(lex_map_.Read(), D1D, D1D);
    const auto ga1 = ConstDeviceMatrix(ga1_.Read(), Q1D, D1D-1);
    const auto ga2 = ConstDeviceCube(ga2_.Read(), Q1D, D1D-1, D1D-1);
@@ -1069,8 +1069,8 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D_SIMPLEX;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D_SIMPLEX;
       constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
       constexpr int BASIS_DIM = MD1 * (MD1+1) / 2;
 
@@ -1676,8 +1676,8 @@ inline void PADiffusionApplyTetrahedron(const int NE,
    const int BASIS_DIM3D = D1D * (D1D+1) * (D1D+2) / 6;
    const int BASIS_DIM2D_DIFF = (D1D-1) * D1D / 2;
    const int BASIS_DIM3D_DIFF = (D1D-1) * D1D * (D1D+1) / 6;
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
    const auto lex_map = lex_map_.Read();
    const auto forward_map2d = forward_map2d_.Read();
    const auto inverse_map2d = inverse_map2d_.Read();
@@ -1697,8 +1697,8 @@ inline void PADiffusionApplyTetrahedron(const int NE,
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
       // the following variables are evaluated at compile time
-      constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D_SIMPLEX;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D_SIMPLEX;
 
       constexpr int basis_dim2d = (int) 3 * (max_D1D-1) * (max_D1D) / 2;
       real_t C1[(int) 3 * basis_dim2d * max_Q1D];
@@ -1950,8 +1950,8 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
    const int BASIS_DIM3D = D1D * (D1D+1) * (D1D+2) / 6;
    const int BASIS_DIM2D_DIFF = (D1D-1) * D1D / 2;
    const int BASIS_DIM3D_DIFF = (D1D-1) * D1D * (D1D+1) / 6;
-   const int max_q1d = T_Q1D ? T_Q1D : DeviceDofQuadLimits::Get().MAX_Q1D;
-   const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D;
+   const int max_q1d = T_Q1D ? T_Q1D : DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX;
+   const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX;
    MFEM_VERIFY(D1D <= max_d1d, "");
    MFEM_VERIFY(Q1D <= max_q1d, "");
    const auto forward_map3d__ =
@@ -1974,8 +1974,8 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D_SIMPLEX;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D_SIMPLEX;
       constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
       constexpr int BASIS_DIM2D_DIFF = (MD1-1) * MD1 / 2;
       constexpr int BASIS_DIM3D_DIFF = (MD1-1) * MD1 * (MD1 + 1) / 6;
@@ -2198,15 +2198,12 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
             int idx = lex_map[a1][a2][a3];
             y(idx,e) -= p2 * (u + v + w);
 
-            MFEM_SYNC_THREAD;
             idx = lex_map[a1+1][a2][a3];
             y(idx,e) += p2 * u;
 
-            MFEM_SYNC_THREAD;
             idx = lex_map[a1][a2+1][a3];
             y(idx,e) += p2 * v;
 
-            MFEM_SYNC_THREAD;
             idx = lex_map[a1][a2][a3+1];
             y(idx,e) += p2 * w;
          }

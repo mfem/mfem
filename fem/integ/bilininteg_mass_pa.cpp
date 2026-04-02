@@ -32,7 +32,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    dim = mesh->Dimension();
    const FiniteElement &el = *fes.GetTypicalFE();
    ElementTransformation *T0 = mesh->GetTypicalElementTransformation();
-   const bool stroud = fes.IsBernsteinSimplexSpace();
+   const bool stroud = fes.UsesRaggedTensorBasis();
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T0, stroud);
    if (DeviceCanUseCeed())
    {
@@ -54,8 +54,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    nq = ir->GetNPoints();
    if (stroud)
    {
-      geom = mesh->GetGeometricFactors(ir->InverseDuffyTrans(dim),
-                                       GeometricFactors::DETERMINANTS, mt);
+      geom = mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS, mt);
       maps = &el.GetDofToQuad(ir->InverseDuffyTrans(dim), DofToQuad::RAGGED_TENSOR);
       // DofToQuad expects ir pulled back to reference cube, so we apply InverseDuffyTrans
    }
@@ -176,7 +175,7 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
       }
 #endif // MFEM_USE_OCCA
 
-      if (fespace->IsBernsteinSimplexSpace())
+      if (fespace->UsesRaggedTensorBasis())
       {
          const Array<real_t> &Ba1 = maps->Ba1;
          const Array<real_t> &Ba2 = maps->Ba2;
@@ -199,20 +198,6 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
       {
          const Array<real_t> &B = maps->B;
          const Array<real_t> &Bt = maps->Bt;
-#ifdef MFEM_USE_OCCA
-         if (DeviceCanUseOcca())
-         {
-            if (dim == 2)
-            {
-               return internal::OccaPAMassApply2D(D1D,Q1D,ne,B,Bt,D,x,y);
-            }
-            if (dim == 3)
-            {
-               return internal::OccaPAMassApply3D(D1D,Q1D,ne,B,Bt,D,x,y);
-            }
-            MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
-         }
-#endif // MFEM_USE_OCCA
          ApplyPAKernels::Run(dim, D1D, Q1D, ne, B, Bt, D, x, y, D1D, Q1D);
       }
    }

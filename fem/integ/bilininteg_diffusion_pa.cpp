@@ -16,15 +16,6 @@
 #include "../ceed/integrators/diffusion/diffusion.hpp"
 #include "bilininteg_diffusion_kernels.hpp"
 
-#ifdef NVTX_DEBUG_HPP
-#undef NVTX_COLOR
-#define NVTX_COLOR ::nvtx::kNvidia
-#include NVTX_DEBUG_HPP
-#else
-#define db1(...)
-#define dbg(...)
-#endif
-
 namespace mfem
 {
 
@@ -77,8 +68,7 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
       }
 #endif // MFEM_USE_OCCA
 
-      db1("dofs1D: {}, quad1D: {}", dofs1D, quad1D);
-      if (fespace->IsBernsteinSimplexSpace())
+      if (fespace->UsesRaggedTensorBasis())
       {
          return ApplySimplexPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric,
                                            maps->lex_map,
@@ -118,7 +108,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetTypicalFE();
-   const bool stroud = fes.IsBernsteinSimplexSpace();
+   const bool stroud = fes.UsesRaggedTensorBasis();
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, stroud);
    if (DeviceCanUseCeed())
    {
@@ -145,8 +135,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    ne = fes.GetNE();
    if (stroud)
    {
-      geom = mesh->GetGeometricFactors(ir->InverseDuffyTrans(dim),
-                                       GeometricFactors::JACOBIANS, mt);
+      geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
       maps = &el.GetDofToQuad(ir->InverseDuffyTrans(dim), DofToQuad::RAGGED_TENSOR);
       // DofToQuad expects ir pulled back to reference cube, so we apply InverseDuffyTrans
    }
