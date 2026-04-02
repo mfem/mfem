@@ -1898,6 +1898,7 @@ IntegrationRule *IntegrationRules::TriangleStroudIntegrationRule(int Order)
                              *SegmentIntRules[RealOrder]);
    // map rule to reference triangle
    TriangleStroudIntRules[RealOrder-1]->DuffyTrans(2);
+   delete ir_1_0;
    return TriangleStroudIntRules[Order];
 }
 
@@ -2063,6 +2064,8 @@ IntegrationRule *IntegrationRules::TetrahedronStroudIntegrationRule(int Order)
          new IntegrationRule(*ir_2_0, *ir_1_0, *SegmentIntRules[RealOrder]);
    // map rule to reference tetrahedron
    TetrahedronStroudIntRules[RealOrder-1]->DuffyTrans(3);
+   delete ir_1_0;
+   delete ir_2_0;
    return TetrahedronStroudIntRules[Order];
 }
 
