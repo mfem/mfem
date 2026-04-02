@@ -22,7 +22,10 @@ namespace mfem
 struct Allocator
 {
    virtual void Alloc(void **ptr, size_t nbytes) = 0;
-   virtual void Dealloc(void *ptr) = 0;
+   virtual void Dealloc(void *ptr, size_t nbytes) = 0;
+
+   virtual void Protect(void *ptr, size_t nbytes) {}
+   virtual void Unprotect(void *ptr, size_t nbytes) {}
 
    virtual void Clear() {}
    virtual ~Allocator() = default;
@@ -74,6 +77,8 @@ private:
          size_t ref_count = 1;
          bool temporary = false;
 
+         void set_temporary() { temporary = true; }
+         void reset_temporary() { temporary = false; }
          bool is_temporary() const { return temporary; }
       };
       std::vector<Node> nodes;
@@ -234,6 +239,11 @@ private:
    void Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
              size_t src_offset, size_t nbytes);
 
+   void Unprotect(char *ptr, MemoryType loc, size_t offset, size_t nbytes,
+                  bool temporary);
+   void Protect(char *ptr, MemoryType loc, size_t offset, size_t nbytes,
+                bool temporary);
+
    void CopyFromHost(size_t segment, size_t offset, const char *src,
                      size_t nbytes);
 
@@ -256,7 +266,8 @@ private:
 
    void SetDeviceMemoryType(size_t segment, MemoryType loc);
 
-   void SetValidity(size_t segment, bool host_valid, bool device_valid);
+   void SetValidity(size_t segment, size_t offset, size_t nbytes,
+                    bool host_valid, bool device_valid);
 
    /// Update the dual memory type of @a mt to be @a dual_mt.
    void UpdateDualMemoryType(MemoryType mt, MemoryType dual_mt);
@@ -310,9 +321,13 @@ public:
    /// same restrictions as std::memcpy: dst and src should not overlap
    void MemCopy(void *dst, const void *src, size_t nbytes, MemoryType dst_loc,
                 MemoryType src_loc);
+   void MemCopyAsync(void *dst, const void *src, size_t nbytes,
+                     MemoryType dst_loc, MemoryType src_loc);
 
    /// raw deallocation of a buffer
-   void Dealloc(char *ptr, MemoryType type, bool temporary);
+   /// @a nbytes, @a type, and @a temporary must be the same as passed to the
+   /// original call to @sa Alloc
+   void Dealloc(char *ptr, size_t nbytes, MemoryType type, bool temporary);
    /// Raw unregistered allocation of a buffer
    char *Alloc(size_t nbytes, MemoryType type, bool temporary);
 
@@ -396,7 +411,7 @@ public:
    void deallocate(T *ptr, size_t n)
    {
       auto &inst = MemoryManager::instance();
-      inst.allocs[idx]->Dealloc(ptr);
+      inst.allocs[idx]->Dealloc(ptr, n);
    }
 };
 
@@ -645,9 +660,10 @@ public:
                   1, seg.lowers[1], seg.lowers[1] + seg.nbytes,
                   "dealloc " << (int)seg.mtypes[1] << ", "
                   << seg.is_temporary());
-               inst.Dealloc(seg.lowers[1], seg.mtypes[1], seg.is_temporary());
-               inst.SetValidity(segment, true, false);
+               inst.Dealloc(seg.lowers[1], seg.nbytes, seg.mtypes[1],
+                            seg.is_temporary());
                seg.lowers[1] = nullptr;
+               inst.SetValidity(segment, 0, seg.nbytes, true, false);
             }
          }
       }
@@ -834,7 +850,8 @@ template <class T> void Memory<T>::Delete()
          MFEM_MEM_OP_DEBUG_REMOVE2(1, seg.lowers[1], seg.lowers[1] + seg.nbytes,
                                    "dealloc " << (int)seg.mtypes[1] << ", "
                                    << seg.is_temporary());
-         inst.Dealloc(seg.lowers[1], seg.mtypes[1], seg.is_temporary());
+         inst.Dealloc(seg.lowers[1], seg.nbytes, seg.mtypes[1],
+                      seg.is_temporary());
       }
       seg.lowers[1] = nullptr;
    }
@@ -873,7 +890,8 @@ template <class T> void Memory<T>::Delete()
          MFEM_MEM_OP_DEBUG_REMOVE2(1, h_ptr, h_ptr + size_,
                                    "dealloc " << (int)h_mt << ", "
                                    << temporary);
-         inst.Dealloc(reinterpret_cast<char *>(h_ptr), h_mt, temporary);
+         inst.Dealloc(reinterpret_cast<char *>(h_ptr), size_ * sizeof(T), h_mt,
+                      temporary);
       }
    }
 

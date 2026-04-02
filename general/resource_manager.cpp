@@ -35,6 +35,8 @@
 
 #ifdef USE_NEW_MEM_MANAGER
 
+#include "internal/mmu.tcc"
+
 // #define MFEM_USE_BLIT_KERNEL
 
 namespace mfem
@@ -70,7 +72,7 @@ public:
       *ptr = allocator.allocate(nbytes);
    }
 
-   void Dealloc(void *ptr) override { allocator.deallocate(ptr); }
+   void Dealloc(void *ptr, size_t) override { allocator.deallocate(ptr); }
    virtual ~UmpireAllocator() = default;
 };
 
@@ -93,8 +95,25 @@ struct StdAllocator : public Allocator
       *ptr = std::malloc(nbytes);
    }
 
-   void Dealloc(void *ptr) override { std::free(ptr); }
+   void Dealloc(void *ptr, size_t) override { std::free(ptr); }
    virtual ~StdAllocator() = default;
+};
+
+struct MmuAllocator : public Allocator
+{
+   void Alloc(void **ptr, size_t nbytes) override { MmuAlloc(ptr, nbytes); }
+
+   void Dealloc(void *ptr, size_t nbytes) override { MmuDealloc(ptr, nbytes); }
+
+   void Protect(void *ptr, size_t nbytes) override
+   {
+      MmuProtect(MmuAddrR(ptr), MmuLengthR(ptr, nbytes));
+   }
+   void Unprotect(void *ptr, size_t nbytes) override
+   {
+      MmuAllow(MmuAddrP(ptr), MmuLengthP(ptr, nbytes));
+   }
+   virtual ~MmuAllocator() = default;
 };
 
 struct StdAlignedAllocator : public Allocator
@@ -111,7 +130,7 @@ struct StdAlignedAllocator : public Allocator
 #endif
    }
 
-   void Dealloc(void *ptr) override
+   void Dealloc(void *ptr, size_t) override
    {
 #ifdef _WIN32
       _aligned_free(ptr);
@@ -135,7 +154,7 @@ struct HostPinnedAllocator : public Allocator
 #endif
    }
 
-   void Dealloc(void *ptr) override
+   void Dealloc(void *ptr, size_t) override
    {
 #if defined(MFEM_USE_CUDA)
       mfem::CuMemFreeHostPinned(ptr);
@@ -161,7 +180,7 @@ struct ManagedAllocator : public Allocator
 #endif
    }
 
-   void Dealloc(void *ptr) override
+   void Dealloc(void *ptr, size_t) override
    {
 #if defined(MFEM_USE_CUDA)
       mfem::CuMemFree(ptr);
@@ -187,7 +206,7 @@ struct DeviceAllocator : public Allocator
 #endif
    }
 
-   void Dealloc(void *ptr) override
+   void Dealloc(void *ptr, size_t) override
    {
 #if defined(MFEM_USE_CUDA)
       mfem::CuMemFree(ptr);
@@ -204,6 +223,7 @@ template <class BaseAlloc, bool NeedsWait = false>
 struct TempAllocator : public Allocator
 {
 private:
+   /// start, stop, allocations count
    using block = std::tuple<char *, char *, size_t>;
    BaseAlloc alloc_;
 
@@ -230,7 +250,7 @@ public:
 
    void Alloc(void **ptr, size_t nbytes) override;
 
-   void Dealloc(void *ptr) override;
+   void Dealloc(void *ptr, size_t) override;
 
    void Clear() override;
 
@@ -275,7 +295,7 @@ void TempAllocator<BaseAlloc, NeedsWait>::Clear()
 {
    for (auto &b : blocks)
    {
-      alloc_.Dealloc(std::get<0>(b));
+      alloc_.Dealloc(std::get<0>(b), std::get<1>(b) - std::get<0>(b));
    }
    blocks.clear();
    total_allocs = 0;
@@ -295,8 +315,9 @@ void TempAllocator<BaseAlloc, NeedsWait>::Coalesce()
       // multiple free blocks to coalesce
       for (auto iter = mid; iter != blocks.end(); ++iter)
       {
-         free_size += std::get<1>(*iter) - std::get<0>(*iter);
-         alloc_.Dealloc(std::get<0>(*iter));
+         auto nbytes = std::get<1>(*iter) - std::get<0>(*iter);
+         free_size += nbytes;
+         alloc_.Dealloc(std::get<0>(*iter), nbytes);
       }
       // remove all end blocks
       blocks.erase(mid, blocks.end());
@@ -346,7 +367,9 @@ void TempAllocator<BaseAlloc, NeedsWait>::Alloc(void **ptr, size_t nbytes)
       else if (std::get<2>(blocks.back()) == 0)
       {
          // last block was already empty but too small, re-allocate it
-         alloc_.Dealloc(std::get<0>(blocks.back()));
+         alloc_.Dealloc(std::get<0>(blocks.back()),
+                        std::get<1>(blocks.back()) -
+                        std::get<0>(blocks.back()));
          blocks.pop_back();
          *ptr = AllocBlock(nbytes);
       }
@@ -366,7 +389,7 @@ void TempAllocator<BaseAlloc, NeedsWait>::Alloc(void **ptr, size_t nbytes)
 }
 
 template <class BaseAlloc, bool NeedsWait>
-void TempAllocator<BaseAlloc, NeedsWait>::Dealloc(void *ptr)
+void TempAllocator<BaseAlloc, NeedsWait>::Dealloc(void *ptr, size_t)
 {
    if (ptr != nullptr)
    {
@@ -424,6 +447,37 @@ void MemoryManager::MemCopy(void *dst, const void *src, size_t nbytes,
 #endif
 }
 
+void MemoryManager::MemCopyAsync(void *dst, const void *src, size_t nbytes,
+                                 MemoryType dst_loc, MemoryType src_loc)
+{
+   MFEM_MEM_OP_BENCH_SCOPE(10, true);
+   if (dst == src)
+   {
+      return;
+   }
+#if defined(MFEM_USE_CUDA)
+   if (Device::Allows(Backend::CUDA_MASK))
+   {
+      MFEM_GPU_CHECK(cudaMemcpyAsync(dst, src, nbytes, cudaMemcpyDefault));
+   }
+   else
+   {
+      std::memcpy(dst, src, nbytes);
+   }
+#elif defined(MFEM_USE_HIP)
+   if (Device::Allows(Backend::HIP_MASK))
+   {
+      MFEM_GPU_CHECK(hipMemcpyAsync(dst, src, nbytes, hipMemcpyDefault));
+   }
+   else
+   {
+      std::memcpy(dst, src, nbytes);
+   }
+#else
+   std::memcpy(dst, src, nbytes);
+#endif
+}
+
 MemoryManager &MemoryManager::instance()
 {
    static MemoryManager inst;
@@ -452,13 +506,20 @@ MemoryManager::MemoryManager()
    allocs[static_cast<int>(MemoryType::HOST_64) + MemoryTypeSize] =
       allocs_storage[1].get();
 
-   allocs[static_cast<int>(MemoryType::HOST_DEBUG)] = allocs_storage[0].get();
-   allocs[static_cast<int>(MemoryType::HOST_DEBUG) + MemoryTypeSize] =
-      allocs_storage[1].get();
+   if (GetEnv("MFEM_MMU_STD"))
+   {
+      // don't use MMU protect/unprotect
+      allocs[static_cast<int>(MemoryType::HOST_DEBUG)] =
+         allocs_storage[0].get();
+      allocs[static_cast<int>(MemoryType::HOST_DEBUG) + MemoryTypeSize] =
+         allocs_storage[1].get();
 
-   allocs[static_cast<int>(MemoryType::DEVICE_DEBUG)] = allocs_storage[0].get();
-   allocs[static_cast<int>(MemoryType::DEVICE_DEBUG) + MemoryTypeSize] =
-      allocs_storage[1].get();
+      allocs[static_cast<int>(MemoryType::DEVICE_DEBUG)] =
+         allocs_storage[0].get();
+      allocs[static_cast<int>(MemoryType::DEVICE_DEBUG) + MemoryTypeSize] =
+         allocs_storage[1].get();
+   }
+   // real debug allocators setup later
 
 #if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
    allocs_storage[4].reset(new HostPinnedAllocator);
@@ -598,16 +659,17 @@ void MemoryManager::Destroy()
          MFEM_MEM_OP_DEBUG_REMOVE2(0, seg.lowers[1], seg.lowers[1] + seg.nbytes,
                                    "destroy " << (int)seg.mtypes[1] << ", "
                                    << seg.is_temporary());
-         Dealloc(seg.lowers[1], seg.mtypes[1], seg.temporary);
+         Dealloc(seg.lowers[1], seg.nbytes, seg.mtypes[1], seg.is_temporary());
          seg.lowers[1] = nullptr;
          // seg.mtypes[1] = MemoryType::DEFAULT;
       }
-      if (seg.lowers[0] && (seg.mtypes[0] != MemoryType::HOST || seg.temporary))
+      if (seg.lowers[0] &&
+          (seg.mtypes[0] != MemoryType::HOST || seg.is_temporary()))
       {
          MFEM_MEM_OP_DEBUG_REMOVE2(0, seg.lowers[0], seg.lowers[0] + seg.nbytes,
                                    "destroy " << (int)seg.mtypes[0] << ", "
                                    << seg.is_temporary());
-         Dealloc(seg.lowers[0], seg.mtypes[0], seg.temporary);
+         Dealloc(seg.lowers[0], seg.nbytes, seg.mtypes[0], seg.is_temporary());
          seg.lowers[0] = nullptr;
          // seg.mtypes[0] = MemoryType::DEFAULT;
       }
@@ -640,7 +702,8 @@ void MemoryManager::Destroy()
 #endif
 }
 
-void MemoryManager::Dealloc(char *ptr, MemoryType type, bool temporary)
+void MemoryManager::Dealloc(char *ptr, size_t nbytes, MemoryType type,
+                            bool temporary)
 {
    if (!ptr)
    {
@@ -660,7 +723,7 @@ void MemoryManager::Dealloc(char *ptr, MemoryType type, bool temporary)
       default:
          if (allocs[offset + static_cast<int>(type)])
          {
-            allocs[offset + static_cast<int>(type)]->Dealloc(ptr);
+            allocs[offset + static_cast<int>(type)]->Dealloc(ptr, nbytes);
          }
    }
 }
@@ -670,6 +733,44 @@ void MemoryManager::EnsureAlloc(MemoryType mt)
    // lazy initialized allocators
    switch (mt)
    {
+      case MemoryType::HOST_DEBUG:
+         if (!allocs[static_cast<int>(MemoryType::HOST_DEBUG)])
+         {
+            MmuInit();
+            allocs_storage[13].reset(new MmuAllocator);
+            // MMU protected allocators
+            // don't use temporary allocators since this could result in things on
+            // the same page
+            allocs[static_cast<int>(MemoryType::HOST_DEBUG)] =
+               allocs_storage[13].get();
+            allocs[static_cast<int>(MemoryType::HOST_DEBUG) + MemoryTypeSize] =
+               allocs_storage[13].get();
+
+            allocs[static_cast<int>(MemoryType::DEVICE_DEBUG)] =
+               allocs_storage[13].get();
+            allocs[static_cast<int>(MemoryType::DEVICE_DEBUG) + MemoryTypeSize] =
+               allocs_storage[13].get();
+         }
+         break;
+      case MemoryType::DEVICE_DEBUG:
+         if (!allocs[static_cast<int>(MemoryType::HOST_DEBUG)])
+         {
+            MmuInit();
+            allocs_storage[13].reset(new MmuAllocator);
+            // MMU protected allocators
+            // don't use temporary allocators since this could result in things on
+            // the same page
+            allocs[static_cast<int>(MemoryType::HOST_DEBUG)] =
+               allocs_storage[13].get();
+            allocs[static_cast<int>(MemoryType::HOST_DEBUG) + MemoryTypeSize] =
+               allocs_storage[13].get();
+
+            allocs[static_cast<int>(MemoryType::DEVICE_DEBUG)] =
+               allocs_storage[13].get();
+            allocs[static_cast<int>(MemoryType::DEVICE_DEBUG) + MemoryTypeSize] =
+               allocs_storage[13].get();
+         }
+         break;
 #ifdef MFEM_USE_UMPIRE
       case MemoryType::HOST_UMPIRE:
       {
@@ -1191,7 +1292,10 @@ size_t MemoryManager::insert(char *hptr, char *dptr, size_t nbytes,
    }
    seg.mtypes[0] = hloc;
    seg.mtypes[1] = dloc;
-   seg.temporary = temporary;
+   if (temporary)
+   {
+      seg.set_temporary();
+   }
 
    if (!valid_host)
    {
@@ -1257,8 +1361,8 @@ void MemoryManager::erase(size_t segment)
             seg.lowers[0] = nullptr;
             seg.lowers[1] = nullptr;
             seg.nbytes = 0;
-            seg.temporary = false;
             clear_segment(segment);
+            seg.reset_temporary();
             storage.cleanup_segments();
             size_t idx = segment - 1;
             storage.segments_status[idx >> 6] &= ~(1ull << (idx & 0x3f));
@@ -1567,6 +1671,10 @@ char *MemoryManager::write(size_t segment, size_t offset, size_t nbytes,
       [](auto, auto) {});
       MFEM_MEM_OP_DEBUG_USE(5, seg.lowers[on_device] + offset,
                             seg.lowers[on_device] + offset + nbytes, " Write");
+      Unprotect(seg.lowers[on_device], seg.mtypes[on_device], offset, nbytes,
+                seg.is_temporary());
+      Protect(seg.lowers[!on_device], seg.mtypes[!on_device], offset, nbytes,
+              seg.is_temporary());
       return seg.lowers[on_device] + offset;
    }
    MFEM_ASSERT(nbytes == 0, "Invalid write pointer");
@@ -1622,94 +1730,21 @@ void MemoryManager::BatchMemCopy(
    }
 #endif
    // copy_segs is assumed to be allocated in either HOSTPINNED or MANAGED
-#ifdef MFEM_USE_BLIT_KERNEL
-   switch (copy_segs.size())
+   // TODO: blit kernels which fuses MemCopy
+   for (size_t i = 0; i < copy_segs.size(); ++i)
    {
-      case 0:
-         return;
-      case 1:
-         MemCopy(dst + copy_segs[0].first, src + copy_segs[0].first,
-                 copy_segs[0].second - copy_segs[0].first, dst_loc, src_loc);
-         return;
-      default:
-         auto dloc = Device::QueryMemoryType(dst);
-         auto sloc = Device::QueryMemoryType(src);
-         if (sloc == MemoryType::HOST)
-         {
-            if (sloc == MemoryType::DEVICE)
-            {
-               // TODO: heuristic for when to to use a temporary buffer accessible
-               // on device
-               for (auto &seg : copy_segs)
-               {
-                  MemCopy(dst + seg.first, src + seg.first, seg.second - seg.first,
-                          dst_loc, src_loc);
-               }
-            }
-            else
-            {
-               // dst and src accessible from host
-               for (auto &seg : copy_segs)
-               {
-                  MemCopy(dst + seg.first, src + seg.first, seg.second - seg.first,
-                          dst_loc, src_loc);
-               }
-               MFEM_STREAM_SYNC;
-            }
-         }
-         else if (sloc == MemoryType::DEVICE)
-         {
-            if (dloc == MemoryType::HOST)
-            {
-               // TODO: heuristic for when to to use a temporary buffer accessible
-               // on device
-               for (auto &seg : copy_segs)
-               {
-                  MemCopy(dst + seg.first, src + seg.first, seg.second - seg.first,
-                          dst_loc, src_loc);
-               }
-            }
-            else
-            {
-               // dst and src accessible from device
-               BatchCopyKernel kernel;
-               kernel.dst = dst;
-               kernel.src = src;
-               kernel.segs = copy_segs.data();
-               forall_2D(copy_segs.size(), 256, 1, kernel);
-            }
-         }
-         else
-         {
-            if (dloc == MemoryType::HOST)
-            {
-               // dst and src accessible from host
-               for (auto &seg : copy_segs)
-               {
-                  MemCopy(dst + seg.first, src + seg.first, seg.second - seg.first,
-                          dst_loc, src_loc);
-               }
-            }
-            else
-            {
-               // dst and src accessible from device
-               BatchCopyKernel kernel;
-               kernel.dst = dst;
-               kernel.src = src;
-               kernel.segs = copy_segs.data();
-               forall_2D(copy_segs.size(), 256, 1, kernel);
-               MFEM_STREAM_SYNC;
-            }
-         }
-         return;
+      auto &seg = copy_segs[i];
+      if (i + 1 == copy_segs.size())
+      {
+         MemCopy(dst + seg.first, src + seg.first, seg.second - seg.first, dst_loc,
+                 src_loc);
+      }
+      else
+      {
+         MemCopyAsync(dst + seg.first, src + seg.first, seg.second - seg.first,
+                      dst_loc, src_loc);
+      }
    }
-#else
-   for (auto &seg : copy_segs)
-   {
-      MemCopy(dst + seg.first, src + seg.first, seg.second - seg.first, dst_loc,
-              src_loc);
-   }
-#endif
 }
 
 void MemoryManager::BatchMemCopy2(
@@ -1726,94 +1761,20 @@ void MemoryManager::BatchMemCopy2(
    }
 #endif
    // copy_segs is assumed to be allocated in either HOSTPINNED or MANAGED
-#ifdef MFEM_USE_BLIT_KERNEL
-   switch (copy_segs.size())
-   {
-      case 0:
-         return;
-      case 3:
-         MemCopy(dst + copy_segs[1], src + copy_segs[0], copy_segs[2], dst_loc,
-                 src_loc);
-         return;
-      default:
-         auto dloc = Device::QueryMemoryType(dst);
-         auto sloc = Device::QueryMemoryType(src);
-         if (sloc == MemoryType::HOST)
-         {
-            if (sloc == MemoryType::DEVICE)
-            {
-               // TODO: heuristic for when to to use a temporary buffer accessible
-               // on device
-               for (size_t i = 0; i < copy_segs.size(); i += 3)
-               {
-                  MemCopy(dst + copy_segs[i + 1], src + copy_segs[i],
-                          copy_segs[i + 2], dst_loc, src_loc);
-               }
-            }
-            else
-            {
-               // dst and src accessible from host
-               for (size_t i = 0; i < copy_segs.size(); i += 3)
-               {
-                  MemCopy(dst + copy_segs[i + 1], src + copy_segs[i],
-                          copy_segs[i + 2], dst_loc, src_loc);
-               }
-               MFEM_STREAM_SYNC;
-            }
-         }
-         else if (sloc == MemoryType::DEVICE)
-         {
-            if (dloc == MemoryType::HOST)
-            {
-               // TODO: heuristic for when to to use a temporary buffer accessible
-               // on device
-               for (size_t i = 0; i < copy_segs.size(); i += 3)
-               {
-                  MemCopy(dst + copy_segs[i + 1], src + copy_segs[i],
-                          copy_segs[i + 2], dst_loc, src_loc);
-               }
-            }
-            else
-            {
-               // dst and src accessible from device
-               BatchCopyKernel2 kernel;
-               kernel.dst = dst;
-               kernel.src = src;
-               kernel.segs = copy_segs.data();
-               forall_2D(copy_segs.size() / 3, 256, 1, kernel);
-            }
-         }
-         else
-         {
-            if (dloc == MemoryType::HOST)
-            {
-               // dst and src accessible from host
-               for (size_t i = 0; i < copy_segs.size(); i += 3)
-               {
-                  MemCopy(dst + copy_segs[i + 1], src + copy_segs[i],
-                          copy_segs[i + 2], dst_loc, src_loc);
-               }
-            }
-            else
-            {
-               // dst and src accessible from device
-               BatchCopyKernel2 kernel;
-               kernel.dst = dst;
-               kernel.src = src;
-               kernel.segs = copy_segs.data();
-               forall_2D(copy_segs.size() / 3, 256, 1, kernel);
-               MFEM_STREAM_SYNC;
-            }
-         }
-         return;
-   }
-#else
+   // TODO: blit kernels which fuses MemCopy
    for (size_t i = 0; i < copy_segs.size(); i += 3)
    {
-      MemCopy(dst + copy_segs[i + 1], src + copy_segs[i], copy_segs[i + 2],
-              dst_loc, src_loc);
+      if (i + 3 == copy_segs.size())
+      {
+         MemCopy(dst + copy_segs[i + 1], src + copy_segs[i], copy_segs[i + 2],
+                 dst_loc, src_loc);
+      }
+      else
+      {
+         MemCopyAsync(dst + copy_segs[i + 1], src + copy_segs[i],
+                      copy_segs[i + 2], dst_loc, src_loc);
+      }
    }
-#endif
 }
 
 bool MemoryManager::check_read_write(size_t segment, size_t offset,
@@ -1940,6 +1901,8 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
                     [&](auto start, auto stop)
          { copy_segs.emplace_back(start, stop); });
       }
+      Unprotect(seg.lowers[on_device], seg.mtypes[on_device], offset, nbytes,
+                seg.is_temporary());
       if (copy_segs.size())
       {
          if (!seg.lowers[!on_device])
@@ -1978,6 +1941,8 @@ char *MemoryManager::read_write(size_t segment, size_t offset, size_t nbytes,
       MFEM_MEM_OP_DEBUG_USE(6, seg.lowers[on_device] + offset,
                             seg.lowers[on_device] + offset + nbytes,
                             " ReadWrite ");
+      Protect(seg.lowers[!on_device], seg.mtypes[!on_device], offset, nbytes,
+              seg.is_temporary());
       return seg.lowers[on_device] + offset;
    }
    MFEM_ASSERT(nbytes == 0, "Invalid write pointer");
@@ -2025,6 +1990,8 @@ const char *MemoryManager::read(size_t segment, size_t offset, size_t nbytes,
                     [&](auto start, auto stop)
          { copy_segs.emplace_back(start, stop); });
       }
+      Unprotect(seg.lowers[on_device], seg.mtypes[on_device], offset, nbytes,
+                seg.is_temporary());
       if (copy_segs.size())
       {
          if (!seg.lowers[!on_device])
@@ -2107,13 +2074,14 @@ int MemoryManager::compare_host_device(size_t segment, size_t offset,
             tmp = Alloc(nbytes, seg.mtypes[0], true);
             MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(2, ptr1, tmp, nbytes, "",
                                              seg.mtypes[1], seg.mtypes[0]);
+            // TODO: how to get this to work with debug device?
             MemCopy(tmp, ptr1, nbytes, seg.mtypes[0], seg.mtypes[1]);
             ptr1 = tmp;
          }
          auto res = std::memcmp(ptr0, ptr1, nbytes);
          if (tmp != nullptr)
          {
-            Dealloc(tmp, seg.mtypes[0], true);
+            Dealloc(tmp, nbytes, seg.mtypes[0], true);
          }
          return res;
       }
@@ -2559,26 +2527,32 @@ void MemoryManager::SetDeviceMemoryType(size_t segment, MemoryType loc)
    }
 }
 
-void MemoryManager::SetValidity(size_t segment, bool host_valid,
-                                bool device_valid)
+void MemoryManager::SetValidity(size_t segment, size_t offset, size_t nbytes,
+                                bool host_valid, bool device_valid)
 {
    auto &seg = storage.get_segment(segment);
    if (host_valid)
    {
-      mark_valid(segment, false, 0, seg.nbytes, [](auto, auto) {});
+      mark_valid(segment, false, offset, nbytes, [](auto, auto) {});
+      Unprotect(seg.lowers[0], seg.mtypes[0], offset, nbytes,
+                seg.is_temporary());
    }
    else
    {
-      mark_invalid(segment, false, 0, seg.nbytes, [](auto, auto) {});
+      mark_invalid(segment, false, offset, nbytes, [](auto, auto) {});
+      Protect(seg.lowers[0], seg.mtypes[0], offset, nbytes, seg.is_temporary());
    }
 
    if (device_valid)
    {
-      mark_valid(segment, true, 0, seg.nbytes, [](auto, auto) {});
+      mark_valid(segment, true, offset, nbytes, [](auto, auto) {});
+      Unprotect(seg.lowers[1], seg.mtypes[1], offset, nbytes,
+                seg.is_temporary());
    }
    else
    {
-      mark_invalid(segment, true, 0, seg.nbytes, [](auto, auto) {});
+      mark_invalid(segment, true, offset, nbytes, [](auto, auto) {});
+      Protect(seg.lowers[1], seg.mtypes[1], offset, nbytes, seg.is_temporary());
    }
 }
 
@@ -2640,6 +2614,24 @@ void MemoryManager::UpdateDualMemoryType(MemoryType mt, MemoryType dual_mt)
                   "invalid (mt, dual_mt) pair: ("
                   << MemoryTypeName[(int)mt] << ", "
                   << MemoryTypeName[(int)dual_mt] << ')');
+   }
+}
+
+void MemoryManager::Protect(char *ptr, MemoryType loc, size_t offset,
+                            size_t nbytes, bool temporary)
+{
+   if (ptr)
+   {
+      allocs[static_cast<int>(loc)]->Protect(ptr + offset, nbytes);
+   }
+}
+
+void MemoryManager::Unprotect(char *ptr, MemoryType loc, size_t offset,
+                              size_t nbytes, bool temporary)
+{
+   if (ptr)
+   {
+      allocs[static_cast<int>(loc)]->Unprotect(ptr + offset, nbytes);
    }
 }
 } // namespace mfem
