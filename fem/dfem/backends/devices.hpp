@@ -291,24 +291,7 @@ inline FieldBasis FromQF()
       [](const Vector &xe, Vector &xq)
       {
          NVTX("FromQF(e->q)");
-         xq = xe; // extra copy 🔥🔥🔥
-
-         // NVTX_MARK_INI("xe_r");
-         // xe.SyncAliasMemory(xq);
-         // xe.Read();
-         // NVTX_MARK_END("xe_r");
-
-         // auto &non_const_xe = const_cast<Vector&>(xe);
-         // NVTX_MARK_INI("StealData");
-         // xq.SetDataAndSize(non_const_xe.StealData(), xe.Size());
-         // NVTX_MARK_END("StealData");
-
-         // xq.SyncAliasMemory(xe);
-         // xq.SyncMemory(xe);
-
-         // NVTX_MARK_INI("SetDataAndSize");
-         // xq.SetDataAndSize(non_const_xe.ReadWrite(), xe.Size());
-         // NVTX_MARK_END("SetDataAndSize");
+         xq.NewMemoryAndSize(xe.GetMemory(), xe.Size(), false);
       },
       [](const Vector &yq, Vector &ye) { NVTX("FromQF(q->e)"); ye = yq; }
    };
@@ -363,14 +346,14 @@ inline const FieldBasis GetFieldBasis(const FieldDescriptor &f,
 }
 
 // create_fieldbases //////////////////////////////////////////////////////////
-template <typename fops_t, size_t nfops>
-inline void create_fieldbases(fops_t &fops,
-                              const std::array<size_t, nfops> &fop_to_fd,
-                              const std::vector<FieldDescriptor> &fds,
-                              const IntegrationRule &ir,
-                              std::array<FieldBasis, nfops> &bases)
+template <typename fops_t, size_t nfops> inline
+std::array<FieldBasis, nfops> get_bases(fops_t &fops,
+                                        const std::array<size_t, nfops> &fop_to_fd,
+                                        const std::vector<FieldDescriptor> &fds,
+                                        const IntegrationRule &ir)
 {
    NVTX_MARK_FUNCTION;
+   std::array<FieldBasis, nfops> bases;
    constexpr_for<0, nfops>([&](auto i)
    {
       const auto fop = std::get<i>(fops);
@@ -398,13 +381,14 @@ inline void create_fieldbases(fops_t &fops,
       }
       else { static_assert(false, "internal error"); }
    });
+   return bases;
 }
 
-// check_consistency //////////////////////////////////////////////////////////
-template <typename fops_t, size_t nfops>
-inline void check_consistency(fops_t &fops,
-                              const std::array<size_t, nfops> &fop_to_fd,
-                              const std::vector<FieldDescriptor> &fields)
+// check_types ////////////////////////////////////////////////////////////////
+template <typename fops_t, size_t nfops> inline
+bool check_types(fops_t &fops,
+                 const std::array<size_t, nfops> &fop_to_fd,
+                 const std::vector<FieldDescriptor> &fields)
 {
    NVTX_MARK_FUNCTION;
    constexpr_for<0, nfops>([&](auto i)
@@ -439,16 +423,17 @@ inline void check_consistency(fops_t &fops,
                      "QuadratureFunction");
       }
    });
+   return true;
 }
 
 // create_fop_to_fd ///////////////////////////////////////////////////////////
 // Create quadrature function fop to fields map
-template <typename fops_t, size_t N = std::tuple_size_v<fops_t>, size_t M>
-void create_fop_to_fd(const fops_t &fops,
-                      const std::vector<FieldDescriptor> &fields,
-                      std::array<size_t, M> &fop_to_fd)
+template <size_t M, typename fops_t, size_t N = std::tuple_size_v<fops_t>>
+std::array<size_t, M> fop_to_fd(const fops_t &fops,
+                                const std::vector<FieldDescriptor> &fields)
 {
    static_assert(N == M, "sizes must match");
+   std::array<size_t, M> fop_to_fd;
    constexpr_for<0, N>([&](auto i)
    {
       const auto fop = std::get<i>(fops);
@@ -473,6 +458,7 @@ void create_fop_to_fd(const fops_t &fops,
          MFEM_ABORT("not found");
       }
    });
+   return fop_to_fd;
 }
 
 // interpolate ////////////////////////////////////////////////////////////////
@@ -490,9 +476,6 @@ inline void interpolate(const std::array<size_t, ninputs> &input_to_infd,
       NVTX_MARK("input forward block #{}", i.value);
       input_bases[i].forward(*xe[input_to_infd[i]], xq.GetBlock(i));
    });
-   // xq.Read();
-   // xq.SyncFromBlocks();
-   // xq.SyncToBlocks();
 }
 
 // call_qfunc /////////////////////////////////////////////////////////////////
@@ -516,18 +499,7 @@ inline void call_qfunc(const qfunc_t &qfunc,
    auto inputs = std::make_tuple(
                     make_tensor_array<std::remove_cv_t<std::remove_reference_t<
                     std::tuple_element_t<Is, qf_param_ts>>>>(
-                       [&]()
-   {
-      NVTX_MARK_INI("xq_r");
-      // const auto &mem = xq.GetBlock(Is).GetMemory();
-      // auto &non_const_mem = const_cast<Memory<real_t>&>(mem);
-      // non_const_mem.ValidateDevice(true);
-      const real_t *xq_r = xq.GetBlock(Is).Read();
-      // non_const_mem.ValidateDevice(false);
-      NVTX_MARK_END("xq_r");
-      return xq_r;
-   }(),
-   &in_layouts[Is], gnqp)...);
+                       xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp)...);
    NVTX_MARK_END("inputs");
 
    NVTX_MARK_INI("outputs");
@@ -537,12 +509,11 @@ inline void call_qfunc(const qfunc_t &qfunc,
                         yq.GetBlock(Os).ReadWrite(), &out_layouts[Os], gnqp)...);
    NVTX_MARK_END("outputs");
 
-   NVTX_MARK_INI("apply");
    std::apply([&](auto&&... args)
    {
+      NVTX("QFunction()");
       qfunc(args...);
    }, std::tuple_cat(inputs, outputs));
-   NVTX_MARK_END("apply");
 }
 
 // integrate //////////////////////////////////////////////////////////////////
@@ -553,10 +524,11 @@ inline void integrate(const std::array<size_t, noutputs> &output_to_outfd,
                       std::vector<Vector *> &ye)
 {
    NVTX_MARK_FUNCTION;
-   for (auto v : ye) { *v = 0.0; }
+   for (auto v : ye) { NVTX("ye = 0.0"); *v = 0.0; }
+
    constexpr_for<0, noutputs>([&](auto i)
    {
-      NVTX_MARK("out transpose block #{}", i.value);
+      NVTX("out transpose block #{}", i.value);
       output_bases[i].transpose(yq.GetBlock(i), *ye[output_to_outfd[i]]);
    });
 }
@@ -565,31 +537,49 @@ inline void integrate(const std::array<size_t, noutputs> &output_to_outfd,
 template<typename qfunc_t,
          typename inputs_t,
          typename outputs_t,
-         size_t ninputs = std::tuple_size_v<inputs_t>,
-         size_t noutputs = std::tuple_size_v<outputs_t>>
-struct Action
+         size_t N = std::tuple_size_v<inputs_t>,
+         size_t M = std::tuple_size_v<outputs_t>>
+class Action
 {
+   IntegratorContext ctx;
+   qfunc_t qfunc;
+   inputs_t inputs;
+   outputs_t outputs;
+
+   std::array<size_t, N> input_to_infd;
+   std::array<size_t, M> output_to_outfd;
+   const bool input_checks, output_checks;
+
+   std::array<FieldBasis, N> input_bases;
+   std::array<FieldBasis, M> output_bases;
+
+   std::array<std::vector<int>, N> input_qlayouts;
+   std::array<std::vector<int>, M> output_qlayouts;
+
+   int gnqp = 0;
+   Array<int> xq_offsets, yq_offsets;
+   mutable BlockVector xq, yq;
+
+public:
    Action(IntegratorContext ctx,
           qfunc_t qfunc,
           inputs_t inputs,
           outputs_t outputs):
-      ctx(ctx), qfunc(std::move(qfunc)), inputs(inputs), outputs(outputs)
+      ctx(ctx),
+      qfunc(std::move(qfunc)),
+      inputs(inputs),
+      outputs(outputs),
+      input_to_infd(fop_to_fd<N>(inputs, ctx.infds)),
+      output_to_outfd(fop_to_fd<M>(outputs, ctx.outfds)),
+      input_checks(check_types(inputs, input_to_infd, ctx.infds)),
+      output_checks(check_types(outputs, output_to_outfd, ctx.outfds)),
+      input_bases(get_bases(inputs, input_to_infd, ctx.infds, ctx.ir)),
+      output_bases(get_bases(outputs, output_to_outfd, ctx.outfds, ctx.ir))
    {
       NVTX_MARK_FUNCTION;
-      // dbg("ninputs: {}, noutputs: {}", ninputs, noutputs);
-      device::create_fop_to_fd(inputs, ctx.infds, input_to_infd);
-      device::create_fop_to_fd(outputs, ctx.outfds, output_to_outfd);
-
-      device::check_consistency(inputs, input_to_infd, ctx.infds);
-      device::check_consistency(outputs, output_to_outfd, ctx.outfds);
-
-      device::create_fieldbases(inputs, input_to_infd, ctx.infds, ctx.ir,
-                                input_bases);
-      device::create_fieldbases(outputs, output_to_outfd, ctx.outfds, ctx.ir,
-                                output_bases);
 
       // Prepare inputs q-layouts maps for the qfunc call
-      constexpr_for<0, ninputs>([&](auto i)
+      constexpr_for<0, N>([&](auto i)
       {
          using in_t = std::decay_t<decltype(inputs)>;
          using fop_t = std::remove_cv_t<std::remove_reference_t<
@@ -603,7 +593,7 @@ struct Action
       });
 
       // Prepare outputs q-layouts maps for the qfunc call
-      constexpr_for<0, noutputs>([&](auto i)
+      constexpr_for<0, M>([&](auto i)
       {
          using out_t = std::decay_t<decltype(outputs)>;
          using fop_t = std::remove_cv_t<std::remove_reference_t<
@@ -623,28 +613,28 @@ struct Action
       gnqp = nqp * ctx.nentities;
 
       // prepare xq and yq BlockVectors
-      xq_offsets.SetSize(ninputs + 1);
+      xq_offsets.SetSize(N + 1);
       xq_offsets[0] = 0;
-      constexpr_for<0, ninputs>([&](auto i)
+      constexpr_for<0, N>([&](auto i)
       {
          const auto input = std::get<i>(inputs);
          xq_offsets[i + 1] = nqp * input.size_on_qp * ctx.nentities;
       });
       xq_offsets.PartialSum();
-      xq.Update(xq_offsets);
+      xq.Update(xq_offsets, Device::GetMemoryType());
       xq.UseDevice(true);
       xq = 0.0;
       xq.SyncToBlocks();
 
-      yq_offsets.SetSize(noutputs + 1);
+      yq_offsets.SetSize(M + 1);
       yq_offsets[0] = 0;
-      constexpr_for<0, noutputs>([&](auto i)
+      constexpr_for<0, M>([&](auto i)
       {
          const auto output = std::get<i>(outputs);
          yq_offsets[i.value + 1] = nqp * output.size_on_qp * ctx.nentities;
       });
       yq_offsets.PartialSum();
-      yq.Update(yq_offsets);
+      yq.Update(yq_offsets, Device::GetMemoryType());
       yq.UseDevice(true);
       yq = 0.0;
       yq.SyncToBlocks();
@@ -656,6 +646,7 @@ struct Action
    {
       NVTX_MARK_FUNCTION;
       if (ctx.attr.Size() == 0) { return; }
+
       // E -> Q
       interpolate(input_to_infd, input_bases, xe, xq);
       // Q -> Q
@@ -668,29 +659,11 @@ struct Action
                  gnqp,
                  input_qlayouts,
                  output_qlayouts,
-                 std::make_index_sequence<ninputs> {},
-                 std::make_index_sequence<noutputs> {});
+                 std::make_index_sequence<N> {},
+                 std::make_index_sequence<M> {});
       // Q -> E
       integrate(output_to_outfd, output_bases, yq, ye);
    }
-
-   IntegratorContext ctx;
-   qfunc_t qfunc;
-   inputs_t inputs;
-   outputs_t outputs;
-
-   std::array<size_t, ninputs> input_to_infd;
-   std::array<size_t, noutputs> output_to_outfd;
-
-   std::array<FieldBasis, ninputs> input_bases;
-   std::array<FieldBasis, noutputs> output_bases;
-
-   std::array<std::vector<int>, ninputs> input_qlayouts;
-   std::array<std::vector<int>, noutputs> output_qlayouts;
-
-   int gnqp = 0;
-   Array<int> xq_offsets, yq_offsets;
-   mutable BlockVector xq, yq;
 };
 
 } // namespace mfem::future::device

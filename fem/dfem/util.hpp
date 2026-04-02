@@ -1277,10 +1277,8 @@ inline void prolongation(const std::vector<FieldDescriptor> fields,
       // If nullptr, assume Identity.
       if (P == nullptr)
       {
-         NVTX_MARK("P(id)");
-         x[i].UseDevice(true);
-         x_l[i]->SetDataAndSize(const_cast<Vector&>(x[i]).ReadWrite(), x[i].Size());
-         x_l[i]->UseDevice(true);
+         NVTX_MARK("!P #{} size:{}", i, x[i].Size());
+         x_l[i]->NewMemoryAndSize(x[i].GetMemory(), x[i].Size(), false);
       }
       else
       {
@@ -1291,7 +1289,7 @@ inline void prolongation(const std::vector<FieldDescriptor> fields,
          MFEM_ASSERT(prolongation->Height() == x_l[i]->Size(),
                      "prolongation not applicable to given output data size " <<
                      prolongation->Height() << " vs " << x_l[i]->Size());
-         NVTX_MARK("P(x_l)");
+         NVTX_MARK("P(x_l[{}])",i);
          prolongation->Mult(x[i], *x_l[i]);
       }
    }
@@ -1369,11 +1367,12 @@ void restriction(
    const std::vector<Vector *> &x_l,
    std::vector<Vector *> &x_e)
 {
-   NVTX_MARK_FUNCTION;
+   NVTX_MARK("fields.size(): {}", fields.size());
    MFEM_ASSERT(x_l.size() == x_e.size(),
                "internal error " << x_l.size() << " vs " << x_e.size());
    for (size_t i = 0; i < fields.size(); i++)
    {
+      NVTX("Field #{}", i);
       int s = 0;
       const auto R = get_restriction<entity_t>(
                         fields[i], ElementDofOrdering::LEXICOGRAPHIC);
@@ -1391,19 +1390,22 @@ void restriction(
       // TODO
       if (x_e[i] == nullptr)
       {
+         NVTX("x_e[{}] null, size {}", i, s);
          x_e[i] = new Vector(s);
       }
       x_e[i]->SetSize(s);
 
       if (R == nullptr)
       {
-         x_e[i] = x_l[i];
+         NVTX("!R #{} s:{} x_l:{}", i, s, x_l[i]->Size());
+         x_e[i]->NewMemoryAndSize(x_l[i]->GetMemory(), x_l[i]->Size(), false);
       }
       else
       {
          MFEM_ASSERT(R->Width() == x_l[i]->Size(),
                      "restriction not applicable to given input data size " <<
                      R->Width() << " vs " << x_l[i]->Size());
+         NVTX("R->Mult(#{})", i);
          R->Mult(*x_l[i], *x_e[i]);
       }
    }
