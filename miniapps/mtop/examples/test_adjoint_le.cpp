@@ -307,297 +307,1014 @@ int main(int argc, char *argv[])
    lin_elasticity_op.SetTime(0.0);
    ode_solver->Init(lin_elasticity_op);
 
-   //random perturbation of the initial conditions
-   BlockVector p; p.Update(lin_elasticity_op.GetTrueBlockOffsets()); p.Randomize();
-   real_t tg=0.0; //projection of the true gradient on the perturbed direction p
-   Vector tmpv(p.GetBlock(0)); tmpv=0.0;
-
-   //Forward computations
+   //Check the Jacobian of the time dependent operator
+   //⟨J(x) v,w⟩=⟨v,J(x)^T w⟩
    {
-      int s=10; //number of snapshots to be stored by the checkpointing process
-
-      //define the packer object
-      int n=lin_elasticity_op.GetState().Size();
-      StateSnapshotViewPacker packer(n);
-
-      // storage stores StateSnapshotView snapshots using fixed-size slots
-      using Storage=mfem::FixedSlotMemoryCheckpointStorage<StateSnapshotView, StateSnapshotViewPacker>;
-      Storage storage(s, packer);
-
-      // Snapshot type is StateSnapshotView
-      using Checkpointing = mfem::DynamicCheckpointing<StateSnapshotView, Storage>;
-      Checkpointing ckpt(s, storage);
-
-      // Returns view of the State and avoids data transfer
-      auto make_snapshot = [&](const State &u) -> StateSnapshotView
+      auto CheckJacobianMultTranspose = [&](int ntrials = 5)
       {
-         MFEM_VERIFY(u.v.Size() == n, "make_snapshot: State.v size changed!");
+         BlockVector x, v, w, xp, xm, fp, fm, jv_fd, jtw;
+         for (BlockVector *bv : {&x, &v, &w, &xp, &xm, &fp, &fm, &jv_fd, &jtw})
+         {
+            bv->Update(lin_elasticity_op.GetTrueBlockOffsets());
+            *bv = 0.0;
+         }
 
-         // Ensure host access if MFEM device is in use:
-         const mfem::real_t *vh = u.v.HostRead();
+         const real_t t0  = 0.0137;
+         const real_t eps = 1.0;
+
+         double worst_rel_err = 0.0;
+
+         for (int k = 0; k < ntrials; k++)
+         {
+            x.Randomize();
+            v.Randomize();
+            w.Randomize();
+
+            xp = x;
+            xm = x;
+            xp.Add(+eps, v);
+            xm.Add(-eps, v);
+
+            lin_elasticity_op.SetTime(t0);
+            lin_elasticity_op.Mult(xp, fp);
+
+            lin_elasticity_op.SetTime(t0);
+            lin_elasticity_op.Mult(xm, fm);
+
+            jv_fd = fp;
+            jv_fd -= fm;
+            jv_fd *= (0.5 / eps);   // central-difference J(x) v
+
+            lin_elasticity_op.SetTime(t0);
+            lin_elasticity_op.JacobianMultTranspose(x, w, jtw);
+
+            //const double lhs = GlobalDot(jv_fd, w); // <J(x) v, w>
+            //const double rhs = GlobalDot(v, jtw);   // <v, J(x)^T w>
+
+            const double lhs = mfem::InnerProduct(pmesh.GetComm(), jv_fd, w); // <J(x) v, w>
+            const double rhs = mfem::InnerProduct(pmesh.GetComm(), v, jtw); // <v, J(x)^T w>
+
+            double scale = 1.0;
+            if (std::abs(lhs) > scale) { scale = std::abs(lhs); }
+            if (std::abs(rhs) > scale) { scale = std::abs(rhs); }
+
+            const double rel_err = std::abs(lhs - rhs) / scale;
+            if (rel_err > worst_rel_err) { worst_rel_err = rel_err; }
+
+            if (Mpi::Root())
+            {
+               mfem::out << "JacobianMultTranspose trial " << k
+                   << ": lhs=" << std::setprecision(16) << lhs
+                   << ", rhs=" << rhs
+                   << ", rel_err=" << rel_err << '\n';
+            }
+         }
 
          if (Mpi::Root())
          {
-            mfem::out<<"t snap: "<<u.time<<" dt="<<u.dt<<" obj:"<<u.obj<<"\n";
+            mfem::out << "Worst relative error = " << worst_rel_err << '\n';
          }
 
-         StateSnapshotView snap;
-         snap.time = u.time;
-         snap.obj  = u.obj;
-         snap.v_bytes = reinterpret_cast<const unsigned char*>(vh);
-         return snap;
+         MFEM_VERIFY(worst_rel_err < 1e-6,
+               "JacobianMultTranspose check failed.");
       };
 
-       //Transfers data from the snaphot view to the State u_out.
-      auto restore_snapshot = [&](const StateSnapshotView &snap, State &u_out)
+      // CheckJacobianMultTranspose();
+
+   }
+
+   //check the ode solver adjoint
+   //⟨DFh​(xn​) v,w⟩=⟨v,DFh​(xn​)^T w⟩.
+   {
+      auto CheckStepAdjointStep = [&](int ntrials = 5)
       {
-         u_out.time = snap.time;
-         u_out.obj  = snap.obj;
+         auto probe_solver = ODESolver::Select(ode_solver_type);
+         MFEM_VERIFY(probe_solver->SupportsAdjoint(ODESolver::AdjointMode::Discrete),
+                     "Selected ODE solver does not support discrete adjoint stepping.");
 
-         if (u_out.v.Size() != n) { u_out.v.SetSize(n); }
+         const real_t t0  = 0.0137;
+         const real_t h   = dt;
+         const real_t eps = 1.0;
 
-         mfem::real_t *vh = u_out.v.HostWrite();
-         std::memcpy(vh,
-                     snap.v_bytes,
-                     (std::size_t)n * sizeof(mfem::real_t));
-
-         //make sure that the date is on the device            
-         u_out.v.Read(true);
-      };
-
-      using Step = mfem::DynamicCheckpointing<StateSnapshotView, Storage>::Step;
-
-
-      //execute one integration step
-      auto primal_step = [&](State &u_st, Step i)
-      {
-         //begin with curent state u_st
-         real_t t=u_st.time;
-         real_t ldt=dt;
-         real_t obj=u_st.obj;
-
-         //make sure the integration does not overjump Tfinal
-         if((t+ldt)>Tfinal){
-            ldt=Tfinal-t;
+         BlockVector x0, v, w, xp, xm, x_plus, x_minus, jv_fd, lam0;
+         for (BlockVector *bv : {&x0, &v, &w, &xp, &xm,
+                              &x_plus, &x_minus, &jv_fd, &lam0})
+         {
+            bv->Update(lin_elasticity_op.GetTrueBlockOffsets());
+            *bv = 0.0;
          }
 
-         //advance u_st
-         ode_solver->Step(u_st.v,t,ldt);
-         //update objective 
-         obj=eobj->EvalScalar(u_st.v);
+         double worst_rel_err = 0.0;
 
-         //return updated u_st
-         u_st.dt=t-u_st.time;
-         u_st.time=t;
-         u_st.obj=obj;
+         for (int k = 0; k < ntrials; k++)
+         {
+            x0.Randomize();
+            v.Randomize();
+            w.Randomize();
+
+            // Finite-difference action of the one-step map Phi_h
+            xp = x0;
+            xm = x0;
+            xp.Add(+eps, v);
+            xm.Add(-eps, v);
+
+            x_plus  = xp;
+            x_minus = xm;
+
+            auto step_plus = ODESolver::Select(ode_solver_type);
+            real_t tp = t0;
+            real_t hp = h;
+            step_plus->Init(lin_elasticity_op);
+            step_plus->Step(x_plus, tp, hp);
+
+            auto step_minus = ODESolver::Select(ode_solver_type);
+            real_t tm = t0;
+            real_t hm = h;
+            step_minus->Init(lin_elasticity_op);
+            step_minus->Step(x_minus, tm, hm);
+
+            MFEM_VERIFY(std::abs(hp - hm) < 1e-14,
+                  "Forward plus/minus steps returned different dt.");
+
+            jv_fd = x_plus;
+            jv_fd -= x_minus;
+            jv_fd *= (0.5 / eps);   // centered FD: D Phi_h(x0) v
+
+            // Discrete adjoint action of the same one-step map
+            auto adj_solver = ODESolver::Select(ode_solver_type);
+            adj_solver->Init(lin_elasticity_op);
+            adj_solver->EnableAdjoint(ODESolver::AdjointMode::Discrete);
+            adj_solver->SetSolution(x0, t0);
+
+            lam0 = w;
+            real_t ta = t0 + hp;
+            real_t ha = hp;
+            adj_solver->AdjointStep(lam0, ta, ha);
+
+            //const double lhs = GlobalDot(jv_fd, w); // <D Phi_h(x0) v, w>
+            //const double rhs = GlobalDot(v, lam0);  // <v, D Phi_h(x0)^T w>
+
+            const double lhs = mfem::InnerProduct(pmesh.GetComm(), jv_fd, w); // <D Phi_h(x0) v, w>
+            const double rhs = mfem::InnerProduct(pmesh.GetComm(), v, lam0);  // <v, D Phi_h(x0)^T w>
+
+
+            double scale = 1.0;
+            if (std::abs(lhs) > scale) { scale = std::abs(lhs); }
+            if (std::abs(rhs) > scale) { scale = std::abs(rhs); }
+
+            const double rel_err = std::abs(lhs - rhs) / scale;
+            worst_rel_err = std::max(worst_rel_err, rel_err);
+
+            if (Mpi::Root())
+            {
+               mfem::out << "Step/AdjointStep trial " << k
+                   << ": lhs=" << std::setprecision(16) << lhs
+                   << ", rhs=" << rhs
+                   << ", rel_err=" << rel_err << '\n';
+            }
+         }
 
          if (Mpi::Root())
          {
-            mfem::out<<" i: "<<i<<" t: "<<u_st.time<<" dt="<<u_st.dt<<" obj:"<<obj<<"\n";
+            mfem::out << "Worst relative error for Step/AdjointStep = "
+                << worst_rel_err << '\n';
          }
+
+         MFEM_VERIFY(worst_rel_err < 1e-6,
+               "Step/AdjointStep adjoint-identity check failed.");
       };
 
+      // CheckStepAdjointStep();
 
-      auto adjoint_step = [&](AdjState &adj_st, const State &u_st, Step i)
+   }
+
+   /// Multiple time steps
+   {
+      auto GlobalDot = [&](const Vector &a, const Vector &b)
       {
-         real_t t=u_st.time;
-         real_t ldt=u_st.dt;
-         real_t obj=u_st.obj;
+         double local  = static_cast<double>(a * b);
+         double global = 0.0;
+         MPI_Allreduce(&local, &global, 1, MPI_DOUBLE, MPI_SUM, pmesh.GetComm());
+         return global;
+      };
+
+      auto MakeBlockVector = [&]()
+      {
+         BlockVector x;
+         x.Update(lin_elasticity_op.GetTrueBlockOffsets());
+         x = 0.0;
+         return x;
+      };
+
+      auto RolloutNSteps = [&](const BlockVector &x_init,
+                         int nsteps,
+                         real_t t_init,
+                         real_t h_desired,
+                         std::vector<BlockVector> *states_out,
+                         std::vector<real_t> *times_out)
+      {
+         auto solver = ODESolver::Select(ode_solver_type);
+         solver->Init(lin_elasticity_op);
+
+         BlockVector x = MakeBlockVector();
+         x = x_init;
+         real_t t = t_init;
+
+         if (states_out)
+         {
+            states_out->resize(nsteps + 1);
+            for (int i = 0; i <= nsteps; i++)
+            {
+               (*states_out)[i].Update(lin_elasticity_op.GetTrueBlockOffsets());
+               (*states_out)[i] = 0.0;
+            }
+            (*states_out)[0] = x;
+         }
+
+         if (times_out)
+         {
+            times_out->assign(nsteps + 1, 0.0);
+            (*times_out)[0] = t;
+         }
+
+         for (int i = 0; i < nsteps; i++)
+         {
+            real_t h = h_desired;
+            solver->Step(x, t, h);
+
+            if (states_out) { (*states_out)[i + 1] = x; }
+            if (times_out)  { (*times_out)[i + 1] = t; }
+         }
+
+         return x;
+      };
+
+      auto CheckNStepMapAdjoint = [&](int nsteps, int ntrials = 5)
+      {
+         auto probe_solver = ODESolver::Select(ode_solver_type);
+         MFEM_VERIFY(probe_solver->SupportsAdjoint(ODESolver::AdjointMode::Discrete),
+                  "Selected ODE solver does not support discrete adjoint stepping.");
+
+         const real_t t0  = 0.0137;
+         const real_t h   = dt;
+         const real_t eps = 1.0;
+         const double time_tol = 1e-13;
+
+         double worst_rel_err = 0.0;
+
+         for (int k = 0; k < ntrials; k++)
+         {
+            BlockVector x0      = MakeBlockVector();
+            BlockVector v       = MakeBlockVector();
+            BlockVector w       = MakeBlockVector();
+            BlockVector x_plus  = MakeBlockVector();
+            BlockVector x_minus = MakeBlockVector();
+            BlockVector jv_fd   = MakeBlockVector();
+            BlockVector lambda  = MakeBlockVector();
+
+            x0.Randomize();
+            v.Randomize();
+            w.Randomize();
+
+            std::vector<BlockVector> states;
+            std::vector<real_t> times, times_plus, times_minus;
+
+            // Base trajectory: save every primal state x_i and time t_i
+            RolloutNSteps(x0, nsteps, t0, h, &states, &times);
+
+            // Centered finite-difference action of the n-step map Phi_n
+            BlockVector xp = MakeBlockVector();
+            BlockVector xm = MakeBlockVector();
+            xp = x0;
+            xm = x0;
+            xp.Add(+eps, v);
+            xm.Add(-eps, v);
+
+            x_plus  = RolloutNSteps(xp, nsteps, t0, h, nullptr, &times_plus);
+            x_minus = RolloutNSteps(xm, nsteps, t0, h, nullptr, &times_minus);
+
+            // Guard against adaptive / perturbed step schedules.
+            MFEM_VERIFY((int)times_plus.size()  == nsteps + 1, "Unexpected times_plus size.");
+            MFEM_VERIFY((int)times_minus.size() == nsteps + 1, "Unexpected times_minus size.");
+            for (int i = 0; i <= nsteps; i++)
+            {
+               MFEM_VERIFY(std::abs(times_plus[i]  - times[i]) < time_tol,
+                     "Perturbed + trajectory changed the step times.");
+               MFEM_VERIFY(std::abs(times_minus[i] - times[i]) < time_tol,
+                     "Perturbed - trajectory changed the step times.");
+            }
+
+            jv_fd = x_plus;
+            jv_fd -= x_minus;
+            jv_fd *= (0.5 / eps);  // centered FD for D Phi_n(x0) v
+
+            // Reverse discrete adjoint over the saved primal states
+            auto adj_solver = ODESolver::Select(ode_solver_type);
+            adj_solver->Init(lin_elasticity_op);
+            adj_solver->EnableAdjoint(ODESolver::AdjointMode::Discrete);
+
+            lambda = w;
+            for (int i = nsteps - 1; i >= 0; i--)
+            {
+               real_t ti = times[i + 1];
+               real_t hi = times[i + 1] - times[i];
+
+               adj_solver->SetSolution(states[i], times[i]);
+               adj_solver->AdjointStep(lambda, ti, hi);
+            }
+
+            const double lhs = GlobalDot(jv_fd, w);   // <D Phi_n(x0) v, w>
+            const double rhs = GlobalDot(v, lambda);  // <v, D Phi_n(x0)^T w>
+
+            double scale = 1.0;
+            if (std::abs(lhs) > scale) { scale = std::abs(lhs); }
+            if (std::abs(rhs) > scale) { scale = std::abs(rhs); }
+
+            const double rel_err = std::abs(lhs - rhs) / scale;
+            worst_rel_err = std::max(worst_rel_err, rel_err);
+
+            if (Mpi::Root())
+            {
+               mfem::out << "n-step Step/AdjointStep trial " << k
+                   << " (nsteps=" << nsteps << ")"
+                   << ": lhs=" << std::setprecision(16) << lhs
+                   << ", rhs=" << rhs
+                   << ", rel_err=" << rel_err << '\n';
+            }
+         }
 
          if (Mpi::Root())
          {
-            mfem::out<<"Adj step i="<<i<<"  t: "<<u_st.time<<" dt="<<u_st.dt<<" obj:"<<obj<<"\n";
+            mfem::out << "Worst relative error for n-step Step/AdjointStep = "
+                << worst_rel_err << '\n';
          }
 
-         ode_solver->EnableAdjoint(mfem::ODESolver::AdjointMode::Discrete);
-         ode_solver->SetSolution(u_st.v,t);
-         ode_solver->AdjointStep(adj_st.adj,t,ldt);
-         ode_solver->EnableAdjoint(mfem::ODESolver::AdjointMode::None);
-         adj_st.time=t;
-         adj_st.obj=obj;
+         MFEM_VERIFY(worst_rel_err < 1e-6,
+                  "n-step Step/AdjointStep adjoint-identity check failed.");
       };
 
-      ParaViewDataCollection paraview_dc("frw", &pmesh);
-      paraview_dc.SetPrefixPath("ParaView");
-      paraview_dc.SetLevelsOfDetail(order);
-      paraview_dc.SetDataFormat(VTKFormat::BINARY);
-      paraview_dc.SetHighOrderOutput(true);
-      paraview_dc.RegisterField("disp", &(lin_elasticity_op.GetDisplacement()));
-      paraview_dc.RegisterField("velo", &(lin_elasticity_op.GetVelocity()));
+      // CheckNStepMapAdjoint(10);
 
+   }
 
-      State u;
-      //u.v.SetSize(lin_elasticity_op.GetState().Size());
-      u.v.Update(lin_elasticity_op.GetTrueBlockOffsets());
-      u.obj=0.0;
-      u.time=0.0;
-      u.dt=0.0;
-
-      //set initial state to 0
-      u.v=0.0;
-
-      // Forward sweep (unknown number of steps) 
-      real_t t = 0.0;
-      Step i = 0;
-
-      paraview_dc.SetCycle(0);
-      paraview_dc.SetTime(t);
-      lin_elasticity_op.GetVelocity().SetFromTrueDofs(u.v.GetBlock(1));
-      lin_elasticity_op.GetDisplacement().SetFromTrueDofs(u.v.GetBlock(0));
-      paraview_dc.Save();
-
-
-      while(t<Tfinal)
+   // using checkpointing
+   {
+      auto GlobalDot = [&](const Vector &a, const Vector &b)
       {
-         ckpt.ForwardStep(i,u, primal_step, make_snapshot);
-         t=u.time;
-         ++i;
+         double local  = static_cast<double>(a * b);
+         double global = 0.0;
+         MPI_Allreduce(&local, &global, 1, MPI_DOUBLE, MPI_SUM, pmesh.GetComm());
+         return global;
+      };
 
-         if((i%5)==0){
-            paraview_dc.SetCycle(i+1);
-            paraview_dc.SetTime(t);
-            lin_elasticity_op.GetVelocity().SetFromTrueDofs(u.v.GetBlock(1));
-            lin_elasticity_op.GetDisplacement().SetFromTrueDofs(u.v.GetBlock(0));
-            paraview_dc.Save();
+      auto MakeBlockVector = [&]()
+      {
+         BlockVector x;
+         x.Update(lin_elasticity_op.GetTrueBlockOffsets());
+         x = 0.0;
+         return x;
+      };
+
+      auto RolloutNSteps = [&](const BlockVector &x_init,
+                         int nsteps,
+                         real_t t_init,
+                         real_t h_desired,
+                         std::vector<real_t> *times_out)
+      {
+         auto solver = ODESolver::Select(ode_solver_type);
+         solver->Init(lin_elasticity_op);
+
+         BlockVector x = MakeBlockVector();
+         x = x_init;
+         real_t t = t_init;
+
+         if (times_out)
+         {
+            times_out->assign(nsteps + 1, 0.0);
+            (*times_out)[0] = t;
          }
-      }
 
-      //Do one more time step without checkpointing
-      //advance u_st
-      ode_solver->Step(u.v,t,dt);
-      //update objective 
-      real_t obj=eobj->EvalScalar(u.v);
+         for (int i = 0; i < nsteps; i++)
+         {
+            real_t h = h_desired;
+            solver->Step(x, t, h);
+            if (times_out) { (*times_out)[i + 1] = t; }
+         }
 
+         return x;
+      };
+
+      auto CheckNStepMapAdjointWithCheckpointing =
+         [&](int nsteps, int ncheckpoints, int ntrials = 5)
       {
-         paraview_dc.SetCycle(i+1);
-         paraview_dc.SetTime(t);
+         MFEM_VERIFY(nsteps > 0, "nsteps must be > 0.");
+         MFEM_VERIFY(ncheckpoints > 0, "ncheckpoints must be > 0.");
+
+         auto probe_solver = ODESolver::Select(ode_solver_type);
+         MFEM_VERIFY(
+            probe_solver->SupportsAdjoint(ODESolver::AdjointMode::Discrete),
+               "Selected ODE solver does not support discrete adjoint stepping.");
+
+         const real_t t0  = 0.0137;
+         const real_t h   = dt;
+         const real_t eps = 1.0;
+         const double time_tol = 1e-13;
+
+         const int n = lin_elasticity_op.GetState().Size();
+         StateSnapshotViewPacker packer(n);
+
+         using Storage =
+            mfem::FixedSlotMemoryCheckpointStorage<StateSnapshotView,
+                                             StateSnapshotViewPacker>;
+         using Checkpointing = mfem::DynamicCheckpointing<StateSnapshotView, Storage>;
+         using Step = typename Checkpointing::Step;
+
+         double worst_rel_err = 0.0;
+
+         for (int k = 0; k < ntrials; k++)
+         {
+            BlockVector x0      = MakeBlockVector();
+            BlockVector v       = MakeBlockVector();
+            BlockVector w       = MakeBlockVector();
+            BlockVector x_plus  = MakeBlockVector();
+            BlockVector x_minus = MakeBlockVector();
+            BlockVector jv_fd   = MakeBlockVector();
+
+            x0.Randomize();
+            v.Randomize();
+            w.Randomize();
+
+            Storage storage(ncheckpoints, packer);
+            Checkpointing ckpt(ncheckpoints, storage);
+
+            auto primal_solver = ODESolver::Select(ode_solver_type);
+            auto adj_solver    = ODESolver::Select(ode_solver_type);
+            adj_solver->Init(lin_elasticity_op);
+            adj_solver->EnableAdjoint(ODESolver::AdjointMode::Discrete);
+
+            bool need_reinit_primal = true;
+            std::vector<real_t> times(nsteps + 1, 0.0);
+            std::vector<real_t> step_span(nsteps, 0.0);
+
+            auto make_snapshot = [&](const State &u) -> StateSnapshotView
+            {
+               MFEM_VERIFY(u.v.Size() == n, "make_snapshot: State.v size changed.");
+
+               StateSnapshotView snap;
+               snap.time = u.time;
+               snap.dt   = u.dt;
+               snap.obj  = u.obj;
+               snap.v_bytes = reinterpret_cast<const unsigned char *>(u.v.HostRead());
+               return snap;
+            };
+
+            auto restore_snapshot = [&](const StateSnapshotView &snap, State &u_out)
+            {
+               u_out.time = snap.time;
+               u_out.dt   = snap.dt;
+               u_out.obj  = snap.obj;
+
+               MFEM_VERIFY(u_out.v.Size() == n,
+                        "restore_snapshot: BlockVector size mismatch.");
+
+               mfem::real_t *vh = u_out.v.HostWrite();
+               std::memcpy(vh, snap.v_bytes, (std::size_t)n * sizeof(mfem::real_t));
+               u_out.v.Read(true);
+
+               // We are about to restart a stepping sequence from a restored state.
+               need_reinit_primal = true;
+            };
+
+            auto primal_step = [&](State &u_st, Step i)
+            {
+               if (need_reinit_primal)
+               {
+                  primal_solver->Init(lin_elasticity_op);
+                  need_reinit_primal = false;
+               }
+
+               real_t t_step = u_st.time;
+               real_t h_step = h;
+               primal_solver->Step(u_st.v, t_step, h_step);
+
+               u_st.time = t_step;
+               u_st.dt   = h_step;
+               u_st.obj  = 0.0;
+            };
+
+            auto adjoint_step = [&](AdjState &adj_st, const State &u_st, Step i)
+            {
+               const real_t ti = u_st.time;
+               const real_t hi = step_span[static_cast<int>(i)];
+
+               real_t t_adj = ti + hi;
+               real_t h_adj = hi;
+               adj_solver->SetSolution(u_st.v, ti);
+               adj_solver->AdjointStep(adj_st.adj, t_adj, h_adj);
+
+               adj_st.time = ti;
+               adj_st.obj  = 0.0;
+            };
+
+            State u;
+            u.v.Update(lin_elasticity_op.GetTrueBlockOffsets());
+            u.v = x0;
+            u.time = t0;
+            u.dt   = h;
+            u.obj  = 0.0;
+
+            times[0] = t0;
+            for (int i = 0; i < nsteps; i++)
+            {
+               ckpt.ForwardStep(static_cast<Step>(i), u,
+                           primal_step, make_snapshot);
+               times[i + 1]   = u.time;
+               step_span[i]   = times[i + 1] - times[i];
+            }
+
+            BlockVector xp = MakeBlockVector();
+            BlockVector xm = MakeBlockVector();
+            xp = x0;
+            xm = x0;
+            xp.Add(+eps, v);
+            xm.Add(-eps, v);
+
+            std::vector<real_t> times_plus, times_minus;
+            x_plus  = RolloutNSteps(xp, nsteps, t0, h, &times_plus);
+            x_minus = RolloutNSteps(xm, nsteps, t0, h, &times_minus);
+
+            MFEM_VERIFY((int)times_plus.size()  == nsteps + 1,
+                  "Unexpected times_plus size.");
+            MFEM_VERIFY((int)times_minus.size() == nsteps + 1,
+                  "Unexpected times_minus size.");
+            for (int i = 0; i <= nsteps; i++)
+            {
+               MFEM_VERIFY(std::abs(times_plus[i]  - times[i]) < time_tol,
+                     "Perturbed + trajectory changed the step times.");
+               MFEM_VERIFY(std::abs(times_minus[i] - times[i]) < time_tol,
+                     "Perturbed - trajectory changed the step times.");
+            }
+
+            jv_fd = x_plus;
+            jv_fd -= x_minus;
+            jv_fd *= (0.5 / eps);
+
+            AdjState adj_st;
+            adj_st.adj.Update(lin_elasticity_op.GetTrueBlockOffsets());
+            adj_st.adj = w;
+            adj_st.time = times[nsteps];
+            adj_st.obj  = 0.0;
+
+            State u_wrk;
+            u_wrk.v.Update(lin_elasticity_op.GetTrueBlockOffsets());
+            u_wrk.v = 0.0;
+            u_wrk.time = 0.0;
+            u_wrk.dt   = 0.0;
+            u_wrk.obj  = 0.0;
+
+            for (Step i = static_cast<Step>(nsteps) - 1; ; --i)
+            {
+               ckpt.BackwardStep(i, adj_st, u_wrk,
+                           primal_step, adjoint_step,
+                           make_snapshot, restore_snapshot);
+               if (i == 0) { break; }
+            }
+
+            const double lhs = GlobalDot(jv_fd, w);      // <D Phi_n(x0) v, w>
+            const double rhs = GlobalDot(v, adj_st.adj); // <v, D Phi_n(x0)^T w>
+
+            double scale = 1.0;
+            if (std::abs(lhs) > scale) { scale = std::abs(lhs); }
+            if (std::abs(rhs) > scale) { scale = std::abs(rhs); }
+
+            const double rel_err = std::abs(lhs - rhs) / scale;
+            worst_rel_err = std::max(worst_rel_err, rel_err);
+
+            if (Mpi::Root())
+            {
+               mfem::out << "Checkpointed n-step adjoint test, trial " << k
+                   << " (nsteps=" << nsteps
+                   << ", ncheckpoints=" << ncheckpoints << ")"
+                   << ": lhs=" << std::setprecision(16) << lhs
+                   << ", rhs=" << rhs
+                   << ", rel_err=" << rel_err << '\n';
+            }
+         }
+
+         if (Mpi::Root())
+         {
+            mfem::out << "Worst relative error for checkpointed n-step adjoint test = "
+                << worst_rel_err << '\n';
+         }
+
+         MFEM_VERIFY(worst_rel_err < 1e-6,
+               "Checkpointed n-step adjoint-identity check failed.");
+      };
+
+      //test gradients of an objective
+      auto CheckNStepObjAdjointWithCheckpointing =
+         [&](int nsteps, int ncheckpoints, int ntrials = 5)
+      {
+         MFEM_VERIFY(nsteps > 0, "nsteps must be > 0.");
+         MFEM_VERIFY(ncheckpoints > 0, "ncheckpoints must be > 0.");
+
+         auto probe_solver = ODESolver::Select(ode_solver_type);
+         MFEM_VERIFY(
+            probe_solver->SupportsAdjoint(ODESolver::AdjointMode::Discrete),
+               "Selected ODE solver does not support discrete adjoint stepping.");
+
+         const real_t t0  = 0.0;
+         const real_t h   = dt;
+         const real_t eps = 1.0;
+         const double time_tol = 1e-13;
+
+         const int n = lin_elasticity_op.GetState().Size();
+         StateSnapshotViewPacker packer(n);
+
+         using Storage =
+            mfem::FixedSlotMemoryCheckpointStorage<StateSnapshotView,
+                                             StateSnapshotViewPacker>;
+         using Checkpointing = mfem::DynamicCheckpointing<StateSnapshotView, Storage>;
+         using Step = typename Checkpointing::Step;
+
+         Storage storage(ncheckpoints, packer);
+         Checkpointing ckpt(ncheckpoints, storage);
+
+         auto primal_solver = ODESolver::Select(ode_solver_type);
+         auto adj_solver    = ODESolver::Select(ode_solver_type);
+         adj_solver->Init(lin_elasticity_op);
+         adj_solver->EnableAdjoint(ODESolver::AdjointMode::Discrete);         
+
+         bool need_reinit_primal = true;//true if the primal ode solver must be reinitialized 
+         std::vector<real_t> times(nsteps + 1, 0.0); //stores the times instances for the checkpoints
+         std::vector<real_t> step_span(nsteps, 0.0); //stores the time steps
+
+         auto make_snapshot = [&](const State &u) -> StateSnapshotView
+         {
+            MFEM_VERIFY(u.v.Size() == n, "make_snapshot: State.v size changed.");
+
+            StateSnapshotView snap;
+            snap.time = u.time;
+            snap.dt   = u.dt;
+            snap.obj  = u.obj;
+            snap.v_bytes = reinterpret_cast<const unsigned char *>(u.v.HostRead());
+            return snap;
+         };
+
+         auto restore_snapshot = [&](const StateSnapshotView &snap, State &u_out)
+         {
+            u_out.time = snap.time;
+            u_out.dt   = snap.dt;
+            u_out.obj  = snap.obj;
+
+            MFEM_VERIFY(u_out.v.Size() == n,
+                     "restore_snapshot: BlockVector size mismatch.");
+
+            mfem::real_t *vh = u_out.v.HostWrite();
+            std::memcpy(vh, snap.v_bytes, (std::size_t)n * sizeof(mfem::real_t));
+            u_out.v.Read(true);
+
+            // We are about to restart a stepping sequence from a restored state.
+            need_reinit_primal = true;
+         };
+
+         auto primal_step = [&](State &u_st, Step i)
+         {
+            if (need_reinit_primal)
+            {
+               primal_solver->Init(lin_elasticity_op);
+               need_reinit_primal = false;
+            }
+
+            real_t t_step = u_st.time;
+            real_t h_step = h;
+            primal_solver->Step(u_st.v, t_step, h_step);
+
+            u_st.time = t_step;
+            u_st.dt   = h_step;
+            u_st.obj  = eobj->EvalScalar(u_st.v);
+         };
+
+         auto adjoint_step = [&](AdjState &adj_st, const State &u_st, Step i)
+         {
+            const real_t ti = u_st.time;
+            const real_t hi = step_span[static_cast<int>(i)];
+            const real_t obj = u_st.obj;
+
+            real_t t_adj = ti + hi;
+            real_t h_adj = hi;
+            adj_solver->SetSolution(u_st.v, ti);
+            adj_solver->AdjointStep(adj_st.adj, t_adj, h_adj);
+
+            adj_st.time = ti;
+            adj_st.obj  = obj;
+         };
+
+         //forward computations
+         State u;
+         u.v.Update(lin_elasticity_op.GetTrueBlockOffsets());
+         u.v = 0.0;
+         u.time = t0;
+         u.dt   = h;
+         u.obj  = 0.0;
+
+         times[0] = t0;
+         for (int i = 0; i < nsteps; i++)
+         {
+            ckpt.ForwardStep(static_cast<Step>(i), u,
+                           primal_step, make_snapshot);
+            times[i + 1]   = u.time;
+            step_span[i]   = times[i + 1] - times[i];
+         }
+
+         AdjState adj_st;
+         adj_st.adj.Update(lin_elasticity_op.GetTrueBlockOffsets());
+         adj_st.adj = 0.0;
+         eobj->EvalGradient(u.v,adj_st.adj);
+         adj_st.time = times[nsteps];
+         adj_st.obj  = u.obj;
+
+         State u_wrk;
+         u_wrk.v.Update(lin_elasticity_op.GetTrueBlockOffsets());
+         u_wrk.v = 0.0;
+         u_wrk.time = 0.0;
+         u_wrk.dt   = 0.0;
+         u_wrk.obj  = 0.0;
+
+         for (Step i = static_cast<Step>(nsteps) - 1; ; --i)
+         {
+            ckpt.BackwardStep(i, adj_st, u_wrk,
+                           primal_step, adjoint_step,
+                           make_snapshot, restore_snapshot);
+            if (i == 0) { break; }
+         }
+
+         real_t sca=1.0;
+         BlockVector x_plus  = MakeBlockVector();
+         BlockVector x_minus = MakeBlockVector();
+         BlockVector xp = MakeBlockVector();
+         BlockVector xm = MakeBlockVector();
+         BlockVector pp = MakeBlockVector(); pp.Randomize();
+         const real_t pgrad = mfem::InnerProduct(pmesh.GetComm(), pp, adj_st.adj);
+         for(int sc=0;sc<ntrials; sc++)
+         {
+            xp=0.0; xp.Add(+sca,pp);
+            xm=0.0; xm.Add(-sca,pp);
+            std::vector<real_t> times_plus, times_minus;
+            x_plus  = RolloutNSteps(xp, nsteps, t0, h, &times_plus);
+            x_minus = RolloutNSteps(xm, nsteps, t0, h, &times_minus);
+
+            real_t objp=eobj->EvalScalar(x_plus);
+            real_t objm=eobj->EvalScalar(x_minus);
+
+
+            const real_t fd_grad = (objp-objm)/(2*sca);
+            const real_t abs_err = std::abs(fd_grad-pgrad);
+            if (Mpi::Root())
+            {
+               mfem::out << "Checkpointed n-step obj test, trial " << sc
+                   << " (nsteps=" << nsteps
+                   << ", ncheckpoints=" << ncheckpoints << ")"
+                   << ", scale="<< sca << " "
+                   << ", finite difference ="<< fd_grad <<" "
+                   << ", projected gradient ="<< pgrad << " "
+                   << ", abs_err=" << abs_err << '\n';
+            }
+
+            sca=sca/10;
+
+         }
+      };
+
+
+      //CheckNStepMapAdjointWithCheckpointing(30, 8);
+      CheckNStepObjAdjointWithCheckpointing(50, 8);
+
+   }
+
+   //checkpointing with ParaView recording of the forward and the adjoint
+   {
+
+      BlockVector x; x.Update(lin_elasticity_op.GetTrueBlockOffsets());  x=0.0;
+      BlockVector g; g.Update(lin_elasticity_op.GetTrueBlockOffsets());  g=0.0;
+
+      auto AdjointWithCheckpointing =
+         [&](int nsteps, int ncheckpoints)
+      {
+         MFEM_VERIFY(nsteps > 0, "nsteps must be > 0.");
+         MFEM_VERIFY(ncheckpoints > 0, "ncheckpoints must be > 0.");
+
+         auto probe_solver = ODESolver::Select(ode_solver_type);
+         MFEM_VERIFY(
+            probe_solver->SupportsAdjoint(ODESolver::AdjointMode::Discrete),
+               "Selected ODE solver does not support discrete adjoint stepping.");
+
+         const real_t t0  = 0.0;
+         const real_t h   = dt;
+         const real_t eps = 1.0;
+         const double time_tol = 1e-13;
+
+         const int n = lin_elasticity_op.GetState().Size();
+         StateSnapshotViewPacker packer(n);
+
+         using Storage =
+            mfem::FixedSlotMemoryCheckpointStorage<StateSnapshotView,
+                                             StateSnapshotViewPacker>;
+         using Checkpointing = mfem::DynamicCheckpointing<StateSnapshotView, Storage>;
+         using Step = typename Checkpointing::Step;
+
+         Storage storage(ncheckpoints, packer);
+         Checkpointing ckpt(ncheckpoints, storage);
+
+         auto primal_solver = ODESolver::Select(ode_solver_type);
+         auto adj_solver    = ODESolver::Select(ode_solver_type);
+         adj_solver->Init(lin_elasticity_op);
+         adj_solver->EnableAdjoint(ODESolver::AdjointMode::Discrete);         
+
+         bool need_reinit_primal = true;//true if the primal ode solver must be reinitialized 
+         std::vector<real_t> times(nsteps + 1, 0.0); //stores the times instances for the checkpoints
+         std::vector<real_t> step_span(nsteps, 0.0); //stores the time steps
+
+         auto make_snapshot = [&](const State &u) -> StateSnapshotView
+         {
+            MFEM_VERIFY(u.v.Size() == n, "make_snapshot: State.v size changed.");
+
+            StateSnapshotView snap;
+            snap.time = u.time;
+            snap.dt   = u.dt;
+            snap.obj  = u.obj;
+            snap.v_bytes = reinterpret_cast<const unsigned char *>(u.v.HostRead());
+            return snap;
+         };
+
+         auto restore_snapshot = [&](const StateSnapshotView &snap, State &u_out)
+         {
+            u_out.time = snap.time;
+            u_out.dt   = snap.dt;
+            u_out.obj  = snap.obj;
+
+            MFEM_VERIFY(u_out.v.Size() == n,
+                     "restore_snapshot: BlockVector size mismatch.");
+
+            mfem::real_t *vh = u_out.v.HostWrite();
+            std::memcpy(vh, snap.v_bytes, (std::size_t)n * sizeof(mfem::real_t));
+            u_out.v.Read(true);
+
+            // We are about to restart a stepping sequence from a restored state.
+            need_reinit_primal = true;
+         };
+
+         auto primal_step = [&](State &u_st, Step i)
+         {
+            if (need_reinit_primal)
+            {
+               primal_solver->Init(lin_elasticity_op);
+               need_reinit_primal = false;
+            }
+
+            real_t t_step = u_st.time;
+            real_t h_step = h;
+            primal_solver->Step(u_st.v, t_step, h_step);
+
+            u_st.time = t_step;
+            u_st.dt   = h_step;
+            u_st.obj  = eobj->EvalScalar(u_st.v);
+         };
+
+         auto adjoint_step = [&](AdjState &adj_st, const State &u_st, Step i)
+         {
+            const real_t ti = u_st.time;
+            const real_t hi = step_span[static_cast<int>(i)];
+            const real_t obj = u_st.obj;
+
+            real_t t_adj = ti + hi;
+            real_t h_adj = hi;
+            adj_solver->SetSolution(u_st.v, ti);
+            adj_solver->AdjointStep(adj_st.adj, t_adj, h_adj);
+
+            adj_st.time = ti;
+            adj_st.obj  = obj;
+         };
+
+         ParaViewDataCollection paraview_dc("frw", &pmesh);
+         paraview_dc.SetPrefixPath("ParaView");
+         paraview_dc.SetLevelsOfDetail(order);
+         paraview_dc.SetDataFormat(VTKFormat::BINARY);
+         paraview_dc.SetHighOrderOutput(true);
+         paraview_dc.RegisterField("disp", &(lin_elasticity_op.GetDisplacement()));
+         paraview_dc.RegisterField("velo", &(lin_elasticity_op.GetVelocity()));
+
+         //forward computations
+         State u;
+         u.v.Update(lin_elasticity_op.GetTrueBlockOffsets());
+         u.v = x;
+         u.time = t0;
+         u.dt   = h;
+         u.obj  = 0.0;
+
+         times[0] = t0;
+         for (int i = 0; i < nsteps; i++)
+         {
+            if((i%5)==0){
+               paraview_dc.SetCycle(i);
+               paraview_dc.SetTime(times[i]);
+               lin_elasticity_op.GetVelocity().SetFromTrueDofs(u.v.GetBlock(1));
+               lin_elasticity_op.GetDisplacement().SetFromTrueDofs(u.v.GetBlock(0));
+               paraview_dc.Save();
+
+               if(Mpi::Root()){
+                  mfem::out<<"FWD Time="<<times[i]<<" dt="<< h <<'\n';
+               }
+            }
+
+            
+
+            ckpt.ForwardStep(static_cast<Step>(i), u,
+                           primal_step, make_snapshot);
+            times[i + 1]   = u.time;
+            step_span[i]   = times[i + 1] - times[i];
+         }
+
+         paraview_dc.SetCycle(nsteps);
+         paraview_dc.SetTime(times[nsteps]);
          lin_elasticity_op.GetVelocity().SetFromTrueDofs(u.v.GetBlock(1));
          lin_elasticity_op.GetDisplacement().SetFromTrueDofs(u.v.GetBlock(0));
          paraview_dc.Save();
-      }
 
-      if(Mpi::Root())
-      {
-         std::cout<<"Total number of steps i="<<i<<" t="<<t<<" obj="<<obj<<std::endl;
-         std::cout<<"Start adjoint steps!"<<std::endl;
-      }
+         ParGridFunction adisp(lin_elasticity_op.GetDisplacement());
+         ParGridFunction avelo(lin_elasticity_op.GetVelocity());
+         ParaViewDataCollection paraview_ac("adj", &pmesh);
+         paraview_ac.SetPrefixPath("ParaView");
+         paraview_ac.SetLevelsOfDetail(order);
+         paraview_ac.SetDataFormat(VTKFormat::BINARY);
+         paraview_ac.SetHighOrderOutput(true);
+         paraview_ac.RegisterField("adisp", &(adisp));
+         paraview_ac.RegisterField("avelo", &(avelo));
 
-      ParGridFunction adisp(lin_elasticity_op.GetDisplacement());
-      ParGridFunction avelo(lin_elasticity_op.GetVelocity());
-      ParaViewDataCollection paraview_ac("adj", &pmesh);
-      paraview_ac.SetPrefixPath("ParaView");
-      paraview_ac.SetLevelsOfDetail(order);
-      paraview_ac.SetDataFormat(VTKFormat::BINARY);
-      paraview_ac.SetHighOrderOutput(true);
-      paraview_ac.RegisterField("adisp", &(adisp));
-      paraview_ac.RegisterField("avelo", &(avelo));
+         AdjState adj_st;
+         adj_st.adj.Update(lin_elasticity_op.GetTrueBlockOffsets());
+         adj_st.adj = 0.0;
+         eobj->EvalGradient(u.v,adj_st.adj);
+         adj_st.time = times[nsteps];
+         adj_st.obj  = u.obj;
 
-      // define the adjoint state
-      AdjState adj_st; 
-      //adj_st.adj.SetSize(lin_elasticity_op.GetState().Size()); 
-      adj_st.adj.Update(lin_elasticity_op.GetTrueBlockOffsets());
-      adj_st.adj=0.0;
-      eobj->EvalGradient(u.v,adj_st.adj);
-      adj_st.obj=obj;
-      adj_st.time=t;
+         State u_wrk;
+         u_wrk.v.Update(lin_elasticity_op.GetTrueBlockOffsets());
+         u_wrk.v = 0.0;
+         u_wrk.time = 0.0;
+         u_wrk.dt   = 0.0;
+         u_wrk.obj  = 0.0;
 
-      paraview_ac.SetCycle(i);
-      paraview_ac.SetTime(t);
-      lin_elasticity_op.MultInvMass(adj_st.adj.GetBlock(0),tmpv);
-      adisp.SetFromTrueDofs(tmpv);
-      lin_elasticity_op.MultInvMass(adj_st.adj.GetBlock(1),tmpv);
-      avelo.SetFromTrueDofs(tmpv);
-      paraview_ac.Save();
+         Vector tmpv(u_wrk.v.GetBlock(0)); tmpv=0.0;
 
-      
-      //step backward
-      const Step m=i;
-      
-      //tmp state for stepping backward
-      State u_wrk;
-      //u_wrk.v.SetSize(lin_elasticity_op.GetState().Size());
-      u_wrk.v.Update(lin_elasticity_op.GetTrueBlockOffsets());
-      u_wrk.obj=0.0;
-      u_wrk.time=0.0;
-      u_wrk.dt=0.0;
+         paraview_ac.SetCycle(nsteps);
+         paraview_ac.SetTime(times[nsteps]);
+         lin_elasticity_op.MultInvMass(adj_st.adj.GetBlock(0),tmpv);
+         adisp.SetFromTrueDofs(tmpv);
+         lin_elasticity_op.MultInvMass(adj_st.adj.GetBlock(1),tmpv);
+         avelo.SetFromTrueDofs(tmpv);
+         paraview_ac.Save();
 
-      for (Step i = m - 1; i >= 0; --i)
-      {
-         ckpt.BackwardStep(i,adj_st, u_wrk,
+
+         for (Step i = static_cast<Step>(nsteps) - 1; ; --i)
+         {
+            ckpt.BackwardStep(i, adj_st, u_wrk,
                            primal_step, adjoint_step,
                            make_snapshot, restore_snapshot);
-         if(Mpi::Root())
-         {
-            std::cout<<"Adj st i="<<i<<" t="<<adj_st.time<<" obj="<<adj_st.obj<<std::endl;
+            if((i%5)==0){ 
+               paraview_ac.SetCycle(i);
+               paraview_ac.SetTime(times[i]);
+               lin_elasticity_op.MultInvMass(adj_st.adj.GetBlock(0),tmpv);
+               adisp.SetFromTrueDofs(tmpv);
+               lin_elasticity_op.MultInvMass(adj_st.adj.GetBlock(1),tmpv);
+               avelo.SetFromTrueDofs(tmpv);
+               paraview_ac.Save();
+               
+               if(Mpi::Root()){
+                  mfem::out<<"ADJ Time="<<times[i]<<" dt="<<step_span[i]<<'\n';
+               }
+            }
+
+            if (i == 0) { break; }
          }
 
-         if((i%5)==0){
-            paraview_ac.SetCycle(i);
-            paraview_ac.SetTime(adj_st.time);
-            //adisp.SetFromTrueDofs(adj_st.adj.GetBlock(0));
-            //avelo.SetFromTrueDofs(adj_st.adj.GetBlock(1));
-            lin_elasticity_op.MultInvMass(adj_st.adj.GetBlock(0),tmpv);
-            adisp.SetFromTrueDofs(tmpv);
-            lin_elasticity_op.MultInvMass(adj_st.adj.GetBlock(1),tmpv);
-            avelo.SetFromTrueDofs(tmpv);
-            paraview_ac.Save();
-         }
+         lin_elasticity_op.MultInvMass(adj_st.adj.GetBlock(0),tmpv);
+         g.GetBlock(0)=tmpv;
+         lin_elasticity_op.MultInvMass(adj_st.adj.GetBlock(1),tmpv);
+         g.GetBlock(1)=tmpv;
+      };  
 
-         if (i == 0) { break; }
+      for(int bi=0;bi<10;bi++){
+
+         AdjointWithCheckpointing(1000,100);
+         x.Add(-0.1,g);
+         real_t o=eobj->EvalScalar(x);
+         if(Mpi::Root()){
+            mfem::out<<" iter="<<bi<<" obj="<<o<<'\n';
+         }
       }
-
-      tg=mfem::InnerProduct(pmesh.GetComm(), adj_st.adj, p);
 
    }
-
-   //test objective gradients
-   {
-      BlockVector x; x.Update(lin_elasticity_op.GetTrueBlockOffsets()); x=0.0;
-
-      real_t t=0.0;
-      while(t<Tfinal)
-      {
-         ode_solver->Step(x,t,dt);
-      }
-      ode_solver->Step(x,t,dt);
-      real_t oobj=eobj->EvalScalar(x);
-
-      //FD check
-      {
-         real_t sca=1.0;
-         for(int i=0;i<10;i++){
-            x.Set(sca,p);
-            t=0.0;
-            while(t<Tfinal)
-            {
-               ode_solver->Step(x,t,dt);
-            }
-            ode_solver->Step(x,t,dt);
-            real_t cobj=eobj->EvalScalar(x);
-
-            x.Set(-sca,p);
-            t=0.0;
-            while(t<Tfinal)
-            {
-               ode_solver->Step(x,t,dt);
-            }
-            ode_solver->Step(x,t,dt);
-            real_t mobj=eobj->EvalScalar(x);
-            
-            if(Mpi::Root())
-            {
-               std::cout<<" sca="<<sca<<" tg="<<tg<<" fd="<<(cobj-mobj)/(2.0*sca)<<std::endl;
-            }
-
-            sca=sca/10.0;
-
-         }
-
-      }
-
-
-   }
-
 
    return EXIT_SUCCESS;
 }

@@ -537,7 +537,7 @@ void LinearElasticityTimeDependentOperator::AssembleExplicit()
         amg->SetOperator(*M_lor);
 
         cg = std::make_unique<CGSolver>(mesh.GetComm());
-        cg->SetRelTol(1e-7);
+        cg->SetRelTol(1e-10);
         cg->SetAbsTol(1e-12);
         cg->SetMaxIter(500);
         cg->SetPrintLevel(0);
