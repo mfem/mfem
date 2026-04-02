@@ -1312,7 +1312,7 @@ int main(int argc, char *argv[])
       for(int bi=0;bi<10;bi++){
 
          AdjointWithCheckpointing(1000,100);
-         x.Add(-0.01,g);
+         x.Add(-0.001,g);
       }
 
    }
