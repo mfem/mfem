@@ -38,7 +38,7 @@ std::vector<std::pair<std::bitset<N>, real_t>> getProbabilitySpace(real_t p1, re
     }
 
     // real_t p0 = 1.0 - N * p1 - (N - 1) * p2 - (N - 2) * p3 - (N - 3) * p4;
-    real_t p0 = 1.0 - (N - 3) * p4;
+    real_t p0 = 1.0 - (N - 1) * p2 - (N - 3) * p4;
 
     bitset<N> noFailures;
     probability_space.emplace_back(noFailures, p0);
@@ -53,13 +53,13 @@ std::vector<std::pair<std::bitset<N>, real_t>> getProbabilitySpace(real_t p1, re
     //     probability_space.emplace_back(singleFailure, p1);
     // }
 
-    // for (int i = 0; i < N - 1; i++)
-    // {
-    //     bitset<N> doubleFailure;
-    //     doubleFailure.set(i);
-    //     doubleFailure.set(i + 1);
-    //     probability_space.emplace_back(doubleFailure, p2);
-    // }
+    for (int i = 0; i < N - 1; i++)
+    {
+        bitset<N> doubleFailure;
+        doubleFailure.set(i);
+        doubleFailure.set(i + 1);
+        probability_space.emplace_back(doubleFailure, p2);
+    }
 
     // for (int i = 0; i < N - 2; i++)
     // {
@@ -430,6 +430,34 @@ void generate_distribution_from_latents(
     dist = std::discrete_distribution<Index>(weights.begin(), weights.end());
 }
 
+void generate_symmetric_index_vector(
+    std::vector<std::pair<std::bitset<N>, real_t>> probability_space,
+    std::vector<size_t> &symmetric_index_hash
+) {
+    for (int i = 0; i < probability_space.size(); i++) {
+
+        std::bitset<N> current_bitset = probability_space[i].first;
+
+        std::bitset<N> symmetrized_bitset = std::bitset<N>();
+        for (int k = 0; k < N; k++) {
+            symmetrized_bitset[k] = current_bitset[N - k - 1];
+        }
+
+
+        int symm_index = -1;
+        for (int j = 0; j < probability_space.size(); j++) {
+            if (symmetrized_bitset == probability_space[j].first) {
+                symm_index = j;
+                break;
+            }
+        }
+        if (symm_index == -1) {
+            throw std::runtime_error("No symmetrized bitset found");
+        }
+        symmetric_index_hash[i] = symm_index;
+    }
+}
+
 // Return true when RUN_DETERMINISTIC_UNTIL < 0 or outer_iteration >= RUN_DETERMINISTIC_UNTIL >= 0
 // recall we use 1-indexing for the outer_iteration.
 bool is_deterministic_step(
@@ -518,21 +546,21 @@ int main(int argc, char *argv[])
     const real_t tau = 1e-10; // threshold for probability truncation.
 
     const real_t p1 = 0.01; 
-    const real_t p2 = 0.01; 
+    const real_t p2 = 0.05; 
     const real_t p3 = 0.01; 
-    const real_t p4 = 0.20; // SET BACK TO 0.005
+    const real_t p4 = 0.05; // SET BACK TO 0.005
 
     const real_t cvar_alpha = 0.05;
     const int outer_loop_iterations = 30;
     const int inner_loop_iterations = 10;
     const int MAX_BACKTRACKING_ATTEMPTS = 10; // maximum number of backtracking attempts in each inner loop iteration.
 
-    const real_t block_size_ratio = 0.8; // change back to 0.6
+    const real_t block_size_ratio = 0.25; // change back to 0.6
     const int STOCHASTIC_GRADIENT_MINIBATCH_SIZE = 2;
 
     // encoded exclusvely. If >=, 0, start running stochastic at the RUN_DETERMINISTIC_UNTILth step
     const int RUN_DETERMINISTIC_UNTIL = 0; 
-
+    const bool RUN_SYMMETRIC = true;
 
     // "const" or "gradient"
     const float epsilon_TV = 1e-3;
@@ -540,6 +568,9 @@ int main(int argc, char *argv[])
     const float epsilon_q = 1e-3;
 
     std::vector<std::pair<std::bitset<N>, real_t>> probability_space = getProbabilitySpace(p1, p2, p3, p4);
+
+    std::vector<size_t> symmetric_index_vector(probability_space.size());
+    generate_symmetric_index_vector(probability_space, symmetric_index_vector);
 
     real_t total_probability = 0.0;
     for (const auto& [bits, p] : probability_space) {  
@@ -730,7 +761,7 @@ int main(int argc, char *argv[])
     ParGridFunction& sol=elsolver->GetDisplacements();
 
     // set up the paraview
-    mfem::ParaViewDataCollection paraview_dc("cvar_optimization_stochastic_13Mar2026_true_stochastic_highgama_TRUE", &pmesh);
+    mfem::ParaViewDataCollection paraview_dc("cvar_optimization_stochastic_02Apr2026", &pmesh);
     // rho_gf.ProjectCoefficient(rho);
     paraview_dc.SetPrefixPath("ParaView");
     paraview_dc.SetLevelsOfDetail(order);
@@ -841,11 +872,22 @@ int main(int argc, char *argv[])
 
         // now we also set 
 
-        std::vector<std::size_t> block_k = sample_k_indices_without_replacement(latent_probabilities_k_0, cvar_alpha, BLOCK_SIZE, tau, rng);
+        std::vector<std::size_t> block_k_non_symmetrized = sample_k_indices_without_replacement(latent_probabilities_k_0, cvar_alpha, BLOCK_SIZE, tau, rng);
         // float delta_k = 0.0;
         // for (auto &[bits, original_probability, latent_probability] : latent_probabilities_k_0){
         //     delta_k += (original_probability / (1 - cvar_alpha)) * sigmoid(latent_probability);
         // }
+
+        std::vector<std::size_t> block_k;
+        if (!RUN_SYMMETRIC) {
+            block_k = block_k_non_symmetrized;
+        } else {
+            block_k = std::vector<size_t>(2 * BLOCK_SIZE);
+            for (int i = 0; i < BLOCK_SIZE; i++) {
+                block_k[2*i] = block_k_non_symmetrized[i];
+                block_k[2*i + 1] = symmetric_index_vector[block_k_non_symmetrized[i]];   
+            }
+        }
 
         if (myid == 0) {
             std::cout << "BLOCK_SIZE = " << BLOCK_SIZE << std::endl;
@@ -900,6 +942,13 @@ int main(int argc, char *argv[])
                 latent_probability_indices_to_sample_mask.assign(latent_probabilities_k_0.size(), false);
                 std::vector<real_t> weights_by_index(latent_probabilities_k_0.size(), 0); 
 
+                int TOTAL_GRADIENTS;
+                if (RUN_SYMMETRIC) {
+                    TOTAL_GRADIENTS = STOCHASTIC_GRADIENT_MINIBATCH_SIZE;
+                } else {
+                    TOTAL_GRADIENTS = 2 * STOCHASTIC_GRADIENT_MINIBATCH_SIZE;
+                }
+
                 for (int sample = 0; sample < STOCHASTIC_GRADIENT_MINIBATCH_SIZE; ++sample) {
                     size_t sampled_index = q_distribution(rng);
 
@@ -909,8 +958,19 @@ int main(int argc, char *argv[])
                     if (myid == 0) std::cout << "  is_in_mask = " << is_in_mask << std::endl;
 
                     if (!is_in_mask) {
-                        weights_by_index[sampled_index] += 1.0 / STOCHASTIC_GRADIENT_MINIBATCH_SIZE;
                         latent_probability_indices_to_sample_mask[sampled_index] = true;
+
+                        if (!RUN_SYMMETRIC) {
+                            weights_by_index[sampled_index] += 1.0 / STOCHASTIC_GRADIENT_MINIBATCH_SIZE;        
+                        } else {
+                            size_t symmetric_index = symmetric_index_vector[sampled_index];
+
+                            latent_probability_indices_to_sample_mask[symmetric_index] = true;
+
+                            weights_by_index[sampled_index] += 0.5 / STOCHASTIC_GRADIENT_MINIBATCH_SIZE;       
+                            weights_by_index[symmetric_index] += 0.5 / STOCHASTIC_GRADIENT_MINIBATCH_SIZE;       
+                        }
+
 
                         if (myid == 0) std::cout << "  Added weight for non-block member" << std::endl;
                     } else {
@@ -918,13 +978,23 @@ int main(int argc, char *argv[])
                         // weights_by_index[sampled_index] += q_k_jp1_over_q_k_j / STOCHASTIC_GRADIENT_MINIBATCH_SIZE;
                         latent_probability_indices_to_sample_mask[sampled_index] = true;
 
-                        weights_by_index[sampled_index] += 1.0 / STOCHASTIC_GRADIENT_MINIBATCH_SIZE;
+                        if (!RUN_SYMMETRIC) {
+                            weights_by_index[sampled_index] += 1.0 / STOCHASTIC_GRADIENT_MINIBATCH_SIZE;        
+                        } else {
+                            size_t symmetric_index = symmetric_index_vector[sampled_index];
+
+                            latent_probability_indices_to_sample_mask[symmetric_index] = true;
+
+                            weights_by_index[sampled_index] += 0.5 / STOCHASTIC_GRADIENT_MINIBATCH_SIZE;       
+                            weights_by_index[symmetric_index] += 0.5 / STOCHASTIC_GRADIENT_MINIBATCH_SIZE;       
+                        }
+
                         if (myid == 0) std::cout << "  Added weight for block member" << std::endl;
                     }
                 }
 
-                latent_probability_indices_to_sample.reserve(STOCHASTIC_GRADIENT_MINIBATCH_SIZE);
-                latent_probability_indices_to_sample_weights.reserve(STOCHASTIC_GRADIENT_MINIBATCH_SIZE);
+                latent_probability_indices_to_sample.reserve(TOTAL_GRADIENTS);
+                latent_probability_indices_to_sample_weights.reserve(TOTAL_GRADIENTS);
 
                 for (size_t i = 0; i < weights_by_index.size(); ++i) {
                     if (weights_by_index[i] > 0.0) {
