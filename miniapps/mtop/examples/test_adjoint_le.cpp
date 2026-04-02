@@ -1223,7 +1223,7 @@ int main(int argc, char *argv[])
                paraview_dc.Save();
 
                if(Mpi::Root()){
-                  mfem::out<<"FWD Time="<<times[i]<<" dt="<< h <<'\n';
+                  // mfem::out<<"FWD Time="<<times[i]<<" dt="<< h <<'\n';
                }
             }
 
@@ -1291,7 +1291,7 @@ int main(int argc, char *argv[])
                paraview_ac.Save();
                
                if(Mpi::Root()){
-                  mfem::out<<"ADJ Time="<<times[i]<<" dt="<<step_span[i]<<'\n';
+                  //mfem::out<<"ADJ Time="<<times[i]<<" dt="<<step_span[i]<<'\n';
                }
             }
 
