@@ -271,9 +271,9 @@ public:
    IntegrationRule* ApplyToKnotIntervals(KnotVector const& kv) const;
 
    /// Duffy Transformation of 2D and 3D tensor product rules of the form
-   /// X(t) = \sum_{i=1}^{d+1} \lambda_i(t) * x_i, where x_i are the vertices
-   /// of the simplex and \lambda_i = t_i * (1-\lambda_1-...-\lambda_{i-1}), with
-   /// t being the coordinates in the unit square/cube.
+   /// $X(t) = \sum_{i=1}^{d+1} \lambda_i(t) * x_i$, where $x_i$ are the vertices
+   /// of the simplex and $\lambda_i = t_i * (1-\lambda_1-...-\lambda_{i-1})$, with
+   /// $t$ being the coordinates in the unit square/cube.
    void DuffyTrans(int dim);
 
    /// Inverse Duffy Transformation for 2D and 3D tensor product rules.
