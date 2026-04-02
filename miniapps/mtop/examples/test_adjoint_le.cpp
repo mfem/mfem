@@ -1307,7 +1307,7 @@ int main(int argc, char *argv[])
       for(int bi=0;bi<10;bi++){
 
          AdjointWithCheckpointing(1000,100);
-         x.Add(-0.1,g);
+         x.Add(-0.01,g);
          real_t o=eobj->EvalScalar(x);
          if(Mpi::Root()){
             mfem::out<<" iter="<<bi<<" obj="<<o<<'\n';
