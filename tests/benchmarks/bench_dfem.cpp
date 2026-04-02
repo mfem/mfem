@@ -402,9 +402,9 @@ struct BakeOff
 
    virtual void Benchmark() { MFEM_ABORT("Not implemented."); }
 
-   double SumMdofs() const { return mdofs; }
+   [[nodiscard]] double SumMdofs() const noexcept { return mdofs; }
 
-   double MDofs() const { return 1e-6 * dofs; }
+   [[nodiscard]] double MDofs() const noexcept { return 1e-6 * dofs; }
 };
 
 /// Q-Functions ///////////////////////////////////////////////////////////////
@@ -617,19 +617,17 @@ struct Diffusion : public BakeOff<VDIM, GLL>
 
       cg.SetOperator(*A);
       cg.iterative_mode = false;
+      cg.SetAbsTol(0.0);
       if (dofs < 128 * 1024)
       {
          dbg("check");
          cg.SetPrintLevel(-1);
          cg.SetMaxIter(2000);
          cg.SetRelTol(1e-8);
-         cg.SetAbsTol(0.0);
          cg.Mult(B, X);
          MFEM_VERIFY(cg.GetConverged(), "❌ CG solver did not converge.");
-         MFEM_DEVICE_SYNC;
          // mfem::out << "✅" << std::endl;
       }
-      cg.SetAbsTol(0.0);
       cg.SetRelTol(rtol);
       cg.SetMaxIter(max_it);
       cg.SetPrintLevel(print_lvl);
