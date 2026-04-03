@@ -304,6 +304,10 @@ void TempAllocator<BaseAlloc, NeedsWait>::Clear()
 template <class BaseAlloc, bool NeedsWait>
 void TempAllocator<BaseAlloc, NeedsWait>::Coalesce()
 {
+   if (blocks.size() <= 1)
+   {
+      return;
+   }
    // move all blocks with allocations to the front
    // has to be stable so we know that mid - 1 has curr_end in it
    auto mid =
@@ -400,12 +404,7 @@ void TempAllocator<BaseAlloc, NeedsWait>::Dealloc(void *ptr, size_t)
          {
             --std::get<2>(blocks[i]);
             --total_allocs;
-            if (total_allocs == 0)
-            {
-               // free all blocks, put everything into a single block
-               Coalesce();
-            }
-            else if (std::get<2>(blocks[i]) == 0 && i + 1 == blocks.size())
+            if (std::get<2>(blocks[i]) == 0 && i + 1 == blocks.size())
             {
                // last block completely free'd
                curr_end = std::get<0>(blocks[i]);
@@ -415,6 +414,11 @@ void TempAllocator<BaseAlloc, NeedsWait>::Dealloc(void *ptr, size_t)
                   // need to block
                   wait_next_alloc = true;
                }
+            }
+            if (total_allocs == 0)
+            {
+               // free all blocks, put everything into a single block
+               Coalesce();
             }
             break;
          }
