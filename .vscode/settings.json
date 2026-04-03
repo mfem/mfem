@@ -1,0 +1,42 @@
+{
+    "editor.defaultFormatter": "chiehyu.vscode-astyle",
+    "cmake.environment": {
+        // "MFEM_EKS": "1",
+        // "MFEM_NVTX": "1",
+        "MFEM_DEBUG": "1",
+        "MFEM_REPORT_KERNELS": "1",
+        // "ASAN_OPTIONS": "detect_leaks=1",
+        // "LSAN_OPTIONS": "suppressions=/Users/camierjs/.asan.sup"
+    },
+    "cmake.debugConfig": {
+        "args": [
+            "--benchmark_context=kernels=new,specialization=yes", // std, new
+            "--benchmark_filter=BP3/./6",
+            "--benchmark_min_time=10x",
+            // "[DFEM][MQ1]",
+            // "--enable-output",
+            // "--verbose",
+            // "--all"
+        ]
+    },
+    "editor.formatOnSave": true,
+    "peacock.color": "#325a6e",
+    "workbench.colorCustomizations": {
+        "activityBar.activeBackground": "#427791",
+        "activityBar.background": "#427791",
+        "activityBar.foreground": "#e7e7e7",
+        "activityBar.inactiveForeground": "#e7e7e799",
+        "commandCenter.border": "#e7e7e799",
+        "sash.hoverBorder": "#427791",
+        "statusBar.background": "#325a6e",
+        "statusBar.foreground": "#e7e7e7",
+        "statusBarItem.hoverBackground": "#427791",
+        "statusBarItem.remoteBackground": "#325a6e",
+        "statusBarItem.remoteForeground": "#e7e7e7",
+        "titleBar.activeBackground": "#325a6e",
+        "titleBar.activeForeground": "#e7e7e7",
+        "titleBar.inactiveBackground": "#325a6e99",
+        "titleBar.inactiveForeground": "#e7e7e799"
+    },
+    "peacock.keepBadgeColor": true,
+}
