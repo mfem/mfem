@@ -9,7 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 #pragma once
-// #define NVTX_COLOR ::nvtx::kTurquoise
 
 #include <cassert>
 #include <type_traits>
@@ -26,6 +25,9 @@
 #include "qfunction_apply.hpp"
 #include "assemble.hpp"
 #include "util.hpp"
+
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kTurquoise
 
 namespace mfem::future
 {
@@ -836,32 +838,24 @@ void DifferentiableOperator::AddIntegrator(
             q1d,                             // int
             test_vdim,                       // int (= output_fop.vdim)
             inputs,                          // input_t
-            domain_attributes = attributes,  // const Array<int> &
+            attributes,                      // const Array<int> &
             input_dtq_maps,                  // std::array<DofToQuadMap, num_inputs>
             output_dtq_maps,                 // std::array<DofToQuadMap, num_outputs>
             input_to_field,                  // std::array<size_t, num_inputs>
             output_fop,                      // class derived from FieldOperator
             qfunc,                           // qfunc_t
             thread_blocks,                   // ThreadBlocks
-            // shmem_cache,                     // Vector (local)
             action_shmem_info,               // SharedMemoryInfo
             elem_attributes,                 // const Array<int> *
-
-            // fields = this->fields,           // std::vector<FieldDescriptor>
-            // input_size_on_qp,                // std::vector<int> ⚠️ std::array<int, num_inputs>
-            // dependency_map,                  // std::unordered_map<int, std::array<bool, N>> ⚠️ std::map<int, std::vector<int>>
-            // inputs_vdim,                     // std::vector<int>
             // 🟣🟣🟣🟣 capture by ref:
             &restriction_cb = this->restriction_callback,
             &fields_e = this->fields_e,
             &residual_e = this->residual_e,
             &output_restriction_transpose = this->output_restriction_transpose,
-
             &use_kernels_specialization = this->use_kernels_specialization   // bool
          ](std::vector<Vector> &solutions_l,
            const std::vector<Vector> &parameters_l,
-           Vector &residual_l)
-         mutable
+           Vector &residual_l) mutable
       {
          NewActionCallback action(use_kernels_specialization,
                                   restriction_cb,
@@ -874,12 +868,11 @@ void DifferentiableOperator::AddIntegrator(
                                   test_vdim,
                                   num_test_dof,
                                   dimension,
-                                  q1d,
                                   thread_blocks,
                                   action_shmem_info,
-                                  elem_attributes,
+                                  attributes,
                                   output_fop,
-                                  domain_attributes,
+                                  elem_attributes,
                                   fields_e,
                                   residual_e,
                                   output_restriction_transpose,
@@ -919,7 +912,6 @@ void DifferentiableOperator::AddIntegrator(
             // TODO: make this Array<int> a member of the DifferentiableOperator
             //       and capture it by ref.
             elem_attributes,       // Array<int>
-
             // capture by ref:
             &restriction_cb = this->restriction_callback,
             &fields_e = this->fields_e,
@@ -1079,7 +1071,7 @@ void DifferentiableOperator::AddIntegrator(
                test_vdim,             // int (= output_fop.vdim)
                test_op_dim,           // int (derived from output_fop)
                inputs,                // mfem::future::tuple
-               attributes,     // Array<int>
+               attributes,             // Array<int>
                ir_weights,            // DeviceTensor
                use_sum_factorization, // bool
                input_dtq_maps,        // std::array<DofToQuadMap, num_fields>

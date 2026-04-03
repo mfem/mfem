@@ -8,7 +8,6 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-#define NVTX_COLOR ::nvtx::kNvidia
 
 #include "bench.hpp" // IWYU pragma: keep
 
@@ -19,13 +18,16 @@
 
 #include <fem/qinterp/det.cpp>
 #include <fem/qinterp/grad.hpp> // IWYU pragma: keep
+#include "fem/integ/lininteg_domain_kernels.hpp" // IWYU pragma: keep
 
 #include "fem/dfem/doperator.hpp"
 #include <linalg/tensor.hpp>
-#include "tests/benchmarks/kernels.hpp"
 
 #include "fem/kernels.hpp"
 namespace ker = kernels::internal;
+
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kNvidia
 
 using namespace mfem;
 
@@ -41,20 +43,16 @@ using future::Gradient;
 using future::Weight;
 using future::Identity;
 
-
-#if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) ||       \
-     (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)))
-
-template<int N>
-using MQZ = std::integral_constant<int, 0>;
-
-#else
-
-template<int N>
-using MQZ = std::integral_constant<int, N>;
-
-constexpr int SetMaxOf2(int n) { return mfem::kernels::internal::NextMultipleOf<2>(n); }
-#endif
+/// info //////////////////////////////////////////////////////////////////////
+static void DumpVersionInfo()
+{
+   mfem::out << "\x1b[33m";
+   mfem::out << "version 0: PA std" << std::endl;
+   mfem::out << "version 1: PA new" << std::endl;
+   mfem::out << "version 2: MF ∂fem" << std::endl;
+   mfem::out << "version 3: PA ∂fem" << std::endl;
+   mfem::out << "\x1b[m" << std::endl;
+}
 
 /// Max number of DOFs ////////////////////////////////////////////////////////
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
@@ -99,17 +97,13 @@ struct StiffnessIntegrator : public BilinearFormIntegrator
 public:
    StiffnessIntegrator()
    {
-      dbg();
-      NVTX();
       if (!use_kernels_specialization) { return; }
-      dbg("Adding StiffnessKernels specializations");
-      StiffnessKernels::Specialization<2, 3>::Add();
-      StiffnessKernels::Specialization<3, 4>::Add();
-      StiffnessKernels::Specialization<4, 5>::Add();
-      StiffnessKernels::Specialization<5, 6>::Add();
-      StiffnessKernels::Specialization<6, 7>::Add();
-      StiffnessKernels::Specialization<7, 8>::Add();
-      StiffnessKernels::Specialization<9, 10>::Add();
+      StiffnessKernels::Specialization<2, 3>::Add();  // 1
+      StiffnessKernels::Specialization<3, 4>::Add();  // 2
+      StiffnessKernels::Specialization<4, 5>::Add();  // 3
+      StiffnessKernels::Specialization<5, 6>::Add();  // 4
+      StiffnessKernels::Specialization<6, 7>::Add();  // 5
+      StiffnessKernels::Specialization<7, 8>::Add();  // 6
    }
 
    void AssemblePA(const FiniteElementSpace &fespace) override
@@ -181,8 +175,7 @@ public:
       });
    }
 
-   ///////////////////////////////////////////////////////////////////
-   /// BP3/1/6/25 | 12.5ms | 12.5ms | 10 | 15.625k | 40.1397/s | 6 | 1
+   //////////////////////////////////////////////////////////////////
    template <int T_D1D = 0, int T_Q1D = 0>
    static void StiffnessMult(const int NE, const real_t *b, const real_t *g,
                              const real_t *dx, const real_t *xe, real_t *ye,
@@ -198,8 +191,8 @@ public:
 
       mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
-         constexpr int MD1 = T_D1D > 0 ? T_D1D : 32;
-         constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 32;
+         constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 8;
+         constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 8;
 
          MFEM_SHARED real_t smem[MQ1][MQ1];
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
@@ -234,59 +227,6 @@ public:
       });
    }
 
-   ///////////////////////////////////////////////////////////////////
-   // BP3/1/6/25 | 49.5 ms | 49.5 ms | 10 | 15.625k | 10.0983/s | 6 | 1
-   template <int T_D1D = 0, int T_Q1D = 0>
-   static void StiffnessMultVD(const int NE, const real_t *b, const real_t *g,
-                               const real_t *dx, const real_t *xe, real_t *ye,
-                               const int d1d, const int q1d)
-   {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      db1("StiffnessMultVD: D1D:{} Q1D:{}", D1D, Q1D);
-
-      constexpr int DIM = 3, VDIM = 1;
-      const auto XE = Reshape(xe, D1D, D1D, D1D, VDIM, NE);
-      const auto DX = Reshape(dx, 3, 3, Q1D, Q1D, Q1D, NE);
-      auto YE = Reshape(ye, D1D, D1D, D1D, VDIM, NE);
-
-      mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
-      {
-         // constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
-         // constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
-         constexpr int MD1 = T_D1D > 0 ? T_D1D : 32;
-         constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 32;
-
-         MFEM_SHARED real_t smem[MQ1][MQ1];
-         MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
-
-         constexpr int MZ1 = MQZ<MQ1>::value;
-         mfem::future::tensor<real_t, MQ1, MZ1, MZ1, VDIM, DIM> v0, v1;
-
-         ker::LoadMatrix(D1D, Q1D, b, sB);
-         ker::LoadMatrix(D1D, Q1D, g, sG);
-
-         ker::vd::LoadDofs3d(e, D1D, XE, v0);
-         ker::vd::Grad3d(D1D, Q1D, smem, sB, sG, v0, v1);
-
-         for (int qz = 0; qz < Q1D; qz++)
-         {
-            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
-            {
-               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
-               {
-                  auto &vd_v = v0[qz][qy][qx][0];
-                  const auto &vd_u = v1[qz][qy][qx][0];
-                  const auto d = make_tensor<3, 3>([&](int i, int j) { return DX(i, j, qx, qy, qz, e); });
-                  vd_v = d * vd_u;
-               }
-            }
-         }
-         ker::vd::GradTranspose3d(D1D, Q1D, smem, sB, sG, v0, v1);
-         ker::vd::WriteDofs3d(e, D1D, v1, YE);
-      });
-   }
-
    using StiffnessKernelType = decltype(&StiffnessMult<>);
    MFEM_REGISTER_KERNELS(StiffnessKernels, StiffnessKernelType, (int, int));
 
@@ -297,69 +237,17 @@ public:
                             d1d, q1d);
    }
 };
-/*
---------------------------------------------------------------------------------------------------
-Benchmark            Time             CPU   Iterations       Dofs     MDof/s          p    version
---------------------------------------------------------------------------------------------------
-BP3/0/6/25        2.33 ms         2.29 ms          306    15.625k  218.454/s          6          0
-BP3/0/6/50        2.95 ms         2.92 ms          232   132.055k 1.44567k/s          6          0
-BP3/0/6/75        4.64 ms         4.61 ms          149   420.991k 2.92423k/s          6          0
-BP3/0/6/100       8.84 ms         8.80 ms           78   1.02907M 3.74023k/s          6          0
-BP3/0/6/125       15.5 ms         15.5 ms           45   1.95161M 4.02333k/s          6          0
-BP3/0/6/150       26.5 ms         26.5 ms           26   3.44295M 4.16497k/s          6          0
-BP3/0/6/175       40.9 ms         40.6 ms           17   5.35938M 4.22609k/s          6          0
-BP3/0/6/200       61.3 ms         60.7 ms           12    8.1182M 4.27719k/s          6          0
---------------------------------------------------------------------------------------------------
-StiffnessMultVD:
-BP3/1/6/25        2.86 ms         2.80 ms          304    15.625k  178.514/s          6          1
-BP3/1/6/50        3.39 ms         3.33 ms          210   132.055k 1.26724k/s          6          1
-BP3/1/6/75        5.06 ms         4.99 ms          136   420.991k 2.69718k/s          6          1
-BP3/1/6/100       8.71 ms         8.63 ms           80   1.02907M 3.81789k/s          6          1
-BP3/1/6/125       15.5 ms         15.1 ms           46   1.95161M 4.13199k/s          6          1
-BP3/1/6/150       24.4 ms         24.2 ms           29   3.44295M 4.54897k/s          6          1
-BP3/1/6/175       37.4 ms         36.7 ms           19   5.35938M 4.67061k/s          6          1
-BP3/1/6/200       56.1 ms         55.2 ms           13    8.1182M 4.70794k/s          6          1
---------------------------------------------------------------------------------------------------
-StiffnessMult:
-BP3/1/6/25        2.94 ms         2.86 ms          245    15.625k  174.602/s          6          1
-BP3/1/6/50        3.44 ms         3.37 ms          206   132.055k 1.25531k/s          6          1
-BP3/1/6/75        5.26 ms         5.15 ms          137   420.991k 2.61688k/s          6          1
-BP3/1/6/100       9.15 ms         9.04 ms           77   1.02907M 3.64348k/s          6          1
-BP3/1/6/125       15.7 ms         15.6 ms           45   1.95161M 4.01224k/s          6          1
-BP3/1/6/150       25.1 ms         25.0 ms           28   3.44295M 4.40159k/s          6          1
-BP3/1/6/175       37.7 ms         37.7 ms           18   5.35938M 4.54855k/s          6          1
-BP3/1/6/200       56.2 ms         56.2 ms           12    8.1182M 4.62524k/s          6          1
 
-
-[Darwin]
--------------------------------------------------------------------------------------------------
-Benchmark           Time             CPU   Iterations       Dofs     MDof/s          p    version
--------------------------------------------------------------------------------------------------
-StiffnessMult:
-BP3/0/6/25       17.2 ms         17.2 ms           41    15.625k  29.0621/s          6          0
-BP3/1/6/25       13.3 ms         13.1 ms           52    15.625k   38.234/s          6          1
-BP3/2/6/25       39.9 ms         39.8 ms           18    15.625k  12.5509/s          6          2
-BP3/3/6/25       24.4 ms         24.1 ms           29    15.625k  20.7329/s          6          3
--------------------------------------------------------------------------------------------------
-StiffnessMultVD:
-BP3/0/6/25       17.4 ms         17.4 ms           38    15.625k  28.8158/s          6          0
-BP3/1/6/25       51.9 ms         51.9 ms           13    15.625k  9.63093/s          6          1
-BP3/2/6/25       39.9 ms         39.9 ms           17    15.625k  12.5196/s          6          2
-BP3/3/6/25       23.4 ms         23.4 ms           30    15.625k  21.3528/s          6          3
-*/
 template <int D1D, int Q1D>
 StiffnessIntegrator::StiffnessKernelType
 StiffnessIntegrator::StiffnessKernels::Kernel()
 {
    return StiffnessMult<D1D, Q1D>;
-   // return StiffnessMultVD<D1D, Q1D>;
 }
 
 StiffnessIntegrator::StiffnessKernelType
-StiffnessIntegrator::StiffnessKernels::Fallback([[maybe_unused]]int d1d,
-                                                [[maybe_unused]] int q1d)
+StiffnessIntegrator::StiffnessKernels::Fallback(int, int)
 {
-   // dbg("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
    return StiffnessMult<>;
 }
 
@@ -423,7 +311,6 @@ struct BakeOff
    {
       NVTX_MARK_FUNCTION;
       // dbg("p:{} q:{}", p, q);
-      // pmesh.SetCurvature(p);
       smesh.Clear();
       x = 0.0;
 
@@ -509,7 +396,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
             auto *di = dynamic_cast<DiffusionIntegrator*>(bfi);
             assert(di);
             const int d1d = di->dofs1D, q1d = di->quad1D;
-            // dbg("\x1b[33md1d: {} q1d: {}", d1d, q1d);
+            // dbg("\x1b[33md1d:{} q1d:{}", d1d, q1d);
             MFEM_VERIFY(d1d == gD1D, "D1D mismatch: " << d1d << " != " << gD1D);
             MFEM_VERIFY(q1d == gQ1D, "Q1D mismatch: " << q1d << " != " << gQ1D);
          }
@@ -547,7 +434,6 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          tuple Gu_Iq = {Gu, Iq};
          tuple Iu_GΞ_W = {Iu, GΞ, W};
 
-         dbg("[PA ∂fem] SETUP 🟣🟣🟣🟣");
          auto pa_setup_qf =
             [] MFEM_HOST_DEVICE(const real_t &u [[maybe_unused]],
                                 const tensor<real_t, DIM, DIM> &J,
@@ -562,7 +448,6 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          pfes.GetRestrictionMatrix()->Mult(x, X);
          dSetup.Mult(X, qdata);
 
-         dbg("[PA ∂fem] APPLY 🟢🟢🟢🟢");
          auto pa_apply_qf =
             [] MFEM_HOST_DEVICE(const tensor<real_t, DIM> &Gu,
                                 const tensor<real_t, DIM, DIM> &q)
@@ -583,21 +468,19 @@ struct Diffusion : public BakeOff<VDIM, GLL>
 
       cg.SetOperator(*A);
       cg.iterative_mode = false;
+      cg.SetAbsTol(0.0);
       if (dofs < 128 * 1024) // check
       {
          cg.SetPrintLevel(3/*-1*/);
          cg.SetMaxIter(2000);
          cg.SetRelTol(1e-8);
-         cg.SetAbsTol(0.0);
          cg.Mult(B, X);
-         // MFEM_VERIFY(cg.GetConverged(), "❌ CG solver did not converge.");
-         MFEM_DEVICE_SYNC;
+         MFEM_VERIFY(cg.GetConverged(), "❌ CG solver did not converge.");
          // mfem::out << "✅" << std::endl;
       }
-      cg.SetAbsTol(0.0);
-      cg.SetRelTol(rtol);
-      cg.SetMaxIter(max_it);
       cg.SetPrintLevel(print_lvl);
+      cg.SetMaxIter(max_it);
+      cg.SetRelTol(rtol);
       benchmark();
       mdofs = 0.0;
    }
@@ -651,19 +534,10 @@ static void AddBasicKernelSpecializations()
    Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 7>::Add();
    Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 8>::Add();
 
-   // using Diffusion = DiffusionIntegrator::ApplyPAKernels;
-   // Diffusion::Specialization<3, 9, 10>::Add();
-}
-
-/// info //////////////////////////////////////////////////////////////////////
-static void DumpVersionInfo()
-{
-   mfem::out << "\x1b[33m";
-   mfem::out << "version 0: PA std" << std::endl;
-   mfem::out << "version 1: PA new" << std::endl;
-   mfem::out << "version 2: MF ∂fem" << std::endl;
-   mfem::out << "version 3: PA ∂fem" << std::endl;
-   mfem::out << "\x1b[m" << std::endl;
+   using LIN = DomainLFIntegrator::AssembleKernels;
+   LIN::Specialization<3, 7, 7>::Add();
+   LIN::Specialization<3, 6, 6>::Add();
+   LIN::Specialization<3, 8, 8>::Add();
 }
 
 /// main //////////////////////////////////////////////////////////////////////
