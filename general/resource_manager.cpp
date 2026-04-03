@@ -526,7 +526,7 @@ MemoryManager::MemoryManager()
    allocs_storage[5].reset(new TempAllocator<HostPinnedAllocator, true>);
    allocs[static_cast<int>(MemoryType::HOST_PINNED)] = allocs_storage[4].get();
    allocs[static_cast<int>(MemoryType::HOST_PINNED) + MemoryTypeSize] =
-      allocs_storage[4].get();
+      allocs_storage[5].get();
 
    allocs_storage[6].reset(new ManagedAllocator);
    allocs_storage[7].reset(new TempAllocator<ManagedAllocator, true>);

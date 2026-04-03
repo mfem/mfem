@@ -36,7 +36,7 @@ namespace internal
 {
 template <class Op> void DoDeviceScan(Op &&op)
 {
-#ifdef USE_NEW_MEM_MANAGER
+#ifdef MFEM_USE_TEMPORARY_WORK_BUFFERS
    size_t bytes = 0;
 #else
    static Array<std::byte> workspace;
@@ -60,7 +60,7 @@ template <class Op> void DoDeviceScan(Op &&op)
 #endif
    // determine buffer size
    MFEM_GPU_CHECK(op(nullptr, bytes));
-#ifdef USE_NEW_MEM_MANAGER
+#ifdef MFEM_USE_TEMPORARY_WORK_BUFFERS
    Array<std::byte> workspace(
       bytes, MemoryManager::instance().GetDeviceMemoryType(), true);
 #else
@@ -256,7 +256,7 @@ void CopyIf(bool use_dev, InputIt d_in, OutputIt d_out,
    (__CUDACC_VER_MAJOR__ < 12 ||                                               \
     (__CUDACC_VER_MAJOR__ == 12 && __CUDACC_VER_MINOR__ < 5))
       // bug in cuda < 12.5, work-around: use Flagged instead
-#ifdef USE_NEW_MEM_MANAGER
+#ifdef MFEM_USE_TEMPORARY_WORK_BUFFERS
       Array<bool> flags(num_items,
                         MemoryManager::instance().GetDeviceMemoryType(), true);
 #else

@@ -16,6 +16,8 @@
 
 #ifdef USE_NEW_MEM_MANAGER
 
+#define MFEM_USE_TEMPORARY_WORK_BUFFERS
+
 namespace mfem
 {
 
@@ -823,8 +825,15 @@ void Memory<T>::New_(size_t size, MemoryType hloc, MemoryType dloc,
                             "alloc " << (int)h_mt << ", " << temporary);
    }
    flags = OWNS_HOST;
-   if (temporary || dloc != MemoryType::DEFAULT ||
-       hloc == MemoryType::HOST_PINNED || hloc == MemoryType::MANAGED)
+   if (hloc == MemoryType::HOST_PINNED || hloc == MemoryType::MANAGED)
+   {
+      MFEM_ASSERT(!inst.valid_segment(segment), "unexpected valid segment");
+      segment = inst.insert(reinterpret_cast<char *>(h_ptr),
+                            reinterpret_cast<char *>(h_ptr), size * sizeof(T),
+                            h_mt, dloc, valid_host, !valid_host, temporary);
+      flags = static_cast<Flags>(flags | OWNS_DEVICE);
+   }
+   else if (temporary || dloc != MemoryType::DEFAULT)
    {
       MFEM_ASSERT(!inst.valid_segment(segment), "unexpected valid segment");
       segment =
