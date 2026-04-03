@@ -5639,7 +5639,7 @@ Mesh ParMesh::GetSerialMesh(int save_rank) const
       }
    }
 
-   if(MyRank == save_rank)
+   if (MyRank == save_rank)
    {
       attribute_sets.Copy(serialmesh.attribute_sets);
       bdr_attribute_sets.Copy(serialmesh.bdr_attribute_sets);
