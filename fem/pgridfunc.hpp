@@ -66,8 +66,8 @@ protected:
    /** @brief Project a discontinuous (vector) coefficient as a grid function on
        a continuous finite element space. The values in shared dofs are
        determined from the element with maximal attribute. */
-   void ProjectDiscCoefficient(
-      std::variant<Coefficient*, VectorCoefficient*> coeff);
+   virtual void ProjectDiscCoefficient(
+      std::variant<Coefficient*, VectorCoefficient*> coeff) override;
 
 public:
    ParGridFunction() { pfes = NULL; }
@@ -273,18 +273,7 @@ public:
    void ProjectCoefficient(VectorCoefficient &vcoeff,
                            ProjectType type = ProjectType::DEFAULT) override;
 
-   /** @brief Project a discontinuous coefficient as a grid function on
-       a continuous finite element space. The values in shared dofs are
-       determined from the element with maximal attribute. */
-   void ProjectDiscCoefficient(Coefficient &coeff) override
-   { ProjectDiscCoefficient(&coeff); }
-
-   /** @brief Project a discontinuous vector coefficient as a grid function on
-       a continuous finite element space. The values in shared dofs are
-       determined from the element with maximal attribute. */
-   void ProjectDiscCoefficient(VectorCoefficient &coeff) override
-   { ProjectDiscCoefficient(&coeff); }
-
+   using GridFunction::ProjectDiscCoefficient;
    void ProjectDiscCoefficient(Coefficient &coeff, AvgType type) override;
 
    void ProjectDiscCoefficient(VectorCoefficient &vcoeff, AvgType type) override;
