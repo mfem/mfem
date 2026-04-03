@@ -279,7 +279,28 @@ void extract_topology_with_selected_nodes(const conduit::Node &n_topo,
       n_topo,
       [&](conduit::blueprint::mesh::utils::topology::entity &e)
    {
-      if (e.subelement_ids.empty())
+      if(e.shape.is_polygonal())
+      {
+         // We have to handle polygons specially because ShapeType::num_faces(),
+         // ShapeType::get_face() does not do what we need for polygons because of
+         // their dynamic sizes.
+         for (conduit::index_t i = 0; i < e.element_ids.size(); i++)
+         {
+            conduit::index_t prev_i = (i == 0) ? (e.element_ids.size() - 1) : (i - 1);
+            constexpr int MAX_NODES_PER_EDGE = 2;
+            conduit::index_t thisEdgeIds[MAX_NODES_PER_EDGE] = {e.element_ids[prev_i], e.element_ids[i]};
+            bool allPointsSelected = pointIsSelected[thisEdgeIds[0]] && pointIsSelected[thisEdgeIds[1]];
+            // Make a face
+            if (allPointsSelected)
+            {
+               const int index =
+                  func(e.entity_id, thisEdgeIds, MAX_NODES_PER_EDGE, conn, sizes, offsets, originalElement);
+
+               counts[index]++;
+            }
+         }
+      }
+      else if (e.subelement_ids.empty())
       {
          // Iterate over the shapes in the face and determine whether the face gets made.
          for (conduit::index_t fi = 0; fi < e.shape.num_faces(); fi++)
@@ -352,7 +373,7 @@ void extract_topology_with_selected_nodes(const conduit::Node &n_topo,
    {
       n_new_topo["elements/shape"] = "polygonal";
    }
-   else
+   else if(nzones > 0)
    {
       assert("Unhandled shape type.");
    }
@@ -360,37 +381,41 @@ void extract_topology_with_selected_nodes(const conduit::Node &n_topo,
    n_new_topo["elements/sizes"].set(sizes);
    n_new_topo["elements/offsets"].set(offsets);
 
-   // Figure out a spatial ordering for the face topology. Save it as a field.
-   const auto order = spatial_ordering(n_new_topo);
-
-   // Reorder the connectivity so it is easier to think about.
-   std::vector<int> newconn, newsizes, newoffsets;
-   std::vector<conduit::index_t> newOriginalElement;
-   newconn.reserve(conn.size());
-   newsizes.reserve(sizes.size());
-   newoffsets.reserve(offsets.size());
-   newOriginalElement.reserve(newOriginalElement.size());
-   for (size_t i = 0; i < sizes.size(); i++)
+   const auto newZoneCount = counts[0] + counts[1] + counts[2] + counts[3] + counts[4] + counts[5];
+   if(newZoneCount > 0)
    {
-      const auto size = sizes[order[i]];
-      const auto offset = offsets[order[i]];
+      // Figure out a spatial ordering for the face topology. Save it as a field.
+      const auto order = spatial_ordering(n_new_topo);
 
-      newoffsets.push_back(newconn.size());
-      newsizes.push_back(size);
-      for (int j = 0; j < size; j++)
+      // Reorder the connectivity so it is easier to think about.
+      std::vector<int> newconn, newsizes, newoffsets;
+      std::vector<conduit::index_t> newOriginalElement;
+      newconn.reserve(conn.size());
+      newsizes.reserve(sizes.size());
+      newoffsets.reserve(offsets.size());
+      newOriginalElement.reserve(newOriginalElement.size());
+      for (size_t i = 0; i < sizes.size(); i++)
       {
-         newconn.push_back(conn[offset + j]);
+         const auto size = sizes[order[i]];
+         const auto offset = offsets[order[i]];
+
+         newoffsets.push_back(newconn.size());
+         newsizes.push_back(size);
+         for (int j = 0; j < size; j++)
+         {
+            newconn.push_back(conn[offset + j]);
+         }
+
+         // Make the original element be a different order
+         newOriginalElement.push_back(originalElement[order[i]]);
       }
+      // Update the connectivity, sizes, offsets with reordered versions.
+      n_new_topo["elements/connectivity"].set(newconn);
+      n_new_topo["elements/sizes"].set(newsizes);
+      n_new_topo["elements/offsets"].set(newoffsets);
 
-      // Make the original element be a different order
-      newOriginalElement.push_back(originalElement[order[i]]);
+      newOriginalElement.swap(originalElement);
    }
-   // Update the connectivity, sizes, offsets with reordered versions.
-   n_new_topo["elements/connectivity"].set(newconn);
-   n_new_topo["elements/sizes"].set(newsizes);
-   n_new_topo["elements/offsets"].set(newoffsets);
-
-   newOriginalElement.swap(originalElement);
 
    // Save a field that relates the face topology to the original topology zone indices.
    n_output["fields/originalElement/topology"] = n_topo.name();
@@ -515,7 +540,10 @@ ConduitParMeshBuilder::Build(MPI_Comm comm, mfem::Mesh &mesh,
    InitGroupTopology(comm, pmesh, n_adjset);
    InitSharedVertices(pmesh, n_adjset);
    InitSharedEdges(comm, pmesh, n_adjset);
-   InitSharedFaces(comm, pmesh, n_adjset);
+   if(mesh.Dimension() == 3)
+   {
+      InitSharedFaces(comm, pmesh, n_adjset);
+   }
 
    return pmesh;
 }
@@ -678,7 +706,10 @@ ConduitParMeshBuilder::InitSharedFaces(MPI_Comm comm,
 {
    const conduit::Node &n_groups = n_adjset.fetch_existing("groups");
    const auto numGroups = static_cast<int>(n_groups.number_of_children());
-
+#ifdef DEBUG_SHARED_FACES
+   int rank = 0;
+   MPI_Comm_rank(comm, &rank);
+#endif
    std::vector<std::vector<int>> triGroups, quadGroups;
    std::vector<std::vector<int>> triGroupIDs, quadGroupIDs;
    triGroups.resize(numGroups);
@@ -698,8 +729,6 @@ ConduitParMeshBuilder::InitSharedFaces(MPI_Comm comm,
       GetSelectedFaceTopologyFromAdjset(n_adjset, g, n_group_faces);
 
 #ifdef DEBUG_SHARED_FACES
-      int rank = 0;
-      MPI_Comm_rank(comm, &rank);
       std::stringstream ss;
       ss << "group_faces_rank_" << rank << "_group_" << g;
       std::string filename(ss.str());
@@ -707,8 +736,15 @@ ConduitParMeshBuilder::InitSharedFaces(MPI_Comm comm,
       conduit::relay::io::save(n_group_faces, filename + ".yaml", "yaml");
 #endif
 
-      // Make accessors for the new topology and its fields.
+      // Check whether the new topology was empty.
       conduit::Node &n_topo = n_group_faces["topologies"][0];
+      const conduit::Node &n_conn = n_topo["elements/connectivity"];
+      if(n_conn.dtype().number_of_elements() == 0)
+      {
+         continue;
+      }
+
+      // Make accessors for the new topology and its fields.
       const auto shape = n_topo["elements/shape"].as_string();
       const auto connectivity = n_topo["elements/connectivity"].as_int_ptr();
       const auto sizes = n_topo["elements/sizes"].as_int_ptr();
@@ -835,9 +871,12 @@ void ConduitParMeshBuilder::InitSharedEdges(MPI_Comm comm,
 #ifdef DEBUG_SHARED_EDGES
    int rank = 0;
    MPI_Comm_rank(comm, &rank);
+
    // Save the MFEM mesh edges to a Blueprint file.
    conduit::Node n_mfem;
    MeshEdges(*pmesh, n_mfem);
+   n_mfem["adjset_info/adjset"].set_external(n_adjset); // Just to be able to see the adjset.
+   n_mfem["adjset_info/numGroups"].set(numGroups);
    std::stringstream ss1;
    ss1 << "mfem_edges_rank_" << rank;
    std::string filename(ss1.str());
@@ -868,14 +907,21 @@ void ConduitParMeshBuilder::InitSharedEdges(MPI_Comm comm,
       conduit::relay::io::save(n_group_edges, filename + ".yaml", "yaml");
 #endif
 
-      // Make accessors for the new topology and its fields.
+      // Check whether the new topology was empty, which could happen if the adjset
+      // the topology at a single node.
       conduit::Node &n_topo = n_group_edges["topologies"][0];
+      const conduit::Node &n_conn = n_topo["elements/connectivity"];
+      if(n_conn.dtype().number_of_elements() == 0)
+      {
+         continue;
+      }
+
+      // Make accessors for the new topology and its fields.
       const auto shape = n_topo["elements/shape"].as_string();
       const auto connectivity = n_topo["elements/connectivity"].as_int_ptr();
       const auto sizes = n_topo["elements/sizes"].as_int_ptr();
       const auto numFaces = n_topo["elements/sizes"].dtype().number_of_elements();
       const auto offsets = n_topo["elements/offsets"].as_int_ptr();
-
       const auto originalElement =
          n_group_edges["fields/originalElement/values"].as_index_t_ptr();
 
@@ -1269,8 +1315,35 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
    const Node &n_mesh_topo    = n_mesh["topologies"][topo_name];
    std::string mesh_ele_shape = n_mesh_topo["elements/shape"].as_string();
 
-   mfem::Geometry::Type mesh_geo = ShapeNameToGeomType(mesh_ele_shape);
-   int num_idxs_per_ele = Geometry::NumVerts[mesh_geo];
+   mfem::Geometry::Type mesh_geo;
+   int num_idxs_per_ele {};
+   if (mesh_ele_shape == "polygonal")
+   {
+      // See whether we can use these polygons.
+      const auto ele_sizes = n_mesh_topo["elements/sizes"].as_int_accessor();
+      const bool same_size = ele_sizes.min() == ele_sizes.max();
+      const bool is_tri_or_quad = ele_sizes.min() == 3 || ele_sizes.min() == 4;
+      MFEM_ASSERT(same_size,
+                 "Topology named \"" + topo_name + "\" contains polygons of varying sizes.");
+      MFEM_ASSERT(is_tri_or_quad,
+                 "Topology named \"" + topo_name + "\" contains polygons with other than 3 or 4 sides.");
+
+      if (ele_sizes.min() == 3)
+      {
+         mesh_geo = ShapeNameToGeomType("tri");
+         num_idxs_per_ele = Geometry::NumVerts[mesh_geo];
+      }
+      else
+      {
+         mesh_geo = ShapeNameToGeomType("quad");
+         num_idxs_per_ele = Geometry::NumVerts[mesh_geo];
+      }
+   }
+   else
+   {
+      mesh_geo = ShapeNameToGeomType(mesh_ele_shape);
+      num_idxs_per_ele = Geometry::NumVerts[mesh_geo];
+   }
 
    const Node &n_mesh_conn = n_mesh_topo["elements/connectivity"];
 
