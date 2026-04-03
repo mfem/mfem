@@ -37,8 +37,8 @@ std::vector<std::pair<std::bitset<N>, real_t>> getProbabilitySpace(real_t p1, re
         throw std::runtime_error("Ill defined number of holds");
     }
 
-    // real_t p0 = 1.0 - N * p1 - (N - 1) * p2 - (N - 2) * p3 - (N - 3) * p4;
-    real_t p0 = 1.0 - (N - 1) * p2 - (N - 3) * p4;
+    real_t p0 = 1.0 - N * p1 - (N - 1) * p2 - (N - 2) * p3 - (N - 3) * p4;
+    // real_t p0 = 1.0 - (N - 1) * p2 - (N - 3) * p4;
 
     bitset<N> noFailures;
     probability_space.emplace_back(noFailures, p0);
@@ -46,12 +46,12 @@ std::vector<std::pair<std::bitset<N>, real_t>> getProbabilitySpace(real_t p1, re
     // Example: pair of a vector of ints and a float
     // probability_space.emplace_back(std::bitset<N>(), p0);
 
-    // for (int i = 0; i < N; i++)
-    // {
-    //     bitset<N> singleFailure;
-    //     singleFailure.set(i);
-    //     probability_space.emplace_back(singleFailure, p1);
-    // }
+    for (int i = 0; i < N; i++)
+    {
+        bitset<N> singleFailure;
+        singleFailure.set(i);
+        probability_space.emplace_back(singleFailure, p1);
+    }
 
     for (int i = 0; i < N - 1; i++)
     {
@@ -61,14 +61,14 @@ std::vector<std::pair<std::bitset<N>, real_t>> getProbabilitySpace(real_t p1, re
         probability_space.emplace_back(doubleFailure, p2);
     }
 
-    // for (int i = 0; i < N - 2; i++)
-    // {
-    //      bitset<N> tripleFailure;
-    //      tripleFailure.set(i);
-    //      tripleFailure.set(i + 1);
-    //      tripleFailure.set(i + 2);
-    //      probability_space.emplace_back(tripleFailure, p3);
-    // }
+    for (int i = 0; i < N - 2; i++)
+    {
+         bitset<N> tripleFailure;
+         tripleFailure.set(i);
+         tripleFailure.set(i + 1);
+         tripleFailure.set(i + 2);
+         probability_space.emplace_back(tripleFailure, p3);
+    }
 
     for (int i = 0; i < N - 3; i++)
     {
@@ -546,20 +546,20 @@ int main(int argc, char *argv[])
     const real_t tau = 1e-10; // threshold for probability truncation.
 
     const real_t p1 = 0.01; 
-    const real_t p2 = 0.05; 
+    const real_t p2 = 0.01; 
     const real_t p3 = 0.01; 
-    const real_t p4 = 0.05; // SET BACK TO 0.005
+    const real_t p4 = 0.005; // SET BACK TO 0.005
 
     const real_t cvar_alpha = 0.05;
     const int outer_loop_iterations = 30;
     const int inner_loop_iterations = 10;
     const int MAX_BACKTRACKING_ATTEMPTS = 10; // maximum number of backtracking attempts in each inner loop iteration.
 
-    const real_t block_size_ratio = 0.25; // change back to 0.6
-    const int STOCHASTIC_GRADIENT_MINIBATCH_SIZE = 2;
+    const real_t block_size_ratio = 0.35; // change back to 0.6
+    const int STOCHASTIC_GRADIENT_MINIBATCH_SIZE = 3;
 
     // encoded exclusvely. If >=, 0, start running stochastic at the RUN_DETERMINISTIC_UNTILth step
-    const int RUN_DETERMINISTIC_UNTIL = 0; 
+    const int RUN_DETERMINISTIC_UNTIL = 20; 
     const bool RUN_SYMMETRIC = true;
 
     // "const" or "gradient"
@@ -761,7 +761,7 @@ int main(int argc, char *argv[])
     ParGridFunction& sol=elsolver->GetDisplacements();
 
     // set up the paraview
-    mfem::ParaViewDataCollection paraview_dc("cvar_optimization_stochastic_02Apr2026", &pmesh);
+    mfem::ParaViewDataCollection paraview_dc("cvar_optimization_stochastic_03Apr2026_total", &pmesh);
     // rho_gf.ProjectCoefficient(rho);
     paraview_dc.SetPrefixPath("ParaView");
     paraview_dc.SetLevelsOfDetail(order);
@@ -872,20 +872,28 @@ int main(int argc, char *argv[])
 
         // now we also set 
 
-        std::vector<std::size_t> block_k_non_symmetrized = sample_k_indices_without_replacement(latent_probabilities_k_0, cvar_alpha, BLOCK_SIZE, tau, rng);
-        // float delta_k = 0.0;
-        // for (auto &[bits, original_probability, latent_probability] : latent_probabilities_k_0){
-        //     delta_k += (original_probability / (1 - cvar_alpha)) * sigmoid(latent_probability);
-        // }
-
         std::vector<std::size_t> block_k;
-        if (!RUN_SYMMETRIC) {
-            block_k = block_k_non_symmetrized;
+
+
+        if (is_deterministic_step(k, RUN_DETERMINISTIC_UNTIL)) {
+            block_k = std::vector<size_t>(latent_probabilities_k_0.size()); // Create vector of size N
+            std::iota(block_k.begin(), block_k.end(), 0);
         } else {
-            block_k = std::vector<size_t>(2 * BLOCK_SIZE);
-            for (int i = 0; i < BLOCK_SIZE; i++) {
-                block_k[2*i] = block_k_non_symmetrized[i];
-                block_k[2*i + 1] = symmetric_index_vector[block_k_non_symmetrized[i]];   
+             std::vector<std::size_t> block_k_non_symmetrized = sample_k_indices_without_replacement(latent_probabilities_k_0, cvar_alpha, BLOCK_SIZE, tau, rng);
+            // float delta_k = 0.0;
+            // for (auto &[bits, original_probability, latent_probability] : latent_probabilities_k_0){
+            //     delta_k += (original_probability / (1 - cvar_alpha)) * sigmoid(latent_probability);
+            // }
+
+            if (!RUN_SYMMETRIC) {
+                block_k = block_k_non_symmetrized;
+            } else {
+                block_k = std::vector<size_t>(2 * BLOCK_SIZE);
+                for (int i = 0; i < BLOCK_SIZE; i++) {
+                    block_k[2*i] = block_k_non_symmetrized[i];
+                    // note that this adds replacement! That's a problem, if we're not careful.
+                    block_k[2*i + 1] = symmetric_index_vector[block_k_non_symmetrized[i]];   
+                }
             }
         }
 
@@ -1226,16 +1234,29 @@ int main(int argc, char *argv[])
 
                 // Apply the adjoint filter operation
                 filt->AFilter(icc.GetGradIsoComp(), odens_gradient_single); // adjoint operation to projection to find differential in design space. Chain rule.
-                // if (myid == 0) {
-                //     std::cout << "After AFilter, norm odens_gradient_single: " << odens_gradient_single.ComputeL2Error(zero) << std::endl;
-                // }
+                real_t grad_norm_after_afilter = odens_gradient_single.ComputeL2Error(zero);
+                if (myid == 0) {
+                    std::cout << "After AFilter, norm odens_gradient_single: " << grad_norm_after_afilter << std::endl;
+                }
+                if (std::isnan(grad_norm_after_afilter)) {
+                    if (myid == 0) std::cout << "NaN detected after AFilter for scenario " << bits.to_string() << std::endl;
+                    odens_gradient_single = 0.0; // skip this gradient
+                    continue;
+                }
                 // get the true vector of the gradient
                 odens_gradient_single.SetTrueVector();
                 M.Mult(odens_gradient_single.GetTrueVector(), tmp_grad);
                 odens_gradient_single.SetFromTrueDofs(tmp_grad);
-                // if (myid == 0) {
-                //     std::cout << "After smoothing, norm odens_gradient_single: " << odens_gradient_single.ComputeL2Error(zero) << std::endl;
-                // }
+
+                real_t grad_norm_after_smooth = odens_gradient_single.ComputeL2Error(zero);
+                if (myid == 0) {
+                    std::cout << "After smoothing, norm odens_gradient_single: " << grad_norm_after_smooth << std::endl;
+                }
+                if (std::isnan(grad_norm_after_smooth)) {
+                    if (myid == 0) std::cout << "NaN detected after smoothing for scenario " << bits.to_string() << std::endl;
+                    odens_gradient_single = 0.0; // skip this gradient
+                    continue;
+                }
                 // ogf.GetTrueDofs(ograd); // extracting the information in the ParGridFunction into the ograd. Lives in dual of design space.
 
                 real_t weight = latent_probability_indices_to_sample_weights[i];
@@ -1263,6 +1284,11 @@ int main(int argc, char *argv[])
                 // if (compute_gradient) {
                 //     odens_gradient_holder.Add(normalizing_factor, odens_gradient_single);
                 // }
+            }
+
+            real_t total_gradient = odens_weighted_gradient.ComputeL2Error(zero);
+            if (myid == 0) {
+                std::cout << "Total gradient norm: " << total_gradient << std::endl;
             }
 
 
@@ -1334,7 +1360,8 @@ int main(int argc, char *argv[])
                 SumCoefficient odens_gradient_difference_coeff(grad_coeff, grad_old_coeff, 1.0, -1.0);
                 odens_gradient_difference.ProjectCoefficient(odens_gradient_difference_coeff);
 
-                // Compute L2 norms of the differences (for debugging / sanity checks)
+
+                // Compute L2 norms of the differences (for ?debugging / sanity checks)
                 ConstantCoefficient zero_c(0.0);
                 real_t local_dx_norm = odens_difference.ComputeL2Error(zero_c);
                 real_t local_dpsi_norm = odens_latent_difference.ComputeL2Error(zero_c);
@@ -1343,6 +1370,24 @@ int main(int argc, char *argv[])
                 real_t dx_norm_sq = local_dx_norm * local_dx_norm;
                 real_t dpsi_norm_sq = local_dpsi_norm * local_dpsi_norm;
                 real_t dg_norm_sq = local_dg_norm * local_dg_norm;
+
+
+
+                /* TEMPORARY: Error for norms. */
+
+                odens_gf.ProjectCoefficient(odens);
+                odens_old_gf.ProjectCoefficient(odens_old);
+
+                real_t local_odens_norm = odens_gf.ComputeL2Error(zero_c);
+                real_t local_dpsi_norm = odens_latent_difference.ComputeL2Error(zero_c);
+                real_t local_dg_norm = odens_gradient_difference.ComputeL2Error(zero_c);
+
+                real_t dx_norm_sq = local_dx_norm * local_dx_norm;
+                real_t dpsi_norm_sq = local_dpsi_norm * local_dpsi_norm;
+                real_t dg_norm_sq = local_dg_norm * local_dg_norm;
+
+                /* END Temporary */
+
 
                 real_t global_dx_norm_sq, global_dpsi_norm_sq, global_dg_norm_sq;
                 MPI_Allreduce(&dx_norm_sq, &global_dx_norm_sq, 1, MPI_DOUBLE, MPI_SUM, filt->GetDesignFES()->GetComm());
