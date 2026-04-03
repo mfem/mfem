@@ -1695,18 +1695,21 @@ int main(int argc, char *argv[])
    MatrixSumCoefficient epsilonPML_real(lambEpsilonSigma_real1,lambEpsilonSigma_real2,1.0,-1.0);
    MatrixSumCoefficient epsilonPML_imag(lambEpsilonSigma_imag1,lambEpsilonSigma_imag2);
 
-
    // Create a coefficient describing the magnetic permeability
-   //ConstantCoefficient muInvCoef(1.0 / mu0_);
+   ConstantCoefficient muInvCoef(1.0 / mu0_);
+
+   // PML for permeability tensor:
+
+   MatrixCoefficient *muInvPML_real = NULL;
+   MatrixCoefficient *muInvPML_imag = NULL;
+
    IdentityMatrixCoefficient identityM(3);
    ScalarMatrixProductCoefficient muInvReCoef(1.0/mu0_, identityM);
 
    DenseMatrix mat(3);
    mat = 0.0; 
    MatrixConstantCoefficient muInvImCoef(mat);
-
-   // PML for permeability tensor:
-
+      
    lambdaPML invlambdaPML_real(true,false,true);
    lambdaPML invlambdaPML_imag(false,false,true);
 
@@ -1726,11 +1729,11 @@ int main(int argc, char *argv[])
    MatrixProductCoefficient sigma_muinv_lambinv_imag1(Sigma_real,lambMu_imag);
    MatrixProductCoefficient sigma_muinv_lambinv_imag2(Sigma_imag,lambMu_real);
 
-   MatrixSumCoefficient muInvPML_real(sigma_muinv_lambinv_real1,sigma_muinv_lambinv_real2,1.0,-1.0);
-   MatrixSumCoefficient muInvPML_imag(sigma_muinv_lambinv_imag1,sigma_muinv_lambinv_imag2);
-
-   //muPML muInvPML_real(true,false,false);
-   //muPML muInvPML_imag(false,false,false);
+   if (pml)
+   {
+      muInvPML_real = new MatrixSumCoefficient(sigma_muinv_lambinv_real1,sigma_muinv_lambinv_real2,1.0,-1.0);
+      muInvPML_imag = new MatrixSumCoefficient(sigma_muinv_lambinv_imag1,sigma_muinv_lambinv_imag2);
+   }
 
    SheathImpedance z_r(BField, density, temperature,
                        L2FESpace, H1FESpace,
@@ -1742,15 +1745,15 @@ int main(int argc, char *argv[])
    MultiStrapAntennaH HReStrapCoef(msa_n, msa_p, msa_c, true);
    MultiStrapAntennaH HImStrapCoef(msa_n, msa_p, msa_c, false);
 
-   MatrixComponentCoefficient exx_r(epsilon_real,0,0);
-   MatrixComponentCoefficient exy_r(epsilon_real,0,1);
-   MatrixComponentCoefficient exz_r(epsilon_real,0,2);
-   MatrixComponentCoefficient eyx_r(epsilon_real,1,0);
-   MatrixComponentCoefficient eyy_r(epsilon_real,1,1);
-   MatrixComponentCoefficient eyz_r(epsilon_real,1,2);
-   MatrixComponentCoefficient ezx_r(epsilon_real,2,0);
-   MatrixComponentCoefficient ezy_r(epsilon_real,2,1);
-   MatrixComponentCoefficient ezz_r(epsilon_real,2,2);
+   MatrixComponentCoefficient exx_r(epsilonPML_real,0,0);
+   MatrixComponentCoefficient exy_r(epsilonPML_imag,0,1);
+   MatrixComponentCoefficient exz_r(epsilonPML_real,0,2);
+   MatrixComponentCoefficient eyx_r(epsilonPML_real,1,0);
+   MatrixComponentCoefficient eyy_r(epsilonPML_real,1,1);
+   MatrixComponentCoefficient eyz_r(epsilonPML_real,1,2);
+   MatrixComponentCoefficient ezx_r(epsilonPML_real,2,0);
+   MatrixComponentCoefficient ezy_r(epsilonPML_real,2,1);
+   MatrixComponentCoefficient ezz_r(epsilonPML_real,2,2);
    exx_r_gf.ProjectCoefficient(exx_r);
    exy_r_gf.ProjectCoefficient(exy_r);
    exz_r_gf.ProjectCoefficient(exz_r);
@@ -2042,9 +2045,9 @@ int main(int argc, char *argv[])
                  (numbers.Size() > 2) ? suscept_imag_ion2 : NULL,
                  (numbers.Size() > 3) ? suscept_real_ion3 : NULL,
                  (numbers.Size() > 3) ? suscept_imag_ion3 : NULL,
-                 (pml) ? (MatrixCoefficient&) muInvPML_real : (MatrixCoefficient&) muInvReCoef,
-                 (pml) ? (MatrixCoefficient&) muInvPML_imag : (MatrixCoefficient&) muInvImCoef,
-                  etaInvCoef,
+                 (pml) ?  muInvPML_real : NULL,
+                 (pml) ?  muInvPML_imag : NULL,
+                 muInvCoef, etaInvCoef,
                  (phase_shift) ? &kReCoef : NULL,
                  (phase_shift) ? &kImCoef : NULL,
                  abcs, dbcs, nbcs, sbcs,
@@ -3222,12 +3225,12 @@ void curve_current_source_v2_i(const Vector &x, Vector &j)
 
 void curve_current_source_r(const Vector &x, Vector &j)
 {
-   curve_current_source_v2_r(x, j);
+   curve_current_source_v0_r(x, j);
 }
 
 void curve_current_source_i(const Vector &x, Vector &j)
 {
-   curve_current_source_v2_i(x, j);
+   curve_current_source_v0_i(x, j);
 }
 
 void e_bc_r(const Vector &x, Vector &E)

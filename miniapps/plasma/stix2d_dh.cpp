@@ -1464,15 +1464,7 @@ int main(int argc, char *argv[])
    ParGridFunction nui_gf(&H1FESpace);
    ParGridFunction iontemp_gf(&H1FESpace);
 
-   ParGridFunction exx_r_gf(&L2FESpace);
-   ParGridFunction exy_r_gf(&L2FESpace);
-   ParGridFunction exz_r_gf(&L2FESpace);
-   ParGridFunction eyx_r_gf(&L2FESpace);
-   ParGridFunction eyy_r_gf(&L2FESpace);
-   ParGridFunction eyz_r_gf(&L2FESpace);
-   ParGridFunction ezx_r_gf(&L2FESpace);
-   ParGridFunction ezy_r_gf(&L2FESpace);
-   ParGridFunction ezz_r_gf(&L2FESpace);
+   ParGridFunction mu_gf(&L2FESpace);
 
    G_EQDSK_Data *eqdsk = NULL;
    {
@@ -1990,6 +1982,11 @@ int main(int argc, char *argv[])
    // Create a coefficient describing the magnetic permeability
    ConstantCoefficient muCoef(mu0_);
 
+   // PML for permeability tensor:
+
+   MatrixCoefficient *muPML_real = NULL;
+   MatrixCoefficient *muPML_imag = NULL;
+
    IdentityMatrixCoefficient identityM(3);
    ScalarMatrixProductCoefficient muReCoef(mu0_, identityM);
 
@@ -2018,27 +2015,14 @@ int main(int argc, char *argv[])
    MatrixProductCoefficient lamb_mu_invsig_imag1(lambdaPML_real, muinvSigma_imag);
    MatrixProductCoefficient lamb_mu_invsig_imag2(lambdaPML_imag, muinvSigma_real);
 
-   MatrixSumCoefficient muPML_real(lamb_mu_invsig_real1,lamb_mu_invsig_real2,1.0,-1.0);
-   MatrixSumCoefficient muPML_imag(lamb_mu_invsig_imag1,lamb_mu_invsig_imag2);
+   if (pml)
+   {
+      muPML_real = new MatrixSumCoefficient(lamb_mu_invsig_real1,lamb_mu_invsig_real2,1.0,-1.0);
+      muPML_imag = new MatrixSumCoefficient(lamb_mu_invsig_imag1,lamb_mu_invsig_imag2);
+   }
 
-   MatrixComponentCoefficient exx_r(epsilonInv_real,0,0);
-   MatrixComponentCoefficient exy_r(epsilonInv_real,0,1);
-   MatrixComponentCoefficient exz_r(epsilonInv_real,0,2);
-   MatrixComponentCoefficient eyx_r(epsilonInv_real,1,0);
-   MatrixComponentCoefficient eyy_r(epsilonInv_real,1,1);
-   MatrixComponentCoefficient eyz_r(epsilonInv_real,1,2);
-   MatrixComponentCoefficient ezx_r(epsilonInv_real,2,0);
-   MatrixComponentCoefficient ezy_r(epsilonInv_real,2,1);
-   MatrixComponentCoefficient ezz_r(epsilonInv_real,2,2);
-   exx_r_gf.ProjectCoefficient(exx_r);
-   exy_r_gf.ProjectCoefficient(exy_r);
-   exz_r_gf.ProjectCoefficient(exz_r);
-   eyx_r_gf.ProjectCoefficient(eyx_r);
-   eyy_r_gf.ProjectCoefficient(eyy_r);
-   eyz_r_gf.ProjectCoefficient(eyz_r);
-   ezx_r_gf.ProjectCoefficient(ezx_r);
-   ezy_r_gf.ProjectCoefficient(ezy_r);
-   ezz_r_gf.ProjectCoefficient(ezz_r);
+   //MatrixComponentCoefficient muMatCoef(*muPML_real,0,0);
+   //mu_gf.ProjectCoefficient(muMatCoef);
 
    if (check_eps_inv)
    {
@@ -2400,8 +2384,8 @@ int main(int argc, char *argv[])
                    (numbers.Size() > 2) ? suscept_imag_ion2 : NULL,
                    (numbers.Size() > 3) ? suscept_real_ion3 : NULL,
                    (numbers.Size() > 3) ? suscept_imag_ion3 : NULL,
-                   (pml) ? (MatrixCoefficient&) muPML_real : (MatrixCoefficient&) muReCoef,
-                   (pml) ? (MatrixCoefficient&) muPML_imag : (MatrixCoefficient&) muImCoef,
+                   (pml) ?  muPML_real : NULL,
+                   (pml) ?  muPML_imag : NULL,
                    muCoef, etaCoef,
                    (phase_shift) ? &kReCoef : NULL,
                    (phase_shift) ? &kImCoef : NULL,
@@ -2436,6 +2420,10 @@ int main(int argc, char *argv[])
       auxFields[0]->ProjectCoefficient(HReCoef, HImCoef);
       auxFields[1]->ProjectCoefficient(EReCoef, EImCoef);
 
+      mu_gf *= 1/mu0_;
+
+      visit_dc.RegisterField("MU_XX", &mu_gf);
+
       visit_dc.RegisterField("Re_H_Exact", &auxFields[0]->real());
       visit_dc.RegisterField("Im_H_Exact", &auxFields[0]->imag());
 
@@ -2449,27 +2437,8 @@ int main(int argc, char *argv[])
       visit_dc.RegisterField("Electron_Density", &density_gf);
 
       //nue_gf *= 1/omega;
-      exx_r_gf *= 1/epsilon0_;
-      exy_r_gf *= 1/epsilon0_;
-      exz_r_gf *= 1/epsilon0_;
-      eyx_r_gf *= 1/epsilon0_;
-      eyy_r_gf *= 1/epsilon0_;
-      eyz_r_gf *= 1/epsilon0_;
-      ezx_r_gf *= 1/epsilon0_;
-      ezy_r_gf *= 1/epsilon0_;
-      ezz_r_gf *= 1/epsilon0_;
-
       visit_dc.RegisterField("Electron_Collisional_Profile", &nue_gf);
       visit_dc.RegisterField("Ion_Collisional_Profile", &nui_gf);
-      visit_dc.RegisterField("ep_xx", &exx_r_gf);
-      visit_dc.RegisterField("ep_xy", &exy_r_gf);
-      visit_dc.RegisterField("ep_xz", &exz_r_gf);
-      visit_dc.RegisterField("ep_yx", &eyx_r_gf);
-      visit_dc.RegisterField("ep_yy", &eyy_r_gf);
-      visit_dc.RegisterField("ep_yz", &eyz_r_gf);
-      visit_dc.RegisterField("ep_zx", &ezx_r_gf);
-      visit_dc.RegisterField("ep_zy", &ezy_r_gf);
-      visit_dc.RegisterField("ep_zz", &ezz_r_gf);
 
       visit_dc.RegisterField("Min_Ion_Temp", &iontemp_gf);
 

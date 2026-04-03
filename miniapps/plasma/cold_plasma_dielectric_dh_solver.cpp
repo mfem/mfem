@@ -34,7 +34,6 @@ return 3.0 * x[0] - 2.0 * x[1];
 */
 // Used for combining scalar coefficients
 //double prodFunc(double a, double b) { return a * b; }
-
 /*
 ElectricEnergyDensityCoef::ElectricEnergyDensityCoef(VectorCoefficient &Er,
                                                      VectorCoefficient &Ei,
@@ -458,8 +457,8 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
                          MatrixCoefficient * susceptImCoef_i2,
                          MatrixCoefficient * susceptReCoef_i3,
                          MatrixCoefficient * susceptImCoef_i3,
-                         MatrixCoefficient & muReCoef,
-                         MatrixCoefficient & muImCoef,
+                         MatrixCoefficient * muReCoef,
+                         MatrixCoefficient * muImCoef,
                          Coefficient & muCoef,
                          Coefficient * etaCoef,
                          VectorCoefficient * kReCoef,
@@ -605,8 +604,8 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      susceptImCoef_i3_(susceptImCoef_i3),
      // epsAbsCoef_(&epsAbsCoef),
      muCoef_(&muCoef),
-     muReCoef_(&muReCoef),
-     muImCoef_(&muImCoef),
+     muReCoef_(muReCoef),
+     muImCoef_(muImCoef),
      muInvReCoef_(muCoef, -1),
      etaCoef_(etaCoef),
      kReCoef_(kReCoef),
@@ -797,12 +796,19 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
                                                *a_bc_);
    }
    */
-   massCoef_ = new ProductCoefficient(*negOmega2Coef_,
-                                      *muCoef_);
-   massReCoef_ = new ScalarMatrixProductCoefficient(*negOmega2Coef_,
-                                      *muReCoef_);
-   massImCoef_ = new ScalarMatrixProductCoefficient(*negOmega2Coef_,
-                                      *muImCoef_);
+   if (muReCoef_)
+   {
+      massReCoef_ = new ScalarMatrixProductCoefficient(*negOmega2Coef_,
+                                         *muReCoef_);
+      massImCoef_ = new ScalarMatrixProductCoefficient(*negOmega2Coef_,
+                                         *muImCoef_);      
+   }
+   else
+   {
+      massCoef_ = new ProductCoefficient(*negOmega2Coef_,
+                                         *muCoef_);
+   }
+
    posMassCoef_ = new ProductCoefficient(*omega2Coef_,
                                          *muCoef_);
 
@@ -896,7 +902,15 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    if (pa_) { a1_->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a1_->AddDomainIntegrator(new CurlCurlIntegrator(*epsInvReCoef_),
                             new CurlCurlIntegrator(*epsInvImCoef_));
-   a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massReCoef_), new VectorFEMassIntegrator(*massImCoef_));
+   if (muReCoef_)
+   {
+      a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massReCoef_), new VectorFEMassIntegrator(*massImCoef_)); 
+   }
+   else
+   {
+      a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massCoef_), NULL);  
+   }
+   
    if (kReCoef_ || kImCoef_)
    {
       if (pa_)
@@ -2269,10 +2283,14 @@ void CPDSolverDH::computeE(const ParComplexGridFunction & d,
      gmres.Mult(RHS1, E);
    }
    */
+
+   tic_toc.Clear();
+   tic_toc.Start();
    
 
 #ifdef MFEM_USE_MUMPS
    {
+
       bool dmumps = true;
       if (dmumps)
       {
@@ -2331,9 +2349,17 @@ void CPDSolverDH::computeE(const ParComplexGridFunction & d,
       double nrme = e.ComputeL2Error(zeroVCoef, zeroVCoef);
 
       if (myid_ == 0) 
-         { 
-            cout << "norm of E: " << nrme << endl; 
-         }
+      { 
+         cout << "norm of E: " << nrme << endl; 
+         //cout << "Global Dissipation: " << global_diss << endl; 
+      }
+
+      tic_toc.Stop();
+
+      if ( myid_ == 0 && logging_ > 0 )
+      {
+         cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
+      }
    }
 }
 

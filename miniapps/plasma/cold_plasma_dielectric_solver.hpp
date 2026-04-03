@@ -96,7 +96,7 @@ class MagneticEnergyDensityCoef : public Coefficient
 public:
    MagneticEnergyDensityCoef(double omega,
                              VectorCoefficient &dEr, VectorCoefficient &dEi,
-                             MatrixCoefficient &muInvRe, MatrixCoefficient &muInvIm);
+                             Coefficient &muInv);
 
    double Eval(ElementTransformation &T,
                const IntegrationPoint &ip);
@@ -106,15 +106,10 @@ private:
 
    VectorCoefficient &dErCoef_;
    VectorCoefficient &dEiCoef_;
-   MatrixCoefficient &muInvReCoef_;
-   MatrixCoefficient &muInvImCoef_;
+   Coefficient &muInvCoef_;
 
    mutable Vector Br_;
    mutable Vector Bi_;
-   mutable Vector Hr_;
-   mutable Vector Hi_;
-   mutable DenseMatrix muInvRe_;
-   mutable DenseMatrix muInvIm_;
 };
 
 class EnergyDensityCoef : public Coefficient
@@ -124,7 +119,7 @@ public:
                      VectorCoefficient &Er, VectorCoefficient &Ei,
                      VectorCoefficient &dEr, VectorCoefficient &dEi,
                      MatrixCoefficient &epsr, MatrixCoefficient &epsi,
-                     MatrixCoefficient &muInvRe, MatrixCoefficient &muInvIm);
+                     Coefficient &muInv);
 
    double Eval(ElementTransformation &T,
                const IntegrationPoint &ip);
@@ -138,8 +133,7 @@ private:
    VectorCoefficient &dEiCoef_;
    MatrixCoefficient &epsrCoef_;
    MatrixCoefficient &epsiCoef_;
-   MatrixCoefficient &muInvReCoef_;
-   MatrixCoefficient &muInvImCoef_;
+   Coefficient &muInvCoef_;
 
    mutable Vector Er_;
    mutable Vector Ei_;
@@ -147,12 +141,8 @@ private:
    mutable Vector Di_;
    mutable Vector Br_;
    mutable Vector Bi_;
-   mutable Vector Hr_;
-   mutable Vector Hi_;
    mutable DenseMatrix eps_r_;
    mutable DenseMatrix eps_i_;
-   mutable DenseMatrix muInvRe_;
-   mutable DenseMatrix muInvIm_;
 };
 
 class PoyntingVectorReCoef : public VectorCoefficient
@@ -161,7 +151,7 @@ public:
    PoyntingVectorReCoef(double omega,
                         VectorCoefficient &Er, VectorCoefficient &Ei,
                         VectorCoefficient &dEr, VectorCoefficient &dEi,
-                        MatrixCoefficient &muInvRe, MatrixCoefficient &muInvIm);
+                        Coefficient &muInv);
 
    void Eval(Vector &S, ElementTransformation &T,
              const IntegrationPoint &ip);
@@ -173,17 +163,12 @@ private:
    VectorCoefficient &EiCoef_;
    VectorCoefficient &dErCoef_;
    VectorCoefficient &dEiCoef_;
-   MatrixCoefficient &muInvReCoef_;
-   MatrixCoefficient &muInvImCoef_;
+   Coefficient &muInvCoef_;
 
    mutable Vector Er_;
    mutable Vector Ei_;
-   mutable Vector Br_;
-   mutable Vector Bi_;
    mutable Vector Hr_;
    mutable Vector Hi_;
-   mutable DenseMatrix muInvRe_;
-   mutable DenseMatrix muInvIm_;
 };
 
 class PoyntingVectorImCoef : public VectorCoefficient
@@ -192,7 +177,7 @@ public:
    PoyntingVectorImCoef(double omega,
                         VectorCoefficient &Er, VectorCoefficient &Ei,
                         VectorCoefficient &dEr, VectorCoefficient &dEi,
-                        MatrixCoefficient &muInvRe, MatrixCoefficient &muInvIm);
+                        Coefficient &muInv);
 
    void Eval(Vector &S, ElementTransformation &T,
              const IntegrationPoint &ip);
@@ -204,17 +189,12 @@ private:
    VectorCoefficient &EiCoef_;
    VectorCoefficient &dErCoef_;
    VectorCoefficient &dEiCoef_;
-   MatrixCoefficient &muInvReCoef_;
-   MatrixCoefficient &muInvImCoef_;
+   Coefficient &muInvCoef_;
 
    mutable Vector Er_;
    mutable Vector Ei_;
-   mutable Vector Br_;
-   mutable Vector Bi_;
    mutable Vector Hr_;
    mutable Vector Hi_;
-   mutable DenseMatrix muInvRe_;
-   mutable DenseMatrix muInvIm_;
 };
 
 /// Cold Plasma Dielectric Solver
@@ -261,9 +241,10 @@ public:
              MatrixCoefficient * susceptImCoef_i2,
              MatrixCoefficient * susceptReCoef_i3,
              MatrixCoefficient * susceptImCoef_i3,
-             MatrixCoefficient & muInvReCoef,
-             MatrixCoefficient & muInvImCoef,
-             Coefficient * etaInvCoef,
+             MatrixCoefficient * muInvReCoef,
+             MatrixCoefficient * muInvImCoef,
+             Coefficient       & muInvCoef,
+             Coefficient       * etaInvCoef,
              VectorCoefficient * kReCoef,
              VectorCoefficient * kImCoef,
              Array<int> & abcs,
@@ -327,21 +308,16 @@ private:
    private:
       VectorCoefficient * krCoef_;
       VectorCoefficient * kiCoef_;
-      MatrixCoefficient * mReCoef_;
-      MatrixCoefficient * mImCoef_;
+      Coefficient       * mCoef_;
 
       bool realPart_;
       double a_;
 
       mutable Vector kr;
       mutable Vector ki;
-      mutable Vector mukr;
-      mutable Vector muki;
-      mutable DenseMatrix muInvRe_;
-      mutable DenseMatrix muInvIm_;
 
       void kmk(double a,
-               const Vector & kl, const Vector &kr,
+               const Vector & kl, double m, const Vector &kr,
                DenseMatrix & M)
       {
          double kk = kl * kr;
@@ -349,23 +325,22 @@ private:
          {
             for (int j=0; j<3; j++)
             {
-               M(i,j) += a * kl(j) * kr(i);
+               M(i,j) += a * m * kl(j) * kr(i);
             }
-            M(i,i) -= a * kk;
+            M(i,i) -= a * m * kk;
          }
       }
 
    public:
       kmkCoefficient(VectorCoefficient *krCoef, VectorCoefficient *kiCoef,
-                     MatrixCoefficient *mReCoef, MatrixCoefficient *mImCoef,
+                     Coefficient *mCoef,
                      bool realPart, double a = 1.0)
          : MatrixCoefficient(3),
            krCoef_(krCoef), kiCoef_(kiCoef),
-           mReCoef_(mReCoef),
-           mImCoef_(mImCoef),
+           mCoef_(mCoef),
            realPart_(realPart),
-           a_(a), kr(3), ki(3), mukr(3), muki(3), muInvRe_(3), muInvIm_(3)
-      { kr = 0.0; ki = 0.0; mukr = 0.0; muki = 0.0; muInvRe_ = 0.0; muInvIm_ = 0.0;}
+           a_(a), kr(3), ki(3)
+      { kr = 0.0; ki = 0.0; }
 
       void Eval(DenseMatrix &M, ElementTransformation &T,
                 const IntegrationPoint &ip)
@@ -373,33 +348,24 @@ private:
          M.SetSize(3);
          M = 0.0;
          if ((krCoef_ == NULL && kiCoef_ == NULL) ||
-             mReCoef_ == NULL)
+             mCoef_ == NULL)
          {
             return;
          }
-
+         double m = 0.0;
          if (krCoef_) { krCoef_->Eval(kr, T, ip); }
          if (kiCoef_) { kiCoef_->Eval(ki, T, ip); }
-         if (mReCoef_) { mReCoef_->Eval(muInvRe_, T, ip); }
-         if (mImCoef_) { mImCoef_->Eval(muInvIm_, T, ip); }
-
-         // real
-         muInvRe_.Mult(kr, mukr);
-         muInvIm_.AddMult_a(-1.0, ki, mukr);
-
-         // imag
-         muInvIm_.Mult(kr, muki);
-         muInvRe_.AddMult(ki, muki);
+         if (mCoef_) { m = mCoef_->Eval(T, ip); }
 
          if (realPart_)
          {
-            if (krCoef_) { kmk(1.0, kr, mukr, M); }
-            if (kiCoef_) { kmk(-1.0, ki, muki, M); }
+            if (krCoef_) { kmk(1.0, kr, m, kr, M); }
+            if (kiCoef_) { kmk(-1.0, ki, m, ki, M); }
          }
          else
          {
-            if (krCoef_ && kiCoef_) { kmk(1.0, kr, muki, M); }
-            if (kiCoef_ && krCoef_) { kmk(1.0, ki, mukr, M); }
+            if (krCoef_ && kiCoef_) { kmk(1.0, kr, m, ki, M); }
+            if (kiCoef_ && krCoef_) { kmk(1.0, ki, m, kr, M); }
          }
          if (a_ != 1.0) { M *= a_; }
       }
@@ -408,33 +374,22 @@ private:
    class CrossCoefficient : public MatrixCoefficient
    {
    private:
-      VectorCoefficient * krCoef_;
-      VectorCoefficient * kiCoef_;
-      MatrixCoefficient * mReCoef_;
-      MatrixCoefficient * mImCoef_;
+      VectorCoefficient * kCoef_;
+      Coefficient * mCoef_;
 
-      bool realPart_;
       double a_;
 
-      mutable Vector kr;
-      mutable Vector ki;
-      mutable Vector mukr;
-      mutable Vector muki;
-      mutable DenseMatrix muInvRe_;
-      mutable DenseMatrix muInvIm_;
+      mutable Vector k;
 
    public:
-      CrossCoefficient(VectorCoefficient *krCoef, VectorCoefficient *kiCoef,
-                       MatrixCoefficient *mReCoef, MatrixCoefficient *mImCoef,
-                       bool realPart, double a = 1.0)
+      CrossCoefficient(VectorCoefficient *kCoef,
+                       Coefficient *mCoef,
+                       double a = 1.0)
          : MatrixCoefficient(3),
-           krCoef_(krCoef),
-           kiCoef_(kiCoef),
-           mReCoef_(mReCoef),
-           mImCoef_(mImCoef),
-           realPart_(realPart),
-           a_(a), kr(3), ki(3), mukr(3), muki(3), muInvRe_(3), muInvIm_(3)
-      { kr = 0.0; ki = 0.0; mukr = 0.0; muki = 0.0; muInvRe_ = 0.0; muInvIm_ = 0.0;}
+           kCoef_(kCoef),
+           mCoef_(mCoef),
+           a_(a), k(3)
+      { k = 0.0; }
 
       void Eval(DenseMatrix &M, ElementTransformation &T,
                 const IntegrationPoint &ip)
@@ -442,31 +397,13 @@ private:
          M.SetSize(3);
          M = 0.0;
 
-         if (krCoef_) { krCoef_->Eval(kr, T, ip); }
-         if (kiCoef_) { kiCoef_->Eval(ki, T, ip); }
-         if (mReCoef_) { mReCoef_->Eval(muInvRe_, T, ip); }
-         if (mImCoef_) { mImCoef_->Eval(muInvIm_, T, ip); }
+         double m = 0.0;
+         if (kCoef_) { kCoef_->Eval(k, T, ip); }
+         if (mCoef_) { m = mCoef_->Eval(T, ip); }
 
-         // real
-         muInvRe_.Mult(kr, mukr);
-         muInvIm_.AddMult_a(-1.0, ki, mukr);
-
-         // imag
-         muInvIm_.Mult(kr, muki);
-         muInvRe_.AddMult(ki, muki);
-
-         if (realPart_)
-         {
-            M(2,1) = a_ * mukr(0);
-            M(0,2) = a_ * mukr(1);
-            M(1,0) = a_ * mukr(2);            
-         }
-         else
-         {
-            M(2,1) = a_ * muki(0);
-            M(0,2) = a_ * muki(1);
-            M(1,0) = a_ * muki(2);
-         }
+         M(2,1) = a_ * m * k(0);
+         M(0,2) = a_ * m * k(1);
+         M(1,0) = a_ * m * k(2);
 
          M(1,2) = -M(2,1);
          M(2,0) = -M(0,2);
@@ -657,6 +594,7 @@ private:
    MatrixCoefficient * susceptImCoef_i3_;    // Ion 3 Imag Susceptibility Coefficient
    MatrixCoefficient * muInvReCoef_;    // Real Dia/Paramagnetic Material Coefficient
    MatrixCoefficient * muInvImCoef_;    // Imag Dia/Paramagnetic Material Coefficient
+   Coefficient       * muInvCoef_;
    Coefficient       * etaInvCoef_;   // Admittance Coefficient
    VectorCoefficient * kReCoef_;        // Wave Vector
    VectorCoefficient * kImCoef_;        // Wave Vector

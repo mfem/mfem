@@ -73,37 +73,24 @@ double ElectricEnergyDensityCoef::Eval(ElementTransformation &T,
 MagneticEnergyDensityCoef::MagneticEnergyDensityCoef(double omega,
                                                      VectorCoefficient &dEr,
                                                      VectorCoefficient &dEi,
-                                                     MatrixCoefficient &muInvRe,
-                                                     MatrixCoefficient &muInvIm)
+                                                     Coefficient &muInv)
    : omega_(omega),
      dErCoef_(dEr),
      dEiCoef_(dEi),
-     muInvReCoef_(muInvRe),
-     muInvImCoef_(muInvIm),
+     muInvCoef_(muInv),
      Br_(3),
-     Bi_(3),
-     Hr_(3),
-     Hi_(3),
-     muInvRe_(3),
-     muInvIm_(3)
+     Bi_(3)
 {}
 
 double MagneticEnergyDensityCoef::Eval(ElementTransformation &T,
                                        const IntegrationPoint &ip)
 {
-   dErCoef_.Eval(Bi_, T, ip); Bi_ *=  1.0 / omega_;
-   dEiCoef_.Eval(Br_, T, ip); Br_ *= -1.0 / omega_;
+   dErCoef_.Eval(Bi_, T, ip); Bi_ /=  omega_;
+   dEiCoef_.Eval(Br_, T, ip); Br_ /= -omega_;
 
-   muInvReCoef_.Eval(muInvRe_, T, ip);
-   muInvImCoef_.Eval(muInvIm_, T, ip);
+   double muInv = muInvCoef_.Eval(T, ip);
 
-   muInvRe_.Mult(Br_, Hr_);
-   muInvIm_.AddMult_a(-1.0, Bi_, Hr_);
-
-   muInvIm_.Mult(Br_, Hi_);
-   muInvRe_.AddMult(Bi_, Hi_);
-
-   double u = ((Hr_ * Hr_) + (Hi_ * Hi_));
+   double u = ((Br_ * Br_) + (Bi_ * Bi_)) * muInv;
 
    return 0.5 * u;
 }
@@ -115,8 +102,7 @@ EnergyDensityCoef::EnergyDensityCoef(double omega,
                                      VectorCoefficient &dEi,
                                      MatrixCoefficient &epsr,
                                      MatrixCoefficient &epsi,
-                                     MatrixCoefficient &muInvRe,
-                                     MatrixCoefficient &muInvIm)
+                                     Coefficient &muInv)
    : omega_(omega),
      ErCoef_(Er),
      EiCoef_(Ei),
@@ -124,20 +110,15 @@ EnergyDensityCoef::EnergyDensityCoef(double omega,
      dEiCoef_(dEi),
      epsrCoef_(epsr),
      epsiCoef_(epsi),
-     muInvReCoef_(muInvRe),
-     muInvImCoef_(muInvIm),
+     muInvCoef_(muInv),
      Er_(3),
      Ei_(3),
      Dr_(3),
      Di_(3),
      Br_(3),
      Bi_(3),
-     Hr_(3),
-     Hi_(3),
      eps_r_(3),
-     eps_i_(3),
-     muInvRe_(3),
-     muInvIm_(3)
+     eps_i_(3)
 {}
 
 double EnergyDensityCoef::Eval(ElementTransformation &T,
@@ -146,17 +127,8 @@ double EnergyDensityCoef::Eval(ElementTransformation &T,
    ErCoef_.Eval(Er_, T, ip);
    EiCoef_.Eval(Ei_, T, ip);
 
-   dErCoef_.Eval(Bi_, T, ip); Bi_ *=  1.0 / omega_;
-   dEiCoef_.Eval(Br_, T, ip); Br_ *= -1.0 / omega_;
-
-   muInvReCoef_.Eval(muInvRe_, T, ip);
-   muInvImCoef_.Eval(muInvIm_, T, ip);
-
-   muInvRe_.Mult(Br_, Hr_);
-   muInvIm_.AddMult_a(-1.0, Bi_, Hr_);
-
-   muInvIm_.Mult(Br_, Hi_);
-   muInvRe_.AddMult(Bi_, Hi_);
+   dErCoef_.Eval(Bi_, T, ip); Bi_ /=  omega_;
+   dEiCoef_.Eval(Br_, T, ip); Br_ /= -omega_;
 
    epsrCoef_.Eval(eps_r_, T, ip);
    epsiCoef_.Eval(eps_i_, T, ip);
@@ -167,7 +139,9 @@ double EnergyDensityCoef::Eval(ElementTransformation &T,
    eps_i_.Mult(Er_, Di_);
    eps_r_.AddMult(Ei_, Di_);
 
-   double u = (Er_ * Dr_) + (Ei_ * Di_) + ((Hr_ * Hr_) + (Hi_ * Hi_));
+   double muInv = muInvCoef_.Eval(T, ip);
+
+   double u = (Er_ * Dr_) + (Ei_ * Di_) + ((Br_ * Br_) + (Bi_ * Bi_)) * muInv;
 
    return 0.5 * u;
 }
@@ -177,24 +151,18 @@ PoyntingVectorReCoef::PoyntingVectorReCoef(double omega,
                                            VectorCoefficient &Ei,
                                            VectorCoefficient &dEr,
                                            VectorCoefficient &dEi,
-                                           MatrixCoefficient &muInvRe,
-                                           MatrixCoefficient &muInvIm)
+                                           Coefficient &muInv)
    : VectorCoefficient(3),
      omega_(omega),
      ErCoef_(Er),
      EiCoef_(Ei),
      dErCoef_(dEr),
      dEiCoef_(dEi),
-     muInvReCoef_(muInvRe),
-     muInvImCoef_(muInvIm),
+     muInvCoef_(muInv),
      Er_(3),
      Ei_(3),
-     Br_(3),
-     Bi_(3),
      Hr_(3),
-     Hi_(3),
-     muInvRe_(3),
-     muInvIm_(3)
+     Hi_(3)
 {}
 
 void PoyntingVectorReCoef::Eval(Vector &S, ElementTransformation &T,
@@ -203,17 +171,10 @@ void PoyntingVectorReCoef::Eval(Vector &S, ElementTransformation &T,
    ErCoef_.Eval(Er_, T, ip);
    EiCoef_.Eval(Ei_, T, ip);
 
-   dErCoef_.Eval(Bi_, T, ip); Bi_ *=  1.0 / omega_;
-   dEiCoef_.Eval(Br_, T, ip); Br_ *= -1.0 / omega_;
+   double muInv = muInvCoef_.Eval(T, ip);
 
-   muInvReCoef_.Eval(muInvRe_, T, ip);
-   muInvImCoef_.Eval(muInvIm_, T, ip);
-
-   muInvRe_.Mult(Br_, Hr_);
-   muInvIm_.AddMult_a(-1.0, Bi_, Hr_);
-
-   muInvIm_.Mult(Br_, Hi_);
-   muInvRe_.AddMult(Bi_, Hi_);
+   dErCoef_.Eval(Hi_, T, ip); Hi_ *=  muInv / omega_;
+   dEiCoef_.Eval(Hr_, T, ip); Hr_ *= -muInv / omega_;
 
    S.SetSize(3);
 
@@ -234,24 +195,18 @@ PoyntingVectorImCoef::PoyntingVectorImCoef(double omega,
                                            VectorCoefficient &Ei,
                                            VectorCoefficient &dEr,
                                            VectorCoefficient &dEi,
-                                           MatrixCoefficient &muInvRe,
-                                           MatrixCoefficient &muInvIm)
+                                           Coefficient &muInv)
    : VectorCoefficient(3),
      omega_(omega),
      ErCoef_(Er),
      EiCoef_(Ei),
      dErCoef_(dEr),
      dEiCoef_(dEi),
-     muInvReCoef_(muInvRe),
-     muInvImCoef_(muInvIm),
+     muInvCoef_(muInv),
      Er_(3),
      Ei_(3),
-     Br_(3),
-     Bi_(3),
      Hr_(3),
-     Hi_(3),
-     muInvRe_(3),
-     muInvIm_(3)
+     Hi_(3)
 {}
 
 void PoyntingVectorImCoef::Eval(Vector &S, ElementTransformation &T,
@@ -260,17 +215,10 @@ void PoyntingVectorImCoef::Eval(Vector &S, ElementTransformation &T,
    ErCoef_.Eval(Er_, T, ip);
    EiCoef_.Eval(Ei_, T, ip);
 
-   dErCoef_.Eval(Bi_, T, ip); Bi_ *=  1.0 / omega_;
-   dEiCoef_.Eval(Br_, T, ip); Br_ *= -1.0 / omega_;
+   double muInv = muInvCoef_.Eval(T, ip);
 
-   muInvReCoef_.Eval(muInvRe_, T, ip);
-   muInvImCoef_.Eval(muInvIm_, T, ip);
-
-   muInvRe_.Mult(Br_, Hr_);
-   muInvIm_.AddMult_a(-1.0, Bi_, Hr_);
-
-   muInvIm_.Mult(Br_, Hi_);
-   muInvRe_.AddMult(Bi_, Hi_);
+   dErCoef_.Eval(Hi_, T, ip); Hi_ *=  muInv / omega_;
+   dEiCoef_.Eval(Hr_, T, ip); Hr_ *= -muInv / omega_;
 
    S.SetSize(3);
 
@@ -304,9 +252,10 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
                      MatrixCoefficient * susceptImCoef_i2,
                      MatrixCoefficient * susceptReCoef_i3,
                      MatrixCoefficient * susceptImCoef_i3,
-                     MatrixCoefficient & muInvReCoef,
-                     MatrixCoefficient & muInvImCoef,
-                     Coefficient * etaInvCoef,
+                     MatrixCoefficient * muInvReCoef,
+                     MatrixCoefficient * muInvImCoef,
+                     Coefficient       & muInvCoef,
+                     Coefficient       * etaInvCoef,
                      VectorCoefficient * kReCoef,
                      VectorCoefficient * kImCoef,
                      Array<int> & abcs,
@@ -463,8 +412,9 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      susceptImCoef_i2_(susceptImCoef_i2),
      susceptReCoef_i3_(susceptReCoef_i3),
      susceptImCoef_i3_(susceptImCoef_i3),
-     muInvReCoef_(&muInvReCoef),
-     muInvImCoef_(&muInvImCoef),
+     muInvReCoef_(muInvReCoef),
+     muInvImCoef_(muInvImCoef),
+     muInvCoef_(&muInvCoef),
      etaInvCoef_(etaInvCoef),
      kReCoef_(kReCoef),
      kImCoef_(kImCoef),
@@ -486,10 +436,10 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      massReCoef_(NULL),
      massImCoef_(NULL),
      posMassCoef_(NULL),
-     kmkReCoef_(kReCoef_, kImCoef_, muInvReCoef_, muInvImCoef_, true, -1.0),
-     kmkImCoef_(kReCoef_, kImCoef_, muInvReCoef_, muInvImCoef_, false, -1.0),
-     kmReCoef_(kReCoef_, kImCoef_, muInvReCoef_, muInvImCoef_, true, 1.0),
-     kmImCoef_(kReCoef_, kImCoef_, muInvReCoef_, muInvImCoef_, false, -1.0),
+     kmkReCoef_(kReCoef_, kImCoef_, muInvCoef_, true, -1.0),
+     kmkImCoef_(kReCoef_, kImCoef_, muInvCoef_, false, -1.0),
+     kmReCoef_(kReCoef_, muInvCoef_, 1.0),
+     kmImCoef_(kImCoef_, muInvCoef_, -1.0),
      // negMuInvkxkxCoef_(NULL),
      // negMuInvkCoef_(NULL),
      // muInvkCoef_(NULL),
@@ -502,11 +452,11 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      derCoef_(NULL),
      deiCoef_(NULL),
      uCoef_(omega_, erCoef_, eiCoef_, derCoef_, deiCoef_,
-            *epsReCoef_, *epsImCoef_, *muInvReCoef_, *muInvImCoef_),
+            *epsReCoef_, *epsImCoef_, *muInvCoef_),
      uECoef_(erCoef_, eiCoef_, *epsReCoef_, *epsImCoef_),
-     uBCoef_(omega_, derCoef_, deiCoef_, *muInvReCoef_, *muInvImCoef_),
-     SrCoef_(omega_, erCoef_, eiCoef_, derCoef_, deiCoef_, *muInvReCoef_, *muInvImCoef_),
-     SiCoef_(omega_, erCoef_, eiCoef_, derCoef_, deiCoef_, *muInvReCoef_, *muInvImCoef_),
+     uBCoef_(omega_, derCoef_, deiCoef_, *muInvCoef_),
+     SrCoef_(omega_, erCoef_, eiCoef_, derCoef_, deiCoef_, *muInvCoef_),
+     SiCoef_(omega_, erCoef_, eiCoef_, derCoef_, deiCoef_, *muInvCoef_),
      j_r_src_(j_r_src),
      j_i_src_(j_i_src),
      // e_r_bc_(e_r_bc),
@@ -792,8 +742,16 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    // Bilinear Forms
    a1_ = new ParSesquilinearForm(HCurlFESpace_, conv_);
    if (pa_) { a1_->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   a1_->AddDomainIntegrator(new CurlCurlIntegrator(*muInvReCoef_), 
-                            new CurlCurlIntegrator(*muInvImCoef_));
+   if (muInvReCoef_)
+   {
+       a1_->AddDomainIntegrator(new CurlCurlIntegrator(*muInvReCoef_), 
+                                  new CurlCurlIntegrator(*muInvImCoef_));
+   }
+   else
+   {
+       a1_->AddDomainIntegrator(new CurlCurlIntegrator(*muInvCoef_), NULL);    
+   }
+
    a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massReCoef_),
                             new VectorFEMassIntegrator(*massImCoef_));
    if ( kReCoef_ || kImCoef_ )
@@ -858,7 +816,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    b1_ = new ParBilinearForm(HCurlFESpace_);
    if (pa_) { b1_->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    // where does the imaginary term go here ???
-   b1_->AddDomainIntegrator(new CurlCurlIntegrator(*muInvReCoef_));
+   b1_->AddDomainIntegrator(new CurlCurlIntegrator(*muInvCoef_));
    // b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsAbsCoef_));
    b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*posMassCoef_));
    //b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massImCoef_));
@@ -2402,7 +2360,7 @@ CPDSolver::GetErrorEstimates(Vector & errors)
 
    // Space for the discontinuous (original) flux
    // imaginary here ???
-   CurlCurlIntegrator flux_integrator(*muInvReCoef_);
+   CurlCurlIntegrator flux_integrator(*muInvCoef_);
    RT_FECollection flux_fec(order_-1, pmesh_->SpaceDimension());
    ParFiniteElementSpace flux_fes(pmesh_, &flux_fec);
 
