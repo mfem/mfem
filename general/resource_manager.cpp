@@ -409,6 +409,12 @@ void TempAllocator<BaseAlloc, NeedsWait>::Dealloc(void *ptr, size_t)
             {
                // last block completely free'd
                curr_end = std::get<0>(blocks[i]);
+               if constexpr (NeedsWait)
+               {
+                  // curr_end could be re-using something previously accessible,
+                  // need to block
+                  wait_next_alloc = true;
+               }
             }
             break;
          }
