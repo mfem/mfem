@@ -724,8 +724,9 @@ The specific libraries and their options are:
   Options: STRUMPACK_OPT, STRUMPACK_LIB.
   Versions: STRUMPACK >= 3.0.0.
 
-- CUDSS (optional), used when MFEM_USE_CUDSS = YES. Note that CUDSS needs CUDA 12.x
-  toolkit and the cuDSS libraries. 
+- CUDSS (optional), used when MFEM_USE_CUDSS = YES. Note that CUDSS requires 
+  CUDA 12.x toolkit and the cuDSS libraries. The supported communication backend
+  is OpenMPI 4.x (default), and OpenMPI 4.x or a later version must be pre-build.
   URL: https://developer.nvidia.com/cudss
   Options: CUDSS_OPT, CUDSS_INCLUDE_LIB.
   Versions: cuDSS >= 0.6.0.
