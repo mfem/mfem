@@ -3924,7 +3924,7 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
             if (dim_)
             {  
                Vector new_rz(2);
-               new_rz[0] = xyz_[0]; //sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
+               new_rz[0] = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
                new_rz[1] = xyz_[2]; 
 
                if (coords3d_)
