@@ -777,7 +777,7 @@ void DifferentiableOperator::AddIntegrator(
    auto output_dtq_maps = create_dtq_maps<entity_t>(outputs, dtq, output_to_field);
 
    const auto d1d = input_dtq_maps[0].B.GetShape()[2];
-   dbg("\x1b[33md1d:{} q1d:{} ", d1d, q1d);
+   // dbg("\x1b[33md1d:{} q1d:{} ", d1d, q1d);
 
    const int test_vdim = output_fop.vdim;
    const int test_op_dim = output_fop.size_on_qp / output_fop.vdim;

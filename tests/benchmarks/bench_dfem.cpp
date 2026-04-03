@@ -43,6 +43,15 @@ using future::Gradient;
 using future::Weight;
 using future::Identity;
 
+/// Max number of DOFs ////////////////////////////////////////////////////////
+#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+constexpr int MAX_NDOFS = 128 * 1024;
+constexpr int NDOFS_INC = 25;
+#else
+constexpr int MAX_NDOFS = 10 * 1024 * 1024;
+constexpr int NDOFS_INC = 25;
+#endif
+
 /// info //////////////////////////////////////////////////////////////////////
 static void DumpVersionInfo()
 {
@@ -54,15 +63,6 @@ static void DumpVersionInfo()
    mfem::out << "\x1b[m" << std::endl;
 }
 
-/// Max number of DOFs ////////////////////////////////////////////////////////
-#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-constexpr int MAX_NDOFS = 128 * 1024;
-constexpr int NDOFS_INC = 25;
-#else
-constexpr int MAX_NDOFS = 10 * 1024 * 1024;
-constexpr int NDOFS_INC = 25;
-#endif
-
 /// Benchmarks Arguments //////////////////////////////////////////////////////
 static void OrderSideVersionArgs(bm::Benchmark *b)
 {
@@ -70,7 +70,7 @@ static void OrderSideVersionArgs(bm::Benchmark *b)
    const auto versions = { 0, 1, 2, 3 };
    for (auto k : versions)
    {
-      for (int p = 8; p >= 1; p -= 1)
+      for (int p = 6; p >= 1; p -= 1)
       {
          for (int c = NDOFS_INC; est(c) <= MAX_NDOFS; c += NDOFS_INC)
          {
@@ -471,7 +471,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       cg.SetAbsTol(0.0);
       if (dofs < 128 * 1024) // check
       {
-         cg.SetPrintLevel(3/*-1*/);
+         cg.SetPrintLevel(-1);
          cg.SetMaxIter(2000);
          cg.SetRelTol(1e-8);
          cg.Mult(B, X);

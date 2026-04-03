@@ -13,6 +13,7 @@
 #include <cstddef>
 
 #include "fem/kernels.hpp"
+namespace ker = mfem::kernels::internal;
 #include "fem/kernel_dispatch.hpp"
 
 #include "util.hpp"
@@ -226,6 +227,7 @@ public:
                                    const std::array<size_t, num_inputs> &input_to_field,
                                    const std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
                                    const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
+                                   [[maybe_unused]] const int dimension,
                                    const int num_entities,
                                    const int test_vdim,
                                    const int num_test_dof,
@@ -252,9 +254,8 @@ public:
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
       constexpr int DIM = 3, VDIM = 1;
-      // constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 8;
-      constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 8;
-      db1("MQ1: {}", MQ1);
+      constexpr int MQ1 = T_Q1D > 0 ? ker::SetMaxOf(T_Q1D) : 8;
+      // db1("MQ1: {}", MQ1);
 
       [[maybe_unused]] static bool ini = (for_constexpr<num_inputs>([&](auto i)
       {
@@ -308,10 +309,14 @@ public:
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
          MFEM_SHARED real_t smem[MQ1][MQ1];
-         kernels::internal::vd_regs3d_t<VDIM,DIM, MQ1> r0, r1;
+         ker::vd_regs3d_t<VDIM,DIM, MQ1> r0, r1;
          real_t *r2;
 
          const auto fields_e_ptr = load_field_e_ptr(wrapped_fields_e, e);
+
+         // 🔥 instead of using the constant memory 🔥
+         constexpr int MD1 = T_D1D > 0 ? ker::SetMaxOf(T_D1D) : 8;
+         MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
 
          // Interpolate
          for_constexpr<num_inputs>([&](auto i)
@@ -324,18 +329,22 @@ public:
                const int vdim = input.vdim;
                const real_t *field_e_r = fields_e_ptr[input_to_field[i]];
                const auto field = Reshape(field_e_r, D1D, D1D, D1D, vdim);
-               const auto B = reinterpret_cast<const real_t (*)[MQ1]>(Bi[i]);
-               const auto G = reinterpret_cast<const real_t (*)[MQ1]>(Gi[i]);
+               // const auto B = reinterpret_cast<const real_t (*)[MQ1]>(Bi[i]); // 🔥
+               // const auto G = reinterpret_cast<const real_t (*)[MQ1]>(Gi[i]); // 🔥
+               // const auto B = (const real_t*)input_dtq_maps[i].B;
+               ker::LoadMatrix(D1D, Q1D, input_dtq_maps[i].B, sB);
+               // const auto G = (const real_t*)input_dtq_maps[i].G;
+               ker::LoadMatrix(D1D, Q1D, input_dtq_maps[i].G, sG);
                for (int c = 0; c < vdim; c++)
                {
-                  kernels::internal::LoadDofs3d(D1D, c, field, r0);
-                  kernels::internal::Grad3d(D1D, Q1D, smem, B, G, r0, r1, c);
+                  ker::LoadDofs3d(D1D, c, field, r0);
+                  ker::Grad3d(D1D, Q1D, smem, sB, sG, r0, r1, c);
                }
             }
 
             if constexpr (is_identity_fop<field_operator_t>::value) // Identity
             {
-               db1("Identity");
+               // db1("Identity");
                r2 = fields_e_ptr[input_to_field[i]];
             }
          }); // for_constexpr<num_inputs>
@@ -359,12 +368,16 @@ public:
          {
             const int vdim = output_fop.vdim;
             auto yd = Reshape(&y(0, 0), D1D, D1D, D1D, vdim);
-            const auto B = reinterpret_cast<const real_t (*)[MQ1]>(Bo);
-            const auto G = reinterpret_cast<const real_t (*)[MQ1]>(Go);
+            // const auto B = reinterpret_cast<const real_t (*)[MQ1]>(Bo); // 🔥
+            // const auto G = reinterpret_cast<const real_t (*)[MQ1]>(Go); // 🔥
+            // const auto B = (const real_t*) output_dtq_maps[0].B;
+            ker::LoadMatrix(D1D, Q1D, output_dtq_maps[0].B, sB);
+            // const auto G = (const real_t*)output_dtq_maps[0].G;
+            ker::LoadMatrix(D1D, Q1D, output_dtq_maps[0].G, sG);
             for (int c = 0; c < vdim; c++)
             {
-               kernels::internal::GradTranspose3d(D1D, Q1D, smem, B, G, r0, r1, c);
-               kernels::internal::WriteDofs3d(D1D, c, r1, yd);
+               ker::GradTranspose3d(D1D, Q1D, smem, sB, sG, r0, r1, c);
+               ker::WriteDofs3d(D1D, c, r1, yd);
             }
          }
       },
@@ -386,6 +399,7 @@ public:
                                     input_to_field,
                                     input_dtq_maps,
                                     output_dtq_maps,
+                                    dimension,
                                     num_entities,
                                     test_vdim,
                                     num_test_dof,
