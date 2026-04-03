@@ -35,9 +35,6 @@
 
 namespace mfem
 {
-cudssHandle_t CuDSSSolver::handle = nullptr;
-int CuDSSSolver::CuDSSSolverCount = 0;
-
 // Function used by the macro MFEM_CUDSS_CHECK.
 void mfem_cudss_error(cudssStatus_t status, const char *expr, const char *func,
                       const char *file, int line)
@@ -50,64 +47,23 @@ void mfem_cudss_error(cudssStatus_t status, const char *expr, const char *func,
    mfem_error();
 }
 
-CuDSSSolver::CuDSSSolver()
-{
-   if (!handle)
-   {
-      // // Create the cuDSS handle
-      MFEM_CUDSS_CHECK(cudssCreate(&handle));
-
-#ifdef MFEM_USE_OPENMP
-      const char* threading_lib = nullptr;
-#ifdef MFEM_CUDSS_THREADING_LIB
-      threading_lib = MFEM_CUDSS_THREADING_LIB;
-#endif
-      // NOTE: Set the threading layer library name to NULL so that cuDSS picks
-      // it from the environment variable "CUDSS_THREADING_LIB"
-      MFEM_CUDSS_CHECK(cudssSetThreadingLayer(handle, threading_lib));
-#endif // MFEM_USE_OPENMP
-   }
-
-   // Create the solver configuration and data objects
-   MFEM_CUDSS_CHECK(cudssConfigCreate(&solverConfig));
-   MFEM_CUDSS_CHECK(cudssDataCreate(handle, &solverData));
-
-   CuDSSSolverCount++;
-}
+CuDSSSolver::CuDSSSolver() { InitCuDSS(); }
 
 #ifdef MFEM_USE_MPI
 CuDSSSolver::CuDSSSolver(MPI_Comm comm_) : mpi_comm(comm_)
 {
-   if (!handle)
-   {
-      // Create the cuDSS handle
-      MFEM_CUDSS_CHECK(cudssCreate(&handle));
-      // NOTE: Set the communication layer to NULL so that cuDSS picks it
-      // from the environment variable "CUDSS_COMM_LIB"
-      const char* comm_lib = nullptr;
+   InitCuDSS();
+
+   // NOTE: Set the communication layer to NULL so that cuDSS picks it
+   // from the environment variable "CUDSS_COMM_LIB"
+   const char* comm_lib = nullptr;
 #ifdef MFEM_CUDSS_COMM_LIB
-      comm_lib = MFEM_CUDSS_COMM_LIB;
+   comm_lib = MFEM_CUDSS_COMM_LIB;
 #endif
-      MFEM_CUDSS_CHECK(cudssSetCommLayer(handle, comm_lib));
+   MFEM_CUDSS_CHECK(cudssSetCommLayer(handle, comm_lib));
 
-#ifdef MFEM_USE_OPENMP
-      // NOTE: Set the threading layer library name to NULL so that cuDSS picks
-      // it from the environment variable "CUDSS_THREADING_LIB"
-      const char* threading_lib = nullptr;
-#ifdef MFEM_CUDSS_THREADING_LIB
-      threading_lib = MFEM_CUDSS_THREADING_LIB;
-#endif
-      MFEM_CUDSS_CHECK(cudssSetThreadingLayer(handle, threading_lib));
-#endif  // MFEM_USE_OPENMP
-   }
-
-   // Create the solver configuration and data objects
-   MFEM_CUDSS_CHECK(cudssConfigCreate(&solverConfig));
-   MFEM_CUDSS_CHECK(cudssDataCreate(handle, &solverData));
    MFEM_CUDSS_CHECK(cudssDataSet(handle, solverData, CUDSS_DATA_COMM,
                                  &mpi_comm, sizeof(MPI_Comm *)));
-
-   CuDSSSolverCount++;
 }
 #endif // MFEM_USE_MPI
 
@@ -125,13 +81,10 @@ CuDSSSolver::~CuDSSSolver()
    MFEM_CUDSS_CHECK(cudssDataDestroy(handle, solverData));
    MFEM_CUDSS_CHECK(cudssConfigDestroy(solverConfig));
 
-   if (CuDSSSolverCount == 1)
-   {
-      MFEM_CUDSS_CHECK(cudssDestroy(handle));
-      handle = nullptr;
-   }
 
-   CuDSSSolverCount--;
+   MFEM_CUDSS_CHECK(cudssDestroy(handle));
+   handle = nullptr;
+
 
    if (csr_offsets_d != NULL)
    {
@@ -147,6 +100,26 @@ CuDSSSolver::~CuDSSSolver()
    {
       CuMemFree(csr_values_d);
    }
+}
+
+void CuDSSSolver::InitCuDSS()
+{
+   // Create the cuDSS handle
+   MFEM_CUDSS_CHECK(cudssCreate(&handle));
+
+#ifdef MFEM_USE_OPENMP
+   // NOTE: Set the threading layer library name to NULL so that cuDSS picks
+   // it from the environment variable "CUDSS_THREADING_LIB"
+   const char* threading_lib = nullptr;
+#ifdef MFEM_CUDSS_THREADING_LIB
+   threading_lib = MFEM_CUDSS_THREADING_LIB;
+#endif
+   MFEM_CUDSS_CHECK(cudssSetThreadingLayer(handle, threading_lib));
+#endif  // MFEM_USE_OPENMP
+
+   // Create the solver configuration and data objects
+   MFEM_CUDSS_CHECK(cudssConfigCreate(&solverConfig));
+   MFEM_CUDSS_CHECK(cudssDataCreate(handle, &solverData));
 }
 
 void CuDSSSolver::SetMatrixSymType(MatType mtype_)

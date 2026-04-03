@@ -172,8 +172,7 @@ private:
 
    // common for all cuDSS solver instances.
    // cuDSS object holds the cuDSS library context
-   static cudssHandle_t handle;
-   static int CuDSSSolverCount;
+   cudssHandle_t handle;
 
    // cuDSS object stores configuration settings for the solver
    mutable cudssConfig_t solverConfig;
@@ -214,6 +213,9 @@ private:
     * @note This method is called inside SetMatrix.
    */
    void SetMatrixCuDSS(int* csr_offsets, int* csr_columns, real_t* csr_values);
+
+   /// Method for initializing the cuDSS library and creating the cuDSS handle
+   void InitCuDSS();
 };
 
 } // namespace mfem
