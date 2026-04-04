@@ -125,9 +125,11 @@ void apply_kernel(reg_t &r0, reg_t &r1, real_t *r2,
 
 } // namespace qf
 
-// #define MFEM_D2Q_MAX_SIZE 4
-// static MFEM_CONSTANT real_t Bi[MFEM_D2Q_MAX_SIZE][8*8], Bo[8*8];
-// static MFEM_CONSTANT real_t Gi[MFEM_D2Q_MAX_SIZE][8*8], Go[8*8];
+#ifndef MFEM_USE_CUDA
+#define MFEM_D2Q_MAX_SIZE 4
+static MFEM_CONSTANT real_t Bi[MFEM_D2Q_MAX_SIZE][8*8], Bo[8*8];
+static MFEM_CONSTANT real_t Gi[MFEM_D2Q_MAX_SIZE][8*8], Go[8*8];
+#endif
 
 template<size_t num_fields,
          size_t num_inputs,
@@ -254,10 +256,12 @@ public:
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
       constexpr int DIM = 3, VDIM = 1;
-      constexpr int MQ1 = T_Q1D > 0 ? ker::SetMaxOf(T_Q1D) : 8;
-      // db1("MQ1: {}", MQ1);
+      // constexpr int MQ1 = T_Q1D > 0 ? ker::SetMaxOf(T_Q1D) : 8;
+      constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 8;
+      db1("MQ1: {}", MQ1);
 
-      /*[[maybe_unused]] static bool ini = (for_constexpr<num_inputs>([&](auto i)
+#ifndef MFEM_USE_CUDA
+      [[maybe_unused]] static bool ini = (for_constexpr<num_inputs>([&](auto i)
       {
          const auto dtq = input_dtq_maps[i];
          {
@@ -283,8 +287,10 @@ public:
             const auto [q, _, p] = dtq_o.G.GetShape();
             const auto G = (const real_t*)dtq_o.G;
             if (G) { HipMemcpyToSymbol(Go, G, (p*q)*sizeof(real_t)); }
+            dbg("Loaded B and G to constant memory");
          }
-      }), true);*/
+      }), true);
+#endif
 
       // types
       using qf_signature =
@@ -314,18 +320,26 @@ public:
 
          const auto fields_e_ptr = load_field_e_ptr(wrapped_fields_e, e);
 
+#ifdef MFEM_USE_CUDA
          // 🔥 instead of using the constant memory 🔥
          constexpr int MD1 = T_D1D > 0 ? ker::SetMaxOf(T_D1D) : 8;
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
+#endif
 
          // Interpolate
-         for_constexpr<num_inputs>([&,
-                                    D1D = D1D,
-                                    Q1D = Q1D,
-                                    input_to_field = input_to_field,
-                                    input_dtq_maps = input_dtq_maps,
-                                    output_fop = output_fop,
-                                    output_dtq_maps = output_dtq_maps](auto i)
+         for_constexpr<num_inputs>(
+#ifndef MFEM_USE_CUDA
+            [&]
+#else
+            [&,
+             D1D = D1D,
+             Q1D = Q1D,
+             input_to_field = input_to_field,
+             input_dtq_maps = input_dtq_maps,
+             output_fop = output_fop,
+             output_dtq_maps = output_dtq_maps]
+#endif // MFEM_USE_CUDA
+            (auto i)
          {
             const auto input = get<i>(inputs);
             using field_operator_t = std::decay_t<decltype(input)>;
@@ -335,12 +349,13 @@ public:
                const int vdim = input.vdim;
                const real_t *field_e_r = fields_e_ptr[input_to_field[i]];
                const auto field = Reshape(field_e_r, D1D, D1D, D1D, vdim);
-               // const auto B = reinterpret_cast<const real_t (*)[MQ1]>(Bi[i]); // 🔥
-               // const auto G = reinterpret_cast<const real_t (*)[MQ1]>(Gi[i]); // 🔥
-               // const auto B = (const real_t*)input_dtq_maps[i].B;
+#ifndef MFEM_USE_CUDA
+               const auto sB = reinterpret_cast<const real_t (*)[MQ1]>(Bi[i]);
+               const auto sG = reinterpret_cast<const real_t (*)[MQ1]>(Gi[i]);
+#else
                ker::LoadMatrix(D1D, Q1D, input_dtq_maps[i].B, sB);
-               // const auto G = (const real_t*)input_dtq_maps[i].G;
                ker::LoadMatrix(D1D, Q1D, input_dtq_maps[i].G, sG);
+#endif
                for (int c = 0; c < vdim; c++)
                {
                   ker::LoadDofs3d(D1D, c, field, r0);
@@ -374,12 +389,14 @@ public:
          {
             const int vdim = output_fop.vdim;
             auto yd = Reshape(&y(0, 0), D1D, D1D, D1D, vdim);
-            // const auto B = reinterpret_cast<const real_t (*)[MQ1]>(Bo); // 🔥
-            // const auto G = reinterpret_cast<const real_t (*)[MQ1]>(Go); // 🔥
-            // const auto B = (const real_t*) output_dtq_maps[0].B;
+
+#ifndef MFEM_USE_CUDA
+            const auto sB = reinterpret_cast<const real_t (*)[MQ1]>(Bo);
+            const auto sG = reinterpret_cast<const real_t (*)[MQ1]>(Go);
+#else
             ker::LoadMatrix(D1D, Q1D, output_dtq_maps[0].B, sB);
-            // const auto G = (const real_t*)output_dtq_maps[0].G;
             ker::LoadMatrix(D1D, Q1D, output_dtq_maps[0].G, sG);
+#endif
             for (int c = 0; c < vdim; c++)
             {
                ker::GradTranspose3d(D1D, Q1D, smem, sB, sG, r0, r1, c);

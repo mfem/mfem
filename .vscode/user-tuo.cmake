@@ -1,5 +1,6 @@
 # -------------------------------- CMake Commands --------------------------------
 # tuos, rocm642
+# export CMAKE_CFG=Debug CMAKE_TGT=bench_dfem
 # export CMAKE_CFG=Release CMAKE_TGT=bench_dfem
 
 
@@ -35,8 +36,8 @@ if (${CMAKE_HOST_SYSTEM_NAME} MATCHES "Linux")
 endif()
 
 # ---------------------------- NVTX Debug File --------------------------------
-# add_compile_definitions(NVTX_DBG_HPP="$ENV{HOME}/tuo/usr/src/nvtx/nvtx_dbg.hpp")
-# add_compile_definitions(NVTX_FMT_HPP="$ENV{HOME}/tuo/usr/src/nvtx/nvtx_fmt.hpp")
+add_compile_definitions(NVTX_DBG_HPP="$ENV{HOME}/home/tuo/usr/src/nvtx/nvtx_dbg.hpp")
+add_compile_definitions(NVTX_FMT_HPP="$ENV{HOME}/home/tuo/usr/src/nvtx/nvtx_fmt.hpp")
 
 # --------------------------------- CXX Host ----------------------------------
 if (${CMAKE_HOST_SYSTEM_NAME} MATCHES "Linux")
@@ -90,8 +91,8 @@ elseif(${CMAKE_HOST_SYSTEM_NAME} MATCHES "Darwin")
 endif()
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
-    add_link_options(-fsanitize=address)
+    # add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
+    # add_link_options(-fsanitize=address)
 endif()
 
 # -------------------------- Includes & TPL Libraries --------------------------
