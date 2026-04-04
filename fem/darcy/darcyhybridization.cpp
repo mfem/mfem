@@ -2369,6 +2369,7 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
       case LocalOpType::FluxNL:
       {
          //solve the flux
+         lsolver->SetAbsTol(std::max(bu_l.Norml2() * lsolve.rtol, lsolve.atol));
          lsolver->Mult(bu_l, u_l);
 
          //solve the potential
@@ -2378,6 +2379,7 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
       case LocalOpType::PotNL:
       {
          //solve the potential
+         lsolver->SetAbsTol(std::max(bp_l.Norml2() * lsolve.rtol, lsolve.atol));
          lsolver->Mult(bp_l, p_l);
 
          //solve the flux
@@ -2397,6 +2399,7 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
          x.GetBlock(1) = p_l;
 
          //solve the flux and potential
+         lsolver->SetAbsTol(std::max(b.Norml2() * lsolve.rtol, lsolve.atol));
          lsolver->Mult(b, x);
 
          u_l = x.GetBlock(0);
