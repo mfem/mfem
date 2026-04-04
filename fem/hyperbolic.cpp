@@ -2034,6 +2034,7 @@ real_t IsothermalFlux::ComputeAvgFlux(const Vector &U1, const Vector &U2,
    }
 
    // density
+   const real_t density = 0.5 * (density1 + density2);
 
    // pressure, p = cs²ρ
    const real_t pressure = sound_speed*sound_speed * density;
@@ -2092,6 +2093,7 @@ real_t IsothermalFlux::ComputeAvgFluxDotN(const Vector &U1, const Vector &U2,
    }
 
    // density
+   const real_t density = 0.5 * (density1 + density2);
 
    // pressure, p = cs²ρ
    const real_t pressure = sound_speed*sound_speed * density;
