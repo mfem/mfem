@@ -327,6 +327,44 @@ struct BakeOff
    double MDofs() const { return 1e-6 * dofs; }
 };
 
+/// Q-Functions ///////////////////////////////////////////////////////////////
+template<int DIM>
+struct MFApply
+{
+   MFEM_HOST_DEVICE inline
+   auto operator()(const tensor<real_t, DIM>& Gu,
+                   const tensor<real_t, DIM, DIM>& J,
+                   const real_t& w) const
+   {
+      auto invJ = inv(J);
+      return tuple{((Gu * invJ)) * transpose(invJ) * det(J) * w};
+   }
+};
+
+template<int DIM>
+struct PASetup
+{
+   MFEM_HOST_DEVICE inline
+   auto operator()([[maybe_unused]] const real_t &u,
+                   const tensor<real_t, DIM, DIM> &J,
+                   const real_t &w)const
+   {
+      return tuple{inv(J) * transpose(inv(J)) * det(J) * w};
+   }
+};
+
+
+template<int DIM>
+struct PAApply
+{
+   MFEM_HOST_DEVICE inline
+   auto operator()(const tensor<real_t, DIM> &Gu,
+                   const tensor<real_t, DIM, DIM> &q) const
+   {
+      return tuple{q * Gu};
+   };
+};
+
 /// Diffusion /////////////////////////////////////////////////////////////////
 template <int VDIM = 1, bool GLL = false>
 struct Diffusion : public BakeOff<VDIM, GLL>
@@ -408,15 +446,8 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          auto parameters = std::vector{FieldDescriptor{Ξ, &mfes}};
          dop = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
          dop->SetParameters({nodes});
-         auto diffusion_mf_kernel =
-            [] MFEM_HOST_DEVICE (const tensor<real_t, DIM>& Gu,
-                                 const tensor<real_t, DIM, DIM>& J,
-                                 const real_t& w)
-         {
-            auto invJ = inv(J);
-            return tuple{((Gu * invJ)) * transpose(invJ) * det(J) * w};
-         };
-         dop->AddDomainIntegrator(diffusion_mf_kernel,
+         MFApply<DIM> mf_apply;
+         dop->AddDomainIntegrator(mf_apply,
                                   tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
                                   tuple{Gradient<U>{}},
                                   *ir, ess_bdr);
@@ -433,14 +464,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          auto GΞ = Gradient<Ξ> {};
          tuple Gu_Iq = {Gu, Iq};
          tuple Iu_GΞ_W = {Iu, GΞ, W};
-
-         auto pa_setup_qf =
-            [] MFEM_HOST_DEVICE(const real_t &u [[maybe_unused]],
-                                const tensor<real_t, DIM, DIM> &J,
-                                const real_t &w)
-         {
-            return tuple{inv(J) * transpose(inv(J)) * det(J) * w};
-         };
+         PASetup<DIM> pa_setup_qf;
          DifferentiableOperator dSetup(u_sol, Ξ_q_params, pmesh);
          dSetup.AddDomainIntegrator(pa_setup_qf, Iu_GΞ_W, tuple{Iq}, *ir, ess_bdr);
          dSetup.SetParameters({nodes, &qdata});
@@ -448,12 +472,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          pfes.GetRestrictionMatrix()->Mult(x, X);
          dSetup.Mult(X, qdata);
 
-         auto pa_apply_qf =
-            [] MFEM_HOST_DEVICE(const tensor<real_t, DIM> &Gu,
-                                const tensor<real_t, DIM, DIM> &q)
-         {
-            return tuple{q * Gu};
-         };
+         PAApply<DIM> pa_apply_qf;
          dop = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
          if (use_new_kernels) { dop->UseNewKernels(); }
          if (use_kernels_specialization) { dop->UseKernelsSpecialization(); }
@@ -522,7 +541,7 @@ static void AddBasicKernelSpecializations()
    Det::Specialization<3, 3, 2, 3>::Add();
    Det::Specialization<3, 3, 2, 5>::Add();
    Det::Specialization<3, 3, 2, 6>::Add();
-   Det::Specialization<3, 3, 2, 7>::Add();
+   // Others might exceed memory limits
 
    using Grad = QuadratureInterpolator::GradKernels;
    Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 3>::Add();

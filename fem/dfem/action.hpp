@@ -125,9 +125,9 @@ void apply_kernel(reg_t &r0, reg_t &r1, real_t *r2,
 
 } // namespace qf
 
-#define MFEM_D2Q_MAX_SIZE 4
-static MFEM_CONSTANT real_t Bi[MFEM_D2Q_MAX_SIZE][8*8], Bo[8*8];
-static MFEM_CONSTANT real_t Gi[MFEM_D2Q_MAX_SIZE][8*8], Go[8*8];
+// #define MFEM_D2Q_MAX_SIZE 4
+// static MFEM_CONSTANT real_t Bi[MFEM_D2Q_MAX_SIZE][8*8], Bo[8*8];
+// static MFEM_CONSTANT real_t Gi[MFEM_D2Q_MAX_SIZE][8*8], Go[8*8];
 
 template<size_t num_fields,
          size_t num_inputs,
@@ -248,7 +248,7 @@ public:
                                    const int d1d, const int q1d)
    {
       assert(dimension == 3);
-      static_assert(MFEM_D2Q_MAX_SIZE >= num_inputs, "MFEM_D2Q_MAX_SIZE error");
+      // static_assert(MFEM_D2Q_MAX_SIZE >= num_inputs, "MFEM_D2Q_MAX_SIZE error");
 
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -257,7 +257,7 @@ public:
       constexpr int MQ1 = T_Q1D > 0 ? ker::SetMaxOf(T_Q1D) : 8;
       // db1("MQ1: {}", MQ1);
 
-      [[maybe_unused]] static bool ini = (for_constexpr<num_inputs>([&](auto i)
+      /*[[maybe_unused]] static bool ini = (for_constexpr<num_inputs>([&](auto i)
       {
          const auto dtq = input_dtq_maps[i];
          {
@@ -284,7 +284,7 @@ public:
             const auto G = (const real_t*)dtq_o.G;
             if (G) { HipMemcpyToSymbol(Go, G, (p*q)*sizeof(real_t)); }
          }
-      }), true);
+      }), true);*/
 
       // types
       using qf_signature =
@@ -319,7 +319,13 @@ public:
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
 
          // Interpolate
-         for_constexpr<num_inputs>([&](auto i)
+         for_constexpr<num_inputs>([&,
+                                    D1D = D1D,
+                                    Q1D = Q1D,
+                                    input_to_field = input_to_field,
+                                    input_dtq_maps = input_dtq_maps,
+                                    output_fop = output_fop,
+                                    output_dtq_maps = output_dtq_maps](auto i)
          {
             const auto input = get<i>(inputs);
             using field_operator_t = std::decay_t<decltype(input)>;
