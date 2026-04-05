@@ -63,6 +63,8 @@ private:
    sub_to_parent; // map from trace dof on sub mesh to dof on parent mesh
 
 #ifdef MFEM_USE_MPI
+   bool parallel = false;
+
    std::unique_ptr<ParMixedBilinearForm>
    p_sub_bf; // parallel sub mesh bilinear form
    std::unique_ptr<OperatorHandle>
@@ -101,8 +103,6 @@ public:
       MFEM_VERIFY(sub_mesh->GetParent() == parent_mesh,
                   "SubMeshToParentCouplingTransfer: trial_parent_fes mesh should be the parent of test_sub_fes mesh");
 #endif
-
-      bool parallel = false;
 
 #ifdef MFEM_USE_MPI
       auto *trial_parent_pfes = dynamic_cast<ParFiniteElementSpace*>

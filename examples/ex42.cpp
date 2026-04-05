@@ -1,11 +1,30 @@
-//                          MFEM Example 42
+//                        MFEM Example 42 - serial version
 //
 // Compile with: make ex42
 //
 // Sample runs: ./ex42
 //
-// Serial Version
+// Description: This example code demostrates the use of MFEM to
+//              solve a bound-constrained energy minimization problem
 //
+//                 minimize ||∇u||² subject to u ≥ ϕ on Γ in H¹₀(Ω).
+//
+//              This corresponds to a unilateral Signorini-type contact
+//              problem, where the solution u is constrained to lie above
+//              a prescribed obstacle ϕ on the contact boundary Γ.
+//
+//              The problem is discretized and solved using the proximal
+//              Galerkin finite element method, introduced by Keith and
+//              Surowiec [1].
+//
+//              This example highlights the use of MFEM's SubMesh and
+//              MixedBilinearForm features to construct a coupled
+//              nonlinear system involving variables defined separately
+//              over the domain and the boundary submesh.
+//
+// [1] Keith, B. and Surowiec, T. (2023) Proximal Galerkin: A structure-
+//     preserving finite element method for pointwise bound constraints.
+//     arXiv:2307.12444 [math.NA]
 
 #include "mfem.hpp"
 #include "ex42.hpp"
@@ -143,10 +162,11 @@ int main(int argc, char *argv[])
    u_gf.ProjectCoefficient(init_u_c);
    u_old_gf = u_gf;
 
-   // create trace grid function for computing initial psi
-   H1_FECollection *trace_fec = new H1_FECollection(order+1, sub_dim);
-   FiniteElementSpace *trace_fes = new FiniteElementSpace(&contact_mesh, trace_fec,
-                                                          dim);
+   // Create temporary trace grid function for computing initial psi
+   H1_FECollection *trace_fec; FiniteElementSpace *trace_fes;
+   trace_fec = new H1_FECollection(order+1, sub_dim);
+   trace_fes = new FiniteElementSpace(&contact_mesh, trace_fec, dim);
+
    GridFunction u_trace_gf(trace_fes);
    contact_mesh.Transfer(u_gf, u_trace_gf);
 
@@ -169,8 +189,6 @@ int main(int argc, char *argv[])
    a00.Finalize();
    SparseMatrix &A00 = a00.SpMat();
    A00.EliminateBC(ess_tdof_list, mfem::Operator::DIAG_ONE);
-   Vector A00_diag_base(A00.Height());
-   A00.GetDiag(A00_diag_base);
 
    ParentToSubMixedBilinearForm a10(&H1fes, &L2fes);
    a10.AddBoundaryDomainIntegrator(new MixedFormIntegrator(n_tilde_c, dim));
@@ -208,6 +226,10 @@ int main(int argc, char *argv[])
    gmres.SetKDim(500);
    gmres.SetPrintLevel(0);
    gmres.SetMaxIter(1000000);
+
+   // Extract the diagonal of A00 for preconditioning.
+   Vector A00_diag_base(A00.Height());
+   A00.GetDiag(A00_diag_base);
 
    for (int k = 0; k <= max_iterations; k++)
    {
@@ -310,8 +332,6 @@ int main(int argc, char *argv[])
       u_old_gf = u_gf;
       psi_old_gf = psi_gf;
 
-      // cin.get();
-
       if (increment_u < tol || k == max_iterations-1)
       {
          break;
@@ -333,7 +353,7 @@ real_t LogarithmGridFunctionCoefficient::Eval(ElementTransformation &T,
    Vector u_val(dim);
    u->GetVectorValue(T, ip, u_val);
 
-   // Return ln(φ₁ - u · ñ)
+   // Return ln(ϕ₁ - u · ñ)
    real_t val = log(gap->Eval(T, ip) - u_val * *n_tilde);
    return max(min_val, val);
 }

@@ -1,11 +1,30 @@
-//                          MFEM Example 42 - parallel version
+//                        MFEM Example 42 - parallel version
 //
 // Compile with: make ex42p
 //
 // Sample runs: mpirun -np 4 ex42p
 //
-// Parallel Version
+// Description: This example code demostrates the use of MFEM to
+//              solve a bound-constrained energy minimization problem
 //
+//                 minimize ||∇u||² subject to u ≥ ϕ on Γ in H¹₀(Ω).
+//
+//              This corresponds to a unilateral Signorini-type contact
+//              problem, where the solution u is constrained to lie above
+//              a prescribed obstacle ϕ on the contact boundary Γ.
+//
+//              The problem is discretized and solved using the proximal
+//              Galerkin finite element method, introduced by Keith and
+//              Surowiec [1].
+//
+//              This example highlights the use of MFEM's SubMesh and
+//              MixedBilinearForm features to construct a coupled
+//              nonlinear system involving variables defined separately
+//              over the domain and the boundary submesh.
+//
+// [1] Keith, B. and Surowiec, T. (2023) Proximal Galerkin: A structure-
+//     preserving finite element method for pointwise bound constraints.
+//     arXiv:2307.12444 [math.NA]
 
 #include "mfem.hpp"
 #include "ex42.hpp"
@@ -177,16 +196,21 @@ int main(int argc, char *argv[])
    u_gf.ProjectCoefficient(init_u_c);
    u_old_gf = u_gf;
 
-   // create trace grid function for computing initial psi
-   H1_FECollection trace_fec(order+1, sub_dim);
-   ParFiniteElementSpace trace_fes(&contact_mesh, &trace_fec, dim);
-   ParGridFunction u_trace_gf(&trace_fes);
+   // Create temporary trace grid function for computing initial psi
+   H1_FECollection *trace_fec; ParFiniteElementSpace *trace_fes;
+   trace_fec = new H1_FECollection(order+1, sub_dim);
+   trace_fes = new ParFiniteElementSpace(&contact_mesh, trace_fec, dim);
+
+   ParGridFunction u_trace_gf(trace_fes);
    contact_mesh.Transfer(u_gf, u_trace_gf);
 
    FunctionCoefficient gap_cf(GapFunction);
    LogarithmGridFunctionCoefficient psi_init_cf(u_trace_gf, gap_cf, n_tilde);
    psi_gf.ProjectCoefficient(psi_init_cf);
    psi_old_gf = psi_gf;
+
+   delete trace_fec;
+   delete trace_fes;
 
    // 10. Set up linear and bilinear forms.
    ParLinearForm b_force(&H1fes);
@@ -390,7 +414,7 @@ real_t LogarithmGridFunctionCoefficient::Eval(ElementTransformation &T,
    Vector u_val(dim);
    u->GetVectorValue(T, ip, u_val);
 
-   // Return ln(φ₁ - u · ñ)
+   // Return ln(ϕ₁ - u · ñ)
    real_t val = log(gap->Eval(T, ip) - u_val * *n_tilde);
    return max(min_val, val);
 }
