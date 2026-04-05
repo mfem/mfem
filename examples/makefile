@@ -161,6 +161,10 @@ ex41-test-seq: ex41
 	@$(call mfem-test,$<,, Serial example,-tf 1.0)
 ex41p-test-par: ex41p
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel example,-tf 1.0)
+ex42-test-seq: ex42
+	@$(call mfem-test,$<,, Serial example,-i 1)
+ex42p-test-par: ex42p
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel example,-i 1)
 # Testing: optional tests
 ifeq ($(MFEM_USE_STRUMPACK),YES)
 ex11p-test-strumpack: ex11p
