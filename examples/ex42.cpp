@@ -127,6 +127,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient one(1.0);
    ConstantCoefficient zero(0.0);
 
+   // 9. Initialize the solutions.
    GridFunction u_gf, delta_psi_gf;
    u_gf.MakeRef(&H1fes,x,offsets[0]);
    delta_psi_gf.MakeRef(&L2fes,x,offsets[1]);
@@ -138,7 +139,6 @@ int main(int argc, char *argv[])
    u_old_gf = 0.0;
    psi_old_gf = 0.0;
 
-   // 9. Initialize the solutions.
    VectorFunctionCoefficient init_u_c(dim, InitialCondition);
    u_gf.ProjectCoefficient(init_u_c);
    u_old_gf = u_gf;
@@ -223,7 +223,6 @@ int main(int argc, char *argv[])
       {
          // Define coefficients
          ExponentialGridFunctionCoefficient exp_psi(psi_gf);
-         FunctionCoefficient gap_cf(GapFunction);
          SumCoefficient gap_minus_exp_psi(gap_cf, exp_psi, 1.0, -1.0);
 
          LinearForm b0,b1;

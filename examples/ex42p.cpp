@@ -261,7 +261,6 @@ int main(int argc, char *argv[])
       {
          // Define coefficients
          ExponentialGridFunctionCoefficient exp_psi(psi_gf);
-         FunctionCoefficient gap_cf(GapFunction);
          SumCoefficient gap_minus_exp_psi(gap_cf, exp_psi, 1.0, -1.0);
 
          ParLinearForm b0,b1;
