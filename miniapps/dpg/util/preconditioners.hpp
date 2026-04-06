@@ -84,12 +84,13 @@ public:
 
    int GetFESpaceMinimumOrder(const ParFiniteElementSpace *pfespace) const;
 
-   /// Computes orders/maxlevels and constructs fec/fes hierarchy and T_level storage.
+   /** @brief Computes orders/maxlevels and constructs fec/fes hierarchy 
+       and T_level storage. */
    void BuildSpaceHierarchy(int mgmaxlevels = -1);
 
-   /// Builds block-diagonal prolongation for level lev (coarse=lev, fine=lev+1).
-   /// Its diagonal blocks are HypreParMatrix*
-   /// returned by the transfer operators stored in T_level[lev][b].
+   /** @brief Builds block-diagonal prolongation for level lev (coarse=lev, fine=lev+1).
+       Its diagonal blocks are HypreParMatrix*
+       returned by the transfer operators stored in T_level[lev][b]. */
    BlockOperator *BuildProlongation(int lev);
 };
 

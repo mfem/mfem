@@ -476,8 +476,7 @@ TEST_CASE("Restriction Transpose Operator")
 
 real_t sin_func(const Vector &x)
 {
-   real_t val = sin(M_PI * x.Sum());
-   return val;
+   return sin(M_PI * x.Sum());
 }
 
 void sin_vfunc(const Vector &x, Vector &y)
@@ -494,7 +493,7 @@ TEST_CASE("Trace PRefinement Serial TrueTransfer", "[Transfer]")
 {
    auto simplex = GENERATE(true, false);
    dimension = GENERATE(2, 3);
-   int ne = 4;
+   constexpr int ne = 4;
    auto order = GENERATE(1,2,3);
    auto vectorspace = GENERATE(VecSpace::H1, VecSpace::VectorH1nodes,
                                VecSpace::VectorH1vdim,
@@ -503,7 +502,7 @@ TEST_CASE("Trace PRefinement Serial TrueTransfer", "[Transfer]")
    auto amr = GENERATE(false, true);
 
    // Log test case information
-   int total_ne = static_cast<int>(std::pow(ne, dimension));
+   const int total_ne = static_cast<int>(std::pow(ne, dimension));
    CAPTURE(VecSpaceName(vectorspace),dimension, simplex, total_ne, order,
            assembleP);
 
@@ -778,7 +777,7 @@ TEST_CASE("Trace PRefinement Parallel TrueTransfer", "[Transfer][Parallel]")
 {
    auto simplex = GENERATE(true, false);
    dimension = GENERATE(2, 3);
-   int ne = 4;
+   constexpr int ne = 4;
    auto order = GENERATE(1,2,3);
    auto vectorspace = GENERATE(VecSpace::H1, VecSpace::VectorH1nodes,
                                VecSpace::VectorH1vdim,
@@ -788,7 +787,7 @@ TEST_CASE("Trace PRefinement Parallel TrueTransfer", "[Transfer][Parallel]")
    auto amr = GENERATE(true, false);
 
    // Log test case information
-   int total_ne = static_cast<int>(std::pow(ne, dimension));
+   const int total_ne = static_cast<int>(std::pow(ne, dimension));
    CAPTURE(VecSpaceName(vectorspace),dimension, simplex, total_ne, order,
            assembleP);
 

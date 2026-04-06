@@ -572,7 +572,7 @@ private:
    bool is_trace_space;
    bool assembled = false;
    std::unique_ptr<SparseMatrix> P;
-   mutable std::unique_ptr<Operator> tP;
+   std::unique_ptr<Operator> tP;
 
    std::unique_ptr<SparseMatrix> BuildConformingTransferMatrix() const;
    std::unique_ptr<Operator> BuildConformingTransferOperator() const;

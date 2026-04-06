@@ -250,6 +250,8 @@ public:
        its GetOrder() method. */
    virtual FiniteElementCollection *Clone(int p) const;
 
+   /** @brief Get the order of the constructor parameter for this collection type.
+    *  This differs from GetOrder() depending on the collection type. */
    virtual int GetConstructorOrder() const
    {
       MFEM_ABORT("Collection " << Name() << " does not support GetConstructorOrder");

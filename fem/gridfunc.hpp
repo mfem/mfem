@@ -592,11 +592,14 @@ public:
       Coefficient *coeff_p = &coeff;
       ProjectTraceCoefficient(&coeff_p);
    }
-   /// Project a VectorCoefficient on a GridFunction defined on a Vector H1 trace space
+   /** @brief Project a VectorCoefficient on a GridFunction
+       defined on a Vector H1 trace space */
    void ProjectTraceCoefficient(VectorCoefficient &vcoeff);
-   /// Project a VectorCoefficient on a GridFunction defined on a RT trace space
+   /** @brief Project a VectorCoefficient on a GridFunction
+       defined on an RT trace space */
    void ProjectTraceCoefficientNormal(VectorCoefficient &vcoeff);
-   /// Project a VectorCoefficient on a GridFunction defined on a ND trace space
+   /** @brief Project a VectorCoefficient on a GridFunction
+       defined on an ND trace space */
    void ProjectTraceCoefficientTangent(VectorCoefficient &vcoeff);
 
 

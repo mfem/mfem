@@ -364,10 +364,12 @@ ComplexPRefinementMultigrid::ComplexPRefinementMultigrid(
 #ifndef MFEM_USE_MUMPS
    if (mumps_coarse_solver)
    {
-      MFEM_WARNING("MUMPS coarse solver requires MFEM built with MUMPS. Switching to default coarse solver.");
+      MFEM_WARNING("MFEM not built with MUMPS."
+                   "Switching to default coarse solver (CG).");
    }
    mumps_coarse_solver = false;
 #endif
+
 
    const auto *Op_r = dynamic_cast<const BlockOperator*>(&Op.real());
    const auto *Op_i = dynamic_cast<const BlockOperator*>(&Op.imag());
