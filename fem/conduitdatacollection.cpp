@@ -28,8 +28,8 @@
 #include <sstream>
 
 // These macros control output of Blueprint debugging files.
-//#define DEBUG_SHARED_EDGES
-//#define DEBUG_SHARED_FACES
+#define DEBUG_SHARED_EDGES
+#define DEBUG_SHARED_FACES
 
 #if defined(DEBUG_SHARED_EDGES) || defined(DEBUG_SHARED_FACES)
 #include <conduit_relay.hpp>
@@ -544,6 +544,12 @@ ConduitParMeshBuilder::Build(MPI_Comm comm, mfem::Mesh &mesh,
    {
       InitSharedFaces(comm, pmesh, n_adjset);
    }
+   else
+   {
+      const int num_groups = pmesh->GetNGroups() - 1;
+      pmesh->group_stria.SetSize(num_groups, 0);
+      pmesh->group_squad.SetSize(num_groups, 0);
+   }
 
    return pmesh;
 }
@@ -801,11 +807,12 @@ ConduitParMeshBuilder::InitSharedFaces(MPI_Comm comm,
       }
    }
 
-   // Make the tables from the data.
+   // Shared-face tables must exist even when a given face type is absent.
+   BuildTable(pmesh->group_stria, triGroups);
+   BuildTable(pmesh->group_squad, quadGroups);
+
    if (triFaces > 0)
    {
-      BuildTable(pmesh->group_stria, triGroups);
-
       int stri_counter = 0;
       pmesh->shared_trias.SetSize(triFaces);
       for (int g = 0; g < numGroups; g++)
@@ -822,8 +829,6 @@ ConduitParMeshBuilder::InitSharedFaces(MPI_Comm comm,
    }
    if (quadFaces > 0)
    {
-      BuildTable(pmesh->group_squad, quadGroups);
-
       int squad_counter = 0;
       pmesh->shared_quads.SetSize(quadFaces);
       for (int g = 0; g < numGroups; g++)
@@ -964,11 +969,11 @@ void ConduitParMeshBuilder::InitSharedEdges(MPI_Comm comm,
       }
    }
 
-   // Make the tables from the data.
+   // Shared-edge tables must exist even when all groups are edge-empty.
+   BuildTable(pmesh->group_sedge, edgeGroups);
+
    if (edgeCount > 0)
    {
-      BuildTable(pmesh->group_sedge, edgeGroups);
-
       int counter = 0;
       pmesh->shared_edges.SetSize(edgeCount);
       pmesh->sedge_ledge = mfem::Array<int>(edgeCount);
