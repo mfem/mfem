@@ -33,8 +33,6 @@
 using namespace std;
 using namespace mfem;
 
-const real_t plane_g = -0.1;
-
 int main(int argc, char *argv[])
 {
    Mpi::Init();
@@ -48,7 +46,6 @@ int main(int argc, char *argv[])
    int max_iterations = 20;
    real_t alpha = 0.005;
    real_t tol = 1e-6;
-   const char *device_config = "cpu";
    bool visualization = true;
 
    const real_t lambda = 1.0;
@@ -66,8 +63,6 @@ int main(int argc, char *argv[])
                   "Alpha parameter for boundary condition.");
    args.AddOption(&tol, "-tol", "--tolerance",
                   "Iteration tolerance.");
-   args.AddOption(&device_config, "-d", "--device",
-                  "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -84,9 +79,6 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
-
-   Device device(device_config);
-   if (myid == 0) { device.Print(); }
 
    // 2. Read the mesh from the given mesh file.
    const char *mesh_file = "../data/wheel.msh";
@@ -259,7 +251,7 @@ int main(int argc, char *argv[])
 
    // Define GMRES solver for the linearized system
    GMRESSolver gmres(MPI_COMM_WORLD);
-   gmres.SetRelTol(1e-12);
+   gmres.SetRelTol(1e-8);
    gmres.SetKDim(500);
    gmres.SetPrintLevel(0);
    gmres.SetMaxIter(20000);
@@ -439,6 +431,8 @@ void InitialCondition(const Vector &x, Vector &u)
 
 real_t GapFunction(const Vector &x)
 {
+   const real_t plane_g = -0.1;
+
    const int dim = x.Size();
    return x(dim-1) - plane_g;
 }

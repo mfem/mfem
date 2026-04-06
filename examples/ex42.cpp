@@ -222,10 +222,10 @@ int main(int argc, char *argv[])
    real_t increment_u = 0.1;
 
    GMRESSolver gmres;
-   gmres.SetRelTol(1e-12);
+   gmres.SetRelTol(1e-8);
    gmres.SetKDim(500);
    gmres.SetPrintLevel(0);
-   gmres.SetMaxIter(1000000);
+   gmres.SetMaxIter(100000);
 
    // Extract the diagonal of A00 for preconditioning.
    Vector A00_diag_base(A00.Height());
