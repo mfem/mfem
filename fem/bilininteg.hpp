@@ -2947,6 +2947,7 @@ private:
 public:
    ConvectionIntegrator(VectorCoefficient &q, real_t a = 1.0);
 
+   /// Get the velocity coefficient $Q$
    VectorCoefficient *GetVelocity() const { return Q; }
 
    void AssembleElementMatrix(const FiniteElement &,
@@ -3022,6 +3023,7 @@ public:
    ConservativeConvectionIntegrator(VectorCoefficient &q, real_t a = 1.0)
       : TransposeIntegrator(new ConvectionIntegrator(q, -a)) { }
 
+   /// Get the velocity coefficient $q$
    VectorCoefficient *GetVelocity() const
    { return static_cast<ConvectionIntegrator*>(bfi)->GetVelocity(); }
 };
@@ -3975,8 +3977,8 @@ private:
 class DGNormalTraceIntegrator : public BilinearFormIntegrator
 {
 protected:
-   Coefficient *rho;
-   VectorCoefficient *u;
+   Coefficient *rho = nullptr;
+   VectorCoefficient *u = nullptr;
    real_t alpha, beta;
 
 private:
@@ -3985,20 +3987,19 @@ private:
 
 public:
    /// Construct integrator with $\rho = 1$, $\beta = 0$.
-   DGNormalTraceIntegrator(real_t a)
-   { rho = NULL; u = NULL; alpha = a; beta = 0.; }
+   DGNormalTraceIntegrator(real_t a) : alpha(a), beta(0.) { }
 
    /// Construct integrator with $\rho = 1$, $\beta = \alpha/2$.
    DGNormalTraceIntegrator(VectorCoefficient &u_, real_t a)
-   { rho = NULL; u = &u_; alpha = a; beta = 0.5*a; }
+      : u(&u_), alpha(a), beta(0.5*a) { }
 
    /// Construct integrator with $\rho = 1$.
    DGNormalTraceIntegrator(VectorCoefficient &u_, real_t a, real_t b)
-   { rho = NULL; u = &u_; alpha = a; beta = b; }
+      : u(&u_), alpha(a), beta(b) { }
 
    DGNormalTraceIntegrator(Coefficient &rho_, VectorCoefficient &u_,
                            real_t a, real_t b)
-   { rho = &rho_; u = &u_; alpha = a; beta = b; }
+      : rho(&rho_), u(&u_), alpha(a), beta(b) { }
 
    void AssembleFaceMatrix(const FiniteElement &trial_fe1,
                            const FiniteElement &test_fe1,

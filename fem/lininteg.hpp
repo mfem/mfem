@@ -470,18 +470,18 @@ class VectorBoundaryFluxLFIntegrator : public LinearFormIntegrator
 {
 private:
    real_t Sign;
-   Coefficient *F;
-   VectorCoefficient *VF;
+   Coefficient *F = nullptr;
+   VectorCoefficient *VF = nullptr;
    Vector shape, nor, vf;
 
 public:
    VectorBoundaryFluxLFIntegrator(Coefficient &f, real_t s = 1.0,
                                   const IntegrationRule *ir = NULL)
-      : LinearFormIntegrator(ir), Sign(s), F(&f), VF(NULL) { }
+      : LinearFormIntegrator(ir), Sign(s), F(&f) { }
 
    VectorBoundaryFluxLFIntegrator(VectorCoefficient &f, real_t s = 1.0,
                                   const IntegrationRule *ir = NULL)
-      : LinearFormIntegrator(ir), Sign(s), F(NULL), VF(&f) { }
+      : LinearFormIntegrator(ir), Sign(s), VF(&f) { }
 
    void AssembleRHSElementVect(const FiniteElement &el,
                                ElementTransformation &Tr,
@@ -500,21 +500,21 @@ public:
 class VectorFEBoundaryFluxLFIntegrator : public LinearFormIntegrator
 {
 private:
-   Coefficient *F;
-   VectorCoefficient *VF;
+   Coefficient *F = nullptr;
+   VectorCoefficient *VF = nullptr;
    DenseMatrix vshape;
    Vector shape, nor, nor_xt, vf;
    int oa, ob; // these control the quadrature order, see DomainLFIntegrator
 
 public:
    VectorFEBoundaryFluxLFIntegrator(int a = 1, int b = -1)
-      : F(NULL), VF(NULL), oa(a), ob(b) { }
+      : oa(a), ob(b) { }
 
    VectorFEBoundaryFluxLFIntegrator(Coefficient &f, int a = 2, int b = 0)
-      : F(&f), VF(NULL), oa(a), ob(b) { }
+      : F(&f), oa(a), ob(b) { }
 
    VectorFEBoundaryFluxLFIntegrator(VectorCoefficient &f, int a = 2, int b = 0)
-      : F(NULL), VF(&f), oa(a), ob(b) { }
+      : VF(&f), oa(a), ob(b) { }
 
    void AssembleRHSElementVect(const FiniteElement &el,
                                ElementTransformation &Tr,
@@ -626,12 +626,12 @@ public:
                                 real_t a, real_t b)
    { f = &f_; u = &u_; alpha = a; beta = b; }
 
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       FaceElementTransformations &Tr,
-                                       Vector &elvect);
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               FaceElementTransformations &Tr,
+                               Vector &elvect) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };

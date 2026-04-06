@@ -1114,7 +1114,8 @@ public:
     * @brief Construct a new IsothermalFlux FluxFunction with given spatial
     * dimension and specific heat ratio
     *
-    * @param dim spatial dimension
+    * @param dim           spatial dimension
+    * @param sound_speed_  speed of sound
     */
    IsothermalFlux(const int dim, const real_t sound_speed_)
       : FluxFunction(dim + 1, dim), sound_speed(sound_speed_) {}
@@ -1163,7 +1164,7 @@ public:
     * @param state2 first state (ρ2, ρu2) at current integration point
     * @param normal normal vector, usually not a unit vector
     * @param Tr current element transformation with the integration point
-    * @param flux F̄(ρ1, ρu1, ρ2, ρu2)n
+    * @param fluxN F̄(ρ1, ρu1, ρ2, ρu2)n
     * @return real_t maximum characteristic speed, |u|
     */
    real_t ComputeAvgFluxDotN(const Vector &state1, const Vector &state2,
@@ -1255,7 +1256,7 @@ public:
     * @param state2 first state (ρ2, ρu2, E2) at current integration point
     * @param normal normal vector, usually not a unit vector
     * @param Tr current element transformation with the integration point
-    * @param flux F̄(ρ1, ρu1, E1, ρ2, ρu2, E2)n
+    * @param fluxN F̄(ρ1, ρu1, E1, ρ2, ρu2, E2)n
     * @return real_t maximum characteristic speed, |u| + √(γp/ρ)
     */
    real_t ComputeAvgFluxDotN(const Vector &state1, const Vector &state2,
