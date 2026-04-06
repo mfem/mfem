@@ -66,6 +66,7 @@ void GetTensorFaceMap(const int dim, const int order, const int face_id,
 {
    const int dof1d = order + 1;
    int n_face_dofs = int(std::pow(dof1d, dim - 1));
+   face_map.SetSize(n_face_dofs);
    std::vector<int> offsets, strides;
    switch (dim)
    {

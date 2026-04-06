@@ -395,6 +395,12 @@ void vis_tmop_metric_p(int order, TMOP_QualityMetric &qm,
 void GetPeriodicPositions(const Vector &x_0, const Vector &dx,
                           const FiniteElementSpace &fesL2,
                           const FiniteElementSpace &fesH1, Vector &x);
+
+// Convert xL2 (an L-vector in fesL2) to xH1 (an L-vector in fesH1) by going
+// through element dofs. Shared H1 dofs are averaged.
+void GetPeriodicPositionsinH1(const Vector &xL2,
+                              const FiniteElementSpace &fesL2,
+                              const FiniteElementSpace &fesH1, Vector &xH1);
 }
 
 #endif

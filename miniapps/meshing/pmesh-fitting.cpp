@@ -229,6 +229,9 @@ int main (int argc, char *argv[])
    delete mesh;
    for (int lev = 0; lev < rp_levels; lev++) { pmesh->UniformRefinement(); }
 
+   auto nodal_fes = pmesh->GetNodalFESpace();
+   const bool periodic = (nodal_fes && nodal_fes->IsDGSpace()) ? true : false;
+
    // Setup background mesh for surface fitting
    ParMesh *pmesh_surf_fit_bg = NULL;
    if (surf_bg_mesh)
@@ -254,12 +257,22 @@ int main (int argc, char *argv[])
    // number of components in the vector finite element space is specified by
    // the last parameter of the FiniteElementSpace constructor.
    FiniteElementCollection *fec;
-   if (mesh_poly_deg <= 0)
+   const bool quad_pos = (mesh_poly_deg <= 0);
+   if (quad_pos) { mesh_poly_deg = 2; }
+   if (periodic)
    {
-      fec = new QuadraticPosFECollection;
-      mesh_poly_deg = 2;
+      fec = new L2_FECollection(mesh_poly_deg, dim, BasisType::GaussLobatto);
    }
-   else { fec = new H1_FECollection(mesh_poly_deg, dim); }
+   else if (quad_pos)
+   {
+      // Preserve the legacy behavior for curved meshes when periodicity is not
+      // involved.
+      fec = new QuadraticPosFECollection;
+   }
+   else
+   {
+      fec = new H1_FECollection(mesh_poly_deg, dim);
+   }
    ParFiniteElementSpace *pfespace =
       new ParFiniteElementSpace(pmesh, fec, dim, mesh_node_ordering);
 
@@ -289,6 +302,12 @@ int main (int argc, char *argv[])
    // Store the starting (prior to the optimization) positions.
    ParGridFunction x0(pfespace);
    x0 = x;
+
+   // TMOP always solves for a continuous displacement. For periodic meshes, the
+   // nodal coordinates are DG (L2) while the displacement must be H1.
+   H1_FECollection fec_h1(mesh_poly_deg, dim);
+   ParFiniteElementSpace pfes_h1(pmesh, &fec_h1, dim, mesh_node_ordering);
+   ParGridFunction dx(&pfes_h1); dx = 0.0;
 
    // Form the integrator that uses the chosen metric and target.
    TMOP_QualityMetric *metric = NULL;
@@ -534,7 +553,7 @@ int main (int argc, char *argv[])
                int mat2 = mat(tr->Elem2No);
                if (mat1 != mat2)
                {
-                  surf_fit_gf0.ParFESpace()->GetFaceDofs(i, dofs);
+                  surf_fit_fes.GetFaceDofs(i, dofs);
                   dof_list.Append(dofs);
                }
             }
@@ -646,9 +665,9 @@ int main (int argc, char *argv[])
          }
       }
    }
-
+   // MFEM_ABORT(" ");
    // Setup the final NonlinearForm.
-   ParNonlinearForm a(pfespace);
+   ParNonlinearForm a(&pfes_h1);
    a.AddDomainIntegrator(tmop_integ);
 
    // Compute the minimum det(J) of the starting mesh.
@@ -672,15 +691,15 @@ int main (int argc, char *argv[])
 
    MFEM_VERIFY(min_detJ > 0, "The input mesh is inverted, use mesh-optimizer.");
 
-   const real_t init_energy = a.GetParGridFunctionEnergy(x);
+   if (periodic) { tmop_integ->SetInitialMeshPos(&x0); }
+   const real_t init_energy = a.GetParGridFunctionEnergy(periodic ? dx : x);
    real_t init_metric_energy = init_energy;
    if (surface_fit_const > 0.0)
    {
       surf_fit_coeff.constant   = 0.0;
-      init_metric_energy = a.GetParGridFunctionEnergy(x);
+      init_metric_energy = a.GetParGridFunctionEnergy(periodic ? dx : x);
       surf_fit_coeff.constant  = surface_fit_const;
    }
-
    // Fix all boundary nodes, or fix only a given component depending on the
    // boundary attributes of the given mesh.  Attributes 1/2/3 correspond to
    // fixed x/y/z components of the node.  Attribute dim+1 corresponds to
@@ -700,7 +719,7 @@ int main (int argc, char *argv[])
       int n = 0;
       for (int i = 0; i < pmesh->GetNBE(); i++)
       {
-         const int nd = pfespace->GetBE(i)->GetDof();
+         const int nd = pfes_h1.GetBE(i)->GetDof();
          const int attr = pmesh->GetBdrElement(i)->GetAttribute();
          MFEM_VERIFY(!(dim == 2 && attr == 3),
                      "Boundary attribute 3 must be used only for 3D meshes. "
@@ -713,9 +732,9 @@ int main (int argc, char *argv[])
       n = 0;
       for (int i = 0; i < pmesh->GetNBE(); i++)
       {
-         const int nd = pfespace->GetBE(i)->GetDof();
+         const int nd = pfes_h1.GetBE(i)->GetDof();
          const int attr = pmesh->GetBdrElement(i)->GetAttribute();
-         pfespace->GetBdrElementVDofs(i, vdofs);
+         pfes_h1.GetBdrElementVDofs(i, vdofs);
          if (attr == 1) // Fix x components.
          {
             for (int j = 0; j < nd; j++)
@@ -825,13 +844,21 @@ int main (int argc, char *argv[])
       pmesh->PrintAsSerial(mesh_ofs);
    }
 
+   if (periodic)
+   {
+      ParGridFunction dx_L2(x);
+      dx_L2 -= x0;
+      dx.ProjectGridFunction(dx_L2);
+      tmop_integ->SetInitialMeshPos(&x0);
+   }
+
    // Compute the final energy of the functional.
-   const real_t fin_energy = a.GetParGridFunctionEnergy(x);
+   const real_t fin_energy = a.GetParGridFunctionEnergy(periodic ? dx : x);
    real_t fin_metric_energy = fin_energy;
    if (surface_fit_const > 0.0)
    {
       surf_fit_coeff.constant  = 0.0;
-      fin_metric_energy  = a.GetParGridFunctionEnergy(x);
+      fin_metric_energy  = a.GetParGridFunctionEnergy(periodic ? dx : x);
       surf_fit_coeff.constant  = surface_fit_const;
    }
 
@@ -863,7 +890,7 @@ int main (int argc, char *argv[])
                                 "Surface DOFs", 600, 400, 300, 300);
       }
       real_t err_avg, err_max;
-      tmop_integ->GetSurfaceFittingErrors(x, err_avg, err_max);
+      tmop_integ->GetSurfaceFittingErrors(periodic ? dx : x, err_avg, err_max);
       if (myid == 0)
       {
          std::cout << "Avg fitting error: " << err_avg << std::endl

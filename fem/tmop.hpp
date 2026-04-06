@@ -2010,6 +2010,11 @@ protected:
    const GridFunction *x_0;
    bool periodic = false;
 
+   // Displacement finite element space used in the current TMOP solve.
+   // Set in UpdateAfterMeshPositionChange() and used for periodic surface
+   // fitting diagnostics.
+   const FiniteElementSpace *d_fes = nullptr;
+
    TMOP_QualityMetric *h_metric;
    TMOP_QualityMetric *metric;        // not owned
    const TargetConstructor *targetC;  // not owned

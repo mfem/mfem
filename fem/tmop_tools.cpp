@@ -358,7 +358,7 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
 
    if (m->GetNodes()->FESpace()->IsDGSpace())
    {
-      MFEM_ABORT("InterpolatorFP is not supported for periodic meshes yet.");
+      // MFEM_ABORT("InterpolatorFP is not supported for periodic meshes yet.");
    }
 
    const real_t rel_bbox_el = 0.1;
@@ -691,9 +691,21 @@ void TMOPNewtonSolver::Mult(const Vector &b, Vector &x) const
    for (int i = 0; i < integs.Size(); i++)
    {
       auto ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
-      if (ti) { ti->SetInitialMeshPos(&x_0); }
+      if (ti)
+      {
+         ti->SetInitialMeshPos(&x_0);
+         ti->d_fes = nlf->FESpace();
+      }
       auto co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
-      if (co) { co->SetInitialMeshPos(&x_0); }
+      if (co)
+      {
+         co->SetInitialMeshPos(&x_0);
+         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
+         for (int j = 0; j < ati.Size(); j++)
+         {
+            ati[j]->d_fes = nlf->FESpace();
+         }
+      }
    }
 
    // Solve for the displacement, which always starts from zero.
@@ -1089,6 +1101,43 @@ void GetPeriodicPositions(const Vector &x_0, const Vector &dx,
    auto R_L2 = fesL2.GetElementRestriction(ord);
    R_H1->Mult(dx, dx_r);
    R_L2->AddMultTranspose(dx_r, x);
+}
+
+void GetPeriodicPositionsinH1(const Vector &xL2,
+                              const FiniteElementSpace &fesL2,
+                              const FiniteElementSpace &fesH1, Vector &xH1)
+{
+   MFEM_VERIFY(xL2.Size() == fesL2.GetVSize(),
+               "xL2 must be an L-vector in fesL2.");
+
+   xH1.SetSize(fesH1.GetVSize());
+   xH1 = 0.0;
+
+   const ElementDofOrdering ord = ElementDofOrdering::LEXICOGRAPHIC;
+   auto R_L2 = fesL2.GetElementRestriction(ord);
+   auto R_H1 = fesH1.GetElementRestriction(ord);
+   MFEM_VERIFY(R_L2 && R_H1, "Missing element restriction operator.");
+
+   // L (fesL2) -> E (element dofs)
+   Vector xE(R_L2->Height());
+   R_L2->Mult(xL2, xE);
+
+   // E -> L (fesH1): shared H1 dofs get contributions from multiple elements.
+   R_H1->AddMultTranspose(xE, xH1);
+
+   // Average at shared H1 dofs.
+   Vector counts(xH1.Size());
+   counts = 0.0;
+   Vector onesE(xE.Size());
+   onesE = 1.0;
+   R_H1->AddMultTranspose(onesE, counts);
+
+   xH1.HostReadWrite();
+   counts.HostRead();
+   for (int i = 0; i < xH1.Size(); i++)
+   {
+      if (counts(i) != 0.0) { xH1(i) /= counts(i); }
+   }
 }
 
 }

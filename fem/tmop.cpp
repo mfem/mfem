@@ -3846,8 +3846,8 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &s0,
    Mesh *mesh = s0.FESpace()->GetMesh();
    MFEM_VERIFY(mesh->GetNodes()->Size() == dim*s0.Size(),
                "Mesh and level-set polynomial order must be the same.");
-   const H1_FECollection *fec = dynamic_cast<const H1_FECollection *>
-                                (s0.FESpace()->FEColl());
+   const H1_FECollection *fec =
+      dynamic_cast<const H1_FECollection *>(s0.FESpace()->FEColl());
    MFEM_VERIFY(fec, "Only H1_FECollection is supported for the surface fitting "
                "grid function.");
 
@@ -3877,9 +3877,6 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &pos,
                pos.FESpace()->GetMesh()->GetNodes()->FESpace()->GetOrdering(),
                "Incompatible ordering of spaces!");
 
-   const bool per = pos.FESpace()->IsDGSpace();
-   MFEM_VERIFY(per == false, "Fitting is not supported for periodic meshes.");
-
    surf_fit_pos     = &pos;
    pos.CountElementsPerVDof(surf_fit_dof_count);
    surf_fit_marker  = &smarker;
@@ -3900,18 +3897,29 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    MFEM_VERIFY(surf_fit_pos == NULL,
                "Using both fitting approaches is not supported.");
 
-   const bool per = s0.FESpace()->IsDGSpace();
-   MFEM_VERIFY(per == false, "Fitting is not supported for periodic meshes.");
+   auto s0_space = s0.ParFESpace();
+   auto mesh_space = s0_space->GetMesh()->GetNodalFESpace();
+   const bool per_mesh = mesh_space->IsDGSpace();
 
    const int dim = s0.FESpace()->GetMesh()->Dimension();
    ParMesh *pmesh = s0.ParFESpace()->GetParMesh();
-   MFEM_VERIFY(pmesh->GetNodes()->Size() == dim*s0.Size(),
-               "Mesh and level-set polynomial order must be the same.");
-   const H1_FECollection *fec = dynamic_cast<const H1_FECollection *>
-                                (s0.FESpace()->FEColl());
-   MFEM_VERIFY(fec, "Only H1_FECollection is supported for the surface fitting "
+   if (per_mesh)
+   {
+      auto s0_order = s0_space->GetMaxElementOrder();
+      auto mesh_order = mesh_space->GetMaxElementOrder();
+      MFEM_VERIFY(s0_order == mesh_order,
+                  " Mesh and level-set order must be the same for per-mesh fitting.");
+   }
+   else
+   {
+      MFEM_VERIFY(pmesh->GetNodes()->Size() == dim*s0.Size(),
+                  "Mesh and level-set polynomial order must be the same.");
+   }
+   const H1_FECollection *fec =
+      dynamic_cast<const H1_FECollection *>(s0.FESpace()->FEColl());
+   MFEM_VERIFY(fec,
+               "Only H1_FECollection is supported for the surface fitting "
                "grid function.");
-
 
    delete surf_fit_gf;
    surf_fit_gf = new GridFunction(s0);
@@ -3932,8 +3940,8 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
 
    // FE space for gradients.
    delete surf_fit_grad;
-   H1_FECollection *fec_grad = new H1_FECollection(fec->GetOrder(), dim,
-                                                   fec->GetBasisType());
+   H1_FECollection *fec_grad =
+      new H1_FECollection(fec->GetOrder(), dim, fec->GetBasisType());
    ParFiniteElementSpace *fes_grad = new ParFiniteElementSpace(pmesh, fec_grad,
                                                                dim);
    // Initial gradients.
@@ -3950,8 +3958,8 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
 
    // FE space for Hessians.
    delete surf_fit_hess;
-   H1_FECollection *fec_hess = new H1_FECollection(fec->GetOrder(), dim,
-                                                   fec->GetBasisType());
+   H1_FECollection *fec_hess =
+      new H1_FECollection(fec->GetOrder(), dim, fec->GetBasisType());
    ParFiniteElementSpace *fes_hess = new ParFiniteElementSpace(pmesh, fec_hess,
                                                                dim*dim);
    // Initial Hessians.
@@ -4007,9 +4015,6 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
 #ifndef MFEM_USE_GSLIB
    MFEM_ABORT("Surface fitting from source requires GSLIB!");
 #endif
-
-   const bool per = s0.FESpace()->IsDGSpace();
-   MFEM_VERIFY(per == false, "Fitting is not supported for periodic meshes.");
 
    // Setup for level set function
    delete surf_fit_gf;
@@ -4074,12 +4079,25 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
 void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &d_loc,
                                               real_t &err_avg, real_t &err_max)
 {
-   MFEM_VERIFY(periodic == false,
-               "Fitting is not supported for periodic meshes.");
-
-   Vector pos(d_loc.Size());
-   if (x_0) { add(*x_0, d_loc, pos); }
-   else     { pos = d_loc; }
+   Vector pos;
+   if (x_0)
+   {
+      if (periodic)
+      {
+         MFEM_VERIFY(d_fes,
+                     "Internal error: missing displacement FE space for periodic surface fitting diagnostics.");
+         GetPeriodicPositions(*x_0, d_loc, *x_0->FESpace(), *d_fes, pos);
+      }
+      else
+      {
+         pos.SetSize(d_loc.Size());
+         add(*x_0, d_loc, pos);
+      }
+   }
+   else
+   {
+      pos = d_loc;
+   }
 
    MFEM_VERIFY(surf_fit_marker, "Surface fitting has not been enabled.");
 
@@ -5507,8 +5525,6 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
 void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
                                                          int new_x_ordering)
 {
-   MFEM_VERIFY(periodic == false, "Periodic not implemented yet.");
-
    if (!surf_fit_gf) { return; }
 
    if (surf_fit_marker_dof_index.Size())
@@ -5614,7 +5630,6 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
             }
          }
       }
-
    }
    else
    {
@@ -5635,6 +5650,8 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
 void TMOP_Integrator::
 UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
 {
+   this->d_fes = &d_fes;
+
    if (discr_tc) { PA.Jtr_needs_update = true; }
 
    if (PA.enabled) { UpdateCoefficientsPA(d); }
@@ -5677,7 +5694,17 @@ UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
    // fitting is enabled.
    if (surf_fit_gf)
    {
-      RemapSurfaceFittingLevelSetAtNodes(x_loc, ordering);
+      // if periodic and we remap at specific nodes, we need to get the positions at those nodes in H1 space before remapping
+      if (surf_fit_marker_dof_index.Size() && periodic)
+      {
+         Vector xH1;
+         GetPeriodicPositionsinH1(x_loc, *x_0->FESpace(), d_fes, xH1);
+         RemapSurfaceFittingLevelSetAtNodes(xH1, d_fes.GetOrdering());
+      }
+      else
+      {
+         RemapSurfaceFittingLevelSetAtNodes(x_loc, ordering);
+      }
    }
 }
 
