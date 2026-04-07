@@ -265,19 +265,20 @@ int main(int argc, char* argv[])
    if (ctx.dim == 2)
    {
       serial_mesh = Mesh(Mesh::MakeCartesian2D(
-         ctx.nx, ctx.ny, Element::QUADRILATERAL, false, ctx.L, ctx.L));
+                            ctx.nx, ctx.ny, Element::QUADRILATERAL, false, ctx.L, ctx.L));
       translations = {Vector({ctx.L, 0.0}), Vector({0.0, ctx.L})};
    }
    else  // ctx.dim == 3
    {
       serial_mesh = Mesh(Mesh::MakeCartesian3D(
-         ctx.nx, ctx.ny, ctx.nz, Element::HEXAHEDRON, ctx.L, ctx.L, ctx.L));
+                            ctx.nx, ctx.ny, ctx.nz, Element::HEXAHEDRON, ctx.L, ctx.L, ctx.L));
       translations = {Vector({ctx.L, 0.0, 0.0}), Vector({0.0, ctx.L, 0.0}),
-                      Vector({0.0, 0.0, ctx.L})};
+                      Vector({0.0, 0.0, ctx.L})
+                     };
    }
 
    Mesh periodic_mesh(Mesh::MakePeriodic(
-      serial_mesh, serial_mesh.CreatePeriodicVertexMapping(translations)));
+                         serial_mesh, serial_mesh.CreatePeriodicVertexMapping(translations)));
    // 2. Partition and distribute the mesh
    ParMesh mesh(MPI_COMM_WORLD, periodic_mesh);
    serial_mesh.Clear();    // the serial mesh is no longer needed
@@ -399,7 +400,7 @@ int main(int argc, char* argv[])
 ParticleMover::ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_,
                              FindPointsGSLIB& E_finder_, int num_particles,
                              Ordering::Type pdata_ordering)
-    : E_gf(E_gf_), E_finder(E_finder_)
+   : E_gf(E_gf_), E_finder(E_finder_)
 {
    MFEM_ASSERT(E_gf, "Must pass an E field to ParticleMover.");
 
@@ -412,7 +413,7 @@ ParticleMover::ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_,
    // 2 vectors of size space dim for momentum and e field
    Array<int> field_vdims({1, 1, dim, dim});
    charged_particles = std::make_unique<ParticleSet>(
-      comm, num_particles, dim, field_vdims, 1, pdata_ordering);
+                          comm, num_particles, dim, field_vdims, 1, pdata_ordering);
 }
 
 void ParticleMover::InitializeChargedParticles(const real_t& k,
@@ -548,9 +549,9 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
                          ParFiniteElementSpace* E_fes,
                          FindPointsGSLIB& E_finder_,
                          bool precompute_neutralizing_const_)
-    : precompute_neutralizing_const(precompute_neutralizing_const_),
-      E_finder(E_finder_),
-      b(phi_fes)
+   : precompute_neutralizing_const(precompute_neutralizing_const_),
+     E_finder(E_finder_),
+     b(phi_fes)
 {
    // compute domain volume
    ParMesh* pmesh = phi_fes->GetParMesh();
@@ -620,7 +621,7 @@ const ParLinearForm& FieldSolver::ComputeNeutralizingRHS(
          if (precompute_neutralizing_const)
          {
             cout << "Further updates will use this precomputed neutralizing "
-                    "constant."
+                 "constant."
                  << endl;
          }
       }
@@ -661,10 +662,10 @@ void FieldSolver::DepositCharge(ParFiniteElementSpace* pfes,
       // Assert particle is on the current rank
       MFEM_ASSERT((int)proc[p] == curr_rank,
                   "Particle " << p << " found in element owned by rank "
-                              << proc[p] << " but current rank is " << curr_rank
-                              << "." << endl
-                              << "You must call redistribute everytime before "
-                                 "updating the density grid function.");
+                  << proc[p] << " but current rank is " << curr_rank
+                  << "." << endl
+                  << "You must call redistribute everytime before "
+                  "updating the density grid function.");
       const int e = elem[p];
 
       // Reference coordinates for this particle (r,s[,t]) with byVDIM layout
