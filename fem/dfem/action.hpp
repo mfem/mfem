@@ -396,13 +396,12 @@ public:
          for_constexpr<num_inputs>(
             [  // copy
                inputs,
-               D1D, Q1D, MD1, MQ1,
+               D1D, Q1D, MD1, MQ1, test_vdim,
                // refs
-               &r0, &r1, &r2, &rw,
+               &r0, &r1, &r2,
                &input_to_field,
                &fields_e_ptr,
                &input_dtq_maps,
-               &output_fop,
                &output_dtq_maps
                ]
             (auto i)
@@ -416,7 +415,6 @@ public:
             if constexpr (is_gradient_fop<field_operator_t>::value) // Grad
             {
                const int vdim = input.vdim;
-               // db1("vdim: {}", vdim);
                const real_t *field_e_r = fields_e_ptr[input_to_field[i]];
                const auto XE = Reshape(field_e_r, D1D, D1D, D1D, vdim);
 #ifndef MFEM_USE_HIP
@@ -464,10 +462,10 @@ public:
          }
 
          // Integrate
-         auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
+         const int vdim = test_vdim;
+         auto y = Reshape(&ye(0, 0, e), num_test_dof, vdim);
          if constexpr (is_gradient_fop<std::decay_t<output_fop_t>>::value) // Gradient
          {
-            const int vdim = output_fop.vdim;
             auto yd = Reshape(&y(0, 0), D1D, D1D, D1D, vdim);
 
             MFEM_SHARED real_t smem[MQ1][MQ1];

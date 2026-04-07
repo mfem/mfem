@@ -1311,7 +1311,15 @@ void restriction(const std::vector<FieldDescriptor> u,
       NVTX_END("SetSize");
 
       NVTX_INI("R->Mult");
-      R->Mult(u_l[i], fields_e[i + offset]);
+      if (dynamic_cast<const IdentityOperator*>(R) != nullptr)
+      {
+         NVTX("Identity");
+         fields_e[i + offset] = u_l[i];
+      }
+      else
+      {
+         R->Mult(u_l[i], fields_e[i + offset]);
+      }
       NVTX_END("R->Mult");
    }
 }
