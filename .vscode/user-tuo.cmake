@@ -36,8 +36,9 @@ if (${CMAKE_HOST_SYSTEM_NAME} MATCHES "Linux")
 endif()
 
 # ---------------------------- NVTX Debug File --------------------------------
-add_compile_definitions(NVTX_DBG_HPP="$ENV{HOME}/home/tuo/usr/src/nvtx/nvtx_dbg.hpp")
-add_compile_definitions(NVTX_FMT_HPP="$ENV{HOME}/home/tuo/usr/src/nvtx/nvtx_fmt.hpp")
+# message(STATUS "[🟢 NVTX   🟢] $ENV{HOME}/home/tuo/usr/src/nvtx")
+# add_compile_definitions(NVTX_DBG_HPP="$ENV{HOME}/home/tuo/usr/src/nvtx/nvtx_dbg.hpp")
+# add_compile_definitions(NVTX_FMT_HPP="$ENV{HOME}/home/tuo/usr/src/nvtx/nvtx_fmt.hpp")
 
 # --------------------------------- CXX Host ----------------------------------
 if (${CMAKE_HOST_SYSTEM_NAME} MATCHES "Linux")
@@ -86,6 +87,7 @@ add_compile_options(-march=native -mtune=native)
 
 if (${CMAKE_HOST_SYSTEM_NAME} MATCHES "Linux")
     add_compile_options(-Wno-unused-result)
+    add_compile_options(-Wno-unused-lambda-capture)
     # add_compile_options(-Wno-deprecated-declarations)
 elseif(${CMAKE_HOST_SYSTEM_NAME} MATCHES "Darwin")
 endif()

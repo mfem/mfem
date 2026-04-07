@@ -375,40 +375,47 @@ public:
       const auto d_elem_attr = elem_attributes->Read();
 
       NVTX_INI("forall");
-      forall([=] MFEM_HOST_DEVICE (int e, [[maybe_unused]] void *extern_smem)
+      forall([=] MFEM_HOST_DEVICE (int e, void *)
       {
-         assert(extern_smem == nullptr);
-
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
          ker::vd_regs3d_t<VDIM, DIM, MQ1> r0, r1;
-         real_t *r2, *rw;
+         real_t *r2, *rw = nullptr;
 
          const auto fields_e_ptr = load_field_e_ptr(wrapped_fields_e, e);
 
 #ifndef MFEM_USE_HIP
-         // 🔥 instead of using the constant memory 🔥
-         // constexpr int MD1 = T_D1D > 0 ? ker::SetMaxOf(T_D1D) : 8;
          constexpr int MD1 = T_D1D > 0 ? T_D1D : 8;
+
+         MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
+         real_t (*sB_ptr)[MQ1] = sB, (*sG_ptr)[MQ1] = sG;
 #endif
 
          MFEM_SHARED real_t smem[MQ1][MQ1];
          real_t (&smem_ptr)[MQ1][MQ1] = smem;
-         MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
-         real_t (*sB_ptr)[MQ1] = sB, (*sG_ptr)[MQ1] = sG;
 
          // Interpolate
          for_constexpr<num_inputs>(
             [  // copy
-               D1D, Q1D, MD1, MQ1, test_vdim,
+               D1D, MQ1,
+#ifndef MFEM_USE_HIP
+               Q1D,
+               test_vdim,
+               MD1,
+#endif
                // refs
-               &smem_ptr, &sB_ptr, &sG_ptr,
+               &smem_ptr,
+#ifndef MFEM_USE_HIP
+               &sB_ptr, &sG_ptr,
+#endif
                &inputs,
                &fields_e_ptr,
                &r0, &r1, &r2,
-               &input_to_field,
+#ifndef MFEM_USE_HIP
                &input_dtq_maps,
-               &output_dtq_maps
+               &output_dtq_maps,
+#endif
+               &input_to_field
                ]
             (auto i)
          {
@@ -431,7 +438,11 @@ public:
                constexpr int c = 0;
                {
                   ker::LoadDofs3d(D1D, c, XE, r0);
+#ifdef MFEM_USE_HIP
+                  ker::Grad3d(D1D, Q1D, smem_ptr, sB, sG, r0, r1, c);
+#else
                   ker::Grad3d(D1D, Q1D, smem_ptr, sB_ptr, sG_ptr, r0, r1, c);
+#endif
                }
             }
             else if constexpr (is_identity_fop<field_operator_t>::value)   // Identity
@@ -476,8 +487,8 @@ public:
             const auto sG = reinterpret_cast<const real_t (*)[MQ1]>(Go);
 #else
             // ⚠️ could determine they are the same
-            // ker::LoadMatrix(D1D, Q1D, output_dtq_maps[0].B, sB);
-            // ker::LoadMatrix(D1D, Q1D, output_dtq_maps[0].G, sG);
+            ker::LoadMatrix(D1D, Q1D, output_dtq_maps[0].B, sB);
+            ker::LoadMatrix(D1D, Q1D, output_dtq_maps[0].G, sG);
 #endif
             constexpr int c = 0;
             // for (int c = 0; c < vdim; c++)
