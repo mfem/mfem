@@ -387,7 +387,6 @@ public:
  *
  * @param psi a GridFunction to be updated
  * @param alpha_grad alpha multiplied by gradient
- * @param c initial guess for root
  * @param target_volume θ vol(Ω)
  * @param tol Illinois iteration tolerance
  * @param max_its Illinois maximum iteration number
