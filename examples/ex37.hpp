@@ -425,12 +425,12 @@ std::pair<real_t, real_t> proj(GridFunction &psi, GridFunction &alpha_grad,
    int_sigmoid_psi->AddDomainIntegrator(new DomainLFIntegrator(sigmoid_psi));
 
    y = a;
-   int_sigmoid_psi->Assemble(); // Compute f(a)
-   real_t f_a = int_sigmoid_psi->Sum();
+   int_sigmoid_psi->Assemble();
+   real_t f_a = int_sigmoid_psi->Sum();  // f_a := f(a) + θ vol(Ω)
 
    y = b;
-   int_sigmoid_psi->Assemble(); // Compute f(b)
-   real_t f_b = int_sigmoid_psi->Sum();
+   int_sigmoid_psi->Assemble();
+   real_t f_b = int_sigmoid_psi->Sum();  // f_b := f(b) + θ vol(Ω)
 #ifdef MFEM_USE_MPI
    if (pfes)
    {
@@ -440,8 +440,8 @@ std::pair<real_t, real_t> proj(GridFunction &psi, GridFunction &alpha_grad,
                     MPI_SUM, MPI_COMM_WORLD);
    }
 #endif
-   f_a -= target_volume;
-   f_b -= target_volume;
+   f_a -= target_volume; // f_a := f(a)
+   f_b -= target_volume; // f_b := f(b)
    real_t f_c;
    int side = 0;
 
@@ -453,8 +453,8 @@ std::pair<real_t, real_t> proj(GridFunction &psi, GridFunction &alpha_grad,
       if (abs(b - a) < tol * abs(b + a)) { done = true; y = 0.0; break; }
 
       y = c;
-      int_sigmoid_psi->Assemble(); // Recompute f(c) with updated ψ
-      f_c = int_sigmoid_psi->Sum();
+      int_sigmoid_psi->Assemble();
+      f_c = int_sigmoid_psi->Sum(); // f_c := f(c) + θ vol(Ω)
 #ifdef MFEM_USE_MPI
       if (pfes)
       {
@@ -462,7 +462,7 @@ std::pair<real_t, real_t> proj(GridFunction &psi, GridFunction &alpha_grad,
                        MPI_SUM, MPI_COMM_WORLD);
       }
 #endif
-      f_c -= target_volume;
+      f_c -= target_volume; // f_c := f(c)
 
       if (f_c * f_b > 0)
       {
