@@ -1311,10 +1311,10 @@ void restriction(const std::vector<FieldDescriptor> u,
       NVTX_END("SetSize");
 
       NVTX_INI("R->Mult");
-      if (dynamic_cast<const IdentityOperator*>(R) != nullptr)
+      if (dynamic_cast<const IdentityOperator*>(R))
       {
          NVTX("Identity");
-         fields_e[i + offset] = u_l[i];
+         fields_e[i + offset].NewMemoryAndSize(u_l[i].GetMemory(), u_l[i].Size(), false);
       }
       else
       {

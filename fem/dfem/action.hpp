@@ -297,7 +297,7 @@ public:
                                    const ThreadBlocks &thread_blocks,
                                    SharedMemoryInfo<num_fields, num_inputs, num_outputs> &shmem_info,
                                    const Array<int> &attributes,
-                                   const output_fop_t &output_fop,
+                                   [[maybe_unused]] const output_fop_t &output_fop,
                                    const Array<int> *elem_attributes,
                                    // refs
                                    std::vector<Vector> &fields_e,
@@ -392,23 +392,26 @@ public:
          constexpr int MD1 = T_D1D > 0 ? T_D1D : 8;
 #endif
 
+         MFEM_SHARED real_t smem[MQ1][MQ1];
+         real_t (&smem_ptr)[MQ1][MQ1] = smem;
+         MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
+         real_t (*sB_ptr)[MQ1] = sB, (*sG_ptr)[MQ1] = sG;
+
          // Interpolate
          for_constexpr<num_inputs>(
             [  // copy
-               inputs,
                D1D, Q1D, MD1, MQ1, test_vdim,
                // refs
+               &smem_ptr, &sB_ptr, &sG_ptr,
+               &inputs,
+               &fields_e_ptr,
                &r0, &r1, &r2,
                &input_to_field,
-               &fields_e_ptr,
                &input_dtq_maps,
                &output_dtq_maps
                ]
             (auto i)
          {
-            MFEM_SHARED real_t smem[MQ1][MQ1];
-            MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
-
             const auto input = get<i>(inputs);
             using field_operator_t = std::decay_t<decltype(input)>;
 
@@ -418,16 +421,17 @@ public:
                const real_t *field_e_r = fields_e_ptr[input_to_field[i]];
                const auto XE = Reshape(field_e_r, D1D, D1D, D1D, vdim);
 #ifndef MFEM_USE_HIP
-               ker::LoadMatrix(D1D, Q1D, input_dtq_maps[i].B, sB);
-               ker::LoadMatrix(D1D, Q1D, input_dtq_maps[i].G, sG);
+               ker::LoadMatrix(D1D, Q1D, input_dtq_maps[i].B, sB_ptr);
+               ker::LoadMatrix(D1D, Q1D, input_dtq_maps[i].G, sG_ptr);
 #else
                const auto sB = reinterpret_cast<const real_t (*)[MQ1]>(Bi[i]);
                const auto sG = reinterpret_cast<const real_t (*)[MQ1]>(Gi[i]);
 #endif
-               for (int c = 0; c < vdim; c++)
+               // for (int c = 0; c < vdim; c++)
+               constexpr int c = 0;
                {
                   ker::LoadDofs3d(D1D, c, XE, r0);
-                  ker::Grad3d(D1D, Q1D, smem, sB, sG, r0, r1, c);
+                  ker::Grad3d(D1D, Q1D, smem_ptr, sB_ptr, sG_ptr, r0, r1, c);
                }
             }
             else if constexpr (is_identity_fop<field_operator_t>::value)   // Identity
@@ -467,18 +471,16 @@ public:
          if constexpr (is_gradient_fop<std::decay_t<output_fop_t>>::value) // Gradient
          {
             auto yd = Reshape(&y(0, 0), D1D, D1D, D1D, vdim);
-
-            MFEM_SHARED real_t smem[MQ1][MQ1];
-            MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
-
 #ifdef MFEM_USE_HIP
             const auto sB = reinterpret_cast<const real_t (*)[MQ1]>(Bo);
             const auto sG = reinterpret_cast<const real_t (*)[MQ1]>(Go);
 #else
-            ker::LoadMatrix(D1D, Q1D, output_dtq_maps[0].B, sB);
-            ker::LoadMatrix(D1D, Q1D, output_dtq_maps[0].G, sG);
+            // ⚠️ could determine they are the same
+            // ker::LoadMatrix(D1D, Q1D, output_dtq_maps[0].B, sB);
+            // ker::LoadMatrix(D1D, Q1D, output_dtq_maps[0].G, sG);
 #endif
-            for (int c = 0; c < vdim; c++)
+            constexpr int c = 0;
+            // for (int c = 0; c < vdim; c++)
             {
                ker::GradTranspose3d(D1D, Q1D, smem, sB, sG, r0, r1, c);
                ker::WriteDofs3d(D1D, c, r1, yd);
