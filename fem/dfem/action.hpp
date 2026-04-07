@@ -141,7 +141,8 @@ void apply_kernel(reg_t &r0/*output*/,
    // }
    else
    {
-      static_assert(false);
+      // MFApply comes here
+      MFEM_ABORT("Only two arguments (∇u and D) are supported in apply_kernel for now");
    }
 
    const auto r = get<0>(apply(qfunc, args));
@@ -437,7 +438,8 @@ public:
             // }
             else
             {
-               static_assert(false, "Only Grad and Identity field operators are supported");
+               // MFApply comes here
+               MFEM_ABORT("Only Grad and Identity field operators are supported");
             }
          }); // for_constexpr<num_inputs>
 
@@ -483,8 +485,9 @@ public:
       output_restriction_transpose(residual_e, residual_l);
    }
 
-   using KernelSignature = decltype(&NewActionCallback::action_callback_new<>);
-   MFEM_REGISTER_KERNELS(NewActionCallbackKernels, KernelSignature, (int, int));
+   using NewActionKernelType = decltype(&NewActionCallback::action_callback_new<>);
+   MFEM_REGISTER_KERNELS(NewActionCallbackKernels, NewActionKernelType, (int,
+                                                                         int));
 
    void Apply(const int d1d, const int q1d)
    {
@@ -520,7 +523,7 @@ public:
 template<size_t num_fields, size_t num_inputs, size_t num_outputs,
          typename restriction_cb_t, typename qfunc_t, typename input_t, typename output_fop_t>
 template<int T_D1D, int T_Q1D>
-typename NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t, input_t, output_fop_t>::KernelSignature
+typename NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t, input_t, output_fop_t>::NewActionKernelType
 NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t, input_t, output_fop_t>::NewActionCallbackKernels::Kernel()
 {
    return action_callback_new<T_D1D, T_Q1D>;
@@ -528,7 +531,7 @@ NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t
 
 template<size_t num_fields, size_t num_inputs, size_t num_outputs,
          typename restriction_cb_t, typename qfunc_t, typename input_t, typename output_fop_t>
-typename NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t, input_t, output_fop_t>::KernelSignature
+typename NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t, input_t, output_fop_t>::NewActionKernelType
 NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t, input_t, output_fop_t>::NewActionCallbackKernels::Fallback
 (int d1d, int q1d)
 {

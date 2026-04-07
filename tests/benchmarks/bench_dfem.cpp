@@ -49,9 +49,9 @@ static void DumpVersionInfo()
    mfem::out << "\x1b[33m";
    mfem::out << "version 0: PA std" << std::endl;
    mfem::out << "version 1: PA new" << std::endl;
-   mfem::out << "version 2: MF ∂fem std kernels" << std::endl;
+   // mfem::out << "version 2: MF ∂fem std kernels" << std::endl;
    mfem::out << "version 3: PA ∂fem std kernels" << std::endl;
-   mfem::out << "version 4: MF ∂fem new kernels" << std::endl;
+   // mfem::out << "version 4: MF ∂fem new kernels" << std::endl; // ⚠️ not supported yet by new kernels
    mfem::out << "version 5: PA ∂fem new kernels" << std::endl;
    mfem::out << "\x1b[m" << std::endl;
 }
@@ -59,9 +59,9 @@ static void DumpVersionInfo()
 // Custom benchmark arguments generator ///////////////////////////////////////
 static void CustomArguments(bm::Benchmark *b) noexcept
 {
-   constexpr int MAX_NDOFS = 8 * 1024; //* (mfem_use_gpu ? 1024 : 8);
+   constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
-   const auto versions = { 0, 1, /*2, 3, 4,*/ 5 };
+   const auto versions = { 0, 1, /*2,*/ 3, /*4,*/ 5 };
 
    const auto orders = { 6, 5, 4, 3, 2, 1 };
 
@@ -79,7 +79,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
    {
       for (auto p : orders)
       {
-         for (int n = 4/*16*/; ndofs(n) <= MAX_NDOFS; n += inc(n))
+         for (int n = 16; ndofs(n) <= MAX_NDOFS; n += inc(n))
          {
             b->Args({k, p, n});
          }
@@ -461,44 +461,53 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       b.Assemble();
 
       // MF setup ///////////////////////////////////////////////////
-      // const auto dMFOperatorSetup = [&] (bool use_new_kernels,
-      //                                    bool use_kernels_specialization)
-      // {
-      //    dbg("MF ∂fem {} kernels", use_new_kernels ? "NEW" : "STD");
-      //    auto solutions = std::vector{FieldDescriptor{U, &pfes}};
-      //    auto parameters = std::vector{FieldDescriptor{Ξ, &mfes}};
-      //    dop = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
-      //    dop->SetParameters({nodes});
-      //    if (use_kernels_specialization) { dop->UseKernelsSpecialization(); }
-      //    if (use_new_kernels) { dop->UseNewKernels(); }
-      //    MFApply<DIM> mf_apply;
-      //    dop->AddDomainIntegrator(mf_apply,
-      //                             tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
-      //                             tuple{Gradient<U>{}},
-      //                             *ir, ess_bdr);
-      //    dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
-      //    A.Reset(A_ptr);
-      // };
+      const auto dMFOperatorSetup = [&] (bool use_new_kernels,
+                                         bool use_kernels_specialization)
+      {
+         dbg("MF ∂fem {} kernels", use_new_kernels ? "NEW" : "STD");
+         auto solutions = std::vector{FieldDescriptor{U, &pfes}};
+         auto parameters = std::vector{FieldDescriptor{Ξ, &mfes}};
+         dop = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
+         dop->SetParameters({nodes});
+         if (use_kernels_specialization) { dop->UseKernelsSpecialization(); }
+         if (use_new_kernels) { dop->UseNewKernels(); }
+         MFApply<DIM> mf_apply;
+         dop->AddDomainIntegrator(mf_apply,
+                                  tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
+                                  tuple{Gradient<U>{}},
+                                  *ir, ess_bdr);
+         dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
+         A.Reset(A_ptr);
+      };
 
       // PA setup ///////////////////////////////////////////////////
       const auto dPAOperatorSetup = [&] (bool use_new_kernels,
                                          bool use_kernels_specialization)
       {
-
-         /*dbg("[PA ∂fem] Setup");
+#if 0
+         dbg("[PA ∂fem] Setup");
          auto Iu = Identity<U> {};
          auto GΞ = Gradient<Ξ> {};
          auto W = Weight{};
          tuple Iu_GΞ_W = {Iu, GΞ, W};
          PASetup<DIM> pa_setup_qf;
          DifferentiableOperator dSetup(u_sol, Ξ_q_params, pmesh);
-         // if (use_kernels_specialization) { dSetup.UseKernelsSpecialization(); }
-         // if (use_new_kernels) { dSetup.UseNewKernels(); }
+         if (use_kernels_specialization) { dSetup.UseKernelsSpecialization(); }
+         if (use_new_kernels) { dSetup.UseNewKernels(); }
          dSetup.AddDomainIntegrator(pa_setup_qf, Iu_GΞ_W, tuple{Iq}, *ir, ess_bdr);
          dSetup.SetParameters({nodes, &qdata});
          X.SetSize(pfes.GetTrueVSize());
          pfes.GetRestrictionMatrix()->Mult(x, X);
-         dSetup.Mult(X, qdata);*/
+         dSetup.Mult(X, qdata);
+#else
+         dbg("[PA ∂fem] Setup (borrowing PA setup)");
+         {
+            ParBilinearForm bf(&pfes);
+            bf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+            bf.AddDomainIntegrator(new StiffnessIntegrator(qdata));
+            bf.Assemble();
+         }
+#endif
          dbg("qdata: {}", qdata*qdata);
          assert(qdata*qdata > 0.0);
 
@@ -537,28 +546,19 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       }
       else if (version == 2) // 2: MF ∂fem
       {
-         assert(false);
-         // dMFOperatorSetup(false, false);
+         dMFOperatorSetup(false, false);
       }
       else if (version == 3) // PA ∂fem
       {
-         assert(false);
-         // dPAOperatorSetup(false, false);
+         dPAOperatorSetup(false, false);
       }
       else if (version == 4) // 4: MF ∂fem new kernels
       {
-         assert(false);
+         MFEM_ABORT("PA ∂fem std kernels not implemented");
          // dMFOperatorSetup(true, true);
       }
       else if (version == 5) // 5: PA ∂fem new kernels
       {
-         ParBilinearForm bf(&pfes);
-         bf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-         bf.AddDomainIntegrator(new StiffnessIntegrator(qdata));
-         bf.Assemble();
-         dbg("qdata: {}", qdata*qdata);
-         assert(qdata*qdata > 0.0);
-
          dPAOperatorSetup(true, true);
       }
       else { MFEM_ABORT("Invalid version"); }
@@ -568,7 +568,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       cg.SetAbsTol(0.0);
       if (dofs < 128 * 1024) // check
       {
-         cg.SetPrintLevel(3/*-1*/);
+         cg.SetPrintLevel(-1);
          cg.SetMaxIter(2000);
          cg.SetRelTol(1e-8);
          cg.Mult(B, X);
