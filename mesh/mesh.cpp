@@ -4770,7 +4770,10 @@ Mesh::Mesh(real_t *vertices_, int num_vertices,
    }
    NumOfBdrElements = num_boundary_elements;
 
-   FinalizeTopology();
+   // If we passed in boundary elements then we've created them above. If we did
+   // not pass them in, it must have been a domain that does not have any.
+   const bool generate_bdr = false;
+   FinalizeTopology(generate_bdr);
 }
 
 Mesh::Mesh(const NURBSExtension& ext)
