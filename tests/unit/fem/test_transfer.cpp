@@ -12,6 +12,8 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+#include <memory>
+
 using namespace mfem;
 
 int RandomPRefinement(FiniteElementSpace & fes)
@@ -488,83 +490,59 @@ void sin_vfunc(const Vector &x, Vector &y)
    }
 }
 
-
-TEST_CASE("Trace PRefinement Serial TrueTransfer", "[Transfer]")
+namespace
 {
-   auto simplex = GENERATE(true, false);
-   dimension = GENERATE(2, 3);
-   constexpr int ne = 4;
-   auto order = GENERATE(1,2,3);
-   auto vectorspace = GENERATE(VecSpace::H1, VecSpace::VectorH1nodes,
-                               VecSpace::VectorH1vdim,
-                               VecSpace::ND,VecSpace::RT);
-   auto assembleP = GENERATE(false, true);
-   auto amr = GENERATE(false, true);
 
-   // Log test case information
-   const int total_ne = static_cast<int>(std::pow(ne, dimension));
-   CAPTURE(VecSpaceName(vectorspace),dimension, simplex, total_ne, order,
-           assembleP);
+struct TraceCollections
+{
+   std::unique_ptr<FiniteElementCollection> c_fec;
+   std::unique_ptr<FiniteElementCollection> f_fec;
+   std::unique_ptr<FiniteElementCollection> c_trace_fec;
+   std::unique_ptr<FiniteElementCollection> f_trace_fec;
+};
 
-   Mesh mesh;
-   if (dimension == 2)
-   {
-      Element::Type type = simplex ? Element::TRIANGLE : Element::QUADRILATERAL;
-      mesh = Mesh::MakeCartesian2D(ne, ne, type, 1, 1.0, 1.0);
-   }
-   else
-   {
-      Element::Type type = simplex ? Element::TETRAHEDRON : Element::HEXAHEDRON;
-      mesh = Mesh::MakeCartesian3D(ne, ne, ne, type, 1.0, 1.0, 1.0);
-   }
-
-   if (amr) { mesh.RandomRefinement(0.5); }
-
-   FiniteElementCollection *c_fec = nullptr;
-   FiniteElementCollection *f_fec = nullptr;
-
-   FiniteElementCollection *c_trace_fec = nullptr;
-   FiniteElementCollection *f_trace_fec = nullptr;
-
+TraceCollections MakeTraceCollections(const VecSpace vectorspace,
+                                      const int order, const int dim)
+{
+   TraceCollections fec;
    switch (vectorspace)
    {
       case VecSpace::H1:
       case VecSpace::VectorH1nodes:
       case VecSpace::VectorH1vdim:
-         c_fec = new H1_FECollection(order, dimension);
-         f_fec = new H1_FECollection(order+1, dimension);
-         c_trace_fec = new H1_Trace_FECollection(order, dimension);
-         f_trace_fec = new H1_Trace_FECollection(order+1, dimension);
+         fec.c_fec = std::make_unique<H1_FECollection>(order, dim);
+         fec.f_fec = std::make_unique<H1_FECollection>(order+1, dim);
+         fec.c_trace_fec = std::make_unique<H1_Trace_FECollection>(order, dim);
+         fec.f_trace_fec = std::make_unique<H1_Trace_FECollection>(order+1, dim);
          break;
       case VecSpace::ND:
-         c_fec = new ND_FECollection(order, dimension);
-         f_fec = new ND_FECollection(order+1, dimension);
-         c_trace_fec = new ND_Trace_FECollection(order, dimension);
-         f_trace_fec = new ND_Trace_FECollection(order+1, dimension);
+         fec.c_fec = std::make_unique<ND_FECollection>(order, dim);
+         fec.f_fec = std::make_unique<ND_FECollection>(order+1, dim);
+         fec.c_trace_fec = std::make_unique<ND_Trace_FECollection>(order, dim);
+         fec.f_trace_fec = std::make_unique<ND_Trace_FECollection>(order+1, dim);
          break;
       case VecSpace::RT:
-         c_fec = new RT_FECollection(order-1, dimension);
-         f_fec = new RT_FECollection(order, dimension);
-         c_trace_fec = new RT_Trace_FECollection(order-1, dimension);
-         f_trace_fec = new RT_Trace_FECollection(order, dimension);
+         fec.c_fec = std::make_unique<RT_FECollection>(order-1, dim);
+         fec.f_fec = std::make_unique<RT_FECollection>(order, dim);
+         fec.c_trace_fec = std::make_unique<RT_Trace_FECollection>(order-1, dim);
+         fec.f_trace_fec = std::make_unique<RT_Trace_FECollection>(order, dim);
          break;
    }
+   return fec;
+}
 
-   const int vdim = (vectorspace == VecSpace::VectorH1nodes
-                     || vectorspace == VecSpace::VectorH1vdim) ? dimension : 1;
-   Ordering::Type ordering = (vectorspace == VecSpace::VectorH1vdim)
-                             ? Ordering::byVDIM : Ordering::byNODES;
-
-   FiniteElementSpace c_fes(&mesh, c_fec, vdim, ordering);
-   FiniteElementSpace f_fes(&mesh, f_fec, vdim, ordering);
-
-   FiniteElementSpace c_trace_fes(&mesh, c_trace_fec, vdim, ordering);
-   FiniteElementSpace f_trace_fes(&mesh, f_trace_fec, vdim, ordering);
-
-   GridFunction x_c(&c_fes); x_c = 0.0;
-   GridFunction x_f(&f_fes); x_f = 0.0;
-   GridFunction x_trace_c(&c_trace_fes); x_trace_c = 0.0;
-   GridFunction x_trace_f(&f_trace_fes); x_trace_f = 0.0;
+template <typename MeshT, typename FESpaceT, typename GridFunctionT>
+void CheckTracePRefinementTrueTransfer(MeshT &mesh,
+                                       FESpaceT &c_fes, FESpaceT &f_fes,
+                                       FESpaceT &c_trace_fes, FESpaceT &f_trace_fes,
+                                       const VecSpace vectorspace,
+                                       const int dim,
+                                       const bool assembleP)
+{
+   GridFunctionT x_c(&c_fes); x_c = 0.0;
+   GridFunctionT x_f(&f_fes); x_f = 0.0;
+   GridFunctionT x_trace_c(&c_trace_fes); x_trace_c = 0.0;
+   GridFunctionT x_trace_f(&f_trace_fes); x_trace_f = 0.0;
 
    if (vectorspace == VecSpace::H1)
    {
@@ -574,7 +552,7 @@ TEST_CASE("Trace PRefinement Serial TrueTransfer", "[Transfer]")
    }
    else
    {
-      VectorFunctionCoefficient vec_cf(dimension, &sin_vfunc);
+      VectorFunctionCoefficient vec_cf(dim, &sin_vfunc);
       x_c.ProjectCoefficient(vec_cf);
       switch (vectorspace)
       {
@@ -611,7 +589,7 @@ TEST_CASE("Trace PRefinement Serial TrueTransfer", "[Transfer]")
 
    // zero out interior dofs before and after p-ref to compare with trace
    Array<int> vdofs;
-   for (int i = 0; i<mesh.GetNE(); i++)
+   for (int i = 0; i < mesh.GetNE(); i++)
    {
       c_fes.GetElementInteriorVDofs(i, vdofs);
       x_c.SetSubVector(vdofs, 0.0);
@@ -622,9 +600,9 @@ TEST_CASE("Trace PRefinement Serial TrueTransfer", "[Transfer]")
    // Embed the trace dofs to a field GridFunction for comparison
    Array<int> face_vdofs, trace_vdofs;
    Vector values;
-   GridFunction x_embedded_trace_c(&c_fes); x_embedded_trace_c = 0.0;
-   GridFunction x_embedded_trace_f(&f_fes); x_embedded_trace_f = 0.0;
-   for (int i = 0; i<mesh.GetNumFaces(); i++)
+   GridFunctionT x_embedded_trace_c(&c_fes); x_embedded_trace_c = 0.0;
+   GridFunctionT x_embedded_trace_f(&f_fes); x_embedded_trace_f = 0.0;
+   for (int i = 0; i < mesh.GetNumFaces(); i++)
    {
       c_trace_fes.GetFaceVDofs(i, trace_vdofs);
       x_trace_c.GetSubVector(trace_vdofs, values);
@@ -641,11 +619,57 @@ TEST_CASE("Trace PRefinement Serial TrueTransfer", "[Transfer]")
    REQUIRE(x_embedded_trace_c.Norml2() == MFEM_Approx(0.0));
    x_embedded_trace_f -= x_f;
    REQUIRE(x_embedded_trace_f.Norml2() == MFEM_Approx(0.0));
+}
 
-   delete f_trace_fec;
-   delete c_trace_fec;
-   delete f_fec;
-   delete c_fec;
+} // namespace
+
+
+TEST_CASE("Trace PRefinement Serial TrueTransfer", "[Transfer]")
+{
+   auto simplex = GENERATE(true, false);
+   dimension = GENERATE(2, 3);
+   constexpr int ne = 4;
+   auto order = GENERATE(1,2,3);
+   auto vectorspace = GENERATE(VecSpace::H1, VecSpace::VectorH1nodes,
+                               VecSpace::VectorH1vdim,
+                               VecSpace::ND,VecSpace::RT);
+   auto assembleP = GENERATE(false, true);
+   auto amr = GENERATE(false, true);
+
+   // Log test case information
+   const int total_ne = static_cast<int>(std::pow(ne, dimension));
+   CAPTURE(VecSpaceName(vectorspace),dimension, simplex, total_ne, order,
+           assembleP);
+
+   Mesh mesh;
+   if (dimension == 2)
+   {
+      Element::Type type = simplex ? Element::TRIANGLE : Element::QUADRILATERAL;
+      mesh = Mesh::MakeCartesian2D(ne, ne, type, 1, 1.0, 1.0);
+   }
+   else
+   {
+      Element::Type type = simplex ? Element::TETRAHEDRON : Element::HEXAHEDRON;
+      mesh = Mesh::MakeCartesian3D(ne, ne, ne, type, 1.0, 1.0, 1.0);
+   }
+
+   if (amr) { mesh.RandomRefinement(0.5); }
+
+   auto fec = MakeTraceCollections(vectorspace, order, dimension);
+
+   const int vdim = (vectorspace == VecSpace::VectorH1nodes
+                     || vectorspace == VecSpace::VectorH1vdim) ? dimension : 1;
+   Ordering::Type ordering = (vectorspace == VecSpace::VectorH1vdim)
+                             ? Ordering::byVDIM : Ordering::byNODES;
+
+   FiniteElementSpace c_fes(&mesh, fec.c_fec.get(), vdim, ordering);
+   FiniteElementSpace f_fes(&mesh, fec.f_fec.get(), vdim, ordering);
+   FiniteElementSpace c_trace_fes(&mesh, fec.c_trace_fec.get(), vdim, ordering);
+   FiniteElementSpace f_trace_fes(&mesh, fec.f_trace_fec.get(), vdim, ordering);
+
+   CheckTracePRefinementTrueTransfer<Mesh, FiniteElementSpace, GridFunction>(
+      mesh, c_fes, f_fes, c_trace_fes, f_trace_fes, vectorspace, dimension,
+      assembleP);
 }
 
 
@@ -809,133 +833,24 @@ TEST_CASE("Trace PRefinement Parallel TrueTransfer", "[Transfer][Parallel]")
 
    if (amr) { pmesh.RandomRefinement(0.5); }
 
-   FiniteElementCollection *c_fec = nullptr;
-   FiniteElementCollection *f_fec = nullptr;
-
-   FiniteElementCollection *c_trace_fec = nullptr;
-   FiniteElementCollection *f_trace_fec = nullptr;
-
-   switch (vectorspace)
-   {
-      case VecSpace::H1:
-      case VecSpace::VectorH1nodes:
-      case VecSpace::VectorH1vdim:
-         c_fec = new H1_FECollection(order, dimension);
-         f_fec = new H1_FECollection(order+1, dimension);
-         c_trace_fec = new H1_Trace_FECollection(order, dimension);
-         f_trace_fec = new H1_Trace_FECollection(order+1, dimension);
-         break;
-      case VecSpace::ND:
-         c_fec = new ND_FECollection(order, dimension);
-         f_fec = new ND_FECollection(order+1, dimension);
-         c_trace_fec = new ND_Trace_FECollection(order, dimension);
-         f_trace_fec = new ND_Trace_FECollection(order+1, dimension);
-         break;
-      case VecSpace::RT:
-         c_fec = new RT_FECollection(order-1, dimension);
-         f_fec = new RT_FECollection(order, dimension);
-         c_trace_fec = new RT_Trace_FECollection(order-1, dimension);
-         f_trace_fec = new RT_Trace_FECollection(order, dimension);
-         break;
-   }
+   auto fec = MakeTraceCollections(vectorspace, order, dimension);
 
    const int vdim = (vectorspace == VecSpace::VectorH1nodes
                      || vectorspace == VecSpace::VectorH1vdim) ? dimension : 1;
    Ordering::Type ordering = (vectorspace == VecSpace::VectorH1vdim)
                              ? Ordering::byVDIM : Ordering::byNODES;
 
-   ParFiniteElementSpace c_fes(&pmesh, c_fec, vdim, ordering);
-   ParFiniteElementSpace f_fes(&pmesh, f_fec, vdim, ordering);
+   ParFiniteElementSpace c_fes(&pmesh, fec.c_fec.get(), vdim, ordering);
+   ParFiniteElementSpace f_fes(&pmesh, fec.f_fec.get(), vdim, ordering);
+   ParFiniteElementSpace c_trace_fes(&pmesh, fec.c_trace_fec.get(), vdim,
+                                     ordering);
+   ParFiniteElementSpace f_trace_fes(&pmesh, fec.f_trace_fec.get(), vdim,
+                                     ordering);
 
-   ParFiniteElementSpace c_trace_fes(&pmesh, c_trace_fec, vdim, ordering);
-   ParFiniteElementSpace f_trace_fes(&pmesh, f_trace_fec, vdim, ordering);
-
-   ParGridFunction x_c(&c_fes); x_c = 0.0;
-   ParGridFunction x_f(&f_fes); x_f = 0.0;
-   ParGridFunction x_trace_c(&c_trace_fes); x_trace_c = 0.0;
-   ParGridFunction x_trace_f(&f_trace_fes); x_trace_f = 0.0;
-
-   if (vectorspace == VecSpace::H1)
-   {
-      FunctionCoefficient cf(sin_func);
-      x_c.ProjectCoefficient(cf);
-      x_trace_c.ProjectTraceCoefficient(cf);
-   }
-   else
-   {
-      VectorFunctionCoefficient vec_cf(dimension, &vectorcoeff);
-      x_c.ProjectCoefficient(vec_cf);
-      switch (vectorspace)
-      {
-         case VecSpace::VectorH1nodes:
-         case VecSpace::VectorH1vdim:
-            x_trace_c.ProjectTraceCoefficient(vec_cf);
-            break;
-         case VecSpace::ND:
-            x_trace_c.ProjectTraceCoefficientTangent(vec_cf);
-            break;
-         case VecSpace::RT:
-            x_trace_c.ProjectTraceCoefficientNormal(vec_cf);
-            break;
-         default:
-            break;
-      }
-   }
-
-   // Generate transfer operators for field and trace spaces
-   PRefinementTransferOperator P(c_fes, f_fes, assembleP);
-   PRefinementTransferOperator P_trace(c_trace_fes, f_trace_fes, assembleP);
-
-   // Apply transfer operators
-   Vector x_c_true(c_fes.GetTrueVSize());
-   Vector x_f_true(f_fes.GetTrueVSize());
-   Vector x_trace_c_true(c_trace_fes.GetTrueVSize());
-   Vector x_trace_f_true(f_trace_fes.GetTrueVSize());
-   x_c.GetTrueDofs(x_c_true);
-   x_trace_c.GetTrueDofs(x_trace_c_true);
-   P.GetTrueTransferOperator()->Mult(x_c_true, x_f_true);
-   P_trace.GetTrueTransferOperator()->Mult(x_trace_c_true, x_trace_f_true);
-
-   x_f.SetFromTrueDofs(x_f_true);
-   x_trace_f.SetFromTrueDofs(x_trace_f_true);
-
-   // zero out interior dofs before and after p-ref to compare with trace
-   Array<int> vdofs;
-   for (int i = 0; i<pmesh.GetNE(); i++)
-   {
-      c_fes.GetElementInteriorVDofs(i, vdofs);
-      x_c.SetSubVector(vdofs, 0.0);
-      f_fes.GetElementInteriorVDofs(i, vdofs);
-      x_f.SetSubVector(vdofs, 0.0);
-   }
-
-   // Embed the trace dofs to a field GridFunction for comparison
-   Array<int> face_vdofs, trace_vdofs;
-   Vector values;
-   ParGridFunction x_embedded_trace_c(&c_fes); x_embedded_trace_c = 0.0;
-   ParGridFunction x_embedded_trace_f(&f_fes); x_embedded_trace_f = 0.0;
-   for (int i = 0; i<pmesh.GetNumFaces(); i++)
-   {
-      c_trace_fes.GetFaceVDofs(i, trace_vdofs);
-      x_trace_c.GetSubVector(trace_vdofs, values);
-      c_fes.GetFaceVDofs(i, face_vdofs);
-      x_embedded_trace_c.SetSubVector(face_vdofs, values);
-
-      f_trace_fes.GetFaceVDofs(i, trace_vdofs);
-      x_trace_f.GetSubVector(trace_vdofs, values);
-      f_fes.GetFaceVDofs(i, face_vdofs);
-      x_embedded_trace_f.SetSubVector(face_vdofs, values);
-   }
-
-   x_embedded_trace_c -= x_c;
-   REQUIRE(x_embedded_trace_c.Norml2() == MFEM_Approx(0.0));
-   x_embedded_trace_f -= x_f;
-   REQUIRE(x_embedded_trace_f.Norml2() == MFEM_Approx(0.0));
-
-   delete f_trace_fec;
-   delete c_trace_fec;
-   delete f_fec;
-   delete c_fec;
+   CheckTracePRefinementTrueTransfer<ParMesh, ParFiniteElementSpace, ParGridFunction>
+   (
+      pmesh, c_fes, f_fes, c_trace_fes, f_trace_fes, vectorspace, dimension,
+      assembleP);
 }
 
 
