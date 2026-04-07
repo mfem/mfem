@@ -9,12 +9,15 @@
             "type": "cppdbg",
             "request": "launch",
             // "program": "${workspaceFolder}/build/tests/unit/unit_tests",
-            "program": "${workspaceFolder}/build/examples/dfem/diffusion3d",
+            // "program": "${workspaceFolder}/build/examples/dfem/diffusion3d",
+            "program": "${workspaceFolder}/build/tests/benchmarks/bench_dfem",
             "args": [
-                "-o",
-                "1",
-                "--version",
-                "3"
+                "--benchmark_filter=BP3/./6/16",
+                "--benchmark_min_time=1x",
+                // "-o",
+                // "1",
+                // "--version",
+                // "3"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build/examples",
