@@ -1026,6 +1026,7 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const Vector &bb_size,
                                 const double newt_tol)
 {
    obb_check = false;
+   bdr_tol = bb_size.Max();
    SetupSurf_Base(m, bb_t, &bb_size, newt_tol);
 }
 
