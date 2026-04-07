@@ -961,3 +961,38 @@ TEST_CASE("NNLS", "[DenseMatrix]")
 }
 
 #endif // if MFEM_USE_LAPACK
+
+TEST_CASE("DenseTensor slice copy and move assign equivalency",
+          "[DenseMatrix][DenseTensor]")
+{
+   auto fill_matrix = [](int n)
+   {
+      DenseMatrix M(n, n);
+      M = 0.0;
+      for (int i = 0; i < n; i++)
+         for (int j = 0; j < n; j++)
+         {
+            M(i, j) = i+j*n+1;
+         }
+      return M;
+   };
+
+   constexpr int n = 3;
+   constexpr int k = 2;
+
+   DenseTensor tensor1(n, n, k), tensor2(n, n, k);
+   tensor1 = 0.0; tensor2 = 0.0;
+
+   DenseMatrix temp = fill_matrix(n);
+   tensor1(0) = temp; // copy assign
+   tensor2(0) = std::move(temp); // move assign
+
+   // Check that the tensor was actually updated
+   for (int i = 0; i < n; i++)
+   {
+      for (int j = 0; j < n; j++)
+      {
+         CHECK(tensor1(i, j, 0) == tensor2(i, j, 0));
+      }
+   }
+}
