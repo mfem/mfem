@@ -382,20 +382,19 @@ public:
  *
  *        1. Compute the root of the R → R function
  *            f(c) = ∫_Ω sigmoid(ψ + c) dx - θ vol(Ω)
- *           using the bisection method
+ *           using the Illinois method
  *        2. Set ψ ← ψ + c.
  *
  * @param psi a GridFunction to be updated
  * @param alpha_grad alpha multiplied by gradient
  * @param c initial guess for root
  * @param target_volume θ vol(Ω)
- * @param tol Bisection iteration tolerance
- * @param max_its Bisection maximum iteration number
- * @return std::pair<real_t, real_t> Final volume (∫_Ω sigmoid(ψ) dx) and the correction (c)
+ * @param tol Illinois iteration tolerance
+ * @param max_its Illinois maximum iteration number
+ * @return real_t Final volume (∫_Ω sigmoid(ψ) dx)
  */
-std::pair<real_t, real_t> proj(GridFunction &psi, GridFunction &alpha_grad,
-                               real_t c, real_t target_volume,
-                               real_t tol = 1e-12, int max_its = 100)
+real_t proj(GridFunction &psi, GridFunction &alpha_grad, real_t target_volume,
+            real_t tol = 1e-12, int max_its = 100)
 {
 #ifdef MFEM_USE_MPI
    FiniteElementSpace *fes = psi.FESpace();
@@ -403,7 +402,7 @@ std::pair<real_t, real_t> proj(GridFunction &psi, GridFunction &alpha_grad,
 #endif
    ConstantCoefficient zero_cf(0.0);
    real_t a = -alpha_grad.ComputeMaxError(zero_cf);
-   real_t b = c;
+   real_t b = -a;
    real_t y;
 
    MappedGridFunctionCoefficient sigmoid_psi(
@@ -442,6 +441,7 @@ std::pair<real_t, real_t> proj(GridFunction &psi, GridFunction &alpha_grad,
 #endif
    f_a -= target_volume; // f_a := f(a)
    f_b -= target_volume; // f_b := f(b)
+   real_t c;
    real_t f_c;
    int side = 0;
 
@@ -450,7 +450,7 @@ std::pair<real_t, real_t> proj(GridFunction &psi, GridFunction &alpha_grad,
    {
       c = (f_a * b - f_b * a) / (f_a - f_b);
 
-      if (abs(b - a) < tol * abs(b + a)) { done = true; y = 0.0; break; }
+      if (abs(b - a) < tol * abs(b + a)) { done = true; break; }
 
       y = c;
       int_sigmoid_psi->Assemble();
@@ -480,7 +480,7 @@ std::pair<real_t, real_t> proj(GridFunction &psi, GridFunction &alpha_grad,
       }
       else
       {
-         done = true; y = 0.0; break;
+         done = true; break;
       }
    }
    if (!done)
@@ -488,6 +488,7 @@ std::pair<real_t, real_t> proj(GridFunction &psi, GridFunction &alpha_grad,
       mfem_warning("Projection reached maximum iteration without converging. "
                    "Result may not be accurate.");
    }
+   y = 0.0;
    psi += c;
    int_sigmoid_psi->Assemble();
    real_t material_volume = int_sigmoid_psi->Sum();
@@ -498,7 +499,7 @@ std::pair<real_t, real_t> proj(GridFunction &psi, GridFunction &alpha_grad,
                     MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
    }
 #endif
-   return {material_volume,c};
+   return material_volume;
 }
 
 // Poisson solver

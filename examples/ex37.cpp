@@ -312,7 +312,6 @@ int main(int argc, char *argv[])
    vol_form.Assemble();
    real_t domain_volume = vol_form(onegf);
    const real_t target_volume = domain_volume * vol_fraction;
-   real_t c = 0;
 
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
@@ -382,9 +381,7 @@ int main(int argc, char *argv[])
       psi.Add(-alpha, grad);
       GridFunction alpha_grad(grad);
       alpha_grad *= alpha;
-      std::pair<real_t,real_t> result = proj(psi, alpha_grad, c, target_volume);
-      const real_t material_volume = result.first;
-      c = result.second;
+      const real_t material_volume = proj(psi, alpha_grad, target_volume);
 
       // Compute ||ρ - ρ_old|| in control fes.
       real_t norm_increment = zerogf.ComputeL1Error(succ_diff_rho);
