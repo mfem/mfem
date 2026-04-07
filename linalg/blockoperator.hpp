@@ -109,10 +109,9 @@ public:
    void MultTranspose (const Vector & x, Vector & y) const override;
 
 #ifdef MFEM_USE_MPI
-   /// Returns a monolithic HypreParMatrix formed by merging the blocks of
-   //  this BlockOperator, assuming every block is a HypreParMatrix.
-   HypreParMatrix * GetMonolithicHypreParMatrix(Array2D<real_t> *blockCoeff=NULL)
-   const;
+   /** @brief Returns a monolithic HypreParMatrix formed by merging the blocks of
+       this BlockOperator, assuming every block is a HypreParMatrix. */
+   HypreParMatrix * GetMonolithicHypreParMatrix() const;
 #endif
 
    ~BlockOperator();

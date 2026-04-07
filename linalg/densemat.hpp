@@ -465,9 +465,11 @@ public:
    void GetFromVector(int offset, const Vector &v);
    /** If (dofs[i] < 0 and dofs[j] >= 0) or (dofs[i] >= 0 and dofs[j] < 0)
        then (*this)(i,j) = -(*this)(i,j).  */
-   void AdjustDofDirection(Array<int> &dofs);
+   void AdjustDofDirection(const Array<int> &dofs);
 
-
+   /** If (row_dofs[i] < 0) xor (col_dofs[j] < 0) then
+    (*this)(i,j) = -(*this)(i,j). This method also converts
+    row_dofs/col_dofs to unsigned indices (d -> -d-1). */
    void AdjustDofDirection(Array<int> &row_dofs,
                            Array<int> &col_dofs);
 

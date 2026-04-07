@@ -2354,7 +2354,7 @@ void PRefinementTransferOperator::Mult(const Vector& x, Vector& y) const
 
    DofTransformation doftrans_h, doftrans_l;
 
-   int iend = (is_trace_space) ? mesh->GetNumFaces() : mesh->GetNE();
+   const int iend = (is_trace_space) ? mesh->GetNumFaces() : mesh->GetNE();
 
    for (int i = 0; i < iend; i++)
    {

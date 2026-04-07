@@ -84,7 +84,7 @@ public:
 
    int GetFESpaceMinimumOrder(const ParFiniteElementSpace *pfespace) const;
 
-   /** @brief Computes orders/maxlevels and constructs fec/fes hierarchy 
+   /** @brief Computes orders/maxlevels and constructs fec/fes hierarchy
        and T_level storage. */
    void BuildSpaceHierarchy(int mgmaxlevels = -1);
 
@@ -94,8 +94,8 @@ public:
    BlockOperator *BuildProlongation(int lev);
 };
 
-/// @brief  Creates a p-refinement multigrid preconditioner for a given set of parallel
-/// finite element space and block operator.
+/// @brief  Creates a p-refinement multigrid preconditioner for a
+/// given set of parallel finite element spaces and block operators.
 class PRefinementMultigrid : public Multigrid
 {
 private:
@@ -114,8 +114,8 @@ public:
    ~PRefinementMultigrid() override = default;
 };
 
-/// @brief  Creates a p-refinement multigrid preconditioner for a given set of parallel
-/// finite element space and complex operator.
+/// @brief  Creates a p-refinement multigrid preconditioner for a
+/// given set of parallel finite element spaces and complex operators.
 class ComplexPRefinementMultigrid : public Multigrid
 {
 private:

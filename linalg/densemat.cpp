@@ -2158,7 +2158,7 @@ void DenseMatrix::GetFromVector(int offset, const Vector &v)
    }
 }
 
-void DenseMatrix::AdjustDofDirection(Array<int> &dofs)
+void DenseMatrix::AdjustDofDirection(const Array<int> &dofs)
 {
    const int n = Height();
 

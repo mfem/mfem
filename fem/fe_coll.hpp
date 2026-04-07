@@ -250,7 +250,7 @@ public:
        its GetOrder() method. */
    virtual FiniteElementCollection *Clone(int p) const;
 
-   /** @brief Get the order of the constructor parameter for this collection type.
+   /** @brief Return the order parameter used to construct this collection.
     *  This differs from GetOrder() depending on the collection type. */
    virtual int GetConstructorOrder() const
    {

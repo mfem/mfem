@@ -132,8 +132,7 @@ void BlockOperator::MultTranspose(const Vector &x, Vector &y) const
 
 #ifdef MFEM_USE_MPI
 
-HypreParMatrix * BlockOperator::GetMonolithicHypreParMatrix(
-   Array2D<real_t> *blockCoeff) const
+HypreParMatrix * BlockOperator::GetMonolithicHypreParMatrix() const
 {
    Array2D<const HypreParMatrix*> blocks(nRowBlocks, nColBlocks);
    for (int i = 0; i < nRowBlocks; ++i)
@@ -153,7 +152,7 @@ HypreParMatrix * BlockOperator::GetMonolithicHypreParMatrix(
          }
       }
    }
-   return HypreParMatrixFromBlocks(blocks, blockCoeff);
+   return HypreParMatrixFromBlocks(blocks, coef);
 }
 #endif
 

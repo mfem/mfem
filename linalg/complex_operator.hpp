@@ -122,9 +122,10 @@ public:
    Convention GetConvention() const { return convention_; }
 
 #ifdef MFEM_USE_MPI
-   /// Return a ComplexHypreParMatrix view:
+   /// Returns a ComplexHypreParMatrix view:
    ///  - wraps if real/imag are HypreParMatrix
-   ///  - merges if real/imag are BlockOperator of HypreParMatrix blocks
+   ///  - merges to to a monolothic parallel ComplexHypreParMatrix
+   /// if real/imag are BlockOperator of HypreParMatrix blocks
    ComplexHypreParMatrix *AsComplexHypreParMatrix() const;
 #endif
 

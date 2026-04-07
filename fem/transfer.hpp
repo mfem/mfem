@@ -577,16 +577,17 @@ private:
    std::unique_ptr<SparseMatrix> BuildConformingTransferMatrix() const;
    std::unique_ptr<Operator> BuildConformingTransferOperator() const;
 
+   void AssembleMatrix();
+
 public:
    /// @brief Constructs a transfer operator from \p lFESpace to \p hFESpace
    /// which have different FE collections.
-   /** No matrices are assembled, only the action to a vector is being computed.
-       The underlying finite elements need to implement the GetTransferMatrix
-       methods. */
+   /** By default no matrices are assembled, only the action to a vector is
+       being computed. The underlying finite elements need to implement
+       the GetTransferMatrix methods. */
    PRefinementTransferOperator(const FiniteElementSpace& lFESpace_,
                                const FiniteElementSpace& hFESpace_,
                                bool assemble_matrix = false);
-
 
    Operator * GetTrueTransferOperator();
    const Operator * GetTrueTransferOperator() const
@@ -597,9 +598,6 @@ public:
 
    /// Destructor
    virtual ~PRefinementTransferOperator() { }
-
-
-   void AssembleMatrix();
 
    /// @brief Interpolation or prolongation of a vector \p x corresponding to
    /// the coarse space to the vector \p y corresponding to the fine space.
