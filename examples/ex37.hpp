@@ -137,7 +137,7 @@ public:
         exponent(exponent_), rho_min(rho_min_)
    {
       MFEM_ASSERT(rho_min_ >= 0.0, "rho_min must be >= 0");
-      MFEM_ASSERT(rho_min_ < 1.0,  "rho_min must be > 1");
+      MFEM_ASSERT(rho_min_ < 1.0,  "rho_min must be < 1");
       MFEM_ASSERT(u, "displacement field is not set");
       MFEM_ASSERT(rho_filter, "density field is not set");
    }
