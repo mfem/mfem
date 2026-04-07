@@ -22,17 +22,19 @@ set(CMAKE_INSTALL_PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/install)
 set(CMAKE_VERBOSE_MAKEFILE ON CACHE BOOL "Verbose makefiles." FORCE)
 
 # ------------------------------- CUDA Options --------------------------------
-set(MFEM_USE_CUDA ON CACHE BOOL "Enable CUDA" FORCE)
-message(STATUS "[🟢 CUDA   🟢] Enabled")
-set(CMAKE_CUDA_ARCHITECTURES 90 CACHE STRING "" FORCE)
-# set(CMAKE_CUDA_ARCHITECTURES native CACHE STRING "" FORCE)
-# set(CUDA_PATH /usr/tce/packages/cuda/cuda-13.1.1 CACHE PATH "" FORCE)
-# set(CMAKE_CUDA_COMPILER "${CUDA_PATH}/bin/nvcc" CACHE PATH "" FORCE)
+set(MFEM_USE_CUDA OFF CACHE BOOL "Enable CUDA" FORCE)
+if (${MFEM_USE_CUDA} EQUAL ON)
+    message(STATUS "[🟢 CUDA   🟢] Enabled")
+    set(CMAKE_CUDA_ARCHITECTURES 90 CACHE STRING "" FORCE)
+    # set(CMAKE_CUDA_ARCHITECTURES native CACHE STRING "" FORCE)
+    # set(CUDA_PATH /usr/tce/packages/cuda/cuda-13.1.1 CACHE PATH "" FORCE)
+    # set(CMAKE_CUDA_COMPILER "${CUDA_PATH}/bin/nvcc" CACHE PATH "" FORCE)
+endif()
 
 # ---------------------------- NVTX Debug File --------------------------------
-# message(STATUS "[🟢 NVTX   🟢] /usr/WS1/camier1/matrix/usr/src/nvtx")
-# add_compile_definitions(NVTX_DBG_HPP="/usr/WS1/camier1/matrix/usr/src/nvtx/nvtx_dbg.hpp")
-# add_compile_definitions(NVTX_DBG_FMT="/usr/WS1/camier1/matrix/usr/src/nvtx/nvtx_fmt.hpp")
+message(STATUS "[🟢 NVTX   🟢] /usr/WS1/camier1/matrix/usr/src/nvtx")
+add_compile_definitions(NVTX_DBG_HPP="/usr/WS1/camier1/matrix/usr/src/nvtx/nvtx_dbg.hpp")
+add_compile_definitions(NVTX_DBG_FMT="/usr/WS1/camier1/matrix/usr/src/nvtx/nvtx_fmt.hpp")
 
 # --------------------------------- CXX Host ----------------------------------
 # With matrixgcc:
@@ -73,23 +75,29 @@ set(CMAKE_CXX_STANDARD 17 CACHE STRING "" FORCE)
 
 set(CMAKE_CUDA_FLAGS_DEBUG "-g -O0" CACHE STRING "" FORCE)
 set(CMAKE_CUDA_FLAGS_RELEASE "-O3" CACHE STRING "" FORCE)
-set(CMAKE_CUDA_FLAGS_RELWITHDEBINFO "-g -O3" CACHE STRING "" FORCE)
+set(CMAKE_CUDA_FLAGS_RELWITHDEBINFO "-g -O1" CACHE STRING "" FORCE)
 
-# [FMT] constexpr constructor calls non-constexpr function 
-add_compile_options(-diag-suppress=2417)
+if (${MFEM_USE_CUDA} EQUAL ON)
+    # [FMT] constexpr constructor calls non-constexpr function 
+    add_compile_options(-diag-suppress=2417)
 
-# [FMT] loop is not reachable
-add_compile_options(-diag-suppress=128)
+    # [FMT] loop is not reachable
+    add_compile_options(-diag-suppress=128)
 
-# warning #186-D: pointless comparison of unsigned integer with zero
-add_compile_options(-diag-suppress=186)
+    # warning #186-D: pointless comparison of unsigned integer with zero
+    add_compile_options(-diag-suppress=186)
 
-# annotation is ignored on a non-virtual function("tensor")
-# that is explicitly defaulted on its first declaration
-# add_compile_options(-diag-suppress 20012)
+    # annotation is ignored on a non-virtual function("tensor")
+    # that is explicitly defaulted on its first declaration
+    # add_compile_options(-diag-suppress 20012)
 
-# virtual missing
-add_compile_options(-diag-suppress=611)
+    # virtual missing
+    add_compile_options(-diag-suppress=611)
+
+    # calling a __host__ function from a __host__ __device__ function is not allowed
+    add_compile_options(-diag-suppress=20011)
+    add_compile_options(-diag-suppress=20014)
+endif()
 
 # add_compile_options(-Wall)
 
@@ -123,7 +131,11 @@ set(MPI_PATH "/usr/tce/packages/mvapich2/mvapich2-2.3.7-gcc-10.3.1-magic" CACHE 
 set(MPICXX "${MPI_PATH}/bin/mpicxx" CACHE PATH "" FORCE)
 
 # -------------------------------- HYPRE -----------------------------------
-set(HYPRE_DIR "$ENV{HOME}/home/matrix/usr/src/hypre/src/hypre" CACHE PATH "")
+if (${MFEM_USE_CUDA} EQUAL ON)
+    set(HYPRE_DIR "/usr/WS1/camier1/matrix/usr/local/hypre-gcc-cuda" CACHE PATH "")
+else()
+    set(HYPRE_DIR "/usr/WS1/camier1/matrix/usr/local/hypre-gcc-cpu" CACHE PATH "")
+endif()
 
 # -------------------------------- METIS -----------------------------------
 option(MFEM_USE_METIS "Enable METIS usage" ${MFEM_USE_MPI})

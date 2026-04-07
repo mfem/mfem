@@ -91,7 +91,7 @@ public:
       const int &daction_l_size,
       const std::vector<derivative_action_t> &derivative_actions_transpose,
       const FieldDescriptor &transpose_direction,
-      const int &daction_transpose_l_size,
+      [[maybe_unused]] const int &daction_transpose_l_size,
       const std::vector<Vector *> &solutions_l,
       const std::vector<Vector *> &parameters_l,
       const restriction_callback_t &restriction_callback,
@@ -826,8 +826,9 @@ void DifferentiableOperator::AddIntegrator(
 
    if (use_new_kernels)
    {
-      // dbg("ThreadBlocks: x:{} y:{} z:{}",
-      //     thread_blocks.x, thread_blocks.y, thread_blocks.z);
+      db1("Use NEW kernels");
+      dbg("ThreadBlocks: x:{} y:{} z:{}",
+          thread_blocks.x, thread_blocks.y, thread_blocks.z);
       action_callbacks.push_back(
          [
             // 🟢🟢🟢🟢 capture by copy:
@@ -884,6 +885,7 @@ void DifferentiableOperator::AddIntegrator(
    }
    else // use_new_kernels == false
    {
+      db1("Use STD kernels");
       action_callbacks.push_back(
          // Explicitly capture everything we need, so we can make explicit choice
          // how to capture every variable, by copy or by ref.
@@ -967,7 +969,7 @@ void DifferentiableOperator::AddIntegrator(
    // will fail.
    if constexpr (derivative_ids_t::size() != 0)
    {
-      // Create the action of the derivatives
+      dbg("Create the action of the derivatives");
       for_constexpr([&, &or_transpose =
                         this->output_restriction_transpose](const std::size_t derivative_id)
       {

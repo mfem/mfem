@@ -35,6 +35,9 @@
 #include "parameterspace.hpp"
 #include "tuple.hpp"
 
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kLightBlue
+
 namespace mfem::future
 {
 
@@ -75,7 +78,7 @@ constexpr void for_constexpr(lambda&& f,
 }
 
 template <typename lambda>
-constexpr void for_constexpr(lambda&& f, std::integer_sequence<std::size_t>) {}
+constexpr void for_constexpr(lambda&&, std::integer_sequence<std::size_t>) {}
 
 template <int... n, typename lambda>
 constexpr void for_constexpr(lambda&& f)
@@ -84,7 +87,7 @@ constexpr void for_constexpr(lambda&& f)
 }
 
 template <typename lambda, typename arg_t>
-constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg,
+constexpr void for_constexpr_with_arg(lambda&&, arg_t&&,
                                       std::integer_sequence<std::size_t>)
 {
    // Base case - do nothing for empty sequence
@@ -538,7 +541,7 @@ auto get_marked_entries(
 /// @param t the tuple to filter fields from.
 /// @returns a tuple containing only the fields with field IDs not equal to -1.
 template <typename... Ts>
-constexpr auto filter_fields(const std::tuple<Ts...>& t)
+constexpr auto filter_fields(const std::tuple<Ts...>&)
 {
    return std::tuple_cat(
              std::conditional_t<Ts::GetFieldId() != -1, std::tuple<Ts>, std::tuple<>> {}...);
@@ -599,7 +602,7 @@ struct ThreadBlocks
 
 #if defined(MFEM_USE_CUDA_OR_HIP)
 template <typename func_t>
-__global__ void forall_kernel_shmem(func_t f, int n)
+__global__ void forall_kernel_extern_shmem(func_t f, int n)
 {
    int i = blockIdx.x;
    extern __shared__ real_t shmem[];
@@ -608,30 +611,40 @@ __global__ void forall_kernel_shmem(func_t f, int n)
       f(i, shmem);
    }
 }
+template <typename func_t>
+__global__ void forall_kernel_static_smem(func_t f, int n)
+{
+   int i = blockIdx.x;
+   if (i >= n) { return; }
+   f(i, nullptr);
+}
 #endif
 
 template </*typename kernel_tag,*/ typename func_t>
 void forall(func_t f,
             const int &N,
-            const ThreadBlocks &blocks,
-            int num_shmem = 0,
+            [[maybe_unused]] const ThreadBlocks &blocks,
+            [[maybe_unused]] int num_shmem = 0,
             real_t *shmem = nullptr)
 {
+   db1();
    if (Device::Allows(Backend::CUDA_MASK) ||
        Device::Allows(Backend::HIP_MASK))
    {
 #if defined(MFEM_USE_CUDA_OR_HIP)
       // int gridsize = (N + Z - 1) / Z;
       int num_bytes = num_shmem * sizeof(decltype(shmem));
+      db1("num_bytes:{}", num_bytes);
+      db1("block: {}x{}x{}", blocks.x, blocks.y, blocks.z);
       dim3 block_size(blocks.x, blocks.y, blocks.z);
       // ForallKernel<kernel_tag>::run<<<N, block_size, num_bytes>>>(f, N);
       if (num_bytes > 0)
       {
-         forall_kernel_shmem<<<N, block_size, num_bytes>>>(f, N);
+         forall_kernel_extern_shmem<<<N, block_size, num_bytes>>>(f, N);
       }
       else
       {
-         forall_kernel_shmem<<<N, block_size>>>(f, N);
+         forall_kernel_static_smem<<<N, block_size>>>(f, N);
       }
 #if defined(MFEM_USE_CUDA)
       MFEM_GPU_CHECK(cudaGetLastError());
@@ -643,6 +656,7 @@ void forall(func_t f,
    }
    else if (Device::Allows(Backend::CPU_MASK))
    {
+      db1("CPU_MASK");
       MFEM_ASSERT(!((bool)num_shmem != (bool)shmem),
                   "Backend::CPU needs a pre-allocated shared memory block");
       for (int i = 0; i < N; i++)
@@ -1035,6 +1049,7 @@ inline
 const Operator *get_restriction(const FieldDescriptor &f,
                                 const ElementDofOrdering &o)
 {
+   db1("get R");
    if constexpr (std::is_same_v<entity_t, Entity::Element>)
    {
       return get_element_restriction(f, o);
@@ -1060,12 +1075,14 @@ inline std::tuple<std::function<void(const Vector&, Vector&)>, int>
 get_restriction_transpose(
    const FieldDescriptor &f,
    const ElementDofOrdering &o,
-   const fop_t &fop)
+   [[maybe_unused]] const fop_t &fop)
 {
+   NVTX_MARK_FUNCTION;
    if constexpr (is_sum_fop<fop_t>::value)
    {
       auto RT = [=](const Vector &v_e, Vector &v_l)
       {
+         db1("R^T sum");
          v_l += v_e;
       };
       return std::make_tuple(RT, 1);
@@ -1075,6 +1092,7 @@ get_restriction_transpose(
       const Operator *R = get_restriction<entity_t>(f, o);
       std::function<void(const Vector&, Vector&)> RT = [=](const Vector &x, Vector &y)
       {
+         db1("R^T+");
          R->AddMultTranspose(x, y);
       };
       return std::make_tuple(RT, R->Height());
@@ -1094,6 +1112,7 @@ get_restriction_transpose(
 inline
 void prolongation(const FieldDescriptor field, const Vector &x, Vector &field_l)
 {
+   db1("P");
    const auto P = get_prolongation(field);
    field_l.SetSize(P->Height());
    P->Mult(x, field_l);
@@ -1115,6 +1134,7 @@ void prolongation(const std::array<FieldDescriptor, N> fields,
                   const Vector &x,
                   std::array<Vector, M> &fields_l)
 {
+   db1("P");
    int data_offset = 0;
    for (int i = 0; i < N; i++)
    {
@@ -1143,6 +1163,7 @@ void prolongation(const std::vector<FieldDescriptor> fields,
                   const Vector &x,
                   std::vector<Vector> &fields_l)
 {
+   db1("P");
    int data_offset = 0;
    for (std::size_t i = 0; i < fields.size(); i++)
    {
@@ -1160,6 +1181,7 @@ void get_lvectors(const std::vector<FieldDescriptor> fields,
                   const Vector &x,
                   std::vector<Vector> &fields_l)
 {
+   db1();
    int data_offset = 0;
    for (std::size_t i = 0; i < fields.size(); i++)
    {
@@ -1186,13 +1208,14 @@ template <typename fop_t>
 inline
 std::function<void(const Vector&, Vector&)> get_prolongation_transpose(
    const FieldDescriptor &f,
-   const fop_t &fop,
+   [[maybe_unused]] const fop_t &fop,
    MPI_Comm mpi_comm)
 {
    if constexpr (is_sum_fop<fop_t>::value)
    {
       auto PT = [=](const Vector &r_local, Vector &y)
       {
+         db1("P^T sum");
          MFEM_ASSERT(y.Size() == 1, "output size doesn't match kernel description");
          real_t local_sum = r_local.Sum();
          MPI_Allreduce(&local_sum, y.GetData(), 1, MPI_DOUBLE, MPI_SUM, mpi_comm);
@@ -1203,6 +1226,7 @@ std::function<void(const Vector&, Vector&)> get_prolongation_transpose(
    {
       auto PT = [=](const Vector &r_local, Vector &y)
       {
+         db1("P^T Identity");
          y = r_local;
       };
       return PT;
@@ -1210,6 +1234,7 @@ std::function<void(const Vector&, Vector&)> get_prolongation_transpose(
    const Operator *P = get_prolongation(f);
    auto PT = [=](const Vector &r_local, Vector &y)
    {
+      db1("P^T");
       P->MultTranspose(r_local, y);
    };
    return PT;
@@ -1228,6 +1253,7 @@ void restriction(const FieldDescriptor u,
                  Vector &field_e,
                  ElementDofOrdering ordering)
 {
+   db1();
    const auto R = get_restriction<entity_t>(u, ordering);
    MFEM_ASSERT(R->Width() == u_l.Size(),
                "restriction not applicable to given data size");
@@ -1251,6 +1277,7 @@ void restriction(const std::vector<FieldDescriptor> u,
                  ElementDofOrdering ordering,
                  const int offset = 0)
 {
+   db1("R");
    for (std::size_t i = 0; i < u.size(); i++)
    {
       const auto R = get_restriction<entity_t>(u[i], ordering);
@@ -1270,6 +1297,7 @@ void element_restriction(const std::array<FieldDescriptor, N> u,
                          ElementDofOrdering ordering,
                          const int offset = 0)
 {
+   db1("ER");
    for (int i = 0; i < N; i++)
    {
       const auto R = get_element_restriction(u[i], ordering);
@@ -1595,7 +1623,7 @@ get_shmem_info(
    const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
    const std::vector<FieldDescriptor> &fields,
    const int &num_entities,
-   const input_t &inputs,
+   [[maybe_unused]] const input_t &inputs,
    const int &num_qp,
    const std::vector<int> &input_size_on_qp,
    const int &residual_size_on_qp,

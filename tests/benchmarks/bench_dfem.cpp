@@ -43,48 +43,79 @@ using future::Gradient;
 using future::Weight;
 using future::Identity;
 
-/// Max number of DOFs ////////////////////////////////////////////////////////
-#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-constexpr int MAX_NDOFS = 128 * 1024;
-constexpr int NDOFS_INC = 25;
-#else
-constexpr int MAX_NDOFS = 10 * 1024 * 1024;
-constexpr int NDOFS_INC = 25;
-#endif
-
 /// info //////////////////////////////////////////////////////////////////////
 static void DumpVersionInfo()
 {
    mfem::out << "\x1b[33m";
    mfem::out << "version 0: PA std" << std::endl;
    mfem::out << "version 1: PA new" << std::endl;
-   mfem::out << "version 2: MF ∂fem" << std::endl;
-   mfem::out << "version 3: PA ∂fem" << std::endl;
+   mfem::out << "version 2: MF ∂fem std kernels" << std::endl;
+   mfem::out << "version 3: PA ∂fem std kernels" << std::endl;
+   mfem::out << "version 4: MF ∂fem new kernels" << std::endl;
+   mfem::out << "version 5: PA ∂fem new kernels" << std::endl;
    mfem::out << "\x1b[m" << std::endl;
 }
 
-/// Benchmarks Arguments //////////////////////////////////////////////////////
-static void OrderSideVersionArgs(bm::Benchmark *b)
+// Custom benchmark arguments generator ///////////////////////////////////////
+static void CustomArguments(bm::Benchmark *b) noexcept
 {
-   const auto est = [](int c) { return (c + 1) * (c + 1) * (c + 1); };
-   const auto versions = { 0, 1, 2, 3 };
+   constexpr int MAX_NDOFS = 8 * 1024; //* (mfem_use_gpu ? 1024 : 8);
+
+   const auto versions = { 0, 1, /*2, 3, 4,*/ 5 };
+
+   const auto orders = { 6, 5, 4, 3, 2, 1 };
+
+   constexpr auto ndofs = [](int n) constexpr noexcept -> int
+   {
+      return (n + 1) * (n + 1) * (n + 1);
+   };
+
+   constexpr auto inc = [](int n) constexpr noexcept -> int
+   {
+      return n < 160 ?  4 : n < 240 ?  8 : n < 320 ? 16 : 32;
+   };
+
    for (auto k : versions)
    {
-      for (int p = 6; p >= 1; p -= 1)
+      for (auto p : orders)
       {
-         for (int c = NDOFS_INC; est(c) <= MAX_NDOFS; c += NDOFS_INC)
+         for (int n = 4/*16*/; ndofs(n) <= MAX_NDOFS; n += inc(n))
          {
-            b->Args({ k, p, c });
+            b->Args({k, p, n});
          }
       }
    }
 }
 
+/// Basic Kernels Specializations /////////////////////////////////////////////
+static void AddBasicKernelSpecializations()
+{
+   using Det = QuadratureInterpolator::DetKernels;
+   Det::Specialization<3, 3, 2, 2>::Add();
+   Det::Specialization<3, 3, 2, 3>::Add();
+   Det::Specialization<3, 3, 2, 5>::Add();
+   Det::Specialization<3, 3, 2, 6>::Add();
+   // Others might exceed memory limits
+
+   using Grad = QuadratureInterpolator::GradKernels;
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 3>::Add();
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 4>::Add();
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 5>::Add();
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 6>::Add();
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 7>::Add();
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 8>::Add();
+   Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 7>::Add();
+   Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 8>::Add();
+
+   using LIN = DomainLFIntegrator::AssembleKernels;
+   LIN::Specialization<3, 7, 7>::Add();
+   LIN::Specialization<3, 6, 6>::Add();
+   LIN::Specialization<3, 8, 8>::Add();
+}
+
 /// Globals ///////////////////////////////////////////////////////////////////
 Device *device_ptr = nullptr;
 static int gD1D = 0, gQ1D = 0;
-static bool use_new_kernels = false;
-static bool use_kernels_specialization = true;
 
 /// StiffnessIntegrator ///////////////////////////////////////////////////////
 struct StiffnessIntegrator : public BilinearFormIntegrator
@@ -93,11 +124,11 @@ struct StiffnessIntegrator : public BilinearFormIntegrator
    const real_t *B, *G, *DX;
    int ne, d1d, q1d;
    Vector J0, dx;
+   Vector &qdata;
 
 public:
-   StiffnessIntegrator()
+   StiffnessIntegrator(Vector &qdata): qdata(qdata)
    {
-      if (!use_kernels_specialization) { return; }
       StiffnessKernels::Specialization<2, 3>::Add();  // 1
       StiffnessKernels::Specialization<3, 4>::Add();  // 2
       StiffnessKernels::Specialization<4, 5>::Add();  // 3
@@ -108,6 +139,7 @@ public:
 
    void AssemblePA(const FiniteElementSpace &fespace) override
    {
+      dbg();
       NVTX();
       fes = &fespace;
       auto *mesh = fes->GetMesh();
@@ -173,6 +205,8 @@ public:
          }
          MFEM_SYNC_THREAD;
       });
+      dbg("dx: {}", dx*dx);
+      qdata = dx;
    }
 
    //////////////////////////////////////////////////////////////////
@@ -246,9 +280,13 @@ StiffnessIntegrator::StiffnessKernels::Kernel()
 }
 
 StiffnessIntegrator::StiffnessKernelType
-StiffnessIntegrator::StiffnessKernels::Fallback(int, int)
+StiffnessIntegrator::StiffnessKernels::Fallback([[maybe_unused]] int d1d,
+                                                [[maybe_unused]] int q1d)
 {
-   return StiffnessMult<>;
+   dbg("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
+   MFEM_ABORT("No kernel for d1d=" << d1d << " q1d=" << q1d);
+   return nullptr;
+   // return StiffnessMult<>;
 }
 
 /// BakeOff ///////////////////////////////////////////////////////////////////
@@ -310,21 +348,22 @@ struct BakeOff
       qdata(qd_ps)
    {
       NVTX_MARK_FUNCTION;
-      // dbg("p:{} q:{}", p, q);
+      dbg("p:{} q:{}", p, q);
       smesh.Clear();
       x = 0.0;
 
       gD1D = d1d, gQ1D = q1d;
-      // dbg("D1D: {}, Q1D: {}", gD1D, gQ1D);
+      dbg("D1D: {}, Q1D: {}", gD1D, gQ1D);
       qdata.UseDevice(true);
+      qdata = 0.0;
       MFEM_VERIFY(q1d*q1d*q1d == ir->GetNPoints(), "");
    }
 
-   virtual void benchmark() = 0;
+   virtual void Benchmark() { MFEM_ABORT("Not implemented."); }
 
-   double SumMdofs() const { return mdofs; }
+   [[nodiscard]] double SumMdofs() const noexcept { return mdofs; }
 
-   double MDofs() const { return 1e-6 * dofs; }
+   [[nodiscard]] double MDofs() const noexcept { return 1e-6 * dofs; }
 };
 
 /// Q-Functions ///////////////////////////////////////////////////////////////
@@ -421,11 +460,68 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       b.UseFastAssembly(true);
       b.Assemble();
 
+      // MF setup ///////////////////////////////////////////////////
+      // const auto dMFOperatorSetup = [&] (bool use_new_kernels,
+      //                                    bool use_kernels_specialization)
+      // {
+      //    dbg("MF ∂fem {} kernels", use_new_kernels ? "NEW" : "STD");
+      //    auto solutions = std::vector{FieldDescriptor{U, &pfes}};
+      //    auto parameters = std::vector{FieldDescriptor{Ξ, &mfes}};
+      //    dop = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
+      //    dop->SetParameters({nodes});
+      //    if (use_kernels_specialization) { dop->UseKernelsSpecialization(); }
+      //    if (use_new_kernels) { dop->UseNewKernels(); }
+      //    MFApply<DIM> mf_apply;
+      //    dop->AddDomainIntegrator(mf_apply,
+      //                             tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
+      //                             tuple{Gradient<U>{}},
+      //                             *ir, ess_bdr);
+      //    dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
+      //    A.Reset(A_ptr);
+      // };
+
+      // PA setup ///////////////////////////////////////////////////
+      const auto dPAOperatorSetup = [&] (bool use_new_kernels,
+                                         bool use_kernels_specialization)
+      {
+
+         /*dbg("[PA ∂fem] Setup");
+         auto Iu = Identity<U> {};
+         auto GΞ = Gradient<Ξ> {};
+         auto W = Weight{};
+         tuple Iu_GΞ_W = {Iu, GΞ, W};
+         PASetup<DIM> pa_setup_qf;
+         DifferentiableOperator dSetup(u_sol, Ξ_q_params, pmesh);
+         // if (use_kernels_specialization) { dSetup.UseKernelsSpecialization(); }
+         // if (use_new_kernels) { dSetup.UseNewKernels(); }
+         dSetup.AddDomainIntegrator(pa_setup_qf, Iu_GΞ_W, tuple{Iq}, *ir, ess_bdr);
+         dSetup.SetParameters({nodes, &qdata});
+         X.SetSize(pfes.GetTrueVSize());
+         pfes.GetRestrictionMatrix()->Mult(x, X);
+         dSetup.Mult(X, qdata);*/
+         dbg("qdata: {}", qdata*qdata);
+         assert(qdata*qdata > 0.0);
+
+         dbg("[PA ∂fem] Apply");
+         auto Iq = Identity<Q> {};
+         auto Gu = Gradient<U> {};
+         tuple Gu_Iq = {Gu, Iq};
+         PAApply<DIM> pa_apply_qf;
+         dop = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
+         if (use_kernels_specialization) { dop->UseKernelsSpecialization(); }
+         if (use_new_kernels) { dop->UseNewKernels(); }
+         else { dbg("[PA ∂fem] NOT using kernels specialization"); }
+         dop->AddDomainIntegrator(pa_apply_qf, Gu_Iq, tuple{Gu}, *ir, ess_bdr);
+         dop->SetParameters({ &qdata });
+         dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
+         A.Reset(A_ptr);
+      };
+
       if (version < 2) // standard, new PA regs
       {
          a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
          if (version == 0) { a.AddDomainIntegrator(new DiffusionIntegrator(ir)); }
-         if (version == 1) { a.AddDomainIntegrator(new StiffnessIntegrator()); }
+         if (version == 1) { a.AddDomainIntegrator(new StiffnessIntegrator(qdata)); }
          a.Assemble();
          a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
          if (version == 0)
@@ -441,47 +537,29 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       }
       else if (version == 2) // 2: MF ∂fem
       {
-         dbg("MF ∂fem");
-         auto solutions = std::vector{FieldDescriptor{U, &pfes}};
-         auto parameters = std::vector{FieldDescriptor{Ξ, &mfes}};
-         dop = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
-         dop->SetParameters({nodes});
-         MFApply<DIM> mf_apply;
-         dop->AddDomainIntegrator(mf_apply,
-                                  tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
-                                  tuple{Gradient<U>{}},
-                                  *ir, ess_bdr);
-         dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
-         A.Reset(A_ptr);
+         assert(false);
+         // dMFOperatorSetup(false, false);
       }
       else if (version == 3) // PA ∂fem
       {
-         dbg("[PA ∂fem]");
-         auto W = Weight{};
-         auto Iq = Identity<Q> {};
-         auto Iu = Identity<U> {};
-         auto Gu = Gradient<U> {};
-         auto GΞ = Gradient<Ξ> {};
-         tuple Gu_Iq = {Gu, Iq};
-         tuple Iu_GΞ_W = {Iu, GΞ, W};
-         PASetup<DIM> pa_setup_qf;
-         DifferentiableOperator dSetup(u_sol, Ξ_q_params, pmesh);
-         dSetup.AddDomainIntegrator(pa_setup_qf, Iu_GΞ_W, tuple{Iq}, *ir, ess_bdr);
-         dSetup.SetParameters({nodes, &qdata});
-         X.SetSize(pfes.GetTrueVSize());
-         pfes.GetRestrictionMatrix()->Mult(x, X);
-         dSetup.Mult(X, qdata);
+         assert(false);
+         // dPAOperatorSetup(false, false);
+      }
+      else if (version == 4) // 4: MF ∂fem new kernels
+      {
+         assert(false);
+         // dMFOperatorSetup(true, true);
+      }
+      else if (version == 5) // 5: PA ∂fem new kernels
+      {
+         ParBilinearForm bf(&pfes);
+         bf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+         bf.AddDomainIntegrator(new StiffnessIntegrator(qdata));
+         bf.Assemble();
+         dbg("qdata: {}", qdata*qdata);
+         assert(qdata*qdata > 0.0);
 
-         PAApply<DIM> pa_apply_qf;
-         dop = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
-         if (use_new_kernels) { dop->UseNewKernels(); }
-         if (use_kernels_specialization) { dop->UseKernelsSpecialization(); }
-         else { dbg("[PA ∂fem] NOT using kernels specialization"); }
-         dop->AddDomainIntegrator(pa_apply_qf, Gu_Iq, tuple{Gu}, *ir, ess_bdr);
-         dop->SetParameters({ &qdata });
-
-         dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
-         A.Reset(A_ptr);
+         dPAOperatorSetup(true, true);
       }
       else { MFEM_ABORT("Invalid version"); }
 
@@ -490,7 +568,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       cg.SetAbsTol(0.0);
       if (dofs < 128 * 1024) // check
       {
-         cg.SetPrintLevel(-1);
+         cg.SetPrintLevel(3/*-1*/);
          cg.SetMaxIter(2000);
          cg.SetRelTol(1e-8);
          cg.Mult(B, X);
@@ -500,11 +578,11 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       cg.SetPrintLevel(print_lvl);
       cg.SetMaxIter(max_it);
       cg.SetRelTol(rtol);
-      benchmark();
+      Benchmark();
       mdofs = 0.0;
    }
 
-   void benchmark() override
+   void Benchmark() override
    {
       cg.Mult(B, X);
       MFEM_DEVICE_SYNC;
@@ -520,7 +598,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       const auto order = static_cast<int>(state.range(1));           \
       const auto side = static_cast<int>(state.range(2));            \
       Problem ker(version, order, side);                             \
-      while (state.KeepRunning()) { ker.benchmark(); }               \
+      while (state.KeepRunning()) { ker.Benchmark(); }               \
       bm::Counter::Flags flags = bm::Counter::kIsRate;               \
       state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), flags); \
       state.counters["Dofs"] = bm::Counter(ker.dofs);                \
@@ -528,36 +606,10 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       state.counters["version"] = bm::Counter(version);              \
    }                                                                 \
    BENCHMARK(BP##i)                                                  \
-      ->Apply(OrderSideVersionArgs)                                  \
+      ->Apply(CustomArguments)                                       \
       ->Unit(bm::kMillisecond)
 
 BakeOff_Problem(3, Diffusion);
-
-/// Basic Kernels Specializations /////////////////////////////////////////////
-static void AddBasicKernelSpecializations()
-{
-   using Det = QuadratureInterpolator::DetKernels;
-   Det::Specialization<3, 3, 2, 2>::Add();
-   Det::Specialization<3, 3, 2, 3>::Add();
-   Det::Specialization<3, 3, 2, 5>::Add();
-   Det::Specialization<3, 3, 2, 6>::Add();
-   // Others might exceed memory limits
-
-   using Grad = QuadratureInterpolator::GradKernels;
-   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 3>::Add();
-   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 4>::Add();
-   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 5>::Add();
-   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 6>::Add();
-   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 7>::Add();
-   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 8>::Add();
-   Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 7>::Add();
-   Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 8>::Add();
-
-   using LIN = DomainLFIntegrator::AssembleKernels;
-   LIN::Specialization<3, 7, 7>::Add();
-   LIN::Specialization<3, 6, 6>::Add();
-   LIN::Specialization<3, 8, 8>::Add();
-}
 
 /// main //////////////////////////////////////////////////////////////////////
 int main(int argc, char *argv[])
@@ -583,28 +635,6 @@ int main(int argc, char *argv[])
          mfem::out << device->first << " : "
                    << device->second << std::endl;
          device_context = device->second;
-      }
-
-      const auto kernels = global_context->find("kernels");
-      if (kernels != global_context->end())
-      {
-         mfem::out << kernels->first << " : "
-                   << kernels->second << std::endl;
-         kernels_context = kernels->second;
-         MFEM_VERIFY(kernels_context == "std" || kernels_context == "new",
-                     "Invalid kernels config: " << kernels_context);
-         use_new_kernels = (kernels_context == "new");
-      }
-
-      const auto specialization = global_context->find("specialization");
-      if (specialization != global_context->end())
-      {
-         mfem::out << specialization->first << " : "
-                   << specialization->second << std::endl;
-         kernels_specialization = specialization->second;
-         MFEM_VERIFY(kernels_specialization == "yes" || kernels_specialization == "no",
-                     "Invalid kernels specialization config: " << kernels_specialization);
-         use_kernels_specialization = (kernels_specialization == "yes");
       }
    }
    dbg("device_config: {}", device_context);
