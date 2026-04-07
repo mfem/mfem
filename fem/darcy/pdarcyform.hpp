@@ -214,9 +214,6 @@ public:
 
    /// Destroys Darcy form.
    virtual ~ParDarcyForm();
-
-   /// Return the type ID of the Operator class.
-   Type GetType() const { return MFEM_Block_Operator; }
 };
 
 }
