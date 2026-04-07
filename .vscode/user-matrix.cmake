@@ -22,8 +22,8 @@ set(CMAKE_INSTALL_PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/install)
 set(CMAKE_VERBOSE_MAKEFILE ON CACHE BOOL "Verbose makefiles." FORCE)
 
 # ------------------------------- CUDA Options --------------------------------
-set(MFEM_USE_CUDA OFF CACHE BOOL "Enable CUDA" FORCE)
-if (${MFEM_USE_CUDA} EQUAL ON)
+set(MFEM_USE_CUDA ON CACHE BOOL "Enable CUDA" FORCE)
+if (MFEM_USE_CUDA)
     message(STATUS "[🟢 CUDA   🟢] Enabled")
     set(CMAKE_CUDA_ARCHITECTURES 90 CACHE STRING "" FORCE)
     # set(CMAKE_CUDA_ARCHITECTURES native CACHE STRING "" FORCE)
@@ -75,9 +75,9 @@ set(CMAKE_CXX_STANDARD 17 CACHE STRING "" FORCE)
 
 set(CMAKE_CUDA_FLAGS_DEBUG "-g -O0" CACHE STRING "" FORCE)
 set(CMAKE_CUDA_FLAGS_RELEASE "-O3" CACHE STRING "" FORCE)
-set(CMAKE_CUDA_FLAGS_RELWITHDEBINFO "-g -O1" CACHE STRING "" FORCE)
+set(CMAKE_CUDA_FLAGS_RELWITHDEBINFO "-g -O2" CACHE STRING "" FORCE)
 
-if (${MFEM_USE_CUDA} EQUAL ON)
+if (MFEM_USE_CUDA)
     # [FMT] constexpr constructor calls non-constexpr function 
     add_compile_options(-diag-suppress=2417)
 
@@ -95,8 +95,8 @@ if (${MFEM_USE_CUDA} EQUAL ON)
     add_compile_options(-diag-suppress=611)
 
     # calling a __host__ function from a __host__ __device__ function is not allowed
-    add_compile_options(-diag-suppress=20011)
-    add_compile_options(-diag-suppress=20014)
+    # add_compile_options(-diag-suppress=20011)
+    # add_compile_options(-diag-suppress=20014)
 endif()
 
 # add_compile_options(-Wall)
@@ -131,7 +131,7 @@ set(MPI_PATH "/usr/tce/packages/mvapich2/mvapich2-2.3.7-gcc-10.3.1-magic" CACHE 
 set(MPICXX "${MPI_PATH}/bin/mpicxx" CACHE PATH "" FORCE)
 
 # -------------------------------- HYPRE -----------------------------------
-if (${MFEM_USE_CUDA} EQUAL ON)
+if (MFEM_USE_CUDA)
     set(HYPRE_DIR "/usr/WS1/camier1/matrix/usr/local/hypre-gcc-cuda" CACHE PATH "")
 else()
     set(HYPRE_DIR "/usr/WS1/camier1/matrix/usr/local/hypre-gcc-cpu" CACHE PATH "")

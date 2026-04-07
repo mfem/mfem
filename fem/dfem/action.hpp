@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
+#include <cassert>
 #include <cstddef>
 
 #include "fem/kernels.hpp"
@@ -142,7 +143,8 @@ void apply_kernel(reg_t &r0/*output*/,
    else
    {
       // MFApply comes here
-      MFEM_ABORT("Only two arguments (∇u and D) are supported in apply_kernel for now");
+      assert(false);
+      // MFEM_ABORT("Only two arguments (∇u and D) are supported in apply_kernel for now");
    }
 
    const auto r = get<0>(apply(qfunc, args));
@@ -308,7 +310,7 @@ public:
                                    // fallback arguments
                                    const int d1d, const int q1d)
    {
-      db1();
+      NVTX_MARK_FUNCTION;
       assert(dimension == 3);
       // static_assert(MFEM_D2Q_MAX_SIZE >= num_inputs, "MFEM_D2Q_MAX_SIZE error");
 
@@ -317,7 +319,7 @@ public:
 
       constexpr int DIM = 3, VDIM = 1;
       constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 8;
-      db1("MQ1: {}", MQ1);
+      // db1("MQ1: {}", MQ1);
 
 #ifdef MFEM_USE_HIP
       [[maybe_unused]] static bool ini = (for_constexpr<num_inputs>([&](auto i)
@@ -357,7 +359,10 @@ public:
       using qf_param_ts = typename qf_signature::parameter_ts;
 
       restriction_cb(solutions_l, parameters_l, fields_e);
+
+      NVTX_INI("res=0");
       residual_e = 0.0;
+      NVTX_END("res=0");
 
       auto ye = Reshape(residual_e.ReadWrite(), test_vdim, num_test_dof,
                         num_entities);
@@ -369,7 +374,8 @@ public:
       const auto d_attr = attributes.Read();
       const auto d_elem_attr = elem_attributes->Read();
 
-      forall([=] MFEM_HOST_DEVICE (int e, void *extern_smem)
+      NVTX_INI("forall");
+      forall([=] MFEM_HOST_DEVICE (int e, [[maybe_unused]] void *extern_smem)
       {
          assert(extern_smem == nullptr);
 
@@ -410,7 +416,7 @@ public:
             if constexpr (is_gradient_fop<field_operator_t>::value) // Grad
             {
                const int vdim = input.vdim;
-               db1("vdim: {}", vdim);
+               // db1("vdim: {}", vdim);
                const real_t *field_e_r = fields_e_ptr[input_to_field[i]];
                const auto XE = Reshape(field_e_r, D1D, D1D, D1D, vdim);
 #ifndef MFEM_USE_HIP
@@ -428,7 +434,7 @@ public:
             }
             else if constexpr (is_identity_fop<field_operator_t>::value)   // Identity
             {
-               db1("Identity");
+               // db1("Identity");
                r2 = fields_e_ptr[input_to_field[i]];
             }
             // else if constexpr (is_weight_fop<field_operator_t>::value)   // Weight
@@ -439,7 +445,8 @@ public:
             else
             {
                // MFApply comes here
-               MFEM_ABORT("Only Grad and Identity field operators are supported");
+               assert(false);
+               // MFEM_ABORT("Only Grad and Identity field operators are supported");
             }
          }); // for_constexpr<num_inputs>
 
@@ -481,8 +488,11 @@ public:
          }
       },
       num_entities, thread_blocks, 0, nullptr);
+      NVTX_END("forall");
 
+      NVTX_INI("out^T");
       output_restriction_transpose(residual_e, residual_l);
+      NVTX_END("out^T");
    }
 
    using NewActionKernelType = decltype(&NewActionCallback::action_callback_new<>);

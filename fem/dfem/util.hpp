@@ -951,6 +951,7 @@ int GetDimension(const FieldDescriptor &f)
 inline
 const Operator *get_prolongation(const FieldDescriptor &f)
 {
+   NVTX("get P");
    return std::visit([](auto&& arg) -> const Operator*
    {
       using T = std::decay_t<decltype(arg)>;
@@ -981,6 +982,7 @@ inline
 const Operator *get_element_restriction(const FieldDescriptor &f,
                                         ElementDofOrdering o)
 {
+   NVTX("get ER");
    return std::visit([&o](auto&& arg) -> const Operator*
    {
       using T = std::decay_t<decltype(arg)>;
@@ -1016,6 +1018,7 @@ const Operator *get_face_restriction(const FieldDescriptor &f,
                                      FaceType ft,
                                      L2FaceValues m)
 {
+   NVTX("get FR");
    return std::visit([&o, &ft, &m](auto&& arg) -> const Operator*
    {
       using T = std::decay_t<decltype(arg)>;
@@ -1049,7 +1052,7 @@ inline
 const Operator *get_restriction(const FieldDescriptor &f,
                                 const ElementDofOrdering &o)
 {
-   db1("get R");
+   NVTX("get R");
    if constexpr (std::is_same_v<entity_t, Entity::Element>)
    {
       return get_element_restriction(f, o);
@@ -1077,12 +1080,12 @@ get_restriction_transpose(
    const ElementDofOrdering &o,
    [[maybe_unused]] const fop_t &fop)
 {
-   NVTX_MARK_FUNCTION;
+   NVTX("get R^T");
    if constexpr (is_sum_fop<fop_t>::value)
    {
       auto RT = [=](const Vector &v_e, Vector &v_l)
       {
-         db1("R^T sum");
+         NVTX("R^T sum");
          v_l += v_e;
       };
       return std::make_tuple(RT, 1);
@@ -1092,7 +1095,7 @@ get_restriction_transpose(
       const Operator *R = get_restriction<entity_t>(f, o);
       std::function<void(const Vector&, Vector&)> RT = [=](const Vector &x, Vector &y)
       {
-         db1("R^T+");
+         NVTX("R^T+");
          R->AddMultTranspose(x, y);
       };
       return std::make_tuple(RT, R->Height());
@@ -1112,10 +1115,16 @@ get_restriction_transpose(
 inline
 void prolongation(const FieldDescriptor field, const Vector &x, Vector &field_l)
 {
-   db1("P");
+   NVTX("P");
    const auto P = get_prolongation(field);
+
+   NVTX_INI("SetSize");
    field_l.SetSize(P->Height());
+   NVTX_END("SetSize");
+
+   NVTX_INI("P->Mult");
    P->Mult(x, field_l);
+   NVTX_END("P->Mult");
 }
 
 /// @brief Apply the prolongation operator to a vector of fields.
@@ -1134,7 +1143,7 @@ void prolongation(const std::array<FieldDescriptor, N> fields,
                   const Vector &x,
                   std::array<Vector, M> &fields_l)
 {
-   db1("P");
+   NVTX("P");
    int data_offset = 0;
    for (int i = 0; i < N; i++)
    {
@@ -1142,9 +1151,14 @@ void prolongation(const std::array<FieldDescriptor, N> fields,
       const int width = P->Width();
       // const Vector x_i(x.GetData() + data_offset, width);
       const Vector x_i(const_cast<Vector&>(x), data_offset, width);
-      fields_l[i].SetSize(P->Height());
 
+      NVTX_INI("SetSize");
+      fields_l[i].SetSize(P->Height());
+      NVTX_END("SetSize");
+
+      NVTX_INI("P->Mult");
       P->Mult(x_i, fields_l[i]);
+      NVTX_END("P->Mult");
       data_offset += width;
    }
 }
@@ -1163,7 +1177,7 @@ void prolongation(const std::vector<FieldDescriptor> fields,
                   const Vector &x,
                   std::vector<Vector> &fields_l)
 {
-   db1("P");
+   NVTX("P");
    int data_offset = 0;
    for (std::size_t i = 0; i < fields.size(); i++)
    {
@@ -1181,7 +1195,7 @@ void get_lvectors(const std::vector<FieldDescriptor> fields,
                   const Vector &x,
                   std::vector<Vector> &fields_l)
 {
-   db1();
+   NVTX("get_lvectors");
    int data_offset = 0;
    for (std::size_t i = 0; i < fields.size(); i++)
    {
@@ -1211,11 +1225,12 @@ std::function<void(const Vector&, Vector&)> get_prolongation_transpose(
    [[maybe_unused]] const fop_t &fop,
    MPI_Comm mpi_comm)
 {
+   NVTX("get P^T");
    if constexpr (is_sum_fop<fop_t>::value)
    {
       auto PT = [=](const Vector &r_local, Vector &y)
       {
-         db1("P^T sum");
+         NVTX("P^T sum");
          MFEM_ASSERT(y.Size() == 1, "output size doesn't match kernel description");
          real_t local_sum = r_local.Sum();
          MPI_Allreduce(&local_sum, y.GetData(), 1, MPI_DOUBLE, MPI_SUM, mpi_comm);
@@ -1226,7 +1241,7 @@ std::function<void(const Vector&, Vector&)> get_prolongation_transpose(
    {
       auto PT = [=](const Vector &r_local, Vector &y)
       {
-         db1("P^T Identity");
+         NVTX("P^T Identity");
          y = r_local;
       };
       return PT;
@@ -1234,7 +1249,7 @@ std::function<void(const Vector&, Vector&)> get_prolongation_transpose(
    const Operator *P = get_prolongation(f);
    auto PT = [=](const Vector &r_local, Vector &y)
    {
-      db1("P^T");
+      NVTX("P^T");
       P->MultTranspose(r_local, y);
    };
    return PT;
@@ -1253,13 +1268,19 @@ void restriction(const FieldDescriptor u,
                  Vector &field_e,
                  ElementDofOrdering ordering)
 {
-   db1();
+   NVTX("R");
    const auto R = get_restriction<entity_t>(u, ordering);
    MFEM_ASSERT(R->Width() == u_l.Size(),
                "restriction not applicable to given data size");
    const int height = R->Height();
+
+   NVTX_INI("SetSize");
    field_e.SetSize(height);
+   NVTX_END("SetSize");
+
+   NVTX_INI("R->Mult");
    R->Mult(u_l, field_e);
+   NVTX_END("R->Mult");
 }
 
 /// @brief Apply the restriction operator to a vector of fields.
@@ -1277,15 +1298,21 @@ void restriction(const std::vector<FieldDescriptor> u,
                  ElementDofOrdering ordering,
                  const int offset = 0)
 {
-   db1("R");
+   NVTX("R");
    for (std::size_t i = 0; i < u.size(); i++)
    {
       const auto R = get_restriction<entity_t>(u[i], ordering);
       MFEM_ASSERT(R->Width() == u_l[i].Size(),
                   "restriction not applicable to given data size");
       const int height = R->Height();
+
+      NVTX_INI("SetSize");
       fields_e[i + offset].SetSize(height);
+      NVTX_END("SetSize");
+
+      NVTX_INI("R->Mult");
       R->Mult(u_l[i], fields_e[i + offset]);
+      NVTX_END("R->Mult");
    }
 }
 
@@ -1297,15 +1324,21 @@ void element_restriction(const std::array<FieldDescriptor, N> u,
                          ElementDofOrdering ordering,
                          const int offset = 0)
 {
-   db1("ER");
+   NVTX("ER");
    for (int i = 0; i < N; i++)
    {
       const auto R = get_element_restriction(u[i], ordering);
       MFEM_ASSERT(R->Width() == u_l[i].Size(),
                   "element restriction not applicable to given data size");
       const int height = R->Height();
+
+      NVTX_INI("SetSize");
       fields_e[i + offset].SetSize(height);
+      NVTX_END("SetSize");
+
+      NVTX_INI("R->Mult");
       R->Mult(u_l[i], fields_e[i + offset]);
+      NVTX_END("R->Mult");
    }
 }
 

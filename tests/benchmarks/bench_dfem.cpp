@@ -50,7 +50,7 @@ static void DumpVersionInfo()
    mfem::out << "version 0: PA std" << std::endl;
    mfem::out << "version 1: PA new" << std::endl;
    // mfem::out << "version 2: MF ∂fem std kernels" << std::endl;
-   mfem::out << "version 3: PA ∂fem std kernels" << std::endl;
+   // mfem::out << "version 3: PA ∂fem std kernels" << std::endl; // ⚠️ out of smem @ order 4
    // mfem::out << "version 4: MF ∂fem new kernels" << std::endl; // ⚠️ not supported yet by new kernels
    mfem::out << "version 5: PA ∂fem new kernels" << std::endl;
    mfem::out << "\x1b[m" << std::endl;
@@ -61,7 +61,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
-   const auto versions = { 0, 1, /*2,*/ 3, /*4,*/ 5 };
+   const auto versions = { 0, 1, /*2, 3, 4,*/ 5 };
 
    const auto orders = { 6, 5, 4, 3, 2, 1 };
 
@@ -139,7 +139,6 @@ public:
 
    void AssemblePA(const FiniteElementSpace &fespace) override
    {
-      dbg();
       NVTX();
       fes = &fespace;
       auto *mesh = fes->GetMesh();
@@ -205,7 +204,6 @@ public:
          }
          MFEM_SYNC_THREAD;
       });
-      dbg("dx: {}", dx*dx);
       qdata = dx;
    }
 
@@ -223,7 +221,7 @@ public:
       const auto DX = Reshape(dx, 3, 3, Q1D, Q1D, Q1D, NE);
       auto YE = Reshape(ye, D1D, D1D, D1D, VDIM, NE);
 
-      mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+      mfem::forall_2D<T_Q1D*T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
          constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 8;
          constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 8;
@@ -508,22 +506,22 @@ struct Diffusion : public BakeOff<VDIM, GLL>
             bf.Assemble();
          }
 #endif
-         dbg("qdata: {}", qdata*qdata);
-         assert(qdata*qdata > 0.0);
-
          dbg("[PA ∂fem] Apply");
          auto Iq = Identity<Q> {};
          auto Gu = Gradient<U> {};
          tuple Gu_Iq = {Gu, Iq};
          PAApply<DIM> pa_apply_qf;
          dop = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
+         dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          if (use_kernels_specialization) { dop->UseKernelsSpecialization(); }
          if (use_new_kernels) { dop->UseNewKernels(); }
          else { dbg("[PA ∂fem] NOT using kernels specialization"); }
          dop->AddDomainIntegrator(pa_apply_qf, Gu_Iq, tuple{Gu}, *ir, ess_bdr);
+         assert(qdata*qdata > 0.0);
          dop->SetParameters({ &qdata });
          dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
+         dbg("[PA ∂fem] done");
       };
 
       if (version < 2) // standard, new PA regs
@@ -584,6 +582,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
 
    void Benchmark() override
    {
+      NVTX_MARK_FUNCTION;
       cg.Mult(B, X);
       MFEM_DEVICE_SYNC;
       mdofs += this->MDofs() * cg.GetNumIterations();
