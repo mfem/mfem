@@ -450,7 +450,7 @@ std::pair<real_t, real_t> proj(GridFunction &psi, GridFunction &alpha_grad,
    {
       c = (f_a * b - f_b * a) / (f_a - f_b);
 
-      if (abs(b - a) < tol * abs(b + a)) { done = true; y = 0; break; }
+      if (abs(b - a) < tol * abs(b + a)) { done = true; y = 0.0; break; }
 
       y = c;
       int_sigmoid_psi->Assemble(); // Recompute f(c) with updated ψ
@@ -480,7 +480,7 @@ std::pair<real_t, real_t> proj(GridFunction &psi, GridFunction &alpha_grad,
       }
       else
       {
-         done = true; y = 0; break;
+         done = true; y = 0.0; break;
       }
    }
    if (!done)
