@@ -3,7 +3,7 @@
     "cmake.environment": {
         // "MFEM_EKS": "1",
         // "MFEM_NVTX": "1",
-        "MFEM_DEBUG": "1",
+        // "MFEM_DEBUG": "1",
         "MFEM_REPORT_KERNELS": "1",
         // "ASAN_OPTIONS": "detect_leaks=1",
         // "LSAN_OPTIONS": "suppressions=/Users/camierjs/.asan.sup"

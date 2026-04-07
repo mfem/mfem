@@ -375,7 +375,7 @@ public:
       const auto d_elem_attr = elem_attributes->Read();
 
       NVTX_INI("forall");
-      forall([=] MFEM_HOST_DEVICE (int e, void *)
+      dfem::forall<T_Q1D*T_Q1D>([=] MFEM_HOST_DEVICE (int e, void *)
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
@@ -397,11 +397,13 @@ public:
          // Interpolate
          for_constexpr<num_inputs>(
             [  // copy
-               D1D, MQ1,
+               D1D,
 #ifndef MFEM_USE_HIP
                Q1D,
+#else
                test_vdim,
                MD1,
+               MQ1,
 #endif
                // refs
                &smem_ptr,
@@ -413,6 +415,7 @@ public:
                &r0, &r1, &r2,
 #ifndef MFEM_USE_HIP
                &input_dtq_maps,
+#else
                &output_dtq_maps,
 #endif
                &input_to_field

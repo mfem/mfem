@@ -618,6 +618,16 @@ __global__ void forall_kernel_static_smem(func_t f, int n)
    if (i >= n) { return; }
    f(i, nullptr);
 }
+template <int MAX_THREADS_PER_BLOCK, typename func_t>
+__global__
+MFEM_LAUNCH_BOUNDS(MAX_THREADS_PER_BLOCK)
+static void forall_kernel_static_smem_launch_bounds(func_t f, int n)
+{
+   // int i = blockIdx.x;
+   // if (i >= n) { return; }
+   // f(i, nullptr);
+   for (int k = blockIdx.x; k < N; k += gridDim.x) { f(k, nullptr); }
+}
 #endif
 
 template </*typename kernel_tag,*/ typename func_t>
@@ -668,6 +678,68 @@ void forall(func_t f,
    {
       MFEM_ABORT("no compute backend available");
    }
+}
+
+namespace dfem
+{
+
+template <int MAX_THREADS_PER_BLOCK = 0, typename func_t>
+void forall(func_t f,
+            const int &N,
+            [[maybe_unused]] const ThreadBlocks &blocks,
+            [[maybe_unused]] int num_shmem = 0,
+            real_t *shmem = nullptr)
+{
+   db1();
+   if (Device::Allows(Backend::CUDA_MASK) ||
+       Device::Allows(Backend::HIP_MASK))
+   {
+#if defined(MFEM_USE_CUDA_OR_HIP)
+      int num_bytes = num_shmem * sizeof(decltype(shmem));
+      db1("num_bytes:{}", num_bytes);
+      db1("block: {}x{}x{}", blocks.x, blocks.y, blocks.z);
+      dim3 block_size(blocks.x, blocks.y, blocks.z);
+      if constexpr (MAX_THREADS_PER_BLOCK > 0)
+      {
+         assert(num_bytes == 0);
+         forall_kernel_static_smem_launch_bounds
+         <MAX_THREADS_PER_BLOCK><<<N, block_size>>> (f, N);
+      }
+      else
+      {
+         static_assert(MAX_THREADS_PER_BLOCK == 0);
+         if (num_bytes == 0)
+         {
+            forall_kernel_static_smem<<<N, block_size>>>(f, N);
+         }
+         else
+         {
+            forall_kernel_extern_shmem<<<N, block_size, num_bytes>>>(f, N);
+         }
+      }
+#if defined(MFEM_USE_CUDA)
+      MFEM_GPU_CHECK(cudaGetLastError());
+#elif defined(MFEM_USE_HIP)
+      MFEM_GPU_CHECK(hipGetLastError());
+#endif
+      // MFEM_DEVICE_SYNC; // ⚠️
+#endif
+   }
+   else if (Device::Allows(Backend::CPU_MASK))
+   {
+      db1("CPU_MASK");
+      MFEM_ASSERT(!((bool)num_shmem != (bool)shmem),
+                  "Backend::CPU needs a pre-allocated shared memory block");
+      for (int i = 0; i < N; i++)
+      {
+         f(i, shmem);
+      }
+   }
+   else
+   {
+      MFEM_ABORT("no compute backend available");
+   }
+}
 }
 
 /// @todo To be removed.
