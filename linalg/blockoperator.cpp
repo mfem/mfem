@@ -152,7 +152,8 @@ HypreParMatrix * BlockOperator::GetMonolithicHypreParMatrix() const
          }
       }
    }
-   return HypreParMatrixFromBlocks(blocks, coef);
+   Array2D<real_t> coef_mut = coef;   // make a non-const copy
+   return HypreParMatrixFromBlocks(blocks, &coef_mut);
 }
 #endif
 

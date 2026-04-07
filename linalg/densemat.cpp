@@ -2169,7 +2169,7 @@ void DenseMatrix::AdjustDofDirection(const Array<int> &dofs)
    }
 #endif
 
-   int *dof = dofs;
+   const int *dof = dofs;
    for (int i = 0; i < n-1; i++)
    {
       const int s = (dof[i] < 0) ? (-1) : (1);
