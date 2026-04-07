@@ -4156,20 +4156,31 @@ void PetscNonlinearSolver::SetUpdate(void (*update)(Operator *,int,
 void PetscNonlinearSolver::Mult(const Vector &b, Vector &x) const
 {
    SNES snes = (SNES)obj;
+   MPI_Comm comm = PetscObjectComm(obj);
 
-   bool b_nonempty = b.Size();
-   if (!B) { B = new PetscParVector(PetscObjectComm(obj), *this, true, b_nonempty ? false : true); }
-   if (!X) { X = new PetscParVector(PetscObjectComm(obj), *this, false, false); }
+   // Reduction needed: some processes may have null local size while others don't,
+   // and VecPlaceArray (used by PlaceMemory) is a logically collective operation.
+   PetscBool b_nonempty = b.Size() ? PETSC_TRUE : PETSC_FALSE;
+#if PETSC_VERSION_LT(3,24,0)
+   mpiierr = MPI_Allreduce(MPI_IN_PLACE,&b_nonempty,1,MPIU_BOOL,MPI_LOR,comm);
+#else
+   mpiierr = MPI_Allreduce(MPI_IN_PLACE,&b_nonempty,1,MPI_C_BOOL,MPI_LOR,comm);
+#endif
+   CCHKERRQ(comm,mpiierr);
+
+   // Always create B with allocate=false so that PlaceMemory can be called on
+   // it regardless of whether b was empty on a previous call.
+   if (!B) { B = new PetscParVector(comm, *this, true, false); }
+   if (!X) { X = new PetscParVector(comm, *this, false, false); }
    X->PlaceMemory(x.GetMemory(),iterative_mode);
    if (b_nonempty) { B->PlaceMemory(b.GetMemory()); }
-   else { *B = 0.0; }
 
    Customize();
 
    if (!iterative_mode) { *X = 0.; }
 
-   // Solve the system.
-   ierr = SNESSolve(snes, B->x, X->x); PCHKERRQ(snes, ierr);
+   // Solve the system. Pass nullptr for b when empty (PETSc treats it as zero RHS).
+   ierr = SNESSolve(snes, b_nonempty ? B->x : nullptr, X->x); PCHKERRQ(snes, ierr);
    X->ResetMemory();
    if (b_nonempty) { B->ResetMemory(); }
 }

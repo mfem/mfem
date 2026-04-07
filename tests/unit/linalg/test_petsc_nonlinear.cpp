@@ -56,16 +56,19 @@ TEST_CASE("PetscNonlinearSolver accepts non-empty rhs", "[Parallel][PETSc]")
    solver.SetJacobianType(Operator::PETSC_MATAIJ);
    solver.SetOperator(oper);
 
-   Vector rhs(1);
-   rhs(0) = 2.5;
-
    Vector x(1);
+
+   Vector empty_rhs;
    x = 0.0;
+   solver.Mult(empty_rhs, x);
+   REQUIRE(x(0) == MFEM_Approx(0.0));
 
-   solver.Mult(rhs, x);
-
+   Vector nonempty_rhs(1);
+   nonempty_rhs(0) = 2.5;
+   x = 0.0;
+   solver.Mult(nonempty_rhs, x);
    REQUIRE(x.Size() == 1);
-   REQUIRE(x(0) == MFEM_Approx(rhs(0)));
+   REQUIRE(x(0) == MFEM_Approx(nonempty_rhs(0)));
 }
 
 #endif
