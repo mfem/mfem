@@ -295,7 +295,8 @@ jobs:
           export HOMEBREW_NO_INSTALL_CLEANUP=1
           brew update
           brew install enzyme
-          ENZYME_LLVM=$(brew info enzyme | sed -n 's/^Required:.*\(llvm[^ ]*\).*/\1/p')
+          ENZYME_LLVM=$(brew info enzyme | sed -n 's/^Required.*:.*\(llvm[^ ]*\).*/\1/p')
+          echo "ENZYME_LLVM=$ENZYME_LLVM"
           LLVM_PREFIX=$(brew --prefix $ENZYME_LLVM)
           echo "LLVM_PREFIX=$LLVM_PREFIX" >> $GITHUB_ENV
           echo "OMPI_CC=$LLVM_PREFIX/bin/clang" >> $GITHUB_ENV
