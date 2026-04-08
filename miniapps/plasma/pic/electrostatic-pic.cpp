@@ -45,6 +45,12 @@
 //   3D3V Linear Landau damping test case (Zheng et al., 2025):
 //    * mpirun -n 128 ./electrostatic-pic -dim 3 -rdi 1 -npt 40960000 -k 0.5 -a 0.01 -nt 100 -nx 32 -ny 32 -nz 32 -O 1 -q 0.00004844730731 -m 0.00004844730731 -oci 1000 -dt 0.02 -no-vis
 
+#include "mfem.hpp"
+#include "../../../general/text.hpp"
+#include "../../common/fem_extras.hpp"
+#include "../../common/particles_extras.hpp"
+#include "../../common/pfem_extras.hpp"
+
 #include <ctime>
 #include <fstream>
 #include <iomanip>
@@ -52,12 +58,6 @@
 #include <random>
 #include <string>
 #include <vector>
-
-#include "../../../general/text.hpp"
-#include "../../common/fem_extras.hpp"
-#include "../../common/particles_extras.hpp"
-#include "../../common/pfem_extras.hpp"
-#include "mfem.hpp"
 
 #define EPSILON 1  // ε_0
 
