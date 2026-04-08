@@ -24,18 +24,35 @@
 namespace mfem
 {
 
+/// Parallel block bilinear form for Darcy-like mixed systems
+/** Class ParDarcyForm is a parallel version of DarcyForm, wrapping the block
+    system operator as follows:
+    \verbatim
+        ┌             ┐┌   ┐   ┌      ┐
+        | PᵀMuP ±PᵀBᵀ || u | _ | Pᵀbu |
+        |   BP     Mp || p | ̅  |   bp |
+        └             ┘└   ┘   └      ┘
+    \endverbatim
+    where @a P is the prolongation operator of the flux FE space. This
+    transformatiom to true DOFs is performed in FormSystemMatrix() or
+    FormLinearSystem() automatically. Alternatively, ParallelAssembleInternal()
+    can be called after assembling and finalizing the serial forms to use
+    Mult() method directly.
+ */
 class ParDarcyForm : public DarcyForm
 {
 protected:
-   ParFiniteElementSpace &pfes_u, &pfes_p;
+   ParFiniteElementSpace &pfes_u;   ///< flux FE space
+   ParFiniteElementSpace &pfes_p;   ///< potential FE space
 
-   ParBilinearForm *pM_u{};
-   ParBilinearForm *pM_p{};
+   ParBilinearForm *pM_u{};      ///< flux mass form
+   ParBilinearForm *pM_p{};      ///< potential mass form
    ParNonlinearForm *pMnl_u{};
    ParNonlinearForm *pMnl_p{};
-   ParMixedBilinearForm *pB{};
+   ParMixedBilinearForm *pB{};   ///< flux divergence form
    ParBlockNonlinearForm *pMnl{};
-   ParLinearForm *pb_u{}, *pb_p{};
+   ParLinearForm *pb_u{};        ///< flux r.h.s.
+   ParLinearForm *pb_p{};        ///< potential r.h.s.
 
    void UpdateTOffsets();
    void AllocBlockOp();
@@ -79,20 +96,33 @@ public:
       const BlockOperator& BlockMatrices() const;
    };
 
+   /// Constructor
+   /** @param fes_u         flux space
+       @param fes_p         potential space
+       @param bsymmetrize   sign convention of the mixed formulation, where
+                            false keeps all terms without a change, while true
+                            flips the sign of B and Mp to obtain a symmetric
+                            system with -Bᵀ in the flux equation
+    */
    ParDarcyForm(ParFiniteElementSpace *fes_u, ParFiniteElementSpace *fes_p,
                 bool bsymmetrize = true);
 
+   /// @name Flux mass
+   ///@{
+
    using DarcyForm::GetFluxMassForm;
+
+   /// Get the flux mass form (non-const)
+   /** @note The form is constructed if it has not been already. */
    BilinearForm *GetFluxMassForm();
+
+   /// Get the parallel flux mass form (non-const)
+   /** @note The form is constructed if it has not been already. */
    ParBilinearForm *GetParFluxMassForm()
    { return static_cast<ParBilinearForm*>(GetFluxMassForm()); }
-   const ParBilinearForm *GetParFluxMassForm() const { return pM_u; }
 
-   using DarcyForm::GetPotentialMassForm;
-   BilinearForm *GetPotentialMassForm();
-   ParBilinearForm *GetParPotentialMassForm()
-   { return static_cast<ParBilinearForm*>(GetPotentialMassForm()); }
-   const ParBilinearForm *GetParPotentialMassForm() const { return pM_p; }
+   /// Get the parallel flux mass form (const)
+   const ParBilinearForm *GetParFluxMassForm() const { return pM_u; }
 
    using DarcyForm::GetFluxMassNonlinearForm;
    NonlinearForm *GetFluxMassNonlinearForm();
@@ -100,42 +130,107 @@ public:
    { return static_cast<ParNonlinearForm*>(GetFluxMassNonlinearForm()); }
    const ParNonlinearForm *GetParFluxMassNonlinearForm() const { return pMnl_u; }
 
+   ///@}
+
+   /// @name Potential mass
+   ///@{
+
+   using DarcyForm::GetPotentialMassForm;
+
+   /// Get the potential mass form (non-const)
+   /** @note The form is constructed if it has not been already. */
+   BilinearForm *GetPotentialMassForm();
+
+   /// Get the parallel potential mass form (non-const)
+   /** @note The form is constructed if it has not been already. */
+   ParBilinearForm *GetParPotentialMassForm()
+   { return static_cast<ParBilinearForm*>(GetPotentialMassForm()); }
+
+   /// Get the parallel potential mass form (const)
+   const ParBilinearForm *GetParPotentialMassForm() const { return pM_p; }
+
    using DarcyForm::GetPotentialMassNonlinearForm;
    NonlinearForm *GetPotentialMassNonlinearForm();
    ParNonlinearForm *GetParPotentialMassNonlinearForm()
    { return static_cast<ParNonlinearForm*>(GetPotentialMassNonlinearForm()); }
    const ParNonlinearForm *GetParPotentialMassNonlinearForm() const { return pMnl_p; }
 
+   ///@}
+
+   /// @name Flux divergence
+   ///@{
+
    using DarcyForm::GetFluxDivForm;
+
+   /// Get the flux divergence form (non-const)
+   /** @note The form is constructed if it has not been already. */
    MixedBilinearForm *GetFluxDivForm();
 
+   /// Get the parallel flux divergence form (non-const)
+   /** @note The form is constructed if it has not been already. */
    ParMixedBilinearForm *GetParFluxDivForm()
    { return static_cast<ParMixedBilinearForm*>(GetFluxDivForm()); }
 
+   /// Get the parallel flux divergence form (const)
    const ParMixedBilinearForm *GetParFluxDivForm() const { return pB; }
+
+   ///@}
 
    ParBlockNonlinearForm *GetParBlockNonlinearForm();
    const ParBlockNonlinearForm *GetParBlockNonlinearForm() const { return pMnl; }
 
+   /// @name Flux r.h.s.
+   ///@{
+
    using DarcyForm::GetFluxRHS;
+
+   /// Get the flux right-hand-side form (non-const)
+   /** @note The form is constructed if it has not been already. */
    LinearForm *GetFluxRHS();
+
+   /// Get the parallel flux right-hand-side form (non-const)
+   /** @note The form is constructed if it has not been already. */
    ParLinearForm *GetParFluxRHS()
    { return static_cast<ParLinearForm*>(GetFluxRHS()); }
+
+   /// Get the parallel flux right-hand-side form (const)
    const ParLinearForm *GetParFluxRHS() const { return pb_u; }
 
+   ///@}
+
+   /// @name Potential r.h.s.
+   ///@{
+
    using DarcyForm::GetPotentialRHS;
+
+   /// Get the potential right-hand-side form (non-const)
+   /** @note The form is constructed if it has not been already. */
    LinearForm *GetPotentialRHS();
+
+   /// Get the parallel potential right-hand-side form (non-const)
+   /** @note The form is constructed if it has not been already. */
    ParLinearForm *GetParPotentialRHS()
    { return static_cast<ParLinearForm*>(GetPotentialRHS()); }
+
+   /// Get the parallel potential right-hand-side form (const)
    const ParLinearForm *GetParPotentialRHS() const { return pb_p; }
 
-   /// Assembles the form i.e. sums over all domain/bdr integrators.
+   ///@}
+
+   /// Assembles the form i.e. sums over all integrators
+   /** All bilinear forms are assembled internally, including the right-hand-
+       side linear forms (if they are used). However, ParDarcyForm must be
+       finalized (see Finalize()) and assembled on true DOFs (see
+       ParallelAssembleInternal()) before Mult() can be used. */
    void Assemble(int skip_zeros = 1);
 
-   /// Finalizes the matrix initialization.
+   /// Finalizes the form
+   /** All bilinear forms are finalized, enabling to assemble them on true DOFs
+       through ParallelAssembleInternal(). */
    void Finalize(int skip_zeros = 1);
 
-   /// Assembles the form on the true dofs, i.e. P^t A P.
+   /// Assembles the forms on the true DOFs, i.e. P^t A P.
+   /** This enables to perform Mult() for true DOFs vectors. */
    void ParallelAssembleInternal();
 
    using DarcyForm::FormLinearSystem;
@@ -143,18 +238,19 @@ public:
    /** @brief Form the linear system A X = B, corresponding to this bilinear
        form and the linear form @a b(.). */
    /** This method applies any necessary transformations to the linear system
-       such as: eliminating boundary conditions; applying conforming constraints
-       for non-conforming AMR; parallel assembly; static condensation;
+       such as: eliminating boundary conditions; applying conforming
+       constraints for non-conforming meshes; parallel assembly; reduction or
        hybridization.
 
-       The GridFunction-size vector @a x must contain the essential b.c. The
-       BilinearForm and the LinearForm-size vector @a b must be assembled.
+       The GridFunction-size vector @a x must contain the essential VDOF
+       values. The right-hand-side vector @a b must be initialized.
 
-       The vector @a X is initialized with a suitable initial guess: when using
-       hybridization, the vector @a X is set to zero; otherwise, the essential
-       entries of @a X are set to the corresponding b.c. and all other entries
-       are set to zero (@a copy_interior == 0) or copied from @a x
-       (@a copy_interior != 0).
+       The vector @a X is initialized with a suitable initial guess, the
+       essential entries of @a X are set to the corresponding VDOF values of
+       @a x and all other entries are set to zero (@a copy_interior == 0) or
+       copied from @a x (@a copy_interior != 0). For hybridization or
+       reduction, the values of @a x are not used, but the initial guess can
+       be provided in @a X directly (with @a copy_interior == 0).
 
        This method can be called multiple times (with the same @a ess_tdof_list
        array) to initialize different right-hand sides and boundary condition
@@ -164,12 +260,16 @@ public:
        recovered by calling RecoverFEMSolution() (with the same vectors @a X,
        @a b, and @a x).
 
-       NOTE: If there are no transformations, @a X simply reuses the data of
+       @note If there are no transformations, @a X simply reuses the data of
              @a x. */
    void FormLinearSystem(const Array<int> &ess_flux_tdof_list,
                          BlockVector &x, BlockVector &b, OperatorHandle &A, Vector &X,
                          Vector &B, int copy_interior = 0) override;
 
+   /** @brief Form the linear system A X = B, corresponding to this bilinear
+       form and its internal right-hand-side linear form. */
+   /** @see FormLinearSystem(const Array<int> &, BlockVector &, BlockVector &,
+                             OperatorHandle &, Vector &, Vector &, int) */
    void FormLinearSystem(const Array<int> &ess_flux_tdof_list,
                          BlockVector &x, OperatorHandle &A, Vector &X,
                          Vector &B, int copy_interior = 0) override;
@@ -178,41 +278,49 @@ public:
    void FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
                          OperatorHandle &A) override;
 
+   /** @brief Not available, use RecoverFEMSolution(const Vector &, const
+       BlockVector &, BlockVector &) instead. */
+   void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x) override
+   { MFEM_ABORT("This class uses BlockVectors instead of Vectors."); }
+
    /// Recover the solution of a linear system formed with FormLinearSystem().
    /** Call this method after solving a linear system constructed using the
        FormLinearSystem() method to recover the solution as a GridFunction-size
        vector in @a x. Use the same arguments as in the FormLinearSystem() call.
    */
-   void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x) override
-   { MFEM_ABORT("This class uses BlockVectors instead of Vectors."); }
-
    void RecoverFEMSolution(const Vector &X, const BlockVector &b,
                            BlockVector &x) override;
 
+   /// Recover the solution of a linear system formed with FormLinearSystem().
+   /** Call this method after solving a linear system constructed using the
+       FormLinearSystem() method to recover the solution as a GridFunction-size
+       vector in @a x. Use the same arguments as in the FormLinearSystem() call.
+   */
    void RecoverFEMSolution(const Vector &X, BlockVector &x) override;
 
-   /** @brief Use the stored eliminated part of the matrix (see
-       EliminateVDofs(const Array<int> &, DiagonalPolicy)) to modify the r.h.s.
-       @a b; @a vdofs_flux is a list of DOFs (non-directional, i.e. >= 0). */
+   /** @brief Use the stored eliminated part of the sytem to modify the r.h.s.
+       @a b; @a tdofs_flux is a list of true DOFs. */
    void ParallelEliminateTDofsInRHS(const Array<int> &tdofs_flux,
                                     const BlockVector &x, BlockVector &b);
 
    /// Operator application
    void Mult (const Vector & x, Vector & y) const override;
 
-   /// Return the flux FE space associated with the DarcyForm.
+   /// Return the associated parallel flux FE space.
    ParFiniteElementSpace *ParFluxFESpace() { return &pfes_u; }
-   /// Read-only access to the associated flux FiniteElementSpace.
+   /// Read-only access to the associated parallel flux FE space.
    const ParFiniteElementSpace *ParFluxFESpace() const { return &pfes_u; }
 
-   /// Return the flux FE space associated with the DarcyForm.
+   /// Return the associated parallel potential FE space.
    ParFiniteElementSpace *ParPotentialFESpace() { return &pfes_p; }
-   /// Read-only access to the associated flux FiniteElementSpace.
+   /// Read-only access to the associated parallel potential FE space.
    const ParFiniteElementSpace *ParPotentialFESpace() const { return &pfes_p; }
 
+   /** @brief Update the ParFiniteElementSpace%s and delete all data associated
+       with the old ones. */
    void Update() override;
 
-   /// Destroys Darcy form.
+   /// Destroys the form.
    virtual ~ParDarcyForm();
 };
 

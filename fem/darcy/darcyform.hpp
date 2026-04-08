@@ -21,33 +21,101 @@
 namespace mfem
 {
 
+/// Block bilinear form for Darcy-like mixed systems
+/** Class DarcyForm represents mixed systems with (anti)symmetric weak form
+    common for parabolic and elliptic problems. They can be written as:
+    \verbatim
+        ┌        ┐┌   ┐   ┌    ┐
+        | Mu ±Bᵀ || u | _ | bu |
+        | B  Mp  || p | ̅  | bp |
+        └        ┘└   ┘   └    ┘
+    \endverbatim
+    where @a u is the flux (continuous or discontinuous) and @a p is the
+    potential (assumed always discontinuous). The bilinear forms @a Mu
+    and @a Mp are the mass terms of the flux and potential respectively. The
+    mixed bilinear form @a B is the divergence of flux (in a generalized sense)
+    and @a bu and @a bp are the right-hand-side terms of the flux and potential
+    respectively. The r.h.s terms can be constructed internally or
+    provided externally (see FormLinearSystem()).
+
+    The sign convention of the system is chosen in the constructor DarcyForm().
+    Given the set of the forms (Mu, B, Mp), either a symmetric system without
+    a sign change (#bsym == false) or with a flipped sign (#bsym == true) is
+    formed respectively:
+    \verbatim
+        ┌       ┐        ┌        ┐
+        | Mu Bᵀ |        | Mu -Bᵀ |
+        | B  Mp |   or   | -B -Mp |
+        └       ┘        └        ┘
+    \endverbatim
+
+    The individual terms of the system are accessed through Get*Form() or
+    Get*RHS() methods, where the non-const versions construct the corresponding
+    forms at the first occurance. After setting up the (bi)linear forms, the
+    system is assembled through Assemble() and finilized by Finalize(),
+    similarly to BilinearForm. Furthermore, the elimination of the essential
+    TDOFs and construction of the discrete linear system is done through
+    FormLinearSystem() followed by RecoverFEMSolution(). Note the primary
+    variables and the r.h.s terms are packed together in BlockVector%s
+    (with offsets obtained through GetOffsets()).
+
+    A notable feature of DarcyForm is the capability to perform algebraic
+    reduction or hybridization of the system. To reduce the system by
+    elimination of discontinuous fluxes, use EnableFluxReduction(). Similarly,
+    elimination of potentials (without face integrators) is triggered by
+    EnablePotentialReduction() before the assembling process. Alternatively,
+    the system can be hybridized in terms of the total flux by
+    EnableHybridization(), reducing the system to the trace unknowns through
+    DarcyHybridization. In any case, the reductions are performed in
+    FormSystemMatrix() or FormLinearSystem(), where the original set of the
+    quantities (flux and potential) is recovered though RecoverFEMSolution().
+
+    Additionally, reconstruction of the superconvergent quantities can be
+    performed after solution of the hybridized system has been obtained.
+    It combines the original solution (flux and potential) with the trace
+    solution to obtain the normally continuous total flux through
+    ReconstructTotalFlux(). The second step is reconstruction of the fluxes
+    and potentials with the increased polynomial order through
+    ReconstructFluxAndPot(). Both steps are combined in Reconstruct(). Refer
+    to DarcyHybridization for more detailed explanation of the process.
+ */
 class DarcyForm : public Operator
 {
 protected:
-   Array<int> offsets, toffsets;
+   Array<int> offsets;      ///< block offsets (VDOFs)
+   Array<int> toffsets;     ///< block offsets (TDOFs)
 
-   FiniteElementSpace *fes_u, *fes_p;
+   FiniteElementSpace *fes_u;   ///< flux FE space
+   FiniteElementSpace *fes_p;   ///< potential FE space
 
-   bool bsym;
+   bool bsym;   ///< sign convention, see DarcyForm()
 
-   std::unique_ptr<BilinearForm> M_u, M_p;
-   std::unique_ptr<NonlinearForm> Mnl_u, Mnl_p;
-   std::unique_ptr<MixedBilinearForm> B;
+   std::unique_ptr<BilinearForm> M_u;       ///< flux mass form
+   std::unique_ptr<BilinearForm> M_p;       ///< potential mass form
+   std::unique_ptr<NonlinearForm> Mnl_u;
+   std::unique_ptr<NonlinearForm> Mnl_p;
+   std::unique_ptr<MixedBilinearForm> B;    ///< flux divergence form
    std::unique_ptr<BlockNonlinearForm> Mnl;
-   std::unique_ptr<LinearForm> b_u, b_p;
+   std::unique_ptr<LinearForm> b_u;         ///< flux r.h.s
+   std::unique_ptr<LinearForm> b_p;         ///< potential r.h.s.
 
-   mutable OperatorHandle opM_u, opM_p, opB, opBt, opG;
+   mutable OperatorHandle opM_u;    ///< flux mass operator
+   mutable OperatorHandle opM_p;    ///< potential mass operator
+   mutable OperatorHandle opB;      ///< flux divergence operator
+   mutable OperatorHandle opBt;     ///< transposed flux divergence operator
+   mutable OperatorHandle opG;
 
    /// The assembly level of the form (full, partial, etc.)
    AssemblyLevel assembly{AssemblyLevel::LEGACY};
 
-   std::unique_ptr<BlockVector> block_b;
-   std::unique_ptr<BlockOperator> block_op;
+   std::unique_ptr<BlockOperator> block_op; ///< block operator
+   std::unique_ptr<BlockVector> block_b;    ///< block r.h.s.
    mutable std::unique_ptr<BlockOperator> block_grad;
 
-   std::unique_ptr<DarcyReduction> reduction;
-   std::unique_ptr<DarcyHybridization> hybridization;
+   std::unique_ptr<DarcyReduction> reduction;           ///< reduction
+   std::unique_ptr<DarcyHybridization> hybridization;   ///< hybridization
 
+   /// The DarcyForm of the reconstructed super-convergent system
    mutable std::unique_ptr<DarcyForm> reconstruction;
    mutable std::unique_ptr<MixedBilinearForm> M_p_src;
 
@@ -86,35 +154,91 @@ public:
       const BlockOperator& BlockMatrices() const;
    };
 
+   /// Constructor
+   /** @param fes_u         flux space
+       @param fes_p         potential space
+       @param bsymmetrize   sign convention of the mixed formulation, where
+                            false keeps all terms without a change, while true
+                            flips the sign of B and Mp to obtain a symmetric
+                            system with -Bᵀ in the flux equation
+    */
    DarcyForm(FiniteElementSpace *fes_u, FiniteElementSpace *fes_p,
              bool bsymmetrize = true);
 
+   /// Get VDOF block offsets
    inline const Array<int>& GetOffsets() const { return offsets; }
+
+   /// Get TDOF block offsets
    inline const Array<int>& GetTrueOffsets() const { return toffsets; }
 
-   BilinearForm *GetFluxMassForm();
-   const BilinearForm *GetFluxMassForm() const { return M_u.get(); }
+   /// @name Flux mass
+   ///@{
 
-   BilinearForm *GetPotentialMassForm();
-   const BilinearForm *GetPotentialMassForm() const { return M_p.get(); }
+   /// Get the flux mass form (non-const)
+   /** @note The form is constructed if it has not been already. */
+   BilinearForm *GetFluxMassForm();
+
+   /// Get the flux mass form (const)
+   const BilinearForm *GetFluxMassForm() const { return M_u.get(); }
 
    NonlinearForm *GetFluxMassNonlinearForm();
    const NonlinearForm *GetFluxMassNonlinearForm() const { return Mnl_u.get(); }
 
+   ///@}
+
+   /// @name Potential mass
+   ///@{
+
+   /// Get the potential mass form (non-const)
+   /** @note The form is constructed if it has not been already. */
+   BilinearForm *GetPotentialMassForm();
+
+   /// Get the potential mass form (const)
+   const BilinearForm *GetPotentialMassForm() const { return M_p.get(); }
+
    NonlinearForm *GetPotentialMassNonlinearForm();
    const NonlinearForm *GetPotentialMassNonlinearForm() const { return Mnl_p.get(); }
 
+   ///@}
+
+   /// @name Flux divergence
+   ///@{
+
+   /// Get the flux divergence form (non-const)
+   /** @note The form is constructed if it has not been already. */
    MixedBilinearForm *GetFluxDivForm();
+
+   /// Get the flux divergence form (const)
    const MixedBilinearForm *GetFluxDivForm() const { return B.get(); }
+
+   ///@}
 
    BlockNonlinearForm *GetBlockNonlinearForm();
    const BlockNonlinearForm *GetBlockNonlinearForm() const { return Mnl.get(); }
 
+   /// @name Flux r.h.s.
+   ///@{
+
+   /// Get the flux right-hand-side form (non-const)
+   /** @note The form is constructed if it has not been already. */
    LinearForm *GetFluxRHS();
+
+   /// Get the flux right-hand-side form (const)
    const LinearForm *GetFluxRHS() const { return b_u.get(); }
 
+   ///@}
+
+   /// @name Potential r.h.s.
+   ///@{
+
+   /// Get the potential right-hand-side form (non-const)
+   /** @note The form is constructed if it has not been already. */
    LinearForm *GetPotentialRHS();
+
+   /// Get the potential right-hand-side form (non-const)
    const LinearForm *GetPotentialRHS() const { return b_p.get(); }
+
+   ///@}
 
    /// Set the desired assembly level.
    /** Valid choices are:
@@ -131,51 +255,55 @@ public:
    /// Returns the assembly level
    AssemblyLevel GetAssemblyLevel() const { return assembly; }
 
-   /// Enable flux reduction.
-   /** For details see the description for class
-       DarcyFluxReduction in darcyreduction.hpp. This method should be
-       called before assembly. */
+   /// Enable flux reduction
+   /** For details see the description for class DarcyFluxReduction. This
+       method should be called before assembly. */
    void EnableFluxReduction();
 
-   /// Enable potential reduction.
-   /** For details see the description for class
-       DarcyPotentialReduction in darcyreduction.hpp. This method should be
-       called before assembly. */
+   /// Enable potential reduction
+   /** For details see the description for class DarcyPotentialReduction. This
+       method should be called before assembly. */
    void EnablePotentialReduction(const Array<int> &ess_flux_tdof_list);
 
+   /// Get the applied reduction
+   /** @see EnableFluxReduction() and EnablePotentialReduction() */
    DarcyReduction *GetReduction() const { return reduction.get(); }
 
-   /// Enable hybridization.
-   /** For details see the description for class
-       DarcyHybridization in darcyhybridization.hpp. This method should be called
-       before assembly. */
+   /// Enable hybridization
+   /** For details see the description for class DarcyHybridization. This
+       method should be called before assembly. */
    void EnableHybridization(FiniteElementSpace *constr_space,
                             BilinearFormIntegrator *constr_flux_integ,
                             const Array<int> &ess_flux_tdof_list);
 
+   /// Get the applied hybridization
    DarcyHybridization *GetHybridization() const { return hybridization.get(); }
 
-   /// Assembles the form i.e. sums over all domain/bdr integrators.
+   /// Assembles the form i.e. sums over all integrators
+   /** All bilinear forms are assembled internally, including the right-hand-
+       side linear forms (if they are used). However, DarcyForm must be
+       finalized (see Finalize()) before Mult() can be used. */
    void Assemble(int skip_zeros = 1);
 
-   /// Finalizes the matrix initialization.
+   /// Finalizes the form
+   /** All bilinear forms are finalized, enabling to perform Mult(). */
    void Finalize(int skip_zeros = 1);
 
    /** @brief Form the linear system A X = B, corresponding to this bilinear
        form and the linear form @a b(.). */
    /** This method applies any necessary transformations to the linear system
-       such as: eliminating boundary conditions; applying conforming constraints
-       for non-conforming AMR; parallel assembly; static condensation;
-       hybridization.
+       such as: eliminating boundary conditions; applying conforming
+       constraints for non-conforming meshes; reduction or hybridization.
 
-       The GridFunction-size vector @a x must contain the essential b.c. The
-       BilinearForm and the LinearForm-size vector @a b must be assembled.
+       The GridFunction-size vector @a x must contain the essential VDOF
+       values. The right-hand-side vector @a b must be initialized.
 
-       The vector @a X is initialized with a suitable initial guess: when using
-       hybridization, the vector @a X is set to zero; otherwise, the essential
-       entries of @a X are set to the corresponding b.c. and all other entries
-       are set to zero (@a copy_interior == 0) or copied from @a x
-       (@a copy_interior != 0).
+       The vector @a X is initialized with a suitable initial guess, the
+       essential entries of @a X are set to the corresponding VDOF values of
+       @a x and all other entries are set to zero (@a copy_interior == 0) or
+       copied from @a x (@a copy_interior != 0). For hybridization or
+       reduction, the values of @a x are not used, but the initial guess can
+       be provided in @a X directly (with @a copy_interior == 0).
 
        This method can be called multiple times (with the same @a ess_tdof_list
        array) to initialize different right-hand sides and boundary condition
@@ -185,12 +313,16 @@ public:
        recovered by calling RecoverFEMSolution() (with the same vectors @a X,
        @a b, and @a x).
 
-       NOTE: If there are no transformations, @a X simply reuses the data of
+       @note If there are no transformations, @a X simply reuses the data of
              @a x. */
    virtual void FormLinearSystem(const Array<int> &ess_flux_tdof_list,
                                  BlockVector &x, BlockVector &b, OperatorHandle &A, Vector &X,
                                  Vector &B, int copy_interior = 0);
 
+   /** @brief Form the linear system A X = B, corresponding to this bilinear
+       form and its internal right-hand-side linear form. */
+   /** @see FormLinearSystem(const Array<int> &, BlockVector &, BlockVector &,
+                             OperatorHandle &, Vector &, Vector &, int) */
    virtual void FormLinearSystem(const Array<int> &ess_flux_tdof_list,
                                  BlockVector &x, OperatorHandle &A, Vector &X, Vector &B,
                                  int copy_interior = 0);
@@ -215,6 +347,13 @@ public:
       A.MakeRef(*A_ptr);
    }
 
+   /** @brief Form the linear system A X = B, corresponding to this bilinear
+       form and its internal right-hand-side linear form. */
+   /** Version of the method FormLinearSystem() where the system matrix is
+       returned in the variable @a A, of type OpType, holding a *reference* to
+       the system matrix (created with the method OpType::MakeRef()). The
+       reference will be invalidated when SetOperatorType(), Update(), or the
+       destructor is called. */
    template <typename OpType>
    void FormLinearSystem(const Array<int> &ess_flux_tdof_list,
                          BlockVector &x, OpType &A, Vector &X, Vector &B,
@@ -247,17 +386,24 @@ public:
       A.MakeRef(*A_ptr);
    }
 
+   /** @brief Not available, use RecoverFEMSolution(const Vector &, const
+       BlockVector &, BlockVector &) instead. */
+   void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x) override
+   { MFEM_ABORT("This class uses BlockVectors instead of Vectors."); }
+
    /// Recover the solution of a linear system formed with FormLinearSystem().
    /** Call this method after solving a linear system constructed using the
        FormLinearSystem() method to recover the solution as a GridFunction-size
        vector in @a x. Use the same arguments as in the FormLinearSystem() call.
    */
-   void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x) override
-   { MFEM_ABORT("This class uses BlockVectors instead of Vectors."); }
-
    virtual void RecoverFEMSolution(const Vector &X, const BlockVector &b,
                                    BlockVector &x);
 
+   /// Recover the solution of a linear system formed with FormLinearSystem().
+   /** Call this method after solving a linear system constructed using the
+       FormLinearSystem() method to recover the solution as a GridFunction-size
+       vector in @a x. Use the same arguments as in the FormLinearSystem() call.
+   */
    virtual void RecoverFEMSolution(const Vector &X, BlockVector &x);
 
    /// Reconstruct the total flux from the provided hybridized solution.
@@ -271,7 +417,7 @@ public:
    void ReconstructTotalFlux(const BlockVector &sol, const Vector &sol_r,
                              GridFunction &ut) const;
 
-   /// Reconstruct the flux, potential and traces from solution and total flux
+   /// Reconstruct the flux, potential and traces from solution and total flux.
    /** The reconstructed quantities are in finite element spaces of one order
        higher than the original spaces. If no are assigned to the functions,
        they are automatically constructed from the primary ones and owned by
@@ -280,10 +426,10 @@ public:
    void ReconstructFluxAndPot(const BlockVector &sol, const GridFunction &ut,
                               GridFunction &u, GridFunction &p, GridFunction &tr) const;
 
-   /// Reconstruct all quantities from hybridized solution
+   /// Reconstruct all quantities from hybridized solution.
    /** The reconstruction combines the reconstruction of the total flux through
        ReconstructTotalFlux() and the primary quantities through
-       ReconstructFluxAndPot().
+       ReconstructFluxAndPot(). See them for details.
     */
    void Reconstruct(const BlockVector &sol, const Vector &sol_r, GridFunction &ut,
                     GridFunction &u, GridFunction &p, GridFunction &tr) const
@@ -292,11 +438,12 @@ public:
       ReconstructFluxAndPot(sol, ut, u, p, tr);
    }
 
+   /** @brief Use the stored eliminated part of the sytem to modify the r.h.s.
+       @a b; @a tdofs_flux is a list of true DOFs. */
    void EliminateTrueDofsInRHS(const Array<int> &tdofs_flux,
                                const BlockVector &x, BlockVector &b);
 
-   /** @brief Use the stored eliminated part of the matrix (see
-       EliminateVDofs(const Array<int> &, DiagonalPolicy)) to modify the r.h.s.
+   /** @brief Use the stored eliminated part of the system to modify the r.h.s.
        @a b; @a vdofs_flux is a list of DOFs (non-directional, i.e. >= 0). */
    void EliminateVDofsInRHS(const Array<int> &vdofs_flux,
                             const BlockVector &x, BlockVector &b);
@@ -307,19 +454,21 @@ public:
    /// Evaluate the gradient operator at the point @a x.
    Operator &GetGradient(const Vector &x) const override;
 
-   /// Return the flux FE space associated with the DarcyForm.
+   /// Return the associated flux FE space.
    FiniteElementSpace *FluxFESpace() { return fes_u; }
    /// Read-only access to the associated flux FiniteElementSpace.
    const FiniteElementSpace *FluxFESpace() const { return fes_u; }
 
-   /// Return the flux FE space associated with the DarcyForm.
+   /// Return the associated flux FE space.
    FiniteElementSpace *PotentialFESpace() { return fes_p; }
    /// Read-only access to the associated flux FiniteElementSpace.
    const FiniteElementSpace *PotentialFESpace() const { return fes_p; }
 
+   /** @brief Update the FiniteElementSpace%s and delete all data associated
+       with the old ones. */
    virtual void Update();
 
-   /// Destroys Darcy form.
+   /// Destroys the form.
    virtual ~DarcyForm();
 };
 
