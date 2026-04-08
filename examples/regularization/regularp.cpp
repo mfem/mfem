@@ -3,10 +3,10 @@
 // Compile with: make regularp
 //
 // Sample runs:  mpirun -np 4 regularp -r 1 -a 1 -vis
-//               mpirun -np 4 regularp -f 1 -p 0 -i 50 -n 10 -m ../../data/wheel.msh -vis
-//               mpirun -np 8 regularp -r 1 -f 1 -p 0 -i 50 -n 10 -m ../../data/wheel.msh -pv
-//               mpirun -np 8 regularp -r 1 -f 5 -p 0 -i 50 -n 10 -m ../../data/hemisphere.msh -vis
-//               mpirun -np 8 regularp -r 1 -f 5 -p 0 -i 50 -n 10 -m ../../data/hemisphere.msh -pv
+//               mpirun -np 4 regularp -f 1 -p 0 -i 12 -n 10 -m ../../data/wheel.msh -vis
+//               mpirun -np 8 regularp -r 1 -f 1 -p 0 -i 15 -n 10 -m ../../data/wheel.msh -pv
+//               mpirun -np 8 regularp -r 1 -f 5 -p 0 -i 15 -n 10 -m ../../data/hemisphere.msh -vis
+//               mpirun -np 8 regularp -r 1 -f 5 -p 0 -i 15 -n 10 -m ../../data/hemisphere.msh -pv
 //
 // Description:  This program solves Signorini's problem using MFEM. We aim to
 //               solve the bound-constrained minimization problem
@@ -149,7 +149,7 @@ int main(int argc, char *argv[])
    const char* mesh_file = "../../data/ref-cube.mesh";
    int order = 1;
    int ref_levels = 0;
-   real_t alpha = 0.005;
+   real_t alpha = 0.5;
    real_t lambda = 1.0;
    real_t mu = 1.0;
    int max_outer_iter = 30;
@@ -370,11 +370,10 @@ int main(int argc, char *argv[])
    }
 
    // 10. Iterate:
-   real_t N = 1;
+   real_t N = 1e6;
    for (int k = 1; k <= max_outer_iter; k++)
    {
-      N *= 2;
-
+      alpha = 2 * k;
       u_current = u_previous;
 
       // Newton loop
@@ -479,9 +478,6 @@ int main(int argc, char *argv[])
 
       // Step 11: Update previous solution for next iteration.
       u_previous = u_current;
-
-      // Step 12: Update alpha.
-      alpha *= 1.5;
    }
 
    // 11. Save the final solution in ParaView format.
