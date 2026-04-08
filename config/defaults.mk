@@ -377,31 +377,8 @@ CUDSS_OPT         = -I$(CUDSS_INCLUDE_DIR)
 CUDSS_LIB         = \
  $(XLINKER)-rpath,$(CUDSS_LIBRARY_DIR) -L$(CUDSS_LIBRARY_DIR) -lcudss
 # The cuDSS communication and threading libraries. 
-MFEM_CUDSS_COMM_LIB = 
-MFEM_CUDSS_THREADING_LIB = 
-ifeq ($(MFEM_USE_CUDSS),YES)
-   ifneq ($(MFEM_USE_CUDA),YES)
-      $(error cuDSS requires that CUDA be enabled.)
-   endif
-   # Set the full name of cuDSS communication library (libcudss_commlayer_mpi.so). 
-   # It is located under the cuDSS library directory by default.
-   ifeq ($(MFEM_USE_MPI),YES)
-      MFEM_CUDSS_COMM_LIB = $(abspath $(wildcard $(or $(CUDSS_COMM_LIB),\
-         $(subst @MFEM_DIR@,$(MFEM_DIR), $(CUDSS_LIBRARY_DIR)/libcudss_commlayer_openmpi.so))))
-      ifeq ($(MFEM_CUDSS_COMM_LIB),)
-         $(warning cuDSS communication library not found.)
-      endif
-   endif
-   # Set the full name of cuDSS threading library (libcudss_mtlayer_gomp.so). 
-   # It is located under the cuDSS library directory by default.
-   ifeq ($(MFEM_USE_OPENMP),YES)
-      MFEM_CUDSS_THREADING_LIB = $(abspath $(wildcard $(or $(CUDSS_THREADING_LIB),\
-         $(subst @MFEM_DIR@,$(MFEM_DIR),$(CUDSS_LIBRARY_DIR)/libcudss_mtlayer_gomp.so))))
-      ifeq ($(MFEM_CUDSS_COMM_LIB),)
-         $(warning cuDSS threading library not found.)
-      endif
-   endif
-endif
+MFEM_CUDSS_COMM_LIB = $(CUDSS_LIBRARY_DIR)/libcudss_commlayer_openmpi.so
+MFEM_CUDSS_THREADING_LIB = $(CUDSS_LIBRARY_DIR)/libcudss_mtlayer_gomp.so
 
 # Ginkgo library configuration
 GINKGO_DIR = @MFEM_DIR@/../ginkgo/install
