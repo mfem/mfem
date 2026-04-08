@@ -13,17 +13,70 @@ namespace mfem{
         MPI_Comm_rank(this->comm, &rank);
         MPI_Comm_size(this->comm, &nprocs);
     }
-
+    
     CrystalRouter::~CrystalRouter(){
         MPI_Comm_free(&comm);
     }
+    
+    void CrystalRouter::Route(Array<int> &ranks, std::vector<Array<int>*> &data){
+    
+    uint32_t bl = 0, bh, nl;
+    uint32_t id = rank, n = nprocs;
+    uint32_t targ, tag = 0;
+    bool send_hi;
+    int recvn;
+    Array<int> send_ranks;
+    std::vector<Array<int>> send_data;
+
+    while(n > 1){
+        nl = (n+1)/2;
+        bh = bl + nl;
+        send_hi = (id < nl) ? true : false;
+        Move(ranks, data, bh, send_hi, send_ranks, send_data);
+
+        /* overflow check, deal with later
+        long long send_n_long = send_n;
+        send_n_long *= sizeof(uint32_t);
+        bool overflow = send_n_long > INT_MAX;
+        
+        if(overflow){
+            std::print(stderr, "Error in crystal_router: rank = %d send_n = %lld (> "
+            "INT_MAX)\n", id, send_n_long);
+            MPI_Abort(comm, 1);
+            }
 
 
-    // PRIVATE METHODS
+        Move() doesn't return anything but in the other implementation it returns send_n which is used for this overflow check
+        Once the overflow check gets reimplemented, need to make sure send_n is correctly set in Move() and returned here
+        */
+           
+           
+           recvn = 1, targ = n-1-(id-bl)+bl;
+           if(id == targ){
+               targ = bh;
+               recvn = 0;
+            }
+            if(n&1 && id==bh){
+                recvn = 2;
+            }
+            
+            Exchange(ranks, data, targ, recvn, tag, send_ranks, send_data);
+            if(id < bh){
+                n = nl;
+            }
+        else{
+            n -= nl;
+            bl = bh;
+        }
+        tag += 2;
+    }
+}
+
+// PRIVATE METHODS
 
     // moves and adjust ranks and data buffers based on cutoff and send_hi
     // return: number of items to send
-    int CrystalRouter::Move(Array<int> &ranks, std::vector<Array<int>*> &data,
+    void CrystalRouter::Move(Array<int> &ranks, std::vector<Array<int>*> &data,
             int cutoff, bool send_hi,
             Array<int> &send_ranks, std::vector<Array<int>> &send_data){
 
@@ -83,8 +136,6 @@ namespace mfem{
             for(int j = 0; j < ndata; j++){
                 data[j]->SetSize(nkeep);
             }
-
-            return nsend;
     }
 
 
@@ -96,8 +147,6 @@ namespace mfem{
         // just like crystal.c implementation, need to first exchange counts
         MPI_Request reqs[3];
         int count[2] = {0, 0};
-        int sum;
-        size_t recv0, recv1;
         
         int send_n = send_ranks.Size();
         
@@ -119,18 +168,18 @@ namespace mfem{
         int packet = 1 + data.size();
         // size of 1 packet is 1 int for rank + data.size() for the rest
         Array<int> send_buffer;
-        send_buffer.Reserve(send_n * packet);                    // each item has 1 rank + data.size() data entries
+        send_buffer.SetSize(send_n * packet);                    // each item has 1 rank + data.size() data entries
         Array<int> recv_buffer;
-        recv_buffer.Reserve((count[0] + count[1]) * packet);     // worse case it recieves max data size from both sides
+        recv_buffer.SetSize((count[0] + count[1]) * packet);     // worse case it recieves max data size from both sides
                                                                             // this is something that can probably be optimized later
 
         // pack ranks and data (packets) into send buffer
         // |packet0 | packet1 | ... | packetN |
         // |rank| data0 | data1 | ... | dataN | rank | data0 | data1 | ... |
         for(int i = 0; i < send_n; i++){
-            send_buffer.push_back(send_ranks[i]);
-            for(int j = 0; j < data.size(); j++){
-                send_buffer.push_back(send_data[j][i]);
+            send_buffer[i*packet] = send_ranks[i];
+            for(int j = 0; j < static_cast<int>(data.size()) ; j++){
+                send_buffer[i * packet + 1 + j] = send_data[j][i];
             }
         }
 
@@ -153,7 +202,7 @@ namespace mfem{
         int nrecv = count[0] + count[1];
         for(int i = 0; i < nrecv; i++){
             ranks.Append(recv_buffer[i*packet]);
-            for(int j = 0; j < data.size(); j++){
+            for(int j = 0; j < static_cast<int>(data.size()); j++){
                 (*data[j]).Append(recv_buffer[i*packet + 1 + j]);
             }
         }

@@ -27,7 +27,7 @@ private:
    int rank, nprocs;
 
    // partition items into keep vs send based on rank
-   int Move(Array<int> &ranks, std::vector<Array<int>*> &data,
+   void Move(Array<int> &ranks, std::vector<Array<int>*> &data,
             int cutoff, bool send_hi,
             Array<int> &send_ranks, std::vector<Array<int>> &send_data);
 
