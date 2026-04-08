@@ -303,20 +303,18 @@ void ParDarcyForm::FormLinearSystem(
       // Reduction to the single equation system
       BlockVector true_X(toffsets), true_B(toffsets);
 
-      const Operator &P_u = *pfes_u.GetProlongationMatrix();
-      const Operator &R_u = *pfes_u.GetRestrictionOperator();
-      P_u.MultTranspose(b.GetBlock(0), true_B.GetBlock(0));
-      R_u.Mult(x.GetBlock(0), true_X.GetBlock(0));
+      const Operator &P = *pfes_u.GetProlongationMatrix();
+      const Operator &R = *pfes_u.GetRestrictionOperator();
+      P.MultTranspose(b.GetBlock(0), true_B.GetBlock(0));
+      R.Mult(x.GetBlock(0), true_X.GetBlock(0));
 
-      const Operator &P_p = *pfes_p.GetProlongationMatrix();
-      const Operator &R_p = *pfes_p.GetRestrictionOperator();
-      P_p.MultTranspose(b.GetBlock(1), true_B.GetBlock(1));
-      R_p.Mult(x.GetBlock(1), true_X.GetBlock(1));
+      true_B.GetBlock(1) = b.GetBlock(1);
+      true_X.GetBlock(1) = x.GetBlock(1);
 
       ParallelEliminateTDofsInRHS(ess_flux_tdof_list, true_X, true_B);
 
-      R_u.MultTranspose(true_B.GetBlock(0), b.GetBlock(0));
-      R_p.MultTranspose(true_B.GetBlock(1), b.GetBlock(1));
+      R.MultTranspose(true_B.GetBlock(0), b.GetBlock(0));
+      b.GetBlock(1) = true_B.GetBlock(1);
 
       if (hybridization)
       {
@@ -348,15 +346,13 @@ void ParDarcyForm::FormLinearSystem(
       BlockVector X(X_, toffsets), B(B_, toffsets);
 
       // Variational restriction with P
-      const Operator &P_u = *pfes_u.GetProlongationMatrix();
-      const Operator &R_u = *pfes_u.GetRestrictionOperator();
-      P_u.MultTranspose(b.GetBlock(0), B.GetBlock(0));
-      R_u.Mult(x.GetBlock(0), X.GetBlock(0));
+      const Operator &P = *pfes_u.GetProlongationMatrix();
+      const Operator &R = *pfes_u.GetRestrictionOperator();
+      P.MultTranspose(b.GetBlock(0), B.GetBlock(0));
+      R.Mult(x.GetBlock(0), X.GetBlock(0));
 
-      const Operator &P_p = *pfes_p.GetProlongationMatrix();
-      const Operator &R_p = *pfes_p.GetRestrictionOperator();
-      P_p.MultTranspose(b.GetBlock(1), B.GetBlock(1));
-      R_p.Mult(x.GetBlock(1), X.GetBlock(1));
+      B.GetBlock(1) = b.GetBlock(1);
+      X.GetBlock(1) = x.GetBlock(1);
 
       ParallelEliminateTDofsInRHS(ess_flux_tdof_list, X, B);
       if (!copy_interior)
@@ -459,15 +455,13 @@ void ParDarcyForm::RecoverFEMSolution(const Vector &X_, const BlockVector &b,
       // Primal unknowns recovery
       BlockVector true_X(toffsets), true_B(toffsets);
 
-      const Operator &P_u = *pfes_u.GetProlongationMatrix();
-      const Operator &R_u = *pfes_u.GetRestrictionOperator();
-      P_u.MultTranspose(b.GetBlock(0), true_B.GetBlock(0));
-      R_u.Mult(x.GetBlock(0), true_X.GetBlock(0));
+      const Operator &P = *pfes_u.GetProlongationMatrix();
+      const Operator &R = *pfes_u.GetRestrictionOperator();
+      P.MultTranspose(b.GetBlock(0), true_B.GetBlock(0));
+      R.Mult(x.GetBlock(0), true_X.GetBlock(0));
 
-      const Operator &P_p = *pfes_p.GetProlongationMatrix();
-      const Operator &R_p = *pfes_p.GetRestrictionOperator();
-      P_p.MultTranspose(b.GetBlock(1), true_B.GetBlock(1));
-      R_p.Mult(x.GetBlock(1), true_X.GetBlock(1));
+      true_B.GetBlock(1) = b.GetBlock(1);
+      true_X.GetBlock(1) = x.GetBlock(1);
 
       if (hybridization)
       {
@@ -478,8 +472,8 @@ void ParDarcyForm::RecoverFEMSolution(const Vector &X_, const BlockVector &b,
          reduction->ComputeSolution(true_B, X_, true_X);
       }
 
-      P_u.Mult(true_X.GetBlock(0), x.GetBlock(0));
-      P_p.Mult(true_X.GetBlock(1), x.GetBlock(1));
+      P.Mult(true_X.GetBlock(0), x.GetBlock(0));
+      x.GetBlock(1) = true_X.GetBlock(1);
    }
    else
    {
@@ -491,8 +485,8 @@ void ParDarcyForm::RecoverFEMSolution(const Vector &X_, const BlockVector &b,
       else
       {
          // Apply conforming prolongation
-         const Operator &P_u = *pfes_u.GetProlongationMatrix();
-         P_u.Mult(X.GetBlock(0), x.GetBlock(0));
+         const Operator &P = *pfes_u.GetProlongationMatrix();
+         P.Mult(X.GetBlock(0), x.GetBlock(0));
       }
 
       if (pM_p)
@@ -501,9 +495,7 @@ void ParDarcyForm::RecoverFEMSolution(const Vector &X_, const BlockVector &b,
       }
       else
       {
-         // Apply conforming prolongation
-         const Operator &P_p = *pfes_p.GetProlongationMatrix();
-         P_p.Mult(X.GetBlock(1), x.GetBlock(1));
+         x.GetBlock(1) = X.GetBlock(1);
       }
    }
 }
