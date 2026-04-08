@@ -117,6 +117,10 @@ static void AddBasicKernelSpecializations()
 Device *device_ptr = nullptr;
 static int gD1D = 0, gQ1D = 0;
 
+/// Constants /////////////////////////////////////////////////////////////////
+alignas(64) static MFEM_CONSTANT real_t cst_B[8*8];
+alignas(64) static MFEM_CONSTANT real_t cst_G[8*8];
+
 /// StiffnessIntegrator ///////////////////////////////////////////////////////
 struct StiffnessIntegrator : public BilinearFormIntegrator
 {
@@ -128,7 +132,7 @@ struct StiffnessIntegrator : public BilinearFormIntegrator
    static constexpr auto QBZ = std::array // ⚠️
    {
       -1, -1, -1, /* not used */
-         1, 1, 1, 8, 1, 1
+         1, 1, 1, 20, 1, 1
       };
 
 public:
@@ -139,7 +143,7 @@ public:
       // StiffnessKernels::Specialization<4, 5, QBZ[5]>::Add();  // 3
       StiffnessKernels::Specialization<5, 6, QBZ[6]>::Add();  // 4
       // StiffnessKernels::Specialization<6, 7, QBZ[7]>::Add();  // 5
-      // StiffnessKernels::Specialization<7, 8, QBZ[8]>::Add();  // 6
+      StiffnessKernels::Specialization<7, 8, QBZ[8]>::Add();  // 6
    }
 
    void AssemblePA(const FiniteElementSpace &fespace) override
@@ -210,6 +214,8 @@ public:
          MFEM_SYNC_THREAD;
       });
       qdata = dx;
+      Gpu(MemcpyToSymbol)(cst_B, maps->B.HostRead(), (d1d*q1d)*sizeof(real_t));
+      Gpu(MemcpyToSymbol)(cst_G, maps->G.HostRead(), (d1d*q1d)*sizeof(real_t));
    }
 
    //////////////////////////////////////////////////////////////////
@@ -267,7 +273,9 @@ public:
 
    //////////////////////////////////////////////////////////////////
    template <int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
-   static void StiffnessMultBZ(const int NE, const real_t *b, const real_t *g,
+   static void StiffnessMultBZ(const int NE,
+                               [[maybe_unused]] const real_t *b,
+                               [[maybe_unused]] const real_t *g,
                                const real_t *dx, const real_t *xe, real_t *ye,
                                const int d1d, const int q1d, const int nbz)
    {
@@ -285,20 +293,28 @@ public:
       {
          const int tz = MFEM_THREAD_ID(z);
 
-         constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 8;
-         constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 8;
+         // constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 8;
+         // constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 8;
+         constexpr int MQ1 = T_Q1D;
 
-         MFEM_SHARED real_t smem[NBZ][MQ1][MQ1];
+#if 1
+         constexpr int MD1 = T_D1D;
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
+         ker::LoadMatrix(D1D, Q1D, cst_B, sB);
+         ker::LoadMatrix(D1D, Q1D, cst_G, sG);
+#else
+         const auto &sB = reinterpret_cast<const real_t (*)[MQ1]>(cst_B);
+         const auto &sG = reinterpret_cast<const real_t (*)[MQ1]>(cst_G);
+#endif
+
          ker::vd_regs3d_t<VDIM, DIM, MQ1> r0, r1;
 
-         ker::LoadMatrix(D1D, Q1D, b, sB);
-         ker::LoadMatrix(D1D, Q1D, g, sG);
-
          ker::LoadDofs3d(e, D1D, XE, r0);
+
+         alignas(64) MFEM_SHARED real_t smem[NBZ][MQ1][MQ1];
          ker::Grad3d(D1D, Q1D, smem[tz], sB, sG, r0, r1);
 
-         MFEM_UNROLL(MD1)
+         MFEM_UNROLL(T_Q1D)
          for (int qz = 0; qz < Q1D; qz++)
          {
             MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
@@ -335,7 +351,7 @@ public:
    void AddMultPA(const Vector &x, Vector &y) const override
    {
       const int nbz = QBZ.at(q1d);
-      db1("d1d:{} q1d:{} nbz:{}", d1d, q1d, nbz);
+      db1("\x1b[32md1d:{} q1d:{} nbz:{}", d1d, q1d, nbz);
       StiffnessKernels::Run(d1d, q1d, nbz,
                             ne, B, G, DX, x.Read(), y.ReadWrite(),
                             d1d, q1d, 1);
