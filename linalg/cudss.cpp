@@ -56,9 +56,12 @@ CuDSSSolver::CuDSSSolver(MPI_Comm comm_) : mpi_comm(comm_)
 
    // NOTE: Set the communication layer to NULL so that cuDSS picks it
    // from the environment variable "CUDSS_COMM_LIB"
-   const char* comm_lib = nullptr;
+   const char* comm_lib = GetEnv("CUDSS_COMM_LIB");
 #ifdef MFEM_CUDSS_COMM_LIB
-   comm_lib = MFEM_CUDSS_COMM_LIB;
+   if (comm_lib == nullptr)
+   {
+      comm_lib = MFEM_CUDSS_COMM_LIB;
+   }
 #endif
    MFEM_CUDSS_CHECK(cudssSetCommLayer(handle, comm_lib));
 
@@ -110,9 +113,12 @@ void CuDSSSolver::InitCuDSS()
 #ifdef MFEM_USE_OPENMP
    // NOTE: Set the threading layer library name to NULL so that cuDSS picks
    // it from the environment variable "CUDSS_THREADING_LIB"
-   const char* threading_lib = nullptr;
+   const char* threading_lib = GetEnv("CUDSS_THREADING_LIB");
 #ifdef MFEM_CUDSS_THREADING_LIB
-   threading_lib = MFEM_CUDSS_THREADING_LIB;
+   if (threading_lib == nullptr)
+   {
+      threading_lib = MFEM_CUDSS_THREADING_LIB;
+   }
 #endif
    MFEM_CUDSS_CHECK(cudssSetThreadingLayer(handle, threading_lib));
 #endif  // MFEM_USE_OPENMP

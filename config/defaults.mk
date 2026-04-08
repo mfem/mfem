@@ -377,8 +377,10 @@ CUDSS_OPT         = -I$(CUDSS_INCLUDE_DIR)
 CUDSS_LIB         = \
  $(XLINKER)-rpath,$(CUDSS_LIBRARY_DIR) -L$(CUDSS_LIBRARY_DIR) -lcudss
 # The cuDSS communication and threading libraries. 
-MFEM_CUDSS_COMM_LIB = $(CUDSS_LIBRARY_DIR)/libcudss_commlayer_openmpi.so
-MFEM_CUDSS_THREADING_LIB = $(CUDSS_LIBRARY_DIR)/libcudss_mtlayer_gomp.so
+MFEM_CUDSS_COMM_LIB = $(abspath $(wildcard $(or $(CUDSS_COMM_LIB),\
+   $(subst @MFEM_DIR@,$(MFEM_DIR), $(CUDSS_LIBRARY_DIR)/libcudss_commlayer_openmpi.so))))
+MFEM_CUDSS_THREADING_LIB = $(abspath $(wildcard $(or $(CUDSS_THREADING_LIB),\
+   $(subst @MFEM_DIR@,$(MFEM_DIR),$(CUDSS_LIBRARY_DIR)/libcudss_mtlayer_gomp.so))))
 
 # Ginkgo library configuration
 GINKGO_DIR = @MFEM_DIR@/../ginkgo/install

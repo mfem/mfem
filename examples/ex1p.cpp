@@ -83,6 +83,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = true;
    bool algebraic_ceed = false;
+   bool cudss_solver = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -102,6 +103,10 @@ int main(int argc, char *argv[])
    args.AddOption(&algebraic_ceed, "-a", "--algebraic",
                   "-no-a", "--no-algebraic",
                   "Use algebraic Ceed solver");
+#endif
+#ifdef MFEM_USE_CUDSS
+   args.AddOption(&cudss_solver, "-cudss", "--cudss-solver", "-no-cudss",
+                  "--no-cudss-solver", "Use the cuDSS Solver.");
 #endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -249,7 +254,7 @@ int main(int argc, char *argv[])
    //     * With full assembly, use the BoomerAMG preconditioner from hypre.
    //     * With partial assembly, use Jacobi smoothing, for now.
 #ifdef MFEM_USE_CUDSS
-   if (!pa && (Device::Allows(Backend::CUDA_MASK)))
+   if (!pa && (Device::Allows(Backend::CUDA_MASK) && cudss_solver))
    {
       // Solve using a direct solver with cuDSS
       CuDSSSolver cudss_solver(MPI_COMM_WORLD);
