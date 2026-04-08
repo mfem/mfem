@@ -1,6 +1,6 @@
 #include "crystal.hpp"
 
-//#ifdef MFEM_USE_MPI
+#ifdef MFEM_USE_MPI
 #include <cstring>
 #include <climits>
 #include <memory>
@@ -210,4 +210,4 @@ namespace mfem{
     }
 } //mfem
 
-//#endif // MFEM_USE_MPI
+#endif // MFEM_USE_MPI

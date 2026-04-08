@@ -3,7 +3,7 @@
 
 #include "../config/config.hpp"
 
-//#ifdef MFEM_USE_MPI
+#ifdef MFEM_USE_MPI
 #include <mpi.h>
 #include <vector>
 #include "array.hpp"
@@ -40,5 +40,5 @@ private:
 
 }
 
-//#endif // MFEM_USE_MPI
+#endif // MFEM_USE_MPI
 #endif // MFEM_CRYSTAL
