@@ -8,6 +8,22 @@
                                https://mfem.org
 
 
+Version 4.10 (development)
+==========================
+
+Discretization improvements
+---------------------------
+- Replaced legacy simplex quadrature rules with symmetric positive-weight
+  rules for triangles (orders 0-25) and tetrahedra (orders 0-20). These
+  rules guarantee all-positive weights and interior quadrature points,
+  improving numerical stability. Higher orders fall back to Grundmann-Moller.
+  Triangle rules: Witherden & Vincent, Comput. Math. Appl. 69(10):1232-1241,
+  2015.
+  Tet rules (d=1-13): Witherden & Vincent (ibid).
+  Tet rules (d=14-20): Chuluunbaatar et al., Comput. Math. Appl. 124:89-97,
+  2022.
+
+
 Version 4.9.1 (development)
 ===========================
 
