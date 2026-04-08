@@ -5,38 +5,41 @@
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
-#include <vector>
-#include <cstdint>
+#include "array.hpp"
 
 namespace mfem
 {
-    class CrystalRouter{
-    public:
-        // crystal.c/crystal_init
-        CrystalRouter(MPI_Comm comm);
-        
-        // crystal.c/crystal_free 
-        ~CrystalRouter();
 
-        // crystal.c/crystal_router
-        void Route();
+class CrystalRouter
+{
+public:
+   /// @param[in,out] ranks     Destination rank per item
+   /// @param[in,out] data      Vector of pointers to Array<int>, each of the same length as ranks
 
-        // access to message buffer
-        std::vector<uint32_t> &GetData() { return data; }
+   CrystalRouter(MPI_Comm comm);
+   ~CrystalRouter();
 
-    private:
-        MPI_Comm comm;
-        int rank, nprocs;
-        std::vector<uint32_t> data;  // gslib's data buffer
-        std::vector<uint32_t> work;  // gslib's work buffer (temp)
+   void Route(Array<int> &ranks, std::vector<Array<int>*> &data);
 
-        // crystal.c/crystal_move
-        uint32_t Move(uint32_t cutoff, bool send_hi);
+private:
+   MPI_Comm comm;
+   int rank, nprocs;
 
-        // crystal.c/crystal_exchange
-        void Exchange(uint32_t send_n, int target, int recvn, int tag);
-    };
+   /// Partition items into keep vs. send based on rank cutoff.
+   /// Compacts kept items in-place, fills send buffers.
+   /// Returns number of items to send.
+   int Move(Array<int> &ranks, std::vector<Array<int>*> &data,
+            int cutoff, bool send_hi,
+            Array<int> &send_ranks, std::vector<Array<int>> &send_data);
+
+   /// Exchange send buffers with partner rank(s), append received
+   /// items to ranks and data arrays.
+   void Exchange(Array<int> &ranks, std::vector<Array<int>*> &data,
+                 int target, int recvn, int tag,
+                 Array<int> &send_ranks, std::vector<Array<int>> &send_data);
+};
+
 }
 
-#endif
-#endif
+#endif // MFEM_USE_MPI
+#endif // MFEM_CRYSTAL
