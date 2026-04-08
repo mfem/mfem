@@ -83,7 +83,9 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = true;
    bool algebraic_ceed = false;
+#ifdef MFEM_USE_CUDSS
    bool cudss_solver = false;
+#endif
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
