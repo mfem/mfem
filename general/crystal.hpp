@@ -3,8 +3,9 @@
 
 #include "../config/config.hpp"
 
-#ifdef MFEM_USE_MPI
+//#ifdef MFEM_USE_MPI
 #include <mpi.h>
+#include <vector>
 #include "array.hpp"
 
 namespace mfem
@@ -25,15 +26,13 @@ private:
    MPI_Comm comm;
    int rank, nprocs;
 
-   /// Partition items into keep vs. send based on rank cutoff.
-   /// Compacts kept items in-place, fills send buffers.
-   /// Returns number of items to send.
+   // partition items into keep vs send based on rank
    int Move(Array<int> &ranks, std::vector<Array<int>*> &data,
             int cutoff, bool send_hi,
             Array<int> &send_ranks, std::vector<Array<int>> &send_data);
 
-   /// Exchange send buffers with partner rank(s), append received
-   /// items to ranks and data arrays.
+
+   // exchange send buffers with partner ranks and append received items to ranks and data
    void Exchange(Array<int> &ranks, std::vector<Array<int>*> &data,
                  int target, int recvn, int tag,
                  Array<int> &send_ranks, std::vector<Array<int>> &send_data);
@@ -41,5 +40,5 @@ private:
 
 }
 
-#endif // MFEM_USE_MPI
+//#endif // MFEM_USE_MPI
 #endif // MFEM_CRYSTAL
