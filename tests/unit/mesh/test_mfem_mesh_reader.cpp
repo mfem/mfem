@@ -12,20 +12,17 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
-#include<algorithm>
-#include<string>
-#include<utility>
-#include<vector>
+#include <algorithm>
+#include <string>
+#include <utility>
+#include <vector>
 
 using namespace mfem;
 
-TEST_CASE("MFEM Mesh Named Attributes", "[MFEMData][Mesh]")
+TEST_CASE("MFEM Mesh Named Attributes", "[Mesh]")
 {
-   const std::string fname = "compass.mesh";
-
-   const std::string & fpath = (mfem_data_dir + "/" + fname);
-
-   Mesh mesh(fpath);
+   // Path relative to the directory tests/unit
+   Mesh mesh("data/compass-testing.mesh");
 
    REQUIRE(mesh.Dimension() == 2);
    REQUIRE(mesh.GetNE() == 12);
@@ -34,9 +31,7 @@ TEST_CASE("MFEM Mesh Named Attributes", "[MFEMData][Mesh]")
    REQUIRE(mesh.attribute_sets.attr_sets.Size() == 16);
    REQUIRE(mesh.bdr_attribute_sets.attr_sets.Size() == 13);
 
-
-
-   std::vector<std::pair<std::string, std::vector<int> > > expected_attr_sets =
+   std::vector<std::pair<std::string, std::vector<int>>> expected_attr_sets =
    {
       {"Base",  {9}},
       {"E Even",  {16}},
@@ -56,30 +51,27 @@ TEST_CASE("MFEM Mesh Named Attributes", "[MFEMData][Mesh]")
       {"West",  {12, 13}}
    };
 
-
    for (auto const &attr_name_index_pair: expected_attr_sets )
    {
-      REQUIRE(mesh.attribute_sets.AttributeSetExists(attr_name_index_pair.first));
+      REQUIRE(mesh.attribute_sets.AttributeSetExists(
+                 attr_name_index_pair.first));
 
       auto const &attr_set = mesh.attribute_sets.GetAttributeSet(
                                 attr_name_index_pair.first);
       auto const &expected_attr_set = attr_name_index_pair.second;
 
-
-
-      REQUIRE(static_cast<std::size_t>(attr_set.Size()) == expected_attr_set.size());
+      REQUIRE(static_cast<std::size_t>(attr_set.Size()) ==
+              expected_attr_set.size());
 
       bool const elements_equal = std::equal(attr_set.begin(), attr_set.end(),
                                              expected_attr_set.begin());
 
-
       REQUIRE(elements_equal);
    }
 
-   std::vector<std::pair<std::string, std::vector<int> > > expected_bdr_attr_sets
+   std::vector<std::pair<std::string, std::vector<int>>> expected_bdr_attr_sets
    =
    {
-
       {"Boundary",  {1, 2, 3, 4, 5, 6, 7, 8}},
       {"ENE",  { 1}},
       {"ESE",  { 8}},
@@ -95,11 +87,8 @@ TEST_CASE("MFEM Mesh Named Attributes", "[MFEMData][Mesh]")
       {"Western Boundary", {4,5}}
    };
 
-
-
    for (auto const &attr_bdr_name_index_pair: expected_bdr_attr_sets )
    {
-
       REQUIRE(mesh.bdr_attribute_sets.AttributeSetExists(
                  attr_bdr_name_index_pair.first));
 
@@ -110,11 +99,10 @@ TEST_CASE("MFEM Mesh Named Attributes", "[MFEMData][Mesh]")
       REQUIRE(static_cast<std::size_t>(bdr_attr_set.Size()) ==
               expected_bdr_attr_set.size());
 
-      bool const elements_equal = std::equal(bdr_attr_set.begin(), bdr_attr_set.end(),
+      bool const elements_equal = std::equal(bdr_attr_set.begin(),
+                                             bdr_attr_set.end(),
                                              expected_bdr_attr_set.begin());
-
 
       REQUIRE(elements_equal);
    }
-
 }
