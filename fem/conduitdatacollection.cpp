@@ -17,6 +17,7 @@
 #include "../general/text.hpp"
 #ifdef MFEM_USE_MPI
 #include "../mesh/pmesh.hpp"
+#include "../mesh/segment.hpp"
 #endif
 
 #include <conduit_relay.hpp>
@@ -25,6 +26,7 @@
 #include <conduit_blueprint_mesh_utils_iterate_elements.hpp>
 
 #include <string>
+#include <map>
 #include <sstream>
 
 // These macros control output of Blueprint debugging files.
@@ -234,6 +236,67 @@ std::vector<conduit::index_t> spatial_ordering(const conduit::Node &n_topo)
    // Sort the order according to the name.
    std::sort(order.begin(), order.end(), [&](auto a, auto b) { return keys[a] < keys[b]; });
    return order;
+}
+
+/**
+  @brief Build the set of nodes that should be considered when reconstructing
+         shared entities for the given adjset group.
+
+  Blueprint adjsets encode sharing at vertices. A codimension-1 shared entity
+  can therefore have endpoints/vertices that belong to a higher-order group.
+  For example, in a 2D 2x2 partition, an interface edge incident to the central
+  4-rank corner has one endpoint in the 2-rank edge-sharing group and one in
+  the 4-rank corner-sharing group. To recover that edge for the 2-rank group,
+  we need the current group's nodes plus all nodes from any adjset groups whose
+  neighbor set is a strict superset of the current group's neighbors.
+ */
+void GetExpandedGroupNodes(const conduit::Node &n_adjset,
+                           int group,
+                           conduit::Node &n_selected_nodes)
+{
+   const conduit::Node &n_groups = n_adjset.fetch_existing("groups");
+   const conduit::Node &n_group = n_groups[group];
+   const auto current_neighbors = n_group["neighbors"].as_int_accessor();
+
+   std::vector<int> current_group(current_neighbors.number_of_elements());
+   for (int i = 0; i < static_cast<int>(current_group.size()); ++i)
+   {
+      current_group[i] = current_neighbors[i];
+   }
+
+   std::set<int> selected_nodes;
+   const auto num_groups = static_cast<int>(n_groups.number_of_children());
+   for (int g = 0; g < num_groups; ++g)
+   {
+      const conduit::Node &n_candidate = n_groups[g];
+      const auto candidate_neighbors = n_candidate["neighbors"].as_int_accessor();
+
+      std::vector<int> candidate_group(candidate_neighbors.number_of_elements());
+      for (int i = 0; i < static_cast<int>(candidate_group.size()); ++i)
+      {
+         candidate_group[i] = candidate_neighbors[i];
+      }
+
+      if (!std::includes(candidate_group.begin(), candidate_group.end(),
+                         current_group.begin(), current_group.end()))
+      {
+         continue;
+      }
+
+      const auto values = n_candidate["values"].as_int_accessor();
+      for (int i = 0; i < static_cast<int>(values.number_of_elements()); ++i)
+      {
+         selected_nodes.insert(values[i]);
+      }
+   }
+
+   n_selected_nodes.set(conduit::DataType::int32(selected_nodes.size()));
+   int *data = n_selected_nodes.value();
+   int i = 0;
+   for (int node : selected_nodes)
+   {
+      data[i++] = node;
+   }
 }
 
 /**
@@ -565,7 +628,7 @@ void ConduitParMeshBuilder::InitGroupTopology(MPI_Comm comm,
    const int mpitag = 823;
    mfem::ListOfIntegerSets groups;
    // Add the first group.
-   mfem::IntegerSet local {rank};
+   mfem::IntegerSet local(1, &rank);
    groups.Insert(local);
    const auto numGroups = static_cast<int>(n_groups.number_of_children());
    for (int group_id = 0; group_id < numGroups; ++group_id)
@@ -574,14 +637,13 @@ void ConduitParMeshBuilder::InitGroupTopology(MPI_Comm comm,
       const auto neighbors = n_group["neighbors"].as_int_accessor();
       const auto group_size = static_cast<int>(neighbors.number_of_elements());
 
-      mfem::IntegerSet newGroup;
-      mfem::Array<int> &array = newGroup;
-      array.Reserve(group_size + 1);
-      array.Append(rank);
+      mfem::Array<int> members(group_size + 1);
+      members[0] = rank;
       for (int index = 0; index < group_size; ++index)
       {
-         array.Append(neighbors[index]);
+         members[index + 1] = neighbors[index];
       }
+      mfem::IntegerSet newGroup(group_size + 1, members.GetData());
       groups.Insert(newGroup);
    }
    mfem::GroupTopology g;
@@ -599,7 +661,8 @@ void ConduitParMeshBuilder::InitSharedVertices(ParMesh *pmesh,
 
    std::vector<std::vector<int>> groups;
    groups.resize(numGroups);
-   int maxVertex = -1;
+   std::map<int, int> local_to_shared;
+   std::vector<int> shared_to_local;
    for (int g = 0; g < numGroups; ++g)
    {
       const conduit::Node &n_group = n_groups[g];
@@ -608,16 +671,26 @@ void ConduitParMeshBuilder::InitSharedVertices(ParMesh *pmesh,
       groups[g].reserve(n);
       for (int c = 0; c < n; c++)
       {
-         groups[g].push_back(values[c]);
-         maxVertex = std::max(maxVertex, values[c]);
+         const int local_vertex = values[c];
+         auto it = local_to_shared.find(local_vertex);
+         if (it == local_to_shared.end())
+         {
+            const int shared_vertex = static_cast<int>(shared_to_local.size());
+            it = local_to_shared.emplace(local_vertex, shared_vertex).first;
+            shared_to_local.push_back(local_vertex);
+         }
+         groups[g].push_back(it->second);
       }
    }
    BuildTable(pmesh->group_svert, groups);
 
-   // Build a map of shared vertices to local.
-   pmesh->svert_lvert = mfem::Array<int>(maxVertex + 1);
-   std::iota(pmesh->svert_lvert.GetData(),
-             pmesh->svert_lvert.GetData() + maxVertex + 1, 0);
+   // Match MFEM's native ParMesh layout: group_svert stores compact shared
+   // vertex ids and svert_lvert maps those ids back to local vertex ids.
+   pmesh->svert_lvert.SetSize(shared_to_local.size());
+   for (int i = 0; i < static_cast<int>(shared_to_local.size()); ++i)
+   {
+      pmesh->svert_lvert[i] = shared_to_local[i];
+   }
 }
 
 //---------------------------------------------------------------------------//
@@ -630,11 +703,11 @@ void ConduitParMeshBuilder::GetSelectedFaceTopologyFromAdjset(
       conduit::blueprint::mesh::utils::find_reference_node(n_adjset, "topology");
    MFEM_ASSERT(n_topo != nullptr, "Topology not found");
 
-   // Use the group to pull out faces that use the nodes selected in the adjset.
-   const conduit::Node &n_groups = n_adjset.fetch_existing("groups");
+   conduit::Node n_selected_nodes;
+   GetExpandedGroupNodes(n_adjset, group, n_selected_nodes);
    extract_topology_with_selected_nodes(
       *n_topo,
-      n_groups[group]["values"],
+      n_selected_nodes,
       n_output,
       // Invoke this on each shape to make a new face in the output topo from the supplied face.
       [](conduit::index_t elementNumber,
@@ -666,14 +739,14 @@ void ConduitParMeshBuilder::GetSelectedEdgeTopologyFromAdjset(
       conduit::blueprint::mesh::utils::find_reference_node(n_adjset, "topology");
    MFEM_ASSERT(n_topo != nullptr, "Topology not found");
 
-   // Use the group to pull out edges that use the nodes selected in the adjset.
-   const conduit::Node &n_groups = n_adjset.fetch_existing("groups");
+   conduit::Node n_selected_nodes;
+   GetExpandedGroupNodes(n_adjset, group, n_selected_nodes);
 
    std::set<std::pair<conduit::index_t, conduit::index_t>> usedEdges;
 
    extract_topology_with_selected_nodes(
       *n_topo,
-      n_groups[group]["values"],
+      n_selected_nodes,
       n_output,
       // Invoke this on each shape to make new edges in the output topo.
       [&usedEdges](conduit::index_t elementNumber,
@@ -891,7 +964,6 @@ void ConduitParMeshBuilder::InitSharedEdges(MPI_Comm comm,
 
    std::vector<std::vector<int>> edgeGroups;
    std::vector<std::vector<int>> edgeGroupIDs;
-   std::vector<int> elemIds;
    edgeGroups.resize(numGroups);
    edgeGroupIDs.resize(numGroups);
    int edgeCount = 0;
@@ -961,7 +1033,6 @@ void ConduitParMeshBuilder::InitSharedEdges(MPI_Comm comm,
                edgeGroup.push_back(edgeCount);
                edgeGroupID.push_back(edgeID);
                edgeCount++;
-               elemIds.push_back(origZone);
                break;
             }
          }
@@ -982,11 +1053,12 @@ void ConduitParMeshBuilder::InitSharedEdges(MPI_Comm comm,
          auto &edgeGroupID = edgeGroupIDs[g];
          for (int i = 0; i < edgeGroupID.size(); i++)
          {
-            pmesh->shared_edges[counter] = pmesh->GetElement(elemIds[counter])->Duplicate(
-                                              pmesh);
-
+            mfem::Array<int> edgeVerts;
+            pmesh->GetEdgeVertices(edgeGroupID[i], edgeVerts);
+            MFEM_ASSERT(edgeVerts.Size() == 2, "Expected shared edge with two vertices.");
+            pmesh->shared_edges[counter] =
+               new Segment(edgeVerts[0], edgeVerts[1], 1);
             pmesh->sedge_ledge[counter] = edgeGroupID[i];
-
             counter++;
          }
       }
