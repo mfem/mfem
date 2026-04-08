@@ -96,6 +96,10 @@ void* CuMemcpyDtoH(void *h_dst, const void *d_src, size_t bytes);
 /// Copies memory from Device to Host
 void* CuMemcpyDtoHAsync(void *h_dst, const void *d_src, size_t bytes);
 
+/// Copies data to the given symbol on the device.
+const void* CuMemcpyToSymbol(const void *d_sym, const void *h_src,
+                             size_t bytes);
+
 /// Check the error code returned by cudaGetLastError(), aborting on error.
 void CuCheckLastError();
 

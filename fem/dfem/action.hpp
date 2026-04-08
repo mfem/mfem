@@ -186,11 +186,9 @@ void apply_kernel(reg_t &r0/*output*/,
 
 } // namespace qf
 
-#ifdef MFEM_USE_HIP
 #define MFEM_D2Q_MAX_SIZE 4
 static MFEM_CONSTANT real_t Bi[MFEM_D2Q_MAX_SIZE][8*8], Bo[8*8];
 static MFEM_CONSTANT real_t Gi[MFEM_D2Q_MAX_SIZE][8*8], Go[8*8];
-#endif
 
 template<size_t num_fields,
          size_t num_inputs,
@@ -312,46 +310,44 @@ public:
    {
       NVTX_MARK_FUNCTION;
       assert(dimension == 3);
-      // static_assert(MFEM_D2Q_MAX_SIZE >= num_inputs, "MFEM_D2Q_MAX_SIZE error");
+      static_assert(MFEM_D2Q_MAX_SIZE >= num_inputs, "MFEM_D2Q_MAX_SIZE error");
 
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
       constexpr int DIM = 3, VDIM = 1;
       constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 8;
-      // db1("MQ1: {}", MQ1);
 
-#ifdef MFEM_USE_HIP
       [[maybe_unused]] static bool ini = (for_constexpr<num_inputs>([&](auto i)
       {
          const auto dtq = input_dtq_maps[i];
          {
             const auto [q, _, p] = dtq.B.GetShape();
             const auto B = (const real_t*)input_dtq_maps[i].B;
-            if (B) { HipMemcpyToSymbol(Bi[i], B, (p*q)*sizeof(real_t)); }
+            dbg("Loading Bi[{}]: q={} p={}", i.value, q, p);
+            if (B) { Gpu(MemcpyToSymbol)(Bi[i], B, (p*q)*sizeof(real_t)); }
          }
          {
             const auto [q, _, p] = dtq.G.GetShape();
             const auto G = (const real_t*)input_dtq_maps[i].G;
-            if (G) { HipMemcpyToSymbol(Gi[i], G, (p*q)*sizeof(real_t)); }
+            if (G) { Gpu(MemcpyToSymbol)(Gi[i], G, (p*q)*sizeof(real_t)); }
          }
          if constexpr (i == 0) // output B
          {
             const auto dtq_o = output_dtq_maps[0];
             const auto [q, _, p] = dtq_o.B.GetShape();
             const auto B = (const real_t*)dtq_o.B;
-            if (B) { HipMemcpyToSymbol(Bo, B, (p*q)*sizeof(real_t)); }
+            if (B) { Gpu(MemcpyToSymbol)(Bo, B, (p*q)*sizeof(real_t)); }
          }
          if constexpr (i == 0) // output G
          {
             const auto dtq_o = output_dtq_maps[0];
             const auto [q, _, p] = dtq_o.G.GetShape();
             const auto G = (const real_t*)dtq_o.G;
-            if (G) { HipMemcpyToSymbol(Go, G, (p*q)*sizeof(real_t)); }
+            if (G) { Gpu(MemcpyToSymbol)(Go, G, (p*q)*sizeof(real_t)); }
             dbg("Loaded B and G to constant memory");
          }
       }), true);
-#endif
 
       // types
       using qf_signature =
@@ -384,40 +380,21 @@ public:
 
          const auto fields_e_ptr = load_field_e_ptr(wrapped_fields_e, e);
 
-#ifndef MFEM_USE_HIP
-         constexpr int MD1 = T_D1D > 0 ? T_D1D : 8;
-
-         MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
-         real_t (*sB_ptr)[MQ1] = sB, (*sG_ptr)[MQ1] = sG;
-#endif
-
          MFEM_SHARED real_t smem[MQ1][MQ1];
          real_t (&smem_ptr)[MQ1][MQ1] = smem;
 
          // Interpolate
          for_constexpr<num_inputs>(
             [  // copy
-               D1D,
-#ifndef MFEM_USE_HIP
-               Q1D,
-#else
+               D1D, Q1D, MQ1,
                test_vdim,
-               MD1,
-               MQ1,
-#endif
                // refs
                &smem_ptr,
-#ifndef MFEM_USE_HIP
-               &sB_ptr, &sG_ptr,
-#endif
                &inputs,
                &fields_e_ptr,
                &r0, &r1, &r2,
-#ifndef MFEM_USE_HIP
                &input_dtq_maps,
-#else
                &output_dtq_maps,
-#endif
                &input_to_field
                ]
             (auto i)
@@ -430,22 +407,13 @@ public:
                const int vdim = input.vdim;
                const real_t *field_e_r = fields_e_ptr[input_to_field[i]];
                const auto XE = Reshape(field_e_r, D1D, D1D, D1D, vdim);
-#ifndef MFEM_USE_HIP
-               ker::LoadMatrix(D1D, Q1D, input_dtq_maps[i].B, sB_ptr);
-               ker::LoadMatrix(D1D, Q1D, input_dtq_maps[i].G, sG_ptr);
-#else
                const auto sB = reinterpret_cast<const real_t (*)[MQ1]>(Bi[i]);
                const auto sG = reinterpret_cast<const real_t (*)[MQ1]>(Gi[i]);
-#endif
                // for (int c = 0; c < vdim; c++)
                constexpr int c = 0;
                {
                   ker::LoadDofs3d(D1D, c, XE, r0);
-#ifdef MFEM_USE_HIP
                   ker::Grad3d(D1D, Q1D, smem_ptr, sB, sG, r0, r1, c);
-#else
-                  ker::Grad3d(D1D, Q1D, smem_ptr, sB_ptr, sG_ptr, r0, r1, c);
-#endif
                }
             }
             else if constexpr (is_identity_fop<field_operator_t>::value)   // Identity
@@ -485,14 +453,8 @@ public:
          if constexpr (is_gradient_fop<std::decay_t<output_fop_t>>::value) // Gradient
          {
             auto yd = Reshape(&y(0, 0), D1D, D1D, D1D, vdim);
-#ifdef MFEM_USE_HIP
             const auto sB = reinterpret_cast<const real_t (*)[MQ1]>(Bo);
             const auto sG = reinterpret_cast<const real_t (*)[MQ1]>(Go);
-#else
-            // ⚠️ could determine they are the same
-            ker::LoadMatrix(D1D, Q1D, output_dtq_maps[0].B, sB);
-            ker::LoadMatrix(D1D, Q1D, output_dtq_maps[0].G, sG);
-#endif
             constexpr int c = 0;
             // for (int c = 0; c < vdim; c++)
             {

@@ -27,6 +27,14 @@
 #endif
 #include "hip.hpp"
 
+#if defined(MFEM_USE_CUDA)
+#define Gpu(...) Cu##__VA_ARGS__
+#elif defined(MFEM_USE_HIP)
+#define Gpu(...) Hip##__VA_ARGS__
+#else
+#define Gpu(...) __VA_ARGS__
+#endif
+
 #ifdef MFEM_USE_OCCA
 #include "occa.hpp"
 #endif

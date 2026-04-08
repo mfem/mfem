@@ -623,10 +623,7 @@ __global__
 MFEM_LAUNCH_BOUNDS(MAX_THREADS_PER_BLOCK)
 static void forall_kernel_static_smem_launch_bounds(func_t f, int n)
 {
-   // int i = blockIdx.x;
-   // if (i >= n) { return; }
-   // f(i, nullptr);
-   for (int k = blockIdx.x; k < N; k += gridDim.x) { f(k, nullptr); }
+   for (int k = blockIdx.x; k < n; k += gridDim.x) { f(k, nullptr); }
 }
 #endif
 
@@ -698,6 +695,7 @@ void forall(func_t f,
       int num_bytes = num_shmem * sizeof(decltype(shmem));
       db1("num_bytes:{}", num_bytes);
       db1("block: {}x{}x{}", blocks.x, blocks.y, blocks.z);
+      db1("MAX_THREADS_PER_BLOCK:{}", MAX_THREADS_PER_BLOCK);
       dim3 block_size(blocks.x, blocks.y, blocks.z);
       if constexpr (MAX_THREADS_PER_BLOCK > 0)
       {

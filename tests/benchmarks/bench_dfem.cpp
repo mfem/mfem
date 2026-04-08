@@ -90,27 +90,27 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 /// Basic Kernels Specializations /////////////////////////////////////////////
 static void AddBasicKernelSpecializations()
 {
-   using Det = QuadratureInterpolator::DetKernels;
-   Det::Specialization<3, 3, 2, 2>::Add();
-   Det::Specialization<3, 3, 2, 3>::Add();
-   Det::Specialization<3, 3, 2, 5>::Add();
-   Det::Specialization<3, 3, 2, 6>::Add();
-   // Others might exceed memory limits
+   // using Det = QuadratureInterpolator::DetKernels;
+   // Det::Specialization<3, 3, 2, 2>::Add();
+   // Det::Specialization<3, 3, 2, 3>::Add();
+   // Det::Specialization<3, 3, 2, 5>::Add();
+   // Det::Specialization<3, 3, 2, 6>::Add();
+   // // Others might exceed memory limits
 
-   using Grad = QuadratureInterpolator::GradKernels;
-   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 3>::Add();
-   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 4>::Add();
-   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 5>::Add();
-   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 6>::Add();
-   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 7>::Add();
-   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 8>::Add();
-   Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 7>::Add();
-   Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 8>::Add();
+   // using Grad = QuadratureInterpolator::GradKernels;
+   // Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 3>::Add();
+   // Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 4>::Add();
+   // Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 5>::Add();
+   // Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 6>::Add();
+   // Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 7>::Add();
+   // Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 8>::Add();
+   // Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 7>::Add();
+   // Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 8>::Add();
 
-   using LIN = DomainLFIntegrator::AssembleKernels;
-   LIN::Specialization<3, 7, 7>::Add();
-   LIN::Specialization<3, 6, 6>::Add();
-   LIN::Specialization<3, 8, 8>::Add();
+   // using LIN = DomainLFIntegrator::AssembleKernels;
+   // LIN::Specialization<3, 7, 7>::Add();
+   // LIN::Specialization<3, 6, 6>::Add();
+   // LIN::Specialization<3, 8, 8>::Add();
 }
 
 /// Globals ///////////////////////////////////////////////////////////////////
@@ -125,16 +125,21 @@ struct StiffnessIntegrator : public BilinearFormIntegrator
    int ne, d1d, q1d;
    Vector J0, dx;
    Vector &qdata;
+   static constexpr auto QBZ = std::array // ⚠️
+   {
+      -1, -1, -1, /* not used */
+         1, 1, 1, 8, 1, 1
+      };
 
 public:
    StiffnessIntegrator(Vector &qdata): qdata(qdata)
    {
-      StiffnessKernels::Specialization<2, 3>::Add();  // 1
-      StiffnessKernels::Specialization<3, 4>::Add();  // 2
-      StiffnessKernels::Specialization<4, 5>::Add();  // 3
-      StiffnessKernels::Specialization<5, 6>::Add();  // 4
-      StiffnessKernels::Specialization<6, 7>::Add();  // 5
-      StiffnessKernels::Specialization<7, 8>::Add();  // 6
+      // StiffnessKernels::Specialization<2, 3, QBZ[3]>::Add();  // 1
+      // StiffnessKernels::Specialization<3, 4, QBZ[4]>::Add();  // 2
+      // StiffnessKernels::Specialization<4, 5, QBZ[5]>::Add();  // 3
+      StiffnessKernels::Specialization<5, 6, QBZ[6]>::Add();  // 4
+      // StiffnessKernels::Specialization<6, 7, QBZ[7]>::Add();  // 5
+      // StiffnessKernels::Specialization<7, 8, QBZ[8]>::Add();  // 6
    }
 
    void AssemblePA(const FiniteElementSpace &fespace) override
@@ -208,10 +213,11 @@ public:
    }
 
    //////////////////////////////////////////////////////////////////
-   template <int T_D1D = 0, int T_Q1D = 0>
+   /*template <int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
    static void StiffnessMult(const int NE, const real_t *b, const real_t *g,
                              const real_t *dx, const real_t *xe, real_t *ye,
-                             const int d1d, const int q1d)
+                             const int d1d, const int q1d,
+                             [[maybe_unused]] const int nbz)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -257,32 +263,101 @@ public:
          ker::GradTranspose3d(D1D, Q1D, smem, sB, sG, r0, r1);
          ker::WriteDofs3d(e, D1D, r1, YE);
       });
+   }*/
+
+   //////////////////////////////////////////////////////////////////
+   template <int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+   static void StiffnessMultBZ(const int NE, const real_t *b, const real_t *g,
+                               const real_t *dx, const real_t *xe, real_t *ye,
+                               const int d1d, const int q1d, const int nbz)
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int NBZ = T_NBZ ? T_NBZ : nbz;
+
+      constexpr int DIM = 3, VDIM = 1;
+      const auto XE = Reshape(xe, D1D, D1D, D1D, VDIM, NE);
+      const auto DX = Reshape(dx, 3, 3, Q1D, Q1D, Q1D, NE);
+      auto YE = Reshape(ye, D1D, D1D, D1D, VDIM, NE);
+
+      mfem::forall_2D_batch<T_Q1D*T_Q1D*T_NBZ>
+      (NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE(int e)
+      {
+         const int tz = MFEM_THREAD_ID(z);
+
+         constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 8;
+         constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 8;
+
+         MFEM_SHARED real_t smem[NBZ][MQ1][MQ1];
+         MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
+         ker::vd_regs3d_t<VDIM, DIM, MQ1> r0, r1;
+
+         ker::LoadMatrix(D1D, Q1D, b, sB);
+         ker::LoadMatrix(D1D, Q1D, g, sG);
+
+         ker::LoadDofs3d(e, D1D, XE, r0);
+         ker::Grad3d(D1D, Q1D, smem[tz], sB, sG, r0, r1);
+
+         MFEM_UNROLL(MD1)
+         for (int qz = 0; qz < Q1D; qz++)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+               {
+                  const real_t u[3] = { r1[0][0][qz][qy][qx],
+                                        r1[0][1][qz][qy][qx],
+                                        r1[0][2][qz][qy][qx]
+                                      };
+                  const real_t d[3][3] =
+                  {
+                     {DX(0, 0, qx, qy, qz, e), DX(1, 0, qx, qy, qz, e), DX(2, 0, qx, qy, qz, e)},
+                     {DX(0, 1, qx, qy, qz, e), DX(1, 1, qx, qy, qz, e), DX(2, 1, qx, qy, qz, e)},
+                     {DX(0, 2, qx, qy, qz, e), DX(1, 2, qx, qy, qz, e), DX(2, 2, qx, qy, qz, e)}
+                  };
+                  r0[0][0][qz][qy][qx] =
+                     std::fma(d[0][0], u[0], std::fma(d[1][0], u[1], std::fma(d[2][0], u[2], 0.0)));
+                  r0[0][1][qz][qy][qx] =
+                     std::fma(d[0][1], u[0], std::fma(d[1][1], u[1], std::fma(d[2][1], u[2], 0.0)));
+                  r0[0][2][qz][qy][qx] =
+                     std::fma(d[0][2], u[0], std::fma(d[1][2], u[1], std::fma(d[2][2], u[2], 0.0)));
+               }
+            }
+         }
+         ker::GradTranspose3d(D1D, Q1D, smem[tz], sB, sG, r0, r1);
+         ker::WriteDofs3d(e, D1D, r1, YE);
+      });
    }
 
-   using StiffnessKernelType = decltype(&StiffnessMult<>);
-   MFEM_REGISTER_KERNELS(StiffnessKernels, StiffnessKernelType, (int, int));
+   using StiffnessKernelType = decltype(&StiffnessMultBZ<>);
+   MFEM_REGISTER_KERNELS(StiffnessKernels, StiffnessKernelType, (int, int, int));
 
    void AddMultPA(const Vector &x, Vector &y) const override
    {
-      StiffnessKernels::Run(d1d, q1d,
+      const int nbz = QBZ.at(q1d);
+      db1("d1d:{} q1d:{} nbz:{}", d1d, q1d, nbz);
+      StiffnessKernels::Run(d1d, q1d, nbz,
                             ne, B, G, DX, x.Read(), y.ReadWrite(),
-                            d1d, q1d);
+                            d1d, q1d, 1);
    }
 };
 
-template <int D1D, int Q1D>
+template <int D1D, int Q1D, int NBZ>
 StiffnessIntegrator::StiffnessKernelType
 StiffnessIntegrator::StiffnessKernels::Kernel()
 {
-   return StiffnessMult<D1D, Q1D>;
+   // return StiffnessMult<D1D, Q1D, 1>;
+   db1("D1D:{} Q1D:{} NBZ:{}", D1D, Q1D, NBZ);
+   return StiffnessMultBZ<D1D, Q1D, NBZ>;
 }
 
 StiffnessIntegrator::StiffnessKernelType
 StiffnessIntegrator::StiffnessKernels::Fallback([[maybe_unused]] int d1d,
-                                                [[maybe_unused]] int q1d)
+                                                [[maybe_unused]] int q1d,
+                                                [[maybe_unused]] int nbz)
 {
-   dbg("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
-   MFEM_ABORT("No kernel for d1d=" << d1d << " q1d=" << q1d);
+   dbg("\x1b[33mFallback d1d:{} q1d:{} nbz:{}", d1d, q1d, nbz);
+   MFEM_ABORT("No kernel for d1d=" << d1d << " q1d=" << q1d << " nbz=" << nbz);
    return nullptr;
    // return StiffnessMult<>;
 }

@@ -175,6 +175,17 @@ void* CuMemcpyDtoHAsync(void *dst, const void *src, size_t bytes)
    return dst;
 }
 
+const void* CuMemcpyToSymbol(const void *d_sym, const void *h_src,
+                             size_t bytes)
+{
+#ifdef MFEM_USE_CUDA
+   MFEM_GPU_CHECK(cudaMemcpyToSymbol(d_sym, h_src, bytes));
+   return d_sym;
+#endif
+   MFEM_ABORT("CUDA has no shadow host copy of device symbols");
+   return memcpy(const_cast<void*>(d_sym), h_src, bytes);
+}
+
 void CuCheckLastError()
 {
 #ifdef MFEM_USE_CUDA
