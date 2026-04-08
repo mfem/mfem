@@ -103,6 +103,7 @@ set(UNIT_TESTS_SRCS
   fem/test_calcvshape.cpp
   fem/test_coefficient.cpp
   fem/test_col_lag_der.cpp
+  fem/test_conduitdatacollection.cpp
   fem/test_datacollection.cpp
   fem/test_derefine.cpp
   fem/test_dgmassinv.cpp

@@ -533,7 +533,9 @@ private:
      @param comm The MPI communicator to use.
      @param n_adjset The node that contains the adjacency set.
     */
-   static void InitSharedFaces([[maybe_unused]] MPI_Comm comm, ParMesh *pmesh, const conduit::Node &n_adjset);
+   static void InitSharedFaces([[maybe_unused]] MPI_Comm comm, ParMesh *pmesh,
+                               const conduit::Node &n_adjset,
+                               const conduit::Node &n_topology);
 
    /**
      @brief Initializes the ParMesh's shared edges members from the adjacency set.
@@ -541,7 +543,9 @@ private:
      @param comm The MPI communicator to use.
      @param n_adjset The node that contains the adjacency set.
     */
-   static void InitSharedEdges([[maybe_unused]] MPI_Comm comm, ParMesh *pmesh, const conduit::Node &n_adjset);
+   static void InitSharedEdges([[maybe_unused]] MPI_Comm comm, ParMesh *pmesh,
+                               const conduit::Node &n_adjset,
+                               const conduit::Node &n_topology);
 
    /**
      @brief Makes a new Blueprint topology containing faces based on the adjacency set group.
@@ -551,6 +555,7 @@ private:
      @param[out] n_output A new face topology for the adjset group.
     */
    static void GetSelectedFaceTopologyFromAdjset(const conduit::Node &n_adjset,
+                                                 const conduit::Node &n_topology,
                                                  int group,
                                                  conduit::Node &n_output);
 
@@ -563,6 +568,7 @@ private:
     */
    static void GetSelectedEdgeTopologyFromAdjset(
       const conduit::Node &n_adjset,
+      const conduit::Node &n_topology,
       int group,
       conduit::Node &n_output);
 
@@ -592,6 +598,22 @@ ParMesh *
 ConduitParMeshBuilder::Build(MPI_Comm comm, mfem::Mesh &mesh,
                              const conduit::Node &n_adjset)
 {
+   // MFEM's shared-entity tables expect a max-share view where each shared
+   // entity belongs to exactly one communication group. Pairwise Blueprint
+   // adjsets can duplicate corner vertices across multiple 2-rank groups, so
+   // normalize them before building the ParMesh communication metadata.
+   conduit::Node maxshare_adjset;
+   const conduit::Node *adjset = &n_adjset;
+   const conduit::Node *topology =
+      conduit::blueprint::mesh::utils::find_reference_node(n_adjset, "topology");
+   MFEM_VERIFY(topology != nullptr,
+               "Could not resolve topology referenced by the input adjset.");
+   if (conduit::blueprint::mesh::adjset::is_pairwise(n_adjset))
+   {
+      conduit::blueprint::mesh::adjset::to_maxshare(n_adjset, maxshare_adjset);
+      adjset = &maxshare_adjset;
+   }
+
    // Keep all zones on this rank.
    int rank = 0;
    MPI_Comm_rank(comm, &rank);
@@ -600,12 +622,12 @@ ConduitParMeshBuilder::Build(MPI_Comm comm, mfem::Mesh &mesh,
 
    // Finish initializing the shared communication members that did not get set
    // due to the partition keeping all zones on this rank (above).
-   InitGroupTopology(comm, pmesh, n_adjset);
-   InitSharedVertices(pmesh, n_adjset);
-   InitSharedEdges(comm, pmesh, n_adjset);
+   InitGroupTopology(comm, pmesh, *adjset);
+   InitSharedVertices(pmesh, *adjset);
+   InitSharedEdges(comm, pmesh, *adjset, *topology);
    if(mesh.Dimension() == 3)
    {
-      InitSharedFaces(comm, pmesh, n_adjset);
+      InitSharedFaces(comm, pmesh, *adjset, *topology);
    }
    else
    {
@@ -696,17 +718,14 @@ void ConduitParMeshBuilder::InitSharedVertices(ParMesh *pmesh,
 //---------------------------------------------------------------------------//
 void ConduitParMeshBuilder::GetSelectedFaceTopologyFromAdjset(
    const conduit::Node &n_adjset,
+   const conduit::Node &n_topology,
    int group,
    conduit::Node &n_output)
 {
-   const conduit::Node *n_topo =
-      conduit::blueprint::mesh::utils::find_reference_node(n_adjset, "topology");
-   MFEM_ASSERT(n_topo != nullptr, "Topology not found");
-
    conduit::Node n_selected_nodes;
    GetExpandedGroupNodes(n_adjset, group, n_selected_nodes);
    extract_topology_with_selected_nodes(
-      *n_topo,
+      n_topology,
       n_selected_nodes,
       n_output,
       // Invoke this on each shape to make a new face in the output topo from the supplied face.
@@ -732,20 +751,17 @@ void ConduitParMeshBuilder::GetSelectedFaceTopologyFromAdjset(
 //---------------------------------------------------------------------------//
 void ConduitParMeshBuilder::GetSelectedEdgeTopologyFromAdjset(
    const conduit::Node &n_adjset,
+   const conduit::Node &n_topology,
    int group,
    conduit::Node &n_output)
 {
-   const conduit::Node *n_topo =
-      conduit::blueprint::mesh::utils::find_reference_node(n_adjset, "topology");
-   MFEM_ASSERT(n_topo != nullptr, "Topology not found");
-
    conduit::Node n_selected_nodes;
    GetExpandedGroupNodes(n_adjset, group, n_selected_nodes);
 
    std::set<std::pair<conduit::index_t, conduit::index_t>> usedEdges;
 
    extract_topology_with_selected_nodes(
-      *n_topo,
+      n_topology,
       n_selected_nodes,
       n_output,
       // Invoke this on each shape to make new edges in the output topo.
@@ -781,7 +797,8 @@ void ConduitParMeshBuilder::GetSelectedEdgeTopologyFromAdjset(
 void
 ConduitParMeshBuilder::InitSharedFaces(MPI_Comm comm,
                                        ParMesh *pmesh,
-                                       const conduit::Node &n_adjset)
+                                       const conduit::Node &n_adjset,
+                                       const conduit::Node &n_topology)
 {
    const conduit::Node &n_groups = n_adjset.fetch_existing("groups");
    const auto numGroups = static_cast<int>(n_groups.number_of_children());
@@ -805,7 +822,7 @@ ConduitParMeshBuilder::InitSharedFaces(MPI_Comm comm,
 
       // Get the faces from this group's adjset
       conduit::Node n_group_faces;
-      GetSelectedFaceTopologyFromAdjset(n_adjset, g, n_group_faces);
+      GetSelectedFaceTopologyFromAdjset(n_adjset, n_topology, g, n_group_faces);
 
 #ifdef DEBUG_SHARED_FACES
       std::stringstream ss;
@@ -941,7 +958,8 @@ ConduitParMeshBuilder::InitSharedFaces(MPI_Comm comm,
 //---------------------------------------------------------------------------//
 void ConduitParMeshBuilder::InitSharedEdges(MPI_Comm comm,
                                             ParMesh *pmesh,
-                                            const conduit::Node &n_adjset)
+                                            const conduit::Node &n_adjset,
+                                            const conduit::Node &n_topology)
 {
    const conduit::Node &n_groups = n_adjset.fetch_existing("groups");
    const auto numGroups = static_cast<int>(n_groups.number_of_children());
@@ -974,7 +992,7 @@ void ConduitParMeshBuilder::InitSharedEdges(MPI_Comm comm,
 
       // Get the edges from this group's adjset
       conduit::Node n_group_edges;
-      GetSelectedEdgeTopologyFromAdjset(n_adjset, g, n_group_edges);
+      GetSelectedEdgeTopologyFromAdjset(n_adjset, n_topology, g, n_group_edges);
 
 #ifdef DEBUG_SHARED_EDGES
       std::stringstream ss;
