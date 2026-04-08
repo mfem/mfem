@@ -148,9 +148,26 @@ void parseVector(char * str, Vector & var)
    }
 }
 
+bool parseEnumOption(const char *str, size_t &var,
+                     const std::vector<std::string> &options)
+{
+   for (size_t i = 0; i < options.size(); ++i)
+   {
+      auto &v = options[i];
+      if (v == str)
+      {
+         var = i;
+         // success
+         return true;
+      }
+   }
+   // failure
+   return false;
+}
+
 void OptionsParser::Parse()
 {
-   option_check.SetSize(options.Size());
+   option_check.SetSize(options.size());
    option_check = 0;
    for (int i = 1; i < argc; )
    {
@@ -163,7 +180,7 @@ void OptionsParser::Parse()
 
       for (int j = 0; true; j++)
       {
-         if (j >= options.Size())
+         if (j >= options.size())
          {
             // unrecognized option
             error_type = 2;
@@ -171,8 +188,8 @@ void OptionsParser::Parse()
             return;
          }
 
-         if (strcmp(argv[i], options[j].short_name) == 0 ||
-             strcmp(argv[i], options[j].long_name) == 0)
+         if (strcmp(argv[i], options[j].short_name.c_str()) == 0 ||
+             strcmp(argv[i], options[j].long_name.c_str()) == 0)
          {
             OptionType type = options[j].type;
 
@@ -224,6 +241,11 @@ void OptionsParser::Parse()
                case VECTOR:
                   parseVector(argv[i++], *(Vector*)(options[j].var_ptr) );
                   break;
+               case ENUM_OPTION:
+                  isValid =
+                     parseEnumOption(argv[i++], *(size_t *)(options[j].var_ptr),
+                                     options[j].options);
+                  break;
             }
 
             if (!isValid)
@@ -239,7 +261,7 @@ void OptionsParser::Parse()
    }
 
    // check for missing required options
-   for (int i = 0; i < options.Size(); i++)
+   for (int i = 0; i < options.size(); i++)
       if (options[i].required &&
           (option_check[i] == 0 ||
            (options[i].type == ENABLE && option_check[++i] == 0)))
@@ -323,6 +345,12 @@ void OptionsParser::WriteValue(const Option &opt, std::ostream &os)
          break;
       }
 
+      case ENUM_OPTION:
+      {
+         os << opt.options.at(*((size_t *)opt.var_ptr));
+         break;
+      }
+
       default: // provide a default to suppress warning
          break;
    }
@@ -333,7 +361,7 @@ void OptionsParser::PrintOptions(ostream &os) const
    static const char *indent = "   ";
 
    os << "Options used:\n";
-   for (int j = 0; j < options.Size(); j++)
+   for (int j = 0; j < options.size(); j++)
    {
       OptionType type = options[j].type;
 
@@ -355,7 +383,7 @@ void OptionsParser::PrintOptions(ostream &os) const
          os << options[j].long_name << " ";
          WriteValue(options[j], os);
       }
-      os << '\n';
+      os << std::endl;
    }
 }
 
@@ -410,12 +438,13 @@ void OptionsParser::PrintHelp(ostream &os) const
    static const char *line_sep = "";
    static const char *types[] = { " <int>", " <double>", " <string>",
                                   " <string>", "", "", " '<int>...'",
-                                  " '<double>...'"
+                                  " '<double>...'",
+                                  " <string>",
                                 };
 
    os << indent << "-h" << seprtr << "--help" << descr_sep
       << "Print this help message and exit.\n" << line_sep;
-   for (int j = 0; j < options.Size(); j++)
+   for (int j = 0; j < options.size(); j++)
    {
       OptionType type = options[j].type;
 
@@ -451,9 +480,22 @@ void OptionsParser::PrintHelp(ostream &os) const
       }
       os << descr_sep;
 
-      if (options[j].description)
+      if (options[j].description.size())
       {
-         os << options[j].description << '\n';
+         os << options[j].description << std::endl;
+      }
+      if (options[j].type == ENUM_OPTION)
+      {
+         os << "\tavailable choices: ";
+         for (size_t i = 0; i < options[j].options.size(); ++i)
+         {
+            os << '"' << options[j].options[i] << '"';
+            if (i + 1 < options[j].options.size())
+            {
+               os << ", ";
+            }
+         }
+         os << std::endl;
       }
       os << line_sep;
    }
