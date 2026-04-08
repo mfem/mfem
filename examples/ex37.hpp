@@ -402,7 +402,7 @@ real_t proj(GridFunction &psi, GridFunction &alpha_grad, real_t target_volume,
    ConstantCoefficient zero_cf(0.0);
    real_t a = -alpha_grad.ComputeMaxError(zero_cf);
    real_t b = -a;
-   real_t y;
+   real_t y = 0.0;
 
    MappedGridFunctionCoefficient sigmoid_psi(
    &psi, [&y](const real_t x) { return sigmoid(x + y); });
@@ -440,8 +440,8 @@ real_t proj(GridFunction &psi, GridFunction &alpha_grad, real_t target_volume,
 #endif
    f_a -= target_volume; // f_a := f(a)
    f_b -= target_volume; // f_b := f(b)
-   real_t c;
-   real_t f_c;
+   real_t c = 0.0;
+   real_t f_c = 0.0;
    int side = 0;
 
    bool done = false;
