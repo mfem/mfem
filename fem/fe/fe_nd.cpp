@@ -3028,6 +3028,16 @@ void ND_R2D_SegmentElement::CalcPhysCurlShape(ElementTransformation &Trans,
    real_t zhat_data[3];
    Vector zhat(zhat_data, 3);
 
+   if (J.Height() != 2)
+   {
+      const DenseMatrix & JF = TF->Elem1->Jacobian();
+      CalcOrtho(JF, zhat);
+      zhat /= zhat.Norml2();
+
+      J.GetColumn(0, tangent);
+      zhat.cross3D(tangent, normal3);
+   }
+
    for (int i=0; i<dof; i++)
    {
       real_t sy = curl_shape(i, 0);
@@ -3036,15 +3046,10 @@ void ND_R2D_SegmentElement::CalcPhysCurlShape(ElementTransformation &Trans,
       {
          curl_shape(i, 0) = -sy * J(1, 0);
          curl_shape(i, 1) =  sy * J(0, 0);
+         curl_shape(i, 2) = 0.0;
       }
       else
       {
-         CalcOrtho(TF->Elem1->Jacobian(), zhat);
-         zhat /= zhat.Norml2();
-
-         J.GetColumn(0, tangent);
-         zhat.cross3D(tangent, normal3);
-
          for (int j=0; j<3; j++)
          {
             curl_shape(i, j) = sy * normal3[j];
