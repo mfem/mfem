@@ -271,7 +271,6 @@ real_t CheckH1Continuity(ParGridFunction &x)
    const ParFiniteElementSpace *pfes = x.ParFESpace();
    ParMesh *pmesh = pfes->GetParMesh();
    const int dim = pmesh->Dimension();
-   const int myid = Mpi::WorldRank();
 
    real_t errorMax = 0.0;
 
