@@ -23,8 +23,6 @@
 #include "fem/dfem/doperator.hpp"
 #include <linalg/tensor.hpp>
 
-// #include "fem/kernels.hpp"
-
 namespace ker = mfem::kernels::internal;
 
 #undef NVTX_COLOR
@@ -49,11 +47,12 @@ static void DumpVersionInfo()
 {
    mfem::out << "\x1b[33m";
    mfem::out << "version 0: PA std" << std::endl;
-   mfem::out << "version 1: PA new" << std::endl;
+   mfem::out << "version 1: PA reg" << std::endl;
    // mfem::out << "version 2: MF ∂fem std kernels" << std::endl;
    // mfem::out << "version 3: PA ∂fem std kernels" << std::endl; // ⚠️ smem p=4
    // mfem::out << "version 4: MF ∂fem new kernels" << std::endl; // ⚠️ not supported yet by new kernels
-   mfem::out << "version 5: PA ∂fem new kernels" << std::endl;
+   // mfem::out << "version 5: PA ∂fem new kernels" << std::endl;
+   mfem::out << "version 6: PA low" << std::endl;
    mfem::out << "\x1b[m" << std::endl;
 }
 
@@ -62,7 +61,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
-   const auto versions = { 0, 1, /*2, 3, 4, 5*/ };
+   const auto versions = { 0, 1, /*2, 3, 4, 5*/ 6};
 
    const auto orders = { 6, 5, 4, 3, 2, 1 };
 
@@ -215,11 +214,10 @@ public:
    }
 
    //////////////////////////////////////////////////////////////////
-   /*template <int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+   template <int T_D1D = 0, int T_Q1D = 0>
    static void StiffnessMult(const int NE, const real_t *b, const real_t *g,
                              const real_t *dx, const real_t *xe, real_t *ye,
-                             const int d1d, const int q1d,
-                             [[maybe_unused]] const int nbz)
+                             const int d1d, const int q1d)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -265,15 +263,54 @@ public:
          ker::GradTranspose3d(D1D, Q1D, smem, sB, sG, r0, r1);
          ker::WriteDofs3d(e, D1D, r1, YE);
       });
-   }*/
+   }
 
+   using StiffnessKernelType = decltype(&StiffnessMult<>);
+   MFEM_REGISTER_KERNELS(StiffnessKernels, StiffnessKernelType, (int, int));
+
+   void AddMultPA(const Vector &x, Vector &y) const override
+   {
+      db1("\x1b[32md1d:{} q1d:{}", d1d, q1d);
+      StiffnessKernels::Run(d1d, q1d,
+                            ne, B, G, DX, x.Read(), y.ReadWrite(),
+                            d1d, q1d);
+   }
+};
+
+template <int D1D, int Q1D>
+StiffnessIntegrator::StiffnessKernelType
+StiffnessIntegrator::StiffnessKernels::Kernel()
+{
+   db1("D1D:{} Q1D:{}", D1D, Q1D);
+   return StiffnessMult<D1D, Q1D>;
+}
+
+StiffnessIntegrator::StiffnessKernelType
+StiffnessIntegrator::StiffnessKernels::Fallback([[maybe_unused]] int d1d,
+                                                [[maybe_unused]] int q1d)
+{
+   dbg("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
+   MFEM_ABORT("No kernel for d1d=" << d1d << " q1d=" << q1d);
+   return nullptr;
+   // return StiffnessMult<>;
+}
+
+/// PADiffLowIntegrator ///////////////////////////////////////////////////////
+struct PADiffLowIntegrator : public BilinearFormIntegrator
+{
+   const FiniteElementSpace *fes;
+   const real_t *B, *G, *DX;
+   int ne, d1d, q1d;
+   Vector J0, dx;
+
+public: // for nvcc
    //////////////////////////////////////////////////////////////////
    template <int T_D1D = 0, int T_Q1D = 0>
-   static void StiffnessMultBZ(const int NE,
-                               const real_t *b_,
-                               const real_t *g_,
-                               const real_t *dx, const real_t *xe, real_t *ye,
-                               const int d1d, const int q1d)
+   static void PADiffLowMult(const int NE,
+                             const real_t *b_,
+                             const real_t *g_,
+                             const real_t *dx, const real_t *xe, real_t *ye,
+                             const int d1d, const int q1d)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -289,7 +326,6 @@ public:
                                          [=] MFEM_HOST_DEVICE(int e)
       {
          constexpr int MQ1 = T_Q1D, MD1 = T_D1D;
-
          MFEM_SHARED real_t sBG[2][MD1][MQ1];
          auto B = (real_t (*)[MD1]) (sBG+0);
          auto G = (real_t (*)[MD1]) (sBG+1);
@@ -493,30 +529,109 @@ public:
       });
    }
 
-   using StiffnessKernelType = decltype(&StiffnessMultBZ<>);
-   MFEM_REGISTER_KERNELS(StiffnessKernels, StiffnessKernelType, (int, int));
+   using PADiffLowKernelType = decltype(&PADiffLowMult<>);
+   MFEM_REGISTER_KERNELS(PADiffLowKernels, PADiffLowKernelType, (int, int));
+
+public:
+   PADiffLowIntegrator()
+   {
+      // PADiffLowKernels::Specialization<2, 3>::Add();  // 1
+      // PADiffLowKernels::Specialization<3, 4>::Add();  // 2
+      // PADiffLowKernels::Specialization<4, 5>::Add();  // 3
+      PADiffLowKernels::Specialization<5, 6>::Add();  // 4
+      // PADiffLowKernels::Specialization<6, 7>::Add();  // 5
+      PADiffLowKernels::Specialization<7, 8>::Add();  // 6
+   }
+
+   void AssemblePA(const FiniteElementSpace &fespace) override
+   {
+      NVTX();
+      fes = &fespace;
+      auto *mesh = fes->GetMesh();
+      const int DIM = mesh->Dimension();
+      ne = mesh->GetNE();
+      const auto p = fes->GetFE(0)->GetOrder();
+      const auto q = 2 * p + mesh->GetElementTransformation(0)->OrderW();
+      const auto type = mesh->GetElementBaseGeometry(0);
+      const IntegrationRule &ir = IntRules.Get(type, q);
+      const int NQPT = ir.GetNPoints();
+      d1d = p + 1;
+      q1d = IntRules.Get(Geometry::SEGMENT, ir.GetOrder()).GetNPoints();
+      MFEM_VERIFY(d1d == gD1D, "D1D mismatch: " << d1d << " != " << gD1D);
+      MFEM_VERIFY(q1d == gQ1D, "Q1D mismatch: " << q1d << " != " << gQ1D);
+      MFEM_VERIFY(NQPT == q1d * q1d * q1d, "");
+      const DofToQuad *maps =
+         &fes->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
+      const GridFunction *nodes = (mesh->EnsureNodes(), mesh->GetNodes());
+      const FiniteElementSpace *nfes = nodes->FESpace();
+      const int nVDIM = nfes->GetVDim();
+      dx.SetSize(nVDIM * DIM * NQPT * ne, Device::GetDeviceMemoryType());
+      J0.SetSize(nVDIM * DIM * NQPT * ne, Device::GetDeviceMemoryType());
+      dx.UseDevice(true), J0.UseDevice(true);
+      B = maps->B.Read(), G = maps->G.Read(), DX = dx.Read();
+
+      const Operator *NR =
+         nfes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+      const QuadratureInterpolator *nqi = nfes->GetQuadratureInterpolator(ir);
+      nqi->SetOutputLayout(QVectorLayout::byVDIM);
+      const int nd = nfes->GetFE(0)->GetDof();
+      Vector xe(nVDIM * nd * ne, Device::GetDeviceMemoryType());
+      NR->Mult(*nodes, (xe.UseDevice(true), xe));
+      nqi->Derivatives(xe, J0);
+
+      const int Q1D = q1d;
+      const auto w_r = ir.GetWeights().Read();
+      const auto W = Reshape(w_r, q1d, q1d, q1d);
+      const auto J = Reshape(J0.Read(), 3, 3, q1d, q1d, q1d, ne);
+      auto DX_w = Reshape(dx.Write(), 3, 3, q1d, q1d, q1d, ne);
+
+      mfem::forall_3D(ne, Q1D, Q1D, Q1D,[=] MFEM_HOST_DEVICE(int e)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qz, z, Q1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+               {
+                  const real_t w = W(qx, qy, qz);
+                  const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
+                  const real_t detJ = kernels::Det<3>(Jtr);
+                  const real_t wd = w * detJ;
+                  const real_t D[9] = { wd, 0.0, 0.0,
+                                        0.0, wd, 0.0,
+                                        0.0, 0.0, wd
+                                      };
+                  real_t Jrt[9], A[9];
+                  kernels::CalcInverse<3>(Jtr, Jrt);
+                  kernels::MultABt(3, 3, 3, D, Jrt, A);
+                  kernels::Mult(3, 3, 3, A, Jrt, &DX_w(0, 0, qx, qy, qz, e));
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+      });
+      Gpu(MemcpyToSymbol)(cst_B, maps->B.HostRead(), (d1d*q1d)*sizeof(real_t));
+      Gpu(MemcpyToSymbol)(cst_G, maps->G.HostRead(), (d1d*q1d)*sizeof(real_t));
+   }
 
    void AddMultPA(const Vector &x, Vector &y) const override
    {
       db1("\x1b[32md1d:{} q1d:{}", d1d, q1d);
-      StiffnessKernels::Run(d1d, q1d,
+      PADiffLowKernels::Run(d1d, q1d,
                             ne, B, G, DX, x.Read(), y.ReadWrite(),
                             d1d, q1d);
    }
 };
-
 template <int D1D, int Q1D>
-StiffnessIntegrator::StiffnessKernelType
-StiffnessIntegrator::StiffnessKernels::Kernel()
+PADiffLowIntegrator::PADiffLowKernelType
+PADiffLowIntegrator::PADiffLowKernels::Kernel()
 {
-   // return StiffnessMult<D1D, Q1D, 1>;
    db1("D1D:{} Q1D:{}", D1D, Q1D);
-   return StiffnessMultBZ<D1D, Q1D>;
+   return PADiffLowMult<D1D, Q1D>;
 }
 
-StiffnessIntegrator::StiffnessKernelType
-StiffnessIntegrator::StiffnessKernels::Fallback([[maybe_unused]] int d1d,
-                                                [[maybe_unused]] int q1d)
+PADiffLowIntegrator::PADiffLowKernelType
+PADiffLowIntegrator::PADiffLowKernels::Fallback(int d1d, int q1d)
 {
    dbg("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
    MFEM_ABORT("No kernel for d1d=" << d1d << " q1d=" << q1d);
@@ -761,11 +876,12 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          dbg("[PA ∂fem] done");
       };
 
-      if (version < 2) // standard, new PA regs
+      if (version < 2 || version == 6) // standard, new PA regs & low
       {
          a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
          if (version == 0) { a.AddDomainIntegrator(new DiffusionIntegrator(ir)); }
          if (version == 1) { a.AddDomainIntegrator(new StiffnessIntegrator(qdata)); }
+         if (version == 6) { a.AddDomainIntegrator(new PADiffLowIntegrator()); }
          a.Assemble();
          a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
          if (version == 0)
