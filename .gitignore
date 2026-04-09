@@ -260,6 +260,7 @@ miniapps/meshing/polar-nc
 miniapps/meshing/mesh-quality
 miniapps/meshing/hpref
 miniapps/meshing/phpref
+miniapps/meshing/pref321
 miniapps/meshing/mobius-strip.mesh
 miniapps/meshing/klein-bottle.mesh
 miniapps/meshing/toroid-*.mesh
