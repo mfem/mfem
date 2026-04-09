@@ -1064,6 +1064,8 @@ inline void SmemPADiffusionApply3D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
+
+      // Grad X
       MFEM_FOREACH_THREAD_DIRECT(dz,z,D1D)
       {
          MFEM_FOREACH_THREAD_DIRECT(dy,y,D1D)
@@ -1084,6 +1086,8 @@ inline void SmemPADiffusionApply3D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
+
+      // Grad Y
       MFEM_FOREACH_THREAD_DIRECT(dz,z,D1D)
       {
          MFEM_FOREACH_THREAD_DIRECT(qy,y,Q1D)
@@ -1105,6 +1109,8 @@ inline void SmemPADiffusionApply3D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
+
+      // Grad Z + Q-function
       MFEM_FOREACH_THREAD_DIRECT(qz,z,Q1D)
       {
          MFEM_FOREACH_THREAD_DIRECT(qy,y,Q1D)
