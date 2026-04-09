@@ -4845,6 +4845,13 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
       return;
    }
 
+   if (pncmesh && pncmesh->using_scaling)
+   {
+      // For nodes scaling, we write the file in the format MFEM NC mesh v1.1.
+      Printer(os, "", comments);
+      return;
+   }
+
    const Array<int>* s2l_face;
    if (!pncmesh)
    {

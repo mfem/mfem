@@ -497,11 +497,27 @@ protected: // implementation
    /** Used by ParNCMesh::Refine() to inform neighbors about refinements at
     *  the processor boundary. This keeps their ghost layers synchronized.
     */
-   class NeighborRefinementMessage : public ElementValueMessage<char, false,
-      VarMessageTag::NEIGHBOR_REFINEMENT_VM>
+   struct NeighborRefinement
+   {
+      char ref_type;
+      real_t scale[3];
+   };
+
+   class NeighborRefinementMessage
+      : public ElementValueMessage<NeighborRefinement, false,
+        VarMessageTag::NEIGHBOR_REFINEMENT_VM>
    {
    public:
-      void AddRefinement(int elem, char ref_type) { Add(elem, ref_type); }
+      void AddRefinement(int elem, const Refinement &ref)
+      {
+         NeighborRefinement data;
+         data.ref_type = ref.GetType();
+         for (int i = 0; i < 3; i++)
+         {
+            data.scale[i] = ref.s[i];
+         }
+         Add(elem, data);
+      }
       typedef std::map<int, NeighborRefinementMessage> Map;
    };
 
@@ -602,7 +618,8 @@ protected: // implementation
    /** For the face with ordered vertices vn* and neighboring element @a elem,
        check whether the other neighboring element (if it exists) is marked for
        a horizontal refinement conflicting with a vertical split. */
-   void CheckRefAnisoFace(int elem, int vn1, int vn2, int vn3, int vn4,
+   void CheckRefAnisoFace(const Refinement &ref, int elem,
+                          int vn1, int vn2, int vn3, int vn4,
                           const Array<Refinement> &refinements,
                           const std::map<int, int> &elemToRef,
                           std::set<int> &conflicts);
@@ -611,7 +628,8 @@ protected: // implementation
        neighboring element @a elem, check whether the other neighboring element
        (if it exists) is marked for a refinement conflicting with an isotropic
        refinement of the face. */
-   void CheckRefIsoFace(int elem, int vn1, int vn2, int vn3, int vn4,
+   void CheckRefIsoFace(const Refinement &ref, int elem,
+                        int vn1, int vn2, int vn3, int vn4,
                         int en1, int en2, int en3, int en4,
                         const Array<Refinement> &refinements,
                         const std::map<int, int> &elemToRef,
@@ -622,9 +640,8 @@ protected: // implementation
                               const std::map<int, int> &elemToRef,
                               std::set<int> &conflicts);
 
-   /** Check whether the refinement of the element with index @a elem and type
-       @a ref_type would cause a conflict. */
-   void CheckRefinement(int elem, char ref_type,
+   /// Check whether the input refinement would cause a conflict.
+   void CheckRefinement(int elem, const Refinement &ref,
                         const Array<Refinement> &refinements,
                         const std::map<int, int> &elemToRef,
                         std::set<int> &conflicts);
