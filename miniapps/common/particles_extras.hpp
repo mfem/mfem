@@ -46,7 +46,8 @@ class ParticleTrajectories
 {
 protected:
    const ParticleSet &pset;
-   Mesh *mesh = nullptr;
+   Mesh *mesh = nullptr; // optional edge mesh to visualize along with particles
+   Mesh *mesh_bb = nullptr; // optional bounding box mesh for visualization
 
    socketstream sock;
    /// Track particle IDs that exist at the segment start.
@@ -90,10 +91,24 @@ public:
                         const char *keys_=nullptr);
 
    /// Add a mesh to be visualized along with the particle trajectories.
-   void AddMeshForVisualization(Mesh *mesh_) { mesh = mesh_; }
+   void AddMeshForVisualization(Mesh *mesh_)
+   {
+      MFEM_VERIFY(mesh_->Dimension() == 1,
+                  "Mesh dimension must be 1 to match the particle trajectory.");
+      mesh = mesh_;
+   }
 
    /// Visualize the particle trajectories (and mesh if provided).
    void Visualize();
+
+   /// Set the bounding box for visualization.
+   void SetVisualizationBoundingBox(const Vector &xmin, const Vector &xmax);
+
+   /// Destructor
+   ~ParticleTrajectories()
+   {
+      delete mesh_bb;
+   }
 };
 
 
