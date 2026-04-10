@@ -10,11 +10,11 @@
 // CONTRIBUTING.md for details.
 //
 //           -----------------------------------------------------
-//           Particle-In-Cell (PIC) Simulation (2D/3D)
+//           Particle-In-Cell (PIC) Simulation (2D)
 //           -----------------------------------------------------
 //
-// This miniapp performs a Particle-In-Cell simulation (supports 2D or 3D
-// spatial dimensions) of multiple charged particles subject to electric
+// This miniapp performs a 2D Particle-In-Cell simulation of multiple charged
+// particles subject to electric
 // field forces.
 //
 //                           dp/dt = q E
@@ -23,7 +23,7 @@
 //
 // The electric field is computed from the particle charge distribution using
 // a Poisson solver. The particle trajectories are computed within a periodic
-// domain (2D or 3D).
+// domain (2D).
 //
 // Solution process (per timestep, repeating steps 1-6):
 //   (1) Deposit charge from particles to grid via Dirac delta function
@@ -42,8 +42,6 @@
 //
 //   2D2V Linear Landau damping test case (Ricketson & Hu, 2025):
 //      mpirun -n 4 ./electrostatic-pic -rdi 1 -npt 409600 -k 0.2855993321 -a 0.05 -nt 200 -nx 32 -ny 32 -O 1 -q 0.001181640625 -m 0.001181640625 -oci 1000 -dt 0.1
-//   3D3V Linear Landau damping test case (Zheng et al., 2025):
-//      mpirun -n 128 ./electrostatic-pic -dim 3 -rdi 1 -npt 40960000 -k 0.5 -a 0.01 -nt 100 -nx 32 -ny 32 -nz 32 -O 1 -q 0.00004844730731 -m 0.00004844730731 -oci 1000 -dt 0.02 -no-vis
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -61,11 +59,9 @@ using namespace mfem::common;
 
 struct PICContext
 {
-   int dim = 2;     ///< Spatial dimension.
    int order = 1;   ///< FE order for spatial discretization.
    int nx = 100;    ///< Number of grid cells in x-direction.
    int ny = 100;    ///< Number of grid cells in y-direction.
-   int nz = 100;    ///< Number of grid cells in z-direction.
    real_t L = 1.0;  ///< Domain length.
 
    int ordering = 1;  ///< Ordering of particles.
@@ -90,6 +86,11 @@ struct PICContext
 /// Prints the program's logo to the given output stream
 void display_banner(ostream& os);
 
+ParGridFunction StepPIC(ParticleMover& particle_mover,
+                        FieldSolver& field_solver, ParGridFunction& phi_gf,
+                        ParGridFunction E_gf, real_t& t, real_t dt, real_t L,
+                        int step, StopWatch& sw);
+
 int main(int argc, char* argv[])
 {
    Mpi::Init(argc, argv);
@@ -100,16 +101,12 @@ int main(int argc, char* argv[])
    if (Mpi::Root()) { display_banner(cout); }
 
    OptionsParser args(argc, argv);
-   args.AddOption(&ctx.dim, "-dim", "--dimension",
-                  "Spatial dimension (2 or 3)");
    args.AddOption(&ctx.order, "-O", "--order",
                   "Finite element polynomial degree");
    args.AddOption(&ctx.nx, "-nx", "--num-x",
                   "Number of elements in the x direction.");
    args.AddOption(&ctx.ny, "-ny", "--num-y",
                   "Number of elements in the y direction.");
-   args.AddOption(&ctx.nz, "-nz", "--num-z",
-                  "Number of elements in the z direction.");
    args.AddOption(&ctx.q, "-q", "--charge", "Particle charge.");
    args.AddOption(&ctx.m, "-m", "--mass", "Particle mass.");
    args.AddOption(&ctx.dt, "-dt", "--time-step", "Time Step.");
@@ -140,9 +137,6 @@ int main(int argc, char* argv[])
    }
    if (Mpi::Root()) { args.PrintOptions(cout); }
 
-   // Assert that dimension is 2 or 3
-   MFEM_VERIFY(ctx.dim == 2 || ctx.dim == 3,
-               "Dimension must be 2 or 3, got " << ctx.dim);
    MFEM_VERIFY(ctx.alpha >= -1.0 && ctx.alpha < 1.0,
                "Alpha should be in range [-1, 1).");
    MFEM_VERIFY(ctx.k > 0.0,
@@ -150,23 +144,13 @@ int main(int argc, char* argv[])
 
    ctx.L = 2.0 * M_PI / ctx.k;
 
-   // 1. make a Cartesian Mesh (2D or 3D)
+   // 1. make a Cartesian Mesh (2D)
    Mesh serial_mesh;
    std::vector<Vector> translations;
 
-   if (ctx.dim == 2)
-   {
-      serial_mesh = Mesh(Mesh::MakeCartesian2D(
-         ctx.nx, ctx.ny, Element::QUADRILATERAL, false, ctx.L, ctx.L));
-      translations = {Vector({ctx.L, 0.0}), Vector({0.0, ctx.L})};
-   }
-   else  // ctx.dim == 3
-   {
-      serial_mesh = Mesh(Mesh::MakeCartesian3D(
-         ctx.nx, ctx.ny, ctx.nz, Element::HEXAHEDRON, ctx.L, ctx.L, ctx.L));
-      translations = {Vector({ctx.L, 0.0, 0.0}), Vector({0.0, ctx.L, 0.0}),
-                      Vector({0.0, 0.0, ctx.L})};
-   }
+   serial_mesh = Mesh(Mesh::MakeCartesian2D(
+      ctx.nx, ctx.ny, Element::QUADRILATERAL, false, ctx.L, ctx.L));
+   translations = {Vector({ctx.L, 0.0}), Vector({0.0, ctx.L})};
 
    Mesh periodic_mesh(Mesh::MakePeriodic(
       serial_mesh, serial_mesh.CreatePeriodicVertexMapping(translations)));
@@ -180,9 +164,9 @@ int main(int argc, char* argv[])
    FindPointsGSLIB E_finder(mesh);
 
    // 4. Define finite element spaces on the parallel mesh
-   H1_FECollection phi_fec(ctx.order, ctx.dim);
+   H1_FECollection phi_fec(ctx.order, 2);
    ParFiniteElementSpace phi_fespace(&mesh, &phi_fec);
-   ND_FECollection E_fec(ctx.order, ctx.dim);
+   ND_FECollection E_fec(ctx.order, 2);
    ParFiniteElementSpace E_fespace(&mesh, &E_fec);
 
    // 5. Initialize the grid functions for the electric field and potential
@@ -208,75 +192,124 @@ int main(int argc, char* argv[])
    real_t t = 0;
    real_t dt = ctx.dt;
 
+   {
+      // Redistribute
+      particle_mover.Redistribute();
+
+      // Update phi_gf from particles
+      field_solver.UpdatePhiGridFunction(particle_mover.GetParticles(), phi_gf);
+      // Update E_gf from phi_gf
+      field_solver.UpdateEGridFunction(phi_gf, E_gf);
+
+      // Visualize fields if requested
+      if (ctx.visualization)
+      {
+         static socketstream vis_e, vis_phi;
+         common::VisualizeField(vis_e, "localhost", ctx.visport, E_gf,
+                                "E_field", 0, 0, 500, 500);
+         common::VisualizeField(vis_phi, "localhost", ctx.visport, phi_gf,
+                                "Potential", 500, 0, 500, 500);
+      }
+
+      // Compute energies
+      real_t kinetic_energy = particle_mover.ComputeKineticEnergy();
+      real_t field_energy = field_solver.ComputeFieldEnergy(E_gf);
+
+      // Output energies
+      if (Mpi::Root())
+      {
+         cout << "Kinetic energy: " << kinetic_energy << "\t";
+         cout << "Field energy: " << field_energy << "\t";
+         cout << "Total energy: " << kinetic_energy + field_energy << endl;
+      }
+      // Write energies to a CSV file
+      if (Mpi::Root())
+      {
+         std::ofstream energy_file("energy.csv", std::ios::app);
+         energy_file << setprecision(10) << kinetic_energy << ","
+                     << field_energy << "," << kinetic_energy + field_energy
+                     << "\n";
+      }
+   }
+
    mfem::StopWatch sw;
    sw.Start();
    for (int step = 1; step <= ctx.nt; step++)
    {
-      // Step the FieldSolver
-      if (ctx.redist_interval > 0 &&
-          (step % ctx.redist_interval == 0 || step == 1) &&
-          particle_mover.GetParticles().GetGlobalNParticles() > 0)
+      E_gf = StepPIC(particle_mover, field_solver, phi_gf, E_gf, t, dt, ctx.L, step, sw);
+   }
+}
+
+ParGridFunction StepPIC(ParticleMover& particle_mover,
+                        FieldSolver& field_solver, ParGridFunction& phi_gf,
+                        ParGridFunction E_gf, real_t& t, real_t dt, real_t L,
+                        int step, StopWatch& sw)
+{
+   // Step the ParticleMover
+   particle_mover.Step(t, dt, ctx.L, step == 1);
+
+   // Step the FieldSolver
+   if (ctx.redist_interval > 0 && (step % ctx.redist_interval == 0) &&
+       particle_mover.GetParticles().GetGlobalNParticles() > 0)
+   {
+      // Redistribute
+      particle_mover.Redistribute();
+
+      // Update phi_gf from particles
+      field_solver.UpdatePhiGridFunction(particle_mover.GetParticles(), phi_gf);
+      // Update E_gf from phi_gf
+      field_solver.UpdateEGridFunction(phi_gf, E_gf);
+
+      // Visualize fields if requested
+      if (ctx.visualization)
       {
-         // Redistribute
-         particle_mover.Redistribute();
-
-         // Update phi_gf from particles
-         field_solver.UpdatePhiGridFunction(particle_mover.GetParticles(),
-                                            phi_gf);
-         // Update E_gf from phi_gf
-         field_solver.UpdateEGridFunction(phi_gf, E_gf);
-
-         // Visualize fields if requested
-         if (ctx.visualization)
-         {
-            static socketstream vis_e, vis_phi;
-            common::VisualizeField(vis_e, "localhost", ctx.visport, E_gf,
-                                   "E_field", 0, 0, 500, 500);
-            common::VisualizeField(vis_phi, "localhost", ctx.visport, phi_gf,
-                                   "Potential", 500, 0, 500, 500);
-         }
-
-         // Compute energies
-         real_t kinetic_energy = particle_mover.ComputeKineticEnergy();
-         real_t field_energy = field_solver.ComputeFieldEnergy(E_gf);
-
-         // Output energies
-         if (Mpi::Root())
-         {
-            cout << "Kinetic energy: " << kinetic_energy << "\t";
-            cout << "Field energy: " << field_energy << "\t";
-            cout << "Total energy: " << kinetic_energy + field_energy << endl;
-         }
-         // Write energies to a CSV file
-         if (Mpi::Root())
-         {
-            std::ofstream energy_file("energy.csv", std::ios::app);
-            energy_file << setprecision(10) << kinetic_energy << ","
-                        << field_energy << "," << kinetic_energy + field_energy
-                        << "\n";
-         }
+         static socketstream vis_e, vis_phi;
+         common::VisualizeField(vis_e, "localhost", ctx.visport, E_gf,
+                                "E_field", 0, 0, 500, 500);
+         common::VisualizeField(vis_phi, "localhost", ctx.visport, phi_gf,
+                                "Potential", 500, 0, 500, 500);
       }
 
-      // Step the ParticleMover
-      particle_mover.Step(t, dt, ctx.L, step == 1);
+      // Compute energies
+      real_t kinetic_energy = particle_mover.ComputeKineticEnergy();
+      real_t field_energy = field_solver.ComputeFieldEnergy(E_gf);
+
+      // Output energies
       if (Mpi::Root())
       {
-         mfem::out << "Step: " << step << " | Time: " << t;
-         mfem::out << " | Time per step: " << sw.RealTime() / step;
-         mfem::out << endl;
+         cout << "Kinetic energy: " << kinetic_energy << "\t";
+         cout << "Field energy: " << field_energy << "\t";
+         cout << "Total energy: " << kinetic_energy + field_energy << endl;
       }
-      // Output particle data to CSV
-      if (ctx.output_csv_interval > 0 &&
-          (step % ctx.output_csv_interval == 0 || step == 1))
+      // Write energies to a CSV file
+      if (Mpi::Root())
       {
-         std::string csv_prefix = "PIC_Part_";
-         Array<int> field_idx{2}, tag_idx;
-         std::string file_name =
-            csv_prefix + mfem::to_padded_string(step, 6) + ".csv";
-         particle_mover.GetParticles().PrintCSV(file_name.c_str(), field_idx,
-                                                tag_idx);
+         std::ofstream energy_file("energy.csv", std::ios::app);
+         energy_file << setprecision(10) << kinetic_energy << ","
+                     << field_energy << "," << kinetic_energy + field_energy
+                     << "\n";
       }
    }
+
+   if (Mpi::Root())
+   {
+      mfem::out << "Step: " << step << " | Time: " << t;
+      mfem::out << " | Time per step: " << sw.RealTime() / step;
+      mfem::out << endl;
+   }
+   // Output particle data to CSV
+   if (ctx.output_csv_interval > 0 &&
+       (step % ctx.output_csv_interval == 0 || step == 1))
+   {
+      std::string csv_prefix = "PIC_Part_";
+      Array<int> field_idx{2}, tag_idx;
+      std::string file_name =
+         csv_prefix + mfem::to_padded_string(step, 6) + ".csv";
+      particle_mover.GetParticles().PrintCSV(file_name.c_str(), field_idx,
+                                             tag_idx);
+   }
+
+   return E_gf;
 }
 
 void display_banner(ostream& os)

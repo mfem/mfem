@@ -23,7 +23,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 PAR_MINIAPPS =
 
 ifeq ($(MFEM_USE_GSLIB),YES)
-   PAR_MINIAPPS += electrostatic-pic
+   PAR_MINIAPPS += electrostatic-pic dpic
 endif
 
 ifeq ($(MFEM_USE_MPI),NO)
@@ -52,11 +52,19 @@ all: $(MINIAPPS)
 # Rules for building the miniapps
 ELECTROSTATIC_PIC_SRCS = electrostatic-pic.cpp ParticleMover.cpp FieldSolver.cpp
 ELECTROSTATIC_PIC_OBJS = $(ELECTROSTATIC_PIC_SRCS:.cpp=.o)
+DPIC_SRCS = dpic.cpp ParticleMover.cpp FieldSolver.cpp
+DPIC_OBJS = $(DPIC_SRCS:.cpp=.o)
 
 electrostatic-pic: $(ELECTROSTATIC_PIC_OBJS) $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(ELECTROSTATIC_PIC_OBJS) $(COMMON_LIB) $(MFEM_LIBS)
 
 electrostatic-pic.o: electrostatic-pic.cpp ParticleMover.hpp FieldSolver.hpp $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $<
+
+dpic: $(DPIC_OBJS) $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(DPIC_OBJS) $(COMMON_LIB) $(MFEM_LIBS)
+
+dpic.o: dpic.cpp ParticleMover.hpp FieldSolver.hpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $<
 
 ParticleMover.o: ParticleMover.cpp ParticleMover.hpp $(CONFIG_MK)
@@ -92,4 +100,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf electrostatic-pic_* *.csv energy.csv
+	@rm -rf electrostatic-pic_* dpic_* *.csv energy.csv

@@ -1,6 +1,7 @@
 electrostatic-*
 !electrostatic-*.cpp
 !electrostatic-*.hpp
+dpic
 *.csv
 !ref/*
 *.gif
