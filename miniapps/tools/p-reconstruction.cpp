@@ -27,7 +27,7 @@ int main(int argc, char* argv[])
    Hypre::Init();
 
    // Default command-line options
-   std::string reconstruction_method = "element_average_reconstruction";
+   std::string reconstruction_method = "LOR_reconstruction";
    int refinement_levels = 0;
    int order_lo = 0;
    int order_ho = 3;
@@ -70,6 +70,9 @@ int main(int argc, char* argv[])
                   "Use custom port number for GLVis.");
    args.ParseCheck();
 
+   MFEM_VERIFY((reconstruction_method=="LOR_reconstruction"),
+            "Currently only LOR_reconstruction is supported.");
+
    // define u(x,y) to be represented
    profile_t u_function = field_profiles.at(field_profile);
    const Vector k({field_kx, field_ky});
@@ -84,244 +87,112 @@ int main(int argc, char* argv[])
    const int num_x = 8;
    const int num_y = 8;
 
-   if (Mpi::Root()) std::cout << "reconstruction method: " << reconstruction_method << std::endl;
+   order_im = order_ho;
+   lref = order_im + 1;
+   MFEM_VERIFY((num_x % lref) == 0 && (num_y % lref) == 0,
+               "For LOR_reconstruction, lref = order_im (=order_ho) + 1 must divide both num_x and num_y.");
+   int num_x_im = num_x / lref;
+   int num_y_im = num_y / lref;
 
-   // if (reconstruction_method == "element_average_reconstruction")
-   // {
+   Mesh serial_mesh_im = Mesh::MakeCartesian2D(num_x_im, num_y_im,
+                                                Element::QUADRILATERAL);
+   for (int i = 0; i < refinement_levels; i++)
+   {
+      serial_mesh_im.UniformRefinement();
+   }
+   ParMesh pmesh_im(MPI_COMM_WORLD, serial_mesh_im);
+   serial_mesh_im.Clear();
+   ParMesh pmesh = ParMesh::MakeRefined(pmesh_im, lref, BasisType::ClosedUniform);
+   int dim = pmesh.Dimension();
 
-   //    mesh = Mesh::MakeCartesian2D(num_x, num_y, Element::QUADRILATERAL);
-   //    for (int i = 0; i < refinement_levels; i++)
-   //    {
-   //       mesh.UniformRefinement();
-   //    }
-   //    mesh.EnsureNCMesh();
+   L2_FECollection fec_lo(order_lo, dim);
+   L2_FECollection fec_hi(order_ho, dim);
+   H1_FECollection fec_im(order_im, dim);
 
-   // }
-   // else if (reconstruction_method == "LOR_reconstruction")
-   // {
+   ParFiniteElementSpace pfespace_lo(&pmesh, &fec_lo);
+   ParFiniteElementSpace pfespace_hi(&pmesh, &fec_hi);
+   ParFiniteElementSpace pfespace_im(&pmesh_im, &fec_im);
 
-      order_im = order_ho;
-      lref = order_im + 1;
-      MFEM_VERIFY((num_x % lref) == 0 && (num_y % lref) == 0,
-                  "For LOR_reconstruction, lref = order_im (=order_ho) + 1 must divide both num_x and num_y.");
-      int num_x_im = num_x / lref;
-      int num_y_im = num_y / lref;
+   ParGridFunction u_lo(&pfespace_lo);
+   ParGridFunction u_hi(&pfespace_hi);
+   ParGridFunction u_im(&pfespace_im);
 
-      Mesh serial_mesh_im = Mesh::MakeCartesian2D(num_x_im, num_y_im,
-                                                  Element::QUADRILATERAL);
-      for (int i = 0; i < refinement_levels; i++)
+   ParBilinearForm M_lo(&pfespace_lo);
+   M_lo.AddDomainIntegrator(new MassIntegrator);
+   M_lo.Assemble();
+   M_lo.Finalize();
+
+   ParBilinearForm M_im(&pfespace_im);
+   M_im.AddDomainIntegrator(new MassIntegrator);
+   M_im.Assemble();
+   M_im.Finalize();
+
+   ParBilinearForm M_hi(&pfespace_hi);
+   M_hi.AddDomainIntegrator(new MassIntegrator);
+   M_hi.Assemble();
+   M_hi.Finalize();
+
+   // Set up the right-hand side vector for the exact solution
+   ParLinearForm b_lo(&pfespace_lo);
+   DomainLFIntegrator *lf_integ = new DomainLFIntegrator(u_function_exact);
+   const IntegrationRule &ir_rhs = IntRules.Get(pfespace_lo.GetFE(0)->GetGeomType(), order_ho + 1);
+   lf_integ->SetIntRule(&ir_rhs);
+   b_lo.AddDomainIntegrator(lf_integ);
+   b_lo.Assemble();
+
+   L2ProjectionGridTransfer gt1(pfespace_im, pfespace_lo);
+   L2ProjectionGridTransfer gt2(pfespace_im, pfespace_hi);
+
+   const Operator &P1 = gt1.BackwardOperator();   // Prolongation 1 (LO->IM)
+   const Operator &P2 = gt2.ForwardOperator();    // Prolongation 2 (IM->HO)
+
+   // STEP 1: L2 projection onto u_lo
+   std::unique_ptr<HypreParMatrix> M_par_lo(M_lo.ParallelAssemble());
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetOperator(*M_par_lo);
+   cg.SetRelTol(1e-16);
+   cg.SetMaxIter(1000);
+   cg.SetPrintLevel(0);
+   u_lo = 0.0;
+   cg.Mult(b_lo, u_lo); // Solve: M * u_lo = b_lo
+   u_lo.SetTrueVector();
+   u_lo.SetFromTrueVector();
+
+   // STEP 2: Prolongation 1 (LO->IM)
+   P1.Mult(u_lo, u_im); // u_im = P1 * u_lo
+
+   // STEP 3: Prolongation 2 (IM->HO)
+   P2.Mult(u_im, u_hi); // u_hi = P2 * u_im
+
+   // Visualization
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      socketstream glvis_u_lo(vishost, visport);
+      socketstream glvis_u_hi(vishost, visport);
+      if (glvis_u_lo && glvis_u_hi)
       {
-         serial_mesh_im.UniformRefinement();
+         glvis_u_lo.precision(8);
+         glvis_u_lo << "parallel " << pmesh.GetNRanks()
+                     << " " << pmesh.GetMyRank() << "\n"
+                     << "solution\n" << pmesh << u_lo
+                     << "window_title 'Low-order'\n" << std::flush;
+         glvis_u_hi.precision(8);
+         glvis_u_hi << "parallel " << pmesh.GetNRanks()
+                     << " " << pmesh.GetMyRank() << "\n"
+                     << "solution\n" << pmesh << u_hi
+                     << "window_title 'High-order'\n" << std::flush;
       }
-      ParMesh pmesh_im(MPI_COMM_WORLD, serial_mesh_im);
-      serial_mesh_im.Clear();
-      ParMesh pmesh = ParMesh::MakeRefined(pmesh_im, lref, BasisType::ClosedUniform);
-      int dim = pmesh.Dimension();
+   }
 
-      L2_FECollection fec_lo(order_lo, dim);
-      L2_FECollection fec_hi(order_ho, dim);
-      H1_FECollection fec_im(order_im, dim);
+   real_t error = u_hi.ComputeL2Error(u_function_exact);
+   if (Mpi::Root())
+   {
+      mfem::out.precision(16);
+      mfem::out << "|| u_h - u ||_{L^2} = \n" << error << std::endl;
+   }
 
-      ParFiniteElementSpace pfespace_lo(&pmesh, &fec_lo);
-      ParFiniteElementSpace pfespace_hi(&pmesh, &fec_hi);
-      ParFiniteElementSpace pfespace_im(&pmesh_im, &fec_im);
-
-      ParGridFunction u_lo(&pfespace_lo);
-      ParGridFunction u_hi(&pfespace_hi);
-      ParGridFunction u_im(&pfespace_im);
-
-      ParBilinearForm M_lo(&pfespace_lo);
-      M_lo.AddDomainIntegrator(new MassIntegrator);
-      M_lo.Assemble();
-      M_lo.Finalize();
-
-      ParBilinearForm M_im(&pfespace_im);
-      M_im.AddDomainIntegrator(new MassIntegrator);
-      M_im.Assemble();
-      M_im.Finalize();
-
-      ParBilinearForm M_hi(&pfespace_hi);
-      M_hi.AddDomainIntegrator(new MassIntegrator);
-      M_hi.Assemble();
-      M_hi.Finalize();
-
-      // Set up the right-hand side vector for the exact solution
-      ParLinearForm b_lo(&pfespace_lo);
-      DomainLFIntegrator *lf_integ = new DomainLFIntegrator(u_function_exact);
-      const IntegrationRule &ir_rhs = IntRules.Get(pfespace_lo.GetFE(0)->GetGeomType(), order_ho + 1);
-      lf_integ->SetIntRule(&ir_rhs);
-      b_lo.AddDomainIntegrator(lf_integ);
-      b_lo.Assemble();
-
-      L2ProjectionGridTransfer gt1(pfespace_im, pfespace_lo);
-      L2ProjectionGridTransfer gt2(pfespace_im, pfespace_hi);
-
-      [[maybe_unused]] const Operator &P1 = gt1.BackwardOperator();   // Prolongation 1 (LO->IM)
-      [[maybe_unused]] const Operator &P2 = gt2.ForwardOperator();    // Prolongation 2 (IM->HO)
-      [[maybe_unused]] const Operator &R1 = gt1.ForwardOperator();    // Restriction 1 (IM->LO)
-      [[maybe_unused]] const Operator &R2 = gt2.BackwardOperator();   // Restriction 2 (HO->IM)
-
-      // STEP 1: L2 projection onto u_lo
-      std::unique_ptr<HypreParMatrix> M_par_lo(M_lo.ParallelAssemble());
-      CGSolver cg(MPI_COMM_WORLD);
-      cg.SetOperator(*M_par_lo);
-      cg.SetRelTol(1e-16);
-      cg.SetMaxIter(1000);
-      cg.SetPrintLevel(0);
-      u_lo = 0.0;
-      cg.Mult(b_lo, u_lo); // Solve: M * u_lo = b_lo
-      u_lo.SetTrueVector();
-      u_lo.SetFromTrueVector();
-
-      // STEP 2: Prolongation 1 (LO->IM)
-      P1.Mult(u_lo, u_im); // u_im = P1 * u_lo
-
-      // STEP 3: Prolongation 2 (IM->HO)
-      P2.Mult(u_im, u_hi); // u_hi = P2 * u_im
-
-      // Visualization
-      if (visualization)
-      {
-         char vishost[] = "localhost";
-         socketstream glvis_u_lo(vishost, visport);
-         socketstream glvis_u_hi(vishost, visport);
-         if (glvis_u_lo && glvis_u_hi)
-         {
-            glvis_u_lo.precision(8);
-            glvis_u_lo << "parallel " << pmesh.GetNRanks()
-                       << " " << pmesh.GetMyRank() << "\n"
-                       << "solution\n" << pmesh << u_lo
-                       << "window_title 'Low-order'\n" << std::flush;
-            glvis_u_hi.precision(8);
-            glvis_u_hi << "parallel " << pmesh.GetNRanks()
-                       << " " << pmesh.GetMyRank() << "\n"
-                       << "solution\n" << pmesh << u_hi
-                       << "window_title 'High-order'\n" << std::flush;
-         }
-      }
-
-      real_t error = u_hi.ComputeL2Error(u_function_exact);
-      if (Mpi::Root())
-      {
-         mfem::out.precision(16);
-         mfem::out << "|| u_h - u ||_{L^2} = \n" << error << std::endl;
-      }
-
-      return 0;
-
-   // }
-   // int dim = mesh.Dimension();
-
-   // // create FEM things
-
-   // L2_FECollection fec_lo(order_lo, dim);
-   // L2_FECollection fec_hi(order_ho, dim);
-
-   // FiniteElementSpace fespace_lo(&mesh, &fec_lo);
-   // FiniteElementSpace fespace_hi(&mesh, &fec_hi);
-
-   // GridFunction u_lo(&fespace_lo);
-   // GridFunction u_hi(&fespace_hi);
-
-   // if (reconstruction_method == "element_average_reconstruction")
-   // {
-   //    L2_FECollection fec_exact(order_ho, dim);
-   //    FiniteElementSpace fespace_exact(&mesh, &fec_exact);
-
-   //    // Initialize u_lo with element averages of the exact solution
-   //    GridFunction u_exact(&fespace_exact);
-   //    u_exact.ProjectCoefficient(u_function_exact);
-   //    u_exact.GetElementAverages(u_lo);
-
-   //    // compute reconstruction
-   //    L2Reconstruction(u_lo, u_hi);
-
-   // }
-   // else if (reconstruction_method == "LOR_reconstruction")
-   // {
-
-   //    H1_FECollection fec_im(order_im,
-   //                           dim); // Both L2 and H1 give the same convergence.
-   //    FiniteElementSpace fespace_im(&mesh_im, &fec_im);
-   //    GridFunction u_im(&fespace_im);
-
-   //    BilinearForm M_lo(&fespace_lo);
-   //    M_lo.AddDomainIntegrator(new MassIntegrator);
-   //    M_lo.Assemble();
-   //    M_lo.Finalize();
-
-   //    BilinearForm M_im(&fespace_im);
-   //    M_im.AddDomainIntegrator(new MassIntegrator);
-   //    M_im.Assemble();
-   //    M_im.Finalize();
-
-   //    BilinearForm M_hi(&fespace_hi);
-   //    M_hi.AddDomainIntegrator(new MassIntegrator);
-   //    M_hi.Assemble();
-   //    M_hi.Finalize();
-
-   //    // Set up the right-hand side vector for the exact solution
-   //    LinearForm b_lo(&fespace_lo);
-   //    DomainLFIntegrator lf_integ(u_function_exact);
-   //    const IntegrationRule &ir_rhs = IntRules.Get(fespace_lo.GetFE(0)->GetGeomType(),
-   //                                                 order_ho+1);
-   //    lf_integ.SetIntRule(&ir_rhs);
-   //    b_lo.AddDomainIntegrator(&lf_integ);
-   //    b_lo.Assemble();
-
-   //    L2ProjectionGridTransfer gt1(fespace_im, fespace_lo);
-   //    L2ProjectionGridTransfer gt2(fespace_im, fespace_hi);
-
-   //    [[maybe_unused]] const Operator &P1 =
-   //       gt1.BackwardOperator();   // Prolongation 1 (LO->IM)
-   //    [[maybe_unused]] const Operator &P2 =
-   //       gt2.ForwardOperator();    // Prolongation 2 (IM->HO)
-
-   //    [[maybe_unused]] const Operator &R1 =
-   //       gt1.ForwardOperator();    // Restriction 1 (IM->LO)
-   //    [[maybe_unused]] const Operator &R2 =
-   //       gt2.BackwardOperator();   // Restriction 2 (HO->IM)
-
-   //    // STEP1: L2 projection of RHO onto u_lo
-   //    SparseMatrix &M_mat_lo = M_lo.SpMat();
-   //    CGSolver cg;
-   //    cg.SetOperator(M_mat_lo);
-   //    cg.SetRelTol(1e-16);
-   //    cg.SetMaxIter(1000);
-   //    cg.SetPrintLevel(0);
-   //    u_lo = 0.0;
-   //    cg.Mult(b_lo, u_lo); // Solve: M * u_lo = b_lo
-   //    u_lo.SetTrueVector();
-   //    u_lo.SetFromTrueVector();
-
-   //    // STEP2: Prolongation 1 (LO->IM)
-   //    P1.Mult(u_lo, u_im); // u_im = P1 * u_lo
-
-   //    // STEP3: Prolongation 2 (IM->HO)
-   //    P2.Mult(u_im, u_hi); // u_hi = P2 * u_im
-
-   // }
-
-   // // evaluate reconstruction
-   // char vishost[] = "localhost";
-   // socketstream glvis_u_lo(vishost, visport);
-   // socketstream glvis_u_hi(vishost, visport);
-   // if (visualization && glvis_u_lo && glvis_u_hi)
-   // {
-   //    glvis_u_lo.precision(8);
-   //    glvis_u_lo << "solution\n" << mesh << u_lo
-   //               << "window_title 'Low-order'\n" << std::flush;
-   //    glvis_u_hi.precision(8);
-   //    glvis_u_hi << "solution\n" << mesh << u_hi
-   //               << "window_title 'High-order'\n" << std::flush;
-   // }
-
-   // real_t error = u_hi.ComputeL2Error(u_function_exact);
-
-   // mfem::out.precision(16);
-   // mfem::out << "|| u_h - u ||_{L^2} = \n" << error << std::endl;
-
-   // return 0;
+   return 0;
 }
 
 
