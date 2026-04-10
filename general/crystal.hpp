@@ -6,6 +6,7 @@
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
 #include <vector>
+#include "vector.hpp"
 #include "array.hpp"
 
 namespace mfem
@@ -14,28 +15,25 @@ namespace mfem
 class CrystalRouter
 {
 public:
-   /// @param[in,out] ranks     Destination rank per item
-   /// @param[in,out] data      Vector of pointers to Array<int>, each of the same length as ranks
-
    CrystalRouter(MPI_Comm comm);
    ~CrystalRouter();
 
-   void Route(Array<int> &ranks, std::vector<Array<int>*> &data);
+   void Route(Array<int> &ranks, std::vector<Array<int>*> &int_data, std::vector<Array<real_t>*> &real_data);
 
 private:
    MPI_Comm comm;
    int rank, nprocs;
 
    // partition items into keep vs send based on rank
-   void Move(Array<int> &ranks, std::vector<Array<int>*> &data,
+   void Move(Array<int> &ranks, std::vector<Array<int>*> &int_data, std::vector<Array<real_t>*> &real_data,
             int cutoff, bool send_hi,
-            Array<int> &send_ranks, std::vector<Array<int>> &send_data);
+            Array<int> &send_ranks, std::vector<Array<int>> &send_int_data, std::vector<Array<real_t>> &send_real_data);
 
 
    // exchange send buffers with partner ranks and append received items to ranks and data
-   void Exchange(Array<int> &ranks, std::vector<Array<int>*> &data,
+   void Exchange(Array<int> &ranks, std::vector<Array<int>*> &int_data, std::vector<Array<real_t>*> &real_data,
                  int target, int recvn, int tag,
-                 Array<int> &send_ranks, std::vector<Array<int>> &send_data);
+                 Array<int> &send_ranks, std::vector<Array<int>> &send_int_data, std::vector<Array<real_t>> &send_real_data);
 };
 
 }

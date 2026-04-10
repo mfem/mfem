@@ -18,7 +18,7 @@ namespace mfem{
         MPI_Comm_free(&comm);
     }
     
-    void CrystalRouter::Route(Array<int> &ranks, std::vector<Array<int>*> &data){
+    void CrystalRouter::Route(Array<int> &ranks, std::vector<Array<int>*> &int_data, std::vector<Array<real_t>*> &real_data){
     
     uint32_t bl = 0, bh, nl;
     uint32_t id = rank, n = nprocs;
@@ -26,13 +26,14 @@ namespace mfem{
     bool send_hi;
     int recvn;
     Array<int> send_ranks;
-    std::vector<Array<int>> send_data;
+    std::vector<Array<int>> send_int_data;
+    std::vector<Array<real_t>> send_real_data;
 
     while(n > 1){
         nl = (n+1)/2;
         bh = bl + nl;
         send_hi = (id < nl) ? true : false;
-        Move(ranks, data, bh, send_hi, send_ranks, send_data);
+        Move(ranks, int_data, real_data, bh, send_hi, send_ranks, send_int_data, send_real_data);
 
         /* overflow check, deal with later
         long long send_n_long = send_n;
@@ -60,7 +61,7 @@ namespace mfem{
                 recvn = 2;
             }
             
-            Exchange(ranks, data, targ, recvn, tag, send_ranks, send_data);
+            Exchange(ranks, int_data, real_data, targ, recvn, tag, send_ranks, send_int_data, send_real_data);
             if(id < bh){
                 n = nl;
             }
@@ -68,7 +69,7 @@ namespace mfem{
             n -= nl;
             bl = bh;
         }
-        tag += 2;
+        tag += 3;
     }
 }
 
@@ -76,12 +77,12 @@ namespace mfem{
 
     // moves and adjust ranks and data buffers based on cutoff and send_hi
     // return: number of items to send
-    void CrystalRouter::Move(Array<int> &ranks, std::vector<Array<int>*> &data,
+    void CrystalRouter::Move(Array<int> &ranks, std::vector<Array<int>*> &int_data, std::vector<Array<real_t>*> &real_data,
             int cutoff, bool send_hi,
-            Array<int> &send_ranks, std::vector<Array<int>> &send_data){
+            Array<int> &send_ranks, std::vector<Array<int>> &send_int_data, std::vector<Array<real_t>> &send_real_data){
 
             int n = ranks.Size();
-            int ndata = data.size();
+            int ndata = int_data.size();
 
 
             std::vector<int> send_indices;
@@ -103,107 +104,143 @@ namespace mfem{
             int nkeep = keep_indices.size();
 
 
-            // resize send buffer
-            // send nsend items to every target
+            int nrdata = real_data.size();
+
+            // resize send buffers
             send_ranks.SetSize(nsend);
-            send_data.resize(ndata);
+            send_int_data.resize(ndata);
             for(int j = 0; j < ndata; j++){
-                send_data[j].SetSize(nsend);
+                send_int_data[j].SetSize(nsend);
+            }
+            send_real_data.resize(nrdata);
+            for(int j = 0; j < nrdata; j++){
+                send_real_data[j].SetSize(nsend);
             }
 
-            // actually fill the send buffer with data
+            // fill send buffers with data
             for(int i = 0; i < nsend; i++){
                 int idx = send_indices[i];
                 send_ranks[i] = ranks[idx];
                 for (int j = 0; j < ndata; j++){
-                    send_data[j][i] = (*data[j])[idx];
+                    send_int_data[j][i] = (*int_data[j])[idx];
+                }
+                for (int j = 0; j < nrdata; j++){
+                    send_real_data[j][i] = (*real_data[j])[idx];
                 }
             }
 
-            // compact ranks arr to be the kept data
-            // also update data arrays to be the kept data
+            // compact kept data
             for(int k = 0; k < nkeep; k++){
                 int idx = keep_indices[k];
                 if (k != idx){
                     ranks[k] = ranks[idx];
                     for (int j = 0; j < ndata; j++){
-                        (*data[j])[k] = (*data[j])[idx];
+                        (*int_data[j])[k] = (*int_data[j])[idx];
+                    }
+                    for (int j = 0; j < nrdata; j++){
+                        (*real_data[j])[k] = (*real_data[j])[idx];
                     }
                 }
             }
             // update kept sizes
             ranks.SetSize(nkeep);
             for(int j = 0; j < ndata; j++){
-                data[j]->SetSize(nkeep);
+               int_data[j]->SetSize(nkeep);
+            }
+            for(int j = 0; j < nrdata; j++){
+               real_data[j]->SetSize(nkeep);
             }
     }
 
 
-    void CrystalRouter::Exchange(Array<int> &ranks, std::vector<Array<int>*> &data,
+    void CrystalRouter::Exchange(Array<int> &ranks,
+                 std::vector<Array<int>*> &int_data,
+                 std::vector<Array<real_t>*> &real_data,
                  int target, int recvn, int tag,
-                 Array<int> &send_ranks, std::vector<Array<int>> &send_data){
-        
-        
-        // just like crystal.c implementation, need to first exchange counts
+                 Array<int> &send_ranks,
+                 std::vector<Array<int>> &send_int_data,
+                 std::vector<Array<real_t>> &send_real_data){
+
+        // exchange counts
         MPI_Request reqs[3];
         int count[2] = {0, 0};
-        
         int send_n = send_ranks.Size();
-        
-        // if recieving (recvn >= 1) Irecv for count of incoming items
+
         if(recvn >= 1){
             MPI_Irecv(&count[0], 1, MPI_INT32_T, target, tag, comm, &reqs[1]);
         }
-        // middle rank will recieve two messages, so Irecv for second count
         if(recvn == 2){
             MPI_Irecv(&count[1], 1, MPI_INT32_T, rank - 1, tag, comm, &reqs[2]);
         }
-        // otherwise just send count
         MPI_Isend(&send_n, 1, MPI_INT32_T, target, tag, comm, &reqs[0]);
         MPI_Waitall(recvn+1, reqs, MPI_STATUSES_IGNORE);
-        
-        
-        // pack the data into a single buffer to use for MPI send/recv
-        // 1 single MPI communication for all the data at once
-        int packet = 1 + data.size();
-        // size of 1 packet is 1 int for rank + data.size() for the rest
-        Array<int> send_buffer;
-        send_buffer.SetSize(send_n * packet);                    // each item has 1 rank + data.size() data entries
-        Array<int> recv_buffer;
-        recv_buffer.SetSize((count[0] + count[1]) * packet);     // worse case it recieves max data size from both sides
-                                                                            // this is something that can probably be optimized later
 
-        // pack ranks and data (packets) into send buffer
-        // |packet0 | packet1 | ... | packetN |
-        // |rank| data0 | data1 | ... | dataN | rank | data0 | data1 | ... |
+        int nrecv = count[0] + count[1];
+
+        // pack and exchange int data (rank + int fields)
+        int int_packet = 1 + int_data.size();
+        Array<int> send_buffer(send_n * int_packet);
+        Array<int> recv_buffer(nrecv * int_packet);
+
         for(int i = 0; i < send_n; i++){
-            send_buffer[i*packet] = send_ranks[i];
-            for(int j = 0; j < static_cast<int>(data.size()) ; j++){
-                send_buffer[i * packet + 1 + j] = send_data[j][i];
+            send_buffer[i * int_packet] = send_ranks[i];
+            for(int j = 0; j < static_cast<int>(int_data.size()); j++){
+                send_buffer[i * int_packet + 1 + j] = send_int_data[j][i];
             }
         }
 
-        // exchange data
         if(recvn >= 1){
             MPI_Irecv(recv_buffer.GetData(),
-                      count[0] * packet,
+                      count[0] * int_packet,
                       MPI_INT32_T, target, tag+1, comm, &reqs[1]);
         }
         if(recvn == 2){
-            MPI_Irecv(recv_buffer.GetData() + (count[0] * packet), //offset for a second recv
-                      count[1] * packet,
+            MPI_Irecv(recv_buffer.GetData() + (count[0] * int_packet),
+                      count[1] * int_packet,
                       MPI_INT32_T, rank - 1, tag+1, comm, &reqs[2]);
         }
-        MPI_Isend(send_buffer.GetData(), send_n * packet, MPI_INT32_T, target, tag+1, comm, &reqs[0]);
+        MPI_Isend(send_buffer.GetData(), send_n * int_packet, MPI_INT32_T, target, tag+1, comm, &reqs[0]);
         MPI_Waitall(recvn+1, reqs, MPI_STATUSES_IGNORE);
 
 
-        // append recieved data to ranks and data
-        int nrecv = count[0] + count[1];
+
+
+        // pack and exchange real data
+        int nrdata = real_data.size();
+        int real_packet = nrdata;
+        Array<real_t> send_real_buf(send_n * real_packet);
+        Array<real_t> recv_real_buf(nrecv * real_packet);
+
+        for(int i = 0; i < send_n; i++){
+            for(int j = 0; j < nrdata; j++){
+                send_real_buf[i * real_packet + j] = send_real_data[j][i];
+            }
+        }
+
+        if(recvn >= 1){
+            MPI_Irecv(recv_real_buf.GetData(),
+                      count[0] * real_packet,
+                      MPI_DOUBLE, target, tag+2, comm, &reqs[1]);
+        }
+        if(recvn == 2){
+            MPI_Irecv(recv_real_buf.GetData() + (count[0] * real_packet),
+                      count[1] * real_packet,
+                      MPI_DOUBLE, rank - 1, tag+2, comm, &reqs[2]);
+        }
+        MPI_Isend(send_real_buf.GetData(), send_n * real_packet, MPI_DOUBLE, target, tag+2, comm, &reqs[0]);
+        MPI_Waitall(recvn+1, reqs, MPI_STATUSES_IGNORE);
+
+
+
+        
+        // append received data
         for(int i = 0; i < nrecv; i++){
-            ranks.Append(recv_buffer[i*packet]);
-            for(int j = 0; j < static_cast<int>(data.size()); j++){
-                (*data[j]).Append(recv_buffer[i*packet + 1 + j]);
+            ranks.Append(recv_buffer[i * int_packet]);
+            for(int j = 0; j < static_cast<int>(int_data.size()); j++){
+                (*int_data[j]).Append(recv_buffer[i * int_packet + 1 + j]);
+            }
+            for(int j = 0; j < nrdata; j++){
+                (*real_data[j]).Append(recv_real_buf[i * real_packet + j]);
             }
         }
 
