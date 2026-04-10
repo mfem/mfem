@@ -23,10 +23,8 @@
 #include "fem/dfem/doperator.hpp"
 #include <linalg/tensor.hpp>
 
+#include <fem/kernels3d.hpp>
 namespace ker = mfem::kernels::internal;
-
-#include "bench_dfem.hpp"
-namespace low = mfem::kernels::internal::low;
 
 #undef NVTX_COLOR
 #define NVTX_COLOR ::nvtx::kNvidia
@@ -62,7 +60,7 @@ static void DumpVersionInfo()
 // Custom benchmark arguments generator ///////////////////////////////////////
 static void CustomArguments(bm::Benchmark *b) noexcept
 {
-   constexpr int MAX_NDOFS = 8 * 1024;// * (mfem_use_gpu ? 1024 : 8);
+   constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
    const auto versions = { 0, 1, /*2, 3, 4, 5*/ 6};
 
@@ -93,27 +91,27 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 /// Basic Kernels Specializations /////////////////////////////////////////////
 static void AddBasicKernelSpecializations()
 {
-   // using Det = QuadratureInterpolator::DetKernels;
-   // Det::Specialization<3, 3, 2, 2>::Add();
-   // Det::Specialization<3, 3, 2, 3>::Add();
-   // Det::Specialization<3, 3, 2, 5>::Add();
-   // Det::Specialization<3, 3, 2, 6>::Add();
-   // // Others might exceed memory limits
+   using Det = QuadratureInterpolator::DetKernels;
+   Det::Specialization<3, 3, 2, 2>::Add();
+   Det::Specialization<3, 3, 2, 3>::Add();
+   Det::Specialization<3, 3, 2, 5>::Add();
+   Det::Specialization<3, 3, 2, 6>::Add();
+   // Others might exceed memory limits
 
-   // using Grad = QuadratureInterpolator::GradKernels;
-   // Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 3>::Add();
-   // Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 4>::Add();
-   // Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 5>::Add();
-   // Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 6>::Add();
-   // Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 7>::Add();
-   // Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 8>::Add();
-   // Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 7>::Add();
-   // Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 8>::Add();
+   using Grad = QuadratureInterpolator::GradKernels;
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 3>::Add();
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 4>::Add();
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 5>::Add();
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 6>::Add();
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 7>::Add();
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 8>::Add();
+   Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 7>::Add();
+   Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 8>::Add();
 
-   // using LIN = DomainLFIntegrator::AssembleKernels;
-   // LIN::Specialization<3, 7, 7>::Add();
-   // LIN::Specialization<3, 6, 6>::Add();
-   // LIN::Specialization<3, 8, 8>::Add();
+   using LIN = DomainLFIntegrator::AssembleKernels;
+   LIN::Specialization<3, 7, 7>::Add();
+   LIN::Specialization<3, 6, 6>::Add();
+   LIN::Specialization<3, 8, 8>::Add();
 }
 
 /// Globals ///////////////////////////////////////////////////////////////////
@@ -136,11 +134,11 @@ struct StiffnessIntegrator : public BilinearFormIntegrator
 public:
    StiffnessIntegrator(Vector &qdata): qdata(qdata)
    {
-      // StiffnessKernels::Specialization<2, 3>::Add();  // 1
-      // StiffnessKernels::Specialization<3, 4>::Add();  // 2
-      // StiffnessKernels::Specialization<4, 5>::Add();  // 3
+      StiffnessKernels::Specialization<2, 3>::Add();  // 1
+      StiffnessKernels::Specialization<3, 4>::Add();  // 2
+      StiffnessKernels::Specialization<4, 5>::Add();  // 3
       StiffnessKernels::Specialization<5, 6>::Add();  // 4
-      // StiffnessKernels::Specialization<6, 7>::Add();  // 5
+      StiffnessKernels::Specialization<6, 7>::Add();  // 5
       StiffnessKernels::Specialization<7, 8>::Add();  // 6
    }
 
@@ -339,10 +337,10 @@ public: // for nvcc
          ker::LoadMatrix(D1D, Q1D, b, sB);
          ker::LoadMatrix(D1D, Q1D, g, sG);
 
-         low::z_regs3d_t<DIM, MQ1> reg;
+         ker::regs3d_t<DIM, MQ1> reg;
 
-         low::LoadDofs3d(e, D1D, XE, sm0); // Load XE
-         low::Grad3d(D1D, Q1D, sB, sG, sm0, sm1, reg); // Grad 3D
+         ker::LoadDofs3d(e, D1D, XE, sm0); // Load XE
+         ker::Grad3d(D1D, Q1D, sB, sG, sm0, sm1, reg); // Grad 3D
 
          // Q-function
          MFEM_FOREACH_THREAD_DIRECT(qz,z,Q1D)
@@ -368,8 +366,8 @@ public: // for nvcc
          }
          MFEM_SYNC_THREAD;
 
-         low::GradTranspose3d(D1D, Q1D, sB, sG, reg, sm1, sm0); // Grad^T 3D
-         low::WriteDofs3d(D1D, 0, e, reg, YE); // Write YE
+         ker::GradTranspose3d(D1D, Q1D, sB, sG, reg, sm1, sm0); // Grad^T 3D
+         ker::WriteDofs3d(D1D, 0, e, reg, YE); // Write YE
       });
    }
 
@@ -379,11 +377,11 @@ public: // for nvcc
 public:
    PADiffLowIntegrator()
    {
-      // PADiffLowKernels::Specialization<2, 3>::Add();  // 1
-      // PADiffLowKernels::Specialization<3, 4>::Add();  // 2
-      // PADiffLowKernels::Specialization<4, 5>::Add();  // 3
+      PADiffLowKernels::Specialization<2, 3>::Add();  // 1
+      PADiffLowKernels::Specialization<3, 4>::Add();  // 2
+      PADiffLowKernels::Specialization<4, 5>::Add();  // 3
       PADiffLowKernels::Specialization<5, 6>::Add();  // 4
-      // PADiffLowKernels::Specialization<6, 7>::Add();  // 5
+      PADiffLowKernels::Specialization<6, 7>::Add();  // 5
       PADiffLowKernels::Specialization<7, 8>::Add();  // 6
    }
 
