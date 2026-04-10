@@ -111,7 +111,7 @@ public:
 
    ~InterpolatorFP()
    {
-      finder->FreeData();
+      if (finder) { finder->FreeData(); }
       delete finder;
    }
 };

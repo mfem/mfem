@@ -22,11 +22,11 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 SEQ_EXAMPLES = ex0 ex1 ex2 ex3 ex4 ex5 ex6 ex7 ex8 ex9 ex10 ex14 ex15 ex16 \
    ex17 ex18 ex19 ex20 ex21 ex22 ex23 ex24 ex25 ex26 ex27 ex28 ex29 ex30 \
-   ex31 ex33 ex34 ex36 ex37 ex38 ex39 ex40
+   ex31 ex33 ex34 ex36 ex37 ex38 ex39 ex40 ex41
 PAR_EXAMPLES = ex0p ex1p ex2p ex3p ex4p ex5p ex6p ex7p ex8p ex9p ex10p ex11p \
    ex12p ex13p ex14p ex15p ex16p ex17p ex18p ex19p ex20p ex21p ex22p ex24p \
    ex25p ex26p ex27p ex28p ex29p ex30p ex31p ex32p ex33p ex34p ex35p ex36p \
-   ex37p ex39p ex40p
+   ex37p ex39p ex40p ex41p
 SEQ_DEVICE_EXAMPLES = ex1 ex3 ex4 ex5 ex6 ex9 ex14 ex22 ex24 ex25 ex26 ex34
 PAR_DEVICE_EXAMPLES = ex1p ex2p ex3p ex4p ex5p ex6p ex7p ex9p ex13p ex14p \
    ex22p ex24p ex25p ex26p ex34p ex35p
@@ -157,6 +157,10 @@ ex37-test-seq: ex37
 	@$(call mfem-test,$<,, Serial example,-mi 3)
 ex37p-test-par: ex37p
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel example,-mi 3)
+ex41-test-seq: ex41
+	@$(call mfem-test,$<,, Serial example,-tf 1.0)
+ex41p-test-par: ex41p
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel example,-tf 1.0)
 # Testing: optional tests
 ifeq ($(MFEM_USE_STRUMPACK),YES)
 ex11p-test-strumpack: ex11p
@@ -172,6 +176,12 @@ ifeq ($(MFEM_USE_MKL_CPARDISO),YES)
 ex11p-test-cpardiso: ex11p
 	@$(call mfem-test,$<, $(RUN_MPI), MKL_CPARDISO example,--cpardiso)
 test-par-YES: ex11p-test-cpardiso
+endif
+ifeq ($(MFEM_USE_CEED),YES)
+ex1p-test-ceed: ex1p
+	@$(call mfem-test,$<, $(RUN_MPI),\
+	   Parallel libCEED example,-d ceed-cpu -pa -a)
+test-par-YES: ex1p-test-ceed
 endif
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
@@ -189,8 +199,8 @@ clean-build:
 clean-exec:
 	@rm -f refined.mesh displaced.mesh mesh.* ex5.mesh ex6p-checkpoint.*
 	@rm -rf Example5* Example9* Example15* Example16* Example23* ParaView
-	@rm -f sphere_refined.* sol.* sol_u.* sol_p.* sol_r.* sol_i.* order.*
-	@rm -f ex9.mesh ex9-mesh.* ex9-init.* ex9-final.*
+	@rm -f sphere_refined.* sol.* sol_u.* sol_p.* sol_r.* sol_i.* sol_z.*
+	@rm -f order.* ex9.mesh ex9-mesh.* ex9-init.* ex9-final.*
 	@rm -f deformed.* velocity.* elastic_energy.* mode_* mode_deriv_* flux.*
 	@rm -f ex5-p-*.bp ex9-p-*.bp ex12-p-*.bp ex16-p-*.bp
 	@rm -f ex16.mesh ex16-mesh.* ex16-init.* ex16-final.*

@@ -78,10 +78,7 @@ template <int Dim>
 void BuildBoxes(const Mesh &mesh,
                 std::vector<::moonolith::AABB<Dim, double>> &element_boxes)
 {
-#ifndef NDEBUG
-   const int dim = mesh.Dimension();
-   assert(dim == Dim);
-#endif
+   MFEM_ASSERT(mesh.Dimension() == Dim, "Mesh and box dimensions mismatched");
    element_boxes.resize(mesh.GetNE());
 
    DenseMatrix pts;

@@ -18,7 +18,7 @@ using namespace mfem;
 
 using profile_t = std::function<real_t(const Vector&,const Vector&)>;
 
-void L2Reconstruction(const GridFunction& src, GridFunction& dst);
+void ElementAverageReconstruction(const GridFunction& src, GridFunction& dst);
 std::unordered_map<std::string, profile_t> GetFieldProfiles();
 
 int main(int argc, char* argv[])
@@ -135,7 +135,7 @@ int main(int argc, char* argv[])
       u_exact.GetElementAverages(u_lo);
 
       // compute reconstruction
-      L2Reconstruction(u_lo, u_hi);
+      ElementAverageReconstruction(u_lo, u_hi);
 
    }
    else if (reconstruction_method == "LOR_reconstruction")
@@ -173,15 +173,8 @@ int main(int argc, char* argv[])
       L2ProjectionGridTransfer gt1(fespace_im, fespace_lo);
       L2ProjectionGridTransfer gt2(fespace_im, fespace_hi);
 
-      [[maybe_unused]] const Operator &P1 =
-         gt1.BackwardOperator();   // Prolongation 1 (LO->IM)
-      [[maybe_unused]] const Operator &P2 =
-         gt2.ForwardOperator();    // Prolongation 2 (IM->HO)
-
-      [[maybe_unused]] const Operator &R1 =
-         gt1.ForwardOperator();    // Restriction 1 (IM->LO)
-      [[maybe_unused]] const Operator &R2 =
-         gt2.BackwardOperator();   // Restriction 2 (HO->IM)
+      const Operator &P1 = gt1.BackwardOperator();   // Prolongation 1 (LO->IM)
+      const Operator &P2 = gt2.ForwardOperator();    // Prolongation 2 (IM->HO)
 
       // STEP1: L2 projection of RHO onto u_lo
       SparseMatrix &M_mat_lo = M_lo.SpMat();
@@ -276,9 +269,8 @@ std::unordered_map<std::string, profile_t> GetFieldProfiles()
    return field_profiles;
 }
 
-void L2Reconstruction(const GridFunction& src, GridFunction& dst)
+void ElementAverageReconstruction(const GridFunction& src, GridFunction& dst)
 {
-   // Mesh *mesh = dst.FESpace()->GetMesh();
    FiniteElementSpace *fes = dst.FESpace();
    NCMesh *ncmesh = fes->GetMesh()->ncmesh;
 
