@@ -62,7 +62,7 @@ static void DumpVersionInfo()
 // Custom benchmark arguments generator ///////////////////////////////////////
 static void CustomArguments(bm::Benchmark *b) noexcept
 {
-   constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
+   constexpr int MAX_NDOFS = 8 * 1024;// * (mfem_use_gpu ? 1024 : 8);
 
    const auto versions = { 0, 1, /*2, 3, 4, 5*/ 6};
 

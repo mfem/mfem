@@ -200,7 +200,7 @@ MFEM_HOST_DEVICE inline void GradTranspose3dY(const int d1d, const int q1d,
          MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
          {
             real_t u = 0.0, v = 0.0, w = 0.0;
-            MFEM_UNROLL(D1D)
+            MFEM_UNROLL(MQ1)
             for (int qy = 0; qy < q1d; ++qy)
             {
                u = std::fma(sm0[0][qz][qy][dx], B[dy][qy], u);
@@ -234,7 +234,7 @@ MFEM_HOST_DEVICE inline void GradTranspose3dZ(const int d1d, const int q1d,
          MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
          {
             real_t u = 0.0, v = 0.0, w = 0.0;
-            MFEM_UNROLL(D1D)
+            MFEM_UNROLL(MQ1)
             for (int qz = 0; qz < q1d; ++qz)
             {
                u = std::fma(sm1[0][qz][dy][dx], B[dz][qz], u);

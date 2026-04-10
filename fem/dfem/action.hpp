@@ -316,7 +316,6 @@ public:
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
       constexpr int DIM = 3, VDIM = 1;
-      constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 8;
 
       [[maybe_unused]] static bool ini = (for_constexpr<num_inputs>([&](auto i)
       {
@@ -375,6 +374,8 @@ public:
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
+         constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 8;
+
          ker::vd_regs3d_t<VDIM, DIM, MQ1> r0, r1;
          real_t *r2, *rw = nullptr;
 
@@ -385,12 +386,12 @@ public:
 
          // Interpolate
          for_constexpr<num_inputs>(
-            [ D1D,
-              &smem_ptr,
-              &inputs,
-              &fields_e_ptr,
-              &r0, &r1, &r2,
-              &input_to_field ] (auto i)
+            [ D1D, Q1D, MQ1,
+                   &smem_ptr,
+                   &inputs,
+                   &fields_e_ptr,
+                   &r0, &r1, &r2,
+                   &input_to_field ] (auto i)
          {
             const auto input = get<i>(inputs);
             using field_operator_t = std::decay_t<decltype(input)>;

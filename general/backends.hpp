@@ -78,7 +78,7 @@ constexpr bool mfem_use_gpu = false;
 inline const void* MemcpyToSymbol(const void *d_sym, const void *h_src,
                                   size_t bytes)
 {
-   std::memcpy(const_cast<void *>(d_sym), h_src, bytes);
+   memcpy(const_cast<void *>(d_sym), h_src, bytes);
    return d_sym;
 }
 #endif
