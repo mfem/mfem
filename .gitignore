@@ -69,14 +69,15 @@ examples/ex3[0-9]
 examples/ex3[0-9]p
 examples/ex4[0-9]
 examples/ex4[0-9]p
-examples/signorini/explicit
-examples/signorini/explicitp
-examples/signorini/groschwheelp
-examples/signorini/mmsp
-examples/signorini/weakexplicitp
-examples/signorini/regularp
-examples/signorini/lvpp_signorini
-examples/signorini/lvpp_signorinip
+examples/contactexpress/explicit
+examples/contactexpress/explicitp
+examples/contactexpress/groschwheelp
+examples/contactexpress/mmsp
+examples/contactexpress/weakexplicitp
+examples/regularization/regularp
+examples/regularization/biasedp
+examples/lvpp/lvpp
+examples/lvpp/lvppp
 
 examples/refined.mesh
 examples/displaced.mesh
@@ -84,7 +85,8 @@ examples/mesh.*
 examples/ex5.mesh
 examples/Example5*
 examples/ParaView
-examples/signorini/ParaView
+examples/contactexpress/ParaView
+examples/regularization/ParaView
 examples/Example9*
 examples/Example15*
 examples/Example16*

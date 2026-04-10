@@ -10,7 +10,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_EXAMPLES =
-PAR_EXAMPLES = regularp
+PAR_EXAMPLES = regularp biasedp
 ifeq ($(MFEM_USE_MPI),NO)
 	EXAMPLES = $(SEQ_EXAMPLES)
 else
@@ -33,9 +33,15 @@ all: $(EXAMPLES)
 # Replace the default implicit rule for regularp.cpp
 regularp: $(SRC)regularp.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< sfem/bilininteg.cpp sfem/lininteg.cpp sfem/coefficient.cpp -o $@ $(MFEM_LIBS)
+biasedp: $(SRC)biasedp.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< sfem/bilininteg.cpp sfem/lininteg.cpp sfem/coefficient.cpp -o $@ $(MFEM_LIBS)
 
 ifeq ($(MFEM_USE_MPI),YES)
 regularp: $(SRC)sfem/lininteg.hpp $(SRC)sfem/lininteg.cpp \
+	$(SRC)sfem/bilininteg.hpp $(SRC)sfem/bilininteg.cpp \
+	$(SRC)sfem/coefficient.hpp $(SRC)sfem/coefficient.cpp \
+	$(SRC)sfem/smoothed_surface.hpp $(SRC)sfem/smoothed_surface.cpp
+biasedp: $(SRC)sfem/lininteg.hpp $(SRC)sfem/lininteg.cpp \
 	$(SRC)sfem/bilininteg.hpp $(SRC)sfem/bilininteg.cpp \
 	$(SRC)sfem/coefficient.hpp $(SRC)sfem/coefficient.cpp
 endif
