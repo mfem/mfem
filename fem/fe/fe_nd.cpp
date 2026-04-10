@@ -3020,13 +3020,13 @@ void ND_R2D_SegmentElement::CalcPhysCurlShape(ElementTransformation &Trans,
                "2 or 3 dimensional space");
 
    real_t n_data[3];
-   Vector normal3(n_data, 3); normal3 = 0.0;
+   Vector normal3(n_data, 3); normal3 = 0_r;
 
    real_t t_data[3];
-   Vector tangent(t_data, 3);
+   Vector tangent(t_data, 3); tangent = 0_r;
 
    real_t zhat_data[3];
-   Vector zhat(zhat_data, 3);
+   Vector zhat(zhat_data, 3); zhat = 0_r;
 
    if (J.Height() != 2)
    {
