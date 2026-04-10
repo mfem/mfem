@@ -1,0 +1,11 @@
+electrostatic-*
+!electrostatic-*.cpp
+!electrostatic-*.hpp
+*.csv
+!ref/*
+*.gif
+*.mp4
+*.png
+temp*
+.clang-format
+scaling_results
