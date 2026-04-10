@@ -339,7 +339,7 @@ public: // for nvcc
          ker::LoadMatrix(D1D, Q1D, b, sB);
          ker::LoadMatrix(D1D, Q1D, g, sG);
 
-         ker::v_regs3d_t<DIM, MQ1> reg;
+         low::z_regs3d_t<DIM, MQ1> reg;
 
          low::LoadDofs3d(e, D1D, XE, sm0); // Load XE
          low::Grad3d(D1D, Q1D, sB, sG, sm0, sm1, reg); // Grad 3D
@@ -368,7 +368,7 @@ public: // for nvcc
          }
          MFEM_SYNC_THREAD;
 
-         low::GradTranspose3d(D1D, Q1D, sB, sG, sm0, sm1, reg); // Grad^T 3D
+         low::GradTranspose3d(D1D, Q1D, sB, sG, reg, sm1, sm0); // Grad^T 3D
          low::WriteDofs3d(D1D, 0, e, reg, YE); // Write YE
       });
    }
