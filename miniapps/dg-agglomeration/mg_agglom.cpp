@@ -163,12 +163,14 @@ SparseMatrix *CreateNodalProlongation(
    const std::vector<std::vector<int>> &E, const std::vector<std::vector<int>> &E2, FiniteElementSpace &fes)
 {
    Mesh &mesh = *fes.GetMesh();
+   int vdim = fes.GetVDim();
    int ne = mesh.GetNE();
    int dim = mesh.Dimension();
    FiniteElementSpace nodal_fes(&mesh, fes.FEColl(), dim);
    GridFunction nodes(&nodal_fes);
    mesh.GetNodes(nodes);
-   int nnodes = nodes.Size()/dim;
+   int nnodes = nodes.Size()/dim*vdim;
+   int nodes_per_dim = nodes.Size()/dim;
    const int n = E.size();
    const int p = fes.GetOrder(0);
    int d = (dim == 2) ? (p+1)*(p+2)/2 : (p+1)*(p+2)*(p+3)/6;
@@ -188,14 +190,14 @@ SparseMatrix *CreateNodalProlongation(
       for (int i = 0; i < num_el_dofs; ++i)
       {
          int dof_idx = local_element_dof_indices[i];
-         double x_phys = nodes(dof_idx); double y_phys = nodes(nnodes + dof_idx);
+         double x_phys = nodes(dof_idx); double y_phys = nodes(nodes_per_dim + dof_idx);
          double x_ref = (x_phys - bb_min_coarse(0)) / (bb_max_coarse(0) - bb_min_coarse(0));
          double y_ref = (y_phys - bb_min_coarse(1)) / (bb_max_coarse(1) - bb_min_coarse(1));
          IntegrationPoint ip;
          Vector shape_vec(d);
          if (dim == 3){
             L2_TetrahedronElement rfe(p);
-            double z_phys = nodes(2*nnodes + dof_idx);
+            double z_phys = nodes(2*nodes_per_dim + dof_idx);
             double z_ref = (z_phys - bb_min_coarse(2)) / (bb_max_coarse(2) - bb_min_coarse(2));
             ip.Set(x_ref, y_ref, z_ref, 1);
             rfe.CalcShape(ip, shape_vec);
@@ -390,6 +392,7 @@ AgglomerationMultigrid::AgglomerationMultigrid(
       {
          P = CreateNodalProlongation(E, E2, fes);
          SparseMatrix &A_prev = static_cast<SparseMatrix&>(*operators[l + 1]);
+         std::cout << "num cols Af = " << A_prev.NumCols() << std::endl;
          unique_ptr<SparseMatrix> AP(mfem::Mult(A_prev, *P));
          unique_ptr<SparseMatrix> Pt(Transpose(*P));
          operators[l] = mfem::Mult(*Pt, *AP);

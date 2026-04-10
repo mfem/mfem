@@ -49,7 +49,6 @@ struct OswaldOperator : Operator
          Array<int> vdofs, vdofs_aux;
          fes_aux.GetElementVDofs(e, vdofs_aux);
          fes.GetElementVDofs(e, vdofs);
-
          R.AddSubMatrix(vdofs, vdofs_aux, I);
       }
 
@@ -219,7 +218,7 @@ public:
 int main(int argc, char *argv[])
 {
    // 1. Parse command line options.
-   string mesh_file = "../../data/square-mixed.mesh";
+   string mesh_file = "../../data/inline-tri.mesh";
    int order = 1;
    int ref = 2;
    real_t kappa_0 = 1.0;
@@ -283,13 +282,6 @@ int main(int argc, char *argv[])
    SparseMatrix &A_cg= a.SpMat();
    SparseMatrix &A_dg= a_aux.SpMat();
    OswaldOperator R_op(dg_fes, h1_fes, ess_dofs);
-   // SparseMatrix R = R_op.Assemble();
-   // AgglomerationMultigrid A_hat_inv(dg_fes, A_dg, 4, 3, 0, false);
-   // Vector diag(dg_fes.GetTrueVSize());
-   // a_aux.AssembleDiagonal(diag);
-   // Solver* smoother = new OperatorChebyshevSmoother(A_dg, diag, ess_dofs, 2);
-   // AuxiliarySolver prec(A_hat_inv, R_op, ess_dofs, nullptr);
-
    CompositeAuxiliaryAgglomerationSolver prec(h1_fes, A_cg, dg_fes, A_dg, ess_dofs, 4, 2, 0);
 
    // 8. Form the linear system A X = B. This includes eliminating boundary
