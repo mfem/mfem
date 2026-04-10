@@ -25,6 +25,9 @@
 
 namespace ker = mfem::kernels::internal;
 
+#include "bench_dfem.hpp"
+namespace low = mfem::kernels::internal::low;
+
 #undef NVTX_COLOR
 #define NVTX_COLOR ::nvtx::kNvidia
 
@@ -295,9 +298,6 @@ StiffnessIntegrator::StiffnessKernels::Fallback([[maybe_unused]] int d1d,
    // return StiffnessMult<>;
 }
 
-template <int DIM, int N>
-using d0_regs3d_t = mfem::future::tensor<real_t, DIM, N, N, N>;
-
 /// PADiffLowIntegrator ///////////////////////////////////////////////////////
 struct PADiffLowIntegrator : public BilinearFormIntegrator
 {
@@ -326,172 +326,50 @@ public: // for nvcc
       const auto DX = Reshape(dx, DIM, DIM, Q1D, Q1D, Q1D, NE);
       auto YE = Reshape(ye, D1D, D1D, D1D, VDIM, NE);
 
-      // mfem::forall_2D<T_Q1D*T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       mfem::forall_3D<T_Q1D*T_Q1D*T_Q1D>(NE, Q1D, Q1D, Q1D,
                                          [=] MFEM_HOST_DEVICE(int e)
       {
-         constexpr int DIM = 3;
          constexpr int D1D = T_D1D, Q1D = T_Q1D;
          constexpr int MQ1 = T_Q1D, MD1 = T_D1D;
 
-         MFEM_SHARED real_t smem[3][MQ1][MQ1][MQ1];
+         MFEM_SHARED real_t sm0[3][MQ1][MQ1][MQ1];
+         MFEM_SHARED real_t sm1[3][MQ1][MQ1][MQ1];
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
 
          ker::LoadMatrix(D1D, Q1D, b, sB);
          ker::LoadMatrix(D1D, Q1D, g, sG);
 
-         MFEM_SHARED d0_regs3d_t<DIM, MQ1> reg;
+         ker::v_regs3d_t<DIM, MQ1> reg;
 
-         // Load X into registers
-         MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
-         {
-            MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
-            {
-               MFEM_FOREACH_THREAD_DIRECT(dz, z, D1D)
-               {
-                  reg[0][dz][dy][dx] = XE(dx, dy, dz, 0, e);
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
+         low::LoadDofs3d(e, D1D, XE, sm0); // Load XE
+         low::Grad3d(D1D, Q1D, sB, sG, sm0, sm1, reg); // Grad 3D
 
-         // Grad X
-         MFEM_FOREACH_THREAD_DIRECT(dz,z,D1D)
-         {
-            MFEM_FOREACH_THREAD_DIRECT(dy,y,D1D)
-            {
-               MFEM_FOREACH_THREAD_DIRECT(qx,x,Q1D)
-               {
-                  real_t u = 0.0, v = 0.0;
-                  MFEM_UNROLL(D1D)
-                  for (int dx = 0; dx < D1D; ++dx)
-                  {
-                     const auto x = reg[0][dz][dy][dx];
-                     u += sB[dx][qx] * x;
-                     v += sG[dx][qx] * x;
-                  }
-                  smem[0][dz][dy][qx] = u;
-                  smem[1][dz][dy][qx] = v;
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-
-         // Grad Y
-         MFEM_FOREACH_THREAD_DIRECT(dz,z,D1D)
-         {
-            MFEM_FOREACH_THREAD_DIRECT(qy,y,Q1D)
-            {
-               MFEM_FOREACH_THREAD_DIRECT(qx,x,Q1D)
-               {
-                  real_t u = 0.0, v = 0.0, w = 0.0;
-                  MFEM_UNROLL(D1D)
-                  for (int dy = 0; dy < D1D; ++dy)
-                  {
-                     u += smem[1][dz][dy][qx] * sB[dy][qy];
-                     v += smem[0][dz][dy][qx] * sG[dy][qy];
-                     w += smem[0][dz][dy][qx] * sB[dy][qy];
-                  }
-                  reg[0][dz][qy][qx] = u;
-                  reg[1][dz][qy][qx] = v;
-                  reg[2][dz][qy][qx] = w;
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-
-         // Grad Z + Q-function
+         // Q-function
          MFEM_FOREACH_THREAD_DIRECT(qz,z,Q1D)
          {
             MFEM_FOREACH_THREAD_DIRECT(qy,y,Q1D)
             {
                MFEM_FOREACH_THREAD_DIRECT(qx,x,Q1D)
                {
-                  real_t v[3], u[3] = {0.0, 0.0, 0.0};
-                  MFEM_UNROLL(MD1)
-                  for (int dz = 0; dz < D1D; ++dz)
-                  {
-                     u[0] += sB[dz][qz] * reg[0][dz][qy][qx];
-                     u[1] += sB[dz][qz] * reg[1][dz][qy][qx];
-                     u[2] += sG[dz][qz] * reg[2][dz][qy][qx];
-                  }
-
+                  // pull
+                  real_t v[3], u[3] = { reg[0][qz][qy][qx],
+                                        reg[1][qz][qy][qx],
+                                        reg[2][qz][qy][qx]
+                                      };
                   //  Q-function
                   const real_t *dx = &DX(0, 0, qx, qy, qz, e);
                   kernels::Mult(3, 3, dx, u, v);
-                  smem[0][qz][qy][qx] = v[0];
-                  smem[1][qz][qy][qx] = v[1];
-                  smem[2][qz][qy][qx] = v[2];
+                  // push
+                  reg[0][qz][qy][qx] = v[0];
+                  reg[1][qz][qy][qx] = v[1];
+                  reg[2][qz][qy][qx] = v[2];
                }
             }
          }
          MFEM_SYNC_THREAD;
 
-         // Grad^T X
-         MFEM_FOREACH_THREAD_DIRECT(qz,z,Q1D)
-         {
-            MFEM_FOREACH_THREAD_DIRECT(qy,y,Q1D)
-            {
-               MFEM_FOREACH_THREAD_DIRECT(dx,x,D1D)
-               {
-                  real_t u = 0.0, v = 0.0, w = 0.0;
-                  MFEM_UNROLL(MQ1)
-                  for (int qx = 0; qx < Q1D; ++qx)
-                  {
-                     u += smem[0][qz][qy][qx] * sG[dx][qx];
-                     v += smem[1][qz][qy][qx] * sB[dx][qx];
-                     w += smem[2][qz][qy][qx] * sB[dx][qx];
-                  }
-                  reg[0][qz][qy][dx] = u;
-                  reg[1][qz][qy][dx] = v;
-                  reg[2][qz][qy][dx] = w;
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-
-         // Grad^T Y
-         MFEM_FOREACH_THREAD_DIRECT(qz,z,Q1D)
-         {
-            MFEM_FOREACH_THREAD_DIRECT(dy,y,D1D)
-            {
-               MFEM_FOREACH_THREAD_DIRECT(dx,x,D1D)
-               {
-                  real_t u = 0.0, v = 0.0, w = 0.0;
-                  MFEM_UNROLL(D1D)
-                  for (int qy = 0; qy < Q1D; ++qy)
-                  {
-                     u += reg[0][qz][qy][dx] * sB[dy][qy];
-                     v += reg[1][qz][qy][dx] * sG[dy][qy];
-                     w += reg[2][qz][qy][dx] * sB[dy][qy];
-                  }
-                  smem[0][qz][dy][dx] = u;
-                  smem[1][qz][dy][dx] = v;
-                  smem[2][qz][dy][dx] = w;
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-
-         // Grad^T Z
-         MFEM_FOREACH_THREAD_DIRECT(dz,z,D1D)
-         {
-            MFEM_FOREACH_THREAD_DIRECT(dy,y,D1D)
-            {
-               MFEM_FOREACH_THREAD_DIRECT(dx,x,D1D)
-               {
-                  real_t u = 0.0, v = 0.0, w = 0.0;
-                  MFEM_UNROLL(D1D)
-                  for (int qz = 0; qz < Q1D; ++qz)
-                  {
-                     u += smem[0][qz][dy][dx] * sB[dz][qz];
-                     v += smem[1][qz][dy][dx] * sB[dz][qz];
-                     w += smem[2][qz][dy][dx] * sG[dz][qz];
-                  }
-                  YE(dx, dy, dz, 0, e) += u + v + w;
-               }
-            }
-         }
+         low::GradTranspose3d(D1D, Q1D, sB, sG, sm0, sm1, reg); // Grad^T 3D
+         low::WriteDofs3d(D1D, 0, e, reg, YE); // Write YE
       });
    }
 

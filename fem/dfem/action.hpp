@@ -385,19 +385,12 @@ public:
 
          // Interpolate
          for_constexpr<num_inputs>(
-            [  // copy
-               D1D, Q1D, MQ1,
-               test_vdim,
-               // refs
-               &smem_ptr,
-               &inputs,
-               &fields_e_ptr,
-               &r0, &r1, &r2,
-               &input_dtq_maps,
-               &output_dtq_maps,
-               &input_to_field
-               ]
-            (auto i)
+            [ D1D,
+              &smem_ptr,
+              &inputs,
+              &fields_e_ptr,
+              &r0, &r1, &r2,
+              &input_to_field ] (auto i)
          {
             const auto input = get<i>(inputs);
             using field_operator_t = std::decay_t<decltype(input)>;

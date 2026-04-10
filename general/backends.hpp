@@ -74,6 +74,13 @@ constexpr bool mfem_use_gpu = false;
 #define MFEM_THREAD_SIZE(k) 1
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)
 #define MFEM_FOREACH_THREAD_DIRECT(i,k,N) MFEM_FOREACH_THREAD(i,k,N)
+
+inline const void* MemcpyToSymbol(const void *d_sym, const void *h_src,
+                                  size_t bytes)
+{
+   std::memcpy(const_cast<void *>(d_sym), h_src, bytes);
+   return d_sym;
+}
 #endif
 
 // 'double' and 'float' atomicAdd implementation for previous versions of CUDA
