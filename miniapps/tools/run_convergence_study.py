@@ -1,4 +1,12 @@
 #!/usr/bin/env python3
+#
+# Example usage:
+#   Serial:   
+#           python run_convergence_study.py -m element_average_reconstruction
+#   Parallel:
+#           python run_convergence_study.py --executable ./p-reconstruction --np 4 -m LOR_reconstruction
+#   Print cached results only: python run_convergence_study.py --print-only
+#
 import subprocess
 import re
 import numpy as np
@@ -9,18 +17,25 @@ import json
 import os
 import argparse
 
-def run_reconstruction(refinement_level, ho_value, method):
+def run_reconstruction(refinement_level, ho_value, method,
+                       executable='./reconstruction', np_count=1):
     """
     Run the reconstruction executable with given refinement level, ho value,
     and reconstruction method.
     Returns the L2 error value.
     """
     try:
+        # Build the command
+        cmd = [executable, '-r', str(refinement_level),
+               '-f', 'exponential',
+               '-ho', str(ho_value), '-m', method,
+               '-no-vis']
+        if np_count > 1:
+            cmd = ['mpirun', '-np', str(np_count)] + cmd
+
         # Run the executable
         result = subprocess.run(
-            ['./reconstruction', '-r', str(refinement_level),
-             '-f', 'exponential',
-             '-ho', str(ho_value), '-m', method],
+            cmd,
             capture_output=True,
             text=True,
             timeout=300  # 5 minute timeout
@@ -229,10 +244,21 @@ def main():
         default='element_average_reconstruction',
         help='Method passed to ./reconstruction via -m (default: element_average_reconstruction).'
     )
+    parser.add_argument(
+        '--executable',
+        default='./reconstruction',
+        help='Path to the reconstruction executable (default: ./reconstruction).'
+    )
+    parser.add_argument(
+        '--np',
+        type=int,
+        default=1,
+        help='Number of MPI processes. If > 1, runs with mpirun (default: 1).'
+    )
     cli_args = parser.parse_args()
 
     # Refinement levels to test
-    refinement_levels = [0, 1, 2, 3]
+    refinement_levels = [0, 1, 2, 3, 4, 5, 6]
     
     # ho values to test
     ho_values = [1, 3]
@@ -274,7 +300,8 @@ def main():
             errors = []
             for r in refinement_levels:
                 print(f"\nRunning refinement level {r} with ho {ho}...")
-                error = run_reconstruction(r, ho, cli_args.method)
+                error = run_reconstruction(r, ho, cli_args.method,
+                                           cli_args.executable, cli_args.np)
                 
                 if error is not None:
                     errors.append(error)
