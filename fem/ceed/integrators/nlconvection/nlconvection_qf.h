@@ -8,6 +8,7 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
+#include <ceed/types.h>
 
 /// A structure used to pass additional data to f_build_conv and f_apply_conv
 struct NLConvectionContext { CeedInt dim, space_dim, vdim; CeedScalar coeff; };
@@ -87,7 +88,7 @@ CEED_QFUNCTION(f_build_conv_const)(void *ctx, CeedInt Q,
          }
          break;
    }
-   return 0;
+   return CEED_ERROR_SUCCESS;
 }
 
 /// libCEED Q-function for building quadrature data for a convection operator
@@ -167,7 +168,7 @@ CEED_QFUNCTION(f_build_conv_quad)(void *ctx, CeedInt Q,
          }
          break;
    }
-   return 0;
+   return CEED_ERROR_SUCCESS;
 }
 
 /// libCEED Q-function for applying a conv operator
@@ -247,7 +248,7 @@ CEED_QFUNCTION(f_apply_conv)(void *ctx, CeedInt Q,
          }
          break;
    }
-   return 0;
+   return CEED_ERROR_SUCCESS;
 }
 
 /// libCEED Q-function for applying a conv operator
@@ -362,7 +363,7 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
          }
          break;
    }
-   return 0;
+   return CEED_ERROR_SUCCESS;
 }
 
 CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
@@ -475,5 +476,5 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
          }
          break;
    }
-   return 0;
+   return CEED_ERROR_SUCCESS;
 }
