@@ -433,11 +433,20 @@ void TestFDCalcCurlShape(FiniteElement* fe, ElementTransformation * T,
       // Get the current integration point from the integration rule
       IntegrationPoint pt = ir->IntPoint(i);
 
+      if (dim < 3)
+      {
+         pt.z = 0_r;
+      }
+      if (dim < 2)
+      {
+         pt.y = 0_r;
+      }
+
       T->SetIntPoint(&pt);
 
       fe->CalcPhysCurlShape(*T, dshape);
 
-      CAPTURE(pt.x, pt.y, dim == 3 ? pt.z : 0_r);
+      CAPTURE(pt.x, pt.y, pt.z);
 
       fdshape = 0.0;
       for (int d=0; d<dim; d++)
