@@ -71,7 +71,7 @@ int main(int argc, char* argv[])
    args.ParseCheck();
 
    MFEM_VERIFY((reconstruction_method=="LOR_reconstruction"),
-            "Currently only LOR_reconstruction is supported.");
+               "Currently only LOR_reconstruction is supported.");
 
    // define u(x,y) to be represented
    profile_t u_function = field_profiles.at(field_profile);
@@ -95,7 +95,7 @@ int main(int argc, char* argv[])
    int num_y_im = num_y / lref;
 
    Mesh serial_mesh_im = Mesh::MakeCartesian2D(num_x_im, num_y_im,
-                                                Element::QUADRILATERAL);
+                                               Element::QUADRILATERAL);
    for (int i = 0; i < refinement_levels; i++)
    {
       serial_mesh_im.UniformRefinement();
@@ -135,7 +135,8 @@ int main(int argc, char* argv[])
    // Set up the right-hand side vector for the exact solution
    ParLinearForm b_lo(&pfespace_lo);
    DomainLFIntegrator *lf_integ = new DomainLFIntegrator(u_function_exact);
-   const IntegrationRule &ir_rhs = IntRules.Get(pfespace_lo.GetFE(0)->GetGeomType(), order_ho + 1);
+   const IntegrationRule &ir_rhs = IntRules.Get(pfespace_lo.GetFE(
+                                                   0)->GetGeomType(), order_ho + 1);
    lf_integ->SetIntRule(&ir_rhs);
    b_lo.AddDomainIntegrator(lf_integ);
    b_lo.Assemble();
@@ -174,14 +175,14 @@ int main(int argc, char* argv[])
       {
          glvis_u_lo.precision(8);
          glvis_u_lo << "parallel " << pmesh.GetNRanks()
-                     << " " << pmesh.GetMyRank() << "\n"
-                     << "solution\n" << pmesh << u_lo
-                     << "window_title 'Low-order'\n" << std::flush;
+                    << " " << pmesh.GetMyRank() << "\n"
+                    << "solution\n" << pmesh << u_lo
+                    << "window_title 'Low-order'\n" << std::flush;
          glvis_u_hi.precision(8);
          glvis_u_hi << "parallel " << pmesh.GetNRanks()
-                     << " " << pmesh.GetMyRank() << "\n"
-                     << "solution\n" << pmesh << u_hi
-                     << "window_title 'High-order'\n" << std::flush;
+                    << " " << pmesh.GetMyRank() << "\n"
+                    << "solution\n" << pmesh << u_hi
+                    << "window_title 'High-order'\n" << std::flush;
       }
    }
 
