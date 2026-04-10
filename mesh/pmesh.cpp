@@ -5185,7 +5185,8 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
             // Print attribute + geometry:
             // * if print_shared != 0, use processor number + 1 as attribute
             // * otherwise, use the real attribute
-            os << (print_shared ? p+1 : ints[i]) << ' ' << ints[++i];
+            os << (print_shared ? p+1 : ints[i]) << ' ' << ints[i+1];
+            i++;
             // vertices
             k = Geometries.GetVertices(ints[i++])->GetNPoints();
             for (j = 0; j < k; j++)
@@ -5414,7 +5415,8 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
             // Print bdr attribute + bdr geometry:
             // * if print_shared != 0, use processor number + 1 as bdr attribute
             // * otherwise, use the real bdr attribute
-            os << (print_shared ? p+1 : ints[i]) << ' ' << ints[++i];
+            os << (print_shared ? p+1 : ints[i]) << ' ' << ints[i+1];
+            i++;
             k = Geometries.NumVerts[ints[i++]];
             // vertices
             for (j = 0; j < k; j++)
