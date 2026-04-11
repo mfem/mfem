@@ -289,7 +289,8 @@ public:
                                    [[maybe_unused]] const int test_vdim,
                                    [[maybe_unused]] const int num_test_dof,
                                    const ThreadBlocks &thread_blocks,
-                                   SharedMemoryInfo<num_fields, num_inputs, num_outputs> &shmem_info,
+                                   [[maybe_unused]] SharedMemoryInfo<num_fields, num_inputs, num_outputs>
+                                   &shmem_info,
                                    [[maybe_unused]] const Array<int> &attributes,
                                    [[maybe_unused]] const output_fop_t &output_fop,
                                    [[maybe_unused]] const Array<int> *elem_attributes,
@@ -352,8 +353,8 @@ public:
       residual_e = 0.0;
       NVTX_END("res=0");
 
-      auto wrapped_fields_e =
-         wrap_fields(fields_e, shmem_info.field_sizes, num_entities);
+      // auto wrapped_fields_e =
+      // wrap_fields(fields_e, shmem_info.field_sizes, num_entities);
 
       const bool has_attr = attributes.Size() > 0;
       const auto d_attr = attributes.Read();
