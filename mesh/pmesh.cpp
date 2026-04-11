@@ -4894,7 +4894,7 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
       // Choose a boundary attribute that does not collide with existing ones,
       // including those introduced by print_shared.
       const int max_bdr_attr = bdr_attributes.Size() ? bdr_attributes.Max() : 0;
-      interface_bdr_attr = max_bdr_attr + NRanks + 1;
+      interface_bdr_attr = max_bdr_attr + 1 + (print_shared ? NRanks : 0);
    }
 
    os << (!set_names ? "MFEM mesh v1.0\n" : "MFEM mesh v1.3\n");
