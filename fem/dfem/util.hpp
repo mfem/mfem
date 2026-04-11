@@ -1376,11 +1376,11 @@ void restriction(const std::vector<FieldDescriptor> u,
                   "restriction not applicable to given data size");
       const int height = R->Height();
 
-      NVTX_INI("SetSize");
+      // NVTX_INI("SetSize");
       fields_e[i + offset].SetSize(height);
-      NVTX_END("SetSize");
+      // NVTX_END("SetSize");
 
-      NVTX_INI("R->Mult");
+      // NVTX_INI("R->Mult");
       if (dynamic_cast<const IdentityOperator*>(R))
       {
          NVTX("Identity");
@@ -1390,7 +1390,7 @@ void restriction(const std::vector<FieldDescriptor> u,
       {
          R->Mult(u_l[i], fields_e[i + offset]);
       }
-      NVTX_END("R->Mult");
+      // NVTX_END("R->Mult");
    }
 }
 

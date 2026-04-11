@@ -50,6 +50,25 @@ inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+template <int MQ1>
+inline MFEM_HOST_DEVICE void LoadDofs3d(const int d1d, const int c,
+                                        const DeviceTensor<4, const real_t> &XE,
+                                        real_t (&sm0)[3][MQ1][MQ1][MQ1])
+{
+   MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
+         {
+            sm0[0][dz][dy][dx] = XE(dx, dy, dz, c);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// 3D Scalar Gradient, 1/3
 template<int MQ1>
 inline MFEM_HOST_DEVICE void GradX(const int d1d, const int q1d,
@@ -292,7 +311,7 @@ template<int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void WriteDofs3d(const int d1d,
                                          const int c, const int e,
                                          regs3d_t<DIM,MQ1> &reg,
-                                         const DeviceTensor<5,  real_t> &YE)
+                                         const DeviceTensor<5, real_t> &YE)
 {
    MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
    {
@@ -308,5 +327,28 @@ inline MFEM_HOST_DEVICE void WriteDofs3d(const int d1d,
       }
    }
 }
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Scalar Gradient Transposed, 3/3
+// template<int DIM, int MQ1>
+// inline MFEM_HOST_DEVICE void WriteDofs3d(const int d1d,
+//                                          const int c,
+//                                          regs3d_t<DIM,MQ1> &reg,
+//                                          const DeviceTensor<4,  real_t> &YE)
+// {
+//    MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
+//    {
+//       MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+//       {
+//          MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+//          {
+//             const real_t u = reg[0][dz][dy][dx];
+//             const real_t v = reg[1][dz][dy][dx];
+//             const real_t w = reg[2][dz][dy][dx];
+//             YE(dx, dy, dz, c) += (u + v + w);
+//          }
+//       }
+//    }
+// }
 
 } // namespace mfem::kernels::internal

@@ -14,8 +14,11 @@
 #include <cstddef>
 
 #include "fem/kernels.hpp"
+#include "fem/kernels3d.hpp"
 namespace ker = mfem::kernels::internal;
 #include "fem/kernel_dispatch.hpp"
+
+#include "linalg/kernels.hpp"
 
 #include "util.hpp"
 
@@ -75,28 +78,26 @@ template <int T_Q1D,
           typename qfunc_t,
           typename args_ts>
 MFEM_HOST_DEVICE inline
-void apply_kernel(reg_t &r0/*output*/,
-                  reg_t &r1, real_t *r2,
-                  [[maybe_unused]] real_t *rw,
-                  [[maybe_unused]] const int Q1D,
+void apply_kernel(reg_t &res /*output*/,
+                  reg_t &reg,
+                  real_t *rd,
                   const int qx, const int qy, const int qz,
-                  const qfunc_t &qfunc,
-                  args_ts &args)
+                  const qfunc_t &qfunc, args_ts &args)
 {
    if constexpr (num_args == 2) // PAApply
    {
       // ∇u
       tensor<real_t, 3> &arg_0 = get<0>(args);
-      arg_0[0] = r1[0][0][qz][qy][qx];
-      arg_0[1] = r1[0][1][qz][qy][qx];
-      arg_0[2] = r1[0][2][qz][qy][qx];
+      arg_0[0] = reg[0][qz][qy][qx];
+      arg_0[1] = reg[1][qz][qy][qx];
+      arg_0[2] = reg[2][qz][qy][qx];
 
       // D (PA data)
       tensor<real_t, 3, 3> &arg_1 = get<1>(args);
 
       if constexpr (T_Q1D > 0)
       {
-         auto *D = (real_t (*)[T_Q1D][T_Q1D][3][3]) r2;
+         auto *D = (real_t (*)[T_Q1D][T_Q1D][3][3]) rd;
          for (int k = 0; k < 3; k++)
          {
             for (int j = 0; j < 3; j++)
@@ -152,9 +153,9 @@ void apply_kernel(reg_t &r0/*output*/,
    if constexpr (decltype(r)::ndim == 1)
    {
       // process_qf_result_from_reg(r0, qx, qy, qz, r);
-      r0[0][0][qz][qy][qx] = r[0];
-      r0[0][1][qz][qy][qx] = r[1];
-      r0[0][2][qz][qy][qx] = r[2];
+      res[0][qz][qy][qx] = r[0];
+      res[1][qz][qy][qx] = r[1];
+      res[2][qz][qy][qx] = r[2];
    }
    // else if constexpr (decltype(r)::ndim == 2)
    // {
@@ -273,11 +274,11 @@ public:
       residual_l(residual_l)
    {
       if (!use_kernels_specialization) { return; }
-      NewActionCallbackKernels::template Specialization<2,3>::Add(); // 1
+      // NewActionCallbackKernels::template Specialization<2,3>::Add(); // 1
       NewActionCallbackKernels::template Specialization<3,4>::Add(); // 2
-      NewActionCallbackKernels::template Specialization<4,5>::Add(); // 3
+      // NewActionCallbackKernels::template Specialization<4,5>::Add(); // 3
       NewActionCallbackKernels::template Specialization<5,6>::Add(); // 4
-      NewActionCallbackKernels::template Specialization<6,7>::Add(); // 5
+      // NewActionCallbackKernels::template Specialization<6,7>::Add(); // 5
       NewActionCallbackKernels::template Specialization<7,8>::Add(); // 6
    }
 
@@ -291,7 +292,7 @@ public:
                                    [[maybe_unused]] const int dimension,
                                    const int num_entities,
                                    const int test_vdim,
-                                   const int num_test_dof,
+                                   [[maybe_unused]] const int num_test_dof,
                                    const ThreadBlocks &thread_blocks,
                                    SharedMemoryInfo<num_fields, num_inputs, num_outputs> &shmem_info,
                                    const Array<int> &attributes,
@@ -315,7 +316,7 @@ public:
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-      constexpr int DIM = 3, VDIM = 1;
+      constexpr int DIM = 3;
 
       [[maybe_unused]] static bool ini = (for_constexpr<num_inputs>([&](auto i)
       {
@@ -359,9 +360,6 @@ public:
       residual_e = 0.0;
       NVTX_END("res=0");
 
-      auto ye = Reshape(residual_e.ReadWrite(), test_vdim, num_test_dof,
-                        num_entities);
-
       auto wrapped_fields_e =
          wrap_fields(fields_e, shmem_info.field_sizes, num_entities);
 
@@ -369,28 +367,40 @@ public:
       const auto d_attr = attributes.Read();
       const auto d_elem_attr = elem_attributes->Read();
 
+      auto YE = Reshape(residual_e.ReadWrite(), D1D, D1D, D1D, test_vdim,
+                        num_entities);
+
       NVTX_INI("forall");
-      dfem::forall<T_Q1D*T_Q1D>([=] MFEM_HOST_DEVICE (int e, void *)
+      dfem::forall<T_Q1D*T_Q1D*T_Q1D>([=] MFEM_HOST_DEVICE (int e, void *)
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
-         constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 8;
+         constexpr int MQ1 = T_Q1D;//, MD1 = T_D1D;
 
-         ker::vd_regs3d_t<VDIM, DIM, MQ1> r0, r1;
-         real_t *r2, *rw = nullptr;
+         ker::regs3d_t<DIM, MQ1> reg;
+         real_t *rd = nullptr;
 
          const auto fields_e_ptr = load_field_e_ptr(wrapped_fields_e, e);
 
-         MFEM_SHARED real_t smem[MQ1][MQ1];
-         real_t (&smem_ptr)[MQ1][MQ1] = smem;
+         MFEM_SHARED real_t sm0[3][MQ1][MQ1][MQ1];
+         MFEM_SHARED real_t sm1[3][MQ1][MQ1][MQ1];
+         real_t (&sm0_ptr)[3][MQ1][MQ1][MQ1] = sm0;
+         real_t (&sm1_ptr)[3][MQ1][MQ1][MQ1] = sm1;
+
+         constexpr int MD1 = T_D1D;
+         MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
+         real_t (&sB_ptr)[MD1][MQ1] = sB;
+         real_t (&sG_ptr)[MD1][MQ1] = sG;
 
          // Interpolate
          for_constexpr<num_inputs>(
             [ D1D, Q1D, MQ1,
-                   &smem_ptr,
+                   &input_dtq_maps,
+                   &sm0_ptr, &sm1_ptr,
+                   &sB = sB_ptr, &sG = sG_ptr,
                    &inputs,
                    &fields_e_ptr,
-                   &r0, &r1, &r2,
+                   &reg, &rd,
                    &input_to_field ] (auto i)
          {
             const auto input = get<i>(inputs);
@@ -401,19 +411,23 @@ public:
                const int vdim = input.vdim;
                const real_t *field_e_r = fields_e_ptr[input_to_field[i]];
                const auto XE = Reshape(field_e_r, D1D, D1D, D1D, vdim);
-               const auto sB = reinterpret_cast<const real_t (*)[MQ1]>(Bi[i]);
-               const auto sG = reinterpret_cast<const real_t (*)[MQ1]>(Gi[i]);
+               // const auto sB = reinterpret_cast<const real_t (*)[MQ1]>(Bi[i]);
+               // const auto sG = reinterpret_cast<const real_t (*)[MQ1]>(Gi[i]);
+               const auto B = (const real_t*)input_dtq_maps[i].B;
+               const auto G = (const real_t*)input_dtq_maps[i].G;
+               ker::LoadMatrix(D1D, Q1D, B, sB);
+               ker::LoadMatrix(D1D, Q1D, G, sG);
                // for (int c = 0; c < vdim; c++)
-               constexpr int c = 0;
+               // constexpr int c = 0;
                {
-                  ker::LoadDofs3d(D1D, c, XE, r0);
-                  ker::Grad3d(D1D, Q1D, smem_ptr, sB, sG, r0, r1, c);
+                  ker::LoadDofs3d(D1D, 0, XE, sm0_ptr);
+                  ker::Grad3d(D1D, Q1D, sB, sG, sm0_ptr, sm1_ptr, reg);
                }
             }
             else if constexpr (is_identity_fop<field_operator_t>::value)   // Identity
             {
                // db1("Identity");
-               r2 = fields_e_ptr[input_to_field[i]];
+               rd = fields_e_ptr[input_to_field[i]];
             }
             // else if constexpr (is_weight_fop<field_operator_t>::value)   // Weight
             // {
@@ -428,33 +442,65 @@ public:
             }
          }); // for_constexpr<num_inputs>
 
-         auto qf_args = decay_tuple<qf_param_ts> {};
-         for (int qz = 0; qz < Q1D; ++qz)
+         MFEM_FOREACH_THREAD_DIRECT(qz,z,Q1D)
          {
-            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+            MFEM_FOREACH_THREAD_DIRECT(qy,y,Q1D)
             {
-               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+               MFEM_FOREACH_THREAD_DIRECT(qx,x,Q1D)
                {
+#if 1
+                  // 3.54105k/s
+                  auto qf_args = decay_tuple<qf_param_ts> {};
                   qf::apply_kernel<T_Q1D, num_inputs>
-                  (r0, r1, r2, rw, Q1D, qx, qy, qz, qfunc, qf_args);
+                  (reg, reg, rd, qx, qy, qz, qfunc, qf_args);
+#elif 0
+                  // 4.17747k/s
+                  real_t v[3], u[3] = { reg[0][qz][qy][qx],
+                                        reg[1][qz][qy][qx],
+                                        reg[2][qz][qy][qx]
+                                      };
+                  kernels::Mult(3, 3, rd, u, v);
+                  reg[0][qz][qy][qx] = v[0];
+                  reg[1][qz][qy][qx] = v[1];
+                  reg[2][qz][qy][qx] = v[2];
+#elif 1
+                  // 3.53585k/s
+                  const auto *D = (real_t (*)[T_Q1D][T_Q1D][3][3]) rd;
+                  const auto args = decay_tuple<qf_param_ts>
+                  {
+                     { reg[0][qz][qy][qx], reg[1][qz][qy][qx], reg[2][qz][qy][qx] },
+                     {
+                        D[qx][qy][qz][0][0], D[qx][qy][qz][0][1], D[qx][qy][qz][0][2],
+                        D[qx][qy][qz][1][0], D[qx][qy][qz][1][1], D[qx][qy][qz][1][2],
+                        D[qx][qy][qz][2][0], D[qx][qy][qz][2][1], D[qx][qy][qz][2][2]
+                     }
+                  };
+                  const auto r = get<0>(apply(qfunc, args));
+                  reg[0][qz][qy][qx] = r[0];
+                  reg[1][qz][qy][qx] = r[1];
+                  reg[2][qz][qy][qx] = r[2];
+#else
+                  // "process_qf_result not implemented for result type"
+                  const auto args = decay_tuple<qf_param_ts>
+                  {
+                     { reg[0][qz][qy][qx], reg[1][qz][qy][qx], reg[2][qz][qy][qx] },
+                     rd
+                  };
+                  const auto r = get<0>(apply(qfunc, args));
+                  reg[0][qz][qy][qx] = r[0];
+                  reg[1][qz][qy][qx] = r[1];
+                  reg[2][qz][qy][qx] = r[2];
+#endif
                }
             }
          }
-
          // Integrate
-         const int vdim = test_vdim;
-         auto y = Reshape(&ye(0, 0, e), num_test_dof, vdim);
-         if constexpr (is_gradient_fop<std::decay_t<output_fop_t>>::value) // Gradient
+         // if constexpr (is_gradient_fop<std::decay_t<output_fop_t>>::value) // Gradient
          {
-            auto yd = Reshape(&y(0, 0), D1D, D1D, D1D, vdim);
-            const auto sB = reinterpret_cast<const real_t (*)[MQ1]>(Bo);
-            const auto sG = reinterpret_cast<const real_t (*)[MQ1]>(Go);
-            constexpr int c = 0;
-            // for (int c = 0; c < vdim; c++)
-            {
-               ker::GradTranspose3d(D1D, Q1D, smem, sB, sG, r0, r1, c);
-               ker::WriteDofs3d(D1D, c, r1, yd);
-            }
+            // const auto sB = reinterpret_cast<const real_t (*)[MQ1]>(Bo);
+            // const auto sG = reinterpret_cast<const real_t (*)[MQ1]>(Go);
+            ker::GradTranspose3d(D1D, Q1D, sB, sG, reg, sm1_ptr, sm0_ptr);
+            ker::WriteDofs3d(D1D, 0, e, reg, YE);
          }
       },
       num_entities, thread_blocks, 0, nullptr);

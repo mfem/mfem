@@ -805,7 +805,7 @@ void DifferentiableOperator::AddIntegrator(
       {
          thread_blocks.x = q1d;
          thread_blocks.y = q1d;
-         thread_blocks.z = use_new_kernels ? 1 : q1d;
+         thread_blocks.z = q1d;
       }
    }
    else if (dimension == 2)
