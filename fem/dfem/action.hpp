@@ -13,13 +13,13 @@
 #include <cassert>
 #include <cstddef>
 
-#include "fem/kernels.hpp"
+// #include "fem/kernels.hpp"
 #include "fem/kernels3d.hpp"
 namespace ker = mfem::kernels::internal;
 namespace low = mfem::kernels::internal::low;
 #include "fem/kernel_dispatch.hpp"
 
-#include "linalg/kernels.hpp"
+// #include "linalg/kernels.hpp"
 
 #include "util.hpp"
 
@@ -379,7 +379,7 @@ public:
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
-         constexpr int MQ1 = T_Q1D;
+         constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 8;
 
          MFEM_SHARED real_t sm0[MQ1][MQ1][MQ1][3];
          MFEM_SHARED real_t sm1[MQ1][MQ1][MQ1][3];
@@ -491,7 +491,7 @@ public:
 #else
                   auto args = decay_tuple<qf_param_ts> {};
                   get<0>(args) = as_tensor<real_t, 3>(&reg[qz][qy][qx][0]);
-                  get<1>(args) = as_tensor<real_t, 3, 3>(rd + 9*(qx*T_Q1D*T_Q1D + qy*T_Q1D + qz));
+                  get<1>(args) = as_tensor<real_t, 3, 3>(rd + 9*(qx*q1d*q1d + qy*q1d + qz));
                   auto r = get<0>(apply(qfunc, args));
                   if constexpr (decltype(r)::ndim == 1)
                   {
@@ -571,9 +571,9 @@ NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t
 (int q1d)
 {
    dbg("\x1b[33mFallback q1d:{}", q1d);
-   MFEM_ABORT("No kernel for q1d=" << q1d);
-   return nullptr;
-   // return action_callback_new<>;
+   // MFEM_ABORT("No kernel for q1d=" << q1d);
+   // return nullptr;
+   return action_callback_new<>;
 }
 
 } // namespace mfem::future

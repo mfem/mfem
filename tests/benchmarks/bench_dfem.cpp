@@ -49,13 +49,13 @@ static void DumpVersionInfo()
 {
    mfem::out << "\x1b[33m";
    mfem::out << "version 0: PA std" << std::endl;
-   // mfem::out << "version 1: PA reg" << std::endl;
-   // mfem::out << "version 2: MF ∂fem std kernels" << std::endl;
-   // mfem::out << "version 3: PA ∂fem std kernels" << std::endl; // ⚠️ max p=4
-   // mfem::out << "version 4: MF ∂fem new kernels" << std::endl; // ⚠️ not supported yet by new kernels
-   mfem::out << "version 5: PA ∂fem new kernels" << std::endl;
-   mfem::out << "version 6: PA low" << std::endl;
-   // mfem::out << "version 7: PA ∂fem new kernels, no specialization" << std::endl;
+   mfem::out << "version 1: PA reg" << std::endl;
+   mfem::out << "version 2: PA low" << std::endl;
+   mfem::out << "version 3: PA ∂fem new, not specialized" << std::endl;
+   mfem::out << "version 4: PA ∂fem new, specialized" << std::endl;
+   // mfem::out << "version 5: PA ∂fem std" << std::endl; // ⚠️ max p=3
+   // mfem::out << "version 6: MF ∂fem std" << std::endl;
+   // mfem::out << "version 7: MF ∂fem new" << std::endl; // ⚠️ not supported
    mfem::out << "\x1b[m" << std::endl;
 }
 
@@ -64,7 +64,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
-   const auto versions = { 0,/*1, 2, 3, 4,*/ 5, 6/*, 7*/};
+   const auto versions = { 0, 1, 2, 3, 4, /*5, 6, 7*/ };
 
    const auto orders = { 6, 5, 4, 3, 2, 1 };
 
@@ -136,11 +136,11 @@ struct StiffnessIntegrator : public BilinearFormIntegrator
 public:
    StiffnessIntegrator(Vector &qdata): qdata(qdata)
    {
-      // StiffnessKernels::Specialization<2, 3>::Add();  // 1
+      StiffnessKernels::Specialization<2, 3>::Add();  // 1
       StiffnessKernels::Specialization<3, 4>::Add();  // 2
-      // StiffnessKernels::Specialization<4, 5>::Add();  // 3
+      StiffnessKernels::Specialization<4, 5>::Add();  // 3
       StiffnessKernels::Specialization<5, 6>::Add();  // 4
-      // StiffnessKernels::Specialization<6, 7>::Add();  // 5
+      StiffnessKernels::Specialization<6, 7>::Add();  // 5
       StiffnessKernels::Specialization<7, 8>::Add();  // 6
    }
 
@@ -293,9 +293,9 @@ StiffnessIntegrator::StiffnessKernels::Fallback([[maybe_unused]] int d1d,
                                                 [[maybe_unused]] int q1d)
 {
    dbg("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
-   MFEM_ABORT("No kernel for d1d=" << d1d << " q1d=" << q1d);
-   return nullptr;
-   // return StiffnessMult<>;
+   // MFEM_ABORT("No kernel for d1d=" << d1d << " q1d=" << q1d);
+   // return nullptr;
+   return StiffnessMult<>;
 }
 
 /// PADiffLowIntegrator ///////////////////////////////////////////////////////
@@ -715,12 +715,12 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          dbg("[PA ∂fem] done");
       };
 
-      if (version < 2 || version == 6) // standard, new PA regs & low
+      if (version <= 2 || version == 5) // std, reg & low
       {
          a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
          if (version == 0) { a.AddDomainIntegrator(new DiffusionIntegrator(ir)); }
          if (version == 1) { a.AddDomainIntegrator(new StiffnessIntegrator(qdata)); }
-         if (version == 6) { a.AddDomainIntegrator(new PADiffLowIntegrator()); }
+         if (version == 2) { a.AddDomainIntegrator(new PADiffLowIntegrator()); }
          a.Assemble();
          a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
          if (version == 0)
@@ -734,27 +734,26 @@ struct Diffusion : public BakeOff<VDIM, GLL>
             MFEM_VERIFY(q1d == gQ1D, "Q1D mismatch: " << q1d << " != " << gQ1D);
          }
       }
-      else if (version == 2) // 2: MF ∂fem
+      else if (version == 3) // 4: PA ∂fem new kernels, not specialized
       {
-         dMFOperatorSetup(false, false);
+         dPAOperatorSetup(true, false);
       }
-      else if (version == 3) // PA ∂fem
-      {
-         dPAOperatorSetup(false, false);
-      }
-      else if (version == 4) // 4: MF ∂fem new kernels
-      {
-         MFEM_ABORT("PA ∂fem std kernels not implemented");
-         // dMFOperatorSetup(true, true);
-      }
-      else if (version == 5) // 5: PA ∂fem new kernels, specialized
+      else if (version == 4) // 5: PA ∂fem new kernels, specialized
       {
          dPAOperatorSetup(true, true);
       }
-      // else if (version == 6) // 6: PA low kernels (above)
-      else if (version == 7) // 7: PA ∂fem new kernels, no specialization
+      else if (version == 5) // PA ∂fem std
       {
-         dPAOperatorSetup(true, false);
+         dPAOperatorSetup(false, false);
+      }
+      else if (version == 6) // 6: MF ∂fem std
+      {
+         dMFOperatorSetup(false, false);
+      }
+      else if (version == 7) // 7: MF ∂fem new kernels
+      {
+         MFEM_ABORT("MF ∂fem new kernels not implemented");
+         // dMFOperatorSetup(true, true);
       }
       else { MFEM_ABORT("Invalid version"); }
 
