@@ -5232,7 +5232,7 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
       // Choose a boundary attribute that does not collide with existing ones.
       const int max_bdr_attr = bdr_attributes.Size() ? bdr_attributes.Max() : 0;
       // If print_shared is enabled, this attribute will be replaced:
-      interface_bdr_attr = max_bdr_attr;
+      interface_bdr_attr = max_bdr_attr + 1;
    }
 
    // boundary + (optionally) shared faces + (optionally) interface faces
