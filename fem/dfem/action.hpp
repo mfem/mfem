@@ -18,7 +18,7 @@
 namespace ker = mfem::kernels::internal;
 #include "fem/kernel_dispatch.hpp"
 
-// #include "linalg/kernels.hpp"
+#include "linalg/kernels.hpp"
 
 #include "util.hpp"
 
@@ -127,9 +127,9 @@ void apply_kernel(reg_t &res /*output*/,
    {
       // ∇u
       tensor<real_t, 3> &arg_0 = get<0>(args);
-      arg_0[0] = reg[0][qz][qy][qx];
-      arg_0[1] = reg[1][qz][qy][qx];
-      arg_0[2] = reg[2][qz][qy][qx];
+      arg_0[0] = reg[qz][qy][qx][0];
+      arg_0[1] = reg[qz][qy][qx][1];
+      arg_0[2] = reg[qz][qy][qx][2];
 
       // D (PA data)
       tensor<real_t, 3, 3> &arg_1 = get<1>(args);
@@ -170,9 +170,7 @@ void apply_kernel(reg_t &res /*output*/,
    if constexpr (decltype(r)::ndim == 1)
    {
       // process_qf_result_from_reg(r0, qx, qy, qz, r);
-      res[0][qz][qy][qx] = r[0];
-      res[1][qz][qy][qx] = r[1];
-      res[2][qz][qy][qx] = r[2];
+      as_tensor<real_t, 3>(&res[qz][qy][qx][0]) = r;
    }
    else
    {
@@ -443,55 +441,57 @@ public:
             {
                MFEM_FOREACH_THREAD_DIRECT(qx,x,Q1D)
                {
-#if 0
-                  // 3.54105k/s
+#if 1
+                  //
                   auto qf_args = decay_tuple<qf_param_ts> {};
                   qf::apply_kernel<T_Q1D, num_inputs>
                   (reg, reg, rd, qx, qy, qz, qfunc, qf_args);
 #elif 0
-                  // 4.17747k/s
-                  real_t v[3], u[3] = { reg[0][qz][qy][qx],
-                                        reg[1][qz][qy][qx],
-                                        reg[2][qz][qy][qx]
+                  //
+                  real_t v[3], u[3] = { reg[qz][qy][qx][0],
+                                        reg[qz][qy][qx][1],
+                                        reg[qz][qy][qx][2]
                                       };
-                  kernels::Mult(3, 3, rd, u, v);
-                  reg[0][qz][qy][qx] = v[0];
-                  reg[1][qz][qy][qx] = v[1];
-                  reg[2][qz][qy][qx] = v[2];
+                  const auto *D = (real_t (*)[T_Q1D][T_Q1D][3][3]) rd;
+                  kernels::Mult(3, 3, &D[qx][qy][qz][0][0], u, v);
+                  reg[qz][qy][qx][0] = v[0];
+                  reg[qz][qy][qx][1] = v[1];
+                  reg[qz][qy][qx][2] = v[2];
 #elif 0
-                  // 3.53585k/s
+                  //
                   const auto *D = (real_t (*)[T_Q1D][T_Q1D][3][3]) rd;
                   const auto args = decay_tuple<qf_param_ts>
                   {
-                     { reg[0][qz][qy][qx], reg[1][qz][qy][qx], reg[2][qz][qy][qx] },
-                     {
-                        D[qx][qy][qz][0][0], D[qx][qy][qz][0][1], D[qx][qy][qz][0][2],
-                        D[qx][qy][qz][1][0], D[qx][qy][qz][1][1], D[qx][qy][qz][1][2],
-                        D[qx][qy][qz][2][0], D[qx][qy][qz][2][1], D[qx][qy][qz][2][2]
+                     {{ reg[qz][qy][qx][0], reg[qz][qy][qx][1], reg[qz][qy][qx][2] }},
+                     {{
+                           {{ D[qx][qy][qz][0][0], D[qx][qy][qz][0][1], D[qx][qy][qz][0][2] }},
+                           {{ D[qx][qy][qz][1][0], D[qx][qy][qz][1][1], D[qx][qy][qz][1][2] }},
+                           {{ D[qx][qy][qz][2][0], D[qx][qy][qz][2][1], D[qx][qy][qz][2][2] }}
+                        }
                      }
                   };
                   const auto r = get<0>(apply(qfunc, args));
-                  reg[0][qz][qy][qx] = r[0];
-                  reg[1][qz][qy][qx] = r[1];
-                  reg[2][qz][qy][qx] = r[2];
+                  reg[qz][qy][qx][0] = r[0];
+                  reg[qz][qy][qx][1] = r[1];
+                  reg[qz][qy][qx][2] = r[2];
 #elif 0
-                  // 4.18989k/s
-                  auto u = as_tensor<real_t, 3>(&reg[0][qz][qy][qx]);
-                  auto D = as_tensor<real_t, 3, 3>(rd);
+                  //
+                  auto u = as_tensor<real_t, 3>(&reg[qz][qy][qx][0]);
+                  const auto *d = (real_t (*)[T_Q1D][T_Q1D][3][3]) rd;
+                  auto D = as_tensor<real_t, 3, 3>(&d[qx][qy][qz][0][0]);
                   auto r = D * u;
-                  reg[0][qz][qy][qx] = r[0];
-                  reg[1][qz][qy][qx] = r[1];
-                  reg[2][qz][qy][qx] = r[2];
+                  reg[qz][qy][qx][0] = r[0];
+                  reg[qz][qy][qx][1] = r[1];
+                  reg[qz][qy][qx][2] = r[2];
 #else
-                  // 4.15598k/s
+                  //
                   auto args = decay_tuple<qf_param_ts> {};
-                  get<0>(args) =
-                     as_tensor<real_t, 3>(&reg[0][qz][qy][qx]); // ⚠️ layout for CPU ?!
-                  get<1>(args) = as_tensor<real_t, 3, 3>(rd);
+                  get<0>(args) = as_tensor<real_t, 3>(&reg[qz][qy][qx][0]);
+                  get<1>(args) = as_tensor<real_t, 3, 3>(rd + 9*(qx*T_Q1D*T_Q1D + qy*T_Q1D + qz));
                   auto r = get<0>(apply(qfunc, args));
                   if constexpr (decltype(r)::ndim == 1)
                   {
-                     as_tensor<real_t, 3>(&reg[0][qz][qy][qx]) = r;
+                     as_tensor<real_t, 3>(&reg[qz][qy][qx][0]) = r;
                   }
                   else { static_assert(false); }
 #endif

@@ -10,8 +10,8 @@
     },
     "cmake.debugConfig": {
         "args": [
-            "--benchmark_filter=BP3/./6/16",
             "--benchmark_min_time=1x",
+            "--benchmark_filter=BP3/5/4/16",
             // "[DFEM][MQ1]",
             // "--enable-output",
             // "--verbose",

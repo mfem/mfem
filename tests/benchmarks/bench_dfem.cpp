@@ -767,13 +767,13 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       cg.SetAbsTol(0.0);
       if (dofs < 128 * 1024) // check
       {
-         cg.SetPrintLevel(-1);
+         cg.SetPrintLevel(1/*-1*/);
          cg.SetMaxIter(2000);
          cg.SetRelTol(1e-8);
          cg.Mult(B, X);
          MFEM_VERIFY(cg.GetConverged(), "❌ CG solver did not converge.");
          // mfem::out << (cg.GetConverged() ? "✅" : "❌") << std::endl;
-         // mfem::out << "✅" << std::endl;
+         mfem::out << "✅" << std::endl;
       }
       cg.SetPrintLevel(print_lvl);
       cg.SetMaxIter(max_it);

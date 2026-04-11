@@ -22,12 +22,14 @@ namespace mfem::kernels::internal
 #if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) ||       \
      (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)))
 template <int DIM, int N>
-struct regs3d_device_wrapper: mfem::future::tensor<real_t, DIM, 0, 0, 0> {};
+// struct regs3d_device_wrapper: mfem::future::tensor<real_t, DIM, 0, 0, 0> {};
+struct regs3d_device_wrapper: mfem::future::tensor<real_t, 0, 0, 0, DIM> {};
 template <int DIM, int N>
 using regs3d_t = regs3d_device_wrapper<DIM, N>;
 #else
 template <int DIM, int N>
-using regs3d_t = mfem::future::tensor<real_t, DIM, N, N, N>;
+using regs3d_t = mfem::future::tensor<real_t, N, N, N, DIM>;
+// using regs3d_t = mfem::future::tensor<real_t, DIM, N, N, N>;
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -154,9 +156,9 @@ inline MFEM_HOST_DEVICE void GradZ(const int d1d, const int q1d,
                u[1] = std::fma(B[dz][qz], sm0[1][dz][qy][qx], u[1]);
                u[2] = std::fma(G[dz][qz], sm0[2][dz][qy][qx], u[2]);
             }
-            reg[0][qz][qy][qx] = u[0];
-            reg[1][qz][qy][qx] = u[1];
-            reg[2][qz][qy][qx] = u[2];
+            reg[qz][qy][qx][0] = u[0];
+            reg[qz][qy][qx][1] = u[1];
+            reg[qz][qy][qx][2] = u[2];
          }
       }
    }
@@ -195,9 +197,9 @@ inline MFEM_HOST_DEVICE void GradTranspose3dX(const int d1d, const int q1d,
       {
          MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
          {
-            sm1[0][qz][qy][qx] = reg[0][qz][qy][qx];
-            sm1[1][qz][qy][qx] = reg[1][qz][qy][qx];
-            sm1[2][qz][qy][qx] = reg[2][qz][qy][qx];
+            sm1[0][qz][qy][qx] = reg[qz][qy][qx][0];
+            sm1[1][qz][qy][qx] = reg[qz][qy][qx][1];
+            sm1[2][qz][qy][qx] = reg[qz][qy][qx][2];
          }
       }
    }
@@ -281,9 +283,9 @@ inline MFEM_HOST_DEVICE void GradTranspose3dZ(const int d1d, const int q1d,
                v = std::fma(sm1[1][qz][dy][dx], B[dz][qz], v);
                w = std::fma(sm1[2][qz][dy][dx], G[dz][qz], w);
             }
-            reg[0][dz][dy][dx] = u;
-            reg[1][dz][dy][dx] = v;
-            reg[2][dz][dy][dx] = w;
+            reg[dz][dy][dx][0] = u;
+            reg[dz][dy][dx][1] = v;
+            reg[dz][dy][dx][2] = w;
          }
       }
    }
@@ -319,9 +321,9 @@ inline MFEM_HOST_DEVICE void WriteDofs3d(const int d1d,
       {
          MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
          {
-            const real_t u = reg[0][dz][dy][dx];
-            const real_t v = reg[1][dz][dy][dx];
-            const real_t w = reg[2][dz][dy][dx];
+            const real_t u = reg[dz][dy][dx][0];
+            const real_t v = reg[dz][dy][dx][1];
+            const real_t w = reg[dz][dy][dx][2];
             YE(dx, dy, dz, c, e) += (u + v + w);
          }
       }
@@ -342,9 +344,9 @@ inline MFEM_HOST_DEVICE void WriteDofs3d(const int d1d,
 //       {
 //          MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
 //          {
-//             const real_t u = reg[0][dz][dy][dx];
-//             const real_t v = reg[1][dz][dy][dx];
-//             const real_t w = reg[2][dz][dy][dx];
+//             const real_t u = reg[dz][dy][dx][0];
+//             const real_t v = reg[dz][dy][dx][1];
+//             const real_t w = reg[dz][dy][dx][2];
 //             YE(dx, dy, dz, c) += (u + v + w);
 //          }
 //       }
