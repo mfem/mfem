@@ -16,7 +16,7 @@
 
 #include "kernels.hpp" // IWYU pragma: keep
 
-namespace mfem::kernels::internal
+namespace mfem::kernels::internal::low
 {
 
 #if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) ||       \
@@ -31,6 +31,24 @@ template <int DIM, int N>
 using regs3d_t = mfem::future::tensor<real_t, N, N, N, DIM>;
 // using regs3d_t = mfem::future::tensor<real_t, DIM, N, N, N>;
 #endif
+
+///////////////////////////////////////////////////////////////////////////////
+/// Load 2D matrix into shared memory
+template <int MQ1>
+inline MFEM_HOST_DEVICE void LoadMatrix(const int d1d, const int q1d,
+                                        const real_t *M, real_t (*N)[MQ1])
+{
+   if (MFEM_THREAD_ID(z) == 0)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+         {
+            N[dy][qx] = M[dy * q1d + qx];
+         }
+      }
+   }
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 template <int MQ1>

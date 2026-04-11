@@ -25,6 +25,7 @@
 
 #include <fem/kernels3d.hpp>
 namespace ker = mfem::kernels::internal;
+namespace low = mfem::kernels::internal::low;
 
 #undef NVTX_COLOR
 #define NVTX_COLOR ::nvtx::kNvidia
@@ -48,13 +49,13 @@ static void DumpVersionInfo()
 {
    mfem::out << "\x1b[33m";
    mfem::out << "version 0: PA std" << std::endl;
-   mfem::out << "version 1: PA reg" << std::endl;
+   // mfem::out << "version 1: PA reg" << std::endl;
    // mfem::out << "version 2: MF ∂fem std kernels" << std::endl;
-   mfem::out << "version 3: PA ∂fem std kernels" << std::endl; // ⚠️ max p=4
+   // mfem::out << "version 3: PA ∂fem std kernels" << std::endl; // ⚠️ max p=4
    // mfem::out << "version 4: MF ∂fem new kernels" << std::endl; // ⚠️ not supported yet by new kernels
    mfem::out << "version 5: PA ∂fem new kernels" << std::endl;
    mfem::out << "version 6: PA low" << std::endl;
-   mfem::out << "version 7: PA ∂fem new kernels, no specialization" << std::endl;
+   // mfem::out << "version 7: PA ∂fem new kernels, no specialization" << std::endl;
    mfem::out << "\x1b[m" << std::endl;
 }
 
@@ -63,7 +64,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
-   const auto versions = { 0, 1, /*2,*/ 3, /*4,*/ 5, 6, 7};
+   const auto versions = { 0,/*1, 2, 3, 4,*/ 5, 6/*, 7*/};
 
    const auto orders = { 6, 5, 4, 3, 2, 1 };
 
@@ -309,8 +310,8 @@ public: // for nvcc
    //////////////////////////////////////////////////////////////////
    template <int T_D1D = 0, int T_Q1D = 0>
    static void PADiffLowMult(const int NE,
-                             const real_t *b_,
-                             const real_t *g_,
+                             const real_t *b,
+                             const real_t *g,
                              const real_t *dx, const real_t *xe, real_t *ye,
                              const int /*d1d*/, const int /*q1d*/)
    {
@@ -318,30 +319,28 @@ public: // for nvcc
 
       constexpr int DIM = 3, VDIM = 1;
 
-      const auto b = Reshape(b_, Q1D, D1D);
-      const auto g = Reshape(g_, Q1D, D1D);
-
       const auto XE = Reshape(xe, D1D, D1D, D1D, VDIM, NE);
-      const auto DX = Reshape(dx, DIM, DIM, Q1D, Q1D, Q1D, NE);
+      // const auto DX = Reshape(dx, DIM, DIM, Q1D, Q1D, Q1D, NE);
       auto YE = Reshape(ye, D1D, D1D, D1D, VDIM, NE);
 
       mfem::forall_3D<T_Q1D*T_Q1D*T_Q1D>(NE, Q1D, Q1D, Q1D,
                                          [=] MFEM_HOST_DEVICE(int e)
       {
          constexpr int D1D = T_D1D, Q1D = T_Q1D;
-         constexpr int MQ1 = T_Q1D, MD1 = T_D1D;
+         constexpr int MQ1 = T_Q1D;
 
          MFEM_SHARED real_t sm0[3][MQ1][MQ1][MQ1];
          MFEM_SHARED real_t sm1[3][MQ1][MQ1][MQ1];
-         MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
+         MFEM_SHARED real_t sB[MQ1][MQ1];
+         MFEM_SHARED real_t sG[MQ1][MQ1];
 
-         ker::LoadMatrix(D1D, Q1D, b, sB);
-         ker::LoadMatrix(D1D, Q1D, g, sG);
+         low::regs3d_t<DIM, MQ1> reg;
 
-         ker::regs3d_t<DIM, MQ1> reg;
+         low::LoadMatrix(D1D, Q1D, b, sB);
+         low::LoadMatrix(D1D, Q1D, g, sG);
+         low::LoadDofs3d(e, D1D, XE, sm0); // Load & sync
 
-         ker::LoadDofs3d(e, D1D, XE, sm0); // Load XE
-         ker::Grad3d(D1D, Q1D, sB, sG, sm0, sm1, reg); // Grad 3D
+         low::Grad3d(D1D, Q1D, sB, sG, sm0, sm1, reg); // Grad 3D
 
          // Q-function
          MFEM_FOREACH_THREAD_DIRECT(qz,z,Q1D)
@@ -356,8 +355,7 @@ public: // for nvcc
                                         reg[qz][qy][qx][2]
                                       };
                   //  Q-function
-                  const real_t *dx = &DX(0, 0, qx, qy, qz, e);
-                  kernels::Mult(3, 3, dx, u, v);
+                  kernels::Mult(3, 3, dx + 9*(qx*Q1D*Q1D + qy*Q1D + qz), u, v);
                   // push
                   reg[qz][qy][qx][0] = v[0];
                   reg[qz][qy][qx][1] = v[1];
@@ -367,8 +365,8 @@ public: // for nvcc
          }
          MFEM_SYNC_THREAD;
 
-         ker::GradTranspose3d(D1D, Q1D, sB, sG, reg, sm1, sm0); // Grad^T 3D
-         ker::WriteDofs3d(D1D, 0, e, reg, YE); // Write YE
+         low::GradTranspose3d(D1D, Q1D, sB, sG, reg, sm1, sm0); // Grad^T 3D
+         low::WriteDofs3d(D1D, 0, e, reg, YE); // Write YE
       });
    }
 
@@ -447,7 +445,7 @@ public:
                   real_t Jrt[9], A[9];
                   kernels::CalcInverse<3>(Jtr, Jrt);
                   kernels::MultABt(3, 3, 3, D, Jrt, A);
-                  kernels::Mult(3, 3, 3, A, Jrt, &DX_w(0, 0, qx, qy, qz, e));
+                  kernels::Mult(3, 3, 3, A, Jrt, &DX_w(0, 0, qz, qy, qx, e));
                }
             }
          }
@@ -767,13 +765,13 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       cg.SetAbsTol(0.0);
       if (dofs < 128 * 1024) // check
       {
-         cg.SetPrintLevel(1/*-1*/);
+         cg.SetPrintLevel(3/*-1*/);
          cg.SetMaxIter(2000);
          cg.SetRelTol(1e-8);
          cg.Mult(B, X);
          MFEM_VERIFY(cg.GetConverged(), "❌ CG solver did not converge.");
          // mfem::out << (cg.GetConverged() ? "✅" : "❌") << std::endl;
-         mfem::out << "✅" << std::endl;
+         // mfem::out << "✅" << std::endl;
       }
       cg.SetPrintLevel(print_lvl);
       cg.SetMaxIter(max_it);

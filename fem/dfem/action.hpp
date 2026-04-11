@@ -16,6 +16,7 @@
 #include "fem/kernels.hpp"
 #include "fem/kernels3d.hpp"
 namespace ker = mfem::kernels::internal;
+namespace low = mfem::kernels::internal::low;
 #include "fem/kernel_dispatch.hpp"
 
 #include "linalg/kernels.hpp"
@@ -119,7 +120,7 @@ template <int T_Q1D,
 MFEM_HOST_DEVICE inline
 void apply_kernel(reg_t &res /*output*/,
                   reg_t &reg,
-                  real_t *rd,
+                  const real_t *rd,
                   const int qx, const int qy, const int qz,
                   const qfunc_t &qfunc, args_ts &args)
 {
@@ -136,7 +137,7 @@ void apply_kernel(reg_t &res /*output*/,
 
       if constexpr (T_Q1D > 0)
       {
-         auto *D = (real_t (*)[T_Q1D][T_Q1D][3][3]) rd;
+         const auto *D = (const real_t (*)[T_Q1D][T_Q1D][3][3]) rd;
          for (int k = 0; k < 3; k++)
          {
             for (int j = 0; j < 3; j++)
@@ -356,84 +357,95 @@ public:
       auto wrapped_fields_e =
          wrap_fields(fields_e, shmem_info.field_sizes, num_entities);
 
-      const bool has_attr = attributes.Size() > 0;
-      const auto d_attr = attributes.Read();
-      const auto d_elem_attr = elem_attributes->Read();
+      // const bool has_attr = attributes.Size() > 0;
+      // const auto d_attr = attributes.Read();
+      // const auto d_elem_attr = elem_attributes->Read();
 
-      auto YE = Reshape(residual_e.ReadWrite(), D1D, D1D, D1D, test_vdim,
-                        num_entities);
+      // const int vdim = input.vdim;
+      // const auto fields_e_ptr = load_field_e_ptr(wrapped_fields_e, e);
+      // const real_t *field_e_r = fields_e_ptr[input_to_field[i]];
+      // const auto fields_e_ptr = load_field_e_ptr(wrapped_fields_e, e);
+      const int NE = num_entities;
+      constexpr int VDIM = 1;
+
+      const auto XE = Reshape(fields_e[0].Read(), D1D, D1D, D1D, VDIM, NE);
+      // const auto DX = Reshape(fields_e[1].Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
+      const real_t *dx_ptr = fields_e[1].Read();
+
+      auto YE = Reshape(residual_e.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
+
+      const auto B = (const real_t*)input_dtq_maps[0/*i*/].B;
+      const auto G = (const real_t*)input_dtq_maps[0/*i*/].G;
 
       NVTX_INI("forall");
       dfem::forall<T_Q1D*T_Q1D*T_Q1D>([=] MFEM_HOST_DEVICE (int e, void *)
       {
-         if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
+         // if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; } // ⚠️
 
-         constexpr int MQ1 = T_Q1D;//, MD1 = T_D1D;
-
-         ker::regs3d_t<DIM, MQ1> reg;
-         real_t *rd = nullptr;
-
-         const auto fields_e_ptr = load_field_e_ptr(wrapped_fields_e, e);
+         constexpr int MQ1 = T_Q1D, MD1 = T_D1D;
 
          MFEM_SHARED real_t sm0[3][MQ1][MQ1][MQ1];
          MFEM_SHARED real_t sm1[3][MQ1][MQ1][MQ1];
          real_t (&sm0_ptr)[3][MQ1][MQ1][MQ1] = sm0;
          real_t (&sm1_ptr)[3][MQ1][MQ1][MQ1] = sm1;
 
-         constexpr int MD1 = T_D1D;
+         low::regs3d_t<DIM, MQ1> reg;
+         const real_t *rd = dx_ptr;
+
+         // const auto fields_e_ptr = load_field_e_ptr(wrapped_fields_e, e);
+
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
-         real_t (&sB_ptr)[MD1][MQ1] = sB;
-         real_t (&sG_ptr)[MD1][MQ1] = sG;
+         // real_t (&sB_ptr)[MD1][MQ1] = sB;
+         // real_t (&sG_ptr)[MD1][MQ1] = sG;
 
          // Interpolate
-         for_constexpr<num_inputs>(
-            [ D1D, Q1D, MQ1,
-                   &input_dtq_maps,
-                   &sm0_ptr, &sm1_ptr,
-                   &sB = sB_ptr, &sG = sG_ptr,
-                   &inputs,
-                   &fields_e_ptr,
-                   &reg, &rd,
-                   &input_to_field ] (auto i)
+         // for_constexpr<num_inputs>(
+         //    [ D1D, Q1D, MQ1, e,
+         //           &input_dtq_maps,
+         //           &sm0_ptr, &sm1_ptr,
+         //           &sB = sB_ptr, &sG = sG_ptr,
+         //           &inputs,
+         //           //  &fields_e_ptr,
+         //           &reg, &rd,
+         //           &input_to_field ] (auto i)
          {
-            const auto input = get<i>(inputs);
-            using field_operator_t = std::decay_t<decltype(input)>;
+            // const auto input = get<0/*i*/>(inputs);
+            // using field_operator_t = std::decay_t<decltype(input)>;
 
-            if constexpr (is_gradient_fop<field_operator_t>::value) // Grad
+            // if constexpr (is_gradient_fop<field_operator_t>::value) // Grad
             {
-               const int vdim = input.vdim;
-               const real_t *field_e_r = fields_e_ptr[input_to_field[i]];
-               const auto XE = Reshape(field_e_r, D1D, D1D, D1D, vdim);
+               // const int vdim = input.vdim;
+               // const real_t *field_e_r = fields_e_ptr[input_to_field[i]];
+               // const auto XE = Reshape(field_e_r, D1D, D1D, D1D, vdim);
                // const auto sB = reinterpret_cast<const real_t (*)[MQ1]>(Bi[i]);
                // const auto sG = reinterpret_cast<const real_t (*)[MQ1]>(Gi[i]);
-               const auto B = (const real_t*)input_dtq_maps[i].B;
-               const auto G = (const real_t*)input_dtq_maps[i].G;
-               ker::LoadMatrix(D1D, Q1D, B, sB);
-               ker::LoadMatrix(D1D, Q1D, G, sG);
+               low::LoadMatrix(D1D, Q1D, B, sB);
+               low::LoadMatrix(D1D, Q1D, G, sG);
                // for (int c = 0; c < vdim; c++)
                // constexpr int c = 0;
                {
-                  ker::LoadDofs3d(D1D, 0, XE, sm0_ptr);
-                  ker::Grad3d(D1D, Q1D, sB, sG, sm0_ptr, sm1_ptr, reg);
+                  low::LoadDofs3d(e, D1D, XE, sm0_ptr);
+                  low::Grad3d(D1D, Q1D, sB, sG, sm0_ptr, sm1_ptr, reg);
                }
             }
-            else if constexpr (is_identity_fop<field_operator_t>::value)   // Identity
+            // else if constexpr (is_identity_fop<field_operator_t>::value)   // Identity
             {
                // db1("Identity");
-               rd = fields_e_ptr[input_to_field[i]];
+               // rd = fields_e_ptr[input_to_field[i]];
+               // rd = dx_ptr;
             }
             // else if constexpr (is_weight_fop<field_operator_t>::value)   // Weight
             // {
             //    dbg("Weight");
             //    rw = fields_e_ptr[input_to_field[i]]; // 🔥
             // }
-            else
+            // else
             {
                // MFApply comes here
-               assert(false);
+               // assert(false);
                // MFEM_ABORT("Only Grad and Identity field operators are supported");
             }
-         }); // for_constexpr<num_inputs>
+         }//); // for_constexpr<num_inputs>
 
          MFEM_FOREACH_THREAD_DIRECT(qz,z,Q1D)
          {
@@ -445,7 +457,7 @@ public:
                   auto qf_args = decay_tuple<qf_param_ts> {};
                   qf::apply_kernel<T_Q1D, num_inputs>
                   (reg, reg, rd, qx, qy, qz, qfunc, qf_args);
-#elif 0
+#elif 1
                   real_t v[3], u[3] = { reg[qz][qy][qx][0],
                                         reg[qz][qy][qx][1],
                                         reg[qz][qy][qx][2]
@@ -480,6 +492,7 @@ public:
                   reg[qz][qy][qx][1] = r[1];
                   reg[qz][qy][qx][2] = r[2];
 #else
+                  // 3.96277k/s
                   auto args = decay_tuple<qf_param_ts> {};
                   get<0>(args) = as_tensor<real_t, 3>(&reg[qz][qy][qx][0]);
                   get<1>(args) = as_tensor<real_t, 3, 3>(rd + 9*(qx*T_Q1D*T_Q1D + qy*T_Q1D + qz));
@@ -493,13 +506,14 @@ public:
                }
             }
          }
+         MFEM_SYNC_THREAD;
          // Integrate
          // if constexpr (is_gradient_fop<std::decay_t<output_fop_t>>::value) // Gradient
          {
             // const auto sB = reinterpret_cast<const real_t (*)[MQ1]>(Bo);
             // const auto sG = reinterpret_cast<const real_t (*)[MQ1]>(Go);
-            ker::GradTranspose3d(D1D, Q1D, sB, sG, reg, sm1_ptr, sm0_ptr);
-            ker::WriteDofs3d(D1D, 0, e, reg, YE);
+            low::GradTranspose3d(D1D, Q1D, sB, sG, reg, sm1_ptr, sm0_ptr);
+            low::WriteDofs3d(D1D, 0, e, reg, YE);
          }
       },
       num_entities, thread_blocks, 0, nullptr);
