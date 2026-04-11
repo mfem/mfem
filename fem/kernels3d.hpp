@@ -51,10 +51,10 @@ inline MFEM_HOST_DEVICE void LoadMatrix(const int d1d, const int q1d,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-template <int MQ1>
+template <int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d,
                                         const DeviceTensor<5, const real_t> &XE,
-                                        real_t (&sm0)[3][MQ1][MQ1][MQ1])
+                                        real_t (&sm0)[MQ1][MQ1][MQ1][DIM])
 {
    MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
    {
@@ -62,7 +62,7 @@ inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d,
       {
          MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
          {
-            sm0[0][dz][dy][dx] = XE(dx, dy, dz, 0, e);
+            sm0[dz][dy][dx][0] = XE(dx, dy, dz, 0, e);
          }
       }
    }
@@ -71,12 +71,12 @@ inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d,
 
 ///////////////////////////////////////////////////////////////////////////////
 /// 3D Scalar Gradient, 1/3
-template<int MQ1>
+template<int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void GradX(const int d1d, const int q1d,
                                    const real_t (*B)[MQ1],
                                    const real_t (*G)[MQ1],
-                                   const real_t (&sm0)[3][MQ1][MQ1][MQ1],
-                                   real_t (&sm1)[3][MQ1][MQ1][MQ1])
+                                   const real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                   real_t (&sm1)[MQ1][MQ1][MQ1][DIM])
 {
    MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
    {
@@ -88,12 +88,12 @@ inline MFEM_HOST_DEVICE void GradX(const int d1d, const int q1d,
             MFEM_UNROLL(MQ1)
             for (int dx = 0; dx < d1d; ++dx)
             {
-               const auto x = sm0[0][dz][dy][dx];
+               const auto x = sm0[dz][dy][dx][0];
                u = std::fma(B[dx][qx], x, u);
                v = std::fma(G[dx][qx], x, v);
             }
-            sm1[0][dz][dy][qx] = u;
-            sm1[1][dz][dy][qx] = v;
+            sm1[dz][dy][qx][0] = u;
+            sm1[dz][dy][qx][1] = v;
          }
       }
    }
@@ -102,12 +102,12 @@ inline MFEM_HOST_DEVICE void GradX(const int d1d, const int q1d,
 
 ///////////////////////////////////////////////////////////////////////////////
 /// 3D Scalar Gradient, 2/3
-template<int MQ1>
+template<int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void GradY(const int d1d, const int q1d,
                                    const real_t (*B)[MQ1],
                                    const real_t (*G)[MQ1],
-                                   const real_t (&sm1)[3][MQ1][MQ1][MQ1],
-                                   real_t (&sm0)[3][MQ1][MQ1][MQ1])
+                                   const real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                   real_t (&sm0)[MQ1][MQ1][MQ1][DIM])
 {
    MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
    {
@@ -119,13 +119,13 @@ inline MFEM_HOST_DEVICE void GradY(const int d1d, const int q1d,
             MFEM_UNROLL(MQ1)
             for (int dy = 0; dy < d1d; ++dy)
             {
-               u = std::fma(sm1[1][dz][dy][qx], B[dy][qy], u);
-               v = std::fma(sm1[0][dz][dy][qx], G[dy][qy], v);
-               w = std::fma(sm1[0][dz][dy][qx], B[dy][qy], w);
+               u = std::fma(sm1[dz][dy][qx][1], B[dy][qy], u);
+               v = std::fma(sm1[dz][dy][qx][0], G[dy][qy], v);
+               w = std::fma(sm1[dz][dy][qx][0], B[dy][qy], w);
             }
-            sm0[0][dz][qy][qx] = u;
-            sm0[1][dz][qy][qx] = v;
-            sm0[2][dz][qy][qx] = w;
+            sm0[dz][qy][qx][0] = u;
+            sm0[dz][qy][qx][1] = v;
+            sm0[dz][qy][qx][2] = w;
          }
       }
    }
@@ -138,7 +138,7 @@ template<int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void GradZ(const int d1d, const int q1d,
                                    const real_t (*B)[MQ1],
                                    const real_t (*G)[MQ1],
-                                   const real_t (&sm0)[3][MQ1][MQ1][MQ1],
+                                   const real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
                                    regs3d_t<DIM,MQ1> &reg)
 {
    MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
@@ -151,9 +151,9 @@ inline MFEM_HOST_DEVICE void GradZ(const int d1d, const int q1d,
             MFEM_UNROLL(MQ1)
             for (int dz = 0; dz < d1d; ++dz)
             {
-               u[0] = std::fma(B[dz][qz], sm0[0][dz][qy][qx], u[0]);
-               u[1] = std::fma(B[dz][qz], sm0[1][dz][qy][qx], u[1]);
-               u[2] = std::fma(G[dz][qz], sm0[2][dz][qy][qx], u[2]);
+               u[0] = std::fma(B[dz][qz], sm0[dz][qy][qx][0], u[0]);
+               u[1] = std::fma(B[dz][qz], sm0[dz][qy][qx][1], u[1]);
+               u[2] = std::fma(G[dz][qz], sm0[dz][qy][qx][2], u[2]);
             }
             reg[qz][qy][qx][0] = u[0];
             reg[qz][qy][qx][1] = u[1];
@@ -166,12 +166,12 @@ inline MFEM_HOST_DEVICE void GradZ(const int d1d, const int q1d,
 
 ///////////////////////////////////////////////////////////////////////////////
 /// 3D scalar gradient
-template <int DIM, int MQ1, bool Transpose = false>
+template <int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void Grad3d(const int d1d, const int q1d,
                                     const real_t (*B)[MQ1],
                                     const real_t (*G)[MQ1],
-                                    real_t (&sm0)[3][MQ1][MQ1][MQ1],
-                                    real_t (&sm1)[3][MQ1][MQ1][MQ1],
+                                    real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                    real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
                                     regs3d_t<DIM,MQ1> &reg)
 {
    GradX(d1d, q1d, B, G, sm0, sm1); // Grad X
@@ -186,8 +186,8 @@ inline MFEM_HOST_DEVICE void GradTranspose3dX(const int d1d, const int q1d,
                                               const real_t (*B)[MQ1],
                                               const real_t (*G)[MQ1],
                                               regs3d_t<DIM,MQ1> &reg,
-                                              real_t (&sm1)[3][MQ1][MQ1][MQ1],
-                                              real_t (&sm0)[3][MQ1][MQ1][MQ1])
+                                              real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                              real_t (&sm0)[MQ1][MQ1][MQ1][DIM])
 
 {
    MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
@@ -196,9 +196,9 @@ inline MFEM_HOST_DEVICE void GradTranspose3dX(const int d1d, const int q1d,
       {
          MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
          {
-            sm1[0][qz][qy][qx] = reg[qz][qy][qx][0];
-            sm1[1][qz][qy][qx] = reg[qz][qy][qx][1];
-            sm1[2][qz][qy][qx] = reg[qz][qy][qx][2];
+            sm1[qz][qy][qx][0] = reg[qz][qy][qx][0];
+            sm1[qz][qy][qx][1] = reg[qz][qy][qx][1];
+            sm1[qz][qy][qx][2] = reg[qz][qy][qx][2];
          }
       }
    }
@@ -214,13 +214,13 @@ inline MFEM_HOST_DEVICE void GradTranspose3dX(const int d1d, const int q1d,
             MFEM_UNROLL(MQ1)
             for (int qx = 0; qx < q1d; ++qx)
             {
-               u = std::fma(sm1[0][qz][qy][qx], G[dx][qx], u);
-               v = std::fma(sm1[1][qz][qy][qx], B[dx][qx], v);
-               w = std::fma(sm1[2][qz][qy][qx], B[dx][qx], w);
+               u = std::fma(sm1[qz][qy][qx][0], G[dx][qx], u);
+               v = std::fma(sm1[qz][qy][qx][1], B[dx][qx], v);
+               w = std::fma(sm1[qz][qy][qx][2], B[dx][qx], w);
             }
-            sm0[0][qz][qy][dx] = u;
-            sm0[1][qz][qy][dx] = v;
-            sm0[2][qz][qy][dx] = w;
+            sm0[qz][qy][dx][0] = u;
+            sm0[qz][qy][dx][1] = v;
+            sm0[qz][qy][dx][2] = w;
          }
       }
    }
@@ -229,12 +229,12 @@ inline MFEM_HOST_DEVICE void GradTranspose3dX(const int d1d, const int q1d,
 
 ///////////////////////////////////////////////////////////////////////////////
 /// 3D Scalar Gradient Transposed, 2/3
-template<int MQ1>
+template<int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void GradTranspose3dY(const int d1d, const int q1d,
                                               const real_t (*B)[MQ1],
                                               const real_t (*G)[MQ1],
-                                              real_t (&sm0)[3][MQ1][MQ1][MQ1],
-                                              real_t (&sm1)[3][MQ1][MQ1][MQ1])
+                                              real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                              real_t (&sm1)[MQ1][MQ1][MQ1][DIM])
 {
    MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
    {
@@ -246,13 +246,13 @@ inline MFEM_HOST_DEVICE void GradTranspose3dY(const int d1d, const int q1d,
             MFEM_UNROLL(MQ1)
             for (int qy = 0; qy < q1d; ++qy)
             {
-               u = std::fma(sm0[0][qz][qy][dx], B[dy][qy], u);
-               v = std::fma(sm0[1][qz][qy][dx], G[dy][qy], v);
-               w = std::fma(sm0[2][qz][qy][dx], B[dy][qy], w);
+               u = std::fma(sm0[qz][qy][dx][0], B[dy][qy], u);
+               v = std::fma(sm0[qz][qy][dx][1], G[dy][qy], v);
+               w = std::fma(sm0[qz][qy][dx][2], B[dy][qy], w);
             }
-            sm1[0][qz][dy][dx] = u;
-            sm1[1][qz][dy][dx] = v;
-            sm1[2][qz][dy][dx] = w;
+            sm1[qz][dy][dx][0] = u;
+            sm1[qz][dy][dx][1] = v;
+            sm1[qz][dy][dx][2] = w;
          }
       }
    }
@@ -265,7 +265,7 @@ template<int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void GradTranspose3dZ(const int d1d, const int q1d,
                                               const real_t (*B)[MQ1],
                                               const real_t (*G)[MQ1],
-                                              real_t (&sm1)[3][MQ1][MQ1][MQ1],
+                                              real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
                                               regs3d_t<DIM,MQ1> &reg)
 {
    MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
@@ -278,9 +278,9 @@ inline MFEM_HOST_DEVICE void GradTranspose3dZ(const int d1d, const int q1d,
             MFEM_UNROLL(MQ1)
             for (int qz = 0; qz < q1d; ++qz)
             {
-               u = std::fma(sm1[0][qz][dy][dx], B[dz][qz], u);
-               v = std::fma(sm1[1][qz][dy][dx], B[dz][qz], v);
-               w = std::fma(sm1[2][qz][dy][dx], G[dz][qz], w);
+               u = std::fma(sm1[qz][dy][dx][0], B[dz][qz], u);
+               v = std::fma(sm1[qz][dy][dx][1], B[dz][qz], v);
+               w = std::fma(sm1[qz][dy][dx][2], G[dz][qz], w);
             }
             reg[dz][dy][dx][0] = u;
             reg[dz][dy][dx][1] = v;
@@ -298,8 +298,8 @@ inline MFEM_HOST_DEVICE void GradTranspose3d(const int d1d, const int q1d,
                                              const real_t (*B)[MQ1],
                                              const real_t (*G)[MQ1],
                                              regs3d_t<DIM,MQ1> &reg,
-                                             real_t (&sm1)[3][MQ1][MQ1][MQ1],
-                                             real_t (&sm0)[3][MQ1][MQ1][MQ1])
+                                             real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                             real_t (&sm0)[MQ1][MQ1][MQ1][DIM])
 {
    GradTranspose3dX(d1d, q1d, B, G, reg, sm1, sm0); // Grad^T X
    GradTranspose3dY(d1d, q1d, B, G, sm0, sm1); // Grad^T Y

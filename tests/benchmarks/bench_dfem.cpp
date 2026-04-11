@@ -325,8 +325,8 @@ public: // for nvcc
       {
          constexpr int MQ1 = T_Q1D;
 
-         MFEM_SHARED real_t sm0[3][MQ1][MQ1][MQ1];
-         MFEM_SHARED real_t sm1[3][MQ1][MQ1][MQ1];
+         MFEM_SHARED real_t sm0[MQ1][MQ1][MQ1][3];
+         MFEM_SHARED real_t sm1[MQ1][MQ1][MQ1][3];
          MFEM_SHARED real_t sB[MQ1][MQ1];
          MFEM_SHARED real_t sG[MQ1][MQ1];
 

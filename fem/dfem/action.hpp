@@ -384,10 +384,10 @@ public:
 
          constexpr int MQ1 = T_Q1D, MD1 = T_D1D;
 
-         MFEM_SHARED real_t sm0[3][MQ1][MQ1][MQ1];
-         MFEM_SHARED real_t sm1[3][MQ1][MQ1][MQ1];
-         real_t (&sm0_ptr)[3][MQ1][MQ1][MQ1] = sm0;
-         real_t (&sm1_ptr)[3][MQ1][MQ1][MQ1] = sm1;
+         MFEM_SHARED real_t sm0[MQ1][MQ1][MQ1][3];
+         MFEM_SHARED real_t sm1[MQ1][MQ1][MQ1][3];
+         real_t (&sm0_ptr)[MQ1][MQ1][MQ1][3] = sm0;
+         real_t (&sm1_ptr)[MQ1][MQ1][MQ1][3] = sm1;
 
          low::regs3d_t<DIM, MQ1> reg;
          const real_t *rd = dx_ptr;
