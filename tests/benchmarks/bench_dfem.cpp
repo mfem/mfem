@@ -54,6 +54,7 @@ static void DumpVersionInfo()
    // mfem::out << "version 4: MF ∂fem new kernels" << std::endl; // ⚠️ not supported yet by new kernels
    mfem::out << "version 5: PA ∂fem new kernels" << std::endl;
    mfem::out << "version 6: PA low" << std::endl;
+   mfem::out << "version 7: PA ∂fem new kernels, no specialization" << std::endl;
    mfem::out << "\x1b[m" << std::endl;
 }
 
@@ -62,7 +63,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
-   const auto versions = { 0, 1, /*2, 3, 4,*/ 5, 6};
+   const auto versions = { 0, 1, /*2, 3, 4,*/ 5, 6, 7};
 
    const auto orders = { 6, 5, 4, 3, 2, 1 };
 
@@ -91,27 +92,27 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 /// Basic Kernels Specializations /////////////////////////////////////////////
 static void AddBasicKernelSpecializations()
 {
-   // using Det = QuadratureInterpolator::DetKernels;
-   // Det::Specialization<3, 3, 2, 2>::Add();
-   // Det::Specialization<3, 3, 2, 3>::Add();
-   // Det::Specialization<3, 3, 2, 5>::Add();
-   // Det::Specialization<3, 3, 2, 6>::Add();
-   // // Others might exceed memory limits
+   using Det = QuadratureInterpolator::DetKernels;
+   Det::Specialization<3, 3, 2, 2>::Add();
+   Det::Specialization<3, 3, 2, 3>::Add();
+   Det::Specialization<3, 3, 2, 5>::Add();
+   Det::Specialization<3, 3, 2, 6>::Add();
+   // Others might exceed memory limits
 
-   // using Grad = QuadratureInterpolator::GradKernels;
-   // Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 3>::Add();
-   // Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 4>::Add();
-   // Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 5>::Add();
-   // Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 6>::Add();
-   // Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 7>::Add();
-   // Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 8>::Add();
-   // Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 7>::Add();
-   // Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 8>::Add();
+   using Grad = QuadratureInterpolator::GradKernels;
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 3>::Add();
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 4>::Add();
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 5>::Add();
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 6>::Add();
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 7>::Add();
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 8>::Add();
+   Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 7>::Add();
+   Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 8>::Add();
 
-   // using LIN = DomainLFIntegrator::AssembleKernels;
-   // LIN::Specialization<3, 7, 7>::Add();
-   // LIN::Specialization<3, 6, 6>::Add();
-   // LIN::Specialization<3, 8, 8>::Add();
+   using LIN = DomainLFIntegrator::AssembleKernels;
+   LIN::Specialization<3, 7, 7>::Add();
+   LIN::Specialization<3, 6, 6>::Add();
+   LIN::Specialization<3, 8, 8>::Add();
 }
 
 /// Globals ///////////////////////////////////////////////////////////////////
@@ -134,11 +135,11 @@ struct StiffnessIntegrator : public BilinearFormIntegrator
 public:
    StiffnessIntegrator(Vector &qdata): qdata(qdata)
    {
-      // StiffnessKernels::Specialization<2, 3>::Add();  // 1
+      StiffnessKernels::Specialization<2, 3>::Add();  // 1
       StiffnessKernels::Specialization<3, 4>::Add();  // 2
-      // StiffnessKernels::Specialization<4, 5>::Add();  // 3
+      StiffnessKernels::Specialization<4, 5>::Add();  // 3
       StiffnessKernels::Specialization<5, 6>::Add();  // 4
-      // StiffnessKernels::Specialization<6, 7>::Add();  // 5
+      StiffnessKernels::Specialization<6, 7>::Add();  // 5
       StiffnessKernels::Specialization<7, 8>::Add();  // 6
    }
 
@@ -377,11 +378,11 @@ public: // for nvcc
 public:
    PADiffLowIntegrator()
    {
-      // PADiffLowKernels::Specialization<2, 3>::Add();  // 1
+      PADiffLowKernels::Specialization<2, 3>::Add();  // 1
       PADiffLowKernels::Specialization<3, 4>::Add();  // 2
-      // PADiffLowKernels::Specialization<4, 5>::Add();  // 3
+      PADiffLowKernels::Specialization<4, 5>::Add();  // 3
       PADiffLowKernels::Specialization<5, 6>::Add();  // 4
-      // PADiffLowKernels::Specialization<6, 7>::Add();  // 5
+      PADiffLowKernels::Specialization<6, 7>::Add();  // 5
       PADiffLowKernels::Specialization<7, 8>::Add();  // 6
    }
 
@@ -750,9 +751,14 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          MFEM_ABORT("PA ∂fem std kernels not implemented");
          // dMFOperatorSetup(true, true);
       }
-      else if (version == 5) // 5: PA ∂fem new kernels
+      else if (version == 5) // 5: PA ∂fem new kernels, specialized
       {
          dPAOperatorSetup(true, true);
+      }
+      // else if (version == 6) // 6: PA low kernels (above)
+      else if (version == 7) // 7: PA ∂fem new kernels, no specialization
+      {
+         dPAOperatorSetup(true, false);
       }
       else { MFEM_ABORT("Invalid version"); }
 
@@ -765,8 +771,8 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          cg.SetMaxIter(2000);
          cg.SetRelTol(1e-8);
          cg.Mult(B, X);
-         // MFEM_VERIFY(cg.GetConverged(), "❌ CG solver did not converge.");
-         mfem::out << (cg.GetConverged() ? "✅" : "❌") << std::endl;
+         MFEM_VERIFY(cg.GetConverged(), "❌ CG solver did not converge.");
+         // mfem::out << (cg.GetConverged() ? "✅" : "❌") << std::endl;
          // mfem::out << "✅" << std::endl;
       }
       cg.SetPrintLevel(print_lvl);

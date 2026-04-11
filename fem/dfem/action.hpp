@@ -274,11 +274,11 @@ public:
       residual_l(residual_l)
    {
       if (!use_kernels_specialization) { return; }
-      // NewActionCallbackKernels::template Specialization<2,3>::Add(); // 1
+      NewActionCallbackKernels::template Specialization<2,3>::Add(); // 1
       NewActionCallbackKernels::template Specialization<3,4>::Add(); // 2
-      // NewActionCallbackKernels::template Specialization<4,5>::Add(); // 3
+      NewActionCallbackKernels::template Specialization<4,5>::Add(); // 3
       NewActionCallbackKernels::template Specialization<5,6>::Add(); // 4
-      // NewActionCallbackKernels::template Specialization<6,7>::Add(); // 5
+      NewActionCallbackKernels::template Specialization<6,7>::Add(); // 5
       NewActionCallbackKernels::template Specialization<7,8>::Add(); // 6
    }
 
