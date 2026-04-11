@@ -488,12 +488,10 @@ public:
                   get<0>(args) =
                      as_tensor<real_t, 3>(&reg[0][qz][qy][qx]); // ⚠️ layout for CPU ?!
                   get<1>(args) = as_tensor<real_t, 3, 3>(rd);
-                  const auto r = get<0>(apply(qfunc, args));
+                  auto r = get<0>(apply(qfunc, args));
                   if constexpr (decltype(r)::ndim == 1)
                   {
-                     reg[0][qz][qy][qx] = r[0];
-                     reg[1][qz][qy][qx] = r[1];
-                     reg[2][qz][qy][qx] = r[2];
+                     as_tensor<real_t, 3>(&reg[0][qz][qy][qx]) = r;
                   }
                   else { static_assert(false); }
 #endif
