@@ -441,13 +441,11 @@ public:
             {
                MFEM_FOREACH_THREAD_DIRECT(qx,x,Q1D)
                {
-#if 1
-                  //
+#if 0
                   auto qf_args = decay_tuple<qf_param_ts> {};
                   qf::apply_kernel<T_Q1D, num_inputs>
                   (reg, reg, rd, qx, qy, qz, qfunc, qf_args);
 #elif 0
-                  //
                   real_t v[3], u[3] = { reg[qz][qy][qx][0],
                                         reg[qz][qy][qx][1],
                                         reg[qz][qy][qx][2]
@@ -458,7 +456,6 @@ public:
                   reg[qz][qy][qx][1] = v[1];
                   reg[qz][qy][qx][2] = v[2];
 #elif 0
-                  //
                   const auto *D = (real_t (*)[T_Q1D][T_Q1D][3][3]) rd;
                   const auto args = decay_tuple<qf_param_ts>
                   {
@@ -475,7 +472,6 @@ public:
                   reg[qz][qy][qx][1] = r[1];
                   reg[qz][qy][qx][2] = r[2];
 #elif 0
-                  //
                   auto u = as_tensor<real_t, 3>(&reg[qz][qy][qx][0]);
                   const auto *d = (real_t (*)[T_Q1D][T_Q1D][3][3]) rd;
                   auto D = as_tensor<real_t, 3, 3>(&d[qx][qy][qz][0][0]);
@@ -484,7 +480,6 @@ public:
                   reg[qz][qy][qx][1] = r[1];
                   reg[qz][qy][qx][2] = r[2];
 #else
-                  //
                   auto args = decay_tuple<qf_param_ts> {};
                   get<0>(args) = as_tensor<real_t, 3>(&reg[qz][qy][qx][0]);
                   get<1>(args) = as_tensor<real_t, 3, 3>(rd + 9*(qx*T_Q1D*T_Q1D + qy*T_Q1D + qz));

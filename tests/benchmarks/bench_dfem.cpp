@@ -351,17 +351,17 @@ public: // for nvcc
                MFEM_FOREACH_THREAD_DIRECT(qx,x,Q1D)
                {
                   // pull
-                  real_t v[3], u[3] = { reg[0][qz][qy][qx],
-                                        reg[1][qz][qy][qx],
-                                        reg[2][qz][qy][qx]
+                  real_t v[3], u[3] = { reg[qz][qy][qx][0],
+                                        reg[qz][qy][qx][1],
+                                        reg[qz][qy][qx][2]
                                       };
                   //  Q-function
                   const real_t *dx = &DX(0, 0, qx, qy, qz, e);
                   kernels::Mult(3, 3, dx, u, v);
                   // push
-                  reg[0][qz][qy][qx] = v[0];
-                  reg[1][qz][qy][qx] = v[1];
-                  reg[2][qz][qy][qx] = v[2];
+                  reg[qz][qy][qx][0] = v[0];
+                  reg[qz][qy][qx][1] = v[1];
+                  reg[qz][qy][qx][2] = v[2];
                }
             }
          }
