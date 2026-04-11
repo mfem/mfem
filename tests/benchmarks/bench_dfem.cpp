@@ -308,23 +308,21 @@ struct PADiffLowIntegrator : public BilinearFormIntegrator
 
 public: // for nvcc
    //////////////////////////////////////////////////////////////////
-   template <int T_D1D = 0, int T_Q1D = 0>
-   static void PADiffLowMult(const int NE,
-                             const real_t *b,
-                             const real_t *g,
-                             const real_t *dx, const real_t *xe, real_t *ye,
-                             const int /*d1d*/, const int /*q1d*/)
+   template <int T_Q1D = 0>
+   static void PADiffLowMult(const int ne, const int d1d,
+                             const real_t *b, const real_t *g,
+                             const real_t *dx, const real_t *xe,
+                             real_t *ye,
+                             const int q1d)
    {
-      constexpr int D1D = T_D1D, Q1D = T_Q1D;
       constexpr int DIM = 3, VDIM = 1;
 
-      const auto XE = Reshape(xe, D1D, D1D, D1D, VDIM, NE);
-      auto YE = Reshape(ye, D1D, D1D, D1D, VDIM, NE);
+      const auto XE = Reshape(xe, d1d, d1d, d1d, VDIM, ne);
+      auto YE = Reshape(ye, d1d, d1d, d1d, VDIM, ne);
 
-      mfem::forall_3D<T_Q1D*T_Q1D*T_Q1D>(NE, Q1D, Q1D, Q1D,
+      mfem::forall_3D<T_Q1D*T_Q1D*T_Q1D>(ne, q1d, q1d, q1d,
                                          [=] MFEM_HOST_DEVICE(int e)
       {
-         constexpr int D1D = T_D1D, Q1D = T_Q1D;
          constexpr int MQ1 = T_Q1D;
 
          MFEM_SHARED real_t sm0[3][MQ1][MQ1][MQ1];
@@ -334,19 +332,19 @@ public: // for nvcc
 
          low::regs3d_t<DIM, MQ1> reg;
 
-         low::LoadMatrix(D1D, Q1D, b, sB);
-         low::LoadMatrix(D1D, Q1D, g, sG);
-         low::LoadDofs3d(e, D1D, XE, sm0); // Load & sync
+         low::LoadMatrix(d1d, q1d, b, sB);
+         low::LoadMatrix(d1d, q1d, g, sG);
+         low::LoadDofs3d(e, d1d, XE, sm0); // Load & sync
 
          // Grad: sm0 -X-> sm1 -Y-> sm0 -Z-> reg
-         low::Grad3d(D1D, Q1D, sB, sG, sm0, sm1, reg); // Grad 3D
+         low::Grad3d(d1d, q1d, sB, sG, sm0, sm1, reg); // Grad 3D
 
          // Q-function
-         MFEM_FOREACH_THREAD_DIRECT(qz,z,Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
          {
-            MFEM_FOREACH_THREAD_DIRECT(qy,y,Q1D)
+            MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
             {
-               MFEM_FOREACH_THREAD_DIRECT(qx,x,Q1D)
+               MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
                {
                   // pull
                   real_t v[3], u[3] = { reg[qz][qy][qx][0],
@@ -354,7 +352,7 @@ public: // for nvcc
                                         reg[qz][qy][qx][2]
                                       };
                   //  Q-function
-                  kernels::Mult(3, 3, dx + 9*(qx*Q1D*Q1D + qy*Q1D + qz), u, v);
+                  kernels::Mult(3, 3, dx + 9*(qx*q1d*q1d + qy*q1d + qz), u, v);
                   // push
                   reg[qz][qy][qx][0] = v[0];
                   reg[qz][qy][qx][1] = v[1];
@@ -365,23 +363,23 @@ public: // for nvcc
          MFEM_SYNC_THREAD;
 
          // Grad^T: reg -=-> sm1 -X^T-> sm0 -Y^T-> sm1 -Z^T-> reg -> YE
-         low::GradTranspose3d(D1D, Q1D, sB, sG, reg, sm1, sm0); // Grad^T 3D
-         low::WriteDofs3d(D1D, 0, e, reg, YE); // Write YE
+         low::GradTranspose3d(d1d, q1d, sB, sG, reg, sm1, sm0); // Grad^T 3D
+         low::WriteDofs3d(d1d, 0, e, reg, YE); // Write YE
       });
    }
 
    using PADiffLowKernelType = decltype(&PADiffLowMult<>);
-   MFEM_REGISTER_KERNELS(PADiffLowKernels, PADiffLowKernelType, (int, int));
+   MFEM_REGISTER_KERNELS(PADiffLowKernels, PADiffLowKernelType, (int));
 
 public:
    PADiffLowIntegrator()
    {
-      // PADiffLowKernels::Specialization<2, 3>::Add();  // 1
-      PADiffLowKernels::Specialization<3, 4>::Add();  // 2
-      // PADiffLowKernels::Specialization<4, 5>::Add();  // 3
-      PADiffLowKernels::Specialization<5, 6>::Add();  // 4
-      // PADiffLowKernels::Specialization<6, 7>::Add();  // 5
-      PADiffLowKernels::Specialization<7, 8>::Add();  // 6
+      PADiffLowKernels::Specialization<3>::Add();  // 1
+      PADiffLowKernels::Specialization<4>::Add();  // 2
+      PADiffLowKernels::Specialization<5>::Add();  // 3
+      PADiffLowKernels::Specialization<6>::Add();  // 4
+      PADiffLowKernels::Specialization<7>::Add();  // 5
+      PADiffLowKernels::Specialization<8>::Add();  // 6
    }
 
    void AssemblePA(const FiniteElementSpace &fespace) override
@@ -458,24 +456,24 @@ public:
    void AddMultPA(const Vector &x, Vector &y) const override
    {
       db1("\x1b[32md1d:{} q1d:{}", d1d, q1d);
-      PADiffLowKernels::Run(d1d, q1d,
-                            ne, B, G, DX, x.Read(), y.ReadWrite(),
-                            d1d, q1d);
+      PADiffLowKernels::Run(q1d,
+                            ne, d1d, B, G, DX, x.Read(), y.ReadWrite(),
+                            q1d);
    }
 };
-template <int D1D, int Q1D>
+template <int Q1D>
 PADiffLowIntegrator::PADiffLowKernelType
 PADiffLowIntegrator::PADiffLowKernels::Kernel()
 {
-   db1("D1D:{} Q1D:{}", D1D, Q1D);
-   return PADiffLowMult<D1D, Q1D>;
+   db1("Q1D:{}", Q1D);
+   return PADiffLowMult<Q1D>;
 }
 
 PADiffLowIntegrator::PADiffLowKernelType
-PADiffLowIntegrator::PADiffLowKernels::Fallback(int d1d, int q1d)
+PADiffLowIntegrator::PADiffLowKernels::Fallback(int q1d)
 {
-   dbg("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
-   MFEM_ABORT("No kernel for d1d=" << d1d << " q1d=" << q1d);
+   dbg("\x1b[33mFallback d1d:{} q1d:{}", q1d);
+   MFEM_ABORT("No kernel for q1d=" << q1d);
    return nullptr;
    // return StiffnessMult<>;
 }
