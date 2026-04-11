@@ -268,30 +268,31 @@ public:
       residual_l(residual_l)
    {
       if (!use_kernels_specialization) { return; }
-      // NewActionCallbackKernels::template Specialization<2,3>::Add(); // 1
-      NewActionCallbackKernels::template Specialization<3,4>::Add(); // 2
-      // NewActionCallbackKernels::template Specialization<4,5>::Add(); // 3
-      NewActionCallbackKernels::template Specialization<5,6>::Add(); // 4
-      // NewActionCallbackKernels::template Specialization<6,7>::Add(); // 5
-      NewActionCallbackKernels::template Specialization<7,8>::Add(); // 6
+      NewActionCallbackKernels::template Specialization<3>::Add(); // 1
+      NewActionCallbackKernels::template Specialization<4>::Add(); // 2
+      NewActionCallbackKernels::template Specialization<5>::Add(); // 3
+      NewActionCallbackKernels::template Specialization<6>::Add(); // 4
+      NewActionCallbackKernels::template Specialization<7>::Add(); // 5
+      NewActionCallbackKernels::template Specialization<8>::Add(); // 6
    }
 
-   template<int T_D1D = 0, int T_Q1D = 0>
-   static void action_callback_new(restriction_cb_t &restriction_cb,
+   template<int T_Q1D = 0>
+   static void action_callback_new(const int d1d,
+                                   restriction_cb_t &restriction_cb,
                                    qfunc_t &qfunc,
-                                   input_t &inputs,
-                                   const std::array<size_t, num_inputs> &input_to_field,
+                                   [[maybe_unused]] input_t &inputs,
+                                   [[maybe_unused]] const std::array<size_t, num_inputs> &input_to_field,
                                    const std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
                                    const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
                                    [[maybe_unused]] const int dimension,
                                    const int num_entities,
-                                   const int test_vdim,
+                                   [[maybe_unused]] const int test_vdim,
                                    [[maybe_unused]] const int num_test_dof,
                                    const ThreadBlocks &thread_blocks,
                                    SharedMemoryInfo<num_fields, num_inputs, num_outputs> &shmem_info,
-                                   const Array<int> &attributes,
+                                   [[maybe_unused]] const Array<int> &attributes,
                                    [[maybe_unused]] const output_fop_t &output_fop,
-                                   const Array<int> *elem_attributes,
+                                   [[maybe_unused]] const Array<int> *elem_attributes,
                                    // refs
                                    std::vector<Vector> &fields_e,
                                    Vector &residual_e,
@@ -301,14 +302,11 @@ public:
                                    const std::vector<Vector> &parameters_l,
                                    Vector &residual_l,
                                    // fallback arguments
-                                   const int d1d, const int q1d)
+                                   const int q1d)
    {
       NVTX_MARK_FUNCTION;
       assert(dimension == 3);
       static_assert(MFEM_D2Q_MAX_SIZE >= num_inputs, "MFEM_D2Q_MAX_SIZE error");
-
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
 
       constexpr int DIM = 3;
 
@@ -357,9 +355,9 @@ public:
       auto wrapped_fields_e =
          wrap_fields(fields_e, shmem_info.field_sizes, num_entities);
 
-      // const bool has_attr = attributes.Size() > 0;
-      // const auto d_attr = attributes.Read();
-      // const auto d_elem_attr = elem_attributes->Read();
+      const bool has_attr = attributes.Size() > 0;
+      const auto d_attr = attributes.Read();
+      const auto d_elem_attr = elem_attributes->Read();
 
       // const int vdim = input.vdim;
       // const auto fields_e_ptr = load_field_e_ptr(wrapped_fields_e, e);
@@ -368,11 +366,10 @@ public:
       const int NE = num_entities;
       constexpr int VDIM = 1;
 
-      const auto XE = Reshape(fields_e[0].Read(), D1D, D1D, D1D, VDIM, NE);
-      // const auto DX = Reshape(fields_e[1].Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
+      const auto XE = Reshape(fields_e[0].Read(), d1d, d1d, d1d, VDIM, NE);
       const real_t *dx_ptr = fields_e[1].Read();
 
-      auto YE = Reshape(residual_e.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
+      auto YE = Reshape(residual_e.ReadWrite(), d1d, d1d, d1d, VDIM, NE);
 
       const auto B = (const real_t*)input_dtq_maps[0/*i*/].B;
       const auto G = (const real_t*)input_dtq_maps[0/*i*/].G;
@@ -380,21 +377,21 @@ public:
       NVTX_INI("forall");
       dfem::forall<T_Q1D*T_Q1D*T_Q1D>([=] MFEM_HOST_DEVICE (int e, void *)
       {
-         // if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; } // ⚠️
+         if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
-         constexpr int MQ1 = T_Q1D, MD1 = T_D1D;
+         constexpr int MQ1 = T_Q1D;
 
          MFEM_SHARED real_t sm0[MQ1][MQ1][MQ1][3];
          MFEM_SHARED real_t sm1[MQ1][MQ1][MQ1][3];
-         real_t (&sm0_ptr)[MQ1][MQ1][MQ1][3] = sm0;
-         real_t (&sm1_ptr)[MQ1][MQ1][MQ1][3] = sm1;
+         // real_t (&sm0_ptr)[MQ1][MQ1][MQ1][3] = sm0;
+         // real_t (&sm1_ptr)[MQ1][MQ1][MQ1][3] = sm1;
 
          low::regs3d_t<DIM, MQ1> reg;
          const real_t *rd = dx_ptr;
 
          // const auto fields_e_ptr = load_field_e_ptr(wrapped_fields_e, e);
 
-         MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
+         MFEM_SHARED real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
          // real_t (&sB_ptr)[MD1][MQ1] = sB;
          // real_t (&sG_ptr)[MD1][MQ1] = sG;
 
@@ -419,13 +416,13 @@ public:
                // const auto XE = Reshape(field_e_r, D1D, D1D, D1D, vdim);
                // const auto sB = reinterpret_cast<const real_t (*)[MQ1]>(Bi[i]);
                // const auto sG = reinterpret_cast<const real_t (*)[MQ1]>(Gi[i]);
-               low::LoadMatrix(D1D, Q1D, B, sB);
-               low::LoadMatrix(D1D, Q1D, G, sG);
+               low::LoadMatrix(d1d, q1d, B, sB);
+               low::LoadMatrix(d1d, q1d, G, sG);
                // for (int c = 0; c < vdim; c++)
                // constexpr int c = 0;
                {
-                  low::LoadDofs3d(e, D1D, XE, sm0_ptr);
-                  low::Grad3d(D1D, Q1D, sB, sG, sm0_ptr, sm1_ptr, reg);
+                  low::LoadDofs3d(e, d1d, XE, sm0);
+                  low::Grad3d(d1d, q1d, sB, sG, sm0, sm1, reg);
                }
             }
             // else if constexpr (is_identity_fop<field_operator_t>::value)   // Identity
@@ -447,11 +444,11 @@ public:
             }
          }//); // for_constexpr<num_inputs>
 
-         MFEM_FOREACH_THREAD_DIRECT(qz,z,Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
          {
-            MFEM_FOREACH_THREAD_DIRECT(qy,y,Q1D)
+            MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
             {
-               MFEM_FOREACH_THREAD_DIRECT(qx,x,Q1D)
+               MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
                {
 #if 0
                   auto qf_args = decay_tuple<qf_param_ts> {};
@@ -492,7 +489,6 @@ public:
                   reg[qz][qy][qx][1] = r[1];
                   reg[qz][qy][qx][2] = r[2];
 #else
-                  // 3.96277k/s
                   auto args = decay_tuple<qf_param_ts> {};
                   get<0>(args) = as_tensor<real_t, 3>(&reg[qz][qy][qx][0]);
                   get<1>(args) = as_tensor<real_t, 3, 3>(rd + 9*(qx*T_Q1D*T_Q1D + qy*T_Q1D + qz));
@@ -512,8 +508,8 @@ public:
          {
             // const auto sB = reinterpret_cast<const real_t (*)[MQ1]>(Bo);
             // const auto sG = reinterpret_cast<const real_t (*)[MQ1]>(Go);
-            low::GradTranspose3d(D1D, Q1D, sB, sG, reg, sm1_ptr, sm0_ptr);
-            low::WriteDofs3d(D1D, 0, e, reg, YE);
+            low::GradTranspose3d(d1d, q1d, sB, sG, reg, sm1, sm0);
+            low::WriteDofs3d(d1d, 0, e, reg, YE);
          }
       },
       num_entities, thread_blocks, 0, nullptr);
@@ -525,14 +521,14 @@ public:
    }
 
    using NewActionKernelType = decltype(&NewActionCallback::action_callback_new<>);
-   MFEM_REGISTER_KERNELS(NewActionCallbackKernels, NewActionKernelType, (int,
-                                                                         int));
+   MFEM_REGISTER_KERNELS(NewActionCallbackKernels, NewActionKernelType, (int));
 
    void Apply(const int d1d, const int q1d)
    {
       db1();
-      NewActionCallbackKernels::Run(d1d, q1d,
+      NewActionCallbackKernels::Run(q1d,
                                     // args
+                                    d1d,
                                     restriction_cb,
                                     qfunc,
                                     inputs,
@@ -555,27 +551,27 @@ public:
                                     parameters_l,
                                     residual_l,
                                     // fallback arguments
-                                    d1d, q1d);
+                                    q1d);
    }
 };
 
 template<size_t num_fields, size_t num_inputs, size_t num_outputs,
          typename restriction_cb_t, typename qfunc_t, typename input_t, typename output_fop_t>
-template<int T_D1D, int T_Q1D>
+template<int T_Q1D>
 typename NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t, input_t, output_fop_t>::NewActionKernelType
 NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t, input_t, output_fop_t>::NewActionCallbackKernels::Kernel()
 {
-   return action_callback_new<T_D1D, T_Q1D>;
+   return action_callback_new<T_Q1D>;
 }
 
 template<size_t num_fields, size_t num_inputs, size_t num_outputs,
          typename restriction_cb_t, typename qfunc_t, typename input_t, typename output_fop_t>
 typename NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t, input_t, output_fop_t>::NewActionKernelType
 NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t, input_t, output_fop_t>::NewActionCallbackKernels::Fallback
-(int d1d, int q1d)
+(int q1d)
 {
-   dbg("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
-   MFEM_ABORT("No kernel for d1d=" << d1d << " q1d=" << q1d);
+   dbg("\x1b[33mFallback q1d:{}", q1d);
+   MFEM_ABORT("No kernel for q1d=" << q1d);
    return nullptr;
    // return action_callback_new<>;
 }
