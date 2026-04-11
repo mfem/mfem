@@ -457,7 +457,7 @@ public:
                   auto qf_args = decay_tuple<qf_param_ts> {};
                   qf::apply_kernel<T_Q1D, num_inputs>
                   (reg, reg, rd, qx, qy, qz, qfunc, qf_args);
-#elif 1
+#elif 0
                   real_t v[3], u[3] = { reg[qz][qy][qx][0],
                                         reg[qz][qy][qx][1],
                                         reg[qz][qy][qx][2]

@@ -316,11 +316,9 @@ public: // for nvcc
                              const int /*d1d*/, const int /*q1d*/)
    {
       constexpr int D1D = T_D1D, Q1D = T_Q1D;
-
       constexpr int DIM = 3, VDIM = 1;
 
       const auto XE = Reshape(xe, D1D, D1D, D1D, VDIM, NE);
-      // const auto DX = Reshape(dx, DIM, DIM, Q1D, Q1D, Q1D, NE);
       auto YE = Reshape(ye, D1D, D1D, D1D, VDIM, NE);
 
       mfem::forall_3D<T_Q1D*T_Q1D*T_Q1D>(NE, Q1D, Q1D, Q1D,
@@ -340,6 +338,7 @@ public: // for nvcc
          low::LoadMatrix(D1D, Q1D, g, sG);
          low::LoadDofs3d(e, D1D, XE, sm0); // Load & sync
 
+         // Grad: sm0 -X-> sm1 -Y-> sm0 -Z-> reg
          low::Grad3d(D1D, Q1D, sB, sG, sm0, sm1, reg); // Grad 3D
 
          // Q-function
@@ -365,6 +364,7 @@ public: // for nvcc
          }
          MFEM_SYNC_THREAD;
 
+         // Grad^T: reg -=-> sm1 -X^T-> sm0 -Y^T-> sm1 -Z^T-> reg -> YE
          low::GradTranspose3d(D1D, Q1D, sB, sG, reg, sm1, sm0); // Grad^T 3D
          low::WriteDofs3d(D1D, 0, e, reg, YE); // Write YE
       });
