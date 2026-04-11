@@ -241,7 +241,10 @@ void ParticleSet::AddParticles(const Array<IDType> &new_ids,
    }
 }
 
-#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
+
+//#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
+// gslib stuff for transferring particles
+#if 0
 
 /// \cond DO_NOT_DOCUMENT
 template<size_t NBytes>
@@ -433,38 +436,31 @@ auto ParticleSet::TransferParticles::Fallback(size_t bufsize)
 }
 /// \endcond DO_NOT_DOCUMENT
 
+#endif // gslib stuff for transferring particles
+
+#ifdef MFEM_USE_MPI
+
 void ParticleSet::Redistribute(const Array<unsigned int> &rank_list)
 {
    MFEM_ASSERT(rank_list.Size() == GetNParticles(),
                "rank_list must be of size GetNParticles().");
 
    int rank = GetRank(comm);
-
+   int N = rank_list.Size();
    // Get particles to be transferred
-   // (Avoid unnecessary copies of particle data into and out of buffers)
-   Array<int> send_idxs;
-   Array<unsigned int> send_ranks;
-   send_idxs.Reserve(rank_list.Size());
-   send_ranks.Reserve(rank_list.Size());
-   for (int i = 0; i < rank_list.Size(); i++)
+   // cast from uint to int (used by the router, point to maybe change later)
+   Array<int> send_ranks;
+   send_ranks.Reserve(N);
+   for (int i = 0; i < N; i++)
    {
-      if (rank != static_cast<int>(rank_list[i]))
-      {
-         send_idxs.Append(i);
-         send_ranks.Append(rank_list[i]);
-      }
+      send_ranks.Append(static_cast<int>(rank_list[i]));
    }
+  
 
-   // Compute number of bytes of a single particle
-   int nreals = GetFieldVDims().Sum() + coords.GetVDim();
-   int ntags = GetNTags();
-   size_t nbytes = nreals*sizeof(real_t) + ntags*sizeof(int);
-
-   // Dispatch to appropriate redistribution function for this size
-   TransferParticles::Run(nbytes, *this, send_idxs, send_ranks);
+   // flatten particle data into real_t data for transfer
 }
 
-#endif // MFEM_USE_MPI && MFEM_USE_GSLIB
+#endif // MFEM_USE_MPI
 
 Particle ParticleSet::CreateParticle() const
 {
@@ -551,6 +547,7 @@ ParticleSet::ParticleSet(int id_stride_, IDType id_counter_, int num_particles,
       id_counter += id_stride;
    }
    AddParticles(init_ids);
+   router = new CrystalRouter(comm);
 }
 
 bool ParticleSet::IsValidParticle(const Particle &p) const
@@ -676,7 +673,10 @@ ParticleSet::ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
                  tag_names_)
 {
    comm = comm_;
-#ifdef MFEM_USE_GSLIB
+
+// more gslib stuff
+//#ifdef MFEM_USE_GSLIB
+#if 0
    gsl_comm = new gslib::comm;
    cr       = new gslib::crystal;
    comm_init(gsl_comm, comm);
@@ -930,6 +930,8 @@ void ParticleSet::PrintCSV(const char *fname, const Array<int> &field_idxs,
    WriteToFile(fname, ss_header, ss_data);
 }
 
+// again, more gslib stuff
+#if 0
 ParticleSet::~ParticleSet()
 {
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
@@ -945,6 +947,6 @@ ParticleSet::~ParticleSet()
    }
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 }
-
+#endif // gslib stuff
 
 } // namespace mfem

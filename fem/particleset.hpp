@@ -14,8 +14,11 @@
 
 #include "../config/config.hpp"
 #include "../linalg/linalg.hpp"
+#include "../general/crystal.hpp"
+
 #include "gslib.hpp"
 #include "kernel_dispatch.hpp"
+
 
 namespace mfem
 {
@@ -333,9 +336,11 @@ protected:
 
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
+   CrystalRouter* router;
 #endif // MFEM_USE_MPI
 
-#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
+//#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
+#if 0
    struct gslib::crystal *cr = nullptr;               // gslib's internal data
    struct gslib::comm *gsl_comm = nullptr;            // gslib's internal data
 
@@ -661,7 +666,9 @@ public:
    void PrintCSV(const char *fname, const Array<int> &field_idxs,
                  const Array<int> &tag_idxs, int precision=16);
 
-#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
+
+//#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
+#if defined(MFEM_USE_MPI)
 
    /** @brief Redistribute particle data to \p rank_list
 
@@ -671,7 +678,7 @@ public:
      */
    void Redistribute(const Array<unsigned int> &rank_list);
 
-#endif // MFEM_USE_MPI && MFEM_USE_GSLIB
+#endif // MFEM_USE_MPI
 
    /// Destructor
    ~ParticleSet();
