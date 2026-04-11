@@ -50,7 +50,7 @@ static void DumpVersionInfo()
    mfem::out << "version 0: PA std" << std::endl;
    mfem::out << "version 1: PA reg" << std::endl;
    // mfem::out << "version 2: MF ∂fem std kernels" << std::endl;
-   // mfem::out << "version 3: PA ∂fem std kernels" << std::endl; // ⚠️ smem p=4
+   mfem::out << "version 3: PA ∂fem std kernels" << std::endl; // ⚠️ max p=4
    // mfem::out << "version 4: MF ∂fem new kernels" << std::endl; // ⚠️ not supported yet by new kernels
    mfem::out << "version 5: PA ∂fem new kernels" << std::endl;
    mfem::out << "version 6: PA low" << std::endl;
@@ -63,7 +63,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
-   const auto versions = { 0, 1, /*2, 3, 4,*/ 5, 6, 7};
+   const auto versions = { 0, 1, /*2,*/ 3, /*4,*/ 5, 6, 7};
 
    const auto orders = { 6, 5, 4, 3, 2, 1 };
 

@@ -18,7 +18,7 @@
 namespace ker = mfem::kernels::internal;
 #include "fem/kernel_dispatch.hpp"
 
-#include "linalg/kernels.hpp"
+// #include "linalg/kernels.hpp"
 
 #include "util.hpp"
 
