@@ -816,11 +816,11 @@ void SmemPAMassApply3D_Element(const int e,
    static_assert(TBATCH > 0, "TBATCH must be positive");
 #if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
    constexpr int tbatch = TBATCH;
-   constexpr int tidz = 0;
+   const int tidz = MFEM_THREAD_ID(z);
 #else
    // host always batch size 1
    constexpr int tbatch = 1;
-   const int tidz = MFEM_THREAD_ID(z);
+   constexpr int tidz = 0;
 #endif
    constexpr int D1D = T_D1D;
    constexpr int Q1D = T_Q1D;
@@ -1413,14 +1413,12 @@ ApplyKernelType MassIntegrator::ApplyPAKernels::Kernel()
    else if constexpr (DIM == 3)
    {
       constexpr int MDQ = T_D1D >= T_Q1D ? T_D1D : T_Q1D;
-      if constexpr(MDQ > 0)
+      // max 64 threads in z limit in cuda and hip
+      if constexpr (MDQ > 0)
       {
          return internal::SmemPAMassApply3D<
-                T_D1D, T_Q1D, (256 + MDQ * MDQ * MDQ - 1) / (MDQ * MDQ * MDQ)>;
-      }
-      else if constexpr(MDQ == 0)
-      {
-         return internal::SmemPAMassApply3D<T_D1D, T_Q1D, 1>;
+                T_D1D, T_Q1D,
+                std::min<int>((128 + MDQ * MDQ * MDQ - 1) / (MDQ * MDQ * MDQ), 64)>;
       }
    }
    MFEM_ABORT("");
