@@ -135,11 +135,11 @@ struct StiffnessIntegrator : public BilinearFormIntegrator
 public:
    StiffnessIntegrator(Vector &qdata): qdata(qdata)
    {
-      StiffnessKernels::Specialization<2, 3>::Add();  // 1
+      // StiffnessKernels::Specialization<2, 3>::Add();  // 1
       StiffnessKernels::Specialization<3, 4>::Add();  // 2
-      StiffnessKernels::Specialization<4, 5>::Add();  // 3
+      // StiffnessKernels::Specialization<4, 5>::Add();  // 3
       StiffnessKernels::Specialization<5, 6>::Add();  // 4
-      StiffnessKernels::Specialization<6, 7>::Add();  // 5
+      // StiffnessKernels::Specialization<6, 7>::Add();  // 5
       StiffnessKernels::Specialization<7, 8>::Add();  // 6
    }
 
@@ -378,11 +378,11 @@ public: // for nvcc
 public:
    PADiffLowIntegrator()
    {
-      PADiffLowKernels::Specialization<2, 3>::Add();  // 1
+      // PADiffLowKernels::Specialization<2, 3>::Add();  // 1
       PADiffLowKernels::Specialization<3, 4>::Add();  // 2
-      PADiffLowKernels::Specialization<4, 5>::Add();  // 3
+      // PADiffLowKernels::Specialization<4, 5>::Add();  // 3
       PADiffLowKernels::Specialization<5, 6>::Add();  // 4
-      PADiffLowKernels::Specialization<6, 7>::Add();  // 5
+      // PADiffLowKernels::Specialization<6, 7>::Add();  // 5
       PADiffLowKernels::Specialization<7, 8>::Add();  // 6
    }
 

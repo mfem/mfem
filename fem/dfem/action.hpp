@@ -28,21 +28,74 @@ namespace ker = mfem::kernels::internal;
 namespace mfem::future
 {
 
-// template <std::size_t num_fields>
-// MFEM_HOST_DEVICE inline
-// std::array<DeviceTensor<1>, num_fields>
-// load_field_address(const std::array<int, num_fields> &sizes,
-//                    const std::array<DeviceTensor<2>, num_fields> &fields_e,
-//                    const int &entity_idx)
-// {
-//    std::array<DeviceTensor<1>, num_fields> f;
-//    for_constexpr<num_fields>([&](auto field_idx)
-//    {
-//       f[field_idx] =
-//          DeviceTensor<1>(&fields_e[field_idx](0, entity_idx), sizes[field_idx]);
-//    });
-//    return f;
-// }
+/** @brief Zero-copy view of a contiguous block as a `tensor<T, n1>` */
+template<typename T, int n1>
+MFEM_HOST_DEVICE
+const tensor<T, n1>& as_tensor(const T* ptr)
+{
+   // std::launder makes this defined behavior under strict aliasing rules
+   return *std::launder(reinterpret_cast<const tensor<T, n1>*>(ptr));
+}
+
+// convenience overload if you prefer a mutable view
+template<typename T, int n1>
+MFEM_HOST_DEVICE
+tensor<T, n1>& as_tensor(T* ptr)
+{
+   return *std::launder(reinterpret_cast<tensor<T, n1>*>(ptr));
+}
+
+/** @brief Zero-copy view of a contiguous block as a `tensor<T, n1, n2>` */
+template<typename T, int n1, int n2>
+MFEM_HOST_DEVICE
+const tensor<T, n1, n2>& as_tensor(const T* ptr)
+{
+   // std::launder makes this defined behavior under strict aliasing rules
+   return *std::launder(reinterpret_cast<const tensor<T, n1, n2>*>(ptr));
+}
+
+// convenience overload if you prefer a mutable view
+template<typename T, int n1, int n2>
+MFEM_HOST_DEVICE
+tensor<T, n1, n2>& as_tensor(T* ptr)
+{
+   return *std::launder(reinterpret_cast<tensor<T, n1, n2>*>(ptr));
+}
+
+/** @brief Zero-copy view of a contiguous block as a `tensor<T, n1, n2, n3>` */
+template<typename T, int n1, int n2, int n3>
+MFEM_HOST_DEVICE
+const tensor<T, n1, n2, n3>& as_tensor(const T* ptr)
+{
+   // std::launder makes this defined behavior under strict aliasing rules
+   return *std::launder(reinterpret_cast<const tensor<T, n1, n2, n3>*>(ptr));
+}
+
+// convenience overload if you prefer a mutable view
+template<typename T, int n1, int n2, int n3>
+MFEM_HOST_DEVICE
+tensor<T, n1, n2, n3>& as_tensor(T* ptr)
+{
+   return *std::launder(reinterpret_cast<tensor<T, n1, n2, n3>*>(ptr));
+}
+
+/** @brief Zero-copy view of a contiguous block as a `tensor<T, n1, n2, n3, n4>` */
+template<typename T, int n1, int n2, int n3, int n4>
+MFEM_HOST_DEVICE
+const tensor<T, n1, n2, n3, n4>& as_tensor(const T* ptr)
+{
+   // std::launder makes this defined behavior under strict aliasing rules
+   return *std::launder(reinterpret_cast<const tensor<T, n1, n2, n3, n4>*>(ptr));
+}
+
+// convenience overload if you prefer a mutable view
+template<typename T, int n1, int n2, int n3, int n4>
+MFEM_HOST_DEVICE
+tensor<T, n1, n2, n3, n4>& as_tensor(T* ptr)
+{
+   return *std::launder(reinterpret_cast<tensor<T, n1, n2, n3, n4>*>(ptr));
+}
+
 
 template <std::size_t N>
 MFEM_HOST_DEVICE inline
@@ -57,20 +110,6 @@ load_field_e_ptr(const std::array<DeviceTensor<2>, N> &fields_e,
 
 namespace qf
 {
-
-// template <typename reg_t, typename T, int n>
-// MFEM_HOST_DEVICE inline
-// void process_qf_result_from_reg(reg_t &r0,
-//                                 const int qx, const int qy, const int qz,
-//                                 const tensor<T, n> &v)
-// {
-//    r0[0][0][qz][qy][qx] = v[0];
-//    r0[0][1][qz][qy][qx] = v[1];
-//    r0[0][2][qz][qy][qx] = v[2];
-// }
-
-// template <int N>
-// constexpr bool ndim_must_be_one = N == 1;
 
 template <int T_Q1D,
           size_t num_args,
@@ -119,28 +158,6 @@ void apply_kernel(reg_t &res /*output*/,
          // }
       }
    }
-   // else if constexpr (num_args == 3) // PASetup
-   // {
-   //    // Iu
-   //    real_t &arg_0 = get<0>(args);
-   //    arg_0 = r1[0][0][qz][qy][qx];
-
-   //    // GΞ = J
-   //    tensor<real_t, 3, 3> &arg_1 = get<1>(args);
-   //    static_assert(T_Q1D > 0);
-   //    auto *D = (real_t (*)[T_Q1D][T_Q1D][3][3]) r2;
-   //    for (int k = 0; k < 3; k++)
-   //    {
-   //       for (int j = 0; j < 3; j++)
-   //       {
-   //          arg_1[k][j] = D[qx][qy][qz][k][j];
-   //       }
-   //    }
-
-   //    // W
-   //    real_t &arg_2 = get<2>(args);
-   //    arg_2 = rw[0];
-   // }
    else
    {
       // MFApply comes here
@@ -157,28 +174,6 @@ void apply_kernel(reg_t &res /*output*/,
       res[1][qz][qy][qx] = r[1];
       res[2][qz][qy][qx] = r[2];
    }
-   // else if constexpr (decltype(r)::ndim == 2)
-   // {
-   //    r0[0][0][qz][qy][qx] = r[0][0];
-   //    r0[0][1][qz][qy][qx] = r[0][1];
-   //    r0[0][2][qz][qy][qx] = r[0][2];
-
-   //    r0[1][0][qz][qy][qx] = r[1][0];
-   //    r0[1][1][qz][qy][qx] = r[1][1];
-   //    r0[1][2][qz][qy][qx] = r[1][2];
-
-   //    r0[2][0][qz][qy][qx] = r[2][0];
-   //    r0[2][1][qz][qy][qx] = r[2][1];
-   //    r0[2][2][qz][qy][qx] = r[2][2];
-   // }
-   // else if constexpr (decltype(r)::ndim == 3)
-   // {
-   //    static_assert(false && 3);
-   // }
-   // else if constexpr (decltype(r)::ndim == 4)
-   // {
-   //    static_assert(false && 4);
-   // }
    else
    {
       static_assert(false);
@@ -274,11 +269,11 @@ public:
       residual_l(residual_l)
    {
       if (!use_kernels_specialization) { return; }
-      NewActionCallbackKernels::template Specialization<2,3>::Add(); // 1
+      // NewActionCallbackKernels::template Specialization<2,3>::Add(); // 1
       NewActionCallbackKernels::template Specialization<3,4>::Add(); // 2
-      NewActionCallbackKernels::template Specialization<4,5>::Add(); // 3
+      // NewActionCallbackKernels::template Specialization<4,5>::Add(); // 3
       NewActionCallbackKernels::template Specialization<5,6>::Add(); // 4
-      NewActionCallbackKernels::template Specialization<6,7>::Add(); // 5
+      // NewActionCallbackKernels::template Specialization<6,7>::Add(); // 5
       NewActionCallbackKernels::template Specialization<7,8>::Add(); // 6
    }
 
@@ -448,7 +443,7 @@ public:
             {
                MFEM_FOREACH_THREAD_DIRECT(qx,x,Q1D)
                {
-#if 1
+#if 0
                   // 3.54105k/s
                   auto qf_args = decay_tuple<qf_param_ts> {};
                   qf::apply_kernel<T_Q1D, num_inputs>
@@ -463,7 +458,7 @@ public:
                   reg[0][qz][qy][qx] = v[0];
                   reg[1][qz][qy][qx] = v[1];
                   reg[2][qz][qy][qx] = v[2];
-#elif 1
+#elif 0
                   // 3.53585k/s
                   const auto *D = (real_t (*)[T_Q1D][T_Q1D][3][3]) rd;
                   const auto args = decay_tuple<qf_param_ts>
@@ -479,17 +474,28 @@ public:
                   reg[0][qz][qy][qx] = r[0];
                   reg[1][qz][qy][qx] = r[1];
                   reg[2][qz][qy][qx] = r[2];
-#else
-                  // "process_qf_result not implemented for result type"
-                  const auto args = decay_tuple<qf_param_ts>
-                  {
-                     { reg[0][qz][qy][qx], reg[1][qz][qy][qx], reg[2][qz][qy][qx] },
-                     rd
-                  };
-                  const auto r = get<0>(apply(qfunc, args));
+#elif 0
+                  // 4.18989k/s
+                  auto u = as_tensor<real_t, 3>(&reg[0][qz][qy][qx]);
+                  auto D = as_tensor<real_t, 3, 3>(rd);
+                  auto r = D * u;
                   reg[0][qz][qy][qx] = r[0];
                   reg[1][qz][qy][qx] = r[1];
                   reg[2][qz][qy][qx] = r[2];
+#else
+                  // 4.15598k/s
+                  auto args = decay_tuple<qf_param_ts> {};
+                  get<0>(args) =
+                     as_tensor<real_t, 3>(&reg[0][qz][qy][qx]); // ⚠️ layout for CPU ?!
+                  get<1>(args) = as_tensor<real_t, 3, 3>(rd);
+                  const auto r = get<0>(apply(qfunc, args));
+                  if constexpr (decltype(r)::ndim == 1)
+                  {
+                     reg[0][qz][qy][qx] = r[0];
+                     reg[1][qz][qy][qx] = r[1];
+                     reg[2][qz][qy][qx] = r[2];
+                  }
+                  else { static_assert(false); }
 #endif
                }
             }
