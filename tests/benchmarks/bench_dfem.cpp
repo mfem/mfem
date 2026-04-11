@@ -715,7 +715,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          dbg("[PA ∂fem] done");
       };
 
-      if (version <= 2 || version == 5) // std, reg & low
+      if (version <= 2) // std, reg & low
       {
          a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
          if (version == 0) { a.AddDomainIntegrator(new DiffusionIntegrator(ir)); }
@@ -762,7 +762,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       cg.SetAbsTol(0.0);
       if (dofs < 128 * 1024) // check
       {
-         cg.SetPrintLevel(3/*-1*/);
+         cg.SetPrintLevel(-1);
          cg.SetMaxIter(2000);
          cg.SetRelTol(1e-8);
          cg.Mult(B, X);

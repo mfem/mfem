@@ -491,7 +491,14 @@ public:
 #else
                   auto args = decay_tuple<qf_param_ts> {};
                   get<0>(args) = as_tensor<real_t, 3>(&reg[qz][qy][qx][0]);
-                  get<1>(args) = as_tensor<real_t, 3, 3>(rd + 9*(qx*q1d*q1d + qy*q1d + qz));
+                  if constexpr (T_Q1D > 0)
+                  {
+                     get<1>(args) = as_tensor<real_t, 3, 3>(rd + 9*(qx*T_Q1D*T_Q1D + qy*T_Q1D + qz));
+                  }
+                  else
+                  {
+                     get<1>(args) = as_tensor<real_t, 3, 3>(rd + 9*(qx*q1d*q1d + qy*q1d + qz));
+                  }
                   auto r = get<0>(apply(qfunc, args));
                   if constexpr (decltype(r)::ndim == 1)
                   {
