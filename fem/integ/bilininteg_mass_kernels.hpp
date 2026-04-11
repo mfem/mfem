@@ -814,7 +814,14 @@ void SmemPAMassApply3D_Element(const int e,
                                real_t *y_)
 {
    static_assert(TBATCH > 0, "TBATCH must be positive");
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
+   constexpr int tbatch = TBATCH;
+   constexpr int tidz = 0;
+#else
+   // host always batch size 1
+   constexpr int tbatch = 1;
    const int tidz = MFEM_THREAD_ID(z);
+#endif
    constexpr int D1D = T_D1D;
    constexpr int Q1D = T_Q1D;
    constexpr int MQ1 = T_Q1D;
@@ -829,8 +836,8 @@ void SmemPAMassApply3D_Element(const int e,
    MFEM_SHARED real_t sDQ[MQ1*MD1];
    real_t (*B)[MD1] = (real_t (*)[MD1]) sDQ;
    real_t (*Bt)[MQ1] = (real_t (*)[MQ1]) sDQ;
-   MFEM_SHARED real_t sm0[TBATCH][MDQ*MDQ*MDQ];
-   MFEM_SHARED real_t sm1[TBATCH][MDQ*MDQ*MDQ];
+   MFEM_SHARED real_t sm0[tbatch][MDQ*MDQ*MDQ];
+   MFEM_SHARED real_t sm1[tbatch][MDQ*MDQ*MDQ];
    real_t (*X)[MD1][MD1]   = (real_t (*)[MD1][MD1]) (sm0+tidz);
    real_t (*DDQ)[MD1][MQ1] = (real_t (*)[MD1][MQ1]) (sm1+tidz);
    real_t (*DQQ)[MQ1][MQ1] = (real_t (*)[MQ1][MQ1]) (sm0+tidz);
