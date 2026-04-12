@@ -900,6 +900,7 @@ void NFunctionCoefficient::Eval(Vector &N, ElementTransformation &T,
    CalcOrtho(T.Jacobian(), normal1);
    normal1 /= normal1.Norml2();
 
+   T.SetIntPoint(&ip);
    Vector w;
    if (!nt) { w = normal1; }
    else { nt->Eval(w, T, ip); }
