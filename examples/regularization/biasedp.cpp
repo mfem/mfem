@@ -3,8 +3,8 @@
 // Compile with: make biasedp
 //
 // Sample runs:  mpirun -np 4 biasedp -r 1 -f 3 -a 1 -i 10 -vis
-//               mpirun -np 4 biasedp -f 5 -s 0 -i 7 -n 10 -m ../../data/wheel.msh -vis
-//               mpirun -np 4 biasedp -f 5 -s 0 -i 7 -n 10 -m ../../data/wheel.msh -pv
+//               mpirun -np 4 biasedp -f 1 -s 0 -i 7 -n 10 -m ../../data/wheel.msh -vis
+//               mpirun -np 4 biasedp -f 1 -s 0 -i 7 -n 10 -m ../../data/wheel.msh -pv
 //
 // Description:  This program solves a biased Signorini's problem using MFEM.
 //               We aim to solve the bound-constrained minimization problem
