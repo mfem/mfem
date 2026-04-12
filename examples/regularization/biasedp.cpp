@@ -77,8 +77,18 @@
 using namespace std;
 using namespace mfem;
 
-void   InitDisplacement(const Vector &x, Vector &u);
-void   ForceFunction(const Vector &x, Vector &f);
+/**
+ * @brief u(x,y,z) = (0,0,slab_g)
+ */
+void InitDisplacement(const Vector &x, Vector &u);
+
+/**
+ * @brief Computes the force function based on the input vector x.
+ *
+ * @param x Input vector
+ * @param f Output vector representing the downward force
+ */
+void ForceFunction(const Vector &x, Vector &f);
 
 /**
  * @brief Computes the contact pairing Π. For a slab Ω² with top surface at
@@ -849,21 +859,12 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-/**
- * @brief u(x,y,z) = (0,0,slab_g)
- */
 void InitDisplacement(const Vector &x, Vector &u)
 {
    u = 0.0;
    u(x.Size() - 1) = slab_g;
 }
 
-/**
- * @brief Computes the force function based on the input vector x.
- *
- * @param x Input vector
- * @param f Output vector representing the downward force
- */
 void ForceFunction(const Vector &x, Vector &f)
 {
    f = 0.0;
