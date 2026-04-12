@@ -184,53 +184,6 @@ public:
 };
 
 /**
- * @brief Computes ϕ − Bu = ϕ − (u¹ − u² ∘ Π) · n
- */
-class RegLogCoefficientBase : public Coefficient
-{
-protected:
-   GridFunction *u1;
-   GridFunction *u2_pi;
-   Coefficient *gap;
-   VectorCoefficient *n;
-   real_t N;
-
-   real_t EvalArg(ElementTransformation &T, const IntegrationPoint &ip)
-   {
-      ParGridFunction *par_u1 = dynamic_cast<ParGridFunction*>(u1);
-      ParGridFunction *par_u2_pi = dynamic_cast<ParGridFunction*>(u2_pi);
-      const int dim = T.GetSpaceDim();
-
-      // Get value of u1 at x
-      Vector u1_val(dim);
-      if (par_u1) { par_u1->GetVectorValue(T, ip, u1_val); }
-      else { u1->GetVectorValue(T, ip, u1_val); }
-
-      // Get value of u2 ∘ Π at x. Because u2 has been pre-transferred onto
-      // mesh1's fespace via FindPointsGSLIB, we evaluate it at (T, ip)
-      // directly.
-      Vector u2_pi_val(dim);
-      if (par_u2_pi) { par_u2_pi->GetVectorValue(T, ip, u2_pi_val); }
-      else { u2_pi->GetVectorValue(T, ip, u2_pi_val); }
-
-      // Store u1 - u2 ∘ Π at x
-      Vector diff(dim);
-      subtract(u1_val, u2_pi_val, diff);
-
-      // Get value of n at x
-      Vector n_val(dim);
-      n->Eval(n_val, T, ip);
-
-      return gap->Eval(T, ip) - diff * n_val;
-   }
-
-public:
-   RegLogCoefficientBase(GridFunction *_u1, GridFunction *_u2,
-      Coefficient *_gap, VectorCoefficient *_n, real_t _N = 1e2)
-      : u1(_u1), u2_pi(_u2), gap(_gap), n(_n), N(_N) {}
-};
-
-/**
  * @brief Returns a Coefficient object for R_N'(ϕ − Bu) for given GridFunctions
  *        u1, u2.
  *
@@ -875,8 +828,8 @@ void Pi(const Vector &x, Vector &pi)
    pi(x.Size() - 1) = slab_g;
 }
 
-void NFunctionCoefficient::Eval(Vector &N, ElementTransformation &T,
-                                const IntegrationPoint &ip)
+void NVectorCoefficient::Eval(Vector &N, ElementTransformation &T,
+                              const IntegrationPoint &ip)
 {
    const int dim = T.GetSpaceDim();
 
