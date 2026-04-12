@@ -100,19 +100,19 @@ void ForceFunction(const Vector &x, Vector &f);
 void Pi(const Vector &x, Vector &pi);
 
 /**
- * @brief Returns a Coefficient object for the vector function n.
+ * @brief Returns a VectorCoefficient object for the vector function n.
  */
-class NFunctionCoefficient : public VectorCoefficient
+class NVectorCoefficient : public VectorCoefficient
 {
 private:
    VectorCoefficient *Pi;
    VectorCoefficient *nt;
 
 public:
-   NFunctionCoefficient(int dim, VectorCoefficient *_Pi)
+   NVectorCoefficient(int dim, VectorCoefficient *_Pi)
       : VectorCoefficient(dim), Pi(_Pi), nt(NULL) { }
 
-   NFunctionCoefficient(int dim, VectorCoefficient *_Pi,
+   NVectorCoefficient(int dim, VectorCoefficient *_Pi,
       VectorCoefficient *_nt) : VectorCoefficient(dim),
       Pi(_Pi), nt(_nt) { }
 
@@ -127,13 +127,11 @@ class GapFunctionCoefficient : public Coefficient
 {
 private:
    VectorCoefficient *Pi;
-   VectorCoefficient *nt;
+   VectorCoefficient *n;
 
 public:
-   GapFunctionCoefficient(VectorCoefficient *_Pi) : Pi(_Pi), nt(NULL) { }
-
-   GapFunctionCoefficient(VectorCoefficient *_Pi, VectorCoefficient *_nt)
-      : Pi(_Pi), nt(_nt) { }
+   GapFunctionCoefficient(VectorCoefficient *_Pi, VectorCoefficient *_n)
+      : Pi(_Pi), n(_n) { }
 
    virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
@@ -513,8 +511,8 @@ int main(int argc, char *argv[])
    }
    VectorConstantCoefficient n_tilde_coeff(n_tilde);
 
-   GapFunctionCoefficient gap_coeff(&pi_coeff, &n_tilde_coeff);
-   NFunctionCoefficient n_coeff(dim1, &pi_coeff, &n_tilde_coeff);
+   NVectorCoefficient n_coeff(dim1, &pi_coeff, &n_tilde_coeff);
+   GapFunctionCoefficient gap_coeff(&pi_coeff, &n_coeff);
 
    // 7. Define the solution vector u as a parallel finite element grid
    //    function corresponding to fespace. Initialize u with initial guess of
@@ -921,48 +919,18 @@ void NFunctionCoefficient::Eval(Vector &N, ElementTransformation &T,
    }
 }
 
-real_t GapFunctionCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
+real_t GapFunctionCoefficient::Eval(ElementTransformation &T,
+                                    const IntegrationPoint &ip)
 {
    const int dim = T.GetSpaceDim();
+   Vector x(dim), pi(dim), diff(dim), n_val(dim);
 
-   // Get current point coordinates
-   Vector x(dim);
    T.Transform(ip, x);
-
-   // Evaluate Π at x
-   Vector pi(dim);
    Pi->Eval(pi, T, ip);
+   subtract(pi, x, diff);
 
-   // Store Π(x) - x
-   Vector diff(dim);
-   subtract(pi,x,diff);
-
-   // Get normal n¹ at x
-   Vector normal1(dim);
-   T.SetIntPoint(&Geometries.GetCenter(T.GetGeometryType()));
-   CalcOrtho(T.Jacobian(), normal1);
-   normal1 /= normal1.Norml2();
-
-   Vector w;
-   if (!nt) { w = normal1; }
-   else { nt->Eval(w, T, ip); }
-
-   const real_t val = diff * w;
-   real_t ret = 0.0;
-   if (val > 0)
-   {
-      ret = diff.Norml2();
-   }
-   else if (val < 0)
-   {
-      ret = -diff.Norml2();
-   }
-   else
-   {
-      ret = 0.0;
-   }
-
-   return ret;
+   n->Eval(n_val, T, ip);
+   return diff * n_val;
 }
 
 real_t RegLogPrimeCoefficient::RegLogPrime(const real_t a, const real_t M)
