@@ -17,6 +17,9 @@ else
 	EXAMPLES = $(PAR_EXAMPLES) $(SEQ_EXAMPLES)
 endif
 
+SFEM_COMMON_SRC = sfem/bilininteg.cpp sfem/lininteg.cpp sfem/coefficient.cpp
+SFEM_COMMON_HDR = $(SFEM_COMMON_SRC:.cpp=.hpp)
+
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
 .PHONY: all clean clean-build clean-exec
@@ -30,20 +33,11 @@ endif
 
 all: $(EXAMPLES)
 
-# Replace the default implicit rule for regularp.cpp
-regularp: $(SRC)regularp.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< sfem/bilininteg.cpp sfem/lininteg.cpp sfem/coefficient.cpp -o $@ $(MFEM_LIBS)
-biasedp: $(SRC)biasedp.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< sfem/bilininteg.cpp sfem/lininteg.cpp sfem/coefficient.cpp -o $@ $(MFEM_LIBS)
+regularp biasedp: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< $(SFEM_COMMON_SRC) -o $@ $(MFEM_LIBS)
 
 ifeq ($(MFEM_USE_MPI),YES)
-regularp: $(SRC)sfem/lininteg.hpp $(SRC)sfem/lininteg.cpp \
-	$(SRC)sfem/bilininteg.hpp $(SRC)sfem/bilininteg.cpp \
-	$(SRC)sfem/coefficient.hpp $(SRC)sfem/coefficient.cpp \
-	$(SRC)sfem/smoothed_surface.hpp $(SRC)sfem/smoothed_surface.cpp
-biasedp: $(SRC)sfem/lininteg.hpp $(SRC)sfem/lininteg.cpp \
-	$(SRC)sfem/bilininteg.hpp $(SRC)sfem/bilininteg.cpp \
-	$(SRC)sfem/coefficient.hpp $(SRC)sfem/coefficient.cpp
+regularp biasedp: $(addprefix $(SRC),$(SFEM_COMMON_SRC) $(SFEM_COMMON_HDR))
 endif
 
 MFEM_TESTS = EXAMPLES
