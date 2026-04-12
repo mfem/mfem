@@ -51,11 +51,11 @@ static void DumpVersionInfo()
 {
    mfem::out << "\x1b[33m";
    mfem::out << "version 0: PA std" << std::endl;
-   mfem::out << "version 1: PA reg" << std::endl;
+   mfem::out << "version 1: PA reg" << std::endl; // can do high order
    mfem::out << "version 2: PA low" << std::endl;
-   mfem::out << "version 3: PA ∂fem new, not specialized" << std::endl;
-   mfem::out << "version 4: PA ∂fem new, specialized" << std::endl;
-   mfem::out << "version 5: PA ∂fem mma" << std::endl;
+   mfem::out << "version 3: PA mma" << std::endl;
+   // mfem::out << "version 4: PA ∂fem new, not specialized" << std::endl;
+   mfem::out << "version 5: PA ∂fem new, specialized" << std::endl;
    // mfem::out << "version 6: PA ∂fem std" << std::endl; // ⚠️ max p=3
    // mfem::out << "version 7: MF ∂fem std" << std::endl;
    // mfem::out << "version 8: MF ∂fem new" << std::endl; // ⚠️ not supported
@@ -67,7 +67,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
-   const auto versions = { 0, 1, 2, 3, 4, 5, /*6, 7, 8*/ };
+   const auto versions = { 0, 1, 2, 3, /*4,*/ 5, /*6, 7, 8*/ };
 
    const auto orders = { 6, 5, 4, 3, 2, 1 };
 
@@ -96,36 +96,32 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 /// Basic Kernels Specializations /////////////////////////////////////////////
 static void AddBasicKernelSpecializations()
 {
-   // using Det = QuadratureInterpolator::DetKernels;
-   // Det::Specialization<3, 3, 2, 2>::Add();
-   // Det::Specialization<3, 3, 2, 3>::Add();
-   // Det::Specialization<3, 3, 2, 5>::Add();
-   // Det::Specialization<3, 3, 2, 6>::Add();
-   // // Others might exceed memory limits
+   using Det = QuadratureInterpolator::DetKernels;
+   Det::Specialization<3, 3, 2, 2>::Add();
+   Det::Specialization<3, 3, 2, 3>::Add();
+   Det::Specialization<3, 3, 2, 5>::Add();
+   Det::Specialization<3, 3, 2, 6>::Add();
+   // Others might exceed memory limits
 
-   // using Grad = QuadratureInterpolator::GradKernels;
-   // Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 3>::Add();
-   // Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 4>::Add();
-   // Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 5>::Add();
-   // Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 6>::Add();
-   // Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 7>::Add();
-   // Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 8>::Add();
-   // Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 7>::Add();
-   // Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 8>::Add();
+   using Grad = QuadratureInterpolator::GradKernels;
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 3>::Add();
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 4>::Add();
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 5>::Add();
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 6>::Add();
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 7>::Add();
+   Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 8>::Add();
+   Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 7>::Add();
+   Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 8>::Add();
 
-   // using LIN = DomainLFIntegrator::AssembleKernels;
-   // LIN::Specialization<3, 7, 7>::Add();
-   // LIN::Specialization<3, 6, 6>::Add();
-   // LIN::Specialization<3, 8, 8>::Add();
+   using LIN = DomainLFIntegrator::AssembleKernels;
+   LIN::Specialization<3, 7, 7>::Add();
+   LIN::Specialization<3, 6, 6>::Add();
+   LIN::Specialization<3, 8, 8>::Add();
 }
 
 /// Globals ///////////////////////////////////////////////////////////////////
 Device *device_ptr = nullptr;
 static int gD1D = 0, gQ1D = 0;
-
-/// Constants /////////////////////////////////////////////////////////////////
-alignas(64) static MFEM_CONSTANT real_t cst_B[8*8];
-alignas(64) static MFEM_CONSTANT real_t cst_G[8*8];
 
 /// StiffnessIntegrator ///////////////////////////////////////////////////////
 struct StiffnessIntegrator : public BilinearFormIntegrator
@@ -139,12 +135,13 @@ struct StiffnessIntegrator : public BilinearFormIntegrator
 public:
    StiffnessIntegrator(Vector &qdata): qdata(qdata)
    {
-      // StiffnessKernels::Specialization<2, 3>::Add();  // 1
-      StiffnessKernels::Specialization<3, 4>::Add();  // 2
-      // StiffnessKernels::Specialization<4, 5>::Add();  // 3
-      StiffnessKernels::Specialization<5, 6>::Add();  // 4
-      // StiffnessKernels::Specialization<6, 7>::Add();  // 5
-      StiffnessKernels::Specialization<7, 8>::Add();  // 6
+      StiffnessKernels::Specialization<2,3>::Add();  // 1
+      StiffnessKernels::Specialization<3,4>::Add();  // 2
+      StiffnessKernels::Specialization<4,5>::Add();  // 3
+      StiffnessKernels::Specialization<5,6>::Add();  // 4
+      StiffnessKernels::Specialization<6,7>::Add();  // 5
+      StiffnessKernels::Specialization<7,8>::Add();  // 6
+      StiffnessKernels::Specialization<9,10>::Add();  // 8
    }
 
    void AssemblePA(const FiniteElementSpace &fespace) override
@@ -215,8 +212,6 @@ public:
          MFEM_SYNC_THREAD;
       });
       qdata = dx;
-      Gpu(MemcpyToSymbol)(cst_B, maps->B.HostRead(), (d1d*q1d)*sizeof(real_t));
-      Gpu(MemcpyToSymbol)(cst_G, maps->G.HostRead(), (d1d*q1d)*sizeof(real_t));
    }
 
    //////////////////////////////////////////////////////////////////
@@ -377,11 +372,11 @@ public: // for nvcc
 public:
    PADiffLowIntegrator()
    {
-      // PADiffLowKernels::Specialization<3>::Add();  // 1
+      PADiffLowKernels::Specialization<3>::Add();  // 1
       PADiffLowKernels::Specialization<4>::Add();  // 2
-      // PADiffLowKernels::Specialization<5>::Add();  // 3
+      PADiffLowKernels::Specialization<5>::Add();  // 3
       PADiffLowKernels::Specialization<6>::Add();  // 4
-      // PADiffLowKernels::Specialization<7>::Add();  // 5
+      PADiffLowKernels::Specialization<7>::Add();  // 5
       PADiffLowKernels::Specialization<8>::Add();  // 6
    }
 
@@ -452,8 +447,6 @@ public:
          }
          MFEM_SYNC_THREAD;
       });
-      Gpu(MemcpyToSymbol)(cst_B, maps->B.HostRead(), (d1d*q1d)*sizeof(real_t));
-      Gpu(MemcpyToSymbol)(cst_G, maps->G.HostRead(), (d1d*q1d)*sizeof(real_t));
    }
 
    void AddMultPA(const Vector &x, Vector &y) const override
@@ -718,12 +711,13 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          dbg("[PA ∂fem] done");
       };
 
-      if (version <= 2) // std, reg & low
+      if (version <= 3) // std, reg, low & mma
       {
          a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
          if (version == 0) { a.AddDomainIntegrator(new DiffusionIntegrator(ir)); }
          if (version == 1) { a.AddDomainIntegrator(new StiffnessIntegrator(qdata)); }
          if (version == 2) { a.AddDomainIntegrator(new PADiffLowIntegrator()); }
+         if (version == 3) { a.AddDomainIntegrator(new PADiffMmaIntegrator()); }
          a.Assemble();
          a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
          if (version == 0)
@@ -737,20 +731,13 @@ struct Diffusion : public BakeOff<VDIM, GLL>
             MFEM_VERIFY(q1d == gQ1D, "Q1D mismatch: " << q1d << " != " << gQ1D);
          }
       }
-      else if (version == 3) // PA ∂fem new kernels, not specialized
+      else if (version == 4) // PA ∂fem new kernels, not specialized
       {
          dPAOperatorSetup(true, false);
       }
-      else if (version == 4) // PA ∂fem new kernels, specialized
+      else if (version == 5) // PA ∂fem new kernels, specialized
       {
          dPAOperatorSetup(true, true);
-      }
-      else if (version == 5) // PA ∂fem mma
-      {
-         a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-         a.AddDomainIntegrator(new PADiffMmaIntegrator());
-         a.Assemble();
-         a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
       }
       else if (version == 6) // PA ∂fem std
       {
@@ -772,7 +759,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       cg.SetAbsTol(0.0);
       if (dofs < 128 * 1024) // check
       {
-         cg.SetPrintLevel(-1);
+         cg.SetPrintLevel(3/*-1*/);
          cg.SetMaxIter(2000);
          cg.SetRelTol(1e-8);
          cg.Mult(B, X);
