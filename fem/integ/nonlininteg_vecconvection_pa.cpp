@@ -42,15 +42,18 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
    dim = mesh->Dimension();
    ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
+   geom = mesh->GetGeometricFactors(*ir,
+                                    GeometricFactors::JACOBIANS |
+                                    GeometricFactors::DETERMINANTS);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
-   pa_data.SetSize(ne * nq * dim * dim, Device::GetMemoryType());
-   real_t COEFF = 1.0;
+   pa_adj.SetSize(ne * nq * dim * dim, Device::GetMemoryType());
+   pa_det.SetSize(ne * nq, Device::GetMemoryType());
+   real_t pa_coeff = 1.0;
    if (Q)
    {
-      ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient *>(Q);
+      auto *cQ = dynamic_cast<ConstantCoefficient *>(Q);
       MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
-      COEFF = cQ->constant;
+      pa_coeff = cQ->constant;
    }
    const int NE = ne;
    const int NQ = nq;
@@ -61,8 +64,11 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    if (dim == 2)
    {
-      auto J = Reshape(geom->J.Read(), NQ, 2, 2, NE);
-      auto G = Reshape(pa_data.Write(), NQ, 2, 2, NE);
+      const real_t COEFF = pa_coeff;
+      const auto J = Reshape(geom->J.Read(), NQ, 2, 2, NE);
+      const auto detJ = Reshape(geom->detJ.Read(), NQ, NE);
+      auto A = Reshape(pa_adj.Write(), NQ, 2, 2, NE);
+      auto D = Reshape(pa_det.Write(), NQ, NE);
       mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
       {
          for (int q = 0; q < NQ; ++q)
@@ -72,17 +78,21 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
             const real_t J21 = J(q, 1, 0, e);
             const real_t J22 = J(q, 1, 1, e);
             // Store wq * Q * adj(J)
-            G(q, 0, 0, e) = W[q] * COEFF * J22;  // 1,1
-            G(q, 0, 1, e) = W[q] * COEFF * -J12; // 1,2
-            G(q, 1, 0, e) = W[q] * COEFF * -J21; // 2,1
-            G(q, 1, 1, e) = W[q] * COEFF * J11;  // 2,2
+            A(q, 0, 0, e) = W[q] * COEFF * J22;  // 1,1
+            A(q, 0, 1, e) = W[q] * COEFF * (-J12); // 1,2
+            A(q, 1, 0, e) = W[q] * COEFF * (-J21); // 2,1
+            A(q, 1, 1, e) = W[q] * COEFF * J11;  // 2,2
+            D(q, e) = W[q] * COEFF * detJ(q, e);
          }
       });
    }
    if (dim == 3)
    {
-      auto J = Reshape(geom->J.Read(), NQ, 3, 3, NE);
-      auto G = Reshape(pa_data.Write(), NQ, 3, 3, NE);
+      const real_t COEFF = pa_coeff;
+      const auto J = Reshape(geom->J.Read(), NQ, 3, 3, NE);
+      const auto detJ = Reshape(geom->detJ.Read(), NQ, NE);
+      auto A = Reshape(pa_adj.Write(), NQ, 3, 3, NE);
+      auto D = Reshape(pa_det.Write(), NQ, NE);
       mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
       {
          for (int q = 0; q < NQ; ++q)
@@ -108,15 +118,16 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
             const real_t A32 = (J31 * J12) - (J11 * J32);
             const real_t A33 = (J11 * J22) - (J12 * J21);
             // Store wq * Q * adj(J)
-            G(q, 0, 0, e) = cw * A11; // 1,1
-            G(q, 0, 1, e) = cw * A12; // 1,2
-            G(q, 0, 2, e) = cw * A13; // 1,3
-            G(q, 1, 0, e) = cw * A21; // 2,1
-            G(q, 1, 1, e) = cw * A22; // 2,2
-            G(q, 1, 2, e) = cw * A23; // 2,3
-            G(q, 2, 0, e) = cw * A31; // 3,1
-            G(q, 2, 1, e) = cw * A32; // 3,2
-            G(q, 2, 2, e) = cw * A33; // 3,3
+            A(q, 0, 0, e) = cw * A11; // 1,1
+            A(q, 0, 1, e) = cw * A12; // 1,2
+            A(q, 0, 2, e) = cw * A13; // 1,3
+            A(q, 1, 0, e) = cw * A21; // 2,1
+            A(q, 1, 1, e) = cw * A22; // 2,2
+            A(q, 1, 2, e) = cw * A23; // 2,3
+            A(q, 2, 0, e) = cw * A31; // 3,1
+            A(q, 2, 1, e) = cw * A32; // 3,2
+            A(q, 2, 2, e) = cw * A33; // 3,3
+            D(q, e) = cw * detJ(q, e);
          }
       });
    }
@@ -815,7 +826,7 @@ void VectorConvectionNLFIntegrator::AddMultPA(const Vector &x, Vector &y) const
       const int NE = ne;
       const int D1D = maps->ndof;
       const int Q1D = maps->nqpt;
-      const Vector &QV = pa_data;
+      const Vector &QV = pa_adj;
       const Array<real_t> &B = maps->B;
       const Array<real_t> &G = maps->G;
       const Array<real_t> &Bt = maps->Bt;

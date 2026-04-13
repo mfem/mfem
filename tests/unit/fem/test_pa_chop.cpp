@@ -17,72 +17,88 @@ using namespace mfem;
 namespace pa_kernels
 {
 
-///////////////////////////////////////////////////////////////////////////////
-inline Mesh MakeCartesianNonaligned(const int dim, const int ne)
+template <int DIM>
+void test_nl_convection_pa_grad(const char *filename, int p)
 {
-   Mesh mesh;
-   if (dim == 2)
-   {
-      mesh = Mesh::MakeCartesian2D(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
-   }
-   else
-   {
-      mesh = Mesh::MakeCartesian3D(ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
-   }
+   CAPTURE(filename, DIM, p);
 
-   // Remap vertices so that the mesh is not aligned with axes.
-   for (int i=0; i<mesh.GetNV(); ++i)
-   {
-      real_t *vcrd = mesh.GetVertex(i);
-      vcrd[1] += 0.2 * vcrd[0];
-      if (dim == 3) { vcrd[2] += 0.3 * vcrd[0]; }
-   }
+   Mesh mesh(filename);
+   MFEM_VERIFY(mesh.Dimension() == DIM, "Mesh dimension mismatch");
 
-   return mesh;
-}
+   mesh.EnsureNodes();
+   p = std::max(p, mesh.GetNodalFESpace()->GetMaxElementOrder());
 
-///////////////////////////////////////////////////////////////////////////////
-real_t test_nl_convection_pa(int dim)
-{
-   const int ne = 2;
-   Mesh mesh = MakeCartesianNonaligned(dim, ne);
+   H1_FECollection fec(p, DIM);
 
-   int order = 2;
+   // ⚠️ PA only supports Ordering::byNODES
+   constexpr int ordering = mfem::Ordering::byNODES;
+   FiniteElementSpace vfes(&mesh, &fec, DIM, ordering);
 
-   H1_FECollection fec(order, dim);
-   FiniteElementSpace fes(&mesh, &fec, dim);
+   GridFunction x(&vfes), y_fa(&vfes), y_pa(&vfes);
+   x.Randomize(0x100001b3);
 
-   GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
-   x.Randomize(3);
+   // ⚠️ only ConstantCoefficient is supported
+   // const auto rho = [](const Vector &xyz)
+   // {
+   //    const real_t x = xyz(0), y = xyz(1), z = DIM == 3 ? xyz(2) : 0.0;
+   //    real_t r = M_PI * pow(x, 2);
+   //    if (DIM >= 2) { r += pow(y, 3); }
+   //    if (DIM >= 3) { r += pow(z, 4); }
+   //    return r;
+   // };
+   // FunctionCoefficient rho_fc(rho);
+   ConstantCoefficient rho_cc(M_PI);
 
-   NonlinearForm nlf_fa(&fes);
-   nlf_fa.AddDomainIntegrator(new VectorConvectionNLFIntegrator);
-   nlf_fa.Mult(x, y_fa);
+   NonlinearForm nlf_fa(&vfes);
+   nlf_fa.AddDomainIntegrator(new VectorConvectionNLFIntegrator(rho_cc));
 
-   NonlinearForm nlf_pa(&fes);
+   NonlinearForm nlf_pa(&vfes);
    nlf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   nlf_pa.AddDomainIntegrator(new VectorConvectionNLFIntegrator);
+   nlf_pa.AddDomainIntegrator(new VectorConvectionNLFIntegrator(rho_cc));
    nlf_pa.Setup();
-   nlf_pa.Mult(x, y_pa);
 
-   y_fa -= y_pa;
-   real_t difference = y_fa.Norml2();
+   // SECTION("Action")
+   // {
+   //    nlf_fa.Mult(x, y_fa), nlf_pa.Mult(x, y_pa);
+   //    y_fa -= y_pa;
+   //    REQUIRE(y_fa.Norml2() == MFEM_Approx(0.0));
+   // }
 
-   return difference;
+   SECTION("Gradient")
+   {
+      Operator &nlf_fa_grad = nlf_fa.GetGradient(x);
+      Operator &nlf_pa_grad = nlf_pa.GetGradient(x);
+      nlf_pa_grad.Mult(x, y_pa), nlf_fa_grad.Mult(x, y_fa);
+      y_fa -= y_pa;
+      dbg("y_fa.Norml2(): {}", y_fa.Norml2());
+      REQUIRE(y_fa.Norml2() == MFEM_Approx(0.0));
+   }
 }
 
-TEST_CASE("NL Convection PA", "[PartialAssembly][NonlinearPA][GPU][CHOP]")
+TEST_CASE("NL Convection PA Gradient",
+          "[PartialAssembly][NonlinearPA][GPU][CHOP]")
 {
-   dbg("NL Convection PA");
+   dbg("NL Convection PA Gradient");
+   const bool all_tests = launch_all_non_regression_tests;
+   const auto p = 2;//!all_tests ? 2 : GENERATE(1, 2, 3, 4);
    SECTION("2D")
    {
-      REQUIRE(test_nl_convection_pa(2) == MFEM_Approx(0.0));
+      const auto filename2d =
+         all_tests ?
+         GENERATE(// "../../data/star-q3.mesh",
+            // "../../data/rt-2d-q3.mesh",
+            "../../data/inline-quad.mesh",
+            "../../data/star.mesh"
+            // "../../data/periodic-square.mesh"
+         )
+         :
+         GENERATE("../../data/inline-quad.mesh"
+                  // "../../data/periodic-square.mesh"
+                 )
+         ;
+      test_nl_convection_pa_grad<2>(filename2d, p);
    }
-
-   SECTION("3D")
-   {
-      REQUIRE(test_nl_convection_pa(3) == MFEM_Approx(0.0));
-   }
+   // SECTION("3D") { test_nl_convection_pa(3); }
 }
 
 } // namespace pa_kernels

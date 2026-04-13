@@ -384,10 +384,11 @@ private:
    DenseMatrix dshape, dshapex, EF, gradEF, ELV, elmat_comp;
    Vector shape;
    // PA extension
-   Vector pa_data;
+   int dim, ne, nq;
+   Vector pa_adj, pa_det;
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
-   int dim, ne, nq;
+   Vector pa_u;
 
 public:
    VectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }
@@ -411,12 +412,15 @@ public:
 
    void AssemblePA(const FiniteElementSpace &fes) override;
 
+   void AssembleGradPA(const Vector &x, const FiniteElementSpace &fes) override;
+
    void AssembleMF(const FiniteElementSpace &fes) override;
 
    void AddMultPA(const Vector &x, Vector &y) const override;
 
-   void AddMultMF(const Vector &x, Vector &y) const override;
+   void AddMultGradPA(const Vector &x, Vector &y) const override;
 
+   void AddMultMF(const Vector &x, Vector &y) const override;
 
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(
