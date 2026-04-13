@@ -162,7 +162,6 @@ MFEM_USE_NETCDF        = NO
 MFEM_USE_PETSC         = NO
 MFEM_USE_SLEPC         = NO
 MFEM_USE_MPFR          = NO
-MFEM_USE_SIDRE         = NO
 MFEM_USE_FMS           = NO
 MFEM_USE_CONDUIT       = NO
 MFEM_USE_PUMI          = NO
@@ -486,17 +485,6 @@ ifneq (,$(wildcard $(CONDUIT_HDF5_HEADER)))
    CONDUIT_LIB += $(XLINKER)-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib \
                   -lhdf5 $(ZLIB_LIB)
 endif
-
-# Sidre and required libraries configuration
-# Be sure to check the HDF5_DIR (set above) is correct
-SIDRE_DIR = @MFEM_DIR@/../axom
-SIDRE_OPT = -I$(SIDRE_DIR)/include -I$(CONDUIT_DIR)/include/conduit\
- -I$(HDF5_DIR)/include
-SIDRE_LIB = \
-   $(XLINKER)-rpath,$(SIDRE_DIR)/lib -L$(SIDRE_DIR)/lib \
-   $(XLINKER)-rpath,$(CONDUIT_DIR)/lib -L$(CONDUIT_DIR)/lib \
-   $(XLINKER)-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib \
-   -laxom -lconduit -lconduit_relay -lconduit_blueprint -lhdf5 $(ZLIB_LIB) -ldl
 
 # PUMI
 # Note that PUMI_DIR is needed -- it is used to check for gmi_sim.h
