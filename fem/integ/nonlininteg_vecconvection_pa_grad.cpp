@@ -80,21 +80,22 @@ static void SmemPAConvectionNLGradApply2D(const int ne,
             if (qy == 0 && qx == 0) { dbg("vec1:{} {}", vec1[0], vec1[1]); }
 
             const future::tensor<real_t, 2,2> Q_adj = {{
-                  {A(qy,qx,0,0,e), A(qy,qx,0,1,e)},
-                  {A(qy,qx,1,0,e), A(qy,qx,1,1,e)}
+                  {A(qy,qx,0,0,e), A(qy,qx,1,0,e)},
+                  {A(qy,qx,0,1,e), A(qy,qx,1,1,e)}
                }
             };
+            dbg("D: {} {} {} {}", Q_adj(0,0), Q_adj(0,1), Q_adj(1,0), Q_adj(1,1));
             const future::tensor<real_t, 2> vec2 = Q_adj * vec1;
             if (qy == 0 && qx == 0) { dbg("vec2:{} {}", vec2[0], vec2[1]); }
 
             const future::tensor<real_t, 2,2> gradU =
             {
                {
-                  {g2[0][0][qy][qx], g2[1][0][qy][qx]},
-                  {g2[0][1][qy][qx], g2[1][1][qy][qx]}
+                  {g2[0][0][qy][qx], g2[0][1][qy][qx]},
+                  {g2[1][0][qy][qx], g2[1][1][qy][qx]}
                }
             };
-            const future::tensor<real_t, 2> vec3 = vec2 * gradU;
+            const future::tensor<real_t, 2> vec3 = gradU * vec2;
             if (qy == 0 && qx == 0) { dbg("vec3:{} {}", vec3[0], vec3[1]); }
 
             // const future::tensor<real_t, 2,2> gradDU = {{

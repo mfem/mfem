@@ -47,7 +47,7 @@ void test_nl_convection_pa_grad(const char *filename, int p)
    //    return r;
    // };
    // FunctionCoefficient rho_fc(rho);
-   ConstantCoefficient rho_cc(M_PI);
+   ConstantCoefficient rho_cc(1.0/*M_PI*/);
 
    NonlinearForm nlf_fa(&vfes);
    nlf_fa.AddDomainIntegrator(new VectorConvectionNLFIntegrator(rho_cc));
