@@ -12,8 +12,6 @@
 #include "fem.hpp"
 #include "../general/forall.hpp"
 
-#include NVTX_DBG_FMT
-
 namespace mfem
 {
 
