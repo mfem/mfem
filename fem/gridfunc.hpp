@@ -150,11 +150,13 @@ public:
 
    FiniteElementCollection *OwnFEC() { return fec_owned; }
 
-   /// Shortcut for calling FiniteElementSpace::GetVectorDim() on the underlying #fes
-   int VectorDim() const;
+   /** @brief Shortcut for calling FiniteElementSpace::GetVectorDim() on the
+       underlying #fes */
+   int VectorDim() const { return fes->GetVectorDim(); }
 
-   /// Shortcut for calling FiniteElementSpace::GetCurlDim() on the underlying #fes
-   int CurlDim() const;
+   /** @brief Shortcut for calling FiniteElementSpace::GetCurlDim() on the
+       underlying #fes */
+   int CurlDim() const { return fes->GetCurlDim(); }
 
    /// Read only access to the (optional) internal true-dof Vector.
    const Vector &GetTrueVector() const
@@ -1971,6 +1973,7 @@ public:
 
    void Eval(Vector &v, ElementTransformation &T,
              const IntegrationPoint &ip) override;
+   using VectorCoefficient::Eval;
 
    virtual ~VectorExtrudeCoefficient() { }
 };
