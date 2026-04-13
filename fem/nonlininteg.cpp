@@ -826,6 +826,11 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
       if (i == 0) { dbg("vec1: {} {}", vec1[0], vec1[1]); }
 
       // Pull-back with adjugate:  adj(J) u_h   (this is the effective velocity)
+      if (i == 0)
+      {
+         const auto D = trans.AdjugateJacobian();
+         dbg("D: {} {} {} {}", D(0,0), D(0,1), D(1,0), D(1,1));
+      }
       trans.AdjugateJacobian().Mult(vec1, vec2);
       vec2 *= w;                                     // multiply by w * Q
       if (i == 0) { dbg("vec2: {} {}", vec2[0], vec2[1]); }
