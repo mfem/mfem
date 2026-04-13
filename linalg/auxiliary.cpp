@@ -149,28 +149,47 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    // also can make some difference here
    const Matrix::DiagonalPolicy policy = Matrix::DIAG_KEEP;
    a_lor.SetDiagonalPolicy(policy);
+   VectorDiffusionIntegrator *vdiff;
    if (alpha_coeff == NULL)
    {
-      a_lor.AddDomainIntegrator(new VectorDiffusionIntegrator);
+      vdiff = new VectorDiffusionIntegrator;
    }
    else
    {
-      a_lor.AddDomainIntegrator(new VectorDiffusionIntegrator(*alpha_coeff));
+      vdiff = new VectorDiffusionIntegrator(*alpha_coeff);
+      auto alpha_qfc = dynamic_cast<QuadratureFunctionCoefficient*>(
+                          alpha_coeff);
+      if (alpha_qfc && mesh_lor.GetNE() > 0)
+      {
+         MFEM_VERIFY(mesh_lor.GetNumGeometries(mesh_lor.Dimension()) == 1,
+                     "mixed meshes are not supported yet!");
+         vdiff->SetIntegrationRule(alpha_qfc->GetQuadFunction().GetIntRule(0));
+      }
    }
+   a_lor.AddDomainIntegrator(vdiff);
 
+   VectorMassIntegrator *vmass;
    if (beta_mcoeff != NULL)
    {
       MFEM_VERIFY(beta_coeff == NULL, "Only one beta coefficient should be defined.");
-      a_lor.AddDomainIntegrator(new VectorMassIntegrator(*beta_mcoeff));
+      vmass = new VectorMassIntegrator(*beta_mcoeff);
    }
    else if (beta_coeff != NULL)
    {
-      a_lor.AddDomainIntegrator(new VectorMassIntegrator(*beta_coeff));
+      vmass = new VectorMassIntegrator(*beta_coeff);
+      auto beta_qfc = dynamic_cast<QuadratureFunctionCoefficient*>(beta_coeff);
+      if (beta_qfc && mesh_lor.GetNE() > 0)
+      {
+         MFEM_VERIFY(mesh_lor.GetNumGeometries(mesh_lor.Dimension()) == 1,
+                     "mixed meshes are not supported yet!");
+         vmass->SetIntegrationRule(beta_qfc->GetQuadFunction().GetIntRule(0));
+      }
    }
    else
    {
-      a_lor.AddDomainIntegrator(new VectorMassIntegrator);
+      vmass = new VectorMassIntegrator;
    }
+   a_lor.AddDomainIntegrator(vmass);
    a_lor.UsePrecomputedSparsity();
    a_lor.Assemble();
    a_lor.EliminateEssentialBC(ess_bdr, policy);
@@ -231,19 +250,28 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
 
    a_lor.SetDiagonalPolicy(policy);
 
+   DiffusionIntegrator *diff;
    if (beta_mcoeff != NULL)
    {
       MFEM_VERIFY(beta_coeff == NULL, "Only one beta coefficient should be defined.");
-      a_lor.AddDomainIntegrator(new DiffusionIntegrator(*beta_mcoeff));
+      diff = new DiffusionIntegrator(*beta_mcoeff);
    }
    else if (beta_coeff != NULL)
    {
-      a_lor.AddDomainIntegrator(new DiffusionIntegrator(*beta_coeff));
+      diff = new DiffusionIntegrator(*beta_coeff);
+      auto beta_qfc = dynamic_cast<QuadratureFunctionCoefficient*>(beta_coeff);
+      if (beta_qfc && mesh_lor.GetNE() > 0)
+      {
+         MFEM_VERIFY(mesh_lor.GetNumGeometries(mesh_lor.Dimension()) == 1,
+                     "mixed meshes are not supported yet!");
+         diff->SetIntegrationRule(beta_qfc->GetQuadFunction().GetIntRule(0));
+      }
    }
    else
    {
-      a_lor.AddDomainIntegrator(new DiffusionIntegrator);
+      diff = new DiffusionIntegrator;
    }
+   a_lor.AddDomainIntegrator(diff);
    a_lor.UsePrecomputedSparsity();
    a_lor.Assemble();
    if (ess_bdr.Size())
