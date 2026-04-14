@@ -14,34 +14,20 @@
 #   - AXOM_LIBRARIES
 #   - AXOM_INCLUDE_DIRS
 #
-# Supports optional/required components using find_package(Axom COMPONENTS ...).
-#
 # MFEM itself does not depend on Axom, however Tribol does. This module exists
 # to support MFEM's Tribol integration (e.g. the contact miniapp).
 
 include(MfemCmakeUtilities)
-
-# Axom is typically provided as an install prefix (AXOM_DIR) for MFEM's make
-# build. Prefer that as the hint when searching.
-if (NOT AXOM_DIR AND DEFINED ENV{AXOM_DIR} AND NOT "$ENV{AXOM_DIR}" STREQUAL "")
-  set(AXOM_DIR "$ENV{AXOM_DIR}")
-endif()
-
 # Note: components are enabled based on the find_package() parameters.
-mfem_find_package(Axom AXOM AXOM_DIR "include" axom/config.hpp "lib" axom_core
+mfem_find_package(Axom AXOM AXOM_DIR "include" "" "lib" ""
   "Paths to headers required by Axom." "Libraries required by Axom."
-  ADD_COMPONENT core
-    "include" axom/config.hpp "lib" axom_core
-  ADD_COMPONENT slic
-    "include" axom/slic.hpp "lib" axom_slic
-  ADD_COMPONENT slam
-    "include" axom/slam.hpp "lib" axom_slam
-  ADD_COMPONENT mint
-    "include" axom/mint.hpp "lib" axom_mint
-  ADD_COMPONENT primal
-    "include" axom/primal.hpp "lib" ""
-  ADD_COMPONENT quest
-    "include" axom/quest.hpp "lib" axom_quest
-  ADD_COMPONENT lumberjack
-    "include" axom/lumberjack.hpp "lib" axom_lumberjack
-)
+  ADD_COMPONENT core "include" axom/core.hpp "lib" axom_core
+  ADD_COMPONENT inlet "include" axom/inlet.hpp "lib" axom_inlet
+  ADD_COMPONENT klee "include" axom/klee.hpp "lib" axom_klee
+  ADD_COMPONENT lumberjack "include" axom/lumberjack.hpp "lib" axom_lumberjack
+  ADD_COMPONENT mint "include" axom/mint.hpp "lib" axom_mint
+  ADD_COMPONENT multimat "include" axom/multimat.hpp "lib" axom_multimat
+  ADD_COMPONENT quest "include" axom/quest.hpp "lib" axom_quest
+  ADD_COMPONENT sidre "include" axom/sidre.hpp "lib" axom_sidre
+  ADD_COMPONENT slam "include" axom/slam.hpp "lib" axom_slam
+  ADD_COMPONENT slic "include" axom/slic.hpp "lib" axom_slic)
