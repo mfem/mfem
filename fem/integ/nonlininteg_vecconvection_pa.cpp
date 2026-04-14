@@ -12,6 +12,10 @@
 #include "../../general/forall.hpp"
 #include "../nonlininteg.hpp"
 #include "../ceed/integrators/nlconvection/nlconvection.hpp"
+#include "../kernels.hpp"
+#include "../../linalg/tensor.hpp"
+
+#include NVTX_FMT_HPP
 
 namespace mfem
 {
@@ -82,7 +86,7 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
             A(q, 0, 1, e) = W[q] * COEFF * (-J12); // 1,2
             A(q, 1, 0, e) = W[q] * COEFF * (-J21); // 2,1
             A(q, 1, 1, e) = W[q] * COEFF * J11;  // 2,2
-            D(q, e) = W[q] * COEFF * detJ(q, e);
+            D(q, e) = /*W[q] * COEFF **/ detJ(q, e);
          }
       });
    }
@@ -577,18 +581,20 @@ static void PAConvectionNLApply3D(const int NE,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0, int T_MAX_D1D = 0, int T_MAX_Q1D = 0>
-static void SmemPAConvectionNLApply3D(const int NE,
-                                      const Array<real_t> &b_,
-                                      const Array<real_t> &g_,
-                                      const Vector &d_,
-                                      const Vector &x_,
-                                      Vector &y_,
-                                      const int d1d = 0,
-                                      const int q1d = 0)
+static void SmemPAConvectionNLApply3D_0(const int NE,
+                                        const Array<real_t> &b_,
+                                        const Array<real_t> &g_,
+                                        const Vector &d_,
+                                        const Vector &x_,
+                                        Vector &y_,
+                                        const int d1d = 0,
+                                        const int q1d = 0)
 {
    constexpr int VDIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   dbg("D1D: {} Q1D: {}", D1D, Q1D);
+   // assert(D1D == 3 && Q1D == 4);
    constexpr int MD1 = T_D1D ? T_D1D : T_MAX_D1D;
    constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX_Q1D;
    MFEM_VERIFY(D1D <= MD1, "");
@@ -627,8 +633,10 @@ static void SmemPAConvectionNLApply3D(const int NE,
       real_t(*QDD0)[MD1][MD1] = (real_t(*)[MD1][MD1])(sm0 + 0);
       MFEM_SHARED real_t Z[MQ1][MQ1][MQ1];
 
+      dbg("\x1b[33me:{}", e);
       for (int cy = 0; cy < VDIM; ++cy)
       {
+         dbg("\x1b[31mcy:{}", cy);
          if (tidz == 0)
          {
             MFEM_FOREACH_THREAD(q, x, Q1D)
@@ -650,6 +658,7 @@ static void SmemPAConvectionNLApply3D(const int NE,
          MFEM_SYNC_THREAD;
          for (int c = 0; c < VDIM; ++c)
          {
+            dbg("\x1b[32mc:{}", c);
             MFEM_FOREACH_THREAD(dz, z, D1D)
             {
                MFEM_FOREACH_THREAD(dy, y, D1D)
@@ -749,12 +758,20 @@ static void SmemPAConvectionNLApply3D(const int NE,
                      const real_t gZ = QQQ2[qz][qy][qx];
                      const real_t d = gX * D(q, 0, c, e) + gY * D(q, 1, c, e)
                                       + gZ * D(q, 2, c, e);
+                     if (q == 0)
+                     {
+                        dbg("z: {}", z);
+                        dbg("gX: {} gY: {} gZ: {}", gX, gY, gZ);
+                        dbg("D: {} {} {}", D(q, 0, c, e), D(q, 1, c, e), D(q, 2, c, e));
+                        dbg("\x1b[35md: {}", d);
+                     }
                      Z[qz][qy][qx] += z * d;
                   }
                }
             }
             MFEM_SYNC_THREAD;
          } // for each conv component
+         dbg("\x1b[37mZ[0][0][0]: {}", Z[0][0][0]);
          if (tidz == 0)
          {
             MFEM_FOREACH_THREAD(d, y, D1D)
@@ -812,6 +829,156 @@ static void SmemPAConvectionNLApply3D(const int NE,
          }
          MFEM_SYNC_THREAD;
       }
+   });
+}
+
+template<int T_D1D = 0, int T_Q1D = 0, int T_MAX_D1D = 0, int T_MAX_Q1D = 0>
+static void SmemPAConvectionNLApply3D(const int NE,
+                                      const Array<real_t> &b_,
+                                      const Array<real_t> &g_,
+                                      const Vector &d_,
+                                      const Vector &x_,
+                                      Vector &y_,
+                                      const int d1d = 0,
+                                      const int q1d = 0)
+{
+   constexpr int DIM = 3, VDIM = 3;
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   // constexpr int MD1 = T_D1D ? T_D1D : T_MAX_D1D;
+   // constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX_Q1D;
+   // MFEM_VERIFY(D1D <= MD1, "");
+   // MFEM_VERIFY(Q1D <= MQ1, "");
+
+   const auto b = Reshape(b_.Read(), Q1D, D1D);
+   const auto g = Reshape(g_.Read(), Q1D, D1D);
+   const auto D = Reshape(d_.Read(), Q1D, Q1D, Q1D, VDIM, VDIM, NE);
+   const auto x = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
+   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
+
+   dbg("D1D: {} Q1D: {}", D1D, Q1D);
+
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   {
+      dbg("\x1b[33me:{}", e);
+      // assert(D1D == 3 && Q1D == 4);
+      constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 8;
+      constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 8;
+      db1("MD1:{} MQ1:{}", MD1, MQ1);
+
+      MFEM_SHARED real_t smem[MQ1][MQ1];
+      MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
+
+      kernels::internal::vd_regs3d_t<VDIM, DIM, MQ1> g0, g1;
+      kernels::internal::v_regs3d_t<VDIM, MQ1> r0, r1;
+      kernels::internal::v_regs3d_t<VDIM, MQ1> s0, s1;
+
+      kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
+      kernels::internal::LoadMatrix(D1D, Q1D, g, sG);
+
+      kernels::internal::LoadDofs3d(e, D1D, x, r0);
+      kernels::internal::Eval3d(D1D, Q1D, smem, sB, r0, r1); // u vector-value
+      kernels::internal::LoadDofs3d(e, D1D, x, g0);
+      kernels::internal::Grad3d(D1D, Q1D, smem, sB, sG, g0, g1); // u vector-gradient
+
+      for (int qz = 0; qz < Q1D; qz++)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+            {
+               const future::tensor<real_t, 3> U =
+               {
+                  r1[0][qz][qy][qx], r1[1][qz][qy][qx], r1[2][qz][qy][qx]
+               };
+
+               const future::tensor<real_t, 3,3> gradU = {{
+                     {g1[0][0][qz][qy][qx], g1[1][0][qz][qy][qx], g1[2][0][qz][qy][qx]},
+                     {g1[0][1][qz][qy][qx], g1[1][1][qz][qy][qx], g1[2][1][qz][qy][qx]},
+                     {g1[0][2][qz][qy][qx], g1[1][2][qz][qy][qx], g1[2][2][qz][qy][qx]}
+                  }
+               };
+
+               const future::tensor<real_t, 3,3> Q = {{
+                     {D(qx,qy,qz,0,0,e), D(qx,qy,qz,0,1,e), D(qx,qy,qz,0,2,e)},
+                     {D(qx,qy,qz,1,0,e), D(qx,qy,qz,1,1,e), D(qx,qy,qz,1,2,e)},
+                     {D(qx,qy,qz,2,0,e), D(qx,qy,qz,2,1,e), D(qx,qy,qz,2,2,e)}
+                  }
+               };
+               /*if (qx == 0 && qy == 0 && qz == 0)
+               {
+                  dbg("z: {} {} {}", U[0], U[1], U[2]);
+                  dbg("gradU: \n{} {} {}\n{} {} {}\n{} {} {}",
+                      gradU[0][0], gradU[1][0], gradU[2][0],
+                      gradU[0][1], gradU[1][1], gradU[2][1],
+                      gradU[0][2], gradU[1][2], gradU[2][2]);
+                  dbg("D: \n{} {} {}\n{} {} {}\n{} {} {}",
+                      Q[0][0], Q[1][0], Q[2][0],
+                      Q[0][1], Q[1][1], Q[2][1],
+                      Q[0][2], Q[1][2], Q[2][2]);
+
+                  // same grad line #1
+                  const real_t d00 =
+                     gradU[0][0]*Q[0][0] + gradU[1][0]*Q[1][0] + gradU[2][0]*Q[2][0];
+                  dbg("\x1b[35md00: {}", d00);
+                  const real_t d01 =
+                     gradU[0][0]*Q[0][1] + gradU[1][0]*Q[1][1] + gradU[2][0]*Q[2][1];
+                  dbg("\x1b[35md01: {}", d01);
+                  const real_t d02 =
+                     gradU[0][0]*Q[0][2] + gradU[1][0]*Q[1][2] + gradU[2][0]*Q[2][2];
+                  dbg("\x1b[35md02: {}", d02);
+
+                  // same grad line #2
+                  const real_t d10 =
+                     gradU[0][1]*Q[0][0] + gradU[1][1]*Q[1][0] + gradU[2][1]*Q[2][0];
+                  dbg("\x1b[35md10: {}", d10);
+                  const real_t d11 =
+                     gradU[0][1]*Q[0][1] + gradU[1][1]*Q[1][1] + gradU[2][1]*Q[2][1];
+                  dbg("\x1b[35md11: {}", d11);
+                  const real_t d12 =
+                     gradU[0][1]*Q[0][2] + gradU[1][1]*Q[1][2] + gradU[2][1]*Q[2][2];
+                  dbg("\x1b[35md12: {}", d12);
+
+                  // same grad line #3
+                  const real_t d20 =
+                     gradU[0][2]*Q[0][0] + gradU[1][2]*Q[1][0] + gradU[2][2]*Q[2][0];
+                  dbg("\x1b[35md20: {}", d20);
+                  const real_t d21 =
+                     gradU[0][2]*Q[0][1] + gradU[1][2]*Q[1][1] + gradU[2][2]*Q[2][1];
+                  dbg("\x1b[35md21: {}", d21);
+                  const real_t d22 =
+                     gradU[0][2]*Q[0][2] + gradU[1][2]*Q[1][2] + gradU[2][2]*Q[2][2];
+                  dbg("\x1b[35md22: {}", d22);
+               }*/
+
+               real_t d00 = gradU[0][0]*Q[0][0] + gradU[1][0]*Q[1][0] + gradU[2][0]*Q[2][0];
+               real_t d01 = gradU[0][0]*Q[0][1] + gradU[1][0]*Q[1][1] + gradU[2][0]*Q[2][1];
+               real_t d02 = gradU[0][0]*Q[0][2] + gradU[1][0]*Q[1][2] + gradU[2][0]*Q[2][2];
+
+               real_t d10 = gradU[0][1]*Q[0][0] + gradU[1][1]*Q[1][0] + gradU[2][1]*Q[2][0];
+               real_t d11 = gradU[0][1]*Q[0][1] + gradU[1][1]*Q[1][1] + gradU[2][1]*Q[2][1];
+               real_t d12 = gradU[0][1]*Q[0][2] + gradU[1][1]*Q[1][2] + gradU[2][1]*Q[2][2];
+
+               real_t d20 = gradU[0][2]*Q[0][0] + gradU[1][2]*Q[1][0] + gradU[2][2]*Q[2][0];
+               real_t d21 = gradU[0][2]*Q[0][1] + gradU[1][2]*Q[1][1] + gradU[2][2]*Q[2][1];
+               real_t d22 = gradU[0][2]*Q[0][2] + gradU[1][2]*Q[1][2] + gradU[2][2]*Q[2][2];
+
+               s0[0][qz][qy][qx] = d00*U[0] + d01*U[1] + d02*U[2];
+               s0[1][qz][qy][qx] = d10*U[0] + d11*U[1] + d12*U[2];
+               s0[2][qz][qy][qx] = d20*U[0] + d21*U[1] + d22*U[2];
+
+               /*if (qx == 0 && qy == 0 && qz == 0)
+               {
+                  dbg("\x1b[37mZ[0][0][0][0]: {}", s0[0][qz][qy][qx]);
+                  dbg("\x1b[37mZ[1][0][0][0]: {}", s0[1][qz][qy][qx]);
+                  dbg("\x1b[37mZ[2][0][0][0]: {}", s0[2][qz][qy][qx]);
+               }*/
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      kernels::internal::EvalTranspose3d(D1D, Q1D, smem, sB, s0, s1);
+      kernels::internal::WriteDofs3d(e, D1D, s1, Y);
    });
 }
 

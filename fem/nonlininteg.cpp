@@ -826,18 +826,19 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
       if (i == 0) { dbg("vec1: {} {}", vec1[0], vec1[1]); }
 
       // Pull-back with adjugate:  adj(J) u_h   (this is the effective velocity)
-      if (i == 0)
-      {
-         const auto D = trans.AdjugateJacobian();
-         dbg("D: {} {} {} {}", D(0,0), D(0,1), D(1,0), D(1,1));
-      }
+      // if (i == 0)
+      // {
+      //    const auto D = trans.AdjugateJacobian();
+      //    dbg("D: {} {} {} {}", D(0,0), D(0,1), D(1,0), D(1,1));
+      // }
       trans.AdjugateJacobian().Mult(vec1, vec2);
       vec2 *= w;                                     // multiply by w * Q
       if (i == 0) { dbg("vec2: {} {}", vec2[0], vec2[1]); }
 
       // Apply derivative operator:  dshape * (w * adj(J) u)
       dshape.Mult(vec2, vec3);                       // vec3 = dshape * (w * adj(J) u)
-      if (i == 0) { dbg("vec3: {} {}", vec3[0], vec3[1]); }
+      assert(nd == 4); // order 1, 2D
+      if (i == 0) { dbg("\x1b[32mvec3: {} {} {} {}", vec3[0], vec3[1], vec3[2], vec3[3]); }
 
       // Form the scalar mass matrix:  shape ⊗ vec3
       MultVWt(shape, vec3, elmat_comp);

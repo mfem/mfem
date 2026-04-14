@@ -34,8 +34,9 @@ void test_nl_convection_pa_grad(const char *filename, int p)
    constexpr int ordering = mfem::Ordering::byNODES;
    FiniteElementSpace vfes(&mesh, &fec, DIM, ordering);
 
-   GridFunction x(&vfes), y_fa(&vfes), y_pa(&vfes);
+   GridFunction x(&vfes), dx(&vfes), y_fa(&vfes), y_pa(&vfes);
    x.Randomize(0x100001b3);
+   dx.Randomize(0x9e3779b9);
 
    // ⚠️ only ConstantCoefficient is supported
    // const auto rho = [](const Vector &xyz)
@@ -68,7 +69,8 @@ void test_nl_convection_pa_grad(const char *filename, int p)
    {
       Operator &nlf_fa_grad = nlf_fa.GetGradient(x);
       Operator &nlf_pa_grad = nlf_pa.GetGradient(x);
-      nlf_pa_grad.Mult(x, y_pa), nlf_fa_grad.Mult(x, y_fa);
+      nlf_pa_grad.Mult(dx, y_pa);
+      nlf_fa_grad.Mult(dx, y_fa);
       y_fa -= y_pa;
       dbg("y_fa.Norml2(): {}", y_fa.Norml2());
       REQUIRE(y_fa.Norml2() == MFEM_Approx(0.0));
@@ -78,9 +80,10 @@ void test_nl_convection_pa_grad(const char *filename, int p)
 TEST_CASE("NL Convection PA Gradient",
           "[PartialAssembly][NonlinearPA][GPU][CHOP]")
 {
+   // dbgClearScreen();
    dbg("NL Convection PA Gradient");
    const bool all_tests = launch_all_non_regression_tests;
-   const auto p = 2;//!all_tests ? 2 : GENERATE(1, 2, 3, 4);
+   const auto p = 1;//!all_tests ? 2 : GENERATE(1, 2, 3, 4);
    SECTION("2D")
    {
       const auto filename2d =

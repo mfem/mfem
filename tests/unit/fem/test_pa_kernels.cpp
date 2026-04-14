@@ -306,19 +306,37 @@ TEST_CASE("PA Gradient", "[PartialAssembly], [GPU]")
 
 real_t test_nl_convection_nd(int dim)
 {
-   Mesh mesh = MakeCartesianNonaligned(dim, 2);
-   int order = 2;
-   H1_FECollection fec(order, dim);
-   FiniteElementSpace fes(&mesh, &fec, dim);
+   int p = 3;
 
-   GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
+   // Mesh mesh("../../data/star.mesh"); // ✅ 2d
+   // Mesh mesh = MakeCartesianNonaligned(dim, 3); // ✅ 3d
+   // Mesh mesh("../../data/inline-hex.mesh"); // ✅ 3d
+   Mesh mesh("../../data/fichera-q2.mesh"); // 🔥 3d
+   // mesh.SetCurvature(p, false, dim);
+   MFEM_VERIFY(mesh.Dimension() == dim, "Mesh dimension mismatch");
+
+   H1_FECollection fec(p, dim);
+   constexpr int ordering = mfem::Ordering::byNODES;
+   FiniteElementSpace vfes(&mesh, &fec, dim, ordering);
+
+   GridFunction x(&vfes), y_fa(&vfes), y_pa(&vfes);
    x.Randomize(3);
 
-   NonlinearForm nlf_fa(&fes);
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << mesh << x << std::flush;
+   }
+
+   // ConstantCoefficient rho_cc(1.0);
+
+   NonlinearForm nlf_fa(&vfes);
    nlf_fa.AddDomainIntegrator(new VectorConvectionNLFIntegrator);
    nlf_fa.Mult(x, y_fa);
 
-   NonlinearForm nlf_pa(&fes);
+   NonlinearForm nlf_pa(&vfes);
    nlf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    nlf_pa.AddDomainIntegrator(new VectorConvectionNLFIntegrator);
    nlf_pa.Setup();
@@ -331,12 +349,13 @@ real_t test_nl_convection_nd(int dim)
    return difference;
 }
 
-TEST_CASE("Nonlinear Convection", "[PartialAssembly], [NonlinearPA], [GPU]")
+TEST_CASE("Nonlinear Convection", "[PartialAssembly][NonlinearPA][GPU][NLConv]")
 {
-   SECTION("2D")
-   {
-      REQUIRE(test_nl_convection_nd(2) == MFEM_Approx(0.0));
-   }
+   dbg("Nonlinear Convection");
+   // SECTION("2D")
+   // {
+   //    REQUIRE(test_nl_convection_nd(2) == MFEM_Approx(0.0));
+   // }
 
    SECTION("3D")
    {

@@ -77,32 +77,36 @@ static void SmemPAConvectionNLGradApply2D(const int ne,
          MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
          {
             const future::tensor<real_t, 2> vec1 = { r2[0][qy][qx], r2[1][qy][qx] };
-            if (qy == 0 && qx == 0) { dbg("vec1:{} {}", vec1[0], vec1[1]); }
+            if (qy == 0 && qx == 0) { dbg("vec1: {} {}", vec1[0], vec1[1]); }
+
+            dbg("det: {}", D(qy,qx,e));
 
             const future::tensor<real_t, 2,2> Q_adj = {{
                   {A(qy,qx,0,0,e), A(qy,qx,1,0,e)},
                   {A(qy,qx,0,1,e), A(qy,qx,1,1,e)}
                }
             };
-            dbg("D: {} {} {} {}", Q_adj(0,0), Q_adj(0,1), Q_adj(1,0), Q_adj(1,1));
             const future::tensor<real_t, 2> vec2 = Q_adj * vec1;
-            if (qy == 0 && qx == 0) { dbg("vec2:{} {}", vec2[0], vec2[1]); }
+            if (qy == 0 && qx == 0) { dbg("vec2: {} {}", vec2[0], vec2[1]); }
 
+            const future::tensor<real_t, 2,2> gradDU = {{
+                  {g1[0][0][qy][qx], g1[1][0][qy][qx]},
+                  {g1[0][1][qy][qx], g1[1][1][qy][qx]}
+               }
+            };
             const future::tensor<real_t, 2,2> gradU =
             {
                {
-                  {g2[0][0][qy][qx], g2[0][1][qy][qx]},
-                  {g2[1][0][qy][qx], g2[1][1][qy][qx]}
+                  {g2[0][0][qy][qx], g2[1][0][qy][qx]},
+                  {g2[0][1][qy][qx], g2[1][1][qy][qx]}
                }
             };
-            const future::tensor<real_t, 2> vec3 = gradU * vec2;
-            if (qy == 0 && qx == 0) { dbg("vec3:{} {}", vec3[0], vec3[1]); }
+            const future::tensor<real_t, 2> vec3 = vec2 * gradU;
+            if (qy == 0 && qx == 0) { dbg("\x1b[32mvec3: {} {}", vec3[0], vec3[1]); }
 
-            // const future::tensor<real_t, 2,2> gradDU = {{
-            //       {g1[0][0][qy][qx], g1[0][1][qy][qx]},
-            //       {g1[1][0][qy][qx], g1[1][1][qy][qx]}
-            //    }
-            // };
+            // const future::tensor<real_t, 2,2> vec4 = Q_adj * gradDU;
+            // if (qy == 0 && qx == 0) { dbg("vec4: {} {} {} {}", vec4(0,0), vec4(0,1), vec4(1,0), vec4(1,1)); }
+
 
             // const future::tensor<real_t, 2> valU = { r2[0][qy][qx], r2[1][qy][qx] };
             // const real_t Q_det = D(qy,qx,e);
@@ -110,13 +114,14 @@ static void SmemPAConvectionNLGradApply2D(const int ne,
             // u⋅∇δu + δu⋅∇u
             // const future::tensor<real_t, 2> vq = valU * (Q_adj*gradDU);
             //+ valDU * (transpose(Q_adj) * gradU);
-            // r0[0][qy][qx] = vq[0];
-            // r0[1][qy][qx] = vq[1];
+            r0[0][qy][qx] = vec3[0];
+            r0[1][qy][qx] = vec3[1];
             // if (qy == 0 && qx == 0) { dbg("vec3:{} {}", r0[0][qy][qx], r0[1][qy][qx]); }
          }
       }
       MFEM_SYNC_THREAD;
       kernels::internal::EvalTranspose2d(D1D, Q1D, smem, sB, r0, r1);
+      dbg("\x1b[33mr1: {} {}", r1[0][0][0], r1[1][0][0]);
       kernels::internal::WriteDofs2d(e, D1D, r1, Y);
    });
 }
