@@ -242,6 +242,7 @@ set(MKL_PARDISO_DIR "" CACHE STRING "MKL installation path.")
 
 set(OCCA_DIR "${MFEM_DIR}/../occa" CACHE PATH "Path to OCCA")
 set(RAJA_DIR "${MFEM_DIR}/../raja" CACHE PATH "Path to RAJA")
+set(CAMP_DIR "${MFEM_DIR}/../camp" CACHE PATH "Path to CAMP (required by RAJA/Umpire)")
 set(CEED_DIR "${MFEM_DIR}/../libCEED" CACHE PATH "Path to libCEED")
 set(UMPIRE_DIR "${MFEM_DIR}/../umpire" CACHE PATH "Path to Umpire")
 set(CALIPER_DIR "${MFEM_DIR}/../caliper" CACHE PATH "Path to Caliper")
@@ -266,7 +267,7 @@ set(TRIBOL_DIR "${MFEM_DIR}/../tribol" CACHE PATH "Path to Tribol")
 # RAJA/UMPIRE/Caliper, and may pull additional Axom components (e.g. quest,
 # lumberjack) via its exported targets.
 set(Tribol_REQUIRED_PACKAGES
-    "REQUIRED:;Axom/core/primal/mint/slam/slic/quest/lumberjack;OPTIONAL:;RAJA;UMPIRE;Caliper"
+    "REQUIRED:;Axom/core/primal/mint/slam/slic/quest/lumberjack;OPTIONAL:;Adiak;CAMP;RAJA;UMPIRE;Caliper"
     CACHE STRING "Additional packages required by Tribol")
 
 set(ENZYME_DIR "${MFEM_DIR}/../enzyme" CACHE PATH "Path to Enzyme")

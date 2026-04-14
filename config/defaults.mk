@@ -248,6 +248,15 @@ endif
 
 # METIS library configuration
 ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK)$(MFEM_USE_MUMPS),NONONO)
+   # MFEM_USE_METIS_5: when the user supplies METIS_DIR, try to auto-detect
+   # METIS 5 installs that follow the common <prefix>/{include,lib,lib64} layout.
+   ifeq ($(MFEM_USE_METIS_5),NO)
+      ifneq ($(wildcard $(METIS_DIR)/include/metis.h),)
+         ifneq ($(wildcard $(METIS_DIR)/lib/libmetis.* $(METIS_DIR)/lib64/libmetis.*),)
+            MFEM_USE_METIS_5 = YES
+         endif
+      endif
+   endif
    ifeq ($(MFEM_USE_METIS_5),NO)
      METIS_DIR = @MFEM_DIR@/../metis-4.0
      METIS_OPT =
@@ -567,7 +576,13 @@ ifdef CUB_DIR
    RAJA_OPT += -I$(CUB_DIR)
 endif
 
+# CAMP library configuration (required by RAJA/Umpire for most installs)
 CAMP_LIB = -lcamp
+# If the common sibling layout exists, use it as a default (handles versioned
+# directories like camp-<hash>).
+ifneq ($(wildcard $(RAJA_DIR)/../camp*/include/camp/camp.hpp),)
+   CAMP_DIR ?= $(patsubst %/include/camp/camp.hpp,%,$(firstword $(wildcard $(RAJA_DIR)/../camp*/include/camp/camp.hpp)))
+endif
 ifdef CAMP_DIR
    RAJA_OPT += -I$(CAMP_DIR)/include
    CAMP_LIB = $(XLINKER)-rpath,$(CAMP_DIR)/lib -L$(CAMP_DIR)/lib -lcamp
@@ -577,7 +592,12 @@ RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA $(CAMP_LIB)
 # UMPIRE library configuration
 UMPIRE_DIR = @MFEM_DIR@/../umpire
 UMPIRE_OPT = -I$(UMPIRE_DIR)/include $(if $(CAMP_DIR), -I$(CAMP_DIR)/include)
-UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -L$(UMPIRE_DIR)/lib64 -lumpire $(CAMP_LIB)
+UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -L$(UMPIRE_DIR)/lib64 -lumpire $(CAMP_LIB) -lpthread
+# If the common sibling layout exists, use it as a default (handles versioned
+# directories like fmt-<hash>).
+ifneq ($(wildcard $(UMPIRE_DIR)/../fmt*/include/fmt/format.h),)
+   FMT_DIR ?= $(patsubst %/include/fmt/format.h,%,$(firstword $(wildcard $(UMPIRE_DIR)/../fmt*/include/fmt/format.h)))
+endif
 ifdef FMT_DIR
    UMPIRE_OPT += -I$(FMT_DIR)/include
    UMPIRE_LIB += -L$(FMT_DIR)/lib -L$(FMT_DIR)/lib64 -lfmt
@@ -653,6 +673,10 @@ ifneq ($(wildcard $(AXOM_DIR)/lib/libaxom_core.* $(AXOM_DIR)/lib64/libaxom_core.
 endif
 
 # Add common optional Tribol TPLs when their libraries are present.
+ifneq ($(wildcard $(ADIAK_DIR)/lib/libadiak.* $(ADIAK_DIR)/lib64/libadiak.*),)
+   TRIBOL_LIB += $(XLINKER)-rpath,$(ADIAK_DIR)/lib64 $(XLINKER)-rpath,$(ADIAK_DIR)/lib \
+      -L$(ADIAK_DIR)/lib64 -L$(ADIAK_DIR)/lib -ladiak -ldl
+endif
 ifneq ($(wildcard $(UMPIRE_DIR)/lib/libumpire.* $(UMPIRE_DIR)/lib64/libumpire.*),)
    TRIBOL_LIB += $(UMPIRE_LIB)
 endif
