@@ -24,33 +24,28 @@ void test_nl_convection_pa_grad(const char *filename, int p)
 
    Mesh mesh(filename);
    MFEM_VERIFY(mesh.Dimension() == DIM, "Mesh dimension mismatch");
+   dbg("filename: {}, DIM: {}, p: {}", filename, DIM, p);
 
    H1_FECollection fec(p, DIM);
-   // ⚠️ PA only supports Ordering::byNODES
-   FiniteElementSpace vfes(&mesh, &fec, DIM, Ordering::byNODES);
+   FiniteElementSpace fes(&mesh, &fec, DIM);
 
-   GridFunction x(&vfes), dx(&vfes), y_fa(&vfes), y_pa(&vfes);
+   GridFunction x(&fes), dx(&fes), y_fa(&fes), y_pa(&fes);
    x.Randomize(0x100001b3);
    dx.Randomize(0x9e3779b9);
 
-   // ⚠️ only ConstantCoefficient is supported
-   // const auto rho = [](const Vector &xyz)
-   // {
-   //    const real_t x = xyz(0), y = xyz(1), z = DIM == 3 ? xyz(2) : 0.0;
-   //    real_t r = M_PI * pow(x, 2);
-   //    if (DIM >= 2) { r += pow(y, 3); }
-   //    if (DIM >= 3) { r += pow(z, 4); }
-   //    return r;
-   // };
-   // FunctionCoefficient rho_fc(rho);
-   ConstantCoefficient rho_cc(M_PI);
+   ConstantCoefficient const_coeff(M_PI);
+   FunctionCoefficient funct_coeff([](const Vector &x) { return M_1_PI + x[0]*x[0]; });
 
-   NonlinearForm nlf_fa(&vfes);
-   nlf_fa.AddDomainIntegrator(new VectorConvectionNLFIntegrator(rho_cc));
+   NonlinearForm nlf_fa(&fes);
+   nlf_fa.AddDomainIntegrator(new VectorConvectionNLFIntegrator);
+   nlf_fa.AddDomainIntegrator(new VectorConvectionNLFIntegrator(const_coeff));
+   nlf_fa.AddDomainIntegrator(new VectorConvectionNLFIntegrator(funct_coeff));
 
-   NonlinearForm nlf_pa(&vfes);
+   NonlinearForm nlf_pa(&fes);
    nlf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   nlf_pa.AddDomainIntegrator(new VectorConvectionNLFIntegrator(rho_cc));
+   nlf_pa.AddDomainIntegrator(new VectorConvectionNLFIntegrator);
+   nlf_pa.AddDomainIntegrator(new VectorConvectionNLFIntegrator(const_coeff));
+   nlf_pa.AddDomainIntegrator(new VectorConvectionNLFIntegrator(funct_coeff));
    nlf_pa.Setup();
 
    SECTION("Action")
@@ -72,10 +67,11 @@ void test_nl_convection_pa_grad(const char *filename, int p)
 }
 
 TEST_CASE("NL Convection PA Gradient",
-          "[PartialAssembly][NonlinearPA][GPU][CHOP]")
+          "[PartialAssembly][NonlinearPA][GPU][NLConv]")
 {
    const bool all_tests = launch_all_non_regression_tests;
-   const auto p = !all_tests ? 2 : GENERATE(1, 2, 3, 4);
+   const auto p = !all_tests ? GENERATE(1, 2) : GENERATE(2, 3);
+
    SECTION("2D")
    {
       const auto filename2d =
@@ -89,7 +85,22 @@ TEST_CASE("NL Convection PA Gradient",
                   "../../data/periodic-square.mesh");
       test_nl_convection_pa_grad<2>(filename2d, p);
    }
-   // SECTION("3D") { test_nl_convection_pa(3); }
+
+   SECTION("3D")
+   {
+      const auto filename3d =
+         all_tests ?
+         GENERATE("../../data/beam-hex.mesh",
+                  "../../data/fichera.mesh",
+                  "../../data/fichera-q2.mesh",
+                  "../../data/fichera-q3.mesh",
+                  "../../data/inline-hex.mesh",
+                  "../../data/periodic-cube.mesh",
+                  "../../data/toroid-hex.mesh") :
+         GENERATE("../../data/inline-hex.mesh",
+                  "../../data/periodic-cube.mesh");
+      test_nl_convection_pa_grad<3>(filename3d, p);
+   }
 }
 
 } // namespace pa_kernels

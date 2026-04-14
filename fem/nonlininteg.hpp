@@ -384,11 +384,10 @@ private:
    DenseMatrix dshape, dshapex, EF, gradEF, ELV, elmat_comp;
    Vector shape;
    // PA extension
-   int dim, ne, nq;
-   Vector pa_adj;
+   int dim, ne, nq, d1d, q1d;
+   Vector pa_adj, pa_u;
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
-   Vector pa_u;
 
 public:
    VectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }

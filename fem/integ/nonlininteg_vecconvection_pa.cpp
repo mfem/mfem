@@ -13,7 +13,6 @@
 #include "../nonlininteg.hpp"
 #include "../ceed/integrators/nlconvection/nlconvection.hpp"
 #include "../kernels.hpp"
-#include "../../linalg/kernels.hpp"
 #include "../../linalg/tensor.hpp"
 
 namespace mfem
@@ -42,90 +41,111 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
       }
       return;
    }
-   dim = mesh->Dimension();
-   ne = fes.GetMesh()->GetNE();
+   ne = mesh->GetNE();
    nq = ir->GetNPoints();
-   geom = mesh->GetGeometricFactors(*ir,
-                                    GeometricFactors::JACOBIANS |
-                                    GeometricFactors::DETERMINANTS);
+   dim = mesh->Dimension();
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    pa_adj.SetSize(ne * nq * dim * dim, Device::GetMemoryType());
-   real_t pa_coeff = 1.0;
+   d1d = maps->ndof;
+   q1d = maps->nqpt;
+
+   QuadratureSpace qs(*mesh, *ir);
+   CoefficientVector coeff(qs);
+
    if (Q)
    {
-      auto *cQ = dynamic_cast<ConstantCoefficient *>(Q);
-      MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
-      pa_coeff = cQ->constant;
+      coeff.Project(*Q);
    }
-   const int NE = ne;
-   const int NQ = nq;
-   auto W = ir->GetWeights().Read();
-   if (dim == 1)
+   else
    {
-      MFEM_ABORT("dim==1 not supported!");
+      coeff.SetConstant(1.0);
    }
+
+   const auto w_r = ir->GetWeights().Read();
+
    if (dim == 2)
    {
-      const real_t COEFF = pa_coeff;
-      const auto J = Reshape(geom->J.Read(), NQ, 2, 2, NE);
-      auto A = Reshape(pa_adj.Write(), NQ, 2, 2, NE);
-      mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+      const auto W = Reshape(w_r, q1d, q1d);
+      const auto C = Reshape(coeff.Read(), q1d, q1d, ne);
+      const auto J = Reshape(geom->J.Read(), q1d, q1d, 2, 2, ne);
+      auto A = Reshape(pa_adj.Write(), q1d, q1d, 2, 2, ne);
+
+      mfem::forall_2D(ne, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
       {
-         for (int q = 0; q < NQ; ++q)
+         MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
          {
-            const real_t J11 = J(q, 0, 0, e);
-            const real_t J12 = J(q, 0, 1, e);
-            const real_t J21 = J(q, 1, 0, e);
-            const real_t J22 = J(q, 1, 1, e);
-            // Store wq * Q * adj(J)
-            A(q, 0, 0, e) = W[q] * COEFF * J22;  // 1,1
-            A(q, 0, 1, e) = W[q] * COEFF * (-J12); // 1,2
-            A(q, 1, 0, e) = W[q] * COEFF * (-J21); // 2,1
-            A(q, 1, 1, e) = W[q] * COEFF * J11;  // 2,2
+            MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+            {
+               const real_t J11 = J(qx, qy, 0, 0, e), J12 = J(qx, qy, 0, 1, e);
+               const real_t J21 = J(qx, qy, 1, 0, e), J22 = J(qx, qy, 1, 1, e);
+               // adj(J)
+               const real_t A11 = +J22, A12 = -J12;
+               const real_t A21 = -J21, A22 = +J11;
+               // Store w * coeff * adj(J)
+               const real_t w = W(qx, qy);
+               const real_t c = C(qx, qy, e);
+               A(qx, qy, 0, 0, e) = w * c * A11;
+               A(qx, qy, 0, 1, e) = w * c * A12;
+               A(qx, qy, 1, 0, e) = w * c * A21;
+               A(qx, qy, 1, 1, e) = w * c * A22;
+            }
          }
       });
    }
-   if (dim == 3)
+   else if (dim == 3)
    {
-      const real_t COEFF = pa_coeff;
-      const auto J = Reshape(geom->J.Read(), NQ, 3, 3, NE);
-      auto A = Reshape(pa_adj.Write(), NQ, 3, 3, NE);
-      mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+      const auto W = Reshape(w_r, q1d, q1d, q1d);
+      const auto C = Reshape(coeff.Read(), q1d, q1d, q1d, ne);
+      const auto J = Reshape(geom->J.Read(), q1d, q1d, q1d, 3, 3, ne);
+      auto A = Reshape(pa_adj.Write(), q1d, q1d, q1d, 3, 3, ne);
+
+      mfem::forall_3D(ne, q1d, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
       {
-         for (int q = 0; q < NQ; ++q)
+         MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
          {
-            const real_t J11 = J(q, 0, 0, e);
-            const real_t J21 = J(q, 1, 0, e);
-            const real_t J31 = J(q, 2, 0, e);
-            const real_t J12 = J(q, 0, 1, e);
-            const real_t J22 = J(q, 1, 1, e);
-            const real_t J32 = J(q, 2, 1, e);
-            const real_t J13 = J(q, 0, 2, e);
-            const real_t J23 = J(q, 1, 2, e);
-            const real_t J33 = J(q, 2, 2, e);
-            const real_t cw = W[q] * COEFF;
-            // adj(J)
-            const real_t A11 = (J22 * J33) - (J23 * J32);
-            const real_t A12 = (J32 * J13) - (J12 * J33);
-            const real_t A13 = (J12 * J23) - (J22 * J13);
-            const real_t A21 = (J31 * J23) - (J21 * J33);
-            const real_t A22 = (J11 * J33) - (J13 * J31);
-            const real_t A23 = (J21 * J13) - (J11 * J23);
-            const real_t A31 = (J21 * J32) - (J31 * J22);
-            const real_t A32 = (J31 * J12) - (J11 * J32);
-            const real_t A33 = (J11 * J22) - (J12 * J21);
-            // Store wq * Q * adj(J)
-            A(q, 0, 0, e) = cw * A11; // 1,1
-            A(q, 0, 1, e) = cw * A12; // 1,2
-            A(q, 0, 2, e) = cw * A13; // 1,3
-            A(q, 1, 0, e) = cw * A21; // 2,1
-            A(q, 1, 1, e) = cw * A22; // 2,2
-            A(q, 1, 2, e) = cw * A23; // 2,3
-            A(q, 2, 0, e) = cw * A31; // 3,1
-            A(q, 2, 1, e) = cw * A32; // 3,2
-            A(q, 2, 2, e) = cw * A33; // 3,3
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+               {
+                  const real_t J11 = J(qx, qy, qz, 0, 0, e),
+                               J12 = J(qx, qy, qz, 0, 1, e),
+                               J13 = J(qx, qy, qz, 0, 2, e);
+                  const real_t J21 = J(qx, qy, qz, 1, 0, e),
+                               J22 = J(qx, qy, qz, 1, 1, e),
+                               J23 = J(qx, qy, qz, 1, 2, e);
+                  const real_t J31 = J(qx, qy, qz, 2, 0, e),
+                               J32 = J(qx, qy, qz, 2, 1, e),
+                               J33 = J(qx, qy, qz, 2, 2, e);
+                  const real_t cw = W(qx, qy, qz) * C(qx, qy, qz, e);
+                  // adj(J)
+                  const real_t A11 = (J22 * J33) - (J23 * J32);
+                  const real_t A12 = (J32 * J13) - (J12 * J33);
+                  const real_t A13 = (J12 * J23) - (J22 * J13);
+                  const real_t A21 = (J31 * J23) - (J21 * J33);
+                  const real_t A22 = (J11 * J33) - (J13 * J31);
+                  const real_t A23 = (J21 * J13) - (J11 * J23);
+                  const real_t A31 = (J21 * J32) - (J31 * J22);
+                  const real_t A32 = (J31 * J12) - (J11 * J32);
+                  const real_t A33 = (J11 * J22) - (J12 * J21);
+                  // Store wq * coeff * adj(J)
+                  A(qx, qy, qz, 0, 0, e) = cw * A11;
+                  A(qx, qy, qz, 0, 1, e) = cw * A12;
+                  A(qx, qy, qz, 0, 2, e) = cw * A13;
+                  A(qx, qy, qz, 1, 0, e) = cw * A21;
+                  A(qx, qy, qz, 1, 1, e) = cw * A22;
+                  A(qx, qy, qz, 1, 2, e) = cw * A23;
+                  A(qx, qy, qz, 2, 0, e) = cw * A31;
+                  A(qx, qy, qz, 2, 1, e) = cw * A32;
+                  A(qx, qy, qz, 2, 2, e) = cw * A33;
+               }
+            }
          }
       });
+   }
+   else
+   {
+      MFEM_ABORT("dim " << dim << " not supported!");
    }
 }
 
