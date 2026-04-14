@@ -2829,20 +2829,25 @@ void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
    // - elements   - reorder of the pointers and the vertex ids if reordering
    //                the vertices
    // - vertices   - if reordering the vertices
-   // - boundary   - update the vertex ids, if reordering the vertices
+   // - boundary   - update the vertex ids if reordering the vertices; reorder
+   //                the array (Dim > 1) by face index so the result matches
+   //                what GenerateBoundaryElements would produce on a mesh that
+   //                was originally stored in the new element order
    // - faces      - regenerate
    // - faces_info - regenerate
 
    // Deleted by DeleteTables():
    // - el_to_edge  - rebuild in 2D and 3D only
    // - el_to_face  - rebuild in 3D only
-   // - bel_to_edge - rebuild in 3D only
+   // - bel_to_edge - rebuild in 3D only; rows then permuted to match the new
+   //                 boundary element ordering
    // - el_to_el    - no need to rebuild
    // - face_edge   - no need to rebuild
    // - edge_vertex - no need to rebuild
    // - geom_factors - no need to rebuild
 
-   // - be_to_face
+   // - be_to_face  - rebuild (Dim > 1); then permuted to match the new
+   //                 boundary element ordering
 
    // - Nodes
 
@@ -2939,6 +2944,66 @@ void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
    }
    // Update faces and faces_info
    GenerateFaces();
+
+   // Reorder boundary elements
+   if (Dim > 1)
+   {
+      // Build a sort permutation: boundary element i goes to position bdr_perm[i].
+      // Sort by face index (be_to_face[i]) rather than just adjacent element
+      // index: after GetElementToFaceTable face indices are assigned in element
+      // order, so be_to_face encodes both the adjacent element and its local
+      // face position within that element.  This makes the result identical to
+      // what GenerateBoundaryElements would produce on a mesh that was
+      // originally written in Hilbert element order.
+      Array<int> bdr_perm(NumOfBdrElements);
+      for (int i = 0; i < NumOfBdrElements; ++i) { bdr_perm[i] = i; }
+      bdr_perm.Sort([this](int a, int b)
+      {
+         return be_to_face[a] < be_to_face[b];
+      });
+
+      // Apply permutation to the boundary element array and be_to_face
+      Array<Element *> new_boundary(NumOfBdrElements);
+      Array<int> new_be_to_face(NumOfBdrElements);
+      for (int new_i = 0; new_i < NumOfBdrElements; ++new_i)
+      {
+         new_boundary[new_i]   = boundary[bdr_perm[new_i]];
+         new_be_to_face[new_i] = be_to_face[bdr_perm[new_i]];
+      }
+      mfem::Swap(boundary, new_boundary);
+      new_boundary.DeleteAll(); // pointers are now owned by boundary; just free container
+      mfem::Swap(be_to_face, new_be_to_face);
+
+      // For 3D meshes bel_to_edge maps boundary element index -> edges.
+      // Permute its rows so the mapping stays consistent with the new boundary
+      // element ordering.
+      if (Dim == 3 && bel_to_edge)
+      {
+         int total_nnz = 0;
+         for (int new_i = 0; new_i < NumOfBdrElements; ++new_i)
+         {
+            total_nnz += bel_to_edge->RowSize(bdr_perm[new_i]);
+         }
+         Table *new_bel_to_edge = new Table;
+         new_bel_to_edge->SetDims(NumOfBdrElements, total_nnz);
+         int *new_I = new_bel_to_edge->GetI();
+         int *new_J = new_bel_to_edge->GetJ();
+         new_I[0] = 0;
+         for (int new_i = 0; new_i < NumOfBdrElements; ++new_i)
+         {
+            const int old_i  = bdr_perm[new_i];
+            const int nrow   = bel_to_edge->RowSize(old_i);
+            const int *old_J = bel_to_edge->GetRow(old_i);
+            for (int k = 0; k < nrow; ++k)
+            {
+               new_J[new_I[new_i] + k] = old_J[k];
+            }
+            new_I[new_i + 1] = new_I[new_i] + nrow;
+         }
+         delete bel_to_edge;
+         bel_to_edge = new_bel_to_edge;
+      }
+   }
 
    // Build the nodes from the saved locations if they were around before
    if (Nodes)
