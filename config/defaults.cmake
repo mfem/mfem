@@ -223,6 +223,9 @@ set(FMS_DIR "${MFEM_DIR}/../fms" CACHE PATH
 set(CONDUIT_DIR "${MFEM_DIR}/../conduit" CACHE PATH
     "Path to the Conduit library.")
 
+set(AXOM_DIR "${MFEM_DIR}/../axom" CACHE PATH
+    "Path to the Axom library (required by Tribol for the contact mini-app).")
+
 set(PUMI_DIR "${MFEM_DIR}/../pumi-2.1.0" CACHE STRING
     "Directory where PUMI is installed")
 
@@ -259,8 +262,12 @@ set(PARELAG_LIBRARIES "${PARELAG_DIR}/build/src/libParELAG.a" CACHE STRING
     "The ParELAG library.")
 
 set(TRIBOL_DIR "${MFEM_DIR}/../tribol" CACHE PATH "Path to Tribol")
-set(Tribol_REQUIRED_PACKAGES "Axom/core/mint/slam/slic" CACHE STRING
-    "Additional packages required by Tribol")
+# Tribol requires Axom. Many Tribol builds also enable optional TPLs like
+# RAJA/UMPIRE/Caliper, and may pull additional Axom components (e.g. quest,
+# lumberjack) via its exported targets.
+set(Tribol_REQUIRED_PACKAGES
+    "REQUIRED:;Axom/core/primal/mint/slam/slic/quest/lumberjack;OPTIONAL:;RAJA;UMPIRE;Caliper"
+    CACHE STRING "Additional packages required by Tribol")
 
 set(ENZYME_DIR "${MFEM_DIR}/../enzyme" CACHE PATH "Path to Enzyme")
 

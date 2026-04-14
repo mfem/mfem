@@ -82,6 +82,31 @@ Although Tribol can be built automatically via **uberenv** and **Spack**,
 for this miniapp it is simpler to build **Axom** and **MFEM** manually and 
 point Tribol to them. The steps are as follows:
 
+### Using pre-built Tribol/Axom installs
+
+If you already have compatible installs of Tribol and Axom, point MFEM to the install prefixes.
+
+- Axom install prefix: `<path/to/axom>`
+- Tribol install prefix: `<path/to/tribol>`
+
+**MFEM make build (configure):**
+```bash
+make config MFEM_USE_MPI=YES MFEM_USE_METIS=YES MFEM_USE_TRIBOL=YES \
+  AXOM_DIR=<path/to/axom> TRIBOL_DIR=<path/to/tribol> RAJA_DIR=<path/to/raja> \
+  UMPIRE_DIR=<path/to/umpire> CALIPER_DIR=<path/to/caliper>
+```
+
+**MFEM CMake build (configure):**
+```bash
+cmake -S . -B <mfem-build-dir> -DMFEM_USE_MPI=YES -DMFEM_USE_TRIBOL=YES \
+  AXOM_DIR=<path/to/axom> TRIBOL_DIR=<path/to/tribol> RAJA_DIR=<path/to/raja> \
+  UMPIRE_DIR=<path/to/umpire> CALIPER_DIR=<path/to/caliper>
+```
+
+Note: RAJA/UMPIRE/CALIPER are optional for MFEM itself, but many Tribol builds
+enable them. If your Tribol install does not depend on them, you can omit the
+corresponding `*_DIR` entries above.
+
 ### Manual Build Steps
 
 1. Pull axom and tribol (starting from the mfem folder):
@@ -99,7 +124,7 @@ point Tribol to them. The steps are as follows:
    TRIBOL_DIR = @MFEM_DIR@/../tribol-repo/tribol
    TRIBOL_OPT = -I$(TRIBOL_DIR)/include -I$(AXOM_DIR)/include
    TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -ltribol -lredecomp -L$(AXOM_DIR)/lib \
-   -laxom_mint -laxom_slam -laxom_slic -laxom_core
+   -laxom_quest -laxom_mint -laxom_slam -laxom_slic -laxom_lumberjack -laxom_core
    ```
 3. [**Axom:**](https://github.com/LLNL/axom.git) Starting from the MFEM root
    directory (we assume this directory is named mfem):

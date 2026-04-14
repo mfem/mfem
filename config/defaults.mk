@@ -609,8 +609,59 @@ PARELAG_LIB = -L$(PARELAG_DIR)/build/src -lParELAG
 AXOM_DIR = @MFEM_DIR@/../axom
 TRIBOL_DIR = @MFEM_DIR@/../tribol
 TRIBOL_OPT = -I$(TRIBOL_DIR)/include -I$(AXOM_DIR)/include
-TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -ltribol -lredecomp -L$(AXOM_DIR)/lib -laxom_mint\
-   -laxom_slam -laxom_slic -laxom_core
+# Tribol may be built with optional dependencies (e.g. RAJA/UMPIRE/CALIPER).
+# Add those options only when the corresponding headers/libraries exist.
+ifneq ($(wildcard $(RAJA_DIR)/include/RAJA/RAJA.hpp),)
+   TRIBOL_OPT += $(RAJA_OPT)
+endif
+ifneq ($(wildcard $(UMPIRE_DIR)/include/umpire/Umpire.hpp),)
+   TRIBOL_OPT += $(UMPIRE_OPT)
+endif
+ifneq ($(wildcard $(CALIPER_DIR)/include/caliper/cali.h),)
+   TRIBOL_OPT += $(CALIPER_OPT)
+endif
+
+TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -L$(TRIBOL_DIR)/lib64
+ifneq ($(wildcard $(TRIBOL_DIR)/lib/libtribol.* $(TRIBOL_DIR)/lib64/libtribol.*),)
+   TRIBOL_LIB += -ltribol
+endif
+ifneq ($(wildcard $(TRIBOL_DIR)/lib/libtribol_shared.* $(TRIBOL_DIR)/lib64/libtribol_shared.*),)
+   TRIBOL_LIB += -ltribol_shared
+endif
+ifneq ($(wildcard $(TRIBOL_DIR)/lib/libredecomp.* $(TRIBOL_DIR)/lib64/libredecomp.*),)
+   TRIBOL_LIB += -lredecomp
+endif
+
+TRIBOL_LIB += -L$(AXOM_DIR)/lib -L$(AXOM_DIR)/lib64
+ifneq ($(wildcard $(AXOM_DIR)/lib/libaxom_quest.* $(AXOM_DIR)/lib64/libaxom_quest.*),)
+   TRIBOL_LIB += -laxom_quest
+endif
+ifneq ($(wildcard $(AXOM_DIR)/lib/libaxom_mint.* $(AXOM_DIR)/lib64/libaxom_mint.*),)
+   TRIBOL_LIB += -laxom_mint
+endif
+ifneq ($(wildcard $(AXOM_DIR)/lib/libaxom_slam.* $(AXOM_DIR)/lib64/libaxom_slam.*),)
+   TRIBOL_LIB += -laxom_slam
+endif
+ifneq ($(wildcard $(AXOM_DIR)/lib/libaxom_slic.* $(AXOM_DIR)/lib64/libaxom_slic.*),)
+   TRIBOL_LIB += -laxom_slic
+endif
+ifneq ($(wildcard $(AXOM_DIR)/lib/libaxom_lumberjack.* $(AXOM_DIR)/lib64/libaxom_lumberjack.*),)
+   TRIBOL_LIB += -laxom_lumberjack
+endif
+ifneq ($(wildcard $(AXOM_DIR)/lib/libaxom_core.* $(AXOM_DIR)/lib64/libaxom_core.*),)
+   TRIBOL_LIB += -laxom_core
+endif
+
+# Add common optional Tribol TPLs when their libraries are present.
+ifneq ($(wildcard $(UMPIRE_DIR)/lib/libumpire.* $(UMPIRE_DIR)/lib64/libumpire.*),)
+   TRIBOL_LIB += $(UMPIRE_LIB)
+endif
+ifneq ($(wildcard $(RAJA_DIR)/lib/libRAJA.* $(RAJA_DIR)/lib64/libRAJA.*),)
+   TRIBOL_LIB += $(RAJA_LIB)
+endif
+ifneq ($(wildcard $(CALIPER_DIR)/lib/libcaliper.* $(CALIPER_DIR)/lib64/libcaliper.*),)
+   TRIBOL_LIB += $(CALIPER_LIB)
+endif
 
 # Enzyme configuration
 ENZYME_DIR = @MFEM_DIR@/../enzyme
