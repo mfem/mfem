@@ -71,8 +71,26 @@
 using namespace std;
 using namespace mfem;
 
+/**
+ * @brief u(x,y,z) = (0,0,plane_g)
+ */
 void   InitDisplacement(const Vector &x, Vector &u);
+
+/**
+ * @brief Computes the force function based on the input vector x.
+ *
+ * @param x Input vector
+ * @param f Output vector representing the downward force
+ */
 void   ForceFunction(const Vector &x, Vector &f);
+
+/**
+ * @brief Computes the gap function φ based on the input vector x; represents
+ *        the distance between a point x and the plane z = plane_g.
+ *
+ * @param  x Input vector
+ * @return real_t Computed gap function value, φ(x)
+ */
 real_t GapFunction(const Vector &x);
 
 /**
@@ -497,34 +515,18 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-/**
- * @brief u(x,y,z) = (0,0,plane_g)
- */
 void InitDisplacement(const Vector &x, Vector &u)
 {
    u = 0.0;
    u(x.Size() - 1) = plane_g;
 }
 
-/**
- * @brief Computes the force function based on the input vector x.
- *
- * @param x Input vector
- * @param f Output vector representing the downward force
- */
 void ForceFunction(const Vector &x, Vector &f)
 {
    f = 0.0;
    f(x.Size() - 1) = -force_g;
 }
 
-/**
- * @brief Computes the gap function φ based on the input vector x; represents
- *        the distance between a point x and the plane z = plane_g.
- *
- * @param  x Input vector
- * @return real_t Computed gap function value, φ(x)
- */
 real_t GapFunction(const Vector &x)
 {
    return x(x.Size() - 1) - plane_g;
