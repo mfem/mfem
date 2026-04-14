@@ -636,6 +636,11 @@ ConduitParMeshBuilder::Build(MPI_Comm comm, mfem::Mesh &mesh,
       pmesh->group_squad.SetSize(num_groups, 0);
    }
 
+   // The partitioning ctor copies the source mesh's local attribute lists.
+   // Recompute/distribute them now that the ParMesh communication metadata is
+   // in place so all ranks see the same boundary-attribute table.
+   pmesh->SetAttributes();
+
    return pmesh;
 }
 
