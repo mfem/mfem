@@ -13,6 +13,7 @@
 #include "../nonlininteg.hpp"
 #include "../ceed/integrators/nlconvection/nlconvection.hpp"
 #include "../kernels.hpp"
+#include "../../linalg/kernels.hpp"
 #include "../../linalg/tensor.hpp"
 
 #include NVTX_FMT_HPP
@@ -51,7 +52,7 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
                                     GeometricFactors::DETERMINANTS);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    pa_adj.SetSize(ne * nq * dim * dim, Device::GetMemoryType());
-   pa_det.SetSize(ne * nq, Device::GetMemoryType());
+   pa_det.SetSize(ne * nq * dim * dim, Device::GetMemoryType());
    real_t pa_coeff = 1.0;
    if (Q)
    {
@@ -72,7 +73,7 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const auto J = Reshape(geom->J.Read(), NQ, 2, 2, NE);
       const auto detJ = Reshape(geom->detJ.Read(), NQ, NE);
       auto A = Reshape(pa_adj.Write(), NQ, 2, 2, NE);
-      auto D = Reshape(pa_det.Write(), NQ, NE);
+      auto D = Reshape(pa_det.Write(), NQ, 2, 2, NE);
       mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
       {
          for (int q = 0; q < NQ; ++q)
@@ -86,7 +87,14 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
             A(q, 0, 1, e) = W[q] * COEFF * (-J12); // 1,2
             A(q, 1, 0, e) = W[q] * COEFF * (-J21); // 2,1
             A(q, 1, 1, e) = W[q] * COEFF * J11;  // 2,2
-            D(q, e) = /*W[q] * COEFF **/ detJ(q, e);
+
+            const real_t *Jac = &J(q, 0, 0, e);
+            real_t invJ[4];
+            kernels::CalcInverse<2>(Jac, invJ);
+            D(q, 0, 0, e) = W[q] * COEFF * detJ(q, e) * invJ[0];
+            D(q, 0, 1, e) = W[q] * COEFF * detJ(q, e) * invJ[1];
+            D(q, 1, 0, e) = W[q] * COEFF * detJ(q, e) * invJ[2];
+            D(q, 1, 1, e) = W[q] * COEFF * detJ(q, e) * invJ[3];
          }
       });
    }
@@ -96,7 +104,7 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const auto J = Reshape(geom->J.Read(), NQ, 3, 3, NE);
       const auto detJ = Reshape(geom->detJ.Read(), NQ, NE);
       auto A = Reshape(pa_adj.Write(), NQ, 3, 3, NE);
-      auto D = Reshape(pa_det.Write(), NQ, NE);
+      auto D = Reshape(pa_det.Write(), NQ, 3, 3, NE);
       mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
       {
          for (int q = 0; q < NQ; ++q)
@@ -131,7 +139,20 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
             A(q, 2, 0, e) = cw * A31; // 3,1
             A(q, 2, 1, e) = cw * A32; // 3,2
             A(q, 2, 2, e) = cw * A33; // 3,3
-            D(q, e) = cw * detJ(q, e);
+
+            // Store wq * Q * det(J) * inv(J)
+            const real_t *Jac = &J(q, 0, 0, e);
+            real_t invJ[9];
+            kernels::CalcInverse<3>(Jac, invJ);
+            D(q, 0, 0, e) = cw * detJ(q, e) * invJ[0];
+            D(q, 0, 1, e) = cw * detJ(q, e) * invJ[1];
+            D(q, 0, 2, e) = cw * detJ(q, e) * invJ[2];
+            D(q, 1, 0, e) = cw * detJ(q, e) * invJ[3];
+            D(q, 1, 1, e) = cw * detJ(q, e) * invJ[4];
+            D(q, 1, 2, e) = cw * detJ(q, e) * invJ[5];
+            D(q, 2, 0, e) = cw * detJ(q, e) * invJ[6];
+            D(q, 2, 1, e) = cw * detJ(q, e) * invJ[7];
+            D(q, 2, 2, e) = cw * detJ(q, e) * invJ[8];
          }
       });
    }

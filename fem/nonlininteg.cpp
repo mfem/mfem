@@ -860,7 +860,7 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
          elmat.AddMatrix(elmat_comp, ii*nd, ii*nd);
       }
 
-      /*
+
       // ------------------------------------------------------------
       // 3. Second part of the Jacobian:  (δu · ∇)u   → the coupling term
       // ------------------------------------------------------------
@@ -884,7 +884,7 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
          {
             elmat.AddMatrix(w * gradEF(ii, jj), elmat_comp, ii * nd, jj * nd);
          }
-      }*/
+      }
    }
 }
 

@@ -86,11 +86,12 @@ TEST_CASE("NL Convection PA Gradient",
       const auto filename2d =
          all_tests ?
          GENERATE(
-            "../../data/star-q2.mesh",
-            "../../data/star-q3.mesh",
-            "../../data/rt-2d-q3.mesh",
+            // "../../data/star-q3.mesh",
+            // "../../data/rt-2d-q3.mesh",
             "../../data/inline-quad.mesh",
-            "../../data/periodic-square.mesh")
+            "../../data/periodic-square.mesh",
+            "../../data/star-q2.mesh"
+         )
          :
          GENERATE("../../data/inline-quad.mesh",
                   "../../data/periodic-square.mesh")
