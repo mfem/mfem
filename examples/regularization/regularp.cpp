@@ -369,7 +369,7 @@ int main(int argc, char *argv[])
    if (paraview_output)
    {
       paraview_dc.SetPrefixPath("ParaView");
-      paraview_dc.SetLevelsOfDetail(order);
+      paraview_dc.SetLevelsOfDetail(curvature_order);
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetCycle(0);
