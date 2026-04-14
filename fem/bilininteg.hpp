@@ -17,6 +17,7 @@
 #include "fespace.hpp"
 #include "ceed/interface/util.hpp"
 #include "qfunction.hpp"
+#include "../linalg/tripack.hpp"
 #include <memory>
 
 #include "kernel_dispatch.hpp"
@@ -2381,6 +2382,10 @@ protected:
    int dim, ne, nq, dofs1D, quad1D;
 
    void AssembleEA_(Vector &ea, const bool add);
+   void AssembleEATriangular_(TriPackMatrix<TriangularPart::LOWER> &ea,
+                              const bool add);
+   void AssembleEATriangular_(TriPackMatrix<TriangularPart::UPPER> &ea,
+                              const bool add);
 
 public:
 
@@ -2421,6 +2426,14 @@ public:
 
    void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                    const bool add) override;
+
+   void AssembleEATriangular(const FiniteElementSpace &fes,
+                             TriPackMatrix<TriangularPart::LOWER> &emat,
+                             const bool add = false);
+
+   void AssembleEATriangular(const FiniteElementSpace &fes,
+                             TriPackMatrix<TriangularPart::UPPER> &emat,
+                             const bool add = false);
 
    virtual void AssembleEABoundary(const FiniteElementSpace &fes, Vector &emat,
                                    const bool add) override;

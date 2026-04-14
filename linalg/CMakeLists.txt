@@ -35,6 +35,7 @@ list(APPEND SRCS
   sparsemat.cpp
   sparsesmoothers.cpp
   symmat.cpp
+  tripack.cpp
   vector.cpp
   )
 
@@ -71,6 +72,7 @@ list(APPEND HDRS
   sparsemat.hpp
   sparsesmoothers.hpp
   symmat.hpp
+  tripack.hpp
   tlayout.hpp
   tmatrix.hpp
   ttensor.hpp
