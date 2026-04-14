@@ -14,6 +14,8 @@
 #include "../nonlininteg.hpp"
 #include "../../linalg/tensor.hpp"
 
+#include NVTX_FMT_HPP // IWYU pragma: keep
+
 namespace mfem
 {
 
@@ -29,7 +31,7 @@ static void SmemPAConvectionNLGradApply2D(const int ne,
                                           const real_t *b,
                                           const real_t *g,
                                           const real_t *a,
-                                          const real_t *d,
+                                          [[maybe_unused]] const real_t *d,
                                           const real_t *u,
                                           const real_t *du,
                                           real_t *y,
@@ -40,7 +42,7 @@ static void SmemPAConvectionNLGradApply2D(const int ne,
    const int Q1D = T_Q1D > 0 ? T_Q1D : q1d;
 
    const auto A = Reshape(a, Q1D, Q1D, 2, 2, ne);
-   const auto D = Reshape(d, Q1D, Q1D, ne);
+   // const auto D = Reshape(d, Q1D, Q1D, ne);
    const auto U = Reshape(u, D1D, D1D, 2, ne);
    const auto dU = Reshape(du, D1D, D1D, 2, ne);
    auto Y = Reshape(y, D1D, D1D, 2, ne);
@@ -56,57 +58,64 @@ static void SmemPAConvectionNLGradApply2D(const int ne,
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
 
-      kernels::internal::vd_regs2d_t<2, 2, MQ1> g0, g1, g2;
+      kernels::internal::vd_regs2d_t<2, 2, MQ1> g0, g1;//, g2;
       kernels::internal::v_regs2d_t<2,MQ1> r0, r1, r2;
 
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
       kernels::internal::LoadMatrix(D1D, Q1D, g, sG);
 
-      kernels::internal::LoadDofs2d(e, D1D, dU, r0);
-      kernels::internal::Eval2d(D1D, Q1D, smem, sB, r0, r1); // δu value
+      // kernels::internal::LoadDofs2d(e, D1D, dU, r0);
+      // kernels::internal::Eval2d(D1D, Q1D, smem, sB, r0, r1); // δu value
       kernels::internal::LoadDofs2d(e, D1D, dU, g0);
       kernels::internal::Grad2d(D1D, Q1D, smem, sB, sG, g0, g1); // δu gradient
 
       kernels::internal::LoadDofs2d(e, D1D, U, r0);
       kernels::internal::Eval2d(D1D, Q1D, smem, sB, r0, r2); // u value
-      kernels::internal::LoadDofs2d(e, D1D, U, g0);
-      kernels::internal::Grad2d(D1D, Q1D, smem, sB, sG, g0, g2); // u gradient
+      // kernels::internal::LoadDofs2d(e, D1D, U, g0);
+      // kernels::internal::Grad2d(D1D, Q1D, smem, sB, sG, g0, g2); // u gradient
 
       MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
       {
          MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
          {
-            const future::tensor<real_t, 2> vec1 = { r2[0][qy][qx], r2[1][qy][qx] };
-            if (qy == 0 && qx == 0) { dbg("vec1: {} {}", vec1[0], vec1[1]); }
-
-            dbg("det: {}", D(qy,qx,e));
+            const future::tensor<real_t, 2> vec1 = // u value
+            {
+               r2[0][qy][qx], r2[1][qy][qx]
+            };
+            // if (qy == 0 && qx == 0) { dbg("vec1: {} {}", vec1[0], vec1[1]); }
 
             const future::tensor<real_t, 2,2> Q_adj = {{
-                  {A(qy,qx,0,0,e), A(qy,qx,1,0,e)},
-                  {A(qy,qx,0,1,e), A(qy,qx,1,1,e)}
+                  {A(qx,qy,0,0,e), A(qx,qy,0,1,e)},
+                  {A(qx,qy,1,0,e), A(qx,qy,1,1,e)}
                }
             };
             const future::tensor<real_t, 2> vec2 = Q_adj * vec1;
-            if (qy == 0 && qx == 0) { dbg("vec2: {} {}", vec2[0], vec2[1]); }
+            // if (qy == 0 && qx == 0) { dbg("vec2: {} {}", vec2[0], vec2[1]); }
 
-            const future::tensor<real_t, 2,2> gradDU = {{
+            const future::tensor<real_t, 2,2> gradDU = {{ // δu gradient
                   {g1[0][0][qy][qx], g1[1][0][qy][qx]},
                   {g1[0][1][qy][qx], g1[1][1][qy][qx]}
                }
             };
-            const future::tensor<real_t, 2,2> gradU =
-            {
-               {
-                  {g2[0][0][qy][qx], g2[1][0][qy][qx]},
-                  {g2[0][1][qy][qx], g2[1][1][qy][qx]}
-               }
-            };
-            const future::tensor<real_t, 2> vec3 = vec2 * gradU;
-            if (qy == 0 && qx == 0) { dbg("\x1b[32mvec3: {} {}", vec3[0], vec3[1]); }
+            // const future::tensor<real_t, 2,2> gradU =
+            // {
+            //    {
+            //       {g2[0][0][qy][qx], g2[1][0][qy][qx]},
+            //       {g2[0][1][qy][qx], g2[1][1][qy][qx]}
+            //    }
+            // };
+            const future::tensor<real_t, 2> vec3 = transpose(gradDU) * (vec2);
+            // const future::tensor<real_t, 2> vec3 = vec2 * gradU;
+            // if (qy == 0 && qx == 0) { dbg("\x1b[32mvec3: {} {}", vec3[0], vec3[1]); }
 
             // const future::tensor<real_t, 2,2> vec4 = Q_adj * gradDU;
             // if (qy == 0 && qx == 0) { dbg("vec4: {} {} {} {}", vec4(0,0), vec4(0,1), vec4(1,0), vec4(1,1)); }
 
+            // const future::tensor<real_t, MQ1, MD1> &B =
+            // future::make_tensor<MQ1, MD1>([&](int i, int j) { return b[i + Q1D*j]; });
+
+            // const future::tensor<real_t, MQ1, MD1> &G =
+            // future::make_tensor<MQ1, MD1>([&](int i, int j) { return g[i + Q1D*j]; });
 
             // const future::tensor<real_t, 2> valU = { r2[0][qy][qx], r2[1][qy][qx] };
             // const real_t Q_det = D(qy,qx,e);
@@ -116,12 +125,10 @@ static void SmemPAConvectionNLGradApply2D(const int ne,
             //+ valDU * (transpose(Q_adj) * gradU);
             r0[0][qy][qx] = vec3[0];
             r0[1][qy][qx] = vec3[1];
-            // if (qy == 0 && qx == 0) { dbg("vec3:{} {}", r0[0][qy][qx], r0[1][qy][qx]); }
          }
       }
       MFEM_SYNC_THREAD;
       kernels::internal::EvalTranspose2d(D1D, Q1D, smem, sB, r0, r1);
-      dbg("\x1b[33mr1: {} {}", r1[0][0][0], r1[1][0][0]);
       kernels::internal::WriteDofs2d(e, D1D, r1, Y);
    });
 }

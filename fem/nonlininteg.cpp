@@ -786,6 +786,7 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
 {
    const int nd = el.GetDof();
    dim = el.GetDim();
+   // dbg("nd: {}, dim: {}", nd, dim);
 
    shape.SetSize(nd);
    dshape.SetSize(nd, dim);
@@ -804,6 +805,7 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
+      // dbg("\x1b[33mq: {}", i);
       const IntegrationPoint &ip = ir->IntPoint(i);
       trans.SetIntPoint(&ip);
 
@@ -812,6 +814,8 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
       // ------------------------------------------------------------
       el.CalcShape(ip, shape);                           // φ_j(ξ)
       el.CalcDShape(ip, dshape);                         // ∂φ_j / ∂ξ
+      // dbg("dshape: {}", dshape.Size());
+      // dshape.Print();
       Mult(dshape, trans.InverseJacobian(), dshapex);    // ∂φ_j / ∂x  (physical)
 
       // ------------------------------------------------------------
@@ -823,7 +827,7 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
 
       // Interpolate current solution u at this quadrature point
       EF.MultTranspose(shape, vec1);                  // vec1 = u_h
-      if (i == 0) { dbg("vec1: {} {}", vec1[0], vec1[1]); }
+      // if (i == 0) { dbg("vec1: {} {}", vec1[0], vec1[1]); }
 
       // Pull-back with adjugate:  adj(J) u_h   (this is the effective velocity)
       // if (i == 0)
@@ -833,20 +837,22 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
       // }
       trans.AdjugateJacobian().Mult(vec1, vec2);
       vec2 *= w;                                     // multiply by w * Q
-      if (i == 0) { dbg("vec2: {} {}", vec2[0], vec2[1]); }
+      // if (i == 0) { dbg("vec2: {} {}", vec2[0], vec2[1]); }
 
       // Apply derivative operator:  dshape * (w * adj(J) u)
       dshape.Mult(vec2, vec3);                       // vec3 = dshape * (w * adj(J) u)
-      assert(nd == 4); // order 1, 2D
-      if (i == 0) { dbg("\x1b[32mvec3: {} {} {} {}", vec3[0], vec3[1], vec3[2], vec3[3]); }
+      // if (i == 0)
+      // {
+      //    dbg("\x1b[32mvec3: {} {} {} {}", vec3[0], vec3[1], vec3[2], vec3[3]);
+      // }
 
       // Form the scalar mass matrix:  shape ⊗ vec3
       MultVWt(shape, vec3, elmat_comp);
-      if (i == 0)
-      {
-         dbg("elmat_comp: {} {} {} {}",
-             elmat_comp(0,0), elmat_comp(0,1), elmat_comp(1,0), elmat_comp(1,1));
-      }
+      // if (i == 0)
+      // {
+      //    dbg("elmat_comp: {} {} {} {}",
+      //        elmat_comp(0,0), elmat_comp(0,1), elmat_comp(1,0), elmat_comp(1,1));
+      // }
 
       // Add this contribution on the diagonal blocks (one block per vector component)
       for (int ii = 0; ii < dim; ii++)
