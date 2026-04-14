@@ -385,7 +385,7 @@ private:
    Vector shape;
    // PA extension
    int dim, ne, nq;
-   Vector pa_adj, pa_det;
+   Vector pa_adj;
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
    Vector pa_u;

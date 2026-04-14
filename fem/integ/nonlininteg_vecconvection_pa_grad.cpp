@@ -12,10 +12,7 @@
 #include "../../general/forall.hpp"
 #include "../kernels.hpp"
 #include "../nonlininteg.hpp"
-#include "../../linalg/kernels.hpp"
 #include "../../linalg/tensor.hpp"
-
-#include NVTX_FMT_HPP // IWYU pragma: keep
 
 namespace mfem
 {
@@ -24,7 +21,7 @@ void VectorConvectionNLFIntegrator::AssembleGradPA(const Vector &u,
                                                    const FiniteElementSpace &fes)
 {
    this->pa_u = u;
-   AssemblePA(fes); // pa_adj, pa_det
+   AssemblePA(fes);
 }
 
 template <int T_D1D = 0, int T_Q1D = 0>
@@ -32,7 +29,6 @@ static void SmemPAConvectionNLGradApply2D(const int ne,
                                           const real_t *b,
                                           const real_t *g,
                                           const real_t *a,
-                                          const real_t *d,
                                           const real_t *u,
                                           const real_t *du,
                                           real_t *y,
@@ -43,18 +39,14 @@ static void SmemPAConvectionNLGradApply2D(const int ne,
    const int Q1D = T_Q1D > 0 ? T_Q1D : q1d;
 
    const auto A = Reshape(a, Q1D, Q1D, 2, 2, ne);
-   const auto D = Reshape(d, Q1D, Q1D, 2, 2, ne);
    const auto U = Reshape(u, D1D, D1D, 2, ne);
    const auto dU = Reshape(du, D1D, D1D, 2, ne);
    auto Y = Reshape(y, D1D, D1D, 2, ne);
-
-   db1("D1D:{} Q1D:{}", D1D, Q1D);
 
    mfem::forall_2D(ne, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 8;
       constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 8;
-      db1("MD1:{} MQ1:{}", MD1, MQ1);
 
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
@@ -81,7 +73,8 @@ static void SmemPAConvectionNLGradApply2D(const int ne,
       {
          MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
          {
-            const future::tensor<real_t, 2> vec1 = // u value
+            // First part of the Jacobian: u·∇δu
+            const future::tensor<real_t, 2> u_val =
             {
                r2[0][qy][qx], r2[1][qy][qx]
             };
@@ -90,37 +83,26 @@ static void SmemPAConvectionNLGradApply2D(const int ne,
                   {A(qx,qy,1,0,e), A(qx,qy,1,1,e)}
                }
             };
-            const future::tensor<real_t, 2,2> gradDU = {{ // δu gradient
+            const future::tensor<real_t, 2,2> grad_dU = {{
                   {g1[0][0][qy][qx], g1[1][0][qy][qx]},
                   {g1[0][1][qy][qx], g1[1][1][qy][qx]}
                }
             };
-            const future::tensor<real_t, 2> one = transpose(gradDU) * (Q_adj * vec1);
+            const auto one = transpose(grad_dU) * (Q_adj * u_val);
 
-            // ------------------------------------------------------------
-            // 3. Second part of the Jacobian:  (δu · ∇)u   → the coupling term
-            // ------------------------------------------------------------
-            const future::tensor<real_t, 2> δu = // δu value
+            // Second part of the Jacobian: δu·∇u
+            const future::tensor<real_t, 2> du_val =
             {
                r1[0][qy][qx], r1[1][qy][qx]
             };
-            const future::tensor<real_t, 2,2> Q_det = {{
-                  {D(qx,qy,0,0,e), D(qx,qy,0,1,e)},
-                  {D(qx,qy,1,0,e), D(qx,qy,1,1,e)}
-               }
-            };
-            const future::tensor<real_t, 2,2> gradU =
-            {
-               {
+            const future::tensor<real_t, 2,2> grad_U = {{
                   {g2[0][0][qy][qx], g2[1][0][qy][qx]},
                   {g2[0][1][qy][qx], g2[1][1][qy][qx]}
                }
             };
-            const future::tensor<real_t, 2> two = Q_det * (transpose(gradU) * δu);
+            const auto two = transpose(grad_U) * (Q_adj * du_val);
 
             // u⋅∇δu + δu⋅∇u
-            // const future::tensor<real_t, 2> vq = valU * (Q_adj*gradDU);
-            //+ valDU * (transpose(Q_adj) * gradU);
             r0[0][qy][qx] = one[0] + two[0];
             r0[1][qy][qx] = one[1] + two[1];
          }
@@ -134,14 +116,12 @@ static void SmemPAConvectionNLGradApply2D(const int ne,
 void VectorConvectionNLFIntegrator::AddMultGradPA(const Vector &x,
                                                   Vector &y) const
 {
-   dbg();
    const int d1d = maps->ndof, q1d = maps->nqpt;
-   const auto *A = pa_adj.Read(), *D = pa_det.Read();
-   const auto *B = maps->B.Read(), *G = maps->G.Read();
+   const auto *B = maps->B.Read(), *G = maps->G.Read(), *A = pa_adj.Read();
 
    if (dim == 2)
    {
-      SmemPAConvectionNLGradApply2D(ne, B, G, A, D,
+      SmemPAConvectionNLGradApply2D(ne, B, G, A,
                                     pa_u.Read(), x.Read(),
                                     y.ReadWrite(),
                                     d1d, q1d);
