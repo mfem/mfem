@@ -22,6 +22,7 @@ void VectorConvectionNLFIntegrator::AssembleGradPA(const Vector &u,
 {
    this->pa_u = u;
    AssemblePA(fes);
+   VectorConvectionNLFAddMultGradPA::Specialization<2, 3,4>::Add();
 }
 
 template <int T_D1D = 0, int T_Q1D = 0>
@@ -32,8 +33,8 @@ static void SmemPAConvectionNLGradApply2D(const int ne,
                                           const real_t *u,
                                           const real_t *du,
                                           real_t *y,
-                                          const int d1d,
-                                          const int q1d)
+                                          const int d1d = 0,
+                                          const int q1d = 0)
 {
    const int D1D = T_D1D > 0 ? T_D1D : d1d;
    const int Q1D = T_Q1D > 0 ? T_Q1D : q1d;
@@ -121,8 +122,8 @@ static void SmemPAConvectionNLGradApply3D(const int ne,
                                           const real_t *u,
                                           const real_t *du,
                                           real_t *y,
-                                          const int d1d,
-                                          const int q1d)
+                                          const int d1d = 0,
+                                          const int q1d = 0)
 {
    constexpr int DIM = 3;
    const int D1D = T_D1D > 0 ? T_D1D : d1d;
@@ -214,22 +215,40 @@ void VectorConvectionNLFIntegrator::AddMultGradPA(const Vector &x,
                                                   Vector &y) const
 {
    const auto B = maps->B.Read(), G = maps->G.Read(), A = pa_adj.Read();
+   VectorConvectionNLFAddMultGradPA::Run(dim, d1d, q1d,
+                                         ne, B, G, A, pa_u.Read(), x.Read(), y.ReadWrite(),
+                                         d1d, q1d);
+}
 
-   auto ker = SmemPAConvectionNLGradApply2D<>;
+template<int DIM, int T_D1D, int T_Q1D>
+VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPAType
+VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPA::Kernel()
+{
+   if constexpr (DIM == 2)
+   {
+      return SmemPAConvectionNLGradApply2D<T_D1D,T_Q1D>;
+   }
+   else if constexpr (DIM == 3)
+   {
+      return SmemPAConvectionNLGradApply3D<T_D1D, T_Q1D>;
+   }
+   MFEM_ABORT("Unsupported kernel");
+}
 
+VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPAType
+VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPA::Fallback
+(int dim, int, int)
+{
    if (dim == 2)
    {
-      ker = SmemPAConvectionNLGradApply2D;
+      return SmemPAConvectionNLGradApply2D<>;
    }
    else if (dim == 3)
    {
-      ker = SmemPAConvectionNLGradApply3D;
+      return SmemPAConvectionNLGradApply3D<>;
    }
-   else
-   {
-      MFEM_ABORT("Not yet implemented");
-   }
-   ker(ne, B, G, A, pa_u.Read(), x.Read(), y.ReadWrite(), d1d, q1d);
+   else { MFEM_ABORT("Unsupported kernel"); }
 }
+
 
 } // namespace mfem

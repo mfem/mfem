@@ -18,6 +18,7 @@
 #include "fespace.hpp"
 #include "ceed/interface/operator.hpp"
 #include "integrator.hpp"
+#include "kernel_dispatch.hpp"
 
 namespace mfem
 {
@@ -420,6 +421,14 @@ public:
    void AddMultGradPA(const Vector &x, Vector &y) const override;
 
    void AddMultMF(const Vector &x, Vector &y) const override;
+
+   using VectorConvectionNLFAddMultGradPAType =
+      void(*)(const int ne, const real_t *B, const real_t *G, const real_t *A,
+              const real_t *pa_u, const real_t *x, real_t *y,
+              const int d1d, const int q1d);
+   MFEM_REGISTER_KERNELS(VectorConvectionNLFAddMultGradPA,
+                         VectorConvectionNLFAddMultGradPAType,
+                         (int, int, int));
 
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(
