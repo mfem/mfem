@@ -23,7 +23,6 @@ Discretization improvements
   Tet rules (d=14-20): Chuluunbaatar et al., Comput. Math. Appl. 124:89-97,
   2022.
 
-
 Version 4.9.1 (development)
 ===========================
 
@@ -45,6 +44,11 @@ New and updated examples and miniapps
 -------------------------------------
 - Electromagnetics/lorentz miniapp has been updated to leverage the ParticleSet
   capability.
+
+Miscellaneous
+-------------
+- Removes the SidreDataCollection class from MFEM in favor of the 
+  MFEMSidreDataCollection class in the Axom library (https://github.com/llnl/axom).
 
 
 Version 4.9, released on Dec 11, 2025
