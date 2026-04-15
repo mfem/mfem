@@ -433,7 +433,10 @@ public:
       void(*)(const int ne, const real_t *B, const real_t *G, const real_t *A,
               const real_t *pa_u, const real_t *x, real_t *y,
               const int d1d, const int q1d);
-   MFEM_REGISTER_KERNELS(VectorConvectionNLFAddMultGradPA,
+   MFEM_REGISTER_KERNELS(LOVectorConvectionNLFAddMultGradPA,
+                         VectorConvectionNLFAddMultGradPAType,
+                         (int, int, int));
+   MFEM_REGISTER_KERNELS(HOVectorConvectionNLFAddMultGradPA,
                          VectorConvectionNLFAddMultGradPAType,
                          (int, int, int));
 

@@ -28,30 +28,33 @@ void VectorConvectionNLFIntegrator::AssembleGradPA(const Vector &u,
 
    if (static auto done = false; !std::exchange(done, true))
    {
-      // 2D
-      VectorConvectionNLFAddMultGradPA::Specialization<2, 2,2>::Add();
-      VectorConvectionNLFAddMultGradPA::Specialization<2, 3,4>::Add();
-      VectorConvectionNLFAddMultGradPA::Specialization<2, 3,5>::Add();
-      VectorConvectionNLFAddMultGradPA::Specialization<2, 4,5>::Add();
-      VectorConvectionNLFAddMultGradPA::Specialization<2, 4,6>::Add();
-      VectorConvectionNLFAddMultGradPA::Specialization<2, 5,7>::Add();
-      VectorConvectionNLFAddMultGradPA::Specialization<2, 5,8>::Add();
-      VectorConvectionNLFAddMultGradPA::Specialization<2, 6,8>::Add();
-      VectorConvectionNLFAddMultGradPA::Specialization<2, 7,10>::Add();
-      // 3D
-      VectorConvectionNLFAddMultGradPA::Specialization<3, 2,3>::Add();
-      VectorConvectionNLFAddMultGradPA::Specialization<3, 3,4>::Add();
-      VectorConvectionNLFAddMultGradPA::Specialization<3, 3,5>::Add();
-      VectorConvectionNLFAddMultGradPA::Specialization<3, 3,6>::Add();
-      VectorConvectionNLFAddMultGradPA::Specialization<3, 4,6>::Add();
-      // uses too much shared data
-      // VectorConvectionNLFAddMultGradPA::Specialization<3, 4,7>::Add();
-      // VectorConvectionNLFAddMultGradPA::Specialization<3, 4,8>::Add();
-      // VectorConvectionNLFAddMultGradPA::Specialization<3, 5,7>::Add();
-      // VectorConvectionNLFAddMultGradPA::Specialization<3, 5,8>::Add();
-      // VectorConvectionNLFAddMultGradPA::Specialization<3, 5,9>::Add();
-      // VectorConvectionNLFAddMultGradPA::Specialization<3, 6,9>::Add();
-      // VectorConvectionNLFAddMultGradPA::Specialization<3, 7,10>::Add();
+      // 2D, low orders
+      LOVectorConvectionNLFAddMultGradPA::Specialization<2, 2,2>::Add();
+      LOVectorConvectionNLFAddMultGradPA::Specialization<2, 3,4>::Add();
+      LOVectorConvectionNLFAddMultGradPA::Specialization<2, 3,5>::Add();
+      LOVectorConvectionNLFAddMultGradPA::Specialization<2, 4,5>::Add();
+      LOVectorConvectionNLFAddMultGradPA::Specialization<2, 4,6>::Add();
+      // 2D, high orders
+      HOVectorConvectionNLFAddMultGradPA::Specialization<2, 5,7>::Add();
+      HOVectorConvectionNLFAddMultGradPA::Specialization<2, 5,8>::Add();
+      HOVectorConvectionNLFAddMultGradPA::Specialization<2, 6,8>::Add();
+      HOVectorConvectionNLFAddMultGradPA::Specialization<2, 7,10>::Add();
+
+      // 3D, low orders
+      LOVectorConvectionNLFAddMultGradPA::Specialization<3, 2,3>::Add();
+      LOVectorConvectionNLFAddMultGradPA::Specialization<3, 2,4>::Add();
+      LOVectorConvectionNLFAddMultGradPA::Specialization<3, 3,4>::Add();
+      LOVectorConvectionNLFAddMultGradPA::Specialization<3, 3,5>::Add();
+      LOVectorConvectionNLFAddMultGradPA::Specialization<3, 3,6>::Add();
+      LOVectorConvectionNLFAddMultGradPA::Specialization<3, 4,6>::Add();
+      // 3D, high orders
+      HOVectorConvectionNLFAddMultGradPA::Specialization<3, 4,7>::Add();
+      HOVectorConvectionNLFAddMultGradPA::Specialization<3, 4,8>::Add();
+      HOVectorConvectionNLFAddMultGradPA::Specialization<3, 5,7>::Add();
+      HOVectorConvectionNLFAddMultGradPA::Specialization<3, 5,8>::Add();
+      HOVectorConvectionNLFAddMultGradPA::Specialization<3, 5,9>::Add();
+      HOVectorConvectionNLFAddMultGradPA::Specialization<3, 6,9>::Add();
+      HOVectorConvectionNLFAddMultGradPA::Specialization<3, 7,10>::Add();
    }
 }
 
@@ -320,45 +323,55 @@ static void LOSmemPAConvectionNLGradApply3D(const int ne,
 void VectorConvectionNLFIntegrator::AddMultGradPA(const Vector &x,
                                                   Vector &y) const
 {
-   VectorConvectionNLFAddMultGradPA::Run(dim, d1d, q1d,
-                                         ne, maps->B.Read(), maps->G.Read(), pa_adj_t.Read(),
-                                         pa_u.Read(), x.Read(), y.ReadWrite(),
-                                         d1d, q1d);
+   if (q1d <= 6)
+   {
+      LOVectorConvectionNLFAddMultGradPA::Run(dim, d1d, q1d,
+                                              ne, maps->B.Read(), maps->G.Read(), pa_adj_t.Read(),
+                                              pa_u.Read(), x.Read(), y.ReadWrite(),
+                                              d1d, q1d);
+   }
+   else
+   {
+      HOVectorConvectionNLFAddMultGradPA::Run(dim, d1d, q1d,
+                                              ne, maps->B.Read(), maps->G.Read(), pa_adj_t.Read(),
+                                              pa_u.Read(), x.Read(), y.ReadWrite(),
+                                              d1d, q1d);
+   }
 }
 
 template<int DIM, int T_D1D, int T_Q1D>
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPAType
-VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPA::Kernel()
+VectorConvectionNLFIntegrator::LOVectorConvectionNLFAddMultGradPA::Kernel()
 {
-   if constexpr (DIM == 2)
-   {
-      return SmemPAConvectionNLGradApply2D<T_D1D,T_Q1D>;
-   }
-   else if constexpr (DIM == 3 && T_Q1D <= 8)
-   {
-      return LOSmemPAConvectionNLGradApply3D<T_Q1D>;
-   }
-   else if constexpr (DIM == 3 && T_Q1D > 8)
-   {
-      return HOSmemPAConvectionNLGradApply3D<T_D1D, T_Q1D>;
-   }
+   if constexpr (DIM == 2) { return SmemPAConvectionNLGradApply2D<T_D1D,T_Q1D>; }
+   else if constexpr (DIM == 3) { return LOSmemPAConvectionNLGradApply3D<T_Q1D>; }
    MFEM_ABORT("Unsupported kernel");
 }
 
 VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPAType
-VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPA::Fallback
-(int dim, int, int q1d)
+VectorConvectionNLFIntegrator::LOVectorConvectionNLFAddMultGradPA::Fallback
+(int dim, int, int)
 {
-   if (dim == 2)
-   {
-      return SmemPAConvectionNLGradApply2D<>;
-   }
-   else if (dim == 3)
-   {
-      return q1d <= 6
-             ? LOSmemPAConvectionNLGradApply3D<>
-             : HOSmemPAConvectionNLGradApply3D<>;
-   }
+   if (dim == 2) { return SmemPAConvectionNLGradApply2D<>; }
+   else if (dim == 3) { return LOSmemPAConvectionNLGradApply3D<>; }
+   else { MFEM_ABORT("Unsupported kernel"); }
+}
+
+template<int DIM, int T_D1D, int T_Q1D>
+VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPAType
+VectorConvectionNLFIntegrator::HOVectorConvectionNLFAddMultGradPA::Kernel()
+{
+   if constexpr (DIM == 2) { return SmemPAConvectionNLGradApply2D<T_D1D,T_Q1D>; }
+   else if constexpr (DIM == 3) { return HOSmemPAConvectionNLGradApply3D<T_D1D, T_Q1D>; }
+   MFEM_ABORT("Unsupported kernel");
+}
+
+VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPAType
+VectorConvectionNLFIntegrator::HOVectorConvectionNLFAddMultGradPA::Fallback
+(int dim, int, int)
+{
+   if (dim == 2) { return SmemPAConvectionNLGradApply2D<>; }
+   else if (dim == 3) { return HOSmemPAConvectionNLGradApply3D<>; }
    else { MFEM_ABORT("Unsupported kernel"); }
 }
 

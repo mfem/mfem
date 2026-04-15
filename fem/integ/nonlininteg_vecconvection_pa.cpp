@@ -157,6 +157,7 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
    {
       // 2D
       VectorConvectionNLFAddMultPA::Specialization<2, 2,2>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<2, 2,3>::Add();
       VectorConvectionNLFAddMultPA::Specialization<2, 3,4>::Add();
       VectorConvectionNLFAddMultPA::Specialization<2, 3,5>::Add();
       VectorConvectionNLFAddMultPA::Specialization<2, 4,5>::Add();
@@ -167,6 +168,7 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
       VectorConvectionNLFAddMultPA::Specialization<2, 7,10>::Add();
       // 3D
       VectorConvectionNLFAddMultPA::Specialization<3, 2,3>::Add();
+      VectorConvectionNLFAddMultPA::Specialization<3, 2,4>::Add();
       VectorConvectionNLFAddMultPA::Specialization<3, 3,4>::Add();
       VectorConvectionNLFAddMultPA::Specialization<3, 3,5>::Add();
       VectorConvectionNLFAddMultPA::Specialization<3, 3,6>::Add();

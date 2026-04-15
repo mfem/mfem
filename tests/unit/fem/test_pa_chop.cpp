@@ -12,6 +12,8 @@
 #include "unit_tests.hpp"
 #include "mfem.hpp"
 
+#include <fem/qinterp/grad.hpp>
+
 using namespace mfem;
 
 namespace pa_kernels
@@ -71,6 +73,18 @@ TEST_CASE("NL Convection PA Gradient",
 {
    const bool all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? GENERATE(1, 2) : GENERATE(2, 3, 4);
+
+   if (static auto done = false; !std::exchange(done, true))
+   {
+      using Grad = QuadratureInterpolator::GradKernels;
+      Grad::Specialization<2, QVectorLayout::byNODES, false, 2,2,7>::Add();
+      Grad::Specialization<2, QVectorLayout::byNODES, false, 2,3,7>::Add();
+      Grad::Specialization<2, QVectorLayout::byNODES, false, 2,4,8>::Add();
+      Grad::Specialization<3, QVectorLayout::byNODES, false, 3,2,7>::Add();
+      Grad::Specialization<3, QVectorLayout::byNODES, false, 3,3,7>::Add();
+      Grad::Specialization<3, QVectorLayout::byNODES, false, 3,3,8>::Add();
+      Grad::Specialization<3, QVectorLayout::byNODES, false, 3,4,9>::Add();
+   }
 
    SECTION("2D")
    {
