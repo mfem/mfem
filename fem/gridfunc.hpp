@@ -659,8 +659,10 @@ public:
       Coefficient *coeff_p = &coeff;
       ProjectTraceCoefficient(&coeff_p);
    }
-   /** @brief Project a VectorCoefficient on a GridFunction
-       defined on a Vector H1 trace space */
+   /** @brief Project a VectorCoefficient @a vcoeff on a GridFunction
+       defined on a Vector H1 trace space. Note that this also works
+       for a scalar H1 trace space, where only the first component of
+       @a vcoeff is used. */
    void ProjectTraceCoefficient(VectorCoefficient &vcoeff);
    /** @brief Project a VectorCoefficient on a GridFunction
        defined on an RT trace space */

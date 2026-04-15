@@ -21,9 +21,9 @@ class SymmetricBlockDiagonalPreconditioner : public BlockDiagonalPreconditioner
 private:
    real_t c;
 public:
-   /// @brief Constructs a symmetric block-diagonal preconditioner with the given block offsets
-   ///and scaling factor.
-   /// @param offsets The offsets of the blocks in the block-diagonal preconditioner.
+   /// @brief Constructs a symmetric block-diagonal preconditioner
+   /// with the given block offsets and scaling factor.
+   /// @param offsets The block offsets of the block-diagonal preconditioner.
    /// @param c_ The scaling factor to be applied to the result.
    SymmetricBlockDiagonalPreconditioner(const Array<int> & offsets,
                                         real_t c_ = 1.0)
@@ -43,14 +43,15 @@ public:
 
 #ifdef MFEM_USE_MPI
 
-/// @brief  Creates a default solver for a given parallel finite element space.
-/// The default solvers are the folowing:
-/// - For H1 and L2 spaces: HypreBoomerAMG
-/// - For 3D RT spaces: HypreADS
-/// - For 2D RT and ND spaces: HypreAMS
-/// @param pfespace The parallel finite element space for which the solver is to be created.
-/// @param print_level The printing level for the solver.
-/// @return a pointer to the created solver.
+/** @brief Creates a default solver for a given parallel FE space.
+   The default solvers are the following:
+   - For H1 and L2 spaces: HypreBoomerAMG
+   - For 3D RT spaces: HypreADS
+   - For 2D RT and ND spaces: HypreAMS
+   @param pfespace The parallel FE space for which the solver is to be created.
+   @param print_level The printing level for the solver.
+   @return a pointer to the created solver.
+ */
 Solver * MakeFESpaceDefaultSolver(
    const ParFiniteElementSpace * pfespace, int print_level);
 
@@ -109,7 +110,9 @@ public:
                         const std::vector<Array<int>> & ess_bdr_marker_,
                         const BlockOperator &Op_, int mgmaxlevels = -1,
                         real_t smoother_relax_factor = 2.0/3,
-                        bool mumps_coarse_solver = false);
+                        bool mumps_coarse_solver = false,
+                        int coarse_cg_max_iter = 10,
+                        real_t coarse_cg_rel_tol = 1e-3);
 
    ~PRefinementMultigrid() override = default;
 };
@@ -131,7 +134,9 @@ public:
                                const std::vector<Array<int>> & ess_bdr_marker,
                                const ComplexOperator &Op_, int mgmaxlevels = -1,
                                real_t smoother_relax_factor = 2.0/3,
-                               bool mumps_coarse_solver = false);
+                               bool mumps_coarse_solver = false,
+                               int coarse_cg_max_iter = 10,
+                               real_t coarse_cg_rel_tol = 1e-3);
 
    ~ComplexPRefinementMultigrid() override = default;
 };

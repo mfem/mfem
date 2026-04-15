@@ -198,19 +198,19 @@ BlockOperator *PRefinementHierarchy::BuildProlongation(int lev)
 }
 
 
-PRefinementMultigrid::PRefinementMultigrid(const Array<ParFiniteElementSpace*>
-                                           &pfes_,
-                                           const std::vector<Array<int>> & ess_bdr_marker_,
-                                           const BlockOperator &Op_, int mgmaxlevels,
-                                           real_t smoother_relax_factor, bool mumps_coarse_solver)
-   : Multigrid()
-   , hierarchy(pfes_, ess_bdr_marker_)
-   , Op(Op_)
+PRefinementMultigrid::PRefinementMultigrid(
+   const Array<ParFiniteElementSpace*> &pfes_,
+   const std::vector<Array<int>> & ess_bdr_marker_,
+   const BlockOperator &Op_, int mgmaxlevels,
+   real_t smoother_relax_factor, bool mumps_coarse_solver,
+   int coarse_cg_max_iter, real_t coarse_cg_rel_tol)
+   : Multigrid(), hierarchy(pfes_, ess_bdr_marker_), Op(Op_)
 {
 #ifndef MFEM_USE_MUMPS
    if (mumps_coarse_solver)
    {
-      MFEM_WARNING("MUMPS coarse solver requires MFEM built with MUMPS. Switching to default coarse solver.");
+      MFEM_WARNING("MFEM not built with MUMPS."
+                   "Switching to default coarse solver (CG).");
    }
    mumps_coarse_solver = false;
 #endif
@@ -236,8 +236,9 @@ PRefinementMultigrid::PRefinementMultigrid(const Array<ParFiniteElementSpace*>
    for (int lev = nP - 1; lev >= 0; lev--)
    {
       BlockOperator *Pblk = hierarchy.BuildProlongation(lev);
-      prolongations[lev] = new RectangularConstrainedOperator(Pblk,
-                                                              hierarchy.ess_tdof_list[lev], hierarchy.ess_tdof_list[lev+1], true);
+      prolongations[lev] =
+         new RectangularConstrainedOperator(Pblk, hierarchy.ess_tdof_list[lev],
+                                            hierarchy.ess_tdof_list[lev+1], true);
       ownedProlongations[lev] = true;
 
       BlockOperator *OpLevel = new BlockOperator(Pblk->ColOffsets());
@@ -322,8 +323,8 @@ PRefinementMultigrid::PRefinementMultigrid(const Array<ParFiniteElementSpace*>
 
             auto *cg = new CGSolver(MPI_COMM_WORLD);
             cg->SetPrintLevel(-1);
-            cg->SetRelTol(1e-3);
-            cg->SetMaxIter(10);
+            cg->SetRelTol(coarse_cg_rel_tol);
+            cg->SetMaxIter(coarse_cg_max_iter);
             cg->SetOperator(*cOp);
             cg->SetPreconditioner(*coarse_prec);
 
@@ -358,7 +359,8 @@ ComplexPRefinementMultigrid::ComplexPRefinementMultigrid(
    const Array<ParFiniteElementSpace*> &pfes_,
    const std::vector<Array<int>> & ess_bdr_marker,
    const ComplexOperator &Op_, int mgmaxlevels,
-   real_t smoother_relax_factor, bool mumps_coarse_solver)
+   real_t smoother_relax_factor, bool mumps_coarse_solver,
+   int coarse_cg_max_iter, real_t coarse_cg_rel_tol)
    : Multigrid(), Op(Op_)
 {
 #ifndef MFEM_USE_MUMPS
@@ -531,8 +533,8 @@ ComplexPRefinementMultigrid::ComplexPRefinementMultigrid(
 
             auto *cg = new CGSolver(MPI_COMM_WORLD);
             cg->SetPrintLevel(-1);
-            cg->SetRelTol(1e-3);
-            cg->SetMaxIter(10);
+            cg->SetRelTol(coarse_cg_rel_tol);
+            cg->SetMaxIter(coarse_cg_max_iter);
             cg->SetOperator(*cOp);
             cg->SetPreconditioner(*coarse_prec);
 
