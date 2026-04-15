@@ -32,7 +32,11 @@ function(add_benchmark name)
     endif(MFEM_USE_CUDA)
 
     add_executable(bench_${name} ${${NAME}_BENCH_SRCS})
-    target_link_libraries(bench_${name} mfem pthread)
+    if (fmt_FOUND)
+        target_link_libraries(bench_${name} mfem pthread fmt::fmt) 
+    else()
+        target_link_libraries(bench_${name} mfem pthread)
+    endif()
     add_dependencies(${MFEM_ALL_BENCHMARKS_TARGET_NAME} bench_${name})
 
     add_test(NAME bench_${name}_cpu

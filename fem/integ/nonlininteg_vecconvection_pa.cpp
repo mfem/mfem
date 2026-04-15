@@ -20,6 +20,7 @@ namespace mfem
 
 void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   NVTX_MARK_FUNCTION;
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES,
                "PA Only supports Ordering::byNODES!");
    Mesh *mesh = fes.GetMesh();
@@ -67,6 +68,7 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    if (dim == 2)
    {
+      NVTX_MARK("2D");
       const int Q1D = q1d;
       const auto W = Reshape(w_r, Q1D, Q1D);
       const auto C = Reshape(coeff.Read(), Q1D, Q1D, ne);
@@ -98,6 +100,7 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    else if (dim == 3)
    {
+      NVTX_MARK("3D");
       const int Q1D = q1d;
       const auto W = Reshape(w_r, Q1D, Q1D, Q1D);
       const auto C = Reshape(coeff.Read(), Q1D, Q1D, Q1D, ne);
@@ -329,6 +332,7 @@ static void SmemPAConvectionNLApply2D(const int NE,
                                       const int d1d = 0,
                                       const int q1d = 0)
 {
+   NVTX_MARK_FUNCTION;
    constexpr int DIM = 2, VDIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -400,6 +404,7 @@ static void PAConvectionNLApply3D(const int NE,
                                   const int d1d = 0,
                                   const int q1d = 0)
 {
+   NVTX_MARK_FUNCTION;
    constexpr int VDIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -705,6 +710,7 @@ static void SmemPAConvectionNLApply3D_0(const int NE,
                                         const int d1d = 0,
                                         const int q1d = 0)
 {
+   NVTX_MARK_FUNCTION;
    constexpr int VDIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -944,6 +950,7 @@ static void SmemPAConvectionNLApply3D(const int NE,
                                       const int d1d = 0,
                                       const int q1d = 0)
 {
+   NVTX_MARK_FUNCTION;
    constexpr int DIM = 3, VDIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -1012,6 +1019,7 @@ static void SmemPAConvectionNLApply3D(const int NE,
 
 void VectorConvectionNLFIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
+   NVTX_MARK_FUNCTION;
    if (DeviceCanUseCeed())
    {
       ceedOp->AddMult(x, y);
