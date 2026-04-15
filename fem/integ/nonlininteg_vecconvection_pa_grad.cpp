@@ -44,13 +44,14 @@ void VectorConvectionNLFIntegrator::AssembleGradPA(const Vector &u,
       VectorConvectionNLFAddMultGradPA::Specialization<3, 3,5>::Add();
       VectorConvectionNLFAddMultGradPA::Specialization<3, 3,6>::Add();
       VectorConvectionNLFAddMultGradPA::Specialization<3, 4,6>::Add();
-      VectorConvectionNLFAddMultGradPA::Specialization<3, 4,7>::Add();
-      VectorConvectionNLFAddMultGradPA::Specialization<3, 4,8>::Add();
-      VectorConvectionNLFAddMultGradPA::Specialization<3, 5,7>::Add();
-      VectorConvectionNLFAddMultGradPA::Specialization<3, 5,8>::Add();
-      VectorConvectionNLFAddMultGradPA::Specialization<3, 5,9>::Add();
-      VectorConvectionNLFAddMultGradPA::Specialization<3, 6,9>::Add();
-      VectorConvectionNLFAddMultGradPA::Specialization<3, 7,10>::Add();
+      // uses too much shared data
+      // VectorConvectionNLFAddMultGradPA::Specialization<3, 4,7>::Add();
+      // VectorConvectionNLFAddMultGradPA::Specialization<3, 4,8>::Add();
+      // VectorConvectionNLFAddMultGradPA::Specialization<3, 5,7>::Add();
+      // VectorConvectionNLFAddMultGradPA::Specialization<3, 5,8>::Add();
+      // VectorConvectionNLFAddMultGradPA::Specialization<3, 5,9>::Add();
+      // VectorConvectionNLFAddMultGradPA::Specialization<3, 6,9>::Add();
+      // VectorConvectionNLFAddMultGradPA::Specialization<3, 7,10>::Add();
    }
 }
 
@@ -264,7 +265,7 @@ static void LOSmemPAConvectionNLGradApply3D(const int ne,
    mfem::forall_3D<T_Q1D*T_Q1D*T_Q1D>(ne, Q1D, Q1D, Q1D,
                                       [=] MFEM_HOST_DEVICE(int e)
    {
-      constexpr int MQ1 = T_Q1D ? T_Q1D : 16;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : 6;
 
       MFEM_SHARED real_t sm0[MQ1][MQ1][MQ1][DIM][DIM];
       MFEM_SHARED real_t sm1[MQ1][MQ1][MQ1][DIM][DIM];
@@ -298,15 +299,15 @@ static void LOSmemPAConvectionNLGradApply3D(const int ne,
                const auto u_val = LO::as_tensor<real_t, DIM>(&r2[qz][qy][qx][0]);
                const auto Q_adj = LO::as_tensor<real_t, DIM,DIM>(&T(0,0,qx,qy,qz,e));
                const auto grad_dU = LO::as_tensor<real_t, DIM,DIM>(&g1[qz][qy][qx][0][0]);
-               const auto u∇δu = grad_dU * (Q_adj * u_val);
+               const auto uGdu = grad_dU * (Q_adj * u_val);
                // Second part of the Jacobian: δu·∇u
                const auto du_val = LO::as_tensor<real_t, DIM>(&r1[qz][qy][qx][0]);
                const auto grad_U = LO::as_tensor<real_t, DIM,DIM>(&g2[qz][qy][qx][0][0]);
-               const auto δu∇u = grad_U * (Q_adj * du_val);
+               const auto duGu = grad_U * (Q_adj * du_val);
                // u⋅∇δu + δu⋅∇u
-               r0[qz][qy][qx][0] = u∇δu[0] + δu∇u[0];
-               r0[qz][qy][qx][1] = u∇δu[1] + δu∇u[1];
-               r0[qz][qy][qx][2] = u∇δu[2] + δu∇u[2];
+               r0[qz][qy][qx][0] = uGdu[0] + duGu[0];
+               r0[qz][qy][qx][1] = uGdu[1] + duGu[1];
+               r0[qz][qy][qx][2] = uGdu[2] + duGu[2];
             }
          }
       }
@@ -354,7 +355,7 @@ VectorConvectionNLFIntegrator::VectorConvectionNLFAddMultGradPA::Fallback
    }
    else if (dim == 3)
    {
-      return q1d <= 8
+      return q1d <= 6
              ? LOSmemPAConvectionNLGradApply3D<>
              : HOSmemPAConvectionNLGradApply3D<>;
    }

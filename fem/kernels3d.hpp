@@ -26,22 +26,31 @@ namespace mfem::kernels::internal::LO
      (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)))
 
 template <int VDIM, int DIM, int N>
-struct vd_regs3d_device_wrapper:
-   tensor<real_t, 0, 0, 0, VDIM, DIM> {};
+struct vd_regs3d_device_wrapper: tensor<real_t, 0, 0, 0, VDIM, DIM>
+{
+   MFEM_HOST_DEVICE constexpr vd_regs3d_device_wrapper()
+      : tensor<real_t, 0, 0, 0, VDIM, DIM>() {}
+};
+
 template <int VDIM, int DIM, int N>
 using vd_regs3d_t = vd_regs3d_device_wrapper<VDIM, DIM, N>;
 
 template <int DIM, int N>
-struct d_regs3d_device_wrapper: tensor<real_t, 0, 0, 0, DIM> {};
+struct d_regs3d_device_wrapper: tensor<real_t, 0, 0, 0, DIM>
+{
+   MFEM_HOST_DEVICE constexpr d_regs3d_device_wrapper()
+      : tensor<real_t, 0, 0, 0, DIM>() {}
+};
+
 template <int DIM, int N>
 using d_regs3d_t = d_regs3d_device_wrapper<DIM, N>;
 
 #else
 template <int VDIM, int DIM, int N>
-using vd_regs3d_t = tensor<real_t, N, N, N, VDIM, DIM>;
+using vd_regs3d_t = tensor<double, N, N, N, VDIM, DIM>;
 
 template <int DIM, int N>
-using d_regs3d_t = tensor<real_t, N, N, N, DIM>;
+using d_regs3d_t = tensor<double, N, N, N, DIM>;
 #endif
 
 

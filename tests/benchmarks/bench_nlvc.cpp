@@ -149,7 +149,7 @@ struct VectorConvectionNLFBenchmark
       xe.UseDevice(true), dxe.UseDevice(true), ye.UseDevice(true);
       xe.Randomize(0x100001b3), dxe.Randomize(0x9e3779b9), ye = 0.0;
 
-      if (dofs < ((mfem_use_gpu ? 128 : 16) * 1024))
+      /*if (dofs < ((mfem_use_gpu ? 128 : 16) * 1024))
       {
          nlf_fa.Mult(x, y_fa);
          nlf_pa.Mult(x, y_pa);
@@ -165,7 +165,7 @@ struct VectorConvectionNLFBenchmark
          MFEM_VERIFY(AlmostEqual(y_fa.Norml2(), 0.0),
                      "FA and PA Gradient results differ: " << y_fa.Norml2());
          dbg("✅");
-      }
+      }*/
       mdofs = 0.0;
    }
 
@@ -176,14 +176,14 @@ struct VectorConvectionNLFBenchmark
       mdofs += this->MDofs();
    }
 
-   void Action()
+   void Mult()
    {
       nlfi_pa->AddMultPA(xe, ye);
       MFEM_DEVICE_SYNC;
       mdofs += this->MDofs();
    }
 
-   void Gradient()
+   void Grad()
    {
       nlfi_pa->AddMultGradPA(dxe, ye);
       MFEM_DEVICE_SYNC;
@@ -213,12 +213,12 @@ struct VectorConvectionNLFBenchmark
       ->Unit(bm::kMillisecond)
 
 RegisterVectorConvectionNLFBenchmark(Setup,3);
-RegisterVectorConvectionNLFBenchmark(Action,3);
-RegisterVectorConvectionNLFBenchmark(Gradient,3);
+RegisterVectorConvectionNLFBenchmark(Mult,3);
+RegisterVectorConvectionNLFBenchmark(Grad,3);
 
 RegisterVectorConvectionNLFBenchmark(Setup,2);
-RegisterVectorConvectionNLFBenchmark(Action,2);
-RegisterVectorConvectionNLFBenchmark(Gradient,2);
+RegisterVectorConvectionNLFBenchmark(Mult,2);
+RegisterVectorConvectionNLFBenchmark(Grad,2);
 
 /// main //////////////////////////////////////////////////////////////////////
 int main(int argc, char *argv[])

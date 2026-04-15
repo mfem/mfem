@@ -67,17 +67,18 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    if (dim == 2)
    {
-      const auto W = Reshape(w_r, q1d, q1d);
-      const auto C = Reshape(coeff.Read(), q1d, q1d, ne);
-      const auto J = Reshape(geom->J.Read(), q1d, q1d, 2, 2, ne);
-      auto A = Reshape(pa_adj.Write(), q1d, q1d, 2, 2, ne);
-      auto T = Reshape(pa_adj_t.Write(), 2, 2, q1d, q1d, ne);
+      const int Q1D = q1d;
+      const auto W = Reshape(w_r, Q1D, Q1D);
+      const auto C = Reshape(coeff.Read(), Q1D, Q1D, ne);
+      const auto J = Reshape(geom->J.Read(), Q1D, Q1D, 2, 2, ne);
+      auto A = Reshape(pa_adj.Write(), Q1D, Q1D, 2, 2, ne);
+      auto T = Reshape(pa_adj_t.Write(), 2, 2, Q1D, Q1D, ne);
 
-      mfem::forall_2D(ne, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
+      mfem::forall_2D(ne, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
-         MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
          {
-            MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+            MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
             {
                const real_t J11 = J(qx, qy, 0, 0, e), J12 = J(qx, qy, 0, 1, e);
                const real_t J21 = J(qx, qy, 1, 0, e), J22 = J(qx, qy, 1, 1, e);
@@ -97,19 +98,20 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    else if (dim == 3)
    {
-      const auto W = Reshape(w_r, q1d, q1d, q1d);
-      const auto C = Reshape(coeff.Read(), q1d, q1d, q1d, ne);
-      const auto J = Reshape(geom->J.Read(), q1d, q1d, q1d, 3, 3, ne);
-      auto A = Reshape(pa_adj.Write(), q1d, q1d, q1d, 3, 3, ne);
-      auto T = Reshape(pa_adj_t.Write(), 3, 3, q1d, q1d, q1d, ne);
+      const int Q1D = q1d;
+      const auto W = Reshape(w_r, Q1D, Q1D, Q1D);
+      const auto C = Reshape(coeff.Read(), Q1D, Q1D, Q1D, ne);
+      const auto J = Reshape(geom->J.Read(), Q1D, Q1D, Q1D, 3, 3, ne);
+      auto A = Reshape(pa_adj.Write(), Q1D, Q1D, Q1D, 3, 3, ne);
+      auto T = Reshape(pa_adj_t.Write(), 3, 3, Q1D, Q1D, Q1D, ne);
 
-      mfem::forall_3D(ne, q1d, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
+      mfem::forall_3D(ne, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
-         MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(qz, z, Q1D)
          {
-            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
             {
-               MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
                {
                   const real_t J11 = J(qx, qy, qz, 0, 0, e),
                                J12 = J(qx, qy, qz, 0, 1, e),
